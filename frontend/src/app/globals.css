@@ -8,7 +8,10 @@
   --surface: #ffffff;
   --surface-soft: #f6f7f1;
   --border: rgba(30, 43, 34, 0.08);
-  --muted: #687267;
+  /* Tinta Apagada. #687267 daba 4,42:1 sobre el papel #eef2eb y no llegaba a
+     WCAG AA; este valor pasa sobre blanco (5,66), papel (5,00) y superficie
+     templada (5,25) manteniendo el mismo tono verde grisáceo. */
+  --muted: #5f6a5e;
   --accent: #1e2b22;
   --accent-strong: #243026;
   --accent-soft: #b8d96e;
@@ -103,7 +106,7 @@ body {
   }
 
   .field {
-    @apply h-11 rounded-lg border border-[#d2dacd] bg-white/95 px-4 text-sm outline-none transition duration-200 placeholder:text-[#8e968d] focus:border-[#9dbb55] focus:ring-2 focus:ring-[#b8d96e]/40 disabled:cursor-not-allowed disabled:bg-[#f0f3ea];
+    @apply h-11 rounded-lg border border-[#d2dacd] bg-white/95 px-4 text-sm outline-none transition duration-200 placeholder:text-[#6b756a] focus:border-[#9dbb55] focus:ring-2 focus:ring-[#b8d96e]/40 disabled:cursor-not-allowed disabled:bg-[#f0f3ea];
   }
 
   .btn-primary {

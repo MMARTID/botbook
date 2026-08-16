@@ -12,7 +12,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 function StatusRow({ label, value, icon }: { label: string; value: string; icon: React.ReactNode }) {
   return (
     <div className="flex items-center justify-between gap-3 py-3 text-sm">
-      <span className="flex min-w-0 items-center gap-2 text-[#687267]">
+      <span className="flex min-w-0 items-center gap-2 text-muted">
         <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-[#eef6dc] text-[#2c7334]">{icon}</span>
         <span className="truncate">{label}</span>
       </span>
@@ -45,7 +45,7 @@ function QuickActionCard({
     <>
       <div>
         <p className="text-sm font-semibold text-[#1e2b22]">{title}</p>
-        <p className="mt-1 text-sm leading-6 text-[#687267]">{description}</p>
+        <p className="mt-1 text-sm leading-6 text-muted">{description}</p>
       </div>
       <span className="inline-flex items-center gap-1 text-sm font-semibold">
         {action}
@@ -142,17 +142,17 @@ function DashboardContent() {
   });
 
   if (isLoadingBusiness) {
-    return <div className="p-8 text-center text-[#687267]">Cargando tu panel...</div>;
+    return <div className="p-8 text-center text-muted">Cargando tu panel...</div>;
   }
 
   if (isBusinessError) {
     return (
       <div className="panel mx-auto max-w-2xl space-y-4 p-6 text-center">
         <h1 className="text-2xl font-semibold text-[#1e2b22]">No se pudo cargar tu panel</h1>
-        <p className="text-sm leading-6 text-[#687267]">
+        <p className="text-sm leading-6 text-muted">
           {errorMessage ?? "El backend devolvió un error al cargar la información del negocio."}
         </p>
-        <p className="text-sm leading-6 text-[#687267]">
+        <p className="text-sm leading-6 text-muted">
           Revisa que el backend esté levantado y que Prisma esté actualizado dentro del contenedor de desarrollo.
         </p>
         <button
@@ -194,12 +194,12 @@ function DashboardContent() {
     <div className="space-y-5 sm:space-y-8">
       <section className="grid gap-4 sm:gap-6 xl:grid-cols-[minmax(0,1fr)_22rem]">
         <article id="calendar-setup" className={`panel relative scroll-mt-32 overflow-hidden p-4 sm:p-6 ${heroToneClass}`}>
-          <div className="pointer-events-none absolute inset-y-0 right-0 w-40 bg-[radial-gradient(circle_at_top_right,rgba(214,255,114,0.22),transparent_62%)]" />
+          <div className="pointer-events-none absolute inset-y-0 right-0 w-40 bg-[radial-gradient(circle_at_top_right,rgba(184,217,110,0.22),transparent_62%)]" />
           <div className="pointer-events-none absolute -left-12 bottom-0 h-32 w-32 rounded-full bg-[#b8d96e]/20 blur-3xl" />
           <div className="relative flex flex-col gap-5 sm:gap-6">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.3em] text-[#8b9a7f]">Resumen</p>
+                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[#54634b]">Resumen</p>
                 <h1 className="mt-1.5 text-2xl font-semibold leading-tight text-[#1e2b22] sm:mt-2 sm:text-3xl">
                   {hasCalendar ? "Tu asistente está operativo" : "Te faltan un par de pasos"}
                 </h1>
@@ -231,36 +231,36 @@ function DashboardContent() {
             <div className="grid grid-cols-3 gap-2 sm:gap-4">
               <article className="rounded-2xl border border-[#dce7d2] bg-[linear-gradient(180deg,#fcfef9,#ffffff)] p-3 shadow-sm sm:p-5">
                 <div className="flex items-center justify-between">
-                  <p className="text-xs font-medium text-[#687267] sm:text-sm">Llamadas</p>
+                  <p className="text-xs font-medium text-muted sm:text-sm">Llamadas</p>
                   <span className="hidden rounded-xl bg-[#eef6dc] p-2 text-[#5d7342] sm:inline-flex">
                     <PhoneCall className="h-4 w-4" />
                   </span>
                 </div>
                 <p className="mt-2 text-2xl font-semibold tracking-tight text-[#1e2b22] sm:mt-4 sm:text-3xl">{stats.totalCalls}</p>
-                <p className="mt-2 hidden text-sm text-[#687267] sm:block">Conversaciones atendidas por tu IA.</p>
+                <p className="mt-2 hidden text-sm text-muted sm:block">Conversaciones atendidas por tu IA.</p>
               </article>
 
               <article className="rounded-2xl border border-[#d4dfc8] bg-[linear-gradient(180deg,#f4f7ef,#ffffff)] p-3 shadow-sm sm:p-5">
                 <div className="flex items-center justify-between">
-                  <p className="text-xs font-medium text-[#687267] sm:text-sm">Minutos</p>
+                  <p className="text-xs font-medium text-muted sm:text-sm">Minutos</p>
                   <span className="hidden rounded-xl bg-[#e8eee2] p-2 text-[#52604f] sm:inline-flex">
                     <Clock3 className="h-4 w-4" />
                   </span>
                 </div>
                 <p className="mt-2 text-2xl font-semibold tracking-tight text-[#1e2b22] sm:mt-4 sm:text-3xl">{stats.totalMinutes}</p>
-                <p className="mt-2 hidden text-sm text-[#687267] sm:block">Tiempo total de conversación registrado.</p>
+                <p className="mt-2 hidden text-sm text-muted sm:block">Tiempo total de conversación registrado.</p>
               </article>
 
               <article className="relative overflow-hidden rounded-2xl border border-[#cfe1ae] bg-[linear-gradient(180deg,#f6fadf,#ffffff)] p-3 shadow-sm sm:p-5">
-                <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,_rgba(214,255,114,0.22),_transparent_55%)]" />
+                <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,_rgba(184,217,110,0.22),_transparent_55%)]" />
                 <div className="relative flex items-center justify-between">
-                  <p className="text-xs font-medium text-[#687267] sm:text-sm">Leads</p>
+                  <p className="text-xs font-medium text-muted sm:text-sm">Leads</p>
                   <span className="hidden rounded-xl bg-[#e8f7b9] p-2 text-[#405115] sm:inline-flex">
                     <TrendingUp className="h-4 w-4" />
                   </span>
                 </div>
                 <p className="relative mt-2 text-2xl font-semibold tracking-tight text-[#1e2b22] sm:mt-4 sm:text-3xl">{stats.leads}</p>
-                <p className="relative mt-2 hidden text-sm text-[#687267] sm:block">Potenciales clientes identificados.</p>
+                <p className="relative mt-2 hidden text-sm text-muted sm:block">Potenciales clientes identificados.</p>
               </article>
             </div>
           </div>
@@ -270,7 +270,7 @@ function DashboardContent() {
           <article id="agent-status" className="panel scroll-mt-32 border-[#dce7d2] bg-[#f7f9f3] p-4 shadow-[0_8px_24px_rgba(30,43,34,0.06)] sm:p-5">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <p className="text-sm font-medium text-[#8b9a7f]">Estado general</p>
+                <p className="text-sm font-medium text-[#54634b]">Estado general</p>
                 <h2 className="mt-1 text-lg font-semibold text-[#1e2b22]">{completionScore < 4 ? "Configuración en progreso" : "Todo en orden"}</h2>
               </div>
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#eef6dc] text-[#2c7334]">
@@ -336,7 +336,7 @@ function DashboardContent() {
             </div>
             <div>
               <p className="text-sm font-semibold text-[#1e2b22]">Conecta tu calendario</p>
-              <p className="text-sm text-[#687267]">Elige Google Calendar o Outlook para agendar citas automáticamente.</p>
+              <p className="text-sm text-muted">Elige Google Calendar o Outlook para agendar citas automáticamente.</p>
             </div>
           </div>
           <span className="inline-flex items-center gap-1 text-sm font-semibold text-[#52604f] transition group-hover:text-[#1e2b22]">
@@ -353,7 +353,7 @@ function DashboardContent() {
               <FileText className="h-5 w-5" />
               Documentos del agente
             </h2>
-            <p className="mt-1 text-sm leading-6 text-[#687267]">
+            <p className="mt-1 text-sm leading-6 text-muted">
               PDFs, tarifas y FAQs que el agente consulta durante las llamadas.
             </p>
           </div>
@@ -375,7 +375,7 @@ function DashboardContent() {
           className="hidden"
           accept={AGENT_FILE_ACCEPT}
         />
-        <div className="mt-4 min-h-20 rounded-2xl border border-[#e4e8df] bg-white p-3 text-sm text-[#687267]">
+        <div className="mt-4 min-h-20 rounded-2xl border border-[#e4e8df] bg-white p-3 text-sm text-muted">
           {uploadStatus && (
             <div className={`mb-2 text-sm ${uploadStatus.type === 'success' ? 'text-emerald-600' : 'text-red-600'}`}>
               {uploadStatus.message}
@@ -401,7 +401,7 @@ function DashboardContent() {
 
 export default function Home() {
   return (
-    <Suspense fallback={<div className="p-8 text-center text-[#687267]">Cargando...</div>}>
+    <Suspense fallback={<div className="p-8 text-center text-muted">Cargando...</div>}>
       <DashboardContent />
     </Suspense>
   );

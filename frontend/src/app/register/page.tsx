@@ -65,7 +65,7 @@ export default function RegisterPage() {
             <Bot className="h-7 w-7" />
           </div>
           <h2 className="text-3xl font-semibold tracking-tight text-[#1e2b22]">Crear cuenta</h2>
-          <p className="mx-auto max-w-md text-sm leading-6 text-[#687267]">
+          <p className="mx-auto max-w-md text-sm leading-6 text-muted">
             Regístrate para configurar tu asistente y comenzar a mejorar la experiencia de tus clientes.
           </p>
         </div>
@@ -80,7 +80,7 @@ export default function RegisterPage() {
           />
           <div className="my-6 flex items-center gap-4" aria-hidden="true">
             <div className="h-px flex-1 bg-[#e4e8df]" />
-            <span className="text-xs font-medium uppercase tracking-[0.16em] text-[#8a9388]">o con email</span>
+            <span className="text-xs font-medium uppercase tracking-[0.12em] text-[#6b756a]">o con email</span>
             <div className="h-px flex-1 bg-[#e4e8df]" />
           </div>
         </div>
@@ -130,7 +130,7 @@ export default function RegisterPage() {
                 <option value="MX">México</option>
                 <option value="OTHER">Otro</option>
               </select>
-              <p className="mt-1 text-xs text-[#687267]">
+              <p className="mt-1 text-xs text-muted">
                 Selecciona el país donde opera el negocio. Las cuentas europeas usan Retell.ai para cumplir con la RGPD.
               </p>
             </div>
@@ -146,7 +146,7 @@ export default function RegisterPage() {
             {loading ? "Creando cuenta..." : "Registrarse"}
           </button>
 
-          <div className="text-center text-sm text-[#687267]">
+          <div className="text-center text-sm text-muted">
             ¿Ya tienes cuenta?{' '}
             <Link href="/login" className="font-medium text-[#1e2b22] transition hover:text-[#243026]">
               Inicia sesión

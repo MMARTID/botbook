@@ -32,11 +32,11 @@ export default function LoginPage() {
     <div className="flex min-h-screen items-center justify-center px-4 py-12 sm:px-6 lg:px-8">
       <div className="panel w-full max-w-lg p-8">
         <div className="space-y-4 text-center">
-          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-3xl bg-[#1e2b22] text-[#b8d96e] shadow-sm">
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-[#1e2b22] text-[#b8d96e] shadow-sm">
             <Bot className="h-7 w-7" />
           </div>
           <h2 className="text-3xl font-semibold tracking-tight text-[#1e2b22]">Bienvenido de nuevo</h2>
-          <p className="mx-auto max-w-md text-sm leading-6 text-[#687267]">
+          <p className="mx-auto max-w-md text-sm leading-6 text-muted">
             Accede para configurar tu asistente y comenzar a mejorar la experiencia de tus clientes.
           </p>
         </div>
@@ -45,7 +45,7 @@ export default function LoginPage() {
           <GoogleAuthButton onError={setError} />
           <div className="my-6 flex items-center gap-4" aria-hidden="true">
             <div className="h-px flex-1 bg-[#e4e8df]" />
-            <span className="text-xs font-medium uppercase tracking-[0.16em] text-[#8a9388]">o con email</span>
+            <span className="text-xs font-medium uppercase tracking-[0.12em] text-[#6b756a]">o con email</span>
             <div className="h-px flex-1 bg-[#e4e8df]" />
           </div>
         </div>
@@ -86,7 +86,7 @@ export default function LoginPage() {
             {loading ? "Entrando..." : "Entrar"}
           </button>
 
-          <div className="text-center text-sm text-[#687267]">
+          <div className="text-center text-sm text-muted">
             ¿No tienes cuenta?{' '}
             <Link href="/register" className="font-medium text-[#1e2b22] transition hover:text-[#243026]">
               Regístrate aquí

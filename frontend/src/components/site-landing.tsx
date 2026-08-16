@@ -1,13 +1,13 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowRight, BriefcaseBusiness, CalendarDays, Check, Clock3, MessageCircleMore, PhoneCall, Scissors, Sparkles, Store, TrendingUp, UserRoundCheck } from "lucide-react";
+import { ArrowRight, CalendarDays, Check, Clock3, MessageCircleMore, PhoneCall, Scissors, Sparkles, Store } from "lucide-react";
 import { LandingHero } from "@/components/landing-hero";
 import { MobileNav } from "@/components/mobile-nav";
 import { SectorDataSection } from "@/components/sector-data-section";
 import { RevenueLossCalculator } from "@/components/revenue-loss-calculator";
-import { formatIncludedMinutes, formatPlanPrice, plans } from "@/lib/plans";
-import { nicheLinks, type NicheLandingContent } from "@/lib/niche-landings";
+import { formatIncludedMinutes, formatPlanPrice, plans, TRIAL_REASSURANCE } from "@/lib/plans";
+import { generalSectorData, nicheLinks, type NicheLandingContent } from "@/lib/niche-landings";
 
 const ASSET_PATHS = {
   logo: "/brand/logo.svg",
@@ -20,7 +20,7 @@ function buildPlansHref(niche?: string) {
 function BrandLogo() {
   return (
     <Link href="/landing" aria-label="Ir al inicio de AsistAI" className="flex min-w-0 items-center gap-2.5 sm:gap-3">
-      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/70 bg-white/90 shadow-[0_12px_30px_rgba(16,24,20,0.08)] backdrop-blur sm:h-11 sm:w-11 sm:rounded-2xl">
+      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/70 bg-white/90 shadow-[0_8px_24px_rgba(30,43,34,0.06)] backdrop-blur sm:h-11 sm:w-11 sm:rounded-2xl">
         <Image
           src={ASSET_PATHS.logo}
           alt="AsistAI"
@@ -32,7 +32,7 @@ function BrandLogo() {
       </div>
       <div>
         <p className="text-base font-semibold leading-5 text-[#1e2b22]">AsistAI</p>
-        <p className="hidden text-xs text-[#5f6d63] sm:block">Recepción inteligente para negocios</p>
+        <p className="hidden text-xs text-[#54634b] sm:block">Recepción inteligente para negocios</p>
       </div>
     </Link>
   );
@@ -42,17 +42,14 @@ const highlights = [
   {
     title: "Atención 24/7",
     description: "Responde llamadas fuera de horario y evita perder reservas o consultas importantes.",
-    icon: Clock3,
   },
   {
     title: "Agenda conectada",
     description: "Sincroniza disponibilidad real y confirma citas sin fricción para el cliente.",
-    icon: CalendarDays,
   },
   {
     title: "Conversaciones útiles",
-    description: "Recoge contexto, detecta leads y deja a tu equipo solo lo que requiere atención humana.",
-    icon: PhoneCall,
+    description: "Anota lo que pide cada cliente y te deja solo las llamadas que necesitan que hables tú.",
   },
 ] as const;
 
@@ -61,21 +58,25 @@ const businessBenefits = [
     title: "Peluquerías",
     description: "Reserva cortes, color y tratamientos incluso mientras todo el equipo está atendiendo.",
     result: "Menos llamadas perdidas en horas punta",
-    icon: Scissors,
   },
   {
     title: "Centros de estética",
     description: "Responde dudas sobre servicios, duración y disponibilidad antes de confirmar la cita.",
     result: "Una atención cuidada desde el primer contacto",
-    icon: Sparkles,
   },
   {
-    title: "Pymes y profesionales",
-    description: "Filtra consultas, recoge datos y deriva al equipo solo las conversaciones importantes.",
-    result: "Más tiempo para trabajar y hacer crecer el negocio",
-    icon: BriefcaseBusiness,
+    title: "Barberías, uñas y fisioterapia",
+    description: "Cita con el profesional de siempre, duración real de cada servicio y huecos que cuadran con tu jornada.",
+    result: "La agenda se llena sin soltar las manos",
   },
 ] as const;
+
+/**
+ * Los iconos van por posición: las landings de nicho sustituyen los textos de
+ * estos tres huecos, pero no traen icono propio. El orden es el contrato.
+ */
+const HIGHLIGHT_ICONS = [Clock3, CalendarDays, PhoneCall] as const;
+const BENEFIT_ICONS = [Scissors, Sparkles, Store] as const;
 
 const frequentlyAskedQuestions = [
   {
@@ -84,19 +85,19 @@ const frequentlyAskedQuestions = [
   },
   {
     question: "¿Cómo funciona el desvío de llamadas? ¿Es difícil de configurar?",
-    answer: "Es muy sencillo. Activamos contigo un desvío desde tu teléfono habitual marcando un código rápido; tarda unos 15 segundos. Te guiamos paso a paso para que empieces sin tocar tu número ni complicarte con ajustes técnicos.",
+    answer: "Es muy sencillo. Activas un desvío desde tu teléfono habitual marcando un código rápido; tarda unos 15 segundos. Te damos las instrucciones paso a paso para tu operador, sin cambiar tu número ni tocar ajustes técnicos.",
   },
   {
     question: "¿Puede reservar, cambiar y cancelar citas en mi agenda?",
-    answer: "Sí. AsistAI consulta tu disponibilidad en tiempo real y registra, modifica o cancela citas directamente en Google Calendar, respetando los horarios, servicios y reglas que marques para tu salón.",
+    answer: "Sí. AsistAI comprueba tu horario y tu disponibilidad real antes de ofrecer un hueco, y registra, modifica o cancela citas directamente en tu Google Calendar o tu Outlook, respetando los servicios y las reglas que marques.",
   },
   {
     question: "¿Puede responder dudas sobre mis servicios y precios?",
-    answer: "Sí. Le damos la información real de tu negocio: carta de precios en PDF, tratamientos, duración, horarios y datos de Google Maps. Así responde con seguridad sin que tengas que dejar un tinte, unas uñas o un masaje a medias.",
+    answer: "Sí. Le das la información real de tu negocio: carta de precios en PDF, servicios, duración, horarios y datos de Google Maps. Así responde con seguridad sin que tengas que dejar a medias un tinte, unas uñas o una sesión.",
   },
   {
     question: "¿La voz suena natural o como un robot antiguo?",
-    answer: "Suena natural y cercana. Puedes elegir entre voces ultra-naturales e hiperrealistas para que la experiencia encaje con el tono cálido y profesional de tu negocio.",
+    answer: "Suena natural y cercana, en español de España. Puedes ajustar cómo habla —más cálida, más profesional o más directa— y si da respuestas breves o algo más explicadas, para que encaje con el trato que das en tu negocio.",
   },
   {
     question: "¿Qué ocurre si una llamada necesita atención humana o es urgente?",
@@ -104,7 +105,7 @@ const frequentlyAskedQuestions = [
   },
   {
     question: "¿Qué pasa si un cliente llama fuera de mi horario?",
-    answer: "AsistAI sigue disponible 24/7. Puede resolver dudas y gestionar solicitudes incluso por la noche, en festivos o mientras el salón está cerrado, para que no pierdas una posible cita por no contestar.",
+    answer: "AsistAI sigue disponible 24/7. Puede resolver dudas y gestionar solicitudes incluso por la noche, en festivos o mientras tienes cerrado, para que no pierdas una posible cita por no contestar.",
   },
   {
     question: "¿Hay permanencia o compromiso de permanencia?",
@@ -129,7 +130,7 @@ export function SiteLanding({ content }: { content?: NicheLandingContent }) {
       data-landing="asistai"
     >
       <a
-        href="#main-content"
+        href="#contenido"
         className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-[60] focus:rounded-xl focus:bg-[#1e2b22] focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-white"
       >
         Saltar al contenido
@@ -158,10 +159,13 @@ export function SiteLanding({ content }: { content?: NicheLandingContent }) {
             <a href="#precios" className="text-sm font-medium text-[#344038] transition hover:text-[#1e2b22]">
               Precios
             </a>
-            <Link href="/login" className="btn-secondary h-10 px-4">
+            <a href="#preguntas" className="text-sm font-medium text-[#344038] transition hover:text-[#1e2b22]">
+              Preguntas
+            </a>
+            <Link href="/login" className="btn-secondary px-4">
               Iniciar sesión
             </Link>
-            <Link href={plansHref} className="btn-primary h-10 px-4">
+            <Link href={plansHref} className="btn-primary px-4">
               Empezar ahora
             </Link>
           </nav>
@@ -170,23 +174,26 @@ export function SiteLanding({ content }: { content?: NicheLandingContent }) {
         </div>
       </header>
 
-      <LandingHero content={content} />
+      <div id="contenido" tabIndex={-1} className="outline-none">
+        <LandingHero content={content} />
+      </div>
 
-      {content?.sectorData ? <SectorDataSection data={content.sectorData} accent={content.accent} /> : null}
+      {/* La landing genérica también necesita prueba: si no hay datos de nicho,
+          se muestran los transversales, todos con fuente externa citada. */}
+      <SectorDataSection data={content?.sectorData ?? generalSectorData} accent={content?.accent} />
 
       <section id="como-funciona" className="border-y border-white/70 bg-white/35 py-16 sm:py-20">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="mb-9 max-w-2xl">
-            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-[#718064]">Cómo te ayuda</p>
-            <h2 className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">{content?.sectionTitle ?? "Atiende cada llamada. Sin dejar lo que estás haciendo."}</h2>
+            <h2 className="text-3xl font-semibold tracking-tight sm:text-4xl">{content?.sectionTitle ?? "Atiende cada llamada. Sin dejar lo que estás haciendo."}</h2>
             {content?.sectionDescription ? <p className="mt-4 text-base leading-7 text-[#54634b]">{content.sectionDescription}</p> : null}
           </div>
         <div className="grid gap-6 lg:grid-cols-3">
           {visibleHighlights.map(({ title, description }, index) => {
-            const Icon = highlights[index]?.icon ?? PhoneCall;
+            const Icon = HIGHLIGHT_ICONS[index] ?? PhoneCall;
             return (
             <article key={`${title}-detail`} className="panel p-6">
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#f4f8eb] text-[#2c7334]">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#eef6dc] text-[#2c7334]">
                 <Icon className="h-5 w-5" />
               </div>
               <h3 className="mt-5 text-xl font-semibold text-[#1e2b22]">{title}</h3>
@@ -200,7 +207,7 @@ export function SiteLanding({ content }: { content?: NicheLandingContent }) {
 
       <section className="bg-[linear-gradient(135deg,rgba(238,246,220,0.82),rgba(255,255,255,0.96))] py-16 sm:py-20">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="grid gap-7 rounded-[2rem] border border-[#d4e4bd] bg-white/75 p-6 shadow-[0_18px_50px_rgba(16,24,20,0.07)] sm:p-8 lg:grid-cols-[0.9fr_1.1fr] lg:items-center lg:gap-12 lg:p-10">
+          <div className="grid gap-7 rounded-2xl border border-[#d4e4bd] bg-white/75 p-6 shadow-[0_8px_24px_rgba(30,43,34,0.06)] sm:p-8 lg:grid-cols-[0.9fr_1.1fr] lg:items-center lg:gap-12 lg:p-10">
             <div>
               <span className="inline-flex items-center gap-2 rounded-full bg-[#1e2b22] px-3 py-1.5 text-xs font-semibold text-white">
                 <CalendarDays className="h-3.5 w-3.5 text-[#b8d96e]" />
@@ -238,11 +245,7 @@ export function SiteLanding({ content }: { content?: NicheLandingContent }) {
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="grid gap-8 lg:grid-cols-[0.82fr_1.18fr] lg:items-end lg:gap-14">
             <div className="max-w-xl">
-              <span className="inline-flex items-center gap-2 rounded-full bg-[#1e2b22] px-3 py-1.5 text-xs font-semibold text-white">
-                <TrendingUp className="h-3.5 w-3.5 text-[#b8d96e]" />
-                Automatizar para crecer
-              </span>
-              <h2 className="mt-5 text-3xl font-semibold leading-tight tracking-tight text-[#1e2b22] sm:text-4xl lg:text-5xl">
+              <h2 className="text-3xl font-semibold leading-tight tracking-tight text-[#1e2b22] sm:text-4xl lg:text-5xl">
                 {content?.benefitsTitle ?? "El teléfono deja de interrumpir. Empieza a trabajar para ti."}
               </h2>
               <p className="mt-5 text-base leading-8 text-[#54634b]">
@@ -252,14 +255,14 @@ export function SiteLanding({ content }: { content?: NicheLandingContent }) {
 
             <div className="grid gap-4 sm:grid-cols-3">
               {visibleBenefits.map(({ title, description, result }, index) => {
-                const Icon = businessBenefits[index]?.icon ?? Store;
+                const Icon = BENEFIT_ICONS[index] ?? Store;
                 return (
-                <article key={title} className="group rounded-[1.75rem] border border-white/80 bg-white/85 p-5 shadow-[0_16px_45px_rgba(16,24,20,0.07)] transition duration-300 hover:-translate-y-1 hover:shadow-[0_22px_55px_rgba(16,24,20,0.11)] sm:p-6">
-                  <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#eef6dc] text-[#2c7334] transition group-hover:bg-[#dff3ad]">
+                <article key={title} className="group rounded-2xl border border-white/80 bg-white/85 p-5 shadow-[0_4px_16px_rgba(30,43,34,0.04)] transition duration-300 hover:-translate-y-1 hover:shadow-[0_12px_32px_rgba(30,43,34,0.08)] sm:p-6">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#eef6dc] text-[#2c7334] transition group-hover:bg-[#dff3ad]">
                     <Icon className="h-5 w-5" />
                   </div>
                   <h3 className="mt-5 text-lg font-semibold text-[#1e2b22]">{title}</h3>
-                  <p className="mt-3 text-sm leading-6 text-[#5f6d63]">{description}</p>
+                  <p className="mt-3 text-sm leading-6 text-[#54634b]">{description}</p>
                   <div className="mt-5 border-t border-[#e8ece3] pt-4">
                     <p className="flex items-start gap-2 text-sm font-semibold leading-5 text-[#344038]">
                       <Check className="mt-0.5 h-4 w-4 shrink-0 text-[#2c7334]" />
@@ -272,32 +275,17 @@ export function SiteLanding({ content }: { content?: NicheLandingContent }) {
             </div>
           </div>
 
-          <div className="mt-10 grid gap-3 rounded-[1.75rem] border border-[#dce6d4] bg-[#1e2b22] p-5 text-white sm:grid-cols-3 sm:p-6">
-            <div className="flex items-center gap-3 border-white/10 sm:border-r">
-              <Clock3 className="h-5 w-5 shrink-0 text-[#b8d96e]" />
-              <p className="text-sm"><strong className="block font-semibold">Disponible 24/7</strong><span className="text-white/65">También fuera de horario</span></p>
-            </div>
-            <div className="flex items-center gap-3 border-white/10 sm:border-r sm:px-5">
-              <UserRoundCheck className="h-5 w-5 shrink-0 text-[#b8d96e]" />
-              <p className="text-sm"><strong className="block font-semibold">Atención consistente</strong><span className="text-white/65">Siempre con el tono de tu marca</span></p>
-            </div>
-            <div className="flex items-center gap-3 sm:pl-5">
-              <Store className="h-5 w-5 shrink-0 text-[#b8d96e]" />
-              <p className="text-sm"><strong className="block font-semibold">Preparado para tu negocio</strong><span className="text-white/65">Servicios, horarios y respuestas reales</span></p>
-            </div>
-          </div>
         </div>
       </section>
 
       <RevenueLossCalculator content={content?.calculator} />
 
       <section id="soluciones" className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
-        <div className="rounded-[1.75rem] border border-[#dce6d4] bg-white/75 p-6 sm:p-8">
-          <p className="text-xs font-semibold uppercase tracking-[0.3em] text-[#718064]">Soluciones por negocio</p>
-          <h2 className="mt-3 text-2xl font-semibold text-[#1e2b22]">Descubre AsistAI para tu sector</h2>
+        <div className="rounded-2xl border border-[#dce6d4] bg-white/75 p-6 sm:p-8">
+          <h2 className="text-2xl font-semibold tracking-tight text-[#1e2b22]">Descubre AsistAI para tu sector</h2>
           <div className="mt-5 flex flex-wrap gap-3">
             {nicheLinks.map((link) => (
-              <Link key={link.href} href={link.href} className={`rounded-full border px-4 py-2 text-sm font-semibold transition ${content && link.href === `/${content.slug}` ? "border-[#1e2b22] bg-[#1e2b22] text-white" : "border-[#d7e3ce] bg-white text-[#344038] hover:bg-[#eef6dc]"}`}>
+              <Link key={link.href} href={link.href} className={`inline-flex h-11 items-center rounded-full border px-4 text-sm font-semibold transition duration-200 ${content && link.href === `/${content.slug}` ? "border-[#1e2b22] bg-[#1e2b22] text-white" : "border-[#d7e3ce] bg-white text-[#344038] hover:bg-[#eef6dc]"}`}>
                 {link.label}
               </Link>
             ))}
@@ -307,34 +295,35 @@ export function SiteLanding({ content }: { content?: NicheLandingContent }) {
 
       <section id="precios" className="mx-auto max-w-7xl px-4 py-16 sm:px-6 sm:py-20 lg:px-8">
         <div className="panel p-6 sm:p-8">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.3em] text-[#8b9a7f]">Precios</p>
-              <h2 className="mt-2 text-3xl font-semibold text-[#1e2b22]">Planes claros para crecer sin fricción</h2>
-              <p className="mt-3 max-w-2xl text-sm leading-7 text-[#54634b]">
-                Empieza con el volumen que necesitas y cambia de plan cuando crezca tu negocio. Sin permanencia.
-              </p>
-            </div>
-            <Link href={plansHref} className="btn-secondary px-5">
-              Ver todos los planes
-            </Link>
+          <div className="max-w-2xl">
+            <h2 className="text-3xl font-semibold tracking-tight text-[#1e2b22] sm:text-4xl">Planes claros para crecer sin fricción</h2>
+            <p className="mt-4 text-base leading-7 text-[#54634b]">
+              Empieza con el volumen que necesitas y cambia de plan cuando crezca tu negocio.
+            </p>
+            <p className="mt-4 flex flex-wrap items-center gap-2 text-base font-semibold leading-7 text-[#2c7334]">
+              <Check className="h-5 w-5 shrink-0" aria-hidden="true" />
+              {TRIAL_REASSURANCE}
+            </p>
           </div>
 
           <div className="mt-8 grid gap-4 lg:grid-cols-3">
             {plans.map((plan) => (
               <article
                 key={plan.id}
-                className={`rounded-[1.8rem] border p-6 shadow-sm ${plan.featured ? "border-[#cfe6b0] bg-[linear-gradient(180deg,#f9fceb_0%,#ffffff_100%)] shadow-[0_18px_45px_rgba(115,146,33,0.14)]" : "border-[#e5ebdd] bg-white/85"}`}
+                className={`rounded-xl border p-6 ${plan.featured ? "border-[#cfe6b0] bg-[linear-gradient(180deg,#f9fceb_0%,#ffffff_100%)] shadow-[0_8px_24px_rgba(30,43,34,0.06)]" : "border-[#e5ebdd] bg-white/85 shadow-[0_4px_16px_rgba(30,43,34,0.04)]"}`}
               >
                 <div className="flex items-center justify-between gap-3">
                   <h3 className="text-lg font-semibold text-[#1e2b22]">{plan.name}</h3>
                   {plan.featured ? <span className="badge-soft">Recomendado</span> : null}
                 </div>
-                <p className="mt-6 text-4xl font-semibold tracking-tight text-[#1e2b22]">{formatPlanPrice(plan.price)}<span className="text-base font-medium text-[#687267]">/mes</span></p>
+                <p className="mt-6 text-4xl font-semibold tracking-tight text-[#1e2b22]">{formatPlanPrice(plan.price)}<span className="text-base font-medium text-[#54634b]">/mes</span></p>
                 <p className="mt-3 text-sm font-semibold text-[#344038]">{formatIncludedMinutes(plan.minutes)} minutos incluidos</p>
                 <p className="mt-2 text-sm leading-7 text-[#54634b]">{plan.summary}</p>
-                <Link href={plansHref} className={`mt-6 inline-flex h-11 items-center justify-center rounded-2xl px-5 text-sm font-semibold ${plan.featured ? "bg-[#1e2b22] text-white" : "border border-[#d6dfcf] bg-white text-[#344038]"}`}>
-                  Empezar con {plan.name}
+                <Link
+                  href={`${plansHref}${plansHref.includes("?") ? "&" : "?"}plan=${plan.id}`}
+                  className={`mt-6 inline-flex h-11 items-center justify-center rounded-lg px-5 text-sm font-semibold transition duration-200 hover:-translate-y-0.5 active:translate-y-0 ${plan.featured ? "bg-[#1e2b22] text-white hover:bg-[#243026]" : "border border-[#d6dfcf] bg-white text-[#344038] hover:bg-[#f4f6f1]"}`}
+                >
+                  Elegir {plan.name}
                 </Link>
               </article>
             ))}
@@ -342,30 +331,29 @@ export function SiteLanding({ content }: { content?: NicheLandingContent }) {
         </div>
       </section>
 
-      <section className="border-y border-white/70 bg-white/35 py-16 sm:py-20">
+      <section id="preguntas" className="scroll-m-20 border-y border-white/70 bg-white/35 py-16 sm:py-20">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="grid gap-8 lg:grid-cols-[0.72fr_1.28fr] lg:gap-14">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.3em] text-[#718064]">Sin letra pequeña</p>
-              <h2 className="mt-3 text-3xl font-semibold tracking-tight text-[#1e2b22] sm:text-4xl">Resuelve tus dudas antes de empezar.</h2>
+              <h2 className="text-3xl font-semibold tracking-tight text-[#1e2b22] sm:text-4xl">Resuelve tus dudas antes de empezar.</h2>
               <p className="mt-4 text-base leading-7 text-[#54634b]">
-                Configuramos contigo el comportamiento del asistente para que responda con el tono, la información y las reglas de tu negocio.
+                Tú defines el tono, la información y las reglas con las que responde. Se configura desde tu panel y puedes cambiarlo cuando quieras.
               </p>
 
-              <div className="mt-7 rounded-[1.75rem] border border-[#dce6d4] bg-[#1e2b22] p-6 text-white">
-                <p className="text-sm font-semibold text-[#b8d96e]">Preparado para negocios con cita previa</p>
-                <p className="mt-2 text-sm leading-6 text-white/70">Servicios, horarios, precios, preguntas frecuentes y calendario trabajan juntos desde una única configuración.</p>
+              <div className="mt-7 rounded-xl border border-[#d7e9c5] bg-[#f7fbee] p-6">
+                <p className="text-base font-semibold leading-6 text-[#1e2b22]">Preparado para negocios con cita previa</p>
+                <p className="mt-2 text-sm leading-6 text-[#54634b]">Servicios, horarios, precios, preguntas frecuentes y calendario trabajan juntos desde una única configuración.</p>
               </div>
             </div>
 
             <div className="grid items-start gap-3 sm:grid-cols-2">
               {visibleFaqs.map(({ question, answer }) => (
-                <details key={question} className="group rounded-[1.5rem] border border-[#e2e9dc] bg-white/90 p-5 shadow-sm open:shadow-[0_14px_35px_rgba(16,24,20,0.08)]">
+                <details key={question} className="group rounded-xl border border-[#e2e9dc] bg-white/90 p-5 shadow-sm open:shadow-[0_8px_24px_rgba(30,43,34,0.06)]">
                   <summary className="flex cursor-pointer list-none items-start justify-between gap-4 text-sm font-semibold leading-6 text-[#1e2b22] marker:content-none">
                     {question}
-                    <span className="mt-1 text-lg leading-none text-[#718064] transition group-open:rotate-45" aria-hidden="true">+</span>
+                    <span className="mt-1 text-lg leading-none text-[#54634b] transition group-open:rotate-45" aria-hidden="true">+</span>
                   </summary>
-                  <p className="mt-3 border-t border-[#e8ece3] pt-3 text-sm leading-6 text-[#5f6d63]">{answer}</p>
+                  <p className="mt-3 border-t border-[#e8ece3] pt-3 text-sm leading-6 text-[#54634b]">{answer}</p>
                 </details>
               ))}
             </div>
@@ -376,23 +364,31 @@ export function SiteLanding({ content }: { content?: NicheLandingContent }) {
       <section className="border-t border-white/70 bg-[#1e2b22] text-white">
         <div className="mx-auto flex max-w-7xl flex-col gap-6 px-4 py-12 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8">
           <div>
-            <p className="text-sm font-semibold text-[#b8d96e]">Da el siguiente paso</p>
-            <h2 className="mt-2 text-2xl font-semibold sm:text-3xl">{content?.closingTitle ?? "Empieza a no perder llamadas esta semana."}</h2>
+            <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">{content?.closingTitle ?? "Empieza a no perder llamadas esta semana."}</h2>
           </div>
-          <Link href={plansHref} className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-[#b8d96e] px-6 text-sm font-semibold text-[#1e2b22] transition hover:bg-[#e3ff9e]">
-            Empezar con AsistAI <ArrowRight className="h-4 w-4" />
-          </Link>
+          <div className="shrink-0">
+            <Link
+              href={plansHref}
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-[#b8d96e] px-6 text-sm font-semibold text-[#1e2b22] transition duration-200 hover:-translate-y-0.5 hover:bg-[#e3ff9e] active:translate-y-0"
+            >
+              Empezar ahora <ArrowRight className="h-4 w-4" aria-hidden="true" />
+            </Link>
+            <p className="mt-3 text-sm text-white/75">{TRIAL_REASSURANCE}</p>
+          </div>
         </div>
       </section>
 
-      <footer className="bg-[#0b110e] text-white/65">
+      <footer className="border-t border-white/10 bg-[#1e2b22] text-white/70">
         <div className="mx-auto flex max-w-7xl flex-col gap-5 px-4 py-8 sm:px-6 md:flex-row md:items-center md:justify-between lg:px-8">
           <div>
             <p className="font-semibold text-white">AsistAI</p>
-            <p className="mt-1 text-xs">Recepción telefónica inteligente para negocios con cita previa.</p>
+            <p className="mt-1 text-sm">Recepción telefónica para negocios con cita previa.</p>
           </div>
-          <nav aria-label="Enlaces legales" className="flex flex-wrap gap-x-5 gap-y-2 text-xs font-medium">
-            <a href="mailto:hola@asistai.es" className="transition hover:text-white">Contacto</a>
+          <nav aria-label="Enlaces legales" className="flex flex-wrap items-center gap-x-4 text-sm font-medium">
+            <Link href="/legal/privacidad" className="inline-flex h-11 items-center transition hover:text-white">Privacidad</Link>
+            <Link href="/legal/aviso-legal" className="inline-flex h-11 items-center transition hover:text-white">Aviso legal</Link>
+            <a href="#preguntas" className="inline-flex h-11 items-center transition hover:text-white">Preguntas frecuentes</a>
+            <a href="mailto:hola@asistai.es" className="inline-flex h-11 items-center transition hover:text-white">Contacto</a>
           </nav>
         </div>
       </footer>

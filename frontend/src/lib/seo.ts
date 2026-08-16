@@ -79,25 +79,11 @@ export const landingStructuredData = {
       areaServed: "ES",
       audience: {
         "@type": "Audience",
-        audienceType: "Peluquerías, barberías, centros de estética, clínicas estéticas y negocios locales con reservas",
+        audienceType: "Peluquerías, barberías, salones de uñas, centros de estética y clínicas de fisioterapia",
       },
       description:
         "Servicio de recepción telefónica inteligente para captar llamadas, reservar citas y mantener una atención constante sin ampliar equipo.",
       url: absoluteUrl("/landing"),
-    },
-    {
-      "@type": "Service",
-      name: "Soporte para Kit Digital",
-      serviceType: "Compatibilidad Kit Digital",
-      provider: {
-        "@type": "Organization",
-        name: siteName,
-        url: absoluteUrl("/landing"),
-      },
-      areaServed: "ES",
-      description:
-        "AsistAI es compatible con requisitos técnicos habituales de proyectos financiables por el programa Kit Digital y puede integrarse con sistemas de reservas para facilitar la optención de subvenciones.",
-      url: absoluteUrl("/landing#kit-digital"),
     },
   ],
 } as const;

@@ -86,9 +86,9 @@ function SettingsCallbackContent() {
       <main className="flex min-h-screen items-center justify-center bg-transparent px-4 py-16">
         <div className="panel w-full max-w-xl space-y-5 p-6">
           <div>
-            <p className="text-sm font-semibold uppercase tracking-[0.3em] text-[#7b886f]">Outlook Calendar</p>
+            <p className="text-sm font-semibold uppercase tracking-[0.12em] text-[#7b886f]">Outlook Calendar</p>
             <h1 className="mt-2 text-2xl font-semibold text-[#1e2b22]">Elige el calendario que quieres usar</h1>
-            <p className="mt-2 text-sm leading-6 text-[#687267]">Cuenta conectada: {parsedOutlookCalendars.email ?? "Cuenta Microsoft"}</p>
+            <p className="mt-2 text-sm leading-6 text-muted">Cuenta conectada: {parsedOutlookCalendars.email ?? "Cuenta Microsoft"}</p>
           </div>
           <div className="grid gap-3">
             {parsedOutlookCalendars.calendars.map((calendar) => (
@@ -120,7 +120,7 @@ function SettingsCallbackContent() {
                 <p className="text-sm font-semibold text-[#1e2b22]">
                   {connectingCalendarId === calendar.id ? "Conectando..." : calendar.name}
                 </p>
-                <p className="mt-1 text-xs text-[#687267]">{calendar.ownerEmail ?? "Calendario principal"}</p>
+                <p className="mt-1 text-xs text-muted">{calendar.ownerEmail ?? "Calendario principal"}</p>
               </button>
             ))}
           </div>
@@ -138,7 +138,7 @@ function SettingsCallbackContent() {
               <CalendarCheck2 className="h-5 w-5" />
             </div>
             <div>
-              <p className="text-sm font-semibold uppercase tracking-[0.3em] text-[#7b886f]">
+              <p className="text-sm font-semibold uppercase tracking-[0.12em] text-[#7b886f]">
                 {searchParams.has("outlook_error") ? "Outlook Calendar" : "Google Calendar"}
               </p>
               <h1 className="text-xl font-semibold text-[#1e2b22]">
@@ -170,7 +170,7 @@ function SettingsCallbackContent() {
                 style={{ width: `${progress}%` }}
               />
             </div>
-            <p className="text-center text-sm text-[#687267]">
+            <p className="text-center text-sm text-muted">
               {phase === "processing"
                 ? "Estamos cerrando la conexión y devolviéndote al panel..."
                 : isSuccess

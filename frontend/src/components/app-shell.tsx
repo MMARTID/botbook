@@ -22,12 +22,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     "/register/business/services",
     "/planes",
     "/auth/google/callback",
+    "/legal/privacidad",
+    "/legal/aviso-legal",
   ];
 
   if (pathname === "/") {
     if (hasToken === null) {
       return (
-        <div className="flex min-h-screen items-center justify-center bg-[radial-gradient(circle_at_top_left,rgba(214,255,114,0.13),transparent_28%),linear-gradient(180deg,#f8faf5_0%,#eef2eb_100%)]">
+        <div className="flex min-h-screen items-center justify-center bg-[radial-gradient(circle_at_top_left,rgba(184,217,110,0.18),transparent_28%),linear-gradient(180deg,#f8faf5_0%,#eef2eb_100%)]">
           <Loader2 className="h-8 w-8 animate-spin text-[#405115]" />
         </div>
       );
@@ -49,20 +51,20 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const isSettingsPage = pathname.startsWith("/ajustes");
 
   return (
-    <div className="flex min-h-screen flex-col bg-[radial-gradient(circle_at_top_left,rgba(214,255,114,0.13),transparent_28%),linear-gradient(180deg,#f8faf5_0%,#eef2eb_100%)]">
+    <div className="flex min-h-screen flex-col bg-[radial-gradient(circle_at_top_left,rgba(184,217,110,0.18),transparent_28%),linear-gradient(180deg,#f8faf5_0%,#eef2eb_100%)]">
       {isSettingsPage ? (
         <header className="absolute left-3 top-3 z-50 sm:hidden">
           <Link
             href="/"
             aria-label="Volver al panel"
-            className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-[#dfe6da] bg-white/90 text-[#344038] shadow-[0_8px_20px_rgba(16,24,20,0.12)] backdrop-blur-md transition duration-200 hover:bg-white active:scale-95 focus:outline-none focus:ring-2 focus:ring-[#9dbb55] focus:ring-offset-2"
+            className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-[#dfe6da] bg-white/90 text-[#344038] shadow-[0_8px_20px_rgba(30,43,34,0.12)] backdrop-blur-md transition duration-200 hover:bg-white active:scale-95 focus:outline-none focus:ring-2 focus:ring-[#9dbb55] focus:ring-offset-2"
           >
             <ArrowLeft className="h-5 w-5" />
           </Link>
         </header>
       ) : null}
 
-      <header className={`sticky top-0 z-50 border-b border-[#dfe6da] bg-[#fbfcf8]/90 backdrop-blur-xl shadow-[0_8px_24px_rgba(16,24,20,0.05)] ${isSettingsPage ? "hidden sm:block" : ""}`}>
+      <header className={`sticky top-0 z-50 border-b border-[#dfe6da] bg-[#fbfcf8]/90 backdrop-blur-xl shadow-[0_8px_24px_rgba(30,43,34,0.05)] ${isSettingsPage ? "hidden sm:block" : ""}`}>
         <div className="mx-auto flex max-w-7xl flex-col gap-3 px-3 py-3 sm:px-6 lg:px-8">
           <div className="flex h-16 items-center justify-between gap-3 sm:h-[4.5rem]">
             <div className="flex min-w-0 items-center gap-2.5">

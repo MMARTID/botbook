@@ -74,7 +74,7 @@ export function UpcomingCalendarEvents({ businessId, timeZone, onReconnectRequir
       <div className="pointer-events-none absolute -right-16 -top-20 h-52 w-52 rounded-full bg-[#b8d96e]/20 blur-3xl" />
       <div className="relative flex items-center justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-sm font-medium text-[#687267]">Agenda · {eventsQuery.data?.provider === "outlook" ? "Outlook" : "Google Calendar"}</p>
+          <p className="text-sm font-medium text-muted">Agenda · {eventsQuery.data?.provider === "outlook" ? "Outlook" : "Google Calendar"}</p>
           <h2 id="calendar-events-title" className="mt-1 text-lg font-semibold text-[#1e2b22] sm:text-xl">
             Próximos eventos
           </h2>
@@ -147,7 +147,7 @@ export function UpcomingCalendarEvents({ businessId, timeZone, onReconnectRequir
           </div>
           <div>
             <p className="text-sm font-semibold text-[#344038]">No hay próximos eventos</p>
-            <p className="mt-1 text-sm text-[#687267]">Las nuevas reservas aparecerán aquí automáticamente.</p>
+            <p className="mt-1 text-sm text-muted">Las nuevas reservas aparecerán aquí automáticamente.</p>
           </div>
         </div>
       )}
@@ -162,12 +162,12 @@ function EventCard({ event, timeZone, provider }: { event: CalendarEvent; timeZo
     : null;
   const content = (
     <>
-      <div className="flex items-center justify-between gap-2 text-xs font-semibold uppercase tracking-[0.12em] text-[#718064]">
+      <div className="flex items-center justify-between gap-2 text-xs font-semibold uppercase tracking-[0.12em] text-[#54634b]">
         <span className="truncate">{date}</span>
         {event.htmlLink ? <ArrowUpRight className="h-3.5 w-3.5 shrink-0" /> : null}
       </div>
       <h3 className="mt-3 line-clamp-2 min-h-10 text-sm font-semibold leading-5 text-[#1e2b22]">{event.summary}</h3>
-      <div className="mt-3 space-y-1.5 text-xs text-[#687267]">
+      <div className="mt-3 space-y-1.5 text-xs text-muted">
         <p className="flex items-center gap-1.5">
           <Clock3 className="h-3.5 w-3.5 shrink-0" />
           <span>{time ?? "Hora pendiente"}{endTime ? ` – ${endTime}` : ""}</span>

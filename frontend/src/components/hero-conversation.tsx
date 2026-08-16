@@ -92,10 +92,10 @@ function ConversationScene({ conversation, reducedMotion }: { conversation: Conv
       transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
     >
       <div className="mb-3 flex items-center justify-between gap-3 sm:mb-4">
-        <p className="text-[9px] font-semibold uppercase tracking-[0.15em] text-[#687267] sm:text-[10px]">
+        <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[#54634b]">
           {conversation.context}
         </p>
-        <div className="flex items-center gap-2 text-[9px] font-medium text-[#687267] sm:text-[10px]">
+        <div className="flex items-center gap-2 text-xs font-medium text-[#54634b]">
           <VoiceActivity reducedMotion={reducedMotion} />
           Voz activa
         </div>
@@ -118,11 +118,11 @@ function ConversationScene({ conversation, reducedMotion }: { conversation: Conv
               }}
             >
               <div className={`max-w-[84%] sm:max-w-[76%] ${isClient ? "text-right" : "text-left"}`}>
-                <span className="mb-1 block px-1 text-[8px] font-semibold uppercase tracking-[0.12em] text-[#8b9a7f] sm:text-[9px]">
+                <span className="mb-1 block px-1 text-xs font-semibold uppercase tracking-[0.12em] text-[#54634b]">
                   {isClient ? "Cliente" : "AsistAI"}
                 </span>
                 <div
-                  className={`rounded-xl border px-3 py-2 text-[11px] leading-[1.45] backdrop-blur-xl sm:rounded-xl sm:px-4 sm:py-2.5 sm:text-[13px] ${
+                  className={`rounded-xl border px-3 py-2 text-sm leading-6 backdrop-blur-xl sm:rounded-xl sm:px-4 sm:py-2.5 ${
                     isClient
                       ? "rounded-br-sm border-white/70 bg-white/60 text-[#17211c] shadow-[0_4px_16px_rgba(30,43,34,0.05)]"
                       : "rounded-bl-sm border-[#dce7d2]/70 bg-[#eef6dc]/60 text-[#17211c] shadow-[0_4px_16px_rgba(44,115,52,0.05)]"
@@ -150,8 +150,8 @@ function ConversationScene({ conversation, reducedMotion }: { conversation: Conv
             <Check className="h-3.5 w-3.5" strokeWidth={3} />
           </motion.span>
           <span className="min-w-0">
-            <span className="block text-[11px] font-semibold text-[#17211c] sm:text-[13px]">{conversation.result}</span>
-            <span className="mt-0.5 block truncate text-[9px] text-[#687267] sm:text-[11px]">{conversation.resultDetail}</span>
+            <span className="block text-sm font-semibold text-[#17211c]">{conversation.result}</span>
+            <span className="mt-0.5 block truncate text-sm text-[#54634b]">{conversation.resultDetail}</span>
           </span>
           <CalendarCheck2 className="ml-auto h-4 w-4 shrink-0 text-[#2c7334]" />
         </motion.div>
@@ -217,12 +217,12 @@ export function HeroConversation({ paused = false, conversationsOverride }: { pa
           </span>
           <span>
             <span className="block text-xs font-semibold text-[#17211c] sm:text-sm">Llamada telefónica</span>
-            <span className="mt-0.5 block text-[9px] font-medium text-[#687267] sm:text-[10px]">
+            <span className="mt-0.5 block text-xs font-medium text-[#54634b]">
               {conversations[sceneIndex].caller}
             </span>
           </span>
         </div>
-        <span className="font-mono text-[10px] font-medium tabular-nums text-[#687267] sm:text-xs">
+        <span className="font-mono text-xs font-medium tabular-nums text-[#54634b]">
           00:{String(elapsedSeconds).padStart(2, "0")}
         </span>
       </div>
@@ -237,8 +237,14 @@ export function HeroConversation({ paused = false, conversationsOverride }: { pa
         </AnimatePresence>
       </div>
 
-      <p className="sr-only">
-        Un cliente solicita una cita. AsistAI ofrece horarios disponibles y confirma automáticamente la reserva.
+      {/* Alternativa no auditiva a la demo de micrófono: describe la escena que
+          se está mostrando ahora mismo, no una fija. */}
+      <p className="sr-only" aria-live="polite">
+        {`Ejemplo de llamada, ${conversations[sceneIndex].context}. `}
+        {conversations[sceneIndex].messages
+          .map((message) => `${message.sender === "client" ? "El cliente dice" : "AsistAI responde"}: ${message.text}`)
+          .join(". ")}
+        {`. Resultado: ${conversations[sceneIndex].result}, ${conversations[sceneIndex].resultDetail}.`}
       </p>
 
       {!reducedMotion ? (

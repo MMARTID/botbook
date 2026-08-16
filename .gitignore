@@ -11,3 +11,9 @@ dist/
 .vercel
 .playwright-mcp/
 .npm-cache/
+.next/
+
+# Impeccable: se versiona el sistema de diseño y las críticas, no la caché ni los
+# ajustes locales de cada máquina.
+.impeccable/hook.cache.json
+.impeccable/config.local.json

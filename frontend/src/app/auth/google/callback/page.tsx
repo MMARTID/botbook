@@ -41,14 +41,14 @@ export default function GoogleCallbackPage() {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-[#f7f8f4] px-4">
-      <div className="w-full max-w-md rounded-[2rem] border border-[#e4e8df] bg-white p-8 text-center shadow-[0_20px_80px_rgba(16,24,20,0.08)]">
-        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-3xl bg-[#1e2b22] text-[#b8d96e]">
+      <div className="w-full max-w-md rounded-2xl border border-[#e4e8df] bg-white p-8 text-center shadow-[0_12px_32px_rgba(30,43,34,0.08)]">
+        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-[#1e2b22] text-[#b8d96e]">
           <Bot className="h-7 w-7" />
         </div>
         {error ? (
           <>
             <h1 className="mt-6 text-2xl font-semibold text-[#1e2b22]">No pudimos iniciar sesión</h1>
-            <p className="mt-3 text-sm leading-6 text-[#687267]">{error}</p>
+            <p className="mt-3 text-sm leading-6 text-muted">{error}</p>
             <Link href="/login" className="btn-primary mt-6 w-full justify-center">
               Volver a iniciar sesión
             </Link>
@@ -57,7 +57,7 @@ export default function GoogleCallbackPage() {
           <>
             <LoaderCircle className="mx-auto mt-7 h-7 w-7 animate-spin text-[#405115]" />
             <h1 className="mt-4 text-2xl font-semibold text-[#1e2b22]">Completando el acceso</h1>
-            <p className="mt-3 text-sm text-[#687267]">Estamos preparando tu cuenta de AsistAI.</p>
+            <p className="mt-3 text-sm text-muted">Estamos preparando tu cuenta de AsistAI.</p>
           </>
         )}
       </div>

@@ -94,13 +94,13 @@ export default function RegisterBusinessCalendarPage() {
     <div className="flex min-h-screen items-center justify-center px-4 py-12 sm:px-6 lg:px-8">
       <div className="panel w-full max-w-lg p-8">
         <div className="space-y-4 text-center">
-          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-3xl bg-[#1e2b22] text-[#b8d96e] shadow-sm">
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-[#1e2b22] text-[#b8d96e] shadow-sm">
             <CalendarDays className="h-7 w-7" />
           </div>
           <h2 className="text-3xl font-semibold tracking-tight text-[#1e2b22]">
             {texts.calendar.heading}
           </h2>
-          <p className="mx-auto max-w-md text-sm leading-6 text-[#687267]">
+          <p className="mx-auto max-w-md text-sm leading-6 text-muted">
             {texts.calendar.subheading}
           </p>
         </div>
@@ -117,10 +117,10 @@ export default function RegisterBusinessCalendarPage() {
             </div>
             <div className="flex-1">
               <p className="font-semibold text-[#1e2b22]">Google Calendar</p>
-              <p className="text-sm text-[#687267]">Conecta tu agenda de Google para reservar citas.</p>
+              <p className="text-sm text-muted">Conecta tu agenda de Google para reservar citas.</p>
             </div>
             {loading === "google" ? (
-              <LoaderCircle className="h-5 w-5 animate-spin text-[#687267]" />
+              <LoaderCircle className="h-5 w-5 animate-spin text-muted" />
             ) : (
               <Check className="h-5 w-5 text-[#8a9388]" />
             )}
@@ -137,10 +137,10 @@ export default function RegisterBusinessCalendarPage() {
             </div>
             <div className="flex-1">
               <p className="font-semibold text-[#1e2b22]">Outlook / Microsoft 365</p>
-              <p className="text-sm text-[#687267]">Conecta tu agenda de Microsoft para reservar citas.</p>
+              <p className="text-sm text-muted">Conecta tu agenda de Microsoft para reservar citas.</p>
             </div>
             {loading === "outlook" ? (
-              <LoaderCircle className="h-5 w-5 animate-spin text-[#687267]" />
+              <LoaderCircle className="h-5 w-5 animate-spin text-muted" />
             ) : (
               <Check className="h-5 w-5 text-[#8a9388]" />
             )}
@@ -154,7 +154,7 @@ export default function RegisterBusinessCalendarPage() {
             type="button"
             onClick={() => redirectToFinalStep()}
             disabled={loading !== null}
-            className="w-full rounded-xl border border-[#dce1d8] bg-white px-4 py-3 text-sm font-semibold text-[#687267] transition hover:bg-[#fafbf8] disabled:cursor-not-allowed disabled:opacity-50"
+            className="w-full rounded-xl border border-[#dce1d8] bg-white px-4 py-3 text-sm font-semibold text-muted transition hover:bg-[#fafbf8] disabled:cursor-not-allowed disabled:opacity-50"
           >
             Configurar calendario después
           </button>

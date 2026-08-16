@@ -37,7 +37,6 @@ export function RevenueLossCalculator({ content }: { content?: NicheLandingConte
   const router = useRouter();
   const [averageTicket, setAverageTicket] = useState(content?.initialTicket ?? 35);
   const [missedAppointmentsPerWeek, setMissedAppointmentsPerWeek] = useState(3);
-  const [hasInteracted, setHasInteracted] = useState(false);
   const hasHydrated = useRef(false);
 
   useEffect(() => {
@@ -55,19 +54,18 @@ export function RevenueLossCalculator({ content }: { content?: NicheLandingConte
   }, [averageTicket, missedAppointmentsPerWeek]);
 
   const updateAverageTicket = (value: number) => {
-    setHasInteracted(true);
     setAverageTicket(clamp(value, TICKET_MIN, TICKET_MAX));
   };
 
   const updateMissedAppointments = (value: number) => {
-    setHasInteracted(true);
     setMissedAppointmentsPerWeek(clamp(value, APPOINTMENTS_MIN, APPOINTMENTS_MAX));
   };
 
   const openPersonalizedPlans = () => {
-    if (hasInteracted) {
-      activateRoiContext({ averageTicket, missedAppointmentsPerWeek });
-    }
+    // La cifra que el botón nombra es la que se ve en pantalla, tocada o no.
+    // Propagarla siempre evita que /planes reciba un titular genérico después
+    // de haber prometido un importe concreto.
+    activateRoiContext({ averageTicket, missedAppointmentsPerWeek });
     router.push("/planes");
   };
 
@@ -94,12 +92,11 @@ export function RevenueLossCalculator({ content }: { content?: NicheLandingConte
 
         <div className="panel mx-auto mt-10 grid max-w-6xl overflow-hidden p-2 sm:p-3 lg:grid-cols-[0.94fr_1.06fr]">
           <div className="p-5 sm:p-7 lg:p-9">
-            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-[#718064]">Tus cifras</p>
-            <h3 className="mt-2 text-2xl font-semibold tracking-tight text-[#1e2b22]">Haz una estimación rápida</h3>
-            <p className="mt-2 text-sm leading-6 text-[#687267]">No necesitas datos exactos. Una aproximación basta para ver el impacto.</p>
+            <h3 className="text-2xl font-semibold tracking-tight text-[#1e2b22]">Haz una estimación rápida</h3>
+            <p className="mt-2 text-sm leading-6 text-[#54634b]">No necesitas datos exactos. Una aproximación basta para ver el impacto.</p>
 
             <div className="mt-8 space-y-7">
-              <div className="rounded-[1.5rem] border border-[#e2e9dc] bg-[#f8faf5] p-5 sm:p-6">
+              <div className="rounded-xl border border-[#e2e9dc] bg-[#f8faf5] p-5 sm:p-6">
                 <div className="flex items-start justify-between gap-4">
                   <label htmlFor="average-ticket" className="max-w-[15rem] text-sm font-semibold leading-5 text-[#344038]">
                     {content?.ticketLabel ?? "Ticket medio por servicio"}
@@ -117,16 +114,16 @@ export function RevenueLossCalculator({ content }: { content?: NicheLandingConte
                   value={averageTicket}
                   onChange={(event) => updateAverageTicket(Number(event.target.value))}
                   aria-valuetext={`${averageTicket} euros por servicio`}
-                  className="mt-6 h-2 w-full cursor-pointer appearance-none rounded-full bg-transparent accent-[#1e2b22] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#b8d96e]/60 [&::-moz-range-thumb]:h-6 [&::-moz-range-thumb]:w-6 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-4 [&::-moz-range-thumb]:border-white [&::-moz-range-thumb]:bg-[#1e2b22] [&::-moz-range-thumb]:shadow-md [&::-webkit-slider-thumb]:-mt-2 [&::-webkit-slider-thumb]:h-6 [&::-webkit-slider-thumb]:w-6 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:border-4 [&::-webkit-slider-thumb]:border-white [&::-webkit-slider-thumb]:bg-[#1e2b22] [&::-webkit-slider-thumb]:shadow-md [&::-webkit-slider-runnable-track]:h-2 [&::-webkit-slider-runnable-track]:rounded-full"
+                  className="mt-6 h-11 w-full cursor-pointer appearance-none rounded-full bg-transparent accent-[#1e2b22] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#b8d96e]/60 [&::-moz-range-thumb]:h-6 [&::-moz-range-thumb]:w-6 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-4 [&::-moz-range-thumb]:border-white [&::-moz-range-thumb]:bg-[#1e2b22] [&::-moz-range-thumb]:shadow-md [&::-webkit-slider-thumb]:-mt-2 [&::-webkit-slider-thumb]:h-6 [&::-webkit-slider-thumb]:w-6 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:border-4 [&::-webkit-slider-thumb]:border-white [&::-webkit-slider-thumb]:bg-[#1e2b22] [&::-webkit-slider-thumb]:shadow-md [&::-webkit-slider-runnable-track]:h-2 [&::-webkit-slider-runnable-track]:rounded-full"
                   style={sliderBackground(averageTicket, TICKET_MIN, TICKET_MAX)}
                 />
-                <div className="mt-3 flex justify-between text-xs font-medium text-[#7a8774]" aria-hidden="true">
+                <div className="mt-3 flex justify-between text-xs font-medium text-[#54634b]" aria-hidden="true">
                   <span>{currencyFormatter.format(TICKET_MIN)}</span>
                   <span>{currencyFormatter.format(TICKET_MAX)}</span>
                 </div>
               </div>
 
-              <div className="rounded-[1.5rem] border border-[#e2e9dc] bg-[#f8faf5] p-5 sm:p-6">
+              <div className="rounded-xl border border-[#e2e9dc] bg-[#f8faf5] p-5 sm:p-6">
                 <div className="flex items-start justify-between gap-4">
                   <label htmlFor="missed-appointments" className="max-w-[15rem] text-sm font-semibold leading-5 text-[#344038]">
                     {content?.appointmentsLabel ?? "Citas que podrías perder cada semana"}
@@ -144,10 +141,10 @@ export function RevenueLossCalculator({ content }: { content?: NicheLandingConte
                   value={missedAppointmentsPerWeek}
                   onChange={(event) => updateMissedAppointments(Number(event.target.value))}
                   aria-valuetext={`${missedAppointmentsPerWeek} citas perdidas por semana`}
-                  className="mt-6 h-2 w-full cursor-pointer appearance-none rounded-full bg-transparent accent-[#1e2b22] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#b8d96e]/60 [&::-moz-range-thumb]:h-6 [&::-moz-range-thumb]:w-6 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-4 [&::-moz-range-thumb]:border-white [&::-moz-range-thumb]:bg-[#1e2b22] [&::-moz-range-thumb]:shadow-md [&::-webkit-slider-thumb]:-mt-2 [&::-webkit-slider-thumb]:h-6 [&::-webkit-slider-thumb]:w-6 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:border-4 [&::-webkit-slider-thumb]:border-white [&::-webkit-slider-thumb]:bg-[#1e2b22] [&::-webkit-slider-thumb]:shadow-md [&::-webkit-slider-runnable-track]:h-2 [&::-webkit-slider-runnable-track]:rounded-full"
+                  className="mt-6 h-11 w-full cursor-pointer appearance-none rounded-full bg-transparent accent-[#1e2b22] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#b8d96e]/60 [&::-moz-range-thumb]:h-6 [&::-moz-range-thumb]:w-6 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-4 [&::-moz-range-thumb]:border-white [&::-moz-range-thumb]:bg-[#1e2b22] [&::-moz-range-thumb]:shadow-md [&::-webkit-slider-thumb]:-mt-2 [&::-webkit-slider-thumb]:h-6 [&::-webkit-slider-thumb]:w-6 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:border-4 [&::-webkit-slider-thumb]:border-white [&::-webkit-slider-thumb]:bg-[#1e2b22] [&::-webkit-slider-thumb]:shadow-md [&::-webkit-slider-runnable-track]:h-2 [&::-webkit-slider-runnable-track]:rounded-full"
                   style={sliderBackground(missedAppointmentsPerWeek, APPOINTMENTS_MIN, APPOINTMENTS_MAX)}
                 />
-                <div className="mt-3 flex justify-between text-xs font-medium text-[#7a8774]" aria-hidden="true">
+                <div className="mt-3 flex justify-between text-xs font-medium text-[#54634b]" aria-hidden="true">
                   <span>{APPOINTMENTS_MIN} cita</span>
                   <span>{APPOINTMENTS_MAX} citas</span>
                 </div>
@@ -155,20 +152,20 @@ export function RevenueLossCalculator({ content }: { content?: NicheLandingConte
             </div>
           </div>
 
-          <div className="relative flex min-h-[28rem] flex-col overflow-hidden rounded-[1.7rem] bg-[#1e2b22] p-6 text-white sm:p-8 lg:p-10">
+          <div className="relative flex min-h-[28rem] flex-col overflow-hidden rounded-2xl bg-[#1e2b22] p-6 text-white sm:p-8 lg:p-10">
             <div className="pointer-events-none absolute -right-20 -top-24 h-72 w-72 rounded-full bg-[#b8d96e]/20 blur-[70px]" />
             <div className="pointer-events-none absolute -bottom-24 -left-24 h-64 w-64 rounded-full bg-[#5b7441]/25 blur-[80px]" />
 
             <div className="relative flex h-full flex-1 flex-col">
               <div className="flex items-center gap-3 text-sm font-semibold text-white/75">
-                <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white/10 text-[#b8d96e] ring-1 ring-inset ring-white/10">
+                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/10 text-[#b8d96e] ring-1 ring-inset ring-white/10">
                   <TrendingDown className="h-5 w-5" aria-hidden="true" />
                 </span>
                 Ingresos que podrías estar perdiendo al mes
               </div>
 
               <div className="mt-8 border-b border-white/10 pb-8" aria-live="polite" aria-atomic="true">
-                <p className="text-5xl font-semibold tracking-[-0.055em] text-[#b8d96e] sm:text-6xl lg:text-7xl">
+                <p className="text-5xl font-semibold tracking-[-0.04em] text-[#b8d96e] sm:text-6xl lg:text-7xl">
                   {currencyFormatter.format(monthlyLoss)}
                 </p>
                 <p className="mt-3 text-base leading-7 text-white/65">
@@ -176,17 +173,17 @@ export function RevenueLossCalculator({ content }: { content?: NicheLandingConte
                 </p>
               </div>
 
-              <div className="mt-7 rounded-[1.4rem] border border-[#b8d96e]/20 bg-[#b8d96e]/10 p-5">
+              <div className="mt-7 rounded-xl border border-[#b8d96e]/20 bg-[#b8d96e]/10 p-5">
                 <p className="text-sm font-semibold leading-6 text-white">
-                  Con recuperar solo {appointmentsToCoverPlan} {appointmentsToCoverPlan === 1 ? "cita" : "citas"} al mes, el plan Inicio podría cubrirse.
+                  Con recuperar solo {appointmentsToCoverPlan} {appointmentsToCoverPlan === 1 ? "cita" : "citas"} al mes, el plan {starterPlan.name} podría cubrirse.
                 </p>
                 <p className="mt-1 text-sm leading-6 text-white/65">
-                  Tu estimación actual es de {monthlyMissedAppointments} citas al mes. El plan Inicio cuesta {starterPlan.price} €/mes.
+                  Tu estimación actual es de {monthlyMissedAppointments} citas al mes. El plan {starterPlan.name} cuesta {starterPlan.price} €/mes.
                 </p>
               </div>
 
               <div className="mt-auto pt-8">
-                <button type="button" onClick={openPersonalizedPlans} className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-[#b8d96e] px-5 py-3 text-center text-sm font-semibold text-[#1e2b22] transition hover:-translate-y-0.5 hover:bg-[#e3ff9e] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#b8d96e]/40">
+                <button type="button" onClick={openPersonalizedPlans} className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-lg bg-[#b8d96e] px-5 py-3 text-center text-sm font-semibold text-[#1e2b22] transition hover:-translate-y-0.5 hover:bg-[#e3ff9e] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#b8d96e]/40">
                   Recuperar mis {monthlyLoss.toLocaleString("es-ES")} € al mes
                   <ArrowRight className="h-4 w-4 shrink-0" aria-hidden="true" />
                 </button>
@@ -199,7 +196,7 @@ export function RevenueLossCalculator({ content }: { content?: NicheLandingConte
           </div>
         </div>
 
-        <p className="mx-auto mt-5 max-w-2xl text-center text-xs leading-5 text-[#7a8774]">
+        <p className="mx-auto mt-5 max-w-2xl text-center text-sm leading-6 text-[#54634b]">
           Estimación orientativa basada en 4 semanas al mes. No incluye recurrencia de clientes ni ventas adicionales.
         </p>
       </div>

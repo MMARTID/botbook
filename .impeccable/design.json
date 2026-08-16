@@ -1,0 +1,526 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-08-16T19:20:00Z",
+  "title": "Design System: AsistAI",
+  "extensions": {
+    "colorMeta": {
+      "accent": {
+        "role": "primary",
+        "displayName": "Verde Mostrador",
+        "canonical": "#1e2b22",
+        "tonalRamp": [
+          "#0d130f",
+          "#141d17",
+          "#1e2b22",
+          "#2c3d31",
+          "#425543",
+          "#647a63",
+          "#9db09b",
+          "#d6e0d4"
+        ]
+      },
+      "accent-strong": {
+        "role": "primary",
+        "displayName": "Verde Mostrador Intenso",
+        "canonical": "#243026",
+        "tonalRamp": [
+          "#0f140f",
+          "#171f18",
+          "#243026",
+          "#334134",
+          "#4a5b4b",
+          "#6d7f6d",
+          "#a3b4a2",
+          "#dae2d8"
+        ]
+      },
+      "accent-soft": {
+        "role": "secondary",
+        "displayName": "Brote Claro",
+        "canonical": "#b8d96e",
+        "tonalRamp": [
+          "#2b3a12",
+          "#40561c",
+          "#5b7828",
+          "#789b37",
+          "#96bb4c",
+          "#b8d96e",
+          "#d3e8a2",
+          "#edf6d6"
+        ]
+      },
+      "accent-wash": {
+        "role": "secondary",
+        "displayName": "Verde Brote Lavado",
+        "canonical": "#eef6dc",
+        "tonalRamp": [
+          "#3b4520",
+          "#55632e",
+          "#71813f",
+          "#8fa055",
+          "#b0be7f",
+          "#cfdaa9",
+          "#eef6dc",
+          "#f8fbee"
+        ]
+      },
+      "accent-ink": {
+        "role": "secondary",
+        "displayName": "Tinta Brote",
+        "canonical": "#405115",
+        "tonalRamp": [
+          "#1a2108",
+          "#28330d",
+          "#405115",
+          "#57701d",
+          "#71902a",
+          "#94b348",
+          "#bcd382",
+          "#e2eec4"
+        ]
+      },
+      "accent-ring": {
+        "role": "secondary",
+        "displayName": "Anillo Brote",
+        "canonical": "#d7e9c5",
+        "tonalRamp": [
+          "#374423",
+          "#4e6033",
+          "#688045",
+          "#86a05f",
+          "#a7bd87",
+          "#c3d6ab",
+          "#d7e9c5",
+          "#eef5e4"
+        ]
+      },
+      "focus": {
+        "role": "secondary",
+        "displayName": "Verde Foco",
+        "canonical": "#9dbb55",
+        "tonalRamp": [
+          "#242e0f",
+          "#374618",
+          "#4e6222",
+          "#68812e",
+          "#83a03d",
+          "#9dbb55",
+          "#c0d391",
+          "#e3ecca"
+        ]
+      },
+      "background": {
+        "role": "neutral",
+        "displayName": "Papel Verde",
+        "canonical": "#eef2eb",
+        "tonalRamp": [
+          "#232823",
+          "#343a33",
+          "#4a524a",
+          "#6b746a",
+          "#939b91",
+          "#c0c7bd",
+          "#eef2eb",
+          "#f9fbf8"
+        ]
+      },
+      "surface": {
+        "role": "neutral",
+        "displayName": "Superficie",
+        "canonical": "#ffffff",
+        "tonalRamp": [
+          "#262926",
+          "#3a3e39",
+          "#525751",
+          "#74796f",
+          "#9ca195",
+          "#c9cec3",
+          "#eef0e9",
+          "#ffffff"
+        ]
+      },
+      "surface-soft": {
+        "role": "neutral",
+        "displayName": "Superficie Templada",
+        "canonical": "#f6f7f1",
+        "tonalRamp": [
+          "#282a24",
+          "#3c3e35",
+          "#54574b",
+          "#767a6a",
+          "#9ea28f",
+          "#cbcfba",
+          "#f0f2e6",
+          "#f6f7f1"
+        ]
+      },
+      "foreground": {
+        "role": "neutral",
+        "displayName": "Tinta",
+        "canonical": "#17211c",
+        "tonalRamp": [
+          "#0a0f0c",
+          "#111814",
+          "#17211c",
+          "#26332a",
+          "#3c4c40",
+          "#5e715f",
+          "#95a595",
+          "#d1dbcf"
+        ]
+      },
+      "muted": {
+        "role": "neutral",
+        "displayName": "Tinta Apagada",
+        "canonical": "#5f6a5e",
+        "tonalRamp": [
+          "#161a15",
+          "#222719",
+          "#333a2f",
+          "#475041",
+          "#5f6a5e",
+          "#838d82",
+          "#adb5ac",
+          "#d9ddd8"
+        ]
+      },
+      "stroke": {
+        "role": "neutral",
+        "displayName": "Trazo",
+        "canonical": "#d2dacd",
+        "tonalRamp": [
+          "#2b2f29",
+          "#3f453d",
+          "#575e53",
+          "#767e71",
+          "#9aa294",
+          "#bbc3b5",
+          "#d2dacd",
+          "#eef1ea"
+        ]
+      },
+      "border": {
+        "role": "neutral",
+        "displayName": "Borde Velado",
+        "canonical": "rgba(30, 43, 34, 0.08)",
+        "tonalRamp": [
+          "rgba(30,43,34,0.64)",
+          "rgba(30,43,34,0.48)",
+          "rgba(30,43,34,0.32)",
+          "rgba(30,43,34,0.24)",
+          "rgba(30,43,34,0.16)",
+          "rgba(30,43,34,0.12)",
+          "rgba(30,43,34,0.08)",
+          "rgba(30,43,34,0.04)"
+        ]
+      },
+      "success": {
+        "role": "tertiary",
+        "displayName": "Éxito",
+        "canonical": "#2c7334",
+        "tonalRamp": [
+          "#0d240f",
+          "#143518",
+          "#1d4c22",
+          "#26602b",
+          "#2c7334",
+          "#3d9447",
+          "#77bd80",
+          "#c3e2c8"
+        ]
+      },
+      "success-surface": {
+        "role": "tertiary",
+        "displayName": "Superficie Éxito",
+        "canonical": "#ecf7ec",
+        "tonalRamp": [
+          "#26382a",
+          "#365040",
+          "#4a6c52",
+          "#66896e",
+          "#8fac95",
+          "#bcd3c0",
+          "#ecf7ec",
+          "#f7fcf7"
+        ]
+      },
+      "warning": {
+        "role": "tertiary",
+        "displayName": "Aviso",
+        "canonical": "#9f7a15",
+        "tonalRamp": [
+          "#291f05",
+          "#3d2f08",
+          "#57430c",
+          "#755a11",
+          "#9f7a15",
+          "#c69a2b",
+          "#dfc072",
+          "#f2e4b8"
+        ]
+      },
+      "error": {
+        "role": "tertiary",
+        "displayName": "Error",
+        "canonical": "#c53030",
+        "tonalRamp": [
+          "#2f0b0b",
+          "#471010",
+          "#661717",
+          "#8d2020",
+          "#c53030",
+          "#dc5a5a",
+          "#ec9494",
+          "#f8d3d3"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Display",
+        "purpose": "Titular de hero en landings. Uno por página, nunca en el producto."
+      },
+      "headline": {
+        "displayName": "Headline",
+        "purpose": "Títulos de sección y encabezados de página del panel."
+      },
+      "title": {
+        "displayName": "Title",
+        "purpose": "Títulos de panel y de tarjeta."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "El caballo de batalla. Línea máxima de 65–75 caracteres; sube a 1rem en párrafo largo de landings."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Badges, chips de estado y encabezados de columna, en mayúsculas. No eyebrows: ver La Regla del Titular Solo."
+      },
+      "mono": {
+        "displayName": "Mono",
+        "purpose": "Identificadores, teléfonos y fragmentos de transcripción."
+      }
+    },
+    "shadows": [
+      {
+        "name": "ambiental-panel",
+        "value": "0 8px 24px rgba(30,43,34,0.06)",
+        "purpose": "Reposo de .panel. Sube a 0 12px 32px rgba(30,43,34,0.08) desde sm."
+      },
+      {
+        "name": "ambiental-panel-sm",
+        "value": "0 12px 32px rgba(30,43,34,0.08)",
+        "purpose": "Panel desde el punto de ruptura sm, donde hay más superficie que sostener."
+      },
+      {
+        "name": "ambiental-tarjeta",
+        "value": "0 4px 16px rgba(30,43,34,0.04)",
+        "purpose": "Tarjetas pequeñas y elementos del carril de citas."
+      },
+      {
+        "name": "accion-primaria",
+        "value": "0 8px 20px rgba(30,43,34,0.12)",
+        "purpose": "Botón primario en reposo; única sombra con intención de destacar."
+      },
+      {
+        "name": "accion-primaria-sm",
+        "value": "0 10px 28px rgba(30,43,34,0.16)",
+        "purpose": "Botón primario desde sm. Techo del sistema: nada más profundo."
+      }
+    ],
+    "motion": [
+      {
+        "name": "duracion-estandar",
+        "value": "200ms",
+        "purpose": "Toda transición de estado: hover, foco, borde, fondo."
+      },
+      {
+        "name": "ease-entrada",
+        "value": "cubic-bezier(0.33, 1, 0.68, 1)",
+        "purpose": "Entrada del modal de demo de voz (320ms), deslizando desde abajo."
+      },
+      {
+        "name": "ease-salida",
+        "value": "cubic-bezier(0.32, 0, 0.67, 0)",
+        "purpose": "Salida del modal de demo de voz (320ms)."
+      },
+      {
+        "name": "elevacion-hover",
+        "value": "translateY(-2px)",
+        "purpose": "Gesto táctil de botones primarios y secundarios. Se devuelve en active."
+      },
+      {
+        "name": "foco-seccion",
+        "value": "1.1s ease-out",
+        "purpose": "Pulso de anillo al saltar a una sección de ajustes; sustituido por outline sólido bajo prefers-reduced-motion."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "sm",
+        "value": "640px"
+      },
+      {
+        "name": "lg",
+        "value": "1024px"
+      },
+      {
+        "name": "xl",
+        "value": "1280px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Botón primario",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Acción principal de cualquier vista. Una sola por pantalla.",
+      "html": "<button class=\"ds-btn-primary\">Guardar cambios</button>",
+      "css": ".ds-btn-primary { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 44px; padding: 0 20px; border: none; border-radius: 8px; background: var(--accent, #1e2b22); color: #fff; font-family: var(--font-geist-sans), sans-serif; font-size: 0.875rem; font-weight: 600; box-shadow: 0 8px 20px rgba(30,43,34,0.12); cursor: pointer; transition: background 200ms, transform 200ms, box-shadow 200ms; } .ds-btn-primary:hover { background: var(--accent-strong, #243026); transform: translateY(-2px); box-shadow: 0 10px 28px rgba(30,43,34,0.16); } .ds-btn-primary:focus-visible { outline: 2px solid #9dbb55; outline-offset: 2px; } .ds-btn-primary:active { transform: translateY(0); box-shadow: 0 4px 12px rgba(30,43,34,0.14); } .ds-btn-primary:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }"
+    },
+    {
+      "name": "Botón secundario",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Acción alternativa junto al primario: cancelar, volver, ver detalle.",
+      "html": "<button class=\"ds-btn-secondary\">Cancelar</button>",
+      "css": ".ds-btn-secondary { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 44px; padding: 0 20px; border: 1px solid #d2dacd; border-radius: 8px; background: rgba(255,255,255,0.95); color: #344038; font-family: var(--font-geist-sans), sans-serif; font-size: 0.875rem; font-weight: 600; cursor: pointer; transition: background 200ms, transform 200ms; } .ds-btn-secondary:hover { background: #f4f6f1; transform: translateY(-2px); } .ds-btn-secondary:focus-visible { outline: 2px solid #9dbb55; outline-offset: 2px; } .ds-btn-secondary:active { transform: translateY(0); background: #eef1e9; } .ds-btn-secondary:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }"
+    },
+    {
+      "name": "Campo de texto",
+      "kind": "input",
+      "refersTo": "input-field",
+      "description": "Entrada de una línea. Misma altura que los botones para alinear filas de formulario.",
+      "html": "<input class=\"ds-input-field\" type=\"text\" placeholder=\"Nombre del negocio\" />",
+      "css": ".ds-input-field { height: 44px; width: 260px; padding: 0 16px; border: 1px solid #d2dacd; border-radius: 8px; background: rgba(255,255,255,0.95); color: var(--foreground, #17211c); font-family: var(--font-geist-sans), sans-serif; font-size: 0.875rem; outline: none; transition: border-color 200ms, box-shadow 200ms; } .ds-input-field::placeholder { color: #6b756a; } .ds-input-field:focus { border-color: #9dbb55; box-shadow: 0 0 0 2px rgba(184,217,110,0.4); } .ds-input-field:disabled { background: #f0f3ea; cursor: not-allowed; }"
+    },
+    {
+      "name": "Panel",
+      "kind": "card",
+      "refersTo": "panel",
+      "description": "Contenedor mayor del sistema: vidrio esmerilado sobre el papel verde.",
+      "html": "<section class=\"ds-panel\"><h3 class=\"ds-panel-title\">Próximas citas</h3><p class=\"ds-panel-body\">Tu agenda de hoy, tal y como la ve la recepcionista.</p></section>",
+      "css": ".ds-panel { border-radius: 16px; border: 1px solid rgba(255,255,255,0.7); background: rgba(255,255,255,0.95); padding: 24px; box-shadow: 0 8px 24px rgba(30,43,34,0.06); backdrop-filter: blur(24px); } .ds-panel-title { margin: 0 0 8px; font-family: var(--font-geist-sans), sans-serif; font-size: 1.125rem; font-weight: 600; letter-spacing: -0.01em; color: var(--foreground, #17211c); } .ds-panel-body { margin: 0; font-family: var(--font-geist-sans), sans-serif; font-size: 0.875rem; font-weight: 400; line-height: 1.6; color: var(--muted, #687267); }"
+    },
+    {
+      "name": "Tarjeta de cita",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "Elemento del carril de próximas citas. Radio menor que el panel para anidarse dentro.",
+      "html": "<article class=\"ds-card-cita\"><span class=\"ds-card-cita-hora\">10:30</span><p class=\"ds-card-cita-nombre\">Laura Giménez</p><p class=\"ds-card-cita-servicio\">Corte y color · 90 min</p></article>",
+      "css": ".ds-card-cita { display: block; min-height: 128px; width: 180px; border-radius: 12px; border: 1px solid #dce6d4; background: rgba(255,255,255,0.9); padding: 16px; box-shadow: 0 4px 16px rgba(30,43,34,0.04); font-family: var(--font-geist-sans), sans-serif; } .ds-card-cita-hora { display: inline-block; font-size: 0.75rem; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: #405115; } .ds-card-cita-nombre { margin: 8px 0 4px; font-size: 0.875rem; font-weight: 600; color: var(--foreground, #17211c); } .ds-card-cita-servicio { margin: 0; font-size: 0.875rem; font-weight: 400; line-height: 1.6; color: var(--muted, #687267); }"
+    },
+    {
+      "name": "Badge de estado",
+      "kind": "chip",
+      "refersTo": "badge-soft",
+      "description": "Estado del negocio o de una llamada. Píldora en Verde Brote Lavado con anillo interior.",
+      "html": "<span class=\"ds-badge-soft\"><svg width=\"12\" height=\"12\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.49 12H2\"/></svg>Activo</span>",
+      "css": ".ds-badge-soft { display: inline-flex; align-items: center; gap: 6px; border-radius: 9999px; background: #eef6dc; padding: 4px 12px; box-shadow: inset 0 0 0 1px #d7e9c5; font-family: var(--font-geist-sans), sans-serif; font-size: 0.75rem; font-weight: 600; color: #405115; }"
+    },
+    {
+      "name": "Pastilla de navegación",
+      "kind": "nav",
+      "refersTo": "nav-pill",
+      "description": "Enlace del menú principal del panel. Activo en Verde Brote Lavado, inactivo en blanco.",
+      "html": "<nav class=\"ds-nav\"><a class=\"ds-nav-pill ds-nav-pill--active\" href=\"#\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><rect width=\"7\" height=\"9\" x=\"3\" y=\"3\" rx=\"1\"/><rect width=\"7\" height=\"5\" x=\"14\" y=\"3\" rx=\"1\"/><rect width=\"7\" height=\"9\" x=\"14\" y=\"12\" rx=\"1\"/><rect width=\"7\" height=\"5\" x=\"3\" y=\"16\" rx=\"1\"/></svg>Panel</a><a class=\"ds-nav-pill\" href=\"#\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z\"/><circle cx=\"12\" cy=\"12\" r=\"3\"/></svg>Ajustes</a></nav>",
+      "css": ".ds-nav { display: flex; gap: 8px; } .ds-nav-pill { display: inline-flex; align-items: center; gap: 8px; border-radius: 9999px; border: 1px solid #e4e8df; background: #fff; padding: 8px 12px; font-family: var(--font-geist-sans), sans-serif; font-size: 0.875rem; font-weight: 500; color: #344038; text-decoration: none; transition: background 200ms, border-color 200ms; } .ds-nav-pill:hover { background: #f6f8f2; } .ds-nav-pill:focus-visible { outline: 2px solid #9dbb55; outline-offset: 2px; } .ds-nav-pill--active { border-color: #cfe1ae; background: #eef6dc; color: #405115; }"
+    },
+    {
+      "name": "Azulejo de icono",
+      "kind": "custom",
+      "refersTo": "icon-tile",
+      "description": "Firma del sistema: ningún icono va suelto sobre el papel, siempre dentro de su azulejo.",
+      "html": "<div class=\"ds-icon-tile\"><svg width=\"20\" height=\"20\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M8 2v4\"/><path d=\"M16 2v4\"/><rect width=\"18\" height=\"18\" x=\"3\" y=\"4\" rx=\"2\"/><path d=\"M3 10h18\"/></svg></div>",
+      "css": ".ds-icon-tile { display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px; border-radius: 12px; background: #eef6dc; color: #2c7334; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "La Recepción Serena",
+    "overview": "El mostrador de un buen negocio a media mañana: luz natural entrando, madera clara, todo en su sitio, nadie levantando la voz. Esa es la sensación que persigue AsistAI. El producto le habla a una peluquera, un barbero o un fisioterapeuta que no compró software en su vida y que no quiere sentirse en una app: quiere sentir que ha contratado a alguien competente y tranquilo. La interfaz interpreta ese papel — presente, ordenada, sin pedir atención.\n\nMaterialmente el sistema es papel verde pálido con tinta verde casi negra. El fondo nunca es blanco plano: es un degradado radial tenue que baja de #f7f8f5 a #e7ece4 con un halo de Brote Claro arriba a la izquierda, y ese fondo se mantiene en todas las pantallas, de la landing al panel, para que la aplicación no se sienta como un sitio distinto del que te vendió. Sobre él flotan superficies blancas translúcidas con bordes de un píxel. La profundidad viene del tono y del borde, no de la sombra.\n\nEl anti-referente está confirmado y es explícito: nada de estética de startup ni de app de consumo. Se rechazaron por nombre el negro verdoso #101814 y el lima neón #d6ff72 por producir exactamente ese registro. El sistema es cálido pero adulto, y su expresividad está en la precisión — un radio consistente, un acento que aparece poco — no en el volumen.",
+    "keyCharacteristics": [
+      "Papel verde pálido con degradado radial continuo en todas las superficies, jamás fondo plano.",
+      "Un solo acento fuerte por vista; el Brote Claro se reserva para foco y realce.",
+      "Profundidad por capas tonales y bordes de 1 px, con sombra ambiental casi imperceptible.",
+      "Escala de radios corta y disciplinada: 8 / 12 / 16 px, y píldora solo en badges y navegación.",
+      "Respuesta táctil breve: 200 ms, 2 px de elevación en hover, hundido en active.",
+      "Español de España en toda la interfaz; iconografía Lucide sobre azulejo #eef6dc."
+    ],
+    "rules": [
+      {
+        "name": "La Regla del Acento Único",
+        "body": "El Brote Claro y el Verde Mostrador no compiten. En cualquier vista hay un solo elemento que reclama la mirada: o el botón primario, o el dato que importa. Si dos cosas gritan, ninguna se oye.",
+        "section": "colors"
+      },
+      {
+        "name": "La Regla del Verde Único",
+        "body": "No entra ningún tono ajeno a la familia verde salvo los tres semánticos. Púrpura y naranja están prohibidos por nombre en HeroConversation y por extensión en todo el sistema. Las landings de nicho son la única excepción reglada: cada una tiene su NicheAccent (strong / soft / deep) en niche-landings.ts y lo aplica solo a esa página.",
+        "section": "colors"
+      },
+      {
+        "name": "La Regla del Papel Continuo",
+        "body": "Ninguna pantalla usa fondo plano. El degradado radial del body es el suelo compartido de landing, auth, registro, panel y ajustes. Un #f7f8f4 liso rompe la continuidad entre la promesa y el producto.",
+        "section": "colors"
+      },
+      {
+        "name": "La Regla del Titular Solo",
+        "body": "Ningún titular lleva encima una etiqueta en mayúsculas del tipo «Cómo te ayuda» o «Sin letra pequeña». El titular carga con su propio peso; el eyebrow solo añade una línea de texto pequeño y bajo contraste que nadie lee. Un badge sí es legítimo cuando aporta información que el titular no da, pero no cuando solo anuncia la sección.",
+        "section": "typography"
+      },
+      {
+        "name": "La Regla del Peso Ganado",
+        "body": "font-semibold se gana: titulares, títulos de tarjeta, CTAs y cifras clave. El cuerpo, las descripciones y las ayudas van en font-normal. Cuando todo está en semibold, la jerarquía desaparece y la interfaz se lee gritada.",
+        "section": "typography"
+      },
+      {
+        "name": "La Regla del Tracking Contenido",
+        "body": "-0.02em en titulares; hasta 0.12em en labels en mayúsculas. Por encima de 0.15em el texto deja de leerse como palabra y pasa a leerse como adorno.",
+        "section": "typography"
+      },
+      {
+        "name": "La Regla del Cuerpo Cómodo",
+        "body": "El cuerpo a 0.875rem es el mínimo del sistema, no su valor aspiracional. El texto de párrafo largo en landings sube a 1rem: la audiencia es de edad mixta y lee en el móvil, de pie y con prisa.",
+        "section": "typography"
+      },
+      {
+        "name": "La Regla del Pulgar",
+        "body": "La configuración se hace de pie, entre cliente y cliente. Todo objetivo interactivo mide al menos 44 px de alto — de ahí que campos y botones compartan h-11.",
+        "section": "layout"
+      },
+      {
+        "name": "La Regla de los 24 Píxeles",
+        "body": "Ningún desenfoque de sombra pasa de 32 px ni ninguna opacidad de 0,16. Las sombras de 55 u 80 px de desenfoque despegan los paneles del papel y convierten una herramienta en un escaparate.",
+        "section": "elevation"
+      },
+      {
+        "name": "La Regla de la Escala Corta",
+        "body": "8, 12, 16 y píldora. No hay un quinto radio. Valores como rounded-3xl, rounded-[1.75rem] o rounded-[2rem] no pertenecen al sistema: aflojan la geometría hasta el registro de app de consumo, que es justo el anti-referente.",
+        "section": "shapes"
+      }
+    ],
+    "dos": [
+      "Do mantener el degradado radial del body en todas las páginas, incluidas auth, registro y checkout.",
+      "Do limitarse a la escala de radios 8 / 12 / 16 px, con píldora reservada a badges, chips, pastillas de navegación y botones de icono.",
+      "Do teñir todas las sombras con rgba(30,43,34,...) y quedarse por debajo de 32 px de desenfoque y 0,16 de opacidad.",
+      "Do reservar font-semibold para titulares, títulos de tarjeta, CTAs y cifras clave, y dejar el cuerpo en font-normal.",
+      "Do dar 44 px de alto a todo control interactivo: se configura de pie y con prisa.",
+      "Do envolver cada icono Lucide en su azulejo #eef6dc con trazo #2c7334.",
+      "Do hacer visible el foco en todo elemento interactivo con el anillo de Verde Foco; es requisito del compromiso WCAG 2.1 AA registrado en PRODUCT.md.",
+      "Do subir el texto de párrafo largo a 1rem en superficies públicas.",
+      "Do usar la utilidad .text-muted para el texto secundario en lugar de escribir el hex: el token es el único punto de cambio."
+    ],
+    "donts": [
+      "Don't usar #d6ff72 (lima neón) ni #101814 (negro verdoso). Están rechazados por nombre y siguen presentes en el código: rgba(214,255,114,…) aparece en app-shell.tsx, landing-hero.tsx, app/page.tsx y planes/page.tsx, y rgba(16,24,20,…) en once archivos. Son deuda a corregir, no precedente a imitar.",
+      "Don't introducir rounded-3xl, rounded-[1.75rem], rounded-[2rem] ni ningún radio fuera de la escala. Hoy hay 10 usos de rounded-3xl y 16 de radios arbitrarios: son la deriva, no la norma.",
+      "Don't usar sombras de gran desenfoque tipo 0_22px_55px, 0_26px_80px o 0_20px_80px. Hay cinco en el código y todas despegan el panel del papel.",
+      "Don't aplicar tracking-[0.3em] ni superior. Los siete usos actuales convierten el label en textura ilegible.",
+      "Don't poner púrpura, naranja ni ningún color fuera de la familia verde, salvo los tres semánticos y el NicheAccent de su propia landing.",
+      "Don't usar fondos planos (#f7f8f4 y similares) en lugar del degradado del papel.",
+      "Don't dejar cajas oscuras dentro del panel: la tarjeta «Estado general» va en #f7f9f3 con acentos verdes, no en un bloque oscuro.",
+      "Don't aplicar sombras grises o negras. El papel es verde y las delata.",
+      "Don't dejar que un contenedor colapse mientras carga: el checkout embebido reserva min-h-[480px] y todo contenedor asíncrono debe reservar su altura igual.",
+      "Don't poner una etiqueta en mayúsculas encima de un titular. El titular se sostiene solo."
+    ]
+  }
+}

@@ -93,13 +93,13 @@ export default function RegisterBusinessNichePage() {
     <div className="flex min-h-screen items-center justify-center px-4 py-12 sm:px-6 lg:px-8">
       <div className="panel w-full max-w-lg p-8">
         <div className="space-y-4 text-center">
-          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-3xl bg-[#1e2b22] text-[#b8d96e] shadow-sm">
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-[#1e2b22] text-[#b8d96e] shadow-sm">
             <Store className="h-7 w-7" />
           </div>
           <h2 className="text-3xl font-semibold tracking-tight text-[#1e2b22]">
             ¿Qué tipo de negocio tienes?
           </h2>
-          <p className="mx-auto max-w-md text-sm leading-6 text-[#687267]">
+          <p className="mx-auto max-w-md text-sm leading-6 text-muted">
             Adaptamos la recepción a tu sector para que el asistente hable el mismo idioma que tus clientes.
           </p>
         </div>
@@ -107,7 +107,7 @@ export default function RegisterBusinessNichePage() {
         {isConfirmationMode ? (
           <div className="mt-8 space-y-6">
             <div className="rounded-2xl border border-[#dce7d2] bg-[#fbfcf8] p-6 text-center">
-              <p className="text-sm text-[#687267]">
+              <p className="text-sm text-muted">
                 {selectionSource === "places"
                   ? "Hemos detectado que tu negocio es una"
                   : "El asistente sería para una"}
@@ -145,7 +145,7 @@ export default function RegisterBusinessNichePage() {
                 type="button"
                 onClick={() => setSelectedType(null)}
                 disabled={saving}
-                className="w-full rounded-xl border border-[#dce1d8] bg-white px-4 py-3 text-sm font-semibold text-[#687267] transition hover:bg-[#fafbf8] disabled:cursor-not-allowed disabled:opacity-50"
+                className="w-full rounded-xl border border-[#dce1d8] bg-white px-4 py-3 text-sm font-semibold text-muted transition hover:bg-[#fafbf8] disabled:cursor-not-allowed disabled:opacity-50"
               >
                 No, cambiar tipo de negocio
               </button>

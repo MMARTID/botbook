@@ -88,7 +88,7 @@ export function BusinessHoursEditor({
               <CalendarClock className="h-5 w-5" />
               <h2 className="text-xl font-semibold text-[#1e2b22]">Horario del negocio</h2>
             </div>
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-[#687267]">
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-muted">
               El agente recibe siempre este horario estructurado y lo comprueba antes de ofrecer o confirmar una cita.
             </p>
           </div>
@@ -112,17 +112,17 @@ export function BusinessHoursEditor({
               </span>
               <span className="min-w-0">
                 <span className="block text-sm font-semibold text-[#344038]">{day.label}</span>
-                <span className="block truncate text-xs text-[#687267]">{scheduleSummary(schedule.week[day.key])}</span>
+                <span className="block truncate text-xs text-muted">{scheduleSummary(schedule.week[day.key])}</span>
               </span>
             </button>
           ))}
         </div>
 
-        <div className="rounded-3xl border border-[#dce7d2] bg-[#fbfcf8] p-4 sm:p-5">
+        <div className="rounded-2xl border border-[#dce7d2] bg-[#fbfcf8] p-4 sm:p-5">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <p className="text-lg font-semibold text-[#1e2b22]">{DAYS.find((day) => day.key === selectedDay)?.label}</p>
-              <p className="text-sm text-[#687267]">Activa el día y añade hasta tres tramos.</p>
+              <p className="text-sm text-muted">Activa el día y añade hasta tres tramos.</p>
             </div>
             <label className="flex cursor-pointer items-center gap-2 rounded-full border border-[#dce7d2] bg-white px-3 py-2 text-sm font-semibold text-[#344038]">
               <input
@@ -148,7 +148,7 @@ export function BusinessHoursEditor({
                     className="field min-w-0"
                     aria-label="Hora de apertura"
                   />
-                  <span className="text-sm text-[#687267]">a</span>
+                  <span className="text-sm text-muted">a</span>
                   <input
                     type="time"
                     value={interval.end}
@@ -183,7 +183,7 @@ export function BusinessHoursEditor({
               </div>
             </div>
           ) : (
-            <div className="mt-5 rounded-2xl border border-dashed border-[#d8e3cf] bg-white px-4 py-8 text-center text-sm text-[#687267]">
+            <div className="mt-5 rounded-2xl border border-dashed border-[#d8e3cf] bg-white px-4 py-8 text-center text-sm text-muted">
               Este día figura como cerrado.
             </div>
           )}

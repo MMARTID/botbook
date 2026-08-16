@@ -41,7 +41,7 @@ import { UpcomingCalendarEvents } from "@/components/upcoming-calendar-events";
 
 function EmptyState({ title, description }: { title: string; description: string }) {
   return (
-    <div className="rounded-2xl border border-dashed border-[#d8e3cf] bg-[#fbfcf8] px-4 py-6 text-sm text-[#687267]">
+    <div className="rounded-2xl border border-dashed border-[#d8e3cf] bg-[#fbfcf8] px-4 py-6 text-sm text-muted">
       <p className="font-semibold text-[#344038]">{title}</p>
       <p className="mt-1 leading-6">{description}</p>
     </div>
@@ -147,7 +147,7 @@ function SetupGuide({
                     ? "border-[#d7e9c5] bg-[#ecf7ec] text-[#2c7334]"
                     : isActive
                       ? "border-[#b9d489] bg-white text-[#405115] ring-2 ring-[#b8d96e]"
-                      : "border-[#dce7d2] bg-white/60 text-[#687267]"
+                      : "border-[#dce7d2] bg-white/60 text-muted"
                 }`}
               >
                 <div className="mb-1 flex justify-center">
@@ -244,7 +244,7 @@ function ServicesProfessionalsGuide({
           </div>
           <div>
             <p className="font-semibold text-[#405115]">Siguiente paso: servicios y profesionales</p>
-            <p className="text-sm text-[#687267]">
+            <p className="text-sm text-muted">
               Crea al menos un servicio y asigna un profesional para que el agente pueda ofrecer citas por teléfono.
             </p>
           </div>
@@ -504,14 +504,14 @@ function AjustesContent() {
   };
 
   if (isLoadingBusiness || settingsQuery.isLoading) {
-    return <div className="p-8 text-center text-[#687267]">Cargando ajustes…</div>;
+    return <div className="p-8 text-center text-muted">Cargando ajustes…</div>;
   }
 
   if (settingsQuery.isError) {
     return (
       <div className="panel mx-auto max-w-2xl space-y-4 p-6 text-center">
         <h1 className="text-2xl font-semibold text-[#1e2b22]">No se pudo cargar la configuración operativa</h1>
-        <p className="text-sm leading-6 text-[#687267]">
+        <p className="text-sm leading-6 text-muted">
           {settingsQuery.error instanceof Error
             ? settingsQuery.error.message
             : "La ruta `/booking-settings` devolvió un error."}
@@ -531,7 +531,7 @@ function AjustesContent() {
     return (
       <div className="panel mx-auto max-w-2xl space-y-4 p-6 text-center">
         <h1 className="text-2xl font-semibold text-[#1e2b22]">No se pudieron cargar los ajustes</h1>
-        <p className="text-sm leading-6 text-[#687267]">
+        <p className="text-sm leading-6 text-muted">
           {errorMessage ?? "El backend devolvió un error al cargar la configuración del negocio."}
         </p>
         <button
@@ -592,7 +592,7 @@ function AjustesContent() {
                 <CalendarClock className="h-5 w-5" />
                 <h2 className="text-lg font-semibold text-[#1e2b22]">Capacidad de reservas</h2>
               </div>
-              <p className="mt-2 max-w-2xl text-sm leading-6 text-[#687267]">
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-muted">
                 Indica cuántas citas simultáneas puede atender el negocio dentro de su horario. Es independiente del número de profesionales.
               </p>
             </div>
@@ -628,7 +628,7 @@ function AjustesContent() {
             <ScissorsLineDashed className="h-5 w-5" />
             <div>
               <h2 className="text-lg font-semibold text-[#1e2b22]">Servicios</h2>
-              <p className="text-sm text-[#687267]">La duración siempre saldrá de aquí, no del agente.</p>
+              <p className="text-sm text-muted">La duración siempre saldrá de aquí, no del agente.</p>
             </div>
           </div>
 
@@ -695,7 +695,7 @@ function AjustesContent() {
             <UserRoundCheck className="h-5 w-5" />
             <div>
               <h2 className="text-lg font-semibold text-[#1e2b22]">Profesionales</h2>
-              <p className="text-sm text-[#687267]">Si el cliente no pide uno concreto, el sistema elegirá uno compatible y libre.</p>
+              <p className="text-sm text-muted">Si el cliente no pide uno concreto, el sistema elegirá uno compatible y libre.</p>
             </div>
           </div>
 
@@ -777,7 +777,7 @@ function AjustesContent() {
           <CalendarDays className="h-5 w-5" />
           <div>
             <h2 className="text-lg font-semibold text-[#1e2b22]">Calendario</h2>
-            <p className="text-sm text-[#687267]">Conecta tu agenda para que el agente pueda consultar disponibilidad y agendar citas automáticamente.</p>
+            <p className="text-sm text-muted">Conecta tu agenda para que el agente pueda consultar disponibilidad y agendar citas automáticamente.</p>
           </div>
         </div>
 
@@ -797,7 +797,7 @@ function AjustesContent() {
             >
               <div>
                 <p className="text-sm font-semibold text-[#1e2b22]">Conecta Google Calendar</p>
-                <p className="mt-1 text-sm leading-6 text-[#687267]">Activa reservas automáticas, disponibilidad real y la agenda en el panel.</p>
+                <p className="mt-1 text-sm leading-6 text-muted">Activa reservas automáticas, disponibilidad real y la agenda en el panel.</p>
               </div>
               <span className="inline-flex items-center gap-1 text-sm font-semibold text-[#2f5b18]">
                 {calendarAuthLoading === "google" ? "Conectando..." : "Conectar Google"}
@@ -812,7 +812,7 @@ function AjustesContent() {
             >
               <div>
                 <p className="text-sm font-semibold text-[#1e2b22]">Conecta Outlook</p>
-                <p className="mt-1 text-sm leading-6 text-[#687267]">Usa Outlook Calendar como segunda opción para sincronizar tu agenda del negocio.</p>
+                <p className="mt-1 text-sm leading-6 text-muted">Usa Outlook Calendar como segunda opción para sincronizar tu agenda del negocio.</p>
               </div>
               <span className="inline-flex items-center gap-1 text-sm font-semibold text-[#2f5b18]">
                 {calendarAuthLoading === "outlook" ? "Conectando..." : "Conectar Outlook"}
@@ -835,7 +835,7 @@ function AjustesContent() {
             <Building2 className="h-5 w-5" />
             <h2 className="text-xl font-semibold text-[#1e2b22]">Información del negocio</h2>
           </div>
-          <p className="mt-2 max-w-3xl text-sm leading-6 text-[#687267]">Datos verificados que el agente puede utilizar al responder. Los servicios y horarios se configuran en sus apartados específicos.</p>
+          <p className="mt-2 max-w-3xl text-sm leading-6 text-muted">Datos verificados que el agente puede utilizar al responder. Los servicios y horarios se configuran en sus apartados específicos.</p>
         </div>
         <div className="grid gap-4 p-4 sm:p-6 lg:grid-cols-[minmax(14rem,0.4fr)_minmax(0,1fr)]">
           <label className="text-sm font-semibold text-[#344038]">
@@ -880,7 +880,7 @@ function AjustesContent() {
 
 export default function AjustesPage() {
   return (
-    <Suspense fallback={<div className="p-8 text-center text-[#687267]">Cargando ajustes…</div>}>
+    <Suspense fallback={<div className="p-8 text-center text-muted">Cargando ajustes…</div>}>
       <AjustesContent />
     </Suspense>
   );
@@ -912,9 +912,9 @@ function ServiceEditor({
       <summary className="flex cursor-pointer list-none items-center justify-between gap-3 p-4">
         <span className="min-w-0">
           <span className="block truncate text-sm font-semibold text-[#344038]">{service.name}</span>
-          <span className="mt-0.5 block text-xs text-[#687267]">{service.durationMinutes} min · {service.active ? "Activo" : "Inactivo"}</span>
+          <span className="mt-0.5 block text-xs text-muted">{service.durationMinutes} min · {service.active ? "Activo" : "Inactivo"}</span>
         </span>
-        <ChevronDown className="h-4 w-4 shrink-0 text-[#687267] transition group-open:rotate-180" />
+        <ChevronDown className="h-4 w-4 shrink-0 text-muted transition group-open:rotate-180" />
       </summary>
       <div className="grid gap-3 border-t border-[#e4e8df] p-4 md:grid-cols-[minmax(0,1fr)_9rem_auto_auto]">
         <input value={name} onChange={(event) => setName(event.target.value)} className="field" />
@@ -972,11 +972,11 @@ function ProfessionalEditor({
       <summary className="flex cursor-pointer list-none items-center justify-between gap-3 p-4">
         <span className="min-w-0">
           <span className="block truncate text-sm font-semibold text-[#344038]">{professional.name}</span>
-          <span className="mt-0.5 block truncate text-xs text-[#687267]">
+          <span className="mt-0.5 block truncate text-xs text-muted">
             {professional.active ? "Activo" : "Inactivo"} · {compatibleServices.length} servicios compatibles
           </span>
         </span>
-        <ChevronDown className="h-4 w-4 shrink-0 text-[#687267] transition group-open:rotate-180" />
+        <ChevronDown className="h-4 w-4 shrink-0 text-muted transition group-open:rotate-180" />
       </summary>
       <div className="flex flex-col gap-3 border-t border-[#e4e8df] p-4">
         <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto_auto]">

@@ -70,16 +70,16 @@ export function AgentSettingsEditor({
           <Bot className="h-5 w-5" />
           <h2 className="text-xl font-semibold text-[#1e2b22]">Comportamiento del agente</h2>
         </div>
-        <p className="mt-2 max-w-3xl text-sm leading-6 text-[#687267]">
+        <p className="mt-2 max-w-3xl text-sm leading-6 text-muted">
           Elige cómo debe atender. AsistAI genera y protege las instrucciones internas para evitar configuraciones inseguras o contradictorias.
         </p>
       </div>
 
       <div className="grid gap-5 p-4 sm:p-6 xl:grid-cols-2">
         {fields.map((field) => (
-          <fieldset key={field.key} className="rounded-3xl border border-[#dce7d2] bg-[#fbfcf8] p-4 sm:p-5">
+          <fieldset key={field.key} className="rounded-2xl border border-[#dce7d2] bg-[#fbfcf8] p-4 sm:p-5">
             <legend className="px-1 text-sm font-semibold text-[#1e2b22]">{field.label}</legend>
-            <p className="mb-3 mt-1 text-sm text-[#687267]">{field.description}</p>
+            <p className="mb-3 mt-1 text-sm text-muted">{field.description}</p>
             <div className="grid gap-2">
               {field.options.map((option) => {
                 const selected = value[field.key] === option.value;
@@ -92,7 +92,7 @@ export function AgentSettingsEditor({
                   >
                     <span>
                       <span className="block text-sm font-semibold text-[#344038]">{option.label}</span>
-                      <span className="mt-0.5 block text-xs text-[#687267]">{option.detail}</span>
+                      <span className="mt-0.5 block text-xs text-muted">{option.detail}</span>
                     </span>
                     <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full ${selected ? "bg-[#b8d96e] text-[#30430f]" : "bg-[#eef0ec] text-transparent"}`}>
                       <Check className="h-3.5 w-3.5" />

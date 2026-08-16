@@ -73,13 +73,13 @@ export default function RegisterBusinessTeamPage() {
     <div className="flex min-h-screen items-center justify-center px-4 py-12 sm:px-6 lg:px-8">
       <div className="panel w-full max-w-lg p-8">
         <div className="space-y-4 text-center">
-          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-3xl bg-[#1e2b22] text-[#b8d96e] shadow-sm">
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-[#1e2b22] text-[#b8d96e] shadow-sm">
             <Users className="h-7 w-7" />
           </div>
           <h2 className="text-3xl font-semibold tracking-tight text-[#1e2b22]">
             {texts.team.heading}
           </h2>
-          <p className="mx-auto max-w-md text-sm leading-6 text-[#687267]">
+          <p className="mx-auto max-w-md text-sm leading-6 text-muted">
             {texts.team.subheading}
           </p>
         </div>
@@ -113,7 +113,7 @@ export default function RegisterBusinessTeamPage() {
                 </option>
               ))}
             </select>
-            <p className="mt-1 text-xs text-[#687267]">
+            <p className="mt-1 text-xs text-muted">
               Máximo de citas que pueden coincidir en el mismo horario.
             </p>
           </div>
@@ -144,7 +144,7 @@ export default function RegisterBusinessTeamPage() {
             type="button"
             onClick={() => redirectToNextStep()}
             disabled={saving}
-            className="w-full rounded-xl border border-[#dce1d8] bg-white px-4 py-3 text-sm font-semibold text-[#687267] transition hover:bg-[#fafbf8] disabled:cursor-not-allowed disabled:opacity-50"
+            className="w-full rounded-xl border border-[#dce1d8] bg-white px-4 py-3 text-sm font-semibold text-muted transition hover:bg-[#fafbf8] disabled:cursor-not-allowed disabled:opacity-50"
           >
             Configurar equipo después
           </button>

@@ -31,10 +31,10 @@ export default function BillingSettingsPage() {
       <div>
         <span className="badge-soft">Facturación</span>
         <h1 className="mt-4 text-3xl font-semibold tracking-tight text-[#1e2b22]">Plan y pagos</h1>
-        <p className="mt-2 text-[#687267]">Consulta tu suscripción y gestiona pagos y facturas de forma segura en Stripe.</p>
+        <p className="mt-2 text-muted">Consulta tu suscripción y gestiona pagos y facturas de forma segura en Stripe.</p>
       </div>
 
-      {summary.isLoading ? <div className="panel p-8 text-[#687267]">Cargando facturación…</div> : null}
+      {summary.isLoading ? <div className="panel p-8 text-muted">Cargando facturación…</div> : null}
       {summary.isError ? <div className="panel p-8 text-red-600">No se pudo consultar la facturación.</div> : null}
 
       {summary.data ? (
@@ -42,7 +42,7 @@ export default function BillingSettingsPage() {
           <article className="panel p-6 lg:col-span-2">
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div>
-                <p className="text-sm font-medium text-[#687267]">Plan actual</p>
+                <p className="text-sm font-medium text-muted">Plan actual</p>
                 <h2 className="mt-1 text-3xl font-semibold text-[#1e2b22]">{plan?.name ?? "Sin suscripción"}</h2>
                 <p className="mt-2 text-sm text-[#54634b]">
                   {summary.data.status ? statusLabels[summary.data.status] ?? summary.data.status : "Aún no configurada"}
@@ -87,7 +87,7 @@ export default function BillingSettingsPage() {
           <article className="panel flex flex-col p-6">
             <ReceiptText className="h-7 w-7 text-[#2c7334]" />
             <h2 className="mt-4 text-xl font-semibold text-[#1e2b22]">Portal de cliente</h2>
-            <p className="mt-2 flex-1 text-sm leading-6 text-[#687267]">Actualiza el método de pago, consulta facturas o cancela la suscripción.</p>
+            <p className="mt-2 flex-1 text-sm leading-6 text-muted">Actualiza el método de pago, consulta facturas o cancela la suscripción.</p>
             {summary.data.customerConfigured ? (
               <button onClick={() => portal.mutate()} disabled={portal.isPending} className="btn-primary mt-6 justify-center">
                 <ExternalLink className="h-4 w-4" />

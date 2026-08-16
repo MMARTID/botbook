@@ -690,3 +690,38 @@ export function getNicheStructuredData(content: NicheLandingContent) {
 }
 
 export const nicheLinks = (Object.values(nicheLandings) as NicheLandingContent[]).map(({ slug, name }) => ({ href: `/${slug}`, label: name }));
+
+/**
+ * Datos de sector para la landing genérica. Sirven para los cinco nichos y todas
+ * las cifras llevan fuente externa verificable: AsistAI está en prelanzamiento y
+ * no tiene métricas propias ni clientes que citar.
+ */
+export const generalSectorData: SectorData = {
+  eyebrow: "El coste de no contestar",
+  title: "La llamada que no coges se la queda otro.",
+  description:
+    "No es una intuición del sector: está medido. En los negocios que trabajan con cita previa, el teléfono sigue siendo el canal principal de reserva y quien no recibe respuesta no vuelve a intentarlo.",
+  stats: [
+    {
+      value: "78%",
+      label: "de los clientes contrata al primer negocio que responde",
+      source: "minute-call.com",
+    },
+    {
+      value: "57%",
+      label: "de los clientes reserva por teléfono: sigue siendo el canal más importante",
+      source: "Zenoti",
+    },
+    {
+      value: "60%",
+      label: "de quienes no consiguen contactar no vuelve a llamar",
+      source: "heilo.io",
+    },
+  ],
+  quotes: [
+    {
+      text: "Antes el estar pendiente todo el rato al teléfono me limitaba muchos cortes al día, ahora puedo cortar a más gente y despreocuparme del móvil",
+      source: "Excelsior Barber Studio, Palma — Diario de Mallorca",
+    },
+  ],
+};

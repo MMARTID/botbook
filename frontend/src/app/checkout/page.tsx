@@ -41,7 +41,7 @@ export default function CheckoutPage({ searchParams }: { searchParams: { plan?: 
     return (
       <section className="mx-auto max-w-xl py-16 text-center">
         <h1 className="text-3xl font-semibold text-[#1e2b22]">Checkout sin configurar</h1>
-        <p className="mt-4 text-[#687267]">Falta la clave publicable de Stripe en el frontend.</p>
+        <p className="mt-4 text-muted">Falta la clave publicable de Stripe en el frontend.</p>
       </section>
     );
   }

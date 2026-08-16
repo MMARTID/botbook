@@ -116,6 +116,16 @@ Each module is a folder containing a `routes.ts` file (and optionally `service.t
 | `/ajustes` | Full business setup (schedule, services, professionals, calendar, agent settings) |
 | `/ajustes/facturacion` | Billing summary & Stripe Customer Portal |
 | `/settings` | Calendar OAuth callback handler (Google/Outlook) |
+| `/legal/privacidad` | Privacy policy — covers the voice demo, recorded calls and calendar scopes |
+| `/legal/aviso-legal` | Legal notice — service terms, trial, withdrawal |
+
+`/legal/*` routes must stay listed in `AppShell`'s `publicRoutes`, otherwise they inherit the
+authenticated chrome. Both pages carry `LegalTodo` blocks marking the registration data
+(razón social, CIF, domicilio) that a human must supply before launch — do not invent those
+values, and do not delete the markers until they are filled.
+
+`app/opengraph-image.tsx` renders the shared social card with `next/og` using the design tokens.
+There is no static OG asset; edit that file to change what WhatsApp and X display.
 
 ### State & Data
 
@@ -127,11 +137,25 @@ Each module is a folder containing a `routes.ts` file (and optionally `service.t
 
 ### Key Components
 
-- `SiteLanding` — Reusable landing page with niche content injection.
-- `LandingHero` — Hero with CTA and `HeroConversation` animated widget.
-- `RevenueLossCalculator` — Interactive sliders (ticket, lost calls/week) with ROI math.
-- `PlansWithRoi` / `PlansHeadline` — Pricing cards, ROI-aware copy.
-- `DemoVoiceCall` — Real Vapi voice demo using `@vapi-ai/web` with live transcription (Vapi-only demo).
+- `SiteLanding` — Reusable landing page with niche content injection. Renders `SectorDataSection`
+  unconditionally: niche pages pass their own `sectorData`, the generic landing falls back to
+  `generalSectorData`. Every published figure needs an external cited source (see Evidence rules).
+- `LandingHero` — Hero with CTA and `HeroConversation` widget. The hero only claims full viewport
+  height from `lg` up; on mobile the proof panel must stay above the fold.
+- `HeroConversation` — Silent, non-audio demo of a call. Doubles as the accessible alternative to
+  the microphone demo: its `sr-only` description is generated from the scene currently on screen,
+  so it must stay in sync if the scenes change. Minimum type size is 14px.
+- `RevenueLossCalculator` — Interactive sliders (ticket, lost calls/week) with ROI math. The CTA
+  always calls `activateRoiContext`, touched or not: the button names a figure and `/planes` has
+  to receive it.
+- `PlansWithRoi` / `PlansHeadline` — Pricing cards, ROI-aware copy. Reads `?plan=` from the URL to
+  flag the card the visitor already chose, and renders the value contrast from
+  `calculatePlanValueContrast` only when the visitor's own estimate covers the plan.
+- `DemoVoiceCall` — Real Vapi voice demo using `@vapi-ai/web` with live transcription (Vapi-only
+  demo). It is a real dialog: `role="dialog"`, `aria-modal`, focus trap on Tab, body scroll lock.
+  All failures go through `describeDemoError`, which maps config/permission/network causes to
+  Spanish copy. **Never surface `error.message` from the SDK or an env-var name to the user.**
+- `LegalPage` / `LegalSection` / `LegalTodo` — Read-mode shell for the `/legal/*` pages.
 - `BusinessHoursEditor` — Weekly schedule editor (up to 3 intervals per day).
 - `AgentSettingsEditor` — Tone, goal, response style, escalation strategy.
 - `UpcomingCalendarEvents` — Horizontal carousel of upcoming calendar events, refreshes every 5 min.
@@ -142,7 +166,11 @@ Each module is a folder containing a `routes.ts` file (and optionally `service.t
 - `api.ts` — Axios client with Bearer token interceptor. All backend endpoint wrappers.
 - `types.ts` — Domain types: `Business`, `Agent`, `Call`, `BillingSummary`, `CalendarEvent`, etc.
 - `plans.ts` — Static plan definitions: Inicio (69€/100min), Pro (149€/400min), Scale (299€/1000min).
-- `niche-landings.ts` — 600+ lines of SEO copy, hero text, conversations, benefits, FAQ per niche.
+  Also exports `TRIAL_DAYS` and `TRIAL_REASSURANCE`; `TRIAL_DAYS` must match `CHECKOUT_TRIAL_DAYS`
+  in `src/modules/billing/service.ts`, which is what Stripe actually applies. Never hardcode a
+  plan name in copy — derive it from `starterPlan.name` or the `plan` object.
+- `niche-landings.ts` — 600+ lines of SEO copy, hero text, conversations, benefits, FAQ per niche,
+  plus `generalSectorData` (the cross-niche proof block used by the generic landing).
 - `roi-context.ts` — ROI calculation and plan value contrast.
 - `seo.ts` — Site metadata, structured data (JSON-LD), absolute URL builder.
 - `format.ts` — Currency, date, duration, call status labels.
@@ -194,9 +222,17 @@ npm run build
 # Start production server
 npm start
 
+# Type-check without emitting (there is no `typecheck` script in frontend/package.json)
+npx tsc --noEmit
+
 # Lint
 npm run lint
 ```
+
+> **Never run `npm run build` while `npm run dev` is running.** Both write to `frontend/.next`, and
+> the production build invalidates the dev server's CSS and route manifests — the site keeps
+> returning 200 but renders completely unstyled. Same trap if two dev servers race for port 3001.
+> Recovery: stop the dev server, `rm -rf frontend/.next`, start it again.
 
 ### Docker Compose
 
@@ -538,6 +574,11 @@ The onboarding flow is embedded in the `/ajustes` page. It guides the business t
 
 The frontend follows a **conservative, professional SaaS aesthetic** tailored to traditional Spanish businesses (peluquerías, clínicas, barberías). Avoid generic startup or consumer-app styling.
 
+> The full system lives in **`DESIGN.md`** at the repo root (named colors, type roles, named
+> rules) with a machine-readable sidecar at `.impeccable/design.json`. Product truth lives in
+> **`PRODUCT.md`**. This section is the short operational version; `DESIGN.md` wins on conflict,
+> and any token change must be mirrored in both files.
+
 ### Color Palette
 
 Defined in `frontend/src/app/globals.css`:
@@ -547,7 +588,8 @@ Defined in `frontend/src/app/globals.css`:
 | `--background` | `#eef2eb` | Body background gradient base |
 | `--foreground` | `#17211c` | Main text color |
 | `--surface` | `#ffffff` | Card/panel backgrounds |
-| `--muted` | `#687267` | Secondary text, descriptions |
+| `--surface-soft` | `#f6f7f1` | Second-level surfaces, nested sections |
+| `--muted` | `#5f6a5e` | Secondary text, descriptions |
 | `--accent` | `#1e2b22` | Primary buttons, headings, emphasis |
 | `--accent-strong` | `#243026` | Hover states on primary elements |
 | `--accent-soft` | `#b8d96e` | Focus rings, subtle highlights |
@@ -555,9 +597,35 @@ Defined in `frontend/src/app/globals.css`:
 | `--warning` | `#9f7a15` | Warning states |
 | `--error` | `#c53030` | Error states, validation failures |
 
+**`--muted` was `#687267` and is now `#5f6a5e`.** The old value measured 4.42:1 against the paper
+background and missed WCAG AA; the new one passes on white (5.66:1), paper (5.00:1) and
+surface-soft (5.25:1). Consume it through the `.text-muted` utility — do **not** write the hex
+inline, so the token stays the single point of change.
+
 **Do NOT use:**
 - `#101814` (pure black with green tint) — replaced by `#1e2b22`
-- `#d6ff72` (neon lime) — replaced by `#b8d96e` for most uses
+- `#d6ff72` (neon lime) — replaced by `#b8d96e`
+- `#0b110e` (footer black) — replaced by `#1e2b22`
+- `#8b9a7f` (2.99:1), `#7a8774` (3.79:1), `#718064` (4.22:1), `#8e968d` (3.04:1) — all failed AA
+  on white. Use `#54634b` (6.44:1) for secondary text on light surfaces, `#6b756a` for
+  placeholders, or the `--muted` token.
+
+As of the last pass there are **zero** occurrences of any banned colour in `frontend/src`. Keep it
+that way: `grep -rnE '#d6ff72|214,\s*255,\s*114|#101814|16,\s*24,\s*20|#0b110e' frontend/src`
+must return nothing.
+
+### Accessibility Baseline
+
+`PRODUCT.md` commits the project to **WCAG 2.1 AA**, which the European Accessibility Act makes
+non-optional for a service sold online in the EU. Concretely:
+
+- Text contrast ≥ 4.5:1 (≥ 3:1 for large text). Compute it, don't eyeball it — several colours in
+  this palette look fine and fail.
+- Every interactive control is at least 44px tall. Inline links inside prose are exempt.
+- Body text never drops below 14px. 12px is for badges and column headers only.
+- Focus is always visible (`focus-visible` ring in `#9dbb55`).
+- Modals need `role="dialog"`, `aria-modal`, a focus trap and body scroll lock.
+- Anything driven by audio needs a non-audio equivalent.
 
 ### Base Classes
 
@@ -571,12 +639,29 @@ Defined in `frontend/src/app/globals.css`:
 
 ### Styling Rules
 
-- **Border radius:** Use `rounded-lg` (8px) for inputs/buttons, `rounded-xl` (12px) for cards, `rounded-2xl` (16px) for panels. Never `rounded-[2rem]` or `rounded-full` on large containers.
-- **Shadows:** Keep shadows subtle — `0_8px_24px_rgba(30,43,34,0.06)` for panels, `0_4px_16px` for smaller cards. Avoid large diffuse shadows like `0_22px_55px`.
-- **Typography:** Reserve `font-semibold` for H1/H2/H3 and CTAs. Use `font-normal` for body text and descriptions.
-- **Tracking:** Avoid extreme letter-spacing. Use `tracking-tight` (`-0.02em`) for headings, `tracking-wide` (max `0.15em`) for uppercase labels.
-- **Gradients:** Use the body gradient (`radial-gradient` with `#b8d96e` and `#1e2b22` tints) for all pages. Do not use flat backgrounds like `#f7f8f4`.
-- **Icons:** Lucide React icons in `rounded-lg` or `rounded-xl` containers with `bg-[#eef6dc]` and `text-[#2c7334]`.
+- **Border radius:** The scale is 8 / 12 / 16px and nothing else — `rounded-lg` for inputs and
+  buttons, `rounded-xl` for cards, `rounded-2xl` for panels. `rounded-full` is reserved for badges,
+  status chips, nav pills and square icon buttons of 32–40px. No `rounded-3xl` and no arbitrary
+  values (`rounded-[1.75rem]` and friends). Currently zero out-of-scale radii in `frontend/src`.
+- **Shadows:** Ceiling is 32px blur and 0.16 opacity, always tinted `rgba(30,43,34,…)` — never grey
+  or black, which show up dirty against the green paper. `0_8px_24px_rgba(30,43,34,0.06)` for
+  panels, `0_4px_16px_rgba(30,43,34,0.04)` for small cards, `0_10px_28px_rgba(30,43,34,0.16)` for
+  the primary button. No `0_22px_55px`, `0_20px_80px` or `0_26px_80px`.
+- **Typography:** Reserve `font-semibold` for H1/H2/H3, card titles, CTAs and key figures. Use
+  `font-normal` for body text and descriptions.
+- **Tracking:** `-0.02em` on headings (floor `-0.04em`), max `0.12em` on uppercase labels. Anything
+  from `0.15em` up reads as texture, not words.
+- **No eyebrows.** Do not put an uppercase label above a heading ("Cómo te ayuda", "Precios",
+  "Sin letra pequeña"). The heading carries its own weight. A badge is fine when it adds
+  information the heading doesn't — "Google Calendar" names the integration — but not when it just
+  announces the section.
+- **Gradients:** Use the body gradient (`radial-gradient` with `#b8d96e` and `#1e2b22` tints) for
+  all pages, including auth, registration and legal. Do not use flat backgrounds like `#f7f8f4`.
+- **Icons:** Lucide React icons in a 40px `rounded-xl` tile with `bg-[#eef6dc]` and
+  `text-[#2c7334]`. Icons never sit loose on the paper.
+- **Dark surfaces are rationed.** The landing carries one dark block in the body (the calculator
+  result panel) plus the closing band and footer, which read as a single dark foot. Adding a
+  fourth dark block breaks the one-accent rule.
 
 ### Component-Specific Notes
 
@@ -584,6 +669,32 @@ Defined in `frontend/src/app/globals.css`:
 - **HeroConversation widget:** Uses green palette (`#2c7334`, `#b8d96e`, `#eef6dc`) to match the site. Never use purple/orange.
 - **Checkout:** Container has `min-h-[480px]` and `rounded-2xl` to prevent empty-state collapse.
 - **Auth pages:** Use `.panel` class and body gradient. No flat backgrounds.
+- **`MobileNav`:** Closes on Escape and on outside pointerdown, restores focus to the toggle, and
+  locks body scroll while open.
+- **Skip link:** `SiteLanding`'s "Saltar al contenido" targets `#contenido` (the wrapper around
+  `LandingHero`), not `#main-content` — the `<main>` contains the link, so it skipped nothing.
+
+## Content & Evidence Rules
+
+AsistAI is **pre-launch: there are no paying customers.** `PRODUCT.md` holds the full record. For
+any user-facing copy:
+
+- Never fabricate testimonials, customer logos, "X negocios confían" counts, own product metrics,
+  awards or press mentions about AsistAI. None exist.
+- Every published figure needs an external, verifiable source rendered on screen, the way
+  `SectorDataSection` does. The stats in `niche-landings.ts` and `generalSectorData` follow this.
+- The quotes in `niche-landings.ts` are business owners interviewed in the press **about the
+  problem**, not AsistAI customers. Do not present them as testimonials.
+- Do not promise capabilities that do not ship. Voice selection has no frontend UI; "elegir entre
+  voces" was removed for that reason. Onboarding is self-service, so copy must not promise a human
+  configuring things with the customer.
+- No AI jargon in the UI: "recepcionista virtual", "agente de voz". Never "LLM", "prompt",
+  "orquestador", "webhook", "API", "leads" or "archivo de contexto".
+- Error copy is Spanish, actionable and never blames the user. Backend 5xx are generic on purpose;
+  the UI must translate them into something human.
+- A structured-data claim is a public claim. The "Soporte para Kit Digital" JSON-LD node was
+  removed: it asserted help obtaining public subsidies, pointed at an anchor that did not exist,
+  and had nothing behind it.
 
 ## Code Style Guidelines
 

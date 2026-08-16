@@ -59,6 +59,44 @@ const STATE_COPY: Record<DemoCallState, string> = {
   error: "No se pudo iniciar la demo.",
 };
 
+const CONTACT_EMAIL = "hola@asistai.es";
+
+/** Error interno: la demo no está configurada en este entorno. */
+const DEMO_NOT_CONFIGURED = "DEMO_NOT_CONFIGURED";
+
+/**
+ * Traduce cualquier fallo — de configuración, de permisos del navegador o del
+ * proveedor de voz — a un mensaje en español que nombra el problema y la salida.
+ * Nunca se muestra al usuario el mensaje crudo del SDK ni un nombre de variable
+ * de entorno.
+ */
+function describeDemoError(error: unknown) {
+  const name = typeof error === "object" && error !== null && "name" in error ? String((error as { name?: unknown }).name) : "";
+  const raw = error instanceof Error ? error.message : "";
+
+  if (raw === DEMO_NOT_CONFIGURED) {
+    return `La demo no está disponible ahora mismo. Escríbenos a ${CONTACT_EMAIL} y te la enseñamos en directo.`;
+  }
+
+  if (name === "NotAllowedError" || name === "SecurityError" || /permission|denied/i.test(raw)) {
+    return "No hemos podido usar el micrófono. Actívalo para esta página en los ajustes de tu navegador y vuelve a intentarlo.";
+  }
+
+  if (name === "NotFoundError" || name === "OverconstrainedError") {
+    return "No hemos encontrado ningún micrófono conectado. Conecta uno o prueba desde el móvil.";
+  }
+
+  if (name === "NotReadableError" || name === "AbortError") {
+    return "Otra aplicación está usando el micrófono. Ciérrala y vuelve a intentarlo.";
+  }
+
+  if (/network|fetch|timeout|connection|offline/i.test(raw)) {
+    return "No hemos podido conectar. Comprueba tu conexión e inténtalo de nuevo en un momento.";
+  }
+
+  return `La demo no está disponible ahora mismo. Inténtalo de nuevo en un momento o escríbenos a ${CONTACT_EMAIL}.`;
+}
+
 function formatDuration(totalSeconds: number) {
   const minutes = Math.floor(totalSeconds / 60)
     .toString()
@@ -150,6 +188,7 @@ export function DemoVoiceCall({ open, onClose, onActiveChange }: DemoVoiceCallPr
   const closeTimeoutRef = useRef<number | null>(null);
   const closeButtonRef = useRef<HTMLButtonElement | null>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
+  const dialogRef = useRef<HTMLDivElement | null>(null);
 
   // Pending transcript buffers per role (partial transcripts). Stored in ref to avoid excessive renders.
   const pendingRef = useRef<Record<string, string>>({});
@@ -207,6 +246,15 @@ export function DemoVoiceCall({ open, onClose, onActiveChange }: DemoVoiceCallPr
 
     previousFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     closeButtonRef.current?.focus();
+
+    // Con el diálogo abierto el fondo no debe desplazarse: en móvil ocupa toda
+    // la pantalla y el scroll de detrás deja el panel flotando sobre el contenido.
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
   }, [open]);
 
   useEffect(() => {
@@ -349,8 +397,7 @@ export function DemoVoiceCall({ open, onClose, onActiveChange }: DemoVoiceCallPr
     });
 
     vapi.on("error", (error) => {
-      const message = error instanceof Error ? error.message : "No se pudo conectar con la demo.";
-      setErrorMessage(message);
+      setErrorMessage(describeDemoError(error));
       setState("error");
       setIsSpeaking(false);
     });
@@ -364,7 +411,7 @@ export function DemoVoiceCall({ open, onClose, onActiveChange }: DemoVoiceCallPr
   const startDemo = async () => {
     try {
       if (!DEMO_PUBLIC_KEY) {
-        throw new Error("Falta configurar NEXT_PUBLIC_VAPI_DEMO_PUBLIC_KEY.");
+        throw new Error(DEMO_NOT_CONFIGURED);
       }
 
       setErrorMessage(null);
@@ -378,8 +425,7 @@ export function DemoVoiceCall({ open, onClose, onActiveChange }: DemoVoiceCallPr
 
       await vapi.start(DEMO_ASSISTANT_ID, DEMO_ASSISTANT_OVERRIDES);
     } catch (error) {
-      const message = error instanceof Error ? error.message : "No se pudo iniciar la demo.";
-      setErrorMessage(message);
+      setErrorMessage(describeDemoError(error));
       setState("error");
     }
   };
@@ -408,6 +454,42 @@ export function DemoVoiceCall({ open, onClose, onActiveChange }: DemoVoiceCallPr
     }
 
     const handleEscape = (event: KeyboardEvent) => {
+      // Tab queda atrapado dentro del diálogo: con la llamada en curso, tabular
+      // fuera dejaría al lector de pantalla leyendo la landing de detrás.
+      if (event.key === "Tab") {
+        const dialog = dialogRef.current;
+        if (!dialog) {
+          return;
+        }
+
+        const focusable = Array.from(
+          dialog.querySelectorAll<HTMLElement>(
+            'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+          )
+        ).filter((element) => element.offsetParent !== null || element === document.activeElement);
+
+        if (focusable.length === 0) {
+          return;
+        }
+
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        const active = document.activeElement;
+
+        if (event.shiftKey && (active === first || !dialog.contains(active))) {
+          event.preventDefault();
+          last.focus();
+          return;
+        }
+
+        if (!event.shiftKey && active === last) {
+          event.preventDefault();
+          first.focus();
+        }
+
+        return;
+      }
+
       if (event.key !== "Escape") {
         return;
       }
@@ -446,12 +528,20 @@ export function DemoVoiceCall({ open, onClose, onActiveChange }: DemoVoiceCallPr
 
   return (
     <div className="fixed inset-0 z-[80] flex items-end bg-[#1e2b22]/60 backdrop-blur-sm sm:items-center sm:justify-center sm:px-4 sm:py-6">
-      <div className={`demo-call-modal panel flex h-[100dvh] w-full max-w-2xl flex-col overflow-hidden rounded-b-none border-white/70 bg-[#fbfcf8] shadow-[0_26px_80px_rgba(16,24,20,0.28)] sm:h-auto sm:max-h-[calc(100dvh-3rem)] sm:rounded-3xl ${isClosing ? "demo-call-modal-closing" : ""}`}>
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="demo-voz-titulo"
+        aria-describedby="demo-voz-descripcion"
+        className={`demo-call-modal panel flex h-[100dvh] w-full max-w-2xl flex-col overflow-hidden rounded-b-none border-white/70 bg-[#fbfcf8] shadow-[0_12px_32px_rgba(30,43,34,0.16)] sm:h-auto sm:max-h-[calc(100dvh-3rem)] sm:rounded-2xl ${isClosing ? "demo-call-modal-closing" : ""}`}
+      >
         <div className="flex shrink-0 items-start justify-between gap-3 border-b border-[#e4e8df] px-4 py-4 sm:px-6 sm:py-5">
           <div className="min-w-0">
-            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-[#718064]">Demo en directo</p>
-            <h2 className="mt-1 text-xl font-semibold text-[#1e2b22] sm:mt-2 sm:text-2xl">Habla con AsistAI</h2>
-            <p className="mt-1 text-sm leading-5 text-[#5f6d63] sm:mt-2 sm:leading-6">
+            <h2 id="demo-voz-titulo" className="text-xl font-semibold text-[#1e2b22] sm:text-2xl">
+              Habla con AsistAI
+            </h2>
+            <p id="demo-voz-descripcion" className="mt-2 text-sm leading-6 text-[#54634b]">
               Hablarás con una demo. Necesitamos acceso al micrófono y no se realizará ninguna reserva real.
             </p>
           </div>
@@ -474,28 +564,28 @@ export function DemoVoiceCall({ open, onClose, onActiveChange }: DemoVoiceCallPr
 
         <div className="grid flex-1 gap-4 overflow-y-auto overscroll-contain px-4 py-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:px-6 sm:py-5 lg:grid-cols-[0.92fr_1.08fr] lg:overflow-visible">
           <div className="space-y-3 sm:space-y-4">
-            <div className="hidden rounded-[1.5rem] border border-[#e2e9dc] bg-white p-5 sm:block">
+            <div className="hidden rounded-xl border border-[#e2e9dc] bg-white p-5 sm:block">
               <div className="flex items-center gap-3">
-                <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#eef6dc] text-[#2c7334]">
+                <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#eef6dc] text-[#2c7334]">
                   <ShieldCheck className="h-5 w-5" />
                 </span>
                 <div>
                   <p className="text-sm font-semibold text-[#1e2b22]">Privacidad y control</p>
-                  <p className="text-sm leading-6 text-[#5f6d63]">Micrófono solo para esta demo. Sin reservas reales ni formularios previos.</p>
+                  <p className="text-sm leading-6 text-[#54634b]">Micrófono solo para esta demo. Sin reservas reales ni formularios previos.</p>
                 </div>
               </div>
             </div>
 
-            <div className="rounded-[1.5rem] border border-[#e2e9dc] bg-white p-4 sm:p-5">
+            <div className="rounded-xl border border-[#e2e9dc] bg-white p-4 sm:p-5">
               <p className="text-sm font-semibold text-[#1e2b22]">Estado actual</p>
-              <p className="mt-2 text-sm leading-6 text-[#5f6d63]" aria-live="polite">
+              <p className="mt-2 text-sm leading-6 text-[#54634b]" aria-live="polite">
                 {errorMessage ?? statusCopy}
               </p>
               <div className="mt-3 flex items-center gap-3 text-sm font-medium text-[#344038] sm:mt-4">
                 <span className={`inline-flex h-2.5 w-2.5 rounded-full ${state === "active" ? "bg-[#2c7334]" : state === "error" ? "bg-[#c94b4b]" : "bg-[#d5dbcf]"}`} />
                 {state === "active" ? (isSpeaking ? "AsistAI está hablando" : "AsistAI está escuchando") : "Demo inactiva"}
               </div>
-              <p className="mt-3 text-xs text-[#7a8774]">Tiempo máximo: {formatDuration(DEMO_MAX_DURATION_SECONDS)}</p>
+              <p className="mt-3 text-xs text-[#54634b]">Tiempo máximo: {formatDuration(DEMO_MAX_DURATION_SECONDS)}</p>
             </div>
 
             <div className="grid gap-2 sm:flex sm:flex-wrap sm:gap-3">
@@ -511,7 +601,7 @@ export function DemoVoiceCall({ open, onClose, onActiveChange }: DemoVoiceCallPr
                     {isMuted ? <Mic className="h-4 w-4" /> : <MicOff className="h-4 w-4" />}
                     {isMuted ? "Activar micrófono" : "Silenciar micrófono"}
                   </button>
-                  <button type="button" onClick={() => void endCall()} className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-2xl bg-[#c94b4b] px-5 text-sm font-semibold text-white transition hover:bg-[#b63c3c] sm:w-auto">
+                  <button type="button" onClick={() => void endCall()} className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-[#c94b4b] px-5 text-sm font-semibold text-white transition hover:bg-[#b63c3c] sm:w-auto">
                     <PhoneOff className="h-4 w-4" />
                     Colgar demo
                   </button>
@@ -530,15 +620,20 @@ export function DemoVoiceCall({ open, onClose, onActiveChange }: DemoVoiceCallPr
               ) : null}
             </div>
 
-            <p className="hidden text-xs leading-5 text-[#7a8774] sm:block">
-              Al continuar aceptas el uso temporal del micrófono para la demostración. Consulta nuestra <Link href="#" className="font-medium text-[#344038] underline underline-offset-2">política de privacidad</Link>.
+            <p className="text-sm leading-6 text-[#54634b]">
+              El micrófono se usa solo mientras dure esta demo: no se graba el audio ni se guarda la transcripción.
+              Puedes leer los detalles en nuestra{" "}
+              <Link href="/legal/privacidad" className="font-medium text-[#344038] underline underline-offset-2">
+                política de privacidad
+              </Link>
+              .
             </p>
           </div>
 
-          <div className="order-first flex min-h-0 flex-col rounded-[1.7rem] border border-[#dce6d4] bg-[#1e2b22] p-4 text-white sm:p-6 lg:order-none">
+          <div className="order-first flex min-h-0 flex-col rounded-2xl border border-[#dce6d4] bg-[#1e2b22] p-4 text-white sm:p-6 lg:order-none">
             <div className="flex items-center justify-between gap-3 border-b border-white/10 pb-4">
               <div className="flex items-center gap-3">
-                <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white/10 text-[#b8d96e]">
+                <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/10 text-[#b8d96e]">
                   <PhoneCall className="h-5 w-5" />
                 </span>
                 <div>
@@ -551,7 +646,7 @@ export function DemoVoiceCall({ open, onClose, onActiveChange }: DemoVoiceCallPr
               </span>
             </div>
 
-            <div className="mt-4 h-[clamp(10rem,30vh,18rem)] space-y-3 overflow-y-auto rounded-[1.35rem] border border-white/10 bg-white/5 p-3 sm:min-h-[18rem] sm:p-4">
+            <div className="mt-4 h-[clamp(10rem,30vh,18rem)] space-y-3 overflow-y-auto rounded-xl border border-white/10 bg-white/5 p-3 sm:min-h-[18rem] sm:p-4">
               {transcript.length === 0 ? (
                 <p className="text-sm leading-6 text-white/60">
                   Cuando empiece la conversación, verás aquí un resumen en texto de lo que se va diciendo en la demo.
@@ -559,8 +654,8 @@ export function DemoVoiceCall({ open, onClose, onActiveChange }: DemoVoiceCallPr
               ) : (
                 transcript.map((item, index) => (
                   <div key={`${item.role}-${index}`} className={`flex ${item.role === "user" ? "justify-end" : "justify-start"}`}>
-                    <div className={`max-w-[88%] rounded-[1.1rem] px-3 py-2 text-sm leading-6 ${item.role === "user" ? "bg-[#b8d96e] text-[#1e2b22]" : "bg-white/10 text-white"}`}>
-                      <span className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.18em] opacity-70">
+                    <div className={`max-w-[88%] rounded-lg px-3 py-2 text-sm leading-6 ${item.role === "user" ? "bg-[#b8d96e] text-[#1e2b22]" : "bg-white/10 text-white"}`}>
+                      <span className="mb-1 block text-xs font-semibold uppercase tracking-[0.12em] opacity-70">
                         {item.role === "user" ? "Tú" : "AsistAI"}
                       </span>
                       {item.text}
@@ -571,9 +666,9 @@ export function DemoVoiceCall({ open, onClose, onActiveChange }: DemoVoiceCallPr
             </div>
 
             {state === "ended" ? (
-              <div className="mt-4 rounded-[1.25rem] border border-[#b8d96e]/20 bg-[#b8d96e]/10 p-4">
+              <div className="mt-4 rounded-xl border border-[#b8d96e]/20 bg-[#b8d96e]/10 p-4">
                 <p className="text-sm font-semibold text-white">¿Quieres que atienda así en tu negocio?</p>
-                <Link href="/planes" className="mt-3 inline-flex h-11 items-center justify-center rounded-2xl bg-[#b8d96e] px-5 text-sm font-semibold text-[#1e2b22] transition hover:bg-[#e3ff9e]">
+                <Link href="/planes" className="mt-3 inline-flex h-11 items-center justify-center rounded-lg bg-[#b8d96e] px-5 text-sm font-semibold text-[#1e2b22] transition hover:bg-[#e3ff9e]">
                   Ver planes
                 </Link>
               </div>

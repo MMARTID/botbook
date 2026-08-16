@@ -49,28 +49,22 @@ export function SectorDataSection({
         <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
           {featured ? (
             <article
-              className={`relative flex flex-col justify-between overflow-hidden rounded-[1.75rem] p-7 text-white shadow-[0_18px_45px_rgba(16,24,20,0.14)] sm:col-span-2 sm:p-8 ${rest.length === 1 ? "lg:col-span-2" : "lg:col-span-1"}`}
+              className={`relative flex flex-col justify-between overflow-hidden rounded-2xl p-7 text-white shadow-[0_12px_32px_rgba(30,43,34,0.12)] sm:col-span-2 sm:p-8 ${rest.length === 1 ? "lg:col-span-2" : "lg:col-span-1"}`}
               style={{
                 background: `linear-gradient(150deg, ${a.deep} 0%, ${a.strong} 100%)`,
               }}
             >
               <div className="pointer-events-none absolute -bottom-16 -right-16 h-48 w-48 rounded-full bg-white/10 blur-2xl" />
-              <span
-                className="inline-flex w-fit items-center rounded-full bg-white/15 px-3 py-1 text-xs font-semibold"
-                style={{ color: a.soft }}
-              >
-                Dato clave
-              </span>
-              <div className="mt-8">
+              <div>
                 <p className="text-5xl font-semibold tracking-tight sm:text-6xl">
                   {featured.value}
                 </p>
-                <p className="mt-4 max-w-xs text-sm leading-6 text-white/85">
+                <p className="mt-4 max-w-xs text-sm leading-6 text-white/90">
                   {featured.label}
                 </p>
               </div>
               {featured.source ? (
-                <p className="mt-6 text-xs text-white/60">
+                <p className="mt-6 text-sm text-white">
                   Fuente: {featured.source}
                 </p>
               ) : null}
@@ -80,7 +74,7 @@ export function SectorDataSection({
           {rest.map((stat, i) => (
             <article
               key={i}
-              className="panel relative flex flex-col justify-between overflow-hidden p-6 transition duration-300 hover:-translate-y-0.5 hover:shadow-[0_18px_45px_rgba(16,24,20,0.1)]"
+              className="panel relative flex flex-col justify-between overflow-hidden p-6 transition duration-300 hover:-translate-y-0.5 hover:shadow-[0_12px_32px_rgba(30,43,34,0.08)]"
             >
               <span
                 className="absolute inset-x-0 top-0 h-1"
@@ -97,7 +91,7 @@ export function SectorDataSection({
                 </p>
               </div>
               {stat.source ? (
-                <p className="mt-4 text-xs text-[#8b9a7f]">
+                <p className="mt-4 text-sm text-[#54634b]">
                   Fuente: {stat.source}
                 </p>
               ) : null}
@@ -124,7 +118,7 @@ export function SectorDataSection({
                     &ldquo;{quote.text}&rdquo;
                   </blockquote>
                   {quote.source ? (
-                    <figcaption className="mt-1 text-xs text-[#8b9a7f]">
+                    <figcaption className="mt-1 text-sm text-[#54634b]">
                       {quote.source}
                     </figcaption>
                   ) : null}
@@ -135,7 +129,7 @@ export function SectorDataSection({
         ) : null}
 
         {data.painPoint ? (
-          <div className="relative mt-8 overflow-hidden rounded-[1.75rem] bg-[#1e2b22] p-6 text-white sm:p-8">
+          <div className="relative mt-8 overflow-hidden rounded-2xl bg-[#1e2b22] p-6 text-white sm:p-8">
             <div
               className="pointer-events-none absolute -left-20 -top-24 h-56 w-56 rounded-full opacity-25 blur-3xl"
               style={{ backgroundColor: a.strong }}

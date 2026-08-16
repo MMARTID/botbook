@@ -52,12 +52,12 @@ export default function CheckoutResultPage({
         <h1 className="mt-6 text-3xl font-semibold tracking-tight text-[#1e2b22]">
           {confirmed ? "Suscripción confirmada" : "Estamos confirmando tu suscripción"}
         </h1>
-        <p className="mt-4 leading-7 text-[#687267]">
+        <p className="mt-4 leading-7 text-muted">
           {confirmed
             ? "Tu trial y los permisos del plan ya están sincronizados."
             : "Stripe ha recibido el proceso. Esperamos el webhook seguro antes de activar el plan."}
         </p>
-        {isLoading ? <p className="mt-4 text-sm text-[#687267]">Consultando estado…</p> : null}
+        {isLoading ? <p className="mt-4 text-sm text-muted">Consultando estado…</p> : null}
         <div className="mt-8 flex flex-wrap justify-center gap-3">
           {confirmed ? null : (
             <button onClick={() => refetch()} disabled={isFetching} className="btn-secondary">

@@ -198,11 +198,11 @@ export default function RegisterBusinessPage() {
     <div className="flex min-h-screen items-center justify-center px-4 py-12 sm:px-6 lg:px-8">
       <div className="panel w-full max-w-lg p-8">
         <div className="space-y-4 text-center">
-          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-3xl bg-[#1e2b22] text-[#b8d96e] shadow-sm">
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-[#1e2b22] text-[#b8d96e] shadow-sm">
             <Bot className="h-7 w-7" />
           </div>
           <h2 className="text-3xl font-semibold tracking-tight text-[#1e2b22]">¿Cuál es tu negocio?</h2>
-          <p className="mx-auto max-w-md text-sm leading-6 text-[#687267]">
+          <p className="mx-auto max-w-md text-sm leading-6 text-muted">
             Busca tu negocio para rellenar automáticamente dirección, teléfono y horario. Puedes cambiarlo luego en ajustes.
           </p>
         </div>
@@ -277,10 +277,10 @@ export default function RegisterBusinessPage() {
                     onClick={() => handleSelect(place)}
                     className="flex w-full items-start gap-3 px-4 py-3 text-left transition hover:bg-[#fbfcf8]"
                   >
-                    <Building2 className="mt-0.5 h-4 w-4 shrink-0 text-[#687267]" />
+                    <Building2 className="mt-0.5 h-4 w-4 shrink-0 text-muted" />
                     <div>
                       <p className="text-sm font-semibold text-[#344038]">{place.name}</p>
-                      {place.address && <p className="text-xs text-[#687267]">{place.address}</p>}
+                      {place.address && <p className="text-xs text-muted">{place.address}</p>}
                     </div>
                   </button>
                 </li>
@@ -296,13 +296,13 @@ export default function RegisterBusinessPage() {
               <div>
                 <p className="text-sm font-semibold text-[#344038]">{selected.name}</p>
                 {selected.address && (
-                  <p className="mt-0.5 flex items-start gap-1.5 text-sm text-[#687267]">
+                  <p className="mt-0.5 flex items-start gap-1.5 text-sm text-muted">
                     <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                     {selected.address}
                   </p>
                 )}
                 {selected.phone && (
-                  <p className="mt-1 flex items-center gap-1.5 text-sm text-[#687267]">
+                  <p className="mt-1 flex items-center gap-1.5 text-sm text-muted">
                     <Phone className="h-3.5 w-3.5 shrink-0" />
                     {selected.phone}
                   </p>
@@ -311,7 +311,7 @@ export default function RegisterBusinessPage() {
             </div>
             <div className="flex items-start gap-3">
               <CalendarClock className="mt-0.5 h-5 w-5 text-[#405115]" />
-              <div className="text-sm text-[#687267]">
+              <div className="text-sm text-muted">
                 {summaryLines.length > 0 ? (
                   <ul className="space-y-0.5">
                     {summaryLines.map((line) => (
@@ -341,7 +341,7 @@ export default function RegisterBusinessPage() {
             type="button"
             onClick={handleSkip}
             disabled={saving}
-            className="w-full rounded-xl border border-[#dce1d8] bg-white px-4 py-3 text-sm font-semibold text-[#687267] transition hover:bg-[#fafbf8] disabled:cursor-not-allowed disabled:opacity-50"
+            className="w-full rounded-xl border border-[#dce1d8] bg-white px-4 py-3 text-sm font-semibold text-muted transition hover:bg-[#fafbf8] disabled:cursor-not-allowed disabled:opacity-50"
           >
             No encontré mi negocio / configurar después
           </button>
