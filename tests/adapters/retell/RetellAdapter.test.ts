@@ -1,0 +1,179 @@
+import { describe, it, expect, vi, beforeEach } from "vitest";
+
+const mocks = vi.hoisted(() => ({
+  llmCreate: vi.fn(),
+  llmUpdate: vi.fn(),
+  llmRetrieve: vi.fn(),
+  llmDelete: vi.fn(),
+  agentCreate: vi.fn(),
+  agentUpdate: vi.fn(),
+  agentRetrieve: vi.fn(),
+  agentDelete: vi.fn(),
+  agentList: vi.fn(),
+  phoneNumberCreate: vi.fn(),
+  phoneNumberUpdate: vi.fn(),
+  phoneNumberDelete: vi.fn(),
+  phoneNumberList: vi.fn(),
+  verify: vi.fn((_rawBody: string, _apiKey: string, signature: string) => {
+    return signature === "valid-signature";
+  }),
+}));
+
+vi.mock("retell-sdk", () => {
+  return {
+    default: class MockRetell {
+      static verify = mocks.verify;
+      llm = {
+        create: mocks.llmCreate,
+        update: mocks.llmUpdate,
+        retrieve: mocks.llmRetrieve,
+        delete: mocks.llmDelete,
+      };
+      agent = {
+        create: mocks.agentCreate,
+        update: mocks.agentUpdate,
+        retrieve: mocks.agentRetrieve,
+        delete: mocks.agentDelete,
+        list: mocks.agentList,
+      };
+      phoneNumber = {
+        create: mocks.phoneNumberCreate,
+        update: mocks.phoneNumberUpdate,
+        delete: mocks.phoneNumberDelete,
+        list: mocks.phoneNumberList,
+      };
+    },
+  };
+});
+
+import { RetellAdapter } from "../../../src/adapters/retell/RetellAdapter.js";
+
+describe("RetellAdapter", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    process.env.RETELL_API_KEY = "retell_test_key";
+  });
+
+  describe("createLlm", () => {
+    it("crea un LLM de Retell con tools personalizadas", async () => {
+      mocks.llmCreate.mockResolvedValue({
+        llm_id: "llm_123",
+        general_prompt: "Eres un asistente",
+      });
+
+      const adapter = new RetellAdapter();
+      const result = await adapter.createLlm({
+        generalPrompt: "Eres un asistente",
+        beginMessage: "Hola",
+        tools: [
+          {
+            name: "check_business_hours",
+            description: "Comprueba horario",
+            url: "https://example.com/webhooks/retell/tools/check_business_hours",
+            parameters: {
+              type: "object",
+              properties: {},
+              required: [],
+            },
+          },
+        ],
+      });
+
+      expect(result.llm_id).toBe("llm_123");
+      expect(mocks.llmCreate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          general_prompt: "Eres un asistente",
+          begin_message: "Hola",
+          general_tools: expect.arrayContaining([
+            expect.objectContaining({
+              type: "custom",
+              name: "check_business_hours",
+              url: "https://example.com/webhooks/retell/tools/check_business_hours",
+              args_at_root: true,
+            }),
+          ]),
+        })
+      );
+    });
+  });
+
+  describe("createAgent", () => {
+    it("crea un agente de Retell vinculado a un LLM", async () => {
+      mocks.agentCreate.mockResolvedValue({
+        agent_id: "agent_123",
+        agent_name: "Asistente Test",
+      });
+
+      const adapter = new RetellAdapter();
+      const result = await adapter.createAgent({
+        name: "Asistente Test",
+        voiceId: "11labs-Bella",
+        llmId: "llm_123",
+      });
+
+      expect(result.agent_id).toBe("agent_123");
+      expect(mocks.agentCreate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          agent_name: "Asistente Test",
+          voice_id: "11labs-Bella",
+          response_engine: { type: "retell-llm", llm_id: "llm_123" },
+          language: "es-ES",
+          timezone: "Europe/Madrid",
+        })
+      );
+    });
+  });
+
+  describe("createPhoneNumber", () => {
+    it("importa un número de Twilio en Retell y lo vincula a un agente", async () => {
+      mocks.phoneNumberCreate.mockResolvedValue({
+        phone_number_id: "phone_123",
+        phone_number: "+34910000001",
+        inbound_agent_id: "agent_123",
+      });
+
+      const adapter = new RetellAdapter();
+      const result = await adapter.createPhoneNumber({
+        phoneNumber: "+34910000001",
+        nickname: "Peluquería Test",
+        inboundAgentId: "agent_123",
+      });
+
+      expect(result.phone_number_id).toBe("phone_123");
+      expect(mocks.phoneNumberCreate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          phone_number: "+34910000001",
+          nickname: "Peluquería Test",
+          inbound_agents: [{ agent_id: "agent_123", weight: 1 }],
+        })
+      );
+    });
+  });
+
+  describe("validateWebhookSignature", () => {
+    it("valida firmas correctas usando Retell.verify", async () => {
+      const adapter = new RetellAdapter();
+      const result = await adapter.validateWebhookSignature(
+        '{"event_type":"call_started"}',
+        "valid-signature"
+      );
+      expect(result).toBe(true);
+    });
+
+    it("rechaza firmas ausentes", async () => {
+      const adapter = new RetellAdapter();
+      const result = await adapter.validateWebhookSignature("body", "");
+      expect(result).toBe(false);
+    });
+  });
+
+  describe("checkHealth", () => {
+    it("lista agentes para verificar conectividad", async () => {
+      mocks.agentList.mockResolvedValue({ items: [] });
+
+      const adapter = new RetellAdapter();
+      await expect(adapter.checkHealth()).resolves.toBeUndefined();
+      expect(mocks.agentList).toHaveBeenCalledWith(expect.objectContaining({ limit: 1 }));
+    });
+  });
+});

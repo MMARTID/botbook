@@ -1,0 +1,366 @@
+import { z } from "zod";
+import { prisma } from "../../lib/prisma.js";
+import { recordingQueue, classifyQueue } from "../../lib/queue.js";
+import { callLabel, errorMessage } from "../../lib/logUtils.js";
+
+const RetellCallStartedSchema = z.object({
+  event_type: z.literal("call_started"),
+  data: z.object({
+    call_id: z.string(),
+    agent_id: z.string(),
+    agent_version: z.union([z.string(), z.number()]).optional(),
+    from_number: z.string().optional(),
+    to_number: z.string().optional(),
+    direction: z.string().optional(),
+  }),
+});
+
+const RetellCallEndedSchema = z.object({
+  event_type: z.literal("call_ended"),
+  data: z.object({
+    call_id: z.string(),
+    agent_id: z.string(),
+    duration_seconds: z.number().optional(),
+    disconnect_reason: z.string().optional(),
+    recording_url: z.string().optional(),
+    stereo_recording_url: z.string().optional(),
+    transcript: z.string().optional(),
+    summary: z.string().optional(),
+    call_cost: z.object({
+      total_cost: z.number().optional(),
+    }).optional(),
+  }),
+});
+
+const RetellCallAnalyzedSchema = z.object({
+  event_type: z.literal("call_analyzed"),
+  data: z.object({
+    call_id: z.string(),
+    agent_id: z.string(),
+    summary: z.string().optional(),
+    sentiment: z.string().optional(),
+    transcript: z.string().optional(),
+    recording_url: z.string().optional(),
+    call_analysis: z.record(z.unknown()).optional(),
+  }),
+});
+
+export type RetellWebhookPayload =
+  | z.infer<typeof RetellCallStartedSchema>
+  | z.infer<typeof RetellCallEndedSchema>
+  | z.infer<typeof RetellCallAnalyzedSchema>;
+
+/**
+ * Normaliza los payloads de prueba de Retell, que usan `event` y `call`
+ * en lugar de `event_type` y `data`.
+ */
+export function normalizeRetellWebhookPayload(payload: unknown): unknown {
+  if (!payload || typeof payload !== "object") {
+    return payload;
+  }
+
+  const p = payload as Record<string, any>;
+  const normalized: Record<string, any> = { ...p };
+
+  if (!normalized.event_type && normalized.event) {
+    normalized.event_type = normalized.event;
+  }
+
+  if (!normalized.data && normalized.call) {
+    normalized.data = normalized.call;
+  }
+
+  return normalized;
+}
+
+async function resolveBusinessIdByRetellAgentId(
+  retellAgentId: string
+): Promise<string | null> {
+  const agent = await prisma.agent.findFirst({
+    where: { retellAgentId },
+    select: { businessId: true },
+  });
+  return agent?.businessId || null;
+}
+
+export async function handleCallStarted(
+  payload: unknown
+): Promise<{ success: boolean }> {
+  const event = RetellCallStartedSchema.parse(payload);
+  const { call_id, agent_id } = event.data;
+
+  console.log(`[Retell] Inició ${callLabel(call_id)} · agente=${agent_id}`);
+
+  try {
+    const businessId = await resolveBusinessIdByRetellAgentId(agent_id);
+    if (!businessId) {
+      console.error(
+        `[Retell] No se pudo identificar el negocio de la ${callLabel(call_id)} (agente ${agent_id})`
+      );
+      return { success: false };
+    }
+
+    const agent = await prisma.agent.findFirst({
+      where: { retellAgentId: agent_id },
+      select: { id: true },
+    });
+
+    await prisma.call.upsert({
+      where: { vapiCallId: call_id },
+      create: {
+        vapiCallId: call_id,
+        businessId,
+        agentId: agent?.id || null,
+        status: "IN_PROGRESS",
+        startedAt: new Date(),
+      },
+      update: {
+        status: "IN_PROGRESS",
+      },
+    });
+
+    console.log(`[Retell] ${callLabel(call_id)} registrada correctamente`);
+    return { success: true };
+  } catch (error) {
+    console.error(
+      `[Retell] Error procesando inicio de ${callLabel(call_id)}: ${errorMessage(
+        error
+      )}`
+    );
+    return { success: false };
+  }
+}
+
+export async function handleCallEnded(
+  payload: unknown
+): Promise<{ success: boolean }> {
+  const event = RetellCallEndedSchema.parse(payload);
+  const { call_id, agent_id } = event.data;
+  const data = event.data;
+
+  console.log(
+    `[Retell] Finalizó ${callLabel(call_id)} · duración=${
+      data.duration_seconds ?? "no indicada"
+    }s · motivo=${data.disconnect_reason ?? "no indicado"}`
+  );
+
+  try {
+    let dbCall = await prisma.call.findUnique({
+      where: { vapiCallId: call_id },
+      include: { business: true, agent: true },
+    });
+
+    let businessId: string | null | undefined = dbCall?.businessId;
+    let agentId: string | null | undefined = dbCall?.agentId;
+
+    if (!dbCall) {
+      console.warn(
+        `[Retell] ${callLabel(call_id)} no existía en la base de datos; se intentará recuperar su agente`
+      );
+      businessId = await resolveBusinessIdByRetellAgentId(agent_id);
+      const agent = await prisma.agent.findFirst({
+        where: { retellAgentId: agent_id },
+        select: { id: true },
+      });
+      agentId = agent?.id || undefined;
+
+      if (!businessId) {
+        console.error(
+          `[Retell] No se pudo identificar el negocio de la ${callLabel(call_id)}`
+        );
+        return { success: false };
+      }
+    }
+
+    const finalStatus: "COMPLETED" | "FAILED" | "IN_PROGRESS" =
+      data.disconnect_reason?.toLowerCase().includes("error") ||
+      data.disconnect_reason?.toLowerCase().includes("fail")
+        ? "FAILED"
+        : "COMPLETED";
+
+    const result = await prisma.$transaction(async (tx) => {
+      const updatedCall = await tx.call.upsert({
+        where: { vapiCallId: call_id },
+        create: {
+          vapiCallId: call_id,
+          businessId: businessId!,
+          agentId: agentId || null,
+          status: finalStatus,
+          startedAt: new Date(),
+          endedAt: new Date(),
+          durationSecs: data.duration_seconds,
+          costCents: data.call_cost?.total_cost
+            ? Math.round(data.call_cost.total_cost * 100)
+            : undefined,
+        },
+        update: {
+          status: finalStatus,
+          endedAt: new Date(),
+          durationSecs: data.duration_seconds,
+          costCents: data.call_cost?.total_cost
+            ? Math.round(data.call_cost.total_cost * 100)
+            : undefined,
+        },
+      });
+
+      if (data.transcript) {
+        await tx.transcript.upsert({
+          where: { callId: updatedCall.id },
+          create: {
+            callId: updatedCall.id,
+            fullText: data.transcript,
+            messages: [],
+          },
+          update: {
+            fullText: data.transcript,
+          },
+        });
+      }
+
+      if (data.recording_url) {
+        await tx.recording.upsert({
+          where: { callId: updatedCall.id },
+          create: {
+            callId: updatedCall.id,
+            vapiUrl: data.recording_url,
+          },
+          update: {
+            vapiUrl: data.recording_url,
+          },
+        });
+      }
+
+      return updatedCall;
+    });
+
+    if (data.recording_url) {
+      try {
+        await recordingQueue.add(
+          "process-recording",
+          {
+            callId: result.id,
+            vapiUrl: data.recording_url,
+            businessId: result.businessId,
+          },
+          {
+            jobId: `process-recording-${result.id}`,
+            attempts: 5,
+            backoff: {
+              type: "exponential",
+              delay: 1000,
+            },
+            removeOnComplete: true,
+            removeOnFail: 1000,
+            priority: 10,
+          }
+        );
+      } catch (err) {
+        console.error(
+          `[Retell] La ${callLabel(call_id)} se guardó, pero no se pudo encolar su grabación: ${errorMessage(
+            err
+          )}`
+        );
+      }
+    }
+
+    if (data.transcript) {
+      try {
+        await classifyQueue.add(
+          "classify-call",
+          {
+            callId: result.id,
+            businessId: result.businessId,
+            transcriptText: data.transcript,
+          },
+          { priority: 10 }
+        );
+      } catch (err) {
+        console.error(
+          `[Retell] La ${callLabel(call_id)} se guardó, pero no se pudo encolar su clasificación: ${errorMessage(
+            err
+          )}`
+        );
+      }
+    }
+
+    console.log(
+      `[Retell] ${callLabel(call_id)} guardada correctamente · transcripción=${
+        data.transcript ? "sí" : "no"
+      } · grabación=${data.recording_url ? "sí" : "no"}`
+    );
+    return { success: true };
+  } catch (error) {
+    console.error(
+      `[Retell] Error procesando el final de la ${callLabel(call_id)}: ${errorMessage(
+        error
+      )}`
+    );
+    return { success: false };
+  }
+}
+
+export async function handleCallAnalyzed(
+  payload: unknown
+): Promise<{ success: boolean }> {
+  const event = RetellCallAnalyzedSchema.parse(payload);
+  const { call_id, agent_id } = event.data;
+  const data = event.data;
+
+  console.log(
+    `[Retell] Análisis recibido para ${callLabel(call_id)} · agente=${agent_id}`
+  );
+
+  try {
+    const dbCall = await prisma.call.findUnique({
+      where: { vapiCallId: call_id },
+      select: { id: true, businessId: true },
+    });
+
+    if (!dbCall) {
+      console.warn(
+        `[Retell] ${callLabel(call_id)} no existe en la base de datos; se ignora el análisis`
+      );
+      return { success: false };
+    }
+
+    await prisma.$transaction(async (tx) => {
+      if (data.transcript) {
+        await tx.transcript.upsert({
+          where: { callId: dbCall.id },
+          create: {
+            callId: dbCall.id,
+            fullText: data.transcript,
+            messages: [],
+          },
+          update: {
+            fullText: data.transcript,
+          },
+        });
+      }
+
+      if (data.recording_url) {
+        await tx.recording.upsert({
+          where: { callId: dbCall.id },
+          create: {
+            callId: dbCall.id,
+            vapiUrl: data.recording_url,
+          },
+          update: {
+            vapiUrl: data.recording_url,
+          },
+        });
+      }
+    });
+
+    // TODO: persistir summary/sentiment/call_analysis cuando el modelo Call lo soporte
+
+    return { success: true };
+  } catch (error) {
+    console.error(
+      `[Retell] Error procesando análisis de ${callLabel(call_id)}: ${errorMessage(
+        error
+      )}`
+    );
+    return { success: false };
+  }
+}

@@ -1,0 +1,135 @@
+# Plan de Tests — Backend AsistAI
+## Prioridad de mayor a menor urgencia
+
+Última actualización: 2026-08-10
+
+---
+
+## Progreso implementado
+
+| Área | Estado | Tests | Archivo(s) |
+|------|--------|-------|------------|
+| Infraestructura de tests | ✅ Configurado | `npm test` ejecuta Vitest | `package.json`, `vitest.config.ts`, `tests/setup.ts` |
+| `businessSchedule.ts` | ✅ Cubierto | 15 tests | `tests/lib/businessSchedule.test.ts` |
+| `availability.ts` | ✅ Cubierto | 8 tests | `tests/lib/availability.test.ts` |
+| Vapi Webhooks | ✅ Cubierto | 11 tests | `tests/adapters/vapi/webhookHandlers.test.ts` |
+| Stripe Webhooks | ✅ Cubierto | 10 tests | `tests/modules/billing/service.test.ts` |
+| Autenticación | ✅ Cubierto | 12 tests | `tests/plugins/auth.test.ts`, `tests/modules/auth/routes.test.ts` |
+| Calendario Service | ✅ Cubierto | 11 tests | `tests/modules/calendar/service.test.ts` |
+
+**Total:** 67 tests pasan con `npm test`.
+
+---
+
+## P0 — CRÍTICO (falla = ingresos o seguridad en riesgo)
+
+### 1. Vapi Webhooks (`src/adapters/vapi/webhookHandlers.ts`)
+- **Qué testear:** `function-call` (book_appointment, check_business_hours, check_availability), `end-of-call-report`, `status-update`.
+- **Por qué:** Es el corazón del producto. Sin esto no hay llamadas, no hay citas, no hay ingresos.
+- **Tipo:** Integration + E2E
+- **Riesgo:** Parsing incorrecto, transacciones Prisma rotas, Google Calendar no responde, Redis caído.
+
+### 2. Stripe Webhooks (`src/modules/billing/service.ts::handleStripeEvent`)
+- **Qué testear:** `checkout.session.completed`, `customer.subscription.updated`, `customer.subscription.deleted`, `invoice.payment_failed`, idempotencia vía `StripeWebhookEvent`.
+- **Por qué:** Impacto directo en revenue. Suscripción no activada = cliente pagó sin acceso.
+- **Tipo:** Integration
+- **Riesgo:** Idempotencia rota, estado corrupto, doble facturación.
+
+### 3. Autenticación (`src/plugins/auth.ts`, `src/modules/auth/routes.ts`)
+- **Qué testear:** JWT (válido/inválido/expirado), login con password, Google OAuth (state en Redis, callback, exchange), registro con creación de Business + bootstrap de agente, `/register-first-user`.
+- **Por qué:** Seguridad. JWT mal validado = acceso cruzado entre negocios. Registro roto = no hay nuevos clientes.
+- **Tipo:** Integration + Unit
+- **Riesgo:** CSRF en OAuth, datos de un negocio visibles para otro.
+
+### 4. Calendario Service (`src/modules/calendar/service.ts`)
+- **Qué testear:** `bookAppointment`, `getUpcomingEvents`, sync de tools a Vapi, manejo de `invalid_grant` (Google y Outlook).
+- **Por qué:** Segunda funcionalidad core. Cita mal agendada = cliente enfadado, doble reserva.
+- **Tipo:** Integration + Unit
+- **Riesgo:** `invalid_grant` no manejado = fallo silencioso del agente.
+
+---
+
+## P1 — ALTO (falla = mala experiencia operativa)
+
+### 5. Disponibilidad + Horarios (`src/lib/availability.ts`, `src/lib/businessSchedule.ts`)
+- **Qué testear:** `checkBusinessHours` con timezone, `checkAvailability` (capacidad, profesionales libres, solapamiento de citas existentes).
+- **Por qué:** Decide si se puede reservar. Bug = overbooking o cita fuera de horario. Lógica pura, muy fácil de testear, alto ROI.
+- **Tipo:** Unit + Integration
+
+### 6. Billing Service (`src/modules/billing/routes.ts`, `service.ts`)
+- **Qué testear:** `createCheckoutSession`, `reconcileCheckoutSession`, `getBillingSummary` (minutos consumidos en periodo actual).
+- **Por qué:** Checkout roto = no se convierten clientes. Reconciliación rota = cliente pagó sin acceso.
+- **Tipo:** Integration
+
+### 7. VapiAdapter (`src/adapters/vapi/VapiAdapter.ts`)
+- **Qué testear:** `validateWebhookSignature` (HMAC-SHA256 timing-safe), CRUD de assistants, download/upload de archivos.
+- **Por qué:** La validación HMAC es la única línea de seguridad de los webhooks. Un bug = cualquiera puede inyectar eventos falsos.
+- **Tipo:** Unit + Integration
+
+### 8. Agent Bootstrap (`src/lib/agentBootstrap.ts`, creación de agente en registro)
+- **Qué testear:** `buildVapiAssistantPayload`, `createBusinessAgent`, payload correcto con tools inyectadas.
+- **Por qué:** Si falla, el onboarding se rompe. El agente no existe = no puede recibir llamadas.
+- **Tipo:** Integration
+
+---
+
+## P2 — MEDIO (falla = datos secundarios rotos)
+
+### 9. Background Jobs (`src/jobs/`)
+- **Qué testear:** `processRecording` (download Vapi → upload R2), `classifyCall` (Claude Haiku), `cleanupZombieCalls`.
+- **Por qué:** Afectan calidad del producto (grabaciones, métricas, limpieza) pero no bloquean llamadas en tiempo real.
+- **Tipo:** Integration
+
+### 10. Business Routes (`src/modules/businesses/routes.ts`)
+- **Qué testear:** Regeneración de `systemPrompt`, sync masivo a Vapi, invalidación de caché Redis, stats (llamadas, minutos, leads).
+- **Por qué:** Inconsistencia entre BD y Vapi = el agente miente. Stats incorrectas = mala UX.
+- **Tipo:** Integration + Unit
+
+### 11. Booking Settings (`src/modules/bookings/routes.ts`)
+- **Qué testear:** CRUD de servicios, profesionales, asignación de servicios a profesionales, capacidad de reserva.
+- **Por qué:** Bugs molestos pero no críticos para llamadas en curso.
+- **Tipo:** Integration
+
+---
+
+## P3 — BAJO (falla = impacto limitado)
+
+### 12. Calls / Recordings Routes (`src/modules/calls/routes.ts`, `src/modules/recordings/routes.ts`)
+- **Qué testear:** Listado con paginación, detalle de llamada, marcar como revisada, notas.
+- **Por qué:** Solo lectura. Bajo riesgo.
+- **Tipo:** Integration
+
+### 13. Files Upload (`src/modules/files/routes.ts`)
+- **Qué testear:** Upload multipart a Vapi para knowledge base, actualización del assistant.
+- **Por qué:** Funcionalidad secundaria. No es transaccional en tiempo real.
+- **Tipo:** Integration
+
+### 14. Places (`src/modules/places/routes.ts`, `service.ts`)
+- **Qué testear:** Autocomplete, detalles, parsing de horarios a `BusinessSchedule`.
+- **Por qué:** Solo afecta al onboarding. Alternativa manual si falla.
+- **Tipo:** Unit
+
+### 15. Health Check + Server Bootstrap (`src/server.ts`)
+- **Qué testear:** Health probes (Postgres, Redis, Vapi), arranque de plugins, graceful shutdown.
+- **Por qué:** Un simple smoke test de arranque es suficiente por ahora.
+- **Tipo:** E2E smoke
+
+---
+
+## Estrategia de implementación sugerida
+
+| Semana | Áreas | Motivo |
+|--------|-------|--------|
+| Semana 1 | `businessSchedule.ts`, `availability.ts` | Lógica pura, rápido, alto impacto inmediato. |
+| Semana 1-2 | Vapi webhooks | Core del producto. Usar payloads reales loggeados en dev. |
+| Semana 2 | Stripe webhooks | Revenue crítico. Usar `stripe.webhooks.generateTestHeaderString`. |
+| Semana 2-3 | Auth (registro, login, JWT, OAuth) | Seguridad y conversión. |
+| Semana 3 | Calendario (Google, Outlook, bookAppointment) | Segunda funcionalidad core. |
+| Semana 3-4 | Background jobs | Calidad de datos secundarios. |
+| Continuo | Resto (P2-P3) | Añadir a medida que se toquen esos módulos. |
+
+## Stack recomendado
+- **Runner:** Vitest (ya usas ESM, compatible nativamente).
+- **Mocks de HTTP:** `msw` para Vapi, Google, Stripe, Anthropic.
+- **Base de datos:** Postgres de test con Prisma (o `testcontainers` para aislamiento total).
+- **Stripe:** `stripe.webhooks.generateTestHeaderString` para firmar payloads de test.

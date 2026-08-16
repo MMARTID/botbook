@@ -1,0 +1,316 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Business {
+  id              String  @id @default(cuid())
+  name            String
+  phone           String  @unique
+  timezone        String  @default("Europe/Madrid")
+  schedule        Json
+  plan            String  @default("basic")
+  active          Boolean @default(true)
+  systemPrompt    String? @db.Text
+  businessDetails String? @db.Text
+  agentSettings   Json?
+  bookingCapacity Int     @default(1)
+
+  // Voice orchestrator selection (default Retell for RGPD compliance)
+  orchestrator        String  @default("retell")
+  retellPhoneNumberId String? @unique
+  retellPhoneNumber   String? @unique
+
+  // Business niche/type used for agent templates and Retell folder organization
+  businessType        String  @default("other")
+
+  // Stripe Billing is scoped to the business, not an individual user.
+  stripeCustomerId                String?             @unique
+  stripeSubscriptionId            String?             @unique
+  stripePriceId                   String?
+  subscriptionStatus              SubscriptionStatus?
+  subscriptionCurrentPeriodStart DateTime?
+  subscriptionCurrentPeriodEnd   DateTime?
+  subscriptionTrialEnd            DateTime?
+  subscriptionCancelAtPeriodEnd   Boolean             @default(false)
+
+  // Twilio Phone Number
+  twilioPhoneNumber            String?   @unique
+  twilioPhoneNumberSid         String?   @unique
+  twilioPhoneNumberPurchasedAt DateTime?
+  twilioPhoneNumberStatus      String?   @default("pending")
+  vapiPhoneNumberId            String?   @unique
+
+  // Calendar integrations
+  calendarProvider            String?
+  googleRefreshToken          String? @db.Text
+  googleCalendarId            String?
+  googleCalendarConnected     Boolean @default(false)
+  googleCalendarDisconnectedAt DateTime?
+  googleCalendarLastError     String? @db.Text
+  outlookRefreshToken         String? @db.Text
+  outlookCalendarId           String?
+  outlookUserEmail            String?
+  outlookCalendarConnected    Boolean @default(false)
+  outlookCalendarDisconnectedAt DateTime?
+  outlookCalendarLastError    String? @db.Text
+
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  users         User[]
+  agents        Agent[]
+  calls         Call[]
+  services      Service[]
+  professionals Professional[]
+  stripeWebhookEvents StripeWebhookEvent[]
+  onboardingState    OnboardingState?
+
+  @@map("businesses")
+}
+
+model OnboardingState {
+  id          String    @id @default(cuid())
+  businessId  String    @unique
+  dismissedAt DateTime?
+  completedAt DateTime?
+  steps       Json?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@map("onboarding_states")
+}
+
+model StripeWebhookEvent {
+  id         String    @id
+  businessId String?
+  type       String
+  createdAt  DateTime  @default(now())
+  processedAt DateTime?
+  lastError  String?   @db.Text
+  business   Business? @relation(fields: [businessId], references: [id], onDelete: SetNull)
+
+  @@index([businessId])
+  @@index([type])
+  @@map("stripe_webhook_events")
+}
+
+model User {
+  id         String   @id @default(cuid())
+  email      String   @unique
+  password   String?
+  googleId   String?  @unique
+  businessId String
+  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([email])
+  @@index([businessId])
+  @@map("users")
+}
+
+model Agent {
+  id               String   @id @default(cuid())
+  businessId       String
+  vapiAssistantId  String?
+  retellAgentId    String?  @unique
+  retellLlmId      String?
+  name             String
+  voice            String   @default("Octave")
+  language         String   @default("es")
+  systemPrompt     String
+  promptVersion    Float?   @default(1)
+  active           Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  firstMessage     String?  @default("Hola, soy tu asistente. ¿En qué puedo ayudarte?")
+  firstMessageMode String?  @default("assistant-speaks-first")
+  llmModel         String   @default("openai/gpt-oss-20b")
+  llmProvider      String   @default("groq")
+  llmTemperature   Float?   @default(0.3)
+  sttModel         String   @default("nova-2")
+  sttProvider      String   @default("deepgram")
+  voiceId          String   @default("538a8872-3799-4df5-b373-b78493b766c6")
+  voiceModel       String?  @default("sonic-3.5")
+  voiceProvider    String   @default("cartesia")
+  files            Json?
+  integrations     Json?
+  business         Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  calls            Call[]
+
+  @@index([businessId])
+  @@index([vapiAssistantId])
+  @@index([retellAgentId])
+  @@map("agents")
+}
+
+model Service {
+  id                String                @id @default(cuid())
+  businessId        String
+  name              String
+  durationMinutes   Int
+  active            Boolean               @default(true)
+  createdAt         DateTime              @default(now())
+  updatedAt         DateTime              @updatedAt
+  business          Business              @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  professionalLinks ProfessionalService[]
+  bookings          Booking[]
+
+  @@index([businessId])
+  @@map("services")
+}
+
+model Professional {
+  id           String                @id @default(cuid())
+  businessId   String
+  name         String
+  active       Boolean               @default(true)
+  createdAt    DateTime              @default(now())
+  updatedAt    DateTime              @updatedAt
+  business     Business              @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  serviceLinks ProfessionalService[]
+  bookings     Booking[]
+
+  @@index([businessId])
+  @@map("professionals")
+}
+
+model ProfessionalService {
+  professionalId String
+  serviceId      String
+  assignedAt     DateTime     @default(now())
+  professional   Professional @relation(fields: [professionalId], references: [id], onDelete: Cascade)
+  service        Service      @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+
+  @@id([professionalId, serviceId])
+  @@index([serviceId])
+  @@map("professional_services")
+}
+
+model Call {
+  id           String       @id @default(cuid())
+  businessId   String
+  agentId      String?
+  vapiCallId   String       @unique
+  status       CallStatus   @default(IN_PROGRESS)
+  outcome      CallOutcome?
+  durationSecs Int?
+  costCents    Int?
+  startedAt    DateTime     @default(now())
+  endedAt      DateTime?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  agent        Agent?       @relation(fields: [agentId], references: [id])
+  business     Business     @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  leads        Lead[]
+  recording    Recording?
+  transcript   Transcript?
+  booking      Booking?
+  order        Order?
+
+  @@index([businessId])
+  @@index([agentId])
+  @@index([vapiCallId])
+  @@map("calls")
+}
+
+model Booking {
+  id           String       @id @default(cuid())
+  callId       String       @unique
+  call         Call         @relation(fields: [callId], references: [id], onDelete: Cascade)
+  professionalId String?
+  professional  Professional? @relation(fields: [professionalId], references: [id], onDelete: SetNull)
+  serviceId    String?
+  service      Service?     @relation(fields: [serviceId], references: [id], onDelete: SetNull)
+  createdAt    DateTime     @default(now())
+  programedAt  DateTime
+  durationMinutes Int        @default(30)
+  numberPeople Int
+  isCancelled  Boolean      @default(false)
+
+  @@index([professionalId])
+  @@index([serviceId])
+  @@map("bookings")
+}
+
+model Order {
+  id        String   @id @default(cuid())
+  callId    String   @unique
+  call      Call     @relation(fields: [callId], references: [id], onDelete: Cascade)
+  order     String?
+  createdAt DateTime @default(now())
+
+  @@map("orders")
+}
+
+model Transcript {
+  id        String   @id @default(cuid())
+  callId    String   @unique
+  fullText  String
+  messages  Json
+  createdAt DateTime @default(now())
+  call      Call     @relation(fields: [callId], references: [id], onDelete: Cascade)
+
+  @@map("transcripts")
+}
+
+model Recording {
+  id          String   @id @default(cuid())
+  callId      String   @unique
+  vapiUrl     String
+  storageKey  String?
+  storageUrl  String?
+  reviewed    Boolean  @default(false)
+  reviewNotes String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  call        Call     @relation(fields: [callId], references: [id], onDelete: Cascade)
+
+  @@map("recordings")
+}
+
+model Lead {
+  id        String   @id @default(cuid())
+  callId    String
+  type      String
+  data      Json
+  isLead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+  call      Call     @relation(fields: [callId], references: [id], onDelete: Cascade)
+
+  @@index([callId])
+  @@map("leads")
+}
+
+enum CallStatus {
+  INITIATED
+  IN_PROGRESS
+  COMPLETED
+  FAILED
+  TIMED_OUT
+}
+
+enum CallOutcome {
+  RESOLVED
+  FRUSTRATED
+  NO_ANSWER
+  ESCALATED
+  LEAD_CAPTURED
+}
+
+enum SubscriptionStatus {
+  INCOMPLETE
+  INCOMPLETE_EXPIRED
+  TRIALING
+  ACTIVE
+  PAST_DUE
+  CANCELED
+  UNPAID
+  PAUSED
+}

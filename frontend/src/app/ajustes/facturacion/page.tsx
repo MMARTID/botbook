@@ -1,0 +1,105 @@
+"use client";
+
+import Link from "next/link";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { CreditCard, ExternalLink, Gauge, Phone, ReceiptText } from "lucide-react";
+import { createBillingPortalSession, getBillingSummary } from "@/lib/api";
+import { plans } from "@/lib/plans";
+
+const statusLabels: Record<string, string> = {
+  INCOMPLETE: "Configuración incompleta",
+  INCOMPLETE_EXPIRED: "Configuración expirada",
+  TRIALING: "Periodo de prueba",
+  ACTIVE: "Activa",
+  PAST_DUE: "Pago pendiente",
+  CANCELED: "Cancelada",
+  UNPAID: "Impagada",
+  PAUSED: "Pausada",
+};
+
+export default function BillingSettingsPage() {
+  const summary = useQuery({ queryKey: ["billing-summary"], queryFn: getBillingSummary });
+  const portal = useMutation({
+    mutationFn: createBillingPortalSession,
+    onSuccess: ({ url }) => window.location.assign(url),
+  });
+
+  const plan = plans.find((candidate) => candidate.id === summary.data?.planId);
+
+  return (
+    <section className="space-y-6">
+      <div>
+        <span className="badge-soft">Facturación</span>
+        <h1 className="mt-4 text-3xl font-semibold tracking-tight text-[#1e2b22]">Plan y pagos</h1>
+        <p className="mt-2 text-[#687267]">Consulta tu suscripción y gestiona pagos y facturas de forma segura en Stripe.</p>
+      </div>
+
+      {summary.isLoading ? <div className="panel p-8 text-[#687267]">Cargando facturación…</div> : null}
+      {summary.isError ? <div className="panel p-8 text-red-600">No se pudo consultar la facturación.</div> : null}
+
+      {summary.data ? (
+        <div className="grid gap-5 lg:grid-cols-3">
+          <article className="panel p-6 lg:col-span-2">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div>
+                <p className="text-sm font-medium text-[#687267]">Plan actual</p>
+                <h2 className="mt-1 text-3xl font-semibold text-[#1e2b22]">{plan?.name ?? "Sin suscripción"}</h2>
+                <p className="mt-2 text-sm text-[#54634b]">
+                  {summary.data.status ? statusLabels[summary.data.status] ?? summary.data.status : "Aún no configurada"}
+                </p>
+              </div>
+              {plan ? <span className="badge-soft">{plan.price} €/mes</span> : null}
+            </div>
+
+            <div className="mt-8 grid gap-4 sm:grid-cols-3">
+              <div className="rounded-2xl bg-[#f6f8f2] p-4">
+                <div className="flex items-center gap-2 text-sm font-medium text-[#344038]"><Gauge className="h-4 w-4" /> Minutos incluidos</div>
+                <p className="mt-2 text-2xl font-semibold text-[#1e2b22]">{summary.data.includedMinutes ?? "—"}</p>
+              </div>
+              <div className="rounded-2xl bg-[#f6f8f2] p-4">
+                <div className="flex items-center gap-2 text-sm font-medium text-[#344038]"><Phone className="h-4 w-4" /> Minutos consumidos</div>
+                <p className="mt-2 text-2xl font-semibold text-[#1e2b22]">{summary.data.consumedMinutes}</p>
+                {typeof summary.data.includedMinutes === "number" ? (
+                  <p className={`mt-1 text-xs font-medium ${summary.data.consumedMinutes > summary.data.includedMinutes ? "text-red-600" : "text-[#54634b]"}`}>
+                    {summary.data.consumedMinutes > summary.data.includedMinutes
+                      ? `Has superado el límite en ${summary.data.consumedMinutes - summary.data.includedMinutes} min`
+                      : `Te quedan ${summary.data.includedMinutes - summary.data.consumedMinutes} min`}
+                  </p>
+                ) : null}
+              </div>
+              <div className="rounded-2xl bg-[#f6f8f2] p-4">
+                <div className="flex items-center gap-2 text-sm font-medium text-[#344038]"><CreditCard className="h-4 w-4" /> Próximo periodo</div>
+                <p className="mt-2 text-lg font-semibold text-[#1e2b22]">
+                  {summary.data.currentPeriodEnd
+                    ? new Intl.DateTimeFormat("es-ES", { dateStyle: "medium" }).format(new Date(summary.data.currentPeriodEnd))
+                    : "—"}
+                </p>
+              </div>
+            </div>
+
+            {summary.data.trialEnd ? (
+              <p className="mt-5 text-sm text-[#54634b]">
+                Trial hasta {new Intl.DateTimeFormat("es-ES", { dateStyle: "long" }).format(new Date(summary.data.trialEnd))}.
+              </p>
+            ) : null}
+          </article>
+
+          <article className="panel flex flex-col p-6">
+            <ReceiptText className="h-7 w-7 text-[#2c7334]" />
+            <h2 className="mt-4 text-xl font-semibold text-[#1e2b22]">Portal de cliente</h2>
+            <p className="mt-2 flex-1 text-sm leading-6 text-[#687267]">Actualiza el método de pago, consulta facturas o cancela la suscripción.</p>
+            {summary.data.customerConfigured ? (
+              <button onClick={() => portal.mutate()} disabled={portal.isPending} className="btn-primary mt-6 justify-center">
+                <ExternalLink className="h-4 w-4" />
+                {portal.isPending ? "Abriendo…" : "Gestionar en Stripe"}
+              </button>
+            ) : (
+              <Link href="/planes?from=billing" className="btn-primary mt-6 justify-center">Elegir plan</Link>
+            )}
+            {portal.isError ? <p className="mt-3 text-sm text-red-600">No se pudo abrir el portal.</p> : null}
+          </article>
+        </div>
+      ) : null}
+    </section>
+  );
+}

@@ -1,0 +1,171 @@
+services:
+  # ---------- PERFIL DE PRODUCCIÓN ----------
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: asistai_backend
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_URL: ${REDIS_URL}
+      VAPI_API_KEY: ${VAPI_API_KEY}
+      VAPI_WEBHOOK_SECRET: ${VAPI_WEBHOOK_SECRET}
+      VAPI_BASE_URL: ${VAPI_BASE_URL}
+      RETELL_API_KEY: ${RETELL_API_KEY}
+      RETELL_BASE_URL: ${RETELL_BASE_URL:-https://api.retellai.com}
+      BASE_URL: ${BASE_URL}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      JWT_SECRET: ${JWT_SECRET}
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET}
+      STRIPE_PRICE_INICIO: ${STRIPE_PRICE_INICIO}
+      STRIPE_PRICE_PRO: ${STRIPE_PRICE_PRO}
+      STRIPE_PRICE_SCALE: ${STRIPE_PRICE_SCALE}
+      GOOGLE_AUTH_CLIENT_ID: ${GOOGLE_AUTH_CLIENT_ID}
+      GOOGLE_AUTH_CLIENT_SECRET: ${GOOGLE_AUTH_CLIENT_SECRET}
+      GOOGLE_AUTH_REDIRECT_URI: ${GOOGLE_AUTH_REDIRECT_URI}
+      MICROSOFT_CLIENT_ID: ${MICROSOFT_CLIENT_ID}
+      MICROSOFT_CLIENT_SECRET: ${MICROSOFT_CLIENT_SECRET}
+      MICROSOFT_REDIRECT_URI: ${MICROSOFT_REDIRECT_URI}
+      FRONTEND_URL: ${FRONTEND_URL}
+      R2_ACCOUNT_ID: ${R2_ACCOUNT_ID}
+      R2_ACCESS_KEY: ${R2_ACCESS_KEY}
+      R2_SECRET_KEY: ${R2_SECRET_KEY}
+      R2_BUCKET: ${R2_BUCKET}
+      R2_REGION: ${R2_REGION}
+      R2_ENDPOINT: ${R2_ENDPOINT}
+      TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID}
+      TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN}
+      TWILIO_API_KEY: ${TWILIO_API_KEY}
+      TWILIO_API_SECRET: ${TWILIO_API_SECRET}
+      TWILIO_PHONE_NUMBER_COUNTRY: ${TWILIO_PHONE_NUMBER_COUNTRY}
+      PORT: ${PORT:-3000}
+      NODE_ENV: ${NODE_ENV:-production}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      HOST: 0.0.0.0
+    ports:
+      - "3000:3000"
+      - "5555:5555"
+    restart: unless-stopped
+    # Este perfil se activa con: docker compose --profile prod up
+    profiles:
+      - prod
+
+  # ---------- PERFIL DE DESARROLLO ----------
+  ngrok:
+    image: ngrok/ngrok:latest
+    restart: unless-stopped
+    command: http backend-dev:3000
+    environment:
+      - NGROK_AUTHTOKEN=${NGROK_AUTHTOKEN}
+    ports:
+      - "4040:4040"
+    depends_on:
+      - backend-dev
+    profiles:
+      - dev
+
+  backend-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: asistai_backend_dev
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_URL: ${REDIS_URL}
+      VAPI_API_KEY: ${VAPI_API_KEY}
+      VAPI_WEBHOOK_SECRET: ${VAPI_WEBHOOK_SECRET}
+      VAPI_BASE_URL: ${VAPI_BASE_URL}
+      RETELL_API_KEY: ${RETELL_API_KEY}
+      RETELL_BASE_URL: ${RETELL_BASE_URL:-https://api.retellai.com}
+      BASE_URL: ${BASE_URL}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      JWT_SECRET: ${JWT_SECRET}
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET}
+      STRIPE_PRICE_INICIO: ${STRIPE_PRICE_INICIO}
+      STRIPE_PRICE_PRO: ${STRIPE_PRICE_PRO}
+      STRIPE_PRICE_SCALE: ${STRIPE_PRICE_SCALE}
+      GOOGLE_AUTH_CLIENT_ID: ${GOOGLE_AUTH_CLIENT_ID}
+      GOOGLE_AUTH_CLIENT_SECRET: ${GOOGLE_AUTH_CLIENT_SECRET}
+      GOOGLE_AUTH_REDIRECT_URI: ${GOOGLE_AUTH_REDIRECT_URI}
+      MICROSOFT_CLIENT_ID: ${MICROSOFT_CLIENT_ID}
+      MICROSOFT_CLIENT_SECRET: ${MICROSOFT_CLIENT_SECRET}
+      MICROSOFT_REDIRECT_URI: ${MICROSOFT_REDIRECT_URI}
+      FRONTEND_URL: ${FRONTEND_URL}
+      R2_ACCOUNT_ID: ${R2_ACCOUNT_ID}
+      R2_ACCESS_KEY: ${R2_ACCESS_KEY}
+      R2_SECRET_KEY: ${R2_SECRET_KEY}
+      R2_BUCKET: ${R2_BUCKET}
+      R2_REGION: ${R2_REGION}
+      R2_ENDPOINT: ${R2_ENDPOINT}
+      TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID}
+      TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN}
+      TWILIO_API_KEY: ${TWILIO_API_KEY}
+      TWILIO_API_SECRET: ${TWILIO_API_SECRET}
+      TWILIO_PHONE_NUMBER_COUNTRY: ${TWILIO_PHONE_NUMBER_COUNTRY}
+      PORT: ${PORT:-3000}
+      NODE_ENV: ${NODE_ENV:-development}
+      LOG_LEVEL: ${LOG_LEVEL:-debug}
+      HOST: 0.0.0.0
+    ports:
+      - "3000:3000"
+      - "5555:5555"
+    # En desarrollo: usamos tsx watch sobre el código fuente
+    command: sh -c "npx prisma generate && npm run dev"
+    volumes:
+      - ./:/app
+      - /app/node_modules   # Previene conflictos con node_modules del host
+    restart: unless-stopped
+    profiles:
+      - dev
+
+  # ---------- POSTGRES ----------
+  postgres:
+    image: postgres:15-alpine
+    container_name: asistai_postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: asistai
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ---------- REDIS ----------
+  redis:
+    image: redis:7-alpine
+    container_name: asistai_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:
+  redis_data:

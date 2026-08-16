@@ -1,0 +1,50 @@
+{
+  "scenario1": {
+    "httpStatus": 200,
+    "response": {
+      "result": {
+        "success": true,
+        "message": "Cita agendada correctamente.",
+        "eventLink": "https://www.google.com/calendar/event?eid=aHRlaGFna2M3cm1yczVnYTdsaWQ5aTE3bWsgbWlndWVsLmlkLjIwMjBAbQ"
+      }
+    },
+    "createdEventCount": 0,
+    "createdEventIds": [],
+    "passed": false
+  },
+  "scenario2": {
+    "httpStatus": 200,
+    "response": {
+      "result": {
+        "success": false,
+        "code": "GOOGLE_CALENDAR_RECONNECT_REQUIRED",
+        "message": "No pude acceder al calendario del negocio porque la conexión con Google expiró o fue revocada. El negocio debe reconectarlo."
+      }
+    },
+    "businessState": {
+      "googleCalendarConnected": false,
+      "googleRefreshTokenIsNull": true,
+      "googleCalendarDisconnectedAt": "2026-07-28T16:27:12.978Z",
+      "googleCalendarLastError": "invalid_grant"
+    },
+    "redisKeyDeleted": true,
+    "passed": true
+  },
+  "scenario3": {
+    "httpStatus": 200,
+    "response": {
+      "result": {
+        "success": false,
+        "code": "GOOGLE_CALENDAR_RECONNECT_REQUIRED",
+        "message": "El negocio debe reconectar Google Calendar antes de agendar citas."
+      }
+    },
+    "redisKeyDeletedBecauseStale": false,
+    "passed": true
+  },
+  "cleanup": [
+    "scenario1 cleaned",
+    "scenario2 cleaned",
+    "scenario3 cleaned"
+  ]
+}
