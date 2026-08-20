@@ -32,7 +32,7 @@ teléfono — pero es quien juzga si el producto funciona.
 
 ## Product Purpose
 
-AsistAI es un SaaS multi-tenant que da a cada negocio uno o más **recepcionistas de voz con IA**
+BotBook es un SaaS multi-tenant que da a cada negocio uno o más **recepcionistas de voz con IA**
 que atienden las llamadas entrantes, responden preguntas, consultan el horario del negocio,
 comprueban disponibilidad y reservan la cita directamente en el calendario de Google u Outlook
 del negocio.
@@ -116,7 +116,7 @@ Lo que un producto vecino no podría copiar honestamente:
 
 ## Brand Commitments
 
-- **Nombre:** AsistAI.
+- **Nombre:** BotBook.
 - **Idioma:** español de España, siempre, con tuteo en la interfaz.
 - **Registro:** confianza tranquila y profesional. Cercano pero serio. Ni corporativo
   acartonado ni startup con emojis.
@@ -142,7 +142,7 @@ Lo que un producto vecino no podría copiar honestamente:
   STANPA / El Periódico, Doctoralia, safina.ai, heilo.io, entre otras.
 - Citas textuales de profesionales del sector recogidas en prensa: Excelsior Barber Studio
   (Diario de Mallorca), David Aranda de Estetical (Crónica Global), Estetical (Facebook).
-  **Hablan del problema, no de AsistAI.** No son testimonios de cliente y no deben presentarse
+  **Hablan del problema, no de BotBook.** No son testimonios de cliente y no deben presentarse
   como tales.
 - Producto funcional y demostrable: demo de voz pública en el navegador.
 - Capturas de referencia en la raíz del repositorio: `landing-final-desktop.png`,
@@ -152,14 +152,14 @@ Lo que un producto vecino no podría copiar honestamente:
 
 **Ausencias que ningún trabajo futuro debe rellenar inventando**
 
-AsistAI está en **prelanzamiento: no hay clientes de pago**. Por tanto **no existen**, y no se
+BotBook está en **prelanzamiento: no hay clientes de pago**. Por tanto **no existen**, y no se
 pueden fabricar ni insinuar:
 
-- testimonios ni casos de éxito de clientes de AsistAI;
+- testimonios ni casos de éxito de clientes de BotBook;
 - logos de clientes ni recuentos del tipo «X negocios ya confían»;
 - métricas propias del producto (llamadas gestionadas, citas recuperadas, tasa de acierto,
   valoraciones);
-- premios, apariciones en prensa sobre AsistAI o cifras de facturación.
+- premios, apariciones en prensa sobre BotBook o cifras de facturación.
 
 Toda cifra publicada debe llevar una fuente externa verificable, como ya hacen las landings de
 nicho. Cuando haga falta prueba en una superficie y no la haya, la salida correcta es enseñar el

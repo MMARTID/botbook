@@ -1,4 +1,4 @@
-# AsistAI
+# BotBook
 
 SaaS multi-tenant de recepcionistas de voz con IA para pequeños negocios en España
 (peluquerías, barberías, salones de uñas, centros de estética, clínicas de fisioterapia).

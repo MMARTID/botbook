@@ -1,8 +1,8 @@
-# AsistAI — AI Coding Agent Reference
+# BotBook — AI Coding Agent Reference
 
 ## Project Overview
 
-AsistAI is a multi-tenant SaaS platform that provides AI-powered voice receptionists for small businesses in Spain (hair salons, barbershops, physiotherapy clinics, beauty centers, etc.). Each business gets one or more voice agents built on top of the Vapi or Retell voice-AI platform. European accounts use Retell.ai by default for RGPD compliance; Vapi is kept for future expansion outside Europe. The agents handle incoming phone calls, answer questions, check business hours, check availability, and book appointments directly into the business's Google or Outlook calendar.
+BotBook is a multi-tenant SaaS platform that provides AI-powered voice receptionists for small businesses in Spain (hair salons, barbershops, physiotherapy clinics, beauty centers, etc.). Each business gets one or more voice agents built on top of the Vapi or Retell voice-AI platform. European accounts use Retell.ai by default for RGPD compliance; Vapi is kept for future expansion outside Europe. The agents handle incoming phone calls, answer questions, check business hours, check availability, and book appointments directly into the business's Google or Outlook calendar.
 
 The codebase is fully in Spanish — UI copy, comments, variable names, and business logic are written in Spanish. Keep everything in Spanish when modifying code or adding user-facing text.
 
@@ -68,6 +68,7 @@ Each module is a folder containing a `routes.ts` file (and optionally `service.t
 | `places` | *(none)* | Yes | Google Places autocomplete & details |
 | `files` | `/agents` | Yes | Agent file uploads (multipart, 10MB limit) |
 | `onboarding` | *(none)* | Yes | Onboarding state: progress, dismiss, complete |
+| `demo` | `/demo` | No | Public landing voice demo: `POST /demo/web-call` accepts `{ niche? }` and creates a Retell web call against that niche's demo agent, falling back to the generic one (10 req/min) |
 
 \* Except OAuth callbacks (`/calendar/auth/*/callback`) and Stripe webhook (`/billing/webhook`).
 
@@ -131,8 +132,8 @@ There is no static OG asset; edit that file to change what WhatsApp and X displa
 
 - **TanStack Query** (`@tanstack/react-query`) for all server state. Config: `staleTime: 30s`, no retry, no refetch on focus.
 - **BusinessProvider** context exposes `business`, `isLoadingBusiness`, `hasToken`, `isError`.
-- **Auth token** stored in `localStorage` as `asistai_token` (legacy keys `token`, `jwt` also checked).
-- **Pending plan** stored in `localStorage` as `asistai_pending_plan` for post-registration checkout flow.
+- **Auth token** stored in `localStorage` as `botbook_token` (legacy keys `token`, `jwt` also checked).
+- **Pending plan** stored in `localStorage` as `botbook_pending_plan` for post-registration checkout flow.
 - **ROI context** stored in `localStorage` + `sessionStorage` with 1-hour TTL for calculator → pricing continuity.
 
 ### Key Components
@@ -151,8 +152,12 @@ There is no static OG asset; edit that file to change what WhatsApp and X displa
 - `PlansWithRoi` / `PlansHeadline` — Pricing cards, ROI-aware copy. Reads `?plan=` from the URL to
   flag the card the visitor already chose, and renders the value contrast from
   `calculatePlanValueContrast` only when the visitor's own estimate covers the plan.
-- `DemoVoiceCall` — Real Vapi voice demo using `@vapi-ai/web` with live transcription (Vapi-only
-  demo). It is a real dialog: `role="dialog"`, `aria-modal`, focus trap on Tab, body scroll lock.
+- `DemoVoiceCall` — Real Retell voice demo using `retell-client-js-sdk` with live transcription.
+  The browser asks the backend for a web call (`POST /demo/web-call`, public, 10 req/min), which
+  creates it via Retell `create-web-call` and returns the access token. The landing sends its
+  niche slug (`peluqueria`, `barberia`, …) and the backend picks the matching
+  `RETELL_DEMO_<NICHO>_AGENT_ID`, falling back to the generic `RETELL_DEMO_AGENT_ID`.
+  It is a real dialog: `role="dialog"`, `aria-modal`, focus trap on Tab, body scroll lock.
   All failures go through `describeDemoError`, which maps config/permission/network causes to
   Spanish copy. **Never surface `error.message` from the SDK or an env-var name to the user.**
 - `LegalPage` / `LegalSection` / `LegalTodo` — Read-mode shell for the `/legal/*` pages.
@@ -259,7 +264,7 @@ Copy `.env.example` to `.env` and fill in all required secrets. Key groups:
 | **Redis** | `REDIS_URL` |
 | **Vapi** | `VAPI_API_KEY`, `VAPI_WEBHOOK_SECRET`, `VAPI_BASE_URL` |
 | **Retell** | `RETELL_API_KEY`, `RETELL_BASE_URL` |
-| **Demo (frontend)** | `NEXT_PUBLIC_VAPI_DEMO_PUBLIC_KEY`, `NEXT_PUBLIC_VAPI_DEMO_ASSISTANT_ID`, `NEXT_PUBLIC_VAPI_DEMO_MAX_DURATION_SECONDS`, `NEXT_PUBLIC_VAPI_DEMO_VOICE_SPEED`, `NEXT_PUBLIC_VAPI_DEMO_VOICE_ID` |
+| **Demo (landing)** | `RETELL_DEMO_AGENT_ID` (genérico), `RETELL_DEMO_<NICHO>_AGENT_ID` (por landing de nicho: `PELUQUERIA`, `CENTRO_ESTETICA`, `SALON_UÑAS`, `BARBERIA`, `FISIOTERAPIA`), `RETELL_DEMO_MAX_DURATION_SECONDS` |
 | **JWT** | `JWT_SECRET` — required; server exits if missing |
 | **Stripe** | `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_INICIO`, `STRIPE_PRICE_PRO`, `STRIPE_PRICE_SCALE`, `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` |
 | **Google Calendar OAuth** | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI` |
@@ -276,7 +281,7 @@ Copy `.env.example` to `.env` and fill in all required secrets. Key groups:
 The backend uses a custom JWT scheme:
 
 1. On login / Google OAuth, the server issues a JWT signed with `JWT_SECRET` (7-day expiry).
-2. The frontend stores the token in `localStorage` under key `asistai_token` (legacy keys `token` and `jwt` are also checked).
+2. The frontend stores the token in `localStorage` under key `botbook_token` (legacy keys `token` and `jwt` are also checked).
 3. The token is sent as `Authorization: Bearer <token>`.
 4. The `authPlugin` (`src/plugins/auth.ts`) decodes it with `jsonwebtoken` and decorates `request.user` with `{ id, businessId }`.
 5. Routes that need auth use `onRequest: fastify.authenticate` or `preValidation: [fastify.authenticate]` in their route options.
@@ -417,7 +422,7 @@ The backend supports two voice-AI orchestrators. `Business.orchestrator` decides
 ### Retell (`src/adapters/retell/RetellAdapter.ts`)
 
 - Single source of truth for all Retell API calls.
-- **Endpoints used:** `POST /create-retell-llm`, `POST /create-agent`, `PATCH /update-agent/{id}`, `GET /get-agent/{id}`, `DELETE /delete-agent/{id}`, `GET /list-phone-numbers`, `POST /create-phone-number`, `POST /import-phone-number`, `DELETE /delete-phone-number/{id}`, `GET /get-call/{id}`.
+- **Endpoints used:** `POST /create-retell-llm`, `POST /create-agent`, `PATCH /update-agent/{id}`, `GET /get-agent/{id}`, `DELETE /delete-agent/{id}`, `GET /list-phone-numbers`, `POST /create-phone-number`, `POST /import-phone-number`, `DELETE /delete-phone-number/{id}`, `GET /get-call/{id}`, `POST /v2/create-web-call` (public landing demo).
 - Webhooks from Retell hit `POST /webhooks/retell`. The endpoint verifies the `x-retell-signature` using `retellAdapter.validateWebhookSignature` (timing-safe comparison with the Retell API key).
 - Supported Retell webhook events: `call_started`, `call_ended`, `call_analyzed`. Other events are acknowledged (`200`) but ignored.
 - Retell custom tools are exposed under `POST /webhooks/retell/tools/:toolName`. The endpoint validates the `x-retell-signature` before executing any tool. Handlers live in `src/adapters/retell/webhookHandlers.ts` and implement `check_business_hours`, `check_availability` and `book_appointment` (Google and Outlook Calendar supported).
@@ -456,6 +461,7 @@ The backend supports two voice-AI orchestrators. `Business.orchestrator` decides
 - **Google Calendar:** OAuth 2.0 offline access (`prompt: consent`, `access_type: offline`). Refresh tokens are stored in `Business.googleRefreshToken`. Supports `primary` calendar or a specific `googleCalendarId`.
 - **Outlook Calendar:** Microsoft Graph OAuth. Stores refresh token in `Business.outlookRefreshToken`. After OAuth, the user selects a calendar from a list; then `connectMicrosoftCalendar` saves the choice.
 - **Calendar selection:** Google callback redirects directly to frontend. Microsoft callback returns a JSON payload with calendar list; frontend shows selector and calls `POST /calendar/auth/microsoft/connect`.
+- **Switching calendars:** `GET /calendar/calendars` lists the calendars of the connected account (Google `calendarList` or Microsoft Graph) with `{ provider, selectedCalendarId, calendars: [{ id, name, primary }] }`; `POST /calendar/select` with `{ calendarId }` switches the active calendar for either provider. The `/ajustes` calendar section uses both for its "Cambiar de calendario" picker.
 - `getUpcomingEvents` normalizes events from both providers into a common format.
 - If a refresh token becomes invalid (`invalid_grant`), the backend throws a `CalendarBusinessError` with code `GOOGLE_CALENDAR_RECONNECT_REQUIRED` or `OUTLOOK_CALENDAR_RECONNECT_REQUIRED`. The frontend should prompt the user to reconnect.
 - **Appointment booking** (`book_appointment` webhook handler) supports both Google and Outlook Calendar. It creates the calendar event and persists a `Booking` row with `professionalId`, `serviceId` and `durationMinutes`. If no `professionalId` is provided, it selects the first available professional from `checkAvailability`.
@@ -543,7 +549,7 @@ The final setup step is `/register/business/calendar`, where the user connects G
 
 Onboarding texts for headings, subheadings and CTAs are dynamically selected per business type via `BUSINESS_TYPE_ONBOARDING_TEXTS` in `frontend/src/lib/business-type.ts`.
 
-Google Places autocomplete is filtered by the country selected during registration and stored in `localStorage` under `asistai_registration_country`. The `/register/business` page shows the country as a summary with an optional "Cambiar" link; the selector only appears when no country is saved or when the user explicitly chooses to change it. The country is sent as the `country` query param and passed to `includedRegionCodes` in `src/modules/places/service.ts`.
+Google Places autocomplete is filtered by the country selected during registration and stored in `localStorage` under `botbook_registration_country`. The `/register/business` page shows the country as a summary with an optional "Cambiar" link; the selector only appears when no country is saved or when the user explicitly chooses to change it. The country is sent as the `country` query param and passed to `includedRegionCodes` in `src/modules/places/service.ts`.
 
 ## Onboarding Flow
 
@@ -676,15 +682,15 @@ non-optional for a service sold online in the EU. Concretely:
 
 ## Content & Evidence Rules
 
-AsistAI is **pre-launch: there are no paying customers.** `PRODUCT.md` holds the full record. For
+BotBook is **pre-launch: there are no paying customers.** `PRODUCT.md` holds the full record. For
 any user-facing copy:
 
 - Never fabricate testimonials, customer logos, "X negocios confían" counts, own product metrics,
-  awards or press mentions about AsistAI. None exist.
+  awards or press mentions about BotBook. None exist.
 - Every published figure needs an external, verifiable source rendered on screen, the way
   `SectorDataSection` does. The stats in `niche-landings.ts` and `generalSectorData` follow this.
 - The quotes in `niche-landings.ts` are business owners interviewed in the press **about the
-  problem**, not AsistAI customers. Do not present them as testimonials.
+  problem**, not BotBook customers. Do not present them as testimonials.
 - Do not promise capabilities that do not ship. Voice selection has no frontend UI; "elegir entre
   voces" was removed for that reason. Onboarding is self-service, so copy must not promise a human
   configuring things with the customer.

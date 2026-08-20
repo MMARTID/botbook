@@ -1,5 +1,5 @@
 ---
-name: AsistAI
+name: BotBook
 description: Sistema visual SaaS sereno para negocios de servicios españoles — verde mostrador sobre papel claro
 colors:
   background: "#eef2eb"
@@ -124,14 +124,14 @@ components:
     size: "40px"
 ---
 
-# Design System: AsistAI
+# Design System: BotBook
 
 ## Overview
 
 **Creative North Star: "La Recepción Serena"**
 
 El mostrador de un buen negocio a media mañana: luz natural entrando, madera clara, todo en su
-sitio, nadie levantando la voz. Esa es la sensación que persigue AsistAI. El producto le habla a
+sitio, nadie levantando la voz. Esa es la sensación que persigue BotBook. El producto le habla a
 una peluquera, un barbero o un fisioterapeuta que no compró software en su vida y que no quiere
 sentirse en una app: quiere sentir que ha contratado a alguien competente y tranquilo. La
 interfaz interpreta ese papel — presente, ordenada, sin pedir atención.

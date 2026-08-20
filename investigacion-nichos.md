@@ -1,4 +1,4 @@
-# Investigación de mercado por nicho — AsistAI
+# Investigación de mercado por nicho — BotBook
 
 Documento de referencia con los hallazgos reales encontrados durante la investigación de mercado para enriquecer las landing pages de cada nicho.
 
