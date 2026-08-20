@@ -8,8 +8,8 @@ import { GoogleAuthButton } from "@/components/google-auth-button";
 import { isPlanId, savePendingPlan } from "@/lib/billing-navigation";
 import { normalizeBusinessType } from "@/lib/business-type";
 
-const REGISTRATION_NICHE_KEY = "asistai_registration_niche";
-const REGISTRATION_COUNTRY_KEY = "asistai_registration_country";
+const REGISTRATION_NICHE_KEY = "botbook_registration_niche";
+const REGISTRATION_COUNTRY_KEY = "botbook_registration_country";
 
 export default function RegisterPage() {
   const [email, setEmail] = useState("");
@@ -40,7 +40,7 @@ export default function RegisterPage() {
         country,
         businessType: businessType ? normalizeBusinessType(businessType) : undefined,
       });
-      window.localStorage.setItem("asistai_token", data.token);
+      window.localStorage.setItem("botbook_token", data.token);
       const planFromUrl = new URLSearchParams(window.location.search).get("plan");
       if (isPlanId(planFromUrl)) savePendingPlan(planFromUrl);
       const planParam = isPlanId(planFromUrl) ? `?plan=${planFromUrl}` : "";

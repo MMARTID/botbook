@@ -2,14 +2,27 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Bot, Building2, CalendarClock, LoaderCircle, MapPin, Phone, Search } from "lucide-react";
+import {
+  Building2,
+  CalendarClock,
+  LoaderCircle,
+  MapPin,
+  Phone,
+  Search,
+} from "lucide-react";
+import { LottieAnimation } from "@/components/lottie-animation";
 import { getPlaceDetails, searchPlaces, updateMyBusiness } from "@/lib/api";
 import { consumePendingPlan, isPlanId } from "@/lib/billing-navigation";
 import { detectBusinessTypeFromPlaceTypes } from "@/lib/business-type";
-import type { BusinessSchedule, PlaceDetails, PlaceSearchResult, WeekDay } from "@/lib/types";
+import type {
+  BusinessSchedule,
+  PlaceDetails,
+  PlaceSearchResult,
+  WeekDay,
+} from "@/lib/types";
 
-const DETECTED_BUSINESS_TYPE_KEY = "asistai_detected_business_type";
-const REGISTRATION_COUNTRY_KEY = "asistai_registration_country";
+const DETECTED_BUSINESS_TYPE_KEY = "botbook_detected_business_type";
+const REGISTRATION_COUNTRY_KEY = "botbook_registration_country";
 
 const COUNTRY_OPTIONS = [
   { value: "ES", label: "España" },
@@ -40,7 +53,11 @@ const DAYS: Array<{ key: WeekDay; label: string }> = [
 function isBusinessSchedule(value: unknown): value is BusinessSchedule {
   if (!value || typeof value !== "object") return false;
   const candidate = value as Partial<BusinessSchedule>;
-  return candidate.version === 1 && Boolean(candidate.week) && DAYS.every(({ key }) => Boolean(candidate.week?.[key]));
+  return (
+    candidate.version === 1 &&
+    Boolean(candidate.week) &&
+    DAYS.every(({ key }) => Boolean(candidate.week?.[key]))
+  );
 }
 
 function scheduleSummary(schedule: unknown) {
@@ -85,7 +102,7 @@ export default function RegisterBusinessPage() {
 
   useEffect(() => {
     const token =
-      window.localStorage.getItem("asistai_token") ??
+      window.localStorage.getItem("botbook_token") ??
       window.localStorage.getItem("token") ??
       window.localStorage.getItem("jwt");
     if (!token) {
@@ -108,7 +125,8 @@ export default function RegisterBusinessPage() {
         if (!cancelled) setResults(places);
       })
       .catch(() => {
-        if (!cancelled) setError("No se pudieron buscar negocios. Inténtalo de nuevo.");
+        if (!cancelled)
+          setError("No se pudieron buscar negocios. Inténtalo de nuevo.");
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -158,7 +176,9 @@ export default function RegisterBusinessPage() {
 
       redirectToNextStep();
     } catch {
-      setError("No se pudo guardar la información del negocio. Inténtalo de nuevo.");
+      setError(
+        "No se pudo guardar la información del negocio. Inténtalo de nuevo."
+      );
     } finally {
       setSaving(false);
     }
@@ -171,9 +191,9 @@ export default function RegisterBusinessPage() {
   const redirectToNextStep = () => {
     const hasSchedule = isBusinessSchedule(selected?.schedule);
     if (hasSchedule) {
-      window.localStorage.setItem("asistai_place_schedule_imported", "true");
+      window.localStorage.setItem("botbook_place_schedule_imported", "true");
     } else {
-      window.localStorage.removeItem("asistai_place_schedule_imported");
+      window.localStorage.removeItem("botbook_place_schedule_imported");
     }
 
     const planFromUrl = new URLSearchParams(window.location.search).get("plan");
@@ -198,19 +218,25 @@ export default function RegisterBusinessPage() {
     <div className="flex min-h-screen items-center justify-center px-4 py-12 sm:px-6 lg:px-8">
       <div className="panel w-full max-w-lg p-8">
         <div className="space-y-4 text-center">
-          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-[#1e2b22] text-[#b8d96e] shadow-sm">
-            <Bot className="h-7 w-7" />
-          </div>
-          <h2 className="text-3xl font-semibold tracking-tight text-[#1e2b22]">¿Cuál es tu negocio?</h2>
+          <LottieAnimation
+            src="/animations/landing/GoogleMaposIcon.json"
+            className="mx-auto h-16 w-16"
+          />
+          <h2 className="text-3xl font-semibold tracking-tight text-[#1e2b22]">
+            ¿Cuál es tu negocio?
+          </h2>
           <p className="mx-auto max-w-md text-sm leading-6 text-muted">
-            Busca tu negocio para rellenar automáticamente dirección, teléfono y horario. Puedes cambiarlo luego en ajustes.
+            Busca tu negocio para rellenar automáticamente dirección, teléfono y
+            horario. Puedes cambiarlo luego en ajustes.
           </p>
         </div>
 
         <div className="mt-8">
           {isEditingCountry ? (
             <>
-              <label className="text-sm font-medium text-[#344038]">País del negocio</label>
+              <label className="text-sm font-medium text-[#344038]">
+                País del negocio
+              </label>
               <select
                 className="field mt-2 w-full"
                 value={country}
@@ -234,7 +260,8 @@ export default function RegisterBusinessPage() {
               <div>
                 <p className="text-xs text-[#8a9388]">País de búsqueda</p>
                 <p className="text-sm font-semibold text-[#344038]">
-                  {COUNTRY_OPTIONS.find((option) => option.value === country)?.label ?? country}
+                  {COUNTRY_OPTIONS.find((option) => option.value === country)
+                    ?.label ?? country}
                 </p>
               </div>
               <button
@@ -279,8 +306,12 @@ export default function RegisterBusinessPage() {
                   >
                     <Building2 className="mt-0.5 h-4 w-4 shrink-0 text-muted" />
                     <div>
-                      <p className="text-sm font-semibold text-[#344038]">{place.name}</p>
-                      {place.address && <p className="text-xs text-muted">{place.address}</p>}
+                      <p className="text-sm font-semibold text-[#344038]">
+                        {place.name}
+                      </p>
+                      {place.address && (
+                        <p className="text-xs text-muted">{place.address}</p>
+                      )}
                     </div>
                   </button>
                 </li>
@@ -294,7 +325,9 @@ export default function RegisterBusinessPage() {
             <div className="flex items-start gap-3">
               <Building2 className="mt-0.5 h-5 w-5 text-[#405115]" />
               <div>
-                <p className="text-sm font-semibold text-[#344038]">{selected.name}</p>
+                <p className="text-sm font-semibold text-[#344038]">
+                  {selected.name}
+                </p>
                 {selected.address && (
                   <p className="mt-0.5 flex items-start gap-1.5 text-sm text-muted">
                     <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0" />

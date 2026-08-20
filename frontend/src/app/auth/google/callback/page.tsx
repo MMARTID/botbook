@@ -29,7 +29,7 @@ export default function GoogleCallbackPage() {
 
     consumeGoogleSession()
       .then((token) => {
-        window.localStorage.setItem("asistai_token", token);
+        window.localStorage.setItem("botbook_token", token);
         const selectedPlan = consumePendingPlan();
         const planParam = selectedPlan ? `?plan=${selectedPlan}` : "";
         window.location.replace(`/register/business${planParam}`);
@@ -57,7 +57,7 @@ export default function GoogleCallbackPage() {
           <>
             <LoaderCircle className="mx-auto mt-7 h-7 w-7 animate-spin text-[#405115]" />
             <h1 className="mt-4 text-2xl font-semibold text-[#1e2b22]">Completando el acceso</h1>
-            <p className="mt-3 text-sm text-muted">Estamos preparando tu cuenta de AsistAI.</p>
+            <p className="mt-3 text-sm text-muted">Estamos preparando tu cuenta de BotBook.</p>
           </>
         )}
       </div>

@@ -16,10 +16,10 @@ export default function CheckoutResultPage({
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const imported = window.localStorage.getItem("asistai_place_schedule_imported") === "true";
+    const imported = window.localStorage.getItem("botbook_place_schedule_imported") === "true";
     setHasPlaceSchedule(imported);
     if (imported) {
-      window.localStorage.removeItem("asistai_place_schedule_imported");
+      window.localStorage.removeItem("botbook_place_schedule_imported");
     }
   }, []);
 
