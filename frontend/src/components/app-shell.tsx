@@ -1,9 +1,14 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useBusiness } from "@/components/providers";
-import { LogOut, Bot, Activity, Settings, LayoutDashboard, ArrowLeft, CreditCard, Loader2 } from "lucide-react";
+import { LogOut, Activity, Settings, LayoutDashboard, ArrowLeft, CreditCard, Loader2 } from "lucide-react";
 import { usePathname } from "next/navigation";
+
+const ASSET_PATHS = {
+  logo: "/brand/logo.png",
+} as const;
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const { business, hasToken } = useBusiness();
@@ -29,7 +34,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   if (pathname === "/") {
     if (hasToken === null) {
       return (
-        <div className="flex min-h-screen items-center justify-center bg-[radial-gradient(circle_at_top_left,rgba(184,217,110,0.18),transparent_28%),linear-gradient(180deg,#f8faf5_0%,#eef2eb_100%)]">
+        <div className="flex min-h-screen items-center justify-center">
           <Loader2 className="h-8 w-8 animate-spin text-[#405115]" />
         </div>
       );
@@ -38,7 +43,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       return <>{children}</>;
     }
   }
-  
+
   if (publicRoutes.includes(pathname)) {
     return <>{children}</>;
   }
@@ -50,8 +55,32 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   ];
   const isSettingsPage = pathname.startsWith("/ajustes");
 
+  const renderNavLink = ({ href, label, icon: Icon }: (typeof navItems)[number]) => {
+    const isActive = href === "/"
+      ? pathname === href
+      : href === "/ajustes"
+        ? pathname === href
+        : pathname.startsWith(href);
+
+    return (
+      <Link
+        key={href}
+        href={href}
+        aria-current={isActive ? "page" : undefined}
+        className={`inline-flex h-11 shrink-0 items-center gap-2 rounded-full border px-4 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#9dbb55] md:h-9 md:px-3 ${
+          isActive
+            ? "border-[#cfe1ae] bg-[#eef6dc] text-[#405115]"
+            : "border-[#e4e8df] bg-white text-[#344038] hover:bg-[#f6f8f2]"
+        }`}
+      >
+        <Icon className="h-4 w-4" />
+        {label}
+      </Link>
+    );
+  };
+
   return (
-    <div className="flex min-h-screen flex-col bg-[radial-gradient(circle_at_top_left,rgba(184,217,110,0.18),transparent_28%),linear-gradient(180deg,#f8faf5_0%,#eef2eb_100%)]">
+    <div className="flex min-h-screen flex-col">
       {isSettingsPage ? (
         <header className="absolute left-3 top-3 z-50 sm:hidden">
           <Link
@@ -64,20 +93,29 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </header>
       ) : null}
 
-      <header className={`sticky top-0 z-50 border-b border-[#dfe6da] bg-[#fbfcf8]/90 backdrop-blur-xl shadow-[0_8px_24px_rgba(30,43,34,0.05)] ${isSettingsPage ? "hidden sm:block" : ""}`}>
-        <div className="mx-auto flex max-w-7xl flex-col gap-3 px-3 py-3 sm:px-6 lg:px-8">
+      <header className={`sticky top-0 z-50 border-b border-white/60 bg-[#f8faf5]/80 backdrop-blur-xl ${isSettingsPage ? "hidden sm:block" : ""}`}>
+        <div className="mx-auto max-w-7xl px-3 sm:px-6 lg:px-8">
           <div className="flex h-16 items-center justify-between gap-3 sm:h-[4.5rem]">
-            <div className="flex min-w-0 items-center gap-2.5">
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#eef6dc] sm:h-10 sm:w-10">
-                <Bot className="h-5 w-5 text-[#1e2b22] sm:h-6 sm:w-6" />
-              </div>
+            <Link href="/" aria-label="Ir al panel de BotBook" className="flex min-w-0 items-center gap-2.5 sm:gap-3">
+              <Image
+                src={ASSET_PATHS.logo}
+                alt=""
+                width={44}
+                height={44}
+                className="h-10 w-10 shrink-0 object-contain sm:h-11 sm:w-11"
+                priority
+              />
               <div className="min-w-0">
-                <p className="text-base font-bold leading-5 tracking-tight text-[#1e2b22] sm:text-xl">AsistAI</p>
-                <p className="truncate text-xs leading-4 text-[#5a6a58] sm:text-sm">
+                <p className="text-base font-semibold leading-5 text-[#1e2b22]">BotBook</p>
+                <p className="truncate text-xs leading-4 text-muted sm:text-sm">
                   {business?.name ?? "Mi Negocio"}
                 </p>
               </div>
-            </div>
+            </Link>
+
+            <nav className="hidden items-center gap-2 md:flex" aria-label="Navegación principal">
+              {navItems.map(renderNavLink)}
+            </nav>
 
             <div className="flex shrink-0 items-center gap-2">
               <span className="inline-flex h-8 items-center gap-1.5 rounded-full bg-[#eef6dc] px-2.5 text-xs font-semibold text-[#405115] ring-1 ring-inset ring-[#d7e9c5] sm:px-3">
@@ -86,11 +124,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               </span>
               <button
                 onClick={() => {
-                  window.localStorage.removeItem('asistai_token');
+                  window.localStorage.removeItem('botbook_token');
                   window.location.href = '/login';
                 }}
                 aria-label="Cerrar sesión"
-                className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-[#e4e8df] bg-white text-[#344038] shadow-sm transition hover:bg-[#f6f8f2] sm:w-auto sm:gap-2 sm:px-3 sm:text-sm sm:font-medium"
+                className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[#e4e8df] bg-white text-[#344038] transition hover:bg-[#f6f8f2] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#9dbb55] sm:h-11 sm:w-auto sm:gap-2 sm:px-4 sm:text-sm sm:font-medium"
               >
                 <LogOut className="h-4 w-4" />
                 <span className="hidden sm:inline">Cerrar sesión</span>
@@ -98,34 +136,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </div>
           </div>
 
-          <nav className="flex flex-wrap items-center gap-2 pb-1">
-            {navItems.map(({ href, label, icon: Icon }) => {
-              const isActive = href === "/"
-                ? pathname === href
-                : href === "/ajustes"
-                  ? pathname === href
-                  : pathname.startsWith(href);
-
-              return (
-                <Link
-                  key={href}
-                  href={href}
-                  className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 text-sm font-medium transition ${
-                    isActive
-                      ? "border-[#cfe1ae] bg-[#eef6dc] text-[#405115]"
-                      : "border-[#e4e8df] bg-white text-[#344038] hover:bg-[#f6f8f2]"
-                  }`}
-                >
-                  <Icon className="h-4 w-4" />
-                  {label}
-                </Link>
-              );
-            })}
+          <nav className="flex items-center gap-2 overflow-x-auto pb-3 md:hidden" aria-label="Navegación principal">
+            {navItems.map(renderNavLink)}
           </nav>
         </div>
       </header>
 
-      <main className="mx-auto w-full max-w-7xl flex-1 px-3 py-5 sm:px-6 sm:py-8 lg:px-8">
+      <main className={`mx-auto w-full max-w-7xl flex-1 px-3 sm:px-6 sm:py-8 lg:px-8 ${isSettingsPage ? "pt-16 pb-5" : "py-5"}`}>
         {children}
       </main>
     </div>

@@ -122,8 +122,8 @@ export function UpcomingCalendarEvents({ businessId, timeZone, onReconnectRequir
           ))}
         </div>
       ) : eventsQuery.isError ? (
-        <div className="mt-4 flex min-h-32 flex-col items-center justify-center rounded-2xl border border-[#f1ded0] bg-[#fff9f4] px-4 py-6 text-center">
-          <p className="text-sm font-medium text-[#7f4b2a]">No se pudo actualizar la agenda.</p>
+        <div className="mt-4 flex min-h-32 flex-col items-center justify-center rounded-xl border border-[#f5d3d3] bg-[#fff1f1] px-4 py-6 text-center">
+          <p className="text-sm font-medium text-[#9f2a2a]">No se pudo actualizar la agenda.</p>
           <button type="button" onClick={() => eventsQuery.refetch()} className="mt-3 inline-flex items-center gap-2 text-sm font-semibold text-[#344038]">
             <RefreshCw className="h-4 w-4" />
             Reintentar
@@ -141,7 +141,7 @@ export function UpcomingCalendarEvents({ businessId, timeZone, onReconnectRequir
           ))}
         </div>
       ) : (
-        <div className="mt-4 flex min-h-32 items-center gap-3 rounded-2xl border border-dashed border-[#d8dfd1] bg-[#fafbf8] px-4 py-6">
+        <div className="mt-4 flex min-h-32 items-center gap-3 rounded-xl border border-dashed border-[#d8dfd1] bg-[#fafbf8] px-4 py-6">
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#eef6dc] text-[#2c7334]">
             <CalendarDays className="h-5 w-5" />
           </div>

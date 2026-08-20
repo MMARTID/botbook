@@ -8,6 +8,7 @@ import type {
   BookingSettings,
   BillingSummary,
   Business,
+  CalendarListResponse,
   Call,
   CreateAgentPayload,
   FileAttachment,
@@ -30,7 +31,7 @@ api.interceptors.request.use((config) => {
   }
 
   const token =
-    window.localStorage.getItem("asistai_token") ??
+    window.localStorage.getItem("botbook_token") ??
     window.localStorage.getItem("token") ??
     window.localStorage.getItem("jwt");
 
@@ -153,6 +154,16 @@ export async function getUpcomingCalendarEvents(limit = 15) {
     params: { limit },
   });
 
+  return data;
+}
+
+export async function getCalendarList() {
+  const { data } = await api.get<CalendarListResponse>("/calendar/calendars");
+  return data;
+}
+
+export async function selectCalendar(calendarId: string) {
+  const { data } = await api.post<Business>("/calendar/select", { calendarId });
   return data;
 }
 

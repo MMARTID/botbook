@@ -160,6 +160,18 @@ export type UpcomingCalendarEventsResponse = {
   provider: "google" | "outlook";
 };
 
+export type CalendarListItem = {
+  id: string;
+  name: string;
+  primary: boolean;
+};
+
+export type CalendarListResponse = {
+  provider: "google" | "outlook";
+  selectedCalendarId: string | null;
+  calendars: CalendarListItem[];
+};
+
 export type FileAttachment = {
   id: string;
   name: string;

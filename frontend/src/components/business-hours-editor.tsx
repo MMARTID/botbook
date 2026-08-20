@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { CalendarClock, Copy, Plus, Save, Trash2 } from "lucide-react";
+import { SettingsSection } from "@/components/settings-section";
 import type { BusinessSchedule, ScheduleDay, WeekDay } from "@/lib/types";
 
 const DAYS: Array<{ key: WeekDay; label: string; shortLabel: string }> = [
@@ -42,16 +43,33 @@ function scheduleSummary(day: ScheduleDay) {
   return day.intervals.map((interval) => `${interval.start}–${interval.end}`).join(" · ");
 }
 
+/** Resumen de una línea del horario para la cabecera plegable de ajustes. */
+export function getScheduleSummary(schedule: BusinessSchedule): string {
+  const openDays = DAYS.filter(({ key }) => schedule.week[key].enabled);
+  if (openDays.length === 0) return "Cerrado toda la semana";
+
+  const firstText = scheduleSummary(schedule.week[openDays[0].key]);
+  const uniform = openDays.every(({ key }) => scheduleSummary(schedule.week[key]) === firstText);
+
+  if (openDays.length === 7 && uniform) return `Todos los días · ${firstText}`;
+  if (uniform) return `${openDays.length} días · ${firstText}`;
+  return `${openDays.length} ${openDays.length === 1 ? "día abierto" : "días abiertos"} con horario propio`;
+}
+
 export function BusinessHoursEditor({
   value,
   timeZone,
   isSaving,
   onSave,
+  open,
+  onToggle,
 }: {
   value: Record<string, unknown>;
   timeZone: string;
   isSaving: boolean;
   onSave: (schedule: BusinessSchedule) => void;
+  open: boolean;
+  onToggle: () => void;
 }) {
   const initialSchedule = useMemo(
     () => cloneSchedule(isBusinessSchedule(value) ? value : DEFAULT_BUSINESS_SCHEDULE),
@@ -80,23 +98,17 @@ export function BusinessHoursEditor({
   };
 
   return (
-    <article id="business-hours" className="panel scroll-mt-32 overflow-hidden p-0">
-      <div className="border-b border-[#dce6d4] bg-[linear-gradient(90deg,#eef6dc,#f8faf5)] px-5 py-5 sm:px-6">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div>
-            <div className="flex items-center gap-2 text-[#405115]">
-              <CalendarClock className="h-5 w-5" />
-              <h2 className="text-xl font-semibold text-[#1e2b22]">Horario del negocio</h2>
-            </div>
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-muted">
-              El agente recibe siempre este horario estructurado y lo comprueba antes de ofrecer o confirmar una cita.
-            </p>
-          </div>
-          <span className="self-start rounded-full border border-[#d7e9c5] bg-white px-3 py-1 text-xs font-semibold text-[#405115]">
-            Zona: {timeZone}
-          </span>
-        </div>
-      </div>
+    <SettingsSection
+      id="business-hours"
+      icon={CalendarClock}
+      title="Horario del negocio"
+      summary={`${getScheduleSummary(schedule)} · ${timeZone}`}
+      open={open}
+      onToggle={onToggle}
+    >
+      <p className="max-w-2xl px-4 pt-4 text-sm leading-6 text-muted sm:px-6">
+        El agente recibe siempre este horario estructurado y lo comprueba antes de ofrecer o confirmar una cita.
+      </p>
 
       <div className="grid gap-5 p-4 sm:p-6 lg:grid-cols-[15rem_minmax(0,1fr)]">
         <div className="space-y-2">
@@ -105,9 +117,9 @@ export function BusinessHoursEditor({
               key={day.key}
               type="button"
               onClick={() => setSelectedDay(day.key)}
-              className={`flex w-full items-center gap-3 rounded-2xl border px-3 py-3 text-left transition ${selectedDay === day.key ? "border-[#b9d489] bg-[#f3f9e7]" : "border-[#e1e8da] bg-white hover:bg-[#fbfcf8]"}`}
+              className={`flex w-full items-center gap-3 rounded-xl border px-3 py-3 text-left transition ${selectedDay === day.key ? "border-[#b9d489] bg-[#f3f9e7]" : "border-[#e1e8da] bg-white hover:bg-[#fbfcf8]"}`}
             >
-              <span className={`flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold ${schedule.week[day.key].enabled ? "bg-[#b8d96e] text-[#30430f]" : "bg-[#eef0ec] text-[#788076]"}`}>
+              <span className={`flex h-8 w-8 items-center justify-center rounded-full text-xs font-semibold ${schedule.week[day.key].enabled ? "bg-[#b8d96e] text-[#30430f]" : "bg-[#eef0ec] text-[#788076]"}`}>
                 {day.shortLabel}
               </span>
               <span className="min-w-0">
@@ -118,7 +130,7 @@ export function BusinessHoursEditor({
           ))}
         </div>
 
-        <div className="rounded-2xl border border-[#dce7d2] bg-[#fbfcf8] p-4 sm:p-5">
+        <div className="rounded-xl border border-[#dce7d2] bg-[#fbfcf8] p-4 sm:p-5">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <p className="text-lg font-semibold text-[#1e2b22]">{DAYS.find((day) => day.key === selectedDay)?.label}</p>
@@ -140,7 +152,7 @@ export function BusinessHoursEditor({
           {selected.enabled ? (
             <div className="mt-5 space-y-3">
               {selected.intervals.map((interval, index) => (
-                <div key={`${selectedDay}-${index}`} className="grid grid-cols-[1fr_auto_1fr_auto] items-center gap-2 rounded-2xl border border-[#e1e8da] bg-white p-3">
+                <div key={`${selectedDay}-${index}`} className="grid grid-cols-[1fr_auto_1fr_auto] items-center gap-2 rounded-xl border border-[#e1e8da] bg-white p-3">
                   <input
                     type="time"
                     value={interval.start}
@@ -183,7 +195,7 @@ export function BusinessHoursEditor({
               </div>
             </div>
           ) : (
-            <div className="mt-5 rounded-2xl border border-dashed border-[#d8e3cf] bg-white px-4 py-8 text-center text-sm text-muted">
+            <div className="mt-5 rounded-xl border border-dashed border-[#d8e3cf] bg-white px-4 py-8 text-center text-sm text-muted">
               Este día figura como cerrado.
             </div>
           )}
@@ -195,7 +207,7 @@ export function BusinessHoursEditor({
           </div>
         </div>
       </div>
-    </article>
+    </SettingsSection>
   );
 }
 

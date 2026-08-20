@@ -29,13 +29,12 @@ export default function BillingSettingsPage() {
   return (
     <section className="space-y-6">
       <div>
-        <span className="badge-soft">Facturación</span>
-        <h1 className="mt-4 text-3xl font-semibold tracking-tight text-[#1e2b22]">Plan y pagos</h1>
+        <h1 className="text-3xl font-semibold tracking-tight text-[#1e2b22]">Plan y pagos</h1>
         <p className="mt-2 text-muted">Consulta tu suscripción y gestiona pagos y facturas de forma segura en Stripe.</p>
       </div>
 
       {summary.isLoading ? <div className="panel p-8 text-muted">Cargando facturación…</div> : null}
-      {summary.isError ? <div className="panel p-8 text-red-600">No se pudo consultar la facturación.</div> : null}
+      {summary.isError ? <div className="panel p-8 text-[#c53030]">No se pudo consultar la facturación.</div> : null}
 
       {summary.data ? (
         <div className="grid gap-5 lg:grid-cols-3">
@@ -52,22 +51,22 @@ export default function BillingSettingsPage() {
             </div>
 
             <div className="mt-8 grid gap-4 sm:grid-cols-3">
-              <div className="rounded-2xl bg-[#f6f8f2] p-4">
+              <div className="rounded-xl bg-[#f6f8f2] p-4">
                 <div className="flex items-center gap-2 text-sm font-medium text-[#344038]"><Gauge className="h-4 w-4" /> Minutos incluidos</div>
                 <p className="mt-2 text-2xl font-semibold text-[#1e2b22]">{summary.data.includedMinutes ?? "—"}</p>
               </div>
-              <div className="rounded-2xl bg-[#f6f8f2] p-4">
+              <div className="rounded-xl bg-[#f6f8f2] p-4">
                 <div className="flex items-center gap-2 text-sm font-medium text-[#344038]"><Phone className="h-4 w-4" /> Minutos consumidos</div>
                 <p className="mt-2 text-2xl font-semibold text-[#1e2b22]">{summary.data.consumedMinutes}</p>
                 {typeof summary.data.includedMinutes === "number" ? (
-                  <p className={`mt-1 text-xs font-medium ${summary.data.consumedMinutes > summary.data.includedMinutes ? "text-red-600" : "text-[#54634b]"}`}>
+                  <p className={`mt-1 text-xs font-medium ${summary.data.consumedMinutes > summary.data.includedMinutes ? "text-[#c53030]" : "text-[#54634b]"}`}>
                     {summary.data.consumedMinutes > summary.data.includedMinutes
                       ? `Has superado el límite en ${summary.data.consumedMinutes - summary.data.includedMinutes} min`
                       : `Te quedan ${summary.data.includedMinutes - summary.data.consumedMinutes} min`}
                   </p>
                 ) : null}
               </div>
-              <div className="rounded-2xl bg-[#f6f8f2] p-4">
+              <div className="rounded-xl bg-[#f6f8f2] p-4">
                 <div className="flex items-center gap-2 text-sm font-medium text-[#344038]"><CreditCard className="h-4 w-4" /> Próximo periodo</div>
                 <p className="mt-2 text-lg font-semibold text-[#1e2b22]">
                   {summary.data.currentPeriodEnd
@@ -85,7 +84,9 @@ export default function BillingSettingsPage() {
           </article>
 
           <article className="panel flex flex-col p-6">
-            <ReceiptText className="h-7 w-7 text-[#2c7334]" />
+            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#eef6dc] text-[#2c7334]">
+              <ReceiptText className="h-5 w-5" />
+            </span>
             <h2 className="mt-4 text-xl font-semibold text-[#1e2b22]">Portal de cliente</h2>
             <p className="mt-2 flex-1 text-sm leading-6 text-muted">Actualiza el método de pago, consulta facturas o cancela la suscripción.</p>
             {summary.data.customerConfigured ? (
@@ -96,7 +97,7 @@ export default function BillingSettingsPage() {
             ) : (
               <Link href="/planes?from=billing" className="btn-primary mt-6 justify-center">Elegir plan</Link>
             )}
-            {portal.isError ? <p className="mt-3 text-sm text-red-600">No se pudo abrir el portal.</p> : null}
+            {portal.isError ? <p className="mt-3 text-sm text-[#c53030]">No se pudo abrir el portal.</p> : null}
           </article>
         </div>
       ) : null}
