@@ -43,7 +43,7 @@ export async function uploadRecording(
   const client = getStorageClient();
 
   const command = new PutObjectCommand({
-    Bucket: process.env.R2_BUCKET || "asistai-recordings",
+    Bucket: process.env.R2_BUCKET || "botbook-recordings",
     Key: key,
     Body: stream,
     ContentType: contentType,
@@ -57,14 +57,14 @@ export async function uploadRecording(
 
 export function getStorageUrl(key: string): string {
   const endpoint = process.env.R2_ENDPOINT || "";
-  const bucket = process.env.R2_BUCKET || "asistai-recordings";
+  const bucket = process.env.R2_BUCKET || "botbook-recordings";
   return `${endpoint}/${bucket}/${key}`;
 }
 
 export async function deleteStorageObject(key: string): Promise<void> {
   const client = getStorageClient();
   const command = new DeleteObjectCommand({
-    Bucket: process.env.R2_BUCKET || "asistai-recordings",
+    Bucket: process.env.R2_BUCKET || "botbook-recordings",
     Key: key,
   });
   await client.send(command);

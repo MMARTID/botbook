@@ -11,7 +11,7 @@ import { normalizeBusinessType, type BusinessType } from '../../lib/businessType
 
 const GOOGLE_AUTH_STATE_TTL_SECONDS = 10 * 60;
 const GOOGLE_SESSION_TTL_SECONDS = 60;
-const GOOGLE_SESSION_COOKIE = 'asistai_google_session';
+const GOOGLE_SESSION_COOKIE = 'botbook_google_session';
 
 function createToken(user: { id: string; businessId: string }) {
   return jwt.sign(

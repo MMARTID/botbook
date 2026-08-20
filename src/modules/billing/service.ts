@@ -152,7 +152,7 @@ export async function createCheckoutSession(input: {
   const customerId = await getOrCreateCustomer(input.businessId, input.userId);
   const priceId = getPriceId(input.planId);
   const frontendUrl = (process.env.FRONTEND_URL || "http://localhost:3001").replace(/\/$/, "");
-  const integrationIdentifier = `asistai-subscription-${randomBytes(4).toString("hex")}`;
+  const integrationIdentifier = `botbook-subscription-${randomBytes(4).toString("hex")}`;
 
   const session = await stripe.checkout.sessions.create({
     ui_mode: "embedded_page",
@@ -286,7 +286,7 @@ async function syncSubscription(subscription: Stripe.Subscription) {
 
   if (!businessId || !customerId) {
     // Stripe CLI fixtures and unrelated Dashboard subscriptions do not belong
-    // to an AsistAI tenant. Acknowledge them without mutating local state.
+    // to an BotBook tenant. Acknowledge them without mutating local state.
     return null;
   }
 

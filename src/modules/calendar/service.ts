@@ -169,6 +169,54 @@ export class CalendarService {
     return business;
   }
 
+  async listGoogleCalendars(googleRefreshToken: string) {
+    const oauth2Client = createOAuth2Client();
+    oauth2Client.setCredentials({ refresh_token: googleRefreshToken });
+
+    const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
+
+    try {
+      const response = await calendar.calendarList.list();
+      return (response.data.items ?? [])
+        .filter((item) => Boolean(item.id))
+        .map((item) => ({
+          id: item.id as string,
+          name: item.summaryOverride || item.summary || 'Sin nombre',
+          primary: item.primary === true,
+        }));
+    } catch (err) {
+      if (isGoogleInvalidGrantError(err)) {
+        throw new CalendarBusinessError('GOOGLE_CALENDAR_RECONNECT_REQUIRED', 'La conexión con Google ya no es válida.');
+      }
+      console.error('[Calendar] Failed to list calendars:', getGoogleErrorDetails(err));
+      throw new CalendarBusinessError('BOOK_APPOINTMENT_FAILED', 'No se pudo obtener la lista de calendarios.');
+    }
+  }
+
+  async listOutlookCalendars(outlookRefreshToken: string) {
+    try {
+      const { access_token } = await refreshMicrosoftAccessToken(outlookRefreshToken);
+      const calendars = await listMicrosoftCalendars(access_token);
+      return calendars.map((item) => ({ id: item.id, name: item.name, primary: false }));
+    } catch (err) {
+      console.error('[Calendar] Failed to list Outlook calendars:', err);
+      throw new CalendarBusinessError('OUTLOOK_CALENDAR_RECONNECT_REQUIRED', 'La conexión con Outlook ya no es válida.');
+    }
+  }
+
+  async selectGoogleCalendar(businessId: string, calendarId: string) {
+    return prisma.business.update({
+      where: { id: businessId },
+      data: {
+        calendarProvider: 'google',
+        googleCalendarId: calendarId,
+        googleCalendarConnected: true,
+        googleCalendarDisconnectedAt: null,
+        googleCalendarLastError: null,
+      },
+    });
+  }
+
   private buildVapiCalendarTools(serverUrl: string): any[] {
     return [
       {
@@ -473,7 +521,7 @@ export class CalendarService {
           startDateTime: startTime.toISOString(),
           endDateTime: endTime.toISOString(),
           attendeeEmail: clientEmail,
-          description: 'Cita generada por asistente virtual de AsistAI.',
+          description: 'Cita generada por asistente virtual de BotBook.',
         });
 
         return event;
@@ -498,7 +546,7 @@ export class CalendarService {
 
     const event = {
       summary: `Reserva de ${clientName}`,
-      description: `Cita generada por asistente virtual de AsistAI.`,
+      description: `Cita generada por asistente virtual de BotBook.`,
       start: { dateTime: startTime.toISOString() },
       end: { dateTime: endTime.toISOString() },
       attendees: clientEmail ? [{ email: clientEmail }] : [],

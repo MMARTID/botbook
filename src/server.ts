@@ -20,6 +20,7 @@ import { filesRoutes } from "./modules/files/routes.js";
 import { billingRoutes } from "./modules/billing/routes.js";
 import { phoneRoutes } from "./modules/phone/routes.js";
 import { onboardingRoutes } from "./modules/onboarding/routes.js";
+import { demoRoutes } from "./modules/demo/routes.js";
 import { processRecordingWorker } from "./jobs/processRecording.js";
 import { classifyCallWorker } from "./jobs/classifyCall.js";
 import { processZombieWorker, scheduleZombieCallCleanup } from "./jobs/cleanupZombieCalls.js";
@@ -292,7 +293,7 @@ fastify.post("/webhooks/vapi", {
           return reply.status(200).send({ success: true });
         } else {
           console.error(`[Retell] No se pudo procesar el evento ${eventType}`);
-          return reply.status(404).send({ error: "Agent or call not registered in AsistAI" });
+          return reply.status(404).send({ error: "Agent or call not registered in BotBook" });
         }
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
@@ -375,6 +376,7 @@ fastify.post("/webhooks/vapi", {
     fastify.register(billingRoutes, { prefix: '/billing' });
     fastify.register(phoneRoutes, { prefix: '/phone' });
     fastify.register(onboardingRoutes);
+    fastify.register(demoRoutes, { prefix: '/demo' });
 
     // Initialize job workers
     console.log("[Server] Initializing job workers...");

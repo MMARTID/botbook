@@ -317,6 +317,28 @@ export class RetellAdapter {
     this.ensureApiKey();
     await this.client.agent.list({ limit: 1 } as any);
   }
+
+  /**
+   * Create a web call (browser-based) for the public landing demo.
+   * Returns the access token the Retell web client needs to join.
+   */
+  async createWebCall(input: {
+    agentId: string;
+    maxDurationMs?: number;
+    metadata?: Record<string, unknown>;
+  }): Promise<{ callId: string; accessToken: string }> {
+    this.ensureApiKey();
+
+    const response = await this.client.call.createWebCall({
+      agent_id: input.agentId,
+      ...(input.maxDurationMs
+        ? { agent_override: { agent: { max_call_duration_ms: input.maxDurationMs } } }
+        : {}),
+      ...(input.metadata ? { metadata: input.metadata } : {}),
+    });
+
+    return { callId: response.call_id, accessToken: response.access_token };
+  }
 }
 
 // Export singleton instance

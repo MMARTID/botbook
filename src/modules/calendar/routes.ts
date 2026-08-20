@@ -119,6 +119,103 @@ export async function calendarRoutes(fastify: FastifyInstance) {
   );
 
   fastify.get(
+    "/calendars",
+    { preValidation: [fastify.authenticate] },
+    async (request: FastifyRequest, reply) => {
+      try {
+        const businessId = request.user!.businessId;
+        const business = await prisma.business.findUnique({
+          where: { id: businessId },
+          select: {
+            calendarProvider: true,
+            googleRefreshToken: true,
+            googleCalendarId: true,
+            googleCalendarConnected: true,
+            outlookRefreshToken: true,
+            outlookCalendarId: true,
+            outlookCalendarConnected: true,
+          },
+        });
+
+        const provider = business?.calendarProvider === 'outlook' ? 'outlook' : 'google';
+        const isConnected = provider === 'outlook'
+          ? business?.outlookCalendarConnected && business.outlookRefreshToken
+          : business?.googleCalendarConnected && business.googleRefreshToken;
+
+        if (!isConnected) {
+          return reply.status(409).send({
+            code: provider === 'outlook' ? "OUTLOOK_CALENDAR_RECONNECT_REQUIRED" : "GOOGLE_CALENDAR_RECONNECT_REQUIRED",
+            error: `${provider === 'outlook' ? 'Outlook' : 'Google'} Calendar is not connected`,
+          });
+        }
+
+        const calendars = provider === 'outlook'
+          ? await calendarService.listOutlookCalendars(business!.outlookRefreshToken!)
+          : await calendarService.listGoogleCalendars(business!.googleRefreshToken!);
+
+        return reply.send({
+          provider,
+          selectedCalendarId: provider === 'outlook' ? business!.outlookCalendarId : business!.googleCalendarId,
+          calendars,
+        });
+      } catch (error) {
+        if (error instanceof CalendarBusinessError) {
+          if (error.code === "GOOGLE_CALENDAR_RECONNECT_REQUIRED" || error.code === "OUTLOOK_CALENDAR_RECONNECT_REQUIRED") {
+            const businessId = request.user!.businessId;
+            const isGoogle = error.code === "GOOGLE_CALENDAR_RECONNECT_REQUIRED";
+            await prisma.business.update({
+              where: { id: businessId },
+              data: isGoogle
+                ? { googleCalendarConnected: false, googleCalendarDisconnectedAt: new Date(), googleCalendarLastError: error.message }
+                : { outlookCalendarConnected: false, outlookCalendarDisconnectedAt: new Date(), outlookCalendarLastError: error.message },
+            });
+
+            return reply.status(409).send({ code: error.code, error: error.message });
+          }
+
+          return reply.status(502).send({ code: error.code, error: error.message });
+        }
+
+        fastify.log.error(error);
+        return reply.status(500).send({
+          code: "CALENDAR_LIST_FAILED",
+          error: "Failed to fetch calendars",
+        });
+      }
+    }
+  );
+
+  fastify.post(
+    "/select",
+    { preValidation: [fastify.authenticate] },
+    async (request: FastifyRequest<{ Body: { calendarId: string } }>, reply) => {
+      try {
+        const { calendarId } = ConnectMicrosoftCalendarSchema.parse(request.body);
+        const businessId = request.user!.businessId;
+        const business = await prisma.business.findUnique({
+          where: { id: businessId },
+          select: { calendarProvider: true },
+        });
+
+        const updated = business?.calendarProvider === 'outlook'
+          ? await calendarService.connectMicrosoftCalendar(businessId, calendarId)
+          : await calendarService.selectGoogleCalendar(businessId, calendarId);
+
+        const { googleRefreshToken, outlookRefreshToken, ...publicBusiness } = updated;
+        void googleRefreshToken;
+        void outlookRefreshToken;
+        return reply.send(publicBusiness);
+      } catch (error) {
+        if (error instanceof z.ZodError) {
+          return reply.status(400).send({ error: error.flatten() });
+        }
+        fastify.log.error(error);
+        return reply.status(500).send({ error: "Failed to select calendar" });
+      }
+    },
+  );
+
+  fastify.get(
     "/auth/microsoft",
     { preValidation: [fastify.authenticate] },
     async (request: FastifyRequest, reply) => {
