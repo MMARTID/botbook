@@ -1,7 +1,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowRight, CalendarDays, Check, Clock3, MessageCircleMore, PhoneCall, Scissors, Sparkles, Store } from "lucide-react";
+import { ArrowRight, CalendarDays, Check, Clock3, MessageCircleMore, Scissors, Sparkles, Store } from "lucide-react";
 import { LandingHero } from "@/components/landing-hero";
 import { MobileNav } from "@/components/mobile-nav";
 import { SectorDataSection } from "@/components/sector-data-section";
@@ -10,7 +10,7 @@ import { formatIncludedMinutes, formatPlanPrice, plans, TRIAL_REASSURANCE } from
 import { generalSectorData, nicheLinks, type NicheLandingContent } from "@/lib/niche-landings";
 
 const ASSET_PATHS = {
-  logo: "/brand/logo.svg",
+  logo: "/brand/logo.png",
 } as const;
 
 function buildPlansHref(niche?: string) {
@@ -19,39 +19,22 @@ function buildPlansHref(niche?: string) {
 
 function BrandLogo() {
   return (
-    <Link href="/landing" aria-label="Ir al inicio de AsistAI" className="flex min-w-0 items-center gap-2.5 sm:gap-3">
-      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/70 bg-white/90 shadow-[0_8px_24px_rgba(30,43,34,0.06)] backdrop-blur sm:h-11 sm:w-11 sm:rounded-2xl">
-        <Image
-          src={ASSET_PATHS.logo}
-          alt="AsistAI"
-          width={34}
-          height={34}
-          className="h-auto w-7 object-contain sm:w-[30px]"
-          priority
-        />
-      </div>
+    <Link href="/landing" aria-label="Ir al inicio de BotBook" className="flex min-w-0 items-center gap-2.5 sm:gap-3">
+      <Image
+        src={ASSET_PATHS.logo}
+        alt="BotBook"
+        width={44}
+        height={44}
+        className="h-10 w-10 shrink-0 object-contain sm:h-11 sm:w-11"
+        priority
+      />
       <div>
-        <p className="text-base font-semibold leading-5 text-[#1e2b22]">AsistAI</p>
+        <p className="text-base font-semibold leading-5 text-[#1e2b22]">BotBook</p>
         <p className="hidden text-xs text-[#54634b] sm:block">Recepción inteligente para negocios</p>
       </div>
     </Link>
   );
 }
-
-const highlights = [
-  {
-    title: "Atención 24/7",
-    description: "Responde llamadas fuera de horario y evita perder reservas o consultas importantes.",
-  },
-  {
-    title: "Agenda conectada",
-    description: "Sincroniza disponibilidad real y confirma citas sin fricción para el cliente.",
-  },
-  {
-    title: "Conversaciones útiles",
-    description: "Anota lo que pide cada cliente y te deja solo las llamadas que necesitan que hables tú.",
-  },
-] as const;
 
 const businessBenefits = [
   {
@@ -71,17 +54,12 @@ const businessBenefits = [
   },
 ] as const;
 
-/**
- * Los iconos van por posición: las landings de nicho sustituyen los textos de
- * estos tres huecos, pero no traen icono propio. El orden es el contrato.
- */
-const HIGHLIGHT_ICONS = [Clock3, CalendarDays, PhoneCall] as const;
 const BENEFIT_ICONS = [Scissors, Sparkles, Store] as const;
 
 const frequentlyAskedQuestions = [
   {
     question: "¿Mantengo mi número de teléfono de siempre?",
-    answer: "Sí, completamente. Tus clientes seguirán llamando a tu número habitual; AsistAI atiende las llamadas mediante un simple desvío desde tu móvil o fijo. No tienes que publicar un número nuevo ni avisar a nadie.",
+    answer: "Sí, completamente. Tus clientes seguirán llamando a tu número habitual; BotBook atiende las llamadas mediante un simple desvío desde tu móvil o fijo. No tienes que publicar un número nuevo ni avisar a nadie.",
   },
   {
     question: "¿Cómo funciona el desvío de llamadas? ¿Es difícil de configurar?",
@@ -89,7 +67,7 @@ const frequentlyAskedQuestions = [
   },
   {
     question: "¿Puede reservar, cambiar y cancelar citas en mi agenda?",
-    answer: "Sí. AsistAI comprueba tu horario y tu disponibilidad real antes de ofrecer un hueco, y registra, modifica o cancela citas directamente en tu Google Calendar o tu Outlook, respetando los servicios y las reglas que marques.",
+    answer: "Sí. BotBook comprueba tu horario y tu disponibilidad real antes de ofrecer un hueco, y registra, modifica o cancela citas directamente en tu Google Calendar o tu Outlook, respetando los servicios y las reglas que marques.",
   },
   {
     question: "¿Puede responder dudas sobre mis servicios y precios?",
@@ -101,11 +79,11 @@ const frequentlyAskedQuestions = [
   },
   {
     question: "¿Qué ocurre si una llamada necesita atención humana o es urgente?",
-    answer: "AsistAI recoge el motivo, los datos y el contexto de la llamada para que no se pierda nada importante. Cuando una consulta requiere a tu equipo, deja el aviso preparado para que podáis responder con toda la información.",
+    answer: "BotBook recoge el motivo, los datos y el contexto de la llamada para que no se pierda nada importante. Cuando una consulta requiere a tu equipo, deja el aviso preparado para que podáis responder con toda la información.",
   },
   {
     question: "¿Qué pasa si un cliente llama fuera de mi horario?",
-    answer: "AsistAI sigue disponible 24/7. Puede resolver dudas y gestionar solicitudes incluso por la noche, en festivos o mientras tienes cerrado, para que no pierdas una posible cita por no contestar.",
+    answer: "BotBook sigue disponible 24/7. Puede resolver dudas y gestionar solicitudes incluso por la noche, en festivos o mientras tienes cerrado, para que no pierdas una posible cita por no contestar.",
   },
   {
     question: "¿Hay permanencia o compromiso de permanencia?",
@@ -118,7 +96,6 @@ const frequentlyAskedQuestions = [
 ] as const;
 
 export function SiteLanding({ content }: { content?: NicheLandingContent }) {
-  const visibleHighlights = content?.highlights ?? highlights;
   const visibleBenefits = content?.benefits ?? businessBenefits;
   const visibleFaqs = content?.faqs ?? frequentlyAskedQuestions;
   const plansHref = buildPlansHref(content?.slug);
@@ -127,7 +104,7 @@ export function SiteLanding({ content }: { content?: NicheLandingContent }) {
     <main
       id="main-content"
       className="relative isolate min-h-screen w-full overflow-hidden bg-[#f3f6ef] text-[#1e2b22]"
-      data-landing="asistai"
+      data-landing="botbook"
     >
       <a
         href="#contenido"
@@ -184,24 +161,81 @@ export function SiteLanding({ content }: { content?: NicheLandingContent }) {
 
       <section id="como-funciona" className="border-y border-white/70 bg-white/35 py-16 sm:py-20">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="mb-9 max-w-2xl">
-            <h2 className="text-3xl font-semibold tracking-tight sm:text-4xl">{content?.sectionTitle ?? "Atiende cada llamada. Sin dejar lo que estás haciendo."}</h2>
-            {content?.sectionDescription ? <p className="mt-4 text-base leading-7 text-[#54634b]">{content.sectionDescription}</p> : null}
+          <div className="mb-12 max-w-2xl">
+            <h2 className="text-3xl font-semibold tracking-tight text-[#1e2b22] sm:text-4xl">
+              De llamada perdida a cita confirmada.
+            </h2>
           </div>
-        <div className="grid gap-6 lg:grid-cols-3">
-          {visibleHighlights.map(({ title, description }, index) => {
-            const Icon = HIGHLIGHT_ICONS[index] ?? PhoneCall;
-            return (
-            <article key={`${title}-detail`} className="panel p-6">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#eef6dc] text-[#2c7334]">
-                <Icon className="h-5 w-5" />
+
+          <div className="divide-y divide-[#e2e9dc]">
+            {/* Paso 01 */}
+            <div className="grid gap-8 py-10 lg:grid-cols-[4rem_1fr_1fr] lg:gap-12 lg:py-12">
+              <span className="text-4xl font-semibold tracking-tight text-[#b8d96e]">01</span>
+              <div>
+                <h3 className="text-xl font-semibold text-[#1e2b22] sm:text-2xl">Suena tu número de siempre</h3>
+                <p className="mt-3 max-w-md text-sm leading-7 text-[#54634b]">
+                  Activas el desvío condicional con un código. Solo las llamadas que no contestas van al asistente; todo lo demás sigue igual.
+                </p>
               </div>
-              <h3 className="mt-5 text-xl font-semibold text-[#1e2b22]">{title}</h3>
-              <p className="mt-3 text-sm leading-7 text-[#54634b]">{description}</p>
-            </article>
-            );
-          })}
-        </div>
+              <div className="flex flex-col gap-3 rounded-2xl border border-[#e2e9dc] bg-white/80 p-5 shadow-[0_4px_16px_rgba(30,43,34,0.04)]">
+                <p className="font-mono text-2xl font-semibold tracking-tight text-[#1e2b22]">*61*6········#</p>
+                <div className="flex items-center gap-2 text-xs text-[#54634b]">
+                  <span className="inline-block h-1.5 w-1.5 rounded-full bg-[#2c7334]" />
+                  desvío activado
+                </div>
+                <p className="text-xs leading-5 text-muted">
+                  Funciona en cualquier móvil y con cualquier operador español.
+                </p>
+              </div>
+            </div>
+
+            {/* Paso 02 */}
+            <div className="grid gap-8 py-10 lg:grid-cols-[4rem_1fr_1fr] lg:gap-12 lg:py-12">
+              <span className="text-4xl font-semibold tracking-tight text-[#b8d96e]">02</span>
+              <div>
+                <h3 className="text-xl font-semibold text-[#1e2b22] sm:text-2xl">Habla como si fuera de la casa</h3>
+                <p className="mt-3 max-w-md text-sm leading-7 text-[#54634b]">
+                  Conoce tus servicios, tus precios y tus huecos reales. Responde en el idioma del cliente y, si algo no lo sabe, toma un recado en vez de inventárselo.
+                </p>
+              </div>
+              <div className="flex flex-col gap-3 rounded-2xl border border-[#e2e9dc] bg-white/80 p-5 shadow-[0_4px_16px_rgba(30,43,34,0.04)]">
+                <div className="self-end rounded-2xl rounded-br-sm bg-[#eef6dc] px-4 py-2.5 text-sm font-medium text-[#344038]">
+                  Do you speak English?
+                </div>
+                <div className="self-start rounded-2xl rounded-bl-sm border border-[#e2e9dc] bg-white px-4 py-2.5 text-sm font-medium text-[#344038]">
+                  Of course! When would you like to come in?
+                </div>
+                <p className="text-xs text-muted">cambia de idioma a mitad de llamada</p>
+              </div>
+            </div>
+
+            {/* Paso 03 */}
+            <div className="grid gap-8 py-10 lg:grid-cols-[4rem_1fr_1fr] lg:gap-12 lg:py-12">
+              <span className="text-4xl font-semibold tracking-tight text-[#b8d96e]">03</span>
+              <div>
+                <h3 className="text-xl font-semibold text-[#1e2b22] sm:text-2xl">La cita en tu agenda, la ficha en tu WhatsApp</h3>
+                <p className="mt-3 max-w-md text-sm leading-7 text-[#54634b]">
+                  El cliente recibe la confirmación al colgar; tú, la ficha: quién llamó, qué quería y qué se reservó. Una llamada media: menos de 2 minutos.
+                </p>
+              </div>
+              <div className="flex flex-col gap-3">
+                <div className="rounded-2xl border border-[#d7e9c5] bg-[#f7fbee] p-4 shadow-[0_4px_16px_rgba(30,43,34,0.04)]">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-[#2c7334]">Ficha para ti</p>
+                  <p className="mt-1.5 text-sm font-semibold text-[#1e2b22]">María · Corte · mañana 16:30 · Ana</p>
+                  <p className="mt-1 flex items-center gap-1.5 text-xs text-muted">
+                    <span className="inline-block h-1 w-1 rounded-full bg-[#2c7334]" />
+                    WhatsApp · al momento
+                  </p>
+                </div>
+                <div className="rounded-2xl border border-[#e2e9dc] bg-white/80 p-4 shadow-[0_4px_16px_rgba(30,43,34,0.04)]">
+                  <p className="text-xs font-medium text-muted">tu agenda · mañana</p>
+                  <p className="mt-2 border-l-2 border-[#b8d96e] pl-3 text-sm font-semibold text-[#1e2b22]">
+                    16:30 · María · Corte · Ana
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -217,7 +251,7 @@ export function SiteLanding({ content }: { content?: NicheLandingContent }) {
                 {content?.calendarIntegration.title ?? "No tienes que cambiar cómo recibes tus reservas."}
               </h2>
               <p className="mt-4 max-w-xl text-base leading-7 text-[#54634b]">
-                {content?.calendarIntegration.description ?? "AsistAI consulta Google Calendar antes de confirmar una cita. Si las reservas de tu web, WhatsApp o software ya llegan ahí, el agente las respeta antes de ofrecer un horario por teléfono."}
+                {content?.calendarIntegration.description ?? "BotBook consulta Google Calendar antes de confirmar una cita. Si las reservas de tu web, WhatsApp o software ya llegan ahí, el agente las respeta antes de ofrecer un horario por teléfono."}
               </p>
             </div>
             <div className="grid gap-3">
@@ -249,7 +283,7 @@ export function SiteLanding({ content }: { content?: NicheLandingContent }) {
                 {content?.benefitsTitle ?? "El teléfono deja de interrumpir. Empieza a trabajar para ti."}
               </h2>
               <p className="mt-5 text-base leading-8 text-[#54634b]">
-                {content?.benefitsDescription ?? "Cada llamada es una oportunidad de reservar, resolver una duda o captar un nuevo cliente. AsistAI mantiene esa puerta abierta aunque estés ocupado, fuera de horario o atendiendo a otra persona."}
+                {content?.benefitsDescription ?? "Cada llamada es una oportunidad de reservar, resolver una duda o captar un nuevo cliente. BotBook mantiene esa puerta abierta aunque estés ocupado, fuera de horario o atendiendo a otra persona."}
               </p>
             </div>
 
@@ -282,7 +316,7 @@ export function SiteLanding({ content }: { content?: NicheLandingContent }) {
 
       <section id="soluciones" className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
         <div className="rounded-2xl border border-[#dce6d4] bg-white/75 p-6 sm:p-8">
-          <h2 className="text-2xl font-semibold tracking-tight text-[#1e2b22]">Descubre AsistAI para tu sector</h2>
+          <h2 className="text-2xl font-semibold tracking-tight text-[#1e2b22]">Descubre BotBook para tu sector</h2>
           <div className="mt-5 flex flex-wrap gap-3">
             {nicheLinks.map((link) => (
               <Link key={link.href} href={link.href} className={`inline-flex h-11 items-center rounded-full border px-4 text-sm font-semibold transition duration-200 ${content && link.href === `/${content.slug}` ? "border-[#1e2b22] bg-[#1e2b22] text-white" : "border-[#d7e3ce] bg-white text-[#344038] hover:bg-[#eef6dc]"}`}>
@@ -381,14 +415,14 @@ export function SiteLanding({ content }: { content?: NicheLandingContent }) {
       <footer className="border-t border-white/10 bg-[#1e2b22] text-white/70">
         <div className="mx-auto flex max-w-7xl flex-col gap-5 px-4 py-8 sm:px-6 md:flex-row md:items-center md:justify-between lg:px-8">
           <div>
-            <p className="font-semibold text-white">AsistAI</p>
+            <p className="font-semibold text-white">BotBook</p>
             <p className="mt-1 text-sm">Recepción telefónica para negocios con cita previa.</p>
           </div>
           <nav aria-label="Enlaces legales" className="flex flex-wrap items-center gap-x-4 text-sm font-medium">
             <Link href="/legal/privacidad" className="inline-flex h-11 items-center transition hover:text-white">Privacidad</Link>
             <Link href="/legal/aviso-legal" className="inline-flex h-11 items-center transition hover:text-white">Aviso legal</Link>
             <a href="#preguntas" className="inline-flex h-11 items-center transition hover:text-white">Preguntas frecuentes</a>
-            <a href="mailto:hola@asistai.es" className="inline-flex h-11 items-center transition hover:text-white">Contacto</a>
+            <a href="mailto:hola@botbook.es" className="inline-flex h-11 items-center transition hover:text-white">Contacto</a>
           </nav>
         </div>
       </footer>
