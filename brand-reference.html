@@ -1,0 +1,659 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BotBook — Brand Reference</title>
+<style>
+  :root {
+    --verde-mostrador: #1e2b22;
+    --verde-mostrador-intenso: #243026;
+    --brote-claro: #b8d96e;
+    --verde-foco: #9dbb55;
+    --verde-brote-lavado: #eef6dc;
+    --tinta-brote: #405115;
+    --papel-verde: #eef2eb;
+    --superficie: #ffffff;
+    --superficie-templada: #f6f7f1;
+    --tinta: #17211c;
+    --tinta-apagada: #5f6a5e;
+    --trazo: #d2dacd;
+    --borde-velado: rgba(30,43,34,0.08);
+    --exito: #2c7334;
+    --superficie-exito: #ecf7ec;
+    --aviso: #9f7a15;
+    --error: #c53030;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: radial-gradient(ellipse at 0% 0%, #f7f8f5 0%, #e7ece4 60%, #dbe4d6 100%);
+    color: var(--tinta);
+    line-height: 1.6;
+    min-height: 100vh;
+    padding: 0;
+  }
+
+  header {
+    background: rgba(255,255,255,0.85);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--trazo);
+    padding: 24px 32px;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+
+  header h1 {
+    font-size: 1.125rem;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    color: var(--verde-mostrador);
+  }
+
+  main {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 32px 24px 64px;
+  }
+
+  section { margin-bottom: 56px; }
+
+  h2 {
+    font-size: 1.25rem;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    color: var(--verde-mostrador);
+    margin-bottom: 20px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--trazo);
+  }
+
+  h3 {
+    font-size: 0.875rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--tinta-apagada);
+    margin: 28px 0 12px;
+  }
+
+  p {
+    font-size: 0.9375rem;
+    color: var(--tinta-apagada);
+    margin-bottom: 12px;
+    max-width: 72ch;
+  }
+
+  .identity-lead {
+    font-size: 1rem;
+    color: var(--tinta);
+    line-height: 1.7;
+    margin-bottom: 16px;
+  }
+
+  /* Palette */
+  .palette-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 16px;
+  }
+
+  .color-swatch {
+    background: var(--superficie);
+    border: 1px solid var(--borde-velado);
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 4px 16px rgba(30,43,34,0.04);
+    transition: transform 200ms;
+  }
+
+  .color-swatch:hover { transform: translateY(-2px); }
+
+  .swatch-preview {
+    height: 96px;
+    width: 100%;
+    border-bottom: 1px solid var(--borde-velado);
+    position: relative;
+  }
+
+  .swatch-info { padding: 14px 16px; }
+
+  .swatch-name {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--tinta);
+    margin-bottom: 4px;
+  }
+
+  .swatch-hex {
+    font-size: 0.8125rem;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    color: var(--tinta-apagada);
+    margin-bottom: 10px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .copy-btn {
+    background: var(--verde-brote-lavado);
+    color: var(--tinta-brote);
+    border: none;
+    border-radius: 6px;
+    padding: 6px 12px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 200ms;
+    min-height: 32px;
+    line-height: 1;
+  }
+
+  .copy-btn:hover { background: var(--brote-claro); }
+
+  .copy-btn.copied {
+    background: var(--exito);
+    color: #fff;
+  }
+
+  /* Components */
+  .components-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 20px;
+  }
+
+  .card {
+    background: rgba(255,255,255,0.95);
+    border: 1px solid var(--borde-velado);
+    border-radius: 16px;
+    padding: 24px;
+    box-shadow: 0 8px 24px rgba(30,43,34,0.06);
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .card-title {
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: var(--verde-mostrador);
+    letter-spacing: -0.01em;
+  }
+
+  .card-body {
+    font-size: 0.875rem;
+    color: var(--tinta-apagada);
+    line-height: 1.6;
+  }
+
+  .card-stat {
+    font-size: 2rem;
+    font-weight: 600;
+    color: var(--verde-mostrador);
+    letter-spacing: -0.02em;
+  }
+
+  .card-accent {
+    background: var(--verde-brote-lavado);
+    border: 1px solid #d7e9c5;
+    border-radius: 12px;
+    padding: 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .icon-tile {
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+    background: var(--verde-brote-lavado);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .icon-tile svg {
+    width: 20px;
+    height: 20px;
+    stroke: var(--exito);
+    stroke-width: 2;
+    fill: none;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .badge {
+    display: inline-block;
+    background: var(--verde-brote-lavado);
+    color: var(--tinta-brote);
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    padding: 4px 12px;
+    border-radius: 9999px;
+    border: 1px solid #d7e9c5;
+    width: fit-content;
+  }
+
+  .btn-primary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 44px;
+    padding: 0 20px;
+    background: var(--verde-mostrador);
+    color: #fff;
+    font-size: 0.875rem;
+    font-weight: 600;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    box-shadow: 0 8px 20px rgba(30,43,34,0.12);
+    transition: transform 200ms, background 200ms;
+    width: fit-content;
+  }
+
+  .btn-primary:hover {
+    background: var(--verde-mostrador-intenso);
+    transform: translateY(-2px);
+  }
+
+  .btn-secondary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 44px;
+    padding: 0 20px;
+    background: rgba(255,255,255,0.95);
+    color: #344038;
+    font-size: 0.875rem;
+    font-weight: 600;
+    border: 1px solid var(--trazo);
+    border-radius: 8px;
+    cursor: pointer;
+    transition: transform 200ms, background 200ms;
+    width: fit-content;
+  }
+
+  .btn-secondary:hover {
+    background: #f4f6f1;
+    transform: translateY(-2px);
+  }
+
+  .card-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .card-row .meta {
+    font-size: 0.875rem;
+    color: var(--tinta-apagada);
+  }
+
+  .card-row .meta strong {
+    color: var(--tinta);
+    font-weight: 600;
+  }
+
+  /* Doodles / Graphics */
+  .graphics-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 24px;
+    align-items: flex-start;
+  }
+
+  .graphic-sample {
+    background: rgba(255,255,255,0.95);
+    border: 1px solid var(--borde-velado);
+    border-radius: 16px;
+    padding: 24px;
+    box-shadow: 0 8px 24px rgba(30,43,34,0.06);
+    flex: 1 1 240px;
+    max-width: 320px;
+  }
+
+  .graphic-sample p {
+    font-size: 0.8125rem;
+    margin-top: 12px;
+    color: var(--tinta-apagada);
+  }
+
+  .doodle-svg {
+    width: 100%;
+    height: 120px;
+  }
+
+  .doodle-svg path, .doodle-svg circle, .doodle-svg line {
+    stroke: var(--verde-mostrador);
+    fill: none;
+    stroke-width: 1.5;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .doodle-svg .fill-soft { fill: var(--verde-brote-lavado); }
+  .doodle-svg .fill-accent { fill: var(--brote-claro); opacity: 0.35; }
+
+  /* Typography note */
+  .type-note {
+    background: var(--superficie-templada);
+    border: 1px solid var(--borde-velado);
+    border-radius: 12px;
+    padding: 20px;
+    font-size: 0.9375rem;
+    color: var(--tinta-apagada);
+  }
+
+  @media (max-width: 640px) {
+    main { padding: 24px 16px 48px; }
+    header { padding: 18px 16px; }
+    .components-grid { grid-template-columns: 1fr; }
+    .palette-grid { grid-template-columns: 1fr 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>BotBook — Brand Reference</h1>
+</header>
+
+<main>
+
+  <section id="identidad">
+    <h2>1. Identidad visual</h2>
+    <p class="identity-lead">BotBook transmite la calma de <em>"la recepción serena"</em>: un mostrador ordenado, luz natural, alguien competente que no levanta la voz. Es una herramienta adulta y cercana para peluqueros, barberos y fisioterapeutas que nunca compraron software.</p>
+    <p class="identity-lead">La marca es moderna, reconocible, corporativa y cuidada, pero cercana y accesible. Con percepción premium y de calidad sin resultar fría ni inaccesible. Cálida pero adulta, y su expresividad está en la precisión: un radio consistente, un acento que aparece poco, no en el volumen.</p>
+  </section>
+
+  <section id="paleta">
+    <h2>2. Paleta de colores</h2>
+
+    <h3>Colores de marca</h3>
+    <div class="palette-grid">
+      <div class="color-swatch">
+        <div class="swatch-preview" style="background:#1e2b22;"></div>
+        <div class="swatch-info">
+          <div class="swatch-name">Verde Mostrador</div>
+          <div class="swatch-hex">#1e2b22 <button class="copy-btn" data-hex="#1e2b22">Copiar</button></div>
+        </div>
+      </div>
+      <div class="color-swatch">
+        <div class="swatch-preview" style="background:#243026;"></div>
+        <div class="swatch-info">
+          <div class="swatch-name">Verde Mostrador Intenso</div>
+          <div class="swatch-hex">#243026 <button class="copy-btn" data-hex="#243026">Copiar</button></div>
+        </div>
+      </div>
+      <div class="color-swatch">
+        <div class="swatch-preview" style="background:#b8d96e;"></div>
+        <div class="swatch-info">
+          <div class="swatch-name">Brote Claro</div>
+          <div class="swatch-hex">#b8d96e <button class="copy-btn" data-hex="#b8d96e">Copiar</button></div>
+        </div>
+      </div>
+      <div class="color-swatch">
+        <div class="swatch-preview" style="background:#9dbb55;"></div>
+        <div class="swatch-info">
+          <div class="swatch-name">Verde Foco</div>
+          <div class="swatch-hex">#9dbb55 <button class="copy-btn" data-hex="#9dbb55">Copiar</button></div>
+        </div>
+      </div>
+      <div class="color-swatch">
+        <div class="swatch-preview" style="background:#eef6dc;"></div>
+        <div class="swatch-info">
+          <div class="swatch-name">Verde Brote Lavado</div>
+          <div class="swatch-hex">#eef6dc <button class="copy-btn" data-hex="#eef6dc">Copiar</button></div>
+        </div>
+      </div>
+      <div class="color-swatch">
+        <div class="swatch-preview" style="background:#405115;"></div>
+        <div class="swatch-info">
+          <div class="swatch-name">Tinta Brote</div>
+          <div class="swatch-hex">#405115 <button class="copy-btn" data-hex="#405115">Copiar</button></div>
+        </div>
+      </div>
+      <div class="color-swatch">
+        <div class="swatch-preview" style="background:#eef2eb;"></div>
+        <div class="swatch-info">
+          <div class="swatch-name">Papel Verde</div>
+          <div class="swatch-hex">#eef2eb <button class="copy-btn" data-hex="#eef2eb">Copiar</button></div>
+        </div>
+      </div>
+      <div class="color-swatch">
+        <div class="swatch-preview" style="background:#ffffff;border-right:1px solid #d2dacd;"></div>
+        <div class="swatch-info">
+          <div class="swatch-name">Superficie</div>
+          <div class="swatch-hex">#ffffff <button class="copy-btn" data-hex="#ffffff">Copiar</button></div>
+        </div>
+      </div>
+      <div class="color-swatch">
+        <div class="swatch-preview" style="background:#f6f7f1;"></div>
+        <div class="swatch-info">
+          <div class="swatch-name">Superficie Templada</div>
+          <div class="swatch-hex">#f6f7f1 <button class="copy-btn" data-hex="#f6f7f1">Copiar</button></div>
+        </div>
+      </div>
+      <div class="color-swatch">
+        <div class="swatch-preview" style="background:#17211c;"></div>
+        <div class="swatch-info">
+          <div class="swatch-name">Tinta</div>
+          <div class="swatch-hex">#17211c <button class="copy-btn" data-hex="#17211c">Copiar</button></div>
+        </div>
+      </div>
+      <div class="color-swatch">
+        <div class="swatch-preview" style="background:#5f6a5e;"></div>
+        <div class="swatch-info">
+          <div class="swatch-name">Tinta Apagada</div>
+          <div class="swatch-hex">#5f6a5e <button class="copy-btn" data-hex="#5f6a5e">Copiar</button></div>
+        </div>
+      </div>
+      <div class="color-swatch">
+        <div class="swatch-preview" style="background:#d2dacd;"></div>
+        <div class="swatch-info">
+          <div class="swatch-name">Trazo</div>
+          <div class="swatch-hex">#d2dacd <button class="copy-btn" data-hex="#d2dacd">Copiar</button></div>
+        </div>
+      </div>
+    </div>
+
+    <h3>Colores funcionales / UI</h3>
+    <div class="palette-grid">
+      <div class="color-swatch">
+        <div class="swatch-preview" style="background:#2c7334;"></div>
+        <div class="swatch-info">
+          <div class="swatch-name">Éxito</div>
+          <div class="swatch-hex">#2c7334 <button class="copy-btn" data-hex="#2c7334">Copiar</button></div>
+        </div>
+      </div>
+      <div class="color-swatch">
+        <div class="swatch-preview" style="background:#ecf7ec;"></div>
+        <div class="swatch-info">
+          <div class="swatch-name">Superficie Éxito</div>
+          <div class="swatch-hex">#ecf7ec <button class="copy-btn" data-hex="#ecf7ec">Copiar</button></div>
+        </div>
+      </div>
+      <div class="color-swatch">
+        <div class="swatch-preview" style="background:#9f7a15;"></div>
+        <div class="swatch-info">
+          <div class="swatch-name">Aviso</div>
+          <div class="swatch-hex">#9f7a15 <button class="copy-btn" data-hex="#9f7a15">Copiar</button></div>
+        </div>
+      </div>
+      <div class="color-swatch">
+        <div class="swatch-preview" style="background:#c53030;"></div>
+        <div class="swatch-info">
+          <div class="swatch-name">Error</div>
+          <div class="swatch-hex">#c53030 <button class="copy-btn" data-hex="#c53030">Copiar</button></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="componentes">
+    <h2>3. Ejemplos de componentes</h2>
+    <div class="components-grid">
+
+      <div class="card">
+        <span class="badge">Información</span>
+        <div class="card-title">Horario de atención</div>
+        <div class="card-body">Lunes a viernes de 09:00 a 18:00. Sábados y domingos cerrado. El agente responderá siempre dentro del horario configurado.</div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Llamadas atendidas</div>
+        <div class="card-stat">1.247</div>
+        <div class="card-body">Este mes · <span style="color:var(--exito);">+12%</span> respecto al mes anterior</div>
+      </div>
+
+      <div class="card" style="border-left:3px solid var(--brote-claro);">
+        <div class="card-title">Plan Pro activo</div>
+        <div class="card-body">400 minutos incluidos · 0,45 €/min extra. Tu próxima factura se emitirá el 15 de octubre.</div>
+        <button class="btn-primary">Gestionar plan</button>
+      </div>
+
+      <div class="card">
+        <div class="card-row">
+          <div class="icon-tile">
+            <svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+          </div>
+          <div class="meta"><strong>Corte y peinado</strong><br>45 min · 35 €</div>
+        </div>
+        <div class="card-body">Reserva disponible hoy a las 16:30 con María.</div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn-primary">Reservar</button>
+          <button class="btn-secondary">Ver más</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-accent">
+          <div class="icon-tile">
+            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+          </div>
+          <div>
+            <div style="font-size:0.875rem;font-weight:600;color:var(--verde-mostrador);">Próxima cita</div>
+            <div style="font-size:0.8125rem;color:var(--tinta-apagada);">Hoy, 17:00 — Fisioterapia</div>
+          </div>
+        </div>
+        <button class="btn-secondary" style="width:100%;">Ver agenda completa</button>
+      </div>
+
+    </div>
+  </section>
+
+  <section id="graficos">
+    <h2>4. Elementos gráficos</h2>
+    <p>El sistema no utiliza ilustraciones complejas. Su lenguaje gráfico se basa en trazos limpios, azulejos de icono y formas orgánicas sutiles que evocan crecimiento y calma sin resultar infantiles.</p>
+
+    <div class="graphics-grid">
+      <div class="graphic-sample">
+        <div style="display:flex;gap:12px;flex-wrap:wrap;">
+          <div class="icon-tile"><svg viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="M22 4L12 14.01l-3-3"/></svg></div>
+          <div class="icon-tile"><svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div>
+          <div class="icon-tile"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg></div>
+          <div class="icon-tile"><svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
+        </div>
+        <p><strong>Azulejos de icono</strong><br>40 px, fondo Verde Brote Lavado, trazo en Éxito. Los iconos nunca van sueltos sobre el papel.</p>
+      </div>
+
+      <div class="graphic-sample">
+        <svg class="doodle-svg" viewBox="0 0 200 120">
+          <path d="M40,90 Q60,40 100,60 T160,50" />
+          <circle cx="100" cy="60" r="18" class="fill-accent" />
+          <path d="M100,60 L100,30" />
+          <circle cx="100" cy="24" r="6" class="fill-soft" />
+          <path d="M70,100 Q90,70 110,90 T150,85" />
+          <circle cx="110" cy="90" r="10" class="fill-accent" />
+        </svg>
+        <p><strong>Líneas orgánicas</strong><br>Trazo fino en Verde Mostrador, rellenos lavados. Evocan brotes y ramas sin literalismo.</p>
+      </div>
+
+      <div class="graphic-sample">
+        <svg class="doodle-svg" viewBox="0 0 200 120">
+          <circle cx="60" cy="60" r="35" class="fill-soft" />
+          <circle cx="60" cy="60" r="35" />
+          <path d="M60,35 L60,45 M60,75 L60,85 M35,60 L45,60 M75,60 L85,60" />
+          <circle cx="140" cy="60" r="25" class="fill-accent" />
+          <circle cx="140" cy="60" r="25" />
+          <path d="M140,42 L140,50 M140,70 L140,78 M122,60 L130,60 M150,60 L158,60" />
+        </svg>
+        <p><strong>Formas estructurales</strong><br>Círculos y cruces que sugieren precisión y orden. Rellenos sutiles, nunca sólidos al 100 %.</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="estilo">
+    <h2>5. Equilibrio visual: corporativo + orgánico</h2>
+    <p class="identity-lead">BotBook no es una startup de consumo, pero tampoco es un software empresarial frío. Su estilo combina una base corporativa minimalista con toques orgánicos que humanizan la interfaz.</p>
+    <p><strong>Lo corporativo:</strong> grillas limpias, espaciado matemático, bordes de 1 px, sombras contenidas y una sola familia cromática. La estructura transmite confianza, orden y profesionalidad.</p>
+    <p><strong>Lo orgánico:</strong> trazos de brote, formas circulares imperfectas, degradado radial del fondo y azulejos de icono con carácter. Estos elementos aportan calidez y evitan que la interfaz se sienta robótica.</p>
+    <p><strong>La regla:</strong> el doodle nunca desordena. Las formas orgánicas se usan como acento, nunca como decoración excesiva. No hay personajes, no hay colores chillones, no hay formas exageradas. La espontaneidad está en el trazo fino y en el relleno lavado, no en el volumen.</p>
+    <p>Este equilibrio permite que una peluquera o un fisioterapeuta sientan que están ante una herramienta seria, pero también cercana: alguien competente que no levanta la voz.</p>
+  </section>
+
+  <section id="tipografia">
+    <h2>6. Tipografía</h2>
+    <div class="type-note">
+      Tipografía: pendiente de definir. La identidad tipográfica todavía está en proceso de selección y no forma parte de esta referencia.
+    </div>
+  </section>
+
+</main>
+
+<script>
+  async function copyToClipboard(text, btn) {
+    let success = false;
+    if (navigator.clipboard && window.isSecureContext) {
+      try {
+        await navigator.clipboard.writeText(text);
+        success = true;
+      } catch (e) {
+        success = false;
+      }
+    }
+    if (!success) {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.left = '-9999px';
+      ta.style.top = '0';
+      ta.setAttribute('readonly', '');
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      try {
+        success = document.execCommand('copy');
+      } catch (err) {
+        success = false;
+      }
+      document.body.removeChild(ta);
+    }
+    const original = btn.textContent;
+    btn.textContent = success ? 'Copiado' : 'Error';
+    if (success) btn.classList.add('copied');
+    setTimeout(() => {
+      btn.textContent = original;
+      btn.classList.remove('copied');
+    }, 1200);
+  }
+
+  document.querySelectorAll('.copy-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const hex = btn.getAttribute('data-hex');
+      copyToClipboard(hex, btn);
+    });
+  });
+</script>
+
+</body>
+</html>
