@@ -41,12 +41,26 @@ vi.mock("googleapis", () => ({
         insert: vi.fn(),
         list: vi.fn(),
       },
+      calendarList: {
+        list: vi.fn(),
+      },
     }),
   },
 }));
 
+vi.mock("../../../src/lib/microsoftGraph.js", () => ({
+  createMicrosoftCalendarEvent: vi.fn(),
+  exchangeMicrosoftCode: vi.fn(),
+  getMicrosoftAuthUrl: vi.fn(),
+  getMicrosoftProfile: vi.fn(),
+  listMicrosoftCalendars: vi.fn(),
+  listMicrosoftUpcomingEvents: vi.fn(),
+  refreshMicrosoftAccessToken: vi.fn(),
+}));
+
 const mockedAgentFindMany = vi.mocked(prisma.agent.findMany);
 const mockedBusinessFindUnique = vi.mocked(prisma.business.findUnique);
+const mockedBusinessUpdate = vi.mocked(prisma.business.update);
 const mockedVapiGetAssistant = vi.mocked(vapiAdapter.getAssistant);
 const mockedVapiUpdateAssistant = vi.mocked(vapiAdapter.updateAssistant);
 const mockedGoogleCalendar = vi.mocked(google.calendar);
@@ -223,6 +237,111 @@ describe("CalendarService.getUpcomingEvents", () => {
     await expect(
       calendarService.getUpcomingEvents("google", {})
     ).rejects.toThrow(CalendarBusinessError);
+  });
+});
+
+describe("CalendarService.listGoogleCalendars", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    process.env.GOOGLE_CLIENT_ID = "client_id";
+    process.env.GOOGLE_CLIENT_SECRET = "client_secret";
+    process.env.GOOGLE_REDIRECT_URI = "http://localhost/callback";
+  });
+
+  it("devuelve los calendarios de la cuenta con su nombre y marca de principal", async () => {
+    const listMock = vi.fn().mockResolvedValue({
+      data: {
+        items: [
+          { id: "primary_id", summary: "María", primary: true },
+          { id: "secundario_id", summary: "Reservas", summaryOverride: "Reservas peluquería" },
+        ],
+      },
+    });
+    mockedGoogleCalendar.mockReturnValue({
+      events: { insert: vi.fn(), list: vi.fn() },
+      calendarList: { list: listMock },
+    } as any);
+
+    const calendars = await calendarService.listGoogleCalendars("refresh_token_123");
+
+    expect(calendars).toEqual([
+      { id: "primary_id", name: "María", primary: true },
+      { id: "secundario_id", name: "Reservas peluquería", primary: false },
+    ]);
+    expect(listMock).toHaveBeenCalledOnce();
+  });
+
+  it("lanza GOOGLE_CALENDAR_RECONNECT_REQUIRED ante invalid_grant", async () => {
+    mockedGoogleCalendar.mockReturnValue({
+      events: { insert: vi.fn(), list: vi.fn() },
+      calendarList: { list: vi.fn().mockRejectedValue(new Error("invalid_grant")) },
+    } as any);
+
+    await expect(
+      calendarService.listGoogleCalendars("refresh_token_123")
+    ).rejects.toThrow(CalendarBusinessError);
+
+    try {
+      await calendarService.listGoogleCalendars("refresh_token_123");
+    } catch (error) {
+      expect((error as CalendarBusinessError).code).toBe("GOOGLE_CALENDAR_RECONNECT_REQUIRED");
+    }
+  });
+});
+
+describe("CalendarService.listOutlookCalendars", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("devuelve los calendarios de Outlook normalizados", async () => {
+    const { refreshMicrosoftAccessToken, listMicrosoftCalendars } = await import("../../../src/lib/microsoftGraph.js");
+    vi.mocked(refreshMicrosoftAccessToken).mockResolvedValue({ access_token: "access_123" } as any);
+    vi.mocked(listMicrosoftCalendars).mockResolvedValue([
+      { id: "cal_1", name: "Calendario", canEdit: true, canShare: false, ownerEmail: "a@b.c" },
+    ] as any);
+
+    const calendars = await calendarService.listOutlookCalendars("refresh_token_123");
+
+    expect(calendars).toEqual([{ id: "cal_1", name: "Calendario", primary: false }]);
+  });
+
+  it("lanza OUTLOOK_CALENDAR_RECONNECT_REQUIRED si el refresh falla", async () => {
+    const { refreshMicrosoftAccessToken } = await import("../../../src/lib/microsoftGraph.js");
+    vi.mocked(refreshMicrosoftAccessToken).mockRejectedValue(new Error("invalid_grant"));
+
+    await expect(
+      calendarService.listOutlookCalendars("refresh_token_123")
+    ).rejects.toThrow(CalendarBusinessError);
+
+    try {
+      await calendarService.listOutlookCalendars("refresh_token_123");
+    } catch (error) {
+      expect((error as CalendarBusinessError).code).toBe("OUTLOOK_CALENDAR_RECONNECT_REQUIRED");
+    }
+  });
+});
+
+describe("CalendarService.selectGoogleCalendar", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("guarda el calendario elegido y marca la conexión como activa", async () => {
+    mockedBusinessUpdate.mockResolvedValue({ id: "business_123" } as any);
+
+    await calendarService.selectGoogleCalendar("business_123", "secundario_id");
+
+    expect(mockedBusinessUpdate).toHaveBeenCalledWith({
+      where: { id: "business_123" },
+      data: {
+        calendarProvider: "google",
+        googleCalendarId: "secundario_id",
+        googleCalendarConnected: true,
+        googleCalendarDisconnectedAt: null,
+        googleCalendarLastError: null,
+      },
+    });
   });
 });
 

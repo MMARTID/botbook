@@ -14,6 +14,7 @@ const mocks = vi.hoisted(() => ({
   phoneNumberUpdate: vi.fn(),
   phoneNumberDelete: vi.fn(),
   phoneNumberList: vi.fn(),
+  callCreateWebCall: vi.fn(),
   verify: vi.fn((_rawBody: string, _apiKey: string, signature: string) => {
     return signature === "valid-signature";
   }),
@@ -41,6 +42,9 @@ vi.mock("retell-sdk", () => {
         update: mocks.phoneNumberUpdate,
         delete: mocks.phoneNumberDelete,
         list: mocks.phoneNumberList,
+      };
+      call = {
+        createWebCall: mocks.callCreateWebCall,
       };
     },
   };
@@ -174,6 +178,43 @@ describe("RetellAdapter", () => {
       const adapter = new RetellAdapter();
       await expect(adapter.checkHealth()).resolves.toBeUndefined();
       expect(mocks.agentList).toHaveBeenCalledWith(expect.objectContaining({ limit: 1 }));
+    });
+  });
+
+  describe("createWebCall", () => {
+    it("crea la llamada web con el agente de demo y el límite de duración", async () => {
+      mocks.callCreateWebCall.mockResolvedValue({
+        call_id: "call_123",
+        access_token: "token_123",
+      });
+
+      const adapter = new RetellAdapter();
+      const result = await adapter.createWebCall({
+        agentId: "agent_demo",
+        maxDurationMs: 60000,
+        metadata: { source: "landing-demo" },
+      });
+
+      expect(result).toEqual({ callId: "call_123", accessToken: "token_123" });
+      expect(mocks.callCreateWebCall).toHaveBeenCalledWith(
+        expect.objectContaining({
+          agent_id: "agent_demo",
+          agent_override: { agent: { max_call_duration_ms: 60000 } },
+          metadata: { source: "landing-demo" },
+        })
+      );
+    });
+
+    it("omite el override si no se indica duración máxima", async () => {
+      mocks.callCreateWebCall.mockResolvedValue({
+        call_id: "call_123",
+        access_token: "token_123",
+      });
+
+      const adapter = new RetellAdapter();
+      await adapter.createWebCall({ agentId: "agent_demo" });
+
+      expect(mocks.callCreateWebCall).toHaveBeenCalledWith({ agent_id: "agent_demo" });
     });
   });
 });
