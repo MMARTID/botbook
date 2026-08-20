@@ -1,7 +1,7 @@
 {
   "schemaVersion": 2,
   "generatedAt": "2026-08-16T19:20:00Z",
-  "title": "Design System: AsistAI",
+  "title": "Design System: BotBook",
   "extensions": {
     "colorMeta": {
       "accent": {
@@ -438,7 +438,7 @@
   ],
   "narrative": {
     "northStar": "La Recepción Serena",
-    "overview": "El mostrador de un buen negocio a media mañana: luz natural entrando, madera clara, todo en su sitio, nadie levantando la voz. Esa es la sensación que persigue AsistAI. El producto le habla a una peluquera, un barbero o un fisioterapeuta que no compró software en su vida y que no quiere sentirse en una app: quiere sentir que ha contratado a alguien competente y tranquilo. La interfaz interpreta ese papel — presente, ordenada, sin pedir atención.\n\nMaterialmente el sistema es papel verde pálido con tinta verde casi negra. El fondo nunca es blanco plano: es un degradado radial tenue que baja de #f7f8f5 a #e7ece4 con un halo de Brote Claro arriba a la izquierda, y ese fondo se mantiene en todas las pantallas, de la landing al panel, para que la aplicación no se sienta como un sitio distinto del que te vendió. Sobre él flotan superficies blancas translúcidas con bordes de un píxel. La profundidad viene del tono y del borde, no de la sombra.\n\nEl anti-referente está confirmado y es explícito: nada de estética de startup ni de app de consumo. Se rechazaron por nombre el negro verdoso #101814 y el lima neón #d6ff72 por producir exactamente ese registro. El sistema es cálido pero adulto, y su expresividad está en la precisión — un radio consistente, un acento que aparece poco — no en el volumen.",
+    "overview": "El mostrador de un buen negocio a media mañana: luz natural entrando, madera clara, todo en su sitio, nadie levantando la voz. Esa es la sensación que persigue BotBook. El producto le habla a una peluquera, un barbero o un fisioterapeuta que no compró software en su vida y que no quiere sentirse en una app: quiere sentir que ha contratado a alguien competente y tranquilo. La interfaz interpreta ese papel — presente, ordenada, sin pedir atención.\n\nMaterialmente el sistema es papel verde pálido con tinta verde casi negra. El fondo nunca es blanco plano: es un degradado radial tenue que baja de #f7f8f5 a #e7ece4 con un halo de Brote Claro arriba a la izquierda, y ese fondo se mantiene en todas las pantallas, de la landing al panel, para que la aplicación no se sienta como un sitio distinto del que te vendió. Sobre él flotan superficies blancas translúcidas con bordes de un píxel. La profundidad viene del tono y del borde, no de la sombra.\n\nEl anti-referente está confirmado y es explícito: nada de estética de startup ni de app de consumo. Se rechazaron por nombre el negro verdoso #101814 y el lima neón #d6ff72 por producir exactamente ese registro. El sistema es cálido pero adulto, y su expresividad está en la precisión — un radio consistente, un acento que aparece poco — no en el volumen.",
     "keyCharacteristics": [
       "Papel verde pálido con degradado radial continuo en todas las superficies, jamás fondo plano.",
       "Un solo acento fuerte por vista; el Brote Claro se reserva para foco y realce.",

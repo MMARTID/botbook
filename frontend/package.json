@@ -12,14 +12,15 @@
     "@stripe/react-stripe-js": "^6.8.0",
     "@stripe/stripe-js": "^9.13.0",
     "@tanstack/react-query": "^5.101.2",
-    "@vapi-ai/web": "^2.6.1",
     "axios": "^1.18.1",
     "framer-motion": "^10.12.16",
+    "lottie-react": "^3.1.0",
     "lucide-react": "^1.22.0",
     "next": "^14.2.35",
     "react": "^18",
     "react-dom": "^18",
-    "recharts": "^3.9.0"
+    "recharts": "^3.9.0",
+    "retell-client-js-sdk": "^2.0.8"
   },
   "devDependencies": {
     "@types/node": "^20",

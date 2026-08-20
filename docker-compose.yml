@@ -4,7 +4,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: asistai_backend
+    container_name: botbook_backend
     depends_on:
       postgres:
         condition: service_healthy
@@ -20,6 +20,14 @@ services:
       VAPI_BASE_URL: ${VAPI_BASE_URL}
       RETELL_API_KEY: ${RETELL_API_KEY}
       RETELL_BASE_URL: ${RETELL_BASE_URL:-https://api.retellai.com}
+      RETELL_DEMO_AGENT_ID: ${RETELL_DEMO_AGENT_ID}
+      RETELL_DEMO_PELUQUERIA_AGENT_ID: ${RETELL_DEMO_PELUQUERIA_AGENT_ID}
+      RETELL_DEMO_CENTRO_ESTETICA_AGENT_ID: ${RETELL_DEMO_CENTRO_ESTETICA_AGENT_ID}
+      # RETELL_DEMO_SALON_UÑAS_AGENT_ID llega por env_file: la interpolación de
+      # compose no admite la Ñ en nombres de variable.
+      RETELL_DEMO_BARBERIA_AGENT_ID: ${RETELL_DEMO_BARBERIA_AGENT_ID}
+      RETELL_DEMO_FISIOTERAPIA_AGENT_ID: ${RETELL_DEMO_FISIOTERAPIA_AGENT_ID}
+      RETELL_DEMO_MAX_DURATION_SECONDS: ${RETELL_DEMO_MAX_DURATION_SECONDS:-60}
       BASE_URL: ${BASE_URL}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
       JWT_SECRET: ${JWT_SECRET}
@@ -76,7 +84,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: asistai_backend_dev
+    container_name: botbook_backend_dev
     depends_on:
       postgres:
         condition: service_healthy
@@ -92,6 +100,14 @@ services:
       VAPI_BASE_URL: ${VAPI_BASE_URL}
       RETELL_API_KEY: ${RETELL_API_KEY}
       RETELL_BASE_URL: ${RETELL_BASE_URL:-https://api.retellai.com}
+      RETELL_DEMO_AGENT_ID: ${RETELL_DEMO_AGENT_ID}
+      RETELL_DEMO_PELUQUERIA_AGENT_ID: ${RETELL_DEMO_PELUQUERIA_AGENT_ID}
+      RETELL_DEMO_CENTRO_ESTETICA_AGENT_ID: ${RETELL_DEMO_CENTRO_ESTETICA_AGENT_ID}
+      # RETELL_DEMO_SALON_UÑAS_AGENT_ID llega por env_file: la interpolación de
+      # compose no admite la Ñ en nombres de variable.
+      RETELL_DEMO_BARBERIA_AGENT_ID: ${RETELL_DEMO_BARBERIA_AGENT_ID}
+      RETELL_DEMO_FISIOTERAPIA_AGENT_ID: ${RETELL_DEMO_FISIOTERAPIA_AGENT_ID}
+      RETELL_DEMO_MAX_DURATION_SECONDS: ${RETELL_DEMO_MAX_DURATION_SECONDS:-60}
       BASE_URL: ${BASE_URL}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
       JWT_SECRET: ${JWT_SECRET}
@@ -137,11 +153,11 @@ services:
   # ---------- POSTGRES ----------
   postgres:
     image: postgres:15-alpine
-    container_name: asistai_postgres
+    container_name: botbook_postgres
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: asistai
+      POSTGRES_DB: botbook
     ports:
       - "5432:5432"
     volumes:
@@ -155,7 +171,7 @@ services:
   # ---------- REDIS ----------
   redis:
     image: redis:7-alpine
-    container_name: asistai_redis
+    container_name: botbook_redis
     ports:
       - "6379:6379"
     volumes:
