@@ -86,7 +86,7 @@ export const nicheLandings: Record<NicheSlug, NicheLandingContent> = {
     ],
     accent: { strong: "#b23a68", soft: "#fbe9f1", deep: "#7c2547" },
     heroTitle: "No pierdas otra cita de peluquería por no contestar el teléfono",
-    heroDescription: "AsistAI atiende llamadas, resuelve dudas sobre cortes y color, y agenda citas 24/7 — incluso cuando todo el equipo está con clientes.",
+    heroDescription: "BotBook atiende llamadas, resuelve dudas sobre cortes y color, y agenda citas 24/7 — incluso cuando todo el equipo está con clientes.",
     demoTitle: "Así reserva un servicio de peluquería",
     demoSteps: ["Configura cortes, color, mechas y tratamientos.", "Conecta horarios, profesionales y calendario.", "Atiende llamadas incluso durante las horas punta."],
     conversations: [
@@ -143,7 +143,7 @@ export const nicheLandings: Record<NicheSlug, NicheLandingContent> = {
     ],
     calendarIntegration: {
       title: "Sigue usando los canales que ya te traen reservas.",
-      description: "AsistAI consulta Google Calendar antes de confirmar una cita. Si tus reservas de web, WhatsApp, Instagram o software ya llegan ahí, el agente respeta esos huecos ocupados.",
+      description: "BotBook consulta Google Calendar antes de confirmar una cita. Si tus reservas de web, WhatsApp, Instagram o software ya llegan ahí, el agente respeta esos huecos ocupados.",
       examples: ["Las reservas online bloquean el hueco automáticamente", "Sólo ofrece horarios realmente libres", "Las llamadas se añaden a la misma agenda"],
     },
     calculator: { badge: "Calcula las citas que se escapan", title: "¿Cuánto pierde tu peluquería por no contestar?", description: "Estima el valor de cortes, coloraciones y tratamientos que pueden terminar en otro salón.", ticketLabel: "Ticket medio por cita", appointmentsLabel: "Citas perdidas cada semana", initialTicket: 45 },
@@ -152,7 +152,7 @@ export const nicheLandings: Record<NicheSlug, NicheLandingContent> = {
       { question: "¿Qué ocurre si una coloración necesita valoración previa?", answer: "El asistente recoge la información y deja la consulta preparada para que tu equipo confirme el servicio antes de reservarlo." },
       { question: "¿Atiende cuando todos estamos trabajando?", answer: "Sí. Está disponible durante horas punta, fuera de horario y en festivos para que una llamada no interrumpa el servicio." },
       { question: "¿Puede cambiar o cancelar una cita?", answer: "Sí. Consulta la agenda y gestiona cambios o cancelaciones según las reglas que definas." },
-      { question: "¿Tengo que cambiar mi software de reservas actual?", answer: "No necesariamente. AsistAI consulta Google Calendar antes de reservar. Si tu web, WhatsApp o software sincroniza las citas ahí, el agente respeta esos huecos ocupados." },
+      { question: "¿Tengo que cambiar mi software de reservas actual?", answer: "No necesariamente. BotBook consulta Google Calendar antes de reservar. Si tu web, WhatsApp o software sincroniza las citas ahí, el agente respeta esos huecos ocupados." },
     ],
     closingTitle: "Empieza a no perder citas de peluquería esta semana.",
     sectorData: {
@@ -190,7 +190,7 @@ export const nicheLandings: Record<NicheSlug, NicheLandingContent> = {
     ],
     accent: { strong: "#6c4bd8", soft: "#eee9fb", deep: "#46308f" },
     heroTitle: "No pierdas otra consulta de estética por no contestar el teléfono",
-    heroDescription: "AsistAI atiende llamadas, informa sobre tratamientos y agenda citas 24/7 — incluso mientras estás en cabina.",
+    heroDescription: "BotBook atiende llamadas, informa sobre tratamientos y agenda citas 24/7 — incluso mientras estás en cabina.",
     demoTitle: "Así gestiona una consulta estética",
     demoSteps: ["Carga tratamientos, bonos y preguntas frecuentes.", "Define qué consultas requieren valoración humana.", "Conecta cabinas, profesionales y disponibilidad."],
     conversations: [
@@ -247,7 +247,7 @@ export const nicheLandings: Record<NicheSlug, NicheLandingContent> = {
     ],
     calendarIntegration: {
       title: "Una sola disponibilidad para todos tus canales.",
-      description: "AsistAI usa Google Calendar como referencia antes de reservar. Así respeta las citas que entren desde tu web, WhatsApp o herramienta de reservas sincronizada.",
+      description: "BotBook usa Google Calendar como referencia antes de reservar. Así respeta las citas que entren desde tu web, WhatsApp o herramienta de reservas sincronizada.",
       examples: ["Las citas existentes protegen tus cabinas", "Evita dobles reservas entre canales", "Centraliza nuevas llamadas en la misma agenda"],
     },
     calculator: { badge: "Calcula oportunidades sin atender", title: "¿Cuánto valen las consultas que no puedes responder?", description: "Estima tratamientos y valoraciones que podrías recuperar con recepción continua.", ticketLabel: "Ticket medio por tratamiento", appointmentsLabel: "Consultas perdidas cada semana", initialTicket: 80 },
@@ -256,7 +256,7 @@ export const nicheLandings: Record<NicheSlug, NicheLandingContent> = {
       { question: "¿Gestiona bonos y sesiones recurrentes?", answer: "Puede informar sobre condiciones y organizar sesiones según las reglas y disponibilidad configuradas." },
       { question: "¿Puede reservar por cabina o profesional?", answer: "Sí. La configuración permite respetar profesionales compatibles, capacidad y tiempos de cada tratamiento." },
       { question: "¿Cómo evita respuestas incorrectas?", answer: "Trabaja con la información, límites y documentos que apruebes, y deriva las consultas fuera de alcance." },
-      { question: "¿Tengo que abandonar mi sistema de reservas?", answer: "No. Si tu sistema sincroniza las citas con Google Calendar, AsistAI las respeta antes de ofrecer disponibilidad por teléfono." },
+      { question: "¿Tengo que abandonar mi sistema de reservas?", answer: "No. Si tu sistema sincroniza las citas con Google Calendar, BotBook las respeta antes de ofrecer disponibilidad por teléfono." },
     ],
     closingTitle: "Empieza a no perder consultas de estética esta semana.",
     sectorData: {
@@ -295,7 +295,7 @@ export const nicheLandings: Record<NicheSlug, NicheLandingContent> = {
     ],
     accent: { strong: "#c95c3f", soft: "#fbeae2", deep: "#8e3a24" },
     heroTitle: "No pierdas otra manicura por no contestar el teléfono",
-    heroDescription: "AsistAI atiende llamadas, responde precios y agenda citas 24/7 — incluso mientras trabajas en una uña.",
+    heroDescription: "BotBook atiende llamadas, responde precios y agenda citas 24/7 — incluso mientras trabajas en una uña.",
     demoTitle: "Así reserva una cita de uñas",
     demoSteps: ["Configura técnicas, retiradas y extras de nail art.", "Asigna duración y profesionales compatibles.", "Recupera citas recurrentes incluso fuera de horario."],
     conversations: [
@@ -344,7 +344,7 @@ export const nicheLandings: Record<NicheSlug, NicheLandingContent> = {
       { title: "Alta recurrencia", description: "Facilita la próxima cita de clientes habituales.", result: "Más repetición mensual" },
     ],
     benefitsTitle: "Una agenda precisa para servicios llenos de detalles.",
-    benefitsDescription: "Cada extra cambia el tiempo de la cita. AsistAI pregunta lo necesario antes de confirmar.",
+    benefitsDescription: "Cada extra cambia el tiempo de la cita. BotBook pregunta lo necesario antes de confirmar.",
     benefits: [
       { title: "Manicura", description: "Reserva clásica, semipermanente, gel o acrílico.", result: "El hueco correcto para cada técnica" },
       { title: "Retiradas y retoques", description: "Pregunta por el estado previo y añade tiempo cuando corresponde.", result: "Menos retrasos en cadena" },
@@ -352,7 +352,7 @@ export const nicheLandings: Record<NicheSlug, NicheLandingContent> = {
     ],
     calendarIntegration: {
       title: "Tu disponibilidad real, también cuando la reserva llega por otro canal.",
-      description: "Si las citas de mensajes, Instagram o tu sistema de reservas se sincronizan con Google Calendar, AsistAI las ve antes de proponer un horario por teléfono.",
+      description: "Si las citas de mensajes, Instagram o tu sistema de reservas se sincronizan con Google Calendar, BotBook las ve antes de proponer un horario por teléfono.",
       examples: ["No ofrece huecos ya ocupados", "Respeta la duración de cada servicio", "Añade las llamadas a tu agenda habitual"],
     },
     calculator: { badge: "Calcula citas recurrentes perdidas", title: "¿Cuánto pierde tu salón cuando no responde?", description: "Mide el impacto mensual de manicuras y pedicuras que terminan reservándose en otro sitio.", ticketLabel: "Ticket medio por servicio", appointmentsLabel: "Citas perdidas cada semana", initialTicket: 30 },
@@ -361,7 +361,7 @@ export const nicheLandings: Record<NicheSlug, NicheLandingContent> = {
       { question: "¿Distingue una manicura sencilla de nail art?", answer: "Sí. Configuras categorías, tiempos y reglas para recoger el nivel de diseño antes de reservar." },
       { question: "¿Puede agendar la próxima cita?", answer: "Sí. Consulta disponibilidad y facilita que las clientas mantengan su frecuencia habitual." },
       { question: "¿Responde precios de cada técnica?", answer: "Sí. Usa tu catálogo real y puede aclarar qué extras afectan al precio antes de la visita." },
-      { question: "¿Puedo seguir recibiendo reservas por Instagram o WhatsApp?", answer: "Sí. Si esas citas llegan a Google Calendar, AsistAI las tiene en cuenta y sólo ofrece por teléfono horarios que siguen libres." },
+      { question: "¿Puedo seguir recibiendo reservas por Instagram o WhatsApp?", answer: "Sí. Si esas citas llegan a Google Calendar, BotBook las tiene en cuenta y sólo ofrece por teléfono horarios que siguen libres." },
     ],
     closingTitle: "Empieza a no perder citas de manicura esta semana.",
     sectorData: {
@@ -397,7 +397,7 @@ export const nicheLandings: Record<NicheSlug, NicheLandingContent> = {
     ],
     accent: { strong: "#a86a1c", soft: "#f7ecd8", deep: "#71470f" },
     heroTitle: "No pierdas otro corte por no contestar el teléfono",
-    heroDescription: "AsistAI atiende llamadas, resuelve dudas sobre servicios y agenda citas 24/7 — incluso con todas las sillas ocupadas.",
+    heroDescription: "BotBook atiende llamadas, resuelve dudas sobre servicios y agenda citas 24/7 — incluso con todas las sillas ocupadas.",
     demoTitle: "Así reserva una cita de barbería",
     demoSteps: ["Configura corte, barba, afeitado y packs.", "Asigna barberos, tiempos y horarios.", "Atiende llamadas rápidas durante las horas punta."],
     conversations: [
@@ -454,7 +454,7 @@ export const nicheLandings: Record<NicheSlug, NicheLandingContent> = {
     ],
     calendarIntegration: {
       title: "Tus reservas de siempre. Una agenda compartida.",
-      description: "AsistAI consulta Google Calendar antes de confirmar un corte o un pack. Las citas que ya entren desde web, WhatsApp u otra herramienta sincronizada se respetan automáticamente.",
+      description: "BotBook consulta Google Calendar antes de confirmar un corte o un pack. Las citas que ya entren desde web, WhatsApp u otra herramienta sincronizada se respetan automáticamente.",
       examples: ["Sin solapes entre teléfono y reservas online", "Huecos actualizados para cada barbero", "Todas las citas quedan en la misma agenda"],
     },
     calculator: { badge: "Calcula cortes que se escapan", title: "¿Cuánto pierde tu barbería en horas punta?", description: "Estima el valor de cortes y packs que no se reservan cuando nadie puede atender el teléfono.", ticketLabel: "Ticket medio por visita", appointmentsLabel: "Citas perdidas cada semana", initialTicket: 25 },
@@ -463,7 +463,7 @@ export const nicheLandings: Record<NicheSlug, NicheLandingContent> = {
       { question: "¿Distingue corte, barba y pack?", answer: "Sí. Cada servicio tiene su duración y reglas para bloquear el tiempo correcto." },
       { question: "¿Funciona para citas rápidas del mismo día?", answer: "Sí. Consulta huecos reales y puede ofrecer la primera franja disponible según tus reglas." },
       { question: "¿Atiende fuera del horario de apertura?", answer: "Sí. Tus clientes pueden consultar y reservar aunque la barbería esté cerrada." },
-      { question: "¿Qué pasa con mis reservas de web o WhatsApp?", answer: "AsistAI consulta Google Calendar antes de reservar. Las citas que lleguen desde otros canales sincronizados quedan protegidas." },
+      { question: "¿Qué pasa con mis reservas de web o WhatsApp?", answer: "BotBook consulta Google Calendar antes de reservar. Las citas que lleguen desde otros canales sincronizados quedan protegidas." },
     ],
     closingTitle: "Empieza a no perder cortes esta semana.",
     sectorData: {
@@ -502,7 +502,7 @@ export const nicheLandings: Record<NicheSlug, NicheLandingContent> = {
     ],
     accent: { strong: "#0e7f78", soft: "#e0f1ee", deep: "#0a5751" },
     heroTitle: "No pierdas otra primera visita por no contestar el teléfono",
-    heroDescription: "AsistAI atiende llamadas, recoge el motivo de consulta y agenda citas 24/7 — incluso mientras tratas a un paciente.",
+    heroDescription: "BotBook atiende llamadas, recoge el motivo de consulta y agenda citas 24/7 — incluso mientras tratas a un paciente.",
     demoTitle: "Así gestiona una cita de fisioterapia",
     demoSteps: [
       "Configura primeras visitas, seguimientos y especialidades.",
@@ -563,7 +563,7 @@ export const nicheLandings: Record<NicheSlug, NicheLandingContent> = {
     ],
     calendarIntegration: {
       title: "Protege la agenda de tu consulta en todos los canales.",
-      description: "AsistAI consulta Google Calendar antes de ofrecer una cita. Respeta las sesiones que ya entren por recepción, formulario web u otro sistema sincronizado.",
+      description: "BotBook consulta Google Calendar antes de ofrecer una cita. Respeta las sesiones que ya entren por recepción, formulario web u otro sistema sincronizado.",
       examples: ["Evita solapes entre pacientes", "Mantiene visibles las sesiones ya registradas", "Añade llamadas nuevas a tu calendario"],
     },
     calculator: {
@@ -579,7 +579,7 @@ export const nicheLandings: Record<NicheSlug, NicheLandingContent> = {
       { question: "¿El asistente ofrece diagnósticos o recomendaciones clínicas?", answer: "No. Recoge información general, responde cuestiones administrativas y deriva cualquier valoración clínica al fisioterapeuta." },
       { question: "¿Puede reservar con el fisioterapeuta habitual del paciente?", answer: "Sí. Consulta su disponibilidad y puede ofrecer alternativas si el profesional solicitado no tiene hueco." },
       { question: "¿Atiende mientras estoy en una sesión?", answer: "Sí. Está disponible durante las sesiones, fuera de horario y en festivos para que una llamada no interrumpa el tratamiento." },
-      { question: "¿Puedo mantener mi agenda o sistema actual?", answer: "Sí. AsistAI consulta Google Calendar como referencia de disponibilidad y respeta las sesiones de otros canales que ya estén sincronizadas." },
+      { question: "¿Puedo mantener mi agenda o sistema actual?", answer: "Sí. BotBook consulta Google Calendar como referencia de disponibilidad y respeta las sesiones de otros canales que ya estén sincronizadas." },
     ],
     closingTitle: "Empieza a no perder pacientes esta semana.",
     sectorData: {
@@ -693,7 +693,7 @@ export const nicheLinks = (Object.values(nicheLandings) as NicheLandingContent[]
 
 /**
  * Datos de sector para la landing genérica. Sirven para los cinco nichos y todas
- * las cifras llevan fuente externa verificable: AsistAI está en prelanzamiento y
+ * las cifras llevan fuente externa verificable: BotBook está en prelanzamiento y
  * no tiene métricas propias ni clientes que citar.
  */
 export const generalSectorData: SectorData = {

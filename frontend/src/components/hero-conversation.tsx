@@ -119,7 +119,7 @@ function ConversationScene({ conversation, reducedMotion }: { conversation: Conv
             >
               <div className={`max-w-[84%] sm:max-w-[76%] ${isClient ? "text-right" : "text-left"}`}>
                 <span className="mb-1 block px-1 text-xs font-semibold uppercase tracking-[0.12em] text-[#54634b]">
-                  {isClient ? "Cliente" : "AsistAI"}
+                  {isClient ? "Cliente" : "BotBook"}
                 </span>
                 <div
                   className={`rounded-xl border px-3 py-2 text-sm leading-6 backdrop-blur-xl sm:rounded-xl sm:px-4 sm:py-2.5 ${
@@ -196,7 +196,7 @@ export function HeroConversation({ paused = false, conversationsOverride }: { pa
 
   return (
     <section
-      aria-label="Ejemplos de llamadas atendidas automáticamente por AsistAI"
+      aria-label="Ejemplos de llamadas atendidas automáticamente por BotBook"
       className="relative h-full min-h-[310px] w-full overflow-hidden rounded-2xl border border-[#dce7d2] bg-[radial-gradient(circle_at_15%_20%,rgba(184,217,110,0.15),transparent_30%),radial-gradient(circle_at_85%_25%,rgba(44,115,52,0.08),transparent_34%),linear-gradient(145deg,#f8faf5_0%,#eef2eb_52%,#f1f5ed_100%)] shadow-[0_12px_40px_rgba(30,43,34,0.08)] sm:min-h-[380px] sm:rounded-2xl"
     >
       <div aria-hidden="true" className="absolute -left-12 top-20 h-40 w-40 rounded-full bg-[#b8d96e]/15 blur-3xl" />
@@ -242,7 +242,7 @@ export function HeroConversation({ paused = false, conversationsOverride }: { pa
       <p className="sr-only" aria-live="polite">
         {`Ejemplo de llamada, ${conversations[sceneIndex].context}. `}
         {conversations[sceneIndex].messages
-          .map((message) => `${message.sender === "client" ? "El cliente dice" : "AsistAI responde"}: ${message.text}`)
+          .map((message) => `${message.sender === "client" ? "El cliente dice" : "BotBook responde"}: ${message.text}`)
           .join(". ")}
         {`. Resultado: ${conversations[sceneIndex].result}, ${conversations[sceneIndex].resultDetail}.`}
       </p>

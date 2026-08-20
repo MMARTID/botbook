@@ -56,7 +56,7 @@ function QuickActionCard({
 
   if (!onClick) {
     return (
-      <div className={`flex h-full flex-col justify-between rounded-2xl border p-4 ${toneClasses[tone]}`}>
+      <div className={`flex h-full flex-col justify-between rounded-xl border p-4 ${toneClasses[tone]}`}>
         {content}
       </div>
     );
@@ -67,7 +67,7 @@ function QuickActionCard({
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className={`flex h-full flex-col justify-between rounded-2xl border p-4 text-left transition hover:-translate-y-0.5 hover:shadow-sm disabled:cursor-not-allowed disabled:opacity-60 ${toneClasses[tone]}`}
+      className={`flex h-full flex-col justify-between rounded-xl border p-4 text-left transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_4px_16px_rgba(30,43,34,0.04)] disabled:cursor-not-allowed disabled:opacity-60 ${toneClasses[tone]}`}
     >
       {content}
     </button>
@@ -199,8 +199,7 @@ function DashboardContent() {
           <div className="relative flex flex-col gap-5 sm:gap-6">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[#54634b]">Resumen</p>
-                <h1 className="mt-1.5 text-2xl font-semibold leading-tight text-[#1e2b22] sm:mt-2 sm:text-3xl">
+                <h1 className="text-2xl font-semibold leading-tight tracking-tight text-[#1e2b22] sm:text-3xl">
                   {hasCalendar ? "Tu asistente está operativo" : "Te faltan un par de pasos"}
                 </h1>
                 <p className="mt-2 max-w-2xl text-sm leading-6 text-[#54634b] sm:mt-3">
@@ -229,21 +228,21 @@ function DashboardContent() {
             ) : null}
 
             <div className="grid grid-cols-3 gap-2 sm:gap-4">
-              <article className="rounded-2xl border border-[#dce7d2] bg-[linear-gradient(180deg,#fcfef9,#ffffff)] p-3 shadow-sm sm:p-5">
+              <article className="rounded-xl border border-[#dce7d2] bg-[linear-gradient(180deg,#fcfef9,#ffffff)] p-3 shadow-[0_4px_16px_rgba(30,43,34,0.04)] sm:p-5">
                 <div className="flex items-center justify-between">
                   <p className="text-xs font-medium text-muted sm:text-sm">Llamadas</p>
-                  <span className="hidden rounded-xl bg-[#eef6dc] p-2 text-[#5d7342] sm:inline-flex">
+                  <span className="hidden rounded-xl bg-[#eef6dc] p-2 text-[#2c7334] sm:inline-flex">
                     <PhoneCall className="h-4 w-4" />
                   </span>
                 </div>
                 <p className="mt-2 text-2xl font-semibold tracking-tight text-[#1e2b22] sm:mt-4 sm:text-3xl">{stats.totalCalls}</p>
-                <p className="mt-2 hidden text-sm text-muted sm:block">Conversaciones atendidas por tu IA.</p>
+                <p className="mt-2 hidden text-sm text-muted sm:block">Conversaciones atendidas por tu recepcionista virtual.</p>
               </article>
 
-              <article className="rounded-2xl border border-[#d4dfc8] bg-[linear-gradient(180deg,#f4f7ef,#ffffff)] p-3 shadow-sm sm:p-5">
+              <article className="rounded-xl border border-[#dce7d2] bg-[linear-gradient(180deg,#fcfef9,#ffffff)] p-3 shadow-[0_4px_16px_rgba(30,43,34,0.04)] sm:p-5">
                 <div className="flex items-center justify-between">
                   <p className="text-xs font-medium text-muted sm:text-sm">Minutos</p>
-                  <span className="hidden rounded-xl bg-[#e8eee2] p-2 text-[#52604f] sm:inline-flex">
+                  <span className="hidden rounded-xl bg-[#eef6dc] p-2 text-[#2c7334] sm:inline-flex">
                     <Clock3 className="h-4 w-4" />
                   </span>
                 </div>
@@ -251,16 +250,15 @@ function DashboardContent() {
                 <p className="mt-2 hidden text-sm text-muted sm:block">Tiempo total de conversación registrado.</p>
               </article>
 
-              <article className="relative overflow-hidden rounded-2xl border border-[#cfe1ae] bg-[linear-gradient(180deg,#f6fadf,#ffffff)] p-3 shadow-sm sm:p-5">
-                <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,_rgba(184,217,110,0.22),_transparent_55%)]" />
-                <div className="relative flex items-center justify-between">
-                  <p className="text-xs font-medium text-muted sm:text-sm">Leads</p>
-                  <span className="hidden rounded-xl bg-[#e8f7b9] p-2 text-[#405115] sm:inline-flex">
+              <article className="rounded-xl border border-[#dce7d2] bg-[linear-gradient(180deg,#fcfef9,#ffffff)] p-3 shadow-[0_4px_16px_rgba(30,43,34,0.04)] sm:p-5">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-medium text-muted sm:text-sm">Posibles clientes</p>
+                  <span className="hidden rounded-xl bg-[#eef6dc] p-2 text-[#2c7334] sm:inline-flex">
                     <TrendingUp className="h-4 w-4" />
                   </span>
                 </div>
-                <p className="relative mt-2 text-2xl font-semibold tracking-tight text-[#1e2b22] sm:mt-4 sm:text-3xl">{stats.leads}</p>
-                <p className="relative mt-2 hidden text-sm text-muted sm:block">Potenciales clientes identificados.</p>
+                <p className="mt-2 text-2xl font-semibold tracking-tight text-[#1e2b22] sm:mt-4 sm:text-3xl">{stats.leads}</p>
+                <p className="mt-2 hidden text-sm text-muted sm:block">Identificados durante las llamadas.</p>
               </article>
             </div>
           </div>
@@ -283,14 +281,14 @@ function DashboardContent() {
               <StatusRow label={calendarProviderLabel === "Outlook" ? "Outlook Calendar" : "Google Calendar"} value={hasCalendar ? `Conectado · ${connectedCalendarDescription}` : "Pendiente"} icon={<CalendarDays className="h-4 w-4" />} />
               <StatusRow label="Documentos" value={`${contextFileCount} ${contextFileCount === 1 ? 'archivo' : 'archivos'}`} icon={<FileText className="h-4 w-4" />} />
               <StatusRow
-                label="Número Twilio"
+                label="Número de teléfono"
                 value={
                   phoneQuery.data?.status === "active"
                     ? (phoneQuery.data.phoneNumber ?? "Asignado")
                     : phoneQuery.data?.status === "failed"
                       ? "Error"
                       : phoneQuery.data?.status === "purchased"
-                        ? "Pendiente Vapi"
+                        ? "Pendiente de vincular"
                         : "Pendiente"
                 }
                 icon={<Smartphone className="h-4 w-4" />}
@@ -327,11 +325,11 @@ function DashboardContent() {
       ) : (
         <button
           type="button"
-          onClick={() => router.push("/ajustes")}
-          className="group flex w-full items-center justify-between rounded-2xl border border-[#dce7d2] bg-[linear-gradient(180deg,#fcfef9,#ffffff)] p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-[#cfe1ae] hover:shadow-md sm:p-5"
+          onClick={() => router.push("/ajustes?section=calendar-section")}
+          className="group flex w-full items-center justify-between rounded-xl border border-[#dce7d2] bg-[linear-gradient(180deg,#fcfef9,#ffffff)] p-4 text-left shadow-[0_4px_16px_rgba(30,43,34,0.04)] transition duration-200 hover:-translate-y-0.5 hover:border-[#cfe1ae] hover:shadow-[0_8px_24px_rgba(30,43,34,0.06)] sm:p-5"
         >
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-[#eef6dc] text-[#2c7334]">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#eef6dc] text-[#2c7334]">
               <CalendarDays className="h-5 w-5" />
             </div>
             <div>
@@ -346,16 +344,20 @@ function DashboardContent() {
         </button>
       )}
 
-      <section id="agent-configuration" className="panel scroll-mt-32 border-[#cfe1ae] bg-[linear-gradient(180deg,#f6fadf,#ffffff)] p-4 shadow-sm sm:p-5">
+      <section id="agent-configuration" className="panel scroll-mt-32 border-[#cfe1ae] bg-[linear-gradient(180deg,#f6fadf,#ffffff)] p-4 sm:p-5">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div>
-            <h2 className="flex items-center gap-2 text-base font-semibold text-[#1e2b22] sm:text-lg">
+          <div className="flex items-center gap-3">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#eef6dc] text-[#2c7334]">
               <FileText className="h-5 w-5" />
-              Documentos del agente
-            </h2>
-            <p className="mt-1 text-sm leading-6 text-muted">
-              PDFs, tarifas y FAQs que el agente consulta durante las llamadas.
-            </p>
+            </span>
+            <div>
+              <h2 className="text-base font-semibold text-[#1e2b22] sm:text-lg">
+                Documentos del agente
+              </h2>
+              <p className="mt-1 text-sm leading-6 text-muted">
+                PDFs, tarifas y FAQs que el agente consulta durante las llamadas.
+              </p>
+            </div>
           </div>
           {contextFileCount > 0 ? (
             <button
@@ -375,9 +377,9 @@ function DashboardContent() {
           className="hidden"
           accept={AGENT_FILE_ACCEPT}
         />
-        <div className="mt-4 min-h-20 rounded-2xl border border-[#e4e8df] bg-white p-3 text-sm text-muted">
+        <div className="mt-4 min-h-20 rounded-xl border border-[#e4e8df] bg-white p-3 text-sm text-muted">
           {uploadStatus && (
-            <div className={`mb-2 text-sm ${uploadStatus.type === 'success' ? 'text-emerald-600' : 'text-red-600'}`}>
+            <div className={`mb-2 text-sm ${uploadStatus.type === 'success' ? 'text-[#2c7334]' : 'text-[#c53030]'}`}>
               {uploadStatus.message}
             </div>
           )}
@@ -386,7 +388,7 @@ function DashboardContent() {
               {business.agents[0].files.map((file) => (
                 <li key={file.id} className="flex items-center justify-between gap-3 rounded-xl bg-[#f7f9f3] px-3 py-2 text-sm">
                   <span className="truncate">{file.name}</span>
-                  <span className="shrink-0 rounded-full bg-white px-2 py-1 text-xs font-semibold text-[#66705f]">Contexto</span>
+                  <span className="shrink-0 rounded-full bg-white px-2 py-1 text-xs font-semibold text-[#54634b]">Contexto</span>
                 </li>
               ))}
             </ul>

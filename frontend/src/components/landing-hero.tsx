@@ -33,7 +33,7 @@ export function LandingHero({ content }: { content?: NicheLandingContent }) {
               {content?.heroTitle ?? "No pierdas otra reserva por no contestar el teléfono"}
             </h1>
             <p className="max-w-xl text-base leading-7 text-[#54634b] sm:text-lg sm:leading-8">
-              {content?.heroDescription ?? "AsistAI atiende llamadas, resuelve dudas y agenda citas 24/7 — incluso mientras atiendes a otro cliente."}
+              {content?.heroDescription ?? "BotBook atiende llamadas, resuelve dudas y agenda citas 24/7 — incluso mientras atiendes a otro cliente."}
             </p>
           </div>
 
@@ -90,6 +90,7 @@ export function LandingHero({ content }: { content?: NicheLandingContent }) {
         open={isDemoOpen}
         onClose={() => setIsDemoOpen(false)}
         onActiveChange={setIsDemoActive}
+        niche={content?.slug}
       />
     </>
   );

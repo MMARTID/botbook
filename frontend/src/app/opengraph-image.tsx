@@ -1,7 +1,7 @@
 import { ImageResponse } from "next/og";
 
 export const runtime = "edge";
-export const alt = "AsistAI — Recepción telefónica para negocios con cita previa";
+export const alt = "BotBook — Recepción telefónica para negocios con cita previa";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
@@ -46,7 +46,7 @@ export default async function OpenGraphImage() {
           </div>
           <div style={{ display: "flex", flexDirection: "column" }}>
             <span style={{ fontSize: "38px", fontWeight: 700, color: "#1e2b22", letterSpacing: "-0.02em" }}>
-              AsistAI
+              BotBook
             </span>
             <span style={{ fontSize: "24px", color: "#54634b" }}>Recepción telefónica con IA</span>
           </div>

@@ -3,7 +3,7 @@ import { SiteLanding } from "@/components/site-landing";
 import { absoluteUrl, defaultDescription, landingStructuredData, seoKeywords, siteName } from "@/lib/seo";
 
 export const metadata: Metadata = {
-  title: { absolute: "Asistente telefónico con IA para reservas 24/7 | AsistAI" },
+  title: { absolute: "Asistente telefónico con IA para reservas 24/7 | BotBook" },
   description: defaultDescription,
   keywords: [
     ...seoKeywords,
@@ -17,7 +17,7 @@ export const metadata: Metadata = {
     canonical: absoluteUrl("/landing"),
   },
   openGraph: {
-    title: "Asistente telefónico con IA para reservas 24/7 | AsistAI",
+    title: "Asistente telefónico con IA para reservas 24/7 | BotBook",
     description: defaultDescription,
     url: absoluteUrl("/landing"),
     siteName,
@@ -26,7 +26,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "Asistente telefónico con IA para reservas 24/7 | AsistAI",
+    title: "Asistente telefónico con IA para reservas 24/7 | BotBook",
     description: defaultDescription, 
     
   },

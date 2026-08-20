@@ -1,7 +1,7 @@
-export const siteName = "AsistAI";
-export const defaultTitle = "AsistAI | Asistente telefónico 24/7 para peluquerías y centros de estética";
+export const siteName = "BotBook";
+export const defaultTitle = "BotBook | Asistente telefónico 24/7 para peluquerías y centros de estética";
 export const defaultDescription =
-  "AsistAI es el asistente telefónico con IA para negocios con cita previa: responde llamadas, resuelve dudas y reserva citas automáticamente las 24 horas.";
+  "BotBook es el asistente telefónico con IA para negocios con cita previa: responde llamadas, resuelve dudas y reserva citas automáticamente las 24 horas.";
 
 const rawSiteUrl = process.env.NEXT_PUBLIC_SITE_URL?.trim();
 

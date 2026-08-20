@@ -17,7 +17,7 @@ const geistMono = localFont({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL(siteUrl ?? "https://asistai.es"),
+  metadataBase: new URL(siteUrl ?? "https://botbook.es"),
   title: {
     default: defaultTitle,
     template: `%s | ${siteName}`,
