@@ -12,7 +12,7 @@ const benefits = [
 
 export default function PlansPage() {
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,rgba(184,217,110,0.22),transparent_28%),radial-gradient(circle_at_top_right,rgba(30,43,34,0.08),transparent_24%),linear-gradient(180deg,#f9fbf7_0%,#eef3eb_52%,#e4ebe0_100%)] text-[#1e2b22]">
+    <main className="min-h-screen bg-white text-[#0a0a0a]">
       <div className="mx-auto flex min-h-screen max-w-7xl flex-col px-6 py-6 lg:px-8">
         <header className="flex items-center justify-between gap-4">
           <Link href="/landing" className="btn-secondary px-4">
@@ -29,7 +29,7 @@ export default function PlansPage() {
             <div className="mx-auto max-w-3xl text-center">
               <span className="badge-soft">Planes BotBook</span>
               <PlansHeadline />
-              <p className="mt-5 text-lg leading-8 text-[#54634b]">
+              <p className="mt-5 text-lg leading-8 text-[#52525b]">
                 Elige el plan que encaja hoy y déjanos la recepción: disponibilidad real, tono impecable y operativa lista para crecer.
               </p>
             </div>
@@ -39,11 +39,11 @@ export default function PlansPage() {
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
               {benefits.map(({ title, description, icon: Icon }) => (
                 <article key={title} className="panel p-5">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#eef6dc] text-[#2c7334]">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#f3eeff] text-[#8b5cf6]">
                     <Icon className="h-5 w-5" />
                   </div>
-                  <h3 className="mt-4 font-semibold text-[#1e2b22]">{title}</h3>
-                  <p className="mt-2 text-sm leading-6 text-[#54634b]">{description}</p>
+                  <h3 className="mt-4 font-bold text-[#0a0a0a]">{title}</h3>
+                  <p className="mt-2 text-sm leading-6 text-[#52525b]">{description}</p>
                 </article>
               ))}
             </div>

@@ -93,10 +93,10 @@ export default function RegisterBusinessNichePage() {
     <div className="flex min-h-screen items-center justify-center px-4 py-12 sm:px-6 lg:px-8">
       <div className="panel w-full max-w-lg p-8">
         <div className="space-y-4 text-center">
-          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-[#1e2b22] text-[#b8d96e] shadow-sm">
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-[#f3eeff] text-[#8b5cf6]">
             <Store className="h-7 w-7" />
           </div>
-          <h2 className="text-3xl font-semibold tracking-tight text-[#1e2b22]">
+          <h2 className="text-3xl font-black tracking-tight text-[#0a0a0a]">
             ¿Qué tipo de negocio tienes?
           </h2>
           <p className="mx-auto max-w-md text-sm leading-6 text-muted">
@@ -106,17 +106,17 @@ export default function RegisterBusinessNichePage() {
 
         {isConfirmationMode ? (
           <div className="mt-8 space-y-6">
-            <div className="rounded-2xl border border-[#dce7d2] bg-[#fbfcf8] p-6 text-center">
+            <div className="rounded-2xl border border-[#e5e5e5] bg-[#fafafa] p-6 text-center">
               <p className="text-sm text-muted">
                 {selectionSource === "places"
                   ? "Hemos detectado que tu negocio es una"
                   : "El asistente sería para una"}
               </p>
-              <p className="mt-2 text-2xl font-semibold text-[#1e2b22]">
+              <p className="mt-2 text-2xl font-black text-[#0a0a0a]">
                 {BUSINESS_TYPE_LABELS[selectedType]}
               </p>
               {selectionSource === "places" ? (
-                <p className="mt-2 text-xs text-[#8a9388]">
+                <p className="mt-2 text-xs text-[#a1a1aa]">
                   Basado en la información de Google Maps
                 </p>
               ) : null}
@@ -145,7 +145,7 @@ export default function RegisterBusinessNichePage() {
                 type="button"
                 onClick={() => setSelectedType(null)}
                 disabled={saving}
-                className="w-full rounded-xl border border-[#dce1d8] bg-white px-4 py-3 text-sm font-semibold text-muted transition hover:bg-[#fafbf8] disabled:cursor-not-allowed disabled:opacity-50"
+                className="btn-secondary w-full justify-center disabled:cursor-not-allowed disabled:opacity-50"
               >
                 No, cambiar tipo de negocio
               </button>
@@ -159,18 +159,18 @@ export default function RegisterBusinessNichePage() {
                 type="button"
                 onClick={() => handleConfirm(type)}
                 disabled={saving}
-                className="flex w-full items-center justify-between rounded-xl border border-[#dce1d8] bg-white px-5 py-4 text-left transition hover:border-[#b8d96e] hover:bg-[#fbfcf8] disabled:cursor-not-allowed disabled:opacity-50"
+                className="flex w-full items-center justify-between rounded-2xl border border-[#e5e5e5] bg-white px-5 py-4 text-left transition hover:border-[#8b5cf6] hover:bg-[#fafafa] disabled:cursor-not-allowed disabled:opacity-50"
               >
-                <span className="font-semibold text-[#344038]">
+                <span className="font-semibold text-[#27272a]">
                   {BUSINESS_TYPE_LABELS[type]}
                 </span>
-                <Bot className="h-4 w-4 text-[#8a9388]" />
+                <Bot className="h-4 w-4 text-[#a1a1aa]" />
               </button>
             ))}
           </div>
         )}
 
-        {error && <p className="mt-4 text-sm text-red-600">{error}</p>}
+        {error && <p className="mt-4 text-sm text-[#c53030]">{error}</p>}
       </div>
     </div>
   );

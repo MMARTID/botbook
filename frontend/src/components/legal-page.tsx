@@ -1,6 +1,6 @@
 import Link from "next/link";
-import Image from "next/image";
 import { ArrowLeft } from "lucide-react";
+import { BrandMark } from "@/components/brand-mark";
 
 type LegalPageProps = {
   title: string;
@@ -22,7 +22,7 @@ export function LegalPage({ title, description, updatedAt, children }: LegalPage
       <header className="border-b border-white/60 bg-[#f8faf5]/80 backdrop-blur-xl">
         <div className="mx-auto flex h-16 max-w-3xl items-center justify-between gap-3 px-4 sm:px-6 lg:h-[4.5rem]">
           <Link href="/landing" aria-label="Ir al inicio de BotBook" className="flex min-w-0 items-center gap-2.5">
-            <Image src="/brand/logo.png" alt="BotBook" width={40} height={40} className="h-10 w-10 shrink-0 object-contain" priority />
+            <BrandMark className="h-10 w-10 shrink-0" />
             <p className="text-base font-semibold leading-5 text-[#1e2b22]">BotBook</p>
           </Link>
           <Link href="/landing" className="btn-secondary h-11 px-4">

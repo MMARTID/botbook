@@ -70,6 +70,27 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
+        {/*
+          IMPECCABLE DIRECTION CONTRACT
+          THESIS: BotBook rompe con el papel verde de mostrador hacia un editorial de
+          alto contraste — cada llamada perdida se muestra con la contundencia de una
+          hoja de cálculo, no de un folleto.
+          OWN-WORLD: blanco puro, tinta casi negra, un único acento morado
+          (#8B5CF6 / #A78BFA) reservado a badges, iconos, CTA secundario y cifras
+          clave. Tarjetas de borde gris 1px y radio grande; CTA primario negro sólido
+          en píldora.
+          STORY: el dueño entiende en un vistazo que cada llamada sin contestar es
+          dinero que se va a la competencia, y actúa viendo cómo funciona o empezando.
+          FIRST VIEWPORT: badge morado con flecha, H1 negro bold de dos líneas,
+          subtítulo, dos CTAs (negro + outline), checkmarks morados, y debajo una
+          tarjeta mockup de llamada entrante estilo terminal (dots rojo/ámbar/verde)
+          con conversación real y confirmación morada.
+          FORM: dirección fijada por el brief del usuario (PDF transcrito por el
+          cliente), sin ronda de dados — new-work.md: "el brief gana".
+          FINISH: unreviewed and undocumented is unfinished; this build ends with the
+          finish review, the verdict, DESIGN.md, and every shipping raster carrying
+          its provenance.
+        */}
         <Providers>
           <AppShell>{children}</AppShell>
         </Providers>

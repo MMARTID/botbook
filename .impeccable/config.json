@@ -1,0 +1,50 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "design-system-font-size",
+        "value": "2.65rem",
+        "createdAt": "2026-08-23T15:01:18.877Z",
+        "reason": "nuevo escalón de display del rediseño morado/negro, se documentará en DESIGN.md al finalizar"
+      },
+      {
+        "rule": "design-system-font-size",
+        "value": "4.25rem",
+        "createdAt": "2026-08-23T15:01:18.905Z",
+        "reason": "nuevo escalón de display del rediseño morado/negro, se documentará en DESIGN.md al finalizar"
+      },
+      {
+        "rule": "design-system-color",
+        "value": "#a78bfa",
+        "createdAt": "2026-08-23T15:01:36.849Z",
+        "reason": "user confirmed: acento morado claro pedido explícitamente en el brief del rediseño (#A78BFA)"
+      },
+      {
+        "rule": "design-system-color",
+        "value": "#8b5cf6",
+        "createdAt": "2026-08-23T15:02:15.710Z",
+        "reason": "user confirmed: acento morado principal pedido explícitamente en el brief del rediseño (#8B5CF6)"
+      },
+      {
+        "rule": "design-system-color",
+        "value": "#e5e5e5",
+        "createdAt": "2026-08-23T15:02:15.738Z",
+        "reason": "user confirmed: borde gris claro de tarjetas pedido explícitamente en el brief del rediseño"
+      },
+      {
+        "rule": "design-system-color",
+        "value": "#d4d4d8",
+        "createdAt": "2026-08-23T15:37:28.621Z",
+        "reason": "gris neutro de la escala del rediseño (thumb de scrollbar en reposo), consistente con e5e5e5/a1a1aa ya usados"
+      },
+      {
+        "rule": "design-system-color",
+        "value": "#a1a1aa",
+        "createdAt": "2026-08-23T15:37:28.652Z",
+        "reason": "gris neutro de la escala del rediseño (thumb de scrollbar en hover), ya usado como color de placeholder en .field"
+      }
+    ]
+  }
+}

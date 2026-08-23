@@ -1,17 +1,14 @@
 
-import Image from "next/image";
 import Link from "next/link";
 import { ArrowRight, CalendarDays, Check, Clock3, MessageCircleMore, Scissors, Sparkles, Store } from "lucide-react";
 import { LandingHero } from "@/components/landing-hero";
 import { MobileNav } from "@/components/mobile-nav";
 import { SectorDataSection } from "@/components/sector-data-section";
 import { RevenueLossCalculator } from "@/components/revenue-loss-calculator";
+import { Reveal } from "@/components/scroll-reveal";
+import { BrandMark } from "@/components/brand-mark";
 import { formatIncludedMinutes, formatPlanPrice, plans, TRIAL_REASSURANCE } from "@/lib/plans";
-import { generalSectorData, nicheLinks, type NicheLandingContent } from "@/lib/niche-landings";
-
-const ASSET_PATHS = {
-  logo: "/brand/logo.png",
-} as const;
+import { generalSectorData, type NicheLandingContent } from "@/lib/niche-landings";
 
 function buildPlansHref(niche?: string) {
   return niche ? `/planes?niche=${encodeURIComponent(niche)}` : "/planes";
@@ -19,19 +16,9 @@ function buildPlansHref(niche?: string) {
 
 function BrandLogo() {
   return (
-    <Link href="/landing" aria-label="Ir al inicio de BotBook" className="flex min-w-0 items-center gap-2.5 sm:gap-3">
-      <Image
-        src={ASSET_PATHS.logo}
-        alt="BotBook"
-        width={44}
-        height={44}
-        className="h-10 w-10 shrink-0 object-contain sm:h-11 sm:w-11"
-        priority
-      />
-      <div>
-        <p className="text-base font-semibold leading-5 text-[#1e2b22]">BotBook</p>
-        <p className="hidden text-xs text-[#54634b] sm:block">Recepción inteligente para negocios</p>
-      </div>
+    <Link href="/landing" aria-label="Ir al inicio de BotBook" className="flex min-w-0 items-center gap-2.5">
+      <BrandMark className="h-8 w-8 shrink-0 sm:h-9 sm:w-9" />
+      <p className="text-base font-black leading-5 tracking-tight text-[#0a0a0a]">BotBook</p>
     </Link>
   );
 }
@@ -45,16 +32,31 @@ const businessBenefits = [
   {
     title: "Centros de estética",
     description: "Responde dudas sobre servicios, duración y disponibilidad antes de confirmar la cita.",
-    result: "Una atención cuidada desde el primer contacto",
+    result: "Atención cuidada desde el primer contacto",
   },
   {
     title: "Barberías, uñas y fisioterapia",
-    description: "Cita con el profesional de siempre, duración real de cada servicio y huecos que cuadran con tu jornada.",
+    description: "Cita con el profesional de siempre, duración real y huecos que cuadran con tu jornada.",
     result: "La agenda se llena sin soltar las manos",
   },
 ] as const;
 
 const BENEFIT_ICONS = [Scissors, Sparkles, Store] as const;
+
+const threeSteps = [
+  {
+    title: "Suena tu número de siempre",
+    description: "Activas un desvío condicional en 15 segundos. Solo las llamadas que no contestas van al asistente.",
+  },
+  {
+    title: "Responde como si fuera de la casa",
+    description: "Conoce tus servicios, precios y huecos reales. Si no sabe algo, toma un recado en vez de inventarlo.",
+  },
+  {
+    title: "La cita, en tu agenda al colgar",
+    description: "Confirmación automática y ficha con quién llamó y qué reservó. Duración media: menos de 2 minutos.",
+  },
+] as const;
 
 const frequentlyAskedQuestions = [
   {
@@ -62,31 +64,31 @@ const frequentlyAskedQuestions = [
     answer: "Sí, completamente. Tus clientes seguirán llamando a tu número habitual; BotBook atiende las llamadas mediante un simple desvío desde tu móvil o fijo. No tienes que publicar un número nuevo ni avisar a nadie.",
   },
   {
-    question: "¿Cómo funciona el desvío de llamadas? ¿Es difícil de configurar?",
-    answer: "Es muy sencillo. Activas un desvío desde tu teléfono habitual marcando un código rápido; tarda unos 15 segundos. Te damos las instrucciones paso a paso para tu operador, sin cambiar tu número ni tocar ajustes técnicos.",
+    question: "¿Es difícil configurar el desvío de llamadas?",
+    answer: "No. Activas un desvío desde tu teléfono habitual marcando un código rápido; tarda unos 15 segundos. Te damos las instrucciones paso a paso para tu operador, sin cambiar tu número ni tocar ajustes técnicos.",
   },
   {
-    question: "¿Puede reservar, cambiar y cancelar citas en mi agenda?",
+    question: "¿Puede reservar, cambiar y cancelar citas?",
     answer: "Sí. BotBook comprueba tu horario y tu disponibilidad real antes de ofrecer un hueco, y registra, modifica o cancela citas directamente en tu Google Calendar o tu Outlook, respetando los servicios y las reglas que marques.",
   },
   {
-    question: "¿Puede responder dudas sobre mis servicios y precios?",
+    question: "¿Responde dudas sobre precios y servicios?",
     answer: "Sí. Le das la información real de tu negocio: carta de precios en PDF, servicios, duración, horarios y datos de Google Maps. Así responde con seguridad sin que tengas que dejar a medias un tinte, unas uñas o una sesión.",
   },
   {
-    question: "¿La voz suena natural o como un robot antiguo?",
+    question: "¿La voz suena natural?",
     answer: "Suena natural y cercana, en español de España. Puedes ajustar cómo habla —más cálida, más profesional o más directa— y si da respuestas breves o algo más explicadas, para que encaje con el trato que das en tu negocio.",
   },
   {
-    question: "¿Qué ocurre si una llamada necesita atención humana o es urgente?",
+    question: "¿Qué pasa si la llamada necesita atención humana?",
     answer: "BotBook recoge el motivo, los datos y el contexto de la llamada para que no se pierda nada importante. Cuando una consulta requiere a tu equipo, deja el aviso preparado para que podáis responder con toda la información.",
   },
   {
-    question: "¿Qué pasa si un cliente llama fuera de mi horario?",
-    answer: "BotBook sigue disponible 24/7. Puede resolver dudas y gestionar solicitudes incluso por la noche, en festivos o mientras tienes cerrado, para que no pierdas una posible cita por no contestar.",
+    question: "¿Atiende fuera de horario?",
+    answer: "Sí, BotBook sigue disponible 24/7. Puede resolver dudas y gestionar solicitudes incluso por la noche, en festivos o mientras tienes cerrado, para que no pierdas una posible cita por no contestar.",
   },
   {
-    question: "¿Hay permanencia o compromiso de permanencia?",
+    question: "¿Hay permanencia?",
     answer: "No. Empiezas con el plan que mejor encaje con tu volumen y puedes cambiarlo cuando lo necesites. Sin contratos largos ni compromisos que te aten.",
   },
   {
@@ -103,46 +105,36 @@ export function SiteLanding({ content }: { content?: NicheLandingContent }) {
   return (
     <main
       id="main-content"
-      className="relative isolate min-h-screen w-full overflow-hidden bg-[#f3f6ef] text-[#1e2b22]"
+      className="relative min-h-screen w-full bg-white text-[#0a0a0a]"
       data-landing="botbook"
     >
       <a
         href="#contenido"
-        className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-[60] focus:rounded-xl focus:bg-[#1e2b22] focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-white"
+        className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-[60] focus:rounded-full focus:bg-[#0a0a0a] focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-white"
       >
         Saltar al contenido
       </a>
-      <div className="pointer-events-none absolute inset-0 -z-20 bg-[linear-gradient(180deg,#fbfcf8_0%,#f1f5ec_44%,#e9efe5_100%)]" />
-      <div className="pointer-events-none absolute -left-40 top-12 -z-10 h-[34rem] w-[34rem] rounded-full bg-[#b8d96e]/25 blur-[110px]" />
-      <div
-        className="pointer-events-none absolute -right-40 top-72 -z-10 h-[32rem] w-[32rem] rounded-full blur-[120px]"
-        style={
-          content?.accent
-            ? { backgroundColor: content.accent.soft, opacity: 0.6 }
-            : { backgroundColor: "#c6d7c1", opacity: 0.35 }
-        }
-      />
 
-      <header className="relative sticky top-0 z-50 border-b border-white/60 bg-[#f8faf5]/80 backdrop-blur-xl">
+      <header className="sticky top-0 z-50 border-b border-[#e5e5e5] bg-white/90 backdrop-blur-xl">
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-3 px-4 sm:px-6 lg:h-[4.5rem] lg:px-8">
           <BrandLogo />
           <nav className="hidden items-center gap-3 md:flex" aria-label="Navegación principal">
-            <a href="#como-funciona" className="text-sm font-medium text-[#344038] transition hover:text-[#1e2b22]">
+            <a href="#por-que" className="text-sm font-medium text-[#3f3f46] transition hover:text-[#0a0a0a]">
+              Por qué
+            </a>
+            <a href="#como-funciona" className="text-sm font-medium text-[#3f3f46] transition hover:text-[#0a0a0a]">
               Cómo funciona
             </a>
-            <a href="#calculadora" className="text-sm font-medium text-[#344038] transition hover:text-[#1e2b22]">
-              Calculadora
-            </a>
-            <a href="#precios" className="text-sm font-medium text-[#344038] transition hover:text-[#1e2b22]">
+            <a href="#precios" className="text-sm font-medium text-[#3f3f46] transition hover:text-[#0a0a0a]">
               Precios
             </a>
-            <a href="#preguntas" className="text-sm font-medium text-[#344038] transition hover:text-[#1e2b22]">
+            <a href="#preguntas" className="text-sm font-medium text-[#3f3f46] transition hover:text-[#0a0a0a]">
               Preguntas
             </a>
-            <Link href="/login" className="btn-secondary px-4">
+            <Link href="/login" className="btn-secondary h-10 px-4">
               Iniciar sesión
             </Link>
-            <Link href={plansHref} className="btn-primary px-4">
+            <Link href={plansHref} className="btn-primary h-10 px-4">
               Empezar ahora
             </Link>
           </nav>
@@ -159,101 +151,47 @@ export function SiteLanding({ content }: { content?: NicheLandingContent }) {
           se muestran los transversales, todos con fuente externa citada. */}
       <SectorDataSection data={content?.sectorData ?? generalSectorData} accent={content?.accent} />
 
-      <section id="como-funciona" className="border-y border-white/70 bg-white/35 py-16 sm:py-20">
+      <section id="como-funciona" className="scroll-m-20 bg-[#fafafa] py-16 sm:py-20">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="mb-12 max-w-2xl">
-            <h2 className="text-3xl font-semibold tracking-tight text-[#1e2b22] sm:text-4xl">
-              De llamada perdida a cita confirmada.
+          <Reveal className="mb-10 max-w-2xl">
+            <h2 className="text-3xl font-black tracking-tight text-[#0a0a0a] sm:text-4xl">
+              De llamada perdida a cita confirmada, en tres pasos.
             </h2>
-          </div>
+          </Reveal>
 
-          <div className="divide-y divide-[#e2e9dc]">
-            {/* Paso 01 */}
-            <div className="grid gap-8 py-10 lg:grid-cols-[4rem_1fr_1fr] lg:gap-12 lg:py-12">
-              <span className="text-4xl font-semibold tracking-tight text-[#b8d96e]">01</span>
-              <div>
-                <h3 className="text-xl font-semibold text-[#1e2b22] sm:text-2xl">Suena tu número de siempre</h3>
-                <p className="mt-3 max-w-md text-sm leading-7 text-[#54634b]">
-                  Activas el desvío condicional con un código. Solo las llamadas que no contestas van al asistente; todo lo demás sigue igual.
-                </p>
-              </div>
-              <div className="flex flex-col gap-3 rounded-2xl border border-[#e2e9dc] bg-white/80 p-5 shadow-[0_4px_16px_rgba(30,43,34,0.04)]">
-                <p className="font-mono text-2xl font-semibold tracking-tight text-[#1e2b22]">*61*6········#</p>
-                <div className="flex items-center gap-2 text-xs text-[#54634b]">
-                  <span className="inline-block h-1.5 w-1.5 rounded-full bg-[#2c7334]" />
-                  desvío activado
-                </div>
-                <p className="text-xs leading-5 text-muted">
-                  Funciona en cualquier móvil y con cualquier operador español.
-                </p>
-              </div>
-            </div>
-
-            {/* Paso 02 */}
-            <div className="grid gap-8 py-10 lg:grid-cols-[4rem_1fr_1fr] lg:gap-12 lg:py-12">
-              <span className="text-4xl font-semibold tracking-tight text-[#b8d96e]">02</span>
-              <div>
-                <h3 className="text-xl font-semibold text-[#1e2b22] sm:text-2xl">Habla como si fuera de la casa</h3>
-                <p className="mt-3 max-w-md text-sm leading-7 text-[#54634b]">
-                  Conoce tus servicios, tus precios y tus huecos reales. Responde en el idioma del cliente y, si algo no lo sabe, toma un recado en vez de inventárselo.
-                </p>
-              </div>
-              <div className="flex flex-col gap-3 rounded-2xl border border-[#e2e9dc] bg-white/80 p-5 shadow-[0_4px_16px_rgba(30,43,34,0.04)]">
-                <div className="self-end rounded-2xl rounded-br-sm bg-[#eef6dc] px-4 py-2.5 text-sm font-medium text-[#344038]">
-                  Do you speak English?
-                </div>
-                <div className="self-start rounded-2xl rounded-bl-sm border border-[#e2e9dc] bg-white px-4 py-2.5 text-sm font-medium text-[#344038]">
-                  Of course! When would you like to come in?
-                </div>
-                <p className="text-xs text-muted">cambia de idioma a mitad de llamada</p>
-              </div>
-            </div>
-
-            {/* Paso 03 */}
-            <div className="grid gap-8 py-10 lg:grid-cols-[4rem_1fr_1fr] lg:gap-12 lg:py-12">
-              <span className="text-4xl font-semibold tracking-tight text-[#b8d96e]">03</span>
-              <div>
-                <h3 className="text-xl font-semibold text-[#1e2b22] sm:text-2xl">La cita en tu agenda, la ficha en tu WhatsApp</h3>
-                <p className="mt-3 max-w-md text-sm leading-7 text-[#54634b]">
-                  El cliente recibe la confirmación al colgar; tú, la ficha: quién llamó, qué quería y qué se reservó. Una llamada media: menos de 2 minutos.
-                </p>
-              </div>
-              <div className="flex flex-col gap-3">
-                <div className="rounded-2xl border border-[#d7e9c5] bg-[#f7fbee] p-4 shadow-[0_4px_16px_rgba(30,43,34,0.04)]">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-[#2c7334]">Ficha para ti</p>
-                  <p className="mt-1.5 text-sm font-semibold text-[#1e2b22]">María · Corte · mañana 16:30 · Ana</p>
-                  <p className="mt-1 flex items-center gap-1.5 text-xs text-muted">
-                    <span className="inline-block h-1 w-1 rounded-full bg-[#2c7334]" />
-                    WhatsApp · al momento
-                  </p>
-                </div>
-                <div className="rounded-2xl border border-[#e2e9dc] bg-white/80 p-4 shadow-[0_4px_16px_rgba(30,43,34,0.04)]">
-                  <p className="text-xs font-medium text-muted">tu agenda · mañana</p>
-                  <p className="mt-2 border-l-2 border-[#b8d96e] pl-3 text-sm font-semibold text-[#1e2b22]">
-                    16:30 · María · Corte · Ana
-                  </p>
-                </div>
-              </div>
-            </div>
+          <div className="grid gap-5 lg:grid-cols-3">
+            {threeSteps.map((step, index) => (
+              <Reveal key={step.title} delay={index * 0.1}>
+                <article className="panel h-full p-7 sm:p-8">
+                  <span className="text-4xl font-black tracking-tight text-[#8b5cf6]">
+                    {String(index + 1).padStart(2, "0")}
+                  </span>
+                  <h3 className="mt-5 text-xl font-bold text-[#0a0a0a]">{step.title}</h3>
+                  <p className="mt-3 text-sm leading-7 text-[#52525b]">{step.description}</p>
+                </article>
+              </Reveal>
+            ))}
           </div>
         </div>
       </section>
 
-      <section className="bg-[linear-gradient(135deg,rgba(238,246,220,0.82),rgba(255,255,255,0.96))] py-16 sm:py-20">
+      <section className="bg-white py-16 sm:py-20">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="grid gap-7 rounded-2xl border border-[#d4e4bd] bg-white/75 p-6 shadow-[0_8px_24px_rgba(30,43,34,0.06)] sm:p-8 lg:grid-cols-[0.9fr_1.1fr] lg:items-center lg:gap-12 lg:p-10">
-            <div>
-              <span className="inline-flex items-center gap-2 rounded-full bg-[#1e2b22] px-3 py-1.5 text-xs font-semibold text-white">
-                <CalendarDays className="h-3.5 w-3.5 text-[#b8d96e]" />
-                Google Calendar
-              </span>
-              <h2 className="mt-5 text-3xl font-semibold leading-tight tracking-tight text-[#1e2b22] sm:text-4xl">
-                {content?.calendarIntegration.title ?? "No tienes que cambiar cómo recibes tus reservas."}
+          <Reveal>
+            <span className="badge-soft gap-2">
+              <CalendarDays className="h-3.5 w-3.5" />
+              Google Calendar & Outlook
+            </span>
+          </Reveal>
+          <div className="mt-5 grid gap-8 lg:grid-cols-[0.9fr_1.1fr] lg:items-center lg:gap-12">
+            <Reveal delay={0.05}>
+              <h2 className="text-3xl font-black leading-tight tracking-tight text-[#0a0a0a] sm:text-4xl">
+                {content?.calendarIntegration.title ?? "No cambias cómo recibes tus reservas."}
               </h2>
-              <p className="mt-4 max-w-xl text-base leading-7 text-[#54634b]">
-                {content?.calendarIntegration.description ?? "BotBook consulta Google Calendar antes de confirmar una cita. Si las reservas de tu web, WhatsApp o software ya llegan ahí, el agente las respeta antes de ofrecer un horario por teléfono."}
+              <p className="mt-4 max-w-xl text-base leading-7 text-[#52525b]">
+                {content?.calendarIntegration.description ?? "BotBook consulta tu calendario antes de confirmar una cita. Si las reservas de tu web o WhatsApp ya llegan ahí, el agente las respeta antes de ofrecer un horario por teléfono."}
               </p>
-            </div>
+            </Reveal>
             <div className="grid gap-3">
               {(content?.calendarIntegration.examples ?? [
                 "Las citas de otros canales bloquean ese hueco",
@@ -262,12 +200,14 @@ export function SiteLanding({ content }: { content?: NicheLandingContent }) {
               ]).map((example, index) => {
                 const Icon = index === 0 ? MessageCircleMore : index === 1 ? Clock3 : CalendarDays;
                 return (
-                  <div key={example} className="flex items-start gap-4 rounded-2xl border border-[#dce7d2] bg-white p-4 shadow-sm">
-                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#eef6dc] text-[#2c7334]">
-                      <Icon className="h-5 w-5" />
-                    </span>
-                    <p className="pt-2 text-sm font-semibold leading-5 text-[#344038]">{example}</p>
-                  </div>
+                  <Reveal key={example} delay={index * 0.1} y={14}>
+                    <div className="flex items-center gap-4 rounded-2xl border border-[#e5e5e5] bg-white p-4">
+                      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#f3eeff] text-[#8b5cf6]">
+                        <Icon className="h-5 w-5" />
+                      </span>
+                      <p className="text-sm font-semibold leading-5 text-[#27272a]">{example}</p>
+                    </div>
+                  </Reveal>
                 );
               })}
             </div>
@@ -275,153 +215,130 @@ export function SiteLanding({ content }: { content?: NicheLandingContent }) {
         </div>
       </section>
 
-      <section className="bg-[linear-gradient(135deg,rgba(255,255,255,0.58),rgba(238,246,224,0.72))] py-16 sm:py-20 lg:py-24">
+      <section className="bg-[#fafafa] py-16 sm:py-20 lg:py-24">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="grid gap-8 lg:grid-cols-[0.82fr_1.18fr] lg:items-end lg:gap-14">
-            <div className="max-w-xl">
-              <h2 className="text-3xl font-semibold leading-tight tracking-tight text-[#1e2b22] sm:text-4xl lg:text-5xl">
-                {content?.benefitsTitle ?? "El teléfono deja de interrumpir. Empieza a trabajar para ti."}
-              </h2>
-              <p className="mt-5 text-base leading-8 text-[#54634b]">
-                {content?.benefitsDescription ?? "Cada llamada es una oportunidad de reservar, resolver una duda o captar un nuevo cliente. BotBook mantiene esa puerta abierta aunque estés ocupado, fuera de horario o atendiendo a otra persona."}
-              </p>
-            </div>
+          <Reveal>
+            <h2 className="max-w-2xl text-3xl font-black leading-tight tracking-tight text-[#0a0a0a] sm:text-4xl">
+              {content?.benefitsTitle ?? "Una recepción que entiende tu negocio, sea cual sea."}
+            </h2>
+          </Reveal>
 
-            <div className="grid gap-4 sm:grid-cols-3">
-              {visibleBenefits.map(({ title, description, result }, index) => {
-                const Icon = BENEFIT_ICONS[index] ?? Store;
-                return (
-                <article key={title} className="group rounded-2xl border border-white/80 bg-white/85 p-5 shadow-[0_4px_16px_rgba(30,43,34,0.04)] transition duration-300 hover:-translate-y-1 hover:shadow-[0_12px_32px_rgba(30,43,34,0.08)] sm:p-6">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#eef6dc] text-[#2c7334] transition group-hover:bg-[#dff3ad]">
-                    <Icon className="h-5 w-5" />
-                  </div>
-                  <h3 className="mt-5 text-lg font-semibold text-[#1e2b22]">{title}</h3>
-                  <p className="mt-3 text-sm leading-6 text-[#54634b]">{description}</p>
-                  <div className="mt-5 border-t border-[#e8ece3] pt-4">
-                    <p className="flex items-start gap-2 text-sm font-semibold leading-5 text-[#344038]">
-                      <Check className="mt-0.5 h-4 w-4 shrink-0 text-[#2c7334]" />
-                      {result}
-                    </p>
-                  </div>
-                </article>
-                );
-              })}
-            </div>
-          </div>
-
-        </div>
-      </section>
-
-      <RevenueLossCalculator content={content?.calculator} />
-
-      <section id="soluciones" className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
-        <div className="rounded-2xl border border-[#dce6d4] bg-white/75 p-6 sm:p-8">
-          <h2 className="text-2xl font-semibold tracking-tight text-[#1e2b22]">Descubre BotBook para tu sector</h2>
-          <div className="mt-5 flex flex-wrap gap-3">
-            {nicheLinks.map((link) => (
-              <Link key={link.href} href={link.href} className={`inline-flex h-11 items-center rounded-full border px-4 text-sm font-semibold transition duration-200 ${content && link.href === `/${content.slug}` ? "border-[#1e2b22] bg-[#1e2b22] text-white" : "border-[#d7e3ce] bg-white text-[#344038] hover:bg-[#eef6dc]"}`}>
-                {link.label}
-              </Link>
-            ))}
+          <div className="mt-10 grid gap-5 lg:grid-cols-3">
+            {visibleBenefits.map(({ title, description, result }, index) => {
+              const Icon = BENEFIT_ICONS[index] ?? Store;
+              return (
+                <Reveal key={title} delay={index * 0.1}>
+                  <article className="panel h-full p-6 sm:p-7">
+                    <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#f3eeff] text-[#8b5cf6]">
+                      <Icon className="h-5 w-5" />
+                    </div>
+                    <h3 className="mt-5 text-lg font-bold text-[#0a0a0a]">{title}</h3>
+                    <p className="mt-3 text-sm leading-6 text-[#52525b]">{description}</p>
+                    <div className="mt-5 border-t border-[#e5e5e5] pt-4">
+                      <p className="flex items-start gap-2 text-sm font-semibold leading-5 text-[#27272a]">
+                        <Check className="mt-0.5 h-4 w-4 shrink-0 text-[#8b5cf6]" />
+                        {result}
+                      </p>
+                    </div>
+                  </article>
+                </Reveal>
+              );
+            })}
           </div>
         </div>
       </section>
 
-      <section id="precios" className="mx-auto max-w-7xl px-4 py-16 sm:px-6 sm:py-20 lg:px-8">
-        <div className="panel p-6 sm:p-8">
-          <div className="max-w-2xl">
-            <h2 className="text-3xl font-semibold tracking-tight text-[#1e2b22] sm:text-4xl">Planes claros para crecer sin fricción</h2>
-            <p className="mt-4 text-base leading-7 text-[#54634b]">
-              Empieza con el volumen que necesitas y cambia de plan cuando crezca tu negocio.
-            </p>
-            <p className="mt-4 flex flex-wrap items-center gap-2 text-base font-semibold leading-7 text-[#2c7334]">
-              <Check className="h-5 w-5 shrink-0" aria-hidden="true" />
-              {TRIAL_REASSURANCE}
-            </p>
-          </div>
+      <RevenueLossCalculator content={content?.calculator} activeNiche={content?.slug} />
 
-          <div className="mt-8 grid gap-4 lg:grid-cols-3">
-            {plans.map((plan) => (
+      <section id="precios" className="scroll-m-20 mx-auto max-w-7xl px-4 py-16 sm:px-6 sm:py-20 lg:px-8">
+        <Reveal className="max-w-2xl">
+          <h2 className="text-3xl font-black tracking-tight text-[#0a0a0a] sm:text-4xl">Planes claros, sin permanencia.</h2>
+          <p className="mt-4 flex flex-wrap items-center gap-2 text-base font-semibold leading-7 text-[#27272a]">
+            <Check className="h-5 w-5 shrink-0 text-[#8b5cf6]" aria-hidden="true" />
+            {TRIAL_REASSURANCE}
+          </p>
+        </Reveal>
+
+        <div className="mt-8 grid gap-5 lg:grid-cols-3">
+          {plans.map((plan, index) => (
+            <Reveal key={plan.id} delay={index * 0.1}>
               <article
-                key={plan.id}
-                className={`rounded-xl border p-6 ${plan.featured ? "border-[#cfe6b0] bg-[linear-gradient(180deg,#f9fceb_0%,#ffffff_100%)] shadow-[0_8px_24px_rgba(30,43,34,0.06)]" : "border-[#e5ebdd] bg-white/85 shadow-[0_4px_16px_rgba(30,43,34,0.04)]"}`}
+                className={
+                  plan.featured
+                    ? "relative flex h-full flex-col rounded-3xl bg-[#0a0a0a] p-7 text-white"
+                    : "flex h-full flex-col rounded-3xl border border-[#e5e5e5] bg-white p-7"
+                }
               >
                 <div className="flex items-center justify-between gap-3">
-                  <h3 className="text-lg font-semibold text-[#1e2b22]">{plan.name}</h3>
-                  {plan.featured ? <span className="badge-soft">Recomendado</span> : null}
+                  <h3 className={`text-lg font-bold ${plan.featured ? "text-white" : "text-[#0a0a0a]"}`}>{plan.name}</h3>
+                  {plan.featured ? (
+                    <span className="inline-flex items-center rounded-full bg-[#8b5cf6] px-3 py-1 text-xs font-semibold text-white">
+                      Recomendado
+                    </span>
+                  ) : null}
                 </div>
-                <p className="mt-6 text-4xl font-semibold tracking-tight text-[#1e2b22]">{formatPlanPrice(plan.price)}<span className="text-base font-medium text-[#54634b]">/mes</span></p>
-                <p className="mt-3 text-sm font-semibold text-[#344038]">{formatIncludedMinutes(plan.minutes)} minutos incluidos</p>
-                <p className="mt-2 text-sm leading-7 text-[#54634b]">{plan.summary}</p>
+                <p className={`mt-6 text-4xl font-black tracking-tight ${plan.featured ? "text-white" : "text-[#0a0a0a]"}`}>
+                  {formatPlanPrice(plan.price)}
+                  <span className={`text-base font-medium ${plan.featured ? "text-white/60" : "text-[#71717a]"}`}>/mes</span>
+                </p>
+                <p className={`mt-3 text-sm font-semibold ${plan.featured ? "text-white/90" : "text-[#27272a]"}`}>
+                  {formatIncludedMinutes(plan.minutes)} minutos incluidos
+                </p>
+                <p className={`mt-2 text-sm leading-7 ${plan.featured ? "text-white/65" : "text-[#52525b]"}`}>{plan.summary}</p>
                 <Link
                   href={`${plansHref}${plansHref.includes("?") ? "&" : "?"}plan=${plan.id}`}
-                  className={`mt-6 inline-flex h-11 items-center justify-center rounded-lg px-5 text-sm font-semibold transition duration-200 hover:-translate-y-0.5 active:translate-y-0 ${plan.featured ? "bg-[#1e2b22] text-white hover:bg-[#243026]" : "border border-[#d6dfcf] bg-white text-[#344038] hover:bg-[#f4f6f1]"}`}
+                  className={plan.featured ? "btn-purple mt-6" : "btn-secondary mt-6"}
                 >
                   Elegir {plan.name}
                 </Link>
               </article>
+            </Reveal>
+          ))}
+        </div>
+      </section>
+
+      <section id="preguntas" className="scroll-m-20 border-y border-[#e5e5e5] bg-[#fafafa] py-16 sm:py-20">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <Reveal>
+            <h2 className="text-3xl font-black tracking-tight text-[#0a0a0a] sm:text-4xl">Resuelve tus dudas antes de empezar.</h2>
+          </Reveal>
+
+          <div className="mt-8 grid items-start gap-3 sm:grid-cols-2">
+            {visibleFaqs.map(({ question, answer }, index) => (
+              <Reveal key={question} delay={Math.min(index, 5) * 0.05} y={12}>
+                <details className="group rounded-2xl border border-[#e5e5e5] bg-white p-5">
+                  <summary className="flex cursor-pointer list-none items-start justify-between gap-4 text-sm font-semibold leading-6 text-[#0a0a0a] marker:content-none">
+                    {question}
+                    <span className="mt-1 text-lg leading-none text-[#8b5cf6] transition group-open:rotate-45" aria-hidden="true">+</span>
+                  </summary>
+                  <p className="mt-3 border-t border-[#e5e5e5] pt-3 text-sm leading-6 text-[#52525b]">{answer}</p>
+                </details>
+              </Reveal>
             ))}
           </div>
         </div>
       </section>
 
-      <section id="preguntas" className="scroll-m-20 border-y border-white/70 bg-white/35 py-16 sm:py-20">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="grid gap-8 lg:grid-cols-[0.72fr_1.28fr] lg:gap-14">
-            <div>
-              <h2 className="text-3xl font-semibold tracking-tight text-[#1e2b22] sm:text-4xl">Resuelve tus dudas antes de empezar.</h2>
-              <p className="mt-4 text-base leading-7 text-[#54634b]">
-                Tú defines el tono, la información y las reglas con las que responde. Se configura desde tu panel y puedes cambiarlo cuando quieras.
-              </p>
-
-              <div className="mt-7 rounded-xl border border-[#d7e9c5] bg-[#f7fbee] p-6">
-                <p className="text-base font-semibold leading-6 text-[#1e2b22]">Preparado para negocios con cita previa</p>
-                <p className="mt-2 text-sm leading-6 text-[#54634b]">Servicios, horarios, precios, preguntas frecuentes y calendario trabajan juntos desde una única configuración.</p>
-              </div>
-            </div>
-
-            <div className="grid items-start gap-3 sm:grid-cols-2">
-              {visibleFaqs.map(({ question, answer }) => (
-                <details key={question} className="group rounded-xl border border-[#e2e9dc] bg-white/90 p-5 shadow-sm open:shadow-[0_8px_24px_rgba(30,43,34,0.06)]">
-                  <summary className="flex cursor-pointer list-none items-start justify-between gap-4 text-sm font-semibold leading-6 text-[#1e2b22] marker:content-none">
-                    {question}
-                    <span className="mt-1 text-lg leading-none text-[#54634b] transition group-open:rotate-45" aria-hidden="true">+</span>
-                  </summary>
-                  <p className="mt-3 border-t border-[#e8ece3] pt-3 text-sm leading-6 text-[#54634b]">{answer}</p>
-                </details>
-              ))}
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section className="border-t border-white/70 bg-[#1e2b22] text-white">
-        <div className="mx-auto flex max-w-7xl flex-col gap-6 px-4 py-12 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8">
-          <div>
-            <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">{content?.closingTitle ?? "Empieza a no perder llamadas esta semana."}</h2>
-          </div>
+      <section className="bg-[#0a0a0a] text-white">
+        <Reveal className="mx-auto flex max-w-7xl flex-col items-start gap-6 px-4 py-16 sm:px-6 sm:py-20 lg:flex-row lg:items-center lg:justify-between lg:px-8">
+          <h2 className="max-w-xl text-3xl font-black tracking-tight sm:text-4xl">
+            {content?.closingTitle ?? "Empieza a no perder llamadas esta semana."}
+          </h2>
           <div className="shrink-0">
-            <Link
-              href={plansHref}
-              className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-[#b8d96e] px-6 text-sm font-semibold text-[#1e2b22] transition duration-200 hover:-translate-y-0.5 hover:bg-[#e3ff9e] active:translate-y-0"
-            >
-              Empezar ahora <ArrowRight className="h-4 w-4" aria-hidden="true" />
+            <Link href={plansHref} className="btn-purple">
+              Empezar ahora
+              <ArrowRight className="h-4 w-4" aria-hidden="true" />
             </Link>
-            <p className="mt-3 text-sm text-white/75">{TRIAL_REASSURANCE}</p>
           </div>
-        </div>
+        </Reveal>
       </section>
 
-      <footer className="border-t border-white/10 bg-[#1e2b22] text-white/70">
+      <footer className="bg-[#0a0a0a] text-white/70">
         <div className="mx-auto flex max-w-7xl flex-col gap-5 px-4 py-8 sm:px-6 md:flex-row md:items-center md:justify-between lg:px-8">
-          <div>
-            <p className="font-semibold text-white">BotBook</p>
-            <p className="mt-1 text-sm">Recepción telefónica para negocios con cita previa.</p>
-          </div>
+          <p className="text-sm">© 2026 BotBook</p>
           <nav aria-label="Enlaces legales" className="flex flex-wrap items-center gap-x-4 text-sm font-medium">
             <Link href="/legal/privacidad" className="inline-flex h-11 items-center transition hover:text-white">Privacidad</Link>
             <Link href="/legal/aviso-legal" className="inline-flex h-11 items-center transition hover:text-white">Aviso legal</Link>
-            <a href="#preguntas" className="inline-flex h-11 items-center transition hover:text-white">Preguntas frecuentes</a>
             <a href="mailto:hola@botbook.es" className="inline-flex h-11 items-center transition hover:text-white">Contacto</a>
           </nav>
         </div>

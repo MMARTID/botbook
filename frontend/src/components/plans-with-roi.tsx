@@ -13,17 +13,17 @@ const currencyFormatter = new Intl.NumberFormat("es-ES", {
 });
 
 function cardClassName({ featured, preselected }: { featured: boolean; preselected: boolean }) {
-  const base = "relative flex flex-col rounded-xl border p-6 transition duration-200";
-
-  if (preselected) {
-    return `${base} border-[#9dbb55] bg-white ring-2 ring-[#b8d96e]/45 shadow-[0_8px_24px_rgba(30,43,34,0.06)]`;
-  }
+  const base = "relative flex flex-col rounded-3xl p-6 transition duration-200";
 
   if (featured) {
-    return `${base} border-[#cfe6b0] bg-[linear-gradient(180deg,#f9fceb_0%,#ffffff_100%)] shadow-[0_8px_24px_rgba(30,43,34,0.06)]`;
+    return `${base} bg-[#0a0a0a] ${preselected ? "ring-2 ring-[#a78bfa]" : ""}`;
   }
 
-  return `${base} border-white/70 bg-white/88 shadow-[0_4px_16px_rgba(30,43,34,0.04)] backdrop-blur-xl`;
+  if (preselected) {
+    return `${base} border border-[#8b5cf6] bg-white ring-2 ring-[#8b5cf6]/25`;
+  }
+
+  return `${base} border border-[#e5e5e5] bg-white`;
 }
 
 function PlanCard({
@@ -36,45 +36,52 @@ function PlanCard({
   preselected: boolean;
 }) {
   const contrast = estimate ? calculatePlanValueContrast(estimate, plan) : null;
+  const isDark = plan.featured;
 
   return (
     <article className={cardClassName({ featured: plan.featured, preselected })}>
       <div className="flex flex-wrap items-center gap-2">
         {preselected ? (
-          <span className="inline-flex items-center gap-2 rounded-full bg-[#eef6dc] px-3 py-1 text-xs font-semibold text-[#405115] ring-1 ring-inset ring-[#d7e9c5]">
+          <span
+            className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold ${
+              isDark ? "bg-white/10 text-white" : "bg-[#f3eeff] text-[#6d28d9] ring-1 ring-inset ring-[#ddd6fe]"
+            }`}
+          >
             <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" /> El que has elegido
           </span>
         ) : null}
         {plan.featured ? (
-          <span className="inline-flex items-center gap-2 rounded-full bg-[#1e2b22] px-3 py-1 text-xs font-semibold text-white">
-            <BadgeCheck className="h-3.5 w-3.5 text-[#b8d96e]" aria-hidden="true" /> Recomendado
+          <span className="inline-flex items-center gap-2 rounded-full bg-[#8b5cf6] px-3 py-1 text-xs font-semibold text-white">
+            <BadgeCheck className="h-3.5 w-3.5" aria-hidden="true" /> Recomendado
           </span>
         ) : null}
       </div>
 
-      <h2 className="mt-4 text-2xl font-semibold text-[#1e2b22]">{plan.name}</h2>
-      <p className="mt-3 text-sm leading-6 text-[#54634b]">{plan.description}</p>
+      <h2 className={`mt-4 text-2xl font-bold ${isDark ? "text-white" : "text-[#0a0a0a]"}`}>{plan.name}</h2>
+      <p className={`mt-3 text-sm leading-6 ${isDark ? "text-white/65" : "text-[#52525b]"}`}>{plan.description}</p>
 
       <div className="mt-8">
-        <p className="text-5xl font-semibold tracking-tight text-[#1e2b22]">
+        <p className={`text-5xl font-black tracking-tight ${isDark ? "text-white" : "text-[#0a0a0a]"}`}>
           {formatPlanPrice(plan.price)}
-          <span className="text-base font-medium text-[#54634b]">/mes</span>
+          <span className={`text-base font-medium ${isDark ? "text-white/60" : "text-[#71717a]"}`}>/mes</span>
         </p>
-        <p className="mt-3 text-sm font-medium text-[#344038]">{formatIncludedMinutes(plan.minutes)} minutos incluidos</p>
-        <p className="mt-1 text-sm text-[#54634b]">{formatExtraMinute(plan.extraPerMinute)}</p>
+        <p className={`mt-3 text-sm font-semibold ${isDark ? "text-white/90" : "text-[#27272a]"}`}>
+          {formatIncludedMinutes(plan.minutes)} minutos incluidos
+        </p>
+        <p className={`mt-1 text-sm ${isDark ? "text-white/60" : "text-[#52525b]"}`}>{formatExtraMinute(plan.extraPerMinute)}</p>
       </div>
 
       {/* Contraste de valor: solo aparece cuando la persona viene de la calculadora
           y solo si su propia estimación cubre el plan. Si no lo cubre, callar es
           más honesto que enseñar una resta en contra. */}
       {contrast?.opportunityCoversPlan ? (
-        <div className="mt-6 rounded-lg border border-[#d7e9c5] bg-[#f7fbee] p-4">
-          <p className="text-sm font-semibold leading-6 text-[#1e2b22]">
+        <div className={`mt-6 rounded-2xl p-4 ${isDark ? "border border-white/10 bg-white/5" : "border border-[#ddd6fe] bg-[#f3eeff]"}`}>
+          <p className={`text-sm font-semibold leading-6 ${isDark ? "text-white" : "text-[#0a0a0a]"}`}>
             Según tu estimación, recuperarías {currencyFormatter.format(contrast.monthlyOpportunity)} al mes.
           </p>
-          <p className="mt-1 text-sm leading-6 text-[#54634b]">
+          <p className={`mt-1 text-sm leading-6 ${isDark ? "text-white/65" : "text-[#52525b]"}`}>
             Este plan cuesta {currencyFormatter.format(contrast.monthlyPlanCost)}: te quedarían{" "}
-            <strong className="font-semibold text-[#2c7334]">
+            <strong className={`font-semibold ${isDark ? "text-[#a78bfa]" : "text-[#7c3aed]"}`}>
               {currencyFormatter.format(contrast.monthlyDifference)} de margen
             </strong>{" "}
             y se cubre con {contrast.appointmentsToCoverPlan}{" "}
@@ -85,13 +92,13 @@ function PlanCard({
 
       <ul className="mt-8 flex-1 space-y-3">
         {plan.features.map((feature) => (
-          <li key={feature} className="flex items-start gap-3 text-sm leading-6 text-[#344038]">
-            <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-[#2c7334]" aria-hidden="true" /> {feature}
+          <li key={feature} className={`flex items-start gap-3 text-sm leading-6 ${isDark ? "text-white/80" : "text-[#27272a]"}`}>
+            <CheckCircle2 className={`mt-0.5 h-4 w-4 shrink-0 ${isDark ? "text-[#a78bfa]" : "text-[#8b5cf6]"}`} aria-hidden="true" /> {feature}
           </li>
         ))}
       </ul>
 
-      <PlanSelectionLink planId={plan.id} planName={plan.name} featured={plan.featured || preselected} />
+      <PlanSelectionLink planId={plan.id} planName={plan.name} featured={plan.featured} preselected={preselected} />
     </article>
   );
 }
@@ -123,7 +130,7 @@ export function PlansWithRoi() {
           />
         ))}
       </div>
-      <p className="mt-6 text-center text-base font-semibold text-[#2c7334]">{TRIAL_REASSURANCE}</p>
+      <p className="mt-6 text-center text-base font-semibold text-[#0a0a0a]">{TRIAL_REASSURANCE}</p>
     </div>
   );
 }

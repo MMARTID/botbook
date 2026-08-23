@@ -1,14 +1,10 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { useBusiness } from "@/components/providers";
 import { LogOut, Activity, Settings, LayoutDashboard, ArrowLeft, CreditCard, Loader2 } from "lucide-react";
 import { usePathname } from "next/navigation";
-
-const ASSET_PATHS = {
-  logo: "/brand/logo.png",
-} as const;
+import { BrandMark } from "@/components/brand-mark";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const { business, hasToken } = useBusiness();
@@ -97,14 +93,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <div className="mx-auto max-w-7xl px-3 sm:px-6 lg:px-8">
           <div className="flex h-16 items-center justify-between gap-3 sm:h-[4.5rem]">
             <Link href="/" aria-label="Ir al panel de BotBook" className="flex min-w-0 items-center gap-2.5 sm:gap-3">
-              <Image
-                src={ASSET_PATHS.logo}
-                alt=""
-                width={44}
-                height={44}
-                className="h-10 w-10 shrink-0 object-contain sm:h-11 sm:w-11"
-                priority
-              />
+              <BrandMark className="h-10 w-10 shrink-0 sm:h-11 sm:w-11" />
               <div className="min-w-0">
                 <p className="text-base font-semibold leading-5 text-[#1e2b22]">BotBook</p>
                 <p className="truncate text-xs leading-4 text-muted sm:text-sm">

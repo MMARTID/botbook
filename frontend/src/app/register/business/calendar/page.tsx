@@ -94,10 +94,10 @@ export default function RegisterBusinessCalendarPage() {
     <div className="flex min-h-screen items-center justify-center px-4 py-12 sm:px-6 lg:px-8">
       <div className="panel w-full max-w-lg p-8">
         <div className="space-y-4 text-center">
-          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-[#1e2b22] text-[#b8d96e] shadow-sm">
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-[#f3eeff] text-[#8b5cf6]">
             <CalendarDays className="h-7 w-7" />
           </div>
-          <h2 className="text-3xl font-semibold tracking-tight text-[#1e2b22]">
+          <h2 className="text-3xl font-black tracking-tight text-[#0a0a0a]">
             {texts.calendar.heading}
           </h2>
           <p className="mx-auto max-w-md text-sm leading-6 text-muted">
@@ -110,19 +110,19 @@ export default function RegisterBusinessCalendarPage() {
             type="button"
             onClick={() => startOAuth("google")}
             disabled={loading !== null}
-            className="flex w-full items-center gap-4 rounded-2xl border border-[#dce1d8] bg-white p-5 text-left transition hover:border-[#b8d96e] hover:bg-[#fbfcf8] disabled:cursor-not-allowed disabled:opacity-50"
+            className="flex w-full items-center gap-4 rounded-2xl border border-[#e5e5e5] bg-white p-5 text-left transition hover:border-[#8b5cf6] hover:bg-[#fafafa] disabled:cursor-not-allowed disabled:opacity-50"
           >
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#eef6dc] text-[#2c7334]">
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#f3eeff] text-[#8b5cf6]">
               <Video className="h-6 w-6" />
             </div>
             <div className="flex-1">
-              <p className="font-semibold text-[#1e2b22]">Google Calendar</p>
+              <p className="font-semibold text-[#0a0a0a]">Google Calendar</p>
               <p className="text-sm text-muted">Conecta tu agenda de Google para reservar citas.</p>
             </div>
             {loading === "google" ? (
               <LoaderCircle className="h-5 w-5 animate-spin text-muted" />
             ) : (
-              <Check className="h-5 w-5 text-[#8a9388]" />
+              <Check className="h-5 w-5 text-[#a1a1aa]" />
             )}
           </button>
 
@@ -130,31 +130,31 @@ export default function RegisterBusinessCalendarPage() {
             type="button"
             onClick={() => startOAuth("outlook")}
             disabled={loading !== null}
-            className="flex w-full items-center gap-4 rounded-2xl border border-[#dce1d8] bg-white p-5 text-left transition hover:border-[#b8d96e] hover:bg-[#fbfcf8] disabled:cursor-not-allowed disabled:opacity-50"
+            className="flex w-full items-center gap-4 rounded-2xl border border-[#e5e5e5] bg-white p-5 text-left transition hover:border-[#8b5cf6] hover:bg-[#fafafa] disabled:cursor-not-allowed disabled:opacity-50"
           >
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#eef6dc] text-[#2c7334]">
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#f3eeff] text-[#8b5cf6]">
               <Mail className="h-6 w-6" />
             </div>
             <div className="flex-1">
-              <p className="font-semibold text-[#1e2b22]">Outlook / Microsoft 365</p>
+              <p className="font-semibold text-[#0a0a0a]">Outlook / Microsoft 365</p>
               <p className="text-sm text-muted">Conecta tu agenda de Microsoft para reservar citas.</p>
             </div>
             {loading === "outlook" ? (
               <LoaderCircle className="h-5 w-5 animate-spin text-muted" />
             ) : (
-              <Check className="h-5 w-5 text-[#8a9388]" />
+              <Check className="h-5 w-5 text-[#a1a1aa]" />
             )}
           </button>
         </div>
 
-        {error && <p className="mt-4 text-sm text-red-600">{error}</p>}
+        {error && <p className="mt-4 text-sm text-[#c53030]">{error}</p>}
 
         <div className="mt-8 space-y-3">
           <button
             type="button"
             onClick={() => redirectToFinalStep()}
             disabled={loading !== null}
-            className="w-full rounded-xl border border-[#dce1d8] bg-white px-4 py-3 text-sm font-semibold text-muted transition hover:bg-[#fafbf8] disabled:cursor-not-allowed disabled:opacity-50"
+            className="btn-secondary w-full justify-center disabled:cursor-not-allowed disabled:opacity-50"
           >
             Configurar calendario después
           </button>
