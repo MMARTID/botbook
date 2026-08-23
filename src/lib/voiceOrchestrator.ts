@@ -7,12 +7,14 @@
  * - Vapi se mantendrá para la futura expansión a Latinoamérica; por ahora no se
  *   asigna automáticamente a ningún país.
  *
- * El país se sigue recogiendo en el registro para analytics y para activar la
- * rama Vapi cuando se defina la lista de países no europeos.
+ * En el registro solo se pregunta si los clientes del negocio están en la
+ * Unión Europea (sí/no), no un país concreto. Ese booleano se sigue
+ * recogiendo para analytics y para activar la rama Vapi cuando se decida
+ * lanzarla fuera de la UE.
  */
 
 export type VoiceOrchestrator = "vapi" | "retell";
 
-export function detectVoiceOrchestrator(_countryCode?: string): VoiceOrchestrator {
+export function detectVoiceOrchestrator(_isEuropeanUnion?: boolean): VoiceOrchestrator {
   return "retell";
 }

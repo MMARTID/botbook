@@ -172,10 +172,18 @@ export async function getBookingSettings() {
   return data;
 }
 
-export async function searchPlaces(query: string, country?: string) {
+export type PlaceSearchLocation =
+  | { countryCode?: string; latitude?: undefined; longitude?: undefined }
+  | { countryCode?: undefined; latitude: number; longitude: number };
+
+export async function searchPlaces(query: string, location?: PlaceSearchLocation) {
   const params: Record<string, string> = { q: query };
-  if (country) {
-    params.country = country;
+  if (location?.countryCode) {
+    params.country = location.countryCode;
+  }
+  if (location?.latitude !== undefined && location?.longitude !== undefined) {
+    params.lat = String(location.latitude);
+    params.lng = String(location.longitude);
   }
   const { data } = await api.get<{ results: PlaceSearchResult[] }>("/places/autocomplete", {
     params,

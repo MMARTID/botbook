@@ -10,6 +10,8 @@ const strictRateLimit = {
 const SearchQuerySchema = z.object({
   q: z.string().min(1).max(200),
   country: z.string().min(2).max(5).optional(),
+  lat: z.coerce.number().min(-90).max(90).optional(),
+  lng: z.coerce.number().min(-180).max(180).optional(),
 });
 
 const PlaceIdParamsSchema = z.object({
@@ -32,7 +34,11 @@ export const placesRoutes: FastifyPluginAsync = async (fastify) => {
       }
 
       try {
-        const results = await searchPlaces(parseResult.data.q, parseResult.data.country);
+        const results = await searchPlaces(parseResult.data.q, {
+          countryCode: parseResult.data.country,
+          latitude: parseResult.data.lat,
+          longitude: parseResult.data.lng,
+        });
         return reply.send({ results });
       } catch (error) {
         fastify.log.error({ err: error }, 'Google Places autocomplete failed');
