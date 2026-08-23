@@ -117,28 +117,29 @@ export function BusinessHoursEditor({
               key={day.key}
               type="button"
               onClick={() => setSelectedDay(day.key)}
-              className={`flex w-full items-center gap-3 rounded-xl border px-3 py-3 text-left transition ${selectedDay === day.key ? "border-[#b9d489] bg-[#f3f9e7]" : "border-[#e1e8da] bg-white hover:bg-[#fbfcf8]"}`}
+              className={`flex w-full items-center gap-3 rounded-xl border px-3 py-3 text-left transition ${selectedDay === day.key ? "border-[#8b5cf6] bg-[#f3eeff]" : "border-[#e5e5e5] bg-white hover:bg-[#fafafa]"}`}
             >
-              <span className={`flex h-8 w-8 items-center justify-center rounded-full text-xs font-semibold ${schedule.week[day.key].enabled ? "bg-[#b8d96e] text-[#30430f]" : "bg-[#eef0ec] text-[#788076]"}`}>
+              <span className={`flex h-8 w-8 items-center justify-center rounded-full text-xs font-semibold ${schedule.week[day.key].enabled ? "bg-[#8b5cf6] text-[#ffffff]" : "bg-[#f4f4f5] text-[#a1a1aa]"}`}>
                 {day.shortLabel}
               </span>
               <span className="min-w-0">
-                <span className="block text-sm font-semibold text-[#344038]">{day.label}</span>
+                <span className="block text-sm font-semibold text-[#27272a]">{day.label}</span>
                 <span className="block truncate text-xs text-muted">{scheduleSummary(schedule.week[day.key])}</span>
               </span>
             </button>
           ))}
         </div>
 
-        <div className="rounded-xl border border-[#dce7d2] bg-[#fbfcf8] p-4 sm:p-5">
+        <div className="rounded-xl border border-[#e5e5e5] bg-[#fafafa] p-4 sm:p-5">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <p className="text-lg font-semibold text-[#1e2b22]">{DAYS.find((day) => day.key === selectedDay)?.label}</p>
+              <p className="text-lg font-semibold text-[#0a0a0a]">{DAYS.find((day) => day.key === selectedDay)?.label}</p>
               <p className="text-sm text-muted">Activa el día y añade hasta tres tramos.</p>
             </div>
-            <label className="flex cursor-pointer items-center gap-2 rounded-full border border-[#dce7d2] bg-white px-3 py-2 text-sm font-semibold text-[#344038]">
+            <label className="flex cursor-pointer items-center gap-2 rounded-full border border-[#e5e5e5] bg-white px-3 py-2 text-sm font-semibold text-[#27272a]">
               <input
                 type="checkbox"
+                className="accent-[#8b5cf6]"
                 checked={selected.enabled}
                 onChange={(event) => updateDay((day) => ({
                   enabled: event.target.checked,
@@ -152,7 +153,7 @@ export function BusinessHoursEditor({
           {selected.enabled ? (
             <div className="mt-5 space-y-3">
               {selected.intervals.map((interval, index) => (
-                <div key={`${selectedDay}-${index}`} className="grid grid-cols-[1fr_auto_1fr_auto] items-center gap-2 rounded-xl border border-[#e1e8da] bg-white p-3">
+                <div key={`${selectedDay}-${index}`} className="grid grid-cols-[1fr_auto_1fr_auto] items-center gap-2 rounded-xl border border-[#e5e5e5] bg-white p-3">
                   <input
                     type="time"
                     value={interval.start}
@@ -172,7 +173,7 @@ export function BusinessHoursEditor({
                     type="button"
                     onClick={() => updateDay((day) => ({ ...day, intervals: day.intervals.filter((_, itemIndex) => itemIndex !== index) }))}
                     disabled={selected.intervals.length === 1}
-                    className="rounded-xl p-2 text-[#9f2a2a] transition hover:bg-[#fff1f1] disabled:opacity-30"
+                    className="rounded-xl p-2 text-[#c53030] transition hover:bg-[#fff1f1] disabled:opacity-30"
                     aria-label="Eliminar tramo"
                   >
                     <Trash2 className="h-4 w-4" />
@@ -195,7 +196,7 @@ export function BusinessHoursEditor({
               </div>
             </div>
           ) : (
-            <div className="mt-5 rounded-xl border border-dashed border-[#d8e3cf] bg-white px-4 py-8 text-center text-sm text-muted">
+            <div className="mt-5 rounded-xl border border-dashed border-[#e5e5e5] bg-white px-4 py-8 text-center text-sm text-muted">
               Este día figura como cerrado.
             </div>
           )}

@@ -29,7 +29,7 @@ export default function BillingSettingsPage() {
   return (
     <section className="space-y-6">
       <div>
-        <h1 className="text-3xl font-semibold tracking-tight text-[#1e2b22]">Plan y pagos</h1>
+        <h1 className="text-3xl font-semibold tracking-tight text-[#0a0a0a]">Plan y pagos</h1>
         <p className="mt-2 text-muted">Consulta tu suscripción y gestiona pagos y facturas de forma segura en Stripe.</p>
       </div>
 
@@ -42,8 +42,8 @@ export default function BillingSettingsPage() {
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div>
                 <p className="text-sm font-medium text-muted">Plan actual</p>
-                <h2 className="mt-1 text-3xl font-semibold text-[#1e2b22]">{plan?.name ?? "Sin suscripción"}</h2>
-                <p className="mt-2 text-sm text-[#54634b]">
+                <h2 className="mt-1 text-3xl font-semibold text-[#0a0a0a]">{plan?.name ?? "Sin suscripción"}</h2>
+                <p className="mt-2 text-sm text-[#52525b]">
                   {summary.data.status ? statusLabels[summary.data.status] ?? summary.data.status : "Aún no configurada"}
                 </p>
               </div>
@@ -51,24 +51,24 @@ export default function BillingSettingsPage() {
             </div>
 
             <div className="mt-8 grid gap-4 sm:grid-cols-3">
-              <div className="rounded-xl bg-[#f6f8f2] p-4">
-                <div className="flex items-center gap-2 text-sm font-medium text-[#344038]"><Gauge className="h-4 w-4" /> Minutos incluidos</div>
-                <p className="mt-2 text-2xl font-semibold text-[#1e2b22]">{summary.data.includedMinutes ?? "—"}</p>
+              <div className="rounded-xl bg-[#fafafa] p-4">
+                <div className="flex items-center gap-2 text-sm font-medium text-[#27272a]"><Gauge className="h-4 w-4" /> Minutos incluidos</div>
+                <p className="mt-2 text-2xl font-semibold text-[#0a0a0a]">{summary.data.includedMinutes ?? "—"}</p>
               </div>
-              <div className="rounded-xl bg-[#f6f8f2] p-4">
-                <div className="flex items-center gap-2 text-sm font-medium text-[#344038]"><Phone className="h-4 w-4" /> Minutos consumidos</div>
-                <p className="mt-2 text-2xl font-semibold text-[#1e2b22]">{summary.data.consumedMinutes}</p>
+              <div className="rounded-xl bg-[#fafafa] p-4">
+                <div className="flex items-center gap-2 text-sm font-medium text-[#27272a]"><Phone className="h-4 w-4" /> Minutos consumidos</div>
+                <p className="mt-2 text-2xl font-semibold text-[#0a0a0a]">{summary.data.consumedMinutes}</p>
                 {typeof summary.data.includedMinutes === "number" ? (
-                  <p className={`mt-1 text-xs font-medium ${summary.data.consumedMinutes > summary.data.includedMinutes ? "text-[#c53030]" : "text-[#54634b]"}`}>
+                  <p className={`mt-1 text-xs font-medium ${summary.data.consumedMinutes > summary.data.includedMinutes ? "text-[#c53030]" : "text-[#52525b]"}`}>
                     {summary.data.consumedMinutes > summary.data.includedMinutes
                       ? `Has superado el límite en ${summary.data.consumedMinutes - summary.data.includedMinutes} min`
                       : `Te quedan ${summary.data.includedMinutes - summary.data.consumedMinutes} min`}
                   </p>
                 ) : null}
               </div>
-              <div className="rounded-xl bg-[#f6f8f2] p-4">
-                <div className="flex items-center gap-2 text-sm font-medium text-[#344038]"><CreditCard className="h-4 w-4" /> Próximo periodo</div>
-                <p className="mt-2 text-lg font-semibold text-[#1e2b22]">
+              <div className="rounded-xl bg-[#fafafa] p-4">
+                <div className="flex items-center gap-2 text-sm font-medium text-[#27272a]"><CreditCard className="h-4 w-4" /> Próximo periodo</div>
+                <p className="mt-2 text-lg font-semibold text-[#0a0a0a]">
                   {summary.data.currentPeriodEnd
                     ? new Intl.DateTimeFormat("es-ES", { dateStyle: "medium" }).format(new Date(summary.data.currentPeriodEnd))
                     : "—"}
@@ -77,17 +77,17 @@ export default function BillingSettingsPage() {
             </div>
 
             {summary.data.trialEnd ? (
-              <p className="mt-5 text-sm text-[#54634b]">
+              <p className="mt-5 text-sm text-[#52525b]">
                 Trial hasta {new Intl.DateTimeFormat("es-ES", { dateStyle: "long" }).format(new Date(summary.data.trialEnd))}.
               </p>
             ) : null}
           </article>
 
           <article className="panel flex flex-col p-6">
-            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#eef6dc] text-[#2c7334]">
+            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#f3eeff] text-[#8b5cf6]">
               <ReceiptText className="h-5 w-5" />
             </span>
-            <h2 className="mt-4 text-xl font-semibold text-[#1e2b22]">Portal de cliente</h2>
+            <h2 className="mt-4 text-xl font-semibold text-[#0a0a0a]">Portal de cliente</h2>
             <p className="mt-2 flex-1 text-sm leading-6 text-muted">Actualiza el método de pago, consulta facturas o cancela la suscripción.</p>
             {summary.data.customerConfigured ? (
               <button onClick={() => portal.mutate()} disabled={portal.isPending} className="btn-primary mt-6 justify-center">

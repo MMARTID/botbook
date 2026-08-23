@@ -44,6 +44,12 @@
         "value": "#a1a1aa",
         "createdAt": "2026-08-23T15:37:28.652Z",
         "reason": "gris neutro de la escala del rediseño (thumb de scrollbar en hover), ya usado como color de placeholder en .field"
+      },
+      {
+        "rule": "design-system-color",
+        "value": "rgba(0, 0, 0, 0.06)",
+        "createdAt": "2026-08-23T23:44:52.851Z",
+        "reason": "Ambient black shadow tint on the settings-section-focus pulse ring, matching the black-tinted shadow convention documented in DESIGN.md's Elevation & Depth section after the black/white/purple migration."
       }
     ]
   }

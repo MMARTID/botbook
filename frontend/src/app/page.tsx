@@ -13,10 +13,10 @@ function StatusRow({ label, value, icon }: { label: string; value: string; icon:
   return (
     <div className="flex items-center justify-between gap-3 py-3 text-sm">
       <span className="flex min-w-0 items-center gap-2 text-muted">
-        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-[#eef6dc] text-[#2c7334]">{icon}</span>
+        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-[#f3eeff] text-[#8b5cf6]">{icon}</span>
         <span className="truncate">{label}</span>
       </span>
-      <span className="shrink-0 rounded-full bg-[#f0f3ea] px-2.5 py-1 text-xs font-semibold text-[#51604f]">{value}</span>
+      <span className="shrink-0 rounded-full bg-[#fafafa] px-2.5 py-1 text-xs font-semibold text-[#52525b]">{value}</span>
     </div>
   );
 }
@@ -37,14 +37,14 @@ function QuickActionCard({
   tone?: "default" | "success";
 }) {
   const toneClasses = {
-    default: "border-[#e5ebdd] bg-white/88 text-[#344038] hover:border-[#d4dfc8]",
-    success: "border-[#d7e9c5] bg-[linear-gradient(135deg,#f4fbe6,#ffffff)] text-[#2f5b18] hover:border-[#c7dfaa]",
+    default: "border-[#e5e5e5] bg-white/88 text-[#27272a] hover:border-[#ddd6fe]",
+    success: "border-[#ddd6fe] bg-[#f3eeff] text-[#6d28d9] hover:border-[#8b5cf6]",
   } as const;
 
   const content = (
     <>
       <div>
-        <p className="text-sm font-semibold text-[#1e2b22]">{title}</p>
+        <p className="text-sm font-semibold text-[#0a0a0a]">{title}</p>
         <p className="mt-1 text-sm leading-6 text-muted">{description}</p>
       </div>
       <span className="inline-flex items-center gap-1 text-sm font-semibold">
@@ -67,7 +67,7 @@ function QuickActionCard({
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className={`flex h-full flex-col justify-between rounded-xl border p-4 text-left transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_4px_16px_rgba(30,43,34,0.04)] disabled:cursor-not-allowed disabled:opacity-60 ${toneClasses[tone]}`}
+      className={`flex h-full flex-col justify-between rounded-xl border p-4 text-left transition duration-200 hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60 ${toneClasses[tone]}`}
     >
       {content}
     </button>
@@ -148,7 +148,7 @@ function DashboardContent() {
   if (isBusinessError) {
     return (
       <div className="panel mx-auto max-w-2xl space-y-4 p-6 text-center">
-        <h1 className="text-2xl font-semibold text-[#1e2b22]">No se pudo cargar tu panel</h1>
+        <h1 className="text-2xl font-semibold text-[#0a0a0a]">No se pudo cargar tu panel</h1>
         <p className="text-sm leading-6 text-muted">
           {errorMessage ?? "El backend devolvió un error al cargar la información del negocio."}
         </p>
@@ -186,23 +186,20 @@ function DashboardContent() {
   const hasAgentSettings = Boolean(business.agentSettings);
   const completionItems = [hasAgentSettings, hasBusinessDetails, hasCalendar, contextFileCount > 0];
   const completionScore = completionItems.filter(Boolean).length;
-  const heroToneClass = hasCalendar
-    ? "bg-[linear-gradient(135deg,rgba(238,246,220,0.98),rgba(255,255,255,0.95))]"
-    : "bg-[linear-gradient(135deg,rgba(244,248,235,0.98),rgba(255,255,255,0.95))]";
 
   return (
     <div className="space-y-5 sm:space-y-8">
       <section className="grid gap-4 sm:gap-6 xl:grid-cols-[minmax(0,1fr)_22rem]">
-        <article id="calendar-setup" className={`panel relative scroll-mt-32 overflow-hidden p-4 sm:p-6 ${heroToneClass}`}>
-          <div className="pointer-events-none absolute inset-y-0 right-0 w-40 bg-[radial-gradient(circle_at_top_right,rgba(184,217,110,0.22),transparent_62%)]" />
-          <div className="pointer-events-none absolute -left-12 bottom-0 h-32 w-32 rounded-full bg-[#b8d96e]/20 blur-3xl" />
+        <article id="calendar-setup" className="panel relative scroll-mt-32 overflow-hidden p-4 sm:p-6">
+          <div className="pointer-events-none absolute inset-y-0 right-0 w-40 bg-[radial-gradient(circle_at_top_right,rgba(139,92,246,0.14),transparent_62%)]" />
+          <div className="pointer-events-none absolute -left-12 bottom-0 h-32 w-32 rounded-full bg-[#8b5cf6]/20 blur-3xl" />
           <div className="relative flex flex-col gap-5 sm:gap-6">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>
-                <h1 className="text-2xl font-semibold leading-tight tracking-tight text-[#1e2b22] sm:text-3xl">
+                <h1 className="text-2xl font-semibold leading-tight tracking-tight text-[#0a0a0a] sm:text-3xl">
                   {hasCalendar ? "Tu asistente está operativo" : "Te faltan un par de pasos"}
                 </h1>
-                <p className="mt-2 max-w-2xl text-sm leading-6 text-[#54634b] sm:mt-3">
+                <p className="mt-2 max-w-2xl text-sm leading-6 text-[#52525b] sm:mt-3">
                   {hasCalendar
                     ? "Centraliza el estado del agente, la agenda y el conocimiento que utiliza para atender a tus clientes."
                     : "Termina la configuración para que el agente pueda responder con contexto real y gestionar reservas automáticamente."}
@@ -210,7 +207,7 @@ function DashboardContent() {
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 <span className="badge-soft">{business.name}</span>
-                <span className="inline-flex rounded-full border border-[#d9e2d1] bg-white/90 px-3 py-1 text-xs font-semibold text-[#51604f]">
+                <span className="inline-flex rounded-full border border-[#e5e5e5] bg-white/90 px-3 py-1 text-xs font-semibold text-[#52525b]">
                   {completionScore}/4 áreas configuradas
                 </span>
               </div>
@@ -228,36 +225,36 @@ function DashboardContent() {
             ) : null}
 
             <div className="grid grid-cols-3 gap-2 sm:gap-4">
-              <article className="rounded-xl border border-[#dce7d2] bg-[linear-gradient(180deg,#fcfef9,#ffffff)] p-3 shadow-[0_4px_16px_rgba(30,43,34,0.04)] sm:p-5">
+              <article className="rounded-xl border border-[#e5e5e5] bg-white p-3 sm:p-5">
                 <div className="flex items-center justify-between">
                   <p className="text-xs font-medium text-muted sm:text-sm">Llamadas</p>
-                  <span className="hidden rounded-xl bg-[#eef6dc] p-2 text-[#2c7334] sm:inline-flex">
+                  <span className="hidden rounded-xl bg-[#f3eeff] p-2 text-[#8b5cf6] sm:inline-flex">
                     <PhoneCall className="h-4 w-4" />
                   </span>
                 </div>
-                <p className="mt-2 text-2xl font-semibold tracking-tight text-[#1e2b22] sm:mt-4 sm:text-3xl">{stats.totalCalls}</p>
+                <p className="mt-2 text-2xl font-semibold tracking-tight text-[#0a0a0a] sm:mt-4 sm:text-3xl">{stats.totalCalls}</p>
                 <p className="mt-2 hidden text-sm text-muted sm:block">Conversaciones atendidas por tu recepcionista virtual.</p>
               </article>
 
-              <article className="rounded-xl border border-[#dce7d2] bg-[linear-gradient(180deg,#fcfef9,#ffffff)] p-3 shadow-[0_4px_16px_rgba(30,43,34,0.04)] sm:p-5">
+              <article className="rounded-xl border border-[#e5e5e5] bg-white p-3 sm:p-5">
                 <div className="flex items-center justify-between">
                   <p className="text-xs font-medium text-muted sm:text-sm">Minutos</p>
-                  <span className="hidden rounded-xl bg-[#eef6dc] p-2 text-[#2c7334] sm:inline-flex">
+                  <span className="hidden rounded-xl bg-[#f3eeff] p-2 text-[#8b5cf6] sm:inline-flex">
                     <Clock3 className="h-4 w-4" />
                   </span>
                 </div>
-                <p className="mt-2 text-2xl font-semibold tracking-tight text-[#1e2b22] sm:mt-4 sm:text-3xl">{stats.totalMinutes}</p>
+                <p className="mt-2 text-2xl font-semibold tracking-tight text-[#0a0a0a] sm:mt-4 sm:text-3xl">{stats.totalMinutes}</p>
                 <p className="mt-2 hidden text-sm text-muted sm:block">Tiempo total de conversación registrado.</p>
               </article>
 
-              <article className="rounded-xl border border-[#dce7d2] bg-[linear-gradient(180deg,#fcfef9,#ffffff)] p-3 shadow-[0_4px_16px_rgba(30,43,34,0.04)] sm:p-5">
+              <article className="rounded-xl border border-[#e5e5e5] bg-white p-3 sm:p-5">
                 <div className="flex items-center justify-between">
                   <p className="text-xs font-medium text-muted sm:text-sm">Posibles clientes</p>
-                  <span className="hidden rounded-xl bg-[#eef6dc] p-2 text-[#2c7334] sm:inline-flex">
+                  <span className="hidden rounded-xl bg-[#f3eeff] p-2 text-[#8b5cf6] sm:inline-flex">
                     <TrendingUp className="h-4 w-4" />
                   </span>
                 </div>
-                <p className="mt-2 text-2xl font-semibold tracking-tight text-[#1e2b22] sm:mt-4 sm:text-3xl">{stats.leads}</p>
+                <p className="mt-2 text-2xl font-semibold tracking-tight text-[#0a0a0a] sm:mt-4 sm:text-3xl">{stats.leads}</p>
                 <p className="mt-2 hidden text-sm text-muted sm:block">Identificados durante las llamadas.</p>
               </article>
             </div>
@@ -265,18 +262,18 @@ function DashboardContent() {
         </article>
 
         <aside className="space-y-4">
-          <article id="agent-status" className="panel scroll-mt-32 border-[#dce7d2] bg-[#f7f9f3] p-4 shadow-[0_8px_24px_rgba(30,43,34,0.06)] sm:p-5">
+          <article id="agent-status" className="panel scroll-mt-32 border-[#e5e5e5] bg-[#fafafa] p-4 sm:p-5">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <p className="text-sm font-medium text-[#54634b]">Estado general</p>
-                <h2 className="mt-1 text-lg font-semibold text-[#1e2b22]">{completionScore < 4 ? "Configuración en progreso" : "Todo en orden"}</h2>
+                <p className="text-sm font-medium text-[#52525b]">Estado general</p>
+                <h2 className="mt-1 text-lg font-semibold text-[#0a0a0a]">{completionScore < 4 ? "Configuración en progreso" : "Todo en orden"}</h2>
               </div>
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#eef6dc] text-[#2c7334]">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#f3eeff] text-[#8b5cf6]">
                 <Sparkles className="h-5 w-5" />
               </div>
             </div>
 
-            <div className="mt-4 divide-y divide-[#e4e8df] rounded-xl border border-[#dce7d2] bg-white/90 px-4">
+            <div className="mt-4 divide-y divide-[#e5e5e5] rounded-xl border border-[#e5e5e5] bg-white/90 px-4">
               <StatusRow label="Agente" value={agent?.active === false ? "Inactivo" : "Activo"} icon={<Bot className="h-4 w-4" />} />
               <StatusRow label={calendarProviderLabel === "Outlook" ? "Outlook Calendar" : "Google Calendar"} value={hasCalendar ? `Conectado · ${connectedCalendarDescription}` : "Pendiente"} icon={<CalendarDays className="h-4 w-4" />} />
               <StatusRow label="Documentos" value={`${contextFileCount} ${contextFileCount === 1 ? 'archivo' : 'archivos'}`} icon={<FileText className="h-4 w-4" />} />
@@ -300,7 +297,7 @@ function DashboardContent() {
                 type="button"
                 onClick={() => provisionMutation.mutate()}
                 disabled={provisionMutation.isPending}
-                className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg border border-[#d2dacd] bg-white px-3 py-2 text-sm font-medium text-[#344038] transition hover:bg-[#f4f6f1] disabled:opacity-60"
+                className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg border border-[#e5e5e5] bg-white px-3 py-2 text-sm font-medium text-[#27272a] transition hover:bg-[#fafafa] disabled:opacity-60"
               >
                 <RefreshCw className={`h-4 w-4 ${provisionMutation.isPending ? "animate-spin" : ""}`} />
                 {provisionMutation.isPending ? "Reintentando..." : "Reintentar asignación de número"}
@@ -308,7 +305,7 @@ function DashboardContent() {
             )}
 
             {calendarStatus && (
-              <div className={`mt-4 rounded-xl border px-4 py-3 text-sm font-medium ${calendarStatus.type === 'success' ? 'border-[#d8efd7] bg-[#ecf7ec] text-[#2c7334]' : 'border-[#f5d3d3] bg-[#fff1f1] text-[#9f2a2a]'}`}>
+              <div className={`mt-4 rounded-xl border px-4 py-3 text-sm font-medium ${calendarStatus.type === 'success' ? 'border-[#d8efd7] bg-[#ecf7ec] text-[#2c7334]' : 'border-[#f5d3d3] bg-[#fff1f1] text-[#c53030]'}`}>
                 {calendarStatus.message}
               </div>
             )}
@@ -326,32 +323,32 @@ function DashboardContent() {
         <button
           type="button"
           onClick={() => router.push("/ajustes?section=calendar-section")}
-          className="group flex w-full items-center justify-between rounded-xl border border-[#dce7d2] bg-[linear-gradient(180deg,#fcfef9,#ffffff)] p-4 text-left shadow-[0_4px_16px_rgba(30,43,34,0.04)] transition duration-200 hover:-translate-y-0.5 hover:border-[#cfe1ae] hover:shadow-[0_8px_24px_rgba(30,43,34,0.06)] sm:p-5"
+          className="group flex w-full items-center justify-between rounded-xl border border-[#e5e5e5] bg-white p-4 text-left transition duration-200 hover:-translate-y-0.5 hover:border-[#ddd6fe] sm:p-5"
         >
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#eef6dc] text-[#2c7334]">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#f3eeff] text-[#8b5cf6]">
               <CalendarDays className="h-5 w-5" />
             </div>
             <div>
-              <p className="text-sm font-semibold text-[#1e2b22]">Conecta tu calendario</p>
+              <p className="text-sm font-semibold text-[#0a0a0a]">Conecta tu calendario</p>
               <p className="text-sm text-muted">Elige Google Calendar o Outlook para agendar citas automáticamente.</p>
             </div>
           </div>
-          <span className="inline-flex items-center gap-1 text-sm font-semibold text-[#52604f] transition group-hover:text-[#1e2b22]">
+          <span className="inline-flex items-center gap-1 text-sm font-semibold text-[#52525b] transition group-hover:text-[#0a0a0a]">
             Conectar
             <ArrowRight className="h-4 w-4 transition group-hover:translate-x-0.5" />
           </span>
         </button>
       )}
 
-      <section id="agent-configuration" className="panel scroll-mt-32 border-[#cfe1ae] bg-[linear-gradient(180deg,#f6fadf,#ffffff)] p-4 sm:p-5">
+      <section id="agent-configuration" className="panel scroll-mt-32 border-[#ddd6fe] bg-[#f3eeff] p-4 sm:p-5">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div className="flex items-center gap-3">
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#eef6dc] text-[#2c7334]">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-[#8b5cf6]">
               <FileText className="h-5 w-5" />
             </span>
             <div>
-              <h2 className="text-base font-semibold text-[#1e2b22] sm:text-lg">
+              <h2 className="text-base font-semibold text-[#0a0a0a] sm:text-lg">
                 Documentos del agente
               </h2>
               <p className="mt-1 text-sm leading-6 text-muted">
@@ -377,7 +374,7 @@ function DashboardContent() {
           className="hidden"
           accept={AGENT_FILE_ACCEPT}
         />
-        <div className="mt-4 min-h-20 rounded-xl border border-[#e4e8df] bg-white p-3 text-sm text-muted">
+        <div className="mt-4 min-h-20 rounded-xl border border-[#e5e5e5] bg-white p-3 text-sm text-muted">
           {uploadStatus && (
             <div className={`mb-2 text-sm ${uploadStatus.type === 'success' ? 'text-[#2c7334]' : 'text-[#c53030]'}`}>
               {uploadStatus.message}
@@ -386,9 +383,9 @@ function DashboardContent() {
           {business.agents?.[0]?.files && business.agents[0].files.length > 0 ? (
             <ul className="space-y-2">
               {business.agents[0].files.map((file) => (
-                <li key={file.id} className="flex items-center justify-between gap-3 rounded-xl bg-[#f7f9f3] px-3 py-2 text-sm">
+                <li key={file.id} className="flex items-center justify-between gap-3 rounded-xl bg-[#fafafa] px-3 py-2 text-sm">
                   <span className="truncate">{file.name}</span>
-                  <span className="shrink-0 rounded-full bg-white px-2 py-1 text-xs font-semibold text-[#54634b]">Contexto</span>
+                  <span className="shrink-0 rounded-full bg-white px-2 py-1 text-xs font-semibold text-[#52525b]">Contexto</span>
                 </li>
               ))}
             </ul>

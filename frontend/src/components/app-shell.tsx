@@ -31,7 +31,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     if (hasToken === null) {
       return (
         <div className="flex min-h-screen items-center justify-center">
-          <Loader2 className="h-8 w-8 animate-spin text-[#405115]" />
+          <Loader2 className="h-8 w-8 animate-spin text-[#6d28d9]" />
         </div>
       );
     }
@@ -63,10 +63,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         key={href}
         href={href}
         aria-current={isActive ? "page" : undefined}
-        className={`inline-flex h-11 shrink-0 items-center gap-2 rounded-full border px-4 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#9dbb55] md:h-9 md:px-3 ${
+        className={`inline-flex h-11 shrink-0 items-center gap-2 rounded-full border px-4 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] md:h-9 md:px-3 ${
           isActive
-            ? "border-[#cfe1ae] bg-[#eef6dc] text-[#405115]"
-            : "border-[#e4e8df] bg-white text-[#344038] hover:bg-[#f6f8f2]"
+            ? "border-[#ddd6fe] bg-[#f3eeff] text-[#6d28d9]"
+            : "border-[#e5e5e5] bg-white text-[#27272a] hover:bg-[#fafafa]"
         }`}
       >
         <Icon className="h-4 w-4" />
@@ -82,20 +82,20 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <Link
             href="/"
             aria-label="Volver al panel"
-            className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-[#dfe6da] bg-white/90 text-[#344038] shadow-[0_8px_20px_rgba(30,43,34,0.12)] backdrop-blur-md transition duration-200 hover:bg-white active:scale-95 focus:outline-none focus:ring-2 focus:ring-[#9dbb55] focus:ring-offset-2"
+            className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-[#e5e5e5] bg-white/90 text-[#27272a] shadow-[0_8px_20px_rgba(0,0,0,0.12)] backdrop-blur-md transition duration-200 hover:bg-white active:scale-95 focus:outline-none focus:ring-2 focus:ring-[#8b5cf6] focus:ring-offset-2"
           >
             <ArrowLeft className="h-5 w-5" />
           </Link>
         </header>
       ) : null}
 
-      <header className={`sticky top-0 z-50 border-b border-white/60 bg-[#f8faf5]/80 backdrop-blur-xl ${isSettingsPage ? "hidden sm:block" : ""}`}>
+      <header className={`sticky top-0 z-50 border-b border-white/60 bg-[#fafafa]/80 backdrop-blur-xl ${isSettingsPage ? "hidden sm:block" : ""}`}>
         <div className="mx-auto max-w-7xl px-3 sm:px-6 lg:px-8">
           <div className="flex h-16 items-center justify-between gap-3 sm:h-[4.5rem]">
             <Link href="/" aria-label="Ir al panel de BotBook" className="flex min-w-0 items-center gap-2.5 sm:gap-3">
               <BrandMark className="h-10 w-10 shrink-0 sm:h-11 sm:w-11" />
               <div className="min-w-0">
-                <p className="text-base font-semibold leading-5 text-[#1e2b22]">BotBook</p>
+                <p className="text-base font-semibold leading-5 text-[#0a0a0a]">BotBook</p>
                 <p className="truncate text-xs leading-4 text-muted sm:text-sm">
                   {business?.name ?? "Mi Negocio"}
                 </p>
@@ -107,7 +107,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </nav>
 
             <div className="flex shrink-0 items-center gap-2">
-              <span className="inline-flex h-8 items-center gap-1.5 rounded-full bg-[#eef6dc] px-2.5 text-xs font-semibold text-[#405115] ring-1 ring-inset ring-[#d7e9c5] sm:px-3">
+              <span className="inline-flex h-8 items-center gap-1.5 rounded-full bg-[#f3eeff] px-2.5 text-xs font-semibold text-[#6d28d9] ring-1 ring-inset ring-[#ddd6fe] sm:px-3">
                 <Activity className="h-3 w-3" />
                 {business?.active ? "Activo" : "Inactivo"}
               </span>
@@ -117,7 +117,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   window.location.href = '/login';
                 }}
                 aria-label="Cerrar sesión"
-                className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[#e4e8df] bg-white text-[#344038] transition hover:bg-[#f6f8f2] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#9dbb55] sm:h-11 sm:w-auto sm:gap-2 sm:px-4 sm:text-sm sm:font-medium"
+                className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[#e5e5e5] bg-white text-[#27272a] transition hover:bg-[#fafafa] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] sm:h-11 sm:w-auto sm:gap-2 sm:px-4 sm:text-sm sm:font-medium"
               >
                 <LogOut className="h-4 w-4" />
                 <span className="hidden sm:inline">Cerrar sesión</span>

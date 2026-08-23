@@ -61,8 +61,8 @@ function EmptyState({
   description: string;
 }) {
   return (
-    <div className="rounded-xl border border-dashed border-[#d8e3cf] bg-[#fbfcf8] px-4 py-6 text-sm text-muted">
-      <p className="font-semibold text-[#344038]">{title}</p>
+    <div className="rounded-xl border border-dashed border-[#e5e5e5] bg-[#fafafa] px-4 py-6 text-sm text-muted">
+      <p className="font-semibold text-[#27272a]">{title}</p>
       <p className="mt-1 leading-6">{description}</p>
     </div>
   );
@@ -127,16 +127,16 @@ function SetupGuide({
   }
 
   return (
-    <section className="sticky top-4 z-40 overflow-hidden rounded-2xl border border-[#cfe1ae] bg-[#f6fadf] shadow-[0_12px_32px_rgba(30,43,34,0.08)] animate-in slide-in-from-top-4 duration-500">
+    <section className="sticky top-4 z-40 overflow-hidden rounded-2xl border border-[#ddd6fe] bg-[#f3eeff] shadow-[0_12px_32px_rgba(0,0,0,0.08)] animate-in slide-in-from-top-4 duration-500">
       <div className="px-5 py-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div className="flex items-start gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#eef6dc] text-[#2c7334]">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-[#8b5cf6]">
               <Sparkles className="h-5 w-5" />
             </div>
             <div>
-              <h2 className="text-lg font-semibold text-[#1e2b22]">{title}</h2>
-              <p className="mt-1 max-w-2xl text-sm leading-6 text-[#54634b]">
+              <h2 className="text-lg font-semibold text-[#0a0a0a]">{title}</h2>
+              <p className="mt-1 max-w-2xl text-sm leading-6 text-[#52525b]">
                 {message}
               </p>
             </div>
@@ -144,7 +144,7 @@ function SetupGuide({
           <button
             type="button"
             onClick={onDismiss}
-            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-[#54634b] transition hover:bg-[#eef6dc]"
+            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-[#52525b] transition hover:bg-white"
             aria-label="Cerrar guía"
           >
             <X className="h-5 w-5" />
@@ -152,13 +152,13 @@ function SetupGuide({
         </div>
 
         <div className="mt-4">
-          <div className="flex items-center justify-between text-xs font-medium text-[#54634b]">
+          <div className="flex items-center justify-between text-xs font-medium text-[#52525b]">
             <span>Progreso de configuración</span>
             <span>{progress}%</span>
           </div>
-          <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-[#e4ecd5]">
+          <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-white">
             <div
-              className="h-full rounded-full bg-[#2c7334] transition-all duration-700 ease-out"
+              className="h-full rounded-full bg-[#8b5cf6] transition-all duration-700 ease-out"
               style={{ width: `${progress}%` }}
             />
           </div>
@@ -172,10 +172,10 @@ function SetupGuide({
                 key={step.id}
                 className={`rounded-xl border px-2 py-2 text-center text-xs font-semibold transition ${
                   step.done
-                    ? "border-[#d7e9c5] bg-[#ecf7ec] text-[#2c7334]"
+                    ? "border-[#d8efd7] bg-[#ecf7ec] text-[#2c7334]"
                     : isActive
-                      ? "border-[#b9d489] bg-white text-[#405115] ring-2 ring-[#b8d96e]"
-                      : "border-[#dce7d2] bg-white/60 text-muted"
+                      ? "border-[#8b5cf6] bg-white text-[#6d28d9] ring-2 ring-[#8b5cf6]"
+                      : "border-[#e5e5e5] bg-white/60 text-muted"
                 }`}
               >
                 <div className="mb-1 flex justify-center">
@@ -203,17 +203,17 @@ function ScheduleConfirmationBanner({
   onEdit: () => void;
 }) {
   return (
-    <section className="rounded-2xl border border-[#b8d96e] bg-[linear-gradient(135deg,#f6fadf,#ffffff)] p-5 shadow-[0_12px_32px_rgba(30,43,34,0.08)] ring-1 ring-[#b8d96e]/40">
+    <section className="rounded-2xl border border-[#8b5cf6] bg-[#f3eeff] p-5 shadow-[0_12px_32px_rgba(0,0,0,0.08)] ring-1 ring-[#8b5cf6]/40">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-start gap-3">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#eef6dc] text-[#2c7334]">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-[#8b5cf6]">
             <MapPin className="h-5 w-5" />
           </div>
           <div>
-            <h3 className="text-base font-semibold text-[#1e2b22]">
+            <h3 className="text-base font-semibold text-[#0a0a0a]">
               Horario importado desde Google Places
             </h3>
-            <p className="mt-1 max-w-xl text-sm leading-6 text-[#54634b]">
+            <p className="mt-1 max-w-xl text-sm leading-6 text-[#52525b]">
               Confirma que se han implementado correctamente los días y tramos
               horarios de tu negocio.
             </p>
@@ -255,12 +255,12 @@ function ServicesProfessionalsGuide({
 }) {
   if (hasServices && hasProfessionals) {
     return (
-      <section className="rounded-2xl border border-[#d7e9c5] bg-[#ecf7ec] p-4 text-[#2c7334]">
+      <section className="rounded-2xl border border-[#d8efd7] bg-[#ecf7ec] p-4 text-[#2c7334]">
         <div className="flex items-center gap-2 text-sm font-semibold">
           <CheckCircle2 className="h-5 w-5" />
           <span>Ya tienes servicios y profesionales configurados.</span>
         </div>
-        <p className="mt-1 text-sm text-[#405115]">
+        <p className="mt-1 text-sm text-[#2c7334]/80">
           Conecta tu calendario en el apartado de Calendario para empezar a
           recibir reservas automáticas.
         </p>
@@ -276,14 +276,14 @@ function ServicesProfessionalsGuide({
   }
 
   return (
-    <section className="rounded-2xl border border-[#cfe1ae] bg-[#f6fadf] p-4">
+    <section className="rounded-2xl border border-[#ddd6fe] bg-[#f3eeff] p-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex items-start gap-3">
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[#eef6dc] text-[#2c7334]">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-white text-[#8b5cf6]">
             <ArrowUp className="h-4 w-4" />
           </div>
           <div>
-            <p className="font-semibold text-[#405115]">
+            <p className="font-semibold text-[#6d28d9]">
               Siguiente paso: servicios y profesionales
             </p>
             <p className="text-sm text-muted">
@@ -743,7 +743,7 @@ function AjustesContent() {
   if (settingsQuery.isError) {
     return (
       <div className="panel mx-auto max-w-2xl space-y-4 p-6 text-center">
-        <h1 className="text-2xl font-semibold text-[#1e2b22]">
+        <h1 className="text-2xl font-semibold text-[#0a0a0a]">
           No se pudo cargar la configuración operativa
         </h1>
         <p className="text-sm leading-6 text-muted">
@@ -765,7 +765,7 @@ function AjustesContent() {
   if (isBusinessError) {
     return (
       <div className="panel mx-auto max-w-2xl space-y-4 p-6 text-center">
-        <h1 className="text-2xl font-semibold text-[#1e2b22]">
+        <h1 className="text-2xl font-semibold text-[#0a0a0a]">
           No se pudieron cargar los ajustes
         </h1>
         <p className="text-sm leading-6 text-muted">
@@ -843,7 +843,7 @@ function AjustesContent() {
             su horario. Es independiente del número de profesionales.
           </p>
           <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-end">
-            <label className="max-w-xs flex-1 text-sm font-medium text-[#344038]">
+            <label className="max-w-xs flex-1 text-sm font-medium text-[#27272a]">
               Máximo de citas simultáneas
               <input
                 type="number"
@@ -900,12 +900,12 @@ function AjustesContent() {
             La duración siempre saldrá de aquí, no del agente.
           </p>
 
-          <details className="group rounded-xl border border-[#dce7d2] bg-[#fbfcf8]">
-            <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-semibold text-[#344038]">
+          <details className="group rounded-xl border border-[#e5e5e5] bg-[#fafafa]">
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-semibold text-[#27272a]">
               Añadir servicio
               <ChevronDown className="h-4 w-4 transition group-open:rotate-180" />
             </summary>
-            <div className="grid gap-3 border-t border-[#e4e8df] p-4 md:grid-cols-[minmax(0,1fr)_9rem_auto]">
+            <div className="grid gap-3 border-t border-[#e5e5e5] p-4 md:grid-cols-[minmax(0,1fr)_9rem_auto]">
               <input
                 value={serviceDraft.name}
                 onChange={(event) =>
@@ -1001,12 +1001,12 @@ function AjustesContent() {
             compatible y libre.
           </p>
 
-          <details className="group rounded-xl border border-[#dce7d2] bg-[#fbfcf8]">
-            <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-semibold text-[#344038]">
+          <details className="group rounded-xl border border-[#e5e5e5] bg-[#fafafa]">
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-semibold text-[#27272a]">
               Añadir profesional
               <ChevronDown className="h-4 w-4 transition group-open:rotate-180" />
             </summary>
-            <div className="space-y-3 border-t border-[#e4e8df] p-4">
+            <div className="space-y-3 border-t border-[#e5e5e5] p-4">
               <input
                 value={professionalDraft.name}
                 onChange={(event) =>
@@ -1018,7 +1018,7 @@ function AjustesContent() {
                 placeholder="Nombre del profesional"
                 className="field"
               />
-              <label className="text-sm font-medium text-[#344038]">
+              <label className="text-sm font-medium text-[#27272a]">
                 Servicios compatibles
                 <div className="mt-2 grid gap-2 sm:grid-cols-2">
                   {services.map((service) => {
@@ -1028,10 +1028,11 @@ function AjustesContent() {
                     return (
                       <label
                         key={service.id}
-                        className="flex items-center gap-2 rounded-xl border border-[#e4e8df] bg-white px-3 py-2 text-sm text-[#344038]"
+                        className="flex items-center gap-2 rounded-xl border border-[#e5e5e5] bg-white px-3 py-2 text-sm text-[#27272a]"
                       >
                         <input
                           type="checkbox"
+                          className="accent-[#8b5cf6]"
                           checked={checked}
                           onChange={() => {
                             setProfessionalDraft((current) => ({
@@ -1118,7 +1119,7 @@ function AjustesContent() {
         <div className="space-y-4 p-4 sm:p-5">
           {calendarStatus && (
             <div
-              className={`rounded-xl border px-4 py-3 text-sm font-medium ${calendarStatus.type === "success" ? "border-[#d8efd7] bg-[#ecf7ec] text-[#2c7334]" : "border-[#f5d3d3] bg-[#fff1f1] text-[#9f2a2a]"}`}
+              className={`rounded-xl border px-4 py-3 text-sm font-medium ${calendarStatus.type === "success" ? "border-[#d8efd7] bg-[#ecf7ec] text-[#2c7334]" : "border-[#f5d3d3] bg-[#fff1f1] text-[#c53030]"}`}
             >
               {calendarStatus.message}
             </div>
@@ -1136,10 +1137,10 @@ function AjustesContent() {
                     type="button"
                     onClick={() => void startCalendarConnection("google")}
                     disabled={calendarAuthLoading !== null}
-                    className="flex flex-col justify-between rounded-xl border border-[#d7e9c5] bg-[linear-gradient(135deg,#f4fbe6,#ffffff)] p-4 text-left transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_4px_16px_rgba(30,43,34,0.04)] disabled:cursor-not-allowed disabled:opacity-60"
+                    className="flex flex-col justify-between rounded-xl border border-[#ddd6fe] bg-[#f3eeff] p-4 text-left transition duration-200 hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     <div>
-                      <p className="text-sm font-semibold text-[#1e2b22]">
+                      <p className="text-sm font-semibold text-[#0a0a0a]">
                         Conecta Google Calendar
                       </p>
                       <p className="mt-1 text-sm leading-6 text-muted">
@@ -1147,7 +1148,7 @@ function AjustesContent() {
                         agenda en el panel.
                       </p>
                     </div>
-                    <span className="inline-flex items-center gap-1 text-sm font-semibold text-[#2f5b18]">
+                    <span className="inline-flex items-center gap-1 text-sm font-semibold text-[#6d28d9]">
                       {calendarAuthLoading === "google"
                         ? "Conectando..."
                         : "Conectar Google"}
@@ -1158,10 +1159,10 @@ function AjustesContent() {
                     type="button"
                     onClick={() => void startCalendarConnection("outlook")}
                     disabled={calendarAuthLoading !== null}
-                    className="flex flex-col justify-between rounded-xl border border-[#d7e9c5] bg-[linear-gradient(135deg,#f4fbe6,#ffffff)] p-4 text-left transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_4px_16px_rgba(30,43,34,0.04)] disabled:cursor-not-allowed disabled:opacity-60"
+                    className="flex flex-col justify-between rounded-xl border border-[#ddd6fe] bg-[#f3eeff] p-4 text-left transition duration-200 hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     <div>
-                      <p className="text-sm font-semibold text-[#1e2b22]">
+                      <p className="text-sm font-semibold text-[#0a0a0a]">
                         Conecta Outlook
                       </p>
                       <p className="mt-1 text-sm leading-6 text-muted">
@@ -1169,7 +1170,7 @@ function AjustesContent() {
                         sincronizar tu agenda del negocio.
                       </p>
                     </div>
-                    <span className="inline-flex items-center gap-1 text-sm font-semibold text-[#2f5b18]">
+                    <span className="inline-flex items-center gap-1 text-sm font-semibold text-[#6d28d9]">
                       {calendarAuthLoading === "outlook"
                         ? "Conectando..."
                         : "Conectar Outlook"}
@@ -1195,7 +1196,7 @@ function AjustesContent() {
                         : "Google Calendar"}{" "}
                       conectado
                     </p>
-                    <p className="truncate text-xs text-[#405115]">
+                    <p className="truncate text-xs text-[#2c7334]/70">
                       {activeCalendarProvider === "outlook"
                         ? (business.outlookUserEmail ?? "Cuenta de Outlook")
                         : "Cuenta de Google"}
@@ -1242,10 +1243,10 @@ function AjustesContent() {
                             onClick={() =>
                               selectCalendarMutation.mutate(calendar.id)
                             }
-                            className={`flex w-full items-center justify-between gap-3 rounded-xl border px-4 py-3 text-left transition duration-200 disabled:opacity-60 ${isSelected ? "border-[#b9d489] bg-[#f1f8e3]" : "border-[#e1e8da] bg-white hover:border-[#cfddc4]"}`}
+                            className={`flex w-full items-center justify-between gap-3 rounded-xl border px-4 py-3 text-left transition duration-200 disabled:opacity-60 ${isSelected ? "border-[#8b5cf6] bg-[#f3eeff]" : "border-[#e5e5e5] bg-white hover:border-[#ddd6fe]"}`}
                           >
                             <span className="min-w-0">
-                              <span className="block truncate text-sm font-semibold text-[#344038]">
+                              <span className="block truncate text-sm font-semibold text-[#27272a]">
                                 {calendar.name}
                               </span>
                               {calendar.primary ? (
@@ -1255,7 +1256,7 @@ function AjustesContent() {
                               ) : null}
                             </span>
                             <span
-                              className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full ${isSelected ? "bg-[#b8d96e] text-[#30430f]" : "bg-[#eef0ec] text-transparent"}`}
+                              className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full ${isSelected ? "bg-[#8b5cf6] text-[#ffffff]" : "bg-[#f4f4f5] text-transparent"}`}
                             >
                               <Check className="h-3.5 w-3.5" />
                             </span>
@@ -1284,7 +1285,7 @@ function AjustesContent() {
           servicios y horarios se configuran en sus apartados específicos.
         </p>
         <div className="grid gap-4 p-4 sm:p-6 lg:grid-cols-[minmax(14rem,0.4fr)_minmax(0,1fr)]">
-          <label className="text-sm font-semibold text-[#344038]">
+          <label className="text-sm font-semibold text-[#27272a]">
             Nombre comercial
             <input
               value={businessProfile.name}
@@ -1297,7 +1298,7 @@ function AjustesContent() {
               className="field mt-2 w-full"
             />
           </label>
-          <label className="text-sm font-semibold text-[#344038]">
+          <label className="text-sm font-semibold text-[#27272a]">
             Dirección, contacto y políticas útiles
             <textarea
               rows={4}
@@ -1313,7 +1314,7 @@ function AjustesContent() {
             />
           </label>
         </div>
-        <div className="flex justify-end border-t border-[#e4e8df] px-4 py-4 sm:px-6">
+        <div className="flex justify-end border-t border-[#e5e5e5] px-4 py-4 sm:px-6">
           <button
             type="button"
             onClick={() => profileMutation.mutate()}
@@ -1337,7 +1338,7 @@ function AjustesContent() {
 
       {banner ? (
         <div
-          className={`rounded-xl border px-4 py-3 text-sm ${banner.type === "success" ? "border-[#d8efd7] bg-[#ecf7ec] text-[#2c7334]" : "border-[#f5d3d3] bg-[#fff1f1] text-[#9f2a2a]"}`}
+          className={`rounded-xl border px-4 py-3 text-sm ${banner.type === "success" ? "border-[#d8efd7] bg-[#ecf7ec] text-[#2c7334]" : "border-[#f5d3d3] bg-[#fff1f1] text-[#c53030]"}`}
         >
           {banner.message}
         </div>
@@ -1386,10 +1387,10 @@ function ServiceEditor({
   });
 
   return (
-    <details className="group rounded-xl border border-[#dce7d2] bg-white shadow-[0_4px_16px_rgba(30,43,34,0.04)]">
+    <details className="group rounded-xl border border-[#e5e5e5] bg-white">
       <summary className="flex cursor-pointer list-none items-center justify-between gap-3 p-4">
         <span className="min-w-0">
-          <span className="block truncate text-sm font-semibold text-[#344038]">
+          <span className="block truncate text-sm font-semibold text-[#27272a]">
             {service.name}
           </span>
           <span className="mt-0.5 block text-xs text-muted">
@@ -1399,7 +1400,7 @@ function ServiceEditor({
         </span>
         <ChevronDown className="h-4 w-4 shrink-0 text-muted transition group-open:rotate-180" />
       </summary>
-      <div className="grid gap-3 border-t border-[#e4e8df] p-4 md:grid-cols-[minmax(0,1fr)_9rem_auto_auto]">
+      <div className="grid gap-3 border-t border-[#e5e5e5] p-4 md:grid-cols-[minmax(0,1fr)_9rem_auto_auto]">
         <input
           value={name}
           onChange={(event) => setName(event.target.value)}
@@ -1413,9 +1414,10 @@ function ServiceEditor({
           onChange={(event) => setDurationMinutes(event.target.value)}
           className="field"
         />
-        <label className="flex items-center gap-2 rounded-xl border border-[#e4e8df] px-3 py-2 text-sm text-[#344038]">
+        <label className="flex items-center gap-2 rounded-xl border border-[#e5e5e5] px-3 py-2 text-sm text-[#27272a]">
           <input
             type="checkbox"
+            className="accent-[#8b5cf6]"
             checked={active}
             onChange={() => setActive((current) => !current)}
           />
@@ -1473,10 +1475,10 @@ function ProfessionalEditor({
   });
 
   return (
-    <details className="group rounded-xl border border-[#dce7d2] bg-white shadow-[0_4px_16px_rgba(30,43,34,0.04)]">
+    <details className="group rounded-xl border border-[#e5e5e5] bg-white">
       <summary className="flex cursor-pointer list-none items-center justify-between gap-3 p-4">
         <span className="min-w-0">
-          <span className="block truncate text-sm font-semibold text-[#344038]">
+          <span className="block truncate text-sm font-semibold text-[#27272a]">
             {professional.name}
           </span>
           <span className="mt-0.5 block truncate text-xs text-muted">
@@ -1486,16 +1488,17 @@ function ProfessionalEditor({
         </span>
         <ChevronDown className="h-4 w-4 shrink-0 text-muted transition group-open:rotate-180" />
       </summary>
-      <div className="flex flex-col gap-3 border-t border-[#e4e8df] p-4">
+      <div className="flex flex-col gap-3 border-t border-[#e5e5e5] p-4">
         <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto_auto]">
           <input
             value={name}
             onChange={(event) => setName(event.target.value)}
             className="field"
           />
-          <label className="flex items-center gap-2 rounded-xl border border-[#e4e8df] px-3 py-2 text-sm text-[#344038]">
+          <label className="flex items-center gap-2 rounded-xl border border-[#e5e5e5] px-3 py-2 text-sm text-[#27272a]">
             <input
               type="checkbox"
+              className="accent-[#8b5cf6]"
               checked={active}
               onChange={() => setActive((current) => !current)}
             />
@@ -1516,10 +1519,11 @@ function ProfessionalEditor({
             return (
               <label
                 key={service.id}
-                className="flex items-center gap-2 rounded-xl border border-[#e4e8df] bg-[#fbfcf8] px-3 py-2 text-sm text-[#344038]"
+                className="flex items-center gap-2 rounded-xl border border-[#e5e5e5] bg-[#fafafa] px-3 py-2 text-sm text-[#27272a]"
               >
                 <input
                   type="checkbox"
+                  className="accent-[#8b5cf6]"
                   checked={checked}
                   onChange={() => {
                     setServiceIds((current) =>
