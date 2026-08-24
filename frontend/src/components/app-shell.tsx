@@ -21,6 +21,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     "/register/business",
     "/register/business/niche",
     "/register/business/services",
+    "/register/business/team",
+    "/register/business/calendar",
     "/planes",
     "/auth/google/callback",
     "/legal/privacidad",
