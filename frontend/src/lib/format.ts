@@ -1,4 +1,4 @@
-import type { CallStatus } from "./types";
+import type { CallOutcome, CallStatus } from "./types";
 
 export function formatCurrency(cents?: number | null) {
   return new Intl.NumberFormat("es-ES", {
@@ -48,9 +48,33 @@ export function formatDuration(seconds?: number | null) {
 
 export function statusLabel(status: CallStatus) {
   const labels: Record<CallStatus, string> = {
+    INITIATED: "Iniciando",
     IN_PROGRESS: "En curso",
     COMPLETED: "Completada",
     FAILED: "Fallida",
+    TIMED_OUT: "Sin respuesta a tiempo",
   };
   return labels[status];
+}
+
+/** Etiqueta en español del resultado clasificado de una llamada. `null` es una
+ * llamada aún sin clasificar (el job de clasificación corre tras colgar). */
+export function outcomeLabel(outcome: CallOutcome | null) {
+  if (!outcome) return "Sin clasificar";
+  const labels: Record<CallOutcome, string> = {
+    RESOLVED: "Resuelta",
+    LEAD_CAPTURED: "Cliente potencial",
+    FRUSTRATED: "Cliente frustrado",
+    ESCALATED: "Escalada",
+    NO_ANSWER: "Sin respuesta",
+  };
+  return labels[outcome];
+}
+
+/** Tono semántico para colorear el resultado — no toda llamada "sin resolver"
+ * es un fallo del agente, así que NO_ANSWER y sin clasificar quedan neutros. */
+export function outcomeTone(outcome: CallOutcome | null): "success" | "warning" | "neutral" {
+  if (outcome === "RESOLVED" || outcome === "LEAD_CAPTURED") return "success";
+  if (outcome === "FRUSTRATED" || outcome === "ESCALATED") return "warning";
+  return "neutral";
 }

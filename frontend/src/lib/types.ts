@@ -1,4 +1,4 @@
-export type CallStatus = "IN_PROGRESS" | "COMPLETED" | "FAILED";
+export type CallStatus = "INITIATED" | "IN_PROGRESS" | "COMPLETED" | "FAILED" | "TIMED_OUT";
 
 export type CallOutcome =
   | "RESOLVED"
@@ -226,7 +226,18 @@ export type Lead = {
   callId: string;
   type: string;
   data: Record<string, unknown> | unknown;
+  isLead: boolean;
   createdAt: string;
+};
+
+export type CallBooking = {
+  id: string;
+  programedAt: string;
+  durationMinutes: number;
+  numberPeople: number;
+  isCancelled: boolean;
+  professional?: { id: string; name: string } | null;
+  service?: { id: string; name: string; durationMinutes: number } | null;
 };
 
 export type Call = {
@@ -247,6 +258,7 @@ export type Call = {
   transcript?: Transcript | null;
   recording?: Recording | null;
   leads?: Lead[];
+  booking?: CallBooking | null;
 };
 
 export type Paginated<T> = {

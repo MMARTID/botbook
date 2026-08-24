@@ -1,12 +1,13 @@
 "use client";
 
 import { useCallback, useState, useEffect, Suspense } from "react";
-import { Bot, PhoneCall, Clock3, TrendingUp, CalendarDays, Upload, FileText, ArrowUpRight, ArrowRight, Sparkles, Smartphone, RefreshCw } from "lucide-react";
+import { Bot, PhoneCall, Clock3, TrendingUp, CalendarDays, Upload, FileText, ArrowUpRight, ArrowRight, Sparkles, Smartphone, RefreshCw, type LucideIcon } from "lucide-react";
 import { getStats, getPhoneNumberInfo, provisionPhoneNumber } from "@/lib/api";
 import { useBusiness } from "@/components/providers";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AGENT_FILE_ACCEPT, useAgentFileUpload } from "@/hooks/use-agent-file-upload";
 import { UpcomingCalendarEvents } from "@/components/upcoming-calendar-events";
+import { RecentCalls } from "@/components/recent-calls";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
 function StatusRow({ label, value, icon }: { label: string; value: string; icon: React.ReactNode }) {
@@ -22,54 +23,38 @@ function StatusRow({ label, value, icon }: { label: string; value: string; icon:
 }
 
 function QuickActionCard({
+  icon: Icon,
   title,
   description,
   action,
   onClick,
   disabled,
-  tone = "default",
 }: {
+  icon: LucideIcon;
   title: string;
   description: string;
   action: string;
   onClick?: () => void;
   disabled?: boolean;
-  tone?: "default" | "success";
 }) {
-  const toneClasses = {
-    default: "border-[#e5e5e5] bg-white/88 text-[#27272a] hover:border-[#ddd6fe]",
-    success: "border-[#ddd6fe] bg-[#f3eeff] text-[#6d28d9] hover:border-[#8b5cf6]",
-  } as const;
-
-  const content = (
-    <>
-      <div>
-        <p className="text-sm font-semibold text-[#0a0a0a]">{title}</p>
-        <p className="mt-1 text-sm leading-6 text-muted">{description}</p>
-      </div>
-      <span className="inline-flex items-center gap-1 text-sm font-semibold">
-        {action}
-        <ArrowUpRight className="h-4 w-4" />
-      </span>
-    </>
-  );
-
-  if (!onClick) {
-    return (
-      <div className={`flex h-full flex-col justify-between rounded-xl border p-4 ${toneClasses[tone]}`}>
-        {content}
-      </div>
-    );
-  }
-
   return (
     <button
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className={`flex h-full flex-col justify-between rounded-xl border p-4 text-left transition duration-200 hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60 ${toneClasses[tone]}`}
+      className="flex w-full items-center gap-3 rounded-xl border border-[#ddd6fe] bg-[#f3eeff] p-3 text-left transition duration-200 hover:border-[#8b5cf6] disabled:cursor-not-allowed disabled:opacity-60"
     >
-      {content}
+      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white text-[#8b5cf6]">
+        <Icon className="h-4 w-4" />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block text-sm font-semibold text-[#0a0a0a]">{title}</span>
+        <span className="block truncate text-xs text-[#6d28d9]/80">{description}</span>
+      </span>
+      <span className="inline-flex shrink-0 items-center gap-1 text-sm font-semibold text-[#6d28d9]">
+        {action}
+        <ArrowUpRight className="h-4 w-4" />
+      </span>
     </button>
   );
 }
@@ -208,12 +193,12 @@ function DashboardContent() {
 
             {!contextFileCount ? (
               <QuickActionCard
+                icon={Upload}
                 title="Añade documentos"
-                description="Sube PDFs, tarifas o FAQs para que el agente responda con contexto real."
+                description="PDFs, tarifas o FAQs para que el agente responda con contexto real."
                 action={isUploading ? "Subiendo..." : "Subir archivo"}
                 onClick={openFilePicker}
                 disabled={isUploading || !agent}
-                tone="success"
               />
             ) : null}
 
@@ -305,6 +290,8 @@ function DashboardContent() {
           </article>
         </aside>
       </section>
+
+      <RecentCalls />
 
       {hasCalendar ? (
         <UpcomingCalendarEvents

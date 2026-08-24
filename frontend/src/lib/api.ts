@@ -115,7 +115,7 @@ export async function getCalls(limit = 100, offset = 0) {
 }
 
 export async function getCall(id: string) {
-  const { data } = await api.get<Call>(`/calls/${id}`);
+  const { data } = await api.get<Call>(`/business/me/calls/${id}`);
   return data;
 }
 
