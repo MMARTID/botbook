@@ -302,8 +302,12 @@ fastify.post("/webhooks/vapi", {
       }
     });
 
-    // Retell tool endpoints (custom tools configured in Retell LLM)
-    fastify.post("/webhooks/retell/tools/:toolName", {
+    // Retell tool endpoints (custom tools configured in Retell LLM). El
+    // retellAgentId va en la propia URL (registrada por nosotros en
+    // buildRetellCalendarTools) porque Retell no incluye ningún identificador
+    // de agente ni de llamada en el cuerpo de estas peticiones — el body es
+    // directamente el objeto de argumentos declarado para la tool.
+    fastify.post("/webhooks/retell/tools/:retellAgentId/:toolName", {
       config: {
         rawBody: true,
         rateLimit: {
@@ -325,14 +329,11 @@ fastify.post("/webhooks/vapi", {
         return reply.status(401).send({ error: "Invalid webhook signature" });
       }
 
-      const { toolName } = request.params as { toolName: string };
-      const payload = request.body as any;
-      const retellAgentId = payload?.agent_id as string | undefined;
-      const callId = payload?.call_id as string | undefined;
-
-      if (!retellAgentId) {
-        return reply.status(400).send({ error: "Missing agent_id" });
-      }
+      const { retellAgentId, toolName } = request.params as {
+        retellAgentId: string;
+        toolName: string;
+      };
+      const toolParams = (request.body as Record<string, unknown>) || {};
 
       try {
         const agent = await prisma.agent.findFirst({
@@ -345,12 +346,11 @@ fastify.post("/webhooks/vapi", {
           return reply.status(404).send({ error: "Agent not found" });
         }
 
-        const toolParams = payload?.args || payload?.parameters || {};
         const result = await executeVoiceTool({
           businessId: agent.businessId,
           toolName,
-          params: toolParams as Record<string, unknown>,
-          callLabel: callId ? `llamada ${callId}` : "llamada sin identificador",
+          params: toolParams,
+          callLabel: "llamada en curso",
         });
 
         // Retell expects the tool result in the response body

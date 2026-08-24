@@ -291,8 +291,8 @@ export class CalendarService {
     ];
   }
 
-  private buildRetellCalendarTools(baseUrl: string): RetellTool[] {
-    const toolBaseUrl = `${baseUrl.replace(/\/$/, '')}/webhooks/retell/tools`;
+  private buildRetellCalendarTools(baseUrl: string, retellAgentId: string): RetellTool[] {
+    const toolBaseUrl = `${baseUrl.replace(/\/$/, '')}/webhooks/retell/tools/${retellAgentId}`;
     return [
       {
         name: 'check_business_hours',
@@ -371,6 +371,11 @@ export class CalendarService {
 
     for (const agent of agents) {
       if (orchestrator === 'retell' && agent.retellLlmId) {
+        if (!agent.retellAgentId) {
+          console.error(`[Calendar] Agente ${agent.id} tiene retellLlmId pero no retellAgentId; no se pueden registrar tools`);
+          continue;
+        }
+
         const baseUrl = getPublicWebhookBaseUrl();
         if (!baseUrl) {
           console.error('[Calendar] No hay URL pública configurada (BASE_URL o ngrok); no se pueden sincronizar tools de Retell');
@@ -378,7 +383,7 @@ export class CalendarService {
         }
 
         try {
-          const retellTools = this.buildRetellCalendarTools(baseUrl);
+          const retellTools = this.buildRetellCalendarTools(baseUrl, agent.retellAgentId);
           await retellAdapter.updateLlm(agent.retellLlmId, { tools: retellTools });
           console.log(`[Calendar] Tools de calendario sincronizadas en Retell LLM ${agent.retellLlmId}`);
         } catch (e) {

@@ -425,7 +425,7 @@ The backend supports two voice-AI orchestrators. `Business.orchestrator` decides
 - **Endpoints used:** `POST /create-retell-llm`, `POST /create-agent`, `PATCH /update-agent/{id}`, `GET /get-agent/{id}`, `DELETE /delete-agent/{id}`, `GET /list-phone-numbers`, `POST /create-phone-number`, `POST /import-phone-number`, `DELETE /delete-phone-number/{id}`, `GET /get-call/{id}`, `POST /v2/create-web-call` (public landing demo).
 - Webhooks from Retell hit `POST /webhooks/retell`. The endpoint verifies the `x-retell-signature` using `retellAdapter.validateWebhookSignature` (timing-safe comparison with the Retell API key).
 - Supported Retell webhook events: `call_started`, `call_ended`, `call_analyzed`. Other events are acknowledged (`200`) but ignored.
-- Retell custom tools are exposed under `POST /webhooks/retell/tools/:toolName`. The endpoint validates the `x-retell-signature` before executing any tool. Handlers live in `src/adapters/retell/webhookHandlers.ts` and implement `check_business_hours`, `check_availability` and `book_appointment` (Google and Outlook Calendar supported).
+- Retell custom tools are exposed under `POST /webhooks/retell/tools/:retellAgentId/:toolName`. The `retellAgentId` path segment is required because Retell's tool-call payload is just the raw tool arguments — no agent or call identifier is included in the body, so it has to be embedded in the URL itself (done in `buildRetellCalendarTools`, `src/modules/calendar/service.ts`). The endpoint validates the `x-retell-signature` before executing any tool. Execution is delegated to `executeVoiceTool` in `src/modules/voiceTools/service.ts`, which implements `check_business_hours`, `check_availability` and `book_appointment` (Google and Outlook Calendar supported).
 - When an agent is created or updated for a Retell business, `agentBootstrap.ts` creates/updates the LLM and agent in Retell and stores `retellAgentId`/`retellLlmId` in the `Agent` row.
 - Retell agents use the name built by `buildAgentDisplayName(businessName, businessType)` so they are easy to identify in the Retell dashboard.
 
@@ -748,7 +748,7 @@ The project uses **Vitest** for backend testing.
 - CORS is restricted to the exact `FRONTEND_URL` origin.
 - Rate limiting is active globally (100 req/min) and raised for Vapi and Retell webhooks (300 req/min). Places endpoints use 10/min.
 - Vapi webhook signatures are verified with HMAC-SHA256 timing-safe comparison.
-- Retell webhook signatures are verified via `retellAdapter.validateWebhookSignature` using the Retell API key. This also applies to the Retell custom tool endpoints (`/webhooks/retell/tools/:toolName`).
+- Retell webhook signatures are verified via `retellAdapter.validateWebhookSignature` using the Retell API key. This also applies to the Retell custom tool endpoints (`/webhooks/retell/tools/:retellAgentId/:toolName`).
 - Stripe webhook signatures are verified in the route handler before calling `handleStripeEvent` (route uses `rawBody: true`).
 - Raw body parsing is enabled only on the Vapi and Retell webhook routes to avoid memory overhead on regular routes.
 - Business-scoped queries must always filter by `request.user.businessId`. Do not accept a `businessId` from the body for reads/writes.
