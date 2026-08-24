@@ -187,7 +187,7 @@ function DashboardContent() {
     <div className="space-y-5 sm:space-y-8">
       <section className="grid gap-4 sm:gap-6 xl:grid-cols-[minmax(0,1fr)_22rem]">
         <article id="calendar-setup" className="panel relative scroll-mt-32 overflow-hidden p-4 sm:p-6">
-          <div className="pointer-events-none absolute inset-y-0 right-0 w-40 bg-[radial-gradient(circle_at_top_right,rgba(139,92,246,0.14),transparent_62%)]" />
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(139,92,246,0.14),transparent_62%)]" />
           <div className="pointer-events-none absolute -left-12 bottom-0 h-32 w-32 rounded-full bg-[#8b5cf6]/20 blur-3xl" />
           <div className="relative flex flex-col gap-5 sm:gap-6">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
