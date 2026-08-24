@@ -72,7 +72,7 @@ function ConversationScene({ conversation, reducedMotion }: { conversation: Conv
       exit={reducedMotion ? undefined : { opacity: 0 }}
       transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
     >
-      <div className="flex flex-1 flex-col justify-center gap-2.5 sm:gap-3">
+      <div className="flex min-h-0 flex-1 flex-col justify-center gap-2.5 sm:gap-3">
         {conversation.messages.map((message) => {
           const isClient = message.sender === "client";
           return (
@@ -164,7 +164,7 @@ export function HeroConversation({ paused = false, conversationsOverride }: { pa
   return (
     <section
       aria-label="Ejemplos de llamadas atendidas automáticamente por BotBook"
-      className="relative flex h-full min-h-[310px] w-full flex-col overflow-hidden rounded-3xl border border-[#e5e5e5] bg-white sm:min-h-[380px]"
+      className="relative flex h-full min-h-[400px] w-full flex-col overflow-hidden rounded-3xl border border-[#e5e5e5] bg-white sm:min-h-[380px]"
     >
       <div className="flex items-center justify-between border-b border-[#e5e5e5] px-4 py-3 sm:px-6">
         <div className="flex items-center gap-1.5" aria-hidden="true">
