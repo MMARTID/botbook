@@ -34,6 +34,7 @@ vi.mock("../../../src/lib/queue.js", () => ({
 const mockedAgentFindFirst = vi.mocked(prisma.agent.findFirst);
 const mockedCallUpsert = vi.mocked(prisma.call.upsert);
 const mockedCallFindUnique = vi.mocked(prisma.call.findUnique);
+const mockedTranscriptUpsert = vi.mocked(prisma.transcript.upsert);
 const mockedRecordingQueueAdd = vi.mocked(recordingQueue.add);
 const mockedClassifyQueueAdd = vi.mocked(classifyQueue.add);
 
@@ -106,15 +107,35 @@ describe("Retell webhook handlers", () => {
         data: {
           call_id: "retell_call_123",
           agent_id: "retell_agent_123",
-          duration_seconds: 120,
-          disconnect_reason: "completed",
+          duration_ms: 23362,
+          disconnection_reason: "user_hangup",
           recording_url: "https://example.com/recording.mp3",
-          transcript: "Hola, quiero una cita",
-          call_cost: { total_cost: 0.05 },
+          transcript: "Agent: Hola\nUser: Quiero una cita",
+          transcript_object: [
+            { role: "agent", content: "Hola" },
+            { role: "user", content: "Quiero una cita" },
+          ],
+          call_cost: { combined_cost: 6.1 },
         },
       });
 
       expect(result.success).toBe(true);
+      expect(mockedCallUpsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          create: expect.objectContaining({ durationSecs: 23, costCents: 6 }),
+          update: expect.objectContaining({ durationSecs: 23, costCents: 6 }),
+        })
+      );
+      expect(mockedTranscriptUpsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          create: expect.objectContaining({
+            messages: [
+              { role: "agent", content: "Hola" },
+              { role: "user", content: "Quiero una cita" },
+            ],
+          }),
+        })
+      );
       expect(mockedRecordingQueueAdd).toHaveBeenCalled();
       expect(mockedClassifyQueueAdd).toHaveBeenCalled();
     });
@@ -135,7 +156,7 @@ describe("Retell webhook handlers", () => {
         data: {
           call_id: "retell_call_123",
           agent_id: "retell_agent_123",
-          duration_seconds: 60,
+          duration_ms: 60000,
         },
       });
 
@@ -156,11 +177,19 @@ describe("Retell webhook handlers", () => {
           call_id: "retell_call_123",
           agent_id: "retell_agent_123",
           transcript: "Transcripción final",
+          transcript_object: [{ role: "user", content: "Transcripción final" }],
           recording_url: "https://example.com/recording.mp3",
         },
       });
 
       expect(result.success).toBe(true);
+      expect(mockedTranscriptUpsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          create: expect.objectContaining({
+            messages: [{ role: "user", content: "Transcripción final" }],
+          }),
+        })
+      );
     });
 
     it("ignora el análisis si la llamada no existe", async () => {
