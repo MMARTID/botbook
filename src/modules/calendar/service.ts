@@ -299,6 +299,7 @@ export class CalendarService {
         description: 'Comprueba si una fecha y un intervalo completo están dentro del horario del negocio. Úsala SIEMPRE antes de ofrecer o confirmar una cita.',
         url: `${toolBaseUrl}/check_business_hours`,
         method: 'POST',
+        args_at_root: false,
         parameters: {
           type: 'object',
           properties: {
@@ -316,6 +317,7 @@ export class CalendarService {
         description: 'Comprueba si hay plazas y profesionales libres para una cita en una fecha y hora concretas. Úsala después de check_business_hours y antes de book_appointment.',
         url: `${toolBaseUrl}/check_availability`,
         method: 'POST',
+        args_at_root: false,
         parameters: {
           type: 'object',
           properties: {
@@ -334,6 +336,7 @@ export class CalendarService {
         description: 'Agenda una cita en el calendario activo del negocio. Úsala solo después de confirmar con check_business_hours que el intervalo está dentro del horario y con check_availability que hay profesionales libres.',
         url: `${toolBaseUrl}/book_appointment`,
         method: 'POST',
+        args_at_root: false,
         parameters: {
           type: 'object',
           properties: {

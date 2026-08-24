@@ -15,6 +15,8 @@ export interface ExecuteVoiceToolInput {
   toolName: VoiceToolName | string;
   params: Record<string, unknown>;
   callLabel?: string;
+  /** ID de llamada del proveedor de voz (vapiCallId), para vincular reservas a la llamada exacta. */
+  callId?: string;
 }
 
 interface BusinessVoiceConfig {
@@ -218,7 +220,8 @@ async function executeCheckAvailability(
 async function executeBookAppointment(
   business: BusinessVoiceConfig,
   params: Record<string, unknown>,
-  callLabel: string
+  callLabel: string,
+  callId?: string
 ): Promise<{ success: boolean; result?: any }> {
   const rawParams = params as {
     clientName?: string;
@@ -329,12 +332,29 @@ async function executeBookAppointment(
         outlookCalendarId: business.outlookCalendarId,
       });
 
-      // Persist booking in database
-      const call = await prisma.call.findFirst({
-        where: { businessId: business.id },
-        orderBy: { startedAt: "desc" },
-        select: { id: true },
-      });
+      // Persist booking in database, vinculada a la llamada exacta cuando se
+      // conoce su callId. Si no se conoce (o su fila Call aún no existe por
+      // una carrera con el webhook call_started) se cae al heurístico de
+      // "llamada más reciente del negocio" como red de seguridad.
+      let call = callId
+        ? await prisma.call.findUnique({
+            where: { vapiCallId: callId },
+            select: { id: true },
+          })
+        : null;
+
+      if (!call) {
+        if (callId) {
+          console.warn(
+            `[VoiceTools] ${callLabel} no encontró la fila Call para callId=${callId}; usando heurístico de llamada más reciente`
+          );
+        }
+        call = await prisma.call.findFirst({
+          where: { businessId: business.id },
+          orderBy: { startedAt: "desc" },
+          select: { id: true },
+        });
+      }
 
       if (call) {
         await prisma.booking.upsert({
@@ -479,7 +499,7 @@ async function executeBookAppointment(
 export async function executeVoiceTool(
   input: ExecuteVoiceToolInput
 ): Promise<{ success: boolean; result?: any }> {
-  const { businessId, toolName, params, callLabel = "llamada" } = input;
+  const { businessId, toolName, params, callLabel = "llamada", callId } = input;
 
   const business = await getVoiceConfig(businessId);
   if (!business) {
@@ -501,7 +521,7 @@ export async function executeVoiceTool(
     case "check_availability":
       return executeCheckAvailability(business, params, callLabel);
     case "book_appointment":
-      return executeBookAppointment(business, params, callLabel);
+      return executeBookAppointment(business, params, callLabel, callId);
     default:
       console.warn(`[VoiceTools] Tool desconocida: ${toolName}`);
       return { success: true };

@@ -109,6 +109,7 @@ describe("handleFunctionCall", () => {
         durationMinutes: 60,
       },
       callLabel: "llamada call_123",
+      callId: "call_123",
     });
   });
 
@@ -146,6 +147,7 @@ describe("handleFunctionCall", () => {
         durationMinutes: 60,
       },
       callLabel: "llamada call_123",
+      callId: "call_123",
     });
   });
 
@@ -177,6 +179,7 @@ describe("handleFunctionCall", () => {
         clientEmail: "maria@example.com",
       },
       callLabel: "llamada call_123",
+      callId: "call_123",
     });
   });
 

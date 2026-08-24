@@ -15,6 +15,8 @@ export interface RetellTool {
   speak_during_execution?: boolean;
   speak_after_execution?: boolean;
   timeout_ms?: number;
+  /** false (por defecto en nuestras tools) hace que Retell mande {name, call, args} en vez de los argumentos sueltos en la raíz. */
+  args_at_root?: boolean;
 }
 
 export interface CreateRetellLlmInput {
@@ -77,7 +79,7 @@ export class RetellAdapter {
       speak_during_execution: tool.speak_during_execution ?? true,
       speak_after_execution: tool.speak_after_execution ?? true,
       timeout_ms: tool.timeout_ms ?? 20000,
-      args_at_root: true,
+      args_at_root: tool.args_at_root ?? true,
     }));
 
     const response = await this.client.llm.create({
@@ -120,7 +122,7 @@ export class RetellAdapter {
         speak_during_execution: tool.speak_during_execution ?? true,
         speak_after_execution: tool.speak_after_execution ?? true,
         timeout_ms: tool.timeout_ms ?? 20000,
-        args_at_root: true,
+        args_at_root: tool.args_at_root ?? true,
       }));
     }
     if (input.model !== undefined) {

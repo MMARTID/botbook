@@ -142,6 +142,7 @@ export async function handleFunctionCall(
     toolName: functionName,
     params: (event.message.toolUse.function.parameters as Record<string, unknown>) || {},
     callLabel: callLabel(callId),
+    callId: callId !== "unknown" ? callId : undefined,
   });
 }
 

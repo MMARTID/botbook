@@ -305,8 +305,11 @@ fastify.post("/webhooks/vapi", {
     // Retell tool endpoints (custom tools configured in Retell LLM). El
     // retellAgentId va en la propia URL (registrada por nosotros en
     // buildRetellCalendarTools) porque Retell no incluye ningún identificador
-    // de agente ni de llamada en el cuerpo de estas peticiones — el body es
-    // directamente el objeto de argumentos declarado para la tool.
+    // de agente en el cuerpo de estas peticiones. Nuestras tools se registran
+    // con args_at_root: false, así que Retell debería mandar
+    // {name, call, args} — pero se tolera también el body plano (args en la
+    // raíz, sin `call`) mientras un negocio no se haya resincronizado con la
+    // config nueva.
     fastify.post("/webhooks/retell/tools/:retellAgentId/:toolName", {
       config: {
         rawBody: true,
@@ -333,7 +336,9 @@ fastify.post("/webhooks/vapi", {
         retellAgentId: string;
         toolName: string;
       };
-      const toolParams = (request.body as Record<string, unknown>) || {};
+      const payload = (request.body as Record<string, any>) || {};
+      const toolParams = (payload.args ?? payload) as Record<string, unknown>;
+      const callId = payload.call?.call_id as string | undefined;
 
       try {
         const agent = await prisma.agent.findFirst({
@@ -350,7 +355,8 @@ fastify.post("/webhooks/vapi", {
           businessId: agent.businessId,
           toolName,
           params: toolParams,
-          callLabel: "llamada en curso",
+          callLabel: callId ? `llamada ${callId}` : "llamada en curso",
+          callId,
         });
 
         // Retell expects the tool result in the response body

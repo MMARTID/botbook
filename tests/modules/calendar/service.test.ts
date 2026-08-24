@@ -436,10 +436,12 @@ describe("CalendarService.syncCalendarToolsToAgents", () => {
           expect.objectContaining({
             name: "check_business_hours",
             url: "https://example.com/webhooks/retell/tools/retell_agent_456/check_business_hours",
+            args_at_root: false,
           }),
           expect.objectContaining({
             name: "book_appointment",
             url: "https://example.com/webhooks/retell/tools/retell_agent_456/book_appointment",
+            args_at_root: false,
           }),
         ]),
       })

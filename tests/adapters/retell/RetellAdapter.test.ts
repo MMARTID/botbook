@@ -99,6 +99,86 @@ describe("RetellAdapter", () => {
         })
       );
     });
+
+    it("respeta args_at_root: false cuando la tool lo especifica", async () => {
+      mocks.llmCreate.mockResolvedValue({ llm_id: "llm_123" });
+
+      const adapter = new RetellAdapter();
+      await adapter.createLlm({
+        generalPrompt: "Eres un asistente",
+        beginMessage: "Hola",
+        tools: [
+          {
+            name: "book_appointment",
+            description: "Agenda una cita",
+            url: "https://example.com/webhooks/retell/tools/agent_123/book_appointment",
+            args_at_root: false,
+            parameters: { type: "object", properties: {}, required: [] },
+          },
+        ],
+      });
+
+      expect(mocks.llmCreate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          general_tools: expect.arrayContaining([
+            expect.objectContaining({ name: "book_appointment", args_at_root: false }),
+          ]),
+        })
+      );
+    });
+  });
+
+  describe("updateLlm", () => {
+    it("respeta args_at_root: false al actualizar las tools", async () => {
+      mocks.llmUpdate.mockResolvedValue({ llm_id: "llm_123" });
+
+      const adapter = new RetellAdapter();
+      await adapter.updateLlm("llm_123", {
+        tools: [
+          {
+            name: "check_business_hours",
+            description: "Comprueba horario",
+            url: "https://example.com/webhooks/retell/tools/agent_123/check_business_hours",
+            args_at_root: false,
+            parameters: { type: "object", properties: {}, required: [] },
+          },
+        ],
+      });
+
+      expect(mocks.llmUpdate).toHaveBeenCalledWith(
+        "llm_123",
+        expect.objectContaining({
+          general_tools: expect.arrayContaining([
+            expect.objectContaining({ name: "check_business_hours", args_at_root: false }),
+          ]),
+        })
+      );
+    });
+
+    it("por defecto manda args_at_root: true si la tool no lo especifica", async () => {
+      mocks.llmUpdate.mockResolvedValue({ llm_id: "llm_123" });
+
+      const adapter = new RetellAdapter();
+      await adapter.updateLlm("llm_123", {
+        tools: [
+          {
+            name: "end_call",
+            description: "Termina la llamada",
+            url: "https://example.com/webhooks/retell/tools/agent_123/end_call",
+            parameters: { type: "object", properties: {}, required: [] },
+          },
+        ],
+      });
+
+      expect(mocks.llmUpdate).toHaveBeenCalledWith(
+        "llm_123",
+        expect.objectContaining({
+          general_tools: expect.arrayContaining([
+            expect.objectContaining({ name: "end_call", args_at_root: true }),
+          ]),
+        })
+      );
+    });
   });
 
   describe("createAgent", () => {
