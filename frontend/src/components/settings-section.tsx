@@ -11,6 +11,7 @@ export function SettingsSection({
   icon: Icon,
   title,
   summary,
+  pending = false,
   open,
   onToggle,
   children,
@@ -19,6 +20,9 @@ export function SettingsSection({
   icon: LucideIcon;
   title: string;
   summary: string;
+  /** Marca la sección como pendiente de completar con un indicador ambiental,
+   * en vez de un asistente de configuración aparte. */
+  pending?: boolean;
   open: boolean;
   onToggle: () => void;
   children: React.ReactNode;
@@ -39,8 +43,9 @@ export function SettingsSection({
           <span className="block text-base font-semibold text-[#0a0a0a] sm:text-lg">
             {title}
           </span>
-          <span className="mt-0.5 block truncate text-sm text-muted">
-            {summary}
+          <span className={`mt-0.5 flex items-center gap-1.5 text-sm ${pending ? "font-medium text-[#9f7a15]" : "text-muted"}`}>
+            {pending ? <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#9f7a15]" aria-hidden="true" /> : null}
+            <span className="truncate">{summary}</span>
           </span>
         </span>
         <ChevronDown

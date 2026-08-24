@@ -5,15 +5,12 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter, useSearchParams } from "next/navigation";
 import axios from "axios";
 import {
-  completeOnboarding,
   createBookingProfessional,
   createBookingService,
-  dismissOnboarding,
   getBookingSettings,
   getCalendarList,
   getGoogleCalendarAuthUrl,
   getMicrosoftCalendarAuthUrl,
-  getOnboardingState,
   selectCalendar,
   updateBookingCapacity,
   updateBookingProfessional,
@@ -36,7 +33,6 @@ import type {
   BusinessSchedule,
 } from "@/lib/types";
 import {
-  ArrowUp,
   ArrowUpRight,
   Building2,
   CalendarClock,
@@ -44,13 +40,9 @@ import {
   Check,
   CheckCircle2,
   ChevronDown,
-  Circle,
-  MapPin,
   Save,
   ScissorsLineDashed,
-  Sparkles,
   UserRoundCheck,
-  X,
 } from "lucide-react";
 
 function EmptyState({
@@ -68,261 +60,15 @@ function EmptyState({
   );
 }
 
-type SetupPhase = "schedule_confirmation" | "services_professionals" | null;
-
 function isValidPlaceSchedule(value: unknown): value is BusinessSchedule {
   if (!value || typeof value !== "object") return false;
   const candidate = value as Partial<BusinessSchedule>;
   return candidate.version === 1 && Boolean(candidate.week);
 }
 
-function SetupGuide({
-  from,
-  phase,
-  hasSchedule,
-  hasServices,
-  hasProfessionals,
-  hasCalendar,
-  onDismiss,
-}: {
-  from: "registration" | "checkout" | null;
-  phase: SetupPhase;
-  hasSchedule: boolean;
-  hasServices: boolean;
-  hasProfessionals: boolean;
-  hasCalendar: boolean;
-  onDismiss: () => void;
-}) {
-  const steps = [
-    { id: "schedule", label: "Horario", done: hasSchedule },
-    { id: "services", label: "Servicios", done: hasServices },
-    { id: "professionals", label: "Profesionales", done: hasProfessionals },
-    { id: "calendar", label: "Calendario", done: hasCalendar },
-  ];
-
-  const activeIndex = steps.findIndex((step) => !step.done);
-  const progress = Math.round(
-    (steps.filter((step) => step.done).length / steps.length) * 100
-  );
-
-  let title = "Configuración guiada";
-  let message =
-    "Completa los apartados en orden para que el agente pueda atender llamadas con datos reales.";
-
-  if (from === "registration") {
-    title = "Bienvenido a BotBook";
-    message = "Vamos a configurar tu negocio en unos pasos rápidos.";
-  } else if (from === "checkout") {
-    title = "Tu suscripción está activa";
-    message =
-      "Perfecto. Ahora termina la configuración operativa para empezar a recibir llamadas.";
-  }
-
-  if (phase === "schedule_confirmation") {
-    message =
-      "Hemos importado tu horario desde Google Places. Revísalo y confirma que es correcto.";
-  } else if (phase === "services_professionals") {
-    message =
-      "Ahora añade al menos un servicio y un profesional para que el agente pueda agendar citas.";
-  }
-
-  return (
-    <section className="sticky top-4 z-40 overflow-hidden rounded-2xl border border-[#ddd6fe] bg-[#f3eeff] shadow-[0_12px_32px_rgba(0,0,0,0.08)] animate-in slide-in-from-top-4 duration-500">
-      <div className="px-5 py-4">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div className="flex items-start gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-[#8b5cf6]">
-              <Sparkles className="h-5 w-5" />
-            </div>
-            <div>
-              <h2 className="text-lg font-semibold text-[#0a0a0a]">{title}</h2>
-              <p className="mt-1 max-w-2xl text-sm leading-6 text-[#52525b]">
-                {message}
-              </p>
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={onDismiss}
-            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-[#52525b] transition hover:bg-white"
-            aria-label="Cerrar guía"
-          >
-            <X className="h-5 w-5" />
-          </button>
-        </div>
-
-        <div className="mt-4">
-          <div className="flex items-center justify-between text-xs font-medium text-[#52525b]">
-            <span>Progreso de configuración</span>
-            <span>{progress}%</span>
-          </div>
-          <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-white">
-            <div
-              className="h-full rounded-full bg-[#8b5cf6] transition-all duration-700 ease-out"
-              style={{ width: `${progress}%` }}
-            />
-          </div>
-        </div>
-
-        <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
-          {steps.map((step, index) => {
-            const isActive = index === activeIndex && !step.done;
-            return (
-              <div
-                key={step.id}
-                className={`rounded-xl border px-2 py-2 text-center text-xs font-semibold transition ${
-                  step.done
-                    ? "border-[#d8efd7] bg-[#ecf7ec] text-[#2c7334]"
-                    : isActive
-                      ? "border-[#8b5cf6] bg-white text-[#6d28d9] ring-2 ring-[#8b5cf6]"
-                      : "border-[#e5e5e5] bg-white/60 text-muted"
-                }`}
-              >
-                <div className="mb-1 flex justify-center">
-                  {step.done ? (
-                    <CheckCircle2 className="h-4 w-4" />
-                  ) : (
-                    <Circle className="h-4 w-4" />
-                  )}
-                </div>
-                {step.label}
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function ScheduleConfirmationBanner({
-  onConfirm,
-  onEdit,
-}: {
-  onConfirm: () => void;
-  onEdit: () => void;
-}) {
-  return (
-    <section className="rounded-2xl border border-[#8b5cf6] bg-[#f3eeff] p-5 shadow-[0_12px_32px_rgba(0,0,0,0.08)] ring-1 ring-[#8b5cf6]/40">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-start gap-3">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-[#8b5cf6]">
-            <MapPin className="h-5 w-5" />
-          </div>
-          <div>
-            <h3 className="text-base font-semibold text-[#0a0a0a]">
-              Horario importado desde Google Places
-            </h3>
-            <p className="mt-1 max-w-xl text-sm leading-6 text-[#52525b]">
-              Confirma que se han implementado correctamente los días y tramos
-              horarios de tu negocio.
-            </p>
-          </div>
-        </div>
-        <div className="flex flex-col gap-2 sm:flex-row">
-          <button
-            type="button"
-            onClick={onEdit}
-            className="btn-secondary px-4 py-2 text-sm"
-          >
-            Revisar horario
-          </button>
-          <button
-            type="button"
-            onClick={onConfirm}
-            className="btn-primary px-4 py-2 text-sm"
-          >
-            El horario es correcto
-          </button>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function ServicesProfessionalsGuide({
-  hasServices,
-  hasProfessionals,
-  onGoToServices,
-  onGoToProfessionals,
-  onFinish,
-}: {
-  hasServices: boolean;
-  hasProfessionals: boolean;
-  onGoToServices: () => void;
-  onGoToProfessionals: () => void;
-  onFinish: () => void;
-}) {
-  if (hasServices && hasProfessionals) {
-    return (
-      <section className="rounded-2xl border border-[#d8efd7] bg-[#ecf7ec] p-4 text-[#2c7334]">
-        <div className="flex items-center gap-2 text-sm font-semibold">
-          <CheckCircle2 className="h-5 w-5" />
-          <span>Ya tienes servicios y profesionales configurados.</span>
-        </div>
-        <p className="mt-1 text-sm text-[#2c7334]/80">
-          Conecta tu calendario en el apartado de Calendario para empezar a
-          recibir reservas automáticas.
-        </p>
-        <button
-          type="button"
-          onClick={onFinish}
-          className="btn-primary mt-3 px-4 py-2 text-sm"
-        >
-          Ir a Calendario
-        </button>
-      </section>
-    );
-  }
-
-  return (
-    <section className="rounded-2xl border border-[#ddd6fe] bg-[#f3eeff] p-4">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div className="flex items-start gap-3">
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-white text-[#8b5cf6]">
-            <ArrowUp className="h-4 w-4" />
-          </div>
-          <div>
-            <p className="font-semibold text-[#6d28d9]">
-              Siguiente paso: servicios y profesionales
-            </p>
-            <p className="text-sm text-muted">
-              Crea al menos un servicio y asigna un profesional para que el
-              agente pueda ofrecer citas por teléfono.
-            </p>
-          </div>
-        </div>
-        <div className="flex gap-2">
-          {!hasServices ? (
-            <button
-              type="button"
-              onClick={onGoToServices}
-              className="btn-primary px-4 py-2 text-sm"
-            >
-              Añadir servicio
-            </button>
-          ) : null}
-          {hasServices && !hasProfessionals ? (
-            <button
-              type="button"
-              onClick={onGoToProfessionals}
-              className="btn-primary px-4 py-2 text-sm"
-            >
-              Añadir profesional
-            </button>
-          ) : null}
-        </div>
-      </div>
-    </section>
-  );
-}
-
 function AjustesContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const fromSource = searchParams.get("from") as
-    "registration" | "checkout" | null;
-  const hasPlaceScheduleParam = searchParams.get("hasPlaceSchedule") === "true";
   const queryClient = useQueryClient();
   const {
     business,
@@ -351,11 +97,6 @@ function AjustesContent() {
     type: "success" | "error";
     message: string;
   } | null>(null);
-  const [setupPhase, setSetupPhase] = useState<SetupPhase>(
-    fromSource === "registration" && hasPlaceScheduleParam
-      ? "schedule_confirmation"
-      : null
-  );
   const [calendarAuthLoading, setCalendarAuthLoading] = useState<
     "google" | "outlook" | null
   >(null);
@@ -378,14 +119,6 @@ function AjustesContent() {
     }));
   };
   const isSectionOpen = (id: string) => openSections?.[id] ?? false;
-  const openAndScroll = (id: string) => {
-    setOpenSections((current) => ({ ...(current ?? {}), [id]: true }));
-    window.setTimeout(() => {
-      document
-        .getElementById(id)
-        ?.scrollIntoView({ behavior: "smooth", block: "start" });
-    }, 100);
-  };
 
   useEffect(() => {
     if (hasToken === false) {
@@ -421,38 +154,6 @@ function AjustesContent() {
     enabled: hasToken === true,
   });
 
-  const onboardingQuery = useQuery({
-    queryKey: ["onboarding-state"],
-    queryFn: getOnboardingState,
-    enabled: hasToken === true,
-  });
-
-  const dismissMutation = useMutation({
-    mutationFn: dismissOnboarding,
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["onboarding-state"] });
-    },
-  });
-
-  const completeMutation = useMutation({
-    mutationFn: completeOnboarding,
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["onboarding-state"] });
-    },
-  });
-
-  const completingRef = useRef(false);
-  useEffect(() => {
-    if (completingRef.current) return;
-    if (
-      onboardingQuery.data?.isActive &&
-      onboardingQuery.data.progress === 100
-    ) {
-      completingRef.current = true;
-      completeMutation.mutate();
-    }
-  }, [onboardingQuery.data, completeMutation]);
-
   useEffect(() => {
     if (settingsQuery.data) {
       setCapacity(String(settingsQuery.data.bookingCapacity));
@@ -472,7 +173,6 @@ function AjustesContent() {
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: ["booking-settings"] }),
       queryClient.invalidateQueries({ queryKey: ["my-business"] }),
-      queryClient.invalidateQueries({ queryKey: ["onboarding-state"] }),
     ]);
   };
 
@@ -532,12 +232,6 @@ function AjustesContent() {
         type: "success",
         message: "Horario guardado y sincronizado con el agente.",
       });
-      if (setupPhase === "schedule_confirmation") {
-        setSetupPhase("services_professionals");
-        window.setTimeout(() => {
-          openAndScroll("services");
-        }, 200);
-      }
     },
     onError: () =>
       setBanner({
@@ -586,11 +280,6 @@ function AjustesContent() {
       await invalidateAll();
       setServiceDraft({ name: "", durationMinutes: "30" });
       setBanner({ type: "success", message: "Servicio creado." });
-      if (setupPhase === "services_professionals") {
-        window.setTimeout(() => {
-          openAndScroll("professionals");
-        }, 200);
-      }
     },
     onError: () =>
       setBanner({ type: "error", message: "No se pudo crear el servicio." }),
@@ -603,11 +292,6 @@ function AjustesContent() {
       setProfessionalDraft({ name: "", serviceIds: [] });
       setBanner({ type: "success", message: "Profesional creado." });
       void invalidateAll();
-      if (setupPhase === "services_professionals") {
-        window.setTimeout(() => {
-          window.scrollTo({ top: 0, behavior: "smooth" });
-        }, 200);
-      }
     },
     onError: () =>
       setBanner({ type: "error", message: "No se pudo crear el profesional." }),
@@ -615,20 +299,6 @@ function AjustesContent() {
 
   const services = settingsQuery.data?.services ?? [];
   const professionals = settingsQuery.data?.professionals ?? [];
-
-  useEffect(() => {
-    if (setupPhase !== "services_professionals") return;
-    window.setTimeout(() => {
-      const targetId = services.length === 0 ? "services" : "professionals";
-      openAndScroll(targetId);
-    }, 350);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [setupPhase, professionals.length, services.length]);
-
-  const confirmPlaceSchedule = () => {
-    setSetupPhase("services_professionals");
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  };
 
   const startCalendarConnection = async (provider: "google" | "outlook") => {
     setCalendarAuthLoading(provider);
@@ -787,7 +457,6 @@ function AjustesContent() {
     return null;
   }
 
-  const hasSchedule = isValidPlaceSchedule(business.schedule);
   const activeCalendarProvider =
     business.calendarProvider === "outlook" ? "outlook" : "google";
   const hasCalendar =
@@ -796,30 +465,10 @@ function AjustesContent() {
       : business.googleCalendarConnected === true) &&
     !calendarReconnectRequired;
 
-  const isOnboardingVisible = onboardingQuery.data?.isActive === true;
   const selectedCalendarId = calendarsQuery.data?.selectedCalendarId ?? null;
 
   return (
     <div className="flex flex-col space-y-4 sm:space-y-5">
-      {isOnboardingVisible ? (
-        <SetupGuide
-          from={fromSource}
-          phase={setupPhase}
-          hasSchedule={hasSchedule}
-          hasServices={services.length > 0}
-          hasProfessionals={professionals.length > 0}
-          hasCalendar={hasCalendar}
-          onDismiss={() => dismissMutation.mutate()}
-        />
-      ) : null}
-
-      {setupPhase === "schedule_confirmation" ? (
-        <ScheduleConfirmationBanner
-          onConfirm={confirmPlaceSchedule}
-          onEdit={() => openAndScroll("business-hours")}
-        />
-      ) : null}
-
       <BusinessHoursEditor
         value={business.schedule}
         timeZone={business.timezone || "Europe/Madrid"}
@@ -873,16 +522,6 @@ function AjustesContent() {
         </div>
       </SettingsSection>
 
-      {setupPhase === "services_professionals" ? (
-        <ServicesProfessionalsGuide
-          hasServices={services.length > 0}
-          hasProfessionals={professionals.length > 0}
-          onGoToServices={() => openAndScroll("services")}
-          onGoToProfessionals={() => openAndScroll("professionals")}
-          onFinish={() => openAndScroll("calendar-section")}
-        />
-      ) : null}
-
       <SettingsSection
         id="services"
         icon={ScissorsLineDashed}
@@ -892,6 +531,7 @@ function AjustesContent() {
             ? "Sin servicios configurados"
             : `${services.length} ${services.length === 1 ? "servicio" : "servicios"}`
         }
+        pending={services.length === 0}
         open={isSectionOpen("services")}
         onToggle={() => toggleSection("services")}
       >
@@ -992,6 +632,7 @@ function AjustesContent() {
             ? "Sin profesionales configurados"
             : `${professionals.length} ${professionals.length === 1 ? "profesional" : "profesionales"}`
         }
+        pending={professionals.length === 0}
         open={isSectionOpen("professionals")}
         onToggle={() => toggleSection("professionals")}
       >
@@ -1113,6 +754,7 @@ function AjustesContent() {
             ? `${activeCalendarProvider === "outlook" ? "Outlook Calendar" : "Google Calendar"} conectado${activeCalendarProvider === "outlook" && business.outlookUserEmail ? ` · ${business.outlookUserEmail}` : ""}`
             : "Sin conectar"
         }
+        pending={!hasCalendar}
         open={isSectionOpen("calendar-section")}
         onToggle={() => toggleSection("calendar-section")}
       >

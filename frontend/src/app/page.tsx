@@ -182,10 +182,6 @@ function DashboardContent() {
     : "Google Calendar";
   const agent = business.agents?.[0];
   const contextFileCount = agent?.files?.length ?? 0;
-  const hasBusinessDetails = Boolean(business.businessDetails);
-  const hasAgentSettings = Boolean(business.agentSettings);
-  const completionItems = [hasAgentSettings, hasBusinessDetails, hasCalendar, contextFileCount > 0];
-  const completionScore = completionItems.filter(Boolean).length;
 
   return (
     <div className="space-y-5 sm:space-y-8">
@@ -197,19 +193,16 @@ function DashboardContent() {
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>
                 <h1 className="text-2xl font-semibold leading-tight tracking-tight text-[#0a0a0a] sm:text-3xl">
-                  {hasCalendar ? "Tu asistente está operativo" : "Te faltan un par de pasos"}
+                  {hasCalendar ? "Tu asistente está operativo" : "Conecta tu calendario para activar las reservas"}
                 </h1>
                 <p className="mt-2 max-w-2xl text-sm leading-6 text-[#52525b] sm:mt-3">
                   {hasCalendar
                     ? "Centraliza el estado del agente, la agenda y el conocimiento que utiliza para atender a tus clientes."
-                    : "Termina la configuración para que el agente pueda responder con contexto real y gestionar reservas automáticamente."}
+                    : "El agente ya puede responder llamadas. Conecta tu agenda para que también pueda reservar citas automáticamente."}
                 </p>
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 <span className="badge-soft">{business.name}</span>
-                <span className="inline-flex rounded-full border border-[#e5e5e5] bg-white/90 px-3 py-1 text-xs font-semibold text-[#52525b]">
-                  {completionScore}/4 áreas configuradas
-                </span>
               </div>
             </div>
 
@@ -266,7 +259,7 @@ function DashboardContent() {
             <div className="flex items-center justify-between gap-3">
               <div>
                 <p className="text-sm font-medium text-[#52525b]">Estado general</p>
-                <h2 className="mt-1 text-lg font-semibold text-[#0a0a0a]">{completionScore < 4 ? "Configuración en progreso" : "Todo en orden"}</h2>
+                <h2 className="mt-1 text-lg font-semibold text-[#0a0a0a]">Resumen operativo</h2>
               </div>
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#f3eeff] text-[#8b5cf6]">
                 <Sparkles className="h-5 w-5" />
