@@ -68,11 +68,18 @@ async function start() {
     fastify.register(cors, {
       origin: (origin, callback) => {
         const frontendOrigin = process.env.FRONTEND_URL || "http://localhost:3001";
-        if (!origin || origin === frontendOrigin) {
+        // Origen extra opcional (ej. un túnel ngrok temporal para ver el panel
+        // desde fuera) — no sustituye a FRONTEND_URL, que sigue gobernando
+        // redirects de OAuth/Stripe.
+        const extraOrigin = process.env.EXTRA_ALLOWED_ORIGIN;
+        if (!origin || origin === frontendOrigin || (extraOrigin && origin === extraOrigin)) {
           callback(null, true);
           return;
         }
-        callback(new Error("Origin not allowed"), false);
+        // No lanzar aquí: un origen no permitido es un rechazo normal de CORS,
+        // no un error del servidor. Lanzar producía un 500 engañoso en vez de
+        // la respuesta sin cabeceras CORS que el navegador ya sabe interpretar.
+        callback(null, false);
       },
       credentials: true,
       methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
