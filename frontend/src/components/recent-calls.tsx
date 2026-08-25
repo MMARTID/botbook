@@ -2,9 +2,16 @@
 
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { CalendarCheck, ChevronRight, PhoneCall, RefreshCw } from "lucide-react";
+import { CalendarCheck, ChevronRight, Frown, Meh, PhoneCall, RefreshCw, Smile } from "lucide-react";
 import { getCalls } from "@/lib/api";
-import { formatDate, formatDuration, outcomeLabel, outcomeTone } from "@/lib/format";
+import {
+  formatDate,
+  formatDuration,
+  outcomeLabel,
+  outcomeTone,
+  sentimentLabel,
+  sentimentTone,
+} from "@/lib/format";
 import { CallDetailModal } from "@/components/call-detail-modal";
 
 const RECENT_CALLS_LIMIT = 6;
@@ -13,6 +20,13 @@ const TONE_BADGE_CLASSES = {
   success: "bg-[#ecf7ec] text-[#2c7334] ring-1 ring-inset ring-[#d8efd7]",
   warning: "bg-[#fef8e7] text-[#9f7a15] ring-1 ring-inset ring-[#f0dfa8]",
   neutral: "bg-[#f4f4f5] text-[#52525b] ring-1 ring-inset ring-[#e5e5e5]",
+} as const;
+
+const SENTIMENT_ICON = { POSITIVE: Smile, NEUTRAL: Meh, NEGATIVE: Frown } as const;
+const SENTIMENT_ICON_CLASSES = {
+  success: "text-[#2c7334]",
+  warning: "text-[#9f7a15]",
+  neutral: "text-[#52525b]",
 } as const;
 
 export function RecentCalls() {
@@ -79,6 +93,7 @@ export function RecentCalls() {
           {calls.map((call) => {
             const tone = outcomeTone(call.outcome);
             const hasBooking = call.booking && !call.booking.isCancelled;
+            const SentimentIcon = call.sentiment ? SENTIMENT_ICON[call.sentiment] : null;
             return (
               <li key={call.id}>
                 <button
@@ -103,6 +118,14 @@ export function RecentCalls() {
                       ) : null}
                     </span>
                   </span>
+                  {SentimentIcon ? (
+                    <span
+                      title={sentimentLabel(call.sentiment) ?? undefined}
+                      className={`hidden shrink-0 sm:inline-flex ${SENTIMENT_ICON_CLASSES[sentimentTone(call.sentiment)]}`}
+                    >
+                      <SentimentIcon className="h-4 w-4" aria-hidden="true" />
+                    </span>
+                  ) : null}
                   <span className={`hidden shrink-0 items-center rounded-full px-2.5 py-1 text-xs font-semibold sm:inline-flex ${TONE_BADGE_CLASSES[tone]}`}>
                     {outcomeLabel(call.outcome)}
                   </span>

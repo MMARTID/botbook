@@ -6,7 +6,10 @@ import {
   CalendarCheck,
   Clock3,
   Coins,
+  Frown,
   LoaderCircle,
+  Meh,
+  Smile,
   Sparkles,
   User,
   X,
@@ -18,6 +21,8 @@ import {
   formatDuration,
   outcomeLabel,
   outcomeTone,
+  sentimentLabel,
+  sentimentTone,
   statusLabel,
 } from "@/lib/format";
 import type { TranscriptMessage } from "@/lib/types";
@@ -27,6 +32,8 @@ const TONE_BADGE_CLASSES = {
   warning: "bg-[#fef8e7] text-[#9f7a15] ring-1 ring-inset ring-[#f0dfa8]",
   neutral: "bg-[#f4f4f5] text-[#52525b] ring-1 ring-inset ring-[#e5e5e5]",
 } as const;
+
+const SENTIMENT_ICON = { POSITIVE: Smile, NEUTRAL: Meh, NEGATIVE: Frown } as const;
 
 function parseTranscriptMessages(value: unknown): TranscriptMessage[] | null {
   if (!Array.isArray(value)) return null;
@@ -83,6 +90,7 @@ export function CallDetailModal({
     : null;
   const recordingSrc = call?.recording?.storageUrl ?? call?.recording?.vapiUrl ?? null;
   const tone = call ? outcomeTone(call.outcome) : "neutral";
+  const SentimentIcon = call?.sentiment ? SENTIMENT_ICON[call.sentiment] : null;
 
   return (
     <div
@@ -135,6 +143,14 @@ export function CallDetailModal({
                 <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${TONE_BADGE_CLASSES[tone]}`}>
                   {outcomeLabel(call.outcome)}
                 </span>
+                {call.sentiment && SentimentIcon ? (
+                  <span
+                    className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold ${TONE_BADGE_CLASSES[sentimentTone(call.sentiment)]}`}
+                  >
+                    <SentimentIcon className="h-3.5 w-3.5" aria-hidden="true" />
+                    {sentimentLabel(call.sentiment)}
+                  </span>
+                ) : null}
                 {call.costCents !== null ? (
                   <span className="inline-flex items-center gap-1 rounded-full bg-[#fafafa] px-3 py-1 text-xs font-semibold text-[#52525b]">
                     <Coins className="h-3.5 w-3.5" />

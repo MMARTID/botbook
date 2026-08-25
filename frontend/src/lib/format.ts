@@ -1,4 +1,4 @@
-import type { CallOutcome, CallStatus } from "./types";
+import type { CallOutcome, CallSentiment, CallStatus } from "./types";
 
 export function formatCurrency(cents?: number | null) {
   return new Intl.NumberFormat("es-ES", {
@@ -76,5 +76,22 @@ export function outcomeLabel(outcome: CallOutcome | null) {
 export function outcomeTone(outcome: CallOutcome | null): "success" | "warning" | "neutral" {
   if (outcome === "RESOLVED" || outcome === "LEAD_CAPTURED") return "success";
   if (outcome === "FRUSTRATED" || outcome === "ESCALATED") return "warning";
+  return "neutral";
+}
+
+/** Etiqueta en español del tono/sentimiento del cliente detectado por Retell.
+ * Eje distinto al resultado (outcome): esto es cómo se sintió, no qué pasó. */
+export function sentimentLabel(sentiment: CallSentiment | null) {
+  const labels: Record<CallSentiment, string> = {
+    POSITIVE: "Satisfecho",
+    NEUTRAL: "Neutral",
+    NEGATIVE: "Insatisfecho",
+  };
+  return sentiment ? labels[sentiment] : null;
+}
+
+export function sentimentTone(sentiment: CallSentiment | null): "success" | "warning" | "neutral" {
+  if (sentiment === "POSITIVE") return "success";
+  if (sentiment === "NEGATIVE") return "warning";
   return "neutral";
 }

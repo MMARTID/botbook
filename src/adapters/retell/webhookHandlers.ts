@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { CallSentiment } from "@prisma/client";
 import { prisma } from "../../lib/prisma.js";
 import { recordingQueue, classifyQueue } from "../../lib/queue.js";
 import { callLabel, errorMessage } from "../../lib/logUtils.js";
@@ -40,17 +41,24 @@ const RetellCallEndedSchema = z.object({
   }),
 });
 
+const RetellCallAnalysisSchema = z
+  .object({
+    call_successful: z.boolean().optional(),
+    call_summary: z.string().optional(),
+    user_sentiment: z.enum(["Positive", "Neutral", "Negative", "Unknown"]).optional(),
+  })
+  .passthrough();
+
 const RetellCallAnalyzedSchema = z.object({
   event_type: z.literal("call_analyzed"),
   data: z.object({
     call_id: z.string(),
     agent_id: z.string(),
     summary: z.string().optional(),
-    sentiment: z.string().optional(),
     transcript: z.string().optional(),
     transcript_object: z.array(RetellTranscriptTurnSchema).optional(),
     recording_url: z.string().optional(),
-    call_analysis: z.record(z.unknown()).optional(),
+    call_analysis: RetellCallAnalysisSchema.optional(),
   }),
 });
 
@@ -87,6 +95,21 @@ function sanitizeRetellTranscriptMessages(
 ): { role: string; content: string }[] {
   if (!items) return [];
   return items.map(({ role, content }) => ({ role, content }));
+}
+
+function mapRetellSentiment(
+  sentiment: "Positive" | "Neutral" | "Negative" | "Unknown" | undefined
+): CallSentiment | null {
+  switch (sentiment) {
+    case "Positive":
+      return "POSITIVE";
+    case "Neutral":
+      return "NEUTRAL";
+    case "Negative":
+      return "NEGATIVE";
+    default:
+      return null;
+  }
 }
 
 async function resolveBusinessIdByRetellAgentId(
@@ -346,6 +369,9 @@ export async function handleCallAnalyzed(
     }
 
     const messages = sanitizeRetellTranscriptMessages(data.transcript_object);
+    const sentiment = data.call_analysis
+      ? mapRetellSentiment(data.call_analysis.user_sentiment)
+      : undefined;
 
     await prisma.$transaction(async (tx) => {
       if (data.transcript) {
@@ -375,9 +401,16 @@ export async function handleCallAnalyzed(
           },
         });
       }
+
+      if (sentiment !== undefined) {
+        await tx.call.update({
+          where: { id: dbCall.id },
+          data: { sentiment },
+        });
+      }
     });
 
-    // TODO: persistir summary/sentiment/call_analysis cuando el modelo Call lo soporte
+    // TODO: persistir summary/call_analysis completo cuando el modelo Call lo soporte
 
     return { success: true };
   } catch (error) {

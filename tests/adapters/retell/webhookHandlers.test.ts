@@ -15,6 +15,7 @@ vi.mock("../../../src/lib/prisma.js", () => ({
     call: {
       upsert: vi.fn(),
       findUnique: vi.fn(),
+      update: vi.fn(),
     },
     transcript: {
       upsert: vi.fn(),
@@ -34,6 +35,7 @@ vi.mock("../../../src/lib/queue.js", () => ({
 const mockedAgentFindFirst = vi.mocked(prisma.agent.findFirst);
 const mockedCallUpsert = vi.mocked(prisma.call.upsert);
 const mockedCallFindUnique = vi.mocked(prisma.call.findUnique);
+const mockedCallUpdate = vi.mocked(prisma.call.update);
 const mockedTranscriptUpsert = vi.mocked(prisma.transcript.upsert);
 const mockedRecordingQueueAdd = vi.mocked(recordingQueue.add);
 const mockedClassifyQueueAdd = vi.mocked(classifyQueue.add);
@@ -190,6 +192,51 @@ describe("Retell webhook handlers", () => {
           }),
         })
       );
+      expect(mockedCallUpdate).not.toHaveBeenCalled();
+    });
+
+    it("guarda el sentimiento cuando call_analysis.user_sentiment viene informado", async () => {
+      mockedCallFindUnique.mockResolvedValue({
+        id: "call_123",
+        businessId: "business_123",
+      } as any);
+
+      const result = await handleCallAnalyzed({
+        event_type: "call_analyzed",
+        data: {
+          call_id: "retell_call_123",
+          agent_id: "retell_agent_123",
+          call_analysis: { user_sentiment: "Positive" },
+        },
+      });
+
+      expect(result.success).toBe(true);
+      expect(mockedCallUpdate).toHaveBeenCalledWith({
+        where: { id: "call_123" },
+        data: { sentiment: "POSITIVE" },
+      });
+    });
+
+    it("guarda sentiment=null cuando user_sentiment es Unknown", async () => {
+      mockedCallFindUnique.mockResolvedValue({
+        id: "call_123",
+        businessId: "business_123",
+      } as any);
+
+      const result = await handleCallAnalyzed({
+        event_type: "call_analyzed",
+        data: {
+          call_id: "retell_call_123",
+          agent_id: "retell_agent_123",
+          call_analysis: { user_sentiment: "Unknown" },
+        },
+      });
+
+      expect(result.success).toBe(true);
+      expect(mockedCallUpdate).toHaveBeenCalledWith({
+        where: { id: "call_123" },
+        data: { sentiment: null },
+      });
     });
 
     it("ignora el análisis si la llamada no existe", async () => {

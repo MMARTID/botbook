@@ -7,6 +7,8 @@ export type CallOutcome =
   | "ESCALATED"
   | "LEAD_CAPTURED";
 
+export type CallSentiment = "POSITIVE" | "NEUTRAL" | "NEGATIVE";
+
 export type WeekDay = "monday" | "tuesday" | "wednesday" | "thursday" | "friday" | "saturday" | "sunday";
 export type ScheduleInterval = { start: string; end: string };
 export type ScheduleDay = { enabled: boolean; intervals: ScheduleInterval[] };
@@ -249,6 +251,7 @@ export type Call = {
   vapiCallId: string;
   status: CallStatus;
   outcome: CallOutcome | null;
+  sentiment: CallSentiment | null;
   durationSecs: number | null;
   costCents: number | null;
   startedAt: string;
