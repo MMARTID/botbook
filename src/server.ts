@@ -22,7 +22,6 @@ import { phoneRoutes } from "./modules/phone/routes.js";
 import { onboardingRoutes } from "./modules/onboarding/routes.js";
 import { demoRoutes } from "./modules/demo/routes.js";
 import { processRecordingWorker } from "./jobs/processRecording.js";
-import { classifyCallWorker } from "./jobs/classifyCall.js";
 import { processZombieWorker, scheduleZombieCallCleanup } from "./jobs/cleanupZombieCalls.js";
 import {
   handleFunctionCall,
@@ -176,9 +175,10 @@ async function start() {
       });
     });
 
-    // Vapi webhook endpoint
-   // Vapi webhook endpoint
-fastify.post("/webhooks/vapi", {
+    // Vapi webhook endpoint. VAPI: inactivo — ningún negocio nuevo lo usa
+    // (Retell es el único orquestador), se deja registrado por si queda
+    // tráfico residual o se retoma para Latinoamérica.
+    fastify.post("/webhooks/vapi", {
   config: {
     rawBody: true,
     rateLimit: {
@@ -394,8 +394,7 @@ fastify.post("/webhooks/vapi", {
     // Initialize job workers
     console.log("[Server] Initializing job workers...");
     await processRecordingWorker();
-    await classifyCallWorker();
-    
+
     // Initialize Reaper Job
     await processZombieWorker();
     scheduleZombieCallCleanup();

@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { prisma } from "../../lib/prisma.js";
-import { recordingQueue, classifyQueue } from "../../lib/queue.js";
+import { recordingQueue } from "../../lib/queue.js";
 import { executeVoiceTool } from "../../modules/voiceTools/service.js";
 import { VapiFunctionCallEvent } from "./types.js";
 import { callLabel, errorMessage } from "../../lib/logUtils.js";
@@ -327,21 +327,9 @@ export async function handleEndOfCallReport(
       }
     }
 
-    if (message.transcript) {
-      try {
-        await classifyQueue.add(
-          "classify-call",
-          {
-            callId: result.id,
-            businessId: result.businessId,
-            transcriptText: message.transcript,
-          },
-          { priority: 10 }
-        );
-      } catch (err) {
-        console.error(`[Vapi] La ${callLabel(call.id)} se guardó, pero no se pudo encolar su clasificación: ${errorMessage(err)}`);
-      }
-    }
+    // VAPI: inactivo, sin clasificación de resultado — Retell la resuelve de
+    // forma nativa (post_call_analysis_data); si se reactiva Vapi habrá que
+    // definir un mecanismo propio.
 
     console.log(
       `[Vapi] ${callLabel(call.id)} guardada correctamente · transcripción=${message.transcript ? "sí" : "no"} · grabación=${message.recordingUrl ? "sí" : "no"}`

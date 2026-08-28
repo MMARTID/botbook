@@ -1,7 +1,7 @@
 import { z } from "zod";
-import type { CallSentiment } from "@prisma/client";
+import type { CallOutcome, CallSentiment } from "@prisma/client";
 import { prisma } from "../../lib/prisma.js";
-import { recordingQueue, classifyQueue } from "../../lib/queue.js";
+import { recordingQueue } from "../../lib/queue.js";
 import { callLabel, errorMessage } from "../../lib/logUtils.js";
 
 const RetellCallStartedSchema = z.object({
@@ -46,6 +46,12 @@ const RetellCallAnalysisSchema = z
     call_successful: z.boolean().optional(),
     call_summary: z.string().optional(),
     user_sentiment: z.enum(["Positive", "Neutral", "Negative", "Unknown"]).optional(),
+    // Definido por nosotros vía post_call_analysis_data (ver
+    // CALL_OUTCOME_ANALYSIS_FIELD en agentBootstrap.ts).
+    custom_analysis_data: z
+      .object({ call_outcome: z.string().optional() })
+      .passthrough()
+      .optional(),
   })
   .passthrough();
 
@@ -110,6 +116,20 @@ function mapRetellSentiment(
     default:
       return null;
   }
+}
+
+const VALID_CALL_OUTCOMES: CallOutcome[] = [
+  "RESOLVED",
+  "FRUSTRATED",
+  "NO_ANSWER",
+  "ESCALATED",
+  "LEAD_CAPTURED",
+];
+
+function mapRetellCallOutcome(value: string | undefined): CallOutcome | null {
+  return value && (VALID_CALL_OUTCOMES as string[]).includes(value)
+    ? (value as CallOutcome)
+    : null;
 }
 
 async function resolveBusinessIdByRetellAgentId(
@@ -308,26 +328,6 @@ export async function handleCallEnded(
       }
     }
 
-    if (data.transcript) {
-      try {
-        await classifyQueue.add(
-          "classify-call",
-          {
-            callId: result.id,
-            businessId: result.businessId,
-            transcriptText: data.transcript,
-          },
-          { priority: 10 }
-        );
-      } catch (err) {
-        console.error(
-          `[Retell] La ${callLabel(call_id)} se guardó, pero no se pudo encolar su clasificación: ${errorMessage(
-            err
-          )}`
-        );
-      }
-    }
-
     console.log(
       `[Retell] ${callLabel(call_id)} guardada correctamente · transcripción=${
         data.transcript ? "sí" : "no"
@@ -372,6 +372,9 @@ export async function handleCallAnalyzed(
     const sentiment = data.call_analysis
       ? mapRetellSentiment(data.call_analysis.user_sentiment)
       : undefined;
+    const outcome = data.call_analysis
+      ? mapRetellCallOutcome(data.call_analysis.custom_analysis_data?.call_outcome)
+      : undefined;
 
     await prisma.$transaction(async (tx) => {
       if (data.transcript) {
@@ -402,10 +405,13 @@ export async function handleCallAnalyzed(
         });
       }
 
-      if (sentiment !== undefined) {
+      if (sentiment !== undefined || outcome !== undefined) {
         await tx.call.update({
           where: { id: dbCall.id },
-          data: { sentiment },
+          data: {
+            ...(sentiment !== undefined ? { sentiment } : {}),
+            ...(outcome !== undefined ? { outcome } : {}),
+          },
         });
       }
     });

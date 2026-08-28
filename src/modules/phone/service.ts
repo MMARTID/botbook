@@ -40,7 +40,7 @@ export async function provisionPhoneNumber(
     return { success: false, status: "failed", error: "Business not found" };
   }
 
-  const orchestrator = business.orchestrator || "vapi";
+  const orchestrator = business.orchestrator || "retell";
 
   const isAlreadyActive =
     business.twilioPhoneNumberStatus === "active" && business.twilioPhoneNumber;
@@ -127,7 +127,7 @@ export async function provisionPhoneNumber(
       };
     }
 
-    // Default: Vapi orchestrator
+    // Default: Vapi orchestrator. VAPI: inactivo, ningún negocio nuevo cae aquí.
     if (!agent?.vapiAssistantId) {
       console.warn(
         `[Phone] Business ${businessId} has no active agent with vapiAssistantId. Number purchased but not linked in Vapi.`
@@ -218,7 +218,7 @@ export async function getPhoneNumberStatus(businessId: string) {
     sid: business.twilioPhoneNumberSid,
     purchasedAt: business.twilioPhoneNumberPurchasedAt,
     status: business.twilioPhoneNumberStatus,
-    orchestrator: business.orchestrator || "vapi",
+    orchestrator: business.orchestrator || "retell",
     vapiPhoneNumberId: business.vapiPhoneNumberId,
     retellPhoneNumberId: business.retellPhoneNumberId,
   };

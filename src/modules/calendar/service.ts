@@ -367,7 +367,7 @@ export class CalendarService {
       return;
     }
 
-    const orchestrator = business.orchestrator || 'vapi';
+    const orchestrator = business.orchestrator || 'retell';
     const agents = await prisma.agent.findMany({
       where: { businessId },
     });
@@ -396,6 +396,7 @@ export class CalendarService {
         continue;
       }
 
+      // VAPI: inactivo, ningún negocio nuevo cae aquí (ver voiceOrchestrator.ts).
       if (orchestrator === 'vapi' && agent.vapiAssistantId) {
         const serverUrl = process.env.VAPI_WEBHOOK_URL || `${process.env.BASE_URL}/webhooks/vapi`;
         try {

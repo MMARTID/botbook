@@ -135,7 +135,8 @@ export async function businessesRoutes(fastify: FastifyInstance) {
           });
           updateData.systemPrompt = agentPrompt;
 
-          // Sincronizar en Vapi y en BD en paralelo para evitar timeouts
+          // Sincronizar en Vapi y en BD en paralelo para evitar timeouts.
+          // VAPI: inactivo, solo se ejecuta si el agente ya tiene vapiAssistantId.
           await Promise.all(
             agents.map(async (agent) => {
               // Actualizar en Vapi si tiene ID

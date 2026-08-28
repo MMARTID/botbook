@@ -206,6 +206,70 @@ describe("RetellAdapter", () => {
         })
       );
     });
+
+    it("incluye post_call_analysis_data cuando se especifica", async () => {
+      mocks.agentCreate.mockResolvedValue({ agent_id: "agent_123" });
+
+      const adapter = new RetellAdapter();
+      await adapter.createAgent({
+        name: "Asistente Test",
+        voiceId: "11labs-Bella",
+        llmId: "llm_123",
+        postCallAnalysisData: [
+          {
+            name: "call_outcome",
+            type: "enum",
+            choices: ["RESOLVED", "FRUSTRATED"],
+            description: "Clasifica el resultado de la llamada.",
+          },
+        ],
+      });
+
+      expect(mocks.agentCreate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          post_call_analysis_data: [
+            expect.objectContaining({ name: "call_outcome", type: "enum" }),
+          ],
+        })
+      );
+    });
+  });
+
+  describe("updateAgent", () => {
+    it("actualiza post_call_analysis_data cuando se especifica", async () => {
+      mocks.agentUpdate.mockResolvedValue({ agent_id: "agent_123" });
+
+      const adapter = new RetellAdapter();
+      await adapter.updateAgent("agent_123", {
+        postCallAnalysisData: [
+          {
+            name: "call_outcome",
+            type: "enum",
+            choices: ["RESOLVED", "FRUSTRATED"],
+            description: "Clasifica el resultado de la llamada.",
+          },
+        ],
+      });
+
+      expect(mocks.agentUpdate).toHaveBeenCalledWith(
+        "agent_123",
+        expect.objectContaining({
+          post_call_analysis_data: [
+            expect.objectContaining({ name: "call_outcome", type: "enum" }),
+          ],
+        })
+      );
+    });
+
+    it("no toca post_call_analysis_data si no se especifica", async () => {
+      mocks.agentUpdate.mockResolvedValue({ agent_id: "agent_123" });
+
+      const adapter = new RetellAdapter();
+      await adapter.updateAgent("agent_123", { name: "Nuevo nombre" });
+
+      const sentPayload = mocks.agentUpdate.mock.calls[0][1];
+      expect(sentPayload).not.toHaveProperty("post_call_analysis_data");
+    });
   });
 
   describe("createPhoneNumber", () => {

@@ -5,7 +5,7 @@ import {
   handleCallAnalyzed,
 } from "../../../src/adapters/retell/webhookHandlers.js";
 import { prisma } from "../../../src/lib/prisma.js";
-import { recordingQueue, classifyQueue } from "../../../src/lib/queue.js";
+import { recordingQueue } from "../../../src/lib/queue.js";
 
 vi.mock("../../../src/lib/prisma.js", () => ({
   prisma: {
@@ -29,7 +29,6 @@ vi.mock("../../../src/lib/prisma.js", () => ({
 
 vi.mock("../../../src/lib/queue.js", () => ({
   recordingQueue: { add: vi.fn() },
-  classifyQueue: { add: vi.fn() },
 }));
 
 const mockedAgentFindFirst = vi.mocked(prisma.agent.findFirst);
@@ -38,7 +37,6 @@ const mockedCallFindUnique = vi.mocked(prisma.call.findUnique);
 const mockedCallUpdate = vi.mocked(prisma.call.update);
 const mockedTranscriptUpsert = vi.mocked(prisma.transcript.upsert);
 const mockedRecordingQueueAdd = vi.mocked(recordingQueue.add);
-const mockedClassifyQueueAdd = vi.mocked(classifyQueue.add);
 
 describe("Retell webhook handlers", () => {
   beforeEach(() => {
@@ -139,7 +137,6 @@ describe("Retell webhook handlers", () => {
         })
       );
       expect(mockedRecordingQueueAdd).toHaveBeenCalled();
-      expect(mockedClassifyQueueAdd).toHaveBeenCalled();
     });
 
     it("recupera el negocio si la llamada no existía", async () => {
@@ -213,7 +210,7 @@ describe("Retell webhook handlers", () => {
       expect(result.success).toBe(true);
       expect(mockedCallUpdate).toHaveBeenCalledWith({
         where: { id: "call_123" },
-        data: { sentiment: "POSITIVE" },
+        data: { sentiment: "POSITIVE", outcome: null },
       });
     });
 
@@ -235,7 +232,56 @@ describe("Retell webhook handlers", () => {
       expect(result.success).toBe(true);
       expect(mockedCallUpdate).toHaveBeenCalledWith({
         where: { id: "call_123" },
-        data: { sentiment: null },
+        data: { sentiment: null, outcome: null },
+      });
+    });
+
+    it("guarda call_outcome desde custom_analysis_data", async () => {
+      mockedCallFindUnique.mockResolvedValue({
+        id: "call_123",
+        businessId: "business_123",
+      } as any);
+
+      const result = await handleCallAnalyzed({
+        event_type: "call_analyzed",
+        data: {
+          call_id: "retell_call_123",
+          agent_id: "retell_agent_123",
+          call_analysis: {
+            user_sentiment: "Neutral",
+            custom_analysis_data: { call_outcome: "LEAD_CAPTURED" },
+          },
+        },
+      });
+
+      expect(result.success).toBe(true);
+      expect(mockedCallUpdate).toHaveBeenCalledWith({
+        where: { id: "call_123" },
+        data: { sentiment: "NEUTRAL", outcome: "LEAD_CAPTURED" },
+      });
+    });
+
+    it("guarda outcome=null si custom_analysis_data trae un valor no reconocido", async () => {
+      mockedCallFindUnique.mockResolvedValue({
+        id: "call_123",
+        businessId: "business_123",
+      } as any);
+
+      const result = await handleCallAnalyzed({
+        event_type: "call_analyzed",
+        data: {
+          call_id: "retell_call_123",
+          agent_id: "retell_agent_123",
+          call_analysis: {
+            custom_analysis_data: { call_outcome: "algo_inesperado" },
+          },
+        },
+      });
+
+      expect(result.success).toBe(true);
+      expect(mockedCallUpdate).toHaveBeenCalledWith({
+        where: { id: "call_123" },
+        data: { sentiment: null, outcome: null },
       });
     });
 
