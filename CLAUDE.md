@@ -6,8 +6,8 @@ Los agentes de voz atienden llamadas, consultan horario y disponibilidad, y rese
 en el calendario de Google u Outlook del negocio.
 
 Backend Fastify 5 + Prisma/PostgreSQL + Redis/BullMQ. Frontend Next.js 14 App Router
-(puerto 3001) con Tailwind 3 y TanStack Query. Voz vía Vapi y Retell.ai, telefonía Twilio,
-pagos Stripe.
+(puerto 3001) con Tailwind 3 y TanStack Query. Voz vía Vapi y Retell.ai, telefonía Telnyx
+(Twilio inactivo — no vende números de España en autoservicio), pagos Stripe.
 
 ## Reglas que no se negocian
 
@@ -90,7 +90,7 @@ src/
 ├── modules/      # rutas por dominio (agents, auth, billing, bookings, businesses,
 │                 #   calendar, calls, demo, files, onboarding, phone, places,
 │                 #   recordings, voiceTools) — cada uno con routes.ts
-├── adapters/     # Vapi, Retell, Twilio
+├── adapters/     # Vapi, Retell, Twilio (inactivo), Telnyx
 ├── lib/          # prisma, redis, queue, storage, stripe, twilio, availability,
 │                 #   businessSchedule, agentBootstrap, managedAgentPrompt
 └── jobs/         # workers BullMQ: processRecording, classifyCall, cleanupZombieCalls

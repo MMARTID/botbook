@@ -266,6 +266,42 @@ export class RetellAdapter {
   }
 
   /**
+   * Import a phone number bought on our own carrier account (e.g. Telnyx,
+   * Twilio) via SIP trunk and assign it to an inbound agent. This is
+   * different from createPhoneNumber, which has Retell buy a NEW number from
+   * its own Twilio/Telnyx inventory (US/CA only) — import is the correct
+   * endpoint for a number we already own ourselves.
+   */
+  async importPhoneNumber(input: {
+    phoneNumber: string;
+    terminationUri: string;
+    sipTrunkAuthUsername?: string;
+    sipTrunkAuthPassword?: string;
+    nickname?: string;
+    inboundAgentId?: string;
+  }): Promise<RetellPhoneNumber> {
+    this.ensureApiKey();
+
+    const response = (await this.client.phoneNumber.import({
+      phone_number: input.phoneNumber,
+      termination_uri: input.terminationUri,
+      sip_trunk_auth_username: input.sipTrunkAuthUsername,
+      sip_trunk_auth_password: input.sipTrunkAuthPassword,
+      nickname: input.nickname,
+      inbound_agents: input.inboundAgentId
+        ? [{ agent_id: input.inboundAgentId, weight: 1 }]
+        : undefined,
+    })) as any;
+
+    return {
+      phone_number_id: response.phone_number_id,
+      phone_number: response.phone_number,
+      nickname: response.nickname,
+      inbound_agent_id: response.inbound_agent_id,
+    };
+  }
+
+  /**
    * Update a phone number (e.g. change inbound agent).
    */
   async updatePhoneNumber(

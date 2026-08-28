@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   agentDelete: vi.fn(),
   agentList: vi.fn(),
   phoneNumberCreate: vi.fn(),
+  phoneNumberImport: vi.fn(),
   phoneNumberUpdate: vi.fn(),
   phoneNumberDelete: vi.fn(),
   phoneNumberList: vi.fn(),
@@ -39,6 +40,7 @@ vi.mock("retell-sdk", () => {
       };
       phoneNumber = {
         create: mocks.phoneNumberCreate,
+        import: mocks.phoneNumberImport,
         update: mocks.phoneNumberUpdate,
         delete: mocks.phoneNumberDelete,
         list: mocks.phoneNumberList,
@@ -273,7 +275,7 @@ describe("RetellAdapter", () => {
   });
 
   describe("createPhoneNumber", () => {
-    it("importa un número de Twilio en Retell y lo vincula a un agente", async () => {
+    it("le pide a Retell que compre un número nuevo de su propio inventario y lo vincule a un agente", async () => {
       mocks.phoneNumberCreate.mockResolvedValue({
         phone_number_id: "phone_123",
         phone_number: "+34910000001",
@@ -291,6 +293,37 @@ describe("RetellAdapter", () => {
       expect(mocks.phoneNumberCreate).toHaveBeenCalledWith(
         expect.objectContaining({
           phone_number: "+34910000001",
+          nickname: "Peluquería Test",
+          inbound_agents: [{ agent_id: "agent_123", weight: 1 }],
+        })
+      );
+    });
+  });
+
+  describe("importPhoneNumber", () => {
+    it("importa un número ya comprado en nuestra propia cuenta de operador vía SIP trunk y lo vincula a un agente", async () => {
+      mocks.phoneNumberImport.mockResolvedValue({
+        phone_number: "+34886020712",
+        inbound_agent_id: "agent_123",
+      });
+
+      const adapter = new RetellAdapter();
+      const result = await adapter.importPhoneNumber({
+        phoneNumber: "+34886020712",
+        terminationUri: "botbook-inbound.sip.telnyx.com",
+        sipTrunkAuthUsername: "botbookadmin",
+        sipTrunkAuthPassword: "secret",
+        nickname: "Peluquería Test",
+        inboundAgentId: "agent_123",
+      });
+
+      expect(result.phone_number).toBe("+34886020712");
+      expect(mocks.phoneNumberImport).toHaveBeenCalledWith(
+        expect.objectContaining({
+          phone_number: "+34886020712",
+          termination_uri: "botbook-inbound.sip.telnyx.com",
+          sip_trunk_auth_username: "botbookadmin",
+          sip_trunk_auth_password: "secret",
           nickname: "Peluquería Test",
           inbound_agents: [{ agent_id: "agent_123", weight: 1 }],
         })

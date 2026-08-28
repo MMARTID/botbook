@@ -38,49 +38,34 @@ describe("TwilioAdapter", () => {
   describe("searchAvailableNumbers", () => {
     it("returns local numbers when available", async () => {
       mockLocalList.mockResolvedValue([
-        { phoneNumber: "+34910000001", friendlyName: "Madrid", locality: "Madrid", region: "Madrid" },
+        { phoneNumber: "+34910000001", friendlyName: "Madrid", locality: "Madrid", region: "Madrid", addressRequirements: "none" },
       ]);
 
       const results = await adapter.searchAvailableNumbers("ES", { limit: 1 });
 
       expect(results).toHaveLength(1);
       expect(results[0].phoneNumber).toBe("+34910000001");
+      expect(results[0].addressRequirements).toBe("none");
       expect(mockLocalList).toHaveBeenCalledWith({ limit: 1 });
     });
 
-    it("falls back to mobile numbers when no local numbers are available", async () => {
-      mockLocalList.mockRejectedValue(new Error("No local numbers"));
-      mockMobileList.mockResolvedValue([
-        { phoneNumber: "+34600000001", friendlyName: "Spain Mobile", locality: null, region: null },
+    it("propaga addressRequirements distinto de 'none' sin filtrarlo (la política vive en phone/service.ts)", async () => {
+      mockLocalList.mockResolvedValue([
+        { phoneNumber: "+34910000003", friendlyName: "Bilbao", locality: "Bilbao", region: "Bilbao", addressRequirements: "local" },
       ]);
 
       const results = await adapter.searchAvailableNumbers("ES");
 
-      expect(results).toHaveLength(1);
-      expect(results[0].phoneNumber).toBe("+34600000001");
+      expect(results[0].addressRequirements).toBe("local");
     });
 
-    it("falls back to national numbers when no local or mobile numbers are available", async () => {
+    it("no cae a mobile/national si local falla — España prohíbe esos tipos para revendedores", async () => {
       mockLocalList.mockRejectedValue(new Error("No local numbers"));
-      mockMobileList.mockRejectedValue(new Error("No mobile numbers"));
-      mockNationalList.mockResolvedValue([
-        { phoneNumber: "+34910000002", friendlyName: "Spain", locality: null, region: null },
-      ]);
 
-      const results = await adapter.searchAvailableNumbers("ES");
+      await expect(adapter.searchAvailableNumbers("ES")).rejects.toThrow("No local numbers");
 
-      expect(results).toHaveLength(1);
-      expect(results[0].phoneNumber).toBe("+34910000002");
-    });
-
-    it("returns an empty array when no numbers are available", async () => {
-      mockLocalList.mockRejectedValue(new Error("No local numbers"));
-      mockMobileList.mockRejectedValue(new Error("No mobile numbers"));
-      mockNationalList.mockRejectedValue(new Error("No national numbers"));
-
-      const results = await adapter.searchAvailableNumbers("ES");
-
-      expect(results).toEqual([]);
+      expect(mockMobileList).not.toHaveBeenCalled();
+      expect(mockNationalList).not.toHaveBeenCalled();
     });
   });
 
@@ -97,6 +82,24 @@ describe("TwilioAdapter", () => {
       expect(result.phoneNumber).toBe("+34910000001");
       expect(mockIncomingPhoneNumbersCreate).toHaveBeenCalledWith({
         phoneNumber: "+34910000001",
+      });
+    });
+
+    it("incluye bundleSid y addressSid cuando se especifican", async () => {
+      mockIncomingPhoneNumbersCreate.mockResolvedValue({
+        sid: "PN123",
+        phoneNumber: "+34910000001",
+      });
+
+      await adapter.purchaseNumber("+34910000001", {
+        bundleSid: "BUxxxxx",
+        addressSid: "ADxxxxx",
+      });
+
+      expect(mockIncomingPhoneNumbersCreate).toHaveBeenCalledWith({
+        phoneNumber: "+34910000001",
+        bundleSid: "BUxxxxx",
+        addressSid: "ADxxxxx",
       });
     });
   });
