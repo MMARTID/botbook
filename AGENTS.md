@@ -272,8 +272,7 @@ Copy `.env.example` to `.env` and fill in all required secrets. Key groups:
 | **Google Login OAuth** | `GOOGLE_AUTH_CLIENT_ID`, `GOOGLE_AUTH_CLIENT_SECRET`, `GOOGLE_AUTH_REDIRECT_URI` |
 | **Google Places** | `GOOGLE_PLACES_API_KEY` |
 | **R2 / S3** | `R2_ACCOUNT_ID`, `R2_ACCESS_KEY`, `R2_SECRET_KEY`, `R2_BUCKET`, `R2_REGION`, `R2_ENDPOINT` |
-| **Anthropic** | `ANTHROPIC_API_KEY` |
-| **Twilio** | `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN` (dev), `TWILIO_API_KEY`, `TWILIO_API_SECRET` (prod), `TWILIO_PHONE_NUMBER_COUNTRY` |
+| **Twilio** | `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN` (dev), `TWILIO_API_KEY`, `TWILIO_API_SECRET` (prod), `TWILIO_PHONE_NUMBER_COUNTRY`, `TWILIO_SPAIN_BUNDLE_SID` |
 | **Server** | `FRONTEND_URL`, `PORT`, `NODE_ENV`, `LOG_LEVEL` |
 
 ## Authentication & Authorization
@@ -440,6 +439,8 @@ The backend supports two voice-AI orchestrators. `Business.orchestrator` decides
 ### Phone provisioning
 
 `provisionPhoneNumber` buys a Twilio number and links it in the active orchestrator (Vapi phone number or Retell phone number). Failures in Twilio do not fail the Stripe webhook response.
+
+Only Spain (`TWILIO_PHONE_NUMBER_COUNTRY=ES`) is supported today — searches only `local`-type numbers (Spain prohibits ISVs/resellers from using national/mobile numbers, see [Twilio's Spain regulatory guidelines](https://www.twilio.com/en-us/guidelines/es/regulatory)) and requires `TWILIO_SPAIN_BUNDLE_SID`, a single platform-level regulatory bundle reused across every business (not one bundle per business). Numbers whose `addressRequirements` isn't `none` are skipped, since no `AddressSid` is configured yet; provisioning fails with a specific error message rather than a generic one when no bundle is configured or every available number needs an address.
 
 ## Stripe Billing
 

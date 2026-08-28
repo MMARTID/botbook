@@ -53,6 +53,27 @@ export async function provisionPhoneNumber(
   }
 
   try {
+    // Por ahora solo compramos números españoles: es el único país con
+    // bundle regulatorio aprobado y con lógica de dirección/compliance
+    // revisada. Fallar claro aquí en vez de intentar una compra sin bundle
+    // que Twilio rechazaría de todas formas con un error más confuso.
+    if (DEFAULT_COUNTRY !== "ES") {
+      throw new Error(
+        `Solo se soportan números de España (ES) por ahora; TWILIO_PHONE_NUMBER_COUNTRY está en "${DEFAULT_COUNTRY}"`
+      );
+    }
+
+    // Bundle regulatorio de plataforma (tipo "individual" hoy, pasará a
+    // "business" cuando el usuario se dé de alta como autónomo/empresa) — un
+    // único bundle reutilizado para todos los negocios, aprobado solo para
+    // números españoles de tipo local.
+    const spainBundleSid = process.env.TWILIO_SPAIN_BUNDLE_SID;
+    if (!spainBundleSid) {
+      throw new Error(
+        "Falta configurar TWILIO_SPAIN_BUNDLE_SID (bundle regulatorio aprobado para España)"
+      );
+    }
+
     // 1. Search available numbers
     const available = await twilioAdapter.searchAvailableNumbers(
       DEFAULT_COUNTRY,
@@ -65,15 +86,27 @@ export async function provisionPhoneNumber(
       );
     }
 
-    // 2. Purchase the first available number
-    const selected = available[0];
+    // 2. Purchase the first available number without extra address
+    // requirements — no tenemos AddressSid configurado todavía, así que un
+    // número que lo exija fallaría en Twilio con un error críptico. Mejor
+    // buscar uno que no lo necesite y fallar claro si ninguno cumple.
+    const selected = available.find(
+      (n) => !n.addressRequirements || n.addressRequirements === "none"
+    );
+
+    if (!selected) {
+      throw new Error(
+        `Los ${available.length} números disponibles en ${DEFAULT_COUNTRY} requieren una dirección (AddressSid) que todavía no está configurada`
+      );
+    }
+
     console.log(
       `[Phone] Purchasing number ${selected.phoneNumber} for business ${businessId}`
     );
 
-    const purchased = await twilioAdapter.purchaseNumber(
-      selected.phoneNumber
-    );
+    const purchased = await twilioAdapter.purchaseNumber(selected.phoneNumber, {
+      bundleSid: spainBundleSid,
+    });
 
     // 3. Save purchased state
     await prisma.business.update({
