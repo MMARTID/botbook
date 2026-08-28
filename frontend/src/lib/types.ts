@@ -252,6 +252,8 @@ export type Call = {
   status: CallStatus;
   outcome: CallOutcome | null;
   sentiment: CallSentiment | null;
+  summary: string | null;
+  successful: boolean | null;
   durationSecs: number | null;
   costCents: number | null;
   startedAt: string;

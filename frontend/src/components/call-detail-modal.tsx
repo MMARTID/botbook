@@ -9,6 +9,7 @@ import {
   Frown,
   LoaderCircle,
   Meh,
+  Mic,
   Smile,
   Sparkles,
   User,
@@ -159,6 +160,16 @@ export function CallDetailModal({
                 ) : null}
               </div>
 
+              {call.summary ? (
+                <div className="rounded-2xl border border-[#e9e0fe] bg-[#f7f4ff] p-4 sm:p-5">
+                  <div className="flex items-center gap-2 text-sm font-semibold text-[#0a0a0a]">
+                    <Sparkles className="h-4 w-4 text-[#8b5cf6]" />
+                    Resumen de la llamada
+                  </div>
+                  <p className="mt-2 text-sm leading-6 text-[#3f3a4d]">{call.summary}</p>
+                </div>
+              ) : null}
+
               <div className="rounded-2xl border border-[#e5e5e5] bg-[#fafafa] p-4 sm:p-5">
                 <div className="flex items-center gap-2 text-sm font-semibold text-[#0a0a0a]">
                   <CalendarCheck className="h-4 w-4 text-[#8b5cf6]" />
@@ -190,7 +201,7 @@ export function CallDetailModal({
 
               <div className="rounded-2xl border border-[#e5e5e5] bg-white p-4 sm:p-5">
                 <div className="flex items-center gap-2 text-sm font-semibold text-[#0a0a0a]">
-                  <Sparkles className="h-4 w-4 text-[#8b5cf6]" />
+                  <Mic className="h-4 w-4 text-[#8b5cf6]" />
                   Grabación
                 </div>
                 {recordingSrc ? (

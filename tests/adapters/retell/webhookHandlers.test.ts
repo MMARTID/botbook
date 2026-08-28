@@ -285,6 +285,56 @@ describe("Retell webhook handlers", () => {
       });
     });
 
+    it("guarda call_summary y call_successful cuando vienen informados", async () => {
+      mockedCallFindUnique.mockResolvedValue({
+        id: "call_123",
+        businessId: "business_123",
+      } as any);
+
+      const result = await handleCallAnalyzed({
+        event_type: "call_analyzed",
+        data: {
+          call_id: "retell_call_123",
+          agent_id: "retell_agent_123",
+          call_analysis: {
+            call_summary: "El cliente reservó corte de pelo para el jueves a las 17:00.",
+            call_successful: true,
+          },
+        },
+      });
+
+      expect(result.success).toBe(true);
+      expect(mockedCallUpdate).toHaveBeenCalledWith({
+        where: { id: "call_123" },
+        data: {
+          sentiment: null,
+          outcome: null,
+          summary: "El cliente reservó corte de pelo para el jueves a las 17:00.",
+          successful: true,
+        },
+      });
+    });
+
+    it("no incluye summary/successful en la actualización si call_analysis no los trae", async () => {
+      mockedCallFindUnique.mockResolvedValue({
+        id: "call_123",
+        businessId: "business_123",
+      } as any);
+
+      await handleCallAnalyzed({
+        event_type: "call_analyzed",
+        data: {
+          call_id: "retell_call_123",
+          agent_id: "retell_agent_123",
+          call_analysis: { user_sentiment: "Positive" },
+        },
+      });
+
+      const updatePayload = mockedCallUpdate.mock.calls[0][0];
+      expect(updatePayload.data).not.toHaveProperty("summary");
+      expect(updatePayload.data).not.toHaveProperty("successful");
+    });
+
     it("ignora el análisis si la llamada no existe", async () => {
       mockedCallFindUnique.mockResolvedValue(null as any);
 

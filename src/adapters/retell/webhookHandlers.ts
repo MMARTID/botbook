@@ -375,6 +375,8 @@ export async function handleCallAnalyzed(
     const outcome = data.call_analysis
       ? mapRetellCallOutcome(data.call_analysis.custom_analysis_data?.call_outcome)
       : undefined;
+    const summary = data.call_analysis?.call_summary;
+    const successful = data.call_analysis?.call_successful;
 
     await prisma.$transaction(async (tx) => {
       if (data.transcript) {
@@ -405,18 +407,23 @@ export async function handleCallAnalyzed(
         });
       }
 
-      if (sentiment !== undefined || outcome !== undefined) {
+      if (
+        sentiment !== undefined ||
+        outcome !== undefined ||
+        summary !== undefined ||
+        successful !== undefined
+      ) {
         await tx.call.update({
           where: { id: dbCall.id },
           data: {
             ...(sentiment !== undefined ? { sentiment } : {}),
             ...(outcome !== undefined ? { outcome } : {}),
+            ...(summary !== undefined ? { summary } : {}),
+            ...(successful !== undefined ? { successful } : {}),
           },
         });
       }
     });
-
-    // TODO: persistir summary/call_analysis completo cuando el modelo Call lo soporte
 
     return { success: true };
   } catch (error) {
