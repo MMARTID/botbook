@@ -83,7 +83,7 @@ Lo que un producto vecino no podría copiar honestamente:
 - Agentes de voz por negocio con tono (`warm` / `professional` / `direct`), objetivo
   (`bookings` / `customer_service` / `lead_capture`), estilo de respuesta
   (`concise` / `balanced`) y escalado (`take_message` / `request_callback`) configurables.
-- Número Twilio aprovisionado automáticamente tras el checkout.
+- Número de España (Telnyx) aprovisionado automáticamente tras el checkout.
 - Registro de llamadas con transcripción, grabación y clasificación de resultado.
 - Horario de negocio, catálogo de servicios, profesionales y capacidad de reserva.
 - Integración de calendario con Google y Outlook, incluido el aviso de reconexión cuando el

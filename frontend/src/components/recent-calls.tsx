@@ -117,6 +117,9 @@ export function RecentCalls() {
                         </span>
                       ) : null}
                     </span>
+                    {call.summary ? (
+                      <span className="mt-0.5 block truncate text-xs text-muted">{call.summary}</span>
+                    ) : null}
                   </span>
                   {SentimentIcon ? (
                     <span

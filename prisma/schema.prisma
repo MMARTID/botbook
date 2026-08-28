@@ -213,6 +213,8 @@ model Call {
   status       CallStatus   @default(IN_PROGRESS)
   outcome      CallOutcome?
   sentiment    CallSentiment?
+  summary      String?      @db.Text
+  successful   Boolean?
   durationSecs Int?
   costCents    Int?
   startedAt    DateTime     @default(now())

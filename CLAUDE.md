@@ -44,26 +44,23 @@ Backend Fastify 5 + Prisma/PostgreSQL + Redis/BullMQ. Frontend Next.js 14 App Ro
 ## Diseño (frontend)
 
 Estética SaaS conservadora y profesional para negocios tradicionales españoles. Nada de
-look de startup ni de app de consumo. Tokens en `frontend/src/app/globals.css`:
+look de startup ni de app de consumo. Rediseño negro/blanco/morado (agosto 2026, commit
+`eeab7f4`) — no queda ni un token de la paleta verde anterior. Tokens reales en
+`frontend/src/app/globals.css`:
 
 | Token | Hex | Uso |
 |-------|-----|-----|
-| `--background` | `#eef2eb` | Base del gradiente de fondo |
-| `--foreground` | `#17211c` | Texto principal |
-| `--surface` | `#ffffff` | Tarjetas y paneles |
-| `--muted` | `#687267` | Texto secundario |
-| `--accent` | `#1e2b22` | Botones primarios, titulares |
-| `--accent-soft` | `#b8d96e` | Focus rings, highlights |
+| `--background` / `--surface` | `#ffffff` | Fondo base y de tarjetas/paneles |
+| `--foreground` / `--accent` | `#0a0a0a` | Texto principal, botones primarios |
+| `--muted` | `#52525b` | Texto secundario |
+| `--purple` / `--accent-soft` | `#8b5cf6` / `#a78bfa` | Acento de marca — iconos, focus rings, `HeroConversation` |
+| `--purple-wash` / `--purple-ink` | `#f3eeff` / `#6d28d9` | Fondo y texto de badges/contenedores de icono morados |
 | `--success` / `--warning` / `--error` | `#2c7334` / `#9f7a15` / `#c53030` | Estados |
 
-Prohibidos: `#101814` (negro con tinte verde), `#d6ff72` (lima neón), y púrpura o naranja
-en `HeroConversation`.
-
-Clases base: `.panel`, `.field`, `.btn-primary`, `.btn-secondary`, `.badge-soft`.
-Radios `rounded-lg` (8px) en inputs y botones, `rounded-xl` (12px) en tarjetas,
-`rounded-2xl` (16px) en paneles — nunca `rounded-full` en contenedores grandes.
-Sombras sutiles (`0_8px_24px_rgba(30,43,34,0.06)`), nada de `0_22px_55px`.
-Iconos Lucide React en contenedores con `bg-[#eef6dc]` y `text-[#2c7334]`.
+Clases base (`.panel`, `.field`, `.btn-primary`, `.btn-secondary`, `.btn-purple`,
+`.badge-soft`) usan `rounded-full` en botones/inputs/badges y `rounded-3xl` en paneles —
+lo contrario de la escala 8/12/16px de antes. Iconos Lucide React en contenedores
+`rounded-xl` con `bg-[#f3eeff]` y `text-[#8b5cf6]`. Detalle completo en `DESIGN.md`.
 
 ## Comandos
 
