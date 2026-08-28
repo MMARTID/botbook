@@ -9,10 +9,10 @@ function buildPlansHref(niche?: string) {
 }
 
 const SECTION_LINKS = [
+  { href: "#por-que", label: "Por qué" },
   { href: "#como-funciona", label: "Cómo funciona" },
-  { href: "#calculadora", label: "Calculadora" },
   { href: "#precios", label: "Precios" },
-  { href: "#preguntas", label: "Preguntas frecuentes" },
+  { href: "#preguntas", label: "Preguntas" },
 ] as const;
 
 export function MobileNav({ niche }: { niche?: string }) {
@@ -72,7 +72,7 @@ export function MobileNav({ niche }: { niche?: string }) {
         aria-expanded={isMenuOpen}
         aria-controls="mobile-menu"
         aria-label={isMenuOpen ? "Cerrar menú" : "Abrir menú"}
-        className="inline-flex h-11 w-11 items-center justify-center rounded-lg border border-[#d2dacd] bg-white/95 text-[#344038] transition duration-200 hover:bg-[#f4f6f1] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#9dbb55]"
+        className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-[#e5e5e5] bg-white text-[#0a0a0a] transition duration-200 hover:bg-[#fafafa] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]"
       >
         {isMenuOpen ? <X className="h-5 w-5" aria-hidden="true" /> : <Menu className="h-5 w-5" aria-hidden="true" />}
       </button>
@@ -81,7 +81,7 @@ export function MobileNav({ niche }: { niche?: string }) {
         <nav
           id="mobile-menu"
           aria-label="Navegación móvil"
-          className="absolute left-0 right-0 top-full border-t border-white/60 bg-[#f8faf5]/95 px-4 py-4 shadow-[0_8px_24px_rgba(30,43,34,0.06)] backdrop-blur-xl"
+          className="absolute left-0 right-0 top-full border-t border-[#e5e5e5] bg-white px-4 py-4"
         >
           <div className="flex flex-col gap-1.5">
             {SECTION_LINKS.map(({ href, label }) => (
@@ -89,7 +89,7 @@ export function MobileNav({ niche }: { niche?: string }) {
                 key={href}
                 href={href}
                 onClick={() => setIsMenuOpen(false)}
-                className="flex h-11 items-center rounded-lg px-3 text-sm font-medium text-[#344038] transition duration-200 hover:bg-[#eef6dc] hover:text-[#1e2b22]"
+                className="flex h-11 items-center rounded-full px-3 text-sm font-medium text-[#3f3f46] transition duration-200 hover:bg-[#f3eeff] hover:text-[#0a0a0a]"
               >
                 {label}
               </a>
@@ -97,7 +97,7 @@ export function MobileNav({ niche }: { niche?: string }) {
             <Link
               href="/login"
               onClick={() => setIsMenuOpen(false)}
-              className="flex h-11 items-center rounded-lg px-3 text-sm font-medium text-[#344038] transition duration-200 hover:bg-[#eef6dc] hover:text-[#1e2b22]"
+              className="flex h-11 items-center rounded-full px-3 text-sm font-medium text-[#3f3f46] transition duration-200 hover:bg-[#f3eeff] hover:text-[#0a0a0a]"
             >
               Iniciar sesión
             </Link>

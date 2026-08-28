@@ -9,9 +9,10 @@ type PlanSelectionLinkProps = {
   planId: PlanId;
   planName: string;
   featured: boolean;
+  preselected?: boolean;
 };
 
-export function PlanSelectionLink({ planId, planName, featured }: PlanSelectionLinkProps) {
+export function PlanSelectionLink({ planId, planName, featured, preselected = false }: PlanSelectionLinkProps) {
   const [navigating, setNavigating] = useState(false);
 
   const selectPlan = () => {
@@ -34,10 +35,12 @@ export function PlanSelectionLink({ planId, planName, featured }: PlanSelectionL
       type="button"
       onClick={selectPlan}
       disabled={navigating}
-      className={`mt-8 inline-flex h-12 items-center justify-center rounded-lg px-5 text-sm font-semibold transition hover:-translate-y-0.5 disabled:cursor-wait disabled:opacity-70 ${
+      className={`mt-8 inline-flex h-12 items-center justify-center rounded-full px-5 text-sm font-semibold transition hover:-translate-y-0.5 disabled:cursor-wait disabled:opacity-70 ${
         featured
-          ? "bg-[#1e2b22] text-white shadow-[0_10px_28px_rgba(30,43,34,0.16)]"
-          : "border border-[#d6dfcf] bg-white text-[#344038] hover:bg-[#f4f6f1]"
+          ? "bg-[#8b5cf6] text-white hover:bg-[#7c3aed]"
+          : preselected
+            ? "bg-[#0a0a0a] text-white hover:bg-[#262626]"
+            : "border border-[#0a0a0a] bg-white text-[#0a0a0a] hover:bg-[#fafafa]"
       }`}
     >
       {navigating ? "Continuando…" : `Elegir ${planName}`}

@@ -1,6 +1,7 @@
 import { z } from "zod";
+import type { CallOutcome, CallSentiment } from "@prisma/client";
 import { prisma } from "../../lib/prisma.js";
-import { recordingQueue, classifyQueue } from "../../lib/queue.js";
+import { recordingQueue } from "../../lib/queue.js";
 import { callLabel, errorMessage } from "../../lib/logUtils.js";
 
 const RetellCallStartedSchema = z.object({
@@ -15,22 +16,44 @@ const RetellCallStartedSchema = z.object({
   }),
 });
 
+const RetellTranscriptTurnSchema = z
+  .object({
+    role: z.string(),
+    content: z.string(),
+  })
+  .passthrough();
+
 const RetellCallEndedSchema = z.object({
   event_type: z.literal("call_ended"),
   data: z.object({
     call_id: z.string(),
     agent_id: z.string(),
-    duration_seconds: z.number().optional(),
-    disconnect_reason: z.string().optional(),
+    duration_ms: z.number().optional(),
+    disconnection_reason: z.string().optional(),
     recording_url: z.string().optional(),
     stereo_recording_url: z.string().optional(),
     transcript: z.string().optional(),
+    transcript_object: z.array(RetellTranscriptTurnSchema).optional(),
     summary: z.string().optional(),
     call_cost: z.object({
-      total_cost: z.number().optional(),
+      combined_cost: z.number().optional(),
     }).optional(),
   }),
 });
+
+const RetellCallAnalysisSchema = z
+  .object({
+    call_successful: z.boolean().optional(),
+    call_summary: z.string().optional(),
+    user_sentiment: z.enum(["Positive", "Neutral", "Negative", "Unknown"]).optional(),
+    // Definido por nosotros vía post_call_analysis_data (ver
+    // CALL_OUTCOME_ANALYSIS_FIELD en agentBootstrap.ts).
+    custom_analysis_data: z
+      .object({ call_outcome: z.string().optional() })
+      .passthrough()
+      .optional(),
+  })
+  .passthrough();
 
 const RetellCallAnalyzedSchema = z.object({
   event_type: z.literal("call_analyzed"),
@@ -38,10 +61,10 @@ const RetellCallAnalyzedSchema = z.object({
     call_id: z.string(),
     agent_id: z.string(),
     summary: z.string().optional(),
-    sentiment: z.string().optional(),
     transcript: z.string().optional(),
+    transcript_object: z.array(RetellTranscriptTurnSchema).optional(),
     recording_url: z.string().optional(),
-    call_analysis: z.record(z.unknown()).optional(),
+    call_analysis: RetellCallAnalysisSchema.optional(),
   }),
 });
 
@@ -71,6 +94,42 @@ export function normalizeRetellWebhookPayload(payload: unknown): unknown {
   }
 
   return normalized;
+}
+
+function sanitizeRetellTranscriptMessages(
+  items: z.infer<typeof RetellTranscriptTurnSchema>[] | undefined
+): { role: string; content: string }[] {
+  if (!items) return [];
+  return items.map(({ role, content }) => ({ role, content }));
+}
+
+function mapRetellSentiment(
+  sentiment: "Positive" | "Neutral" | "Negative" | "Unknown" | undefined
+): CallSentiment | null {
+  switch (sentiment) {
+    case "Positive":
+      return "POSITIVE";
+    case "Neutral":
+      return "NEUTRAL";
+    case "Negative":
+      return "NEGATIVE";
+    default:
+      return null;
+  }
+}
+
+const VALID_CALL_OUTCOMES: CallOutcome[] = [
+  "RESOLVED",
+  "FRUSTRATED",
+  "NO_ANSWER",
+  "ESCALATED",
+  "LEAD_CAPTURED",
+];
+
+function mapRetellCallOutcome(value: string | undefined): CallOutcome | null {
+  return value && (VALID_CALL_OUTCOMES as string[]).includes(value)
+    ? (value as CallOutcome)
+    : null;
 }
 
 async function resolveBusinessIdByRetellAgentId(
@@ -138,10 +197,13 @@ export async function handleCallEnded(
   const { call_id, agent_id } = event.data;
   const data = event.data;
 
+  const durationSecs =
+    data.duration_ms !== undefined ? Math.round(data.duration_ms / 1000) : undefined;
+
   console.log(
     `[Retell] Finalizó ${callLabel(call_id)} · duración=${
-      data.duration_seconds ?? "no indicada"
-    }s · motivo=${data.disconnect_reason ?? "no indicado"}`
+      durationSecs ?? "no indicada"
+    }s · motivo=${data.disconnection_reason ?? "no indicado"}`
   );
 
   try {
@@ -173,10 +235,16 @@ export async function handleCallEnded(
     }
 
     const finalStatus: "COMPLETED" | "FAILED" | "IN_PROGRESS" =
-      data.disconnect_reason?.toLowerCase().includes("error") ||
-      data.disconnect_reason?.toLowerCase().includes("fail")
+      data.disconnection_reason?.toLowerCase().includes("error") ||
+      data.disconnection_reason?.toLowerCase().includes("fail")
         ? "FAILED"
         : "COMPLETED";
+
+    const costCents =
+      data.call_cost?.combined_cost !== undefined
+        ? Math.round(data.call_cost.combined_cost)
+        : undefined;
+    const messages = sanitizeRetellTranscriptMessages(data.transcript_object);
 
     const result = await prisma.$transaction(async (tx) => {
       const updatedCall = await tx.call.upsert({
@@ -188,18 +256,14 @@ export async function handleCallEnded(
           status: finalStatus,
           startedAt: new Date(),
           endedAt: new Date(),
-          durationSecs: data.duration_seconds,
-          costCents: data.call_cost?.total_cost
-            ? Math.round(data.call_cost.total_cost * 100)
-            : undefined,
+          durationSecs,
+          costCents,
         },
         update: {
           status: finalStatus,
           endedAt: new Date(),
-          durationSecs: data.duration_seconds,
-          costCents: data.call_cost?.total_cost
-            ? Math.round(data.call_cost.total_cost * 100)
-            : undefined,
+          durationSecs,
+          costCents,
         },
       });
 
@@ -209,10 +273,11 @@ export async function handleCallEnded(
           create: {
             callId: updatedCall.id,
             fullText: data.transcript,
-            messages: [],
+            messages,
           },
           update: {
             fullText: data.transcript,
+            messages,
           },
         });
       }
@@ -263,26 +328,6 @@ export async function handleCallEnded(
       }
     }
 
-    if (data.transcript) {
-      try {
-        await classifyQueue.add(
-          "classify-call",
-          {
-            callId: result.id,
-            businessId: result.businessId,
-            transcriptText: data.transcript,
-          },
-          { priority: 10 }
-        );
-      } catch (err) {
-        console.error(
-          `[Retell] La ${callLabel(call_id)} se guardó, pero no se pudo encolar su clasificación: ${errorMessage(
-            err
-          )}`
-        );
-      }
-    }
-
     console.log(
       `[Retell] ${callLabel(call_id)} guardada correctamente · transcripción=${
         data.transcript ? "sí" : "no"
@@ -323,6 +368,14 @@ export async function handleCallAnalyzed(
       return { success: false };
     }
 
+    const messages = sanitizeRetellTranscriptMessages(data.transcript_object);
+    const sentiment = data.call_analysis
+      ? mapRetellSentiment(data.call_analysis.user_sentiment)
+      : undefined;
+    const outcome = data.call_analysis
+      ? mapRetellCallOutcome(data.call_analysis.custom_analysis_data?.call_outcome)
+      : undefined;
+
     await prisma.$transaction(async (tx) => {
       if (data.transcript) {
         await tx.transcript.upsert({
@@ -330,10 +383,11 @@ export async function handleCallAnalyzed(
           create: {
             callId: dbCall.id,
             fullText: data.transcript,
-            messages: [],
+            messages,
           },
           update: {
             fullText: data.transcript,
+            messages,
           },
         });
       }
@@ -350,9 +404,19 @@ export async function handleCallAnalyzed(
           },
         });
       }
+
+      if (sentiment !== undefined || outcome !== undefined) {
+        await tx.call.update({
+          where: { id: dbCall.id },
+          data: {
+            ...(sentiment !== undefined ? { sentiment } : {}),
+            ...(outcome !== undefined ? { outcome } : {}),
+          },
+        });
+      }
     });
 
-    // TODO: persistir summary/sentiment/call_analysis cuando el modelo Call lo soporte
+    // TODO: persistir summary/call_analysis completo cuando el modelo Call lo soporte
 
     return { success: true };
   } catch (error) {

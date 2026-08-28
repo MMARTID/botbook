@@ -154,7 +154,7 @@ export async function agentsRoutes(fastify: FastifyInstance) {
           select: { orchestrator: true },
         });
 
-        const orchestrator = business?.orchestrator || "vapi";
+        const orchestrator = business?.orchestrator || "retell";
 
         const agentWithConfig = agent as typeof agent & {
           voiceId?: string | null;
@@ -340,7 +340,7 @@ export async function agentsRoutes(fastify: FastifyInstance) {
           where: { id: agent.businessId },
           select: { orchestrator: true },
         });
-        const orchestrator = business?.orchestrator || "vapi";
+        const orchestrator = business?.orchestrator || "retell";
 
         if (orchestrator === "retell") {
           if (agent.retellAgentId) {

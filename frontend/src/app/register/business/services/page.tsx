@@ -123,10 +123,10 @@ export default function RegisterBusinessServicesPage() {
     <div className="flex min-h-screen items-center justify-center px-4 py-12 sm:px-6 lg:px-8">
       <div className="panel w-full max-w-lg p-8">
         <div className="space-y-4 text-center">
-          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-[#1e2b22] text-[#b8d96e] shadow-sm">
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-[#f3eeff] text-[#8b5cf6]">
             <Scissors className="h-7 w-7" />
           </div>
-          <h2 className="text-3xl font-semibold tracking-tight text-[#1e2b22]">
+          <h2 className="text-3xl font-black tracking-tight text-[#0a0a0a]">
             {texts.services.heading}
           </h2>
           <p className="mx-auto max-w-md text-sm leading-6 text-muted">
@@ -146,19 +146,19 @@ export default function RegisterBusinessServicesPage() {
                   disabled={saving}
                   className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 ${
                     isSelected
-                      ? "border-[#1e2b22] bg-[#1e2b22] text-white"
-                      : "border-[#dce1d8] bg-white text-[#344038] hover:bg-[#fbfcf8]"
+                      ? "border-[#0a0a0a] bg-[#0a0a0a] text-white"
+                      : "border-[#e5e5e5] bg-white text-[#27272a] hover:bg-[#fafafa]"
                   }`}
                 >
                   {isSelected ? (
                     <Check className="h-3.5 w-3.5" />
                   ) : (
-                    <Sparkles className="h-3.5 w-3.5 text-[#8a9388]" />
+                    <Sparkles className="h-3.5 w-3.5 text-[#a1a1aa]" />
                   )}
                   <span>{service.name}</span>
                   <span
                     className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs ${
-                      isSelected ? "bg-white/20 text-white" : "bg-[#eef6dc] text-[#405115]"
+                      isSelected ? "bg-white/20 text-white" : "bg-[#f3eeff] text-[#6d28d9]"
                     }`}
                   >
                     <Clock className="h-3 w-3" />
@@ -171,12 +171,12 @@ export default function RegisterBusinessServicesPage() {
         </div>
 
         {selected.size === 0 && (
-          <p className="mt-4 text-sm text-[#8a9388]">
+          <p className="mt-4 text-sm text-[#a1a1aa]">
             No has seleccionado ningún servicio. Puedes añadirlos más tarde en ajustes.
           </p>
         )}
 
-        {error && <p className="mt-4 text-sm text-red-600">{error}</p>}
+        {error && <p className="mt-4 text-sm text-[#c53030]">{error}</p>}
 
         <div className="mt-8 space-y-3">
           <button
@@ -198,7 +198,7 @@ export default function RegisterBusinessServicesPage() {
             type="button"
             onClick={() => redirectToNextStep()}
             disabled={saving}
-            className="w-full rounded-xl border border-[#dce1d8] bg-white px-4 py-3 text-sm font-semibold text-muted transition hover:bg-[#fafbf8] disabled:cursor-not-allowed disabled:opacity-50"
+            className="btn-secondary w-full justify-center disabled:cursor-not-allowed disabled:opacity-50"
           >
             Configurar servicios después
           </button>

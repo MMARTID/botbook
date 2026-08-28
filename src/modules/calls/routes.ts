@@ -23,7 +23,7 @@ export async function callsRoutes(fastify: FastifyInstance) {
         const [calls, total] = await Promise.all([
           prisma.call.findMany({
             where: { businessId },
-            include: { agent: true },
+            include: { agent: true, booking: true },
             take: limit,
             skip: offset,
             orderBy: { createdAt: "desc" },
@@ -65,8 +65,7 @@ export async function callsRoutes(fastify: FastifyInstance) {
             transcript: true,
             recording: true,
             leads: true,
-            booking: true,
-            order: true
+            booking: { include: { professional: true, service: true } },
           },
         });
 

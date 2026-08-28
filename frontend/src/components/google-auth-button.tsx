@@ -40,7 +40,7 @@ export function GoogleAuthButton({ onError, beforeStart }: GoogleAuthButtonProps
       type="button"
       onClick={startGoogleAuth}
       disabled={loading}
-      className="flex w-full items-center justify-center gap-3 rounded-xl border border-[#dce1d8] bg-white px-4 py-3 text-sm font-semibold text-[#243026] shadow-sm transition hover:border-[#c6cec1] hover:bg-[#fafbf8] focus:outline-none focus:ring-2 focus:ring-[#1e2b22]/20 disabled:cursor-not-allowed disabled:opacity-60"
+      className="flex h-12 w-full items-center justify-center gap-3 rounded-full border border-[#e5e5e5] bg-white px-4 text-sm font-semibold text-[#0a0a0a] transition hover:border-[#0a0a0a] hover:bg-[#fafafa] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#8b5cf6]/30 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
     >
       <GoogleIcon />
       {loading ? "Conectando con Google..." : "Continuar con Google"}

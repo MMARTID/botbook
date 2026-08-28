@@ -70,12 +70,12 @@ export function UpcomingCalendarEvents({ businessId, timeZone, onReconnectRequir
   };
 
   return (
-    <section className="panel relative overflow-hidden border-[#d2e0c6] bg-[linear-gradient(135deg,#f4f8eb_0%,#ffffff_58%)] p-4 sm:p-5 lg:p-6" aria-labelledby="calendar-events-title">
-      <div className="pointer-events-none absolute -right-16 -top-20 h-52 w-52 rounded-full bg-[#b8d96e]/20 blur-3xl" />
+    <section className="panel relative overflow-hidden p-4 sm:p-5 lg:p-6" aria-labelledby="calendar-events-title">
+      <div className="pointer-events-none absolute -right-16 -top-20 h-52 w-52 rounded-full bg-[#8b5cf6]/20 blur-3xl" />
       <div className="relative flex items-center justify-between gap-3">
         <div className="min-w-0">
           <p className="text-sm font-medium text-muted">Agenda · {eventsQuery.data?.provider === "outlook" ? "Outlook" : "Google Calendar"}</p>
-          <h2 id="calendar-events-title" className="mt-1 text-lg font-semibold text-[#1e2b22] sm:text-xl">
+          <h2 id="calendar-events-title" className="mt-1 text-lg font-semibold text-[#0a0a0a] sm:text-xl">
             Próximos eventos
           </h2>
         </div>
@@ -84,7 +84,7 @@ export function UpcomingCalendarEvents({ businessId, timeZone, onReconnectRequir
             href={eventsQuery.data?.provider === "outlook" ? "https://outlook.office.com/calendar/" : "https://calendar.google.com/calendar/u/0/r/agenda"}
             target="_blank"
             rel="noopener noreferrer"
-            className="mr-1 hidden items-center gap-2 text-sm font-semibold text-[#52604f] transition hover:text-[#1e2b22] sm:inline-flex"
+            className="mr-1 hidden items-center gap-2 text-sm font-semibold text-[#52525b] transition hover:text-[#0a0a0a] sm:inline-flex"
           >
             Ver calendario
             <ExternalLink className="h-3.5 w-3.5" />
@@ -114,17 +114,17 @@ export function UpcomingCalendarEvents({ businessId, timeZone, onReconnectRequir
         <div className="calendar-track mt-4" aria-label="Cargando próximos eventos">
           {Array.from({ length: 6 }, (_, index) => (
             <div key={index} className="calendar-card animate-pulse" aria-hidden="true">
-              <div className="h-3 w-20 rounded bg-[#e8ece3]" />
-              <div className="mt-4 h-4 w-full rounded bg-[#e8ece3]" />
-              <div className="mt-2 h-4 w-2/3 rounded bg-[#eef1eb]" />
-              <div className="mt-5 h-3 w-16 rounded bg-[#eef1eb]" />
+              <div className="h-3 w-20 rounded bg-[#e4e4e7]" />
+              <div className="mt-4 h-4 w-full rounded bg-[#e4e4e7]" />
+              <div className="mt-2 h-4 w-2/3 rounded bg-[#e4e4e7]" />
+              <div className="mt-5 h-3 w-16 rounded bg-[#e4e4e7]" />
             </div>
           ))}
         </div>
       ) : eventsQuery.isError ? (
         <div className="mt-4 flex min-h-32 flex-col items-center justify-center rounded-xl border border-[#f5d3d3] bg-[#fff1f1] px-4 py-6 text-center">
-          <p className="text-sm font-medium text-[#9f2a2a]">No se pudo actualizar la agenda.</p>
-          <button type="button" onClick={() => eventsQuery.refetch()} className="mt-3 inline-flex items-center gap-2 text-sm font-semibold text-[#344038]">
+          <p className="text-sm font-medium text-[#c53030]">No se pudo actualizar la agenda.</p>
+          <button type="button" onClick={() => eventsQuery.refetch()} className="mt-3 inline-flex items-center gap-2 text-sm font-semibold text-[#27272a]">
             <RefreshCw className="h-4 w-4" />
             Reintentar
           </button>
@@ -141,12 +141,12 @@ export function UpcomingCalendarEvents({ businessId, timeZone, onReconnectRequir
           ))}
         </div>
       ) : (
-        <div className="mt-4 flex min-h-32 items-center gap-3 rounded-xl border border-dashed border-[#d8dfd1] bg-[#fafbf8] px-4 py-6">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#eef6dc] text-[#2c7334]">
+        <div className="mt-4 flex min-h-32 items-center gap-3 rounded-xl border border-dashed border-[#e5e5e5] bg-[#fafafa] px-4 py-6">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#f3eeff] text-[#8b5cf6]">
             <CalendarDays className="h-5 w-5" />
           </div>
           <div>
-            <p className="text-sm font-semibold text-[#344038]">No hay próximos eventos</p>
+            <p className="text-sm font-semibold text-[#27272a]">No hay próximos eventos</p>
             <p className="mt-1 text-sm text-muted">Las nuevas reservas aparecerán aquí automáticamente.</p>
           </div>
         </div>
@@ -162,11 +162,11 @@ function EventCard({ event, timeZone, provider }: { event: CalendarEvent; timeZo
     : null;
   const content = (
     <>
-      <div className="flex items-center justify-between gap-2 text-xs font-semibold uppercase tracking-[0.12em] text-[#54634b]">
+      <div className="flex items-center justify-between gap-2 text-xs font-semibold uppercase tracking-[0.12em] text-[#52525b]">
         <span className="truncate">{date}</span>
         {event.htmlLink ? <ArrowUpRight className="h-3.5 w-3.5 shrink-0" /> : null}
       </div>
-      <h3 className="mt-3 line-clamp-2 min-h-10 text-sm font-semibold leading-5 text-[#1e2b22]">{event.summary}</h3>
+      <h3 className="mt-3 line-clamp-2 min-h-10 text-sm font-semibold leading-5 text-[#0a0a0a]">{event.summary}</h3>
       <div className="mt-3 space-y-1.5 text-xs text-muted">
         <p className="flex items-center gap-1.5">
           <Clock3 className="h-3.5 w-3.5 shrink-0" />
@@ -191,7 +191,7 @@ function EventCard({ event, timeZone, provider }: { event: CalendarEvent; timeZo
       href={event.htmlLink}
       target="_blank"
       rel="noopener noreferrer"
-      className="calendar-card transition hover:-translate-y-0.5 hover:border-[#cfe0bc] hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#9dbb55]"
+      className="calendar-card transition hover:-translate-y-0.5 hover:border-[#ddd6fe] hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]"
       aria-label={`Abrir ${event.summary} en ${provider === "outlook" ? "Outlook Calendar" : "Google Calendar"}`}
     >
       {content}

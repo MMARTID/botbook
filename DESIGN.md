@@ -1,30 +1,35 @@
 ---
 name: BotBook
-description: Sistema visual SaaS sereno para negocios de servicios españoles — verde mostrador sobre papel claro
+description: Sistema visual SaaS de alto contraste para negocios de servicios españoles — negro y blanco con un único acento morado
 colors:
-  background: "#eef2eb"
+  background: "#ffffff"
   surface: "#ffffff"
-  surface-soft: "#f6f7f1"
-  foreground: "#17211c"
-  muted: "#5f6a5e"
-  accent: "#1e2b22"
-  accent-strong: "#243026"
-  accent-soft: "#b8d96e"
-  accent-wash: "#eef6dc"
-  accent-ink: "#405115"
-  accent-ring: "#d7e9c5"
-  focus: "#9dbb55"
-  stroke: "#d2dacd"
-  border: "rgba(30, 43, 34, 0.08)"
+  surface-soft: "#fafafa"
+  foreground: "#0a0a0a"
+  muted: "#52525b"
+  accent: "#0a0a0a"
+  accent-strong: "#262626"
+  accent-soft: "#a78bfa"
+  purple: "#8b5cf6"
+  purple-strong: "#7c3aed"
+  purple-wash: "#f3eeff"
+  purple-ink: "#6d28d9"
+  purple-ring: "#ddd6fe"
+  focus: "#8b5cf6"
+  stroke: "#e5e5e5"
+  border: "#e5e5e5"
   success: "#2c7334"
   success-surface: "#ecf7ec"
+  success-border: "#d8efd7"
   warning: "#9f7a15"
   error: "#c53030"
+  error-surface: "#fff1f1"
+  error-border: "#f5d3d3"
 typography:
   display:
     fontFamily: "var(--font-geist-sans), sans-serif"
-    fontSize: "clamp(2.25rem, 5vw, 3.75rem)"
-    fontWeight: 600
+    fontSize: "clamp(2.25rem, 5vw, 4.25rem)"
+    fontWeight: 800
     lineHeight: 1.05
     letterSpacing: "-0.02em"
   headline:
@@ -61,6 +66,7 @@ rounded:
   sm: "8px"
   md: "12px"
   lg: "16px"
+  xl: "24px"
   pill: "9999px"
 spacing:
   xs: "4px"
@@ -73,30 +79,38 @@ spacing:
 components:
   button-primary:
     backgroundColor: "{colors.accent}"
-    textColor: "{colors.surface}"
-    rounded: "{rounded.sm}"
-    padding: "0 20px"
-    height: "44px"
+    textColor: "#ffffff"
+    rounded: "{rounded.pill}"
+    padding: "0 24px"
+    height: "48px"
   button-primary-hover:
     backgroundColor: "{colors.accent-strong}"
   button-secondary:
     backgroundColor: "{colors.surface}"
-    textColor: "#344038"
-    rounded: "{rounded.sm}"
-    padding: "0 20px"
-    height: "44px"
+    textColor: "{colors.accent}"
+    rounded: "{rounded.pill}"
+    padding: "0 24px"
+    height: "48px"
   button-secondary-hover:
-    backgroundColor: "#f4f6f1"
+    backgroundColor: "{colors.surface-soft}"
+  button-purple:
+    backgroundColor: "{colors.purple}"
+    textColor: "#ffffff"
+    rounded: "{rounded.pill}"
+    padding: "0 24px"
+    height: "48px"
+  button-purple-hover:
+    backgroundColor: "{colors.purple-strong}"
   input-field:
     backgroundColor: "{colors.surface}"
     textColor: "{colors.foreground}"
-    rounded: "{rounded.sm}"
+    rounded: "{rounded.pill}"
     padding: "0 16px"
     height: "44px"
   panel:
     backgroundColor: "{colors.surface}"
     textColor: "{colors.foreground}"
-    rounded: "{rounded.lg}"
+    rounded: "{rounded.xl}"
     padding: "24px"
   card:
     backgroundColor: "{colors.surface}"
@@ -104,22 +118,22 @@ components:
     rounded: "{rounded.md}"
     padding: "16px"
   badge-soft:
-    backgroundColor: "{colors.accent-wash}"
-    textColor: "{colors.accent-ink}"
+    backgroundColor: "{colors.purple-wash}"
+    textColor: "{colors.purple-ink}"
     typography: "{typography.label}"
     rounded: "{rounded.pill}"
     padding: "4px 12px"
   nav-pill:
     backgroundColor: "{colors.surface}"
-    textColor: "#344038"
+    textColor: "#27272a"
     rounded: "{rounded.pill}"
     padding: "8px 12px"
   nav-pill-active:
-    backgroundColor: "{colors.accent-wash}"
-    textColor: "{colors.accent-ink}"
+    backgroundColor: "{colors.purple-wash}"
+    textColor: "{colors.purple-ink}"
   icon-tile:
-    backgroundColor: "{colors.accent-wash}"
-    textColor: "{colors.success}"
+    backgroundColor: "{colors.purple-wash}"
+    textColor: "{colors.purple}"
     rounded: "{rounded.md}"
     size: "40px"
 ---
@@ -128,97 +142,115 @@ components:
 
 ## Overview
 
-**Creative North Star: "La Recepción Serena"**
+**Creative North Star: "Recepción de precisión"**
 
-El mostrador de un buen negocio a media mañana: luz natural entrando, madera clara, todo en su
-sitio, nadie levantando la voz. Esa es la sensación que persigue BotBook. El producto le habla a
-una peluquera, un barbero o un fisioterapeuta que no compró software en su vida y que no quiere
-sentirse en una app: quiere sentir que ha contratado a alguien competente y tranquilo. La
-interfaz interpreta ese papel — presente, ordenada, sin pedir atención.
+Una recepción que inspira confianza inmediata sin decir una palabra de más: papel blanco,
+tinta casi negra, y un único trazo morado que aparece exactamente donde hay que mirar. El
+producto le habla a una peluquera, un barbero o un fisioterapeuta que no compró software en su
+vida y que no quiere sentirse en una app de consumo: quiere sentir que ha contratado a alguien
+competente, serio y moderno. La interfaz interpreta ese papel con contraste alto, tipografía
+con peso real y una paleta que no compite consigo misma.
 
-Materialmente el sistema es papel verde pálido con tinta verde casi negra. El fondo nunca es
-blanco plano: es un degradado radial tenue que baja de `#f7f8f5` a `#e7ece4` con un halo de
-Brote Claro arriba a la izquierda, y ese fondo se mantiene **en todas las pantallas**, de la
-landing al panel, para que la aplicación no se sienta como un sitio distinto del que te vendió.
-Sobre él flotan superficies blancas translúcidas con bordes de un píxel. La profundidad viene
-del tono y del borde, no de la sombra.
+Materialmente el sistema es blanco puro con tinta `#0a0a0a`. No hay degradado de fondo ni papel
+tintado: el blanco es plano y el contraste lo pone la tinta, los bordes de un píxel en
+`#e5e5e5` y, con mucha disciplina, el morado. Ese blanco se mantiene **en todas las pantallas**,
+de la landing al panel, para que la aplicación no se sienta como un sitio distinto del que te
+vendió.
 
-El anti-referente está confirmado y es explícito: nada de estética de startup ni de app de
-consumo. Se rechazaron por nombre el negro verdoso `#101814` y el lima neón `#d6ff72` por
-producir exactamente ese registro. El sistema es cálido pero adulto, y su expresividad está en
-la precisión — un radio consistente, un acento que aparece poco — no en el volumen.
+El anti-referente sigue vigente y ahora incluye la propia identidad anterior: nada de verde
+mostrador, nada de lima neón, nada de negro con tinte verdoso. La paleta anterior (`#1e2b22`,
+`#b8d96e`, `#eef6dc`, `#d6ff72`, `#101814`) fue sustituida por completo, sitio a sitio, y no debe
+reaparecer como acento «cálido» ni como color semántico salvo en los tres estados heredados que
+sí se conservan intactos: éxito, aviso y error.
 
 **Key Characteristics:**
 
-- Papel verde pálido con degradado radial continuo en todas las superficies, jamás fondo plano.
-- Un solo acento fuerte por vista; el Brote Claro se reserva para foco y realce.
-- Profundidad por capas tonales y bordes de 1 px, con sombra ambiental casi imperceptible.
-- Escala de radios corta y disciplinada: 8 / 12 / 16 px, y píldora solo en badges y navegación.
-- Respuesta táctil breve: 200 ms, 2 px de elevación en hover, hundido en active.
-- Español de España en toda la interfaz; iconografía Lucide sobre azulejo `#eef6dc`.
+- Blanco plano en toda superficie de fondo; el contraste lo dan la tinta y el borde, no un tinte
+  de papel.
+- Un solo acento de color por vista: morado. Nunca compite con el negro de los botones primarios
+  ni con el verde/rojo semánticos.
+- Profundidad casi siempre por borde de 1 px (`#e5e5e5`), no por sombra. Cuando hay sombra, es
+  negra (`rgba(0,0,0,…)`) y solo en elementos realmente flotantes.
+- Radios generosos y consistentes: paneles y tarjetas grandes en `rounded-3xl` (24 px), tarjetas
+  y azulejos de icono en `rounded-xl`/`rounded-2xl` (12–16 px), campos y botones en píldora.
+- Tipografía con peso real: titulares en `font-black`/`font-extrabold`, nunca semibold tibio.
+- Español de España en toda la interfaz; iconografía Lucide sobre azulejo `#f3eeff` con trazo
+  morado `#8b5cf6`.
 
 ## Colors
 
-Una paleta de un solo tono — verde — trabajada en todo su rango, del casi negro al brote, sobre
-un neutro cálido y ligeramente verdoso que hace de papel.
+Negro y blanco como base absoluta, morado como único acento decorativo, y tres semánticos
+heredados (éxito, aviso, error) que se mantienen fuera de la familia morada a propósito: son
+estado del sistema, no marca.
 
 ### Primary
 
-- **Verde Mostrador** (`#1e2b22`): el verde casi negro de la madera pintada de un mostrador.
-  Botones primarios, titulares y todo énfasis estructural. Es la tinta de la marca.
-- **Verde Mostrador Intenso** (`#243026`): exclusivamente el estado hover de los elementos
-  primarios. Nunca como color de reposo.
+- **Negro Tinta** (`#0a0a0a`): botones primarios, titulares y todo énfasis estructural. Es la
+  tinta de la marca — sustituye al antiguo Verde Mostrador en el mismo rol exacto.
+- **Negro Intenso** (`#262626`): exclusivamente el estado hover de los elementos primarios negros.
+  Nunca como color de reposo.
 
-### Secondary
+### Secondary — Morado
 
-- **Brote Claro** (`#b8d96e`): el verde tierno de una planta de interior. Anillos de foco,
-  realces sutiles y el halo del degradado de fondo. Es el color más vivo del sistema y por eso
-  el más racionado.
-- **Verde Brote Lavado** (`#eef6dc`): fondo de badges, chips de navegación activos y azulejos de
-  icono. Es el Brote Claro convertido en superficie habitable.
-- **Tinta Brote** (`#405115`): texto sobre Verde Brote Lavado. Nunca sobre blanco.
-- **Anillo Brote** (`#d7e9c5`): borde interior de badges y chips.
-- **Verde Foco** (`#9dbb55`): borde de campo enfocado y anillo `focus-visible`. Más contenido
-  que el Brote Claro porque tiene que leerse contra blanco.
+- **Morado** (`#8b5cf6`): el único acento de color del sistema. Iconos dentro de azulejo, anillos
+  de foco, bordes activos, botones `.btn-purple` cuando un CTA necesita destacar sin ser la
+  acción primaria negra.
+- **Morado Intenso** (`#7c3aed`): estado hover de elementos morados sólidos.
+- **Lavado Morado** (`#f3eeff`): fondo de badges, chips de navegación activos y azulejos de
+  icono. Es el morado convertido en superficie habitable — nunca se anida un azulejo `#f3eeff`
+  dentro de una sección que ya use `#f3eeff` de fondo; en ese caso el azulejo pasa a blanco sólido
+  para no perder contraste.
+- **Tinta Morada** (`#6d28d9`): texto sobre Lavado Morado. Nunca sobre blanco liso ni dentro de
+  una superficie semántica verde/roja.
+- **Anillo Morado** (`#ddd6fe`): borde interior de badges y chips morados.
+- **Morado Suave** (`#a78bfa`): variante decorativa de baja saturación — degradados y detalles
+  finos donde el morado sólido pesaría demasiado.
 
 ### Neutral
 
-- **Papel Verde** (`#eef2eb`): base del degradado de fondo del cuerpo.
-- **Superficie** (`#ffffff`): tarjetas y paneles, casi siempre al 90–95 % de opacidad para que el
-  papel se transparente.
-- **Superficie Templada** (`#f6f7f1`): segundo nivel de superficie, secciones anidadas y filas
-  alternas.
-- **Tinta** (`#17211c`): texto principal.
-- **Tinta Apagada** (`#5f6a5e`): texto secundario, descripciones y ayudas. Se usa siempre a través
+- **Superficie** (`#ffffff`): fondo de página y de tarjetas. Plano, sin degradado ni opacidad
+  reducida.
+- **Superficie Templada** (`#fafafa`): segundo nivel de superficie — filas de tabla, estados hover
+  neutros, contenedores anidados dentro de un panel blanco.
+- **Tinta** (`#0a0a0a`): texto principal y titulares.
+- **Tinta Secundaria** (`#27272a`): etiquetas de campo y texto secundario con más peso que el
+  cuerpo muted.
+- **Tinta Apagada** (`#52525b`): texto terciario, descripciones y ayudas. Se usa siempre a través
   de la utilidad `.text-muted`, nunca escribiendo el hex, para que el token siga siendo el único
-  punto de cambio. El valor anterior (`#687267`) daba 4,42:1 sobre el papel y no llegaba a AA;
-  este pasa sobre blanco (5,66:1), papel (5,00:1) y superficie templada (5,25:1).
-- **Trazo** (`#d2dacd`): borde de campos y de botones secundarios.
-- **Borde Velado** (`rgba(30, 43, 34, 0.08)`): divisores y bordes de panel; verde translúcido,
-  nunca gris.
+  punto de cambio. Da 7,5:1 sobre blanco — muy por encima de AA.
+- **Trazo** (`#e5e5e5`): borde por defecto de campos, tarjetas, paneles y botones secundarios. Es
+  el único gris estructural del sistema.
+- **Silenciado** (`#a1a1aa`): placeholders, texto deshabilitado, iconografía decorativa de menor
+  jerarquía.
 
-### Semantic
+### Semantic (heredados, fuera de la familia morada)
 
-- **Éxito** (`#2c7334`): conexiones activas, confirmaciones e iconos dentro de azulejo. También
-  es el verde de la iconografía en reposo.
-- **Superficie Éxito** (`#ecf7ec`): fondo de avisos positivos.
+- **Éxito** (`#2c7334`) sobre **Superficie Éxito** (`#ecf7ec`) con borde **`#d8efd7`**: conexiones
+  activas, confirmaciones, checkmarks de estado «hecho». Se mantiene verde a propósito para no
+  confundir «completado» con el acento decorativo morado.
 - **Aviso** (`#9f7a15`): advertencias — un ocre, no un amarillo.
-- **Error** (`#c53030`): fallos de validación y errores de sistema.
+- **Error** (`#c53030`) sobre **Superficie Error** (`#fff1f1`) con borde **`#f5d3d3`**: fallos de
+  validación y errores de sistema.
 
 ### Named Rules
 
-**La Regla del Acento Único.** El Brote Claro y el Verde Mostrador no compiten. En cualquier
-vista hay un solo elemento que reclama la mirada: o el botón primario, o el dato que importa.
-Si dos cosas gritan, ninguna se oye.
+**La Regla del Acento Único.** El morado es el único color de marca que no sea negro o blanco. En
+cualquier vista hay un solo elemento morado que reclama la mirada — un botón, un icono activo, un
+borde seleccionado. Si dos cosas gritan en morado a la vez, ninguna se oye.
 
-**La Regla del Verde Único.** No entra ningún tono ajeno a la familia verde salvo los tres
-semánticos. Púrpura y naranja están prohibidos por nombre en `HeroConversation` y por extensión
-en todo el sistema. Las landings de nicho son la única excepción reglada: cada una tiene su
-`NicheAccent` (`strong` / `soft` / `deep`) en `niche-landings.ts` y lo aplica solo a esa página.
+**La Regla del Azulejo No Anidado.** Un icono en azulejo `bg-[#f3eeff]` nunca vive dentro de una
+sección que ya tenga `bg-[#f3eeff]` de fondo — el azulejo se volvería invisible. Dentro de una
+sección morada lavada, el azulejo pasa a `bg-white`.
 
-**La Regla del Papel Continuo.** Ninguna pantalla usa fondo plano. El degradado radial del
-`body` es el suelo compartido de landing, auth, registro, panel y ajustes. Un `#f7f8f4` liso
-rompe la continuidad entre la promesa y el producto.
+**La Regla del Semántico Aparte.** Éxito y error conservan su propia familia de color (verde,
+rojo) de extremo a extremo — fondo, borde y texto del mismo tono — y nunca se les mezcla un borde
+o texto morado. Un borde `#ddd6fe` sobre un fondo `#ecf7ec` es el error más común al tocar estos
+componentes: revisar siempre que las tres partes (borde, fondo, texto) sean de la misma familia.
+
+**La Regla del Blanco Plano.** Ninguna pantalla usa degradado de papel ni superficie translúcida
+por defecto. El fondo es `#ffffff` liso en landing, auth, registro, panel y ajustes — el
+degradado radial sutil y los blobs de desenfoque morado (`blur-3xl`) son un acento puntual sobre
+paneles concretos, no el fondo general de la página.
 
 ## Typography
 
@@ -227,15 +259,15 @@ rompe la continuidad entre la promesa y el producto.
 **Label/Mono Font:** Geist Mono (`app/fonts/GeistMonoVF.woff`), reservada para datos técnicos
 
 **Character:** una grotesca neutra y contemporánea, sin manierismos. Al usar una sola familia en
-todo el rango, la jerarquía la construyen el tamaño y el peso, no el contraste de fuentes. Eso
-mantiene el tono de herramienta seria y evita el registro editorial o publicitario que
-desentonaría con el producto.
+todo el rango, la jerarquía la construyen el tamaño y el peso, no el contraste de fuentes. Los
+titulares ganan peso real (`font-black`/`font-extrabold`) para sostener el alto contraste
+negro-sobre-blanco sin apoyarse en color.
 
 ### Hierarchy
 
-- **Display** (600, `clamp(2.25rem, 5vw, 3.75rem)`, interlineado 1.05, `-0.02em`): titular de
+- **Display** (800, `clamp(2.25rem, 5vw, 4.25rem)`, interlineado 1.05, `-0.02em`): titular de
   hero en landings. Uno por página, nunca en el producto.
-- **Headline** (600, 1.875 rem, 1.2): títulos de sección y encabezados de página del panel.
+- **Headline** (600–800, 1.875 rem, 1.2): títulos de sección y encabezados de página del panel.
 - **Title** (600, 1.125 rem, 1.4): títulos de panel y de tarjeta.
 - **Body** (400, 0.875 rem, 1.6): el caballo de batalla del sistema. Longitud de línea máxima
   65–75 caracteres.
@@ -245,9 +277,9 @@ desentonaría con el producto.
 
 ### Named Rules
 
-**La Regla del Peso Ganado.** `font-semibold` se gana: titulares, títulos de tarjeta, CTAs y
-cifras clave. El cuerpo, las descripciones y las ayudas van en `font-normal`. Cuando todo está
-en semibold, la jerarquía desaparece y la interfaz se lee gritada.
+**La Regla del Peso Ganado.** `font-semibold` (o más) se gana: titulares, títulos de tarjeta,
+CTAs y cifras clave. El cuerpo, las descripciones y las ayudas van en `font-normal`. Cuando todo
+está en semibold, la jerarquía desaparece y la interfaz se lee gritada.
 
 **La Regla del Tracking Contenido.** `-0.02em` en titulares; hasta `0.12em` en labels en
 mayúsculas. Por encima de `0.15em` el texto deja de leerse como palabra y pasa a leerse como
@@ -267,7 +299,7 @@ y lee en el móvil, de pie y con prisa.
 
 Contenedor maestro de `max-w-7xl` (80 rem) centrado, con relleno lateral progresivo de 12 px en
 móvil, 24 px desde `sm` y 32 px desde `lg`. El contenido de lectura se estrecha a `max-w-2xl`
-(42 rem) y los formularios y tarjetas de auth a `max-w-md` (28 rem).
+(42 rem) y los formularios y tarjetas de auth a `max-w-md`/`max-w-lg`.
 
 El ritmo vertical va en pasos de 4 px y se apoya en 8 / 12 / 16 / 20 / 24 / 32. El área principal
 respira 20 px arriba y abajo en móvil y 32 px desde `sm`. La cabecera es `sticky` con
@@ -283,152 +315,161 @@ En ajustes, la navegación por secciones se reemplaza en móvil por un botón de
 arriba a la izquierda; la cabecera completa se oculta por debajo de `sm`.
 
 **La Regla del Pulgar.** La configuración se hace de pie, entre cliente y cliente. Todo objetivo
-interactivo mide al menos 44 px de alto — de ahí que campos y botones compartan `h-11`.
+interactivo mide al menos 44 px de alto — de ahí que campos y botones compartan `h-11`/`h-12`.
 
 ## Elevation & Depth
 
-El sistema separa superficies **por tono y por borde**, no por sombra. El degradado del papel, el
-blanco translúcido del panel (`bg-white/95` con `backdrop-blur-xl`) y el borde de un píxel hacen
-casi todo el trabajo; la sombra solo añade el asiento mínimo para que la tarjeta no parezca
-recortada y pegada.
+El sistema separa superficies **por borde, casi nunca por sombra**. El blanco plano de fondo, la
+superficie blanca de `.panel` y el borde de un píxel `#e5e5e5` hacen casi todo el trabajo. Una
+sombra solo aparece en elementos realmente flotantes — el botón atrás circular en móvil, un modal,
+una barra de configuración `sticky` — y siempre está teñida de negro puro, nunca del antiguo verde
+ni de gris frío.
 
 ### Shadow Vocabulary
 
-- **Ambiental panel** (`box-shadow: 0 8px 24px rgba(30,43,34,0.06)`): reposo de `.panel`. Sube a
-  `0 12px 32px rgba(30,43,34,0.08)` desde `sm`, donde hay más superficie que sostener.
-- **Ambiental tarjeta** (`box-shadow: 0 4px 16px rgba(30,43,34,0.04)`): tarjetas pequeñas y
-  elementos de carril.
-- **Acción primaria** (`box-shadow: 0 8px 20px rgba(30,43,34,0.12)`): botón primario en reposo;
-  `0 10px 28px rgba(30,43,34,0.16)` desde `sm`. Es la única sombra del sistema con intención de
-  destacar en lugar de asentar.
+- **`.panel`:** `shadow-none`. La profundidad viene del borde `#e5e5e5`, no de sombra.
+- **Elemento flotante** (`rgba(0,0,0,0.08)`–`rgba(0,0,0,0.12)`, offset 8–12 px, blur 20–32 px):
+  botón de vuelta circular, barra `sticky` de configuración guiada, modal de demo de voz.
+- **Modal / overlay grande** (`rgba(0,0,0,0.18)`, blur ~60 px): únicamente para overlays que se
+  superponen al contenido, como el modal de llamada de demo.
 
-Toda sombra usa `rgba(30,43,34,...)` — el propio Verde Mostrador diluido. Una sombra gris o negra
-ensucia el papel verde y se ve inmediatamente.
+Toda sombra usa negro puro (`rgba(0,0,0,…)`). Una sombra verde o de color rompe el contraste alto
+que sostiene todo el sistema.
 
 ### Named Rules
 
-**La Regla de los 24 Píxeles.** Ningún desenfoque de sombra pasa de 32 px ni ninguna opacidad de
-0,16. Las sombras de 55 u 80 px de desenfoque despegan los paneles del papel y convierten una
-herramienta en un escaparate.
+**La Regla de la Sombra Escasa.** La mayoría de tarjetas, listas y secciones plegables no llevan
+sombra en absoluto — solo borde. Añadir una sombra a un elemento que no flota realmente sobre otro
+es la deriva más común hacia el registro de app de consumo.
 
 ## Shapes
 
-Escala de radios corta y deliberada, de menor a mayor superficie:
+Escala de radios generosa y deliberada, de menor a mayor superficie:
 
-- **8 px** (`rounded-lg`) — campos, botones y controles pequeños. La forma con la que el usuario
-  interactúa directamente es la menos redondeada: se lee como control, no como pastilla.
+- **Píldora** (`rounded-full`) — campos, botones (`.btn-primary`, `.btn-secondary`, `.btn-purple`)
+  y controles pequeños. A diferencia del sistema anterior, aquí el control interactivo es el más
+  redondeado: se lee como táctil e invitante, no como recuadro técnico.
 - **12 px** (`rounded-xl`) — tarjetas, azulejos de icono y contenedores intermedios.
-- **16 px** (`rounded-2xl`) — paneles y contenedores mayores.
-- **Píldora** (`rounded-full`) — **solo** en badges, chips de estado, pastillas de navegación y
-  botones de icono cuadrados de 32–40 px.
+- **16 px** (`rounded-2xl`) — tarjetas grandes, secciones de wizard, banners de estado.
+- **24 px** (`rounded-3xl`) — `.panel` y contenedores mayores de página. Es el radio más grande y
+  se reserva para las superficies de más alto nivel.
 
-Los bordes son de 1 px y de la familia verde: `#d2dacd` en controles, `rgba(30,43,34,0.08)` en
-paneles, `#d7e9c5` en badges. Nunca gris neutro. El panel añade además un borde interior claro
-(`border-white/70`) que le da el canto de vidrio esmerilado.
+Los bordes son de 1 px y neutros: `#e5e5e5` en controles, tarjetas y paneles. El morado (`#8b5cf6`
+o `#ddd6fe`) solo aparece en el borde cuando la tarjeta está seleccionada, activa o destacada — no
+como borde por defecto.
 
-**La Regla de la Escala Corta.** 8, 12, 16 y píldora. No hay un quinto radio. Valores como
-`rounded-3xl`, `rounded-[1.75rem]` o `rounded-[2rem]` no pertenecen al sistema: aflojan la
-geometría hasta el registro de app de consumo, que es justo el anti-referente.
+**La Regla de la Escala Amplia.** Píldora / 12 / 16 / 24. No hay un radio pequeño de 8 px en este
+sistema: los controles pequeños de 8 px del mundo anterior pasaron a píldora al migrar de verde a
+negro/blanco/morado. No reintroducir `rounded-lg` (8 px) como radio de control interactivo.
 
 ## Components
 
 Los componentes son **táctiles y receptivos**: responden al dedo y al cursor con un gesto breve y
-pequeño. La respuesta física es la firma del sistema; la espectacularidad no. Toda transición
-dura 200 ms y respeta `prefers-reduced-motion`.
+pequeño. La respuesta física es la firma del sistema; la espectacularidad no. Toda transición dura
+200 ms y respeta `prefers-reduced-motion`.
 
 ### Buttons
 
-- **Shape:** esquinas suaves de 8 px (`rounded-lg`), altura fija de 44 px (`h-11`), relleno
-  lateral de 20 px, `inline-flex` con 8 px de hueco para el icono.
-- **Primary:** Verde Mostrador con texto blanco, texto de 0.875 rem en semibold y sombra de
-  acción primaria.
-- **Hover / Focus:** eleva 2 px (`-translate-y-0.5`) y pasa a Verde Mostrador Intenso.
-  `focus-visible` dibuja anillo de Verde Foco. En `active` el botón vuelve a su sitio y hunde
-  ligeramente: la elevación se gana y se devuelve.
-- **Secondary:** superficie blanca al 95 %, borde Trazo, texto `#344038`; en hover eleva igual y
-  el fondo pasa a `#f4f6f1`.
-- **Disabled:** 60 % de opacidad, cursor no permitido y sin elevación. Un botón deshabilitado no
-  se mueve.
+- **Shape:** píldora (`rounded-full`), altura fija de 44–48 px (`h-11`/`h-12`), relleno lateral de
+  20–24 px, `inline-flex` con 8 px de hueco para el icono.
+- **Primary (`.btn-primary`):** negro `#0a0a0a` con texto blanco, texto de 0.875 rem en semibold.
+- **Secondary (`.btn-secondary`):** superficie blanca, borde negro `#0a0a0a`, texto negro; en hover
+  el fondo pasa a `#fafafa`.
+- **Purple (`.btn-purple`):** morado `#8b5cf6` con texto blanco; en hover pasa a `#7c3aed`. Se usa
+  cuando un CTA necesita destacar sin competir con la acción primaria negra de la misma vista.
+- **Hover / Focus:** eleva 2 px (`-translate-y-0.5`). `focus-visible` dibuja anillo morado
+  (`ring-[#8b5cf6]`).
+- **Disabled:** 60 % de opacidad, cursor no permitido y sin elevación. Un botón deshabilitado no se
+  mueve.
 
-### Chips
+### Chips y Badges
 
-- **Style:** píldora sobre Verde Brote Lavado, texto Tinta Brote de 0.75 rem en semibold, anillo
-  interior de Anillo Brote. 12 px de relleno lateral.
-- **State:** en navegación, activo lleva Verde Brote Lavado con borde `#cfe1ae`; inactivo va
-  blanco con borde `#e4e8df` y hover `#f6f8f2`.
+- **Style (`.badge-soft`):** píldora sobre Lavado Morado (`#f3eeff`), texto Tinta Morada
+  (`#6d28d9`) de 0.75 rem en semibold, anillo interior `#ddd6fe`. 12 px de relleno lateral.
+- **State:** en navegación, el enlace activo lleva `#f3eeff`/`#ddd6fe`/`#6d28d9`; inactivo va
+  blanco con borde `#e5e5e5` y hover `#fafafa`.
 
 ### Cards / Containers
 
-- **Corner Style:** 16 px en paneles, 12 px en tarjetas.
-- **Background:** blanco al 90–95 % con `backdrop-blur-xl`, para que el papel verde se
-  transparente. Nunca blanco opaco.
-- **Shadow Strategy:** ambiental panel o ambiental tarjeta (ver Elevation & Depth). Nada más.
-- **Border:** 1 px de Borde Velado, más borde interior `white/70` en `.panel`.
+- **Corner Style:** 24 px en `.panel`, 12–16 px en tarjetas y secciones.
+- **Background:** blanco sólido. Sin translucidez ni backdrop-blur salvo en cabeceras `sticky`.
+- **Shadow Strategy:** ninguna por defecto (ver Elevation & Depth). Solo elementos flotantes.
+- **Border:** 1 px `#e5e5e5`. El borde pasa a morado (`#8b5cf6`/`#ddd6fe`) únicamente en estado
+  seleccionado/activo.
 - **Internal Padding:** 24 px en paneles, 16 px en tarjetas, 12 px en tarjetas de carril en móvil.
 
 ### Inputs / Fields
 
-- **Style:** 44 px de alto, esquinas de 8 px, borde Trazo, fondo blanco al 95 %, texto de
-  0.875 rem, 16 px de relleno lateral. Placeholder en `#8e968d`.
-- **Focus:** el borde pasa a Verde Foco y aparece un anillo de 2 px de Brote Claro al 40 %.
+- **Style (`.field`):** 44 px de alto, forma píldora, borde `#e5e5e5`, fondo blanco, texto de
+  0.875 rem, 16 px de relleno lateral. Placeholder en `#a1a1aa`.
+- **Focus:** el borde pasa a morado `#8b5cf6` y aparece un anillo de 2 px al 30 % de opacidad.
   Transición de 200 ms. El foco siempre es visible; nunca se suprime el outline sin sustituto.
-- **Disabled:** fondo `#f0f3ea` y cursor no permitido.
-- **Error:** borde y texto de ayuda en Error, con el mensaje bajo el campo — en español,
+- **Disabled:** fondo `#fafafa` y cursor no permitido.
+- **Error:** borde y texto de ayuda en `#c53030`, con el mensaje bajo el campo — en español,
   accionable y sin culpar al usuario.
+- **Checkbox nativo:** tinte `accent-[#8b5cf6]` en lugar del azul/negro por defecto del navegador.
 
 ### Navigation
 
-Cabecera `sticky` sobre `#fbfcf8` al 90 % con `backdrop-blur-xl` y borde inferior `#dfe6da`. A la
-izquierda, el azulejo de logotipo de 36–40 px en Verde Brote Lavado con el icono en Verde
-Mostrador, el nombre del producto en semibold y el nombre del negocio debajo en Tinta Apagada. A
-la derecha, badge de estado y cierre de sesión, que en móvil se reduce a icono.
+Cabecera `sticky` sobre `#fafafa` al 80 % con `backdrop-blur-xl` y borde inferior `white/60`. A la
+izquierda, el logotipo `BrandMark` (squircle morado con mordisco circular blanco) de 40–44 px, el
+nombre del producto en semibold negro y el nombre del negocio debajo en tinta apagada. A la
+derecha, badge de estado morado y cierre de sesión, que en móvil se reduce a icono.
 
-Los enlaces son pastillas con icono Lucide de 16 px: activo en Verde Brote Lavado, inactivo en
-blanco con hover templado. En las páginas de ajustes la cabecera se oculta en móvil y la
-sustituye un botón circular de vuelta de 40 px, fijo arriba a la izquierda.
+Los enlaces son pastillas con icono Lucide de 16 px: activo en Lavado Morado, inactivo en blanco
+con hover templado (`#fafafa`). En las páginas de ajustes la cabecera se oculta en móvil y la
+sustituye un botón circular de vuelta de 40 px con sombra negra, fijo arriba a la izquierda.
 
 ### Icon Tiles
 
-La firma más reconocible del sistema: icono Lucide dentro de un azulejo de 12 px en Verde Brote
-Lavado (`#eef6dc`) con el trazo en Éxito (`#2c7334`). 40 px de lado en cabeceras de sección,
-32 px en listas. Los iconos nunca van sueltos sobre el papel: siempre llevan su azulejo.
+La firma más reconocible del sistema: icono Lucide dentro de un azulejo de 12 px en Lavado Morado
+(`#f3eeff`) con el trazo en morado (`#8b5cf6`). 40 px de lado en cabeceras de sección, 32 px en
+listas. Los iconos nunca van sueltos sobre el fondo: siempre llevan su azulejo — salvo dentro de
+una sección que ya sea `#f3eeff`, donde el azulejo pasa a blanco (ver La Regla del Azulejo No
+Anidado).
+
+### Logotipo
+
+`BrandMark` (`frontend/src/components/brand-mark.tsx`): squircle morado de 12 px de radio con un
+mordisco circular recortado vía `<mask>` SVG. Sustituye por completo al antiguo icono `Bot` de
+Lucide y al logotipo raster anterior en header, footer, favicon, `apple-icon` e `opengraph-image`.
 
 ## Do's and Don'ts
 
 ### Do:
 
-- **Do** mantener el degradado radial del `body` en todas las páginas, incluidas auth, registro y
-  checkout.
-- **Do** limitarse a la escala de radios 8 / 12 / 16 px, con píldora reservada a badges, chips,
-  pastillas de navegación y botones de icono.
-- **Do** teñir todas las sombras con `rgba(30,43,34,...)` y quedarse por debajo de 32 px de
-  desenfoque y 0,16 de opacidad.
-- **Do** reservar `font-semibold` para titulares, títulos de tarjeta, CTAs y cifras clave, y
+- **Do** usar fondo blanco plano en toda página — landing, auth, registro, panel y ajustes.
+- **Do** limitarse a la escala de radios píldora / 12 / 16 / 24 px.
+- **Do** teñir toda sombra estructural con `rgba(0,0,0,…)` y reservarla a elementos que
+  realmente flotan.
+- **Do** reservar `font-semibold` o más para titulares, títulos de tarjeta, CTAs y cifras clave, y
   dejar el cuerpo en `font-normal`.
 - **Do** dar 44 px de alto a todo control interactivo: se configura de pie y con prisa.
-- **Do** envolver cada icono Lucide en su azulejo `#eef6dc` con trazo `#2c7334`.
-- **Do** hacer visible el foco en todo elemento interactivo con el anillo de Verde Foco; es
-  requisito del compromiso WCAG 2.1 AA registrado en PRODUCT.md.
+- **Do** envolver cada icono Lucide en su azulejo `#f3eeff` con trazo `#8b5cf6`, salvo dentro de
+  una sección ya morada lavada (usar blanco ahí).
+- **Do** hacer visible el foco en todo elemento interactivo con el anillo morado; es requisito del
+  compromiso WCAG 2.1 AA registrado en PRODUCT.md.
+- **Do** mantener éxito y error en su propia familia verde/roja de extremo a extremo — nunca mezclar
+  con borde o texto morado.
 - **Do** subir el texto de párrafo largo a 1 rem en superficies públicas.
 
 ### Don't:
 
-- **Don't** usar `#d6ff72` (lima neón) ni `#101814` (negro verdoso). Están rechazados por nombre
-  y siguen presentes en el código: `rgba(214,255,114,…)` aparece en `app-shell.tsx`,
-  `landing-hero.tsx`, `app/page.tsx` y `planes/page.tsx`, y `rgba(16,24,20,…)` en once archivos.
-  Son deuda a corregir, no precedente a imitar.
-- **Don't** introducir `rounded-3xl`, `rounded-[1.75rem]`, `rounded-[2rem]` ni ningún radio fuera
-  de la escala. Hoy hay 10 usos de `rounded-3xl` y 16 de radios arbitrarios: son la deriva, no la
-  norma.
-- **Don't** usar sombras de gran desenfoque tipo `0_22px_55px`, `0_26px_80px` o `0_20px_80px`.
-  Hay cinco en el código y todas despegan el panel del papel.
-- **Don't** aplicar `tracking-[0.3em]` ni superior. Los siete usos actuales convierten el label
-  en textura ilegible.
-- **Don't** poner púrpura, naranja ni ningún color fuera de la familia verde, salvo los tres
-  semánticos y el `NicheAccent` de su propia landing.
-- **Don't** usar fondos planos (`#f7f8f4` y similares) en lugar del degradado del papel.
-- **Don't** dejar cajas oscuras dentro del panel: la tarjeta «Estado general» va en `#f7f9f3` con
-  acentos verdes, no en un bloque oscuro.
-- **Don't** aplicar sombras grises o negras. El papel es verde y las delata.
+- **Don't** usar ningún tono de la paleta verde anterior (`#1e2b22`, `#b8d96e`, `#eef6dc`,
+  `#405115`, `#9dbb55`, etc.) como color estructural. Quedan reservados en exclusiva a los tres
+  semánticos heredados (éxito/aviso/error), que sí conservan su verde y su rojo originales.
+- **Don't** usar `#d6ff72` (lima neón) ni `#101814` (negro verdoso) — rechazados por nombre desde
+  la revisión de agosto y con más razón ahora que la identidad es negro/blanco/morado.
+- **Don't** anidar un azulejo `bg-[#f3eeff]` dentro de una sección que ya tenga `bg-[#f3eeff]` de
+  fondo: se vuelve invisible por falta de contraste.
+- **Don't** poner un borde o texto morado dentro de un banner semántico verde (éxito) o rojo
+  (error). Las tres partes — fondo, borde, texto — deben ser de la misma familia semántica.
+- **Don't** usar degradado de papel ni superficie translúcida como fondo general de página; el
+  degradado radial sutil y los blobs `blur-3xl` morados son un acento puntual sobre un panel
+  concreto, no el fondo del `body`.
+- **Don't** aplicar sombras teñidas de verde (`rgba(30,43,34,…)`) — son residuo del sistema
+  anterior y no pertenecen a la paleta actual.
 - **Don't** dejar que un contenedor colapse mientras carga: el checkout embebido reserva
   `min-h-[480px]` y todo contenedor asíncrono debe reservar su altura igual.
+- **Don't** usar `rounded-lg` (8 px) como radio de botón o campo — ese tamaño de radio quedó
+  reservado a detalles muy pequeños, no a controles interactivos, tras la migración a píldora.

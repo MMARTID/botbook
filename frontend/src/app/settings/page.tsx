@@ -86,8 +86,8 @@ function SettingsCallbackContent() {
       <main className="flex min-h-screen items-center justify-center bg-transparent px-4 py-16">
         <div className="panel w-full max-w-xl space-y-5 p-6">
           <div>
-            <p className="text-sm font-semibold uppercase tracking-[0.12em] text-[#7b886f]">Outlook Calendar</p>
-            <h1 className="mt-2 text-2xl font-semibold text-[#1e2b22]">Elige el calendario que quieres usar</h1>
+            <p className="text-sm font-semibold uppercase tracking-[0.12em] text-[#a1a1aa]">Outlook Calendar</p>
+            <h1 className="mt-2 text-2xl font-semibold text-[#0a0a0a]">Elige el calendario que quieres usar</h1>
             <p className="mt-2 text-sm leading-6 text-muted">Cuenta conectada: {parsedOutlookCalendars.email ?? "Cuenta Microsoft"}</p>
           </div>
           <div className="grid gap-3">
@@ -115,9 +115,9 @@ function SettingsCallbackContent() {
                     router.replace("/?outlook_error=true");
                   }
                 }}
-                className="rounded-2xl border border-[#dce7d2] bg-white px-4 py-4 text-left shadow-sm transition hover:border-[#cfe1ae] hover:bg-[#f8fbf1] disabled:cursor-wait disabled:opacity-60"
+                className="rounded-2xl border border-[#e5e5e5] bg-white px-4 py-4 text-left shadow-sm transition hover:border-[#ddd6fe] hover:bg-[#fafafa] disabled:cursor-wait disabled:opacity-60"
               >
-                <p className="text-sm font-semibold text-[#1e2b22]">
+                <p className="text-sm font-semibold text-[#0a0a0a]">
                   {connectingCalendarId === calendar.id ? "Conectando..." : calendar.name}
                 </p>
                 <p className="mt-1 text-xs text-muted">{calendar.ownerEmail ?? "Calendario principal"}</p>
@@ -132,16 +132,16 @@ function SettingsCallbackContent() {
   return (
     <main className="flex min-h-screen items-center justify-center bg-transparent px-4 py-16">
       <div className="panel w-full max-w-md overflow-hidden p-0">
-        <div className="bg-[#f7faef] px-6 py-6">
+        <div className="bg-[#fafafa] px-6 py-6">
           <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#1e2b22] text-white">
+            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#0a0a0a] text-white">
               <CalendarCheck2 className="h-5 w-5" />
             </div>
             <div>
-              <p className="text-sm font-semibold uppercase tracking-[0.12em] text-[#7b886f]">
+              <p className="text-sm font-semibold uppercase tracking-[0.12em] text-[#a1a1aa]">
                 {searchParams.has("outlook_error") ? "Outlook Calendar" : "Google Calendar"}
               </p>
-              <h1 className="text-xl font-semibold text-[#1e2b22]">
+              <h1 className="text-xl font-semibold text-[#0a0a0a]">
                 {isSuccess ? "Conexión completada" : isError ? "Hubo un problema" : "Finalizando configuración"}
               </h1>
             </div>
@@ -150,7 +150,7 @@ function SettingsCallbackContent() {
 
         <div className="space-y-6 px-6 py-8">
           <div className="flex justify-center">
-            <div className={`relative flex h-20 w-20 items-center justify-center rounded-full ${phase === "complete" ? "bg-[#ecf7ec] text-[#2c7334]" : "bg-[#f4f6f1] text-[#5c6958]"}`}>
+            <div className={`relative flex h-20 w-20 items-center justify-center rounded-full ${phase === "complete" ? "bg-[#ecf7ec] text-[#2c7334]" : "bg-[#fafafa] text-[#52525b]"}`}>
               {phase === "complete" ? (
                 isSuccess ? (
                   <CheckCircleAnimation />
@@ -158,15 +158,15 @@ function SettingsCallbackContent() {
                   <CircleAlert className="h-10 w-10" />
                 )
               ) : (
-                <div className="h-8 w-8 animate-spin rounded-full border-4 border-[#dce6cf] border-t-[#1e2b22]" />
+                <div className="h-8 w-8 animate-spin rounded-full border-4 border-[#e5e5e5] border-t-[#0a0a0a]" />
               )}
             </div>
           </div>
 
           <div className="space-y-3">
-            <div className="h-2 overflow-hidden rounded-full bg-[#ecefe7]">
+            <div className="h-2 overflow-hidden rounded-full bg-[#e5e5e5]">
               <div
-                className="h-full rounded-full bg-gradient-to-r from-[#1e2b22] via-[#2c7334] to-[#b8d96e] transition-all duration-200"
+                className="h-full rounded-full bg-gradient-to-r from-[#0a0a0a] via-[#8b5cf6] to-[#a78bfa] transition-all duration-200"
                 style={{ width: `${progress}%` }}
               />
             </div>
@@ -181,7 +181,7 @@ function SettingsCallbackContent() {
             </p>
           </div>
 
-          <div className="flex items-center justify-center gap-2 text-sm font-medium text-[#7b886f]">
+          <div className="flex items-center justify-center gap-2 text-sm font-medium text-[#a1a1aa]">
             <Sparkles className="h-4 w-4" />
             Redirigiendo automáticamente
           </div>

@@ -1,10 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { Bot } from "lucide-react";
 import { api } from "@/lib/api";
 import Link from "next/link";
 import { GoogleAuthButton } from "@/components/google-auth-button";
+import { BrandMark } from "@/components/brand-mark";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -32,10 +32,8 @@ export default function LoginPage() {
     <div className="flex min-h-screen items-center justify-center px-4 py-12 sm:px-6 lg:px-8">
       <div className="panel w-full max-w-lg p-8">
         <div className="space-y-4 text-center">
-          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-[#1e2b22] text-[#b8d96e] shadow-sm">
-            <Bot className="h-7 w-7" />
-          </div>
-          <h2 className="text-3xl font-semibold tracking-tight text-[#1e2b22]">Bienvenido de nuevo</h2>
+          <BrandMark className="mx-auto h-14 w-14" />
+          <h2 className="text-3xl font-black tracking-tight text-[#0a0a0a]">Bienvenido de nuevo</h2>
           <p className="mx-auto max-w-md text-sm leading-6 text-muted">
             Accede para configurar tu asistente y comenzar a mejorar la experiencia de tus clientes.
           </p>
@@ -44,16 +42,16 @@ export default function LoginPage() {
         <div className="mt-8">
           <GoogleAuthButton onError={setError} />
           <div className="my-6 flex items-center gap-4" aria-hidden="true">
-            <div className="h-px flex-1 bg-[#e4e8df]" />
-            <span className="text-xs font-medium uppercase tracking-[0.12em] text-[#6b756a]">o con email</span>
-            <div className="h-px flex-1 bg-[#e4e8df]" />
+            <div className="h-px flex-1 bg-[#e5e5e5]" />
+            <span className="text-xs font-medium uppercase tracking-[0.12em] text-[#a1a1aa]">o con email</span>
+            <div className="h-px flex-1 bg-[#e5e5e5]" />
           </div>
         </div>
 
         <form className="space-y-6" onSubmit={handleSubmit}>
           <div className="space-y-4">
             <div>
-              <label className="text-sm font-medium text-[#344038]">Email</label>
+              <label className="text-sm font-medium text-[#27272a]">Email</label>
               <input
                 type="email"
                 required
@@ -64,7 +62,7 @@ export default function LoginPage() {
               />
             </div>
             <div>
-              <label className="text-sm font-medium text-[#344038]">Contraseña</label>
+              <label className="text-sm font-medium text-[#27272a]">Contraseña</label>
               <input
                 type="password"
                 required
@@ -76,7 +74,7 @@ export default function LoginPage() {
             </div>
           </div>
 
-          {error && <p className="text-sm text-red-600">{error}</p>}
+          {error && <p className="text-sm text-[#c53030]">{error}</p>}
 
           <button
             type="submit"
@@ -88,7 +86,7 @@ export default function LoginPage() {
 
           <div className="text-center text-sm text-muted">
             ¿No tienes cuenta?{' '}
-            <Link href="/register" className="font-medium text-[#1e2b22] transition hover:text-[#243026]">
+            <Link href="/register" className="font-semibold text-[#7c3aed] transition hover:text-[#6d28d9]">
               Regístrate aquí
             </Link>
           </div>

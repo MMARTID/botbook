@@ -1,9 +1,31 @@
 import { prisma } from "./prisma.js";
+// VAPI: inactivo. Se mantiene el adaptador y esta rama de creación intactos
+// por si se retoma la expansión a Latinoamérica, pero ningún negocio nuevo
+// lo usa — detectVoiceOrchestrator() siempre devuelve "retell".
 import { vapiAdapter } from "../adapters/vapi/VapiAdapter.js";
-import { retellAdapter } from "../adapters/retell/RetellAdapter.js";
+import { retellAdapter, type RetellEnumAnalysisField } from "../adapters/retell/RetellAdapter.js";
 import { getPublicWebhookBaseUrl } from "./serverUrl.js";
 import type { VapiCreateAssistantRequest } from "../adapters/vapi/types.js";
 import { BUSINESS_TYPE_LABELS, isBusinessType, type BusinessType } from "./businessType.js";
+
+/**
+ * Campo de post_call_analysis_data para clasificar el resultado de la llamada:
+ * Retell lo extrae con su propio LLM tras cada llamada, sin coste ni llamada
+ * extra a un tercero, y lo entrega en
+ * call_analysis.custom_analysis_data.call_outcome del evento call_analyzed.
+ */
+export const CALL_OUTCOME_ANALYSIS_FIELD: RetellEnumAnalysisField = {
+  name: "call_outcome",
+  type: "enum",
+  choices: ["RESOLVED", "FRUSTRATED", "NO_ANSWER", "ESCALATED", "LEAD_CAPTURED"],
+  description:
+    "Clasifica el resultado de la llamada en una sola categoría: " +
+    "RESOLVED si se resolvió la petición del cliente o se completó una reserva; " +
+    "FRUSTRATED si el cliente mostró enfado, frustración o insatisfacción notable; " +
+    "NO_ANSWER si la llamada terminó sin una resolución clara o el cliente colgó sin más; " +
+    "ESCALATED si la llamada se transfirió a una persona o a otro departamento; " +
+    "LEAD_CAPTURED si se recogió un contacto o interés comercial sin llegar a resolver la petición.",
+};
 
 export type AgentTemplateConfig = {
   name: string;
@@ -265,6 +287,7 @@ export function buildRetellAgentPayload(input: {
     language: DEFAULT_RETELL_AGENT_CONFIG.language,
     webhookUrl: input.webhookUrl,
     timezone: DEFAULT_RETELL_AGENT_CONFIG.timezone,
+    postCallAnalysisData: [CALL_OUTCOME_ANALYSIS_FIELD],
   };
 }
 
@@ -283,7 +306,7 @@ export async function createBusinessAgent(args: {
   });
 
   const businessType = args.businessType ?? (isBusinessType(business?.businessType) ? business?.businessType : "other");
-  const orchestrator = business?.orchestrator || "vapi";
+  const orchestrator = business?.orchestrator || "retell";
   const displayName = buildAgentDisplayName(args.name, businessType);
 
   const config = getAgentTemplateForBusinessType(businessType, displayName);

@@ -145,10 +145,6 @@ Lo que un producto vecino no podría copiar honestamente:
   **Hablan del problema, no de BotBook.** No son testimonios de cliente y no deben presentarse
   como tales.
 - Producto funcional y demostrable: demo de voz pública en el navegador.
-- Capturas de referencia en la raíz del repositorio: `landing-final-desktop.png`,
-  `landing-tablet.png`, `landing-mobile.png`, `landing-mobile-menu-open.png`,
-  `home-dashboard.png`, `ajustes-current.png`, `onboarding.png`,
-  `peluqueria-final-desktop.png` y otras.
 
 **Ausencias que ningún trabajo futuro debe rellenar inventando**
 

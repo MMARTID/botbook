@@ -15,6 +15,8 @@ export interface RetellTool {
   speak_during_execution?: boolean;
   speak_after_execution?: boolean;
   timeout_ms?: number;
+  /** false (por defecto en nuestras tools) hace que Retell mande {name, call, args} en vez de los argumentos sueltos en la raíz. */
+  args_at_root?: boolean;
 }
 
 export interface CreateRetellLlmInput {
@@ -25,6 +27,16 @@ export interface CreateRetellLlmInput {
   modelTemperature?: number;
 }
 
+/** Campo enum de post_call_analysis_data — Retell lo extrae con su propio LLM
+ * tras cada llamada y lo entrega en call_analysis.custom_analysis_data[name]. */
+export interface RetellEnumAnalysisField {
+  name: string;
+  description: string;
+  choices: string[];
+  type: "enum";
+  required?: boolean;
+}
+
 export interface CreateRetellAgentInput {
   name: string;
   voiceId: string;
@@ -32,6 +44,7 @@ export interface CreateRetellAgentInput {
   language?: string;
   webhookUrl?: string;
   timezone?: string;
+  postCallAnalysisData?: RetellEnumAnalysisField[];
 }
 
 export interface RetellPhoneNumber {
@@ -77,7 +90,7 @@ export class RetellAdapter {
       speak_during_execution: tool.speak_during_execution ?? true,
       speak_after_execution: tool.speak_after_execution ?? true,
       timeout_ms: tool.timeout_ms ?? 20000,
-      args_at_root: true,
+      args_at_root: tool.args_at_root ?? true,
     }));
 
     const response = await this.client.llm.create({
@@ -120,7 +133,7 @@ export class RetellAdapter {
         speak_during_execution: tool.speak_during_execution ?? true,
         speak_after_execution: tool.speak_after_execution ?? true,
         timeout_ms: tool.timeout_ms ?? 20000,
-        args_at_root: true,
+        args_at_root: tool.args_at_root ?? true,
       }));
     }
     if (input.model !== undefined) {
@@ -166,6 +179,7 @@ export class RetellAdapter {
       language: (input.language || "es-ES") as any,
       webhook_url: input.webhookUrl,
       timezone: input.timezone || "Europe/Madrid",
+      post_call_analysis_data: input.postCallAnalysisData,
     });
 
     return response;
@@ -201,6 +215,9 @@ export class RetellAdapter {
     }
     if (input.timezone !== undefined) {
       updatePayload.timezone = input.timezone;
+    }
+    if (input.postCallAnalysisData !== undefined) {
+      updatePayload.post_call_analysis_data = input.postCallAnalysisData;
     }
 
     return this.client.agent.update(agentId, updatePayload);

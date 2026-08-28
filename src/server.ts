@@ -22,7 +22,6 @@ import { phoneRoutes } from "./modules/phone/routes.js";
 import { onboardingRoutes } from "./modules/onboarding/routes.js";
 import { demoRoutes } from "./modules/demo/routes.js";
 import { processRecordingWorker } from "./jobs/processRecording.js";
-import { classifyCallWorker } from "./jobs/classifyCall.js";
 import { processZombieWorker, scheduleZombieCallCleanup } from "./jobs/cleanupZombieCalls.js";
 import {
   handleFunctionCall,
@@ -68,11 +67,18 @@ async function start() {
     fastify.register(cors, {
       origin: (origin, callback) => {
         const frontendOrigin = process.env.FRONTEND_URL || "http://localhost:3001";
-        if (!origin || origin === frontendOrigin) {
+        // Origen extra opcional (ej. un túnel ngrok temporal para ver el panel
+        // desde fuera) — no sustituye a FRONTEND_URL, que sigue gobernando
+        // redirects de OAuth/Stripe.
+        const extraOrigin = process.env.EXTRA_ALLOWED_ORIGIN;
+        if (!origin || origin === frontendOrigin || (extraOrigin && origin === extraOrigin)) {
           callback(null, true);
           return;
         }
-        callback(new Error("Origin not allowed"), false);
+        // No lanzar aquí: un origen no permitido es un rechazo normal de CORS,
+        // no un error del servidor. Lanzar producía un 500 engañoso en vez de
+        // la respuesta sin cabeceras CORS que el navegador ya sabe interpretar.
+        callback(null, false);
       },
       credentials: true,
       methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
@@ -169,9 +175,10 @@ async function start() {
       });
     });
 
-    // Vapi webhook endpoint
-   // Vapi webhook endpoint
-fastify.post("/webhooks/vapi", {
+    // Vapi webhook endpoint. VAPI: inactivo — ningún negocio nuevo lo usa
+    // (Retell es el único orquestador), se deja registrado por si queda
+    // tráfico residual o se retoma para Latinoamérica.
+    fastify.post("/webhooks/vapi", {
   config: {
     rawBody: true,
     rateLimit: {
@@ -302,8 +309,15 @@ fastify.post("/webhooks/vapi", {
       }
     });
 
-    // Retell tool endpoints (custom tools configured in Retell LLM)
-    fastify.post("/webhooks/retell/tools/:toolName", {
+    // Retell tool endpoints (custom tools configured in Retell LLM). El
+    // retellAgentId va en la propia URL (registrada por nosotros en
+    // buildRetellCalendarTools) porque Retell no incluye ningún identificador
+    // de agente en el cuerpo de estas peticiones. Nuestras tools se registran
+    // con args_at_root: false, así que Retell debería mandar
+    // {name, call, args} — pero se tolera también el body plano (args en la
+    // raíz, sin `call`) mientras un negocio no se haya resincronizado con la
+    // config nueva.
+    fastify.post("/webhooks/retell/tools/:retellAgentId/:toolName", {
       config: {
         rawBody: true,
         rateLimit: {
@@ -325,14 +339,13 @@ fastify.post("/webhooks/vapi", {
         return reply.status(401).send({ error: "Invalid webhook signature" });
       }
 
-      const { toolName } = request.params as { toolName: string };
-      const payload = request.body as any;
-      const retellAgentId = payload?.agent_id as string | undefined;
-      const callId = payload?.call_id as string | undefined;
-
-      if (!retellAgentId) {
-        return reply.status(400).send({ error: "Missing agent_id" });
-      }
+      const { retellAgentId, toolName } = request.params as {
+        retellAgentId: string;
+        toolName: string;
+      };
+      const payload = (request.body as Record<string, any>) || {};
+      const toolParams = (payload.args ?? payload) as Record<string, unknown>;
+      const callId = payload.call?.call_id as string | undefined;
 
       try {
         const agent = await prisma.agent.findFirst({
@@ -345,12 +358,12 @@ fastify.post("/webhooks/vapi", {
           return reply.status(404).send({ error: "Agent not found" });
         }
 
-        const toolParams = payload?.args || payload?.parameters || {};
         const result = await executeVoiceTool({
           businessId: agent.businessId,
           toolName,
-          params: toolParams as Record<string, unknown>,
-          callLabel: callId ? `llamada ${callId}` : "llamada sin identificador",
+          params: toolParams,
+          callLabel: callId ? `llamada ${callId}` : "llamada en curso",
+          callId,
         });
 
         // Retell expects the tool result in the response body
@@ -381,8 +394,7 @@ fastify.post("/webhooks/vapi", {
     // Initialize job workers
     console.log("[Server] Initializing job workers...");
     await processRecordingWorker();
-    await classifyCallWorker();
-    
+
     // Initialize Reaper Job
     await processZombieWorker();
     scheduleZombieCallCleanup();

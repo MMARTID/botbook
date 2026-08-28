@@ -5,7 +5,7 @@ import {
   handleCallAnalyzed,
 } from "../../../src/adapters/retell/webhookHandlers.js";
 import { prisma } from "../../../src/lib/prisma.js";
-import { recordingQueue, classifyQueue } from "../../../src/lib/queue.js";
+import { recordingQueue } from "../../../src/lib/queue.js";
 
 vi.mock("../../../src/lib/prisma.js", () => ({
   prisma: {
@@ -15,6 +15,7 @@ vi.mock("../../../src/lib/prisma.js", () => ({
     call: {
       upsert: vi.fn(),
       findUnique: vi.fn(),
+      update: vi.fn(),
     },
     transcript: {
       upsert: vi.fn(),
@@ -28,14 +29,14 @@ vi.mock("../../../src/lib/prisma.js", () => ({
 
 vi.mock("../../../src/lib/queue.js", () => ({
   recordingQueue: { add: vi.fn() },
-  classifyQueue: { add: vi.fn() },
 }));
 
 const mockedAgentFindFirst = vi.mocked(prisma.agent.findFirst);
 const mockedCallUpsert = vi.mocked(prisma.call.upsert);
 const mockedCallFindUnique = vi.mocked(prisma.call.findUnique);
+const mockedCallUpdate = vi.mocked(prisma.call.update);
+const mockedTranscriptUpsert = vi.mocked(prisma.transcript.upsert);
 const mockedRecordingQueueAdd = vi.mocked(recordingQueue.add);
-const mockedClassifyQueueAdd = vi.mocked(classifyQueue.add);
 
 describe("Retell webhook handlers", () => {
   beforeEach(() => {
@@ -106,17 +107,36 @@ describe("Retell webhook handlers", () => {
         data: {
           call_id: "retell_call_123",
           agent_id: "retell_agent_123",
-          duration_seconds: 120,
-          disconnect_reason: "completed",
+          duration_ms: 23362,
+          disconnection_reason: "user_hangup",
           recording_url: "https://example.com/recording.mp3",
-          transcript: "Hola, quiero una cita",
-          call_cost: { total_cost: 0.05 },
+          transcript: "Agent: Hola\nUser: Quiero una cita",
+          transcript_object: [
+            { role: "agent", content: "Hola" },
+            { role: "user", content: "Quiero una cita" },
+          ],
+          call_cost: { combined_cost: 6.1 },
         },
       });
 
       expect(result.success).toBe(true);
+      expect(mockedCallUpsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          create: expect.objectContaining({ durationSecs: 23, costCents: 6 }),
+          update: expect.objectContaining({ durationSecs: 23, costCents: 6 }),
+        })
+      );
+      expect(mockedTranscriptUpsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          create: expect.objectContaining({
+            messages: [
+              { role: "agent", content: "Hola" },
+              { role: "user", content: "Quiero una cita" },
+            ],
+          }),
+        })
+      );
       expect(mockedRecordingQueueAdd).toHaveBeenCalled();
-      expect(mockedClassifyQueueAdd).toHaveBeenCalled();
     });
 
     it("recupera el negocio si la llamada no existía", async () => {
@@ -135,7 +155,7 @@ describe("Retell webhook handlers", () => {
         data: {
           call_id: "retell_call_123",
           agent_id: "retell_agent_123",
-          duration_seconds: 60,
+          duration_ms: 60000,
         },
       });
 
@@ -156,11 +176,113 @@ describe("Retell webhook handlers", () => {
           call_id: "retell_call_123",
           agent_id: "retell_agent_123",
           transcript: "Transcripción final",
+          transcript_object: [{ role: "user", content: "Transcripción final" }],
           recording_url: "https://example.com/recording.mp3",
         },
       });
 
       expect(result.success).toBe(true);
+      expect(mockedTranscriptUpsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          create: expect.objectContaining({
+            messages: [{ role: "user", content: "Transcripción final" }],
+          }),
+        })
+      );
+      expect(mockedCallUpdate).not.toHaveBeenCalled();
+    });
+
+    it("guarda el sentimiento cuando call_analysis.user_sentiment viene informado", async () => {
+      mockedCallFindUnique.mockResolvedValue({
+        id: "call_123",
+        businessId: "business_123",
+      } as any);
+
+      const result = await handleCallAnalyzed({
+        event_type: "call_analyzed",
+        data: {
+          call_id: "retell_call_123",
+          agent_id: "retell_agent_123",
+          call_analysis: { user_sentiment: "Positive" },
+        },
+      });
+
+      expect(result.success).toBe(true);
+      expect(mockedCallUpdate).toHaveBeenCalledWith({
+        where: { id: "call_123" },
+        data: { sentiment: "POSITIVE", outcome: null },
+      });
+    });
+
+    it("guarda sentiment=null cuando user_sentiment es Unknown", async () => {
+      mockedCallFindUnique.mockResolvedValue({
+        id: "call_123",
+        businessId: "business_123",
+      } as any);
+
+      const result = await handleCallAnalyzed({
+        event_type: "call_analyzed",
+        data: {
+          call_id: "retell_call_123",
+          agent_id: "retell_agent_123",
+          call_analysis: { user_sentiment: "Unknown" },
+        },
+      });
+
+      expect(result.success).toBe(true);
+      expect(mockedCallUpdate).toHaveBeenCalledWith({
+        where: { id: "call_123" },
+        data: { sentiment: null, outcome: null },
+      });
+    });
+
+    it("guarda call_outcome desde custom_analysis_data", async () => {
+      mockedCallFindUnique.mockResolvedValue({
+        id: "call_123",
+        businessId: "business_123",
+      } as any);
+
+      const result = await handleCallAnalyzed({
+        event_type: "call_analyzed",
+        data: {
+          call_id: "retell_call_123",
+          agent_id: "retell_agent_123",
+          call_analysis: {
+            user_sentiment: "Neutral",
+            custom_analysis_data: { call_outcome: "LEAD_CAPTURED" },
+          },
+        },
+      });
+
+      expect(result.success).toBe(true);
+      expect(mockedCallUpdate).toHaveBeenCalledWith({
+        where: { id: "call_123" },
+        data: { sentiment: "NEUTRAL", outcome: "LEAD_CAPTURED" },
+      });
+    });
+
+    it("guarda outcome=null si custom_analysis_data trae un valor no reconocido", async () => {
+      mockedCallFindUnique.mockResolvedValue({
+        id: "call_123",
+        businessId: "business_123",
+      } as any);
+
+      const result = await handleCallAnalyzed({
+        event_type: "call_analyzed",
+        data: {
+          call_id: "retell_call_123",
+          agent_id: "retell_agent_123",
+          call_analysis: {
+            custom_analysis_data: { call_outcome: "algo_inesperado" },
+          },
+        },
+      });
+
+      expect(result.success).toBe(true);
+      expect(mockedCallUpdate).toHaveBeenCalledWith({
+        where: { id: "call_123" },
+        data: { sentiment: null, outcome: null },
+      });
     });
 
     it("ignora el análisis si la llamada no existe", async () => {

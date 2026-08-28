@@ -83,10 +83,31 @@ export type PlaceDetails = {
   types: string[];
 };
 
-export async function searchPlaces(query: string, countryCode?: string): Promise<PlaceSearchResult[]> {
+export type PlaceSearchLocation = {
+  countryCode?: string;
+  latitude?: number;
+  longitude?: number;
+};
+
+// Radio de sesgo cuando buscamos por geolocalización: cubre un área
+// metropolitana sin restringir tanto como para perder negocios cercanos
+// en la periferia.
+const LOCATION_BIAS_RADIUS_METERS = 50_000;
+
+export async function searchPlaces(query: string, location?: PlaceSearchLocation): Promise<PlaceSearchResult[]> {
   const body: Record<string, unknown> = { input: query };
-  if (countryCode) {
-    body.includedRegionCodes = [countryCode.toUpperCase()];
+  if (location?.countryCode) {
+    body.includedRegionCodes = [location.countryCode.toUpperCase()];
+  }
+  if (location?.latitude !== undefined && location?.longitude !== undefined) {
+    // El sesgo por coordenadas es más preciso que un país entero: prioriza
+    // resultados cercanos al usuario en vez de filtrar por región completa.
+    body.locationBias = {
+      circle: {
+        center: { latitude: location.latitude, longitude: location.longitude },
+        radius: LOCATION_BIAS_RADIUS_METERS,
+      },
+    };
   }
 
   const response = await fetch(`${PLACES_API_BASE_URL}/places:autocomplete`, {

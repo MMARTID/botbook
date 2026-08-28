@@ -200,6 +200,7 @@ model Call {
   vapiCallId   String       @unique
   status       CallStatus   @default(IN_PROGRESS)
   outcome      CallOutcome?
+  sentiment    CallSentiment?
   durationSecs Int?
   costCents    Int?
   startedAt    DateTime     @default(now())
@@ -302,6 +303,12 @@ enum CallOutcome {
   NO_ANSWER
   ESCALATED
   LEAD_CAPTURED
+}
+
+enum CallSentiment {
+  POSITIVE
+  NEUTRAL
+  NEGATIVE
 }
 
 enum SubscriptionStatus {

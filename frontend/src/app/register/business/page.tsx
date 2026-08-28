@@ -22,7 +22,10 @@ import type {
 } from "@/lib/types";
 
 const DETECTED_BUSINESS_TYPE_KEY = "botbook_detected_business_type";
-const REGISTRATION_COUNTRY_KEY = "botbook_registration_country";
+
+// Cuánto tiempo esperamos a que el navegador resuelva la geolocalización
+// antes de rendirnos y mostrar el selector de país como alternativa.
+const GEOLOCATION_TIMEOUT_MS = 8_000;
 
 const COUNTRY_OPTIONS = [
   { value: "ES", label: "España" },
@@ -78,6 +81,8 @@ function useDebounce<T>(value: T, delay = 400) {
   return debouncedValue;
 }
 
+type LocationStatus = "detecting" | "geolocated" | "fallback";
+
 export default function RegisterBusinessPage() {
   const router = useRouter();
   const [query, setQuery] = useState("");
@@ -87,17 +92,65 @@ export default function RegisterBusinessPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [country, setCountry] = useState<string>("ES");
-  const [isEditingCountry, setIsEditingCountry] = useState(false);
+  const [locationStatus, setLocationStatus] = useState<LocationStatus>("detecting");
+  const [coords, setCoords] = useState<{ latitude: number; longitude: number } | null>(null);
   const debouncedQuery = useDebounce(query, 350);
 
+  // Preferimos geolocalizar al negocio en vez de preguntarle el país: menos
+  // fricción y más preciso (sesga la búsqueda a su zona, no a todo un país).
+  // Si no hay soporte, el usuario deniega el permiso o el navegador tarda
+  // demasiado, caemos al selector de país como alternativa — nunca bloquea
+  // la búsqueda.
   useEffect(() => {
-    const storedCountry = window.localStorage.getItem(REGISTRATION_COUNTRY_KEY);
-    if (storedCountry) {
-      setCountry(storedCountry);
-      setIsEditingCountry(false);
-    } else {
-      setIsEditingCountry(true);
+    let cancelled = false;
+
+    const fallbackToCountrySelect = () => {
+      if (!cancelled) setLocationStatus("fallback");
+    };
+
+    if (typeof navigator === "undefined" || !navigator.geolocation) {
+      fallbackToCountrySelect();
+      return;
     }
+
+    const requestPosition = () => {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          if (cancelled) return;
+          setCoords({
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude,
+          });
+          setLocationStatus("geolocated");
+        },
+        () => fallbackToCountrySelect(),
+        { enableHighAccuracy: false, timeout: GEOLOCATION_TIMEOUT_MS, maximumAge: 5 * 60 * 1000 }
+      );
+    };
+
+    // La Permissions API evita reintentar un permiso ya denegado antes (no
+    // todos los navegadores la soportan para "geolocation" — Safari no —
+    // así que si falta, simplemente pedimos la posición y dejamos que
+    // getCurrentPosition gestione el permiso).
+    if (navigator.permissions?.query) {
+      navigator.permissions
+        .query({ name: "geolocation" as PermissionName })
+        .then((status) => {
+          if (cancelled) return;
+          if (status.state === "denied") {
+            fallbackToCountrySelect();
+          } else {
+            requestPosition();
+          }
+        })
+        .catch(() => requestPosition());
+    } else {
+      requestPosition();
+    }
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
@@ -111,7 +164,7 @@ export default function RegisterBusinessPage() {
   }, [router]);
 
   useEffect(() => {
-    if (!debouncedQuery.trim()) {
+    if (!debouncedQuery.trim() || locationStatus === "detecting") {
       setResults([]);
       return;
     }
@@ -120,7 +173,14 @@ export default function RegisterBusinessPage() {
     setLoading(true);
     setError("");
 
-    searchPlaces(debouncedQuery, country === "OTHER" ? undefined : country)
+    const location =
+      locationStatus === "geolocated" && coords
+        ? { latitude: coords.latitude, longitude: coords.longitude }
+        : country !== "OTHER"
+          ? { countryCode: country }
+          : undefined;
+
+    searchPlaces(debouncedQuery, location)
       .then((places) => {
         if (!cancelled) setResults(places);
       })
@@ -135,7 +195,7 @@ export default function RegisterBusinessPage() {
     return () => {
       cancelled = true;
     };
-  }, [debouncedQuery, country]);
+  }, [debouncedQuery, locationStatus, coords, country]);
 
   const handleSelect = async (place: PlaceSearchResult) => {
     setLoading(true);
@@ -222,7 +282,7 @@ export default function RegisterBusinessPage() {
             src="/animations/landing/GoogleMaposIcon.json"
             className="mx-auto h-16 w-16"
           />
-          <h2 className="text-3xl font-semibold tracking-tight text-[#1e2b22]">
+          <h2 className="text-3xl font-black tracking-tight text-[#0a0a0a]">
             ¿Cuál es tu negocio?
           </h2>
           <p className="mx-auto max-w-md text-sm leading-6 text-muted">
@@ -231,53 +291,39 @@ export default function RegisterBusinessPage() {
           </p>
         </div>
 
-        <div className="mt-8">
-          {isEditingCountry ? (
-            <>
-              <label className="text-sm font-medium text-[#344038]">
-                País del negocio
-              </label>
-              <select
-                className="field mt-2 w-full"
-                value={country}
-                onChange={(event) => {
-                  const value = event.target.value;
-                  setCountry(value);
-                  window.localStorage.setItem(REGISTRATION_COUNTRY_KEY, value);
-                  setSelected(null);
-                  setIsEditingCountry(false);
-                }}
-              >
-                {COUNTRY_OPTIONS.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </>
-          ) : (
-            <div className="flex items-center justify-between rounded-xl border border-[#dce7d2] bg-[#fbfcf8] px-4 py-3">
-              <div>
-                <p className="text-xs text-[#8a9388]">País de búsqueda</p>
-                <p className="text-sm font-semibold text-[#344038]">
-                  {COUNTRY_OPTIONS.find((option) => option.value === country)
-                    ?.label ?? country}
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsEditingCountry(true)}
-                className="text-sm font-semibold text-[#1e2b22] transition hover:text-[#243026]"
-              >
-                Cambiar
-              </button>
-            </div>
-          )}
-        </div>
+        {locationStatus === "detecting" ? (
+          <div className="mt-8 flex items-center justify-center gap-2 rounded-2xl border border-[#e5e5e5] bg-[#fafafa] px-4 py-3 text-sm text-muted">
+            <LoaderCircle className="h-4 w-4 animate-spin text-[#8b5cf6]" />
+            Detectando tu ubicación para buscar cerca de ti…
+          </div>
+        ) : locationStatus === "fallback" ? (
+          <div className="mt-8">
+            <label className="text-sm font-medium text-[#27272a]">
+              País del negocio
+            </label>
+            <select
+              className="field mt-2 w-full"
+              value={country}
+              onChange={(event) => {
+                setCountry(event.target.value);
+                setSelected(null);
+              }}
+            >
+              {COUNTRY_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+            <p className="mt-1 text-xs text-muted">
+              No pudimos usar tu ubicación. Elige el país para buscar tu negocio.
+            </p>
+          </div>
+        ) : null}
 
         <div className="relative mt-4">
           <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
-            <Search className="h-5 w-5 text-[#8a9388]" />
+            <Search className="h-5 w-5 text-[#a1a1aa]" />
           </div>
           <input
             type="text"
@@ -291,22 +337,22 @@ export default function RegisterBusinessPage() {
           />
           {loading && !selected && (
             <div className="absolute inset-y-0 right-0 flex items-center pr-3">
-              <LoaderCircle className="h-5 w-5 animate-spin text-[#405115]" />
+              <LoaderCircle className="h-5 w-5 animate-spin text-[#8b5cf6]" />
             </div>
           )}
 
           {results.length > 0 && !selected && (
-            <ul className="absolute z-10 mt-2 max-h-72 w-full overflow-auto rounded-2xl border border-[#dce1d8] bg-white shadow-lg">
+            <ul className="absolute z-10 mt-2 max-h-72 w-full overflow-auto rounded-2xl border border-[#e5e5e5] bg-white shadow-lg">
               {results.map((place) => (
                 <li key={place.placeId}>
                   <button
                     type="button"
                     onClick={() => handleSelect(place)}
-                    className="flex w-full items-start gap-3 px-4 py-3 text-left transition hover:bg-[#fbfcf8]"
+                    className="flex w-full items-start gap-3 px-4 py-3 text-left transition hover:bg-[#fafafa]"
                   >
                     <Building2 className="mt-0.5 h-4 w-4 shrink-0 text-muted" />
                     <div>
-                      <p className="text-sm font-semibold text-[#344038]">
+                      <p className="text-sm font-semibold text-[#27272a]">
                         {place.name}
                       </p>
                       {place.address && (
@@ -321,11 +367,11 @@ export default function RegisterBusinessPage() {
         </div>
 
         {selected && (
-          <div className="mt-6 space-y-4 rounded-2xl border border-[#dce7d2] bg-[#fbfcf8] p-5">
+          <div className="mt-6 space-y-4 rounded-2xl border border-[#e5e5e5] bg-[#fafafa] p-5">
             <div className="flex items-start gap-3">
-              <Building2 className="mt-0.5 h-5 w-5 text-[#405115]" />
+              <Building2 className="mt-0.5 h-5 w-5 text-[#8b5cf6]" />
               <div>
-                <p className="text-sm font-semibold text-[#344038]">
+                <p className="text-sm font-semibold text-[#27272a]">
                   {selected.name}
                 </p>
                 {selected.address && (
@@ -343,7 +389,7 @@ export default function RegisterBusinessPage() {
               </div>
             </div>
             <div className="flex items-start gap-3">
-              <CalendarClock className="mt-0.5 h-5 w-5 text-[#405115]" />
+              <CalendarClock className="mt-0.5 h-5 w-5 text-[#8b5cf6]" />
               <div className="text-sm text-muted">
                 {summaryLines.length > 0 ? (
                   <ul className="space-y-0.5">
@@ -359,7 +405,7 @@ export default function RegisterBusinessPage() {
           </div>
         )}
 
-        {error && <p className="mt-4 text-sm text-red-600">{error}</p>}
+        {error && <p className="mt-4 text-sm text-[#c53030]">{error}</p>}
 
         <div className="mt-8 space-y-3">
           <button
@@ -374,7 +420,7 @@ export default function RegisterBusinessPage() {
             type="button"
             onClick={handleSkip}
             disabled={saving}
-            className="w-full rounded-xl border border-[#dce1d8] bg-white px-4 py-3 text-sm font-semibold text-muted transition hover:bg-[#fafbf8] disabled:cursor-not-allowed disabled:opacity-50"
+            className="btn-secondary w-full justify-center disabled:cursor-not-allowed disabled:opacity-50"
           >
             No encontré mi negocio / configurar después
           </button>

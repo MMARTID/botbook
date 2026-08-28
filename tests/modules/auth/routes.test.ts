@@ -147,7 +147,7 @@ describe("authRoutes", () => {
       const response = await fastify.inject({
         method: "POST",
         url: "/register",
-        payload: { email: "test@example.com", password: "password" },
+        payload: { email: "test@example.com", password: "password", isEuropeanUnion: true },
       });
 
       expect(response.statusCode).toBe(201);
@@ -161,7 +161,7 @@ describe("authRoutes", () => {
       const response = await fastify.inject({
         method: "POST",
         url: "/register",
-        payload: { email: "test@example.com", password: "password" },
+        payload: { email: "test@example.com", password: "password", isEuropeanUnion: true },
       });
 
       expect(response.statusCode).toBe(400);
@@ -183,7 +183,12 @@ describe("authRoutes", () => {
       const response = await fastify.inject({
         method: "POST",
         url: "/register",
-        payload: { email: "test@example.com", password: "password", businessType: "peluqueria" },
+        payload: {
+          email: "test@example.com",
+          password: "password",
+          isEuropeanUnion: true,
+          businessType: "peluqueria",
+        },
       });
 
       expect(response.statusCode).toBe(201);

@@ -88,8 +88,8 @@ export function AgentSettingsEditor({
 
       <div className="grid gap-5 p-4 sm:p-6 xl:grid-cols-2">
         {fields.map((field) => (
-          <fieldset key={field.key} className="rounded-xl border border-[#dce7d2] bg-[#fbfcf8] p-4 sm:p-5">
-            <legend className="px-1 text-sm font-semibold text-[#1e2b22]">{field.label}</legend>
+          <fieldset key={field.key} className="rounded-xl border border-[#e5e5e5] bg-[#fafafa] p-4 sm:p-5">
+            <legend className="px-1 text-sm font-semibold text-[#0a0a0a]">{field.label}</legend>
             <p className="mb-3 mt-1 text-sm text-muted">{field.description}</p>
             <div className="grid gap-2">
               {field.options.map((option) => {
@@ -99,13 +99,13 @@ export function AgentSettingsEditor({
                     key={option.value}
                     type="button"
                     onClick={() => onChange({ ...value, [field.key]: option.value })}
-                    className={`flex items-center justify-between gap-3 rounded-xl border px-4 py-3 text-left transition ${selected ? "border-[#b9d489] bg-[#f1f8e3] shadow-[0_4px_16px_rgba(30,43,34,0.04)]" : "border-[#e1e8da] bg-white hover:border-[#cfddc4]"}`}
+                    className={`flex items-center justify-between gap-3 rounded-xl border px-4 py-3 text-left transition ${selected ? "border-[#8b5cf6] bg-[#f3eeff]" : "border-[#e5e5e5] bg-white hover:border-[#ddd6fe]"}`}
                   >
                     <span>
-                      <span className="block text-sm font-semibold text-[#344038]">{option.label}</span>
+                      <span className="block text-sm font-semibold text-[#27272a]">{option.label}</span>
                       <span className="mt-0.5 block text-xs text-muted">{option.detail}</span>
                     </span>
-                    <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full ${selected ? "bg-[#b8d96e] text-[#30430f]" : "bg-[#eef0ec] text-transparent"}`}>
+                    <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full ${selected ? "bg-[#8b5cf6] text-[#ffffff]" : "bg-[#f4f4f5] text-transparent"}`}>
                       <Check className="h-3.5 w-3.5" />
                     </span>
                   </button>
@@ -116,7 +116,7 @@ export function AgentSettingsEditor({
         ))}
       </div>
 
-      <div className="flex justify-end border-t border-[#e4e8df] bg-white px-4 py-4 sm:px-6">
+      <div className="flex justify-end border-t border-[#e5e5e5] bg-white px-4 py-4 sm:px-6">
         <button type="button" onClick={onSave} disabled={isSaving} className="btn-primary px-5">
           <Save className="h-4 w-4" /> {isSaving ? "Guardando..." : "Guardar comportamiento"}
         </button>

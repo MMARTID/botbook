@@ -388,21 +388,21 @@ export function DemoVoiceCall({ open, onClose, onActiveChange, niche }: DemoVoic
   }
 
   return (
-    <div className="fixed inset-0 z-[80] flex items-end bg-[#1e2b22]/60 backdrop-blur-sm sm:items-center sm:justify-center sm:px-4 sm:py-6">
+    <div className="fixed inset-0 z-[80] flex items-end bg-[#0a0a0a]/60 backdrop-blur-sm sm:items-center sm:justify-center sm:px-4 sm:py-6">
       <div
         ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby="demo-voz-titulo"
         aria-describedby="demo-voz-descripcion"
-        className={`demo-call-modal panel flex h-[100dvh] w-full max-w-2xl flex-col overflow-hidden rounded-b-none border-white/70 bg-[#fbfcf8] shadow-[0_12px_32px_rgba(30,43,34,0.16)] sm:h-auto sm:max-h-[calc(100dvh-3rem)] sm:rounded-2xl ${isClosing ? "demo-call-modal-closing" : ""}`}
+        className={`demo-call-modal flex h-[100dvh] w-full max-w-2xl flex-col overflow-hidden rounded-t-3xl border border-[#e5e5e5] bg-white shadow-[0_24px_60px_rgba(0,0,0,0.18)] sm:h-auto sm:max-h-[calc(100dvh-3rem)] sm:rounded-3xl ${isClosing ? "demo-call-modal-closing" : ""}`}
       >
-        <div className="flex shrink-0 items-start justify-between gap-3 border-b border-[#e4e8df] px-4 py-4 sm:px-6 sm:py-5">
+        <div className="flex shrink-0 items-start justify-between gap-3 border-b border-[#e5e5e5] px-4 py-4 sm:px-6 sm:py-5">
           <div className="min-w-0">
-            <h2 id="demo-voz-titulo" className="text-xl font-semibold text-[#1e2b22] sm:text-2xl">
+            <h2 id="demo-voz-titulo" className="text-xl font-bold text-[#0a0a0a] sm:text-2xl">
               Habla con BotBook
             </h2>
-            <p id="demo-voz-descripcion" className="mt-2 text-sm leading-6 text-[#54634b]">
+            <p id="demo-voz-descripcion" className="mt-2 text-sm leading-6 text-[#52525b]">
               Hablarás con una demo. Necesitamos acceso al micrófono y no se realizará ninguna reserva real.
             </p>
           </div>
@@ -417,7 +417,7 @@ export function DemoVoiceCall({ open, onClose, onActiveChange, niche }: DemoVoic
               handleClose();
             }}
             aria-label="Cerrar demo"
-            className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-[#d6dfcf] bg-white text-[#344038] transition hover:bg-[#f4f6f1]"
+            className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-[#e5e5e5] bg-white text-[#0a0a0a] transition hover:bg-[#fafafa]"
           >
             <X className="h-4 w-4" />
           </button>
@@ -425,28 +425,28 @@ export function DemoVoiceCall({ open, onClose, onActiveChange, niche }: DemoVoic
 
         <div className="grid flex-1 gap-4 overflow-y-auto overscroll-contain px-4 py-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:px-6 sm:py-5 lg:grid-cols-[0.92fr_1.08fr] lg:overflow-visible">
           <div className="space-y-3 sm:space-y-4">
-            <div className="hidden rounded-xl border border-[#e2e9dc] bg-white p-5 sm:block">
+            <div className="hidden rounded-2xl border border-[#e5e5e5] bg-white p-5 sm:block">
               <div className="flex items-center gap-3">
-                <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#eef6dc] text-[#2c7334]">
+                <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#f3eeff] text-[#8b5cf6]">
                   <ShieldCheck className="h-5 w-5" />
                 </span>
                 <div>
-                  <p className="text-sm font-semibold text-[#1e2b22]">Privacidad y control</p>
-                  <p className="text-sm leading-6 text-[#54634b]">Micrófono solo para esta demo. Sin reservas reales ni formularios previos.</p>
+                  <p className="text-sm font-semibold text-[#0a0a0a]">Privacidad y control</p>
+                  <p className="text-sm leading-6 text-[#52525b]">Micrófono solo para esta demo. Sin reservas reales ni formularios previos.</p>
                 </div>
               </div>
             </div>
 
-            <div className="rounded-xl border border-[#e2e9dc] bg-white p-4 sm:p-5">
-              <p className="text-sm font-semibold text-[#1e2b22]">Estado actual</p>
-              <p className="mt-2 text-sm leading-6 text-[#54634b]" aria-live="polite">
+            <div className="rounded-2xl border border-[#e5e5e5] bg-white p-4 sm:p-5">
+              <p className="text-sm font-semibold text-[#0a0a0a]">Estado actual</p>
+              <p className="mt-2 text-sm leading-6 text-[#52525b]" aria-live="polite">
                 {errorMessage ?? statusCopy}
               </p>
-              <div className="mt-3 flex items-center gap-3 text-sm font-medium text-[#344038] sm:mt-4">
-                <span className={`inline-flex h-2.5 w-2.5 rounded-full ${state === "active" ? "bg-[#2c7334]" : state === "error" ? "bg-[#c94b4b]" : "bg-[#d5dbcf]"}`} />
+              <div className="mt-3 flex items-center gap-3 text-sm font-medium text-[#27272a] sm:mt-4">
+                <span className={`inline-flex h-2.5 w-2.5 rounded-full ${state === "active" ? "bg-[#2c7334]" : state === "error" ? "bg-[#c53030]" : "bg-[#d4d4d8]"}`} />
                 {state === "active" ? (isSpeaking ? "BotBook está hablando" : "BotBook está escuchando") : "Demo inactiva"}
               </div>
-              <p className="mt-3 text-xs text-[#54634b]">Tiempo máximo: {formatDuration(DEMO_MAX_DURATION_SECONDS)}</p>
+              <p className="mt-3 text-xs text-[#52525b]">Tiempo máximo: {formatDuration(DEMO_MAX_DURATION_SECONDS)}</p>
             </div>
 
             <div className="grid gap-2 sm:flex sm:flex-wrap sm:gap-3">
@@ -462,7 +462,7 @@ export function DemoVoiceCall({ open, onClose, onActiveChange, niche }: DemoVoic
                     {isMuted ? <Mic className="h-4 w-4" /> : <MicOff className="h-4 w-4" />}
                     {isMuted ? "Activar micrófono" : "Silenciar micrófono"}
                   </button>
-                  <button type="button" onClick={() => void endCall()} className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-[#c94b4b] px-5 text-sm font-semibold text-white transition hover:bg-[#b63c3c] sm:w-auto">
+                  <button type="button" onClick={() => void endCall()} className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-full bg-[#c53030] px-5 text-sm font-semibold text-white transition hover:bg-[#a52626] sm:w-auto">
                     <PhoneOff className="h-4 w-4" />
                     Colgar demo
                   </button>
@@ -481,20 +481,20 @@ export function DemoVoiceCall({ open, onClose, onActiveChange, niche }: DemoVoic
               ) : null}
             </div>
 
-            <p className="text-sm leading-6 text-[#54634b]">
+            <p className="text-sm leading-6 text-[#52525b]">
               El micrófono se usa solo mientras dure esta demo: no se graba el audio ni se guarda la transcripción.
               Puedes leer los detalles en nuestra{" "}
-              <Link href="/legal/privacidad" className="font-medium text-[#344038] underline underline-offset-2">
+              <Link href="/legal/privacidad" className="font-medium text-[#0a0a0a] underline underline-offset-2">
                 política de privacidad
               </Link>
               .
             </p>
           </div>
 
-          <div className="order-first flex min-h-0 flex-col rounded-2xl border border-[#dce6d4] bg-[#1e2b22] p-4 text-white sm:p-6 lg:order-none">
+          <div className="order-first flex min-h-0 flex-col rounded-3xl bg-[#0a0a0a] p-4 text-white sm:p-6 lg:order-none">
             <div className="flex items-center justify-between gap-3 border-b border-white/10 pb-4">
               <div className="flex items-center gap-3">
-                <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/10 text-[#b8d96e]">
+                <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/10 text-[#a78bfa]">
                   <PhoneCall className="h-5 w-5" />
                 </span>
                 <div>
@@ -507,7 +507,7 @@ export function DemoVoiceCall({ open, onClose, onActiveChange, niche }: DemoVoic
               </span>
             </div>
 
-            <div className="mt-4 h-[clamp(10rem,30vh,18rem)] space-y-3 overflow-y-auto rounded-xl border border-white/10 bg-white/5 p-3 sm:min-h-[18rem] sm:p-4">
+            <div className="scrollbar-dark mt-4 h-[clamp(10rem,30vh,18rem)] space-y-3 overflow-y-auto rounded-2xl border border-white/10 bg-white/5 p-3 sm:min-h-[18rem] sm:p-4">
               {transcript.length === 0 ? (
                 <p className="text-sm leading-6 text-white/60">
                   Cuando empiece la conversación, verás aquí un resumen en texto de lo que se va diciendo en la demo.
@@ -515,7 +515,7 @@ export function DemoVoiceCall({ open, onClose, onActiveChange, niche }: DemoVoic
               ) : (
                 transcript.map((item, index) => (
                   <div key={`${item.role}-${index}`} className={`flex ${item.role === "user" ? "justify-end" : "justify-start"}`}>
-                    <div className={`max-w-[88%] rounded-lg px-3 py-2 text-sm leading-6 ${item.role === "user" ? "bg-[#b8d96e] text-[#1e2b22]" : "bg-white/10 text-white"}`}>
+                    <div className={`max-w-[88%] rounded-2xl px-3 py-2 text-sm leading-6 ${item.role === "user" ? "rounded-br-sm bg-[#8b5cf6] text-white" : "rounded-bl-sm bg-white/10 text-white"}`}>
                       <span className="mb-1 block text-xs font-semibold uppercase tracking-[0.12em] opacity-70">
                         {item.role === "user" ? "Tú" : "BotBook"}
                       </span>
@@ -527,9 +527,9 @@ export function DemoVoiceCall({ open, onClose, onActiveChange, niche }: DemoVoic
             </div>
 
             {state === "ended" ? (
-              <div className="mt-4 rounded-xl border border-[#b8d96e]/20 bg-[#b8d96e]/10 p-4">
+              <div className="mt-4 rounded-2xl border border-[#8b5cf6]/20 bg-[#8b5cf6]/10 p-4">
                 <p className="text-sm font-semibold text-white">¿Quieres que atienda así en tu negocio?</p>
-                <Link href="/planes" className="mt-3 inline-flex h-11 items-center justify-center rounded-lg bg-[#b8d96e] px-5 text-sm font-semibold text-[#1e2b22] transition hover:bg-[#e3ff9e]">
+                <Link href="/planes" className="btn-purple mt-3">
                   Ver planes
                 </Link>
               </div>

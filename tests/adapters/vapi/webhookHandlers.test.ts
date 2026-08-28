@@ -6,7 +6,7 @@ import {
 } from "../../../src/adapters/vapi/webhookHandlers.js";
 import { prisma } from "../../../src/lib/prisma.js";
 import { executeVoiceTool } from "../../../src/modules/voiceTools/service.js";
-import { recordingQueue, classifyQueue } from "../../../src/lib/queue.js";
+import { recordingQueue } from "../../../src/lib/queue.js";
 
 vi.mock("../../../src/lib/prisma.js", () => ({
   prisma: {
@@ -34,7 +34,6 @@ vi.mock("../../../src/modules/voiceTools/service.js", () => ({
 
 vi.mock("../../../src/lib/queue.js", () => ({
   recordingQueue: { add: vi.fn() },
-  classifyQueue: { add: vi.fn() },
   initializeQueues: vi.fn(),
   closeQueues: vi.fn(),
 }));
@@ -46,7 +45,6 @@ const mockedCallUpdate = vi.mocked(prisma.call.update);
 const mockedTransaction = vi.mocked(prisma.$transaction);
 const mockedExecuteVoiceTool = vi.mocked(executeVoiceTool);
 const mockedRecordingQueueAdd = vi.mocked(recordingQueue.add);
-const mockedClassifyQueueAdd = vi.mocked(classifyQueue.add);
 
 function buildAgent(overrides: Record<string, unknown> = {}) {
   return {
@@ -109,6 +107,7 @@ describe("handleFunctionCall", () => {
         durationMinutes: 60,
       },
       callLabel: "llamada call_123",
+      callId: "call_123",
     });
   });
 
@@ -146,6 +145,7 @@ describe("handleFunctionCall", () => {
         durationMinutes: 60,
       },
       callLabel: "llamada call_123",
+      callId: "call_123",
     });
   });
 
@@ -177,6 +177,7 @@ describe("handleFunctionCall", () => {
         clientEmail: "maria@example.com",
       },
       callLabel: "llamada call_123",
+      callId: "call_123",
     });
   });
 
@@ -224,7 +225,6 @@ describe("handleEndOfCallReport", () => {
 
     expect(result.success).toBe(true);
     expect(mockedRecordingQueueAdd).toHaveBeenCalled();
-    expect(mockedClassifyQueueAdd).toHaveBeenCalled();
   });
 
   it("falla si no hay identificador de llamada", async () => {

@@ -63,10 +63,10 @@ async function createUserWithBusiness(input: {
   email: string;
   password: string | null;
   googleId?: string;
-  countryCode?: string;
+  isEuropeanUnion?: boolean;
   businessType?: BusinessType;
 }) {
-  const orchestrator = detectVoiceOrchestrator(input.countryCode);
+  const orchestrator = detectVoiceOrchestrator(input.isEuropeanUnion);
 
   return prisma.$transaction(async (tx) => {
     const business = await tx.business.create({
@@ -137,15 +137,19 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.post('/register', {
     config: { rateLimit: veryStrictRateLimit },
   }, async (request, reply) => {
-    const { email, password, country, businessType } = request.body as {
+    const { email, password, isEuropeanUnion, businessType } = request.body as {
       email?: string;
       password?: string;
-      country?: string;
+      isEuropeanUnion?: boolean;
       businessType?: string;
     };
 
     if (!email || !password) {
       return reply.status(400).send({ error: 'El email y la contraseña son obligatorios' });
+    }
+
+    if (typeof isEuropeanUnion !== 'boolean') {
+      return reply.status(400).send({ error: 'Indica si tus clientes están en la Unión Europea' });
     }
 
     const normalizedEmail = email.trim().toLowerCase();
@@ -158,7 +162,7 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
     const result = await createUserWithBusiness({
       email: normalizedEmail,
       password: await bcrypt.hash(password, 10),
-      countryCode: country,
+      isEuropeanUnion,
       businessType: normalizedBusinessType,
     });
     bootstrapBusinessAgent(result.business.id, normalizedEmail, normalizedBusinessType);
@@ -278,11 +282,11 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.post('/register-first-user', {
     config: { rateLimit: veryStrictRateLimit },
   }, async (request, reply) => {
-    const { email, password, businessName, country } = request.body as {
+    const { email, password, businessName, isEuropeanUnion } = request.body as {
       email: string;
       password: string;
       businessName: string;
-      country?: string;
+      isEuropeanUnion?: boolean;
     };
 
     const existingUser = await prisma.user.findFirst();
@@ -290,7 +294,7 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
       return reply.status(400).send({ error: 'A user already exists. Initial setup is complete.' });
     }
 
-    const orchestrator = detectVoiceOrchestrator(country);
+    const orchestrator = detectVoiceOrchestrator(isEuropeanUnion);
     const hashedPassword = await bcrypt.hash(password, 10);
     const result = await prisma.$transaction(async (tx) => {
       const business = await tx.business.create({

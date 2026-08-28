@@ -6,6 +6,8 @@ import {
 } from "../../../src/modules/calendar/service.js";
 import { prisma } from "../../../src/lib/prisma.js";
 import { vapiAdapter } from "../../../src/adapters/vapi/VapiAdapter.js";
+import { retellAdapter } from "../../../src/adapters/retell/RetellAdapter.js";
+import { getPublicWebhookBaseUrl } from "../../../src/lib/serverUrl.js";
 import { google } from "googleapis";
 
 vi.mock("../../../src/lib/prisma.js", () => ({
@@ -25,6 +27,16 @@ vi.mock("../../../src/adapters/vapi/VapiAdapter.js", () => ({
     getAssistant: vi.fn(),
     updateAssistant: vi.fn(),
   },
+}));
+
+vi.mock("../../../src/adapters/retell/RetellAdapter.js", () => ({
+  retellAdapter: {
+    updateLlm: vi.fn(),
+  },
+}));
+
+vi.mock("../../../src/lib/serverUrl.js", () => ({
+  getPublicWebhookBaseUrl: vi.fn(),
 }));
 
 vi.mock("googleapis", () => ({
@@ -63,6 +75,8 @@ const mockedBusinessFindUnique = vi.mocked(prisma.business.findUnique);
 const mockedBusinessUpdate = vi.mocked(prisma.business.update);
 const mockedVapiGetAssistant = vi.mocked(vapiAdapter.getAssistant);
 const mockedVapiUpdateAssistant = vi.mocked(vapiAdapter.updateAssistant);
+const mockedRetellUpdateLlm = vi.mocked(retellAdapter.updateLlm);
+const mockedGetPublicWebhookBaseUrl = vi.mocked(getPublicWebhookBaseUrl);
 const mockedGoogleCalendar = vi.mocked(google.calendar);
 
 describe("isGoogleInvalidGrantError", () => {
@@ -395,5 +409,61 @@ describe("CalendarService.syncCalendarToolsToAgents", () => {
     await calendarService.syncCalendarToolsToAgents("business_123");
 
     expect(mockedVapiGetAssistant).not.toHaveBeenCalled();
+  });
+
+  it("registra las tools de Retell con el retellAgentId en la propia URL", async () => {
+    mockedBusinessFindUnique.mockResolvedValue({
+      id: "business_123",
+      orchestrator: "retell",
+    } as any);
+    mockedAgentFindMany.mockResolvedValue([
+      {
+        id: "agent_123",
+        businessId: "business_123",
+        retellAgentId: "retell_agent_456",
+        retellLlmId: "retell_llm_789",
+      },
+    ] as any);
+    mockedGetPublicWebhookBaseUrl.mockReturnValue("https://example.com");
+    mockedRetellUpdateLlm.mockResolvedValue({} as any);
+
+    await calendarService.syncCalendarToolsToAgents("business_123");
+
+    expect(mockedRetellUpdateLlm).toHaveBeenCalledWith(
+      "retell_llm_789",
+      expect.objectContaining({
+        tools: expect.arrayContaining([
+          expect.objectContaining({
+            name: "check_business_hours",
+            url: "https://example.com/webhooks/retell/tools/retell_agent_456/check_business_hours",
+            args_at_root: false,
+          }),
+          expect.objectContaining({
+            name: "book_appointment",
+            url: "https://example.com/webhooks/retell/tools/retell_agent_456/book_appointment",
+            args_at_root: false,
+          }),
+        ]),
+      })
+    );
+  });
+
+  it("no registra tools de Retell si el agente no tiene retellAgentId", async () => {
+    mockedBusinessFindUnique.mockResolvedValue({
+      id: "business_123",
+      orchestrator: "retell",
+    } as any);
+    mockedAgentFindMany.mockResolvedValue([
+      {
+        id: "agent_123",
+        businessId: "business_123",
+        retellAgentId: null,
+        retellLlmId: "retell_llm_789",
+      },
+    ] as any);
+
+    await calendarService.syncCalendarToolsToAgents("business_123");
+
+    expect(mockedRetellUpdateLlm).not.toHaveBeenCalled();
   });
 });

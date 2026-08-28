@@ -1,3 +1,6 @@
+// VAPI: inactivo desde agosto de 2026 — Retell es el único orquestador para
+// negocios nuevos (demasiado caro sacar las licencias de Vapi para operar en
+// Europa). Se mantiene intacto por si se retoma para Latinoamérica.
 import {
   VapiCreateAssistantRequest,
   VapiCall,

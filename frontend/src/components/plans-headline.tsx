@@ -23,7 +23,7 @@ export function PlansHeadline() {
   }, []);
 
   return (
-    <h1 className="mt-5 text-4xl font-semibold leading-tight tracking-tight md:text-6xl">
+    <h1 className="mt-5 text-4xl font-black leading-tight tracking-tight md:text-6xl">
       {title}
     </h1>
   );
