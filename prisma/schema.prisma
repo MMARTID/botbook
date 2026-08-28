@@ -38,12 +38,24 @@ model Business {
   subscriptionTrialEnd            DateTime?
   subscriptionCancelAtPeriodEnd   Boolean             @default(false)
 
-  // Twilio Phone Number
+  // Twilio Phone Number — inactivo desde la migración a Telnyx (Twilio no
+  // vende números de España en autoservicio), se mantiene por negocios
+  // antiguos. twilioPhoneNumberStatus sigue siendo el único campo de estado
+  // del ciclo de vida del número, lo escriba Twilio o Telnyx.
   twilioPhoneNumber            String?   @unique
   twilioPhoneNumberSid         String?   @unique
   twilioPhoneNumberPurchasedAt DateTime?
   twilioPhoneNumberStatus      String?   @default("pending")
   vapiPhoneNumberId            String?   @unique
+
+  // Telnyx Phone Number — proveedor activo para la compra de números de
+  // España. telnyxNumberOrderId se persiste nada más crear el pedido
+  // (asíncrono en Telnyx) para poder reanudarlo en un reintento sin duplicar
+  // la compra.
+  telnyxNumberOrderId          String?   @unique
+  telnyxPhoneNumber            String?   @unique
+  telnyxPhoneNumberId          String?   @unique
+  telnyxPhoneNumberPurchasedAt DateTime?
 
   // Calendar integrations
   calendarProvider            String?

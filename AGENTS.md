@@ -18,7 +18,7 @@ The codebase is fully in Spanish — UI copy, comments, variable names, and busi
 | **Voice AI** | Vapi API + Retell.ai |
 | **LLM** | Anthropic Claude (call classification) |
 | **Object storage** | Cloudflare R2 (S3-compatible) |
-| **Telephony** | Twilio (phone number purchase, inbound/outbound) |
+| **Telephony** | Telnyx (phone number purchase for Spain, active). Twilio kept inactive — no longer sells Spain numbers via self-serve API |
 | **Billing** | Stripe (Checkout Sessions, Customer Portal, webhooks) |
 | **Calendar** | Google Calendar API, Microsoft Graph (Outlook) |
 | **Auth** | JWT (custom) + Google OAuth 2.0 |
@@ -33,7 +33,7 @@ The codebase is fully in Spanish — UI copy, comments, variable names, and busi
 │   ├── server.ts           # Fastify entry point
 │   ├── plugins/            # Fastify plugins (auth, CORS, rate-limit, multipart)
 │   ├── modules/            # Domain route modules (one folder per domain)
-│   ├── adapters/           # External API adapters (Vapi, Retell, Twilio)
+│   ├── adapters/           # External API adapters (Vapi, Retell, Twilio, Telnyx)
 │   ├── lib/                # Shared utilities (Prisma, Redis, Stripe, queue, storage)
 │   ├── jobs/               # BullMQ background workers
 │   └── config/             # Static configuration constants
@@ -64,7 +64,7 @@ Each module is a folder containing a `routes.ts` file (and optionally `service.t
 | `calendar` | `/calendar` | Yes* | Google/Outlook OAuth, list events, book appointments |
 | `bookings` | `/booking-settings` | Yes | Services, professionals, booking capacity |
 | `billing` | `/billing` | Yes* | Stripe checkout, portal, subscription summary, webhooks |
-| `phone` | `/phone` | Yes | Twilio phone number status, manual provisioning retry |
+| `phone` | `/phone` | Yes | Telnyx phone number status, manual provisioning retry |
 | `places` | *(none)* | Yes | Google Places autocomplete & details |
 | `files` | `/agents` | Yes | Agent file uploads (multipart, 10MB limit) |
 | `onboarding` | *(none)* | Yes | Onboarding state: progress, dismiss, complete |
@@ -79,7 +79,8 @@ Each module is a folder containing a `routes.ts` file (and optionally `service.t
 - `queue.ts` — BullMQ queues (`recordingQueue`, `classifyQueue`).
 - `storage.ts` — R2/S3 client for file uploads (recordings, agent files).
 - `stripe.ts` — Stripe SDK client singleton.
-- `twilio.ts` — Twilio SDK singleton. Uses API Key + Secret when available; falls back to Auth Token.
+- `twilio.ts` — Twilio SDK singleton. Uses API Key + Secret when available; falls back to Auth Token. Inactive since the Telnyx migration, kept for historical businesses.
+- `telnyx.ts` — Telnyx SDK singleton (single Bearer API key). Active provider for phone number provisioning.
 - `microsoftGraph.ts` — Microsoft Graph OAuth + Calendar API helpers.
 - `agentBootstrap.ts` — Default agent config, Vapi/Retell payload builder, safe assistant naming.
 - `businessSchedule.ts` — Business hours validation logic with Zod schemas.
@@ -272,7 +273,9 @@ Copy `.env.example` to `.env` and fill in all required secrets. Key groups:
 | **Google Login OAuth** | `GOOGLE_AUTH_CLIENT_ID`, `GOOGLE_AUTH_CLIENT_SECRET`, `GOOGLE_AUTH_REDIRECT_URI` |
 | **Google Places** | `GOOGLE_PLACES_API_KEY` |
 | **R2 / S3** | `R2_ACCOUNT_ID`, `R2_ACCESS_KEY`, `R2_SECRET_KEY`, `R2_BUCKET`, `R2_REGION`, `R2_ENDPOINT` |
-| **Twilio** | `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN` (dev), `TWILIO_API_KEY`, `TWILIO_API_SECRET` (prod), `TWILIO_PHONE_NUMBER_COUNTRY`, `TWILIO_SPAIN_BUNDLE_SID` |
+| **Twilio** (inactive) | `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN` (dev), `TWILIO_API_KEY`, `TWILIO_API_SECRET` (prod), `TWILIO_PHONE_NUMBER_COUNTRY`, `TWILIO_SPAIN_BUNDLE_SID` |
+| **Telnyx** | `TELNYX_API_KEY`, `TELNYX_SIP_CONNECTION_ID`, `TELNYX_SPAIN_REQUIREMENT_GROUP_ID` |
+| **Retell SIP trunk** | `RETELL_SIP_TERMINATION_URI`, `RETELL_SIP_TRUNK_AUTH_USERNAME`, `RETELL_SIP_TRUNK_AUTH_PASSWORD` (Telnyx SIP Connection used by `RetellAdapter.importPhoneNumber`) |
 | **Server** | `FRONTEND_URL`, `PORT`, `NODE_ENV`, `LOG_LEVEL` |
 
 ## Authentication & Authorization
@@ -326,15 +329,35 @@ subscriptionTrialEnd
 subscriptionCancelAtPeriodEnd (boolean)
 ```
 
-### Twilio Phone Number Fields on `Business`
+### Phone Number Fields on `Business`
+
+`twilioPhoneNumberStatus` is the single lifecycle-status field regardless of
+which provider actually fulfilled the number (`"pending" | "purchased" |
+"active" | "failed"`) — kept under its original (now historical) name so the
+frontend and API contract didn't need to change when Telnyx became the
+active provider.
 
 ```
+# Twilio — inactive, kept for historical businesses
 twilioPhoneNumber (unique)
 twilioPhoneNumberSid (unique)
 twilioPhoneNumberPurchasedAt
 twilioPhoneNumberStatus (default "pending")
 vapiPhoneNumberId (unique)
-retellPhoneNumberId (unique)
+
+# Telnyx — active provider
+telnyxNumberOrderId (unique)   # persisted as soon as the order is placed,
+                                # since Telnyx orders are async; lets a retry
+                                # resume the same order instead of buying twice
+telnyxPhoneNumber (unique)
+telnyxPhoneNumberId (unique)
+telnyxPhoneNumberPurchasedAt
+
+# Retell (either provider)
+retellPhoneNumberId (unique)   # legacy field — Retell's phoneNumber.import
+                                # response has no phone_number_id in current
+                                # SDK versions, so this is effectively unused
+                                # going forward; retellPhoneNumber is canonical
 retellPhoneNumber (unique)
 ```
 
@@ -421,7 +444,7 @@ The backend supports two voice-AI orchestrators. `Business.orchestrator` decides
 ### Retell (`src/adapters/retell/RetellAdapter.ts`)
 
 - Single source of truth for all Retell API calls.
-- **Endpoints used:** `POST /create-retell-llm`, `POST /create-agent`, `PATCH /update-agent/{id}`, `GET /get-agent/{id}`, `DELETE /delete-agent/{id}`, `GET /list-phone-numbers`, `POST /create-phone-number`, `POST /import-phone-number`, `DELETE /delete-phone-number/{id}`, `GET /get-call/{id}`, `POST /v2/create-web-call` (public landing demo).
+- **Endpoints used:** `POST /create-retell-llm`, `POST /create-agent`, `PATCH /update-agent/{id}`, `GET /get-agent/{id}`, `DELETE /delete-agent/{id}`, `GET /list-phone-numbers`, `POST /import-phone-number`, `DELETE /delete-phone-number/{id}`, `GET /get-call/{id}`, `POST /v2/create-web-call` (public landing demo). `RetellAdapter.createPhoneNumber` (`POST /create-phone-number`) also exists but is unused dead code today — it makes Retell buy a NEW number from its own Twilio/Telnyx inventory (US/CA only), not link a number you already own. `RetellAdapter.importPhoneNumber` (`POST /import-phone-number`) is the one `phone/service.ts` actually calls, since we always own the number ourselves (bought via Telnyx) — it requires a SIP trunk `termination_uri` (see Phone provisioning below).
 - Webhooks from Retell hit `POST /webhooks/retell`. The endpoint verifies the `x-retell-signature` using `retellAdapter.validateWebhookSignature` (timing-safe comparison with the Retell API key).
 - Supported Retell webhook events: `call_started`, `call_ended`, `call_analyzed`. Other events are acknowledged (`200`) but ignored.
 - Retell custom tools are exposed under `POST /webhooks/retell/tools/:retellAgentId/:toolName`. The `retellAgentId` path segment is required because Retell never includes an agent identifier in the tool-call body, so it's embedded in the URL itself (done in `buildRetellCalendarTools`, `src/modules/calendar/service.ts`). Our tools are registered with `args_at_root: false` (see `RetellAdapter.createLlm`/`updateLlm`), so Retell sends `{name, call, args}` — `call.call_id` is threaded through as `callId` to `executeVoiceTool` so `book_appointment` can link the booking to the exact call instead of guessing "the most recent call for this business". The route still tolerates a flat args-only body (no `call_id`) for businesses not yet resynced with this config. The endpoint validates the `x-retell-signature` before executing any tool. Execution is delegated to `executeVoiceTool` in `src/modules/voiceTools/service.ts`, which implements `check_business_hours`, `check_availability` and `book_appointment` (Google and Outlook Calendar supported).
@@ -438,9 +461,13 @@ The backend supports two voice-AI orchestrators. `Business.orchestrator` decides
 
 ### Phone provisioning
 
-`provisionPhoneNumber` buys a Twilio number and links it in the active orchestrator (Vapi phone number or Retell phone number). Failures in Twilio do not fail the Stripe webhook response.
+`provisionPhoneNumber` (`src/modules/phone/service.ts`) buys a Telnyx number and imports it into Retell via SIP trunk, linking it to the business's active agent. Failures in Telnyx/Retell do not fail the Stripe webhook response.
 
-Only Spain (`TWILIO_PHONE_NUMBER_COUNTRY=ES`) is supported today — searches only `local`-type numbers (Spain prohibits ISVs/resellers from using national/mobile numbers, see [Twilio's Spain regulatory guidelines](https://www.twilio.com/en-us/guidelines/es/regulatory)) and requires `TWILIO_SPAIN_BUNDLE_SID`, a single platform-level regulatory bundle reused across every business (not one bundle per business). Numbers whose `addressRequirements` isn't `none` are skipped, since no `AddressSid` is configured yet; provisioning fails with a specific error message rather than a generic one when no bundle is configured or every available number needs an address.
+Only Spain (`TWILIO_PHONE_NUMBER_COUNTRY=ES` — env var name kept from the Twilio era) is supported today — searches only `local`-type numbers and requires `TELNYX_SPAIN_REQUIREMENT_GROUP_ID`, a single platform-level regulatory Requirement Group reused across every business (not one per business; same reuse pattern the old `TWILIO_SPAIN_BUNDLE_SID` used). Unlike Twilio, Telnyx doesn't expose a per-number address-requirement flag in search results — regulatory requirements are resolved entirely by the Requirement Group at order time, so there's no address-based filtering step.
+
+**Telnyx number orders are asynchronous** (`status: "pending" | "success" | "failure"`), unlike Twilio's synchronous purchase. `provisionPhoneNumber` persists `telnyxNumberOrderId` as soon as the order is created, then polls `getNumberOrder` for a bounded window (5 attempts, 2s apart). If still `"pending"` after that, it returns `status: "pending"` rather than an error — a retry (via the frontend's "Reintentar asignación de número" button, or the `checkout-session/:id/reconcile` fallback) resumes the same order (`telnyxAdapter.getNumberOrder(business.telnyxNumberOrderId)`) instead of placing a duplicate purchase.
+
+Once the order succeeds, the number is imported into Retell via `retellAdapter.importPhoneNumber`, which requires a **SIP trunk** — a Telnyx SIP Connection created once (manually, in the Telnyx portal) pointing inbound traffic at Retell (`sip:sip.retellai.com`), with credential-based auth since Retell has no static IP. Its termination URI and SIP credentials are platform-level config (`RETELL_SIP_TERMINATION_URI`, `RETELL_SIP_TRUNK_AUTH_USERNAME`, `RETELL_SIP_TRUNK_AUTH_PASSWORD`), reused for every business, same as the Requirement Group. `TELNYX_SIP_CONNECTION_ID` is passed at order time so the purchased number is assigned to that connection automatically.
 
 ## Stripe Billing
 
@@ -455,7 +482,7 @@ Only Spain (`TWILIO_PHONE_NUMBER_COUNTRY=ES`) is supported today — searches on
 - Stripe webhooks are processed in `billing/service.ts` (`handleStripeEvent`). Events are deduplicated via `StripeWebhookEvent` table.
 - After a successful checkout, the frontend calls `POST /billing/checkout-session/:sessionId/reconcile` to sync the subscription state to the `Business` record.
 - `getBillingSummary` calculates consumed minutes in the current period via `call.aggregate({ _sum: { durationSecs } })` on non-`IN_PROGRESS` calls.
-- **Automatic phone provisioning:** On Stripe webhook `checkout.session.completed`, the backend triggers `provisionPhoneNumber(businessId)` asynchronously after reconciling the subscription. This purchases a Twilio number and links it in the business's active orchestrator (Vapi or Retell). Failures in Twilio do not fail the Stripe webhook response.
+- **Automatic phone provisioning:** On Stripe webhook `checkout.session.completed`, the backend triggers `provisionPhoneNumber(businessId)` asynchronously after reconciling the subscription. This purchases a Telnyx number and imports it into Retell via SIP trunk (see Phone provisioning above). Failures do not fail the Stripe webhook response.
 
 ## Calendar Integration
 
@@ -734,9 +761,10 @@ The project uses **Vitest** for backend testing.
 | `tests/lib/businessType.test.ts` | Business type detection from Google Places `types`, normalization |
 | `tests/modules/auth/routes.test.ts` | Login, register, register-first-user, Google OAuth URL |
 | `tests/modules/billing/service.test.ts` | Stripe event handling, billing summary, checkout session, reconciliation |
-| `tests/modules/phone/service.test.ts` | Phone provisioning idempotency, partial failure handling, status retrieval |
+| `tests/modules/phone/service.test.ts` | Phone provisioning idempotency, async order polling/resume, partial failure handling, status retrieval |
 | `tests/modules/calendar/service.test.ts` | Google/Outlook Calendar booking, upcoming events, sync tools to agents, invalid_grant detection |
-| `tests/adapters/twilio/TwilioAdapter.test.ts` | Search, purchase, release, fetch Twilio numbers |
+| `tests/adapters/twilio/TwilioAdapter.test.ts` | Search, purchase, release, fetch Twilio numbers (inactive provider, kept for historical businesses) |
+| `tests/adapters/telnyx/TelnyxAdapter.test.ts` | Search, purchase (order), poll order, release, fetch Telnyx numbers |
 | `tests/plugins/auth.test.ts` | Auth plugin (valid token, missing header, invalid token) |
 
 ### E2E Scripts
