@@ -31,7 +31,7 @@ function BusinessProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const syncToken = () => {
       const token =
-        window.localStorage.getItem("botbook_token") ??
+        window.localStorage.getItem("alhabla_token") ??
         window.localStorage.getItem("token") ??
         window.localStorage.getItem("jwt");
 

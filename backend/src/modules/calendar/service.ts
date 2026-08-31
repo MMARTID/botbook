@@ -530,7 +530,7 @@ export class CalendarService {
           startDateTime: startTime.toISOString(),
           endDateTime: endTime.toISOString(),
           attendeeEmail: clientEmail,
-          description: 'Cita generada por asistente virtual de BotBook.',
+          description: 'Cita generada por asistente virtual de Alhabla.',
         });
 
         return event;
@@ -555,7 +555,7 @@ export class CalendarService {
 
     const event = {
       summary: `Reserva de ${clientName}`,
-      description: `Cita generada por asistente virtual de BotBook.`,
+      description: `Cita generada por asistente virtual de Alhabla.`,
       start: { dateTime: startTime.toISOString() },
       end: { dateTime: endTime.toISOString() },
       attendees: clientEmail ? [{ email: clientEmail }] : [],

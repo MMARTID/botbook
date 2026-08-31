@@ -7,7 +7,7 @@ export default function Head() {
       <meta name="keywords" content={seoKeywords.join(", ")} />
       <meta name="robots" content="index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1" />
       <meta name="googlebot" content="index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1" />
-      <meta name="author" content="BotBook" />
+      <meta name="author" content="Alhabla" />
       <meta name="geo.region" content="ES" />
       <meta name="geo.placename" content="España" />
       <meta name="language" content="es" />

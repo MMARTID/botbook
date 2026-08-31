@@ -16,9 +16,9 @@ function buildPlansHref(niche?: string) {
 
 function BrandLogo() {
   return (
-    <Link href="/landing" aria-label="Ir al inicio de BotBook" className="flex min-w-0 items-center gap-2.5">
+    <Link href="/landing" aria-label="Ir al inicio de Alhabla" className="flex min-w-0 items-center gap-2.5">
       <BrandMark className="h-8 w-8 shrink-0 sm:h-9 sm:w-9" />
-      <p className="text-base font-black leading-5 tracking-tight text-[#0a0a0a]">BotBook</p>
+      <p className="text-base font-black leading-5 tracking-tight text-[#0a0a0a]">Alhabla</p>
     </Link>
   );
 }
@@ -61,7 +61,7 @@ const threeSteps = [
 const frequentlyAskedQuestions = [
   {
     question: "¿Mantengo mi número de teléfono de siempre?",
-    answer: "Sí, completamente. Tus clientes seguirán llamando a tu número habitual; BotBook atiende las llamadas mediante un simple desvío desde tu móvil o fijo. No tienes que publicar un número nuevo ni avisar a nadie.",
+    answer: "Sí, completamente. Tus clientes seguirán llamando a tu número habitual; Alhabla atiende las llamadas mediante un simple desvío desde tu móvil o fijo. No tienes que publicar un número nuevo ni avisar a nadie.",
   },
   {
     question: "¿Es difícil configurar el desvío de llamadas?",
@@ -69,7 +69,7 @@ const frequentlyAskedQuestions = [
   },
   {
     question: "¿Puede reservar, cambiar y cancelar citas?",
-    answer: "Sí. BotBook comprueba tu horario y tu disponibilidad real antes de ofrecer un hueco, y registra, modifica o cancela citas directamente en tu Google Calendar o tu Outlook, respetando los servicios y las reglas que marques.",
+    answer: "Sí. Alhabla comprueba tu horario y tu disponibilidad real antes de ofrecer un hueco, y registra, modifica o cancela citas directamente en tu Google Calendar o tu Outlook, respetando los servicios y las reglas que marques.",
   },
   {
     question: "¿Responde dudas sobre precios y servicios?",
@@ -81,11 +81,11 @@ const frequentlyAskedQuestions = [
   },
   {
     question: "¿Qué pasa si la llamada necesita atención humana?",
-    answer: "BotBook recoge el motivo, los datos y el contexto de la llamada para que no se pierda nada importante. Cuando una consulta requiere a tu equipo, deja el aviso preparado para que podáis responder con toda la información.",
+    answer: "Alhabla recoge el motivo, los datos y el contexto de la llamada para que no se pierda nada importante. Cuando una consulta requiere a tu equipo, deja el aviso preparado para que podáis responder con toda la información.",
   },
   {
     question: "¿Atiende fuera de horario?",
-    answer: "Sí, BotBook sigue disponible 24/7. Puede resolver dudas y gestionar solicitudes incluso por la noche, en festivos o mientras tienes cerrado, para que no pierdas una posible cita por no contestar.",
+    answer: "Sí, Alhabla sigue disponible 24/7. Puede resolver dudas y gestionar solicitudes incluso por la noche, en festivos o mientras tienes cerrado, para que no pierdas una posible cita por no contestar.",
   },
   {
     question: "¿Hay permanencia?",
@@ -106,7 +106,7 @@ export function SiteLanding({ content }: { content?: NicheLandingContent }) {
     <main
       id="main-content"
       className="relative min-h-screen w-full bg-white text-[#0a0a0a]"
-      data-landing="botbook"
+      data-landing="alhabla"
     >
       <a
         href="#contenido"
@@ -189,7 +189,7 @@ export function SiteLanding({ content }: { content?: NicheLandingContent }) {
                 {content?.calendarIntegration.title ?? "No cambias cómo recibes tus reservas."}
               </h2>
               <p className="mt-4 max-w-xl text-base leading-7 text-[#52525b]">
-                {content?.calendarIntegration.description ?? "BotBook consulta tu calendario antes de confirmar una cita. Si las reservas de tu web o WhatsApp ya llegan ahí, el agente las respeta antes de ofrecer un horario por teléfono."}
+                {content?.calendarIntegration.description ?? "Alhabla consulta tu calendario antes de confirmar una cita. Si las reservas de tu web o WhatsApp ya llegan ahí, el agente las respeta antes de ofrecer un horario por teléfono."}
               </p>
             </Reveal>
             <div className="grid gap-3">
@@ -335,11 +335,11 @@ export function SiteLanding({ content }: { content?: NicheLandingContent }) {
 
       <footer className="bg-[#0a0a0a] text-white/70">
         <div className="mx-auto flex max-w-7xl flex-col gap-5 px-4 py-8 sm:px-6 md:flex-row md:items-center md:justify-between lg:px-8">
-          <p className="text-sm">© 2026 BotBook</p>
+          <p className="text-sm">© 2026 Alhabla</p>
           <nav aria-label="Enlaces legales" className="flex flex-wrap items-center gap-x-4 text-sm font-medium">
             <Link href="/legal/privacidad" className="inline-flex h-11 items-center transition hover:text-white">Privacidad</Link>
             <Link href="/legal/aviso-legal" className="inline-flex h-11 items-center transition hover:text-white">Aviso legal</Link>
-            <a href="mailto:hola@botbook.es" className="inline-flex h-11 items-center transition hover:text-white">Contacto</a>
+            <a href="mailto:hola@alhabla.ai" className="inline-flex h-11 items-center transition hover:text-white">Contacto</a>
           </nav>
         </div>
       </footer>

@@ -21,9 +21,9 @@ export function LegalPage({ title, description, updatedAt, children }: LegalPage
 
       <header className="border-b border-white/60 bg-[#f8faf5]/80 backdrop-blur-xl">
         <div className="mx-auto flex h-16 max-w-3xl items-center justify-between gap-3 px-4 sm:px-6 lg:h-[4.5rem]">
-          <Link href="/landing" aria-label="Ir al inicio de BotBook" className="flex min-w-0 items-center gap-2.5">
+          <Link href="/landing" aria-label="Ir al inicio de Alhabla" className="flex min-w-0 items-center gap-2.5">
             <BrandMark className="h-10 w-10 shrink-0" />
-            <p className="text-base font-semibold leading-5 text-[#1e2b22]">BotBook</p>
+            <p className="text-base font-semibold leading-5 text-[#1e2b22]">Alhabla</p>
           </Link>
           <Link href="/landing" className="btn-secondary h-11 px-4">
             <ArrowLeft className="h-4 w-4" />
@@ -45,7 +45,7 @@ export function LegalPage({ title, description, updatedAt, children }: LegalPage
       <footer className="border-t border-white/70 bg-[#1e2b22] text-white/70">
         <div className="mx-auto flex max-w-3xl flex-col gap-4 px-4 py-8 sm:px-6 md:flex-row md:items-center md:justify-between">
           <p className="text-sm">
-            <span className="font-semibold text-white">BotBook</span> — Recepción telefónica para negocios con cita previa.
+            <span className="font-semibold text-white">Alhabla</span> — Recepción telefónica para negocios con cita previa.
           </p>
           <nav aria-label="Enlaces legales" className="flex flex-wrap gap-x-5 gap-y-2 text-sm font-medium">
             <Link href="/legal/privacidad" className="transition hover:text-white">
@@ -54,7 +54,7 @@ export function LegalPage({ title, description, updatedAt, children }: LegalPage
             <Link href="/legal/aviso-legal" className="transition hover:text-white">
               Aviso legal
             </Link>
-            <a href="mailto:hola@botbook.es" className="transition hover:text-white">
+            <a href="mailto:hola@alhabla.ai" className="transition hover:text-white">
               Contacto
             </a>
           </nav>

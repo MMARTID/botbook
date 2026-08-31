@@ -94,10 +94,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <header className={`sticky top-0 z-50 border-b border-white/60 bg-[#fafafa]/80 backdrop-blur-xl ${isSettingsPage ? "hidden sm:block" : ""}`}>
         <div className="mx-auto max-w-7xl px-3 sm:px-6 lg:px-8">
           <div className="flex h-16 items-center justify-between gap-3 sm:h-[4.5rem]">
-            <Link href="/" aria-label="Ir al panel de BotBook" className="flex min-w-0 items-center gap-2.5 sm:gap-3">
+            <Link href="/" aria-label="Ir al panel de Alhabla" className="flex min-w-0 items-center gap-2.5 sm:gap-3">
               <BrandMark className="h-10 w-10 shrink-0 sm:h-11 sm:w-11" />
               <div className="min-w-0">
-                <p className="text-base font-semibold leading-5 text-[#0a0a0a]">BotBook</p>
+                <p className="text-base font-semibold leading-5 text-[#0a0a0a]">Alhabla</p>
                 <p className="truncate text-xs leading-4 text-muted sm:text-sm">
                   {business?.name ?? "Mi Negocio"}
                 </p>
@@ -115,7 +115,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               </span>
               <button
                 onClick={() => {
-                  window.localStorage.removeItem('botbook_token');
+                  window.localStorage.removeItem('alhabla_token');
                   window.location.href = '/login';
                 }}
                 aria-label="Cerrar sesión"

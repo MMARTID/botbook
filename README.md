@@ -1,6 +1,6 @@
-# BotBook
+# Alhabla
 
-BotBook es una plataforma SaaS multi-tenant que proporciona recepcionistas de voz con IA para pequeños negocios en España (peluquerías, barberías, clínicas de fisioterapia, centros de estética, etc.). Cada negocio dispone de uno o más agentes de voz construidos sobre Vapi o Retell.ai. Las cuentas europeas usan Retell por defecto para cumplir RGPD.
+Alhabla es una plataforma SaaS multi-tenant que proporciona recepcionistas de voz con IA para pequeños negocios en España (peluquerías, barberías, clínicas de fisioterapia, centros de estética, etc.). Cada negocio dispone de uno o más agentes de voz construidos sobre Vapi o Retell.ai. Las cuentas europeas usan Retell por defecto para cumplir RGPD.
 
 ## Características principales
 
@@ -35,7 +35,7 @@ BotBook es una plataforma SaaS multi-tenant que proporciona recepcionistas de vo
 
 ```bash
 # Clonar e instalar dependencias
-npm install
+cd backend && npm install && cd ..
 cd frontend && npm install && cd ..
 
 # Copiar variables de entorno
@@ -57,6 +57,7 @@ cd frontend && npm run dev
 ### Backend
 
 ```bash
+cd backend
 npm run dev          # tsx watch
 npm run build        # tsc
 npm start            # node dist/server.js
@@ -91,18 +92,22 @@ docker compose --profile prod up
 
 ```
 /
-├── src/                    # Backend ESM TypeScript
-│   ├── server.ts           # Fastify entry point
-│   ├── plugins/            # auth, CORS, rate-limit, multipart
-│   ├── modules/            # módulos de rutas por dominio
-│   ├── adapters/           # Vapi, Retell, Twilio
-│   ├── lib/                # utilidades compartidas
-│   ├── jobs/               # workers BullMQ
-│   └── config/             # constantes
+├── backend/                # Backend ESM TypeScript
+│   ├── src/
+│   │   ├── server.ts       # Fastify entry point
+│   │   ├── plugins/        # auth, CORS, rate-limit, multipart
+│   │   ├── modules/        # módulos de rutas por dominio
+│   │   ├── adapters/       # Vapi, Retell, Twilio
+│   │   ├── lib/            # utilidades compartidas
+│   │   ├── jobs/           # workers BullMQ
+│   │   └── config/         # constantes
+│   ├── prisma/             # schema y migraciones
+│   ├── tests/              # suite Vitest
+│   ├── scripts/            # scripts E2E
+│   └── Dockerfile
 ├── frontend/               # Next.js 14
-├── prisma/                 # schema y migraciones
-├── tests/                  # suite Vitest
-└── scripts/                # scripts E2E
+├── docker-compose.yml
+└── .env                    # compartido por docker compose (no se commitea)
 ```
 
 ## Flujo de registro post-login

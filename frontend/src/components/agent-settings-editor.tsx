@@ -83,7 +83,7 @@ export function AgentSettingsEditor({
       onToggle={onToggle}
     >
       <p className="max-w-3xl px-4 pt-4 text-sm leading-6 text-muted sm:px-6">
-        Elige cómo debe atender. BotBook genera y protege las instrucciones internas para evitar configuraciones inseguras o contradictorias.
+        Elige cómo debe atender. Alhabla genera y protege las instrucciones internas para evitar configuraciones inseguras o contradictorias.
       </p>
 
       <div className="grid gap-5 p-4 sm:p-6 xl:grid-cols-2">

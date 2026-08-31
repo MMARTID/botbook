@@ -1,4 +1,4 @@
-# BotBook
+# Alhabla
 
 SaaS multi-tenant de recepcionistas de voz con IA para pequeños negocios en España
 (peluquerías, barberías, salones de uñas, centros de estética, clínicas de fisioterapia).
@@ -19,18 +19,20 @@ Backend Fastify 5 + Prisma/PostgreSQL + Redis/BullMQ. Frontend Next.js 14 App Ro
   `request.user.businessId` del token JWT. Nunca aceptes un `businessId` del body para
   lecturas ni escrituras.
 - **Los adaptadores son la única vía a las APIs de voz.** Vapi pasa por
-  `src/adapters/vapi/VapiAdapter.ts` y Retell por `src/adapters/retell/RetellAdapter.ts`.
-  Jamás llames a esas APIs desde un route handler.
+  `backend/src/adapters/vapi/VapiAdapter.ts` y Retell por
+  `backend/src/adapters/retell/RetellAdapter.ts`. Jamás llames a esas APIs desde un route
+  handler.
 - **No toques la verificación de firmas de webhooks** (HMAC-SHA256 de Vapi, firma de Retell
   incluida en `/webhooks/retell/tools/:toolName`, firma de Stripe con `rawBody: true`).
 - **Nunca commitees `.env`.** En la raíz hay `.env`, `.env.bak` y `.env.google` con
-  credenciales reales; están en `.gitignore`.
+  credenciales reales; están en `.gitignore`. `docker-compose.yml` vive en la raíz y lee
+  ese `.env` (build context de `backend`/`backend-dev` es `./backend`).
 
 ## Convenciones
 
 - Prettier: `semi: true`, `trailingComma: "es5"`, `singleQuote: false`, `printWidth: 80`,
   `tabWidth: 2`.
-- Alias: backend `"@/*"` → `"./*"` (relativo a `src/`); frontend `"@/*"` → `"./src/*"`.
+- Alias: backend `"@/*"` → `"./*"` (relativo a `backend/src/`); frontend `"@/*"` → `"./src/*"`.
 - Validación con Zod en bodies y params; `400` con `error.errors` en `ZodError`.
 - Logs prefijados con el módulo entre corchetes: `[Agent]`, `[Calendar]`, `[Job]`.
   `fastify.log` dentro de rutas, `console.log`/`console.error` en arranque y workers.
@@ -65,6 +67,7 @@ lo contrario de la escala 8/12/16px de antes. Iconos Lucide React en contenedore
 ## Comandos
 
 ```bash
+cd backend
 npm run dev            # backend, tsx watch (:3000)
 npm run build          # tsc
 npm run test           # vitest run
@@ -75,25 +78,27 @@ npm run prisma:studio  # :5555
 
 cd frontend && npm run dev   # Next.js :3001
 
-docker compose --profile dev up   # backend + postgres + redis + ngrok
+docker compose --profile dev up   # backend + postgres + redis + ngrok (desde la raíz)
 ```
 
 ## Estructura
 
 ```
-src/
-├── server.ts     # entry Fastify: registra rutas y workers
-├── plugins/      # auth, CORS, rate-limit, multipart
-├── modules/      # rutas por dominio (agents, auth, billing, bookings, businesses,
-│                 #   calendar, calls, demo, files, onboarding, phone, places,
-│                 #   recordings, voiceTools) — cada uno con routes.ts
-├── adapters/     # Vapi, Retell, Twilio (inactivo), Telnyx
-├── lib/          # prisma, redis, queue, storage, stripe, twilio, availability,
-│                 #   businessSchedule, agentBootstrap, managedAgentPrompt
-└── jobs/         # workers BullMQ: processRecording, classifyCall, cleanupZombieCalls
+backend/
+├── src/
+│   ├── server.ts     # entry Fastify: registra rutas y workers
+│   ├── plugins/      # auth, CORS, rate-limit, multipart
+│   ├── modules/      # rutas por dominio (agents, auth, billing, bookings, businesses,
+│   │                 #   calendar, calls, demo, files, onboarding, phone, places,
+│   │                 #   recordings, voiceTools) — cada uno con routes.ts
+│   ├── adapters/     # Vapi, Retell, Twilio (inactivo), Telnyx
+│   ├── lib/          # prisma, redis, queue, storage, stripe, twilio, availability,
+│   │                 #   businessSchedule, agentBootstrap, managedAgentPrompt
+│   └── jobs/         # workers BullMQ: processRecording, classifyCall, cleanupZombieCalls
+├── prisma/schema.prisma
+├── tests/            # Vitest
+└── Dockerfile
 frontend/src/{app,components,lib,hooks}/
-prisma/schema.prisma
-tests/           # Vitest
 ```
 
 ## Documentación

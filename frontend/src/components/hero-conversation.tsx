@@ -163,7 +163,7 @@ export function HeroConversation({ paused = false, conversationsOverride }: { pa
 
   return (
     <section
-      aria-label="Ejemplos de llamadas atendidas automáticamente por BotBook"
+      aria-label="Ejemplos de llamadas atendidas automáticamente por Alhabla"
       className="relative flex h-full min-h-[400px] w-full flex-col overflow-hidden rounded-3xl border border-[#e5e5e5] bg-white sm:min-h-[380px]"
     >
       <div className="flex items-center justify-between border-b border-[#e5e5e5] px-4 py-3 sm:px-6">
@@ -192,7 +192,7 @@ export function HeroConversation({ paused = false, conversationsOverride }: { pa
       <p className="sr-only" aria-live="polite">
         {`Ejemplo de llamada, ${conversations[sceneIndex].context}. `}
         {conversations[sceneIndex].messages
-          .map((message) => `${message.sender === "client" ? "El cliente dice" : "BotBook responde"}: ${message.text}`)
+          .map((message) => `${message.sender === "client" ? "El cliente dice" : "Alhabla responde"}: ${message.text}`)
           .join(". ")}
         {`. Resultado: ${conversations[sceneIndex].result}, ${conversations[sceneIndex].resultDetail}.`}
       </p>

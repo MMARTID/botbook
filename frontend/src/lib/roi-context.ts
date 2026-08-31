@@ -1,7 +1,7 @@
 import type { Plan } from "@/lib/plans";
 
-const ESTIMATE_KEY = "botbook_roi_estimate_v1";
-const ACTIVE_CONTEXT_KEY = "botbook_roi_context_v1";
+const ESTIMATE_KEY = "alhabla_roi_estimate_v1";
+const ACTIVE_CONTEXT_KEY = "alhabla_roi_context_v1";
 const CONTEXT_TTL_MS = 60 * 60 * 1000;
 
 export const ROI_LIMITS = {

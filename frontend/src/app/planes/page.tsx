@@ -27,7 +27,7 @@ export default function PlansPage() {
         <section className="flex flex-1 items-center py-10 lg:py-16">
           <div className="w-full space-y-10">
             <div className="mx-auto max-w-3xl text-center">
-              <span className="badge-soft">Planes BotBook</span>
+              <span className="badge-soft">Planes Alhabla</span>
               <PlansHeadline />
               <p className="mt-5 text-lg leading-8 text-[#52525b]">
                 Elige el plan que encaja hoy y déjanos la recepción: disponibilidad real, tono impecable y operativa lista para crecer.

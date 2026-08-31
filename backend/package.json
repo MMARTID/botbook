@@ -1,5 +1,5 @@
 {
-  "name": "botbook-backend",
+  "name": "alhabla-backend",
   "version": "1.0.0",
   "description": "Multi-tenant AI agency backend for voice agents using Vapi",
   "main": "dist/server.js",
@@ -15,7 +15,9 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "test:integration": "vitest run --config vitest.integration.config.ts",
+    "test:integration:watch": "vitest --config vitest.integration.config.ts"
   },
   "keywords": [
     "vapi",

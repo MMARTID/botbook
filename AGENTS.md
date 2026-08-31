@@ -1,8 +1,8 @@
-# BotBook — AI Coding Agent Reference
+# Alhabla — AI Coding Agent Reference
 
 ## Project Overview
 
-BotBook is a multi-tenant SaaS platform that provides AI-powered voice receptionists for small businesses in Spain (hair salons, barbershops, physiotherapy clinics, beauty centers, etc.). Each business gets one or more voice agents built on top of the Vapi or Retell voice-AI platform. European accounts use Retell.ai by default for RGPD compliance; Vapi is kept for future expansion outside Europe. The agents handle incoming phone calls, answer questions, check business hours, check availability, and book appointments directly into the business's Google or Outlook calendar.
+Alhabla is a multi-tenant SaaS platform that provides AI-powered voice receptionists for small businesses in Spain (hair salons, barbershops, physiotherapy clinics, beauty centers, etc.). Each business gets one or more voice agents built on top of the Vapi or Retell voice-AI platform. European accounts use Retell.ai by default for RGPD compliance; Vapi is kept for future expansion outside Europe. The agents handle incoming phone calls, answer questions, check business hours, check availability, and book appointments directly into the business's Google or Outlook calendar.
 
 The codebase is fully in Spanish — UI copy, comments, variable names, and business logic are written in Spanish. Keep everything in Spanish when modifying code or adding user-facing text.
 
@@ -29,30 +29,31 @@ The codebase is fully in Spanish — UI copy, comments, variable names, and busi
 
 ```
 /
-├── src/                    # Backend source (ESM TypeScript)
-│   ├── server.ts           # Fastify entry point
-│   ├── plugins/            # Fastify plugins (auth, CORS, rate-limit, multipart)
-│   ├── modules/            # Domain route modules (one folder per domain)
-│   ├── adapters/           # External API adapters (Vapi, Retell, Twilio, Telnyx)
-│   ├── lib/                # Shared utilities (Prisma, Redis, Stripe, queue, storage)
-│   ├── jobs/               # BullMQ background workers
-│   └── config/             # Static configuration constants
+├── backend/                 # Backend source (ESM TypeScript)
+│   ├── src/
+│   │   ├── server.ts           # Fastify entry point
+│   │   ├── plugins/            # Fastify plugins (auth, CORS, rate-limit, multipart)
+│   │   ├── modules/            # Domain route modules (one folder per domain)
+│   │   ├── adapters/           # External API adapters (Vapi, Retell, Twilio, Telnyx)
+│   │   ├── lib/                # Shared utilities (Prisma, Redis, Stripe, queue, storage)
+│   │   ├── jobs/                # BullMQ background workers
+│   │   └── config/              # Static configuration constants
+│   ├── prisma/              # Prisma schema + migrations
+│   ├── dist/                # Compiled backend output (tsc)
+│   ├── scripts/             # One-off scripts (e.g. E2E tests)
+│   ├── tests/                # Vitest test suite
+│   └── Dockerfile            # Multi-stage build
 ├── frontend/               # Next.js 14 application
 │   ├── src/app/            # App Router pages
 │   ├── src/components/     # React components
 │   ├── src/lib/            # API client, types, helpers, SEO, ROI
 │   └── src/hooks/          # Custom React hooks
-├── prisma/                 # Prisma schema + migrations
-├── dist/                   # Compiled backend output (tsc)
-├── scripts/                # One-off scripts (e.g. E2E tests)
-├── tests/                  # Vitest test suite
-├── Dockerfile              # Multi-stage build
 └── docker-compose.yml      # Postgres + Redis + backend + ngrok (dev profile)
 ```
 
-### Backend Module Organization (`src/modules/`)
+### Backend Module Organization (`backend/src/modules/`)
 
-Each module is a folder containing a `routes.ts` file (and optionally `service.ts`, `schemas.ts`). Routes are registered in `src/server.ts` with a prefix when needed.
+Each module is a folder containing a `routes.ts` file (and optionally `service.ts`, `schemas.ts`). Routes are registered in `backend/src/server.ts` with a prefix when needed.
 
 | Module | Prefix | Auth | Purpose |
 |--------|--------|------|---------|
@@ -72,7 +73,7 @@ Each module is a folder containing a `routes.ts` file (and optionally `service.t
 
 \* Except OAuth callbacks (`/calendar/auth/*/callback`) and Stripe webhook (`/billing/webhook`).
 
-### Key Libraries (`src/lib/`)
+### Key Libraries (`backend/src/lib/`)
 
 - `prisma.ts` — Prisma Client singleton with `globalThis` hot-reload guard.
 - `redis.ts` — IORedis connection (used by BullMQ and caching).
@@ -89,7 +90,7 @@ Each module is a folder containing a `routes.ts` file (and optionally `service.t
 - `managedAgentPrompt.ts` — Dynamic system prompt builder from business settings (tone, goal, style, escalation).
 - `ngrok.ts` — Fetches public ngrok URL for local Vapi/Retell webhooks.
 
-### Configuration (`src/config/`)
+### Configuration (`backend/src/config/`)
 
 - `serverConfig.ts` — Mutable singleton for runtime config (e.g. `webhookUrl` from ngrok).
 - `vapi.ts` — Vapi catalog constants: voice providers (9), voice IDs (28), LLM providers (4) + models, STT providers (7) + models.
@@ -133,8 +134,8 @@ There is no static OG asset; edit that file to change what WhatsApp and X displa
 
 - **TanStack Query** (`@tanstack/react-query`) for all server state. Config: `staleTime: 30s`, no retry, no refetch on focus.
 - **BusinessProvider** context exposes `business`, `isLoadingBusiness`, `hasToken`, `isError`.
-- **Auth token** stored in `localStorage` as `botbook_token` (legacy keys `token`, `jwt` also checked).
-- **Pending plan** stored in `localStorage` as `botbook_pending_plan` for post-registration checkout flow.
+- **Auth token** stored in `localStorage` as `alhabla_token` (legacy keys `token`, `jwt` also checked).
+- **Pending plan** stored in `localStorage` as `alhabla_pending_plan` for post-registration checkout flow.
 - **ROI context** stored in `localStorage` + `sessionStorage` with 1-hour TTL for calculator → pricing continuity.
 
 ### Key Components
@@ -173,7 +174,7 @@ There is no static OG asset; edit that file to change what WhatsApp and X displa
 - `types.ts` — Domain types: `Business`, `Agent`, `Call`, `BillingSummary`, `CalendarEvent`, etc.
 - `plans.ts` — Static plan definitions: Inicio (69€/100min), Pro (149€/400min), Scale (299€/1000min).
   Also exports `TRIAL_DAYS` and `TRIAL_REASSURANCE`; `TRIAL_DAYS` must match `CHECKOUT_TRIAL_DAYS`
-  in `src/modules/billing/service.ts`, which is what Stripe actually applies. Never hardcode a
+  in `backend/src/modules/billing/service.ts`, which is what Stripe actually applies. Never hardcode a
   plan name in copy — derive it from `starterPlan.name` or the `plan` object.
 - `niche-landings.ts` — 600+ lines of SEO copy, hero text, conversations, benefits, FAQ per niche,
   plus `generalSectorData` (the cross-niche proof block used by the generic landing).
@@ -190,6 +191,8 @@ There is no static OG asset; edit that file to change what WhatsApp and X displa
 ### Backend
 
 ```bash
+cd backend
+
 # Development (tsx watch)
 npm run dev
 
@@ -283,9 +286,9 @@ Copy `.env.example` to `.env` and fill in all required secrets. Key groups:
 The backend uses a custom JWT scheme:
 
 1. On login / Google OAuth, the server issues a JWT signed with `JWT_SECRET` (7-day expiry).
-2. The frontend stores the token in `localStorage` under key `botbook_token` (legacy keys `token` and `jwt` are also checked).
+2. The frontend stores the token in `localStorage` under key `alhabla_token` (legacy keys `token` and `jwt` are also checked).
 3. The token is sent as `Authorization: Bearer <token>`.
-4. The `authPlugin` (`src/plugins/auth.ts`) decodes it with `jsonwebtoken` and decorates `request.user` with `{ id, businessId }`.
+4. The `authPlugin` (`backend/src/plugins/auth.ts`) decodes it with `jsonwebtoken` and decorates `request.user` with `{ id, businessId }`.
 5. Routes that need auth use `onRequest: fastify.authenticate` or `preValidation: [fastify.authenticate]` in their route options.
 
 All business-scoped data is filtered by `businessId` from the token. Never trust a `businessId` coming from the request body for read/write operations — always use `request.user.businessId`.
@@ -304,7 +307,7 @@ All business-scoped data is filtered by `businessId` from the token. Never trust
 
 ## Database (Prisma)
 
-The schema lives in `prisma/schema.prisma`. Key models:
+The schema lives in `backend/prisma/schema.prisma`. Key models:
 
 - `Business` — tenant root; holds Stripe billing state, calendar tokens (encrypted), schedule JSON, agent settings, booking capacity.
 - `User` — belongs to a Business; supports password (bcrypt) + Google OAuth login (`googleId`).
@@ -398,21 +401,21 @@ Run migrations in dev with `npm run prisma:migrate`. In production, generate the
 
 ## Background Jobs (BullMQ)
 
-Workers are initialized in `src/server.ts` and consume from Redis-backed queues:
+Workers are initialized in `backend/src/server.ts` and consume from Redis-backed queues:
 
-1. **`process-recording`** (`src/jobs/processRecording.ts`)
+1. **`process-recording`** (`backend/src/jobs/processRecording.ts`)
    - Downloads the call recording from Vapi or Retell and uploads it to R2.
    - Worker concurrency: 3.
    - Updates `Recording` with `storageKey` and `storageUrl`.
    - Job options: 3 retries, exponential backoff 2s base.
 
-2. **`classify-call`** (`src/jobs/classifyCall.ts`)
+2. **`classify-call`** (`backend/src/jobs/classifyCall.ts`)
    - Sends the transcript to Anthropic Claude (`claude-haiku-4-5`, `max_tokens: 10`) to classify the call outcome.
    - Worker concurrency: 5.
    - Prompt asks for ONE of: `RESOLVED`, `FRUSTRATED`, `NO_ANSWER`, `ESCALATED`, `LEAD_CAPTURED`.
    - Post-processes: trims, uppercases, validates against Prisma enum. Falls back to `NO_ANSWER` on invalid response.
 
-3. **Zombie call cleanup** (`src/jobs/cleanupZombieCalls.ts`)
+3. **Zombie call cleanup** (`backend/src/jobs/cleanupZombieCalls.ts`)
    - Scheduled job every 15 minutes (fixed jobId `zombie-call-cleanup-scheduler`).
    - Threshold: 60 minutes.
    - Marks stale `IN_PROGRESS` calls as `TIMED_OUT`.
@@ -423,37 +426,37 @@ All workers log to stdout. Jobs retry up to 3 times with exponential backoff.
 
 The backend supports two voice-AI orchestrators. `Business.orchestrator` decides which adapter is used for a given business (`vapi` or `retell`). Registration defaults to Retell for European countries and Vapi for the rest.
 
-### Vapi (`src/adapters/vapi/VapiAdapter.ts`)
+### Vapi (`backend/src/adapters/vapi/VapiAdapter.ts`)
 
 - Single source of truth for all Vapi API calls. Never call the Vapi API directly from route handlers.
 - **Endpoints used:** `POST /assistant`, `PATCH /assistant/{id}`, `GET /assistant/{id}`, `DELETE /assistant/{id}`, `GET /call/{id}`, `POST /file`, `GET /assistant?limit=1` (health check), `POST /phone-number`, `PATCH /phone-number/{id}`, `DELETE /phone-number/{id}`, `GET /phone-number`.
 - Webhooks from Vapi hit `POST /webhooks/vapi`. The endpoint verifies the HMAC-SHA256 signature (`x-vapi-signature`) using `VAPI_WEBHOOK_SECRET` with timing-safe comparison.
 - Supported Vapi webhook events: `function-call`, `end-of-call-report`, `status-update`. Other events are acknowledged (`200`) but ignored.
-- `function-call` handlers are in `src/adapters/vapi/webhookHandlers.ts`. They implement `check_business_hours`, `check_availability` and `book_appointment` (Google and Outlook Calendar supported).
+- `function-call` handlers are in `backend/src/adapters/vapi/webhookHandlers.ts`. They implement `check_business_hours`, `check_availability` and `book_appointment` (Google and Outlook Calendar supported).
 - When an agent is created or updated, the backend syncs the assistant configuration to Vapi via `vapiAdapter.createAssistant` / `updateAssistant`.
 - When a business connects a calendar, `calendarService.syncCalendarToolsToAgents` injects the booking tools into every Vapi agent config.
 - **Redis caching:** Agent calendar configs are cached in Redis under `vapi_config:<assistantId>` with TTL 3600s.
 
-### Vapi Configuration Catalog (`src/config/vapi.ts`)
+### Vapi Configuration Catalog (`backend/src/config/vapi.ts`)
 
 - **Voice providers:** `cartesia`, `11labs`, `openai`, `deepgram`, `playht`, `rime-ai`, `azure`, `lmnt`, `neuphonic`.
 - **LLM providers:** `openai`, `anthropic`, `custom`, `groq`.
 - **STT providers:** `deepgram`, `google`, `openai`, `azure`, `gladia`, `talkscriber`, `assembly-ai`.
 - Defaults: voice `cartesia` / `sonic-3.5`, LLM `groq` / `openai/gpt-oss-20b`, STT `deepgram` / `nova-2`.
 
-### Retell (`src/adapters/retell/RetellAdapter.ts`)
+### Retell (`backend/src/adapters/retell/RetellAdapter.ts`)
 
 - Single source of truth for all Retell API calls.
 - **Endpoints used:** `POST /create-retell-llm`, `POST /create-agent`, `PATCH /update-agent/{id}`, `GET /get-agent/{id}`, `DELETE /delete-agent/{id}`, `GET /list-phone-numbers`, `POST /import-phone-number`, `DELETE /delete-phone-number/{id}`, `GET /get-call/{id}`, `POST /v2/create-web-call` (public landing demo). `RetellAdapter.createPhoneNumber` (`POST /create-phone-number`) also exists but is unused dead code today — it makes Retell buy a NEW number from its own Twilio/Telnyx inventory (US/CA only), not link a number you already own. `RetellAdapter.importPhoneNumber` (`POST /import-phone-number`) is the one `phone/service.ts` actually calls, since we always own the number ourselves (bought via Telnyx) — it requires a SIP trunk `termination_uri` (see Phone provisioning below).
 - Webhooks from Retell hit `POST /webhooks/retell`. The endpoint verifies the `x-retell-signature` using `retellAdapter.validateWebhookSignature` (timing-safe comparison with the Retell API key).
 - Supported Retell webhook events: `call_started`, `call_ended`, `call_analyzed`. Other events are acknowledged (`200`) but ignored.
-- Retell custom tools are exposed under `POST /webhooks/retell/tools/:retellAgentId/:toolName`. The `retellAgentId` path segment is required because Retell never includes an agent identifier in the tool-call body, so it's embedded in the URL itself (done in `buildRetellCalendarTools`, `src/modules/calendar/service.ts`). Our tools are registered with `args_at_root: false` (see `RetellAdapter.createLlm`/`updateLlm`), so Retell sends `{name, call, args}` — `call.call_id` is threaded through as `callId` to `executeVoiceTool` so `book_appointment` can link the booking to the exact call instead of guessing "the most recent call for this business". The route still tolerates a flat args-only body (no `call_id`) for businesses not yet resynced with this config. The endpoint validates the `x-retell-signature` before executing any tool. Execution is delegated to `executeVoiceTool` in `src/modules/voiceTools/service.ts`, which implements `check_business_hours`, `check_availability` and `book_appointment` (Google and Outlook Calendar supported).
+- Retell custom tools are exposed under `POST /webhooks/retell/tools/:retellAgentId/:toolName`. The `retellAgentId` path segment is required because Retell never includes an agent identifier in the tool-call body, so it's embedded in the URL itself (done in `buildRetellCalendarTools`, `backend/src/modules/calendar/service.ts`). Our tools are registered with `args_at_root: false` (see `RetellAdapter.createLlm`/`updateLlm`), so Retell sends `{name, call, args}` — `call.call_id` is threaded through as `callId` to `executeVoiceTool` so `book_appointment` can link the booking to the exact call instead of guessing "the most recent call for this business". The route still tolerates a flat args-only body (no `call_id`) for businesses not yet resynced with this config. The endpoint validates the `x-retell-signature` before executing any tool. Execution is delegated to `executeVoiceTool` in `backend/src/modules/voiceTools/service.ts`, which implements `check_business_hours`, `check_availability` and `book_appointment` (Google and Outlook Calendar supported).
 - When an agent is created or updated for a Retell business, `agentBootstrap.ts` creates/updates the LLM and agent in Retell and stores `retellAgentId`/`retellLlmId` in the `Agent` row.
 - Retell agents use the name built by `buildAgentDisplayName(businessName, businessType)` so they are easy to identify in the Retell dashboard.
 
 ### Retell Configuration
 
-- Retell agent defaults live in `src/lib/agentBootstrap.ts` (`DEFAULT_RETELL_AGENT_CONFIG`).
+- Retell agent defaults live in `backend/src/lib/agentBootstrap.ts` (`DEFAULT_RETELL_AGENT_CONFIG`).
 - Default LLM: `gpt-4.1`.
 - Default voice: `retell-Cimo`.
 - Default language: `es-ES`, timezone: `Europe/Madrid`.
@@ -461,7 +464,7 @@ The backend supports two voice-AI orchestrators. `Business.orchestrator` decides
 
 ### Phone provisioning
 
-`provisionPhoneNumber` (`src/modules/phone/service.ts`) buys a Telnyx number and imports it into Retell via SIP trunk, linking it to the business's active agent. Failures in Telnyx/Retell do not fail the Stripe webhook response.
+`provisionPhoneNumber` (`backend/src/modules/phone/service.ts`) buys a Telnyx number and imports it into Retell via SIP trunk, linking it to the business's active agent. Failures in Telnyx/Retell do not fail the Stripe webhook response.
 
 Only Spain (`TWILIO_PHONE_NUMBER_COUNTRY=ES` — env var name kept from the Twilio era) is supported today — searches only `local`-type numbers and requires `TELNYX_SPAIN_REQUIREMENT_GROUP_ID`, a single platform-level regulatory Requirement Group reused across every business (not one per business; same reuse pattern the old `TWILIO_SPAIN_BUNDLE_SID` used). Unlike Twilio, Telnyx doesn't expose a per-number address-requirement flag in search results — regulatory requirements are resolved entirely by the Requirement Group at order time, so there's no address-based filtering step.
 
@@ -472,7 +475,7 @@ Once the order succeeds, the number is imported into Retell via `retellAdapter.i
 ## Stripe Billing
 
 - Uses **Stripe Checkout Sessions** (embedded UI mode) for subscription sign-ups.
-- Plans are defined in `src/modules/billing/catalog.ts`:
+- Plans are defined in `backend/src/modules/billing/catalog.ts`:
   - `inicio` — 100 min included, 0.60€/min extra.
   - `pro` — 400 min included, 0.45€/min extra (featured).
   - `scale` — 1000 min included, 0.35€/min extra.
@@ -502,14 +505,14 @@ Once the order succeeds, the number is imported into Retell via `retellAdapter.i
 - `Professional` — `name`, `active`.
 - `ProfessionalService` — many-to-many link with `assignedAt`.
 
-### Business Schedule (`src/lib/businessSchedule.ts`)
+### Business Schedule (`backend/src/lib/businessSchedule.ts`)
 
 - Zod schema: `BusinessScheduleSchema` with `version: 1`, 7 days (`monday`–`sunday`), each day has `enabled` + up to 3 non-overlapping intervals (`HH:mm` format).
 - Default: L–V 09:00–18:00, S–D closed.
 - `checkBusinessHours(schedule, timezone, startDateTime, durationMinutes)` converts to local time and validates against intervals.
 - Returns codes: `WITHIN_BUSINESS_HOURS`, `OUTSIDE_BUSINESS_HOURS`, `BUSINESS_HOURS_NOT_CONFIGURED`, `INVALID_DATE_TIME`.
 
-### Availability (`src/lib/availability.ts`)
+### Availability (`backend/src/lib/availability.ts`)
 
 `checkAvailability({ businessId, schedule, timezone, bookingCapacity, startDateTime, durationMinutes, serviceId? })`
 
@@ -522,7 +525,7 @@ Once the order succeeds, the number is imported into Retell via `retellAdapter.i
 
 ## Agent Configuration
 
-### Managed Agent Prompt (`src/lib/managedAgentPrompt.ts`)
+### Managed Agent Prompt (`backend/src/lib/managedAgentPrompt.ts`)
 
 Dynamic system prompt built from business settings:
 
@@ -540,7 +543,7 @@ The prompt includes:
 
 Stored in `Business.agentSettings` (JSON). Parsed with Zod; falls back to `DEFAULT_AGENT_SETTINGS` on invalid data.
 
-### Agent Defaults (`src/lib/agentBootstrap.ts`)
+### Agent Defaults (`backend/src/lib/agentBootstrap.ts`)
 
 - `firstMessage`: "Hola, soy la recepcionista virtual. ¿En qué te ayudo?"
 - `firstMessageMode`: `assistant-speaks-first`
@@ -557,7 +560,7 @@ The `businessType` field stores the business niche selected during registration.
 - Resolve the agent template (`getAgentTemplateForBusinessType`). Currently all niches share the same base config; this is the extension point for per-niche system prompts, TTS, LLM and STT settings.
 - Sync the agent name in Retell/Vapi when the business type is updated via `PATCH /business/me`.
 
-Niche landings pass `?niche=<slug>` to `/planes` and on to `/register`, so the type can be pre-selected. If the user comes from the generic flow, the type is inferred from the `types` array returned by Google Places API (`src/modules/places/service.ts`) using the keywords defined in `BUSINESS_TYPE_PLACE_KEYWORDS` (both in `src/lib/businessType.ts` and `frontend/src/lib/business-type.ts`). Each niche has exactly 2 keywords; if any place type contains at least one of them, that niche is assigned. The mapping is ordered from most specific to most generic:
+Niche landings pass `?niche=<slug>` to `/planes` and on to `/register`, so the type can be pre-selected. If the user comes from the generic flow, the type is inferred from the `types` array returned by Google Places API (`backend/src/modules/places/service.ts`) using the keywords defined in `BUSINESS_TYPE_PLACE_KEYWORDS` (both in `backend/src/lib/businessType.ts` and `frontend/src/lib/business-type.ts`). Each niche has exactly 2 keywords; if any place type contains at least one of them, that niche is assigned. The mapping is ordered from most specific to most generic:
 
 | Niche | Keywords |
 |-------|----------|
@@ -577,7 +580,7 @@ The final setup step is `/register/business/calendar`, where the user connects G
 
 Onboarding texts for headings, subheadings and CTAs are dynamically selected per business type via `BUSINESS_TYPE_ONBOARDING_TEXTS` in `frontend/src/lib/business-type.ts`.
 
-Google Places autocomplete is filtered by the country selected during registration and stored in `localStorage` under `botbook_registration_country`. The `/register/business` page shows the country as a summary with an optional "Cambiar" link; the selector only appears when no country is saved or when the user explicitly chooses to change it. The country is sent as the `country` query param and passed to `includedRegionCodes` in `src/modules/places/service.ts`.
+Google Places autocomplete is filtered by the country selected during registration and stored in `localStorage` under `alhabla_registration_country`. The `/register/business` page shows the country as a summary with an optional "Cambiar" link; the selector only appears when no country is saved or when the user explicitly chooses to change it. The country is sent as the `country` query param and passed to `includedRegionCodes` in `backend/src/modules/places/service.ts`.
 
 ## Onboarding Flow
 
@@ -588,7 +591,7 @@ The onboarding flow is embedded in the `/ajustes` page. It guides the business t
 3. **Professionals** — at least one active `Professional` created.
 4. **Calendar** — Google or Outlook calendar connected.
 
-### Backend (`src/modules/onboarding/routes.ts`)
+### Backend (`backend/src/modules/onboarding/routes.ts`)
 
 | Method | Path | Description |
 |--------|------|-------------|
@@ -710,15 +713,15 @@ non-optional for a service sold online in the EU. Concretely:
 
 ## Content & Evidence Rules
 
-BotBook is **pre-launch: there are no paying customers.** `PRODUCT.md` holds the full record. For
+Alhabla is **pre-launch: there are no paying customers.** `PRODUCT.md` holds the full record. For
 any user-facing copy:
 
 - Never fabricate testimonials, customer logos, "X negocios confían" counts, own product metrics,
-  awards or press mentions about BotBook. None exist.
+  awards or press mentions about Alhabla. None exist.
 - Every published figure needs an external, verifiable source rendered on screen, the way
   `SectorDataSection` does. The stats in `niche-landings.ts` and `generalSectorData` follow this.
 - The quotes in `niche-landings.ts` are business owners interviewed in the press **about the
-  problem**, not BotBook customers. Do not present them as testimonials.
+  problem**, not Alhabla customers. Do not present them as testimonials.
 - Do not promise capabilities that do not ship. Voice selection has no frontend UI; "elegir entre
   voces" was removed for that reason. Onboarding is self-service, so copy must not promise a human
   configuring things with the customer.
@@ -736,7 +739,7 @@ any user-facing copy:
 - **Formatter:** Prettier — `semi: true`, `trailingComma: "es5"`, `singleQuote: false`, `printWidth: 80`, `tabWidth: 2`.
 - **Linter:** ESLint (backend: `@typescript-eslint/recommended`; frontend: `next/core-web-vitals`).
 - **Imports:** Use `.js` extensions in TypeScript import paths (required for ESM). Example: `import { prisma } from "../../lib/prisma.js";`.
-- **Path aliases:** Backend uses `"@/*"` → `"./*"` (relative to `src/`). Frontend uses `"@/*"` → `"./src/*"`.
+- **Path aliases:** Backend uses `"@/*"` → `"./*"` (relative to `backend/src/`). Frontend uses `"@/*"` → `"./src/*"`.
 - **Types:** Prefer explicit types on Fastify route generics (`Body`, `Params`, `Querystring`). Use `z.infer<typeof Schema>` for request shapes.
 - **Null handling:** Prefer `??` for defaults. Be defensive with external API responses.
 - **Logging:** Use `fastify.log` inside routes, `console.log`/`console.error` in startup code and workers. Prefix logs with the module name in brackets, e.g. `[Agent]`, `[Calendar]`, `[Job]`.
@@ -745,31 +748,31 @@ any user-facing copy:
 
 The project uses **Vitest** for backend testing.
 
-- **Config:** `vitest.config.ts` — Node environment, includes `tests/**/*.{test,spec}.ts`, setup file `tests/setup.ts` (loads `.env.test`).
-- **Coverage:** V8 provider, reports text/html/lcov. Excludes `node_modules/`, `dist/`, `frontend/`, `tests/`.
-- **Mocking:** `tests/helpers/prismaMock.ts` provides a `createPrismaMock()` factory. MSW is available for HTTP mocking. `@testcontainers/postgresql` for integration tests.
+- **Config:** `backend/vitest.config.ts` — Node environment, includes `backend/tests/**/*.{test,spec}.ts`, setup file `backend/tests/setup.ts` (loads `backend/.env.test`).
+- **Coverage:** V8 provider, reports text/html/lcov. Excludes `node_modules/`, `dist/`, `frontend/`, `backend/tests/`.
+- **Mocking:** `backend/tests/helpers/prismaMock.ts` provides a `createPrismaMock()` factory. MSW is available for HTTP mocking. `@testcontainers/postgresql` for integration tests.
 
 ### Test Files
 
 | File | Coverage |
 |------|----------|
-| `tests/adapters/vapi/webhookHandlers.test.ts` | Function call handlers, end-of-call report, status update |
-| `tests/adapters/retell/webhookHandlers.test.ts` | `call_started`, `call_ended`, `call_analyzed` handlers |
-| `tests/adapters/retell/RetellAdapter.test.ts` | Create/update/delete agents and LLMs, phone numbers, health check |
-| `tests/lib/availability.test.ts` | Availability logic (hours, professionals, capacity, overlaps, busy professional detection) |
-| `tests/lib/businessSchedule.test.ts` | Schedule schema validation, checkBusinessHours |
-| `tests/lib/businessType.test.ts` | Business type detection from Google Places `types`, normalization |
-| `tests/modules/auth/routes.test.ts` | Login, register, register-first-user, Google OAuth URL |
-| `tests/modules/billing/service.test.ts` | Stripe event handling, billing summary, checkout session, reconciliation |
-| `tests/modules/phone/service.test.ts` | Phone provisioning idempotency, async order polling/resume, partial failure handling, status retrieval |
-| `tests/modules/calendar/service.test.ts` | Google/Outlook Calendar booking, upcoming events, sync tools to agents, invalid_grant detection |
-| `tests/adapters/twilio/TwilioAdapter.test.ts` | Search, purchase, release, fetch Twilio numbers (inactive provider, kept for historical businesses) |
-| `tests/adapters/telnyx/TelnyxAdapter.test.ts` | Search, purchase (order), poll order, release, fetch Telnyx numbers |
-| `tests/plugins/auth.test.ts` | Auth plugin (valid token, missing header, invalid token) |
+| `backend/tests/adapters/vapi/webhookHandlers.test.ts` | Function call handlers, end-of-call report, status update |
+| `backend/tests/adapters/retell/webhookHandlers.test.ts` | `call_started`, `call_ended`, `call_analyzed` handlers |
+| `backend/tests/adapters/retell/RetellAdapter.test.ts` | Create/update/delete agents and LLMs, phone numbers, health check |
+| `backend/tests/lib/availability.test.ts` | Availability logic (hours, professionals, capacity, overlaps, busy professional detection) |
+| `backend/tests/lib/businessSchedule.test.ts` | Schedule schema validation, checkBusinessHours |
+| `backend/tests/lib/businessType.test.ts` | Business type detection from Google Places `types`, normalization |
+| `backend/tests/modules/auth/routes.test.ts` | Login, register, register-first-user, Google OAuth URL |
+| `backend/tests/modules/billing/service.test.ts` | Stripe event handling, billing summary, checkout session, reconciliation |
+| `backend/tests/modules/phone/service.test.ts` | Phone provisioning idempotency, async order polling/resume, partial failure handling, status retrieval |
+| `backend/tests/modules/calendar/service.test.ts` | Google/Outlook Calendar booking, upcoming events, sync tools to agents, invalid_grant detection |
+| `backend/tests/adapters/twilio/TwilioAdapter.test.ts` | Search, purchase, release, fetch Twilio numbers (inactive provider, kept for historical businesses) |
+| `backend/tests/adapters/telnyx/TelnyxAdapter.test.ts` | Search, purchase (order), poll order, release, fetch Telnyx numbers |
+| `backend/tests/plugins/auth.test.ts` | Auth plugin (valid token, missing header, invalid token) |
 
 ### E2E Scripts
 
-- `scripts/e2e_book_appointment_after_fix.cjs` / `.js` — End-to-end test for `book_appointment` webhook handler. Tests 3 scenarios: success, invalid_grant (disconnects calendar), disconnected calendar.
+- `backend/scripts/e2e_book_appointment_after_fix.cjs` / `.js` — End-to-end test for `book_appointment` webhook handler. Tests 3 scenarios: success, invalid_grant (disconnects calendar), disconnected calendar.
 
 ## Security Checklist
 
@@ -788,21 +791,21 @@ The project uses **Vitest** for backend testing.
 
 - **`DELETE /recordings/:id`** deletes the object from R2/S3 using `deleteStorageObject` before removing the Prisma row. Failures in R2 are logged but do not block the DB deletion.
 - **`PATCH /business/me`** rebuilds the managed agent prompt and synchronizes all agents to Vapi or Retell in parallel via `Promise.all` to avoid request timeouts.
-- **Onboarding flow:** `src/modules/onboarding/routes.ts` exposes `GET /business/me/onboarding`, `POST /business/me/onboarding/dismiss` and `POST /business/me/onboarding/complete`. The `/ajustes` page consumes these endpoints to show/persist the setup guide state. Step completion is computed live from business data; only `dismissedAt`/`completedAt` are persisted.
+- **Onboarding flow:** `backend/src/modules/onboarding/routes.ts` exposes `GET /business/me/onboarding`, `POST /business/me/onboarding/dismiss` and `POST /business/me/onboarding/complete`. The `/ajustes` page consumes these endpoints to show/persist the setup guide state. Step completion is computed live from business data; only `dismissedAt`/`completedAt` are persisted.
 
 ## Common Tasks
 
 ### Add a new backend route module
 
-1. Create `src/modules/<domain>/routes.ts` exporting an `async function <domain>Routes(fastify: FastifyInstance)`.
-2. Import and register it in `src/server.ts` with an optional prefix.
+1. Create `backend/src/modules/<domain>/routes.ts` exporting an `async function <domain>Routes(fastify: FastifyInstance)`.
+2. Import and register it in `backend/src/server.ts` with an optional prefix.
 3. Use `zod` for validation and `prisma` for DB access.
 4. If the route requires authentication, add `onRequest: fastify.authenticate` or `preValidation: [fastify.authenticate]` to the route options.
 5. Always filter business-scoped queries by `request.user.businessId`.
 
 ### Add a new Prisma model
 
-1. Edit `prisma/schema.prisma`.
+1. Edit `backend/prisma/schema.prisma`.
 2. Run `npm run prisma:migrate` to create a migration.
 3. Run `npm run prisma:generate` to update the TypeScript client.
 4. Use the new model in your module.
@@ -816,6 +819,8 @@ The project uses **Vitest** for backend testing.
 ### Run Prisma Studio
 
 ```bash
+cd backend
+
 npx prisma studio
 # or inside Docker
 # port 5555 is mapped in docker-compose.yml
@@ -838,9 +843,9 @@ npx prisma studio
 
 ## Deployment Notes
 
-- The `Dockerfile` has 5 stages: `base`, `deps`, `builder`, `runtime`, `development`.
+- The `backend/Dockerfile` has 5 stages: `base`, `deps`, `builder`, `runtime`, `development`.
 - Production image runs `node dist/server.js` (compiled output).
-- Development image runs `npx tsx watch src/server.ts` over a volume-mounted source tree.
+- Development image runs `npx tsx watch backend/src/server.ts` over a volume-mounted source tree.
 - The `docker-compose.yml` uses profiles: `--profile dev` for local development with ngrok, `--profile prod` for production-like runtime.
 - For Vapi/Retell webhooks to reach a local backend, use the `dev` profile which includes an ngrok container. The backend auto-detects the ngrok URL on startup (`fetchAndSetNgrokUrl`) and uses it as the webhook server URL for both orchestrators.
 - Health check endpoint at `GET /health` probes Postgres, Redis, Vapi and (when `RETELL_API_KEY` is set) Retell. Returns `200` if all healthy, `503` if degraded.

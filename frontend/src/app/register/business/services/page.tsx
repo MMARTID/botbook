@@ -9,8 +9,8 @@ import { BUSINESS_TYPE_ONBOARDING_TEXTS, isBusinessType } from "@/lib/business-t
 import { getServiceTemplate, type ServiceTemplate } from "@/lib/service-templates";
 import type { BusinessType } from "@/lib/types";
 
-const REGISTRATION_NICHE_KEY = "botbook_registration_niche";
-const DETECTED_BUSINESS_TYPE_KEY = "botbook_detected_business_type";
+const REGISTRATION_NICHE_KEY = "alhabla_registration_niche";
+const DETECTED_BUSINESS_TYPE_KEY = "alhabla_detected_business_type";
 
 function formatDuration(minutes: number) {
   if (minutes < 60) return `${minutes} min`;
@@ -30,7 +30,7 @@ export default function RegisterBusinessServicesPage() {
 
   useEffect(() => {
     const token =
-      window.localStorage.getItem("botbook_token") ??
+      window.localStorage.getItem("alhabla_token") ??
       window.localStorage.getItem("token") ??
       window.localStorage.getItem("jwt");
     if (!token) {
@@ -59,7 +59,7 @@ export default function RegisterBusinessServicesPage() {
     setSelected(new Set(serviceTemplates.map((service) => service.name)));
 
     if (selectedPlan) {
-      window.localStorage.setItem("botbook_pending_plan", selectedPlan);
+      window.localStorage.setItem("alhabla_pending_plan", selectedPlan);
     }
   }, [router]);
 

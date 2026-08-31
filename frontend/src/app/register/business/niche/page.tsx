@@ -10,8 +10,8 @@ import {
   type BusinessType,
 } from "@/lib/business-type";
 
-const REGISTRATION_NICHE_KEY = "botbook_registration_niche";
-const DETECTED_BUSINESS_TYPE_KEY = "botbook_detected_business_type";
+const REGISTRATION_NICHE_KEY = "alhabla_registration_niche";
+const DETECTED_BUSINESS_TYPE_KEY = "alhabla_detected_business_type";
 
 const SELECTABLE_TYPES: BusinessType[] = [
   "centro-de-estetica",
@@ -33,7 +33,7 @@ export default function RegisterBusinessNichePage() {
 
   useEffect(() => {
     const token =
-      window.localStorage.getItem("botbook_token") ??
+      window.localStorage.getItem("alhabla_token") ??
       window.localStorage.getItem("token") ??
       window.localStorage.getItem("jwt");
     if (!token) {

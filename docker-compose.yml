@@ -2,9 +2,9 @@ services:
   # ---------- PERFIL DE PRODUCCIÓN ----------
   backend:
     build:
-      context: .
+      context: ./backend
       dockerfile: Dockerfile
-    container_name: botbook_backend
+    container_name: alhabla_backend
     depends_on:
       postgres:
         condition: service_healthy
@@ -89,9 +89,9 @@ services:
 
   backend-dev:
     build:
-      context: .
+      context: ./backend
       dockerfile: Dockerfile
-    container_name: botbook_backend_dev
+    container_name: alhabla_backend_dev
     depends_on:
       postgres:
         condition: service_healthy
@@ -158,7 +158,7 @@ services:
     # En desarrollo: usamos tsx watch sobre el código fuente
     command: sh -c "npx prisma generate && npm run dev"
     volumes:
-      - ./:/app
+      - ./backend:/app
       - /app/node_modules   # Previene conflictos con node_modules del host
     restart: unless-stopped
     profiles:
@@ -167,11 +167,11 @@ services:
   # ---------- POSTGRES ----------
   postgres:
     image: postgres:15-alpine
-    container_name: botbook_postgres
+    container_name: alhabla_postgres
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: botbook
+      POSTGRES_DB: alhabla
     ports:
       - "5432:5432"
     volumes:
@@ -185,7 +185,7 @@ services:
   # ---------- REDIS ----------
   redis:
     image: redis:7-alpine
-    container_name: botbook_redis
+    container_name: alhabla_redis
     ports:
       - "6379:6379"
     volumes:

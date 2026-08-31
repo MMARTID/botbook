@@ -30,13 +30,13 @@ const STATE_COPY: Record<DemoCallState, string> = {
   idle: "Listo para empezar la demo.",
   "requesting-permission": "Necesitamos acceso al micrófono.",
   connecting: "Preparando la llamada…",
-  active: "BotBook te escucha.",
+  active: "Alhabla te escucha.",
   ending: "Cerrando la llamada…",
   ended: "La demo ha terminado.",
   error: "No se pudo iniciar la demo.",
 };
 
-const CONTACT_EMAIL = "hola@botbook.es";
+const CONTACT_EMAIL = "hola@alhabla.ai";
 
 /** Error interno: la demo no está configurada en este entorno. */
 const DEMO_NOT_CONFIGURED = "DEMO_NOT_CONFIGURED";
@@ -400,7 +400,7 @@ export function DemoVoiceCall({ open, onClose, onActiveChange, niche }: DemoVoic
         <div className="flex shrink-0 items-start justify-between gap-3 border-b border-[#e5e5e5] px-4 py-4 sm:px-6 sm:py-5">
           <div className="min-w-0">
             <h2 id="demo-voz-titulo" className="text-xl font-bold text-[#0a0a0a] sm:text-2xl">
-              Habla con BotBook
+              Habla con Alhabla
             </h2>
             <p id="demo-voz-descripcion" className="mt-2 text-sm leading-6 text-[#52525b]">
               Hablarás con una demo. Necesitamos acceso al micrófono y no se realizará ninguna reserva real.
@@ -444,7 +444,7 @@ export function DemoVoiceCall({ open, onClose, onActiveChange, niche }: DemoVoic
               </p>
               <div className="mt-3 flex items-center gap-3 text-sm font-medium text-[#27272a] sm:mt-4">
                 <span className={`inline-flex h-2.5 w-2.5 rounded-full ${state === "active" ? "bg-[#2c7334]" : state === "error" ? "bg-[#c53030]" : "bg-[#d4d4d8]"}`} />
-                {state === "active" ? (isSpeaking ? "BotBook está hablando" : "BotBook está escuchando") : "Demo inactiva"}
+                {state === "active" ? (isSpeaking ? "Alhabla está hablando" : "Alhabla está escuchando") : "Demo inactiva"}
               </div>
               <p className="mt-3 text-xs text-[#52525b]">Tiempo máximo: {formatDuration(DEMO_MAX_DURATION_SECONDS)}</p>
             </div>
@@ -517,7 +517,7 @@ export function DemoVoiceCall({ open, onClose, onActiveChange, niche }: DemoVoic
                   <div key={`${item.role}-${index}`} className={`flex ${item.role === "user" ? "justify-end" : "justify-start"}`}>
                     <div className={`max-w-[88%] rounded-2xl px-3 py-2 text-sm leading-6 ${item.role === "user" ? "rounded-br-sm bg-[#8b5cf6] text-white" : "rounded-bl-sm bg-white/10 text-white"}`}>
                       <span className="mb-1 block text-xs font-semibold uppercase tracking-[0.12em] opacity-70">
-                        {item.role === "user" ? "Tú" : "BotBook"}
+                        {item.role === "user" ? "Tú" : "Alhabla"}
                       </span>
                       {item.text}
                     </div>

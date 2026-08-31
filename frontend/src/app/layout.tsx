@@ -17,7 +17,7 @@ const geistMono = localFont({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL(siteUrl ?? "https://botbook.es"),
+  metadataBase: new URL(siteUrl ?? "https://alhabla.ai"),
   title: {
     default: defaultTitle,
     template: `%s | ${siteName}`,
@@ -72,7 +72,7 @@ export default function RootLayout({
       >
         {/*
           IMPECCABLE DIRECTION CONTRACT
-          THESIS: BotBook rompe con el papel verde de mostrador hacia un editorial de
+          THESIS: Alhabla rompe con el papel verde de mostrador hacia un editorial de
           alto contraste — cada llamada perdida se muestra con la contundencia de una
           hoja de cálculo, no de un folleto.
           OWN-WORLD: blanco puro, tinta casi negra, un único acento morado

@@ -30,7 +30,7 @@ export default function GoogleCallbackPage() {
 
     consumeGoogleSession()
       .then((token) => {
-        window.localStorage.setItem("botbook_token", token);
+        window.localStorage.setItem("alhabla_token", token);
         const selectedPlan = consumePendingPlan();
         const planParam = selectedPlan ? `?plan=${selectedPlan}` : "";
         window.location.replace(`/register/business${planParam}`);
@@ -56,7 +56,7 @@ export default function GoogleCallbackPage() {
           <>
             <LoaderCircle className="mx-auto mt-7 h-7 w-7 animate-spin text-[#8b5cf6]" />
             <h1 className="mt-4 text-2xl font-black text-[#0a0a0a]">Completando el acceso</h1>
-            <p className="mt-3 text-sm text-muted">Estamos preparando tu cuenta de BotBook.</p>
+            <p className="mt-3 text-sm text-muted">Estamos preparando tu cuenta de Alhabla.</p>
           </>
         )}
       </div>

@@ -310,8 +310,8 @@ describe("RetellAdapter", () => {
       const adapter = new RetellAdapter();
       const result = await adapter.importPhoneNumber({
         phoneNumber: "+34886020712",
-        terminationUri: "botbook-inbound.sip.telnyx.com",
-        sipTrunkAuthUsername: "botbookadmin",
+        terminationUri: "alhabla-inbound.sip.telnyx.com",
+        sipTrunkAuthUsername: "alhablaadmin",
         sipTrunkAuthPassword: "secret",
         nickname: "Peluquería Test",
         inboundAgentId: "agent_123",
@@ -321,8 +321,8 @@ describe("RetellAdapter", () => {
       expect(mocks.phoneNumberImport).toHaveBeenCalledWith(
         expect.objectContaining({
           phone_number: "+34886020712",
-          termination_uri: "botbook-inbound.sip.telnyx.com",
-          sip_trunk_auth_username: "botbookadmin",
+          termination_uri: "alhabla-inbound.sip.telnyx.com",
+          sip_trunk_auth_username: "alhablaadmin",
           sip_trunk_auth_password: "secret",
           nickname: "Peluquería Test",
           inbound_agents: [{ agent_id: "agent_123", weight: 1 }],

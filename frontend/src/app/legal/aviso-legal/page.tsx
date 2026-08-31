@@ -6,13 +6,13 @@ import { absoluteUrl, siteName } from "@/lib/seo";
 export const metadata: Metadata = {
   title: "Aviso legal",
   description:
-    "Titularidad del sitio, condiciones de uso, contratación de la suscripción y derecho de desistimiento de BotBook.",
+    "Titularidad del sitio, condiciones de uso, contratación de la suscripción y derecho de desistimiento de Alhabla.",
   alternates: {
     canonical: absoluteUrl("/legal/aviso-legal"),
   },
   openGraph: {
     title: `Aviso legal | ${siteName}`,
-    description: "Titularidad, condiciones de uso y contratación de BotBook.",
+    description: "Titularidad, condiciones de uso y contratación de Alhabla.",
     url: absoluteUrl("/legal/aviso-legal"),
     siteName,
     locale: "es_ES",
@@ -25,7 +25,7 @@ export default function AvisoLegalPage() {
   return (
     <LegalPage
       title="Aviso legal"
-      description="Quién está detrás de BotBook, en qué condiciones puedes usarlo y qué implica contratar una suscripción."
+      description="Quién está detrás de Alhabla, en qué condiciones puedes usarlo y qué implica contratar una suscripción."
       updatedAt="2026-08-16"
     >
       <LegalTodo>
@@ -35,10 +35,10 @@ export default function AvisoLegalPage() {
 
       <LegalSection title="Titularidad del sitio">
         <p>
-          Este sitio web y el servicio BotBook son titularidad del prestador identificado más arriba. Puedes contactar
+          Este sitio web y el servicio Alhabla son titularidad del prestador identificado más arriba. Puedes contactar
           con nosotros en{" "}
-          <a href="mailto:hola@botbook.es" className="font-medium text-[#344038] underline underline-offset-2">
-            hola@botbook.es
+          <a href="mailto:hola@alhabla.ai" className="font-medium text-[#344038] underline underline-offset-2">
+            hola@alhabla.ai
           </a>
           .
         </p>
@@ -46,19 +46,19 @@ export default function AvisoLegalPage() {
 
       <LegalSection title="Qué es el servicio">
         <p>
-          BotBook es un servicio de recepción telefónica: uno o varios agentes de voz atienden las llamadas de tu
+          Alhabla es un servicio de recepción telefónica: uno o varios agentes de voz atienden las llamadas de tu
           negocio, responden preguntas sobre tus servicios y horarios, comprueban tu disponibilidad real y reservan
           citas en tu calendario de Google o de Outlook.
         </p>
         <p>
           El servicio se presta como suscripción mensual. Tú mantienes tu número de teléfono habitual y las llamadas
-          llegan a BotBook mediante un desvío que activas desde tu propio terminal.
+          llegan a Alhabla mediante un desvío que activas desde tu propio terminal.
         </p>
       </LegalSection>
 
       <LegalSection title="Condiciones de uso">
         <p>
-          Al usar BotBook te comprometes a que la información que configures sobre tu negocio sea veraz, a informar a
+          Al usar Alhabla te comprometes a que la información que configures sobre tu negocio sea veraz, a informar a
           quien llama de que la llamada se graba, y a no utilizar el servicio para fines ilícitos ni para comunicaciones
           comerciales no solicitadas.
         </p>
@@ -116,7 +116,7 @@ export default function AvisoLegalPage() {
 
       <LegalSection title="Propiedad intelectual">
         <p>
-          Los contenidos de este sitio, la marca BotBook y el software del servicio están protegidos por la normativa de
+          Los contenidos de este sitio, la marca Alhabla y el software del servicio están protegidos por la normativa de
           propiedad intelectual e industrial. Los datos de tu negocio y las grabaciones de tus llamadas son tuyos.
         </p>
       </LegalSection>

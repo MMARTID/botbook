@@ -300,7 +300,7 @@ async function start() {
           return reply.status(200).send({ success: true });
         } else {
           console.error(`[Retell] No se pudo procesar el evento ${eventType}`);
-          return reply.status(404).send({ error: "Agent or call not registered in BotBook" });
+          return reply.status(404).send({ error: "Agent or call not registered in Alhabla" });
         }
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);

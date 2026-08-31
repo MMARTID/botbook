@@ -55,8 +55,8 @@ describe("provisionPhoneNumber", () => {
     vi.clearAllMocks();
     process.env.TELNYX_SPAIN_REQUIREMENT_GROUP_ID = "req_group_test";
     process.env.TELNYX_SIP_CONNECTION_ID = "conn_test";
-    process.env.RETELL_SIP_TERMINATION_URI = "botbook-inbound.sip.telnyx.com";
-    process.env.RETELL_SIP_TRUNK_AUTH_USERNAME = "botbookadmin";
+    process.env.RETELL_SIP_TERMINATION_URI = "alhabla-inbound.sip.telnyx.com";
+    process.env.RETELL_SIP_TRUNK_AUTH_USERNAME = "alhablaadmin";
     process.env.RETELL_SIP_TRUNK_AUTH_PASSWORD = "secret";
   });
 
@@ -124,8 +124,8 @@ describe("provisionPhoneNumber", () => {
     expect(mockedImportPhoneNumber).toHaveBeenCalledWith(
       expect.objectContaining({
         phoneNumber: "+34886020712",
-        terminationUri: "botbook-inbound.sip.telnyx.com",
-        sipTrunkAuthUsername: "botbookadmin",
+        terminationUri: "alhabla-inbound.sip.telnyx.com",
+        sipTrunkAuthUsername: "alhablaadmin",
         sipTrunkAuthPassword: "secret",
         inboundAgentId: retellAgentId,
       })

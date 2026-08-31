@@ -22,7 +22,7 @@ cogerlo. El trabajo que quiere resuelto es que **ninguna llamada se pierda y que
 entren solas en su agenda**, configurándolo una vez y olvidándose.
 
 Una cuenta equivale a un negocio y a una persona: el modelo `User` no tiene roles ni
-multiusuario (`prisma/schema.prisma:103`). Quien se registra es quien administra. No existe hoy
+multiusuario (`backend/prisma/schema.prisma:103`). Quien se registra es quien administra. No existe hoy
 la figura de empleado con acceso limitado al panel.
 
 **Usuario secundario (quien llama):** el cliente final del negocio, que marca el número y habla
@@ -32,7 +32,7 @@ teléfono — pero es quien juzga si el producto funciona.
 
 ## Product Purpose
 
-BotBook es un SaaS multi-tenant que da a cada negocio uno o más **recepcionistas de voz con IA**
+Alhabla es un SaaS multi-tenant que da a cada negocio uno o más **recepcionistas de voz con IA**
 que atienden las llamadas entrantes, responden preguntas, consultan el horario del negocio,
 comprueban disponibilidad y reservan la cita directamente en el calendario de Google u Outlook
 del negocio.
@@ -116,7 +116,7 @@ Lo que un producto vecino no podría copiar honestamente:
 
 ## Brand Commitments
 
-- **Nombre:** BotBook.
+- **Nombre:** Alhabla.
 - **Idioma:** español de España, siempre, con tuteo en la interfaz.
 - **Registro:** confianza tranquila y profesional. Cercano pero serio. Ni corporativo
   acartonado ni startup con emojis.
@@ -142,20 +142,20 @@ Lo que un producto vecino no podría copiar honestamente:
   STANPA / El Periódico, Doctoralia, safina.ai, heilo.io, entre otras.
 - Citas textuales de profesionales del sector recogidas en prensa: Excelsior Barber Studio
   (Diario de Mallorca), David Aranda de Estetical (Crónica Global), Estetical (Facebook).
-  **Hablan del problema, no de BotBook.** No son testimonios de cliente y no deben presentarse
+  **Hablan del problema, no de Alhabla.** No son testimonios de cliente y no deben presentarse
   como tales.
 - Producto funcional y demostrable: demo de voz pública en el navegador.
 
 **Ausencias que ningún trabajo futuro debe rellenar inventando**
 
-BotBook está en **prelanzamiento: no hay clientes de pago**. Por tanto **no existen**, y no se
+Alhabla está en **prelanzamiento: no hay clientes de pago**. Por tanto **no existen**, y no se
 pueden fabricar ni insinuar:
 
-- testimonios ni casos de éxito de clientes de BotBook;
+- testimonios ni casos de éxito de clientes de Alhabla;
 - logos de clientes ni recuentos del tipo «X negocios ya confían»;
 - métricas propias del producto (llamadas gestionadas, citas recuperadas, tasa de acierto,
   valoraciones);
-- premios, apariciones en prensa sobre BotBook o cifras de facturación.
+- premios, apariciones en prensa sobre Alhabla o cifras de facturación.
 
 Toda cifra publicada debe llevar una fuente externa verificable, como ya hacen las landings de
 nicho. Cuando haga falta prueba en una superficie y no la haya, la salida correcta es enseñar el

@@ -6,13 +6,13 @@ import { absoluteUrl, siteName } from "@/lib/seo";
 export const metadata: Metadata = {
   title: "Política de privacidad",
   description:
-    "Qué datos trata BotBook, con qué finalidad, quién los procesa y cómo ejercer tus derechos. Incluye el tratamiento de la demo de voz y de las llamadas atendidas por la recepcionista virtual.",
+    "Qué datos trata Alhabla, con qué finalidad, quién los procesa y cómo ejercer tus derechos. Incluye el tratamiento de la demo de voz y de las llamadas atendidas por la recepcionista virtual.",
   alternates: {
     canonical: absoluteUrl("/legal/privacidad"),
   },
   openGraph: {
     title: `Política de privacidad | ${siteName}`,
-    description: "Qué datos trata BotBook, con qué finalidad y cómo ejercer tus derechos.",
+    description: "Qué datos trata Alhabla, con qué finalidad y cómo ejercer tus derechos.",
     url: absoluteUrl("/legal/privacidad"),
     siteName,
     locale: "es_ES",
@@ -35,9 +35,9 @@ export default function PrivacidadPage() {
 
       <LegalSection title="Quién es el responsable">
         <p>
-          El responsable del tratamiento de tus datos es el titular de BotBook. Puedes escribirnos a{" "}
-          <a href="mailto:hola@botbook.es" className="font-medium text-[#344038] underline underline-offset-2">
-            hola@botbook.es
+          El responsable del tratamiento de tus datos es el titular de Alhabla. Puedes escribirnos a{" "}
+          <a href="mailto:hola@alhabla.ai" className="font-medium text-[#344038] underline underline-offset-2">
+            hola@alhabla.ai
           </a>{" "}
           para cualquier cuestión relacionada con esta política o con tus datos.
         </p>
@@ -151,8 +151,8 @@ export default function PrivacidadPage() {
         <p>
           Puedes solicitar acceso a tus datos, su rectificación o supresión, la limitación u oposición al tratamiento,
           y la portabilidad. Escríbenos a{" "}
-          <a href="mailto:hola@botbook.es" className="font-medium text-[#344038] underline underline-offset-2">
-            hola@botbook.es
+          <a href="mailto:hola@alhabla.ai" className="font-medium text-[#344038] underline underline-offset-2">
+            hola@alhabla.ai
           </a>{" "}
           y te responderemos en el plazo legal.
         </p>

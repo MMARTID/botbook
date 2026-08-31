@@ -21,7 +21,7 @@ import type {
   WeekDay,
 } from "@/lib/types";
 
-const DETECTED_BUSINESS_TYPE_KEY = "botbook_detected_business_type";
+const DETECTED_BUSINESS_TYPE_KEY = "alhabla_detected_business_type";
 
 // Cuánto tiempo esperamos a que el navegador resuelva la geolocalización
 // antes de rendirnos y mostrar el selector de país como alternativa.
@@ -155,7 +155,7 @@ export default function RegisterBusinessPage() {
 
   useEffect(() => {
     const token =
-      window.localStorage.getItem("botbook_token") ??
+      window.localStorage.getItem("alhabla_token") ??
       window.localStorage.getItem("token") ??
       window.localStorage.getItem("jwt");
     if (!token) {
@@ -251,9 +251,9 @@ export default function RegisterBusinessPage() {
   const redirectToNextStep = () => {
     const hasSchedule = isBusinessSchedule(selected?.schedule);
     if (hasSchedule) {
-      window.localStorage.setItem("botbook_place_schedule_imported", "true");
+      window.localStorage.setItem("alhabla_place_schedule_imported", "true");
     } else {
-      window.localStorage.removeItem("botbook_place_schedule_imported");
+      window.localStorage.removeItem("alhabla_place_schedule_imported");
     }
 
     const planFromUrl = new URLSearchParams(window.location.search).get("plan");

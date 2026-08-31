@@ -9,7 +9,7 @@ import { BrandMark } from "@/components/brand-mark";
 import { isPlanId, savePendingPlan } from "@/lib/billing-navigation";
 import { normalizeBusinessType } from "@/lib/business-type";
 
-const REGISTRATION_NICHE_KEY = "botbook_registration_niche";
+const REGISTRATION_NICHE_KEY = "alhabla_registration_niche";
 
 export default function RegisterPage() {
   const [email, setEmail] = useState("");
@@ -45,7 +45,7 @@ export default function RegisterPage() {
         isEuropeanUnion,
         businessType: businessType ? normalizeBusinessType(businessType) : undefined,
       });
-      window.localStorage.setItem("botbook_token", data.token);
+      window.localStorage.setItem("alhabla_token", data.token);
       const planFromUrl = new URLSearchParams(window.location.search).get("plan");
       if (isPlanId(planFromUrl)) savePendingPlan(planFromUrl);
       const planParam = isPlanId(planFromUrl) ? `?plan=${planFromUrl}` : "";

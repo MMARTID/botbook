@@ -19,7 +19,7 @@ export default function LoginPage() {
 
     try {
       const { data } = await api.post<{ token: string }>("/auth/login", { email, password });
-      window.localStorage.setItem("botbook_token", data.token);
+      window.localStorage.setItem("alhabla_token", data.token);
       window.location.href = "/";
     } catch {
       setError("Credenciales incorrectas o error de conexión.");

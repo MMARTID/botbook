@@ -35,7 +35,7 @@ export function LandingHero({ content }: { content?: NicheLandingContent }) {
               {content?.heroTitle ?? "Cada llamada sin contestar es un cliente que ya reservó en otro sitio."}
             </h1>
             <p className="max-w-xl text-base leading-7 text-[#52525b] sm:text-lg sm:leading-8">
-              {content?.heroDescription ?? "BotBook responde, resuelve dudas y agenda citas 24/7 con tu número de siempre — sin cambiar cómo trabajas."}
+              {content?.heroDescription ?? "Alhabla responde, resuelve dudas y agenda citas 24/7 con tu número de siempre — sin cambiar cómo trabajas."}
             </p>
           </div>
 

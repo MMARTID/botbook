@@ -1,5 +1,5 @@
 ---
-name: BotBook
+name: Alhabla
 description: Sistema visual SaaS de alto contraste para negocios de servicios españoles — negro y blanco con un único acento morado
 colors:
   background: "#ffffff"
@@ -138,7 +138,7 @@ components:
     size: "40px"
 ---
 
-# Design System: BotBook
+# Design System: Alhabla
 
 ## Overview
 

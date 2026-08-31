@@ -24,7 +24,7 @@ export default function RegisterBusinessTeamPage() {
 
   useEffect(() => {
     const token =
-      window.localStorage.getItem("botbook_token") ??
+      window.localStorage.getItem("alhabla_token") ??
       window.localStorage.getItem("token") ??
       window.localStorage.getItem("jwt");
     if (!token) {
