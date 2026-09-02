@@ -3,6 +3,7 @@ import { prisma } from "./lib/prisma.js";
 import { initRedis } from "./lib/redis.js";
 import { initStorage } from "./lib/storage.js";
 import { processRecordingWorker } from "./jobs/processRecording.js";
+import { processRetryFailedBookingWorker } from "./jobs/retryFailedBooking.js";
 import {
   processZombieWorker,
   scheduleZombieCallCleanup,
@@ -22,6 +23,7 @@ async function start() {
 
   console.log("[Worker] Initializing job workers...");
   const recordingWorker = await processRecordingWorker();
+  const retryBookingWorker = await processRetryFailedBookingWorker();
   const zombieWorker = await processZombieWorker();
   scheduleZombieCallCleanup();
 
@@ -36,6 +38,7 @@ async function start() {
   const shutdown = async (signal: string) => {
     console.log(`[Worker] ${signal} recibido, cerrando workers...`);
     await recordingWorker.close();
+    await retryBookingWorker.close();
     await zombieWorker.close();
     await fastify.close();
     await prisma.$disconnect();

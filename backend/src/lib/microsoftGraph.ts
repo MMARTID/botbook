@@ -144,6 +144,10 @@ export async function refreshMicrosoftAccessToken(refreshToken: string) {
   }>;
 }
 
+// Límite propio bajo el timeout de 20s que Retell aplica a cada tool call
+// (book_appointment puede acabar aquí durante una llamada en curso).
+const GRAPH_REQUEST_TIMEOUT_MS = 8000;
+
 async function graphFetch<T>(accessToken: string, path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${MICROSOFT_GRAPH_BASE}${path}`, {
     ...init,
@@ -152,6 +156,7 @@ async function graphFetch<T>(accessToken: string, path: string, init?: RequestIn
       "Content-Type": "application/json",
       ...(init?.headers ?? {}),
     },
+    signal: AbortSignal.timeout(GRAPH_REQUEST_TIMEOUT_MS),
   });
 
   if (!response.ok) {

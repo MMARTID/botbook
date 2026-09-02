@@ -133,7 +133,8 @@ describe("CalendarService.bookAppointment", () => {
           summary: "Reserva de María",
           attendees: [{ email: "maria@example.com" }],
         }),
-      })
+      }),
+      expect.objectContaining({ timeout: expect.any(Number) })
     );
   });
 

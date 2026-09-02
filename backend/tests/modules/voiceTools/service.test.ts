@@ -10,6 +10,8 @@ vi.mock("../../../src/lib/prisma.js", () => ({
     business: { findUnique: vi.fn() },
     call: { findUnique: vi.fn(), findFirst: vi.fn() },
     booking: { upsert: vi.fn() },
+    professional: { findFirst: vi.fn() },
+    service: { findFirst: vi.fn() },
   },
 }));
 
@@ -23,6 +25,7 @@ vi.mock("../../../src/lib/redis.js", () => ({
 
 vi.mock("../../../src/lib/businessSchedule.js", () => ({
   checkBusinessHours: vi.fn(),
+  checkBookingRestrictions: vi.fn(() => ({ success: true })),
 }));
 
 vi.mock("../../../src/lib/availability.js", () => ({
@@ -35,10 +38,15 @@ vi.mock("../../../src/modules/calendar/service.js", () => ({
   },
 }));
 
+vi.mock("../../../src/lib/queue.js", () => ({
+  retryBookingQueue: { add: vi.fn() },
+}));
+
 const mockedBusinessFindUnique = vi.mocked(prisma.business.findUnique);
 const mockedCallFindUnique = vi.mocked(prisma.call.findUnique);
 const mockedCallFindFirst = vi.mocked(prisma.call.findFirst);
 const mockedBookingUpsert = vi.mocked(prisma.booking.upsert);
+const mockedProfessionalFindFirst = vi.mocked(prisma.professional.findFirst);
 const mockedCheckBusinessHours = vi.mocked(checkBusinessHours);
 const mockedBookAppointment = vi.mocked(calendarService.bookAppointment);
 
@@ -79,6 +87,7 @@ describe("executeVoiceTool book_appointment — vinculación a la llamada correc
     mockedBusinessFindUnique.mockResolvedValue(buildBusiness() as any);
     mockedCheckBusinessHours.mockReturnValue({ success: true, isOpen: true } as any);
     mockedBookAppointment.mockResolvedValue({ htmlLink: "https://calendar.google.com/event/1" } as any);
+    mockedProfessionalFindFirst.mockResolvedValue({ id: "professional_123" } as any);
   });
 
   it("vincula la reserva a la llamada exacta del callId, aunque exista otra más reciente", async () => {

@@ -1,9 +1,10 @@
 import { prisma } from "../../lib/prisma.js";
 import { getRedis } from "../../lib/redis.js";
-import { checkBusinessHours } from "../../lib/businessSchedule.js";
+import { checkBusinessHours, checkBookingRestrictions } from "../../lib/businessSchedule.js";
 import { checkAvailability } from "../../lib/availability.js";
 import { calendarService } from "../calendar/service.js";
 import { errorMessage } from "../../lib/logUtils.js";
+import { retryBookingQueue } from "../../lib/queue.js";
 
 export type VoiceToolName =
   | "check_business_hours"
@@ -31,6 +32,8 @@ interface BusinessVoiceConfig {
   outlookRefreshToken: string | null;
   outlookCalendarId: string | null;
   outlookCalendarConnected: boolean | null;
+  minAdvanceBookingMinutes: number | null;
+  maxAppointmentDurationMinutes: number | null;
 }
 
 async function loadBusinessConfig(
@@ -50,6 +53,8 @@ async function loadBusinessConfig(
       outlookRefreshToken: true,
       outlookCalendarId: true,
       outlookCalendarConnected: true,
+      minAdvanceBookingMinutes: true,
+      maxAppointmentDurationMinutes: true,
     },
   });
 }
@@ -151,14 +156,24 @@ async function executeCheckBusinessHours(
       typeof params?.startDateTime === "string" ? params.startDateTime : "";
     const durationMinutes =
       typeof params?.durationMinutes === "number" ? params.durationMinutes : 0;
-    const result = checkBusinessHours(
+    const hoursResult = checkBusinessHours(
       business.schedule,
       business.timezone,
       startDateTime,
       durationMinutes
     );
 
-    return { success: true, result };
+    if (hoursResult.success && hoursResult.isOpen) {
+      const restrictions = checkBookingRestrictions(business, startDateTime, durationMinutes);
+      if (!restrictions.success) {
+        return {
+          success: true,
+          result: { ...hoursResult, isOpen: false, code: restrictions.code, message: restrictions.message },
+        };
+      }
+    }
+
+    return { success: true, result: hoursResult };
   } catch (error) {
     console.error(
       `[VoiceTools] ${callLabel} no pudo comprobar el horario: ${errorMessage(
@@ -188,6 +203,8 @@ async function executeCheckAvailability(
       typeof params?.durationMinutes === "number" ? params.durationMinutes : 0;
     const serviceId =
       typeof params?.serviceId === "string" ? params.serviceId : undefined;
+    const professionalId =
+      typeof params?.professionalId === "string" ? params.professionalId : undefined;
 
     const availability = await checkAvailability({
       businessId: business.id,
@@ -197,6 +214,7 @@ async function executeCheckAvailability(
       startDateTime,
       durationMinutes,
       serviceId,
+      professionalId,
     });
 
     return { success: true, result: availability };
@@ -217,6 +235,110 @@ async function executeCheckAvailability(
   }
 }
 
+/**
+ * Resuelve la fila Call a la que vincular una reserva o un lead pendiente:
+ * por callId cuando se conoce (viene del sobre del webhook de Retell, no del
+ * LLM) y, si su fila aún no existe por una carrera con call_started, cae al
+ * heurístico de "llamada más reciente del negocio" como red de seguridad.
+ */
+async function resolveCallForBusiness(
+  callId: string | undefined,
+  businessId: string,
+  callLabel: string
+): Promise<{ id: string } | null> {
+  let call = callId
+    ? await prisma.call.findUnique({
+        where: { vapiCallId: callId },
+        select: { id: true },
+      })
+    : null;
+
+  if (!call) {
+    if (callId) {
+      console.warn(
+        `[VoiceTools] ${callLabel} no encontró la fila Call para callId=${callId}; usando heurístico de llamada más reciente`
+      );
+    }
+    call = await prisma.call.findFirst({
+      where: { businessId },
+      orderBy: { startedAt: "desc" },
+      select: { id: true },
+    });
+  }
+
+  return call;
+}
+
+/**
+ * Guarda la intención de reserva como un Lead cuando book_appointment falla,
+ * para que el negocio nunca pierda los datos del cliente aunque el calendario
+ * haya fallado. Devuelve el id del lead o null si no se pudo guardar (p. ej.
+ * si no hay ninguna llamada a la que vincularlo).
+ */
+async function capturePendingBookingLead(args: {
+  callId?: string;
+  businessId: string;
+  clientName: string;
+  clientEmail?: string;
+  startDateTime: string;
+  durationMinutes: number;
+  serviceId?: string;
+  professionalId?: string;
+  failureCode: string;
+  callLabel: string;
+}): Promise<string | null> {
+  try {
+    const call = await resolveCallForBusiness(args.callId, args.businessId, args.callLabel);
+    if (!call) {
+      console.error(
+        `[VoiceTools] ${args.callLabel} no pudo guardar la reserva pendiente: no hay ninguna llamada asociada`
+      );
+      return null;
+    }
+
+    const lead = await prisma.lead.create({
+      data: {
+        callId: call.id,
+        type: "pending_booking",
+        isLead: false,
+        data: {
+          clientName: args.clientName,
+          clientEmail: args.clientEmail ?? null,
+          startDateTime: args.startDateTime,
+          durationMinutes: args.durationMinutes,
+          serviceId: args.serviceId ?? null,
+          professionalId: args.professionalId ?? null,
+          failureCode: args.failureCode,
+        },
+      },
+      select: { id: true },
+    });
+
+    return lead.id;
+  } catch (error) {
+    console.error(
+      `[VoiceTools] ${args.callLabel} no pudo guardar la reserva pendiente: ${errorMessage(error)}`
+    );
+    return null;
+  }
+}
+
+/** Solo se llama para fallos que pueden ser transitorios (no para
+ * reconexión de calendario requerida, que no se arregla sola reintentando). */
+async function enqueueRetryFailedBooking(leadId: string): Promise<void> {
+  try {
+    await retryBookingQueue.add(
+      "retry-failed-booking",
+      { leadId },
+      { jobId: `retry-failed-booking-${leadId}`, removeOnComplete: true, removeOnFail: 1000 }
+    );
+  } catch (error) {
+    console.error(
+      `[VoiceTools] No se pudo encolar el reintento de reserva para el lead ${leadId}: ${errorMessage(error)}`
+    );
+  }
+}
+
 async function executeBookAppointment(
   business: BusinessVoiceConfig,
   params: Record<string, unknown>,
@@ -232,6 +354,7 @@ async function executeBookAppointment(
     professionalId?: string;
   };
   const { clientName, startDateTime, durationMinutes, clientEmail, serviceId, professionalId } = rawParams;
+  const effectiveDuration = durationMinutes || 30;
 
   if (!clientName || !startDateTime) {
     return {
@@ -264,12 +387,24 @@ async function executeBookAppointment(
       console.warn(
         `[VoiceTools] ${callLabel} no puede reservar: ${providerLabel} requiere reconexión`
       );
+      await capturePendingBookingLead({
+        callId,
+        businessId: business.id,
+        clientName,
+        clientEmail,
+        startDateTime,
+        durationMinutes: effectiveDuration,
+        serviceId,
+        professionalId,
+        failureCode: reconnectCode,
+        callLabel,
+      });
       return {
         success: true,
         result: {
           success: false,
           code: reconnectCode,
-          message: `El negocio debe reconectar ${providerLabel} antes de agendar citas.`,
+          message: `El negocio debe reconectar ${providerLabel} antes de agendar citas. He tomado nota de tu solicitud para confirmártela en cuanto se resuelva.`,
         },
       };
     }
@@ -278,7 +413,7 @@ async function executeBookAppointment(
       business.schedule,
       business.timezone || "Europe/Madrid",
       startDateTime,
-      durationMinutes || 30
+      effectiveDuration
     );
     if (!businessHours.success || !businessHours.isOpen) {
       return {
@@ -292,8 +427,54 @@ async function executeBookAppointment(
       };
     }
 
+    const restrictions = checkBookingRestrictions(business, startDateTime, effectiveDuration);
+    if (!restrictions.success) {
+      return {
+        success: true,
+        result: {
+          success: false,
+          code: restrictions.code,
+          message: restrictions.message,
+        },
+      };
+    }
+
+    // Nunca confiar en un serviceId/professionalId que venga del LLM sin
+    // comprobar que pertenece a este negocio — si no coincide (o no existe),
+    // se trata como si no se hubiera indicado en vez de fallar la reserva
+    // entera o dejar que se cuele el de otro negocio.
+    let verifiedServiceId: string | undefined;
+    if (serviceId) {
+      const service = await prisma.service.findFirst({
+        where: { id: serviceId, businessId: business.id, active: true },
+        select: { id: true },
+      });
+      if (service) {
+        verifiedServiceId = service.id;
+      } else {
+        console.warn(
+          `[VoiceTools] ${callLabel} recibió un serviceId no válido para este negocio (${serviceId}); se ignora`
+        );
+      }
+    }
+
+    let verifiedProfessionalId: string | undefined;
+    if (professionalId) {
+      const professional = await prisma.professional.findFirst({
+        where: { id: professionalId, businessId: business.id, active: true },
+        select: { id: true },
+      });
+      if (professional) {
+        verifiedProfessionalId = professional.id;
+      } else {
+        console.warn(
+          `[VoiceTools] ${callLabel} recibió un professionalId no válido para este negocio (${professionalId}); se ignora`
+        );
+      }
+    }
+
     // Resolve professional: use provided one, otherwise pick the first available
-    let resolvedProfessionalId = professionalId;
+    let resolvedProfessionalId = verifiedProfessionalId;
     if (!resolvedProfessionalId) {
       const availability = await checkAvailability({
         businessId: business.id,
@@ -301,8 +482,8 @@ async function executeBookAppointment(
         timezone: business.timezone || "Europe/Madrid",
         bookingCapacity: business.bookingCapacity,
         startDateTime,
-        durationMinutes: durationMinutes || 30,
-        serviceId: serviceId ?? null,
+        durationMinutes: effectiveDuration,
+        serviceId: verifiedServiceId ?? null,
       });
 
       if (!availability.available) {
@@ -323,7 +504,7 @@ async function executeBookAppointment(
       const result = await calendarService.bookAppointment({
         clientName,
         startDateTime,
-        durationMinutes: durationMinutes || 30,
+        durationMinutes: effectiveDuration,
         clientEmail,
         provider,
         googleRefreshToken: business.googleRefreshToken,
@@ -333,28 +514,8 @@ async function executeBookAppointment(
       });
 
       // Persist booking in database, vinculada a la llamada exacta cuando se
-      // conoce su callId. Si no se conoce (o su fila Call aún no existe por
-      // una carrera con el webhook call_started) se cae al heurístico de
-      // "llamada más reciente del negocio" como red de seguridad.
-      let call = callId
-        ? await prisma.call.findUnique({
-            where: { vapiCallId: callId },
-            select: { id: true },
-          })
-        : null;
-
-      if (!call) {
-        if (callId) {
-          console.warn(
-            `[VoiceTools] ${callLabel} no encontró la fila Call para callId=${callId}; usando heurístico de llamada más reciente`
-          );
-        }
-        call = await prisma.call.findFirst({
-          where: { businessId: business.id },
-          orderBy: { startedAt: "desc" },
-          select: { id: true },
-        });
-      }
+      // conoce su callId (ver resolveCallForBusiness).
+      const call = await resolveCallForBusiness(callId, business.id, callLabel);
 
       if (call) {
         await prisma.booking.upsert({
@@ -362,16 +523,16 @@ async function executeBookAppointment(
           create: {
             callId: call.id,
             programedAt: new Date(startDateTime),
-            durationMinutes: durationMinutes || 30,
+            durationMinutes: effectiveDuration,
             numberPeople: 1,
             professionalId: resolvedProfessionalId ?? undefined,
-            serviceId: serviceId ?? undefined,
+            serviceId: verifiedServiceId ?? undefined,
           },
           update: {
             programedAt: new Date(startDateTime),
-            durationMinutes: durationMinutes || 30,
+            durationMinutes: effectiveDuration,
             professionalId: resolvedProfessionalId ?? undefined,
-            serviceId: serviceId ?? undefined,
+            serviceId: verifiedServiceId ?? undefined,
           },
         });
       }
@@ -383,7 +544,7 @@ async function executeBookAppointment(
         result: {
           success: true,
           message: "Cita agendada correctamente.",
-          eventLink: result.htmlLink,
+          eventLink: (result as { htmlLink?: string })?.htmlLink,
           professionalId: resolvedProfessionalId,
         },
       };
@@ -436,43 +597,71 @@ async function executeBookAppointment(
           );
         }
 
+        // Reconectar el calendario requiere una acción manual del negocio:
+        // guardamos la solicitud pero NO la reintentamos sola en segundo plano.
+        await capturePendingBookingLead({
+          callId,
+          businessId: business.id,
+          clientName,
+          clientEmail,
+          startDateTime,
+          durationMinutes: effectiveDuration,
+          serviceId: verifiedServiceId,
+          professionalId: resolvedProfessionalId,
+          failureCode: e.code,
+          callLabel,
+        });
+
         return {
           success: true,
           result: {
             success: false,
             code: e.code,
             message:
-              errorProvider === "outlook"
-                ? "No pude acceder al calendario del negocio porque la conexión con Outlook expiró o fue revocada. El negocio debe reconectarlo."
-                : "No pude acceder al calendario del negocio porque la conexión con Google expiró o fue revocada. El negocio debe reconectarlo.",
+              (errorProvider === "outlook"
+                ? "No pude acceder al calendario del negocio porque la conexión con Outlook expiró o fue revocada."
+                : "No pude acceder al calendario del negocio porque la conexión con Google expiró o fue revocada.") +
+              " He tomado nota de tu solicitud para confirmártela en cuanto el negocio la reconecte.",
           },
         };
       }
 
-      if (
-        e?.name === "CalendarBusinessError" &&
-        e?.code === "BOOK_APPOINTMENT_FAILED"
-      ) {
-        return {
-          success: true,
-          result: {
-            success: false,
-            code: "BOOK_APPOINTMENT_FAILED",
-            message: "No pude agendar la cita en este momento.",
-          },
-        };
-      }
-
+      // Cualquier otro fallo (BOOK_APPOINTMENT_FAILED, timeout, rate limit, o
+      // un error inesperado): nunca rompemos la llamada con un 500 — siempre
+      // degradamos a un mensaje hablable y dejamos la solicitud guardada para
+      // reintento automático en segundo plano, porque estos sí pueden ser
+      // transitorios.
+      const code = e?.name === "CalendarBusinessError" ? e.code : "BOOK_APPOINTMENT_UNEXPECTED_ERROR";
+      const baseMessage =
+        e?.name === "CalendarBusinessError" && typeof e.message === "string"
+          ? e.message
+          : "No pude agendar la cita en este momento.";
       console.error(
-        `[VoiceTools] ${callLabel} no pudo agendar la cita: ${errorMessage(
-          error
-        )}`
+        `[VoiceTools] ${callLabel} no pudo agendar la cita (${code}): ${errorMessage(error)}`
       );
+
+      const leadId = await capturePendingBookingLead({
+        callId,
+        businessId: business.id,
+        clientName,
+        clientEmail,
+        startDateTime,
+        durationMinutes: effectiveDuration,
+        serviceId: verifiedServiceId,
+        professionalId: resolvedProfessionalId,
+        failureCode: code,
+        callLabel,
+      });
+      if (leadId) {
+        await enqueueRetryFailedBooking(leadId);
+      }
+
       return {
-        success: false,
+        success: true,
         result: {
           success: false,
-          error: (error as Error).message,
+          code,
+          message: `${baseMessage} He tomado nota de tus datos y te confirmaremos en breve.`,
         },
       };
     }
@@ -483,10 +672,11 @@ async function executeBookAppointment(
       )}`
     );
     return {
-      success: false,
+      success: true,
       result: {
         success: false,
-        error: (error as Error).message,
+        code: "BOOK_APPOINTMENT_UNEXPECTED_ERROR",
+        message: "No pude completar la reserva en este momento. Por favor, indícame tus datos y te confirmaremos en breve.",
       },
     };
   }

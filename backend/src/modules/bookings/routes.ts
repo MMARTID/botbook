@@ -2,6 +2,7 @@ import { FastifyInstance, FastifyRequest } from "fastify";
 import { z } from "zod";
 import { prisma } from "../../lib/prisma.js";
 import { getRedis } from "../../lib/redis.js";
+import { syncAgentToRetell } from "../../lib/agentBootstrap.js";
 
 type BookingSettingsPayload = {
   bookingCapacity: number;
@@ -176,6 +177,7 @@ export async function bookingSettingsRoutes(fastify: FastifyInstance) {
           },
         });
         await invalidateBusinessAgentConfigCache(request.user!.businessId);
+        await syncAgentToRetell(request.user!.businessId);
         return reply.status(201).send(service);
       } catch (error) {
         if (error instanceof z.ZodError) {
@@ -212,6 +214,7 @@ export async function bookingSettingsRoutes(fastify: FastifyInstance) {
           data,
         });
         await invalidateBusinessAgentConfigCache(request.user!.businessId);
+        await syncAgentToRetell(request.user!.businessId);
         return reply.send(updated);
       } catch (error) {
         if (error instanceof z.ZodError) {
@@ -250,6 +253,7 @@ export async function bookingSettingsRoutes(fastify: FastifyInstance) {
         });
 
         await invalidateBusinessAgentConfigCache(request.user!.businessId);
+        await syncAgentToRetell(request.user!.businessId);
         return reply.status(201).send({
           id: professional.id,
           name: professional.name,
@@ -331,6 +335,7 @@ export async function bookingSettingsRoutes(fastify: FastifyInstance) {
         });
 
         await invalidateBusinessAgentConfigCache(request.user!.businessId);
+        await syncAgentToRetell(request.user!.businessId);
         return reply.send({
           id: updated.id,
           name: updated.name,

@@ -7,7 +7,7 @@ import { BusinessScheduleSchema } from "../../lib/businessSchedule.js";
 import { calendarService } from "../calendar/service.js";
 import { AgentSettingsSchema, buildManagedAgentPrompt } from "../../lib/managedAgentPrompt.js";
 import { isBusinessType } from "../../lib/businessType.js";
-import { syncAgentNameWithBusinessType } from "../../lib/agentBootstrap.js";
+import { syncAgentNameWithBusinessType, syncAgentToRetell } from "../../lib/agentBootstrap.js";
 
 const UpdateBusinessSchema = z.object({
   name: z.string().min(1).optional(),
@@ -21,6 +21,10 @@ const UpdateBusinessSchema = z.object({
   calendarProvider: z.enum(["google", "outlook"]).optional(),
   bookingCapacity: z.coerce.number().int().min(1).max(50).optional(),
   businessType: z.string().optional(),
+  // null = sin restricción. Antelación tope de 1 semana, duración tope de 24h
+  // — límites generosos, solo para evitar valores absurdos.
+  minAdvanceBookingMinutes: z.coerce.number().int().min(0).max(10080).nullable().optional(),
+  maxAppointmentDurationMinutes: z.coerce.number().int().min(1).max(1440).nullable().optional(),
 });
 
 export async function businessesRoutes(fastify: FastifyInstance) {
@@ -119,7 +123,17 @@ export async function businessesRoutes(fastify: FastifyInstance) {
         });
 
         // Mantiene el prompt libre del usuario y añade siempre el horario en un bloque estructurado estable.
-        if (data.systemPrompt !== undefined || data.schedule !== undefined || data.agentSettings !== undefined || data.businessDetails !== undefined || data.name !== undefined) {
+        const shouldResyncPrompt =
+          data.systemPrompt !== undefined ||
+          data.schedule !== undefined ||
+          data.agentSettings !== undefined ||
+          data.businessDetails !== undefined ||
+          data.name !== undefined ||
+          data.businessType !== undefined ||
+          data.minAdvanceBookingMinutes !== undefined ||
+          data.maxAppointmentDurationMinutes !== undefined;
+
+        if (shouldResyncPrompt) {
           const currentBusiness = await prisma.business.findUnique({
             where: { id: request.user!.businessId },
             select: { name: true, businessDetails: true, schedule: true, timezone: true, agentSettings: true },
@@ -177,6 +191,13 @@ export async function businessesRoutes(fastify: FastifyInstance) {
           data: updateData,
         });
 
+        // Empuja el prompt gestionado + post_call_analysis_data a Retell.
+        // Sin esto, editar tono/objetivo/horario/nicho en el dashboard solo
+        // actualizaba la BD (y Vapi, inactivo) sin afectar a la llamada real.
+        if (shouldResyncPrompt) {
+          await syncAgentToRetell(request.user!.businessId);
+        }
+
         if (data.schedule !== undefined) {
           await calendarService.syncCalendarToolsToAgents(request.user!.businessId);
         }
@@ -189,7 +210,9 @@ export async function businessesRoutes(fastify: FastifyInstance) {
           data.schedule !== undefined ||
           data.timezone !== undefined ||
           data.agentSettings !== undefined ||
-          data.businessDetails !== undefined
+          data.businessDetails !== undefined ||
+          data.minAdvanceBookingMinutes !== undefined ||
+          data.maxAppointmentDurationMinutes !== undefined
         ) {
           try {
             await getRedis().del(`voice_config:${request.user!.businessId}`);

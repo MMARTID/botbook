@@ -3,10 +3,17 @@ import { prisma } from "./prisma.js";
 // por si se retoma la expansión a Latinoamérica, pero ningún negocio nuevo
 // lo usa — detectVoiceOrchestrator() siempre devuelve "retell".
 import { vapiAdapter } from "../adapters/vapi/VapiAdapter.js";
-import { retellAdapter, type RetellEnumAnalysisField } from "../adapters/retell/RetellAdapter.js";
+import {
+  retellAdapter,
+  type RetellEnumAnalysisField,
+  type RetellBooleanAnalysisField,
+  type RetellAnalysisField,
+} from "../adapters/retell/RetellAdapter.js";
 import { getPublicWebhookBaseUrl } from "./serverUrl.js";
 import type { VapiCreateAssistantRequest } from "../adapters/vapi/types.js";
 import { BUSINESS_TYPE_LABELS, isBusinessType, type BusinessType } from "./businessType.js";
+import { buildManagedAgentPrompt, DEFAULT_AGENT_SETTINGS } from "./managedAgentPrompt.js";
+import { DEFAULT_BUSINESS_SCHEDULE } from "./businessSchedule.js";
 
 /**
  * Campo de post_call_analysis_data para clasificar el resultado de la llamada:
@@ -26,6 +33,70 @@ export const CALL_OUTCOME_ANALYSIS_FIELD: RetellEnumAnalysisField = {
     "ESCALATED si la llamada se transfirió a una persona o a otro departamento; " +
     "LEAD_CAPTURED si se recogió un contacto o interés comercial sin llegar a resolver la petición.",
 };
+
+export const ESCALATION_REASON_FIELD: RetellEnumAnalysisField = {
+  name: "escalation_reason",
+  type: "enum",
+  choices: ["CLIENTE_LO_PIDIO", "FALLO_TECNICO", "FUERA_DE_HORARIO", "CONSULTA_COMPLEJA", "NO_APLICA"],
+  description:
+    "Motivo principal por el que la llamada terminó escalada, con una reserva sin completar, o sin " +
+    "resolución clara: CLIENTE_LO_PIDIO si el cliente pidió hablar con una persona; FALLO_TECNICO si alguna " +
+    "herramienta (calendario, disponibilidad) falló o no respondió; FUERA_DE_HORARIO si lo solicitado caía " +
+    "fuera del horario del negocio; CONSULTA_COMPLEJA si la petición excedía lo que el asistente puede " +
+    "resolver; NO_APLICA si la llamada no tuvo ningún problema de este tipo.",
+  conditional_prompt:
+    "Solo evalúa este campo si call_outcome es ESCALATED, o si alguna reserva no se pudo completar durante la llamada.",
+};
+
+export const TOOL_FAILURE_FIELD: RetellBooleanAnalysisField = {
+  name: "tool_failure_detected",
+  type: "boolean",
+  description:
+    "true si alguna herramienta (check_business_hours, check_availability o book_appointment) falló, dio " +
+    "error o no pudo completarse durante la llamada, aunque la llamada terminara bien igualmente.",
+};
+
+/**
+ * Campo enum de post_call_analysis_data cuyas opciones se generan a partir de
+ * los servicios reales del negocio en el momento de sincronizar — sin
+ * taxonomía hardcodeada por vertical, se adapta sola a cada negocio.
+ */
+export function buildRequestedServiceAnalysisField(serviceNames: string[]): RetellEnumAnalysisField {
+  return {
+    name: "requested_service_type",
+    type: "enum",
+    choices: [...serviceNames, "OTRO", "NO_APLICA"],
+    description:
+      "Categoriza el servicio que el cliente pidió o mencionó durante la llamada, si alguno. Usa NO_APLICA " +
+      "si no se mencionó ningún servicio concreto.",
+  };
+}
+
+const MAX_ANALYSIS_CHOICES = 40;
+
+/**
+ * Conjunto completo de post_call_analysis_data que se envía a Retell. Un
+ * negocio sin servicios activos (recién creado) no lleva requested_service_type.
+ */
+export function buildPostCallAnalysisData(serviceNames: string[]): RetellAnalysisField[] {
+  const fields: RetellAnalysisField[] = [CALL_OUTCOME_ANALYSIS_FIELD, ESCALATION_REASON_FIELD, TOOL_FAILURE_FIELD];
+  if (serviceNames.length > 0) {
+    fields.push(buildRequestedServiceAnalysisField(serviceNames.slice(0, MAX_ANALYSIS_CHOICES)));
+  }
+  return fields;
+}
+
+export async function buildPostCallAnalysisDataForBusiness(
+  businessId: string,
+  prismaClient: typeof prisma = prisma
+): Promise<RetellAnalysisField[]> {
+  const services = await prismaClient.service.findMany({
+    where: { businessId, active: true },
+    select: { name: true },
+    orderBy: { name: "asc" },
+  });
+  return buildPostCallAnalysisData(services.map((service) => service.name));
+}
 
 export type AgentTemplateConfig = {
   name: string;
@@ -77,15 +148,28 @@ export function buildAgentDisplayName(businessName: string, businessType: Busine
 }
 
 /**
- * Resuelve la configuración de plantilla para un tipo de negocio.
- * De momento todos los tipos comparten la misma configuración base;
- * aquí se podrá personalizar systemPrompt, TTS, LLM y STT por nicho.
+ * Resuelve la configuración de plantilla para un tipo de negocio. El
+ * systemPrompt ya incluye las instrucciones de nicho (NICHE_INSTRUCTIONS en
+ * managedAgentPrompt.ts) desde el momento de creación — es efímero de todos
+ * modos, porque PATCH /business/me lo reconstruye en cuanto el negocio guarda
+ * horario/ajustes/tipo de negocio (ver syncAgentToRetell). TTS/LLM/STT siguen
+ * siendo iguales para todos los nichos.
  */
 export function getAgentTemplateForBusinessType(
   businessType: BusinessType,
-  baseName: string
+  baseName: string,
+  businessName: string
 ): AgentTemplateConfig {
-  return getDefaultAgentConfig({ name: baseName });
+  return getDefaultAgentConfig({
+    name: baseName,
+    systemPrompt: buildManagedAgentPrompt({
+      businessName,
+      businessType,
+      timezone: DEFAULT_RETELL_AGENT_CONFIG.timezone,
+      schedule: DEFAULT_BUSINESS_SCHEDULE,
+      settings: DEFAULT_AGENT_SETTINGS,
+    }),
+  });
 }
 
 export function getDefaultAgentConfig(
@@ -279,6 +363,7 @@ export function buildRetellAgentPayload(input: {
   name: string;
   llmId: string;
   webhookUrl?: string;
+  postCallAnalysisData?: RetellAnalysisField[];
 }) {
   return {
     name: buildSafeVapiAssistantName(input.name),
@@ -287,7 +372,7 @@ export function buildRetellAgentPayload(input: {
     language: DEFAULT_RETELL_AGENT_CONFIG.language,
     webhookUrl: input.webhookUrl,
     timezone: DEFAULT_RETELL_AGENT_CONFIG.timezone,
-    postCallAnalysisData: [CALL_OUTCOME_ANALYSIS_FIELD],
+    postCallAnalysisData: input.postCallAnalysisData ?? [CALL_OUTCOME_ANALYSIS_FIELD],
   };
 }
 
@@ -309,7 +394,7 @@ export async function createBusinessAgent(args: {
   const orchestrator = business?.orchestrator || "retell";
   const displayName = buildAgentDisplayName(args.name, businessType);
 
-  const config = getAgentTemplateForBusinessType(businessType, displayName);
+  const config = getAgentTemplateForBusinessType(businessType, displayName, args.name);
 
   const agent = await client.agent.create({
     data: buildAgentPersistencePayload({
@@ -333,11 +418,13 @@ export async function createBusinessAgent(args: {
         })
       );
 
+      const postCallAnalysisData = await buildPostCallAnalysisDataForBusiness(args.businessId, client);
       const retellAgent = await retellAdapter.createAgent(
         buildRetellAgentPayload({
           name: config.name,
           llmId: retellLlm.llm_id,
           webhookUrl,
+          postCallAnalysisData,
         })
       );
 
@@ -462,6 +549,89 @@ export async function syncAgentNameWithBusinessType(args: {
         agentId: agent.id,
         vapiAssistantId: agent.vapiAssistantId,
         businessId: args.businessId,
+        message: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+}
+
+/**
+ * Reconstruye el prompt gestionado y el post_call_analysis_data de un
+ * negocio a partir de su configuración actual (nicho, horario, ajustes,
+ * restricciones, servicios y profesionales activos) y los sincroniza con
+ * Retell. Es el único punto que debe llamarse cuando cambia cualquier dato
+ * que afecte al prompt gestionado. No toca agentes cuyo systemPrompt se editó
+ * a mano vía PATCH /agents/:id — ese endpoint no llama a esta función a
+ * propósito, para no pisar un prompt escrito manualmente por el negocio.
+ */
+export async function syncAgentToRetell(
+  businessId: string,
+  prismaClient: typeof prisma = prisma
+): Promise<void> {
+  const business = await prismaClient.business.findUnique({
+    where: { id: businessId },
+    select: {
+      name: true,
+      businessDetails: true,
+      businessType: true,
+      timezone: true,
+      schedule: true,
+      agentSettings: true,
+      orchestrator: true,
+      minAdvanceBookingMinutes: true,
+      maxAppointmentDurationMinutes: true,
+    },
+  });
+
+  if (!business || business.orchestrator !== "retell") return;
+
+  const agents = await prismaClient.agent.findMany({
+    where: { businessId, retellAgentId: { not: null }, retellLlmId: { not: null } },
+  });
+  if (agents.length === 0) return;
+
+  const [services, professionals] = await Promise.all([
+    prismaClient.service.findMany({
+      where: { businessId, active: true },
+      select: { id: true, name: true, durationMinutes: true },
+      orderBy: { name: "asc" },
+    }),
+    prismaClient.professional.findMany({
+      where: { businessId, active: true },
+      select: { id: true, name: true },
+      orderBy: { name: "asc" },
+    }),
+  ]);
+
+  const businessType = isBusinessType(business.businessType) ? business.businessType : "other";
+
+  const systemPrompt = buildManagedAgentPrompt({
+    businessName: business.name,
+    businessDetails: business.businessDetails,
+    businessType,
+    timezone: business.timezone,
+    schedule: business.schedule,
+    settings: business.agentSettings,
+    services,
+    professionals,
+    minAdvanceBookingMinutes: business.minAdvanceBookingMinutes,
+    maxAppointmentDurationMinutes: business.maxAppointmentDurationMinutes,
+  });
+
+  const postCallAnalysisData = buildPostCallAnalysisData(services.map((service) => service.name));
+
+  for (const agent of agents) {
+    try {
+      await retellAdapter.updateLlm(agent.retellLlmId!, { generalPrompt: systemPrompt });
+      await retellAdapter.updateAgent(agent.retellAgentId!, { postCallAnalysisData });
+      await prismaClient.agent.update({
+        where: { id: agent.id },
+        data: { systemPrompt },
+      });
+    } catch (error) {
+      console.error("[Agent] Failed to sync agent to Retell:", {
+        agentId: agent.id,
+        businessId,
         message: error instanceof Error ? error.message : String(error),
       });
     }

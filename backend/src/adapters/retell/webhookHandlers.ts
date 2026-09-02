@@ -356,16 +356,39 @@ export async function handleCallAnalyzed(
   );
 
   try {
-    const dbCall = await prisma.call.findUnique({
+    let dbCall = await prisma.call.findUnique({
       where: { vapiCallId: call_id },
       select: { id: true, businessId: true },
     });
 
     if (!dbCall) {
+      // call_analyzed puede llegar antes de que call_started haya terminado
+      // de escribir su fila (o de que Retell la reintente). En vez de
+      // descartar el análisis en silencio, se crea la fila mínima que falte
+      // para no perderlo.
       console.warn(
-        `[Retell] ${callLabel(call_id)} no existe en la base de datos; se ignora el análisis`
+        `[Retell] ${callLabel(call_id)} no existía en la base de datos al recibir el análisis; se crea antes de perderlo`
       );
-      return { success: false };
+      const businessId = await resolveBusinessIdByRetellAgentId(agent_id);
+      if (!businessId) {
+        console.error(
+          `[Retell] No se pudo identificar el negocio de la ${callLabel(call_id)}; se descarta el análisis`
+        );
+        return { success: false };
+      }
+      const agent = await prisma.agent.findFirst({
+        where: { retellAgentId: agent_id },
+        select: { id: true },
+      });
+      dbCall = await prisma.call.create({
+        data: {
+          vapiCallId: call_id,
+          businessId,
+          agentId: agent?.id || null,
+          status: "COMPLETED",
+        },
+        select: { id: true, businessId: true },
+      });
     }
 
     const messages = sanitizeRetellTranscriptMessages(data.transcript_object);

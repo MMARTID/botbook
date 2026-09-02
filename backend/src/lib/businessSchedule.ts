@@ -135,3 +135,51 @@ export function checkBusinessHours(
       : "La cita queda fuera del horario configurado del negocio.",
   } as const;
 }
+
+function formatMinutesForHumans(minutes: number): string {
+  if (minutes % 60 === 0) {
+    const hours = minutes / 60;
+    return `${hours} ${hours === 1 ? "hora" : "horas"}`;
+  }
+  return `${minutes} minutos`;
+}
+
+/**
+ * Restricciones de reserva del negocio (antelación mínima, duración máxima),
+ * independientes del horario de apertura. Se comprueban tanto al ofrecer un
+ * hueco (check_business_hours) como al confirmar la reserva (book_appointment),
+ * sin fiarse de una comprobación anterior en la misma llamada.
+ */
+export function checkBookingRestrictions(
+  business: { minAdvanceBookingMinutes?: number | null; maxAppointmentDurationMinutes?: number | null },
+  startDateTime: string,
+  durationMinutes: number,
+):
+  | { success: true }
+  | { success: false; code: "INVALID_DATE_TIME" | "MIN_ADVANCE_NOT_MET" | "MAX_DURATION_EXCEEDED"; message: string } {
+  const start = new Date(startDateTime);
+  if (Number.isNaN(start.getTime())) {
+    return { success: false, code: "INVALID_DATE_TIME", message: "La fecha y hora no son válidas." };
+  }
+
+  if (business.minAdvanceBookingMinutes) {
+    const minutesUntilStart = (start.getTime() - Date.now()) / 60_000;
+    if (minutesUntilStart < business.minAdvanceBookingMinutes) {
+      return {
+        success: false,
+        code: "MIN_ADVANCE_NOT_MET",
+        message: `Este negocio necesita al menos ${formatMinutesForHumans(business.minAdvanceBookingMinutes)} de antelación para reservar una cita.`,
+      };
+    }
+  }
+
+  if (business.maxAppointmentDurationMinutes && durationMinutes > business.maxAppointmentDurationMinutes) {
+    return {
+      success: false,
+      code: "MAX_DURATION_EXCEEDED",
+      message: `La duración máxima permitida por cita en este negocio es de ${business.maxAppointmentDurationMinutes} minutos.`,
+    };
+  }
+
+  return { success: true };
+}

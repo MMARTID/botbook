@@ -35,7 +35,22 @@ export interface RetellEnumAnalysisField {
   choices: string[];
   type: "enum";
   required?: boolean;
+  /** Instrucción opcional para que Retell solo rellene el campo cuando aplique
+   * (p. ej. un motivo de escalada que solo tiene sentido si hubo escalada). */
+  conditional_prompt?: string;
 }
+
+/** Campo booleano de post_call_analysis_data — mismo mecanismo que el enum,
+ * pero Retell devuelve true/false en vez de una de varias categorías. */
+export interface RetellBooleanAnalysisField {
+  name: string;
+  description: string;
+  type: "boolean";
+  required?: boolean;
+  conditional_prompt?: string;
+}
+
+export type RetellAnalysisField = RetellEnumAnalysisField | RetellBooleanAnalysisField;
 
 export interface CreateRetellAgentInput {
   name: string;
@@ -44,7 +59,7 @@ export interface CreateRetellAgentInput {
   language?: string;
   webhookUrl?: string;
   timezone?: string;
-  postCallAnalysisData?: RetellEnumAnalysisField[];
+  postCallAnalysisData?: RetellAnalysisField[];
 }
 
 export interface RetellPhoneNumber {

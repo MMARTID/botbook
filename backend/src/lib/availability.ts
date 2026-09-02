@@ -24,8 +24,12 @@ export async function checkAvailability(input: {
   startDateTime: string;
   durationMinutes: number;
   serviceId?: string | null;
+  /** Si se indica, solo se comprueba disponibilidad para este profesional
+   * (ya escopado a businessId en la consulta, por lo que un ID de otro
+   * negocio simplemente no encuentra resultados). */
+  professionalId?: string | null;
 }): Promise<AvailabilityResult> {
-  const { businessId, schedule, timezone, bookingCapacity, startDateTime, durationMinutes, serviceId } = input;
+  const { businessId, schedule, timezone, bookingCapacity, startDateTime, durationMinutes, serviceId, professionalId } = input;
 
   // 1. Horario comercial
   const hoursResult = checkBusinessHours(schedule, timezone, startDateTime, durationMinutes);
@@ -39,11 +43,23 @@ export async function checkAvailability(input: {
 
   // 2. Profesionales que pueden atender el servicio
   const professionals = await prisma.professional.findMany({
-    where: { businessId, active: true },
+    where: {
+      businessId,
+      active: true,
+      ...(professionalId ? { id: professionalId } : {}),
+    },
     include: {
       serviceLinks: true,
     },
   });
+
+  if (professionalId && professionals.length === 0) {
+    return {
+      available: false,
+      code: "PROFESSIONAL_NOT_FOUND",
+      message: "No encuentro a ese profesional activo en el negocio.",
+    };
+  }
 
   const capableProfessionals = serviceId
     ? professionals.filter((professional) =>
@@ -55,9 +71,11 @@ export async function checkAvailability(input: {
     return {
       available: false,
       code: "NO_AVAILABLE_PROFESSIONAL",
-      message: serviceId
-        ? "No hay ningún profesional activo asignado a este servicio para ese horario."
-        : "No hay profesionales activos configurados en el negocio.",
+      message: professionalId
+        ? "Ese profesional no está asignado a este servicio."
+        : serviceId
+          ? "No hay ningún profesional activo asignado a este servicio para ese horario."
+          : "No hay profesionales activos configurados en el negocio.",
     };
   }
 

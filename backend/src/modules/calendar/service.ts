@@ -29,7 +29,14 @@ function createOAuth2Client() {
 export type CalendarBusinessErrorCode =
   | 'GOOGLE_CALENDAR_RECONNECT_REQUIRED'
   | 'OUTLOOK_CALENDAR_RECONNECT_REQUIRED'
-  | 'BOOK_APPOINTMENT_FAILED';
+  | 'BOOK_APPOINTMENT_FAILED'
+  | 'CALENDAR_TIMEOUT'
+  | 'CALENDAR_RATE_LIMITED';
+
+// Límite propio bajo el timeout de 20s que Retell aplica a cada tool call:
+// así el backend corta la petición él mismo en vez de dejarla colgada
+// respondiendo a nadie cuando Retell ya se rindió.
+const CALENDAR_REQUEST_TIMEOUT_MS = 8000;
 
 export class CalendarBusinessError extends Error {
   code: CalendarBusinessErrorCode;
@@ -38,6 +45,24 @@ export class CalendarBusinessError extends Error {
     this.code = code;
     this.name = 'CalendarBusinessError';
   }
+}
+
+// Detecta timeouts o rate limiting de Google, distintos de un fallo de credencial.
+function classifyGoogleTransientError(error: unknown): 'timeout' | 'rate_limit' | null {
+  const e = error as any;
+  const status = e?.response?.status ?? e?.code;
+  const message = String(e?.message || '').toLowerCase();
+
+  if (status === 429) return 'rate_limit';
+  if (
+    message.includes('timeout') ||
+    message.includes('etimedout') ||
+    message.includes('esockettimedout') ||
+    e?.code === 'ECONNABORTED'
+  ) {
+    return 'timeout';
+  }
+  return null;
 }
 
 // Detecta errores de Google relacionados con invalid_grant
@@ -324,6 +349,7 @@ export class CalendarService {
             startDateTime: { type: 'string', description: 'Inicio solicitado en formato ISO 8601, incluyendo zona horaria.' },
             durationMinutes: { type: 'number', description: 'Duración total de la cita en minutos.' },
             serviceId: { type: 'string', description: 'ID del servicio solicitado (opcional). Si se proporciona, se verifica que haya un profesional asignado a ese servicio libre.' },
+            professionalId: { type: 'string', description: 'ID exacto de EMPLEADOS si el cliente pidió un profesional concreto por nombre (opcional). Déjalo vacío si no.' },
           },
           required: ['startDateTime', 'durationMinutes'],
         },
@@ -539,6 +565,12 @@ export class CalendarService {
         if (message.includes('401') || message.includes('403')) {
           throw new CalendarBusinessError('OUTLOOK_CALENDAR_RECONNECT_REQUIRED', 'La conexión con Outlook ha sido revocada o expiró.');
         }
+        if (err instanceof Error && err.name === 'TimeoutError') {
+          throw new CalendarBusinessError('CALENDAR_TIMEOUT', 'Outlook Calendar está tardando más de lo normal en responder.');
+        }
+        if (message.includes('429')) {
+          throw new CalendarBusinessError('CALENDAR_RATE_LIMITED', 'Outlook Calendar está limitando las peticiones en este momento.');
+        }
         console.error('[Calendar] Failed to create Outlook appointment:', err);
         throw new CalendarBusinessError('BOOK_APPOINTMENT_FAILED', 'No se pudo crear el evento en Outlook Calendar.');
       }
@@ -564,11 +596,21 @@ export class CalendarService {
     const calendarId = googleCalendarId || 'primary';
 
     try {
-      const response = await calendar.events.insert({ calendarId, requestBody: event });
+      const response = await calendar.events.insert(
+        { calendarId, requestBody: event },
+        { timeout: CALENDAR_REQUEST_TIMEOUT_MS }
+      );
       return response.data;
     } catch (err) {
       if (isGoogleInvalidGrantError(err)) {
         throw new CalendarBusinessError('GOOGLE_CALENDAR_RECONNECT_REQUIRED', 'La conexión con Google ha sido revocada o expiró.');
+      }
+      const transient = classifyGoogleTransientError(err);
+      if (transient === 'rate_limit') {
+        throw new CalendarBusinessError('CALENDAR_RATE_LIMITED', 'Google Calendar está limitando las peticiones en este momento.');
+      }
+      if (transient === 'timeout') {
+        throw new CalendarBusinessError('CALENDAR_TIMEOUT', 'Google Calendar está tardando más de lo normal en responder.');
       }
       console.error('[Calendar] Failed to create appointment:', getGoogleErrorDetails(err));
       throw new CalendarBusinessError('BOOK_APPOINTMENT_FAILED', 'No se pudo crear el evento en Google Calendar.');

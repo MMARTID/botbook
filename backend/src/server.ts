@@ -22,6 +22,7 @@ import { phoneRoutes } from "./modules/phone/routes.js";
 import { onboardingRoutes } from "./modules/onboarding/routes.js";
 import { demoRoutes } from "./modules/demo/routes.js";
 import { processRecordingWorker } from "./jobs/processRecording.js";
+import { processRetryFailedBookingWorker } from "./jobs/retryFailedBooking.js";
 import { processZombieWorker, scheduleZombieCallCleanup } from "./jobs/cleanupZombieCalls.js";
 import {
   handleFunctionCall,
@@ -394,6 +395,7 @@ async function start() {
     // Initialize job workers
     console.log("[Server] Initializing job workers...");
     await processRecordingWorker();
+    await processRetryFailedBookingWorker();
 
     // Initialize Reaper Job
     await processZombieWorker();

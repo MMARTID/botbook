@@ -309,13 +309,13 @@ All business-scoped data is filtered by `businessId` from the token. Never trust
 
 The schema lives in `backend/prisma/schema.prisma`. Key models:
 
-- `Business` — tenant root; holds Stripe billing state, calendar tokens (encrypted), schedule JSON, agent settings, booking capacity.
+- `Business` — tenant root; holds Stripe billing state, calendar tokens (encrypted), schedule JSON, agent settings, booking capacity, and optional booking restrictions `minAdvanceBookingMinutes` / `maxAppointmentDurationMinutes` (both nullable = no restriction; enforced in `check_business_hours` and `book_appointment`, see Agent Configuration).
 - `User` — belongs to a Business; supports password (bcrypt) + Google OAuth login (`googleId`).
 - `Agent` — voice agent config; `vapiAssistantId` links to Vapi and `retellAgentId`/`retellLlmId` link to Retell. Includes voice/LLM/STT provider configs, files, integrations.
-- `Call` — a phone call handled by Vapi or Retell. Status enum: `INITIATED`, `IN_PROGRESS`, `COMPLETED`, `FAILED`, `TIMED_OUT`. Outcome enum: `RESOLVED`, `FRUSTRATED`, `NO_ANSWER`, `ESCALATED`, `LEAD_CAPTURED`.
-- `Booking` — outcome extracted from a call; now stores `professionalId`, `serviceId` and `durationMinutes` to track who performs the appointment and how long it lasts.
+- `Call` — a phone call handled by Vapi or Retell. Status enum: `INITIATED`, `IN_PROGRESS`, `COMPLETED`, `FAILED`, `TIMED_OUT`. Outcome enum: `RESOLVED`, `FRUSTRATED`, `NO_ANSWER`, `ESCALATED`, `LEAD_CAPTURED` — set only from Retell's `call_outcome` post_call_analysis_data field (see Retell Configuration for the other analysis fields, which are independent of this enum).
+- `Booking` — outcome extracted from a call; stores `professionalId`, `serviceId` and `durationMinutes` to track who performs the appointment and how long it lasts. `professionalId`/`serviceId` supplied by the LLM are verified to belong to the business before being trusted (`voiceTools/service.ts`) — they are not enforced at the DB/FK level.
 - `Transcript` / `Recording` — call artifacts. Recording has `storageKey` and `storageUrl` for R2.
-- `Lead` — structured lead data captured during a call.
+- `Lead` — structured lead data captured during a call. `type: "pending_booking"` rows are created by `voiceTools/service.ts` when `book_appointment` fails, holding the attempted booking payload so it's never lost; `resolvedAt` is set once `jobs/retryFailedBooking.ts` confirms the booking in the background (still `null` if retries are exhausted or the failure needs a manual calendar reconnect).
 - `Service` / `Professional` / `ProfessionalService` — booking catalog (many-to-many between professionals and services).
 - `OnboardingState` — per-business onboarding state. Tracks `dismissedAt`, `completedAt` and optional step metadata. The actual step completion is computed live from `Business.schedule`, `Service`, `Professional` and calendar connection state.
 - `StripeWebhookEvent` — idempotency guard for Stripe webhooks.
@@ -409,18 +409,21 @@ Workers are initialized in `backend/src/server.ts` and consume from Redis-backed
    - Updates `Recording` with `storageKey` and `storageUrl`.
    - Job options: 3 retries, exponential backoff 2s base.
 
-2. **`classify-call`** (`backend/src/jobs/classifyCall.ts`)
-   - Sends the transcript to Anthropic Claude (`claude-haiku-4-5`, `max_tokens: 10`) to classify the call outcome.
-   - Worker concurrency: 5.
-   - Prompt asks for ONE of: `RESOLVED`, `FRUSTRATED`, `NO_ANSWER`, `ESCALATED`, `LEAD_CAPTURED`.
-   - Post-processes: trims, uppercases, validates against Prisma enum. Falls back to `NO_ANSWER` on invalid response.
+2. **`retry-failed-booking`** (`backend/src/jobs/retryFailedBooking.ts`)
+   - Retries a `book_appointment` that failed during a live call for a probably-transient reason (`BOOK_APPOINTMENT_FAILED`, `CALENDAR_TIMEOUT`, `CALENDAR_RATE_LIMITED`, or an unclassified error) — enqueued by `capturePendingBookingLead`/`enqueueRetryFailedBooking` in `voiceTools/service.ts`. Not enqueued for `*_RECONNECT_REQUIRED` failures, since retrying doesn't help until the business reconnects the calendar manually.
+   - Worker concurrency: 3.
+   - Loads the pending booking from the `Lead` row (`type: "pending_booking"`) by `leadId`, re-fetches the business's calendar tokens fresh (never trusts stale tokens from the original failed attempt), calls `calendarService.bookAppointment()` again, and on success creates the `Booking` row and sets `Lead.resolvedAt`.
+   - Job options: 4 retries, exponential backoff 30s base (the caller already hung up — there's no live request waiting, so a few minutes of backoff is fine).
+   - No customer-facing notification exists yet when a retry succeeds in the background — it only becomes visible via the dashboard.
 
 3. **Zombie call cleanup** (`backend/src/jobs/cleanupZombieCalls.ts`)
    - Scheduled job every 15 minutes (fixed jobId `zombie-call-cleanup-scheduler`).
    - Threshold: 60 minutes.
    - Marks stale `IN_PROGRESS` calls as `TIMED_OUT`.
 
-All workers log to stdout. Jobs retry up to 3 times with exponential backoff.
+All workers log to stdout. Jobs retry up to 3–4 times with exponential backoff (see each job above for its exact settings). `backend/src/workers.ts` (the Cloud Run `alhabla-worker` entrypoint) starts and gracefully closes all three workers; `backend/src/server.ts` starts `process-recording` and `retry-failed-booking` alongside the HTTP server for local/dev use, but does not track them for graceful shutdown (pre-existing gap, unrelated to `workers.ts`).
+
+Call outcome classification is **not** a BullMQ job — Retell classifies each call natively via `post_call_analysis_data` (see Retell Configuration), no separate LLM call from this backend.
 
 ## Voice Orchestrators (Vapi & Retell)
 
@@ -450,7 +453,9 @@ The backend supports two voice-AI orchestrators. `Business.orchestrator` decides
 - **Endpoints used:** `POST /create-retell-llm`, `POST /create-agent`, `PATCH /update-agent/{id}`, `GET /get-agent/{id}`, `DELETE /delete-agent/{id}`, `GET /list-phone-numbers`, `POST /import-phone-number`, `DELETE /delete-phone-number/{id}`, `GET /get-call/{id}`, `POST /v2/create-web-call` (public landing demo). `RetellAdapter.createPhoneNumber` (`POST /create-phone-number`) also exists but is unused dead code today — it makes Retell buy a NEW number from its own Twilio/Telnyx inventory (US/CA only), not link a number you already own. `RetellAdapter.importPhoneNumber` (`POST /import-phone-number`) is the one `phone/service.ts` actually calls, since we always own the number ourselves (bought via Telnyx) — it requires a SIP trunk `termination_uri` (see Phone provisioning below).
 - Webhooks from Retell hit `POST /webhooks/retell`. The endpoint verifies the `x-retell-signature` using `retellAdapter.validateWebhookSignature` (timing-safe comparison with the Retell API key).
 - Supported Retell webhook events: `call_started`, `call_ended`, `call_analyzed`. Other events are acknowledged (`200`) but ignored.
-- Retell custom tools are exposed under `POST /webhooks/retell/tools/:retellAgentId/:toolName`. The `retellAgentId` path segment is required because Retell never includes an agent identifier in the tool-call body, so it's embedded in the URL itself (done in `buildRetellCalendarTools`, `backend/src/modules/calendar/service.ts`). Our tools are registered with `args_at_root: false` (see `RetellAdapter.createLlm`/`updateLlm`), so Retell sends `{name, call, args}` — `call.call_id` is threaded through as `callId` to `executeVoiceTool` so `book_appointment` can link the booking to the exact call instead of guessing "the most recent call for this business". The route still tolerates a flat args-only body (no `call_id`) for businesses not yet resynced with this config. The endpoint validates the `x-retell-signature` before executing any tool. Execution is delegated to `executeVoiceTool` in `backend/src/modules/voiceTools/service.ts`, which implements `check_business_hours`, `check_availability` and `book_appointment` (Google and Outlook Calendar supported).
+- Retell custom tools are exposed under `POST /webhooks/retell/tools/:retellAgentId/:toolName`. The `retellAgentId` path segment is required because Retell never includes an agent identifier in the tool-call body, so it's embedded in the URL itself (done in `buildRetellCalendarTools`, `backend/src/modules/calendar/service.ts`). Our tools are registered with `args_at_root: false` (see `RetellAdapter.createLlm`/`updateLlm`), so Retell sends `{name, call, args}` — `call.call_id` is threaded through as `callId` to `executeVoiceTool` so `book_appointment` can link the booking to the exact call instead of guessing "the most recent call for this business". The route still tolerates a flat args-only body (no `call_id`) for businesses not yet resynced with this config. The endpoint validates the `x-retell-signature` before executing any tool. Execution is delegated to `executeVoiceTool` in `backend/src/modules/voiceTools/service.ts`, which implements `check_business_hours`, `check_availability` and `book_appointment` (Google and Outlook Calendar supported). `check_availability` also accepts an optional `professionalId` (from the `EMPLEADOS` prompt block, see Agent Configuration) to check a specific professional's availability instead of "anyone free".
+- **Tool errors never return HTTP 500 to Retell.** All three tools always resolve to `{success: true, result: {success: false, code, message}}` on failure — a Spanish, LLM-speakable message the agent can relay, never a raw exception. `book_appointment`'s calendar-related failures are classified into `*_RECONNECT_REQUIRED` (Google/Outlook auth revoked — needs manual reconnect), `CALENDAR_TIMEOUT` / `CALENDAR_RATE_LIMITED` (Google/Outlook request took over `CALENDAR_REQUEST_TIMEOUT_MS`/`GRAPH_REQUEST_TIMEOUT_MS`, both 8s — a margin under Retell's own 20s tool timeout so the backend cuts the request itself instead of leaving it dangling) or `BOOK_APPOINTMENT_FAILED`/`BOOK_APPOINTMENT_UNEXPECTED_ERROR` (anything else). Every failure except `*_RECONNECT_REQUIRED` also enqueues `retry-failed-booking` (see Background Jobs) after saving a `Lead` with the attempted booking.
+- **`serviceId`/`professionalId` supplied by the LLM to `book_appointment` are verified against `businessId` before use** (`prisma.service.findFirst`/`prisma.professional.findFirst` scoped by `businessId`). An ID that doesn't belong to the business is treated as if it had never been given (falls back to auto-resolution) rather than failing the booking or silently trusting a cross-tenant ID.
 - When an agent is created or updated for a Retell business, `agentBootstrap.ts` creates/updates the LLM and agent in Retell and stores `retellAgentId`/`retellLlmId` in the `Agent` row.
 - Retell agents use the name built by `buildAgentDisplayName(businessName, businessType)` so they are easy to identify in the Retell dashboard.
 
@@ -461,6 +466,13 @@ The backend supports two voice-AI orchestrators. `Business.orchestrator` decides
 - Default voice: `retell-Cimo`.
 - Default language: `es-ES`, timezone: `Europe/Madrid`.
 - Payload builders: `buildRetellAgentPayload` and `buildRetellLlmPayload`.
+- **`post_call_analysis_data`** (Retell's own post-call classification LLM, no extra API call from this backend) is built by `buildPostCallAnalysisData(serviceNames)` in `agentBootstrap.ts` and always includes:
+  - `call_outcome` (enum, unchanged) — written to `Call.outcome`.
+  - `escalation_reason` (enum: `CLIENTE_LO_PIDIO` / `FALLO_TECNICO` / `FUERA_DE_HORARIO` / `CONSULTA_COMPLEJA` / `NO_APLICA`) — gated with Retell's `conditional_prompt` so it's only evaluated when `call_outcome` is `ESCALATED` or a booking failed. Not persisted to any Prisma column today — only visible in the raw `call_analysis.custom_analysis_data` payload from Retell.
+  - `tool_failure_detected` (boolean) — same as above, not persisted, useful for monitoring via Retell's own dashboard/exports until a backend field is added.
+  - `requested_service_type` (enum) — **only added when the business has active services**; its `choices` are generated from `Service.name` at sync time (capped at 40), not a hardcoded taxonomy, so it adapts automatically to any vertical.
+  - The adapter type is `RetellAnalysisField = RetellEnumAnalysisField | RetellBooleanAnalysisField` (`RetellAdapter.ts`), matching Retell SDK's `EnumAnalysisData`/`BooleanAnalysisData` shapes. Retell's SDK also supports `string`/`number`/`call-preset` analysis types, unused here.
+- **`syncAgentToRetell(businessId)`** (`agentBootstrap.ts`) is the single point that rebuilds the managed prompt (see Agent Configuration) and `post_call_analysis_data` from the business's current settings/services/professionals and pushes both to every Retell-backed `Agent` row. Called from `PATCH /business/me` (tone/goal/schedule/businessDetails/businessType/restrictions changes) and from `bookings/routes.ts` (service/professional CRUD). **Not** called from `PATCH /agents/:id`, which lets a business owner override the prompt with free text — that route instead calls `buildPostCallAnalysisDataForBusiness(businessId)` directly so post-call-analysis fields still stay current without touching the manually-edited prompt.
 
 ### Phone provisioning
 
@@ -511,13 +523,14 @@ Once the order succeeds, the number is imported into Retell via `retellAdapter.i
 - Default: L–V 09:00–18:00, S–D closed.
 - `checkBusinessHours(schedule, timezone, startDateTime, durationMinutes)` converts to local time and validates against intervals.
 - Returns codes: `WITHIN_BUSINESS_HOURS`, `OUTSIDE_BUSINESS_HOURS`, `BUSINESS_HOURS_NOT_CONFIGURED`, `INVALID_DATE_TIME`.
+- `checkBookingRestrictions(business, startDateTime, durationMinutes)` — separate from business hours: validates `Business.minAdvanceBookingMinutes`/`maxAppointmentDurationMinutes` (both optional, `null` = no restriction). Returns codes `MIN_ADVANCE_NOT_MET`, `MAX_DURATION_EXCEEDED`, `INVALID_DATE_TIME`. Called both by the `check_business_hours` tool (so the agent finds out before offering a slot) and by `book_appointment` itself (never trusts a prior tool call in the same conversation).
 
 ### Availability (`backend/src/lib/availability.ts`)
 
-`checkAvailability({ businessId, schedule, timezone, bookingCapacity, startDateTime, durationMinutes, serviceId? })`
+`checkAvailability({ businessId, schedule, timezone, bookingCapacity, startDateTime, durationMinutes, serviceId?, professionalId? })`
 
 1. Validates business hours first.
-2. Finds active professionals (optionally filtered by `serviceId` via `serviceLinks`).
+2. Finds active professionals, filtered by `id: professionalId` when given (an ID from another business simply matches nothing — no separate ownership check needed here) and/or by `serviceId` via `serviceLinks`. If `professionalId` matched no professional at all → `PROFESSIONAL_NOT_FOUND`.
 3. Finds overlapping bookings in the time slot, using each booking's stored `durationMinutes` for overlap calculation.
 4. If `bookingsInSlot >= bookingCapacity` → `CAPACITY_REACHED`.
 5. Identifies busy professionals by `professionalId` from overlapping bookings and returns the free ones with `id` and `name`. If none → `ALL_PROFESSIONALS_BUSY`.
@@ -527,17 +540,25 @@ Once the order succeeds, the number is imported into Retell via `retellAdapter.i
 
 ### Managed Agent Prompt (`backend/src/lib/managedAgentPrompt.ts`)
 
-Dynamic system prompt built from business settings:
+`buildManagedAgentPrompt()` assembles the prompt as a list of independent text fragments (one lookup table per axis, no branching logic) joined with blank lines — this is the pattern to follow when adding a new axis, not a template string:
 
 - **Tone:** `warm` / `professional` / `direct`
 - **Primary goal:** `bookings` / `customer_service` / `lead_capture`
 - **Response style:** `concise` / `balanced`
 - **Escalation:** `take_message` / `request_callback`
+- **Niche instructions** (`NICHE_INSTRUCTIONS`, keyed by `BusinessType`) — one sentence per vertical about what to additionally ask when booking (e.g. peluquería asks the service type, fisioterapia asks the reason for the visit **in general terms only, no structured health data** — see below). Adding a vertical is one line here, not a code branch.
 
 The prompt includes:
-- Business identity and verified info block (`INFORMACION_VERIFICADA_DEL_NEGOCIO`)
+- Business identity and verified info block (`INFORMACION_VERIFICADA_DEL_NEGOCIO`, free text from `Business.businessDetails`)
+- Booking restrictions, in Spanish, only if set (`minAdvanceBookingMinutes`/`maxAppointmentDurationMinutes` — see Business Type / Booking & Availability)
+- **`SERVICIOS_DISPONIBLES`** — every active `Service` for the business as `id | nombre | duración`, capped at 40. This is the only source of real `serviceId` values the LLM ever sees; grounds `book_appointment`'s `serviceId` param instead of letting the model guess one.
+- **`EMPLEADOS`** — every active `Professional` as `id | nombre`, capped at 40, with an explicit instruction to only set `professionalId` when the customer names that exact person. Deliberately **not** used for "which employee is free right now" — that's inherently per-call and stays with the `check_availability` tool, never baked into the static prompt.
 - Structured schedule block (`HORARIO_ESTRUCTURADO_DEL_NEGOCIO`)
 - Instructions to NEVER invent data, always use `check_business_hours`, verify data before `book_appointment`
+
+**GDPR note on the fisioterapia niche instruction:** it intentionally asks for the visit reason in general terms and does not solicit medical detail. Health data has a separate legal basis under GDPR Art. 9(2)(h) for the clinic itself as data controller, but this backend does not yet reflect that category explicitly in its DPA with Retell — until it does, don't add a structured field (post_call_analysis_data or a `Booking`/`Lead` column) that captures or labels health data. Free-text mentions volunteered by the caller still land in the transcript like the rest of the conversation, under the same protection as everything else.
+
+**Who calls `buildManagedAgentPrompt()` and pushes the result to Retell:** `syncAgentToRetell()` (see Retell Configuration) is the only path that should be used going forward — it re-fetches the business's current settings/services/professionals from Postgres and pushes the full prompt + `post_call_analysis_data` together. `agentBootstrap.ts`'s `getAgentTemplateForBusinessType()` also calls it once at agent-creation time (with `DEFAULT_AGENT_SETTINGS`/`DEFAULT_BUSINESS_SCHEDULE`, no services yet) so a brand-new agent already has niche instructions instead of the fully generic default text — that bootstrap prompt is short-lived anyway, since the first `PATCH /business/me` overwrites it via `syncAgentToRetell`.
 
 ### Agent Settings (`AgentSettingsSchema`)
 
@@ -557,8 +578,8 @@ Stored in `Business.agentSettings` (JSON). Parsed with Zod; falls back to `DEFAU
 The `businessType` field stores the business niche selected during registration. Supported values: `peluqueria`, `centro-de-estetica`, `salon-de-unas`, `barberia`, `fisioterapia`, `other`. It is persisted in `Business.businessType` and used by `agentBootstrap.ts` to:
 
 - Build a readable agent display name (`buildAgentDisplayName`) that includes the niche label, making agents easy to identify in orchestrator dashboards.
-- Resolve the agent template (`getAgentTemplateForBusinessType`). Currently all niches share the same base config; this is the extension point for per-niche system prompts, TTS, LLM and STT settings.
-- Sync the agent name in Retell/Vapi when the business type is updated via `PATCH /business/me`.
+- Resolve the agent template (`getAgentTemplateForBusinessType`), which builds an initial prompt already including the niche instruction (`NICHE_INSTRUCTIONS`, see Managed Agent Prompt). TTS/LLM/STT settings are still shared across all niches — only prompt content differs today.
+- Sync the agent name in Retell/Vapi (`syncAgentNameWithBusinessType`, cosmetic only) **and** trigger a full prompt/`post_call_analysis_data` resync (`syncAgentToRetell`) when the business type is updated via `PATCH /business/me`, since it changes both the niche instruction and `requested_service_type`'s framing.
 
 Niche landings pass `?niche=<slug>` to `/planes` and on to `/register`, so the type can be pre-selected. If the user comes from the generic flow, the type is inferred from the `types` array returned by Google Places API (`backend/src/modules/places/service.ts`) using the keywords defined in `BUSINESS_TYPE_PLACE_KEYWORDS` (both in `backend/src/lib/businessType.ts` and `frontend/src/lib/business-type.ts`). Each niche has exactly 2 keywords; if any place type contains at least one of them, that niche is assigned. The mapping is ordered from most specific to most generic:
 
@@ -776,7 +797,8 @@ Separate suite (`npm run test:integration`, config `backend/vitest.integration.c
 | `backend/tests/modules/auth/routes.test.ts` | Login, register, register-first-user, Google OAuth URL |
 | `backend/tests/modules/billing/service.test.ts` | Stripe event handling, billing summary, checkout session, reconciliation |
 | `backend/tests/modules/phone/service.test.ts` | Phone provisioning idempotency, async order polling/resume, partial failure handling, status retrieval |
-| `backend/tests/modules/calendar/service.test.ts` | Google/Outlook Calendar booking, upcoming events, sync tools to agents, invalid_grant detection |
+| `backend/tests/modules/calendar/service.test.ts` | Google/Outlook Calendar booking, upcoming events, sync tools to agents, invalid_grant detection, timeout/rate-limit classification |
+| `backend/tests/modules/voiceTools/service.test.ts` | `book_appointment` call-linking (callId vs. most-recent-call fallback) |
 | `backend/tests/adapters/twilio/TwilioAdapter.test.ts` | Search, purchase, release, fetch Twilio numbers (inactive provider, kept for historical businesses) |
 | `backend/tests/adapters/telnyx/TelnyxAdapter.test.ts` | Search, purchase (order), poll order, release, fetch Telnyx numbers |
 | `backend/tests/plugins/auth.test.ts` | Auth plugin (valid token, missing header, invalid token) |
@@ -801,7 +823,7 @@ Separate suite (`npm run test:integration`, config `backend/vitest.integration.c
 ### Implementation Notes
 
 - **`DELETE /recordings/:id`** deletes the object from R2/S3 using `deleteStorageObject` before removing the Prisma row. Failures in R2 are logged but do not block the DB deletion.
-- **`PATCH /business/me`** rebuilds the managed agent prompt and synchronizes all agents to Vapi or Retell in parallel via `Promise.all` to avoid request timeouts.
+- **`PATCH /business/me`** rebuilds the managed agent prompt and synchronizes it to every agent: Vapi agents in parallel via `Promise.all` (to avoid request timeouts), and Retell-backed businesses via `syncAgentToRetell` (see Retell Configuration). Before this, Retell-backed businesses (the only ones that matter in production — Vapi is inactive) never actually received prompt updates from this route; only Vapi did.
 - **Onboarding flow:** `backend/src/modules/onboarding/routes.ts` exposes `GET /business/me/onboarding`, `POST /business/me/onboarding/dismiss` and `POST /business/me/onboarding/complete`. The `/ajustes` page consumes these endpoints to show/persist the setup guide state. Step completion is computed live from business data; only `dismissedAt`/`completedAt` are persisted.
 
 ## Common Tasks

@@ -13,6 +13,7 @@ import {
   buildVapiAssistantPayload,
   buildRetellLlmPayload,
   buildRetellAgentPayload,
+  buildPostCallAnalysisDataForBusiness,
   createBusinessAgent,
 } from "../../lib/agentBootstrap.js";
 import { retellAdapter } from "../../adapters/retell/RetellAdapter.js";
@@ -265,12 +266,14 @@ export async function agentsRoutes(fastify: FastifyInstance) {
                 })
               );
 
+              const postCallAnalysisData = await buildPostCallAnalysisDataForBusiness(agent.businessId);
               await retellAdapter.updateAgent(
                 agent.retellAgentId,
                 buildRetellAgentPayload({
                   name: data.name || agent.name,
                   llmId: agent.retellLlmId,
                   webhookUrl,
+                  postCallAnalysisData,
                 })
               );
             } catch (retellError) {

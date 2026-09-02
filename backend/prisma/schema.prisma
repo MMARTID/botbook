@@ -20,6 +20,11 @@ model Business {
   agentSettings   Json?
   bookingCapacity Int     @default(1)
 
+  // Restricciones de reserva aplicadas por check_business_hours y
+  // book_appointment (voiceTools/service.ts). null = sin restricción.
+  minAdvanceBookingMinutes      Int?
+  maxAppointmentDurationMinutes Int?
+
   // Voice orchestrator selection (default Retell for RGPD compliance)
   orchestrator        String  @default("retell")
   retellPhoneNumberId String? @unique
@@ -291,13 +296,16 @@ model Recording {
 }
 
 model Lead {
-  id        String   @id @default(cuid())
-  callId    String
-  type      String
-  data      Json
-  isLead    Boolean  @default(false)
-  createdAt DateTime @default(now())
-  call      Call     @relation(fields: [callId], references: [id], onDelete: Cascade)
+  id         String    @id @default(cuid())
+  callId     String
+  type       String
+  data       Json
+  isLead     Boolean   @default(false)
+  // Se marca cuando un reintento en segundo plano (jobs/retryFailedBooking.ts)
+  // confirma una reserva que había fallado durante la llamada.
+  resolvedAt DateTime?
+  createdAt  DateTime  @default(now())
+  call       Call      @relation(fields: [callId], references: [id], onDelete: Cascade)
 
   @@index([callId])
   @@map("leads")

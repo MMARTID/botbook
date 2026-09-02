@@ -5,7 +5,8 @@ Alhabla es una plataforma SaaS multi-tenant que proporciona recepcionistas de vo
 ## Características principales
 
 - **Agentes de voz multilingües** (español por defecto) con detección automática del orquestador (Vapi/Retell) según el país.
-- **Reservas en calendario** (Google Calendar y Outlook) mediante herramientas de voz.
+- **Personalización por tipo de negocio**: el prompt del agente incluye instrucciones propias de cada nicho y un catálogo en vivo de servicios/empleados del negocio, para que nunca invente datos ni IDs.
+- **Reservas en calendario** (Google Calendar y Outlook) mediante herramientas de voz, con reintento automático en segundo plano si el calendario falla durante la llamada.
 - **Detección de tipo de negocio** desde Google Places API para personalizar agentes y servicios.
 - **Flujo de registro guiado** con Google Places, selección de servicios, equipo y conexión de calendario.
 - **Facturación con Stripe** y provisioning automático de números Twilio tras la suscripción.

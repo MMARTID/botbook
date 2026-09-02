@@ -101,7 +101,7 @@ backend/
 │   ├── adapters/     # Vapi, Retell, Twilio (inactivo), Telnyx
 │   ├── lib/          # prisma, redis, queue, storage, stripe, twilio, availability,
 │   │                 #   businessSchedule, agentBootstrap, managedAgentPrompt
-│   └── jobs/         # workers BullMQ: processRecording, cleanupZombieCalls
+│   └── jobs/         # workers BullMQ: processRecording, retryFailedBooking, cleanupZombieCalls
 ├── prisma/schema.prisma
 ├── tests/            # Vitest (tests/integration/ aparte, contra Postgres/Redis reales)
 └── Dockerfile
