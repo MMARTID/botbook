@@ -1,9 +1,13 @@
 import {
   S3Client,
   PutObjectCommand,
+  GetObjectCommand,
   DeleteObjectCommand,
 } from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { Readable } from "stream";
+
+const RECORDING_URL_EXPIRY_SECONDS = 3600;
 
 let s3Client: S3Client;
 
@@ -59,6 +63,25 @@ export function getStorageUrl(key: string): string {
   const endpoint = process.env.R2_ENDPOINT || "";
   const bucket = process.env.R2_BUCKET || "alhabla-recordings";
   return `${endpoint}/${bucket}/${key}`;
+}
+
+/**
+ * El bucket es privado (grabaciones = datos personales de clientes reales,
+ * RGPD). getStorageUrl() no sirve para reproducir nada — devuelve una URL
+ * de la API S3 sin firmar, que R2 rechaza. Esta genera una URL temporal
+ * válida solo durante RECORDING_URL_EXPIRY_SECONDS, pensada para pedirse en
+ * el momento en que el frontend va a reproducir la grabación, no para
+ * guardarse en la base de datos (caducaría).
+ */
+export async function getSignedRecordingUrl(key: string): Promise<string> {
+  const client = getStorageClient();
+  const command = new GetObjectCommand({
+    Bucket: process.env.R2_BUCKET || "alhabla-recordings",
+    Key: key,
+  });
+  return getSignedUrl(client, command, {
+    expiresIn: RECORDING_URL_EXPIRY_SECONDS,
+  });
 }
 
 export async function deleteStorageObject(key: string): Promise<void> {
