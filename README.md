@@ -94,6 +94,45 @@ Backend en Google Cloud Run (`https://api.alhabla.ai`, dos servicios: API públi
 worker de BullMQ siempre encendido), frontend en Vercel. Ver `AGENTS.md` § Deployment Notes
 para la arquitectura completa y los comandos de despliegue.
 
+```mermaid
+graph TD
+    U[Usuario / navegador]
+
+    subgraph CF["Cloudflare — DNS de alhabla.ai"]
+        DNS[DNS]
+    end
+
+    U --> DNS
+    DNS -->|alhabla.ai| VERCEL[Vercel<br/>Frontend Next.js]
+    DNS -->|"api.alhabla.ai<br/>CNAME → ghs.googlehosted.com<br/>(DNS-only, sin proxy naranja)"| CR_API
+
+    VERCEL -->|NEXT_PUBLIC_API_BASE_URL| CR_API
+
+    subgraph GCP["Google Cloud Run — europe-west1"]
+        CR_API[alhabla-api<br/>público, autoscaling 0→N]
+        CR_WORKER[alhabla-worker<br/>sin tráfico público<br/>min-instances=1, siempre encendido]
+    end
+
+    subgraph VPC["Infraestructura privada (VPC / conector)"]
+        SQL[(Cloud SQL<br/>Postgres)]
+        REDIS[(Memorystore<br/>Redis)]
+    end
+
+    SM[[Secret Manager]]
+    R2[(Cloudflare R2<br/>grabaciones, bucket privado)]
+    EXT[Vapi · Retell · Stripe<br/>Telnyx · Google · Microsoft]
+
+    CR_API -->|socket Unix| SQL
+    CR_WORKER -->|socket Unix| SQL
+    CR_API -->|encola jobs BullMQ| REDIS
+    CR_WORKER -->|consume jobs BullMQ| REDIS
+    CR_API -.->|secretos| SM
+    CR_WORKER -.->|secretos| SM
+    CR_API -->|URLs firmadas de lectura| R2
+    CR_WORKER -->|sube grabaciones| R2
+    EXT -->|webhooks| CR_API
+```
+
 ## Estructura del proyecto
 
 ```
