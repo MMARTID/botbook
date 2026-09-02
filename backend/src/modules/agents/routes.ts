@@ -8,7 +8,7 @@ import {
   VAPI_LLM_PROVIDERS,
   VAPI_STT_PROVIDERS,
   VAPI_VOICE_PROVIDERS,
-} from "../../config/vapi";
+} from "../../config/vapi.js";
 import {
   buildVapiAssistantPayload,
   buildRetellLlmPayload,

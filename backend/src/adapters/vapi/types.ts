@@ -4,7 +4,7 @@ import {
   VAPI_STT_MODELS,
   VAPI_STT_PROVIDERS,
   VAPI_VOICE_PROVIDERS,
-} from "../../config/vapi";
+} from "../../config/vapi.js";
 
 type VoiceProvider = (typeof VAPI_VOICE_PROVIDERS)[number];
 type LlmProvider = (typeof VAPI_LLM_PROVIDERS)[number];
