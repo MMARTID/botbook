@@ -84,9 +84,15 @@ npm run lint
 # Desarrollo completo (backend tsx watch, ngrok, postgres, redis)
 docker compose --profile dev up
 
-# Producción (backend compilado)
+# Producción local (backend compilado, para probar el runtime sin desplegar)
 docker compose --profile prod up
 ```
+
+### Producción real
+
+Backend en Google Cloud Run (`https://api.alhabla.ai`, dos servicios: API pública +
+worker de BullMQ siempre encendido), frontend en Vercel. Ver `AGENTS.md` § Deployment Notes
+para la arquitectura completa y los comandos de despliegue.
 
 ## Estructura del proyecto
 
@@ -94,7 +100,8 @@ docker compose --profile prod up
 /
 ├── backend/                # Backend ESM TypeScript
 │   ├── src/
-│   │   ├── server.ts       # Fastify entry point
+│   │   ├── server.ts       # Fastify entry point (API + workers en local/docker-compose)
+│   │   ├── workers.ts      # Entry solo-workers (usado por el servicio Cloud Run alhabla-worker)
 │   │   ├── plugins/        # auth, CORS, rate-limit, multipart
 │   │   ├── modules/        # módulos de rutas por dominio
 │   │   ├── adapters/       # Vapi, Retell, Twilio

@@ -748,9 +748,20 @@ any user-facing copy:
 
 The project uses **Vitest** for backend testing.
 
-- **Config:** `backend/vitest.config.ts` — Node environment, includes `backend/tests/**/*.{test,spec}.ts`, setup file `backend/tests/setup.ts` (loads `backend/.env.test`).
+- **Config:** `backend/vitest.config.ts` — Node environment, includes `backend/tests/**/*.{test,spec}.ts` (excludes `backend/tests/integration/**`), setup file `backend/tests/setup.ts` (loads `backend/.env.test`).
 - **Coverage:** V8 provider, reports text/html/lcov. Excludes `node_modules/`, `dist/`, `frontend/`, `backend/tests/`.
-- **Mocking:** `backend/tests/helpers/prismaMock.ts` provides a `createPrismaMock()` factory. MSW is available for HTTP mocking. `@testcontainers/postgresql` for integration tests.
+- **Mocking:** `backend/tests/helpers/prismaMock.ts` provides a `createPrismaMock()` factory. MSW is available for HTTP mocking.
+
+### Integration tests (`backend/tests/integration/`)
+
+Separate suite (`npm run test:integration`, config `backend/vitest.integration.config.ts`) that runs against **real** Postgres and Redis — the same ones `docker compose --profile dev up` already starts, not `@testcontainers/postgresql` (deliberately not used — see `backend/tests/integration/setup.ts`). Isolation without spinning up new containers:
+
+- Postgres: separate database `alhabla_test` on the same server (create once with `CREATE DATABASE alhabla_test;`, then `DATABASE_URL=... npx prisma migrate deploy`).
+- Redis: same instance, different logical DB index (`/1` instead of `/0`).
+- `backend/.env.test` (gitignored) holds both connection strings. On this project's dev machine, Postgres is reachable at `localhost:5433`, not 5432 — a native Homebrew Postgres occupies 5432 on the host.
+- `backend/tests/integration/helpers/db.ts` exposes `resetDb()` (deletes in FK-safe order + `redis.flushdb()`) — call it in `beforeEach`.
+- Requires `docker compose --profile dev up -d` running; does not start Postgres/Redis itself.
+- Pattern for external APIs (Vapi/Retell/Stripe/Google/Microsoft): mock the adapter module boundary (e.g. `vi.mock("../../../src/modules/calendar/service.js", ...)`) rather than intercepting HTTP with MSW, when the external API isn't what the test is actually verifying.
 
 ### Test Files
 
@@ -779,7 +790,7 @@ The project uses **Vitest** for backend testing.
 - **JWT_SECRET** is mandatory — the server refuses to start without it.
 - CORS is restricted to the exact `FRONTEND_URL` origin.
 - Rate limiting is active globally (100 req/min) and raised for Vapi and Retell webhooks (300 req/min). Places endpoints use 10/min.
-- Vapi webhook signatures are verified with HMAC-SHA256 timing-safe comparison.
+- Vapi webhook signatures are verified with HMAC-SHA256 timing-safe comparison (`VapiAdapter.validateWebhookSignature`, header `x-vapi-signature`, signs the raw body only — no timestamp, no prefix). Vapi's org-level webhook credential (Dashboard → Server URL → Authorization → Create Credential, type HMAC) must be configured to match exactly: Signature Header `x-vapi-signature` (not the default `x-signature`), **Include Timestamp off**, Payload Format `{body}` (not the default `{timestamp}.{body}`), Encoding Hex, Secret is Base64 off, Enable Encryption off. Getting any of these wrong makes signature validation fail silently for every webhook.
 - Retell webhook signatures are verified via `retellAdapter.validateWebhookSignature` using the Retell API key. This also applies to the Retell custom tool endpoints (`/webhooks/retell/tools/:retellAgentId/:toolName`).
 - Stripe webhook signatures are verified in the route handler before calling `handleStripeEvent` (route uses `rawBody: true`).
 - Raw body parsing is enabled only on the Vapi and Retell webhook routes to avoid memory overhead on regular routes.
@@ -846,6 +857,33 @@ npx prisma studio
 - The `backend/Dockerfile` has 5 stages: `base`, `deps`, `builder`, `runtime`, `development`.
 - Production image runs `node dist/server.js` (compiled output).
 - Development image runs `npx tsx watch backend/src/server.ts` over a volume-mounted source tree.
-- The `docker-compose.yml` uses profiles: `--profile dev` for local development with ngrok, `--profile prod` for production-like runtime.
-- For Vapi/Retell webhooks to reach a local backend, use the `dev` profile which includes an ngrok container. The backend auto-detects the ngrok URL on startup (`fetchAndSetNgrokUrl`) and uses it as the webhook server URL for both orchestrators.
 - Health check endpoint at `GET /health` probes Postgres, Redis, Vapi and (when `RETELL_API_KEY` is set) Retell. Returns `200` if all healthy, `503` if degraded.
+
+### Local development (Docker Compose)
+
+- `docker-compose.yml` uses profiles: `--profile dev` for local development with ngrok, `--profile prod` for a production-like runtime locally.
+- For Vapi/Retell webhooks to reach a local backend, use the `dev` profile, which includes an ngrok container. The backend auto-detects the ngrok URL on startup (`fetchAndSetNgrokUrl`) and uses it as the webhook server URL for both orchestrators. ngrok's free tier rotates its URL on every container restart — after a restart, both `backend-dev` needs to pick up the new URL (it's captured once at boot, not re-checked) **and** every agent/assistant that was already synced against the old URL needs re-syncing (see "Re-syncing webhook URLs" below), or their tool calls/webhooks silently go nowhere.
+
+### Production (Google Cloud Run)
+
+Live since 2026-09-01. Two Cloud Run services built from the **same image** (`backend/Dockerfile`, `runtime` stage), different startup command — see [[gcp-infra-alhabla]] memory for the actual project ID, resource names and exact `gcloud` commands used.
+
+- **`alhabla-api`** — `node dist/server.js` (the image's default command). Public traffic, normal autoscaling (0→N). Public URL: `https://api.alhabla.ai`.
+- **`alhabla-worker`** — `node dist/workers.js`, a separate entrypoint (`backend/src/workers.ts`) that only starts the BullMQ workers (`processRecordingWorker`, `processZombieWorker` + `scheduleZombieCallCleanup`) behind a minimal HTTP health check (Cloud Run requires every service, even a background one, to listen on `$PORT`). Deployed with `--min-instances=1 --no-cpu-throttling` — Cloud Run only allocates CPU during an HTTP request by default, which would silently starve a background worker; this keeps it always-on. No public traffic.
+
+Supporting infra:
+- **Cloud SQL** (Postgres 15) — reached via Unix socket (`--add-cloudsql-instances`), not a network host. `DATABASE_URL` is a Secret Manager secret formatted as `postgresql://user:pass@localhost/db?host=/cloudsql/PROJECT:REGION:INSTANCE` — never a plain env var, since it embeds the DB password.
+- **Memorystore** (Redis) — private IP only, reachable from Cloud Run through a Serverless VPC Access connector (`--vpc-connector`). Cloud SQL doesn't strictly need the connector (Cloud SQL Auth Proxy works over its own mechanism), but Memorystore does.
+- **Secret Manager** — every sensitive value (`JWT_SECRET`, `STRIPE_SECRET_KEY`, API keys, `DATABASE_URL`, etc.) is injected via `--set-secrets`, not as a plain `--set-env-vars` value.
+- **R2 recordings bucket is private** (RGPD — real customer call audio). Playback URLs are generated on demand by `getSignedRecordingUrl()` (`storage.ts`, `@aws-sdk/s3-request-presigner`, 1h expiry) when the frontend requests a recording — never stored in the DB (a stored presigned URL would eventually expire). `R2_REGION` must be one of R2's location codes (`auto`, `weur`, `eeur`, ...) — a literal `"eu"` is rejected by the SDK.
+- **Image build:** via `gcloud builds submit` (Cloud Build), not local `docker build`. On Apple Silicon, a local build without `--platform=linux/amd64` produces an arm64 image Cloud Run rejects outright; Cloud Build's workers are amd64-native and sidestep it entirely. Needs a `cloudbuild.yaml` with an explicit `--target runtime` — without it, a multi-stage Dockerfile builds its *last* stage by default, which here is `development`.
+- **IAM:** this project's default Compute Engine service account (`PROJECT_NUMBER-compute@developer.gserviceaccount.com`) is reused for both Cloud Build and Cloud Run revisions, and starts with zero roles on a fresh project. Needs `roles/cloudbuild.builds.builder`, `roles/storage.objectViewer`, `roles/artifactregistry.writer` (build-time) and `roles/secretmanager.secretAccessor`, `roles/cloudsql.client` (runtime) granted explicitly.
+
+### Re-syncing webhook URLs
+
+Vapi and Retell both register the webhook URL **per agent/assistant** via their own API when an agent is created or a business's calendar settings change — it is not something that updates itself when `BASE_URL` changes (e.g. moving from a local ngrok URL to `https://api.alhabla.ai`, or between two different ngrok sessions). An agent created before a `BASE_URL` change keeps calling the old URL until explicitly re-synced:
+
+- **Retell:** `calendarService.syncCalendarToolsToAgents(businessId)` (LLM tools) and `retellAdapter.updateAgent(agentId, { webhookUrl })` (call lifecycle events `call_started`/`call_ended`/`call_analyzed`) — these are two independent registrations, fixing one doesn't fix the other.
+- **Vapi:** `server.url` per assistant (`buildVapiCalendarTools`, pushed via `vapiAdapter.updateAssistant`), or the org-level "Server URL" fallback in Vapi's dashboard for assistants without their own override.
+
+Both can be verified independently of the app's own DB by querying the provider's API directly with the account's API key (`GET /get-agent/:id` / `GET /get-retell-llm/:id` for Retell, `GET /assistant` for Vapi) and checking the registered URL against what's actually live.

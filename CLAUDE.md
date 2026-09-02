@@ -9,6 +9,11 @@ Backend Fastify 5 + Prisma/PostgreSQL + Redis/BullMQ. Frontend Next.js 14 App Ro
 (puerto 3001) con Tailwind 3 y TanStack Query. Voz vía Vapi y Retell.ai, telefonía Telnyx
 (Twilio inactivo — no vende números de España en autoservicio), pagos Stripe.
 
+**Producción** (desde 2026-09-01): backend en Google Cloud Run, dos servicios desde la misma
+imagen — `alhabla-api` (`https://api.alhabla.ai`, tráfico público) y `alhabla-worker` (BullMQ,
+sin tráfico público, siempre encendido). Frontend en Vercel. Detalle completo, IDs de recursos
+y comandos reales en `AGENTS.md` § Deployment Notes.
+
 ## Reglas que no se negocian
 
 - **Todo en español.** Copy de UI, comentarios, nombres de variables y lógica de negocio.
@@ -86,7 +91,9 @@ docker compose --profile dev up   # backend + postgres + redis + ngrok (desde la
 ```
 backend/
 ├── src/
-│   ├── server.ts     # entry Fastify: registra rutas y workers
+│   ├── server.ts     # entry Fastify: registra rutas + arranca los workers BullMQ (dev/local)
+│   ├── workers.ts    # entry alternativo solo-workers, sin servidor HTTP salvo health check
+│   │                 #   (usado por el servicio alhabla-worker en Cloud Run)
 │   ├── plugins/      # auth, CORS, rate-limit, multipart
 │   ├── modules/      # rutas por dominio (agents, auth, billing, bookings, businesses,
 │   │                 #   calendar, calls, demo, files, onboarding, phone, places,
@@ -94,9 +101,9 @@ backend/
 │   ├── adapters/     # Vapi, Retell, Twilio (inactivo), Telnyx
 │   ├── lib/          # prisma, redis, queue, storage, stripe, twilio, availability,
 │   │                 #   businessSchedule, agentBootstrap, managedAgentPrompt
-│   └── jobs/         # workers BullMQ: processRecording, classifyCall, cleanupZombieCalls
+│   └── jobs/         # workers BullMQ: processRecording, cleanupZombieCalls
 ├── prisma/schema.prisma
-├── tests/            # Vitest
+├── tests/            # Vitest (tests/integration/ aparte, contra Postgres/Redis reales)
 └── Dockerfile
 frontend/src/{app,components,lib,hooks}/
 ```
