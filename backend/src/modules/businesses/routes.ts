@@ -83,6 +83,7 @@ export async function businessesRoutes(fastify: FastifyInstance) {
           })),
         });
       } catch (error) {
+        fastify.log.error({ err: error }, "[Business] Failed to fetch /business/me");
         return reply.status(500).send({ error: "Failed to fetch business" });
       }
     }
