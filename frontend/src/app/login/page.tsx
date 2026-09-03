@@ -40,7 +40,18 @@ export default function LoginPage() {
         </div>
 
         <div className="mt-8">
-          <GoogleAuthButton onError={setError} />
+          <GoogleAuthButton onError={setError} acceptedTerms />
+          <p className="mt-3 text-center text-xs leading-5 text-muted">
+            Si es tu primera vez, al continuar aceptas los{" "}
+            <Link href="/legal/aviso-legal" target="_blank" className="font-medium text-[#7c3aed] underline underline-offset-2 hover:text-[#6d28d9]">
+              Términos y Condiciones
+            </Link>{" "}
+            y la{" "}
+            <Link href="/legal/privacidad" target="_blank" className="font-medium text-[#7c3aed] underline underline-offset-2 hover:text-[#6d28d9]">
+              Política de privacidad
+            </Link>
+            .
+          </p>
           <div className="my-6 flex items-center gap-4" aria-hidden="true">
             <div className="h-px flex-1 bg-[#e5e5e5]" />
             <span className="text-xs font-medium uppercase tracking-[0.12em] text-[#a1a1aa]">o con email</span>

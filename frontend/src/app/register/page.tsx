@@ -15,6 +15,7 @@ export default function RegisterPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isEuropeanUnion, setIsEuropeanUnion] = useState<boolean | null>(null);
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -34,6 +35,11 @@ export default function RegisterPage() {
       return;
     }
 
+    if (!acceptedTerms) {
+      setError("Debes aceptar los Términos y Condiciones y la Política de privacidad.");
+      return;
+    }
+
     setLoading(true);
     setError("");
 
@@ -43,6 +49,7 @@ export default function RegisterPage() {
         email,
         password,
         isEuropeanUnion,
+        acceptedTerms,
         businessType: businessType ? normalizeBusinessType(businessType) : undefined,
       });
       window.localStorage.setItem("alhabla_token", data.token);
@@ -76,6 +83,8 @@ export default function RegisterPage() {
         <div className="mt-8">
           <GoogleAuthButton
             onError={setError}
+            disabled={!acceptedTerms}
+            acceptedTerms={acceptedTerms}
             beforeStart={() => {
               const planId = new URLSearchParams(window.location.search).get("plan");
               if (isPlanId(planId)) savePendingPlan(planId);
@@ -139,13 +148,33 @@ export default function RegisterPage() {
                 Lo usamos para preparar tu asistente conforme a la RGPD desde el primer día.
               </p>
             </fieldset>
+            <label className="flex items-start gap-3 text-sm text-[#27272a]">
+              <input
+                type="checkbox"
+                required
+                className="mt-0.5 h-4 w-4 shrink-0 rounded border-[#d4d4d8] text-[#8b5cf6] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#8b5cf6]/30"
+                checked={acceptedTerms}
+                onChange={(e) => setAcceptedTerms(e.target.checked)}
+              />
+              <span>
+                He leído y acepto los{" "}
+                <Link href="/legal/aviso-legal" target="_blank" className="font-semibold text-[#7c3aed] underline underline-offset-2 transition hover:text-[#6d28d9]">
+                  Términos y Condiciones
+                </Link>{" "}
+                y la{" "}
+                <Link href="/legal/privacidad" target="_blank" className="font-semibold text-[#7c3aed] underline underline-offset-2 transition hover:text-[#6d28d9]">
+                  Política de privacidad
+                </Link>
+                .
+              </span>
+            </label>
           </div>
 
           {error && <p className="text-sm text-[#c53030]">{error}</p>}
 
           <button
             type="submit"
-            disabled={loading}
+            disabled={loading || !acceptedTerms}
             className="btn-primary w-full justify-center"
           >
             {loading ? "Creando cuenta..." : "Registrarse"}

@@ -118,14 +118,17 @@ model StripeWebhookEvent {
 }
 
 model User {
-  id         String   @id @default(cuid())
-  email      String   @unique
-  password   String?
-  googleId   String?  @unique
-  businessId String
-  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id               String    @id @default(cuid())
+  email            String    @unique
+  password         String?
+  googleId         String?   @unique
+  businessId       String
+  business         Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  // Prueba de aceptación de Términos y Condiciones / Política de privacidad
+  // en el registro — null en usuarios creados antes de exigirlo.
+  termsAcceptedAt  DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
 
   @@index([email])
   @@index([businessId])

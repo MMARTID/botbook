@@ -85,6 +85,7 @@ async function createUserWithBusiness(input: {
         password: input.password,
         googleId: input.googleId,
         businessId: business.id,
+        termsAcceptedAt: new Date(),
       },
     });
 
@@ -137,11 +138,12 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.post('/register', {
     config: { rateLimit: veryStrictRateLimit },
   }, async (request, reply) => {
-    const { email, password, isEuropeanUnion, businessType } = request.body as {
+    const { email, password, isEuropeanUnion, businessType, acceptedTerms } = request.body as {
       email?: string;
       password?: string;
       isEuropeanUnion?: boolean;
       businessType?: string;
+      acceptedTerms?: boolean;
     };
 
     if (!email || !password) {
@@ -150,6 +152,10 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
 
     if (typeof isEuropeanUnion !== 'boolean') {
       return reply.status(400).send({ error: 'Indica si tus clientes están en la Unión Europea' });
+    }
+
+    if (acceptedTerms !== true) {
+      return reply.status(400).send({ error: 'Debes aceptar los Términos y Condiciones y la Política de privacidad' });
     }
 
     const normalizedEmail = email.trim().toLowerCase();
@@ -173,12 +179,16 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
     });
   });
 
-  fastify.get('/google', {
+  fastify.get<{ Querystring: { acceptedTerms?: string } }>('/google', {
     config: { rateLimit: strictRateLimit },
-  }, async (_request, reply) => {
+  }, async (request, reply) => {
     try {
       const state = randomBytes(32).toString('base64url');
-      await getRedis().set(`auth:google:state:${state}`, 'valid', 'EX', GOOGLE_AUTH_STATE_TTL_SECONDS);
+      // Se guarda junto al state para saber, en el callback, si el usuario aceptó
+      // los Términos y la Política de privacidad antes de iniciar el flujo — solo
+      // se exige si el callback termina creando una cuenta nueva.
+      const stateValue = JSON.stringify({ termsAccepted: request.query.acceptedTerms === 'true' });
+      await getRedis().set(`auth:google:state:${state}`, stateValue, 'EX', GOOGLE_AUTH_STATE_TTL_SECONDS);
 
       const url = getGoogleAuthClient().generateAuthUrl({
         access_type: 'online',
@@ -212,6 +222,7 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
       if (!validState) {
         return reply.redirect(`${callbackUrl}?error=invalid_state`);
       }
+      const { termsAccepted } = JSON.parse(validState) as { termsAccepted: boolean };
 
       const authClient = getGoogleAuthClient();
       const { tokens } = await authClient.getToken(code);
@@ -240,6 +251,9 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
             data: { googleId },
           });
         } else {
+          if (!termsAccepted) {
+            return reply.redirect(`${callbackUrl}?error=terms_required`);
+          }
           const result = await createUserWithBusiness({ email, password: null, googleId });
           user = result.user;
           bootstrapBusinessAgent(result.business.id, email);

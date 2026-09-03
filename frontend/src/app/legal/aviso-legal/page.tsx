@@ -26,7 +26,7 @@ export default function AvisoLegalPage() {
     <LegalPage
       title="Aviso legal"
       description="Quién está detrás de Alhabla, en qué condiciones puedes usarlo y qué implica contratar una suscripción."
-      updatedAt="2026-08-16"
+      updatedAt="2026-09-03"
     >
       <LegalTodo>
         la razón social, el CIF, el domicilio social y los datos de inscripción registral. La Ley 34/2002 (LSSI) exige
@@ -129,6 +129,68 @@ export default function AvisoLegalPage() {
           </Link>
           , que incluye qué ocurre con la demo de voz de la web y con las llamadas que atiende tu recepcionista.
         </p>
+      </LegalSection>
+
+      <LegalSection title="Encargo de tratamiento de los datos de tus clientes">
+        <p>
+          Esta cláusula regula un tratamiento distinto del anterior: no tus datos como titular de la cuenta, sino los
+          datos personales de las personas que llaman a tu negocio (nombre, teléfono y el contenido de la llamada) que
+          tu recepcionista virtual trata en tu nombre. En esa relación, tu negocio es el{" "}
+          <strong className="font-semibold text-[#1e2b22]">responsable del tratamiento</strong> y Alhabla actúa como{" "}
+          <strong className="font-semibold text-[#1e2b22]">encargado del tratamiento</strong>, conforme al artículo 28
+          del RGPD. Aceptar estas condiciones al contratar el servicio constituye el contrato de encargo de tratamiento
+          exigido por ese artículo — no hace falta firmar un documento aparte para empezar a usar Alhabla.
+        </p>
+        <p>
+          <strong className="font-semibold text-[#1e2b22]">Objeto, naturaleza y duración.</strong> Alhabla trata datos
+          por tu cuenta para prestarte el servicio contratado: atender llamadas, transcribirlas, grabarlas, consultar
+          tu disponibilidad y reservar citas en tu calendario. El tratamiento dura mientras tu suscripción esté activa
+          y, tras la baja, durante el plazo de conservación indicado en la{" "}
+          <Link href="/legal/privacidad" className="font-medium text-[#344038] underline underline-offset-2">
+            política de privacidad
+          </Link>
+          .
+        </p>
+        <p>
+          <strong className="font-semibold text-[#1e2b22]">Tipo de datos y personas afectadas.</strong> Nombre,
+          número de teléfono, y el contenido de la conversación (grabación y transcripción) de las personas que
+          llaman a tu negocio para pedir información o reservar cita. No se tratan categorías especiales de datos
+          salvo que la persona que llama las mencione por iniciativa propia.
+        </p>
+        <p>
+          <strong className="font-semibold text-[#1e2b22]">Instrucciones y confidencialidad.</strong> Alhabla trata
+          estos datos solo siguiendo tus instrucciones — las que resultan de la configuración de tu cuenta y del
+          funcionamiento normal del servicio — y no los usa para ningún fin propio ni de terceros. El personal con
+          acceso está sujeto a un deber de confidencialidad.
+        </p>
+        <p>
+          <strong className="font-semibold text-[#1e2b22]">Medidas de seguridad.</strong> Las grabaciones y
+          transcripciones se almacenan cifradas y solo son accesibles desde tu cuenta, conforme al artículo 32 del
+          RGPD.
+        </p>
+        <p>
+          <strong className="font-semibold text-[#1e2b22]">Subencargados.</strong> Autorizas con carácter general que
+          Alhabla recurra a los proveedores necesarios para prestar el servicio — voz, telefonía y almacenamiento,
+          listados en la política de privacidad — bajo obligaciones de protección de datos equivalentes a las de esta
+          cláusula. Si se incorpora un nuevo proveedor con acceso a estos datos, te lo comunicaremos con antelación
+          razonable para que puedas oponerte.
+        </p>
+        <p>
+          <strong className="font-semibold text-[#1e2b22]">Asistencia al responsable.</strong> Te ayudamos a atender
+          las solicitudes de derechos de las personas que llaman (acceso, rectificación, supresión) y, si se produjera
+          una violación de seguridad de estos datos, te lo notificaremos sin dilación indebida.
+        </p>
+        <p>
+          <strong className="font-semibold text-[#1e2b22]">Al finalizar la prestación.</strong> Cuando canceles la
+          suscripción, a tu elección eliminamos o te devolvemos las grabaciones y transcripciones asociadas a tu
+          negocio, salvo que debamos conservarlas por obligación legal.
+        </p>
+        <LegalTodo>
+          la identidad completa del responsable (razón social, CIF y domicilio) que falta arriba en este documento —
+          hasta entonces esta cláusula recoge el contenido mínimo del artículo 28.3 RGPD, pero no sustituye la revisión
+          de un asesor legal antes de operar con clientes de pago reales. Si en el futuro algún cliente necesita un DPA
+          firmado aparte (habitual en cuentas grandes o corporativas), se puede ofrecer sin conflicto con esta cláusula.
+        </LegalTodo>
       </LegalSection>
 
       <LegalSection title="Legislación aplicable">

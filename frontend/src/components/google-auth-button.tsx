@@ -6,6 +6,8 @@ import { getGoogleAuthUrl } from "@/lib/api";
 type GoogleAuthButtonProps = {
   onError: (message: string) => void;
   beforeStart?: () => void;
+  disabled?: boolean;
+  acceptedTerms?: boolean;
 };
 
 function GoogleIcon() {
@@ -19,7 +21,7 @@ function GoogleIcon() {
   );
 }
 
-export function GoogleAuthButton({ onError, beforeStart }: GoogleAuthButtonProps) {
+export function GoogleAuthButton({ onError, beforeStart, disabled, acceptedTerms }: GoogleAuthButtonProps) {
   const [loading, setLoading] = useState(false);
 
   const startGoogleAuth = async () => {
@@ -28,7 +30,7 @@ export function GoogleAuthButton({ onError, beforeStart }: GoogleAuthButtonProps
 
     try {
       beforeStart?.();
-      window.location.assign(await getGoogleAuthUrl());
+      window.location.assign(await getGoogleAuthUrl(acceptedTerms));
     } catch {
       setLoading(false);
       onError("No se pudo iniciar sesión con Google. Inténtalo de nuevo.");
@@ -39,7 +41,7 @@ export function GoogleAuthButton({ onError, beforeStart }: GoogleAuthButtonProps
     <button
       type="button"
       onClick={startGoogleAuth}
-      disabled={loading}
+      disabled={loading || disabled}
       className="flex h-12 w-full items-center justify-center gap-3 rounded-full border border-[#e5e5e5] bg-white px-4 text-sm font-semibold text-[#0a0a0a] transition hover:border-[#0a0a0a] hover:bg-[#fafafa] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#8b5cf6]/30 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
     >
       <GoogleIcon />

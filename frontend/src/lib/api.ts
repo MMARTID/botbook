@@ -47,8 +47,10 @@ export async function getMyBusiness() {
   return data;
 }
 
-export async function getGoogleAuthUrl() {
-  const { data } = await api.get<{ url: string }>("/auth/google");
+export async function getGoogleAuthUrl(acceptedTerms?: boolean) {
+  const { data } = await api.get<{ url: string }>("/auth/google", {
+    params: acceptedTerms ? { acceptedTerms: "true" } : undefined,
+  });
   return data.url;
 }
 

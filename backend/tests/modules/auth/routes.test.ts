@@ -48,12 +48,18 @@ vi.mock("jsonwebtoken", () => ({
   verify: vi.fn(),
 }));
 
+const { mockGenerateAuthUrl, mockGetToken, mockVerifyIdToken } = vi.hoisted(() => ({
+  mockGenerateAuthUrl: vi.fn().mockReturnValue("https://accounts.google.com/oauth"),
+  mockGetToken: vi.fn(),
+  mockVerifyIdToken: vi.fn(),
+}));
+
 vi.mock("google-auth-library", () => ({
   OAuth2Client: vi.fn(function OAuth2ClientMock() {
     return {
-      generateAuthUrl: vi.fn().mockReturnValue("https://accounts.google.com/oauth"),
-      getToken: vi.fn(),
-      verifyIdToken: vi.fn(),
+      generateAuthUrl: mockGenerateAuthUrl,
+      getToken: mockGetToken,
+      verifyIdToken: mockVerifyIdToken,
     };
   }),
 }));
@@ -147,12 +153,15 @@ describe("authRoutes", () => {
       const response = await fastify.inject({
         method: "POST",
         url: "/register",
-        payload: { email: "test@example.com", password: "password", isEuropeanUnion: true },
+        payload: { email: "test@example.com", password: "password", isEuropeanUnion: true, acceptedTerms: true },
       });
 
       expect(response.statusCode).toBe(201);
       expect(response.json().token).toBe("token_123");
       expect(mockedCreateBusinessAgent).toHaveBeenCalled();
+      expect(mockedUserCreate).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ termsAcceptedAt: expect.any(Date) }) })
+      );
     });
 
     it("rechaza registro si el usuario ya existe", async () => {
@@ -161,11 +170,24 @@ describe("authRoutes", () => {
       const response = await fastify.inject({
         method: "POST",
         url: "/register",
-        payload: { email: "test@example.com", password: "password", isEuropeanUnion: true },
+        payload: { email: "test@example.com", password: "password", isEuropeanUnion: true, acceptedTerms: true },
       });
 
       expect(response.statusCode).toBe(400);
       expect(response.json()).toEqual({ error: "El usuario ya existe" });
+    });
+
+    it("rechaza registro si no se aceptan los términos", async () => {
+      mockedUserFindUnique.mockResolvedValue(null);
+
+      const response = await fastify.inject({
+        method: "POST",
+        url: "/register",
+        payload: { email: "test@example.com", password: "password", isEuropeanUnion: true },
+      });
+
+      expect(response.statusCode).toBe(400);
+      expect(mockedTransaction).not.toHaveBeenCalled();
     });
 
     it("normaliza y guarda el tipo de negocio cuando se envía", async () => {
@@ -187,6 +209,7 @@ describe("authRoutes", () => {
           email: "test@example.com",
           password: "password",
           isEuropeanUnion: true,
+          acceptedTerms: true,
           businessType: "peluqueria",
         },
       });
@@ -248,6 +271,58 @@ describe("authRoutes", () => {
 
       expect(response.statusCode).toBe(200);
       expect(response.json().url).toContain("accounts.google.com");
+    });
+  });
+
+  describe("GET /google/callback", () => {
+    beforeEach(() => {
+      mockGetToken.mockResolvedValue({ tokens: { id_token: "id_token_123" } } as any);
+      mockVerifyIdToken.mockResolvedValue({
+        getPayload: () => ({ sub: "google_123", email: "new@example.com", email_verified: true }),
+      } as any);
+      // Sin cuenta previa por googleId ni por email: el callback intentará crear una.
+      mockedUserFindUnique.mockResolvedValue(null);
+    });
+
+    it("no crea la cuenta si el state no llevaba los términos aceptados", async () => {
+      mockedGetRedis.mockReturnValue({
+        getdel: vi.fn().mockResolvedValue(JSON.stringify({ termsAccepted: false })),
+        set: vi.fn().mockResolvedValue("OK"),
+      } as any);
+
+      const response = await fastify.inject({
+        method: "GET",
+        url: "/google/callback?code=auth_code&state=abc",
+      });
+
+      expect(response.statusCode).toBe(302);
+      expect(response.headers.location).toContain("error=terms_required");
+      expect(mockedTransaction).not.toHaveBeenCalled();
+    });
+
+    it("crea la cuenta y registra termsAcceptedAt si el state llevaba los términos aceptados", async () => {
+      mockedGetRedis.mockReturnValue({
+        getdel: vi.fn().mockResolvedValue(JSON.stringify({ termsAccepted: true })),
+        set: vi.fn().mockResolvedValue("OK"),
+      } as any);
+      mockedTransaction.mockImplementation(async (callback: any) => {
+        const business = { id: "business_123", name: "Negocio de new@example.com" };
+        const user = { id: "user_123", email: "new@example.com", businessId: business.id };
+        mockedBusinessCreate.mockResolvedValue(business as any);
+        mockedUserCreate.mockResolvedValue(user as any);
+        return callback({ business: { create: mockedBusinessCreate }, user: { create: mockedUserCreate } });
+      });
+
+      const response = await fastify.inject({
+        method: "GET",
+        url: "/google/callback?code=auth_code&state=abc",
+      });
+
+      expect(response.statusCode).toBe(302);
+      expect(response.headers.location).not.toContain("error=");
+      expect(mockedUserCreate).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ termsAcceptedAt: expect.any(Date) }) })
+      );
     });
   });
 });
