@@ -207,7 +207,7 @@ export async function handleCallEnded(
   );
 
   try {
-    let dbCall = await prisma.call.findUnique({
+    const dbCall = await prisma.call.findUnique({
       where: { vapiCallId: call_id },
       include: { business: true, agent: true },
     });

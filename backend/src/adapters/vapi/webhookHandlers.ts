@@ -165,7 +165,7 @@ export async function handleEndOfCallReport(
   }
 
   try {
-    let dbCall = await prisma.call.findUnique({
+    const dbCall = await prisma.call.findUnique({
       where: { vapiCallId: call.id },
       include: { business: true, agent: true },
     });
@@ -206,7 +206,7 @@ export async function handleEndOfCallReport(
       finalStatus = "IN_PROGRESS";
     }
 
-    let rawMessages = message.messages || [];
+    const rawMessages = message.messages || [];
     const sanitizedMessages = (rawMessages as any[])
       .filter((m) => m.role !== "system")
       .map((m) => ({

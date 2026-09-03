@@ -416,15 +416,11 @@ export async function handleStripeEvent(event: Stripe.Event) {
     return { duplicate: true };
   }
 
-  try {
-    await prisma.stripeWebhookEvent.upsert({
-      where: { id: event.id },
-      create: { id: event.id, type: event.type },
-      update: { type: event.type, lastError: null },
-    });
-  } catch (error) {
-    throw error;
-  }
+  await prisma.stripeWebhookEvent.upsert({
+    where: { id: event.id },
+    create: { id: event.id, type: event.type },
+    update: { type: event.type, lastError: null },
+  });
 
   try {
     const businessId = await processStripeEvent(event);
