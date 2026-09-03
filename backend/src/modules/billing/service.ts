@@ -4,6 +4,8 @@ import { prisma } from "../../lib/prisma.js";
 import { getStripeClient } from "../../lib/stripe.js";
 import { provisionPhoneNumber } from "../phone/service.js";
 import { getBillingPlan, getPlanByPriceId, getPriceId, type PlanId } from "./catalog.js";
+import { enqueueEmailJob } from "../../lib/cloudTasks.js";
+import { paymentApprovedEmail, paymentFailedEmail } from "../../lib/emailTemplates.js";
 
 const CHECKOUT_TRIAL_DAYS = 7;
 
@@ -14,6 +16,22 @@ function unixTimestampToDate(value: number | null | undefined) {
 function stripeId(value: string | { id: string } | null | undefined) {
   if (!value) return null;
   return typeof value === "string" ? value : value.id;
+}
+
+async function enqueueEmail(input: {
+  fromAlias: "welcome" | "support";
+  toAddress: string;
+  subject: string;
+  html: string;
+}) {
+  try {
+    await enqueueEmailJob(input);
+  } catch (error) {
+    console.error(
+      `[Billing] No se pudo encolar el email "${input.subject}" a ${input.toAddress}:`,
+      error instanceof Error ? error.message : String(error)
+    );
+  }
 }
 
 function subscriptionStatus(status: Stripe.Subscription.Status) {
@@ -161,6 +179,7 @@ export async function createCheckoutSession(input: {
     client_reference_id: input.businessId,
     line_items: [{ price: priceId, quantity: 1 }],
     payment_method_collection: "always",
+    allow_promotion_codes: true,
     tax_id_collection: { enabled: true },
     customer_update: { address: "auto", name: "auto" },
     return_url: `${frontendUrl}/checkout/resultado?session_id={CHECKOUT_SESSION_ID}`,
@@ -339,6 +358,20 @@ async function processStripeEvent(event: Stripe.Event) {
             err instanceof Error ? err.message : String(err)
           );
         });
+
+        const customerEmail = session.customer_details?.email;
+        const planId = session.metadata?.planId;
+        if (customerEmail && planId) {
+          const business = await prisma.business.findUnique({
+            where: { id: businessId },
+            select: { name: true },
+          });
+          if (business) {
+            const planName = planId.charAt(0).toUpperCase() + planId.slice(1);
+            const { subject, html } = paymentApprovedEmail({ businessName: business.name, planName });
+            await enqueueEmail({ fromAlias: "welcome", toAddress: customerEmail, subject, html });
+          }
+        }
       }
       return businessId;
     }
@@ -347,9 +380,27 @@ async function processStripeEvent(event: Stripe.Event) {
     case "customer.subscription.deleted":
       return syncSubscription(event.data.object as Stripe.Subscription);
     case "invoice.paid":
+      return resolveBusinessId({ customerId: stripeId((event.data.object as Stripe.Invoice).customer) });
     case "invoice.payment_failed": {
       const invoice = event.data.object as Stripe.Invoice;
-      return resolveBusinessId({ customerId: stripeId(invoice.customer) });
+      const businessId = await resolveBusinessId({ customerId: stripeId(invoice.customer) });
+
+      if (businessId && invoice.customer_email) {
+        const business = await prisma.business.findUnique({
+          where: { id: businessId },
+          select: { name: true },
+        });
+        if (business) {
+          const frontendUrl = (process.env.FRONTEND_URL || "http://localhost:3001").replace(/\/$/, "");
+          const { subject, html } = paymentFailedEmail({
+            businessName: business.name,
+            manageBillingUrl: invoice.hosted_invoice_url ?? `${frontendUrl}/ajustes/facturacion`,
+          });
+          await enqueueEmail({ fromAlias: "support", toAddress: invoice.customer_email, subject, html });
+        }
+      }
+
+      return businessId;
     }
     default:
       return null;

@@ -6,7 +6,7 @@ import {
 } from "../../../src/adapters/vapi/webhookHandlers.js";
 import { prisma } from "../../../src/lib/prisma.js";
 import { executeVoiceTool } from "../../../src/modules/voiceTools/service.js";
-import { recordingQueue } from "../../../src/lib/queue.js";
+import { enqueueRecordingJob } from "../../../src/lib/cloudTasks.js";
 
 vi.mock("../../../src/lib/prisma.js", () => ({
   prisma: {
@@ -32,10 +32,8 @@ vi.mock("../../../src/modules/voiceTools/service.js", () => ({
   invalidateVoiceConfigCache: vi.fn(),
 }));
 
-vi.mock("../../../src/lib/queue.js", () => ({
-  recordingQueue: { add: vi.fn() },
-  initializeQueues: vi.fn(),
-  closeQueues: vi.fn(),
+vi.mock("../../../src/lib/cloudTasks.js", () => ({
+  enqueueRecordingJob: vi.fn(),
 }));
 
 const mockedAgentFindFirst = vi.mocked(prisma.agent.findFirst);
@@ -44,7 +42,7 @@ const mockedCallUpsert = vi.mocked(prisma.call.upsert);
 const mockedCallUpdate = vi.mocked(prisma.call.update);
 const mockedTransaction = vi.mocked(prisma.$transaction);
 const mockedExecuteVoiceTool = vi.mocked(executeVoiceTool);
-const mockedRecordingQueueAdd = vi.mocked(recordingQueue.add);
+const mockedEnqueueRecordingJob = vi.mocked(enqueueRecordingJob);
 
 function buildAgent(overrides: Record<string, unknown> = {}) {
   return {
@@ -224,7 +222,7 @@ describe("handleEndOfCallReport", () => {
     });
 
     expect(result.success).toBe(true);
-    expect(mockedRecordingQueueAdd).toHaveBeenCalled();
+    expect(mockedEnqueueRecordingJob).toHaveBeenCalled();
   });
 
   it("falla si no hay identificador de llamada", async () => {

@@ -399,31 +399,63 @@ Stores the business niche selected during registration. Used to label agents and
 
 Run migrations in dev with `npm run prisma:migrate`. In production, generate the client before starting (`prisma generate`).
 
-## Background Jobs (BullMQ)
+## Background Jobs (Cloud Tasks)
 
-Workers are initialized in `backend/src/server.ts` and consume from Redis-backed queues:
+Migrated 2026-09-03 from BullMQ (Redis-backed workers, needed an always-on
+`alhabla-worker` Cloud Run service to avoid CPU throttling starving the
+workers) to **Cloud Tasks**: each job is dispatched as an HTTP POST to
+`POST /internal/jobs/<name>` on `alhabla-api` itself, so Cloud Run only
+allocates CPU while that request is being processed — no separate always-on
+service needed. Zombie call cleanup (previously a BullMQ repeatable job)
+is now a **Cloud Scheduler** job hitting the same kind of endpoint every
+15 minutes.
 
-1. **`process-recording`** (`backend/src/jobs/processRecording.ts`)
+- **Enqueueing** (`backend/src/lib/cloudTasks.ts`): `enqueueRecordingJob`,
+  `enqueueRetryBookingJob`, `enqueueEmailJob`. In production
+  (`NODE_ENV=production`) these create a real Cloud Tasks task via
+  `@google-cloud/tasks`, targeting `INTERNAL_JOBS_BASE_URL` with an OIDC
+  token for `CLOUD_TASKS_INVOKER_SERVICE_ACCOUNT`. **Outside production
+  (dev/local/tests) the job runs inline, synchronously, in the same
+  process that enqueued it** — there is no real queue in dev, since that
+  would require live GCP credentials and a stable public URL for Cloud
+  Tasks to push to. Tests mock `lib/cloudTasks.js` directly so this inline
+  fallback never actually runs during `vitest`.
+- **Receiving** (`backend/src/modules/internal/routes.ts`, prefix
+  `/internal`): `POST /internal/jobs/process-recording`,
+  `/retry-failed-booking`, `/send-email`, `/cleanup-zombie-calls`. Gated by
+  `fastify.verifyCloudTasks` (`backend/src/plugins/internalAuth.ts`), which
+  verifies the request carries a Google-signed OIDC token issued to
+  `CLOUD_TASKS_INVOKER_SERVICE_ACCOUNT` with the right audience — anyone
+  else gets 401/403. A non-2xx response makes Cloud Tasks/Scheduler retry
+  per that queue/job's own retry config.
+- **Job logic** lives in plain async functions with no framework coupling —
+  `jobs/processRecording.ts` (`processRecordingJob`), `jobs/retryFailedBooking.ts`
+  (`processRetryFailedBookingJob`), `jobs/sendEmail.ts` (`processSendEmailJob`),
+  `jobs/cleanupZombieCalls.ts` (`cleanupZombieCallsJob`) — called directly
+  both by the `/internal/jobs/*` route handlers and by the dev inline
+  fallback in `cloudTasks.ts`.
+
+1. **`process-recording`**
    - Downloads the call recording from Vapi or Retell and uploads it to R2.
-   - Worker concurrency: 3.
    - Updates `Recording` with `storageKey` and `storageUrl`.
-   - Job options: 3 retries, exponential backoff 2s base.
+   - Cloud Tasks queue `process-recording`: 5 attempts, exponential backoff 1s base.
 
-2. **`retry-failed-booking`** (`backend/src/jobs/retryFailedBooking.ts`)
+2. **`retry-failed-booking`**
    - Retries a `book_appointment` that failed during a live call for a probably-transient reason (`BOOK_APPOINTMENT_FAILED`, `CALENDAR_TIMEOUT`, `CALENDAR_RATE_LIMITED`, or an unclassified error) — enqueued by `capturePendingBookingLead`/`enqueueRetryFailedBooking` in `voiceTools/service.ts`. Not enqueued for `*_RECONNECT_REQUIRED` failures, since retrying doesn't help until the business reconnects the calendar manually.
-   - Worker concurrency: 3.
    - Loads the pending booking from the `Lead` row (`type: "pending_booking"`) by `leadId`, re-fetches the business's calendar tokens fresh (never trusts stale tokens from the original failed attempt), calls `calendarService.bookAppointment()` again, and on success creates the `Booking` row and sets `Lead.resolvedAt`.
-   - Job options: 4 retries, exponential backoff 30s base (the caller already hung up — there's no live request waiting, so a few minutes of backoff is fine).
+   - Cloud Tasks queue `retry-failed-booking`: 4 attempts, exponential backoff 30s base (the caller already hung up — there's no live request waiting, so a few minutes of backoff is fine).
    - No customer-facing notification exists yet when a retry succeeds in the background — it only becomes visible via the dashboard.
 
-3. **Zombie call cleanup** (`backend/src/jobs/cleanupZombieCalls.ts`)
-   - Scheduled job every 15 minutes (fixed jobId `zombie-call-cleanup-scheduler`).
+3. **`send-email`** (`backend/src/lib/zohoMail.ts`, `backend/src/lib/emailTemplates.ts`)
+   - Sends the welcome email (`checkout.session.completed`, from `welcome@alhabla.ai`) and the payment-failed email (`invoice.payment_failed`, from `support@alhabla.ai`) — see `billing/service.ts`. Both are Zoho Mail aliases of one authenticated account; sending goes through Zoho Mail's REST API (OAuth 2.0, refresh token) rather than SMTP.
+   - Cloud Tasks queue `send-email`: 4 attempts, exponential backoff 5s base.
+
+4. **Zombie call cleanup** (`backend/src/jobs/cleanupZombieCalls.ts`)
+   - Cloud Scheduler job `cleanup-zombie-calls`, every 15 minutes, 3 retry attempts.
    - Threshold: 60 minutes.
    - Marks stale `IN_PROGRESS` calls as `TIMED_OUT`.
 
-All workers log to stdout. Jobs retry up to 3–4 times with exponential backoff (see each job above for its exact settings). `backend/src/workers.ts` (the Cloud Run `alhabla-worker` entrypoint) starts and gracefully closes all three workers; `backend/src/server.ts` starts `process-recording` and `retry-failed-booking` alongside the HTTP server for local/dev use, but does not track them for graceful shutdown (pre-existing gap, unrelated to `workers.ts`).
-
-Call outcome classification is **not** a BullMQ job — Retell classifies each call natively via `post_call_analysis_data` (see Retell Configuration), no separate LLM call from this backend.
+Call outcome classification is **not** a background job — Retell classifies each call natively via `post_call_analysis_data` (see Retell Configuration), no separate LLM call from this backend.
 
 ## Voice Orchestrators (Vapi & Retell)
 
@@ -888,10 +920,9 @@ npx prisma studio
 
 ### Production (Google Cloud Run)
 
-Live since 2026-09-01. Two Cloud Run services built from the **same image** (`backend/Dockerfile`, `runtime` stage), different startup command — see [[gcp-infra-alhabla]] memory for the actual project ID, resource names and exact `gcloud` commands used.
+Live since 2026-09-01. **One Cloud Run service, `alhabla-api`** (`node dist/server.js`, `backend/Dockerfile` `runtime` stage), public traffic, normal autoscaling (0→N), public URL `https://api.alhabla.ai` — see [[gcp-infra-alhabla]] memory for the actual project ID, resource names and exact `gcloud` commands used.
 
-- **`alhabla-api`** — `node dist/server.js` (the image's default command). Public traffic, normal autoscaling (0→N). Public URL: `https://api.alhabla.ai`.
-- **`alhabla-worker`** — `node dist/workers.js`, a separate entrypoint (`backend/src/workers.ts`) that only starts the BullMQ workers (`processRecordingWorker`, `processZombieWorker` + `scheduleZombieCallCleanup`) behind a minimal HTTP health check (Cloud Run requires every service, even a background one, to listen on `$PORT`). Deployed with `--min-instances=1 --no-cpu-throttling` — Cloud Run only allocates CPU during an HTTP request by default, which would silently starve a background worker; this keeps it always-on. No public traffic.
+Until 2026-09-03 there was a second always-on `alhabla-worker` service (`node dist/workers.js`, `--min-instances=1 --no-cpu-throttling`) dedicated to BullMQ background workers, because Cloud Run only allocates CPU during an HTTP request by default and would otherwise starve a long-running worker process. It was deleted after migrating background jobs from BullMQ to **Cloud Tasks** (see Background Jobs above) — jobs are now HTTP requests to `alhabla-api` itself, so Cloud Run's normal per-request CPU allocation is enough and no dedicated always-on service is needed.
 
 Supporting infra:
 - **Cloud SQL** (Postgres 15) — reached via Unix socket (`--add-cloudsql-instances`), not a network host. `DATABASE_URL` is a Secret Manager secret formatted as `postgresql://user:pass@localhost/db?host=/cloudsql/PROJECT:REGION:INSTANCE` — never a plain env var, since it embeds the DB password.

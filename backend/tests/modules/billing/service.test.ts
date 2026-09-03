@@ -7,6 +7,7 @@ import {
 } from "../../../src/modules/billing/service.js";
 import { prisma } from "../../../src/lib/prisma.js";
 import { getStripeClient } from "../../../src/lib/stripe.js";
+import { enqueueEmailJob } from "../../../src/lib/cloudTasks.js";
 import type Stripe from "stripe";
 
 vi.mock("../../../src/lib/prisma.js", () => ({
@@ -32,6 +33,10 @@ vi.mock("../../../src/lib/stripe.js", () => ({
   getStripeWebhookSecret: vi.fn(),
 }));
 
+vi.mock("../../../src/lib/cloudTasks.js", () => ({
+  enqueueEmailJob: vi.fn(),
+}));
+
 const mockedBusinessFindUnique = vi.mocked(prisma.business.findUnique);
 const mockedBusinessFindFirst = vi.mocked(prisma.business.findFirst);
 const mockedBusinessUpdate = vi.mocked(prisma.business.update);
@@ -40,6 +45,7 @@ const mockedStripeWebhookEventFindUnique = vi.mocked(prisma.stripeWebhookEvent.f
 const mockedStripeWebhookEventUpsert = vi.mocked(prisma.stripeWebhookEvent.upsert);
 const mockedStripeWebhookEventUpdate = vi.mocked(prisma.stripeWebhookEvent.update);
 const mockedGetStripeClient = vi.mocked(getStripeClient);
+const mockedEnqueueEmailJob = vi.mocked(enqueueEmailJob);
 
 const businessId = "business_123";
 const priceId = "price_test_123";
@@ -108,6 +114,62 @@ describe("handleStripeEvent", () => {
           stripeCustomerId: customerId,
           stripeSubscriptionId: subscriptionId,
         }),
+      })
+    );
+  });
+
+  it("encola email de bienvenida en checkout.session.completed con email y plan", async () => {
+    const event = buildStripeEvent("checkout.session.completed", {
+      id: "cs_test_1",
+      customer: customerId,
+      subscription: subscriptionId,
+      metadata: { businessId, planId: "pro" },
+      customer_details: { email: "cliente@example.com" },
+    });
+    mockedBusinessFindFirst.mockResolvedValue(buildBusiness() as any);
+    mockedBusinessFindUnique.mockResolvedValue(buildBusiness() as any);
+
+    await handleStripeEvent(event);
+
+    expect(mockedEnqueueEmailJob).toHaveBeenCalledWith(
+      expect.objectContaining({
+        fromAlias: "welcome",
+        toAddress: "cliente@example.com",
+        subject: expect.stringContaining(buildBusiness().name),
+      })
+    );
+  });
+
+  it("no encola email de bienvenida si falta el email del cliente", async () => {
+    const event = buildStripeEvent("checkout.session.completed", {
+      id: "cs_test_1",
+      customer: customerId,
+      subscription: subscriptionId,
+      metadata: { businessId, planId: "pro" },
+    });
+    mockedBusinessFindFirst.mockResolvedValue(buildBusiness() as any);
+
+    await handleStripeEvent(event);
+
+    expect(mockedEnqueueEmailJob).not.toHaveBeenCalled();
+  });
+
+  it("encola email de aviso en invoice.payment_failed", async () => {
+    const event = buildStripeEvent("invoice.payment_failed", {
+      id: "inv_test_1",
+      customer: customerId,
+      customer_email: "cliente@example.com",
+      hosted_invoice_url: "https://invoice.stripe.com/i/test",
+    });
+    mockedBusinessFindFirst.mockResolvedValue(buildBusiness() as any);
+    mockedBusinessFindUnique.mockResolvedValue(buildBusiness() as any);
+
+    await handleStripeEvent(event);
+
+    expect(mockedEnqueueEmailJob).toHaveBeenCalledWith(
+      expect.objectContaining({
+        fromAlias: "support",
+        toAddress: "cliente@example.com",
       })
     );
   });

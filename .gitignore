@@ -1,7 +1,6 @@
 node_modules/
 dist/
 .env*
-!.env.example
 .DS_Store
 *.log
 .idea/
@@ -17,3 +16,11 @@ dist/
 # ajustes locales de cada máquina.
 .impeccable/hook.cache.json
 .impeccable/config.local.json
+
+.projects/cache
+.projects/vault
+.projects/state.test.json
+.projects/state.local.test.json
+.env
+.env.*
+!.env.example

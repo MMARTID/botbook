@@ -38,8 +38,8 @@ vi.mock("../../../src/modules/calendar/service.js", () => ({
   },
 }));
 
-vi.mock("../../../src/lib/queue.js", () => ({
-  retryBookingQueue: { add: vi.fn() },
+vi.mock("../../../src/lib/cloudTasks.js", () => ({
+  enqueueRetryBookingJob: vi.fn(),
 }));
 
 const mockedBusinessFindUnique = vi.mocked(prisma.business.findUnique);

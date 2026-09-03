@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type { CallOutcome, CallSentiment } from "@prisma/client";
 import { prisma } from "../../lib/prisma.js";
-import { recordingQueue } from "../../lib/queue.js";
+import { enqueueRecordingJob } from "../../lib/cloudTasks.js";
 import { callLabel, errorMessage } from "../../lib/logUtils.js";
 
 const RetellCallStartedSchema = z.object({
@@ -300,24 +300,13 @@ export async function handleCallEnded(
 
     if (data.recording_url) {
       try {
-        await recordingQueue.add(
-          "process-recording",
+        await enqueueRecordingJob(
           {
             callId: result.id,
             vapiUrl: data.recording_url,
             businessId: result.businessId,
           },
-          {
-            jobId: `process-recording-${result.id}`,
-            attempts: 5,
-            backoff: {
-              type: "exponential",
-              delay: 1000,
-            },
-            removeOnComplete: true,
-            removeOnFail: 1000,
-            priority: 10,
-          }
+          `process-recording-${result.id}`
         );
       } catch (err) {
         console.error(

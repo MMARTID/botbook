@@ -50,6 +50,24 @@
         "value": "rgba(0, 0, 0, 0.06)",
         "createdAt": "2026-08-23T23:44:52.851Z",
         "reason": "Ambient black shadow tint on the settings-section-focus pulse ring, matching the black-tinted shadow convention documented in DESIGN.md's Elevation & Depth section after the black/white/purple migration."
+      },
+      {
+        "rule": "design-system-font",
+        "value": "roboto",
+        "createdAt": "2026-09-03T16:51:58.187Z",
+        "reason": "Email HTML transaccional (emailTemplates.ts): los clientes de correo no cargan la fuente web del proyecto de forma fiable, hace falta pila de fuentes de sistema. DESIGN.md gobierna la app Next.js, no los emails."
+      },
+      {
+        "rule": "design-system-font-size",
+        "value": "20px",
+        "createdAt": "2026-09-03T16:51:59.816Z",
+        "reason": "Email HTML transaccional (emailTemplates.ts): tamaños en px inline propios de email, fuera de la escala rem de DESIGN.md que gobierna la app Next.js."
+      },
+      {
+        "rule": "design-system-font-size",
+        "value": "15px",
+        "createdAt": "2026-09-03T16:52:21.988Z",
+        "reason": "Email HTML transaccional (emailTemplates.ts): tamanos en px inline propios de email, fuera de la escala rem de DESIGN.md que gobierna la app Next.js."
       }
     ]
   }

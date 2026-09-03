@@ -4,7 +4,7 @@ import { checkBusinessHours, checkBookingRestrictions } from "../../lib/business
 import { checkAvailability } from "../../lib/availability.js";
 import { calendarService } from "../calendar/service.js";
 import { errorMessage } from "../../lib/logUtils.js";
-import { retryBookingQueue } from "../../lib/queue.js";
+import { enqueueRetryBookingJob } from "../../lib/cloudTasks.js";
 
 export type VoiceToolName =
   | "check_business_hours"
@@ -327,11 +327,7 @@ async function capturePendingBookingLead(args: {
  * reconexión de calendario requerida, que no se arregla sola reintentando). */
 async function enqueueRetryFailedBooking(leadId: string): Promise<void> {
   try {
-    await retryBookingQueue.add(
-      "retry-failed-booking",
-      { leadId },
-      { jobId: `retry-failed-booking-${leadId}`, removeOnComplete: true, removeOnFail: 1000 }
-    );
+    await enqueueRetryBookingJob({ leadId }, `retry-failed-booking-${leadId}`);
   } catch (error) {
     console.error(
       `[VoiceTools] No se pudo encolar el reintento de reserva para el lead ${leadId}: ${errorMessage(error)}`

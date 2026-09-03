@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { prisma } from "../../lib/prisma.js";
-import { recordingQueue } from "../../lib/queue.js";
+import { enqueueRecordingJob } from "../../lib/cloudTasks.js";
 import { executeVoiceTool } from "../../modules/voiceTools/service.js";
 import { VapiFunctionCallEvent } from "./types.js";
 import { callLabel, errorMessage } from "../../lib/logUtils.js";
@@ -303,24 +303,13 @@ export async function handleEndOfCallReport(
 
     if (message.recordingUrl) {
       try {
-        await recordingQueue.add(
-          "process-recording",
+        await enqueueRecordingJob(
           {
             callId: result.id,
             vapiUrl: message.recordingUrl,
             businessId: result.businessId,
           },
-          { 
-            jobId: `process-recording-${result.id}`,
-            attempts: 5,
-            backoff: {
-              type: "exponential",
-              delay: 1000,
-            },
-            removeOnComplete: true,
-            removeOnFail: 1000,
-            priority: 10 
-          }
+          `process-recording-${result.id}`
         );
       } catch (err) {
         console.error(`[Vapi] La ${callLabel(call.id)} se guardó, pero no se pudo encolar su grabación: ${errorMessage(err)}`);

@@ -7,7 +7,8 @@ import rawBody from "fastify-raw-body";
 import { prisma } from "./lib/prisma.js";
 import { getRedis, initRedis } from "./lib/redis.js";
 import { initStorage } from "./lib/storage.js";
-import { initializeQueues, closeQueues } from "./lib/queue.js";
+import internalAuthPlugin from "./plugins/internalAuth.js";
+import { internalJobsRoutes } from "./modules/internal/routes.js";
 import { authRoutes } from "./modules/auth/routes.js";
 import { businessesRoutes } from "./modules/businesses/routes.js";
 import { placesRoutes } from "./modules/places/routes.js";
@@ -21,9 +22,6 @@ import { billingRoutes } from "./modules/billing/routes.js";
 import { phoneRoutes } from "./modules/phone/routes.js";
 import { onboardingRoutes } from "./modules/onboarding/routes.js";
 import { demoRoutes } from "./modules/demo/routes.js";
-import { processRecordingWorker } from "./jobs/processRecording.js";
-import { processRetryFailedBookingWorker } from "./jobs/retryFailedBooking.js";
-import { processZombieWorker, scheduleZombieCallCleanup } from "./jobs/cleanupZombieCalls.js";
 import {
   handleFunctionCall,
   handleEndOfCallReport,
@@ -60,7 +58,6 @@ async function start() {
     console.log("[Server] Initializing external services...");
     initRedis();
     initStorage();
-    await initializeQueues();
     await fetchAndSetNgrokUrl();
 
     // Register plugins
@@ -391,15 +388,8 @@ async function start() {
     fastify.register(phoneRoutes, { prefix: '/phone' });
     fastify.register(onboardingRoutes);
     fastify.register(demoRoutes, { prefix: '/demo' });
-
-    // Initialize job workers
-    console.log("[Server] Initializing job workers...");
-    await processRecordingWorker();
-    await processRetryFailedBookingWorker();
-
-    // Initialize Reaper Job
-    await processZombieWorker();
-    scheduleZombieCallCleanup();
+    fastify.register(internalAuthPlugin);
+    fastify.register(internalJobsRoutes, { prefix: '/internal' });
 
     // Start server
     await fastify.listen({ port: PORT, host: HOST });
@@ -415,14 +405,12 @@ async function start() {
 // Graceful shutdown
 process.on("SIGINT", async () => {
   console.log("[Server] SIGINT received, shutting down gracefully...");
-  await closeQueues();
   await prisma.$disconnect();
   process.exit(0);
 });
 
 process.on("SIGTERM", async () => {
   console.log("[Server] SIGTERM received, shutting down gracefully...");
-  await closeQueues();
   await prisma.$disconnect();
   process.exit(0);
 });

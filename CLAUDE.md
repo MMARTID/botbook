@@ -91,17 +91,17 @@ docker compose --profile dev up   # backend + postgres + redis + ngrok (desde la
 ```
 backend/
 ├── src/
-│   ├── server.ts     # entry Fastify: registra rutas + arranca los workers BullMQ (dev/local)
-│   ├── workers.ts    # entry alternativo solo-workers, sin servidor HTTP salvo health check
-│   │                 #   (usado por el servicio alhabla-worker en Cloud Run)
-│   ├── plugins/      # auth, CORS, rate-limit, multipart
+│   ├── server.ts     # entry Fastify: registra rutas + endpoints internos de jobs (Cloud Tasks)
+│   ├── plugins/      # auth, CORS, rate-limit, multipart, internalAuth (OIDC de Cloud Tasks)
 │   ├── modules/      # rutas por dominio (agents, auth, billing, bookings, businesses,
-│   │                 #   calendar, calls, demo, files, onboarding, phone, places,
+│   │                 #   calendar, calls, demo, files, internal, onboarding, phone, places,
 │   │                 #   recordings, voiceTools) — cada uno con routes.ts
 │   ├── adapters/     # Vapi, Retell, Twilio (inactivo), Telnyx
-│   ├── lib/          # prisma, redis, queue, storage, stripe, twilio, availability,
-│   │                 #   businessSchedule, agentBootstrap, managedAgentPrompt
-│   └── jobs/         # workers BullMQ: processRecording, retryFailedBooking, cleanupZombieCalls
+│   ├── lib/          # prisma, redis, cloudTasks, storage, stripe, twilio, availability,
+│   │                 #   zohoMail, emailTemplates, businessSchedule, agentBootstrap, managedAgentPrompt
+│   └── jobs/         # lógica de los jobs (sin framework): processRecording, retryFailedBooking,
+│                     #   sendEmail, cleanupZombieCalls — invocados vía Cloud Tasks/Scheduler en
+│                     #   producción, en línea en dev (ver AGENTS.md § Background Jobs)
 ├── prisma/schema.prisma
 ├── tests/            # Vitest (tests/integration/ aparte, contra Postgres/Redis reales)
 └── Dockerfile

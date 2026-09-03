@@ -1,0 +1,48 @@
+steps:
+  # 1. Build y publica la imagen de producción (stage `runtime` del Dockerfile
+  #    multi-stage — sin --target construiría el último stage, `development`).
+  - name: "gcr.io/cloud-builders/docker"
+    args:
+      - "build"
+      - "--target=runtime"
+      - "-t"
+      - "europe-west1-docker.pkg.dev/project-84381467-a606-4b71-a6e/alhabla/backend:latest"
+      - "."
+
+  # 2. Aplica las migraciones de Prisma pendientes contra Cloud SQL antes de
+  #    desplegar la imagen nueva — evita que el código nuevo corra contra un
+  #    esquema desactualizado (ver memoria del proyecto, 2026-09-03: columnas
+  #    de la migración add_niche_prompt_personalization nunca se aplicaron en
+  #    producción y rompieron /business/me con PrismaClientKnownRequestError
+  #    P2022 hasta que se corrió `prisma migrate deploy` a mano).
+  #    `prisma migrate deploy` usa un lock de Postgres — seguro aunque este
+  #    paso se ejecute más de una vez o en paralelo con otro build.
+  - name: "node:20-alpine"
+    entrypoint: "sh"
+    args:
+      - "-c"
+      - |
+        set -e
+        apk add --no-cache curl
+        curl -sSL -o /usr/local/bin/cloud-sql-proxy \
+          https://storage.googleapis.com/cloud-sql-connectors/cloud-sql-proxy/v2.25.4/cloud-sql-proxy.linux.amd64
+        chmod +x /usr/local/bin/cloud-sql-proxy
+        mkdir -p /cloudsql
+        /usr/local/bin/cloud-sql-proxy --unix-socket=/cloudsql \
+          project-84381467-a606-4b71-a6e:europe-west1:alhabla-db &
+        SOCKET=/cloudsql/project-84381467-a606-4b71-a6e:europe-west1:alhabla-db/.s.PGSQL.5432
+        for i in $$(seq 1 15); do
+          [ -S "$$SOCKET" ] && break
+          sleep 1
+        done
+        npm ci
+        npx prisma migrate deploy
+    secretEnv: ["DATABASE_URL"]
+
+images:
+  - "europe-west1-docker.pkg.dev/project-84381467-a606-4b71-a6e/alhabla/backend:latest"
+
+availableSecrets:
+  secretManager:
+    - versionName: projects/project-84381467-a606-4b71-a6e/secrets/DATABASE_URL/versions/latest
+      env: "DATABASE_URL"
