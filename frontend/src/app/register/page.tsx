@@ -58,9 +58,14 @@ export default function RegisterPage() {
       const planParam = isPlanId(planFromUrl) ? `?plan=${planFromUrl}` : "";
       window.location.href = `/register/business${planParam}`;
     } catch (error) {
-      const responseError = error as { response?: { data?: { error?: string } } };
-      if (responseError.response?.data?.error) {
-        setError(responseError.response.data.error);
+      const responseError = error as {
+        response?: { data?: { error?: string | Array<{ message?: string }> } };
+      };
+      const apiError = responseError.response?.data?.error;
+      if (typeof apiError === "string") {
+        setError(apiError);
+      } else if (Array.isArray(apiError) && apiError[0]?.message) {
+        setError(apiError[0].message);
       } else {
         setError("Error al registrar la cuenta.");
       }
