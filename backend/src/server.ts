@@ -35,6 +35,7 @@ import {
   normalizeRetellWebhookPayload,
 } from "./adapters/retell/webhookHandlers.js";
 import { retellAdapter } from "./adapters/retell/RetellAdapter.js";
+import { buildInboundCallDynamicVariables } from "./lib/agentBootstrap.js";
 import { executeVoiceTool } from "./modules/voiceTools/service.js";
 import { fetchAndSetNgrokUrl } from "./lib/ngrok.js";
 
@@ -304,6 +305,66 @@ async function start() {
         const message = error instanceof Error ? error.message : String(error);
         console.error(`[Retell] Error procesando ${eventType}: ${message}`);
         return reply.status(500).send({ error: "Internal server error" });
+      }
+    });
+
+    // Webhook de llamada entrante de Retell — se configura por número de
+    // teléfono (inbound_webhook_url, ver phone/service.ts), es distinto del
+    // webhook de eventos de arriba. Responde con los dynamic variables
+    // ({{servicios_disponibles}}, {{empleados}}, {{horario_semanal}}) que el
+    // prompt gestionado espera — ver managedAgentPrompt.ts y
+    // buildInboundCallDynamicVariables en agentBootstrap.ts. Si no
+    // encontramos el negocio o algo falla, respondemos igualmente con 200 y
+    // variables vacías: rechazar la llamada (reject) es mucho más disruptivo
+    // que un prompt con huecos, y el propio prompt ya instruye a no inventar
+    // información cuando falta.
+    fastify.post("/webhooks/retell/inbound", {
+      config: {
+        rawBody: true,
+        rateLimit: {
+          max: 300,
+          timeWindow: "1 minute",
+        },
+      },
+    }, async (request, reply) => {
+      const signature = request.headers["x-retell-signature"];
+      if (typeof signature !== "string" || !request.rawBody) {
+        fastify.log.warn("[Retell Inbound] Missing signature or raw body");
+        return reply.status(400).send({ error: "Missing webhook signature or body" });
+      }
+
+      const rawBody = typeof request.rawBody === "string" ? request.rawBody : request.rawBody.toString("utf8");
+      const isValid = await retellAdapter.validateWebhookSignature(rawBody, signature);
+      if (!isValid) {
+        fastify.log.warn("[Retell Inbound] Invalid signature");
+        return reply.status(401).send({ error: "Invalid webhook signature" });
+      }
+
+      const payload = request.body as { call_inbound?: { to_number?: string; from_number?: string } };
+      const toNumber = payload.call_inbound?.to_number;
+
+      if (!toNumber) {
+        fastify.log.warn("[Retell Inbound] Missing call_inbound.to_number");
+        return reply.status(200).send({ call_inbound: { dynamic_variables: {} } });
+      }
+
+      try {
+        const business = await prisma.business.findUnique({
+          where: { retellPhoneNumber: toNumber },
+          select: { id: true },
+        });
+
+        if (!business) {
+          fastify.log.warn({ toNumber }, "[Retell Inbound] No business registered for this number");
+          return reply.status(200).send({ call_inbound: { dynamic_variables: {} } });
+        }
+
+        const dynamicVariables = await buildInboundCallDynamicVariables(business.id);
+        return reply.status(200).send({ call_inbound: { dynamic_variables: dynamicVariables } });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        console.error(`[Retell Inbound] Error building dynamic variables for ${toNumber}: ${message}`);
+        return reply.status(200).send({ call_inbound: { dynamic_variables: {} } });
       }
     });
 

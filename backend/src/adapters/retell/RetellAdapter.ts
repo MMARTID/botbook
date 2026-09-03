@@ -23,7 +23,7 @@ export interface CreateRetellLlmInput {
   generalPrompt: string;
   beginMessage: string;
   tools?: RetellTool[];
-  model?: "gpt-4.1" | "gpt-4.1-mini" | "gpt-4.1-nano";
+  model?: "gpt-4.1" | "gpt-4.1-mini" | "gpt-4.1-nano" | "gpt-5.6-luna";
   modelTemperature?: number;
 }
 
@@ -261,6 +261,7 @@ export class RetellAdapter {
     phoneNumber: string;
     nickname?: string;
     inboundAgentId?: string;
+    inboundWebhookUrl?: string;
   }): Promise<RetellPhoneNumber> {
     this.ensureApiKey();
 
@@ -270,6 +271,7 @@ export class RetellAdapter {
       inbound_agents: input.inboundAgentId
         ? [{ agent_id: input.inboundAgentId, weight: 1 }]
         : undefined,
+      inbound_webhook_url: input.inboundWebhookUrl,
     })) as any;
 
     return {
@@ -294,6 +296,7 @@ export class RetellAdapter {
     sipTrunkAuthPassword?: string;
     nickname?: string;
     inboundAgentId?: string;
+    inboundWebhookUrl?: string;
   }): Promise<RetellPhoneNumber> {
     this.ensureApiKey();
 
@@ -306,6 +309,7 @@ export class RetellAdapter {
       inbound_agents: input.inboundAgentId
         ? [{ agent_id: input.inboundAgentId, weight: 1 }]
         : undefined,
+      inbound_webhook_url: input.inboundWebhookUrl,
     })) as any;
 
     return {
@@ -321,7 +325,7 @@ export class RetellAdapter {
    */
   async updatePhoneNumber(
     phoneNumberId: string,
-    input: { inboundAgentId?: string; nickname?: string }
+    input: { inboundAgentId?: string; nickname?: string; inboundWebhookUrl?: string }
   ): Promise<RetellPhoneNumber> {
     this.ensureApiKey();
 
@@ -330,6 +334,7 @@ export class RetellAdapter {
         ? [{ agent_id: input.inboundAgentId, weight: 1 }]
         : undefined,
       nickname: input.nickname,
+      inbound_webhook_url: input.inboundWebhookUrl,
     })) as any;
 
     return {

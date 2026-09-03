@@ -8,12 +8,13 @@ import {
   type RetellEnumAnalysisField,
   type RetellBooleanAnalysisField,
   type RetellAnalysisField,
+  type CreateRetellLlmInput,
 } from "../adapters/retell/RetellAdapter.js";
 import { getPublicWebhookBaseUrl } from "./serverUrl.js";
 import type { VapiCreateAssistantRequest } from "../adapters/vapi/types.js";
 import { BUSINESS_TYPE_LABELS, isBusinessType, type BusinessType } from "./businessType.js";
 import { buildManagedAgentPrompt, DEFAULT_AGENT_SETTINGS } from "./managedAgentPrompt.js";
-import { DEFAULT_BUSINESS_SCHEDULE } from "./businessSchedule.js";
+import { formatScheduleForPrompt } from "./businessSchedule.js";
 
 /**
  * Campo de post_call_analysis_data para clasificar el resultado de la llamada:
@@ -98,6 +99,61 @@ export async function buildPostCallAnalysisDataForBusiness(
   return buildPostCallAnalysisData(services.map((service) => service.name));
 }
 
+const MAX_LISTED_ITEMS = 40;
+
+function formatServicesForDynamicVariable(
+  services: { id: string; name: string; durationMinutes: number }[]
+): string {
+  if (services.length === 0) return "Este negocio todavía no tiene servicios configurados.";
+  return services
+    .slice(0, MAX_LISTED_ITEMS)
+    .map((service) => `- id: ${service.id} | nombre: "${service.name}" | duración: ${service.durationMinutes} min`)
+    .join("\n");
+}
+
+function formatProfessionalsForDynamicVariable(professionals: { id: string; name: string }[]): string {
+  if (professionals.length === 0) return "Este negocio no tiene empleados individuales configurados.";
+  return professionals
+    .slice(0, MAX_LISTED_ITEMS)
+    .map((professional) => `- id: ${professional.id} | nombre: "${professional.name}"`)
+    .join("\n");
+}
+
+/**
+ * Variables dinámicas de Retell para una llamada entrante — se llama desde
+ * POST /webhooks/retell/inbound, no desde el momento de sincronizar el
+ * prompt. Los valores deben ser string (restricción de la API de Retell), y
+ * las claves tienen que coincidir exactamente con los {{...}} del prompt
+ * generado por buildManagedAgentPrompt en managedAgentPrompt.ts.
+ */
+export async function buildInboundCallDynamicVariables(
+  businessId: string,
+  prismaClient: typeof prisma = prisma
+): Promise<Record<string, string>> {
+  const [business, services, professionals] = await Promise.all([
+    prismaClient.business.findUnique({
+      where: { id: businessId },
+      select: { schedule: true },
+    }),
+    prismaClient.service.findMany({
+      where: { businessId, active: true },
+      select: { id: true, name: true, durationMinutes: true },
+      orderBy: { name: "asc" },
+    }),
+    prismaClient.professional.findMany({
+      where: { businessId, active: true },
+      select: { id: true, name: true },
+      orderBy: { name: "asc" },
+    }),
+  ]);
+
+  return {
+    servicios_disponibles: formatServicesForDynamicVariable(services),
+    empleados: formatProfessionalsForDynamicVariable(professionals),
+    horario_semanal: formatScheduleForPrompt(business?.schedule ?? {}),
+  };
+}
+
 export type AgentTemplateConfig = {
   name: string;
   voiceId: string;
@@ -131,8 +187,8 @@ export const DEFAULT_AGENT_CONFIG: AgentTemplateConfig = {
 };
 
 export const DEFAULT_RETELL_AGENT_CONFIG = {
-  voiceId: "retell-Cimo",
-  model: "gpt-4.1" as const,
+  voiceId: "custom_voice_4d8c043e79b567a286898349d2",
+  model: "gpt-5.6-luna" as const,
   modelTemperature: 0.3,
   language: "es-ES" as const,
   timezone: "Europe/Madrid",
@@ -152,8 +208,11 @@ export function buildAgentDisplayName(businessName: string, businessType: Busine
  * systemPrompt ya incluye las instrucciones de nicho (NICHE_INSTRUCTIONS en
  * managedAgentPrompt.ts) desde el momento de creación — es efímero de todos
  * modos, porque PATCH /business/me lo reconstruye en cuanto el negocio guarda
- * horario/ajustes/tipo de negocio (ver syncAgentToRetell). TTS/LLM/STT siguen
- * siendo iguales para todos los nichos.
+ * ajustes o tipo de negocio (ver syncAgentToRetell). El horario y el
+ * catálogo de servicios/empleados ya no viven en este texto: son variables
+ * dinámicas de Retell que rellena POST /webhooks/retell/inbound en cada
+ * llamada — ver managedAgentPrompt.ts. TTS/LLM/STT siguen siendo iguales
+ * para todos los nichos.
  */
 export function getAgentTemplateForBusinessType(
   businessType: BusinessType,
@@ -165,8 +224,6 @@ export function getAgentTemplateForBusinessType(
     systemPrompt: buildManagedAgentPrompt({
       businessName,
       businessType,
-      timezone: DEFAULT_RETELL_AGENT_CONFIG.timezone,
-      schedule: DEFAULT_BUSINESS_SCHEDULE,
       settings: DEFAULT_AGENT_SETTINGS,
     }),
   });
@@ -342,7 +399,7 @@ export function buildRetellLlmPayload(input: {
   const payload: {
     generalPrompt: string;
     beginMessage: string;
-    model: "gpt-4.1";
+    model: CreateRetellLlmInput["model"];
     modelTemperature: number;
     tools?: any[];
   } = {
@@ -574,8 +631,6 @@ export async function syncAgentToRetell(
       name: true,
       businessDetails: true,
       businessType: true,
-      timezone: true,
-      schedule: true,
       agentSettings: true,
       orchestrator: true,
       minAdvanceBookingMinutes: true,
@@ -590,18 +645,15 @@ export async function syncAgentToRetell(
   });
   if (agents.length === 0) return;
 
-  const [services, professionals] = await Promise.all([
-    prismaClient.service.findMany({
-      where: { businessId, active: true },
-      select: { id: true, name: true, durationMinutes: true },
-      orderBy: { name: "asc" },
-    }),
-    prismaClient.professional.findMany({
-      where: { businessId, active: true },
-      select: { id: true, name: true },
-      orderBy: { name: "asc" },
-    }),
-  ]);
+  // El horario y el catálogo de servicios/empleados ya no van en el
+  // systemPrompt (son variables dinámicas de Retell, ver
+  // POST /webhooks/retell/inbound) — los servicios se siguen consultando
+  // aquí solo para las categorías de postCallAnalysisData.
+  const services = await prismaClient.service.findMany({
+    where: { businessId, active: true },
+    select: { name: true },
+    orderBy: { name: "asc" },
+  });
 
   const businessType = isBusinessType(business.businessType) ? business.businessType : "other";
 
@@ -609,11 +661,7 @@ export async function syncAgentToRetell(
     businessName: business.name,
     businessDetails: business.businessDetails,
     businessType,
-    timezone: business.timezone,
-    schedule: business.schedule,
     settings: business.agentSettings,
-    services,
-    professionals,
     minAdvanceBookingMinutes: business.minAdvanceBookingMinutes,
     maxAppointmentDurationMinutes: business.maxAppointmentDurationMinutes,
   });

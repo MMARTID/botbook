@@ -57,35 +57,6 @@ export function parseAgentSettings(value: unknown): AgentSettings {
     : DEFAULT_AGENT_SETTINGS;
 }
 
-export interface PromptServiceInfo {
-  id: string;
-  name: string;
-  durationMinutes: number;
-}
-
-export interface PromptProfessionalInfo {
-  id: string;
-  name: string;
-}
-
-const MAX_LISTED_ITEMS = 40;
-
-function buildServicesBlock(services: PromptServiceInfo[] | undefined): string | null {
-  if (!services || services.length === 0) return null;
-  const lines = services
-    .slice(0, MAX_LISTED_ITEMS)
-    .map((service) => `- id: ${service.id} | nombre: "${service.name}" | duración: ${service.durationMinutes} min`);
-  return `SERVICIOS_DISPONIBLES (usa el id exacto tal cual en serviceId; no ofrezcas servicios que no estén en esta lista):\n${lines.join("\n")}`;
-}
-
-function buildProfessionalsBlock(professionals: PromptProfessionalInfo[] | undefined): string | null {
-  if (!professionals || professionals.length === 0) return null;
-  const lines = professionals
-    .slice(0, MAX_LISTED_ITEMS)
-    .map((professional) => `- id: ${professional.id} | nombre: "${professional.name}"`);
-  return `EMPLEADOS (usa professionalId solo si el cliente pide a esta persona concreta por nombre; usa el id exacto tal cual):\n${lines.join("\n")}`;
-}
-
 function formatMinutesForHumans(minutes: number): string {
   if (minutes % 60 === 0) {
     const hours = minutes / 60;
@@ -112,11 +83,7 @@ export function buildManagedAgentPrompt(input: {
   businessName: string;
   businessDetails?: string | null;
   businessType?: BusinessType;
-  timezone: string;
-  schedule: unknown;
   settings: unknown;
-  services?: PromptServiceInfo[];
-  professionals?: PromptProfessionalInfo[];
   minAdvanceBookingMinutes?: number | null;
   maxAppointmentDurationMinutes?: number | null;
 }) {
@@ -138,8 +105,14 @@ export function buildManagedAgentPrompt(input: {
     "Antes de confirmar una reserva, verifica nombre, servicio, fecha y hora. Usa book_appointment únicamente después de que el cliente confirme esos datos.",
     buildRestrictionsFragment(input),
     input.businessDetails?.trim() ? `INFORMACION_VERIFICADA_DEL_NEGOCIO:\n${input.businessDetails.trim()}` : null,
-    buildServicesBlock(input.services),
-    buildProfessionalsBlock(input.professionals),
-    `HORARIO_ESTRUCTURADO_DEL_NEGOCIO:\n${JSON.stringify({ timezone: input.timezone, schedule: input.schedule })}`,
+    // Estos tres bloques no llevan el dato horneado en el texto: son
+    // variables dinámicas de Retell (ver AGENTS.md § Retell dynamic
+    // variables), rellenadas en cada llamada por nuestro webhook de llamada
+    // entrante (POST /webhooks/retell/inbound), no en el momento de
+    // sincronizar el prompt. Así el dato llega siempre fresco y el prompt
+    // sincronizado no crece con el catálogo del negocio.
+    'SERVICIOS_DISPONIBLES (usa el id exacto tal cual en serviceId; no ofrezcas servicios que no estén en esta lista):\n{{servicios_disponibles}}',
+    'EMPLEADOS (usa professionalId solo si el cliente pide a esta persona concreta por nombre; usa el id exacto tal cual):\n{{empleados}}',
+    'HORARIO_DEL_NEGOCIO:\n{{horario_semanal}}',
   ].filter(Boolean).join("\n\n");
 }

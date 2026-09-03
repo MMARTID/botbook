@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   BusinessScheduleSchema,
   checkBusinessHours,
+  formatScheduleForPrompt,
   DEFAULT_BUSINESS_SCHEDULE,
 } from "../../src/lib/businessSchedule.js";
 
@@ -137,5 +138,27 @@ describe("checkBusinessHours", () => {
     const result = checkBusinessHours(DEFAULT_BUSINESS_SCHEDULE, europeMadrid, "2026-08-10T09:00:00", 540);
     expect(result.success).toBe(true);
     expect(result.isOpen).toBe(true);
+  });
+});
+
+describe("formatScheduleForPrompt", () => {
+  it("formatea el horario por defecto en español, un día por frase", () => {
+    const text = formatScheduleForPrompt(DEFAULT_BUSINESS_SCHEDULE);
+    expect(text).toContain("Lunes: 09:00–18:00.");
+    expect(text).toContain("Viernes: 09:00–18:00.");
+    expect(text).toContain("Sábado: cerrado.");
+    expect(text).toContain("Domingo: cerrado.");
+  });
+
+  it("lista varios tramos del mismo día separados por coma", () => {
+    const schedule = buildSchedule({
+      monday: { enabled: true, intervals: [{ start: "09:00", end: "13:00" }, { start: "16:00", end: "20:00" }] },
+    });
+    const text = formatScheduleForPrompt(schedule);
+    expect(text).toContain("Lunes: 09:00–13:00, 16:00–20:00.");
+  });
+
+  it("devuelve un mensaje de fallback si el horario no es válido", () => {
+    expect(formatScheduleForPrompt({ invalid: true })).toBe("Horario no configurado todavía.");
   });
 });

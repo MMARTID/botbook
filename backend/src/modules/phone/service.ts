@@ -2,6 +2,7 @@ import { prisma } from "../../lib/prisma.js";
 import { telnyxAdapter } from "../../adapters/telnyx/TelnyxAdapter.js";
 import { vapiAdapter } from "../../adapters/vapi/VapiAdapter.js";
 import { retellAdapter } from "../../adapters/retell/RetellAdapter.js";
+import { getPublicWebhookBaseUrl } from "../../lib/serverUrl.js";
 
 export type PhoneNumberStatus =
   | "pending"
@@ -203,6 +204,16 @@ export async function provisionPhoneNumber(
         );
       }
 
+      const webhookBaseUrl = getPublicWebhookBaseUrl();
+      const inboundWebhookUrl = webhookBaseUrl
+        ? `${webhookBaseUrl.replace(/\/$/, "")}/webhooks/retell/inbound`
+        : undefined;
+      if (!inboundWebhookUrl) {
+        console.warn(
+          `[Phone] No hay BASE_URL/webhookUrl configurada — el número de ${businessId} se importará sin inbound_webhook_url, así que el prompt se quedará con las variables {{...}} sin rellenar.`
+        );
+      }
+
       const retellPhone = await retellAdapter.importPhoneNumber({
         phoneNumber: order.phoneNumber,
         terminationUri,
@@ -210,6 +221,7 @@ export async function provisionPhoneNumber(
         sipTrunkAuthPassword,
         nickname: business.name,
         inboundAgentId: agent.retellAgentId,
+        inboundWebhookUrl,
       });
 
       await prisma.business.update({

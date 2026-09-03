@@ -62,6 +62,39 @@ export const DEFAULT_BUSINESS_SCHEDULE: BusinessSchedule = {
   },
 };
 
+const WEEKDAY_LABELS_ES: Record<WeekDay, string> = {
+  monday: "Lunes",
+  tuesday: "Martes",
+  wednesday: "Miércoles",
+  thursday: "Jueves",
+  friday: "Viernes",
+  saturday: "Sábado",
+  sunday: "Domingo",
+};
+
+/**
+ * Texto en español del horario semanal, para inyectar como dynamic variable
+ * de Retell (los valores de retell_llm_dynamic_variables deben ser string).
+ * Sustituye al JSON crudo que antes se horneaba en el prompt: mismo dato, en
+ * un formato que el modelo lee directamente sin tener que interpretar JSON.
+ */
+export function formatScheduleForPrompt(scheduleInput: unknown): string {
+  const parsed = BusinessScheduleSchema.safeParse(scheduleInput);
+  if (!parsed.success) {
+    return "Horario no configurado todavía.";
+  }
+
+  return WEEK_DAYS.map((day) => {
+    const daySchedule = parsed.data.week[day];
+    const label = WEEKDAY_LABELS_ES[day];
+    if (!daySchedule.enabled || daySchedule.intervals.length === 0) {
+      return `${label}: cerrado.`;
+    }
+    const ranges = daySchedule.intervals.map((interval) => `${interval.start}–${interval.end}`).join(", ");
+    return `${label}: ${ranges}.`;
+  }).join(" ");
+}
+
 const ENGLISH_WEEKDAY_TO_KEY: Record<string, WeekDay> = {
   Monday: "monday",
   Tuesday: "tuesday",

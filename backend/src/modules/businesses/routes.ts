@@ -137,15 +137,11 @@ export async function businessesRoutes(fastify: FastifyInstance) {
         if (shouldResyncPrompt) {
           const currentBusiness = await prisma.business.findUnique({
             where: { id: request.user!.businessId },
-            select: { name: true, businessDetails: true, schedule: true, timezone: true, agentSettings: true },
+            select: { name: true, businessDetails: true, agentSettings: true },
           });
-          const schedule = data.schedule ?? currentBusiness?.schedule ?? {};
-          const timezone = data.timezone ?? currentBusiness?.timezone ?? "Europe/Madrid";
           const agentPrompt = buildManagedAgentPrompt({
             businessName: data.name ?? currentBusiness?.name ?? "el negocio",
             businessDetails: data.businessDetails ?? currentBusiness?.businessDetails,
-            timezone,
-            schedule,
             settings: data.agentSettings ?? currentBusiness?.agentSettings,
           });
           updateData.systemPrompt = agentPrompt;
