@@ -1,3 +1,9 @@
+substitutions:
+  # Override con --substitutions=_TAG=<sha> desde CI para que cada deploy
+  # tenga una imagen propia y sin ambigüedad si dos builds se solapan; los
+  # builds manuales (sin pasar _TAG) siguen publicando :latest como siempre.
+  _TAG: latest
+
 steps:
   # 1. Build y publica la imagen de producción (stage `runtime` del Dockerfile
   #    multi-stage — sin --target construiría el último stage, `development`).
@@ -6,7 +12,7 @@ steps:
       - "build"
       - "--target=runtime"
       - "-t"
-      - "europe-west1-docker.pkg.dev/project-84381467-a606-4b71-a6e/alhabla/backend:latest"
+      - "europe-west1-docker.pkg.dev/project-84381467-a606-4b71-a6e/alhabla/backend:${_TAG}"
       - "."
 
   # 2. Aplica las migraciones de Prisma pendientes contra Cloud SQL antes de
@@ -40,7 +46,7 @@ steps:
     secretEnv: ["DATABASE_URL"]
 
 images:
-  - "europe-west1-docker.pkg.dev/project-84381467-a606-4b71-a6e/alhabla/backend:latest"
+  - "europe-west1-docker.pkg.dev/project-84381467-a606-4b71-a6e/alhabla/backend:${_TAG}"
 
 availableSecrets:
   secretManager:

@@ -1,0 +1,55 @@
+name: CI
+
+# Gate de calidad: corre en cada PR y en cada push a main, para backend y
+# frontend por separado. No despliega nada — eso lo hace deploy-backend.yml
+# (solo backend; el frontend se despliega solo vía la integración Git de
+# Vercel). Ver Second-Brain "Runbook de despliegue a producción" y
+# "Producción e infraestructura" para el resto del pipeline.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  backend:
+    name: Backend — typecheck, lint, test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm run test
+
+  frontend:
+    name: Frontend — lint, test, build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run test
+      # No hay script `typecheck` en frontend/package.json — `next build`
+      # tipa como parte de la compilación (ver AGENTS.md).
+      - run: npm run build

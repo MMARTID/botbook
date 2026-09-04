@@ -947,6 +947,34 @@ npx prisma studio
 
 ## Deployment Notes
 
+### Automated CI/CD (GitHub Actions) — added 2026-09-04
+
+- **`.github/workflows/ci.yml`** — on every PR and every push to `main`: backend
+  (`typecheck`/`lint`/`test`) and frontend (`lint`/`test`/`build`, which also type-checks — there
+  is no `typecheck` script in `frontend/package.json`) run as two parallel jobs. Test-only, never
+  deploys.
+- **`.github/workflows/deploy-backend.yml`** — on push to `main` only: a `test` job (same backend
+  checks, kept as an independent pre-deploy gate on purpose, not just a dependency on `ci.yml`)
+  must pass before the `deploy` job runs `gcloud builds submit --config cloudbuild.yaml
+  --substitutions=_TAG=<commit sha>` then `gcloud run deploy alhabla-api --image=...:<sha>`, then
+  curls `/health` to confirm. Auto-deploys to production on every merge to `main` — deliberate
+  choice while there are no real customers yet (see PRODUCT.md); revisit if/when that changes.
+  **Frontend is not deployed by this workflow** — Vercel's own Git integration handles that
+  (Root Directory must be `frontend`, not `.` — see Producción section below for the incident
+  where this broke).
+- **Auth: Workload Identity Federation, no stored keys.** A dedicated service account
+  (`github-actions-ci@project-84381467-a606-4b71-a6e.iam.gserviceaccount.com`, least-privilege —
+  deliberately *not* the default Compute Engine SA that Cloud Run/Cloud Build use for everything
+  else) is impersonated via a WIF pool (`github-pool`) + OIDC provider (`github-provider`)
+  restricted to the `MMARTID/botbook` repo (`attribute.repository` condition on the IAM binding,
+  plus `attribute_condition: assertion.repository_owner == 'MMARTID'` on the provider itself —
+  belt and suspenders). No GitHub secret holds a GCP key. Exact roles granted and why: Second
+  Brain "Runbook de despliegue a producción" § CI/CD automático and memory `ci-cd-pipeline-setup`.
+- **`backend/cloudbuild.yaml` gained a `_TAG` substitution** (default `latest`) so CI can tag each
+  deploy with the commit SHA instead of always overwriting `:latest` — avoids ambiguity if two
+  builds ever overlap. Manual builds (`gcloud builds submit --config cloudbuild.yaml .` with no
+  `--substitutions`) are unaffected, still publish `:latest` exactly as before.
+
 - The `backend/Dockerfile` has 5 stages: `base`, `deps`, `builder`, `runtime`, `development`.
 - Production image runs `node dist/server.js` (compiled output).
 - Development image runs `npx tsx watch backend/src/server.ts` over a volume-mounted source tree.

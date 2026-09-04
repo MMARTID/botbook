@@ -1,0 +1,90 @@
+name: Deploy backend
+
+# Solo backend: el frontend se despliega solo vía la integración Git de
+# Vercel (Root Directory ya corregido a "frontend", ver Second-Brain
+# "Producción e infraestructura" § Vercel) — añadir aquí un deploy de
+# frontend competiría con esa vía.
+#
+# Autenticación sin claves de larga duración: Workload Identity Federation.
+# La service account github-actions-ci solo puede ser asumida por workflows
+# de este repo exacto (MMARTID/botbook) — ver el binding
+# roles/iam.workloadIdentityUser con condición de repositorio. Detalle
+# completo del pool/provider y de qué permisos tiene esa SA y por qué, en la
+# memoria de Claude Code "ci-cd-pipeline-setup" y en Second-Brain "Runbook de
+# despliegue a producción".
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  id-token: write # obligatorio para que google-github-actions/auth pueda pedir el token OIDC
+
+concurrency:
+  group: deploy-backend-production
+  cancel-in-progress: false # nunca cancelar un deploy a mitad — encolar el siguiente
+
+env:
+  GCP_PROJECT_ID: project-84381467-a606-4b71-a6e
+  GCP_REGION: europe-west1
+  IMAGE: europe-west1-docker.pkg.dev/project-84381467-a606-4b71-a6e/alhabla/backend
+
+jobs:
+  test:
+    name: Test antes de desplegar
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm run test
+
+  deploy:
+    name: Build y deploy a Cloud Run
+    needs: test
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: auth
+        name: Autenticar contra GCP (Workload Identity Federation)
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: projects/364278302839/locations/global/workloadIdentityPools/github-pool/providers/github-provider
+          service_account: github-actions-ci@project-84381467-a606-4b71-a6e.iam.gserviceaccount.com
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Construir y publicar la imagen (cloudbuild.yaml aplica las migraciones de Prisma)
+        working-directory: backend
+        run: |
+          gcloud builds submit \
+            --project="${{ env.GCP_PROJECT_ID }}" \
+            --config cloudbuild.yaml \
+            --substitutions=_TAG="${{ github.sha }}" \
+            .
+
+      - name: Desplegar la revisión nueva en alhabla-api
+        run: |
+          gcloud run deploy alhabla-api \
+            --image="${{ env.IMAGE }}:${{ github.sha }}" \
+            --region="${{ env.GCP_REGION }}" \
+            --project="${{ env.GCP_PROJECT_ID }}" \
+            --quiet
+
+      - name: Verificar /health tras el deploy
+        run: |
+          curl -sf https://api.alhabla.ai/health | tee /dev/stderr | grep -q '"status":"ok"'
