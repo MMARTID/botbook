@@ -9,7 +9,7 @@ Alhabla es una plataforma SaaS multi-tenant que proporciona recepcionistas de vo
 - **Reservas en calendario** (Google Calendar y Outlook) mediante herramientas de voz, con reintento automático en segundo plano si el calendario falla durante la llamada.
 - **Detección de tipo de negocio** desde Google Places API para personalizar agentes y servicios.
 - **Flujo de registro guiado** con Google Places, selección de servicios, equipo y conexión de calendario.
-- **Facturación con Stripe** y provisioning automático de números Twilio tras la suscripción.
+- **Facturación con Stripe** y provisioning automático de números Telnyx tras la suscripción.
 - **Webhooks seguros** con validación HMAC-SHA256 (Vapi) y firma Retell (incluyendo endpoints de herramientas).
 
 ## Stack tecnológico
@@ -19,11 +19,11 @@ Alhabla es una plataforma SaaS multi-tenant que proporciona recepcionistas de vo
 | Backend | Node.js 20, TypeScript 5.9, Fastify 5 |
 | Frontend | Next.js 14, React 18, Tailwind CSS |
 | Base de datos | PostgreSQL 15 + Prisma |
-| Caché / Colas | Redis 7 + BullMQ |
+| Caché | Redis 7 |
+| Colas | Cloud Tasks / Cloud Scheduler (jobs HTTP internos, sin BullMQ) |
 | Voice AI | Vapi + Retell.ai |
-| LLM | Anthropic Claude (clasificación de llamadas) |
 | Almacenamiento | Cloudflare R2 (S3) |
-| Telefonía | Twilio |
+| Telefonía | Telnyx (Twilio inactivo) |
 | Pagos | Stripe |
 
 ## Requisitos
@@ -91,9 +91,10 @@ docker compose --profile prod up
 
 ### Producción real
 
-Backend en Google Cloud Run (`https://api.alhabla.ai`, dos servicios: API pública +
-worker de BullMQ siempre encendido), frontend en Vercel. Ver `AGENTS.md` § Deployment Notes
-para la arquitectura completa y los comandos de despliegue.
+Backend en Google Cloud Run (`https://api.alhabla.ai`, un solo servicio — los jobs en
+segundo plano corren vía Cloud Tasks/Cloud Scheduler contra ese mismo servicio, no en un
+worker aparte), frontend en Vercel. Ver `AGENTS.md` § Deployment Notes para la arquitectura
+completa y los comandos de despliegue.
 
 ```mermaid
 graph TD
@@ -111,12 +112,13 @@ graph TD
 
     subgraph GCP["Google Cloud Run — europe-west1"]
         CR_API[alhabla-api<br/>público, autoscaling 0→N]
-        CR_WORKER[alhabla-worker<br/>sin tráfico público<br/>min-instances=1, siempre encendido]
     end
+
+    CTS[[Cloud Tasks / Cloud Scheduler<br/>jobs en segundo plano]]
 
     subgraph VPC["Infraestructura privada (VPC / conector)"]
         SQL[(Cloud SQL<br/>Postgres)]
-        REDIS[(Memorystore<br/>Redis)]
+        REDIS[(Memorystore<br/>Redis, caché)]
     end
 
     SM[[Secret Manager]]
@@ -124,13 +126,11 @@ graph TD
     EXT[Vapi · Retell · Stripe<br/>Telnyx · Google · Microsoft]
 
     CR_API -->|socket Unix| SQL
-    CR_WORKER -->|socket Unix| SQL
-    CR_API -->|encola jobs BullMQ| REDIS
-    CR_WORKER -->|consume jobs BullMQ| REDIS
+    CR_API -->|caché| REDIS
+    CR_API -->|encola vía HTTP| CTS
+    CTS -->|POST /internal/jobs/*| CR_API
     CR_API -.->|secretos| SM
-    CR_WORKER -.->|secretos| SM
-    CR_API -->|URLs firmadas de lectura| R2
-    CR_WORKER -->|sube grabaciones| R2
+    CR_API -->|URLs firmadas + sube grabaciones| R2
     EXT -->|webhooks| CR_API
 ```
 
@@ -140,13 +140,12 @@ graph TD
 /
 ├── backend/                # Backend ESM TypeScript
 │   ├── src/
-│   │   ├── server.ts       # Fastify entry point (API + workers en local/docker-compose)
-│   │   ├── workers.ts      # Entry solo-workers (usado por el servicio Cloud Run alhabla-worker)
+│   │   ├── server.ts       # Fastify entry point (rutas + endpoints internos de jobs vía Cloud Tasks)
 │   │   ├── plugins/        # auth, CORS, rate-limit, multipart
 │   │   ├── modules/        # módulos de rutas por dominio
-│   │   ├── adapters/       # Vapi, Retell, Twilio
+│   │   ├── adapters/       # Vapi, Retell, Twilio (inactivo), Telnyx
 │   │   ├── lib/            # utilidades compartidas
-│   │   ├── jobs/           # workers BullMQ
+│   │   ├── jobs/           # lógica de jobs en segundo plano (sin framework, invocados vía Cloud Tasks/Scheduler)
 │   │   └── config/         # constantes
 │   ├── prisma/             # schema y migraciones
 │   ├── tests/              # suite Vitest

@@ -5,14 +5,16 @@ SaaS multi-tenant de recepcionistas de voz con IA para pequeños negocios en Esp
 Los agentes de voz atienden llamadas, consultan horario y disponibilidad, y reservan citas
 en el calendario de Google u Outlook del negocio.
 
-Backend Fastify 5 + Prisma/PostgreSQL + Redis/BullMQ. Frontend Next.js 14 App Router
+Backend Fastify 5 + Prisma/PostgreSQL + Redis. Frontend Next.js 14 App Router
 (puerto 3001) con Tailwind 3 y TanStack Query. Voz vía Vapi y Retell.ai, telefonía Telnyx
 (Twilio inactivo — no vende números de España en autoservicio), pagos Stripe.
 
-**Producción** (desde 2026-09-01): backend en Google Cloud Run, dos servicios desde la misma
-imagen — `alhabla-api` (`https://api.alhabla.ai`, tráfico público) y `alhabla-worker` (BullMQ,
-sin tráfico público, siempre encendido). Frontend en Vercel. Detalle completo, IDs de recursos
-y comandos reales en `AGENTS.md` § Deployment Notes.
+**Producción** (desde 2026-09-01): backend en Google Cloud Run, **un solo servicio**,
+`alhabla-api` (`https://api.alhabla.ai`, tráfico público). Los jobs en segundo plano (antes
+BullMQ en un servicio `alhabla-worker` aparte) migraron el 2026-09-03 a Cloud Tasks/Cloud
+Scheduler, que llaman de vuelta a `alhabla-api` — ya no hace falta un servicio siempre
+encendido. Frontend en Vercel. Detalle completo, IDs de recursos y comandos reales en
+`AGENTS.md` § Deployment Notes.
 
 ## Reglas que no se negocian
 

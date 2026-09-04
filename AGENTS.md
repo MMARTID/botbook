@@ -14,9 +14,9 @@ The codebase is fully in Spanish — UI copy, comments, variable names, and busi
 | **HTTP framework** | Fastify 5 |
 | **Frontend** | Next.js 14 (App Router), React 18, Tailwind CSS v3 |
 | **Database** | PostgreSQL 15 + Prisma ORM |
-| **Cache / Queue** | Redis 7 + BullMQ |
+| **Cache** | Redis 7 |
+| **Background jobs** | Cloud Tasks / Cloud Scheduler (HTTP callbacks to `alhabla-api`, no BullMQ) |
 | **Voice AI** | Vapi API + Retell.ai |
-| **LLM** | Anthropic Claude (call classification) |
 | **Object storage** | Cloudflare R2 (S3-compatible) |
 | **Telephony** | Telnyx (phone number purchase for Spain, active). Twilio kept inactive — no longer sells Spain numbers via self-serve API |
 | **Billing** | Stripe (Checkout Sessions, Customer Portal, webhooks) |
@@ -35,8 +35,8 @@ The codebase is fully in Spanish — UI copy, comments, variable names, and busi
 │   │   ├── plugins/            # Fastify plugins (auth, CORS, rate-limit, multipart)
 │   │   ├── modules/            # Domain route modules (one folder per domain)
 │   │   ├── adapters/           # External API adapters (Vapi, Retell, Twilio, Telnyx)
-│   │   ├── lib/                # Shared utilities (Prisma, Redis, Stripe, queue, storage)
-│   │   ├── jobs/                # BullMQ background workers
+│   │   ├── lib/                # Shared utilities (Prisma, Redis, Stripe, Cloud Tasks, storage)
+│   │   ├── jobs/                # Background job logic, no framework (dispatched via Cloud Tasks)
 │   │   └── config/              # Static configuration constants
 │   ├── prisma/              # Prisma schema + migrations
 │   ├── dist/                # Compiled backend output (tsc)
@@ -76,8 +76,8 @@ Each module is a folder containing a `routes.ts` file (and optionally `service.t
 ### Key Libraries (`backend/src/lib/`)
 
 - `prisma.ts` — Prisma Client singleton with `globalThis` hot-reload guard.
-- `redis.ts` — IORedis connection (used by BullMQ and caching).
-- `queue.ts` — BullMQ queues (`recordingQueue`, `classifyQueue`).
+- `redis.ts` — IORedis connection (caching, OAuth state, rate limiting).
+- `cloudTasks.ts` — Cloud Tasks job dispatch (`enqueueRecordingJob`, `enqueueRetryBookingJob`, `enqueueEmailJob`); inline synchronous fallback outside production. See Background Jobs below.
 - `storage.ts` — R2/S3 client for file uploads (recordings, agent files).
 - `stripe.ts` — Stripe SDK client singleton.
 - `twilio.ts` — Twilio SDK singleton. Uses API Key + Secret when available; falls back to Auth Token. Inactive since the Telnyx migration, kept for historical businesses.
