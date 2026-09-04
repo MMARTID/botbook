@@ -71,10 +71,20 @@ jobs:
       - name: Construir y publicar la imagen (cloudbuild.yaml aplica las migraciones de Prisma)
         working-directory: backend
         run: |
+          # --suppress-logs: gcloud intenta hacer streaming del log del build
+          # por defecto, lo que requiere permiso de lectura de Cloud Logging
+          # (roles/logging.viewer o el rol primitivo Viewer) que github-actions-ci
+          # no tiene a propósito (mínimo privilegio). Sin esto, el build en GCP
+          # termina bien pero el propio comando `gcloud` sale con exit 1 solo por
+          # no poder mostrar el log — sigue esperando a que el build termine y
+          # devolviendo el código de salida real, solo que sin volcar el log a
+          # stdout. El log completo sigue disponible en la consola de Cloud Build
+          # si hace falta depurar un fallo real.
           gcloud builds submit \
             --project="${{ env.GCP_PROJECT_ID }}" \
             --config cloudbuild.yaml \
             --substitutions=_TAG="${{ github.sha }}" \
+            --suppress-logs \
             .
 
       - name: Desplegar la revisión nueva en alhabla-api
