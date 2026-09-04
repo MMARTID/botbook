@@ -3,6 +3,15 @@ import { telnyxAdapter } from "../../adapters/telnyx/TelnyxAdapter.js";
 import { vapiAdapter } from "../../adapters/vapi/VapiAdapter.js";
 import { retellAdapter } from "../../adapters/retell/RetellAdapter.js";
 import { getPublicWebhookBaseUrl } from "../../lib/serverUrl.js";
+import { getRedis } from "../../lib/redis.js";
+
+// El webhook de Stripe (checkout.session.completed) y el fallback de
+// reconcile del frontend pueden disparar provisionPhoneNumber casi a la vez
+// para el mismo negocio — sin este lock, ambos leen telnyxNumberOrderId como
+// null antes de que ninguno lo haya escrito y acaban comprando dos números
+// reales en Telnyx (solo uno queda enlazado en la BD, el otro queda huérfano
+// facturando de más).
+const PROVISION_LOCK_TTL_SECONDS = 60;
 
 export type PhoneNumberStatus =
   | "pending"
@@ -64,6 +73,29 @@ export async function provisionPhoneNumber(
     };
   }
 
+  const lockKey = `phone_provision_lock:${businessId}`;
+  const acquiredLock = await getRedis().set(
+    lockKey,
+    "1",
+    "EX",
+    PROVISION_LOCK_TTL_SECONDS,
+    "NX"
+  );
+  if (!acquiredLock) {
+    // Ya hay un provisioning en curso para este negocio (la otra llamada
+    // concurrente) — no comprar un segundo número, solo devolver el estado
+    // actual. El que tiene el lock es quien terminará de resolverlo.
+    console.log(
+      `[Phone] Provisioning ya en curso para business ${businessId}, se omite la llamada duplicada`
+    );
+    return {
+      success: business.twilioPhoneNumberStatus === "active",
+      phoneNumber:
+        business.telnyxPhoneNumber || business.twilioPhoneNumber || undefined,
+      status: (business.twilioPhoneNumberStatus as PhoneNumberStatus) || "pending",
+    };
+  }
+
   try {
     // Por ahora solo compramos números españoles: es el único país con
     // Requirement Group regulatorio aprobado en Telnyx. Fallar claro aquí en
@@ -86,6 +118,14 @@ export async function provisionPhoneNumber(
       );
     }
 
+    // Un Requirement Group de tipo "individual" (como el actual, de pruebas)
+    // ata el número a la localidad de la prueba de domicilio aportada — un
+    // número de otra ciudad queda "requirement-info-exception" aunque el
+    // grupo esté aprobado. TELNYX_SPAIN_LOCALITY debe reflejar esa localidad
+    // (opcional: sin ella no se filtra por ciudad, pensado para cuando el
+    // Requirement Group pase a tipo "business").
+    const locality = process.env.TELNYX_SPAIN_LOCALITY || undefined;
+
     let order;
     if (business.telnyxNumberOrderId) {
       // Ya hay un pedido en curso de un intento anterior (quedó "pending" en
@@ -101,7 +141,7 @@ export async function provisionPhoneNumber(
       // 1. Search available numbers
       const available = await telnyxAdapter.searchAvailableNumbers(
         DEFAULT_COUNTRY,
-        { limit: 5 }
+        { limit: 5, locality }
       );
 
       if (available.length === 0) {
@@ -307,6 +347,12 @@ export async function provisionPhoneNumber(
     });
 
     return { success: false, status: "failed", error: message };
+  } finally {
+    await getRedis()
+      .del(lockKey)
+      .catch((err) =>
+        console.error(`[Phone] No se pudo liberar el lock de ${businessId}:`, err)
+      );
   }
 }
 

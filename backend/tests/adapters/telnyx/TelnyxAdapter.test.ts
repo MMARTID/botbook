@@ -71,6 +71,23 @@ describe("TelnyxAdapter", () => {
       expect(results[0]).not.toHaveProperty("addressRequirements");
     });
 
+    it("filtra por localidad cuando se especifica (Requirement Group tipo individual)", async () => {
+      mockAvailablePhoneNumbersList.mockResolvedValue({
+        data: [{ phone_number: "+34930453216" }],
+      });
+
+      await adapter.searchAvailableNumbers("ES", { limit: 5, locality: "Barcelona" });
+
+      expect(mockAvailablePhoneNumbersList).toHaveBeenCalledWith({
+        filter: {
+          country_code: "ES",
+          phone_number_type: "local",
+          limit: 5,
+          locality: "Barcelona",
+        },
+      });
+    });
+
     it("propaga el error si la búsqueda falla", async () => {
       mockAvailablePhoneNumbersList.mockRejectedValue(new Error("Telnyx down"));
 

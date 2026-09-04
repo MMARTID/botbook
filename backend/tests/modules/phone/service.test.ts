@@ -37,6 +37,17 @@ vi.mock("../../../src/adapters/vapi/VapiAdapter.js", () => ({
   },
 }));
 
+const { mockRedisClient } = vi.hoisted(() => ({
+  mockRedisClient: {
+    set: vi.fn().mockResolvedValue("OK"),
+    del: vi.fn().mockResolvedValue(1),
+  },
+}));
+
+vi.mock("../../../src/lib/redis.js", () => ({
+  getRedis: () => mockRedisClient,
+}));
+
 const mockedBusinessFindUnique = vi.mocked(prisma.business.findUnique);
 const mockedBusinessUpdate = vi.mocked(prisma.business.update);
 const mockedSearchAvailableNumbers = vi.mocked(telnyxAdapter.searchAvailableNumbers);
@@ -53,6 +64,8 @@ const vapiAssistantId = "vapi_assistant_123";
 describe("provisionPhoneNumber", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockRedisClient.set.mockResolvedValue("OK");
+    mockRedisClient.del.mockResolvedValue(1);
     process.env.TELNYX_SPAIN_REQUIREMENT_GROUP_ID = "req_group_test";
     process.env.TELNYX_SIP_CONNECTION_ID = "conn_test";
     process.env.RETELL_SIP_TERMINATION_URI = "alhabla-inbound.sip.telnyx.com";
@@ -319,6 +332,53 @@ describe("provisionPhoneNumber", () => {
     expect(mockedSearchAvailableNumbers).not.toHaveBeenCalled();
     expect(mockedPurchaseNumber).not.toHaveBeenCalled();
     expect(mockedGetNumberOrder).toHaveBeenCalledWith("order_456");
+  });
+
+  it("no compra un segundo número si otra llamada concurrente ya tiene el lock", async () => {
+    mockRedisClient.set.mockResolvedValueOnce(null);
+
+    mockedBusinessFindUnique.mockResolvedValue({
+      id: businessId,
+      name: "Peluquería Test",
+      twilioPhoneNumberStatus: "pending",
+      telnyxPhoneNumber: null,
+      telnyxNumberOrderId: null,
+      orchestrator: "retell",
+      agents: [],
+    } as any);
+
+    const result = await provisionPhoneNumber(businessId);
+
+    expect(result.status).toBe("pending");
+    expect(mockedSearchAvailableNumbers).not.toHaveBeenCalled();
+    expect(mockedPurchaseNumber).not.toHaveBeenCalled();
+    expect(mockedBusinessUpdate).not.toHaveBeenCalled();
+  });
+
+  it("libera el lock de Redis incluso si el provisioning falla", async () => {
+    mockedBusinessFindUnique.mockResolvedValue({
+      id: businessId,
+      name: "Peluquería Test",
+      twilioPhoneNumberStatus: "pending",
+      telnyxPhoneNumber: null,
+      orchestrator: "retell",
+      agents: [],
+    } as any);
+
+    mockedSearchAvailableNumbers.mockRejectedValue(new Error("Telnyx down"));
+
+    await provisionPhoneNumber(businessId);
+
+    expect(mockRedisClient.set).toHaveBeenCalledWith(
+      `phone_provision_lock:${businessId}`,
+      "1",
+      "EX",
+      60,
+      "NX"
+    );
+    expect(mockRedisClient.del).toHaveBeenCalledWith(
+      `phone_provision_lock:${businessId}`
+    );
   });
 });
 

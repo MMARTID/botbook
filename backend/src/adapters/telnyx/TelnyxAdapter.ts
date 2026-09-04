@@ -26,7 +26,7 @@ export class TelnyxAdapter {
    */
   async searchAvailableNumbers(
     countryCode: string,
-    options: { limit?: number } = {}
+    options: { limit?: number; locality?: string } = {}
   ): Promise<AvailableNumber[]> {
     const client = getTelnyxClient();
     const response = await client.availablePhoneNumbers.list({
@@ -34,6 +34,7 @@ export class TelnyxAdapter {
         country_code: countryCode,
         phone_number_type: "local",
         limit: options.limit ?? 5,
+        ...(options.locality ? { locality: options.locality } : {}),
       },
     });
 
