@@ -166,7 +166,11 @@ function AjustesContent() {
       name: business.name,
       businessDetails: business.businessDetails ?? "",
     });
-    setAgentSettings(business.agentSettings ?? DEFAULT_AGENT_SETTINGS);
+    // Combinar con los defaults (no reemplazar sin más): un negocio existente
+    // puede tener agentSettings guardados de antes de un campo nuevo (p. ej.
+    // voiceGender) — sin este merge, ese campo llegaría undefined al editor y
+    // ninguna opción aparecería seleccionada hasta que el usuario tocara algo.
+    setAgentSettings({ ...DEFAULT_AGENT_SETTINGS, ...business.agentSettings });
   }, [business]);
 
   const invalidateAll = async () => {

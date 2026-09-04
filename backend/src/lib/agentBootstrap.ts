@@ -13,7 +13,12 @@ import {
 import { getPublicWebhookBaseUrl } from "./serverUrl.js";
 import type { VapiCreateAssistantRequest } from "../adapters/vapi/types.js";
 import { BUSINESS_TYPE_LABELS, isBusinessType, type BusinessType } from "./businessType.js";
-import { buildManagedAgentPrompt, DEFAULT_AGENT_SETTINGS } from "./managedAgentPrompt.js";
+import {
+  buildManagedAgentPrompt,
+  parseAgentSettings,
+  DEFAULT_AGENT_SETTINGS,
+  type AgentSettings,
+} from "./managedAgentPrompt.js";
 import { formatScheduleForPrompt } from "./businessSchedule.js";
 
 /**
@@ -192,6 +197,16 @@ export const DEFAULT_RETELL_AGENT_CONFIG = {
   modelTemperature: 0.3,
   language: "es-ES" as const,
   timezone: "Europe/Madrid",
+};
+
+/**
+ * Voice ID de Retell por género elegido en AgentSettings.voiceGender. La
+ * femenina es la voz por defecto histórica (DEFAULT_RETELL_AGENT_CONFIG); la
+ * masculina es la alternativa añadida en 2026-09.
+ */
+export const RETELL_VOICE_ID_BY_GENDER: Record<AgentSettings["voiceGender"], string> = {
+  femenina: DEFAULT_RETELL_AGENT_CONFIG.voiceId,
+  masculina: "13ff5deb-2591-42ad-a356-63a04e524411",
 };
 
 /**
@@ -667,14 +682,16 @@ export async function syncAgentToRetell(
   });
 
   const postCallAnalysisData = buildPostCallAnalysisData(services.map((service) => service.name));
+  const { voiceGender } = parseAgentSettings(business.agentSettings);
+  const voiceId = RETELL_VOICE_ID_BY_GENDER[voiceGender];
 
   for (const agent of agents) {
     try {
       await retellAdapter.updateLlm(agent.retellLlmId!, { generalPrompt: systemPrompt });
-      await retellAdapter.updateAgent(agent.retellAgentId!, { postCallAnalysisData });
+      await retellAdapter.updateAgent(agent.retellAgentId!, { postCallAnalysisData, voiceId });
       await prismaClient.agent.update({
         where: { id: agent.id },
-        data: { systemPrompt },
+        data: { systemPrompt, voiceId },
       });
     } catch (error) {
       console.error("[Agent] Failed to sync agent to Retell:", {

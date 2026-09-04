@@ -10,9 +10,19 @@ export const DEFAULT_AGENT_SETTINGS: AgentSettings = {
   primaryGoal: "bookings",
   responseStyle: "concise",
   escalation: "take_message",
+  voiceGender: "femenina",
 };
 
 const fields = [
+  {
+    key: "voiceGender" as const,
+    label: "Voz del agente",
+    description: "Con qué voz atiende las llamadas.",
+    options: [
+      { value: "femenina", label: "Femenina", detail: "Voz por defecto" },
+      { value: "masculina", label: "Masculina", detail: "Alternativa disponible" },
+    ],
+  },
   {
     key: "tone" as const,
     label: "Tono de voz",

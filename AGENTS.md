@@ -620,6 +620,19 @@ Retell supports `{{variable_name}}` templating in prompts, filled in either by b
 
 Stored in `Business.agentSettings` (JSON). Parsed with Zod; falls back to `DEFAULT_AGENT_SETTINGS` on invalid data.
 
+Includes `voiceGender: "femenina" | "masculina"` (added 2026-09, `.default("femenina")` in the
+Zod schema — required so businesses with `agentSettings` saved before this field existed keep
+parsing successfully instead of losing their tone/goal/style/escalation customization to the
+full `DEFAULT_AGENT_SETTINGS` fallback). Edited in `/ajustes` via `AgentSettingsEditor`, same
+generic `fields` array pattern as tone/goal/style/escalation — no registration step, matches the
+"configure once, tune later" pattern already used for the rest of `AgentSettings`.
+`syncAgentToRetell` resolves it to a real Retell `voiceId` via `RETELL_VOICE_ID_BY_GENDER`
+(`agentBootstrap.ts`) and pushes it with `retellAdapter.updateAgent({ voiceId, ... })` whenever
+`agentSettings` changes — `femenina` maps to `DEFAULT_RETELL_AGENT_CONFIG.voiceId` (the
+historical default voice), `masculina` to `13ff5deb-2591-42ad-a356-63a04e524411`. `Agent.voiceId`
+(Prisma) is kept in sync as the denormalized copy, same as `Agent.systemPrompt`. Voice is a
+property of the Retell **Agent** object, not the LLM — unrelated to `updateLlm`/`general_prompt`.
+
 ### Agent Defaults (`backend/src/lib/agentBootstrap.ts`)
 
 - `firstMessage`: "Hola, soy la recepcionista virtual. ¿En qué te ayudo?"
@@ -799,9 +812,11 @@ any user-facing copy:
   `SectorDataSection` does. The stats in `niche-landings.ts` and `generalSectorData` follow this.
 - The quotes in `niche-landings.ts` are business owners interviewed in the press **about the
   problem**, not Alhabla customers. Do not present them as testimonials.
-- Do not promise capabilities that do not ship. Voice selection has no frontend UI; "elegir entre
-  voces" was removed for that reason. Onboarding is self-service, so copy must not promise a human
-  configuring things with the customer.
+- Do not promise capabilities that do not ship. As of 2026-09 there **is** a real voice picker —
+  `AgentSettingsEditor` in `/ajustes` lets the business choose `femenina`/`masculina`
+  (`AgentSettings.voiceGender`, see Agent Configuration below) — but it is exactly two options,
+  not "choose your voice" or a voice library; copy must not overclaim beyond that. Onboarding is
+  self-service, so copy must not promise a human configuring things with the customer.
 - No AI jargon in the UI: "recepcionista virtual", "agente de voz". Never "LLM", "prompt",
   "orquestador", "webhook", "API", "leads" or "archivo de contexto".
 - Error copy is Spanish, actionable and never blames the user. Backend 5xx are generic on purpose;

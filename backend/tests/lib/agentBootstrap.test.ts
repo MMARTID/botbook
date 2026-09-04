@@ -1,6 +1,11 @@
-import { describe, it, expect, vi } from "vitest";
-import { buildInboundCallDynamicVariables } from "../../src/lib/agentBootstrap.js";
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import {
+  buildInboundCallDynamicVariables,
+  syncAgentToRetell,
+  RETELL_VOICE_ID_BY_GENDER,
+} from "../../src/lib/agentBootstrap.js";
 import { prisma } from "../../src/lib/prisma.js";
+import { retellAdapter } from "../../src/adapters/retell/RetellAdapter.js";
 import { DEFAULT_BUSINESS_SCHEDULE } from "../../src/lib/businessSchedule.js";
 
 vi.mock("../../src/lib/prisma.js", () => ({
@@ -14,12 +19,27 @@ vi.mock("../../src/lib/prisma.js", () => ({
     professional: {
       findMany: vi.fn(),
     },
+    agent: {
+      findMany: vi.fn(),
+      update: vi.fn(),
+    },
+  },
+}));
+
+vi.mock("../../src/adapters/retell/RetellAdapter.js", () => ({
+  retellAdapter: {
+    updateLlm: vi.fn(),
+    updateAgent: vi.fn(),
   },
 }));
 
 const mockedBusinessFindUnique = vi.mocked(prisma.business.findUnique);
 const mockedServiceFindMany = vi.mocked(prisma.service.findMany);
 const mockedProfessionalFindMany = vi.mocked(prisma.professional.findMany);
+const mockedAgentFindMany = vi.mocked(prisma.agent.findMany);
+const mockedAgentUpdate = vi.mocked(prisma.agent.update);
+const mockedUpdateLlm = vi.mocked(retellAdapter.updateLlm);
+const mockedUpdateAgent = vi.mocked(retellAdapter.updateAgent);
 
 describe("buildInboundCallDynamicVariables", () => {
   it("devuelve las tres variables como string, listas para retell_llm_dynamic_variables", async () => {
@@ -62,5 +82,86 @@ describe("buildInboundCallDynamicVariables", () => {
     const variables = await buildInboundCallDynamicVariables("biz_inexistente");
 
     expect(variables.horario_semanal).toBe("Horario no configurado todavía.");
+  });
+});
+
+describe("syncAgentToRetell — voiceGender", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockedServiceFindMany.mockResolvedValue([]);
+    mockedAgentFindMany.mockResolvedValue([
+      { id: "agent_db_1", retellAgentId: "retell_agent_1", retellLlmId: "retell_llm_1" },
+    ] as any);
+    mockedUpdateLlm.mockResolvedValue({} as any);
+    mockedUpdateAgent.mockResolvedValue({} as any);
+    mockedAgentUpdate.mockResolvedValue({} as any);
+  });
+
+  it("empuja la voz femenina (por defecto) cuando el negocio no tiene voiceGender guardado", async () => {
+    mockedBusinessFindUnique.mockResolvedValue({
+      name: "Salón de prueba",
+      businessDetails: null,
+      businessType: "peluqueria",
+      agentSettings: null,
+      orchestrator: "retell",
+      minAdvanceBookingMinutes: null,
+      maxAppointmentDurationMinutes: null,
+    } as any);
+
+    await syncAgentToRetell("biz_123");
+
+    expect(mockedUpdateAgent).toHaveBeenCalledWith(
+      "retell_agent_1",
+      expect.objectContaining({ voiceId: RETELL_VOICE_ID_BY_GENDER.femenina })
+    );
+    expect(mockedAgentUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ voiceId: RETELL_VOICE_ID_BY_GENDER.femenina }),
+      })
+    );
+  });
+
+  it("empuja la voz masculina cuando el negocio la eligió en agentSettings", async () => {
+    mockedBusinessFindUnique.mockResolvedValue({
+      name: "Barbería de prueba",
+      businessDetails: null,
+      businessType: "barberia",
+      agentSettings: {
+        version: 1,
+        tone: "direct",
+        primaryGoal: "bookings",
+        responseStyle: "concise",
+        escalation: "take_message",
+        voiceGender: "masculina",
+      },
+      orchestrator: "retell",
+      minAdvanceBookingMinutes: null,
+      maxAppointmentDurationMinutes: null,
+    } as any);
+
+    await syncAgentToRetell("biz_456");
+
+    expect(mockedUpdateAgent).toHaveBeenCalledWith(
+      "retell_agent_1",
+      expect.objectContaining({ voiceId: RETELL_VOICE_ID_BY_GENDER.masculina })
+    );
+    expect(RETELL_VOICE_ID_BY_GENDER.masculina).toBe("13ff5deb-2591-42ad-a356-63a04e524411");
+  });
+
+  it("no toca Retell si el negocio no usa el orquestador retell", async () => {
+    mockedBusinessFindUnique.mockResolvedValue({
+      name: "Negocio Vapi",
+      businessDetails: null,
+      businessType: "other",
+      agentSettings: null,
+      orchestrator: "vapi",
+      minAdvanceBookingMinutes: null,
+      maxAppointmentDurationMinutes: null,
+    } as any);
+
+    await syncAgentToRetell("biz_789");
+
+    expect(mockedUpdateAgent).not.toHaveBeenCalled();
+    expect(mockedAgentFindMany).not.toHaveBeenCalled();
   });
 });

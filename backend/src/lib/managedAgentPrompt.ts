@@ -7,6 +7,10 @@ export const AgentSettingsSchema = z.object({
   primaryGoal: z.enum(["bookings", "customer_service", "lead_capture"]),
   responseStyle: z.enum(["concise", "balanced"]),
   escalation: z.enum(["take_message", "request_callback"]),
+  // .default() para que los agentSettings ya guardados de negocios existentes
+  // (sin este campo) sigan validando y no caigan al fallback completo de
+  // DEFAULT_AGENT_SETTINGS, que resetearía también tono/objetivo/etc.
+  voiceGender: z.enum(["femenina", "masculina"]).default("femenina"),
 });
 
 export type AgentSettings = z.infer<typeof AgentSettingsSchema>;
@@ -17,6 +21,7 @@ export const DEFAULT_AGENT_SETTINGS: AgentSettings = {
   primaryGoal: "bookings",
   responseStyle: "concise",
   escalation: "take_message",
+  voiceGender: "femenina",
 };
 
 const TONE_INSTRUCTIONS: Record<AgentSettings["tone"], string> = {

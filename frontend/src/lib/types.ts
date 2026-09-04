@@ -22,6 +22,7 @@ export type AgentSettings = {
   primaryGoal: "bookings" | "customer_service" | "lead_capture";
   responseStyle: "concise" | "balanced";
   escalation: "take_message" | "request_callback";
+  voiceGender: "femenina" | "masculina";
 };
 
 export type BusinessType =
