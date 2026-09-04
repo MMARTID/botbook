@@ -402,9 +402,18 @@ export class RetellAdapter {
   }): Promise<{ callId: string; accessToken: string }> {
     this.ensureApiKey();
 
+    // Number.isFinite() en vez de una comprobación de verdad simple: un
+    // maxDurationMs de NaN (por una env var mal configurada aguas arriba) es
+    // falsy en JS, así que `input.maxDurationMs ? ... : ...` lo descartaría en
+    // silencio y la llamada quedaría sin tope real de duración.
+    const hasValidMaxDuration =
+      typeof input.maxDurationMs === "number" &&
+      Number.isFinite(input.maxDurationMs) &&
+      input.maxDurationMs > 0;
+
     const response = await this.client.call.createWebCall({
       agent_id: input.agentId,
-      ...(input.maxDurationMs
+      ...(hasValidMaxDuration
         ? { agent_override: { agent: { max_call_duration_ms: input.maxDurationMs } } }
         : {}),
       ...(input.metadata ? { metadata: input.metadata } : {}),

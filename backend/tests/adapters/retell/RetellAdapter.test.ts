@@ -393,5 +393,27 @@ describe("RetellAdapter", () => {
 
       expect(mocks.callCreateWebCall).toHaveBeenCalledWith({ agent_id: "agent_demo" });
     });
+
+    // Regresión: NaN es falsy en JS, así que un `maxDurationMs` inválido que
+    // llegara hasta aquí (p. ej. desde una RETELL_DEMO_MAX_DURATION_SECONDS
+    // mal configurada) pasaba la comprobación `input.maxDurationMs ? ... : ...`
+    // como "no indicado" y la llamada de demo se creaba SIN tope de duración,
+    // en vez de fallar de forma visible.
+    it("no envía el override si maxDurationMs es NaN, cero o negativo", async () => {
+      mocks.callCreateWebCall.mockResolvedValue({
+        call_id: "call_123",
+        access_token: "token_123",
+      });
+
+      const adapter = new RetellAdapter();
+
+      await adapter.createWebCall({ agentId: "agent_demo", maxDurationMs: NaN });
+      await adapter.createWebCall({ agentId: "agent_demo", maxDurationMs: 0 });
+      await adapter.createWebCall({ agentId: "agent_demo", maxDurationMs: -1000 });
+
+      for (const call of mocks.callCreateWebCall.mock.calls) {
+        expect(call[0]).toEqual({ agent_id: "agent_demo" });
+      }
+    });
   });
 });

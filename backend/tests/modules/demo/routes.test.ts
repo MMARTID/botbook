@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { getDemoAgentId } from "../../../src/modules/demo/routes.js";
+import { getDemoAgentId, resolveDemoMaxDurationSeconds } from "../../../src/modules/demo/routes.js";
 
 const DEMO_ENV_VARS = [
   "RETELL_DEMO_AGENT_ID",
@@ -59,5 +59,55 @@ describe("getDemoAgentId", () => {
   it("devuelve null si no hay ningún agente configurado", () => {
     expect(getDemoAgentId("peluqueria")).toBeNull();
     expect(getDemoAgentId()).toBeNull();
+  });
+});
+
+describe("resolveDemoMaxDurationSeconds", () => {
+  const ENV_VAR = "RETELL_DEMO_MAX_DURATION_SECONDS";
+  let saved: string | undefined;
+
+  beforeEach(() => {
+    saved = process.env[ENV_VAR];
+    delete process.env[ENV_VAR];
+  });
+
+  afterEach(() => {
+    if (saved === undefined) {
+      delete process.env[ENV_VAR];
+    } else {
+      process.env[ENV_VAR] = saved;
+    }
+  });
+
+  it("usa el default de 60s cuando la variable no está configurada", () => {
+    expect(resolveDemoMaxDurationSeconds()).toBe(60);
+  });
+
+  it("respeta un valor numérico válido", () => {
+    process.env[ENV_VAR] = "90";
+    expect(resolveDemoMaxDurationSeconds()).toBe(90);
+  });
+
+  // Regresión: antes se hacía Number(env || 60) y se pasaba directo a
+  // RetellAdapter — con un valor no numérico, Number(...) da NaN, que es
+  // falsy en JS, así que el override de duración se descartaba en silencio
+  // (ver el fix en RetellAdapter.createWebCall) y la llamada de demo quedaba
+  // SIN ningún tope real de duración.
+  it("cae al default si el valor no es numérico", () => {
+    process.env[ENV_VAR] = "no-es-un-numero";
+    expect(resolveDemoMaxDurationSeconds()).toBe(60);
+  });
+
+  it("cae al default si el valor es cero o negativo", () => {
+    process.env[ENV_VAR] = "0";
+    expect(resolveDemoMaxDurationSeconds()).toBe(60);
+
+    process.env[ENV_VAR] = "-30";
+    expect(resolveDemoMaxDurationSeconds()).toBe(60);
+  });
+
+  it("cae al default si el valor es una cadena vacía", () => {
+    process.env[ENV_VAR] = "";
+    expect(resolveDemoMaxDurationSeconds()).toBe(60);
   });
 });

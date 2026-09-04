@@ -2,8 +2,10 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import axios from "axios";
 import { RetellWebClient } from "retell-client-js-sdk";
 import { Mic, MicOff, PhoneOff, Loader2, PhoneCall, ShieldCheck, X } from "lucide-react";
+import { createDemoWebCall } from "@/lib/api";
 
 type DemoVoiceCallProps = {
   open: boolean;
@@ -262,16 +264,17 @@ export function DemoVoiceCall({ open, onClose, onActiveChange, niche }: DemoVoic
       await requestMicrophone();
 
       setState("connecting");
-      const response = await fetch("/api/backend/demo/web-call", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(niche ? { niche } : {}),
-      });
-      if (!response.ok) {
-        throw new Error(response.status === 503 ? DEMO_NOT_CONFIGURED : `DEMO_CALL_FAILED_${response.status}`);
+      let accessToken: string | undefined;
+      try {
+        const data = await createDemoWebCall(niche);
+        accessToken = data.accessToken;
+      } catch (error) {
+        if (axios.isAxiosError(error) && error.response?.status === 503) {
+          throw new Error(DEMO_NOT_CONFIGURED);
+        }
+        throw error;
       }
 
-      const { accessToken } = (await response.json()) as { accessToken?: string };
       if (!accessToken) {
         throw new Error(DEMO_NOT_CONFIGURED);
       }

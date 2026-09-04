@@ -258,3 +258,17 @@ export async function provisionPhoneNumber() {
   }>("/phone/business/me/phone/provision");
   return data;
 }
+
+export async function createDemoWebCall(niche?: string) {
+  // Timeout explícito: sin uno, un fallo de red silencioso deja al visitante
+  // mirando "Conectando demo…" indefinidamente en vez de ver un error
+  // accionable. Al expirar, axios lanza un error cuyo mensaje contiene
+  // "timeout" — el mismo texto en español que ya usa describeDemoError()
+  // para el resto de fallos de red se muestra sin cambios adicionales.
+  const { data } = await api.post<{ callId: string; accessToken: string }>(
+    "/demo/web-call",
+    niche ? { niche } : {},
+    { timeout: 15000 },
+  );
+  return data;
+}

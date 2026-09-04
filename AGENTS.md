@@ -69,7 +69,7 @@ Each module is a folder containing a `routes.ts` file (and optionally `service.t
 | `places` | *(none)* | Yes | Google Places autocomplete & details |
 | `files` | `/agents` | Yes | Agent file uploads (multipart, 10MB limit) |
 | `onboarding` | *(none)* | Yes | Onboarding state: progress, dismiss, complete |
-| `demo` | `/demo` | No | Public landing voice demo: `POST /demo/web-call` accepts `{ niche? }` and creates a Retell web call against that niche's demo agent, falling back to the generic one (10 req/min) |
+| `demo` | `/demo` | No | Public landing voice demo: `POST /demo/web-call` accepts `{ niche? }` and creates a Retell web call against that niche's demo agent, falling back to the generic one (10 req/min). `resolveDemoMaxDurationSeconds()` validates `RETELL_DEMO_MAX_DURATION_SECONDS` (finite, positive number or falls back to 60s) before passing it to `RetellAdapter.createWebCall` — a malformed value used to produce `NaN`, which is falsy in JS, so the duration cap was silently dropped and the demo call ran uncapped |
 
 \* Except OAuth callbacks (`/calendar/auth/*/callback`) and Stripe webhook (`/billing/webhook`).
 
@@ -155,13 +155,25 @@ There is no static OG asset; edit that file to change what WhatsApp and X displa
   flag the card the visitor already chose, and renders the value contrast from
   `calculatePlanValueContrast` only when the visitor's own estimate covers the plan.
 - `DemoVoiceCall` — Real Retell voice demo using `retell-client-js-sdk` with live transcription.
-  The browser asks the backend for a web call (`POST /demo/web-call`, public, 10 req/min), which
-  creates it via Retell `create-web-call` and returns the access token. The landing sends its
-  niche slug (`peluqueria`, `barberia`, …) and the backend picks the matching
-  `RETELL_DEMO_<NICHO>_AGENT_ID`, falling back to the generic `RETELL_DEMO_AGENT_ID`.
-  It is a real dialog: `role="dialog"`, `aria-modal`, focus trap on Tab, body scroll lock.
-  All failures go through `describeDemoError`, which maps config/permission/network causes to
-  Spanish copy. **Never surface `error.message` from the SDK or an env-var name to the user.**
+  The browser asks the backend for a web call via `createDemoWebCall()` (`frontend/src/lib/api.ts`,
+  `POST /demo/web-call`, public, 10 req/min, 15s client timeout), which creates it via Retell
+  `create-web-call` and returns the access token. The landing sends its niche slug (`peluqueria`,
+  `barberia`, …) and the backend picks the matching `RETELL_DEMO_<NICHO>_AGENT_ID`, falling back to
+  the generic `RETELL_DEMO_AGENT_ID`. It is a real dialog: `role="dialog"`, `aria-modal`, focus trap
+  on Tab, body scroll lock. All failures go through `describeDemoError`, which maps config/
+  permission/network causes to Spanish copy. **Never surface `error.message` from the SDK or an
+  env-var name to the user.**
+  **Always call the backend through the shared `api` client (`@/lib/api`), never a raw
+  `fetch("/api/backend/...")`.** The component used to call `fetch("/api/backend/demo/web-call")`
+  directly — that literal path only resolves via the `next.config.mjs` rewrite, which is hardcoded
+  to `http://localhost:3000/:path*` and only works in local dev. In production (Vercel) that
+  rewrite tries to hit `localhost` from the edge and fails outright
+  (`DNS_HOSTNAME_RESOLVED_PRIVATE`), so the public demo was silently broken on `alhabla.ai` while
+  working fine locally. Fixed 2026-09-04 by routing through `createDemoWebCall()`, which uses the
+  `api` axios instance (`baseURL: NEXT_PUBLIC_API_BASE_URL`) like every other endpoint wrapper in
+  `api.ts` — same root-cause shape as the earlier `/auth/register` production bug, different
+  component. If a future component needs to call the backend directly, add a wrapper to `api.ts`
+  instead of a raw `fetch`/hardcoded path.
 - `LegalPage` / `LegalSection` / `LegalTodo` — Read-mode shell for the `/legal/*` pages.
 - `BusinessHoursEditor` — Weekly schedule editor (up to 3 intervals per day).
 - `AgentSettingsEditor` — Tone, goal, response style, escalation strategy.
@@ -494,8 +506,10 @@ The backend supports two voice-AI orchestrators. `Business.orchestrator` decides
 ### Retell Configuration
 
 - Retell agent defaults live in `backend/src/lib/agentBootstrap.ts` (`DEFAULT_RETELL_AGENT_CONFIG`).
-- Default LLM: `gpt-4.1`.
-- Default voice: `retell-Cimo`.
+- Default LLM: `gpt-5.6-luna` (the `"gpt-4.1"` fallback inside `RetellAdapter.createLlm()` is dead
+  code in practice — `buildRetellLlmPayload()` always passes a model explicitly).
+- Default voice: a cloned/purchased voice (`voiceId: "custom_voice_4d8c043e79b567a286898349d2"`),
+  not a named preset.
 - Default language: `es-ES`, timezone: `Europe/Madrid`.
 - Payload builders: `buildRetellAgentPayload` and `buildRetellLlmPayload`.
 - **`post_call_analysis_data`** (Retell's own post-call classification LLM, no extra API call from this backend) is built by `buildPostCallAnalysisData(serviceNames)` in `agentBootstrap.ts` and always includes:

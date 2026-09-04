@@ -43,6 +43,26 @@ export function getDemoAgentId(niche?: DemoNiche): string | null {
   return process.env.RETELL_DEMO_AGENT_ID || null;
 }
 
+const DEFAULT_DEMO_MAX_DURATION_SECONDS = 60;
+
+/**
+ * Duración máxima real de la llamada de demo, con guarda contra una
+ * RETELL_DEMO_MAX_DURATION_SECONDS mal configurada (vacía, no numérica,
+ * negativa o cero). Si el valor no es un número finito y positivo, Retell
+ * recibiría `max_call_duration_ms: NaN` — que `JSON.stringify` convierte en
+ * `null`, así que el override de duración se ignoraría en silencio y la
+ * llamada de demo quedaría SIN tope real de duración (coste sin límite por
+ * llamada). Siempre se cae a un valor seguro en vez de dejarlo sin aplicar.
+ */
+export function resolveDemoMaxDurationSeconds(): number {
+  const raw = process.env.RETELL_DEMO_MAX_DURATION_SECONDS;
+  if (!raw) {
+    return DEFAULT_DEMO_MAX_DURATION_SECONDS;
+  }
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_DEMO_MAX_DURATION_SECONDS;
+}
+
 /**
  * Demo pública de voz de la landing. Crea una llamada web de Retell contra el
  * agente de demo del nicho (o el genérico) y devuelve el access token que
@@ -71,7 +91,7 @@ export const demoRoutes: FastifyPluginAsync = async (fastify) => {
       }
 
       try {
-        const maxDurationSeconds = Number(process.env.RETELL_DEMO_MAX_DURATION_SECONDS || 60);
+        const maxDurationSeconds = resolveDemoMaxDurationSeconds();
         const call = await retellAdapter.createWebCall({
           agentId,
           maxDurationMs: maxDurationSeconds * 1000,
