@@ -87,21 +87,21 @@ describe("BusinessScheduleSchema", () => {
 
 describe("checkBusinessHours", () => {
   it("detecta horario dentro del horario comercial", () => {
-    const result = checkBusinessHours(DEFAULT_BUSINESS_SCHEDULE, europeMadrid, "2026-08-10T10:00:00", 60);
+    const result = checkBusinessHours(DEFAULT_BUSINESS_SCHEDULE, europeMadrid, "2026-08-10T10:00:00+02:00", 60);
     expect(result.success).toBe(true);
     expect(result.isOpen).toBe(true);
     expect(result.code).toBe("WITHIN_BUSINESS_HOURS");
   });
 
   it("detecta horario fuera del horario comercial", () => {
-    const result = checkBusinessHours(DEFAULT_BUSINESS_SCHEDULE, europeMadrid, "2026-08-10T20:00:00", 60);
+    const result = checkBusinessHours(DEFAULT_BUSINESS_SCHEDULE, europeMadrid, "2026-08-10T20:00:00+02:00", 60);
     expect(result.success).toBe(true);
     expect(result.isOpen).toBe(false);
     expect(result.code).toBe("OUTSIDE_BUSINESS_HOURS");
   });
 
   it("detecta día cerrado", () => {
-    const result = checkBusinessHours(DEFAULT_BUSINESS_SCHEDULE, europeMadrid, "2026-08-09T10:00:00", 60);
+    const result = checkBusinessHours(DEFAULT_BUSINESS_SCHEDULE, europeMadrid, "2026-08-09T10:00:00+02:00", 60);
     expect(result.success).toBe(true);
     expect(result.isOpen).toBe(false);
   });
@@ -123,19 +123,26 @@ describe("checkBusinessHours", () => {
   });
 
   it("devuelve BUSINESS_HOURS_NOT_CONFIGURED si el schedule no es válido", () => {
-    const result = checkBusinessHours({ invalid: true }, europeMadrid, "2026-08-10T10:00:00", 60);
+    const result = checkBusinessHours({ invalid: true }, europeMadrid, "2026-08-10T10:00:00+02:00", 60);
     expect(result.success).toBe(false);
     expect(result.code).toBe("BUSINESS_HOURS_NOT_CONFIGURED");
   });
 
   it("detecta cita que cruza el cierre", () => {
-    const result = checkBusinessHours(DEFAULT_BUSINESS_SCHEDULE, europeMadrid, "2026-08-10T17:30:00", 60);
+    const result = checkBusinessHours(DEFAULT_BUSINESS_SCHEDULE, europeMadrid, "2026-08-10T17:30:00+02:00", 60);
     expect(result.success).toBe(true);
     expect(result.isOpen).toBe(false);
   });
 
   it("acepta cita exacta al inicio y fin del tramo", () => {
-    const result = checkBusinessHours(DEFAULT_BUSINESS_SCHEDULE, europeMadrid, "2026-08-10T09:00:00", 540);
+    // +02:00 explícito (offset real de Madrid en agosto) — nunca una fecha
+    // "naive": new Date() interpreta una fecha sin zona horaria como hora
+    // LOCAL DEL SISTEMA que ejecuta el test, no como hora de Madrid. En este
+    // Mac (CEST) coincidían por casualidad; en el runner de GitHub Actions
+    // (UTC) el desfase de 2h desplazaba el fin de la cita a las 20:00,
+    // fuera del tramo 09:00–18:00 — el test fallaba solo en CI. Regresión
+    // real encontrada por el pipeline de CI/CD el 2026-09-04.
+    const result = checkBusinessHours(DEFAULT_BUSINESS_SCHEDULE, europeMadrid, "2026-08-10T09:00:00+02:00", 540);
     expect(result.success).toBe(true);
     expect(result.isOpen).toBe(true);
   });
