@@ -247,10 +247,20 @@ rojo) de extremo a extremo — fondo, borde y texto del mismo tono — y nunca s
 o texto morado. Un borde `#ddd6fe` sobre un fondo `#ecf7ec` es el error más común al tocar estos
 componentes: revisar siempre que las tres partes (borde, fondo, texto) sean de la misma familia.
 
-**La Regla del Blanco Plano.** Ninguna pantalla usa degradado de papel ni superficie translúcida
-por defecto. El fondo es `#ffffff` liso en landing, auth, registro, panel y ajustes — el
-degradado radial sutil y los blobs de desenfoque morado (`blur-3xl`) son un acento puntual sobre
-paneles concretos, no el fondo general de la página.
+**La Regla del Blanco Plano.** El producto —panel, ajustes y todo lo que se usa a diario— va
+sobre `#ffffff` liso, sin degradado de papel ni superficie translúcida por defecto. El degradado
+radial sutil y los blobs de desenfoque morado (`blur-3xl`) son un acento puntual sobre paneles
+concretos, no el fondo general de la página.
+
+**Excepción, decidida el 2026-09-05: las superficies de venta llevan campo de partículas.** La
+landing, las cinco landings de nicho, `/login` y `/register` pintan un fondo animado
+(`frontend/src/components/particle-field.tsx`): puntos morados en tres profundidades sobre un velo
+de degradado casi imperceptible. Vender puede permitirse espectáculo; trabajar cada día, no — la
+frontera es exactamente esa, y no se mueve sin decisión explícita. El campo respeta la Regla del
+Acento Único (es morado, no un segundo color de marca), se dibuja a opacidades que dejan intacto
+el compromiso WCAG AA, adapta su densidad al dispositivo y se queda quieto con
+`prefers-reduced-motion`. Requiere `relative isolate` en el contenedor de página, sin fondo opaco
+propio.
 
 ## Typography
 
@@ -464,9 +474,11 @@ Lucide y al logotipo raster anterior en header, footer, favicon, `apple-icon` e 
   fondo: se vuelve invisible por falta de contraste.
 - **Don't** poner un borde o texto morado dentro de un banner semántico verde (éxito) o rojo
   (error). Las tres partes — fondo, borde, texto — deben ser de la misma familia semántica.
-- **Don't** usar degradado de papel ni superficie translúcida como fondo general de página; el
-  degradado radial sutil y los blobs `blur-3xl` morados son un acento puntual sobre un panel
-  concreto, no el fondo del `body`.
+- **Don't** usar degradado de papel ni superficie translúcida como fondo general de página **en el
+  producto** (panel, ajustes); el degradado radial sutil y los blobs `blur-3xl` morados son un
+  acento puntual sobre un panel concreto, no el fondo del `body`. Las superficies de venta
+  (landings, `/login`, `/register`) sí llevan el campo de partículas — ver La Regla del Blanco
+  Plano.
 - **Don't** aplicar sombras teñidas de verde (`rgba(30,43,34,…)`) — son residuo del sistema
   anterior y no pertenecen a la paleta actual.
 - **Don't** dejar que un contenedor colapse mientras carga: el checkout embebido reserva

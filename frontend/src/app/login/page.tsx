@@ -5,6 +5,7 @@ import { api } from "@/lib/api";
 import Link from "next/link";
 import { GoogleAuthButton } from "@/components/google-auth-button";
 import { BrandMark } from "@/components/brand-mark";
+import { ParticleField } from "@/components/particle-field";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -29,7 +30,8 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center px-4 py-12 sm:px-6 lg:px-8">
+    <div className="relative isolate flex min-h-screen items-center justify-center px-4 py-12 sm:px-6 lg:px-8">
+      <ParticleField />
       <div className="panel w-full max-w-lg p-8">
         <div className="space-y-4 text-center">
           <BrandMark className="mx-auto h-14 w-14" />

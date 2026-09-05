@@ -7,6 +7,7 @@ import { SectorDataSection } from "@/components/sector-data-section";
 import { RevenueLossCalculator } from "@/components/revenue-loss-calculator";
 import { Reveal } from "@/components/scroll-reveal";
 import { BrandMark } from "@/components/brand-mark";
+import { ParticleField } from "@/components/particle-field";
 import { formatIncludedMinutes, formatPlanPrice, plans, TRIAL_REASSURANCE } from "@/lib/plans";
 import { generalSectorData, type NicheLandingContent } from "@/lib/niche-landings";
 
@@ -105,9 +106,12 @@ export function SiteLanding({ content }: { content?: NicheLandingContent }) {
   return (
     <main
       id="main-content"
-      className="relative min-h-screen w-full bg-white text-[#0a0a0a]"
+      // Sin fondo propio y con `isolate`: el blanco lo pone el `body` y el
+      // campo de partículas queda por detrás del contenido (ver ParticleField).
+      className="relative isolate min-h-screen w-full text-[#0a0a0a]"
       data-landing="alhabla"
     >
+      <ParticleField />
       <a
         href="#contenido"
         className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-[60] focus:rounded-full focus:bg-[#0a0a0a] focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-white"

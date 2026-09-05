@@ -19,4 +19,22 @@ class ObserverStub {
 if (typeof window !== "undefined") {
   window.ResizeObserver ??= ObserverStub as unknown as typeof ResizeObserver;
   window.IntersectionObserver ??= ObserverStub as unknown as typeof IntersectionObserver;
+
+  // jsdom no trae contexto de canvas y avisa por consola en cada render de
+  // ParticleField. Devolver null sin ruido: el componente ya sabe rendirse.
+  HTMLCanvasElement.prototype.getContext = () => null;
+
+  // jsdom tampoco implementa matchMedia, que ParticleField consulta para
+  // respetar `prefers-reduced-motion`. Por defecto responde «sin preferencia»;
+  // los tests que necesiten lo contrario lo sobrescriben.
+  window.matchMedia ??= ((query: string) => ({
+    matches: false,
+    media: query,
+    onchange: null,
+    addEventListener: () => {},
+    removeEventListener: () => {},
+    addListener: () => {},
+    removeListener: () => {},
+    dispatchEvent: () => false,
+  })) as unknown as typeof window.matchMedia;
 }
