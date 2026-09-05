@@ -342,7 +342,15 @@ export class CalendarService {
           },
           required: ['startDateTime', 'durationMinutes'],
         },
-        speak_during_execution: true,
+        // Comprobación interna rápida (sin llamada externa) — sin narración
+        // durante la ejecución. Antes decía "un momento, lo compruebo" aquí
+        // Y en check_availability Y en book_appointment cuando las tres se
+        // encadenaban para confirmar una reserva, repitiendo la frase hasta
+        // 3 veces seguidas (confirmado en una llamada real) porque pedirle
+        // al LLM por prompt que "solo lo diga una vez" no es fiable. Con
+        // esto, solo book_appointment (la única con una llamada externa de
+        // verdad, al calendario) puede hablar mientras se ejecuta.
+        speak_during_execution: false,
         speak_after_execution: true,
         timeout_ms: 20000,
       },
@@ -366,7 +374,8 @@ export class CalendarService {
           },
           required: ['startDateTime', 'durationMinutes'],
         },
-        speak_during_execution: true,
+        // Ver comentario en check_business_hours — misma razón.
+        speak_during_execution: false,
         speak_after_execution: true,
         timeout_ms: 20000,
       },

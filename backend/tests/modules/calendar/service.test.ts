@@ -449,6 +449,31 @@ describe("CalendarService.syncCalendarToolsToAgents", () => {
     );
   });
 
+  it("solo book_appointment habla mientras se ejecuta — check_business_hours y check_availability son internas y rápidas, en silencio", async () => {
+    mockedBusinessFindUnique.mockResolvedValue({
+      id: "business_123",
+      orchestrator: "retell",
+    } as any);
+    mockedAgentFindMany.mockResolvedValue([
+      {
+        id: "agent_123",
+        businessId: "business_123",
+        retellAgentId: "retell_agent_456",
+        retellLlmId: "retell_llm_789",
+      },
+    ] as any);
+    mockedGetPublicWebhookBaseUrl.mockReturnValue("https://example.com");
+    mockedRetellUpdateLlm.mockResolvedValue({} as any);
+
+    await calendarService.syncCalendarToolsToAgents("business_123");
+
+    const [, payload] = mockedRetellUpdateLlm.mock.calls[0];
+    const tools = (payload as { tools: Array<{ name: string; speak_during_execution?: boolean }> }).tools;
+    expect(tools.find((t) => t.name === "check_business_hours")?.speak_during_execution).toBe(false);
+    expect(tools.find((t) => t.name === "check_availability")?.speak_during_execution).toBe(false);
+    expect(tools.find((t) => t.name === "book_appointment")?.speak_during_execution).toBe(true);
+  });
+
   it("no registra tools de Retell si el agente no tiene retellAgentId", async () => {
     mockedBusinessFindUnique.mockResolvedValue({
       id: "business_123",
