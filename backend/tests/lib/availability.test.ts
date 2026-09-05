@@ -90,7 +90,7 @@ describe("checkAvailability", () => {
     expect(result.code).toBe("NO_AVAILABLE_PROFESSIONAL");
   });
 
-  it("rechaza cuando ningún profesional puede hacer el servicio solicitado", async () => {
+  it("los servicios marcados son una preferencia, no un filtro: un profesional con otro servicio marcado sigue disponible", async () => {
     givenProfessionals([{ id: "prof_1", name: "Ana", serviceIds: ["service_other"] }]);
     givenBookings([]);
 
@@ -104,8 +104,56 @@ describe("checkAvailability", () => {
       serviceId: "service_target",
     });
 
-    expect(result.available).toBe(false);
-    expect(result.code).toBe("NO_AVAILABLE_PROFESSIONAL");
+    expect(result.available).toBe(true);
+    if (result.available) {
+      expect(result.availableProfessionals).toEqual([{ id: "prof_1", name: "Ana" }]);
+    }
+  });
+
+  it("un profesional sin ningún servicio marcado puede hacerlos todos", async () => {
+    givenProfessionals([{ id: "prof_1", name: "Ana", serviceIds: [] }]);
+    givenBookings([]);
+
+    const result = await checkAvailability({
+      businessId,
+      schedule: DEFAULT_BUSINESS_SCHEDULE,
+      timezone: europeMadrid,
+      bookingCapacity: 1,
+      startDateTime: "2026-08-10T10:00:00",
+      durationMinutes: 60,
+      serviceId: "service_target",
+    });
+
+    expect(result.available).toBe(true);
+    if (result.available) {
+      expect(result.availableProfessionals).toEqual([{ id: "prof_1", name: "Ana" }]);
+    }
+  });
+
+  it("prioriza al especialista del servicio sobre un profesional sin esa marca (usado para asignar sin professionalId explícito)", async () => {
+    givenProfessionals([
+      { id: "prof_generalista", name: "Luis", serviceIds: [] },
+      { id: "prof_especialista", name: "Ana", serviceIds: ["service_target"] },
+    ]);
+    givenBookings([]);
+
+    const result = await checkAvailability({
+      businessId,
+      schedule: DEFAULT_BUSINESS_SCHEDULE,
+      timezone: europeMadrid,
+      bookingCapacity: 2,
+      startDateTime: "2026-08-10T10:00:00",
+      durationMinutes: 60,
+      serviceId: "service_target",
+    });
+
+    expect(result.available).toBe(true);
+    if (result.available) {
+      // El especialista va primero aunque en la BD viniera segundo — book_appointment
+      // usa availableProfessionals[0] cuando no se pide un profesional concreto.
+      expect(result.availableProfessionals[0]).toEqual({ id: "prof_especialista", name: "Ana" });
+      expect(result.availableProfessionals).toHaveLength(2);
+    }
   });
 
   it("acepta cuando hay capacidad y profesionales libres", async () => {

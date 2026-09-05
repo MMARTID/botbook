@@ -61,23 +61,28 @@ export async function checkAvailability(input: {
     };
   }
 
-  const capableProfessionals = serviceId
-    ? professionals.filter((professional) =>
-        professional.serviceLinks.some((link) => link.serviceId === serviceId)
-      )
-    : professionals;
-
-  if (capableProfessionals.length === 0) {
+  if (professionals.length === 0) {
     return {
       available: false,
       code: "NO_AVAILABLE_PROFESSIONAL",
-      message: professionalId
-        ? "Ese profesional no está asignado a este servicio."
-        : serviceId
-          ? "No hay ningún profesional activo asignado a este servicio para ese horario."
-          : "No hay profesionales activos configurados en el negocio.",
+      message: "No hay profesionales activos configurados en el negocio.",
     };
   }
+
+  // Los servicios marcados en un profesional son una preferencia de
+  // especialidad, no una restricción: cualquier profesional activo puede
+  // atender cualquier servicio (un profesional sin ningún servicio marcado
+  // puede hacerlos todos, sin prioridad frente a los demás). Cuando se pide
+  // un servicio concreto sin especificar profesional, se prioriza a quien lo
+  // tenga marcado como especialidad — el resto sigue contando como
+  // alternativa si nadie lo tiene marcado o los especialistas están ocupados.
+  const rankedProfessionals = serviceId
+    ? [...professionals].sort((a, b) => {
+        const aIsSpecialist = a.serviceLinks.some((link) => link.serviceId === serviceId) ? 0 : 1;
+        const bIsSpecialist = b.serviceLinks.some((link) => link.serviceId === serviceId) ? 0 : 1;
+        return aIsSpecialist - bIsSpecialist;
+      })
+    : professionals;
 
   // 3. Citas existentes en el slot
   const start = new Date(startDateTime);
@@ -123,7 +128,7 @@ export async function checkAvailability(input: {
       .filter((id): id is string => Boolean(id))
   );
 
-  const availableProfessionals = capableProfessionals
+  const availableProfessionals = rankedProfessionals
     .filter((professional) => !busyProfessionalIds.has(professional.id))
     .map((professional) => ({ id: professional.id, name: professional.name }));
 
