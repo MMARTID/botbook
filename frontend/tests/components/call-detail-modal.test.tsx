@@ -101,8 +101,9 @@ describe("CallDetailModal", () => {
           numberPeople: 1,
           isCancelled: false,
           clientPhone: null,
+          serviceIds: ["s1"],
           professional: { id: "p1", name: "Ana" },
-          service: { id: "s1", name: "Corte", durationMinutes: 30 },
+          services: [{ id: "s1", name: "Corte", durationMinutes: 30 }],
         },
       })
     );
@@ -111,6 +112,31 @@ describe("CallDetailModal", () => {
 
     expect(await screen.findByText("Corte")).toBeInTheDocument();
     expect(screen.getByText("Ana")).toBeInTheDocument();
+  });
+
+  it("muestra varios servicios juntos cuando la reserva tiene más de uno", async () => {
+    mockedGetCall.mockResolvedValue(
+      buildCall({
+        booking: {
+          id: "b1",
+          programedAt: "2026-09-05T09:00:00Z",
+          durationMinutes: 150,
+          numberPeople: 1,
+          isCancelled: false,
+          clientPhone: null,
+          serviceIds: ["s1", "s2"],
+          professional: { id: "p1", name: "Marta" },
+          services: [
+            { id: "s1", name: "Corte", durationMinutes: 30 },
+            { id: "s2", name: "Mechas", durationMinutes: 120 },
+          ],
+        },
+      })
+    );
+
+    renderModal();
+
+    expect(await screen.findByText("Corte y Mechas")).toBeInTheDocument();
   });
 
   it("avisa si la reserva se canceló después", async () => {
@@ -123,6 +149,7 @@ describe("CallDetailModal", () => {
           numberPeople: 1,
           isCancelled: true,
           clientPhone: null,
+          serviceIds: [],
         },
       })
     );

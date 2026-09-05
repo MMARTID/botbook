@@ -28,7 +28,7 @@ const pendingBookingData = {
   clientEmail: "ana@example.com",
   startDateTime: "2026-09-10T10:00:00Z",
   durationMinutes: 30,
-  serviceId: "service_1",
+  serviceIds: ["service_1"],
   professionalId: "pro_1",
 };
 
@@ -152,7 +152,7 @@ describe("processRetryFailedBookingJob", () => {
           callId: "call_1",
           durationMinutes: 30,
           professionalId: "pro_1",
-          serviceId: "service_1",
+          serviceIds: ["service_1"],
         }),
       })
     );

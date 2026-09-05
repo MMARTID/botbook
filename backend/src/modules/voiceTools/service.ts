@@ -201,8 +201,9 @@ async function executeCheckAvailability(
       typeof params?.startDateTime === "string" ? params.startDateTime : "";
     const durationMinutes =
       typeof params?.durationMinutes === "number" ? params.durationMinutes : 0;
-    const serviceId =
-      typeof params?.serviceId === "string" ? params.serviceId : undefined;
+    const serviceIds = Array.isArray(params?.serviceIds)
+      ? params.serviceIds.filter((id): id is string => typeof id === "string")
+      : undefined;
     const professionalId =
       typeof params?.professionalId === "string" ? params.professionalId : undefined;
 
@@ -213,7 +214,7 @@ async function executeCheckAvailability(
       bookingCapacity: business.bookingCapacity,
       startDateTime,
       durationMinutes,
-      serviceId,
+      serviceIds,
       professionalId,
     });
 
@@ -283,7 +284,7 @@ async function capturePendingBookingLead(args: {
   clientPhone?: string;
   startDateTime: string;
   durationMinutes: number;
-  serviceId?: string;
+  serviceIds?: string[];
   professionalId?: string;
   failureCode: string;
   callLabel: string;
@@ -308,7 +309,7 @@ async function capturePendingBookingLead(args: {
           clientPhone: args.clientPhone ?? null,
           startDateTime: args.startDateTime,
           durationMinutes: args.durationMinutes,
-          serviceId: args.serviceId ?? null,
+          serviceIds: args.serviceIds ?? [],
           professionalId: args.professionalId ?? null,
           failureCode: args.failureCode,
         },
@@ -349,11 +350,13 @@ async function executeBookAppointment(
     durationMinutes?: number;
     clientEmail?: string;
     clientPhone?: string;
-    serviceId?: string;
+    serviceIds?: string[];
     professionalId?: string;
   };
-  const { clientName, startDateTime, durationMinutes, clientEmail, clientPhone, serviceId, professionalId } = rawParams;
-  const effectiveDuration = durationMinutes || 30;
+  const { clientName, startDateTime, durationMinutes, clientEmail, clientPhone, professionalId } = rawParams;
+  const requestedServiceIds = Array.isArray(rawParams.serviceIds)
+    ? rawParams.serviceIds.filter((id): id is string => typeof id === "string")
+    : [];
 
   if (!clientName || !startDateTime) {
     return {
@@ -367,6 +370,35 @@ async function executeBookAppointment(
   }
 
   try {
+    // Nunca confiar en un serviceId/professionalId que venga del LLM sin
+    // comprobar que pertenece a este negocio — si no coincide (o no existe),
+    // se trata como si no se hubiera indicado en vez de fallar la reserva
+    // entera o dejar que se cuele el de otro negocio. Puede haber varios
+    // (ej. "corte y mechas" en la misma cita) — se descarta cada id inválido
+    // por separado, no toda la lista.
+    let verifiedServiceIds: string[] = [];
+    let verifiedServicesDurationMinutes = 0;
+    if (requestedServiceIds.length > 0) {
+      const services = await prisma.service.findMany({
+        where: { id: { in: requestedServiceIds }, businessId: business.id, active: true },
+        select: { id: true, durationMinutes: true },
+      });
+      const foundIds = new Set(services.map((s) => s.id));
+      for (const id of requestedServiceIds) {
+        if (!foundIds.has(id)) {
+          console.warn(
+            `[VoiceTools] ${callLabel} recibió un serviceId no válido para este negocio (${id}); se ignora`
+          );
+        }
+      }
+      verifiedServiceIds = services.map((s) => s.id);
+      verifiedServicesDurationMinutes = services.reduce((sum, s) => sum + s.durationMinutes, 0);
+    }
+    // La suma de duraciones de los servicios verificados manda sobre lo que
+    // diga el LLM — evita que una suma mental mal hecha en la conversación
+    // desemboque en una cita más corta o más larga de lo real.
+    const effectiveDuration = verifiedServiceIds.length > 0 ? verifiedServicesDurationMinutes : durationMinutes || 30;
+
     const provider =
       business.calendarProvider === "outlook" ? "outlook" : "google";
     const hasCalendarConnection =
@@ -394,7 +426,7 @@ async function executeBookAppointment(
         clientPhone,
         startDateTime,
         durationMinutes: effectiveDuration,
-        serviceId,
+        serviceIds: requestedServiceIds,
         professionalId,
         failureCode: reconnectCode,
         callLabel,
@@ -439,25 +471,6 @@ async function executeBookAppointment(
       };
     }
 
-    // Nunca confiar en un serviceId/professionalId que venga del LLM sin
-    // comprobar que pertenece a este negocio — si no coincide (o no existe),
-    // se trata como si no se hubiera indicado en vez de fallar la reserva
-    // entera o dejar que se cuele el de otro negocio.
-    let verifiedServiceId: string | undefined;
-    if (serviceId) {
-      const service = await prisma.service.findFirst({
-        where: { id: serviceId, businessId: business.id, active: true },
-        select: { id: true },
-      });
-      if (service) {
-        verifiedServiceId = service.id;
-      } else {
-        console.warn(
-          `[VoiceTools] ${callLabel} recibió un serviceId no válido para este negocio (${serviceId}); se ignora`
-        );
-      }
-    }
-
     let verifiedProfessionalId: string | undefined;
     if (professionalId) {
       const professional = await prisma.professional.findFirst({
@@ -483,7 +496,7 @@ async function executeBookAppointment(
         bookingCapacity: business.bookingCapacity,
         startDateTime,
         durationMinutes: effectiveDuration,
-        serviceId: verifiedServiceId ?? null,
+        serviceIds: verifiedServiceIds,
       });
 
       if (!availability.available) {
@@ -526,14 +539,14 @@ async function executeBookAppointment(
             durationMinutes: effectiveDuration,
             numberPeople: 1,
             professionalId: resolvedProfessionalId ?? undefined,
-            serviceId: verifiedServiceId ?? undefined,
+            serviceIds: verifiedServiceIds,
             clientPhone: clientPhone || undefined,
           },
           update: {
             programedAt: new Date(startDateTime),
             durationMinutes: effectiveDuration,
             professionalId: resolvedProfessionalId ?? undefined,
-            serviceId: verifiedServiceId ?? undefined,
+            serviceIds: verifiedServiceIds,
             clientPhone: clientPhone || undefined,
           },
         });
@@ -609,7 +622,7 @@ async function executeBookAppointment(
           clientPhone,
           startDateTime,
           durationMinutes: effectiveDuration,
-          serviceId: verifiedServiceId,
+          serviceIds: verifiedServiceIds,
           professionalId: resolvedProfessionalId,
           failureCode: e.code,
           callLabel,
@@ -651,7 +664,7 @@ async function executeBookAppointment(
         clientPhone,
         startDateTime,
         durationMinutes: effectiveDuration,
-        serviceId: verifiedServiceId,
+        serviceIds: verifiedServiceIds,
         professionalId: resolvedProfessionalId,
         failureCode: code,
         callLabel,

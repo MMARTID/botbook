@@ -240,8 +240,10 @@ export type CallBooking = {
   numberPeople: number;
   isCancelled: boolean;
   clientPhone: string | null;
+  serviceIds: string[];
   professional?: { id: string; name: string } | null;
-  service?: { id: string; name: string; durationMinutes: number } | null;
+  /** Nombres resueltos de serviceIds — puede ser más de uno (ej. corte y mechas). */
+  services?: { id: string; name: string; durationMinutes: number }[];
 };
 
 export type Call = {

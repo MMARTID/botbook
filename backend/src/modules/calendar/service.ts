@@ -280,7 +280,11 @@ export class CalendarService {
             properties: {
               startDateTime: { type: 'string', description: 'Inicio solicitado en formato ISO 8601, incluyendo zona horaria.' },
               durationMinutes: { type: 'number', description: 'Duración total de la cita en minutos.' },
-              serviceId: { type: 'string', description: 'ID del servicio solicitado (opcional). Si se proporciona, se verifica que haya un profesional asignado a ese servicio libre.' },
+              serviceIds: {
+                type: 'array',
+                items: { type: 'string' },
+                description: 'IDs de los servicios pedidos (opcional; puede ser más de uno si el cliente pide varios servicios en la misma cita, ej. corte y mechas). Se prioriza al profesional que domine todos esos servicios.',
+              },
             },
             required: ['startDateTime', 'durationMinutes'],
           },
@@ -306,7 +310,11 @@ export class CalendarService {
               clientPhone: { type: 'string', description: 'Teléfono de contacto SOLO si el cliente pidió usar uno distinto al número desde el que llama (TELEFONO_DE_QUIEN_LLAMA). Déjalo vacío si vale el mismo (opcional).' },
               startDateTime: { type: 'string', description: 'La fecha y hora de inicio en formato ISO 8601 (ej. 2026-07-15T15:30:00Z)' },
               durationMinutes: { type: 'number', description: 'La duración de la cita en minutos. Por defecto asume 30 minutos si no se especifica.' },
-              serviceId: { type: 'string', description: 'ID del servicio reservado (opcional).' },
+              serviceIds: {
+                type: 'array',
+                items: { type: 'string' },
+                description: 'IDs de los servicios reservados (opcional; puede ser más de uno si el cliente pide varios servicios en la misma cita).',
+              },
               professionalId: { type: 'string', description: 'ID del profesional seleccionado (opcional). Si no se indica, se asigna el primer profesional libre.' },
             },
             required: ['clientName', 'startDateTime'],
@@ -349,7 +357,11 @@ export class CalendarService {
           properties: {
             startDateTime: { type: 'string', description: 'Inicio solicitado en formato ISO 8601, incluyendo zona horaria.' },
             durationMinutes: { type: 'number', description: 'Duración total de la cita en minutos.' },
-            serviceId: { type: 'string', description: 'ID del servicio solicitado (opcional). Si se proporciona, se verifica que haya un profesional asignado a ese servicio libre.' },
+            serviceIds: {
+              type: 'array',
+              items: { type: 'string' },
+              description: 'IDs de los servicios pedidos (opcional; puede ser más de uno si el cliente pide varios servicios en la misma cita, ej. corte y mechas). Se prioriza al profesional que domine todos esos servicios.',
+            },
             professionalId: { type: 'string', description: 'ID exacto de EMPLEADOS si el cliente pidió un profesional concreto por nombre (opcional). Déjalo vacío si no.' },
           },
           required: ['startDateTime', 'durationMinutes'],
@@ -372,7 +384,11 @@ export class CalendarService {
             clientPhone: { type: 'string', description: 'Teléfono de contacto SOLO si el cliente pidió usar uno distinto al número desde el que llama (TELEFONO_DE_QUIEN_LLAMA). Déjalo vacío si vale el mismo (opcional).' },
             startDateTime: { type: 'string', description: 'La fecha y hora de inicio en formato ISO 8601 (ej. 2026-07-15T15:30:00Z)' },
             durationMinutes: { type: 'number', description: 'La duración de la cita en minutos. Por defecto asume 30 minutos si no se especifica.' },
-            serviceId: { type: 'string', description: 'ID del servicio reservado (opcional).' },
+            serviceIds: {
+              type: 'array',
+              items: { type: 'string' },
+              description: 'IDs de los servicios reservados (opcional; puede ser más de uno si el cliente pide varios servicios en la misma cita).',
+            },
             professionalId: { type: 'string', description: 'ID del profesional seleccionado (opcional). Si no se indica, se asigna el primer profesional libre.' },
           },
           required: ['clientName', 'startDateTime'],

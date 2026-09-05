@@ -65,7 +65,7 @@ export async function callsRoutes(fastify: FastifyInstance) {
             transcript: true,
             recording: true,
             leads: true,
-            booking: { include: { professional: true, service: true } },
+            booking: { include: { professional: true } },
           },
         });
 
@@ -73,7 +73,21 @@ export async function callsRoutes(fastify: FastifyInstance) {
           return reply.status(404).send({ error: "Call not found" });
         }
 
-        return reply.send(call);
+        // Booking.serviceIds es un array nativo de Postgres, sin relación de
+        // Prisma a Service (ver comentario en schema.prisma) — hay que
+        // resolver los nombres aparte para que el frontend no reciba solo IDs.
+        let services: { id: string; name: string; durationMinutes: number }[] = [];
+        if (call.booking?.serviceIds?.length) {
+          services = await prisma.service.findMany({
+            where: { id: { in: call.booking.serviceIds } },
+            select: { id: true, name: true, durationMinutes: true },
+          });
+        }
+
+        return reply.send({
+          ...call,
+          booking: call.booking ? { ...call.booking, services } : call.booking,
+        });
       } catch (error) {
         return reply.status(500).send({ error: "Failed to fetch call" });
       }

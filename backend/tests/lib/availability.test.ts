@@ -49,7 +49,7 @@ function givenBookings(bookings: Array<{ programedAt: Date; isCancelled?: boolea
       numberPeople: 1,
       isCancelled: b.isCancelled ?? false,
       professionalId: b.professionalId ?? null,
-      serviceId: null,
+      serviceIds: [],
     }))
   );
 }
@@ -101,7 +101,7 @@ describe("checkAvailability", () => {
       bookingCapacity: 1,
       startDateTime: "2026-08-10T10:00:00",
       durationMinutes: 60,
-      serviceId: "service_target",
+      serviceIds: ["service_target"],
     });
 
     expect(result.available).toBe(true);
@@ -121,7 +121,7 @@ describe("checkAvailability", () => {
       bookingCapacity: 1,
       startDateTime: "2026-08-10T10:00:00",
       durationMinutes: 60,
-      serviceId: "service_target",
+      serviceIds: ["service_target"],
     });
 
     expect(result.available).toBe(true);
@@ -144,7 +144,7 @@ describe("checkAvailability", () => {
       bookingCapacity: 2,
       startDateTime: "2026-08-10T10:00:00",
       durationMinutes: 60,
-      serviceId: "service_target",
+      serviceIds: ["service_target"],
     });
 
     expect(result.available).toBe(true);
@@ -167,7 +167,7 @@ describe("checkAvailability", () => {
       bookingCapacity: 1,
       startDateTime: "2026-08-10T10:00:00",
       durationMinutes: 60,
-      serviceId: "service_target",
+      serviceIds: ["service_target"],
     });
 
     expect(result.available).toBe(true);
@@ -189,7 +189,7 @@ describe("checkAvailability", () => {
       bookingCapacity: 1,
       startDateTime: "2026-08-10T10:00:00",
       durationMinutes: 60,
-      serviceId: "service_target",
+      serviceIds: ["service_target"],
     });
 
     expect(result.available).toBe(false);
@@ -211,7 +211,7 @@ describe("checkAvailability", () => {
       bookingCapacity: 2,
       startDateTime: "2026-08-10T10:00:00",
       durationMinutes: 60,
-      serviceId: "service_target",
+      serviceIds: ["service_target"],
     });
 
     expect(result.available).toBe(false);
@@ -232,7 +232,7 @@ describe("checkAvailability", () => {
       bookingCapacity: 2,
       startDateTime: "2026-08-10T10:00:00",
       durationMinutes: 60,
-      serviceId: "service_target",
+      serviceIds: ["service_target"],
     });
 
     expect(result.available).toBe(true);
@@ -252,7 +252,7 @@ describe("checkAvailability", () => {
       bookingCapacity: 1,
       startDateTime: "2026-08-10T10:00:00",
       durationMinutes: 60,
-      serviceId: "service_target",
+      serviceIds: ["service_target"],
     });
 
     expect(mockedBookingFindMany).toHaveBeenCalledWith(
@@ -273,7 +273,7 @@ describe("checkAvailability", () => {
       bookingCapacity: 1,
       startDateTime: "2026-08-10T10:00:00",
       durationMinutes: 60,
-      serviceId: "service_target",
+      serviceIds: ["service_target"],
     });
 
     expect(result.available).toBe(true);

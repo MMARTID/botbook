@@ -23,13 +23,16 @@ export async function checkAvailability(input: {
   bookingCapacity: number;
   startDateTime: string;
   durationMinutes: number;
-  serviceId?: string | null;
+  /** Uno o varios servicios pedidos en la misma reserva (ej. "corte y
+   * mechas"). Nunca se usa para excluir profesionales, solo para priorizar
+   * — ver comentario más abajo. */
+  serviceIds?: string[] | null;
   /** Si se indica, solo se comprueba disponibilidad para este profesional
    * (ya escopado a businessId en la consulta, por lo que un ID de otro
    * negocio simplemente no encuentra resultados). */
   professionalId?: string | null;
 }): Promise<AvailabilityResult> {
-  const { businessId, schedule, timezone, bookingCapacity, startDateTime, durationMinutes, serviceId, professionalId } = input;
+  const { businessId, schedule, timezone, bookingCapacity, startDateTime, durationMinutes, serviceIds, professionalId } = input;
 
   // 1. Horario comercial
   const hoursResult = checkBusinessHours(schedule, timezone, startDateTime, durationMinutes);
@@ -72,15 +75,21 @@ export async function checkAvailability(input: {
   // Los servicios marcados en un profesional son una preferencia de
   // especialidad, no una restricción: cualquier profesional activo puede
   // atender cualquier servicio (un profesional sin ningún servicio marcado
-  // puede hacerlos todos, sin prioridad frente a los demás). Cuando se pide
-  // un servicio concreto sin especificar profesional, se prioriza a quien lo
-  // tenga marcado como especialidad — el resto sigue contando como
-  // alternativa si nadie lo tiene marcado o los especialistas están ocupados.
-  const rankedProfessionals = serviceId
+  // puede hacerlos todos, sin prioridad frente a los demás). Cuando se piden
+  // uno o varios servicios sin especificar profesional, se prioriza a quien
+  // los tenga TODOS marcados como especialidad — el resto sigue contando
+  // como alternativa si nadie cubre todos los servicios o los especialistas
+  // están ocupados.
+  const requestedServiceIds = serviceIds?.filter(Boolean) ?? [];
+  const rankedProfessionals = requestedServiceIds.length > 0
     ? [...professionals].sort((a, b) => {
-        const aIsSpecialist = a.serviceLinks.some((link) => link.serviceId === serviceId) ? 0 : 1;
-        const bIsSpecialist = b.serviceLinks.some((link) => link.serviceId === serviceId) ? 0 : 1;
-        return aIsSpecialist - bIsSpecialist;
+        const aCoversAll = requestedServiceIds.every((id) =>
+          a.serviceLinks.some((link) => link.serviceId === id)
+        ) ? 0 : 1;
+        const bCoversAll = requestedServiceIds.every((id) =>
+          b.serviceLinks.some((link) => link.serviceId === id)
+        ) ? 0 : 1;
+        return aCoversAll - bCoversAll;
       })
     : professionals;
 

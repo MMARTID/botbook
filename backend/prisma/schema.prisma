@@ -180,7 +180,6 @@ model Service {
   updatedAt         DateTime              @updatedAt
   business          Business              @relation(fields: [businessId], references: [id], onDelete: Cascade)
   professionalLinks ProfessionalService[]
-  bookings          Booking[]
 
   @@index([businessId])
   @@map("services")
@@ -250,8 +249,14 @@ model Booking {
   call         Call         @relation(fields: [callId], references: [id], onDelete: Cascade)
   professionalId String?
   professional  Professional? @relation(fields: [professionalId], references: [id], onDelete: SetNull)
-  serviceId    String?
-  service      Service?     @relation(fields: [serviceId], references: [id], onDelete: SetNull)
+  // Uno o varios servicios pedidos en la misma reserva (ej. "corte y
+  // mechas") — sin relación de Prisma a Service (array nativo de Postgres,
+  // no una tabla puente): resolver los nombres necesita una consulta aparte
+  // con `in: serviceIds`. Se elige este diseño en vez de una tabla
+  // BookingService porque aquí "servicio pedido" es solo un dato de la
+  // reserva, nunca algo que se consulte desde el otro lado (Service no
+  // necesita saber en qué reservas aparece).
+  serviceIds   String[]     @default([])
   // Solo se rellena si el cliente pidió usar un número distinto al de la
   // llamada (Call.fromNumber) — si es el mismo, no hace falta guardarlo aquí.
   clientPhone  String?
@@ -262,7 +267,6 @@ model Booking {
   isCancelled  Boolean      @default(false)
 
   @@index([professionalId])
-  @@index([serviceId])
   @@map("bookings")
 }
 

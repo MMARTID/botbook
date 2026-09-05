@@ -11,7 +11,7 @@ vi.mock("../../../src/lib/prisma.js", () => ({
     call: { findUnique: vi.fn(), findFirst: vi.fn() },
     booking: { upsert: vi.fn() },
     professional: { findFirst: vi.fn() },
-    service: { findFirst: vi.fn() },
+    service: { findFirst: vi.fn(), findMany: vi.fn() },
   },
 }));
 
@@ -47,6 +47,7 @@ const mockedCallFindUnique = vi.mocked(prisma.call.findUnique);
 const mockedCallFindFirst = vi.mocked(prisma.call.findFirst);
 const mockedBookingUpsert = vi.mocked(prisma.booking.upsert);
 const mockedProfessionalFindFirst = vi.mocked(prisma.professional.findFirst);
+const mockedServiceFindMany = vi.mocked(prisma.service.findMany);
 const mockedCheckBusinessHours = vi.mocked(checkBusinessHours);
 const mockedBookAppointment = vi.mocked(calendarService.bookAppointment);
 
@@ -88,6 +89,7 @@ describe("executeVoiceTool book_appointment — vinculación a la llamada correc
     mockedCheckBusinessHours.mockReturnValue({ success: true, isOpen: true } as any);
     mockedBookAppointment.mockResolvedValue({ htmlLink: "https://calendar.google.com/event/1" } as any);
     mockedProfessionalFindFirst.mockResolvedValue({ id: "professional_123" } as any);
+    mockedServiceFindMany.mockResolvedValue([]);
   });
 
   it("vincula la reserva a la llamada exacta del callId, aunque exista otra más reciente", async () => {
@@ -138,5 +140,73 @@ describe("executeVoiceTool book_appointment — vinculación a la llamada correc
     expect(result.result.success).toBe(true);
     expect(mockedCallFindUnique).not.toHaveBeenCalled();
     expect(mockedCallFindFirst).toHaveBeenCalled();
+  });
+});
+
+describe("executeVoiceTool book_appointment — varios servicios en la misma cita", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockedBusinessFindUnique.mockResolvedValue(buildBusiness() as any);
+    mockedCheckBusinessHours.mockReturnValue({ success: true, isOpen: true } as any);
+    mockedBookAppointment.mockResolvedValue({ htmlLink: "https://calendar.google.com/event/1" } as any);
+    mockedProfessionalFindFirst.mockResolvedValue({ id: "professional_123" } as any);
+    mockedCallFindFirst.mockResolvedValue({ id: "call_row_1" } as any);
+  });
+
+  it("suma la duración de los servicios verificados en vez de fiarse de la del LLM", async () => {
+    mockedServiceFindMany.mockResolvedValue([
+      { id: "svc_corte", durationMinutes: 30 },
+      { id: "svc_mechas", durationMinutes: 120 },
+    ] as any);
+
+    const result = await executeVoiceTool(
+      buildBookAppointmentInput({
+        params: {
+          clientName: "María",
+          startDateTime: "2026-08-25T17:00:00+02:00",
+          durationMinutes: 45, // deliberadamente distinto de la suma real (150)
+          professionalId: "professional_123",
+          serviceIds: ["svc_corte", "svc_mechas"],
+        },
+      })
+    );
+
+    expect(result.result.success).toBe(true);
+    expect(mockedServiceFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ id: { in: ["svc_corte", "svc_mechas"] } }),
+      })
+    );
+    expect(mockedBookingUpsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        create: expect.objectContaining({
+          durationMinutes: 150,
+          serviceIds: ["svc_corte", "svc_mechas"],
+        }),
+      })
+    );
+  });
+
+  it("descarta solo los serviceIds que no pertenecen al negocio, sin fallar toda la reserva", async () => {
+    mockedServiceFindMany.mockResolvedValue([{ id: "svc_corte", durationMinutes: 30 }] as any);
+
+    const result = await executeVoiceTool(
+      buildBookAppointmentInput({
+        params: {
+          clientName: "María",
+          startDateTime: "2026-08-25T17:00:00+02:00",
+          durationMinutes: 30,
+          professionalId: "professional_123",
+          serviceIds: ["svc_corte", "svc_de_otro_negocio"],
+        },
+      })
+    );
+
+    expect(result.result.success).toBe(true);
+    expect(mockedBookingUpsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        create: expect.objectContaining({ serviceIds: ["svc_corte"] }),
+      })
+    );
   });
 });

@@ -187,7 +187,11 @@ export function CallDetailModal({
                   <dl className="mt-3 space-y-1.5 text-sm leading-6 text-[#27272a]">
                     <div className="flex justify-between gap-3">
                       <dt className="text-muted">Servicio</dt>
-                      <dd className="text-right font-medium">{call.booking.service?.name ?? "Sin especificar"}</dd>
+                      <dd className="text-right font-medium">
+                        {call.booking.services?.length
+                          ? call.booking.services.map((service) => service.name).join(" y ")
+                          : "Sin especificar"}
+                      </dd>
                     </div>
                     <div className="flex justify-between gap-3">
                       <dt className="text-muted">Profesional</dt>

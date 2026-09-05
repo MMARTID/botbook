@@ -8,7 +8,7 @@ interface PendingBookingData {
   clientPhone?: string | null;
   startDateTime: string;
   durationMinutes: number;
-  serviceId?: string | null;
+  serviceIds?: string[] | null;
   professionalId?: string | null;
 }
 
@@ -88,14 +88,14 @@ export async function processRetryFailedBookingJob(data: RetryFailedBookingJob):
         durationMinutes: data_.durationMinutes,
         numberPeople: 1,
         professionalId: data_.professionalId ?? undefined,
-        serviceId: data_.serviceId ?? undefined,
+        serviceIds: data_.serviceIds ?? [],
         clientPhone: data_.clientPhone ?? undefined,
       },
       update: {
         programedAt: new Date(data_.startDateTime),
         durationMinutes: data_.durationMinutes,
         professionalId: data_.professionalId ?? undefined,
-        serviceId: data_.serviceId ?? undefined,
+        serviceIds: data_.serviceIds ?? [],
         clientPhone: data_.clientPhone ?? undefined,
       },
     });
