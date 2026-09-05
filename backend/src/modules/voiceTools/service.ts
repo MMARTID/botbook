@@ -280,6 +280,7 @@ async function capturePendingBookingLead(args: {
   businessId: string;
   clientName: string;
   clientEmail?: string;
+  clientPhone?: string;
   startDateTime: string;
   durationMinutes: number;
   serviceId?: string;
@@ -304,6 +305,7 @@ async function capturePendingBookingLead(args: {
         data: {
           clientName: args.clientName,
           clientEmail: args.clientEmail ?? null,
+          clientPhone: args.clientPhone ?? null,
           startDateTime: args.startDateTime,
           durationMinutes: args.durationMinutes,
           serviceId: args.serviceId ?? null,
@@ -346,10 +348,11 @@ async function executeBookAppointment(
     startDateTime?: string;
     durationMinutes?: number;
     clientEmail?: string;
+    clientPhone?: string;
     serviceId?: string;
     professionalId?: string;
   };
-  const { clientName, startDateTime, durationMinutes, clientEmail, serviceId, professionalId } = rawParams;
+  const { clientName, startDateTime, durationMinutes, clientEmail, clientPhone, serviceId, professionalId } = rawParams;
   const effectiveDuration = durationMinutes || 30;
 
   if (!clientName || !startDateTime) {
@@ -388,6 +391,7 @@ async function executeBookAppointment(
         businessId: business.id,
         clientName,
         clientEmail,
+        clientPhone,
         startDateTime,
         durationMinutes: effectiveDuration,
         serviceId,
@@ -523,12 +527,14 @@ async function executeBookAppointment(
             numberPeople: 1,
             professionalId: resolvedProfessionalId ?? undefined,
             serviceId: verifiedServiceId ?? undefined,
+            clientPhone: clientPhone || undefined,
           },
           update: {
             programedAt: new Date(startDateTime),
             durationMinutes: effectiveDuration,
             professionalId: resolvedProfessionalId ?? undefined,
             serviceId: verifiedServiceId ?? undefined,
+            clientPhone: clientPhone || undefined,
           },
         });
       }
@@ -600,6 +606,7 @@ async function executeBookAppointment(
           businessId: business.id,
           clientName,
           clientEmail,
+          clientPhone,
           startDateTime,
           durationMinutes: effectiveDuration,
           serviceId: verifiedServiceId,
@@ -641,6 +648,7 @@ async function executeBookAppointment(
         businessId: business.id,
         clientName,
         clientEmail,
+        clientPhone,
         startDateTime,
         durationMinutes: effectiveDuration,
         serviceId: verifiedServiceId,

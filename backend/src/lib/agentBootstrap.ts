@@ -134,6 +134,7 @@ function formatProfessionalsForDynamicVariable(professionals: { id: string; name
  */
 export async function buildInboundCallDynamicVariables(
   businessId: string,
+  fromNumber?: string,
   prismaClient: typeof prisma = prisma
 ): Promise<Record<string, string>> {
   const [business, services, professionals] = await Promise.all([
@@ -157,6 +158,7 @@ export async function buildInboundCallDynamicVariables(
     servicios_disponibles: formatServicesForDynamicVariable(services),
     empleados: formatProfessionalsForDynamicVariable(professionals),
     horario_semanal: formatScheduleForPrompt(business?.schedule ?? {}),
+    telefono_de_quien_llama: fromNumber || "desconocido",
   };
 }
 

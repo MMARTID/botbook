@@ -83,6 +83,18 @@ describe("buildInboundCallDynamicVariables", () => {
 
     expect(variables.horario_semanal).toBe("Horario no configurado todavía.");
   });
+
+  it("incluye el teléfono de quien llama cuando se conoce, o 'desconocido' si no", async () => {
+    mockedBusinessFindUnique.mockResolvedValue({ schedule: DEFAULT_BUSINESS_SCHEDULE } as any);
+    mockedServiceFindMany.mockResolvedValue([]);
+    mockedProfessionalFindMany.mockResolvedValue([]);
+
+    const withNumber = await buildInboundCallDynamicVariables("biz_123", "692138456");
+    expect(withNumber.telefono_de_quien_llama).toBe("692138456");
+
+    const withoutNumber = await buildInboundCallDynamicVariables("biz_123");
+    expect(withoutNumber.telefono_de_quien_llama).toBe("desconocido");
+  });
 });
 
 describe("syncAgentToRetell — voiceGender", () => {

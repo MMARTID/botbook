@@ -15,6 +15,17 @@ describe("buildManagedAgentPrompt", () => {
     expect(prompt).toContain("{{servicios_disponibles}}");
     expect(prompt).toContain("{{empleados}}");
     expect(prompt).toContain("{{horario_semanal}}");
+    expect(prompt).toContain("{{telefono_de_quien_llama}}");
+  });
+
+  it("pide fraseo aproximado de la duración y reutilizar el número de quien llama", () => {
+    const prompt = buildManagedAgentPrompt({
+      businessName: "Peluquería Ejemplo",
+      settings: DEFAULT_AGENT_SETTINGS,
+    });
+
+    expect(prompt).toContain("más o menos");
+    expect(prompt).toContain("TELEFONO_DE_QUIEN_LLAMA");
   });
 
   it("no incluye ningún id ni nombre de servicio/empleado horneado en el texto", () => {

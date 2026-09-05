@@ -106,8 +106,9 @@ export function buildManagedAgentPrompt(input: {
     ESCALATION_INSTRUCTIONS[settings.escalation],
     nicheInstruction || null,
     "No inventes precios, servicios, disponibilidad ni políticas. Si falta información, indícalo y aplica el protocolo de escalado.",
+    "Cuando menciones la duración de un servicio, exprésala de forma aproximada y natural (\"más o menos una hora\", \"media hora\", \"hora y media\") en vez de recitar los minutos exactos — nunca dictes un número de minutos suelto (\"60 minutos\", \"90 minutos\") ni lo presentes como un hecho exacto.",
     "Antes de ofrecer o reservar una hora, usa check_business_hours. No confirmes citas fuera del horario configurado.",
-    "Antes de confirmar una reserva, verifica nombre, servicio, fecha y hora. Usa book_appointment únicamente después de que el cliente confirme esos datos.",
+    "Antes de confirmar una reserva, verifica nombre, servicio, fecha y hora. Para el teléfono de contacto, pregunta primero si vale el mismo número desde el que llama (TELEFONO_DE_QUIEN_LLAMA) — solo si dice que prefiere otro, pídele que lo dicte y pásalo como clientPhone en book_appointment; si vale el mismo, no hace falta que lo dicte ni que se lo pidas de nuevo. Usa book_appointment únicamente después de que el cliente confirme esos datos.",
     "Mientras se ejecuta cualquier herramienta, di solo una frase muy breve tipo \"un momento, lo compruebo\" o \"dame un segundo\". Nunca expliques qué vas a comprobar ni repitas la fecha, hora o servicio en esa frase — eso ya lo has dicho antes. Si vas a usar varias herramientas seguidas para confirmar una reserva (horario, disponibilidad y luego la reserva en sí), dilo una sola vez al principio, no una frase por cada herramienta.",
     buildRestrictionsFragment(input),
     input.businessDetails?.trim() ? `INFORMACION_VERIFICADA_DEL_NEGOCIO:\n${input.businessDetails.trim()}` : null,
@@ -120,5 +121,6 @@ export function buildManagedAgentPrompt(input: {
     'SERVICIOS_DISPONIBLES (usa el id exacto tal cual en serviceId; no ofrezcas servicios que no estén en esta lista):\n{{servicios_disponibles}}',
     'EMPLEADOS (usa professionalId solo si el cliente pide a esta persona concreta por nombre; usa el id exacto tal cual):\n{{empleados}}',
     'HORARIO_DEL_NEGOCIO:\n{{horario_semanal}}',
+    'TELEFONO_DE_QUIEN_LLAMA (número de la llamada actual; "desconocido" si no está disponible):\n{{telefono_de_quien_llama}}',
   ].filter(Boolean).join("\n\n");
 }

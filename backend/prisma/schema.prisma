@@ -252,6 +252,9 @@ model Booking {
   professional  Professional? @relation(fields: [professionalId], references: [id], onDelete: SetNull)
   serviceId    String?
   service      Service?     @relation(fields: [serviceId], references: [id], onDelete: SetNull)
+  // Solo se rellena si el cliente pidió usar un número distinto al de la
+  // llamada (Call.fromNumber) — si es el mismo, no hace falta guardarlo aquí.
+  clientPhone  String?
   createdAt    DateTime     @default(now())
   programedAt  DateTime
   durationMinutes Int        @default(30)

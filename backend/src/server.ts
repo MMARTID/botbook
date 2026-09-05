@@ -342,6 +342,7 @@ async function start() {
 
       const payload = request.body as { call_inbound?: { to_number?: string; from_number?: string } };
       const toNumber = payload.call_inbound?.to_number;
+      const fromNumber = payload.call_inbound?.from_number;
 
       if (!toNumber) {
         fastify.log.warn("[Retell Inbound] Missing call_inbound.to_number");
@@ -359,7 +360,7 @@ async function start() {
           return reply.status(200).send({ call_inbound: { dynamic_variables: {} } });
         }
 
-        const dynamicVariables = await buildInboundCallDynamicVariables(business.id);
+        const dynamicVariables = await buildInboundCallDynamicVariables(business.id, fromNumber);
         return reply.status(200).send({ call_inbound: { dynamic_variables: dynamicVariables } });
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);

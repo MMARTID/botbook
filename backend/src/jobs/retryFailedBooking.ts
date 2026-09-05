@@ -5,6 +5,7 @@ import { RetryFailedBookingJob } from "../lib/jobTypes.js";
 interface PendingBookingData {
   clientName: string;
   clientEmail?: string | null;
+  clientPhone?: string | null;
   startDateTime: string;
   durationMinutes: number;
   serviceId?: string | null;
@@ -88,12 +89,14 @@ export async function processRetryFailedBookingJob(data: RetryFailedBookingJob):
         numberPeople: 1,
         professionalId: data_.professionalId ?? undefined,
         serviceId: data_.serviceId ?? undefined,
+        clientPhone: data_.clientPhone ?? undefined,
       },
       update: {
         programedAt: new Date(data_.startDateTime),
         durationMinutes: data_.durationMinutes,
         professionalId: data_.professionalId ?? undefined,
         serviceId: data_.serviceId ?? undefined,
+        clientPhone: data_.clientPhone ?? undefined,
       },
     });
     await tx.lead.update({ where: { id: lead.id }, data: { resolvedAt: new Date() } });

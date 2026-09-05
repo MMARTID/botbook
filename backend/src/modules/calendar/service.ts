@@ -303,6 +303,7 @@ export class CalendarService {
             properties: {
               clientName: { type: 'string', description: 'El nombre del cliente que hace la reserva' },
               clientEmail: { type: 'string', description: 'El correo electrónico del cliente, si lo proporciona (opcional)' },
+              clientPhone: { type: 'string', description: 'Teléfono de contacto SOLO si el cliente pidió usar uno distinto al número desde el que llama (TELEFONO_DE_QUIEN_LLAMA). Déjalo vacío si vale el mismo (opcional).' },
               startDateTime: { type: 'string', description: 'La fecha y hora de inicio en formato ISO 8601 (ej. 2026-07-15T15:30:00Z)' },
               durationMinutes: { type: 'number', description: 'La duración de la cita en minutos. Por defecto asume 30 minutos si no se especifica.' },
               serviceId: { type: 'string', description: 'ID del servicio reservado (opcional).' },
@@ -368,6 +369,7 @@ export class CalendarService {
           properties: {
             clientName: { type: 'string', description: 'El nombre del cliente que hace la reserva' },
             clientEmail: { type: 'string', description: 'El correo electrónico del cliente, si lo proporciona (opcional)' },
+            clientPhone: { type: 'string', description: 'Teléfono de contacto SOLO si el cliente pidió usar uno distinto al número desde el que llama (TELEFONO_DE_QUIEN_LLAMA). Déjalo vacío si vale el mismo (opcional).' },
             startDateTime: { type: 'string', description: 'La fecha y hora de inicio en formato ISO 8601 (ej. 2026-07-15T15:30:00Z)' },
             durationMinutes: { type: 'number', description: 'La duración de la cita en minutos. Por defecto asume 30 minutos si no se especifica.' },
             serviceId: { type: 'string', description: 'ID del servicio reservado (opcional).' },
