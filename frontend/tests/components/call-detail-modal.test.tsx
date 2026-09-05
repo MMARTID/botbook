@@ -16,6 +16,7 @@ function buildCall(overrides: Partial<Call> = {}): Call {
     businessId: "biz_1",
     agentId: null,
     vapiCallId: "vapi_1",
+    fromNumber: null,
     status: "COMPLETED",
     outcome: "RESOLVED",
     sentiment: "POSITIVE",
@@ -71,6 +72,23 @@ describe("CallDetailModal", () => {
     expect(await screen.findByText("El cliente reservó cita para mañana.")).toBeInTheDocument();
     expect(screen.getByText("1,20 €")).toBeInTheDocument();
     expect(screen.getByText("Resuelta")).toBeInTheDocument();
+  });
+
+  it("muestra el teléfono de quien llama cuando la llamada lo trae", async () => {
+    mockedGetCall.mockResolvedValue(buildCall({ fromNumber: "692138456" }));
+
+    renderModal();
+
+    expect(await screen.findByText(/692138456/)).toBeInTheDocument();
+  });
+
+  it("no muestra nada de teléfono si la llamada no lo trae", async () => {
+    mockedGetCall.mockResolvedValue(buildCall({ fromNumber: null }));
+
+    renderModal();
+
+    await screen.findByText("Resuelta");
+    expect(screen.queryByText(/\d{6,}/)).not.toBeInTheDocument();
   });
 
   it("muestra los datos de la reserva vinculada cuando existe y no está cancelada", async () => {

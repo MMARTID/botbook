@@ -10,6 +10,7 @@ import {
   LoaderCircle,
   Meh,
   Mic,
+  Phone,
   Smile,
   Sparkles,
   User,
@@ -114,6 +115,13 @@ export function CallDetailModal({
             {call ? (
               <p className="mt-2 text-sm leading-6 text-[#52525b]">
                 {formatDuration(call.durationSecs)} · {statusLabel(call.status)}
+                {call.fromNumber ? (
+                  <span className="inline-flex items-center gap-1">
+                    {" · "}
+                    <Phone className="h-3.5 w-3.5" aria-hidden="true" />
+                    {call.fromNumber}
+                  </span>
+                ) : null}
               </p>
             ) : null}
           </div>

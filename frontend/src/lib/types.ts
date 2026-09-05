@@ -250,6 +250,7 @@ export type Call = {
   agentId: string | null;
   agent?: Agent | null;
   vapiCallId: string;
+  fromNumber: string | null;
   status: CallStatus;
   outcome: CallOutcome | null;
   sentiment: CallSentiment | null;
