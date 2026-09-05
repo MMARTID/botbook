@@ -89,6 +89,7 @@ describe("syncAgentToRetell — voiceGender", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockedServiceFindMany.mockResolvedValue([]);
+    mockedProfessionalFindMany.mockResolvedValue([]);
     mockedAgentFindMany.mockResolvedValue([
       { id: "agent_db_1", retellAgentId: "retell_agent_1", retellLlmId: "retell_llm_1" },
     ] as any);
@@ -146,6 +147,34 @@ describe("syncAgentToRetell — voiceGender", () => {
       expect.objectContaining({ voiceId: RETELL_VOICE_ID_BY_GENDER.masculina })
     );
     expect(RETELL_VOICE_ID_BY_GENDER.masculina).toBe("13ff5deb-2591-42ad-a356-63a04e524411");
+  });
+
+  it("empuja retención de 30 días, stt_mode accurate, y boostedKeywords con nombres reales de servicios/profesionales", async () => {
+    mockedBusinessFindUnique.mockResolvedValue({
+      name: "Peluquería de prueba",
+      businessDetails: null,
+      businessType: "peluqueria",
+      agentSettings: null,
+      orchestrator: "retell",
+      minAdvanceBookingMinutes: null,
+      maxAppointmentDurationMinutes: null,
+    } as any);
+    mockedServiceFindMany.mockResolvedValue([
+      { name: "Corte" },
+      { name: "Coloración" },
+    ] as any);
+    mockedProfessionalFindMany.mockResolvedValue([{ name: "Marta" }] as any);
+
+    await syncAgentToRetell("biz_999");
+
+    expect(mockedUpdateAgent).toHaveBeenCalledWith(
+      "retell_agent_1",
+      expect.objectContaining({
+        dataStorageRetentionDays: 30,
+        sttMode: "accurate",
+        boostedKeywords: ["Corte", "Coloración", "Marta"],
+      })
+    );
   });
 
   it("no toca Retell si el negocio no usa el orquestador retell", async () => {

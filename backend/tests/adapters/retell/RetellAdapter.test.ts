@@ -251,6 +251,28 @@ describe("RetellAdapter", () => {
         expect.objectContaining({ interruption_sensitivity: 0.5 })
       );
     });
+
+    it("incluye data_storage_retention_days, stt_mode y boosted_keywords cuando se especifican", async () => {
+      mocks.agentCreate.mockResolvedValue({ agent_id: "agent_123" });
+
+      const adapter = new RetellAdapter();
+      await adapter.createAgent({
+        name: "Asistente Test",
+        voiceId: "11labs-Bella",
+        llmId: "llm_123",
+        dataStorageRetentionDays: 30,
+        sttMode: "accurate",
+        boostedKeywords: ["Corte", "Marta"],
+      });
+
+      expect(mocks.agentCreate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data_storage_retention_days: 30,
+          stt_mode: "accurate",
+          boosted_keywords: ["Corte", "Marta"],
+        })
+      );
+    });
   });
 
   describe("updateAgent", () => {

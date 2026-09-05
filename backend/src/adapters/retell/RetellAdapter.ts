@@ -61,6 +61,9 @@ export interface CreateRetellAgentInput {
   timezone?: string;
   postCallAnalysisData?: RetellAnalysisField[];
   interruptionSensitivity?: number;
+  dataStorageRetentionDays?: number;
+  sttMode?: "fast" | "accurate";
+  boostedKeywords?: string[];
 }
 
 export interface RetellPhoneNumber {
@@ -197,6 +200,9 @@ export class RetellAdapter {
       timezone: input.timezone || "Europe/Madrid",
       post_call_analysis_data: input.postCallAnalysisData,
       interruption_sensitivity: input.interruptionSensitivity,
+      data_storage_retention_days: input.dataStorageRetentionDays,
+      stt_mode: input.sttMode,
+      boosted_keywords: input.boostedKeywords,
     });
 
     return response;
@@ -238,6 +244,15 @@ export class RetellAdapter {
     }
     if (input.interruptionSensitivity !== undefined) {
       updatePayload.interruption_sensitivity = input.interruptionSensitivity;
+    }
+    if (input.dataStorageRetentionDays !== undefined) {
+      updatePayload.data_storage_retention_days = input.dataStorageRetentionDays;
+    }
+    if (input.sttMode !== undefined) {
+      updatePayload.stt_mode = input.sttMode;
+    }
+    if (input.boostedKeywords !== undefined) {
+      updatePayload.boosted_keywords = input.boostedKeywords;
     }
 
     return this.client.agent.update(agentId, updatePayload);

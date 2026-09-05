@@ -202,6 +202,14 @@ export const DEFAULT_RETELL_AGENT_CONFIG = {
   // llamada real el 2026-09-05. 0.5 deja que el cliente interrumpa de verdad sin
   // que una muletilla corte la respuesta.
   interruptionSensitivity: 0.5,
+  // RGPD: sin esto Retell retiene grabaciones/transcripciones para siempre.
+  // Decisión explícita del usuario, 2026-09-05: 30 días.
+  dataStorageRetentionDays: 30,
+  // El default de Retell ("fast") prioriza latencia sobre precisión — para un
+  // sistema donde una reserva depende de transcribir bien un nombre o una
+  // fecha, "accurate" es la prioridad correcta. Decisión explícita del
+  // usuario, 2026-09-05.
+  sttMode: "accurate" as const,
 };
 
 /**
@@ -451,6 +459,8 @@ export function buildRetellAgentPayload(input: {
     timezone: DEFAULT_RETELL_AGENT_CONFIG.timezone,
     postCallAnalysisData: input.postCallAnalysisData ?? [CALL_OUTCOME_ANALYSIS_FIELD],
     interruptionSensitivity: DEFAULT_RETELL_AGENT_CONFIG.interruptionSensitivity,
+    dataStorageRetentionDays: DEFAULT_RETELL_AGENT_CONFIG.dataStorageRetentionDays,
+    sttMode: DEFAULT_RETELL_AGENT_CONFIG.sttMode,
   };
 }
 
@@ -669,8 +679,15 @@ export async function syncAgentToRetell(
   // El horario y el catálogo de servicios/empleados ya no van en el
   // systemPrompt (son variables dinámicas de Retell, ver
   // POST /webhooks/retell/inbound) — los servicios se siguen consultando
-  // aquí solo para las categorías de postCallAnalysisData.
+  // aquí solo para las categorías de postCallAnalysisData y para boostear
+  // la transcripción con los nombres reales del negocio.
   const services = await prismaClient.service.findMany({
+    where: { businessId, active: true },
+    select: { name: true },
+    orderBy: { name: "asc" },
+  });
+
+  const professionals = await prismaClient.professional.findMany({
     where: { businessId, active: true },
     select: { name: true },
     orderBy: { name: "asc" },
@@ -688,6 +705,12 @@ export async function syncAgentToRetell(
   });
 
   const postCallAnalysisData = buildPostCallAnalysisData(services.map((service) => service.name));
+  // Sesga la transcripción hacia los nombres reales del negocio (servicios y
+  // profesionales) — reduce errores tipo "corte" transcrito como "corta".
+  const boostedKeywords = [
+    ...services.map((service) => service.name),
+    ...professionals.map((professional) => professional.name),
+  ];
   const { voiceGender } = parseAgentSettings(business.agentSettings);
   const voiceId = RETELL_VOICE_ID_BY_GENDER[voiceGender];
 
@@ -698,6 +721,9 @@ export async function syncAgentToRetell(
         postCallAnalysisData,
         voiceId,
         interruptionSensitivity: DEFAULT_RETELL_AGENT_CONFIG.interruptionSensitivity,
+        dataStorageRetentionDays: DEFAULT_RETELL_AGENT_CONFIG.dataStorageRetentionDays,
+        sttMode: DEFAULT_RETELL_AGENT_CONFIG.sttMode,
+        boostedKeywords,
       });
       await prismaClient.agent.update({
         where: { id: agent.id },
