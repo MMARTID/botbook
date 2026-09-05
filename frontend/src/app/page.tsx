@@ -270,7 +270,7 @@ function DashboardContent() {
               />
             </div>
 
-            {phoneQuery.data?.status === "failed" && (
+            {(phoneQuery.data?.status === "failed" || phoneQuery.data?.status === "pending") && (
               <button
                 type="button"
                 onClick={() => provisionMutation.mutate()}
