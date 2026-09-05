@@ -155,7 +155,15 @@ export function SiteLanding({ content }: { content?: NicheLandingContent }) {
           se muestran los transversales, todos con fuente externa citada. */}
       <SectorDataSection data={content?.sectorData ?? generalSectorData} accent={content?.accent} />
 
-      <section id="como-funciona" className="scroll-m-20 bg-[#fafafa] py-16 sm:py-20">
+      {/*
+        Sin fondo propio a partir de aquí (salvo los bloques negros reales,
+        como el CTA final): las secciones dejaban de tener fondo transparente
+        y tapaban el campo de partículas, que solo se veía en el hero y en
+        "precios" — la queja real de "solo hay efecto en dos zonas". El ritmo
+        visual entre secciones lo dan el espaciado y, donde ya existía, el
+        borde — no un tinte de fondo.
+      */}
+      <section id="como-funciona" className="scroll-m-20 py-16 sm:py-20">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <Reveal className="mb-10 max-w-2xl">
             <h2 className="text-3xl font-black tracking-tight text-[#0a0a0a] sm:text-4xl">
@@ -179,7 +187,7 @@ export function SiteLanding({ content }: { content?: NicheLandingContent }) {
         </div>
       </section>
 
-      <section className="bg-white py-16 sm:py-20">
+      <section className="py-16 sm:py-20">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <Reveal>
             <span className="badge-soft gap-2">
@@ -219,7 +227,7 @@ export function SiteLanding({ content }: { content?: NicheLandingContent }) {
         </div>
       </section>
 
-      <section className="bg-[#fafafa] py-16 sm:py-20 lg:py-24">
+      <section className="py-16 sm:py-20 lg:py-24">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <Reveal>
             <h2 className="max-w-2xl text-3xl font-black leading-tight tracking-tight text-[#0a0a0a] sm:text-4xl">
@@ -301,7 +309,7 @@ export function SiteLanding({ content }: { content?: NicheLandingContent }) {
         </div>
       </section>
 
-      <section id="preguntas" className="scroll-m-20 border-y border-[#e5e5e5] bg-[#fafafa] py-16 sm:py-20">
+      <section id="preguntas" className="scroll-m-20 border-y border-[#e5e5e5] py-16 sm:py-20">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <Reveal>
             <h2 className="text-3xl font-black tracking-tight text-[#0a0a0a] sm:text-4xl">Resuelve tus dudas antes de empezar.</h2>

@@ -71,7 +71,7 @@ export function RevenueLossCalculator({ content, activeNiche }: { content?: Nich
   const appointmentsToCoverPlan = Math.ceil(starterPlan.price / averageTicket);
 
   return (
-    <section id="calculadora" aria-labelledby="revenue-loss-title" className="scroll-m-20 bg-white py-16 sm:py-20">
+    <section id="calculadora" aria-labelledby="revenue-loss-title" className="scroll-m-20 py-16 sm:py-20">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <Reveal className="mx-auto max-w-3xl text-center">
           <span className="badge-soft gap-2">

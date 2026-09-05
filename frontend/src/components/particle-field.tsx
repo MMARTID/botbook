@@ -55,7 +55,7 @@ type Particula = {
  * según los núcleos y la memoria que declare el navegador.
  */
 function calcularDensidad(ancho: number, alto: number): number {
-  const base = Math.round((ancho * alto) / 5200);
+  const base = Math.round((ancho * alto) / 6600);
 
   const navegador = navigator as Navigator & { deviceMemory?: number };
   const nucleos = navegador.hardwareConcurrency ?? 4;
@@ -66,7 +66,7 @@ function calcularDensidad(ancho: number, alto: number): number {
   if (memoria <= 4) factor *= 0.7;
   if (ancho < 640) factor *= 0.8;
 
-  return Math.max(45, Math.min(260, Math.round(base * factor)));
+  return Math.max(40, Math.min(210, Math.round(base * factor)));
 }
 
 function aleatorioEntre([minimo, maximo]: [number, number]): number {
@@ -123,6 +123,14 @@ export function ParticleField() {
     let impulso = 0;
     let ultimoInstante = 0;
 
+    // Único momento autorado: al cargar, un pulso barre el campo una vez desde
+    // arriba — como si la primera llamada del negocio acabara de conectar. No
+    // se repite en resize ni al volver de pestaña oculta (ver `pulsoLanzado`).
+    const PULSO_DURACION_MS = 900;
+    const PULSO_ANCHO_BANDA = 190;
+    let pulsoInicio = 0;
+    let pulsoLanzado = false;
+
     function medir() {
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
       ancho = window.innerWidth;
@@ -160,6 +168,21 @@ export function ParticleField() {
 
       const scrollActual = window.scrollY;
 
+      // Progreso del pulso (0–1), o -1 si ya terminó o no ha empezado: evita
+      // recalcular distancias en cada partícula el resto del tiempo de vida.
+      const transcurridoPulso = pulsoInicio ? performance.now() - pulsoInicio : -1;
+      const tPulso =
+        transcurridoPulso >= 0 && transcurridoPulso <= PULSO_DURACION_MS
+          ? transcurridoPulso / PULSO_DURACION_MS
+          : -1;
+      let radioPulso = 0;
+      let envolventePulso = 0;
+      if (tPulso >= 0) {
+        const radioMaximo = Math.hypot(ancho, alto) * 0.55;
+        radioPulso = radioMaximo * (1 - (1 - tPulso) ** 3); // ease-out: arranca rápido, se posa
+        envolventePulso = Math.sin(Math.PI * tPulso); // el pulso nace, brilla y se apaga
+      }
+
       for (const particula of particulas) {
         const definicion = CAPAS[particula.capa];
 
@@ -177,16 +200,31 @@ export function ParticleField() {
         if (y < 0) y += periodo;
         y -= margen;
 
+        const x = particula.x * ancho;
+
         // Un empujón fuerte aviva el brillo: el campo acusa el gesto y se calma.
-        const brillo = Math.min(1, particula.alpha * (1 + Math.abs(impulso) * 0.012));
+        let brillo = Math.min(1, particula.alpha * (1 + Math.abs(impulso) * 0.012));
+        let escala = 1;
+
+        if (tPulso >= 0) {
+          const distancia = Math.hypot(x - ancho * 0.5, y - alto * 0.16);
+          const delta2 = Math.abs(distancia - radioPulso);
+          if (delta2 < PULSO_ANCHO_BANDA / 2) {
+            const proximidad = 1 - delta2 / (PULSO_ANCHO_BANDA / 2);
+            const boost = proximidad ** 1.5 * envolventePulso;
+            brillo = Math.min(1, brillo + boost * 0.65);
+            escala = 1 + boost * 0.4;
+          }
+        }
 
         contexto!.globalAlpha = brillo;
+        const radioDibujado = particula.radio * escala;
         contexto!.drawImage(
           sprites[particula.capa],
-          particula.x * ancho - particula.radio,
-          y - particula.radio,
-          particula.radio * 2,
-          particula.radio * 2
+          x - radioDibujado,
+          y - radioDibujado,
+          radioDibujado * 2,
+          radioDibujado * 2
         );
       }
 
@@ -217,6 +255,10 @@ export function ParticleField() {
     function arrancar() {
       if (animacion || consultaMovimiento.matches || document.hidden) return;
       scrollAnterior = window.scrollY;
+      if (!pulsoLanzado) {
+        pulsoLanzado = true;
+        pulsoInicio = performance.now();
+      }
       animacion = window.requestAnimationFrame(fotograma);
     }
 
@@ -267,11 +309,12 @@ export function ParticleField() {
       data-testid="particle-field"
     >
       {/*
-        Velo de color por debajo de las partículas. Muy tenue a propósito: el
-        texto de estas páginas se sigue leyendo sobre blanco y el compromiso
-        WCAG AA de PRODUCT.md no se toca.
+        Sin velo de color: uno anterior con degradado fijo a la ventana creaba
+        dos bandas tintadas (arriba y abajo) que se repetían en cada scroll,
+        con un hueco plano en medio — se veía como "solo hay efecto en dos
+        zonas". El blanco liso de PRODUCT.md más las partículas ya dan la
+        profundidad; nada de fondo debe competir con el texto.
       */}
-      <div className="absolute inset-0 bg-[radial-gradient(120%_80%_at_50%_-10%,#f6f2ff_0%,#ffffff_45%),linear-gradient(to_bottom,transparent_60%,#f7f4ff_100%)]" />
       <canvas ref={canvasRef} className="absolute inset-0 h-full w-full" />
     </div>
   );

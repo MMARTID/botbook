@@ -254,13 +254,28 @@ concretos, no el fondo general de la página.
 
 **Excepción, decidida el 2026-09-05: las superficies de venta llevan campo de partículas.** La
 landing, las cinco landings de nicho, `/login` y `/register` pintan un fondo animado
-(`frontend/src/components/particle-field.tsx`): puntos morados en tres profundidades sobre un velo
-de degradado casi imperceptible. Vender puede permitirse espectáculo; trabajar cada día, no — la
-frontera es exactamente esa, y no se mueve sin decisión explícita. El campo respeta la Regla del
-Acento Único (es morado, no un segundo color de marca), se dibuja a opacidades que dejan intacto
-el compromiso WCAG AA, adapta su densidad al dispositivo y se queda quieto con
-`prefers-reduced-motion`. Requiere `relative isolate` en el contenedor de página, sin fondo opaco
-propio.
+(`frontend/src/components/particle-field.tsx`): puntos morados en tres profundidades, con un único
+pulso de entrada autorado (no un bucle) que barre el campo una vez al cargar. Vender puede
+permitirse espectáculo; trabajar cada día, no — la frontera es exactamente esa, y no se mueve sin
+decisión explícita. El campo respeta la Regla del Acento Único (es morado, no un segundo color de
+marca), se dibuja a opacidades que dejan intacto el compromiso WCAG AA, adapta su densidad al
+dispositivo y se queda quieto con `prefers-reduced-motion`.
+
+Dos requisitos de implementación no obvios, ambos descubiertos a base de medir píxeles, no de
+mirar la pantalla — el canvas vive en `z-index: -10` y cualquier fallo de apilamiento es invisible
+hasta que se mide:
+
+1. El contenedor de página necesita `relative isolate` y no puede pintar fondo opaco propio. Sin
+   el `isolate`, el `z-index` negativo queda por detrás del fondo del `body` y no se ve nada.
+2. **Ninguna sección del contenido puede tener fondo opaco propio** (`bg-white`, `bg-[#fafafa]`
+   de relleno) si tiene que dejar ver el campo — un elemento en flujo normal siempre pinta por
+   encima de un `z-index` negativo del mismo contexto de apilamiento, lo tape o no a propósito.
+   La primera versión de esta feature dejaba esas secciones con su tinte de "ritmo" de siempre y
+   el campo solo se veía en el hero y en "precios" — los dos únicos huecos transparentes de toda
+   la landing. El ritmo visual entre secciones se sostiene con espaciado y, donde ya existía,
+   borde (`border-y`) — nunca con un color de fondo de sección. Los bloques negros reales (CTA
+   final, plan destacado, panel oscuro de la calculadora) siguen sólidos a propósito: son el
+   cierre de la página o contenido con su propia identidad, no relleno de ritmo.
 
 ## Typography
 
