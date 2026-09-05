@@ -88,11 +88,18 @@ export function RevenueLossCalculator({ content, activeNiche }: { content?: Nich
 
         <Reveal delay={0.1} className="mx-auto mt-10 max-w-6xl">
         <div className="panel grid overflow-hidden p-2 sm:p-3 lg:grid-cols-[0.94fr_1.06fr]">
-          <div className="p-5 sm:p-7 lg:p-9">
+          <div className="p-4 sm:p-7 lg:p-9">
             <h3 className="text-2xl font-bold tracking-tight text-[#0a0a0a]">Haz una estimación rápida</h3>
             <p className="mt-2 text-sm leading-6 text-[#52525b]">No necesitas datos exactos. Una aproximación basta para ver el impacto.</p>
 
-            <div className="mt-8 space-y-7">
+            {/*
+              Un único borde para las dos, no dos tarjetas repetidas: eran dos
+              sliders relacionados de la misma estimación, no dos widgets
+              sueltos — y en móvil, dos tarjetas completas (padding + borde
+              cada una) dejaban la pérdida estimada a un scroll entero de
+              distancia. `bare` quita el envoltorio propio de cada slider.
+            */}
+            <div className="mt-6 rounded-2xl border border-[#e5e5e5] bg-[#fafafa] p-4 sm:mt-8 sm:p-6">
               <RangeSlider
                 id="average-ticket"
                 icon={Tag}
@@ -106,7 +113,10 @@ export function RevenueLossCalculator({ content, activeNiche }: { content?: Nich
                 displayValue={currencyFormatter.format(averageTicket)}
                 minLabel={currencyFormatter.format(TICKET_MIN)}
                 maxLabel={currencyFormatter.format(TICKET_MAX)}
+                bare
               />
+
+              <div className="my-5 border-t border-[#e5e5e5]" />
 
               <RangeSlider
                 id="missed-appointments"
@@ -121,6 +131,7 @@ export function RevenueLossCalculator({ content, activeNiche }: { content?: Nich
                 displayValue={String(missedAppointmentsPerWeek)}
                 minLabel={`${APPOINTMENTS_MIN} cita`}
                 maxLabel={`${APPOINTMENTS_MAX} citas`}
+                bare
               />
             </div>
           </div>

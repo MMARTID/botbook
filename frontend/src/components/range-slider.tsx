@@ -37,6 +37,7 @@ export function RangeSlider({
   maxLabel,
   hint,
   showTicks = true,
+  bare = false,
 }: {
   id: string;
   icon?: LucideIcon;
@@ -52,6 +53,10 @@ export function RangeSlider({
   maxLabel: string;
   hint?: string;
   showTicks?: boolean;
+  // Sin tarjeta propia (borde/fondo/padding): para cuando el llamador agrupa
+  // varios sliders relacionados en una sola tarjeta compartida (ver
+  // RevenueLossCalculator) en vez de repetir el mismo borde por cada uno.
+  bare?: boolean;
 }) {
   const trackRef = useRef<HTMLDivElement | null>(null);
   const [trackWidth, setTrackWidth] = useState(0);
@@ -72,11 +77,11 @@ export function RangeSlider({
   const thumbLeft = SLIDER_THUMB_PX / 2 + percent * usableWidth;
 
   return (
-    <div className="rounded-2xl border border-[#e5e5e5] bg-[#fafafa] p-5 sm:p-6">
+    <div className={bare ? "" : "rounded-2xl border border-[#e5e5e5] bg-[#fafafa] p-5 sm:p-6"}>
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
         <div className="flex items-center gap-3">
           {Icon ? (
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#f3eeff] text-[#8b5cf6]">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#f3eeff] text-[#8b5cf6] sm:h-10 sm:w-10">
               <Icon className="h-5 w-5" aria-hidden="true" />
             </span>
           ) : null}
@@ -139,7 +144,12 @@ export function RangeSlider({
         />
       </div>
 
-      <div className="mt-3 flex justify-between text-xs font-medium text-[#a1a1aa]" aria-hidden="true">
+      {/*
+        Oculto en móvil: el valor elegido ya se ve grande arriba en el
+        `<output>` — los extremos son solo referencia, no información que
+        falte si desaparecen en la pantalla más ajustada.
+      */}
+      <div className="mt-2 hidden justify-between text-xs font-medium text-[#a1a1aa] sm:flex" aria-hidden="true">
         <span>{minLabel}</span>
         <span>{maxLabel}</span>
       </div>
