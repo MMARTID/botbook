@@ -218,6 +218,7 @@ model Call {
   businessId   String
   agentId      String?
   vapiCallId   String       @unique
+  fromNumber   String?
   status       CallStatus   @default(IN_PROGRESS)
   outcome      CallOutcome?
   sentiment    CallSentiment?

@@ -146,7 +146,7 @@ export async function handleCallStarted(
   payload: unknown
 ): Promise<{ success: boolean }> {
   const event = RetellCallStartedSchema.parse(payload);
-  const { call_id, agent_id } = event.data;
+  const { call_id, agent_id, from_number } = event.data;
 
   console.log(`[Retell] Inició ${callLabel(call_id)} · agente=${agent_id}`);
 
@@ -170,6 +170,7 @@ export async function handleCallStarted(
         vapiCallId: call_id,
         businessId,
         agentId: agent?.id || null,
+        fromNumber: from_number || null,
         status: "IN_PROGRESS",
         startedAt: new Date(),
       },

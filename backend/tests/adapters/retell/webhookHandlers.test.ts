@@ -74,6 +74,29 @@ describe("Retell webhook handlers", () => {
       );
     });
 
+    it("guarda from_number cuando Retell lo manda", async () => {
+      mockedAgentFindFirst.mockResolvedValue({
+        id: "agent_123",
+        businessId: "business_123",
+      } as any);
+      mockedCallUpsert.mockResolvedValue({ id: "call_123" } as any);
+
+      await handleCallStarted({
+        event_type: "call_started",
+        data: {
+          call_id: "retell_call_123",
+          agent_id: "retell_agent_123",
+          from_number: "692138456",
+        },
+      });
+
+      expect(mockedCallUpsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          create: expect.objectContaining({ fromNumber: "692138456" }),
+        })
+      );
+    });
+
     it("falla si no encuentra el negocio del agente", async () => {
       mockedAgentFindFirst.mockResolvedValue(null as any);
 
