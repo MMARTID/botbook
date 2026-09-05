@@ -1,7 +1,6 @@
 "use client";
 
-import { useState } from "react";
-import { getGoogleAuthUrl } from "@/lib/api";
+import { useComingSoonBubble } from "@/components/coming-soon-bubble";
 
 type GoogleAuthButtonProps = {
   onError: (message: string) => void;
@@ -21,31 +20,29 @@ function GoogleIcon() {
   );
 }
 
-export function GoogleAuthButton({ onError, beforeStart, disabled, acceptedTerms }: GoogleAuthButtonProps) {
-  const [loading, setLoading] = useState(false);
-
-  const startGoogleAuth = async () => {
-    setLoading(true);
-    onError("");
-
-    try {
-      beforeStart?.();
-      window.location.assign(await getGoogleAuthUrl(acceptedTerms));
-    } catch {
-      setLoading(false);
-      onError("No se pudo iniciar sesión con Google. Inténtalo de nuevo.");
-    }
-  };
+// Registro público desactivado mientras se siguen haciendo cambios — este
+// botón también puede crear una cuenta nueva silenciosamente (mismo callback
+// de Google tanto en /login como en /register), así que se bloquea igual que
+// PlanSelectionLink. La navegación real (getGoogleAuthUrl + beforeStart)
+// sigue en el historial de git para restaurarla cuando se reactive el
+// registro.
+// Se acepta el tipo de props real (sin usarlo) para que los callers
+// (/login, /register) sigan typechecando sin cambios mientras dura el bloqueo.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export function GoogleAuthButton(_props: GoogleAuthButtonProps) {
+  const { openAt, bubble } = useComingSoonBubble();
 
   return (
-    <button
-      type="button"
-      onClick={startGoogleAuth}
-      disabled={loading || disabled}
-      className="flex h-12 w-full items-center justify-center gap-3 rounded-full border border-[#e5e5e5] bg-white px-4 text-sm font-semibold text-[#0a0a0a] transition hover:border-[#0a0a0a] hover:bg-[#fafafa] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#8b5cf6]/30 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
-    >
-      <GoogleIcon />
-      {loading ? "Conectando con Google..." : "Continuar con Google"}
-    </button>
+    <>
+      <button
+        type="button"
+        onClick={openAt}
+        className="flex h-12 w-full items-center justify-center gap-3 rounded-full border border-[#e5e5e5] bg-white px-4 text-sm font-semibold text-[#0a0a0a] transition hover:border-[#0a0a0a] hover:bg-[#fafafa] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#8b5cf6]/30 focus-visible:ring-offset-2"
+      >
+        <GoogleIcon />
+        Continuar con Google
+      </button>
+      {bubble}
+    </>
   );
 }
