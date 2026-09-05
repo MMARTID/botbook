@@ -239,6 +239,7 @@ export type CallBooking = {
   durationMinutes: number;
   numberPeople: number;
   isCancelled: boolean;
+  clientPhone: string | null;
   professional?: { id: string; name: string } | null;
   service?: { id: string; name: string; durationMinutes: number } | null;
 };

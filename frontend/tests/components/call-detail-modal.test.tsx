@@ -100,6 +100,7 @@ describe("CallDetailModal", () => {
           durationMinutes: 30,
           numberPeople: 1,
           isCancelled: false,
+          clientPhone: null,
           professional: { id: "p1", name: "Ana" },
           service: { id: "s1", name: "Corte", durationMinutes: 30 },
         },
@@ -121,6 +122,7 @@ describe("CallDetailModal", () => {
           durationMinutes: 30,
           numberPeople: 1,
           isCancelled: true,
+          clientPhone: null,
         },
       })
     );

@@ -197,6 +197,12 @@ export function CallDetailModal({
                       <dt className="text-muted">Fecha</dt>
                       <dd className="text-right font-medium">{formatDate(call.booking.programedAt)}</dd>
                     </div>
+                    <div className="flex justify-between gap-3">
+                      <dt className="text-muted">Teléfono</dt>
+                      <dd className="text-right font-medium">
+                        {call.booking.clientPhone ?? call.fromNumber ?? "No proporcionado"}
+                      </dd>
+                    </div>
                   </dl>
                 ) : (
                   <p className="mt-2 text-sm leading-6 text-muted">
