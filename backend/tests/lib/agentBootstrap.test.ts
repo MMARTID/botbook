@@ -173,6 +173,7 @@ describe("syncAgentToRetell — voiceGender", () => {
         dataStorageRetentionDays: 30,
         sttMode: "accurate",
         boostedKeywords: ["Corte", "Coloración", "Marta"],
+        piiCategories: ["person_name", "phone_number", "email", "address"],
       })
     );
   });

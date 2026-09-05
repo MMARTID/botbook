@@ -9,6 +9,7 @@ import {
   type RetellBooleanAnalysisField,
   type RetellAnalysisField,
   type CreateRetellLlmInput,
+  type RetellPiiCategory,
 } from "../adapters/retell/RetellAdapter.js";
 import { getPublicWebhookBaseUrl } from "./serverUrl.js";
 import type { VapiCreateAssistantRequest } from "../adapters/vapi/types.js";
@@ -210,6 +211,14 @@ export const DEFAULT_RETELL_AGENT_CONFIG = {
   // fecha, "accurate" es la prioridad correcta. Decisión explícita del
   // usuario, 2026-09-05.
   sttMode: "accurate" as const,
+  // RGPD: qué categorías redacta Retell de transcripciones/grabaciones tras
+  // la llamada (mode: post_call). Decisión explícita del usuario, 2026-09-05
+  // — las 4 que de verdad aparecen en una llamada de reserva. OJO: esto solo
+  // afecta a lo que Retell guarda/muestra en su propio dashboard, NUNCA al
+  // payload del webhook que recibimos y persistimos nosotros (confirmado en
+  // su documentación: "You will continue to receive webhook events... even
+  // when data storage is restricted").
+  piiCategories: ["person_name", "phone_number", "email", "address"] as RetellPiiCategory[],
 };
 
 /**
@@ -461,6 +470,7 @@ export function buildRetellAgentPayload(input: {
     interruptionSensitivity: DEFAULT_RETELL_AGENT_CONFIG.interruptionSensitivity,
     dataStorageRetentionDays: DEFAULT_RETELL_AGENT_CONFIG.dataStorageRetentionDays,
     sttMode: DEFAULT_RETELL_AGENT_CONFIG.sttMode,
+    piiCategories: DEFAULT_RETELL_AGENT_CONFIG.piiCategories,
   };
 }
 
@@ -724,6 +734,7 @@ export async function syncAgentToRetell(
         dataStorageRetentionDays: DEFAULT_RETELL_AGENT_CONFIG.dataStorageRetentionDays,
         sttMode: DEFAULT_RETELL_AGENT_CONFIG.sttMode,
         boostedKeywords,
+        piiCategories: DEFAULT_RETELL_AGENT_CONFIG.piiCategories,
       });
       await prismaClient.agent.update({
         where: { id: agent.id },

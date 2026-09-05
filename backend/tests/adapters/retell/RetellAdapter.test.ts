@@ -273,6 +273,27 @@ describe("RetellAdapter", () => {
         })
       );
     });
+
+    it("incluye pii_config con mode post_call cuando se especifican categorías", async () => {
+      mocks.agentCreate.mockResolvedValue({ agent_id: "agent_123" });
+
+      const adapter = new RetellAdapter();
+      await adapter.createAgent({
+        name: "Asistente Test",
+        voiceId: "11labs-Bella",
+        llmId: "llm_123",
+        piiCategories: ["person_name", "phone_number", "email", "address"],
+      });
+
+      expect(mocks.agentCreate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          pii_config: {
+            categories: ["person_name", "phone_number", "email", "address"],
+            mode: "post_call",
+          },
+        })
+      );
+    });
   });
 
   describe("updateAgent", () => {
@@ -331,6 +352,35 @@ describe("RetellAdapter", () => {
 
       const sentPayload = mocks.agentUpdate.mock.calls[0][1];
       expect(sentPayload).not.toHaveProperty("interruption_sensitivity");
+    });
+
+    it("actualiza pii_config con mode post_call cuando se especifican categorías", async () => {
+      mocks.agentUpdate.mockResolvedValue({ agent_id: "agent_123" });
+
+      const adapter = new RetellAdapter();
+      await adapter.updateAgent("agent_123", {
+        piiCategories: ["person_name", "phone_number", "email", "address"],
+      });
+
+      expect(mocks.agentUpdate).toHaveBeenCalledWith(
+        "agent_123",
+        expect.objectContaining({
+          pii_config: {
+            categories: ["person_name", "phone_number", "email", "address"],
+            mode: "post_call",
+          },
+        })
+      );
+    });
+
+    it("no toca pii_config si no se especifica", async () => {
+      mocks.agentUpdate.mockResolvedValue({ agent_id: "agent_123" });
+
+      const adapter = new RetellAdapter();
+      await adapter.updateAgent("agent_123", { name: "Nuevo nombre" });
+
+      const sentPayload = mocks.agentUpdate.mock.calls[0][1];
+      expect(sentPayload).not.toHaveProperty("pii_config");
     });
   });
 

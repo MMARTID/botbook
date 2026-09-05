@@ -52,6 +52,22 @@ export interface RetellBooleanAnalysisField {
 
 export type RetellAnalysisField = RetellEnumAnalysisField | RetellBooleanAnalysisField;
 
+export type RetellPiiCategory =
+  | "person_name"
+  | "address"
+  | "email"
+  | "phone_number"
+  | "ssn"
+  | "passport"
+  | "driver_license"
+  | "credit_card"
+  | "bank_account"
+  | "password"
+  | "pin"
+  | "medical_id"
+  | "date_of_birth"
+  | "customer_account_number";
+
 export interface CreateRetellAgentInput {
   name: string;
   voiceId: string;
@@ -64,6 +80,7 @@ export interface CreateRetellAgentInput {
   dataStorageRetentionDays?: number;
   sttMode?: "fast" | "accurate";
   boostedKeywords?: string[];
+  piiCategories?: RetellPiiCategory[];
 }
 
 export interface RetellPhoneNumber {
@@ -203,6 +220,9 @@ export class RetellAdapter {
       data_storage_retention_days: input.dataStorageRetentionDays,
       stt_mode: input.sttMode,
       boosted_keywords: input.boostedKeywords,
+      ...(input.piiCategories
+        ? { pii_config: { categories: input.piiCategories, mode: "post_call" as const } }
+        : {}),
     });
 
     return response;
@@ -253,6 +273,9 @@ export class RetellAdapter {
     }
     if (input.boostedKeywords !== undefined) {
       updatePayload.boosted_keywords = input.boostedKeywords;
+    }
+    if (input.piiCategories !== undefined) {
+      updatePayload.pii_config = { categories: input.piiCategories, mode: "post_call" };
     }
 
     return this.client.agent.update(agentId, updatePayload);
