@@ -8,6 +8,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { AGENT_FILE_ACCEPT, useAgentFileUpload } from "@/hooks/use-agent-file-upload";
 import { UpcomingCalendarEvents } from "@/components/upcoming-calendar-events";
 import { RecentCalls } from "@/components/recent-calls";
+import { OnboardingChecklist } from "@/components/onboarding-checklist";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
 function StatusRow({ label, value, icon }: { label: string; value: string; icon: React.ReactNode }) {
@@ -170,6 +171,8 @@ function DashboardContent() {
 
   return (
     <div className="space-y-5 sm:space-y-8">
+      <OnboardingChecklist />
+
       <section className="grid gap-4 sm:gap-6 xl:grid-cols-[minmax(0,1fr)_22rem]">
         <article id="calendar-setup" className="panel relative scroll-mt-32 overflow-hidden p-4 sm:p-6">
           <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(139,92,246,0.14),transparent_62%)]" />
