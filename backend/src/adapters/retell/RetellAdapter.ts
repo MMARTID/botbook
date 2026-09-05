@@ -60,6 +60,7 @@ export interface CreateRetellAgentInput {
   webhookUrl?: string;
   timezone?: string;
   postCallAnalysisData?: RetellAnalysisField[];
+  interruptionSensitivity?: number;
 }
 
 export interface RetellPhoneNumber {
@@ -195,6 +196,7 @@ export class RetellAdapter {
       webhook_url: input.webhookUrl,
       timezone: input.timezone || "Europe/Madrid",
       post_call_analysis_data: input.postCallAnalysisData,
+      interruption_sensitivity: input.interruptionSensitivity,
     });
 
     return response;
@@ -233,6 +235,9 @@ export class RetellAdapter {
     }
     if (input.postCallAnalysisData !== undefined) {
       updatePayload.post_call_analysis_data = input.postCallAnalysisData;
+    }
+    if (input.interruptionSensitivity !== undefined) {
+      updatePayload.interruption_sensitivity = input.interruptionSensitivity;
     }
 
     return this.client.agent.update(agentId, updatePayload);

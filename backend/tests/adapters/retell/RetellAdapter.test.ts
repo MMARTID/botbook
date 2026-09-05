@@ -235,6 +235,22 @@ describe("RetellAdapter", () => {
         })
       );
     });
+
+    it("incluye interruption_sensitivity cuando se especifica", async () => {
+      mocks.agentCreate.mockResolvedValue({ agent_id: "agent_123" });
+
+      const adapter = new RetellAdapter();
+      await adapter.createAgent({
+        name: "Asistente Test",
+        voiceId: "11labs-Bella",
+        llmId: "llm_123",
+        interruptionSensitivity: 0.5,
+      });
+
+      expect(mocks.agentCreate).toHaveBeenCalledWith(
+        expect.objectContaining({ interruption_sensitivity: 0.5 })
+      );
+    });
   });
 
   describe("updateAgent", () => {
@@ -271,6 +287,28 @@ describe("RetellAdapter", () => {
 
       const sentPayload = mocks.agentUpdate.mock.calls[0][1];
       expect(sentPayload).not.toHaveProperty("post_call_analysis_data");
+    });
+
+    it("actualiza interruption_sensitivity cuando se especifica", async () => {
+      mocks.agentUpdate.mockResolvedValue({ agent_id: "agent_123" });
+
+      const adapter = new RetellAdapter();
+      await adapter.updateAgent("agent_123", { interruptionSensitivity: 0.5 });
+
+      expect(mocks.agentUpdate).toHaveBeenCalledWith(
+        "agent_123",
+        expect.objectContaining({ interruption_sensitivity: 0.5 })
+      );
+    });
+
+    it("no toca interruption_sensitivity si no se especifica", async () => {
+      mocks.agentUpdate.mockResolvedValue({ agent_id: "agent_123" });
+
+      const adapter = new RetellAdapter();
+      await adapter.updateAgent("agent_123", { name: "Nuevo nombre" });
+
+      const sentPayload = mocks.agentUpdate.mock.calls[0][1];
+      expect(sentPayload).not.toHaveProperty("interruption_sensitivity");
     });
   });
 

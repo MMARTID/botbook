@@ -197,6 +197,11 @@ export const DEFAULT_RETELL_AGENT_CONFIG = {
   modelTemperature: 0.3,
   language: "es-ES" as const,
   timezone: "Europe/Madrid",
+  // El default de Retell es 1 (máxima sensibilidad) — cualquier palabra suelta del
+  // cliente ("ah", "vale") corta al agente a mitad de frase, confirmado con una
+  // llamada real el 2026-09-05. 0.5 deja que el cliente interrumpa de verdad sin
+  // que una muletilla corte la respuesta.
+  interruptionSensitivity: 0.5,
 };
 
 /**
@@ -445,6 +450,7 @@ export function buildRetellAgentPayload(input: {
     webhookUrl: input.webhookUrl,
     timezone: DEFAULT_RETELL_AGENT_CONFIG.timezone,
     postCallAnalysisData: input.postCallAnalysisData ?? [CALL_OUTCOME_ANALYSIS_FIELD],
+    interruptionSensitivity: DEFAULT_RETELL_AGENT_CONFIG.interruptionSensitivity,
   };
 }
 
@@ -688,7 +694,11 @@ export async function syncAgentToRetell(
   for (const agent of agents) {
     try {
       await retellAdapter.updateLlm(agent.retellLlmId!, { generalPrompt: systemPrompt });
-      await retellAdapter.updateAgent(agent.retellAgentId!, { postCallAnalysisData, voiceId });
+      await retellAdapter.updateAgent(agent.retellAgentId!, {
+        postCallAnalysisData,
+        voiceId,
+        interruptionSensitivity: DEFAULT_RETELL_AGENT_CONFIG.interruptionSensitivity,
+      });
       await prismaClient.agent.update({
         where: { id: agent.id },
         data: { systemPrompt, voiceId },
