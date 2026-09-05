@@ -1,10 +1,10 @@
 
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { ArrowDown, ArrowRight, Check, Headphones } from "lucide-react";
 
-import { ComingSoonLink } from "@/components/coming-soon-link";
 import { HeroConversation } from "@/components/hero-conversation";
 import { DemoVoiceCall } from "@/components/demo-voice-call";
 import type { NicheLandingContent } from "@/lib/niche-landings";
@@ -48,10 +48,10 @@ export function LandingHero({ content }: { content?: NicheLandingContent }) {
               <Headphones className="h-4 w-4" aria-hidden="true" />
               Escuchar la demo
             </button>
-            <ComingSoonLink href={plansHref} className="btn-primary h-12 w-full px-6 sm:w-auto">
+            <Link href={plansHref} className="btn-primary h-12 w-full px-6 sm:w-auto">
               Empezar 7 días gratis
               <ArrowRight className="h-4 w-4" aria-hidden="true" />
-            </ComingSoonLink>
+            </Link>
           </div>
           <div className="flex flex-wrap gap-x-5 gap-y-2 text-sm font-medium text-[#3f3f46]">
             {["Sin permanencia", "Mismo número de siempre", "7 días de prueba"].map((item) => (

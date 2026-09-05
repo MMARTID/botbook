@@ -4,6 +4,12 @@ import userEvent from "@testing-library/user-event";
 import { RevenueLossCalculator } from "@/components/revenue-loss-calculator";
 import { starterPlan } from "@/lib/plans";
 
+const { mockPush } = vi.hoisted(() => ({ mockPush: vi.fn() }));
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: mockPush }),
+}));
+
 describe("RevenueLossCalculator", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -68,14 +74,14 @@ describe("RevenueLossCalculator", () => {
     expect(stored.averageTicket).toBe(90);
   });
 
-  it("el botón de recuperar pérdida no navega mientras el registro está desactivado — muestra el aviso de 'en desarrollo'", async () => {
+  it("el botón de recuperar pérdida activa el contexto ROI y navega a /planes", async () => {
     const user = userEvent.setup();
     render(<RevenueLossCalculator />);
 
     await user.click(screen.getByRole("button", { name: /Recuperar mis/ }));
 
-    expect(window.sessionStorage.getItem("alhabla_roi_context_v1")).toBeNull();
-    expect(screen.getByText(/social@alhabla\.ai/)).toBeInTheDocument();
+    expect(mockPush).toHaveBeenCalledWith("/planes");
+    expect(window.sessionStorage.getItem("alhabla_roi_context_v1")).not.toBeNull();
   });
 
   it("muestra cuántas citas cubrirían el plan de entrada", () => {
