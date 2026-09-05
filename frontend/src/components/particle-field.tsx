@@ -263,8 +263,37 @@ export function ParticleField() {
     }
 
     function reiniciar() {
+      // Los navegadores móviles disparan `resize` al colapsar/mostrar la
+      // barra de direcciones durante el scroll — la altura cambia unos
+      // 50-100px sin que el dispositivo haya cambiado de verdad. Si
+      // volviéramos a sembrar ahí, todo el campo saltaría a una disposición
+      // aleatoria nueva en mitad de un scroll suave (bug real, reportado).
+      // Solo se resiembra si el ANCHO cambió (giro real de pantalla /
+      // redimensión de ventana) o si el alto cambió mucho más de lo que
+      // explica una barra de direcciones.
+      const anchoAnterior = ancho;
+      const altoAnterior = alto;
       medir();
-      sembrar();
+
+      const esPrimeraVez = anchoAnterior === 0;
+      const cambioAncho = !esPrimeraVez && anchoAnterior !== ancho;
+      const cambioAltoGrande = !esPrimeraVez && Math.abs(altoAnterior - alto) > 150;
+
+      if (esPrimeraVez || cambioAncho || cambioAltoGrande) {
+        sembrar();
+      } else if (altoAnterior > 0 && altoAnterior !== alto) {
+        // El alto cambió un poco sin justificar resembrar (ver arriba), pero
+        // el punto donde cada partícula envuelve su ciclo vertical depende de
+        // `alto` — sin este reescalado, el ciclo se corta en un sitio
+        // distinto y una parte de las partículas "teletransporta" de golpe
+        // al nuevo borde. Reescalar la fase proporcionalmente evita el corte:
+        // todas se reacomodan un poco, ninguna salta.
+        const factor = alto / altoAnterior;
+        for (const particula of particulas) {
+          particula.y *= factor;
+        }
+      }
+
       detener();
       impulso = 0;
 

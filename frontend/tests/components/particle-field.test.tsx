@@ -96,4 +96,40 @@ describe("ParticleField", () => {
     expect(cancelSpy).toHaveBeenCalled();
     expect(quitarListener).toHaveBeenCalledWith("resize", expect.any(Function));
   });
+
+  // Bug real reportado: en móvil, la barra de direcciones del navegador se
+  // colapsa o reaparece al hacer scroll, y eso dispara un `resize` sin que el
+  // dispositivo haya cambiado — antes, cualquier resize volvía a sembrar el
+  // campo entero con posiciones aleatorias nuevas, así que el usuario veía
+  // las partículas "saltar" de sitio en mitad de un scroll suave.
+  it("un resize con solo la altura cambiada (barra de direcciones móvil) no resiembra el campo", async () => {
+    simularMovimientoReducido(false);
+    const randomSpy = vi.spyOn(Math, "random");
+
+    render(<ParticleField />);
+    const llamadasIniciales = randomSpy.mock.calls.length;
+
+    Object.defineProperty(window, "innerHeight", {
+      configurable: true,
+      value: window.innerHeight - 80,
+    });
+    window.dispatchEvent(new Event("resize"));
+    await new Promise((resolve) => setTimeout(resolve, 200));
+
+    expect(randomSpy.mock.calls.length).toBe(llamadasIniciales);
+  });
+
+  it("un resize con el ancho cambiado (giro de pantalla real) sí resiembra el campo", async () => {
+    simularMovimientoReducido(false);
+    const randomSpy = vi.spyOn(Math, "random");
+
+    render(<ParticleField />);
+    const llamadasIniciales = randomSpy.mock.calls.length;
+
+    Object.defineProperty(window, "innerWidth", { configurable: true, value: 800 });
+    window.dispatchEvent(new Event("resize"));
+    await new Promise((resolve) => setTimeout(resolve, 200));
+
+    expect(randomSpy.mock.calls.length).toBeGreaterThan(llamadasIniciales);
+  });
 });
