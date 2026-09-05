@@ -1,13 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { ArrowDown, ArrowRight, CalendarX, Check, Tag } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type MouseEvent } from "react";
 import { starterPlan } from "@/lib/plans";
 import type { NicheLandingContent } from "@/lib/niche-landings";
 import { nicheLinks } from "@/lib/niche-landings";
-import { activateRoiContext, getSavedRoiEstimate, saveRoiEstimate } from "@/lib/roi-context";
+import { getSavedRoiEstimate, saveRoiEstimate } from "@/lib/roi-context";
+import { useComingSoonBubble } from "@/components/coming-soon-link";
 import { Reveal } from "@/components/scroll-reveal";
 import { RangeSlider } from "@/components/range-slider";
 
@@ -30,7 +30,7 @@ function clamp(value: number, minimum: number, maximum: number) {
 }
 
 export function RevenueLossCalculator({ content, activeNiche }: { content?: NicheLandingContent["calculator"]; activeNiche?: string }) {
-  const router = useRouter();
+  const { openAt, bubble } = useComingSoonBubble();
   const [averageTicket, setAverageTicket] = useState(content?.initialTicket ?? 35);
   const [missedAppointmentsPerWeek, setMissedAppointmentsPerWeek] = useState(3);
   const hasHydrated = useRef(false);
@@ -57,12 +57,8 @@ export function RevenueLossCalculator({ content, activeNiche }: { content?: Nich
     setMissedAppointmentsPerWeek(clamp(value, APPOINTMENTS_MIN, APPOINTMENTS_MAX));
   };
 
-  const openPersonalizedPlans = () => {
-    // La cifra que el botón nombra es la que se ve en pantalla, tocada o no.
-    // Propagarla siempre evita que /planes reciba un titular genérico después
-    // de haber prometido un importe concreto.
-    activateRoiContext({ averageTicket, missedAppointmentsPerWeek });
-    router.push("/planes");
+  const openPersonalizedPlans = (event: MouseEvent) => {
+    openAt(event);
   };
 
   const monthlyLoss = missedAppointmentsPerWeek * averageTicket * WEEKS_PER_MONTH;
@@ -182,6 +178,7 @@ export function RevenueLossCalculator({ content, activeNiche }: { content?: Nich
           ))}
         </Reveal>
       </div>
+      {bubble}
     </section>
   );
 }

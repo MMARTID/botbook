@@ -1,8 +1,8 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { ArrowRight, Menu, X } from "lucide-react";
+import { ComingSoonLink } from "@/components/coming-soon-link";
 
 function buildPlansHref(niche?: string) {
   return niche ? `/planes?niche=${encodeURIComponent(niche)}` : "/planes";
@@ -61,10 +61,10 @@ export function MobileNav({ niche }: { niche?: string }) {
 
   return (
     <div ref={containerRef} className="flex items-center gap-2 md:hidden">
-      <Link href={plansHref} className="btn-primary h-11 px-4 text-sm">
+      <ComingSoonLink href={plansHref} className="btn-primary h-11 px-4 text-sm">
         Empezar
         <ArrowRight className="h-4 w-4" aria-hidden="true" />
-      </Link>
+      </ComingSoonLink>
       <button
         ref={toggleRef}
         type="button"
@@ -94,20 +94,20 @@ export function MobileNav({ niche }: { niche?: string }) {
                 {label}
               </a>
             ))}
-            <Link
+            <ComingSoonLink
               href="/login"
               onClick={() => setIsMenuOpen(false)}
               className="flex h-11 items-center rounded-full px-3 text-sm font-medium text-[#3f3f46] transition duration-200 hover:bg-[#f3eeff] hover:text-[#0a0a0a]"
             >
               Iniciar sesión
-            </Link>
-            <Link
+            </ComingSoonLink>
+            <ComingSoonLink
               href={plansHref}
               onClick={() => setIsMenuOpen(false)}
               className="btn-primary mt-1.5 justify-center"
             >
               Empezar ahora
-            </Link>
+            </ComingSoonLink>
           </div>
         </nav>
       ) : null}

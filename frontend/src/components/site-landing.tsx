@@ -1,6 +1,7 @@
 
 import Link from "next/link";
 import { ArrowRight, CalendarDays, Check, Clock3, MessageCircleMore, Scissors, Sparkles, Store } from "lucide-react";
+import { ComingSoonLink } from "@/components/coming-soon-link";
 import { LandingHero } from "@/components/landing-hero";
 import { MobileNav } from "@/components/mobile-nav";
 import { SectorDataSection } from "@/components/sector-data-section";
@@ -131,12 +132,12 @@ export function SiteLanding({ content }: { content?: NicheLandingContent }) {
             <a href="#preguntas" className="text-sm font-medium text-[#3f3f46] transition hover:text-[#0a0a0a]">
               Preguntas
             </a>
-            <Link href="/login" className="btn-secondary h-10 px-4">
+            <ComingSoonLink href="/login" className="btn-secondary h-10 px-4">
               Iniciar sesión
-            </Link>
-            <Link href={plansHref} className="btn-primary h-10 px-4">
+            </ComingSoonLink>
+            <ComingSoonLink href={plansHref} className="btn-primary h-10 px-4">
               Empezar ahora
-            </Link>
+            </ComingSoonLink>
           </nav>
 
           <MobileNav niche={content?.slug} />
@@ -285,12 +286,12 @@ export function SiteLanding({ content }: { content?: NicheLandingContent }) {
                   {formatIncludedMinutes(plan.minutes)} minutos incluidos
                 </p>
                 <p className={`mt-2 text-sm leading-7 ${plan.featured ? "text-white/65" : "text-[#52525b]"}`}>{plan.summary}</p>
-                <Link
+                <ComingSoonLink
                   href={`${plansHref}${plansHref.includes("?") ? "&" : "?"}plan=${plan.id}`}
                   className={plan.featured ? "btn-purple mt-6" : "btn-secondary mt-6"}
                 >
                   Elegir {plan.name}
-                </Link>
+                </ComingSoonLink>
               </article>
             </Reveal>
           ))}
@@ -325,10 +326,10 @@ export function SiteLanding({ content }: { content?: NicheLandingContent }) {
             {content?.closingTitle ?? "Empieza a no perder llamadas esta semana."}
           </h2>
           <div className="shrink-0">
-            <Link href={plansHref} className="btn-purple">
+            <ComingSoonLink href={plansHref} className="btn-purple">
               Empezar ahora
               <ArrowRight className="h-4 w-4" aria-hidden="true" />
-            </Link>
+            </ComingSoonLink>
           </div>
         </Reveal>
       </section>

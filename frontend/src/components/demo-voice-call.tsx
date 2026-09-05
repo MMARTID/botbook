@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { ComingSoonLink } from "@/components/coming-soon-link";
 import axios from "axios";
 import { RetellWebClient } from "retell-client-js-sdk";
 import { Mic, MicOff, PhoneOff, Loader2, PhoneCall, ShieldCheck, X } from "lucide-react";
@@ -532,9 +533,9 @@ export function DemoVoiceCall({ open, onClose, onActiveChange, niche }: DemoVoic
             {state === "ended" ? (
               <div className="mt-4 rounded-2xl border border-[#8b5cf6]/20 bg-[#8b5cf6]/10 p-4">
                 <p className="text-sm font-semibold text-white">¿Quieres que atienda así en tu negocio?</p>
-                <Link href="/planes" className="btn-purple mt-3">
+                <ComingSoonLink href="/planes" className="btn-purple mt-3">
                   Ver planes
-                </Link>
+                </ComingSoonLink>
               </div>
             ) : null}
           </div>
