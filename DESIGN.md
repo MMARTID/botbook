@@ -254,15 +254,32 @@ concretos, no el fondo general de la página.
 
 **Excepción, decidida el 2026-09-05: las superficies de venta llevan campo de partículas.** La
 landing, las cinco landings de nicho, `/login` y `/register` pintan un fondo animado
-(`frontend/src/components/particle-field.tsx`): puntos morados en tres profundidades, con un único
-pulso de entrada autorado (no un bucle) que barre el campo una vez al cargar. Vender puede
+(`frontend/src/components/particle-field.tsx`): puntos morados en tres profundidades. Vender puede
 permitirse espectáculo; trabajar cada día, no — la frontera es exactamente esa, y no se mueve sin
 decisión explícita. El campo respeta la Regla del Acento Único (es morado, no un segundo color de
 marca), se dibuja a opacidades que dejan intacto el compromiso WCAG AA, adapta su densidad al
 dispositivo y se queda quieto con `prefers-reduced-motion`.
 
+**Cómo se anima, y por qué así.** Cada capa se dibuja **una sola vez** en un canvas fuera del DOM,
+se convierte en imagen y se repite verticalmente como fondo de un div. Todo el movimiento a partir
+de ahí es del compositor: deriva ambiente en bucle con `transform`, y profundidad al deslizar con
+`animation-timeline: scroll()` bajo `@supports` (Chrome/Edge 115+, Safari 26+; en Firefox, aún tras
+flag, queda solo la deriva ambiente, que ya separa las capas por sí sola). **No hay
+`requestAnimationFrame` ni lectura de `window.scrollY`.** La primera versión sí los tenía —
+repintaba el canvas entero en cada fotograma leyendo la posición de scroll — y es el antipatrón
+clásico de los *scroll-linked effects*: en móvil el scroll lo gobierna el hilo del compositor, así
+que en cuanto el hilo principal se retrasa (constante en un Android de gama media, la escena de uso
+real de este producto) el fondo se desincroniza del contenido. Se manifestó dos veces en pruebas
+reales, como "desconexión con los elementos que cargan" y como "salta de posición entre secciones".
+Medido tras el cambio: 2 llamadas a `requestAnimationFrame` en 3 segundos de reposo, frente a las
+~180 de un bucle a 60fps.
+
+El alto del tile es una constante (900px), no el alto de la ventana: así la barra de direcciones
+del móvil —que cambia `innerHeight` en cuanto se hace scroll— no puede alterar el fondo. Solo se
+redibuja si cambia el **ancho**.
+
 Dos requisitos de implementación no obvios, ambos descubiertos a base de medir píxeles, no de
-mirar la pantalla — el canvas vive en `z-index: -10` y cualquier fallo de apilamiento es invisible
+mirar la pantalla — el campo vive en `z-index: -10` y cualquier fallo de apilamiento es invisible
 hasta que se mide:
 
 1. El contenedor de página necesita `relative isolate` y no puede pintar fondo opaco propio. Sin

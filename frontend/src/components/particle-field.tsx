@@ -1,61 +1,69 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useState } from "react";
 
 /**
  * Fondo animado de partículas para las superficies públicas (landings, login y
  * registro). Es la única excepción a «La Regla del Blanco Plano» de DESIGN.md:
  * el producto en sí — panel y ajustes — sigue en blanco liso a propósito.
  *
- * Se apoya en un `<canvas>` fijo detrás del contenido. El contenedor de la
- * página debe llevar `relative isolate` y no pintar fondo opaco propio: el
- * `isolate` crea el contexto de apilamiento donde este `z-index: -10` queda
- * por encima del blanco del `body` pero por debajo del contenido, sin depender
- * de qué fondos tengan `html` o `body`.
+ * Arquitectura: cada capa se dibuja **una sola vez** en un canvas fuera del
+ * DOM, se convierte en imagen y se repite verticalmente como fondo de un div.
+ * A partir de ahí todo el movimiento es del compositor (`transform` en CSS):
+ * deriva ambiente en bucle, y profundidad al deslizar con
+ * `animation-timeline: scroll()` donde el navegador lo soporta.
+ *
+ * No hay `requestAnimationFrame` ni lectura de `window.scrollY`. La versión
+ * anterior sí los tenía y era el antipatrón de los scroll-linked effects: en
+ * móvil el scroll va por el hilo del compositor, así que cualquier retraso del
+ * hilo principal desincronizaba el fondo del contenido — se notaba como saltos
+ * y como desconexión con el resto de la página.
+ *
+ * El contenedor de la página necesita `relative isolate` y no puede pintar
+ * fondo opaco propio: el lienzo vive en `z-index: -10` y cualquier sección con
+ * fondo lo taparía (ver DESIGN.md § La Regla del Blanco Plano).
  */
 
 /** Morado de marca (`--purple`) en componentes RGB, para poder variar el alfa. */
 const MORADO_RGB = "139, 92, 246";
 
+/**
+ * Alto del tile en píxeles CSS. Es una constante a propósito: al no depender
+ * del alto de la ventana, la barra de direcciones del móvil —que cambia
+ * `innerHeight` en cuanto se hace scroll— ya no puede alterar el fondo.
+ */
+const ALTO_TILE = 900;
+
 type Capa = {
-  /** Cuánto se desplaza con el scroll: 0 = fijo, 1 = se mueve con la página. */
-  parallax: number;
   /** Radio en píxeles CSS: [mínimo, máximo]. */
   radio: [number, number];
   alpha: [number, number];
   /** 0 = punto nítido, 1 = halo completamente difuminado. */
   suavidad: number;
-  /** Deriva vertical propia, en píxeles por segundo. */
-  deriva: [number, number];
+  /** Reparto de partículas entre capas (suma 1). */
+  proporcion: number;
+  /** Segundos que tarda la deriva ambiente en recorrer un tile. */
+  duracion: number;
+  /** Píxeles que se desplaza la capa a lo largo de todo el scroll de la página. */
+  parallax: number;
 };
 
 // Tres profundidades: puntos pequeños y nítidos al fondo, halos grandes y
-// difusos al frente. La diferencia de `parallax` entre capas es lo que crea la
-// sensación de profundidad al deslizar.
+// difusos al frente. La diferencia de velocidad y de recorrido entre capas es
+// lo que crea la sensación de profundidad.
 const CAPAS: Capa[] = [
-  { parallax: 0.1, radio: [1, 2.6], alpha: [0.34, 0.58], suavidad: 0.3, deriva: [1.5, 3.5] },
-  { parallax: 0.28, radio: [2.4, 4.6], alpha: [0.22, 0.42], suavidad: 0.6, deriva: [3, 6.5] },
-  { parallax: 0.52, radio: [5, 11], alpha: [0.1, 0.2], suavidad: 1, deriva: [6, 12] },
+  { radio: [1, 2.6], alpha: [0.34, 0.58], suavidad: 0.3, proporcion: 0.55, duracion: 210, parallax: -70 },
+  { radio: [2.4, 4.6], alpha: [0.22, 0.42], suavidad: 0.6, proporcion: 0.3, duracion: 150, parallax: -170 },
+  { radio: [5, 11], alpha: [0.1, 0.2], suavidad: 1, proporcion: 0.15, duracion: 100, parallax: -320 },
 ];
-
-type Particula = {
-  capa: number;
-  /** Posición horizontal como fracción del ancho (0–1), para sobrevivir al resize. */
-  x: number;
-  /** Posición vertical en píxeles dentro del espacio virtual, antes de envolver. */
-  y: number;
-  radio: number;
-  alpha: number;
-  deriva: number;
-};
 
 /**
  * Densidad adaptada al dispositivo. La escena de uso real son móviles de gama
- * media, así que el número de partículas sale del área de pantalla y se recorta
+ * media, así que el número de partículas sale del área del tile y se recorta
  * según los núcleos y la memoria que declare el navegador.
  */
-function calcularDensidad(ancho: number, alto: number): number {
-  const base = Math.round((ancho * alto) / 6600);
+function calcularDensidad(ancho: number): number {
+  const base = Math.round((ancho * ALTO_TILE) / 6600);
 
   const navegador = navigator as Navigator & { deviceMemory?: number };
   const nucleos = navegador.hardwareConcurrency ?? 4;
@@ -73,7 +81,7 @@ function aleatorioEntre([minimo, maximo]: [number, number]): number {
   return minimo + Math.random() * (maximo - minimo);
 }
 
-/** Sprite pre-renderizado por capa: dibujar una imagen es mucho más barato que un gradiente por partícula y fotograma. */
+/** Sprite pre-renderizado por capa: dibujar una imagen es mucho más barato que un gradiente por partícula. */
 function crearSprite(suavidad: number): HTMLCanvasElement {
   const lado = 64;
   const sprite = document.createElement("canvas");
@@ -97,254 +105,122 @@ function crearSprite(suavidad: number): HTMLCanvasElement {
   return sprite;
 }
 
+/**
+ * Dibuja el tile de una capa y lo devuelve como imagen. Cada partícula se pinta
+ * también un tile más arriba y más abajo: así lo que cruza el borde aparece a
+ * los dos lados y la repetición vertical no deja costura.
+ */
+function dibujarTile(ancho: number, capa: Capa, cantidad: number): HTMLCanvasElement | null {
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const lienzo = document.createElement("canvas");
+  lienzo.width = Math.round(ancho * dpr);
+  lienzo.height = Math.round(ALTO_TILE * dpr);
+
+  const contexto = lienzo.getContext("2d");
+  if (!contexto) return null;
+
+  contexto.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const sprite = crearSprite(capa.suavidad);
+
+  for (let i = 0; i < cantidad; i++) {
+    const x = Math.random() * ancho;
+    const y = Math.random() * ALTO_TILE;
+    const radio = aleatorioEntre(capa.radio);
+
+    contexto.globalAlpha = aleatorioEntre(capa.alpha);
+    for (const desplazamiento of [-ALTO_TILE, 0, ALTO_TILE]) {
+      contexto.drawImage(sprite, x - radio, y + desplazamiento - radio, radio * 2, radio * 2);
+    }
+  }
+
+  contexto.globalAlpha = 1;
+  return lienzo;
+}
+
 export function ParticleField() {
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const [fondos, setFondos] = useState<string[]>([]);
 
   useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
+    let cancelado = false;
+    let urlsActuales: string[] = [];
+    let anchoDibujado = 0;
+    let temporizador = 0;
 
-    const contexto = canvas.getContext("2d", { alpha: true });
-    if (!contexto) return;
-
-    const sprites = CAPAS.map((capa) => crearSprite(capa.suavidad));
-    const consultaMovimiento = window.matchMedia("(prefers-reduced-motion: reduce)");
-
-    let particulas: Particula[] = [];
-    let ancho = 0;
-    let alto = 0;
-    let animacion = 0;
-    let temporizadorResize = 0;
-
-    // Estado de scroll: `impulso` acumula la velocidad del último gesto y se
-    // desvanece solo. Es lo que hace que el campo reaccione al deslizar en vez
-    // de limitarse a desplazarse.
-    let scrollAnterior = window.scrollY;
-    let impulso = 0;
-    let ultimoInstante = 0;
-
-    // Único momento autorado: al cargar, un pulso barre el campo una vez desde
-    // arriba — como si la primera llamada del negocio acabara de conectar. No
-    // se repite en resize ni al volver de pestaña oculta (ver `pulsoLanzado`).
-    const PULSO_DURACION_MS = 900;
-    const PULSO_ANCHO_BANDA = 190;
-    let pulsoInicio = 0;
-    let pulsoLanzado = false;
-
-    function medir() {
-      const dpr = Math.min(window.devicePixelRatio || 1, 2);
-      ancho = window.innerWidth;
-      alto = window.innerHeight;
-
-      canvas!.width = Math.round(ancho * dpr);
-      canvas!.height = Math.round(alto * dpr);
-      canvas!.style.width = `${ancho}px`;
-      canvas!.style.height = `${alto}px`;
-      contexto!.setTransform(dpr, 0, 0, dpr, 0, 0);
+    function liberar() {
+      for (const url of urlsActuales) URL.revokeObjectURL(url);
+      urlsActuales = [];
     }
 
-    function sembrar() {
-      const total = calcularDensidad(ancho, alto);
-      particulas = Array.from({ length: total }, () => {
-        // Las capas cercanas llevan menos partículas: son grandes y difusas, y
-        // amontonarlas emborrona el fondo en vez de dar profundidad.
-        const sorteo = Math.random();
-        const capa = sorteo < 0.55 ? 0 : sorteo < 0.85 ? 1 : 2;
-        const definicion = CAPAS[capa];
+    function generar() {
+      const ancho = window.innerWidth;
+      const total = calcularDensidad(ancho);
 
-        return {
-          capa,
-          x: Math.random(),
-          y: Math.random() * alto,
-          radio: aleatorioEntre(definicion.radio),
-          alpha: aleatorioEntre(definicion.alpha),
-          deriva: aleatorioEntre(definicion.deriva),
-        };
+      const lienzos = CAPAS.map((capa) =>
+        dibujarTile(ancho, capa, Math.max(6, Math.round(total * capa.proporcion)))
+      );
+      if (lienzos.some((lienzo) => lienzo === null)) return;
+
+      Promise.all(
+        lienzos.map(
+          (lienzo) =>
+            new Promise<string | null>((resolver) => {
+              lienzo!.toBlob((blob) => resolver(blob ? URL.createObjectURL(blob) : null));
+            })
+        )
+      ).then((urls) => {
+        if (cancelado || urls.some((url) => url === null)) {
+          for (const url of urls) if (url) URL.revokeObjectURL(url);
+          return;
+        }
+        liberar();
+        urlsActuales = urls as string[];
+        anchoDibujado = ancho;
+        setFondos(urlsActuales);
       });
     }
 
-    function pintar(delta: number) {
-      contexto!.clearRect(0, 0, ancho, alto);
-
-      const scrollActual = window.scrollY;
-
-      // Progreso del pulso (0–1), o -1 si ya terminó o no ha empezado: evita
-      // recalcular distancias en cada partícula el resto del tiempo de vida.
-      const transcurridoPulso = pulsoInicio ? performance.now() - pulsoInicio : -1;
-      const tPulso =
-        transcurridoPulso >= 0 && transcurridoPulso <= PULSO_DURACION_MS
-          ? transcurridoPulso / PULSO_DURACION_MS
-          : -1;
-      let radioPulso = 0;
-      let envolventePulso = 0;
-      if (tPulso >= 0) {
-        const radioMaximo = Math.hypot(ancho, alto) * 0.55;
-        radioPulso = radioMaximo * (1 - (1 - tPulso) ** 3); // ease-out: arranca rápido, se posa
-        envolventePulso = Math.sin(Math.PI * tPulso); // el pulso nace, brilla y se apaga
-      }
-
-      for (const particula of particulas) {
-        const definicion = CAPAS[particula.capa];
-
-        // La deriva propia mantiene el campo vivo aunque nadie toque la página.
-        particula.y -= particula.deriva * delta;
-
-        const desplazamiento =
-          scrollActual * definicion.parallax + impulso * definicion.parallax * 4;
-
-        // Envolvemos en el alto de la ventana: el campo nunca se acaba por
-        // mucho que se baje, sin tener que sembrar una escena gigante.
-        const margen = particula.radio * 2;
-        const periodo = alto + margen * 2;
-        let y = (particula.y - desplazamiento + margen) % periodo;
-        if (y < 0) y += periodo;
-        y -= margen;
-
-        const x = particula.x * ancho;
-
-        // Un empujón fuerte aviva el brillo: el campo acusa el gesto y se calma.
-        let brillo = Math.min(1, particula.alpha * (1 + Math.abs(impulso) * 0.012));
-        let escala = 1;
-
-        if (tPulso >= 0) {
-          const distancia = Math.hypot(x - ancho * 0.5, y - alto * 0.16);
-          const delta2 = Math.abs(distancia - radioPulso);
-          if (delta2 < PULSO_ANCHO_BANDA / 2) {
-            const proximidad = 1 - delta2 / (PULSO_ANCHO_BANDA / 2);
-            const boost = proximidad ** 1.5 * envolventePulso;
-            brillo = Math.min(1, brillo + boost * 0.65);
-            escala = 1 + boost * 0.4;
-          }
-        }
-
-        contexto!.globalAlpha = brillo;
-        const radioDibujado = particula.radio * escala;
-        contexto!.drawImage(
-          sprites[particula.capa],
-          x - radioDibujado,
-          y - radioDibujado,
-          radioDibujado * 2,
-          radioDibujado * 2
-        );
-      }
-
-      contexto!.globalAlpha = 1;
-      scrollAnterior = scrollActual;
-    }
-
-    function fotograma(instante: number) {
-      // Primer fotograma: sin delta fiable, sólo fijamos el reloj.
-      const delta = ultimoInstante ? Math.min((instante - ultimoInstante) / 1000, 0.05) : 0;
-      ultimoInstante = instante;
-
-      const scrollActual = window.scrollY;
-      impulso += (scrollActual - scrollAnterior) * 0.35;
-      impulso *= 0.9; // se desvanece en ~medio segundo
-
-      pintar(delta);
-      animacion = window.requestAnimationFrame(fotograma);
-    }
-
-    function detener() {
-      if (!animacion) return;
-      window.cancelAnimationFrame(animacion);
-      animacion = 0;
-      ultimoInstante = 0;
-    }
-
-    function arrancar() {
-      if (animacion || consultaMovimiento.matches || document.hidden) return;
-      scrollAnterior = window.scrollY;
-      if (!pulsoLanzado) {
-        pulsoLanzado = true;
-        pulsoInicio = performance.now();
-      }
-      animacion = window.requestAnimationFrame(fotograma);
-    }
-
-    function reiniciar() {
-      // Los navegadores móviles disparan `resize` al colapsar/mostrar la
-      // barra de direcciones durante el scroll — la altura cambia unos
-      // 50-100px sin que el dispositivo haya cambiado de verdad. Si
-      // volviéramos a sembrar ahí, todo el campo saltaría a una disposición
-      // aleatoria nueva en mitad de un scroll suave (bug real, reportado).
-      // Solo se resiembra si el ANCHO cambió (giro real de pantalla /
-      // redimensión de ventana) o si el alto cambió mucho más de lo que
-      // explica una barra de direcciones.
-      const anchoAnterior = ancho;
-      const altoAnterior = alto;
-      medir();
-
-      const esPrimeraVez = anchoAnterior === 0;
-      const cambioAncho = !esPrimeraVez && anchoAnterior !== ancho;
-      const cambioAltoGrande = !esPrimeraVez && Math.abs(altoAnterior - alto) > 150;
-
-      if (esPrimeraVez || cambioAncho || cambioAltoGrande) {
-        sembrar();
-      } else if (altoAnterior > 0 && altoAnterior !== alto) {
-        // El alto cambió un poco sin justificar resembrar (ver arriba), pero
-        // el punto donde cada partícula envuelve su ciclo vertical depende de
-        // `alto` — sin este reescalado, el ciclo se corta en un sitio
-        // distinto y una parte de las partículas "teletransporta" de golpe
-        // al nuevo borde. Reescalar la fase proporcionalmente evita el corte:
-        // todas se reacomodan un poco, ninguna salta.
-        const factor = alto / altoAnterior;
-        for (const particula of particulas) {
-          particula.y *= factor;
-        }
-      }
-
-      detener();
-      impulso = 0;
-
-      // Un primer fotograma síncrono: el fondo existe desde el render, sin
-      // esperar al primer requestAnimationFrame. Con `prefers-reduced-motion`
-      // esto es todo lo que se pinta — el campo sigue ahí, simplemente quieto.
-      pintar(0);
-
-      if (consultaMovimiento.matches) return;
-      arrancar();
-    }
-
+    /**
+     * Solo se vuelve a dibujar si cambia el ANCHO. El alto de la ventana cambia
+     * constantemente en móvil (barra de direcciones al hacer scroll) y no
+     * afecta al tile, que tiene alto fijo.
+     */
     function alCambiarTamano() {
-      window.clearTimeout(temporizadorResize);
-      temporizadorResize = window.setTimeout(reiniciar, 150);
+      if (window.innerWidth === anchoDibujado) return;
+      window.clearTimeout(temporizador);
+      temporizador = window.setTimeout(generar, 200);
     }
 
-    function alCambiarVisibilidad() {
-      if (document.hidden) detener();
-      else arrancar();
-    }
-
-    reiniciar();
-
+    generar();
     window.addEventListener("resize", alCambiarTamano);
-    document.addEventListener("visibilitychange", alCambiarVisibilidad);
-    consultaMovimiento.addEventListener("change", reiniciar);
 
     return () => {
-      detener();
-      window.clearTimeout(temporizadorResize);
+      cancelado = true;
+      window.clearTimeout(temporizador);
       window.removeEventListener("resize", alCambiarTamano);
-      document.removeEventListener("visibilitychange", alCambiarVisibilidad);
-      consultaMovimiento.removeEventListener("change", reiniciar);
+      liberar();
     };
   }, []);
 
   return (
-    <div
-      aria-hidden="true"
-      className="pointer-events-none fixed inset-0 -z-10 overflow-hidden"
-      data-testid="particle-field"
-    >
-      {/*
-        Sin velo de color: uno anterior con degradado fijo a la ventana creaba
-        dos bandas tintadas (arriba y abajo) que se repetían en cada scroll,
-        con un hueco plano en medio — se veía como "solo hay efecto en dos
-        zonas". El blanco liso de PRODUCT.md más las partículas ya dan la
-        profundidad; nada de fondo debe competir con el texto.
-      */}
-      <canvas ref={canvasRef} className="absolute inset-0 h-full w-full" />
+    <div aria-hidden="true" className="campo-particulas" data-testid="particle-field">
+      {CAPAS.map((capa, indice) => (
+        <div
+          key={indice}
+          className="campo-particulas__capa"
+          style={{ "--parallax": `${capa.parallax}px` } as React.CSSProperties}
+        >
+          <div
+            className="campo-particulas__deriva"
+            style={
+              {
+                "--tile": `${ALTO_TILE}px`,
+                "--duracion": `${capa.duracion}s`,
+                backgroundImage: fondos[indice] ? `url(${fondos[indice]})` : undefined,
+              } as React.CSSProperties
+            }
+          />
+        </div>
+      ))}
     </div>
   );
 }

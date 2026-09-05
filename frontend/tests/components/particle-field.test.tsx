@@ -1,16 +1,17 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import { ParticleField } from "@/components/particle-field";
 
 /**
- * jsdom no trae contexto 2D de canvas. Estos tests cubren el contrato que sí
- * es observable sin pintar: accesibilidad, respeto a `prefers-reduced-motion`
- * y limpieza al desmontar.
+ * El campo ya no anima desde JavaScript: dibuja un tile por capa una sola vez
+ * y a partir de ahí todo el movimiento es CSS del compositor. Estos tests
+ * cubren lo que sí es observable sin motor de layout: accesibilidad, que se
+ * genere un fondo por capa, que un cambio de alto (barra de direcciones del
+ * móvil) NO lo regenere, y que no se filtren object URLs.
  */
 
 function contextoFalso() {
   return {
-    clearRect: vi.fn(),
     drawImage: vi.fn(),
     setTransform: vi.fn(),
     createRadialGradient: vi.fn(() => ({ addColorStop: vi.fn() })),
@@ -22,25 +23,24 @@ function contextoFalso() {
   } as unknown as CanvasRenderingContext2D;
 }
 
-function simularMovimientoReducido(reducido: boolean) {
-  const oyentes = new Set<() => void>();
-  window.matchMedia = ((query: string) => ({
-    matches: reducido,
-    media: query,
-    onchange: null,
-    addEventListener: (_evento: string, oyente: () => void) => oyentes.add(oyente),
-    removeEventListener: (_evento: string, oyente: () => void) => oyentes.delete(oyente),
-    addListener: () => {},
-    removeListener: () => {},
-    dispatchEvent: () => false,
-  })) as unknown as typeof window.matchMedia;
+let contadorUrl = 0;
+
+function prepararCanvas() {
+  vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockImplementation(() => contextoFalso());
+  vi.spyOn(HTMLCanvasElement.prototype, "toBlob").mockImplementation(function (
+    this: HTMLCanvasElement,
+    callback: BlobCallback
+  ) {
+    callback(new Blob(["x"], { type: "image/png" }));
+  });
 }
 
 describe("ParticleField", () => {
   beforeEach(() => {
-    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockImplementation(
-      () => contextoFalso()
-    );
+    contadorUrl = 0;
+    prepararCanvas();
+    URL.createObjectURL = vi.fn(() => `blob:tile-${++contadorUrl}`);
+    URL.revokeObjectURL = vi.fn();
   });
 
   afterEach(() => {
@@ -48,88 +48,77 @@ describe("ParticleField", () => {
   });
 
   it("es decorativo: no lo anuncia el lector de pantalla ni intercepta el puntero", () => {
-    simularMovimientoReducido(false);
-
     render(<ParticleField />);
 
     const campo = screen.getByTestId("particle-field");
     expect(campo).toHaveAttribute("aria-hidden", "true");
-    expect(campo.className).toContain("pointer-events-none");
+    expect(campo.className).toContain("campo-particulas");
   });
 
   it("no lanza cuando el navegador no da contexto 2D", () => {
-    simularMovimientoReducido(false);
     vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(null);
 
     expect(() => render(<ParticleField />)).not.toThrow();
     expect(screen.getByTestId("particle-field")).toBeInTheDocument();
   });
 
-  it("con prefers-reduced-motion no arranca el bucle de animación", () => {
-    simularMovimientoReducido(true);
+  it("pinta un fondo repetible por cada capa de profundidad", async () => {
+    render(<ParticleField />);
+
+    await waitFor(() => {
+      const capas = Array.from(
+        screen.getByTestId("particle-field").querySelectorAll<HTMLElement>(".campo-particulas__deriva")
+      );
+      expect(capas).toHaveLength(3);
+      for (const capa of capas) {
+        expect(capa.style.backgroundImage).toContain("blob:tile-");
+      }
+    });
+  });
+
+  it("no anima desde JavaScript: nunca pide un fotograma", async () => {
     const rafSpy = vi.spyOn(window, "requestAnimationFrame");
 
     render(<ParticleField />);
+    await waitFor(() => expect(URL.createObjectURL).toHaveBeenCalled());
 
-    // El fondo se pinta una vez, pero sin animar: nunca se pide un fotograma.
     expect(rafSpy).not.toHaveBeenCalled();
-    expect(screen.getByTestId("particle-field")).toBeInTheDocument();
   });
 
-  it("sin esa preferencia sí anima", () => {
-    simularMovimientoReducido(false);
-    const rafSpy = vi.spyOn(window, "requestAnimationFrame");
-
+  // La barra de direcciones del móvil cambia `innerHeight` en cuanto se hace
+  // scroll. Regenerar ahí hacía saltar el fondo de posición (bug reportado).
+  it("un resize de solo altura (barra de direcciones móvil) no regenera los tiles", async () => {
     render(<ParticleField />);
-
-    expect(rafSpy).toHaveBeenCalled();
-  });
-
-  it("cancela la animación y suelta los listeners al desmontar", () => {
-    simularMovimientoReducido(false);
-    const cancelSpy = vi.spyOn(window, "cancelAnimationFrame");
-    const quitarListener = vi.spyOn(window, "removeEventListener");
-
-    const { unmount } = render(<ParticleField />);
-    unmount();
-
-    expect(cancelSpy).toHaveBeenCalled();
-    expect(quitarListener).toHaveBeenCalledWith("resize", expect.any(Function));
-  });
-
-  // Bug real reportado: en móvil, la barra de direcciones del navegador se
-  // colapsa o reaparece al hacer scroll, y eso dispara un `resize` sin que el
-  // dispositivo haya cambiado — antes, cualquier resize volvía a sembrar el
-  // campo entero con posiciones aleatorias nuevas, así que el usuario veía
-  // las partículas "saltar" de sitio en mitad de un scroll suave.
-  it("un resize con solo la altura cambiada (barra de direcciones móvil) no resiembra el campo", async () => {
-    simularMovimientoReducido(false);
-    const randomSpy = vi.spyOn(Math, "random");
-
-    render(<ParticleField />);
-    const llamadasIniciales = randomSpy.mock.calls.length;
+    await waitFor(() => expect(URL.createObjectURL).toHaveBeenCalledTimes(3));
 
     Object.defineProperty(window, "innerHeight", {
       configurable: true,
       value: window.innerHeight - 80,
     });
     window.dispatchEvent(new Event("resize"));
-    await new Promise((resolve) => setTimeout(resolve, 200));
+    await new Promise((resolve) => setTimeout(resolve, 250));
 
-    expect(randomSpy.mock.calls.length).toBe(llamadasIniciales);
+    expect(URL.createObjectURL).toHaveBeenCalledTimes(3);
   });
 
-  it("un resize con el ancho cambiado (giro de pantalla real) sí resiembra el campo", async () => {
-    simularMovimientoReducido(false);
-    const randomSpy = vi.spyOn(Math, "random");
-
+  it("un cambio de ancho real sí regenera los tiles", async () => {
     render(<ParticleField />);
-    const llamadasIniciales = randomSpy.mock.calls.length;
+    await waitFor(() => expect(URL.createObjectURL).toHaveBeenCalledTimes(3));
 
-    Object.defineProperty(window, "innerWidth", { configurable: true, value: 800 });
+    Object.defineProperty(window, "innerWidth", { configurable: true, value: 500 });
     window.dispatchEvent(new Event("resize"));
-    await new Promise((resolve) => setTimeout(resolve, 200));
 
-    expect(randomSpy.mock.calls.length).toBeGreaterThan(llamadasIniciales);
+    await waitFor(() => expect(URL.createObjectURL).toHaveBeenCalledTimes(6));
+    // Los tiles antiguos se liberan al sustituirlos.
+    expect(URL.revokeObjectURL).toHaveBeenCalled();
+  });
+
+  it("libera los object URLs al desmontar", async () => {
+    const { unmount } = render(<ParticleField />);
+    await waitFor(() => expect(URL.createObjectURL).toHaveBeenCalledTimes(3));
+
+    unmount();
+
+    expect(URL.revokeObjectURL).toHaveBeenCalledTimes(3);
   });
 });

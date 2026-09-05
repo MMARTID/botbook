@@ -222,3 +222,91 @@ body {
     background-color: rgba(255, 255, 255, 0.5);
   }
 }
+
+/* ---------------------------------------------------------------------------
+   Campo de partículas — fondo de las superficies de venta.
+
+   Todo el movimiento lo lleva el compositor (`transform` / `opacity`): tras
+   dibujar los tiles una sola vez, no queda ni un fotograma de JavaScript. La
+   versión anterior repintaba un canvas en cada `requestAnimationFrame`
+   leyendo `window.scrollY`, que es el antipatrón clásico de scroll-linked
+   effects: en móvil el scroll lo gobierna el hilo del compositor, así que en
+   cuanto el hilo principal se retrasa el fondo se desincroniza del contenido.
+   --------------------------------------------------------------------------- */
+
+.campo-particulas {
+  position: fixed;
+  inset: 0;
+  z-index: -10;
+  overflow: hidden;
+  pointer-events: none;
+  animation: campo-entrada 900ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.campo-particulas__capa {
+  position: absolute;
+  inset: 0;
+}
+
+.campo-particulas__deriva {
+  position: absolute;
+  left: 0;
+  right: 0;
+  /* Holgura por arriba y por abajo: el bucle desplaza un tile entero y el
+     parallax añade unos cientos de píxeles más, así que el patrón nunca
+     puede dejar un borde a la vista. */
+  top: calc(var(--tile) * -1);
+  height: calc(100% + var(--tile) * 3);
+  background-repeat: repeat-y;
+  background-size: 100% var(--tile);
+  animation: campo-deriva var(--duracion) linear infinite;
+  will-change: transform;
+}
+
+@keyframes campo-entrada {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Al desplazarse exactamente un tile, el patrón coincide consigo mismo: el
+   bucle no tiene costura. */
+@keyframes campo-deriva {
+  from {
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    transform: translate3d(0, calc(var(--tile) * -1), 0);
+  }
+}
+
+@keyframes campo-parallax {
+  from {
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    transform: translate3d(0, var(--parallax), 0);
+  }
+}
+
+/* Profundidad al deslizar, en el hilo del compositor y sin tocar el principal.
+   Mejora progresiva: donde no hay soporte (hoy Firefox, aún tras flag) queda
+   la deriva ambiente, que por sí sola ya separa las capas. */
+@supports (animation-timeline: scroll()) {
+  .campo-particulas__capa {
+    animation: campo-parallax linear both;
+    animation-timeline: scroll(root block);
+    will-change: transform;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .campo-particulas,
+  .campo-particulas__capa,
+  .campo-particulas__deriva {
+    animation: none;
+  }
+}
