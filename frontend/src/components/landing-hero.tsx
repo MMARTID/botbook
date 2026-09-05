@@ -23,7 +23,7 @@ export function LandingHero({ content }: { content?: NicheLandingContent }) {
   return (
     <>
       <section className="mx-auto grid max-w-7xl items-center gap-10 px-4 py-12 sm:px-6 sm:py-16 lg:grid-cols-[1.02fr_0.98fr] lg:gap-14 lg:px-8 lg:py-20">
-        <div className="space-y-7 lg:space-y-8">
+        <div className="space-y-7 text-center lg:space-y-8 lg:text-left">
           {/*
             El hero no tenía ninguna animación de entrada propia — aparecía de
             golpe mientras el pulso del fondo (ParticleField) y la conversación
@@ -45,17 +45,17 @@ export function LandingHero({ content }: { content?: NicheLandingContent }) {
           </Reveal>
           <Reveal delay={0.06} y={16}>
             <div className="space-y-5">
-              <h1 className="max-w-3xl text-[2.65rem] font-black leading-[1.05] tracking-[-0.03em] text-[#0a0a0a] sm:text-5xl lg:text-[4.25rem]">
+              <h1 className="mx-auto max-w-3xl text-[2.65rem] font-black leading-[1.05] tracking-[-0.03em] text-[#0a0a0a] sm:text-5xl lg:mx-0 lg:text-[4.25rem]">
                 {content?.heroTitle ?? "Cada llamada sin contestar es un cliente que ya reservó en otro sitio."}
               </h1>
-              <p className="max-w-xl text-base leading-7 text-[#52525b] sm:text-lg sm:leading-8">
+              <p className="mx-auto max-w-xl text-base leading-7 text-[#52525b] sm:text-lg sm:leading-8 lg:mx-0">
                 {content?.heroDescription ?? "Alhabla responde, resuelve dudas y agenda citas 24/7 con tu número de siempre — sin cambiar cómo trabajas."}
               </p>
             </div>
           </Reveal>
 
           <Reveal delay={0.12} y={16}>
-            <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+            <div className="flex flex-col items-center gap-3 sm:flex-row sm:flex-wrap sm:justify-center lg:justify-start">
               <button
                 type="button"
                 onClick={() => setIsDemoOpen(true)}
@@ -71,7 +71,7 @@ export function LandingHero({ content }: { content?: NicheLandingContent }) {
             </div>
           </Reveal>
           <Reveal delay={0.18} y={12}>
-            <div className="flex flex-wrap gap-x-5 gap-y-2 text-sm font-medium text-[#3f3f46]">
+            <div className="flex flex-wrap justify-center gap-x-5 gap-y-2 text-sm font-medium text-[#3f3f46] lg:justify-start">
               {["Sin permanencia", "Mismo número de siempre", "7 días de prueba"].map((item) => (
                 <span key={item} className="inline-flex items-center gap-1.5">
                   <Check className="h-4 w-4 text-[#8b5cf6]" style={accent ? { color: accent.strong } : undefined} />

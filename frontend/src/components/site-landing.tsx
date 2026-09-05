@@ -8,6 +8,7 @@ import { RevenueLossCalculator } from "@/components/revenue-loss-calculator";
 import { Reveal } from "@/components/scroll-reveal";
 import { BrandMark } from "@/components/brand-mark";
 import { ParticleField } from "@/components/particle-field";
+import { ParticleMouseLayer } from "@/components/particle-mouse-layer";
 import { formatIncludedMinutes, formatPlanPrice, plans, TRIAL_REASSURANCE } from "@/lib/plans";
 import { generalSectorData, type NicheLandingContent } from "@/lib/niche-landings";
 
@@ -111,7 +112,8 @@ export function SiteLanding({ content }: { content?: NicheLandingContent }) {
       className="relative isolate min-h-screen w-full text-[#0a0a0a]"
       data-landing="alhabla"
     >
-      <ParticleField />
+      <ParticleField color={content?.accent?.strong} />
+      <ParticleMouseLayer color={content?.accent?.strong} />
       <a
         href="#contenido"
         className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-[60] focus:rounded-full focus:bg-[#0a0a0a] focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-white"

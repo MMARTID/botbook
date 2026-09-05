@@ -6,6 +6,7 @@ import Link from "next/link";
 import { GoogleAuthButton } from "@/components/google-auth-button";
 import { BrandMark } from "@/components/brand-mark";
 import { ParticleField } from "@/components/particle-field";
+import { ParticleMouseLayer } from "@/components/particle-mouse-layer";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -32,6 +33,7 @@ export default function LoginPage() {
   return (
     <div className="relative isolate flex min-h-screen items-center justify-center px-4 py-12 sm:px-6 lg:px-8">
       <ParticleField />
+      <ParticleMouseLayer />
       <div className="panel w-full max-w-lg p-8">
         <div className="space-y-4 text-center">
           <BrandMark className="mx-auto h-14 w-14" />

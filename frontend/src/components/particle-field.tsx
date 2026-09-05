@@ -7,6 +7,10 @@ import { useEffect, useState } from "react";
  * registro). Es la única excepción a «La Regla del Blanco Plano» de DESIGN.md:
  * el producto en sí — panel y ajustes — sigue en blanco liso a propósito.
  *
+ * Color: morado de marca por defecto; en las landings de nicho toma el
+ * `accent.strong` de ese nicho (mismo sistema que ya tiñe badges e iconos ahí
+ * — no es un color nuevo, es extender uno que ya existía).
+ *
  * Arquitectura: cada capa se dibuja **una sola vez** en un canvas fuera del
  * DOM, se convierte en imagen y se repite verticalmente como fondo de un div.
  * A partir de ahí todo el movimiento es del compositor (`transform` en CSS):
@@ -24,8 +28,17 @@ import { useEffect, useState } from "react";
  * fondo lo taparía (ver DESIGN.md § La Regla del Blanco Plano).
  */
 
-/** Morado de marca (`--purple`) en componentes RGB, para poder variar el alfa. */
-const MORADO_RGB = "139, 92, 246";
+/** Morado de marca (`--purple`), el color por defecto fuera de las landings de nicho. */
+const MORADO_HEX = "#8b5cf6";
+
+/** "#rrggbb" a "r, g, b", para poder variar el alfa en el gradiente del sprite. */
+function hexARgb(hex: string): string {
+  const limpio = hex.replace("#", "");
+  const r = parseInt(limpio.slice(0, 2), 16);
+  const g = parseInt(limpio.slice(2, 4), 16);
+  const b = parseInt(limpio.slice(4, 6), 16);
+  return `${r}, ${g}, ${b}`;
+}
 
 /**
  * Alto del tile en píxeles CSS. Es una constante a propósito: al no depender
@@ -82,7 +95,7 @@ function aleatorioEntre([minimo, maximo]: [number, number]): number {
 }
 
 /** Sprite pre-renderizado por capa: dibujar una imagen es mucho más barato que un gradiente por partícula. */
-function crearSprite(suavidad: number): HTMLCanvasElement {
+function crearSprite(suavidad: number, rgb: string): HTMLCanvasElement {
   const lado = 64;
   const sprite = document.createElement("canvas");
   sprite.width = lado;
@@ -93,9 +106,9 @@ function crearSprite(suavidad: number): HTMLCanvasElement {
 
   const centro = lado / 2;
   const gradiente = contexto.createRadialGradient(centro, centro, 0, centro, centro, centro);
-  gradiente.addColorStop(0, `rgba(${MORADO_RGB}, 1)`);
-  gradiente.addColorStop(Math.max(0, 1 - suavidad), `rgba(${MORADO_RGB}, 1)`);
-  gradiente.addColorStop(1, `rgba(${MORADO_RGB}, 0)`);
+  gradiente.addColorStop(0, `rgba(${rgb}, 1)`);
+  gradiente.addColorStop(Math.max(0, 1 - suavidad), `rgba(${rgb}, 1)`);
+  gradiente.addColorStop(1, `rgba(${rgb}, 0)`);
 
   contexto.fillStyle = gradiente;
   contexto.beginPath();
@@ -110,7 +123,7 @@ function crearSprite(suavidad: number): HTMLCanvasElement {
  * también un tile más arriba y más abajo: así lo que cruza el borde aparece a
  * los dos lados y la repetición vertical no deja costura.
  */
-function dibujarTile(ancho: number, capa: Capa, cantidad: number): HTMLCanvasElement | null {
+function dibujarTile(ancho: number, capa: Capa, cantidad: number, rgb: string): HTMLCanvasElement | null {
   const dpr = Math.min(window.devicePixelRatio || 1, 2);
   const lienzo = document.createElement("canvas");
   lienzo.width = Math.round(ancho * dpr);
@@ -120,7 +133,7 @@ function dibujarTile(ancho: number, capa: Capa, cantidad: number): HTMLCanvasEle
   if (!contexto) return null;
 
   contexto.setTransform(dpr, 0, 0, dpr, 0, 0);
-  const sprite = crearSprite(capa.suavidad);
+  const sprite = crearSprite(capa.suavidad, rgb);
 
   for (let i = 0; i < cantidad; i++) {
     const x = Math.random() * ancho;
@@ -137,7 +150,7 @@ function dibujarTile(ancho: number, capa: Capa, cantidad: number): HTMLCanvasEle
   return lienzo;
 }
 
-export function ParticleField() {
+export function ParticleField({ color = MORADO_HEX }: { color?: string }) {
   const [fondos, setFondos] = useState<string[]>([]);
 
   useEffect(() => {
@@ -145,6 +158,7 @@ export function ParticleField() {
     let urlsActuales: string[] = [];
     let anchoDibujado = 0;
     let temporizador = 0;
+    const rgb = hexARgb(color);
 
     function liberar() {
       for (const url of urlsActuales) URL.revokeObjectURL(url);
@@ -156,7 +170,7 @@ export function ParticleField() {
       const total = calcularDensidad(ancho);
 
       const lienzos = CAPAS.map((capa) =>
-        dibujarTile(ancho, capa, Math.max(6, Math.round(total * capa.proporcion)))
+        dibujarTile(ancho, capa, Math.max(6, Math.round(total * capa.proporcion)), rgb)
       );
       if (lienzos.some((lienzo) => lienzo === null)) return;
 
@@ -199,7 +213,7 @@ export function ParticleField() {
       window.removeEventListener("resize", alCambiarTamano);
       liberar();
     };
-  }, []);
+  }, [color]);
 
   return (
     <div aria-hidden="true" className="campo-particulas" data-testid="particle-field">
