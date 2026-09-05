@@ -256,9 +256,17 @@ concretos, no el fondo general de la página.
 landing, las cinco landings de nicho, `/login` y `/register` pintan un fondo animado
 (`frontend/src/components/particle-field.tsx`): puntos morados en tres profundidades. Vender puede
 permitirse espectáculo; trabajar cada día, no — la frontera es exactamente esa, y no se mueve sin
-decisión explícita. El campo respeta la Regla del Acento Único (es morado, no un segundo color de
-marca), se dibuja a opacidades que dejan intacto el compromiso WCAG AA, adapta su densidad al
-dispositivo y se queda quieto con `prefers-reduced-motion`.
+decisión explícita. El campo se dibuja a opacidades que dejan intacto el compromiso WCAG AA, adapta
+su densidad al dispositivo y se queda quieto con `prefers-reduced-motion`.
+
+**Color por nicho (2026-09-05):** en `/landing` y `/login`/`/register` (sin nicho) el campo es
+morado de marca — ahí sí rige la Regla del Acento Único tal cual. En cada landing de nicho
+(`/barberia`, `/fisioterapia`…) el campo toma el `accent.strong` de ESE nicho — barbería en
+terracota, fisioterapia en verde azulado. No es una excepción a la regla: cada landing de nicho ya
+tenía su propio acento desde antes (badges, iconos, checkmarks — `lib/niche-landings.ts`) y dentro
+de esa página sigue habiendo un único acento no-neutro, ahora incluido el fondo. La regla protege
+que no compitan dos colores en la misma vista, no que el morado sea el único acento que existe en
+todo el producto.
 
 **Cómo se anima, y por qué así.** Cada capa se dibuja **una sola vez** en un canvas fuera del DOM,
 se convierte en imagen y se repite verticalmente como fondo de un div. Todo el movimiento a partir
@@ -293,6 +301,17 @@ hasta que se mide:
    borde (`border-y`) — nunca con un color de fondo de sección. Los bloques negros reales (CTA
    final, plan destacado, panel oscuro de la calculadora) siguen sólidos a propósito: son el
    cierre de la página o contenido con su propia identidad, no relleno de ritmo.
+
+**Capa interactiva de ratón, solo escritorio (2026-09-05).** Además del campo ambiente,
+`frontend/src/components/particle-mouse-layer.tsx` añade puntos que se repelen del cursor —
+gateada tras `pointer: fine` (nunca en táctil) y `prefers-reduced-motion`. Investigado antes de
+construir: la referencia visual del usuario (myhabla.com) no usa tsParticles ni ninguna librería —
+un script propio de ~110 líneas con `requestAnimationFrame` pero que **nunca lee `scrollY`**. Esa
+es la diferencia real con el antipatrón de arriba, no el uso de `requestAnimationFrame` en sí: sin
+depender de la posición de scroll, no hay nada que se pueda desincronizar al deslizar. Esta capa
+sigue el mismo principio — física simple (repulsión + amortiguación), sin tocar nunca el scroll — y
+además limita el riesgo por construcción: en móvil, que es donde vivían los bugs anteriores, el
+bucle ni arranca.
 
 ## Typography
 
