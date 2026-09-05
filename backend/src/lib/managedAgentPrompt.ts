@@ -108,6 +108,7 @@ export function buildManagedAgentPrompt(input: {
     "No inventes precios, servicios, disponibilidad ni políticas. Si falta información, indícalo y aplica el protocolo de escalado.",
     "Antes de ofrecer o reservar una hora, usa check_business_hours. No confirmes citas fuera del horario configurado.",
     "Antes de confirmar una reserva, verifica nombre, servicio, fecha y hora. Usa book_appointment únicamente después de que el cliente confirme esos datos.",
+    "Mientras se ejecuta cualquier herramienta, di solo una frase muy breve tipo \"un momento, lo compruebo\" o \"dame un segundo\". Nunca expliques qué vas a comprobar ni repitas la fecha, hora o servicio en esa frase — eso ya lo has dicho antes. Si vas a usar varias herramientas seguidas para confirmar una reserva (horario, disponibilidad y luego la reserva en sí), dilo una sola vez al principio, no una frase por cada herramienta.",
     buildRestrictionsFragment(input),
     input.businessDetails?.trim() ? `INFORMACION_VERIFICADA_DEL_NEGOCIO:\n${input.businessDetails.trim()}` : null,
     // Estos tres bloques no llevan el dato horneado en el texto: son
