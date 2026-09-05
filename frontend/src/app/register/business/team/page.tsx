@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { CalendarClock, LoaderCircle, Users } from "lucide-react";
-import { createBookingProfessional, updateMyBusiness } from "@/lib/api";
+import { createBookingProfessional, getBookingSettings, updateMyBusiness } from "@/lib/api";
 import { BUSINESS_TYPE_ONBOARDING_TEXTS, isBusinessType } from "@/lib/business-type";
 import { RangeSlider } from "@/components/range-slider";
 import type { BusinessType } from "@/lib/types";
@@ -57,10 +57,19 @@ export default function RegisterBusinessTeamPage() {
     try {
       await updateMyBusiness({ bookingCapacity: capacity });
 
+      // Se asume que cualquier profesional puede atender cualquiera de los
+      // servicios ya elegidos en el paso anterior — sin esto, un negocio
+      // recién registrado no tiene ningún profesional vinculado a ningún
+      // servicio y check_availability falla siempre con
+      // NO_AVAILABLE_PROFESSIONAL en la primera llamada real. Se puede
+      // afinar después en Ajustes.
+      const { services } = await getBookingSettings();
+      const serviceIds = services.map((service) => service.id);
+
       const professionals = Array.from({ length: employees }, (_, index) => ({
         name: `Profesional ${index + 1}`,
         active: true,
-        serviceIds: [] as string[],
+        serviceIds,
       }));
 
       await Promise.all(professionals.map((professional) => createBookingProfessional(professional)));
