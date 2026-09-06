@@ -85,13 +85,21 @@ async function main() {
   const { command, positional, flags } = parseArgs(process.argv.slice(2));
   const smokeOnly = flags.smoke === true;
   const wait = flags["no-wait"] !== true;
+  // Sin --llm el LLM se resuelve desde la BD acotando a cuentas de prueba.
+  // Pasarlo a mano permite ejecutar la batería donde no hay BD de desarrollo
+  // (por ejemplo, un workflow de CI), a costa de perder esa red de seguridad.
+  const llmId = typeof flags.llm === "string" ? flags.llm : undefined;
+
+  if (llmId && typeof flags.niche !== "string") {
+    throw new Error("--llm exige --niche: un llm_id pertenece a un solo nicho");
+  }
 
   console.log(`[RetellSim] catálogo ${CATALOG_VERSION}`);
 
   switch (command) {
     case "sync": {
       for (const niche of resolveNiches(flags.niche)) {
-        const synced = await syncNiche({ niche, smokeOnly });
+        const synced = await syncNiche({ niche, smokeOnly, llmId });
         const creados = synced.filter((item) => item.created).length;
         console.log(
           `[${niche}] ${synced.length} casos sincronizados ` +
@@ -104,7 +112,7 @@ async function main() {
     case "run": {
       const reports: NicheRunReport[] = [];
       for (const niche of resolveNiches(flags.niche)) {
-        reports.push(await runNiche({ niche, smokeOnly, wait }));
+        reports.push(await runNiche({ niche, smokeOnly, wait, llmId }));
       }
 
       if (!wait) {
@@ -168,8 +176,9 @@ async function main() {
       console.log(
         "Uso:\n" +
           "  npm run sim -- list    [--niche <nicho>] [--smoke]\n" +
-          "  npm run sim -- sync    [--niche <nicho>] [--smoke]\n" +
-          "  npm run sim -- run     [--niche <nicho>] [--smoke] [--no-wait]\n" +
+          "  npm run sim -- sync    [--niche <nicho>] [--smoke] [--llm <id>]\n" +
+          "  npm run sim -- run     [--niche <nicho>] [--smoke] [--llm <id>]\n" +
+          "                         [--no-wait]\n" +
           "  npm run sim -- inspect <batchJobId>\n\n" +
           `Nichos: ${listNiches().join(", ")}`
       );
