@@ -202,9 +202,9 @@ export const DEFAULT_RETELL_AGENT_CONFIG = {
   timezone: "Europe/Madrid",
   // El default de Retell es 1 (máxima sensibilidad) — cualquier palabra suelta del
   // cliente ("ah", "vale") corta al agente a mitad de frase, confirmado con una
-  // llamada real el 2026-09-05. 0.5 deja que el cliente interrumpa de verdad sin
-  // que una muletilla corte la respuesta.
-  interruptionSensitivity: 0.5,
+  // llamada real el 2026-09-05. 0.65 permite más control al cliente sin perder
+  // fluidez del agente.
+  interruptionSensitivity: 0.65,
   // RGPD: sin esto Retell retiene grabaciones/transcripciones para siempre.
   // Decisión explícita del usuario, 2026-09-05: 30 días.
   dataStorageRetentionDays: 30,

@@ -269,6 +269,7 @@ export async function provisionPhoneNumber(
         data: {
           twilioPhoneNumberStatus: "active",
           retellPhoneNumber: retellPhone.phone_number,
+          retellPhoneNumberId: retellPhone.phone_number_id || retellPhone.phone_number,
         },
       });
 
