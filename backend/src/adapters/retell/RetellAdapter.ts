@@ -93,6 +93,63 @@ export interface RetellPhoneNumber {
 /**
  * RetellAdapter - Single source of truth for all Retell.ai API interactions.
  */
+/** Modelo que interpreta al cliente simulado. Se fija por versión de catálogo
+ * para que dos ejecuciones de la misma versión sean comparables. */
+export type RetellSimulationModel =
+  | "gpt-4.1"
+  | "gpt-4.1-mini"
+  | "gpt-5"
+  | "gpt-5-mini"
+  | "gpt-5-nano";
+
+/** Respuesta falsa de una tool durante una simulación. Sin un mock que
+ * coincida, Retell deja pasar la llamada a la tool real (y con ella al
+ * calendario del negocio), así que toda tool alcanzable necesita el suyo. */
+export interface RetellToolMock {
+  toolName: string;
+  /** Objeto que recibirá el LLM; se serializa a JSON en el payload. */
+  output: unknown;
+  /** Si se indica, el mock solo aplica a las llamadas cuyos argumentos
+   * contengan estos valores (subconjunto). Sin esto, aplica a todas. */
+  matchArgs?: Record<string, unknown>;
+}
+
+export interface CreateRetellTestCaseInput {
+  name: string;
+  llmId: string;
+  /** Guion del cliente simulado: identidad, objetivo, personalidad, desarrollo. */
+  userPrompt: string;
+  /** Criterios de aprobado, en lenguaje natural verificable. */
+  metrics: string[];
+  dynamicVariables?: Record<string, string>;
+  toolMocks?: RetellToolMock[];
+  llmModel?: RetellSimulationModel;
+}
+
+export interface RetellTestCaseDefinition {
+  testCaseDefinitionId: string;
+  name: string;
+}
+
+export interface RetellBatchTest {
+  testCaseBatchJobId: string;
+  status: "in_progress" | "complete";
+  totalCount: number;
+  passCount: number;
+  failCount: number;
+  errorCount: number;
+}
+
+export interface RetellTestRun {
+  testCaseJobId: string;
+  testCaseDefinitionId: string;
+  /** `error` es un fallo de ejecución del propio test, no una regresión
+   * conversacional — no debe leerse como "el agente lo hizo mal". */
+  status: "pending" | "in_progress" | "pass" | "fail" | "error";
+  resultExplanation: string | null;
+  name: string | null;
+}
+
 export class RetellAdapter {
   private client: Retell;
   private apiKey: string;
@@ -464,6 +521,184 @@ export class RetellAdapter {
 
     return { callId: response.call_id, accessToken: response.access_token };
   }
+
+  // ---------------------------------------------------------------------
+  // Simulation Testing — batería de regresión conversacional. Enfrenta el
+  // LLM del agente con otro LLM que hace de cliente; no consume minutos de
+  // teléfono ni toca los números de Telnyx. Las tools se interceptan con
+  // tool_mocks para no llamar a Google/Outlook Calendar de verdad.
+  // ---------------------------------------------------------------------
+
+  /**
+   * Crea una definición de caso de simulación contra un Retell LLM.
+   */
+  async createTestCaseDefinition(
+    input: CreateRetellTestCaseInput
+  ): Promise<RetellTestCaseDefinition> {
+    this.ensureApiKey();
+
+    const response = (await this.client.tests.createTestCaseDefinition(
+      buildTestCaseDefinitionPayload(input)
+    )) as any;
+
+    return normalizeTestCaseDefinition(response);
+  }
+
+  /**
+   * Actualiza una definición existente. Se usa cuando el catálogo local
+   * cambia (guion, mocks o métricas) para no duplicar definiciones en Retell.
+   */
+  async updateTestCaseDefinition(
+    testCaseDefinitionId: string,
+    input: CreateRetellTestCaseInput
+  ): Promise<RetellTestCaseDefinition> {
+    this.ensureApiKey();
+
+    const response = (await this.client.tests.updateTestCaseDefinition(
+      testCaseDefinitionId,
+      buildTestCaseDefinitionPayload(input)
+    )) as any;
+
+    return normalizeTestCaseDefinition(response);
+  }
+
+  /**
+   * Lista las definiciones ya creadas para un LLM concreto, paginando hasta
+   * agotarlas — el sync las necesita todas para decidir si crea o actualiza.
+   */
+  async listTestCaseDefinitions(
+    llmId: string
+  ): Promise<RetellTestCaseDefinition[]> {
+    this.ensureApiKey();
+
+    const items: RetellTestCaseDefinition[] = [];
+    let paginationKey: string | undefined;
+
+    do {
+      const response = (await this.client.tests.listTestCaseDefinitions({
+        type: "retell-llm",
+        llm_id: llmId,
+        limit: 100,
+        ...(paginationKey ? { pagination_key: paginationKey } : {}),
+      })) as any;
+
+      for (const item of response.items || []) {
+        items.push(normalizeTestCaseDefinition(item));
+      }
+
+      paginationKey = response.has_more ? response.pagination_key : undefined;
+    } while (paginationKey);
+
+    return items;
+  }
+
+  /**
+   * Lanza un batch con varias definiciones contra un LLM. Devuelve el job,
+   * que arranca en `in_progress` — hay que sondearlo con getBatchTest.
+   */
+  async createBatchTest(input: {
+    llmId: string;
+    testCaseDefinitionIds: string[];
+  }): Promise<RetellBatchTest> {
+    this.ensureApiKey();
+
+    const response = (await this.client.tests.createBatchTest({
+      response_engine: { type: "retell-llm", llm_id: input.llmId },
+      test_case_definition_ids: input.testCaseDefinitionIds,
+    })) as any;
+
+    return normalizeBatchTest(response);
+  }
+
+  async getBatchTest(testCaseBatchJobId: string): Promise<RetellBatchTest> {
+    this.ensureApiKey();
+
+    const response = (await this.client.tests.getBatchTest(
+      testCaseBatchJobId
+    )) as any;
+
+    return normalizeBatchTest(response);
+  }
+
+  /**
+   * Ejecuciones individuales de un batch — los contadores agregados del batch
+   * no dicen qué caso falló, esto sí (incluye la explicación del evaluador).
+   */
+  async listTestRuns(testCaseBatchJobId: string): Promise<RetellTestRun[]> {
+    this.ensureApiKey();
+
+    const runs: RetellTestRun[] = [];
+    let paginationKey: string | undefined;
+
+    do {
+      const response = (await this.client.tests.listTestRuns(
+        testCaseBatchJobId,
+        {
+          limit: 100,
+          ...(paginationKey ? { pagination_key: paginationKey } : {}),
+        }
+      )) as any;
+
+      for (const item of response.items || []) {
+        runs.push({
+          testCaseJobId: item.test_case_job_id,
+          testCaseDefinitionId: item.test_case_definition_id,
+          status: item.status,
+          resultExplanation: item.result_explanation ?? null,
+          name: item.test_case_definition_snapshot?.name ?? null,
+        });
+      }
+
+      paginationKey = response.has_more ? response.pagination_key : undefined;
+    } while (paginationKey);
+
+    return runs;
+  }
+}
+
+function buildTestCaseDefinitionPayload(input: CreateRetellTestCaseInput) {
+  return {
+    name: input.name,
+    user_prompt: input.userPrompt,
+    metrics: input.metrics,
+    response_engine: { type: "retell-llm" as const, llm_id: input.llmId },
+    ...(input.dynamicVariables
+      ? { dynamic_variables: input.dynamicVariables }
+      : {}),
+    ...(input.toolMocks
+      ? {
+          tool_mocks: input.toolMocks.map((mock) => ({
+            tool_name: mock.toolName,
+            // El output viaja como string JSON: es la misma forma que
+            // devuelve la tool real al LLM (el body de la respuesta del
+            // webhook, no el envoltorio {success, result} interno).
+            output: JSON.stringify(mock.output),
+            input_match_rule: mock.matchArgs
+              ? { type: "partial_match" as const, args: mock.matchArgs }
+              : { type: "any" as const },
+          })),
+        }
+      : {}),
+    ...(input.llmModel ? { llm_model: input.llmModel } : {}),
+  };
+}
+
+function normalizeTestCaseDefinition(response: any): RetellTestCaseDefinition {
+  return {
+    testCaseDefinitionId: response.test_case_definition_id,
+    name: response.name,
+  };
+}
+
+function normalizeBatchTest(response: any): RetellBatchTest {
+  return {
+    testCaseBatchJobId: response.test_case_batch_job_id,
+    status: response.status,
+    totalCount: response.total_count ?? 0,
+    passCount: response.pass_count ?? 0,
+    failCount: response.fail_count ?? 0,
+    errorCount: response.error_count ?? 0,
+  };
 }
 
 // Export singleton instance
