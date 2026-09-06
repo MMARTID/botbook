@@ -1,4 +1,5 @@
 import type { FastifyPluginAsync } from "fastify";
+import { prisma } from "../../lib/prisma.js";
 import { getPhoneNumberStatus, provisionPhoneNumber } from "./service.js";
 
 export const phoneRoutes: FastifyPluginAsync = async (fastify) => {
@@ -24,6 +25,17 @@ export const phoneRoutes: FastifyPluginAsync = async (fastify) => {
     { preValidation: [fastify.authenticate] },
     async (request, reply) => {
       try {
+        const business = await prisma.business.findUnique({
+          where: { id: request.user!.businessId },
+          select: { subscriptionStatus: true },
+        });
+
+        if (!business || business.subscriptionStatus !== "active") {
+          return reply.status(402).send({
+            error: "No tienes un plan activo para asignar un número de teléfono",
+          });
+        }
+
         const result = await provisionPhoneNumber(request.user!.businessId);
         return reply.send(result);
       } catch (error) {

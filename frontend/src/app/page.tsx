@@ -125,6 +125,19 @@ function DashboardContent() {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["phone-number"] });
     },
+    onError: (error: any) => {
+      if (error.response?.status === 402) {
+        setCalendarStatus({
+          type: "error",
+          message: "Necesitas un plan activo para asignar un número de teléfono. Elige tu plan en la sección de facturación.",
+        });
+      } else {
+        setCalendarStatus({
+          type: "error",
+          message: error.response?.data?.error || "Error al asignar el número de teléfono.",
+        });
+      }
+    },
   });
 
   if (isLoadingBusiness) {
@@ -274,15 +287,21 @@ function DashboardContent() {
             </div>
 
             {phoneQuery.data && phoneQuery.data.status !== "active" && (
-              <button
-                type="button"
-                onClick={() => provisionMutation.mutate()}
-                disabled={provisionMutation.isPending}
-                className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg border border-[#e5e5e5] bg-white px-3 py-2 text-sm font-medium text-[#27272a] transition hover:bg-[#fafafa] disabled:opacity-60"
-              >
-                <RefreshCw className={`h-4 w-4 ${provisionMutation.isPending ? "animate-spin" : ""}`} />
-                {provisionMutation.isPending ? "Reintentando..." : "Reintentar asignación de número"}
-              </button>
+              business.subscriptionStatus === "active" ? (
+                <button
+                  type="button"
+                  onClick={() => provisionMutation.mutate()}
+                  disabled={provisionMutation.isPending}
+                  className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg border border-[#e5e5e5] bg-white px-3 py-2 text-sm font-medium text-[#27272a] transition hover:bg-[#fafafa] disabled:opacity-60"
+                >
+                  <RefreshCw className={`h-4 w-4 ${provisionMutation.isPending ? "animate-spin" : ""}`} />
+                  {provisionMutation.isPending ? "Reintentando..." : "Reintentar asignación de número"}
+                </button>
+              ) : (
+                <div className="mt-3 rounded-lg border border-[#f5d3d3] bg-[#fff1f1] px-3 py-2.5 text-center text-sm font-medium text-[#c53030]">
+                  Elige tu plan para desbloquear el teléfono
+                </div>
+              )
             )}
 
             {calendarStatus && (
