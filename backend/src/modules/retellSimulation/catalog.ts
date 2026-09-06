@@ -60,7 +60,9 @@ const REGLAS_DEL_CLIENTE = [
   "que te han dicho, con una o dos frases.",
   "No repitas datos que ya has dado ni recites tu petición entera otra vez.",
   "No adelantes información que no te hayan pedido todavía.",
-  "Si el agente te confirma lo que buscabas, o te deja claro que no puede",
+  "No des la conversación por terminada mientras el agente siga",
+  "preguntándote cosas: contéstale.",
+  "Solo cuando te confirme lo que buscabas, o te deje claro que no puede",
   "ayudarte, despídete en una frase corta y da la conversación por terminada.",
   "Después de esa despedida no vuelvas a hablar bajo ningún concepto,",
   "aunque el agente siga contestando o se despida otra vez: el agente no",
@@ -218,8 +220,10 @@ const M_SECUENCIA =
   "book_appointment cuando ambas han salido bien.";
 
 const M_CONFIRMA =
-  "Repite nombre, servicio, fecha y hora al cliente y espera su " +
-  "confirmación antes de llamar a book_appointment.";
+  "Antes de llamar a book_appointment dice en voz alta el servicio, la " +
+  "fecha y la hora, y obtiene una respuesta afirmativa del cliente. Vale " +
+  "como confirmación un \"sí\" a una pregunta que incluya esos datos: no " +
+  "hace falta un turno aparte preguntando \"¿confirmo la cita?\".";
 
 const M_NO_INVENTA =
   "No se inventa precios, servicios, políticas, profesionales ni huecos " +
@@ -825,7 +829,10 @@ const FISIOTERAPIA: SimulationCase[] = [
       "No pidas cita ni fecha en ningún momento, ni aceptes que te tomen",
       "los datos: solo querías esa respuesta.",
     ].join(" "),
-    metrics: [M_PRIVACIDAD_FISIO, M_NO_INVENTA, M_ESCALA],
+    // Sin M_ESCALA a propósito: ese criterio exige recoger nombre y
+    // teléfono, pero el guion dice que el paciente no quiere dejar datos.
+    // Pedir las dos cosas a la vez hacía imposible aprobar el caso.
+    metrics: [M_PRIVACIDAD_FISIO, M_NO_INVENTA],
     toolMocks: [],
     expected: ESCALA_COMPLEJA,
   },
