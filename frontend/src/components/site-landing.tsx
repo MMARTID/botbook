@@ -7,6 +7,7 @@ import { SectorDataSection } from "@/components/sector-data-section";
 import { RevenueLossCalculator } from "@/components/revenue-loss-calculator";
 import { Reveal } from "@/components/scroll-reveal";
 import { BrandMark } from "@/components/brand-mark";
+import { CallForwardingFlow } from "@/components/call-forwarding-flow";
 import { ParticleField } from "@/components/particle-field";
 import { ParticleMouseLayer } from "@/components/particle-mouse-layer";
 import { formatIncludedMinutes, formatPlanPrice, plans, TRIAL_REASSURANCE } from "@/lib/plans";
@@ -171,6 +172,10 @@ export function SiteLanding({ content }: { content?: NicheLandingContent }) {
             <h2 className="text-3xl font-black tracking-tight text-[#0a0a0a] sm:text-4xl">
               De llamada perdida a cita confirmada, en tres pasos.
             </h2>
+          </Reveal>
+
+          <Reveal delay={0.05} className="mb-5">
+            <CallForwardingFlow accent={content?.accent} />
           </Reveal>
 
           <div className="grid gap-5 lg:grid-cols-3">

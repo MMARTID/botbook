@@ -10,6 +10,7 @@ import { nicheLinks } from "@/lib/niche-landings";
 import { activateRoiContext, getSavedRoiEstimate, saveRoiEstimate } from "@/lib/roi-context";
 import { Reveal } from "@/components/scroll-reveal";
 import { RangeSlider } from "@/components/range-slider";
+import { AnimatedCurrency } from "@/components/animated-currency";
 
 const TICKET_MIN = 10;
 const TICKET_MAX = 200;
@@ -140,12 +141,12 @@ export function RevenueLossCalculator({ content, activeNiche }: { content?: Nich
             <div className="relative flex h-full flex-1 flex-col">
               <p className="text-sm font-semibold text-white/60">Pérdida estimada al mes</p>
 
-              <div className="mt-4 border-b border-white/10 pb-8" aria-live="polite" aria-atomic="true">
-                <p className="text-5xl font-black tracking-[-0.03em] text-[#a78bfa] sm:text-6xl lg:text-7xl">
-                  {currencyFormatter.format(monthlyLoss)}
+              <div className="mt-4 border-b border-white/10 pb-8">
+                <p className="tabular-nums text-5xl font-black tracking-[-0.03em] text-[#a78bfa] sm:text-6xl lg:text-7xl">
+                  <AnimatedCurrency value={monthlyLoss} />
                 </p>
-                <p className="mt-3 text-base leading-7 text-white/65">
-                  {currencyFormatter.format(annualLoss)} al año
+                <p className="mt-3 tabular-nums text-base leading-7 text-white/65">
+                  <AnimatedCurrency value={annualLoss} /> al año
                 </p>
               </div>
 
