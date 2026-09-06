@@ -406,6 +406,17 @@ export class CalendarService {
         speak_after_execution: true,
         timeout_ms: 20000,
       },
+      {
+        // Sin esta tool el agente no tiene ninguna forma de colgar: tras
+        // despedirse sigue contestando indefinidamente y la llamada solo
+        // termina cuando cuelga el cliente o se agota max_call_duration_ms,
+        // facturando mientras tanto. Detectado con la batería de simulación
+        // el 2026-09-06 (las despedidas encadenadas hacían que Retell
+        // abortara la conversación por bucle).
+        type: 'end_call',
+        name: 'end_call',
+        description: 'Cuelga la llamada. Úsala solo después de despedirte, cuando la conversación ha terminado: la cita ha quedado confirmada, has tomado el recado, o el cliente se despide o dice que no necesita nada más. No la uses mientras siga habiendo algo pendiente.',
+      },
     ];
   }
 

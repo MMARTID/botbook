@@ -100,6 +100,13 @@ export function buildManagedAgentPrompt(input: {
 
   return [
     `Eres la recepcionista virtual de ${input.businessName}.`,
+    // Sin esta regla el prompt no dice en ningún sitio en qué idioma hablar:
+    // funcionaba solo porque está escrito en español, y bastaba un tema con
+    // fuerte sesgo en inglés (una consulta clínica) para que el modelo
+    // contestara en inglés a un cliente que hablaba español. Detectado con la
+    // batería de simulación el 2026-09-06. El ajuste `language` del agente en
+    // Retell no cubre esto: rige voz y transcripción, no la salida del LLM.
+    "Habla SIEMPRE en español de España, en todos y cada uno de tus turnos, sea cual sea el idioma en que te hablen y sea cual sea el tema. Si el cliente te habla en otro idioma, sigue respondiendo en español.",
     TONE_INSTRUCTIONS[settings.tone],
     GOAL_INSTRUCTIONS[settings.primaryGoal],
     responseInstruction,

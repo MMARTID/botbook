@@ -221,6 +221,14 @@ export const DEFAULT_RETELL_AGENT_CONFIG = {
   // su documentación: "You will continue to receive webhook events... even
   // when data storage is restricted").
   piiCategories: ["person_name", "phone_number", "email", "address"] as RetellPiiCategory[],
+  // Sin estos dos, una llamada que el cliente deja abierta (teléfono
+  // descolgado, silencio) sigue viva facturando minutos de Retell, que además
+  // consumen los minutos incluidos del plan del negocio. Detectado con la
+  // batería de simulación el 2026-09-06: el agente tampoco tenía forma de
+  // colgar (ver la tool end_call en calendar/service.ts).
+  endCallAfterSilenceMs: 30_000,
+  // Una recepcionista de reservas no necesita una hora (el default de Retell).
+  maxCallDurationMs: 10 * 60 * 1000,
 };
 
 /**
@@ -473,6 +481,8 @@ export function buildRetellAgentPayload(input: {
     dataStorageRetentionDays: DEFAULT_RETELL_AGENT_CONFIG.dataStorageRetentionDays,
     sttMode: DEFAULT_RETELL_AGENT_CONFIG.sttMode,
     piiCategories: DEFAULT_RETELL_AGENT_CONFIG.piiCategories,
+    endCallAfterSilenceMs: DEFAULT_RETELL_AGENT_CONFIG.endCallAfterSilenceMs,
+    maxCallDurationMs: DEFAULT_RETELL_AGENT_CONFIG.maxCallDurationMs,
   };
 }
 

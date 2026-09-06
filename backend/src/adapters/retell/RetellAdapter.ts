@@ -2,7 +2,9 @@ import Retell from "retell-sdk";
 import type { LlmResponse } from "retell-sdk/resources/llm.js";
 import type { AgentResponse } from "retell-sdk/resources/agent.js";
 
-export interface RetellTool {
+/** Tool HTTP nuestra: Retell llama a `url` y le pasa los argumentos. */
+export interface RetellCustomTool {
+  type?: "custom";
   name: string;
   description: string;
   url: string;
@@ -17,6 +19,40 @@ export interface RetellTool {
   timeout_ms?: number;
   /** false (por defecto en nuestras tools) hace que Retell mande {name, call, args} en vez de los argumentos sueltos en la raíz. */
   args_at_root?: boolean;
+}
+
+/** Tool integrada de Retell: sin url ni parámetros. Es la única forma de que
+ * el agente pueda colgar por su cuenta; sin ella la llamada sigue abierta
+ * hasta que cuelga el cliente o se agota max_call_duration_ms. */
+export interface RetellEndCallTool {
+  type: "end_call";
+  name: string;
+  description: string;
+}
+
+export type RetellTool = RetellCustomTool | RetellEndCallTool;
+
+function toRetellToolPayload(tool: RetellTool) {
+  if (tool.type === "end_call") {
+    return {
+      type: "end_call" as const,
+      name: tool.name,
+      description: tool.description,
+    };
+  }
+
+  return {
+    type: "custom" as const,
+    name: tool.name,
+    description: tool.description,
+    url: tool.url,
+    method: tool.method || "POST",
+    parameters: tool.parameters,
+    speak_during_execution: tool.speak_during_execution ?? true,
+    speak_after_execution: tool.speak_after_execution ?? true,
+    timeout_ms: tool.timeout_ms ?? 20000,
+    args_at_root: tool.args_at_root ?? true,
+  };
 }
 
 export interface CreateRetellLlmInput {
@@ -81,6 +117,10 @@ export interface CreateRetellAgentInput {
   sttMode?: "fast" | "accurate";
   boostedKeywords?: string[];
   piiCategories?: RetellPiiCategory[];
+  /** Cuelga tras este silencio. Sin fijarlo, una llamada que el cliente deja
+   * abierta sigue facturando hasta agotar maxCallDurationMs. */
+  endCallAfterSilenceMs?: number;
+  maxCallDurationMs?: number;
 }
 
 export interface RetellPhoneNumber {
@@ -173,18 +213,7 @@ export class RetellAdapter {
   async createLlm(input: CreateRetellLlmInput): Promise<LlmResponse> {
     this.ensureApiKey();
 
-    const generalTools: any[] = (input.tools || []).map((tool) => ({
-      type: "custom" as const,
-      name: tool.name,
-      description: tool.description,
-      url: tool.url,
-      method: tool.method || "POST",
-      parameters: tool.parameters,
-      speak_during_execution: tool.speak_during_execution ?? true,
-      speak_after_execution: tool.speak_after_execution ?? true,
-      timeout_ms: tool.timeout_ms ?? 20000,
-      args_at_root: tool.args_at_root ?? true,
-    }));
+    const generalTools: any[] = (input.tools || []).map(toRetellToolPayload);
 
     const response = await this.client.llm.create({
       general_prompt: input.generalPrompt,
@@ -216,18 +245,7 @@ export class RetellAdapter {
       updatePayload.begin_message = input.beginMessage;
     }
     if (input.tools !== undefined) {
-      updatePayload.general_tools = input.tools.map((tool) => ({
-        type: "custom" as const,
-        name: tool.name,
-        description: tool.description,
-        url: tool.url,
-        method: tool.method || "POST",
-        parameters: tool.parameters,
-        speak_during_execution: tool.speak_during_execution ?? true,
-        speak_after_execution: tool.speak_after_execution ?? true,
-        timeout_ms: tool.timeout_ms ?? 20000,
-        args_at_root: tool.args_at_root ?? true,
-      }));
+      updatePayload.general_tools = input.tools.map(toRetellToolPayload);
     }
     if (input.model !== undefined) {
       updatePayload.model = input.model;
@@ -277,6 +295,8 @@ export class RetellAdapter {
       data_storage_retention_days: input.dataStorageRetentionDays,
       stt_mode: input.sttMode,
       boosted_keywords: input.boostedKeywords,
+      end_call_after_silence_ms: input.endCallAfterSilenceMs,
+      max_call_duration_ms: input.maxCallDurationMs,
       ...(input.piiCategories
         ? { pii_config: { categories: input.piiCategories, mode: "post_call" as const } }
         : {}),
@@ -333,6 +353,12 @@ export class RetellAdapter {
     }
     if (input.piiCategories !== undefined) {
       updatePayload.pii_config = { categories: input.piiCategories, mode: "post_call" };
+    }
+    if (input.endCallAfterSilenceMs !== undefined) {
+      updatePayload.end_call_after_silence_ms = input.endCallAfterSilenceMs;
+    }
+    if (input.maxCallDurationMs !== undefined) {
+      updatePayload.max_call_duration_ms = input.maxCallDurationMs;
     }
 
     return this.client.agent.update(agentId, updatePayload);
