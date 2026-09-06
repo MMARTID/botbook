@@ -1,7 +1,9 @@
 {
   "detector": {
     "ignoreRules": [],
-    "ignoreFiles": [],
+    "ignoreFiles": [
+      "alhabla-landing-video/index.html"
+    ],
     "ignoreValues": [
       {
         "rule": "design-system-font-size",
@@ -68,6 +70,60 @@
         "value": "15px",
         "createdAt": "2026-09-03T16:52:21.988Z",
         "reason": "Email HTML transaccional (emailTemplates.ts): tamanos en px inline propios de email, fuera de la escala rem de DESIGN.md que gobierna la app Next.js."
+      },
+      {
+        "rule": "design-system-font-size",
+        "value": "5rem",
+        "createdAt": "2026-09-06T01:00:40.192Z",
+        "reason": "video composition kinetic-text beats, demo-specific scale, not product system"
+      },
+      {
+        "rule": "design-system-font-size",
+        "value": "7.5rem",
+        "createdAt": "2026-09-06T01:00:40.222Z",
+        "reason": "video composition kinetic-text beats, demo-specific scale, not product system"
+      },
+      {
+        "rule": "design-system-font-size",
+        "value": "96px",
+        "createdAt": "2026-09-06T01:00:40.252Z",
+        "reason": "video composition kinetic-text beats, demo-specific scale, not product system"
+      },
+      {
+        "rule": "design-system-font-size",
+        "value": "6.5rem",
+        "createdAt": "2026-09-06T01:00:40.281Z",
+        "reason": "video composition kinetic-text beats, demo-specific scale, not product system"
+      },
+      {
+        "rule": "design-system-font-size",
+        "value": "3rem",
+        "createdAt": "2026-09-06T01:00:40.308Z",
+        "reason": "video composition kinetic-text beats, demo-specific scale, not product system"
+      },
+      {
+        "rule": "design-system-font-size",
+        "value": "1.5rem",
+        "createdAt": "2026-09-06T01:00:40.335Z",
+        "reason": "video composition kinetic-text beats, demo-specific scale, not product system"
+      },
+      {
+        "rule": "design-system-font-size",
+        "value": "1.75rem",
+        "createdAt": "2026-09-06T01:00:40.363Z",
+        "reason": "video composition kinetic-text beats, demo-specific scale, not product system"
+      },
+      {
+        "rule": "design-system-radius",
+        "value": "3px",
+        "createdAt": "2026-09-06T01:04:48.641Z",
+        "reason": "video composition beat-bar tick chrome, demo-specific"
+      },
+      {
+        "rule": "design-system-font",
+        "value": "geist sans",
+        "createdAt": "2026-09-06T01:05:05.406Z",
+        "reason": "video composition matches product typography intentionally, not a product surface"
       }
     ]
   }

@@ -325,7 +325,7 @@ The schema lives in `backend/prisma/schema.prisma`. Key models:
 - `User` — belongs to a Business; supports password (bcrypt) + Google OAuth login (`googleId`).
 - `Agent` — voice agent config; `vapiAssistantId` links to Vapi and `retellAgentId`/`retellLlmId` link to Retell. Includes voice/LLM/STT provider configs, files, integrations.
 - `Call` — a phone call handled by Vapi or Retell. Status enum: `INITIATED`, `IN_PROGRESS`, `COMPLETED`, `FAILED`, `TIMED_OUT`. Outcome enum: `RESOLVED`, `FRUSTRATED`, `NO_ANSWER`, `ESCALATED`, `LEAD_CAPTURED` — set only from Retell's `call_outcome` post_call_analysis_data field (see Retell Configuration for the other analysis fields, which are independent of this enum).
-- `Booking` — outcome extracted from a call; stores `professionalId`, `serviceId` and `durationMinutes` to track who performs the appointment and how long it lasts. `professionalId`/`serviceId` supplied by the LLM are verified to belong to the business before being trusted (`voiceTools/service.ts`) — they are not enforced at the DB/FK level.
+- `Booking` — outcome extracted from a call; stores `professionalId`, `serviceIds` (array — since 2026-09-05 a booking can cover several services, e.g. "corte y mechas") and `durationMinutes` to track who performs the appointment and how long it lasts. `professionalId`/`serviceIds` supplied by the LLM are verified to belong to the business before being trusted (`voiceTools/service.ts`) — they are not enforced at the DB/FK level.
 - `Transcript` / `Recording` — call artifacts. Recording has `storageKey` and `storageUrl` for R2.
 - `Lead` — structured lead data captured during a call. `type: "pending_booking"` rows are created by `voiceTools/service.ts` when `book_appointment` fails, holding the attempted booking payload so it's never lost; `resolvedAt` is set once `jobs/retryFailedBooking.ts` confirms the booking in the background (still `null` if retries are exhausted or the failure needs a manual calendar reconnect).
 - `Service` / `Professional` / `ProfessionalService` — booking catalog (many-to-many between professionals and services).
@@ -369,10 +369,11 @@ telnyxPhoneNumberId (unique)
 telnyxPhoneNumberPurchasedAt
 
 # Retell (either provider)
-retellPhoneNumberId (unique)   # legacy field — Retell's phoneNumber.import
-                                # response has no phone_number_id in current
-                                # SDK versions, so this is effectively unused
-                                # going forward; retellPhoneNumber is canonical
+retellPhoneNumberId (unique)   # persisted since 2026-09-06 on import:
+                                # phone_number_id when the SDK returns it,
+                                # falling back to the phone number itself
+                                # (phone/service.ts); also served in the phone
+                                # status response. retellPhoneNumber is canonical
 retellPhoneNumber (unique)
 ```
 
@@ -399,7 +400,7 @@ outlookCalendarLastError (Text)
 orchestrator (String, default "retell")
 ```
 
-Determines the voice-AI provider for the business. `detectVoiceOrchestrator(countryCode)` defaults to `retell` for RGPD-compliant European countries and `vapi` for the rest. The value is set at registration and stored in `Business.orchestrator`.
+Determines the voice-AI provider for the business. Today `detectVoiceOrchestrator()` always returns `"retell"` regardless of country (`backend/src/lib/voiceOrchestrator.ts`) — the geographic split (Retell for Europe / Vapi for the rest) is not active in the code; the field is kept for a future split. The value is set at registration and stored in `Business.orchestrator`.
 
 ### Business Type Field on `Business`
 
@@ -471,7 +472,7 @@ Call outcome classification is **not** a background job — Retell classifies ea
 
 ## Voice Orchestrators (Vapi & Retell)
 
-The backend supports two voice-AI orchestrators. `Business.orchestrator` decides which adapter is used for a given business (`vapi` or `retell`). Registration defaults to Retell for European countries and Vapi for the rest.
+The backend supports two voice-AI orchestrators. `Business.orchestrator` decides which adapter is used for a given business (`vapi` or `retell`). Today registration always assigns `retell` (see Orchestrator Field above); Vapi remains wired but inactive.
 
 ### Vapi (`backend/src/adapters/vapi/VapiAdapter.ts`)
 
@@ -486,9 +487,9 @@ The backend supports two voice-AI orchestrators. `Business.orchestrator` decides
 
 ### Vapi Configuration Catalog (`backend/src/config/vapi.ts`)
 
-- **Voice providers:** `cartesia`, `11labs`, `openai`, `deepgram`, `playht`, `rime-ai`, `azure`, `lmnt`, `neuphonic`.
+- **Voice providers:** `vapi`, `11labs`, `hume`, `azure`, `google`, `openai`, `deepgram`, `cartesia`, `custom`.
 - **LLM providers:** `openai`, `anthropic`, `custom`, `groq`.
-- **STT providers:** `deepgram`, `google`, `openai`, `azure`, `gladia`, `talkscriber`, `assembly-ai`.
+- **STT providers:** `deepgram`, `assembly-ai`, `azure`, `google`, `openai`, `soniox`, `talkscriber`.
 - Defaults: voice `cartesia` / `sonic-3.5`, LLM `groq` / `openai/gpt-oss-20b`, STT `deepgram` / `nova-2`.
 
 ### Retell (`backend/src/adapters/retell/RetellAdapter.ts`)
@@ -499,7 +500,7 @@ The backend supports two voice-AI orchestrators. `Business.orchestrator` decides
 - Supported Retell webhook events: `call_started`, `call_ended`, `call_analyzed`. Other events are acknowledged (`200`) but ignored.
 - Retell custom tools are exposed under `POST /webhooks/retell/tools/:retellAgentId/:toolName`. The `retellAgentId` path segment is required because Retell never includes an agent identifier in the tool-call body, so it's embedded in the URL itself (done in `buildRetellCalendarTools`, `backend/src/modules/calendar/service.ts`). Our tools are registered with `args_at_root: false` (see `RetellAdapter.createLlm`/`updateLlm`), so Retell sends `{name, call, args}` — `call.call_id` is threaded through as `callId` to `executeVoiceTool` so `book_appointment` can link the booking to the exact call instead of guessing "the most recent call for this business". The route still tolerates a flat args-only body (no `call_id`) for businesses not yet resynced with this config. The endpoint validates the `x-retell-signature` before executing any tool. Execution is delegated to `executeVoiceTool` in `backend/src/modules/voiceTools/service.ts`, which implements `check_business_hours`, `check_availability` and `book_appointment` (Google and Outlook Calendar supported). `check_availability` also accepts an optional `professionalId` (from the `EMPLEADOS` prompt block, see Agent Configuration) to check a specific professional's availability instead of "anyone free".
 - **Tool errors never return HTTP 500 to Retell.** All three tools always resolve to `{success: true, result: {success: false, code, message}}` on failure — a Spanish, LLM-speakable message the agent can relay, never a raw exception. `book_appointment`'s calendar-related failures are classified into `*_RECONNECT_REQUIRED` (Google/Outlook auth revoked — needs manual reconnect), `CALENDAR_TIMEOUT` / `CALENDAR_RATE_LIMITED` (Google/Outlook request took over `CALENDAR_REQUEST_TIMEOUT_MS`/`GRAPH_REQUEST_TIMEOUT_MS`, both 8s — a margin under Retell's own 20s tool timeout so the backend cuts the request itself instead of leaving it dangling) or `BOOK_APPOINTMENT_FAILED`/`BOOK_APPOINTMENT_UNEXPECTED_ERROR` (anything else). Every failure except `*_RECONNECT_REQUIRED` also enqueues `retry-failed-booking` (see Background Jobs) after saving a `Lead` with the attempted booking.
-- **`serviceId`/`professionalId` supplied by the LLM to `book_appointment` are verified against `businessId` before use** (`prisma.service.findFirst`/`prisma.professional.findFirst` scoped by `businessId`). An ID that doesn't belong to the business is treated as if it had never been given (falls back to auto-resolution) rather than failing the booking or silently trusting a cross-tenant ID.
+- **`serviceIds`/`professionalId` supplied by the LLM to `book_appointment` are verified against `businessId` before use** (`prisma.service.findFirst`/`prisma.professional.findFirst` scoped by `businessId`). An ID that doesn't belong to the business is treated as if it had never been given (falls back to auto-resolution) rather than failing the booking or silently trusting a cross-tenant ID.
 - When an agent is created or updated for a Retell business, `agentBootstrap.ts` creates/updates the LLM and agent in Retell and stores `retellAgentId`/`retellLlmId` in the `Agent` row.
 - Retell agents use the name built by `buildAgentDisplayName(businessName, businessType)` so they are easy to identify in the Retell dashboard.
 
@@ -543,7 +544,7 @@ Once the order succeeds, the number is imported into Retell via `retellAdapter.i
 - Stripe webhooks are processed in `billing/service.ts` (`handleStripeEvent`). Events are deduplicated via `StripeWebhookEvent` table.
 - After a successful checkout, the frontend calls `POST /billing/checkout-session/:sessionId/reconcile` to sync the subscription state to the `Business` record.
 - `getBillingSummary` calculates consumed minutes in the current period via `call.aggregate({ _sum: { durationSecs } })` on non-`IN_PROGRESS` calls.
-- **Automatic phone provisioning:** On Stripe webhook `checkout.session.completed`, the backend triggers `provisionPhoneNumber(businessId)` asynchronously after reconciling the subscription. This purchases a Telnyx number and imports it into Retell via SIP trunk (see Phone provisioning above). Failures do not fail the Stripe webhook response.
+- **Automatic phone provisioning:** On Stripe webhook `checkout.session.completed`, the backend persists the Stripe IDs and triggers `provisionPhoneNumber(businessId)` asynchronously. This purchases a Telnyx number and imports it into Retell via SIP trunk (see Phone provisioning above). Failures do not fail the Stripe webhook response. (That webhook does not run the full subscription reconcile — the complete state sync happens via `POST /billing/checkout-session/:sessionId/reconcile` or the `customer.subscription.created` webhook.)
 
 ## Calendar Integration
 
@@ -553,7 +554,7 @@ Once the order succeeds, the number is imported into Retell via `retellAdapter.i
 - **Switching calendars:** `GET /calendar/calendars` lists the calendars of the connected account (Google `calendarList` or Microsoft Graph) with `{ provider, selectedCalendarId, calendars: [{ id, name, primary }] }`; `POST /calendar/select` with `{ calendarId }` switches the active calendar for either provider. The `/ajustes` calendar section uses both for its "Cambiar de calendario" picker.
 - `getUpcomingEvents` normalizes events from both providers into a common format.
 - If a refresh token becomes invalid (`invalid_grant`), the backend throws a `CalendarBusinessError` with code `GOOGLE_CALENDAR_RECONNECT_REQUIRED` or `OUTLOOK_CALENDAR_RECONNECT_REQUIRED`. The frontend should prompt the user to reconnect.
-- **Appointment booking** (`book_appointment` webhook handler) supports both Google and Outlook Calendar. It creates the calendar event and persists a `Booking` row with `professionalId`, `serviceId` and `durationMinutes`. If no `professionalId` is provided, it selects the first available professional from `checkAvailability`.
+- **Appointment booking** (`book_appointment` webhook handler) supports both Google and Outlook Calendar. It creates the calendar event and persists a `Booking` row with `professionalId`, `serviceIds` and `durationMinutes` (duration recalculated server-side from the verified services). If no `professionalId` is provided, it selects the first available professional from `checkAvailability`.
 
 ## Booking & Availability
 
@@ -573,10 +574,10 @@ Once the order succeeds, the number is imported into Retell via `retellAdapter.i
 
 ### Availability (`backend/src/lib/availability.ts`)
 
-`checkAvailability({ businessId, schedule, timezone, bookingCapacity, startDateTime, durationMinutes, serviceId?, professionalId? })`
+`checkAvailability({ businessId, schedule, timezone, bookingCapacity, startDateTime, durationMinutes, serviceIds?, professionalId? })`
 
 1. Validates business hours first.
-2. Finds active professionals, filtered by `id: professionalId` when given (an ID from another business simply matches nothing — no separate ownership check needed here) and/or by `serviceId` via `serviceLinks`. If `professionalId` matched no professional at all → `PROFESSIONAL_NOT_FOUND`.
+2. Finds active professionals, filtered by `id: professionalId` when given (an ID from another business simply matches nothing — no separate ownership check needed here) and/or by `serviceIds` via `serviceLinks` (specialists first — `serviceLinks` is a preference, not a filter). If `professionalId` matched no professional at all → `PROFESSIONAL_NOT_FOUND`.
 3. Finds overlapping bookings in the time slot, using each booking's stored `durationMinutes` for overlap calculation.
 4. If `bookingsInSlot >= bookingCapacity` → `CAPACITY_REACHED`.
 5. Identifies busy professionals by `professionalId` from overlapping bookings and returns the free ones with `id` and `name`. If none → `ALL_PROFESSIONALS_BUSY`.
@@ -708,38 +709,33 @@ The frontend follows a **conservative, professional SaaS aesthetic** tailored to
 
 ### Color Palette
 
-Defined in `frontend/src/app/globals.css`:
+Defined in `frontend/src/app/globals.css`. The site was redesigned in agosto 2026
+(commit `eeab7f4`) from the old green palette to a black/white/purple system — the
+values below are the current ones; any green token found in older docs is stale.
 
 | Token | Hex | Usage |
 |-------|-----|-------|
-| `--background` | `#eef2eb` | Body background gradient base |
-| `--foreground` | `#17211c` | Main text color |
+| `--background` | `#ffffff` | Body background (flat white, no gradients) |
+| `--foreground` | `#0a0a0a` | Main text color |
 | `--surface` | `#ffffff` | Card/panel backgrounds |
-| `--surface-soft` | `#f6f7f1` | Second-level surfaces, nested sections |
-| `--muted` | `#5f6a5e` | Secondary text, descriptions |
-| `--accent` | `#1e2b22` | Primary buttons, headings, emphasis |
-| `--accent-strong` | `#243026` | Hover states on primary elements |
-| `--accent-soft` | `#b8d96e` | Focus rings, subtle highlights |
+| `--surface-soft` | `#fafafa` | Second-level surfaces, hovers, sticky bars |
+| `--border` | `#e5e5e5` | Default hairline borders |
+| `--muted` | `#52525b` | Secondary text, descriptions (7.5:1 on white — AA) |
+| `--accent` | `#0a0a0a` | Primary buttons, headings, emphasis |
+| `--accent-strong` | `#262626` | Hover states on primary elements |
+| `--accent-soft` | `#a78bfa` | Light purple accents |
+| `--purple` | `#8b5cf6` | Brand accent: focus rings, links, selected states |
+| `--purple-strong` | `#7c3aed` | Purple hover |
+| `--purple-wash` | `#f3eeff` | Badge/icon tile backgrounds |
+| `--purple-ink` | `#6d28d9` | Text on purple-wash surfaces |
+| `--purple-ring` | `#ddd6fe` | Subtle purple rings |
 | `--success` | `#2c7334` | Success states, connected indicators |
 | `--warning` | `#9f7a15` | Warning states |
 | `--error` | `#c53030` | Error states, validation failures |
 
-**`--muted` was `#687267` and is now `#5f6a5e`.** The old value measured 4.42:1 against the paper
-background and missed WCAG AA; the new one passes on white (5.66:1), paper (5.00:1) and
-surface-soft (5.25:1). Consume it through the `.text-muted` utility — do **not** write the hex
-inline, so the token stays the single point of change.
-
-**Do NOT use:**
-- `#101814` (pure black with green tint) — replaced by `#1e2b22`
-- `#d6ff72` (neon lime) — replaced by `#b8d96e`
-- `#0b110e` (footer black) — replaced by `#1e2b22`
-- `#8b9a7f` (2.99:1), `#7a8774` (3.79:1), `#718064` (4.22:1), `#8e968d` (3.04:1) — all failed AA
-  on white. Use `#54634b` (6.44:1) for secondary text on light surfaces, `#6b756a` for
-  placeholders, or the `--muted` token.
-
-As of the last pass there are **zero** occurrences of any banned colour in `frontend/src`. Keep it
-that way: `grep -rnE '#d6ff72|214,\s*255,\s*114|#101814|16,\s*24,\s*20|#0b110e' frontend/src`
-must return nothing.
+Consume tokens through CSS variables or Tailwind utilities — do not hardcode
+near-duplicate hex values. The old green palette (`#eef2eb`, `#1e2b22`, `#b8d96e`…)
+is gone from `frontend/src`; the values above win on conflict.
 
 ### Accessibility Baseline
 
@@ -750,7 +746,7 @@ non-optional for a service sold online in the EU. Concretely:
   this palette look fine and fail.
 - Every interactive control is at least 44px tall. Inline links inside prose are exempt.
 - Body text never drops below 14px. 12px is for badges and column headers only.
-- Focus is always visible (`focus-visible` ring in `#9dbb55`).
+- Focus is always visible (`focus-visible` ring in `#8b5cf6` — see `.field`).
 - Modals need `role="dialog"`, `aria-modal`, a focus trap and body scroll lock.
 - Anything driven by audio needs a non-audio equivalent.
 
@@ -758,22 +754,21 @@ non-optional for a service sold online in the EU. Concretely:
 
 | Class | Purpose | Key properties |
 |-------|---------|----------------|
-| `.panel` | Card/container | `rounded-2xl`, `bg-white/95`, subtle shadow, glassmorphism |
-| `.field` | Text inputs | `rounded-lg` (8px), `h-11`, border `#d2dacd`, focus ring |
-| `.btn-primary` | Primary action | `rounded-lg` (8px), `bg-[#1e2b22]`, white text |
-| `.btn-secondary` | Secondary action | `rounded-lg` (8px), white bg, border `#d2dacd` |
-| `.badge-soft` | Status badges | `rounded-full`, `bg-[#eef6dc]`, text `#405115` |
+| `.panel` | Card/container | `rounded-3xl`, `bg-white`, border `#e5e5e5`, `shadow-none` |
+| `.field` | Text inputs | `rounded-full`, `h-11`, border `#e5e5e5`, focus `border/ring #8b5cf6` |
+| `.btn-primary` | Primary action | `rounded-full`, `h-12`, `bg-[#0a0a0a]`, white text, hover lift |
+| `.btn-secondary` | Secondary action | `rounded-full`, `h-12`, white bg, `border-[#0a0a0a]` |
+| `.btn-purple` | Brand accent action | `rounded-full`, `h-12`, `bg-[#8b5cf6]`, hover `#7c3aed` |
+| `.badge-soft` | Status badges | `rounded-full`, `bg-[#f3eeff]`, text `#6d28d9`, ring `#ddd6fe` |
 
 ### Styling Rules
 
-- **Border radius:** The scale is 8 / 12 / 16px and nothing else — `rounded-lg` for inputs and
-  buttons, `rounded-xl` for cards, `rounded-2xl` for panels. `rounded-full` is reserved for badges,
-  status chips, nav pills and square icon buttons of 32–40px. No `rounded-3xl` and no arbitrary
-  values (`rounded-[1.75rem]` and friends). Currently zero out-of-scale radii in `frontend/src`.
-- **Shadows:** Ceiling is 32px blur and 0.16 opacity, always tinted `rgba(30,43,34,…)` — never grey
-  or black, which show up dirty against the green paper. `0_8px_24px_rgba(30,43,34,0.06)` for
-  panels, `0_4px_16px_rgba(30,43,34,0.04)` for small cards, `0_10px_28px_rgba(30,43,34,0.16)` for
-  the primary button. No `0_22px_55px`, `0_20px_80px` or `0_26px_80px`.
+- **Border radius:** `rounded-3xl` for panels, `rounded-xl` for cards and icon tiles,
+  `rounded-lg` for small square controls, `rounded-full` for buttons, fields, badges
+  and nav pills.
+- **Shadows:** minimal — `.panel` is `shadow-none` with a hairline border; the ambient
+  purple-tinted glow (`0 8px 24px rgba(0,0,0,0.06)` + purple halo, see `globals.css`) is
+  reserved for specific highlighted elements. Don't add heavy drop shadows.
 - **Typography:** Reserve `font-semibold` for H1/H2/H3, card titles, CTAs and key figures. Use
   `font-normal` for body text and descriptions.
 - **Tracking:** `-0.02em` on headings (floor `-0.04em`), max `0.12em` on uppercase labels. Anything
@@ -782,21 +777,21 @@ non-optional for a service sold online in the EU. Concretely:
   "Sin letra pequeña"). The heading carries its own weight. A badge is fine when it adds
   information the heading doesn't — "Google Calendar" names the integration — but not when it just
   announces the section.
-- **Gradients:** Use the body gradient (`radial-gradient` with `#b8d96e` and `#1e2b22` tints) for
-  all pages, including auth, registration and legal. Do not use flat backgrounds like `#f7f8f4`.
-- **Icons:** Lucide React icons in a 40px `rounded-xl` tile with `bg-[#eef6dc]` and
-  `text-[#2c7334]`. Icons never sit loose on the paper.
-- **Dark surfaces are rationed.** The landing carries one dark block in the body (the calculator
-  result panel) plus the closing band and footer, which read as a single dark foot. Adding a
-  fourth dark block breaks the one-accent rule.
+- **Backgrounds:** flat white (`#ffffff`) — the old green radial-gradient body is gone.
+  Second-level surfaces use `#fafafa` (hovers, sticky bars).
+- **Icons:** Lucide React icons in a `rounded-xl` tile with `bg-[#f3eeff]` and `text-[#8b5cf6]`
+  (purple system, not the old green).
+- **Black is the primary surface color:** primary buttons and headings are near-black
+  (`#0a0a0a`); purple (`#8b5cf6`) is the single brand accent. Don't introduce additional
+  accent colors.
 
 ### Component-Specific Notes
 
-- **Dashboard "Estado general" card:** Uses light background (`bg-[#f7f9f3]`) with green accents, NOT a dark box.
-- **HeroConversation widget:** Uses green palette (`#2c7334`, `#b8d96e`, `#eef6dc`) to match the site. Never use purple/orange.
-- **Checkout:** Container has `min-h-[480px]` and `rounded-2xl` to prevent empty-state collapse.
-- **Auth pages:** Use `.panel` class and body gradient. No flat backgrounds.
-- **`MobileNav`:** Closes on Escape and on outside pointerdown, restores focus to the toggle, and
+- **`HeroConversation` widget:** uses the purple system (`#8b5cf6`, `#f3eeff`) — never green
+  or orange.
+- **Checkout:** container has `min-h-[480px]` to prevent empty-state collapse.
+- **`AppShell` header:** sticky, `bg-[#fafafa]/80` with `backdrop-blur-xl`.
+- **`MobileNav`:** closes on Escape and on outside pointerdown, restores focus to the toggle, and
   locks body scroll while open.
 - **Skip link:** `SiteLanding`'s "Saltar al contenido" targets `#contenido` (the wrapper around
   `LandingHero`), not `#main-content` — the `<main>` contains the link, so it skipped nothing.
