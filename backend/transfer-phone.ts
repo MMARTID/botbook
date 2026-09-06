@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { prisma } from "./src/lib/prisma.js";
+import { execSync } from "child_process";
 
 async function transferPhoneNumber(fromBusinessName: string, toBusinessName: string) {
   console.log(`\n📱 Transferiendo número de "${fromBusinessName}" → "${toBusinessName}"...\n`);
@@ -65,6 +66,21 @@ async function transferPhoneNumber(fromBusinessName: string, toBusinessName: str
     console.log(`✓ Asignado: ${toBusiness.name}`);
 
     console.log(`\n✅ Transferencia completada. Reiniciando backend...\n`);
+
+    try {
+      execSync("pkill -f 'tsx.*server.ts'", { stdio: "ignore" });
+      console.log("⏹️  Backend detenido");
+
+      await new Promise((r) => setTimeout(r, 1500));
+
+      execSync("npm run dev > /tmp/backend.log 2>&1 &", { stdio: "ignore" });
+      console.log("▶️  Backend reiniciado en background");
+      console.log("📋 Logs: tail -f /tmp/backend.log\n");
+    } catch (err) {
+      console.warn("⚠️  No se pudo reiniciar el backend automáticamente");
+      console.warn("   Ejecuta manualmente: npm run dev\n");
+    }
+
     process.exit(0);
   } catch (error) {
     console.error(
