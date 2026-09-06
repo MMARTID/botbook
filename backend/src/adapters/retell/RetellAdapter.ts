@@ -525,6 +525,10 @@ export class RetellAdapter {
     agentId: string;
     maxDurationMs?: number;
     metadata?: Record<string, unknown>;
+    /** Variables seguras para personalizar la demo en el prompt de Retell. */
+    dynamicVariables?: Record<string, string>;
+    /** Saludo por llamada: hace visible la personalización desde el primer segundo. */
+    beginMessage?: string;
   }): Promise<{ callId: string; accessToken: string }> {
     this.ensureApiKey();
 
@@ -537,12 +541,16 @@ export class RetellAdapter {
       Number.isFinite(input.maxDurationMs) &&
       input.maxDurationMs > 0;
 
+    const agentOverride = {
+      ...(hasValidMaxDuration ? { agent: { max_call_duration_ms: input.maxDurationMs } } : {}),
+      ...(input.beginMessage ? { retell_llm: { begin_message: input.beginMessage } } : {}),
+    };
+
     const response = await this.client.call.createWebCall({
       agent_id: input.agentId,
-      ...(hasValidMaxDuration
-        ? { agent_override: { agent: { max_call_duration_ms: input.maxDurationMs } } }
-        : {}),
+      ...(Object.keys(agentOverride).length > 0 ? { agent_override: agentOverride } : {}),
       ...(input.metadata ? { metadata: input.metadata } : {}),
+      ...(input.dynamicVariables ? { retell_llm_dynamic_variables: input.dynamicVariables } : {}),
     });
 
     return { callId: response.call_id, accessToken: response.access_token };

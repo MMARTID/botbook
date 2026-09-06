@@ -74,4 +74,32 @@ describe("createDemoWebCall", () => {
     expect(config).toMatchObject({ timeout: expect.any(Number) });
     expect((config as { timeout: number }).timeout).toBeGreaterThan(0);
   });
+
+  it("incluye el negocio elegido solo cuando se solicita una demo personalizada", async () => {
+    const postSpy = vi
+      .spyOn(api, "post")
+      .mockResolvedValue({ data: { callId: "call_123", accessToken: "token_abc" } });
+
+    await createDemoWebCall("peluqueria", "place_123");
+
+    expect(postSpy).toHaveBeenCalledWith(
+      "/demo/web-call",
+      { niche: "peluqueria", placeId: "place_123" },
+      { timeout: 15000 },
+    );
+  });
+
+  it("solo manda el consentimiento cuando la persona lo marca expresamente", async () => {
+    const postSpy = vi
+      .spyOn(api, "post")
+      .mockResolvedValue({ data: { callId: "call_123", accessToken: "token_abc" } });
+
+    await createDemoWebCall("peluqueria", "place_123", true);
+
+    expect(postSpy).toHaveBeenCalledWith(
+      "/demo/web-call",
+      { niche: "peluqueria", placeId: "place_123", allowBusinessDataRetention: true },
+      { timeout: 15000 },
+    );
+  });
 });

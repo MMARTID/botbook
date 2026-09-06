@@ -59,6 +59,11 @@ export default function PrivacidadPage() {
           La conversación se procesa a través de nuestro proveedor de voz para poder transcribir y responder en
           tiempo real. No la usamos para entrenar modelos.
         </p>
+        <p>
+          Si seleccionas un negocio y marcas voluntariamente la casilla de consentimiento, podemos conservar sus
+          datos públicos de identificación para evaluar y mejorar las demos y el servicio. Ese uso es opcional, no
+          afecta a la conversación de prueba y puedes retirar tu consentimiento escribiendo a hola@alhabla.ai.
+        </p>
       </LegalSection>
 
       <LegalSection title="Datos de tu cuenta">

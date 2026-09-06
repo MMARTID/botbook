@@ -198,6 +198,25 @@ export async function getPlaceDetails(placeId: string) {
   return data;
 }
 
+/** Datos mínimos que la landing pública puede usar para contextualizar una demo. */
+export type DemoPlaceDetails = Pick<PlaceDetails, "placeId" | "name" | "address" | "types">;
+
+/**
+ * Google Places para la demo pública. Se mantiene separado de la búsqueda de
+ * registro, que requiere sesión y devuelve la ficha completa del negocio.
+ */
+export async function searchDemoPlaces(query: string) {
+  const { data } = await api.get<{ results: PlaceSearchResult[] }>("/demo/places/autocomplete", {
+    params: { q: query },
+  });
+  return data.results;
+}
+
+export async function getDemoPlaceDetails(placeId: string) {
+  const { data } = await api.get<DemoPlaceDetails>(`/demo/places/details/${encodeURIComponent(placeId)}`);
+  return data;
+}
+
 export async function updateBookingCapacity(bookingCapacity: number) {
   const { data } = await api.patch<BookingSettings>("/booking-settings", { bookingCapacity });
   return data;
@@ -259,7 +278,7 @@ export async function provisionPhoneNumber() {
   return data;
 }
 
-export async function createDemoWebCall(niche?: string) {
+export async function createDemoWebCall(niche?: string, placeId?: string, allowBusinessDataRetention?: boolean) {
   // Timeout explícito: sin uno, un fallo de red silencioso deja al visitante
   // mirando "Conectando demo…" indefinidamente en vez de ver un error
   // accionable. Al expirar, axios lanza un error cuyo mensaje contiene
@@ -267,7 +286,11 @@ export async function createDemoWebCall(niche?: string) {
   // para el resto de fallos de red se muestra sin cambios adicionales.
   const { data } = await api.post<{ callId: string; accessToken: string }>(
     "/demo/web-call",
-    niche ? { niche } : {},
+    {
+      ...(niche ? { niche } : {}),
+      ...(placeId ? { placeId } : {}),
+      ...(allowBusinessDataRetention ? { allowBusinessDataRetention: true } : {}),
+    },
     { timeout: 15000 },
   );
   return data;

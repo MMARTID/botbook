@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { getDemoAgentId, resolveDemoMaxDurationSeconds } from "../../../src/modules/demo/routes.js";
+import { buildDemoBusinessContext, getDemoAgentId, resolveDemoMaxDurationSeconds } from "../../../src/modules/demo/routes.js";
 
 const DEMO_ENV_VARS = [
   "RETELL_DEMO_AGENT_ID",
@@ -109,5 +109,25 @@ describe("resolveDemoMaxDurationSeconds", () => {
   it("cae al default si el valor es una cadena vacía", () => {
     process.env[ENV_VAR] = "";
     expect(resolveDemoMaxDurationSeconds()).toBe(60);
+  });
+});
+
+describe("buildDemoBusinessContext", () => {
+  it("solo expone el contexto mínimo del negocio como variables de Retell", () => {
+    const context = buildDemoBusinessContext({
+      placeId: "place_123",
+      name: "Peluquería Aurora",
+      address: "Calle Mayor 1, Madrid",
+      phone: "+34910000000",
+      schedule: {} as never,
+      types: ["hair_care", "beauty_salon"],
+    });
+
+    expect(context.dynamicVariables).toEqual({
+      nombre_negocio: "Peluquería Aurora",
+      direccion_negocio: "Calle Mayor 1, Madrid",
+      tipo_negocio: "hair_care, beauty_salon",
+    });
+    expect(context.beginMessage).toContain("Peluquería Aurora");
   });
 });

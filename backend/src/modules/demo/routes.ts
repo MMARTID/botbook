@@ -1,6 +1,7 @@
 import type { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
 import { retellAdapter } from "../../adapters/retell/RetellAdapter.js";
+import { getPlaceDetails, searchPlaces, type PlaceDetails } from "../places/service.js";
 
 const demoRateLimit = {
   max: 10,
@@ -19,6 +20,19 @@ type DemoNiche = (typeof DEMO_NICHES)[number];
 
 const WebCallBodySchema = z.object({
   niche: z.enum(DEMO_NICHES).optional(),
+  // La ficha se vuelve a consultar en el servidor. Así no se introduce texto
+  // arbitrario del navegador en las variables del LLM de la demo.
+  placeId: z.string().trim().min(1).max(200).optional(),
+  // Consentimiento opcional, separado de la personalización puntual de la llamada.
+  allowBusinessDataRetention: z.boolean().optional(),
+});
+
+const DemoPlaceSearchQuerySchema = z.object({
+  q: z.string().trim().min(3).max(120),
+});
+
+const DemoPlaceIdParamsSchema = z.object({
+  placeId: z.string().trim().min(1).max(200),
 });
 
 const DEMO_AGENT_ENV_BY_NICHE: Record<DemoNiche, string> = {
@@ -63,12 +77,83 @@ export function resolveDemoMaxDurationSeconds(): number {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_DEMO_MAX_DURATION_SECONDS;
 }
 
+function normalizeDemoText(value: string, maximumLength: number, fallback: string) {
+  const normalized = value.replace(/\s+/g, " ").trim().slice(0, maximumLength);
+  return normalized || fallback;
+}
+
+export function buildDemoBusinessContext(place: PlaceDetails) {
+  const businessName = normalizeDemoText(place.name, 120, "tu negocio");
+  const businessAddress = normalizeDemoText(place.address, 180, "No disponible");
+  const businessTypes = place.types
+    .slice(0, 3)
+    .map((type) => normalizeDemoText(type, 60, ""))
+    .filter(Boolean)
+    .join(", ") || "negocio local";
+
+  return {
+    businessName,
+    dynamicVariables: {
+      nombre_negocio: businessName,
+      direccion_negocio: businessAddress,
+      tipo_negocio: businessTypes,
+    },
+    beginMessage: `Hola, has llamado a ${businessName}. Soy la recepción virtual de Alhabla. ¿En qué te ayudo?`,
+  };
+}
+
 /**
  * Demo pública de voz de la landing. Crea una llamada web de Retell contra el
  * agente de demo del nicho (o el genérico) y devuelve el access token que
  * necesita el SDK del navegador. Sin autenticación: la usa cualquier visitante.
  */
 export const demoRoutes: FastifyPluginAsync = async (fastify) => {
+  // Los endpoints de registro de Places siguen protegidos. La landing recibe
+  // únicamente nombre, dirección y categoría para elegir una demo, con el
+  // mismo límite estricto que la creación de la llamada.
+  fastify.get<{ Querystring: { q?: string } }>(
+    "/places/autocomplete",
+    { config: { rateLimit: demoRateLimit } },
+    async (request, reply) => {
+      const parsed = DemoPlaceSearchQuerySchema.safeParse(request.query);
+      if (!parsed.success) {
+        return reply.status(400).send({ error: "Invalid query" });
+      }
+
+      try {
+        const results = await searchPlaces(parsed.data.q, { countryCode: "ES" });
+        return reply.send({ results });
+      } catch (error) {
+        fastify.log.error({ err: error }, "Google Places demo autocomplete failed");
+        return reply.status(503).send({ error: "Unable to search places right now" });
+      }
+    },
+  );
+
+  fastify.get<{ Params: { placeId: string } }>(
+    "/places/details/:placeId",
+    { config: { rateLimit: demoRateLimit } },
+    async (request, reply) => {
+      const parsed = DemoPlaceIdParamsSchema.safeParse(request.params);
+      if (!parsed.success) {
+        return reply.status(400).send({ error: "Invalid place id" });
+      }
+
+      try {
+        const place = await getPlaceDetails(parsed.data.placeId);
+        return reply.send({
+          placeId: place.placeId,
+          name: place.name,
+          address: place.address,
+          types: place.types,
+        });
+      } catch (error) {
+        fastify.log.error({ err: error }, "Google Places demo details failed");
+        return reply.status(503).send({ error: "Unable to fetch place details right now" });
+      }
+    },
+  );
+
   fastify.post(
     "/web-call",
     {
@@ -92,10 +177,27 @@ export const demoRoutes: FastifyPluginAsync = async (fastify) => {
 
       try {
         const maxDurationSeconds = resolveDemoMaxDurationSeconds();
+        const business = parsed.data.placeId
+          ? buildDemoBusinessContext(await getPlaceDetails(parsed.data.placeId))
+          : null;
+        const canRetainBusinessData = Boolean(business && parsed.data.allowBusinessDataRetention);
         const call = await retellAdapter.createWebCall({
           agentId,
           maxDurationMs: maxDurationSeconds * 1000,
-          metadata: { source: "landing-demo", niche: niche ?? "general" },
+          metadata: {
+            source: "landing-demo",
+            niche: niche ?? "general",
+            personalized: Boolean(business),
+            ...(canRetainBusinessData
+              ? {
+                  placeId: parsed.data.placeId,
+                  allowBusinessDataRetention: true,
+                }
+              : {}),
+          },
+          ...(business
+            ? { dynamicVariables: business.dynamicVariables, beginMessage: business.beginMessage }
+            : {}),
         });
 
         return reply.send(call);
