@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useState, useEffect, Suspense } from "react";
+import axios from "axios";
 import { Bot, PhoneCall, Clock3, TrendingUp, CalendarDays, Upload, FileText, ArrowUpRight, ArrowRight, Sparkles, Smartphone, RefreshCw, type LucideIcon } from "lucide-react";
 import { getStats, getPhoneNumberInfo, provisionPhoneNumber } from "@/lib/api";
 import { useBusiness } from "@/components/providers";
@@ -125,8 +126,8 @@ function DashboardContent() {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["phone-number"] });
     },
-    onError: (error: any) => {
-      if (error.response?.status === 402) {
+    onError: (error: unknown) => {
+      if (axios.isAxiosError(error) && error.response?.status === 402) {
         setCalendarStatus({
           type: "error",
           message: "Necesitas un plan activo para asignar un número de teléfono. Elige tu plan en la sección de facturación.",
@@ -134,7 +135,7 @@ function DashboardContent() {
       } else {
         setCalendarStatus({
           type: "error",
-          message: error.response?.data?.error || "Error al asignar el número de teléfono.",
+          message: (axios.isAxiosError(error) && error.response?.data?.error) || "Error al asignar el número de teléfono.",
         });
       }
     },
