@@ -287,7 +287,7 @@ function DashboardContent() {
             </div>
 
             {phoneQuery.data && phoneQuery.data.status !== "active" && (
-              business.subscriptionStatus === "active" ? (
+              (business.subscriptionStatus === "ACTIVE" || business.subscriptionStatus === "TRIALING") ? (
                 <button
                   type="button"
                   onClick={() => provisionMutation.mutate()}

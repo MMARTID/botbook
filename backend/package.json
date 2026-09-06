@@ -17,8 +17,7 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "test:integration": "vitest run --config vitest.integration.config.ts",
-    "test:integration:watch": "vitest --config vitest.integration.config.ts",
-    "transfer-phone": "DATABASE_URL='postgresql://postgres:postgres@localhost:5433/alhabla_test' tsx transfer-phone.ts"
+    "test:integration:watch": "vitest --config vitest.integration.config.ts"
   },
   "keywords": [
     "vapi",

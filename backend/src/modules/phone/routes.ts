@@ -30,7 +30,11 @@ export const phoneRoutes: FastifyPluginAsync = async (fastify) => {
           select: { subscriptionStatus: true },
         });
 
-        if (!business || business.subscriptionStatus !== "active") {
+        const hasActivePlan =
+          business?.subscriptionStatus === "ACTIVE" ||
+          business?.subscriptionStatus === "TRIALING";
+
+        if (!hasActivePlan) {
           return reply.status(402).send({
             error: "No tienes un plan activo para asignar un número de teléfono",
           });

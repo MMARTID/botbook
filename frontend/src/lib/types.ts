@@ -58,6 +58,7 @@ export type Business = {
   outlookCalendarDisconnectedAt?: string | null;
   outlookCalendarLastError?: string | null;
   outlookUserEmail?: string | null;
+  subscriptionStatus?: SubscriptionStatus | null;
   agents?: Agent[];
   calls?: Call[];
 };
