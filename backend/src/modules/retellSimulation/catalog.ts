@@ -61,7 +61,10 @@ const REGLAS_DEL_CLIENTE = [
   "No repitas datos que ya has dado ni recites tu petición entera otra vez.",
   "No adelantes información que no te hayan pedido todavía.",
   "Si el agente te confirma lo que buscabas, o te deja claro que no puede",
-  "ayudarte, despídete brevemente y termina la conversación.",
+  "ayudarte, despídete en una frase corta y da la conversación por terminada.",
+  "Después de esa despedida no vuelvas a hablar bajo ningún concepto,",
+  "aunque el agente siga contestando o se despida otra vez: el agente no",
+  "cuelga solo, así que eres tú quien tiene que dejar de responder.",
 ].join(" ");
 
 export interface SimulationCase {
