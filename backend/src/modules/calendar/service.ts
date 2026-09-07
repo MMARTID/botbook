@@ -17,6 +17,39 @@ import {
   type MicrosoftCalendar,
 } from '../../lib/microsoftGraph.js';
 
+/** Recordatorio nativo de la app de calendario (Google Calendar / Outlook en
+ * el móvil) que dispara la notificación push al propietario 2h antes de la
+ * cita — no requiere ningún job ni canal de notificación propio, ambas
+ * plataformas lo gestionan solas a partir de este campo del evento. */
+const REMINDER_MINUTES_BEFORE_START = 120;
+
+/** Título y descripción del evento con todo lo que se conoce de la reserva.
+ * Antes el evento solo llevaba "Reserva de <nombre>" y una frase genérica;
+ * sin servicio, profesional ni teléfono, el propietario tenía que volver a
+ * la app de Alhabla para saber de qué iba la cita. */
+function buildEventContent(input: {
+  clientName: string;
+  clientPhone?: string | null;
+  serviceNames?: string[] | null;
+  professionalName?: string | null;
+}) {
+  const services = input.serviceNames?.filter(Boolean) ?? [];
+  const summary = services.length > 0
+    ? `${services.join(' + ')} — ${input.clientName}`
+    : `Reserva de ${input.clientName}`;
+
+  const descriptionLines = [
+    `Cliente: ${input.clientName}`,
+    input.clientPhone ? `Teléfono: ${input.clientPhone}` : null,
+    services.length > 0 ? `Servicio${services.length > 1 ? 's' : ''}: ${services.join(', ')}` : null,
+    input.professionalName ? `Profesional: ${input.professionalName}` : null,
+    '',
+    'Cita generada por el asistente virtual de Alhabla.',
+  ].filter((line) => line !== null);
+
+  return { summary, description: descriptionLines.join('\n') };
+}
+
 // Helper: create a new OAuth2 client per operation to avoid shared mutable state
 function createOAuth2Client() {
   return new google.auth.OAuth2(
@@ -556,6 +589,9 @@ export class CalendarService {
     startDateTime: string;
     durationMinutes?: number;
     clientEmail?: string;
+    clientPhone?: string | null;
+    serviceNames?: string[] | null;
+    professionalName?: string | null;
     provider: 'google' | 'outlook';
     googleRefreshToken?: string | null;
     googleCalendarId?: string | null;
@@ -567,6 +603,9 @@ export class CalendarService {
       startDateTime,
       durationMinutes = 30,
       clientEmail,
+      clientPhone,
+      serviceNames,
+      professionalName,
       provider,
       googleRefreshToken,
       googleCalendarId,
@@ -576,6 +615,7 @@ export class CalendarService {
 
     const startTime = new Date(startDateTime);
     const endTime = new Date(startTime.getTime() + durationMinutes * 60000);
+    const { summary, description } = buildEventContent({ clientName, clientPhone, serviceNames, professionalName });
 
     if (provider === 'outlook') {
       if (!outlookRefreshToken) {
@@ -590,11 +630,12 @@ export class CalendarService {
         const event = await createMicrosoftCalendarEvent({
           accessToken: access_token,
           calendarId: outlookCalendarId,
-          subject: `Reserva de ${clientName}`,
+          subject: summary,
           startDateTime: startTime.toISOString(),
           endDateTime: endTime.toISOString(),
           attendeeEmail: clientEmail,
-          description: 'Cita generada por asistente virtual de Alhabla.',
+          description,
+          reminderMinutesBeforeStart: REMINDER_MINUTES_BEFORE_START,
         });
 
         return event;
@@ -624,11 +665,17 @@ export class CalendarService {
     const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
 
     const event = {
-      summary: `Reserva de ${clientName}`,
-      description: `Cita generada por asistente virtual de Alhabla.`,
+      summary,
+      description,
       start: { dateTime: startTime.toISOString() },
       end: { dateTime: endTime.toISOString() },
       attendees: clientEmail ? [{ email: clientEmail }] : [],
+      // Notificación push nativa de Google Calendar al propietario, 2h antes
+      // de la cita — ver REMINDER_MINUTES_BEFORE_START.
+      reminders: {
+        useDefault: false,
+        overrides: [{ method: 'popup', minutes: REMINDER_MINUTES_BEFORE_START }],
+      },
     };
 
     const calendarId = googleCalendarId || 'primary';

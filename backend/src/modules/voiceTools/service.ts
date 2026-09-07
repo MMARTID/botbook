@@ -246,28 +246,40 @@ async function resolveCallForBusiness(
   callId: string | undefined,
   businessId: string,
   callLabel: string
-): Promise<{ id: string } | null> {
-  let call = callId
+): Promise<{ id: string; fromNumber: string | null } | null> {
+  const exactCall = callId
     ? await prisma.call.findUnique({
         where: { vapiCallId: callId },
-        select: { id: true },
+        select: { id: true, fromNumber: true },
       })
     : null;
 
-  if (!call) {
-    if (callId) {
-      console.warn(
-        `[VoiceTools] ${callLabel} no encontró la fila Call para callId=${callId}; usando heurístico de llamada más reciente`
-      );
-    }
-    call = await prisma.call.findFirst({
-      where: { businessId },
-      orderBy: { startedAt: "desc" },
-      select: { id: true },
-    });
+  if (exactCall) {
+    return exactCall;
   }
 
-  return call;
+  if (callId) {
+    console.warn(
+      `[VoiceTools] ${callLabel} no encontró la fila Call para callId=${callId}; usando heurístico de llamada más reciente`
+    );
+  }
+
+  const fallbackCall = await prisma.call.findFirst({
+    where: { businessId },
+    orderBy: { startedAt: "desc" },
+    select: { id: true },
+  });
+
+  if (!fallbackCall) {
+    return null;
+  }
+
+  // fromNumber: null a propósito. El heurístico de "llamada más reciente"
+  // solo sirve para vincular el Booking a *alguna* llamada — con dos
+  // llamadas simultáneas al mismo negocio puede devolver la de otro
+  // cliente, así que su fromNumber nunca debe usarse como teléfono de
+  // contacto de esta reserva.
+  return { id: fallbackCall.id, fromNumber: null };
 }
 
 /**
@@ -277,7 +289,11 @@ async function resolveCallForBusiness(
  * si no hay ninguna llamada a la que vincularlo).
  */
 async function capturePendingBookingLead(args: {
-  callId?: string;
+  // Resuelto una sola vez por el caller (executeBookAppointment ya lo
+  // necesita para el teléfono de contacto del evento) en vez de que esta
+  // función repita la misma consulta a Call en cada uno de sus tres puntos
+  // de llamada.
+  resolvedCall: { id: string } | null;
   businessId: string;
   clientName: string;
   clientEmail?: string;
@@ -290,7 +306,7 @@ async function capturePendingBookingLead(args: {
   callLabel: string;
 }): Promise<string | null> {
   try {
-    const call = await resolveCallForBusiness(args.callId, args.businessId, args.callLabel);
+    const call = args.resolvedCall;
     if (!call) {
       console.error(
         `[VoiceTools] ${args.callLabel} no pudo guardar la reserva pendiente: no hay ninguna llamada asociada`
@@ -377,22 +393,33 @@ async function executeBookAppointment(
     // (ej. "corte y mechas" en la misma cita) — se descarta cada id inválido
     // por separado, no toda la lista.
     let verifiedServiceIds: string[] = [];
+    let verifiedServiceNames: string[] = [];
     let verifiedServicesDurationMinutes = 0;
     if (requestedServiceIds.length > 0) {
       const services = await prisma.service.findMany({
         where: { id: { in: requestedServiceIds }, businessId: business.id, active: true },
-        select: { id: true, durationMinutes: true },
+        select: { id: true, name: true, durationMinutes: true },
       });
-      const foundIds = new Set(services.map((s) => s.id));
+      // findMany({ id: { in } }) no garantiza devolver las filas en el orden
+      // de requestedServiceIds — Postgres las da en su propio orden de
+      // almacenamiento/índice. Antes solo importaba para sumar duraciones
+      // (conmutativo), pero ahora también alimenta el título/descripción
+      // visibles del evento de calendario, así que hay que reordenar
+      // explícitamente según lo que pidió el cliente.
+      const serviceById = new Map(services.map((s) => [s.id, s]));
       for (const id of requestedServiceIds) {
-        if (!foundIds.has(id)) {
+        if (!serviceById.has(id)) {
           console.warn(
             `[VoiceTools] ${callLabel} recibió un serviceId no válido para este negocio (${id}); se ignora`
           );
         }
       }
-      verifiedServiceIds = services.map((s) => s.id);
-      verifiedServicesDurationMinutes = services.reduce((sum, s) => sum + s.durationMinutes, 0);
+      const orderedServices = requestedServiceIds
+        .map((id) => serviceById.get(id))
+        .filter((s): s is (typeof services)[number] => Boolean(s));
+      verifiedServiceIds = orderedServices.map((s) => s.id);
+      verifiedServiceNames = orderedServices.map((s) => s.name);
+      verifiedServicesDurationMinutes = orderedServices.reduce((sum, s) => sum + s.durationMinutes, 0);
     }
     // La suma de duraciones de los servicios verificados manda sobre lo que
     // diga el LLM — evita que una suma mental mal hecha en la conversación
@@ -408,6 +435,14 @@ async function executeBookAppointment(
         : !!business.googleRefreshToken &&
           business.googleCalendarConnected !== false;
 
+    // Resuelto aquí arriba, antes de cualquier punto de fallo, para no
+    // repetir la misma consulta a Call en cada uno de los tres sitios que
+    // pueden necesitarla (capturePendingBookingLead) — y para usar
+    // fromNumber como fallback del teléfono de contacto del evento cuando
+    // el cliente no pidió uno distinto (ver resolveCallForBusiness).
+    const call = await resolveCallForBusiness(callId, business.id, callLabel);
+    const effectiveClientPhone = clientPhone || call?.fromNumber || undefined;
+
     if (!hasCalendarConnection) {
       const reconnectCode =
         provider === "outlook"
@@ -419,7 +454,7 @@ async function executeBookAppointment(
         `[VoiceTools] ${callLabel} no puede reservar: ${providerLabel} requiere reconexión`
       );
       await capturePendingBookingLead({
-        callId,
+        resolvedCall: call,
         businessId: business.id,
         clientName,
         clientEmail,
@@ -472,13 +507,15 @@ async function executeBookAppointment(
     }
 
     let verifiedProfessionalId: string | undefined;
+    let verifiedProfessionalName: string | undefined;
     if (professionalId) {
       const professional = await prisma.professional.findFirst({
         where: { id: professionalId, businessId: business.id, active: true },
-        select: { id: true },
+        select: { id: true, name: true },
       });
       if (professional) {
         verifiedProfessionalId = professional.id;
+        verifiedProfessionalName = professional.name;
       } else {
         console.warn(
           `[VoiceTools] ${callLabel} recibió un professionalId no válido para este negocio (${professionalId}); se ignora`
@@ -488,6 +525,7 @@ async function executeBookAppointment(
 
     // Resolve professional: use provided one, otherwise pick the first available
     let resolvedProfessionalId = verifiedProfessionalId;
+    let resolvedProfessionalName = verifiedProfessionalName;
     if (!resolvedProfessionalId) {
       const availability = await checkAvailability({
         businessId: business.id,
@@ -511,6 +549,7 @@ async function executeBookAppointment(
       }
 
       resolvedProfessionalId = availability.availableProfessionals[0]?.id;
+      resolvedProfessionalName = availability.availableProfessionals[0]?.name;
     }
 
     try {
@@ -519,6 +558,9 @@ async function executeBookAppointment(
         startDateTime,
         durationMinutes: effectiveDuration,
         clientEmail,
+        clientPhone: effectiveClientPhone,
+        serviceNames: verifiedServiceNames,
+        professionalName: resolvedProfessionalName,
         provider,
         googleRefreshToken: business.googleRefreshToken,
         googleCalendarId: business.googleCalendarId,
@@ -528,8 +570,6 @@ async function executeBookAppointment(
 
       // Persist booking in database, vinculada a la llamada exacta cuando se
       // conoce su callId (ver resolveCallForBusiness).
-      const call = await resolveCallForBusiness(callId, business.id, callLabel);
-
       if (call) {
         await prisma.booking.upsert({
           where: { callId: call.id },
@@ -615,7 +655,7 @@ async function executeBookAppointment(
         // Reconectar el calendario requiere una acción manual del negocio:
         // guardamos la solicitud pero NO la reintentamos sola en segundo plano.
         await capturePendingBookingLead({
-          callId,
+          resolvedCall: call,
           businessId: business.id,
           clientName,
           clientEmail,
@@ -657,7 +697,7 @@ async function executeBookAppointment(
       );
 
       const leadId = await capturePendingBookingLead({
-        callId,
+        resolvedCall: call,
         businessId: business.id,
         clientName,
         clientEmail,

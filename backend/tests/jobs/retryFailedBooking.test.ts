@@ -8,6 +8,8 @@ vi.mock("../../src/lib/prisma.js", () => ({
     lead: { findUnique: vi.fn(), update: vi.fn() },
     call: { findUnique: vi.fn() },
     business: { findUnique: vi.fn() },
+    service: { findMany: vi.fn() },
+    professional: { findFirst: vi.fn() },
     $transaction: vi.fn(),
   },
 }));
@@ -19,6 +21,8 @@ vi.mock("../../src/modules/calendar/service.js", () => ({
 const mockedLeadFindUnique = vi.mocked(prisma.lead.findUnique);
 const mockedCallFindUnique = vi.mocked(prisma.call.findUnique);
 const mockedBusinessFindUnique = vi.mocked(prisma.business.findUnique);
+const mockedServiceFindMany = vi.mocked(prisma.service.findMany);
+const mockedProfessionalFindFirst = vi.mocked(prisma.professional.findFirst);
 const mockedTransaction = vi.mocked(prisma.$transaction);
 const mockedBookAppointment = vi.mocked(calendarService.bookAppointment);
 
@@ -26,6 +30,7 @@ const leadId = "lead_1";
 const pendingBookingData = {
   clientName: "Ana García",
   clientEmail: "ana@example.com",
+  clientPhone: "+34600123456",
   startDateTime: "2026-09-10T10:00:00Z",
   durationMinutes: 30,
   serviceIds: ["service_1"],
@@ -67,6 +72,8 @@ describe("processRetryFailedBookingJob", () => {
       callback({ booking: { upsert: mockUpsert }, lead: { update: mockLeadUpdate } })
     );
     mockedBookAppointment.mockResolvedValue({ htmlLink: "https://calendar.google.com/event/1" } as any);
+    mockedServiceFindMany.mockResolvedValue([{ id: "service_1", name: "Corte" }] as any);
+    mockedProfessionalFindFirst.mockResolvedValue({ name: "Montse" } as any);
   });
 
   it("no hace nada si el lead ya no existe", async () => {
@@ -141,6 +148,9 @@ describe("processRetryFailedBookingJob", () => {
       expect.objectContaining({
         clientName: "Ana García",
         clientEmail: "ana@example.com",
+        clientPhone: "+34600123456",
+        serviceNames: ["Corte"],
+        professionalName: "Montse",
         provider: "google",
         googleRefreshToken: "google_refresh_token",
       })
@@ -191,5 +201,24 @@ describe("processRetryFailedBookingJob", () => {
       "Calendario de Google no responde"
     );
     expect(mockLeadUpdate).not.toHaveBeenCalled();
+  });
+
+  it("filtra service/professional por businessId al resolver nombres — el Lead puede traer ids sin verificar", async () => {
+    mockedLeadFindUnique.mockResolvedValue(buildLead() as any);
+    mockedCallFindUnique.mockResolvedValue({ businessId: "biz_1" } as any);
+    mockedBusinessFindUnique.mockResolvedValue(buildBusiness() as any);
+
+    await processRetryFailedBookingJob({ leadId });
+
+    expect(mockedServiceFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ businessId: "biz_1" }),
+      })
+    );
+    expect(mockedProfessionalFindFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ businessId: "biz_1" }),
+      })
+    );
   });
 });

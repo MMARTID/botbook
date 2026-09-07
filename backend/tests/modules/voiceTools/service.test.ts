@@ -102,7 +102,7 @@ describe("executeVoiceTool book_appointment — vinculación a la llamada correc
     expect(result.result.success).toBe(true);
     expect(mockedCallFindUnique).toHaveBeenCalledWith({
       where: { vapiCallId: "call_vapi_OLD" },
-      select: { id: true },
+      select: { id: true, fromNumber: true },
     });
     expect(mockedCallFindFirst).not.toHaveBeenCalled();
     expect(mockedBookingUpsert).toHaveBeenCalledWith(
@@ -122,6 +122,9 @@ describe("executeVoiceTool book_appointment — vinculación a la llamada correc
     );
 
     expect(result.result.success).toBe(true);
+    // select sin fromNumber a propósito: el heurístico puede devolver la
+    // llamada de OTRO cliente si hay dos simultáneas, así que su teléfono
+    // nunca debe usarse como contacto de esta reserva (ver siguiente test).
     expect(mockedCallFindFirst).toHaveBeenCalledWith({
       where: { businessId: "business_123" },
       orderBy: { startedAt: "desc" },
@@ -129,6 +132,23 @@ describe("executeVoiceTool book_appointment — vinculación a la llamada correc
     });
     expect(mockedBookingUpsert).toHaveBeenCalledWith(
       expect.objectContaining({ where: { callId: "call_row_MOST_RECENT" } })
+    );
+  });
+
+  it("no usa el fromNumber de otra llamada cuando cae al heurístico (evita mezclar teléfonos entre clientes)", async () => {
+    mockedCallFindUnique.mockResolvedValue(null);
+    // Aunque el mock devolviera fromNumber, resolveCallForBusiness ya no lo
+    // selecciona en el path heurístico — este test fija el contrato: el
+    // evento de calendario no debe llevar ningún teléfono en este caso.
+    mockedCallFindFirst.mockResolvedValue({ id: "call_row_MOST_RECENT" } as any);
+
+    const result = await executeVoiceTool(
+      buildBookAppointmentInput({ callId: "call_vapi_NOT_YET_PERSISTED" })
+    );
+
+    expect(result.result.success).toBe(true);
+    expect(mockedBookAppointment).toHaveBeenCalledWith(
+      expect.objectContaining({ clientPhone: undefined })
     );
   });
 
@@ -140,6 +160,55 @@ describe("executeVoiceTool book_appointment — vinculación a la llamada correc
     expect(result.result.success).toBe(true);
     expect(mockedCallFindUnique).not.toHaveBeenCalled();
     expect(mockedCallFindFirst).toHaveBeenCalled();
+  });
+
+  it("usa Call.fromNumber como teléfono del evento cuando el cliente no pidió uno distinto", async () => {
+    mockedCallFindUnique.mockResolvedValue({
+      id: "call_row_1",
+      fromNumber: "+34600999888",
+    } as any);
+
+    const result = await executeVoiceTool(
+      buildBookAppointmentInput({ callId: "call_vapi_1" })
+    );
+
+    expect(result.result.success).toBe(true);
+    expect(mockedBookAppointment).toHaveBeenCalledWith(
+      expect.objectContaining({ clientPhone: "+34600999888" })
+    );
+    // Booking.clientPhone solo se rellena si difiere de Call.fromNumber (ver
+    // schema.prisma) — el fallback es solo para el evento de calendario, no
+    // para la fila persistida.
+    expect(mockedBookingUpsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        create: expect.objectContaining({ clientPhone: undefined }),
+      })
+    );
+  });
+
+  it("prioriza el clientPhone explícito del cliente sobre Call.fromNumber", async () => {
+    mockedCallFindUnique.mockResolvedValue({
+      id: "call_row_1",
+      fromNumber: "+34600999888",
+    } as any);
+
+    const result = await executeVoiceTool(
+      buildBookAppointmentInput({
+        callId: "call_vapi_1",
+        params: {
+          clientName: "María",
+          startDateTime: "2026-08-25T17:00:00+02:00",
+          durationMinutes: 60,
+          professionalId: "professional_123",
+          clientPhone: "+34611222333",
+        },
+      })
+    );
+
+    expect(result.result.success).toBe(true);
+    expect(mockedBookAppointment).toHaveBeenCalledWith(
+      expect.objectContaining({ clientPhone: "+34611222333" })
+    );
   });
 });
 
@@ -206,6 +275,37 @@ describe("executeVoiceTool book_appointment — varios servicios en la misma cit
     expect(mockedBookingUpsert).toHaveBeenCalledWith(
       expect.objectContaining({
         create: expect.objectContaining({ serviceIds: ["svc_corte"] }),
+      })
+    );
+  });
+
+  it("respeta el orden en que el cliente pidió los servicios en el evento, aunque la BD los devuelva en otro orden", async () => {
+    // findMany({ id: { in } }) no garantiza el orden de requestedServiceIds
+    // — se simula aquí devolviéndolos al revés a propósito.
+    mockedServiceFindMany.mockResolvedValue([
+      { id: "svc_tratamiento", name: "Tratamiento capilar", durationMinutes: 45 },
+      { id: "svc_corte", name: "Corte", durationMinutes: 30 },
+    ] as any);
+
+    const result = await executeVoiceTool(
+      buildBookAppointmentInput({
+        params: {
+          clientName: "María",
+          startDateTime: "2026-08-25T17:00:00+02:00",
+          durationMinutes: 30,
+          professionalId: "professional_123",
+          serviceIds: ["svc_corte", "svc_tratamiento"],
+        },
+      })
+    );
+
+    expect(result.result.success).toBe(true);
+    expect(mockedBookAppointment).toHaveBeenCalledWith(
+      expect.objectContaining({ serviceNames: ["Corte", "Tratamiento capilar"] })
+    );
+    expect(mockedBookingUpsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        create: expect.objectContaining({ serviceIds: ["svc_corte", "svc_tratamiento"] }),
       })
     );
   });

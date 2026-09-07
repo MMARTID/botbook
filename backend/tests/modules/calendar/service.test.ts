@@ -138,6 +138,48 @@ describe("CalendarService.bookAppointment", () => {
     );
   });
 
+  it("enriquece título, descripción y recordatorio del evento de Google con servicio, profesional y teléfono", async () => {
+    const insertMock = vi.fn().mockResolvedValue({
+      data: { id: "event_123", htmlLink: "https://calendar.google.com/event/1" },
+    });
+    mockedGoogleCalendar.mockReturnValue({
+      events: { insert: insertMock, list: vi.fn() },
+    } as any);
+
+    await calendarService.bookAppointment({
+      clientName: "María",
+      clientPhone: "+34600123456",
+      serviceNames: ["Corte", "Tratamiento capilar"],
+      professionalName: "Montse",
+      startDateTime: "2026-08-10T10:00:00Z",
+      durationMinutes: 60,
+      provider: "google",
+      googleRefreshToken: "refresh_token_123",
+      googleCalendarId: "primary",
+    });
+
+    expect(insertMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        requestBody: expect.objectContaining({
+          summary: "Corte + Tratamiento capilar — María",
+          description: [
+            "Cliente: María",
+            "Teléfono: +34600123456",
+            "Servicios: Corte, Tratamiento capilar",
+            "Profesional: Montse",
+            "",
+            "Cita generada por el asistente virtual de Alhabla.",
+          ].join("\n"),
+          reminders: {
+            useDefault: false,
+            overrides: [{ method: "popup", minutes: 120 }],
+          },
+        }),
+      }),
+      expect.objectContaining({ timeout: expect.any(Number) })
+    );
+  });
+
   it("lanza GOOGLE_CALENDAR_RECONNECT_REQUIRED si no hay refresh token", async () => {
     await expect(
       calendarService.bookAppointment({
@@ -208,6 +250,43 @@ describe("CalendarService.bookAppointment", () => {
     } catch (error) {
       expect((error as CalendarBusinessError).code).toBe("BOOK_APPOINTMENT_FAILED");
     }
+  });
+
+  it("enriquece asunto, descripción y recordatorio del evento de Outlook con servicio, profesional y teléfono", async () => {
+    const { createMicrosoftCalendarEvent, refreshMicrosoftAccessToken } = await import(
+      "../../../src/lib/microsoftGraph.js"
+    );
+    vi.mocked(refreshMicrosoftAccessToken).mockResolvedValue({
+      access_token: "access_token_123",
+    } as any);
+    vi.mocked(createMicrosoftCalendarEvent).mockResolvedValue({ id: "event_123" } as any);
+
+    await calendarService.bookAppointment({
+      clientName: "María",
+      clientPhone: "+34600123456",
+      serviceNames: ["Corte", "Tratamiento capilar"],
+      professionalName: "Montse",
+      startDateTime: "2026-08-10T10:00:00Z",
+      durationMinutes: 60,
+      provider: "outlook",
+      outlookRefreshToken: "refresh_token_123",
+      outlookCalendarId: "calendar_123",
+    });
+
+    expect(createMicrosoftCalendarEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        subject: "Corte + Tratamiento capilar — María",
+        description: [
+          "Cliente: María",
+          "Teléfono: +34600123456",
+          "Servicios: Corte, Tratamiento capilar",
+          "Profesional: Montse",
+          "",
+          "Cita generada por el asistente virtual de Alhabla.",
+        ].join("\n"),
+        reminderMinutesBeforeStart: 120,
+      })
+    );
   });
 });
 

@@ -67,11 +67,44 @@ export async function processRetryFailedBookingJob(data: RetryFailedBookingJob):
     throw new Error("Calendario todavía desconectado; se reintentará más tarde");
   }
 
+  // Resueltos aparte (no vienen guardados en el Lead) para que el evento de
+  // calendario de un reintento en segundo plano quede tan completo como el
+  // de una reserva que sale bien a la primera — ver buildEventContent en
+  // calendar/service.ts. Filtrados por businessId igual que en
+  // voiceTools/service.ts: serviceIds/professionalId en el Lead pueden venir
+  // sin verificar (capturePendingBookingLead los guarda tal cual cuando el
+  // fallo es por calendario desconectado, antes de que existan las versiones
+  // verificadas) — sin este filtro, un id que por lo que sea coincidiera con
+  // el de otro negocio filtraría el nombre de SU servicio/profesional al
+  // evento de este negocio.
+  const requestedServiceIds = data_.serviceIds ?? [];
+  let serviceNames: string[] = [];
+  if (requestedServiceIds.length > 0) {
+    const services = await prisma.service.findMany({
+      where: { id: { in: requestedServiceIds }, businessId: call.businessId },
+      select: { id: true, name: true },
+    });
+    const serviceById = new Map(services.map((s) => [s.id, s.name]));
+    serviceNames = requestedServiceIds.map((id) => serviceById.get(id)).filter((n): n is string => Boolean(n));
+  }
+
+  let professionalName: string | undefined;
+  if (data_.professionalId) {
+    const professional = await prisma.professional.findFirst({
+      where: { id: data_.professionalId, businessId: call.businessId },
+      select: { name: true },
+    });
+    professionalName = professional?.name;
+  }
+
   const result = await calendarService.bookAppointment({
     clientName: data_.clientName,
     startDateTime: data_.startDateTime,
     durationMinutes: data_.durationMinutes,
     clientEmail: data_.clientEmail ?? undefined,
+    clientPhone: data_.clientPhone ?? undefined,
+    serviceNames,
+    professionalName,
     provider,
     googleRefreshToken: business.googleRefreshToken,
     googleCalendarId: business.googleCalendarId,

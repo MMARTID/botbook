@@ -232,6 +232,9 @@ export async function createMicrosoftCalendarEvent(input: {
   endDateTime: string;
   attendeeEmail?: string;
   description?: string;
+  /** Minutos antes del evento para la notificación push nativa de la app de
+   * Outlook al propietario del calendario. Omitido = sin recordatorio. */
+  reminderMinutesBeforeStart?: number;
 }) {
   const body: Record<string, unknown> = {
     subject: input.subject,
@@ -247,6 +250,9 @@ export async function createMicrosoftCalendarEvent(input: {
       contentType: "text",
       content: input.description ?? "",
     },
+    ...(input.reminderMinutesBeforeStart !== undefined
+      ? { isReminderOn: true, reminderMinutesBeforeStart: input.reminderMinutesBeforeStart }
+      : {}),
   };
 
   if (input.attendeeEmail) {
