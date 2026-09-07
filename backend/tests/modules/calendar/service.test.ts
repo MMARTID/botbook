@@ -139,6 +139,12 @@ describe("CalendarService.bookAppointment", () => {
   });
 
   it("enriquece título, descripción y recordatorio del evento de Google con servicio, profesional y teléfono", async () => {
+    // Reloj fijo 1h antes de la cita: el recordatorio "inmediato" calculado
+    // (minutos hasta la cita - 1) da un valor determinista (59) en vez de
+    // depender de cuándo se ejecute el test.
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-08-10T09:00:00Z"));
+
     const insertMock = vi.fn().mockResolvedValue({
       data: { id: "event_123", htmlLink: "https://calendar.google.com/event/1" },
     });
@@ -146,38 +152,45 @@ describe("CalendarService.bookAppointment", () => {
       events: { insert: insertMock, list: vi.fn() },
     } as any);
 
-    await calendarService.bookAppointment({
-      clientName: "María",
-      clientPhone: "+34600123456",
-      serviceNames: ["Corte", "Tratamiento capilar"],
-      professionalName: "Montse",
-      startDateTime: "2026-08-10T10:00:00Z",
-      durationMinutes: 60,
-      provider: "google",
-      googleRefreshToken: "refresh_token_123",
-      googleCalendarId: "primary",
-    });
+    try {
+      await calendarService.bookAppointment({
+        clientName: "María",
+        clientPhone: "+34600123456",
+        serviceNames: ["Corte", "Tratamiento capilar"],
+        professionalName: "Montse",
+        startDateTime: "2026-08-10T10:00:00Z",
+        durationMinutes: 60,
+        provider: "google",
+        googleRefreshToken: "refresh_token_123",
+        googleCalendarId: "primary",
+      });
 
-    expect(insertMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        requestBody: expect.objectContaining({
-          summary: "Corte + Tratamiento capilar — María",
-          description: [
-            "Cliente: María",
-            "Teléfono: +34600123456",
-            "Servicios: Corte, Tratamiento capilar",
-            "Profesional: Montse",
-            "",
-            "Cita generada por el asistente virtual de Alhabla.",
-          ].join("\n"),
-          reminders: {
-            useDefault: false,
-            overrides: [{ method: "popup", minutes: 120 }],
-          },
+      expect(insertMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          requestBody: expect.objectContaining({
+            summary: "Corte + Tratamiento capilar — María",
+            description: [
+              "Cliente: María",
+              "Teléfono: +34600123456",
+              "Servicios: Corte, Tratamiento capilar",
+              "Profesional: Montse",
+              "",
+              "Cita generada por el asistente virtual de Alhabla.",
+            ].join("\n"),
+            reminders: {
+              useDefault: false,
+              overrides: [
+                { method: "popup", minutes: 59 },
+                { method: "popup", minutes: 120 },
+              ],
+            },
+          }),
         }),
-      }),
-      expect.objectContaining({ timeout: expect.any(Number) })
-    );
+        expect.objectContaining({ timeout: expect.any(Number) })
+      );
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("lanza GOOGLE_CALENDAR_RECONNECT_REQUIRED si no hay refresh token", async () => {
@@ -253,6 +266,12 @@ describe("CalendarService.bookAppointment", () => {
   });
 
   it("enriquece asunto, descripción y recordatorio del evento de Outlook con servicio, profesional y teléfono", async () => {
+    // Reloj fijo 1h antes de la cita, igual que en el test de Google: hace
+    // determinista el recordatorio "inmediato" calculado (59 en vez de 120,
+    // ya que Outlook solo admite un valor y se prioriza el aviso inmediato).
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-08-10T09:00:00Z"));
+
     const { createMicrosoftCalendarEvent, refreshMicrosoftAccessToken } = await import(
       "../../../src/lib/microsoftGraph.js"
     );
@@ -261,32 +280,143 @@ describe("CalendarService.bookAppointment", () => {
     } as any);
     vi.mocked(createMicrosoftCalendarEvent).mockResolvedValue({ id: "event_123" } as any);
 
-    await calendarService.bookAppointment({
-      clientName: "María",
-      clientPhone: "+34600123456",
-      serviceNames: ["Corte", "Tratamiento capilar"],
-      professionalName: "Montse",
-      startDateTime: "2026-08-10T10:00:00Z",
-      durationMinutes: 60,
-      provider: "outlook",
-      outlookRefreshToken: "refresh_token_123",
-      outlookCalendarId: "calendar_123",
-    });
+    try {
+      await calendarService.bookAppointment({
+        clientName: "María",
+        clientPhone: "+34600123456",
+        serviceNames: ["Corte", "Tratamiento capilar"],
+        professionalName: "Montse",
+        startDateTime: "2026-08-10T10:00:00Z",
+        durationMinutes: 60,
+        provider: "outlook",
+        outlookRefreshToken: "refresh_token_123",
+        outlookCalendarId: "calendar_123",
+      });
 
-    expect(createMicrosoftCalendarEvent).toHaveBeenCalledWith(
-      expect.objectContaining({
-        subject: "Corte + Tratamiento capilar — María",
-        description: [
-          "Cliente: María",
-          "Teléfono: +34600123456",
-          "Servicios: Corte, Tratamiento capilar",
-          "Profesional: Montse",
-          "",
-          "Cita generada por el asistente virtual de Alhabla.",
-        ].join("\n"),
-        reminderMinutesBeforeStart: 120,
-      })
+      expect(createMicrosoftCalendarEvent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          subject: "Corte + Tratamiento capilar — María",
+          description: [
+            "Cliente: María",
+            "Teléfono: +34600123456",
+            "Servicios: Corte, Tratamiento capilar",
+            "Profesional: Montse",
+            "",
+            "Cita generada por el asistente virtual de Alhabla.",
+          ].join("\n"),
+          reminderMinutesBeforeStart: 59,
+        })
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("el recordatorio inmediato nunca es negativo si la cita está a menos de 1 minuto o ya pasó", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-08-10T10:00:00Z"));
+
+    const insertMock = vi.fn().mockResolvedValue({
+      data: { id: "event_123", htmlLink: "https://calendar.google.com/event/1" },
+    });
+    mockedGoogleCalendar.mockReturnValue({
+      events: { insert: insertMock, list: vi.fn() },
+    } as any);
+
+    try {
+      // startDateTime igual al "ahora" fijado: 0 minutos hasta la cita.
+      await calendarService.bookAppointment({
+        clientName: "María",
+        startDateTime: "2026-08-10T10:00:00Z",
+        durationMinutes: 60,
+        provider: "google",
+        googleRefreshToken: "refresh_token_123",
+        googleCalendarId: "primary",
+      });
+
+      expect(insertMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          requestBody: expect.objectContaining({
+            reminders: expect.objectContaining({
+              overrides: expect.arrayContaining([{ method: "popup", minutes: 0 }]),
+            }),
+          }),
+        }),
+        expect.objectContaining({ timeout: expect.any(Number) })
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("omite el recordatorio inmediato en Google (en vez de fallar la reserva) si la cita está a más de 4 semanas vista", async () => {
+    // Nada en el código impone un máximo de antelación de reserva — sin
+    // este tope, el "minutos antes" calculado superaría el límite de la API
+    // de Google (40320) y la reserva entera fallaría.
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-08-10T09:00:00Z"));
+
+    const insertMock = vi.fn().mockResolvedValue({
+      data: { id: "event_123", htmlLink: "https://calendar.google.com/event/1" },
+    });
+    mockedGoogleCalendar.mockReturnValue({
+      events: { insert: insertMock, list: vi.fn() },
+    } as any);
+
+    try {
+      await calendarService.bookAppointment({
+        clientName: "María",
+        startDateTime: "2026-10-01T10:00:00Z", // >4 semanas después del "ahora" fijado
+        durationMinutes: 60,
+        provider: "google",
+        googleRefreshToken: "refresh_token_123",
+        googleCalendarId: "primary",
+      });
+
+      expect(insertMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          requestBody: expect.objectContaining({
+            reminders: {
+              useDefault: false,
+              overrides: [{ method: "popup", minutes: 120 }],
+            },
+          }),
+        }),
+        expect.objectContaining({ timeout: expect.any(Number) })
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("cae al recordatorio de 2h en Outlook si la cita está a más de 4 semanas vista para el aviso inmediato", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-08-10T09:00:00Z"));
+
+    const { createMicrosoftCalendarEvent, refreshMicrosoftAccessToken } = await import(
+      "../../../src/lib/microsoftGraph.js"
     );
+    vi.mocked(refreshMicrosoftAccessToken).mockResolvedValue({
+      access_token: "access_token_123",
+    } as any);
+    vi.mocked(createMicrosoftCalendarEvent).mockResolvedValue({ id: "event_123" } as any);
+
+    try {
+      await calendarService.bookAppointment({
+        clientName: "María",
+        startDateTime: "2026-10-01T10:00:00Z",
+        durationMinutes: 60,
+        provider: "outlook",
+        outlookRefreshToken: "refresh_token_123",
+        outlookCalendarId: "calendar_123",
+      });
+
+      expect(createMicrosoftCalendarEvent).toHaveBeenCalledWith(
+        expect.objectContaining({ reminderMinutesBeforeStart: 120 })
+      );
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 
