@@ -198,6 +198,18 @@ export async function provisionPhoneNumber(
           twilioPhoneNumberStatus: "pending",
         },
       });
+
+      // Este pedido "pending" puede llegar ya con phoneNumber asignado
+      // (revisión regulatoria en curso, no ausencia de número) — misma
+      // invalidación que en la rama "success" de abajo, por la misma razón.
+      if (order.phoneNumber) {
+        try {
+          await getRedis().del(`voice_config:${businessId}`);
+        } catch (err) {
+          console.error(`[Phone] No se pudo invalidar la caché de configuración de voz para ${businessId}:`, err);
+        }
+      }
+
       return {
         success: false,
         status: "pending",
@@ -216,6 +228,18 @@ export async function provisionPhoneNumber(
         twilioPhoneNumberStatus: "purchased",
       },
     });
+
+    // telnyxPhoneNumber forma parte de BusinessVoiceConfig (voiceTools/service.ts,
+    // usado como remitente del SMS de aviso de reserva) — sin invalidar, un
+    // negocio que ya hubiera hecho alguna llamada de voz antes de comprar su
+    // número se quedaría con ese campo en null cacheado hasta que expire (1h),
+    // y el SMS simplemente no se enviaría en ese tiempo aunque la BD ya esté
+    // actualizada.
+    try {
+      await getRedis().del(`voice_config:${businessId}`);
+    } catch (err) {
+      console.error(`[Phone] No se pudo invalidar la caché de configuración de voz para ${businessId}:`, err);
+    }
 
     // 3. Find active agent to associate
     const agent = business.agents[0];

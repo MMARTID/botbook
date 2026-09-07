@@ -140,8 +140,8 @@ describe("CalendarService.bookAppointment", () => {
 
   it("enriquece título, descripción y recordatorio del evento de Google con servicio, profesional y teléfono", async () => {
     // Reloj fijo 1h antes de la cita: el recordatorio "inmediato" calculado
-    // (minutos hasta la cita - 1) da un valor determinista (59) en vez de
-    // depender de cuándo se ejecute el test.
+    // (minutos hasta la cita, truncados) da un valor determinista (60) en
+    // vez de depender de cuándo se ejecute el test.
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-08-10T09:00:00Z"));
 
@@ -180,7 +180,7 @@ describe("CalendarService.bookAppointment", () => {
             reminders: {
               useDefault: false,
               overrides: [
-                { method: "popup", minutes: 59 },
+                { method: "popup", minutes: 60 },
                 { method: "popup", minutes: 120 },
               ],
             },
@@ -267,7 +267,7 @@ describe("CalendarService.bookAppointment", () => {
 
   it("enriquece asunto, descripción y recordatorio del evento de Outlook con servicio, profesional y teléfono", async () => {
     // Reloj fijo 1h antes de la cita, igual que en el test de Google: hace
-    // determinista el recordatorio "inmediato" calculado (59 en vez de 120,
+    // determinista el recordatorio "inmediato" calculado (60 en vez de 120,
     // ya que Outlook solo admite un valor y se prioriza el aviso inmediato).
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-08-10T09:00:00Z"));
@@ -304,7 +304,7 @@ describe("CalendarService.bookAppointment", () => {
             "",
             "Cita generada por el asistente virtual de Alhabla.",
           ].join("\n"),
-          reminderMinutesBeforeStart: 59,
+          reminderMinutesBeforeStart: 60,
         })
       );
     } finally {

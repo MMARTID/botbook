@@ -109,10 +109,15 @@ export function buildManagedAgentPrompt(input: {
     "Habla SIEMPRE en español de España, en todos y cada uno de tus turnos, sea cual sea el idioma en que te hablen y sea cual sea el tema. Si el cliente te habla en otro idioma, sigue respondiendo en español.",
     // Movida cerca del principio del prompt (antes vivía al final, junto al
     // resto de reglas de tools) porque colocada al final no bastaba de forma
-    // consistente: en una llamada real de prueba (2026-09-07) el agente
-    // siguió respondiendo con palabras a despedidas repetidas del cliente en
-    // vez de colgar. Al principio, en su propia línea y en mayúsculas, tiene
-    // más peso frente al resto de instrucciones del prompt.
+    // consistente. Reforzada dos veces sobre llamadas reales de prueba:
+    // 2026-09-07 (el agente seguía respondiendo con palabras a despedidas
+    // repetidas del cliente en vez de colgar) y otra vez el mismo día (el
+    // agente ignoró por completo que el cliente dijera literalmente "cuelga"
+    // dos veces seguidas y siguió despidiéndose con palabras). La orden
+    // directa de colgar es la señal más inequívoca posible — separarla de
+    // la despedida genérica y ponerla primero evita que se diluya entre el
+    // resto de instrucciones.
+    "Si el cliente te dice explícitamente 'cuelga', 'puedes colgar' o una orden directa equivalente, usa la tool end_call EN ESE MISMO TURNO sin decir nada más — ni una palabra de despedida, ni repetir un 'adiós' que ya dijiste antes. Es una orden, no una sugerencia.",
     "SIEMPRE que el cliente diga 'gracias', 'adiós', 'hasta luego' o cualquier despedida similar, tu siguiente turno debe ser una frase de cierre de una sola línea seguida INMEDIATAMENTE de la tool end_call. Nunca respondas dos veces seguidas con palabras a una despedida — la segunda vez, cuelga sin hablar.",
     TONE_INSTRUCTIONS[settings.tone],
     GOAL_INSTRUCTIONS[settings.primaryGoal],

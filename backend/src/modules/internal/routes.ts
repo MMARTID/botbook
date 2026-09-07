@@ -5,6 +5,7 @@ import { processRetryFailedBookingJob } from "../../jobs/retryFailedBooking.js";
 import { processSendEmailJob } from "../../jobs/sendEmail.js";
 import { processSendSmsJob } from "../../jobs/sendSms.js";
 import { cleanupZombieCallsJob } from "../../jobs/cleanupZombieCalls.js";
+import { E164_PHONE_REGEX } from "../../lib/phone.js";
 
 const ProcessRecordingSchema = z.object({
   callId: z.string(),
@@ -24,8 +25,12 @@ const SendEmailSchema = z.object({
 });
 
 const SendSmsSchema = z.object({
-  fromNumber: z.string(),
-  toNumber: z.string(),
+  // Mismo regex que UpdateBusinessSchema.phone (businesses/routes.ts) — este
+  // endpoint es el punto real de envío a Telnyx, así que es donde más
+  // importa no dejar pasar un número mal formateado, no solo en el punto de
+  // entrada donde el negocio edita su teléfono.
+  fromNumber: z.string().regex(E164_PHONE_REGEX),
+  toNumber: z.string().regex(E164_PHONE_REGEX),
   text: z.string(),
 });
 

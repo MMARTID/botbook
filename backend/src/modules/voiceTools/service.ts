@@ -5,6 +5,7 @@ import { checkAvailability } from "../../lib/availability.js";
 import { calendarService } from "../calendar/service.js";
 import { errorMessage } from "../../lib/logUtils.js";
 import { enqueueRetryBookingJob, enqueueSmsJob } from "../../lib/cloudTasks.js";
+import { isValidE164Phone } from "../../lib/phone.js";
 
 export type VoiceToolName =
   | "check_business_hours"
@@ -633,11 +634,21 @@ async function executeBookAppointment(
 
       console.log(`[VoiceTools] ${callLabel} agendó la cita correctamente`);
 
-      // Aviso al propietario por SMS (Telnyx), no por email: nunca bloquea
-      // ni puede hacer fallar la reserva en sí — si el negocio todavía no
-      // tiene número Telnyx propio (no ha comprado uno), simplemente no se
-      // envía nada.
-      if (business.telnyxPhoneNumber) {
+      // Aviso al propietario por SMS (Telnyx), no por email: nunca puede
+      // hacer fallar la reserva en sí (try/catch propio). Dos guardas antes
+      // de intentarlo: (1) el negocio necesita su propio número Telnyx: sin
+      // él no hay remitente; (2) business.phone válido en formato E.164 —
+      // nace como placeholder ("TEMP-...", ver auth/routes.ts) hasta que el
+      // negocio lo edita explícitamente vía PATCH /business/me, así que sin
+      // esta comprobación cualquier negocio que aún no lo haya hecho
+      // encolaría un SMS destinado a fallar en cada reserva.
+      // Sí se espera (await): en producción enqueueSmsJob solo crea una
+      // tarea de Cloud Tasks (una llamada rápida, no el envío del SMS en
+      // sí) — no esperarla es peligroso en Cloud Run, que solo garantiza
+      // CPU mientras dura la petición y puede congelar el proceso justo
+      // después de responder al tool call, dejando esa tarea sin crear
+      // silenciosamente.
+      if (business.telnyxPhoneNumber && isValidE164Phone(business.phone)) {
         try {
           await enqueueSmsJob({
             fromNumber: business.telnyxPhoneNumber,

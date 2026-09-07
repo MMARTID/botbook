@@ -37,7 +37,7 @@ const MAX_REMINDER_MINUTES = 40_320;
  * 2h, se calcula un segundo reminder cuyo "minutos antes del evento" resulta
  * en que dispare casi en el instante de la creación — un reminder normal,
  * no una notificación push especial, así que ambas apps lo soportan igual.
- * Un evento cuya cita ya está a ≤1 minuto (o en el pasado, si el reloj del
+ * Un evento cuya cita ya está a <1 minuto (o en el pasado, si el reloj del
  * cliente y el servidor difieren un poco) usa 0 en vez de un valor negativo,
  * que Google/Outlook rechazarían. Si la cita está a más de
  * MAX_REMINDER_MINUTES vista (nada en el código impone un máximo de
@@ -46,8 +46,12 @@ const MAX_REMINDER_MINUTES = 40_320;
  * mejor omitir el aviso inmediato que hacer fallar la reserva entera
  * intentando mandar un valor que Google/Outlook van a rechazar. */
 function buildImmediateReminderMinutes(startTime: Date): number | null {
-  const minutesUntilStart = Math.floor((startTime.getTime() - Date.now()) / 60_000);
-  const minutes = Math.max(0, minutesUntilStart - 1);
+  // Math.floor ya trunca hacia abajo (hasta ~1 minuto de margen natural: si
+  // faltan 60.9 minutos da 60, no 61), así que no hace falta restar un
+  // minuto extra encima — eso solo añadía otro minuto de espera innecesario.
+  // Confirmado en una llamada real de prueba (2026-09-07): la notificación
+  // tardó "casi un minuto" en llegar con el margen doble.
+  const minutes = Math.max(0, Math.floor((startTime.getTime() - Date.now()) / 60_000));
   return minutes <= MAX_REMINDER_MINUTES ? minutes : null;
 }
 

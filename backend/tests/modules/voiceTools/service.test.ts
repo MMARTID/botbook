@@ -95,6 +95,10 @@ describe("executeVoiceTool book_appointment — vinculación a la llamada correc
     mockedBookAppointment.mockResolvedValue({ htmlLink: "https://calendar.google.com/event/1" } as any);
     mockedProfessionalFindFirst.mockResolvedValue({ id: "professional_123" } as any);
     mockedServiceFindMany.mockResolvedValue([]);
+    // enqueueSmsJob es async en producción (siempre devuelve una Promise) —
+    // sin esto, vi.fn() devuelve undefined y el .catch() del código real
+    // lanza un TypeError síncrono, capturado por el catch de la reserva.
+    mockedEnqueueSmsJob.mockResolvedValue(undefined);
   });
 
   it("vincula la reserva a la llamada exacta del callId, aunque exista otra más reciente", async () => {
@@ -225,6 +229,7 @@ describe("executeVoiceTool book_appointment — varios servicios en la misma cit
     mockedBookAppointment.mockResolvedValue({ htmlLink: "https://calendar.google.com/event/1" } as any);
     mockedProfessionalFindFirst.mockResolvedValue({ id: "professional_123" } as any);
     mockedCallFindFirst.mockResolvedValue({ id: "call_row_1" } as any);
+    mockedEnqueueSmsJob.mockResolvedValue(undefined);
   });
 
   it("suma la duración de los servicios verificados en vez de fiarse de la del LLM", async () => {
