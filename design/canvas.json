@@ -15,7 +15,7 @@
       "x": 0,
       "y": 0,
       "w": 1440,
-      "h": 6400,
+      "h": 7400,
       "title": "A · Editorial",
       "page": "page-1"
     },
@@ -45,7 +45,7 @@
       "y": -340,
       "w": 660,
       "page": "page-1",
-      "text": "LANDING · dirección A (Editorial), página completa\n\nRefleja la página real, sección por sección y en su orden actual. Los tokens no cambian: la tipografía manda y el morado queda como acento fino.\n\nSIN ANTETÍTULOS: DESIGN.md lo prohíbe en La Regla del Titular Solo, y el 2026-09-07 se decidió mantener la regla. Los badges que quedan aportan información que el titular no da (el dato del 60% en el hero, «Google Calendar & Outlook» nombrando la integración), que es lo que la regla sí permite.\n\nCAMBIOS YA IMPLEMENTADOS EN CÓDIGO:\n· El hero deja la conversación simulada y pasa al pulso de llamada entrante: anillos fijos que dan estructura y ondas que salen del centro cada 0,8 s. Se descartaron la onda de voz y la agenda que se llena.\n· El ordinal de cada paso baja de tamaño de titular al paso Body.\n· La calculadora sube detrás de los datos del sector: el problema se plantea una vez, de la evidencia del sector a las cifras del propio negocio.\n· El plan recomendado deja de ser una tarjeta negra (competía con el CTA final, también negro) y pasa a blanco con aro morado.",
+      "text": "LANDING · dirección A (Editorial), página completa\n\nAuditada línea a línea contra site-landing.tsx el 2026-09-07: esto es producción tal cual, no una interpretación. Los tokens no cambian: la tipografía manda y el morado queda como acento fino.\n\nSIN ANTETÍTULOS DECORATIVOS: DESIGN.md lo prohíbe en La Regla del Titular Solo. Los badges que quedan son reales y existen en el código (el dato del 60% en el hero, «El coste de no contestar», «Calcula tu pérdida real», «Google Calendar & Outlook»): aportan información que el titular no da, que es lo que la regla sí permite.\n\nCAMBIOS YA IMPLEMENTADOS EN CÓDIGO:\n· El hero deja la conversación simulada y pasa al pulso de llamada entrante: anillos fijos que dan estructura y ondas que salen del centro cada 0,8 s.\n· El ordinal de cada paso baja de tamaño de titular al paso Body.\n· La calculadora sube detrás de los datos del sector: el problema se plantea una vez, de la evidencia del sector a las cifras del propio negocio.\n· El plan recomendado deja de ser una tarjeta negra (competía con el CTA final, también negro) y pasa a blanco con aro morado.\n\nGAP DE ACCESIBILIDAD CONOCIDO, NO CORREGIDO AQUÍ A PROPÓSITO: el número de paso y el botón .btn-purple usan #8b5cf6 como texto sobre blanco/negro, 4.23:1 — falla AA para texto normal. Esta maqueta lo reproduce tal cual porque así está en producción hoy; corregirlo es una decisión de producto aparte, no un defecto de esta maqueta.",
       "kind": "note"
     },
     {

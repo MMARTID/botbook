@@ -940,6 +940,23 @@ npx prisma studio
 3. Add route to `frontend/src/app/sitemap.ts`.
 4. Add redirect in `frontend/next.config.mjs` if needed.
 
+## Lista de ramas por componente
+
+Convención ligera desde 2026-09-07: cuando queda pendiente pulir o rediseñar un
+componente concreto sin tocarlo todavía, se abre una rama con su nombre y se
+apunta aquí — un sitio único para saber dónde vive ese trabajo futuro cuando
+se retome. La rama no tiene por qué llevar commits desde el principio; puede
+partir vacía de `main` como marcador.
+
+| Rama | Componente | Issue | Notas |
+|------|-----------|-------|-------|
+| `hero-animation-landing` | `frontend/src/components/hero-pulse.tsx` (animación del hero, "pulse") | — | Pulir y/o rediseñar el pulso de llamada entrante del hero de la landing. |
+| `step-followups-landing` | `frontend/src/components/call-forwarding-flow.tsx` + tarjetas `threeSteps` en `site-landing.tsx` (sección "Cómo funciona") | — | Pulir y/o rediseñar el recorrido de 3 pasos. |
+| `demo-modal-landing` | Modal/experiencia de "Escuchar una llamada" del hero (`DemoVoiceCall`) | — | Pulir y/o rediseñar la demo de llamada de voz que se abre desde la landing. |
+
+Al abrir el Issue correspondiente, añade su número en la columna "Issue". Al
+fusionar o descartar una rama, quita su fila de esta tabla.
+
 ## Deployment Notes
 
 ### Automated CI/CD (GitHub Actions) — added 2026-09-04

@@ -2,7 +2,16 @@
 <html>
 <head>
   <meta charset="utf-8">
-  <!-- Sistema Alhabla, dirección Editorial. -->
+  <!-- Sistema Alhabla, dirección Editorial. Réplica 100x100 de production
+       (frontend/src/components/site-landing.tsx + landing-hero.tsx +
+       sector-data-section.tsx + call-forwarding-flow.tsx +
+       revenue-loss-calculator.tsx), verificada línea a línea contra el
+       código real el 2026-09-07. Los colores morado-como-texto (número de
+       paso, botón .btn-purple) se dejan en #8b5cf6 tal cual está hoy en
+       producción, aunque ese tono da 4.23:1 sobre blanco/negro (falla AA
+       para texto normal) — es un gap de accesibilidad real y ya conocido,
+       no un error de esta maqueta; corregirlo es trabajo de producto, no
+       de fidelidad del documento. -->
   <script src="./support.js"></script>
 </head>
 <body>
@@ -14,40 +23,42 @@
     a { color: #6d28d9; text-decoration: none; }
     a:hover { color: #7c3aed; }
     * { box-sizing: border-box; }
-    .eyebrow { display: flex; align-items: center; gap: 12px; }
-    .eyebrow-rule { width: 40px; height: 2px; background: #8b5cf6; }
-    .eyebrow-text { font-size: 13px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #6d28d9; }
-    .bar { width: 5px; border-radius: 999px; }
+    /* mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 real: 1280px centrado + 32px de
+       padding interno = 112px de margen a 1440px. Todas las secciones de
+       site-landing.tsx usan este mismo contenedor, sin excepción. */
+    .container { max-width: 1280px; margin: 0 auto; padding-left: 32px; padding-right: 32px; }
+    .eyebrow { display: inline-flex; align-items: center; gap: 8px; padding: 7px 14px; border-radius: 999px; background: #f3eeff; color: #6d28d9; box-shadow: inset 0 0 0 1px #ddd6fe; font-size: 13px; font-weight: 700; }
   </style>
 </helmet>
 
 <div style="width: 1440px; background: #ffffff; color: #0a0a0a;">
 
-  <!-- Cabecera -->
-  <div style="display: flex; align-items: center; justify-content: space-between; height: 72px; padding: 0 64px; border-bottom: 1px solid #e5e5e5;">
-    <div style="display: flex; align-items: center; gap: 10px;">
-      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#8b5cf6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
-      <span style="font-size: 19px; font-weight: 800; letter-spacing: -0.02em;">Alhabla</span>
-    </div>
-    <div style="display: flex; align-items: center; gap: 28px;">
-      <span style="font-size: 14px; font-weight: 500; color: #3f3f46;">Por qué</span>
-      <span style="font-size: 14px; font-weight: 500; color: #3f3f46;">Cómo funciona</span>
-      <span style="font-size: 14px; font-weight: 500; color: #3f3f46;">Precios</span>
-      <span style="font-size: 14px; font-weight: 500; color: #3f3f46;">Preguntas</span>
-      <div style="display: flex; align-items: center; gap: 10px; margin-left: 8px;">
-        <div style="display: flex; align-items: center; height: 40px; padding: 0 18px; border: 1px solid #0a0a0a; border-radius: 999px; font-size: 14px; font-weight: 600;">Iniciar sesión</div>
-        <div style="display: flex; align-items: center; height: 40px; padding: 0 18px; background: #0a0a0a; color: #ffffff; border-radius: 999px; font-size: 14px; font-weight: 600;">Empezar ahora</div>
+  <!-- Cabecera: h-16 lg:h-[4.5rem] = 72px a escritorio -->
+  <div style="border-bottom: 1px solid #e5e5e5;">
+    <div class="container" style="display: flex; align-items: center; justify-content: space-between; height: 72px;">
+      <div style="display: flex; align-items: center; gap: 10px;">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#8b5cf6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
+        <!-- text-base font-black leading-5 tracking-tight: 16px/900, no 19px/800 -->
+        <span style="font-size: 16px; line-height: 20px; font-weight: 900; letter-spacing: -0.025em;">Alhabla</span>
+      </div>
+      <div style="display: flex; align-items: center; gap: 12px;">
+        <span style="font-size: 14px; font-weight: 500; color: #3f3f46; margin-right: 16px;">Por qué</span>
+        <span style="font-size: 14px; font-weight: 500; color: #3f3f46; margin-right: 16px;">Cómo funciona</span>
+        <span style="font-size: 14px; font-weight: 500; color: #3f3f46; margin-right: 16px;">Precios</span>
+        <span style="font-size: 14px; font-weight: 500; color: #3f3f46; margin-right: 12px;">Preguntas</span>
+        <div style="display: flex; align-items: center; height: 40px; padding: 0 16px; border: 1px solid #e5e5e5; border-radius: 999px; font-size: 14px; font-weight: 600;">Iniciar sesión</div>
+        <div style="display: flex; align-items: center; height: 40px; padding: 0 16px; background: #0a0a0a; color: #ffffff; border-radius: 999px; font-size: 14px; font-weight: 600;">Empezar ahora</div>
       </div>
     </div>
   </div>
 
-  <!-- Hero -->
-  <div style="display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 40px; padding: 100px 64px 88px; align-items: center;">
+  <!-- Hero: mx-auto max-w-7xl grid lg:grid-cols-[1.02fr_0.98fr] gap-14 px-.. lg:py-20 -->
+  <div class="container" style="display: grid; grid-template-columns: 1.02fr 0.98fr; gap: 56px; align-items: center; padding-top: 80px; padding-bottom: 80px;">
 
-    <div style="grid-column: span 7;">
-      <div style="display: inline-flex; align-items: center; gap: 8px; margin-bottom: 28px; padding: 7px 14px; border-radius: 999px; background: #f3eeff; color: #6d28d9; box-shadow: inset 0 0 0 1px #ddd6fe;">
+    <div>
+      <div class="eyebrow" style="margin-bottom: 28px;">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6d28d9" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></svg>
-        <span style="font-size: 13px; font-weight: 700;">60% de quienes no logran contactarte no vuelve a intentarlo</span>
+        <span>60% de quienes no logran contactarte no vuelve a intentarlo</span>
       </div>
 
       <h1 style="margin: 0; font-size: 68px; line-height: 1.04; font-weight: 900; letter-spacing: -0.035em; text-wrap: pretty;">
@@ -82,10 +93,12 @@
       </div>
     </div>
 
-    <!-- Hero: pulso de llamada entrante. Anillos fijos que dan estructura y
-         ondas que salen del centro; con #f3eeff en los anillos no se veía
-         nada sobre blanco, por eso van en #ddd6fe y la onda en el acento. -->
-    <div style="grid-column: span 5; display: flex; flex-direction: column; gap: 28px;">
+    <!-- Hero: pulso de llamada entrante (HeroPulse). Anillos fijos que dan
+         estructura y ondas que salen del centro; con #f3eeff en los anillos
+         no se veía nada sobre blanco, por eso van en #ddd6fe y la onda en
+         el acento. Las dos píldoras muestran dos de los cuatro textos
+         reales del array RESULTADOS (rotan en producción; aquí, foto fija). -->
+    <div style="display: flex; flex-direction: column; gap: 28px;">
       <div style="position: relative; display: flex; align-items: center; justify-content: center; height: 300px;">
         <div style="position: absolute; width: 300px; height: 300px; border-radius: 999px; border: 1px solid #ddd6fe;"></div>
         <div style="position: absolute; width: 228px; height: 228px; border-radius: 999px; border: 1px solid #ddd6fe;"></div>
@@ -102,7 +115,7 @@
         </div>
         <div style="position: absolute; left: 0; bottom: 40px; display: flex; align-items: center; gap: 9px; padding: 9px 15px; border-radius: 999px; background: #ffffff; border: 1px solid #e5e5e5;">
           <span style="width: 7px; height: 7px; border-radius: 999px; background: #8b5cf6;"></span>
-          <span style="font-size: 13px; font-weight: 600;">jueves · 17:30</span>
+          <span style="font-size: 13px; font-weight: 600;">Cita confirmada · jue 17:30</span>
         </div>
       </div>
 
@@ -112,279 +125,445 @@
     </div>
   </div>
 
-  <!-- El problema: evidencia del sector, con fuente -->
-  <div style="padding: 80px 64px; border-top: 1px solid #e5e5e5;">
-    <h2 style="margin: 0 0 12px; max-width: 620px; font-size: 42px; line-height: 1.12; font-weight: 900; letter-spacing: -0.03em;">
-      La llamada que no coges se la queda otro.
-    </h2>
-    <p style="margin: 0 0 44px; max-width: 620px; font-size: 16px; line-height: 1.75; color: #52525b;">
-      No es una intuición del sector: está medido. En los negocios que trabajan con cita previa, el teléfono sigue siendo el canal principal de reserva y quien no recibe respuesta no vuelve a intentarlo.
-    </p>
+  <!-- #por-que — SectorDataSection: única sección junto a #preguntas con
+       border-y real; py-16 sm:py-20 → 80px a escritorio. -->
+  <div style="border-top: 1px solid #e5e5e5; border-bottom: 1px solid #e5e5e5;">
+    <div class="container" style="padding-top: 80px; padding-bottom: 80px;">
+      <div style="max-width: 640px; margin-bottom: 40px;">
+        <div class="eyebrow">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6d28d9" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></svg>
+          <span>El coste de no contestar</span>
+        </div>
+        <h2 style="margin: 20px 0 0; font-size: 36px; line-height: 1.15; font-weight: 900; letter-spacing: -0.03em;">
+          La llamada que no coges se la queda otro.
+        </h2>
+        <p style="margin: 16px 0 0; font-size: 16px; line-height: 1.75; color: #52525b;">
+          No es una intuición del sector: está medido. En los negocios que trabajan con cita previa, el teléfono sigue siendo el canal principal de reserva y quien no recibe respuesta no vuelve a intentarlo.
+        </p>
+      </div>
 
-    <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px;">
-      <div style="padding: 32px; border-radius: 24px; background: #0a0a0a; color: #ffffff;">
-        <div style="font-size: 52px; font-weight: 900; letter-spacing: -0.03em; line-height: 1;">78<span style="color: #a78bfa;">%</span></div>
-        <div style="margin-top: 16px; font-size: 15px; line-height: 1.65; color: rgba(255,255,255,0.75);">de los clientes contrata al primer negocio que responde</div>
-        <div style="margin-top: 14px; font-size: 13px; color: rgba(255,255,255,0.65);">minute-call.com</div>
+      <!-- CountUp renderiza el valor tal cual (p.ej. "57%"), sin colorear el
+           símbolo por separado: nada de "%" en morado suelto. -->
+      <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px;">
+        <div style="display: flex; flex-direction: column; justify-content: space-between; padding: 32px; border-radius: 24px; background: #0a0a0a; color: #ffffff;">
+          <div style="font-size: 60px; font-weight: 900; letter-spacing: -0.03em; line-height: 1;">78%</div>
+          <div style="margin-top: 16px; max-width: 320px; font-size: 14px; line-height: 1.7; color: rgba(255,255,255,0.8);">de los clientes contrata al primer negocio que responde</div>
+          <div style="margin-top: 24px; font-size: 12px; color: rgba(255,255,255,0.6);">Fuente: minute-call.com</div>
+        </div>
+        <div style="display: flex; flex-direction: column; justify-content: space-between; padding: 32px; border: 1px solid #e5e5e5; border-radius: 24px;">
+          <div style="font-size: 36px; font-weight: 900; letter-spacing: -0.03em; line-height: 1;">57%</div>
+          <div style="margin-top: 16px; font-size: 14px; line-height: 1.7; color: #52525b;">de los clientes reserva por teléfono: sigue siendo el canal más importante</div>
+          <div style="margin-top: 24px; font-size: 12px; color: #52525b;">Fuente: Zenoti</div>
+        </div>
+        <div style="display: flex; flex-direction: column; justify-content: space-between; padding: 32px; border: 1px solid #e5e5e5; border-radius: 24px;">
+          <div style="font-size: 36px; font-weight: 900; letter-spacing: -0.03em; line-height: 1;">60%</div>
+          <div style="margin-top: 16px; font-size: 14px; line-height: 1.7; color: #52525b;">de quienes no consiguen contactar no vuelve a llamar</div>
+          <div style="margin-top: 24px; font-size: 12px; color: #52525b;">Fuente: heilo.io</div>
+        </div>
       </div>
-      <div style="padding: 32px; border: 1px solid #e5e5e5; border-radius: 24px;">
-        <div style="font-size: 52px; font-weight: 900; letter-spacing: -0.03em; line-height: 1;">57<span style="color: #8b5cf6;">%</span></div>
-        <div style="margin-top: 16px; font-size: 15px; line-height: 1.65; color: #52525b;">de los clientes reserva por teléfono: sigue siendo el canal más importante</div>
-        <div style="margin-top: 14px; font-size: 13px; color: #52525b;">Zenoti</div>
-      </div>
-      <div style="padding: 32px; border: 1px solid #e5e5e5; border-radius: 24px;">
-        <div style="font-size: 52px; font-weight: 900; letter-spacing: -0.03em; line-height: 1;">60<span style="color: #8b5cf6;">%</span></div>
-        <div style="margin-top: 16px; font-size: 15px; line-height: 1.65; color: #52525b;">de quienes no consiguen contactar no vuelve a llamar</div>
-        <div style="margin-top: 14px; font-size: 13px; color: #52525b;">heilo.io</div>
-      </div>
-    </div>
 
-    <div style="display: flex; align-items: flex-start; gap: 16px; margin-top: 24px; padding: 24px 28px; border: 1px solid #e5e5e5; border-radius: 24px; background: #ffffff;">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#8b5cf6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0; margin-top: 2px;"><path d="M3 21c3 0 7-1 7-8V5c0-1.25-.756-2.017-2-2H4c-1.25 0-2 .75-2 1.972V11c0 1.25.75 2 2 2 1 0 1 0 1 1v1c0 1-1 2-2 2s-1 .008-1 1.031V20c0 1 0 1 1 1z"/><path d="M15 21c3 0 7-1 7-8V5c0-1.25-.757-2.017-2-2h-4c-1.25 0-2 .75-2 1.972V11c0 1.25.75 2 2 2h.75c0 2.25.25 4-2.75 4v3c0 1 0 1 1 1z"/></svg>
-      <div>
-      <p style="margin: 0; max-width: 760px; font-size: 16px; line-height: 1.7; color: #27272a;">«Antes el estar pendiente todo el rato al teléfono me limitaba muchos cortes al día, ahora puedo cortar a más gente y despreocuparme del móvil»</p>
-      <p style="margin: 12px 0 0; font-size: 13px; color: #52525b;">Excelsior Barber Studio, Palma — Diario de Mallorca</p>
+      <!-- data.quotes tiene 1 elemento en sm:grid-cols-2: ocupa media fila. -->
+      <div style="margin-top: 16px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px;">
+        <div style="display: flex; align-items: flex-start; gap: 16px; padding: 24px; border: 1px solid #e5e5e5; border-radius: 24px; background: #ffffff;">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#8b5cf6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0; margin-top: 2px;"><path d="M3 21c3 0 7-1 7-8V5c0-1.25-.756-2.017-2-2H4c-1.25 0-2 .75-2 1.972V11c0 1.25.75 2 2 2 1 0 1 0 1 1v1c0 1-1 2-2 2s-1 .008-1 1.031V20c0 1 0 1 1 1z"/><path d="M15 21c3 0 7-1 7-8V5c0-1.25-.757-2.017-2-2h-4c-1.25 0-2 .75-2 1.972V11c0 1.25.75 2 2 2h.75c0 2.25.25 4-2.75 4v3c0 1 0 1 1 1z"/></svg>
+          <div>
+            <p style="margin: 0; font-size: 14px; font-style: italic; font-weight: 500; line-height: 1.7; color: #27272a;">«Antes el estar pendiente todo el rato al teléfono me limitaba muchos cortes al día, ahora puedo cortar a más gente y despreocuparme del móvil»</p>
+            <p style="margin: 8px 0 0; font-size: 14px; color: #71717a;">Excelsior Barber Studio, Palma — Diario de Mallorca</p>
+          </div>
+        </div>
       </div>
     </div>
   </div>
 
-  <!-- El problema, con tus cifras: la calculadora sube aquí -->
-  <div style="padding: 0 64px 88px;">
-    <div style="padding: 56px 0 0; border-top: 1px solid #e5e5e5; text-align: center;">
-      <h2 style="margin: 0 auto; max-width: 700px; font-size: 42px; line-height: 1.12; font-weight: 900; letter-spacing: -0.03em;">
+  <!-- RevenueLossCalculator: sin borde propio, py-16 sm:py-20 → 80px -->
+  <div class="container" style="padding-top: 80px; padding-bottom: 80px;">
+    <div style="max-width: 740px; margin: 0 auto; text-align: center;">
+      <div class="eyebrow">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6d28d9" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></svg>
+        <span>Calcula tu pérdida real</span>
+      </div>
+      <h2 style="margin: 16px auto 0; max-width: 700px; font-size: 48px; line-height: 1.12; font-weight: 900; letter-spacing: -0.03em;">
         ¿Cuánto dinero se queda en llamadas sin atender?
       </h2>
-      <p style="margin: 18px auto 0; max-width: 560px; font-size: 16px; line-height: 1.7; color: #52525b;">
+      <p style="margin: 16px auto 0; max-width: 620px; font-size: 18px; line-height: 1.7; color: #52525b;">
         Ajusta dos cifras y descubre la oportunidad que puedes estar dejando pasar cada mes.
       </p>
     </div>
 
-    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 40px;">
-      <div style="padding: 32px; border: 1px solid #e5e5e5; border-radius: 24px;">
-        <div style="font-size: 17px; font-weight: 700;">Haz una estimación rápida</div>
-        <div style="margin-top: 28px;">
+    <div style="max-width: 1152px; margin: 40px auto 0; display: grid; grid-template-columns: 0.94fr 1.06fr; border: 1px solid #e5e5e5; border-radius: 24px; padding: 12px;">
+      <div style="padding: 36px;">
+        <div style="font-size: 24px; font-weight: 700; letter-spacing: -0.01em;">Haz una estimación rápida</div>
+        <p style="margin: 8px 0 0; font-size: 14px; line-height: 1.7; color: #52525b;">No necesitas datos exactos. Una aproximación basta para ver el impacto.</p>
+
+        <div style="margin-top: 32px; padding: 24px; border: 1px solid #e5e5e5; border-radius: 16px; background: #fafafa;">
           <div style="display: flex; align-items: center; justify-content: space-between; font-size: 15px;">
-            <span style="color: #27272a;">Ticket medio por servicio</span>
+            <span style="display: flex; align-items: center; gap: 8px; color: #27272a; font-weight: 600;">Ticket medio por servicio</span>
             <span style="font-weight: 700;">35 €</span>
           </div>
-          <div style="position: relative; height: 6px; margin-top: 14px; border-radius: 999px; background: #f3eeff;">
-            <div style="position: absolute; left: 0; top: 0; width: 34%; height: 6px; border-radius: 999px; background: #8b5cf6;"></div>
-            <div style="position: absolute; left: 34%; top: -6px; width: 18px; height: 18px; border-radius: 999px; background: #8b5cf6;"></div>
+          <div style="position: relative; height: 6px; margin-top: 14px; border-radius: 999px; background: #ffffff;">
+            <div style="position: absolute; left: 0; top: 0; width: 13%; height: 6px; border-radius: 999px; background: #8b5cf6;"></div>
+            <div style="position: absolute; left: 13%; top: -6px; width: 18px; height: 18px; border-radius: 999px; background: #8b5cf6;"></div>
           </div>
-        </div>
-        <div style="margin-top: 32px;">
+
+          <div style="margin: 20px 0; border-top: 1px solid #e5e5e5;"></div>
+
           <div style="display: flex; align-items: center; justify-content: space-between; font-size: 15px;">
-            <span style="color: #27272a;">Citas perdidas por semana</span>
+            <span style="display: flex; align-items: center; gap: 8px; color: #27272a; font-weight: 600;">Citas perdidas por semana</span>
             <span style="font-weight: 700;">3</span>
           </div>
-          <div style="position: relative; height: 6px; margin-top: 14px; border-radius: 999px; background: #f3eeff;">
-            <div style="position: absolute; left: 0; top: 0; width: 22%; height: 6px; border-radius: 999px; background: #8b5cf6;"></div>
-            <div style="position: absolute; left: 22%; top: -6px; width: 18px; height: 18px; border-radius: 999px; background: #8b5cf6;"></div>
+          <div style="position: relative; height: 6px; margin-top: 14px; border-radius: 999px; background: #ffffff;">
+            <div style="position: absolute; left: 0; top: 0; width: 11%; height: 6px; border-radius: 999px; background: #8b5cf6;"></div>
+            <div style="position: absolute; left: 11%; top: -6px; width: 18px; height: 18px; border-radius: 999px; background: #8b5cf6;"></div>
           </div>
         </div>
       </div>
 
-      <div style="padding: 32px; border-radius: 24px; background: #0a0a0a; color: #ffffff;">
-        <div style="font-size: 14px; color: rgba(255,255,255,0.6);">Pérdida estimada al mes</div>
-        <div style="margin-top: 14px; font-size: 60px; font-weight: 900; letter-spacing: -0.03em; line-height: 1; color: #a78bfa;">420 €</div>
-        <div style="margin-top: 12px; font-size: 15px; color: rgba(255,255,255,0.65);">5.040 € al año</div>
-        <div style="margin-top: 26px; padding: 18px 20px; border-radius: 16px; background: rgba(255,255,255,0.06); font-size: 14px; line-height: 1.7; color: rgba(255,255,255,0.8);">
-          Con recuperar solo 2 citas al mes, el plan Inicio queda cubierto.
+      <div style="display: flex; flex-direction: column; min-height: 448px; padding: 40px; border-radius: 26px; background: #0a0a0a; color: #ffffff;">
+        <div style="font-size: 14px; font-weight: 600; color: rgba(255,255,255,0.6);">Pérdida estimada al mes</div>
+        <div style="margin-top: 16px; padding-bottom: 32px; border-bottom: 1px solid rgba(255,255,255,0.1);">
+          <div style="font-size: 72px; font-weight: 900; letter-spacing: -0.03em; line-height: 1; color: #a78bfa;">420 €</div>
+          <div style="margin-top: 12px; font-size: 16px; line-height: 1.75; color: rgba(255,255,255,0.65);">5.040 € al año</div>
         </div>
-        <div style="display: flex; align-items: center; justify-content: center; height: 48px; margin-top: 22px; border-radius: 999px; background: #7c3aed; font-size: 15px; font-weight: 600;">Recuperar esos 420 €</div>
+        <div style="margin-top: 28px; padding: 20px; border-radius: 16px; border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.05);">
+          <p style="margin: 0; font-size: 14px; font-weight: 600; line-height: 1.7; color: #ffffff;">Con recuperar solo 2 citas al mes, el plan Inicio podría cubrirse.</p>
+          <p style="margin: 4px 0 0; font-size: 14px; line-height: 1.7; color: rgba(255,255,255,0.6);">Tu estimación actual es de 12 citas al mes. El plan Inicio cuesta 69 €/mes.</p>
+        </div>
+        <div style="margin-top: auto; padding-top: 32px;">
+          <div style="display: flex; align-items: center; justify-content: center; gap: 8px; height: 48px; border-radius: 999px; background: #8b5cf6; font-size: 15px; font-weight: 600;">
+            Recuperar mis 420 €
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+          </div>
+          <div style="display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 16px; font-size: 12px; font-weight: 500; color: rgba(255,255,255,0.55);">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#a78bfa" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+            Sin permanencia · Configuración guiada
+          </div>
+        </div>
       </div>
+    </div>
+
+    <p style="max-width: 620px; margin: 20px auto 0; text-align: center; font-size: 14px; line-height: 1.7; color: #71717a;">
+      Estimación orientativa basada en 4 semanas al mes. No incluye recurrencia de clientes ni ventas adicionales.
+    </p>
+
+    <div style="max-width: 900px; margin: 32px auto 0; display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 10px;">
+      <div style="display: flex; align-items: center; height: 36px; padding: 0 16px; border: 1px solid #e5e5e5; border-radius: 999px; font-size: 14px; font-weight: 500; color: #3f3f46;">Peluquerías</div>
+      <div style="display: flex; align-items: center; height: 36px; padding: 0 16px; border: 1px solid #e5e5e5; border-radius: 999px; font-size: 14px; font-weight: 500; color: #3f3f46;">Centros de estética</div>
+      <div style="display: flex; align-items: center; height: 36px; padding: 0 16px; border: 1px solid #e5e5e5; border-radius: 999px; font-size: 14px; font-weight: 500; color: #3f3f46;">Salones de uñas</div>
+      <div style="display: flex; align-items: center; height: 36px; padding: 0 16px; border: 1px solid #e5e5e5; border-radius: 999px; font-size: 14px; font-weight: 500; color: #3f3f46;">Barberías</div>
+      <div style="display: flex; align-items: center; height: 36px; padding: 0 16px; border: 1px solid #e5e5e5; border-radius: 999px; font-size: 14px; font-weight: 500; color: #3f3f46;">Clínicas y consultas de fisioterapia</div>
     </div>
   </div>
 
-  <!-- Cómo funciona -->
-  <div style="padding: 88px 64px;">
-    <h2 style="margin: 0 0 52px; max-width: 640px; font-size: 42px; line-height: 1.12; font-weight: 900; letter-spacing: -0.03em;">
+  <!-- #como-funciona: sin borde, py-16 sm:py-20 → 80px -->
+  <div class="container" style="padding-top: 80px; padding-bottom: 80px;">
+    <h2 style="margin: 0 0 40px; max-width: 640px; font-size: 36px; line-height: 1.15; font-weight: 900; letter-spacing: -0.03em;">
       De llamada perdida a cita confirmada, en tres pasos.
     </h2>
 
-    <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px;">
-      <div style="padding: 34px 32px; border: 1px solid #e5e5e5; border-radius: 24px;">
-        <div style="font-size: 15px; font-weight: 800; color: #7c3aed;">01</div>
-        <h3 style="margin: 20px 0 0; font-size: 21px; font-weight: 700; letter-spacing: -0.01em;">Suena tu número de siempre</h3>
-        <p style="margin: 14px 0 0; font-size: 15px; line-height: 1.7; color: #52525b;">Activas un desvío condicional en 15 segundos. Solo las llamadas que no contestas van al asistente.</p>
+    <!-- CallForwardingFlow, estado final ("complete"): las tres tarjetas ya
+         muestran el desenlace — es también el fallback real sin JS y de
+         movimiento reducido, así que es una foto fija fiel al producto. -->
+    <div style="margin-bottom: 20px; border: 1px solid #e5e5e5; border-radius: 24px; background: #fafafa; overflow: hidden;">
+      <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding: 16px 24px; border-bottom: 1px solid #e5e5e5; background: #ffffff;">
+        <div>
+          <p style="margin: 0; font-size: 14px; font-weight: 700;">Un recorrido, sin cambiar tu número</p>
+          <p style="margin: 4px 0 0; font-size: 12px; line-height: 1.65; color: #52525b;">El desvío solo entra cuando no puedes responder.</p>
+        </div>
+        <div style="flex-shrink: 0; border-radius: 999px; border: 1px solid #e5e5e5; background: #ffffff; padding: 8px 12px; font-size: 12px; font-weight: 600; color: #3f3f46;">Reproducir</div>
       </div>
-      <div style="padding: 34px 32px; border: 1px solid #e5e5e5; border-radius: 24px;">
-        <div style="font-size: 15px; font-weight: 800; color: #7c3aed;">02</div>
-        <h3 style="margin: 20px 0 0; font-size: 21px; font-weight: 700; letter-spacing: -0.01em;">Responde como si fuera de la casa</h3>
-        <p style="margin: 14px 0 0; font-size: 15px; line-height: 1.7; color: #52525b;">Conoce tus servicios, precios y huecos reales. Si no sabe algo, toma un recado en vez de inventarlo.</p>
+
+      <div style="display: grid; grid-template-columns: 1fr auto 1fr auto 1fr; align-items: center; gap: 16px; padding: 24px;">
+        <div style="border-radius: 16px; border: 1px solid #e5e5e5; background: #ffffff; padding: 16px;">
+          <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px;">
+            <span style="display: flex; width: 36px; height: 36px; align-items: center; justify-content: center; border-radius: 12px; background: #f3eeff; color: #8b5cf6;">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+            </span>
+            <span style="border-radius: 999px; padding: 4px 10px; font-size: 11px; font-weight: 700; background: #f3eeff; color: #6d28d9;">Tu número</span>
+          </div>
+          <p style="margin: 16px 0 0; font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #71717a;">Desvío condicional</p>
+          <div style="margin-top: 8px; display: flex; min-height: 44px; align-items: center; border-radius: 12px; background: #0a0a0a; padding: 0 12px; font-family: ui-monospace, monospace; font-size: 18px; font-weight: 700; letter-spacing: 0.14em; color: #ffffff;">**61··#</div>
+          <p style="margin: 12px 0 0; display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 500; color: #52525b;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#8b5cf6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 3 21 3 21 8"/><path d="M4 20 21 3"/><path d="M21 16v5h-5"/><path d="M15 15l6 6"/><path d="M4 4l5 5"/></svg>
+            Desvío activado
+          </p>
+        </div>
+
+        <div style="display: flex; height: 36px; width: 36px; align-items: center; justify-content: center; border-radius: 999px; border: 1px solid #8b5cf6; color: #8b5cf6;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+        </div>
+
+        <div style="border-radius: 16px; border: 1px solid #e5e5e5; background: #ffffff; padding: 16px;">
+          <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px;">
+            <span style="display: flex; width: 36px; height: 36px; align-items: center; justify-content: center; border-radius: 12px; background: #f3eeff; color: #8b5cf6;">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>
+            </span>
+            <span style="font-size: 12px; font-weight: 700; color: #6d28d9;">Alhabla</span>
+          </div>
+          <p style="margin: 16px 0 0; font-size: 14px; font-weight: 700;">Atiende como en casa</p>
+          <div style="margin-top: 12px; display: flex; height: 44px; align-items: center; gap: 6px; border-radius: 12px; background: #f3eeff; padding: 0 12px;">
+            <span style="width: 6px; height: 16px; border-radius: 999px; background: #8b5cf6;"></span>
+            <span style="width: 6px; height: 26px; border-radius: 999px; background: #8b5cf6;"></span>
+            <span style="width: 6px; height: 20px; border-radius: 999px; background: #8b5cf6;"></span>
+            <span style="width: 6px; height: 28px; border-radius: 999px; background: #8b5cf6;"></span>
+            <span style="width: 6px; height: 18px; border-radius: 999px; background: #8b5cf6;"></span>
+            <span style="margin-left: 8px; font-size: 12px; font-weight: 600; color: #6d28d9;">Comprueba disponibilidad</span>
+          </div>
+          <p style="margin: 12px 0 0; font-size: 12px; font-weight: 500; color: #52525b;">Servicios, horarios y huecos reales.</p>
+        </div>
+
+        <div style="display: flex; height: 36px; width: 36px; align-items: center; justify-content: center; border-radius: 999px; border: 1px solid #8b5cf6; color: #8b5cf6;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+        </div>
+
+        <div style="border-radius: 16px; border: 1px solid #e5e5e5; background: #ffffff; padding: 16px;">
+          <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px;">
+            <span style="display: flex; width: 36px; height: 36px; align-items: center; justify-content: center; border-radius: 12px; background: #f3eeff; color: #8b5cf6;">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><path d="m9 16 2 2 4-4"/></svg>
+            </span>
+            <span style="font-size: 12px; font-weight: 700; color: #3f3f46;">Tu agenda</span>
+          </div>
+          <div style="margin-top: 16px; display: flex; flex-direction: column; gap: 8px; font-size: 12px; font-weight: 600;">
+            <div style="display: flex; align-items: center; justify-content: space-between; border-radius: 8px; background: #fafafa; padding: 8px 10px; color: #71717a;">
+              <span>16:30</span><span>Ocupado</span>
+            </div>
+            <div style="display: flex; align-items: center; justify-content: space-between; border-radius: 8px; background: #f3eeff; padding: 8px 10px; color: #6d28d9;">
+              <span>17:00</span>
+              <span style="display: flex; align-items: center; gap: 4px;">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                Cita confirmada
+              </span>
+            </div>
+          </div>
+          <p style="margin: 12px 0 0; font-size: 12px; font-weight: 500; color: #52525b;">La cita queda guardada al colgar.</p>
+        </div>
       </div>
-      <div style="padding: 34px 32px; border: 1px solid #e5e5e5; border-radius: 24px;">
-        <div style="font-size: 15px; font-weight: 800; color: #7c3aed;">03</div>
-        <h3 style="margin: 20px 0 0; font-size: 21px; font-weight: 700; letter-spacing: -0.01em;">La cita, en tu agenda al colgar</h3>
-        <p style="margin: 14px 0 0; font-size: 15px; line-height: 1.7; color: #52525b;">Confirmación automática y ficha con quién llamó y qué reservó. Duración media: menos de 2 minutos.</p>
+
+      <p style="margin: 0; border-top: 1px solid #e5e5e5; background: #ffffff; padding: 12px 24px; font-size: 12px; line-height: 1.65; color: #71717a;">
+        Demostración visual: el código exacto de desvío depende de tu operadora; Alhabla te guía al configurarlo.
+      </p>
+    </div>
+
+    <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px;">
+      <div style="padding: 32px; border: 1px solid #e5e5e5; border-radius: 24px;">
+        <div style="font-size: 14px; font-weight: 800; letter-spacing: 0.02em; color: #8b5cf6;">01</div>
+        <h3 style="margin: 20px 0 0; font-size: 20px; font-weight: 700;">Suena tu número de siempre</h3>
+        <p style="margin: 12px 0 0; font-size: 14px; line-height: 2; color: #52525b;">Activas un desvío condicional en 15 segundos. Solo las llamadas que no contestas van al asistente.</p>
+      </div>
+      <div style="padding: 32px; border: 1px solid #e5e5e5; border-radius: 24px;">
+        <div style="font-size: 14px; font-weight: 800; letter-spacing: 0.02em; color: #8b5cf6;">02</div>
+        <h3 style="margin: 20px 0 0; font-size: 20px; font-weight: 700;">Responde como si fuera de la casa</h3>
+        <p style="margin: 12px 0 0; font-size: 14px; line-height: 2; color: #52525b;">Conoce tus servicios, precios y huecos reales. Si no sabe algo, toma un recado en vez de inventarlo.</p>
+      </div>
+      <div style="padding: 32px; border: 1px solid #e5e5e5; border-radius: 24px;">
+        <div style="font-size: 14px; font-weight: 800; letter-spacing: 0.02em; color: #8b5cf6;">03</div>
+        <h3 style="margin: 20px 0 0; font-size: 20px; font-weight: 700;">La cita, en tu agenda al colgar</h3>
+        <p style="margin: 12px 0 0; font-size: 14px; line-height: 2; color: #52525b;">Confirmación automática y ficha con quién llamó y qué reservó. Duración media: menos de 2 minutos.</p>
       </div>
     </div>
   </div>
 
-  <!-- Calendario -->
-  <div style="padding: 0 64px 88px;">
-    <div style="display: grid; grid-template-columns: 0.9fr 1.1fr; gap: 56px; align-items: center; padding: 56px 0 0; border-top: 1px solid #e5e5e5;">
+  <!-- Calendario: sin borde, py-16 sm:py-20 → 80px -->
+  <div class="container" style="padding-top: 80px; padding-bottom: 80px;">
+    <div class="eyebrow">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6d28d9" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+      <span>Google Calendar &amp; Outlook</span>
+    </div>
+    <div style="display: grid; grid-template-columns: 0.9fr 1.1fr; gap: 48px; align-items: center; margin-top: 20px;">
       <div>
-        <div style="display: inline-flex; align-items: center; gap: 8px; margin-bottom: 22px; padding: 7px 14px; border-radius: 999px; background: #f3eeff; color: #6d28d9; box-shadow: inset 0 0 0 1px #ddd6fe;">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6d28d9" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-          <span style="font-size: 13px; font-weight: 700;">Google Calendar &amp; Outlook</span>
-        </div>
-        <h2 style="margin: 0; font-size: 38px; line-height: 1.14; font-weight: 900; letter-spacing: -0.03em;">
+        <h2 style="margin: 0; font-size: 36px; line-height: 1.15; font-weight: 900; letter-spacing: -0.03em;">
           No cambias cómo recibes tus reservas.
         </h2>
-        <p style="margin: 20px 0 0; max-width: 460px; font-size: 16px; line-height: 1.75; color: #52525b;">
+        <p style="margin: 16px 0 0; max-width: 460px; font-size: 16px; line-height: 1.75; color: #52525b;">
           Alhabla consulta tu calendario antes de confirmar una cita. Si las reservas de tu web o WhatsApp ya llegan ahí, el agente las respeta antes de ofrecer un horario por teléfono.
         </p>
       </div>
       <div style="display: flex; flex-direction: column; gap: 12px;">
-        <div style="display: flex; align-items: center; gap: 16px; padding: 18px 20px; border: 1px solid #e5e5e5; border-radius: 16px;">
-          <span style="display: flex; width: 40px; height: 40px; align-items: center; justify-content: center; border-radius: 12px; background: #f3eeff;">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#8b5cf6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        <div style="display: flex; align-items: center; gap: 16px; padding: 16px; border: 1px solid #e5e5e5; border-radius: 16px;">
+          <span style="display: flex; width: 40px; height: 40px; flex-shrink: 0; align-items: center; justify-content: center; border-radius: 12px; background: #f3eeff;">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#8b5cf6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
           </span>
-          <span style="font-size: 15px; font-weight: 600; color: #27272a;">Las citas de otros canales bloquean ese hueco</span>
+          <span style="font-size: 14px; font-weight: 600; line-height: 20px; color: #27272a;">Las citas de otros canales bloquean ese hueco</span>
         </div>
-        <div style="display: flex; align-items: center; gap: 16px; padding: 18px 20px; border: 1px solid #e5e5e5; border-radius: 16px;">
-          <span style="display: flex; width: 40px; height: 40px; align-items: center; justify-content: center; border-radius: 12px; background: #f3eeff;">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#8b5cf6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        <div style="display: flex; align-items: center; gap: 16px; padding: 16px; border: 1px solid #e5e5e5; border-radius: 16px;">
+          <span style="display: flex; width: 40px; height: 40px; flex-shrink: 0; align-items: center; justify-content: center; border-radius: 12px; background: #f3eeff;">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#8b5cf6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
           </span>
-          <span style="font-size: 15px; font-weight: 600; color: #27272a;">Sólo ofrece horarios realmente disponibles</span>
+          <span style="font-size: 14px; font-weight: 600; line-height: 20px; color: #27272a;">Sólo ofrece horarios realmente disponibles</span>
         </div>
-        <div style="display: flex; align-items: center; gap: 16px; padding: 18px 20px; border: 1px solid #e5e5e5; border-radius: 16px;">
-          <span style="display: flex; width: 40px; height: 40px; align-items: center; justify-content: center; border-radius: 12px; background: #f3eeff;">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#8b5cf6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+        <div style="display: flex; align-items: center; gap: 16px; padding: 16px; border: 1px solid #e5e5e5; border-radius: 16px;">
+          <span style="display: flex; width: 40px; height: 40px; flex-shrink: 0; align-items: center; justify-content: center; border-radius: 12px; background: #f3eeff;">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#8b5cf6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
           </span>
-          <span style="font-size: 15px; font-weight: 600; color: #27272a;">Las llamadas nuevas llegan a la misma agenda</span>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Beneficios por nicho -->
-  <div style="padding: 0 64px 88px;">
-    <div style="padding-top: 56px; border-top: 1px solid #e5e5e5;">
-      <h2 style="margin: 0 0 44px; max-width: 640px; font-size: 42px; line-height: 1.12; font-weight: 900; letter-spacing: -0.03em;">
-        Una recepción que entiende tu negocio, sea cual sea.
-      </h2>
-      <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px;">
-        <div style="padding: 34px 32px; border: 1px solid #e5e5e5; border-radius: 24px;">
-          <span style="display: flex; width: 44px; height: 44px; align-items: center; justify-content: center; border-radius: 12px; background: #f3eeff;">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#8b5cf6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><line x1="20" y1="4" x2="8.12" y2="15.88"/><line x1="14.47" y1="14.48" x2="20" y2="20"/><line x1="8.12" y1="8.12" x2="12" y2="12"/></svg>
-          </span>
-          <h3 style="margin: 22px 0 0; font-size: 20px; font-weight: 700;">Peluquerías</h3>
-          <p style="margin: 12px 0 0; font-size: 15px; line-height: 1.7; color: #52525b;">Reserva cortes, color y tratamientos incluso mientras todo el equipo está atendiendo.</p>
-          <p style="margin: 18px 0 0; font-size: 14px; font-weight: 600; color: #6d28d9;">Menos llamadas perdidas en horas punta</p>
-        </div>
-        <div style="padding: 34px 32px; border: 1px solid #e5e5e5; border-radius: 24px;">
-          <span style="display: flex; width: 44px; height: 44px; align-items: center; justify-content: center; border-radius: 12px; background: #f3eeff;">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#8b5cf6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 5.8H20l-4.9 3.6 1.9 5.8-4.9-3.6-4.9 3.6 1.9-5.8L4 8.8h6.1z"/></svg>
-          </span>
-          <h3 style="margin: 22px 0 0; font-size: 20px; font-weight: 700;">Centros de estética</h3>
-          <p style="margin: 12px 0 0; font-size: 15px; line-height: 1.7; color: #52525b;">Responde dudas sobre servicios, duración y disponibilidad antes de confirmar la cita.</p>
-          <p style="margin: 18px 0 0; font-size: 14px; font-weight: 600; color: #6d28d9;">Atención cuidada desde el primer contacto</p>
-        </div>
-        <div style="padding: 34px 32px; border: 1px solid #e5e5e5; border-radius: 24px;">
-          <span style="display: flex; width: 44px; height: 44px; align-items: center; justify-content: center; border-radius: 12px; background: #f3eeff;">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#8b5cf6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
-          </span>
-          <h3 style="margin: 22px 0 0; font-size: 20px; font-weight: 700;">Barberías, uñas y fisioterapia</h3>
-          <p style="margin: 12px 0 0; font-size: 15px; line-height: 1.7; color: #52525b;">Cita con el profesional de siempre, duración real y huecos que cuadran con tu jornada.</p>
-          <p style="margin: 18px 0 0; font-size: 14px; font-weight: 600; color: #6d28d9;">La agenda se llena sin soltar las manos</p>
+          <span style="font-size: 14px; font-weight: 600; line-height: 20px; color: #27272a;">Las llamadas nuevas llegan a la misma agenda</span>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- Precios -->
-  <div style="padding: 0 64px 96px;">
-    <div style="padding-top: 56px; border-top: 1px solid #e5e5e5;">
-      <h2 style="margin: 0 0 44px; max-width: 640px; font-size: 42px; line-height: 1.12; font-weight: 900; letter-spacing: -0.03em;">
+  <!-- Beneficios: sin borde, py-16 sm:py-20 lg:py-24 → 96px a escritorio -->
+  <div class="container" style="padding-top: 96px; padding-bottom: 96px;">
+    <h2 style="margin: 0; max-width: 640px; font-size: 36px; line-height: 1.15; font-weight: 900; letter-spacing: -0.03em;">
+      Una recepción que entiende tu negocio, sea cual sea.
+    </h2>
+    <div style="margin-top: 40px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px;">
+      <div style="padding: 28px; border: 1px solid #e5e5e5; border-radius: 24px;">
+        <span style="display: flex; width: 44px; height: 44px; align-items: center; justify-content: center; border-radius: 12px; background: #f3eeff;">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#8b5cf6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><line x1="20" y1="4" x2="8.12" y2="15.88"/><line x1="14.47" y1="14.48" x2="20" y2="20"/><line x1="8.12" y1="8.12" x2="12" y2="12"/></svg>
+        </span>
+        <h3 style="margin: 20px 0 0; font-size: 18px; font-weight: 700;">Peluquerías</h3>
+        <p style="margin: 12px 0 0; font-size: 14px; line-height: 1.7; color: #52525b;">Reserva cortes, color y tratamientos incluso mientras todo el equipo está atendiendo.</p>
+        <div style="margin-top: 20px; padding-top: 16px; border-top: 1px solid #e5e5e5;">
+          <p style="margin: 0; display: flex; align-items: flex-start; gap: 8px; font-size: 14px; font-weight: 600; line-height: 20px; color: #27272a;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8b5cf6" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0; margin-top: 2px;"><polyline points="20 6 9 17 4 12"/></svg>
+            Menos llamadas perdidas en horas punta
+          </p>
+        </div>
+      </div>
+      <div style="padding: 28px; border: 1px solid #e5e5e5; border-radius: 24px;">
+        <span style="display: flex; width: 44px; height: 44px; align-items: center; justify-content: center; border-radius: 12px; background: #f3eeff;">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#8b5cf6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 5.8H20l-4.9 3.6 1.9 5.8-4.9-3.6-4.9 3.6 1.9-5.8L4 8.8h6.1z"/></svg>
+        </span>
+        <h3 style="margin: 20px 0 0; font-size: 18px; font-weight: 700;">Centros de estética</h3>
+        <p style="margin: 12px 0 0; font-size: 14px; line-height: 1.7; color: #52525b;">Responde dudas sobre servicios, duración y disponibilidad antes de confirmar la cita.</p>
+        <div style="margin-top: 20px; padding-top: 16px; border-top: 1px solid #e5e5e5;">
+          <p style="margin: 0; display: flex; align-items: flex-start; gap: 8px; font-size: 14px; font-weight: 600; line-height: 20px; color: #27272a;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8b5cf6" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0; margin-top: 2px;"><polyline points="20 6 9 17 4 12"/></svg>
+            Atención cuidada desde el primer contacto
+          </p>
+        </div>
+      </div>
+      <div style="padding: 28px; border: 1px solid #e5e5e5; border-radius: 24px;">
+        <span style="display: flex; width: 44px; height: 44px; align-items: center; justify-content: center; border-radius: 12px; background: #f3eeff;">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#8b5cf6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+        </span>
+        <h3 style="margin: 20px 0 0; font-size: 18px; font-weight: 700;">Barberías, uñas y fisioterapia</h3>
+        <p style="margin: 12px 0 0; font-size: 14px; line-height: 1.7; color: #52525b;">Cita con el profesional de siempre, duración real y huecos que cuadran con tu jornada.</p>
+        <div style="margin-top: 20px; padding-top: 16px; border-top: 1px solid #e5e5e5;">
+          <p style="margin: 0; display: flex; align-items: flex-start; gap: 8px; font-size: 14px; font-weight: 600; line-height: 20px; color: #27272a;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8b5cf6" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0; margin-top: 2px;"><polyline points="20 6 9 17 4 12"/></svg>
+            La agenda se llena sin soltar las manos
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Precios: sin borde, py-16 sm:py-20 → 80px. Réplica exacta de
+       site-landing.tsx: article rounded-3xl p-7, h3 text-lg/700, precio
+       text-4xl/900 (36px), /mes text-base/500 #71717a, minutos
+       text-sm/600 #27272a, summary text-sm #52525b, botón h-12 (48px). La
+       destacada usa el fix del commit 6b91f92: blanca con aro morado. -->
+  <div class="container" style="padding-top: 80px; padding-bottom: 80px;">
+    <div style="max-width: 640px;">
+      <h2 style="margin: 0; font-size: 36px; line-height: 1.15; font-weight: 900; letter-spacing: -0.03em;">
         Planes claros, sin permanencia.
       </h2>
+      <p style="margin: 16px 0 0; display: flex; align-items: center; gap: 8px; font-size: 16px; font-weight: 600; line-height: 1.75; color: #27272a;">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#8b5cf6" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0;"><polyline points="20 6 9 17 4 12"/></svg>
+        7 días de prueba. Sin permanencia. Cancela cuando quieras.
+      </p>
+    </div>
 
-      <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px;">
-        <div style="display: flex; flex-direction: column; padding: 34px 32px; border: 1px solid #e5e5e5; border-radius: 24px;">
-          <div style="font-size: 15px; font-weight: 700; color: #52525b;">Inicio</div>
-          <div style="display: flex; align-items: baseline; gap: 6px; margin-top: 18px;">
-            <span style="font-size: 46px; font-weight: 900; letter-spacing: -0.03em;">69 €</span>
-            <span style="font-size: 15px; color: #52525b;">/mes</span>
-          </div>
-          <div style="margin-top: 10px; font-size: 15px; color: #52525b;">100 minutos incluidos</div>
-          <div style="display: flex; align-items: center; justify-content: center; height: 46px; margin-top: 26px; border: 1px solid #0a0a0a; border-radius: 999px; font-size: 14px; font-weight: 600;">Empezar</div>
-        </div>
+    <div style="margin-top: 32px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px;">
+      <div style="display: flex; flex-direction: column; padding: 28px; border: 1px solid #e5e5e5; border-radius: 24px;">
+        <div style="font-size: 18px; font-weight: 700;">Inicio</div>
+        <div style="margin-top: 24px; font-size: 36px; font-weight: 900; letter-spacing: -0.025em;">69€<span style="font-size: 16px; font-weight: 500; color: #71717a;">/mes</span></div>
+        <div style="margin-top: 12px; font-size: 14px; font-weight: 600; color: #27272a;">100 minutos incluidos</div>
+        <div style="margin-top: 8px; font-size: 14px; line-height: 1.75; color: #52525b;">3 profesionales · 1 documento de tu negocio · 100 minutos incluidos</div>
+        <div style="display: flex; align-items: center; justify-content: center; height: 48px; margin-top: 24px; border: 1px solid #0a0a0a; border-radius: 999px; font-size: 14px; font-weight: 600;">Elegir Inicio</div>
+      </div>
 
-        <div style="display: flex; flex-direction: column; padding: 34px 32px; border: 1.5px solid #8b5cf6; border-radius: 24px; background: #f3eeff;">
-          <div style="display: flex; align-items: center; justify-content: space-between;">
-            <span style="font-size: 15px; font-weight: 700; color: #6d28d9;">Pro</span>
-            <span style="padding: 5px 11px; border-radius: 999px; background: #ffffff; font-size: 12px; font-weight: 700; color: #6d28d9;">El más elegido</span>
-          </div>
-          <div style="display: flex; align-items: baseline; gap: 6px; margin-top: 18px;">
-            <span style="font-size: 46px; font-weight: 900; letter-spacing: -0.03em;">149 €</span>
-            <span style="font-size: 15px; color: #52525b;">/mes</span>
-          </div>
-          <div style="margin-top: 10px; font-size: 15px; color: #52525b;">400 minutos incluidos</div>
-          <div style="display: flex; align-items: center; justify-content: center; height: 46px; margin-top: 26px; background: #0a0a0a; color: #ffffff; border-radius: 999px; font-size: 14px; font-weight: 600;">Empezar</div>
+      <div style="position: relative; display: flex; flex-direction: column; padding: 28px; border-radius: 24px; background: #ffffff; box-shadow: 0 0 0 2px #8b5cf6;">
+        <div style="display: flex; align-items: center; justify-content: space-between;">
+          <div style="font-size: 18px; font-weight: 700;">Pro</div>
+          <span class="eyebrow" style="padding: 4px 12px; font-size: 12px;">Recomendado</span>
         </div>
+        <div style="margin-top: 24px; font-size: 36px; font-weight: 900; letter-spacing: -0.025em;">149€<span style="font-size: 16px; font-weight: 500; color: #71717a;">/mes</span></div>
+        <div style="margin-top: 12px; font-size: 14px; font-weight: 600; color: #27272a;">400 minutos incluidos</div>
+        <div style="margin-top: 8px; font-size: 14px; line-height: 1.75; color: #52525b;">5 profesionales · servicios por profesional · 400 minutos incluidos</div>
+        <div style="display: flex; align-items: center; justify-content: center; height: 48px; margin-top: 24px; background: #0a0a0a; color: #ffffff; border-radius: 999px; font-size: 14px; font-weight: 600;">Elegir Pro</div>
+      </div>
 
-        <div style="display: flex; flex-direction: column; padding: 34px 32px; border: 1px solid #e5e5e5; border-radius: 24px;">
-          <div style="font-size: 15px; font-weight: 700; color: #52525b;">Scale</div>
-          <div style="display: flex; align-items: baseline; gap: 6px; margin-top: 18px;">
-            <span style="font-size: 46px; font-weight: 900; letter-spacing: -0.03em;">299 €</span>
-            <span style="font-size: 15px; color: #52525b;">/mes</span>
-          </div>
-          <div style="margin-top: 10px; font-size: 15px; color: #52525b;">1.000 minutos incluidos</div>
-          <div style="display: flex; align-items: center; justify-content: center; height: 46px; margin-top: 26px; border: 1px solid #0a0a0a; border-radius: 999px; font-size: 14px; font-weight: 600;">Empezar</div>
-        </div>
+      <div style="display: flex; flex-direction: column; padding: 28px; border: 1px solid #e5e5e5; border-radius: 24px;">
+        <div style="font-size: 18px; font-weight: 700;">Scale</div>
+        <div style="margin-top: 24px; font-size: 36px; font-weight: 900; letter-spacing: -0.025em;">299€<span style="font-size: 16px; font-weight: 500; color: #71717a;">/mes</span></div>
+        <div style="margin-top: 12px; font-size: 14px; font-weight: 600; color: #27272a;">1000 minutos incluidos</div>
+        <div style="margin-top: 8px; font-size: 14px; line-height: 1.75; color: #52525b;">Uso intensivo · operación escalable · prioridad alta</div>
+        <div style="display: flex; align-items: center; justify-content: center; height: 48px; margin-top: 24px; border: 1px solid #0a0a0a; border-radius: 999px; font-size: 14px; font-weight: 600;">Elegir Scale</div>
       </div>
     </div>
   </div>
 
-  <!-- Preguntas -->
-  <div style="padding: 0 64px 88px;">
-    <div style="padding-top: 56px; border-top: 1px solid #e5e5e5;">
-      <h2 style="margin: 0 0 40px; max-width: 640px; font-size: 42px; line-height: 1.12; font-weight: 900; letter-spacing: -0.03em;">
+  <!-- #preguntas: única otra sección con border-y real; py-16 sm:py-20 →
+       80px. <details>/<summary> nativos, no un simple "+" decorativo. -->
+  <div style="border-top: 1px solid #e5e5e5; border-bottom: 1px solid #e5e5e5;">
+    <div class="container" style="padding-top: 80px; padding-bottom: 80px;">
+      <h2 style="margin: 0; font-size: 36px; font-weight: 900; letter-spacing: -0.03em;">
         Resuelve tus dudas antes de empezar.
       </h2>
-      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px 24px;">
-        <div style="display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 20px 22px; border: 1px solid #e5e5e5; border-radius: 16px;">
-          <span style="font-size: 15px; font-weight: 600;">¿Mantengo mi número de teléfono de siempre?</span>
-          <span style="font-size: 20px; color: #8b5cf6;">+</span>
+      <div style="margin-top: 32px; display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+        <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding: 20px; border: 1px solid #e5e5e5; border-radius: 16px;">
+          <span style="font-size: 14px; font-weight: 600; line-height: 1.7;">¿Mantengo mi número de teléfono de siempre?</span>
+          <span style="flex-shrink: 0; font-size: 18px; line-height: 1; color: #8b5cf6;">+</span>
         </div>
-        <div style="display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 20px 22px; border: 1px solid #e5e5e5; border-radius: 16px;">
-          <span style="font-size: 15px; font-weight: 600;">¿Es difícil configurar el desvío de llamadas?</span>
-          <span style="font-size: 20px; color: #8b5cf6;">+</span>
+        <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding: 20px; border: 1px solid #e5e5e5; border-radius: 16px;">
+          <span style="font-size: 14px; font-weight: 600; line-height: 1.7;">¿Es difícil configurar el desvío de llamadas?</span>
+          <span style="flex-shrink: 0; font-size: 18px; line-height: 1; color: #8b5cf6;">+</span>
         </div>
-        <div style="display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 20px 22px; border: 1px solid #e5e5e5; border-radius: 16px;">
-          <span style="font-size: 15px; font-weight: 600;">¿Puede reservar, cambiar y cancelar citas?</span>
-          <span style="font-size: 20px; color: #8b5cf6;">+</span>
+        <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding: 20px; border: 1px solid #e5e5e5; border-radius: 16px;">
+          <span style="font-size: 14px; font-weight: 600; line-height: 1.7;">¿Puede reservar, cambiar y cancelar citas?</span>
+          <span style="flex-shrink: 0; font-size: 18px; line-height: 1; color: #8b5cf6;">+</span>
         </div>
-        <div style="display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 20px 22px; border: 1px solid #e5e5e5; border-radius: 16px;">
-          <span style="font-size: 15px; font-weight: 600;">¿La voz suena natural?</span>
-          <span style="font-size: 20px; color: #8b5cf6;">+</span>
+        <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding: 20px; border: 1px solid #e5e5e5; border-radius: 16px;">
+          <span style="font-size: 14px; font-weight: 600; line-height: 1.7;">¿Responde dudas sobre precios y servicios?</span>
+          <span style="flex-shrink: 0; font-size: 18px; line-height: 1; color: #8b5cf6;">+</span>
         </div>
-        <div style="display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 20px 22px; border: 1px solid #e5e5e5; border-radius: 16px;">
-          <span style="font-size: 15px; font-weight: 600;">¿Atiende fuera de horario?</span>
-          <span style="font-size: 20px; color: #8b5cf6;">+</span>
+        <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding: 20px; border: 1px solid #e5e5e5; border-radius: 16px;">
+          <span style="font-size: 14px; font-weight: 600; line-height: 1.7;">¿La voz suena natural?</span>
+          <span style="flex-shrink: 0; font-size: 18px; line-height: 1; color: #8b5cf6;">+</span>
         </div>
-        <div style="display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 20px 22px; border: 1px solid #e5e5e5; border-radius: 16px;">
-          <span style="font-size: 15px; font-weight: 600;">¿Hay permanencia?</span>
-          <span style="font-size: 20px; color: #8b5cf6;">+</span>
+        <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding: 20px; border: 1px solid #e5e5e5; border-radius: 16px;">
+          <span style="font-size: 14px; font-weight: 600; line-height: 1.7;">¿Qué pasa si la llamada necesita atención humana?</span>
+          <span style="flex-shrink: 0; font-size: 18px; line-height: 1; color: #8b5cf6;">+</span>
+        </div>
+        <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding: 20px; border: 1px solid #e5e5e5; border-radius: 16px;">
+          <span style="font-size: 14px; font-weight: 600; line-height: 1.7;">¿Atiende fuera de horario?</span>
+          <span style="flex-shrink: 0; font-size: 18px; line-height: 1; color: #8b5cf6;">+</span>
+        </div>
+        <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding: 20px; border: 1px solid #e5e5e5; border-radius: 16px;">
+          <span style="font-size: 14px; font-weight: 600; line-height: 1.7;">¿Hay permanencia?</span>
+          <span style="flex-shrink: 0; font-size: 18px; line-height: 1; color: #8b5cf6;">+</span>
+        </div>
+        <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding: 20px; border: 1px solid #e5e5e5; border-radius: 16px;">
+          <span style="font-size: 14px; font-weight: 600; line-height: 1.7;">¿Qué pasa si supero los minutos incluidos en mi plan?</span>
+          <span style="flex-shrink: 0; font-size: 18px; line-height: 1; color: #8b5cf6;">+</span>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- CTA final -->
-  <div style="background: #0a0a0a; color: #ffffff; padding: 88px 64px;">
-    <div style="display: flex; align-items: center; justify-content: space-between; gap: 56px;">
-      <div>
-        <h2 style="margin: 0; max-width: 620px; font-size: 44px; line-height: 1.1; font-weight: 900; letter-spacing: -0.03em;">
-          Empieza a no perder llamadas esta semana.
-        </h2>
-        <p style="margin: 20px 0 0; max-width: 520px; font-size: 17px; line-height: 1.7; color: rgba(255,255,255,0.7);">
-          Siete días de prueba, sin permanencia y con tu número de siempre.
-        </p>
+  <!-- CTA final: bg-[#0a0a0a], px-4 sm:px-6 lg:px-8 py-16 sm:py-20 (80px) -->
+  <div style="background: #0a0a0a; color: #ffffff;">
+    <div class="container" style="display: flex; align-items: center; justify-content: space-between; gap: 56px; padding-top: 80px; padding-bottom: 80px;">
+      <h2 style="margin: 0; max-width: 620px; font-size: 36px; line-height: 1.1; font-weight: 900; letter-spacing: -0.03em;">
+        Empieza a no perder llamadas esta semana.
+      </h2>
+      <div style="flex-shrink: 0; display: flex; align-items: center; gap: 8px; height: 48px; padding: 0 24px; background: #8b5cf6; color: #ffffff; border-radius: 999px; font-size: 15px; font-weight: 600; white-space: nowrap;">
+        Empezar ahora
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
       </div>
-      <div style="display: flex; align-items: center; height: 56px; padding: 0 34px; background: #7c3aed; color: #ffffff; border-radius: 999px; font-size: 16px; font-weight: 600; white-space: nowrap;">Empezar ahora</div>
+    </div>
+  </div>
+
+  <!-- Pie: ausente en la maqueta hasta ahora — existe en producción. -->
+  <div style="background: #0a0a0a; color: rgba(255,255,255,0.7);">
+    <div class="container" style="display: flex; align-items: center; justify-content: space-between; gap: 20px; padding-top: 32px; padding-bottom: 32px;">
+      <span style="font-size: 14px;">© 2026 Alhabla</span>
+      <div style="display: flex; align-items: center; gap: 24px; font-size: 14px; font-weight: 500;">
+        <span>Privacidad</span>
+        <span>Aviso legal</span>
+        <span>Contacto</span>
+      </div>
     </div>
   </div>
 
