@@ -220,6 +220,78 @@
         ],
         "createdAt": "2026-09-07T06:54:28.771Z",
         "reason": "Fuente de marca ya establecida (DESIGN.md § Typography): fuera del producto, donde no se puede servir el .woff local, se llama 'Geist' a secas en Google Fonts. El frontmatter usa var(--font-geist-sans), que no coincide textualmente con el literal 'Geist' de estas maquetas de lienzo."
+      },
+      {
+        "rule": "icon-tile-stack",
+        "value": "*",
+        "files": [
+          "design/Main.dc.html"
+        ],
+        "createdAt": "2026-09-07T07:04:49.496Z",
+        "reason": "Reproduce el componente Icon Tile real y ya en producción (site-landing.tsx: div rounded-xl bg-[#f3eeff] text-[#8b5cf6] + h3 debajo, sección de beneficios). DESIGN.md lo llama explícitamente 'la firma más reconocible del sistema' — no es deriva, es fidelidad al componente que ya se sirve."
+      },
+      {
+        "rule": "cramped-padding",
+        "value": "*",
+        "files": [
+          "design/Main.dc.html"
+        ],
+        "createdAt": "2026-09-07T07:04:49.508Z",
+        "reason": "Badges tipo píldora (7px/14-15px en eyebrows, 5px/11px en chips de estado), no cajas de contenido. El .badge-soft real en producción usa py-1 (4px vertical) — menos que estas maquetas — y nunca se ha señalado como problema. Compacidad es el lenguaje de diseño esperado en un chip, no un contenedor de texto genérico."
+      },
+      {
+        "rule": "icon-tile-stack",
+        "value": "*",
+        "files": [
+          "design/Producto.dc.html"
+        ],
+        "createdAt": "2026-09-07T07:04:49.519Z",
+        "reason": "Reproduce el componente Icon Tile real y ya en producción (site-landing.tsx: div rounded-xl bg-[#f3eeff] text-[#8b5cf6] + h3 debajo, sección de beneficios). DESIGN.md lo llama explícitamente 'la firma más reconocible del sistema' — no es deriva, es fidelidad al componente que ya se sirve."
+      },
+      {
+        "rule": "cramped-padding",
+        "value": "*",
+        "files": [
+          "design/Producto.dc.html"
+        ],
+        "createdAt": "2026-09-07T07:04:49.530Z",
+        "reason": "Badges tipo píldora (7px/14-15px en eyebrows, 5px/11px en chips de estado), no cajas de contenido. El .badge-soft real en producción usa py-1 (4px vertical) — menos que estas maquetas — y nunca se ha señalado como problema. Compacidad es el lenguaje de diseño esperado en un chip, no un contenedor de texto genérico."
+      },
+      {
+        "rule": "icon-tile-stack",
+        "value": "*",
+        "files": [
+          "design/Contraste.dc.html"
+        ],
+        "createdAt": "2026-09-07T07:04:49.542Z",
+        "reason": "Reproduce el componente Icon Tile real y ya en producción (site-landing.tsx: div rounded-xl bg-[#f3eeff] text-[#8b5cf6] + h3 debajo, sección de beneficios). DESIGN.md lo llama explícitamente 'la firma más reconocible del sistema' — no es deriva, es fidelidad al componente que ya se sirve."
+      },
+      {
+        "rule": "cramped-padding",
+        "value": "*",
+        "files": [
+          "design/Contraste.dc.html"
+        ],
+        "createdAt": "2026-09-07T07:04:49.554Z",
+        "reason": "Badges tipo píldora (7px/14-15px en eyebrows, 5px/11px en chips de estado), no cajas de contenido. El .badge-soft real en producción usa py-1 (4px vertical) — menos que estas maquetas — y nunca se ha señalado como problema. Compacidad es el lenguaje de diseño esperado en un chip, no un contenedor de texto genérico."
+      },
+      {
+        "rule": "ai-color-palette",
+        "value": "*",
+        "files": [
+          "design/Main.dc.html"
+        ],
+        "createdAt": "2026-09-07T07:04:49.565Z",
+        "reason": "Único gradiente del archivo: linear-gradient(to bottom, transparent 62%, #ddd6fe 62%) en el subrayado del titular. Es un corte duro al 62%, técnica de 'trazo de rotulador' para resaltar texto, no un degradado decorativo de fondo — la señal que la regla busca de verdad."
+      },
+      {
+        "rule": "ai-color-palette",
+        "value": "*",
+        "files": [
+          "design/Contraste.dc.html"
+        ],
+        "createdAt": "2026-09-07T07:04:49.576Z",
+        "reason": "Badge translúcido rgba(139,92,246,0.18) sobre fondo oscuro en la dirección C (Contraste invertido), descartada y no destinada a construirse — morado de marca ya aprobado (ver ignoreValues de design-system-color de agosto), solo con opacidad reducida sobre negro, sin gradiente."
       }
     ]
   }
