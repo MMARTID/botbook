@@ -109,7 +109,7 @@ export function LandingHero({ content }: { content?: NicheLandingContent }) {
           </Reveal>
         </div>
 
-        <Reveal delay={0.1} y={18} id="demo-llamada" className="scroll-m-24">
+        <Reveal delay={0.1} y={18} id="demo-llamada" className="hidden scroll-m-24 lg:block">
           <HeroPulse accent={accent} />
         </Reveal>
       </section>
