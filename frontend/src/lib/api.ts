@@ -72,6 +72,7 @@ export async function getStats() {
     totalCalls: number;
     totalMinutes: number;
     leads: number;
+    bookings: number;
   }>("/business/me/stats");
   return data;
 }

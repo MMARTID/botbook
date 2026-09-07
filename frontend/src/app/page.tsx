@@ -2,7 +2,7 @@
 
 import { useCallback, useState, useEffect, Suspense } from "react";
 import axios from "axios";
-import { Bot, PhoneCall, Clock3, TrendingUp, CalendarDays, Upload, FileText, ArrowRight, Sparkles, Smartphone, RefreshCw } from "lucide-react";
+import { Bot, PhoneCall, Clock3, TrendingUp, CalendarDays, CalendarCheck, Upload, FileText, ArrowRight, Sparkles, Smartphone, RefreshCw } from "lucide-react";
 import { getStats, getPhoneNumberInfo, provisionPhoneNumber } from "@/lib/api";
 import { useBusiness } from "@/components/providers";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -133,7 +133,8 @@ function DashboardContent() {
     return null; // Will redirect to login via useEffect
   }
 
-  const stats = statsQuery.data || { totalCalls: 0, totalMinutes: 0, leads: 0 };
+  const stats = statsQuery.data || { totalCalls: 0, totalMinutes: 0, leads: 0, bookings: 0 };
+  const bookingRate = stats.totalCalls > 0 ? Math.round((stats.bookings / stats.totalCalls) * 100) : null;
 
   const activeCalendarProvider = business.calendarProvider === "outlook" ? "outlook" : "google";
   const hasCalendar = (activeCalendarProvider === "outlook"
@@ -171,7 +172,20 @@ function DashboardContent() {
               </div>
             </div>
 
-            <div className="grid grid-cols-3 gap-2 sm:gap-4">
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-4">
+              <article className="rounded-xl border border-[#d8efd7] bg-[#ecf7ec] p-3 sm:p-5">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-medium text-[#2c7334] sm:text-sm">Citas reservadas</p>
+                  <span className="hidden rounded-xl bg-white p-2 text-[#2c7334] sm:inline-flex">
+                    <CalendarCheck className="h-4 w-4" />
+                  </span>
+                </div>
+                <p className="mt-2 text-2xl font-semibold tracking-tight text-[#0a0a0a] sm:mt-4 sm:text-3xl">{stats.bookings}</p>
+                <p className="mt-2 hidden text-sm text-[#2c7334] sm:block">
+                  {bookingRate !== null ? `${bookingRate}% de las llamadas terminan en cita.` : "Reservadas automáticamente por el agente."}
+                </p>
+              </article>
+
               <article className="rounded-xl border border-[#e5e5e5] bg-white p-3 sm:p-5">
                 <div className="flex items-center justify-between">
                   <p className="text-xs font-medium text-muted sm:text-sm">Llamadas</p>

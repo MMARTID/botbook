@@ -263,7 +263,16 @@ export async function businessesRoutes(fastify: FastifyInstance) {
           },
         });
 
-        return reply.send({ totalCalls, totalMinutes, leads });
+        const bookings = await prisma.booking.count({
+          where: {
+            isCancelled: false,
+            call: {
+              businessId,
+            },
+          },
+        });
+
+        return reply.send({ totalCalls, totalMinutes, leads, bookings });
       } catch (error) {
         return reply.status(500).send({ error: "Failed to fetch stats" });
       }
