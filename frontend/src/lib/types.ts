@@ -71,6 +71,12 @@ export type PlaceSearchResult = {
   address: string;
 };
 
+/** Resultado de búsqueda de la demo pública: enriquecido con foto y tipo de negocio detectado. */
+export type DemoPlaceSearchResult = PlaceSearchResult & {
+  businessType: BusinessType;
+  photoUrl: string | null;
+};
+
 export type PlaceDetails = {
   placeId: string;
   name: string;

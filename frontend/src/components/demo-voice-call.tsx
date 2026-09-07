@@ -16,6 +16,7 @@ import {
   PhoneOff,
   Search,
   ShieldCheck,
+  Sparkles,
   X,
 } from "lucide-react";
 import {
@@ -24,7 +25,10 @@ import {
   searchDemoPlaces,
   type DemoPlaceDetails,
 } from "@/lib/api";
-import type { PlaceSearchResult } from "@/lib/types";
+import type { DemoPlaceSearchResult } from "@/lib/types";
+import { BrandMark } from "@/components/brand-mark";
+import { BUSINESS_TYPE_LABELS } from "@/lib/business-type";
+import { NICHE_ACCENTS } from "@/lib/niche-accents";
 
 type DemoVoiceCallProps = {
   open: boolean;
@@ -88,7 +92,7 @@ export function DemoVoiceCall({ open, onClose, onActiveChange, niche }: DemoVoic
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [searchResults, setSearchResults] = useState<PlaceSearchResult[]>([]);
+  const [searchResults, setSearchResults] = useState<DemoPlaceSearchResult[]>([]);
   const [searchError, setSearchError] = useState<string | null>(null);
   const [isSearching, setIsSearching] = useState(false);
   const [isLoadingPlace, setIsLoadingPlace] = useState(false);
@@ -278,7 +282,7 @@ export function DemoVoiceCall({ open, onClose, onActiveChange, niche }: DemoVoic
     }
   };
 
-  const selectBusiness = async (place: PlaceSearchResult) => {
+  const selectBusiness = async (place: DemoPlaceSearchResult) => {
     setIsLoadingPlace(true);
     setSearchError(null);
     try {
@@ -355,7 +359,7 @@ export function DemoVoiceCall({ open, onClose, onActiveChange, niche }: DemoVoic
   const demoLabel = selectedBusiness ? selectedBusiness.name : "Salón ficticio";
 
   return (
-    <div className="fixed inset-0 z-[80] flex items-end bg-[#0a0a0a]/60 backdrop-blur-sm sm:items-center sm:justify-center sm:px-4 sm:py-6">
+    <div className={`demo-call-backdrop fixed inset-0 z-[80] flex items-end bg-[#0a0a0a]/60 backdrop-blur-sm sm:items-center sm:justify-center sm:px-4 sm:py-6 ${isClosing ? "demo-call-backdrop-closing" : ""}`}>
       <div
         ref={dialogRef}
         role="dialog"
@@ -365,13 +369,22 @@ export function DemoVoiceCall({ open, onClose, onActiveChange, niche }: DemoVoic
         className={`demo-call-modal flex h-[100dvh] w-full max-w-2xl flex-col overflow-hidden rounded-t-3xl border border-[#e5e5e5] bg-white shadow-[0_24px_60px_rgba(0,0,0,0.18)] sm:h-auto sm:max-h-[calc(100dvh-3rem)] sm:rounded-3xl ${isClosing ? "demo-call-modal-closing" : ""}`}
       >
         <div className="flex shrink-0 items-start justify-between gap-3 border-b border-[#e5e5e5] px-4 py-4 sm:px-6 sm:py-5">
-          <div className="min-w-0">
-            <h2 id="demo-voz-titulo" className="text-xl font-bold tracking-[-0.02em] text-[#0a0a0a] sm:text-2xl">
-              {isCallView ? "Habla con Alhabla" : "Pruébalo con tu negocio"}
-            </h2>
-            <p id="demo-voz-descripcion" className="mt-1.5 text-sm leading-6 text-[#52525b]">
-              {isCallView ? "Es una simulación: no se crea ninguna reserva real." : "Busca tu negocio para adaptar la demo o continúa con un ejemplo genérico."}
-            </p>
+          <div className="flex min-w-0 items-start gap-3">
+            <BrandMark className="mt-0.5 h-9 w-9 shrink-0 sm:h-10 sm:w-10" />
+            <div className="min-w-0">
+              <h2 id="demo-voz-titulo" className="text-xl font-bold tracking-[-0.02em] text-[#0a0a0a] sm:text-2xl">
+                {isCallView ? "Habla con Alhabla" : "Prueba Alhabla con tu negocio"}
+              </h2>
+              {!isCallView ? (
+                <span className="badge-soft mt-2 gap-1.5">
+                  <Sparkles className="h-3 w-3" />
+                  Demo personalizada · máx. {formatDuration(DEMO_MAX_DURATION_SECONDS)}
+                </span>
+              ) : null}
+              <p id="demo-voz-descripcion" className="mt-1.5 text-sm leading-6 text-[#52525b]">
+                {isCallView ? "Es una simulación: no se crea ninguna reserva real." : "Busca tu negocio y personalizaremos la demo automáticamente."}
+              </p>
+            </div>
           </div>
           <button
             ref={closeButtonRef}
@@ -389,11 +402,7 @@ export function DemoVoiceCall({ open, onClose, onActiveChange, niche }: DemoVoic
 
         {!isCallView ? (
           <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-4 py-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:px-6 sm:py-6">
-            <div className="max-w-xl">
-              <h3 className="text-lg font-semibold tracking-[-0.02em] text-[#0a0a0a]">¿Cómo se llama tu negocio?</h3>
-              <p className="mt-1.5 text-sm leading-6 text-[#52525b]">Usaremos su nombre y ubicación pública para que la recepción se sienta más cercana desde el saludo.</p>
-            </div>
-            <div className="relative mt-6">
+            <div className="relative">
               <label htmlFor="demo-place-search" className="sr-only">Busca tu negocio</label>
               <Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-[#71717a]" />
               <input
@@ -407,20 +416,39 @@ export function DemoVoiceCall({ open, onClose, onActiveChange, niche }: DemoVoic
                   setAllowBusinessDataRetention(false);
                   setSearchError(null);
                 }}
-                placeholder="Nombre o dirección del negocio"
+                placeholder="Busca tu negocio o dirección"
                 className="field h-12 w-full pl-12 pr-12"
               />
               {(isSearching || isLoadingPlace) ? <Loader2 className="absolute right-4 top-1/2 h-5 w-5 -translate-y-1/2 animate-spin text-[#8b5cf6]" /> : null}
               {searchResults.length > 0 && !selectedBusiness ? (
-                <ul className="mt-2 max-h-60 overflow-y-auto rounded-2xl border border-[#e5e5e5] bg-white py-1 shadow-[0_14px_30px_rgba(0,0,0,0.08)]">
+                <ul className="mt-2 max-h-80 overflow-y-auto rounded-2xl border border-[#e5e5e5] bg-white py-1 shadow-[0_14px_30px_rgba(0,0,0,0.08)]">
                   {searchResults.map((place) => (
                     <li key={place.placeId}>
-                      <button type="button" onClick={() => void selectBusiness(place)} className="flex w-full items-start gap-3 px-4 py-3 text-left transition hover:bg-[#fafafa] focus-visible:bg-[#fafafa] focus-visible:outline-none">
-                        <Building2 className="mt-0.5 h-4 w-4 shrink-0 text-[#8b5cf6]" />
-                        <span className="min-w-0">
+                      <button type="button" onClick={() => void selectBusiness(place)} className="flex w-full items-center gap-3 px-3 py-2.5 text-left transition hover:bg-[#fafafa] focus-visible:bg-[#fafafa] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#8b5cf6]">
+                        {place.photoUrl ? (
+                          // eslint-disable-next-line @next/next/no-img-element -- imagen remota de Google Places, tamaño dinámico por resultado.
+                          <img src={place.photoUrl} alt="" loading="lazy" className="h-14 w-14 shrink-0 rounded-xl object-cover" />
+                        ) : (
+                          <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-[#f3eeff] text-[#8b5cf6]">
+                            <Building2 className="h-5 w-5" />
+                          </span>
+                        )}
+                        <span className="min-w-0 flex-1">
                           <span className="block truncate text-sm font-semibold text-[#27272a]">{place.name}</span>
-                          {place.address ? <span className="mt-0.5 block text-xs leading-5 text-[#71717a]">{place.address}</span> : null}
+                          {place.address ? <span className="mt-0.5 block truncate text-xs leading-5 text-[#71717a]">{place.address}</span> : null}
                         </span>
+                        {place.businessType !== "other" ? (
+                          <span
+                            className="inline-flex shrink-0 items-center rounded-full px-3 py-1 text-xs font-semibold"
+                            style={{
+                              backgroundColor: NICHE_ACCENTS[place.businessType].soft,
+                              color: NICHE_ACCENTS[place.businessType].deep,
+                              boxShadow: `inset 0 0 0 1px ${NICHE_ACCENTS[place.businessType].strong}33`,
+                            }}
+                          >
+                            {BUSINESS_TYPE_LABELS[place.businessType]}
+                          </span>
+                        ) : null}
                       </button>
                     </li>
                   ))}
@@ -430,7 +458,7 @@ export function DemoVoiceCall({ open, onClose, onActiveChange, niche }: DemoVoic
             {searchQuery.trim().length > 0 && searchQuery.trim().length < 3 && !selectedBusiness ? <p className="mt-2 text-xs text-[#71717a]">Escribe al menos 3 caracteres para buscar.</p> : null}
             {searchError ? <p className="mt-3 text-sm leading-6 text-[#a52626]" role="alert">{searchError}</p> : null}
             {selectedBusiness ? (
-              <div className="mt-5 flex items-start justify-between gap-4 rounded-2xl bg-[#f6f2ff] p-4">
+              <div className="mt-5 flex items-start justify-between gap-4 rounded-2xl bg-[#f3eeff] p-4">
                 <div className="flex min-w-0 gap-3">
                   <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#8b5cf6] text-white"><Check className="h-4 w-4" /></span>
                   <div className="min-w-0">
@@ -438,7 +466,7 @@ export function DemoVoiceCall({ open, onClose, onActiveChange, niche }: DemoVoic
                     {selectedBusiness.address ? <p className="mt-1 flex gap-1.5 text-xs leading-5 text-[#52525b]"><MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0" />{selectedBusiness.address}</p> : null}
                   </div>
                 </div>
-                <button type="button" onClick={() => { setSelectedBusiness(null); setAllowBusinessDataRetention(false); setSearchQuery(""); }} className="inline-flex shrink-0 items-center gap-1.5 text-xs font-semibold text-[#5b21b6] underline underline-offset-4">
+                <button type="button" onClick={() => { setSelectedBusiness(null); setAllowBusinessDataRetention(false); setSearchQuery(""); }} className="inline-flex shrink-0 items-center gap-1.5 rounded-full text-xs font-semibold text-[#5b21b6] underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]/40 focus-visible:ring-offset-2">
                   <Pencil className="h-3.5 w-3.5" /> Cambiar
                 </button>
               </div>
@@ -451,7 +479,7 @@ export function DemoVoiceCall({ open, onClose, onActiveChange, niche }: DemoVoic
                       type="checkbox"
                       checked={allowBusinessDataRetention}
                       onChange={(event) => setAllowBusinessDataRetention(event.target.checked)}
-                      className="mt-0.5 h-4 w-4 shrink-0 rounded border-[#a1a1aa] text-[#6d28d9] focus:ring-[#8b5cf6]"
+                      className="mt-0.5 h-4 w-4 shrink-0 rounded border-[#a1a1aa] accent-[#8b5cf6] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]/40 focus-visible:ring-offset-1"
                     />
                     <span>
                       Acepto los{" "}
@@ -465,23 +493,23 @@ export function DemoVoiceCall({ open, onClose, onActiveChange, niche }: DemoVoic
                   <button type="button" onClick={() => void startDemo(selectedBusiness.placeId, allowBusinessDataRetention)} className="btn-primary mt-5 w-full px-5 sm:w-auto">Empezar demo personalizada</button>
                 </>
               ) : null}
-              <p className="mt-5 text-center text-xs leading-5 text-[#71717a]">
-                <a
-                  href="#demo-generica"
-                  onClick={(event) => {
-                    event.preventDefault();
-                    void startDemo();
-                  }}
-                  className="font-medium text-[#52525b] underline underline-offset-4 transition hover:text-[#27272a]"
-                >
-                  Prefiero continuar con una demo genérica
-                </a>
-              </p>
-              <div className="mt-4 flex gap-2.5 text-xs leading-5 text-[#71717a]">
-                <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-[#8b5cf6]" />
-                <p>El micrófono se usa solo durante la demo. No guardamos el audio ni la transcripción. Consulta nuestra <Link href="/legal/privacidad" className="font-medium text-[#27272a] underline underline-offset-2">política de privacidad</Link>.</p>
+              <button
+                type="button"
+                onClick={() => void startDemo()}
+                className="btn-secondary mt-5 w-full"
+              >
+                Continuar con una demo genérica
+              </button>
+              <div className="mt-4 flex gap-2 text-xs leading-5 text-[#71717a]">
+                <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#8b5cf6]" />
+                <p>
+                  El micrófono solo se utiliza durante la demo. No guardamos audio ni transcripción. ·{" "}
+                  <Link href="/legal/privacidad" className="font-medium text-[#27272a] underline underline-offset-2">
+                    Privacidad
+                  </Link>
+                </p>
               </div>
-              <p className="mt-3 text-xs text-[#71717a]">Resultados de búsqueda proporcionados por Google.</p>
+              <p className="mt-2 text-xs text-[#71717a]">Resultados proporcionados por Google.</p>
             </div>
           </div>
         ) : (
@@ -491,7 +519,19 @@ export function DemoVoiceCall({ open, onClose, onActiveChange, niche }: DemoVoic
                 <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${state === "active" ? "bg-[#8b5cf6]" : "bg-white/10"}`}>{state === "active" && isSpeaking ? <Mic className="h-5 w-5" /> : <PhoneCall className="h-5 w-5 text-[#c4b5fd]" />}</span>
                 <div className="min-w-0">
                   <p className="truncate text-sm font-semibold">{demoLabel}</p>
-                  <p className="text-xs text-white/60" aria-live="polite">{state === "active" ? (isSpeaking ? "Alhabla está hablando" : "Alhabla está escuchando") : "Demo de recepción · reservas simuladas"}</p>
+                  <p className="flex items-center gap-1.5 text-xs text-white/60" aria-live="polite">
+                    {state === "active" ? (
+                      <>
+                        <span className="relative flex h-1.5 w-1.5 shrink-0">
+                          <span className="absolute hidden h-full w-full animate-ping rounded-full bg-[#2c7334] opacity-75 sm:inline-flex" />
+                          <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-[#2c7334]" />
+                        </span>
+                        {isSpeaking ? "Alhabla está hablando" : "Alhabla está escuchando"}
+                      </>
+                    ) : (
+                      "Demo de recepción · reservas simuladas"
+                    )}
+                  </p>
                 </div>
               </div>
               <span className="shrink-0 rounded-full bg-white/10 px-3 py-1 text-xs font-semibold tabular-nums text-white/80">{formatDuration(elapsedSeconds)}</span>
@@ -525,7 +565,17 @@ export function DemoVoiceCall({ open, onClose, onActiveChange, niche }: DemoVoic
                 </div>
               ) : null}
               {state === "error" ? <div className="grid gap-2 sm:flex sm:flex-wrap sm:gap-3"><button type="button" onClick={() => void startDemo(selectedBusiness?.placeId, allowBusinessDataRetention)} className="btn-primary w-full px-5 sm:w-auto">Reintentar demo</button><button type="button" onClick={handleClose} className="btn-secondary w-full px-5 sm:w-auto">Cerrar</button></div> : null}
-              {state === "ended" ? <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><p className="text-sm font-semibold">¿Quieres que atienda así en tu negocio?</p><Link href="/planes" className="btn-purple justify-center">Ver planes</Link></div> : null}
+              {state === "ended" ? (
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex items-center gap-3">
+                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/10 text-[#c4b5fd]">
+                      <Check className="h-4 w-4" />
+                    </span>
+                    <p className="text-sm font-semibold">¿Quieres que atienda así en tu negocio?</p>
+                  </div>
+                  <Link href="/planes" className="btn-purple justify-center">Ver planes</Link>
+                </div>
+              ) : null}
               <p className="mt-3 text-xs leading-5 text-white/50">Demo simulada · máximo {formatDuration(DEMO_MAX_DURATION_SECONDS)} · no se realiza ninguna reserva.</p>
             </div>
           </div>

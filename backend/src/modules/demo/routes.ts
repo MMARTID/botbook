@@ -1,7 +1,7 @@
 import type { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
 import { retellAdapter } from "../../adapters/retell/RetellAdapter.js";
-import { getPlaceDetails, searchPlaces, type PlaceDetails } from "../places/service.js";
+import { getPlaceDetails, searchPlacesForDemo, type PlaceDetails } from "../places/service.js";
 
 const demoRateLimit = {
   max: 10,
@@ -121,7 +121,7 @@ export const demoRoutes: FastifyPluginAsync = async (fastify) => {
       }
 
       try {
-        const results = await searchPlaces(parsed.data.q, { countryCode: "ES" });
+        const results = await searchPlacesForDemo(parsed.data.q);
         return reply.send({ results });
       } catch (error) {
         fastify.log.error({ err: error }, "Google Places demo autocomplete failed");

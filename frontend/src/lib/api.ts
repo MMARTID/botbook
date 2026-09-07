@@ -18,6 +18,7 @@ import type {
   PlanId,
   PlaceDetails,
   PlaceSearchResult,
+  DemoPlaceSearchResult,
   UpcomingCalendarEventsResponse,
 } from "./types";
 
@@ -206,7 +207,7 @@ export type DemoPlaceDetails = Pick<PlaceDetails, "placeId" | "name" | "address"
  * registro, que requiere sesión y devuelve la ficha completa del negocio.
  */
 export async function searchDemoPlaces(query: string) {
-  const { data } = await api.get<{ results: PlaceSearchResult[] }>("/demo/places/autocomplete", {
+  const { data } = await api.get<{ results: DemoPlaceSearchResult[] }>("/demo/places/autocomplete", {
     params: { q: query },
   });
   return data.results;

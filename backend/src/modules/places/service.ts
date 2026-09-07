@@ -1,4 +1,5 @@
 import { DEFAULT_BUSINESS_SCHEDULE, type BusinessSchedule, type WeekDay } from '../../lib/businessSchedule.js';
+import { detectBusinessTypeFromPlaceTypes, type BusinessType } from '../../lib/businessType.js';
 
 const PLACES_API_BASE_URL = 'https://places.googleapis.com/v1';
 
@@ -140,6 +141,93 @@ export async function searchPlaces(query: string, location?: PlaceSearchLocation
         address,
       };
     });
+}
+
+export type DemoPlaceSearchResult = PlaceSearchResult & {
+  businessType: BusinessType;
+  photoUrl: string | null;
+};
+
+type PlacesTextSearchPlace = {
+  id?: string;
+  displayName?: { text?: string };
+  formattedAddress?: string;
+  types?: string[];
+  photos?: Array<{ name?: string }>;
+};
+
+type PlacesTextSearchResponse = {
+  places?: PlacesTextSearchPlace[];
+};
+
+// Máximo de resultados enriquecidos con foto en la demo: cada uno añade una
+// llamada extra a la API de fotos, así que se limita para acotar coste y
+// latencia de una búsqueda pública sin autenticar.
+const DEMO_SEARCH_MAX_RESULTS = 5;
+const DEMO_PHOTO_MAX_WIDTH_PX = 160;
+const PHOTO_NAME_PATTERN = /^places\/[^/]+\/photos\/[^/]+$/;
+
+/**
+ * Resuelve el `name` de una foto de Places (`places/<id>/photos/<ref>`) a una
+ * URL real de imagen. El endpoint de medios de Google redirige (302) a una
+ * URL de `googleusercontent.com` sin clave de API incrustada — se sigue esa
+ * redirección aquí, en el servidor, para no exponer `GOOGLE_PLACES_API_KEY`
+ * al navegador.
+ */
+export async function resolvePlacePhotoUrl(photoName: string, maxWidthPx: number): Promise<string | null> {
+  if (!PHOTO_NAME_PATTERN.test(photoName)) {
+    return null;
+  }
+
+  const url = `${PLACES_API_BASE_URL}/${photoName}/media?maxWidthPx=${maxWidthPx}&key=${getApiKey()}`;
+  const response = await fetch(url, { redirect: 'manual' });
+  return response.headers.get('location');
+}
+
+/**
+ * Búsqueda de negocios para la demo pública de la landing, enriquecida con
+ * foto y tipo de negocio detectado — a diferencia de `searchPlaces` (usada en
+ * el alta autenticada), que solo necesita nombre y dirección para el
+ * autocompletado. Usa Places Text Search (New), que sí admite `photos` y
+ * `types` por resultado; Autocomplete no los devuelve nunca.
+ */
+export async function searchPlacesForDemo(query: string): Promise<DemoPlaceSearchResult[]> {
+  const response = await fetch(`${PLACES_API_BASE_URL}/places:searchText`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Goog-Api-Key': getApiKey(),
+      'X-Goog-FieldMask': 'places.id,places.displayName,places.formattedAddress,places.types,places.photos',
+    },
+    body: JSON.stringify({ textQuery: query, regionCode: 'ES', languageCode: 'es' }),
+  });
+
+  if (!response.ok) {
+    const error = await response.text();
+    throw new Error(`Google Places text search failed (${response.status}): ${error}`);
+  }
+
+  const data = (await response.json()) as PlacesTextSearchResponse;
+  const places = (data.places ?? []).slice(0, DEMO_SEARCH_MAX_RESULTS);
+
+  const results = await Promise.all(
+    places.map(async (place) => {
+      const photoName = place.photos?.[0]?.name;
+      const photoUrl = photoName
+        ? await resolvePlacePhotoUrl(photoName, DEMO_PHOTO_MAX_WIDTH_PX).catch(() => null)
+        : null;
+
+      return {
+        placeId: place.id ?? '',
+        name: place.displayName?.text ?? 'Negocio',
+        address: place.formattedAddress ?? '',
+        businessType: detectBusinessTypeFromPlaceTypes(place.types),
+        photoUrl,
+      };
+    }),
+  );
+
+  return results.filter((result) => result.placeId.length > 0);
 }
 
 export async function getPlaceDetails(placeId: string): Promise<PlaceDetails> {

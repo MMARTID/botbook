@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { absoluteUrl, siteName } from "@/lib/seo";
+import { NICHE_ACCENTS } from "@/lib/niche-accents";
 
 export type NicheSlug = "peluqueria" | "centro-de-estetica" | "salon-de-unas" | "barberia" | "fisioterapia";
 
@@ -87,7 +88,7 @@ export const nicheLandings: Record<NicheSlug, NicheLandingContent> = {
       "software de reservas para peluquerías",
       "gestión de citas para peluquerías",
     ],
-    accent: { strong: "#b23a68", soft: "#fbe9f1", deep: "#7c2547" },
+    accent: NICHE_ACCENTS.peluqueria,
     heroTitle: "No pierdas otra cita de peluquería por no contestar el teléfono",
     heroHighlight: "por no contestar el teléfono",
     heroDescription: "Alhabla atiende llamadas, resuelve dudas sobre cortes y color, y agenda citas 24/7 — incluso cuando todo el equipo está con clientes.",
@@ -192,7 +193,7 @@ export const nicheLandings: Record<NicheSlug, NicheLandingContent> = {
       "reservas de tratamientos estéticos",
       "atención telefónica para estética",
     ],
-    accent: { strong: "#6c4bd8", soft: "#eee9fb", deep: "#46308f" },
+    accent: NICHE_ACCENTS["centro-de-estetica"],
     heroTitle: "No pierdas otra consulta de estética por no contestar el teléfono",
     heroHighlight: "por no contestar el teléfono",
     heroDescription: "Alhabla atiende llamadas, informa sobre tratamientos y agenda citas 24/7 — incluso mientras estás en cabina.",
@@ -298,7 +299,7 @@ export const nicheLandings: Record<NicheSlug, NicheLandingContent> = {
       "reservas de manicura y pedicura",
       "atender llamadas en salón de uñas",
     ],
-    accent: { strong: "#c95c3f", soft: "#fbeae2", deep: "#8e3a24" },
+    accent: NICHE_ACCENTS["salon-de-unas"],
     heroTitle: "No pierdas otra manicura por no contestar el teléfono",
     heroHighlight: "por no contestar el teléfono",
     heroDescription: "Alhabla atiende llamadas, responde precios y agenda citas 24/7 — incluso mientras trabajas en una uña.",
@@ -401,7 +402,7 @@ export const nicheLandings: Record<NicheSlug, NicheLandingContent> = {
       "reservas de corte y barba",
       "atender llamadas en barbería",
     ],
-    accent: { strong: "#a86a1c", soft: "#f7ecd8", deep: "#71470f" },
+    accent: NICHE_ACCENTS.barberia,
     heroTitle: "No pierdas otro corte por no contestar el teléfono",
     heroHighlight: "por no contestar el teléfono",
     heroDescription: "Alhabla atiende llamadas, resuelve dudas sobre servicios y agenda citas 24/7 — incluso con todas las sillas ocupadas.",
@@ -507,7 +508,7 @@ export const nicheLandings: Record<NicheSlug, NicheLandingContent> = {
       "atención telefónica para fisioterapeutas",
       "reservar sesión de fisioterapia",
     ],
-    accent: { strong: "#0e7f78", soft: "#e0f1ee", deep: "#0a5751" },
+    accent: NICHE_ACCENTS.fisioterapia,
     heroTitle: "No pierdas otra primera visita por no contestar el teléfono",
     heroHighlight: "por no contestar el teléfono",
     heroDescription: "Alhabla atiende llamadas, recoge el motivo de consulta y agenda citas 24/7 — incluso mientras tratas a un paciente.",
