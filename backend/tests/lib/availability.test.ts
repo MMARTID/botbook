@@ -205,14 +205,18 @@ describe("checkAvailability", () => {
     // Único booking fijo (30 min por defecto): 10:00–10:30. Un candidato a
     // las 10:15 con 60 min (10:15–11:15) sigue solapando; el de las 10:30
     // (10:30–11:30) ya no solapa con un booking que termina a las 10:30.
-    givenBookings([{ programedAt: new Date("2026-08-10T10:00:00") }]);
+    // Offset +02:00 explícito (CEST) en vez de una fecha naive: sin él, el
+    // test pasa en local (donde Node interpreta la hora como Europe/Madrid)
+    // pero falla en CI, que corre en UTC — mismo bug de timezone ya conocido
+    // en este proyecto (ver memoria ci-cd-pipeline-setup).
+    givenBookings([{ programedAt: new Date("2026-08-10T10:00:00+02:00") }]);
 
     const result = await checkAvailability({
       businessId,
       schedule: DEFAULT_BUSINESS_SCHEDULE,
       timezone: europeMadrid,
       bookingCapacity: 1,
-      startDateTime: "2026-08-10T10:00:00",
+      startDateTime: "2026-08-10T10:00:00+02:00",
       durationMinutes: 60,
       serviceIds: ["service_target"],
     });
@@ -220,7 +224,7 @@ describe("checkAvailability", () => {
     expect(result.available).toBe(false);
     if (!result.available) {
       expect(result.suggestedNextSlot).toEqual({
-        startDateTime: new Date("2026-08-10T10:30:00").toISOString(),
+        startDateTime: new Date("2026-08-10T10:30:00+02:00").toISOString(),
         availableProfessionals: [{ id: "prof_1", name: "Ana" }],
       });
     }
@@ -246,14 +250,14 @@ describe("checkAvailability", () => {
 
   it("cuando todos los profesionales están ocupados, sugiere el siguiente hueco donde alguno esté libre", async () => {
     givenProfessionals([{ id: "prof_1", name: "Ana", serviceIds: ["service_target"] }]);
-    givenBookings([{ programedAt: new Date("2026-08-10T10:00:00"), professionalId: "prof_1" }]);
+    givenBookings([{ programedAt: new Date("2026-08-10T10:00:00+02:00"), professionalId: "prof_1" }]);
 
     const result = await checkAvailability({
       businessId,
       schedule: DEFAULT_BUSINESS_SCHEDULE,
       timezone: europeMadrid,
       bookingCapacity: 2,
-      startDateTime: "2026-08-10T10:00:00",
+      startDateTime: "2026-08-10T10:00:00+02:00",
       durationMinutes: 60,
       serviceIds: ["service_target"],
     });
@@ -261,7 +265,7 @@ describe("checkAvailability", () => {
     expect(result.available).toBe(false);
     if (!result.available) {
       expect(result.suggestedNextSlot).toEqual({
-        startDateTime: new Date("2026-08-10T10:30:00").toISOString(),
+        startDateTime: new Date("2026-08-10T10:30:00+02:00").toISOString(),
         availableProfessionals: [{ id: "prof_1", name: "Ana" }],
       });
     }
@@ -273,8 +277,8 @@ describe("checkAvailability", () => {
     // 17:00 hasta el cierre (18:00) — con 60 min de duración no cabe ninguna
     // cita nueva antes de cerrar.
     givenBookings([
-      { programedAt: new Date("2026-08-10T17:00:00"), professionalId: "prof_1" },
-      { programedAt: new Date("2026-08-10T17:30:00"), professionalId: "prof_1" },
+      { programedAt: new Date("2026-08-10T17:00:00+02:00"), professionalId: "prof_1" },
+      { programedAt: new Date("2026-08-10T17:30:00+02:00"), professionalId: "prof_1" },
     ]);
 
     const result = await checkAvailability({
@@ -282,7 +286,7 @@ describe("checkAvailability", () => {
       schedule: DEFAULT_BUSINESS_SCHEDULE,
       timezone: europeMadrid,
       bookingCapacity: 1,
-      startDateTime: "2026-08-10T17:00:00",
+      startDateTime: "2026-08-10T17:00:00+02:00",
       durationMinutes: 60,
       serviceIds: ["service_target"],
     });
