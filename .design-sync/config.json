@@ -1,5 +1,6 @@
 {
   "shape": "package",
+  "projectId": "f9904448-967b-4727-8bc1-b51df49ca786",
   "entry": "frontend/.ds-src/entry.ts",
   "pkg": "alhabla-ui",
   "globalName": "Alhabla",
@@ -40,7 +41,8 @@
     "Reveal": "src/components/scroll-reveal.tsx",
     "ParticleField": "src/components/particle-field.tsx",
     "ParticleMouseLayer": "src/components/particle-mouse-layer.tsx",
-    "LottieAnimation": "src/components/lottie-animation.tsx"
+    "LottieAnimation": "src/components/lottie-animation.tsx",
+    "DemoVoiceCall": "src/components/demo-voice-call.tsx"
   },
   "overrides": {
     "MobileNav": {

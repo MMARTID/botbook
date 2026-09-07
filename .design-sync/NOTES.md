@@ -57,10 +57,9 @@ Ninguno pendiente: `package-validate.mjs` sale limpio, sin warns.
 
 ## Cosas que se quedaron fuera a propósito
 
-- **`DemoVoiceCall`** (536 líneas, SDK de Retell + red en vivo) y las
-  composiciones a nivel de página (`SiteLanding`, `AppShell`, `LegalPage`,
-  `PlansWithRoi`, `Providers`) están fuera del ámbito por decisión del usuario:
-  sólo se sincronizan las piezas reutilizables del sistema.
+- Las composiciones a nivel de página (`SiteLanding`, `AppShell`, `LegalPage`,
+  `PlansWithRoi`, `Providers`) siguen fuera del ámbito por decisión del
+  usuario: sólo se sincronizan las piezas reutilizables del sistema.
 - **`CallDetailModal` va con tarjeta tipográfica (floor card) a propósito.** Es
   un overlay `position: fixed` a pantalla completa con scroll interno: se probó
   con `cardMode: single` a 900x760, 900x1500, 820x900 y 900x1250, con una
@@ -69,6 +68,17 @@ Ninguno pendiente: `package-validate.mjs` sale limpio, sin warns.
   cabecera o sale en blanco. Se prefirió la tarjeta honesta a una que enseña el
   componente descabezado. **Funciona perfectamente al importarlo**; sólo no se
   deja fotografiar. Su `.prompt.md` lo explica.
+- **`DemoVoiceCall` se añadió el 2026-09-07 (a petición del usuario, un solo
+  componente) y también va con floor card.** Mismo patrón exacto que
+  `CallDetailModal` (`fixed inset-0 flex items-end sm:items-center`, con SDK de
+  Retell + red en vivo de por medio: `createDemoWebCall`, `searchDemoPlaces`,
+  `getDemoPlaceDetails`, `RetellWebClient`). Se probó una preview con el
+  estado inicial (búsqueda de negocio, sin disparar red) a `cardMode: single`
+  480x720 — recorta la cabecera igual que las cuatro pruebas de
+  `CallDetailModal`; no merece la pena repetir más tamaños, es el mismo
+  problema ya agotado. No repetir el intento en un futuro re-sync sin una
+  técnica nueva para el containing block de `fixed` bajo el ancestro
+  transformado del harness.
 - **`ParticleMouseLayer` también va con floor card.** Sólo pinta en respuesta al
   movimiento del ratón (`fixed inset-0 -z-10`): no existe render estático suyo.
 
