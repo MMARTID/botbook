@@ -63,10 +63,14 @@ export function SectorDataSection({
           <div className="mt-6 grid gap-4 sm:grid-cols-2">
             {data.quotes.map((quote, i) => (
               <Reveal key={i} delay={i * 0.1}>
-                <figure
-                  className="flex h-full items-start gap-4 rounded-3xl border border-[#e5e5e5] bg-white p-6"
-                  style={{ borderLeftColor: a.strong, borderLeftWidth: 4 }}
-                >
+                {/*
+                  Sin borde izquierdo de color: una tarjeta redondeada con un
+                  filete de acento en un lado es uno de los tópicos que el
+                  sistema evita a propósito, y además sumaba un segundo morado
+                  compitiendo con el icono de comillas. El icono ya marca la
+                  cita; el borde neutro de siempre basta para el resto.
+                */}
+                <figure className="flex h-full items-start gap-4 rounded-3xl border border-[#e5e5e5] bg-white p-6">
                   <Quote className="mt-0.5 h-5 w-5 shrink-0 text-[#8b5cf6]" style={{ color: a.strong }} aria-hidden="true" />
                   <div>
                     <blockquote className="text-sm font-medium italic leading-6 text-[#27272a]">
