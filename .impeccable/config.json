@@ -130,6 +130,51 @@
         "value": "geist",
         "createdAt": "2026-09-07T05:40:54.825Z",
         "reason": "Misma fuente de marca, en minúsculas por el nombre de familia en Google Fonts. Ver DESIGN.md § Typography."
+      },
+      {
+        "rule": "design-system-font-size",
+        "value": "*",
+        "files": [
+          "design/Main.dc.html"
+        ],
+        "createdAt": "2026-09-07T05:57:43.481Z",
+        "reason": "Maqueta de lienzo de Claude Design: se autora en px a escala fija de 1440, mientras la escala de DESIGN.md está en rem/clamp. No es UI que se sirva. Acotado a este fichero y a esta regla; colores, fuentes y jerarquía siguen vigilados."
+      },
+      {
+        "rule": "design-system-font-size",
+        "value": "*",
+        "files": [
+          "design/HeroAgenda.dc.html"
+        ],
+        "createdAt": "2026-09-07T05:57:43.511Z",
+        "reason": "Maqueta de lienzo de Claude Design: se autora en px a escala fija de 1440, mientras la escala de DESIGN.md está en rem/clamp. No es UI que se sirva. Acotado a este fichero y a esta regla; colores, fuentes y jerarquía siguen vigilados."
+      },
+      {
+        "rule": "design-system-font-size",
+        "value": "*",
+        "files": [
+          "design/HeroPulso.dc.html"
+        ],
+        "createdAt": "2026-09-07T05:57:43.539Z",
+        "reason": "Maqueta de lienzo de Claude Design: se autora en px a escala fija de 1440, mientras la escala de DESIGN.md está en rem/clamp. No es UI que se sirva. Acotado a este fichero y a esta regla; colores, fuentes y jerarquía siguen vigilados."
+      },
+      {
+        "rule": "design-system-font-size",
+        "value": "*",
+        "files": [
+          "design/Producto.dc.html"
+        ],
+        "createdAt": "2026-09-07T05:57:43.566Z",
+        "reason": "Maqueta de lienzo de Claude Design: se autora en px a escala fija de 1440, mientras la escala de DESIGN.md está en rem/clamp. No es UI que se sirva. Acotado a este fichero y a esta regla; colores, fuentes y jerarquía siguen vigilados."
+      },
+      {
+        "rule": "design-system-font-size",
+        "value": "*",
+        "files": [
+          "design/Contraste.dc.html"
+        ],
+        "createdAt": "2026-09-07T05:57:43.593Z",
+        "reason": "Maqueta de lienzo de Claude Design: se autora en px a escala fija de 1440, mientras la escala de DESIGN.md está en rem/clamp. No es UI que se sirva. Acotado a este fichero y a esta regla; colores, fuentes y jerarquía siguen vigilados."
       }
     ]
   }
