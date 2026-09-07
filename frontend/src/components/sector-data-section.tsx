@@ -52,7 +52,12 @@ export function SectorDataSection({
                     <CountUp value={stat.value} delay={i * 0.1} />
                   </p>
                   <p className="mt-4 text-sm leading-6 text-[#52525b]">{stat.label}</p>
-                  {stat.source ? <p className="mt-6 text-xs text-[#a1a1aa]">Fuente: {stat.source}</p> : null}
+                  {/* #a1a1aa (Silenciado) daba 2.56:1 sobre blanco a este tamaño — falla el
+                      4.5:1 de WCAG AA para texto normal. Ese token es para placeholders y
+                      decoración de baja jerarquía (así lo define DESIGN.md), no para una fuente
+                      citada que sí hay que poder leer. .text-muted (7.73:1) es el token correcto
+                      para "descripciones y ayudas". */}
+                  {stat.source ? <p className="mt-6 text-xs text-muted">Fuente: {stat.source}</p> : null}
                 </article>
               )}
             </Reveal>
