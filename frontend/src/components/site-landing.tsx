@@ -169,7 +169,7 @@ export function SiteLanding({ content }: { content?: NicheLandingContent }) {
       <section id="como-funciona" className="scroll-m-20 py-16 sm:py-20">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <Reveal className="mb-10 max-w-2xl">
-            <h2 className="text-3xl font-black tracking-tight text-[#0a0a0a] sm:text-4xl">
+            <h2 className="text-3xl font-black leading-tight tracking-tight text-[#0a0a0a] sm:text-4xl">
               De llamada perdida a cita confirmada, en tres pasos.
             </h2>
           </Reveal>
@@ -182,7 +182,13 @@ export function SiteLanding({ content }: { content?: NicheLandingContent }) {
             {threeSteps.map((step, index) => (
               <Reveal key={step.title} delay={index * 0.1}>
                 <article className="panel h-full p-7 sm:p-8">
-                  <span className="text-4xl font-black tracking-tight text-[#8b5cf6]">
+                  {/* El número deja de ser un titular gigante: en la dirección
+                      editorial el peso lo lleva el título del paso, y la cifra
+                      solo ordena. */}
+                  <span
+                    className="text-sm font-extrabold tracking-[0.02em] text-[#8b5cf6]"
+                    style={content?.accent ? { color: content.accent.strong } : undefined}
+                  >
                     {String(index + 1).padStart(2, "0")}
                   </span>
                   <h3 className="mt-5 text-xl font-bold text-[#0a0a0a]">{step.title}</h3>
