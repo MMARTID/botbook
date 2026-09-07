@@ -140,7 +140,7 @@ export async function buildInboundCallDynamicVariables(
   const [business, services, professionals] = await Promise.all([
     prismaClient.business.findUnique({
       where: { id: businessId },
-      select: { schedule: true },
+      select: { schedule: true, timezone: true },
     }),
     prismaClient.service.findMany({
       where: { businessId, active: true },
@@ -159,7 +159,40 @@ export async function buildInboundCallDynamicVariables(
     empleados: formatProfessionalsForDynamicVariable(professionals),
     horario_semanal: formatScheduleForPrompt(business?.schedule ?? {}),
     telefono_de_quien_llama: fromNumber || "desconocido",
+    // Sin esto, el modelo tiene que adivinar qué día es "hoy" (y por tanto
+    // "mañana"/"pasado mañana"/"el jueves que viene") a partir de contexto
+    // ambiguo — confirmado en una llamada real (2026-09-07, lunes) donde
+    // "pasado mañana" se resolvió como jueves en vez de miércoles. Se calcula
+    // en la timezone del negocio, no en la del servidor.
+    fecha_actual: formatCurrentDateForPrompt(business?.timezone || "Europe/Madrid"),
   };
+}
+
+function formatCurrentDateForPrompt(timezone: string): string {
+  try {
+    return new Intl.DateTimeFormat("es-ES", {
+      timeZone: timezone,
+      weekday: "long",
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+    }).format(new Date());
+  } catch {
+    // business.timezone es texto libre sin validar (ver PATCH /business/me)
+    // — un valor que no sea una zona IANA válida haría que Intl.DateTimeFormat
+    // lance, y esta función corre en cada llamada entrante
+    // (buildInboundCallDynamicVariables). Mejor una fecha en la zona por
+    // defecto que perder TODAS las variables dinámicas de la llamada (el
+    // catch de POST /webhooks/retell/inbound las vacía todas si algo revienta
+    // aquí dentro).
+    return new Intl.DateTimeFormat("es-ES", {
+      timeZone: "Europe/Madrid",
+      weekday: "long",
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+    }).format(new Date());
+  }
 }
 
 export type AgentTemplateConfig = {

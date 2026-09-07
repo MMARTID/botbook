@@ -109,16 +109,23 @@ export function buildManagedAgentPrompt(input: {
     "Habla SIEMPRE en español de España, en todos y cada uno de tus turnos, sea cual sea el idioma en que te hablen y sea cual sea el tema. Si el cliente te habla en otro idioma, sigue respondiendo en español.",
     // Movida cerca del principio del prompt (antes vivía al final, junto al
     // resto de reglas de tools) porque colocada al final no bastaba de forma
-    // consistente. Reforzada dos veces sobre llamadas reales de prueba:
+    // consistente. Reforzada tres veces sobre llamadas reales de prueba:
     // 2026-09-07 (el agente seguía respondiendo con palabras a despedidas
-    // repetidas del cliente en vez de colgar) y otra vez el mismo día (el
-    // agente ignoró por completo que el cliente dijera literalmente "cuelga"
-    // dos veces seguidas y siguió despidiéndose con palabras). La orden
-    // directa de colgar es la señal más inequívoca posible — separarla de
-    // la despedida genérica y ponerla primero evita que se diluya entre el
-    // resto de instrucciones.
+    // repetidas del cliente en vez de colgar), otra vez el mismo día (el
+    // agente ignoró que el cliente dijera literalmente "cuelga" dos veces
+    // seguidas) y una tercera vez el 2026-09-08 (con las dos reglas
+    // anteriores ya desplegadas y sincronizadas: el cliente dijo "gracias" +
+    // "adiós", el agente respondió "De nada, ¡hasta luego!" SIN llamar a
+    // end_call; el cliente repitió "adiós", el agente respondió "¡Adiós!"
+    // otra vez sin llamar a la tool; solo colgó cuando el cliente dio la
+    // orden explícita "cuelga"). El fallo real: el modelo trata decir la
+    // palabra de despedida como si ya fuera suficiente para terminar la
+    // llamada, sin darse cuenta de que hace falta ADEMÁS invocar la tool en
+    // ese mismo turno. La orden directa de colgar es la señal más
+    // inequívoca posible — separarla de la despedida genérica y ponerla
+    // primero evita que se diluya entre el resto de instrucciones.
     "Si el cliente te dice explícitamente 'cuelga', 'puedes colgar' o una orden directa equivalente, usa la tool end_call EN ESE MISMO TURNO sin decir nada más — ni una palabra de despedida, ni repetir un 'adiós' que ya dijiste antes. Es una orden, no una sugerencia.",
-    "SIEMPRE que el cliente diga 'gracias', 'adiós', 'hasta luego' o cualquier despedida similar, tu siguiente turno debe ser una frase de cierre de una sola línea seguida INMEDIATAMENTE de la tool end_call. Nunca respondas dos veces seguidas con palabras a una despedida — la segunda vez, cuelga sin hablar.",
+    "En cuanto el cliente diga 'gracias', 'adiós', 'hasta luego' o cualquier despedida similar POR PRIMERA VEZ, tu turno tiene que incluir DOS cosas a la vez, no una tras otra en turnos distintos: una frase de cierre de una sola línea Y la llamada a la tool end_call, ambas en ese mismo turno. Decir solo la frase de cierre sin llamar a end_call es un turno incompleto y incorrecto, aunque sea la primera despedida del cliente — no esperes a que se despida una segunda vez para colgar.",
     TONE_INSTRUCTIONS[settings.tone],
     GOAL_INSTRUCTIONS[settings.primaryGoal],
     responseInstruction,
@@ -155,5 +162,10 @@ export function buildManagedAgentPrompt(input: {
     'EMPLEADOS (usa professionalId solo si el cliente pide a esta persona concreta por nombre; usa el id exacto tal cual):\n{{empleados}}',
     'HORARIO_DEL_NEGOCIO:\n{{horario_semanal}}',
     'TELEFONO_DE_QUIEN_LLAMA (número de la llamada actual; "desconocido" si no está disponible):\n{{telefono_de_quien_llama}}',
+    // Sin esta ancla explícita el modelo tiene que inferir qué día es "hoy"
+    // por su cuenta — confirmado en una llamada real (2026-09-07, lunes) que
+    // "pasado mañana" se resolvió como jueves en vez de miércoles, y la cita
+    // se agendó un día tarde sin que nadie lo notara durante la llamada.
+    'FECHA_ACTUAL (hoy, en la zona horaria del negocio — es tu única fuente de verdad para "hoy". Calcula "mañana", "pasado mañana", "el jueves que viene", etc. contando siempre desde esta fecha exacta, nunca la inventes ni la asumas de otra forma):\n{{fecha_actual}}',
   ].filter(Boolean).join("\n\n");
 }

@@ -95,6 +95,57 @@ describe("buildInboundCallDynamicVariables", () => {
     const withoutNumber = await buildInboundCallDynamicVariables("biz_123");
     expect(withoutNumber.telefono_de_quien_llama).toBe("desconocido");
   });
+
+  it("calcula fecha_actual en la timezone del negocio, no en la del servidor", async () => {
+    // 2026-09-07T23:00:00Z es lunes en UTC pero ya martes en Europe/Madrid
+    // (+02:00) — si fecha_actual usara la timezone del servidor en vez de la
+    // del negocio, el día de la semana saldría mal, el mismo tipo de fallo
+    // que llevó a agendar "pasado mañana" un día tarde en una llamada real.
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-09-07T23:00:00Z"));
+
+    mockedBusinessFindUnique.mockResolvedValue({
+      schedule: DEFAULT_BUSINESS_SCHEDULE,
+      timezone: "Europe/Madrid",
+    } as any);
+    mockedServiceFindMany.mockResolvedValue([]);
+    mockedProfessionalFindMany.mockResolvedValue([]);
+
+    const variables = await buildInboundCallDynamicVariables("biz_123");
+
+    expect(variables.fecha_actual.toLowerCase()).toContain("martes");
+    expect(variables.fecha_actual).toContain("2026");
+
+    vi.useRealTimers();
+  });
+
+  it("usa Europe/Madrid como fallback si el negocio no tiene timezone configurada", async () => {
+    mockedBusinessFindUnique.mockResolvedValue({
+      schedule: DEFAULT_BUSINESS_SCHEDULE,
+      timezone: null,
+    } as any);
+    mockedServiceFindMany.mockResolvedValue([]);
+    mockedProfessionalFindMany.mockResolvedValue([]);
+
+    const variables = await buildInboundCallDynamicVariables("biz_123");
+
+    expect(typeof variables.fecha_actual).toBe("string");
+    expect(variables.fecha_actual.length).toBeGreaterThan(0);
+  });
+
+  it("no revienta y cae a Europe/Madrid si business.timezone no es una zona IANA válida", async () => {
+    mockedBusinessFindUnique.mockResolvedValue({
+      schedule: DEFAULT_BUSINESS_SCHEDULE,
+      timezone: "no-es-una-timezone",
+    } as any);
+    mockedServiceFindMany.mockResolvedValue([]);
+    mockedProfessionalFindMany.mockResolvedValue([]);
+
+    const variables = await buildInboundCallDynamicVariables("biz_123");
+
+    expect(typeof variables.fecha_actual).toBe("string");
+    expect(variables.fecha_actual.length).toBeGreaterThan(0);
+  });
 });
 
 describe("syncAgentToRetell — voiceGender", () => {
