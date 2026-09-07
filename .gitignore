@@ -24,3 +24,12 @@ dist/
 .env
 .env.*
 !.env.example
+
+# /design-sync: scripts montados, salida del convertidor, caché y entradas
+# generadas para el bundle (el origen de verdad es .design-sync/config.json).
+.ds-sync/
+ds-bundle/
+.design-sync/.cache/
+.design-sync/learnings/
+.design-sync/node_modules
+frontend/.ds-src/

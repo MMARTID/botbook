@@ -1,0 +1,72 @@
+{
+  "shape": "package",
+  "entry": "frontend/.ds-src/entry.ts",
+  "pkg": "alhabla-ui",
+  "globalName": "Alhabla",
+  "buildCmd": "node .design-sync/prepare.mjs",
+  "srcDir": "src/components",
+  "tsconfig": "tsconfig.json",
+  "cssEntry": ".ds-src/alhabla.css",
+  "docsDir": "../.design-sync/docs",
+  "guidelinesGlob": [
+    "../DESIGN.md"
+  ],
+  "provider": {
+    "component": "PreviewProviders"
+  },
+  "componentSrcMap": {
+    "BrandMark": "src/components/brand-mark.tsx",
+    "RangeSlider": "src/components/range-slider.tsx",
+    "BusinessHoursEditor": "src/components/business-hours-editor.tsx",
+    "AgentSettingsEditor": "src/components/agent-settings-editor.tsx",
+    "GoogleAuthButton": "src/components/google-auth-button.tsx",
+    "PlanSelectionLink": "src/components/plan-selection-link.tsx",
+    "SettingsSection": "src/components/settings-section.tsx",
+    "MobileNav": "src/components/mobile-nav.tsx",
+    "LegalSection": "src/components/legal-page.tsx",
+    "LegalTodo": "src/components/legal-page.tsx",
+    "CountUp": "src/components/count-up.tsx",
+    "AnimatedCurrency": "src/components/animated-currency.tsx",
+    "RecentCalls": "src/components/recent-calls.tsx",
+    "UpcomingCalendarEvents": "src/components/upcoming-calendar-events.tsx",
+    "OnboardingChecklist": "src/components/onboarding-checklist.tsx",
+    "CallDetailModal": "src/components/call-detail-modal.tsx",
+    "LandingHero": "src/components/landing-hero.tsx",
+    "HeroConversation": "src/components/hero-conversation.tsx",
+    "CallForwardingFlow": "src/components/call-forwarding-flow.tsx",
+    "PlansHeadline": "src/components/plans-headline.tsx",
+    "SectorDataSection": "src/components/sector-data-section.tsx",
+    "RevenueLossCalculator": "src/components/revenue-loss-calculator.tsx",
+    "Reveal": "src/components/scroll-reveal.tsx",
+    "ParticleField": "src/components/particle-field.tsx",
+    "ParticleMouseLayer": "src/components/particle-mouse-layer.tsx",
+    "LottieAnimation": "src/components/lottie-animation.tsx"
+  },
+  "overrides": {
+    "MobileNav": {
+      "cardMode": "single",
+      "viewport": "390x420"
+    },
+    "LandingHero": {
+      "cardMode": "column"
+    },
+    "SectorDataSection": {
+      "cardMode": "column"
+    },
+    "ParticleField": {
+      "cardMode": "single",
+      "primaryStory": "SobreFondoOscuro"
+    },
+    "RevenueLossCalculator": {
+      "cardMode": "single",
+      "primaryStory": "Generica",
+      "viewport": "1000x1500"
+    }
+  },
+  "dtsPropsFor": {
+    "RecentCalls": "  /** No recibe props: lee las llamadas de useQuery([\"recent-calls\"]). */",
+    "OnboardingChecklist": "  /** No recibe props: lee el estado de useQuery([\"onboarding-state\"]). */",
+    "PlansHeadline": "  /** No recibe props: el copy del titular es fijo. */"
+  },
+  "readmeHeader": ".design-sync/conventions.md"
+}
