@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { ArrowDown, ArrowRight, Check, Headphones } from "lucide-react";
 
-import { HeroConversation } from "@/components/hero-conversation";
+import { HeroVoiceprint } from "@/components/hero-voiceprint";
 import { DemoVoiceCall } from "@/components/demo-voice-call";
 import { Reveal } from "@/components/scroll-reveal";
 import type { NicheLandingContent } from "@/lib/niche-landings";
@@ -16,7 +16,6 @@ function buildPlansHref(niche?: string) {
 
 export function LandingHero({ content }: { content?: NicheLandingContent }) {
   const [isDemoOpen, setIsDemoOpen] = useState(false);
-  const [isDemoActive, setIsDemoActive] = useState(false);
   const accent = content?.accent;
   const plansHref = buildPlansHref(content?.slug);
 
@@ -83,14 +82,19 @@ export function LandingHero({ content }: { content?: NicheLandingContent }) {
         </div>
 
         <Reveal delay={0.1} y={18} id="demo-llamada" className="scroll-m-24">
-          <HeroConversation paused={isDemoActive} conversationsOverride={content?.conversations} />
+          <HeroVoiceprint accent={accent} />
         </Reveal>
       </section>
 
+      {/*
+        Ya no se pasa onActiveChange: existía para pausar la conversación
+        simulada del hero mientras sonaba la demo. La huella de voz que la
+        sustituye se representa una sola vez al entrar en pantalla y no compite
+        con el audio, así que no hay nada que pausar.
+      */}
       <DemoVoiceCall
         open={isDemoOpen}
         onClose={() => setIsDemoOpen(false)}
-        onActiveChange={setIsDemoActive}
         niche={content?.slug}
       />
     </>
