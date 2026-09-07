@@ -156,7 +156,16 @@ export function SiteLanding({ content }: { content?: NicheLandingContent }) {
 
       {/* La landing genérica también necesita prueba: si no hay datos de nicho,
           se muestran los transversales, todos con fuente externa citada. */}
+      {/*
+        El problema, de una vez: primero la evidencia del sector (datos de
+        terceros, con fuente) y justo después la estimación con las cifras del
+        propio negocio. Estaban separados por cuatro secciones —la calculadora
+        caía después de los beneficios—, así que la página planteaba dos veces
+        "cuánto pierdes" en sitios distintos en lugar de construir un solo
+        argumento que va de lo general a lo tuyo.
+      */}
       <SectorDataSection data={content?.sectorData ?? generalSectorData} accent={content?.accent} />
+      <RevenueLossCalculator content={content?.calculator} activeNiche={content?.slug} />
 
       {/*
         Sin fondo propio a partir de aquí (salvo los bloques negros reales,
@@ -273,8 +282,6 @@ export function SiteLanding({ content }: { content?: NicheLandingContent }) {
         </div>
       </section>
 
-      <RevenueLossCalculator content={content?.calculator} activeNiche={content?.slug} />
-
       <section id="precios" className="scroll-m-20 mx-auto max-w-7xl px-4 py-16 sm:px-6 sm:py-20 lg:px-8">
         <Reveal className="max-w-2xl">
           <h2 className="text-3xl font-black tracking-tight text-[#0a0a0a] sm:text-4xl">Planes claros, sin permanencia.</h2>
@@ -287,32 +294,41 @@ export function SiteLanding({ content }: { content?: NicheLandingContent }) {
         <div className="mt-8 grid gap-5 lg:grid-cols-3">
           {plans.map((plan, index) => (
             <Reveal key={plan.id} delay={index * 0.1}>
+              {/*
+                El plan recomendado se marcaba con una tarjeta negra maciza,
+                que a media página competía con el bloque negro del CTA final y
+                dejaba dos anclas oscuras compitiendo por la misma mirada. Pasa
+                a fondo blanco con un aro morado: La Regla del Acento Único
+                admite el "borde seleccionado" como el elemento morado que
+                reclama la atención, y así el negro se reserva para el cierre.
+              */}
               <article
                 className={
                   plan.featured
-                    ? "relative flex h-full flex-col rounded-3xl bg-[#0a0a0a] p-7 text-white"
+                    ? "relative flex h-full flex-col rounded-3xl bg-white p-7 ring-2 ring-[#8b5cf6]"
                     : "flex h-full flex-col rounded-3xl border border-[#e5e5e5] bg-white p-7"
+                }
+                style={
+                  plan.featured && content?.accent
+                    ? { boxShadow: `0 0 0 2px ${content.accent.strong}` }
+                    : undefined
                 }
               >
                 <div className="flex items-center justify-between gap-3">
-                  <h3 className={`text-lg font-bold ${plan.featured ? "text-white" : "text-[#0a0a0a]"}`}>{plan.name}</h3>
-                  {plan.featured ? (
-                    <span className="inline-flex items-center rounded-full bg-[#8b5cf6] px-3 py-1 text-xs font-semibold text-white">
-                      Recomendado
-                    </span>
-                  ) : null}
+                  <h3 className="text-lg font-bold text-[#0a0a0a]">{plan.name}</h3>
+                  {plan.featured ? <span className="badge-soft">Recomendado</span> : null}
                 </div>
-                <p className={`mt-6 text-4xl font-black tracking-tight ${plan.featured ? "text-white" : "text-[#0a0a0a]"}`}>
+                <p className="mt-6 text-4xl font-black tracking-tight text-[#0a0a0a]">
                   {formatPlanPrice(plan.price)}
-                  <span className={`text-base font-medium ${plan.featured ? "text-white/60" : "text-[#71717a]"}`}>/mes</span>
+                  <span className="text-base font-medium text-[#71717a]">/mes</span>
                 </p>
-                <p className={`mt-3 text-sm font-semibold ${plan.featured ? "text-white/90" : "text-[#27272a]"}`}>
+                <p className="mt-3 text-sm font-semibold text-[#27272a]">
                   {formatIncludedMinutes(plan.minutes)} minutos incluidos
                 </p>
-                <p className={`mt-2 text-sm leading-7 ${plan.featured ? "text-white/65" : "text-[#52525b]"}`}>{plan.summary}</p>
+                <p className="mt-2 text-sm leading-7 text-[#52525b]">{plan.summary}</p>
                 <Link
                   href={`${plansHref}${plansHref.includes("?") ? "&" : "?"}plan=${plan.id}`}
-                  className={plan.featured ? "btn-purple mt-6" : "btn-secondary mt-6"}
+                  className={plan.featured ? "btn-primary mt-6" : "btn-secondary mt-6"}
                 >
                   Elegir {plan.name}
                 </Link>
