@@ -1,14 +1,60 @@
 {
   "pages": [
-    { "id": "page-1", "name": "Landing A" },
-    { "id": "page-2", "name": "Descartadas" }
+    {
+      "id": "page-1",
+      "name": "Landing A"
+    },
+    {
+      "id": "page-2",
+      "name": "Descartadas"
+    }
   ],
   "artboards": [
-    { "file": "Main.dc.html", "x": 0, "y": 0, "w": 1440, "h": 3320, "title": "A · Editorial", "page": "page-1" },
-    { "file": "HeroAgenda.dc.html", "x": 1600, "y": 0, "w": 560, "h": 620, "title": "Hero · agenda", "page": "page-1" },
-    { "file": "HeroPulso.dc.html", "x": 1600, "y": 740, "w": 560, "h": 620, "title": "Hero · pulso", "page": "page-1" },
-    { "file": "Producto.dc.html", "x": 0, "y": 0, "w": 1440, "h": 1560, "title": "B · Producto (descartada)", "page": "page-2" },
-    { "file": "Contraste.dc.html", "x": 1600, "y": 0, "w": 1440, "h": 1400, "title": "C · Contraste (descartada)", "page": "page-2" }
+    {
+      "file": "Main.dc.html",
+      "x": 0,
+      "y": 0,
+      "w": 1440,
+      "h": 3320,
+      "title": "A · Editorial",
+      "page": "page-1"
+    },
+    {
+      "file": "HeroAgenda.dc.html",
+      "x": 1600,
+      "y": 0,
+      "w": 560,
+      "h": 620,
+      "title": "Hero · agenda",
+      "page": "page-1"
+    },
+    {
+      "file": "HeroPulso.dc.html",
+      "x": 1600,
+      "y": 740,
+      "w": 560,
+      "h": 620,
+      "title": "Hero · pulso",
+      "page": "page-1"
+    },
+    {
+      "file": "Producto.dc.html",
+      "x": 0,
+      "y": 0,
+      "w": 1440,
+      "h": 1560,
+      "title": "B · Producto (descartada)",
+      "page": "page-2"
+    },
+    {
+      "file": "Contraste.dc.html",
+      "x": 1600,
+      "y": 0,
+      "w": 1440,
+      "h": 1400,
+      "title": "C · Contraste (descartada)",
+      "page": "page-2"
+    }
   ],
   "annotations": [
     {
@@ -17,7 +63,7 @@
       "y": -340,
       "w": 660,
       "page": "page-1",
-      "text": "LANDING · dirección A (Editorial), página completa\n\nMismos tokens de siempre. La tipografía manda, y el morado queda como acento fino: regla de 2px sobre cada eyebrow y subrayado translúcido en la frase clave del titular.\n\nLos datos del sector siguen como [DATO] / [FUENTE] — pendientes de que los rellenes.",
+      "text": "LANDING · dirección A (Editorial), página completa\n\nMismos tokens de siempre. La tipografía manda y el morado queda como acento fino.\n\nSIN ANTETÍTULOS: la primera versión de esta maqueta ponía una etiqueta en versalitas sobre cada titular. DESIGN.md lo prohíbe en La Regla del Titular Solo — el titular carga con su propio peso. Decisión del 2026-09-07: se mantiene la regla. Los badges que sí quedan aportan información que el titular no da (el dato del 60% en el hero, «Google Calendar & Outlook» nombrando la integración), que es justo lo que la regla permite.\n\nLos datos del sector siguen como [DATO] / [FUENTE] — pendientes de rellenar.",
       "kind": "note"
     },
     {
@@ -37,5 +83,8 @@
       "text": "Las dos direcciones que no elegiste, guardadas por si hay que volver a mirarlas. No se van a desarrollar."
     }
   ],
-  "launch": { "view": "canvas", "page": "page-1" }
+  "launch": {
+    "view": "canvas",
+    "page": "page-1"
+  }
 }
