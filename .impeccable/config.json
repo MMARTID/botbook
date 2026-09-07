@@ -175,6 +175,51 @@
         ],
         "createdAt": "2026-09-07T05:57:43.593Z",
         "reason": "Maqueta de lienzo de Claude Design: se autora en px a escala fija de 1440, mientras la escala de DESIGN.md está en rem/clamp. No es UI que se sirva. Acotado a este fichero y a esta regla; colores, fuentes y jerarquía siguen vigilados."
+      },
+      {
+        "rule": "design-system-font",
+        "value": "geist",
+        "files": [
+          "design/Main.dc.html"
+        ],
+        "createdAt": "2026-09-07T06:54:28.729Z",
+        "reason": "Fuente de marca ya establecida (DESIGN.md § Typography): fuera del producto, donde no se puede servir el .woff local, se llama 'Geist' a secas en Google Fonts. El frontmatter usa var(--font-geist-sans), que no coincide textualmente con el literal 'Geist' de estas maquetas de lienzo."
+      },
+      {
+        "rule": "design-system-font",
+        "value": "geist",
+        "files": [
+          "design/HeroAgenda.dc.html"
+        ],
+        "createdAt": "2026-09-07T06:54:28.740Z",
+        "reason": "Fuente de marca ya establecida (DESIGN.md § Typography): fuera del producto, donde no se puede servir el .woff local, se llama 'Geist' a secas en Google Fonts. El frontmatter usa var(--font-geist-sans), que no coincide textualmente con el literal 'Geist' de estas maquetas de lienzo."
+      },
+      {
+        "rule": "design-system-font",
+        "value": "geist",
+        "files": [
+          "design/HeroPulso.dc.html"
+        ],
+        "createdAt": "2026-09-07T06:54:28.750Z",
+        "reason": "Fuente de marca ya establecida (DESIGN.md § Typography): fuera del producto, donde no se puede servir el .woff local, se llama 'Geist' a secas en Google Fonts. El frontmatter usa var(--font-geist-sans), que no coincide textualmente con el literal 'Geist' de estas maquetas de lienzo."
+      },
+      {
+        "rule": "design-system-font",
+        "value": "geist",
+        "files": [
+          "design/Producto.dc.html"
+        ],
+        "createdAt": "2026-09-07T06:54:28.761Z",
+        "reason": "Fuente de marca ya establecida (DESIGN.md § Typography): fuera del producto, donde no se puede servir el .woff local, se llama 'Geist' a secas en Google Fonts. El frontmatter usa var(--font-geist-sans), que no coincide textualmente con el literal 'Geist' de estas maquetas de lienzo."
+      },
+      {
+        "rule": "design-system-font",
+        "value": "geist",
+        "files": [
+          "design/Contraste.dc.html"
+        ],
+        "createdAt": "2026-09-07T06:54:28.771Z",
+        "reason": "Fuente de marca ya establecida (DESIGN.md § Typography): fuera del producto, donde no se puede servir el .woff local, se llama 'Geist' a secas en Google Fonts. El frontmatter usa var(--font-geist-sans), que no coincide textualmente con el literal 'Geist' de estas maquetas de lienzo."
       }
     ]
   }

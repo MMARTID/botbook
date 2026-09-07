@@ -6,7 +6,10 @@ colors:
   surface: "#ffffff"
   surface-soft: "#fafafa"
   foreground: "#0a0a0a"
+  foreground-secondary: "#27272a"
+  nav-link: "#3f3f46"
   muted: "#52525b"
+  subtle: "#a1a1aa"
   accent: "#0a0a0a"
   accent-strong: "#262626"
   accent-soft: "#a78bfa"
@@ -125,7 +128,7 @@ components:
     padding: "4px 12px"
   nav-pill:
     backgroundColor: "{colors.surface}"
-    textColor: "#27272a"
+    textColor: "{colors.foreground-secondary}"
     rounded: "{rounded.pill}"
     padding: "8px 12px"
   nav-pill-active:
