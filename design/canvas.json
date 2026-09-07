@@ -1,0 +1,41 @@
+{
+  "pages": [
+    { "id": "page-1", "name": "Landing A" },
+    { "id": "page-2", "name": "Descartadas" }
+  ],
+  "artboards": [
+    { "file": "Main.dc.html", "x": 0, "y": 0, "w": 1440, "h": 3320, "title": "A · Editorial", "page": "page-1" },
+    { "file": "HeroAgenda.dc.html", "x": 1600, "y": 0, "w": 560, "h": 620, "title": "Hero · agenda", "page": "page-1" },
+    { "file": "HeroPulso.dc.html", "x": 1600, "y": 740, "w": 560, "h": 620, "title": "Hero · pulso", "page": "page-1" },
+    { "file": "Producto.dc.html", "x": 0, "y": 0, "w": 1440, "h": 1560, "title": "B · Producto (descartada)", "page": "page-2" },
+    { "file": "Contraste.dc.html", "x": 1600, "y": 0, "w": 1440, "h": 1400, "title": "C · Contraste (descartada)", "page": "page-2" }
+  ],
+  "annotations": [
+    {
+      "id": "brief",
+      "x": 0,
+      "y": -340,
+      "w": 660,
+      "page": "page-1",
+      "text": "LANDING · dirección A (Editorial), página completa\n\nMismos tokens de siempre. La tipografía manda, y el morado queda como acento fino: regla de 2px sobre cada eyebrow y subrayado translúcido en la frase clave del titular.\n\nLos datos del sector siguen como [DATO] / [FUENTE] — pendientes de que los rellenes.",
+      "kind": "note"
+    },
+    {
+      "id": "hero-nota",
+      "x": 1600,
+      "y": -340,
+      "w": 560,
+      "page": "page-1",
+      "text": "EL HUECO DEL HERO\n\nLa simulación de conversación actual tarda 6,6 s por escena y la confirmación no aparece hasta el segundo 5: ~20 s para ver las tres. Por eso se hace lenta.\n\nEn A he puesto una ONDA DE VOZ que se resuelve en la cita: una sola idea, se lee de un vistazo y no obliga a esperar. En movimiento las barras suben una vez, de izquierda a derecha, y la tarjeta negra entra al final (menos de 1,5 s en total).\n\nAquí al lado tienes dos alternativas para ese mismo hueco por si prefieres otra cosa."
+    },
+    {
+      "id": "descartadas-nota",
+      "x": 0,
+      "y": -200,
+      "w": 660,
+      "page": "page-2",
+      "text": "Las dos direcciones que no elegiste, guardadas por si hay que volver a mirarlas. No se van a desarrollar."
+    }
+  ],
+  "launch": { "view": "canvas", "page": "page-1" }
+}

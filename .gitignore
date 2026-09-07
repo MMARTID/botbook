@@ -33,3 +33,7 @@ ds-bundle/
 .design-sync/learnings/
 .design-sync/node_modules
 frontend/.ds-src/
+
+# Lienzo de Claude Design: las fuentes (.dc.html + canvas.json) sí se versionan;
+# el archivo publicado son ~2,5 MB de payload del editor, regenerable con seed-canvas.
+design/landing-alhabla.html

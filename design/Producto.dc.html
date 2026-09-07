@@ -1,0 +1,150 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700;800;900&display=swap">
+  <style>
+    body { margin: 0; font-family: 'Geist', system-ui, -apple-system, sans-serif; background: #ffffff; }
+    a { color: #6d28d9; text-decoration: none; }
+    a:hover { color: #7c3aed; }
+    * { box-sizing: border-box; }
+  </style>
+</helmet>
+
+<div style="width: 1440px; background: #ffffff; color: #0a0a0a;">
+
+  <div style="display: flex; align-items: center; justify-content: space-between; height: 72px; padding: 0 64px; border-bottom: 1px solid #e5e5e5;">
+    <div style="display: flex; align-items: center; gap: 10px;">
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#8b5cf6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
+      <span style="font-size: 19px; font-weight: 800; letter-spacing: -0.02em;">Alhabla</span>
+    </div>
+    <div style="display: flex; align-items: center; gap: 28px;">
+      <span style="font-size: 14px; font-weight: 500; color: #3f3f46;">Por qué</span>
+      <span style="font-size: 14px; font-weight: 500; color: #3f3f46;">Cómo funciona</span>
+      <span style="font-size: 14px; font-weight: 500; color: #3f3f46;">Precios</span>
+      <div style="display: flex; align-items: center; height: 40px; padding: 0 18px; background: #0a0a0a; color: #ffffff; border-radius: 999px; font-size: 14px; font-weight: 600;">Empezar ahora</div>
+    </div>
+  </div>
+
+  <!-- Hero: el producto ocupa el centro, sobre lienzo morado suave -->
+  <div style="background: #f3eeff; padding: 72px 64px 0; border-bottom: 1px solid #ddd6fe;">
+    <div style="display: flex; flex-direction: column; align-items: center; text-align: center;">
+      <div style="display: inline-flex; align-items: center; gap: 8px; padding: 7px 15px; border-radius: 999px; background: #ffffff; border: 1px solid #ddd6fe;">
+        <span style="width: 7px; height: 7px; border-radius: 999px; background: #8b5cf6;"></span>
+        <span style="font-size: 13px; font-weight: 700; color: #6d28d9;">Atendiendo llamadas ahora mismo</span>
+      </div>
+
+      <h1 style="margin: 26px 0 0; max-width: 900px; font-size: 60px; line-height: 1.06; font-weight: 900; letter-spacing: -0.035em; text-wrap: pretty;">
+        Cada llamada sin contestar es un cliente que ya reservó en otro sitio.
+      </h1>
+
+      <p style="margin: 24px 0 0; max-width: 620px; font-size: 18px; line-height: 1.65; color: #52525b;">
+        Alhabla responde, resuelve dudas y agenda citas 24/7 con tu número de siempre — sin cambiar cómo trabajas.
+      </p>
+
+      <div style="display: flex; align-items: center; gap: 14px; margin-top: 32px;">
+        <div style="display: flex; align-items: center; height: 52px; padding: 0 30px; background: #0a0a0a; color: #ffffff; border-radius: 999px; font-size: 15px; font-weight: 600;">Empezar ahora</div>
+        <div style="display: flex; align-items: center; gap: 9px; height: 52px; padding: 0 26px; background: #ffffff; border: 1px solid #ddd6fe; border-radius: 999px; font-size: 15px; font-weight: 600; color: #6d28d9;">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#8b5cf6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+          Escuchar una llamada real
+        </div>
+      </div>
+    </div>
+
+    <!-- El panel real del producto, asomando por debajo -->
+    <div style="margin: 56px auto 0; width: 1120px; border: 1px solid #ddd6fe; border-radius: 24px 24px 0 0; background: #ffffff; overflow: hidden;">
+      <div style="display: flex; align-items: center; gap: 8px; padding: 14px 20px; border-bottom: 1px solid #e5e5e5; background: #fafafa;">
+        <span style="width: 11px; height: 11px; border-radius: 999px; background: #e5e5e5;"></span>
+        <span style="width: 11px; height: 11px; border-radius: 999px; background: #e5e5e5;"></span>
+        <span style="width: 11px; height: 11px; border-radius: 999px; background: #e5e5e5;"></span>
+        <span style="margin-left: 12px; font-size: 12px; font-weight: 600; color: #52525b;">Panel de Peluquería Vidal</span>
+      </div>
+
+      <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; padding: 28px 28px 0;">
+        <div style="padding: 22px; border: 1px solid #e5e5e5; border-radius: 18px;">
+          <div style="display: flex; align-items: center; justify-content: space-between;">
+            <span style="font-size: 13px; font-weight: 600; color: #52525b;">Llamadas</span>
+            <span style="display: flex; width: 30px; height: 30px; align-items: center; justify-content: center; border-radius: 10px; background: #f3eeff;">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#8b5cf6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+            </span>
+          </div>
+          <div style="margin-top: 16px; font-size: 34px; font-weight: 800; letter-spacing: -0.02em;">128</div>
+        </div>
+        <div style="padding: 22px; border: 1px solid #e5e5e5; border-radius: 18px;">
+          <div style="display: flex; align-items: center; justify-content: space-between;">
+            <span style="font-size: 13px; font-weight: 600; color: #52525b;">Citas creadas</span>
+            <span style="display: flex; width: 30px; height: 30px; align-items: center; justify-content: center; border-radius: 10px; background: #f3eeff;">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#8b5cf6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+            </span>
+          </div>
+          <div style="margin-top: 16px; font-size: 34px; font-weight: 800; letter-spacing: -0.02em;">94</div>
+        </div>
+        <div style="padding: 22px; border: 1px solid #e5e5e5; border-radius: 18px;">
+          <div style="display: flex; align-items: center; justify-content: space-between;">
+            <span style="font-size: 13px; font-weight: 600; color: #52525b;">Minutos</span>
+            <span style="display: flex; width: 30px; height: 30px; align-items: center; justify-content: center; border-radius: 10px; background: #f3eeff;">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#8b5cf6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            </span>
+          </div>
+          <div style="margin-top: 16px; font-size: 34px; font-weight: 800; letter-spacing: -0.02em;">212</div>
+        </div>
+      </div>
+
+      <div style="padding: 24px 28px 28px;">
+        <div style="border: 1px solid #e5e5e5; border-radius: 18px; overflow: hidden;">
+          <div style="display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; border-bottom: 1px solid #e5e5e5;">
+            <span style="font-size: 15px; font-weight: 700;">Llamadas recientes</span>
+            <span style="font-size: 13px; font-weight: 600; color: #6d28d9;">Ver todas</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 16px; padding: 15px 20px; border-bottom: 1px solid #e5e5e5;">
+            <span style="display: flex; width: 34px; height: 34px; align-items: center; justify-content: center; border-radius: 999px; background: #ecf7ec;">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#2c7334" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+            </span>
+            <div style="flex-grow: 1;">
+              <div style="font-size: 14px; font-weight: 600;">Corte y color · jueves 17:30</div>
+              <div style="font-size: 13px; color: #52525b;">692 13 84 56 · 1 min 14 s</div>
+            </div>
+            <span style="padding: 5px 11px; border-radius: 999px; background: #ecf7ec; font-size: 12px; font-weight: 700; color: #2c7334;">Cita creada</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 16px; padding: 15px 20px;">
+            <span style="display: flex; width: 34px; height: 34px; align-items: center; justify-content: center; border-radius: 999px; background: #f3eeff;">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#8b5cf6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+            </span>
+            <div style="flex-grow: 1;">
+              <div style="font-size: 14px; font-weight: 600;">Consulta de precios · mechas</div>
+              <div style="font-size: 13px; color: #52525b;">671 20 55 09 · 48 s</div>
+            </div>
+            <span style="padding: 5px 11px; border-radius: 999px; background: #f3eeff; font-size: 12px; font-weight: 700; color: #6d28d9;">Resuelta</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; padding: 72px 64px;">
+    <div style="padding: 30px; border: 1px solid #e5e5e5; border-radius: 24px;">
+      <div style="font-size: 15px; font-weight: 800; color: #8b5cf6;">01</div>
+      <h3 style="margin: 18px 0 0; font-size: 20px; font-weight: 700;">Suena tu número de siempre</h3>
+      <p style="margin: 12px 0 0; font-size: 15px; line-height: 1.7; color: #52525b;">Activas un desvío condicional en 15 segundos. Solo las llamadas que no contestas van al asistente.</p>
+    </div>
+    <div style="padding: 30px; border: 1px solid #e5e5e5; border-radius: 24px;">
+      <div style="font-size: 15px; font-weight: 800; color: #8b5cf6;">02</div>
+      <h3 style="margin: 18px 0 0; font-size: 20px; font-weight: 700;">Responde como si fuera de la casa</h3>
+      <p style="margin: 12px 0 0; font-size: 15px; line-height: 1.7; color: #52525b;">Conoce tus servicios, precios y huecos reales. Si no sabe algo, toma un recado en vez de inventarlo.</p>
+    </div>
+    <div style="padding: 30px; border: 1px solid #e5e5e5; border-radius: 24px;">
+      <div style="font-size: 15px; font-weight: 800; color: #8b5cf6;">03</div>
+      <h3 style="margin: 18px 0 0; font-size: 20px; font-weight: 700;">La cita, en tu agenda al colgar</h3>
+      <p style="margin: 12px 0 0; font-size: 15px; line-height: 1.7; color: #52525b;">Confirmación automática y ficha con quién llamó y qué reservó. Duración media: menos de 2 minutos.</p>
+    </div>
+  </div>
+
+</div>
+</x-dc>
+</body>
+</html>

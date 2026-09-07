@@ -215,6 +215,10 @@ estado del sistema, no marca.
 - **Tinta** (`#0a0a0a`): texto principal y titulares.
 - **Tinta Secundaria** (`#27272a`): etiquetas de campo y texto secundario con más peso que el
   cuerpo muted.
+- **Tinta de Navegación** (`#3f3f46`): enlaces de la barra de navegación de la landing en reposo,
+  que pasan a Tinta (`#0a0a0a`) al hover. Es el único sitio donde se usa este paso: no es un token
+  de propósito general y no debe aparecer en texto de cuerpo — para eso está Tinta Apagada.
+  Documentado el 2026-09-07, cuando se detectó que la landing ya lo usaba sin estar en el sistema.
 - **Tinta Apagada** (`#52525b`): texto terciario, descripciones y ayudas. Se usa siempre a través
   de la utilidad `.text-muted`, nunca escribiendo el hex, para que el token siga siendo el único
   punto de cambio. Da 7,5:1 sobre blanco — muy por encima de AA.
@@ -318,6 +322,11 @@ bucle ni arranca.
 **Display Font:** Geist Sans (variable 100–900, servida local desde `app/fonts/GeistVF.woff`)
 **Body Font:** Geist Sans — la misma familia en todo el sistema
 **Label/Mono Font:** Geist Mono (`app/fonts/GeistMonoVF.woff`), reservada para datos técnicos
+
+> **Fuera del producto** (maquetas, presentaciones, cualquier superficie que no pueda servir el
+> `.woff` local) la familia se llama **`Geist`** a secas: es su nombre en Google Fonts. Es la misma
+> tipografía; solo cambia cómo se carga. Pila de reserva:
+> `'Geist', system-ui, -apple-system, sans-serif`.
 
 **Character:** una grotesca neutra y contemporánea, sin manierismos. Al usar una sola familia en
 todo el rango, la jerarquía la construyen el tamaño y el peso, no el contraste de fuentes. Los
