@@ -124,6 +124,12 @@
         "value": "geist sans",
         "createdAt": "2026-09-06T01:05:05.406Z",
         "reason": "video composition matches product typography intentionally, not a product surface"
+      },
+      {
+        "rule": "overused-font",
+        "value": "geist",
+        "createdAt": "2026-09-07T05:40:54.825Z",
+        "reason": "Misma fuente de marca, en minúsculas por el nombre de familia en Google Fonts. Ver DESIGN.md § Typography."
       }
     ]
   }
