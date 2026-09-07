@@ -20,20 +20,17 @@ import type { NicheAccent } from "@/lib/niche-landings";
  * centro como un tono de llamada y las pastillas van contando desenlaces —
  * confirmar, mover, tomar recado— cada una entendible por sí sola.
  *
- * El bucle es deliberado y lento (un tono cada 2,4 s). No es decoración
+ * El bucle es deliberado y lento (un tono cada 3,6 s). No es decoración
  * inquieta: representa lo único que hace este producto, que es coger el
  * teléfono. Con prefers-reduced-motion se queda quieto.
  */
 
-/** Anillos fijos: dan la estructura del dibujo y evitan que el hueco se quede
- * vacío entre pulso y pulso. */
-const STATIC_RINGS = [300, 228, 156];
-
 /** Ondas que salen del centro. Van en el color de acento y a plena opacidad al
  * nacer: con el morado lavado del fondo no se veía ninguna. */
 const RIPPLES = [0, 1, 2];
-const RIPPLE_INTERVAL = 0.8;
+const RIPPLE_INTERVAL = 1.2;
 const RIPPLE_CYCLE = RIPPLES.length * RIPPLE_INTERVAL;
+const RIPPLE_SIZE = 300;
 
 /**
  * Lo que resuelve una llamada, no solo reservarla: confirmar, mover, resolver
@@ -78,7 +75,7 @@ const RESULTADOS = [
 
 /** Cada pastilla vive un ciclo completo y entran escalonadas, de modo que
  * siempre hay una o dos en pantalla y ninguna se solapa con su vecina. */
-const CICLO_RESULTADOS = 7.2;
+const CICLO_RESULTADOS = 10.8;
 
 export function HeroPulse({ accent }: { accent?: NicheAccent }) {
   const reducedMotion = useReducedMotion() === true;
@@ -89,30 +86,18 @@ export function HeroPulse({ accent }: { accent?: NicheAccent }) {
   return (
     <div className="flex flex-col gap-7">
       <div
-        className="relative mx-auto flex h-[260px] w-full max-w-[320px] items-center justify-center sm:mx-0 sm:h-[300px] sm:max-w-[360px]"
+        className="relative mx-auto flex h-[260px] w-full max-w-[320px] items-center justify-center sm:mx-auto sm:h-[300px] sm:max-w-[360px]"
         role="img"
         aria-label="Llamadas entrantes que se resuelven solas: atendidas en dos tonos, citas confirmadas, citas movidas de día y recados tomados"
       >
-        {STATIC_RINGS.map((size) => (
-          <span
-            key={size}
-            aria-hidden="true"
-            className="absolute rounded-full border border-[#ddd6fe]"
-            style={{ width: size, height: size, maxWidth: "100%", maxHeight: "100%" }}
-          />
-        ))}
-
         {!reducedMotion &&
           RIPPLES.map((index) => (
             <motion.span
               key={index}
               aria-hidden="true"
-              className="absolute rounded-full border-2"
+              className="absolute inset-0 m-auto aspect-square rounded-full border-2"
               style={{
-                width: STATIC_RINGS[0],
-                height: STATIC_RINGS[0],
-                maxWidth: "100%",
-                maxHeight: "100%",
+                width: `min(${RIPPLE_SIZE}px, 100%)`,
                 borderColor: strong,
               }}
               initial={{ opacity: 0, scale: 0.3 }}
