@@ -37,3 +37,75 @@ frontend/.ds-src/
 # Lienzo de Claude Design: las fuentes (.dc.html + canvas.json) sí se versionan;
 # el archivo publicado son ~2,5 MB de payload del editor, regenerable con seed-canvas.
 design/landing-alhabla.html
+
+# Ajuste de puerto de Postgres solo de esta máquina (conflicto con un Postgres
+# nativo en 5432) — cada dev el suyo, no se comparte.
+docker-compose.override.yml
+
+# Contenido personal / de trabajo sin relación con el producto que acabó
+# dentro del repo.
+Second-Brain/
+alhabla-landing-video/
+
+# Skills de agente para generación de vídeo/motion instaladas en local para
+# varias herramientas (no son código de Alhabla). .agents/skills/connect-recommend
+# y .claude/skills/impeccable sí son skills del propio proyecto y se versionan.
+.agents/skills/captions-overlay/
+.agents/skills/changelog-video/
+.agents/skills/cut-the-curve/
+.agents/skills/embedded-captions/
+.agents/skills/faceless-explainer/
+.agents/skills/figma/
+.agents/skills/general-video/
+.agents/skills/hyperframes*/
+.agents/skills/media-use/
+.agents/skills/motion-doctrine/
+.agents/skills/motion-graphics/
+.agents/skills/music-to-video/
+.agents/skills/oversized-cursor/
+.agents/skills/pr-to-video/
+.agents/skills/product-launch-video/
+.agents/skills/remotion-to-hyperframes/
+.agents/skills/seam-craft/
+.agents/skills/slideshow/
+.agents/skills/talking-head-recut/
+
+.claude/skills/captions-overlay
+.claude/skills/changelog-video
+.claude/skills/cut-the-curve
+.claude/skills/embedded-captions
+.claude/skills/faceless-explainer
+.claude/skills/figma
+.claude/skills/general-video
+.claude/skills/hyperframes*
+.claude/skills/media-use
+.claude/skills/motion-doctrine
+.claude/skills/motion-graphics
+.claude/skills/music-to-video
+.claude/skills/oversized-cursor
+.claude/skills/pr-to-video
+.claude/skills/product-launch-video
+.claude/skills/remotion-to-hyperframes
+.claude/skills/seam-craft
+.claude/skills/slideshow
+.claude/skills/talking-head-recut
+
+.continue/skills/captions-overlay
+.continue/skills/changelog-video
+.continue/skills/cut-the-curve
+.continue/skills/embedded-captions
+.continue/skills/faceless-explainer
+.continue/skills/figma
+.continue/skills/general-video
+.continue/skills/hyperframes*
+.continue/skills/media-use
+.continue/skills/motion-doctrine
+.continue/skills/motion-graphics
+.continue/skills/music-to-video
+.continue/skills/oversized-cursor
+.continue/skills/pr-to-video
+.continue/skills/product-launch-video
+.continue/skills/remotion-to-hyperframes
+.continue/skills/seam-craft
+.continue/skills/slideshow
+.continue/skills/talking-head-recut
