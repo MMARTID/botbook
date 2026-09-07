@@ -42,7 +42,7 @@ export function RecentCalls() {
   const calls = callsQuery.data?.data ?? [];
 
   return (
-    <section className="panel p-4 sm:p-5 lg:p-6" aria-labelledby="recent-calls-title">
+    <section className="panel min-w-0 p-4 sm:p-5 lg:p-6" aria-labelledby="recent-calls-title">
       <div className="flex items-center justify-between gap-3">
         <div>
           <p className="text-sm font-medium text-muted">Actividad</p>

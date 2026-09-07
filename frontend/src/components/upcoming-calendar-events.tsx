@@ -70,7 +70,7 @@ export function UpcomingCalendarEvents({ businessId, timeZone, onReconnectRequir
   };
 
   return (
-    <section className="panel relative overflow-hidden p-4 sm:p-5 lg:p-6" aria-labelledby="calendar-events-title">
+    <section className="panel relative min-w-0 overflow-hidden p-4 sm:p-5 lg:p-6" aria-labelledby="calendar-events-title">
       <div className="pointer-events-none absolute -right-16 -top-20 h-52 w-52 rounded-full bg-[#8b5cf6]/20 blur-3xl" />
       <div className="relative flex items-center justify-between gap-3">
         <div className="min-w-0">

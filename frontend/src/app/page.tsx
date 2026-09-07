@@ -2,7 +2,7 @@
 
 import { useCallback, useState, useEffect, Suspense } from "react";
 import axios from "axios";
-import { Bot, PhoneCall, Clock3, TrendingUp, CalendarDays, Upload, FileText, ArrowUpRight, ArrowRight, Sparkles, Smartphone, RefreshCw, type LucideIcon } from "lucide-react";
+import { Bot, PhoneCall, Clock3, TrendingUp, CalendarDays, Upload, FileText, ArrowRight, Sparkles, Smartphone, RefreshCw } from "lucide-react";
 import { getStats, getPhoneNumberInfo, provisionPhoneNumber } from "@/lib/api";
 import { useBusiness } from "@/components/providers";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -21,43 +21,6 @@ function StatusRow({ label, value, icon }: { label: string; value: string; icon:
       </span>
       <span className="shrink-0 rounded-full bg-[#fafafa] px-2.5 py-1 text-xs font-semibold text-[#52525b]">{value}</span>
     </div>
-  );
-}
-
-function QuickActionCard({
-  icon: Icon,
-  title,
-  description,
-  action,
-  onClick,
-  disabled,
-}: {
-  icon: LucideIcon;
-  title: string;
-  description: string;
-  action: string;
-  onClick?: () => void;
-  disabled?: boolean;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      className="flex w-full items-center gap-3 rounded-xl border border-[#ddd6fe] bg-[#f3eeff] p-3 text-left transition duration-200 hover:border-[#8b5cf6] disabled:cursor-not-allowed disabled:opacity-60"
-    >
-      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white text-[#8b5cf6]">
-        <Icon className="h-4 w-4" />
-      </span>
-      <span className="min-w-0 flex-1">
-        <span className="block text-sm font-semibold text-[#0a0a0a]">{title}</span>
-        <span className="block truncate text-xs text-[#6d28d9]/80">{description}</span>
-      </span>
-      <span className="inline-flex shrink-0 items-center gap-1 text-sm font-semibold text-[#6d28d9]">
-        {action}
-        <ArrowUpRight className="h-4 w-4" />
-      </span>
-    </button>
   );
 }
 
@@ -187,8 +150,8 @@ function DashboardContent() {
     <div className="space-y-5 sm:space-y-8">
       <OnboardingChecklist />
 
-      <section className="grid gap-4 sm:gap-6 xl:grid-cols-[minmax(0,1fr)_22rem]">
-        <article id="calendar-setup" className="panel relative scroll-mt-32 overflow-hidden p-4 sm:p-6">
+      <section className="grid gap-4 sm:gap-6 lg:grid-cols-[minmax(0,1fr)_22rem]">
+        <article id="calendar-setup" className="panel relative min-w-0 scroll-mt-32 overflow-hidden p-4 sm:p-6">
           <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(139,92,246,0.14),transparent_62%)]" />
           <div className="pointer-events-none absolute -left-12 bottom-0 h-32 w-32 rounded-full bg-[#8b5cf6]/20 blur-3xl" />
           <div className="relative flex flex-col gap-5 sm:gap-6">
@@ -207,17 +170,6 @@ function DashboardContent() {
                 <span className="badge-soft">{business.name}</span>
               </div>
             </div>
-
-            {!contextFileCount ? (
-              <QuickActionCard
-                icon={Upload}
-                title="Añade documentos"
-                description="PDFs, tarifas o FAQs para que el agente responda con contexto real."
-                action={isUploading ? "Subiendo..." : "Subir archivo"}
-                onClick={openFilePicker}
-                disabled={isUploading || !agent}
-              />
-            ) : null}
 
             <div className="grid grid-cols-3 gap-2 sm:gap-4">
               <article className="rounded-xl border border-[#e5e5e5] bg-white p-3 sm:p-5">
@@ -256,7 +208,7 @@ function DashboardContent() {
           </div>
         </article>
 
-        <aside className="space-y-4">
+        <aside className="min-w-0 space-y-4">
           <article id="agent-status" className="panel scroll-mt-32 border-[#e5e5e5] bg-[#fafafa] p-4 sm:p-5">
             <div className="flex items-center justify-between gap-3">
               <div>
@@ -314,34 +266,38 @@ function DashboardContent() {
         </aside>
       </section>
 
-      <RecentCalls />
-
       {hasCalendar ? (
-        <UpcomingCalendarEvents
-          businessId={business.id}
-          timeZone={business.timezone || "Europe/Madrid"}
-          onReconnectRequired={(provider) => handleReconnectRequired(provider)}
-        />
+        <div className="grid gap-4 sm:gap-6 lg:grid-cols-2">
+          <RecentCalls />
+          <UpcomingCalendarEvents
+            businessId={business.id}
+            timeZone={business.timezone || "Europe/Madrid"}
+            onReconnectRequired={(provider) => handleReconnectRequired(provider)}
+          />
+        </div>
       ) : (
-        <button
-          type="button"
-          onClick={() => router.push("/ajustes?section=calendar-section")}
-          className="group flex w-full items-center justify-between rounded-xl border border-[#e5e5e5] bg-white p-4 text-left transition duration-200 hover:-translate-y-0.5 hover:border-[#ddd6fe] sm:p-5"
-        >
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#f3eeff] text-[#8b5cf6]">
-              <CalendarDays className="h-5 w-5" />
+        <>
+          <RecentCalls />
+          <button
+            type="button"
+            onClick={() => router.push("/ajustes?section=calendar-section")}
+            className="group flex w-full items-center justify-between rounded-xl border border-[#e5e5e5] bg-white p-4 text-left transition duration-200 hover:-translate-y-0.5 hover:border-[#ddd6fe] sm:p-5"
+          >
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#f3eeff] text-[#8b5cf6]">
+                <CalendarDays className="h-5 w-5" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-[#0a0a0a]">Conecta tu calendario</p>
+                <p className="text-sm text-muted">Elige Google Calendar o Outlook para agendar citas automáticamente.</p>
+              </div>
             </div>
-            <div>
-              <p className="text-sm font-semibold text-[#0a0a0a]">Conecta tu calendario</p>
-              <p className="text-sm text-muted">Elige Google Calendar o Outlook para agendar citas automáticamente.</p>
-            </div>
-          </div>
-          <span className="inline-flex items-center gap-1 text-sm font-semibold text-[#52525b] transition group-hover:text-[#0a0a0a]">
-            Conectar
-            <ArrowRight className="h-4 w-4 transition group-hover:translate-x-0.5" />
-          </span>
-        </button>
+            <span className="inline-flex items-center gap-1 text-sm font-semibold text-[#52525b] transition group-hover:text-[#0a0a0a]">
+              Conectar
+              <ArrowRight className="h-4 w-4 transition group-hover:translate-x-0.5" />
+            </span>
+          </button>
+        </>
       )}
 
       <section id="agent-configuration" className="panel scroll-mt-32 border-[#ddd6fe] bg-[#f3eeff] p-4 sm:p-5">
@@ -377,25 +333,39 @@ function DashboardContent() {
           className="hidden"
           accept={AGENT_FILE_ACCEPT}
         />
-        <div className="mt-4 min-h-20 rounded-xl border border-[#e5e5e5] bg-white p-3 text-sm text-muted">
-          {uploadStatus && (
-            <div className={`mb-2 text-sm ${uploadStatus.type === 'success' ? 'text-[#2c7334]' : 'text-[#c53030]'}`}>
-              {uploadStatus.message}
+        {uploadStatus && (
+          <div className={`mt-4 text-sm ${uploadStatus.type === 'success' ? 'text-[#2c7334]' : 'text-[#c53030]'}`}>
+            {uploadStatus.message}
+          </div>
+        )}
+        {business.agents?.[0]?.files && business.agents[0].files.length > 0 ? (
+          <ul className="mt-4 space-y-2">
+            {business.agents[0].files.map((file) => (
+              <li key={file.id} className="flex items-center justify-between gap-3 rounded-xl bg-white px-3 py-2 text-sm">
+                <span className="truncate">{file.name}</span>
+                <span className="shrink-0 rounded-full bg-[#fafafa] px-2 py-1 text-xs font-semibold text-[#52525b]">Contexto</span>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <div className="mt-4 flex flex-col items-center gap-3 rounded-xl border border-dashed border-[#ddd6fe] bg-white px-4 py-6 text-center sm:flex-row sm:text-left">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#f3eeff] text-[#8b5cf6]">
+              <Upload className="h-5 w-5" />
             </div>
-          )}
-          {business.agents?.[0]?.files && business.agents[0].files.length > 0 ? (
-            <ul className="space-y-2">
-              {business.agents[0].files.map((file) => (
-                <li key={file.id} className="flex items-center justify-between gap-3 rounded-xl bg-[#fafafa] px-3 py-2 text-sm">
-                  <span className="truncate">{file.name}</span>
-                  <span className="shrink-0 rounded-full bg-white px-2 py-1 text-xs font-semibold text-[#52525b]">Contexto</span>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="italic">Aún no hay documentos. El acceso rápido de arriba te permite subir el primero.</p>
-          )}
-        </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold text-[#27272a]">Aún no hay documentos</p>
+              <p className="mt-1 text-sm text-muted">PDFs, tarifas o FAQs para que el agente responda con contexto real.</p>
+            </div>
+            <button
+              type="button"
+              onClick={openFilePicker}
+              disabled={isUploading || !agent}
+              className="btn-secondary h-10 shrink-0 px-4"
+            >
+              {isUploading ? 'Subiendo...' : <><Upload className="h-4 w-4" />Subir el primero</>}
+            </button>
+          </div>
+        )}
       </section>
     </div>
   );
