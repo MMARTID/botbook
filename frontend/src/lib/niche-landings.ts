@@ -36,6 +36,9 @@ export type NicheLandingContent = {
   keywords: string[];
   accent: NicheAccent;
   heroTitle: string;
+  /** Frase del titular que va subrayada en el hero. Debe aparecer tal cual
+   * en heroTitle; si no, el titular se muestra sin subrayar. */
+  heroHighlight?: string;
   heroDescription: string;
   demoTitle: string;
   demoSteps: [string, string, string];
@@ -86,6 +89,7 @@ export const nicheLandings: Record<NicheSlug, NicheLandingContent> = {
     ],
     accent: { strong: "#b23a68", soft: "#fbe9f1", deep: "#7c2547" },
     heroTitle: "No pierdas otra cita de peluquería por no contestar el teléfono",
+    heroHighlight: "por no contestar el teléfono",
     heroDescription: "Alhabla atiende llamadas, resuelve dudas sobre cortes y color, y agenda citas 24/7 — incluso cuando todo el equipo está con clientes.",
     demoTitle: "Así reserva un servicio de peluquería",
     demoSteps: ["Configura cortes, color, mechas y tratamientos.", "Conecta horarios, profesionales y calendario.", "Atiende llamadas incluso durante las horas punta."],
@@ -190,6 +194,7 @@ export const nicheLandings: Record<NicheSlug, NicheLandingContent> = {
     ],
     accent: { strong: "#6c4bd8", soft: "#eee9fb", deep: "#46308f" },
     heroTitle: "No pierdas otra consulta de estética por no contestar el teléfono",
+    heroHighlight: "por no contestar el teléfono",
     heroDescription: "Alhabla atiende llamadas, informa sobre tratamientos y agenda citas 24/7 — incluso mientras estás en cabina.",
     demoTitle: "Así gestiona una consulta estética",
     demoSteps: ["Carga tratamientos, bonos y preguntas frecuentes.", "Define qué consultas requieren valoración humana.", "Conecta cabinas, profesionales y disponibilidad."],
@@ -295,6 +300,7 @@ export const nicheLandings: Record<NicheSlug, NicheLandingContent> = {
     ],
     accent: { strong: "#c95c3f", soft: "#fbeae2", deep: "#8e3a24" },
     heroTitle: "No pierdas otra manicura por no contestar el teléfono",
+    heroHighlight: "por no contestar el teléfono",
     heroDescription: "Alhabla atiende llamadas, responde precios y agenda citas 24/7 — incluso mientras trabajas en una uña.",
     demoTitle: "Así reserva una cita de uñas",
     demoSteps: ["Configura técnicas, retiradas y extras de nail art.", "Asigna duración y profesionales compatibles.", "Recupera citas recurrentes incluso fuera de horario."],
@@ -397,6 +403,7 @@ export const nicheLandings: Record<NicheSlug, NicheLandingContent> = {
     ],
     accent: { strong: "#a86a1c", soft: "#f7ecd8", deep: "#71470f" },
     heroTitle: "No pierdas otro corte por no contestar el teléfono",
+    heroHighlight: "por no contestar el teléfono",
     heroDescription: "Alhabla atiende llamadas, resuelve dudas sobre servicios y agenda citas 24/7 — incluso con todas las sillas ocupadas.",
     demoTitle: "Así reserva una cita de barbería",
     demoSteps: ["Configura corte, barba, afeitado y packs.", "Asigna barberos, tiempos y horarios.", "Atiende llamadas rápidas durante las horas punta."],
@@ -502,6 +509,7 @@ export const nicheLandings: Record<NicheSlug, NicheLandingContent> = {
     ],
     accent: { strong: "#0e7f78", soft: "#e0f1ee", deep: "#0a5751" },
     heroTitle: "No pierdas otra primera visita por no contestar el teléfono",
+    heroHighlight: "por no contestar el teléfono",
     heroDescription: "Alhabla atiende llamadas, recoge el motivo de consulta y agenda citas 24/7 — incluso mientras tratas a un paciente.",
     demoTitle: "Así gestiona una cita de fisioterapia",
     demoSteps: [

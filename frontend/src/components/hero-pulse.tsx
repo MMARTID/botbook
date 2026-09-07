@@ -1,7 +1,13 @@
 "use client";
 
 import { motion, useReducedMotion } from "framer-motion";
-import { Phone } from "lucide-react";
+import {
+  CalendarCheck,
+  CalendarClock,
+  MessageSquareText,
+  Phone,
+  PhoneIncoming,
+} from "lucide-react";
 
 import type { NicheAccent } from "@/lib/niche-landings";
 
@@ -11,7 +17,8 @@ import type { NicheAccent } from "@/lib/niche-landings";
  * Sustituye a HeroConversation, que simulaba un diálogo en tres escenas de
  * 6,6 s y no confirmaba la cita hasta el segundo 5 — unos 20 s para verlo
  * entero. Aquí no hay nada que leer ni que esperar: los anillos salen del
- * centro como un tono de llamada y las dos etiquetas cuentan el desenlace.
+ * centro como un tono de llamada y las pastillas van contando desenlaces —
+ * confirmar, mover, tomar recado— cada una entendible por sí sola.
  *
  * El bucle es deliberado y lento (un tono cada 2,4 s). No es decoración
  * inquieta: representa lo único que hace este producto, que es coger el
@@ -28,6 +35,51 @@ const RIPPLES = [0, 1, 2];
 const RIPPLE_INTERVAL = 0.8;
 const RIPPLE_CYCLE = RIPPLES.length * RIPPLE_INTERVAL;
 
+/**
+ * Lo que resuelve una llamada, no solo reservarla: confirmar, mover, resolver
+ * una duda o tomar un recado cuando hace falta una persona. Cada pastilla se
+ * entiende sola, así que no hay que esperar a la siguiente para captar la idea
+ * —el problema que hundía a la conversación simulada del hero anterior.
+ *
+ * Las posiciones se reparten alrededor de los anillos. En móvil se apilan
+ * arriba y abajo, no a los lados: a los lados no caben y desbordaban la página.
+ *
+ * El centrado en móvil va con inset-x-0 + mx-auto y NO con -translate-x-1/2:
+ * framer-motion escribe el transform del elemento al animar y/scale, y se
+ * llevaba por delante la traslación de Tailwind, dejando la pastilla 22 px
+ * fuera de la pantalla.
+ */
+const RESULTADOS = [
+  {
+    texto: "Atendida en 2 tonos",
+    icono: PhoneIncoming,
+    tono: "exito" as const,
+    posicion: "inset-x-0 top-0 mx-auto w-fit sm:inset-x-auto sm:right-0 sm:top-8 sm:mx-0",
+  },
+  {
+    texto: "Cita confirmada · jue 17:30",
+    icono: CalendarCheck,
+    tono: "acento" as const,
+    posicion: "inset-x-0 bottom-8 mx-auto w-fit sm:inset-x-auto sm:bottom-6 sm:left-0 sm:mx-0",
+  },
+  {
+    texto: "Movida al viernes 11:00",
+    icono: CalendarClock,
+    tono: "acento" as const,
+    posicion: "inset-x-0 top-0 mx-auto w-fit sm:inset-x-auto sm:right-2 sm:top-8 sm:mx-0",
+  },
+  {
+    texto: "Recado tomado · Marta",
+    icono: MessageSquareText,
+    tono: "acento" as const,
+    posicion: "inset-x-0 bottom-8 mx-auto w-fit sm:inset-x-auto sm:bottom-6 sm:left-2 sm:mx-0",
+  },
+];
+
+/** Cada pastilla vive un ciclo completo y entran escalonadas, de modo que
+ * siempre hay una o dos en pantalla y ninguna se solapa con su vecina. */
+const CICLO_RESULTADOS = 7.2;
+
 export function HeroPulse({ accent }: { accent?: NicheAccent }) {
   const reducedMotion = useReducedMotion() === true;
 
@@ -39,7 +91,7 @@ export function HeroPulse({ accent }: { accent?: NicheAccent }) {
       <div
         className="relative mx-auto flex h-[260px] w-full max-w-[320px] items-center justify-center sm:mx-0 sm:h-[300px] sm:max-w-[360px]"
         role="img"
-        aria-label="Una llamada entrante que se atiende en dos tonos y acaba en una cita el jueves a las 17:30"
+        aria-label="Llamadas entrantes que se resuelven solas: atendidas en dos tonos, citas confirmadas, citas movidas de día y recados tomados"
       >
         {STATIC_RINGS.map((size) => (
           <span
@@ -87,30 +139,39 @@ export function HeroPulse({ accent }: { accent?: NicheAccent }) {
           <Phone className="h-6 w-6" />
         </span>
 
-        <motion.span
-          className="absolute right-0 top-8 inline-flex items-center gap-2 rounded-full border border-[#e5e5e5] bg-white px-3.5 py-2 text-[0.8125rem] font-semibold text-[#0a0a0a] sm:top-11"
-          initial={reducedMotion ? false : { opacity: 0, y: 8 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, amount: 0.6 }}
-          transition={{ delay: reducedMotion ? 0 : 0.3, duration: 0.4 }}
-        >
-          <span className="h-1.5 w-1.5 rounded-full bg-[#2c7334]" />
-          Atendida en 2 tonos
-        </motion.span>
-
-        <motion.span
-          className="absolute bottom-6 left-0 inline-flex items-center gap-2 rounded-full border border-[#e5e5e5] bg-white px-3.5 py-2 text-[0.8125rem] font-semibold text-[#0a0a0a] sm:bottom-10"
-          initial={reducedMotion ? false : { opacity: 0, y: 8 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, amount: 0.6 }}
-          transition={{ delay: reducedMotion ? 0 : 0.55, duration: 0.4 }}
-        >
-          <span
-            className="h-1.5 w-1.5 rounded-full"
-            style={{ backgroundColor: strong }}
-          />
-          jueves · 17:30
-        </motion.span>
+        {RESULTADOS.map((resultado, index) => {
+          const Icono = resultado.icono;
+          return (
+            <motion.span
+              key={resultado.texto}
+              className={`absolute inline-flex items-center gap-2 whitespace-nowrap rounded-full border border-[#e5e5e5] bg-white px-3.5 py-2 text-[0.8125rem] font-semibold text-[#0a0a0a] ${resultado.posicion}`}
+              initial={reducedMotion ? false : { opacity: 0, y: 8, scale: 0.96 }}
+              animate={
+                reducedMotion
+                  ? { opacity: 1, y: 0, scale: 1 }
+                  : { opacity: [0, 1, 1, 0], y: [8, 0, 0, -6], scale: [0.96, 1, 1, 0.98] }
+              }
+              transition={
+                reducedMotion
+                  ? undefined
+                  : {
+                      duration: CICLO_RESULTADOS,
+                      times: [0, 0.08, 0.72, 0.85],
+                      delay: index * (CICLO_RESULTADOS / RESULTADOS.length),
+                      repeat: Infinity,
+                      ease: "easeOut",
+                    }
+              }
+            >
+              <Icono
+                className="h-3.5 w-3.5"
+                style={{ color: resultado.tono === "exito" ? "#2c7334" : strong }}
+                aria-hidden="true"
+              />
+              {resultado.texto}
+            </motion.span>
+          );
+        })}
       </div>
 
       <p className="mx-auto max-w-md text-center text-sm leading-7 text-[#52525b] lg:mx-0 lg:text-left">

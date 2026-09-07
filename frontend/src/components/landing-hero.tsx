@@ -14,6 +14,31 @@ function buildPlansHref(niche?: string) {
   return niche ? `/planes?niche=${encodeURIComponent(niche)}` : "/planes";
 }
 
+/** Frase subrayada cuando el nicho no declara la suya: es el remate del
+ * titular genérico. */
+const RESALTADO_POR_DEFECTO = "ya reservó en otro sitio";
+
+/**
+ * Parte el titular para poder subrayar solo la frase clave. Si la frase no
+ * aparece tal cual en el titular —un nicho que cambie el copy sin actualizar
+ * su resaltado—, se devuelve el titular entero sin subrayar en vez de fallar
+ * o subrayar un trozo equivocado.
+ */
+function TitularConSubrayado({ titulo, resaltado }: { titulo: string; resaltado?: string }) {
+  const frase = resaltado ?? RESALTADO_POR_DEFECTO;
+  const desde = frase ? titulo.indexOf(frase) : -1;
+
+  if (desde === -1) return <>{titulo}</>;
+
+  return (
+    <>
+      {titulo.slice(0, desde)}
+      <span className="titular-subrayado">{frase}</span>
+      {titulo.slice(desde + frase.length)}
+    </>
+  );
+}
+
 export function LandingHero({ content }: { content?: NicheLandingContent }) {
   const [isDemoOpen, setIsDemoOpen] = useState(false);
   const accent = content?.accent;
@@ -45,7 +70,10 @@ export function LandingHero({ content }: { content?: NicheLandingContent }) {
           <Reveal delay={0.06} y={16}>
             <div className="space-y-5">
               <h1 className="mx-auto max-w-3xl text-[2.65rem] font-black leading-[1.05] tracking-[-0.03em] text-[#0a0a0a] sm:text-5xl lg:mx-0 lg:text-[4.25rem]">
-                {content?.heroTitle ?? "Cada llamada sin contestar es un cliente que ya reservó en otro sitio."}
+                <TitularConSubrayado
+                  titulo={content?.heroTitle ?? "Cada llamada sin contestar es un cliente que ya reservó en otro sitio."}
+                  resaltado={content?.heroHighlight}
+                />
               </h1>
               <p className="mx-auto max-w-xl text-base leading-7 text-[#52525b] sm:text-lg sm:leading-8 lg:mx-0">
                 {content?.heroDescription ?? "Alhabla responde, resuelve dudas y agenda citas 24/7 con tu número de siempre — sin cambiar cómo trabajas."}

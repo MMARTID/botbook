@@ -310,3 +310,36 @@ body {
     animation: none;
   }
 }
+
+/* Subrayado del titular del hero: el trazo se dibuja de izquierda a derecha,
+   como al pasar un rotulador, en vez de aparecer ya hecho. Arranca a los 0,7 s
+   para que el titular se lea antes de que nada se mueva.
+
+   Va como background-size y no como una barra absoluta a propósito: la frase
+   subrayada parte de línea en móvil, y una barra absoluta solo cubriría el
+   primer trozo. Con box-decoration-break: clone cada línea recibe su propio
+   trazo. */
+@keyframes titular-subrayado {
+  from {
+    background-size: 0% 100%;
+  }
+  to {
+    background-size: 100% 100%;
+  }
+}
+
+.titular-subrayado {
+  background-image: linear-gradient(to bottom, transparent 62%, var(--purple-ring) 62%);
+  background-repeat: no-repeat;
+  background-size: 0% 100%;
+  animation: titular-subrayado 0.55s cubic-bezier(0.22, 1, 0.36, 1) 0.7s forwards;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .titular-subrayado {
+    animation: none;
+    background-size: 100% 100%;
+  }
+}
