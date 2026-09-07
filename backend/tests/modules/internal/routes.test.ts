@@ -4,16 +4,19 @@ import { internalJobsRoutes } from "../../../src/modules/internal/routes.js";
 import { processRecordingJob } from "../../../src/jobs/processRecording.js";
 import { processRetryFailedBookingJob } from "../../../src/jobs/retryFailedBooking.js";
 import { processSendEmailJob } from "../../../src/jobs/sendEmail.js";
+import { processSendSmsJob } from "../../../src/jobs/sendSms.js";
 import { cleanupZombieCallsJob } from "../../../src/jobs/cleanupZombieCalls.js";
 
 vi.mock("../../../src/jobs/processRecording.js", () => ({ processRecordingJob: vi.fn() }));
 vi.mock("../../../src/jobs/retryFailedBooking.js", () => ({ processRetryFailedBookingJob: vi.fn() }));
 vi.mock("../../../src/jobs/sendEmail.js", () => ({ processSendEmailJob: vi.fn() }));
+vi.mock("../../../src/jobs/sendSms.js", () => ({ processSendSmsJob: vi.fn() }));
 vi.mock("../../../src/jobs/cleanupZombieCalls.js", () => ({ cleanupZombieCallsJob: vi.fn() }));
 
 const mockedProcessRecordingJob = vi.mocked(processRecordingJob);
 const mockedProcessRetryFailedBookingJob = vi.mocked(processRetryFailedBookingJob);
 const mockedProcessSendEmailJob = vi.mocked(processSendEmailJob);
+const mockedProcessSendSmsJob = vi.mocked(processSendSmsJob);
 const mockedCleanupZombieCallsJob = vi.mocked(cleanupZombieCallsJob);
 
 describe("internalJobsRoutes", () => {
@@ -138,6 +141,52 @@ describe("internalJobsRoutes", () => {
       });
 
       expect(response.statusCode).toBe(400);
+    });
+  });
+
+  describe("POST /jobs/send-sms", () => {
+    const validPayload = {
+      fromNumber: "+34911222333",
+      toNumber: "+34600111222",
+      text: "Nueva reserva — María — Corte — vie 12:00",
+    };
+
+    it("valida el body y despacha el job", async () => {
+      mockedProcessSendSmsJob.mockResolvedValue(undefined);
+
+      const response = await fastify.inject({
+        method: "POST",
+        url: "/jobs/send-sms",
+        payload: validPayload,
+      });
+
+      expect(response.statusCode).toBe(200);
+      expect(response.json()).toEqual({ received: true });
+      expect(mockedProcessSendSmsJob).toHaveBeenCalledWith(validPayload);
+    });
+
+    it("devuelve 400 si falta algún campo obligatorio", async () => {
+      const response = await fastify.inject({
+        method: "POST",
+        url: "/jobs/send-sms",
+        payload: { fromNumber: "+34911222333", toNumber: "+34600111222" },
+      });
+
+      expect(response.statusCode).toBe(400);
+      expect(mockedProcessSendSmsJob).not.toHaveBeenCalled();
+    });
+
+    it("devuelve 500 si el job falla (para que Cloud Tasks reintente)", async () => {
+      mockedProcessSendSmsJob.mockRejectedValue(new Error("Telnyx no responde"));
+
+      const response = await fastify.inject({
+        method: "POST",
+        url: "/jobs/send-sms",
+        payload: validPayload,
+      });
+
+      expect(response.statusCode).toBe(500);
+      expect(response.json()).toEqual({ error: "Job processing failed" });
     });
   });
 

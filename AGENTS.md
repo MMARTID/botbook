@@ -435,7 +435,7 @@ is now a **Cloud Scheduler** job hitting the same kind of endpoint every
   fallback never actually runs during `vitest`.
 - **Receiving** (`backend/src/modules/internal/routes.ts`, prefix
   `/internal`): `POST /internal/jobs/process-recording`,
-  `/retry-failed-booking`, `/send-email`, `/cleanup-zombie-calls`. Gated by
+  `/retry-failed-booking`, `/send-email`, `/send-sms`, `/cleanup-zombie-calls`. Gated by
   `fastify.verifyCloudTasks` (`backend/src/plugins/internalAuth.ts`), which
   verifies the request carries a Google-signed OIDC token issued to
   `CLOUD_TASKS_INVOKER_SERVICE_ACCOUNT` with the right audience — anyone
@@ -444,9 +444,9 @@ is now a **Cloud Scheduler** job hitting the same kind of endpoint every
 - **Job logic** lives in plain async functions with no framework coupling —
   `jobs/processRecording.ts` (`processRecordingJob`), `jobs/retryFailedBooking.ts`
   (`processRetryFailedBookingJob`), `jobs/sendEmail.ts` (`processSendEmailJob`),
-  `jobs/cleanupZombieCalls.ts` (`cleanupZombieCallsJob`) — called directly
-  both by the `/internal/jobs/*` route handlers and by the dev inline
-  fallback in `cloudTasks.ts`.
+  `jobs/sendSms.ts` (`processSendSmsJob`), `jobs/cleanupZombieCalls.ts`
+  (`cleanupZombieCallsJob`) — called directly both by the `/internal/jobs/*`
+  route handlers and by the dev inline fallback in `cloudTasks.ts`.
 
 1. **`process-recording`**
    - Downloads the call recording from Vapi or Retell and uploads it to R2.
@@ -463,7 +463,13 @@ is now a **Cloud Scheduler** job hitting the same kind of endpoint every
    - Sends the welcome email (`checkout.session.completed`, from `welcome@alhabla.ai`) and the payment-failed email (`invoice.payment_failed`, from `support@alhabla.ai`) — see `billing/service.ts`. Both are Zoho Mail aliases of one authenticated account; sending goes through Zoho Mail's REST API (OAuth 2.0, refresh token) rather than SMTP.
    - Cloud Tasks queue `send-email`: 4 attempts, exponential backoff 5s base.
 
-4. **Zombie call cleanup** (`backend/src/jobs/cleanupZombieCalls.ts`)
+4. **`send-sms`** (`backend/src/adapters/telnyx/TelnyxAdapter.ts` — `sendSms`)
+   - Notifies the business owner by SMS (`business.phone`) right after a successful `book_appointment`, using the business's own Telnyx voice number (`business.telnyxPhoneNumber`) as the sender — enqueued from `voiceTools/service.ts`, never blocks or fails the booking itself (wrapped in try/catch). Skipped entirely if the business has no Telnyx number yet.
+   - Cloud Tasks queue `send-sms`: 4 attempts, exponential backoff 5s base (same as `send-email`).
+   - **Known blocker (2026-09-07): outbound SMS is not actually deliverable yet.** Telnyx returns `40323 "Messaging activation failed"` when assigning any Spanish long-code number (voice or newly purchased) to a Messaging Profile — confirmed both via API and the Telnyx dashboard, so it's an account/number-level block, not a code issue. A Messaging Profile (`Alhabla — Avisos SMS a propietarios`) already exists in the Telnyx account for when this is resolved with Telnyx support; no code changes needed once a number can actually send.
+   - `Business.phone` (the SMS destination) is set to a placeholder (`TEMP-...`) at registration and — before 2026-09-07 — had **no route to ever be updated**; `PATCH /business/me` now accepts `phone` (see `businesses/routes.ts`) so the owner can set a real number from `/ajustes`, but there's no frontend field for it yet.
+
+5. **Zombie call cleanup** (`backend/src/jobs/cleanupZombieCalls.ts`)
    - Cloud Scheduler job `cleanup-zombie-calls`, every 15 minutes, 3 retry attempts.
    - Threshold: 60 minutes.
    - Marks stale `IN_PROGRESS` calls as `TIMED_OUT`.

@@ -11,6 +11,14 @@ import { syncAgentNameWithBusinessType, syncAgentToRetell } from "../../lib/agen
 
 const UpdateBusinessSchema = z.object({
   name: z.string().min(1).optional(),
+  // Sin esto no había NINGÚN endpoint que permitiera cambiar el teléfono del
+  // negocio: se crea en el registro con un placeholder (`TEMP-...`, ver
+  // auth/routes.ts) y se quedaba así para siempre — descubierto al construir
+  // el aviso por SMS al propietario en book_appointment, que manda el SMS a
+  // business.phone. Formato E.164 exigido porque alimenta directamente el
+  // campo `to` de Telnyx: sin esta validación, un número mal formateado
+  // (sin prefijo de país, con espacios) haría fallar el SMS en silencio.
+  phone: z.string().regex(/^\+[1-9]\d{7,14}$/, "El teléfono debe estar en formato internacional (ej. +34600123456)").optional(),
   timezone: z.string().optional(),
   schedule: BusinessScheduleSchema.optional(),
   systemPrompt: z.string().optional(),
@@ -209,7 +217,11 @@ export async function businessesRoutes(fastify: FastifyInstance) {
           data.agentSettings !== undefined ||
           data.businessDetails !== undefined ||
           data.minAdvanceBookingMinutes !== undefined ||
-          data.maxAppointmentDurationMinutes !== undefined
+          data.maxAppointmentDurationMinutes !== undefined ||
+          // phone está en BusinessVoiceConfig (voiceTools/service.ts) —
+          // sin invalidar, el SMS de aviso seguiría yendo al teléfono
+          // antiguo hasta que el caché de 1h expire por su cuenta.
+          data.phone !== undefined
         ) {
           try {
             await getRedis().del(`voice_config:${request.user!.businessId}`);

@@ -110,6 +110,21 @@ export class TelnyxAdapter {
     }
   }
 
+  /**
+   * Envía un SMS de texto simple con un número Telnyx ya comprado como
+   * remitente. `messaging_profile_id` no es obligatorio para esto — el SDK
+   * solo lo exige para number pools o alphanumeric sender ID, no para un
+   * long-code normal (ver node_modules/telnyx/resources/messages/messages.d.ts).
+   */
+  async sendSms(input: { from: string; to: string; text: string }): Promise<void> {
+    const client = getTelnyxClient();
+    await client.messages.send({
+      from: input.from,
+      to: input.to,
+      text: input.text,
+    });
+  }
+
   private toOrderResult(data: any): NumberOrderResult {
     const number = data?.phone_numbers?.[0];
     return {

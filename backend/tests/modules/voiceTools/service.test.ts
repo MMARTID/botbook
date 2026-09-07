@@ -4,6 +4,7 @@ import { prisma } from "../../../src/lib/prisma.js";
 import { getRedis } from "../../../src/lib/redis.js";
 import { checkBusinessHours } from "../../../src/lib/businessSchedule.js";
 import { calendarService } from "../../../src/modules/calendar/service.js";
+import { enqueueSmsJob } from "../../../src/lib/cloudTasks.js";
 
 vi.mock("../../../src/lib/prisma.js", () => ({
   prisma: {
@@ -40,6 +41,7 @@ vi.mock("../../../src/modules/calendar/service.js", () => ({
 
 vi.mock("../../../src/lib/cloudTasks.js", () => ({
   enqueueRetryBookingJob: vi.fn(),
+  enqueueSmsJob: vi.fn(),
 }));
 
 const mockedBusinessFindUnique = vi.mocked(prisma.business.findUnique);
@@ -50,6 +52,7 @@ const mockedProfessionalFindFirst = vi.mocked(prisma.professional.findFirst);
 const mockedServiceFindMany = vi.mocked(prisma.service.findMany);
 const mockedCheckBusinessHours = vi.mocked(checkBusinessHours);
 const mockedBookAppointment = vi.mocked(calendarService.bookAppointment);
+const mockedEnqueueSmsJob = vi.mocked(enqueueSmsJob);
 
 function buildBusiness(overrides: Record<string, unknown> = {}) {
   return {
@@ -64,6 +67,8 @@ function buildBusiness(overrides: Record<string, unknown> = {}) {
     outlookRefreshToken: null,
     outlookCalendarId: null,
     outlookCalendarConnected: null,
+    phone: "+34600111222",
+    telnyxPhoneNumber: "+34911222333",
     ...overrides,
   };
 }
@@ -308,5 +313,44 @@ describe("executeVoiceTool book_appointment — varios servicios en la misma cit
         create: expect.objectContaining({ serviceIds: ["svc_corte", "svc_tratamiento"] }),
       })
     );
+  });
+
+  it("avisa al propietario por SMS al negocio.phone usando su número Telnyx como remitente", async () => {
+    const result = await executeVoiceTool(
+      buildBookAppointmentInput({
+        params: {
+          clientName: "María",
+          startDateTime: "2026-08-25T17:00:00+02:00",
+          durationMinutes: 30,
+          professionalId: "professional_123",
+        },
+      })
+    );
+
+    expect(result.result.success).toBe(true);
+    expect(mockedEnqueueSmsJob).toHaveBeenCalledWith(
+      expect.objectContaining({
+        fromNumber: "+34911222333",
+        toNumber: "+34600111222",
+        text: expect.stringContaining("María"),
+      })
+    );
+  });
+
+  it("no intenta enviar SMS si el negocio todavía no tiene número Telnyx propio", async () => {
+    mockedBusinessFindUnique.mockResolvedValue(buildBusiness({ telnyxPhoneNumber: null }) as any);
+
+    const result = await executeVoiceTool(buildBookAppointmentInput());
+
+    expect(result.result.success).toBe(true);
+    expect(mockedEnqueueSmsJob).not.toHaveBeenCalled();
+  });
+
+  it("no rompe la reserva si falla el envío del SMS de aviso", async () => {
+    mockedEnqueueSmsJob.mockRejectedValueOnce(new Error("Telnyx no responde"));
+
+    const result = await executeVoiceTool(buildBookAppointmentInput());
+
+    expect(result.result.success).toBe(true);
   });
 });

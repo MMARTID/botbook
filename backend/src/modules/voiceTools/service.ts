@@ -4,7 +4,7 @@ import { checkBusinessHours, checkBookingRestrictions } from "../../lib/business
 import { checkAvailability } from "../../lib/availability.js";
 import { calendarService } from "../calendar/service.js";
 import { errorMessage } from "../../lib/logUtils.js";
-import { enqueueRetryBookingJob } from "../../lib/cloudTasks.js";
+import { enqueueRetryBookingJob, enqueueSmsJob } from "../../lib/cloudTasks.js";
 
 export type VoiceToolName =
   | "check_business_hours"
@@ -34,6 +34,13 @@ interface BusinessVoiceConfig {
   outlookCalendarConnected: boolean | null;
   minAdvanceBookingMinutes: number | null;
   maxAppointmentDurationMinutes: number | null;
+  // Teléfono del propietario del negocio (no el número que usa Retell para
+  // recibir llamadas) — destino del SMS de aviso de nueva reserva.
+  phone: string;
+  // Número Telnyx que el negocio ya tiene comprado para recibir llamadas;
+  // se reutiliza como remitente del SMS en vez de comprar/gestionar un
+  // segundo número solo para mensajería.
+  telnyxPhoneNumber: string | null;
 }
 
 async function loadBusinessConfig(
@@ -55,6 +62,8 @@ async function loadBusinessConfig(
       outlookCalendarConnected: true,
       minAdvanceBookingMinutes: true,
       maxAppointmentDurationMinutes: true,
+      phone: true,
+      telnyxPhoneNumber: true,
     },
   });
 }
@@ -354,6 +363,36 @@ async function enqueueRetryFailedBooking(leadId: string): Promise<void> {
   }
 }
 
+/** Texto corto (pensado para caber en un único segmento SMS) con lo esencial
+ * de la reserva para el propietario del negocio. */
+function buildBookingSmsText(input: {
+  clientName: string;
+  startDateTime: string;
+  timezone: string;
+  serviceNames?: string[] | null;
+  professionalName?: string | null;
+}): string {
+  const formattedDateTime = new Intl.DateTimeFormat("es-ES", {
+    timeZone: input.timezone,
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(input.startDateTime));
+
+  const services = input.serviceNames?.filter(Boolean) ?? [];
+  const parts = [
+    "Nueva reserva",
+    input.clientName,
+    services.length > 0 ? services.join(" + ") : null,
+    formattedDateTime,
+    input.professionalName ? `con ${input.professionalName}` : null,
+  ].filter(Boolean);
+
+  return parts.join(" — ");
+}
+
 async function executeBookAppointment(
   business: BusinessVoiceConfig,
   params: Record<string, unknown>,
@@ -593,6 +632,30 @@ async function executeBookAppointment(
       }
 
       console.log(`[VoiceTools] ${callLabel} agendó la cita correctamente`);
+
+      // Aviso al propietario por SMS (Telnyx), no por email: nunca bloquea
+      // ni puede hacer fallar la reserva en sí — si el negocio todavía no
+      // tiene número Telnyx propio (no ha comprado uno), simplemente no se
+      // envía nada.
+      if (business.telnyxPhoneNumber) {
+        try {
+          await enqueueSmsJob({
+            fromNumber: business.telnyxPhoneNumber,
+            toNumber: business.phone,
+            text: buildBookingSmsText({
+              clientName,
+              startDateTime,
+              timezone: business.timezone || "Europe/Madrid",
+              serviceNames: verifiedServiceNames,
+              professionalName: resolvedProfessionalName,
+            }),
+          });
+        } catch (smsError) {
+          console.error(
+            `[VoiceTools] ${callLabel} no pudo encolar el SMS de aviso: ${errorMessage(smsError)}`
+          );
+        }
+      }
 
       return {
         success: true,

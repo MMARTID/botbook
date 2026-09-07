@@ -3,6 +3,7 @@ import { z } from "zod";
 import { processRecordingJob } from "../../jobs/processRecording.js";
 import { processRetryFailedBookingJob } from "../../jobs/retryFailedBooking.js";
 import { processSendEmailJob } from "../../jobs/sendEmail.js";
+import { processSendSmsJob } from "../../jobs/sendSms.js";
 import { cleanupZombieCallsJob } from "../../jobs/cleanupZombieCalls.js";
 
 const ProcessRecordingSchema = z.object({
@@ -20,6 +21,12 @@ const SendEmailSchema = z.object({
   toAddress: z.string().email(),
   subject: z.string(),
   html: z.string(),
+});
+
+const SendSmsSchema = z.object({
+  fromNumber: z.string(),
+  toNumber: z.string(),
+  text: z.string(),
 });
 
 // Endpoints invocados por Cloud Tasks/Cloud Scheduler (no por negocios ni
@@ -76,6 +83,24 @@ export const internalJobsRoutes: FastifyPluginAsync = async (fastify) => {
           return reply.status(400).send({ error: error.errors });
         }
         fastify.log.error({ err: error }, "send-email job failed");
+        return reply.status(500).send({ error: "Job processing failed" });
+      }
+    }
+  );
+
+  fastify.post(
+    "/jobs/send-sms",
+    { preValidation: [fastify.verifyCloudTasks] },
+    async (request, reply) => {
+      try {
+        const data = SendSmsSchema.parse(request.body);
+        await processSendSmsJob(data);
+        return reply.send({ received: true });
+      } catch (error) {
+        if (error instanceof z.ZodError) {
+          return reply.status(400).send({ error: error.errors });
+        }
+        fastify.log.error({ err: error }, "send-sms job failed");
         return reply.status(500).send({ error: "Job processing failed" });
       }
     }
