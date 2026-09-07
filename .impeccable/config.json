@@ -292,6 +292,24 @@
         ],
         "createdAt": "2026-09-07T07:04:49.576Z",
         "reason": "Badge translúcido rgba(139,92,246,0.18) sobre fondo oscuro en la dirección C (Contraste invertido), descartada y no destinada a construirse — morado de marca ya aprobado (ver ignoreValues de design-system-color de agosto), solo con opacidad reducida sobre negro, sin gradiente."
+      },
+      {
+        "rule": "low-contrast",
+        "value": "*",
+        "files": [
+          "design/Main.dc.html"
+        ],
+        "createdAt": "2026-09-07T08:04:28.477Z",
+        "reason": "Verificado con fórmula WCAG real (relative luminance) contra cada par color/fondo del archivo el 2026-09-07: el único fallo real es #8b5cf6 como texto (número de paso 01/02/03, toggle + del FAQ) a 4.23:1 sobre blanco — mismo tono literal que .btn-purple y el número de paso en site-landing.tsx hoy en producción. El usuario pidió maqueta 100x100 fiel a producción ese mismo día, así que se deja el gap tal cual a propósito (documentado en la cabecera del archivo y en la anotación del canvas) en vez de inventar un color que producción no tiene. El resto de pares del archivo (blanco/alpha sobre negro, #71717a sobre blanco/#fafafa, #a78bfa sobre negro a 72px, #6d28d9 sobre #f3eeff) pasan AA con margen (4.63–10.44:1), recalculados a mano, así que un futuro cambio de color en este archivo debe volver a verificarse en vez de asumir cubierto por este ignore."
+      },
+      {
+        "rule": "hero-eyebrow-chip",
+        "value": "*",
+        "files": [
+          "design/Main.dc.html"
+        ],
+        "createdAt": "2026-09-07T08:04:35.134Z",
+        "reason": "Las 4 píldoras-eyebrow del archivo (hero '60%...', 'El coste de no contestar' antes de #por-que, 'Calcula tu pérdida real' antes de la calculadora, 'Google Calendar & Outlook' antes de la sección de calendario) son elementos reales de site-landing.tsx/sector-data-section.tsx/revenue-loss-calculator.tsx (badge-soft con icono, campo data.eyebrow), no antetítulos decorativos inventados. La Regla del Titular Solo de DESIGN.md prohíbe el antetítulo puramente decorativo pero permite el badge que aporta información que el titular no da — razonamiento ya documentado en la anotación del canvas (2026-09-07). El usuario pidió maqueta 100x100 fiel a producción ese mismo día; quitarlas rompería esa fidelidad."
       }
     ]
   }
