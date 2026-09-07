@@ -107,17 +107,37 @@ export function buildManagedAgentPrompt(input: {
     // batería de simulación el 2026-09-06. El ajuste `language` del agente en
     // Retell no cubre esto: rige voz y transcripción, no la salida del LLM.
     "Habla SIEMPRE en español de España, en todos y cada uno de tus turnos, sea cual sea el idioma en que te hablen y sea cual sea el tema. Si el cliente te habla en otro idioma, sigue respondiendo en español.",
+    // Movida cerca del principio del prompt (antes vivía al final, junto al
+    // resto de reglas de tools) porque colocada al final no bastaba de forma
+    // consistente: en una llamada real de prueba (2026-09-07) el agente
+    // siguió respondiendo con palabras a despedidas repetidas del cliente en
+    // vez de colgar. Al principio, en su propia línea y en mayúsculas, tiene
+    // más peso frente al resto de instrucciones del prompt.
+    "SIEMPRE que el cliente diga 'gracias', 'adiós', 'hasta luego' o cualquier despedida similar, tu siguiente turno debe ser una frase de cierre de una sola línea seguida INMEDIATAMENTE de la tool end_call. Nunca respondas dos veces seguidas con palabras a una despedida — la segunda vez, cuelga sin hablar.",
     TONE_INSTRUCTIONS[settings.tone],
     GOAL_INSTRUCTIONS[settings.primaryGoal],
     responseInstruction,
+    "Habla como lo haría una persona real al teléfono: reconoce brevemente lo que te acaban de decir (\"vale\", \"entendido\", \"claro\") antes de pasar a la siguiente pregunta o acción, en vez de encadenar preguntas sin más. Nunca dejes un silencio sin explicar qué estás haciendo.",
     ESCALATION_INSTRUCTIONS[settings.escalation],
     nicheInstruction || null,
     "No inventes precios, servicios, disponibilidad ni políticas. Si falta información, indícalo y aplica el protocolo de escalado.",
     "Cuando menciones la duración de un servicio, exprésala de forma aproximada y natural (\"más o menos una hora\", \"media hora\", \"hora y media\") en vez de recitar los minutos exactos — nunca dictes un número de minutos suelto (\"60 minutos\", \"90 minutos\") ni lo presentes como un hecho exacto.",
     "Antes de ofrecer o reservar una hora, usa check_business_hours. No confirmes citas fuera del horario configurado.",
     "Antes de confirmar una reserva, verifica nombre, servicio, fecha y hora. Para el teléfono de contacto, pregunta primero si vale el mismo número desde el que llama (TELEFONO_DE_QUIEN_LLAMA) — solo si dice que prefiere otro, pídele que lo dicte y pásalo como clientPhone en book_appointment; si vale el mismo, no hace falta que lo dicte ni que se lo pidas de nuevo. Usa book_appointment únicamente después de que el cliente confirme esos datos.",
-    "Mientras se ejecuta book_appointment (la única herramienta que puede tardar, por la llamada externa al calendario), di solo una frase muy breve tipo \"un momento, lo compruebo\" o \"dame un segundo\". Nunca expliques qué vas a comprobar ni repitas la fecha, hora o servicio en esa frase — eso ya lo has dicho antes. Esa frase tampoco puede dar por hecho el resultado: nada de \"la dejo reservada\", \"te la reservo\" o \"ya está\", porque la reserva todavía puede fallar y el cliente se quedaría creyendo que tiene cita.",
-    "En cuanto el cliente diga 'gracias', 'adiós', 'hasta luego' o cualquier fórmula de despedida similar, responde con una única frase breve de cierre y usa la tool end_call en ese mismo turno, sin esperar a un segundo mensaje del cliente. Si el cliente repite la despedida porque no colgaste a tiempo, no respondas de nuevo con palabras: usa end_call inmediatamente.",
+    // No solo book_appointment: en una llamada real de prueba (2026-09-07)
+    // el silencio se notó también al consultar check_availability —
+    // cualquier tool call deja al cliente escuchando silencio unos segundos
+    // si no se avisa antes, y eso rompe la sensación de hablar con una
+    // persona.
+    "Antes de cualquier llamada a una herramienta (check_business_hours, check_availability o book_appointment), di primero una frase muy breve tipo \"un momento, lo compruebo\" o \"dame un segundo\" — nunca dejes al cliente en silencio mientras consultas algo. No expliques qué vas a comprobar ni repitas la fecha, hora o servicio en esa frase — eso ya lo has dicho antes. Esa frase tampoco puede dar por hecho el resultado: nada de \"la dejo reservada\", \"te la reservo\" o \"ya está\", porque la consulta todavía puede salir negativa y el cliente se quedaría creyendo que ya tiene cita.",
+    // Antes el agente "adivinaba" una alternativa cuando la hora pedida no
+    // estaba libre y la ofrecía sin comprobarla — confirmado con una llamada
+    // real de prueba (2026-09-07): la segunda hora ofrecida tampoco estaba
+    // libre. Ahora check_availability calcula ella misma el siguiente hueco
+    // libre ese mismo día (campo suggestedNextSlot) en la misma respuesta,
+    // así que el agente no necesita volver a llamar a la tool para
+    // comprobar una alternativa: ya viene verificada.
+    "Si check_availability devuelve available: false, mira el campo suggestedNextSlot de esa misma respuesta. Si trae una hora, es la siguiente disponible ese día y ya está verificada: puedes ofrecérsela directamente al cliente sin llamar de nuevo a la herramienta. Si suggestedNextSlot es null, no queda ningún hueco libre en lo que resta del día — dilo así y pregunta si quiere otro día, no inventes una hora.",
     buildRestrictionsFragment(input),
     input.businessDetails?.trim() ? `INFORMACION_VERIFICADA_DEL_NEGOCIO:\n${input.businessDetails.trim()}` : null,
     // Estos tres bloques no llevan el dato horneado en el texto: son

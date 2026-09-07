@@ -6,6 +6,18 @@ export type AvailableProfessional = {
   name: string;
 };
 
+/** Próximo hueco libre ese mismo día, calculado por el backend cuando la
+ * hora pedida no está disponible por capacidad u ocupación — nunca por
+ * OUTSIDE_BUSINESS_HOURS/PROFESSIONAL_NOT_FOUND/NO_AVAILABLE_PROFESSIONAL,
+ * donde no tiene sentido buscar un hueco cercano. Existe para que el agente
+ * de voz no tenga que inventar una alternativa y volver a llamar a la tool
+ * para comprobarla — round-trip que en una llamada real de prueba
+ * (2026-09-07) llevó a ofrecer una segunda hora que tampoco estaba libre. */
+export type SuggestedSlot = {
+  startDateTime: string;
+  availableProfessionals: AvailableProfessional[];
+};
+
 export type AvailabilityResult =
   | {
       available: true;
@@ -14,7 +26,81 @@ export type AvailabilityResult =
       capacityTotal: number;
       availableProfessionals: AvailableProfessional[];
     }
-  | { available: false; code: string; message: string; capacityUsed?: number; capacityTotal?: number };
+  | {
+      available: false;
+      code: string;
+      message: string;
+      capacityUsed?: number;
+      capacityTotal?: number;
+      /** null si no se buscó (código no aplicable) o no quedó ningún hueco
+       * libre en la ventana de búsqueda. */
+      suggestedNextSlot?: SuggestedSlot | null;
+    };
+
+const NEXT_SLOT_SEARCH_INCREMENT_MINUTES = 15;
+/** 16 intentos × 15 min = 4 horas hacia adelante como máximo. checkBusinessHours
+ * corta antes si el horario del negocio termina primero. */
+const NEXT_SLOT_SEARCH_MAX_ATTEMPTS = 16;
+
+/** Busca el siguiente hueco libre a partir de `startDateTime`, en pasos de
+ * 15 minutos, dentro del mismo horario comercial del día — nunca salta a
+ * otro día. Reutiliza `bookings`, ya cargado por el caller para una ventana
+ * que cubre toda la búsqueda, así que no hace ninguna consulta adicional. */
+function findNextAvailableSlot(input: {
+  schedule: unknown;
+  timezone: string;
+  bookingCapacity: number;
+  startDateTime: string;
+  durationMinutes: number;
+  rankedProfessionals: AvailableProfessional[];
+  bookings: Array<{ professionalId: string | null; programedAt: Date; durationMinutes: number | null }>;
+}): SuggestedSlot | null {
+  const { schedule, timezone, bookingCapacity, startDateTime, durationMinutes, rankedProfessionals, bookings } = input;
+
+  if (rankedProfessionals.length === 0) {
+    return null;
+  }
+
+  const originalStart = new Date(startDateTime);
+
+  for (let attempt = 1; attempt <= NEXT_SLOT_SEARCH_MAX_ATTEMPTS; attempt++) {
+    const candidateStart = new Date(
+      originalStart.getTime() + attempt * NEXT_SLOT_SEARCH_INCREMENT_MINUTES * 60_000
+    );
+    const candidateISO = candidateStart.toISOString();
+
+    const hoursCheck = checkBusinessHours(schedule, timezone, candidateISO, durationMinutes);
+    if (!hoursCheck.success || !hoursCheck.isOpen) {
+      // Se acabó el horario laboral del día — no tiene sentido seguir
+      // probando horas más tardías.
+      break;
+    }
+
+    const candidateEnd = new Date(candidateStart.getTime() + Math.max(0, durationMinutes) * 60_000);
+    const overlapping = bookings.filter((booking) => {
+      const bookingStart = new Date(booking.programedAt);
+      const bookingEnd = new Date(bookingStart.getTime() + (booking.durationMinutes || 30) * 60_000);
+      return bookingStart < candidateEnd && bookingEnd > candidateStart;
+    });
+
+    if (overlapping.length >= bookingCapacity) {
+      continue;
+    }
+
+    const busyProfessionalIds = new Set(
+      overlapping.map((booking) => booking.professionalId).filter((id): id is string => Boolean(id))
+    );
+    const availableProfessionals = rankedProfessionals.filter(
+      (professional) => !busyProfessionalIds.has(professional.id)
+    );
+
+    if (availableProfessionals.length > 0) {
+      return { startDateTime: candidateISO, availableProfessionals };
+    }
+  }
+
+  return null;
+}
 
 export async function checkAvailability(input: {
   businessId: string;
@@ -93,16 +179,23 @@ export async function checkAvailability(input: {
       })
     : professionals;
 
-  // 3. Citas existentes en el slot
+  // 3. Citas existentes en el slot — la ventana de la consulta ya cubre
+  // también la búsqueda de un hueco alternativo (ver findNextAvailableSlot
+  // más abajo), así que una sola query a Prisma sirve para ambos casos.
   const start = new Date(startDateTime);
   const end = new Date(start.getTime() + Math.max(0, durationMinutes) * 60_000);
+  const nextSlotSearchWindowEnd = new Date(
+    start.getTime() +
+      NEXT_SLOT_SEARCH_MAX_ATTEMPTS * NEXT_SLOT_SEARCH_INCREMENT_MINUTES * 60_000 +
+      Math.max(0, durationMinutes) * 60_000
+  );
 
   const overlappingBookings = await prisma.booking.findMany({
     where: {
       call: { businessId },
       isCancelled: false,
       programedAt: {
-        lt: end,
+        lt: nextSlotSearchWindowEnd,
       },
     },
     select: {
@@ -119,6 +212,10 @@ export async function checkAvailability(input: {
   });
 
   const bookingsInSlot = activeBookings.length;
+  const rankedProfessionalsForSearch = rankedProfessionals.map((professional) => ({
+    id: professional.id,
+    name: professional.name,
+  }));
 
   if (bookingsInSlot >= bookingCapacity) {
     return {
@@ -127,6 +224,15 @@ export async function checkAvailability(input: {
       message: "El negocio ya tiene todas sus plazas ocupadas en ese horario.",
       capacityUsed: bookingsInSlot,
       capacityTotal: bookingCapacity,
+      suggestedNextSlot: findNextAvailableSlot({
+        schedule,
+        timezone,
+        bookingCapacity,
+        startDateTime,
+        durationMinutes,
+        rankedProfessionals: rankedProfessionalsForSearch,
+        bookings: overlappingBookings,
+      }),
     };
   }
 
@@ -148,6 +254,15 @@ export async function checkAvailability(input: {
       message: "Todos los profesionales que pueden hacer este servicio están ocupados en ese horario.",
       capacityUsed: bookingsInSlot,
       capacityTotal: bookingCapacity,
+      suggestedNextSlot: findNextAvailableSlot({
+        schedule,
+        timezone,
+        bookingCapacity,
+        startDateTime,
+        durationMinutes,
+        rankedProfessionals: rankedProfessionalsForSearch,
+        bookings: overlappingBookings,
+      }),
     };
   }
 
