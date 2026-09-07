@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { ArrowDown, ArrowRight, Check, Headphones } from "lucide-react";
 
-import { HeroVoiceprint } from "@/components/hero-voiceprint";
+import { HeroPulse } from "@/components/hero-pulse";
 import { DemoVoiceCall } from "@/components/demo-voice-call";
 import { Reveal } from "@/components/scroll-reveal";
 import type { NicheLandingContent } from "@/lib/niche-landings";
@@ -82,7 +82,7 @@ export function LandingHero({ content }: { content?: NicheLandingContent }) {
         </div>
 
         <Reveal delay={0.1} y={18} id="demo-llamada" className="scroll-m-24">
-          <HeroVoiceprint accent={accent} />
+          <HeroPulse accent={accent} />
         </Reveal>
       </section>
 

@@ -20,24 +20,6 @@
       "page": "page-1"
     },
     {
-      "file": "HeroAgenda.dc.html",
-      "x": 1600,
-      "y": 0,
-      "w": 560,
-      "h": 620,
-      "title": "Hero · agenda",
-      "page": "page-1"
-    },
-    {
-      "file": "HeroPulso.dc.html",
-      "x": 1600,
-      "y": 740,
-      "w": 560,
-      "h": 620,
-      "title": "Hero · pulso",
-      "page": "page-1"
-    },
-    {
       "file": "Producto.dc.html",
       "x": 0,
       "y": 0,
@@ -63,16 +45,8 @@
       "y": -340,
       "w": 660,
       "page": "page-1",
-      "text": "LANDING · dirección A (Editorial), página completa\n\nRefleja la página real, sección por sección y en su orden actual. Los tokens no cambian: la tipografía manda y el morado queda como acento fino.\n\nSIN ANTETÍTULOS: DESIGN.md lo prohíbe en La Regla del Titular Solo, y el 2026-09-07 se decidió mantener la regla. Los badges que quedan aportan información que el titular no da (el dato del 60% en el hero, «Google Calendar & Outlook» nombrando la integración), que es lo que la regla sí permite.\n\nCAMBIOS YA IMPLEMENTADOS EN CÓDIGO:\n· El hero deja la conversación simulada y pasa a la huella de voz.\n· El ordinal de cada paso baja de tamaño de titular al paso Body.\n· La calculadora sube detrás de los datos del sector: el problema se plantea una vez, de la evidencia del sector a las cifras del propio negocio.\n· El plan recomendado deja de ser una tarjeta negra (competía con el CTA final, también negro) y pasa a blanco con aro morado.",
+      "text": "LANDING · dirección A (Editorial), página completa\n\nRefleja la página real, sección por sección y en su orden actual. Los tokens no cambian: la tipografía manda y el morado queda como acento fino.\n\nSIN ANTETÍTULOS: DESIGN.md lo prohíbe en La Regla del Titular Solo, y el 2026-09-07 se decidió mantener la regla. Los badges que quedan aportan información que el titular no da (el dato del 60% en el hero, «Google Calendar & Outlook» nombrando la integración), que es lo que la regla sí permite.\n\nCAMBIOS YA IMPLEMENTADOS EN CÓDIGO:\n· El hero deja la conversación simulada y pasa al pulso de llamada entrante: anillos fijos que dan estructura y ondas que salen del centro cada 0,8 s. Se descartaron la onda de voz y la agenda que se llena.\n· El ordinal de cada paso baja de tamaño de titular al paso Body.\n· La calculadora sube detrás de los datos del sector: el problema se plantea una vez, de la evidencia del sector a las cifras del propio negocio.\n· El plan recomendado deja de ser una tarjeta negra (competía con el CTA final, también negro) y pasa a blanco con aro morado.",
       "kind": "note"
-    },
-    {
-      "id": "hero-nota",
-      "x": 1600,
-      "y": -340,
-      "w": 560,
-      "page": "page-1",
-      "text": "EL HUECO DEL HERO\n\nLa simulación de conversación actual tarda 6,6 s por escena y la confirmación no aparece hasta el segundo 5: ~20 s para ver las tres. Por eso se hace lenta.\n\nEn A he puesto una ONDA DE VOZ que se resuelve en la cita: una sola idea, se lee de un vistazo y no obliga a esperar. En movimiento las barras suben una vez, de izquierda a derecha, y la tarjeta negra entra al final (menos de 1,5 s en total).\n\nAquí al lado tienes dos alternativas para ese mismo hueco por si prefieres otra cosa."
     },
     {
       "id": "descartadas-nota",
