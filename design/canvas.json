@@ -15,7 +15,7 @@
       "x": 0,
       "y": 0,
       "w": 1440,
-      "h": 3320,
+      "h": 6400,
       "title": "A · Editorial",
       "page": "page-1"
     },
@@ -63,7 +63,7 @@
       "y": -340,
       "w": 660,
       "page": "page-1",
-      "text": "LANDING · dirección A (Editorial), página completa\n\nMismos tokens de siempre. La tipografía manda y el morado queda como acento fino.\n\nSIN ANTETÍTULOS: la primera versión de esta maqueta ponía una etiqueta en versalitas sobre cada titular. DESIGN.md lo prohíbe en La Regla del Titular Solo — el titular carga con su propio peso. Decisión del 2026-09-07: se mantiene la regla. Los badges que sí quedan aportan información que el titular no da (el dato del 60% en el hero, «Google Calendar & Outlook» nombrando la integración), que es justo lo que la regla permite.\n\nLos datos del sector siguen como [DATO] / [FUENTE] — pendientes de rellenar.",
+      "text": "LANDING · dirección A (Editorial), página completa\n\nRefleja la página real, sección por sección y en su orden actual. Los tokens no cambian: la tipografía manda y el morado queda como acento fino.\n\nSIN ANTETÍTULOS: DESIGN.md lo prohíbe en La Regla del Titular Solo, y el 2026-09-07 se decidió mantener la regla. Los badges que quedan aportan información que el titular no da (el dato del 60% en el hero, «Google Calendar & Outlook» nombrando la integración), que es lo que la regla sí permite.\n\nCAMBIOS YA IMPLEMENTADOS EN CÓDIGO:\n· El hero deja la conversación simulada y pasa a la huella de voz.\n· El ordinal de cada paso baja de tamaño de titular al paso Body.\n· La calculadora sube detrás de los datos del sector: el problema se plantea una vez, de la evidencia del sector a las cifras del propio negocio.\n· El plan recomendado deja de ser una tarjeta negra (competía con el CTA final, también negro) y pasa a blanco con aro morado.",
       "kind": "note"
     },
     {
