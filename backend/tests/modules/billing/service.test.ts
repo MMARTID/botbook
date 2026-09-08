@@ -8,6 +8,7 @@ import {
 import { prisma } from "../../../src/lib/prisma.js";
 import { getStripeClient } from "../../../src/lib/stripe.js";
 import { enqueueEmailJob } from "../../../src/lib/cloudTasks.js";
+import { provisionPhoneNumber } from "../../../src/modules/phone/service.js";
 import type Stripe from "stripe";
 
 vi.mock("../../../src/lib/prisma.js", () => ({
@@ -25,6 +26,8 @@ vi.mock("../../../src/lib/prisma.js", () => ({
       upsert: vi.fn(),
       update: vi.fn(),
     },
+    $executeRaw: vi.fn().mockResolvedValue(undefined),
+    $transaction: vi.fn(),
   },
 }));
 
@@ -37,6 +40,10 @@ vi.mock("../../../src/lib/cloudTasks.js", () => ({
   enqueueEmailJob: vi.fn(),
 }));
 
+vi.mock("../../../src/modules/phone/service.js", () => ({
+  provisionPhoneNumber: vi.fn(),
+}));
+
 const mockedBusinessFindUnique = vi.mocked(prisma.business.findUnique);
 const mockedBusinessFindFirst = vi.mocked(prisma.business.findFirst);
 const mockedBusinessUpdate = vi.mocked(prisma.business.update);
@@ -44,8 +51,10 @@ const mockedCallAggregate = vi.mocked(prisma.call.aggregate);
 const mockedStripeWebhookEventFindUnique = vi.mocked(prisma.stripeWebhookEvent.findUnique);
 const mockedStripeWebhookEventUpsert = vi.mocked(prisma.stripeWebhookEvent.upsert);
 const mockedStripeWebhookEventUpdate = vi.mocked(prisma.stripeWebhookEvent.update);
+const mockedTransaction = vi.mocked(prisma.$transaction);
 const mockedGetStripeClient = vi.mocked(getStripeClient);
 const mockedEnqueueEmailJob = vi.mocked(enqueueEmailJob);
+const mockedProvisionPhoneNumber = vi.mocked(provisionPhoneNumber);
 
 const businessId = "business_123";
 const priceId = "price_test_123";
@@ -92,6 +101,12 @@ describe("handleStripeEvent", () => {
     vi.clearAllMocks();
     mockedStripeWebhookEventFindUnique.mockResolvedValue(null);
     mockedStripeWebhookEventUpsert.mockResolvedValue({ id: "evt_1" } as any);
+    // handleStripeEvent envuelve todo en prisma.$transaction (advisory lock
+    // por event.id, hallazgo #28) — el mock ejecuta el callback pasándole el
+    // mismo `prisma` mockeado como `tx`, así los asserts existentes sobre
+    // mockedStripeWebhookEventUpdate/etc. siguen funcionando igual.
+    mockedTransaction.mockImplementation(async (callback: any) => callback(prisma));
+    mockedProvisionPhoneNumber.mockResolvedValue({ success: true, status: "active" });
     process.env.STRIPE_PRICE_INICIO = priceId;
   });
 
@@ -239,6 +254,58 @@ describe("handleStripeEvent", () => {
     );
   });
 
+  it("descarta un evento de suscripción más antiguo que el ya aplicado (hallazgo #29 de la auditoría)", async () => {
+    // Stripe no garantiza el orden de entrega — este evento "sigue activo"
+    // llega DESPUÉS de que ya se aplicara uno más reciente marcándolo
+    // CANCELED. Sin comparar contra subscriptionEventCreatedAt, resucitaría
+    // el estado ACTIVE obsoleto.
+    mockedBusinessFindFirst.mockResolvedValue(buildBusiness() as any);
+    mockedBusinessFindUnique.mockResolvedValue({
+      subscriptionEventCreatedAt: new Date("2026-08-15T00:00:00Z"),
+    } as any);
+
+    const event = buildStripeEvent("customer.subscription.updated", {
+      id: subscriptionId,
+      customer: customerId,
+      status: "active",
+      metadata: { businessId },
+      items: { data: [{ price: { id: priceId }, current_period_start: 1751328000, current_period_end: 1754006400 }] },
+      trial_end: null,
+      cancel_at_period_end: false,
+    });
+    event.created = Math.floor(new Date("2026-08-10T00:00:00Z").getTime() / 1000); // más antiguo
+
+    await handleStripeEvent(event);
+
+    expect(mockedBusinessUpdate).not.toHaveBeenCalled();
+  });
+
+  it("aplica un evento de suscripción más reciente que el ya aplicado", async () => {
+    mockedBusinessFindFirst.mockResolvedValue(buildBusiness() as any);
+    mockedBusinessFindUnique.mockResolvedValue({
+      subscriptionEventCreatedAt: new Date("2026-08-01T00:00:00Z"),
+    } as any);
+
+    const event = buildStripeEvent("customer.subscription.updated", {
+      id: subscriptionId,
+      customer: customerId,
+      status: "active",
+      metadata: { businessId },
+      items: { data: [{ price: { id: priceId }, current_period_start: 1751328000, current_period_end: 1754006400 }] },
+      trial_end: null,
+      cancel_at_period_end: false,
+    });
+    event.created = Math.floor(new Date("2026-08-20T00:00:00Z").getTime() / 1000); // más reciente
+
+    await handleStripeEvent(event);
+
+    expect(mockedBusinessUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ subscriptionStatus: "ACTIVE" }),
+      })
+    );
+  });
+
   it("detecta eventos duplicados y no procesa el estado", async () => {
     mockedStripeWebhookEventFindUnique.mockResolvedValue({
       id: "evt_1",
@@ -326,10 +393,11 @@ describe("createCheckoutSession", () => {
       id: "cs_test_1",
       client_secret: "secret_123",
     });
+    const sessionsList = vi.fn().mockResolvedValue({ data: [] });
     const customersCreate = vi.fn().mockResolvedValue({ id: customerId });
     mockedGetStripeClient.mockReturnValue({
       customers: { create: customersCreate },
-      checkout: { sessions: { create: sessionsCreate } },
+      checkout: { sessions: { create: sessionsCreate, list: sessionsList } },
     } as any);
 
     const result = await createCheckoutSession({
@@ -347,6 +415,35 @@ describe("createCheckoutSession", () => {
           trial_period_days: 7,
         }),
       })
+    );
+  });
+
+  it("reutiliza una sesión de checkout ya abierta en vez de crear otra (hallazgo #10 de la auditoría)", async () => {
+    mockedBusinessFindUnique.mockResolvedValue(
+      buildBusiness({ subscriptionStatus: null, stripeCustomerId: customerId }) as any
+    );
+    const sessionsCreate = vi.fn();
+    const sessionsList = vi.fn().mockResolvedValue({
+      data: [
+        { id: "cs_open_1", mode: "payment", client_secret: "secret_wrong_mode" },
+        { id: "cs_open_2", mode: "subscription", client_secret: "secret_existing" },
+      ],
+    });
+    mockedGetStripeClient.mockReturnValue({
+      customers: { create: vi.fn() },
+      checkout: { sessions: { create: sessionsCreate, list: sessionsList } },
+    } as any);
+
+    const result = await createCheckoutSession({
+      businessId,
+      userId: "user_123",
+      planId: "inicio",
+    });
+
+    expect(result.clientSecret).toBe("secret_existing");
+    expect(sessionsCreate).not.toHaveBeenCalled();
+    expect(sessionsList).toHaveBeenCalledWith(
+      expect.objectContaining({ customer: customerId, status: "open" })
     );
   });
 });

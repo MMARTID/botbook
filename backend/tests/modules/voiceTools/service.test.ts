@@ -396,3 +396,51 @@ describe("executeVoiceTool book_appointment — varios servicios en la misma cit
     expect(result.result.success).toBe(true);
   });
 });
+
+describe("executeVoiceTool book_appointment — estado de la suscripción (hallazgo #9 de la auditoría)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockedCheckBusinessHours.mockReturnValue({ success: true, isOpen: true } as any);
+    mockedProfessionalFindFirst.mockResolvedValue({ id: "professional_123" } as any);
+    mockedServiceFindMany.mockResolvedValue([]);
+    mockedCheckAvailability.mockResolvedValue({
+      available: true,
+      message: "",
+      capacityUsed: 0,
+      capacityTotal: 1,
+      availableProfessionals: [{ id: "professional_123", name: "Ana" }],
+    } as any);
+    mockedBookingFindUnique.mockResolvedValue(null);
+    mockedGetBusyIntervals.mockResolvedValue([]);
+    mockedEnqueueSmsJob.mockResolvedValue(undefined);
+  });
+
+  it.each(["CANCELED", "UNPAID", "PAST_DUE", "INCOMPLETE_EXPIRED"])(
+    "rechaza la reserva si la suscripción está en %s",
+    async (subscriptionStatus) => {
+      mockedBusinessFindUnique.mockResolvedValue(
+        buildBusiness({ subscriptionStatus }) as any
+      );
+
+      const result = await executeVoiceTool(buildBookAppointmentInput());
+
+      expect(result.result.success).toBe(false);
+      expect(result.result.code).toBe("SUBSCRIPTION_INACTIVE");
+      expect(mockedBookAppointment).not.toHaveBeenCalled();
+    }
+  );
+
+  it.each(["ACTIVE", "TRIALING", null])(
+    "permite la reserva si la suscripción está en %s",
+    async (subscriptionStatus) => {
+      mockedBusinessFindUnique.mockResolvedValue(
+        buildBusiness({ subscriptionStatus }) as any
+      );
+
+      const result = await executeVoiceTool(buildBookAppointmentInput());
+
+      expect(result.result.success).toBe(true);
+      expect(mockedBookAppointment).toHaveBeenCalled();
+    }
+  );
+});

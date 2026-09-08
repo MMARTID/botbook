@@ -17,6 +17,17 @@ import {
 export type VoiceToolName =
   "check_business_hours" | "check_availability" | "book_appointment";
 
+// Estados de SubscriptionStatus (schema.prisma) que significan "el negocio
+// no está pagando ahora mismo" — no incluye TRIALING/ACTIVE (pagando de
+// facto) ni INCOMPLETE/PAUSED (transitorios/ambiguos, no el caso que este
+// fix ataja) para no bloquear de más. Ver hallazgo #9 de la auditoría.
+const BLOCKED_SUBSCRIPTION_STATUSES = new Set([
+  "CANCELED",
+  "UNPAID",
+  "PAST_DUE",
+  "INCOMPLETE_EXPIRED",
+]);
+
 export interface ExecuteVoiceToolInput {
   businessId: string;
   toolName: VoiceToolName | string;
@@ -47,6 +58,11 @@ interface BusinessVoiceConfig {
   // se reutiliza como remitente del SMS en vez de comprar/gestionar un
   // segundo número solo para mensajería.
   telnyxPhoneNumber: string | null;
+  // null = nunca pasó por Stripe (cuentas de prueba/demo creadas a mano) —
+  // se trata como "permitido", no como "sin pagar". Solo se bloquea la
+  // reserva ante un estado explícito de "no está pagando" (ver
+  // executeBookAppointment) — hallazgo #9 de la auditoría.
+  subscriptionStatus: string | null;
 }
 
 async function loadBusinessConfig(
@@ -70,6 +86,7 @@ async function loadBusinessConfig(
       maxAppointmentDurationMinutes: true,
       phone: true,
       telnyxPhoneNumber: true,
+      subscriptionStatus: true,
     },
   });
 }
@@ -495,6 +512,29 @@ async function executeBookAppointment(
         success: false,
         code: "BOOK_APPOINTMENT_FAILED",
         message: "Faltan datos obligatorios para agendar la cita.",
+      },
+    };
+  }
+
+  // Un negocio cancelado o impagado podía seguir creando reservas
+  // indefinidamente: nada comprobaba el estado de la suscripción antes de
+  // reservar (hallazgo #9 de la auditoría). null (cuentas de prueba/demo
+  // sin Stripe) se trata como permitido a propósito — solo se bloquea ante
+  // un estado explícito de "no está pagando".
+  if (
+    business.subscriptionStatus &&
+    BLOCKED_SUBSCRIPTION_STATUSES.has(business.subscriptionStatus)
+  ) {
+    console.warn(
+      `[VoiceTools] ${callLabel} no puede reservar: suscripción en estado ${business.subscriptionStatus}`
+    );
+    return {
+      success: true,
+      result: {
+        success: false,
+        code: "SUBSCRIPTION_INACTIVE",
+        message:
+          "No puedo agendar la cita en este momento. Por favor, contacta con el negocio directamente.",
       },
     };
   }
