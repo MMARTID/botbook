@@ -430,6 +430,54 @@ describe("CalendarService.bookAppointment", () => {
       vi.useRealTimers();
     }
   });
+
+  it("reconoce un invalid_grant real de Microsoft (400, no 401/403) como OUTLOOK_CALENDAR_RECONNECT_REQUIRED (hallazgo #22 de la auditoría)", async () => {
+    const { refreshMicrosoftAccessToken } = await import("../../../src/lib/microsoftGraph.js");
+    // Así es como microsoftGraph.ts construye el error real (createMicrosoftOAuthError):
+    // sin "401" ni "403" en ningún sitio del mensaje.
+    const invalidGrantError = Object.assign(
+      new Error("Microsoft token refresh failed: 400 | invalid_grant | AADSTS700082"),
+      { status: 400, oauthErrorCode: "invalid_grant" }
+    );
+    vi.mocked(refreshMicrosoftAccessToken).mockRejectedValue(invalidGrantError);
+
+    try {
+      await calendarService.bookAppointment({
+        clientName: "María",
+        startDateTime: "2026-08-10T10:00:00Z",
+        durationMinutes: 60,
+        provider: "outlook",
+        outlookRefreshToken: "refresh_token_123",
+        outlookCalendarId: "calendar_123",
+      });
+      expect.fail("debía lanzar");
+    } catch (error) {
+      expect((error as CalendarBusinessError).code).toBe("OUTLOOK_CALENDAR_RECONNECT_REQUIRED");
+    }
+  });
+
+  it("no marca la conexión como rota ante un 429 al crear el evento — lanza CALENDAR_RATE_LIMITED", async () => {
+    const { createMicrosoftCalendarEvent, refreshMicrosoftAccessToken } = await import(
+      "../../../src/lib/microsoftGraph.js"
+    );
+    vi.mocked(refreshMicrosoftAccessToken).mockResolvedValue({ access_token: "access_123" } as any);
+    const rateLimitError = Object.assign(new Error("Microsoft Graph request failed: 429"), { status: 429 });
+    vi.mocked(createMicrosoftCalendarEvent).mockRejectedValue(rateLimitError);
+
+    try {
+      await calendarService.bookAppointment({
+        clientName: "María",
+        startDateTime: "2026-08-10T10:00:00Z",
+        durationMinutes: 60,
+        provider: "outlook",
+        outlookRefreshToken: "refresh_token_123",
+        outlookCalendarId: "calendar_123",
+      });
+      expect.fail("debía lanzar");
+    } catch (error) {
+      expect((error as CalendarBusinessError).code).toBe("CALENDAR_RATE_LIMITED");
+    }
+  });
 });
 
 describe("CalendarService.getUpcomingEvents", () => {
@@ -554,6 +602,34 @@ describe("CalendarService.listOutlookCalendars", () => {
       await calendarService.listOutlookCalendars("refresh_token_123");
     } catch (error) {
       expect((error as CalendarBusinessError).code).toBe("OUTLOOK_CALENDAR_RECONNECT_REQUIRED");
+    }
+  });
+
+  it("no marca la conexión como rota ante un 429 de Graph — lanza CALENDAR_RATE_LIMITED (hallazgo #21 de la auditoría)", async () => {
+    const { refreshMicrosoftAccessToken, listMicrosoftCalendars } = await import("../../../src/lib/microsoftGraph.js");
+    vi.mocked(refreshMicrosoftAccessToken).mockResolvedValue({ access_token: "access_123" } as any);
+    const rateLimitError = Object.assign(new Error("Microsoft Graph request failed: 429"), { status: 429 });
+    vi.mocked(listMicrosoftCalendars).mockRejectedValue(rateLimitError);
+
+    try {
+      await calendarService.listOutlookCalendars("refresh_token_123");
+      expect.fail("debía lanzar");
+    } catch (error) {
+      expect((error as CalendarBusinessError).code).toBe("CALENDAR_RATE_LIMITED");
+    }
+  });
+
+  it("no marca la conexión como rota ante un 500 transitorio de Graph — lanza CALENDAR_TIMEOUT", async () => {
+    const { refreshMicrosoftAccessToken, listMicrosoftCalendars } = await import("../../../src/lib/microsoftGraph.js");
+    vi.mocked(refreshMicrosoftAccessToken).mockResolvedValue({ access_token: "access_123" } as any);
+    const serverError = Object.assign(new Error("Microsoft Graph request failed: 503"), { status: 503 });
+    vi.mocked(listMicrosoftCalendars).mockRejectedValue(serverError);
+
+    try {
+      await calendarService.listOutlookCalendars("refresh_token_123");
+      expect.fail("debía lanzar");
+    } catch (error) {
+      expect((error as CalendarBusinessError).code).toBe("CALENDAR_TIMEOUT");
     }
   });
 });

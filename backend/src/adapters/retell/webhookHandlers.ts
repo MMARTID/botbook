@@ -4,6 +4,14 @@ import { prisma } from "../../lib/prisma.js";
 import { enqueueRecordingJob } from "../../lib/cloudTasks.js";
 import { callLabel, errorMessage } from "../../lib/logUtils.js";
 
+// Un call_started retrasado o reentregado por Retell no debe poder revivir
+// una llamada que ya llegó a un estado terminal (call_ended ya se procesó)
+// — hallazgo #20 de la auditoría: sin esto, la llamada desaparecía
+// temporalmente de las estadísticas de facturación (vuelve a IN_PROGRESS,
+// que getBillingSummary excluye) y la limpieza de zombies podía marcarla
+// TIMED_OUT más tarde aunque en realidad se hubiera completado bien.
+const TERMINAL_CALL_STATUSES = new Set(["COMPLETED", "FAILED", "TIMED_OUT"]);
+
 const RetellCallStartedSchema = z.object({
   event_type: z.literal("call_started"),
   data: z.object({
@@ -35,9 +43,11 @@ const RetellCallEndedSchema = z.object({
     transcript: z.string().optional(),
     transcript_object: z.array(RetellTranscriptTurnSchema).optional(),
     summary: z.string().optional(),
-    call_cost: z.object({
-      combined_cost: z.number().optional(),
-    }).optional(),
+    call_cost: z
+      .object({
+        combined_cost: z.number().optional(),
+      })
+      .optional(),
   }),
 });
 
@@ -45,7 +55,9 @@ const RetellCallAnalysisSchema = z
   .object({
     call_successful: z.boolean().optional(),
     call_summary: z.string().optional(),
-    user_sentiment: z.enum(["Positive", "Neutral", "Negative", "Unknown"]).optional(),
+    user_sentiment: z
+      .enum(["Positive", "Neutral", "Negative", "Unknown"])
+      .optional(),
     // Definido por nosotros vía post_call_analysis_data (ver
     // CALL_OUTCOME_ANALYSIS_FIELD en agentBootstrap.ts).
     custom_analysis_data: z
@@ -164,6 +176,18 @@ export async function handleCallStarted(
       select: { id: true },
     });
 
+    const existingCall = await prisma.call.findUnique({
+      where: { vapiCallId: call_id },
+      select: { status: true },
+    });
+
+    if (existingCall && TERMINAL_CALL_STATUSES.has(existingCall.status)) {
+      console.warn(
+        `[Retell] call_started tardío/duplicado para ${callLabel(call_id)} ignorado: la llamada ya está ${existingCall.status}`
+      );
+      return { success: true };
+    }
+
     await prisma.call.upsert({
       where: { vapiCallId: call_id },
       create: {
@@ -199,7 +223,9 @@ export async function handleCallEnded(
   const data = event.data;
 
   const durationSecs =
-    data.duration_ms !== undefined ? Math.round(data.duration_ms / 1000) : undefined;
+    data.duration_ms !== undefined
+      ? Math.round(data.duration_ms / 1000)
+      : undefined;
 
   console.log(
     `[Retell] Finalizó ${callLabel(call_id)} · duración=${
@@ -386,7 +412,9 @@ export async function handleCallAnalyzed(
       ? mapRetellSentiment(data.call_analysis.user_sentiment)
       : undefined;
     const outcome = data.call_analysis
-      ? mapRetellCallOutcome(data.call_analysis.custom_analysis_data?.call_outcome)
+      ? mapRetellCallOutcome(
+          data.call_analysis.custom_analysis_data?.call_outcome
+        )
       : undefined;
     const summary = data.call_analysis?.call_summary;
     const successful = data.call_analysis?.call_successful;

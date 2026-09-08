@@ -1,10 +1,14 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { listMicrosoftBusyIntervals } from "../../src/lib/microsoftGraph.js";
+import {
+  listMicrosoftBusyIntervals,
+  refreshMicrosoftAccessToken,
+  exchangeMicrosoftCode,
+} from "../../src/lib/microsoftGraph.js";
 
-function mockFetchOnce(body: unknown, ok = true) {
+function mockFetchOnce(body: unknown, ok = true, status?: number) {
   const fetchMock = vi.fn().mockResolvedValue({
     ok,
-    status: ok ? 200 : 500,
+    status: status ?? (ok ? 200 : 500),
     json: async () => body,
   });
   vi.stubGlobal("fetch", fetchMock);
@@ -71,5 +75,51 @@ describe("listMicrosoftBusyIntervals", () => {
     await expect(
       listMicrosoftBusyIntervals("access_token", "calendar_1", new Date(), new Date())
     ).rejects.toThrow();
+  });
+});
+
+describe("refreshMicrosoftAccessToken / exchangeMicrosoftCode (hallazgos #22 y #23 de la auditoría)", () => {
+  beforeEach(() => {
+    process.env.MICROSOFT_CLIENT_ID = "client_id_test";
+    process.env.MICROSOFT_CLIENT_SECRET = "client_secret_test";
+    process.env.MICROSOFT_REDIRECT_URI = "https://example.com/callback";
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    delete process.env.MICROSOFT_CLIENT_ID;
+    delete process.env.MICROSOFT_CLIENT_SECRET;
+    delete process.env.MICROSOFT_REDIRECT_URI;
+  });
+
+  it("limita con un timeout la renovación del token (#23) — pasa un AbortSignal a fetch", async () => {
+    const fetchMock = mockFetchOnce({ access_token: "token_123", expires_in: 3600 });
+
+    await refreshMicrosoftAccessToken("refresh_token_123");
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({ signal: expect.any(AbortSignal) })
+    );
+  });
+
+  it("limita con un timeout el intercambio del código de autorización (#23) — pasa un AbortSignal a fetch", async () => {
+    const fetchMock = mockFetchOnce({ access_token: "token_123", refresh_token: "refresh_123", expires_in: 3600 });
+
+    await exchangeMicrosoftCode("auth_code_123");
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({ signal: expect.any(AbortSignal) })
+    );
+  });
+
+  it("adjunta status y oauthErrorCode estructurados al error de invalid_grant (#22) — no solo un mensaje de texto", async () => {
+    mockFetchOnce({ error: "invalid_grant", error_description: "AADSTS700082: refresh token expired" }, false, 400);
+
+    await expect(refreshMicrosoftAccessToken("refresh_token_expired")).rejects.toMatchObject({
+      status: 400,
+      oauthErrorCode: "invalid_grant",
+    });
   });
 });

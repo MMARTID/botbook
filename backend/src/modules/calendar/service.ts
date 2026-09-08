@@ -162,6 +162,46 @@ export function isGoogleInvalidGrantError(error: unknown): boolean {
   return false;
 }
 
+// Equivalente Microsoft de classifyGoogleTransientError — antes,
+// listOutlookCalendars y la rama Outlook de getUpcomingEvents convertían
+// CUALQUIER error (429, timeout, un 500 de Graph) en
+// OUTLOOK_CALENDAR_RECONNECT_REQUIRED sin distinguir, y las rutas que
+// atrapan ese código marcan la conexión como desconectada en la BD — un
+// simple hipo de Graph desconectaba el calendario del negocio sin motivo
+// (hallazgo #21 de la auditoría). Usa el `.status` estructurado que
+// microsoftGraph.ts ahora adjunta a sus errores (ver createMicrosoftOAuthError
+// / graphFetch) en vez de buscar substrings en el mensaje.
+function classifyMicrosoftTransientError(
+  error: unknown
+): "timeout" | "rate_limit" | null {
+  const e = error as { status?: number; name?: string; message?: string };
+  if (e?.status === 429) return "rate_limit";
+  if (e?.status !== undefined && e.status >= 500) return "timeout";
+  if (e?.name === "TimeoutError" || e?.name === "AbortError") return "timeout";
+  const message = String(e?.message || "").toLowerCase();
+  if (message.includes("timeout") || message.includes("etimedout"))
+    return "timeout";
+  return null;
+}
+
+// Detecta errores de Microsoft relacionados con invalid_grant (refresh
+// token revocado o caducado) — antes, bookAppointment solo reconocía como
+// "hay que reconectar" un mensaje que contuviera literalmente "401" o "403"
+// como substring, pero el invalid_grant real de Microsoft llega como HTTP
+// 400 con body {error: "invalid_grant"}, así que nunca coincidía: el fallo
+// más común de reconexión de Outlook se trataba como error genérico
+// (hallazgo #22 de la auditoría).
+function isMicrosoftInvalidGrantError(error: unknown): boolean {
+  const e = error as {
+    status?: number;
+    oauthErrorCode?: string;
+    message?: string;
+  };
+  if (e?.oauthErrorCode === "invalid_grant") return true;
+  const message = String(e?.message || "").toLowerCase();
+  return message.includes("invalid_grant");
+}
+
 function getGoogleErrorDetails(error: unknown) {
   const googleError = error as {
     message?: string;
@@ -393,6 +433,19 @@ export class CalendarService {
         primary: false,
       }));
     } catch (err) {
+      const transient = classifyMicrosoftTransientError(err);
+      if (transient === "rate_limit") {
+        throw new CalendarBusinessError(
+          "CALENDAR_RATE_LIMITED",
+          "Outlook Calendar está limitando las peticiones en este momento."
+        );
+      }
+      if (transient === "timeout") {
+        throw new CalendarBusinessError(
+          "CALENDAR_TIMEOUT",
+          "Outlook Calendar está tardando más de lo normal en responder."
+        );
+      }
       console.error("[Calendar] Failed to list Outlook calendars:", err);
       throw new CalendarBusinessError(
         "OUTLOOK_CALENDAR_RECONNECT_REQUIRED",
@@ -845,6 +898,19 @@ export class CalendarService {
           safeMaxResults
         );
       } catch (error) {
+        const transient = classifyMicrosoftTransientError(error);
+        if (transient === "rate_limit") {
+          throw new CalendarBusinessError(
+            "CALENDAR_RATE_LIMITED",
+            "Outlook Calendar está limitando las peticiones en este momento."
+          );
+        }
+        if (transient === "timeout") {
+          throw new CalendarBusinessError(
+            "CALENDAR_TIMEOUT",
+            "Outlook Calendar está tardando más de lo normal en responder."
+          );
+        }
         throw new CalendarBusinessError(
           "OUTLOOK_CALENDAR_RECONNECT_REQUIRED",
           "La conexión con Outlook ya no es válida."
@@ -1052,19 +1118,33 @@ export class CalendarService {
         return event;
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
-        if (message.includes("401") || message.includes("403")) {
+        // isMicrosoftInvalidGrantError primero: el 400+invalid_grant real de
+        // Microsoft (refresh token revocado) no contiene "401" ni "403" en
+        // ningún sitio del mensaje, así que antes caía siempre al genérico
+        // BOOK_APPOINTMENT_FAILED — el fallo de reconexión de Outlook más
+        // común quedaba encolado para reintentos que nunca podrían funcionar
+        // hasta que el negocio reconectara a mano (hallazgo #22).
+        if (
+          isMicrosoftInvalidGrantError(err) ||
+          message.includes("401") ||
+          message.includes("403")
+        ) {
           throw new CalendarBusinessError(
             "OUTLOOK_CALENDAR_RECONNECT_REQUIRED",
             "La conexión con Outlook ha sido revocada o expiró."
           );
         }
-        if (err instanceof Error && err.name === "TimeoutError") {
+        const transient = classifyMicrosoftTransientError(err);
+        if (
+          transient === "timeout" ||
+          (err instanceof Error && err.name === "TimeoutError")
+        ) {
           throw new CalendarBusinessError(
             "CALENDAR_TIMEOUT",
             "Outlook Calendar está tardando más de lo normal en responder."
           );
         }
-        if (message.includes("429")) {
+        if (transient === "rate_limit" || message.includes("429")) {
           throw new CalendarBusinessError(
             "CALENDAR_RATE_LIMITED",
             "Outlook Calendar está limitando las peticiones en este momento."

@@ -58,6 +58,17 @@ function getMicrosoftConfig() {
   return { clientId, clientSecret, redirectUri };
 }
 
+// Límite propio bajo el timeout de 20s que Retell aplica a cada tool call
+// (book_appointment puede acabar aquí durante una llamada en curso). Se
+// aplicaba solo a graphFetch (peticiones a Graph) — exchangeMicrosoftCode y
+// refreshMicrosoftAccessToken hacían un fetch propio sin límite, así que una
+// renovación de token colgada podía superar los 20s de la tool sin que
+// nuestro propio código la cortara nunca (hallazgo #23 de la auditoría):
+// Retell ya habría dado la tool call por fallida, y el código seguiría
+// ejecutándose de fondo pudiendo llegar a crear la cita igualmente, después
+// de que el agente ya le hubiera dicho al cliente que algo falló.
+const GRAPH_REQUEST_TIMEOUT_MS = 8000;
+
 async function createMicrosoftOAuthError(
   response: Response,
   operation: "token exchange" | "token refresh"
@@ -80,9 +91,17 @@ async function createMicrosoftOAuthError(
     .filter(Boolean)
     .join(" | ");
 
-  return new Error(
+  const error = new Error(
     `Microsoft ${operation} failed: ${response.status}${safeDetails ? ` | ${safeDetails}` : ""}`
-  );
+  ) as Error & { status?: number; oauthErrorCode?: string };
+  // Ver classifyMicrosoftTransientError / isMicrosoftInvalidGrantError en
+  // calendar/service.ts — sin estas dos propiedades estructuradas, distinguir
+  // "hay que reconectar" de "fallo transitorio" dependía de buscar
+  // substrings concretos (ej. "401"/"403") en el mensaje, que nunca
+  // detectaban el 400 + invalid_grant real que devuelve Microsoft.
+  error.status = response.status;
+  error.oauthErrorCode = details.error;
+  return error;
 }
 
 export function getMicrosoftAuthUrl(state: string) {
@@ -113,6 +132,7 @@ export async function exchangeMicrosoftCode(code: string) {
       redirect_uri: redirectUri,
       scope: OUTLOOK_SCOPES,
     }).toString(),
+    signal: AbortSignal.timeout(GRAPH_REQUEST_TIMEOUT_MS),
   });
 
   if (!response.ok) {
@@ -139,6 +159,7 @@ export async function refreshMicrosoftAccessToken(refreshToken: string) {
       redirect_uri: redirectUri,
       scope: OUTLOOK_SCOPES,
     }).toString(),
+    signal: AbortSignal.timeout(GRAPH_REQUEST_TIMEOUT_MS),
   });
 
   if (!response.ok) {
@@ -151,10 +172,6 @@ export async function refreshMicrosoftAccessToken(refreshToken: string) {
     expires_in: number;
   }>;
 }
-
-// Límite propio bajo el timeout de 20s que Retell aplica a cada tool call
-// (book_appointment puede acabar aquí durante una llamada en curso).
-const GRAPH_REQUEST_TIMEOUT_MS = 8000;
 
 async function graphFetch<T>(
   accessToken: string,
@@ -190,9 +207,11 @@ async function graphFetch<T>(
       .filter(Boolean)
       .join(" | ");
 
-    throw new Error(
+    const error = new Error(
       `Microsoft Graph request failed for ${path.split("?")[0]}: ${response.status}${safeDetails ? ` | ${safeDetails}` : ""}`
-    );
+    ) as Error & { status?: number };
+    error.status = response.status;
+    throw error;
   }
 
   return response.json() as Promise<T>;

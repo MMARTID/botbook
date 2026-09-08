@@ -111,6 +111,51 @@ describe("Retell webhook handlers", () => {
       expect(result.success).toBe(false);
       expect(mockedCallUpsert).not.toHaveBeenCalled();
     });
+
+    it.each(["COMPLETED", "FAILED", "TIMED_OUT"])(
+      "ignora un call_started tardío/duplicado si la llamada ya está %s (hallazgo #20 de la auditoría)",
+      async (terminalStatus) => {
+        mockedAgentFindFirst.mockResolvedValue({
+          id: "agent_123",
+          businessId: "business_123",
+        } as any);
+        mockedCallFindUnique.mockResolvedValue({ status: terminalStatus } as any);
+
+        const result = await handleCallStarted({
+          event_type: "call_started",
+          data: {
+            call_id: "retell_call_123",
+            agent_id: "retell_agent_123",
+          },
+        });
+
+        expect(result.success).toBe(true);
+        // No debe revivir la llamada a IN_PROGRESS — desaparecería
+        // temporalmente de las estadísticas de facturación y la limpieza de
+        // zombies podría marcarla TIMED_OUT aunque ya se hubiera completado.
+        expect(mockedCallUpsert).not.toHaveBeenCalled();
+      }
+    );
+
+    it("SÍ actualiza a IN_PROGRESS una llamada existente que no está en estado terminal", async () => {
+      mockedAgentFindFirst.mockResolvedValue({
+        id: "agent_123",
+        businessId: "business_123",
+      } as any);
+      mockedCallFindUnique.mockResolvedValue({ status: "INITIATED" } as any);
+      mockedCallUpsert.mockResolvedValue({ id: "call_123" } as any);
+
+      const result = await handleCallStarted({
+        event_type: "call_started",
+        data: {
+          call_id: "retell_call_123",
+          agent_id: "retell_agent_123",
+        },
+      });
+
+      expect(result.success).toBe(true);
+      expect(mockedCallUpsert).toHaveBeenCalled();
+    });
   });
 
   describe("handleCallEnded", () => {
