@@ -228,6 +228,23 @@ async function consumeCalendarOAuthState(
   return getRedis().getdel(calendarOAuthStateRedisKey(provider, state));
 }
 
+/** voice_config:<businessId> (voiceTools/service.ts) cachea calendarProvider
+ * y las credenciales de calendario hasta 1h — sin invalidar aquí, una
+ * llamada de voz dentro de esa hora sigue usando el proveedor o la cuenta
+ * anteriores aunque el panel ya muestre la nueva conexión (hallazgo #8 de la
+ * auditoría). Se llama tras cualquier escritura que toque
+ * calendarProvider/refreshToken/calendarId de un negocio. */
+async function invalidateVoiceConfigCache(businessId: string): Promise<void> {
+  try {
+    await getRedis().del(`voice_config:${businessId}`);
+  } catch (err) {
+    console.error(
+      `[Calendar] No se pudo invalidar la caché de configuración de voz para ${businessId}:`,
+      err
+    );
+  }
+}
+
 // Usamos instancias por llamada; esto evita condiciones de carrera entre negocios
 export class CalendarService {
   constructor() {}
@@ -272,6 +289,7 @@ export class CalendarService {
         },
       });
 
+      await invalidateVoiceConfigCache(businessId);
       await this.syncCalendarToolsToAgents(businessId);
     }
 
@@ -306,6 +324,7 @@ export class CalendarService {
         outlookUserEmail: profile.mail ?? profile.userPrincipalName ?? null,
       },
     });
+    await invalidateVoiceConfigCache(businessId);
 
     return {
       calendars,
@@ -325,6 +344,7 @@ export class CalendarService {
       },
     });
 
+    await invalidateVoiceConfigCache(businessId);
     await this.syncCalendarToolsToAgents(businessId);
     return business;
   }
@@ -382,7 +402,7 @@ export class CalendarService {
   }
 
   async selectGoogleCalendar(businessId: string, calendarId: string) {
-    return prisma.business.update({
+    const business = await prisma.business.update({
       where: { id: businessId },
       data: {
         calendarProvider: "google",
@@ -392,6 +412,8 @@ export class CalendarService {
         googleCalendarLastError: null,
       },
     });
+    await invalidateVoiceConfigCache(businessId);
+    return business;
   }
 
   private buildVapiCalendarTools(serverUrl: string): any[] {

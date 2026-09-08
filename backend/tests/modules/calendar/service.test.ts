@@ -689,8 +689,10 @@ describe("CalendarService.selectGoogleCalendar", () => {
     vi.clearAllMocks();
   });
 
-  it("guarda el calendario elegido y marca la conexión como activa", async () => {
+  it("guarda el calendario elegido, marca la conexión como activa e invalida la caché de voz (hallazgo #8)", async () => {
     mockedBusinessUpdate.mockResolvedValue({ id: "business_123" } as any);
+    const del = vi.fn().mockResolvedValue(1);
+    mockedGetRedis.mockReturnValue({ del } as any);
 
     await calendarService.selectGoogleCalendar("business_123", "secundario_id");
 
@@ -704,15 +706,21 @@ describe("CalendarService.selectGoogleCalendar", () => {
         googleCalendarLastError: null,
       },
     });
+    // voice_config:<businessId> cachea el calendarProvider/credenciales
+    // hasta 1h (voiceTools/service.ts) — sin invalidarla, una llamada de voz
+    // dentro de esa hora seguiría reservando en el calendario anterior.
+    expect(del).toHaveBeenCalledWith("voice_config:business_123");
   });
 });
 
 describe("CalendarService OAuth state (hijack protection)", () => {
   let redisStore: Map<string, string>;
+  let del: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
     vi.clearAllMocks();
     redisStore = new Map();
+    del = vi.fn().mockResolvedValue(1);
     mockedGetRedis.mockReturnValue({
       set: vi.fn(async (key: string, value: string) => {
         redisStore.set(key, value);
@@ -723,6 +731,7 @@ describe("CalendarService OAuth state (hijack protection)", () => {
         redisStore.delete(key);
         return value;
       }),
+      del,
     } as any);
   });
 
@@ -756,6 +765,8 @@ describe("CalendarService OAuth state (hijack protection)", () => {
     expect(mockedBusinessUpdate).toHaveBeenCalledWith(
       expect.objectContaining({ where: { id: "business_real" } })
     );
+    // Cache de voice_config invalidada tras conectar (hallazgo #8).
+    expect(del).toHaveBeenCalledWith("voice_config:business_real");
 
     // Un segundo intento con el mismo state ya no debe funcionar (getdel = un solo uso).
     mockedBusinessUpdate.mockClear();
@@ -779,6 +790,29 @@ describe("CalendarService OAuth state (hijack protection)", () => {
     expect(mockedBusinessUpdate).toHaveBeenCalledWith(
       expect.objectContaining({ where: { id: "business_A" } })
     );
+  });
+});
+
+describe("CalendarService.connectMicrosoftCalendar", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("guarda el calendario de Outlook elegido e invalida la caché de voz (hallazgo #8)", async () => {
+    mockedBusinessUpdate.mockResolvedValue({ id: "business_123" } as any);
+    mockedAgentFindMany.mockResolvedValue([]);
+    const del = vi.fn().mockResolvedValue(1);
+    mockedGetRedis.mockReturnValue({ del } as any);
+
+    await calendarService.connectMicrosoftCalendar("business_123", "outlook_cal_1");
+
+    expect(mockedBusinessUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "business_123" },
+        data: expect.objectContaining({ outlookCalendarId: "outlook_cal_1", outlookCalendarConnected: true }),
+      })
+    );
+    expect(del).toHaveBeenCalledWith("voice_config:business_123");
   });
 });
 
