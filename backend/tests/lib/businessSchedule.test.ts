@@ -1,7 +1,8 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import {
   BusinessScheduleSchema,
   checkBusinessHours,
+  checkBookingRestrictions,
   formatScheduleForPrompt,
   DEFAULT_BUSINESS_SCHEDULE,
 } from "../../src/lib/businessSchedule.js";
@@ -145,6 +146,70 @@ describe("checkBusinessHours", () => {
     const result = checkBusinessHours(DEFAULT_BUSINESS_SCHEDULE, europeMadrid, "2026-08-10T09:00:00+02:00", 540);
     expect(result.success).toBe(true);
     expect(result.isOpen).toBe(true);
+  });
+});
+
+describe("checkBookingRestrictions", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-08-10T12:00:00+02:00"));
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("rechaza una fecha pasada aunque el negocio no tenga antelación mínima configurada (hallazgo #19 de la auditoría)", () => {
+    // minAdvanceBookingMinutes null/undefined es el valor por defecto de
+    // cualquier negocio nuevo — antes esto hacía saltar la comparación con
+    // "ahora" por completo, así que una cita de ayer que encajara en el
+    // horario semanal pasaba esta validación sin más.
+    const result = checkBookingRestrictions(
+      { minAdvanceBookingMinutes: null, maxAppointmentDurationMinutes: null },
+      "2026-08-09T12:00:00+02:00",
+      30
+    );
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.code).toBe("APPOINTMENT_IN_PAST");
+    }
+  });
+
+  it("acepta una fecha futura cuando no hay antelación mínima configurada", () => {
+    const result = checkBookingRestrictions(
+      { minAdvanceBookingMinutes: null, maxAppointmentDurationMinutes: null },
+      "2026-08-10T13:00:00+02:00",
+      30
+    );
+
+    expect(result.success).toBe(true);
+  });
+
+  it("sigue exigiendo la antelación mínima configurada cuando la fecha es futura pero demasiado próxima", () => {
+    const result = checkBookingRestrictions(
+      { minAdvanceBookingMinutes: 120, maxAppointmentDurationMinutes: null },
+      "2026-08-10T13:00:00+02:00", // solo 1h de antelación, hacen falta 2h
+      30
+    );
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.code).toBe("MIN_ADVANCE_NOT_MET");
+    }
+  });
+
+  it("rechaza por MAX_DURATION_EXCEEDED cuando la duración supera el máximo configurado", () => {
+    const result = checkBookingRestrictions(
+      { minAdvanceBookingMinutes: null, maxAppointmentDurationMinutes: 60 },
+      "2026-08-10T13:00:00+02:00",
+      90
+    );
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.code).toBe("MAX_DURATION_EXCEEDED");
+    }
   });
 });
 

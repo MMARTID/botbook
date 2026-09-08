@@ -149,7 +149,13 @@ export function buildManagedAgentPrompt(input: {
     // libre ese mismo día (campo suggestedNextSlot) en la misma respuesta,
     // así que el agente no necesita volver a llamar a la tool para
     // comprobar una alternativa: ya viene verificada.
-    "Si check_availability devuelve available: false, mira el campo suggestedNextSlot de esa misma respuesta. Si trae una hora, es la siguiente disponible ese día y ya está verificada: puedes ofrecérsela directamente al cliente sin llamar de nuevo a la herramienta. Si suggestedNextSlot es null, no queda ningún hueco libre en lo que resta del día — dilo así y pregunta si quiere otro día, no inventes una hora.",
+    // "no queda ningún hueco en lo que resta del día" era una afirmación
+    // demasiado fuerte para lo que suggestedNextSlot realmente comprueba
+    // (una ventana de unas horas, no el día entero) — un horario partido con
+    // la tarde libre podía dar null igualmente. Corregido a "no encontré
+    // ningún hueco pronto", cierto sea cual sea el motivo del null —
+    // hallazgo #18 de la auditoría.
+    "Si check_availability devuelve available: false, mira el campo suggestedNextSlot de esa misma respuesta. Si trae una hora, es la siguiente disponible pronto y ya está verificada: puedes ofrecérsela directamente al cliente sin llamar de nuevo a la herramienta. Si suggestedNextSlot es null, no he encontrado ningún hueco libre en las próximas horas — dilo así (sin decir que no queda nada 'en todo el día') y pregunta si quiere otro día u otra franja horaria, no inventes una hora.",
     buildRestrictionsFragment(input),
     input.businessDetails?.trim() ? `INFORMACION_VERIFICADA_DEL_NEGOCIO:\n${input.businessDetails.trim()}` : null,
     // Estos tres bloques no llevan el dato horneado en el texto: son

@@ -37,6 +37,50 @@ export type AvailabilityResult =
       suggestedNextSlot?: SuggestedSlot | null;
     };
 
+/** Nº máximo de reservas activas al mismo tiempo, en cualquier instante
+ * dentro de [intervalStart, intervalEnd) — no el nº de reservas que
+ * simplemente TOCAN el intervalo. Dos citas consecutivas sin solaparse entre
+ * sí (09:00–09:30 y 09:30–10:00) ambas tocan la ventana 09:00–10:00, pero
+ * nunca coinciden en el mismo instante: contarlas como "2 a la vez" bloqueaba
+ * reservas con capacidad de sobra (confirmado: capacidad 2, esas dos citas ya
+ * impedían reservar un tercer profesional libre en esa misma ventana).
+ * Barrido de línea: +1 en cada inicio (recortado a intervalStart), -1 en cada
+ * fin (recortado a intervalEnd), máximo acumulado del barrido. Los finales se
+ * procesan antes que los inicios en el mismo instante para no contar como
+ * simultáneas dos citas que solo se tocan en el límite (mismo criterio que
+ * el solape `bookingStart < end && bookingEnd > start`, con desigualdades
+ * estrictas). */
+function maxConcurrentBookings(
+  intervalStart: Date,
+  intervalEnd: Date,
+  bookings: Array<{ programedAt: Date; durationMinutes: number | null }>
+): number {
+  const intervalStartMs = intervalStart.getTime();
+  const intervalEndMs = intervalEnd.getTime();
+  const events: Array<{ time: number; delta: 1 | -1 }> = [];
+
+  for (const booking of bookings) {
+    const bookingStartMs = new Date(booking.programedAt).getTime();
+    const bookingEndMs = bookingStartMs + (booking.durationMinutes || 30) * 60_000;
+    const clippedStart = Math.max(bookingStartMs, intervalStartMs);
+    const clippedEnd = Math.min(bookingEndMs, intervalEndMs);
+    if (clippedStart < clippedEnd) {
+      events.push({ time: clippedStart, delta: 1 });
+      events.push({ time: clippedEnd, delta: -1 });
+    }
+  }
+
+  events.sort((a, b) => a.time - b.time || a.delta - b.delta);
+
+  let running = 0;
+  let peak = 0;
+  for (const event of events) {
+    running += event.delta;
+    peak = Math.max(peak, running);
+  }
+  return peak;
+}
+
 const NEXT_SLOT_SEARCH_INCREMENT_MINUTES = 15;
 /** 16 intentos × 15 min = 4 horas hacia adelante como máximo. checkBusinessHours
  * corta antes si el horario del negocio termina primero. */
@@ -70,10 +114,21 @@ function findNextAvailableSlot(input: {
     const candidateISO = candidateStart.toISOString();
 
     const hoursCheck = checkBusinessHours(schedule, timezone, candidateISO, durationMinutes);
-    if (!hoursCheck.success || !hoursCheck.isOpen) {
-      // Se acabó el horario laboral del día — no tiene sentido seguir
-      // probando horas más tardías.
+    if (!hoursCheck.success) {
+      // Horario mal configurado, no un simple "cerrado a esta hora" — no
+      // hay ninguna hora en la que probar de nuevo vaya a dar otro
+      // resultado, así que no tiene sentido seguir intentando.
       break;
+    }
+    if (!hoursCheck.isOpen) {
+      // Cerrado en ESTE candidato concreto no significa que el día haya
+      // terminado — un horario partido (ej. 09:00–13:00 y 16:00–20:00) sigue
+      // teniendo hueco más tarde ese mismo día. Antes esto cortaba la
+      // búsqueda entera al primer descanso entre turnos, dando por hecho
+      // (incorrectamente) que ya no quedaba nada libre en lo que restaba del
+      // día — hallazgo #18 de la auditoría. Seguir probando cada 15 min
+      // hasta agotar la ventana de búsqueda es más caro pero correcto.
+      continue;
     }
 
     const candidateEnd = new Date(candidateStart.getTime() + Math.max(0, durationMinutes) * 60_000);
@@ -83,7 +138,7 @@ function findNextAvailableSlot(input: {
       return bookingStart < candidateEnd && bookingEnd > candidateStart;
     });
 
-    if (overlapping.length >= bookingCapacity) {
+    if (maxConcurrentBookings(candidateStart, candidateEnd, overlapping) >= bookingCapacity) {
       continue;
     }
 
@@ -211,7 +266,7 @@ export async function checkAvailability(input: {
     return bookingStart < end && bookingEnd > start;
   });
 
-  const bookingsInSlot = activeBookings.length;
+  const bookingsInSlot = maxConcurrentBookings(start, end, activeBookings);
   const rankedProfessionalsForSearch = rankedProfessionals.map((professional) => ({
     id: professional.id,
     name: professional.name,

@@ -200,6 +200,40 @@ describe("checkAvailability", () => {
     }
   });
 
+  it("no cuenta como simultáneas dos citas consecutivas que no se solapan entre sí (hallazgo #17 de la auditoría)", async () => {
+    // Capacidad 2, dos citas de 30 min consecutivas (09:00–09:30 y
+    // 09:30–10:00) con profesionales distintos — en ningún instante hay más
+    // de 1 cita a la vez, así que un tercer profesional libre SÍ debería
+    // poder atender la ventana completa 09:00–10:00. El bug contaba
+    // "cuántas reservas tocan la ventana pedida" (2, ambas la tocan) en vez
+    // de "cuántas coinciden en el mismo instante" (nunca más de 1), y
+    // rechazaba la reserva con la capacidad de sobra.
+    givenProfessionals([
+      { id: "prof_1", name: "Ana", serviceIds: [] },
+      { id: "prof_2", name: "Bea", serviceIds: [] },
+      { id: "prof_3", name: "Carla", serviceIds: [] },
+    ]);
+    givenBookings([
+      { programedAt: new Date("2026-08-10T09:00:00+02:00"), durationMinutes: 30, professionalId: "prof_1" },
+      { programedAt: new Date("2026-08-10T09:30:00+02:00"), durationMinutes: 30, professionalId: "prof_2" },
+    ]);
+
+    const result = await checkAvailability({
+      businessId,
+      schedule: DEFAULT_BUSINESS_SCHEDULE,
+      timezone: europeMadrid,
+      bookingCapacity: 2,
+      startDateTime: "2026-08-10T09:00:00+02:00",
+      durationMinutes: 60,
+    });
+
+    expect(result.available).toBe(true);
+    if (result.available) {
+      expect(result.capacityUsed).toBe(1);
+      expect(result.availableProfessionals.map((p) => p.id)).toEqual(["prof_3"]);
+    }
+  });
+
   it("cuando se alcanza la capacidad máxima, sugiere el siguiente hueco libre ese mismo día", async () => {
     givenProfessionals([{ id: "prof_1", name: "Ana", serviceIds: ["service_target"] }]);
     // Único booking fijo (30 min por defecto): 10:00–10:30. Un candidato a
@@ -294,6 +328,49 @@ describe("checkAvailability", () => {
     expect(result.available).toBe(false);
     if (!result.available) {
       expect(result.suggestedNextSlot).toBeNull();
+    }
+  });
+
+  it("salta el descanso de un horario partido en vez de rendirse ahí (hallazgo #18 de la auditoría)", async () => {
+    // Horario partido: mañana 09:00–13:00, tarde 16:00–20:00. Pedido a las
+    // 12:00 (60 min, cabe justo antes de cerrar la mañana) con capacidad 1 y
+    // un único profesional ya ocupado esa hora exacta — antes, el primer
+    // candidato que no encajaba en la mañana (12:15, termina 13:15, ya fuera
+    // del tramo) hacía que la búsqueda se rindiera del todo con `break`,
+    // devolviendo null aunque la tarde estuviera completamente libre.
+    const splitSchedule = {
+      version: 1 as const,
+      week: {
+        ...DEFAULT_BUSINESS_SCHEDULE.week,
+        monday: {
+          enabled: true,
+          intervals: [
+            { start: "09:00", end: "13:00" },
+            { start: "16:00", end: "20:00" },
+          ],
+        },
+      },
+    };
+
+    givenProfessionals([{ id: "prof_1", name: "Ana", serviceIds: ["service_target"] }]);
+    givenBookings([{ programedAt: new Date("2026-08-10T12:00:00+02:00"), durationMinutes: 60, professionalId: "prof_1" }]);
+
+    const result = await checkAvailability({
+      businessId,
+      schedule: splitSchedule,
+      timezone: europeMadrid,
+      bookingCapacity: 1,
+      startDateTime: "2026-08-10T12:00:00+02:00",
+      durationMinutes: 60,
+      serviceIds: ["service_target"],
+    });
+
+    expect(result.available).toBe(false);
+    if (!result.available) {
+      expect(result.suggestedNextSlot).toEqual({
+        startDateTime: new Date("2026-08-10T16:00:00+02:00").toISOString(),
+        availableProfessionals: [{ id: "prof_1", name: "Ana" }],
+      });
     }
   });
 

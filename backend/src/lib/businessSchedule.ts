@@ -189,21 +189,34 @@ export function checkBookingRestrictions(
   durationMinutes: number,
 ):
   | { success: true }
-  | { success: false; code: "INVALID_DATE_TIME" | "MIN_ADVANCE_NOT_MET" | "MAX_DURATION_EXCEEDED"; message: string } {
+  | { success: false; code: "INVALID_DATE_TIME" | "APPOINTMENT_IN_PAST" | "MIN_ADVANCE_NOT_MET" | "MAX_DURATION_EXCEEDED"; message: string } {
   const start = new Date(startDateTime);
   if (Number.isNaN(start.getTime())) {
     return { success: false, code: "INVALID_DATE_TIME", message: "La fecha y hora no son válidas." };
   }
 
-  if (business.minAdvanceBookingMinutes) {
-    const minutesUntilStart = (start.getTime() - Date.now()) / 60_000;
-    if (minutesUntilStart < business.minAdvanceBookingMinutes) {
+  // effectiveMinAdvance por defecto 0 (no business.minAdvanceBookingMinutes,
+  // que antes hacía saltar por completo esta comprobación) — sin esto, un
+  // negocio SIN antelación mínima configurada (el valor por defecto de
+  // cualquier negocio nuevo) podía confirmar una cita en una fecha ya
+  // pasada, con tal de que la hora encajara en el horario semanal de ese
+  // día de la semana. Rechazar el pasado no depende de que el negocio haya
+  // configurado nada.
+  const effectiveMinAdvance = business.minAdvanceBookingMinutes ?? 0;
+  const minutesUntilStart = (start.getTime() - Date.now()) / 60_000;
+  if (minutesUntilStart < effectiveMinAdvance) {
+    if (minutesUntilStart < 0) {
       return {
         success: false,
-        code: "MIN_ADVANCE_NOT_MET",
-        message: `Este negocio necesita al menos ${formatMinutesForHumans(business.minAdvanceBookingMinutes)} de antelación para reservar una cita.`,
+        code: "APPOINTMENT_IN_PAST",
+        message: "Esa fecha y hora ya han pasado.",
       };
     }
+    return {
+      success: false,
+      code: "MIN_ADVANCE_NOT_MET",
+      message: `Este negocio necesita al menos ${formatMinutesForHumans(effectiveMinAdvance)} de antelación para reservar una cita.`,
+    };
   }
 
   if (business.maxAppointmentDurationMinutes && durationMinutes > business.maxAppointmentDurationMinutes) {
