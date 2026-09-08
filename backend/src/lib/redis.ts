@@ -20,7 +20,19 @@ export function initRedis(): RedisClient {
       const delay = Math.min(times * 50, 2000);
       return delay;
     },
-    maxRetriesPerRequest: null,
+    // maxRetriesPerRequest: null (el valor anterior) deja que un comando
+    // espere indefinidamente mientras el cliente reconecta — durante una
+    // caída de Redis, un simple `await redis.get(...)` podía colgarse sin
+    // límite. Todo el código que usa Redis en este proyecto (voice_config,
+    // booking_lock, etc.) está escrito asumiendo que un try/catch alrededor
+    // basta para caer a Postgres o a un comportamiento sin caché — pero ese
+    // catch nunca llegaba a ejecutarse si el propio await no terminaba
+    // nunca, y una tool call de Retell solo tiene 20s de presupuesto total
+    // (hallazgo #31 de la auditoría). commandTimeout cubre el caso
+    // complementario: un Redis conectado pero colgado/degradado, que sin
+    // esto podía hacer esperar indefinidamente aun sin estar reconectando.
+    maxRetriesPerRequest: 1,
+    commandTimeout: 3000,
   });
 
   redis.on("error", (err) => console.error("[Redis] Error:", err));
