@@ -293,6 +293,7 @@ describe("authRoutes", () => {
       const response = await fastify.inject({
         method: "GET",
         url: "/google/callback?code=auth_code&state=abc",
+        headers: { cookie: "alhabla_google_oauth_state=abc" },
       });
 
       expect(response.statusCode).toBe(302);
@@ -316,6 +317,7 @@ describe("authRoutes", () => {
       const response = await fastify.inject({
         method: "GET",
         url: "/google/callback?code=auth_code&state=abc",
+        headers: { cookie: "alhabla_google_oauth_state=abc" },
       });
 
       expect(response.statusCode).toBe(302);
@@ -323,6 +325,41 @@ describe("authRoutes", () => {
       expect(mockedUserCreate).toHaveBeenCalledWith(
         expect.objectContaining({ data: expect.objectContaining({ termsAcceptedAt: expect.any(Date) }) })
       );
+    });
+
+    it("rechaza el callback si no llega la cookie del navegador que inició el flujo (login CSRF)", async () => {
+      mockedGetRedis.mockReturnValue({
+        getdel: vi.fn().mockResolvedValue(JSON.stringify({ termsAccepted: true })),
+        set: vi.fn().mockResolvedValue("OK"),
+      } as any);
+
+      const response = await fastify.inject({
+        method: "GET",
+        url: "/google/callback?code=auth_code&state=abc",
+        // Sin cookie: simula un navegador distinto al que llamó a GET /google
+        // completando el callback con el state de otra persona.
+      });
+
+      expect(response.statusCode).toBe(302);
+      expect(response.headers.location).toContain("error=invalid_state");
+      expect(mockedTransaction).not.toHaveBeenCalled();
+    });
+
+    it("rechaza el callback si la cookie no coincide con el state recibido", async () => {
+      mockedGetRedis.mockReturnValue({
+        getdel: vi.fn().mockResolvedValue(JSON.stringify({ termsAccepted: true })),
+        set: vi.fn().mockResolvedValue("OK"),
+      } as any);
+
+      const response = await fastify.inject({
+        method: "GET",
+        url: "/google/callback?code=auth_code&state=abc",
+        headers: { cookie: "alhabla_google_oauth_state=otro-state-distinto" },
+      });
+
+      expect(response.statusCode).toBe(302);
+      expect(response.headers.location).toContain("error=invalid_state");
+      expect(mockedTransaction).not.toHaveBeenCalled();
     });
   });
 });

@@ -12,6 +12,14 @@ import { normalizeBusinessType, type BusinessType } from '../../lib/businessType
 const GOOGLE_AUTH_STATE_TTL_SECONDS = 10 * 60;
 const GOOGLE_SESSION_TTL_SECONDS = 60;
 const GOOGLE_SESSION_COOKIE = 'alhabla_google_session';
+// Liga el `state` al navegador que inició el flujo — sin esto, un atacante
+// puede iniciar SU PROPIA autorización de Google (obtiene un `state` válido
+// de /auth/google), y hacer que la víctima complete el callback con ese
+// `state` (link/imagen manipulados): el `state` en sí sigue siendo válido en
+// Redis, así que el callback termina autenticando al navegador de la
+// víctima en la cuenta del atacante (login CSRF) — cualquier dato que la
+// víctima introduzca después queda en la cuenta del atacante, no en la suya.
+const GOOGLE_OAUTH_STATE_COOKIE = 'alhabla_google_oauth_state';
 
 function createToken(user: { id: string; businessId: string }) {
   return jwt.sign(
@@ -51,12 +59,16 @@ function readCookie(cookieHeader: string | undefined, name: string) {
   return undefined;
 }
 
-function setGoogleSessionCookie(reply: FastifyReply, value: string, maxAge: number) {
+function setCookie(reply: FastifyReply, name: string, value: string, maxAge: number) {
   const secure = process.env.NODE_ENV === 'production' ? '; Secure' : '';
   reply.header(
     'Set-Cookie',
-    `${GOOGLE_SESSION_COOKIE}=${encodeURIComponent(value)}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${maxAge}${secure}`
+    `${name}=${encodeURIComponent(value)}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${maxAge}${secure}`
   );
+}
+
+function setGoogleSessionCookie(reply: FastifyReply, value: string, maxAge: number) {
+  setCookie(reply, GOOGLE_SESSION_COOKIE, value, maxAge);
 }
 
 async function createUserWithBusiness(input: {
@@ -189,6 +201,10 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
       // se exige si el callback termina creando una cuenta nueva.
       const stateValue = JSON.stringify({ termsAccepted: request.query.acceptedTerms === 'true' });
       await getRedis().set(`auth:google:state:${state}`, stateValue, 'EX', GOOGLE_AUTH_STATE_TTL_SECONDS);
+      // Cookie de un solo uso ligada a este navegador — el callback exige que
+      // coincida con el `state` recibido, para que no valga completarlo desde
+      // un navegador distinto al que inició el flujo (ver comentario arriba).
+      setCookie(reply, GOOGLE_OAUTH_STATE_COOKIE, state, GOOGLE_AUTH_STATE_TTL_SECONDS);
 
       const url = getGoogleAuthClient().generateAuthUrl({
         access_type: 'online',
@@ -218,6 +234,12 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
     }
 
     try {
+      const cookieState = readCookie(request.headers.cookie, GOOGLE_OAUTH_STATE_COOKIE);
+      setCookie(reply, GOOGLE_OAUTH_STATE_COOKIE, '', 0);
+      if (!cookieState || cookieState !== state) {
+        return reply.redirect(`${callbackUrl}?error=invalid_state`);
+      }
+
       const validState = await getRedis().getdel(`auth:google:state:${state}`);
       if (!validState) {
         return reply.redirect(`${callbackUrl}?error=invalid_state`);

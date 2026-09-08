@@ -8,6 +8,7 @@ import { prisma } from "../../../src/lib/prisma.js";
 import { vapiAdapter } from "../../../src/adapters/vapi/VapiAdapter.js";
 import { retellAdapter } from "../../../src/adapters/retell/RetellAdapter.js";
 import { getPublicWebhookBaseUrl } from "../../../src/lib/serverUrl.js";
+import { getRedis } from "../../../src/lib/redis.js";
 import { google } from "googleapis";
 
 vi.mock("../../../src/lib/prisma.js", () => ({
@@ -45,6 +46,8 @@ vi.mock("googleapis", () => ({
       OAuth2: vi.fn(function OAuth2ClientMock() {
         return {
           setCredentials: vi.fn(),
+          generateAuthUrl: vi.fn().mockReturnValue("https://accounts.google.com/o/oauth2/mock"),
+          getToken: vi.fn().mockResolvedValue({ tokens: { refresh_token: "mock-refresh-token" } }),
         };
       }),
     },
@@ -70,6 +73,10 @@ vi.mock("../../../src/lib/microsoftGraph.js", () => ({
   refreshMicrosoftAccessToken: vi.fn(),
 }));
 
+vi.mock("../../../src/lib/redis.js", () => ({
+  getRedis: vi.fn(),
+}));
+
 const mockedAgentFindMany = vi.mocked(prisma.agent.findMany);
 const mockedBusinessFindUnique = vi.mocked(prisma.business.findUnique);
 const mockedBusinessUpdate = vi.mocked(prisma.business.update);
@@ -78,6 +85,7 @@ const mockedVapiUpdateAssistant = vi.mocked(vapiAdapter.updateAssistant);
 const mockedRetellUpdateLlm = vi.mocked(retellAdapter.updateLlm);
 const mockedGetPublicWebhookBaseUrl = vi.mocked(getPublicWebhookBaseUrl);
 const mockedGoogleCalendar = vi.mocked(google.calendar);
+const mockedGetRedis = vi.mocked(getRedis);
 
 describe("isGoogleInvalidGrantError", () => {
   it("detecta invalid_grant en el mensaje del error", () => {
@@ -566,6 +574,81 @@ describe("CalendarService.selectGoogleCalendar", () => {
         googleCalendarLastError: null,
       },
     });
+  });
+});
+
+describe("CalendarService OAuth state (hijack protection)", () => {
+  let redisStore: Map<string, string>;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    redisStore = new Map();
+    mockedGetRedis.mockReturnValue({
+      set: vi.fn(async (key: string, value: string) => {
+        redisStore.set(key, value);
+        return "OK";
+      }),
+      getdel: vi.fn(async (key: string) => {
+        const value = redisStore.get(key) ?? null;
+        redisStore.delete(key);
+        return value;
+      }),
+    } as any);
+  });
+
+  it("getAuthUrl genera un state opaco (no el businessId en claro) y lo guarda en Redis", async () => {
+    const url = await calendarService.getAuthUrl("business_victima");
+
+    // El businessId nunca debe viajar en claro en la URL de autorización —
+    // es precisamente lo que permitía sustituir el calendario de otro
+    // negocio antes de este fix.
+    expect(url).not.toContain("business_victima");
+    expect(redisStore.size).toBe(1);
+    expect([...redisStore.values()]).toEqual(["business_victima"]);
+  });
+
+  it("handleCallback rechaza un state que no existe en Redis (inventado, caducado o ya usado)", async () => {
+    await expect(
+      calendarService.handleCallback("some-code", "state-que-no-existe")
+    ).rejects.toThrow();
+    expect(mockedBusinessUpdate).not.toHaveBeenCalled();
+  });
+
+  it("handleCallback acepta un state válido, resuelve el businessId correcto y lo consume (un solo uso)", async () => {
+    mockedBusinessUpdate.mockResolvedValue({ id: "business_real" } as any);
+    mockedAgentFindMany.mockResolvedValue([]);
+
+    await calendarService.getAuthUrl("business_real");
+    const state = [...redisStore.keys()][0].split(":").pop()!;
+
+    await calendarService.handleCallback("some-code", state);
+
+    expect(mockedBusinessUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: "business_real" } })
+    );
+
+    // Un segundo intento con el mismo state ya no debe funcionar (getdel = un solo uso).
+    mockedBusinessUpdate.mockClear();
+    await expect(calendarService.handleCallback("some-code", state)).rejects.toThrow();
+    expect(mockedBusinessUpdate).not.toHaveBeenCalled();
+  });
+
+  it("un state válido para OTRO negocio nunca conecta el calendario del negocio equivocado", async () => {
+    mockedBusinessUpdate.mockResolvedValue({ id: "business_A" } as any);
+    mockedAgentFindMany.mockResolvedValue([]);
+
+    await calendarService.getAuthUrl("business_A");
+    const stateForA = [...redisStore.keys()][0].split(":").pop()!;
+
+    // Un atacante que intenta colar el state de A junto con el código de
+    // otra sesión sigue resolviendo al businessId real de A (el vínculo
+    // vive en Redis, no en lo que el atacante controla en la URL) — nunca a
+    // un business_id arbitrario que el atacante intente pasar por su cuenta.
+    await calendarService.handleCallback("attacker-code", stateForA);
+
+    expect(mockedBusinessUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: "business_A" } })
+    );
   });
 });
 

@@ -42,6 +42,11 @@ model Business {
   subscriptionCurrentPeriodEnd   DateTime?
   subscriptionTrialEnd            DateTime?
   subscriptionCancelAtPeriodEnd   Boolean             @default(false)
+  // Timestamp (evento Stripe `created`) del último customer.subscription.*
+  // aplicado con éxito — permite descartar un evento entregado fuera de
+  // orden (más antiguo que el ya aplicado) en vez de sobrescribir el estado
+  // real con uno obsoleto.
+  subscriptionEventCreatedAt      DateTime?
 
   // Twilio Phone Number — inactivo desde la migración a Telnyx (Twilio no
   // vende números de España en autoservicio), se mantiene por negocios
@@ -161,6 +166,10 @@ model Agent {
   voiceProvider    String   @default("cartesia")
   files            Json?
   integrations     Json?
+  // true una vez que PATCH /agents/:id edita systemPrompt a mano — a partir
+  // de ahí syncAgentToRetell debe dejar de reconstruir y sobrescribir el
+  // prompt de este agente cuando cambien servicios/profesionales/ajustes.
+  promptManuallyEdited Boolean @default(false)
   business         Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
   calls            Call[]
 
@@ -260,6 +269,11 @@ model Booking {
   // Solo se rellena si el cliente pidió usar un número distinto al de la
   // llamada (Call.fromNumber) — si es el mismo, no hace falta guardarlo aquí.
   clientPhone  String?
+  // ID del evento en Google Calendar/Outlook, generado de forma determinista
+  // a partir de callId (ver bookAppointment en calendar/service.ts) — permite
+  // que un reintento (retry de Cloud Tasks, fallo de red tras crear el
+  // evento) reutilice el mismo evento externo en vez de crear uno duplicado.
+  externalEventId String?
   createdAt    DateTime     @default(now())
   programedAt  DateTime
   durationMinutes Int        @default(30)

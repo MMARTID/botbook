@@ -20,7 +20,7 @@ export async function calendarRoutes(fastify: FastifyInstance) {
     async (request: FastifyRequest, reply) => {
       try {
         const businessId = request.user!.businessId;
-        const url = calendarService.getAuthUrl(businessId);
+        const url = await calendarService.getAuthUrl(businessId);
         return reply.send({ url });
       } catch (error) {
         return reply.status(500).send({ error: "Failed to generate Google Auth URL" });
@@ -221,7 +221,7 @@ export async function calendarRoutes(fastify: FastifyInstance) {
     async (request: FastifyRequest, reply) => {
       try {
         const businessId = request.user!.businessId;
-        const url = calendarService.getMicrosoftAuthUrl(businessId);
+        const url = await calendarService.getMicrosoftAuthUrl(businessId);
         return reply.send({ url });
       } catch (error) {
         fastify.log.error(error);
@@ -258,18 +258,20 @@ export async function calendarRoutes(fastify: FastifyInstance) {
     "/auth/google/callback",
     async (request: FastifyRequest<{ Querystring: { code: string; state: string; error?: string } }>, reply) => {
       try {
-        const { code, state: businessId, error } = request.query;
+        const { code, state, error } = request.query;
 
         if (error) {
           return reply.redirect(`${process.env.FRONTEND_URL}/settings?calendar_error=${error}`);
         }
 
-        if (!code || !businessId) {
+        if (!code || !state) {
           return reply.status(400).send({ error: "Missing code or state" });
         }
 
-        // Procesar la conexión
-        await calendarService.handleCallback(code, businessId);
+        // Procesar la conexión — handleCallback verifica el `state` contra
+        // Redis (ver comentario en calendar/service.ts) antes de asociar el
+        // token de Google a ningún negocio.
+        await calendarService.handleCallback(code, state);
 
         // Redirigir de vuelta al frontend indicando éxito
         return reply.redirect(`${process.env.FRONTEND_URL}/settings?calendar_success=true`);
@@ -284,17 +286,17 @@ export async function calendarRoutes(fastify: FastifyInstance) {
     "/auth/microsoft/callback",
     async (request: FastifyRequest<{ Querystring: { code?: string; state?: string; error?: string } }>, reply) => {
       try {
-        const { code, state: businessId, error } = request.query;
+        const { code, state, error } = request.query;
 
         if (error) {
           return reply.redirect(`${process.env.FRONTEND_URL}/settings?outlook_error=${encodeURIComponent(error)}`);
         }
 
-        if (!code || !businessId) {
+        if (!code || !state) {
           return reply.redirect(`${process.env.FRONTEND_URL}/settings?outlook_error=missing_code`);
         }
 
-        const result = await calendarService.handleMicrosoftCallback(code, businessId);
+        const result = await calendarService.handleMicrosoftCallback(code, state);
         const payload = encodeURIComponent(JSON.stringify(result));
         return reply.redirect(`${process.env.FRONTEND_URL}/settings?outlook_calendars=${payload}`);
       } catch (error) {

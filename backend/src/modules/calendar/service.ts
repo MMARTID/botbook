@@ -1,5 +1,7 @@
+import { randomBytes } from 'node:crypto';
 import { google } from 'googleapis';
 import { prisma } from '../../lib/prisma.js';
+import { getRedis } from '../../lib/redis.js';
 import { vapiAdapter } from '../../adapters/vapi/VapiAdapter.js';
 import {
   retellAdapter,
@@ -174,11 +176,41 @@ function getGoogleErrorDetails(error: unknown) {
   };
 }
 
+// El callback de OAuth es un endpoint público (Google/Microsoft lo llaman
+// por redirect del navegador, sin nuestro JWT) — el `state` es la única
+// defensa contra que alguien complete SU PROPIO código de autorización con
+// el `state` (antes, businessId en claro) de OTRO negocio, sustituyendo su
+// calendario conectado por el del atacante. Se genera un token opaco de un
+// solo uso, ligado al businessId en Redis, y se consume (getdel) en el
+// callback — un `state` reutilizado, caducado o inventado no resuelve a
+// ningún negocio.
+const CALENDAR_OAUTH_STATE_TTL_SECONDS = 10 * 60;
+
+function calendarOAuthStateRedisKey(provider: 'google' | 'microsoft', state: string): string {
+  return `calendar_oauth_state:${provider}:${state}`;
+}
+
+async function createCalendarOAuthState(provider: 'google' | 'microsoft', businessId: string): Promise<string> {
+  const state = randomBytes(32).toString('base64url');
+  await getRedis().set(
+    calendarOAuthStateRedisKey(provider, state),
+    businessId,
+    'EX',
+    CALENDAR_OAUTH_STATE_TTL_SECONDS,
+  );
+  return state;
+}
+
+async function consumeCalendarOAuthState(provider: 'google' | 'microsoft', state: string): Promise<string | null> {
+  return getRedis().getdel(calendarOAuthStateRedisKey(provider, state));
+}
+
 // Usamos instancias por llamada; esto evita condiciones de carrera entre negocios
 export class CalendarService {
   constructor() {}
 
-  getAuthUrl(businessId: string): string {
+  async getAuthUrl(businessId: string): Promise<string> {
+    const state = await createCalendarOAuthState('google', businessId);
     const oauth2Client = createOAuth2Client();
     const url = oauth2Client.generateAuthUrl({
       access_type: 'offline',
@@ -187,12 +219,17 @@ export class CalendarService {
         'https://www.googleapis.com/auth/calendar',
         'https://www.googleapis.com/auth/calendar.events',
       ],
-      state: businessId,
+      state,
     });
     return url;
   }
 
-  async handleCallback(code: string, businessId: string): Promise<any> {
+  async handleCallback(code: string, state: string): Promise<any> {
+    const businessId = await consumeCalendarOAuthState('google', state);
+    if (!businessId) {
+      throw new Error('El enlace de autorización de Google ha caducado, ya se usó, o no es válido.');
+    }
+
     const oauth2Client = createOAuth2Client();
 
     const { tokens } = await oauth2Client.getToken(code);
@@ -216,11 +253,17 @@ export class CalendarService {
     return tokens;
   }
 
-  getMicrosoftAuthUrl(businessId: string): string {
-    return getMicrosoftAuthUrl(businessId);
+  async getMicrosoftAuthUrl(businessId: string): Promise<string> {
+    const state = await createCalendarOAuthState('microsoft', businessId);
+    return getMicrosoftAuthUrl(state);
   }
 
-  async handleMicrosoftCallback(code: string, businessId: string) {
+  async handleMicrosoftCallback(code: string, state: string) {
+    const businessId = await consumeCalendarOAuthState('microsoft', state);
+    if (!businessId) {
+      throw new Error('El enlace de autorización de Microsoft ha caducado, ya se usó, o no es válido.');
+    }
+
     const tokens = await exchangeMicrosoftCode(code);
     const profile = await getMicrosoftProfile(tokens.access_token);
     const calendars = await listMicrosoftCalendars(tokens.access_token);

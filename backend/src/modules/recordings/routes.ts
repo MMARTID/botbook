@@ -98,7 +98,7 @@ export async function recordingsRoutes(fastify: FastifyInstance) {
             call: {
               include: {
                 agent: true,
-                business: true,
+                business: { select: { id: true, name: true } },
               },
             },
           },
@@ -127,7 +127,7 @@ export async function recordingsRoutes(fastify: FastifyInstance) {
             call: {
               include: {
                 agent: true,
-                business: true,
+                business: { select: { id: true, name: true } },
               },
             },
           },
