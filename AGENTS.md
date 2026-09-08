@@ -435,7 +435,8 @@ is now a **Cloud Scheduler** job hitting the same kind of endpoint every
   fallback never actually runs during `vitest`.
 - **Receiving** (`backend/src/modules/internal/routes.ts`, prefix
   `/internal`): `POST /internal/jobs/process-recording`,
-  `/retry-failed-booking`, `/send-email`, `/send-sms`, `/cleanup-zombie-calls`. Gated by
+  `/retry-failed-booking`, `/send-email`, `/send-sms`, `/cleanup-zombie-calls`,
+  `/retry-stuck-recordings`. Gated by
   `fastify.verifyCloudTasks` (`backend/src/plugins/internalAuth.ts`), which
   verifies the request carries a Google-signed OIDC token issued to
   `CLOUD_TASKS_INVOKER_SERVICE_ACCOUNT` with the right audience — anyone
@@ -473,6 +474,20 @@ is now a **Cloud Scheduler** job hitting the same kind of endpoint every
    - Cloud Scheduler job `cleanup-zombie-calls`, every 15 minutes, 3 retry attempts.
    - Threshold: 60 minutes.
    - Marks stale `IN_PROGRESS` calls as `TIMED_OUT`.
+
+6. **Stuck recording retry** (`backend/src/jobs/retryStuckRecordings.ts`)
+   - `Recording` rows are created (with `vapiUrl`, `storageKey: null`) in the same
+     transaction that saves the call in `handleCallEnded` — before `enqueueRecordingJob`
+     is even called. If that enqueue fails (Cloud Tasks down, IAM misconfigured, etc.),
+     the row already exists as a durable marker: this job finds `Recording` rows with
+     `storageKey: null` older than 15 minutes and re-enqueues `process-recording` for
+     each. Without it, a failed enqueue was permanent — the recording stayed only in
+     Retell, subject to its own `dataStorageRetentionDays` window, with nothing to
+     recover it.
+   - **Cloud Scheduler job `retry-stuck-recordings` needs to be created in GCP**
+     (`gcloud scheduler jobs create http retry-stuck-recordings ...`, mirroring
+     `cleanup-zombie-calls`'s setup) — the code/route side is done, but as of this
+     writing the recurring trigger itself has not been provisioned.
 
 Call outcome classification is **not** a background job — Retell classifies each call natively via `post_call_analysis_data` (see Retell Configuration), no separate LLM call from this backend.
 

@@ -5,6 +5,7 @@ import { processRetryFailedBookingJob } from "../../jobs/retryFailedBooking.js";
 import { processSendEmailJob } from "../../jobs/sendEmail.js";
 import { processSendSmsJob } from "../../jobs/sendSms.js";
 import { cleanupZombieCallsJob } from "../../jobs/cleanupZombieCalls.js";
+import { retryStuckRecordingsJob } from "../../jobs/retryStuckRecordings.js";
 import { E164_PHONE_REGEX } from "../../lib/phone.js";
 
 const ProcessRecordingSchema = z.object({
@@ -120,6 +121,20 @@ export const internalJobsRoutes: FastifyPluginAsync = async (fastify) => {
         return reply.send({ received: true });
       } catch (error) {
         fastify.log.error({ err: error }, "cleanup-zombie-calls job failed");
+        return reply.status(500).send({ error: "Job processing failed" });
+      }
+    }
+  );
+
+  fastify.post(
+    "/jobs/retry-stuck-recordings",
+    { preValidation: [fastify.verifyCloudTasks] },
+    async (_request, reply) => {
+      try {
+        await retryStuckRecordingsJob();
+        return reply.send({ received: true });
+      } catch (error) {
+        fastify.log.error({ err: error }, "retry-stuck-recordings job failed");
         return reply.status(500).send({ error: "Job processing failed" });
       }
     }

@@ -6,18 +6,21 @@ import { processRetryFailedBookingJob } from "../../../src/jobs/retryFailedBooki
 import { processSendEmailJob } from "../../../src/jobs/sendEmail.js";
 import { processSendSmsJob } from "../../../src/jobs/sendSms.js";
 import { cleanupZombieCallsJob } from "../../../src/jobs/cleanupZombieCalls.js";
+import { retryStuckRecordingsJob } from "../../../src/jobs/retryStuckRecordings.js";
 
 vi.mock("../../../src/jobs/processRecording.js", () => ({ processRecordingJob: vi.fn() }));
 vi.mock("../../../src/jobs/retryFailedBooking.js", () => ({ processRetryFailedBookingJob: vi.fn() }));
 vi.mock("../../../src/jobs/sendEmail.js", () => ({ processSendEmailJob: vi.fn() }));
 vi.mock("../../../src/jobs/sendSms.js", () => ({ processSendSmsJob: vi.fn() }));
 vi.mock("../../../src/jobs/cleanupZombieCalls.js", () => ({ cleanupZombieCallsJob: vi.fn() }));
+vi.mock("../../../src/jobs/retryStuckRecordings.js", () => ({ retryStuckRecordingsJob: vi.fn() }));
 
 const mockedProcessRecordingJob = vi.mocked(processRecordingJob);
 const mockedProcessRetryFailedBookingJob = vi.mocked(processRetryFailedBookingJob);
 const mockedProcessSendEmailJob = vi.mocked(processSendEmailJob);
 const mockedProcessSendSmsJob = vi.mocked(processSendSmsJob);
 const mockedCleanupZombieCallsJob = vi.mocked(cleanupZombieCallsJob);
+const mockedRetryStuckRecordingsJob = vi.mocked(retryStuckRecordingsJob);
 
 describe("internalJobsRoutes", () => {
   let fastify: ReturnType<typeof Fastify>;
@@ -204,6 +207,25 @@ describe("internalJobsRoutes", () => {
       mockedCleanupZombieCallsJob.mockRejectedValue(new Error("DB caída"));
 
       const response = await fastify.inject({ method: "POST", url: "/jobs/cleanup-zombie-calls" });
+
+      expect(response.statusCode).toBe(500);
+    });
+  });
+
+  describe("POST /jobs/retry-stuck-recordings (hallazgo #30 de la auditoría)", () => {
+    it("despacha el job sin necesitar body", async () => {
+      mockedRetryStuckRecordingsJob.mockResolvedValue(undefined);
+
+      const response = await fastify.inject({ method: "POST", url: "/jobs/retry-stuck-recordings" });
+
+      expect(response.statusCode).toBe(200);
+      expect(mockedRetryStuckRecordingsJob).toHaveBeenCalled();
+    });
+
+    it("devuelve 500 si el job falla", async () => {
+      mockedRetryStuckRecordingsJob.mockRejectedValue(new Error("DB caída"));
+
+      const response = await fastify.inject({ method: "POST", url: "/jobs/retry-stuck-recordings" });
 
       expect(response.statusCode).toBe(500);
     });
