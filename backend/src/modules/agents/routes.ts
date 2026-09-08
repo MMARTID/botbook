@@ -204,7 +204,13 @@ export async function agentsRoutes(fastify: FastifyInstance) {
             : {}),
           ...(data.language !== undefined ? { language: data.language } : {}),
           ...(data.systemPrompt !== undefined
-            ? { systemPrompt: data.systemPrompt }
+            ? // Marca este agente como editado a mano — syncAgentToRetell lo
+              // usa para dejar de reconstruir y sobrescribir el prompt aquí
+              // cuando cambien servicios/profesionales/ajustes del negocio
+              // (hallazgo #27 de la auditoría: la propia función afirmaba
+              // en su comentario que ya hacía esto, pero nunca estaba
+              // implementado).
+              { systemPrompt: data.systemPrompt, promptManuallyEdited: true }
             : {}),
           ...(data.llmProvider !== undefined
             ? { llmProvider: data.llmProvider }
@@ -247,7 +253,11 @@ export async function agentsRoutes(fastify: FastifyInstance) {
           data.firstMessageMode;
 
         if (shouldSync) {
-          if (orchestrator === "retell" && agent.retellAgentId && agent.retellLlmId) {
+          if (
+            orchestrator === "retell" &&
+            agent.retellAgentId &&
+            agent.retellLlmId
+          ) {
             try {
               const baseUrl = getPublicWebhookBaseUrl();
               const webhookUrl = baseUrl
@@ -266,7 +276,8 @@ export async function agentsRoutes(fastify: FastifyInstance) {
                 })
               );
 
-              const postCallAnalysisData = await buildPostCallAnalysisDataForBusiness(agent.businessId);
+              const postCallAnalysisData =
+                await buildPostCallAnalysisDataForBusiness(agent.businessId);
               await retellAdapter.updateAgent(
                 agent.retellAgentId,
                 buildRetellAgentPayload({
@@ -274,10 +285,14 @@ export async function agentsRoutes(fastify: FastifyInstance) {
                   llmId: agent.retellLlmId,
                   webhookUrl,
                   postCallAnalysisData,
+                  voiceId,
                 })
               );
             } catch (retellError) {
-              console.error("[Agent] Failed to sync update to Retell:", retellError);
+              console.error(
+                "[Agent] Failed to sync update to Retell:",
+                retellError
+              );
             }
           } else if (agent.vapiAssistantId) {
             try {
@@ -310,7 +325,10 @@ export async function agentsRoutes(fastify: FastifyInstance) {
                 })
               );
             } catch (vapiError) {
-              console.error("[Agent] Failed to sync update to Vapi:", vapiError);
+              console.error(
+                "[Agent] Failed to sync update to Vapi:",
+                vapiError
+              );
             }
           }
         }
@@ -350,14 +368,20 @@ export async function agentsRoutes(fastify: FastifyInstance) {
             try {
               await retellAdapter.deleteAgent(agent.retellAgentId);
             } catch (retellError) {
-              console.error("[Agent] Failed to delete Retell agent:", retellError);
+              console.error(
+                "[Agent] Failed to delete Retell agent:",
+                retellError
+              );
             }
           }
           if (agent.retellLlmId) {
             try {
               await retellAdapter.deleteLlm(agent.retellLlmId);
             } catch (retellError) {
-              console.error("[Agent] Failed to delete Retell LLM:", retellError);
+              console.error(
+                "[Agent] Failed to delete Retell LLM:",
+                retellError
+              );
             }
           }
         } else if (agent.vapiAssistantId) {

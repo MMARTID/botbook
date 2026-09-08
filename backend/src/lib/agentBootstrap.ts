@@ -13,7 +13,11 @@ import {
 } from "../adapters/retell/RetellAdapter.js";
 import { getPublicWebhookBaseUrl } from "./serverUrl.js";
 import type { VapiCreateAssistantRequest } from "../adapters/vapi/types.js";
-import { BUSINESS_TYPE_LABELS, isBusinessType, type BusinessType } from "./businessType.js";
+import {
+  BUSINESS_TYPE_LABELS,
+  isBusinessType,
+  type BusinessType,
+} from "./businessType.js";
 import {
   buildManagedAgentPrompt,
   parseAgentSettings,
@@ -21,6 +25,7 @@ import {
   type AgentSettings,
 } from "./managedAgentPrompt.js";
 import { formatScheduleForPrompt } from "./businessSchedule.js";
+import { calendarService } from "../modules/calendar/service.js";
 
 /**
  * Campo de post_call_analysis_data para clasificar el resultado de la llamada:
@@ -31,7 +36,13 @@ import { formatScheduleForPrompt } from "./businessSchedule.js";
 export const CALL_OUTCOME_ANALYSIS_FIELD: RetellEnumAnalysisField = {
   name: "call_outcome",
   type: "enum",
-  choices: ["RESOLVED", "FRUSTRATED", "NO_ANSWER", "ESCALATED", "LEAD_CAPTURED"],
+  choices: [
+    "RESOLVED",
+    "FRUSTRATED",
+    "NO_ANSWER",
+    "ESCALATED",
+    "LEAD_CAPTURED",
+  ],
   description:
     "Clasifica el resultado de la llamada en una sola categoría: " +
     "RESOLVED si se resolvió la petición del cliente o se completó una reserva; " +
@@ -44,7 +55,13 @@ export const CALL_OUTCOME_ANALYSIS_FIELD: RetellEnumAnalysisField = {
 export const ESCALATION_REASON_FIELD: RetellEnumAnalysisField = {
   name: "escalation_reason",
   type: "enum",
-  choices: ["CLIENTE_LO_PIDIO", "FALLO_TECNICO", "FUERA_DE_HORARIO", "CONSULTA_COMPLEJA", "NO_APLICA"],
+  choices: [
+    "CLIENTE_LO_PIDIO",
+    "FALLO_TECNICO",
+    "FUERA_DE_HORARIO",
+    "CONSULTA_COMPLEJA",
+    "NO_APLICA",
+  ],
   description:
     "Motivo principal por el que la llamada terminó escalada, con una reserva sin completar, o sin " +
     "resolución clara: CLIENTE_LO_PIDIO si el cliente pidió hablar con una persona; FALLO_TECNICO si alguna " +
@@ -68,7 +85,9 @@ export const TOOL_FAILURE_FIELD: RetellBooleanAnalysisField = {
  * los servicios reales del negocio en el momento de sincronizar — sin
  * taxonomía hardcodeada por vertical, se adapta sola a cada negocio.
  */
-export function buildRequestedServiceAnalysisField(serviceNames: string[]): RetellEnumAnalysisField {
+export function buildRequestedServiceAnalysisField(
+  serviceNames: string[]
+): RetellEnumAnalysisField {
   return {
     name: "requested_service_type",
     type: "enum",
@@ -85,10 +104,20 @@ const MAX_ANALYSIS_CHOICES = 40;
  * Conjunto completo de post_call_analysis_data que se envía a Retell. Un
  * negocio sin servicios activos (recién creado) no lleva requested_service_type.
  */
-export function buildPostCallAnalysisData(serviceNames: string[]): RetellAnalysisField[] {
-  const fields: RetellAnalysisField[] = [CALL_OUTCOME_ANALYSIS_FIELD, ESCALATION_REASON_FIELD, TOOL_FAILURE_FIELD];
+export function buildPostCallAnalysisData(
+  serviceNames: string[]
+): RetellAnalysisField[] {
+  const fields: RetellAnalysisField[] = [
+    CALL_OUTCOME_ANALYSIS_FIELD,
+    ESCALATION_REASON_FIELD,
+    TOOL_FAILURE_FIELD,
+  ];
   if (serviceNames.length > 0) {
-    fields.push(buildRequestedServiceAnalysisField(serviceNames.slice(0, MAX_ANALYSIS_CHOICES)));
+    fields.push(
+      buildRequestedServiceAnalysisField(
+        serviceNames.slice(0, MAX_ANALYSIS_CHOICES)
+      )
+    );
   }
   return fields;
 }
@@ -110,18 +139,28 @@ const MAX_LISTED_ITEMS = 40;
 function formatServicesForDynamicVariable(
   services: { id: string; name: string; durationMinutes: number }[]
 ): string {
-  if (services.length === 0) return "Este negocio todavía no tiene servicios configurados.";
+  if (services.length === 0)
+    return "Este negocio todavía no tiene servicios configurados.";
   return services
     .slice(0, MAX_LISTED_ITEMS)
-    .map((service) => `- id: ${service.id} | nombre: "${service.name}" | duración: ${service.durationMinutes} min`)
+    .map(
+      (service) =>
+        `- id: ${service.id} | nombre: "${service.name}" | duración: ${service.durationMinutes} min`
+    )
     .join("\n");
 }
 
-function formatProfessionalsForDynamicVariable(professionals: { id: string; name: string }[]): string {
-  if (professionals.length === 0) return "Este negocio no tiene empleados individuales configurados.";
+function formatProfessionalsForDynamicVariable(
+  professionals: { id: string; name: string }[]
+): string {
+  if (professionals.length === 0)
+    return "Este negocio no tiene empleados individuales configurados.";
   return professionals
     .slice(0, MAX_LISTED_ITEMS)
-    .map((professional) => `- id: ${professional.id} | nombre: "${professional.name}"`)
+    .map(
+      (professional) =>
+        `- id: ${professional.id} | nombre: "${professional.name}"`
+    )
     .join("\n");
 }
 
@@ -164,7 +203,9 @@ export async function buildInboundCallDynamicVariables(
     // ambiguo — confirmado en una llamada real (2026-09-07, lunes) donde
     // "pasado mañana" se resolvió como jueves en vez de miércoles. Se calcula
     // en la timezone del negocio, no en la del servidor.
-    fecha_actual: formatCurrentDateForPrompt(business?.timezone || "Europe/Madrid"),
+    fecha_actual: formatCurrentDateForPrompt(
+      business?.timezone || "Europe/Madrid"
+    ),
   };
 }
 
@@ -217,7 +258,8 @@ export const DEFAULT_AGENT_CONFIG: AgentTemplateConfig = {
   voiceProvider: "cartesia",
   voiceModel: "sonic-3.5",
   language: "es",
-  systemPrompt: "Eres un asistente virtual básico. Responde de forma breve y directa: máximo 1-2 frases por turno. Evita listas, puntos suspensivos y explicaciones largas.",
+  systemPrompt:
+    "Eres un asistente virtual básico. Responde de forma breve y directa: máximo 1-2 frases por turno. Evita listas, puntos suspensivos y explicaciones largas.",
   llmProvider: "groq",
   llmModel: "openai/gpt-oss-20b",
   llmTemperature: 0.3,
@@ -253,7 +295,12 @@ export const DEFAULT_RETELL_AGENT_CONFIG = {
   // payload del webhook que recibimos y persistimos nosotros (confirmado en
   // su documentación: "You will continue to receive webhook events... even
   // when data storage is restricted").
-  piiCategories: ["person_name", "phone_number", "email", "address"] as RetellPiiCategory[],
+  piiCategories: [
+    "person_name",
+    "phone_number",
+    "email",
+    "address",
+  ] as RetellPiiCategory[],
   // Sin estos dos, una llamada que el cliente deja abierta (teléfono
   // descolgado, silencio) sigue viva facturando minutos de Retell, que además
   // consumen los minutos incluidos del plan del negocio. Detectado con la
@@ -269,7 +316,10 @@ export const DEFAULT_RETELL_AGENT_CONFIG = {
  * femenina es la voz por defecto histórica (DEFAULT_RETELL_AGENT_CONFIG); la
  * masculina es la alternativa añadida en 2026-09.
  */
-export const RETELL_VOICE_ID_BY_GENDER: Record<AgentSettings["voiceGender"], string> = {
+export const RETELL_VOICE_ID_BY_GENDER: Record<
+  AgentSettings["voiceGender"],
+  string
+> = {
   femenina: DEFAULT_RETELL_AGENT_CONFIG.voiceId,
   masculina: "13ff5deb-2591-42ad-a356-63a04e524411",
 };
@@ -278,8 +328,12 @@ export const RETELL_VOICE_ID_BY_GENDER: Record<AgentSettings["voiceGender"], str
  * Devuelve un nombre legible para el agente basado en el tipo de negocio.
  * Facilita identificarlo en el dashboard de Retell/Vapi mientras no haya API de carpetas.
  */
-export function buildAgentDisplayName(businessName: string, businessType: BusinessType) {
-  const typeLabel = BUSINESS_TYPE_LABELS[businessType] ?? BUSINESS_TYPE_LABELS.other;
+export function buildAgentDisplayName(
+  businessName: string,
+  businessType: BusinessType
+) {
+  const typeLabel =
+    BUSINESS_TYPE_LABELS[businessType] ?? BUSINESS_TYPE_LABELS.other;
   return `${businessName} · ${typeLabel}`;
 }
 
@@ -460,11 +514,14 @@ export function buildVapiAssistantPayload(input: {
   };
 
   if (input.files && input.files.length > 0) {
-    (payload as unknown as { files?: Array<{ url: string }> }).files = input.files.map((url) => ({ url }));
+    (payload as unknown as { files?: Array<{ url: string }> }).files =
+      input.files.map((url) => ({ url }));
   }
 
   if (input.integrations && Object.keys(input.integrations).length > 0) {
-    (payload as unknown as { integrations?: Record<string, any> }).integrations = input.integrations;
+    (
+      payload as unknown as { integrations?: Record<string, any> }
+    ).integrations = input.integrations;
   }
 
   return payload;
@@ -501,17 +558,30 @@ export function buildRetellAgentPayload(input: {
   llmId: string;
   webhookUrl?: string;
   postCallAnalysisData?: RetellAnalysisField[];
+  // Opcional: sin indicarlo, cae a la voz femenina por defecto — el caso
+  // correcto para createBusinessAgent (agente nuevo, sin voz elegida
+  // todavía). PATCH /agents/:id SÍ debe pasar la voz ya resuelta del
+  // negocio (agent.voiceId existente o la que se acabe de elegir); antes
+  // este payload la ignoraba siempre y cualquier edición del agente
+  // (nombre, saludo, prompt) reseteaba en silencio la voz a la femenina
+  // aunque el negocio hubiera elegido la masculina (hallazgo #26 de la
+  // auditoría).
+  voiceId?: string;
 }) {
   return {
     name: buildSafeVapiAssistantName(input.name),
-    voiceId: DEFAULT_RETELL_AGENT_CONFIG.voiceId,
+    voiceId: input.voiceId ?? DEFAULT_RETELL_AGENT_CONFIG.voiceId,
     llmId: input.llmId,
     language: DEFAULT_RETELL_AGENT_CONFIG.language,
     webhookUrl: input.webhookUrl,
     timezone: DEFAULT_RETELL_AGENT_CONFIG.timezone,
-    postCallAnalysisData: input.postCallAnalysisData ?? [CALL_OUTCOME_ANALYSIS_FIELD],
-    interruptionSensitivity: DEFAULT_RETELL_AGENT_CONFIG.interruptionSensitivity,
-    dataStorageRetentionDays: DEFAULT_RETELL_AGENT_CONFIG.dataStorageRetentionDays,
+    postCallAnalysisData: input.postCallAnalysisData ?? [
+      CALL_OUTCOME_ANALYSIS_FIELD,
+    ],
+    interruptionSensitivity:
+      DEFAULT_RETELL_AGENT_CONFIG.interruptionSensitivity,
+    dataStorageRetentionDays:
+      DEFAULT_RETELL_AGENT_CONFIG.dataStorageRetentionDays,
     sttMode: DEFAULT_RETELL_AGENT_CONFIG.sttMode,
     piiCategories: DEFAULT_RETELL_AGENT_CONFIG.piiCategories,
     endCallAfterSilenceMs: DEFAULT_RETELL_AGENT_CONFIG.endCallAfterSilenceMs,
@@ -533,11 +603,17 @@ export async function createBusinessAgent(args: {
     select: { orchestrator: true, businessType: true, name: true },
   });
 
-  const businessType = args.businessType ?? (isBusinessType(business?.businessType) ? business?.businessType : "other");
+  const businessType =
+    args.businessType ??
+    (isBusinessType(business?.businessType) ? business?.businessType : "other");
   const orchestrator = business?.orchestrator || "retell";
   const displayName = buildAgentDisplayName(args.name, businessType);
 
-  const config = getAgentTemplateForBusinessType(businessType, displayName, args.name);
+  const config = getAgentTemplateForBusinessType(
+    businessType,
+    displayName,
+    args.name
+  );
 
   const agent = await client.agent.create({
     data: buildAgentPersistencePayload({
@@ -550,7 +626,9 @@ export async function createBusinessAgent(args: {
   if (orchestrator === "retell") {
     try {
       const baseUrl = getPublicWebhookBaseUrl();
-      const webhookUrl = baseUrl ? `${baseUrl.replace(/\/$/, "")}/webhooks/retell` : undefined;
+      const webhookUrl = baseUrl
+        ? `${baseUrl.replace(/\/$/, "")}/webhooks/retell`
+        : undefined;
 
       const retellLlm = await retellAdapter.createLlm(
         buildRetellLlmPayload({
@@ -561,7 +639,10 @@ export async function createBusinessAgent(args: {
         })
       );
 
-      const postCallAnalysisData = await buildPostCallAnalysisDataForBusiness(args.businessId, client);
+      const postCallAnalysisData = await buildPostCallAnalysisDataForBusiness(
+        args.businessId,
+        client
+      );
       const retellAgent = await retellAdapter.createAgent(
         buildRetellAgentPayload({
           name: config.name,
@@ -579,6 +660,28 @@ export async function createBusinessAgent(args: {
           voiceId: DEFAULT_RETELL_AGENT_CONFIG.voiceId,
         },
       });
+
+      // El LLM se crea con tools: [] — sin este paso, un agente recién
+      // creado no puede consultar horario, disponibilidad, reservar ni
+      // colgar hasta que OTRA acción (conectar el calendario, guardar el
+      // horario) dispare una sincronización por su cuenta. También cierra
+      // la carrera contraria: si el negocio conecta el calendario ANTES de
+      // que esta creación asíncrona termine, esa sincronización anterior no
+      // encuentra ningún agente todavía y no hace nada — este paso final
+      // deja las tools correctas sea cual sea el orden (hallazgo #25 de la
+      // auditoría).
+      try {
+        await calendarService.syncCalendarToolsToAgents(args.businessId);
+      } catch (toolsError) {
+        console.error("[Agent] Failed to sync calendar tools after creation:", {
+          agentId: agent.id,
+          businessId: args.businessId,
+          message:
+            toolsError instanceof Error
+              ? toolsError.message
+              : String(toolsError),
+        });
+      }
 
       return syncedAgent;
     } catch (error) {
@@ -671,7 +774,9 @@ export async function syncAgentNameWithBusinessType(args: {
 
   if (business.orchestrator === "retell" && agent.retellAgentId) {
     try {
-      await retellAdapter.updateAgent(agent.retellAgentId, { name: displayName });
+      await retellAdapter.updateAgent(agent.retellAgentId, {
+        name: displayName,
+      });
     } catch (error) {
       console.error("[Agent] Failed to update Retell agent name:", {
         agentId: agent.id,
@@ -727,7 +832,11 @@ export async function syncAgentToRetell(
   if (!business || business.orchestrator !== "retell") return;
 
   const agents = await prismaClient.agent.findMany({
-    where: { businessId, retellAgentId: { not: null }, retellLlmId: { not: null } },
+    where: {
+      businessId,
+      retellAgentId: { not: null },
+      retellLlmId: { not: null },
+    },
   });
   if (agents.length === 0) return;
 
@@ -748,7 +857,9 @@ export async function syncAgentToRetell(
     orderBy: { name: "asc" },
   });
 
-  const businessType = isBusinessType(business.businessType) ? business.businessType : "other";
+  const businessType = isBusinessType(business.businessType)
+    ? business.businessType
+    : "other";
 
   const systemPrompt = buildManagedAgentPrompt({
     businessName: business.name,
@@ -759,7 +870,9 @@ export async function syncAgentToRetell(
     maxAppointmentDurationMinutes: business.maxAppointmentDurationMinutes,
   });
 
-  const postCallAnalysisData = buildPostCallAnalysisData(services.map((service) => service.name));
+  const postCallAnalysisData = buildPostCallAnalysisData(
+    services.map((service) => service.name)
+  );
   // Sesga la transcripción hacia los nombres reales del negocio (servicios y
   // profesionales) — reduce errores tipo "corte" transcrito como "corta".
   const boostedKeywords = [
@@ -771,19 +884,35 @@ export async function syncAgentToRetell(
 
   for (const agent of agents) {
     try {
-      await retellAdapter.updateLlm(agent.retellLlmId!, { generalPrompt: systemPrompt });
+      // Los agentes editados a mano vía PATCH /agents/:id (promptManuallyEdited)
+      // nunca deben perder ese texto solo porque cambió un servicio, un
+      // profesional o los ajustes del negocio — antes esta función lo
+      // sobrescribía siempre, pese a que su propio comentario decía lo
+      // contrario (hallazgo #27 de la auditoría). El resto de la
+      // sincronización (postCallAnalysisData, voz, boostedKeywords) sí se
+      // aplica igual: no tiene sentido dejar esos desactualizados solo
+      // porque el prompt es manual.
+      if (!agent.promptManuallyEdited) {
+        await retellAdapter.updateLlm(agent.retellLlmId!, {
+          generalPrompt: systemPrompt,
+        });
+      }
       await retellAdapter.updateAgent(agent.retellAgentId!, {
         postCallAnalysisData,
         voiceId,
-        interruptionSensitivity: DEFAULT_RETELL_AGENT_CONFIG.interruptionSensitivity,
-        dataStorageRetentionDays: DEFAULT_RETELL_AGENT_CONFIG.dataStorageRetentionDays,
+        interruptionSensitivity:
+          DEFAULT_RETELL_AGENT_CONFIG.interruptionSensitivity,
+        dataStorageRetentionDays:
+          DEFAULT_RETELL_AGENT_CONFIG.dataStorageRetentionDays,
         sttMode: DEFAULT_RETELL_AGENT_CONFIG.sttMode,
         boostedKeywords,
         piiCategories: DEFAULT_RETELL_AGENT_CONFIG.piiCategories,
       });
       await prismaClient.agent.update({
         where: { id: agent.id },
-        data: { systemPrompt, voiceId },
+        data: agent.promptManuallyEdited
+          ? { voiceId }
+          : { systemPrompt, voiceId },
       });
     } catch (error) {
       console.error("[Agent] Failed to sync agent to Retell:", {

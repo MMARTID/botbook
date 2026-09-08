@@ -2,10 +2,12 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import {
   buildInboundCallDynamicVariables,
   syncAgentToRetell,
+  createBusinessAgent,
   RETELL_VOICE_ID_BY_GENDER,
 } from "../../src/lib/agentBootstrap.js";
 import { prisma } from "../../src/lib/prisma.js";
 import { retellAdapter } from "../../src/adapters/retell/RetellAdapter.js";
+import { calendarService } from "../../src/modules/calendar/service.js";
 import { DEFAULT_BUSINESS_SCHEDULE } from "../../src/lib/businessSchedule.js";
 
 vi.mock("../../src/lib/prisma.js", () => ({
@@ -22,6 +24,7 @@ vi.mock("../../src/lib/prisma.js", () => ({
     agent: {
       findMany: vi.fn(),
       update: vi.fn(),
+      create: vi.fn(),
     },
   },
 }));
@@ -30,6 +33,14 @@ vi.mock("../../src/adapters/retell/RetellAdapter.js", () => ({
   retellAdapter: {
     updateLlm: vi.fn(),
     updateAgent: vi.fn(),
+    createLlm: vi.fn(),
+    createAgent: vi.fn(),
+  },
+}));
+
+vi.mock("../../src/modules/calendar/service.js", () => ({
+  calendarService: {
+    syncCalendarToolsToAgents: vi.fn(),
   },
 }));
 
@@ -38,8 +49,12 @@ const mockedServiceFindMany = vi.mocked(prisma.service.findMany);
 const mockedProfessionalFindMany = vi.mocked(prisma.professional.findMany);
 const mockedAgentFindMany = vi.mocked(prisma.agent.findMany);
 const mockedAgentUpdate = vi.mocked(prisma.agent.update);
+const mockedAgentCreate = vi.mocked(prisma.agent.create);
 const mockedUpdateLlm = vi.mocked(retellAdapter.updateLlm);
 const mockedUpdateAgent = vi.mocked(retellAdapter.updateAgent);
+const mockedCreateLlm = vi.mocked(retellAdapter.createLlm);
+const mockedCreateAgent = vi.mocked(retellAdapter.createAgent);
+const mockedSyncCalendarToolsToAgents = vi.mocked(calendarService.syncCalendarToolsToAgents);
 
 describe("buildInboundCallDynamicVariables", () => {
   it("devuelve las tres variables como string, listas para retell_llm_dynamic_variables", async () => {
@@ -256,5 +271,91 @@ describe("syncAgentToRetell — voiceGender", () => {
 
     expect(mockedUpdateAgent).not.toHaveBeenCalled();
     expect(mockedAgentFindMany).not.toHaveBeenCalled();
+  });
+
+  it("no sobrescribe el prompt de un agente editado a mano, pero sí sincroniza el resto (hallazgo #27 de la auditoría)", async () => {
+    mockedBusinessFindUnique.mockResolvedValue({
+      name: "Peluquería de prueba",
+      businessDetails: null,
+      businessType: "peluqueria",
+      agentSettings: null,
+      orchestrator: "retell",
+      minAdvanceBookingMinutes: null,
+      maxAppointmentDurationMinutes: null,
+    } as any);
+    mockedAgentFindMany.mockResolvedValue([
+      {
+        id: "agent_db_1",
+        retellAgentId: "retell_agent_1",
+        retellLlmId: "retell_llm_1",
+        promptManuallyEdited: true,
+      },
+    ] as any);
+
+    await syncAgentToRetell("biz_manual");
+
+    expect(mockedUpdateLlm).not.toHaveBeenCalled();
+    // El resto (voz, categorías de análisis, etc.) sigue sincronizándose igual.
+    expect(mockedUpdateAgent).toHaveBeenCalledWith("retell_agent_1", expect.any(Object));
+    expect(mockedAgentUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "agent_db_1" },
+        data: { voiceId: RETELL_VOICE_ID_BY_GENDER.femenina },
+      })
+    );
+  });
+
+  it("SÍ sobrescribe el prompt de un agente gestionado normalmente (promptManuallyEdited: false)", async () => {
+    mockedBusinessFindUnique.mockResolvedValue({
+      name: "Peluquería de prueba",
+      businessDetails: null,
+      businessType: "peluqueria",
+      agentSettings: null,
+      orchestrator: "retell",
+      minAdvanceBookingMinutes: null,
+      maxAppointmentDurationMinutes: null,
+    } as any);
+    mockedAgentFindMany.mockResolvedValue([
+      {
+        id: "agent_db_1",
+        retellAgentId: "retell_agent_1",
+        retellLlmId: "retell_llm_1",
+        promptManuallyEdited: false,
+      },
+    ] as any);
+
+    await syncAgentToRetell("biz_managed");
+
+    expect(mockedUpdateLlm).toHaveBeenCalledWith("retell_llm_1", expect.objectContaining({ generalPrompt: expect.any(String) }));
+  });
+});
+
+describe("createBusinessAgent — sincroniza tools de calendario al crear (hallazgo #25 de la auditoría)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockedBusinessFindUnique.mockResolvedValue({
+      orchestrator: "retell",
+      businessType: "peluqueria",
+      name: "Peluquería de prueba",
+    } as any);
+    mockedServiceFindMany.mockResolvedValue([]);
+    mockedAgentCreate.mockResolvedValue({ id: "agent_db_1" } as any);
+    mockedCreateLlm.mockResolvedValue({ llm_id: "retell_llm_1" } as any);
+    mockedCreateAgent.mockResolvedValue({ agent_id: "retell_agent_1" } as any);
+    mockedAgentUpdate.mockResolvedValue({ id: "agent_db_1" } as any);
+  });
+
+  it("llama a syncCalendarToolsToAgents justo después de crear el agente en Retell", async () => {
+    await createBusinessAgent({ businessId: "biz_new", name: "Nuevo negocio" });
+
+    expect(mockedSyncCalendarToolsToAgents).toHaveBeenCalledWith("biz_new");
+  });
+
+  it("no rompe la creación del agente si falla la sincronización de tools", async () => {
+    mockedSyncCalendarToolsToAgents.mockRejectedValue(new Error("Retell down"));
+
+    const result = await createBusinessAgent({ businessId: "biz_new", name: "Nuevo negocio" });
+
+    expect(result).toEqual(expect.objectContaining({ id: "agent_db_1" }));
   });
 });
