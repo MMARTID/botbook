@@ -17,6 +17,7 @@ vi.mock("../../../src/lib/prisma.js", () => ({
       findUnique: vi.fn(),
       findFirst: vi.fn(),
       update: vi.fn(),
+      updateMany: vi.fn(),
     },
     call: {
       aggregate: vi.fn(),
@@ -47,6 +48,7 @@ vi.mock("../../../src/modules/phone/service.js", () => ({
 const mockedBusinessFindUnique = vi.mocked(prisma.business.findUnique);
 const mockedBusinessFindFirst = vi.mocked(prisma.business.findFirst);
 const mockedBusinessUpdate = vi.mocked(prisma.business.update);
+const mockedBusinessUpdateMany = vi.mocked(prisma.business.updateMany);
 const mockedCallAggregate = vi.mocked(prisma.call.aggregate);
 const mockedStripeWebhookEventFindUnique = vi.mocked(prisma.stripeWebhookEvent.findUnique);
 const mockedStripeWebhookEventUpsert = vi.mocked(prisma.stripeWebhookEvent.upsert);
@@ -106,8 +108,10 @@ describe("handleStripeEvent", () => {
     // mismo `prisma` mockeado como `tx`, así los asserts existentes sobre
     // mockedStripeWebhookEventUpdate/etc. siguen funcionando igual.
     mockedTransaction.mockImplementation(async (callback: any) => callback(prisma));
+    mockedBusinessUpdateMany.mockResolvedValue({ count: 1 } as any);
     mockedProvisionPhoneNumber.mockResolvedValue({ success: true, status: "active" });
     process.env.STRIPE_PRICE_INICIO = priceId;
+    process.env.STRIPE_PRICE_PRO = "price_test_pro";
   });
 
   it("actualiza el negocio en checkout.session.completed", async () => {
@@ -211,7 +215,7 @@ describe("handleStripeEvent", () => {
 
     await handleStripeEvent(event);
 
-    expect(mockedBusinessUpdate).toHaveBeenCalledWith(
+    expect(mockedBusinessUpdateMany).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
           subscriptionStatus: "ACTIVE",
@@ -244,7 +248,7 @@ describe("handleStripeEvent", () => {
 
     await handleStripeEvent(event);
 
-    expect(mockedBusinessUpdate).toHaveBeenCalledWith(
+    expect(mockedBusinessUpdateMany).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
           subscriptionStatus: "CANCELED",
@@ -260,9 +264,7 @@ describe("handleStripeEvent", () => {
     // CANCELED. Sin comparar contra subscriptionEventCreatedAt, resucitaría
     // el estado ACTIVE obsoleto.
     mockedBusinessFindFirst.mockResolvedValue(buildBusiness() as any);
-    mockedBusinessFindUnique.mockResolvedValue({
-      subscriptionEventCreatedAt: new Date("2026-08-15T00:00:00Z"),
-    } as any);
+    mockedBusinessUpdateMany.mockResolvedValue({ count: 0 } as any);
 
     const event = buildStripeEvent("customer.subscription.updated", {
       id: subscriptionId,
@@ -277,14 +279,19 @@ describe("handleStripeEvent", () => {
 
     await handleStripeEvent(event);
 
-    expect(mockedBusinessUpdate).not.toHaveBeenCalled();
+    expect(mockedBusinessUpdateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          OR: expect.arrayContaining([
+            { subscriptionEventCreatedAt: { lte: new Date("2026-08-10T00:00:00Z") } },
+          ]),
+        }),
+      })
+    );
   });
 
   it("aplica un evento de suscripción más reciente que el ya aplicado", async () => {
     mockedBusinessFindFirst.mockResolvedValue(buildBusiness() as any);
-    mockedBusinessFindUnique.mockResolvedValue({
-      subscriptionEventCreatedAt: new Date("2026-08-01T00:00:00Z"),
-    } as any);
 
     const event = buildStripeEvent("customer.subscription.updated", {
       id: subscriptionId,
@@ -299,7 +306,7 @@ describe("handleStripeEvent", () => {
 
     await handleStripeEvent(event);
 
-    expect(mockedBusinessUpdate).toHaveBeenCalledWith(
+    expect(mockedBusinessUpdateMany).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({ subscriptionStatus: "ACTIVE" }),
       })
@@ -397,7 +404,7 @@ describe("createCheckoutSession", () => {
     const customersCreate = vi.fn().mockResolvedValue({ id: customerId });
     mockedGetStripeClient.mockReturnValue({
       customers: { create: customersCreate },
-      checkout: { sessions: { create: sessionsCreate, list: sessionsList } },
+      checkout: { sessions: { create: sessionsCreate, list: sessionsList, expire: vi.fn() } },
     } as any);
 
     const result = await createCheckoutSession({
@@ -426,12 +433,12 @@ describe("createCheckoutSession", () => {
     const sessionsList = vi.fn().mockResolvedValue({
       data: [
         { id: "cs_open_1", mode: "payment", client_secret: "secret_wrong_mode" },
-        { id: "cs_open_2", mode: "subscription", client_secret: "secret_existing" },
+        { id: "cs_open_2", mode: "subscription", client_secret: "secret_existing", metadata: { planId: "inicio" } },
       ],
     });
     mockedGetStripeClient.mockReturnValue({
       customers: { create: vi.fn() },
-      checkout: { sessions: { create: sessionsCreate, list: sessionsList } },
+      checkout: { sessions: { create: sessionsCreate, list: sessionsList, expire: vi.fn() } },
     } as any);
 
     const result = await createCheckoutSession({
@@ -444,6 +451,33 @@ describe("createCheckoutSession", () => {
     expect(sessionsCreate).not.toHaveBeenCalled();
     expect(sessionsList).toHaveBeenCalledWith(
       expect.objectContaining({ customer: customerId, status: "open" })
+    );
+  });
+
+  it("caduca sesiones abiertas de otro plan antes de crear la sesión elegida", async () => {
+    mockedBusinessFindUnique.mockResolvedValue(
+      buildBusiness({ subscriptionStatus: null, stripeCustomerId: customerId }) as any
+    );
+    const sessionsCreate = vi.fn().mockResolvedValue({ client_secret: "secret_pro" });
+    const expire = vi.fn().mockResolvedValue({ id: "cs_inicio", status: "expired" });
+    mockedGetStripeClient.mockReturnValue({
+      customers: { create: vi.fn() },
+      checkout: {
+        sessions: {
+          create: sessionsCreate,
+          list: vi.fn().mockResolvedValue({
+            data: [{ id: "cs_inicio", mode: "subscription", metadata: { planId: "inicio" } }],
+          }),
+          expire,
+        },
+      },
+    } as any);
+
+    await createCheckoutSession({ businessId, userId: "user_123", planId: "pro" });
+
+    expect(expire).toHaveBeenCalledWith("cs_inicio");
+    expect(sessionsCreate).toHaveBeenCalledWith(
+      expect.objectContaining({ metadata: expect.objectContaining({ planId: "pro" }) })
     );
   });
 });

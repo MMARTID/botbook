@@ -1,4 +1,4 @@
-import { FastifyInstance, FastifyRequest } from "fastify";
+import { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { prisma } from "../../lib/prisma.js";
 import { CalendarBusinessError, calendarService } from "./service.js";
 import { z } from "zod";
@@ -11,6 +11,36 @@ const ConnectMicrosoftCalendarSchema = z.object({
   calendarId: z.string().min(1),
 });
 
+const CALENDAR_OAUTH_STATE_TTL_SECONDS = 10 * 60;
+const GOOGLE_CALENDAR_OAUTH_STATE_COOKIE = "alhabla_google_calendar_oauth_state";
+const MICROSOFT_CALENDAR_OAUTH_STATE_COOKIE = "alhabla_microsoft_calendar_oauth_state";
+
+function readCookie(cookieHeader: string | undefined, name: string) {
+  if (!cookieHeader) return undefined;
+  for (const cookie of cookieHeader.split(";")) {
+    const separator = cookie.indexOf("=");
+    if (separator === -1) continue;
+    if (cookie.slice(0, separator).trim() === name) {
+      return decodeURIComponent(cookie.slice(separator + 1).trim());
+    }
+  }
+  return undefined;
+}
+
+function setStateCookie(reply: FastifyReply, name: string, value: string, maxAge: number) {
+  const secure = process.env.NODE_ENV === "production" ? "; Secure" : "";
+  reply.header(
+    "Set-Cookie",
+    `${name}=${encodeURIComponent(value)}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${maxAge}${secure}`,
+  );
+}
+
+function stateFromAuthUrl(url: string) {
+  const state = new URL(url).searchParams.get("state");
+  if (!state) throw new Error("La URL de autorización no contiene state.");
+  return state;
+}
+
 export async function calendarRoutes(fastify: FastifyInstance) {
   
   // 1. Endpoint para que el frontend solicite la URL de autenticación
@@ -21,6 +51,12 @@ export async function calendarRoutes(fastify: FastifyInstance) {
       try {
         const businessId = request.user!.businessId;
         const url = await calendarService.getAuthUrl(businessId);
+        setStateCookie(
+          reply,
+          GOOGLE_CALENDAR_OAUTH_STATE_COOKIE,
+          stateFromAuthUrl(url),
+          CALENDAR_OAUTH_STATE_TTL_SECONDS,
+        );
         return reply.send({ url });
       } catch (error) {
         return reply.status(500).send({ error: "Failed to generate Google Auth URL" });
@@ -222,6 +258,12 @@ export async function calendarRoutes(fastify: FastifyInstance) {
       try {
         const businessId = request.user!.businessId;
         const url = await calendarService.getMicrosoftAuthUrl(businessId);
+        setStateCookie(
+          reply,
+          MICROSOFT_CALENDAR_OAUTH_STATE_COOKIE,
+          stateFromAuthUrl(url),
+          CALENDAR_OAUTH_STATE_TTL_SECONDS,
+        );
         return reply.send({ url });
       } catch (error) {
         fastify.log.error(error);
@@ -259,6 +301,15 @@ export async function calendarRoutes(fastify: FastifyInstance) {
     async (request: FastifyRequest<{ Querystring: { code: string; state: string; error?: string } }>, reply) => {
       try {
         const { code, state, error } = request.query;
+        const expectedState = readCookie(
+          request.headers.cookie,
+          GOOGLE_CALENDAR_OAUTH_STATE_COOKIE,
+        );
+        setStateCookie(reply, GOOGLE_CALENDAR_OAUTH_STATE_COOKIE, "", 0);
+
+        if (!state || !expectedState || state !== expectedState) {
+          return reply.redirect(`${process.env.FRONTEND_URL}/settings?calendar_error=invalid_state`);
+        }
 
         if (error) {
           return reply.redirect(`${process.env.FRONTEND_URL}/settings?calendar_error=${error}`);
@@ -287,6 +338,15 @@ export async function calendarRoutes(fastify: FastifyInstance) {
     async (request: FastifyRequest<{ Querystring: { code?: string; state?: string; error?: string } }>, reply) => {
       try {
         const { code, state, error } = request.query;
+        const expectedState = readCookie(
+          request.headers.cookie,
+          MICROSOFT_CALENDAR_OAUTH_STATE_COOKIE,
+        );
+        setStateCookie(reply, MICROSOFT_CALENDAR_OAUTH_STATE_COOKIE, "", 0);
+
+        if (!state || !expectedState || state !== expectedState) {
+          return reply.redirect(`${process.env.FRONTEND_URL}/settings?outlook_error=invalid_state`);
+        }
 
         if (error) {
           return reply.redirect(`${process.env.FRONTEND_URL}/settings?outlook_error=${encodeURIComponent(error)}`);

@@ -15,6 +15,8 @@ vi.mock("../../../src/lib/prisma.js", () => ({
     call: {
       upsert: vi.fn(),
       findUnique: vi.fn(),
+      updateMany: vi.fn(),
+      create: vi.fn(),
       update: vi.fn(),
     },
     transcript: {
@@ -34,6 +36,8 @@ vi.mock("../../../src/lib/cloudTasks.js", () => ({
 const mockedAgentFindFirst = vi.mocked(prisma.agent.findFirst);
 const mockedCallUpsert = vi.mocked(prisma.call.upsert);
 const mockedCallFindUnique = vi.mocked(prisma.call.findUnique);
+const mockedCallUpdateMany = vi.mocked(prisma.call.updateMany);
+const mockedCallCreate = vi.mocked(prisma.call.create);
 const mockedCallUpdate = vi.mocked(prisma.call.update);
 const mockedTranscriptUpsert = vi.mocked(prisma.transcript.upsert);
 const mockedEnqueueRecordingJob = vi.mocked(enqueueRecordingJob);
@@ -41,6 +45,7 @@ const mockedEnqueueRecordingJob = vi.mocked(enqueueRecordingJob);
 describe("Retell webhook handlers", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockedCallUpdateMany.mockResolvedValue({ count: 1 } as any);
   });
 
   describe("handleCallStarted", () => {
@@ -49,8 +54,6 @@ describe("Retell webhook handlers", () => {
         id: "agent_123",
         businessId: "business_123",
       } as any);
-      mockedCallUpsert.mockResolvedValue({ id: "call_123" } as any);
-
       const result = await handleCallStarted({
         event_type: "call_started",
         data: {
@@ -60,16 +63,10 @@ describe("Retell webhook handlers", () => {
       });
 
       expect(result.success).toBe(true);
-      expect(mockedCallUpsert).toHaveBeenCalledWith(
+      expect(mockedCallUpdateMany).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: { vapiCallId: "retell_call_123" },
-          create: expect.objectContaining({
-            vapiCallId: "retell_call_123",
-            businessId: "business_123",
-            agentId: "agent_123",
-            status: "IN_PROGRESS",
-          }),
-          update: { status: "IN_PROGRESS" },
+          where: expect.objectContaining({ vapiCallId: "retell_call_123" }),
+          data: { status: "IN_PROGRESS" },
         })
       );
     });
@@ -79,21 +76,14 @@ describe("Retell webhook handlers", () => {
         id: "agent_123",
         businessId: "business_123",
       } as any);
-      mockedCallUpsert.mockResolvedValue({ id: "call_123" } as any);
-
+      mockedCallUpdateMany.mockResolvedValueOnce({ count: 0 } as any);
+      mockedCallCreate.mockResolvedValue({ id: "call_123" } as any);
       await handleCallStarted({
         event_type: "call_started",
-        data: {
-          call_id: "retell_call_123",
-          agent_id: "retell_agent_123",
-          from_number: "692138456",
-        },
+        data: { call_id: "retell_call_123", agent_id: "retell_agent_123", from_number: "692138456" },
       });
-
-      expect(mockedCallUpsert).toHaveBeenCalledWith(
-        expect.objectContaining({
-          create: expect.objectContaining({ fromNumber: "692138456" }),
-        })
+      expect(mockedCallCreate).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ fromNumber: "692138456" }) })
       );
     });
 
@@ -119,7 +109,8 @@ describe("Retell webhook handlers", () => {
           id: "agent_123",
           businessId: "business_123",
         } as any);
-        mockedCallFindUnique.mockResolvedValue({ status: terminalStatus } as any);
+        mockedCallUpdateMany.mockResolvedValue({ count: 0 } as any);
+        mockedCallCreate.mockRejectedValue({ code: "P2002" });
 
         const result = await handleCallStarted({
           event_type: "call_started",
@@ -133,7 +124,13 @@ describe("Retell webhook handlers", () => {
         // No debe revivir la llamada a IN_PROGRESS — desaparecería
         // temporalmente de las estadísticas de facturación y la limpieza de
         // zombies podría marcarla TIMED_OUT aunque ya se hubiera completado.
-        expect(mockedCallUpsert).not.toHaveBeenCalled();
+        expect(mockedCallUpdateMany).toHaveBeenCalledWith(
+          expect.objectContaining({
+            where: expect.objectContaining({
+              status: { notIn: ["COMPLETED", "FAILED", "TIMED_OUT"] },
+            }),
+          })
+        );
       }
     );
 
@@ -142,9 +139,6 @@ describe("Retell webhook handlers", () => {
         id: "agent_123",
         businessId: "business_123",
       } as any);
-      mockedCallFindUnique.mockResolvedValue({ status: "INITIATED" } as any);
-      mockedCallUpsert.mockResolvedValue({ id: "call_123" } as any);
-
       const result = await handleCallStarted({
         event_type: "call_started",
         data: {
@@ -154,7 +148,7 @@ describe("Retell webhook handlers", () => {
       });
 
       expect(result.success).toBe(true);
-      expect(mockedCallUpsert).toHaveBeenCalled();
+      expect(mockedCallUpdateMany).toHaveBeenCalled();
     });
   });
 

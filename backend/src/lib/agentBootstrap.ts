@@ -673,7 +673,7 @@ export async function createBusinessAgent(args: {
       try {
         await calendarService.syncCalendarToolsToAgents(args.businessId);
       } catch (toolsError) {
-        console.error("[Agent] Failed to sync calendar tools after creation:", {
+        console.error("[Agent] No se pudieron sincronizar las herramientas de calendario tras crear el agente:", {
           agentId: agent.id,
           businessId: args.businessId,
           message:
@@ -685,7 +685,7 @@ export async function createBusinessAgent(args: {
 
       return syncedAgent;
     } catch (error) {
-      console.error("[Agent] Failed to sync to Retell:", {
+      console.error("[Agent] No se pudo sincronizar el agente con Retell:", {
         agentId: agent.id,
         businessId: args.businessId,
         message: error instanceof Error ? error.message : String(error),

@@ -10,7 +10,16 @@ import { callLabel, errorMessage } from "../../lib/logUtils.js";
 // temporalmente de las estadísticas de facturación (vuelve a IN_PROGRESS,
 // que getBillingSummary excluye) y la limpieza de zombies podía marcarla
 // TIMED_OUT más tarde aunque en realidad se hubiera completado bien.
-const TERMINAL_CALL_STATUSES = new Set(["COMPLETED", "FAILED", "TIMED_OUT"]);
+const TERMINAL_CALL_STATUSES = ["COMPLETED", "FAILED", "TIMED_OUT"] as const;
+
+function isUniqueConstraintError(error: unknown) {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    (error as { code?: unknown }).code === "P2002"
+  );
+}
 
 const RetellCallStartedSchema = z.object({
   event_type: z.literal("call_started"),
@@ -176,32 +185,40 @@ export async function handleCallStarted(
       select: { id: true },
     });
 
-    const existingCall = await prisma.call.findUnique({
-      where: { vapiCallId: call_id },
-      select: { status: true },
-    });
-
-    if (existingCall && TERMINAL_CALL_STATUSES.has(existingCall.status)) {
-      console.warn(
-        `[Retell] call_started tardío/duplicado para ${callLabel(call_id)} ignorado: la llamada ya está ${existingCall.status}`
-      );
-      return { success: true };
-    }
-
-    await prisma.call.upsert({
-      where: { vapiCallId: call_id },
-      create: {
+    // No separar la lectura del estado y su actualización: call_ended puede
+    // completar la llamada entre ambas operaciones. updateMany incluye el
+    // estado en el WHERE, de modo que PostgreSQL lo vuelve a comprobar al
+    // obtener el lock de la fila y nunca revive una llamada terminal.
+    const updated = await prisma.call.updateMany({
+      where: {
         vapiCallId: call_id,
-        businessId,
-        agentId: agent?.id || null,
-        fromNumber: from_number || null,
-        status: "IN_PROGRESS",
-        startedAt: new Date(),
+        status: { notIn: [...TERMINAL_CALL_STATUSES] },
       },
-      update: {
-        status: "IN_PROGRESS",
-      },
+      data: { status: "IN_PROGRESS" },
     });
+
+    if (updated.count === 0) {
+      try {
+        await prisma.call.create({
+          data: {
+            vapiCallId: call_id,
+            businessId,
+            agentId: agent?.id || null,
+            fromNumber: from_number || null,
+            status: "IN_PROGRESS",
+            startedAt: new Date(),
+          },
+        });
+      } catch (error) {
+        // Otro webhook puede haber creado o completado la fila justo antes
+        // de este INSERT. La restricción unique hace de cierre atómico de la
+        // carrera y, al no actualizar después, mantiene el estado terminal.
+        if (!isUniqueConstraintError(error)) throw error;
+        console.warn(
+          `[Retell] Inicio tardío o duplicado ignorado para ${callLabel(call_id)}`
+        );
+      }
+    }
 
     console.log(`[Retell] ${callLabel(call_id)} registrada correctamente`);
     return { success: true };

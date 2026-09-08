@@ -113,6 +113,7 @@ model StripeWebhookEvent {
   businessId String?
   type       String
   createdAt  DateTime  @default(now())
+  processingStartedAt DateTime?
   processedAt DateTime?
   lastError  String?   @db.Text
   business   Business? @relation(fields: [businessId], references: [id], onDelete: SetNull)

@@ -192,18 +192,29 @@ export async function createCheckoutSession(input: {
   // suscripción y su propio cobro en Stripe, mientras Postgres solo puede
   // conservar un stripeSubscriptionId (hallazgo #10 de la auditoría). Si ya
   // hay una sesión de suscripción abierta para este cliente, se reutiliza
-  // en vez de crear otra, sea cual sea el plan que tuviera.
+  // en vez de crear otra. Una sesión abierta solo se reutiliza si es para
+  // el mismo plan; si el cliente cambia de plan, se caduca la anterior para
+  // que no pueda completar por accidente dos suscripciones distintas.
   const openSessions = await stripe.checkout.sessions.list({
     customer: customerId,
     status: "open",
     limit: 10,
   });
-  const reusableSession = openSessions.data.find(
+  const subscriptionSessions = openSessions.data.filter(
     (existing) => existing.mode === "subscription"
+  );
+  const reusableSession = subscriptionSessions.find(
+    (existing) => existing.metadata?.planId === input.planId
   );
   if (reusableSession?.client_secret) {
     return { clientSecret: reusableSession.client_secret };
   }
+
+  await Promise.all(
+    subscriptionSessions.map((existing) =>
+      stripe.checkout.sessions.expire(existing.id)
+    )
+  );
 
   const priceId = getPriceId(input.planId);
   const frontendUrl = (
@@ -379,41 +390,49 @@ async function syncSubscription(
     return null;
   }
 
-  if (eventCreatedAt) {
-    const current = await prisma.business.findUnique({
-      where: { id: businessId },
-      select: { subscriptionEventCreatedAt: true },
-    });
-    if (
-      current?.subscriptionEventCreatedAt &&
-      current.subscriptionEventCreatedAt > eventCreatedAt
-    ) {
-      console.warn(
-        `[Billing] Evento de suscripción descartado para business ${businessId}: hay uno más reciente ya aplicado`
-      );
-      return businessId;
-    }
-  }
-
   const priceId = subscription.items.data[0]?.price?.id ?? null;
   const plan = priceId ? getPlanByPriceId(priceId) : undefined;
   const period = subscriptionPeriod(subscription);
 
-  await prisma.business.update({
-    where: { id: businessId },
-    data: {
-      ...(plan ? { plan: plan.databasePlan } : {}),
-      stripeCustomerId: customerId,
-      stripeSubscriptionId: subscription.id,
-      stripePriceId: priceId,
-      subscriptionStatus: subscriptionStatus(subscription.status),
-      subscriptionCurrentPeriodStart: period.start,
-      subscriptionCurrentPeriodEnd: period.end,
-      subscriptionTrialEnd: unixTimestampToDate(subscription.trial_end),
-      subscriptionCancelAtPeriodEnd: subscription.cancel_at_period_end,
-      ...(eventCreatedAt ? { subscriptionEventCreatedAt: eventCreatedAt } : {}),
-    },
-  });
+  const data = {
+    ...(plan ? { plan: plan.databasePlan } : {}),
+    stripeCustomerId: customerId,
+    stripeSubscriptionId: subscription.id,
+    stripePriceId: priceId,
+    subscriptionStatus: subscriptionStatus(subscription.status),
+    subscriptionCurrentPeriodStart: period.start,
+    subscriptionCurrentPeriodEnd: period.end,
+    subscriptionTrialEnd: unixTimestampToDate(subscription.trial_end),
+    subscriptionCancelAtPeriodEnd: subscription.cancel_at_period_end,
+    ...(eventCreatedAt ? { subscriptionEventCreatedAt: eventCreatedAt } : {}),
+  };
+
+  // La condición y la escritura deben ser una única sentencia. Un
+  // findUnique seguido de update deja una ventana para que dos webhooks
+  // distintos lean el mismo timestamp y el más antiguo escriba el último.
+  // PostgreSQL vuelve a comprobar el WHERE al obtener el lock de la fila.
+  if (eventCreatedAt) {
+    const updated = await prisma.business.updateMany({
+      where: {
+        id: businessId,
+        OR: [
+          { subscriptionEventCreatedAt: null },
+          { subscriptionEventCreatedAt: { lte: eventCreatedAt } },
+        ],
+      },
+      data,
+    });
+    if (updated.count === 0) {
+      console.warn(
+        `[Billing] Evento de suscripción descartado para business ${businessId}: hay uno más reciente ya aplicado`
+      );
+    }
+  } else {
+    await prisma.business.update({
+      where: { id: businessId },
+      data,
+    });
+  }
 
   return businessId;
 }
@@ -534,50 +553,75 @@ async function processStripeEvent(event: Stripe.Event) {
  * bloquear eventos DISTINTOS entre sí.
  */
 export async function handleStripeEvent(event: Stripe.Event) {
-  const result = await prisma.$transaction(
+  const claimed = await prisma.$transaction(
     async (tx) => {
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${event.id}))`;
 
       const existingEvent = await tx.stripeWebhookEvent.findUnique({
         where: { id: event.id },
-        select: { processedAt: true },
+        select: { processedAt: true, processingStartedAt: true },
       });
       if (existingEvent?.processedAt) {
         return { duplicate: true as const };
       }
 
+      // Un webhook simultáneo recibe 2xx sin repetir los efectos. Si el
+      // proceso que lo reclamó se cae, Stripe volverá a entregarlo; tras
+      // cinco minutos se puede reclamar otra vez para no dejarlo bloqueado.
+      const claimExpiry = new Date(Date.now() - 5 * 60 * 1000);
+      if (
+        existingEvent?.processingStartedAt &&
+        existingEvent.processingStartedAt > claimExpiry
+      ) {
+        return { duplicate: true as const };
+      }
+
       await tx.stripeWebhookEvent.upsert({
         where: { id: event.id },
-        create: { id: event.id, type: event.type },
-        update: { type: event.type, lastError: null },
+        create: {
+          id: event.id,
+          type: event.type,
+          processingStartedAt: new Date(),
+        },
+        update: {
+          type: event.type,
+          lastError: null,
+          processingStartedAt: new Date(),
+        },
       });
-
-      try {
-        const businessId = await processStripeEvent(event);
-        await tx.stripeWebhookEvent.update({
-          where: { id: event.id },
-          data: { businessId, processedAt: new Date(), lastError: null },
-        });
-        return { duplicate: false as const };
-      } catch (error) {
-        // No relanzar aquí dentro: un throw dentro del callback de
-        // $transaction hace ROLLBACK de todo, incluida esta misma
-        // actualización de lastError que queremos conservar. Se devuelve el
-        // error para relanzarlo FUERA, una vez la transacción ya confirmó.
-        await tx.stripeWebhookEvent.update({
-          where: { id: event.id },
-          data: {
-            lastError: error instanceof Error ? error.message : String(error),
-          },
-        });
-        return { duplicate: false as const, error };
-      }
+      return { duplicate: false as const };
     },
-    { timeout: 30_000, maxWait: 10_000 }
+    { timeout: 10_000, maxWait: 10_000 }
   );
 
-  if ("error" in result && result.error) {
-    throw result.error;
+  if (claimed.duplicate) {
+    return { duplicate: true };
   }
-  return { duplicate: result.duplicate };
+
+  try {
+    // Las llamadas a Stripe, Telnyx y al correo se ejecutan fuera de la
+    // transacción: el lock de la base solo reclama el evento y no queda
+    // abierto mientras esperamos una red externa.
+    const businessId = await processStripeEvent(event);
+    await prisma.stripeWebhookEvent.update({
+      where: { id: event.id },
+      data: {
+        businessId,
+        processedAt: new Date(),
+        processingStartedAt: null,
+        lastError: null,
+      },
+    });
+  } catch (error) {
+    await prisma.stripeWebhookEvent.update({
+      where: { id: event.id },
+      data: {
+        processingStartedAt: null,
+        lastError: error instanceof Error ? error.message : String(error),
+      },
+    });
+    throw error;
+  }
+
+  return { duplicate: false };
 }
