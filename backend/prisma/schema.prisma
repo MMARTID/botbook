@@ -42,6 +42,14 @@ model Business {
   subscriptionCurrentPeriodEnd   DateTime?
   subscriptionTrialEnd            DateTime?
   subscriptionCancelAtPeriodEnd   Boolean             @default(false)
+  // Avisos y suspensión por impago. Se conserva el id de la factura que
+  // abrió el plazo para que el pago de otra factura no reactive el servicio
+  // por error.
+  paymentFailureInvoiceId         String?
+  paymentFailureNotifiedAt        DateTime?
+  paymentFailureSuspensionAt      DateTime?
+  callsSuspendedAt                DateTime?
+  cancellationNoticeSentAt        DateTime?
   // Timestamp (evento Stripe `created`) del último customer.subscription.*
   // aplicado con éxito — permite descartar un evento entregado fuera de
   // orden (más antiguo que el ya aplicado) en vez de sobrescribir el estado

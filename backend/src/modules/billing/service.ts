@@ -4,7 +4,6 @@ import { prisma } from "../../lib/prisma.js";
 import { getStripeClient } from "../../lib/stripe.js";
 import { provisionPhoneNumber } from "../phone/service.js";
 import {
-  getBillingPlan,
   getPlanByPriceId,
   getPriceId,
   type PlanId,
@@ -13,9 +12,11 @@ import { enqueueEmailJob } from "../../lib/cloudTasks.js";
 import {
   paymentApprovedEmail,
   paymentFailedEmail,
+  subscriptionCancellationInstructionsEmail,
 } from "../../lib/emailTemplates.js";
 
 const CHECKOUT_TRIAL_DAYS = 7;
+const PAYMENT_FAILURE_SUSPENSION_DAYS = 7;
 
 function unixTimestampToDate(value: number | null | undefined) {
   return typeof value === "number" ? new Date(value * 1000) : null;
@@ -404,6 +405,9 @@ async function syncSubscription(
     subscriptionCurrentPeriodEnd: period.end,
     subscriptionTrialEnd: unixTimestampToDate(subscription.trial_end),
     subscriptionCancelAtPeriodEnd: subscription.cancel_at_period_end,
+    ...(!subscription.cancel_at_period_end
+      ? { cancellationNoticeSentAt: null }
+      : {}),
     ...(eventCreatedAt ? { subscriptionEventCreatedAt: eventCreatedAt } : {}),
   };
 
@@ -426,6 +430,7 @@ async function syncSubscription(
       console.warn(
         `[Billing] Evento de suscripción descartado para business ${businessId}: hay uno más reciente ya aplicado`
       );
+      return null;
     }
   } else {
     await prisma.business.update({
@@ -435,6 +440,34 @@ async function syncSubscription(
   }
 
   return businessId;
+}
+
+async function sendCancellationInstructions(input: {
+  businessId: string;
+  serviceEndsAt: Date | null;
+}) {
+  // La transición puede llegar más de una vez; se reclama el aviso en la
+  // misma sentencia que comprueba que aún no se ha enviado.
+  const claimed = await prisma.business.updateMany({
+    where: { id: input.businessId, cancellationNoticeSentAt: null },
+    data: { cancellationNoticeSentAt: new Date() },
+  });
+  if (claimed.count === 0) return;
+
+  const business = await prisma.business.findUnique({
+    where: { id: input.businessId },
+    select: { name: true, users: { select: { email: true }, take: 1 } },
+  });
+  const email = business?.users[0]?.email;
+  if (!business || !email) return;
+
+  const frontendUrl = (process.env.FRONTEND_URL || "http://localhost:3001").replace(/\/$/, "");
+  const { subject, html } = subscriptionCancellationInstructionsEmail({
+    businessName: business.name,
+    serviceEndsAt: input.serviceEndsAt,
+    manageBillingUrl: `${frontendUrl}/ajustes/facturacion`,
+  });
+  await enqueueEmail({ fromAlias: "support", toAddress: email, subject, html });
 }
 
 async function processStripeEvent(event: Stripe.Event) {
@@ -495,39 +528,84 @@ async function processStripeEvent(event: Stripe.Event) {
     }
     case "customer.subscription.created":
     case "customer.subscription.updated":
-    case "customer.subscription.deleted":
-      return syncSubscription(
-        event.data.object as Stripe.Subscription,
+    case "customer.subscription.deleted": {
+      const subscription = event.data.object as Stripe.Subscription;
+      const businessId = await syncSubscription(
+        subscription,
         new Date(event.created * 1000)
       );
-    case "invoice.paid":
-      return resolveBusinessId({
+      if (
+        businessId &&
+        event.type === "customer.subscription.updated" &&
+        subscription.cancel_at_period_end &&
+        subscription.status !== "canceled"
+      ) {
+        await sendCancellationInstructions({
+          businessId,
+          serviceEndsAt: subscriptionPeriod(subscription).end,
+        });
+      }
+      return businessId;
+    }
+    case "invoice.paid": {
+      const invoice = event.data.object as Stripe.Invoice;
+      const businessId = await resolveBusinessId({
         customerId: stripeId((event.data.object as Stripe.Invoice).customer),
       });
+      // Solo el pago de la factura que abrió el plazo puede reactivar las
+      // llamadas. Un invoice.paid anterior no debe borrar un impago reciente.
+      if (businessId) {
+        await prisma.business.updateMany({
+          where: { id: businessId, paymentFailureInvoiceId: invoice.id },
+          data: {
+            paymentFailureInvoiceId: null,
+            paymentFailureNotifiedAt: null,
+            paymentFailureSuspensionAt: null,
+            callsSuspendedAt: null,
+          },
+        });
+      }
+      return businessId;
+    }
     case "invoice.payment_failed": {
       const invoice = event.data.object as Stripe.Invoice;
       const businessId = await resolveBusinessId({
         customerId: stripeId(invoice.customer),
       });
 
-      if (businessId && invoice.customer_email) {
+      if (businessId) {
+        const suspensionAt = new Date(
+          Date.now() + PAYMENT_FAILURE_SUSPENSION_DAYS * 24 * 60 * 60 * 1000
+        );
+        const claim = await prisma.business.updateMany({
+          where: { id: businessId, paymentFailureSuspensionAt: null },
+          data: {
+            paymentFailureInvoiceId: invoice.id,
+            paymentFailureNotifiedAt: new Date(),
+            paymentFailureSuspensionAt: suspensionAt,
+          },
+        });
+        if (claim.count === 0) return businessId;
+
         const business = await prisma.business.findUnique({
           where: { id: businessId },
-          select: { name: true },
+          select: { name: true, users: { select: { email: true }, take: 1 } },
         });
-        if (business) {
+        const email = invoice.customer_email ?? business?.users[0]?.email;
+        if (business && email) {
           const frontendUrl = (
             process.env.FRONTEND_URL || "http://localhost:3001"
           ).replace(/\/$/, "");
           const { subject, html } = paymentFailedEmail({
             businessName: business.name,
+            suspensionAt,
             manageBillingUrl:
               invoice.hosted_invoice_url ??
               `${frontendUrl}/ajustes/facturacion`,
           });
           await enqueueEmail({
             fromAlias: "support",
-            toAddress: invoice.customer_email,
+            toAddress: email,
             subject,
             html,
           });

@@ -52,7 +52,11 @@ export function paymentApprovedEmail(input: { businessName: string; planName: st
   return { subject, html };
 }
 
-export function paymentFailedEmail(input: { businessName: string; manageBillingUrl: string }): {
+export function paymentFailedEmail(input: {
+  businessName: string;
+  manageBillingUrl: string;
+  suspensionAt: Date;
+}): {
   subject: string;
   html: string;
 } {
@@ -62,11 +66,37 @@ export function paymentFailedEmail(input: { businessName: string; manageBillingU
     <p style="margin:0 0 16px 0;">Hola,</p>
     <p style="margin:0 0 16px 0;">
       El último intento de cobro de la suscripción de <strong>${input.businessName}</strong> no se ha
-      completado. Revisa tu método de pago para evitar una interrupción del servicio.
+      completado. Si no se regulariza antes del <strong>${new Intl.DateTimeFormat("es-ES", { dateStyle: "long" }).format(input.suspensionAt)}</strong>,
+      suspenderemos las llamadas que llegan a tu número de Alhabla.
     </p>
     ${ctaButton(input.manageBillingUrl, "Revisar método de pago")}
     <p style="margin:20px 0 0 0;">Si crees que esto es un error, responde a este correo y te ayudamos.</p>
     <p style="margin:16px 0 0 0;">Un saludo,<br/>El equipo de Alhabla</p>
+  `);
+  return { subject, html };
+}
+
+export function subscriptionCancellationInstructionsEmail(input: {
+  businessName: string;
+  serviceEndsAt: Date | null;
+  manageBillingUrl: string;
+}): { subject: string; html: string } {
+  const subject = `Acción necesaria al cancelar Alhabla — ${input.businessName}`;
+  const endDate = input.serviceEndsAt
+    ? new Intl.DateTimeFormat("es-ES", { dateStyle: "long" }).format(input.serviceEndsAt)
+    : "la fecha de finalización de tu suscripción";
+  const html = emailShell(`
+    <p style="font-size:18px;font-weight:600;margin:0 0 16px 0;">Tu baja está programada</p>
+    <p style="margin:0 0 16px 0;">Hola,</p>
+    <p style="margin:0 0 16px 0;">
+      Tu suscripción de <strong>${input.businessName}</strong> finalizará el <strong>${endDate}</strong>.
+    </p>
+    <p style="margin:0 0 16px 0;">
+      Antes de esa fecha, desactiva el desvío de llamadas de tu línea habitual hacia el número de Alhabla.
+      Así evitarás que las llamadas de tus clientes queden sin atender al terminar el servicio.
+    </p>
+    ${ctaButton(input.manageBillingUrl, "Ver facturación")}
+    <p style="margin:20px 0 0 0;">Un saludo,<br/>El equipo de Alhabla</p>
   `);
   return { subject, html };
 }

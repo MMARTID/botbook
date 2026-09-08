@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { CreditCard, ExternalLink, Gauge, Phone, ReceiptText } from "lucide-react";
+import { CreditCard, ExternalLink, Gauge, Phone, ReceiptText, X } from "lucide-react";
 import { createBillingPortalSession, getBillingSummary } from "@/lib/api";
 import { plans } from "@/lib/plans";
 
@@ -18,6 +19,7 @@ const statusLabels: Record<string, string> = {
 };
 
 export default function BillingSettingsPage() {
+  const [showCancellationNotice, setShowCancellationNotice] = useState(false);
   const summary = useQuery({ queryKey: ["billing-summary"], queryFn: getBillingSummary });
   const portal = useMutation({
     mutationFn: createBillingPortalSession,
@@ -90,7 +92,7 @@ export default function BillingSettingsPage() {
             <h2 className="mt-4 text-xl font-semibold text-[#0a0a0a]">Portal de cliente</h2>
             <p className="mt-2 flex-1 text-sm leading-6 text-muted">Actualiza el método de pago, consulta facturas o cancela la suscripción.</p>
             {summary.data.customerConfigured ? (
-              <button onClick={() => portal.mutate()} disabled={portal.isPending} className="btn-primary mt-6 justify-center">
+              <button onClick={() => setShowCancellationNotice(true)} disabled={portal.isPending} className="btn-primary mt-6 justify-center">
                 <ExternalLink className="h-4 w-4" />
                 {portal.isPending ? "Abriendo…" : "Gestionar en Stripe"}
               </button>
@@ -99,6 +101,25 @@ export default function BillingSettingsPage() {
             )}
             {portal.isError ? <p className="mt-3 text-sm text-[#c53030]">No se pudo abrir el portal.</p> : null}
           </article>
+        </div>
+      ) : null}
+
+      {showCancellationNotice ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4" role="dialog" aria-modal="true" aria-labelledby="cancellation-notice-title">
+          <div className="relative w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
+            <button type="button" onClick={() => setShowCancellationNotice(false)} className="absolute right-4 top-4 rounded-lg p-2 text-[#52525b] hover:bg-[#f4f4f5]" aria-label="Cerrar aviso">
+              <X className="h-5 w-5" />
+            </button>
+            <h2 id="cancellation-notice-title" className="pr-8 text-xl font-semibold text-[#0a0a0a]">Antes de cancelar</h2>
+            <p className="mt-4 text-sm leading-6 text-[#52525b]">
+              Cuando termine tu suscripción, tu agente dejará de atender llamadas. Antes de esa fecha, desactiva el desvío de tu línea habitual hacia el número de Alhabla para que tus clientes no queden sin atención.
+            </p>
+            <p className="mt-3 text-sm leading-6 text-[#52525b]">También te enviaremos estas instrucciones por correo cuando programes la baja.</p>
+            <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+              <button type="button" className="btn-secondary justify-center" onClick={() => setShowCancellationNotice(false)}>Volver</button>
+              <button type="button" className="btn-primary justify-center" onClick={() => { setShowCancellationNotice(false); portal.mutate(); }}>Continuar a Stripe</button>
+            </div>
+          </div>
         </div>
       ) : null}
     </section>

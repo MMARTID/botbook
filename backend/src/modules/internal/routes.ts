@@ -6,6 +6,7 @@ import { processSendEmailJob } from "../../jobs/sendEmail.js";
 import { processSendSmsJob } from "../../jobs/sendSms.js";
 import { cleanupZombieCallsJob } from "../../jobs/cleanupZombieCalls.js";
 import { retryStuckRecordingsJob } from "../../jobs/retryStuckRecordings.js";
+import { suspendOverdueCallsJob } from "../../jobs/suspendOverdueCalls.js";
 import { E164_PHONE_REGEX } from "../../lib/phone.js";
 
 const ProcessRecordingSchema = z.object({
@@ -121,6 +122,20 @@ export const internalJobsRoutes: FastifyPluginAsync = async (fastify) => {
         return reply.send({ received: true });
       } catch (error) {
         fastify.log.error({ err: error }, "cleanup-zombie-calls job failed");
+        return reply.status(500).send({ error: "Job processing failed" });
+      }
+    }
+  );
+
+  fastify.post(
+    "/jobs/suspend-overdue-calls",
+    { preValidation: [fastify.verifyCloudTasks] },
+    async (_request, reply) => {
+      try {
+        const suspendedBusinesses = await suspendOverdueCallsJob();
+        return reply.send({ received: true, suspendedBusinesses });
+      } catch (error) {
+        fastify.log.error({ err: error }, "suspend-overdue-calls job failed");
         return reply.status(500).send({ error: "Job processing failed" });
       }
     }

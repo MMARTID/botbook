@@ -20,6 +20,7 @@ import { bookingSettingsRoutes } from "./modules/bookings/routes.js";
 import { filesRoutes } from "./modules/files/routes.js";
 import { billingRoutes } from "./modules/billing/routes.js";
 import { phoneRoutes } from "./modules/phone/routes.js";
+import { selectRetellInboundAgent } from "./modules/phone/retellInbound.js";
 import { onboardingRoutes } from "./modules/onboarding/routes.js";
 import { demoRoutes } from "./modules/demo/routes.js";
 import {
@@ -352,7 +353,17 @@ async function start() {
       try {
         const business = await prisma.business.findUnique({
           where: { retellPhoneNumber: toNumber },
-          select: { id: true },
+          select: {
+            id: true,
+            callsSuspendedAt: true,
+            paymentFailureSuspensionAt: true,
+            agents: {
+              where: { active: true, retellAgentId: { not: null } },
+              orderBy: { createdAt: "asc" },
+              take: 1,
+              select: { retellAgentId: true },
+            },
+          },
         });
 
         if (!business) {
@@ -360,8 +371,21 @@ async function start() {
           return reply.status(200).send({ call_inbound: { dynamic_variables: {} } });
         }
 
+        const retellAgentId = selectRetellInboundAgent(business);
+        if (!retellAgentId) {
+          // Retell rechaza una llamada si su webhook entrante devuelve 2xx
+          // sin override_agent_id. Es intencionado: evita atender llamadas
+          // tras el séptimo día de impago o si no queda agente operativo.
+          return reply.status(200).send({ call_inbound: {} });
+        }
+
         const dynamicVariables = await buildInboundCallDynamicVariables(business.id, fromNumber);
-        return reply.status(200).send({ call_inbound: { dynamic_variables: dynamicVariables } });
+        return reply.status(200).send({
+          call_inbound: {
+            override_agent_id: retellAgentId,
+            dynamic_variables: dynamicVariables,
+          },
+        });
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         console.error(`[Retell Inbound] Error building dynamic variables for ${toNumber}: ${message}`);

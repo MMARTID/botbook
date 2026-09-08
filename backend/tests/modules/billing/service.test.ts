@@ -174,6 +174,8 @@ describe("handleStripeEvent", () => {
   });
 
   it("encola email de aviso en invoice.payment_failed", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-09-08T10:00:00.000Z"));
     const event = buildStripeEvent("invoice.payment_failed", {
       id: "inv_test_1",
       customer: customerId,
@@ -189,6 +191,64 @@ describe("handleStripeEvent", () => {
       expect.objectContaining({
         fromAlias: "support",
         toAddress: "cliente@example.com",
+      })
+    );
+    expect(mockedBusinessUpdateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ paymentFailureSuspensionAt: null }),
+        data: expect.objectContaining({
+          paymentFailureInvoiceId: "inv_test_1",
+          paymentFailureSuspensionAt: new Date("2026-09-15T10:00:00.000Z"),
+        }),
+      })
+    );
+    vi.useRealTimers();
+  });
+
+  it("envía una sola instrucción para retirar el desvío al programar la baja", async () => {
+    const event = buildStripeEvent("customer.subscription.updated", {
+      id: subscriptionId,
+      customer: customerId,
+      status: "active",
+      metadata: { businessId },
+      items: {
+        data: [{ price: { id: priceId }, current_period_start: 1751328000, current_period_end: 1754006400 }],
+      },
+      trial_end: null,
+      cancel_at_period_end: true,
+    });
+    mockedBusinessFindFirst.mockResolvedValue(buildBusiness() as any);
+    mockedBusinessFindUnique.mockResolvedValue(buildBusiness() as any);
+
+    await handleStripeEvent(event);
+
+    expect(mockedEnqueueEmailJob).toHaveBeenCalledWith(
+      expect.objectContaining({
+        fromAlias: "support",
+        toAddress: "test@example.com",
+        subject: expect.stringContaining("Acción necesaria"),
+      })
+    );
+    expect(mockedBusinessUpdateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ cancellationNoticeSentAt: null }),
+      })
+    );
+  });
+
+  it("solo reactiva llamadas cuando se paga la factura que abrió el plazo", async () => {
+    const event = buildStripeEvent("invoice.paid", {
+      id: "inv_test_1",
+      customer: customerId,
+    });
+    mockedBusinessFindFirst.mockResolvedValue(buildBusiness() as any);
+
+    await handleStripeEvent(event);
+
+    expect(mockedBusinessUpdateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: businessId, paymentFailureInvoiceId: "inv_test_1" },
+        data: expect.objectContaining({ callsSuspendedAt: null }),
       })
     );
   });

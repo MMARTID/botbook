@@ -7,6 +7,7 @@ import { processSendEmailJob } from "../../../src/jobs/sendEmail.js";
 import { processSendSmsJob } from "../../../src/jobs/sendSms.js";
 import { cleanupZombieCallsJob } from "../../../src/jobs/cleanupZombieCalls.js";
 import { retryStuckRecordingsJob } from "../../../src/jobs/retryStuckRecordings.js";
+import { suspendOverdueCallsJob } from "../../../src/jobs/suspendOverdueCalls.js";
 
 vi.mock("../../../src/jobs/processRecording.js", () => ({ processRecordingJob: vi.fn() }));
 vi.mock("../../../src/jobs/retryFailedBooking.js", () => ({ processRetryFailedBookingJob: vi.fn() }));
@@ -14,6 +15,7 @@ vi.mock("../../../src/jobs/sendEmail.js", () => ({ processSendEmailJob: vi.fn() 
 vi.mock("../../../src/jobs/sendSms.js", () => ({ processSendSmsJob: vi.fn() }));
 vi.mock("../../../src/jobs/cleanupZombieCalls.js", () => ({ cleanupZombieCallsJob: vi.fn() }));
 vi.mock("../../../src/jobs/retryStuckRecordings.js", () => ({ retryStuckRecordingsJob: vi.fn() }));
+vi.mock("../../../src/jobs/suspendOverdueCalls.js", () => ({ suspendOverdueCallsJob: vi.fn() }));
 
 const mockedProcessRecordingJob = vi.mocked(processRecordingJob);
 const mockedProcessRetryFailedBookingJob = vi.mocked(processRetryFailedBookingJob);
@@ -21,6 +23,7 @@ const mockedProcessSendEmailJob = vi.mocked(processSendEmailJob);
 const mockedProcessSendSmsJob = vi.mocked(processSendSmsJob);
 const mockedCleanupZombieCallsJob = vi.mocked(cleanupZombieCallsJob);
 const mockedRetryStuckRecordingsJob = vi.mocked(retryStuckRecordingsJob);
+const mockedSuspendOverdueCallsJob = vi.mocked(suspendOverdueCallsJob);
 
 describe("internalJobsRoutes", () => {
   let fastify: ReturnType<typeof Fastify>;
@@ -207,6 +210,26 @@ describe("internalJobsRoutes", () => {
       mockedCleanupZombieCallsJob.mockRejectedValue(new Error("DB caída"));
 
       const response = await fastify.inject({ method: "POST", url: "/jobs/cleanup-zombie-calls" });
+
+      expect(response.statusCode).toBe(500);
+    });
+  });
+
+  describe("POST /jobs/suspend-overdue-calls", () => {
+    it("suspende los negocios cuyo plazo de impago venció", async () => {
+      mockedSuspendOverdueCallsJob.mockResolvedValue(2);
+
+      const response = await fastify.inject({ method: "POST", url: "/jobs/suspend-overdue-calls" });
+
+      expect(response.statusCode).toBe(200);
+      expect(response.json()).toEqual({ received: true, suspendedBusinesses: 2 });
+      expect(mockedSuspendOverdueCallsJob).toHaveBeenCalled();
+    });
+
+    it("devuelve 500 para que Cloud Scheduler lo reintente", async () => {
+      mockedSuspendOverdueCallsJob.mockRejectedValue(new Error("DB caída"));
+
+      const response = await fastify.inject({ method: "POST", url: "/jobs/suspend-overdue-calls" });
 
       expect(response.statusCode).toBe(500);
     });
