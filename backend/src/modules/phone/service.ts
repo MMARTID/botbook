@@ -4,6 +4,7 @@ import { vapiAdapter } from "../../adapters/vapi/VapiAdapter.js";
 import { retellAdapter } from "../../adapters/retell/RetellAdapter.js";
 import { getPublicWebhookBaseUrl } from "../../lib/serverUrl.js";
 import { getRedis } from "../../lib/redis.js";
+import { acquireLock, releaseLock } from "../../lib/bookingLock.js";
 
 // El webhook de Stripe (checkout.session.completed) y el fallback de
 // reconcile del frontend pueden disparar provisionPhoneNumber casi a la vez
@@ -75,14 +76,22 @@ export async function provisionPhoneNumber(businessId: string): Promise<{
   }
 
   const lockKey = `phone_provision_lock:${businessId}`;
-  const acquiredLock = await getRedis().set(
+  // acquireBudgetMs=0: un solo intento, sin reintentos — si otra ejecución
+  // concurrente ya tiene el lock, esta simplemente devuelve el estado
+  // actual y deja que la que lo tiene termine de resolverlo (comportamiento
+  // original preservado). acquireLock/releaseLock (lib/bookingLock.ts) en
+  // vez de un SET/DEL manuales: la liberación ahora es comparar-y-borrar
+  // (solo borra si el token sigue siendo el nuestro), así que si el TTL
+  // expirara mientras esta ejecución sigue trabajando y otra adquiriera el
+  // lock mientras tanto, el `finally` de esta ejecución ya no puede borrar
+  // el lock de esa otra por error — el bug real que tenía el `del`
+  // incondicional anterior.
+  const lockToken = await acquireLock(
     lockKey,
-    "1",
-    "EX",
-    PROVISION_LOCK_TTL_SECONDS,
-    "NX"
+    PROVISION_LOCK_TTL_SECONDS * 1000,
+    0
   );
-  if (!acquiredLock) {
+  if (!lockToken) {
     // Ya hay un provisioning en curso para este negocio (la otra llamada
     // concurrente) — no comprar un segundo número, solo devolver el estado
     // actual (releído, no la copia de antes del lock). El que tiene el lock
@@ -125,14 +134,7 @@ export async function provisionPhoneNumber(businessId: string): Promise<{
   });
 
   if (!business) {
-    await getRedis()
-      .del(lockKey)
-      .catch((err) =>
-        console.error(
-          `[Phone] No se pudo liberar el lock de ${businessId}:`,
-          err
-        )
-      );
+    await releaseLock(lockKey, lockToken);
     return { success: false, status: "failed", error: "Business not found" };
   }
 
@@ -140,14 +142,7 @@ export async function provisionPhoneNumber(businessId: string): Promise<{
     business.twilioPhoneNumberStatus === "active" &&
     (business.telnyxPhoneNumber || business.twilioPhoneNumber)
   ) {
-    await getRedis()
-      .del(lockKey)
-      .catch((err) =>
-        console.error(
-          `[Phone] No se pudo liberar el lock de ${businessId}:`,
-          err
-        )
-      );
+    await releaseLock(lockKey, lockToken);
     return {
       success: true,
       phoneNumber:
@@ -455,14 +450,7 @@ export async function provisionPhoneNumber(businessId: string): Promise<{
 
     return { success: false, status: "failed", error: message };
   } finally {
-    await getRedis()
-      .del(lockKey)
-      .catch((err) =>
-        console.error(
-          `[Phone] No se pudo liberar el lock de ${businessId}:`,
-          err
-        )
-      );
+    await releaseLock(lockKey, lockToken);
   }
 }
 

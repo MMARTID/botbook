@@ -41,6 +41,12 @@ const { mockRedisClient } = vi.hoisted(() => ({
   mockRedisClient: {
     set: vi.fn().mockResolvedValue("OK"),
     del: vi.fn().mockResolvedValue(1),
+    // El lock de aprovisionamiento ahora se libera vía acquireLock/releaseLock
+    // (lib/bookingLock.ts), que usa un EVAL de comparar-y-borrar en vez de un
+    // DEL incondicional — ver hallazgo de la revisión posterior a la
+    // auditoría (un DEL sin más podía borrar el lock de otra ejecución si el
+    // TTL había expirado mientras tanto).
+    eval: vi.fn().mockResolvedValue(1),
   },
 }));
 
@@ -66,6 +72,7 @@ describe("provisionPhoneNumber", () => {
     vi.clearAllMocks();
     mockRedisClient.set.mockResolvedValue("OK");
     mockRedisClient.del.mockResolvedValue(1);
+    mockRedisClient.eval.mockResolvedValue(1);
     process.env.TELNYX_SPAIN_REQUIREMENT_GROUP_ID = "req_group_test";
     process.env.TELNYX_SIP_CONNECTION_ID = "conn_test";
     process.env.RETELL_SIP_TERMINATION_URI = "alhabla-inbound.sip.telnyx.com";
@@ -386,8 +393,15 @@ describe("provisionPhoneNumber", () => {
     expect(result.phoneNumber).toBe("+34886020712");
     expect(mockedSearchAvailableNumbers).not.toHaveBeenCalled();
     expect(mockedPurchaseNumber).not.toHaveBeenCalled();
-    // El lock se adquirió y se liberó igualmente, aunque no hiciera falta comprar nada.
-    expect(mockRedisClient.del).toHaveBeenCalledWith(`phone_provision_lock:${businessId}`);
+    // El lock se adquirió y se liberó igualmente, aunque no hiciera falta
+    // comprar nada — la liberación ahora es un EVAL de comparar-y-borrar
+    // (releaseLock), no un DEL incondicional.
+    expect(mockRedisClient.eval).toHaveBeenCalledWith(
+      expect.any(String),
+      1,
+      `phone_provision_lock:${businessId}`,
+      expect.any(String)
+    );
   });
 
   it("limpia telnyxNumberOrderId cuando Telnyx marca el pedido como 'failure' definitivo (hallazgo #32 de la auditoría)", async () => {
@@ -438,13 +452,16 @@ describe("provisionPhoneNumber", () => {
 
     expect(mockRedisClient.set).toHaveBeenCalledWith(
       `phone_provision_lock:${businessId}`,
-      "1",
-      "EX",
-      60,
+      expect.any(String),
+      "PX",
+      60_000,
       "NX"
     );
-    expect(mockRedisClient.del).toHaveBeenCalledWith(
-      `phone_provision_lock:${businessId}`
+    expect(mockRedisClient.eval).toHaveBeenCalledWith(
+      expect.any(String),
+      1,
+      `phone_provision_lock:${businessId}`,
+      expect.any(String)
     );
   });
 });

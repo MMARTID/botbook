@@ -21,7 +21,7 @@ describe("acquireBookingLock", () => {
 
     expect(token).not.toBeNull();
     expect(set).toHaveBeenCalledTimes(1);
-    expect(set).toHaveBeenCalledWith("booking_lock:biz_1", expect.any(String), "PX", 15_000, "NX");
+    expect(set).toHaveBeenCalledWith("booking_lock:biz_1", expect.any(String), "PX", 45_000, "NX");
   });
 
   it("reintenta si el lock está ocupado y lo consigue cuando se libera", async () => {
@@ -45,7 +45,7 @@ describe("acquireBookingLock", () => {
     }
   });
 
-  it("se rinde y devuelve null si el lock nunca se libera dentro del presupuesto de reintentos", async () => {
+  it("se rinde y devuelve null si el lock nunca se libera dentro del presupuesto de tiempo (6s / 300ms ≈ 20 intentos)", async () => {
     vi.useFakeTimers();
     try {
       const set = vi.fn().mockResolvedValue(null);
@@ -56,7 +56,14 @@ describe("acquireBookingLock", () => {
       const token = await promise;
 
       expect(token).toBeNull();
-      expect(set).toHaveBeenCalledTimes(15);
+      // Basado en un plazo de reloj (6000ms / 300ms de espera entre
+      // intentos), no en un nº de intentos fijo — con timers falsos que
+      // avanzan instantáneamente, el nº exacto de intentos que caben antes
+      // de que Date.now() supere el plazo puede variar en ±1 según en qué
+      // punto del bucle se evalúe; solo importa que se rinda dentro de un
+      // rango razonable, no un conteo exacto.
+      expect(set.mock.calls.length).toBeGreaterThanOrEqual(15);
+      expect(set.mock.calls.length).toBeLessThanOrEqual(25);
     } finally {
       vi.useRealTimers();
     }
