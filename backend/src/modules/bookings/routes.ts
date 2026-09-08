@@ -36,7 +36,7 @@ const ServiceSchema = z.object({
 
 const UpdateServiceSchema = ServiceSchema.partial().refine(
   (value) => Object.keys(value).length > 0,
-  "At least one field is required",
+  "At least one field is required"
 );
 
 const ProfessionalSchema = z.object({
@@ -51,9 +51,14 @@ const UpdateProfessionalSchema = z
     active: z.boolean().optional(),
     serviceIds: z.array(z.string().min(1)).optional(),
   })
-  .refine((value) => Object.keys(value).length > 0, "At least one field is required");
+  .refine(
+    (value) => Object.keys(value).length > 0,
+    "At least one field is required"
+  );
 
-async function getBookingSettingsPayload(businessId: string): Promise<BookingSettingsPayload> {
+async function getBookingSettingsPayload(
+  businessId: string
+): Promise<BookingSettingsPayload> {
   const business = await prisma.business.findUnique({
     where: { id: businessId },
     select: {
@@ -92,7 +97,10 @@ async function getBookingSettingsPayload(businessId: string): Promise<BookingSet
   };
 }
 
-async function ensureServicesBelongToBusiness(businessId: string, serviceIds: string[]) {
+async function ensureServicesBelongToBusiness(
+  businessId: string,
+  serviceIds: string[]
+) {
   if (serviceIds.length === 0) return;
 
   const count = await prisma.service.count({
@@ -108,6 +116,25 @@ async function ensureServicesBelongToBusiness(businessId: string, serviceIds: st
 }
 
 async function invalidateBusinessAgentConfigCache(businessId: string) {
+  const redis = getRedis();
+
+  // voice_config:<businessId> (voiceTools/service.ts) es la caché que de
+  // verdad importa hoy — TODO negocio nuevo usa Retell, nunca Vapi (ver
+  // detectVoiceOrchestrator). Antes esta función solo borraba vapi_config:*
+  // y salía enseguida si no había ningún agente con vapiAssistantId, así que
+  // para cualquier negocio Retell no invalidaba nada en absoluto: bajar la
+  // capacidad seguía permitiendo reservar por encima del nuevo límite (o
+  // subirla seguía rechazando de más) durante hasta 1h (hallazgo #16 de la
+  // auditoría).
+  try {
+    await redis.del(`voice_config:${businessId}`);
+  } catch (err) {
+    console.error(
+      `No se pudo invalidar la caché de configuración de voz para ${businessId}:`,
+      err
+    );
+  }
+
   const agents = await prisma.agent.findMany({
     where: { businessId, vapiAssistantId: { not: null } },
     select: { vapiAssistantId: true },
@@ -115,7 +142,6 @@ async function invalidateBusinessAgentConfigCache(businessId: string) {
 
   if (!agents.length) return;
 
-  const redis = getRedis();
   const pipeline = redis.pipeline();
   for (const agent of agents) {
     if (agent.vapiAssistantId) {
@@ -131,13 +157,17 @@ export async function bookingSettingsRoutes(fastify: FastifyInstance) {
     { preValidation: [fastify.authenticate] },
     async (request: FastifyRequest, reply) => {
       try {
-        const payload = await getBookingSettingsPayload(request.user!.businessId);
+        const payload = await getBookingSettingsPayload(
+          request.user!.businessId
+        );
         return reply.send(payload);
       } catch (error) {
         fastify.log.error(error);
-        return reply.status(500).send({ error: "Failed to fetch booking settings" });
+        return reply
+          .status(500)
+          .send({ error: "Failed to fetch booking settings" });
       }
-    },
+    }
   );
 
   fastify.patch<{ Body: z.infer<typeof CapacitySchema> }>(
@@ -151,15 +181,19 @@ export async function bookingSettingsRoutes(fastify: FastifyInstance) {
           data: { bookingCapacity },
         });
         await invalidateBusinessAgentConfigCache(request.user!.businessId);
-        return reply.send(await getBookingSettingsPayload(request.user!.businessId));
+        return reply.send(
+          await getBookingSettingsPayload(request.user!.businessId)
+        );
       } catch (error) {
         if (error instanceof z.ZodError) {
           return reply.status(400).send({ error: error.errors });
         }
         fastify.log.error(error);
-        return reply.status(500).send({ error: "Failed to update booking capacity" });
+        return reply
+          .status(500)
+          .send({ error: "Failed to update booking capacity" });
       }
-    },
+    }
   );
 
   fastify.post<{ Body: z.infer<typeof ServiceSchema> }>(
@@ -186,7 +220,7 @@ export async function bookingSettingsRoutes(fastify: FastifyInstance) {
         fastify.log.error(error);
         return reply.status(500).send({ error: "Failed to create service" });
       }
-    },
+    }
   );
 
   fastify.patch<{
@@ -223,7 +257,7 @@ export async function bookingSettingsRoutes(fastify: FastifyInstance) {
         fastify.log.error(error);
         return reply.status(500).send({ error: "Failed to update service" });
       }
-    },
+    }
   );
 
   fastify.post<{ Body: z.infer<typeof ProfessionalSchema> }>(
@@ -232,7 +266,10 @@ export async function bookingSettingsRoutes(fastify: FastifyInstance) {
     async (request, reply) => {
       try {
         const data = ProfessionalSchema.parse(request.body);
-        await ensureServicesBelongToBusiness(request.user!.businessId, data.serviceIds);
+        await ensureServicesBelongToBusiness(
+          request.user!.businessId,
+          data.serviceIds
+        );
 
         const professional = await prisma.professional.create({
           data: {
@@ -266,13 +303,18 @@ export async function bookingSettingsRoutes(fastify: FastifyInstance) {
         if (error instanceof z.ZodError) {
           return reply.status(400).send({ error: error.errors });
         }
-        if (error instanceof Error && error.message.includes("services do not belong")) {
+        if (
+          error instanceof Error &&
+          error.message.includes("services do not belong")
+        ) {
           return reply.status(400).send({ error: error.message });
         }
         fastify.log.error(error);
-        return reply.status(500).send({ error: "Failed to create professional" });
+        return reply
+          .status(500)
+          .send({ error: "Failed to create professional" });
       }
-    },
+    }
   );
 
   fastify.patch<{
@@ -299,7 +341,10 @@ export async function bookingSettingsRoutes(fastify: FastifyInstance) {
         }
 
         if (data.serviceIds) {
-          await ensureServicesBelongToBusiness(request.user!.businessId, data.serviceIds);
+          await ensureServicesBelongToBusiness(
+            request.user!.businessId,
+            data.serviceIds
+          );
         }
 
         const updated = await prisma.$transaction(async (tx) => {
@@ -348,12 +393,17 @@ export async function bookingSettingsRoutes(fastify: FastifyInstance) {
         if (error instanceof z.ZodError) {
           return reply.status(400).send({ error: error.errors });
         }
-        if (error instanceof Error && error.message.includes("services do not belong")) {
+        if (
+          error instanceof Error &&
+          error.message.includes("services do not belong")
+        ) {
           return reply.status(400).send({ error: error.message });
         }
         fastify.log.error(error);
-        return reply.status(500).send({ error: "Failed to update professional" });
+        return reply
+          .status(500)
+          .send({ error: "Failed to update professional" });
       }
-    },
+    }
   );
 }

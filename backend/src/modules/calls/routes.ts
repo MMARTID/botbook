@@ -1,11 +1,41 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import { prisma } from "../../lib/prisma.js";
 import { z } from "zod";
+import { getSignedRecordingUrl } from "../../lib/storage.js";
 
 const PaginationSchema = z.object({
   limit: z.coerce.number().min(1).max(100).default(50),
   offset: z.coerce.number().min(0).default(0),
 });
+
+/**
+ * El bucket de R2 es privado — storageUrl guardado en BD es una URL de API
+ * S3 sin firmar, no reproducible. CallDetailModal (frontend) prioriza este
+ * storageUrl sobre el de Retell, así que sin firmar aquí el audio dejaba de
+ * reproducirse en cuanto la grabación ya estaba copiada a R2 (hallazgo #15
+ * de la auditoría) — mismo patrón que recordings/routes.ts. Si falla la
+ * firma, cae a null en vez de romper la respuesta: el frontend ya sabe usar
+ * vapiUrl (Retell) como alternativa.
+ */
+async function withSignedRecordingUrl<
+  T extends {
+    recording: { storageKey: string | null; storageUrl: string | null } | null;
+  },
+>(call: T): Promise<T> {
+  if (!call.recording?.storageKey) {
+    return call;
+  }
+  try {
+    const storageUrl = await getSignedRecordingUrl(call.recording.storageKey);
+    return { ...call, recording: { ...call.recording, storageUrl } };
+  } catch (error) {
+    console.error(
+      "[Calls] No se pudo generar la URL firmada de la grabación:",
+      error
+    );
+    return { ...call, recording: { ...call.recording, storageUrl: null } };
+  }
+}
 
 export async function callsRoutes(fastify: FastifyInstance) {
   // Get all calls for the authenticated user's business
@@ -13,7 +43,9 @@ export async function callsRoutes(fastify: FastifyInstance) {
     "/business/me/calls",
     { preValidation: [fastify.authenticate] },
     async (
-      request: FastifyRequest<{ Querystring: z.infer<typeof PaginationSchema> }>,
+      request: FastifyRequest<{
+        Querystring: z.infer<typeof PaginationSchema>;
+      }>,
       reply
     ) => {
       try {
@@ -58,7 +90,7 @@ export async function callsRoutes(fastify: FastifyInstance) {
         const call = await prisma.call.findUnique({
           where: {
             id: callId,
-            businessId: businessId // Ensure call belongs to user's business
+            businessId: businessId, // Ensure call belongs to user's business
           },
           include: {
             agent: true,
@@ -76,7 +108,8 @@ export async function callsRoutes(fastify: FastifyInstance) {
         // Booking.serviceIds es un array nativo de Postgres, sin relación de
         // Prisma a Service (ver comentario en schema.prisma) — hay que
         // resolver los nombres aparte para que el frontend no reciba solo IDs.
-        let services: { id: string; name: string; durationMinutes: number }[] = [];
+        let services: { id: string; name: string; durationMinutes: number }[] =
+          [];
         if (call.booking?.serviceIds?.length) {
           services = await prisma.service.findMany({
             where: { id: { in: call.booking.serviceIds } },
@@ -84,9 +117,13 @@ export async function callsRoutes(fastify: FastifyInstance) {
           });
         }
 
+        const signedCall = await withSignedRecordingUrl(call);
+
         return reply.send({
-          ...call,
-          booking: call.booking ? { ...call.booking, services } : call.booking,
+          ...signedCall,
+          booking: signedCall.booking
+            ? { ...signedCall.booking, services }
+            : signedCall.booking,
         });
       } catch (error) {
         return reply.status(500).send({ error: "Failed to fetch call" });
