@@ -3,6 +3,7 @@ import { executeVoiceTool } from "../../../src/modules/voiceTools/service.js";
 import { prisma } from "../../../src/lib/prisma.js";
 import { getRedis } from "../../../src/lib/redis.js";
 import { checkBusinessHours } from "../../../src/lib/businessSchedule.js";
+import { checkAvailability } from "../../../src/lib/availability.js";
 import { calendarService } from "../../../src/modules/calendar/service.js";
 import { enqueueSmsJob } from "../../../src/lib/cloudTasks.js";
 
@@ -10,7 +11,7 @@ vi.mock("../../../src/lib/prisma.js", () => ({
   prisma: {
     business: { findUnique: vi.fn() },
     call: { findUnique: vi.fn(), findFirst: vi.fn() },
-    booking: { upsert: vi.fn() },
+    booking: { upsert: vi.fn(), findUnique: vi.fn() },
     professional: { findFirst: vi.fn() },
     service: { findFirst: vi.fn(), findMany: vi.fn() },
   },
@@ -19,8 +20,13 @@ vi.mock("../../../src/lib/prisma.js", () => ({
 vi.mock("../../../src/lib/redis.js", () => ({
   getRedis: vi.fn(() => ({
     get: vi.fn().mockResolvedValue(null),
-    set: vi.fn(),
+    // "OK" simula que el SET NX del lock de reserva (acquireBookingLock) lo
+    // consigue siempre a la primera — el propio lock de concurrencia se
+    // prueba aparte en tests/lib/bookingLock.test.ts; aquí solo interesa que
+    // no bloquee ni retrase estos tests (cada intento fallido espera 300ms).
+    set: vi.fn().mockResolvedValue("OK"),
     del: vi.fn(),
+    eval: vi.fn().mockResolvedValue(1),
   })),
 }));
 
@@ -48,9 +54,11 @@ const mockedBusinessFindUnique = vi.mocked(prisma.business.findUnique);
 const mockedCallFindUnique = vi.mocked(prisma.call.findUnique);
 const mockedCallFindFirst = vi.mocked(prisma.call.findFirst);
 const mockedBookingUpsert = vi.mocked(prisma.booking.upsert);
+const mockedBookingFindUnique = vi.mocked(prisma.booking.findUnique);
 const mockedProfessionalFindFirst = vi.mocked(prisma.professional.findFirst);
 const mockedServiceFindMany = vi.mocked(prisma.service.findMany);
 const mockedCheckBusinessHours = vi.mocked(checkBusinessHours);
+const mockedCheckAvailability = vi.mocked(checkAvailability);
 const mockedBookAppointment = vi.mocked(calendarService.bookAppointment);
 const mockedEnqueueSmsJob = vi.mocked(enqueueSmsJob);
 
@@ -95,6 +103,20 @@ describe("executeVoiceTool book_appointment — vinculación a la llamada correc
     mockedBookAppointment.mockResolvedValue({ htmlLink: "https://calendar.google.com/event/1" } as any);
     mockedProfessionalFindFirst.mockResolvedValue({ id: "professional_123" } as any);
     mockedServiceFindMany.mockResolvedValue([]);
+    // checkAvailability ahora se llama SIEMPRE (antes se saltaba si venía un
+    // professionalId ya verificado — ver fix del hallazgo #3 de la
+    // auditoría), así que todo test que reserve con profesional necesita un
+    // resultado por defecto.
+    mockedCheckAvailability.mockResolvedValue({
+      available: true,
+      message: "",
+      capacityUsed: 0,
+      capacityTotal: 1,
+      availableProfessionals: [{ id: "professional_123", name: "Ana" }],
+    } as any);
+    // Sin reserva previa para esta llamada — la comprobación de idempotencia
+    // (hallazgo #6) no debe interferir con el camino feliz de estos tests.
+    mockedBookingFindUnique.mockResolvedValue(null);
     // enqueueSmsJob es async en producción (siempre devuelve una Promise) —
     // sin esto, vi.fn() devuelve undefined y el .catch() del código real
     // lanza un TypeError síncrono, capturado por el catch de la reserva.
@@ -134,8 +156,11 @@ describe("executeVoiceTool book_appointment — vinculación a la llamada correc
     // select sin fromNumber a propósito: el heurístico puede devolver la
     // llamada de OTRO cliente si hay dos simultáneas, así que su teléfono
     // nunca debe usarse como contacto de esta reserva (ver siguiente test).
+    // status: IN_PROGRESS a propósito también: descarta llamadas ya
+    // finalizadas (que podrían tener su propia reserva ya confirmada) del
+    // heurístico — ver hallazgo #14 de la auditoría.
     expect(mockedCallFindFirst).toHaveBeenCalledWith({
-      where: { businessId: "business_123" },
+      where: { businessId: "business_123", status: "IN_PROGRESS" },
       orderBy: { startedAt: "desc" },
       select: { id: true },
     });
@@ -229,6 +254,14 @@ describe("executeVoiceTool book_appointment — varios servicios en la misma cit
     mockedBookAppointment.mockResolvedValue({ htmlLink: "https://calendar.google.com/event/1" } as any);
     mockedProfessionalFindFirst.mockResolvedValue({ id: "professional_123" } as any);
     mockedCallFindFirst.mockResolvedValue({ id: "call_row_1" } as any);
+    mockedCheckAvailability.mockResolvedValue({
+      available: true,
+      message: "",
+      capacityUsed: 0,
+      capacityTotal: 1,
+      availableProfessionals: [{ id: "professional_123", name: "Ana" }],
+    } as any);
+    mockedBookingFindUnique.mockResolvedValue(null);
     mockedEnqueueSmsJob.mockResolvedValue(undefined);
   });
 

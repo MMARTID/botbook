@@ -1,16 +1,21 @@
 import { prisma } from "../../lib/prisma.js";
 import { getRedis } from "../../lib/redis.js";
-import { checkBusinessHours, checkBookingRestrictions } from "../../lib/businessSchedule.js";
+import {
+  checkBusinessHours,
+  checkBookingRestrictions,
+} from "../../lib/businessSchedule.js";
 import { checkAvailability } from "../../lib/availability.js";
 import { calendarService } from "../calendar/service.js";
 import { errorMessage } from "../../lib/logUtils.js";
 import { enqueueRetryBookingJob, enqueueSmsJob } from "../../lib/cloudTasks.js";
 import { isValidE164Phone } from "../../lib/phone.js";
+import {
+  acquireBookingLock,
+  releaseBookingLock,
+} from "../../lib/bookingLock.js";
 
 export type VoiceToolName =
-  | "check_business_hours"
-  | "check_availability"
-  | "book_appointment";
+  "check_business_hours" | "check_availability" | "book_appointment";
 
 export interface ExecuteVoiceToolInput {
   businessId: string;
@@ -83,7 +88,8 @@ async function getCachedVoiceConfig(
     const cachedConfigStr = await redis.get(redisKey);
     if (cachedConfigStr) {
       const parsed = JSON.parse(cachedConfigStr) as BusinessVoiceConfig;
-      const provider = parsed.calendarProvider === "outlook" ? "outlook" : "google";
+      const provider =
+        parsed.calendarProvider === "outlook" ? "outlook" : "google";
       const hasToken =
         provider === "outlook"
           ? !!parsed.outlookRefreshToken
@@ -174,11 +180,20 @@ async function executeCheckBusinessHours(
     );
 
     if (hoursResult.success && hoursResult.isOpen) {
-      const restrictions = checkBookingRestrictions(business, startDateTime, durationMinutes);
+      const restrictions = checkBookingRestrictions(
+        business,
+        startDateTime,
+        durationMinutes
+      );
       if (!restrictions.success) {
         return {
           success: true,
-          result: { ...hoursResult, isOpen: false, code: restrictions.code, message: restrictions.message },
+          result: {
+            ...hoursResult,
+            isOpen: false,
+            code: restrictions.code,
+            message: restrictions.message,
+          },
         };
       }
     }
@@ -215,7 +230,9 @@ async function executeCheckAvailability(
       ? params.serviceIds.filter((id): id is string => typeof id === "string")
       : undefined;
     const professionalId =
-      typeof params?.professionalId === "string" ? params.professionalId : undefined;
+      typeof params?.professionalId === "string"
+        ? params.professionalId
+        : undefined;
 
     const availability = await checkAvailability({
       businessId: business.id,
@@ -274,8 +291,17 @@ async function resolveCallForBusiness(
     );
   }
 
+  // status: IN_PROGRESS a propósito — sin este filtro, si la llamada
+  // anterior de este negocio ya colgó y terminó de procesarse (call_ended
+  // llegó y la marcó COMPLETED/FAILED, posiblemente ya con su propia
+  // reserva), el heurístico la elegiría igualmente por ser "la más
+  // reciente" y el upsert de más abajo sobrescribiría LA RESERVA DE ESE
+  // OTRO CLIENTE con los datos de la llamada actual. Filtrar a IN_PROGRESS
+  // reduce el heurístico a su caso de uso real: la fila de la llamada
+  // actual, que solo tarda un instante en llegar por la carrera con
+  // call_started, sigue "en curso" durante esa ventana.
   const fallbackCall = await prisma.call.findFirst({
-    where: { businessId },
+    where: { businessId, status: "IN_PROGRESS" },
     orderBy: { startedAt: "desc" },
     select: { id: true },
   });
@@ -409,7 +435,14 @@ async function executeBookAppointment(
     serviceIds?: string[];
     professionalId?: string;
   };
-  const { clientName, startDateTime, durationMinutes, clientEmail, clientPhone, professionalId } = rawParams;
+  const {
+    clientName,
+    startDateTime,
+    durationMinutes,
+    clientEmail,
+    clientPhone,
+    professionalId,
+  } = rawParams;
   const requestedServiceIds = Array.isArray(rawParams.serviceIds)
     ? rawParams.serviceIds.filter((id): id is string => typeof id === "string")
     : [];
@@ -437,7 +470,11 @@ async function executeBookAppointment(
     let verifiedServicesDurationMinutes = 0;
     if (requestedServiceIds.length > 0) {
       const services = await prisma.service.findMany({
-        where: { id: { in: requestedServiceIds }, businessId: business.id, active: true },
+        where: {
+          id: { in: requestedServiceIds },
+          businessId: business.id,
+          active: true,
+        },
         select: { id: true, name: true, durationMinutes: true },
       });
       // findMany({ id: { in } }) no garantiza devolver las filas en el orden
@@ -459,12 +496,18 @@ async function executeBookAppointment(
         .filter((s): s is (typeof services)[number] => Boolean(s));
       verifiedServiceIds = orderedServices.map((s) => s.id);
       verifiedServiceNames = orderedServices.map((s) => s.name);
-      verifiedServicesDurationMinutes = orderedServices.reduce((sum, s) => sum + s.durationMinutes, 0);
+      verifiedServicesDurationMinutes = orderedServices.reduce(
+        (sum, s) => sum + s.durationMinutes,
+        0
+      );
     }
     // La suma de duraciones de los servicios verificados manda sobre lo que
     // diga el LLM — evita que una suma mental mal hecha en la conversación
     // desemboque en una cita más corta o más larga de lo real.
-    const effectiveDuration = verifiedServiceIds.length > 0 ? verifiedServicesDurationMinutes : durationMinutes || 30;
+    const effectiveDuration =
+      verifiedServiceIds.length > 0
+        ? verifiedServicesDurationMinutes
+        : durationMinutes || 30;
 
     const provider =
       business.calendarProvider === "outlook" ? "outlook" : "google";
@@ -534,7 +577,11 @@ async function executeBookAppointment(
       };
     }
 
-    const restrictions = checkBookingRestrictions(business, startDateTime, effectiveDuration);
+    const restrictions = checkBookingRestrictions(
+      business,
+      startDateTime,
+      effectiveDuration
+    );
     if (!restrictions.success) {
       return {
         success: true,
@@ -563,10 +610,50 @@ async function executeBookAppointment(
       }
     }
 
-    // Resolve professional: use provided one, otherwise pick the first available
-    let resolvedProfessionalId = verifiedProfessionalId;
-    let resolvedProfessionalName = verifiedProfessionalName;
-    if (!resolvedProfessionalId) {
+    // Serializa por negocio desde aquí (justo antes de comprobar
+    // disponibilidad) hasta que la reserva quede guardada — ver comentario
+    // en acquireBookingLock. Si no se consigue el lock a tiempo, se trata
+    // igual que cualquier otro fallo transitorio: se guarda el lead y se
+    // reintenta en segundo plano, en vez de arriesgar una doble reserva.
+    const bookingLockToken = await acquireBookingLock(business.id);
+    if (!bookingLockToken) {
+      console.warn(
+        `[VoiceTools] ${callLabel} no pudo adquirir el lock de reserva de ${business.id} a tiempo`
+      );
+      const leadId = await capturePendingBookingLead({
+        resolvedCall: call,
+        businessId: business.id,
+        clientName,
+        clientEmail,
+        clientPhone,
+        startDateTime,
+        durationMinutes: effectiveDuration,
+        serviceIds: verifiedServiceIds,
+        professionalId: verifiedProfessionalId,
+        failureCode: "BOOKING_LOCK_TIMEOUT",
+        callLabel,
+      });
+      if (leadId) {
+        await enqueueRetryFailedBooking(leadId);
+      }
+      return {
+        success: true,
+        result: {
+          success: false,
+          code: "BOOKING_LOCK_TIMEOUT",
+          message:
+            "Hay otra reserva de este negocio en curso justo ahora. He tomado nota de tus datos y te confirmaremos en breve.",
+        },
+      };
+    }
+
+    try {
+      // Comprueba disponibilidad SIEMPRE, se haya indicado profesional o no —
+      // antes esto se saltaba por completo cuando professionalId venía
+      // verificado, así que se podía confirmar una reserva para un profesional
+      // ya ocupado en ese hueco, o por encima de la capacidad del negocio
+      // (checkAvailability ya soporta filtrar por professionalId; solo hacía
+      // falta pasarlo también en este camino).
       const availability = await checkAvailability({
         businessId: business.id,
         schedule: business.schedule,
@@ -575,6 +662,7 @@ async function executeBookAppointment(
         startDateTime,
         durationMinutes: effectiveDuration,
         serviceIds: verifiedServiceIds,
+        professionalId: verifiedProfessionalId,
       });
 
       if (!availability.available) {
@@ -588,147 +676,232 @@ async function executeBookAppointment(
         };
       }
 
-      resolvedProfessionalId = availability.availableProfessionals[0]?.id;
-      resolvedProfessionalName = availability.availableProfessionals[0]?.name;
-    }
+      const resolvedProfessionalId =
+        verifiedProfessionalId ?? availability.availableProfessionals[0]?.id;
+      const resolvedProfessionalName = verifiedProfessionalId
+        ? verifiedProfessionalName
+        : availability.availableProfessionals[0]?.name;
 
-    try {
-      const result = await calendarService.bookAppointment({
-        clientName,
-        startDateTime,
-        durationMinutes: effectiveDuration,
-        clientEmail,
-        clientPhone: effectiveClientPhone,
-        serviceNames: verifiedServiceNames,
-        professionalName: resolvedProfessionalName,
-        provider,
-        googleRefreshToken: business.googleRefreshToken,
-        googleCalendarId: business.googleCalendarId,
-        outlookRefreshToken: business.outlookRefreshToken,
-        outlookCalendarId: business.outlookCalendarId,
-      });
-
-      // Persist booking in database, vinculada a la llamada exacta cuando se
-      // conoce su callId (ver resolveCallForBusiness).
+      // Idempotencia: si esta llamada YA tiene un Booking con un evento
+      // externo creado para esta misma fecha/duración exactas (Retell
+      // reintentando el tool call tras un timeout, por ejemplo), no se crea
+      // un segundo evento — se confirma reutilizando el que ya existe. Una
+      // fecha/duración distinta sigue tratándose como un cambio de opinión
+      // legítimo del cliente (nueva reserva sobre la misma llamada), no
+      // como un reintento.
       if (call) {
-        await prisma.booking.upsert({
+        const existingBooking = await prisma.booking.findUnique({
           where: { callId: call.id },
-          create: {
-            callId: call.id,
-            programedAt: new Date(startDateTime),
-            durationMinutes: effectiveDuration,
-            numberPeople: 1,
-            professionalId: resolvedProfessionalId ?? undefined,
-            serviceIds: verifiedServiceIds,
-            clientPhone: clientPhone || undefined,
-          },
-          update: {
-            programedAt: new Date(startDateTime),
-            durationMinutes: effectiveDuration,
-            professionalId: resolvedProfessionalId ?? undefined,
-            serviceIds: verifiedServiceIds,
-            clientPhone: clientPhone || undefined,
+          select: {
+            externalEventId: true,
+            programedAt: true,
+            durationMinutes: true,
           },
         });
-      }
-
-      console.log(`[VoiceTools] ${callLabel} agendó la cita correctamente`);
-
-      // Aviso al propietario por SMS (Telnyx), no por email: nunca puede
-      // hacer fallar la reserva en sí (try/catch propio). Dos guardas antes
-      // de intentarlo: (1) el negocio necesita su propio número Telnyx: sin
-      // él no hay remitente; (2) business.phone válido en formato E.164 —
-      // nace como placeholder ("TEMP-...", ver auth/routes.ts) hasta que el
-      // negocio lo edita explícitamente vía PATCH /business/me, así que sin
-      // esta comprobación cualquier negocio que aún no lo haya hecho
-      // encolaría un SMS destinado a fallar en cada reserva.
-      // Sí se espera (await): en producción enqueueSmsJob solo crea una
-      // tarea de Cloud Tasks (una llamada rápida, no el envío del SMS en
-      // sí) — no esperarla es peligroso en Cloud Run, que solo garantiza
-      // CPU mientras dura la petición y puede congelar el proceso justo
-      // después de responder al tool call, dejando esa tarea sin crear
-      // silenciosamente.
-      if (business.telnyxPhoneNumber && isValidE164Phone(business.phone)) {
-        try {
-          await enqueueSmsJob({
-            fromNumber: business.telnyxPhoneNumber,
-            toNumber: business.phone,
-            text: buildBookingSmsText({
-              clientName,
-              startDateTime,
-              timezone: business.timezone || "Europe/Madrid",
-              serviceNames: verifiedServiceNames,
-              professionalName: resolvedProfessionalName,
-            }),
-          });
-        } catch (smsError) {
-          console.error(
-            `[VoiceTools] ${callLabel} no pudo encolar el SMS de aviso: ${errorMessage(smsError)}`
+        if (
+          existingBooking?.externalEventId &&
+          existingBooking.programedAt.getTime() ===
+            new Date(startDateTime).getTime() &&
+          existingBooking.durationMinutes === effectiveDuration
+        ) {
+          console.log(
+            `[VoiceTools] ${callLabel} ya tenía un evento creado para esta reserva exacta (${existingBooking.externalEventId}); no se crea uno nuevo`
           );
+          return {
+            success: true,
+            result: {
+              success: true,
+              message: "Cita agendada correctamente.",
+              professionalId: resolvedProfessionalId,
+            },
+          };
         }
       }
 
-      return {
-        success: true,
-        result: {
+      try {
+        const result = await calendarService.bookAppointment({
+          clientName,
+          startDateTime,
+          durationMinutes: effectiveDuration,
+          clientEmail,
+          clientPhone: effectiveClientPhone,
+          serviceNames: verifiedServiceNames,
+          professionalName: resolvedProfessionalName,
+          provider,
+          googleRefreshToken: business.googleRefreshToken,
+          googleCalendarId: business.googleCalendarId,
+          outlookRefreshToken: business.outlookRefreshToken,
+          outlookCalendarId: business.outlookCalendarId,
+        });
+
+        // Persist booking in database, vinculada a la llamada exacta cuando se
+        // conoce su callId (ver resolveCallForBusiness).
+        if (call) {
+          await prisma.booking.upsert({
+            where: { callId: call.id },
+            create: {
+              callId: call.id,
+              programedAt: new Date(startDateTime),
+              durationMinutes: effectiveDuration,
+              numberPeople: 1,
+              professionalId: resolvedProfessionalId ?? undefined,
+              serviceIds: verifiedServiceIds,
+              clientPhone: clientPhone || undefined,
+              externalEventId: (result as { id?: string })?.id ?? undefined,
+            },
+            update: {
+              programedAt: new Date(startDateTime),
+              durationMinutes: effectiveDuration,
+              professionalId: resolvedProfessionalId ?? undefined,
+              serviceIds: verifiedServiceIds,
+              clientPhone: clientPhone || undefined,
+              externalEventId: (result as { id?: string })?.id ?? undefined,
+            },
+          });
+        }
+
+        console.log(`[VoiceTools] ${callLabel} agendó la cita correctamente`);
+
+        // Aviso al propietario por SMS (Telnyx), no por email: nunca puede
+        // hacer fallar la reserva en sí (try/catch propio). Dos guardas antes
+        // de intentarlo: (1) el negocio necesita su propio número Telnyx: sin
+        // él no hay remitente; (2) business.phone válido en formato E.164 —
+        // nace como placeholder ("TEMP-...", ver auth/routes.ts) hasta que el
+        // negocio lo edita explícitamente vía PATCH /business/me, así que sin
+        // esta comprobación cualquier negocio que aún no lo haya hecho
+        // encolaría un SMS destinado a fallar en cada reserva.
+        // Sí se espera (await): en producción enqueueSmsJob solo crea una
+        // tarea de Cloud Tasks (una llamada rápida, no el envío del SMS en
+        // sí) — no esperarla es peligroso en Cloud Run, que solo garantiza
+        // CPU mientras dura la petición y puede congelar el proceso justo
+        // después de responder al tool call, dejando esa tarea sin crear
+        // silenciosamente.
+        if (business.telnyxPhoneNumber && isValidE164Phone(business.phone)) {
+          try {
+            await enqueueSmsJob({
+              fromNumber: business.telnyxPhoneNumber,
+              toNumber: business.phone,
+              text: buildBookingSmsText({
+                clientName,
+                startDateTime,
+                timezone: business.timezone || "Europe/Madrid",
+                serviceNames: verifiedServiceNames,
+                professionalName: resolvedProfessionalName,
+              }),
+            });
+          } catch (smsError) {
+            console.error(
+              `[VoiceTools] ${callLabel} no pudo encolar el SMS de aviso: ${errorMessage(smsError)}`
+            );
+          }
+        }
+
+        return {
           success: true,
-          message: "Cita agendada correctamente.",
-          eventLink: (result as { htmlLink?: string })?.htmlLink,
-          professionalId: resolvedProfessionalId,
-        },
-      };
-    } catch (error) {
-      const e = error as any;
-      if (
-        e?.name === "CalendarBusinessError" &&
-        (e?.code === "GOOGLE_CALENDAR_RECONNECT_REQUIRED" ||
-          e?.code === "OUTLOOK_CALENDAR_RECONNECT_REQUIRED")
-      ) {
-        const errorProvider =
-          e?.code === "OUTLOOK_CALENDAR_RECONNECT_REQUIRED"
-            ? "outlook"
-            : "google";
-        try {
-          await prisma.business.update({
-            where: { id: business.id },
-            data:
-              errorProvider === "outlook"
-                ? {
-                    outlookCalendarConnected: false,
-                    outlookRefreshToken: null,
-                    outlookCalendarDisconnectedAt: new Date(),
-                    outlookCalendarLastError: "invalid_grant",
-                  }
-                : {
-                    googleCalendarConnected: false,
-                    googleRefreshToken: null,
-                    googleCalendarDisconnectedAt: new Date(),
-                    googleCalendarLastError: "invalid_grant",
-                  },
+          result: {
+            success: true,
+            message: "Cita agendada correctamente.",
+            eventLink: (result as { htmlLink?: string })?.htmlLink,
+            professionalId: resolvedProfessionalId,
+          },
+        };
+      } catch (error) {
+        const e = error as any;
+        if (
+          e?.name === "CalendarBusinessError" &&
+          (e?.code === "GOOGLE_CALENDAR_RECONNECT_REQUIRED" ||
+            e?.code === "OUTLOOK_CALENDAR_RECONNECT_REQUIRED")
+        ) {
+          const errorProvider =
+            e?.code === "OUTLOOK_CALENDAR_RECONNECT_REQUIRED"
+              ? "outlook"
+              : "google";
+          try {
+            await prisma.business.update({
+              where: { id: business.id },
+              data:
+                errorProvider === "outlook"
+                  ? {
+                      outlookCalendarConnected: false,
+                      outlookRefreshToken: null,
+                      outlookCalendarDisconnectedAt: new Date(),
+                      outlookCalendarLastError: "invalid_grant",
+                    }
+                  : {
+                      googleCalendarConnected: false,
+                      googleRefreshToken: null,
+                      googleCalendarDisconnectedAt: new Date(),
+                      googleCalendarLastError: "invalid_grant",
+                    },
+            });
+          } catch (dbErr) {
+            console.error(
+              `[VoiceTools] No se pudo actualizar el estado de ${
+                errorProvider === "outlook"
+                  ? "Outlook Calendar"
+                  : "Google Calendar"
+              }: ${errorMessage(dbErr)}`
+            );
+          }
+
+          try {
+            await getRedis().del(getVoiceConfigRedisKey(business.id));
+          } catch (redisErr) {
+            console.error(
+              `[VoiceTools] No se pudo invalidar la caché de calendario: ${errorMessage(
+                redisErr
+              )}`
+            );
+          }
+
+          // Reconectar el calendario requiere una acción manual del negocio:
+          // guardamos la solicitud pero NO la reintentamos sola en segundo plano.
+          await capturePendingBookingLead({
+            resolvedCall: call,
+            businessId: business.id,
+            clientName,
+            clientEmail,
+            clientPhone,
+            startDateTime,
+            durationMinutes: effectiveDuration,
+            serviceIds: verifiedServiceIds,
+            professionalId: resolvedProfessionalId,
+            failureCode: e.code,
+            callLabel,
           });
-        } catch (dbErr) {
-          console.error(
-            `[VoiceTools] No se pudo actualizar el estado de ${
-              errorProvider === "outlook"
-                ? "Outlook Calendar"
-                : "Google Calendar"
-            }: ${errorMessage(dbErr)}`
-          );
+
+          return {
+            success: true,
+            result: {
+              success: false,
+              code: e.code,
+              message:
+                (errorProvider === "outlook"
+                  ? "No pude acceder al calendario del negocio porque la conexión con Outlook expiró o fue revocada."
+                  : "No pude acceder al calendario del negocio porque la conexión con Google expiró o fue revocada.") +
+                " He tomado nota de tu solicitud para confirmártela en cuanto el negocio la reconecte.",
+            },
+          };
         }
 
-        try {
-          await getRedis().del(getVoiceConfigRedisKey(business.id));
-        } catch (redisErr) {
-          console.error(
-            `[VoiceTools] No se pudo invalidar la caché de calendario: ${errorMessage(
-              redisErr
-            )}`
-          );
-        }
+        // Cualquier otro fallo (BOOK_APPOINTMENT_FAILED, timeout, rate limit, o
+        // un error inesperado): nunca rompemos la llamada con un 500 — siempre
+        // degradamos a un mensaje hablable y dejamos la solicitud guardada para
+        // reintento automático en segundo plano, porque estos sí pueden ser
+        // transitorios.
+        const code =
+          e?.name === "CalendarBusinessError"
+            ? e.code
+            : "BOOK_APPOINTMENT_UNEXPECTED_ERROR";
+        const baseMessage =
+          e?.name === "CalendarBusinessError" && typeof e.message === "string"
+            ? e.message
+            : "No pude agendar la cita en este momento.";
+        console.error(
+          `[VoiceTools] ${callLabel} no pudo agendar la cita (${code}): ${errorMessage(error)}`
+        );
 
-        // Reconectar el calendario requiere una acción manual del negocio:
-        // guardamos la solicitud pero NO la reintentamos sola en segundo plano.
-        await capturePendingBookingLead({
+        const leadId = await capturePendingBookingLead({
           resolvedCall: call,
           businessId: business.id,
           clientName,
@@ -738,63 +911,24 @@ async function executeBookAppointment(
           durationMinutes: effectiveDuration,
           serviceIds: verifiedServiceIds,
           professionalId: resolvedProfessionalId,
-          failureCode: e.code,
+          failureCode: code,
           callLabel,
         });
+        if (leadId) {
+          await enqueueRetryFailedBooking(leadId);
+        }
 
         return {
           success: true,
           result: {
             success: false,
-            code: e.code,
-            message:
-              (errorProvider === "outlook"
-                ? "No pude acceder al calendario del negocio porque la conexión con Outlook expiró o fue revocada."
-                : "No pude acceder al calendario del negocio porque la conexión con Google expiró o fue revocada.") +
-              " He tomado nota de tu solicitud para confirmártela en cuanto el negocio la reconecte.",
+            code,
+            message: `${baseMessage} He tomado nota de tus datos y te confirmaremos en breve.`,
           },
         };
       }
-
-      // Cualquier otro fallo (BOOK_APPOINTMENT_FAILED, timeout, rate limit, o
-      // un error inesperado): nunca rompemos la llamada con un 500 — siempre
-      // degradamos a un mensaje hablable y dejamos la solicitud guardada para
-      // reintento automático en segundo plano, porque estos sí pueden ser
-      // transitorios.
-      const code = e?.name === "CalendarBusinessError" ? e.code : "BOOK_APPOINTMENT_UNEXPECTED_ERROR";
-      const baseMessage =
-        e?.name === "CalendarBusinessError" && typeof e.message === "string"
-          ? e.message
-          : "No pude agendar la cita en este momento.";
-      console.error(
-        `[VoiceTools] ${callLabel} no pudo agendar la cita (${code}): ${errorMessage(error)}`
-      );
-
-      const leadId = await capturePendingBookingLead({
-        resolvedCall: call,
-        businessId: business.id,
-        clientName,
-        clientEmail,
-        clientPhone,
-        startDateTime,
-        durationMinutes: effectiveDuration,
-        serviceIds: verifiedServiceIds,
-        professionalId: resolvedProfessionalId,
-        failureCode: code,
-        callLabel,
-      });
-      if (leadId) {
-        await enqueueRetryFailedBooking(leadId);
-      }
-
-      return {
-        success: true,
-        result: {
-          success: false,
-          code,
-          message: `${baseMessage} He tomado nota de tus datos y te confirmaremos en breve.`,
-        },
-      };
+    } finally {
+      await releaseBookingLock(business.id, bookingLockToken);
     }
   } catch (error) {
     console.error(
@@ -807,7 +941,8 @@ async function executeBookAppointment(
       result: {
         success: false,
         code: "BOOK_APPOINTMENT_UNEXPECTED_ERROR",
-        message: "No pude completar la reserva en este momento. Por favor, indícame tus datos y te confirmaremos en breve.",
+        message:
+          "No pude completar la reserva en este momento. Por favor, indícame tus datos y te confirmaremos en breve.",
       },
     };
   }

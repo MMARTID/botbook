@@ -2,6 +2,9 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 import { processRetryFailedBookingJob } from "../../src/jobs/retryFailedBooking.js";
 import { prisma } from "../../src/lib/prisma.js";
 import { calendarService } from "../../src/modules/calendar/service.js";
+import { checkBusinessHours, checkBookingRestrictions } from "../../src/lib/businessSchedule.js";
+import { checkAvailability } from "../../src/lib/availability.js";
+import { acquireBookingLock, releaseBookingLock } from "../../src/lib/bookingLock.js";
 
 vi.mock("../../src/lib/prisma.js", () => ({
   prisma: {
@@ -10,6 +13,7 @@ vi.mock("../../src/lib/prisma.js", () => ({
     business: { findUnique: vi.fn() },
     service: { findMany: vi.fn() },
     professional: { findFirst: vi.fn() },
+    booking: { findUnique: vi.fn() },
     $transaction: vi.fn(),
   },
 }));
@@ -18,13 +22,33 @@ vi.mock("../../src/modules/calendar/service.js", () => ({
   calendarService: { bookAppointment: vi.fn() },
 }));
 
+vi.mock("../../src/lib/businessSchedule.js", () => ({
+  checkBusinessHours: vi.fn(),
+  checkBookingRestrictions: vi.fn(),
+}));
+
+vi.mock("../../src/lib/availability.js", () => ({
+  checkAvailability: vi.fn(),
+}));
+
+vi.mock("../../src/lib/bookingLock.js", () => ({
+  acquireBookingLock: vi.fn(),
+  releaseBookingLock: vi.fn(),
+}));
+
 const mockedLeadFindUnique = vi.mocked(prisma.lead.findUnique);
 const mockedCallFindUnique = vi.mocked(prisma.call.findUnique);
 const mockedBusinessFindUnique = vi.mocked(prisma.business.findUnique);
 const mockedServiceFindMany = vi.mocked(prisma.service.findMany);
 const mockedProfessionalFindFirst = vi.mocked(prisma.professional.findFirst);
+const mockedBookingFindUnique = vi.mocked(prisma.booking.findUnique);
 const mockedTransaction = vi.mocked(prisma.$transaction);
 const mockedBookAppointment = vi.mocked(calendarService.bookAppointment);
+const mockedCheckBusinessHours = vi.mocked(checkBusinessHours);
+const mockedCheckBookingRestrictions = vi.mocked(checkBookingRestrictions);
+const mockedCheckAvailability = vi.mocked(checkAvailability);
+const mockedAcquireBookingLock = vi.mocked(acquireBookingLock);
+const mockedReleaseBookingLock = vi.mocked(releaseBookingLock);
 
 const leadId = "lead_1";
 const pendingBookingData = {
@@ -71,9 +95,21 @@ describe("processRetryFailedBookingJob", () => {
     mockedTransaction.mockImplementation(async (callback: any) =>
       callback({ booking: { upsert: mockUpsert }, lead: { update: mockLeadUpdate } })
     );
-    mockedBookAppointment.mockResolvedValue({ htmlLink: "https://calendar.google.com/event/1" } as any);
+    mockedBookAppointment.mockResolvedValue({ id: "gcal_event_1", htmlLink: "https://calendar.google.com/event/1" } as any);
     mockedServiceFindMany.mockResolvedValue([{ id: "service_1", name: "Corte" }] as any);
-    mockedProfessionalFindFirst.mockResolvedValue({ name: "Montse" } as any);
+    mockedProfessionalFindFirst.mockResolvedValue({ id: "pro_1", name: "Montse" } as any);
+    mockedBookingFindUnique.mockResolvedValue(null);
+    mockedCheckBusinessHours.mockReturnValue({ success: true, isOpen: true } as any);
+    mockedCheckBookingRestrictions.mockReturnValue({ success: true } as any);
+    mockedCheckAvailability.mockResolvedValue({
+      available: true,
+      message: "",
+      capacityUsed: 0,
+      capacityTotal: 1,
+      availableProfessionals: [{ id: "pro_1", name: "Montse" }],
+    } as any);
+    mockedAcquireBookingLock.mockResolvedValue("lock-token");
+    mockedReleaseBookingLock.mockResolvedValue(undefined);
   });
 
   it("no hace nada si el lead ya no existe", async () => {
