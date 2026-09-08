@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type { CallOutcome, CallSentiment } from "@prisma/client";
 import { prisma } from "../../lib/prisma.js";
-import { enqueueRecordingJob } from "../../lib/cloudTasks.js";
+import { enqueueRecordingJob, enqueueUsageReportJob } from "../../lib/cloudTasks.js";
 import { callLabel, errorMessage } from "../../lib/logUtils.js";
 
 // Un call_started retrasado o reentregado por Retell no debe poder revivir
@@ -358,6 +358,17 @@ export async function handleCallEnded(
             err
           )}`
         );
+      }
+    }
+
+    if (durationSecs !== undefined) {
+      try {
+        await enqueueUsageReportJob(
+          { businessId: result.businessId },
+          `report-usage-${result.id}`
+        );
+      } catch (err) {
+        console.error(`[Retell] No se pudo encolar el consumo de ${callLabel(call_id)}: ${errorMessage(err)}`);
       }
     }
 

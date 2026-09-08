@@ -1,9 +1,10 @@
 import { CloudTasksClient } from "@google-cloud/tasks";
-import { ProcessRecordingJob, RetryFailedBookingJob, SendEmailJob, SendSmsJob } from "./jobTypes.js";
+import { ProcessRecordingJob, ReportUsageJob, RetryFailedBookingJob, SendEmailJob, SendSmsJob } from "./jobTypes.js";
 import { processRecordingJob } from "../jobs/processRecording.js";
 import { processRetryFailedBookingJob } from "../jobs/retryFailedBooking.js";
 import { processSendEmailJob } from "../jobs/sendEmail.js";
 import { processSendSmsJob } from "../jobs/sendSms.js";
+import { processUsageReportJob } from "../jobs/processUsageReport.js";
 
 // En producción, cada job se despacha como una tarea HTTP de Cloud Tasks
 // contra POST /internal/jobs/<queue> en este mismo servicio (alhabla-api) —
@@ -84,6 +85,19 @@ export async function enqueueRetryBookingJob(payload: RetryFailedBookingJob, tas
   await enqueueCloudTask({
     queue: "retry-failed-booking",
     path: "/internal/jobs/retry-failed-booking",
+    payload,
+    taskId,
+  });
+}
+
+export async function enqueueUsageReportJob(payload: ReportUsageJob, taskId?: string): Promise<void> {
+  if (!IS_PRODUCTION) {
+    await processUsageReportJob(payload);
+    return;
+  }
+  await enqueueCloudTask({
+    queue: "report-usage",
+    path: "/internal/jobs/report-usage",
     payload,
     taskId,
   });

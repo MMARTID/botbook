@@ -50,6 +50,9 @@ model Business {
   paymentFailureSuspensionAt      DateTime?
   callsSuspendedAt                DateTime?
   cancellationNoticeSentAt        DateTime?
+  // Los clientes existentes empiezan a facturar excedentes en el siguiente
+  // periodo para recibir el aviso antes de cualquier cargo.
+  usageBillingStartsAt            DateTime?
   // Timestamp (evento Stripe `created`) del último customer.subscription.*
   // aplicado con éxito — permite descartar un evento entregado fuera de
   // orden (más antiguo que el ya aplicado) en vez de sobrescribir el estado
@@ -97,9 +100,41 @@ model Business {
   services      Service[]
   professionals Professional[]
   stripeWebhookEvents StripeWebhookEvent[]
+  billingUsagePeriods BillingUsagePeriod[]
   onboardingState    OnboardingState?
 
   @@map("businesses")
+}
+
+model BillingUsagePeriod {
+  id                  String   @id @default(cuid())
+  businessId          String
+  periodStart         DateTime
+  periodEnd           DateTime
+  reportedMinutes     Int      @default(0)
+  warningEmailSentAt  DateTime?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+  business            Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  reports             BillingUsageReport[]
+
+  @@unique([businessId, periodStart])
+  @@index([periodEnd])
+  @@map("billing_usage_periods")
+}
+
+model BillingUsageReport {
+  id          String   @id @default(cuid())
+  periodId    String
+  minutes     Int
+  identifier  String   @unique
+  reportedAt  DateTime?
+  lastError   String?  @db.Text
+  createdAt   DateTime @default(now())
+  period      BillingUsagePeriod @relation(fields: [periodId], references: [id], onDelete: Cascade)
+
+  @@index([periodId, reportedAt])
+  @@map("billing_usage_reports")
 }
 
 model OnboardingState {

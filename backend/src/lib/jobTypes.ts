@@ -8,6 +8,10 @@ export interface RetryFailedBookingJob {
   leadId: string;
 }
 
+export interface ReportUsageJob {
+  businessId: string;
+}
+
 export interface SendEmailJob {
   fromAlias: "welcome" | "support";
   toAddress: string;

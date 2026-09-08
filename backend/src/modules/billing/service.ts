@@ -6,6 +6,7 @@ import { provisionPhoneNumber } from "../phone/service.js";
 import {
   getPlanByPriceId,
   getPriceId,
+  getUsagePriceId,
   type PlanId,
 } from "./catalog.js";
 import { enqueueEmailJob } from "../../lib/cloudTasks.js";
@@ -218,6 +219,7 @@ export async function createCheckoutSession(input: {
   );
 
   const priceId = getPriceId(input.planId);
+  const usagePriceId = getUsagePriceId(input.planId);
   const frontendUrl = (
     process.env.FRONTEND_URL || "http://localhost:3001"
   ).replace(/\/$/, "");
@@ -228,7 +230,7 @@ export async function createCheckoutSession(input: {
     mode: "subscription",
     customer: customerId,
     client_reference_id: input.businessId,
-    line_items: [{ price: priceId, quantity: 1 }],
+    line_items: [{ price: priceId, quantity: 1 }, { price: usagePriceId }],
     payment_method_collection: "always",
     allow_promotion_codes: true,
     tax_id_collection: { enabled: true },
@@ -391,15 +393,17 @@ async function syncSubscription(
     return null;
   }
 
-  const priceId = subscription.items.data[0]?.price?.id ?? null;
-  const plan = priceId ? getPlanByPriceId(priceId) : undefined;
+  const basePriceId = subscription.items.data
+    .map((item) => item.price?.id)
+    .find((priceId): priceId is string => Boolean(priceId && getPlanByPriceId(priceId)));
+  const plan = basePriceId ? getPlanByPriceId(basePriceId) : undefined;
   const period = subscriptionPeriod(subscription);
 
   const data = {
     ...(plan ? { plan: plan.databasePlan } : {}),
     stripeCustomerId: customerId,
     stripeSubscriptionId: subscription.id,
-    stripePriceId: priceId,
+    stripePriceId: basePriceId ?? null,
     subscriptionStatus: subscriptionStatus(subscription.status),
     subscriptionCurrentPeriodStart: period.start,
     subscriptionCurrentPeriodEnd: period.end,

@@ -112,6 +112,8 @@ describe("handleStripeEvent", () => {
     mockedProvisionPhoneNumber.mockResolvedValue({ success: true, status: "active" });
     process.env.STRIPE_PRICE_INICIO = priceId;
     process.env.STRIPE_PRICE_PRO = "price_test_pro";
+    process.env.STRIPE_PRICE_EXTRA_INICIO = "price_test_extra_inicio";
+    process.env.STRIPE_PRICE_EXTRA_PRO = "price_test_extra_pro";
   });
 
   it("actualiza el negocio en checkout.session.completed", async () => {
@@ -477,7 +479,10 @@ describe("createCheckoutSession", () => {
     expect(sessionsCreate).toHaveBeenCalledWith(
       expect.objectContaining({
         mode: "subscription",
-        line_items: [{ price: priceId, quantity: 1 }],
+        line_items: [
+          { price: priceId, quantity: 1 },
+          { price: "price_test_extra_inicio" },
+        ],
         subscription_data: expect.objectContaining({
           trial_period_days: 7,
         }),

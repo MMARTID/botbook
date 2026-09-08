@@ -5,7 +5,7 @@ import {
   handleCallAnalyzed,
 } from "../../../src/adapters/retell/webhookHandlers.js";
 import { prisma } from "../../../src/lib/prisma.js";
-import { enqueueRecordingJob } from "../../../src/lib/cloudTasks.js";
+import { enqueueRecordingJob, enqueueUsageReportJob } from "../../../src/lib/cloudTasks.js";
 
 vi.mock("../../../src/lib/prisma.js", () => ({
   prisma: {
@@ -31,6 +31,7 @@ vi.mock("../../../src/lib/prisma.js", () => ({
 
 vi.mock("../../../src/lib/cloudTasks.js", () => ({
   enqueueRecordingJob: vi.fn(),
+  enqueueUsageReportJob: vi.fn(),
 }));
 
 const mockedAgentFindFirst = vi.mocked(prisma.agent.findFirst);
@@ -41,6 +42,7 @@ const mockedCallCreate = vi.mocked(prisma.call.create);
 const mockedCallUpdate = vi.mocked(prisma.call.update);
 const mockedTranscriptUpsert = vi.mocked(prisma.transcript.upsert);
 const mockedEnqueueRecordingJob = vi.mocked(enqueueRecordingJob);
+const mockedEnqueueUsageReportJob = vi.mocked(enqueueUsageReportJob);
 
 describe("Retell webhook handlers", () => {
   beforeEach(() => {
@@ -199,6 +201,10 @@ describe("Retell webhook handlers", () => {
         })
       );
       expect(mockedEnqueueRecordingJob).toHaveBeenCalled();
+      expect(mockedEnqueueUsageReportJob).toHaveBeenCalledWith(
+        { businessId: "business_123" },
+        "report-usage-call_123"
+      );
     });
 
     it("recupera el negocio si la llamada no existía", async () => {

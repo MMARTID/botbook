@@ -100,3 +100,14 @@ export function subscriptionCancellationInstructionsEmail(input: {
   `);
   return { subject, html };
 }
+
+export function usageWarningEmail(input: { businessName: string; planName: string; consumedMinutes: number; includedMinutes: number; extraMinuteCents: number; periodEndsAt: Date }): { subject: string; html: string } {
+  const subject = `Te acercas a los minutos incluidos — ${input.businessName}`;
+  const html = emailShell(`
+    <p style="font-size:18px;font-weight:600;margin:0 0 16px 0;">Estás cerca del límite de tu plan</p>
+    <p style="margin:0 0 16px 0;">Has consumido <strong>${input.consumedMinutes} de ${input.includedMinutes} minutos</strong> incluidos en tu plan ${input.planName}.</p>
+    <p style="margin:0 0 16px 0;">A partir de ${input.includedMinutes} minutos, el consumo adicional se facturará a <strong>${(input.extraMinuteCents / 100).toFixed(2).replace(".", ",")} €/min</strong> hasta el ${new Intl.DateTimeFormat("es-ES", { dateStyle: "long" }).format(input.periodEndsAt)}.</p>
+    <p style="margin:0;">Puedes consultar el consumo en Ajustes → Facturación.</p>
+  `);
+  return { subject, html };
+}

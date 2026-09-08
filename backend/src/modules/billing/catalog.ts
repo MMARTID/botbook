@@ -8,6 +8,7 @@ type BillingPlan = {
   includedMinutes: number;
   extraMinuteCents: number;
   priceEnvironmentVariable: string;
+  usagePriceEnvironmentVariable: string;
 };
 
 export const BILLING_PLANS: Record<PlanId, BillingPlan> = {
@@ -17,6 +18,7 @@ export const BILLING_PLANS: Record<PlanId, BillingPlan> = {
     includedMinutes: 100,
     extraMinuteCents: 45,
     priceEnvironmentVariable: "STRIPE_PRICE_INICIO",
+    usagePriceEnvironmentVariable: "STRIPE_PRICE_EXTRA_INICIO",
   },
   pro: {
     id: "pro",
@@ -24,6 +26,7 @@ export const BILLING_PLANS: Record<PlanId, BillingPlan> = {
     includedMinutes: 400,
     extraMinuteCents: 40,
     priceEnvironmentVariable: "STRIPE_PRICE_PRO",
+    usagePriceEnvironmentVariable: "STRIPE_PRICE_EXTRA_PRO",
   },
   scale: {
     id: "scale",
@@ -31,6 +34,7 @@ export const BILLING_PLANS: Record<PlanId, BillingPlan> = {
     includedMinutes: 1000,
     extraMinuteCents: 35,
     priceEnvironmentVariable: "STRIPE_PRICE_SCALE",
+    usagePriceEnvironmentVariable: "STRIPE_PRICE_EXTRA_SCALE",
   },
 };
 
@@ -46,6 +50,15 @@ export function getPriceId(planId: PlanId) {
     throw new Error(`${plan.priceEnvironmentVariable} is not configured`);
   }
 
+  return priceId;
+}
+
+export function getUsagePriceId(planId: PlanId) {
+  const plan = getBillingPlan(planId);
+  const priceId = process.env[plan.usagePriceEnvironmentVariable];
+  if (!priceId) {
+    throw new Error(`${plan.usagePriceEnvironmentVariable} is not configured`);
+  }
   return priceId;
 }
 
