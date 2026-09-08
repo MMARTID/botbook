@@ -59,6 +59,9 @@ vi.mock("googleapis", () => ({
       calendarList: {
         list: vi.fn(),
       },
+      freebusy: {
+        query: vi.fn(),
+      },
     }),
   },
 }));
@@ -70,6 +73,7 @@ vi.mock("../../../src/lib/microsoftGraph.js", () => ({
   getMicrosoftProfile: vi.fn(),
   listMicrosoftCalendars: vi.fn(),
   listMicrosoftUpcomingEvents: vi.fn(),
+  listMicrosoftBusyIntervals: vi.fn(),
   refreshMicrosoftAccessToken: vi.fn(),
 }));
 
@@ -551,6 +555,132 @@ describe("CalendarService.listOutlookCalendars", () => {
     } catch (error) {
       expect((error as CalendarBusinessError).code).toBe("OUTLOOK_CALENDAR_RECONNECT_REQUIRED");
     }
+  });
+});
+
+describe("CalendarService.getBusyIntervals", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("Google: consulta freebusy.query y devuelve los bloques ocupados como Date", async () => {
+    const timeMin = new Date("2026-08-10T09:00:00+02:00");
+    const timeMax = new Date("2026-08-10T14:00:00+02:00");
+    const queryMock = vi.fn().mockResolvedValue({
+      data: {
+        calendars: {
+          primary: {
+            busy: [
+              { start: "2026-08-10T10:00:00+02:00", end: "2026-08-10T10:30:00+02:00" },
+            ],
+          },
+        },
+      },
+    });
+    mockedGoogleCalendar.mockReturnValue({
+      events: { insert: vi.fn(), list: vi.fn() },
+      calendarList: { list: vi.fn() },
+      freebusy: { query: queryMock },
+    } as any);
+
+    const busy = await calendarService.getBusyIntervals({
+      provider: "google",
+      googleRefreshToken: "refresh_token_123",
+      googleCalendarId: null,
+      timeMin,
+      timeMax,
+    });
+
+    expect(busy).toEqual([
+      { start: new Date("2026-08-10T10:00:00+02:00"), end: new Date("2026-08-10T10:30:00+02:00") },
+    ]);
+    expect(queryMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        requestBody: expect.objectContaining({
+          timeMin: timeMin.toISOString(),
+          timeMax: timeMax.toISOString(),
+          items: [{ id: "primary" }],
+        }),
+      }),
+      expect.anything()
+    );
+  });
+
+  it("Google: se degrada a [] (nunca lanza) si freebusy.query falla", async () => {
+    mockedGoogleCalendar.mockReturnValue({
+      events: { insert: vi.fn(), list: vi.fn() },
+      calendarList: { list: vi.fn() },
+      freebusy: { query: vi.fn().mockRejectedValue(new Error("ETIMEDOUT")) },
+    } as any);
+
+    const busy = await calendarService.getBusyIntervals({
+      provider: "google",
+      googleRefreshToken: "refresh_token_123",
+      googleCalendarId: null,
+      timeMin: new Date(),
+      timeMax: new Date(),
+    });
+
+    expect(busy).toEqual([]);
+  });
+
+  it("Google: devuelve [] sin llamar a la API si el negocio no tiene refresh token", async () => {
+    const busy = await calendarService.getBusyIntervals({
+      provider: "google",
+      googleRefreshToken: null,
+      googleCalendarId: null,
+      timeMin: new Date(),
+      timeMax: new Date(),
+    });
+
+    expect(busy).toEqual([]);
+  });
+
+  it("Outlook: consulta listMicrosoftBusyIntervals con el access token renovado", async () => {
+    const { refreshMicrosoftAccessToken, listMicrosoftBusyIntervals } = await import("../../../src/lib/microsoftGraph.js");
+    vi.mocked(refreshMicrosoftAccessToken).mockResolvedValue({ access_token: "access_123" } as any);
+    const busyResult = [{ start: new Date("2026-08-10T10:00:00Z"), end: new Date("2026-08-10T10:30:00Z") }];
+    vi.mocked(listMicrosoftBusyIntervals).mockResolvedValue(busyResult);
+
+    const timeMin = new Date("2026-08-10T09:00:00Z");
+    const timeMax = new Date("2026-08-10T14:00:00Z");
+    const busy = await calendarService.getBusyIntervals({
+      provider: "outlook",
+      outlookRefreshToken: "refresh_token_123",
+      outlookCalendarId: "calendar_1",
+      timeMin,
+      timeMax,
+    });
+
+    expect(busy).toEqual(busyResult);
+    expect(vi.mocked(listMicrosoftBusyIntervals)).toHaveBeenCalledWith("access_123", "calendar_1", timeMin, timeMax);
+  });
+
+  it("Outlook: devuelve [] sin llamar a Graph si no hay calendario conectado", async () => {
+    const busy = await calendarService.getBusyIntervals({
+      provider: "outlook",
+      outlookRefreshToken: null,
+      outlookCalendarId: null,
+      timeMin: new Date(),
+      timeMax: new Date(),
+    });
+
+    expect(busy).toEqual([]);
+  });
+
+  it("Outlook: se degrada a [] (nunca lanza) si la renovación del token falla", async () => {
+    const { refreshMicrosoftAccessToken } = await import("../../../src/lib/microsoftGraph.js");
+    vi.mocked(refreshMicrosoftAccessToken).mockRejectedValue(new Error("invalid_grant"));
+
+    const busy = await calendarService.getBusyIntervals({
+      provider: "outlook",
+      outlookRefreshToken: "refresh_token_123",
+      outlookCalendarId: "calendar_1",
+      timeMin: new Date(),
+      timeMax: new Date(),
+    });
+
+    expect(busy).toEqual([]);
   });
 });
 

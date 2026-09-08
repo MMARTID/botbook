@@ -374,6 +374,91 @@ describe("checkAvailability", () => {
     }
   });
 
+  it("un bloqueo del calendario real (no guardado en Postgres) también agota la capacidad (hallazgo #5 de la auditoría)", async () => {
+    // Sin ninguna reserva local, pero con capacidad 1 y un bloqueo externo
+    // (cita metida a mano en Google/Outlook) que cubre el hueco pedido — la
+    // disponibilidad debía negarse igual que si fuera un Booking real.
+    givenProfessionals([{ id: "prof_1", name: "Ana", serviceIds: ["service_target"] }]);
+    givenBookings([]);
+
+    const result = await checkAvailability({
+      businessId,
+      schedule: DEFAULT_BUSINESS_SCHEDULE,
+      timezone: europeMadrid,
+      bookingCapacity: 1,
+      startDateTime: "2026-08-10T10:00:00+02:00",
+      durationMinutes: 60,
+      serviceIds: ["service_target"],
+      externalBusyIntervals: [
+        {
+          start: new Date("2026-08-10T10:00:00+02:00"),
+          end: new Date("2026-08-10T11:00:00+02:00"),
+        },
+      ],
+    });
+
+    expect(result.available).toBe(false);
+    expect(result.code).toBe("CAPACITY_REACHED");
+  });
+
+  it("un bloqueo externo nunca marca a un profesional concreto como ocupado, solo resta capacidad", async () => {
+    // Capacidad 2: con el bloqueo externo ocupando una plaza, sigue quedando
+    // una libre — y como no sabemos a qué profesional pertenece un evento
+    // metido a mano, ningún profesional concreto debe aparecer como ocupado
+    // por su culpa.
+    givenProfessionals([
+      { id: "prof_1", name: "Ana", serviceIds: ["service_target"] },
+      { id: "prof_2", name: "Bea", serviceIds: ["service_target"] },
+    ]);
+    givenBookings([]);
+
+    const result = await checkAvailability({
+      businessId,
+      schedule: DEFAULT_BUSINESS_SCHEDULE,
+      timezone: europeMadrid,
+      bookingCapacity: 2,
+      startDateTime: "2026-08-10T10:00:00+02:00",
+      durationMinutes: 60,
+      serviceIds: ["service_target"],
+      externalBusyIntervals: [
+        {
+          start: new Date("2026-08-10T10:00:00+02:00"),
+          end: new Date("2026-08-10T11:00:00+02:00"),
+        },
+      ],
+    });
+
+    expect(result.available).toBe(true);
+    if (result.available) {
+      expect(result.capacityUsed).toBe(1);
+      expect(result.availableProfessionals.map((p) => p.id).sort()).toEqual(["prof_1", "prof_2"]);
+    }
+  });
+
+  it("ignora un bloqueo externo fuera de la ventana pedida", async () => {
+    givenProfessionals([{ id: "prof_1", name: "Ana", serviceIds: ["service_target"] }]);
+    givenBookings([]);
+
+    const result = await checkAvailability({
+      businessId,
+      schedule: DEFAULT_BUSINESS_SCHEDULE,
+      timezone: europeMadrid,
+      bookingCapacity: 1,
+      startDateTime: "2026-08-10T10:00:00+02:00",
+      durationMinutes: 60,
+      serviceIds: ["service_target"],
+      externalBusyIntervals: [
+        {
+          // Un día distinto — no debe afectar en absoluto.
+          start: new Date("2026-08-11T10:00:00+02:00"),
+          end: new Date("2026-08-11T11:00:00+02:00"),
+        },
+      ],
+    });
+
+    expect(result.available).toBe(true);
+  });
+
   it("devuelve profesionales no ocupados cuando hay varios", async () => {
     givenProfessionals([
       { id: "prof_1", name: "Ana", serviceIds: ["service_target"] },

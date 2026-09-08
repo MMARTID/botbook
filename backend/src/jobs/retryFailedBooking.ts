@@ -210,6 +210,21 @@ export async function processRetryFailedBookingJob(
       return;
     }
 
+    // Misma comprobación de ocupación real del calendario que la reserva en
+    // vivo (voiceTools/service.ts) — ver hallazgo #5 de la auditoría.
+    const retryStart = new Date(data_.startDateTime);
+    const externalBusyIntervals = Number.isNaN(retryStart.getTime())
+      ? []
+      : await calendarService.getBusyIntervals({
+          provider,
+          googleRefreshToken: business.googleRefreshToken,
+          googleCalendarId: business.googleCalendarId,
+          outlookRefreshToken: business.outlookRefreshToken,
+          outlookCalendarId: business.outlookCalendarId,
+          timeMin: retryStart,
+          timeMax: new Date(retryStart.getTime() + 5 * 60 * 60_000),
+        });
+
     const availability = await checkAvailability({
       businessId: call.businessId,
       schedule: business.schedule,
@@ -219,6 +234,7 @@ export async function processRetryFailedBookingJob(
       durationMinutes: data_.durationMinutes,
       serviceIds: requestedServiceIds,
       professionalId: verifiedProfessionalId,
+      externalBusyIntervals,
     });
     if (!availability.available) {
       console.error(

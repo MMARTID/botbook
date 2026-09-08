@@ -61,7 +61,8 @@ function maxConcurrentBookings(
 
   for (const booking of bookings) {
     const bookingStartMs = new Date(booking.programedAt).getTime();
-    const bookingEndMs = bookingStartMs + (booking.durationMinutes || 30) * 60_000;
+    const bookingEndMs =
+      bookingStartMs + (booking.durationMinutes || 30) * 60_000;
     const clippedStart = Math.max(bookingStartMs, intervalStartMs);
     const clippedEnd = Math.min(bookingEndMs, intervalEndMs);
     if (clippedStart < clippedEnd) {
@@ -97,9 +98,21 @@ function findNextAvailableSlot(input: {
   startDateTime: string;
   durationMinutes: number;
   rankedProfessionals: AvailableProfessional[];
-  bookings: Array<{ professionalId: string | null; programedAt: Date; durationMinutes: number | null }>;
+  bookings: Array<{
+    professionalId: string | null;
+    programedAt: Date;
+    durationMinutes: number | null;
+  }>;
 }): SuggestedSlot | null {
-  const { schedule, timezone, bookingCapacity, startDateTime, durationMinutes, rankedProfessionals, bookings } = input;
+  const {
+    schedule,
+    timezone,
+    bookingCapacity,
+    startDateTime,
+    durationMinutes,
+    rankedProfessionals,
+    bookings,
+  } = input;
 
   if (rankedProfessionals.length === 0) {
     return null;
@@ -109,11 +122,17 @@ function findNextAvailableSlot(input: {
 
   for (let attempt = 1; attempt <= NEXT_SLOT_SEARCH_MAX_ATTEMPTS; attempt++) {
     const candidateStart = new Date(
-      originalStart.getTime() + attempt * NEXT_SLOT_SEARCH_INCREMENT_MINUTES * 60_000
+      originalStart.getTime() +
+        attempt * NEXT_SLOT_SEARCH_INCREMENT_MINUTES * 60_000
     );
     const candidateISO = candidateStart.toISOString();
 
-    const hoursCheck = checkBusinessHours(schedule, timezone, candidateISO, durationMinutes);
+    const hoursCheck = checkBusinessHours(
+      schedule,
+      timezone,
+      candidateISO,
+      durationMinutes
+    );
     if (!hoursCheck.success) {
       // Horario mal configurado, no un simple "cerrado a esta hora" — no
       // hay ninguna hora en la que probar de nuevo vaya a dar otro
@@ -131,19 +150,28 @@ function findNextAvailableSlot(input: {
       continue;
     }
 
-    const candidateEnd = new Date(candidateStart.getTime() + Math.max(0, durationMinutes) * 60_000);
+    const candidateEnd = new Date(
+      candidateStart.getTime() + Math.max(0, durationMinutes) * 60_000
+    );
     const overlapping = bookings.filter((booking) => {
       const bookingStart = new Date(booking.programedAt);
-      const bookingEnd = new Date(bookingStart.getTime() + (booking.durationMinutes || 30) * 60_000);
+      const bookingEnd = new Date(
+        bookingStart.getTime() + (booking.durationMinutes || 30) * 60_000
+      );
       return bookingStart < candidateEnd && bookingEnd > candidateStart;
     });
 
-    if (maxConcurrentBookings(candidateStart, candidateEnd, overlapping) >= bookingCapacity) {
+    if (
+      maxConcurrentBookings(candidateStart, candidateEnd, overlapping) >=
+      bookingCapacity
+    ) {
       continue;
     }
 
     const busyProfessionalIds = new Set(
-      overlapping.map((booking) => booking.professionalId).filter((id): id is string => Boolean(id))
+      overlapping
+        .map((booking) => booking.professionalId)
+        .filter((id): id is string => Boolean(id))
     );
     const availableProfessionals = rankedProfessionals.filter(
       (professional) => !busyProfessionalIds.has(professional.id)
@@ -172,15 +200,42 @@ export async function checkAvailability(input: {
    * (ya escopado a businessId en la consulta, por lo que un ID de otro
    * negocio simplemente no encuentra resultados). */
   professionalId?: string | null;
+  /** Bloques ocupados leídos del calendario REAL conectado (Google/Outlook),
+   * no de Postgres — ver calendarService.getBusyIntervals. El caller los
+   * calcula (necesita las credenciales del negocio, que este módulo no
+   * conoce) y los pasa aquí para que cuenten igual que una reserva propia:
+   * una cita metida a mano en el calendario debe bloquear el hueco, y no
+   * puede atribuirse a ningún profesional concreto (professionalId: null),
+   * así que solo resta capacidad — nunca marca a un profesional como
+   * ocupado. Opcional: si no se pasa, el comportamiento es el de siempre
+   * (solo Postgres). */
+  externalBusyIntervals?: Array<{ start: Date; end: Date }>;
 }): Promise<AvailabilityResult> {
-  const { businessId, schedule, timezone, bookingCapacity, startDateTime, durationMinutes, serviceIds, professionalId } = input;
+  const {
+    businessId,
+    schedule,
+    timezone,
+    bookingCapacity,
+    startDateTime,
+    durationMinutes,
+    serviceIds,
+    professionalId,
+    externalBusyIntervals,
+  } = input;
 
   // 1. Horario comercial
-  const hoursResult = checkBusinessHours(schedule, timezone, startDateTime, durationMinutes);
+  const hoursResult = checkBusinessHours(
+    schedule,
+    timezone,
+    startDateTime,
+    durationMinutes
+  );
   if (!hoursResult.success || !hoursResult.isOpen) {
     return {
       available: false,
-      code: hoursResult.success ? "OUTSIDE_BUSINESS_HOURS" : "BUSINESS_HOURS_NOT_CONFIGURED",
+      code: hoursResult.success
+        ? "OUTSIDE_BUSINESS_HOURS"
+        : "BUSINESS_HOURS_NOT_CONFIGURED",
       message: hoursResult.message,
     };
   }
@@ -222,17 +277,22 @@ export async function checkAvailability(input: {
   // como alternativa si nadie cubre todos los servicios o los especialistas
   // están ocupados.
   const requestedServiceIds = serviceIds?.filter(Boolean) ?? [];
-  const rankedProfessionals = requestedServiceIds.length > 0
-    ? [...professionals].sort((a, b) => {
-        const aCoversAll = requestedServiceIds.every((id) =>
-          a.serviceLinks.some((link) => link.serviceId === id)
-        ) ? 0 : 1;
-        const bCoversAll = requestedServiceIds.every((id) =>
-          b.serviceLinks.some((link) => link.serviceId === id)
-        ) ? 0 : 1;
-        return aCoversAll - bCoversAll;
-      })
-    : professionals;
+  const rankedProfessionals =
+    requestedServiceIds.length > 0
+      ? [...professionals].sort((a, b) => {
+          const aCoversAll = requestedServiceIds.every((id) =>
+            a.serviceLinks.some((link) => link.serviceId === id)
+          )
+            ? 0
+            : 1;
+          const bCoversAll = requestedServiceIds.every((id) =>
+            b.serviceLinks.some((link) => link.serviceId === id)
+          )
+            ? 0
+            : 1;
+          return aCoversAll - bCoversAll;
+        })
+      : professionals;
 
   // 3. Citas existentes en el slot — la ventana de la consulta ya cubre
   // también la búsqueda de un hueco alternativo (ver findNextAvailableSlot
@@ -241,11 +301,13 @@ export async function checkAvailability(input: {
   const end = new Date(start.getTime() + Math.max(0, durationMinutes) * 60_000);
   const nextSlotSearchWindowEnd = new Date(
     start.getTime() +
-      NEXT_SLOT_SEARCH_MAX_ATTEMPTS * NEXT_SLOT_SEARCH_INCREMENT_MINUTES * 60_000 +
+      NEXT_SLOT_SEARCH_MAX_ATTEMPTS *
+        NEXT_SLOT_SEARCH_INCREMENT_MINUTES *
+        60_000 +
       Math.max(0, durationMinutes) * 60_000
   );
 
-  const overlappingBookings = await prisma.booking.findMany({
+  const localBookings = await prisma.booking.findMany({
     where: {
       call: { businessId },
       isCancelled: false,
@@ -260,17 +322,39 @@ export async function checkAvailability(input: {
     },
   });
 
+  // professionalId: null a propósito (ver comentario en el parámetro) — un
+  // bloqueo externo resta capacidad pero nunca marca a un profesional
+  // concreto como ocupado, porque no sabemos a cuál corresponde.
+  const externalBookings = (externalBusyIntervals ?? [])
+    .filter(
+      (interval) => interval.start.getTime() < nextSlotSearchWindowEnd.getTime()
+    )
+    .map((interval) => ({
+      professionalId: null as string | null,
+      programedAt: interval.start,
+      durationMinutes: Math.max(
+        0,
+        (interval.end.getTime() - interval.start.getTime()) / 60_000
+      ),
+    }));
+
+  const overlappingBookings = [...localBookings, ...externalBookings];
+
   const activeBookings = overlappingBookings.filter((booking) => {
     const bookingStart = new Date(booking.programedAt);
-    const bookingEnd = new Date(bookingStart.getTime() + (booking.durationMinutes || 30) * 60_000);
+    const bookingEnd = new Date(
+      bookingStart.getTime() + (booking.durationMinutes || 30) * 60_000
+    );
     return bookingStart < end && bookingEnd > start;
   });
 
   const bookingsInSlot = maxConcurrentBookings(start, end, activeBookings);
-  const rankedProfessionalsForSearch = rankedProfessionals.map((professional) => ({
-    id: professional.id,
-    name: professional.name,
-  }));
+  const rankedProfessionalsForSearch = rankedProfessionals.map(
+    (professional) => ({
+      id: professional.id,
+      name: professional.name,
+    })
+  );
 
   if (bookingsInSlot >= bookingCapacity) {
     return {
@@ -306,7 +390,8 @@ export async function checkAvailability(input: {
     return {
       available: false,
       code: "ALL_PROFESSIONALS_BUSY",
-      message: "Todos los profesionales que pueden hacer este servicio están ocupados en ese horario.",
+      message:
+        "Todos los profesionales que pueden hacer este servicio están ocupados en ese horario.",
       capacityUsed: bookingsInSlot,
       capacityTotal: bookingCapacity,
       suggestedNextSlot: findNextAvailableSlot({

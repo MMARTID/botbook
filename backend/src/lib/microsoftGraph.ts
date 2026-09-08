@@ -1,4 +1,5 @@
-const MICROSOFT_AUTH_BASE = "https://login.microsoftonline.com/common/oauth2/v2.0";
+const MICROSOFT_AUTH_BASE =
+  "https://login.microsoftonline.com/common/oauth2/v2.0";
 const MICROSOFT_GRAPH_BASE = "https://graph.microsoft.com/v1.0";
 const OUTLOOK_SCOPES = [
   "openid",
@@ -57,10 +58,13 @@ function getMicrosoftConfig() {
   return { clientId, clientSecret, redirectUri };
 }
 
-async function createMicrosoftOAuthError(response: Response, operation: "token exchange" | "token refresh") {
+async function createMicrosoftOAuthError(
+  response: Response,
+  operation: "token exchange" | "token refresh"
+) {
   let details: MicrosoftOAuthErrorResponse = {};
   try {
-    details = await response.json() as MicrosoftOAuthErrorResponse;
+    details = (await response.json()) as MicrosoftOAuthErrorResponse;
   } catch {
     // Microsoft can occasionally return a non-JSON proxy response.
   }
@@ -68,12 +72,16 @@ async function createMicrosoftOAuthError(response: Response, operation: "token e
   const safeDetails = [
     details.error,
     details.error_description,
-    details.error_codes?.length ? `codes=${details.error_codes.join(",")}` : null,
+    details.error_codes?.length
+      ? `codes=${details.error_codes.join(",")}`
+      : null,
     details.correlation_id ? `correlation_id=${details.correlation_id}` : null,
-  ].filter(Boolean).join(" | ");
+  ]
+    .filter(Boolean)
+    .join(" | ");
 
   return new Error(
-    `Microsoft ${operation} failed: ${response.status}${safeDetails ? ` | ${safeDetails}` : ""}`,
+    `Microsoft ${operation} failed: ${response.status}${safeDetails ? ` | ${safeDetails}` : ""}`
   );
 }
 
@@ -148,7 +156,11 @@ export async function refreshMicrosoftAccessToken(refreshToken: string) {
 // (book_appointment puede acabar aquí durante una llamada en curso).
 const GRAPH_REQUEST_TIMEOUT_MS = 8000;
 
-async function graphFetch<T>(accessToken: string, path: string, init?: RequestInit): Promise<T> {
+async function graphFetch<T>(
+  accessToken: string,
+  path: string,
+  init?: RequestInit
+): Promise<T> {
   const response = await fetch(`${MICROSOFT_GRAPH_BASE}${path}`, {
     ...init,
     headers: {
@@ -162,20 +174,24 @@ async function graphFetch<T>(accessToken: string, path: string, init?: RequestIn
   if (!response.ok) {
     let details: MicrosoftGraphErrorResponse = {};
     try {
-      details = await response.json() as MicrosoftGraphErrorResponse;
+      details = (await response.json()) as MicrosoftGraphErrorResponse;
     } catch {
       // Keep the status-only fallback when Graph returns a non-JSON response.
     }
 
-    const requestId = details.error?.innerError?.requestId ?? details.error?.innerError?.["request-id"];
+    const requestId =
+      details.error?.innerError?.requestId ??
+      details.error?.innerError?.["request-id"];
     const safeDetails = [
       details.error?.code,
       details.error?.message,
       requestId ? `request_id=${requestId}` : null,
-    ].filter(Boolean).join(" | ");
+    ]
+      .filter(Boolean)
+      .join(" | ");
 
     throw new Error(
-      `Microsoft Graph request failed for ${path.split("?")[0]}: ${response.status}${safeDetails ? ` | ${safeDetails}` : ""}`,
+      `Microsoft Graph request failed for ${path.split("?")[0]}: ${response.status}${safeDetails ? ` | ${safeDetails}` : ""}`
     );
   }
 
@@ -183,14 +199,22 @@ async function graphFetch<T>(accessToken: string, path: string, init?: RequestIn
 }
 
 export async function getMicrosoftProfile(accessToken: string) {
-  return graphFetch<{ mail?: string | null; userPrincipalName?: string | null }>(accessToken, "/me?$select=mail,userPrincipalName");
+  return graphFetch<{
+    mail?: string | null;
+    userPrincipalName?: string | null;
+  }>(accessToken, "/me?$select=mail,userPrincipalName");
 }
 
 export async function listMicrosoftCalendars(accessToken: string) {
-  const data = await graphFetch<{ value: Array<{ id: string; name: string; canEdit: boolean; canShare: boolean; owner?: { address?: string | null } }> }>(
-    accessToken,
-    "/me/calendars?$select=id,name,canEdit,canShare,owner",
-  );
+  const data = await graphFetch<{
+    value: Array<{
+      id: string;
+      name: string;
+      canEdit: boolean;
+      canShare: boolean;
+      owner?: { address?: string | null };
+    }>;
+  }>(accessToken, "/me/calendars?$select=id,name,canEdit,canShare,owner");
 
   return data.value.map((calendar) => ({
     id: calendar.id,
@@ -201,17 +225,74 @@ export async function listMicrosoftCalendars(accessToken: string) {
   })) satisfies MicrosoftCalendar[];
 }
 
-export async function listMicrosoftUpcomingEvents(accessToken: string, calendarId: string, limit: number) {
+/** Bloques ocupados del calendario de Outlook dentro de [start, end) — se
+ * usa como fuente real de disponibilidad (ver checkAvailability en
+ * availability.ts), no solo las reservas guardadas en Postgres: una cita
+ * metida a mano en Outlook debe bloquear el hueco igual que una hecha por
+ * teléfono. Pide el timezone en UTC explícitamente porque Graph, sin ese
+ * Prefer, puede devolver dateTime en la zona del buzón SIN sufijo de zona —
+ * un string así lo interpretaría new Date() como hora local del proceso, no
+ * UTC, dando resultados incorrectos según en qué timezone corra el server. */
+export async function listMicrosoftBusyIntervals(
+  accessToken: string,
+  calendarId: string,
+  start: Date,
+  end: Date
+): Promise<Array<{ start: Date; end: Date }>> {
+  const data = await graphFetch<{
+    value: Array<{
+      start?: { dateTime?: string | null } | null;
+      end?: { dateTime?: string | null } | null;
+      showAs?: string | null;
+      isCancelled?: boolean | null;
+    }>;
+  }>(
+    accessToken,
+    `/me/calendars/${encodeURIComponent(calendarId)}/calendarView?startDateTime=${encodeURIComponent(start.toISOString())}&endDateTime=${encodeURIComponent(end.toISOString())}&$select=start,end,showAs,isCancelled`,
+    {
+      headers: {
+        Prefer: 'outlook.timezone="UTC"',
+      },
+    }
+  );
+
+  return data.value
+    .filter((event) => !event.isCancelled && event.showAs !== "free")
+    .map((event) => ({
+      start: event.start?.dateTime
+        ? new Date(`${event.start.dateTime}Z`)
+        : null,
+      end: event.end?.dateTime ? new Date(`${event.end.dateTime}Z`) : null,
+    }))
+    .filter((interval): interval is { start: Date; end: Date } =>
+      Boolean(interval.start && interval.end)
+    );
+}
+
+export async function listMicrosoftUpcomingEvents(
+  accessToken: string,
+  calendarId: string,
+  limit: number
+) {
   const now = new Date().toISOString();
   const end = new Date(Date.now() + 1000 * 60 * 60 * 24 * 30).toISOString();
-  const data = await graphFetch<{ value: Array<{ id: string; subject?: string | null; webLink?: string | null; location?: { displayName?: string | null }; start?: { dateTime?: string | null }; end?: { dateTime?: string | null } }> }>(
+  const data = await graphFetch<{
+    value: Array<{
+      id: string;
+      subject?: string | null;
+      webLink?: string | null;
+      location?: { displayName?: string | null };
+      start?: { dateTime?: string | null };
+      end?: { dateTime?: string | null };
+    }>;
+  }>(
     accessToken,
     `/me/calendars/${encodeURIComponent(calendarId)}/calendarView?startDateTime=${encodeURIComponent(now)}&endDateTime=${encodeURIComponent(end)}&$top=${limit}&$select=id,subject,webLink,location,start,end`,
     {
       headers: {
         Prefer: 'outlook.timezone="Europe/Madrid"',
       },
-    },
+    }
   );
 
   return data.value.map((event) => ({
@@ -251,7 +332,10 @@ export async function createMicrosoftCalendarEvent(input: {
       content: input.description ?? "",
     },
     ...(input.reminderMinutesBeforeStart !== undefined
-      ? { isReminderOn: true, reminderMinutesBeforeStart: input.reminderMinutesBeforeStart }
+      ? {
+          isReminderOn: true,
+          reminderMinutesBeforeStart: input.reminderMinutesBeforeStart,
+        }
       : {}),
   };
 
@@ -272,7 +356,7 @@ export async function createMicrosoftCalendarEvent(input: {
     {
       method: "POST",
       body: JSON.stringify(body),
-    },
+    }
   );
 
   return {

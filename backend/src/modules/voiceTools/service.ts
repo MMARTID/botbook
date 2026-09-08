@@ -216,6 +216,42 @@ async function executeCheckBusinessHours(
   }
 }
 
+// Cubre con margen de sobra la ventana de hasta 4h que explora
+// findNextAvailableSlot (16 intentos × 15 min) — mejor sobrar unas horas de
+// consulta al calendario (barato) que quedarse corto y no ver un bloqueo
+// manual que cae justo en el tramo del hueco alternativo sugerido.
+const EXTERNAL_AVAILABILITY_WINDOW_HOURS = 5;
+
+/** Bloques ocupados del calendario REAL conectado (Google/Outlook) para el
+ * negocio, no solo lo guardado en Postgres — ver hallazgo #5 de la
+ * auditoría: antes checkAvailability solo consultaba Booking, así que una
+ * cita metida a mano en el calendario del negocio no bloqueaba el hueco.
+ * calendarService.getBusyIntervals ya se degrada sola a [] ante cualquier
+ * fallo (calendario caído, sin conexión, etc.), así que no hace falta un
+ * try/catch aquí también. */
+async function fetchExternalBusyIntervals(
+  business: BusinessVoiceConfig,
+  startDateTime: string
+): Promise<Array<{ start: Date; end: Date }>> {
+  const start = new Date(startDateTime);
+  if (Number.isNaN(start.getTime())) {
+    return [];
+  }
+  const provider =
+    business.calendarProvider === "outlook" ? "outlook" : "google";
+  return calendarService.getBusyIntervals({
+    provider,
+    googleRefreshToken: business.googleRefreshToken,
+    googleCalendarId: business.googleCalendarId,
+    outlookRefreshToken: business.outlookRefreshToken,
+    outlookCalendarId: business.outlookCalendarId,
+    timeMin: start,
+    timeMax: new Date(
+      start.getTime() + EXTERNAL_AVAILABILITY_WINDOW_HOURS * 60 * 60_000
+    ),
+  });
+}
+
 async function executeCheckAvailability(
   business: BusinessVoiceConfig,
   params: Record<string, unknown>,
@@ -234,6 +270,10 @@ async function executeCheckAvailability(
         ? params.professionalId
         : undefined;
 
+    const externalBusyIntervals = await fetchExternalBusyIntervals(
+      business,
+      startDateTime
+    );
     const availability = await checkAvailability({
       businessId: business.id,
       schedule: business.schedule,
@@ -243,6 +283,7 @@ async function executeCheckAvailability(
       durationMinutes,
       serviceIds,
       professionalId,
+      externalBusyIntervals,
     });
 
     return { success: true, result: availability };
@@ -654,6 +695,10 @@ async function executeBookAppointment(
       // ya ocupado en ese hueco, o por encima de la capacidad del negocio
       // (checkAvailability ya soporta filtrar por professionalId; solo hacía
       // falta pasarlo también en este camino).
+      const externalBusyIntervals = await fetchExternalBusyIntervals(
+        business,
+        startDateTime
+      );
       const availability = await checkAvailability({
         businessId: business.id,
         schedule: business.schedule,
@@ -663,6 +708,7 @@ async function executeBookAppointment(
         durationMinutes: effectiveDuration,
         serviceIds: verifiedServiceIds,
         professionalId: verifiedProfessionalId,
+        externalBusyIntervals,
       });
 
       if (!availability.available) {

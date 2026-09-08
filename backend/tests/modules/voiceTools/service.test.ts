@@ -42,6 +42,7 @@ vi.mock("../../../src/lib/availability.js", () => ({
 vi.mock("../../../src/modules/calendar/service.js", () => ({
   calendarService: {
     bookAppointment: vi.fn(),
+    getBusyIntervals: vi.fn(),
   },
 }));
 
@@ -60,6 +61,7 @@ const mockedServiceFindMany = vi.mocked(prisma.service.findMany);
 const mockedCheckBusinessHours = vi.mocked(checkBusinessHours);
 const mockedCheckAvailability = vi.mocked(checkAvailability);
 const mockedBookAppointment = vi.mocked(calendarService.bookAppointment);
+const mockedGetBusyIntervals = vi.mocked(calendarService.getBusyIntervals);
 const mockedEnqueueSmsJob = vi.mocked(enqueueSmsJob);
 
 function buildBusiness(overrides: Record<string, unknown> = {}) {
@@ -101,6 +103,7 @@ describe("executeVoiceTool book_appointment — vinculación a la llamada correc
     mockedBusinessFindUnique.mockResolvedValue(buildBusiness() as any);
     mockedCheckBusinessHours.mockReturnValue({ success: true, isOpen: true } as any);
     mockedBookAppointment.mockResolvedValue({ htmlLink: "https://calendar.google.com/event/1" } as any);
+    mockedGetBusyIntervals.mockResolvedValue([]);
     mockedProfessionalFindFirst.mockResolvedValue({ id: "professional_123" } as any);
     mockedServiceFindMany.mockResolvedValue([]);
     // checkAvailability ahora se llama SIEMPRE (antes se saltaba si venía un
@@ -252,6 +255,7 @@ describe("executeVoiceTool book_appointment — varios servicios en la misma cit
     mockedBusinessFindUnique.mockResolvedValue(buildBusiness() as any);
     mockedCheckBusinessHours.mockReturnValue({ success: true, isOpen: true } as any);
     mockedBookAppointment.mockResolvedValue({ htmlLink: "https://calendar.google.com/event/1" } as any);
+    mockedGetBusyIntervals.mockResolvedValue([]);
     mockedProfessionalFindFirst.mockResolvedValue({ id: "professional_123" } as any);
     mockedCallFindFirst.mockResolvedValue({ id: "call_row_1" } as any);
     mockedCheckAvailability.mockResolvedValue({

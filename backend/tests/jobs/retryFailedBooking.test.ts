@@ -19,7 +19,7 @@ vi.mock("../../src/lib/prisma.js", () => ({
 }));
 
 vi.mock("../../src/modules/calendar/service.js", () => ({
-  calendarService: { bookAppointment: vi.fn() },
+  calendarService: { bookAppointment: vi.fn(), getBusyIntervals: vi.fn() },
 }));
 
 vi.mock("../../src/lib/businessSchedule.js", () => ({
@@ -44,6 +44,7 @@ const mockedProfessionalFindFirst = vi.mocked(prisma.professional.findFirst);
 const mockedBookingFindUnique = vi.mocked(prisma.booking.findUnique);
 const mockedTransaction = vi.mocked(prisma.$transaction);
 const mockedBookAppointment = vi.mocked(calendarService.bookAppointment);
+const mockedGetBusyIntervals = vi.mocked(calendarService.getBusyIntervals);
 const mockedCheckBusinessHours = vi.mocked(checkBusinessHours);
 const mockedCheckBookingRestrictions = vi.mocked(checkBookingRestrictions);
 const mockedCheckAvailability = vi.mocked(checkAvailability);
@@ -109,6 +110,7 @@ describe("processRetryFailedBookingJob", () => {
       availableProfessionals: [{ id: "pro_1", name: "Montse" }],
     } as any);
     mockedAcquireBookingLock.mockResolvedValue("lock-token");
+    mockedGetBusyIntervals.mockResolvedValue([]);
     mockedReleaseBookingLock.mockResolvedValue(undefined);
   });
 
