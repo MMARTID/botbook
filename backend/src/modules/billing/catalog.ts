@@ -15,14 +15,14 @@ export const BILLING_PLANS: Record<PlanId, BillingPlan> = {
     id: "inicio",
     databasePlan: "basic",
     includedMinutes: 100,
-    extraMinuteCents: 60,
+    extraMinuteCents: 45,
     priceEnvironmentVariable: "STRIPE_PRICE_INICIO",
   },
   pro: {
     id: "pro",
     databasePlan: "pro",
     includedMinutes: 400,
-    extraMinuteCents: 45,
+    extraMinuteCents: 40,
     priceEnvironmentVariable: "STRIPE_PRICE_PRO",
   },
   scale: {

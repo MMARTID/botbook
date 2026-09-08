@@ -16,7 +16,7 @@ export const plans: readonly Plan[] = [
     name: "Inicio",
     price: 69,
     minutes: 100,
-    extraPerMinute: 0.6,
+    extraPerMinute: 0.45,
     description: "Para negocios que quieren empezar a no perder llamadas importantes.",
     summary: "3 profesionales · 1 documento de tu negocio · 100 minutos incluidos",
     features: [
@@ -33,7 +33,7 @@ export const plans: readonly Plan[] = [
     name: "Pro",
     price: 149,
     minutes: 400,
-    extraPerMinute: 0.45,
+    extraPerMinute: 0.4,
     description: "La opción recomendada para trabajar con agenda, servicios por profesional y seguimiento.",
     summary: "5 profesionales · servicios por profesional · 400 minutos incluidos",
     features: [
