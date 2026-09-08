@@ -8,6 +8,8 @@ import { cleanupZombieCallsJob } from "../../jobs/cleanupZombieCalls.js";
 import { retryStuckRecordingsJob } from "../../jobs/retryStuckRecordings.js";
 import { suspendOverdueCallsJob } from "../../jobs/suspendOverdueCalls.js";
 import { processUsageReportJob } from "../../jobs/processUsageReport.js";
+import { attachUsagePricesJob } from "../../jobs/attachUsagePrices.js";
+import { retryUsageReportsJob } from "../../jobs/retryUsageReports.js";
 import { E164_PHONE_REGEX } from "../../lib/phone.js";
 
 const ProcessRecordingSchema = z.object({
@@ -139,6 +141,34 @@ export const internalJobsRoutes: FastifyPluginAsync = async (fastify) => {
       } catch (error) {
         if (error instanceof z.ZodError) return reply.status(400).send({ error: error.errors });
         fastify.log.error({ err: error }, "report-usage job failed");
+        return reply.status(500).send({ error: "Job processing failed" });
+      }
+    }
+  );
+
+  fastify.post(
+    "/jobs/attach-usage-prices",
+    { preValidation: [fastify.verifyCloudTasks] },
+    async (_request, reply) => {
+      try {
+        const attachedSubscriptions = await attachUsagePricesJob();
+        return reply.send({ received: true, attachedSubscriptions });
+      } catch (error) {
+        fastify.log.error({ err: error }, "attach-usage-prices job failed");
+        return reply.status(500).send({ error: "Job processing failed" });
+      }
+    }
+  );
+
+  fastify.post(
+    "/jobs/retry-usage-reports",
+    { preValidation: [fastify.verifyCloudTasks] },
+    async (_request, reply) => {
+      try {
+        await retryUsageReportsJob();
+        return reply.send({ received: true });
+      } catch (error) {
+        fastify.log.error({ err: error }, "retry-usage-reports job failed");
         return reply.status(500).send({ error: "Job processing failed" });
       }
     }

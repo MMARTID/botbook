@@ -46,12 +46,8 @@ export async function processUsageReportJob(input: { businessId: string }): Prom
       update: { periodEnd: business.subscriptionCurrentPeriodEnd },
     });
     if (consumedMinutes >= Math.ceil(plan.includedMinutes * 0.8) && !period.warningEmailSentAt) {
-      const claimed = await prisma.billingUsagePeriod.updateMany({
-        where: { id: period.id, warningEmailSentAt: null },
-        data: { warningEmailSentAt: new Date() },
-      });
       const email = business.users[0]?.email;
-      if (claimed.count && email) {
+      if (email) {
         const { subject, html } = usageWarningEmail({
           businessName: business.name,
           planName: plan.id,
@@ -62,36 +58,55 @@ export async function processUsageReportJob(input: { businessId: string }): Prom
         });
         const { enqueueEmailJob } = await import("../lib/cloudTasks.js");
         await enqueueEmailJob({ fromAlias: "support", toAddress: email, subject, html });
+        // Se marca después de encolarlo: si Cloud Tasks no acepta el correo,
+        // el siguiente intento debe poder avisar al negocio.
+        await prisma.billingUsagePeriod.updateMany({
+          where: { id: period.id, warningEmailSentAt: null },
+          data: { warningEmailSentAt: new Date() },
+        });
       }
     }
-    const pending = await prisma.billingUsageReport.findFirst({ where: { periodId: period.id, reportedAt: null }, orderBy: { createdAt: "asc" } });
-    const report = pending ?? (consumedMinutes > period.reportedMinutes
-      ? await prisma.billingUsageReport.create({
-          data: {
-            periodId: period.id,
-            minutes: consumedMinutes - period.reportedMinutes,
-            identifier: `alhabla-minutes-${period.id}-${consumedMinutes}`,
-          },
-        })
-      : null);
-    if (!report) return;
+    // Puede quedar un informe pendiente si Stripe aceptó el evento pero el
+    // proceso cayó antes de confirmar Postgres. Se reintenta primero con el
+    // mismo identifier (Stripe lo deduplica) y, después, se informa cualquier
+    // minuto que haya terminado mientras tanto.
+    while (true) {
+      const latestPeriod = await prisma.billingUsagePeriod.findUniqueOrThrow({
+        where: { id: period.id },
+        select: { reportedMinutes: true },
+      });
+      const pending = await prisma.billingUsageReport.findFirst({
+        where: { periodId: period.id, reportedAt: null },
+        orderBy: { createdAt: "asc" },
+      });
+      const report = pending ?? (consumedMinutes > latestPeriod.reportedMinutes
+        ? await prisma.billingUsageReport.create({
+            data: {
+              periodId: period.id,
+              minutes: consumedMinutes - latestPeriod.reportedMinutes,
+              identifier: `alhabla-minutes-${period.id}-${consumedMinutes}`,
+            },
+          })
+        : null);
+      if (!report) return;
 
-    try {
-      await getStripeClient().billing.meterEvents.create(
-        {
-          event_name: "alhabla_call_minutes",
-          identifier: report.identifier,
-          payload: { stripe_customer_id: business.stripeCustomerId, value: String(report.minutes) },
-        },
-        { idempotencyKey: report.identifier }
-      );
-      await prisma.$transaction([
-        prisma.billingUsageReport.update({ where: { id: report.id }, data: { reportedAt: new Date(), lastError: null } }),
-        prisma.billingUsagePeriod.update({ where: { id: period.id }, data: { reportedMinutes: { increment: report.minutes } } }),
-      ]);
-    } catch (error) {
-      await prisma.billingUsageReport.update({ where: { id: report.id }, data: { lastError: error instanceof Error ? error.message : String(error) } });
-      throw error;
+      try {
+        await getStripeClient().billing.meterEvents.create(
+          {
+            event_name: "alhabla_call_minutes",
+            identifier: report.identifier,
+            payload: { stripe_customer_id: business.stripeCustomerId, value: String(report.minutes) },
+          },
+          { idempotencyKey: report.identifier }
+        );
+        await prisma.$transaction([
+          prisma.billingUsageReport.update({ where: { id: report.id }, data: { reportedAt: new Date(), lastError: null } }),
+          prisma.billingUsagePeriod.update({ where: { id: period.id }, data: { reportedMinutes: { increment: report.minutes } } }),
+        ]);
+      } catch (error) {
+        await prisma.billingUsageReport.update({ where: { id: report.id }, data: { lastError: error instanceof Error ? error.message : String(error) } });
+        throw error;
+      }
     }
   } finally {
     await releaseLock(lockKey, lockToken);

@@ -8,6 +8,8 @@ import { processSendSmsJob } from "../../../src/jobs/sendSms.js";
 import { cleanupZombieCallsJob } from "../../../src/jobs/cleanupZombieCalls.js";
 import { retryStuckRecordingsJob } from "../../../src/jobs/retryStuckRecordings.js";
 import { suspendOverdueCallsJob } from "../../../src/jobs/suspendOverdueCalls.js";
+import { attachUsagePricesJob } from "../../../src/jobs/attachUsagePrices.js";
+import { retryUsageReportsJob } from "../../../src/jobs/retryUsageReports.js";
 
 vi.mock("../../../src/jobs/processRecording.js", () => ({ processRecordingJob: vi.fn() }));
 vi.mock("../../../src/jobs/retryFailedBooking.js", () => ({ processRetryFailedBookingJob: vi.fn() }));
@@ -16,6 +18,8 @@ vi.mock("../../../src/jobs/sendSms.js", () => ({ processSendSmsJob: vi.fn() }));
 vi.mock("../../../src/jobs/cleanupZombieCalls.js", () => ({ cleanupZombieCallsJob: vi.fn() }));
 vi.mock("../../../src/jobs/retryStuckRecordings.js", () => ({ retryStuckRecordingsJob: vi.fn() }));
 vi.mock("../../../src/jobs/suspendOverdueCalls.js", () => ({ suspendOverdueCallsJob: vi.fn() }));
+vi.mock("../../../src/jobs/attachUsagePrices.js", () => ({ attachUsagePricesJob: vi.fn() }));
+vi.mock("../../../src/jobs/retryUsageReports.js", () => ({ retryUsageReportsJob: vi.fn() }));
 
 const mockedProcessRecordingJob = vi.mocked(processRecordingJob);
 const mockedProcessRetryFailedBookingJob = vi.mocked(processRetryFailedBookingJob);
@@ -24,6 +28,8 @@ const mockedProcessSendSmsJob = vi.mocked(processSendSmsJob);
 const mockedCleanupZombieCallsJob = vi.mocked(cleanupZombieCallsJob);
 const mockedRetryStuckRecordingsJob = vi.mocked(retryStuckRecordingsJob);
 const mockedSuspendOverdueCallsJob = vi.mocked(suspendOverdueCallsJob);
+const mockedAttachUsagePricesJob = vi.mocked(attachUsagePricesJob);
+const mockedRetryUsageReportsJob = vi.mocked(retryUsageReportsJob);
 
 describe("internalJobsRoutes", () => {
   let fastify: ReturnType<typeof Fastify>;
@@ -232,6 +238,28 @@ describe("internalJobsRoutes", () => {
       const response = await fastify.inject({ method: "POST", url: "/jobs/suspend-overdue-calls" });
 
       expect(response.statusCode).toBe(500);
+    });
+  });
+
+  describe("POST /jobs/attach-usage-prices", () => {
+    it("añade precios medidos a suscripciones existentes", async () => {
+      mockedAttachUsagePricesJob.mockResolvedValue(3);
+
+      const response = await fastify.inject({ method: "POST", url: "/jobs/attach-usage-prices" });
+
+      expect(response.statusCode).toBe(200);
+      expect(response.json()).toEqual({ received: true, attachedSubscriptions: 3 });
+    });
+  });
+
+  describe("POST /jobs/retry-usage-reports", () => {
+    it("recupera informes de consumo pendientes", async () => {
+      mockedRetryUsageReportsJob.mockResolvedValue(undefined);
+
+      const response = await fastify.inject({ method: "POST", url: "/jobs/retry-usage-reports" });
+
+      expect(response.statusCode).toBe(200);
+      expect(mockedRetryUsageReportsJob).toHaveBeenCalled();
     });
   });
 
