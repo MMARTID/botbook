@@ -355,6 +355,73 @@ describe("provisionPhoneNumber", () => {
     expect(mockedBusinessUpdate).not.toHaveBeenCalled();
   });
 
+  it("relee el negocio DESPUÉS de adquirir el lock, no la copia de antes (hallazgo #12 de la auditoría)", async () => {
+    // Primera lectura (antes del lock): todavía sin número, como si otra
+    // llamada concurrente aún no hubiera terminado de comprar el suyo.
+    // Segunda lectura (después de adquirir el lock, ya sin competencia): esa
+    // otra llamada YA terminó y dejó el número activo. Usar la primera copia
+    // para decidir si comprar habría comprado un segundo número real.
+    mockedBusinessFindUnique
+      .mockResolvedValueOnce({
+        id: businessId,
+        twilioPhoneNumberStatus: "pending",
+        telnyxPhoneNumber: null,
+        twilioPhoneNumber: null,
+      } as any)
+      .mockResolvedValueOnce({
+        id: businessId,
+        name: "Peluquería Test",
+        twilioPhoneNumberStatus: "active",
+        telnyxPhoneNumber: "+34886020712",
+        twilioPhoneNumber: null,
+        telnyxNumberOrderId: null,
+        orchestrator: "retell",
+        agents: [],
+      } as any);
+
+    const result = await provisionPhoneNumber(businessId);
+
+    expect(result.success).toBe(true);
+    expect(result.status).toBe("active");
+    expect(result.phoneNumber).toBe("+34886020712");
+    expect(mockedSearchAvailableNumbers).not.toHaveBeenCalled();
+    expect(mockedPurchaseNumber).not.toHaveBeenCalled();
+    // El lock se adquirió y se liberó igualmente, aunque no hiciera falta comprar nada.
+    expect(mockRedisClient.del).toHaveBeenCalledWith(`phone_provision_lock:${businessId}`);
+  });
+
+  it("limpia telnyxNumberOrderId cuando Telnyx marca el pedido como 'failure' definitivo (hallazgo #32 de la auditoría)", async () => {
+    mockedBusinessFindUnique.mockResolvedValue({
+      id: businessId,
+      name: "Peluquería Test",
+      twilioPhoneNumberStatus: "pending",
+      telnyxPhoneNumber: null,
+      telnyxNumberOrderId: "order_dead",
+      orchestrator: "retell",
+      agents: [],
+    } as any);
+
+    mockedGetNumberOrder.mockResolvedValue({
+      orderId: "order_dead",
+      status: "failure",
+      phoneNumber: "+34886020712",
+    });
+
+    const result = await provisionPhoneNumber(businessId);
+
+    expect(result.success).toBe(false);
+    expect(result.status).toBe("failed");
+    // Sin esto, el siguiente intento de "reintentar" reanudaría el mismo
+    // pedido muerto (telnyxNumberOrderId sigue apuntando a él) y fallaría
+    // en bucle para siempre.
+    expect(mockedBusinessUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: businessId },
+        data: { telnyxNumberOrderId: null },
+      })
+    );
+  });
+
   it("libera el lock de Redis incluso si el provisioning falla", async () => {
     mockedBusinessFindUnique.mockResolvedValue({
       id: businessId,

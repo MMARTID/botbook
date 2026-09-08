@@ -13,14 +13,9 @@ import { getRedis } from "../../lib/redis.js";
 // facturando de más).
 const PROVISION_LOCK_TTL_SECONDS = 60;
 
-export type PhoneNumberStatus =
-  | "pending"
-  | "purchased"
-  | "active"
-  | "failed";
+export type PhoneNumberStatus = "pending" | "purchased" | "active" | "failed";
 
-const DEFAULT_COUNTRY =
-  process.env.TWILIO_PHONE_NUMBER_COUNTRY || "ES";
+const DEFAULT_COUNTRY = process.env.TWILIO_PHONE_NUMBER_COUNTRY || "ES";
 
 const ORDER_POLL_ATTEMPTS = 5;
 const ORDER_POLL_DELAY_MS = 2000;
@@ -36,39 +31,45 @@ function sleep(ms: number) {
  * asynchronous (regulatory review) — if a previous attempt already placed an
  * order, resumes polling that same order instead of purchasing a new one.
  */
-export async function provisionPhoneNumber(
-  businessId: string
-): Promise<{
+export async function provisionPhoneNumber(businessId: string): Promise<{
   success: boolean;
   phoneNumber?: string;
   status: PhoneNumberStatus;
   error?: string;
 }> {
-  const business = await prisma.business.findUnique({
+  // Lectura rápida antes del lock: solo para el atajo "ya está activo" (no
+  // arriesga nada, un falso negativo aquí como mucho hace pasar por el lock
+  // de más). La lectura que de verdad importa —la que decide si hace falta
+  // comprar un número o reanudar un pedido— tiene que ser DESPUÉS de
+  // adquirir el lock, o dos llamadas casi simultáneas pueden leer ambas
+  // telnyxNumberOrderId: null antes de que ninguna lo haya escrito: la
+  // primera compra y guarda el pedido, pero la segunda —que ya tenía su
+  // propia copia (obsoleta) de `business` en memoria desde antes de que la
+  // primera terminara— la usa igualmente y compra un SEGUNDO número real en
+  // Telnyx (hallazgo #12 de la auditoría).
+  const initialBusiness = await prisma.business.findUnique({
     where: { id: businessId },
-    include: {
-      agents: {
-        where: { active: true },
-        orderBy: { createdAt: "asc" },
-        take: 1,
-      },
+    select: {
+      twilioPhoneNumberStatus: true,
+      telnyxPhoneNumber: true,
+      twilioPhoneNumber: true,
     },
   });
 
-  if (!business) {
+  if (!initialBusiness) {
     return { success: false, status: "failed", error: "Business not found" };
   }
 
-  const orchestrator = business.orchestrator || "retell";
-
   const isAlreadyActive =
-    business.twilioPhoneNumberStatus === "active" &&
-    (business.telnyxPhoneNumber || business.twilioPhoneNumber);
+    initialBusiness.twilioPhoneNumberStatus === "active" &&
+    (initialBusiness.telnyxPhoneNumber || initialBusiness.twilioPhoneNumber);
   if (isAlreadyActive) {
     return {
       success: true,
       phoneNumber:
-        business.telnyxPhoneNumber || business.twilioPhoneNumber || undefined,
+        initialBusiness.telnyxPhoneNumber ||
+        initialBusiness.twilioPhoneNumber ||
+        undefined,
       status: "active",
     };
   }
@@ -84,17 +85,78 @@ export async function provisionPhoneNumber(
   if (!acquiredLock) {
     // Ya hay un provisioning en curso para este negocio (la otra llamada
     // concurrente) — no comprar un segundo número, solo devolver el estado
-    // actual. El que tiene el lock es quien terminará de resolverlo.
+    // actual (releído, no la copia de antes del lock). El que tiene el lock
+    // es quien terminará de resolverlo.
     console.log(
       `[Phone] Provisioning ya en curso para business ${businessId}, se omite la llamada duplicada`
     );
+    const currentBusiness = await prisma.business.findUnique({
+      where: { id: businessId },
+      select: {
+        twilioPhoneNumberStatus: true,
+        telnyxPhoneNumber: true,
+        twilioPhoneNumber: true,
+      },
+    });
     return {
-      success: business.twilioPhoneNumberStatus === "active",
+      success: currentBusiness?.twilioPhoneNumberStatus === "active",
       phoneNumber:
-        business.telnyxPhoneNumber || business.twilioPhoneNumber || undefined,
-      status: (business.twilioPhoneNumberStatus as PhoneNumberStatus) || "pending",
+        currentBusiness?.telnyxPhoneNumber ||
+        currentBusiness?.twilioPhoneNumber ||
+        undefined,
+      status:
+        (currentBusiness?.twilioPhoneNumberStatus as PhoneNumberStatus) ||
+        "pending",
     };
   }
+
+  // Releído YA con el lock en la mano: esta es la copia que decide si hace
+  // falta comprar, reanudar un pedido pendiente, o si ya se resolvió
+  // mientras esperábamos el lock.
+  const business = await prisma.business.findUnique({
+    where: { id: businessId },
+    include: {
+      agents: {
+        where: { active: true },
+        orderBy: { createdAt: "asc" },
+        take: 1,
+      },
+    },
+  });
+
+  if (!business) {
+    await getRedis()
+      .del(lockKey)
+      .catch((err) =>
+        console.error(
+          `[Phone] No se pudo liberar el lock de ${businessId}:`,
+          err
+        )
+      );
+    return { success: false, status: "failed", error: "Business not found" };
+  }
+
+  if (
+    business.twilioPhoneNumberStatus === "active" &&
+    (business.telnyxPhoneNumber || business.twilioPhoneNumber)
+  ) {
+    await getRedis()
+      .del(lockKey)
+      .catch((err) =>
+        console.error(
+          `[Phone] No se pudo liberar el lock de ${businessId}:`,
+          err
+        )
+      );
+    return {
+      success: true,
+      phoneNumber:
+        business.telnyxPhoneNumber || business.twilioPhoneNumber || undefined,
+      status: "active",
+    };
+  }
+
+  const orchestrator = business.orchestrator || "retell";
 
   try {
     // Por ahora solo compramos números españoles: es el único país con
@@ -181,6 +243,17 @@ export async function provisionPhoneNumber(
     }
 
     if (order.status === "failure") {
+      // Limpiar telnyxNumberOrderId aquí, no solo dejar que el catch de más
+      // abajo marque twilioPhoneNumberStatus como "failed" — sin esto, un
+      // pedido rechazado definitivamente por Telnyx (no una revisión
+      // "pending", un fallo real) se queda enlazado para siempre: el
+      // siguiente intento de "reintentar" reanuda ESE MISMO pedido muerto en
+      // vez de comprar uno nuevo, y vuelve a fallar en bucle (hallazgo #32
+      // de la auditoría).
+      await prisma.business.update({
+        where: { id: businessId },
+        data: { telnyxNumberOrderId: null },
+      });
       throw new Error(
         `El pedido de Telnyx para el número ${order.phoneNumber || ""} falló`
       );
@@ -206,7 +279,10 @@ export async function provisionPhoneNumber(
         try {
           await getRedis().del(`voice_config:${businessId}`);
         } catch (err) {
-          console.error(`[Phone] No se pudo invalidar la caché de configuración de voz para ${businessId}:`, err);
+          console.error(
+            `[Phone] No se pudo invalidar la caché de configuración de voz para ${businessId}:`,
+            err
+          );
         }
       }
 
@@ -238,7 +314,10 @@ export async function provisionPhoneNumber(
     try {
       await getRedis().del(`voice_config:${businessId}`);
     } catch (err) {
-      console.error(`[Phone] No se pudo invalidar la caché de configuración de voz para ${businessId}:`, err);
+      console.error(
+        `[Phone] No se pudo invalidar la caché de configuración de voz para ${businessId}:`,
+        err
+      );
     }
 
     // 3. Find active agent to associate
@@ -293,7 +372,8 @@ export async function provisionPhoneNumber(
         data: {
           twilioPhoneNumberStatus: "active",
           retellPhoneNumber: retellPhone.phone_number,
-          retellPhoneNumberId: retellPhone.phone_number_id || retellPhone.phone_number,
+          retellPhoneNumberId:
+            retellPhone.phone_number_id || retellPhone.phone_number,
         },
       });
 
@@ -360,9 +440,11 @@ export async function provisionPhoneNumber(
       status: "active",
     };
   } catch (error) {
-    const message =
-      error instanceof Error ? error.message : String(error);
-    console.error(`[Phone] Provisioning failed for business ${businessId}:`, message);
+    const message = error instanceof Error ? error.message : String(error);
+    console.error(
+      `[Phone] Provisioning failed for business ${businessId}:`,
+      message
+    );
 
     await prisma.business.update({
       where: { id: businessId },
@@ -376,7 +458,10 @@ export async function provisionPhoneNumber(
     await getRedis()
       .del(lockKey)
       .catch((err) =>
-        console.error(`[Phone] No se pudo liberar el lock de ${businessId}:`, err)
+        console.error(
+          `[Phone] No se pudo liberar el lock de ${businessId}:`,
+          err
+        )
       );
   }
 }
