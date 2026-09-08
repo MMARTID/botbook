@@ -63,14 +63,20 @@ describe("retryStuckRecordingsJob (hallazgo #30 de la auditoría)", () => {
     await retryStuckRecordingsJob();
 
     expect(mockedEnqueueRecordingJob).toHaveBeenCalledTimes(2);
-    expect(mockedEnqueueRecordingJob).toHaveBeenCalledWith(
-      { callId: "call_db_1", vapiUrl: "https://vapi.example/rec1.mp3", businessId: "biz_1" },
-      "process-recording-call_db_1"
-    );
-    expect(mockedEnqueueRecordingJob).toHaveBeenCalledWith(
-      { callId: "call_db_2", vapiUrl: "https://vapi.example/rec2.mp3", businessId: "biz_2" },
-      "process-recording-call_db_2"
-    );
+    // Sin segundo argumento (taskId) a propósito — ver comentario en el
+    // fuente: reusar el nombre de la tarea original (process-recording-<id>)
+    // haría que Cloud Tasks rechazara el reintento con ALREADY_EXISTS.
+    expect(mockedEnqueueRecordingJob).toHaveBeenCalledWith({
+      callId: "call_db_1",
+      vapiUrl: "https://vapi.example/rec1.mp3",
+      businessId: "biz_1",
+    });
+    expect(mockedEnqueueRecordingJob).toHaveBeenCalledWith({
+      callId: "call_db_2",
+      vapiUrl: "https://vapi.example/rec2.mp3",
+      businessId: "biz_2",
+    });
+    expect(mockedEnqueueRecordingJob.mock.calls[0].length).toBe(1);
   });
 
   it("sigue con las demás grabaciones aunque una falle al reencolar", async () => {

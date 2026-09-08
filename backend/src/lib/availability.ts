@@ -87,6 +87,26 @@ const NEXT_SLOT_SEARCH_INCREMENT_MINUTES = 15;
  * corta antes si el horario del negocio termina primero. */
 const NEXT_SLOT_SEARCH_MAX_ATTEMPTS = 16;
 
+/**
+ * Milisegundos que checkAvailability mira hacia delante desde
+ * startDateTime — la ventana de búsqueda de findNextAvailableSlot (4h) MÁS
+ * la propia duración de la cita (una cita de 90 min que empezara casi al
+ * final de esas 4h necesita hasta 90 min más para comprobar su propio
+ * hueco). Exportada para que quien calcule por su cuenta la ocupación
+ * externa del calendario (fetchExternalBusyIntervals en voiceTools/service.ts,
+ * y el equivalente en retryFailedBooking.ts) consulte exactamente la misma
+ * ventana que esta función usa — antes usaban un margen fijo de 5h que se
+ * quedaba corto para cualquier servicio de más de 60 min, dejando de
+ * comprobar el calendario real justo en el tramo final de la búsqueda de
+ * hueco alternativo (hallazgo de la revisión posterior a la auditoría).
+ */
+export function computeAvailabilityLookaheadMs(durationMinutes: number): number {
+  return (
+    NEXT_SLOT_SEARCH_MAX_ATTEMPTS * NEXT_SLOT_SEARCH_INCREMENT_MINUTES * 60_000 +
+    Math.max(0, durationMinutes) * 60_000
+  );
+}
+
 /** Busca el siguiente hueco libre a partir de `startDateTime`, en pasos de
  * 15 minutos, dentro del mismo horario comercial del día — nunca salta a
  * otro día. Reutiliza `bookings`, ya cargado por el caller para una ventana
@@ -300,11 +320,7 @@ export async function checkAvailability(input: {
   const start = new Date(startDateTime);
   const end = new Date(start.getTime() + Math.max(0, durationMinutes) * 60_000);
   const nextSlotSearchWindowEnd = new Date(
-    start.getTime() +
-      NEXT_SLOT_SEARCH_MAX_ATTEMPTS *
-        NEXT_SLOT_SEARCH_INCREMENT_MINUTES *
-        60_000 +
-      Math.max(0, durationMinutes) * 60_000
+    start.getTime() + computeAvailabilityLookaheadMs(durationMinutes)
   );
 
   const localBookings = await prisma.booking.findMany({

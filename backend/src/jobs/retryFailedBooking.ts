@@ -1,11 +1,16 @@
 import { prisma } from "../lib/prisma.js";
+import { getRedis } from "../lib/redis.js";
 import { calendarService } from "../modules/calendar/service.js";
 import {
   checkBusinessHours,
   checkBookingRestrictions,
 } from "../lib/businessSchedule.js";
-import { checkAvailability } from "../lib/availability.js";
+import {
+  checkAvailability,
+  computeAvailabilityLookaheadMs,
+} from "../lib/availability.js";
 import { acquireBookingLock, releaseBookingLock } from "../lib/bookingLock.js";
+import { errorMessage } from "../lib/logUtils.js";
 import { RetryFailedBookingJob } from "../lib/jobTypes.js";
 
 interface PendingBookingData {
@@ -16,6 +21,14 @@ interface PendingBookingData {
   durationMinutes: number;
   serviceIds?: string[] | null;
   professionalId?: string | null;
+}
+
+async function abandonLead(leadId: string, reason: string): Promise<void> {
+  console.error(`[Job] Lead ${leadId} ya no es válido: ${reason}`);
+  await prisma.lead.update({
+    where: { id: leadId },
+    data: { resolvedAt: new Date() },
+  });
 }
 
 /**
@@ -40,6 +53,7 @@ export async function processRetryFailedBookingJob(
   }
 
   const data_ = lead.data as unknown as PendingBookingData;
+  const startDate = new Date(data_.startDateTime);
 
   const call = await prisma.call.findUnique({
     where: { id: lead.callId },
@@ -49,38 +63,6 @@ export async function processRetryFailedBookingJob(
     throw new Error(
       `Call ${lead.callId} no existe; no se puede reintentar la reserva del lead ${leadId}`
     );
-  }
-
-  // Un booking ya puede existir para esta llamada — por un reintento anterior
-  // de este mismo job que ya tuvo éxito, o porque el cliente siguió al
-  // teléfono y logró confirmar (otra hora, quizás) antes de colgar. En
-  // cualquiera de los dos casos, sobrescribirlo con los datos DEL LEAD
-  // (que reflejan el momento del fallo, no el estado actual) sería el propio
-  // bug que este fix corrige: nunca crear un segundo evento para la misma
-  // reserva, y nunca pisar una reserva más reciente con una más vieja.
-  const startDate = new Date(data_.startDateTime);
-  const existingBooking = await prisma.booking.findUnique({
-    where: { callId: lead.callId },
-    select: { externalEventId: true, programedAt: true, durationMinutes: true },
-  });
-  if (existingBooking) {
-    const sameRequest =
-      existingBooking.programedAt.getTime() === startDate.getTime() &&
-      existingBooking.durationMinutes === data_.durationMinutes;
-    if (sameRequest && existingBooking.externalEventId) {
-      console.log(
-        `[Job] Lead ${leadId} ya tenía un evento creado para esta reserva exacta; se marca resuelto sin duplicar`
-      );
-    } else {
-      console.log(
-        `[Job] Lead ${leadId} descartado: ya existe una reserva distinta (más reciente) para esta llamada`
-      );
-    }
-    await prisma.lead.update({
-      where: { id: lead.id },
-      data: { resolvedAt: new Date() },
-    });
-    return;
   }
 
   const business = await prisma.business.findUnique({
@@ -172,6 +154,39 @@ export async function processRetryFailedBookingJob(
   }
 
   try {
+    // La comprobación de idempotencia tiene que vivir DENTRO de la sección
+    // protegida por el lock, no antes de adquirirlo: si se hiciera antes,
+    // dos entregas concurrentes de Cloud Tasks para el mismo leadId podrían
+    // ambas leer "no existe reserva todavía", serializarse en el lock, y la
+    // segunda —que ya no vuelve a comprobar tras conseguirlo— duplicaría el
+    // evento de calendario y la notificación al negocio. Un booking ya
+    // puede existir para esta llamada por un reintento anterior que tuvo
+    // éxito, o porque el cliente siguió al teléfono y logró confirmar (otra
+    // hora, quizás) antes de colgar — en ambos casos, sobrescribirlo con los
+    // datos DEL LEAD (que reflejan el momento del fallo, no el estado
+    // actual) sería el propio bug que este fix corrige.
+    const existingBooking = await prisma.booking.findUnique({
+      where: { callId: lead.callId },
+      select: { externalEventId: true, programedAt: true, durationMinutes: true },
+    });
+    if (existingBooking) {
+      const sameRequest =
+        existingBooking.programedAt.getTime() === startDate.getTime() &&
+        existingBooking.durationMinutes === data_.durationMinutes;
+      if (sameRequest && existingBooking.externalEventId) {
+        await abandonLead(
+          leadId,
+          "ya tenía un evento creado para esta reserva exacta; se marca resuelto sin duplicar"
+        );
+      } else {
+        await abandonLead(
+          leadId,
+          "descartado: ya existe una reserva distinta (más reciente) para esta llamada"
+        );
+      }
+      return;
+    }
+
     // El fallo original pudo haber sido de calendario, pero entre ese
     // momento y este reintento (a veces minutos u horas más tarde) el
     // horario pudo cambiar, el hueco pudo ocuparse, o la antelación mínima
@@ -184,13 +199,10 @@ export async function processRetryFailedBookingJob(
       data_.durationMinutes
     );
     if (!businessHours.success || !businessHours.isOpen) {
-      console.error(
-        `[Job] Lead ${leadId} ya no es válido: fuera del horario actual del negocio (${businessHours.code ?? "sin código"})`
+      await abandonLead(
+        leadId,
+        `fuera del horario actual del negocio (${businessHours.code ?? "sin código"})`
       );
-      await prisma.lead.update({
-        where: { id: lead.id },
-        data: { resolvedAt: new Date() },
-      });
       return;
     }
 
@@ -200,20 +212,16 @@ export async function processRetryFailedBookingJob(
       data_.durationMinutes
     );
     if (!restrictions.success) {
-      console.error(
-        `[Job] Lead ${leadId} ya no es válido: ${restrictions.code}`
-      );
-      await prisma.lead.update({
-        where: { id: lead.id },
-        data: { resolvedAt: new Date() },
-      });
+      await abandonLead(leadId, restrictions.code);
       return;
     }
 
     // Misma comprobación de ocupación real del calendario que la reserva en
-    // vivo (voiceTools/service.ts) — ver hallazgo #5 de la auditoría.
-    const retryStart = new Date(data_.startDateTime);
-    const externalBusyIntervals = Number.isNaN(retryStart.getTime())
+    // vivo (voiceTools/service.ts) — ver hallazgo #5 de la auditoría. Misma
+    // ventana exacta que usa checkAvailability internamente
+    // (computeAvailabilityLookaheadMs) — un margen fijo anterior (5h) se
+    // quedaba corto para cualquier servicio de más de 60 min.
+    const externalBusyIntervals = Number.isNaN(startDate.getTime())
       ? []
       : await calendarService.getBusyIntervals({
           provider,
@@ -221,8 +229,10 @@ export async function processRetryFailedBookingJob(
           googleCalendarId: business.googleCalendarId,
           outlookRefreshToken: business.outlookRefreshToken,
           outlookCalendarId: business.outlookCalendarId,
-          timeMin: retryStart,
-          timeMax: new Date(retryStart.getTime() + 5 * 60 * 60_000),
+          timeMin: startDate,
+          timeMax: new Date(
+            startDate.getTime() + computeAvailabilityLookaheadMs(data_.durationMinutes)
+          ),
         });
 
     const availability = await checkAvailability({
@@ -237,40 +247,93 @@ export async function processRetryFailedBookingJob(
       externalBusyIntervals,
     });
     if (!availability.available) {
-      console.error(
-        `[Job] Lead ${leadId} ya no es válido: ${availability.code} (el hueco se ocupó mientras esperaba el reintento)`
+      await abandonLead(
+        leadId,
+        `${availability.code} (el hueco se ocupó mientras esperaba el reintento)`
       );
-      await prisma.lead.update({
-        where: { id: lead.id },
-        data: { resolvedAt: new Date() },
-      });
       return;
     }
     const resolvedProfessionalId =
       verifiedProfessionalId ?? availability.availableProfessionals[0]?.id;
 
     // Igual que en la reserva en vivo: si el cliente no dio un teléfono
-    // distinto, se usa el de la llamada — antes este job lo perdía siempre
-    // (solo miraba data_.clientPhone), así que el caso más común (cliente
-    // reserva con el mismo número desde el que llama) se quedaba sin
-    // teléfono en el evento creado por un reintento.
+    // distinto, se usa el de la llamada.
     const effectiveClientPhone =
       data_.clientPhone ?? call.fromNumber ?? undefined;
 
-    const result = await calendarService.bookAppointment({
-      clientName: data_.clientName,
-      startDateTime: data_.startDateTime,
-      durationMinutes: data_.durationMinutes,
-      clientEmail: data_.clientEmail ?? undefined,
-      clientPhone: effectiveClientPhone,
-      serviceNames,
-      professionalName,
-      provider,
-      googleRefreshToken: business.googleRefreshToken,
-      googleCalendarId: business.googleCalendarId,
-      outlookRefreshToken: business.outlookRefreshToken,
-      outlookCalendarId: business.outlookCalendarId,
-    });
+    let result: unknown;
+    try {
+      result = await calendarService.bookAppointment({
+        clientName: data_.clientName,
+        startDateTime: data_.startDateTime,
+        durationMinutes: data_.durationMinutes,
+        clientEmail: data_.clientEmail ?? undefined,
+        clientPhone: effectiveClientPhone,
+        serviceNames,
+        professionalName,
+        provider,
+        googleRefreshToken: business.googleRefreshToken,
+        googleCalendarId: business.googleCalendarId,
+        outlookRefreshToken: business.outlookRefreshToken,
+        outlookCalendarId: business.outlookCalendarId,
+      });
+    } catch (error) {
+      const e = error as { name?: string; code?: string };
+      if (
+        e?.name === "CalendarBusinessError" &&
+        (e?.code === "GOOGLE_CALENDAR_RECONNECT_REQUIRED" ||
+          e?.code === "OUTLOOK_CALENDAR_RECONNECT_REQUIRED")
+      ) {
+        // A diferencia de otros fallos (transitorios, reintentables), este
+        // requiere una acción manual del negocio — igual que en la reserva
+        // en vivo (voiceTools/service.ts), se marca el calendario como
+        // desconectado y se invalida la caché de voz, en vez de dejar que
+        // Cloud Tasks siga reintentando contra una conexión que no va a
+        // arreglarse sola. Sin este catch, el job simplemente fallaba una y
+        // otra vez hasta agotar los reintentos de Cloud Tasks, dejando
+        // Business.googleCalendarConnected/outlookCalendarConnected en true
+        // (el panel seguía mostrando "conectado") aunque en realidad la
+        // conexión llevara horas rota.
+        const errorProvider =
+          e.code === "OUTLOOK_CALENDAR_RECONNECT_REQUIRED" ? "outlook" : "google";
+        try {
+          await prisma.business.update({
+            where: { id: call.businessId },
+            data:
+              errorProvider === "outlook"
+                ? {
+                    outlookCalendarConnected: false,
+                    outlookRefreshToken: null,
+                    outlookCalendarDisconnectedAt: new Date(),
+                    outlookCalendarLastError: "invalid_grant",
+                  }
+                : {
+                    googleCalendarConnected: false,
+                    googleRefreshToken: null,
+                    googleCalendarDisconnectedAt: new Date(),
+                    googleCalendarLastError: "invalid_grant",
+                  },
+          });
+        } catch (dbErr) {
+          console.error(
+            `[Job] No se pudo actualizar el estado del calendario de ${call.businessId}: ${errorMessage(dbErr)}`
+          );
+        }
+        try {
+          await getRedis().del(`voice_config:${call.businessId}`);
+        } catch (redisErr) {
+          console.error(
+            `[Job] No se pudo invalidar la caché de calendario de ${call.businessId}: ${errorMessage(redisErr)}`
+          );
+        }
+        await abandonLead(
+          leadId,
+          `conexión de ${errorProvider === "outlook" ? "Outlook" : "Google"} revocada o expirada; requiere reconexión manual`
+        );
+        return;
+      }
+      throw error;
+    }
 
     await prisma.$transaction(async (tx) => {
       await tx.booking.upsert({
@@ -282,7 +345,7 @@ export async function processRetryFailedBookingJob(
           numberPeople: 1,
           professionalId: resolvedProfessionalId ?? undefined,
           serviceIds: data_.serviceIds ?? [],
-          clientPhone: data_.clientPhone ?? undefined,
+          clientPhone: effectiveClientPhone,
           externalEventId: (result as { id?: string })?.id ?? undefined,
         },
         update: {
@@ -290,7 +353,7 @@ export async function processRetryFailedBookingJob(
           durationMinutes: data_.durationMinutes,
           professionalId: resolvedProfessionalId ?? undefined,
           serviceIds: data_.serviceIds ?? [],
-          clientPhone: data_.clientPhone ?? undefined,
+          clientPhone: effectiveClientPhone,
           externalEventId: (result as { id?: string })?.id ?? undefined,
         },
       });

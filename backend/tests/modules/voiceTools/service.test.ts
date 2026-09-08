@@ -37,6 +37,7 @@ vi.mock("../../../src/lib/businessSchedule.js", () => ({
 
 vi.mock("../../../src/lib/availability.js", () => ({
   checkAvailability: vi.fn(),
+  computeAvailabilityLookaheadMs: vi.fn((durationMinutes: number) => 4 * 60 * 60_000 + durationMinutes * 60_000),
 }));
 
 vi.mock("../../../src/modules/calendar/service.js", () => ({

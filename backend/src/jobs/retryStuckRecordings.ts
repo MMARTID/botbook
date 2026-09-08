@@ -53,14 +53,19 @@ export async function retryStuckRecordingsJob(): Promise<void> {
   let succeeded = 0;
   for (const recording of stuckRecordings) {
     try {
-      await enqueueRecordingJob(
-        {
-          callId: recording.callId,
-          vapiUrl: recording.vapiUrl,
-          businessId: recording.call.businessId,
-        },
-        `process-recording-${recording.callId}`
-      );
+      // Sin taskId (a diferencia del intento original en webhookHandlers.ts,
+      // que usa `process-recording-${callId}`): Cloud Tasks rechaza con
+      // ALREADY_EXISTS un nombre de tarea reutilizado hasta ~1h después de
+      // que la tarea anterior corriera — precisamente el caso que este job
+      // existe para reintentar (una tarea que YA corrió pero no dejó
+      // storageKey). Con el mismo nombre, este reintento fallaría siempre
+      // en el escenario que pretende arreglar. Sin taskId, Cloud Tasks
+      // genera uno propio y no hay colisión.
+      await enqueueRecordingJob({
+        callId: recording.callId,
+        vapiUrl: recording.vapiUrl,
+        businessId: recording.call.businessId,
+      });
       succeeded++;
     } catch (err) {
       console.error(

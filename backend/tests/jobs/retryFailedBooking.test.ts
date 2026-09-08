@@ -10,7 +10,7 @@ vi.mock("../../src/lib/prisma.js", () => ({
   prisma: {
     lead: { findUnique: vi.fn(), update: vi.fn() },
     call: { findUnique: vi.fn() },
-    business: { findUnique: vi.fn() },
+    business: { findUnique: vi.fn(), update: vi.fn() },
     service: { findMany: vi.fn() },
     professional: { findFirst: vi.fn() },
     booking: { findUnique: vi.fn() },
@@ -29,6 +29,7 @@ vi.mock("../../src/lib/businessSchedule.js", () => ({
 
 vi.mock("../../src/lib/availability.js", () => ({
   checkAvailability: vi.fn(),
+  computeAvailabilityLookaheadMs: vi.fn((durationMinutes: number) => 4 * 60 * 60_000 + durationMinutes * 60_000),
 }));
 
 vi.mock("../../src/lib/bookingLock.js", () => ({
@@ -36,9 +37,19 @@ vi.mock("../../src/lib/bookingLock.js", () => ({
   releaseBookingLock: vi.fn(),
 }));
 
+const { mockRedisClient } = vi.hoisted(() => ({
+  mockRedisClient: { del: vi.fn().mockResolvedValue(1) },
+}));
+
+vi.mock("../../src/lib/redis.js", () => ({
+  getRedis: () => mockRedisClient,
+}));
+
 const mockedLeadFindUnique = vi.mocked(prisma.lead.findUnique);
+const mockedLeadUpdate = vi.mocked(prisma.lead.update);
 const mockedCallFindUnique = vi.mocked(prisma.call.findUnique);
 const mockedBusinessFindUnique = vi.mocked(prisma.business.findUnique);
+const mockedBusinessUpdate = vi.mocked(prisma.business.update);
 const mockedServiceFindMany = vi.mocked(prisma.service.findMany);
 const mockedProfessionalFindFirst = vi.mocked(prisma.professional.findFirst);
 const mockedBookingFindUnique = vi.mocked(prisma.booking.findUnique);
@@ -112,6 +123,9 @@ describe("processRetryFailedBookingJob", () => {
     mockedAcquireBookingLock.mockResolvedValue("lock-token");
     mockedGetBusyIntervals.mockResolvedValue([]);
     mockedReleaseBookingLock.mockResolvedValue(undefined);
+    mockRedisClient.del.mockResolvedValue(1);
+    mockedBusinessUpdate.mockResolvedValue({} as any);
+    mockedLeadUpdate.mockResolvedValue({} as any);
   });
 
   it("no hace nada si el lead ya no existe", async () => {
@@ -258,5 +272,79 @@ describe("processRetryFailedBookingJob", () => {
         where: expect.objectContaining({ businessId: "biz_1" }),
       })
     );
+  });
+
+  it("usa Call.fromNumber como teléfono de la reserva guardada cuando el lead no dio uno explícito (regresión post-auditoría)", async () => {
+    mockedLeadFindUnique.mockResolvedValue(
+      buildLead({ data: { ...pendingBookingData, clientPhone: null } }) as any
+    );
+    mockedCallFindUnique.mockResolvedValue({ businessId: "biz_1", fromNumber: "+34611222333" } as any);
+    mockedBusinessFindUnique.mockResolvedValue(buildBusiness() as any);
+
+    await processRetryFailedBookingJob({ leadId });
+
+    // El evento de calendario ya llevaba este fallback antes de este fix —
+    // lo que faltaba era propagarlo también a la fila Booking guardada en
+    // Postgres, que se quedaba con clientPhone: null en este caso.
+    expect(mockedBookAppointment).toHaveBeenCalledWith(
+      expect.objectContaining({ clientPhone: "+34611222333" })
+    );
+    expect(mockUpsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        create: expect.objectContaining({ clientPhone: "+34611222333" }),
+        update: expect.objectContaining({ clientPhone: "+34611222333" }),
+      })
+    );
+  });
+
+  it("comprueba si ya existe una reserva DESPUÉS de adquirir el lock, no antes (regresión post-auditoría)", async () => {
+    mockedLeadFindUnique.mockResolvedValue(buildLead() as any);
+    mockedCallFindUnique.mockResolvedValue({ businessId: "biz_1" } as any);
+    mockedBusinessFindUnique.mockResolvedValue(buildBusiness() as any);
+
+    await processRetryFailedBookingJob({ leadId });
+
+    // Si la comprobación de idempotencia corriera ANTES del lock, dos
+    // entregas concurrentes de Cloud Tasks para el mismo lead podrían
+    // ambas verla vacía, serializarse en el lock, y la segunda —que ya no
+    // vuelve a comprobar tras conseguirlo— duplicaría la reserva.
+    const lockOrder = mockedAcquireBookingLock.mock.invocationCallOrder[0];
+    const idempotencyCheckOrder = mockedBookingFindUnique.mock.invocationCallOrder[0];
+    expect(lockOrder).toBeLessThan(idempotencyCheckOrder);
+  });
+
+  it("marca el calendario como desconectado y resuelve el lead (sin relanzar) si bookAppointment falla por reconexión requerida", async () => {
+    mockedLeadFindUnique.mockResolvedValue(buildLead() as any);
+    mockedCallFindUnique.mockResolvedValue({ businessId: "biz_1" } as any);
+    mockedBusinessFindUnique.mockResolvedValue(buildBusiness() as any);
+    mockedBookAppointment.mockRejectedValue(
+      Object.assign(new Error("La conexión con Google ha sido revocada o expiró."), {
+        name: "CalendarBusinessError",
+        code: "GOOGLE_CALENDAR_RECONNECT_REQUIRED",
+      })
+    );
+
+    // Sin este catch específico (antes no existía), el job simplemente
+    // fallaba en bucle contra una conexión que no iba a arreglarse sola,
+    // sin que Business.googleCalendarConnected reflejara nunca la rotura.
+    await expect(processRetryFailedBookingJob({ leadId })).resolves.toBeUndefined();
+
+    expect(mockedBusinessUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "biz_1" },
+        data: expect.objectContaining({
+          googleCalendarConnected: false,
+          googleRefreshToken: null,
+        }),
+      })
+    );
+    expect(mockRedisClient.del).toHaveBeenCalledWith("voice_config:biz_1");
+    // abandonLead usa prisma.lead.update directamente (fuera de la
+    // transacción del camino feliz), no el tx.lead.update mockeado como
+    // mockLeadUpdate.
+    expect(mockedLeadUpdate).toHaveBeenCalledWith({
+      where: { id: leadId },
+      data: { resolvedAt: expect.any(Date) },
+    });
   });
 });
