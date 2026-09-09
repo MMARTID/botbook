@@ -140,7 +140,13 @@ function buildDefinitionInput(
     llmId,
     userPrompt: buildCaseUserPrompt(simulationCase),
     metrics: simulationCase.metrics,
-    dynamicVariables: NICHE_FIXTURES[simulationCase.niche],
+    dynamicVariables: {
+      nombre_negocio: `Negocio de prueba de ${simulationCase.niche}`,
+      informacion_verificada_negocio:
+        "Atiende exclusivamente con cita previa.",
+      zona_horaria: "Europe/Madrid",
+      ...NICHE_FIXTURES[simulationCase.niche],
+    },
     toolMocks: buildCaseToolMocks(simulationCase),
     llmModel: SIMULATION_MODEL,
   };

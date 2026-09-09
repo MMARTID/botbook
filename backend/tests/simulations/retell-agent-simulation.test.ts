@@ -94,8 +94,15 @@ const BOOKING_MOCK = {
 // simulador de Retell no rellena {{servicios_disponibles}}/{{empleados}}/
 // {{horario_semanal}}, y el agente responde "no tengo información
 // verificada" a casi todo (ver AGENTS.md § Retell Dynamic Variables).
+const DYNAMIC_CONTEXT = {
+  nombre_negocio: "Negocio de prueba",
+  informacion_verificada_negocio: "Atiende exclusivamente con cita previa.",
+  zona_horaria: "Europe/Madrid",
+};
+
 const DYNAMIC_VARS = {
   peluqueria: {
+    ...DYNAMIC_CONTEXT,
     servicios_disponibles:
       '- id: cmtpdhhm2001lnx1w5xmpt637 | nombre: "Alisado" | duración: 30 min\n- id: cmtpdh78b001hnx1w86r8aaq5 | nombre: "Corte" | duración: 30 min\n- id: cmtpdhcmg001jnx1wr8ktmusv | nombre: "Decoloracion" | duración: 30 min\n- id: cmtpdhm4z001nnx1wnra0y9cx | nombre: "Permanente" | duración: 30 min\n- id: cmtpdi4u6001pnx1wtenu3wgu | nombre: "Tratamiento capilar" | duración: 30 min',
     empleados:
@@ -105,6 +112,7 @@ const DYNAMIC_VARS = {
     telefono_de_quien_llama: "+34600123456",
   },
   barberia: {
+    ...DYNAMIC_CONTEXT,
     servicios_disponibles:
       '- id: cmtpgjgoh000vnx56toxohy2g | nombre: "Corte de niño" | duración: 30 min\n- id: cmtpgkiad0011nx56q0izgmm9 | nombre: "decoloracion" | duración: 30 min\n- id: cmtpgk4yc000xnx56yknhi3te | nombre: "degradado" | duración: 30 min\n- id: cmtpgnuyi0019nx56o58nj8ja | nombre: "lavado" | duración: 30 min\n- id: cmtpgk9mh000znx56s6jl9fpe | nombre: "tupper fade" | duración: 30 min',
     empleados:
@@ -114,6 +122,7 @@ const DYNAMIC_VARS = {
     telefono_de_quien_llama: "+34600123456",
   },
   salonUnas: {
+    ...DYNAMIC_CONTEXT,
     servicios_disponibles:
       '- id: cmtpo1hck000lnxdy2hu3g75j | nombre: "Diseño de uñas" | duración: 30 min\n- id: cmtpo1hci000fnxdysg0zqpec | nombre: "Manicura semipermanente" | duración: 45 min\n- id: cmtpo1hcj000hnxdy6l9mkpiu | nombre: "Pedicura spa" | duración: 50 min\n- id: cmtpo1hck000nnxdylz26p7wc | nombre: "Retirada de esmalte permanente" | duración: 20 min\n- id: cmtpo1hcj000jnxdydz2l6twy | nombre: "Uñas acrílicas" | duración: 60 min',
     empleados:
@@ -123,6 +132,7 @@ const DYNAMIC_VARS = {
     telefono_de_quien_llama: "+34600123456",
   },
   estetica: {
+    ...DYNAMIC_CONTEXT,
     servicios_disponibles:
       '- id: cmtpo1hc80003nxdyc8tp4c80 | nombre: "Depilación láser" | duración: 30 min\n- id: cmtpo1hc50001nxdybwvsnk11 | nombre: "Limpieza facial" | duración: 45 min\n- id: cmtpo1hc90007nxdygu8dnscc | nombre: "Manicura spa" | duración: 40 min\n- id: cmtpo1hc90005nxdyvuin08z8 | nombre: "Masaje relajante" | duración: 60 min\n- id: cmtpo1hca0009nxdyaq2qgh0r | nombre: "Tratamiento anti-edad" | duración: 50 min',
     empleados:
@@ -132,6 +142,7 @@ const DYNAMIC_VARS = {
     telefono_de_quien_llama: "+34600123456",
   },
   fisioterapia: {
+    ...DYNAMIC_CONTEXT,
     servicios_disponibles:
       '- id: cmtpo1hcq000vnxdybju5swrm | nombre: "Masaje deportivo" | duración: 30 min\n- id: cmtpo1hcr000xnxdyfsl89sem | nombre: "Punción seca" | duración: 30 min\n- id: cmtpo1hcr000znxdyjkrprkd8 | nombre: "Rehabilitación de lesiones" | duración: 60 min\n- id: cmtpo1hcp000tnxdyz06a0r5q | nombre: "Sesión de fisioterapia" | duración: 45 min\n- id: cmtpo1hcs0011nxdy0it9pnem | nombre: "Valoración inicial" | duración: 30 min',
     empleados:

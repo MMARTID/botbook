@@ -16,6 +16,9 @@ describe("buildManagedAgentPrompt", () => {
     expect(prompt).toContain("{{empleados}}");
     expect(prompt).toContain("{{horario_semanal}}");
     expect(prompt).toContain("{{telefono_de_quien_llama}}");
+    expect(prompt).toContain("{{nombre_negocio}}");
+    expect(prompt).toContain("{{informacion_verificada_negocio}}");
+    expect(prompt).toContain("{{current_time_{{zona_horaria}} }}");
   });
 
   it("pide fraseo aproximado de la duración y reutilizar el número de quien llama", () => {
@@ -45,8 +48,8 @@ describe("buildManagedAgentPrompt", () => {
       settings: DEFAULT_AGENT_SETTINGS,
     });
 
-    expect(prompt).toContain("Eres la recepcionista virtual de Barbería Ejemplo.");
-    expect(prompt).toContain("corte, arreglo de barba o ambos");
+    expect(prompt).toContain("Eres la recepcionista virtual de {{nombre_negocio}}.");
+    expect(prompt).toContain("corte, barba o ambos");
   });
 
   it("incluye las restricciones de reserva cuando están configuradas", () => {
@@ -59,6 +62,17 @@ describe("buildManagedAgentPrompt", () => {
 
     expect(prompt).toContain("2 horas");
     expect(prompt).toContain("90 minutos");
+  });
+
+  it("evita listar el catálogo y reutiliza una alternativa ya comprobada", () => {
+    const prompt = buildManagedAgentPrompt({
+      businessName: "Peluquería Ejemplo",
+      settings: DEFAULT_AGENT_SETTINGS,
+    });
+
+    expect(prompt).toContain("No recites el catálogo de servicios");
+    expect(prompt).toContain("No vuelvas a llamar a check_availability");
+    expect(prompt).toContain("suggestedNextSlot");
   });
 });
 

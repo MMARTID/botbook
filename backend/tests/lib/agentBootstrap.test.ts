@@ -76,6 +76,8 @@ describe("buildInboundCallDynamicVariables", () => {
     expect(variables.empleados).toContain("pro_1");
     expect(variables.empleados).toContain("Ana");
     expect(variables.horario_semanal).toContain("Lunes");
+    expect(variables.nombre_negocio).toBe("el negocio");
+    expect(variables.zona_horaria).toBe("Europe/Madrid");
   });
 
   it("da un mensaje de fallback en vez de una lista vacía cuando no hay servicios ni empleados", async () => {
@@ -109,6 +111,25 @@ describe("buildInboundCallDynamicVariables", () => {
 
     const withoutNumber = await buildInboundCallDynamicVariables("biz_123");
     expect(withoutNumber.telefono_de_quien_llama).toBe("desconocido");
+  });
+
+  it("incluye nombre, contexto y zona horaria como variables dinámicas", async () => {
+    mockedBusinessFindUnique.mockResolvedValue({
+      name: "Barbería Ejemplo",
+      businessDetails: "Solo se atiende con cita previa.",
+      schedule: DEFAULT_BUSINESS_SCHEDULE,
+      timezone: "Atlantic/Canary",
+    } as any);
+    mockedServiceFindMany.mockResolvedValue([]);
+    mockedProfessionalFindMany.mockResolvedValue([]);
+
+    const variables = await buildInboundCallDynamicVariables("biz_123");
+
+    expect(variables.nombre_negocio).toBe("Barbería Ejemplo");
+    expect(variables.informacion_verificada_negocio).toBe(
+      "Solo se atiende con cita previa."
+    );
+    expect(variables.zona_horaria).toBe("Atlantic/Canary");
   });
 
   it("calcula fecha_actual en la timezone del negocio, no en la del servidor", async () => {

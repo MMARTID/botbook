@@ -179,7 +179,7 @@ export async function buildInboundCallDynamicVariables(
   const [business, services, professionals] = await Promise.all([
     prismaClient.business.findUnique({
       where: { id: businessId },
-      select: { schedule: true, timezone: true },
+      select: { name: true, businessDetails: true, schedule: true, timezone: true },
     }),
     prismaClient.service.findMany({
       where: { businessId, active: true },
@@ -193,47 +193,49 @@ export async function buildInboundCallDynamicVariables(
     }),
   ]);
 
+  const timezone = resolvePromptTimezone(business?.timezone);
+
   return {
+    nombre_negocio: business?.name?.trim() || "el negocio",
+    informacion_verificada_negocio:
+      business?.businessDetails?.trim() ||
+      "No hay información adicional verificada del negocio.",
     servicios_disponibles: formatServicesForDynamicVariable(services),
     empleados: formatProfessionalsForDynamicVariable(professionals),
     horario_semanal: formatScheduleForPrompt(business?.schedule ?? {}),
     telefono_de_quien_llama: fromNumber || "desconocido",
+    zona_horaria: timezone,
     // Sin esto, el modelo tiene que adivinar qué día es "hoy" (y por tanto
     // "mañana"/"pasado mañana"/"el jueves que viene") a partir de contexto
     // ambiguo — confirmado en una llamada real (2026-09-07, lunes) donde
     // "pasado mañana" se resolvió como jueves en vez de miércoles. Se calcula
     // en la timezone del negocio, no en la del servidor.
-    fecha_actual: formatCurrentDateForPrompt(
-      business?.timezone || "Europe/Madrid"
-    ),
+    fecha_actual: formatCurrentDateForPrompt(timezone),
   };
 }
 
-function formatCurrentDateForPrompt(timezone: string): string {
+function resolvePromptTimezone(timezone: string | null | undefined): string {
+  const candidate = timezone || "Europe/Madrid";
   try {
-    return new Intl.DateTimeFormat("es-ES", {
-      timeZone: timezone,
-      weekday: "long",
-      day: "numeric",
-      month: "long",
-      year: "numeric",
-    }).format(new Date());
+    new Intl.DateTimeFormat("es-ES", { timeZone: candidate }).format();
+    return candidate;
   } catch {
-    // business.timezone es texto libre sin validar (ver PATCH /business/me)
-    // — un valor que no sea una zona IANA válida haría que Intl.DateTimeFormat
-    // lance, y esta función corre en cada llamada entrante
-    // (buildInboundCallDynamicVariables). Mejor una fecha en la zona por
-    // defecto que perder TODAS las variables dinámicas de la llamada (el
-    // catch de POST /webhooks/retell/inbound las vacía todas si algo revienta
-    // aquí dentro).
-    return new Intl.DateTimeFormat("es-ES", {
-      timeZone: "Europe/Madrid",
-      weekday: "long",
-      day: "numeric",
-      month: "long",
-      year: "numeric",
-    }).format(new Date());
+    return "Europe/Madrid";
   }
+}
+
+function formatCurrentDateForPrompt(timezone: string): string {
+  return new Intl.DateTimeFormat("es-ES", {
+    timeZone: resolvePromptTimezone(timezone),
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  }).format(new Date());
+}
+
+export function buildRetellBeginMessage(businessName: string): string {
+  return `Hola, gracias por llamar a ${businessName}. ¿En qué te puedo ayudar?`;
 }
 
 export type AgentTemplateConfig = {
@@ -355,6 +357,7 @@ export function getAgentTemplateForBusinessType(
 ): AgentTemplateConfig {
   return getDefaultAgentConfig({
     name: baseName,
+    firstMessage: buildRetellBeginMessage(businessName),
     systemPrompt: buildManagedAgentPrompt({
       businessName,
       businessType,
@@ -895,6 +898,7 @@ export async function syncAgentToRetell(
       if (!agent.promptManuallyEdited) {
         await retellAdapter.updateLlm(agent.retellLlmId!, {
           generalPrompt: systemPrompt,
+          beginMessage: buildRetellBeginMessage(business.name),
         });
       }
       await retellAdapter.updateAgent(agent.retellAgentId!, {
