@@ -221,6 +221,32 @@ describe("syncAgentToRetell — voiceGender", () => {
     );
   });
 
+  it("no actualiza un prompt editado a mano al sincronizar solo gestionados", async () => {
+    mockedBusinessFindUnique.mockResolvedValue({
+      name: "Negocio de prueba",
+      businessDetails: null,
+      businessType: "barberia",
+      agentSettings: {},
+      orchestrator: "retell",
+      minAdvanceBookingMinutes: null,
+      maxAppointmentDurationMinutes: null,
+    } as any);
+    mockedAgentFindMany.mockResolvedValue([
+      {
+        id: "agent_manual",
+        retellAgentId: "retell_agent_manual",
+        retellLlmId: "retell_llm_manual",
+        promptManuallyEdited: true,
+      },
+    ] as any);
+
+    await syncAgentToRetell("biz_manual", prisma, { onlyManagedPrompts: true });
+
+    expect(mockedUpdateLlm).not.toHaveBeenCalled();
+    expect(mockedUpdateAgent).not.toHaveBeenCalled();
+    expect(mockedAgentUpdate).not.toHaveBeenCalled();
+  });
+
   it("empuja la voz masculina cuando el negocio la eligió en agentSettings", async () => {
     mockedBusinessFindUnique.mockResolvedValue({
       name: "Barbería de prueba",

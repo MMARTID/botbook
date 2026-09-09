@@ -817,7 +817,8 @@ export async function syncAgentNameWithBusinessType(args: {
  */
 export async function syncAgentToRetell(
   businessId: string,
-  prismaClient: typeof prisma = prisma
+  prismaClient: typeof prisma = prisma,
+  options?: { onlyManagedPrompts?: boolean }
 ): Promise<void> {
   const business = await prismaClient.business.findUnique({
     where: { id: businessId },
@@ -886,6 +887,8 @@ export async function syncAgentToRetell(
   const voiceId = RETELL_VOICE_ID_BY_GENDER[voiceGender];
 
   for (const agent of agents) {
+    if (options?.onlyManagedPrompts && agent.promptManuallyEdited) continue;
+
     try {
       // Los agentes editados a mano vía PATCH /agents/:id (promptManuallyEdited)
       // nunca deben perder ese texto solo porque cambió un servicio, un
