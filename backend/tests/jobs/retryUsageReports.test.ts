@@ -30,4 +30,26 @@ describe("retryUsageReportsJob", () => {
 
     await expect(retryUsageReportsJob()).rejects.toThrow("1 negocio");
   });
+
+  it("recorre los lotes posteriores al primero", async () => {
+    const firstBatch = Array.from({ length: 100 }, (_, index) => ({
+      id: `business_${String(index).padStart(3, "0")}`,
+    }));
+    mockedFindMany
+      .mockResolvedValueOnce(firstBatch as any)
+      .mockResolvedValueOnce([{ id: "business_100" }] as any);
+    mockedProcessUsageReportJob.mockResolvedValue(undefined);
+
+    await expect(retryUsageReportsJob()).resolves.toBeUndefined();
+
+    expect(mockedProcessUsageReportJob).toHaveBeenCalledTimes(101);
+    expect(mockedFindMany).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        cursor: { id: "business_099" },
+        skip: 1,
+        orderBy: { id: "asc" },
+      })
+    );
+  });
 });

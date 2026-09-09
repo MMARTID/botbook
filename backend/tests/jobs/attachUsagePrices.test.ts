@@ -94,4 +94,43 @@ describe("attachUsagePricesJob", () => {
     expect(create).not.toHaveBeenCalled();
     expect(mockedUpdateMany).not.toHaveBeenCalled();
   });
+
+  it("recorre todos los lotes de la migración", async () => {
+    const firstBatch = Array.from({ length: 100 }, (_, index) => ({
+      id: `business_${String(index).padStart(3, "0")}`,
+      stripeSubscriptionId: `sub_${index}`,
+      stripePriceId: basePriceId,
+    }));
+    const lastBusiness = {
+      id: "business_100",
+      stripeSubscriptionId: "sub_100",
+      stripePriceId: basePriceId,
+    };
+    mockedFindMany
+      .mockResolvedValueOnce(firstBatch as any)
+      .mockResolvedValueOnce([lastBusiness] as any);
+    mockedUpdateMany.mockResolvedValue({ count: 1 } as any);
+    mockedGetStripeClient.mockReturnValue({
+      subscriptions: {
+        retrieve: vi.fn().mockImplementation(async (id) => ({
+          id,
+          status: "active",
+          cancel_at_period_end: false,
+          items: { data: [{ price: { id: basePriceId }, current_period_end: 1_789_171_200 }] },
+        })),
+      },
+      subscriptionItems: { create: vi.fn().mockResolvedValue({}) },
+    } as any);
+
+    await expect(attachUsagePricesJob()).resolves.toBe(101);
+
+    expect(mockedFindMany).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        cursor: { id: "business_099" },
+        skip: 1,
+        orderBy: { id: "asc" },
+      })
+    );
+  });
 });

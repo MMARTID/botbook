@@ -3,7 +3,7 @@ import { getStripeClient } from "../lib/stripe.js";
 import { getPlanByPriceId, getUsagePriceId } from "../modules/billing/catalog.js";
 
 const MIGRATION_MARKER = "2026-09-extra-minutes";
-const MAX_BUSINESSES_PER_RUN = 100;
+const BUSINESSES_PER_BATCH = 100;
 
 /**
  * Añade el precio de consumo a las suscripciones creadas antes de activar los
@@ -15,73 +15,83 @@ const MAX_BUSINESSES_PER_RUN = 100;
  * Stripe recibe una clave de idempotencia estable.
  */
 export async function attachUsagePricesJob(): Promise<number> {
-  const businesses = await prisma.business.findMany({
-    where: {
-      stripeSubscriptionId: { not: null },
-      stripePriceId: { not: null },
-      usageBillingStartsAt: null,
-      subscriptionStatus: { in: ["ACTIVE", "TRIALING"] },
-      subscriptionCancelAtPeriodEnd: false,
-    },
-    select: {
-      id: true,
-      stripeSubscriptionId: true,
-      stripePriceId: true,
-    },
-    take: MAX_BUSINESSES_PER_RUN,
-  });
-
   let attached = 0;
   const stripe = getStripeClient();
-  for (const business of businesses) {
-    const plan = business.stripePriceId
-      ? getPlanByPriceId(business.stripePriceId)
-      : undefined;
-    if (!plan || !business.stripeSubscriptionId) continue;
+  let cursor: string | undefined;
 
-    const usagePriceId = getUsagePriceId(plan.id);
-    const subscription = await stripe.subscriptions.retrieve(
-      business.stripeSubscriptionId
-    );
-    if (
-      !["active", "trialing"].includes(subscription.status) ||
-      subscription.cancel_at_period_end
-    ) {
-      continue;
-    }
+  while (true) {
+    const businesses = await prisma.business.findMany({
+      where: {
+        stripeSubscriptionId: { not: null },
+        stripePriceId: { not: null },
+        usageBillingStartsAt: null,
+        subscriptionStatus: { in: ["ACTIVE", "TRIALING"] },
+        subscriptionCancelAtPeriodEnd: false,
+      },
+      select: {
+        id: true,
+        stripeSubscriptionId: true,
+        stripePriceId: true,
+      },
+      orderBy: { id: "asc" },
+      take: BUSINESSES_PER_BATCH,
+      ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+    });
+    if (businesses.length === 0) break;
 
-    const periodEndsAt = new Date(
-      Math.max(...subscription.items.data.map((item) => item.current_period_end)) * 1000
-    );
-    const usageItem = subscription.items.data.find(
-      (item) => item.price?.id === usagePriceId
-    );
+    for (const business of businesses) {
+      const plan = business.stripePriceId
+        ? getPlanByPriceId(business.stripePriceId)
+        : undefined;
+      if (!plan || !business.stripeSubscriptionId) continue;
 
-    if (!usageItem) {
-      await stripe.subscriptionItems.create(
-        {
-          subscription: subscription.id,
-          price: usagePriceId,
-          proration_behavior: "none",
-          metadata: { alhabla_usage_migration: MIGRATION_MARKER },
-        },
-        { idempotencyKey: `alhabla-usage-price-${subscription.id}-${usagePriceId}` }
+      const usagePriceId = getUsagePriceId(plan.id);
+      const subscription = await stripe.subscriptions.retrieve(
+        business.stripeSubscriptionId
       );
-      attached++;
+      if (
+        !["active", "trialing"].includes(subscription.status) ||
+        subscription.cancel_at_period_end
+      ) {
+        continue;
+      }
+
+      const periodEndsAt = new Date(
+        Math.max(...subscription.items.data.map((item) => item.current_period_end)) * 1000
+      );
+      const usageItem = subscription.items.data.find(
+        (item) => item.price?.id === usagePriceId
+      );
+
+      if (!usageItem) {
+        await stripe.subscriptionItems.create(
+          {
+            subscription: subscription.id,
+            price: usagePriceId,
+            proration_behavior: "none",
+            metadata: { alhabla_usage_migration: MIGRATION_MARKER },
+          },
+          { idempotencyKey: `alhabla-usage-price-${subscription.id}-${usagePriceId}` }
+        );
+        attached++;
+      }
+
+      // Solo los items que creó esta migración se retrasan al próximo periodo.
+      // Un checkout nuevo ya contiene el precio medido y debe empezar a contar
+      // desde su propio inicio, no desde el siguiente ciclo.
+      if (
+        !usageItem ||
+        usageItem.metadata?.alhabla_usage_migration === MIGRATION_MARKER
+      ) {
+        await prisma.business.updateMany({
+          where: { id: business.id, usageBillingStartsAt: null },
+          data: { usageBillingStartsAt: periodEndsAt },
+        });
+      }
     }
 
-    // Solo los items que creó esta migración se retrasan al próximo periodo.
-    // Un checkout nuevo ya contiene el precio medido y debe empezar a contar
-    // desde su propio inicio, no desde el siguiente ciclo.
-    if (
-      !usageItem ||
-      usageItem.metadata?.alhabla_usage_migration === MIGRATION_MARKER
-    ) {
-      await prisma.business.updateMany({
-        where: { id: business.id, usageBillingStartsAt: null },
-        data: { usageBillingStartsAt: periodEndsAt },
-      });
-    }
+    if (businesses.length < BUSINESSES_PER_BATCH) break;
+    cursor = businesses[businesses.length - 1].id;
   }
 
   console.log(`[Billing] Precios de minutos extra añadidos a ${attached} suscripción(es).`);
