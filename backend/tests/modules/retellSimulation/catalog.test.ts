@@ -97,14 +97,13 @@ describe("catálogo de simulación de Retell", () => {
     }
   });
 
-  it("define las cuatro variables dinámicas que consume el prompt", () => {
+  it("define las tres variables dinámicas personalizadas que consume el prompt", () => {
     for (const niche of SIMULATION_NICHES) {
       const fixture = NICHE_FIXTURES[niche];
       expect(Object.keys(fixture).sort()).toEqual([
         "empleados",
         "horario_semanal",
         "servicios_disponibles",
-        "telefono_de_quien_llama",
       ]);
       // Retell exige strings en dynamic_variables.
       for (const value of Object.values(fixture)) {
@@ -118,8 +117,8 @@ describe("catálogo de simulación de Retell", () => {
     for (const niche of SIMULATION_NICHES) {
       const fixture = NICHE_FIXTURES[niche];
       const ids = [
-        ...fixture.servicios_disponibles.matchAll(/id: (\S+)/g),
-        ...fixture.empleados.matchAll(/id: (\S+)/g),
+        ...fixture.servicios_disponibles.matchAll(/\[([^\]]+)]/g),
+        ...fixture.empleados.matchAll(/\[([^\]]+)]/g),
       ].map((match) => match[1]);
 
       expect(ids.length).toBeGreaterThan(0);

@@ -134,7 +134,10 @@ export async function buildPostCallAnalysisDataForBusiness(
   return buildPostCallAnalysisData(services.map((service) => service.name));
 }
 
-const MAX_LISTED_ITEMS = 40;
+// El catálogo se inyecta en cada llamada y forma parte del contexto del LLM.
+// Veinte opciones cubren los catálogos habituales sin penalizar la latencia
+// de negocios que tienen listas históricas muy extensas.
+const MAX_LISTED_ITEMS = 20;
 
 function formatServicesForDynamicVariable(
   services: { id: string; name: string; durationMinutes: number }[]
@@ -145,7 +148,7 @@ function formatServicesForDynamicVariable(
     .slice(0, MAX_LISTED_ITEMS)
     .map(
       (service) =>
-        `- id: ${service.id} | nombre: "${service.name}" | duración: ${service.durationMinutes} min`
+        `[${service.id}] ${service.name} (${service.durationMinutes} min)`
     )
     .join("\n");
 }
@@ -157,10 +160,7 @@ function formatProfessionalsForDynamicVariable(
     return "Este negocio no tiene empleados individuales configurados.";
   return professionals
     .slice(0, MAX_LISTED_ITEMS)
-    .map(
-      (professional) =>
-        `- id: ${professional.id} | nombre: "${professional.name}"`
-    )
+    .map((professional) => `[${professional.id}] ${professional.name}`)
     .join("\n");
 }
 
@@ -173,13 +173,12 @@ function formatProfessionalsForDynamicVariable(
  */
 export async function buildInboundCallDynamicVariables(
   businessId: string,
-  fromNumber?: string,
   prismaClient: typeof prisma = prisma
 ): Promise<Record<string, string>> {
   const [business, services, professionals] = await Promise.all([
     prismaClient.business.findUnique({
       where: { id: businessId },
-      select: { name: true, businessDetails: true, schedule: true, timezone: true },
+      select: { name: true, schedule: true, timezone: true },
     }),
     prismaClient.service.findMany({
       where: { businessId, active: true },
@@ -197,20 +196,10 @@ export async function buildInboundCallDynamicVariables(
 
   return {
     nombre_negocio: business?.name?.trim() || "el negocio",
-    informacion_verificada_negocio:
-      business?.businessDetails?.trim() ||
-      "No hay información adicional verificada del negocio.",
     servicios_disponibles: formatServicesForDynamicVariable(services),
     empleados: formatProfessionalsForDynamicVariable(professionals),
     horario_semanal: formatScheduleForPrompt(business?.schedule ?? {}),
-    telefono_de_quien_llama: fromNumber || "desconocido",
     zona_horaria: timezone,
-    // Sin esto, el modelo tiene que adivinar qué día es "hoy" (y por tanto
-    // "mañana"/"pasado mañana"/"el jueves que viene") a partir de contexto
-    // ambiguo — confirmado en una llamada real (2026-09-07, lunes) donde
-    // "pasado mañana" se resolvió como jueves en vez de miércoles. Se calcula
-    // en la timezone del negocio, no en la del servidor.
-    fecha_actual: formatCurrentDateForPrompt(timezone),
   };
 }
 
@@ -222,16 +211,6 @@ function resolvePromptTimezone(timezone: string | null | undefined): string {
   } catch {
     return "Europe/Madrid";
   }
-}
-
-function formatCurrentDateForPrompt(timezone: string): string {
-  return new Intl.DateTimeFormat("es-ES", {
-    timeZone: resolvePromptTimezone(timezone),
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  }).format(new Date());
 }
 
 export function buildRetellBeginMessage(businessName: string): string {

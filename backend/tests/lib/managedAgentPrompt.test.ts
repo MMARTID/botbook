@@ -15,20 +15,20 @@ describe("buildManagedAgentPrompt", () => {
     expect(prompt).toContain("{{servicios_disponibles}}");
     expect(prompt).toContain("{{empleados}}");
     expect(prompt).toContain("{{horario_semanal}}");
-    expect(prompt).toContain("{{telefono_de_quien_llama}}");
     expect(prompt).toContain("{{nombre_negocio}}");
-    expect(prompt).toContain("{{informacion_verificada_negocio}}");
-    expect(prompt).toContain("{{current_time_{{zona_horaria}} }}");
+    expect(prompt).toContain("{{user_number}}");
+    expect(prompt).toContain("{{current_calendar_{{zona_horaria}} }}");
   });
 
-  it("pide fraseo aproximado de la duración y reutilizar el número de quien llama", () => {
+  it("reutiliza la variable nativa del número de quien llama", () => {
     const prompt = buildManagedAgentPrompt({
       businessName: "Peluquería Ejemplo",
       settings: DEFAULT_AGENT_SETTINGS,
     });
 
-    expect(prompt).toContain("más o menos");
-    expect(prompt).toContain("TELEFONO_DE_QUIEN_LLAMA");
+    expect(prompt).toContain("{{user_number}}");
+    expect(prompt).not.toContain("telefono_de_quien_llama");
+    expect(prompt).not.toContain("fecha_actual");
   });
 
   it("no incluye ningún id ni nombre de servicio/empleado horneado en el texto", () => {
@@ -52,6 +52,21 @@ describe("buildManagedAgentPrompt", () => {
     expect(prompt).toContain("corte, barba o ambos");
   });
 
+  it("incluye los detalles del negocio solo cuando están verificados", () => {
+    const conDetalles = buildManagedAgentPrompt({
+      businessName: "Barbería Ejemplo",
+      businessDetails: "Solo trabaja con cita previa.",
+      settings: DEFAULT_AGENT_SETTINGS,
+    });
+    const sinDetalles = buildManagedAgentPrompt({
+      businessName: "Barbería Ejemplo",
+      settings: DEFAULT_AGENT_SETTINGS,
+    });
+
+    expect(conDetalles).toContain("Solo trabaja con cita previa.");
+    expect(sinDetalles).not.toContain("Información del negocio:");
+  });
+
   it("incluye las restricciones de reserva cuando están configuradas", () => {
     const prompt = buildManagedAgentPrompt({
       businessName: "Clínica Ejemplo",
@@ -70,8 +85,8 @@ describe("buildManagedAgentPrompt", () => {
       settings: DEFAULT_AGENT_SETTINGS,
     });
 
-    expect(prompt).toContain("No recites el catálogo de servicios");
-    expect(prompt).toContain("No vuelvas a llamar a check_availability");
+    expect(prompt).toContain("No recites el catálogo");
+    expect(prompt).toContain("no repitas check_availability");
     expect(prompt).toContain("suggestedNextSlot");
   });
 });

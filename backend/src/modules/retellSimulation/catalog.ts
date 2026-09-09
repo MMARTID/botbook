@@ -292,23 +292,17 @@ const HORARIO_FIXTURE =
   "Jueves: 09:00–18:00. Viernes: 09:00–18:00. Sábado: cerrado. " +
   "Domingo: cerrado.";
 
-const TELEFONO_FIXTURE = "+34600111222";
-
 function servicios(
   items: { id: string; nombre: string; minutos: number }[]
 ): string {
   return items
-    .map(
-      (item) =>
-        `- id: ${item.id} | nombre: "${item.nombre}" | duración: ` +
-        `${item.minutos} min`
-    )
+    .map((item) => `[${item.id}] ${item.nombre} (${item.minutos} min)`)
     .join("\n");
 }
 
 function empleados(items: { id: string; nombre: string }[]): string {
   return items
-    .map((item) => `- id: ${item.id} | nombre: "${item.nombre}"`)
+    .map((item) => `[${item.id}] ${item.nombre}`)
     .join("\n");
 }
 
@@ -328,7 +322,6 @@ export const NICHE_FIXTURES: Record<
       { id: "pro-montse", nombre: "Montse" },
     ]),
     horario_semanal: HORARIO_FIXTURE,
-    telefono_de_quien_llama: TELEFONO_FIXTURE,
   },
   barberia: {
     servicios_disponibles: servicios([
@@ -342,7 +335,6 @@ export const NICHE_FIXTURES: Record<
       { id: "pro-guillem", nombre: "Guillem" },
     ]),
     horario_semanal: HORARIO_FIXTURE,
-    telefono_de_quien_llama: TELEFONO_FIXTURE,
   },
   "salon-de-unas": {
     servicios_disponibles: servicios([
@@ -356,7 +348,6 @@ export const NICHE_FIXTURES: Record<
       { id: "pro-marta", nombre: "Marta" },
     ]),
     horario_semanal: HORARIO_FIXTURE,
-    telefono_de_quien_llama: TELEFONO_FIXTURE,
   },
   "centro-de-estetica": {
     servicios_disponibles: servicios([
@@ -370,7 +361,6 @@ export const NICHE_FIXTURES: Record<
       { id: "pro-carmen", nombre: "Carmen" },
     ]),
     horario_semanal: HORARIO_FIXTURE,
-    telefono_de_quien_llama: TELEFONO_FIXTURE,
   },
   fisioterapia: {
     servicios_disponibles: servicios([
@@ -384,7 +374,6 @@ export const NICHE_FIXTURES: Record<
       { id: "pro-javier", nombre: "Javier" },
     ]),
     horario_semanal: HORARIO_FIXTURE,
-    telefono_de_quien_llama: TELEFONO_FIXTURE,
   },
 };
 

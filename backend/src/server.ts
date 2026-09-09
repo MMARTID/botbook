@@ -341,9 +341,8 @@ async function start() {
         return reply.status(401).send({ error: "Invalid webhook signature" });
       }
 
-      const payload = request.body as { call_inbound?: { to_number?: string; from_number?: string } };
+      const payload = request.body as { call_inbound?: { to_number?: string } };
       const toNumber = payload.call_inbound?.to_number;
-      const fromNumber = payload.call_inbound?.from_number;
 
       if (!toNumber) {
         fastify.log.warn("[Retell Inbound] Missing call_inbound.to_number");
@@ -379,7 +378,7 @@ async function start() {
           return reply.status(200).send({ call_inbound: {} });
         }
 
-        const dynamicVariables = await buildInboundCallDynamicVariables(business.id, fromNumber);
+        const dynamicVariables = await buildInboundCallDynamicVariables(business.id);
         return reply.status(200).send({
           call_inbound: {
             override_agent_id: retellAgentId,

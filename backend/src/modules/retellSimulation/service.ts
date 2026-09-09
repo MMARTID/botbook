@@ -142,8 +142,6 @@ function buildDefinitionInput(
     metrics: simulationCase.metrics,
     dynamicVariables: {
       nombre_negocio: `Negocio de prueba de ${simulationCase.niche}`,
-      informacion_verificada_negocio:
-        "Atiende exclusivamente con cita previa.",
       zona_horaria: "Europe/Madrid",
       ...NICHE_FIXTURES[simulationCase.niche],
     },

@@ -96,7 +96,6 @@ const BOOKING_MOCK = {
 // verificada" a casi todo (ver AGENTS.md § Retell Dynamic Variables).
 const DYNAMIC_CONTEXT = {
   nombre_negocio: "Negocio de prueba",
-  informacion_verificada_negocio: "Atiende exclusivamente con cita previa.",
   zona_horaria: "Europe/Madrid",
 };
 
@@ -109,7 +108,6 @@ const DYNAMIC_VARS = {
       '- id: cmtpdija2001rnx1w5l5uuko0 | nombre: "Montse"\n- id: cmtpdj5qg001tnx1wclb6i812 | nombre: "pedro"',
     horario_semanal:
       "Lunes: 09:00–18:00. Martes: 09:00–18:00. Miércoles: 09:00–18:00. Jueves: 09:00–18:00. Viernes: 09:00–18:00. Sábado: cerrado. Domingo: cerrado.",
-    telefono_de_quien_llama: "+34600123456",
   },
   barberia: {
     ...DYNAMIC_CONTEXT,
@@ -119,7 +117,6 @@ const DYNAMIC_VARS = {
       '- id: cmtpgmmai0015nx56tw7xvpue | nombre: "Alvaro"\n- id: cmtpgnk5q0017nx56pwst0lmq | nombre: "Belén"\n- id: cmtpgmbxk0013nx56utl47p6r | nombre: "Guillem"',
     horario_semanal:
       "Lunes: 09:00–18:00. Martes: 09:00–18:00. Miércoles: 09:00–18:00. Jueves: 09:00–18:00. Viernes: 09:00–18:00. Sábado: cerrado. Domingo: cerrado.",
-    telefono_de_quien_llama: "+34600123456",
   },
   salonUnas: {
     ...DYNAMIC_CONTEXT,
@@ -129,7 +126,6 @@ const DYNAMIC_VARS = {
       '- id: cmtpo1hcm000rnxdy3kxit39q | nombre: "Marta"\n- id: cmtpo1hck000pnxdyqsa7qx5l | nombre: "Sofía"',
     horario_semanal:
       "Lunes: 09:00–18:00. Martes: 09:00–18:00. Miércoles: 09:00–18:00. Jueves: 09:00–18:00. Viernes: 09:00–18:00. Sábado: cerrado. Domingo: cerrado.",
-    telefono_de_quien_llama: "+34600123456",
   },
   estetica: {
     ...DYNAMIC_CONTEXT,
@@ -139,7 +135,6 @@ const DYNAMIC_VARS = {
       '- id: cmtpo1hce000dnxdyv1kkq97z | nombre: "Carmen"\n- id: cmtpo1hcb000bnxdy3mxtkxa8 | nombre: "Laura"',
     horario_semanal:
       "Lunes: 09:00–18:00. Martes: 09:00–18:00. Miércoles: 09:00–18:00. Jueves: 09:00–18:00. Viernes: 09:00–18:00. Sábado: cerrado. Domingo: cerrado.",
-    telefono_de_quien_llama: "+34600123456",
   },
   fisioterapia: {
     ...DYNAMIC_CONTEXT,
@@ -149,7 +144,6 @@ const DYNAMIC_VARS = {
       '- id: cmtpo1hct0015nxdylsbf5g5f | nombre: "Elena"\n- id: cmtpo1hcs0013nxdywyo2vtwh | nombre: "Javier"',
     horario_semanal:
       "Lunes: 09:00–18:00. Martes: 09:00–18:00. Miércoles: 09:00–18:00. Jueves: 09:00–18:00. Viernes: 09:00–18:00. Sábado: cerrado. Domingo: cerrado.",
-    telefono_de_quien_llama: "+34600123456",
   },
 };
 
