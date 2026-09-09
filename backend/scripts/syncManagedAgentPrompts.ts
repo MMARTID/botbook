@@ -6,7 +6,7 @@
  *
  * Añade --dry-run para listar los negocios sin modificar Retell, o
  * --business <id> para limitar la operación a un negocio concreto.
- * Nunca toca agentes con promptManuallyEdited=true.
+ * Nunca toca agentes inactivos ni con promptManuallyEdited=true.
  */
 import { prisma } from "../src/lib/prisma.js";
 import { syncAgentToRetell } from "../src/lib/agentBootstrap.js";
@@ -29,9 +29,10 @@ async function main() {
     const businesses = await prisma.business.findMany({
       where: {
         ...(businessId ? { id: businessId } : {}),
-        OR: [{ orchestrator: "retell" }, { orchestrator: null }],
+        orchestrator: "retell",
         agents: {
           some: {
+            active: true,
             retellAgentId: { not: null },
             retellLlmId: { not: null },
             promptManuallyEdited: false,
@@ -55,6 +56,7 @@ async function main() {
       try {
         await syncAgentToRetell(business.id, prisma, {
           onlyManagedPrompts: true,
+          onlyActive: true,
         });
         console.log(`[AgentPromptSync] Sincronizado ${business.name} (${business.id})`);
       } catch (error) {

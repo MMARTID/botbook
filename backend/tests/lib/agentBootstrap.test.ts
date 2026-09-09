@@ -247,6 +247,30 @@ describe("syncAgentToRetell — voiceGender", () => {
     expect(mockedAgentUpdate).not.toHaveBeenCalled();
   });
 
+  it("no actualiza agentes inactivos al sincronizar solo activos", async () => {
+    mockedBusinessFindUnique.mockResolvedValue({
+      name: "Negocio de prueba",
+      businessDetails: null,
+      businessType: "barberia",
+      agentSettings: {},
+      orchestrator: "retell",
+      minAdvanceBookingMinutes: null,
+      maxAppointmentDurationMinutes: null,
+    } as any);
+    mockedAgentFindMany.mockResolvedValue([] as any);
+
+    await syncAgentToRetell("biz_inactivo", prisma, { onlyActive: true });
+
+    expect(mockedAgentFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ active: true }),
+      })
+    );
+    expect(mockedUpdateLlm).not.toHaveBeenCalled();
+    expect(mockedUpdateAgent).not.toHaveBeenCalled();
+    expect(mockedAgentUpdate).not.toHaveBeenCalled();
+  });
+
   it("empuja la voz masculina cuando el negocio la eligió en agentSettings", async () => {
     mockedBusinessFindUnique.mockResolvedValue({
       name: "Barbería de prueba",

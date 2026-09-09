@@ -818,7 +818,7 @@ export async function syncAgentNameWithBusinessType(args: {
 export async function syncAgentToRetell(
   businessId: string,
   prismaClient: typeof prisma = prisma,
-  options?: { onlyManagedPrompts?: boolean }
+  options?: { onlyManagedPrompts?: boolean; onlyActive?: boolean }
 ): Promise<void> {
   const business = await prismaClient.business.findUnique({
     where: { id: businessId },
@@ -840,6 +840,7 @@ export async function syncAgentToRetell(
       businessId,
       retellAgentId: { not: null },
       retellLlmId: { not: null },
+      ...(options?.onlyActive ? { active: true } : {}),
     },
   });
   if (agents.length === 0) return;
