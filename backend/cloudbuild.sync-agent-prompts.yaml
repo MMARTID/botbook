@@ -4,6 +4,11 @@
 steps:
   - name: "node:20-alpine"
     dir: "backend"
+    # El job vive fuera de Cloud Run y no hereda sus variables. Esta URL
+    # pública es necesaria para que syncCalendarToolsToAgents pueda registrar
+    # las URLs de las custom tools en Retell.
+    env:
+      - "BASE_URL=https://alhabla-api-k3jbjapgxa-ew.a.run.app"
     entrypoint: "sh"
     args:
       - "-c"
