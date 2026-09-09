@@ -3,7 +3,6 @@ import { retellAdapter } from "../../adapters/retell/RetellAdapter.js";
 import type { RetellTestRun } from "../../adapters/retell/RetellAdapter.js";
 import {
   CATALOG_VERSION,
-  NICHE_FIXTURES,
   SIMULATION_MODEL,
   SIMULATION_NICHES,
   buildCaseName,
@@ -143,7 +142,6 @@ function buildDefinitionInput(
     dynamicVariables: {
       nombre_negocio: `Negocio de prueba de ${simulationCase.niche}`,
       zona_horaria: "Europe/Madrid",
-      ...NICHE_FIXTURES[simulationCase.niche],
     },
     toolMocks: buildCaseToolMocks(simulationCase),
     llmModel: SIMULATION_MODEL,

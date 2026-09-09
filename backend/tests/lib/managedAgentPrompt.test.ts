@@ -12,12 +12,11 @@ describe("buildManagedAgentPrompt", () => {
       settings: DEFAULT_AGENT_SETTINGS,
     });
 
-    expect(prompt).toContain("{{servicios_disponibles}}");
-    expect(prompt).toContain("{{empleados}}");
-    expect(prompt).toContain("{{horario_semanal}}");
     expect(prompt).toContain("{{nombre_negocio}}");
     expect(prompt).toContain("{{user_number}}");
-    expect(prompt).toContain("{{current_calendar_{{zona_horaria}} }}");
+    expect(prompt).toContain("{{current_time_{{zona_horaria}} }}");
+    expect(prompt).toContain("get_catalog");
+    expect(prompt).not.toContain("{{servicios_disponibles}}");
   });
 
   it("reutiliza la variable nativa del número de quien llama", () => {
@@ -79,15 +78,16 @@ describe("buildManagedAgentPrompt", () => {
     expect(prompt).toContain("90 minutos");
   });
 
-  it("evita listar el catálogo y reutiliza una alternativa ya comprobada", () => {
+  it("consulta el catálogo bajo demanda y reutiliza una alternativa ya comprobada", () => {
     const prompt = buildManagedAgentPrompt({
       businessName: "Peluquería Ejemplo",
       settings: DEFAULT_AGENT_SETTINGS,
     });
 
-    expect(prompt).toContain("No recites el catálogo");
-    expect(prompt).toContain("no repitas check_availability");
+    expect(prompt).toContain("consulta get_catalog una vez");
+    expect(prompt).toContain("No repitas check_availability");
     expect(prompt).toContain("suggestedNextSlot");
+    expect(prompt).toContain("availabilityToken");
   });
 });
 

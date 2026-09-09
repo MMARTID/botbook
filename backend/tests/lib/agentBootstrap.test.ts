@@ -57,7 +57,7 @@ const mockedCreateAgent = vi.mocked(retellAdapter.createAgent);
 const mockedSyncCalendarToolsToAgents = vi.mocked(calendarService.syncCalendarToolsToAgents);
 
 describe("buildInboundCallDynamicVariables", () => {
-  it("devuelve contexto plano como strings para retell_llm_dynamic_variables", async () => {
+  it("devuelve solo el contexto mínimo por llamada", async () => {
     mockedBusinessFindUnique.mockResolvedValue({ schedule: DEFAULT_BUSINESS_SCHEDULE } as any);
     mockedServiceFindMany.mockResolvedValue([
       { id: "svc_1", name: "Corte", durationMinutes: 30 },
@@ -68,28 +68,11 @@ describe("buildInboundCallDynamicVariables", () => {
 
     const variables = await buildInboundCallDynamicVariables("biz_123");
 
-    expect(typeof variables.servicios_disponibles).toBe("string");
-    expect(typeof variables.empleados).toBe("string");
-    expect(typeof variables.horario_semanal).toBe("string");
-    expect(variables.servicios_disponibles).toContain("svc_1");
-    expect(variables.servicios_disponibles).toContain("Corte");
-    expect(variables.servicios_disponibles).toContain("[svc_1] Corte (30 min)");
-    expect(variables.empleados).toContain("pro_1");
-    expect(variables.empleados).toContain("Ana");
-    expect(variables.horario_semanal).toContain("Lunes");
     expect(variables.nombre_negocio).toBe("el negocio");
     expect(variables.zona_horaria).toBe("Europe/Madrid");
-  });
-
-  it("da un mensaje de fallback en vez de una lista vacía cuando no hay servicios ni empleados", async () => {
-    mockedBusinessFindUnique.mockResolvedValue({ schedule: DEFAULT_BUSINESS_SCHEDULE } as any);
-    mockedServiceFindMany.mockResolvedValue([]);
-    mockedProfessionalFindMany.mockResolvedValue([]);
-
-    const variables = await buildInboundCallDynamicVariables("biz_123");
-
-    expect(variables.servicios_disponibles).toBe("Este negocio todavía no tiene servicios configurados.");
-    expect(variables.empleados).toBe("Este negocio no tiene empleados individuales configurados.");
+    expect(variables).not.toHaveProperty("servicios_disponibles");
+    expect(variables).not.toHaveProperty("empleados");
+    expect(variables).not.toHaveProperty("horario_semanal");
   });
 
   it("no revienta si el negocio no existe (findUnique devuelve null)", async () => {
@@ -99,7 +82,8 @@ describe("buildInboundCallDynamicVariables", () => {
 
     const variables = await buildInboundCallDynamicVariables("biz_inexistente");
 
-    expect(variables.horario_semanal).toBe("Horario no configurado todavía.");
+    expect(variables.nombre_negocio).toBe("el negocio");
+    expect(variables.zona_horaria).toBe("Europe/Madrid");
   });
 
   it("incluye nombre y zona horaria como variables dinámicas", async () => {

@@ -967,8 +967,8 @@ describe("CalendarService.syncCalendarToolsToAgents", () => {
       expect.objectContaining({
         tools: expect.arrayContaining([
           expect.objectContaining({
-            name: "check_business_hours",
-            url: "https://example.com/webhooks/retell/tools/retell_agent_456/check_business_hours",
+            name: "get_catalog",
+            url: "https://example.com/webhooks/retell/tools/retell_agent_456/get_catalog",
             args_at_root: false,
           }),
           expect.objectContaining({
@@ -981,7 +981,7 @@ describe("CalendarService.syncCalendarToolsToAgents", () => {
     );
   });
 
-  it("solo book_appointment habla mientras se ejecuta — check_business_hours y check_availability son internas y rápidas, en silencio", async () => {
+  it("habla durante disponibilidad y reserva, sin narrar la lectura del catálogo", async () => {
     mockedBusinessFindUnique.mockResolvedValue({
       id: "business_123",
       orchestrator: "retell",
@@ -1001,8 +1001,8 @@ describe("CalendarService.syncCalendarToolsToAgents", () => {
 
     const [, payload] = mockedRetellUpdateLlm.mock.calls[0];
     const tools = (payload as { tools: Array<{ name: string; speak_during_execution?: boolean }> }).tools;
-    expect(tools.find((t) => t.name === "check_business_hours")?.speak_during_execution).toBe(false);
-    expect(tools.find((t) => t.name === "check_availability")?.speak_during_execution).toBe(false);
+    expect(tools.find((t) => t.name === "get_catalog")?.speak_during_execution).toBe(false);
+    expect(tools.find((t) => t.name === "check_availability")?.speak_during_execution).toBe(true);
     expect(tools.find((t) => t.name === "book_appointment")?.speak_during_execution).toBe(true);
   });
 

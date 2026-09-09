@@ -12,7 +12,7 @@ vi.mock("../../../src/lib/prisma.js", () => ({
     business: { findUnique: vi.fn() },
     call: { findUnique: vi.fn(), findFirst: vi.fn() },
     booking: { upsert: vi.fn(), findUnique: vi.fn() },
-    professional: { findFirst: vi.fn() },
+    professional: { findFirst: vi.fn(), findMany: vi.fn() },
     service: { findFirst: vi.fn(), findMany: vi.fn() },
   },
 }));
@@ -33,6 +33,7 @@ vi.mock("../../../src/lib/redis.js", () => ({
 vi.mock("../../../src/lib/businessSchedule.js", () => ({
   checkBusinessHours: vi.fn(),
   checkBookingRestrictions: vi.fn(() => ({ success: true })),
+  formatScheduleForPrompt: vi.fn(() => "Lunes a viernes, de 09:00 a 18:00."),
 }));
 
 vi.mock("../../../src/lib/availability.js", () => ({
@@ -58,6 +59,7 @@ const mockedCallFindFirst = vi.mocked(prisma.call.findFirst);
 const mockedBookingUpsert = vi.mocked(prisma.booking.upsert);
 const mockedBookingFindUnique = vi.mocked(prisma.booking.findUnique);
 const mockedProfessionalFindFirst = vi.mocked(prisma.professional.findFirst);
+const mockedProfessionalFindMany = vi.mocked(prisma.professional.findMany);
 const mockedServiceFindMany = vi.mocked(prisma.service.findMany);
 const mockedCheckBusinessHours = vi.mocked(checkBusinessHours);
 const mockedCheckAvailability = vi.mocked(checkAvailability);
@@ -106,6 +108,7 @@ describe("executeVoiceTool book_appointment — vinculación a la llamada correc
     mockedBookAppointment.mockResolvedValue({ htmlLink: "https://calendar.google.com/event/1" } as any);
     mockedGetBusyIntervals.mockResolvedValue([]);
     mockedProfessionalFindFirst.mockResolvedValue({ id: "professional_123" } as any);
+    mockedProfessionalFindMany.mockResolvedValue([]);
     mockedServiceFindMany.mockResolvedValue([]);
     // checkAvailability ahora se llama SIEMPRE (antes se saltaba si venía un
     // professionalId ya verificado — ver fix del hallazgo #3 de la
@@ -247,6 +250,61 @@ describe("executeVoiceTool book_appointment — vinculación a la llamada correc
     expect(mockedBookAppointment).toHaveBeenCalledWith(
       expect.objectContaining({ clientPhone: "+34611222333" })
     );
+  });
+});
+
+describe("executeVoiceTool — catálogo y token de disponibilidad", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockedBusinessFindUnique.mockResolvedValue(buildBusiness() as any);
+    mockedGetBusyIntervals.mockResolvedValue([]);
+    mockedCheckAvailability.mockResolvedValue({
+      available: true,
+      message: "Hay disponibilidad.",
+      capacityUsed: 0,
+      capacityTotal: 1,
+      availableProfessionals: [{ id: "professional_123", name: "Ana" }],
+    } as any);
+  });
+
+  it("crea un token temporal al comprobar una cita disponible", async () => {
+    const result = await executeVoiceTool({
+      businessId: "business_123",
+      toolName: "check_availability",
+      callId: "call_123",
+      params: {
+        startDateTime: "2026-08-25T17:00:00+02:00",
+        durationMinutes: 30,
+        serviceIds: ["service_123"],
+      },
+    });
+
+    expect(result.result.available).toBe(true);
+    expect(result.result.availabilityToken).toEqual(expect.any(String));
+    expect(mockedCheckAvailability).toHaveBeenCalledWith(
+      expect.objectContaining({
+        serviceIds: ["service_123"],
+        durationMinutes: 30,
+      })
+    );
+  });
+
+  it("devuelve el catálogo bajo demanda, sin incluirlo en cada llamada", async () => {
+    mockedServiceFindMany.mockResolvedValue([
+      { id: "service_123", name: "Corte", durationMinutes: 30 },
+    ] as any);
+    mockedProfessionalFindMany.mockResolvedValue([
+      { id: "professional_123", name: "Ana" },
+    ] as any);
+
+    const result = await executeVoiceTool({
+      businessId: "business_123",
+      toolName: "get_catalog",
+      params: {},
+    });
+
+    expect(result.result.services).toContain("[service_123] Corte (30 min)");
+    expect(result.result.professionals).toContain("[professional_123] Ana");
   });
 });
 

@@ -476,32 +476,20 @@ export class CalendarService {
         messages: [
           {
             type: "request-start",
-            content: "Un momento, compruebo el horario del negocio...",
+            content: "Un momento, lo consulto.",
           },
-          { type: "request-complete", content: "Ya he comprobado el horario." },
           {
             type: "request-failed",
-            content: "No he podido comprobar el horario en este momento.",
+            content: "No he podido consultar esa información en este momento.",
           },
         ],
         function: {
-          name: "check_business_hours",
+          name: "get_catalog",
           description:
-            "Comprueba si una fecha y un intervalo completo están dentro del horario del negocio. Úsala SIEMPRE antes de ofrecer o confirmar una cita.",
+            "Obtiene servicios con IDs y duraciones, profesionales y horario. Úsala cuando el cliente pregunte por ellos o antes de comprobar una cita si necesitas esos datos.",
           parameters: {
             type: "object",
-            properties: {
-              startDateTime: {
-                type: "string",
-                description:
-                  "Inicio solicitado en formato ISO 8601, incluyendo zona horaria.",
-              },
-              durationMinutes: {
-                type: "number",
-                description: "Duración total de la cita en minutos.",
-              },
-            },
-            required: ["startDateTime", "durationMinutes"],
+            properties: {},
           },
         },
         server: { url: serverUrl },
@@ -527,7 +515,7 @@ export class CalendarService {
         function: {
           name: "check_availability",
           description:
-            "Comprueba si hay plazas y profesionales libres para una cita en una fecha y hora concretas. Úsala después de check_business_hours y antes de book_appointment.",
+            "Comprueba una cita y valida horario, restricciones, capacidad, profesionales y calendario real. Conserva el availabilityToken que devuelve para reservar.",
           parameters: {
             type: "object",
             properties: {
@@ -579,7 +567,7 @@ export class CalendarService {
         function: {
           name: "book_appointment",
           description:
-            "Agenda una cita en el calendario activo del negocio. Úsala solo después de confirmar con check_business_hours que el intervalo está dentro del horario y con check_availability que hay profesionales libres.",
+            "Agenda una cita. Úsala solo tras confirmación explícita y con el availabilityToken de check_availability.",
           parameters: {
             type: "object",
             properties: {
@@ -595,31 +583,15 @@ export class CalendarService {
               clientPhone: {
                 type: "string",
                 description:
-                  "Teléfono de contacto SOLO si el cliente pidió usar uno distinto al número desde el que llama (TELEFONO_DE_QUIEN_LLAMA). Déjalo vacío si vale el mismo (opcional).",
+                  "Teléfono de contacto solo si el cliente elige uno distinto (opcional).",
               },
-              startDateTime: {
+              availabilityToken: {
                 type: "string",
                 description:
-                  "La fecha y hora de inicio en formato ISO 8601 (ej. 2026-07-15T15:30:00Z)",
-              },
-              durationMinutes: {
-                type: "number",
-                description:
-                  "La duración de la cita en minutos. Por defecto asume 30 minutos si no se especifica.",
-              },
-              serviceIds: {
-                type: "array",
-                items: { type: "string" },
-                description:
-                  "IDs de los servicios reservados (opcional; puede ser más de uno si el cliente pide varios servicios en la misma cita).",
-              },
-              professionalId: {
-                type: "string",
-                description:
-                  "ID del profesional seleccionado (opcional). Si no se indica, se asigna el primer profesional libre.",
+                  "Token exacto devuelto por check_availability.",
               },
             },
-            required: ["clientName", "startDateTime"],
+            required: ["clientName", "availabilityToken"],
           },
         },
         server: { url: serverUrl },
@@ -634,35 +606,16 @@ export class CalendarService {
     const toolBaseUrl = `${baseUrl.replace(/\/$/, "")}/webhooks/retell/tools/${retellAgentId}`;
     return [
       {
-        name: "check_business_hours",
+        name: "get_catalog",
         description:
-          "Comprueba si una fecha y un intervalo completo están dentro del horario del negocio. Úsala SIEMPRE antes de ofrecer o confirmar una cita.",
-        url: `${toolBaseUrl}/check_business_hours`,
+          "Obtiene los servicios activos con sus IDs y duraciones, los profesionales y el horario del negocio. Úsala cuando el cliente pregunte por ellos o antes de comprobar/reservar si necesitas un ID o duración.",
+        url: `${toolBaseUrl}/get_catalog`,
         method: "POST",
         args_at_root: false,
         parameters: {
           type: "object",
-          properties: {
-            startDateTime: {
-              type: "string",
-              description:
-                "Inicio solicitado en formato ISO 8601, incluyendo zona horaria.",
-            },
-            durationMinutes: {
-              type: "number",
-              description: "Duración total de la cita en minutos.",
-            },
-          },
-          required: ["startDateTime", "durationMinutes"],
+          properties: {},
         },
-        // Comprobación interna rápida (sin llamada externa) — sin narración
-        // durante la ejecución. Antes decía "un momento, lo compruebo" aquí
-        // Y en check_availability Y en book_appointment cuando las tres se
-        // encadenaban para confirmar una reserva, repitiendo la frase hasta
-        // 3 veces seguidas (confirmado en una llamada real) porque pedirle
-        // al LLM por prompt que "solo lo diga una vez" no es fiable. Con
-        // esto, solo book_appointment (la única con una llamada externa de
-        // verdad, al calendario) puede hablar mientras se ejecuta.
         speak_during_execution: false,
         speak_after_execution: true,
         timeout_ms: 20000,
@@ -670,7 +623,7 @@ export class CalendarService {
       {
         name: "check_availability",
         description:
-          "Comprueba si hay plazas y profesionales libres para una cita en una fecha y hora concretas. Úsala después de check_business_hours y antes de book_appointment.",
+          "Comprueba una cita en una fecha y hora concretas: valida horario, restricciones, capacidad, profesionales y calendario real. Úsala antes de book_appointment y conserva el availabilityToken que devuelve.",
         url: `${toolBaseUrl}/check_availability`,
         method: "POST",
         args_at_root: false,
@@ -700,15 +653,16 @@ export class CalendarService {
           },
           required: ["startDateTime", "durationMinutes"],
         },
-        // Ver comentario en check_business_hours — misma razón.
-        speak_during_execution: false,
+        // Retell habla mientras la consulta está en curso, de modo que no
+        // hay un turno del LLM previo solo para decir "un momento".
+        speak_during_execution: true,
         speak_after_execution: true,
         timeout_ms: 20000,
       },
       {
         name: "book_appointment",
         description:
-          "Agenda una cita en el calendario activo del negocio. Úsala solo después de confirmar con check_business_hours que el intervalo está dentro del horario y con check_availability que hay profesionales libres.",
+          "Agenda una cita en el calendario activo. Úsala solo tras confirmación explícita y con el availabilityToken de check_availability.",
         url: `${toolBaseUrl}/book_appointment`,
         method: "POST",
         args_at_root: false,
@@ -724,34 +678,18 @@ export class CalendarService {
               description:
                 "El correo electrónico del cliente, si lo proporciona (opcional)",
             },
-            clientPhone: {
-              type: "string",
-              description:
-                "Teléfono de contacto SOLO si el cliente pidió usar uno distinto al número desde el que llama (TELEFONO_DE_QUIEN_LLAMA). Déjalo vacío si vale el mismo (opcional).",
+              clientPhone: {
+                type: "string",
+                description:
+                  "Teléfono de contacto solo si el cliente eligió uno distinto a {{user_number}} (opcional).",
+              },
+              availabilityToken: {
+                type: "string",
+                description:
+                  "Token exacto devuelto por check_availability para la opción confirmada.",
+              },
             },
-            startDateTime: {
-              type: "string",
-              description:
-                "La fecha y hora de inicio en formato ISO 8601 (ej. 2026-07-15T15:30:00Z)",
-            },
-            durationMinutes: {
-              type: "number",
-              description:
-                "La duración de la cita en minutos. Por defecto asume 30 minutos si no se especifica.",
-            },
-            serviceIds: {
-              type: "array",
-              items: { type: "string" },
-              description:
-                "IDs de los servicios reservados (opcional; puede ser más de uno si el cliente pide varios servicios en la misma cita).",
-            },
-            professionalId: {
-              type: "string",
-              description:
-                "ID del profesional seleccionado (opcional). Si no se indica, se asigna el primer profesional libre.",
-            },
-          },
-          required: ["clientName", "startDateTime"],
+          required: ["clientName", "availabilityToken"],
         },
         speak_during_execution: true,
         speak_after_execution: true,
@@ -842,7 +780,7 @@ export class CalendarService {
             assistantData.model?.tools || assistantData.tools || [];
           const managedToolNames = new Set([
             "book_appointment",
-            "check_business_hours",
+            "get_catalog",
             "check_availability",
           ]);
           const otherTools = existingTools.filter(

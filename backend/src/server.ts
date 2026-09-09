@@ -312,8 +312,9 @@ async function start() {
     // Webhook de llamada entrante de Retell — se configura por número de
     // teléfono (inbound_webhook_url, ver phone/service.ts), es distinto del
     // webhook de eventos de arriba. Responde con los dynamic variables
-    // ({{servicios_disponibles}}, {{empleados}}, {{horario_semanal}}) que el
-    // prompt gestionado espera — ver managedAgentPrompt.ts y
+    // mínimas (nombre y zona horaria) que el prompt gestionado espera — el
+    // catálogo se consulta con get_catalog bajo demanda para no inflar cada
+    // turno — ver managedAgentPrompt.ts y
     // buildInboundCallDynamicVariables en agentBootstrap.ts. Si no
     // encontramos el negocio o algo falla, respondemos igualmente con 200 y
     // variables vacías: rechazar la llamada (reject) es mucho más disruptivo

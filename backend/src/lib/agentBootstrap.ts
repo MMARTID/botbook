@@ -24,7 +24,6 @@ import {
   DEFAULT_AGENT_SETTINGS,
   type AgentSettings,
 } from "./managedAgentPrompt.js";
-import { formatScheduleForPrompt } from "./businessSchedule.js";
 import { calendarService } from "../modules/calendar/service.js";
 
 /**
@@ -134,71 +133,24 @@ export async function buildPostCallAnalysisDataForBusiness(
   return buildPostCallAnalysisData(services.map((service) => service.name));
 }
 
-// El catálogo se inyecta en cada llamada y forma parte del contexto del LLM.
-// Veinte opciones cubren los catálogos habituales sin penalizar la latencia
-// de negocios que tienen listas históricas muy extensas.
-const MAX_LISTED_ITEMS = 20;
-
-function formatServicesForDynamicVariable(
-  services: { id: string; name: string; durationMinutes: number }[]
-): string {
-  if (services.length === 0)
-    return "Este negocio todavía no tiene servicios configurados.";
-  return services
-    .slice(0, MAX_LISTED_ITEMS)
-    .map(
-      (service) =>
-        `[${service.id}] ${service.name} (${service.durationMinutes} min)`
-    )
-    .join("\n");
-}
-
-function formatProfessionalsForDynamicVariable(
-  professionals: { id: string; name: string }[]
-): string {
-  if (professionals.length === 0)
-    return "Este negocio no tiene empleados individuales configurados.";
-  return professionals
-    .slice(0, MAX_LISTED_ITEMS)
-    .map((professional) => `[${professional.id}] ${professional.name}`)
-    .join("\n");
-}
-
 /**
- * Variables dinámicas de Retell para una llamada entrante — se llama desde
- * POST /webhooks/retell/inbound, no desde el momento de sincronizar el
- * prompt. Los valores deben ser string (restricción de la API de Retell), y
- * las claves tienen que coincidir exactamente con los {{...}} del prompt
- * generado por buildManagedAgentPrompt en managedAgentPrompt.ts.
+ * Variables mínimas por llamada entrante. El catálogo, profesionales y
+ * horario se obtienen con get_catalog solo cuando hacen falta: inyectarlos
+ * siempre aumentaba el contexto y la latencia de todos los turnos.
  */
 export async function buildInboundCallDynamicVariables(
   businessId: string,
   prismaClient: typeof prisma = prisma
 ): Promise<Record<string, string>> {
-  const [business, services, professionals] = await Promise.all([
-    prismaClient.business.findUnique({
-      where: { id: businessId },
-      select: { name: true, schedule: true, timezone: true },
-    }),
-    prismaClient.service.findMany({
-      where: { businessId, active: true },
-      select: { id: true, name: true, durationMinutes: true },
-      orderBy: { name: "asc" },
-    }),
-    prismaClient.professional.findMany({
-      where: { businessId, active: true },
-      select: { id: true, name: true },
-      orderBy: { name: "asc" },
-    }),
-  ]);
+  const business = await prismaClient.business.findUnique({
+    where: { id: businessId },
+    select: { name: true, timezone: true },
+  });
 
   const timezone = resolvePromptTimezone(business?.timezone);
 
   return {
     nombre_negocio: business?.name?.trim() || "el negocio",
-    servicios_disponibles: formatServicesForDynamicVariable(services),
-    empleados: formatProfessionalsForDynamicVariable(professionals),
-    horario_semanal: formatScheduleForPrompt(business?.schedule ?? {}),
     zona_horaria: timezone,
   };
 }
@@ -324,10 +276,9 @@ export function buildAgentDisplayName(
  * managedAgentPrompt.ts) desde el momento de creación — es efímero de todos
  * modos, porque PATCH /business/me lo reconstruye en cuanto el negocio guarda
  * ajustes o tipo de negocio (ver syncAgentToRetell). El horario y el
- * catálogo de servicios/empleados ya no viven en este texto: son variables
- * dinámicas de Retell que rellena POST /webhooks/retell/inbound en cada
- * llamada — ver managedAgentPrompt.ts. TTS/LLM/STT siguen siendo iguales
- * para todos los nichos.
+ * catálogo no viven en el prompt: get_catalog los devuelve solo cuando el
+ * agente los necesita. TTS/LLM/STT siguen siendo iguales para todos los
+ * nichos.
  */
 export function getAgentTemplateForBusinessType(
   businessType: BusinessType,
@@ -824,11 +775,9 @@ export async function syncAgentToRetell(
   });
   if (agents.length === 0) return;
 
-  // El horario y el catálogo de servicios/empleados ya no van en el
-  // systemPrompt (son variables dinámicas de Retell, ver
-  // POST /webhooks/retell/inbound) — los servicios se siguen consultando
-  // aquí solo para las categorías de postCallAnalysisData y para boostear
-  // la transcripción con los nombres reales del negocio.
+  // El horario y el catálogo se consultan bajo demanda mediante get_catalog;
+  // estos servicios se cargan aquí solo para postCallAnalysisData y para
+  // boostear la transcripción con los nombres reales del negocio.
   const services = await prismaClient.service.findMany({
     where: { businessId, active: true },
     select: { name: true },
@@ -909,4 +858,6 @@ export async function syncAgentToRetell(
       });
     }
   }
+
+  await calendarService.syncCalendarToolsToAgents(businessId);
 }

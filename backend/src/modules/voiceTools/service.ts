@@ -1,8 +1,10 @@
 import { prisma } from "../../lib/prisma.js";
+import { randomUUID } from "node:crypto";
 import { getRedis } from "../../lib/redis.js";
 import {
   checkBusinessHours,
   checkBookingRestrictions,
+  formatScheduleForPrompt,
 } from "../../lib/businessSchedule.js";
 import {
   checkAvailability,
@@ -18,7 +20,10 @@ import {
 } from "../../lib/bookingLock.js";
 
 export type VoiceToolName =
-  "check_business_hours" | "check_availability" | "book_appointment";
+  | "get_catalog"
+  | "check_business_hours"
+  | "check_availability"
+  | "book_appointment";
 
 // Estados de SubscriptionStatus (schema.prisma) que significan "el negocio
 // no está pagando ahora mismo" — no incluye TRIALING/ACTIVE (pagando de
@@ -30,6 +35,57 @@ const BLOCKED_SUBSCRIPTION_STATUSES = new Set([
   "PAST_DUE",
   "INCOMPLETE_EXPIRED",
 ]);
+
+const AVAILABILITY_TOKEN_TTL_SECONDS = 5 * 60;
+const MAX_CATALOG_ITEMS = 60;
+
+type AvailabilityDraft = {
+  businessId: string;
+  callId?: string;
+  startDateTime: string;
+  durationMinutes: number;
+  serviceIds: string[];
+  professionalId?: string;
+};
+
+function availabilityDraftKey(token: string): string {
+  return `availability_draft:${token}`;
+}
+
+async function createAvailabilityDraft(draft: AvailabilityDraft): Promise<string> {
+  const token = randomUUID();
+  await getRedis().set(
+    availabilityDraftKey(token),
+    JSON.stringify(draft),
+    "EX",
+    AVAILABILITY_TOKEN_TTL_SECONDS
+  );
+  return token;
+}
+
+async function readAvailabilityDraft(
+  token: string,
+  businessId: string,
+  callId?: string
+): Promise<AvailabilityDraft | null> {
+  try {
+    const raw = await getRedis().get(availabilityDraftKey(token));
+    if (!raw) return null;
+    const draft = JSON.parse(raw) as AvailabilityDraft;
+    if (
+      draft.businessId !== businessId ||
+      (draft.callId && draft.callId !== callId)
+    ) {
+      return null;
+    }
+    return draft;
+  } catch (error) {
+    console.error(
+      `[VoiceTools] No se pudo recuperar el token de disponibilidad: ${errorMessage(error)}`
+    );
+    return null;
+  }
+}
 
 export interface ExecuteVoiceToolInput {
   businessId: string;
@@ -274,7 +330,8 @@ async function fetchExternalBusyIntervals(
 async function executeCheckAvailability(
   business: BusinessVoiceConfig,
   params: Record<string, unknown>,
-  callLabel: string
+  callLabel: string,
+  callId?: string
 ): Promise<{ success: boolean; result?: any }> {
   try {
     const startDateTime =
@@ -306,6 +363,39 @@ async function executeCheckAvailability(
       externalBusyIntervals,
     });
 
+    if (availability.available) {
+      const availabilityToken = await createAvailabilityDraft({
+        businessId: business.id,
+        callId,
+        startDateTime,
+        durationMinutes,
+        serviceIds: serviceIds ?? [],
+        professionalId: professionalId ?? availability.availableProfessionals[0]?.id,
+      });
+      return { success: true, result: { ...availability, availabilityToken } };
+    }
+
+    if (availability.suggestedNextSlot) {
+      const suggestedToken = await createAvailabilityDraft({
+        businessId: business.id,
+        callId,
+        startDateTime: availability.suggestedNextSlot.startDateTime,
+        durationMinutes,
+        serviceIds: serviceIds ?? [],
+        professionalId: professionalId ?? availability.suggestedNextSlot.availableProfessionals[0]?.id,
+      });
+      return {
+        success: true,
+        result: {
+          ...availability,
+          suggestedNextSlot: {
+            ...availability.suggestedNextSlot,
+            availabilityToken: suggestedToken,
+          },
+        },
+      };
+    }
+
     return { success: true, result: availability };
   } catch (error) {
     console.error(
@@ -319,6 +409,53 @@ async function executeCheckAvailability(
         available: false,
         code: "AVAILABILITY_CHECK_FAILED",
         message: "No pude comprobar la disponibilidad en este momento.",
+      },
+    };
+  }
+}
+
+async function executeGetCatalog(
+  business: BusinessVoiceConfig,
+  callLabel: string
+): Promise<{ success: boolean; result?: any }> {
+  try {
+    const [services, professionals] = await Promise.all([
+      prisma.service.findMany({
+        where: { businessId: business.id, active: true },
+        select: { id: true, name: true, durationMinutes: true },
+        orderBy: { name: "asc" },
+        take: MAX_CATALOG_ITEMS,
+      }),
+      prisma.professional.findMany({
+        where: { businessId: business.id, active: true },
+        select: { id: true, name: true },
+        orderBy: { name: "asc" },
+        take: MAX_CATALOG_ITEMS,
+      }),
+    ]);
+
+    return {
+      success: true,
+      result: {
+        services: services.length
+          ? services.map((service) => `[${service.id}] ${service.name} (${service.durationMinutes} min)`).join("\n")
+          : "No hay servicios configurados.",
+        professionals: professionals.length
+          ? professionals.map((professional) => `[${professional.id}] ${professional.name}`).join("\n")
+          : "No hay profesionales individuales configurados.",
+        schedule: formatScheduleForPrompt(business.schedule),
+      },
+    };
+  } catch (error) {
+    console.error(
+      `[VoiceTools] ${callLabel} no pudo obtener el catálogo: ${errorMessage(error)}`
+    );
+    return {
+      success: true,
+      result: {
+        success: false,
+        code: "CATALOG_UNAVAILABLE",
+        message: "No pude consultar esa información en este momento.",
       },
     };
   }
@@ -495,18 +632,36 @@ async function executeBookAppointment(
     clientPhone?: string;
     serviceIds?: string[];
     professionalId?: string;
+    availabilityToken?: string;
   };
-  const {
-    clientName,
-    startDateTime,
-    durationMinutes,
-    clientEmail,
-    clientPhone,
-    professionalId,
-  } = rawParams;
-  const requestedServiceIds = Array.isArray(rawParams.serviceIds)
+  const clientName = rawParams.clientName;
+  const clientEmail = rawParams.clientEmail;
+  const clientPhone = rawParams.clientPhone;
+  const draft = typeof rawParams.availabilityToken === "string"
+    ? await readAvailabilityDraft(
+      rawParams.availabilityToken,
+      business.id,
+      callId
+    )
+    : null;
+
+  if (rawParams.availabilityToken && !draft) {
+    return {
+      success: true,
+      result: {
+        success: false,
+        code: "AVAILABILITY_TOKEN_EXPIRED",
+        message: "La comprobación de disponibilidad caducó. Vuelvo a comprobar la hora que prefieras.",
+      },
+    };
+  }
+
+  const startDateTime = draft?.startDateTime ?? rawParams.startDateTime;
+  const durationMinutes = draft?.durationMinutes ?? rawParams.durationMinutes;
+  const professionalId = draft?.professionalId ?? rawParams.professionalId;
+  const requestedServiceIds = draft?.serviceIds ?? (Array.isArray(rawParams.serviceIds)
     ? rawParams.serviceIds.filter((id): id is string => typeof id === "string")
-    : [];
+    : []);
 
   if (!clientName || !startDateTime) {
     return {
@@ -1062,10 +1217,12 @@ export async function executeVoiceTool(
   }
 
   switch (toolName) {
+    case "get_catalog":
+      return executeGetCatalog(business, callLabel);
     case "check_business_hours":
       return executeCheckBusinessHours(business, params, callLabel);
     case "check_availability":
-      return executeCheckAvailability(business, params, callLabel);
+      return executeCheckAvailability(business, params, callLabel, callId);
     case "book_appointment":
       return executeBookAppointment(business, params, callLabel, callId);
     default:

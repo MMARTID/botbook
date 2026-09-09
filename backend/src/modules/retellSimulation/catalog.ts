@@ -90,7 +90,9 @@ export interface SimulationCase {
 // ---------------------------------------------------------------------------
 
 const horarioAbierto = (): RetellToolMock => ({
-  toolName: "check_business_hours",
+  // Conservado para los escenarios heredados: el agente nuevo no invoca
+  // esta tool, porque check_availability valida el horario internamente.
+  toolName: "legacy_check_business_hours",
   output: {
     success: true,
     isOpen: true,
@@ -101,12 +103,10 @@ const horarioAbierto = (): RetellToolMock => ({
 });
 
 const horarioCerrado = (): RetellToolMock => ({
-  toolName: "check_business_hours",
+  toolName: "check_availability",
   output: {
-    success: true,
-    isOpen: false,
+    available: false,
     code: "OUTSIDE_BUSINESS_HOURS",
-    timeZone: "Europe/Madrid",
     message: "La cita queda fuera del horario configurado del negocio.",
   },
 });
@@ -119,6 +119,7 @@ const disponible = (professionalId: string, name: string): RetellToolMock => ({
     capacityUsed: 0,
     capacityTotal: 1,
     availableProfessionals: [{ id: professionalId, name }],
+    availabilityToken: "availability-token-ok",
   },
 });
 
@@ -181,13 +182,11 @@ const reservaFalla = (): RetellToolMock => ({
  */
 const REDES_DE_SEGURIDAD: RetellToolMock[] = [
   {
-    toolName: "check_business_hours",
+    toolName: "get_catalog",
     output: {
-      success: true,
-      isOpen: true,
-      code: "WITHIN_BUSINESS_HOURS",
-      timeZone: "Europe/Madrid",
-      message: "La cita está completamente dentro del horario del negocio.",
+      services: "[srv-generico] Servicio general (30 min)",
+      professionals: "[pro-generico] Alex",
+      schedule: "Lunes a viernes, de 09:00 a 18:00.",
     },
   },
   {
@@ -198,6 +197,7 @@ const REDES_DE_SEGURIDAD: RetellToolMock[] = [
       capacityUsed: 0,
       capacityTotal: 1,
       availableProfessionals: [{ id: "pro-generico", name: "Alex" }],
+      availabilityToken: "availability-token-generico",
     },
   },
   {
@@ -215,9 +215,9 @@ const REDES_DE_SEGURIDAD: RetellToolMock[] = [
 // ---------------------------------------------------------------------------
 
 const M_SECUENCIA =
-  "Antes de reservar comprueba el horario con check_business_hours y " +
-  "después la disponibilidad con check_availability; solo llama a " +
-  "book_appointment cuando ambas han salido bien.";
+  "Antes de reservar obtiene el catálogo cuando necesita IDs, comprueba " +
+  "la cita con check_availability y solo llama a book_appointment tras " +
+  "confirmación y usando el availabilityToken devuelto.";
 
 const M_CONFIRMA =
   "Antes de llamar a book_appointment dice en voz alta el servicio, la " +
@@ -231,8 +231,8 @@ const M_NO_INVENTA =
   "lo que le han devuelto las herramientas.";
 
 const M_NO_RESERVA_SIN_BASE =
-  "No llama a book_appointment si falta información, si el horario está " +
-  "cerrado o si no hay disponibilidad.";
+  "No llama a book_appointment si falta información, la herramienta " +
+  "indica horario cerrado o no hay disponibilidad.";
 
 const M_NO_ANUNCIA_EXITO =
   "No afirma que la cita está reservada mientras book_appointment no haya " +
@@ -279,102 +279,6 @@ const ESCALA_TECNICA: ExpectedProductionOutcome = {
   callOutcome: "ESCALATED",
   escalationReason: "FALLO_TECNICO",
   toolFailureDetected: true,
-};
-
-// ---------------------------------------------------------------------------
-// Fixtures de variables dinámicas — mismo formato exacto que produce
-// buildInboundCallDynamicVariables en lib/agentBootstrap.ts, pero con ids y
-// nombres sintéticos: nunca datos de un negocio real.
-// ---------------------------------------------------------------------------
-
-const HORARIO_FIXTURE =
-  "Lunes: 09:00–18:00. Martes: 09:00–18:00. Miércoles: 09:00–18:00. " +
-  "Jueves: 09:00–18:00. Viernes: 09:00–18:00. Sábado: cerrado. " +
-  "Domingo: cerrado.";
-
-function servicios(
-  items: { id: string; nombre: string; minutos: number }[]
-): string {
-  return items
-    .map((item) => `[${item.id}] ${item.nombre} (${item.minutos} min)`)
-    .join("\n");
-}
-
-function empleados(items: { id: string; nombre: string }[]): string {
-  return items
-    .map((item) => `[${item.id}] ${item.nombre}`)
-    .join("\n");
-}
-
-export const NICHE_FIXTURES: Record<
-  SimulationNiche,
-  Record<string, string>
-> = {
-  peluqueria: {
-    servicios_disponibles: servicios([
-      { id: "srv-corte", nombre: "Corte", minutos: 30 },
-      { id: "srv-mechas", nombre: "Mechas", minutos: 90 },
-      { id: "srv-color", nombre: "Coloración", minutos: 60 },
-      { id: "srv-tratamiento", nombre: "Tratamiento capilar", minutos: 45 },
-    ]),
-    empleados: empleados([
-      { id: "pro-lucia", nombre: "Lucía" },
-      { id: "pro-montse", nombre: "Montse" },
-    ]),
-    horario_semanal: HORARIO_FIXTURE,
-  },
-  barberia: {
-    servicios_disponibles: servicios([
-      { id: "srv-corte", nombre: "Corte", minutos: 30 },
-      { id: "srv-barba", nombre: "Arreglo de barba", minutos: 20 },
-      { id: "srv-corte-barba", nombre: "Corte y barba", minutos: 45 },
-      { id: "srv-corte-nino", nombre: "Corte de niño", minutos: 30 },
-    ]),
-    empleados: empleados([
-      { id: "pro-marcos", nombre: "Marcos" },
-      { id: "pro-guillem", nombre: "Guillem" },
-    ]),
-    horario_semanal: HORARIO_FIXTURE,
-  },
-  "salon-de-unas": {
-    servicios_disponibles: servicios([
-      { id: "srv-semi", nombre: "Manicura semipermanente", minutos: 45 },
-      { id: "srv-acrilicas", nombre: "Uñas acrílicas", minutos: 60 },
-      { id: "srv-pedicura", nombre: "Pedicura spa", minutos: 50 },
-      { id: "srv-retirada", nombre: "Retirada de esmalte", minutos: 20 },
-    ]),
-    empleados: empleados([
-      { id: "pro-nuria", nombre: "Nuria" },
-      { id: "pro-marta", nombre: "Marta" },
-    ]),
-    horario_semanal: HORARIO_FIXTURE,
-  },
-  "centro-de-estetica": {
-    servicios_disponibles: servicios([
-      { id: "srv-facial", nombre: "Limpieza facial", minutos: 45 },
-      { id: "srv-depilacion", nombre: "Depilación láser", minutos: 30 },
-      { id: "srv-masaje", nombre: "Masaje relajante", minutos: 60 },
-      { id: "srv-antiedad", nombre: "Tratamiento anti-edad", minutos: 50 },
-    ]),
-    empleados: empleados([
-      { id: "pro-eva", nombre: "Eva" },
-      { id: "pro-carmen", nombre: "Carmen" },
-    ]),
-    horario_semanal: HORARIO_FIXTURE,
-  },
-  fisioterapia: {
-    servicios_disponibles: servicios([
-      { id: "srv-sesion", nombre: "Sesión de fisioterapia", minutos: 45 },
-      { id: "srv-deportivo", nombre: "Masaje deportivo", minutos: 30 },
-      { id: "srv-rehab", nombre: "Rehabilitación de lesiones", minutos: 60 },
-      { id: "srv-valoracion", nombre: "Valoración inicial", minutos: 30 },
-    ]),
-    empleados: empleados([
-      { id: "pro-ana", nombre: "Ana" },
-      { id: "pro-javier", nombre: "Javier" },
-    ]),
-    horario_semanal: HORARIO_FIXTURE,
-  },
 };
 
 // ---------------------------------------------------------------------------

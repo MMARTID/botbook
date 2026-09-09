@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
   ALL_CASES,
-  NICHE_FIXTURES,
   SIMULATION_NICHES,
   buildCaseName,
   buildCaseToolMocks,
@@ -12,7 +11,7 @@ import {
  * durante una simulación acabaría llegando al backend real (y al calendario
  * del negocio), que es justo lo que la batería debe evitar. */
 const TOOLS_REALES = [
-  "check_business_hours",
+  "get_catalog",
   "check_availability",
   "book_appointment",
 ];
@@ -94,40 +93,6 @@ describe("catálogo de simulación de Retell", () => {
         getCases({ niche, smokeOnly: true }).length,
         `${niche} sin casos de humo`
       ).toBeGreaterThan(0);
-    }
-  });
-
-  it("define las tres variables dinámicas personalizadas que consume el prompt", () => {
-    for (const niche of SIMULATION_NICHES) {
-      const fixture = NICHE_FIXTURES[niche];
-      expect(Object.keys(fixture).sort()).toEqual([
-        "empleados",
-        "horario_semanal",
-        "servicios_disponibles",
-      ]);
-      // Retell exige strings en dynamic_variables.
-      for (const value of Object.values(fixture)) {
-        expect(typeof value).toBe("string");
-        expect(value.length).toBeGreaterThan(0);
-      }
-    }
-  });
-
-  it("usa solo ids sintéticos en las fixtures", () => {
-    for (const niche of SIMULATION_NICHES) {
-      const fixture = NICHE_FIXTURES[niche];
-      const ids = [
-        ...fixture.servicios_disponibles.matchAll(/\[([^\]]+)]/g),
-        ...fixture.empleados.matchAll(/\[([^\]]+)]/g),
-      ].map((match) => match[1]);
-
-      expect(ids.length).toBeGreaterThan(0);
-      for (const id of ids) {
-        expect(
-          id.startsWith("srv-") || id.startsWith("pro-"),
-          `${niche}: el id "${id}" no parece sintético`
-        ).toBe(true);
-      }
     }
   });
 
