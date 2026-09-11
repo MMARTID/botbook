@@ -38,7 +38,15 @@ function givenProfessionals(professionals: Array<{ id: string; name: string; ser
   );
 }
 
-function givenBookings(bookings: Array<{ programedAt: Date; isCancelled?: boolean; professionalId?: string | null; durationMinutes?: number }>) {
+function givenBookings(bookings: Array<{
+  programedAt: Date;
+  isCancelled?: boolean;
+  professionalId?: string | null;
+  durationMinutes?: number;
+  externalEventId?: string | null;
+  externalCalendarProvider?: string | null;
+  externalCalendarId?: string | null;
+}>) {
   mockedBookingFindMany.mockResolvedValue(
     bookings.map((b, index) => ({
       id: `booking_${index}`,
@@ -49,6 +57,9 @@ function givenBookings(bookings: Array<{ programedAt: Date; isCancelled?: boolea
       numberPeople: 1,
       isCancelled: b.isCancelled ?? false,
       professionalId: b.professionalId ?? null,
+      externalEventId: b.externalEventId ?? null,
+      externalCalendarProvider: b.externalCalendarProvider ?? null,
+      externalCalendarId: b.externalCalendarId ?? null,
       serviceIds: [],
     }))
   );
@@ -57,6 +68,104 @@ function givenBookings(bookings: Array<{ programedAt: Date; isCancelled?: boolea
 describe("checkAvailability", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  it("cuenta una sola vez una reserva propia presente también en el calendario", async () => {
+    givenProfessionals([
+      { id: "prof_1", name: "Ana", serviceIds: [] },
+      { id: "prof_2", name: "Luis", serviceIds: [] },
+    ]);
+    givenBookings([
+      {
+        programedAt: new Date("2026-08-10T10:00:00Z"),
+        durationMinutes: 60,
+        professionalId: "prof_1",
+        externalEventId: "event-own-1",
+        externalCalendarProvider: "google",
+        externalCalendarId: "primary",
+      },
+    ]);
+
+    const result = await checkAvailability({
+      businessId,
+      schedule: DEFAULT_BUSINESS_SCHEDULE,
+      timezone: europeMadrid,
+      bookingCapacity: 2,
+      startDateTime: "2026-08-10T10:00:00Z",
+      durationMinutes: 60,
+      externalBusyIntervals: [{
+        externalEventId: "event-own-1",
+        start: new Date("2026-08-10T10:00:00Z"),
+        end: new Date("2026-08-10T11:00:00Z"),
+      }],
+      calendarAvailabilityKnown: true,
+      calendarOrigin: { provider: "google", calendarId: "primary" },
+    });
+
+    expect(result.available).toBe(true);
+    if (result.available) {
+      expect(result.capacityUsed).toBe(1);
+      expect(result.availableProfessionals).toEqual([{ id: "prof_2", name: "Luis" }]);
+    }
+  });
+
+  it("libera una reserva local cuyo evento se canceló manualmente", async () => {
+    givenProfessionals([{ id: "prof_1", name: "Ana", serviceIds: [] }]);
+    givenBookings([
+      {
+        programedAt: new Date("2026-08-10T10:00:00Z"),
+        durationMinutes: 60,
+        professionalId: "prof_1",
+        externalEventId: "event-cancelled",
+        externalCalendarProvider: "google",
+        externalCalendarId: "primary",
+      },
+    ]);
+
+    const result = await checkAvailability({
+      businessId,
+      schedule: DEFAULT_BUSINESS_SCHEDULE,
+      timezone: europeMadrid,
+      bookingCapacity: 1,
+      startDateTime: "2026-08-10T10:00:00Z",
+      durationMinutes: 60,
+      externalBusyIntervals: [],
+      calendarAvailabilityKnown: true,
+      calendarOrigin: { provider: "google", calendarId: "primary" },
+    });
+
+    expect(result.available).toBe(true);
+  });
+
+  it("conserva una reserva local al consultar un calendario distinto del que creó su evento", async () => {
+    givenProfessionals([{ id: "prof_1", name: "Ana", serviceIds: [] }]);
+    givenBookings([
+      {
+        programedAt: new Date("2026-08-10T10:00:00Z"),
+        durationMinutes: 60,
+        professionalId: "prof_1",
+        externalEventId: "event-google-original",
+        externalCalendarProvider: "google",
+        externalCalendarId: "calendario-anterior",
+      },
+    ]);
+
+    const result = await checkAvailability({
+      businessId,
+      schedule: DEFAULT_BUSINESS_SCHEDULE,
+      timezone: europeMadrid,
+      bookingCapacity: 1,
+      startDateTime: "2026-08-10T10:00:00Z",
+      durationMinutes: 60,
+      externalBusyIntervals: [],
+      calendarAvailabilityKnown: true,
+      calendarOrigin: { provider: "google", calendarId: "calendario-nuevo" },
+    });
+
+    expect(result.available).toBe(false);
+    if (!result.available) {
+      expect(result.code).toBe("CAPACITY_REACHED");
+    }
   });
 
   it("rechaza citas fuera del horario comercial", async () => {

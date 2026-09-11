@@ -257,9 +257,10 @@ export async function listMicrosoftBusyIntervals(
   calendarId: string,
   start: Date,
   end: Date
-): Promise<Array<{ start: Date; end: Date }>> {
+): Promise<Array<{ start: Date; end: Date; externalEventId?: string }>> {
   const data = await graphFetch<{
     value: Array<{
+      id?: string | null;
       start?: { dateTime?: string | null } | null;
       end?: { dateTime?: string | null } | null;
       showAs?: string | null;
@@ -267,7 +268,7 @@ export async function listMicrosoftBusyIntervals(
     }>;
   }>(
     accessToken,
-    `/me/calendars/${encodeURIComponent(calendarId)}/calendarView?startDateTime=${encodeURIComponent(start.toISOString())}&endDateTime=${encodeURIComponent(end.toISOString())}&$select=start,end,showAs,isCancelled`,
+    `/me/calendars/${encodeURIComponent(calendarId)}/calendarView?startDateTime=${encodeURIComponent(start.toISOString())}&endDateTime=${encodeURIComponent(end.toISOString())}&$top=1000&$select=id,start,end,showAs,isCancelled`,
     {
       headers: {
         Prefer: 'outlook.timezone="UTC"',
@@ -277,13 +278,16 @@ export async function listMicrosoftBusyIntervals(
 
   return data.value
     .filter((event) => !event.isCancelled && event.showAs !== "free")
-    .map((event) => ({
-      start: event.start?.dateTime
-        ? new Date(`${event.start.dateTime}Z`)
-        : null,
-      end: event.end?.dateTime ? new Date(`${event.end.dateTime}Z`) : null,
-    }))
-    .filter((interval): interval is { start: Date; end: Date } =>
+    .map(
+      (event): { start: Date | null; end: Date | null; externalEventId?: string } => ({
+        start: event.start?.dateTime
+          ? new Date(`${event.start.dateTime}Z`)
+          : null,
+        end: event.end?.dateTime ? new Date(`${event.end.dateTime}Z`) : null,
+        externalEventId: event.id ?? undefined,
+      })
+    )
+    .filter((interval): interval is { start: Date; end: Date; externalEventId?: string } =>
       Boolean(interval.start && interval.end)
     );
 }
@@ -335,6 +339,9 @@ export async function createMicrosoftCalendarEvent(input: {
   /** Minutos antes del evento para la notificación push nativa de la app de
    * Outlook al propietario del calendario. Omitido = sin recordatorio. */
   reminderMinutesBeforeStart?: number;
+  /** UUID determinista por intento de reserva. Microsoft Graph lo usa para
+   * deduplicar reintentos de create tras un timeout de red. */
+  transactionId?: string;
 }) {
   const body: Record<string, unknown> = {
     subject: input.subject,
@@ -356,6 +363,7 @@ export async function createMicrosoftCalendarEvent(input: {
           reminderMinutesBeforeStart: input.reminderMinutesBeforeStart,
         }
       : {}),
+    ...(input.transactionId ? { transactionId: input.transactionId } : {}),
   };
 
   if (input.attendeeEmail) {

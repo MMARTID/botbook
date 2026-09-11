@@ -6,6 +6,20 @@ export type AvailableProfessional = {
   name: string;
 };
 
+export type ExternalBusyInterval = {
+  start: Date;
+  end: Date;
+  /** ID del evento en el calendario conectado, cuando el proveedor lo
+   * devuelve. Permite reconciliarlo con nuestro Booking y no contarlo dos
+   * veces. */
+  externalEventId?: string;
+};
+
+export type CalendarOrigin = {
+  provider: "google" | "outlook";
+  calendarId: string;
+};
+
 /** Próximo hueco libre ese mismo día, calculado por el backend cuando la
  * hora pedida no está disponible por capacidad u ocupación — nunca por
  * OUTSIDE_BUSINESS_HOURS/PROFESSIONAL_NOT_FOUND/NO_AVAILABLE_PROFESSIONAL,
@@ -229,7 +243,14 @@ export async function checkAvailability(input: {
    * así que solo resta capacidad — nunca marca a un profesional como
    * ocupado. Opcional: si no se pasa, el comportamiento es el de siempre
    * (solo Postgres). */
-  externalBusyIntervals?: Array<{ start: Date; end: Date }>;
+  externalBusyIntervals?: ExternalBusyInterval[];
+  /** true solo si se pudo leer el calendario correctamente. Con este dato
+   * podemos liberar una reserva local cuyo evento se canceló manualmente,
+   * sin confundir una caída del proveedor con una agenda vacía. */
+  calendarAvailabilityKnown?: boolean;
+  /** Calendario del que proceden externalBusyIntervals. Solo ese calendario
+   * puede confirmar que un evento propio fue borrado manualmente. */
+  calendarOrigin?: CalendarOrigin | null;
 }): Promise<AvailabilityResult> {
   const {
     businessId,
@@ -241,6 +262,8 @@ export async function checkAvailability(input: {
     serviceIds,
     professionalId,
     externalBusyIntervals,
+    calendarAvailabilityKnown = false,
+    calendarOrigin,
   } = input;
 
   // 1. Horario comercial
@@ -335,15 +358,71 @@ export async function checkAvailability(input: {
       professionalId: true,
       programedAt: true,
       durationMinutes: true,
+      externalEventId: true,
+      externalCalendarProvider: true,
+      externalCalendarId: true,
     },
   });
 
+  const externalIntervals = externalBusyIntervals ?? [];
+  const externalIntervalsById = new Map(
+    externalIntervals
+      .filter((interval) => Boolean(interval.externalEventId))
+      .map((interval) => [interval.externalEventId!, interval])
+  );
+
+  // Una consulta correcta puede liberar una reserva local solo si inspecciona
+  // exactamente el mismo calendario que creó su evento. Al cambiar de
+  // calendario/proveedor, la ausencia del ID anterior no significa que la
+  // cita se haya cancelado: se mantiene como bloqueo conservador.
+  // Los Bookings históricos sin origen también se conservan por seguridad.
+  const reconciledLocalBookings = localBookings.flatMap((booking) => {
+    const belongsToCurrentCalendar =
+      calendarOrigin &&
+      booking.externalCalendarProvider === calendarOrigin.provider &&
+      booking.externalCalendarId === calendarOrigin.calendarId;
+    if (
+      !calendarAvailabilityKnown ||
+      !booking.externalEventId ||
+      !belongsToCurrentCalendar
+    ) {
+      return [booking];
+    }
+
+    const externalInterval = externalIntervalsById.get(booking.externalEventId);
+    if (!externalInterval) {
+      return [];
+    }
+
+    return [{
+      ...booking,
+      programedAt: externalInterval.start,
+      durationMinutes: Math.max(
+        0,
+        (externalInterval.end.getTime() - externalInterval.start.getTime()) / 60_000
+      ),
+    }];
+  });
+
+  const localExternalEventIds = new Set(
+    reconciledLocalBookings
+      .map((booking) => booking.externalEventId)
+      .filter((eventId): eventId is string => Boolean(eventId))
+  );
+
   // professionalId: null a propósito (ver comentario en el parámetro) — un
   // bloqueo externo resta capacidad pero nunca marca a un profesional
-  // concreto como ocupado, porque no sabemos a cuál corresponde.
-  const externalBookings = (externalBusyIntervals ?? [])
+  // concreto como ocupado, porque no sabemos a cuál corresponde. Los eventos
+  // que ya tienen un Booking local se omiten aquí: ya cuentan una sola vez
+  // arriba, conservando además el profesional asignado.
+  const externalBookings = externalIntervals
     .filter(
       (interval) => interval.start.getTime() < nextSlotSearchWindowEnd.getTime()
+    )
+    .filter(
+      (interval) =>
+        !interval.externalEventId ||
+        !localExternalEventIds.has(interval.externalEventId)
     )
     .map((interval) => ({
       professionalId: null as string | null,
@@ -354,7 +433,7 @@ export async function checkAvailability(input: {
       ),
     }));
 
-  const overlappingBookings = [...localBookings, ...externalBookings];
+  const overlappingBookings = [...reconciledLocalBookings, ...externalBookings];
 
   const activeBookings = overlappingBookings.filter((booking) => {
     const bookingStart = new Date(booking.programedAt);

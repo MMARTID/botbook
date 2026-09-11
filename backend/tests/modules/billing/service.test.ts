@@ -9,6 +9,7 @@ import { prisma } from "../../../src/lib/prisma.js";
 import { getStripeClient } from "../../../src/lib/stripe.js";
 import { enqueueEmailJob } from "../../../src/lib/cloudTasks.js";
 import { provisionPhoneNumber } from "../../../src/modules/phone/service.js";
+import { acquireLock, releaseLock } from "../../../src/lib/bookingLock.js";
 import type Stripe from "stripe";
 
 vi.mock("../../../src/lib/prisma.js", () => ({
@@ -45,6 +46,11 @@ vi.mock("../../../src/modules/phone/service.js", () => ({
   provisionPhoneNumber: vi.fn(),
 }));
 
+vi.mock("../../../src/lib/bookingLock.js", () => ({
+  acquireLock: vi.fn(),
+  releaseLock: vi.fn(),
+}));
+
 const mockedBusinessFindUnique = vi.mocked(prisma.business.findUnique);
 const mockedBusinessFindFirst = vi.mocked(prisma.business.findFirst);
 const mockedBusinessUpdate = vi.mocked(prisma.business.update);
@@ -57,6 +63,8 @@ const mockedTransaction = vi.mocked(prisma.$transaction);
 const mockedGetStripeClient = vi.mocked(getStripeClient);
 const mockedEnqueueEmailJob = vi.mocked(enqueueEmailJob);
 const mockedProvisionPhoneNumber = vi.mocked(provisionPhoneNumber);
+const mockedAcquireLock = vi.mocked(acquireLock);
+const mockedReleaseLock = vi.mocked(releaseLock);
 
 const businessId = "business_123";
 const priceId = "price_test_123";
@@ -101,6 +109,8 @@ function buildStripeEvent(
 describe("handleStripeEvent", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockedAcquireLock.mockResolvedValue("checkout-lock");
+    mockedReleaseLock.mockResolvedValue(undefined);
     mockedStripeWebhookEventFindUnique.mockResolvedValue(null);
     mockedStripeWebhookEventUpsert.mockResolvedValue({ id: "evt_1" } as any);
     // handleStripeEvent envuelve todo en prisma.$transaction (advisory lock
@@ -440,6 +450,8 @@ describe("getBillingSummary", () => {
 describe("createCheckoutSession", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockedAcquireLock.mockResolvedValue("checkout-lock");
+    mockedReleaseLock.mockResolvedValue(undefined);
     process.env.STRIPE_PRICE_INICIO = priceId;
     process.env.FRONTEND_URL = "http://localhost:3001";
   });
@@ -452,6 +464,16 @@ describe("createCheckoutSession", () => {
     await expect(
       createCheckoutSession({ businessId, userId: "user_123", planId: "inicio" })
     ).rejects.toThrow("already has an active subscription");
+  });
+
+  it("falla de forma segura cuando otra petición ya prepara el Checkout", async () => {
+    mockedAcquireLock.mockResolvedValue(null);
+
+    await expect(
+      createCheckoutSession({ businessId, userId: "user_123", planId: "inicio" })
+    ).rejects.toThrow("already being prepared");
+
+    expect(mockedBusinessFindUnique).not.toHaveBeenCalled();
   });
 
   it("crea sesión de checkout con cliente y trial", async () => {

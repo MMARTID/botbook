@@ -15,9 +15,12 @@ import {
   paymentFailedEmail,
   subscriptionCancellationInstructionsEmail,
 } from "../../lib/emailTemplates.js";
+import { acquireLock, releaseLock } from "../../lib/bookingLock.js";
 
 const CHECKOUT_TRIAL_DAYS = 7;
 const PAYMENT_FAILURE_SUSPENSION_DAYS = 7;
+const CHECKOUT_LOCK_TTL_MS = 120_000;
+const CHECKOUT_LOCK_ACQUIRE_BUDGET_MS = 5_000;
 
 function unixTimestampToDate(value: number | null | undefined) {
   return typeof value === "number" ? new Date(value * 1000) : null;
@@ -174,6 +177,19 @@ export async function createCheckoutSession(input: {
   userId: string;
   planId: PlanId;
 }) {
+  const lockKey = `billing_checkout:${input.businessId}`;
+  const lockToken = await acquireLock(
+    lockKey,
+    CHECKOUT_LOCK_TTL_MS,
+    CHECKOUT_LOCK_ACQUIRE_BUDGET_MS
+  );
+  if (!lockToken) {
+    // Ante Redis degradado o una petición concurrente preferimos que el
+    // cliente reintente a abrir dos Checkouts que puedan cobrarse ambos.
+    throw new Error("Checkout session is already being prepared; please retry");
+  }
+
+  try {
   const existingBusiness = await prisma.business.findUnique({
     where: { id: input.businessId },
     select: { subscriptionStatus: true },
@@ -255,6 +271,9 @@ export async function createCheckoutSession(input: {
   }
 
   return { clientSecret: session.client_secret };
+  } finally {
+    await releaseLock(lockKey, lockToken);
+  }
 }
 
 export async function createCustomerPortalSession(businessId: string) {

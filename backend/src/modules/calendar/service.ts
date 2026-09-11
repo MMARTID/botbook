@@ -1,4 +1,5 @@
 import { randomBytes } from "node:crypto";
+import { createHash } from "node:crypto";
 import { google } from "googleapis";
 import { prisma } from "../../lib/prisma.js";
 import { getRedis } from "../../lib/redis.js";
@@ -111,6 +112,35 @@ export type CalendarBusinessErrorCode =
 // así el backend corta la petición él mismo en vez de dejarla colgada
 // respondiendo a nadie cuando Retell ya se rindió.
 const CALENDAR_REQUEST_TIMEOUT_MS = 8000;
+
+export type CalendarBusyInterval = {
+  start: Date;
+  end: Date;
+  externalEventId?: string;
+};
+
+export type CalendarBusyIntervalsResult = {
+  intervals: CalendarBusyInterval[];
+  /** false cuando no se pudo consultar el calendario. */
+  calendarAvailabilityKnown: boolean;
+};
+
+function googleEventIdFromIdempotencyKey(key: string): string {
+  // El ID de Google Calendar solo admite caracteres base32hex en minúscula.
+  return `alhabla${createHash("sha256").update(key).digest("hex")}`;
+}
+
+function outlookTransactionIdFromIdempotencyKey(key: string): string {
+  const digest = createHash("sha256").update(key).digest("hex");
+  // UUID determinista (variante RFC 4122), formato que Graph acepta para
+  // transactionId y que hace idempotente la creación durante 24h.
+  return `${digest.slice(0, 8)}-${digest.slice(8, 12)}-5${digest.slice(13, 16)}-a${digest.slice(17, 20)}-${digest.slice(20, 32)}`;
+}
+
+function isGoogleConflictError(error: unknown): boolean {
+  const e = error as { code?: number; response?: { status?: number } };
+  return e?.code === 409 || e?.response?.status === 409;
+}
 
 export class CalendarBusinessError extends Error {
   code: CalendarBusinessErrorCode;
@@ -923,25 +953,26 @@ export class CalendarService {
     outlookCalendarId?: string | null;
     timeMin: Date;
     timeMax: Date;
-  }): Promise<Array<{ start: Date; end: Date }>> {
+  }): Promise<CalendarBusyIntervalsResult> {
     try {
       if (input.provider === "outlook") {
         if (!input.outlookRefreshToken || !input.outlookCalendarId) {
-          return [];
+          return { intervals: [], calendarAvailabilityKnown: false };
         }
         const { access_token } = await refreshMicrosoftAccessToken(
           input.outlookRefreshToken
         );
-        return await listMicrosoftBusyIntervals(
+        const intervals = await listMicrosoftBusyIntervals(
           access_token,
           input.outlookCalendarId,
           input.timeMin,
           input.timeMax
         );
+        return { intervals, calendarAvailabilityKnown: true };
       }
 
       if (!input.googleRefreshToken) {
-        return [];
+        return { intervals: [], calendarAvailabilityKnown: false };
       }
 
       const oauth2Client = createOAuth2Client();
@@ -949,32 +980,55 @@ export class CalendarService {
       const calendar = google.calendar({ version: "v3", auth: oauth2Client });
       const calendarId = input.googleCalendarId || "primary";
 
-      const response = await calendar.freebusy.query(
+      const response = await calendar.events.list(
         {
-          requestBody: {
-            timeMin: input.timeMin.toISOString(),
-            timeMax: input.timeMax.toISOString(),
-            items: [{ id: calendarId }],
-          },
+          calendarId,
+          timeMin: input.timeMin.toISOString(),
+          timeMax: input.timeMax.toISOString(),
+          singleEvents: true,
+          orderBy: "startTime",
+          showDeleted: false,
+          maxResults: 2500,
         },
         { timeout: CALENDAR_REQUEST_TIMEOUT_MS }
       );
 
-      const busy = response.data.calendars?.[calendarId]?.busy ?? [];
-      return busy
-        .filter((interval): interval is { start: string; end: string } =>
-          Boolean(interval.start && interval.end)
+      const intervals = (response.data.items ?? [])
+        .filter(
+          (event) =>
+            event.status !== "cancelled" && event.transparency !== "transparent"
         )
-        .map((interval) => ({
-          start: new Date(interval.start),
-          end: new Date(interval.end),
-        }));
+        .map(
+          (event): {
+            start: Date | null;
+            end: Date | null;
+            externalEventId?: string;
+          } => {
+          const start = event.start?.dateTime ?? event.start?.date;
+          const end = event.end?.dateTime ?? event.end?.date;
+          return {
+            start: start ? new Date(start) : null,
+            end: end ? new Date(end) : null,
+            externalEventId: event.id ?? undefined,
+          };
+          }
+        )
+        .filter(
+          (interval): interval is CalendarBusyInterval =>
+            Boolean(
+              interval.start &&
+                interval.end &&
+                !Number.isNaN(interval.start.getTime()) &&
+                !Number.isNaN(interval.end.getTime())
+            )
+        );
+      return { intervals, calendarAvailabilityKnown: true };
     } catch (err) {
       console.error(
         "[Calendar] No se pudo consultar la ocupación real del calendario, se ignora para esta comprobación:",
         getGoogleErrorDetails(err)
       );
-      return [];
+      return { intervals: [], calendarAvailabilityKnown: false };
     }
   }
 
@@ -991,6 +1045,9 @@ export class CalendarService {
     googleCalendarId?: string | null;
     outlookRefreshToken?: string | null;
     outlookCalendarId?: string | null;
+    /** Clave estable por llamada/reserva para que un timeout no cree dos
+     * eventos externos. */
+    idempotencyKey?: string;
   }) {
     const {
       clientName,
@@ -1005,6 +1062,7 @@ export class CalendarService {
       googleCalendarId,
       outlookRefreshToken,
       outlookCalendarId,
+      idempotencyKey,
     } = input;
 
     const startTime = new Date(startDateTime);
@@ -1041,6 +1099,9 @@ export class CalendarService {
           endDateTime: endTime.toISOString(),
           attendeeEmail: clientEmail,
           description,
+          transactionId: idempotencyKey
+            ? outlookTransactionIdFromIdempotencyKey(idempotencyKey)
+            : undefined,
           // Microsoft Graph solo admite un único reminderMinutesBeforeStart
           // por evento (a diferencia de Google, que acepta varios overrides)
           // — se prioriza el aviso inmediato porque es el que resuelve el
@@ -1109,6 +1170,7 @@ export class CalendarService {
     const calendar = google.calendar({ version: "v3", auth: oauth2Client });
 
     const event = {
+      ...(idempotencyKey ? { id: googleEventIdFromIdempotencyKey(idempotencyKey) } : {}),
       summary,
       description,
       start: { dateTime: startTime.toISOString() },
@@ -1153,6 +1215,22 @@ export class CalendarService {
       );
       return response.data;
     } catch (err) {
+      // Google devuelve 409 si el primer intento creó el evento pero se
+      // perdió su respuesta. Recuperarlo convierte el retry en idempotente.
+      if (idempotencyKey && isGoogleConflictError(err)) {
+        try {
+          const existing = await calendar.events.get({
+            calendarId,
+            eventId: googleEventIdFromIdempotencyKey(idempotencyKey),
+          });
+          return existing.data;
+        } catch (getError) {
+          console.error(
+            "[Calendar] El evento idempotente de Google existe pero no se pudo recuperar:",
+            getGoogleErrorDetails(getError)
+          );
+        }
+      }
       if (isGoogleInvalidGrantError(err)) {
         throw new CalendarBusinessError(
           "GOOGLE_CALENDAR_RECONNECT_REQUIRED",

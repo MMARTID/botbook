@@ -150,6 +150,43 @@ describe("CalendarService.bookAppointment", () => {
     );
   });
 
+  it("usa un ID estable y recupera el evento si el primer intento ya lo creó", async () => {
+    const insertMock = vi.fn().mockRejectedValue({ code: 409 });
+    const getMock = vi.fn().mockResolvedValue({
+      data: { id: "existing-event", htmlLink: "https://calendar.google.com/event/existing" },
+    });
+    mockedGoogleCalendar.mockReturnValue({
+      events: { insert: insertMock, get: getMock, list: vi.fn() },
+    } as any);
+
+    const result = await calendarService.bookAppointment({
+      clientName: "María",
+      startDateTime: "2026-08-10T10:00:00Z",
+      durationMinutes: 60,
+      provider: "google",
+      googleRefreshToken: "refresh_token_123",
+      googleCalendarId: "primary",
+      idempotencyKey: "call_123:2026-08-10T10:00:00Z:60",
+    });
+
+    expect(result).toEqual({
+      id: "existing-event",
+      htmlLink: "https://calendar.google.com/event/existing",
+    });
+    expect(insertMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        requestBody: expect.objectContaining({ id: expect.stringMatching(/^alhabla[0-9a-f]{64}$/) }),
+      }),
+      expect.anything(),
+    );
+    expect(getMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        calendarId: "primary",
+        eventId: expect.stringMatching(/^alhabla[0-9a-f]{64}$/),
+      }),
+    );
+  });
+
   it("enriquece título, descripción y recordatorio del evento de Google con servicio, profesional y teléfono", async () => {
     // Reloj fijo 1h antes de la cita: el recordatorio "inmediato" calculado
     // (minutos hasta la cita, truncados) da un valor determinista (60) en
@@ -639,24 +676,23 @@ describe("CalendarService.getBusyIntervals", () => {
     vi.clearAllMocks();
   });
 
-  it("Google: consulta freebusy.query y devuelve los bloques ocupados como Date", async () => {
+  it("Google: consulta eventos ocupados con IDs y devuelve los bloques como Date", async () => {
     const timeMin = new Date("2026-08-10T09:00:00+02:00");
     const timeMax = new Date("2026-08-10T14:00:00+02:00");
-    const queryMock = vi.fn().mockResolvedValue({
+    const listMock = vi.fn().mockResolvedValue({
       data: {
-        calendars: {
-          primary: {
-            busy: [
-              { start: "2026-08-10T10:00:00+02:00", end: "2026-08-10T10:30:00+02:00" },
-            ],
+        items: [
+          {
+            id: "calendar-event-1",
+            start: { dateTime: "2026-08-10T10:00:00+02:00" },
+            end: { dateTime: "2026-08-10T10:30:00+02:00" },
           },
-        },
+        ],
       },
     });
     mockedGoogleCalendar.mockReturnValue({
-      events: { insert: vi.fn(), list: vi.fn() },
+      events: { insert: vi.fn(), list: listMock },
       calendarList: { list: vi.fn() },
-      freebusy: { query: queryMock },
     } as any);
 
     const busy = await calendarService.getBusyIntervals({
@@ -667,26 +703,29 @@ describe("CalendarService.getBusyIntervals", () => {
       timeMax,
     });
 
-    expect(busy).toEqual([
-      { start: new Date("2026-08-10T10:00:00+02:00"), end: new Date("2026-08-10T10:30:00+02:00") },
-    ]);
-    expect(queryMock).toHaveBeenCalledWith(
+    expect(busy).toEqual({
+      calendarAvailabilityKnown: true,
+      intervals: [{
+        externalEventId: "calendar-event-1",
+        start: new Date("2026-08-10T10:00:00+02:00"),
+        end: new Date("2026-08-10T10:30:00+02:00"),
+      }],
+    });
+    expect(listMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        requestBody: expect.objectContaining({
-          timeMin: timeMin.toISOString(),
-          timeMax: timeMax.toISOString(),
-          items: [{ id: "primary" }],
-        }),
+        calendarId: "primary",
+        timeMin: timeMin.toISOString(),
+        timeMax: timeMax.toISOString(),
+        singleEvents: true,
       }),
       expect.anything()
     );
   });
 
-  it("Google: se degrada a [] (nunca lanza) si freebusy.query falla", async () => {
+  it("Google: se degrada sin reconciliar contra vacío si listar eventos falla", async () => {
     mockedGoogleCalendar.mockReturnValue({
-      events: { insert: vi.fn(), list: vi.fn() },
+      events: { insert: vi.fn(), list: vi.fn().mockRejectedValue(new Error("ETIMEDOUT")) },
       calendarList: { list: vi.fn() },
-      freebusy: { query: vi.fn().mockRejectedValue(new Error("ETIMEDOUT")) },
     } as any);
 
     const busy = await calendarService.getBusyIntervals({
@@ -697,7 +736,7 @@ describe("CalendarService.getBusyIntervals", () => {
       timeMax: new Date(),
     });
 
-    expect(busy).toEqual([]);
+    expect(busy).toEqual({ intervals: [], calendarAvailabilityKnown: false });
   });
 
   it("Google: devuelve [] sin llamar a la API si el negocio no tiene refresh token", async () => {
@@ -709,7 +748,7 @@ describe("CalendarService.getBusyIntervals", () => {
       timeMax: new Date(),
     });
 
-    expect(busy).toEqual([]);
+    expect(busy).toEqual({ intervals: [], calendarAvailabilityKnown: false });
   });
 
   it("Outlook: consulta listMicrosoftBusyIntervals con el access token renovado", async () => {
@@ -728,7 +767,7 @@ describe("CalendarService.getBusyIntervals", () => {
       timeMax,
     });
 
-    expect(busy).toEqual(busyResult);
+    expect(busy).toEqual({ intervals: busyResult, calendarAvailabilityKnown: true });
     expect(vi.mocked(listMicrosoftBusyIntervals)).toHaveBeenCalledWith("access_123", "calendar_1", timeMin, timeMax);
   });
 
@@ -741,7 +780,7 @@ describe("CalendarService.getBusyIntervals", () => {
       timeMax: new Date(),
     });
 
-    expect(busy).toEqual([]);
+    expect(busy).toEqual({ intervals: [], calendarAvailabilityKnown: false });
   });
 
   it("Outlook: se degrada a [] (nunca lanza) si la renovación del token falla", async () => {
@@ -756,7 +795,7 @@ describe("CalendarService.getBusyIntervals", () => {
       timeMax: new Date(),
     });
 
-    expect(busy).toEqual([]);
+    expect(busy).toEqual({ intervals: [], calendarAvailabilityKnown: false });
   });
 });
 

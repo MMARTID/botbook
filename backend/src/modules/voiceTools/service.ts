@@ -1,5 +1,5 @@
 import { prisma } from "../../lib/prisma.js";
-import { randomUUID } from "node:crypto";
+import { randomUUID, createHash } from "node:crypto";
 import { getRedis } from "../../lib/redis.js";
 import {
   checkBusinessHours,
@@ -9,6 +9,7 @@ import {
 import {
   checkAvailability,
   computeAvailabilityLookaheadMs,
+  type ExternalBusyInterval,
 } from "../../lib/availability.js";
 import { calendarService } from "../calendar/service.js";
 import { errorMessage } from "../../lib/logUtils.js";
@@ -38,6 +39,28 @@ const BLOCKED_SUBSCRIPTION_STATUSES = new Set([
 
 const AVAILABILITY_TOKEN_TTL_SECONDS = 5 * 60;
 const MAX_CATALOG_ITEMS = 60;
+const MAX_APPOINTMENT_DURATION_MINUTES = 24 * 60;
+
+function isValidAppointmentDuration(value: unknown): value is number {
+  return (
+    typeof value === "number" &&
+    Number.isFinite(value) &&
+    Number.isInteger(value) &&
+    value > 0 &&
+    value <= MAX_APPOINTMENT_DURATION_MINUTES
+  );
+}
+
+function invalidDurationResult() {
+  return {
+    success: true,
+    result: {
+      success: false,
+      code: "INVALID_DURATION",
+      message: "La duración de la cita debe ser un número entero entre 1 minuto y 24 horas.",
+    },
+  };
+}
 
 type AvailabilityDraft = {
   businessId: string;
@@ -122,6 +145,24 @@ interface BusinessVoiceConfig {
   // reserva ante un estado explícito de "no está pagando" (ver
   // executeBookAppointment) — hallazgo #9 de la auditoría.
   subscriptionStatus: string | null;
+}
+
+function calendarOriginForBusiness(
+  business: Pick<
+    BusinessVoiceConfig,
+    "calendarProvider" | "googleCalendarId" | "outlookCalendarId"
+  >
+) {
+  if (business.calendarProvider === "outlook") {
+    return business.outlookCalendarId
+      ? { provider: "outlook" as const, calendarId: business.outlookCalendarId }
+      : null;
+  }
+
+  return {
+    provider: "google" as const,
+    calendarId: business.googleCalendarId || "primary",
+  };
 }
 
 async function loadBusinessConfig(
@@ -307,14 +348,17 @@ async function fetchExternalBusyIntervals(
   business: BusinessVoiceConfig,
   startDateTime: string,
   durationMinutes: number
-): Promise<Array<{ start: Date; end: Date }>> {
+): Promise<{
+  intervals: ExternalBusyInterval[];
+  calendarAvailabilityKnown: boolean;
+}> {
   const start = new Date(startDateTime);
   if (Number.isNaN(start.getTime())) {
-    return [];
+    return { intervals: [], calendarAvailabilityKnown: false };
   }
   const provider =
     business.calendarProvider === "outlook" ? "outlook" : "google";
-  return calendarService.getBusyIntervals({
+  const result = await calendarService.getBusyIntervals({
     provider,
     googleRefreshToken: business.googleRefreshToken,
     googleCalendarId: business.googleCalendarId,
@@ -325,6 +369,12 @@ async function fetchExternalBusyIntervals(
       start.getTime() + computeAvailabilityLookaheadMs(durationMinutes)
     ),
   });
+
+  // Compatibilidad con mocks/implementaciones anteriores durante despliegues
+  // graduales. Sin confirmación de lectura nunca reconciliamos contra vacío.
+  return Array.isArray(result)
+    ? { intervals: result, calendarAvailabilityKnown: false }
+    : result;
 }
 
 async function executeCheckAvailability(
@@ -338,6 +388,9 @@ async function executeCheckAvailability(
       typeof params?.startDateTime === "string" ? params.startDateTime : "";
     const durationMinutes =
       typeof params?.durationMinutes === "number" ? params.durationMinutes : 0;
+    if (!isValidAppointmentDuration(durationMinutes)) {
+      return invalidDurationResult();
+    }
     const serviceIds = Array.isArray(params?.serviceIds)
       ? params.serviceIds.filter((id): id is string => typeof id === "string")
       : undefined;
@@ -346,7 +399,7 @@ async function executeCheckAvailability(
         ? params.professionalId
         : undefined;
 
-    const externalBusyIntervals = await fetchExternalBusyIntervals(
+    const externalBusy = await fetchExternalBusyIntervals(
       business,
       startDateTime,
       durationMinutes
@@ -360,7 +413,9 @@ async function executeCheckAvailability(
       durationMinutes,
       serviceIds,
       professionalId,
-      externalBusyIntervals,
+      externalBusyIntervals: externalBusy.intervals,
+      calendarAvailabilityKnown: externalBusy.calendarAvailabilityKnown,
+      calendarOrigin: calendarOriginForBusiness(business),
     });
 
     if (availability.available) {
@@ -618,6 +673,19 @@ function buildBookingSmsText(input: {
   return parts.join(" — ");
 }
 
+function buildCalendarIdempotencyKey(input: {
+  callId: string;
+  startDateTime: string;
+  durationMinutes: number;
+}): string {
+  // No exponemos ni reutilizamos el identificador de llamada directamente en
+  // el proveedor. El hash mantiene una clave determinista, opaca y estable
+  // para el mismo intento de reserva.
+  return createHash("sha256")
+    .update(`${input.callId}\u0000${input.startDateTime}\u0000${input.durationMinutes}`)
+    .digest("hex");
+}
+
 async function executeBookAppointment(
   business: BusinessVoiceConfig,
   params: Record<string, unknown>,
@@ -672,6 +740,10 @@ async function executeBookAppointment(
         message: "Faltan datos obligatorios para agendar la cita.",
       },
     };
+  }
+
+  if (durationMinutes !== undefined && !isValidAppointmentDuration(durationMinutes)) {
+    return invalidDurationResult();
   }
 
   // Un negocio cancelado o impagado podía seguir creando reservas
@@ -747,6 +819,10 @@ async function executeBookAppointment(
       verifiedServiceIds.length > 0
         ? verifiedServicesDurationMinutes
         : durationMinutes || 30;
+
+    if (!isValidAppointmentDuration(effectiveDuration)) {
+      return invalidDurationResult();
+    }
 
     const provider =
       business.calendarProvider === "outlook" ? "outlook" : "google";
@@ -893,7 +969,7 @@ async function executeBookAppointment(
       // ya ocupado en ese hueco, o por encima de la capacidad del negocio
       // (checkAvailability ya soporta filtrar por professionalId; solo hacía
       // falta pasarlo también en este camino).
-      const externalBusyIntervals = await fetchExternalBusyIntervals(
+      const externalBusy = await fetchExternalBusyIntervals(
         business,
         startDateTime,
         effectiveDuration
@@ -907,7 +983,9 @@ async function executeBookAppointment(
         durationMinutes: effectiveDuration,
         serviceIds: verifiedServiceIds,
         professionalId: verifiedProfessionalId,
-        externalBusyIntervals,
+        externalBusyIntervals: externalBusy.intervals,
+        calendarAvailabilityKnown: externalBusy.calendarAvailabilityKnown,
+        calendarOrigin: calendarOriginForBusiness(business),
       });
 
       if (!availability.available) {
@@ -977,6 +1055,13 @@ async function executeBookAppointment(
           googleCalendarId: business.googleCalendarId,
           outlookRefreshToken: business.outlookRefreshToken,
           outlookCalendarId: business.outlookCalendarId,
+          idempotencyKey: call
+            ? buildCalendarIdempotencyKey({
+                callId: call.id,
+                startDateTime,
+                durationMinutes: effectiveDuration,
+              })
+            : undefined,
         });
 
         // Persist booking in database, vinculada a la llamada exacta cuando se
@@ -993,6 +1078,11 @@ async function executeBookAppointment(
               serviceIds: verifiedServiceIds,
               clientPhone: clientPhone || undefined,
               externalEventId: (result as { id?: string })?.id ?? undefined,
+              externalCalendarProvider: provider,
+              externalCalendarId:
+                provider === "outlook"
+                  ? business.outlookCalendarId
+                  : business.googleCalendarId || "primary",
             },
             update: {
               programedAt: new Date(startDateTime),
@@ -1001,6 +1091,11 @@ async function executeBookAppointment(
               serviceIds: verifiedServiceIds,
               clientPhone: clientPhone || undefined,
               externalEventId: (result as { id?: string })?.id ?? undefined,
+              externalCalendarProvider: provider,
+              externalCalendarId:
+                provider === "outlook"
+                  ? business.outlookCalendarId
+                  : business.googleCalendarId || "primary",
             },
           });
         }

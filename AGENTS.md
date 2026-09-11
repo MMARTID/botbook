@@ -484,10 +484,9 @@ is now a **Cloud Scheduler** job hitting the same kind of endpoint every
      each. Without it, a failed enqueue was permanent — the recording stayed only in
      Retell, subject to its own `dataStorageRetentionDays` window, with nothing to
      recover it.
-   - **Cloud Scheduler job `retry-stuck-recordings` needs to be created in GCP**
-     (`gcloud scheduler jobs create http retry-stuck-recordings ...`, mirroring
-     `cleanup-zombie-calls`'s setup) — the code/route side is done, but as of this
-     writing the recurring trigger itself has not been provisioned.
+   - **Cloud Scheduler job `retry-stuck-recordings`** — provisioned in
+     `europe-west1` on 2026-09-10, runs every 15 minutes with the same OIDC
+     authentication and retry policy as `cleanup-zombie-calls`.
 
 Call outcome classification is **not** a background job — Retell classifies each call natively via `post_call_analysis_data` (see Retell Configuration), no separate LLM call from this backend.
 

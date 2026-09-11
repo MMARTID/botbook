@@ -138,6 +138,11 @@ model Booking {
   programedAt   DateTime    
   numberPeople  Int
   isCancelled   Boolean   @default(false)
+  externalEventId String?
+  externalCalendarProvider String?
+  externalCalendarId String?
+
+  @@index([externalCalendarProvider, externalCalendarId])
 }
 
 model Order {

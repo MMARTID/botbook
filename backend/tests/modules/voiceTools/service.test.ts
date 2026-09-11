@@ -289,6 +289,20 @@ describe("executeVoiceTool — catálogo y token de disponibilidad", () => {
     );
   });
 
+  it("rechaza una duración negativa antes de consultar la agenda", async () => {
+    const result = await executeVoiceTool({
+      businessId: "business_123",
+      toolName: "check_availability",
+      params: {
+        startDateTime: "2026-08-25T17:00:00+02:00",
+        durationMinutes: -30,
+      },
+    });
+
+    expect(result.result).toMatchObject({ code: "INVALID_DURATION" });
+    expect(mockedCheckAvailability).not.toHaveBeenCalled();
+  });
+
   it("devuelve el catálogo bajo demanda, sin incluirlo en cada llamada", async () => {
     mockedServiceFindMany.mockResolvedValue([
       { id: "service_123", name: "Corte", durationMinutes: 30 },

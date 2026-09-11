@@ -318,6 +318,11 @@ model Booking {
   // que un reintento (retry de Cloud Tasks, fallo de red tras crear el
   // evento) reutilice el mismo evento externo en vez de crear uno duplicado.
   externalEventId String?
+  // Calendario que creó el evento externo. Sin este origen, al cambiar el
+  // negocio de calendario se podía interpretar que una cita seguía anulada
+  // solo porque su evento no existe en el calendario recién seleccionado.
+  externalCalendarProvider String?
+  externalCalendarId String?
   createdAt    DateTime     @default(now())
   programedAt  DateTime
   durationMinutes Int        @default(30)
@@ -325,6 +330,7 @@ model Booking {
   isCancelled  Boolean      @default(false)
 
   @@index([professionalId])
+  @@index([externalCalendarProvider, externalCalendarId])
   @@map("bookings")
 }
 

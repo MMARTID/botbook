@@ -225,12 +225,37 @@ describe("authRoutes", () => {
   });
 
   describe("POST /register-first-user", () => {
+    it("permanece oculto en producción sin el secreto de bootstrap", async () => {
+      const previousNodeEnv = process.env.NODE_ENV;
+      const previousSecret = process.env.FIRST_USER_BOOTSTRAP_SECRET;
+      process.env.NODE_ENV = "production";
+      delete process.env.FIRST_USER_BOOTSTRAP_SECRET;
+
+      try {
+        const response = await fastify.inject({
+          method: "POST",
+          url: "/register-first-user",
+          payload: { email: "admin@example.com", password: "password", businessName: "Peluquería" },
+        });
+
+        expect(response.statusCode).toBe(404);
+        expect(mockedUserFindFirst).not.toHaveBeenCalled();
+      } finally {
+        process.env.NODE_ENV = previousNodeEnv;
+        if (previousSecret === undefined) {
+          delete process.env.FIRST_USER_BOOTSTRAP_SECRET;
+        } else {
+          process.env.FIRST_USER_BOOTSTRAP_SECRET = previousSecret;
+        }
+      }
+    });
+
     it("crea el primer usuario y negocio", async () => {
       mockedUserFindFirst.mockResolvedValue(null);
       mockedBcryptHash.mockResolvedValue("hashed_password" as any);
       mockedTransaction.mockImplementation(async (callback: any) => {
         const business = { id: "business_123", name: "Peluquería" };
-        const user = { id: "user_123", email: "admin@example.com", businessId: business.id };
+        const user = { id: "user_123", email: "admin@example.com", businessId: business.id, password: "hashed_password" };
         mockedBusinessCreate.mockResolvedValue(business as any);
         mockedUserCreate.mockResolvedValue(user as any);
         return callback({ business: { create: mockedBusinessCreate }, user: { create: mockedUserCreate } });
@@ -244,6 +269,7 @@ describe("authRoutes", () => {
 
       expect(response.statusCode).toBe(201);
       expect(response.json().message).toContain("created successfully");
+      expect(response.json().result.user).not.toHaveProperty("password");
     });
 
     it("rechaza si ya existe algún usuario", async () => {

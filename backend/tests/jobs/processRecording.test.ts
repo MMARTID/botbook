@@ -33,10 +33,11 @@ describe("processRecordingJob", () => {
 
   it("descarga la grabación, la sube a storage y actualiza la BD", async () => {
     mockedCallFindUnique.mockResolvedValue({ id: "call_1" } as any);
-    const audioBuffer = new TextEncoder().encode("audio-fake").buffer;
     vi.stubGlobal(
       "fetch",
-      vi.fn().mockResolvedValue({ ok: true, arrayBuffer: async () => audioBuffer })
+      vi.fn().mockResolvedValue(new Response("audio-fake", {
+        headers: { "content-type": "audio/mpeg" },
+      }))
     );
     mockedUploadRecording.mockResolvedValue("https://r2.example/recordings/biz_1/call_1.mp3");
     mockedRecordingUpdate.mockResolvedValue({} as any);
@@ -45,7 +46,8 @@ describe("processRecordingJob", () => {
 
     expect(mockedUploadRecording).toHaveBeenCalledWith(
       "recordings/biz_1/call_1.mp3",
-      expect.anything()
+      expect.anything(),
+      "audio/mpeg",
     );
     expect(mockedRecordingUpdate).toHaveBeenCalledWith({
       where: { callId: "call_1" },
@@ -58,7 +60,7 @@ describe("processRecordingJob", () => {
 
   it("lanza si la descarga desde Vapi falla", async () => {
     mockedCallFindUnique.mockResolvedValue({ id: "call_1" } as any);
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, statusText: "Not Found" }));
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(null, { status: 404, statusText: "Not Found" })));
 
     await expect(processRecordingJob(payload)).rejects.toThrow(
       "Failed to download recording: Not Found"
@@ -68,14 +70,26 @@ describe("processRecordingJob", () => {
 
   it("propaga el error si falla la subida a storage", async () => {
     mockedCallFindUnique.mockResolvedValue({ id: "call_1" } as any);
-    const audioBuffer = new TextEncoder().encode("audio-fake").buffer;
     vi.stubGlobal(
       "fetch",
-      vi.fn().mockResolvedValue({ ok: true, arrayBuffer: async () => audioBuffer })
+      vi.fn().mockResolvedValue(new Response("audio-fake"))
     );
     mockedUploadRecording.mockRejectedValue(new Error("R2 caído"));
 
     await expect(processRecordingJob(payload)).rejects.toThrow("R2 caído");
     expect(mockedRecordingUpdate).not.toHaveBeenCalled();
+  });
+
+  it("rechaza antes de descargar en memoria una grabación declarada demasiado grande", async () => {
+    mockedCallFindUnique.mockResolvedValue({ id: "call_1" } as any);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(new Response("audio-fake", {
+        headers: { "content-length": String(201 * 1024 * 1024) },
+      }))
+    );
+
+    await expect(processRecordingJob(payload)).rejects.toThrow("maximum accepted size");
+    expect(mockedUploadRecording).not.toHaveBeenCalled();
   });
 });

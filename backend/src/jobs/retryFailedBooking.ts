@@ -1,4 +1,5 @@
 import { prisma } from "../lib/prisma.js";
+import { createHash } from "node:crypto";
 import { getRedis } from "../lib/redis.js";
 import { calendarService } from "../modules/calendar/service.js";
 import {
@@ -21,6 +22,26 @@ interface PendingBookingData {
   durationMinutes: number;
   serviceIds?: string[] | null;
   professionalId?: string | null;
+}
+
+function isValidAppointmentDuration(value: unknown): value is number {
+  return (
+    typeof value === "number" &&
+    Number.isFinite(value) &&
+    Number.isInteger(value) &&
+    value > 0 &&
+    value <= 24 * 60
+  );
+}
+
+function buildCalendarIdempotencyKey(input: {
+  callId: string;
+  startDateTime: string;
+  durationMinutes: number;
+}): string {
+  return createHash("sha256")
+    .update(`${input.callId}\u0000${input.startDateTime}\u0000${input.durationMinutes}`)
+    .digest("hex");
 }
 
 async function abandonLead(leadId: string, reason: string): Promise<void> {
@@ -54,6 +75,11 @@ export async function processRetryFailedBookingJob(
 
   const data_ = lead.data as unknown as PendingBookingData;
   const startDate = new Date(data_.startDateTime);
+
+  if (!isValidAppointmentDuration(data_.durationMinutes)) {
+    await abandonLead(leadId, "duración de cita no válida");
+    return;
+  }
 
   const call = await prisma.call.findUnique({
     where: { id: lead.callId },
@@ -221,8 +247,8 @@ export async function processRetryFailedBookingJob(
     // ventana exacta que usa checkAvailability internamente
     // (computeAvailabilityLookaheadMs) — un margen fijo anterior (5h) se
     // quedaba corto para cualquier servicio de más de 60 min.
-    const externalBusyIntervals = Number.isNaN(startDate.getTime())
-      ? []
+    const externalBusy = Number.isNaN(startDate.getTime())
+      ? { intervals: [], calendarAvailabilityKnown: false }
       : await calendarService.getBusyIntervals({
           provider,
           googleRefreshToken: business.googleRefreshToken,
@@ -235,6 +261,10 @@ export async function processRetryFailedBookingJob(
           ),
         });
 
+    const normalizedExternalBusy = Array.isArray(externalBusy)
+      ? { intervals: externalBusy, calendarAvailabilityKnown: false }
+      : externalBusy;
+
     const availability = await checkAvailability({
       businessId: call.businessId,
       schedule: business.schedule,
@@ -244,7 +274,14 @@ export async function processRetryFailedBookingJob(
       durationMinutes: data_.durationMinutes,
       serviceIds: requestedServiceIds,
       professionalId: verifiedProfessionalId,
-      externalBusyIntervals,
+      externalBusyIntervals: normalizedExternalBusy.intervals,
+      calendarAvailabilityKnown: normalizedExternalBusy.calendarAvailabilityKnown,
+      calendarOrigin:
+        provider === "outlook"
+          ? business.outlookCalendarId
+            ? { provider: "outlook", calendarId: business.outlookCalendarId }
+            : null
+          : { provider: "google", calendarId: business.googleCalendarId || "primary" },
     });
     if (!availability.available) {
       await abandonLead(
@@ -276,6 +313,11 @@ export async function processRetryFailedBookingJob(
         googleCalendarId: business.googleCalendarId,
         outlookRefreshToken: business.outlookRefreshToken,
         outlookCalendarId: business.outlookCalendarId,
+        idempotencyKey: buildCalendarIdempotencyKey({
+          callId: lead.callId,
+          startDateTime: data_.startDateTime,
+          durationMinutes: data_.durationMinutes,
+        }),
       });
     } catch (error) {
       const e = error as { name?: string; code?: string };
@@ -347,6 +389,11 @@ export async function processRetryFailedBookingJob(
           serviceIds: data_.serviceIds ?? [],
           clientPhone: effectiveClientPhone,
           externalEventId: (result as { id?: string })?.id ?? undefined,
+          externalCalendarProvider: provider,
+          externalCalendarId:
+            provider === "outlook"
+              ? business.outlookCalendarId
+              : business.googleCalendarId || "primary",
         },
         update: {
           programedAt: startDate,
@@ -355,6 +402,11 @@ export async function processRetryFailedBookingJob(
           serviceIds: data_.serviceIds ?? [],
           clientPhone: effectiveClientPhone,
           externalEventId: (result as { id?: string })?.id ?? undefined,
+          externalCalendarProvider: provider,
+          externalCalendarId:
+            provider === "outlook"
+              ? business.outlookCalendarId
+              : business.googleCalendarId || "primary",
         },
       });
       await tx.lead.update({

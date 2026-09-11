@@ -23,6 +23,7 @@ const GOOGLE_SESSION_COOKIE = "alhabla_google_session";
 // víctima en la cuenta del atacante (login CSRF) — cualquier dato que la
 // víctima introduzca después queda en la cuenta del atacante, no en la suya.
 const GOOGLE_OAUTH_STATE_COOKIE = "alhabla_google_oauth_state";
+const FIRST_USER_BOOTSTRAP_SECRET_ENV = "FIRST_USER_BOOTSTRAP_SECRET";
 
 function createToken(user: { id: string; businessId: string }) {
   return jwt.sign(
@@ -434,6 +435,21 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
       config: { rateLimit: veryStrictRateLimit },
     },
     async (request, reply) => {
+      // Esta ruta existe exclusivamente para inicializar una instalación
+      // vacía. Dejarla pública convierte cualquier base restaurada/vacía en
+      // una toma de control trivial.
+      if (process.env.NODE_ENV === "production") {
+        const configuredSecret = process.env[FIRST_USER_BOOTSTRAP_SECRET_ENV];
+        const suppliedSecret = request.headers["x-bootstrap-secret"];
+        if (
+          !configuredSecret ||
+          typeof suppliedSecret !== "string" ||
+          suppliedSecret !== configuredSecret
+        ) {
+          return reply.status(404).send({ error: "Not found" });
+        }
+      }
+
       const { email, password, businessName, isEuropeanUnion } =
         request.body as {
           email: string;
@@ -470,9 +486,17 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
         return { user, business };
       });
 
-      return reply
-        .status(201)
-        .send({ message: "User and business created successfully", result });
+      return reply.status(201).send({
+        message: "User and business created successfully",
+        result: {
+          user: {
+            id: result.user.id,
+            email: result.user.email,
+            businessId: result.user.businessId,
+          },
+          business: result.business,
+        },
+      });
     }
   );
 };
