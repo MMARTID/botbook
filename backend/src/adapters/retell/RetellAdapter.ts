@@ -376,12 +376,29 @@ export class RetellAdapter {
     return this.client.agent.update(agentId, updatePayload);
   }
 
+  /** Publica un borrador de Retell para que la configuración alcance tráfico
+   * real. PATCH por sí solo nunca modifica una versión ya publicada. */
+  async publishAgent(
+    agentId: string,
+    version: number,
+    versionDescription?: string
+  ): Promise<void> {
+    this.ensureApiKey();
+    await this.client.agent.publish(agentId, {
+      version,
+      ...(versionDescription ? { version_description: versionDescription } : {}),
+    });
+  }
+
   /**
    * Retrieve a Retell agent by ID.
    */
-  async getAgent(agentId: string): Promise<AgentResponse> {
+  async getAgent(agentId: string, version?: number): Promise<AgentResponse> {
     this.ensureApiKey();
-    return this.client.agent.retrieve(agentId);
+    return this.client.agent.retrieve(
+      agentId,
+      version === undefined ? {} : { version }
+    );
   }
 
   /**

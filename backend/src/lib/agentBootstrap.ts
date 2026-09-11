@@ -267,6 +267,35 @@ type RetellVoiceProfile = {
 };
 
 /**
+ * Retell actualiza únicamente el borrador más reciente. Esta comprobación
+ * convierte esa actualización en un cambio efectivo de producción y evita
+ * que un job informe de éxito cuando la versión publicada sigue intacta.
+ */
+export async function publishRetellAgentUpdate(
+  agentId: string,
+  updatedAgent: { version?: number; is_published?: boolean }
+): Promise<void> {
+  if (updatedAgent.is_published) return;
+  if (!Number.isInteger(updatedAgent.version)) {
+    throw new Error(
+      `Retell no devolvió una versión publicable para el agente ${agentId}.`
+    );
+  }
+
+  await retellAdapter.publishAgent(
+    agentId,
+    updatedAgent.version!,
+    "Configuración gestionada por Alhabla"
+  );
+  const published = await retellAdapter.getAgent(agentId, updatedAgent.version);
+  if (!published.is_published) {
+    throw new Error(
+      `Retell no confirmó la publicación de la versión ${updatedAgent.version} del agente ${agentId}.`
+    );
+  }
+}
+
+/**
  * Cadenas fijas ya validadas contra la API de Retell. Cartesia ofrece la
  * voz española principal para es/en/fr y, si el negocio activa catalán,
  * se cambia a ElevenLabs porque Retell rechaza ca-ES con Cartesia. MiniMax
@@ -678,6 +707,7 @@ export async function createBusinessAgent(args: {
           languages: agentSettings.languages,
         })
       );
+      await publishRetellAgentUpdate(retellAgent.agent_id, retellAgent);
 
       const syncedAgent = await client.agent.update({
         where: { id: agent.id },
@@ -911,6 +941,7 @@ export async function syncAgentToRetell(
   const voiceProfile = resolveRetellVoiceProfile(agentSettings);
   const voiceId = voiceProfile.voiceId;
 
+  const failedAgentIds: string[] = [];
   for (const agent of agents) {
     if (options?.onlyManagedPrompts && agent.promptManuallyEdited) continue;
 
@@ -929,7 +960,7 @@ export async function syncAgentToRetell(
           beginMessage: buildRetellBeginMessage(business.name),
         });
       }
-      await retellAdapter.updateAgent(agent.retellAgentId!, {
+      const updatedRetellAgent = await retellAdapter.updateAgent(agent.retellAgentId!, {
         postCallAnalysisData,
         voiceId,
         voiceModel: voiceProfile.voiceModel,
@@ -943,6 +974,7 @@ export async function syncAgentToRetell(
         boostedKeywords,
         piiCategories: DEFAULT_RETELL_AGENT_CONFIG.piiCategories,
       });
+      await publishRetellAgentUpdate(agent.retellAgentId!, updatedRetellAgent);
       await prismaClient.agent.update({
         where: { id: agent.id },
         data: agent.promptManuallyEdited
@@ -950,12 +982,19 @@ export async function syncAgentToRetell(
           : { systemPrompt, voiceId, voiceProvider: voiceProfile.voiceProvider },
       });
     } catch (error) {
+      failedAgentIds.push(agent.id);
       console.error("[Agent] Failed to sync agent to Retell:", {
         agentId: agent.id,
         businessId,
         message: error instanceof Error ? error.message : String(error),
       });
     }
+  }
+
+  if (failedAgentIds.length > 0) {
+    throw new Error(
+      `No se pudieron publicar ${failedAgentIds.length} agente(s) de Retell: ${failedAgentIds.join(", ")}`
+    );
   }
 
   await calendarService.syncCalendarToolsToAgents(businessId);

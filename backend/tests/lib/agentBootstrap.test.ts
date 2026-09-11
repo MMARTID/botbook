@@ -35,6 +35,8 @@ vi.mock("../../src/adapters/retell/RetellAdapter.js", () => ({
   retellAdapter: {
     updateLlm: vi.fn(),
     updateAgent: vi.fn(),
+    publishAgent: vi.fn(),
+    getAgent: vi.fn(),
     createLlm: vi.fn(),
     createAgent: vi.fn(),
   },
@@ -54,6 +56,8 @@ const mockedAgentUpdate = vi.mocked(prisma.agent.update);
 const mockedAgentCreate = vi.mocked(prisma.agent.create);
 const mockedUpdateLlm = vi.mocked(retellAdapter.updateLlm);
 const mockedUpdateAgent = vi.mocked(retellAdapter.updateAgent);
+const mockedPublishAgent = vi.mocked(retellAdapter.publishAgent);
+const mockedGetAgent = vi.mocked(retellAdapter.getAgent);
 const mockedCreateLlm = vi.mocked(retellAdapter.createLlm);
 const mockedCreateAgent = vi.mocked(retellAdapter.createAgent);
 const mockedSyncCalendarToolsToAgents = vi.mocked(calendarService.syncCalendarToolsToAgents);
@@ -140,7 +144,9 @@ describe("syncAgentToRetell — voiceGender", () => {
       { id: "agent_db_1", retellAgentId: "retell_agent_1", retellLlmId: "retell_llm_1" },
     ] as any);
     mockedUpdateLlm.mockResolvedValue({} as any);
-    mockedUpdateAgent.mockResolvedValue({} as any);
+    mockedUpdateAgent.mockResolvedValue({ version: 7, is_published: false } as any);
+    mockedPublishAgent.mockResolvedValue(undefined);
+    mockedGetAgent.mockResolvedValue({ is_published: true } as any);
     mockedAgentUpdate.mockResolvedValue({} as any);
   });
 
@@ -166,6 +172,12 @@ describe("syncAgentToRetell — voiceGender", () => {
         data: expect.objectContaining({ voiceId: RETELL_VOICE_ID_BY_GENDER.femenina }),
       })
     );
+    expect(mockedPublishAgent).toHaveBeenCalledWith(
+      "retell_agent_1",
+      7,
+      "Configuración gestionada por Alhabla"
+    );
+    expect(mockedGetAgent).toHaveBeenCalledWith("retell_agent_1", 7);
   });
 
   it("no actualiza un prompt editado a mano al sincronizar solo gestionados", async () => {
@@ -417,7 +429,9 @@ describe("createBusinessAgent — sincroniza tools de calendario al crear (halla
     mockedServiceFindMany.mockResolvedValue([]);
     mockedAgentCreate.mockResolvedValue({ id: "agent_db_1" } as any);
     mockedCreateLlm.mockResolvedValue({ llm_id: "retell_llm_1" } as any);
-    mockedCreateAgent.mockResolvedValue({ agent_id: "retell_agent_1" } as any);
+    mockedCreateAgent.mockResolvedValue({ agent_id: "retell_agent_1", version: 0, is_published: false } as any);
+    mockedPublishAgent.mockResolvedValue(undefined);
+    mockedGetAgent.mockResolvedValue({ is_published: true } as any);
     mockedAgentUpdate.mockResolvedValue({ id: "agent_db_1" } as any);
   });
 

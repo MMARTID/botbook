@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   llmDelete: vi.fn(),
   agentCreate: vi.fn(),
   agentUpdate: vi.fn(),
+  agentPublish: vi.fn(),
   agentRetrieve: vi.fn(),
   agentDelete: vi.fn(),
   agentList: vi.fn(),
@@ -34,6 +35,7 @@ vi.mock("retell-sdk", () => {
       agent = {
         create: mocks.agentCreate,
         update: mocks.agentUpdate,
+        publish: mocks.agentPublish,
         retrieve: mocks.agentRetrieve,
         delete: mocks.agentDelete,
         list: mocks.agentList,
@@ -423,6 +425,29 @@ describe("RetellAdapter", () => {
 
       const sentPayload = mocks.agentUpdate.mock.calls[0][1];
       expect(sentPayload).not.toHaveProperty("pii_config");
+    });
+  });
+
+  describe("publishAgent", () => {
+    it("publica exactamente la versión de borrador indicada", async () => {
+      mocks.agentPublish.mockResolvedValue(undefined);
+
+      const adapter = new RetellAdapter();
+      await adapter.publishAgent("agent_123", 4, "Configuración gestionada por Alhabla");
+
+      expect(mocks.agentPublish).toHaveBeenCalledWith("agent_123", {
+        version: 4,
+        version_description: "Configuración gestionada por Alhabla",
+      });
+    });
+
+    it("consulta una versión concreta al verificar la publicación", async () => {
+      mocks.agentRetrieve.mockResolvedValue({ agent_id: "agent_123", version: 4 });
+
+      const adapter = new RetellAdapter();
+      await adapter.getAgent("agent_123", 4);
+
+      expect(mocks.agentRetrieve).toHaveBeenCalledWith("agent_123", { version: 4 });
     });
   });
 

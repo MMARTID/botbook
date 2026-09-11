@@ -15,6 +15,7 @@ import {
   buildRetellAgentPayload,
   buildPostCallAnalysisDataForBusiness,
   createBusinessAgent,
+  publishRetellAgentUpdate,
   resolveRetellVoiceProfile,
 } from "../../lib/agentBootstrap.js";
 import { parseAgentSettings } from "../../lib/managedAgentPrompt.js";
@@ -299,7 +300,7 @@ export async function agentsRoutes(fastify: FastifyInstance) {
 
               const postCallAnalysisData =
                 await buildPostCallAnalysisDataForBusiness(agent.businessId);
-              await retellAdapter.updateAgent(
+              const updatedRetellAgent = await retellAdapter.updateAgent(
                 agent.retellAgentId,
                 buildRetellAgentPayload({
                   name: data.name || agent.name,
@@ -319,6 +320,10 @@ export async function agentsRoutes(fastify: FastifyInstance) {
                     : {}),
                   languages: agentLanguages,
                 })
+              );
+              await publishRetellAgentUpdate(
+                agent.retellAgentId,
+                updatedRetellAgent
               );
             } catch (retellError) {
               console.error(
