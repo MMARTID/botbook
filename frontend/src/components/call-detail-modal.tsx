@@ -7,6 +7,7 @@ import {
   Clock3,
   Coins,
   Frown,
+  Info,
   LoaderCircle,
   Meh,
   Mic,
@@ -21,6 +22,8 @@ import {
   formatCurrency,
   formatDate,
   formatDuration,
+  formatPhone,
+  escalationReasonLabel,
   outcomeLabel,
   outcomeTone,
   sentimentLabel,
@@ -119,7 +122,7 @@ export function CallDetailModal({
                   <span className="inline-flex items-center gap-1">
                     {" · "}
                     <Phone className="h-3.5 w-3.5" aria-hidden="true" />
-                    {call.fromNumber}
+                    <span className="tabular-nums">{formatPhone(call.fromNumber)}</span>
                   </span>
                 ) : null}
               </p>
@@ -209,11 +212,27 @@ export function CallDetailModal({
                     </div>
                   </dl>
                 ) : (
-                  <p className="mt-2 text-sm leading-6 text-muted">
-                    {call.booking?.isCancelled
-                      ? "La reserva creada en esta llamada se canceló después."
-                      : "Esta llamada no generó ninguna reserva."}
-                  </p>
+                  <div className="mt-2 space-y-2">
+                    <p className="text-sm leading-6 text-muted">
+                      {call.booking?.isCancelled
+                        ? "La reserva creada en esta llamada se canceló después."
+                        : "Esta llamada no generó ninguna reserva."}
+                    </p>
+                    {/* El motivo lo clasifica el análisis post-llamada; sin él
+                        el negocio solo ve que no hubo cita, no por qué. */}
+                    {escalationReasonLabel(call.escalationReason) ? (
+                      <p className="flex items-start gap-2 text-sm leading-6 text-[#27272a]">
+                        <Info className="mt-1 h-3.5 w-3.5 shrink-0 text-[#8b5cf6]" aria-hidden="true" />
+                        <span>{escalationReasonLabel(call.escalationReason)}</span>
+                      </p>
+                    ) : null}
+                    {call.requestedService ? (
+                      <p className="text-sm leading-6 text-muted">
+                        El cliente preguntaba por{" "}
+                        <span className="font-medium text-[#27272a]">{call.requestedService}</span>.
+                      </p>
+                    ) : null}
+                  </div>
                 )}
               </div>
 

@@ -1,4 +1,9 @@
-import type { CallOutcome, CallSentiment, CallStatus } from "./types";
+import type {
+  CallEscalationReason,
+  CallOutcome,
+  CallSentiment,
+  CallStatus,
+} from "./types";
 
 export function formatCurrency(cents?: number | null) {
   return new Intl.NumberFormat("es-ES", {
@@ -15,28 +20,68 @@ export function formatDate(value?: string | null) {
   }).format(new Date(value));
 }
 
-export function formatCalendarEventDate(value: string | null, timeZone: string) {
-  if (!value) return { date: "Fecha pendiente", time: null, allDay: false };
+/**
+ * Precio en euros sin decimales cuando son redondos: un salón anuncia
+ * «18 €», no «18,00 €».
+ */
+export function formatPrice(cents?: number | null) {
+  if (cents == null) return null;
+  return new Intl.NumberFormat("es-ES", {
+    style: "currency",
+    currency: "EUR",
+    minimumFractionDigits: cents % 100 === 0 ? 0 : 2,
+    maximumFractionDigits: 2,
+  }).format(cents / 100);
+}
 
-  const allDay = /^\d{4}-\d{2}-\d{2}$/.test(value);
-  const date = allDay ? new Date(`${value}T12:00:00`) : new Date(value);
+/** Agrupa un número español como se lee en voz alta: 692 13 84 56. */
+export function formatPhone(value?: string | null) {
+  if (!value) return null;
+  const compact = value.replace(/\s+/g, "");
+  const match = compact.match(/^(\+34)?(\d{9})$/);
+  if (!match) return value;
+  const [, prefix, digits] = match;
+  const grouped = `${digits.slice(0, 3)} ${digits.slice(3, 5)} ${digits.slice(5, 7)} ${digits.slice(7, 9)}`;
+  return prefix ? `${prefix} ${grouped}` : grouped;
+}
 
-  return {
-    date: new Intl.DateTimeFormat("es-ES", {
-      weekday: "short",
-      day: "numeric",
-      month: "short",
-      timeZone: allDay ? "UTC" : timeZone,
-    }).format(date),
-    time: allDay
-      ? "Todo el día"
-      : new Intl.DateTimeFormat("es-ES", {
-          hour: "2-digit",
-          minute: "2-digit",
-          timeZone,
-        }).format(date),
-    allDay,
-  };
+/** Hora de un día concreto en la zona del negocio: «17:00». */
+export function formatClock(value: string, timeZone: string) {
+  return new Intl.DateTimeFormat("es-ES", {
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone,
+  }).format(new Date(value));
+}
+
+/**
+ * Cabecera de día para la agenda. «Hoy» y «Mañana» ganan al nombre del día:
+ * es lo que el negocio necesita distinguir de un vistazo.
+ */
+export function formatDayLabel(value: string, timeZone: string) {
+  const dayKey = (date: Date) =>
+    new Intl.DateTimeFormat("en-CA", {
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      timeZone,
+    }).format(date);
+
+  const target = new Date(value);
+  const now = new Date();
+  const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+
+  if (dayKey(target) === dayKey(now)) return "Hoy";
+  if (dayKey(target) === dayKey(tomorrow)) return "Mañana";
+
+  const label = new Intl.DateTimeFormat("es-ES", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    timeZone,
+  }).format(target);
+
+  return label.charAt(0).toUpperCase() + label.slice(1);
 }
 
 export function formatDuration(seconds?: number | null) {
@@ -94,4 +139,32 @@ export function sentimentTone(sentiment: CallSentiment | null): "success" | "war
   if (sentiment === "POSITIVE") return "success";
   if (sentiment === "NEGATIVE") return "warning";
   return "neutral";
+}
+
+/**
+ * Por qué una llamada no acabó en cita, explicado para el negocio y no para
+ * quien programó el sistema. `NO_APLICA` devuelve null: significa que no hubo
+ * ningún problema, y anunciarlo solo añade ruido.
+ */
+export function escalationReasonLabel(reason: CallEscalationReason | null) {
+  if (!reason || reason === "NO_APLICA") return null;
+  const labels: Record<Exclude<CallEscalationReason, "NO_APLICA">, string> = {
+    CLIENTE_LO_PIDIO: "El cliente pidió hablar con una persona",
+    FALLO_TECNICO: "Falló la agenda o la consulta de disponibilidad",
+    FUERA_DE_HORARIO: "Lo que pedía caía fuera de tu horario",
+    CONSULTA_COMPLEJA: "La consulta iba más allá de lo que puede resolver",
+  };
+  return labels[reason];
+}
+
+/** Versión corta del motivo, para caber en un chip de la lista de llamadas. */
+export function escalationReasonChip(reason: CallEscalationReason | null) {
+  if (!reason || reason === "NO_APLICA") return null;
+  const labels: Record<Exclude<CallEscalationReason, "NO_APLICA">, string> = {
+    CLIENTE_LO_PIDIO: "Pidió una persona",
+    FALLO_TECNICO: "Fallo técnico",
+    FUERA_DE_HORARIO: "Fuera de horario",
+    CONSULTA_COMPLEJA: "Consulta compleja",
+  };
+  return labels[reason];
 }

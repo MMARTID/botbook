@@ -58,7 +58,7 @@ Each module is a folder containing a `routes.ts` file (and optionally `service.t
 | Module | Prefix | Auth | Purpose |
 |--------|--------|------|---------|
 | `auth` | `/auth` | No | JWT login, Google OAuth callback, token issuance, registration |
-| `businesses` | *(none)* | Yes | Business CRUD, stats, `me` endpoints, agent prompt rebuild on update |
+| `businesses` | *(none)* | Yes | Business CRUD, `me` endpoints, agent prompt rebuild on update, and the dashboard reads: `GET /business/me/stats` (all-time totals plus a rolling 7-day `week` window with the previous 7 days for comparison and an estimated revenue in cents), `GET /business/me/agenda?days&limit` (upcoming `Booking` rows with client phone, professional and resolved service names) and `GET /business/me/pending-bookings` (unresolved `pending_booking` leads — appointments the caller asked for that never reached the calendar) |
 | `agents` | *(none)* | Yes | Agent CRUD, sync to Vapi/Retell assistants |
 | `calls` | *(none)* | Yes | Call logs, transcripts, outcomes (paginated) |
 | `recordings` | *(none)* | Yes | Recording metadata, review notes |
@@ -68,7 +68,7 @@ Each module is a folder containing a `routes.ts` file (and optionally `service.t
 | `phone` | `/phone` | Yes | Telnyx phone number status, manual provisioning retry |
 | `places` | *(none)* | Yes | Google Places autocomplete & details |
 | `files` | `/agents` | Yes | Agent file uploads (multipart, 10MB limit) |
-| `onboarding` | *(none)* | Yes | Onboarding state: progress, dismiss, complete |
+| `onboarding` | *(none)* | Yes | Onboarding state: progress, dismiss, complete, confirm call forwarding |
 | `demo` | `/demo` | No | Public landing voice demo: `POST /demo/web-call` accepts `{ niche? }` and creates a Retell web call against that niche's demo agent, falling back to the generic one (10 req/min). `resolveDemoMaxDurationSeconds()` validates `RETELL_DEMO_MAX_DURATION_SECONDS` (finite, positive number or falls back to 60s) before passing it to `RetellAdapter.createWebCall` — a malformed value used to produce `NaN`, which is falsy in JS, so the duration cap was silently dropped and the demo call ran uncapped |
 
 \* Except OAuth callbacks (`/calendar/auth/*/callback`) and Stripe webhook (`/billing/webhook`).
@@ -324,12 +324,12 @@ The schema lives in `backend/prisma/schema.prisma`. Key models:
 - `Business` — tenant root; holds Stripe billing state, calendar tokens (encrypted), schedule JSON, agent settings, booking capacity, and optional booking restrictions `minAdvanceBookingMinutes` / `maxAppointmentDurationMinutes` (both nullable = no restriction; enforced in `check_business_hours` and `book_appointment`, see Agent Configuration).
 - `User` — belongs to a Business; supports password (bcrypt) + Google OAuth login (`googleId`).
 - `Agent` — voice agent config; `vapiAssistantId` links to Vapi and `retellAgentId`/`retellLlmId` link to Retell. Includes voice/LLM/STT provider configs, files, integrations.
-- `Call` — a phone call handled by Vapi or Retell. Status enum: `INITIATED`, `IN_PROGRESS`, `COMPLETED`, `FAILED`, `TIMED_OUT`. Outcome enum: `RESOLVED`, `FRUSTRATED`, `NO_ANSWER`, `ESCALATED`, `LEAD_CAPTURED` — set only from Retell's `call_outcome` post_call_analysis_data field (see Retell Configuration for the other analysis fields, which are independent of this enum).
+- `Call` — a phone call handled by Vapi or Retell. Status enum: `INITIATED`, `IN_PROGRESS`, `COMPLETED`, `FAILED`, `TIMED_OUT`. Outcome enum: `RESOLVED`, `FRUSTRATED`, `NO_ANSWER`, `ESCALATED`, `LEAD_CAPTURED` — set from Retell's `call_outcome` post_call_analysis_data field. Since 2026-09-11 the three remaining analysis fields are persisted too: `escalationReason` (enum `CallEscalationReason`), `toolFailureDetected` and `requestedService` (see Retell Configuration).
 - `Booking` — outcome extracted from a call; stores `professionalId`, `serviceIds` (array — since 2026-09-05 a booking can cover several services, e.g. "corte y mechas") and `durationMinutes` to track who performs the appointment and how long it lasts. `professionalId`/`serviceIds` supplied by the LLM are verified to belong to the business before being trusted (`voiceTools/service.ts`) — they are not enforced at the DB/FK level.
 - `Transcript` / `Recording` — call artifacts. Recording has `storageKey` and `storageUrl` for R2.
 - `Lead` — structured lead data captured during a call. `type: "pending_booking"` rows are created by `voiceTools/service.ts` when `book_appointment` fails, holding the attempted booking payload so it's never lost; `resolvedAt` is set once `jobs/retryFailedBooking.ts` confirms the booking in the background (still `null` if retries are exhausted or the failure needs a manual calendar reconnect).
-- `Service` / `Professional` / `ProfessionalService` — booking catalog (many-to-many between professionals and services).
-- `OnboardingState` — per-business onboarding state. Tracks `dismissedAt`, `completedAt` and optional step metadata. The actual step completion is computed live from `Business.schedule`, `Service`, `Professional` and calendar connection state.
+- `Service` / `Professional` / `ProfessionalService` — booking catalog (many-to-many between professionals and services). `Service.priceCents` is optional: a business may work without a published tariff, and the dashboard only estimates revenue for bookings whose services all have a price.
+- `OnboardingState` — per-business onboarding state. Tracks `dismissedAt`, `completedAt`, `forwardingConfirmedAt` and optional step metadata. The actual step completion is computed live from `Business.schedule`, `Service`, `Professional`, calendar connection state and call history (see Onboarding Flow).
 - `StripeWebhookEvent` — idempotency guard for Stripe webhooks.
 
 ### Stripe Billing Fields on `Business`
@@ -535,9 +535,10 @@ The backend supports two voice-AI orchestrators. `Business.orchestrator` decides
 - Payload builders: `buildRetellAgentPayload` and `buildRetellLlmPayload`.
 - **`post_call_analysis_data`** (Retell's own post-call classification LLM, no extra API call from this backend) is built by `buildPostCallAnalysisData(serviceNames)` in `agentBootstrap.ts` and always includes:
   - `call_outcome` (enum, unchanged) — written to `Call.outcome`.
-  - `escalation_reason` (enum: `CLIENTE_LO_PIDIO` / `FALLO_TECNICO` / `FUERA_DE_HORARIO` / `CONSULTA_COMPLEJA` / `NO_APLICA`) — gated with Retell's `conditional_prompt` so it's only evaluated when `call_outcome` is `ESCALATED` or a booking failed. Not persisted to any Prisma column today — only visible in the raw `call_analysis.custom_analysis_data` payload from Retell.
-  - `tool_failure_detected` (boolean) — same as above, not persisted, useful for monitoring via Retell's own dashboard/exports until a backend field is added.
-  - `requested_service_type` (enum) — **only added when the business has active services**; its `choices` are generated from `Service.name` at sync time (capped at 40), not a hardcoded taxonomy, so it adapts automatically to any vertical.
+  - `escalation_reason` (enum: `CLIENTE_LO_PIDIO` / `FALLO_TECNICO` / `FUERA_DE_HORARIO` / `CONSULTA_COMPLEJA` / `NO_APLICA`) — gated with Retell's `conditional_prompt` so it's only evaluated when `call_outcome` is `ESCALATED` or a booking failed. Persisted to `Call.escalationReason` (Prisma enum `CallEscalationReason`, same values); an unrecognised value is dropped rather than stored.
+  - `tool_failure_detected` (boolean) — persisted to `Call.toolFailureDetected`.
+  - `requested_service_type` (enum) — **only added when the business has active services**; its `choices` are generated from `Service.name` at sync time (capped at 40), not a hardcoded taxonomy, so it adapts automatically to any vertical. Persisted to `Call.requestedService` (free-form string, since the choices are per-business); `NO_APLICA` is stored as `null`.
+  - All four are parsed in `RetellCallAnalysisSchema` (`adapters/retell/webhookHandlers.ts`) and written in `handleCallAnalyzed`. Until 2026-09-11 only `call_outcome` was parsed and the other three were silently discarded, so calls analysed before that date have them empty. The frontend surfaces them as the "why didn't this become a booking" line in `CallDetailModal` and as a chip in `RecentCalls`, only for calls without a booking.
   - The adapter type is `RetellAnalysisField = RetellEnumAnalysisField | RetellBooleanAnalysisField` (`RetellAdapter.ts`), matching Retell SDK's `EnumAnalysisData`/`BooleanAnalysisData` shapes. Retell's SDK also supports `string`/`number`/`call-preset` analysis types, unused here.
 - **`syncAgentToRetell(businessId)`** (`agentBootstrap.ts`) is the single point that rebuilds the managed prompt (see Agent Configuration) and `post_call_analysis_data` from the business's current settings/services/professionals and pushes both to every Retell-backed `Agent` row. Called from `PATCH /business/me` (tone/goal/schedule/businessDetails/businessType/restrictions changes) and from `bookings/routes.ts` (service/professional CRUD). **Not** called from `PATCH /agents/:id`, which lets a business owner override the prompt with free text — that route instead calls `buildPostCallAnalysisDataForBusiness(businessId)` directly so post-call-analysis fields still stay current without touching the manually-edited prompt.
 
@@ -695,20 +696,33 @@ Google Places autocomplete is filtered by the country selected during registrati
 
 ## Onboarding Flow
 
-The onboarding flow is embedded in the `/ajustes` page. It guides the business through four setup steps:
+The onboarding checklist lives on the dashboard (`/`). It guides the business through five setup steps:
 
 1. **Schedule** — valid `BusinessSchedule` configured.
 2. **Services** — at least one active `Service` created.
 3. **Professionals** — at least one active `Professional` created.
 4. **Calendar** — Google or Outlook calendar connected.
+5. **Forwarding** — the business's own line is forwarded to its Alhabla number.
+
+**The forwarding step is the only one we cannot verify directly**: it is activated on the
+business's own handset with a GSM MMI code and no API reports it. It is therefore treated as done
+when either the business has received **at least one call** (real proof) or the user pressed "Ya lo
+he activado" (`OnboardingState.forwardingConfirmedAt`). Its `status` also gates the UI:
+
+| `forwarding.status` | When | UI |
+|---|---|---|
+| `waiting_number` | `twilioPhoneNumberStatus` is not `active`, or no number yet | Step shown but not actionable ("Disponible en cuanto tu número esté activo"). Telnyx takes a few minutes to approve a Spanish number, and the checklist copy redirects that wait to the other steps. |
+| `ready` | Number active, no calls yet, not confirmed | Step is the highlighted action; `CallForwardingCard` on the dashboard shows the MMI codes with the real number substituted. |
+| `done` | First call received, or user confirmed | Step complete; the card disappears. |
 
 ### Backend (`backend/src/modules/onboarding/routes.ts`)
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `GET` | `/business/me/onboarding` | Computes step completion live from business data and returns progress, dismissed/completed timestamps and `isActive`. |
+| `GET` | `/business/me/onboarding` | Computes step completion live from business data and returns progress, dismissed/completed timestamps, `isActive` and the `forwarding` object above. |
 | `POST` | `/business/me/onboarding/dismiss` | Persists `dismissedAt`. |
 | `POST` | `/business/me/onboarding/complete` | Persists `completedAt`. |
+| `POST` | `/business/me/onboarding/confirm-forwarding` | Persists `forwardingConfirmedAt` — the user's word, not a verification. |
 
 ### Frontend (`frontend/src/app/ajustes/page.tsx`)
 

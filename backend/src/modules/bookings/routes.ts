@@ -10,6 +10,7 @@ type BookingSettingsPayload = {
     id: string;
     name: string;
     durationMinutes: number;
+    priceCents: number | null;
     active: boolean;
     createdAt: Date;
     updatedAt: Date;
@@ -31,6 +32,10 @@ const CapacitySchema = z.object({
 const ServiceSchema = z.object({
   name: z.string().trim().min(1).max(80),
   durationMinutes: z.coerce.number().int().min(5).max(480),
+  // Opcional y anulable: `null` borra el precio de un servicio que ya lo
+  // tenía. Tope de 100.000 € para que un error de tecleo no se cuele como
+  // ingreso estimado en el panel.
+  priceCents: z.coerce.number().int().min(0).max(10_000_000).nullable().optional(),
   active: z.boolean().optional(),
 });
 
@@ -207,6 +212,7 @@ export async function bookingSettingsRoutes(fastify: FastifyInstance) {
             businessId: request.user!.businessId,
             name: data.name,
             durationMinutes: data.durationMinutes,
+            priceCents: data.priceCents ?? null,
             active: data.active ?? true,
           },
         });

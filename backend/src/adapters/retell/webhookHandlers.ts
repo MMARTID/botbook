@@ -1,5 +1,9 @@
 import { z } from "zod";
-import type { CallOutcome, CallSentiment } from "@prisma/client";
+import type {
+  CallEscalationReason,
+  CallOutcome,
+  CallSentiment,
+} from "@prisma/client";
 import { prisma } from "../../lib/prisma.js";
 import { enqueueRecordingJob, enqueueUsageReportJob } from "../../lib/cloudTasks.js";
 import { callLabel, errorMessage } from "../../lib/logUtils.js";
@@ -67,10 +71,16 @@ const RetellCallAnalysisSchema = z
     user_sentiment: z
       .enum(["Positive", "Neutral", "Negative", "Unknown"])
       .optional(),
-    // Definido por nosotros vía post_call_analysis_data (ver
-    // CALL_OUTCOME_ANALYSIS_FIELD en agentBootstrap.ts).
+    // Definidos por nosotros vía post_call_analysis_data (ver
+    // agentBootstrap.ts). Los cuatro se piden en cada llamada: parsearlos a
+    // medias era tirar análisis ya pagado.
     custom_analysis_data: z
-      .object({ call_outcome: z.string().optional() })
+      .object({
+        call_outcome: z.string().optional(),
+        escalation_reason: z.string().optional(),
+        tool_failure_detected: z.boolean().optional(),
+        requested_service_type: z.string().optional(),
+      })
       .passthrough()
       .optional(),
   })
@@ -151,6 +161,33 @@ function mapRetellCallOutcome(value: string | undefined): CallOutcome | null {
   return value && (VALID_CALL_OUTCOMES as string[]).includes(value)
     ? (value as CallOutcome)
     : null;
+}
+
+const VALID_ESCALATION_REASONS: CallEscalationReason[] = [
+  "CLIENTE_LO_PIDIO",
+  "FALLO_TECNICO",
+  "FUERA_DE_HORARIO",
+  "CONSULTA_COMPLEJA",
+  "NO_APLICA",
+];
+
+function mapRetellEscalationReason(
+  value: string | undefined
+): CallEscalationReason | null {
+  return value && (VALID_ESCALATION_REASONS as string[]).includes(value)
+    ? (value as CallEscalationReason)
+    : null;
+}
+
+/**
+ * `requested_service_type` llega con el nombre literal del servicio del
+ * negocio, o con los comodines OTRO/NO_APLICA que añade
+ * buildRequestedServiceAnalysisField. NO_APLICA se guarda como null: no
+ * aporta nada distinto de «no se mencionó ningún servicio».
+ */
+function mapRetellRequestedService(value: string | undefined): string | null {
+  if (!value || value === "NO_APLICA") return null;
+  return value.slice(0, 80);
 }
 
 async function resolveBusinessIdByRetellAgentId(
@@ -446,6 +483,14 @@ export async function handleCallAnalyzed(
       : undefined;
     const summary = data.call_analysis?.call_summary;
     const successful = data.call_analysis?.call_successful;
+    const analysis = data.call_analysis?.custom_analysis_data;
+    const escalationReason = mapRetellEscalationReason(
+      analysis?.escalation_reason
+    );
+    const toolFailureDetected = analysis?.tool_failure_detected;
+    const requestedService = mapRetellRequestedService(
+      analysis?.requested_service_type
+    );
 
     await prisma.$transaction(async (tx) => {
       if (data.transcript) {
@@ -476,20 +521,20 @@ export async function handleCallAnalyzed(
         });
       }
 
-      if (
-        sentiment !== undefined ||
-        outcome !== undefined ||
-        summary !== undefined ||
-        successful !== undefined
-      ) {
+      const analysisUpdate = {
+        ...(sentiment !== undefined ? { sentiment } : {}),
+        ...(outcome !== undefined ? { outcome } : {}),
+        ...(summary !== undefined ? { summary } : {}),
+        ...(successful !== undefined ? { successful } : {}),
+        ...(escalationReason !== null ? { escalationReason } : {}),
+        ...(toolFailureDetected !== undefined ? { toolFailureDetected } : {}),
+        ...(requestedService !== null ? { requestedService } : {}),
+      };
+
+      if (Object.keys(analysisUpdate).length > 0) {
         await tx.call.update({
           where: { id: dbCall.id },
-          data: {
-            ...(sentiment !== undefined ? { sentiment } : {}),
-            ...(outcome !== undefined ? { outcome } : {}),
-            ...(summary !== undefined ? { summary } : {}),
-            ...(successful !== undefined ? { successful } : {}),
-          },
+          data: analysisUpdate,
         });
       }
     });

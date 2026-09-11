@@ -32,6 +32,9 @@ function buildCall(overrides: Partial<Call> = {}): Call {
     sentiment: "POSITIVE",
     summary: "Cliente reservó un corte de pelo.",
     successful: true,
+    escalationReason: null,
+    toolFailureDetected: null,
+    requestedService: null,
     durationSecs: 95,
     costCents: 120,
     startedAt: "2026-09-04T10:00:00Z",
@@ -102,6 +105,23 @@ describe("RecentCalls", () => {
     expect(await screen.findByText("Resuelta")).toBeInTheDocument();
     expect(screen.getByText("Reserva creada")).toBeInTheDocument();
     expect(screen.getByText("Cliente reservó un corte de pelo.")).toBeInTheDocument();
+  });
+
+  it("encabeza cada llamada con quién llamó, y avisa cuando el número viene oculto", async () => {
+    mockedGetCalls.mockResolvedValue({
+      data: [
+        buildCall({ id: "call_con_numero", fromNumber: "+34692138456" }),
+        buildCall({ id: "call_sin_numero", fromNumber: null }),
+      ],
+      total: 2,
+      limit: 6,
+      offset: 0,
+    });
+
+    renderWithClient();
+
+    expect(await screen.findByText("+34 692 13 84 56")).toBeInTheDocument();
+    expect(screen.getByText("Número oculto")).toBeInTheDocument();
   });
 
   it("no marca 'Reserva creada' si la reserva está cancelada", async () => {

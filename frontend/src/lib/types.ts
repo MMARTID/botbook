@@ -9,6 +9,17 @@ export type CallOutcome =
 
 export type CallSentiment = "POSITIVE" | "NEUTRAL" | "NEGATIVE";
 
+/**
+ * Motivo por el que una llamada acabó escalada o sin completar la reserva,
+ * clasificado por el análisis post-llamada de Retell.
+ */
+export type CallEscalationReason =
+  | "CLIENTE_LO_PIDIO"
+  | "FALLO_TECNICO"
+  | "FUERA_DE_HORARIO"
+  | "CONSULTA_COMPLEJA"
+  | "NO_APLICA";
+
 export type WeekDay = "monday" | "tuesday" | "wednesday" | "thursday" | "friday" | "saturday" | "sunday";
 export type ScheduleInterval = { start: string; end: string };
 export type ScheduleDay = { enabled: boolean; intervals: ScheduleInterval[] };
@@ -62,6 +73,13 @@ export type Business = {
   outlookCalendarLastError?: string | null;
   outlookUserEmail?: string | null;
   subscriptionStatus?: SubscriptionStatus | null;
+  /**
+   * Fecha en la que se suspendieron las llamadas por impago. Mientras esté
+   * puesta, el agente no atiende: es el estado más grave que puede tener un
+   * negocio y hay que enseñarlo tal cual.
+   */
+  callsSuspendedAt?: string | null;
+  subscriptionCurrentPeriodEnd?: string | null;
   agents?: Agent[];
   calls?: Call[];
 };
@@ -119,6 +137,8 @@ export type BookingService = {
   id: string;
   name: string;
   durationMinutes: number;
+  /** Céntimos. Opcional: un negocio puede trabajar sin tarifa publicada. */
+  priceCents: number | null;
   active: boolean;
   createdAt: string;
   updatedAt: string;
@@ -142,6 +162,8 @@ export type BookingSettings = {
 export type BookingServiceInput = {
   name: string;
   durationMinutes: number;
+  /** `null` borra el precio de un servicio que ya lo tenía. */
+  priceCents?: number | null;
   active?: boolean;
 };
 
@@ -151,26 +173,12 @@ export type BookingProfessionalInput = {
   serviceIds: string[];
 };
 
-export type CalendarEvent = {
-  id: string | null;
-  summary: string;
-  start: string | null;
-  end: string | null;
-  location: string | null;
-  htmlLink: string | null;
-};
-
 export type MicrosoftCalendarOption = {
   id: string;
   name: string;
   canEdit: boolean;
   canShare: boolean;
   ownerEmail: string | null;
-};
-
-export type UpcomingCalendarEventsResponse = {
-  events: CalendarEvent[];
-  provider: "google" | "outlook";
 };
 
 export type CalendarListItem = {
@@ -269,6 +277,10 @@ export type Call = {
   sentiment: CallSentiment | null;
   summary: string | null;
   successful: boolean | null;
+  escalationReason: CallEscalationReason | null;
+  toolFailureDetected: boolean | null;
+  /** Nombre del servicio que pidió el cliente, tal y como lo llama el negocio. */
+  requestedService: string | null;
   durationSecs: number | null;
   costCents: number | null;
   startedAt: string;
@@ -311,6 +323,22 @@ export type OnboardingSteps = {
   services: boolean;
   professionals: boolean;
   calendar: boolean;
+  forwarding: boolean;
+};
+
+/**
+ * `waiting_number`: el número aún no está activo (Telnyx tarda unos minutos
+ * en aprobarlo), así que todavía no hay nada a lo que desviar.
+ * `ready`: hay número activo y el desvío está pendiente.
+ * `done`: entró una llamada real o el negocio confirmó haberlo activado.
+ */
+export type ForwardingStatus = "waiting_number" | "ready" | "done";
+
+export type OnboardingForwarding = {
+  status: ForwardingStatus;
+  phoneNumber: string | null;
+  confirmedAt: string | null;
+  firstCallAt: string | null;
 };
 
 export type OnboardingState = {
@@ -319,6 +347,70 @@ export type OnboardingState = {
   dismissedAt: string | null;
   completedAt: string | null;
   isActive: boolean;
+  forwarding: OnboardingForwarding;
+};
+
+export type AgendaService = {
+  id: string;
+  name: string;
+  durationMinutes: number;
+  priceCents: number | null;
+};
+
+/** Cita reservada por el agente, con cliente y servicios ya resueltos. */
+export type AgendaBooking = {
+  id: string;
+  callId: string;
+  programedAt: string;
+  durationMinutes: number;
+  numberPeople: number;
+  clientPhone: string | null;
+  professional: { id: string; name: string } | null;
+  services: AgendaService[];
+  externalEventId: string | null;
+  externalCalendarProvider: string | null;
+};
+
+export type AgendaResponse = {
+  from: string;
+  until: string;
+  bookings: AgendaBooking[];
+};
+
+/** Cita que el cliente pidió y no llegó a reservarse por un fallo técnico. */
+export type PendingBooking = {
+  id: string;
+  callId: string;
+  createdAt: string;
+  clientName: string | null;
+  clientPhone: string | null;
+  requestedAt: string | null;
+  failureCode: string | null;
+};
+
+export type WeeklyStats = {
+  from: string;
+  to: string;
+  calls: number;
+  bookings: number;
+  /** `null` si el negocio no tiene ningún precio configurado. */
+  revenueCents: number | null;
+  /** true si alguna cita del periodo incluye un servicio sin precio. */
+  revenueIsPartial: boolean;
+  pendingBookings: number;
+  previous: {
+    calls: number;
+    bookings: number;
+    revenueCents: number | null;
+  };
+};
+
+export type BusinessStats = {
+  totalCalls: number;
+  totalMinutes: number;
+  leads: number;
+  bookings: number;
+  week: WeeklyStats;
 };
 
 export type PhoneNumberStatus =

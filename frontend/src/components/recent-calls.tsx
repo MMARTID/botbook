@@ -5,8 +5,10 @@ import { useQuery } from "@tanstack/react-query";
 import { CalendarCheck, ChevronRight, Frown, Meh, PhoneCall, RefreshCw, Smile } from "lucide-react";
 import { getCalls } from "@/lib/api";
 import {
+  escalationReasonChip,
   formatDate,
   formatDuration,
+  formatPhone,
   outcomeLabel,
   outcomeTone,
   sentimentLabel,
@@ -43,12 +45,14 @@ export function RecentCalls() {
 
   return (
     <section className="panel min-w-0 p-4 sm:p-5 lg:p-6" aria-labelledby="recent-calls-title">
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <p className="text-sm font-medium text-muted">Actividad</p>
-          <h2 id="recent-calls-title" className="mt-1 text-lg font-semibold text-[#0a0a0a] sm:text-xl">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h2 id="recent-calls-title" className="text-lg font-semibold text-[#0a0a0a] sm:text-xl">
             Llamadas recientes
           </h2>
+          <p className="mt-1 text-sm text-muted">
+            Toca una llamada para leer la conversación y escuchar la grabación.
+          </p>
         </div>
       </div>
 
@@ -93,6 +97,7 @@ export function RecentCalls() {
           {calls.map((call) => {
             const tone = outcomeTone(call.outcome);
             const hasBooking = call.booking && !call.booking.isCancelled;
+            const motivo = escalationReasonChip(call.escalationReason);
             const SentimentIcon = call.sentiment ? SENTIMENT_ICON[call.sentiment] : null;
             return (
               <li key={call.id}>
@@ -105,20 +110,33 @@ export function RecentCalls() {
                     <PhoneCall className="h-4 w-4" />
                   </span>
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-semibold text-[#0a0a0a]">
-                      {formatDate(call.startedAt)}
+                    {/* Quién llamó manda sobre cuándo: es el dato con el que
+                        el negocio puede hacer algo (devolver la llamada). */}
+                    <span className="block truncate text-sm font-semibold tabular-nums text-[#0a0a0a]">
+                      {formatPhone(call.fromNumber) ?? "Número oculto"}
                     </span>
                     <span className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-muted">
+                      <span>{formatDate(call.startedAt)}</span>
+                      <span aria-hidden="true">·</span>
                       <span>{formatDuration(call.durationSecs)}</span>
                       {hasBooking ? (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-[#f3eeff] px-2 py-0.5 font-semibold text-[#6d28d9]">
-                          <CalendarCheck className="h-3 w-3" />
+                        <span className="inline-flex items-center gap-1 rounded-full bg-[#f3eeff] px-2 py-0.5 font-semibold text-[#6d28d9] ring-1 ring-inset ring-[#ddd6fe]">
+                          <CalendarCheck className="h-3 w-3" aria-hidden="true" />
                           Reserva creada
+                        </span>
+                      ) : motivo ? (
+                        // Solo cuando no hubo cita: ahí es cuando el motivo
+                        // responde a algo que el negocio se está preguntando.
+                        <span className="inline-flex items-center gap-1 rounded-full bg-[#fef8e7] px-2 py-0.5 font-semibold text-[#9f7a15] ring-1 ring-inset ring-[#f0dfa8]">
+                          {motivo}
                         </span>
                       ) : null}
                     </span>
                     {call.summary ? (
-                      <span className="mt-0.5 block truncate text-xs text-muted">{call.summary}</span>
+                      // Sin `block`: competiría con line-clamp por `display`.
+                      <span className="mt-1 line-clamp-2 text-xs leading-5 text-muted">
+                        {call.summary}
+                      </span>
                     ) : null}
                   </span>
                   {SentimentIcon ? (

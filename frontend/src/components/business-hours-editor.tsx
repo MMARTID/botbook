@@ -152,13 +152,17 @@ export function BusinessHoursEditor({
 
           {selected.enabled ? (
             <div className="mt-5 space-y-3">
+              {/* Las horas se envuelven en vez de repartirse el ancho a partes
+                  iguales: `input[type=time]` lo pinta el navegador con el
+                  formato del usuario, y en 12 horas («06:00 PM» más el icono de
+                  reloj) no cabía en media fila de móvil: recortaba la hora. */}
               {selected.intervals.map((interval, index) => (
-                <div key={`${selectedDay}-${index}`} className="grid grid-cols-[1fr_auto_1fr_auto] items-center gap-2 rounded-xl border border-[#e5e5e5] bg-white p-3">
+                <div key={`${selectedDay}-${index}`} className="flex flex-wrap items-center gap-2 rounded-xl border border-[#e5e5e5] bg-white p-3">
                   <input
                     type="time"
                     value={interval.start}
                     onChange={(event) => updateDay((day) => ({ ...day, intervals: day.intervals.map((item, itemIndex) => itemIndex === index ? { ...item, start: event.target.value } : item) }))}
-                    className="field min-w-0"
+                    className="field min-w-[7.5rem] flex-1 px-3"
                     aria-label="Hora de apertura"
                   />
                   <span className="text-sm text-muted">a</span>
@@ -166,18 +170,22 @@ export function BusinessHoursEditor({
                     type="time"
                     value={interval.end}
                     onChange={(event) => updateDay((day) => ({ ...day, intervals: day.intervals.map((item, itemIndex) => itemIndex === index ? { ...item, end: event.target.value } : item) }))}
-                    className="field min-w-0"
+                    className="field min-w-[7.5rem] flex-1 px-3"
                     aria-label="Hora de cierre"
                   />
-                  <button
-                    type="button"
-                    onClick={() => updateDay((day) => ({ ...day, intervals: day.intervals.filter((_, itemIndex) => itemIndex !== index) }))}
-                    disabled={selected.intervals.length === 1}
-                    className="rounded-xl p-2 text-[#c53030] transition hover:bg-[#fff1f1] disabled:opacity-30"
-                    aria-label="Eliminar tramo"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
+                  {/* Con un solo tramo no hay nada que borrar: se oculta en
+                      vez de dejarlo deshabilitado, y así los dos campos de hora
+                      caben en una línea en móvil. */}
+                  {selected.intervals.length > 1 ? (
+                    <button
+                      type="button"
+                      onClick={() => updateDay((day) => ({ ...day, intervals: day.intervals.filter((_, itemIndex) => itemIndex !== index) }))}
+                      className="ml-auto inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[#c53030] transition duration-200 hover:bg-[#fff1f1] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]"
+                      aria-label="Eliminar tramo"
+                    >
+                      <Trash2 className="h-4 w-4" aria-hidden="true" />
+                    </button>
+                  ) : null}
                 </div>
               ))}
 

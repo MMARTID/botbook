@@ -2,7 +2,6 @@ import { describe, it, expect } from "vitest";
 import {
   formatCurrency,
   formatDate,
-  formatCalendarEventDate,
   formatDuration,
   statusLabel,
   outcomeLabel,
@@ -32,28 +31,6 @@ describe("formatDate", () => {
     const result = formatDate("2026-09-04T10:30:00Z");
     expect(result).not.toBe("-");
     expect(result.length).toBeGreaterThan(0);
-  });
-});
-
-describe("formatCalendarEventDate", () => {
-  it("devuelve 'Fecha pendiente' si el valor es null", () => {
-    expect(formatCalendarEventDate(null, "Europe/Madrid")).toEqual({
-      date: "Fecha pendiente",
-      time: null,
-      allDay: false,
-    });
-  });
-
-  it("detecta eventos de todo el día (solo fecha, sin hora)", () => {
-    const result = formatCalendarEventDate("2026-09-04", "Europe/Madrid");
-    expect(result.allDay).toBe(true);
-    expect(result.time).toBe("Todo el día");
-  });
-
-  it("formatea un evento con hora en la zona horaria indicada", () => {
-    const result = formatCalendarEventDate("2026-09-04T10:30:00Z", "Europe/Madrid");
-    expect(result.allDay).toBe(false);
-    expect(result.time).toBe("12:30");
   });
 });
 

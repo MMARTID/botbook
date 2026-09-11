@@ -22,6 +22,9 @@ function buildCall(overrides: Partial<Call> = {}): Call {
     sentiment: "POSITIVE",
     summary: null,
     successful: true,
+    escalationReason: null,
+    toolFailureDetected: null,
+    requestedService: null,
     durationSecs: 95,
     costCents: 120,
     startedAt: "2026-09-04T10:00:00Z",
@@ -79,7 +82,8 @@ describe("CallDetailModal", () => {
 
     renderModal();
 
-    expect(await screen.findByText(/692138456/)).toBeInTheDocument();
+    // Agrupado como se lee en voz alta, igual que en el resto del panel.
+    expect(await screen.findByText("692 13 84 56")).toBeInTheDocument();
   });
 
   it("no muestra nada de teléfono si la llamada no lo trae", async () => {

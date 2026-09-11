@@ -17,6 +17,7 @@ import {
   updateBookingService,
   updateMyBusiness,
 } from "@/lib/api";
+import { formatPrice } from "@/lib/format";
 import { useBusiness } from "@/components/providers";
 import { BusinessHoursEditor } from "@/components/business-hours-editor";
 import {
@@ -24,6 +25,7 @@ import {
   DEFAULT_AGENT_SETTINGS,
 } from "@/components/agent-settings-editor";
 import { SettingsSection } from "@/components/settings-section";
+import { AgentDocuments } from "@/components/agent-documents";
 import { LottieAnimation } from "@/components/lottie-animation";
 import type {
   AgentSettings,
@@ -40,6 +42,7 @@ import {
   Check,
   CheckCircle2,
   ChevronDown,
+  FileText,
   Save,
   ScissorsLineDashed,
   UserRoundCheck,
@@ -81,6 +84,7 @@ function AjustesContent() {
   const [serviceDraft, setServiceDraft] = useState({
     name: "",
     durationMinutes: "30",
+    price: "",
   });
   const [professionalDraft, setProfessionalDraft] = useState({
     name: "",
@@ -282,7 +286,7 @@ function AjustesContent() {
     onSuccess: async (service) => {
       appendBookingService(service);
       await invalidateAll();
-      setServiceDraft({ name: "", durationMinutes: "30" });
+      setServiceDraft({ name: "", durationMinutes: "30", price: "" });
       setBanner({ type: "success", message: "Servicio creado." });
     },
     onError: () =>
@@ -302,6 +306,7 @@ function AjustesContent() {
   });
 
   const services = settingsQuery.data?.services ?? [];
+  const agentFiles = business?.agents?.[0]?.files ?? [];
   const professionals = settingsQuery.data?.professionals ?? [];
 
   const startCalendarConnection = async (provider: "google" | "outlook") => {
@@ -540,8 +545,9 @@ function AjustesContent() {
         onToggle={() => toggleSection("services")}
       >
         <div className="space-y-5 p-4 sm:p-5">
-          <p className="text-sm text-muted">
-            La duración siempre saldrá de aquí, no del agente.
+          <p className="text-sm leading-6 text-muted">
+            La duración siempre saldrá de aquí, no del agente. El precio es opcional: si lo pones, el
+            panel puede decirte cuánto valen las citas que entran solas.
           </p>
 
           <details className="group rounded-xl border border-[#e5e5e5] bg-[#fafafa]">
@@ -549,7 +555,7 @@ function AjustesContent() {
               Añadir servicio
               <ChevronDown className="h-4 w-4 transition group-open:rotate-180" />
             </summary>
-            <div className="grid gap-3 border-t border-[#e5e5e5] p-4 md:grid-cols-[minmax(0,1fr)_9rem_auto]">
+            <div className="grid gap-3 border-t border-[#e5e5e5] p-4 md:grid-cols-[minmax(0,1fr)_7rem_7rem_auto]">
               <input
                 value={serviceDraft.name}
                 onChange={(event) =>
@@ -559,6 +565,7 @@ function AjustesContent() {
                   }))
                 }
                 placeholder="Ej. Corte + peinado"
+                aria-label="Nombre del servicio"
                 className="field"
               />
               <input
@@ -574,6 +581,23 @@ function AjustesContent() {
                 }
                 className="field"
                 placeholder="Minutos"
+                aria-label="Duración en minutos"
+              />
+              <input
+                type="number"
+                min={0}
+                step="0.5"
+                inputMode="decimal"
+                value={serviceDraft.price}
+                onChange={(event) =>
+                  setServiceDraft((current) => ({
+                    ...current,
+                    price: event.target.value,
+                  }))
+                }
+                className="field"
+                placeholder="Precio €"
+                aria-label="Precio en euros (opcional)"
               />
               <button
                 type="button"
@@ -581,6 +605,7 @@ function AjustesContent() {
                   createServiceMutation.mutate({
                     name: serviceDraft.name,
                     durationMinutes: Number(serviceDraft.durationMinutes),
+                    priceCents: euroInputToCents(serviceDraft.price),
                   })
                 }
                 disabled={
@@ -919,6 +944,21 @@ function AjustesContent() {
       </SettingsSection>
 
       <SettingsSection
+        id="agent-documents"
+        icon={FileText}
+        title="Documentos del agente"
+        summary={
+          agentFiles.length === 0
+            ? "Sin documentos"
+            : `${agentFiles.length} ${agentFiles.length === 1 ? "documento" : "documentos"}`
+        }
+        open={isSectionOpen("agent-documents")}
+        onToggle={() => toggleSection("agent-documents")}
+      >
+        <AgentDocuments agentId={business?.agents?.[0]?.id} files={agentFiles} />
+      </SettingsSection>
+
+      <SettingsSection
         id="business-information"
         icon={Building2}
         title="Información del negocio"
@@ -1015,6 +1055,7 @@ function ServiceEditor({
   onSave: (payload: {
     name?: string;
     durationMinutes?: number;
+    priceCents?: number | null;
     active?: boolean;
   }) => Promise<unknown>;
   onSuccess: () => void | Promise<void>;
@@ -1024,6 +1065,7 @@ function ServiceEditor({
   const [durationMinutes, setDurationMinutes] = useState(
     String(service.durationMinutes)
   );
+  const [price, setPrice] = useState(centsToEuroInput(service.priceCents));
   const [active, setActive] = useState(service.active);
 
   const mutation = useMutation({
@@ -1031,6 +1073,8 @@ function ServiceEditor({
     onSuccess,
     onError,
   });
+
+  const precioActual = formatPrice(service.priceCents);
 
   return (
     <details className="group rounded-xl border border-[#e5e5e5] bg-white">
@@ -1040,16 +1084,17 @@ function ServiceEditor({
             {service.name}
           </span>
           <span className="mt-0.5 block text-xs text-muted">
-            {service.durationMinutes} min ·{" "}
+            {service.durationMinutes} min · {precioActual ?? "Sin precio"} ·{" "}
             {service.active ? "Activo" : "Inactivo"}
           </span>
         </span>
         <ChevronDown className="h-4 w-4 shrink-0 text-muted transition group-open:rotate-180" />
       </summary>
-      <div className="grid gap-3 border-t border-[#e5e5e5] p-4 md:grid-cols-[minmax(0,1fr)_9rem_auto_auto]">
+      <div className="grid gap-3 border-t border-[#e5e5e5] p-4 md:grid-cols-[minmax(0,1fr)_7rem_7rem_auto_auto]">
         <input
           value={name}
           onChange={(event) => setName(event.target.value)}
+          aria-label={`Nombre de ${service.name}`}
           className="field"
         />
         <input
@@ -1058,6 +1103,18 @@ function ServiceEditor({
           step={5}
           value={durationMinutes}
           onChange={(event) => setDurationMinutes(event.target.value)}
+          aria-label={`Duración de ${service.name} en minutos`}
+          className="field"
+        />
+        <input
+          type="number"
+          min={0}
+          step="0.5"
+          inputMode="decimal"
+          value={price}
+          onChange={(event) => setPrice(event.target.value)}
+          placeholder="Precio €"
+          aria-label={`Precio de ${service.name} en euros (opcional)`}
           className="field"
         />
         <label className="flex items-center gap-2 rounded-xl border border-[#e5e5e5] px-3 py-2 text-sm text-[#27272a]">
@@ -1075,6 +1132,7 @@ function ServiceEditor({
             mutation.mutate({
               name,
               durationMinutes: Number(durationMinutes),
+              priceCents: euroInputToCents(price),
               active,
             })
           }
@@ -1086,6 +1144,20 @@ function ServiceEditor({
       </div>
     </details>
   );
+}
+
+/** Vaciar el campo borra el precio; el backend acepta `null` para eso. */
+function euroInputToCents(value: string): number | null {
+  const normalized = value.trim().replace(",", ".");
+  if (normalized === "") return null;
+  const euros = Number(normalized);
+  if (!Number.isFinite(euros) || euros < 0) return null;
+  return Math.round(euros * 100);
+}
+
+function centsToEuroInput(cents: number | null): string {
+  if (cents == null) return "";
+  return cents % 100 === 0 ? String(cents / 100) : (cents / 100).toFixed(2);
 }
 
 function ProfessionalEditor({

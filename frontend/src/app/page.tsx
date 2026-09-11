@@ -1,51 +1,24 @@
 "use client";
 
-import { useCallback, useState, useEffect, Suspense } from "react";
-import axios from "axios";
-import { Bot, PhoneCall, Clock3, TrendingUp, CalendarDays, CalendarCheck, Upload, FileText, ArrowRight, Sparkles, Smartphone, RefreshCw } from "lucide-react";
-import { getStats, getPhoneNumberInfo, provisionPhoneNumber } from "@/lib/api";
-import { useBusiness } from "@/components/providers";
+import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { AGENT_FILE_ACCEPT, useAgentFileUpload } from "@/hooks/use-agent-file-upload";
-import { UpcomingCalendarEvents } from "@/components/upcoming-calendar-events";
-import { RecentCalls } from "@/components/recent-calls";
+import { useQuery } from "@tanstack/react-query";
+import { getOnboardingState, getStats } from "@/lib/api";
+import { useBusiness } from "@/components/providers";
+import { CallForwardingCard } from "@/components/call-forwarding-card";
 import { OnboardingChecklist } from "@/components/onboarding-checklist";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-
-function StatusRow({ label, value, icon }: { label: string; value: string; icon: React.ReactNode }) {
-  return (
-    <div className="flex items-center justify-between gap-3 py-3 text-sm">
-      <span className="flex min-w-0 items-center gap-2 text-muted">
-        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-[#f3eeff] text-[#8b5cf6]">{icon}</span>
-        <span className="truncate">{label}</span>
-      </span>
-      <span className="shrink-0 rounded-full bg-[#fafafa] px-2.5 py-1 text-xs font-semibold text-[#52525b]">{value}</span>
-    </div>
-  );
-}
+import { PendingBookings } from "@/components/pending-bookings";
+import { RecentCalls } from "@/components/recent-calls";
+import { StatusStrip } from "@/components/status-strip";
+import { UpcomingBookings } from "@/components/upcoming-bookings";
+import { WeeklySummary } from "@/components/weekly-summary";
 
 function DashboardContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { business, isLoadingBusiness, hasToken, isError: isBusinessError, errorMessage } = useBusiness();
 
-  const [calendarStatus, setCalendarStatus] = useState<{type: 'success' | 'error', message: string} | null>(null);
-  const [calendarReconnectRequired, setCalendarReconnectRequired] = useState(false);
-  const handleReconnectRequired = useCallback((provider: "google" | "outlook" = "google") => {
-    setCalendarReconnectRequired(true);
-    setCalendarStatus({
-      type: 'error',
-      message: `La conexión con ${provider === "outlook" ? "Outlook Calendar" : "Google Calendar"} ha caducado. Vuelve a conectarla para continuar.`,
-    });
-  }, []);
-
-  const {
-    inputRef: fileInputRef,
-    isUploading,
-    status: uploadStatus,
-    openFilePicker,
-    handleFileChange: handleFileUpload,
-  } = useAgentFileUpload(business?.agents?.[0]?.id);
+  const [calendarStatus, setCalendarStatus] = useState<{ type: "success" | "error"; message: string } | null>(null);
 
   useEffect(() => {
     if (hasToken === false) {
@@ -54,23 +27,20 @@ function DashboardContent() {
     }
 
     if (searchParams.get("calendar_error")) {
-      setCalendarStatus({ type: 'error', message: 'Hubo un error al conectar Google Calendar.' });
+      setCalendarStatus({ type: "error", message: "Hubo un error al conectar Google Calendar." });
       router.replace("/");
     }
 
     if (searchParams.get("outlook_error")) {
-      setCalendarStatus({ type: 'error', message: 'Hubo un error al conectar Outlook Calendar.' });
+      setCalendarStatus({ type: "error", message: "Hubo un error al conectar Outlook Calendar." });
       router.replace("/");
     }
 
     if (searchParams.get("outlook_success")) {
-      setCalendarReconnectRequired(false);
-      setCalendarStatus({ type: 'success', message: 'Outlook Calendar está conectado correctamente.' });
+      setCalendarStatus({ type: "success", message: "Outlook Calendar está conectado correctamente." });
       router.replace("/");
     }
   }, [hasToken, router, searchParams]);
-
-  const queryClient = useQueryClient();
 
   const statsQuery = useQuery({
     queryKey: ["stats"],
@@ -78,30 +48,10 @@ function DashboardContent() {
     enabled: !!business,
   });
 
-  const phoneQuery = useQuery({
-    queryKey: ["phone-number"],
-    queryFn: getPhoneNumberInfo,
+  const onboardingQuery = useQuery({
+    queryKey: ["onboarding-state"],
+    queryFn: getOnboardingState,
     enabled: !!business,
-  });
-
-  const provisionMutation = useMutation({
-    mutationFn: provisionPhoneNumber,
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["phone-number"] });
-    },
-    onError: (error: unknown) => {
-      if (axios.isAxiosError(error) && error.response?.status === 402) {
-        setCalendarStatus({
-          type: "error",
-          message: "Necesitas un plan activo para asignar un número de teléfono. Elige tu plan en la sección de facturación.",
-        });
-      } else {
-        setCalendarStatus({
-          type: "error",
-          message: (axios.isAxiosError(error) && error.response?.data?.error) || "Error al asignar el número de teléfono.",
-        });
-      }
-    },
   });
 
   if (isLoadingBusiness) {
@@ -113,16 +63,15 @@ function DashboardContent() {
       <div className="panel mx-auto max-w-2xl space-y-4 p-6 text-center">
         <h1 className="text-2xl font-semibold text-[#0a0a0a]">No se pudo cargar tu panel</h1>
         <p className="text-sm leading-6 text-muted">
-          {errorMessage ?? "El backend devolvió un error al cargar la información del negocio."}
+          Puede haber sido un corte momentáneo de conexión. Vuelve a intentarlo; si sigue sin cargar,
+          escríbenos y lo miramos.
         </p>
-        <p className="text-sm leading-6 text-muted">
-          Revisa que el backend esté levantado y que Prisma esté actualizado dentro del contenedor de desarrollo.
-        </p>
-        <button
-          type="button"
-          onClick={() => window.location.reload()}
-          className="btn-primary mx-auto"
-        >
+        {/* El detalle técnico solo tiene sentido para quien puede hacer algo
+            con él: en producción no se enseña. */}
+        {process.env.NODE_ENV === "development" && errorMessage ? (
+          <p className="font-mono text-xs leading-5 text-[#a1a1aa]">{errorMessage}</p>
+        ) : null}
+        <button type="button" onClick={() => window.location.reload()} className="btn-primary mx-auto">
           Reintentar
         </button>
       </div>
@@ -133,254 +82,55 @@ function DashboardContent() {
     return null; // Will redirect to login via useEffect
   }
 
-  const stats = statsQuery.data || { totalCalls: 0, totalMinutes: 0, leads: 0, bookings: 0 };
-  const bookingRate = stats.totalCalls > 0 ? Math.round((stats.bookings / stats.totalCalls) * 100) : null;
-
   const activeCalendarProvider = business.calendarProvider === "outlook" ? "outlook" : "google";
-  const hasCalendar = (activeCalendarProvider === "outlook"
-    ? business.outlookCalendarConnected === true
-    : business.googleCalendarConnected === true) && !calendarReconnectRequired;
-  const calendarProviderLabel = activeCalendarProvider === "outlook" ? "Outlook" : "Google Calendar";
-  const connectedCalendarDescription = activeCalendarProvider === "outlook"
-    ? business.outlookUserEmail ?? "Outlook Calendar"
-    : "Google Calendar";
+  const hasCalendar =
+    activeCalendarProvider === "outlook"
+      ? business.outlookCalendarConnected === true
+      : business.googleCalendarConnected === true;
   const agent = business.agents?.[0];
-  const contextFileCount = agent?.files?.length ?? 0;
+  const timeZone = business.timezone || "Europe/Madrid";
+  const forwarding = onboardingQuery.data?.forwarding;
 
   return (
     <div className="space-y-5 sm:space-y-8">
       <OnboardingChecklist />
 
-      <section className="grid gap-4 sm:gap-6 lg:grid-cols-[minmax(0,1fr)_22rem]">
-        <article id="calendar-setup" className="panel relative min-w-0 scroll-mt-32 overflow-hidden p-4 sm:p-6">
-          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(139,92,246,0.14),transparent_62%)]" />
-          <div className="pointer-events-none absolute -left-12 bottom-0 h-32 w-32 rounded-full bg-[#8b5cf6]/20 blur-3xl" />
-          <div className="relative flex flex-col gap-5 sm:gap-6">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-              <div>
-                <h1 className="text-2xl font-semibold leading-tight tracking-tight text-[#0a0a0a] sm:text-3xl">
-                  {hasCalendar ? "Tu asistente está operativo" : "Conecta tu calendario para activar las reservas"}
-                </h1>
-                <p className="mt-2 max-w-2xl text-sm leading-6 text-[#52525b] sm:mt-3">
-                  {hasCalendar
-                    ? "Centraliza el estado del agente, la agenda y el conocimiento que utiliza para atender a tus clientes."
-                    : "El agente ya puede responder llamadas. Conecta tu agenda para que también pueda reservar citas automáticamente."}
-                </p>
-              </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="badge-soft">{business.name}</span>
-              </div>
-            </div>
+      <PendingBookings timeZone={timeZone} />
 
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-4">
-              <article className="rounded-xl border border-[#d8efd7] bg-[#ecf7ec] p-3 sm:p-5">
-                <div className="flex items-center justify-between">
-                  <p className="text-xs font-medium text-[#2c7334] sm:text-sm">Citas reservadas</p>
-                  <span className="hidden rounded-xl bg-white p-2 text-[#2c7334] sm:inline-flex">
-                    <CalendarCheck className="h-4 w-4" />
-                  </span>
-                </div>
-                <p className="mt-2 text-2xl font-semibold tracking-tight text-[#0a0a0a] sm:mt-4 sm:text-3xl">{stats.bookings}</p>
-                <p className="mt-2 hidden text-sm text-[#2c7334] sm:block">
-                  {bookingRate !== null ? `${bookingRate}% de las llamadas terminan en cita.` : "Reservadas automáticamente por el agente."}
-                </p>
-              </article>
+      <StatusStrip business={business} agentActive={agent?.active !== false} />
 
-              <article className="rounded-xl border border-[#e5e5e5] bg-white p-3 sm:p-5">
-                <div className="flex items-center justify-between">
-                  <p className="text-xs font-medium text-muted sm:text-sm">Llamadas</p>
-                  <span className="hidden rounded-xl bg-[#f3eeff] p-2 text-[#8b5cf6] sm:inline-flex">
-                    <PhoneCall className="h-4 w-4" />
-                  </span>
-                </div>
-                <p className="mt-2 text-2xl font-semibold tracking-tight text-[#0a0a0a] sm:mt-4 sm:text-3xl">{stats.totalCalls}</p>
-                <p className="mt-2 hidden text-sm text-muted sm:block">Conversaciones atendidas por tu recepcionista virtual.</p>
-              </article>
-
-              <article className="rounded-xl border border-[#e5e5e5] bg-white p-3 sm:p-5">
-                <div className="flex items-center justify-between">
-                  <p className="text-xs font-medium text-muted sm:text-sm">Minutos</p>
-                  <span className="hidden rounded-xl bg-[#f3eeff] p-2 text-[#8b5cf6] sm:inline-flex">
-                    <Clock3 className="h-4 w-4" />
-                  </span>
-                </div>
-                <p className="mt-2 text-2xl font-semibold tracking-tight text-[#0a0a0a] sm:mt-4 sm:text-3xl">{stats.totalMinutes}</p>
-                <p className="mt-2 hidden text-sm text-muted sm:block">Tiempo total de conversación registrado.</p>
-              </article>
-
-              <article className="rounded-xl border border-[#e5e5e5] bg-white p-3 sm:p-5">
-                <div className="flex items-center justify-between">
-                  <p className="text-xs font-medium text-muted sm:text-sm">Posibles clientes</p>
-                  <span className="hidden rounded-xl bg-[#f3eeff] p-2 text-[#8b5cf6] sm:inline-flex">
-                    <TrendingUp className="h-4 w-4" />
-                  </span>
-                </div>
-                <p className="mt-2 text-2xl font-semibold tracking-tight text-[#0a0a0a] sm:mt-4 sm:text-3xl">{stats.leads}</p>
-                <p className="mt-2 hidden text-sm text-muted sm:block">Identificados durante las llamadas.</p>
-              </article>
-            </div>
-          </div>
-        </article>
-
-        <aside className="min-w-0 space-y-4">
-          <article id="agent-status" className="panel scroll-mt-32 border-[#e5e5e5] bg-[#fafafa] p-4 sm:p-5">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <p className="text-sm font-medium text-[#52525b]">Estado general</p>
-                <h2 className="mt-1 text-lg font-semibold text-[#0a0a0a]">Resumen operativo</h2>
-              </div>
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#f3eeff] text-[#8b5cf6]">
-                <Sparkles className="h-5 w-5" />
-              </div>
-            </div>
-
-            <div className="mt-4 divide-y divide-[#e5e5e5] rounded-xl border border-[#e5e5e5] bg-white/90 px-4">
-              <StatusRow label="Agente" value={agent?.active === false ? "Inactivo" : "Activo"} icon={<Bot className="h-4 w-4" />} />
-              <StatusRow label={calendarProviderLabel === "Outlook" ? "Outlook Calendar" : "Google Calendar"} value={hasCalendar ? `Conectado · ${connectedCalendarDescription}` : "Pendiente"} icon={<CalendarDays className="h-4 w-4" />} />
-              <StatusRow label="Documentos" value={`${contextFileCount} ${contextFileCount === 1 ? 'archivo' : 'archivos'}`} icon={<FileText className="h-4 w-4" />} />
-              <StatusRow
-                label="Número de teléfono"
-                value={
-                  phoneQuery.data?.status === "active"
-                    ? (phoneQuery.data.phoneNumber ?? "Asignado")
-                    : phoneQuery.data?.status === "failed"
-                      ? "Error"
-                      : phoneQuery.data?.status === "purchased"
-                        ? "Pendiente de vincular"
-                        : "Pendiente"
-                }
-                icon={<Smartphone className="h-4 w-4" />}
-              />
-            </div>
-
-            {phoneQuery.data && phoneQuery.data.status !== "active" && (
-              (business.subscriptionStatus === "ACTIVE" || business.subscriptionStatus === "TRIALING") ? (
-                <button
-                  type="button"
-                  onClick={() => provisionMutation.mutate()}
-                  disabled={provisionMutation.isPending}
-                  className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg border border-[#e5e5e5] bg-white px-3 py-2 text-sm font-medium text-[#27272a] transition hover:bg-[#fafafa] disabled:opacity-60"
-                >
-                  <RefreshCw className={`h-4 w-4 ${provisionMutation.isPending ? "animate-spin" : ""}`} />
-                  {provisionMutation.isPending ? "Reintentando..." : "Reintentar asignación de número"}
-                </button>
-              ) : (
-                <div className="mt-3 rounded-lg border border-[#f5d3d3] bg-[#fff1f1] px-3 py-2.5 text-center text-sm font-medium text-[#c53030]">
-                  Elige tu plan para desbloquear el teléfono
-                </div>
-              )
-            )}
-
-            {calendarStatus && (
-              <div className={`mt-4 rounded-xl border px-4 py-3 text-sm font-medium ${calendarStatus.type === 'success' ? 'border-[#d8efd7] bg-[#ecf7ec] text-[#2c7334]' : 'border-[#f5d3d3] bg-[#fff1f1] text-[#c53030]'}`}>
-                {calendarStatus.message}
-              </div>
-            )}
-          </article>
-        </aside>
-      </section>
-
-      {hasCalendar ? (
-        <div className="grid gap-4 sm:gap-6 lg:grid-cols-2">
-          <RecentCalls />
-          <UpcomingCalendarEvents
-            businessId={business.id}
-            timeZone={business.timezone || "Europe/Madrid"}
-            onReconnectRequired={(provider) => handleReconnectRequired(provider)}
-          />
+      {calendarStatus ? (
+        <div
+          role="status"
+          className={`rounded-2xl border px-4 py-3 text-sm font-medium ${
+            calendarStatus.type === "success"
+              ? "border-[#d8efd7] bg-[#ecf7ec] text-[#2c7334]"
+              : "border-[#f5d3d3] bg-[#fff1f1] text-[#c53030]"
+          }`}
+        >
+          {calendarStatus.message}
         </div>
-      ) : (
-        <>
-          <RecentCalls />
-          <button
-            type="button"
-            onClick={() => router.push("/ajustes?section=calendar-section")}
-            className="group flex w-full items-center justify-between rounded-xl border border-[#e5e5e5] bg-white p-4 text-left transition duration-200 hover:-translate-y-0.5 hover:border-[#ddd6fe] sm:p-5"
-          >
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#f3eeff] text-[#8b5cf6]">
-                <CalendarDays className="h-5 w-5" />
-              </div>
-              <div>
-                <p className="text-sm font-semibold text-[#0a0a0a]">Conecta tu calendario</p>
-                <p className="text-sm text-muted">Elige Google Calendar o Outlook para agendar citas automáticamente.</p>
-              </div>
-            </div>
-            <span className="inline-flex items-center gap-1 text-sm font-semibold text-[#52525b] transition group-hover:text-[#0a0a0a]">
-              Conectar
-              <ArrowRight className="h-4 w-4 transition group-hover:translate-x-0.5" />
-            </span>
-          </button>
-        </>
-      )}
+      ) : null}
 
-      <section id="agent-configuration" className="panel scroll-mt-32 border-[#ddd6fe] bg-[#f3eeff] p-4 sm:p-5">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div className="flex items-center gap-3">
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-[#8b5cf6]">
-              <FileText className="h-5 w-5" />
-            </span>
-            <div>
-              <h2 className="text-base font-semibold text-[#0a0a0a] sm:text-lg">
-                Documentos del agente
-              </h2>
-              <p className="mt-1 text-sm leading-6 text-muted">
-                PDFs, tarifas y FAQs que el agente consulta durante las llamadas.
-              </p>
-            </div>
-          </div>
-          {contextFileCount > 0 ? (
-            <button
-              type="button"
-              onClick={openFilePicker}
-              disabled={isUploading || !agent}
-              className="btn-secondary h-10 shrink-0 px-4"
-            >
-              {isUploading ? 'Subiendo...' : <><Upload className="h-4 w-4" />Añadir otro</>}
-            </button>
-          ) : null}
-        </div>
-        <input
-          type="file"
-          ref={fileInputRef}
-          onChange={handleFileUpload}
-          className="hidden"
-          accept={AGENT_FILE_ACCEPT}
+      {/* Sin desvío no entra ni una llamada: mientras falte, es lo primero que
+          hay que resolver, por delante de cualquier métrica. */}
+      {forwarding && forwarding.status !== "done" ? (
+        <CallForwardingCard forwarding={forwarding} />
+      ) : null}
+
+      {/* Vercel puede publicar esta interfaz unos minutos antes de que Cloud
+          Run exponga la ventana `week`. Durante ese despliegue escalonado no
+          renderizamos un resumen con datos inexistentes. */}
+      {statsQuery.data?.week ? <WeeklySummary week={statsQuery.data.week} /> : null}
+
+      <div className="grid gap-4 sm:gap-6 lg:grid-cols-2">
+        <UpcomingBookings
+          timeZone={timeZone}
+          calendarProvider={activeCalendarProvider}
+          hasCalendar={hasCalendar}
         />
-        {uploadStatus && (
-          <div className={`mt-4 text-sm ${uploadStatus.type === 'success' ? 'text-[#2c7334]' : 'text-[#c53030]'}`}>
-            {uploadStatus.message}
-          </div>
-        )}
-        {business.agents?.[0]?.files && business.agents[0].files.length > 0 ? (
-          <ul className="mt-4 space-y-2">
-            {business.agents[0].files.map((file) => (
-              <li key={file.id} className="flex items-center justify-between gap-3 rounded-xl bg-white px-3 py-2 text-sm">
-                <span className="truncate">{file.name}</span>
-                <span className="shrink-0 rounded-full bg-[#fafafa] px-2 py-1 text-xs font-semibold text-[#52525b]">Contexto</span>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <div className="mt-4 flex flex-col items-center gap-3 rounded-xl border border-dashed border-[#ddd6fe] bg-white px-4 py-6 text-center sm:flex-row sm:text-left">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#f3eeff] text-[#8b5cf6]">
-              <Upload className="h-5 w-5" />
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-semibold text-[#27272a]">Aún no hay documentos</p>
-              <p className="mt-1 text-sm text-muted">PDFs, tarifas o FAQs para que el agente responda con contexto real.</p>
-            </div>
-            <button
-              type="button"
-              onClick={openFilePicker}
-              disabled={isUploading || !agent}
-              className="btn-secondary h-10 shrink-0 px-4"
-            >
-              {isUploading ? 'Subiendo...' : <><Upload className="h-4 w-4" />Subir el primero</>}
-            </button>
-          </div>
-        )}
-      </section>
+        <RecentCalls />
+      </div>
     </div>
   );
 }

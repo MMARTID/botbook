@@ -1,6 +1,9 @@
 import axios from "axios";
 import type {
   Agent,
+  AgendaResponse,
+  BusinessStats,
+  PendingBooking,
   BookingProfessional,
   BookingProfessionalInput,
   BookingService,
@@ -19,7 +22,6 @@ import type {
   PlaceDetails,
   PlaceSearchResult,
   DemoPlaceSearchResult,
-  UpcomingCalendarEventsResponse,
 } from "./types";
 
 export const api = axios.create({
@@ -68,13 +70,24 @@ export async function updateMyBusiness(payload: Partial<Business>) {
 }
 
 export async function getStats() {
-  const { data } = await api.get<{
-    totalCalls: number;
-    totalMinutes: number;
-    leads: number;
-    bookings: number;
-  }>("/business/me/stats");
+  const { data } = await api.get<BusinessStats>("/business/me/stats");
   return data;
+}
+
+/** Próximas citas reservadas por el agente, con cliente y servicios resueltos. */
+export async function getAgenda(days = 7, limit = 20) {
+  const { data } = await api.get<AgendaResponse>("/business/me/agenda", {
+    params: { days, limit },
+  });
+  return data;
+}
+
+/** Citas que se cayeron por un fallo técnico y siguen sin resolverse. */
+export async function getPendingBookings() {
+  const { data } = await api.get<{ pendingBookings: PendingBooking[] }>(
+    "/business/me/pending-bookings"
+  );
+  return data.pendingBookings;
 }
 
 export async function getBillingSummary() {
@@ -150,14 +163,6 @@ export async function getMicrosoftCalendarAuthUrl() {
 
 export async function connectMicrosoftCalendar(calendarId: string) {
   const { data } = await api.post<Business>("/calendar/auth/microsoft/connect", { calendarId });
-  return data;
-}
-
-export async function getUpcomingCalendarEvents(limit = 15) {
-  const { data } = await api.get<UpcomingCalendarEventsResponse>("/calendar/events/upcoming", {
-    params: { limit },
-  });
-
   return data;
 }
 
@@ -257,6 +262,13 @@ export async function getOnboardingState() {
 
 export async function dismissOnboarding() {
   const { data } = await api.post<{ dismissedAt: string | null }>("/business/me/onboarding/dismiss");
+  return data;
+}
+
+export async function confirmForwarding() {
+  const { data } = await api.post<{ confirmedAt: string | null }>(
+    "/business/me/onboarding/confirm-forwarding"
+  );
   return data;
 }
 

@@ -142,6 +142,11 @@ model OnboardingState {
   businessId  String    @unique
   dismissedAt DateTime?
   completedAt DateTime?
+  // El desvío se activa en el terminal del negocio, fuera de nuestro alcance:
+  // no hay forma de comprobarlo por API. Se da por hecho cuando entra la
+  // primera llamada real; hasta entonces, esto guarda que el usuario dijo
+  // haberlo activado.
+  forwardingConfirmedAt DateTime?
   steps       Json?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
@@ -228,6 +233,10 @@ model Service {
   businessId        String
   name              String
   durationMinutes   Int
+  // Precio en céntimos, opcional: un negocio puede trabajar sin tarifa
+  // publicada. Cuando está, el panel puede estimar los ingresos de las citas
+  // reservadas sin inventar una tarifa cuando el negocio no la ha fijado.
+  priceCents        Int?
   active            Boolean               @default(true)
   createdAt         DateTime              @default(now())
   updatedAt         DateTime              @updatedAt
@@ -276,6 +285,15 @@ model Call {
   sentiment    CallSentiment?
   summary      String?      @db.Text
   successful   Boolean?
+  // Los tres campos siguientes ya los calculaba Retell en cada llamada y se
+  // descartaban al parsear el webhook. Responden al «por qué no se reservó»,
+  // que es la pregunta que el negocio se hace ante una llamada sin cita.
+  escalationReason CallEscalationReason?
+  toolFailureDetected Boolean?
+  // Nombre del servicio pedido. No es enum: las opciones se generan con los
+  // servicios reales de cada negocio (buildRequestedServiceAnalysisField), así
+  // que el valor solo tiene sentido dentro de ese negocio.
+  requestedService String?
   durationSecs Int?
   costCents    Int?
   startedAt    DateTime     @default(now())
@@ -406,6 +424,20 @@ enum CallSentiment {
   POSITIVE
   NEUTRAL
   NEGATIVE
+}
+
+/**
+ * Motivo por el que una llamada acabó escalada o con una reserva sin
+ * completar. Lo clasifica Retell en post_call_analysis_data — ver
+ * ESCALATION_REASON_FIELD en lib/agentBootstrap.ts, que define estas mismas
+ * opciones; si se cambian ahí, hay que cambiarlas aquí.
+ */
+enum CallEscalationReason {
+  CLIENTE_LO_PIDIO
+  FALLO_TECNICO
+  FUERA_DE_HORARIO
+  CONSULTA_COMPLEJA
+  NO_APLICA
 }
 
 enum SubscriptionStatus {

@@ -110,10 +110,12 @@ describe("BusinessHoursEditor", () => {
     expect(addButton).toBeDisabled();
   });
 
-  it("no permite eliminar el último tramo de un día abierto", () => {
+  it("no ofrece eliminar el último tramo de un día abierto", () => {
     renderEditor();
 
-    expect(screen.getByLabelText("Eliminar tramo")).toBeDisabled();
+    // Con un solo tramo el botón no se pinta: un control deshabilitado ocupaba
+    // sitio en la fila y empujaba las horas fuera del ancho en móvil.
+    expect(screen.queryByLabelText("Eliminar tramo")).not.toBeInTheDocument();
   });
 
   it("elimina un tramo cuando hay más de uno", async () => {

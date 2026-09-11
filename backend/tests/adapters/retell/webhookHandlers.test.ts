@@ -416,5 +416,88 @@ describe("Retell webhook handlers", () => {
 
       expect(result.success).toBe(false);
     });
+
+    it("guarda el motivo de escalado, el fallo de herramienta y el servicio pedido", async () => {
+      mockedCallFindUnique.mockResolvedValue({
+        id: "call_123",
+        businessId: "business_123",
+      } as any);
+
+      await handleCallAnalyzed({
+        event_type: "call_analyzed",
+        data: {
+          call_id: "retell_call_123",
+          agent_id: "retell_agent_123",
+          call_analysis: {
+            custom_analysis_data: {
+              call_outcome: "ESCALATED",
+              escalation_reason: "FUERA_DE_HORARIO",
+              tool_failure_detected: true,
+              requested_service_type: "Decoloración",
+            },
+          },
+        },
+      });
+
+      expect(mockedCallUpdate).toHaveBeenCalledWith({
+        where: { id: "call_123" },
+        data: expect.objectContaining({
+          outcome: "ESCALATED",
+          escalationReason: "FUERA_DE_HORARIO",
+          toolFailureDetected: true,
+          requestedService: "Decoloración",
+        }),
+      });
+    });
+
+    it("no guarda NO_APLICA como servicio pedido: equivale a no haber pedido ninguno", async () => {
+      mockedCallFindUnique.mockResolvedValue({
+        id: "call_123",
+        businessId: "business_123",
+      } as any);
+
+      await handleCallAnalyzed({
+        event_type: "call_analyzed",
+        data: {
+          call_id: "retell_call_123",
+          agent_id: "retell_agent_123",
+          call_analysis: {
+            custom_analysis_data: {
+              call_outcome: "RESOLVED",
+              requested_service_type: "NO_APLICA",
+            },
+          },
+        },
+      });
+
+      expect(mockedCallUpdate.mock.calls[0][0].data).not.toHaveProperty(
+        "requestedService"
+      );
+    });
+
+    it("descarta un motivo de escalado que no esté en la lista conocida", async () => {
+      mockedCallFindUnique.mockResolvedValue({
+        id: "call_123",
+        businessId: "business_123",
+      } as any);
+
+      await handleCallAnalyzed({
+        event_type: "call_analyzed",
+        data: {
+          call_id: "retell_call_123",
+          agent_id: "retell_agent_123",
+          call_analysis: {
+            custom_analysis_data: {
+              call_outcome: "RESOLVED",
+              escalation_reason: "INVENTADO_POR_EL_MODELO",
+            },
+          },
+        },
+      });
+
+      expect(mockedCallUpdate.mock.calls[0][0].data).not.toHaveProperty(
+        "escalationReason"
+      );
+    });
   });
 });
