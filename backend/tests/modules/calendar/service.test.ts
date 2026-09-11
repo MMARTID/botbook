@@ -33,6 +33,9 @@ vi.mock("../../../src/adapters/vapi/VapiAdapter.js", () => ({
 vi.mock("../../../src/adapters/retell/RetellAdapter.js", () => ({
   retellAdapter: {
     updateLlm: vi.fn(),
+    getAgent: vi.fn(),
+    createAgentVersion: vi.fn(),
+    publishAgent: vi.fn(),
   },
 }));
 
@@ -87,6 +90,11 @@ const mockedBusinessUpdate = vi.mocked(prisma.business.update);
 const mockedVapiGetAssistant = vi.mocked(vapiAdapter.getAssistant);
 const mockedVapiUpdateAssistant = vi.mocked(vapiAdapter.updateAssistant);
 const mockedRetellUpdateLlm = vi.mocked(retellAdapter.updateLlm);
+const mockedRetellGetAgent = vi.mocked(retellAdapter.getAgent);
+const mockedRetellCreateAgentVersion = vi.mocked(
+  retellAdapter.createAgentVersion
+);
+const mockedRetellPublishAgent = vi.mocked(retellAdapter.publishAgent);
 const mockedGetPublicWebhookBaseUrl = vi.mocked(getPublicWebhookBaseUrl);
 const mockedGoogleCalendar = vi.mocked(google.calendar);
 const mockedGetRedis = vi.mocked(getRedis);
@@ -939,6 +947,25 @@ describe("CalendarService.syncCalendarToolsToAgents", () => {
       id: "business_123",
       orchestrator: "vapi",
     } as any);
+    mockedRetellGetAgent.mockImplementation(async (_agentId, version) => ({
+      version: version ?? 3,
+      is_published: true,
+      response_engine: {
+        type: "retell-llm",
+        llm_id: "retell_llm_789",
+        version: version ?? 3,
+      },
+    }) as any);
+    mockedRetellCreateAgentVersion.mockResolvedValue({
+      version: 4,
+      is_published: false,
+      response_engine: {
+        type: "retell-llm",
+        llm_id: "retell_llm_789",
+        version: 4,
+      },
+    } as any);
+    mockedRetellPublishAgent.mockResolvedValue(undefined);
   });
 
   it("actualiza los agentes con las herramientas de calendario", async () => {
@@ -1004,6 +1031,7 @@ describe("CalendarService.syncCalendarToolsToAgents", () => {
     expect(mockedRetellUpdateLlm).toHaveBeenCalledWith(
       "retell_llm_789",
       expect.objectContaining({
+        version: 4,
         tools: expect.arrayContaining([
           expect.objectContaining({
             name: "get_catalog",
@@ -1018,6 +1046,49 @@ describe("CalendarService.syncCalendarToolsToAgents", () => {
         ]),
       })
     );
+    expect(mockedRetellCreateAgentVersion).toHaveBeenCalledWith(
+      "retell_agent_456",
+      3
+    );
+    expect(mockedRetellPublishAgent).toHaveBeenCalledWith(
+      "retell_agent_456",
+      4,
+      "Herramientas de calendario gestionadas por Alhabla"
+    );
+    expect(mockedRetellGetAgent).toHaveBeenLastCalledWith(
+      "retell_agent_456",
+      4
+    );
+  });
+
+  it("falla en modo estricto si Retell no confirma que publicó las tools", async () => {
+    mockedBusinessFindUnique.mockResolvedValue({
+      id: "business_123",
+      orchestrator: "retell",
+    } as any);
+    mockedAgentFindMany.mockResolvedValue([
+      {
+        id: "agent_123",
+        businessId: "business_123",
+        retellAgentId: "retell_agent_456",
+        retellLlmId: "retell_llm_789",
+      },
+    ] as any);
+    mockedGetPublicWebhookBaseUrl.mockReturnValue("https://example.com");
+    mockedRetellUpdateLlm.mockResolvedValue({} as any);
+    mockedRetellGetAgent.mockImplementation(async (_agentId, version) => ({
+      version: version ?? 3,
+      is_published: version === undefined,
+      response_engine: {
+        type: "retell-llm",
+        llm_id: "retell_llm_789",
+        version: version ?? 3,
+      },
+    }) as any);
+
+    await expect(
+      calendarService.syncCalendarToolsToAgents("business_123", { strict: true })
+    ).rejects.toThrow("No se pudieron sincronizar las tools de calendario");
   });
 
   it("habla durante disponibilidad y reserva, sin narrar la lectura del catálogo", async () => {

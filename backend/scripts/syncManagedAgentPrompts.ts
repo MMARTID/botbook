@@ -65,6 +65,10 @@ async function main() {
           // este flag solo permite que reciba las mejoras seguras de plataforma.
           ...(includeManual ? {} : { onlyManagedPrompts: true }),
           onlyActive: true,
+          // En la ejecución de producción no aceptamos un falso positivo:
+          // si las tools no pueden publicarse y verificarse en Retell, el
+          // proceso termina con error y Cloud Build no lo marca como listo.
+          strictCalendarTools: process.env.NODE_ENV === "production",
         });
         console.log(`[AgentPromptSync] Sincronizado ${business.name} (${business.id})`);
       } catch (error) {

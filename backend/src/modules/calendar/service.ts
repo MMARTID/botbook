@@ -740,16 +740,30 @@ export class CalendarService {
     ];
   }
 
-  async syncCalendarToolsToAgents(businessId: string) {
+  async syncCalendarToolsToAgents(
+    businessId: string,
+    options?: { strict?: boolean }
+  ) {
+    const errors: Error[] = [];
+    const recordError = (message: string, error?: unknown) => {
+      if (!options?.strict) return;
+      errors.push(
+        error instanceof Error ? error : new Error(message)
+      );
+    };
+
     const business = await prisma.business.findUnique({
       where: { id: businessId },
       select: { orchestrator: true },
     });
 
     if (!business) {
-      console.error(
-        `[Calendar] No se encontró negocio ${businessId} para sincronizar tools`
-      );
+      const message = `[Calendar] No se encontró negocio ${businessId} para sincronizar tools`;
+      console.error(message);
+      recordError(message);
+      if (errors.length > 0) {
+        throw new AggregateError(errors, message);
+      }
       return;
     }
 
@@ -761,17 +775,18 @@ export class CalendarService {
     for (const agent of agents) {
       if (orchestrator === "retell" && agent.retellLlmId) {
         if (!agent.retellAgentId) {
-          console.error(
-            `[Calendar] Agente ${agent.id} tiene retellLlmId pero no retellAgentId; no se pueden registrar tools`
-          );
+          const message = `[Calendar] Agente ${agent.id} tiene retellLlmId pero no retellAgentId; no se pueden registrar tools`;
+          console.error(message);
+          recordError(message);
           continue;
         }
 
         const baseUrl = getPublicWebhookBaseUrl();
         if (!baseUrl) {
-          console.error(
-            "[Calendar] No hay URL pública configurada (BASE_URL o ngrok); no se pueden sincronizar tools de Retell"
-          );
+          const message =
+            "[Calendar] No hay URL pública configurada (BASE_URL o ngrok); no se pueden sincronizar tools de Retell";
+          console.error(message);
+          recordError(message);
           continue;
         }
 
@@ -780,14 +795,63 @@ export class CalendarService {
             baseUrl,
             agent.retellAgentId
           );
-          await retellAdapter.updateLlm(agent.retellLlmId, {
+          // Las versiones publicadas de Retell son inmutables. Al reconectar
+          // un calendario (o al regenerar sus tools) hay que trabajar sobre
+          // un borrador y publicarlo después; actualizar el LLM almacenado en
+          // la BD sin versión intentaba modificar la versión publicada y
+          // Retell lo rechazaba con 400.
+          const currentAgent = await retellAdapter.getAgent(
+            agent.retellAgentId
+          );
+          const editableAgent = currentAgent.is_published
+            ? await retellAdapter.createAgentVersion(
+                agent.retellAgentId,
+                currentAgent.version
+              )
+            : currentAgent;
+
+          if (!Number.isInteger(editableAgent.version)) {
+            throw new Error(
+              `Retell no devolvió una versión editable para el agente ${agent.retellAgentId}.`
+            );
+          }
+          if (editableAgent.response_engine.type !== "retell-llm") {
+            throw new Error(
+              `El agente ${agent.retellAgentId} no usa un Retell LLM editable.`
+            );
+          }
+
+          await retellAdapter.updateLlm(editableAgent.response_engine.llm_id, {
             tools: retellTools,
+            version: editableAgent.response_engine.version ?? undefined,
           });
+
+          if (!editableAgent.is_published) {
+            await retellAdapter.publishAgent(
+              agent.retellAgentId,
+              editableAgent.version,
+              "Herramientas de calendario gestionadas por Alhabla"
+            );
+            const publishedAgent = await retellAdapter.getAgent(
+              agent.retellAgentId,
+              editableAgent.version
+            );
+            if (!publishedAgent.is_published) {
+              throw new Error(
+                `Retell no confirmó la publicación de las tools en la versión ${editableAgent.version} del agente ${agent.retellAgentId}.`
+              );
+            }
+          }
+
           console.log(
-            `[Calendar] Tools de calendario sincronizadas en Retell LLM ${agent.retellLlmId}`
+            `[Calendar] Tools de calendario publicadas y verificadas en Retell LLM ${editableAgent.response_engine.llm_id}`
           );
         } catch (e) {
           console.error(
+            `[Calendar] Error inyectando tools de calendario en Retell LLM ${agent.retellLlmId}`,
+            e
+          );
+          recordError(
             `[Calendar] Error inyectando tools de calendario en Retell LLM ${agent.retellLlmId}`,
             e
           );
@@ -829,10 +893,21 @@ export class CalendarService {
             `[Calendar] Error inyectando tools de calendario en Vapi assistant ${agent.vapiAssistantId}`,
             e
           );
+          recordError(
+            `[Calendar] Error inyectando tools de calendario en Vapi assistant ${agent.vapiAssistantId}`,
+            e
+          );
         }
 
         continue;
       }
+    }
+
+    if (errors.length > 0) {
+      throw new AggregateError(
+        errors,
+        `No se pudieron sincronizar las tools de calendario de ${errors.length} agente(s).`
+      );
     }
   }
 

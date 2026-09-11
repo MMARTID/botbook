@@ -293,6 +293,10 @@ export async function publishRetellAgentUpdate(
       `Retell no confirmó la publicación de la versión ${updatedAgent.version} del agente ${agentId}.`
     );
   }
+  console.log("[Agent] Versión de Retell publicada y verificada", {
+    agentId,
+    version: updatedAgent.version,
+  });
 }
 
 type RetellEditableDraft = {
@@ -903,7 +907,12 @@ export async function syncAgentNameWithBusinessType(args: {
 export async function syncAgentToRetell(
   businessId: string,
   prismaClient: typeof prisma = prisma,
-  options?: { onlyManagedPrompts?: boolean; onlyActive?: boolean }
+  options?: {
+    onlyManagedPrompts?: boolean;
+    onlyActive?: boolean;
+    /** El job de despliegue debe fallar si Retell no confirma las tools. */
+    strictCalendarTools?: boolean;
+  }
 ): Promise<void> {
   const business = await prismaClient.business.findUnique({
     where: { id: businessId },
@@ -1040,5 +1049,7 @@ export async function syncAgentToRetell(
     );
   }
 
-  await calendarService.syncCalendarToolsToAgents(businessId);
+  await calendarService.syncCalendarToolsToAgents(businessId, {
+    strict: options?.strictCalendarTools,
+  });
 }
