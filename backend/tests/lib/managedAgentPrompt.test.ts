@@ -120,4 +120,50 @@ describe("parseAgentSettings — voiceGender", () => {
 
     expect(parsed.voiceGender).toBe("masculina");
   });
+
+  it("añade español a configuraciones guardadas antes de los idiomas sin perder ajustes", () => {
+    const parsed = parseAgentSettings({
+      version: 1,
+      tone: "professional",
+      primaryGoal: "customer_service",
+      responseStyle: "balanced",
+      escalation: "request_callback",
+      voiceGender: "masculina",
+    });
+
+    expect(parsed.languages).toEqual(["es-ES"]);
+    expect(parsed.voiceGender).toBe("masculina");
+    expect(parsed.tone).toBe("professional");
+  });
+
+  it("rechaza una selección sin español o con idiomas repetidos", () => {
+    expect(parseAgentSettings({ ...DEFAULT_AGENT_SETTINGS, languages: ["ca-ES"] })).toEqual(DEFAULT_AGENT_SETTINGS);
+    expect(parseAgentSettings({ ...DEFAULT_AGENT_SETTINGS, languages: ["es-ES", "ca-ES", "ca-ES"] })).toEqual(DEFAULT_AGENT_SETTINGS);
+  });
+});
+
+describe("buildManagedAgentPrompt — idiomas", () => {
+  it("conserva la instrucción monolingüe de español por defecto", () => {
+    const prompt = buildManagedAgentPrompt({
+      businessName: "Peluquería Ejemplo",
+      settings: DEFAULT_AGENT_SETTINGS,
+    });
+
+    expect(prompt).toContain("Habla siempre en español de España");
+  });
+
+  it("indica saludo español y cambio automático para inglés, francés y catalán", () => {
+    const prompt = buildManagedAgentPrompt({
+      businessName: "Peluquería Ejemplo",
+      settings: {
+        ...DEFAULT_AGENT_SETTINGS,
+        languages: ["es-ES", "en-GB", "fr-FR", "ca-ES"],
+      },
+    });
+
+    expect(prompt).toContain("Empieza siempre con el saludo en español de España");
+    expect(prompt).toContain("inglés, francés, catalán");
+    expect(prompt).toContain("acompaña el cambio sin pedirle que elija uno");
+    expect(prompt).not.toContain("Habla siempre en español de España");
+  });
 });

@@ -1,6 +1,42 @@
 import { z } from "zod";
 import type { BusinessType } from "./businessType.js";
 
+/**
+ * Idiomas que Alhabla permite configurar hoy. Se usan como locales concretos
+ * de Retell, nunca como el valor legado `multi`, para que el reconocimiento
+ * no abra idiomas que el negocio no atiende.
+ */
+export const RETELL_AGENT_LANGUAGES = [
+  "es-ES",
+  "en-GB",
+  "fr-FR",
+  "ca-ES",
+] as const;
+
+export type RetellAgentLanguage = (typeof RETELL_AGENT_LANGUAGES)[number];
+
+const AgentLanguagesSchema = z
+  .array(z.enum(RETELL_AGENT_LANGUAGES))
+  .min(1)
+  .max(RETELL_AGENT_LANGUAGES.length)
+  .superRefine((languages, context) => {
+    if (!languages.includes("es-ES")) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "El español de España debe estar siempre activo.",
+      });
+    }
+    if (new Set(languages).size !== languages.length) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "No se puede seleccionar un idioma más de una vez.",
+      });
+    }
+  })
+  .transform((languages) =>
+    RETELL_AGENT_LANGUAGES.filter((language) => languages.includes(language))
+  );
+
 export const AgentSettingsSchema = z.object({
   version: z.literal(1),
   tone: z.enum(["warm", "professional", "direct"]),
@@ -11,6 +47,9 @@ export const AgentSettingsSchema = z.object({
   // (sin este campo) sigan validando y no caigan al fallback completo de
   // DEFAULT_AGENT_SETTINGS, que resetearía también tono/objetivo/etc.
   voiceGender: z.enum(["femenina", "masculina"]).default("femenina"),
+  // Igual que voiceGender, los negocios anteriores a esta mejora no tienen
+  // languages. El default conserva el comportamiento histórico: español.
+  languages: AgentLanguagesSchema.default(["es-ES"]),
 });
 
 export type AgentSettings = z.infer<typeof AgentSettingsSchema>;
@@ -22,7 +61,19 @@ export const DEFAULT_AGENT_SETTINGS: AgentSettings = {
   responseStyle: "concise",
   escalation: "take_message",
   voiceGender: "femenina",
+  languages: ["es-ES"],
 };
+
+/** Retell normaliza un array de un solo idioma a un escalar. Enviarlo así
+ * conserva su ruta monolingüe, que es la de mayor precisión. */
+export function toRetellLanguageSetting(
+  languages: readonly RetellAgentLanguage[]
+): RetellAgentLanguage | RetellAgentLanguage[] {
+  const normalized = RETELL_AGENT_LANGUAGES.filter((language) =>
+    languages.includes(language)
+  );
+  return normalized.length === 1 ? normalized[0] : normalized;
+}
 
 const TONE_INSTRUCTIONS: Record<AgentSettings["tone"], string> = {
   warm: "Habla con cercanía, empatía y naturalidad, manteniendo un tono profesional.",
@@ -90,6 +141,22 @@ function buildRestrictionsFragment(input: {
   return parts.length > 0 ? parts.join(" ") : null;
 }
 
+function buildLanguageInstruction(settings: AgentSettings): string {
+  if (settings.languages.length === 1) {
+    return "Habla siempre en español de España; no menciones que eres una IA salvo que te lo pregunten.";
+  }
+
+  const labels: Record<RetellAgentLanguage, string> = {
+    "es-ES": "español de España",
+    "en-GB": "inglés",
+    "fr-FR": "francés",
+    "ca-ES": "catalán",
+  };
+  const enabledLanguages = settings.languages.map((language) => labels[language]).join(", ");
+
+  return `Empieza siempre con el saludo en español de España. Tras la primera intervención de quien llama, responde y continúa exclusivamente en el idioma que use si es uno de estos: ${enabledLanguages}. Si cambia entre esos idiomas, acompaña el cambio sin pedirle que elija uno. No menciones que eres una IA salvo que te lo pregunten.`;
+}
+
 export function buildManagedAgentPrompt(input: {
   businessName: string;
   businessDetails?: string | null;
@@ -107,7 +174,8 @@ export function buildManagedAgentPrompt(input: {
 
   return [
     "## Rol",
-    "Eres la recepcionista virtual de {{nombre_negocio}}. Habla siempre en español de España; no menciones que eres una IA salvo que te lo pregunten.",
+    "Eres la recepcionista virtual de {{nombre_negocio}}.",
+    buildLanguageInstruction(settings),
     TONE_INSTRUCTIONS[settings.tone],
     GOAL_INSTRUCTIONS[settings.primaryGoal],
     responseInstruction,

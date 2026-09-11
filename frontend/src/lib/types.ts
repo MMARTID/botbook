@@ -23,7 +23,10 @@ export type AgentSettings = {
   responseStyle: "concise" | "balanced";
   escalation: "take_message" | "request_callback";
   voiceGender: "femenina" | "masculina";
+  languages: AgentLanguage[];
 };
+
+export type AgentLanguage = "es-ES" | "en-GB" | "fr-FR" | "ca-ES";
 
 export type BusinessType =
   | "peluqueria"

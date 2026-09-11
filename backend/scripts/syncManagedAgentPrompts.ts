@@ -6,7 +6,9 @@
  *
  * Añade --dry-run para listar los negocios sin modificar Retell, o
  * --business <id> para limitar la operación a un negocio concreto.
- * Nunca toca agentes inactivos ni con promptManuallyEdited=true.
+ * Por defecto no toca los agentes con promptManuallyEdited=true. Con
+ * --include-manual conserva su prompt manual y actualiza solo su configuración
+ * transversal (voz, fallback, idioma, análisis y herramientas).
  */
 import { prisma } from "../src/lib/prisma.js";
 import { syncAgentToRetell } from "../src/lib/agentBootstrap.js";
@@ -20,6 +22,7 @@ function readArgument(name: string): string | undefined {
 
 async function main() {
   const dryRun = process.argv.includes("--dry-run");
+  const includeManual = process.argv.includes("--include-manual");
   const businessId = readArgument("--business");
   let cursor: string | undefined;
   let processed = 0;
@@ -35,7 +38,10 @@ async function main() {
             active: true,
             retellAgentId: { not: null },
             retellLlmId: { not: null },
-            promptManuallyEdited: false,
+            // La actualización de voz debe alcanzar también negocios cuyos
+            // agentes sean todos manuales. syncAgentToRetell conserva su
+            // texto y actualiza solo la configuración transversal.
+            ...(includeManual ? {} : { promptManuallyEdited: false }),
           },
         },
       },
@@ -55,7 +61,9 @@ async function main() {
 
       try {
         await syncAgentToRetell(business.id, prisma, {
-          onlyManagedPrompts: true,
+          // syncAgentToRetell nunca reescribe el texto de un agente manual;
+          // este flag solo permite que reciba las mejoras seguras de plataforma.
+          ...(includeManual ? {} : { onlyManagedPrompts: true }),
           onlyActive: true,
         });
         console.log(`[AgentPromptSync] Sincronizado ${business.name} (${business.id})`);

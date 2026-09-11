@@ -108,7 +108,11 @@ export interface CreateRetellAgentInput {
   name: string;
   voiceId: string;
   llmId: string;
-  language?: string;
+  language?: string | string[];
+  voiceModel?: "eleven_v3" | "sonic-3.5";
+  /** Fallbacks ordenados y de proveedores distintos al principal. Retell
+   * pasa al siguiente solo ante una caída real del TTS. */
+  fallbackVoiceIds?: string[];
   webhookUrl?: string;
   timezone?: string;
   postCallAnalysisData?: RetellAnalysisField[];
@@ -288,6 +292,8 @@ export class RetellAdapter {
         llm_id: input.llmId,
       },
       language: (input.language || "es-ES") as any,
+      voice_model: input.voiceModel,
+      fallback_voice_ids: input.fallbackVoiceIds,
       webhook_url: input.webhookUrl,
       timezone: input.timezone || "Europe/Madrid",
       post_call_analysis_data: input.postCallAnalysisData,
@@ -320,6 +326,12 @@ export class RetellAdapter {
     }
     if (input.voiceId !== undefined) {
       updatePayload.voice_id = input.voiceId;
+    }
+    if (input.voiceModel !== undefined) {
+      updatePayload.voice_model = input.voiceModel;
+    }
+    if (input.fallbackVoiceIds !== undefined) {
+      updatePayload.fallback_voice_ids = input.fallbackVoiceIds;
     }
     if (input.llmId !== undefined) {
       updatePayload.response_engine = {

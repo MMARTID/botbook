@@ -22,6 +22,7 @@ import {
   buildManagedAgentPrompt,
   parseAgentSettings,
   DEFAULT_AGENT_SETTINGS,
+  toRetellLanguageSetting,
   type AgentSettings,
 } from "./managedAgentPrompt.js";
 import { calendarService } from "../modules/calendar/service.js";
@@ -203,7 +204,8 @@ export const DEFAULT_AGENT_CONFIG: AgentTemplateConfig = {
 };
 
 export const DEFAULT_RETELL_AGENT_CONFIG = {
-  voiceId: "custom_voice_4d8c043e79b567a286898349d2",
+  voiceId: "cartesia-Isabel",
+  voiceModel: "sonic-3.5" as const,
   model: "gpt-5.6-luna" as const,
   modelTemperature: 0.3,
   language: "es-ES" as const,
@@ -254,8 +256,65 @@ export const RETELL_VOICE_ID_BY_GENDER: Record<
   string
 > = {
   femenina: DEFAULT_RETELL_AGENT_CONFIG.voiceId,
-  masculina: "13ff5deb-2591-42ad-a356-63a04e524411",
+  masculina: "cartesia-Manuel",
 };
+
+type RetellVoiceProfile = {
+  voiceId: string;
+  voiceModel: "eleven_v3" | "sonic-3.5";
+  fallbackVoiceIds: string[];
+  voiceProvider: "cartesia" | "elevenlabs";
+};
+
+/**
+ * Cadenas fijas ya validadas contra la API de Retell. Cartesia ofrece la
+ * voz española principal para es/en/fr y, si el negocio activa catalán,
+ * se cambia a ElevenLabs porque Retell rechaza ca-ES con Cartesia. MiniMax
+ * queda como último proveedor distinto y compatible con los cuatro idiomas.
+ */
+const RETELL_VOICE_PROFILES: Record<
+  AgentSettings["voiceGender"],
+  { default: RetellVoiceProfile; catalan: RetellVoiceProfile }
+> = {
+  femenina: {
+    default: {
+      voiceId: "cartesia-Isabel",
+      voiceModel: "sonic-3.5",
+      fallbackVoiceIds: [
+        "11labs-Hailey-Latin-America-Spanish-localized",
+        "minimax-Camille",
+      ],
+      voiceProvider: "cartesia",
+    },
+    catalan: {
+      voiceId: "11labs-Hailey-Latin-America-Spanish-localized",
+      voiceModel: "eleven_v3",
+      fallbackVoiceIds: ["minimax-Camille"],
+      voiceProvider: "elevenlabs",
+    },
+  },
+  masculina: {
+    default: {
+      voiceId: "cartesia-Manuel",
+      voiceModel: "sonic-3.5",
+      fallbackVoiceIds: ["11labs-Santiago", "minimax-Louis"],
+      voiceProvider: "cartesia",
+    },
+    catalan: {
+      voiceId: "11labs-Santiago",
+      voiceModel: "eleven_v3",
+      fallbackVoiceIds: ["minimax-Louis"],
+      voiceProvider: "elevenlabs",
+    },
+  },
+};
+
+export function resolveRetellVoiceProfile(settings: unknown): RetellVoiceProfile {
+  const parsed = parseAgentSettings(settings);
+  return parsed.languages.includes("ca-ES")
+    ? RETELL_VOICE_PROFILES[parsed.voiceGender].catalan
+    : RETELL_VOICE_PROFILES[parsed.voiceGender].default;
+}
 
 /**
  * Devuelve un nombre legible para el agente basado en el tipo de negocio.
@@ -500,12 +559,22 @@ export function buildRetellAgentPayload(input: {
   // aunque el negocio hubiera elegido la masculina (hallazgo #26 de la
   // auditoría).
   voiceId?: string;
+  voiceModel?: RetellVoiceProfile["voiceModel"];
+  fallbackVoiceIds?: string[];
+  languages?: AgentSettings["languages"];
 }) {
   return {
     name: buildSafeVapiAssistantName(input.name),
     voiceId: input.voiceId ?? DEFAULT_RETELL_AGENT_CONFIG.voiceId,
     llmId: input.llmId,
-    language: DEFAULT_RETELL_AGENT_CONFIG.language,
+    language: toRetellLanguageSetting(
+      input.languages ?? DEFAULT_AGENT_SETTINGS.languages
+    ),
+    // No enviar undefined como una actualización vacía: PATCH /agents/:id
+    // puede editar solo el saludo de una voz elegida manualmente y Retell debe
+    // conservar su modelo y sus fallbacks ya configurados.
+    voiceModel: input.voiceModel,
+    fallbackVoiceIds: input.fallbackVoiceIds,
     webhookUrl: input.webhookUrl,
     timezone: DEFAULT_RETELL_AGENT_CONFIG.timezone,
     postCallAnalysisData: input.postCallAnalysisData ?? [
@@ -533,7 +602,15 @@ export async function createBusinessAgent(args: {
 
   const business = await client.business.findUnique({
     where: { id: args.businessId },
-    select: { orchestrator: true, businessType: true, name: true },
+    select: {
+      orchestrator: true,
+      businessType: true,
+      name: true,
+      businessDetails: true,
+      agentSettings: true,
+      minAdvanceBookingMinutes: true,
+      maxAppointmentDurationMinutes: true,
+    },
   });
 
   const businessType =
@@ -542,11 +619,24 @@ export async function createBusinessAgent(args: {
   const orchestrator = business?.orchestrator || "retell";
   const displayName = buildAgentDisplayName(args.name, businessType);
 
-  const config = getAgentTemplateForBusinessType(
+  const templateConfig = getAgentTemplateForBusinessType(
     businessType,
     displayName,
     args.name
   );
+  const agentSettings = parseAgentSettings(business?.agentSettings);
+  const voiceProfile = resolveRetellVoiceProfile(agentSettings);
+  const config = {
+    ...templateConfig,
+    systemPrompt: buildManagedAgentPrompt({
+      businessName: business?.name ?? args.name,
+      businessDetails: business?.businessDetails,
+      businessType,
+      settings: agentSettings,
+      minAdvanceBookingMinutes: business?.minAdvanceBookingMinutes,
+      maxAppointmentDurationMinutes: business?.maxAppointmentDurationMinutes,
+    }),
+  };
 
   const agent = await client.agent.create({
     data: buildAgentPersistencePayload({
@@ -582,6 +672,10 @@ export async function createBusinessAgent(args: {
           llmId: retellLlm.llm_id,
           webhookUrl,
           postCallAnalysisData,
+          voiceId: voiceProfile.voiceId,
+          voiceModel: voiceProfile.voiceModel,
+          fallbackVoiceIds: voiceProfile.fallbackVoiceIds,
+          languages: agentSettings.languages,
         })
       );
 
@@ -590,7 +684,8 @@ export async function createBusinessAgent(args: {
         data: {
           retellAgentId: retellAgent.agent_id,
           retellLlmId: retellLlm.llm_id,
-          voiceId: DEFAULT_RETELL_AGENT_CONFIG.voiceId,
+          voiceId: voiceProfile.voiceId,
+          voiceProvider: voiceProfile.voiceProvider,
         },
       });
 
@@ -812,8 +907,9 @@ export async function syncAgentToRetell(
     ...services.map((service) => service.name),
     ...professionals.map((professional) => professional.name),
   ];
-  const { voiceGender } = parseAgentSettings(business.agentSettings);
-  const voiceId = RETELL_VOICE_ID_BY_GENDER[voiceGender];
+  const agentSettings = parseAgentSettings(business.agentSettings);
+  const voiceProfile = resolveRetellVoiceProfile(agentSettings);
+  const voiceId = voiceProfile.voiceId;
 
   for (const agent of agents) {
     if (options?.onlyManagedPrompts && agent.promptManuallyEdited) continue;
@@ -836,6 +932,9 @@ export async function syncAgentToRetell(
       await retellAdapter.updateAgent(agent.retellAgentId!, {
         postCallAnalysisData,
         voiceId,
+        voiceModel: voiceProfile.voiceModel,
+        fallbackVoiceIds: voiceProfile.fallbackVoiceIds,
+        language: toRetellLanguageSetting(agentSettings.languages),
         interruptionSensitivity:
           DEFAULT_RETELL_AGENT_CONFIG.interruptionSensitivity,
         dataStorageRetentionDays:
@@ -847,8 +946,8 @@ export async function syncAgentToRetell(
       await prismaClient.agent.update({
         where: { id: agent.id },
         data: agent.promptManuallyEdited
-          ? { voiceId }
-          : { systemPrompt, voiceId },
+          ? { voiceId, voiceProvider: voiceProfile.voiceProvider }
+          : { systemPrompt, voiceId, voiceProvider: voiceProfile.voiceProvider },
       });
     } catch (error) {
       console.error("[Agent] Failed to sync agent to Retell:", {

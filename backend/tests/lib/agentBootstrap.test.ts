@@ -4,11 +4,13 @@ import {
   syncAgentToRetell,
   createBusinessAgent,
   RETELL_VOICE_ID_BY_GENDER,
+  resolveRetellVoiceProfile,
 } from "../../src/lib/agentBootstrap.js";
 import { prisma } from "../../src/lib/prisma.js";
 import { retellAdapter } from "../../src/adapters/retell/RetellAdapter.js";
 import { calendarService } from "../../src/modules/calendar/service.js";
 import { DEFAULT_BUSINESS_SCHEDULE } from "../../src/lib/businessSchedule.js";
+import { DEFAULT_AGENT_SETTINGS } from "../../src/lib/managedAgentPrompt.js";
 
 vi.mock("../../src/lib/prisma.js", () => ({
   prisma: {
@@ -240,7 +242,7 @@ describe("syncAgentToRetell — voiceGender", () => {
       "retell_agent_1",
       expect.objectContaining({ voiceId: RETELL_VOICE_ID_BY_GENDER.masculina })
     );
-    expect(RETELL_VOICE_ID_BY_GENDER.masculina).toBe("13ff5deb-2591-42ad-a356-63a04e524411");
+    expect(RETELL_VOICE_ID_BY_GENDER.masculina).toBe("cartesia-Manuel");
   });
 
   it("empuja retención de 30 días, stt_mode accurate, y boostedKeywords con nombres reales de servicios/profesionales", async () => {
@@ -268,6 +270,38 @@ describe("syncAgentToRetell — voiceGender", () => {
         sttMode: "accurate",
         boostedKeywords: ["Corte", "Coloración", "Marta"],
         piiCategories: ["person_name", "phone_number", "email", "address"],
+      })
+    );
+  });
+
+  it("cambia a la cadena compatible con catalán y conserva el idioma en Retell", async () => {
+    mockedBusinessFindUnique.mockResolvedValue({
+      name: "Peluquería catalana",
+      businessDetails: null,
+      businessType: "peluqueria",
+      agentSettings: {
+        version: 1,
+        tone: "warm",
+        primaryGoal: "bookings",
+        responseStyle: "concise",
+        escalation: "take_message",
+        voiceGender: "femenina",
+        languages: ["es-ES", "ca-ES", "en-GB", "fr-FR"],
+      },
+      orchestrator: "retell",
+      minAdvanceBookingMinutes: null,
+      maxAppointmentDurationMinutes: null,
+    } as any);
+
+    await syncAgentToRetell("biz_catalan");
+
+    expect(mockedUpdateAgent).toHaveBeenCalledWith(
+      "retell_agent_1",
+      expect.objectContaining({
+        language: ["es-ES", "en-GB", "fr-FR", "ca-ES"],
+        voiceId: "11labs-Hailey-Latin-America-Spanish-localized",
+        voiceModel: "eleven_v3",
+        fallbackVoiceIds: ["minimax-Camille"],
       })
     );
   });
@@ -316,7 +350,10 @@ describe("syncAgentToRetell — voiceGender", () => {
     expect(mockedAgentUpdate).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { id: "agent_db_1" },
-        data: { voiceId: RETELL_VOICE_ID_BY_GENDER.femenina },
+        data: {
+          voiceId: RETELL_VOICE_ID_BY_GENDER.femenina,
+          voiceProvider: "cartesia",
+        },
       })
     );
   });
@@ -343,6 +380,29 @@ describe("syncAgentToRetell — voiceGender", () => {
     await syncAgentToRetell("biz_managed");
 
     expect(mockedUpdateLlm).toHaveBeenCalledWith("retell_llm_1", expect.objectContaining({ generalPrompt: expect.any(String) }));
+  });
+});
+
+describe("resolveRetellVoiceProfile", () => {
+  it("usa Cartesia y dos fallbacks de proveedores distintos sin catalán", () => {
+    expect(resolveRetellVoiceProfile({ ...DEFAULT_AGENT_SETTINGS, voiceGender: "masculina" })).toEqual({
+      voiceId: "cartesia-Manuel",
+      voiceModel: "sonic-3.5",
+      fallbackVoiceIds: ["11labs-Santiago", "minimax-Louis"],
+      voiceProvider: "cartesia",
+    });
+  });
+
+  it("usa ElevenLabs y MiniMax cuando el negocio activa catalán", () => {
+    expect(resolveRetellVoiceProfile({
+      ...DEFAULT_AGENT_SETTINGS,
+      languages: ["es-ES", "ca-ES"],
+    })).toEqual({
+      voiceId: "11labs-Hailey-Latin-America-Spanish-localized",
+      voiceModel: "eleven_v3",
+      fallbackVoiceIds: ["minimax-Camille"],
+      voiceProvider: "elevenlabs",
+    });
   });
 });
 

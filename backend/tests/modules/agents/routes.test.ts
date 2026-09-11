@@ -119,4 +119,56 @@ describe("PATCH /agents/:id — conserva la voz elegida (hallazgo #26 de la audi
       expect.objectContaining({ voiceId: MASCULINE_VOICE_ID })
     );
   });
+
+  it("fuerza una cadena compatible y coherente al editar una voz con catalán activo", async () => {
+    mockedBusinessFindUnique.mockResolvedValue({
+      orchestrator: "retell",
+      agentSettings: {
+        version: 1,
+        tone: "warm",
+        primaryGoal: "bookings",
+        responseStyle: "concise",
+        escalation: "take_message",
+        voiceGender: "femenina",
+        languages: ["es-ES", "ca-ES"],
+      },
+    } as any);
+    mockedAgentFindUnique.mockResolvedValue({
+      id: "agent_1",
+      businessId: "biz_1",
+      name: "Asistente",
+      systemPrompt: "prompt actual",
+      voiceId: "cartesia-Isabel",
+      retellAgentId: "retell_agent_1",
+      retellLlmId: "retell_llm_1",
+    } as any);
+    mockedAgentUpdate.mockResolvedValue({ id: "agent_1" } as any);
+
+    const response = await fastify.inject({
+      method: "PATCH",
+      url: "/agents/agent_1",
+      // Cartesia no es compatible con ca-ES en Retell: el backend debe
+      // ignorar este valor y mantener el perfil seguro del negocio.
+      payload: { voiceId: "cartesia-Isabel" },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(mockedAgentUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          voiceId: "11labs-Hailey-Latin-America-Spanish-localized",
+          voiceProvider: "elevenlabs",
+        }),
+      })
+    );
+    expect(mockedUpdateAgent).toHaveBeenCalledWith(
+      "retell_agent_1",
+      expect.objectContaining({
+        voiceId: "11labs-Hailey-Latin-America-Spanish-localized",
+        voiceModel: "eleven_v3",
+        fallbackVoiceIds: ["minimax-Camille"],
+        language: ["es-ES", "ca-ES"],
+      })
+    );
+  });
 });

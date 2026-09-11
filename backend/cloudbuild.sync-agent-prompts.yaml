@@ -28,7 +28,11 @@ steps:
         done
         [ -S "$$SOCKET" ]
         npm ci
-        npx tsx scripts/syncManagedAgentPrompts.ts
+        if [ "${_INCLUDE_MANUAL}" = "true" ]; then
+          npx tsx scripts/syncManagedAgentPrompts.ts --include-manual
+        else
+          npx tsx scripts/syncManagedAgentPrompts.ts
+        fi
     secretEnv: ["DATABASE_URL", "RETELL_API_KEY"]
 
 availableSecrets:
@@ -37,3 +41,8 @@ availableSecrets:
       env: "DATABASE_URL"
     - versionName: projects/project-84381467-a606-4b71-a6e/secrets/RETELL_API_KEY/versions/latest
       env: "RETELL_API_KEY"
+
+substitutions:
+  # En una actualización de infraestructura de voz se activa explícitamente
+  # para no dejar desprotegidos agentes con prompts editados a mano.
+  _INCLUDE_MANUAL: "false"

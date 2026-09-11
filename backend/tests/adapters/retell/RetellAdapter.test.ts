@@ -236,6 +236,28 @@ describe("RetellAdapter", () => {
       );
     });
 
+    it("envía locales explícitos y los fallbacks de voz al crear un agente multilingüe", async () => {
+      mocks.agentCreate.mockResolvedValue({ agent_id: "agent_123" });
+
+      const adapter = new RetellAdapter();
+      await adapter.createAgent({
+        name: "Asistente multilingüe",
+        voiceId: "11labs-Cleo",
+        voiceModel: "eleven_v3",
+        fallbackVoiceIds: ["minimax-Camille"],
+        llmId: "llm_123",
+        language: ["es-ES", "ca-ES", "en-GB", "fr-FR"],
+      });
+
+      expect(mocks.agentCreate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          language: ["es-ES", "ca-ES", "en-GB", "fr-FR"],
+          voice_model: "eleven_v3",
+          fallback_voice_ids: ["minimax-Camille"],
+        })
+      );
+    });
+
     it("incluye interruption_sensitivity cuando se especifica", async () => {
       mocks.agentCreate.mockResolvedValue({ agent_id: "agent_123" });
 
@@ -341,6 +363,26 @@ describe("RetellAdapter", () => {
       expect(mocks.agentUpdate).toHaveBeenCalledWith(
         "agent_123",
         expect.objectContaining({ interruption_sensitivity: 0.5 })
+      );
+    });
+
+    it("actualiza el idioma, modelo y cadena de fallback cuando se especifican", async () => {
+      mocks.agentUpdate.mockResolvedValue({ agent_id: "agent_123" });
+
+      const adapter = new RetellAdapter();
+      await adapter.updateAgent("agent_123", {
+        language: ["es-ES", "ca-ES"],
+        voiceModel: "eleven_v3",
+        fallbackVoiceIds: ["minimax-Camille"],
+      });
+
+      expect(mocks.agentUpdate).toHaveBeenCalledWith(
+        "agent_123",
+        expect.objectContaining({
+          language: ["es-ES", "ca-ES"],
+          voice_model: "eleven_v3",
+          fallback_voice_ids: ["minimax-Camille"],
+        })
       );
     });
 
