@@ -97,7 +97,10 @@ export async function agentsRoutes(fastify: FastifyInstance) {
     async (request: FastifyRequest, reply) => {
       try {
         const agents = await prisma.agent.findMany({
-          where: { businessId: request.user!.businessId },
+          where: {
+            businessId: request.user!.businessId,
+            deletedAt: null,
+          },
         });
         return reply.send(agents);
       } catch (error) {
@@ -112,14 +115,18 @@ export async function agentsRoutes(fastify: FastifyInstance) {
     { preValidation: [fastify.authenticate] },
     async (request: FastifyRequest<{ Params: { id: string } }>, reply) => {
       try {
-        const agent = await prisma.agent.findUnique({
-          where: { id: request.params.id },
+        const agent = await prisma.agent.findFirst({
+          where: {
+            id: request.params.id,
+            businessId: request.user!.businessId,
+            deletedAt: null,
+          },
           include: {
             calls: { take: 5, orderBy: { createdAt: "desc" } },
           },
         });
 
-        if (!agent || agent.businessId !== request.user!.businessId) {
+        if (!agent) {
           return reply.status(404).send({ error: "Agent not found" });
         }
 
@@ -146,11 +153,15 @@ export async function agentsRoutes(fastify: FastifyInstance) {
     ) => {
       try {
         const data = UpdateAgentSchema.parse(request.body);
-        const agent = await prisma.agent.findUnique({
-          where: { id: request.params.id },
+        const agent = await prisma.agent.findFirst({
+          where: {
+            id: request.params.id,
+            businessId: request.user!.businessId,
+            deletedAt: null,
+          },
         });
 
-        if (!agent || agent.businessId !== request.user!.businessId) {
+        if (!agent) {
           return reply.status(404).send({ error: "Agent not found" });
         }
 
@@ -386,57 +397,29 @@ export async function agentsRoutes(fastify: FastifyInstance) {
     }
   );
 
-  // Delete agent
+  // Retiramos el agente sin borrar llamadas ni la configuración remota. Así
+  // se preserva la trazabilidad y las llamadas históricas siguen resolviendo
+  // su agente original; el webhook entrante solo selecciona agentes activos.
   fastify.delete<{ Params: { id: string } }>(
     "/agents/:id",
     { preValidation: [fastify.authenticate] },
     async (request: FastifyRequest<{ Params: { id: string } }>, reply) => {
       try {
-        const agent = await prisma.agent.findUnique({
-          where: { id: request.params.id },
+        const agent = await prisma.agent.findFirst({
+          where: {
+            id: request.params.id,
+            businessId: request.user!.businessId,
+            deletedAt: null,
+          },
         });
 
-        if (!agent || agent.businessId !== request.user!.businessId) {
+        if (!agent) {
           return reply.status(404).send({ error: "Agent not found" });
         }
 
-        const business = await prisma.business.findUnique({
-          where: { id: agent.businessId },
-          select: { orchestrator: true },
-        });
-        const orchestrator = business?.orchestrator || "retell";
-
-        if (orchestrator === "retell") {
-          if (agent.retellAgentId) {
-            try {
-              await retellAdapter.deleteAgent(agent.retellAgentId);
-            } catch (retellError) {
-              console.error(
-                "[Agent] Failed to delete Retell agent:",
-                retellError
-              );
-            }
-          }
-          if (agent.retellLlmId) {
-            try {
-              await retellAdapter.deleteLlm(agent.retellLlmId);
-            } catch (retellError) {
-              console.error(
-                "[Agent] Failed to delete Retell LLM:",
-                retellError
-              );
-            }
-          }
-        } else if (agent.vapiAssistantId) {
-          try {
-            await vapiAdapter.deleteAssistant(agent.vapiAssistantId);
-          } catch (vapiError) {
-            console.error("[Agent] Failed to delete from Vapi:", vapiError);
-          }
-        }
-
-        await prisma.agent.delete({
-          where: { id: request.params.id },
+        await prisma.agent.update({
+          where: { id: agent.id },
+          data: { active: false, deletedAt: new Date() },
         });
 
         return reply.status(204).send();

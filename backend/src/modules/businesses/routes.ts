@@ -195,6 +195,7 @@ export async function businessesRoutes(fastify: FastifyInstance) {
           where: { id: request.user!.businessId },
           include: {
             agents: {
+              where: { deletedAt: null },
               select: {
                 id: true,
                 name: true,
@@ -206,9 +207,11 @@ export async function businessesRoutes(fastify: FastifyInstance) {
               },
             },
             services: {
+              where: { deletedAt: null },
               orderBy: [{ active: 'desc' }, { name: 'asc' }],
             },
             professionals: {
+              where: { deletedAt: null },
               orderBy: [{ active: 'desc' }, { name: 'asc' }],
               include: {
                 serviceLinks: {
@@ -277,7 +280,10 @@ export async function businessesRoutes(fastify: FastifyInstance) {
         }
 
         const agents = await prisma.agent.findMany({
-          where: { businessId: request.user!.businessId }
+          where: {
+            businessId: request.user!.businessId,
+            deletedAt: null,
+          },
         });
 
         // Mantiene el prompt libre del usuario y añade siempre el horario en un bloque estructurado estable.

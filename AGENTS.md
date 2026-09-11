@@ -63,7 +63,7 @@ Each module is a folder containing a `routes.ts` file (and optionally `service.t
 | `calls` | *(none)* | Yes | Call logs, transcripts, outcomes (paginated) |
 | `recordings` | *(none)* | Yes | Recording metadata, review notes |
 | `calendar` | `/calendar` | Yes* | Google/Outlook OAuth, list events, book appointments |
-| `bookings` | `/booking-settings` | Yes | Services, professionals, booking capacity |
+| `bookings` | `/booking-settings` | Yes | CRUD de servicios y profesionales, asignaciones y capacidad de reserva; las retiradas son lógicas |
 | `billing` | `/billing` | Yes* | Stripe checkout, portal, subscription summary, webhooks |
 | `phone` | `/phone` | Yes | Telnyx phone number status, manual provisioning retry |
 | `places` | *(none)* | Yes | Google Places autocomplete & details |
@@ -328,7 +328,7 @@ The schema lives in `backend/prisma/schema.prisma`. Key models:
 - `Booking` — outcome extracted from a call; stores `professionalId`, `serviceIds` (array — since 2026-09-05 a booking can cover several services, e.g. "corte y mechas") and `durationMinutes` to track who performs the appointment and how long it lasts. `professionalId`/`serviceIds` supplied by the LLM are verified to belong to the business before being trusted (`voiceTools/service.ts`) — they are not enforced at the DB/FK level.
 - `Transcript` / `Recording` — call artifacts. Recording has `storageKey` and `storageUrl` for R2.
 - `Lead` — structured lead data captured during a call. `type: "pending_booking"` rows are created by `voiceTools/service.ts` when `book_appointment` fails, holding the attempted booking payload so it's never lost; `resolvedAt` is set once `jobs/retryFailedBooking.ts` confirms the booking in the background (still `null` if retries are exhausted or the failure needs a manual calendar reconnect).
-- `Service` / `Professional` / `ProfessionalService` — booking catalog (many-to-many between professionals and services). `Service.priceCents` is optional: a business may work without a published tariff, and the dashboard only estimates revenue for bookings whose services all have a price.
+- `Service` / `Professional` / `ProfessionalService` — booking catalog (many-to-many between professionals and services). `Service.priceCents` is optional: a business may work without a published tariff, and the dashboard only estimates revenue for bookings whose services all have a price. `Service` and `Professional` use `deletedAt` plus `active: false` for logical deletion; their `ProfessionalService` rows are auxiliary and may be deleted physically when an assignment or resource is retired.
 - `OnboardingState` — per-business onboarding state. Tracks `dismissedAt`, `completedAt`, `forwardingConfirmedAt` and optional step metadata. The actual step completion is computed live from `Business.schedule`, `Service`, `Professional`, calendar connection state and call history (see Onboarding Flow).
 - `StripeWebhookEvent` — idempotency guard for Stripe webhooks.
 
@@ -581,9 +581,26 @@ Once the order succeeds, the number is imported into Retell via `retellAdapter.i
 
 ### Models
 
-- `Service` — `name`, `durationMinutes` (5–480), `active`.
-- `Professional` — `name`, `active`.
+- `Service` — `name`, `durationMinutes` (5–480), `active`, `deletedAt`.
+- `Professional` — `name`, `active`, `deletedAt`.
 - `ProfessionalService` — many-to-many link with `assignedAt`.
+
+### CRUD de configuración (`/booking-settings`)
+
+Los handlers de `routes.ts` son la capa controller del proyecto; la lógica de
+persistencia y sincronización vive en `service.ts`, y los contratos Zod en
+`schemas.ts`. Todos los recursos se limitan al `businessId` del JWT.
+
+- `GET`/`PATCH /` — configuración agregada y capacidad.
+- `GET`/`POST`/`PATCH`/`DELETE /services/:id` — catálogo de servicios.
+- `GET`/`POST`/`PATCH`/`DELETE /professionals/:id` — equipo y sus servicios.
+
+`DELETE` nunca destruye un `Service` o `Professional`: marca `deletedAt` y
+`active: false`, retira solo las filas auxiliares de `ProfessionalService`,
+invalida la caché de voz y resincroniza los agentes Retell no eliminados. Las citas
+y llamadas conservan sus referencias históricas. `Call`, `Booking`, `Lead`,
+`Transcript`, pagos y eventos Stripe no tienen CRUD público: son registros
+operativos o de auditoría creados por sus flujos específicos.
 
 ### Business Schedule (`backend/src/lib/businessSchedule.ts`)
 
@@ -922,7 +939,7 @@ Separate suite (`npm run test:integration`, config `backend/vitest.integration.c
 
 ### Implementation Notes
 
-- **`DELETE /recordings/:id`** deletes the object from R2/S3 using `deleteStorageObject` before removing the Prisma row. Failures in R2 are logged but do not block the DB deletion.
+- **`DELETE /recordings/:id`** es un borrado lógico: establece `deletedAt` y la oculta de las lecturas del negocio, sin borrar el objeto de R2/S3 ni la fila histórica. La purga física de audio debe quedar en una política de retención explícita, no en una acción de UI.
 - **`PATCH /business/me`** rebuilds the managed agent prompt and synchronizes it to every agent: Vapi agents in parallel via `Promise.all` (to avoid request timeouts), and Retell-backed businesses via `syncAgentToRetell` (see Retell Configuration). Before this, Retell-backed businesses (the only ones that matter in production — Vapi is inactive) never actually received prompt updates from this route; only Vapi did.
 - **Onboarding flow:** `backend/src/modules/onboarding/routes.ts` exposes `GET /business/me/onboarding`, `POST /business/me/onboarding/dismiss` and `POST /business/me/onboarding/complete`. The `/ajustes` page consumes these endpoints to show/persist the setup guide state. Step completion is computed live from business data; only `dismissedAt`/`completedAt` are persisted.
 

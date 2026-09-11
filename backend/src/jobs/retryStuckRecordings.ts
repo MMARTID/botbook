@@ -30,6 +30,7 @@ export async function retryStuckRecordingsJob(): Promise<void> {
   const stuckRecordings = await prisma.recording.findMany({
     where: {
       storageKey: null,
+      deletedAt: null,
       createdAt: { lt: threshold },
     },
     select: {

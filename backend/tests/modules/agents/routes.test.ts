@@ -8,9 +8,8 @@ import { getPublicWebhookBaseUrl } from "../../../src/lib/serverUrl.js";
 vi.mock("../../../src/lib/prisma.js", () => ({
   prisma: {
     agent: {
-      findUnique: vi.fn(),
+      findFirst: vi.fn(),
       update: vi.fn(),
-      delete: vi.fn(),
       findMany: vi.fn(),
     },
     business: {
@@ -45,7 +44,7 @@ vi.mock("../../../src/lib/serverUrl.js", () => ({
   getPublicWebhookBaseUrl: vi.fn(),
 }));
 
-const mockedAgentFindUnique = vi.mocked(prisma.agent.findUnique);
+const mockedAgentFindFirst = vi.mocked(prisma.agent.findFirst);
 const mockedAgentUpdate = vi.mocked(prisma.agent.update);
 const mockedBusinessFindUnique = vi.mocked(prisma.business.findUnique);
 const mockedUpdateLlm = vi.mocked(retellAdapter.updateLlm);
@@ -97,7 +96,7 @@ describe("PATCH /agents/:id — conserva la voz elegida (hallazgo #26 de la audi
 
   it("no resetea la voz masculina a la femenina por defecto al editar solo el saludo", async () => {
     const MASCULINE_VOICE_ID = "13ff5deb-2591-42ad-a356-63a04e524411";
-    mockedAgentFindUnique.mockResolvedValue({
+    mockedAgentFindFirst.mockResolvedValue({
       id: "agent_1",
       businessId: "biz_1",
       name: "Asistente",
@@ -130,7 +129,7 @@ describe("PATCH /agents/:id — conserva la voz elegida (hallazgo #26 de la audi
   it("sí cambia la voz cuando el PATCH la indica explícitamente", async () => {
     const FEMININE_VOICE_ID = "538a8872-3799-4df5-b373-b78493b766c6";
     const MASCULINE_VOICE_ID = "13ff5deb-2591-42ad-a356-63a04e524411";
-    mockedAgentFindUnique.mockResolvedValue({
+    mockedAgentFindFirst.mockResolvedValue({
       id: "agent_1",
       businessId: "biz_1",
       name: "Asistente",
@@ -167,7 +166,7 @@ describe("PATCH /agents/:id — conserva la voz elegida (hallazgo #26 de la audi
         languages: ["es-ES", "ca-ES"],
       },
     } as any);
-    mockedAgentFindUnique.mockResolvedValue({
+    mockedAgentFindFirst.mockResolvedValue({
       id: "agent_1",
       businessId: "biz_1",
       name: "Asistente",
@@ -204,5 +203,39 @@ describe("PATCH /agents/:id — conserva la voz elegida (hallazgo #26 de la audi
         language: ["es-ES", "ca-ES"],
       })
     );
+  });
+
+  it("retira un agente de forma lógica y conserva su configuración remota", async () => {
+    mockedAgentFindFirst.mockResolvedValue({
+      id: "agent_1",
+      businessId: "biz_1",
+      retellAgentId: "retell_agent_1",
+      retellLlmId: "retell_llm_1",
+      active: true,
+    } as any);
+    mockedAgentUpdate.mockResolvedValue({ id: "agent_1" } as any);
+
+    const response = await fastify.inject({
+      method: "DELETE",
+      url: "/agents/agent_1",
+    });
+
+    expect(response.statusCode).toBe(204);
+    expect(mockedAgentFindFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          businessId: "biz_1",
+          deletedAt: null,
+        }),
+      })
+    );
+    expect(mockedAgentUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "agent_1" },
+        data: expect.objectContaining({ active: false, deletedAt: expect.any(Date) }),
+      })
+    );
+    expect(retellAdapter.deleteAgent).not.toHaveBeenCalled();
+    expect(retellAdapter.deleteLlm).not.toHaveBeenCalled();
   });
 });

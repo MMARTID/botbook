@@ -16,9 +16,19 @@ export async function processRecordingJob(data: ProcessRecordingJob): Promise<vo
   try {
     const { callId, vapiUrl, businessId } = data;
 
-    const call = await prisma.call.findUnique({ where: { id: callId } });
+    const [call, pendingRecording] = await Promise.all([
+      prisma.call.findUnique({ where: { id: callId } }),
+      prisma.recording.findFirst({
+        where: { callId, deletedAt: null },
+        select: { id: true },
+      }),
+    ]);
     if (!call) {
       throw new Error(`Call ${callId} not found`);
+    }
+    if (!pendingRecording) {
+      console.log(`[Job] Recording ${callId} was logically deleted; skipping`);
+      return;
     }
 
     console.log(`[Job] Downloading recording from: ${vapiUrl}`);

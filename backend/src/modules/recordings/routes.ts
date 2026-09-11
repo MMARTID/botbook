@@ -1,7 +1,7 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import { z } from "zod";
 import { prisma } from "../../lib/prisma.js";
-import { deleteStorageObject, getSignedRecordingUrl } from "../../lib/storage.js";
+import { getSignedRecordingUrl } from "../../lib/storage.js";
 
 const UpdateRecordingSchema = z.object({
   reviewed: z.boolean().optional(),
@@ -48,6 +48,7 @@ export async function recordingsRoutes(fastify: FastifyInstance) {
 
         const recordings = await prisma.recording.findMany({
           where: {
+            deletedAt: null,
             call: {
               businessId,
             },
@@ -66,6 +67,7 @@ export async function recordingsRoutes(fastify: FastifyInstance) {
 
         const total = await prisma.recording.count({
           where: {
+            deletedAt: null,
             call: {
               businessId,
             },
@@ -92,8 +94,12 @@ export async function recordingsRoutes(fastify: FastifyInstance) {
     { preValidation: [fastify.authenticate] },
     async (request: FastifyRequest<{ Params: { callId: string } }>, reply) => {
       try {
-        const recording = await prisma.recording.findUnique({
-          where: { callId: request.params.callId },
+        const recording = await prisma.recording.findFirst({
+          where: {
+            callId: request.params.callId,
+            deletedAt: null,
+            call: { businessId: request.user!.businessId },
+          },
           include: {
             call: {
               include: {
@@ -104,7 +110,7 @@ export async function recordingsRoutes(fastify: FastifyInstance) {
           },
         });
 
-        if (!recording || recording.call.businessId !== request.user!.businessId) {
+        if (!recording) {
           return reply.status(404).send({ error: "Recording not found" });
         }
 
@@ -121,8 +127,12 @@ export async function recordingsRoutes(fastify: FastifyInstance) {
     { preValidation: [fastify.authenticate] },
     async (request: FastifyRequest<{ Params: { id: string } }>, reply) => {
       try {
-        const recording = await prisma.recording.findUnique({
-          where: { id: request.params.id },
+        const recording = await prisma.recording.findFirst({
+          where: {
+            id: request.params.id,
+            deletedAt: null,
+            call: { businessId: request.user!.businessId },
+          },
           include: {
             call: {
               include: {
@@ -133,7 +143,7 @@ export async function recordingsRoutes(fastify: FastifyInstance) {
           },
         });
 
-        if (!recording || recording.call.businessId !== request.user!.businessId) {
+        if (!recording) {
           return reply.status(404).send({ error: "Recording not found" });
         }
 
@@ -158,17 +168,21 @@ export async function recordingsRoutes(fastify: FastifyInstance) {
       try {
         const data = UpdateRecordingSchema.parse(request.body);
 
-        const recording = await prisma.recording.findUnique({
-          where: { id: request.params.id },
+        const recording = await prisma.recording.findFirst({
+          where: {
+            id: request.params.id,
+            deletedAt: null,
+            call: { businessId: request.user!.businessId },
+          },
           include: { call: true },
         });
 
-        if (!recording || recording.call.businessId !== request.user!.businessId) {
+        if (!recording) {
           return reply.status(404).send({ error: "Recording not found" });
         }
 
         const updated = await prisma.recording.update({
-          where: { id: request.params.id },
+          where: { id: recording.id },
           data,
         });
 
@@ -184,33 +198,30 @@ export async function recordingsRoutes(fastify: FastifyInstance) {
     }
   );
 
-  // Delete recording
+  // La grabación es una evidencia histórica de la llamada: se retira del
+  // panel sin destruir el registro ni el objeto de R2. Su purga física debe
+  // obedecer a la política de retención, no a una acción accidental de UI.
   fastify.delete<{ Params: { id: string } }>(
     "/recordings/:id",
     { preValidation: [fastify.authenticate] },
     async (request: FastifyRequest<{ Params: { id: string } }>, reply) => {
       try {
-        const recording = await prisma.recording.findUnique({
-          where: { id: request.params.id },
+        const recording = await prisma.recording.findFirst({
+          where: {
+            id: request.params.id,
+            deletedAt: null,
+            call: { businessId: request.user!.businessId },
+          },
           include: { call: true },
         });
 
-        if (!recording || recording.call.businessId !== request.user!.businessId) {
+        if (!recording) {
           return reply.status(404).send({ error: "Recording not found" });
         }
 
-        // Eliminar del almacenamiento R2/S3 si existe storageKey
-        if (recording.storageKey) {
-          try {
-            await deleteStorageObject(recording.storageKey);
-          } catch (storageError) {
-            fastify.log.error({ err: storageError }, "[Recording] Failed to delete from storage");
-            // Continuamos para eliminar el registro de la BD aunque falle R2
-          }
-        }
-
-        await prisma.recording.delete({
-          where: { id: request.params.id },
+        await prisma.recording.update({
+          where: { id: recording.id },
+          data: { deletedAt: new Date() },
         });
 
         return reply.status(204).send();

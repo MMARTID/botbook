@@ -94,4 +94,27 @@ describe("GET /business/me/calls/:id", () => {
     expect(response.statusCode).toBe(200);
     expect(mockedGetSignedRecordingUrl).not.toHaveBeenCalled();
   });
+
+  it("no expone ni firma una grabación retirada lógicamente", async () => {
+    mockedCallFindUnique.mockResolvedValue({
+      id: "call_1",
+      businessId: "biz_1",
+      booking: null,
+      recording: {
+        id: "rec_1",
+        storageKey: "recordings/call_1.mp3",
+        storageUrl: "https://r2.example/unsigned-api-url",
+        deletedAt: new Date("2026-09-11T12:00:00.000Z"),
+      },
+    } as any);
+
+    const response = await fastify.inject({
+      method: "GET",
+      url: "/business/me/calls/call_1",
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json().recording).toBeNull();
+    expect(mockedGetSignedRecordingUrl).not.toHaveBeenCalled();
+  });
 });

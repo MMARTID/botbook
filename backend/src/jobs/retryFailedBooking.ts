@@ -145,7 +145,12 @@ export async function processRetryFailedBookingJob(
   let serviceNames: string[] = [];
   if (requestedServiceIds.length > 0) {
     const services = await prisma.service.findMany({
-      where: { id: { in: requestedServiceIds }, businessId: call.businessId },
+      where: {
+        id: { in: requestedServiceIds },
+        businessId: call.businessId,
+        active: true,
+        deletedAt: null,
+      },
       select: { id: true, name: true },
     });
     const serviceById = new Map(services.map((s) => [s.id, s.name]));
@@ -162,6 +167,7 @@ export async function processRetryFailedBookingJob(
         id: data_.professionalId,
         businessId: call.businessId,
         active: true,
+        deletedAt: null,
       },
       select: { id: true, name: true },
     });

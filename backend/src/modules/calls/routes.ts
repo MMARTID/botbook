@@ -117,7 +117,12 @@ export async function callsRoutes(fastify: FastifyInstance) {
           });
         }
 
-        const signedCall = await withSignedRecordingUrl(call);
+        // Una grabación retirada del panel no debe reaparecer por el detalle
+        // de llamada ni generar una URL firmada nueva.
+        const callWithVisibleRecording = call.recording?.deletedAt
+          ? { ...call, recording: null }
+          : call;
+        const signedCall = await withSignedRecordingUrl(callWithVisibleRecording);
 
         return reply.send({
           ...signedCall,

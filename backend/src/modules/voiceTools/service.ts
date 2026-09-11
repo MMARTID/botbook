@@ -476,13 +476,13 @@ async function executeGetCatalog(
   try {
     const [services, professionals] = await Promise.all([
       prisma.service.findMany({
-        where: { businessId: business.id, active: true },
+        where: { businessId: business.id, active: true, deletedAt: null },
         select: { id: true, name: true, durationMinutes: true },
         orderBy: { name: "asc" },
         take: MAX_CATALOG_ITEMS,
       }),
       prisma.professional.findMany({
-        where: { businessId: business.id, active: true },
+        where: { businessId: business.id, active: true, deletedAt: null },
         select: { id: true, name: true },
         orderBy: { name: "asc" },
         take: MAX_CATALOG_ITEMS,
@@ -785,6 +785,7 @@ async function executeBookAppointment(
           id: { in: requestedServiceIds },
           businessId: business.id,
           active: true,
+          deletedAt: null,
         },
         select: { id: true, name: true, durationMinutes: true },
       });
@@ -912,7 +913,12 @@ async function executeBookAppointment(
     let verifiedProfessionalName: string | undefined;
     if (professionalId) {
       const professional = await prisma.professional.findFirst({
-        where: { id: professionalId, businessId: business.id, active: true },
+        where: {
+          id: professionalId,
+          businessId: business.id,
+          active: true,
+          deletedAt: null,
+        },
         select: { id: true, name: true },
       });
       if (professional) {

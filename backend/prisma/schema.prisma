@@ -219,10 +219,15 @@ model Agent {
   // de ahí syncAgentToRetell debe dejar de reconstruir y sobrescribir el
   // prompt de este agente cuando cambien servicios/profesionales/ajustes.
   promptManuallyEdited Boolean @default(false)
+  // Un agente conserva sus llamadas y su configuración remota para poder
+  // auditar su historial. Al eliminarlo desde el panel se desactiva y se
+  // oculta, pero nunca se borra físicamente junto a esas llamadas.
+  deletedAt        DateTime?
   business         Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
   calls            Call[]
 
   @@index([businessId])
+  @@index([businessId, deletedAt])
   @@index([vapiAssistantId])
   @@index([retellAgentId])
   @@map("agents")
@@ -238,12 +243,16 @@ model Service {
   // reservadas sin inventar una tarifa cuando el negocio no la ha fijado.
   priceCents        Int?
   active            Boolean               @default(true)
+  // Las citas históricas guardan los IDs de los servicios. El borrado lógico
+  // permite seguir resolviendo su nombre y precio original en el historial.
+  deletedAt         DateTime?
   createdAt         DateTime              @default(now())
   updatedAt         DateTime              @updatedAt
   business          Business              @relation(fields: [businessId], references: [id], onDelete: Cascade)
   professionalLinks ProfessionalService[]
 
   @@index([businessId])
+  @@index([businessId, deletedAt])
   @@map("services")
 }
 
@@ -252,6 +261,9 @@ model Professional {
   businessId   String
   name         String
   active       Boolean               @default(true)
+  // Las citas históricas conservan la relación con el profesional aunque ya
+  // no trabaje en el negocio.
+  deletedAt    DateTime?
   createdAt    DateTime              @default(now())
   updatedAt    DateTime              @updatedAt
   business     Business              @relation(fields: [businessId], references: [id], onDelete: Cascade)
@@ -259,6 +271,7 @@ model Professional {
   bookings     Booking[]
 
   @@index([businessId])
+  @@index([businessId, deletedAt])
   @@map("professionals")
 }
 
@@ -381,11 +394,15 @@ model Recording {
   storageUrl  String?
   reviewed    Boolean  @default(false)
   reviewNotes String?
+  // La revisión o retirada desde el panel no destruye de inmediato un dato
+  // histórico. Las políticas de retención se encargan de la purga física.
+  deletedAt   DateTime?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   call        Call     @relation(fields: [callId], references: [id], onDelete: Cascade)
 
   @@map("recordings")
+  @@index([deletedAt])
 }
 
 model Lead {

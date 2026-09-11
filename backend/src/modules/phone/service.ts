@@ -126,7 +126,7 @@ export async function provisionPhoneNumber(businessId: string): Promise<{
     where: { id: businessId },
     include: {
       agents: {
-        where: { active: true },
+        where: { active: true, deletedAt: null },
         orderBy: { createdAt: "asc" },
         take: 1,
       },

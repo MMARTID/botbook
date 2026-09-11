@@ -127,7 +127,7 @@ export async function buildPostCallAnalysisDataForBusiness(
   prismaClient: typeof prisma = prisma
 ): Promise<RetellAnalysisField[]> {
   const services = await prismaClient.service.findMany({
-    where: { businessId, active: true },
+    where: { businessId, active: true, deletedAt: null },
     select: { name: true },
     orderBy: { name: "asc" },
   });
@@ -846,7 +846,7 @@ export async function syncAgentNameWithBusinessType(args: {
   if (!business) return;
 
   const agents = await client.agent.findMany({
-    where: { businessId: args.businessId },
+    where: { businessId: args.businessId, deletedAt: null },
     orderBy: { createdAt: "asc" },
     take: 1,
   });
@@ -932,6 +932,7 @@ export async function syncAgentToRetell(
   const agents = await prismaClient.agent.findMany({
     where: {
       businessId,
+      deletedAt: null,
       retellAgentId: { not: null },
       retellLlmId: { not: null },
       ...(options?.onlyActive ? { active: true } : {}),
@@ -943,13 +944,13 @@ export async function syncAgentToRetell(
   // estos servicios se cargan aquí solo para postCallAnalysisData y para
   // boostear la transcripción con los nombres reales del negocio.
   const services = await prismaClient.service.findMany({
-    where: { businessId, active: true },
+    where: { businessId, active: true, deletedAt: null },
     select: { name: true },
     orderBy: { name: "asc" },
   });
 
   const professionals = await prismaClient.professional.findMany({
-    where: { businessId, active: true },
+    where: { businessId, active: true, deletedAt: null },
     select: { name: true },
     orderBy: { name: "asc" },
   });

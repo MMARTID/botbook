@@ -6,13 +6,14 @@ import { uploadRecording } from "../../src/lib/storage.js";
 vi.mock("../../src/lib/prisma.js", () => ({
   prisma: {
     call: { findUnique: vi.fn() },
-    recording: { update: vi.fn() },
+    recording: { findFirst: vi.fn(), update: vi.fn() },
   },
 }));
 
 vi.mock("../../src/lib/storage.js", () => ({ uploadRecording: vi.fn() }));
 
 const mockedCallFindUnique = vi.mocked(prisma.call.findUnique);
+const mockedRecordingFindFirst = vi.mocked(prisma.recording.findFirst);
 const mockedRecordingUpdate = vi.mocked(prisma.recording.update);
 const mockedUploadRecording = vi.mocked(uploadRecording);
 
@@ -22,6 +23,7 @@ describe("processRecordingJob", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.restoreAllMocks();
+    mockedRecordingFindFirst.mockResolvedValue({ id: "rec_1" } as any);
   });
 
   it("lanza si la llamada no existe", async () => {
@@ -29,6 +31,20 @@ describe("processRecordingJob", () => {
 
     await expect(processRecordingJob(payload)).rejects.toThrow("Call call_1 not found");
     expect(mockedUploadRecording).not.toHaveBeenCalled();
+  });
+
+  it("no descarga ni sube una grabación retirada antes de ejecutar el job", async () => {
+    mockedCallFindUnique.mockResolvedValue({ id: "call_1" } as any);
+    mockedRecordingFindFirst.mockResolvedValue(null);
+
+    await expect(processRecordingJob(payload)).resolves.toBeUndefined();
+
+    expect(mockedRecordingFindFirst).toHaveBeenCalledWith({
+      where: { callId: "call_1", deletedAt: null },
+      select: { id: true },
+    });
+    expect(mockedUploadRecording).not.toHaveBeenCalled();
+    expect(mockedRecordingUpdate).not.toHaveBeenCalled();
   });
 
   it("descarga la grabación, la sube a storage y actualiza la BD", async () => {

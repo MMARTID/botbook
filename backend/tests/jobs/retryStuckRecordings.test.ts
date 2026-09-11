@@ -39,6 +39,7 @@ describe("retryStuckRecordingsJob (hallazgo #30 de la auditoría)", () => {
 
     const query = mockedFindMany.mock.calls[0][0] as any;
     expect(query.where.storageKey).toBeNull();
+    expect(query.where.deletedAt).toBeNull();
     const thresholdMs = Date.now() - query.where.createdAt.lt.getTime();
     expect(thresholdMs).toBeGreaterThanOrEqual(15 * 60 * 1000);
     expect(thresholdMs).toBeLessThan(15 * 60 * 1000 + 5000);

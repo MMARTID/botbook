@@ -358,7 +358,11 @@ async function start() {
             callsSuspendedAt: true,
             paymentFailureSuspensionAt: true,
             agents: {
-              where: { active: true, retellAgentId: { not: null } },
+              where: {
+                active: true,
+                deletedAt: null,
+                retellAgentId: { not: null },
+              },
               orderBy: { createdAt: "asc" },
               take: 1,
               select: { retellAgentId: true },

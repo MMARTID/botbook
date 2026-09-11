@@ -288,6 +288,7 @@ export async function checkAvailability(input: {
     where: {
       businessId,
       active: true,
+      deletedAt: null,
       ...(professionalId ? { id: professionalId } : {}),
     },
     include: {

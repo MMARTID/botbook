@@ -55,7 +55,8 @@ export const filesRoutes: FastifyPluginAsync = async (fastify) => {
       const agent = await prisma.agent.findFirst({
         where: { 
           id: agentId,
-          businessId: user.businessId 
+          businessId: user.businessId,
+          deletedAt: null,
         },
       });
 

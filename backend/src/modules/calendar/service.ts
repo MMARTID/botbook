@@ -769,7 +769,7 @@ export class CalendarService {
 
     const orchestrator = business.orchestrator || "retell";
     const agents = await prisma.agent.findMany({
-      where: { businessId },
+      where: { businessId, deletedAt: null },
     });
 
     for (const agent of agents) {

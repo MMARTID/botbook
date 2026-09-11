@@ -2,16 +2,18 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 import Fastify from "fastify";
 import { recordingsRoutes } from "../../../src/modules/recordings/routes.js";
 import { prisma } from "../../../src/lib/prisma.js";
-import { getSignedRecordingUrl } from "../../../src/lib/storage.js";
+import {
+  deleteStorageObject,
+  getSignedRecordingUrl,
+} from "../../../src/lib/storage.js";
 
 vi.mock("../../../src/lib/prisma.js", () => ({
   prisma: {
     recording: {
       findMany: vi.fn(),
       count: vi.fn(),
-      findUnique: vi.fn(),
+      findFirst: vi.fn(),
       update: vi.fn(),
-      delete: vi.fn(),
     },
   },
 }));
@@ -21,8 +23,10 @@ vi.mock("../../../src/lib/storage.js", () => ({
   deleteStorageObject: vi.fn(),
 }));
 
-const mockedFindUnique = vi.mocked(prisma.recording.findUnique);
+const mockedFindFirst = vi.mocked(prisma.recording.findFirst);
 const mockedGetSignedRecordingUrl = vi.mocked(getSignedRecordingUrl);
+const mockedDeleteStorageObject = vi.mocked(deleteStorageObject);
+const mockedUpdate = vi.mocked(prisma.recording.update);
 
 const FULL_BUSINESS_ROW = {
   id: "biz_1",
@@ -53,7 +57,12 @@ function projectBusiness(query: any): Record<string, unknown> {
 }
 
 function mockRecordingRespectingSelect(businessId = "biz_1") {
-  mockedFindUnique.mockImplementation(async (query: any) => {
+  mockedFindFirst.mockImplementation(async (query: any) => {
+    // La ruta impone el tenant directamente en la consulta. El doble debe
+    // comportarse como Prisma: una fila de otro negocio no llega al handler.
+    if (query?.where?.call?.businessId !== businessId) {
+      return null;
+    }
     return {
       id: "rec_1",
       callId: "call_1",
@@ -127,6 +136,25 @@ describe("recordingsRoutes", () => {
       });
 
       expect(response.statusCode).toBe(404);
+    });
+  });
+
+  describe("DELETE /recordings/:id", () => {
+    it("hace borrado lógico y no destruye el audio histórico", async () => {
+      mockRecordingRespectingSelect();
+      mockedUpdate.mockResolvedValue({ id: "rec_1" } as any);
+
+      const response = await fastify.inject({
+        method: "DELETE",
+        url: "/recordings/rec_1",
+      });
+
+      expect(response.statusCode).toBe(204);
+      expect(mockedUpdate).toHaveBeenCalledWith({
+        where: { id: "rec_1" },
+        data: { deletedAt: expect.any(Date) },
+      });
+      expect(mockedDeleteStorageObject).not.toHaveBeenCalled();
     });
   });
 });

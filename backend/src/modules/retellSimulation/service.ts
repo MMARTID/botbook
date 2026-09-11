@@ -38,6 +38,7 @@ export async function resolveNicheLlmId(
   const agents = await prisma.agent.findMany({
     where: {
       active: true,
+      deletedAt: null,
       retellLlmId: { not: null },
       business: {
         businessType: niche,

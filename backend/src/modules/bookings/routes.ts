@@ -1,183 +1,64 @@
 import { FastifyInstance, FastifyRequest } from "fastify";
 import { z } from "zod";
+import {
+  CapacitySchema,
+  ProfessionalSchema,
+  ResourceIdParamsSchema,
+  ServiceSchema,
+  UpdateProfessionalSchema,
+  UpdateServiceSchema,
+} from "./schemas.js";
+import {
+  createProfessional,
+  createService,
+  deleteProfessional,
+  deleteService,
+  getBookingSettingsPayload,
+  getProfessional,
+  getService,
+  invalidateBusinessAgentConfigCache,
+  updateProfessional,
+  updateService,
+} from "./service.js";
 import { prisma } from "../../lib/prisma.js";
-import { getRedis } from "../../lib/redis.js";
-import { syncAgentToRetell } from "../../lib/agentBootstrap.js";
 
-type BookingSettingsPayload = {
-  bookingCapacity: number;
-  services: Array<{
-    id: string;
-    name: string;
-    durationMinutes: number;
-    priceCents: number | null;
-    active: boolean;
-    createdAt: Date;
-    updatedAt: Date;
-  }>;
-  professionals: Array<{
-    id: string;
-    name: string;
-    active: boolean;
-    createdAt: Date;
-    updatedAt: Date;
-    serviceIds: string[];
-  }>;
-};
-
-const CapacitySchema = z.object({
-  bookingCapacity: z.coerce.number().int().min(1).max(50),
-});
-
-const ServiceSchema = z.object({
-  name: z.string().trim().min(1).max(80),
-  durationMinutes: z.coerce.number().int().min(5).max(480),
-  // Opcional y anulable: `null` borra el precio de un servicio que ya lo
-  // tenía. Tope de 100.000 € para que un error de tecleo no se cuele como
-  // ingreso estimado en el panel.
-  priceCents: z.coerce.number().int().min(0).max(10_000_000).nullable().optional(),
-  active: z.boolean().optional(),
-});
-
-const UpdateServiceSchema = ServiceSchema.partial().refine(
-  (value) => Object.keys(value).length > 0,
-  "At least one field is required"
-);
-
-const ProfessionalSchema = z.object({
-  name: z.string().trim().min(1).max(80),
-  active: z.boolean().optional(),
-  serviceIds: z.array(z.string().min(1)).default([]),
-});
-
-const UpdateProfessionalSchema = z
-  .object({
-    name: z.string().trim().min(1).max(80).optional(),
-    active: z.boolean().optional(),
-    serviceIds: z.array(z.string().min(1)).optional(),
-  })
-  .refine(
-    (value) => Object.keys(value).length > 0,
-    "At least one field is required"
-  );
-
-async function getBookingSettingsPayload(
-  businessId: string
-): Promise<BookingSettingsPayload> {
-  const business = await prisma.business.findUnique({
-    where: { id: businessId },
-    select: {
-      bookingCapacity: true,
-      services: {
-        orderBy: [{ active: "desc" }, { name: "asc" }],
-      },
-      professionals: {
-        orderBy: [{ active: "desc" }, { name: "asc" }],
-        include: {
-          serviceLinks: {
-            select: {
-              serviceId: true,
-            },
-          },
-        },
-      },
-    },
-  });
-
-  if (!business) {
-    throw new Error("Business not found");
-  }
-
-  return {
-    bookingCapacity: business.bookingCapacity,
-    services: business.services,
-    professionals: business.professionals.map((professional) => ({
-      id: professional.id,
-      name: professional.name,
-      active: professional.active,
-      createdAt: professional.createdAt,
-      updatedAt: professional.updatedAt,
-      serviceIds: professional.serviceLinks.map((link) => link.serviceId),
-    })),
-  };
-}
-
-async function ensureServicesBelongToBusiness(
-  businessId: string,
-  serviceIds: string[]
+function sendValidationError(
+  reply: { status: (code: number) => { send: (body: unknown) => unknown } },
+  error: z.ZodError
 ) {
-  if (serviceIds.length === 0) return;
-
-  const count = await prisma.service.count({
-    where: {
-      businessId,
-      id: { in: serviceIds },
-    },
-  });
-
-  if (count !== new Set(serviceIds).size) {
-    throw new Error("One or more services do not belong to this business");
-  }
+  return reply.status(400).send({ error: error.errors });
 }
 
-async function invalidateBusinessAgentConfigCache(businessId: string) {
-  const redis = getRedis();
-
-  // voice_config:<businessId> (voiceTools/service.ts) es la caché que de
-  // verdad importa hoy — TODO negocio nuevo usa Retell, nunca Vapi (ver
-  // detectVoiceOrchestrator). Antes esta función solo borraba vapi_config:*
-  // y salía enseguida si no había ningún agente con vapiAssistantId, así que
-  // para cualquier negocio Retell no invalidaba nada en absoluto: bajar la
-  // capacidad seguía permitiendo reservar por encima del nuevo límite (o
-  // subirla seguía rechazando de más) durante hasta 1h (hallazgo #16 de la
-  // auditoría).
-  try {
-    await redis.del(`voice_config:${businessId}`);
-  } catch (err) {
-    console.error(
-      `No se pudo invalidar la caché de configuración de voz para ${businessId}:`,
-      err
-    );
-  }
-
-  const agents = await prisma.agent.findMany({
-    where: { businessId, vapiAssistantId: { not: null } },
-    select: { vapiAssistantId: true },
-  });
-
-  if (!agents.length) return;
-
-  const pipeline = redis.pipeline();
-  for (const agent of agents) {
-    if (agent.vapiAssistantId) {
-      pipeline.del(`vapi_config:${agent.vapiAssistantId}`);
-    }
-  }
-  await pipeline.exec();
+function isKnownClientError(error: unknown): error is Error {
+  return (
+    error instanceof Error &&
+    error.message === "Uno o varios servicios no pertenecen a este negocio"
+  );
 }
 
 export async function bookingSettingsRoutes(fastify: FastifyInstance) {
+  const auth = { preValidation: [fastify.authenticate] };
+
   fastify.get(
     "/",
-    { preValidation: [fastify.authenticate] },
+    auth,
     async (request: FastifyRequest, reply) => {
       try {
-        const payload = await getBookingSettingsPayload(
-          request.user!.businessId
+        return reply.send(
+          await getBookingSettingsPayload(request.user!.businessId)
         );
-        return reply.send(payload);
       } catch (error) {
         fastify.log.error(error);
         return reply
           .status(500)
-          .send({ error: "Failed to fetch booking settings" });
+          .send({ error: "No se pudo obtener la configuración de reservas" });
       }
     }
   );
 
   fastify.patch<{ Body: z.infer<typeof CapacitySchema> }>(
     "/",
-    { preValidation: [fastify.authenticate] },
+    auth,
     async (request, reply) => {
       try {
         const { bookingCapacity } = CapacitySchema.parse(request.body);
@@ -190,225 +71,200 @@ export async function bookingSettingsRoutes(fastify: FastifyInstance) {
           await getBookingSettingsPayload(request.user!.businessId)
         );
       } catch (error) {
-        if (error instanceof z.ZodError) {
-          return reply.status(400).send({ error: error.errors });
-        }
+        if (error instanceof z.ZodError) return sendValidationError(reply, error);
         fastify.log.error(error);
         return reply
           .status(500)
-          .send({ error: "Failed to update booking capacity" });
+          .send({ error: "No se pudo actualizar la capacidad de reservas" });
+      }
+    }
+  );
+
+  fastify.get<{ Params: z.infer<typeof ResourceIdParamsSchema> }>(
+    "/services/:id",
+    auth,
+    async (request, reply) => {
+      try {
+        const { id } = ResourceIdParamsSchema.parse(request.params);
+        const service = await getService(request.user!.businessId, id);
+        if (!service) {
+          return reply.status(404).send({ error: "Servicio no encontrado" });
+        }
+        return reply.send(service);
+      } catch (error) {
+        if (error instanceof z.ZodError) return sendValidationError(reply, error);
+        fastify.log.error(error);
+        return reply.status(500).send({ error: "No se pudo obtener el servicio" });
       }
     }
   );
 
   fastify.post<{ Body: z.infer<typeof ServiceSchema> }>(
     "/services",
-    { preValidation: [fastify.authenticate] },
+    auth,
     async (request, reply) => {
       try {
-        const data = ServiceSchema.parse(request.body);
-        const service = await prisma.service.create({
-          data: {
-            businessId: request.user!.businessId,
-            name: data.name,
-            durationMinutes: data.durationMinutes,
-            priceCents: data.priceCents ?? null,
-            active: data.active ?? true,
-          },
-        });
-        await invalidateBusinessAgentConfigCache(request.user!.businessId);
-        await syncAgentToRetell(request.user!.businessId);
+        const service = await createService(
+          request.user!.businessId,
+          ServiceSchema.parse(request.body)
+        );
         return reply.status(201).send(service);
       } catch (error) {
-        if (error instanceof z.ZodError) {
-          return reply.status(400).send({ error: error.errors });
-        }
+        if (error instanceof z.ZodError) return sendValidationError(reply, error);
         fastify.log.error(error);
-        return reply.status(500).send({ error: "Failed to create service" });
+        return reply.status(500).send({ error: "No se pudo crear el servicio" });
       }
     }
   );
 
   fastify.patch<{
-    Params: { serviceId: string };
+    Params: z.infer<typeof ResourceIdParamsSchema>;
     Body: z.infer<typeof UpdateServiceSchema>;
   }>(
-    "/services/:serviceId",
-    { preValidation: [fastify.authenticate] },
+    "/services/:id",
+    auth,
     async (request, reply) => {
       try {
-        const data = UpdateServiceSchema.parse(request.body);
-        const service = await prisma.service.findFirst({
-          where: {
-            id: request.params.serviceId,
-            businessId: request.user!.businessId,
-          },
-        });
-
+        const { id } = ResourceIdParamsSchema.parse(request.params);
+        const service = await updateService(
+          request.user!.businessId,
+          id,
+          UpdateServiceSchema.parse(request.body)
+        );
         if (!service) {
-          return reply.status(404).send({ error: "Service not found" });
+          return reply.status(404).send({ error: "Servicio no encontrado" });
         }
-
-        const updated = await prisma.service.update({
-          where: { id: service.id },
-          data,
-        });
-        await invalidateBusinessAgentConfigCache(request.user!.businessId);
-        await syncAgentToRetell(request.user!.businessId);
-        return reply.send(updated);
+        return reply.send(service);
       } catch (error) {
-        if (error instanceof z.ZodError) {
-          return reply.status(400).send({ error: error.errors });
-        }
+        if (error instanceof z.ZodError) return sendValidationError(reply, error);
         fastify.log.error(error);
-        return reply.status(500).send({ error: "Failed to update service" });
+        return reply
+          .status(500)
+          .send({ error: "No se pudo actualizar el servicio" });
+      }
+    }
+  );
+
+  fastify.delete<{ Params: z.infer<typeof ResourceIdParamsSchema> }>(
+    "/services/:id",
+    auth,
+    async (request, reply) => {
+      try {
+        const { id } = ResourceIdParamsSchema.parse(request.params);
+        const service = await deleteService(request.user!.businessId, id);
+        if (!service) {
+          return reply.status(404).send({ error: "Servicio no encontrado" });
+        }
+        return reply.status(204).send();
+      } catch (error) {
+        fastify.log.error(error);
+        return reply
+          .status(500)
+          .send({ error: "No se pudo retirar el servicio" });
+      }
+    }
+  );
+
+  fastify.get<{ Params: z.infer<typeof ResourceIdParamsSchema> }>(
+    "/professionals/:id",
+    auth,
+    async (request, reply) => {
+      try {
+        const { id } = ResourceIdParamsSchema.parse(request.params);
+        const professional = await getProfessional(request.user!.businessId, id);
+        if (!professional) {
+          return reply
+            .status(404)
+            .send({ error: "Profesional no encontrado" });
+        }
+        return reply.send(professional);
+      } catch (error) {
+        if (error instanceof z.ZodError) return sendValidationError(reply, error);
+        fastify.log.error(error);
+        return reply
+          .status(500)
+          .send({ error: "No se pudo obtener el profesional" });
       }
     }
   );
 
   fastify.post<{ Body: z.infer<typeof ProfessionalSchema> }>(
     "/professionals",
-    { preValidation: [fastify.authenticate] },
+    auth,
     async (request, reply) => {
       try {
-        const data = ProfessionalSchema.parse(request.body);
-        await ensureServicesBelongToBusiness(
+        const professional = await createProfessional(
           request.user!.businessId,
-          data.serviceIds
+          ProfessionalSchema.parse(request.body)
         );
-
-        const professional = await prisma.professional.create({
-          data: {
-            businessId: request.user!.businessId,
-            name: data.name,
-            active: data.active ?? true,
-            serviceLinks: {
-              create: data.serviceIds.map((serviceId) => ({ serviceId })),
-            },
-          },
-          include: {
-            serviceLinks: {
-              select: {
-                serviceId: true,
-              },
-            },
-          },
-        });
-
-        await invalidateBusinessAgentConfigCache(request.user!.businessId);
-        await syncAgentToRetell(request.user!.businessId);
-        return reply.status(201).send({
-          id: professional.id,
-          name: professional.name,
-          active: professional.active,
-          createdAt: professional.createdAt,
-          updatedAt: professional.updatedAt,
-          serviceIds: professional.serviceLinks.map((link) => link.serviceId),
-        });
+        return reply.status(201).send(professional);
       } catch (error) {
-        if (error instanceof z.ZodError) {
-          return reply.status(400).send({ error: error.errors });
-        }
-        if (
-          error instanceof Error &&
-          error.message.includes("services do not belong")
-        ) {
+        if (error instanceof z.ZodError) return sendValidationError(reply, error);
+        if (isKnownClientError(error)) {
           return reply.status(400).send({ error: error.message });
         }
         fastify.log.error(error);
         return reply
           .status(500)
-          .send({ error: "Failed to create professional" });
+          .send({ error: "No se pudo crear el profesional" });
       }
     }
   );
 
   fastify.patch<{
-    Params: { professionalId: string };
+    Params: z.infer<typeof ResourceIdParamsSchema>;
     Body: z.infer<typeof UpdateProfessionalSchema>;
   }>(
-    "/professionals/:professionalId",
-    { preValidation: [fastify.authenticate] },
+    "/professionals/:id",
+    auth,
     async (request, reply) => {
       try {
-        const data = UpdateProfessionalSchema.parse(request.body);
-        const professional = await prisma.professional.findFirst({
-          where: {
-            id: request.params.professionalId,
-            businessId: request.user!.businessId,
-          },
-          include: {
-            serviceLinks: true,
-          },
-        });
-
+        const { id } = ResourceIdParamsSchema.parse(request.params);
+        const professional = await updateProfessional(
+          request.user!.businessId,
+          id,
+          UpdateProfessionalSchema.parse(request.body)
+        );
         if (!professional) {
-          return reply.status(404).send({ error: "Professional not found" });
+          return reply
+            .status(404)
+            .send({ error: "Profesional no encontrado" });
         }
-
-        if (data.serviceIds) {
-          await ensureServicesBelongToBusiness(
-            request.user!.businessId,
-            data.serviceIds
-          );
-        }
-
-        const updated = await prisma.$transaction(async (tx) => {
-          if (data.serviceIds) {
-            await tx.professionalService.deleteMany({
-              where: { professionalId: professional.id },
-            });
-
-            if (data.serviceIds.length > 0) {
-              await tx.professionalService.createMany({
-                data: data.serviceIds.map((serviceId) => ({
-                  professionalId: professional.id,
-                  serviceId,
-                })),
-              });
-            }
-          }
-
-          return tx.professional.update({
-            where: { id: professional.id },
-            data: {
-              ...(data.name !== undefined ? { name: data.name } : {}),
-              ...(data.active !== undefined ? { active: data.active } : {}),
-            },
-            include: {
-              serviceLinks: {
-                select: {
-                  serviceId: true,
-                },
-              },
-            },
-          });
-        });
-
-        await invalidateBusinessAgentConfigCache(request.user!.businessId);
-        await syncAgentToRetell(request.user!.businessId);
-        return reply.send({
-          id: updated.id,
-          name: updated.name,
-          active: updated.active,
-          createdAt: updated.createdAt,
-          updatedAt: updated.updatedAt,
-          serviceIds: updated.serviceLinks.map((link) => link.serviceId),
-        });
+        return reply.send(professional);
       } catch (error) {
-        if (error instanceof z.ZodError) {
-          return reply.status(400).send({ error: error.errors });
-        }
-        if (
-          error instanceof Error &&
-          error.message.includes("services do not belong")
-        ) {
+        if (error instanceof z.ZodError) return sendValidationError(reply, error);
+        if (isKnownClientError(error)) {
           return reply.status(400).send({ error: error.message });
         }
         fastify.log.error(error);
         return reply
           .status(500)
-          .send({ error: "Failed to update professional" });
+          .send({ error: "No se pudo actualizar el profesional" });
+      }
+    }
+  );
+
+  fastify.delete<{ Params: z.infer<typeof ResourceIdParamsSchema> }>(
+    "/professionals/:id",
+    auth,
+    async (request, reply) => {
+      try {
+        const { id } = ResourceIdParamsSchema.parse(request.params);
+        const professional = await deleteProfessional(
+          request.user!.businessId,
+          id
+        );
+        if (!professional) {
+          return reply
+            .status(404)
+            .send({ error: "Profesional no encontrado" });
+        }
+        return reply.status(204).send();
+      } catch (error) {
+        fastify.log.error(error);
+        return reply
+          .status(500)
+          .send({ error: "No se pudo retirar el profesional" });
       }
     }
   );
