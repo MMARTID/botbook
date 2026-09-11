@@ -384,10 +384,31 @@ export class RetellAdapter {
     versionDescription?: string
   ): Promise<void> {
     this.ensureApiKey();
-    await this.client.agent.publish(agentId, {
-      version,
-      ...(versionDescription ? { version_description: versionDescription } : {}),
-    });
+    // El endpoint devuelve 204 sin cuerpo, pero la versión actual del SDK
+    // intenta deserializarlo como JSON y lanza "Unexpected end of JSON input"
+    // tras haber aceptado la publicación. Usamos fetch para respetar el
+    // contrato HTTP real y no convertir un publish exitoso en falso error.
+    const baseUrl = (process.env.RETELL_BASE_URL || "https://api.retellai.com")
+      .replace(/\/$/, "");
+    const response = await fetch(
+      `${baseUrl}/publish-agent-version/${encodeURIComponent(agentId)}`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${this.apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          version,
+          ...(versionDescription ? { version_description: versionDescription } : {}),
+        }),
+      }
+    );
+    if (!response.ok) {
+      throw new Error(
+        `Retell rechazó la publicación de la versión ${version} (HTTP ${response.status}).`
+      );
+    }
   }
 
   /**

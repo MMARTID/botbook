@@ -7,7 +7,6 @@ const mocks = vi.hoisted(() => ({
   llmDelete: vi.fn(),
   agentCreate: vi.fn(),
   agentUpdate: vi.fn(),
-  agentPublish: vi.fn(),
   agentRetrieve: vi.fn(),
   agentDelete: vi.fn(),
   agentList: vi.fn(),
@@ -35,7 +34,6 @@ vi.mock("retell-sdk", () => {
       agent = {
         create: mocks.agentCreate,
         update: mocks.agentUpdate,
-        publish: mocks.agentPublish,
         retrieve: mocks.agentRetrieve,
         delete: mocks.agentDelete,
         list: mocks.agentList,
@@ -59,6 +57,7 @@ import { RetellAdapter } from "../../../src/adapters/retell/RetellAdapter.js";
 describe("RetellAdapter", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.stubGlobal("fetch", vi.fn());
     process.env.RETELL_API_KEY = "retell_test_key";
   });
 
@@ -430,15 +429,22 @@ describe("RetellAdapter", () => {
 
   describe("publishAgent", () => {
     it("publica exactamente la versión de borrador indicada", async () => {
-      mocks.agentPublish.mockResolvedValue(undefined);
+      const mockedFetch = vi.mocked(fetch);
+      mockedFetch.mockResolvedValue(new Response(null, { status: 204 }));
 
       const adapter = new RetellAdapter();
       await adapter.publishAgent("agent_123", 4, "Configuración gestionada por Alhabla");
 
-      expect(mocks.agentPublish).toHaveBeenCalledWith("agent_123", {
-        version: 4,
-        version_description: "Configuración gestionada por Alhabla",
-      });
+      expect(mockedFetch).toHaveBeenCalledWith(
+        "https://api.retellai.com/publish-agent-version/agent_123",
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({
+            version: 4,
+            version_description: "Configuración gestionada por Alhabla",
+          }),
+        })
+      );
     });
 
     it("consulta una versión concreta al verificar la publicación", async () => {
