@@ -39,6 +39,20 @@ import { retellAdapter } from "./adapters/retell/RetellAdapter.js";
 import { buildInboundCallDynamicVariables } from "./lib/agentBootstrap.js";
 import { executeVoiceTool } from "./modules/voiceTools/service.js";
 import { fetchAndSetNgrokUrl } from "./lib/ngrok.js";
+import {
+  handleCallInitiated,
+  handleCallHangup,
+  handleCallConversationEnded,
+  handleCallRecordingSaved,
+  handleCallConversationInsightsGenerated,
+  handleCallCost,
+  extractTelnyxEventEnvelope,
+} from "./adapters/telnyx/webhookHandlers.js";
+import { telnyxAiAdapter } from "./adapters/telnyx/TelnyxAiAdapter.js";
+import {
+  claimVoiceWebhookEvent,
+  completeVoiceWebhookEvent,
+} from "./lib/voiceWebhookIdempotency.js";
 
 const PORT = parseInt(process.env.PORT || "3000", 10);
 const HOST = process.env.HOST || "0.0.0.0";
@@ -459,6 +473,193 @@ async function start() {
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         console.error(`[Retell Tool] Error ejecutando ${toolName}: ${message}`);
+        return reply.status(500).send({ error: "Internal server error" });
+      }
+    });
+
+    // Telnyx AI Assistants — Call Control App de plataforma (compartido por
+    // todos los negocios en rollout Telnyx, ver PLAN-TELNYX-ORQUESTADOR.md
+    // §4). Idempotente por `data.id` vía VoiceWebhookEvent: un reintento del
+    // proveedor del mismo evento se ignora sin reprocesar nada.
+    fastify.post("/webhooks/telnyx", {
+      config: {
+        rawBody: true,
+        rateLimit: {
+          max: 300,
+          timeWindow: "1 minute",
+        },
+      },
+    }, async (request, reply) => {
+      const signature = request.headers["telnyx-signature-ed25519"];
+      const timestamp = request.headers["telnyx-timestamp"];
+      if (
+        typeof signature !== "string" ||
+        typeof timestamp !== "string" ||
+        !request.rawBody
+      ) {
+        fastify.log.warn("[Telnyx Webhook] Missing signature, timestamp or raw body");
+        return reply.status(400).send({ error: "Missing webhook signature or body" });
+      }
+
+      const rawBodyString = typeof request.rawBody === "string" ? request.rawBody : request.rawBody.toString("utf8");
+      let isValid: boolean;
+      try {
+        isValid = await telnyxAiAdapter.verifyWebhookSignature(rawBodyString, signature, timestamp);
+      } catch (error) {
+        fastify.log.error({ err: error }, "[Telnyx Webhook] No se pudo verificar la firma");
+        return reply.status(500).send({ error: "Signature verification not configured" });
+      }
+      if (!isValid) {
+        fastify.log.warn("[Telnyx Webhook] Invalid signature");
+        return reply.status(401).send({ error: "Invalid webhook signature" });
+      }
+
+      const payload = request.body;
+      const envelope = extractTelnyxEventEnvelope(payload);
+      if (!envelope) {
+        fastify.log.warn("[Telnyx Webhook] Missing event id/type");
+        return reply.status(400).send({ error: "Missing event id or type" });
+      }
+
+      const claimed = await claimVoiceWebhookEvent(
+        "telnyx",
+        envelope.id,
+        envelope.eventType
+      );
+      if (!claimed) {
+        fastify.log.debug(
+          { eventId: envelope.id },
+          "[Telnyx] Evento ya procesado, se ignora el reintento"
+        );
+        return reply.status(200).send({ success: true, deduped: true });
+      }
+
+      try {
+        let result: { success: boolean };
+
+        switch (envelope.eventType) {
+          case "call.initiated":
+            result = await handleCallInitiated(payload);
+            break;
+          case "call.hangup":
+            result = await handleCallHangup(payload);
+            break;
+          case "call.conversation.ended":
+            result = await handleCallConversationEnded(payload);
+            break;
+          case "call.recording.saved":
+            result = await handleCallRecordingSaved(payload);
+            break;
+          case "call.conversation_insights.generated":
+            result = await handleCallConversationInsightsGenerated(payload);
+            break;
+          case "call.cost":
+            result = await handleCallCost(payload);
+            break;
+          default:
+            fastify.log.debug(
+              { eventType: envelope.eventType },
+              "[Telnyx] Evento no procesable ignorado"
+            );
+            await completeVoiceWebhookEvent("telnyx", envelope.id, "success");
+            return reply.status(200).send({ success: true, ignored: true });
+        }
+
+        await completeVoiceWebhookEvent(
+          "telnyx",
+          envelope.id,
+          result.success ? "success" : "error"
+        );
+
+        if (result.success) {
+          return reply.status(200).send({ success: true });
+        } else {
+          console.error(`[Telnyx] No se pudo procesar el evento ${envelope.eventType}`);
+          return reply.status(404).send({ error: "Business or call not registered in Alhabla" });
+        }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        console.error(`[Telnyx] Error procesando ${envelope.eventType}: ${message}`);
+        await completeVoiceWebhookEvent("telnyx", envelope.id, "error", {
+          lastError: message,
+        });
+        return reply.status(500).send({ error: "Internal server error" });
+      }
+    });
+
+    // Telnyx tool endpoints. A diferencia de Retell, el body es solo los
+    // argumentos que decide el LLM — call_control_id llega por el header
+    // custom X-Alhabla-Call-Control-Id, templado con la variable de
+    // sistema {{call_control_id}} (ver calendarService.
+    // buildTelnyxCalendarTools). Confirmado con una reserva real de punta
+    // a punta el 2026-09-12.
+    fastify.post("/webhooks/telnyx/tools/:toolName", {
+      config: {
+        rawBody: true,
+        rateLimit: {
+          max: 300,
+          timeWindow: "1 minute",
+        },
+      },
+    }, async (request, reply) => {
+      const signature = request.headers["telnyx-signature-ed25519"];
+      const timestamp = request.headers["telnyx-timestamp"];
+      if (
+        typeof signature !== "string" ||
+        typeof timestamp !== "string" ||
+        !request.rawBody
+      ) {
+        fastify.log.warn("[Telnyx Tool] Missing signature, timestamp or raw body");
+        return reply.status(400).send({ error: "Missing webhook signature or body" });
+      }
+
+      const rawBodyString = typeof request.rawBody === "string" ? request.rawBody : request.rawBody.toString("utf8");
+      let isValid: boolean;
+      try {
+        isValid = await telnyxAiAdapter.verifyWebhookSignature(rawBodyString, signature, timestamp);
+      } catch (error) {
+        fastify.log.error({ err: error }, "[Telnyx Tool] No se pudo verificar la firma");
+        return reply.status(500).send({ error: "Signature verification not configured" });
+      }
+      if (!isValid) {
+        fastify.log.warn("[Telnyx Tool] Invalid signature");
+        return reply.status(401).send({ error: "Invalid webhook signature" });
+      }
+
+      const { toolName } = request.params as { toolName: string };
+      const callControlIdHeader = request.headers["x-alhabla-call-control-id"];
+      const callControlId =
+        typeof callControlIdHeader === "string" ? callControlIdHeader : undefined;
+      const toolParams = (request.body as Record<string, unknown>) || {};
+
+      if (!callControlId) {
+        console.error(`[Telnyx Tool] Falta el header X-Alhabla-Call-Control-Id en ${toolName}`);
+        return reply.status(400).send({ error: "Missing call_control_id" });
+      }
+
+      try {
+        const call = await prisma.call.findUnique({
+          where: { vapiCallId: callControlId },
+          select: { businessId: true },
+        });
+
+        if (!call) {
+          console.error(`[Telnyx Tool] No se encontró la llamada ${callControlId}`);
+          return reply.status(404).send({ error: "Call not found" });
+        }
+
+        const result = await executeVoiceTool({
+          businessId: call.businessId,
+          toolName,
+          params: toolParams,
+          callLabel: `llamada ${callControlId}`,
+          callId: callControlId,
+        });
+
+        return reply.status(result.success ? 200 : 500).send(result.result);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        console.error(`[Telnyx Tool] Error ejecutando ${toolName}: ${message}`);
         return reply.status(500).send({ error: "Internal server error" });
       }
     });

@@ -9,6 +9,7 @@ import { vapiAdapter } from "../../../src/adapters/vapi/VapiAdapter.js";
 import { retellAdapter } from "../../../src/adapters/retell/RetellAdapter.js";
 import { getPublicWebhookBaseUrl } from "../../../src/lib/serverUrl.js";
 import { getRedis } from "../../../src/lib/redis.js";
+import { syncAgentToTelnyx } from "../../../src/lib/telnyxAgentSync.js";
 import { google } from "googleapis";
 
 vi.mock("../../../src/lib/prisma.js", () => ({
@@ -84,6 +85,10 @@ vi.mock("../../../src/lib/redis.js", () => ({
   getRedis: vi.fn(),
 }));
 
+vi.mock("../../../src/lib/telnyxAgentSync.js", () => ({
+  syncAgentToTelnyx: vi.fn(),
+}));
+
 const mockedAgentFindMany = vi.mocked(prisma.agent.findMany);
 const mockedBusinessFindUnique = vi.mocked(prisma.business.findUnique);
 const mockedBusinessUpdate = vi.mocked(prisma.business.update);
@@ -98,6 +103,7 @@ const mockedRetellPublishAgent = vi.mocked(retellAdapter.publishAgent);
 const mockedGetPublicWebhookBaseUrl = vi.mocked(getPublicWebhookBaseUrl);
 const mockedGoogleCalendar = vi.mocked(google.calendar);
 const mockedGetRedis = vi.mocked(getRedis);
+const mockedSyncAgentToTelnyx = vi.mocked(syncAgentToTelnyx);
 
 describe("isGoogleInvalidGrantError", () => {
   it("detecta invalid_grant en el mensaje del error", () => {
@@ -1133,5 +1139,113 @@ describe("CalendarService.syncCalendarToolsToAgents", () => {
     await calendarService.syncCalendarToolsToAgents("business_123");
 
     expect(mockedRetellUpdateLlm).not.toHaveBeenCalled();
+  });
+
+  it("sincroniza las tools de Telnyx cuando el agente tiene telnyxAssistantId, sin importar el orchestrator", async () => {
+    mockedBusinessFindUnique.mockResolvedValue({
+      id: "business_123",
+      orchestrator: "vapi",
+    } as any);
+    mockedAgentFindMany.mockResolvedValue([
+      {
+        id: "agent_123",
+        businessId: "business_123",
+        telnyxAssistantId: "assistant_telnyx_1",
+      },
+    ] as any);
+    mockedGetPublicWebhookBaseUrl.mockReturnValue("https://example.com");
+    mockedSyncAgentToTelnyx.mockResolvedValue(undefined);
+
+    await calendarService.syncCalendarToolsToAgents("business_123");
+
+    expect(mockedSyncAgentToTelnyx).toHaveBeenCalledWith(
+      "business_123",
+      prisma,
+      {
+        tools: expect.arrayContaining([
+          expect.objectContaining({
+            name: "get_catalog",
+            url: "https://example.com/webhooks/telnyx/tools/get_catalog",
+          }),
+          expect.objectContaining({
+            name: "check_availability",
+          }),
+          expect.objectContaining({
+            name: "book_appointment",
+          }),
+        ]),
+      }
+    );
+  });
+
+  it("sincroniza Retell (fallback) Y Telnyx para el mismo agente cuando orchestrator es telnyx", async () => {
+    mockedBusinessFindUnique.mockResolvedValue({
+      id: "business_123",
+      orchestrator: "telnyx",
+    } as any);
+    mockedAgentFindMany.mockResolvedValue([
+      {
+        id: "agent_123",
+        businessId: "business_123",
+        retellAgentId: "retell_agent_456",
+        retellLlmId: "retell_llm_789",
+        telnyxAssistantId: "assistant_telnyx_1",
+      },
+    ] as any);
+    mockedGetPublicWebhookBaseUrl.mockReturnValue("https://example.com");
+    mockedRetellUpdateLlm.mockResolvedValue({} as any);
+    mockedSyncAgentToTelnyx.mockResolvedValue(undefined);
+
+    await calendarService.syncCalendarToolsToAgents("business_123");
+
+    expect(mockedRetellUpdateLlm).toHaveBeenCalled();
+    expect(mockedSyncAgentToTelnyx).toHaveBeenCalledWith(
+      "business_123",
+      prisma,
+      expect.objectContaining({ tools: expect.any(Array) })
+    );
+  });
+
+  it("no llama a syncAgentToTelnyx si no hay URL pública configurada", async () => {
+    mockedBusinessFindUnique.mockResolvedValue({
+      id: "business_123",
+      orchestrator: "telnyx",
+    } as any);
+    mockedAgentFindMany.mockResolvedValue([
+      {
+        id: "agent_123",
+        businessId: "business_123",
+        telnyxAssistantId: "assistant_telnyx_1",
+      },
+    ] as any);
+    mockedGetPublicWebhookBaseUrl.mockReturnValue(undefined);
+
+    await calendarService.syncCalendarToolsToAgents("business_123");
+
+    expect(mockedSyncAgentToTelnyx).not.toHaveBeenCalled();
+  });
+
+  it("en modo estricto, lanza si telnyxSyncError quedó guardado tras la sincronización", async () => {
+    mockedBusinessFindUnique.mockResolvedValue({
+      id: "business_123",
+      orchestrator: "telnyx",
+    } as any);
+    mockedAgentFindMany
+      .mockResolvedValueOnce([
+        {
+          id: "agent_123",
+          businessId: "business_123",
+          telnyxAssistantId: "assistant_telnyx_1",
+        },
+      ] as any)
+      .mockResolvedValueOnce([
+        { id: "agent_123", telnyxSyncError: "Telnyx 500" },
+      ] as any);
+    mockedGetPublicWebhookBaseUrl.mockReturnValue("https://example.com");
+    mockedSyncAgentToTelnyx.mockResolvedValue(undefined);
+
+    await expect(
+      calendarService.syncCalendarToolsToAgents("business_123", { strict: true })
+    ).rejects.toThrow("No se pudieron sincronizar las tools de calendario");
   });
 });

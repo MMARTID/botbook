@@ -12,6 +12,7 @@
  */
 import { prisma } from "../src/lib/prisma.js";
 import { syncAgentToRetell } from "../src/lib/agentBootstrap.js";
+import { syncAgentToTelnyx } from "../src/lib/telnyxAgentSync.js";
 
 const BUSINESSES_PER_BATCH = 50;
 
@@ -69,6 +70,12 @@ async function main() {
           // si las tools no pueden publicarse y verificarse en Retell, el
           // proceso termina con error y Cloud Build no lo marca como listo.
           strictCalendarTools: process.env.NODE_ENV === "production",
+        });
+        // No-op para negocios sin telnyxAssistantId todavía (la inmensa
+        // mayoría hoy) — nunca lanza, ver syncAgentToTelnyx.
+        await syncAgentToTelnyx(business.id, prisma, {
+          ...(includeManual ? {} : { onlyManagedPrompts: true }),
+          onlyActive: true,
         });
         console.log(`[AgentPromptSync] Sincronizado ${business.name} (${business.id})`);
       } catch (error) {

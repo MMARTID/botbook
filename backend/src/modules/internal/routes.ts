@@ -5,6 +5,7 @@ import { processRetryFailedBookingJob } from "../../jobs/retryFailedBooking.js";
 import { processSendEmailJob } from "../../jobs/sendEmail.js";
 import { processSendSmsJob } from "../../jobs/sendSms.js";
 import { cleanupZombieCallsJob } from "../../jobs/cleanupZombieCalls.js";
+import { telnyxHealthCheckJob } from "../../jobs/telnyxHealthCheck.js";
 import { retryStuckRecordingsJob } from "../../jobs/retryStuckRecordings.js";
 import { suspendOverdueCallsJob } from "../../jobs/suspendOverdueCalls.js";
 import { processUsageReportJob } from "../../jobs/processUsageReport.js";
@@ -126,6 +127,24 @@ export const internalJobsRoutes: FastifyPluginAsync = async (fastify) => {
         return reply.send({ received: true });
       } catch (error) {
         fastify.log.error({ err: error }, "cleanup-zombie-calls job failed");
+        return reply.status(500).send({ error: "Job processing failed" });
+      }
+    }
+  );
+
+  // Cada 2 minutos (Cloud Scheduler) — plan Telnyx-orquestador §7. Inerte
+  // por defecto: VOICE_FAILOVER_ENABLED=off y ningún negocio tiene
+  // orchestrator="telnyx" todavía (eso es la Fase 5, deliberadamente sin
+  // ejecutar).
+  fastify.post(
+    "/jobs/telnyx-health-check",
+    { preValidation: [fastify.verifyCloudTasks] },
+    async (_request, reply) => {
+      try {
+        await telnyxHealthCheckJob();
+        return reply.send({ received: true });
+      } catch (error) {
+        fastify.log.error({ err: error }, "telnyx-health-check job failed");
         return reply.status(500).send({ error: "Job processing failed" });
       }
     }

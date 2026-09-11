@@ -26,6 +26,8 @@ import {
   type AgentSettings,
 } from "./managedAgentPrompt.js";
 import { calendarService } from "../modules/calendar/service.js";
+import { createTelnyxAssistantForAgent } from "./telnyxAgentSync.js";
+import { isVoiceTelnyxRolloutEnabled } from "./voiceRollout.js";
 
 /**
  * Campo de post_call_analysis_data para clasificar el resultado de la llamada:
@@ -775,6 +777,41 @@ export async function createBusinessAgent(args: {
         });
       }
 
+      // Fase 2 del plan Telnyx-orquestador: creación dual del assistant de
+      // fallback caliente. Gateado por VOICE_TELNYX_ROLLOUT (por defecto
+      // "off" = comportamiento actual, solo Retell) y nunca puede impedir
+      // devolver el agente ya creado en Retell — createTelnyxAssistantForAgent
+      // atrapa sus propios errores.
+      if (isVoiceTelnyxRolloutEnabled()) {
+        const telnyxResult = await createTelnyxAssistantForAgent({
+          agentId: agent.id,
+          businessId: args.businessId,
+          prismaClient: client,
+        });
+        await client.business
+          .update({
+            where: { id: args.businessId },
+            data: {
+              telnyxEligibilityStatus: telnyxResult.eligible
+                ? "eligible"
+                : "ineligible",
+              telnyxEligibilityReason: telnyxResult.reason,
+            },
+          })
+          .catch((updateError) => {
+            console.error(
+              "[Agent] No se pudo guardar la elegibilidad Telnyx del negocio:",
+              {
+                businessId: args.businessId,
+                message:
+                  updateError instanceof Error
+                    ? updateError.message
+                    : String(updateError),
+              }
+            );
+          });
+      }
+
       return syncedAgent;
     } catch (error) {
       console.error("[Agent] No se pudo sincronizar el agente con Retell:", {
@@ -927,7 +964,13 @@ export async function syncAgentToRetell(
     },
   });
 
-  if (!business || business.orchestrator !== "retell") return;
+  // Retell es siempre el fallback caliente (plan Telnyx-orquestador §6), sin
+  // depender de cuál sea el primary — se sincroniza tanto si orchestrator es
+  // "retell" como "telnyx". Solo se descarta "vapi" (inactivo): esos
+  // negocios no tienen retellAgentId, así que el filtro de abajo ya no
+  // encontraría ningún agente de todos modos, pero el corte explícito evita
+  // la consulta y dos llamadas mockeadas de más en los tests existentes.
+  if (!business || business.orchestrator === "vapi") return;
 
   const agents = await prismaClient.agent.findMany({
     where: {

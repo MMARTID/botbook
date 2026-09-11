@@ -9,6 +9,8 @@ import {
   type RetellTool,
 } from "../../adapters/retell/RetellAdapter.js";
 import { getPublicWebhookBaseUrl } from "../../lib/serverUrl.js";
+import { syncAgentToTelnyx } from "../../lib/telnyxAgentSync.js";
+import type { TelnyxWebhookToolInput } from "../../lib/telnyxAssistantPayload.js";
 import {
   createMicrosoftCalendarEvent,
   exchangeMicrosoftCode,
@@ -740,6 +742,102 @@ export class CalendarService {
     ];
   }
 
+  /**
+   * `end_call` no hace falta aquí: `buildTelnyxAssistantPayload` ya añade
+   * la tool `hangup` nativa de Telnyx a todos los assistants por defecto
+   * (ver telnyxAssistantPayload.ts).
+   *
+   * `call_control_id` llega por un header custom templado con la variable
+   * de sistema `{{call_control_id}}` — confirmado con una reserva real de
+   * punta a punta el 2026-09-12 (ver server.ts, ruta de tools). Se probó
+   * también por query string a la vez por si el header no se resolvía;
+   * como el header sí funcionó, se quitó la query string para no mandar
+   * dos veces el mismo dato.
+   */
+  private buildTelnyxCalendarTools(baseUrl: string): TelnyxWebhookToolInput[] {
+    const toolBaseUrl = `${baseUrl.replace(/\/$/, "")}/webhooks/telnyx/tools`;
+    const callControlHeader = {
+      name: "X-Alhabla-Call-Control-Id",
+      value: "{{call_control_id}}",
+    };
+
+    return [
+      {
+        name: "get_catalog",
+        description:
+          "Obtiene los servicios activos con sus IDs y duraciones, los profesionales y el horario del negocio. Úsala cuando el cliente pregunte por ellos o antes de comprobar/reservar si necesitas un ID o duración.",
+        url: `${toolBaseUrl}/get_catalog`,
+        method: "POST",
+        properties: {},
+        headers: [callControlHeader],
+        timeoutMs: 20000,
+      },
+      {
+        name: "check_availability",
+        description:
+          "Comprueba una cita en una fecha y hora concretas: valida horario, restricciones, capacidad, profesionales y calendario real. Úsala antes de book_appointment y conserva el availabilityToken que devuelve.",
+        url: `${toolBaseUrl}/check_availability`,
+        method: "POST",
+        properties: {
+          startDateTime: {
+            type: "string",
+            description:
+              "Inicio solicitado en formato ISO 8601, incluyendo zona horaria.",
+          },
+          durationMinutes: {
+            type: "number",
+            description: "Duración total de la cita en minutos.",
+          },
+          serviceIds: {
+            type: "array",
+            items: { type: "string" },
+            description:
+              "IDs de los servicios pedidos (opcional; puede ser más de uno si el cliente pide varios servicios en la misma cita, ej. corte y mechas). Se prioriza al profesional que domine todos esos servicios.",
+          },
+          professionalId: {
+            type: "string",
+            description:
+              "ID exacto de EMPLEADOS si el cliente pidió un profesional concreto por nombre (opcional). Déjalo vacío si no.",
+          },
+        },
+        required: ["startDateTime", "durationMinutes"],
+        headers: [callControlHeader],
+        timeoutMs: 20000,
+      },
+      {
+        name: "book_appointment",
+        description:
+          "Agenda una cita en el calendario activo. Úsala solo tras confirmación explícita y con el availabilityToken de check_availability.",
+        url: `${toolBaseUrl}/book_appointment`,
+        method: "POST",
+        properties: {
+          clientName: {
+            type: "string",
+            description: "El nombre del cliente que hace la reserva",
+          },
+          clientEmail: {
+            type: "string",
+            description:
+              "El correo electrónico del cliente, si lo proporciona (opcional)",
+          },
+          clientPhone: {
+            type: "string",
+            description:
+              "Teléfono de contacto solo si el cliente eligió uno distinto al detectado automáticamente (opcional).",
+          },
+          availabilityToken: {
+            type: "string",
+            description:
+              "Token exacto devuelto por check_availability para la opción confirmada.",
+          },
+        },
+        required: ["clientName", "availabilityToken"],
+        headers: [callControlHeader],
+        timeoutMs: 20000,
+      },
+    ];
+  }
+
   async syncCalendarToolsToAgents(
     businessId: string,
     options?: { strict?: boolean }
@@ -773,7 +871,11 @@ export class CalendarService {
     });
 
     for (const agent of agents) {
-      if (orchestrator === "retell" && agent.retellLlmId) {
+      // Retell es siempre el fallback caliente (plan Telnyx-orquestador
+      // §6), sin depender de cuál sea el primary — se sincroniza tanto si
+      // orchestrator es "retell" como "telnyx". Mismo criterio ya aplicado
+      // en syncAgentToRetell (agentBootstrap.ts).
+      if (agent.retellLlmId) {
         if (!agent.retellAgentId) {
           const message = `[Calendar] Agente ${agent.id} tiene retellLlmId pero no retellAgentId; no se pueden registrar tools`;
           console.error(message);
@@ -900,6 +1002,47 @@ export class CalendarService {
         }
 
         continue;
+      }
+    }
+
+    // Telnyx se sincroniza una sola vez para todo el negocio, fuera del
+    // bucle por agente: syncAgentToTelnyx ya recorre internamente todos los
+    // agentes con telnyxAssistantId (a diferencia de Retell/Vapi, que
+    // necesitan una llamada de API por agente). Se ejecuta
+    // independientemente de `orchestrator` — un negocio en backfill
+    // (assistant creado pero todavía sin cutover) también debe llegar con
+    // las tools al día.
+    const telnyxAgents = agents.filter((agent) => agent.telnyxAssistantId);
+    if (telnyxAgents.length > 0) {
+      const baseUrl = getPublicWebhookBaseUrl();
+      if (!baseUrl) {
+        const message = `[Calendar] No hay URL pública configurada (BASE_URL o ngrok); no se pueden sincronizar tools de Telnyx para ${businessId}`;
+        console.error(message);
+        recordError(message);
+      } else {
+        const telnyxTools = this.buildTelnyxCalendarTools(baseUrl);
+        // syncAgentToTelnyx nunca lanza (un fallo de Telnyx no debe poder
+        // bloquear este flujo) — en modo strict se comprueba
+        // telnyxSyncError después para no dar por buena una sincronización
+        // que en realidad falló en silencio.
+        await syncAgentToTelnyx(businessId, prisma, { tools: telnyxTools });
+        console.log(
+          `[Calendar] Tools de calendario sincronizadas en Telnyx para el negocio ${businessId}`
+        );
+
+        if (options?.strict) {
+          const refreshed = await prisma.agent.findMany({
+            where: { id: { in: telnyxAgents.map((agent) => agent.id) } },
+            select: { id: true, telnyxSyncError: true },
+          });
+          for (const agent of refreshed) {
+            if (agent.telnyxSyncError) {
+              const message = `[Calendar] Fallo sincronizando tools de Telnyx en el agente ${agent.id}: ${agent.telnyxSyncError}`;
+              console.error(message);
+              recordError(message);
+            }
+          }
+        }
       }
     }
 

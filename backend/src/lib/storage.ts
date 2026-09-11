@@ -42,7 +42,8 @@ export function getStorageClient(): S3Client {
 export async function uploadRecording(
   key: string,
   stream: Readable,
-  contentType: string = "audio/mpeg"
+  contentType: string = "audio/mpeg",
+  contentLength?: number
 ): Promise<string> {
   const client = getStorageClient();
 
@@ -51,6 +52,14 @@ export async function uploadRecording(
     Key: key,
     Body: stream,
     ContentType: contentType,
+    // Sin esto, el SDK de S3 no sabe firmar la carga en streaming de un
+    // Readable transformado (Readable.fromWeb().pipe(...), como en
+    // processRecording.ts) y falla con "Invalid value undefined for header
+    // x-amz-decoded-content-length" — encontrado con una grabación real de
+    // Telnyx el 2026-09-11 (primera vez que se sube una grabación suya; no
+    // se ha confirmado si Vapi/Retell exponen Content-Length de otra forma
+    // o si esta ruta llevaba tiempo rota sin que nadie lo notara).
+    ContentLength: contentLength,
   });
 
   await client.send(command);

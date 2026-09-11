@@ -75,6 +75,7 @@ describe("provisionPhoneNumber", () => {
     mockRedisClient.eval.mockResolvedValue(1);
     process.env.TELNYX_SPAIN_REQUIREMENT_GROUP_ID = "req_group_test";
     process.env.TELNYX_SIP_CONNECTION_ID = "conn_test";
+    process.env.TELNYX_CALL_CONTROL_APP_ID = "cca_test";
     process.env.RETELL_SIP_TERMINATION_URI = "alhabla-inbound.sip.telnyx.com";
     process.env.RETELL_SIP_TRUNK_AUTH_USERNAME = "alhablaadmin";
     process.env.RETELL_SIP_TRUNK_AUTH_PASSWORD = "secret";
@@ -83,6 +84,7 @@ describe("provisionPhoneNumber", () => {
   afterEach(() => {
     delete process.env.TELNYX_SPAIN_REQUIREMENT_GROUP_ID;
     delete process.env.TELNYX_SIP_CONNECTION_ID;
+    delete process.env.TELNYX_CALL_CONTROL_APP_ID;
     delete process.env.RETELL_SIP_TERMINATION_URI;
     delete process.env.RETELL_SIP_TRUNK_AUTH_USERNAME;
     delete process.env.RETELL_SIP_TRUNK_AUTH_PASSWORD;
@@ -153,6 +155,51 @@ describe("provisionPhoneNumber", () => {
     expect(mockedBusinessUpdate).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({ twilioPhoneNumberStatus: "active" }),
+      })
+    );
+  });
+
+  it("con orchestrator=telnyx, conecta el número al Call Control App pero importa Retell igualmente como fallback (Fase 4)", async () => {
+    mockedBusinessFindUnique.mockResolvedValue({
+      id: businessId,
+      name: "Peluquería Telnyx-primary",
+      twilioPhoneNumberStatus: "pending",
+      telnyxPhoneNumber: null,
+      telnyxNumberOrderId: null,
+      orchestrator: "telnyx",
+      agents: [{ id: agentId, retellAgentId, active: true }],
+    } as any);
+
+    mockedSearchAvailableNumbers.mockResolvedValue([
+      { phoneNumber: "+34886020712", region: "PONTEVEDRA" },
+    ]);
+    mockedPurchaseNumber.mockResolvedValue({
+      orderId: "order_123",
+      status: "success",
+      phoneNumber: "+34886020712",
+      phoneNumberId: "pn_123",
+    });
+    mockedImportPhoneNumber.mockResolvedValue({
+      phone_number_id: "phone_123",
+      phone_number: "+34886020712",
+    } as any);
+
+    const result = await provisionPhoneNumber(businessId);
+
+    expect(result.success).toBe(true);
+    expect(result.status).toBe("active");
+    // El connection_id de la compra apunta al Call Control App, no al SIP
+    // trunk de Retell — eso es lo que de verdad decide a dónde llega la
+    // llamada cuando orchestrator="telnyx".
+    expect(mockedPurchaseNumber).toHaveBeenCalledWith("+34886020712", {
+      requirementGroupId: "req_group_test",
+      connectionId: "cca_test",
+    });
+    // Retell se importa igualmente — fallback caliente obligatorio.
+    expect(mockedImportPhoneNumber).toHaveBeenCalledWith(
+      expect.objectContaining({
+        phoneNumber: "+34886020712",
+        inboundAgentId: retellAgentId,
       })
     );
   });

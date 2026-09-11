@@ -8,6 +8,7 @@ import { calendarService } from "../calendar/service.js";
 import { AgentSettingsSchema, buildManagedAgentPrompt } from "../../lib/managedAgentPrompt.js";
 import { isBusinessType } from "../../lib/businessType.js";
 import { syncAgentNameWithBusinessType, syncAgentToRetell } from "../../lib/agentBootstrap.js";
+import { syncAgentToTelnyx } from "../../lib/telnyxAgentSync.js";
 import { E164_PHONE_REGEX } from "../../lib/phone.js";
 
 const UpdateBusinessSchema = z.object({
@@ -356,6 +357,7 @@ export async function businessesRoutes(fastify: FastifyInstance) {
         // actualizaba la BD (y Vapi, inactivo) sin afectar a la llamada real.
         if (shouldResyncPrompt) {
           await syncAgentToRetell(request.user!.businessId);
+          await syncAgentToTelnyx(request.user!.businessId);
         }
 
         if (data.schedule !== undefined) {

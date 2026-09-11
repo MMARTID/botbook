@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { syncAgentToRetell } from "../../lib/agentBootstrap.js";
+import { syncAgentToTelnyx } from "../../lib/telnyxAgentSync.js";
 import { prisma } from "../../lib/prisma.js";
 import { getRedis } from "../../lib/redis.js";
 import {
@@ -142,6 +143,7 @@ async function syncBookingConfiguration(businessId: string) {
   // reactivar desde PATCH /agents/:id y deben recuperar el catálogo y el
   // análisis post-llamada vigentes en ese momento.
   await syncAgentToRetell(businessId, prisma);
+  await syncAgentToTelnyx(businessId, prisma);
 }
 
 export async function createService(

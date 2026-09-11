@@ -193,7 +193,15 @@ export async function provisionPhoneNumber(businessId: string): Promise<{
       );
       order = await telnyxAdapter.getNumberOrder(business.telnyxNumberOrderId);
     } else {
-      const connectionId = process.env.TELNYX_SIP_CONNECTION_ID;
+      // El número se conecta inicialmente al Call Control App de Telnyx
+      // cuando ese sea el primary, o al SIP trunk de Retell en cualquier
+      // otro caso (plan Telnyx-orquestador §1 paso 5) — Retell se importa
+      // más abajo siempre, como fallback caliente, independientemente de
+      // cuál sea el connection_id activo aquí.
+      const connectionId =
+        orchestrator === "telnyx"
+          ? process.env.TELNYX_CALL_CONTROL_APP_ID
+          : process.env.TELNYX_SIP_CONNECTION_ID;
 
       // 1. Search available numbers
       const available = await telnyxAdapter.searchAvailableNumbers(
@@ -318,7 +326,12 @@ export async function provisionPhoneNumber(businessId: string): Promise<{
     // 3. Find active agent to associate
     const agent = business.agents[0];
 
-    if (orchestrator === "retell") {
+    // Retell se importa aquí para "retell" (primary) y también para
+    // "telnyx" (fallback caliente obligatorio, plan §1 paso 2) — el
+    // connection_id que de verdad recibe las llamadas ya se fijó al comprar
+    // el número más arriba según el orchestrator; este import nunca lo
+    // cambia, solo dota a Retell del número por si hace falta un failover.
+    if (orchestrator === "retell" || orchestrator === "telnyx") {
       if (!agent?.retellAgentId) {
         console.warn(
           `[Phone] Business ${businessId} has no active agent with retellAgentId. Number purchased but not linked in Retell.`
@@ -373,7 +386,9 @@ export async function provisionPhoneNumber(businessId: string): Promise<{
       });
 
       console.log(
-        `[Phone] Number ${order.phoneNumber} active for business ${businessId} (Retell)`
+        `[Phone] Number ${order.phoneNumber} active for business ${businessId} (${
+          orchestrator === "telnyx" ? "Telnyx primary, Retell fallback" : "Retell"
+        })`
       );
 
       return {

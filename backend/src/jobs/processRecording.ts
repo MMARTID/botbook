@@ -40,7 +40,8 @@ export async function processRecordingJob(data: ProcessRecordingJob): Promise<vo
     const storageUrl = await uploadRecording(
       storageKey,
       recording.stream,
-      recording.contentType
+      recording.contentType,
+      recording.contentLength
     );
 
     await prisma.recording.update({
@@ -58,6 +59,7 @@ export async function processRecordingJob(data: ProcessRecordingJob): Promise<vo
 async function downloadRecording(url: string): Promise<{
   stream: Readable;
   contentType: string;
+  contentLength?: number;
 }> {
   const response = await fetch(url, {
     signal: AbortSignal.timeout(RECORDING_DOWNLOAD_TIMEOUT_MS),
@@ -70,7 +72,8 @@ async function downloadRecording(url: string): Promise<{
   }
 
   const declaredLength = Number(response.headers.get("content-length"));
-  if (Number.isFinite(declaredLength) && declaredLength > MAX_RECORDING_BYTES) {
+  const hasDeclaredLength = Number.isFinite(declaredLength) && declaredLength > 0;
+  if (hasDeclaredLength && declaredLength > MAX_RECORDING_BYTES) {
     throw new Error("Recording exceeds the maximum accepted size");
   }
 
@@ -90,5 +93,9 @@ async function downloadRecording(url: string): Promise<{
   return {
     stream: source.pipe(sizeLimiter),
     contentType: response.headers.get("content-type") || "audio/mpeg",
+    // Sin esto, uploadRecording() no puede fijar ContentLength en el PUT a
+    // R2 y la carga en streaming falla (ver storage.ts) — no se pasa
+    // cuando el origen no declaró un content-length real.
+    contentLength: hasDeclaredLength ? declaredLength : undefined,
   };
 }

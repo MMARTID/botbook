@@ -30,6 +30,20 @@ model Business {
   retellPhoneNumberId String? @unique
   retellPhoneNumber   String? @unique
 
+  // Enrutamiento Telnyx AI Assistants / failover a Retell (ver
+  // PLAN-TELNYX-ORQUESTADOR.md). voiceRoutingTarget es la ruta EFECTIVA de la
+  // próxima llamada nueva y puede diferir de `orchestrator` durante un
+  // failover; una llamada ya iniciada nunca migra de proveedor.
+  voiceRoutingTarget      String    @default("retell")
+  voiceFailoverActive     Boolean   @default(false)
+  voiceFailoverReason     String?
+  voiceRoutingChangedAt   DateTime?
+  // Explican por qué un negocio no es elegible para Telnyx (idioma sin
+  // validar, voz sin fallback compatible, residencia UE no confirmada) antes
+  // de tocar su número — null cuando no aplica ninguna exclusión.
+  telnyxEligibilityStatus String?
+  telnyxEligibilityReason String?   @db.Text
+
   // Business niche/type used for agent templates and Retell folder organization
   businessType        String  @default("other")
 
@@ -223,6 +237,19 @@ model Agent {
   // auditar su historial. Al eliminarlo desde el panel se desactiva y se
   // oculta, pero nunca se borra físicamente junto a esas llamadas.
   deletedAt        DateTime?
+
+  // Sincronización Telnyx AI Assistants — fallback caliente de Retell hasta
+  // que el negocio entre en rollout Telnyx (ver PLAN-TELNYX-ORQUESTADOR.md).
+  telnyxAssistantId String?   @unique
+  telnyxConfigHash  String?
+  telnyxSyncedAt    DateTime?
+  telnyxSyncError   String?   @db.Text
+  // Mismos campos para Retell, antes inexistentes: sin ellos el reconciliador
+  // no puede tratar ambos proveedores de forma simétrica.
+  retellConfigHash  String?
+  retellSyncedAt    DateTime?
+  retellSyncError   String?   @db.Text
+
   business         Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
   calls            Call[]
 
@@ -309,6 +336,14 @@ model Call {
   requestedService String?
   durationSecs Int?
   costCents    Int?
+  // Proveedor real que atendió la llamada y su ID nativo. vapiCallId se
+  // mantiene poblado en paralelo por compatibilidad (índices, joins ya
+  // existentes en el resto del esquema) hasta migrarlo por completo a estos
+  // campos genéricos — ver PLAN-TELNYX-ORQUESTADOR.md § "Cambios de datos".
+  voiceProvider           String    @default("retell")
+  providerCallId          String?
+  providerConversationId  String?
+  providerCostCents       Int?
   startedAt    DateTime     @default(now())
   endedAt      DateTime?
   createdAt    DateTime     @default(now())
@@ -320,11 +355,35 @@ model Call {
   transcript   Transcript?
   booking      Booking?
   order        Order?
+  voiceWebhookEvents VoiceWebhookEvent[]
 
+  @@unique([voiceProvider, providerCallId])
   @@index([businessId])
   @@index([agentId])
   @@index([vapiCallId])
   @@map("calls")
+}
+
+/**
+ * Idempotencia de webhooks de voz (Telnyx y, más adelante, Retell) — evita
+ * duplicar grabaciones, insights, outcomes y trabajos de Cloud Tasks cuando
+ * un proveedor reintenta la entrega del mismo evento.
+ */
+model VoiceWebhookEvent {
+  id          String    @id @default(cuid())
+  provider    String
+  eventId     String
+  type        String
+  callId      String?
+  receivedAt  DateTime  @default(now())
+  processedAt DateTime?
+  result      String?
+  lastError   String?   @db.Text
+  call        Call?     @relation(fields: [callId], references: [id], onDelete: SetNull)
+
+  @@unique([provider, eventId])
+  @@index([callId])
+  @@map("voice_webhook_events")
 }
 
 model Booking {

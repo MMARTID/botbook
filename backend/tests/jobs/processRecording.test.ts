@@ -64,6 +64,7 @@ describe("processRecordingJob", () => {
       "recordings/biz_1/call_1.mp3",
       expect.anything(),
       "audio/mpeg",
+      undefined,
     );
     expect(mockedRecordingUpdate).toHaveBeenCalledWith({
       where: { callId: "call_1" },
@@ -72,6 +73,27 @@ describe("processRecordingJob", () => {
         storageUrl: "https://r2.example/recordings/biz_1/call_1.mp3",
       },
     });
+  });
+
+  it("pasa el content-length declarado por el origen a uploadRecording — sin esto, la subida en streaming a R2 falla (hallazgo real 2026-09-11)", async () => {
+    mockedCallFindUnique.mockResolvedValue({ id: "call_1" } as any);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(new Response("audio-fake", {
+        headers: { "content-type": "audio/mpeg", "content-length": "9" },
+      }))
+    );
+    mockedUploadRecording.mockResolvedValue("https://r2.example/recordings/biz_1/call_1.mp3");
+    mockedRecordingUpdate.mockResolvedValue({} as any);
+
+    await processRecordingJob(payload);
+
+    expect(mockedUploadRecording).toHaveBeenCalledWith(
+      "recordings/biz_1/call_1.mp3",
+      expect.anything(),
+      "audio/mpeg",
+      9,
+    );
   });
 
   it("lanza si la descarga desde Vapi falla", async () => {

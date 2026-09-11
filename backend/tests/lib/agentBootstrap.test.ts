@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import {
   buildInboundCallDynamicVariables,
   syncAgentToRetell,
@@ -11,11 +11,13 @@ import { retellAdapter } from "../../src/adapters/retell/RetellAdapter.js";
 import { calendarService } from "../../src/modules/calendar/service.js";
 import { DEFAULT_BUSINESS_SCHEDULE } from "../../src/lib/businessSchedule.js";
 import { DEFAULT_AGENT_SETTINGS } from "../../src/lib/managedAgentPrompt.js";
+import { telnyxAiAdapter } from "../../src/adapters/telnyx/TelnyxAiAdapter.js";
 
 vi.mock("../../src/lib/prisma.js", () => ({
   prisma: {
     business: {
       findUnique: vi.fn(),
+      update: vi.fn(),
     },
     service: {
       findMany: vi.fn(),
@@ -28,6 +30,14 @@ vi.mock("../../src/lib/prisma.js", () => ({
       update: vi.fn(),
       create: vi.fn(),
     },
+  },
+}));
+
+vi.mock("../../src/adapters/telnyx/TelnyxAiAdapter.js", () => ({
+  telnyxAiAdapter: {
+    createAssistant: vi.fn(),
+    updateAssistant: vi.fn(),
+    listVoices: vi.fn(),
   },
 }));
 
@@ -63,6 +73,9 @@ const mockedGetAgent = vi.mocked(retellAdapter.getAgent);
 const mockedCreateLlm = vi.mocked(retellAdapter.createLlm);
 const mockedCreateAgent = vi.mocked(retellAdapter.createAgent);
 const mockedSyncCalendarToolsToAgents = vi.mocked(calendarService.syncCalendarToolsToAgents);
+const mockedBusinessUpdate = vi.mocked(prisma.business.update);
+const mockedTelnyxCreateAssistant = vi.mocked(telnyxAiAdapter.createAssistant);
+const mockedTelnyxListVoices = vi.mocked(telnyxAiAdapter.listVoices);
 
 describe("buildInboundCallDynamicVariables", () => {
   it("devuelve solo el contexto mínimo por llamada", async () => {
@@ -471,5 +484,96 @@ describe("createBusinessAgent — sincroniza tools de calendario al crear (halla
     const result = await createBusinessAgent({ businessId: "biz_new", name: "Nuevo negocio" });
 
     expect(result).toEqual(expect.objectContaining({ id: "agent_db_1" }));
+  });
+});
+
+describe("createBusinessAgent — creación dual Telnyx (Fase 2 del plan Telnyx-orquestador)", () => {
+  const originalRollout = process.env.VOICE_TELNYX_ROLLOUT;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockedBusinessFindUnique.mockResolvedValue({
+      orchestrator: "retell",
+      businessType: "peluqueria",
+      name: "Peluquería de prueba",
+    } as any);
+    mockedServiceFindMany.mockResolvedValue([]);
+    mockedProfessionalFindMany.mockResolvedValue([]);
+    mockedAgentCreate.mockResolvedValue({ id: "agent_db_1" } as any);
+    mockedCreateLlm.mockResolvedValue({ llm_id: "retell_llm_1" } as any);
+    mockedCreateAgent.mockResolvedValue({ agent_id: "retell_agent_1", version: 0, is_published: false } as any);
+    mockedPublishAgent.mockResolvedValue(undefined);
+    mockedGetAgent.mockResolvedValue({ is_published: true } as any);
+    mockedAgentUpdate.mockResolvedValue({ id: "agent_db_1" } as any);
+    mockedBusinessUpdate.mockResolvedValue({} as any);
+    mockedTelnyxListVoices.mockResolvedValue([
+      { id: "Telnyx.Ultra.isabel", language: "es-ES", gender: "Female" },
+    ]);
+    mockedTelnyxCreateAssistant.mockResolvedValue({
+      id: "telnyx_assistant_1",
+      name: "alhabla-biz_new-agent_db_1",
+      instructions: "i",
+    });
+  });
+
+  afterEach(() => {
+    if (originalRollout === undefined) {
+      delete process.env.VOICE_TELNYX_ROLLOUT;
+    } else {
+      process.env.VOICE_TELNYX_ROLLOUT = originalRollout;
+    }
+  });
+
+  it("no toca Telnyx cuando VOICE_TELNYX_ROLLOUT está apagado (comportamiento por defecto)", async () => {
+    delete process.env.VOICE_TELNYX_ROLLOUT;
+
+    await createBusinessAgent({ businessId: "biz_new", name: "Nuevo negocio" });
+
+    expect(mockedTelnyxCreateAssistant).not.toHaveBeenCalled();
+    expect(mockedBusinessUpdate).not.toHaveBeenCalled();
+  });
+
+  it("crea también el assistant Telnyx cuando el rollout está activo y el negocio es elegible", async () => {
+    process.env.VOICE_TELNYX_ROLLOUT = "development";
+
+    await createBusinessAgent({ businessId: "biz_new", name: "Nuevo negocio" });
+
+    expect(mockedTelnyxCreateAssistant).toHaveBeenCalledTimes(1);
+    expect(mockedBusinessUpdate).toHaveBeenCalledWith({
+      where: { id: "biz_new" },
+      data: { telnyxEligibilityStatus: "eligible", telnyxEligibilityReason: null },
+    });
+  });
+
+  it("sigue devolviendo el agente ya creado en Retell si Telnyx falla", async () => {
+    process.env.VOICE_TELNYX_ROLLOUT = "development";
+    mockedTelnyxCreateAssistant.mockRejectedValue(new Error("Telnyx down"));
+
+    const result = await createBusinessAgent({ businessId: "biz_new", name: "Nuevo negocio" });
+
+    expect(result).toEqual(expect.objectContaining({ id: "agent_db_1" }));
+    expect(mockedBusinessUpdate).toHaveBeenCalledWith({
+      where: { id: "biz_new" },
+      data: {
+        telnyxEligibilityStatus: "ineligible",
+        telnyxEligibilityReason: expect.stringContaining("Telnyx down"),
+      },
+    });
+  });
+
+  it("marca el negocio como no elegible (sin llamar a Telnyx) si no hay voz compatible", async () => {
+    process.env.VOICE_TELNYX_ROLLOUT = "all";
+    mockedTelnyxListVoices.mockResolvedValue([]);
+
+    await createBusinessAgent({ businessId: "biz_new", name: "Nuevo negocio" });
+
+    expect(mockedTelnyxCreateAssistant).not.toHaveBeenCalled();
+    expect(mockedBusinessUpdate).toHaveBeenCalledWith({
+      where: { id: "biz_new" },
+      data: {
+        telnyxEligibilityStatus: "ineligible",
+        telnyxEligibilityReason: expect.stringMatching(/voz Telnyx compatible/),
+      },
+    });
   });
 });
