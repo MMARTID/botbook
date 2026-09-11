@@ -15,6 +15,7 @@ import {
   buildRetellAgentPayload,
   buildPostCallAnalysisDataForBusiness,
   createBusinessAgent,
+  getRetellEditableDraft,
   publishRetellAgentUpdate,
   resolveRetellVoiceProfile,
 } from "../../lib/agentBootstrap.js";
@@ -285,26 +286,29 @@ export async function agentsRoutes(fastify: FastifyInstance) {
               const webhookUrl = baseUrl
                 ? `${baseUrl.replace(/\/$/, "")}/webhooks/retell`
                 : undefined;
+              const retellDraft = await getRetellEditableDraft(agent.retellAgentId);
 
-              await retellAdapter.updateLlm(
-                agent.retellLlmId,
-                buildRetellLlmPayload({
+              const retellLlmPayload = buildRetellLlmPayload({
                   name: data.name || agent.name,
                   systemPrompt: data.systemPrompt || agent.systemPrompt,
                   firstMessage:
                     data.firstMessage ??
                     agentWithConfig.firstMessage ??
                     undefined,
-                })
-              );
+                });
+              await retellAdapter.updateLlm(retellDraft.llmId, {
+                ...retellLlmPayload,
+                version: retellDraft.llmVersion,
+              });
 
               const postCallAnalysisData =
                 await buildPostCallAnalysisDataForBusiness(agent.businessId);
               const updatedRetellAgent = await retellAdapter.updateAgent(
                 agent.retellAgentId,
-                buildRetellAgentPayload({
+                {
+                  ...buildRetellAgentPayload({
                   name: data.name || agent.name,
-                  llmId: agent.retellLlmId,
+                  llmId: retellDraft.llmId,
                   webhookUrl,
                   postCallAnalysisData,
                   // Catalán exige una voz compatible: no dejamos que una
@@ -319,7 +323,9 @@ export async function agentsRoutes(fastify: FastifyInstance) {
                       }
                     : {}),
                   languages: agentLanguages,
-                })
+                  }),
+                  version: retellDraft.agentVersion,
+                }
               );
               await publishRetellAgentUpdate(
                 agent.retellAgentId,

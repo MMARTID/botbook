@@ -295,6 +295,36 @@ export async function publishRetellAgentUpdate(
   }
 }
 
+type RetellEditableDraft = {
+  agentVersion: number;
+  llmId: string;
+  llmVersion?: number;
+};
+
+/** Las versiones publicadas son inmutables en Retell. Prepara un borrador
+ * clonado, con la versión de LLM asociada, antes de cualquier edición. */
+export async function getRetellEditableDraft(
+  agentId: string
+): Promise<RetellEditableDraft> {
+  const current = await retellAdapter.getAgent(agentId);
+  const draft = current.is_published
+    ? await retellAdapter.createAgentVersion(agentId, current.version)
+    : current;
+
+  if (!Number.isInteger(draft.version)) {
+    throw new Error(`Retell no devolvió una versión editable para el agente ${agentId}.`);
+  }
+  if (draft.response_engine.type !== "retell-llm") {
+    throw new Error(`El agente ${agentId} no usa un Retell LLM editable.`);
+  }
+
+  return {
+    agentVersion: draft.version,
+    llmId: draft.response_engine.llm_id,
+    llmVersion: draft.response_engine.version ?? undefined,
+  };
+}
+
 /**
  * Cadenas fijas ya validadas contra la API de Retell. Cartesia ofrece la
  * voz española principal para es/en/fr y, si el negocio activa catalán,
@@ -946,6 +976,7 @@ export async function syncAgentToRetell(
     if (options?.onlyManagedPrompts && agent.promptManuallyEdited) continue;
 
     try {
+      const retellDraft = await getRetellEditableDraft(agent.retellAgentId!);
       // Los agentes editados a mano vía PATCH /agents/:id (promptManuallyEdited)
       // nunca deben perder ese texto solo porque cambió un servicio, un
       // profesional o los ajustes del negocio — antes esta función lo
@@ -955,13 +986,16 @@ export async function syncAgentToRetell(
       // aplica igual: no tiene sentido dejar esos desactualizados solo
       // porque el prompt es manual.
       if (!agent.promptManuallyEdited) {
-        await retellAdapter.updateLlm(agent.retellLlmId!, {
+        await retellAdapter.updateLlm(retellDraft.llmId, {
           generalPrompt: systemPrompt,
           beginMessage: buildRetellBeginMessage(business.name),
+          version: retellDraft.llmVersion,
         });
       }
       const updatedRetellAgent = await retellAdapter.updateAgent(agent.retellAgentId!, {
         postCallAnalysisData,
+        llmId: retellDraft.llmId,
+        version: retellDraft.agentVersion,
         voiceId,
         voiceModel: voiceProfile.voiceModel,
         fallbackVoiceIds: voiceProfile.fallbackVoiceIds,
@@ -978,8 +1012,17 @@ export async function syncAgentToRetell(
       await prismaClient.agent.update({
         where: { id: agent.id },
         data: agent.promptManuallyEdited
-          ? { voiceId, voiceProvider: voiceProfile.voiceProvider }
-          : { systemPrompt, voiceId, voiceProvider: voiceProfile.voiceProvider },
+          ? {
+              retellLlmId: retellDraft.llmId,
+              voiceId,
+              voiceProvider: voiceProfile.voiceProvider,
+            }
+          : {
+              retellLlmId: retellDraft.llmId,
+              systemPrompt,
+              voiceId,
+              voiceProvider: voiceProfile.voiceProvider,
+            },
       });
     } catch (error) {
       failedAgentIds.push(agent.id);

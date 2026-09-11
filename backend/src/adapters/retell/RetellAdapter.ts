@@ -237,7 +237,7 @@ export class RetellAdapter {
    */
   async updateLlm(
     llmId: string,
-    input: Partial<CreateRetellLlmInput>
+    input: Partial<CreateRetellLlmInput> & { version?: number }
   ): Promise<LlmResponse> {
     this.ensureApiKey();
 
@@ -256,6 +256,9 @@ export class RetellAdapter {
     }
     if (input.modelTemperature !== undefined) {
       updatePayload.model_temperature = input.modelTemperature;
+    }
+    if (input.version !== undefined) {
+      updatePayload.version = input.version;
     }
 
     const response = await this.client.llm.update(llmId, updatePayload);
@@ -316,7 +319,7 @@ export class RetellAdapter {
    */
   async updateAgent(
     agentId: string,
-    input: Partial<CreateRetellAgentInput> & { llmId?: string }
+    input: Partial<CreateRetellAgentInput> & { llmId?: string; version?: number }
   ): Promise<AgentResponse> {
     this.ensureApiKey();
 
@@ -372,8 +375,22 @@ export class RetellAdapter {
     if (input.maxCallDurationMs !== undefined) {
       updatePayload.max_call_duration_ms = input.maxCallDurationMs;
     }
+    if (input.version !== undefined) {
+      updatePayload.version = input.version;
+    }
 
     return this.client.agent.update(agentId, updatePayload);
+  }
+
+  /** Crea un borrador desde una versión publicada antes de editarla. */
+  async createAgentVersion(
+    agentId: string,
+    baseVersion: number
+  ): Promise<AgentResponse> {
+    this.ensureApiKey();
+    return (await this.client.agent.createVersion(agentId, {
+      base_version: baseVersion,
+    })) as AgentResponse;
   }
 
   /** Publica un borrador de Retell para que la configuración alcance tráfico

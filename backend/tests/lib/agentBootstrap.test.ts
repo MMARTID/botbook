@@ -35,6 +35,7 @@ vi.mock("../../src/adapters/retell/RetellAdapter.js", () => ({
   retellAdapter: {
     updateLlm: vi.fn(),
     updateAgent: vi.fn(),
+    createAgentVersion: vi.fn(),
     publishAgent: vi.fn(),
     getAgent: vi.fn(),
     createLlm: vi.fn(),
@@ -56,6 +57,7 @@ const mockedAgentUpdate = vi.mocked(prisma.agent.update);
 const mockedAgentCreate = vi.mocked(prisma.agent.create);
 const mockedUpdateLlm = vi.mocked(retellAdapter.updateLlm);
 const mockedUpdateAgent = vi.mocked(retellAdapter.updateAgent);
+const mockedCreateAgentVersion = vi.mocked(retellAdapter.createAgentVersion);
 const mockedPublishAgent = vi.mocked(retellAdapter.publishAgent);
 const mockedGetAgent = vi.mocked(retellAdapter.getAgent);
 const mockedCreateLlm = vi.mocked(retellAdapter.createLlm);
@@ -145,8 +147,29 @@ describe("syncAgentToRetell — voiceGender", () => {
     ] as any);
     mockedUpdateLlm.mockResolvedValue({} as any);
     mockedUpdateAgent.mockResolvedValue({ version: 7, is_published: false } as any);
+    mockedCreateAgentVersion.mockResolvedValue({
+      version: 7,
+      is_published: false,
+      response_engine: {
+        type: "retell-llm",
+        llm_id: "retell_llm_1",
+        version: 7,
+      },
+    } as any);
     mockedPublishAgent.mockResolvedValue(undefined);
-    mockedGetAgent.mockResolvedValue({ is_published: true } as any);
+    mockedGetAgent.mockImplementation(async (_agentId, version) =>
+      version === undefined
+        ? ({
+            version: 6,
+            is_published: true,
+            response_engine: {
+              type: "retell-llm",
+              llm_id: "retell_llm_1",
+              version: 6,
+            },
+          } as any)
+        : ({ is_published: true } as any)
+    );
     mockedAgentUpdate.mockResolvedValue({} as any);
   });
 
@@ -363,6 +386,7 @@ describe("syncAgentToRetell — voiceGender", () => {
       expect.objectContaining({
         where: { id: "agent_db_1" },
         data: {
+          retellLlmId: "retell_llm_1",
           voiceId: RETELL_VOICE_ID_BY_GENDER.femenina,
           voiceProvider: "cartesia",
         },

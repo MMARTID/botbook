@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   llmDelete: vi.fn(),
   agentCreate: vi.fn(),
   agentUpdate: vi.fn(),
+  agentCreateVersion: vi.fn(),
   agentRetrieve: vi.fn(),
   agentDelete: vi.fn(),
   agentList: vi.fn(),
@@ -34,6 +35,7 @@ vi.mock("retell-sdk", () => {
       agent = {
         create: mocks.agentCreate,
         update: mocks.agentUpdate,
+        createVersion: mocks.agentCreateVersion,
         retrieve: mocks.agentRetrieve,
         delete: mocks.agentDelete,
         list: mocks.agentList,
@@ -454,6 +456,17 @@ describe("RetellAdapter", () => {
       await adapter.getAgent("agent_123", 4);
 
       expect(mocks.agentRetrieve).toHaveBeenCalledWith("agent_123", { version: 4 });
+    });
+  });
+
+  it("crea un borrador desde la versión publicada antes de editarla", async () => {
+    mocks.agentCreateVersion.mockResolvedValue({ agent_id: "agent_123", version: 5 });
+
+    const adapter = new RetellAdapter();
+    await adapter.createAgentVersion("agent_123", 4);
+
+    expect(mocks.agentCreateVersion).toHaveBeenCalledWith("agent_123", {
+      base_version: 4,
     });
   });
 

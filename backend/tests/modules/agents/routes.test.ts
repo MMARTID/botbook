@@ -26,6 +26,7 @@ vi.mock("../../../src/adapters/retell/RetellAdapter.js", () => ({
   retellAdapter: {
     updateLlm: vi.fn(),
     updateAgent: vi.fn(),
+    createAgentVersion: vi.fn(),
     publishAgent: vi.fn(),
     getAgent: vi.fn(),
     deleteAgent: vi.fn(),
@@ -49,6 +50,7 @@ const mockedAgentUpdate = vi.mocked(prisma.agent.update);
 const mockedBusinessFindUnique = vi.mocked(prisma.business.findUnique);
 const mockedUpdateLlm = vi.mocked(retellAdapter.updateLlm);
 const mockedUpdateAgent = vi.mocked(retellAdapter.updateAgent);
+const mockedCreateAgentVersion = vi.mocked(retellAdapter.createAgentVersion);
 const mockedPublishAgent = vi.mocked(retellAdapter.publishAgent);
 const mockedGetAgent = vi.mocked(retellAdapter.getAgent);
 const mockedGetPublicWebhookBaseUrl = vi.mocked(getPublicWebhookBaseUrl);
@@ -68,8 +70,29 @@ describe("PATCH /agents/:id — conserva la voz elegida (hallazgo #26 de la audi
     mockedGetPublicWebhookBaseUrl.mockReturnValue("https://api.example.com");
     mockedUpdateLlm.mockResolvedValue({} as any);
     mockedUpdateAgent.mockResolvedValue({ version: 12, is_published: false } as any);
+    mockedCreateAgentVersion.mockResolvedValue({
+      version: 12,
+      is_published: false,
+      response_engine: {
+        type: "retell-llm",
+        llm_id: "retell_llm_1",
+        version: 12,
+      },
+    } as any);
     mockedPublishAgent.mockResolvedValue(undefined);
-    mockedGetAgent.mockResolvedValue({ is_published: true } as any);
+    mockedGetAgent.mockImplementation(async (_agentId, version) =>
+      version === undefined
+        ? ({
+            version: 11,
+            is_published: true,
+            response_engine: {
+              type: "retell-llm",
+              llm_id: "retell_llm_1",
+              version: 11,
+            },
+          } as any)
+        : ({ is_published: true } as any)
+    );
   });
 
   it("no resetea la voz masculina a la femenina por defecto al editar solo el saludo", async () => {
