@@ -214,6 +214,12 @@ async function graphFetch<T>(
     throw error;
   }
 
+  // DELETE (cancelar evento) devuelve 204 sin cuerpo — .json() lanzaría al
+  // intentar parsear una respuesta vacía.
+  if (response.status === 204) {
+    return undefined as T;
+  }
+
   return response.json() as Promise<T>;
 }
 
@@ -390,4 +396,16 @@ export async function createMicrosoftCalendarEvent(input: {
     id: event.id,
     htmlLink: event.webLink ?? null,
   };
+}
+
+export async function deleteMicrosoftCalendarEvent(
+  accessToken: string,
+  calendarId: string,
+  eventId: string
+): Promise<void> {
+  await graphFetch<void>(
+    accessToken,
+    `/me/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(eventId)}`,
+    { method: "DELETE" }
+  );
 }

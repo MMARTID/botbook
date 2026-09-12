@@ -36,6 +36,7 @@ async function enqueueCloudTask(input: {
   path: string;
   payload: unknown;
   taskId?: string;
+  scheduleTime?: Date;
 }) {
   const projectId = requireEnv("GCP_PROJECT_ID");
   const location = requireEnv("GCP_REGION");
@@ -50,6 +51,9 @@ async function enqueueCloudTask(input: {
     parent,
     task: {
       name: input.taskId ? `${parent}/tasks/${input.taskId}` : undefined,
+      scheduleTime: input.scheduleTime
+        ? { seconds: Math.floor(input.scheduleTime.getTime() / 1000) }
+        : undefined,
       httpRequest: {
         httpMethod: "POST",
         url,
@@ -116,8 +120,20 @@ export async function enqueueEmailJob(payload: SendEmailJob, taskId?: string): P
   });
 }
 
-export async function enqueueSmsJob(payload: SendSmsJob, taskId?: string): Promise<void> {
+export async function enqueueSmsJob(
+  payload: SendSmsJob,
+  options?: { taskId?: string; scheduleTime?: Date }
+): Promise<void> {
   if (!IS_PRODUCTION) {
+    // Sin Cloud Tasks real en dev: un scheduleTime futuro (recordatorio a
+    // horas vista) no debe disparar el SMS ya mismo, sería directamente
+    // incorrecto. Se loguea la programación prevista y no se envía nada.
+    if (options?.scheduleTime && options.scheduleTime.getTime() > Date.now()) {
+      console.log(
+        `[Job] SMS programado para ${options.scheduleTime.toISOString()} (no se envía ahora, no hay Cloud Tasks en dev)`
+      );
+      return;
+    }
     await processSendSmsJob(payload);
     return;
   }
@@ -125,6 +141,7 @@ export async function enqueueSmsJob(payload: SendSmsJob, taskId?: string): Promi
     queue: "send-sms",
     path: "/internal/jobs/send-sms",
     payload,
-    taskId,
+    taskId: options?.taskId,
+    scheduleTime: options?.scheduleTime,
   });
 }

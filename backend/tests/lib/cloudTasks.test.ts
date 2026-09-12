@@ -14,10 +14,11 @@ vi.mock("@google-cloud/tasks", () => ({
   }),
 }));
 
-const { mockProcessRecordingJob, mockProcessRetryFailedBookingJob, mockProcessSendEmailJob } = vi.hoisted(() => ({
+const { mockProcessRecordingJob, mockProcessRetryFailedBookingJob, mockProcessSendEmailJob, mockProcessSendSmsJob } = vi.hoisted(() => ({
   mockProcessRecordingJob: vi.fn().mockResolvedValue(undefined),
   mockProcessRetryFailedBookingJob: vi.fn().mockResolvedValue(undefined),
   mockProcessSendEmailJob: vi.fn().mockResolvedValue(undefined),
+  mockProcessSendSmsJob: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock("../../src/jobs/processRecording.js", () => ({ processRecordingJob: mockProcessRecordingJob }));
@@ -25,11 +26,13 @@ vi.mock("../../src/jobs/retryFailedBooking.js", () => ({
   processRetryFailedBookingJob: mockProcessRetryFailedBookingJob,
 }));
 vi.mock("../../src/jobs/sendEmail.js", () => ({ processSendEmailJob: mockProcessSendEmailJob }));
+vi.mock("../../src/jobs/sendSms.js", () => ({ processSendSmsJob: mockProcessSendSmsJob }));
 
 const ORIGINAL_ENV = { ...process.env };
 
 const recordingPayload = { callId: "call_1", vapiUrl: "https://vapi.example/rec.mp3", businessId: "biz_1" };
 const bookingPayload = { leadId: "lead_1" };
+const smsPayload = { fromNumber: "+34911222333", toNumber: "+34600111222", text: "Cita confirmada" };
 const emailPayload = {
   fromAlias: "welcome" as const,
   toAddress: "cliente@example.com",
@@ -73,6 +76,24 @@ describe("cloudTasks", () => {
       await enqueueEmailJob(emailPayload);
 
       expect(mockProcessSendEmailJob).toHaveBeenCalledWith(emailPayload);
+      expect(mockCreateTask).not.toHaveBeenCalled();
+    });
+
+    it("ejecuta el job de SMS en línea si no se pide un scheduleTime futuro", async () => {
+      const { enqueueSmsJob } = await import("../../src/lib/cloudTasks.js");
+
+      await enqueueSmsJob(smsPayload);
+
+      expect(mockProcessSendSmsJob).toHaveBeenCalledWith(smsPayload);
+      expect(mockCreateTask).not.toHaveBeenCalled();
+    });
+
+    it("no envía el SMS ya mismo si se pide un scheduleTime futuro (no hay Cloud Tasks real en dev)", async () => {
+      const { enqueueSmsJob } = await import("../../src/lib/cloudTasks.js");
+
+      await enqueueSmsJob(smsPayload, { scheduleTime: new Date(Date.now() + 60 * 60_000) });
+
+      expect(mockProcessSendSmsJob).not.toHaveBeenCalled();
       expect(mockCreateTask).not.toHaveBeenCalled();
     });
   });
@@ -141,6 +162,33 @@ describe("cloudTasks", () => {
 
       expect(mockCreateTask).toHaveBeenCalledWith(
         expect.objectContaining({ task: expect.objectContaining({ name: undefined }) })
+      );
+    });
+
+    it("fija scheduleTime en la tarea de Cloud Tasks cuando se pide un envío diferido", async () => {
+      const { enqueueSmsJob } = await import("../../src/lib/cloudTasks.js");
+      const scheduleTime = new Date("2026-09-20T08:00:00.000Z");
+
+      await enqueueSmsJob(smsPayload, { taskId: "reminder-sms-booking_1", scheduleTime });
+
+      expect(mockProcessSendSmsJob).not.toHaveBeenCalled();
+      expect(mockCreateTask).toHaveBeenCalledWith(
+        expect.objectContaining({
+          task: expect.objectContaining({
+            name: "projects/project_test/locations/europe-west1/queues/send-sms/tasks/reminder-sms-booking_1",
+            scheduleTime: { seconds: Math.floor(scheduleTime.getTime() / 1000) },
+          }),
+        })
+      );
+    });
+
+    it("no fija scheduleTime si el envío es inmediato", async () => {
+      const { enqueueSmsJob } = await import("../../src/lib/cloudTasks.js");
+
+      await enqueueSmsJob(smsPayload);
+
+      expect(mockCreateTask).toHaveBeenCalledWith(
+        expect.objectContaining({ task: expect.objectContaining({ scheduleTime: undefined }) })
       );
     });
 

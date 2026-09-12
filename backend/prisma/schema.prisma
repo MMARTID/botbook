@@ -426,6 +426,12 @@ model Booking {
   durationMinutes Int        @default(30)
   numberPeople Int
   isCancelled  Boolean      @default(false)
+  // Consentimiento explícito del cliente (dado por voz durante la reserva)
+  // para usar el número de esta cita en la confirmación y el recordatorio
+  // por SMS. También es la puerta de entrada para que una llamada futura
+  // desde ese mismo número pueda localizar/cancelar la cita por voz — ver
+  // find_my_appointment/cancel_appointment en voiceTools/service.ts.
+  smsConsent   Boolean      @default(false)
 
   @@index([professionalId])
   @@index([externalCalendarProvider, externalCalendarId])

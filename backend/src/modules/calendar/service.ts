@@ -13,6 +13,7 @@ import { syncAgentToTelnyx } from "../../lib/telnyxAgentSync.js";
 import type { TelnyxWebhookToolInput } from "../../lib/telnyxAssistantPayload.js";
 import {
   createMicrosoftCalendarEvent,
+  deleteMicrosoftCalendarEvent,
   exchangeMicrosoftCode,
   getMicrosoftAuthUrl,
   getMicrosoftProfile,
@@ -107,6 +108,7 @@ export type CalendarBusinessErrorCode =
   | "GOOGLE_CALENDAR_RECONNECT_REQUIRED"
   | "OUTLOOK_CALENDAR_RECONNECT_REQUIRED"
   | "BOOK_APPOINTMENT_FAILED"
+  | "CANCEL_APPOINTMENT_FAILED"
   | "CALENDAR_TIMEOUT"
   | "CALENDAR_RATE_LIMITED";
 
@@ -622,6 +624,11 @@ export class CalendarService {
                 description:
                   "Token exacto devuelto por check_availability.",
               },
+              smsConsent: {
+                type: "boolean",
+                description:
+                  "true si el cliente confirmó por voz que puedes enviarle la confirmación (y un recordatorio) por SMS a este número; false si dijo que no o no se le preguntó.",
+              },
             },
             required: ["clientName", "availabilityToken"],
           },
@@ -719,6 +726,11 @@ export class CalendarService {
                 type: "string",
                 description:
                   "Token exacto devuelto por check_availability para la opción confirmada.",
+              },
+              smsConsent: {
+                type: "boolean",
+                description:
+                  "true si el cliente confirmó por voz que puedes enviarle la confirmación (y un recordatorio) por SMS a este número; false si dijo que no o no se le preguntó.",
               },
             },
           required: ["clientName", "availabilityToken"],
@@ -830,8 +842,39 @@ export class CalendarService {
             description:
               "Token exacto devuelto por check_availability para la opción confirmada.",
           },
+          smsConsent: {
+            type: "boolean",
+            description:
+              "true si el cliente confirmó por voz que puedes enviarle la confirmación (y un recordatorio) por SMS a este número; false si dijo que no o no se le preguntó.",
+          },
         },
         required: ["clientName", "availabilityToken"],
+        headers: [callControlHeader],
+        timeoutMs: 20000,
+      },
+      {
+        name: "find_my_appointment",
+        description:
+          "Busca la próxima cita del negocio asociada al número desde el que llama, si el cliente dio consentimiento SMS al reservarla. Úsala solo si quien llama pide cambiar o cancelar una cita existente y no te ha dado datos concretos.",
+        url: `${toolBaseUrl}/find_my_appointment`,
+        method: "POST",
+        properties: {},
+        headers: [callControlHeader],
+        timeoutMs: 20000,
+      },
+      {
+        name: "cancel_appointment",
+        description:
+          "Cancela la cita cuyo id devolvió find_my_appointment. Úsala solo tras confirmación explícita del cliente. Para 'modificar' una cita: cancélala con esta tool y reserva la nueva con check_availability + book_appointment.",
+        url: `${toolBaseUrl}/cancel_appointment`,
+        method: "POST",
+        properties: {
+          bookingId: {
+            type: "string",
+            description: "El id de la cita devuelto por find_my_appointment.",
+          },
+        },
+        required: ["bookingId"],
         headers: [callControlHeader],
         timeoutMs: 20000,
       },
@@ -1475,6 +1518,92 @@ export class CalendarService {
       throw new CalendarBusinessError(
         "BOOK_APPOINTMENT_FAILED",
         "No se pudo crear el evento en Google Calendar."
+      );
+    }
+  }
+
+  /** Cancela el evento externo de una cita ya reservada (voz: ver
+   * executeCancelAppointment en voiceTools/service.ts). Un evento ya
+   * borrado (404/410) se trata como éxito idempotente — puede haberlo
+   * borrado ya un reintento anterior o el propio propietario a mano. */
+  async cancelAppointment(input: {
+    provider: "google" | "outlook";
+    googleRefreshToken?: string | null;
+    googleCalendarId?: string | null;
+    outlookRefreshToken?: string | null;
+    outlookCalendarId?: string | null;
+    eventId: string;
+  }): Promise<void> {
+    const {
+      provider,
+      googleRefreshToken,
+      googleCalendarId,
+      outlookRefreshToken,
+      outlookCalendarId,
+      eventId,
+    } = input;
+
+    if (provider === "outlook") {
+      if (!outlookRefreshToken || !outlookCalendarId) {
+        throw new CalendarBusinessError(
+          "OUTLOOK_CALENDAR_RECONNECT_REQUIRED",
+          "El negocio no tiene conectado Outlook Calendar."
+        );
+      }
+      try {
+        const { access_token } =
+          await refreshMicrosoftAccessToken(outlookRefreshToken);
+        await deleteMicrosoftCalendarEvent(access_token, outlookCalendarId, eventId);
+      } catch (err) {
+        if ((err as { status?: number })?.status === 404) return;
+        if (isMicrosoftInvalidGrantError(err)) {
+          throw new CalendarBusinessError(
+            "OUTLOOK_CALENDAR_RECONNECT_REQUIRED",
+            "La conexión con Outlook ha sido revocada o expiró."
+          );
+        }
+        console.error("[Calendar] Failed to cancel Outlook appointment:", err);
+        throw new CalendarBusinessError(
+          "CANCEL_APPOINTMENT_FAILED",
+          "No se pudo cancelar el evento en Outlook Calendar."
+        );
+      }
+      return;
+    }
+
+    if (!googleRefreshToken) {
+      throw new CalendarBusinessError(
+        "GOOGLE_CALENDAR_RECONNECT_REQUIRED",
+        "El negocio no tiene conectado Google Calendar."
+      );
+    }
+
+    const oauth2Client = createOAuth2Client();
+    oauth2Client.setCredentials({ refresh_token: googleRefreshToken });
+    const calendar = google.calendar({ version: "v3", auth: oauth2Client });
+    const calendarId = googleCalendarId || "primary";
+
+    try {
+      await calendar.events.delete(
+        { calendarId, eventId },
+        { timeout: CALENDAR_REQUEST_TIMEOUT_MS }
+      );
+    } catch (err) {
+      const status = (err as { code?: number })?.code;
+      if (status === 404 || status === 410) return;
+      if (isGoogleInvalidGrantError(err)) {
+        throw new CalendarBusinessError(
+          "GOOGLE_CALENDAR_RECONNECT_REQUIRED",
+          "La conexión con Google ha sido revocada o expiró."
+        );
+      }
+      console.error(
+        "[Calendar] Failed to cancel appointment:",
+        getGoogleErrorDetails(err)
+      );
+      throw new CalendarBusinessError(
+        "CANCEL_APPOINTMENT_FAILED",
+        "No se pudo cancelar el evento en Google Calendar."
       );
     }
   }

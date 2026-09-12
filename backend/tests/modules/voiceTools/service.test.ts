@@ -11,7 +11,7 @@ vi.mock("../../../src/lib/prisma.js", () => ({
   prisma: {
     business: { findUnique: vi.fn() },
     call: { findUnique: vi.fn(), findFirst: vi.fn() },
-    booking: { upsert: vi.fn(), findUnique: vi.fn() },
+    booking: { upsert: vi.fn(), findUnique: vi.fn(), findFirst: vi.fn(), update: vi.fn() },
     professional: { findFirst: vi.fn(), findMany: vi.fn() },
     service: { findFirst: vi.fn(), findMany: vi.fn() },
   },
@@ -45,6 +45,7 @@ vi.mock("../../../src/modules/calendar/service.js", () => ({
   calendarService: {
     bookAppointment: vi.fn(),
     getBusyIntervals: vi.fn(),
+    cancelAppointment: vi.fn(),
   },
 }));
 
@@ -58,6 +59,9 @@ const mockedCallFindUnique = vi.mocked(prisma.call.findUnique);
 const mockedCallFindFirst = vi.mocked(prisma.call.findFirst);
 const mockedBookingUpsert = vi.mocked(prisma.booking.upsert);
 const mockedBookingFindUnique = vi.mocked(prisma.booking.findUnique);
+const mockedBookingFindFirst = vi.mocked(prisma.booking.findFirst);
+const mockedBookingUpdate = vi.mocked(prisma.booking.update);
+const mockedCancelAppointment = vi.mocked(calendarService.cancelAppointment);
 const mockedProfessionalFindFirst = vi.mocked(prisma.professional.findFirst);
 const mockedProfessionalFindMany = vi.mocked(prisma.professional.findMany);
 const mockedServiceFindMany = vi.mocked(prisma.service.findMany);
@@ -470,6 +474,132 @@ describe("executeVoiceTool book_appointment — varios servicios en la misma cit
   });
 });
 
+describe("executeVoiceTool book_appointment — consentimiento SMS al cliente", () => {
+  const farFutureStart = new Date(Date.now() + 48 * 60 * 60_000).toISOString();
+  const nearFutureStart = new Date(Date.now() + 60 * 60_000).toISOString();
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockedBusinessFindUnique.mockResolvedValue(buildBusiness() as any);
+    mockedCheckBusinessHours.mockReturnValue({ success: true, isOpen: true } as any);
+    mockedBookAppointment.mockResolvedValue({ htmlLink: "https://calendar.google.com/event/1" } as any);
+    mockedGetBusyIntervals.mockResolvedValue([]);
+    mockedProfessionalFindFirst.mockResolvedValue({ id: "professional_123" } as any);
+    mockedProfessionalFindMany.mockResolvedValue([]);
+    mockedServiceFindMany.mockResolvedValue([]);
+    mockedCheckAvailability.mockResolvedValue({
+      available: true,
+      message: "",
+      capacityUsed: 0,
+      capacityTotal: 1,
+      availableProfessionals: [{ id: "professional_123", name: "Ana" }],
+    } as any);
+    mockedCallFindUnique.mockResolvedValue({ id: "call_row_1", fromNumber: "+34600999888" } as any);
+    // Se reutiliza para la comprobación de idempotencia (sin externalEventId,
+    // así que no la dispara) y para resolver el id de Booking recién creado.
+    mockedBookingFindUnique.mockResolvedValue({ id: "booking_1" } as any);
+    mockedEnqueueSmsJob.mockResolvedValue(undefined);
+  });
+
+  it("encola la confirmación al cliente por SMS si dio consentimiento explícito", async () => {
+    const result = await executeVoiceTool(
+      buildBookAppointmentInput({
+        callId: "call_vapi_1",
+        params: {
+          clientName: "María",
+          startDateTime: farFutureStart,
+          durationMinutes: 30,
+          professionalId: "professional_123",
+          smsConsent: true,
+        },
+      })
+    );
+
+    expect(result.result.success).toBe(true);
+    expect(mockedBookingUpsert).toHaveBeenCalledWith(
+      expect.objectContaining({ create: expect.objectContaining({ smsConsent: true }) })
+    );
+    expect(mockedEnqueueSmsJob).toHaveBeenCalledWith(
+      expect.objectContaining({
+        fromNumber: "+34911222333",
+        toNumber: "+34600999888",
+        text: expect.stringContaining("confirmada"),
+      }),
+      { taskId: "confirm-sms-booking_1" }
+    );
+  });
+
+  it("no encola ningún SMS al cliente si no dio consentimiento", async () => {
+    const result = await executeVoiceTool(
+      buildBookAppointmentInput({
+        callId: "call_vapi_1",
+        params: {
+          clientName: "María",
+          startDateTime: farFutureStart,
+          durationMinutes: 30,
+          professionalId: "professional_123",
+          smsConsent: false,
+        },
+      })
+    );
+
+    expect(result.result.success).toBe(true);
+    expect(mockedBookingUpsert).toHaveBeenCalledWith(
+      expect.objectContaining({ create: expect.objectContaining({ smsConsent: false }) })
+    );
+    // El único SMS que se encola es el aviso al propietario (a business.phone).
+    expect(mockedEnqueueSmsJob).toHaveBeenCalledTimes(1);
+    expect(mockedEnqueueSmsJob).toHaveBeenCalledWith(
+      expect.objectContaining({ toNumber: "+34600111222" })
+    );
+  });
+
+  it("programa un recordatorio SMS cuando la cita queda más lejos que el margen mínimo", async () => {
+    await executeVoiceTool(
+      buildBookAppointmentInput({
+        callId: "call_vapi_1",
+        params: {
+          clientName: "María",
+          startDateTime: farFutureStart,
+          durationMinutes: 30,
+          professionalId: "professional_123",
+          smsConsent: true,
+        },
+      })
+    );
+
+    expect(mockedEnqueueSmsJob).toHaveBeenCalledWith(
+      expect.objectContaining({ text: expect.stringContaining("Recordatorio") }),
+      expect.objectContaining({
+        taskId: "reminder-sms-booking_1",
+        scheduleTime: expect.any(Date),
+      })
+    );
+  });
+
+  it("no programa recordatorio si la cita está más cerca que el margen mínimo", async () => {
+    await executeVoiceTool(
+      buildBookAppointmentInput({
+        callId: "call_vapi_1",
+        params: {
+          clientName: "María",
+          startDateTime: nearFutureStart,
+          durationMinutes: 30,
+          professionalId: "professional_123",
+          smsConsent: true,
+        },
+      })
+    );
+
+    // Solo la confirmación inmediata al cliente + el aviso al propietario.
+    expect(mockedEnqueueSmsJob).toHaveBeenCalledTimes(2);
+    expect(mockedEnqueueSmsJob).not.toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ taskId: "reminder-sms-booking_1" })
+    );
+  });
+});
+
 describe("executeVoiceTool book_appointment — estado de la suscripción (hallazgo #9 de la auditoría)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -516,4 +646,170 @@ describe("executeVoiceTool book_appointment — estado de la suscripción (halla
       expect(mockedBookAppointment).toHaveBeenCalled();
     }
   );
+});
+
+describe("executeVoiceTool find_my_appointment", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockedBusinessFindUnique.mockResolvedValue(buildBusiness() as any);
+    mockedCallFindUnique.mockResolvedValue({ id: "call_row_1", fromNumber: "+34600999888" } as any);
+  });
+
+  it("encuentra la próxima cita con consentimiento asociada al número de quien llama", async () => {
+    mockedBookingFindFirst.mockResolvedValue({
+      id: "booking_1",
+      programedAt: new Date("2026-09-20T10:00:00+02:00"),
+      serviceIds: ["svc_1"],
+      professional: { name: "Ana" },
+    } as any);
+    mockedServiceFindMany.mockResolvedValue([{ name: "Corte" }] as any);
+
+    const result = await executeVoiceTool({
+      businessId: "business_123",
+      toolName: "find_my_appointment",
+      params: {},
+      callId: "call_vapi_1",
+    });
+
+    expect(result.result.success).toBe(true);
+    expect(result.result.bookingId).toBe("booking_1");
+    expect(result.result.serviceNames).toEqual(["Corte"]);
+    expect(mockedBookingFindFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ smsConsent: true, isCancelled: false }),
+      })
+    );
+  });
+
+  it("no encuentra nada si no hay ninguna reserva con consentimiento para ese número", async () => {
+    mockedBookingFindFirst.mockResolvedValue(null);
+
+    const result = await executeVoiceTool({
+      businessId: "business_123",
+      toolName: "find_my_appointment",
+      params: {},
+      callId: "call_vapi_1",
+    });
+
+    expect(result.result.success).toBe(false);
+    expect(result.result.code).toBe("APPOINTMENT_NOT_FOUND");
+  });
+
+  it("no busca nada si no se puede identificar el número de quien llama", async () => {
+    mockedCallFindUnique.mockResolvedValue({ id: "call_row_1", fromNumber: null } as any);
+
+    const result = await executeVoiceTool({
+      businessId: "business_123",
+      toolName: "find_my_appointment",
+      params: {},
+      callId: "call_vapi_1",
+    });
+
+    expect(result.result.success).toBe(false);
+    expect(mockedBookingFindFirst).not.toHaveBeenCalled();
+  });
+});
+
+describe("executeVoiceTool cancel_appointment", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockedBusinessFindUnique.mockResolvedValue(buildBusiness() as any);
+    mockedCallFindUnique.mockResolvedValue({ id: "call_row_1", fromNumber: "+34600999888" } as any);
+    mockedBookingUpdate.mockResolvedValue({} as any);
+    mockedCancelAppointment.mockResolvedValue(undefined as any);
+  });
+
+  function buildOwnedBooking(overrides: Record<string, unknown> = {}) {
+    return {
+      id: "booking_1",
+      isCancelled: false,
+      smsConsent: true,
+      clientPhone: null,
+      externalEventId: "evt_1",
+      externalCalendarProvider: "google",
+      externalCalendarId: "primary",
+      call: { fromNumber: "+34600999888" },
+      ...overrides,
+    };
+  }
+
+  it("cancela la cita si el número de quien llama coincide y dio consentimiento", async () => {
+    mockedBookingFindFirst.mockResolvedValue(buildOwnedBooking() as any);
+
+    const result = await executeVoiceTool({
+      businessId: "business_123",
+      toolName: "cancel_appointment",
+      params: { bookingId: "booking_1" },
+      callId: "call_vapi_1",
+    });
+
+    expect(result.result.success).toBe(true);
+    expect(mockedBookingUpdate).toHaveBeenCalledWith({
+      where: { id: "booking_1" },
+      data: { isCancelled: true },
+    });
+    expect(mockedCancelAppointment).toHaveBeenCalledWith(
+      expect.objectContaining({ provider: "google", eventId: "evt_1" })
+    );
+  });
+
+  it("no cancela ni revela la cita si el número de quien llama no coincide", async () => {
+    mockedBookingFindFirst.mockResolvedValue(
+      buildOwnedBooking({ call: { fromNumber: "+34611000000" } }) as any
+    );
+
+    const result = await executeVoiceTool({
+      businessId: "business_123",
+      toolName: "cancel_appointment",
+      params: { bookingId: "booking_1" },
+      callId: "call_vapi_1",
+    });
+
+    expect(result.result.success).toBe(false);
+    expect(result.result.code).toBe("APPOINTMENT_NOT_FOUND");
+    expect(mockedBookingUpdate).not.toHaveBeenCalled();
+  });
+
+  it("no cancela si la reserva no tiene consentimiento aunque el número coincida", async () => {
+    mockedBookingFindFirst.mockResolvedValue(buildOwnedBooking({ smsConsent: false }) as any);
+
+    const result = await executeVoiceTool({
+      businessId: "business_123",
+      toolName: "cancel_appointment",
+      params: { bookingId: "booking_1" },
+      callId: "call_vapi_1",
+    });
+
+    expect(result.result.success).toBe(false);
+    expect(mockedBookingUpdate).not.toHaveBeenCalled();
+  });
+
+  it("responde con éxito idempotente si la cita ya estaba cancelada", async () => {
+    mockedBookingFindFirst.mockResolvedValue(buildOwnedBooking({ isCancelled: true }) as any);
+
+    const result = await executeVoiceTool({
+      businessId: "business_123",
+      toolName: "cancel_appointment",
+      params: { bookingId: "booking_1" },
+      callId: "call_vapi_1",
+    });
+
+    expect(result.result.success).toBe(true);
+    expect(mockedBookingUpdate).not.toHaveBeenCalled();
+  });
+
+  it("cancela en BD aunque falle el borrado del evento externo", async () => {
+    mockedBookingFindFirst.mockResolvedValue(buildOwnedBooking() as any);
+    mockedCancelAppointment.mockRejectedValueOnce(new Error("Google no responde"));
+
+    const result = await executeVoiceTool({
+      businessId: "business_123",
+      toolName: "cancel_appointment",
+      params: { bookingId: "booking_1" },
+      callId: "call_vapi_1",
+    });
+
+    expect(result.result.success).toBe(true);
+    expect(mockedBookingUpdate).toHaveBeenCalled();
+  });
 });

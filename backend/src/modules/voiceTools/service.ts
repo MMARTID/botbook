@@ -24,7 +24,9 @@ export type VoiceToolName =
   | "get_catalog"
   | "check_business_hours"
   | "check_availability"
-  | "book_appointment";
+  | "book_appointment"
+  | "find_my_appointment"
+  | "cancel_appointment";
 
 // Estados de SubscriptionStatus (schema.prisma) que significan "el negocio
 // no está pagando ahora mismo" — no incluye TRIALING/ACTIVE (pagando de
@@ -40,6 +42,10 @@ const BLOCKED_SUBSCRIPTION_STATUSES = new Set([
 const AVAILABILITY_TOKEN_TTL_SECONDS = 5 * 60;
 const MAX_CATALOG_ITEMS = 60;
 const MAX_APPOINTMENT_DURATION_MINUTES = 24 * 60;
+// Antelación del recordatorio SMS al cliente. Si la cita queda más cerca que
+// esto, no se manda recordatorio (solo la confirmación inmediata) — mandarlo
+// ya prácticamente encima de la confirmación no aporta nada.
+const REMINDER_LEAD_HOURS = 24;
 
 function isValidAppointmentDuration(value: unknown): value is number {
   return (
@@ -121,6 +127,7 @@ export interface ExecuteVoiceToolInput {
 
 interface BusinessVoiceConfig {
   id: string;
+  name: string;
   schedule: unknown;
   timezone: string;
   bookingCapacity: number;
@@ -172,6 +179,7 @@ async function loadBusinessConfig(
     where: { id: businessId },
     select: {
       id: true,
+      name: true,
       schedule: true,
       timezone: true,
       bookingCapacity: true,
@@ -673,6 +681,59 @@ function buildBookingSmsText(input: {
   return parts.join(" — ");
 }
 
+/** Confirmación al cliente tras reservar — solo se manda si dio
+ * consentimiento (smsConsent) para usar ese número. */
+function buildClientConfirmationSmsText(input: {
+  businessName: string;
+  startDateTime: string;
+  timezone: string;
+  serviceNames?: string[] | null;
+}): string {
+  const formattedDateTime = new Intl.DateTimeFormat("es-ES", {
+    timeZone: input.timezone,
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(input.startDateTime));
+
+  const services = input.serviceNames?.filter(Boolean) ?? [];
+  const parts = [
+    `Cita confirmada en ${input.businessName}`,
+    services.length > 0 ? services.join(" + ") : null,
+    formattedDateTime,
+  ].filter(Boolean);
+
+  return parts.join(" — ");
+}
+
+/** Recordatorio programado (REMINDER_LEAD_HOURS antes de la cita). */
+function buildClientReminderSmsText(input: {
+  businessName: string;
+  startDateTime: string;
+  timezone: string;
+  serviceNames?: string[] | null;
+}): string {
+  const formattedDateTime = new Intl.DateTimeFormat("es-ES", {
+    timeZone: input.timezone,
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(input.startDateTime));
+
+  const services = input.serviceNames?.filter(Boolean) ?? [];
+  const parts = [
+    `Recordatorio: tienes una cita en ${input.businessName}`,
+    services.length > 0 ? services.join(" + ") : null,
+    formattedDateTime,
+  ].filter(Boolean);
+
+  return parts.join(" — ");
+}
+
 function buildCalendarIdempotencyKey(input: {
   callId: string;
   startDateTime: string;
@@ -701,10 +762,12 @@ async function executeBookAppointment(
     serviceIds?: string[];
     professionalId?: string;
     availabilityToken?: string;
+    smsConsent?: boolean;
   };
   const clientName = rawParams.clientName;
   const clientEmail = rawParams.clientEmail;
   const clientPhone = rawParams.clientPhone;
+  const smsConsent = rawParams.smsConsent === true;
   const draft = typeof rawParams.availabilityToken === "string"
     ? await readAvailabilityDraft(
       rawParams.availabilityToken,
@@ -1083,6 +1146,7 @@ async function executeBookAppointment(
               professionalId: resolvedProfessionalId ?? undefined,
               serviceIds: verifiedServiceIds,
               clientPhone: clientPhone || undefined,
+              smsConsent,
               externalEventId: (result as { id?: string })?.id ?? undefined,
               externalCalendarProvider: provider,
               externalCalendarId:
@@ -1096,6 +1160,7 @@ async function executeBookAppointment(
               professionalId: resolvedProfessionalId ?? undefined,
               serviceIds: verifiedServiceIds,
               clientPhone: clientPhone || undefined,
+              smsConsent,
               externalEventId: (result as { id?: string })?.id ?? undefined,
               externalCalendarProvider: provider,
               externalCalendarId:
@@ -1139,6 +1204,72 @@ async function executeBookAppointment(
             console.error(
               `[VoiceTools] ${callLabel} no pudo encolar el SMS de aviso: ${errorMessage(smsError)}`
             );
+          }
+        }
+
+        // Confirmación (y recordatorio) al cliente por SMS — solo si dio
+        // consentimiento explícito por voz (smsConsent) para usar este
+        // número. Mismo aislamiento que el aviso al propietario: nunca debe
+        // poder tumbar la reserva. OJO: a día de hoy Telnyx bloquea el envío
+        // real desde cualquier número largo español (40323 "Messaging
+        // activation failed", ver AGENTS.md) — este bloque deja el pipeline
+        // listo (y el job correctamente encolado) para cuando se resuelva,
+        // sin que la entrega real sea la condición de éxito ahora mismo.
+        if (
+          smsConsent &&
+          business.telnyxPhoneNumber &&
+          effectiveClientPhone &&
+          isValidE164Phone(effectiveClientPhone)
+        ) {
+          const bookingId = call?.id
+            ? await prisma.booking
+                .findUnique({ where: { callId: call.id }, select: { id: true } })
+                .then((b) => b?.id)
+            : undefined;
+
+          try {
+            await enqueueSmsJob(
+              {
+                fromNumber: business.telnyxPhoneNumber,
+                toNumber: effectiveClientPhone,
+                text: buildClientConfirmationSmsText({
+                  businessName: business.name,
+                  startDateTime,
+                  timezone: business.timezone || "Europe/Madrid",
+                  serviceNames: verifiedServiceNames,
+                }),
+              },
+              bookingId ? { taskId: `confirm-sms-${bookingId}` } : undefined
+            );
+          } catch (smsError) {
+            console.error(
+              `[VoiceTools] ${callLabel} no pudo encolar el SMS de confirmación al cliente: ${errorMessage(smsError)}`
+            );
+          }
+
+          const reminderAt = new Date(
+            new Date(startDateTime).getTime() - REMINDER_LEAD_HOURS * 60 * 60 * 1000
+          );
+          if (bookingId && reminderAt.getTime() > Date.now()) {
+            try {
+              await enqueueSmsJob(
+                {
+                  fromNumber: business.telnyxPhoneNumber,
+                  toNumber: effectiveClientPhone,
+                  text: buildClientReminderSmsText({
+                    businessName: business.name,
+                    startDateTime,
+                    timezone: business.timezone || "Europe/Madrid",
+                    serviceNames: verifiedServiceNames,
+                  }),
+                },
+                { taskId: `reminder-sms-${bookingId}`, scheduleTime: reminderAt }
+              );
+            } catch (smsError) {
+              console.error(
+                `[VoiceTools] ${callLabel} no pudo encolar el recordatorio SMS al cliente: ${errorMessage(smsError)}`
+              );
+            }
           }
         }
 
@@ -1295,6 +1426,177 @@ async function executeBookAppointment(
 }
 
 /**
+ * Localiza la próxima cita del negocio asociada al número desde el que llama
+ * quien marca — solo si esa cita se reservó con smsConsent=true (consentimiento
+ * explícito para usar ese número, dado por voz durante la reserva original).
+ * Sin ese consentimiento, aunque exista una cita con ese número, se responde
+ * como si no se hubiera encontrado nada: no se filtra información de una
+ * reserva que el cliente no autorizó a asociar a su número.
+ */
+async function executeFindMyAppointment(
+  business: BusinessVoiceConfig,
+  callLabel: string,
+  callId?: string
+): Promise<{ success: boolean; result?: any }> {
+  const call = await resolveCallForBusiness(callId, business.id, callLabel);
+  const callerNumber = call?.fromNumber;
+
+  const notFoundResult = {
+    success: true,
+    result: {
+      success: false,
+      code: "APPOINTMENT_NOT_FOUND",
+      message:
+        "No encuentro ninguna cita con este número. ¿Puedes darme el nombre con el que reservaste?",
+    },
+  };
+
+  if (!callerNumber) {
+    return notFoundResult;
+  }
+
+  const booking = await prisma.booking.findFirst({
+    where: {
+      call: { businessId: business.id },
+      isCancelled: false,
+      programedAt: { gte: new Date() },
+      smsConsent: true,
+      OR: [
+        { clientPhone: callerNumber },
+        { clientPhone: null, call: { fromNumber: callerNumber } },
+      ],
+    },
+    orderBy: { programedAt: "asc" },
+    select: {
+      id: true,
+      programedAt: true,
+      serviceIds: true,
+      professional: { select: { name: true } },
+    },
+  });
+
+  if (!booking) {
+    return notFoundResult;
+  }
+
+  const services =
+    booking.serviceIds.length > 0
+      ? await prisma.service.findMany({
+          where: { id: { in: booking.serviceIds } },
+          select: { name: true },
+        })
+      : [];
+
+  const formattedDateTime = new Intl.DateTimeFormat("es-ES", {
+    timeZone: business.timezone || "Europe/Madrid",
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(booking.programedAt);
+
+  return {
+    success: true,
+    result: {
+      success: true,
+      bookingId: booking.id,
+      formattedDateTime,
+      serviceNames: services.map((s) => s.name),
+      professionalName: booking.professional?.name ?? null,
+    },
+  };
+}
+
+/**
+ * Cancela una cita identificada por find_my_appointment. Vuelve a comprobar
+ * en servidor que el número de quien llama coincide y que dio consentimiento
+ * — nunca se fía de que el LLM solo pase ids de citas propias.
+ */
+async function executeCancelAppointment(
+  business: BusinessVoiceConfig,
+  params: Record<string, unknown>,
+  callLabel: string,
+  callId?: string
+): Promise<{ success: boolean; result?: any }> {
+  const bookingId =
+    typeof params.bookingId === "string" ? params.bookingId : undefined;
+
+  const notFoundResult = {
+    success: true,
+    result: {
+      success: false,
+      code: "APPOINTMENT_NOT_FOUND",
+      message:
+        "No encuentro esa cita con este número. ¿Puedes darme el nombre con el que reservaste?",
+    },
+  };
+
+  if (!bookingId) {
+    return notFoundResult;
+  }
+
+  const call = await resolveCallForBusiness(callId, business.id, callLabel);
+  const callerNumber = call?.fromNumber;
+
+  const booking = await prisma.booking.findFirst({
+    where: { id: bookingId, call: { businessId: business.id } },
+    include: { call: { select: { fromNumber: true } } },
+  });
+
+  const ownsBooking =
+    booking &&
+    booking.smsConsent &&
+    callerNumber &&
+    (booking.clientPhone
+      ? booking.clientPhone === callerNumber
+      : booking.call.fromNumber === callerNumber);
+
+  if (!booking || !ownsBooking) {
+    return notFoundResult;
+  }
+
+  if (booking.isCancelled) {
+    return {
+      success: true,
+      result: { success: true, message: "Esa cita ya estaba cancelada." },
+    };
+  }
+
+  await prisma.booking.update({
+    where: { id: booking.id },
+    data: { isCancelled: true },
+  });
+
+  if (booking.externalEventId && booking.externalCalendarProvider) {
+    try {
+      await calendarService.cancelAppointment({
+        provider:
+          booking.externalCalendarProvider === "outlook" ? "outlook" : "google",
+        googleRefreshToken: business.googleRefreshToken,
+        googleCalendarId: booking.externalCalendarId,
+        outlookRefreshToken: business.outlookRefreshToken,
+        outlookCalendarId: booking.externalCalendarId,
+        eventId: booking.externalEventId,
+      });
+    } catch (error) {
+      // La cancelación en nuestra BD es la fuente de verdad — un fallo al
+      // borrar el evento externo (calendario reconectado a mano, rate
+      // limit, etc.) no debe impedir que la cita quede cancelada para el
+      // cliente.
+      console.error(
+        `[VoiceTools] ${callLabel} canceló la cita ${booking.id} pero no pudo borrar el evento externo: ${errorMessage(error)}`
+      );
+    }
+  }
+
+  return {
+    success: true,
+    result: { success: true, message: "Cita cancelada correctamente." },
+  };
+}
+
+/**
  * Ejecuta una tool de voz de forma neutral al orquestador.
  * Recibe el businessId ya resuelto y los parámetros de la tool.
  */
@@ -1326,6 +1628,10 @@ export async function executeVoiceTool(
       return executeCheckAvailability(business, params, callLabel, callId);
     case "book_appointment":
       return executeBookAppointment(business, params, callLabel, callId);
+    case "find_my_appointment":
+      return executeFindMyAppointment(business, callLabel, callId);
+    case "cancel_appointment":
+      return executeCancelAppointment(business, params, callLabel, callId);
     default:
       console.warn(`[VoiceTools] Tool desconocida: ${toolName}`);
       return { success: true };
