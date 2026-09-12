@@ -148,6 +148,13 @@ describe("buildTelnyxAssistantPayload", () => {
     expect(payload.voiceSettings?.voice_speed).toBe(1.1);
   });
 
+  it("fija el modelo LLM primario y su fallback — decisión explícita del usuario 2026-09-12; el modelo NO afecta al coste (ai-voice-assistant es tarifa plana por minuto, confirmado con una llamada real)", () => {
+    const payload = buildTelnyxAssistantPayload(baseInput);
+
+    expect(payload.model).toBe("openai/gpt-5.6-luna");
+    expect(payload.fallbackConfig).toEqual({ model: "moonshotai/Kimi-K2.6" });
+  });
+
   it("nunca fija dynamic_variables_webhook_url — el flujo normal no depende de él", () => {
     const payload = buildTelnyxAssistantPayload(baseInput);
 

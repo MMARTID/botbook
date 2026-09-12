@@ -412,6 +412,26 @@ Stores the business niche selected during registration. Used to label agents and
 
 Run migrations in dev with `npm run prisma:migrate`. In production, generate the client before starting (`prisma generate`).
 
+**Migrando contra el contenedor `alhabla_backend_dev` (no interactivo):** `prisma migrate dev`
+falla ahí con "non-interactive environment not supported". Usa en su lugar
+`docker exec alhabla_backend_dev npx prisma migrate dev --name <nombre> --create-only`
+(genera el SQL sin aplicarlo ni pedir confirmación) seguido de
+`docker exec alhabla_backend_dev npx prisma migrate deploy`. Tras aplicar la
+migración, **reinicia el contenedor** (`docker restart alhabla_backend_dev`):
+el proceso `tsx watch` lleva en memoria el `@prisma/client` que se cargó al
+arrancar, y `prisma generate` solo reescribe los archivos en disco — sin
+reiniciar el proceso, las queries siguen viendo el schema viejo (columnas
+nuevas ausentes, 500s en rutas que las usan) aunque la migración ya esté
+aplicada en la base de datos. Esto es un artefacto exclusivo de tener un
+proceso Node de larga duración en dev (`docker-compose.yml` lo arranca con
+`sh -c "npx prisma generate && npm run dev"`, una sola vez); **no ocurre en
+producción** — cada deploy construye una imagen nueva (`prisma generate` en
+el build, ver Dockerfile stage `builder`) y `cloudbuild.yaml` aplica
+`prisma migrate deploy` contra Cloud SQL *antes* de que `gcloud run deploy`
+publique esa imagen, así que el proceso que sirve tráfico siempre arranca ya
+con el cliente y el esquema en el mismo commit — nunca hay un proceso vivo
+con un cliente desactualizado que sobreviva a una migración.
+
 ## Background Jobs (Cloud Tasks)
 
 Migrated 2026-09-03 from BullMQ (Redis-backed workers, needed an always-on

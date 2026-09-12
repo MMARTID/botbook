@@ -343,7 +343,15 @@ model Call {
   voiceProvider           String    @default("retell")
   providerCallId          String?
   providerConversationId  String?
+  // OJO: en Telnyx, providerCostCents viene del webhook call.cost y SOLO
+  // cubre telefonía (sip-trunking, call-control, grabación) — el coste de
+  // IA (LLM+STT+TTS) se factura aparte como producto ai-voice-assistant y
+  // NO llega en este webhook (confirmado 2026-09-12 comparando contra
+  // usageReports: en una llamada real de 126s, 3 céntimos aquí vs 17.52
+  // céntimos reales con IA incluida). providerCostBreakdown guarda los
+  // cost_parts de telefonía tal cual llegan; no incluye IA.
   providerCostCents       Int?
+  providerCostBreakdown   Json?
   startedAt    DateTime     @default(now())
   endedAt      DateTime?
   createdAt    DateTime     @default(now())

@@ -425,7 +425,58 @@ describe("handleCallCost", () => {
     expect(result).toEqual({ success: true });
     expect(mockedCallUpdate).toHaveBeenCalledWith({
       where: { id: "call_db_1" },
-      data: { providerCostCents: 1 },
+      data: { providerCostCents: 1, providerCostBreakdown: undefined },
+    });
+  });
+
+  it("guarda el desglose de cost_parts (solo telefonía, no incluye IA)", async () => {
+    mockedCallFindUnique.mockResolvedValue({ id: "call_db_1" } as any);
+    mockedCallUpdate.mockResolvedValue({} as any);
+
+    const result = await handleCallCost({
+      data: {
+        id: "evt_7",
+        event_type: "call.cost",
+        payload: {
+          call_control_id: "call_ctrl_1",
+          total_cost: "0.0252",
+          status: "success",
+          cost_parts: [
+            {
+              call_part: "sip-trunking",
+              cost: "0.0168",
+              currency: "USD",
+              rate: "0.0056",
+              billed_duration_secs: 180,
+            },
+            { call_part: "call-control", cost: "0.0042", currency: "USD" },
+          ],
+        },
+      },
+    });
+
+    expect(result).toEqual({ success: true });
+    expect(mockedCallUpdate).toHaveBeenCalledWith({
+      where: { id: "call_db_1" },
+      data: {
+        providerCostCents: 3,
+        providerCostBreakdown: [
+          {
+            call_part: "sip-trunking",
+            cost: "0.0168",
+            currency: "USD",
+            rate: "0.0056",
+            billed_duration_secs: 180,
+          },
+          {
+            call_part: "call-control",
+            cost: "0.0042",
+            currency: "USD",
+            rate: null,
+            billed_duration_secs: null,
+          },
+        ],
+      },
     });
   });
 

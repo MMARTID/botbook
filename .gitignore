@@ -25,6 +25,10 @@ dist/
 .env.*
 !.env.example
 
+# Plan de trabajo en curso (Telnyx AI Assistants como orquestador) — se
+# sigue editando fase a fase, no es documentación estable del proyecto.
+PLAN-TELNYX-ORQUESTADOR.md
+
 # /design-sync: scripts montados, salida del convertidor, caché y entradas
 # generadas para el bundle (el origen de verdad es .design-sync/config.json).
 .ds-sync/

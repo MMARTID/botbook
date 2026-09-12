@@ -100,6 +100,16 @@ const TelnyxCallConversationInsightsGeneratedSchema = z.object({
   }),
 });
 
+const TelnyxCostPartSchema = z
+  .object({
+    call_part: z.string().optional(),
+    cost: z.string().optional(),
+    currency: z.string().optional(),
+    rate: z.string().optional(),
+    billed_duration_secs: z.number().optional(),
+  })
+  .passthrough();
+
 const TelnyxCallCostSchema = z.object({
   data: z.object({
     id: z.string(),
@@ -112,6 +122,12 @@ const TelnyxCallCostSchema = z.object({
         // confirmar lo contrario para esta cuenta.
         total_cost: z.string().nullable().optional(),
         status: z.enum(["success", "error"]).optional(),
+        // Desglose por partida (sip-trunking, call-control,
+        // call-recording...) — SOLO telefonía, nunca IA. Confirmado
+        // 2026-09-12 contra usageReports: el coste de IA (LLM+STT+TTS) se
+        // reporta aparte, como producto ai-voice-assistant, y no aparece
+        // en cost_parts ni en total_cost.
+        cost_parts: z.array(TelnyxCostPartSchema).optional(),
       })
       .passthrough(),
   }),
@@ -445,16 +461,20 @@ export async function handleCallConversationInsightsGenerated(
 }
 
 /**
- * Guarda el coste real de la llamada — solo llega si el Call Control App de
- * plataforma tiene `call_cost_in_webhooks` activado (ver
- * scripts/provisionCallControlApp.ts). Requiere seguimiento interno de
- * coste, no forma parte del diseño original del plan.
+ * Guarda el coste de TELEFONÍA de la llamada (sip-trunking, call-control,
+ * grabación) — solo llega si el Call Control App de plataforma tiene
+ * `call_cost_in_webhooks` activado (ver scripts/provisionCallControlApp.ts).
+ * Requiere seguimiento interno de coste, no forma parte del diseño original
+ * del plan. NO incluye el coste de IA (LLM+STT+TTS): ese se factura como
+ * producto ai-voice-assistant y solo se puede consultar de forma agregada
+ * (por hora y assistant_id, no por llamada) vía client.usageReports.list().
  */
 export async function handleCallCost(
   payload: unknown
 ): Promise<{ success: boolean }> {
   const event = TelnyxCallCostSchema.parse(payload);
-  const { call_control_id, total_cost, status } = event.data.payload;
+  const { call_control_id, total_cost, status, cost_parts } =
+    event.data.payload;
 
   if (!call_control_id) {
     console.error(`[Telnyx] call.cost sin call_control_id`);
@@ -487,13 +507,24 @@ export async function handleCallCost(
       return { success: false };
     }
 
+    const costBreakdown = cost_parts?.map((part) => ({
+      call_part: part.call_part ?? null,
+      cost: part.cost ?? null,
+      currency: part.currency ?? null,
+      rate: part.rate ?? null,
+      billed_duration_secs: part.billed_duration_secs ?? null,
+    }));
+
     await prisma.call.update({
       where: { id: dbCall.id },
-      data: { providerCostCents: costCents },
+      data: {
+        providerCostCents: costCents,
+        providerCostBreakdown: costBreakdown ?? undefined,
+      },
     });
 
     console.log(
-      `[Telnyx] Coste guardado para ${callLabel(call_control_id)}: ${costCents} céntimos`
+      `[Telnyx] Coste de telefonía guardado para ${callLabel(call_control_id)}: ${costCents} céntimos (no incluye IA)`
     );
     return { success: true };
   } catch (error) {

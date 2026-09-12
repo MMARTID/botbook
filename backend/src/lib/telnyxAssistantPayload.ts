@@ -150,6 +150,22 @@ export function buildTelnyxAssistantPayload(
       input.businessName
     ),
     greeting: input.greeting,
+    // Decisión explícita del usuario 2026-09-12: sin fijar `model`, Telnyx
+    // aplicaba su default de cuenta (moonshotai/Kimi-K2.6). Se probó
+    // cambiar a gpt-5.6-luna esperando abaratar la llamada, pero una
+    // llamada de prueba real confirmó que el bloque `ai-voice-assistant`
+    // (LLM+STT+TTS) factura una TARIFA PLANA de $0.05 por minuto
+    // (redondeado a bloques de 60s) sin importar el modelo — mismo coste
+    // exacto con Kimi-K2.6 y con gpt-5.6-luna en llamadas de duración
+    // comparable. El modelo NO afecta al coste; se mantiene gpt-5.6-luna
+    // por preferencia del usuario, no por ahorro. La única palanca real de
+    // coste es la duración de la llamada.
+    model: "openai/gpt-5.6-luna",
+    // Kimi-K2.6 como fallback: a diferencia de Gemini, es un modelo
+    // alojado por Telnyx (como el propio gpt-5.6-luna) — no exige una
+    // Integration Secret propia, y es el modelo ya validado con llamadas
+    // reales antes de este cambio.
+    fallbackConfig: { model: "moonshotai/Kimi-K2.6" },
     // 1.1x: decisión explícita del usuario 2026-09-12. Rango válido de
     // Telnyx: [0.25, 2.0], 1.0 = velocidad normal.
     voiceSettings: { voice: input.voice, voice_speed: 1.1 },

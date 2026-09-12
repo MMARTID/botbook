@@ -34,6 +34,10 @@ export interface CreateTelnyxAssistantInput {
   /** Vacío para que el asistente espere a que hable el cliente. */
   greeting?: string;
   model?: string;
+  /** Modelo Telnyx-hosted al que caer si el proveedor del modelo primario
+   * (`model`) no está disponible — ver `fallbackConfig` en
+   * telnyxAssistantPayload.ts para la elección real y el porqué. */
+  fallbackConfig?: { model?: string };
   voiceSettings?: VoiceSettings;
   transcription?: TranscriptionSettings;
   telephonySettings?: TelephonySettingsInput;
@@ -58,6 +62,7 @@ function toAssistantCreatePayload(
     instructions: input.instructions,
     greeting: input.greeting,
     model: input.model,
+    fallback_config: input.fallbackConfig,
     voice_settings: input.voiceSettings,
     transcription: input.transcription,
     telephony_settings: input.telephonySettings,
@@ -140,6 +145,8 @@ export class TelnyxAiAdapter {
       payload.instructions = input.instructions;
     if (input.greeting !== undefined) payload.greeting = input.greeting;
     if (input.model !== undefined) payload.model = input.model;
+    if (input.fallbackConfig !== undefined)
+      payload.fallback_config = input.fallbackConfig;
     if (input.voiceSettings !== undefined)
       payload.voice_settings = input.voiceSettings;
     if (input.transcription !== undefined)
