@@ -270,6 +270,10 @@ export async function provisionPhoneNumber(businessId: string): Promise<{
         where: { id: businessId },
         data: {
           telnyxPhoneNumber: order.phoneNumber || undefined,
+          // Provisional: `order.phoneNumberId` puede no ser el id real del
+          // recurso PhoneNumber mientras el pedido sigue en revisión (issue
+          // #17) — se corrige con el valor autoritativo cuando el pedido
+          // llegue a "success" más abajo.
           telnyxPhoneNumberId: order.phoneNumberId,
           twilioPhoneNumberStatus: "pending",
         },
@@ -297,12 +301,39 @@ export async function provisionPhoneNumber(businessId: string): Promise<{
       };
     }
 
-    // order.status === "success"
+    // order.status === "success" — resolver el id REAL del recurso
+    // PhoneNumber por el número en sí, en vez de confiar en
+    // `order.phoneNumberId` (issue #17: para un pedido que pasó por revisión
+    // regulatoria, ese campo puede ser un id de línea del pedido que no
+    // existe como recurso PhoneNumber). Si la resolución falla, se usa
+    // `order.phoneNumberId` como último recurso y se deja constancia en logs
+    // — mejor un id potencialmente incorrecto que ninguno, ya que sin él no
+    // hay forma de enrutar el número más adelante.
+    let resolvedPhoneNumberId = order.phoneNumberId;
+    try {
+      const realNumber = await telnyxAdapter.getNumberByPhoneNumber(
+        order.phoneNumber
+      );
+      if (realNumber?.id) {
+        resolvedPhoneNumberId = realNumber.id;
+      } else {
+        console.error(
+          `[Phone] No se pudo resolver el id real del número ${order.phoneNumber} tras la compra — se usa el id del pedido (${order.phoneNumberId}) como último recurso`
+        );
+      }
+    } catch (err) {
+      console.error(
+        `[Phone] Fallo consultando el id real del número ${order.phoneNumber}: ${
+          err instanceof Error ? err.message : String(err)
+        } — se usa el id del pedido (${order.phoneNumberId}) como último recurso`
+      );
+    }
+
     await prisma.business.update({
       where: { id: businessId },
       data: {
         telnyxPhoneNumber: order.phoneNumber,
-        telnyxPhoneNumberId: order.phoneNumberId,
+        telnyxPhoneNumberId: resolvedPhoneNumberId,
         telnyxPhoneNumberPurchasedAt: new Date(),
         twilioPhoneNumberStatus: "purchased",
       },

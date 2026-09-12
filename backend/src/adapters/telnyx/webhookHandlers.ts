@@ -7,6 +7,7 @@ import {
 } from "../../lib/cloudTasks.js";
 import { callLabel, errorMessage } from "../../lib/logUtils.js";
 import { selectTelnyxInboundAgent } from "../../modules/phone/telnyxInbound.js";
+import { executeVoiceTool } from "../../modules/voiceTools/service.js";
 
 /**
  * Envoltorio real verificado en vivo el 2026-09-11 y contra los tipos de
@@ -532,5 +533,65 @@ export async function handleCallCost(
       `[Telnyx] Error guardando el coste de ${callLabel(call_control_id)}: ${errorMessage(error)}`
     );
     return { success: false };
+  }
+}
+
+export interface TelnyxToolInvocationResult {
+  status: number;
+  body: unknown;
+}
+
+/**
+ * Resuelve y ejecuta una tool invocada por un assistant Telnyx durante una
+ * llamada (plan §4: "Las tools usan call_control_id del sistema... ignora
+ * cualquier businessId... enviado por el modelo"). El `businessId` SIEMPRE
+ * se deriva de la `Call` ya persistida por `call_control_id` (header
+ * X-Alhabla-Call-Control-Id, templado por Telnyx con la variable de sistema
+ * {{call_control_id}} — ver telnyxAssistantPayload.ts) — nunca de `params`
+ * (lo que el LLM decide mandar en el body). Aísla dos negocios aunque un
+ * modelo mal instruido intente colar un businessId ajeno: ese campo, si
+ * aparece en `params`, viaja sin usarse para autorizar nada, porque ninguna
+ * tool real (get_catalog/check_availability/book_appointment) lo declara
+ * como parámetro (ver calendarService.buildTelnyxCalendarTools).
+ */
+export async function handleTelnyxToolInvocation(input: {
+  callControlId: string | undefined;
+  toolName: string;
+  params: Record<string, unknown>;
+}): Promise<TelnyxToolInvocationResult> {
+  const { callControlId, toolName, params } = input;
+
+  if (!callControlId) {
+    console.error(
+      `[Telnyx Tool] Falta el header X-Alhabla-Call-Control-Id en ${toolName}`
+    );
+    return { status: 400, body: { error: "Missing call_control_id" } };
+  }
+
+  try {
+    const call = await prisma.call.findUnique({
+      where: { vapiCallId: callControlId },
+      select: { businessId: true },
+    });
+
+    if (!call) {
+      console.error(`[Telnyx Tool] No se encontró la llamada ${callControlId}`);
+      return { status: 404, body: { error: "Call not found" } };
+    }
+
+    const result = await executeVoiceTool({
+      businessId: call.businessId,
+      toolName,
+      params,
+      callLabel: `llamada ${callControlId}`,
+      callId: callControlId,
+    });
+
+    return { status: result.success ? 200 : 500, body: result.result };
+  } catch (error) {
+    console.error(
+      `[Telnyx Tool] Error ejecutando ${toolName}: ${errorMessage(error)}`
+    );
+    return { status: 500, body: { error: "Internal server error" } };
   }
 }

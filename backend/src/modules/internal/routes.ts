@@ -6,6 +6,7 @@ import { processSendEmailJob } from "../../jobs/sendEmail.js";
 import { processSendSmsJob } from "../../jobs/sendSms.js";
 import { cleanupZombieCallsJob } from "../../jobs/cleanupZombieCalls.js";
 import { telnyxHealthCheckJob } from "../../jobs/telnyxHealthCheck.js";
+import { telnyxReconcilerJob } from "../../jobs/telnyxReconciler.js";
 import { retryStuckRecordingsJob } from "../../jobs/retryStuckRecordings.js";
 import { suspendOverdueCallsJob } from "../../jobs/suspendOverdueCalls.js";
 import { processUsageReportJob } from "../../jobs/processUsageReport.js";
@@ -145,6 +146,25 @@ export const internalJobsRoutes: FastifyPluginAsync = async (fastify) => {
         return reply.send({ received: true });
       } catch (error) {
         fastify.log.error({ err: error }, "telnyx-health-check job failed");
+        return reply.status(500).send({ error: "Job processing failed" });
+      }
+    }
+  );
+
+  // Una vez al día (Cloud Scheduler) — plan Telnyx-orquestador §6.
+  // Resincroniza cualquier agente con telnyxSyncError pendiente y avisa por
+  // email (TELNYX_ALERT_EMAIL) de assistants borrados a mano en Telnyx o de
+  // un enrutamiento inconsistente. No mueve tráfico ni cambia connection_id
+  // de ningún negocio — eso sigue siendo cosa de telnyx-health-check/Fase 5.
+  fastify.post(
+    "/jobs/telnyx-reconciler",
+    { preValidation: [fastify.verifyCloudTasks] },
+    async (_request, reply) => {
+      try {
+        const result = await telnyxReconcilerJob();
+        return reply.send({ received: true, result });
+      } catch (error) {
+        fastify.log.error({ err: error }, "telnyx-reconciler job failed");
         return reply.status(500).send({ error: "Job processing failed" });
       }
     }

@@ -13,6 +13,7 @@ import type {
 } from "telnyx/resources/ai/assistants/assistants.js";
 import type { MessageListResponse } from "telnyx/resources/ai/conversations/messages.js";
 import type { RecordingResponseData } from "telnyx/resources/recordings/recordings.js";
+import type { TelnyxConversationChannel } from "telnyx/resources/ai/assistants/tests/tests.js";
 
 /** Alias legible: es el tipo real que `AssistantCreateParams.tools` exige
  * para una tool de webhook (no confundir con `WebhookTool`, la forma que
@@ -457,6 +458,42 @@ export class TelnyxAiAdapter {
         gender: voice.gender,
         provider: voice.provider,
       }));
+  }
+
+  // ---------------------------------------------------------------------
+  // Tests nativos de assistant — equivalente Telnyx a
+  // RetellAdapter.createBatchTest. `destination` decide qué assistant se
+  // prueba (no hay un assistant_id en el payload): para
+  // telnyxConversationChannel="phone_call" es el número Telnyx real del
+  // negocio, y Telnyx llama a ese número simulando el escenario de
+  // `instructions`, evaluándolo contra `rubric`. Solo cubre "crear" el test
+  // (client.ai.assistants.tests.create) — disparar la ejecución
+  // (tests.runs.trigger) es una llamada de prueba real y se deja para
+  // cuando se pida explícitamente.
+  // ---------------------------------------------------------------------
+
+  async createAssistantTest(input: {
+    name: string;
+    destination: string;
+    instructions: string;
+    rubric: Array<{ name: string; criteria: string }>;
+    telnyxConversationChannel?: TelnyxConversationChannel;
+    maxDurationSeconds?: number;
+    testSuite?: string;
+    description?: string;
+  }): Promise<{ id: string; name: string }> {
+    const client = getTelnyxClient();
+    const response = await client.ai.assistants.tests.create({
+      name: input.name,
+      destination: input.destination,
+      instructions: input.instructions,
+      rubric: input.rubric,
+      telnyx_conversation_channel: input.telnyxConversationChannel,
+      max_duration_seconds: input.maxDurationSeconds,
+      test_suite: input.testSuite,
+      description: input.description,
+    });
+    return { id: response.test_id, name: response.name };
   }
 
   // ---------------------------------------------------------------------

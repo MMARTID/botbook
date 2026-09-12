@@ -7,6 +7,7 @@ import {
   handleCallRecordingSaved,
   handleCallConversationInsightsGenerated,
   handleCallCost,
+  handleTelnyxToolInvocation,
 } from "../../../src/adapters/telnyx/webhookHandlers.js";
 import { prisma } from "../../../src/lib/prisma.js";
 import { telnyxAiAdapter } from "../../../src/adapters/telnyx/TelnyxAiAdapter.js";
@@ -14,6 +15,7 @@ import {
   enqueueRecordingJob,
   enqueueUsageReportJob,
 } from "../../../src/lib/cloudTasks.js";
+import { executeVoiceTool } from "../../../src/modules/voiceTools/service.js";
 
 vi.mock("../../../src/lib/prisma.js", () => ({
   prisma: {
@@ -42,6 +44,10 @@ vi.mock("../../../src/lib/cloudTasks.js", () => ({
   enqueueUsageReportJob: vi.fn(),
 }));
 
+vi.mock("../../../src/modules/voiceTools/service.js", () => ({
+  executeVoiceTool: vi.fn(),
+}));
+
 const mockedBusinessFindUnique = vi.mocked(prisma.business.findUnique);
 const mockedCallUpsert = vi.mocked(prisma.call.upsert);
 const mockedCallFindUnique = vi.mocked(prisma.call.findUnique);
@@ -58,6 +64,7 @@ const mockedListConversationMessages = vi.mocked(
 const mockedListRecordingsByCallLegId = vi.mocked(
   telnyxAiAdapter.listRecordingsByCallLegId
 );
+const mockedExecuteVoiceTool = vi.mocked(executeVoiceTool);
 const mockedEnqueueRecordingJob = vi.mocked(enqueueRecordingJob);
 const mockedEnqueueUsageReportJob = vi.mocked(enqueueUsageReportJob);
 
@@ -510,5 +517,116 @@ describe("handleCallCost", () => {
 
     expect(result).toEqual({ success: false });
     expect(mockedCallUpdate).not.toHaveBeenCalled();
+  });
+});
+
+describe("handleTelnyxToolInvocation", () => {
+  it("responde 400 si falta el header X-Alhabla-Call-Control-Id", async () => {
+    const result = await handleTelnyxToolInvocation({
+      callControlId: undefined,
+      toolName: "get_catalog",
+      params: {},
+    });
+
+    expect(result).toEqual({
+      status: 400,
+      body: { error: "Missing call_control_id" },
+    });
+    expect(mockedCallFindUnique).not.toHaveBeenCalled();
+  });
+
+  it("responde 404 si el call_control_id no corresponde a ninguna llamada registrada", async () => {
+    mockedCallFindUnique.mockResolvedValue(null);
+
+    const result = await handleTelnyxToolInvocation({
+      callControlId: "call_ctrl_unknown",
+      toolName: "get_catalog",
+      params: {},
+    });
+
+    expect(result).toEqual({ status: 404, body: { error: "Call not found" } });
+    expect(mockedExecuteVoiceTool).not.toHaveBeenCalled();
+  });
+
+  it("resuelve el businessId SIEMPRE por la Call persistida — ignora un businessId ajeno colado en params", async () => {
+    // Aislamiento entre tenants (plan §4 / Fase 0 "acceso entre dos
+    // tenants"): la llamada real pertenece a biz_real; aunque el modelo
+    // mande un businessId de otro negocio en el body, executeVoiceTool debe
+    // recibir siempre el de la Call, nunca el de params.
+    mockedCallFindUnique.mockResolvedValue({
+      businessId: "biz_real",
+    } as any);
+    mockedExecuteVoiceTool.mockResolvedValue({
+      success: true,
+      result: { success: true },
+    });
+
+    await handleTelnyxToolInvocation({
+      callControlId: "call_ctrl_1",
+      toolName: "check_availability",
+      params: { businessId: "biz_de_otro_negocio", startDateTime: "2026-01-01T10:00:00Z" },
+    });
+
+    expect(mockedCallFindUnique).toHaveBeenCalledWith({
+      where: { vapiCallId: "call_ctrl_1" },
+      select: { businessId: true },
+    });
+    expect(mockedExecuteVoiceTool).toHaveBeenCalledWith({
+      businessId: "biz_real",
+      toolName: "check_availability",
+      params: { businessId: "biz_de_otro_negocio", startDateTime: "2026-01-01T10:00:00Z" },
+      callLabel: "llamada call_ctrl_1",
+      callId: "call_ctrl_1",
+    });
+  });
+
+  it("devuelve 200 y el resultado de la tool cuando executeVoiceTool tiene éxito", async () => {
+    mockedCallFindUnique.mockResolvedValue({ businessId: "biz_real" } as any);
+    mockedExecuteVoiceTool.mockResolvedValue({
+      success: true,
+      result: { success: true, slots: [] },
+    });
+
+    const result = await handleTelnyxToolInvocation({
+      callControlId: "call_ctrl_1",
+      toolName: "check_availability",
+      params: {},
+    });
+
+    expect(result).toEqual({ status: 200, body: { success: true, slots: [] } });
+  });
+
+  it("devuelve 500 con el resultado de la tool cuando executeVoiceTool falla de forma controlada", async () => {
+    mockedCallFindUnique.mockResolvedValue({ businessId: "biz_real" } as any);
+    mockedExecuteVoiceTool.mockResolvedValue({
+      success: false,
+      result: { success: false, error: "Business not found" },
+    });
+
+    const result = await handleTelnyxToolInvocation({
+      callControlId: "call_ctrl_1",
+      toolName: "book_appointment",
+      params: {},
+    });
+
+    expect(result).toEqual({
+      status: 500,
+      body: { success: false, error: "Business not found" },
+    });
+  });
+
+  it("devuelve 500 sin lanzar si la consulta a la BD lanza", async () => {
+    mockedCallFindUnique.mockRejectedValue(new Error("DB caída"));
+
+    const result = await handleTelnyxToolInvocation({
+      callControlId: "call_ctrl_1",
+      toolName: "get_catalog",
+      params: {},
+    });
+
+    expect(result).toEqual({
+      status: 500,
+      body: { error: "Internal server error" },
+    });
   });
 });

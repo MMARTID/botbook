@@ -6,6 +6,7 @@ const mockNumberOrdersCreate = vi.fn();
 const mockNumberOrdersRetrieve = vi.fn();
 const mockPhoneNumbersDelete = vi.fn();
 const mockPhoneNumbersRetrieve = vi.fn();
+const mockPhoneNumbersList = vi.fn();
 
 const mockTelnyxClient = {
   availablePhoneNumbers: { list: mockAvailablePhoneNumbersList },
@@ -16,6 +17,7 @@ const mockTelnyxClient = {
   phoneNumbers: {
     delete: mockPhoneNumbersDelete,
     retrieve: mockPhoneNumbersRetrieve,
+    list: mockPhoneNumbersList,
   },
 };
 
@@ -186,6 +188,37 @@ describe("TelnyxAdapter", () => {
       mockPhoneNumbersRetrieve.mockRejectedValue(new Error("Not found"));
 
       const result = await adapter.getNumber("pn_999");
+
+      expect(result).toBeNull();
+    });
+  });
+
+  describe("getNumberByPhoneNumber", () => {
+    // Issue #17: order.phoneNumberId (el id que devuelve numberOrders para
+    // un pedido que pasó por revisión regulatoria) puede no ser el id real
+    // del recurso PhoneNumber — este método resuelve el id autoritativo
+    // filtrando por el número en sí, no por lo que diga el pedido.
+    it("devuelve el id real del número filtrando por phone_number", async () => {
+      mockPhoneNumbersList.mockResolvedValue({
+        data: [{ id: "3042776700011153161", phone_number: "+34930453218", status: "active" }],
+      });
+
+      const result = await adapter.getNumberByPhoneNumber("+34930453218");
+
+      expect(result).toEqual({
+        id: "3042776700011153161",
+        phoneNumber: "+34930453218",
+        status: "active",
+      });
+      expect(mockPhoneNumbersList).toHaveBeenCalledWith({
+        filter: { phone_number: "+34930453218" },
+      });
+    });
+
+    it("devuelve null si no hay ningún número con ese phone_number", async () => {
+      mockPhoneNumbersList.mockResolvedValue({ data: [] });
+
+      const result = await adapter.getNumberByPhoneNumber("+34930453218");
 
       expect(result).toBeNull();
     });

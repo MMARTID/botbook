@@ -46,6 +46,7 @@ import {
   handleCallRecordingSaved,
   handleCallConversationInsightsGenerated,
   handleCallCost,
+  handleTelnyxToolInvocation,
   extractTelnyxEventEnvelope,
 } from "./adapters/telnyx/webhookHandlers.js";
 import { telnyxAiAdapter } from "./adapters/telnyx/TelnyxAiAdapter.js";
@@ -632,36 +633,12 @@ async function start() {
         typeof callControlIdHeader === "string" ? callControlIdHeader : undefined;
       const toolParams = (request.body as Record<string, unknown>) || {};
 
-      if (!callControlId) {
-        console.error(`[Telnyx Tool] Falta el header X-Alhabla-Call-Control-Id en ${toolName}`);
-        return reply.status(400).send({ error: "Missing call_control_id" });
-      }
-
-      try {
-        const call = await prisma.call.findUnique({
-          where: { vapiCallId: callControlId },
-          select: { businessId: true },
-        });
-
-        if (!call) {
-          console.error(`[Telnyx Tool] No se encontró la llamada ${callControlId}`);
-          return reply.status(404).send({ error: "Call not found" });
-        }
-
-        const result = await executeVoiceTool({
-          businessId: call.businessId,
-          toolName,
-          params: toolParams,
-          callLabel: `llamada ${callControlId}`,
-          callId: callControlId,
-        });
-
-        return reply.status(result.success ? 200 : 500).send(result.result);
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        console.error(`[Telnyx Tool] Error ejecutando ${toolName}: ${message}`);
-        return reply.status(500).send({ error: "Internal server error" });
-      }
+      const { status, body } = await handleTelnyxToolInvocation({
+        callControlId,
+        toolName,
+        params: toolParams,
+      });
+      return reply.status(status).send(body);
     });
 
     // Register routes

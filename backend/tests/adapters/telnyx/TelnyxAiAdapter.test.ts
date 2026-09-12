@@ -21,6 +21,7 @@ const mockCallControlAppsRetrieve = vi.fn();
 const mockCallControlAppsUpdate = vi.fn();
 const mockBillingGroupsList = vi.fn();
 const mockBillingGroupsCreate = vi.fn();
+const mockAssistantTestsCreate = vi.fn();
 
 const mockTelnyxClient = {
   callControlApplications: {
@@ -38,6 +39,7 @@ const mockTelnyxClient = {
       update: mockAssistantsUpdate,
       retrieve: mockAssistantsRetrieve,
       delete: mockAssistantsDelete,
+      tests: { create: mockAssistantTestsCreate },
     },
     conversations: {
       retrieve: mockConversationsRetrieve,
@@ -509,6 +511,38 @@ describe("TelnyxAiAdapter", () => {
       const result = await adapter.listVoices();
 
       expect(result).toEqual([]);
+    });
+  });
+
+  describe("createAssistantTest", () => {
+    it("crea un test nativo de assistant y mapea la respuesta", async () => {
+      mockAssistantTestsCreate.mockResolvedValue({
+        test_id: "test_123",
+        name: "Peluquería - Reserva end-to-end",
+        rubric: [],
+        telnyx_conversation_channel: "phone_call",
+      });
+
+      const result = await adapter.createAssistantTest({
+        name: "Peluquería - Reserva end-to-end",
+        destination: "+34930453218",
+        instructions: "Act as a customer booking a haircut.",
+        rubric: [{ name: "Reserva", criteria: "Usa book_appointment" }],
+        telnyxConversationChannel: "phone_call",
+        testSuite: "alhabla-dev",
+      });
+
+      expect(result).toEqual({ id: "test_123", name: "Peluquería - Reserva end-to-end" });
+      expect(mockAssistantTestsCreate).toHaveBeenCalledWith({
+        name: "Peluquería - Reserva end-to-end",
+        destination: "+34930453218",
+        instructions: "Act as a customer booking a haircut.",
+        rubric: [{ name: "Reserva", criteria: "Usa book_appointment" }],
+        telnyx_conversation_channel: "phone_call",
+        max_duration_seconds: undefined,
+        test_suite: "alhabla-dev",
+        description: undefined,
+      });
     });
   });
 

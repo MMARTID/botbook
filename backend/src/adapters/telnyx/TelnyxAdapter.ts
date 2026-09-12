@@ -111,6 +111,33 @@ export class TelnyxAdapter {
   }
 
   /**
+   * Resuelve el id REAL y persistente del recurso PhoneNumber a partir del
+   * número en sí — a diferencia de `NumberOrderResult.phoneNumberId` (el
+   * `phone_numbers[0].id` que devuelve `numberOrders.create`/`retrieve`),
+   * que para un pedido que pasó por revisión regulatoria ("pending" antes de
+   * "success") puede ser un id de línea del pedido, no el id del recurso
+   * PhoneNumber — confirmado en vivo el 2026-09-12 (issue #17: ese id no
+   * existía al consultarlo con `phoneNumbers.retrieve`). Usar esto, no
+   * `phoneNumberId`, para persistir el id que luego hará falta en
+   * `phoneNumbers.update` (connection_id, billing_group_id).
+   */
+  async getNumberByPhoneNumber(
+    phoneNumber: string
+  ): Promise<{ id: string; phoneNumber: string; status: string } | null> {
+    const client = getTelnyxClient();
+    const response = await client.phoneNumbers.list({
+      filter: { phone_number: phoneNumber },
+    });
+    const match = response.data?.[0];
+    if (!match?.id) return null;
+    return {
+      id: match.id,
+      phoneNumber: match.phone_number ?? phoneNumber,
+      status: match.status ?? "",
+    };
+  }
+
+  /**
    * Envía un SMS de texto simple con un número Telnyx ya comprado como
    * remitente. `messaging_profile_id` no es obligatorio para esto — el SDK
    * solo lo exige para number pools o alphanumeric sender ID, no para un

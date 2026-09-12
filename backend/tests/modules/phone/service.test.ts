@@ -22,6 +22,7 @@ vi.mock("../../../src/adapters/telnyx/TelnyxAdapter.js", () => ({
     searchAvailableNumbers: vi.fn(),
     purchaseNumber: vi.fn(),
     getNumberOrder: vi.fn(),
+    getNumberByPhoneNumber: vi.fn(),
   },
 }));
 
@@ -59,6 +60,7 @@ const mockedBusinessUpdate = vi.mocked(prisma.business.update);
 const mockedSearchAvailableNumbers = vi.mocked(telnyxAdapter.searchAvailableNumbers);
 const mockedPurchaseNumber = vi.mocked(telnyxAdapter.purchaseNumber);
 const mockedGetNumberOrder = vi.mocked(telnyxAdapter.getNumberOrder);
+const mockedGetNumberByPhoneNumber = vi.mocked(telnyxAdapter.getNumberByPhoneNumber);
 const mockedImportPhoneNumber = vi.mocked(retellAdapter.importPhoneNumber);
 const mockedCreatePhoneNumber = vi.mocked(vapiAdapter.createPhoneNumber);
 
@@ -73,6 +75,10 @@ describe("provisionPhoneNumber", () => {
     mockRedisClient.set.mockResolvedValue("OK");
     mockRedisClient.del.mockResolvedValue(1);
     mockRedisClient.eval.mockResolvedValue(1);
+    // Por defecto, "no se encontró nada" — el código cae al phoneNumberId
+    // del pedido, igual que antes del fix del issue #17. Los tests que
+    // verifican la resolución real lo sobrescriben explícitamente.
+    mockedGetNumberByPhoneNumber.mockResolvedValue(null);
     process.env.TELNYX_SPAIN_REQUIREMENT_GROUP_ID = "req_group_test";
     process.env.TELNYX_SIP_CONNECTION_ID = "conn_test";
     process.env.TELNYX_CALL_CONTROL_APP_ID = "cca_test";
@@ -155,6 +161,84 @@ describe("provisionPhoneNumber", () => {
     expect(mockedBusinessUpdate).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({ twilioPhoneNumberStatus: "active" }),
+      })
+    );
+  });
+
+  it("issue #17: persiste el id REAL del número (getNumberByPhoneNumber), no el phoneNumberId del pedido, cuando ambos difieren", async () => {
+    mockedBusinessFindUnique.mockResolvedValue({
+      id: businessId,
+      name: "Peluquería Test",
+      twilioPhoneNumberStatus: "pending",
+      telnyxPhoneNumber: null,
+      telnyxNumberOrderId: null,
+      orchestrator: "retell",
+      agents: [{ id: agentId, retellAgentId, active: true }],
+    } as any);
+
+    mockedSearchAvailableNumbers.mockResolvedValue([
+      { phoneNumber: "+34886020712", region: "PONTEVEDRA" },
+    ]);
+    // El pedido devuelve un id de línea del pedido (issue #17) — no el id
+    // real del recurso PhoneNumber.
+    mockedPurchaseNumber.mockResolvedValue({
+      orderId: "order_123",
+      status: "success",
+      phoneNumber: "+34886020712",
+      phoneNumberId: "id_de_linea_del_pedido",
+    });
+    mockedGetNumberByPhoneNumber.mockResolvedValue({
+      id: "3042776700011153161",
+      phoneNumber: "+34886020712",
+      status: "active",
+    });
+    mockedImportPhoneNumber.mockResolvedValue({
+      phone_number_id: "phone_123",
+      phone_number: "+34886020712",
+    } as any);
+
+    await provisionPhoneNumber(businessId);
+
+    expect(mockedGetNumberByPhoneNumber).toHaveBeenCalledWith("+34886020712");
+    expect(mockedBusinessUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ telnyxPhoneNumberId: "3042776700011153161" }),
+      })
+    );
+  });
+
+  it("si no se puede resolver el id real del número, usa el phoneNumberId del pedido como último recurso sin lanzar", async () => {
+    mockedBusinessFindUnique.mockResolvedValue({
+      id: businessId,
+      name: "Peluquería Test",
+      twilioPhoneNumberStatus: "pending",
+      telnyxPhoneNumber: null,
+      telnyxNumberOrderId: null,
+      orchestrator: "retell",
+      agents: [{ id: agentId, retellAgentId, active: true }],
+    } as any);
+
+    mockedSearchAvailableNumbers.mockResolvedValue([
+      { phoneNumber: "+34886020712", region: "PONTEVEDRA" },
+    ]);
+    mockedPurchaseNumber.mockResolvedValue({
+      orderId: "order_123",
+      status: "success",
+      phoneNumber: "+34886020712",
+      phoneNumberId: "pn_123",
+    });
+    mockedGetNumberByPhoneNumber.mockRejectedValue(new Error("Telnyx down"));
+    mockedImportPhoneNumber.mockResolvedValue({
+      phone_number_id: "phone_123",
+      phone_number: "+34886020712",
+    } as any);
+
+    const result = await provisionPhoneNumber(businessId);
+
+    expect(result.success).toBe(true);
+    expect(mockedBusinessUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ telnyxPhoneNumberId: "pn_123" }),
       })
     );
   });
