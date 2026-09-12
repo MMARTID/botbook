@@ -169,8 +169,17 @@ export function buildTelnyxAssistantPayload(
     // 1.1x: decisión explícita del usuario 2026-09-12. Rango válido de
     // Telnyx: [0.25, 2.0], 1.0 = velocidad normal.
     voiceSettings: { voice: input.voice, voice_speed: 1.1 },
+    // deepgram/flux — decisión explícita del usuario 2026-09-12: mejor
+    // detección de turno de palabra (end-of-turn/eager end-of-turn) que
+    // nova-3. Sigue siendo Deepgram (nativo de Telnyx, sin api_key_ref
+    // propia) — no confundir con azure/fast o google/*, proveedores
+    // EXTERNOS que exigen tu propia clave (Integration Secret) para
+    // funcionar de verdad; sin ella se configuran sin error pero no
+    // procesan audio (ver Second-Brain, Bitácora § STT: proveedores nativos
+    // vs externos, y issues #18/#19 de GitHub). `keyterm` sigue soportado
+    // en flux igual que en nova-3.
     transcription: {
-      model: "deepgram/nova-3",
+      model: "deepgram/flux",
       language: input.language,
       settings: input.boostedKeywords?.length
         ? { keyterm: input.boostedKeywords.join(",") }

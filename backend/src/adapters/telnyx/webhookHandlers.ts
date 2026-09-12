@@ -343,6 +343,14 @@ export async function handleCallConversationEnded(
         const messages = await telnyxAiAdapter.listConversationMessages(
           conversation_id
         );
+        // `client.ai.conversations.messages.list()` devuelve del más
+        // reciente al más antiguo (verificado en vivo 2026-09-12) — sin
+        // reordenar, fullText queda con la conversación al revés.
+        messages.sort((a, b) => {
+          const timeA = Date.parse(a.sentAt ?? a.createdAt ?? "");
+          const timeB = Date.parse(b.sentAt ?? b.createdAt ?? "");
+          return timeA - timeB;
+        });
         if (messages.length > 0) {
           const fullText = messages
             .map((message) => `${message.role}: ${message.text}`)

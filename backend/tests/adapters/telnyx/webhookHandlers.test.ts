@@ -301,6 +301,50 @@ describe("handleCallConversationEnded", () => {
     );
   });
 
+  it("reordena los mensajes por fecha — la API de Telnyx los devuelve del más reciente al más antiguo", async () => {
+    mockedCallFindUnique.mockResolvedValue({
+      id: "call_db_1",
+      providerConversationId: null,
+      durationSecs: null,
+    } as any);
+    mockedCallUpdate.mockResolvedValue({} as any);
+    mockedListConversationMessages.mockResolvedValue([
+      {
+        role: "assistant",
+        text: "Cita reservada correctamente",
+        sentAt: "2026-09-12T14:28:00Z",
+      },
+      {
+        role: "user",
+        text: "Hola, quiero reservar",
+        sentAt: "2026-09-12T14:27:00Z",
+      },
+      {
+        role: "assistant",
+        text: "Hola, gracias por llamar",
+        sentAt: "2026-09-12T14:26:00Z",
+      },
+    ]);
+    mockedTranscriptUpsert.mockResolvedValue({} as any);
+
+    await handleCallConversationEnded({
+      data: {
+        id: "evt_3",
+        event_type: "call.conversation.ended",
+        payload: { call_control_id: "call_ctrl_1", conversation_id: "conv_1" },
+      },
+    });
+
+    expect(mockedTranscriptUpsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        create: expect.objectContaining({
+          fullText:
+            "assistant: Hola, gracias por llamar\nuser: Hola, quiero reservar\nassistant: Cita reservada correctamente",
+        }),
+      })
+    );
+  });
+
   it("no falla si la descarga de la transcripción falla", async () => {
     mockedCallFindUnique.mockResolvedValue({
       id: "call_db_1",

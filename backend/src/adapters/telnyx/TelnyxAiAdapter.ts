@@ -225,18 +225,31 @@ export class TelnyxAiAdapter {
 
   /**
    * `application_name`/`webhook_event_url` son obligatorios incluso para
-   * actualizar solo `callCostInWebhooks` — el llamador debe reenviar los
-   * valores actuales (p. ej. leídos con `getCallControlApp`).
+   * actualizar solo `callCostInWebhooks`/`outboundVoiceProfileId` — el
+   * llamador debe reenviar los valores actuales (p. ej. leídos con
+   * `getCallControlApp`). `outboundVoiceProfileId` es necesario para poder
+   * originar llamadas salientes desde esta conexión (p. ej.
+   * `scripts/telnyxCallHarness.ts`) — sin él, `client.calls.dial()` falla
+   * con 403/D38 "Connection has no Outbound Profile assigned", ya que hasta
+   * ahora esta conexión solo había recibido llamadas entrantes.
    */
   async updateCallControlApp(
     id: string,
-    input: { name: string; webhookEventUrl: string; callCostInWebhooks?: boolean }
+    input: {
+      name: string;
+      webhookEventUrl: string;
+      callCostInWebhooks?: boolean;
+      outboundVoiceProfileId?: string;
+    }
   ): Promise<void> {
     const client = getTelnyxClient();
     await client.callControlApplications.update(id, {
       application_name: input.name,
       webhook_event_url: input.webhookEventUrl,
       call_cost_in_webhooks: input.callCostInWebhooks,
+      outbound: input.outboundVoiceProfileId
+        ? { outbound_voice_profile_id: input.outboundVoiceProfileId }
+        : undefined,
     });
   }
 
@@ -349,6 +362,47 @@ export class TelnyxAiAdapter {
   async hangupCall(callControlId: string): Promise<void> {
     const client = getTelnyxClient();
     await client.calls.actions.hangup(callControlId, {});
+  }
+
+  /**
+   * Origina una llamada real con un assistant ya enganchado a la pata que
+   * marca — usado por `scripts/telnyxCallHarness.ts` para que un assistant
+   * "cliente" simulado llame de verdad al número de un assistant real bajo
+   * prueba. `webhookUrl` debe apuntar a un endpoint neutro (no al Call
+   * Control App de plataforma) para que esta pata nunca dispare
+   * `handleCallInitiated`: esa pata no es una llamada entrante de ningún
+   * negocio, y dejar que el webhook de producción la procese confundiría el
+   * enrutamiento real. `timeLimitSecs` es el guardarraíl de duración — lo
+   * aplica Telnyx del lado del servidor, sin necesitar un temporizador
+   * propio.
+   */
+  async dialWithAssistant(input: {
+    connectionId: string;
+    from: string;
+    to: string;
+    assistantId: string;
+    webhookUrl: string;
+    timeLimitSecs: number;
+    record?: boolean;
+  }): Promise<{ callControlId: string; callLegId: string }> {
+    const client = getTelnyxClient();
+    const response = await client.calls.dial({
+      connection_id: input.connectionId,
+      from: input.from,
+      to: input.to,
+      assistant: { id: input.assistantId },
+      webhook_url: input.webhookUrl,
+      time_limit_secs: input.timeLimitSecs,
+      record: input.record ? "record-from-answer" : undefined,
+      record_channels: input.record ? "dual" : undefined,
+    });
+    if (!response.data?.call_control_id || !response.data.call_leg_id) {
+      throw new Error("Telnyx no devolvió call_control_id/call_leg_id al originar la llamada");
+    }
+    return {
+      callControlId: response.data.call_control_id,
+      callLegId: response.data.call_leg_id,
+    };
   }
 
   // ---------------------------------------------------------------------

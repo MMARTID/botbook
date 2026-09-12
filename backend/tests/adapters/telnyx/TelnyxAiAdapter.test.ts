@@ -253,6 +253,24 @@ describe("TelnyxAiAdapter", () => {
         application_name: "alhabla-platform",
         webhook_event_url: "https://api.alhabla.ai/webhooks/telnyx",
         call_cost_in_webhooks: true,
+        outbound: undefined,
+      });
+    });
+
+    it("incluye outbound.outbound_voice_profile_id cuando se indica", async () => {
+      mockCallControlAppsUpdate.mockResolvedValue({});
+
+      await adapter.updateCallControlApp("cca_123", {
+        name: "alhabla-platform",
+        webhookEventUrl: "https://api.alhabla.ai/webhooks/telnyx",
+        outboundVoiceProfileId: "ovp_1",
+      });
+
+      expect(mockCallControlAppsUpdate).toHaveBeenCalledWith("cca_123", {
+        application_name: "alhabla-platform",
+        webhook_event_url: "https://api.alhabla.ai/webhooks/telnyx",
+        call_cost_in_webhooks: undefined,
+        outbound: { outbound_voice_profile_id: "ovp_1" },
       });
     });
   });

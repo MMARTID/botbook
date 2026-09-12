@@ -641,6 +641,19 @@ async function start() {
       return reply.status(status).send(body);
     });
 
+    // Webhook de la pata que origina scripts/telnyxCallHarness.ts (el
+    // "cliente" simulado que llama de verdad a un assistant real). Se pasa
+    // explícitamente como `webhook_url` en `client.calls.dial()` para que
+    // esos eventos NUNCA lleguen al Call Control App de plataforma — evita
+    // que handleCallInitiated intente resolver un negocio para la pata
+    // saliente (no es una llamada entrante de ningún negocio) y confunda el
+    // enrutamiento real. No hace nada más que registrar y responder 200.
+    fastify.post("/webhooks/telnyx-harness", async (request, reply) => {
+      const body = request.body as { data?: { event_type?: string } } | undefined;
+      console.log(`[Telnyx Harness] Evento ignorado: ${body?.data?.event_type ?? "desconocido"}`);
+      return reply.status(200).send({ received: true });
+    });
+
     // Register routes
     console.log("[Server] Registering routes...");
     fastify.register(authRoutes, { prefix: '/auth' });

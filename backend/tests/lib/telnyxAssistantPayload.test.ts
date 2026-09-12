@@ -183,7 +183,7 @@ describe("buildTelnyxAssistantPayload", () => {
     });
 
     expect(payload.transcription).toEqual({
-      model: "deepgram/nova-3",
+      model: "deepgram/flux",
       language: "en",
       settings: { keyterm: "corte,manicura" },
     });
