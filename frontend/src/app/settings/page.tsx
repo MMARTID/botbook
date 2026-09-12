@@ -1,12 +1,12 @@
 // frontend/src/app/settings/page.tsx
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { CalendarCheck2, CircleAlert, Sparkles } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { connectMicrosoftCalendar } from "@/lib/api";
-import type { MicrosoftCalendarOption } from "@/lib/types";
+import { parseOutlookCalendarSelection } from "@/lib/calendar-callback";
 
 export default function SettingsCallbackPage() {
   return (
@@ -25,16 +25,16 @@ function SettingsCallbackContent() {
   const [connectingCalendarId, setConnectingCalendarId] = useState<string | null>(null);
 
   const isSuccess = searchParams.get("calendar_success") === "true";
-  const isError = searchParams.has("calendar_error") || searchParams.has("outlook_error");
   const outlookCalendarsParam = searchParams.get("outlook_calendars");
-  const parsedOutlookCalendars = (() => {
-    if (!outlookCalendarsParam) return null;
-    try {
-      return JSON.parse(decodeURIComponent(outlookCalendarsParam)) as { calendars: MicrosoftCalendarOption[]; email: string | null };
-    } catch {
-      return null;
-    }
-  })();
+  const parsedOutlookCalendars = useMemo(
+    () => parseOutlookCalendarSelection(outlookCalendarsParam),
+    [outlookCalendarsParam],
+  );
+  const hasInvalidOutlookCalendars = outlookCalendarsParam !== null && !parsedOutlookCalendars;
+  const isOutlookError = searchParams.has("outlook_error") || hasInvalidOutlookCalendars;
+  const isError =
+    searchParams.has("calendar_error") ||
+    isOutlookError;
 
   useEffect(() => {
     let redirectTimer: number | undefined;
@@ -43,7 +43,7 @@ function SettingsCallbackContent() {
     }, 60);
 
     const finishTimer = window.setTimeout(async () => {
-      if (outlookCalendarsParam) {
+      if (parsedOutlookCalendars) {
         setProgress(100);
         setPhase("complete");
         return;
@@ -58,6 +58,10 @@ function SettingsCallbackContent() {
       setProgress(100);
       setPhase("complete");
       redirectTimer = window.setTimeout(() => {
+        if (isError) {
+          router.replace(isOutlookError ? "/?outlook_error=true" : "/?calendar_error=true");
+          return;
+        }
         if (typeof window !== "undefined") {
           const nextStep = window.localStorage.getItem("registration_next_step");
           if (nextStep) {
@@ -65,10 +69,6 @@ function SettingsCallbackContent() {
             router.replace(nextStep);
             return;
           }
-        }
-        if (isError) {
-          router.replace("/?calendar_error=true");
-          return;
         }
         router.replace("/");
       }, 700);
@@ -79,7 +79,7 @@ function SettingsCallbackContent() {
       window.clearTimeout(finishTimer);
       if (redirectTimer !== undefined) window.clearTimeout(redirectTimer);
     };
-  }, [isError, isSuccess, outlookCalendarsParam, queryClient, router]);
+  }, [isError, isOutlookError, isSuccess, parsedOutlookCalendars, queryClient, router]);
 
   if (parsedOutlookCalendars) {
     return (

@@ -63,16 +63,24 @@ export default function RegisterBusinessTeamPage() {
       // servicio y check_availability falla siempre con
       // NO_AVAILABLE_PROFESSIONAL en la primera llamada real. Se puede
       // afinar después en Ajustes.
-      const { services } = await getBookingSettings();
+      const { services, professionals: existingProfessionals } = await getBookingSettings();
       const serviceIds = services.map((service) => service.id);
+      const existingNames = new Set(existingProfessionals.map((professional) => professional.name));
 
-      const professionals = Array.from({ length: employees }, (_, index) => ({
-        name: `Profesional ${index + 1}`,
-        active: true,
-        serviceIds,
-      }));
+      // Igual que los servicios, el lote puede quedar parcialmente creado si
+      // falla una petición. Reintentar solo completa los profesionales que
+      // faltan en vez de duplicar los que ya existen.
+      const professionals = Array.from({ length: employees }, (_, index) => {
+        const name = `Profesional ${index + 1}`;
+        return { name, active: true, serviceIds };
+      }).filter((professional) => !existingNames.has(professional.name));
 
-      await Promise.all(professionals.map((professional) => createBookingProfessional(professional)));
+      const results = await Promise.allSettled(
+        professionals.map((professional) => createBookingProfessional(professional)),
+      );
+      if (results.some((result) => result.status === "rejected")) {
+        throw new Error("No se pudieron guardar todos los profesionales.");
+      }
 
       redirectToNextStep();
     } catch {

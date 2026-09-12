@@ -48,6 +48,8 @@ import {
   UserRoundCheck,
 } from "lucide-react";
 
+const E164_PHONE_REGEX = /^\+[1-9]\d{6,14}$/;
+
 function EmptyState({
   title,
   description,
@@ -92,6 +94,7 @@ function AjustesContent() {
   });
   const [businessProfile, setBusinessProfile] = useState({
     name: "",
+    phone: "",
     businessDetails: "",
   });
   const [agentSettings, setAgentSettings] = useState<AgentSettings>(
@@ -168,6 +171,7 @@ function AjustesContent() {
     if (!business) return;
     setBusinessProfile({
       name: business.name,
+      phone: business.phone.startsWith("TEMP-") ? "" : business.phone,
       businessDetails: business.businessDetails ?? "",
     });
     // Combinar con los defaults (no reemplazar sin más): un negocio existente
@@ -250,7 +254,14 @@ function AjustesContent() {
   });
 
   const profileMutation = useMutation({
-    mutationFn: () => updateMyBusiness(businessProfile),
+    mutationFn: () => {
+      const phone = businessProfile.phone.trim();
+      return updateMyBusiness({
+        name: businessProfile.name,
+        businessDetails: businessProfile.businessDetails,
+        ...(phone ? { phone } : {}),
+      });
+    },
     onSuccess: (updatedBusiness) => {
       queryClient.setQueryData(["my-business"], updatedBusiness);
       setBanner({
@@ -468,6 +479,9 @@ function AjustesContent() {
 
   const activeCalendarProvider =
     business.calendarProvider === "outlook" ? "outlook" : "google";
+  const ownerPhoneIsValid =
+    businessProfile.phone.trim() === "" ||
+    E164_PHONE_REGEX.test(businessProfile.phone.trim());
   const hasCalendar =
     (activeCalendarProvider === "outlook"
       ? business.outlookCalendarConnected === true
@@ -967,10 +981,10 @@ function AjustesContent() {
         onToggle={() => toggleSection("business-information")}
       >
         <p className="max-w-3xl px-4 pt-4 text-sm leading-6 text-muted sm:px-6">
-          Datos verificados que el agente puede utilizar al responder. Los
-          servicios y horarios se configuran en sus apartados específicos.
+          Datos que el agente puede utilizar al responder. Los servicios y
+          horarios se configuran en sus apartados específicos.
         </p>
-        <div className="grid gap-4 p-4 sm:p-6 lg:grid-cols-[minmax(14rem,0.4fr)_minmax(0,1fr)]">
+        <div className="grid gap-4 p-4 sm:p-6 lg:grid-cols-[minmax(12rem,0.3fr)_minmax(13rem,0.35fr)_minmax(0,1fr)]">
           <label className="text-sm font-semibold text-[#27272a]">
             Nombre comercial
             <input
@@ -983,6 +997,33 @@ function AjustesContent() {
               }
               className="field mt-2 w-full"
             />
+          </label>
+          <label className="text-sm font-semibold text-[#27272a]">
+            Teléfono móvil para avisos
+            <input
+              type="tel"
+              inputMode="tel"
+              autoComplete="tel"
+              value={businessProfile.phone}
+              onChange={(event) =>
+                setBusinessProfile((current) => ({
+                  ...current,
+                  phone: event.target.value,
+                }))
+              }
+              aria-describedby="owner-phone-hint"
+              aria-invalid={!ownerPhoneIsValid}
+              className="field mt-2 w-full"
+              placeholder="+34600123456"
+            />
+            <span id="owner-phone-hint" className="mt-1 block text-xs font-normal leading-5 text-muted">
+              Recibirás aquí los avisos de nuevas citas. Usa formato internacional.
+            </span>
+            {!ownerPhoneIsValid ? (
+              <span className="mt-1 block text-xs font-normal leading-5 text-[#c53030]">
+                Escribe el número con el prefijo del país, por ejemplo +34600123456.
+              </span>
+            ) : null}
           </label>
           <label className="text-sm font-semibold text-[#27272a]">
             Dirección, contacto y políticas útiles
@@ -1004,7 +1045,11 @@ function AjustesContent() {
           <button
             type="button"
             onClick={() => profileMutation.mutate()}
-            disabled={profileMutation.isPending || !businessProfile.name.trim()}
+            disabled={
+              profileMutation.isPending ||
+              !businessProfile.name.trim() ||
+              !ownerPhoneIsValid
+            }
             className="btn-secondary px-5"
           >
             <Save className="h-4 w-4" />{" "}

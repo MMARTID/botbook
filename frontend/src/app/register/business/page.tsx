@@ -229,7 +229,6 @@ export default function RegisterBusinessPage() {
 
       await updateMyBusiness({
         name: selected.name,
-        phone: selected.phone ?? undefined,
         businessDetails,
         schedule: selected.schedule,
       });

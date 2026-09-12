@@ -29,3 +29,10 @@ export function hasAuthToken() {
       window.localStorage.getItem("jwt"),
   );
 }
+
+/** Borra también las claves previas para que cerrar sesión sea efectivo. */
+export function clearAuthTokens() {
+  window.localStorage.removeItem("alhabla_token");
+  window.localStorage.removeItem("token");
+  window.localStorage.removeItem("jwt");
+}

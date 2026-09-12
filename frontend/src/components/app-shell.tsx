@@ -5,6 +5,7 @@ import { useBusiness } from "@/components/providers";
 import { LogOut, Activity, Settings, LayoutDashboard, ArrowLeft, CreditCard, Loader2 } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { BrandMark } from "@/components/brand-mark";
+import { clearAuthTokens } from "@/lib/billing-navigation";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const { business, hasToken } = useBusiness();
@@ -115,8 +116,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               </span>
               <button
                 onClick={() => {
-                  window.localStorage.removeItem('alhabla_token');
-                  window.location.href = '/login';
+                  clearAuthTokens();
+                  window.location.href = "/login";
                 }}
                 aria-label="Cerrar sesión"
                 className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[#e5e5e5] bg-white text-[#27272a] transition hover:bg-[#fafafa] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] sm:h-11 sm:w-auto sm:gap-2 sm:px-4 sm:text-sm sm:font-medium"

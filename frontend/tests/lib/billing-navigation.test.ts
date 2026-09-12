@@ -1,5 +1,12 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { isPlanId, savePendingPlan, getPendingPlan, consumePendingPlan, hasAuthToken } from "@/lib/billing-navigation";
+import {
+  clearAuthTokens,
+  consumePendingPlan,
+  getPendingPlan,
+  hasAuthToken,
+  isPlanId,
+  savePendingPlan,
+} from "@/lib/billing-navigation";
 
 describe("isPlanId", () => {
   it("acepta los 3 ids de plan válidos", () => {
@@ -53,5 +60,18 @@ describe("hasAuthToken", () => {
   it("también reconoce las claves legacy token/jwt", () => {
     window.localStorage.setItem("token", "legacy_jwt");
     expect(hasAuthToken()).toBe(true);
+  });
+
+  it("borra la clave actual y las heredadas al cerrar sesión", () => {
+    window.localStorage.setItem("alhabla_token", "jwt_actual");
+    window.localStorage.setItem("token", "jwt_legacy");
+    window.localStorage.setItem("jwt", "jwt_legacy_alterno");
+
+    clearAuthTokens();
+
+    expect(hasAuthToken()).toBe(false);
+    expect(window.localStorage.getItem("alhabla_token")).toBeNull();
+    expect(window.localStorage.getItem("token")).toBeNull();
+    expect(window.localStorage.getItem("jwt")).toBeNull();
   });
 });

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Check, Clock, LoaderCircle, Scissors, Sparkles } from "lucide-react";
-import { createBookingService } from "@/lib/api";
+import { createBookingService, getBookingSettings } from "@/lib/api";
 import { getPendingPlan, isPlanId } from "@/lib/billing-navigation";
 import { BUSINESS_TYPE_ONBOARDING_TEXTS, isBusinessType } from "@/lib/business-type";
 import { getServiceTemplate, type ServiceTemplate } from "@/lib/service-templates";
@@ -94,8 +94,15 @@ export default function RegisterBusinessServicesPage() {
     setError("");
 
     try {
-      const servicesToCreate = templates.filter((service) => selected.has(service.name));
-      await Promise.all(
+      // Una petición puede terminar bien aunque otra del lote falle. Consultar
+      // antes de reintentar evita duplicar los servicios que ya llegaron a
+      // guardarse en ese intento parcial.
+      const { services: existingServices } = await getBookingSettings();
+      const existingNames = new Set(existingServices.map((service) => service.name));
+      const servicesToCreate = templates.filter(
+        (service) => selected.has(service.name) && !existingNames.has(service.name),
+      );
+      const results = await Promise.allSettled(
         servicesToCreate.map((service) =>
           createBookingService({
             name: service.name,
@@ -104,6 +111,9 @@ export default function RegisterBusinessServicesPage() {
           })
         )
       );
+      if (results.some((result) => result.status === "rejected")) {
+        throw new Error("No se pudieron guardar todos los servicios.");
+      }
       window.localStorage.removeItem(REGISTRATION_NICHE_KEY);
       window.localStorage.removeItem(DETECTED_BUSINESS_TYPE_KEY);
       redirectToNextStep();
