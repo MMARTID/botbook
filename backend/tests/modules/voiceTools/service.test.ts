@@ -529,6 +529,35 @@ describe("executeVoiceTool book_appointment — consentimiento SMS al cliente", 
     );
   });
 
+  it("usa TELNYX_SMS_SENDER_ID como remitente cuando está configurado, en vez del número del negocio", async () => {
+    process.env.TELNYX_SMS_SENDER_ID = "ALHABLA";
+    try {
+      await executeVoiceTool(
+        buildBookAppointmentInput({
+          callId: "call_vapi_1",
+          params: {
+            clientName: "María",
+            startDateTime: farFutureStart,
+            durationMinutes: 30,
+            professionalId: "professional_123",
+            smsConsent: true,
+          },
+        })
+      );
+
+      expect(mockedEnqueueSmsJob).toHaveBeenCalledWith(
+        expect.objectContaining({ fromNumber: "ALHABLA", toNumber: "+34600999888" }),
+        expect.anything()
+      );
+      // El aviso al propietario también debe usar el Sender ID, no el número.
+      expect(mockedEnqueueSmsJob).toHaveBeenCalledWith(
+        expect.objectContaining({ fromNumber: "ALHABLA", toNumber: "+34600111222" })
+      );
+    } finally {
+      delete process.env.TELNYX_SMS_SENDER_ID;
+    }
+  });
+
   it("no encola ningún SMS al cliente si no dio consentimiento", async () => {
     const result = await executeVoiceTool(
       buildBookAppointmentInput({

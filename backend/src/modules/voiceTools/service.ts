@@ -651,6 +651,21 @@ async function enqueueRetryFailedBooking(leadId: string): Promise<void> {
   }
 }
 
+/**
+ * Remitente a usar en el campo `from` del envío de SMS. Con
+ * TELNYX_SMS_SENDER_ID configurado (el Alphanumeric Sender ID de Telnyx,
+ * ej. "ALHABLA", pendiente de aprobación — issue #21) se envía directamente
+ * con ese texto: la documentación oficial de Telnyx confirma que un Sender
+ * ID alfanumérico va en `from` en vez de un número, y se resuelve por su
+ * propio Messaging Profile — no depende de que business.telnyxPhoneNumber
+ * esté dado de alta para mensajería (el bloqueo 40323/40305 que hoy nos
+ * impide enviar). Sin la variable, se sigue usando el número Telnyx del
+ * negocio como hasta ahora (mismo bloqueo, sin cambios).
+ */
+function resolveSmsFromAddress(business: Pick<BusinessVoiceConfig, "telnyxPhoneNumber">): string | null {
+  return process.env.TELNYX_SMS_SENDER_ID || business.telnyxPhoneNumber;
+}
+
 /** Texto corto (pensado para caber en un único segmento SMS) con lo esencial
  * de la reserva para el propietario del negocio. */
 function buildBookingSmsText(input: {
@@ -1190,7 +1205,7 @@ async function executeBookAppointment(
         if (business.telnyxPhoneNumber && isValidE164Phone(business.phone)) {
           try {
             await enqueueSmsJob({
-              fromNumber: business.telnyxPhoneNumber,
+              fromNumber: resolveSmsFromAddress(business)!,
               toNumber: business.phone,
               text: buildBookingSmsText({
                 clientName,
@@ -1210,11 +1225,12 @@ async function executeBookAppointment(
         // Confirmación (y recordatorio) al cliente por SMS — solo si dio
         // consentimiento explícito por voz (smsConsent) para usar este
         // número. Mismo aislamiento que el aviso al propietario: nunca debe
-        // poder tumbar la reserva. OJO: a día de hoy Telnyx bloquea el envío
-        // real desde cualquier número largo español (40323 "Messaging
-        // activation failed", ver AGENTS.md) — este bloque deja el pipeline
-        // listo (y el job correctamente encolado) para cuando se resuelva,
-        // sin que la entrega real sea la condición de éxito ahora mismo.
+        // poder tumbar la reserva. OJO: sin TELNYX_SMS_SENDER_ID configurado,
+        // el remitente sigue siendo el número Telnyx del negocio, que hoy
+        // Telnyx bloquea para mensajería (40323/40305, ver AGENTS.md e issue
+        // #21) — este bloque deja el pipeline listo (job correctamente
+        // encolado) para cuando se apruebe el Alphanumeric Sender ID, sin
+        // que la entrega real sea la condición de éxito ahora mismo.
         if (
           smsConsent &&
           business.telnyxPhoneNumber &&
@@ -1230,7 +1246,7 @@ async function executeBookAppointment(
           try {
             await enqueueSmsJob(
               {
-                fromNumber: business.telnyxPhoneNumber,
+                fromNumber: resolveSmsFromAddress(business)!,
                 toNumber: effectiveClientPhone,
                 text: buildClientConfirmationSmsText({
                   businessName: business.name,
@@ -1254,7 +1270,7 @@ async function executeBookAppointment(
             try {
               await enqueueSmsJob(
                 {
-                  fromNumber: business.telnyxPhoneNumber,
+                  fromNumber: resolveSmsFromAddress(business)!,
                   toNumber: effectiveClientPhone,
                   text: buildClientReminderSmsText({
                     businessName: business.name,
