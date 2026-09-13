@@ -1,11 +1,11 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { executeVoiceTool } from "../../../src/modules/voiceTools/service.js";
 import { prisma } from "../../../src/lib/prisma.js";
 import { getRedis } from "../../../src/lib/redis.js";
 import { checkBusinessHours } from "../../../src/lib/businessSchedule.js";
 import { checkAvailability } from "../../../src/lib/availability.js";
 import { calendarService } from "../../../src/modules/calendar/service.js";
-import { enqueueSmsJob } from "../../../src/lib/cloudTasks.js";
+import { enqueueSmsJob, enqueueWhatsappJob } from "../../../src/lib/cloudTasks.js";
 
 vi.mock("../../../src/lib/prisma.js", () => ({
   prisma: {
@@ -52,6 +52,7 @@ vi.mock("../../../src/modules/calendar/service.js", () => ({
 vi.mock("../../../src/lib/cloudTasks.js", () => ({
   enqueueRetryBookingJob: vi.fn(),
   enqueueSmsJob: vi.fn(),
+  enqueueWhatsappJob: vi.fn(),
 }));
 
 const mockedBusinessFindUnique = vi.mocked(prisma.business.findUnique);
@@ -70,6 +71,17 @@ const mockedCheckAvailability = vi.mocked(checkAvailability);
 const mockedBookAppointment = vi.mocked(calendarService.bookAppointment);
 const mockedGetBusyIntervals = vi.mocked(calendarService.getBusyIntervals);
 const mockedEnqueueSmsJob = vi.mocked(enqueueSmsJob);
+const mockedEnqueueWhatsappJob = vi.mocked(enqueueWhatsappJob);
+
+/** Los tests de SMS asumen que WhatsApp NO está configurado — sin esto,
+ * dependerían de si el `.env` real de quien ejecuta los tests tiene
+ * WHATSAPP_ACCESS_TOKEN puesto o no (lo tiene en dev desde 2026-09-14). */
+function clearWhatsappEnv() {
+  delete process.env.WHATSAPP_ACCESS_TOKEN;
+  delete process.env.WHATSAPP_PHONE_NUMBER_ID;
+  delete process.env.WHATSAPP_TEMPLATE_CONFIRMATION_NAME;
+  delete process.env.WHATSAPP_TEMPLATE_REMINDER_NAME;
+}
 
 function buildBusiness(overrides: Record<string, unknown> = {}) {
   return {
@@ -480,6 +492,7 @@ describe("executeVoiceTool book_appointment — consentimiento SMS al cliente", 
 
   beforeEach(() => {
     vi.clearAllMocks();
+    clearWhatsappEnv();
     mockedBusinessFindUnique.mockResolvedValue(buildBusiness() as any);
     mockedCheckBusinessHours.mockReturnValue({ success: true, isOpen: true } as any);
     mockedBookAppointment.mockResolvedValue({ htmlLink: "https://calendar.google.com/event/1" } as any);
@@ -624,6 +637,121 @@ describe("executeVoiceTool book_appointment — consentimiento SMS al cliente", 
     expect(mockedEnqueueSmsJob).toHaveBeenCalledTimes(2);
     expect(mockedEnqueueSmsJob).not.toHaveBeenCalledWith(
       expect.anything(),
+      expect.objectContaining({ taskId: "reminder-sms-booking_1" })
+    );
+  });
+});
+
+describe("executeVoiceTool book_appointment — confirmación al cliente por WhatsApp", () => {
+  const farFutureStart = new Date(Date.now() + 48 * 60 * 60_000).toISOString();
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    process.env.WHATSAPP_ACCESS_TOKEN = "token_test";
+    process.env.WHATSAPP_PHONE_NUMBER_ID = "phone_id_test";
+    process.env.WHATSAPP_TEMPLATE_CONFIRMATION_NAME = "confirmacion_cita";
+    process.env.WHATSAPP_TEMPLATE_REMINDER_NAME = "recordatorio_cita";
+    mockedBusinessFindUnique.mockResolvedValue(buildBusiness() as any);
+    mockedCheckBusinessHours.mockReturnValue({ success: true, isOpen: true } as any);
+    mockedBookAppointment.mockResolvedValue({ htmlLink: "https://calendar.google.com/event/1" } as any);
+    mockedGetBusyIntervals.mockResolvedValue([]);
+    mockedProfessionalFindFirst.mockResolvedValue({ id: "professional_123" } as any);
+    mockedProfessionalFindMany.mockResolvedValue([]);
+    mockedServiceFindMany.mockResolvedValue([]);
+    mockedCheckAvailability.mockResolvedValue({
+      available: true,
+      message: "",
+      capacityUsed: 0,
+      capacityTotal: 1,
+      availableProfessionals: [{ id: "professional_123", name: "Ana" }],
+    } as any);
+    mockedCallFindUnique.mockResolvedValue({ id: "call_row_1", fromNumber: "+34600999888" } as any);
+    mockedBookingFindUnique.mockResolvedValue({ id: "booking_1" } as any);
+    mockedEnqueueSmsJob.mockResolvedValue(undefined);
+    mockedEnqueueWhatsappJob.mockResolvedValue(undefined);
+  });
+
+  afterEach(() => {
+    clearWhatsappEnv();
+  });
+
+  it("confirma por WhatsApp en vez de SMS cuando está configurado, pero el aviso al propietario sigue por SMS", async () => {
+    await executeVoiceTool(
+      buildBookAppointmentInput({
+        callId: "call_vapi_1",
+        params: {
+          clientName: "María",
+          startDateTime: farFutureStart,
+          durationMinutes: 30,
+          professionalId: "professional_123",
+          smsConsent: true,
+        },
+      })
+    );
+
+    expect(mockedEnqueueWhatsappJob).toHaveBeenCalledWith(
+      expect.objectContaining({
+        toNumber: "+34600999888",
+        templateName: "confirmacion_cita",
+        languageCode: "es",
+      }),
+      { taskId: "confirm-sms-booking_1" }
+    );
+    // El aviso al propietario nunca pasa por WhatsApp, solo la confirmación
+    // y el recordatorio al cliente.
+    expect(mockedEnqueueSmsJob).toHaveBeenCalledTimes(1);
+    expect(mockedEnqueueSmsJob).toHaveBeenCalledWith(
+      expect.objectContaining({ toNumber: "+34600111222" })
+    );
+  });
+
+  it("programa el recordatorio por WhatsApp con el nombre de plantilla correcto", async () => {
+    await executeVoiceTool(
+      buildBookAppointmentInput({
+        callId: "call_vapi_1",
+        params: {
+          clientName: "María",
+          startDateTime: farFutureStart,
+          durationMinutes: 30,
+          professionalId: "professional_123",
+          smsConsent: true,
+        },
+      })
+    );
+
+    expect(mockedEnqueueWhatsappJob).toHaveBeenCalledWith(
+      expect.objectContaining({ templateName: "recordatorio_cita" }),
+      expect.objectContaining({ taskId: "reminder-sms-booking_1", scheduleTime: expect.any(Date) })
+    );
+  });
+
+  it("cae a SMS solo para la confirmación si falta el nombre de esa plantilla, sin afectar al recordatorio", async () => {
+    delete process.env.WHATSAPP_TEMPLATE_CONFIRMATION_NAME;
+
+    await executeVoiceTool(
+      buildBookAppointmentInput({
+        callId: "call_vapi_1",
+        params: {
+          clientName: "María",
+          startDateTime: farFutureStart,
+          durationMinutes: 30,
+          professionalId: "professional_123",
+          smsConsent: true,
+        },
+      })
+    );
+
+    expect(mockedEnqueueWhatsappJob).not.toHaveBeenCalledWith(
+      expect.anything(),
+      { taskId: "confirm-sms-booking_1" }
+    );
+    expect(mockedEnqueueSmsJob).toHaveBeenCalledWith(
+      expect.objectContaining({ toNumber: "+34600999888", text: expect.stringContaining("confirmada") }),
+      { taskId: "confirm-sms-booking_1" }
+    );
+    // El recordatorio sí tiene su plantilla configurada — no debe verse afectado.
+    expect(mockedEnqueueWhatsappJob).toHaveBeenCalledWith(
+      expect.objectContaining({ templateName: "recordatorio_cita" }),
       expect.objectContaining({ taskId: "reminder-sms-booking_1" })
     );
   });

@@ -34,6 +34,7 @@ vi.mock("../../../src/adapters/telnyx/TelnyxAiAdapter.js", () => ({
   telnyxAiAdapter: {
     hangupCall: vi.fn(),
     answerCallWithAssistant: vi.fn(),
+    startNoiseSuppression: vi.fn(),
     listConversationMessages: vi.fn(),
     listRecordingsByCallLegId: vi.fn(),
   },
@@ -57,6 +58,9 @@ const mockedRecordingUpsert = vi.mocked(prisma.recording.upsert);
 const mockedHangupCall = vi.mocked(telnyxAiAdapter.hangupCall);
 const mockedAnswerCallWithAssistant = vi.mocked(
   telnyxAiAdapter.answerCallWithAssistant
+);
+const mockedStartNoiseSuppression = vi.mocked(
+  telnyxAiAdapter.startNoiseSuppression
 );
 const mockedListConversationMessages = vi.mocked(
   telnyxAiAdapter.listConversationMessages
@@ -131,6 +135,26 @@ describe("handleCallInitiated", () => {
       "assistant_1"
     );
     expect(mockedHangupCall).not.toHaveBeenCalled();
+    expect(mockedStartNoiseSuppression).toHaveBeenCalledWith("call_ctrl_1");
+  });
+
+  it("contesta igualmente aunque falle la supresión de ruido (BETA, nunca debe tumbar la llamada)", async () => {
+    mockedBusinessFindUnique.mockResolvedValue({
+      id: "biz1",
+      callsSuspendedAt: null,
+      paymentFailureSuspensionAt: null,
+      agents: [{ id: "agent1", telnyxAssistantId: "assistant_1" }],
+    } as any);
+    mockedCallUpsert.mockResolvedValue({} as any);
+    mockedStartNoiseSuppression.mockRejectedValue(new Error("Telnyx BETA caída"));
+
+    const result = await handleCallInitiated(basePayload);
+
+    expect(result).toEqual({ success: true });
+    expect(mockedAnswerCallWithAssistant).toHaveBeenCalledWith(
+      "call_ctrl_1",
+      "assistant_1"
+    );
   });
 
   it("cuelga la llamada y no la persiste si no hay negocio para el número", async () => {

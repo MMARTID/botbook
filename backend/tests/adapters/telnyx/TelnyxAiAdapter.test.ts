@@ -11,6 +11,7 @@ const mockStartAIAssistant = vi.fn();
 const mockStopAIAssistant = vi.fn();
 const mockAnswer = vi.fn();
 const mockHangup = vi.fn();
+const mockStartNoiseSuppression = vi.fn();
 const mockConversationsRetrieve = vi.fn();
 const mockMessagesList = vi.fn();
 const mockRecordingsRetrieve = vi.fn();
@@ -52,6 +53,7 @@ const mockTelnyxClient = {
       stopAIAssistant: mockStopAIAssistant,
       answer: mockAnswer,
       hangup: mockHangup,
+      startNoiseSuppression: mockStartNoiseSuppression,
     },
   },
   phoneNumbers: { update: mockPhoneNumbersUpdate },
@@ -368,6 +370,20 @@ describe("TelnyxAiAdapter", () => {
       await adapter.hangupCall("call_ctrl_1");
 
       expect(mockHangup).toHaveBeenCalledWith("call_ctrl_1", {});
+    });
+  });
+
+  describe("startNoiseSuppression", () => {
+    it("limpia solo el audio entrante con el motor optimizado para Voice AI/STT", async () => {
+      mockStartNoiseSuppression.mockResolvedValue({});
+
+      await adapter.startNoiseSuppression("call_ctrl_1");
+
+      expect(mockStartNoiseSuppression).toHaveBeenCalledWith("call_ctrl_1", {
+        direction: "inbound",
+        noise_suppression_engine: "AiCoustics",
+        noise_suppression_engine_config: { family: "quail", size: "s" },
+      });
     });
   });
 
