@@ -37,7 +37,7 @@ export default function AvisoLegalPage() {
         <p>
           Este sitio web y el servicio Alhabla son titularidad del prestador identificado más arriba. Puedes contactar
           con nosotros en{" "}
-          <a href="mailto:hola@alhabla.ai" className="font-medium text-[#344038] underline underline-offset-2">
+          <a href="mailto:hola@alhabla.ai" className="font-medium text-[#6d28d9] underline underline-offset-2">
             hola@alhabla.ai
           </a>
           .
@@ -72,7 +72,7 @@ export default function AvisoLegalPage() {
         <p>
           La suscripción se contrata desde la web y se gestiona con Stripe. Los planes, los minutos incluidos y el coste
           por minuto adicional se muestran antes de contratar en la{" "}
-          <Link href="/planes" className="font-medium text-[#344038] underline underline-offset-2">
+          <Link href="/planes" className="font-medium text-[#6d28d9] underline underline-offset-2">
             página de planes
           </Link>
           . Los precios se indican en euros y sin perjuicio de los impuestos que resulten aplicables.
@@ -124,7 +124,7 @@ export default function AvisoLegalPage() {
       <LegalSection title="Protección de datos">
         <p>
           El tratamiento de datos personales se detalla en la{" "}
-          <Link href="/legal/privacidad" className="font-medium text-[#344038] underline underline-offset-2">
+          <Link href="/legal/privacidad" className="font-medium text-[#6d28d9] underline underline-offset-2">
             política de privacidad
           </Link>
           , que incluye qué ocurre con la demo de voz de la web y con las llamadas que atiende tu recepcionista.

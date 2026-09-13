@@ -36,7 +36,7 @@ export default function PrivacidadPage() {
       <LegalSection title="Quién es el responsable">
         <p>
           El responsable del tratamiento de tus datos es el titular de Alhabla. Puedes escribirnos a{" "}
-          <a href="mailto:hola@alhabla.ai" className="font-medium text-[#344038] underline underline-offset-2">
+          <a href="mailto:hola@alhabla.ai" className="font-medium text-[#6d28d9] underline underline-offset-2">
             hola@alhabla.ai
           </a>{" "}
           para cualquier cuestión relacionada con esta política o con tus datos.
@@ -156,7 +156,7 @@ export default function PrivacidadPage() {
         <p>
           Puedes solicitar acceso a tus datos, su rectificación o supresión, la limitación u oposición al tratamiento,
           y la portabilidad. Escríbenos a{" "}
-          <a href="mailto:hola@alhabla.ai" className="font-medium text-[#344038] underline underline-offset-2">
+          <a href="mailto:hola@alhabla.ai" className="font-medium text-[#6d28d9] underline underline-offset-2">
             hola@alhabla.ai
           </a>{" "}
           y te responderemos en el plazo legal.
@@ -181,7 +181,7 @@ export default function PrivacidadPage() {
 
       <p className="max-w-[68ch] text-base leading-8 text-[#54634b]">
         ¿Te queda alguna duda antes de empezar? Está resuelta en las{" "}
-        <Link href="/landing#preguntas" className="font-medium text-[#344038] underline underline-offset-2">
+        <Link href="/landing#preguntas" className="font-medium text-[#6d28d9] underline underline-offset-2">
           preguntas frecuentes
         </Link>{" "}
         o escribiéndonos directamente.

@@ -13,6 +13,8 @@ import { RecentCalls } from "@/components/recent-calls";
 import { StatusStrip } from "@/components/status-strip";
 import { UpcomingBookings } from "@/components/upcoming-bookings";
 import { WeeklySummary } from "@/components/weekly-summary";
+import { AppPageHeader } from "@/components/app-page-header";
+import { LayoutDashboard } from "lucide-react";
 
 function DashboardContent() {
   const router = useRouter();
@@ -89,14 +91,9 @@ function DashboardContent() {
 
   return (
     <div className="space-y-5 sm:space-y-8">
-      <header className="flex flex-col gap-4 border-b border-[#e5e5e5] pb-6 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <p className="text-sm font-semibold text-[#6d28d9]">Centro de recepción</p>
-          <h1 className="mt-1 text-3xl font-extrabold tracking-[-0.02em] text-[#0a0a0a] sm:text-4xl">Tu negocio, al día</h1>
-          <p className="mt-2 max-w-2xl text-sm leading-6 text-muted">Comprueba que la recepción está lista, mira las citas que entran y revisa las últimas conversaciones.</p>
-        </div>
+      <AppPageHeader icon={LayoutDashboard} title="Tu negocio, al día" description="Comprueba que la recepción está lista, mira las citas que entran y revisa las últimas conversaciones.">
         <Link href="/agente" className="btn-secondary h-11 shrink-0 px-5">Configurar agente</Link>
-      </header>
+      </AppPageHeader>
 
       <StatusStrip business={business} agentActive={agent?.active !== false} />
 

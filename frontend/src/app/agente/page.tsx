@@ -29,6 +29,7 @@ import {
 } from "@/components/agent-settings-editor";
 import { SettingsSection } from "@/components/settings-section";
 import { AgentOperationalSummary } from "@/components/agent-operational-summary";
+import { AppPageHeader } from "@/components/app-page-header";
 import { LottieAnimation } from "@/components/lottie-animation";
 import type {
   AgentSettings,
@@ -474,19 +475,7 @@ function AgenteContent() {
 
   return (
     <div className="flex flex-col space-y-4 sm:space-y-5">
-      <header className="mb-2 flex items-start gap-3 sm:mb-3">
-        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#f3eeff] text-[#8b5cf6]">
-          <Bot className="h-5 w-5" aria-hidden="true" />
-        </span>
-        <div>
-          <h1 className="text-2xl font-extrabold tracking-[-0.02em] text-[#0a0a0a] sm:text-3xl">
-            Tu agente
-          </h1>
-          <p className="mt-1 max-w-2xl text-sm leading-6 text-muted">
-            Configura cómo atiende, qué puede reservar y qué información utiliza al hablar con tus clientes.
-          </p>
-        </div>
-      </header>
+      <AppPageHeader icon={Bot} title="Tu agente" description="Configura cómo atiende, qué puede reservar y qué información utiliza al hablar con tus clientes." />
       <AgentOperationalSummary business={business} agentActive={business.agents?.[0]?.active !== false} />
       {banner ? (
         <div
