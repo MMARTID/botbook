@@ -675,6 +675,21 @@ export async function createBusinessAgent(args: {
       // "off" = comportamiento actual, solo Retell) y nunca puede impedir
       // devolver el agente ya creado en Retell — createTelnyxAssistantForAgent
       // atrapa sus propios errores.
+      //
+      // Auto-promoción a Telnyx-primary (decisión explícita del usuario,
+      // 2026-09-13): el plan original dejaba el cutover como paso manual
+      // aparte (scripts/cutoverToTelnyx.ts) para no cortar tráfico real sin
+      // confirmación. Ahora que Telnyx pasa a ser el orquestador principal
+      // por defecto, un negocio NUEVO y elegible (createTelnyxAssistantForAgent
+      // solo devuelve eligible:true cuando el assistant ya existe de verdad
+      // en Telnyx) se promociona en el momento — sin esto, orchestrator se
+      // quedaría en "retell" para siempre pese a rollout=all, porque nada
+      // más en el código vuelve a tocarlo tras el registro. Retell ya está
+      // creado y sincronizado arriba, así que sigue disponible como fallback
+      // caliente aunque el negocio pase a ser Telnyx-primary. provisionPhoneNumber
+      // (phone/service.ts) lee `orchestrator` en el momento de comprar el
+      // número, así que este flag ya puesto aquí basta para que el número
+      // se conecte al Call Control App correcto más adelante en el onboarding.
       if (isVoiceTelnyxRolloutEnabled()) {
         const telnyxResult = await createTelnyxAssistantForAgent({
           agentId: agent.id,
@@ -689,6 +704,13 @@ export async function createBusinessAgent(args: {
                 ? "eligible"
                 : "ineligible",
               telnyxEligibilityReason: telnyxResult.reason,
+              ...(telnyxResult.eligible
+                ? {
+                    orchestrator: "telnyx",
+                    voiceRoutingTarget: "telnyx",
+                    voiceRoutingChangedAt: new Date(),
+                  }
+                : {}),
             },
           })
           .catch((updateError) => {
