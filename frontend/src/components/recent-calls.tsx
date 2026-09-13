@@ -1,8 +1,9 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { CalendarCheck, ChevronRight, Frown, Meh, PhoneCall, RefreshCw, Smile } from "lucide-react";
+import { ArrowRight, CalendarCheck, ChevronRight, Frown, Meh, PhoneCall, RefreshCw, Smile } from "lucide-react";
 import { getCalls } from "@/lib/api";
 import {
   escalationReasonChip,
@@ -54,6 +55,10 @@ export function RecentCalls() {
             Toca una llamada para leer la conversación y escuchar la grabación.
           </p>
         </div>
+        <Link href="/llamadas" className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full border border-[#e5e5e5] bg-white px-3 text-sm font-semibold text-[#27272a] transition duration-200 hover:bg-[#fafafa] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]">
+          Ver historial
+          <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+        </Link>
       </div>
 
       {callsQuery.isLoading ? (

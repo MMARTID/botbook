@@ -6,6 +6,11 @@ import { authRoutes } from "../../../src/modules/auth/routes.js";
 import { prisma } from "../../../src/lib/prisma.js";
 import { getRedis } from "../../../src/lib/redis.js";
 import { createBusinessAgent } from "../../../src/lib/agentBootstrap.js";
+import {
+  changeAccountPassword,
+  deleteAccount,
+  getAccountOverview,
+} from "../../../src/modules/auth/accountService.js";
 
 vi.mock("../../../src/lib/prisma.js", () => ({
   prisma: {
@@ -28,6 +33,17 @@ vi.mock("../../../src/lib/redis.js", () => ({
 
 vi.mock("../../../src/lib/agentBootstrap.js", () => ({
   createBusinessAgent: vi.fn().mockResolvedValue({ id: "agent_123" }),
+}));
+
+vi.mock("../../../src/modules/auth/accountService.js", () => ({
+  AccountActionError: class AccountActionError extends Error {
+    constructor(message: string, readonly statusCode: number) {
+      super(message);
+    }
+  },
+  getAccountOverview: vi.fn(),
+  changeAccountPassword: vi.fn(),
+  deleteAccount: vi.fn(),
 }));
 
 vi.mock("bcryptjs", () => ({
@@ -74,6 +90,9 @@ const mockedBcryptHash = vi.mocked(bcrypt.hash);
 const mockedJwtSign = vi.mocked(jwt.sign);
 const mockedGetRedis = vi.mocked(getRedis);
 const mockedCreateBusinessAgent = vi.mocked(createBusinessAgent);
+const mockedGetAccountOverview = vi.mocked(getAccountOverview);
+const mockedChangeAccountPassword = vi.mocked(changeAccountPassword);
+const mockedDeleteAccount = vi.mocked(deleteAccount);
 
 describe("authRoutes", () => {
   let fastify: ReturnType<typeof Fastify>;
@@ -86,6 +105,9 @@ describe("authRoutes", () => {
     process.env.GOOGLE_AUTH_REDIRECT_URI = "http://localhost:3000/auth/google/callback";
 
     fastify = Fastify();
+    fastify.decorate("authenticate", async (request: any) => {
+      request.user = { id: "user_123", businessId: "business_123" };
+    });
     await fastify.register(authRoutes);
   });
 
@@ -221,6 +243,87 @@ describe("authRoutes", () => {
       expect(mockedCreateBusinessAgent).toHaveBeenCalledWith(
         expect.objectContaining({ businessType: "peluqueria" })
       );
+    });
+  });
+
+  describe("ajustes de cuenta", () => {
+    it("devuelve el resumen de la cuenta autenticada", async () => {
+      mockedGetAccountOverview.mockResolvedValue({
+        email: "test@example.com",
+        passwordConfigured: true,
+        googleConnected: false,
+      });
+
+      const response = await fastify.inject({ method: "GET", url: "/account" });
+
+      expect(response.statusCode).toBe(200);
+      expect(response.json()).toEqual({
+        email: "test@example.com",
+        passwordConfigured: true,
+        googleConnected: false,
+      });
+      expect(mockedGetAccountOverview).toHaveBeenCalledWith(
+        "user_123",
+        "business_123",
+      );
+    });
+
+    it("cambia una contraseña que cumple los requisitos", async () => {
+      mockedChangeAccountPassword.mockResolvedValue({ passwordConfigured: true });
+
+      const response = await fastify.inject({
+        method: "POST",
+        url: "/change-password",
+        payload: { currentPassword: "anterior123", newPassword: "NuevaClave123" },
+      });
+
+      expect(response.statusCode).toBe(200);
+      expect(mockedChangeAccountPassword).toHaveBeenCalledWith({
+        userId: "user_123",
+        businessId: "business_123",
+        currentPassword: "anterior123",
+        newPassword: "NuevaClave123",
+      });
+    });
+
+    it("rechaza una contraseña nueva débil", async () => {
+      const response = await fastify.inject({
+        method: "POST",
+        url: "/change-password",
+        payload: { currentPassword: "anterior123", newPassword: "sinnumero" },
+      });
+
+      expect(response.statusCode).toBe(400);
+      expect(mockedChangeAccountPassword).not.toHaveBeenCalled();
+    });
+
+    it("solo elimina la cuenta tras confirmar el desvío y la palabra de seguridad", async () => {
+      mockedDeleteAccount.mockResolvedValue(undefined);
+
+      const invalidResponse = await fastify.inject({
+        method: "DELETE",
+        url: "/account",
+        payload: { confirmation: "ELIMINAR", forwardingCancelled: false },
+      });
+      expect(invalidResponse.statusCode).toBe(400);
+      expect(mockedDeleteAccount).not.toHaveBeenCalled();
+
+      const response = await fastify.inject({
+        method: "DELETE",
+        url: "/account",
+        payload: {
+          currentPassword: "anterior123",
+          confirmation: "ELIMINAR",
+          forwardingCancelled: true,
+        },
+      });
+
+      expect(response.statusCode).toBe(204);
+      expect(mockedDeleteAccount).toHaveBeenCalledWith({
+        userId: "user_123",
+        businessId: "business_123",
+        currentPassword: "anterior123",
+      });
     });
   });
 

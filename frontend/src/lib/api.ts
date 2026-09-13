@@ -75,9 +75,9 @@ export async function getStats() {
 }
 
 /** Próximas citas reservadas por el agente, con cliente y servicios resueltos. */
-export async function getAgenda(days = 7, limit = 20) {
+export async function getAgenda(days = 7, limit = 20, offset = 0) {
   const { data } = await api.get<AgendaResponse>("/business/me/agenda", {
-    params: { days, limit },
+    params: { days, limit, offset },
   });
   return data;
 }
@@ -239,6 +239,10 @@ export async function updateBookingService(serviceId: string, payload: Partial<B
   return data;
 }
 
+export async function deleteBookingService(serviceId: string) {
+  await api.delete(`/booking-settings/services/${serviceId}`);
+}
+
 export async function createBookingProfessional(payload: BookingProfessionalInput) {
   const { data } = await api.post<BookingProfessional>("/booking-settings/professionals", payload);
   return data;
@@ -253,6 +257,40 @@ export async function updateBookingProfessional(
     payload,
   );
   return data;
+}
+
+export async function deleteBookingProfessional(professionalId: string) {
+  await api.delete(`/booking-settings/professionals/${professionalId}`);
+}
+
+export type AccountOverview = {
+  email: string;
+  passwordConfigured: boolean;
+  googleConnected: boolean;
+};
+
+export async function getAccountOverview() {
+  const { data } = await api.get<AccountOverview>("/auth/account");
+  return data;
+}
+
+export async function changeAccountPassword(payload: {
+  currentPassword?: string;
+  newPassword: string;
+}) {
+  const { data } = await api.post<{ passwordConfigured: true }>(
+    "/auth/change-password",
+    payload,
+  );
+  return data;
+}
+
+export async function deleteAccount(payload: {
+  currentPassword?: string;
+  confirmation: "ELIMINAR";
+  forwardingCancelled: true;
+}) {
+  await api.delete("/auth/account", { data: payload });
 }
 
 export async function getOnboardingState() {

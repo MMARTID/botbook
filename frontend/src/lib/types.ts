@@ -261,7 +261,13 @@ export type CallBooking = {
   serviceIds: string[];
   professional?: { id: string; name: string } | null;
   /** Nombres resueltos de serviceIds — puede ser más de uno (ej. corte y mechas). */
-  services?: { id: string; name: string; durationMinutes: number }[];
+  services?: {
+    id: string;
+    name: string;
+    durationMinutes: number;
+    /** Precio opcional: una cita solo muestra importe si todos lo conocen. */
+    priceCents?: number | null;
+  }[];
 };
 
 export type Call = {
@@ -374,6 +380,10 @@ export type AgendaBooking = {
 export type AgendaResponse = {
   from: string;
   until: string;
+  total: number;
+  limit: number;
+  offset: number;
+  hasMore: boolean;
   bookings: AgendaBooking[];
 };
 

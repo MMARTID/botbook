@@ -1,7 +1,9 @@
 import { describe, it, expect } from "vitest";
 import {
+  accountDeletedEmail,
   paymentApprovedEmail,
   paymentFailedEmail,
+  passwordChangedEmail,
   subscriptionCancellationInstructionsEmail,
 } from "../../src/lib/emailTemplates.js";
 
@@ -71,5 +73,23 @@ describe("subscriptionCancellationInstructionsEmail", () => {
     expect(subject).toContain("Barbería Luis");
     expect(html).toContain("desactiva el desvío de llamadas");
     expect(html).toContain("30 de septiembre de 2026");
+  });
+});
+
+describe("emails de seguridad de la cuenta", () => {
+  it("avisa cuando cambia la contraseña", () => {
+    const { subject, html } = passwordChangedEmail();
+
+    expect(subject).toContain("contraseña");
+    expect(html).toContain("Si no has sido tú");
+  });
+
+  it("confirma la eliminación y recuerda quitar el desvío", () => {
+    const { subject, html } = accountDeletedEmail({
+      businessName: "Peluquería Ana",
+    });
+
+    expect(subject).toContain("Peluquería Ana");
+    expect(html).toContain("desvío de llamadas");
   });
 });

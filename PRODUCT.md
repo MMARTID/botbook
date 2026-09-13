@@ -62,7 +62,7 @@ Lo que un producto vecino no podría copiar honestamente:
 ## Operating Context
 
 - **Alta guiada:** Google Places → nicho → servicios → equipo → calendario → checkout de Stripe.
-  Los pasos intermedios se pueden saltar y completar después en `/ajustes`. El checkout es
+  Los pasos intermedios se pueden saltar y completar después en `/agente`. El checkout es
   obligatorio para terminar el registro.
 - **Escena de configuración:** a menudo desde el móvil o un portátil, de pie, entre cliente y
   cliente. El tiempo disponible es corto y interrumpible.
@@ -166,7 +166,10 @@ producto funcionando (demo, transcripción real, la calculadora), no fabricar pr
 1. **Cero llamadas perdidas es la promesa.** Todo se argumenta y se mide contra ingresos
    recuperados, no contra funcionalidades.
 2. **Configurar una vez y olvidarse.** Cada pantalla debe acercar al usuario al «ya está»,
-   nunca convertirlo en operador de su propio software.
+   nunca convertirlo en operador de su propio software. La configuración operativa de la
+   recepcionista vive en `/agente`; la identidad, seguridad y administración de la cuenta viven
+   en `/ajustes`. No mezclar ambos mundos: separar «cómo atiende mi recepcionista» de «cómo
+   protejo y gestiono mi cuenta» reduce la carga cognitiva.
 3. **La agenda del negocio manda.** El producto nunca inventa disponibilidad ni promete un hueco
    que no existe; verificar antes de reservar es innegociable.
 4. **Vender una recepcionista, no una IA.** El vocabulario, la prueba y las expectativas se

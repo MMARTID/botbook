@@ -95,7 +95,7 @@ export const BUSINESS_TYPE_ONBOARDING_TEXTS: Record<
     },
     team: {
       heading: "¿Cuántas personas atienden en tu peluquería?",
-      subheading: "Configuraremos un profesional por cada persona que coja citas. Podrás renombrarlos después en ajustes.",
+      subheading: "Configuraremos un profesional por cada persona que coja citas. Podrás renombrarlos después en Agente.",
       cta: "Guardar equipo y continuar",
       employeeLabel: "Estilistas / peluqueros",
     },
@@ -113,7 +113,7 @@ export const BUSINESS_TYPE_ONBOARDING_TEXTS: Record<
     },
     team: {
       heading: "¿Cuántos barberos trabajan en tu barbería?",
-      subheading: "Configuraremos un profesional por cada barbero que coja citas. Podrás renombrarlos después en ajustes.",
+      subheading: "Configuraremos un profesional por cada barbero que coja citas. Podrás renombrarlos después en Agente.",
       cta: "Guardar equipo y continuar",
       employeeLabel: "Barberos",
     },
@@ -131,7 +131,7 @@ export const BUSINESS_TYPE_ONBOARDING_TEXTS: Record<
     },
     team: {
       heading: "¿Cuántas personas atienden en tu centro?",
-      subheading: "Configuraremos un profesional por cada persona que coja citas. Podrás renombrarlos después en ajustes.",
+      subheading: "Configuraremos un profesional por cada persona que coja citas. Podrás renombrarlos después en Agente.",
       cta: "Guardar equipo y continuar",
       employeeLabel: "Esteticistas / terapeutas",
     },
@@ -149,7 +149,7 @@ export const BUSINESS_TYPE_ONBOARDING_TEXTS: Record<
     },
     team: {
       heading: "¿Cuántas personas atienden en tu salón de uñas?",
-      subheading: "Configuraremos un profesional por cada persona que coja citas. Podrás renombrarlos después en ajustes.",
+      subheading: "Configuraremos un profesional por cada persona que coja citas. Podrás renombrarlos después en Agente.",
       cta: "Guardar equipo y continuar",
       employeeLabel: "Técnicas de uñas",
     },
@@ -167,7 +167,7 @@ export const BUSINESS_TYPE_ONBOARDING_TEXTS: Record<
     },
     team: {
       heading: "¿Cuántos fisioterapeutas trabajan en tu clínica?",
-      subheading: "Configuraremos un profesional por cada fisioterapeuta que coja citas. Podrás renombrarlos después en ajustes.",
+      subheading: "Configuraremos un profesional por cada fisioterapeuta que coja citas. Podrás renombrarlos después en Agente.",
       cta: "Guardar equipo y continuar",
       employeeLabel: "Fisioterapeutas",
     },
@@ -185,7 +185,7 @@ export const BUSINESS_TYPE_ONBOARDING_TEXTS: Record<
     },
     team: {
       heading: "¿Cuántas personas atienden en tu negocio?",
-      subheading: "Configuraremos un profesional por cada persona que coja citas. Podrás renombrarlos después en ajustes.",
+      subheading: "Configuraremos un profesional por cada persona que coja citas. Podrás renombrarlos después en Agente.",
       cta: "Guardar equipo y continuar",
       employeeLabel: "Profesionales",
     },

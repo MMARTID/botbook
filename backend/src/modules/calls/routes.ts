@@ -55,7 +55,10 @@ export async function callsRoutes(fastify: FastifyInstance) {
         const [calls, total] = await Promise.all([
           prisma.call.findMany({
             where: { businessId },
-            include: { agent: true, booking: true },
+            include: {
+              agent: true,
+              booking: { include: { professional: { select: { id: true, name: true } } } },
+            },
             take: limit,
             skip: offset,
             orderBy: { createdAt: "desc" },
@@ -63,8 +66,32 @@ export async function callsRoutes(fastify: FastifyInstance) {
           prisma.call.count({ where: { businessId } }),
         ]);
 
+        // Booking.serviceIds es un array de IDs, no una relación de Prisma.
+        // Se resuelve de una vez para toda la página: consultar por cada fila
+        // degradaría el historial exactamente cuando más actividad tiene el negocio.
+        const serviceIds = [
+          ...new Set(calls.flatMap((call) => call.booking?.serviceIds ?? [])),
+        ];
+        const services = serviceIds.length
+          ? await prisma.service.findMany({
+              where: { businessId, id: { in: serviceIds } },
+              select: { id: true, name: true, durationMinutes: true, priceCents: true },
+            })
+          : [];
+        const servicesById = new Map(services.map((service) => [service.id, service]));
+
         return reply.send({
-          data: calls,
+          data: calls.map((call) => ({
+            ...call,
+            booking: call.booking
+              ? {
+                  ...call.booking,
+                  services: call.booking.serviceIds
+                    .map((serviceId) => servicesById.get(serviceId))
+                    .filter((service) => service !== undefined),
+                }
+              : null,
+          })),
           total,
           limit,
           offset,

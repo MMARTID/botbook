@@ -69,7 +69,7 @@ export function WeeklySummary({ week }: WeeklySummaryProps) {
                 Pon precio a tus servicios y el panel te dirá cuánto valen las citas que entran solas.
               </p>
               <Link
-                href="/ajustes?section=services"
+                href="/agente?section=services"
                 className="mt-2 inline-flex items-center gap-1 text-sm font-semibold text-[#6d28d9] transition duration-200 hover:text-[#8b5cf6] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]"
               >
                 Añadir precios

@@ -23,6 +23,7 @@ vi.mock("../../../src/lib/agentBootstrap.js", () => ({
 }));
 
 const mockedBookingFindMany = vi.mocked(prisma.booking.findMany);
+const mockedBookingCount = vi.mocked(prisma.booking.count);
 const mockedServiceFindMany = vi.mocked(prisma.service.findMany);
 const mockedServiceCount = vi.mocked(prisma.service.count);
 const mockedCallCount = vi.mocked(prisma.call.count);
@@ -117,6 +118,35 @@ describe("GET /business/me/agenda", () => {
       (where.programedAt.lte.getTime() - where.programedAt.gte.getTime()) / 86_400_000
     );
     expect(dias).toBe(3);
+  });
+
+  it("pagina la agenda sin ocultar las citas que quedan después del límite", async () => {
+    mockedBookingFindMany.mockResolvedValue([
+      {
+        id: "bk_51",
+        callId: "call_51",
+        programedAt: new Date("2026-09-20T10:00:00Z"),
+        durationMinutes: 30,
+        numberPeople: 1,
+        clientPhone: null,
+        professional: null,
+        serviceIds: [],
+        externalEventId: null,
+        externalCalendarProvider: null,
+        call: { id: "call_51", fromNumber: "+34692138456" },
+      },
+    ] as any);
+    mockedBookingCount.mockResolvedValue(51 as any);
+    mockedServiceFindMany.mockResolvedValue([] as any);
+
+    const response = await fastify.inject({
+      method: "GET",
+      url: "/business/me/agenda?days=30&limit=50&offset=50",
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(mockedBookingFindMany).toHaveBeenCalledWith(expect.objectContaining({ take: 50, skip: 50 }));
+    expect(response.json()).toMatchObject({ total: 51, limit: 50, offset: 50, hasMore: false });
   });
 
   it("rechaza un rango de días fuera de lo permitido", async () => {

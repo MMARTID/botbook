@@ -1,5 +1,14 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { api, createDemoWebCall, getGoogleAuthUrl } from "@/lib/api";
+import {
+  api,
+  changeAccountPassword,
+  createDemoWebCall,
+  deleteAccount,
+  deleteBookingProfessional,
+  deleteBookingService,
+  getAccountOverview,
+  getGoogleAuthUrl,
+} from "@/lib/api";
 
 describe("getGoogleAuthUrl", () => {
   beforeEach(() => {
@@ -101,5 +110,52 @@ describe("createDemoWebCall", () => {
       { niche: "peluqueria", placeId: "place_123", allowBusinessDataRetention: true },
       { timeout: 15000 },
     );
+  });
+});
+
+describe("operaciones de ajustes", () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("retira servicios y profesionales por sus rutas autenticadas", async () => {
+    const deleteSpy = vi.spyOn(api, "delete").mockResolvedValue({ data: undefined });
+
+    await deleteBookingService("service_123");
+    await deleteBookingProfessional("professional_123");
+
+    expect(deleteSpy).toHaveBeenNthCalledWith(1, "/booking-settings/services/service_123");
+    expect(deleteSpy).toHaveBeenNthCalledWith(2, "/booking-settings/professionals/professional_123");
+  });
+
+  it("usa las rutas de cuenta para consultar, cambiar contraseña y eliminar", async () => {
+    const getSpy = vi.spyOn(api, "get").mockResolvedValue({
+      data: { email: "cliente@example.com", passwordConfigured: true, googleConnected: false },
+    });
+    const postSpy = vi.spyOn(api, "post").mockResolvedValue({
+      data: { passwordConfigured: true },
+    });
+    const deleteSpy = vi.spyOn(api, "delete").mockResolvedValue({ data: undefined });
+
+    await getAccountOverview();
+    await changeAccountPassword({ currentPassword: "Anterior123", newPassword: "Nueva1234" });
+    await deleteAccount({
+      currentPassword: "Nueva1234",
+      confirmation: "ELIMINAR",
+      forwardingCancelled: true,
+    });
+
+    expect(getSpy).toHaveBeenCalledWith("/auth/account");
+    expect(postSpy).toHaveBeenCalledWith("/auth/change-password", {
+      currentPassword: "Anterior123",
+      newPassword: "Nueva1234",
+    });
+    expect(deleteSpy).toHaveBeenCalledWith("/auth/account", {
+      data: {
+        currentPassword: "Nueva1234",
+        confirmation: "ELIMINAR",
+        forwardingCancelled: true,
+      },
+    });
   });
 });

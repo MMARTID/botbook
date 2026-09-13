@@ -22,6 +22,9 @@ vi.mock("../../../src/lib/storage.js", () => ({
 }));
 
 const mockedCallFindUnique = vi.mocked(prisma.call.findUnique);
+const mockedCallFindMany = vi.mocked(prisma.call.findMany);
+const mockedCallCount = vi.mocked(prisma.call.count);
+const mockedServiceFindMany = vi.mocked(prisma.service.findMany);
 const mockedGetSignedRecordingUrl = vi.mocked(getSignedRecordingUrl);
 
 describe("GET /business/me/calls/:id", () => {
@@ -116,5 +119,58 @@ describe("GET /business/me/calls/:id", () => {
     expect(response.statusCode).toBe(200);
     expect(response.json().recording).toBeNull();
     expect(mockedGetSignedRecordingUrl).not.toHaveBeenCalled();
+  });
+});
+
+describe("GET /business/me/calls", () => {
+  let fastify: ReturnType<typeof Fastify>;
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    fastify = Fastify();
+    fastify.decorate("authenticate", async (request: any) => {
+      request.user = { businessId: "biz_1" };
+    });
+    await fastify.register(callsRoutes);
+  });
+
+  it("resuelve la reserva asociada de toda una página sin consultas por fila", async () => {
+    mockedCallFindMany.mockResolvedValue([
+      {
+        id: "call_1",
+        businessId: "biz_1",
+        booking: {
+          id: "booking_1",
+          serviceIds: ["srv_1", "srv_2"],
+          professional: { id: "pro_1", name: "Lucía" },
+        },
+      },
+      {
+        id: "call_2",
+        businessId: "biz_1",
+        booking: { id: "booking_2", serviceIds: ["srv_1"], professional: null },
+      },
+    ] as any);
+    mockedCallCount.mockResolvedValue(2 as any);
+    mockedServiceFindMany.mockResolvedValue([
+      { id: "srv_1", name: "Corte", durationMinutes: 30, priceCents: 1800 },
+      { id: "srv_2", name: "Color", durationMinutes: 45, priceCents: null },
+    ] as any);
+
+    const response = await fastify.inject({ method: "GET", url: "/business/me/calls?limit=25&offset=0" });
+
+    expect(response.statusCode).toBe(200);
+    expect(mockedServiceFindMany).toHaveBeenCalledTimes(1);
+    expect(mockedServiceFindMany).toHaveBeenCalledWith({
+      where: { businessId: "biz_1", id: { in: ["srv_1", "srv_2"] } },
+      select: { id: true, name: true, durationMinutes: true, priceCents: true },
+    });
+    expect(response.json().data[0].booking).toMatchObject({
+      professional: { id: "pro_1", name: "Lucía" },
+      services: [
+        { id: "srv_1", name: "Corte", priceCents: 1800 },
+        { id: "srv_2", name: "Color", priceCents: null },
+      ],
+    });
   });
 });

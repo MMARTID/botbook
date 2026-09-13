@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { AlertTriangle, ExternalLink, ReceiptText, X } from "lucide-react";
+import { AlertTriangle, CreditCard, ExternalLink, ReceiptText, X } from "lucide-react";
 import { createBillingPortalSession, getBillingSummary } from "@/lib/api";
 import { useBusiness } from "@/components/providers";
 import { formatPrice } from "@/lib/format";
@@ -70,14 +70,18 @@ export default function BillingSettingsPage() {
 
   return (
     <section className="space-y-6">
-      <div>
+      <header className="flex items-start gap-3 border-b border-[#e5e5e5] pb-6">
+        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#f3eeff] text-[#8b5cf6]"><CreditCard className="h-5 w-5" aria-hidden="true" /></span>
+        <div>
+        <p className="text-sm font-semibold text-[#6d28d9]">Cuenta</p>
         <h1 className="text-2xl font-semibold tracking-tight text-[#0a0a0a] sm:text-3xl">
           Plan y pagos
         </h1>
         <p className="mt-2 text-muted">
           Tu suscripción, el consumo de minutos y tus facturas.
         </p>
-      </div>
+        </div>
+      </header>
 
       {summary.isLoading ? <div className="panel p-8 text-muted">Cargando facturación…</div> : null}
       {summary.isError ? (

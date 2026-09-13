@@ -2,6 +2,7 @@
 
 import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { getOnboardingState, getStats } from "@/lib/api";
 import { useBusiness } from "@/components/providers";
@@ -82,20 +83,20 @@ function DashboardContent() {
     return null; // Will redirect to login via useEffect
   }
 
-  const activeCalendarProvider = business.calendarProvider === "outlook" ? "outlook" : "google";
-  const hasCalendar =
-    activeCalendarProvider === "outlook"
-      ? business.outlookCalendarConnected === true
-      : business.googleCalendarConnected === true;
   const agent = business.agents?.[0];
   const timeZone = business.timezone || "Europe/Madrid";
   const forwarding = onboardingQuery.data?.forwarding;
 
   return (
     <div className="space-y-5 sm:space-y-8">
-      <OnboardingChecklist />
-
-      <PendingBookings timeZone={timeZone} />
+      <header className="flex flex-col gap-4 border-b border-[#e5e5e5] pb-6 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <p className="text-sm font-semibold text-[#6d28d9]">Centro de recepción</p>
+          <h1 className="mt-1 text-3xl font-extrabold tracking-[-0.02em] text-[#0a0a0a] sm:text-4xl">Tu negocio, al día</h1>
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-muted">Comprueba que la recepción está lista, mira las citas que entran y revisa las últimas conversaciones.</p>
+        </div>
+        <Link href="/agente" className="btn-secondary h-11 shrink-0 px-5">Configurar agente</Link>
+      </header>
 
       <StatusStrip business={business} agentActive={agent?.active !== false} />
 
@@ -118,17 +119,17 @@ function DashboardContent() {
         <CallForwardingCard forwarding={forwarding} />
       ) : null}
 
+      <OnboardingChecklist />
+
+      <PendingBookings timeZone={timeZone} />
+
       {/* Vercel puede publicar esta interfaz unos minutos antes de que Cloud
           Run exponga la ventana `week`. Durante ese despliegue escalonado no
           renderizamos un resumen con datos inexistentes. */}
       {statsQuery.data?.week ? <WeeklySummary week={statsQuery.data.week} /> : null}
 
       <div className="grid gap-4 sm:gap-6 lg:grid-cols-2">
-        <UpcomingBookings
-          timeZone={timeZone}
-          calendarProvider={activeCalendarProvider}
-          hasCalendar={hasCalendar}
-        />
+        <UpcomingBookings timeZone={timeZone} />
         <RecentCalls />
       </div>
     </div>

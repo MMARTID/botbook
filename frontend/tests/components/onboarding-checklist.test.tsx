@@ -116,11 +116,11 @@ describe("OnboardingChecklist", () => {
 
     expect(screen.getByRole("link", { name: /Añade a tu equipo/ })).toHaveAttribute(
       "href",
-      "/ajustes?section=professionals"
+      "/agente?section=professionals"
     );
     expect(screen.getByRole("link", { name: /Conecta tu calendario/ })).toHaveAttribute(
       "href",
-      "/ajustes?section=calendar-section"
+      "/agente?section=calendar-section"
     );
 
     // Los ya completados no aparecen como enlace accionable, solo como resumen.
@@ -135,11 +135,11 @@ describe("OnboardingChecklist", () => {
 
     expect(await screen.findByRole("link", { name: /Configura tu horario/ })).toHaveAttribute(
       "href",
-      "/ajustes?section=business-hours"
+      "/agente?section=business-hours"
     );
     expect(screen.getByRole("link", { name: /Añade tus servicios/ })).toHaveAttribute(
       "href",
-      "/ajustes?section=services"
+      "/agente?section=services"
     );
   });
 

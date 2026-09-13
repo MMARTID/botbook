@@ -101,6 +101,31 @@ export function subscriptionCancellationInstructionsEmail(input: {
   return { subject, html };
 }
 
+export function passwordChangedEmail(): { subject: string; html: string } {
+  const subject = "Tu contraseña de Alhabla ha cambiado";
+  const html = emailShell(`
+    <p style="font-size:18px;font-weight:600;margin:0 0 16px 0;">Contraseña actualizada</p>
+    <p style="margin:0 0 16px 0;">La contraseña de acceso a tu cuenta de Alhabla se ha cambiado correctamente.</p>
+    <p style="margin:0 0 16px 0;">Si no has sido tú, responde a este correo cuanto antes para que podamos proteger tu cuenta.</p>
+    <p style="margin:0;">Un saludo,<br/>El equipo de Alhabla</p>
+  `);
+  return { subject, html };
+}
+
+export function accountDeletedEmail(input: { businessName: string }): {
+  subject: string;
+  html: string;
+} {
+  const subject = `Cuenta eliminada — ${input.businessName}`;
+  const html = emailShell(`
+    <p style="font-size:18px;font-weight:600;margin:0 0 16px 0;">Tu cuenta se ha eliminado</p>
+    <p style="margin:0 0 16px 0;">Hemos eliminado la cuenta de <strong>${input.businessName}</strong> y cancelado su servicio.</p>
+    <p style="margin:0 0 16px 0;"><strong>Importante:</strong> comprueba que el desvío de llamadas de tu línea habitual ya está desactivado.</p>
+    <p style="margin:0;">Si necesitas ayuda, responde a este correo.<br/>El equipo de Alhabla</p>
+  `);
+  return { subject, html };
+}
+
 export function usageWarningEmail(input: { businessName: string; planName: string; consumedMinutes: number; includedMinutes: number; extraMinuteCents: number; periodEndsAt: Date }): { subject: string; html: string } {
   const subject = `Te acercas a los minutos incluidos — ${input.businessName}`;
   const html = emailShell(`

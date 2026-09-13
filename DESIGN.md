@@ -387,6 +387,13 @@ no hay desbordamiento.
 En ajustes, la navegación por secciones se reemplaza en móvil por un botón de vuelta flotante
 arriba a la izquierda; la cabecera completa se oculta por debajo de `sm`.
 
+La arquitectura de configuración se divide en dos destinos hermanos y visibles en la navegación:
+`/agente` reúne las secciones operativas que determinan cómo trabaja la recepcionista; `/ajustes`
+abre con la identidad de acceso y continúa con datos del negocio, seguridad, acceso y zona de
+peligro. El primer viewport debe dejar inequívoco cuál de esos dos mundos se está gestionando:
+icono en azulejo morado, título directo y una sola frase descriptiva antes del primer panel. No se
+intercalan controles de seguridad o cuenta dentro del flujo operativo del agente.
+
 **La Regla del Pulgar.** La configuración se hace de pie, entre cliente y cliente. Todo objetivo
 interactivo mide al menos 44 px de alto — de ahí que campos y botones compartan `h-11`/`h-12`.
 

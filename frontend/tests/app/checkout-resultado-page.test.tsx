@@ -53,7 +53,7 @@ describe("CheckoutResultPage", () => {
 
     expect(await screen.findByText("Suscripción confirmada")).toBeInTheDocument();
     const cta = screen.getByRole("link", { name: "Configurar mi negocio" });
-    expect(cta).toHaveAttribute("href", "/ajustes?from=checkout");
+    expect(cta).toHaveAttribute("href", "/agente?from=checkout");
     expect(screen.queryByRole("button", { name: /Actualizar/ })).not.toBeInTheDocument();
   });
 
@@ -96,7 +96,7 @@ describe("CheckoutResultPage", () => {
     renderPage();
 
     const cta = await screen.findByRole("link", { name: "Configurar mi negocio" });
-    expect(cta).toHaveAttribute("href", "/ajustes?from=checkout&hasPlaceSchedule=true");
+    expect(cta).toHaveAttribute("href", "/agente?from=checkout&hasPlaceSchedule=true");
     expect(window.localStorage.getItem("alhabla_place_schedule_imported")).toBeNull();
   });
 });

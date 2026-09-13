@@ -1,7 +1,8 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { CalendarDays, ExternalLink, Phone, RefreshCw, Users } from "lucide-react";
+import Link from "next/link";
+import { ArrowRight, CalendarDays, Phone, RefreshCw, Users } from "lucide-react";
 import { getAgenda } from "@/lib/api";
 import { formatClock, formatDayLabel, formatPhone, formatPrice } from "@/lib/format";
 import type { AgendaBooking } from "@/lib/types";
@@ -10,8 +11,6 @@ const AGENDA_DAYS = 7;
 
 type UpcomingBookingsProps = {
   timeZone: string;
-  calendarProvider: "google" | "outlook";
-  hasCalendar: boolean;
 };
 
 /**
@@ -20,7 +19,7 @@ type UpcomingBookingsProps = {
  * crudos del calendario: el negocio necesita saber quién viene y a qué, no
  * leer la cadena de texto que se guardó en Google.
  */
-export function UpcomingBookings({ timeZone, calendarProvider, hasCalendar }: UpcomingBookingsProps) {
+export function UpcomingBookings({ timeZone }: UpcomingBookingsProps) {
   const agendaQuery = useQuery({
     queryKey: ["agenda", AGENDA_DAYS],
     queryFn: () => getAgenda(AGENDA_DAYS),
@@ -30,11 +29,6 @@ export function UpcomingBookings({ timeZone, calendarProvider, hasCalendar }: Up
 
   const bookings = agendaQuery.data?.bookings ?? [];
   const days = groupByDay(bookings, timeZone);
-
-  const calendarUrl =
-    calendarProvider === "outlook"
-      ? "https://outlook.office.com/calendar/"
-      : "https://calendar.google.com/calendar/u/0/r/agenda";
 
   return (
     <section className="panel min-w-0 p-4 sm:p-5 lg:p-6" aria-labelledby="upcoming-bookings-title">
@@ -49,17 +43,10 @@ export function UpcomingBookings({ timeZone, calendarProvider, hasCalendar }: Up
               : `Lo que tu recepcionista tiene agendado para los próximos ${AGENDA_DAYS} días.`}
           </p>
         </div>
-        {hasCalendar ? (
-          <a
-            href={calendarUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full border border-[#e5e5e5] bg-white px-3 text-sm font-medium text-[#27272a] transition duration-200 hover:bg-[#fafafa] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]"
-          >
-            Calendario
-            <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
-          </a>
-        ) : null}
+        <Link href="/agenda" className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full border border-[#e5e5e5] bg-white px-3 text-sm font-semibold text-[#27272a] transition duration-200 hover:bg-[#fafafa] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]">
+          Ver agenda
+          <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+        </Link>
       </div>
 
       {agendaQuery.isLoading ? (

@@ -40,7 +40,7 @@ export default function CheckoutResultPage({
       ctaParams.set("hasPlaceSchedule", "true");
     }
   }
-  const ctaHref = confirmed ? `/ajustes?${ctaParams.toString()}` : "/ajustes/facturacion";
+  const ctaHref = confirmed ? `/agente?${ctaParams.toString()}` : "/ajustes/facturacion";
   const ctaLabel = confirmed ? "Configurar mi negocio" : "Ver facturación";
 
   return (

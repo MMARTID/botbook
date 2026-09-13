@@ -3,6 +3,7 @@ import type { FastifyPluginAsync, FastifyReply } from "fastify";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { OAuth2Client } from "google-auth-library";
+import { z } from "zod";
 import { prisma } from "../../lib/prisma.js";
 import { getRedis } from "../../lib/redis.js";
 import { createBusinessAgent } from "../../lib/agentBootstrap.js";
@@ -11,6 +12,12 @@ import {
   normalizeBusinessType,
   type BusinessType,
 } from "../../lib/businessType.js";
+import {
+  AccountActionError,
+  changeAccountPassword,
+  deleteAccount,
+  getAccountOverview,
+} from "./accountService.js";
 
 const GOOGLE_AUTH_STATE_TTL_SECONDS = 10 * 60;
 const GOOGLE_SESSION_TTL_SECONDS = 60;
@@ -24,6 +31,35 @@ const GOOGLE_SESSION_COOKIE = "alhabla_google_session";
 // víctima introduzca después queda en la cuenta del atacante, no en la suya.
 const GOOGLE_OAUTH_STATE_COOKIE = "alhabla_google_oauth_state";
 const FIRST_USER_BOOTSTRAP_SECRET_ENV = "FIRST_USER_BOOTSTRAP_SECRET";
+
+const ChangePasswordSchema = z.object({
+  currentPassword: z.string().max(200).optional(),
+  newPassword: z
+    .string()
+    .min(8, "La nueva contraseña debe tener al menos 8 caracteres")
+    .max(128, "La nueva contraseña es demasiado larga")
+    .regex(/[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]/, "Añade al menos una letra")
+    .regex(/\d/, "Añade al menos un número"),
+});
+
+const DeleteAccountSchema = z.object({
+  currentPassword: z.string().max(200).optional(),
+  confirmation: z.literal("ELIMINAR"),
+  forwardingCancelled: z.literal(true),
+});
+
+function sendAccountActionError(reply: FastifyReply, error: unknown) {
+  if (error instanceof z.ZodError) {
+    return reply.status(400).send({
+      error: "Revisa los datos introducidos",
+      errors: error.errors,
+    });
+  }
+  if (error instanceof AccountActionError) {
+    return reply.status(error.statusCode).send({ error: error.message });
+  }
+  return null;
+}
 
 function createToken(user: { id: string; businessId: string }) {
   return jwt.sign(
@@ -427,6 +463,76 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
 
       return reply.send({ token });
     }
+  );
+
+  fastify.get(
+    "/account",
+    {
+      preValidation: [fastify.authenticate],
+      config: { rateLimit: strictRateLimit },
+    },
+    async (request, reply) => {
+      try {
+        const account = await getAccountOverview(
+          request.user!.id,
+          request.user!.businessId,
+        );
+        return reply.send(account);
+      } catch (error) {
+        const response = sendAccountActionError(reply, error);
+        if (response) return response;
+        fastify.log.error({ err: error }, "Unable to load account settings");
+        return reply.status(500).send({ error: "No se pudo cargar la cuenta" });
+      }
+    },
+  );
+
+  fastify.post(
+    "/change-password",
+    {
+      preValidation: [fastify.authenticate],
+      config: { rateLimit: veryStrictRateLimit },
+    },
+    async (request, reply) => {
+      try {
+        const payload = ChangePasswordSchema.parse(request.body);
+        const result = await changeAccountPassword({
+          userId: request.user!.id,
+          businessId: request.user!.businessId,
+          ...payload,
+        });
+        return reply.send(result);
+      } catch (error) {
+        const response = sendAccountActionError(reply, error);
+        if (response) return response;
+        fastify.log.error({ err: error }, "Unable to change account password");
+        return reply.status(500).send({ error: "No se pudo cambiar la contraseña" });
+      }
+    },
+  );
+
+  fastify.delete(
+    "/account",
+    {
+      preValidation: [fastify.authenticate],
+      config: { rateLimit: veryStrictRateLimit },
+    },
+    async (request, reply) => {
+      try {
+        const payload = DeleteAccountSchema.parse(request.body);
+        await deleteAccount({
+          userId: request.user!.id,
+          businessId: request.user!.businessId,
+          currentPassword: payload.currentPassword,
+        });
+        return reply.status(204).send();
+      } catch (error) {
+        const response = sendAccountActionError(reply, error);
+        if (response) return response;
+        fastify.log.error({ err: error }, "Unable to delete account");
+        return reply.status(500).send({ error: "No se pudo eliminar la cuenta" });
+      }
+    },
   );
 
   fastify.post(

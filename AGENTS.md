@@ -57,7 +57,7 @@ Each module is a folder containing a `routes.ts` file (and optionally `service.t
 
 | Module | Prefix | Auth | Purpose |
 |--------|--------|------|---------|
-| `auth` | `/auth` | No | JWT login, Google OAuth callback, token issuance, registration |
+| `auth` | `/auth` | Mixed | JWT login, Google OAuth callback, registration, authenticated account summary/password change/deletion |
 | `businesses` | *(none)* | Yes | Business CRUD, `me` endpoints, agent prompt rebuild on update, and the dashboard reads: `GET /business/me/stats` (all-time totals plus a rolling 7-day `week` window with the previous 7 days for comparison and an estimated revenue in cents), `GET /business/me/agenda?days&limit` (upcoming `Booking` rows with client phone, professional and resolved service names) and `GET /business/me/pending-bookings` (unresolved `pending_booking` leads — appointments the caller asked for that never reached the calendar) |
 | `agents` | *(none)* | Yes | Agent CRUD, sync to Vapi/Retell assistants |
 | `calls` | *(none)* | Yes | Call logs, transcripts, outcomes (paginated) |
@@ -116,7 +116,8 @@ Each module is a folder containing a `routes.ts` file (and optionally `service.t
 | `/planes` | Pricing page with ROI-aware headline |
 | `/checkout?plan=` | Stripe Embedded Checkout |
 | `/checkout/resultado` | Post-checkout reconciliation polling |
-| `/ajustes` | Full business setup (schedule, services, professionals, calendar, agent settings) |
+| `/agente` | Full agent setup (schedule, services, professionals, calendar, knowledge and behavior) |
+| `/ajustes` | Account settings (identity, business contact data, password, session and account deletion) |
 | `/ajustes/facturacion` | Billing summary & Stripe Customer Portal |
 | `/settings` | Calendar OAuth callback handler (Google/Outlook) |
 | `/legal/privacidad` | Privacy policy — covers the voice demo, recorded calls and calendar scopes |
@@ -596,7 +597,7 @@ Once the order succeeds, the number is imported into Retell via `retellAdapter.i
 - **Google Calendar:** OAuth 2.0 offline access (`prompt: consent`, `access_type: offline`). Refresh tokens are stored in `Business.googleRefreshToken`. Supports `primary` calendar or a specific `googleCalendarId`.
 - **Outlook Calendar:** Microsoft Graph OAuth. Stores refresh token in `Business.outlookRefreshToken`. After OAuth, the user selects a calendar from a list; then `connectMicrosoftCalendar` saves the choice.
 - **Calendar selection:** Google callback redirects directly to frontend. Microsoft callback returns a JSON payload with calendar list; frontend shows selector and calls `POST /calendar/auth/microsoft/connect`.
-- **Switching calendars:** `GET /calendar/calendars` lists the calendars of the connected account (Google `calendarList` or Microsoft Graph) with `{ provider, selectedCalendarId, calendars: [{ id, name, primary }] }`; `POST /calendar/select` with `{ calendarId }` switches the active calendar for either provider. The `/ajustes` calendar section uses both for its "Cambiar de calendario" picker.
+- **Switching calendars:** `GET /calendar/calendars` lists the calendars of the connected account (Google `calendarList` or Microsoft Graph) with `{ provider, selectedCalendarId, calendars: [{ id, name, primary }] }`; `POST /calendar/select` with `{ calendarId }` switches the active calendar for either provider. The `/agente` calendar section uses both for its "Cambiar de calendario" picker.
 - `getUpcomingEvents` normalizes events from both providers into a common format.
 - If a refresh token becomes invalid (`invalid_grant`), the backend throws a `CalendarBusinessError` with code `GOOGLE_CALENDAR_RECONNECT_REQUIRED` or `OUTLOOK_CALENDAR_RECONNECT_REQUIRED`. The frontend should prompt the user to reconnect.
 - **Appointment booking** (`book_appointment` webhook handler) supports both Google and Outlook Calendar. It creates the calendar event and persists a `Booking` row with `professionalId`, `serviceIds` and `durationMinutes` (duration recalculated server-side from the verified services). If no `professionalId` is provided, it selects the first available professional from `checkAvailability`.
@@ -686,7 +687,7 @@ Stored in `Business.agentSettings` (JSON). Parsed with Zod; falls back to `DEFAU
 Includes `voiceGender: "femenina" | "masculina"` (added 2026-09, `.default("femenina")` in the
 Zod schema — required so businesses with `agentSettings` saved before this field existed keep
 parsing successfully instead of losing their tone/goal/style/escalation customization to the
-full `DEFAULT_AGENT_SETTINGS` fallback). Edited in `/ajustes` via `AgentSettingsEditor`, same
+full `DEFAULT_AGENT_SETTINGS` fallback). Edited in `/agente` via `AgentSettingsEditor`, same
 generic `fields` array pattern as tone/goal/style/escalation — no registration step, matches the
 "configure once, tune later" pattern already used for the rest of `AgentSettings`.
 `syncAgentToRetell` resolves it to a real Retell `voiceId` via `RETELL_VOICE_ID_BY_GENDER`
@@ -725,7 +726,7 @@ Niche landings pass `?niche=<slug>` to `/planes` and on to `/register`, so the t
 
 The inferred type is shown for confirmation on `/register/business/niche` after the Places API step; if no type can be inferred, the user selects it manually from the list.
 
-After confirming the business type, the user is taken to `/register/business/services`, which offers a template of common services for the selected niche (defined in `frontend/src/lib/service-templates.ts`). Services are rendered as selectable pills showing name and duration. Selected services are created via `POST /booking-settings/services`; the user can also skip this step and configure services later in `/ajustes`.
+After confirming the business type, the user is taken to `/register/business/services`, which offers a template of common services for the selected niche (defined in `frontend/src/lib/service-templates.ts`). Services are rendered as selectable pills showing name and duration. Selected services are created via `POST /booking-settings/services`; the user can also skip this step and configure services later in `/agente`.
 
 The next step is `/register/business/team`, where the user sets the number of employees (1–20) and booking capacity (1–50). The backend creates placeholder professionals (`Profesional 1…N`) and updates `Business.bookingCapacity`.
 
@@ -883,7 +884,7 @@ any user-facing copy:
 - The quotes in `niche-landings.ts` are business owners interviewed in the press **about the
   problem**, not Alhabla customers. Do not present them as testimonials.
 - Do not promise capabilities that do not ship. As of 2026-09 there **is** a real voice picker —
-  `AgentSettingsEditor` in `/ajustes` lets the business choose `femenina`/`masculina`
+  `AgentSettingsEditor` in `/agente` lets the business choose `femenina`/`masculina`
   (`AgentSettings.voiceGender`, see Agent Configuration below) — but it is exactly two options,
   not "choose your voice" or a voice library; copy must not overclaim beyond that. Onboarding is
   self-service, so copy must not promise a human configuring things with the customer.
@@ -965,7 +966,7 @@ Separate suite (`npm run test:integration`, config `backend/vitest.integration.c
 
 - **`DELETE /recordings/:id`** es un borrado lógico: establece `deletedAt` y la oculta de las lecturas del negocio, sin borrar el objeto de R2/S3 ni la fila histórica. La purga física de audio debe quedar en una política de retención explícita, no en una acción de UI.
 - **`PATCH /business/me`** rebuilds the managed agent prompt and synchronizes it to every agent: Vapi agents in parallel via `Promise.all` (to avoid request timeouts), and Retell-backed businesses via `syncAgentToRetell` (see Retell Configuration). Before this, Retell-backed businesses (the only ones that matter in production — Vapi is inactive) never actually received prompt updates from this route; only Vapi did.
-- **Onboarding flow:** `backend/src/modules/onboarding/routes.ts` exposes `GET /business/me/onboarding`, `POST /business/me/onboarding/dismiss` and `POST /business/me/onboarding/complete`. The `/ajustes` page consumes these endpoints to show/persist the setup guide state. Step completion is computed live from business data; only `dismissedAt`/`completedAt` are persisted.
+- **Onboarding flow:** `backend/src/modules/onboarding/routes.ts` exposes `GET /business/me/onboarding`, `POST /business/me/onboarding/dismiss` and `POST /business/me/onboarding/complete`. The `/agente` page consumes these endpoints to show/persist the setup guide state. Step completion is computed live from business data; only `dismissedAt`/`completedAt` are persisted.
 
 ## Common Tasks
 

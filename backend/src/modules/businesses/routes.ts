@@ -40,6 +40,10 @@ const UpdateBusinessSchema = z.object({
 const AgendaQuerySchema = z.object({
   days: z.coerce.number().int().min(1).max(30).default(7),
   limit: z.coerce.number().int().min(1).max(50).default(20),
+  // La agenda se consume por páginas desde la aplicación. Antes `take` cortaba
+  // la respuesta en 50 reservas sin comunicarlo: un negocio con agenda llena
+  // parecía tener huecos que no existían en la interfaz.
+  offset: z.coerce.number().int().min(0).default(0),
 });
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -464,25 +468,31 @@ export async function businessesRoutes(fastify: FastifyInstance) {
       reply
     ) => {
       try {
-        const { days, limit } = AgendaQuerySchema.parse(request.query);
+        const { days, limit, offset } = AgendaQuerySchema.parse(request.query);
         const businessId = request.user!.businessId;
 
         const from = new Date();
         const until = new Date(from.getTime() + days * DAY_MS);
 
-        const bookings = await prisma.booking.findMany({
-          where: {
-            isCancelled: false,
-            programedAt: { gte: from, lte: until },
-            call: { businessId },
-          },
-          include: {
-            professional: { select: { id: true, name: true } },
-            call: { select: { id: true, fromNumber: true } },
-          },
-          orderBy: { programedAt: "asc" },
-          take: limit,
-        });
+        const where = {
+          isCancelled: false,
+          programedAt: { gte: from, lte: until },
+          call: { businessId },
+        };
+
+        const [bookings, total] = await Promise.all([
+          prisma.booking.findMany({
+            where,
+            include: {
+              professional: { select: { id: true, name: true } },
+              call: { select: { id: true, fromNumber: true } },
+            },
+            orderBy: { programedAt: "asc" },
+            take: limit,
+            skip: offset,
+          }),
+          prisma.booking.count({ where }),
+        ]);
 
         const services = await resolveServices(
           businessId,
@@ -492,6 +502,10 @@ export async function businessesRoutes(fastify: FastifyInstance) {
         return reply.send({
           from: from.toISOString(),
           until: until.toISOString(),
+          total,
+          limit,
+          offset,
+          hasMore: offset + bookings.length < total,
           bookings: bookings.map((booking) => ({
             id: booking.id,
             callId: booking.callId,
