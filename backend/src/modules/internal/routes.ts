@@ -4,6 +4,7 @@ import { processRecordingJob } from "../../jobs/processRecording.js";
 import { processRetryFailedBookingJob } from "../../jobs/retryFailedBooking.js";
 import { processSendEmailJob } from "../../jobs/sendEmail.js";
 import { processSendSmsJob } from "../../jobs/sendSms.js";
+import { processSendWhatsappJob } from "../../jobs/sendWhatsapp.js";
 import { cleanupZombieCallsJob } from "../../jobs/cleanupZombieCalls.js";
 import { telnyxHealthCheckJob } from "../../jobs/telnyxHealthCheck.js";
 import { telnyxReconcilerJob } from "../../jobs/telnyxReconciler.js";
@@ -40,6 +41,13 @@ const SendSmsSchema = z.object({
   fromNumber: z.string().regex(E164_PHONE_REGEX),
   toNumber: z.string().regex(E164_PHONE_REGEX),
   text: z.string(),
+});
+
+const SendWhatsappSchema = z.object({
+  toNumber: z.string().regex(E164_PHONE_REGEX),
+  templateName: z.string(),
+  languageCode: z.string(),
+  bodyParams: z.array(z.string()),
 });
 
 // Endpoints invocados por Cloud Tasks/Cloud Scheduler (no por negocios ni
@@ -114,6 +122,24 @@ export const internalJobsRoutes: FastifyPluginAsync = async (fastify) => {
           return reply.status(400).send({ error: error.errors });
         }
         fastify.log.error({ err: error }, "send-sms job failed");
+        return reply.status(500).send({ error: "Job processing failed" });
+      }
+    }
+  );
+
+  fastify.post(
+    "/jobs/send-whatsapp",
+    { preValidation: [fastify.verifyCloudTasks] },
+    async (request, reply) => {
+      try {
+        const data = SendWhatsappSchema.parse(request.body);
+        await processSendWhatsappJob(data);
+        return reply.send({ received: true });
+      } catch (error) {
+        if (error instanceof z.ZodError) {
+          return reply.status(400).send({ error: error.errors });
+        }
+        fastify.log.error({ err: error }, "send-whatsapp job failed");
         return reply.status(500).send({ error: "Job processing failed" });
       }
     }

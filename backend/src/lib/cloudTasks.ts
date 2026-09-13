@@ -1,9 +1,10 @@
 import { CloudTasksClient } from "@google-cloud/tasks";
-import { ProcessRecordingJob, ReportUsageJob, RetryFailedBookingJob, SendEmailJob, SendSmsJob } from "./jobTypes.js";
+import { ProcessRecordingJob, ReportUsageJob, RetryFailedBookingJob, SendEmailJob, SendSmsJob, SendWhatsappJob } from "./jobTypes.js";
 import { processRecordingJob } from "../jobs/processRecording.js";
 import { processRetryFailedBookingJob } from "../jobs/retryFailedBooking.js";
 import { processSendEmailJob } from "../jobs/sendEmail.js";
 import { processSendSmsJob } from "../jobs/sendSms.js";
+import { processSendWhatsappJob } from "../jobs/sendWhatsapp.js";
 import { processUsageReportJob } from "../jobs/processUsageReport.js";
 
 // En producción, cada job se despacha como una tarea HTTP de Cloud Tasks
@@ -140,6 +141,31 @@ export async function enqueueSmsJob(
   await enqueueCloudTask({
     queue: "send-sms",
     path: "/internal/jobs/send-sms",
+    payload,
+    taskId: options?.taskId,
+    scheduleTime: options?.scheduleTime,
+  });
+}
+
+export async function enqueueWhatsappJob(
+  payload: SendWhatsappJob,
+  options?: { taskId?: string; scheduleTime?: Date }
+): Promise<void> {
+  if (!IS_PRODUCTION) {
+    // Mismo criterio que enqueueSmsJob: sin Cloud Tasks real en dev, un
+    // scheduleTime futuro (recordatorio a horas vista) solo se loguea.
+    if (options?.scheduleTime && options.scheduleTime.getTime() > Date.now()) {
+      console.log(
+        `[Job] WhatsApp programado para ${options.scheduleTime.toISOString()} (no se envía ahora, no hay Cloud Tasks en dev)`
+      );
+      return;
+    }
+    await processSendWhatsappJob(payload);
+    return;
+  }
+  await enqueueCloudTask({
+    queue: "send-whatsapp",
+    path: "/internal/jobs/send-whatsapp",
     payload,
     taskId: options?.taskId,
     scheduleTime: options?.scheduleTime,
