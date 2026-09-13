@@ -13,7 +13,8 @@ import {
 } from "../../lib/availability.js";
 import { calendarService } from "../calendar/service.js";
 import { errorMessage } from "../../lib/logUtils.js";
-import { enqueueRetryBookingJob, enqueueSmsJob } from "../../lib/cloudTasks.js";
+import { enqueueRetryBookingJob, enqueueSmsJob, enqueueWhatsappJob } from "../../lib/cloudTasks.js";
+import { whatsappAdapter } from "../../adapters/whatsapp/WhatsAppAdapter.js";
 import { isValidE164Phone } from "../../lib/phone.js";
 import {
   acquireBookingLock,
@@ -679,6 +680,90 @@ function resolveSmsMessagingProfileId(): string | undefined {
     : undefined;
 }
 
+function resolveWhatsappLanguageCode(): string {
+  return process.env.WHATSAPP_TEMPLATE_LANGUAGE || "es";
+}
+
+/**
+ * Variables {{1}}, {{2}}... del body de las plantillas de confirmación y
+ * recordatorio — mismo contenido que las versiones SMS (negocio, servicios,
+ * fecha/hora, teléfono). El ORDEN debe coincidir exactamente con el que
+ * Meta apruebe; ajustar aquí en cuanto WHATSAPP_TEMPLATE_CONFIRMATION_NAME /
+ * WHATSAPP_TEMPLATE_REMINDER_NAME queden definitivas.
+ */
+function buildWhatsappBookingParams(input: {
+  businessName: string;
+  businessPhone: string;
+  startDateTime: string;
+  timezone: string;
+  serviceNames?: string[] | null;
+}): string[] {
+  const formattedDateTime = new Intl.DateTimeFormat("es-ES", {
+    timeZone: input.timezone,
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(input.startDateTime));
+
+  const services = input.serviceNames?.filter(Boolean).join(" + ") || "tu cita";
+
+  return [input.businessName, services, formattedDateTime, input.businessPhone];
+}
+
+/**
+ * Confirmación/recordatorio de cita al cliente: por WhatsApp cuando está
+ * configurado (WHATSAPP_ACCESS_TOKEN/WHATSAPP_PHONE_NUMBER_ID y la plantilla
+ * correspondiente), si no cae a SMS como hasta ahora (ver
+ * resolveSmsFromAddress — bloqueado hoy por la aprobación del Sender ID).
+ */
+async function sendClientBookingMessage(
+  kind: "confirmation" | "reminder",
+  input: {
+    fromNumber: string;
+    messagingProfileId?: string;
+    toNumber: string;
+    businessName: string;
+    businessPhone: string;
+    startDateTime: string;
+    timezone: string;
+    serviceNames?: string[] | null;
+  },
+  options?: { taskId?: string; scheduleTime?: Date }
+): Promise<void> {
+  const templateName =
+    kind === "confirmation"
+      ? process.env.WHATSAPP_TEMPLATE_CONFIRMATION_NAME
+      : process.env.WHATSAPP_TEMPLATE_REMINDER_NAME;
+
+  if (whatsappAdapter.isConfigured() && templateName) {
+    await enqueueWhatsappJob(
+      {
+        toNumber: input.toNumber,
+        templateName,
+        languageCode: resolveWhatsappLanguageCode(),
+        bodyParams: buildWhatsappBookingParams(input),
+      },
+      options
+    );
+    return;
+  }
+
+  await enqueueSmsJob(
+    {
+      fromNumber: input.fromNumber,
+      toNumber: input.toNumber,
+      text:
+        kind === "confirmation"
+          ? buildClientConfirmationSmsText(input)
+          : buildClientReminderSmsText(input),
+      messagingProfileId: input.messagingProfileId,
+    },
+    options
+  );
+}
+
 /** Texto corto (pensado para caber en un único segmento SMS) con lo esencial
  * de la reserva para el propietario del negocio. */
 function buildBookingSmsText(input: {
@@ -1240,15 +1325,18 @@ async function executeBookAppointment(
           }
         }
 
-        // Confirmación (y recordatorio) al cliente por SMS — solo si dio
-        // consentimiento explícito por voz (smsConsent) para usar este
-        // número. Mismo aislamiento que el aviso al propietario: nunca debe
-        // poder tumbar la reserva. OJO: sin TELNYX_SMS_SENDER_ID configurado,
-        // el remitente sigue siendo el número Telnyx del negocio, que hoy
-        // Telnyx bloquea para mensajería (40323/40305, ver AGENTS.md e issue
-        // #21) — este bloque deja el pipeline listo (job correctamente
-        // encolado) para cuando se apruebe el Alphanumeric Sender ID, sin
-        // que la entrega real sea la condición de éxito ahora mismo.
+        // Confirmación (y recordatorio) al cliente — por WhatsApp si está
+        // configurado (ver sendClientBookingMessage), si no por SMS como
+        // hasta ahora — solo si dio consentimiento explícito por voz
+        // (smsConsent, reutilizado como consentimiento de mensajería en
+        // general) para usar este número. Mismo aislamiento que el aviso al
+        // propietario: nunca debe poder tumbar la reserva. OJO: sin
+        // WhatsApp ni TELNYX_SMS_SENDER_ID configurados, el remitente SMS
+        // sigue siendo el número Telnyx del negocio, que hoy Telnyx bloquea
+        // para mensajería (40323/40305, ver AGENTS.md e issue #21) — ese
+        // bloque deja el pipeline listo (job correctamente encolado) para
+        // cuando se apruebe el Alphanumeric Sender ID, sin que la entrega
+        // real sea la condición de éxito ahora mismo.
         if (
           smsConsent &&
           business.telnyxPhoneNumber &&
@@ -1261,25 +1349,26 @@ async function executeBookAppointment(
                 .then((b) => b?.id)
             : undefined;
 
+          const clientMessageInput = {
+            fromNumber: resolveSmsFromAddress(business)!,
+            messagingProfileId: resolveSmsMessagingProfileId(),
+            toNumber: effectiveClientPhone,
+            businessName: business.name,
+            businessPhone: business.telnyxPhoneNumber,
+            startDateTime,
+            timezone: business.timezone || "Europe/Madrid",
+            serviceNames: verifiedServiceNames,
+          };
+
           try {
-            await enqueueSmsJob(
-              {
-                fromNumber: resolveSmsFromAddress(business)!,
-                toNumber: effectiveClientPhone,
-                text: buildClientConfirmationSmsText({
-                  businessName: business.name,
-                  businessPhone: business.telnyxPhoneNumber,
-                  startDateTime,
-                  timezone: business.timezone || "Europe/Madrid",
-                  serviceNames: verifiedServiceNames,
-                }),
-                messagingProfileId: resolveSmsMessagingProfileId(),
-              },
+            await sendClientBookingMessage(
+              "confirmation",
+              clientMessageInput,
               bookingId ? { taskId: `confirm-sms-${bookingId}` } : undefined
             );
           } catch (smsError) {
             console.error(
-              `[VoiceTools] ${callLabel} no pudo encolar el SMS de confirmación al cliente: ${errorMessage(smsError)}`
+              `[VoiceTools] ${callLabel} no pudo encolar la confirmación al cliente: ${errorMessage(smsError)}`
             );
           }
 
@@ -1288,24 +1377,13 @@ async function executeBookAppointment(
           );
           if (bookingId && reminderAt.getTime() > Date.now()) {
             try {
-              await enqueueSmsJob(
-                {
-                  fromNumber: resolveSmsFromAddress(business)!,
-                  toNumber: effectiveClientPhone,
-                  text: buildClientReminderSmsText({
-                    businessName: business.name,
-                    businessPhone: business.telnyxPhoneNumber,
-                    startDateTime,
-                    timezone: business.timezone || "Europe/Madrid",
-                    serviceNames: verifiedServiceNames,
-                  }),
-                  messagingProfileId: resolveSmsMessagingProfileId(),
-                },
-                { taskId: `reminder-sms-${bookingId}`, scheduleTime: reminderAt }
-              );
+              await sendClientBookingMessage("reminder", clientMessageInput, {
+                taskId: `reminder-sms-${bookingId}`,
+                scheduleTime: reminderAt,
+              });
             } catch (smsError) {
               console.error(
-                `[VoiceTools] ${callLabel} no pudo encolar el recordatorio SMS al cliente: ${errorMessage(smsError)}`
+                `[VoiceTools] ${callLabel} no pudo encolar el recordatorio al cliente: ${errorMessage(smsError)}`
               );
             }
           }

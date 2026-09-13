@@ -30,3 +30,13 @@ export interface SendSmsJob {
    * Sender ID en vez de un número — ver `resolveSmsMessagingProfileId`. */
   messagingProfileId?: string;
 }
+
+export interface SendWhatsappJob {
+  toNumber: string;
+  templateName: string;
+  languageCode: string;
+  /** Variables {{1}}, {{2}}... del body de la plantilla, en el orden exacto
+   * aprobado por Meta — ver WHATSAPP_TEMPLATE_CONFIRMATION_NAME /
+   * WHATSAPP_TEMPLATE_REMINDER_NAME en voiceTools/service.ts. */
+  bodyParams: string[];
+}
