@@ -26,13 +26,17 @@ export class TelnyxAdapter {
    */
   async searchAvailableNumbers(
     countryCode: string,
-    options: { limit?: number; locality?: string } = {}
+    options: {
+      limit?: number;
+      locality?: string;
+      phoneNumberType?: "local" | "toll_free" | "mobile" | "national" | "shared_cost";
+    } = {}
   ): Promise<AvailableNumber[]> {
     const client = getTelnyxClient();
     const response = await client.availablePhoneNumbers.list({
       filter: {
         country_code: countryCode,
-        phone_number_type: "local",
+        phone_number_type: options.phoneNumberType ?? "local",
         limit: options.limit ?? 5,
         ...(options.locality ? { locality: options.locality } : {}),
       },
@@ -93,6 +97,33 @@ export class TelnyxAdapter {
     await client.phoneNumbers.delete(phoneNumberId);
   }
 
+  /**
+   * Asigna un número ya comprado a un Messaging Profile — el paso que
+   * devuelve 40323 "Messaging activation failed" en los números geográficos
+   * españoles actuales (ver AGENTS.md). Se deja como método aparte de
+   * `purchaseNumber` porque el pedido y la activación de mensajería son
+   * pasos independientes en la API de Telnyx.
+   */
+  async assignMessagingProfile(
+    phoneNumberId: string,
+    messagingProfileId: string
+  ): Promise<void> {
+    const client = getTelnyxClient();
+    await client.phoneNumbers.messaging.update(phoneNumberId, {
+      messaging_profile_id: messagingProfileId,
+    });
+  }
+
+  async findMessagingProfileIdByName(name: string): Promise<string | null> {
+    const client = getTelnyxClient();
+    for await (const profile of client.messagingProfiles.list()) {
+      if (profile.name === name) {
+        return profile.id ?? null;
+      }
+    }
+    return null;
+  }
+
   async getNumber(
     phoneNumberId: string
   ): Promise<{ id: string; phoneNumber: string; status: string } | null> {
@@ -138,17 +169,25 @@ export class TelnyxAdapter {
   }
 
   /**
-   * Envía un SMS de texto simple con un número Telnyx ya comprado como
-   * remitente. `messaging_profile_id` no es obligatorio para esto — el SDK
-   * solo lo exige para number pools o alphanumeric sender ID, no para un
-   * long-code normal (ver node_modules/telnyx/resources/messages/messages.d.ts).
+   * Envía un SMS de texto simple. `messagingProfileId` es opcional con un
+   * long-code normal, pero el SDK lo exige cuando `from` es un Alphanumeric
+   * Sender ID (ver node_modules/telnyx/resources/messages/messages.d.ts:
+   * "Required if sending via number pool or with an alphanumeric sender ID").
    */
-  async sendSms(input: { from: string; to: string; text: string }): Promise<void> {
+  async sendSms(input: {
+    from: string;
+    to: string;
+    text: string;
+    messagingProfileId?: string;
+  }): Promise<void> {
     const client = getTelnyxClient();
     await client.messages.send({
       from: input.from,
       to: input.to,
       text: input.text,
+      ...(input.messagingProfileId
+        ? { messaging_profile_id: input.messagingProfileId }
+        : {}),
     });
   }
 

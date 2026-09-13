@@ -666,6 +666,19 @@ function resolveSmsFromAddress(business: Pick<BusinessVoiceConfig, "telnyxPhoneN
   return process.env.TELNYX_SMS_SENDER_ID || business.telnyxPhoneNumber;
 }
 
+/**
+ * `messaging_profile_id` es opcional al enviar desde un número normal, pero
+ * la propia API de Telnyx lo exige al enviar con un Alphanumeric Sender ID
+ * ("Required if sending via number pool or with an alphanumeric sender ID"),
+ * así que solo se resuelve cuando ese es el remitente activo — un long-code
+ * normal sigue sin necesitarlo.
+ */
+function resolveSmsMessagingProfileId(): string | undefined {
+  return process.env.TELNYX_SMS_SENDER_ID
+    ? process.env.TELNYX_MESSAGING_PROFILE_ID
+    : undefined;
+}
+
 /** Texto corto (pensado para caber en un único segmento SMS) con lo esencial
  * de la reserva para el propietario del negocio. */
 function buildBookingSmsText(input: {
@@ -700,6 +713,7 @@ function buildBookingSmsText(input: {
  * consentimiento (smsConsent) para usar ese número. */
 function buildClientConfirmationSmsText(input: {
   businessName: string;
+  businessPhone: string;
   startDateTime: string;
   timezone: string;
   serviceNames?: string[] | null;
@@ -718,6 +732,7 @@ function buildClientConfirmationSmsText(input: {
     `Cita confirmada en ${input.businessName}`,
     services.length > 0 ? services.join(" + ") : null,
     formattedDateTime,
+    `Para cambiarla o cancelarla, llama al ${input.businessPhone}`,
   ].filter(Boolean);
 
   return parts.join(" — ");
@@ -726,6 +741,7 @@ function buildClientConfirmationSmsText(input: {
 /** Recordatorio programado (REMINDER_LEAD_HOURS antes de la cita). */
 function buildClientReminderSmsText(input: {
   businessName: string;
+  businessPhone: string;
   startDateTime: string;
   timezone: string;
   serviceNames?: string[] | null;
@@ -744,6 +760,7 @@ function buildClientReminderSmsText(input: {
     `Recordatorio: tienes una cita en ${input.businessName}`,
     services.length > 0 ? services.join(" + ") : null,
     formattedDateTime,
+    `Para cambiarla o cancelarla, llama al ${input.businessPhone}`,
   ].filter(Boolean);
 
   return parts.join(" — ");
@@ -1214,6 +1231,7 @@ async function executeBookAppointment(
                 serviceNames: verifiedServiceNames,
                 professionalName: resolvedProfessionalName,
               }),
+              messagingProfileId: resolveSmsMessagingProfileId(),
             });
           } catch (smsError) {
             console.error(
@@ -1250,10 +1268,12 @@ async function executeBookAppointment(
                 toNumber: effectiveClientPhone,
                 text: buildClientConfirmationSmsText({
                   businessName: business.name,
+                  businessPhone: business.telnyxPhoneNumber,
                   startDateTime,
                   timezone: business.timezone || "Europe/Madrid",
                   serviceNames: verifiedServiceNames,
                 }),
+                messagingProfileId: resolveSmsMessagingProfileId(),
               },
               bookingId ? { taskId: `confirm-sms-${bookingId}` } : undefined
             );
@@ -1274,10 +1294,12 @@ async function executeBookAppointment(
                   toNumber: effectiveClientPhone,
                   text: buildClientReminderSmsText({
                     businessName: business.name,
+                    businessPhone: business.telnyxPhoneNumber,
                     startDateTime,
                     timezone: business.timezone || "Europe/Madrid",
                     serviceNames: verifiedServiceNames,
                   }),
+                  messagingProfileId: resolveSmsMessagingProfileId(),
                 },
                 { taskId: `reminder-sms-${bookingId}`, scheduleTime: reminderAt }
               );
