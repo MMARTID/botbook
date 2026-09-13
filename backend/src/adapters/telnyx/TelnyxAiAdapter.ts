@@ -365,6 +365,28 @@ export class TelnyxAiAdapter {
   }
 
   /**
+   * Limpia el ruido de fondo del audio de quien llama (peluquería con
+   * secador, calle, música) ANTES de que llegue a STT/al assistant — mejora
+   * tanto la calidad percibida como la precisión de la transcripción, no es
+   * solo cosmético. Solo tiene sentido con Telnyx como orquestador de la
+   * llamada (Call Control): con Retell, la limpieza de audio la controla
+   * Retell, no nosotros. `direction: "inbound"` a propósito: nuestro propio
+   * TTS ya sale limpio, no hace falta procesarlo también. Motor AiCoustics
+   * familia "quail" — la propia documentación de Telnyx la describe como
+   * optimizada para "Voice AI/STT", que es exactamente este caso de uso (a
+   * diferencia de "sparrow", pensada para llamadas humano-humano).
+   * BETA de Telnyx — nunca debe poder impedir que se conteste la llamada.
+   */
+  async startNoiseSuppression(callControlId: string): Promise<void> {
+    const client = getTelnyxClient();
+    await client.calls.actions.startNoiseSuppression(callControlId, {
+      direction: "inbound",
+      noise_suppression_engine: "AiCoustics",
+      noise_suppression_engine_config: { family: "quail", size: "s" },
+    });
+  }
+
+  /**
    * Origina una llamada real con un assistant ya enganchado a la pata que
    * marca — usado por `scripts/telnyxCallHarness.ts` para que un assistant
    * "cliente" simulado llame de verdad al número de un assistant real bajo

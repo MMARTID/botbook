@@ -225,6 +225,16 @@ export async function handleCallInitiated(
       agent.telnyxAssistantId
     );
 
+    // Mejora de calidad de audio, nunca debe poder tumbar la llamada ya
+    // contestada — BETA de Telnyx, aislado en su propio try/catch.
+    try {
+      await telnyxAiAdapter.startNoiseSuppression(call_control_id);
+    } catch (noiseSuppressionError) {
+      console.error(
+        `[Telnyx] ${callLabel(call_control_id)} no se pudo activar la supresión de ruido: ${errorMessage(noiseSuppressionError)}`
+      );
+    }
+
     console.log(
       `[Telnyx] ${callLabel(call_control_id)} contestada con el assistant ${agent.telnyxAssistantId}`
     );
