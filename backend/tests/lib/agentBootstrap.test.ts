@@ -533,7 +533,15 @@ describe("createBusinessAgent — creación dual Telnyx (Fase 2 del plan Telnyx-
     expect(mockedTelnyxCreateAssistant).toHaveBeenCalledTimes(1);
     expect(mockedBusinessUpdate).toHaveBeenCalledWith({
       where: { id: "biz_new" },
-      data: { telnyxEligibilityStatus: "eligible", telnyxEligibilityReason: null },
+      data: {
+        telnyxEligibilityStatus: "eligible",
+        telnyxEligibilityReason: null,
+        // Auto-promoción a Telnyx-primary: un negocio nuevo y elegible ya no
+        // se queda esperando un cutover manual aparte (ver agentBootstrap.ts).
+        orchestrator: "telnyx",
+        voiceRoutingTarget: "telnyx",
+        voiceRoutingChangedAt: expect.any(Date),
+      },
     });
   });
 
