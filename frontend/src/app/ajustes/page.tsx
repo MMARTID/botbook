@@ -260,13 +260,17 @@ export default function AccountSettingsPage() {
         </div>
         <div className="mt-5 grid gap-4 lg:grid-cols-2">
           <label className="text-sm font-semibold text-[#27272a]">
-            Nombre comercial
+            Nombre del local
             <input
               value={businessProfile.name}
               onChange={(event) => setBusinessProfile((current) => ({ ...current, name: event.target.value }))}
               autoComplete="organization"
+              aria-describedby="settings-business-name-hint"
               className="field mt-2 w-full"
             />
+            <span id="settings-business-name-hint" className="mt-1 block text-xs font-normal leading-5 text-muted">
+              Así se presenta el agente al contestar llamadas. Por defecto es el nombre que trajimos de Google al configurar tu negocio.
+            </span>
           </label>
           <label className="text-sm font-semibold text-[#27272a]">
             Teléfono móvil para avisos
