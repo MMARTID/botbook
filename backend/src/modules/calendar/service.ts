@@ -3,7 +3,6 @@ import { createHash } from "node:crypto";
 import { google } from "googleapis";
 import { prisma } from "../../lib/prisma.js";
 import { getRedis } from "../../lib/redis.js";
-import { vapiAdapter } from "../../adapters/vapi/VapiAdapter.js";
 import {
   retellAdapter,
   type RetellTool,
@@ -503,141 +502,6 @@ export class CalendarService {
     return business;
   }
 
-  private buildVapiCalendarTools(serverUrl: string): any[] {
-    return [
-      {
-        type: "function",
-        messages: [
-          {
-            type: "request-start",
-            content: "Un momento, lo consulto.",
-          },
-          {
-            type: "request-failed",
-            content: "No he podido consultar esa información en este momento.",
-          },
-        ],
-        function: {
-          name: "get_catalog",
-          description:
-            "Obtiene servicios con IDs y duraciones, profesionales y horario. Úsala cuando el cliente pregunte por ellos o antes de comprobar una cita si necesitas esos datos.",
-          parameters: {
-            type: "object",
-            properties: {},
-          },
-        },
-        server: { url: serverUrl },
-      },
-      {
-        type: "function",
-        messages: [
-          {
-            type: "request-start",
-            content:
-              "Un momento, estoy comprobando disponibilidad teniendo en cuenta la capacidad y los profesionales libres...",
-          },
-          {
-            type: "request-complete",
-            content: "Ya he comprobado la disponibilidad.",
-          },
-          {
-            type: "request-failed",
-            content:
-              "No he podido comprobar la disponibilidad en este momento.",
-          },
-        ],
-        function: {
-          name: "check_availability",
-          description:
-            "Comprueba una cita y valida horario, restricciones, capacidad, profesionales y calendario real. Conserva el availabilityToken que devuelve para reservar.",
-          parameters: {
-            type: "object",
-            properties: {
-              startDateTime: {
-                type: "string",
-                description:
-                  "Inicio solicitado en formato ISO 8601, incluyendo zona horaria.",
-              },
-              durationMinutes: {
-                type: "number",
-                description: "Duración total de la cita en minutos.",
-              },
-              serviceIds: {
-                type: "array",
-                items: { type: "string" },
-                description:
-                  "IDs de los servicios pedidos (opcional; puede ser más de uno si el cliente pide varios servicios en la misma cita, ej. corte y mechas). Se prioriza al profesional que domine todos esos servicios.",
-              },
-            },
-            required: ["startDateTime", "durationMinutes"],
-          },
-        },
-        server: { url: serverUrl },
-      },
-      {
-        type: "function",
-        messages: [
-          {
-            type: "request-start",
-            content:
-              "Un momento, estoy revisando el calendario para registrar tu cita...",
-          },
-          {
-            type: "request-complete",
-            content: "¡Perfecto! Ya he agendado la cita en el calendario.",
-          },
-          {
-            type: "request-failed",
-            content:
-              "Lo siento, hubo un error al intentar agendar la cita. ¿Podemos intentarlo de nuevo?",
-          },
-          {
-            type: "request-response-delayed",
-            content:
-              "Esto está tardando un poco más de lo normal, sigo revisando el calendario...",
-            timingMilliseconds: 1200,
-          },
-        ],
-        function: {
-          name: "book_appointment",
-          description:
-            "Agenda una cita. Úsala solo tras confirmación explícita y con el availabilityToken de check_availability.",
-          parameters: {
-            type: "object",
-            properties: {
-              clientName: {
-                type: "string",
-                description: "El nombre del cliente que hace la reserva",
-              },
-              clientEmail: {
-                type: "string",
-                description:
-                  "El correo electrónico del cliente, si lo proporciona (opcional)",
-              },
-              clientPhone: {
-                type: "string",
-                description:
-                  "Teléfono de contacto solo si el cliente elige uno distinto (opcional).",
-              },
-              availabilityToken: {
-                type: "string",
-                description:
-                  "Token exacto devuelto por check_availability.",
-              },
-              smsConsent: {
-                type: "boolean",
-                description:
-                  "true si el cliente confirmó por voz que puedes enviarle la confirmación (y un recordatorio) por SMS a este número; false si dijo que no o no se le preguntó.",
-              },
-            },
-            required: ["clientName", "availabilityToken"],
-          },
-        },
-        server: { url: serverUrl },
-      },
-    ];
-  }
-
   private buildRetellCalendarTools(
     baseUrl: string,
     retellAgentId: string
@@ -895,7 +759,7 @@ export class CalendarService {
 
     const business = await prisma.business.findUnique({
       where: { id: businessId },
-      select: { orchestrator: true },
+      select: { id: true },
     });
 
     if (!business) {
@@ -908,7 +772,6 @@ export class CalendarService {
       return;
     }
 
-    const orchestrator = business.orchestrator || "retell";
     const agents = await prisma.agent.findMany({
       where: { businessId, deletedAt: null },
     });
@@ -1004,53 +867,11 @@ export class CalendarService {
 
         continue;
       }
-
-      // VAPI: inactivo, ningún negocio nuevo cae aquí (ver voiceOrchestrator.ts).
-      if (orchestrator === "vapi" && agent.vapiAssistantId) {
-        const serverUrl =
-          process.env.VAPI_WEBHOOK_URL ||
-          `${process.env.BASE_URL}/webhooks/vapi`;
-        try {
-          const assistant = await vapiAdapter.getAssistant(
-            agent.vapiAssistantId
-          );
-          const assistantData = assistant as any;
-          const existingTools =
-            assistantData.model?.tools || assistantData.tools || [];
-          const managedToolNames = new Set([
-            "book_appointment",
-            "get_catalog",
-            "check_availability",
-          ]);
-          const otherTools = existingTools.filter(
-            (tool: any) => !managedToolNames.has(tool?.function?.name)
-          );
-
-          await vapiAdapter.updateAssistant(agent.vapiAssistantId, {
-            model: {
-              provider: agent.llmProvider,
-              model: agent.llmModel,
-              tools: [...otherTools, ...this.buildVapiCalendarTools(serverUrl)],
-            },
-          });
-        } catch (e) {
-          console.error(
-            `[Calendar] Error inyectando tools de calendario en Vapi assistant ${agent.vapiAssistantId}`,
-            e
-          );
-          recordError(
-            `[Calendar] Error inyectando tools de calendario en Vapi assistant ${agent.vapiAssistantId}`,
-            e
-          );
-        }
-
-        continue;
-      }
     }
 
     // Telnyx se sincroniza una sola vez para todo el negocio, fuera del
     // bucle por agente: syncAgentToTelnyx ya recorre internamente todos los
-    // agentes con telnyxAssistantId (a diferencia de Retell/Vapi, que
+    // agentes con telnyxAssistantId (a diferencia de Retell, que
     // necesitan una llamada de API por agente). Se ejecuta
     // independientemente de `orchestrator` — un negocio en backfill
     // (assistant creado pero todavía sin cutover) también debe llegar con

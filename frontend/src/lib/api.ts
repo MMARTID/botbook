@@ -14,7 +14,6 @@ import type {
   CalendarListResponse,
   Call,
   CreateAgentPayload,
-  FileAttachment,
   OnboardingState,
   Paginated,
   PhoneNumberInfo,
@@ -133,21 +132,6 @@ export async function getCalls(limit = 100, offset = 0) {
 
 export async function getCall(id: string) {
   const { data } = await api.get<Call>(`/business/me/calls/${id}`);
-  return data;
-}
-
-type UploadAgentFileResponse = {
-  success: boolean;
-  file: FileAttachment;
-  message?: string;
-  note?: string;
-};
-
-export async function uploadAgentFile(agentId: string, file: File) {
-  const formData = new FormData();
-  formData.append("file", file);
-
-  const { data } = await api.post<UploadAgentFileResponse>(`/agents/${agentId}/files`, formData);
   return data;
 }
 

@@ -169,7 +169,7 @@ export async function runOneCall(input: {
     transcriptText: call.transcript?.fullText ?? null,
     toolCallNames,
     toolErrors,
-    recordingUrl: call.recording?.vapiUrl ?? null,
+    recordingUrl: call.recording?.externalUrl ?? null,
   };
 }
 

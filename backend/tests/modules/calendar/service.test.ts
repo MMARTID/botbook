@@ -5,7 +5,6 @@ import {
   CalendarBusinessError,
 } from "../../../src/modules/calendar/service.js";
 import { prisma } from "../../../src/lib/prisma.js";
-import { vapiAdapter } from "../../../src/adapters/vapi/VapiAdapter.js";
 import { retellAdapter } from "../../../src/adapters/retell/RetellAdapter.js";
 import { getPublicWebhookBaseUrl } from "../../../src/lib/serverUrl.js";
 import { getRedis } from "../../../src/lib/redis.js";
@@ -21,13 +20,6 @@ vi.mock("../../../src/lib/prisma.js", () => ({
       findUnique: vi.fn(),
       update: vi.fn(),
     },
-  },
-}));
-
-vi.mock("../../../src/adapters/vapi/VapiAdapter.js", () => ({
-  vapiAdapter: {
-    getAssistant: vi.fn(),
-    updateAssistant: vi.fn(),
   },
 }));
 
@@ -92,8 +84,6 @@ vi.mock("../../../src/lib/telnyxAgentSync.js", () => ({
 const mockedAgentFindMany = vi.mocked(prisma.agent.findMany);
 const mockedBusinessFindUnique = vi.mocked(prisma.business.findUnique);
 const mockedBusinessUpdate = vi.mocked(prisma.business.update);
-const mockedVapiGetAssistant = vi.mocked(vapiAdapter.getAssistant);
-const mockedVapiUpdateAssistant = vi.mocked(vapiAdapter.updateAssistant);
 const mockedRetellUpdateLlm = vi.mocked(retellAdapter.updateLlm);
 const mockedRetellGetAgent = vi.mocked(retellAdapter.getAgent);
 const mockedRetellCreateAgentVersion = vi.mocked(
@@ -948,10 +938,9 @@ describe("CalendarService.connectMicrosoftCalendar", () => {
 describe("CalendarService.syncCalendarToolsToAgents", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    process.env.VAPI_WEBHOOK_URL = "https://example.com/webhooks/vapi";
     mockedBusinessFindUnique.mockResolvedValue({
       id: "business_123",
-      orchestrator: "vapi",
+      orchestrator: "retell",
     } as any);
     mockedRetellGetAgent.mockImplementation(async (_agentId, version) => ({
       version: version ?? 3,
@@ -972,48 +961,6 @@ describe("CalendarService.syncCalendarToolsToAgents", () => {
       },
     } as any);
     mockedRetellPublishAgent.mockResolvedValue(undefined);
-  });
-
-  it("actualiza los agentes con las herramientas de calendario", async () => {
-    mockedAgentFindMany.mockResolvedValue([
-      {
-        id: "agent_123",
-        businessId: "business_123",
-        vapiAssistantId: "assistant_123",
-        llmProvider: "groq",
-        llmModel: "openai/gpt-oss-20b",
-      },
-    ] as any);
-    mockedVapiGetAssistant.mockResolvedValue({
-      model: { tools: [] },
-    } as any);
-    mockedVapiUpdateAssistant.mockResolvedValue({ id: "assistant_123" } as any);
-
-    await calendarService.syncCalendarToolsToAgents("business_123");
-
-    expect(mockedVapiGetAssistant).toHaveBeenCalledWith("assistant_123");
-    expect(mockedVapiUpdateAssistant).toHaveBeenCalledWith(
-      "assistant_123",
-      expect.objectContaining({
-        model: expect.objectContaining({
-          tools: expect.arrayContaining([
-            expect.objectContaining({
-              function: expect.objectContaining({ name: "book_appointment" }),
-            }),
-          ]),
-        }),
-      })
-    );
-  });
-
-  it("no actualiza agentes sin vapiAssistantId", async () => {
-    mockedAgentFindMany.mockResolvedValue([
-      { id: "agent_123", businessId: "business_123", vapiAssistantId: null },
-    ] as any);
-
-    await calendarService.syncCalendarToolsToAgents("business_123");
-
-    expect(mockedVapiGetAssistant).not.toHaveBeenCalled();
   });
 
   it("registra las tools de Retell con el retellAgentId en la propia URL", async () => {
@@ -1144,7 +1091,7 @@ describe("CalendarService.syncCalendarToolsToAgents", () => {
   it("sincroniza las tools de Telnyx cuando el agente tiene telnyxAssistantId, sin importar el orchestrator", async () => {
     mockedBusinessFindUnique.mockResolvedValue({
       id: "business_123",
-      orchestrator: "vapi",
+      orchestrator: "unknown",
     } as any);
     mockedAgentFindMany.mockResolvedValue([
       {

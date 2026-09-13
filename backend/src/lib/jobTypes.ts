@@ -1,6 +1,6 @@
 export interface ProcessRecordingJob {
   callId: string;
-  vapiUrl: string;
+  externalUrl: string;
   businessId: string;
 }
 

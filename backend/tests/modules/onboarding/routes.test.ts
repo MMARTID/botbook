@@ -44,8 +44,7 @@ function businessConfigurado(overrides: Record<string, unknown> = {}) {
     googleCalendarConnected: true,
     outlookCalendarConnected: false,
     telnyxPhoneNumber: "+34930453218",
-    twilioPhoneNumber: null,
-    twilioPhoneNumberStatus: "active",
+    phoneNumberStatus: "active",
     ...overrides,
   } as any;
 }
@@ -94,7 +93,7 @@ describe("GET /business/me/onboarding", () => {
 
   it("deja el desvío en espera mientras el número no está aprobado", async () => {
     mockedBusinessFindUnique.mockResolvedValue(
-      businessConfigurado({ twilioPhoneNumberStatus: "purchased" })
+      businessConfigurado({ phoneNumberStatus: "purchased" })
     );
     mockedCallFindFirst.mockResolvedValue(null);
 
@@ -152,8 +151,7 @@ describe("GET /business/me/onboarding", () => {
     mockedBusinessFindUnique.mockResolvedValue(
       businessConfigurado({
         telnyxPhoneNumber: null,
-        twilioPhoneNumber: null,
-        twilioPhoneNumberStatus: "active",
+        phoneNumberStatus: "active",
       })
     );
     mockedCallFindFirst.mockResolvedValue(null);

@@ -116,25 +116,6 @@ export async function invalidateBusinessAgentConfigCache(businessId: string) {
       error
     );
   }
-
-  const agents = await prisma.agent.findMany({
-    where: {
-      businessId,
-      deletedAt: null,
-      vapiAssistantId: { not: null },
-    },
-    select: { vapiAssistantId: true },
-  });
-
-  if (agents.length === 0) return;
-
-  const pipeline = redis.pipeline();
-  for (const agent of agents) {
-    if (agent.vapiAssistantId) {
-      pipeline.del(`vapi_config:${agent.vapiAssistantId}`);
-    }
-  }
-  await pipeline.exec();
 }
 
 async function syncBookingConfiguration(businessId: string) {

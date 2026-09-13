@@ -16,7 +16,7 @@ import { E164_PHONE_REGEX } from "../../lib/phone.js";
 
 const ProcessRecordingSchema = z.object({
   callId: z.string(),
-  vapiUrl: z.string(),
+  externalUrl: z.string(),
   businessId: z.string(),
 });
 

@@ -7,14 +7,14 @@ const RECORDING_DOWNLOAD_TIMEOUT_MS = 5 * 60_000;
 const MAX_RECORDING_BYTES = 200 * 1024 * 1024;
 
 /**
- * Descarga la grabación desde Vapi/Retell y la sube a R2/S3. Invocado desde
+ * Descarga la grabación desde Retell/Telnyx y la sube a R2/S3. Invocado desde
  * POST /internal/jobs/process-recording (Cloud Tasks) o en línea en dev.
  */
 export async function processRecordingJob(data: ProcessRecordingJob): Promise<void> {
   console.log(`[Job] Processing recording for call ${data.callId}`);
 
   try {
-    const { callId, vapiUrl, businessId } = data;
+    const { callId, externalUrl, businessId } = data;
 
     const [call, pendingRecording] = await Promise.all([
       prisma.call.findUnique({ where: { id: callId } }),
@@ -31,8 +31,8 @@ export async function processRecordingJob(data: ProcessRecordingJob): Promise<vo
       return;
     }
 
-    console.log(`[Job] Downloading recording from: ${vapiUrl}`);
-    const recording = await downloadRecording(vapiUrl);
+    console.log(`[Job] Downloading recording from: ${externalUrl}`);
+    const recording = await downloadRecording(externalUrl);
 
     const storageKey = `recordings/${businessId}/${callId}.mp3`;
     console.log(`[Job] Uploading to storage with key: ${storageKey}`);

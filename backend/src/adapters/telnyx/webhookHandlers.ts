@@ -206,9 +206,9 @@ export async function handleCallInitiated(
     // upsert, no create: un reintento del mismo call.initiated no debe
     // pisar el estado que ya haya avanzado la llamada.
     await prisma.call.upsert({
-      where: { vapiCallId: call_control_id },
+      where: { callId: call_control_id },
       create: {
-        vapiCallId: call_control_id,
+        callId: call_control_id,
         voiceProvider: "telnyx",
         providerCallId: call_control_id,
         businessId: business.id,
@@ -249,7 +249,7 @@ export async function handleCallHangup(
 
   try {
     const dbCall = await prisma.call.findUnique({
-      where: { vapiCallId: call_control_id },
+      where: { callId: call_control_id },
     });
     if (!dbCall) {
       console.warn(
@@ -318,7 +318,7 @@ export async function handleCallConversationEnded(
 
   try {
     const dbCall = await prisma.call.findUnique({
-      where: { vapiCallId: call_control_id },
+      where: { callId: call_control_id },
     });
     if (!dbCall) {
       console.warn(
@@ -414,7 +414,7 @@ export async function handleCallRecordingSaved(
     }
 
     const dbCall = await prisma.call.findUnique({
-      where: { vapiCallId: callControlId },
+      where: { callId: callControlId },
     });
     if (!dbCall) {
       console.warn(
@@ -425,13 +425,13 @@ export async function handleCallRecordingSaved(
 
     await prisma.recording.upsert({
       where: { callId: dbCall.id },
-      create: { callId: dbCall.id, vapiUrl: url },
-      update: { vapiUrl: url },
+      create: { callId: dbCall.id, externalUrl: url },
+      update: { externalUrl: url },
     });
 
     try {
       await enqueueRecordingJob(
-        { callId: dbCall.id, vapiUrl: url, businessId: dbCall.businessId },
+        { callId: dbCall.id, externalUrl: url, businessId: dbCall.businessId },
         `process-recording-${dbCall.id}`
       );
     } catch (err) {
@@ -507,7 +507,7 @@ export async function handleCallCost(
 
   try {
     const dbCall = await prisma.call.findUnique({
-      where: { vapiCallId: call_control_id },
+      where: { callId: call_control_id },
     });
     if (!dbCall) {
       console.warn(
@@ -578,7 +578,7 @@ export async function handleTelnyxToolInvocation(input: {
 
   try {
     const call = await prisma.call.findUnique({
-      where: { vapiCallId: callControlId },
+      where: { callId: callControlId },
       select: { businessId: true },
     });
 

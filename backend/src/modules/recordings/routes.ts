@@ -13,7 +13,7 @@ const UpdateRecordingSchema = z.object({
  * reproducir nada (URL de API S3 sin firmar). Antes de responder al
  * frontend, lo sustituimos por una URL firmada temporal generada al vuelo
  * a partir de storageKey. Si falla la firma, no rompemos la respuesta: cae
- * a null, y el frontend ya sabe usar vapiUrl como alternativa.
+ * a null, y el frontend ya sabe usar externalUrl como alternativa.
  */
 async function withSignedRecordingUrl<
   T extends { storageKey: string | null; storageUrl: string | null }

@@ -56,8 +56,7 @@ Lo que un producto vecino no podría copiar honestamente:
   plantillas de servicios, copy, preguntas frecuentes y textos de onboarding propios
   (`business-type.ts`, `niche-landings.ts`). Una peluquería y una clínica de fisioterapia no leen
   ni configuran lo mismo.
-- **RGPD por defecto.** Las cuentas europeas van por Retell.ai; Vapi queda para fuera de Europa.
-  Es un default de cumplimiento, no una preferencia técnica.
+- **RGPD por defecto.** Retell.ai, con certificación RGPD, es el único orquestador de voz.
 
 ## Operating Context
 
@@ -71,7 +70,7 @@ Lo que un producto vecino no podría copiar honestamente:
 - **Herramientas que el negocio ya tiene:** Google Calendar u Outlook como agenda real, su
   número de teléfono actual, y el teléfono como canal principal de reserva.
 - **Evaluación antes de comprar:** demo de voz pública en el navegador (requiere micrófono y
-  WebRTC, solo Vapi) y la calculadora de pérdida de ingresos.
+  WebRTC, vía Retell) y la calculadora de pérdida de ingresos.
 - **Comercial:** prueba de 7 días y suscripción Stripe. `inicio` 69 €/mes (100 min, 0,60 €/min
   extra), `pro` 149 €/mes (400 min, 0,45 €/min extra, plan destacado), `scale` 299 €/mes
   (1000 min, 0,35 €/min extra).
@@ -94,7 +93,7 @@ Lo que un producto vecino no podría copiar honestamente:
 
 «Recepcionista virtual», «agente de voz», «llamadas», «citas», «servicios», «profesionales»,
 «horario», «minutos incluidos». Nunca «LLM», «modelo», «prompt», «orquestador», «webhook»,
-«API» ni «asistente Vapi/Retell».
+«API» ni «asistente Retell».
 
 **Restricciones duras**
 

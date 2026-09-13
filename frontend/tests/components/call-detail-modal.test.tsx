@@ -15,7 +15,7 @@ function buildCall(overrides: Partial<Call> = {}): Call {
     id: "call_1",
     businessId: "biz_1",
     agentId: null,
-    vapiCallId: "vapi_1",
+    callId: "vapi_1",
     fromNumber: null,
     status: "COMPLETED",
     outcome: "RESOLVED",
@@ -225,7 +225,7 @@ describe("CallDetailModal", () => {
         recording: {
           id: "r1",
           callId: "call_1",
-          vapiUrl: "https://vapi.example/rec.mp3",
+          externalUrl: "https://vapi.example/rec.mp3",
           storageKey: "k",
           storageUrl: "https://r2.example/rec.mp3",
           reviewed: false,

@@ -33,13 +33,6 @@ vi.mock("../../../src/adapters/retell/RetellAdapter.js", () => ({
   },
 }));
 
-vi.mock("../../../src/adapters/vapi/VapiAdapter.js", () => ({
-  vapiAdapter: {
-    updateAssistant: vi.fn(),
-    deleteAssistant: vi.fn(),
-  },
-}));
-
 vi.mock("../../../src/lib/serverUrl.js", () => ({
   getPublicWebhookBaseUrl: vi.fn(),
 }));

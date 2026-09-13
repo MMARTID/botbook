@@ -88,7 +88,7 @@ describe("PATCH /bookings/ (capacidad) — invalidación de caché (hallazgo #16
     await fastify.register(bookingSettingsRoutes);
   });
 
-  it("invalida voice_config:<businessId> aunque el negocio no tenga ningún agente Vapi (el caso normal, Retell)", async () => {
+  it("invalida voice_config:<businessId> al actualizar la configuración de reservas", async () => {
     mockedBusinessUpdate.mockResolvedValue({ id: "biz_1" } as any);
     mockedGetBookingSettingsBusinessFindUnique.mockResolvedValue({
       bookingCapacity: 3,
@@ -103,8 +103,6 @@ describe("PATCH /bookings/ (capacidad) — invalidación de caché (hallazgo #16
     });
 
     expect(response.statusCode).toBe(200);
-    // Antes, sin ningún agente con vapiAssistantId (el caso de cualquier
-    // negocio Retell hoy), la función salía sin invalidar nada en absoluto.
     expect(mockRedis.del).toHaveBeenCalledWith("voice_config:biz_1");
   });
 

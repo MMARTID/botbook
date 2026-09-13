@@ -2,7 +2,6 @@ import { getRedis } from "../../lib/redis.js";
 import { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import { z } from "zod";
 import { prisma } from "../../lib/prisma.js";
-import { vapiAdapter } from "../../adapters/vapi/VapiAdapter.js";
 import { BusinessScheduleSchema } from "../../lib/businessSchedule.js";
 import { calendarService } from "../calendar/service.js";
 import { AgentSettingsSchema, buildManagedAgentPrompt } from "../../lib/managedAgentPrompt.js";
@@ -204,8 +203,6 @@ export async function businessesRoutes(fastify: FastifyInstance) {
               select: {
                 id: true,
                 name: true,
-                vapiAssistantId: true,
-                files: true,
               },
               orderBy: {
                 createdAt: 'asc',
@@ -314,40 +311,13 @@ export async function businessesRoutes(fastify: FastifyInstance) {
           });
           updateData.systemPrompt = agentPrompt;
 
-          // Sincronizar en Vapi y en BD en paralelo para evitar timeouts.
-          // VAPI: inactivo, solo se ejecuta si el agente ya tiene vapiAssistantId.
           await Promise.all(
-            agents.map(async (agent) => {
-              // Actualizar en Vapi si tiene ID
-              if (agent.vapiAssistantId) {
-                const vapiUpdatePayload = {
-                  model: {
-                    provider: agent.llmProvider,
-                    model: agent.llmModel,
-                    messages: [
-                      {
-                        role: "system" as const,
-                        content: agentPrompt,
-                      },
-                    ],
-                  },
-                };
-
-                try {
-                  fastify.log.info(`Syncing business system prompt to Vapi agent ${agent.vapiAssistantId}`);
-                  await vapiAdapter.updateAssistant(agent.vapiAssistantId, vapiUpdatePayload);
-                } catch (vapiError) {
-                  fastify.log.error({ err: vapiError }, `Failed to update Vapi assistant ${agent.vapiAssistantId}`);
-                  // No fallamos todo el request si solo falla Vapi
-                }
-              }
-
-              // Actualizar el agente en la BD para mantener la consistencia
-              await prisma.agent.update({
+            agents.map((agent) =>
+              prisma.agent.update({
                 where: { id: agent.id },
                 data: { systemPrompt: agentPrompt },
-              });
-            })
+              })
+            )
           );
         }
 
@@ -358,7 +328,7 @@ export async function businessesRoutes(fastify: FastifyInstance) {
 
         // Empuja el prompt gestionado + post_call_analysis_data a Retell.
         // Sin esto, editar tono/objetivo/horario/nicho en el dashboard solo
-        // actualizaba la BD (y Vapi, inactivo) sin afectar a la llamada real.
+        // actualizaba la BD sin afectar a la llamada real.
         if (shouldResyncPrompt) {
           await syncAgentToRetell(request.user!.businessId);
           await syncAgentToTelnyx(request.user!.businessId);

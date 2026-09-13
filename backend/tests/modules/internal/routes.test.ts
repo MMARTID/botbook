@@ -45,7 +45,7 @@ describe("internalJobsRoutes", () => {
   });
 
   describe("POST /jobs/process-recording", () => {
-    const validPayload = { callId: "call_1", vapiUrl: "https://vapi.example/rec.mp3", businessId: "biz_1" };
+    const validPayload = { callId: "call_1", externalUrl: "https://vapi.example/rec.mp3", businessId: "biz_1" };
 
     it("valida el body y despacha el job", async () => {
       mockedProcessRecordingJob.mockResolvedValue(undefined);

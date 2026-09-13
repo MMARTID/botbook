@@ -45,18 +45,18 @@ describe("retryStuckRecordingsJob (hallazgo #30 de la auditoría)", () => {
     expect(thresholdMs).toBeLessThan(15 * 60 * 1000 + 5000);
   });
 
-  it("reencola cada grabación atascada con el callId, vapiUrl y businessId correctos", async () => {
+  it("reencola cada grabación atascada con el callId, externalUrl y businessId correctos", async () => {
     mockedFindMany.mockResolvedValue([
       {
         id: "rec_1",
         callId: "call_db_1",
-        vapiUrl: "https://vapi.example/rec1.mp3",
+        externalUrl: "https://vapi.example/rec1.mp3",
         call: { businessId: "biz_1" },
       },
       {
         id: "rec_2",
         callId: "call_db_2",
-        vapiUrl: "https://vapi.example/rec2.mp3",
+        externalUrl: "https://vapi.example/rec2.mp3",
         call: { businessId: "biz_2" },
       },
     ] as any);
@@ -69,12 +69,12 @@ describe("retryStuckRecordingsJob (hallazgo #30 de la auditoría)", () => {
     // haría que Cloud Tasks rechazara el reintento con ALREADY_EXISTS.
     expect(mockedEnqueueRecordingJob).toHaveBeenCalledWith({
       callId: "call_db_1",
-      vapiUrl: "https://vapi.example/rec1.mp3",
+      externalUrl: "https://vapi.example/rec1.mp3",
       businessId: "biz_1",
     });
     expect(mockedEnqueueRecordingJob).toHaveBeenCalledWith({
       callId: "call_db_2",
-      vapiUrl: "https://vapi.example/rec2.mp3",
+      externalUrl: "https://vapi.example/rec2.mp3",
       businessId: "biz_2",
     });
     expect(mockedEnqueueRecordingJob.mock.calls[0].length).toBe(1);
@@ -82,8 +82,8 @@ describe("retryStuckRecordingsJob (hallazgo #30 de la auditoría)", () => {
 
   it("sigue con las demás grabaciones aunque una falle al reencolar", async () => {
     mockedFindMany.mockResolvedValue([
-      { id: "rec_1", callId: "call_db_1", vapiUrl: "url_1", call: { businessId: "biz_1" } },
-      { id: "rec_2", callId: "call_db_2", vapiUrl: "url_2", call: { businessId: "biz_2" } },
+      { id: "rec_1", callId: "call_db_1", externalUrl: "url_1", call: { businessId: "biz_1" } },
+      { id: "rec_2", callId: "call_db_2", externalUrl: "url_2", call: { businessId: "biz_2" } },
     ] as any);
     mockedEnqueueRecordingJob
       .mockRejectedValueOnce(new Error("Cloud Tasks down"))

@@ -67,7 +67,7 @@ describe("Retell webhook handlers", () => {
       expect(result.success).toBe(true);
       expect(mockedCallUpdateMany).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: expect.objectContaining({ vapiCallId: "retell_call_123" }),
+          where: expect.objectContaining({ callId: "retell_call_123" }),
           data: { status: "IN_PROGRESS" },
         })
       );

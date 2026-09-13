@@ -90,10 +90,9 @@ export async function onboardingRoutes(fastify: FastifyInstance) {
           select: { startedAt: true },
         });
 
-        const phoneNumber =
-          business.telnyxPhoneNumber ?? business.twilioPhoneNumber;
+        const phoneNumber = business.telnyxPhoneNumber;
         const phoneIsActive =
-          business.twilioPhoneNumberStatus === "active" && phoneNumber !== null;
+          business.phoneNumberStatus === "active" && phoneNumber !== null;
 
         const forwardingDone =
           firstCall !== null || onboardingState.forwardingConfirmedAt !== null;

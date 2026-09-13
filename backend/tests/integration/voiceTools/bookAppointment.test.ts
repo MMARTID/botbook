@@ -46,7 +46,7 @@ describe("book_appointment (integración: Postgres + Redis reales)", () => {
     const result = await executeVoiceTool({
       businessId: business.id,
       toolName: "book_appointment",
-      callId: callB.vapiCallId,
+      callId: callB.callId,
       params: {
         clientName: "Cliente de prueba",
         startDateTime: slot.toISOString(),

@@ -1,7 +1,7 @@
 {
   "name": "alhabla-backend",
   "version": "1.0.0",
-  "description": "Multi-tenant AI agency backend for voice agents using Vapi",
+  "description": "Multi-tenant AI agency backend for voice agents using Retell.ai",
   "main": "dist/server.js",
   "type": "module",
   "scripts": {
@@ -22,7 +22,7 @@
     "agents:sync-prompts": "tsx scripts/syncManagedAgentPrompts.ts"
   },
   "keywords": [
-    "vapi",
+    "retell",
     "voice-ai",
     "multi-tenant",
     "fastify"
@@ -33,7 +33,6 @@
     "@aws-sdk/client-s3": "^3.600.0",
     "@aws-sdk/s3-request-presigner": "^3.1124.0",
     "@fastify/cors": "^11.3.0",
-    "@fastify/multipart": "^10.1.0",
     "@fastify/rate-limit": "^11.2.0",
     "@google-cloud/tasks": "^7.0.0",
     "@prisma/client": "^6.19.3",
@@ -49,7 +48,6 @@
     "retell-sdk": "^5.63.0",
     "stripe": "^22.4.0",
     "telnyx": "^7.17.0",
-    "twilio": "^6.1.0",
     "zod": "^3.24.1"
   },
   "devDependencies": {

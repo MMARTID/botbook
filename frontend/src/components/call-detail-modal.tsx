@@ -93,7 +93,7 @@ export function CallDetailModal({
   const messages = call?.transcript
     ? parseTranscriptMessages(call.transcript.messages)
     : null;
-  const recordingSrc = call?.recording?.storageUrl ?? call?.recording?.vapiUrl ?? null;
+  const recordingSrc = call?.recording?.storageUrl ?? call?.recording?.externalUrl ?? null;
   const tone = call ? outcomeTone(call.outcome) : "neutral";
   const SentimentIcon = call?.sentiment ? SENTIMENT_ICON[call.sentiment] : null;
 

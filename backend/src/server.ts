@@ -2,7 +2,6 @@ import Fastify, { FastifyInstance } from "fastify";
 import cors from "@fastify/cors";
 import rateLimit from "@fastify/rate-limit";
 import authPlugin from "./plugins/auth.js";
-import multipart from "@fastify/multipart";
 import rawBody from "fastify-raw-body";
 import { prisma } from "./lib/prisma.js";
 import { getRedis, initRedis } from "./lib/redis.js";
@@ -17,18 +16,11 @@ import { callsRoutes } from "./modules/calls/routes.js";
 import { recordingsRoutes } from "./modules/recordings/routes.js";
 import { calendarRoutes } from "./modules/calendar/routes.js";
 import { bookingSettingsRoutes } from "./modules/bookings/routes.js";
-import { filesRoutes } from "./modules/files/routes.js";
 import { billingRoutes } from "./modules/billing/routes.js";
 import { phoneRoutes } from "./modules/phone/routes.js";
 import { selectRetellInboundAgent } from "./modules/phone/retellInbound.js";
 import { onboardingRoutes } from "./modules/onboarding/routes.js";
 import { demoRoutes } from "./modules/demo/routes.js";
-import {
-  handleFunctionCall,
-  handleEndOfCallReport,
-  handleStatusUpdate,
-} from "./adapters/vapi/webhookHandlers.js";
-import { vapiAdapter } from "./adapters/vapi/VapiAdapter.js";
 import {
   handleCallStarted,
   handleCallEnded,
@@ -114,12 +106,6 @@ async function start() {
       encoding: false,
       runFirst: true,
     });
-    fastify.register(multipart, {
-      limits: {
-        fileSize: 10 * 1024 * 1024, // 10MB limit
-      }
-    });
-
     // Global error handler: normalize response shape and log with Pino
     fastify.setErrorHandler((error: unknown, request, reply) => {
       const errorObject =
@@ -160,7 +146,6 @@ async function start() {
       const checkPromises: Promise<string>[] = [
         prisma.$queryRaw`SELECT 1`.then(() => "ok"),
         getRedis().ping().then(() => "ok"),
-        vapiAdapter.checkHealth().then(() => "ok"),
       ];
 
       if (process.env.RETELL_API_KEY) {
@@ -169,14 +154,13 @@ async function start() {
 
       const checks = await Promise.allSettled(checkPromises);
 
-      const [postgres, redis, vapi, retell] = checks;
+      const [postgres, redis, retell] = checks;
       const healthy = checks.every((check) => check.status === "fulfilled");
       const statusCode = healthy ? 200 : 503;
 
       const dependencies: Record<string, string> = {
         postgres: postgres.status === "fulfilled" ? "ok" : "unhealthy",
         redis: redis.status === "fulfilled" ? "ok" : "unhealthy",
-        vapi: vapi.status === "fulfilled" ? "ok" : "unhealthy",
       };
 
       if (process.env.RETELL_API_KEY) {
@@ -189,77 +173,6 @@ async function start() {
         dependencies,
       });
     });
-
-    // Vapi webhook endpoint. VAPI: inactivo — ningún negocio nuevo lo usa
-    // (Retell es el único orquestador), se deja registrado por si queda
-    // tráfico residual o se retoma para Latinoamérica.
-    fastify.post("/webhooks/vapi", {
-  config: {
-    rawBody: true,
-    rateLimit: {
-      max: 300,
-      timeWindow: "1 minute",
-    },
-  },
-}, async (request, reply) => {
-  const signature = request.headers["x-vapi-signature"];
-  if (typeof signature !== "string" || !request.rawBody) {
-    fastify.log.warn("[Vapi Webhook] Missing signature or raw body");
-    return reply.status(400).send({ error: "Missing webhook signature or body" });
-  }
-
-  const rawBody = typeof request.rawBody === "string" ? request.rawBody : request.rawBody.toString("utf8");
-  const isValid = vapiAdapter.validateWebhookSignature(rawBody, signature);
-  if (!isValid) {
-    fastify.log.warn("[Vapi Webhook] Invalid signature");
-    return reply.status(401).send({ error: "Invalid webhook signature" });
-  }
-
-  const payload = request.body as any;
-  const eventType = payload.message?.type || payload.type;
-
-  // Si no hay tipo, respondemos 400 porque no podemos procesarlo
-  if (!eventType) {
-    console.warn("[Webhook] Missing event type in payload");
-    return reply.status(400).send({ error: "Missing event type" });
-  }
-
-  try {
-    let result: { success: boolean; result?: any };
-
-    switch (eventType) {
-      case "function-call":
-        result = await handleFunctionCall(payload);
-        break;
-      case "end-of-call-report":
-        result = await handleEndOfCallReport(payload);
-        break;
-      case "status-update":
-        result = await handleStatusUpdate(payload);
-        break;
-      default:
-        // Eventos no críticos: los ignoramos y respondemos OK
-        fastify.log.debug({ eventType }, "[Vapi] Evento no procesable ignorado");
-        return reply.status(200).send({ success: true, ignored: true });
-    }
-
-    if (result.success) {
-      // Vapi expects a result object back in the response for function calls
-      if (eventType === "function-call" && result.result) {
-        return reply.status(200).send({ result: result.result });
-      }
-      return reply.status(200).send({ success: true });
-    } else {
-      console.error(`[Vapi] No se pudo procesar el evento ${eventType}`);
-      // If no structured result is provided, treat as internal failure
-      return reply.status(500).send({ error: "Failed to process webhook" });
-    }
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    console.error(`[Vapi] Error procesando ${eventType}: ${message}`);
-    return reply.status(500).send({ error: "Internal server error" });
-  }
-});
 
     // Retell webhook endpoint
     fastify.post("/webhooks/retell", {
@@ -664,7 +577,6 @@ async function start() {
     fastify.register(recordingsRoutes);
     fastify.register(calendarRoutes, { prefix: '/calendar' });
     fastify.register(bookingSettingsRoutes, { prefix: '/booking-settings' });
-    fastify.register(filesRoutes, { prefix: '/agents' });
     fastify.register(billingRoutes, { prefix: '/billing' });
     fastify.register(phoneRoutes, { prefix: '/phone' });
     fastify.register(onboardingRoutes);

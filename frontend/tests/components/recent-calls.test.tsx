@@ -25,7 +25,7 @@ function buildCall(overrides: Partial<Call> = {}): Call {
     id: "call_1",
     businessId: "biz_1",
     agentId: null,
-    vapiCallId: "vapi_1",
+    callId: "vapi_1",
     fromNumber: null,
     status: "COMPLETED",
     outcome: "RESOLVED",

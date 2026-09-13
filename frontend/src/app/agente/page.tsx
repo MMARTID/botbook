@@ -28,7 +28,6 @@ import {
   DEFAULT_AGENT_SETTINGS,
 } from "@/components/agent-settings-editor";
 import { SettingsSection } from "@/components/settings-section";
-import { AgentDocuments } from "@/components/agent-documents";
 import { AgentOperationalSummary } from "@/components/agent-operational-summary";
 import { LottieAnimation } from "@/components/lottie-animation";
 import type {
@@ -47,7 +46,6 @@ import {
   Check,
   CheckCircle2,
   ChevronDown,
-  FileText,
   Pencil,
   Save,
   ScissorsLineDashed,
@@ -308,7 +306,6 @@ function AgenteContent() {
   });
 
   const services = settingsQuery.data?.services ?? [];
-  const agentFiles = business?.agents?.[0]?.files ?? [];
   const professionals = settingsQuery.data?.professionals ?? [];
 
   const startCalendarConnection = async (provider: "google" | "outlook") => {
@@ -997,21 +994,6 @@ function AgenteContent() {
             </>
           )}
         </div>
-      </SettingsSection>
-
-      <SettingsSection
-        id="agent-documents"
-        icon={FileText}
-        title="Documentos del agente"
-        summary={
-          agentFiles.length === 0
-            ? "Sin documentos"
-            : `${agentFiles.length} ${agentFiles.length === 1 ? "documento" : "documentos"}`
-        }
-        open={isSectionOpen("agent-documents")}
-        onToggle={() => toggleSection("agent-documents")}
-      >
-        <AgentDocuments agentId={business?.agents?.[0]?.id} files={agentFiles} />
       </SettingsSection>
 
       <SettingsSection

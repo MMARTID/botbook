@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-Alhabla is a multi-tenant SaaS platform that provides AI-powered voice receptionists for small businesses in Spain (hair salons, barbershops, physiotherapy clinics, beauty centers, etc.). Each business gets one or more voice agents built on top of the Vapi or Retell voice-AI platform. European accounts use Retell.ai by default for RGPD compliance; Vapi is kept for future expansion outside Europe. The agents handle incoming phone calls, answer questions, check business hours, check availability, and book appointments directly into the business's Google or Outlook calendar.
+Alhabla is a multi-tenant SaaS platform that provides AI-powered voice receptionists for small businesses in Spain (hair salons, barbershops, physiotherapy clinics, beauty centers, etc.). Each business gets one or more voice agents built on top of the Retell.ai voice-AI platform, used for its RGPD compliance. The agents handle incoming phone calls, answer questions, check business hours, check availability, and book appointments directly into the business's Google or Outlook calendar.
 
 The codebase is fully in Spanish — UI copy, comments, variable names, and business logic are written in Spanish. Keep everything in Spanish when modifying code or adding user-facing text.
 
@@ -16,9 +16,9 @@ The codebase is fully in Spanish — UI copy, comments, variable names, and busi
 | **Database** | PostgreSQL 15 + Prisma ORM |
 | **Cache** | Redis 7 |
 | **Background jobs** | Cloud Tasks / Cloud Scheduler (HTTP callbacks to `alhabla-api`, no BullMQ) |
-| **Voice AI** | Vapi API + Retell.ai |
+| **Voice AI** | Retell.ai |
 | **Object storage** | Cloudflare R2 (S3-compatible) |
-| **Telephony** | Telnyx (phone number purchase for Spain, active). Twilio kept inactive — no longer sells Spain numbers via self-serve API |
+| **Telephony** | Telnyx (phone number purchase for Spain) |
 | **Billing** | Stripe (Checkout Sessions, Customer Portal, webhooks) |
 | **Calendar** | Google Calendar API, Microsoft Graph (Outlook) |
 | **Auth** | JWT (custom) + Google OAuth 2.0 |
@@ -34,7 +34,7 @@ The codebase is fully in Spanish — UI copy, comments, variable names, and busi
 │   │   ├── server.ts           # Fastify entry point
 │   │   ├── plugins/            # Fastify plugins (auth, CORS, rate-limit, multipart)
 │   │   ├── modules/            # Domain route modules (one folder per domain)
-│   │   ├── adapters/           # External API adapters (Vapi, Retell, Twilio, Telnyx)
+│   │   ├── adapters/           # External API adapters (Retell, Telnyx)
 │   │   ├── lib/                # Shared utilities (Prisma, Redis, Stripe, Cloud Tasks, storage)
 │   │   ├── jobs/                # Background job logic, no framework (dispatched via Cloud Tasks)
 │   │   └── config/              # Static configuration constants
@@ -59,7 +59,7 @@ Each module is a folder containing a `routes.ts` file (and optionally `service.t
 |--------|--------|------|---------|
 | `auth` | `/auth` | Mixed | JWT login, Google OAuth callback, registration, authenticated account summary/password change/deletion |
 | `businesses` | *(none)* | Yes | Business CRUD, `me` endpoints, agent prompt rebuild on update, and the dashboard reads: `GET /business/me/stats` (all-time totals plus a rolling 7-day `week` window with the previous 7 days for comparison and an estimated revenue in cents), `GET /business/me/agenda?days&limit` (upcoming `Booking` rows with client phone, professional and resolved service names) and `GET /business/me/pending-bookings` (unresolved `pending_booking` leads — appointments the caller asked for that never reached the calendar) |
-| `agents` | *(none)* | Yes | Agent CRUD, sync to Vapi/Retell assistants |
+| `agents` | *(none)* | Yes | Agent CRUD, sync to Retell assistants |
 | `calls` | *(none)* | Yes | Call logs, transcripts, outcomes (paginated) |
 | `recordings` | *(none)* | Yes | Recording metadata, review notes |
 | `calendar` | `/calendar` | Yes* | Google/Outlook OAuth, list events, book appointments |
@@ -67,7 +67,6 @@ Each module is a folder containing a `routes.ts` file (and optionally `service.t
 | `billing` | `/billing` | Yes* | Stripe checkout, portal, subscription summary, webhooks |
 | `phone` | `/phone` | Yes | Telnyx phone number status, manual provisioning retry |
 | `places` | *(none)* | Yes | Google Places autocomplete & details |
-| `files` | `/agents` | Yes | Agent file uploads (multipart, 10MB limit) |
 | `onboarding` | *(none)* | Yes | Onboarding state: progress, dismiss, complete, confirm call forwarding |
 | `demo` | `/demo` | No | Public landing voice demo: `POST /demo/web-call` accepts `{ niche? }` and creates a Retell web call against that niche's demo agent, falling back to the generic one (10 req/min). `resolveDemoMaxDurationSeconds()` validates `RETELL_DEMO_MAX_DURATION_SECONDS` (finite, positive number or falls back to 60s) before passing it to `RetellAdapter.createWebCall` — a malformed value used to produce `NaN`, which is falsy in JS, so the duration cap was silently dropped and the demo call ran uncapped |
 
@@ -78,22 +77,21 @@ Each module is a folder containing a `routes.ts` file (and optionally `service.t
 - `prisma.ts` — Prisma Client singleton with `globalThis` hot-reload guard.
 - `redis.ts` — IORedis connection (caching, OAuth state, rate limiting).
 - `cloudTasks.ts` — Cloud Tasks job dispatch (`enqueueRecordingJob`, `enqueueRetryBookingJob`, `enqueueEmailJob`); inline synchronous fallback outside production. See Background Jobs below.
-- `storage.ts` — R2/S3 client for file uploads (recordings, agent files).
+- `storage.ts` — R2/S3 client for file uploads (recordings).
 - `stripe.ts` — Stripe SDK client singleton.
-- `twilio.ts` — Twilio SDK singleton. Uses API Key + Secret when available; falls back to Auth Token. Inactive since the Telnyx migration, kept for historical businesses.
 - `telnyx.ts` — Telnyx SDK singleton (single Bearer API key). Active provider for phone number provisioning.
 - `microsoftGraph.ts` — Microsoft Graph OAuth + Calendar API helpers.
-- `agentBootstrap.ts` — Default agent config, Vapi/Retell payload builder, safe assistant naming.
+- `agentBootstrap.ts` — Default agent config, Retell payload builder, safe assistant naming.
 - `businessSchedule.ts` — Business hours validation logic with Zod schemas.
 - `availability.ts` — Booking availability check (professionals, capacity, overlapping bookings). Returns available professionals with IDs for explicit selection.
 - `logUtils.ts` — Shared logging helpers (`errorMessage`, `callLabel`).
 - `managedAgentPrompt.ts` — Dynamic system prompt builder from business settings (tone, goal, style, escalation).
-- `ngrok.ts` — Fetches public ngrok URL for local Vapi/Retell webhooks.
+- `ngrok.ts` — Fetches public ngrok URL for local Retell webhooks.
 
 ### Configuration (`backend/src/config/`)
 
 - `serverConfig.ts` — Mutable singleton for runtime config (e.g. `webhookUrl` from ngrok).
-- `vapi.ts` — Vapi catalog constants: voice providers (9), voice IDs (28), LLM providers (4) + models, STT providers (7) + models.
+- `voiceAgent.ts` — Generic voice/LLM/STT catalog constants: voice providers (8), LLM providers (4) + models, STT providers (7) + models.
 
 ## Frontend Architecture
 
@@ -196,7 +194,6 @@ There is no static OG asset; edit that file to change what WhatsApp and X displa
 - `format.ts` — Currency, date, duration, call status labels.
 - `billing-navigation.ts` — Pending plan helpers.
 - `business-type.ts` — Business type labels, Places API keyword detection and per-niche onboarding texts (`BUSINESS_TYPE_ONBOARDING_TEXTS`).
-- `vapi.ts` — Vapi configuration constants (mirrors backend catalog).
 - `service-templates.ts` — Per-niche service templates shown during registration (`/register/business/services`).
 
 ## Build & Run Commands
@@ -279,7 +276,6 @@ Copy `.env.example` to `.env` and fill in all required secrets. Key groups:
 |-------|-----------|
 | **Database** | `DATABASE_URL` |
 | **Redis** | `REDIS_URL` |
-| **Vapi** | `VAPI_API_KEY`, `VAPI_WEBHOOK_SECRET`, `VAPI_BASE_URL` |
 | **Retell** | `RETELL_API_KEY`, `RETELL_BASE_URL` |
 | **Demo (landing)** | `RETELL_DEMO_AGENT_ID` (genérico), `RETELL_DEMO_<NICHO>_AGENT_ID` (por landing de nicho: `PELUQUERIA`, `CENTRO_ESTETICA`, `SALON_UÑAS`, `BARBERIA`, `FISIOTERAPIA`), `RETELL_DEMO_MAX_DURATION_SECONDS` |
 | **JWT** | `JWT_SECRET` — required; server exits if missing |
@@ -289,8 +285,7 @@ Copy `.env.example` to `.env` and fill in all required secrets. Key groups:
 | **Google Login OAuth** | `GOOGLE_AUTH_CLIENT_ID`, `GOOGLE_AUTH_CLIENT_SECRET`, `GOOGLE_AUTH_REDIRECT_URI` |
 | **Google Places** | `GOOGLE_PLACES_API_KEY` |
 | **R2 / S3** | `R2_ACCOUNT_ID`, `R2_ACCESS_KEY`, `R2_SECRET_KEY`, `R2_BUCKET`, `R2_REGION`, `R2_ENDPOINT` |
-| **Twilio** (inactive) | `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN` (dev), `TWILIO_API_KEY`, `TWILIO_API_SECRET` (prod), `TWILIO_PHONE_NUMBER_COUNTRY`, `TWILIO_SPAIN_BUNDLE_SID` |
-| **Telnyx** | `TELNYX_API_KEY`, `TELNYX_SIP_CONNECTION_ID`, `TELNYX_SPAIN_REQUIREMENT_GROUP_ID` |
+| **Telnyx** | `TELNYX_API_KEY`, `TELNYX_SIP_CONNECTION_ID`, `TELNYX_SPAIN_REQUIREMENT_GROUP_ID`, `PHONE_NUMBER_COUNTRY` |
 | **Retell SIP trunk** | `RETELL_SIP_TERMINATION_URI`, `RETELL_SIP_TRUNK_AUTH_USERNAME`, `RETELL_SIP_TRUNK_AUTH_PASSWORD` (Telnyx SIP Connection used by `RetellAdapter.importPhoneNumber`) |
 | **Server** | `FRONTEND_URL`, `PORT`, `NODE_ENV`, `LOG_LEVEL` |
 
@@ -316,7 +311,7 @@ All business-scoped data is filtered by `businessId` from the token. Never trust
 
 - **Validation:** Use `zod` schemas for route bodies and params. Return `400` with `error.errors` on `ZodError`.
 - **Global error handler** (`server.ts`): Normalizes all errors to `{ statusCode, error, message }`. Handles both `Error` instances and plain error objects (e.g. rate-limit errors from `@fastify/rate-limit`). Logs full error details with Pino. Returns generic "Internal server error" for 5xx to avoid leaking internals.
-- **Rate limiting:** Default 100 req/min. Vapi and Retell webhook endpoints override to 300 req/min. Auth endpoints have stricter limits: 10/min (`/login`, `/register`) and 5/min (`/register-first-user`). Places endpoints use 10/min.
+- **Rate limiting:** Default 100 req/min. Retell webhook endpoints override to 300 req/min. Auth endpoints have stricter limits: 10/min (`/login`, `/register`) and 5/min (`/register-first-user`). Places endpoints use 10/min.
 
 ## Database (Prisma)
 
@@ -324,8 +319,8 @@ The schema lives in `backend/prisma/schema.prisma`. Key models:
 
 - `Business` — tenant root; holds Stripe billing state, calendar tokens (encrypted), schedule JSON, agent settings, booking capacity, and optional booking restrictions `minAdvanceBookingMinutes` / `maxAppointmentDurationMinutes` (both nullable = no restriction; enforced in `check_business_hours` and `book_appointment`, see Agent Configuration).
 - `User` — belongs to a Business; supports password (bcrypt) + Google OAuth login (`googleId`).
-- `Agent` — voice agent config; `vapiAssistantId` links to Vapi and `retellAgentId`/`retellLlmId` link to Retell. Includes voice/LLM/STT provider configs, files, integrations.
-- `Call` — a phone call handled by Vapi or Retell. Status enum: `INITIATED`, `IN_PROGRESS`, `COMPLETED`, `FAILED`, `TIMED_OUT`. Outcome enum: `RESOLVED`, `FRUSTRATED`, `NO_ANSWER`, `ESCALATED`, `LEAD_CAPTURED` — set from Retell's `call_outcome` post_call_analysis_data field. Since 2026-09-11 the three remaining analysis fields are persisted too: `escalationReason` (enum `CallEscalationReason`), `toolFailureDetected` and `requestedService` (see Retell Configuration).
+- `Agent` — voice agent config; `retellAgentId`/`retellLlmId` link to Retell, `telnyxAssistantId` to Telnyx. Includes voice/LLM/STT provider configs, integrations.
+- `Call` — a phone call handled by Retell or Telnyx. Status enum: `INITIATED`, `IN_PROGRESS`, `COMPLETED`, `FAILED`, `TIMED_OUT`. Outcome enum: `RESOLVED`, `FRUSTRATED`, `NO_ANSWER`, `ESCALATED`, `LEAD_CAPTURED` — set from Retell's `call_outcome` post_call_analysis_data field. Since 2026-09-11 the three remaining analysis fields are persisted too: `escalationReason` (enum `CallEscalationReason`), `toolFailureDetected` and `requestedService` (see Retell Configuration).
 - `Booking` — outcome extracted from a call; stores `professionalId`, `serviceIds` (array — since 2026-09-05 a booking can cover several services, e.g. "corte y mechas") and `durationMinutes` to track who performs the appointment and how long it lasts. `professionalId`/`serviceIds` supplied by the LLM are verified to belong to the business before being trusted (`voiceTools/service.ts`) — they are not enforced at the DB/FK level.
 - `Transcript` / `Recording` — call artifacts. Recording has `storageKey` and `storageUrl` for R2.
 - `Lead` — structured lead data captured during a call. `type: "pending_booking"` rows are created by `voiceTools/service.ts` when `book_appointment` fails, holding the attempted booking payload so it's never lost; `resolvedAt` is set once `jobs/retryFailedBooking.ts` confirms the booking in the background (still `null` if retries are exhausted or the failure needs a manual calendar reconnect).
@@ -347,19 +342,11 @@ subscriptionCancelAtPeriodEnd (boolean)
 
 ### Phone Number Fields on `Business`
 
-`twilioPhoneNumberStatus` is the single lifecycle-status field regardless of
-which provider actually fulfilled the number (`"pending" | "purchased" |
-"active" | "failed"`) — kept under its original (now historical) name so the
-frontend and API contract didn't need to change when Telnyx became the
-active provider.
+`phoneNumberStatus` is the number's lifecycle-status field
+(`"pending" | "purchased" | "active" | "failed"`).
 
 ```
-# Twilio — inactive, kept for historical businesses
-twilioPhoneNumber (unique)
-twilioPhoneNumberSid (unique)
-twilioPhoneNumberPurchasedAt
-twilioPhoneNumberStatus (default "pending")
-vapiPhoneNumberId (unique)
+phoneNumberStatus (default "pending")
 
 # Telnyx — active provider
 telnyxNumberOrderId (unique)   # persisted as soon as the order is placed,
@@ -401,7 +388,7 @@ outlookCalendarLastError (Text)
 orchestrator (String, default "retell")
 ```
 
-Determines the voice-AI provider for the business. Today `detectVoiceOrchestrator()` always returns `"retell"` regardless of country (`backend/src/lib/voiceOrchestrator.ts`) — the geographic split (Retell for Europe / Vapi for the rest) is not active in the code; the field is kept for a future split. The value is set at registration and stored in `Business.orchestrator`.
+Determines the voice-AI provider for the business — `"retell"` or `"telnyx"`. `detectVoiceOrchestrator()` (`backend/src/lib/voiceOrchestrator.ts`) always assigns `"retell"` at registration; a business only moves to `"telnyx"` later via the cutover process (see PLAN-TELNYX-ORQUESTADOR.md). The value is stored in `Business.orchestrator`.
 
 ### Business Type Field on `Business`
 
@@ -471,7 +458,7 @@ is now a **Cloud Scheduler** job hitting the same kind of endpoint every
   route handlers and by the dev inline fallback in `cloudTasks.ts`.
 
 1. **`process-recording`**
-   - Downloads the call recording from Vapi or Retell and uploads it to R2.
+   - Downloads the call recording from Retell or Telnyx and uploads it to R2.
    - Updates `Recording` with `storageKey` and `storageUrl`.
    - Cloud Tasks queue `process-recording`: 5 attempts, exponential backoff 1s base.
 
@@ -501,7 +488,7 @@ is now a **Cloud Scheduler** job hitting the same kind of endpoint every
    - Marks stale `IN_PROGRESS` calls as `TIMED_OUT`.
 
 6. **Stuck recording retry** (`backend/src/jobs/retryStuckRecordings.ts`)
-   - `Recording` rows are created (with `vapiUrl`, `storageKey: null`) in the same
+   - `Recording` rows are created (with `externalUrl`, `storageKey: null`) in the same
      transaction that saves the call in `handleCallEnded` — before `enqueueRecordingJob`
      is even called. If that enqueue fails (Cloud Tasks down, IAM misconfigured, etc.),
      the row already exists as a durable marker: this job finds `Recording` rows with
@@ -515,27 +502,9 @@ is now a **Cloud Scheduler** job hitting the same kind of endpoint every
 
 Call outcome classification is **not** a background job — Retell classifies each call natively via `post_call_analysis_data` (see Retell Configuration), no separate LLM call from this backend.
 
-## Voice Orchestrators (Vapi & Retell)
+## Voice Orchestrators (Retell & Telnyx)
 
-The backend supports two voice-AI orchestrators. `Business.orchestrator` decides which adapter is used for a given business (`vapi` or `retell`). Today registration always assigns `retell` (see Orchestrator Field above); Vapi remains wired but inactive.
-
-### Vapi (`backend/src/adapters/vapi/VapiAdapter.ts`)
-
-- Single source of truth for all Vapi API calls. Never call the Vapi API directly from route handlers.
-- **Endpoints used:** `POST /assistant`, `PATCH /assistant/{id}`, `GET /assistant/{id}`, `DELETE /assistant/{id}`, `GET /call/{id}`, `POST /file`, `GET /assistant?limit=1` (health check), `POST /phone-number`, `PATCH /phone-number/{id}`, `DELETE /phone-number/{id}`, `GET /phone-number`.
-- Webhooks from Vapi hit `POST /webhooks/vapi`. The endpoint verifies the HMAC-SHA256 signature (`x-vapi-signature`) using `VAPI_WEBHOOK_SECRET` with timing-safe comparison.
-- Supported Vapi webhook events: `function-call`, `end-of-call-report`, `status-update`. Other events are acknowledged (`200`) but ignored.
-- `function-call` handlers are in `backend/src/adapters/vapi/webhookHandlers.ts`. They implement `check_business_hours`, `check_availability` and `book_appointment` (Google and Outlook Calendar supported).
-- When an agent is created or updated, the backend syncs the assistant configuration to Vapi via `vapiAdapter.createAssistant` / `updateAssistant`.
-- When a business connects a calendar, `calendarService.syncCalendarToolsToAgents` injects the booking tools into every Vapi agent config.
-- **Redis caching:** Agent calendar configs are cached in Redis under `vapi_config:<assistantId>` with TTL 3600s.
-
-### Vapi Configuration Catalog (`backend/src/config/vapi.ts`)
-
-- **Voice providers:** `vapi`, `11labs`, `hume`, `azure`, `google`, `openai`, `deepgram`, `cartesia`, `custom`.
-- **LLM providers:** `openai`, `anthropic`, `custom`, `groq`.
-- **STT providers:** `deepgram`, `assembly-ai`, `azure`, `google`, `openai`, `soniox`, `talkscriber`.
-- Defaults: voice `cartesia` / `sonic-3.5`, LLM `groq` / `openai/gpt-oss-20b`, STT `deepgram` / `nova-2`.
+The backend supports two voice-AI orchestrators. `Business.orchestrator` decides which is primary for a given business (`retell` or `telnyx`). Registration always assigns `retell`; a business moves to `telnyx` only via the cutover process (see PLAN-TELNYX-ORQUESTADOR.md). Retell always stays wired as the hot fallback regardless of which is primary.
 
 ### Retell (`backend/src/adapters/retell/RetellAdapter.ts`)
 
@@ -571,9 +540,9 @@ The backend supports two voice-AI orchestrators. `Business.orchestrator` decides
 
 `provisionPhoneNumber` (`backend/src/modules/phone/service.ts`) buys a Telnyx number and imports it into Retell via SIP trunk, linking it to the business's active agent. Failures in Telnyx/Retell do not fail the Stripe webhook response.
 
-Only Spain (`TWILIO_PHONE_NUMBER_COUNTRY=ES` — env var name kept from the Twilio era) is supported today — searches only `local`-type numbers and requires `TELNYX_SPAIN_REQUIREMENT_GROUP_ID`, a single platform-level regulatory Requirement Group reused across every business (not one per business; same reuse pattern the old `TWILIO_SPAIN_BUNDLE_SID` used). Unlike Twilio, Telnyx doesn't expose a per-number address-requirement flag in search results — regulatory requirements are resolved entirely by the Requirement Group at order time, so there's no address-based filtering step.
+Only Spain (`PHONE_NUMBER_COUNTRY=ES`) is supported today — searches only `local`-type numbers and requires `TELNYX_SPAIN_REQUIREMENT_GROUP_ID`, a single platform-level regulatory Requirement Group reused across every business. Telnyx doesn't expose a per-number address-requirement flag in search results — regulatory requirements are resolved entirely by the Requirement Group at order time, so there's no address-based filtering step.
 
-**Telnyx number orders are asynchronous** (`status: "pending" | "success" | "failure"`), unlike Twilio's synchronous purchase. `provisionPhoneNumber` persists `telnyxNumberOrderId` as soon as the order is created, then polls `getNumberOrder` for a bounded window (5 attempts, 2s apart). If still `"pending"` after that, it returns `status: "pending"` rather than an error — a retry (via the frontend's "Reintentar asignación de número" button, or the `checkout-session/:id/reconcile` fallback) resumes the same order (`telnyxAdapter.getNumberOrder(business.telnyxNumberOrderId)`) instead of placing a duplicate purchase.
+**Telnyx number orders are asynchronous** (`status: "pending" | "success" | "failure"`). `provisionPhoneNumber` persists `telnyxNumberOrderId` as soon as the order is created, then polls `getNumberOrder` for a bounded window (5 attempts, 2s apart). If still `"pending"` after that, it returns `status: "pending"` rather than an error — a retry (via the frontend's "Reintentar asignación de número" button, or the `checkout-session/:id/reconcile` fallback) resumes the same order (`telnyxAdapter.getNumberOrder(business.telnyxNumberOrderId)`) instead of placing a duplicate purchase.
 
 Once the order succeeds, the number is imported into Retell via `retellAdapter.importPhoneNumber`, which requires a **SIP trunk** — a Telnyx SIP Connection created once (manually, in the Telnyx portal) pointing inbound traffic at Retell (`sip:sip.retellai.com`), with credential-based auth since Retell has no static IP. Its termination URI and SIP credentials are platform-level config (`RETELL_SIP_TERMINATION_URI`, `RETELL_SIP_TRUNK_AUTH_USERNAME`, `RETELL_SIP_TRUNK_AUTH_PASSWORD`), reused for every business, same as the Requirement Group. `TELNYX_SIP_CONNECTION_ID` is passed at order time so the purchased number is assigned to that connection automatically.
 
@@ -712,7 +681,7 @@ The `businessType` field stores the business niche selected during registration.
 
 - Build a readable agent display name (`buildAgentDisplayName`) that includes the niche label, making agents easy to identify in orchestrator dashboards.
 - Resolve the agent template (`getAgentTemplateForBusinessType`), which builds an initial prompt already including the niche instruction (`NICHE_INSTRUCTIONS`, see Managed Agent Prompt). TTS/LLM/STT settings are still shared across all niches — only prompt content differs today.
-- Sync the agent name in Retell/Vapi (`syncAgentNameWithBusinessType`, cosmetic only) **and** trigger a full prompt/`post_call_analysis_data` resync (`syncAgentToRetell`) when the business type is updated via `PATCH /business/me`, since it changes both the niche instruction and `requested_service_type`'s framing.
+- Sync the agent name in Retell (`syncAgentNameWithBusinessType`, cosmetic only) **and** trigger a full prompt/`post_call_analysis_data` resync (`syncAgentToRetell`) when the business type is updated via `PATCH /business/me`, since it changes both the niche instruction and `requested_service_type`'s framing.
 
 Niche landings pass `?niche=<slug>` to `/planes` and on to `/register`, so the type can be pre-selected. If the user comes from the generic flow, the type is inferred from the `types` array returned by Google Places API (`backend/src/modules/places/service.ts`) using the keywords defined in `BUSINESS_TYPE_PLACE_KEYWORDS` (both in `backend/src/lib/businessType.ts` and `frontend/src/lib/business-type.ts`). Each niche has exactly 2 keywords; if any place type contains at least one of them, that niche is assigned. The mapping is ordered from most specific to most generic:
 
@@ -753,7 +722,7 @@ he activado" (`OnboardingState.forwardingConfirmedAt`). Its `status` also gates 
 
 | `forwarding.status` | When | UI |
 |---|---|---|
-| `waiting_number` | `twilioPhoneNumberStatus` is not `active`, or no number yet | Step shown but not actionable ("Disponible en cuanto tu número esté activo"). Telnyx takes a few minutes to approve a Spanish number, and the checklist copy redirects that wait to the other steps. |
+| `waiting_number` | `phoneNumberStatus` is not `active`, or no number yet | Step shown but not actionable ("Disponible en cuanto tu número esté activo"). Telnyx takes a few minutes to approve a Spanish number, and the checklist copy redirects that wait to the other steps. |
 | `ready` | Number active, no calls yet, not confirmed | Step is the highlighted action; `CallForwardingCard` on the dashboard shows the MMI codes with the real number substituted. |
 | `done` | First call received, or user confirmed | Step complete; the card disappears. |
 
@@ -924,13 +893,12 @@ Separate suite (`npm run test:integration`, config `backend/vitest.integration.c
 - `backend/.env.test` (gitignored) holds both connection strings. On this project's dev machine, Postgres is reachable at `localhost:5433`, not 5432 — a native Homebrew Postgres occupies 5432 on the host.
 - `backend/tests/integration/helpers/db.ts` exposes `resetDb()` (deletes in FK-safe order + `redis.flushdb()`) — call it in `beforeEach`.
 - Requires `docker compose --profile dev up -d` running; does not start Postgres/Redis itself.
-- Pattern for external APIs (Vapi/Retell/Stripe/Google/Microsoft): mock the adapter module boundary (e.g. `vi.mock("../../../src/modules/calendar/service.js", ...)`) rather than intercepting HTTP with MSW, when the external API isn't what the test is actually verifying.
+- Pattern for external APIs (Retell/Telnyx/Stripe/Google/Microsoft): mock the adapter module boundary (e.g. `vi.mock("../../../src/modules/calendar/service.js", ...)`) rather than intercepting HTTP with MSW, when the external API isn't what the test is actually verifying.
 
 ### Test Files
 
 | File | Coverage |
 |------|----------|
-| `backend/tests/adapters/vapi/webhookHandlers.test.ts` | Function call handlers, end-of-call report, status update |
 | `backend/tests/adapters/retell/webhookHandlers.test.ts` | `call_started`, `call_ended`, `call_analyzed` handlers |
 | `backend/tests/adapters/retell/RetellAdapter.test.ts` | Create/update/delete agents and LLMs, phone numbers, health check |
 | `backend/tests/lib/availability.test.ts` | Availability logic (hours, professionals, capacity, overlaps, busy professional detection) |
@@ -941,31 +909,24 @@ Separate suite (`npm run test:integration`, config `backend/vitest.integration.c
 | `backend/tests/modules/phone/service.test.ts` | Phone provisioning idempotency, async order polling/resume, partial failure handling, status retrieval |
 | `backend/tests/modules/calendar/service.test.ts` | Google/Outlook Calendar booking, upcoming events, sync tools to agents, invalid_grant detection, timeout/rate-limit classification |
 | `backend/tests/modules/voiceTools/service.test.ts` | `book_appointment` call-linking (callId vs. most-recent-call fallback) |
-| `backend/tests/adapters/twilio/TwilioAdapter.test.ts` | Search, purchase, release, fetch Twilio numbers (inactive provider, kept for historical businesses) |
 | `backend/tests/adapters/telnyx/TelnyxAdapter.test.ts` | Search, purchase (order), poll order, release, fetch Telnyx numbers |
 | `backend/tests/plugins/auth.test.ts` | Auth plugin (valid token, missing header, invalid token) |
-
-### E2E Scripts
-
-- `backend/scripts/e2e_book_appointment_after_fix.cjs` / `.js` — End-to-end test for `book_appointment` webhook handler. Tests 3 scenarios: success, invalid_grant (disconnects calendar), disconnected calendar.
 
 ## Security Checklist
 
 - **JWT_SECRET** is mandatory — the server refuses to start without it.
 - CORS is restricted to the exact `FRONTEND_URL` origin.
-- Rate limiting is active globally (100 req/min) and raised for Vapi and Retell webhooks (300 req/min). Places endpoints use 10/min.
-- Vapi webhook signatures are verified with HMAC-SHA256 timing-safe comparison (`VapiAdapter.validateWebhookSignature`, header `x-vapi-signature`, signs the raw body only — no timestamp, no prefix). Vapi's org-level webhook credential (Dashboard → Server URL → Authorization → Create Credential, type HMAC) must be configured to match exactly: Signature Header `x-vapi-signature` (not the default `x-signature`), **Include Timestamp off**, Payload Format `{body}` (not the default `{timestamp}.{body}`), Encoding Hex, Secret is Base64 off, Enable Encryption off. Getting any of these wrong makes signature validation fail silently for every webhook.
+- Rate limiting is active globally (100 req/min) and raised for Retell webhooks (300 req/min). Places endpoints use 10/min.
 - Retell webhook signatures are verified via `retellAdapter.validateWebhookSignature` using the Retell API key. This also applies to the Retell custom tool endpoints (`/webhooks/retell/tools/:retellAgentId/:toolName`).
 - Stripe webhook signatures are verified in the route handler before calling `handleStripeEvent` (route uses `rawBody: true`).
-- Raw body parsing is enabled only on the Vapi and Retell webhook routes to avoid memory overhead on regular routes.
+- Raw body parsing is enabled only on the Retell and Telnyx webhook routes to avoid memory overhead on regular routes.
 - Business-scoped queries must always filter by `request.user.businessId`. Do not accept a `businessId` from the body for reads/writes.
-- File uploads are limited to 10 MB via `@fastify/multipart`.
 - Never commit `.env` — it is listed in `.gitignore`.
 
 ### Implementation Notes
 
 - **`DELETE /recordings/:id`** es un borrado lógico: establece `deletedAt` y la oculta de las lecturas del negocio, sin borrar el objeto de R2/S3 ni la fila histórica. La purga física de audio debe quedar en una política de retención explícita, no en una acción de UI.
-- **`PATCH /business/me`** rebuilds the managed agent prompt and synchronizes it to every agent: Vapi agents in parallel via `Promise.all` (to avoid request timeouts), and Retell-backed businesses via `syncAgentToRetell` (see Retell Configuration). Before this, Retell-backed businesses (the only ones that matter in production — Vapi is inactive) never actually received prompt updates from this route; only Vapi did.
+- **`PATCH /business/me`** rebuilds the managed agent prompt and synchronizes it to every agent via `syncAgentToRetell` (see Retell Configuration).
 - **Onboarding flow:** `backend/src/modules/onboarding/routes.ts` exposes `GET /business/me/onboarding`, `POST /business/me/onboarding/dismiss` and `POST /business/me/onboarding/complete`. The `/agente` page consumes these endpoints to show/persist the setup guide state. Step completion is computed live from business data; only `dismissedAt`/`completedAt` are persisted.
 
 ## Common Tasks
@@ -1066,12 +1027,12 @@ fusionar o descartar una rama, quita su fila de esta tabla.
 - The `backend/Dockerfile` has 5 stages: `base`, `deps`, `builder`, `runtime`, `development`.
 - Production image runs `node dist/server.js` (compiled output).
 - Development image runs `npx tsx watch backend/src/server.ts` over a volume-mounted source tree.
-- Health check endpoint at `GET /health` probes Postgres, Redis, Vapi and (when `RETELL_API_KEY` is set) Retell. Returns `200` if all healthy, `503` if degraded.
+- Health check endpoint at `GET /health` probes Postgres, Redis and (when `RETELL_API_KEY` is set) Retell. Returns `200` if all healthy, `503` if degraded.
 
 ### Local development (Docker Compose)
 
 - `docker-compose.yml` uses profiles: `--profile dev` for local development with ngrok, `--profile prod` for a production-like runtime locally.
-- For Vapi/Retell webhooks to reach a local backend, use the `dev` profile, which includes an ngrok container. The backend auto-detects the ngrok URL on startup (`fetchAndSetNgrokUrl`) and uses it as the webhook server URL for both orchestrators. ngrok's free tier rotates its URL on every container restart — after a restart, both `backend-dev` needs to pick up the new URL (it's captured once at boot, not re-checked) **and** every agent/assistant that was already synced against the old URL needs re-syncing (see "Re-syncing webhook URLs" below), or their tool calls/webhooks silently go nowhere.
+- For Retell/Telnyx webhooks to reach a local backend, use the `dev` profile, which includes an ngrok container. The backend auto-detects the ngrok URL on startup (`fetchAndSetNgrokUrl`) and uses it as the webhook server URL for both orchestrators. ngrok's free tier rotates its URL on every container restart — after a restart, both `backend-dev` needs to pick up the new URL (it's captured once at boot, not re-checked) **and** every agent/assistant that was already synced against the old URL needs re-syncing (see "Re-syncing webhook URLs" below), or their tool calls/webhooks silently go nowhere.
 
 ### Production (Google Cloud Run)
 
@@ -1089,9 +1050,8 @@ Supporting infra:
 
 ### Re-syncing webhook URLs
 
-Vapi and Retell both register the webhook URL **per agent/assistant** via their own API when an agent is created or a business's calendar settings change — it is not something that updates itself when `BASE_URL` changes (e.g. moving from a local ngrok URL to `https://api.alhabla.ai`, or between two different ngrok sessions). An agent created before a `BASE_URL` change keeps calling the old URL until explicitly re-synced:
+Retell registers the webhook URL **per agent** via its own API when an agent is created or a business's calendar settings change — it is not something that updates itself when `BASE_URL` changes (e.g. moving from a local ngrok URL to `https://api.alhabla.ai`, or between two different ngrok sessions). An agent created before a `BASE_URL` change keeps calling the old URL until explicitly re-synced:
 
 - **Retell:** `calendarService.syncCalendarToolsToAgents(businessId)` (LLM tools) and `retellAdapter.updateAgent(agentId, { webhookUrl })` (call lifecycle events `call_started`/`call_ended`/`call_analyzed`) — these are two independent registrations, fixing one doesn't fix the other.
-- **Vapi:** `server.url` per assistant (`buildVapiCalendarTools`, pushed via `vapiAdapter.updateAssistant`), or the org-level "Server URL" fallback in Vapi's dashboard for assistants without their own override.
 
-Both can be verified independently of the app's own DB by querying the provider's API directly with the account's API key (`GET /get-agent/:id` / `GET /get-retell-llm/:id` for Retell, `GET /assistant` for Vapi) and checking the registered URL against what's actually live.
+This can be verified independently of the app's own DB by querying the provider's API directly with the account's API key (`GET /get-agent/:id` / `GET /get-retell-llm/:id`) and checking the registered URL against what's actually live.

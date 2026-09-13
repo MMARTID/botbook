@@ -162,7 +162,7 @@ async function createUserWithBusiness(input: {
 // esperarlo, puede quedarse sin CPU justo después de responder y dejar una
 // cuenta recién creada sin ningún agente (hallazgo #11 de la auditoría). Un
 // fallo aquí no debe impedir el registro en sí — createBusinessAgent ya
-// captura sus propios errores de Retell/Vapi internamente y siempre
+// captura sus propios errores de Retell internamente y siempre
 // devuelve el Agent (aunque sin retellAgentId/retellLlmId si falló la
 // sincronización externa), así que este catch es solo para errores
 // realmente inesperados (p. ej. el propio insert en Postgres).

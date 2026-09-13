@@ -354,18 +354,10 @@ describe("syncAgentToRetell — voiceGender", () => {
     );
   });
 
-  it("no toca Retell si el negocio no usa el orquestador retell", async () => {
-    mockedBusinessFindUnique.mockResolvedValue({
-      name: "Negocio Vapi",
-      businessDetails: null,
-      businessType: "other",
-      agentSettings: null,
-      orchestrator: "vapi",
-      minAdvanceBookingMinutes: null,
-      maxAppointmentDurationMinutes: null,
-    } as any);
+  it("no revienta si el negocio no existe", async () => {
+    mockedBusinessFindUnique.mockResolvedValue(null as any);
 
-    await syncAgentToRetell("biz_789");
+    await syncAgentToRetell("biz_inexistente");
 
     expect(mockedUpdateAgent).not.toHaveBeenCalled();
     expect(mockedAgentFindMany).not.toHaveBeenCalled();

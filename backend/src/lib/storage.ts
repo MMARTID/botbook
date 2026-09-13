@@ -57,7 +57,7 @@ export async function uploadRecording(
     // processRecording.ts) y falla con "Invalid value undefined for header
     // x-amz-decoded-content-length" — encontrado con una grabación real de
     // Telnyx el 2026-09-11 (primera vez que se sube una grabación suya; no
-    // se ha confirmado si Vapi/Retell exponen Content-Length de otra forma
+    // se ha confirmado si Retell expone Content-Length de otra forma
     // o si esta ruta llevaba tiempo rota sin que nadie lo notara).
     ContentLength: contentLength,
   });

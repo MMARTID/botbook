@@ -1,8 +1,4 @@
 import { prisma } from "./prisma.js";
-// VAPI: inactivo. Se mantiene el adaptador y esta rama de creación intactos
-// por si se retoma la expansión a Latinoamérica, pero ningún negocio nuevo
-// lo usa — detectVoiceOrchestrator() siempre devuelve "retell".
-import { vapiAdapter } from "../adapters/vapi/VapiAdapter.js";
 import {
   retellAdapter,
   type RetellEnumAnalysisField,
@@ -12,7 +8,6 @@ import {
   type RetellPiiCategory,
 } from "../adapters/retell/RetellAdapter.js";
 import { getPublicWebhookBaseUrl } from "./serverUrl.js";
-import type { VapiCreateAssistantRequest } from "../adapters/vapi/types.js";
 import {
   BUSINESS_TYPE_LABELS,
   isBusinessType,
@@ -383,7 +378,7 @@ export function resolveRetellVoiceProfile(settings: unknown): RetellVoiceProfile
 
 /**
  * Devuelve un nombre legible para el agente basado en el tipo de negocio.
- * Facilita identificarlo en el dashboard de Retell/Vapi mientras no haya API de carpetas.
+ * Facilita identificarlo en el dashboard de Retell mientras no haya API de carpetas.
  */
 export function buildAgentDisplayName(
   businessName: string,
@@ -454,7 +449,7 @@ export function buildAgentPersistencePayload(args: {
   };
 }
 
-export function buildSafeVapiAssistantName(name: string) {
+export function buildSafeAssistantName(name: string) {
   const normalized = name.trim().replace(/\s+/g, " ");
 
   if (normalized.length <= 40) {
@@ -480,108 +475,6 @@ export function buildSafeVapiAssistantName(name: string) {
   const hash = Buffer.from(normalized).toString("base64url").slice(0, 6);
   const prefix = normalized.slice(0, 33).trimEnd();
   return `${prefix}-${hash}`.slice(0, 40);
-}
-
-export function buildVapiAssistantPayload(input: {
-  name: string;
-  systemPrompt: string;
-  voiceId: string;
-  voiceProvider?: string;
-  voiceModel?: string;
-  llmProvider?: string;
-  llmModel: string;
-  llmTemperature?: number;
-  sttProvider?: string;
-  sttModel: string;
-  firstMessage?: string;
-  firstMessageMode?: "assistant-speaks-first" | "assistant-waits-for-user";
-  files?: string[];
-  integrations?: Record<string, any>;
-}) {
-  const voiceProvider = (input.voiceProvider || "vapi") as string;
-  const llmProvider = (input.llmProvider || "openai") as string;
-  const sttProvider = (input.sttProvider || "deepgram") as string;
-
-  const voice: {
-    provider: string;
-    voiceId: string;
-    model?: string;
-  } = {
-    provider: voiceProvider,
-    voiceId: input.voiceId,
-  };
-
-  if (input.voiceModel) {
-    voice.model = input.voiceModel;
-  } else if (voiceProvider === "hume") {
-    voice.model = "octave";
-  }
-
-  const model = {
-    provider: llmProvider,
-    model: input.llmModel,
-    messages: [{ role: "system" as const, content: input.systemPrompt }],
-    temperature: input.llmTemperature ?? 0.5,
-  };
-
-  const transcriber = {
-    provider: sttProvider,
-    model: input.sttModel,
-    language: "es",
-    confidenceThreshold: 0.4,
-    fallbackPlan: {
-      autoFallback: {
-        enabled: true,
-      },
-      transcribers: [
-        {
-          model: "nova-3",
-          language: "es",
-          provider: "deepgram",
-          confidenceThreshold: 0.3,
-        },
-      ],
-    },
-  };
-
-  const webhookUrl =
-    process.env.VAPI_WEBHOOK_URL ||
-    "https://9f03-83-46-8-136.ngrok-free.app/webhooks/vapi";
-
-  const assistantName = buildSafeVapiAssistantName(input.name);
-
-  const payload: VapiCreateAssistantRequest = {
-    name: assistantName,
-    backgroundSound: "office",
-    model,
-    voice,
-    transcriber,
-    firstMessage:
-      input.firstMessage || "Hola, soy tu asistente. ¿En qué puedo ayudarte?",
-    firstMessageMode: input.firstMessageMode || "assistant-speaks-first",
-    startSpeakingPlan: {
-      smartEndpointingPlan: {
-        provider: "vapi",
-      },
-    },
-    server: {
-      url: webhookUrl,
-      timeoutSeconds: 20,
-    },
-  };
-
-  if (input.files && input.files.length > 0) {
-    (payload as unknown as { files?: Array<{ url: string }> }).files =
-      input.files.map((url) => ({ url }));
-  }
-
-  if (input.integrations && Object.keys(input.integrations).length > 0) {
-    (
-      payload as unknown as { integrations?: Record<string, any> }
-    ).integrations = input.integrations;
-  }
-
-  return payload;
 }
 
 export function buildRetellLlmPayload(input: {
@@ -629,7 +522,7 @@ export function buildRetellAgentPayload(input: {
   languages?: AgentSettings["languages"];
 }) {
   return {
-    name: buildSafeVapiAssistantName(input.name),
+    name: buildSafeAssistantName(input.name),
     voiceId: input.voiceId ?? DEFAULT_RETELL_AGENT_CONFIG.voiceId,
     llmId: input.llmId,
     language: toRetellLanguageSetting(
@@ -825,39 +718,6 @@ export async function createBusinessAgent(args: {
     return agent;
   }
 
-  try {
-    const assistantPayload = buildVapiAssistantPayload({
-      name: config.name,
-      systemPrompt: config.systemPrompt,
-      voiceId: config.voiceId,
-      voiceProvider: config.voiceProvider,
-      voiceModel: config.voiceModel,
-      llmProvider: config.llmProvider,
-      llmModel: config.llmModel,
-      llmTemperature: config.llmTemperature,
-      sttProvider: config.sttProvider,
-      sttModel: config.sttModel,
-      firstMessage: config.firstMessage,
-      firstMessageMode: config.firstMessageMode,
-    });
-
-    const vapiAssistant = await vapiAdapter.createAssistant(assistantPayload);
-
-    const syncedAgent = await client.agent.update({
-      where: { id: agent.id },
-      data: { vapiAssistantId: vapiAssistant.id },
-    });
-
-    return syncedAgent;
-  } catch (error) {
-    console.error("[Agent] Failed to sync to Vapi:", {
-      agentId: agent.id,
-      businessId: args.businessId,
-      message: error instanceof Error ? error.message : String(error),
-      stack: error instanceof Error ? error.stack : undefined,
-    });
-  }
-
   return agent;
 }
 
@@ -915,21 +775,6 @@ export async function syncAgentNameWithBusinessType(args: {
       });
     }
   }
-
-  if (business.orchestrator === "vapi" && agent.vapiAssistantId) {
-    try {
-      await vapiAdapter.updateAssistant(agent.vapiAssistantId, {
-        name: buildSafeVapiAssistantName(displayName),
-      });
-    } catch (error) {
-      console.error("[Agent] Failed to update Vapi assistant name:", {
-        agentId: agent.id,
-        vapiAssistantId: agent.vapiAssistantId,
-        businessId: args.businessId,
-        message: error instanceof Error ? error.message : String(error),
-      });
-    }
-  }
 }
 
 /**
@@ -966,11 +811,8 @@ export async function syncAgentToRetell(
 
   // Retell es siempre el fallback caliente (plan Telnyx-orquestador §6), sin
   // depender de cuál sea el primary — se sincroniza tanto si orchestrator es
-  // "retell" como "telnyx". Solo se descarta "vapi" (inactivo): esos
-  // negocios no tienen retellAgentId, así que el filtro de abajo ya no
-  // encontraría ningún agente de todos modos, pero el corte explícito evita
-  // la consulta y dos llamadas mockeadas de más en los tests existentes.
-  if (!business || business.orchestrator === "vapi") return;
+  // "retell" como "telnyx".
+  if (!business) return;
 
   const agents = await prismaClient.agent.findMany({
     where: {

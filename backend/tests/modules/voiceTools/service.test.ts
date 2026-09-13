@@ -143,7 +143,7 @@ describe("executeVoiceTool book_appointment — vinculación a la llamada correc
 
     expect(result.result.success).toBe(true);
     expect(mockedCallFindUnique).toHaveBeenCalledWith({
-      where: { vapiCallId: "call_vapi_OLD" },
+      where: { callId: "call_vapi_OLD" },
       select: { id: true, fromNumber: true },
     });
     expect(mockedCallFindFirst).not.toHaveBeenCalled();

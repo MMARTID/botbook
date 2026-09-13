@@ -3,14 +3,12 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import { z } from "zod";
 import { prisma } from "../../lib/prisma.js";
-import { vapiAdapter } from "../../adapters/vapi/VapiAdapter.js";
 import {
-  VAPI_LLM_PROVIDERS,
-  VAPI_STT_PROVIDERS,
-  VAPI_VOICE_PROVIDERS,
-} from "../../config/vapi.js";
+  LLM_PROVIDERS,
+  STT_PROVIDERS,
+  VOICE_PROVIDERS,
+} from "../../config/voiceAgent.js";
 import {
-  buildVapiAssistantPayload,
   buildRetellLlmPayload,
   buildRetellAgentPayload,
   buildPostCallAnalysisDataForBusiness,
@@ -23,13 +21,7 @@ import { parseAgentSettings } from "../../lib/managedAgentPrompt.js";
 import { retellAdapter } from "../../adapters/retell/RetellAdapter.js";
 import { getPublicWebhookBaseUrl } from "../../lib/serverUrl.js";
 
-// Extraemos los tipos literales de las listas de configuración
-type VoiceProvider = (typeof VAPI_VOICE_PROVIDERS)[number];
 type VoiceId = string;
-type LlmProvider = (typeof VAPI_LLM_PROVIDERS)[number];
-type LlmModel = string;
-type SttProvider = (typeof VAPI_STT_PROVIDERS)[number];
-type SttModel = string;
 
 const CreateAgentSchema = z.object({
   name: z.string().min(1).optional(),
@@ -39,21 +31,20 @@ const UpdateAgentSchema = z.object({
   name: z.string().optional(),
   voice: z.string().optional(),
   voiceId: z.string().optional(),
-  voiceProvider: z.enum(VAPI_VOICE_PROVIDERS).optional(),
+  voiceProvider: z.enum(VOICE_PROVIDERS).optional(),
   voiceModel: z.string().optional(),
   language: z.string().optional(),
   systemPrompt: z.string().optional(),
-  llmProvider: z.enum(VAPI_LLM_PROVIDERS).optional(),
+  llmProvider: z.enum(LLM_PROVIDERS).optional(),
   llmModel: z.string().optional(),
   llmTemperature: z.number().min(0).max(2).optional(),
-  sttProvider: z.enum(VAPI_STT_PROVIDERS).optional(),
+  sttProvider: z.enum(STT_PROVIDERS).optional(),
   sttModel: z.string().optional(),
   active: z.boolean().optional(),
   firstMessage: z.string().optional(),
   firstMessageMode: z
     .enum(["assistant-speaks-first", "assistant-waits-for-user"])
     .optional(),
-  files: z.array(z.string()).optional(),
   integrations: z.record(z.any()).optional(),
 });
 
@@ -207,21 +198,6 @@ export async function agentsRoutes(fastify: FastifyInstance) {
           orchestrator === "retell" && catalanEnabled
             ? retellVoiceProfile.voiceProvider
             : data.voiceProvider;
-        const llmProvider = (data.llmProvider ||
-          agentWithConfig.llmProvider ||
-          "groq") as LlmProvider;
-        const llmModel = (data.llmModel ||
-          agentWithConfig.llmModel ||
-          "openai/gpt-oss-20b") as LlmModel;
-        const llmTemperature =
-          data.llmTemperature ?? agentWithConfig.llmTemperature ?? 0.3;
-        const sttProvider = (data.sttProvider ||
-          agentWithConfig.sttProvider ||
-          "deepgram") as SttProvider;
-        const sttModel = (data.sttModel ||
-          agentWithConfig.sttModel ||
-          "nova-2") as SttModel;
-
         const agentUpdateData = {
           ...(data.name !== undefined ? { name: data.name } : {}),
           ...(data.voiceId !== undefined || data.voice !== undefined
@@ -346,42 +322,6 @@ export async function agentsRoutes(fastify: FastifyInstance) {
               console.error(
                 "[Agent] Failed to sync update to Retell:",
                 retellError
-              );
-            }
-          } else if (agent.vapiAssistantId) {
-            try {
-              await vapiAdapter.updateAssistant(
-                agent.vapiAssistantId,
-                buildVapiAssistantPayload({
-                  name: data.name || agent.name,
-                  systemPrompt: data.systemPrompt || agent.systemPrompt,
-                  voiceId,
-                  voiceProvider: (data.voiceProvider ||
-                    agentWithConfig.voiceProvider ||
-                    "cartesia") as VoiceProvider,
-                  voiceModel:
-                    data.voiceModel || agentWithConfig.voiceModel || undefined,
-                  llmProvider,
-                  llmModel,
-                  llmTemperature,
-                  sttProvider,
-                  sttModel,
-                  firstMessage:
-                    data.firstMessage ??
-                    agentWithConfig.firstMessage ??
-                    undefined,
-                  firstMessageMode: (data.firstMessageMode ??
-                    agentWithConfig.firstMessageMode ??
-                    undefined) as
-                    | "assistant-speaks-first"
-                    | "assistant-waits-for-user"
-                    | undefined,
-                })
-              );
-            } catch (vapiError) {
-              console.error(
-                "[Agent] Failed to sync update to Vapi:",
-                vapiError
               );
             }
           }

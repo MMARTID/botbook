@@ -17,7 +17,7 @@ const mockedRecordingFindFirst = vi.mocked(prisma.recording.findFirst);
 const mockedRecordingUpdate = vi.mocked(prisma.recording.update);
 const mockedUploadRecording = vi.mocked(uploadRecording);
 
-const payload = { callId: "call_1", vapiUrl: "https://vapi.example/rec.mp3", businessId: "biz_1" };
+const payload = { callId: "call_1", externalUrl: "https://vapi.example/rec.mp3", businessId: "biz_1" };
 
 describe("processRecordingJob", () => {
   beforeEach(() => {
@@ -96,7 +96,7 @@ describe("processRecordingJob", () => {
     );
   });
 
-  it("lanza si la descarga desde Vapi falla", async () => {
+  it("lanza si la descarga de la grabación falla", async () => {
     mockedCallFindUnique.mockResolvedValue({ id: "call_1" } as any);
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(null, { status: 404, statusText: "Not Found" })));
 

@@ -228,7 +228,7 @@ export async function handleCallStarted(
     // obtener el lock de la fila y nunca revive una llamada terminal.
     const updated = await prisma.call.updateMany({
       where: {
-        vapiCallId: call_id,
+        callId: call_id,
         status: { notIn: [...TERMINAL_CALL_STATUSES] },
       },
       data: { status: "IN_PROGRESS" },
@@ -238,7 +238,7 @@ export async function handleCallStarted(
       try {
         await prisma.call.create({
           data: {
-            vapiCallId: call_id,
+            callId: call_id,
             businessId,
             agentId: agent?.id || null,
             fromNumber: from_number || null,
@@ -289,7 +289,7 @@ export async function handleCallEnded(
 
   try {
     const dbCall = await prisma.call.findUnique({
-      where: { vapiCallId: call_id },
+      where: { callId: call_id },
       include: { business: true, agent: true },
     });
 
@@ -329,9 +329,9 @@ export async function handleCallEnded(
 
     const result = await prisma.$transaction(async (tx) => {
       const updatedCall = await tx.call.upsert({
-        where: { vapiCallId: call_id },
+        where: { callId: call_id },
         create: {
-          vapiCallId: call_id,
+          callId: call_id,
           businessId: businessId!,
           agentId: agentId || null,
           status: finalStatus,
@@ -368,10 +368,10 @@ export async function handleCallEnded(
           where: { callId: updatedCall.id },
           create: {
             callId: updatedCall.id,
-            vapiUrl: data.recording_url,
+            externalUrl: data.recording_url,
           },
           update: {
-            vapiUrl: data.recording_url,
+            externalUrl: data.recording_url,
           },
         });
       }
@@ -384,7 +384,7 @@ export async function handleCallEnded(
         await enqueueRecordingJob(
           {
             callId: result.id,
-            vapiUrl: data.recording_url,
+            externalUrl: data.recording_url,
             businessId: result.businessId,
           },
           `process-recording-${result.id}`
@@ -438,7 +438,7 @@ export async function handleCallAnalyzed(
 
   try {
     let dbCall = await prisma.call.findUnique({
-      where: { vapiCallId: call_id },
+      where: { callId: call_id },
       select: { id: true, businessId: true },
     });
 
@@ -463,7 +463,7 @@ export async function handleCallAnalyzed(
       });
       dbCall = await prisma.call.create({
         data: {
-          vapiCallId: call_id,
+          callId: call_id,
           businessId,
           agentId: agent?.id || null,
           status: "COMPLETED",
@@ -513,10 +513,10 @@ export async function handleCallAnalyzed(
           where: { callId: dbCall.id },
           create: {
             callId: dbCall.id,
-            vapiUrl: data.recording_url,
+            externalUrl: data.recording_url,
           },
           update: {
-            vapiUrl: data.recording_url,
+            externalUrl: data.recording_url,
           },
         });
       }

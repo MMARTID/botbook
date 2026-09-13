@@ -193,17 +193,9 @@ export type CalendarListResponse = {
   calendars: CalendarListItem[];
 };
 
-export type FileAttachment = {
-  id: string;
-  name: string;
-  url?: string;
-  pending?: boolean;
-};
-
 export type Agent = {
   id: string;
   businessId: string;
-  vapiAssistantId: string | null;
   name: string;
   voice: string;
   language: string;
@@ -212,7 +204,6 @@ export type Agent = {
   active: boolean;
   createdAt: string;
   updatedAt: string;
-  files?: FileAttachment[];
   calls?: Call[];
 };
 
@@ -233,7 +224,7 @@ export type Transcript = {
 export type Recording = {
   id: string;
   callId: string;
-  vapiUrl: string;
+  externalUrl: string;
   storageKey: string | null;
   storageUrl: string | null;
   reviewed: boolean;
@@ -276,7 +267,7 @@ export type Call = {
   business?: Business;
   agentId: string | null;
   agent?: Agent | null;
-  vapiCallId: string;
+  callId: string;
   fromNumber: string | null;
   status: CallStatus;
   outcome: CallOutcome | null;
@@ -434,5 +425,4 @@ export type PhoneNumberInfo = {
   sid: string | null;
   purchasedAt: string | null;
   status: PhoneNumberStatus | null;
-  vapiPhoneNumberId: string | null;
 };

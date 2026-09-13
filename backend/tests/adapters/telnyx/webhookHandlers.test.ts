@@ -115,9 +115,9 @@ describe("handleCallInitiated", () => {
     expect(result).toEqual({ success: true });
     expect(mockedCallUpsert).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { vapiCallId: "call_ctrl_1" },
+        where: { callId: "call_ctrl_1" },
         create: expect.objectContaining({
-          vapiCallId: "call_ctrl_1",
+          callId: "call_ctrl_1",
           voiceProvider: "telnyx",
           providerCallId: "call_ctrl_1",
           businessId: "biz1",
@@ -394,13 +394,13 @@ describe("handleCallRecordingSaved", () => {
     expect(mockedRecordingUpsert).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { callId: "call_db_1" },
-        create: { callId: "call_db_1", vapiUrl: "https://example.com/a.mp3" },
+        create: { callId: "call_db_1", externalUrl: "https://example.com/a.mp3" },
       })
     );
     expect(mockedEnqueueRecordingJob).toHaveBeenCalledWith(
       {
         callId: "call_db_1",
-        vapiUrl: "https://example.com/a.mp3",
+        externalUrl: "https://example.com/a.mp3",
         businessId: "biz1",
       },
       "process-recording-call_db_1"
@@ -612,7 +612,7 @@ describe("handleTelnyxToolInvocation", () => {
     });
 
     expect(mockedCallFindUnique).toHaveBeenCalledWith({
-      where: { vapiCallId: "call_ctrl_1" },
+      where: { callId: "call_ctrl_1" },
       select: { businessId: true },
     });
     expect(mockedExecuteVoiceTool).toHaveBeenCalledWith({

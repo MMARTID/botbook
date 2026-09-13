@@ -10,8 +10,6 @@ import { deleteStorageObject } from "../../lib/storage.js";
 import { retellAdapter } from "../../adapters/retell/RetellAdapter.js";
 import { telnyxAdapter } from "../../adapters/telnyx/TelnyxAdapter.js";
 import { telnyxAiAdapter } from "../../adapters/telnyx/TelnyxAiAdapter.js";
-import { twilioAdapter } from "../../adapters/twilio/TwilioAdapter.js";
-import { vapiAdapter } from "../../adapters/vapi/VapiAdapter.js";
 
 export class AccountActionError extends Error {
   constructor(
@@ -140,12 +138,9 @@ export async function deleteAccount(input: {
       stripeSubscriptionId: true,
       telnyxPhoneNumber: true,
       telnyxPhoneNumberId: true,
-      twilioPhoneNumberSid: true,
-      vapiPhoneNumberId: true,
       retellPhoneNumberId: true,
       agents: {
         select: {
-          vapiAssistantId: true,
           retellAgentId: true,
           retellLlmId: true,
           telnyxAssistantId: true,
@@ -172,11 +167,6 @@ export async function deleteAccount(input: {
       retellAdapter.deletePhoneNumber(business.retellPhoneNumberId!),
     );
   }
-  if (business.vapiPhoneNumberId) {
-    await removeExternalResource("el número de Vapi", () =>
-      vapiAdapter.deletePhoneNumber(business.vapiPhoneNumberId!),
-    );
-  }
   let telnyxPhoneNumberId = business.telnyxPhoneNumberId;
   if (business.telnyxPhoneNumber) {
     try {
@@ -195,12 +185,6 @@ export async function deleteAccount(input: {
       telnyxAdapter.releaseNumber(telnyxPhoneNumberId!),
     );
   }
-  if (business.twilioPhoneNumberSid) {
-    await removeExternalResource("el número histórico de Twilio", () =>
-      twilioAdapter.releaseNumber(business.twilioPhoneNumberSid!),
-    );
-  }
-
   for (const agent of business.agents) {
     if (agent.telnyxAssistantId) {
       await removeExternalResource("el agente de Telnyx", () =>
@@ -215,11 +199,6 @@ export async function deleteAccount(input: {
     if (agent.retellLlmId) {
       await removeExternalResource("la configuración de Retell", () =>
         retellAdapter.deleteLlm(agent.retellLlmId!),
-      );
-    }
-    if (agent.vapiAssistantId) {
-      await removeExternalResource("el agente histórico de Vapi", () =>
-        vapiAdapter.deleteAssistant(agent.vapiAssistantId!),
       );
     }
   }

@@ -16,11 +16,7 @@ model Business {
   plan            String   @default("basic")
   active          Boolean  @default(true)
   bookingCapacity Int      @default(1)
-  twilioPhoneNumber            String?   @unique
-  twilioPhoneNumberSid         String?   @unique
-  twilioPhoneNumberPurchasedAt DateTime?
-  twilioPhoneNumberStatus      String?   @default("pending")
-  vapiPhoneNumberId            String?   @unique
+  phoneNumberStatus            String?   @default("pending")
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
   agents          Agent[]
@@ -34,7 +30,6 @@ model Business {
 model Agent {
   id               String   @id @default(cuid())
   businessId       String
-  vapiAssistantId  String?
   name             String
   voice            String   @default("Octave")
   language         String   @default("es")
@@ -53,7 +48,6 @@ model Agent {
   voiceId          String   @default("6b530c02-5a80-4e60-bb68-f2c171c5029f")
   voiceModel       String?  @default("octave")
   voiceProvider    String   @default("hume")
-  files            Json?
   integrations     Json?
   business         Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
   calls            Call[]
@@ -107,7 +101,7 @@ model Call {
   id           String       @id @default(cuid())
   businessId   String
   agentId      String?
-  vapiCallId   String       @unique
+  callId       String       @unique
   status       CallStatus   @default(IN_PROGRESS)
   outcome      CallOutcome?
   durationSecs Int?
@@ -126,7 +120,7 @@ model Call {
 
   @@index([businessId])
   @@index([agentId])
-  @@index([vapiCallId])
+  @@index([callId])
   @@map("calls")
 }
 
@@ -167,7 +161,7 @@ model Transcript {
 model Recording {
   id          String   @id @default(cuid())
   callId      String   @unique
-  vapiUrl     String
+  externalUrl String
   storageKey  String?
   storageUrl  String?
   reviewed    Boolean  @default(false)

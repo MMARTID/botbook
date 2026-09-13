@@ -6,7 +6,6 @@ import {
 import { prisma } from "../../../src/lib/prisma.js";
 import { telnyxAdapter } from "../../../src/adapters/telnyx/TelnyxAdapter.js";
 import { retellAdapter } from "../../../src/adapters/retell/RetellAdapter.js";
-import { vapiAdapter } from "../../../src/adapters/vapi/VapiAdapter.js";
 
 vi.mock("../../../src/lib/prisma.js", () => ({
   prisma: {
@@ -29,12 +28,6 @@ vi.mock("../../../src/adapters/telnyx/TelnyxAdapter.js", () => ({
 vi.mock("../../../src/adapters/retell/RetellAdapter.js", () => ({
   retellAdapter: {
     importPhoneNumber: vi.fn(),
-  },
-}));
-
-vi.mock("../../../src/adapters/vapi/VapiAdapter.js", () => ({
-  vapiAdapter: {
-    createPhoneNumber: vi.fn(),
   },
 }));
 
@@ -62,12 +55,10 @@ const mockedPurchaseNumber = vi.mocked(telnyxAdapter.purchaseNumber);
 const mockedGetNumberOrder = vi.mocked(telnyxAdapter.getNumberOrder);
 const mockedGetNumberByPhoneNumber = vi.mocked(telnyxAdapter.getNumberByPhoneNumber);
 const mockedImportPhoneNumber = vi.mocked(retellAdapter.importPhoneNumber);
-const mockedCreatePhoneNumber = vi.mocked(vapiAdapter.createPhoneNumber);
 
 const businessId = "biz_123";
 const agentId = "agent_123";
 const retellAgentId = "retell_agent_123";
-const vapiAssistantId = "vapi_assistant_123";
 
 describe("provisionPhoneNumber", () => {
   beforeEach(() => {
@@ -100,9 +91,8 @@ describe("provisionPhoneNumber", () => {
   it("returns existing active number without purchasing again", async () => {
     mockedBusinessFindUnique.mockResolvedValue({
       id: businessId,
-      twilioPhoneNumberStatus: "active",
+      phoneNumberStatus: "active",
       telnyxPhoneNumber: "+34886020712",
-      twilioPhoneNumber: null,
       orchestrator: "retell",
       agents: [],
     } as any);
@@ -119,7 +109,7 @@ describe("provisionPhoneNumber", () => {
     mockedBusinessFindUnique.mockResolvedValue({
       id: businessId,
       name: "Peluquería Test",
-      twilioPhoneNumberStatus: "pending",
+      phoneNumberStatus: "pending",
       telnyxPhoneNumber: null,
       telnyxNumberOrderId: null,
       orchestrator: "retell",
@@ -160,7 +150,7 @@ describe("provisionPhoneNumber", () => {
     );
     expect(mockedBusinessUpdate).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: expect.objectContaining({ twilioPhoneNumberStatus: "active" }),
+        data: expect.objectContaining({ phoneNumberStatus: "active" }),
       })
     );
   });
@@ -169,7 +159,7 @@ describe("provisionPhoneNumber", () => {
     mockedBusinessFindUnique.mockResolvedValue({
       id: businessId,
       name: "Peluquería Test",
-      twilioPhoneNumberStatus: "pending",
+      phoneNumberStatus: "pending",
       telnyxPhoneNumber: null,
       telnyxNumberOrderId: null,
       orchestrator: "retell",
@@ -211,7 +201,7 @@ describe("provisionPhoneNumber", () => {
     mockedBusinessFindUnique.mockResolvedValue({
       id: businessId,
       name: "Peluquería Test",
-      twilioPhoneNumberStatus: "pending",
+      phoneNumberStatus: "pending",
       telnyxPhoneNumber: null,
       telnyxNumberOrderId: null,
       orchestrator: "retell",
@@ -247,7 +237,7 @@ describe("provisionPhoneNumber", () => {
     mockedBusinessFindUnique.mockResolvedValue({
       id: businessId,
       name: "Peluquería Telnyx-primary",
-      twilioPhoneNumberStatus: "pending",
+      phoneNumberStatus: "pending",
       telnyxPhoneNumber: null,
       telnyxNumberOrderId: null,
       orchestrator: "telnyx",
@@ -294,7 +284,7 @@ describe("provisionPhoneNumber", () => {
     mockedBusinessFindUnique.mockResolvedValue({
       id: businessId,
       name: "Peluquería Test",
-      twilioPhoneNumberStatus: "pending",
+      phoneNumberStatus: "pending",
       telnyxPhoneNumber: null,
       orchestrator: "retell",
       agents: [],
@@ -312,7 +302,7 @@ describe("provisionPhoneNumber", () => {
     mockedBusinessFindUnique.mockResolvedValue({
       id: businessId,
       name: "Peluquería Test",
-      twilioPhoneNumberStatus: "pending",
+      phoneNumberStatus: "pending",
       telnyxPhoneNumber: null,
       orchestrator: "retell",
       agents: [],
@@ -339,7 +329,7 @@ describe("provisionPhoneNumber", () => {
     mockedBusinessFindUnique.mockResolvedValue({
       id: businessId,
       name: "Peluquería Test",
-      twilioPhoneNumberStatus: "pending",
+      phoneNumberStatus: "pending",
       telnyxPhoneNumber: null,
       orchestrator: "retell",
       agents: [],
@@ -353,7 +343,7 @@ describe("provisionPhoneNumber", () => {
     expect(result.status).toBe("failed");
     expect(mockedBusinessUpdate).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: expect.objectContaining({ twilioPhoneNumberStatus: "failed" }),
+        data: expect.objectContaining({ phoneNumberStatus: "failed" }),
       })
     );
   });
@@ -362,7 +352,7 @@ describe("provisionPhoneNumber", () => {
     mockedBusinessFindUnique.mockResolvedValue({
       id: businessId,
       name: "Peluquería Test",
-      twilioPhoneNumberStatus: "pending",
+      phoneNumberStatus: "pending",
       telnyxPhoneNumber: null,
       orchestrator: "retell",
       agents: [],
@@ -380,7 +370,7 @@ describe("provisionPhoneNumber", () => {
     mockedBusinessFindUnique.mockResolvedValue({
       id: businessId,
       name: "Peluquería Test",
-      twilioPhoneNumberStatus: "pending",
+      phoneNumberStatus: "pending",
       telnyxPhoneNumber: null,
       orchestrator: "retell",
       agents: [],
@@ -407,7 +397,7 @@ describe("provisionPhoneNumber", () => {
     mockedBusinessFindUnique.mockResolvedValue({
       id: businessId,
       name: "Peluquería Test",
-      twilioPhoneNumberStatus: "pending",
+      phoneNumberStatus: "pending",
       telnyxPhoneNumber: null,
       orchestrator: "retell",
       agents: [],
@@ -445,7 +435,7 @@ describe("provisionPhoneNumber", () => {
     mockedBusinessFindUnique.mockResolvedValue({
       id: businessId,
       name: "Peluquería Test",
-      twilioPhoneNumberStatus: "pending",
+      phoneNumberStatus: "pending",
       telnyxPhoneNumber: null,
       telnyxNumberOrderId: "order_456",
       orchestrator: "retell",
@@ -478,7 +468,7 @@ describe("provisionPhoneNumber", () => {
     mockedBusinessFindUnique.mockResolvedValue({
       id: businessId,
       name: "Peluquería Test",
-      twilioPhoneNumberStatus: "pending",
+      phoneNumberStatus: "pending",
       telnyxPhoneNumber: null,
       telnyxNumberOrderId: null,
       orchestrator: "retell",
@@ -502,16 +492,14 @@ describe("provisionPhoneNumber", () => {
     mockedBusinessFindUnique
       .mockResolvedValueOnce({
         id: businessId,
-        twilioPhoneNumberStatus: "pending",
+        phoneNumberStatus: "pending",
         telnyxPhoneNumber: null,
-        twilioPhoneNumber: null,
       } as any)
       .mockResolvedValueOnce({
         id: businessId,
         name: "Peluquería Test",
-        twilioPhoneNumberStatus: "active",
+        phoneNumberStatus: "active",
         telnyxPhoneNumber: "+34886020712",
-        twilioPhoneNumber: null,
         telnyxNumberOrderId: null,
         orchestrator: "retell",
         agents: [],
@@ -539,7 +527,7 @@ describe("provisionPhoneNumber", () => {
     mockedBusinessFindUnique.mockResolvedValue({
       id: businessId,
       name: "Peluquería Test",
-      twilioPhoneNumberStatus: "pending",
+      phoneNumberStatus: "pending",
       telnyxPhoneNumber: null,
       telnyxNumberOrderId: "order_dead",
       orchestrator: "retell",
@@ -571,7 +559,7 @@ describe("provisionPhoneNumber", () => {
     mockedBusinessFindUnique.mockResolvedValue({
       id: businessId,
       name: "Peluquería Test",
-      twilioPhoneNumberStatus: "pending",
+      phoneNumberStatus: "pending",
       telnyxPhoneNumber: null,
       orchestrator: "retell",
       agents: [],
@@ -604,11 +592,7 @@ describe("getPhoneNumberStatus", () => {
       telnyxPhoneNumber: "+34886020712",
       telnyxPhoneNumberId: "pn_123",
       telnyxPhoneNumberPurchasedAt: new Date("2024-01-01"),
-      twilioPhoneNumber: null,
-      twilioPhoneNumberSid: null,
-      twilioPhoneNumberPurchasedAt: null,
-      twilioPhoneNumberStatus: "active",
-      vapiPhoneNumberId: null,
+      phoneNumberStatus: "active",
       retellPhoneNumberId: null,
       orchestrator: "retell",
     } as any);
@@ -621,30 +605,8 @@ describe("getPhoneNumberStatus", () => {
       purchasedAt: expect.any(Date),
       status: "active",
       orchestrator: "retell",
-      vapiPhoneNumberId: null,
       retellPhoneNumberId: null,
     });
-  });
-
-  it("cae en los campos de Twilio para negocios antiguos sin número de Telnyx", async () => {
-    mockedBusinessFindUnique.mockResolvedValue({
-      id: businessId,
-      telnyxPhoneNumber: null,
-      telnyxPhoneNumberId: null,
-      telnyxPhoneNumberPurchasedAt: null,
-      twilioPhoneNumber: "+34910000001",
-      twilioPhoneNumberSid: "PN123",
-      twilioPhoneNumberPurchasedAt: new Date("2024-01-01"),
-      twilioPhoneNumberStatus: "active",
-      vapiPhoneNumberId: null,
-      retellPhoneNumberId: "phone_123",
-      orchestrator: "vapi",
-    } as any);
-
-    const result = await getPhoneNumberStatus(businessId);
-
-    expect(result?.phoneNumber).toBe("+34910000001");
-    expect(result?.sid).toBe("PN123");
   });
 
   it("returns null when business is not found", async () => {

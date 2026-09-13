@@ -121,7 +121,7 @@ export interface ExecuteVoiceToolInput {
   toolName: VoiceToolName | string;
   params: Record<string, unknown>;
   callLabel?: string;
-  /** ID de llamada del proveedor de voz (vapiCallId), para vincular reservas a la llamada exacta. */
+  /** ID de llamada del proveedor de voz (callId), para vincular reservas a la llamada exacta. */
   callId?: string;
 }
 
@@ -537,7 +537,7 @@ async function resolveCallForBusiness(
 ): Promise<{ id: string; fromNumber: string | null } | null> {
   const exactCall = callId
     ? await prisma.call.findUnique({
-        where: { vapiCallId: callId },
+        where: { callId },
         select: { id: true, fromNumber: true },
       })
     : null;

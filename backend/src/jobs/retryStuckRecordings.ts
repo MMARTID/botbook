@@ -36,7 +36,7 @@ export async function retryStuckRecordingsJob(): Promise<void> {
     select: {
       id: true,
       callId: true,
-      vapiUrl: true,
+      externalUrl: true,
       call: { select: { businessId: true } },
     },
     take: MAX_RECORDINGS_PER_RUN,
@@ -64,7 +64,7 @@ export async function retryStuckRecordingsJob(): Promise<void> {
       // genera uno propio y no hay colisión.
       await enqueueRecordingJob({
         callId: recording.callId,
-        vapiUrl: recording.vapiUrl,
+        externalUrl: recording.externalUrl,
         businessId: recording.call.businessId,
       });
       succeeded++;

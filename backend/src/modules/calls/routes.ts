@@ -15,7 +15,7 @@ const PaginationSchema = z.object({
  * reproducirse en cuanto la grabación ya estaba copiada a R2 (hallazgo #15
  * de la auditoría) — mismo patrón que recordings/routes.ts. Si falla la
  * firma, cae a null en vez de romper la respuesta: el frontend ya sabe usar
- * vapiUrl (Retell) como alternativa.
+ * externalUrl como alternativa.
  */
 async function withSignedRecordingUrl<
   T extends {

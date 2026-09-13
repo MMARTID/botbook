@@ -39,7 +39,7 @@ export async function createTestCall(
   return prisma.call.create({
     data: {
       businessId,
-      vapiCallId: `call_${randomUUID()}`,
+      callId: `call_${randomUUID()}`,
       status: "IN_PROGRESS",
       ...overrides,
     },

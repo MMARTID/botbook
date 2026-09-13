@@ -29,12 +29,6 @@ vi.mock("../../../src/adapters/telnyx/TelnyxAdapter.js", () => ({
 vi.mock("../../../src/adapters/telnyx/TelnyxAiAdapter.js", () => ({
   telnyxAiAdapter: { deleteAssistant: vi.fn() },
 }));
-vi.mock("../../../src/adapters/twilio/TwilioAdapter.js", () => ({
-  twilioAdapter: { releaseNumber: vi.fn() },
-}));
-vi.mock("../../../src/adapters/vapi/VapiAdapter.js", () => ({
-  vapiAdapter: { deletePhoneNumber: vi.fn(), deleteAssistant: vi.fn() },
-}));
 vi.mock("bcryptjs", () => ({
   default: { compare: vi.fn(), hash: vi.fn() },
   compare: vi.fn(),
@@ -123,8 +117,6 @@ describe("accountService", () => {
       name: "Peluquería Norte",
       stripeSubscriptionId: "sub_123",
       telnyxPhoneNumberId: null,
-      twilioPhoneNumberSid: null,
-      vapiPhoneNumberId: null,
       retellPhoneNumberId: null,
       agents: [],
       calls: [],

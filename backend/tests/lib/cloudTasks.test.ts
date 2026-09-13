@@ -30,7 +30,7 @@ vi.mock("../../src/jobs/sendSms.js", () => ({ processSendSmsJob: mockProcessSend
 
 const ORIGINAL_ENV = { ...process.env };
 
-const recordingPayload = { callId: "call_1", vapiUrl: "https://vapi.example/rec.mp3", businessId: "biz_1" };
+const recordingPayload = { callId: "call_1", externalUrl: "https://vapi.example/rec.mp3", businessId: "biz_1" };
 const bookingPayload = { leadId: "lead_1" };
 const smsPayload = { fromNumber: "+34911222333", toNumber: "+34600111222", text: "Cita confirmada" };
 const emailPayload = {

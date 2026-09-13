@@ -1,16 +1,16 @@
 # Alhabla
 
-Alhabla es una plataforma SaaS multi-tenant que proporciona recepcionistas de voz con IA para pequeños negocios en España (peluquerías, barberías, clínicas de fisioterapia, centros de estética, etc.). Cada negocio dispone de uno o más agentes de voz construidos sobre Vapi o Retell.ai. Las cuentas europeas usan Retell por defecto para cumplir RGPD.
+Alhabla es una plataforma SaaS multi-tenant que proporciona recepcionistas de voz con IA para pequeños negocios en España (peluquerías, barberías, clínicas de fisioterapia, centros de estética, etc.). Cada negocio dispone de uno o más agentes de voz construidos sobre Retell.ai.
 
 ## Características principales
 
-- **Agentes de voz multilingües** (español por defecto) con detección automática del orquestador (Vapi/Retell) según el país.
+- **Agentes de voz multilingües** (español por defecto).
 - **Personalización por tipo de negocio**: el prompt del agente incluye instrucciones propias de cada nicho y un catálogo en vivo de servicios/empleados del negocio, para que nunca invente datos ni IDs.
 - **Reservas en calendario** (Google Calendar y Outlook) mediante herramientas de voz, con reintento automático en segundo plano si el calendario falla durante la llamada.
 - **Detección de tipo de negocio** desde Google Places API para personalizar agentes y servicios.
 - **Flujo de registro guiado** con Google Places, selección de servicios, equipo y conexión de calendario.
 - **Facturación con Stripe** y provisioning automático de números Telnyx tras la suscripción.
-- **Webhooks seguros** con validación HMAC-SHA256 (Vapi) y firma Retell (incluyendo endpoints de herramientas).
+- **Webhooks seguros** con firma Retell (incluyendo endpoints de herramientas).
 
 ## Stack tecnológico
 
@@ -21,16 +21,16 @@ Alhabla es una plataforma SaaS multi-tenant que proporciona recepcionistas de vo
 | Base de datos | PostgreSQL 15 + Prisma |
 | Caché | Redis 7 |
 | Colas | Cloud Tasks / Cloud Scheduler (jobs HTTP internos, sin BullMQ) |
-| Voice AI | Vapi + Retell.ai |
+| Voice AI | Retell.ai |
 | Almacenamiento | Cloudflare R2 (S3) |
-| Telefonía | Telnyx (Twilio inactivo) |
+| Telefonía | Telnyx |
 | Pagos | Stripe |
 
 ## Requisitos
 
 - Node.js 20+
 - Docker y Docker Compose
-- Cuentas y claves de API: Vapi, Retell, Google Cloud (Calendar + Places), Microsoft Azure (Outlook), Stripe, Twilio, Anthropic, Cloudflare R2
+- Cuentas y claves de API: Retell, Telnyx, Google Cloud (Calendar + Places), Microsoft Azure (Outlook), Stripe, Anthropic, Cloudflare R2
 
 ## Puesta en marcha rápida
 
@@ -123,7 +123,7 @@ graph TD
 
     SM[[Secret Manager]]
     R2[(Cloudflare R2<br/>grabaciones, bucket privado)]
-    EXT[Vapi · Retell · Stripe<br/>Telnyx · Google · Microsoft]
+    EXT[Retell · Stripe<br/>Telnyx · Google · Microsoft]
 
     CR_API -->|socket Unix| SQL
     CR_API -->|caché| REDIS
@@ -143,7 +143,7 @@ graph TD
 │   │   ├── server.ts       # Fastify entry point (rutas + endpoints internos de jobs vía Cloud Tasks)
 │   │   ├── plugins/        # auth, CORS, rate-limit, multipart
 │   │   ├── modules/        # módulos de rutas por dominio
-│   │   ├── adapters/       # Vapi, Retell, Twilio (inactivo), Telnyx
+│   │   ├── adapters/       # Retell, Telnyx
 │   │   ├── lib/            # utilidades compartidas
 │   │   ├── jobs/           # lógica de jobs en segundo plano (sin framework, invocados vía Cloud Tasks/Scheduler)
 │   │   └── config/         # constantes
@@ -169,7 +169,6 @@ graph TD
 ## Seguridad
 
 - JWT firmado con `JWT_SECRET` (obligatorio).
-- Webhooks Vapi con HMAC-SHA256 (`x-vapi-signature`).
 - Webhooks Retell con firma validada (`x-retell-signature`), incluyendo herramientas personalizadas.
 - Webhooks Stripe con firma verificada.
 - Rate limiting global (100 req/min) y elevado en webhooks (300 req/min).

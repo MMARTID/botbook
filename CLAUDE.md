@@ -6,8 +6,8 @@ Los agentes de voz atienden llamadas, consultan horario y disponibilidad, y rese
 en el calendario de Google u Outlook del negocio.
 
 Backend Fastify 5 + Prisma/PostgreSQL + Redis. Frontend Next.js 14 App Router
-(puerto 3001) con Tailwind 3 y TanStack Query. Voz vía Vapi y Retell.ai, telefonía Telnyx
-(Twilio inactivo — no vende números de España en autoservicio), pagos Stripe.
+(puerto 3001) con Tailwind 3 y TanStack Query. Voz vía Retell.ai, telefonía Telnyx, pagos
+Stripe.
 
 **Producción** (desde 2026-09-01): backend en Google Cloud Run, **un solo servicio**,
 `alhabla-api` (`https://api.alhabla.ai`, tráfico público). Los jobs en segundo plano (antes
@@ -25,12 +25,11 @@ encendido. Frontend en Vercel. Detalle completo, IDs de recursos y comandos real
 - **Aislamiento multi-tenant:** toda consulta con ámbito de negocio se filtra por
   `request.user.businessId` del token JWT. Nunca aceptes un `businessId` del body para
   lecturas ni escrituras.
-- **Los adaptadores son la única vía a las APIs de voz.** Vapi pasa por
-  `backend/src/adapters/vapi/VapiAdapter.ts` y Retell por
-  `backend/src/adapters/retell/RetellAdapter.ts`. Jamás llames a esas APIs desde un route
+- **Los adaptadores son la única vía a las APIs de voz.** Retell pasa por
+  `backend/src/adapters/retell/RetellAdapter.ts`. Jamás llames a esa API desde un route
   handler.
-- **No toques la verificación de firmas de webhooks** (HMAC-SHA256 de Vapi, firma de Retell
-  incluida en `/webhooks/retell/tools/:toolName`, firma de Stripe con `rawBody: true`).
+- **No toques la verificación de firmas de webhooks** (firma de Retell incluida en
+  `/webhooks/retell/tools/:toolName`, firma de Stripe con `rawBody: true`).
 - **Nunca commitees `.env`.** En la raíz hay `.env`, `.env.bak` y `.env.google` con
   credenciales reales; están en `.gitignore`. `docker-compose.yml` vive en la raíz y lee
   ese `.env` (build context de `backend`/`backend-dev` es `./backend`).
@@ -96,10 +95,10 @@ backend/
 │   ├── server.ts     # entry Fastify: registra rutas + endpoints internos de jobs (Cloud Tasks)
 │   ├── plugins/      # auth, CORS, rate-limit, multipart, internalAuth (OIDC de Cloud Tasks)
 │   ├── modules/      # rutas por dominio (agents, auth, billing, bookings, businesses,
-│   │                 #   calendar, calls, demo, files, internal, onboarding, phone, places,
+│   │                 #   calendar, calls, demo, internal, onboarding, phone, places,
 │   │                 #   recordings, voiceTools) — cada uno con routes.ts
-│   ├── adapters/     # Vapi, Retell, Twilio (inactivo), Telnyx
-│   ├── lib/          # prisma, redis, cloudTasks, storage, stripe, twilio, availability,
+│   ├── adapters/     # Retell, Telnyx
+│   ├── lib/          # prisma, redis, cloudTasks, storage, stripe, availability,
 │   │                 #   zohoMail, emailTemplates, businessSchedule, agentBootstrap, managedAgentPrompt
 │   └── jobs/         # lógica de los jobs (sin framework): processRecording, retryFailedBooking,
 │                     #   sendEmail, cleanupZombieCalls — invocados vía Cloud Tasks/Scheduler en
@@ -113,7 +112,7 @@ frontend/src/{app,components,lib,hooks}/
 ## Documentación
 
 - `AGENTS.md` — referencia técnica completa (43 KB): modelos Prisma, flujos de webhooks,
-  facturación Stripe, integración de calendarios, catálogo de configuración de Vapi/Retell.
+  facturación Stripe, integración de calendarios, catálogo de configuración de Retell.
   Consúltalo cuando trabajes sobre un subsistema concreto.
 - `.claude-context.md` — resumen de producto, audiencia, tono de marca y problemas
   UI/UX conocidos.

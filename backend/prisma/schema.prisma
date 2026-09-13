@@ -73,15 +73,9 @@ model Business {
   // real con uno obsoleto.
   subscriptionEventCreatedAt      DateTime?
 
-  // Twilio Phone Number — inactivo desde la migración a Telnyx (Twilio no
-  // vende números de España en autoservicio), se mantiene por negocios
-  // antiguos. twilioPhoneNumberStatus sigue siendo el único campo de estado
-  // del ciclo de vida del número, lo escriba Twilio o Telnyx.
-  twilioPhoneNumber            String?   @unique
-  twilioPhoneNumberSid         String?   @unique
-  twilioPhoneNumberPurchasedAt DateTime?
-  twilioPhoneNumberStatus      String?   @default("pending")
-  vapiPhoneNumberId            String?   @unique
+  // Estado del ciclo de vida del número de teléfono, independiente de qué
+  // proveedor lo gestione (hoy solo Telnyx).
+  phoneNumberStatus            String?   @default("pending")
 
   // Telnyx Phone Number — proveedor activo para la compra de números de
   // España. telnyxNumberOrderId se persiste nada más crear el pedido
@@ -206,7 +200,6 @@ model User {
 model Agent {
   id               String   @id @default(cuid())
   businessId       String
-  vapiAssistantId  String?
   retellAgentId    String?  @unique
   retellLlmId      String?
   name             String
@@ -227,7 +220,6 @@ model Agent {
   voiceId          String   @default("538a8872-3799-4df5-b373-b78493b766c6")
   voiceModel       String?  @default("sonic-3.5")
   voiceProvider    String   @default("cartesia")
-  files            Json?
   integrations     Json?
   // true una vez que PATCH /agents/:id edita systemPrompt a mano — a partir
   // de ahí syncAgentToRetell debe dejar de reconstruir y sobrescribir el
@@ -255,7 +247,6 @@ model Agent {
 
   @@index([businessId])
   @@index([businessId, deletedAt])
-  @@index([vapiAssistantId])
   @@index([retellAgentId])
   @@map("agents")
 }
@@ -318,7 +309,7 @@ model Call {
   id           String       @id @default(cuid())
   businessId   String
   agentId      String?
-  vapiCallId   String       @unique
+  callId       String       @unique
   fromNumber   String?
   status       CallStatus   @default(IN_PROGRESS)
   outcome      CallOutcome?
@@ -336,7 +327,7 @@ model Call {
   requestedService String?
   durationSecs Int?
   costCents    Int?
-  // Proveedor real que atendió la llamada y su ID nativo. vapiCallId se
+  // Proveedor real que atendió la llamada y su ID nativo. callId se
   // mantiene poblado en paralelo por compatibilidad (índices, joins ya
   // existentes en el resto del esquema) hasta migrarlo por completo a estos
   // campos genéricos — ver PLAN-TELNYX-ORQUESTADOR.md § "Cambios de datos".
@@ -368,7 +359,7 @@ model Call {
   @@unique([voiceProvider, providerCallId])
   @@index([businessId])
   @@index([agentId])
-  @@index([vapiCallId])
+  @@index([callId])
   @@map("calls")
 }
 
@@ -462,7 +453,7 @@ model Transcript {
 model Recording {
   id          String   @id @default(cuid())
   callId      String   @unique
-  vapiUrl     String
+  externalUrl String
   storageKey  String?
   storageUrl  String?
   reviewed    Boolean  @default(false)

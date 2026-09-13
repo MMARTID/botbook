@@ -1,6 +1,5 @@
 import { prisma } from "../../lib/prisma.js";
 import { telnyxAdapter } from "../../adapters/telnyx/TelnyxAdapter.js";
-import { vapiAdapter } from "../../adapters/vapi/VapiAdapter.js";
 import { retellAdapter } from "../../adapters/retell/RetellAdapter.js";
 import { getPublicWebhookBaseUrl } from "../../lib/serverUrl.js";
 import { getRedis } from "../../lib/redis.js";
@@ -16,7 +15,7 @@ const PROVISION_LOCK_TTL_SECONDS = 60;
 
 export type PhoneNumberStatus = "pending" | "purchased" | "active" | "failed";
 
-const DEFAULT_COUNTRY = process.env.TWILIO_PHONE_NUMBER_COUNTRY || "ES";
+const DEFAULT_COUNTRY = process.env.PHONE_NUMBER_COUNTRY || "ES";
 
 const ORDER_POLL_ATTEMPTS = 5;
 const ORDER_POLL_DELAY_MS = 2000;
@@ -51,9 +50,8 @@ export async function provisionPhoneNumber(businessId: string): Promise<{
   const initialBusiness = await prisma.business.findUnique({
     where: { id: businessId },
     select: {
-      twilioPhoneNumberStatus: true,
+      phoneNumberStatus: true,
       telnyxPhoneNumber: true,
-      twilioPhoneNumber: true,
     },
   });
 
@@ -62,15 +60,12 @@ export async function provisionPhoneNumber(businessId: string): Promise<{
   }
 
   const isAlreadyActive =
-    initialBusiness.twilioPhoneNumberStatus === "active" &&
-    (initialBusiness.telnyxPhoneNumber || initialBusiness.twilioPhoneNumber);
+    initialBusiness.phoneNumberStatus === "active" &&
+    initialBusiness.telnyxPhoneNumber;
   if (isAlreadyActive) {
     return {
       success: true,
-      phoneNumber:
-        initialBusiness.telnyxPhoneNumber ||
-        initialBusiness.twilioPhoneNumber ||
-        undefined,
+      phoneNumber: initialBusiness.telnyxPhoneNumber || undefined,
       status: "active",
     };
   }
@@ -102,20 +97,15 @@ export async function provisionPhoneNumber(businessId: string): Promise<{
     const currentBusiness = await prisma.business.findUnique({
       where: { id: businessId },
       select: {
-        twilioPhoneNumberStatus: true,
+        phoneNumberStatus: true,
         telnyxPhoneNumber: true,
-        twilioPhoneNumber: true,
       },
     });
     return {
-      success: currentBusiness?.twilioPhoneNumberStatus === "active",
-      phoneNumber:
-        currentBusiness?.telnyxPhoneNumber ||
-        currentBusiness?.twilioPhoneNumber ||
-        undefined,
+      success: currentBusiness?.phoneNumberStatus === "active",
+      phoneNumber: currentBusiness?.telnyxPhoneNumber || undefined,
       status:
-        (currentBusiness?.twilioPhoneNumberStatus as PhoneNumberStatus) ||
-        "pending",
+        (currentBusiness?.phoneNumberStatus as PhoneNumberStatus) || "pending",
     };
   }
 
@@ -138,15 +128,11 @@ export async function provisionPhoneNumber(businessId: string): Promise<{
     return { success: false, status: "failed", error: "Business not found" };
   }
 
-  if (
-    business.twilioPhoneNumberStatus === "active" &&
-    (business.telnyxPhoneNumber || business.twilioPhoneNumber)
-  ) {
+  if (business.phoneNumberStatus === "active" && business.telnyxPhoneNumber) {
     await releaseLock(lockKey, lockToken);
     return {
       success: true,
-      phoneNumber:
-        business.telnyxPhoneNumber || business.twilioPhoneNumber || undefined,
+      phoneNumber: business.telnyxPhoneNumber || undefined,
       status: "active",
     };
   }
@@ -160,7 +146,7 @@ export async function provisionPhoneNumber(businessId: string): Promise<{
     // confuso.
     if (DEFAULT_COUNTRY !== "ES") {
       throw new Error(
-        `Solo se soportan números de España (ES) por ahora; TWILIO_PHONE_NUMBER_COUNTRY está en "${DEFAULT_COUNTRY}"`
+        `Solo se soportan números de España (ES) por ahora; PHONE_NUMBER_COUNTRY está en "${DEFAULT_COUNTRY}"`
       );
     }
 
@@ -247,7 +233,7 @@ export async function provisionPhoneNumber(businessId: string): Promise<{
 
     if (order.status === "failure") {
       // Limpiar telnyxNumberOrderId aquí, no solo dejar que el catch de más
-      // abajo marque twilioPhoneNumberStatus como "failed" — sin esto, un
+      // abajo marque phoneNumberStatus como "failed" — sin esto, un
       // pedido rechazado definitivamente por Telnyx (no una revisión
       // "pending", un fallo real) se queda enlazado para siempre: el
       // siguiente intento de "reintentar" reanuda ESE MISMO pedido muerto en
@@ -275,7 +261,7 @@ export async function provisionPhoneNumber(businessId: string): Promise<{
           // #17) — se corrige con el valor autoritativo cuando el pedido
           // llegue a "success" más abajo.
           telnyxPhoneNumberId: order.phoneNumberId,
-          twilioPhoneNumberStatus: "pending",
+          phoneNumberStatus: "pending",
         },
       });
 
@@ -335,7 +321,7 @@ export async function provisionPhoneNumber(businessId: string): Promise<{
         telnyxPhoneNumber: order.phoneNumber,
         telnyxPhoneNumberId: resolvedPhoneNumberId,
         telnyxPhoneNumberPurchasedAt: new Date(),
-        twilioPhoneNumberStatus: "purchased",
+        phoneNumberStatus: "purchased",
       },
     });
 
@@ -409,7 +395,7 @@ export async function provisionPhoneNumber(businessId: string): Promise<{
       await prisma.business.update({
         where: { id: businessId },
         data: {
-          twilioPhoneNumberStatus: "active",
+          phoneNumberStatus: "active",
           retellPhoneNumber: retellPhone.phone_number,
           retellPhoneNumberId:
             retellPhone.phone_number_id || retellPhone.phone_number,
@@ -429,56 +415,10 @@ export async function provisionPhoneNumber(businessId: string): Promise<{
       };
     }
 
-    // Default: Vapi orchestrator. VAPI está inactivo — ningún negocio nuevo
-    // cae aquí (detectVoiceOrchestrator siempre devuelve "retell"). Se
-    // mantiene por compatibilidad histórica, pero asume un número comprado
-    // en Twilio (twilioAccountSid/twilioAuthToken); no aplica a números
-    // comprados en Telnyx.
-    if (!agent?.vapiAssistantId) {
-      console.warn(
-        `[Phone] Business ${businessId} has no active agent with vapiAssistantId. Number purchased but not linked in Vapi.`
-      );
-      return {
-        success: true,
-        phoneNumber: order.phoneNumber,
-        status: "purchased",
-      };
-    }
-
-    const twilioAccountSid = process.env.TWILIO_ACCOUNT_SID;
-    const twilioAuthToken = process.env.TWILIO_AUTH_TOKEN;
-
-    if (!twilioAccountSid || !twilioAuthToken) {
-      throw new Error(
-        "Twilio credentials (TWILIO_ACCOUNT_SID / TWILIO_AUTH_TOKEN) are required to link the number in Vapi"
-      );
-    }
-
-    const vapiPhone = await vapiAdapter.createPhoneNumber({
-      provider: "twilio",
-      number: order.phoneNumber,
-      twilioAccountSid,
-      twilioAuthToken,
-      assistantId: agent.vapiAssistantId,
-      name: business.name,
-    });
-
-    await prisma.business.update({
-      where: { id: businessId },
-      data: {
-        twilioPhoneNumberStatus: "active",
-        vapiPhoneNumberId: vapiPhone.id,
-      },
-    });
-
-    console.log(
-      `[Phone] Number ${order.phoneNumber} active for business ${businessId} (Vapi ID: ${vapiPhone.id})`
-    );
-
     return {
       success: true,
       phoneNumber: order.phoneNumber,
-      status: "active",
+      status: "purchased",
     };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -490,7 +430,7 @@ export async function provisionPhoneNumber(businessId: string): Promise<{
     await prisma.business.update({
       where: { id: businessId },
       data: {
-        twilioPhoneNumberStatus: "failed",
+        phoneNumberStatus: "failed",
       },
     });
 
@@ -507,14 +447,10 @@ export async function getPhoneNumberStatus(businessId: string) {
   const business = await prisma.business.findUnique({
     where: { id: businessId },
     select: {
-      twilioPhoneNumber: true,
-      twilioPhoneNumberSid: true,
-      twilioPhoneNumberPurchasedAt: true,
-      twilioPhoneNumberStatus: true,
+      phoneNumberStatus: true,
       telnyxPhoneNumber: true,
       telnyxPhoneNumberId: true,
       telnyxPhoneNumberPurchasedAt: true,
-      vapiPhoneNumberId: true,
       retellPhoneNumberId: true,
       orchestrator: true,
     },
@@ -525,14 +461,11 @@ export async function getPhoneNumberStatus(businessId: string) {
   }
 
   return {
-    phoneNumber: business.telnyxPhoneNumber || business.twilioPhoneNumber,
-    sid: business.telnyxPhoneNumberId || business.twilioPhoneNumberSid,
-    purchasedAt:
-      business.telnyxPhoneNumberPurchasedAt ||
-      business.twilioPhoneNumberPurchasedAt,
-    status: business.twilioPhoneNumberStatus,
+    phoneNumber: business.telnyxPhoneNumber,
+    sid: business.telnyxPhoneNumberId,
+    purchasedAt: business.telnyxPhoneNumberPurchasedAt,
+    status: business.phoneNumberStatus,
     orchestrator: business.orchestrator || "retell",
-    vapiPhoneNumberId: business.vapiPhoneNumberId,
     retellPhoneNumberId: business.retellPhoneNumberId,
   };
 }

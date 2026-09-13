@@ -1,7 +1,11 @@
-// src/config/vapi.ts
+// src/config/voiceAgent.ts
+//
+// Catálogo genérico de proveedores/modelos de voz, LLM y STT para el modelo
+// Agent — usado por PATCH /agents/:id para validar y tipar los campos
+// voiceProvider/llmProvider/sttProvider, independientemente del orquestador
+// (Retell/Telnyx) que use el negocio.
 
-export const VAPI_VOICE_PROVIDERS = [
-  "vapi",
+export const VOICE_PROVIDERS = [
   "11labs",
   "hume",
   "azure",
@@ -12,14 +16,9 @@ export const VAPI_VOICE_PROVIDERS = [
   "custom",
 ] as const;
 
-export const VAPI_LLM_PROVIDERS = [
-  "openai",
-  "anthropic",
-  "custom",
-  "groq",
-] as const;
+export const LLM_PROVIDERS = ["openai", "anthropic", "custom", "groq"] as const;
 
-export const VAPI_LLM_MODELS = [
+export const LLM_MODELS = [
   "gpt-4-turbo-preview",
   "gpt-4o",
   "gpt-4o-mini",
@@ -33,7 +32,7 @@ export const VAPI_LLM_MODELS = [
   "openai/gpt-oss-120b",
 ] as const;
 
-export const VAPI_STT_PROVIDERS = [
+export const STT_PROVIDERS = [
   "deepgram",
   "assembly-ai",
   "azure",
@@ -43,10 +42,9 @@ export const VAPI_STT_PROVIDERS = [
   "talkscriber",
 ] as const;
 
-export const VAPI_STT_MODELS = [
+export const STT_MODELS = [
   "nova-2",
   "nova-2-phonecall",
   "flux-general-en",
   "whisper-1",
 ] as const;
-
