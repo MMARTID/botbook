@@ -15,6 +15,15 @@ export const RETELL_AGENT_LANGUAGES = [
 
 export type RetellAgentLanguage = (typeof RETELL_AGENT_LANGUAGES)[number];
 
+/**
+ * Idiomas con voz Telnyx Ultra curada (ver TELNYX_VOICE_CATALOG en
+ * telnyxEligibility.ts). Catalán queda fuera: Telnyx no es elegible con
+ * catalán activo (matriz de idiomas de la Fase 0, sin pasar todavía).
+ */
+export const VOICE_LANGUAGES = ["es-ES", "en-GB", "fr-FR"] as const;
+
+export type VoiceLanguage = (typeof VOICE_LANGUAGES)[number];
+
 const AgentLanguagesSchema = z
   .array(z.enum(RETELL_AGENT_LANGUAGES))
   .min(1)
@@ -37,20 +46,37 @@ const AgentLanguagesSchema = z
     RETELL_AGENT_LANGUAGES.filter((language) => languages.includes(language))
   );
 
-export const AgentSettingsSchema = z.object({
-  version: z.literal(1),
-  tone: z.enum(["warm", "professional", "direct"]),
-  primaryGoal: z.enum(["bookings", "customer_service", "lead_capture"]),
-  responseStyle: z.enum(["concise", "balanced"]),
-  escalation: z.enum(["take_message", "request_callback"]),
-  // .default() para que los agentSettings ya guardados de negocios existentes
-  // (sin este campo) sigan validando y no caigan al fallback completo de
-  // DEFAULT_AGENT_SETTINGS, que resetearía también tono/objetivo/etc.
-  voiceGender: z.enum(["femenina", "masculina"]).default("femenina"),
-  // Igual que voiceGender, los negocios anteriores a esta mejora no tienen
-  // languages. El default conserva el comportamiento histórico: español.
-  languages: AgentLanguagesSchema.default(["es-ES"]),
-});
+export const AgentSettingsSchema = z
+  .object({
+    version: z.literal(1),
+    tone: z.enum(["warm", "professional", "direct"]),
+    primaryGoal: z.enum(["bookings", "customer_service", "lead_capture"]),
+    responseStyle: z.enum(["concise", "balanced"]),
+    escalation: z.enum(["take_message", "request_callback"]),
+    // .default() para que los agentSettings ya guardados de negocios existentes
+    // (sin este campo) sigan validando y no caigan al fallback completo de
+    // DEFAULT_AGENT_SETTINGS, que resetearía también tono/objetivo/etc.
+    voiceGender: z.enum(["femenina", "masculina"]).default("femenina"),
+    // Igual que voiceGender, los negocios anteriores a esta mejora no tienen
+    // languages. El default conserva el comportamiento histórico: español.
+    languages: AgentLanguagesSchema.default(["es-ES"]),
+    // Idioma real de la voz (TTS), independiente de `languages` (qué entiende
+    // el agente): el asistente solo puede tener UNA voz, así que hace falta
+    // un campo separado en vez de derivarlo de la lista de idiomas activados
+    // — decisión explícita del usuario 2026-09-14. Español por defecto para
+    // no cambiar el comportamiento de ningún negocio existente.
+    voiceLanguage: z.enum(VOICE_LANGUAGES).default("es-ES"),
+  })
+  .superRefine((settings, ctx) => {
+    if (!settings.languages.includes(settings.voiceLanguage)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message:
+          "El idioma de la voz debe estar entre los idiomas de atención activados.",
+        path: ["voiceLanguage"],
+      });
+    }
+  });
 
 export type AgentSettings = z.infer<typeof AgentSettingsSchema>;
 
@@ -62,6 +88,7 @@ export const DEFAULT_AGENT_SETTINGS: AgentSettings = {
   escalation: "take_message",
   voiceGender: "femenina",
   languages: ["es-ES"],
+  voiceLanguage: "es-ES",
 };
 
 /** Retell normaliza un array de un solo idioma a un escalar. Enviarlo así
@@ -188,8 +215,10 @@ export function buildManagedAgentPrompt(input: {
     "No inventes precios, servicios, disponibilidad, profesionales ni políticas. Si falta información verificada, dilo y escala.",
     "## Reserva",
     "Recoge solo lo que falte: servicio, fecha, hora, preferencia de profesional y nombre. No pidas correo. Para el teléfono usa {{user_number}} si está disponible; pide otro solo si lo prefiere.",
+    "La duración del servicio es un dato interno de get_catalog, no algo que el cliente elige: no le preguntes qué duración quiere. Menciónasela solo si supera los 80 minutos (para que sepa que es una cita larga) o si el cliente pregunta explícitamente cuánto dura.",
+    "No pidas confirmaciones sueltas de datos individuales (nombre, servicio, profesional...) mientras completas la reserva. La única confirmación explícita es el resumen final de abajo, junto con la pregunta de WhatsApp.",
     buildRestrictionsFragment(input),
-    "Paso obligatorio en toda reserva, antes del resumen final: pregunta explícitamente '¿puedo enviarte la confirmación y un recordatorio por SMS a este número?'. No lo omitas aunque el cliente no lo mencione. Usa la respuesta para smsConsent en book_appointment: true solo si acepta con claridad, false en cualquier otro caso (dice que no, duda, o no contesta a esto). Si dice que no, no insistas y sigue con la reserva.",
+    "Paso obligatorio en toda reserva, antes del resumen final: pregunta explícitamente '¿puedo enviarte la confirmación y un recordatorio por WhatsApp a este número?'. No lo omitas aunque el cliente no lo mencione. Usa la respuesta para smsConsent en book_appointment: true solo si acepta con claridad, false en cualquier otro caso (dice que no, duda, o no contesta a esto). Si dice que no, no insistas y sigue con la reserva.",
     "Antes de reservar, resume servicio, día, hora y nombre y pide confirmación explícita.",
     "## Cita existente",
     "Si quien llama pide cambiar o cancelar una cita que ya tiene, usa find_my_appointment (sin argumentos, identifica por el número desde el que llama) antes de pedir datos manualmente. Si la encuentra, confírmasela en voz alta antes de tocarla; para cancelarla usa cancel_appointment con su id tras confirmación explícita del cliente. Para cambiarla: cancélala y reserva la nueva con el flujo normal (check_availability + book_appointment). Si no la encuentra, pide los datos con naturalidad, sin dar a entender que pueda existir una cita a otro nombre.",

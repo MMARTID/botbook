@@ -1,5 +1,5 @@
 import { telnyxAiAdapter } from "../adapters/telnyx/TelnyxAiAdapter.js";
-import type { AgentSettings } from "./managedAgentPrompt.js";
+import type { AgentSettings, VoiceLanguage } from "./managedAgentPrompt.js";
 
 export interface TelnyxEligibility {
   eligible: boolean;
@@ -15,22 +15,31 @@ const TELNYX_VOICE_GENDER: Record<AgentSettings["voiceGender"], string> = {
 };
 
 /**
- * Idioma principal usado hoy para elegir voz — es el único que
- * `AgentLanguagesSchema` obliga a tener siempre activo (managedAgentPrompt.ts).
- * La mezcla ES↔EN/FR de un negocio multilingüe es responsabilidad de la
- * matriz de idiomas de la Fase 0, no de esta elección de voz.
+ * Voces Telnyx Ultra elegidas a mano por idioma/género (decisión explícita
+ * del usuario 2026-09-14: "todas la voz ultra de telnyx" para es/en/fr) en
+ * vez de dejar que se resuelva la primera disponible por orden de API —
+ * "Blanca - Graceful Host" (es-ES/femenina) ya estaba en uso desde
+ * 2026-09-12, el resto son nuevas. Nombres elegidos por tono profesional y
+ * cercano, coherente entre los tres idiomas. Se sigue verificando contra
+ * `listVoices()` antes de usarlas — si la cuenta deja de tener alguna
+ * disponible, cae al primer match por idioma/género como red de seguridad.
  */
-const PRIMARY_LANGUAGE = "es-ES";
-
-/**
- * Voz elegida a mano por el usuario en vez de dejar que se resuelva la
- * primera disponible (decisión explícita 2026-09-12: "Blanca - Graceful
- * Host", es-ES, Ultra). Se sigue verificando contra `listVoices()` antes de
- * usarla — si la cuenta deja de tenerla disponible, cae al primer match
- * como antes, nunca se asume sin comprobar.
- */
-const PREFERRED_VOICE_ID: Partial<Record<AgentSettings["voiceGender"], string>> = {
-  femenina: "Telnyx.Ultra.538a8872-3799-4df5-b373-b78493b766c6",
+const TELNYX_VOICE_CATALOG: Record<
+  VoiceLanguage,
+  Record<AgentSettings["voiceGender"], string>
+> = {
+  "es-ES": {
+    femenina: "Telnyx.Ultra.538a8872-3799-4df5-b373-b78493b766c6", // Blanca - Graceful Host
+    masculina: "Telnyx.Ultra.13ff5deb-2591-42ad-a356-63a04e524411", // Marcos - Steady Advisor
+  },
+  "en-GB": {
+    femenina: "Telnyx.Ultra.2f251ac3-89a9-4a77-a452-704b474ccd01", // Lucy - Capable Coordinator
+    masculina: "Telnyx.Ultra.4bc3cb8c-adb9-4bb8-b5d5-cbbef950b991", // George - Composed Consultant
+  },
+  "fr-FR": {
+    femenina: "Telnyx.Ultra.c96a7d7d-3457-4979-8665-522f7b3e36fb", // Léa - Logical Liaison
+    masculina: "Telnyx.Ultra.7345dfa5-ee04-44d2-abf4-29262b880ab4", // Laurent - Dependable Anchor
+  },
 };
 
 /**
@@ -40,20 +49,20 @@ const PREFERRED_VOICE_ID: Partial<Record<AgentSettings["voiceGender"], string>> 
  * en Telnyx".
  */
 export async function resolveTelnyxVoiceId(
-  language: string,
+  voiceLanguage: VoiceLanguage,
   voiceGender: AgentSettings["voiceGender"]
 ): Promise<string | null> {
   const voices = await telnyxAiAdapter.listVoices();
   const targetGender = TELNYX_VOICE_GENDER[voiceGender];
 
-  const preferredId = PREFERRED_VOICE_ID[voiceGender];
-  if (preferredId && voices.some((voice) => voice.id === preferredId)) {
+  const preferredId = TELNYX_VOICE_CATALOG[voiceLanguage][voiceGender];
+  if (voices.some((voice) => voice.id === preferredId)) {
     return preferredId;
   }
 
   const match = voices.find(
     (voice) =>
-      (voice.language ?? "").toLowerCase() === language.toLowerCase() &&
+      (voice.language ?? "").toLowerCase() === voiceLanguage.toLowerCase() &&
       (voice.gender ?? "").toLowerCase() === targetGender
   );
   return match?.id ?? null;
@@ -81,14 +90,14 @@ export async function resolveTelnyxEligibility(
 
   try {
     const voiceId = await resolveTelnyxVoiceId(
-      PRIMARY_LANGUAGE,
+      settings.voiceLanguage,
       settings.voiceGender
     );
     if (!voiceId) {
       return {
         eligible: false,
         status: "ineligible",
-        reason: `Sin voz Telnyx compatible con ${PRIMARY_LANGUAGE}/${settings.voiceGender} en la cuenta.`,
+        reason: `Sin voz Telnyx compatible con ${settings.voiceLanguage}/${settings.voiceGender} en la cuenta.`,
         voiceId: null,
       };
     }

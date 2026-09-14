@@ -90,7 +90,7 @@ export const BUSINESS_TYPE_ONBOARDING_TEXTS: Record<
   peluqueria: {
     services: {
       heading: "¿Qué servicios ofrece tu peluquería?",
-      subheading: "Selecciona los cortes, tintes y tratamientos que sueles reservar por teléfono. Los marcamos todos por defecto; quita los que no apliquen.",
+      subheading: "Marca los cortes, tintes y tratamientos que sí ofreces, para que el agente pueda reservarlos por teléfono. Elige al menos 4 para continuar.",
       cta: "Continuar con {count} servicio{s}",
     },
     team: {
@@ -108,7 +108,7 @@ export const BUSINESS_TYPE_ONBOARDING_TEXTS: Record<
   barberia: {
     services: {
       heading: "¿Qué servicios ofrece tu barbería?",
-      subheading: "Selecciona cortes, arreglos de barba y packs que suelas reservar por teléfono. Los marcamos todos por defecto; quita los que no apliquen.",
+      subheading: "Marca los cortes, arreglos de barba y packs que sí ofreces, para que el agente pueda reservarlos por teléfono. Elige al menos 4 para continuar.",
       cta: "Continuar con {count} servicio{s}",
     },
     team: {
@@ -126,7 +126,7 @@ export const BUSINESS_TYPE_ONBOARDING_TEXTS: Record<
   "centro-de-estetica": {
     services: {
       heading: "¿Qué servicios ofrece tu centro de estética?",
-      subheading: "Selecciona tratamientos faciales, masajes y depilaciones que suelas reservar por teléfono. Los marcamos todos por defecto; quita los que no apliquen.",
+      subheading: "Marca los tratamientos faciales, masajes y depilaciones que sí ofreces, para que el agente pueda reservarlos por teléfono. Elige al menos 4 para continuar.",
       cta: "Continuar con {count} servicio{s}",
     },
     team: {
@@ -144,7 +144,7 @@ export const BUSINESS_TYPE_ONBOARDING_TEXTS: Record<
   "salon-de-unas": {
     services: {
       heading: "¿Qué servicios ofrece tu salón de uñas?",
-      subheading: "Selecciona manicuras, pedicuras y nail art que suelas reservar por teléfono. Los marcamos todos por defecto; quita los que no apliquen.",
+      subheading: "Marca las manicuras, pedicuras y nail art que sí ofreces, para que el agente pueda reservarlos por teléfono. Elige al menos 4 para continuar.",
       cta: "Continuar con {count} servicio{s}",
     },
     team: {
@@ -162,7 +162,7 @@ export const BUSINESS_TYPE_ONBOARDING_TEXTS: Record<
   fisioterapia: {
     services: {
       heading: "¿Qué servicios ofrece tu clínica de fisioterapia?",
-      subheading: "Selecciona valoraciones, sesiones y rehabilitaciones que suelas reservar por teléfono. Los marcamos todos por defecto; quita los que no apliquen.",
+      subheading: "Marca las valoraciones, sesiones y rehabilitaciones que sí ofreces, para que el agente pueda reservarlas por teléfono. Elige al menos 4 para continuar.",
       cta: "Continuar con {count} servicio{s}",
     },
     team: {
@@ -180,7 +180,7 @@ export const BUSINESS_TYPE_ONBOARDING_TEXTS: Record<
   other: {
     services: {
       heading: "¿Qué servicios ofreces?",
-      subheading: "Selecciona los servicios que sueles reservar por teléfono. Los marcamos todos por defecto; quita los que no apliquen.",
+      subheading: "Marca los servicios que sí ofreces, para que el agente pueda reservarlos por teléfono. Elige al menos 4 para continuar.",
       cta: "Continuar con {count} servicio{s}",
     },
     team: {
