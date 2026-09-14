@@ -176,7 +176,15 @@ export function buildTelnyxAssistantPayload(
     // expressive_mode=true: SOLO disponible en voces Ultra (si es la nuestra)
     // — añade matices emocionales vía SSML de forma automática, sin
     // intervención nuestra en el texto. Coste cero, más natural.
-    voiceSettings: { voice: input.voice, expressive_mode: true },
+    // background_audio "office" a volumen bajo (0.2 de 1.0, decisión
+    // explícita del usuario 2026-09-14): sonido de oficina de fondo muy
+    // sutil en vez de silencio total — silencio absoluto puede sonar
+    // artificial en una llamada real.
+    voiceSettings: {
+      voice: input.voice,
+      expressive_mode: true,
+      background_audio: { type: "predefined_media", value: "office", volume: 0.2 },
+    },
     // deepgram/flux — decisión explícita del usuario 2026-09-12: mejor
     // detección de turno de palabra (end-of-turn/eager end-of-turn) que
     // nova-3. Sigue siendo Deepgram (nativo de Telnyx, sin api_key_ref

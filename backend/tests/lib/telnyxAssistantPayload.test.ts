@@ -148,6 +148,16 @@ describe("buildTelnyxAssistantPayload", () => {
     expect(payload.voiceSettings?.expressive_mode).toBe(true);
   });
 
+  it("añade ruido de oficina de fondo a volumen bajo en vez de silencio total", () => {
+    const payload = buildTelnyxAssistantPayload(baseInput);
+
+    expect(payload.voiceSettings?.background_audio).toEqual({
+      type: "predefined_media",
+      value: "office",
+      volume: 0.2,
+    });
+  });
+
   it("fija el modelo LLM primario y su fallback — decisión explícita del usuario 2026-09-12; el modelo NO afecta al coste (ai-voice-assistant es tarifa plana por minuto, confirmado con una llamada real)", () => {
     const payload = buildTelnyxAssistantPayload(baseInput);
 

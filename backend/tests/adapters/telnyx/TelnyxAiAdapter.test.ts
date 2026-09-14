@@ -23,6 +23,9 @@ const mockCallControlAppsUpdate = vi.fn();
 const mockBillingGroupsList = vi.fn();
 const mockBillingGroupsCreate = vi.fn();
 const mockAssistantTestsCreate = vi.fn();
+const mockInsightsList = vi.fn();
+const mockInsightsCreate = vi.fn();
+const mockInsightGroupsInsightsAssign = vi.fn();
 
 const mockTelnyxClient = {
   callControlApplications: {
@@ -45,6 +48,10 @@ const mockTelnyxClient = {
     conversations: {
       retrieve: mockConversationsRetrieve,
       messages: { list: mockMessagesList },
+      insights: { list: mockInsightsList, create: mockInsightsCreate },
+      insightGroups: {
+        insights: { assign: mockInsightGroupsInsightsAssign },
+      },
     },
   },
   calls: {
@@ -333,6 +340,47 @@ describe("TelnyxAiAdapter", () => {
       expect(result).toEqual({ id: "bg_1" });
       expect(mockBillingGroupsCreate).toHaveBeenCalledWith({
         name: "alhabla-platform",
+      });
+    });
+  });
+
+  describe("listInsights / createInsight / assignInsightToGroup", () => {
+    it("lista los insights existentes", async () => {
+      mockInsightsList.mockReturnValue(
+        asyncIterableOf([{ id: "insight_1", name: "call_outcome" }])
+      );
+
+      const result = await adapter.listInsights();
+
+      expect(result).toEqual([{ id: "insight_1", name: "call_outcome" }]);
+    });
+
+    it("crea un insight con su json_schema y devuelve su id", async () => {
+      mockInsightsCreate.mockResolvedValue({
+        data: { id: "insight_1", name: "call_outcome" },
+      });
+
+      const result = await adapter.createInsight({
+        name: "call_outcome",
+        instructions: "Clasifica...",
+        jsonSchema: { type: "object" },
+      });
+
+      expect(result).toEqual({ id: "insight_1" });
+      expect(mockInsightsCreate).toHaveBeenCalledWith({
+        name: "call_outcome",
+        instructions: "Clasifica...",
+        json_schema: { type: "object" },
+      });
+    });
+
+    it("asigna un insight a un grupo", async () => {
+      mockInsightGroupsInsightsAssign.mockResolvedValue(undefined);
+
+      await adapter.assignInsightToGroup("insight_1", "group_1");
+
+      expect(mockInsightGroupsInsightsAssign).toHaveBeenCalledWith("insight_1", {
+        group_id: "group_1",
       });
     });
   });

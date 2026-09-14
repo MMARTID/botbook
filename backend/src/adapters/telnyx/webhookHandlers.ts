@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { CallEscalationReason, CallOutcome } from "@prisma/client";
 import { prisma } from "../../lib/prisma.js";
 import { telnyxAiAdapter } from "./TelnyxAiAdapter.js";
 import {
@@ -464,6 +465,83 @@ export async function handleCallRecordingSaved(
  * todavía — construirlo es trabajo de Fase 0/3.1, no algo que se pueda
  * inventar sin ver los insight_id reales que devuelve la cuenta.
  */
+const VALID_CALL_OUTCOMES: CallOutcome[] = [
+  "RESOLVED",
+  "FRUSTRATED",
+  "NO_ANSWER",
+  "ESCALATED",
+  "LEAD_CAPTURED",
+];
+
+const VALID_ESCALATION_REASONS: CallEscalationReason[] = [
+  "CLIENTE_LO_PIDIO",
+  "FALLO_TECNICO",
+  "FUERA_DE_HORARIO",
+  "CONSULTA_COMPLEJA",
+  "NO_APLICA",
+];
+
+/**
+ * Los insights custom devuelven su `result` siguiendo el json_schema con el
+ * que se crearon en Telnyx (`{ "<nombre_del_campo>": <valor> }`, ver
+ * scripts/createTelnyxCallInsights.ts) — pero por si acaso Telnyx aplanase el
+ * valor (lo devolviera directo, sin envolver), se acepta también esa forma.
+ * Sin verificar todavía contra una llamada real (ver nota en la función que
+ * llama a esto) — si el resultado real difiere, ajustar aquí, no en cada
+ * mapeador individual.
+ */
+function unwrapInsightResult(result: unknown, fieldName: string): unknown {
+  if (result && typeof result === "object" && fieldName in result) {
+    return (result as Record<string, unknown>)[fieldName];
+  }
+  return result;
+}
+
+function mapTelnyxCallOutcome(value: unknown): CallOutcome | null {
+  return typeof value === "string" &&
+    (VALID_CALL_OUTCOMES as string[]).includes(value)
+    ? (value as CallOutcome)
+    : null;
+}
+
+function mapTelnyxEscalationReason(value: unknown): CallEscalationReason | null {
+  return typeof value === "string" &&
+    (VALID_ESCALATION_REASONS as string[]).includes(value)
+    ? (value as CallEscalationReason)
+    : null;
+}
+
+function mapTelnyxToolFailureDetected(value: unknown): boolean | undefined {
+  return typeof value === "boolean" ? value : undefined;
+}
+
+/**
+ * IDs reales de los 3 insights custom creados en la cuenta de Telnyx
+ * (2026-09-14, ver memoria del proyecto) y asignados al insight group
+ * "Default" que ya usan los 5 assistants — mismas categorías que
+ * CALL_OUTCOME_ANALYSIS_FIELD/ESCALATION_REASON_FIELD/TOOL_FAILURE_FIELD de
+ * Retell (agentBootstrap.ts), para que ambos proveedores clasifiquen la
+ * llamada de forma comparable. `requested_service_type` queda fuera a
+ * propósito: en Retell es un enum generado por negocio (sus propios
+ * servicios), pero el insight group de Telnyx es único y compartido para
+ * toda la plataforma — no hay un mecanismo limpio para un enum por negocio
+ * aquí sin duplicar insights por cada uno.
+ */
+function getTelnyxInsightIds() {
+  return {
+    callOutcome: process.env.TELNYX_INSIGHT_CALL_OUTCOME_ID,
+    escalationReason: process.env.TELNYX_INSIGHT_ESCALATION_REASON_ID,
+    toolFailureDetected: process.env.TELNYX_INSIGHT_TOOL_FAILURE_ID,
+  };
+}
+
+/**
+ * NO verificado todavía contra una llamada real (a diferencia del resto del
+ * webhook de Telnyx) — construido a partir del json_schema con el que se
+ * crearon los insights, no de un payload real observado. Sigue el mismo
+ * patrón defensivo que el resto de esta sesión: nunca lanza, un insight
+ * desconocido o con forma inesperada simplemente no actualiza ese campo.
+ */
 export async function handleCallConversationInsightsGenerated(
   payload: unknown
 ): Promise<{ success: boolean }> {
@@ -475,6 +553,50 @@ export async function handleCallConversationInsightsGenerated(
       results ?? []
     )}`
   );
+
+  if (!call_control_id || !results?.length) {
+    return { success: true };
+  }
+
+  try {
+    const insightIds = getTelnyxInsightIds();
+    let outcome: CallOutcome | null = null;
+    let escalationReason: CallEscalationReason | null = null;
+    let toolFailureDetected: boolean | undefined;
+
+    for (const { insight_id, result } of results) {
+      if (insight_id && insight_id === insightIds.callOutcome) {
+        outcome = mapTelnyxCallOutcome(
+          unwrapInsightResult(result, "call_outcome")
+        );
+      } else if (insight_id && insight_id === insightIds.escalationReason) {
+        escalationReason = mapTelnyxEscalationReason(
+          unwrapInsightResult(result, "escalation_reason")
+        );
+      } else if (insight_id && insight_id === insightIds.toolFailureDetected) {
+        toolFailureDetected = mapTelnyxToolFailureDetected(
+          unwrapInsightResult(result, "tool_failure_detected")
+        );
+      }
+    }
+
+    const analysisUpdate = {
+      ...(outcome !== null ? { outcome } : {}),
+      ...(escalationReason !== null ? { escalationReason } : {}),
+      ...(toolFailureDetected !== undefined ? { toolFailureDetected } : {}),
+    };
+
+    if (Object.keys(analysisUpdate).length > 0) {
+      await prisma.call.update({
+        where: { callId: call_control_id },
+        data: analysisUpdate,
+      });
+    }
+  } catch (error) {
+    console.error(
+      `[Telnyx] No se pudo aplicar el mapeo de insights de ${callLabel(call_control_id)}: ${errorMessage(error)}`
+    );
+  }
 
   return { success: true };
 }

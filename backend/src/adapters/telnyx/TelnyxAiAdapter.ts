@@ -302,6 +302,47 @@ export class TelnyxAiAdapter {
     return { id: response.data.id };
   }
 
+  // ---------------------------------------------------------------------
+  // Insight groups — clasificación de llamadas (equivalente Telnyx del
+  // post_call_analysis_data de Retell). Ver scripts/createTelnyxCallInsights.ts.
+  // ---------------------------------------------------------------------
+
+  async listInsights(): Promise<Array<{ id: string; name?: string }>> {
+    const client = getTelnyxClient();
+    const insights: Array<{ id: string; name?: string }> = [];
+    for await (const insight of client.ai.conversations.insights.list()) {
+      insights.push({ id: insight.id, name: insight.name });
+    }
+    return insights;
+  }
+
+  async createInsight(input: {
+    name: string;
+    instructions: string;
+    jsonSchema: Record<string, unknown>;
+  }): Promise<{ id: string }> {
+    const client = getTelnyxClient();
+    const response = await client.ai.conversations.insights.create({
+      name: input.name,
+      instructions: input.instructions,
+      json_schema: input.jsonSchema,
+    });
+    if (!response.data?.id) {
+      throw new Error("Telnyx no devolvió el id del insight creado");
+    }
+    return { id: response.data.id };
+  }
+
+  async assignInsightToGroup(
+    insightId: string,
+    groupId: string
+  ): Promise<void> {
+    const client = getTelnyxClient();
+    await client.ai.conversations.insightGroups.insights.assign(insightId, {
+      group_id: groupId,
+    });
+  }
+
   async setPhoneNumberBillingGroup(
     phoneNumberId: string,
     billingGroupId: string
