@@ -185,6 +185,36 @@ export function buildTelnyxVoiceTools(baseUrl: string): TelnyxWebhookToolInput[]
       headers: [callControlHeader],
       timeoutMs: 20000,
     },
+    {
+      name: "notify_when_available",
+      description:
+        "Guarda el aviso de que el cliente quiere que le escribamos por WhatsApp si se libera la hora que pidió y no estaba disponible. Válido tanto si el cliente se va sin reservar nada más como si reserva otra hora igualmente. Úsala solo cuando lo pida explícitamente y haya dado consentimiento para WhatsApp a este número.",
+      url: `${toolBaseUrl}/notify_when_available`,
+      method: "POST",
+      properties: {
+        startDateTime: {
+          type: "string",
+          description:
+            "La hora exacta que el cliente quería y no estaba disponible, en formato ISO 8601 con zona horaria.",
+        },
+        durationMinutes: {
+          type: "number",
+          description: "Duración en minutos de la cita que quería.",
+        },
+        serviceIds: {
+          type: "array",
+          items: { type: "string" },
+          description: "IDs de los servicios que pidió, si los mencionó (opcional).",
+        },
+        professionalId: {
+          type: "string",
+          description: "ID del profesional concreto que pidió, si lo mencionó (opcional).",
+        },
+      },
+      required: ["startDateTime", "durationMinutes"],
+      headers: [callControlHeader],
+      timeoutMs: 20000,
+    },
   ];
 }
 

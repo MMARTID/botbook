@@ -725,6 +725,40 @@ function buildWhatsappBookingParams(input: {
 }
 
 /**
+ * Variables con nombre para la plantilla de "la hora que pediste ya está
+ * libre" (WHATSAPP_TEMPLATE_SLOT_AVAILABLE_NAME) — todavía sin aprobar por
+ * Meta a fecha de este cambio, ver AGENTS.md. Reutiliza el mismo formato de
+ * fecha/hora que buildWhatsappBookingParams para que ambas plantillas suenen
+ * consistentes.
+ */
+function buildWhatsappSlotAvailableParams(input: {
+  businessName: string;
+  businessPhone: string;
+  startDateTime: string;
+  timezone: string;
+}): Record<string, string> {
+  const date = new Date(input.startDateTime);
+  const fechaCita = new Intl.DateTimeFormat("es-ES", {
+    timeZone: input.timezone,
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+  }).format(date);
+  const horaCita = new Intl.DateTimeFormat("es-ES", {
+    timeZone: input.timezone,
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
+
+  return {
+    negocio_nombre: input.businessName,
+    fecha_cita: fechaCita,
+    hora_cita: horaCita,
+    negocio_telefono: input.businessPhone,
+  };
+}
+
+/**
  * Confirmación/recordatorio de cita al cliente: por WhatsApp cuando está
  * configurado (WHATSAPP_ACCESS_TOKEN/WHATSAPP_PHONE_NUMBER_ID y la plantilla
  * correspondiente), si no cae a SMS como hasta ahora (ver
@@ -1639,6 +1673,207 @@ async function executeFindMyAppointment(
 }
 
 /**
+ * Guarda que un cliente quiere que le avisemos por WhatsApp si se libera la
+ * hora que pidió y no estaba disponible — tanto si se fue sin reservar nada
+ * como si reservó otra hora igualmente (ambos casos válidos, ver
+ * notify_when_available en telnyxAssistantPayload.ts). Se resuelve por
+ * evento (executeCancelAppointment, la única forma hoy de que un hueco se
+ * libere) en vez de por un job periódico: más inmediato y sin infraestructura
+ * de scheduler nueva. No cubre huecos liberados por edición manual del
+ * calendario externo (fuera de cancel_appointment) — pendiente si hace falta
+ * más adelante.
+ */
+async function executeNotifyWhenAvailable(
+  business: BusinessVoiceConfig,
+  params: Record<string, unknown>,
+  callLabel: string,
+  callId?: string
+): Promise<{ success: boolean; result?: any }> {
+  const startDateTime =
+    typeof params?.startDateTime === "string" ? params.startDateTime : "";
+  const durationMinutes =
+    typeof params?.durationMinutes === "number" ? params.durationMinutes : 0;
+  if (!startDateTime || !isValidAppointmentDuration(durationMinutes)) {
+    return {
+      success: true,
+      result: {
+        success: false,
+        code: "INVALID_PARAMS",
+        message: "Me faltan datos para guardar el aviso.",
+      },
+    };
+  }
+
+  const serviceIds = Array.isArray(params?.serviceIds)
+    ? params.serviceIds.filter((id): id is string => typeof id === "string")
+    : [];
+  const professionalId =
+    typeof params?.professionalId === "string" ? params.professionalId : undefined;
+
+  const call = await resolveCallForBusiness(callId, business.id, callLabel);
+  const clientPhone = call?.fromNumber;
+  if (!clientPhone || !isValidE164Phone(clientPhone)) {
+    return {
+      success: true,
+      result: {
+        success: false,
+        code: "NO_PHONE",
+        message: "No tengo un número válido al que avisar.",
+      },
+    };
+  }
+  if (!call) {
+    return {
+      success: true,
+      result: {
+        success: false,
+        code: "CALL_NOT_FOUND",
+        message: "No he podido guardar el aviso ahora mismo.",
+      },
+    };
+  }
+
+  try {
+    await prisma.lead.create({
+      data: {
+        callId: call.id,
+        type: "availability_watch",
+        isLead: false,
+        data: {
+          clientPhone,
+          startDateTime,
+          durationMinutes,
+          serviceIds,
+          professionalId: professionalId ?? null,
+        },
+      },
+    });
+    return {
+      success: true,
+      result: {
+        success: true,
+        message: "Aviso guardado: te escribiremos por WhatsApp si se libera esa hora.",
+      },
+    };
+  } catch (error) {
+    console.error(
+      `[VoiceTools] ${callLabel} no pudo guardar el aviso de disponibilidad: ${errorMessage(error)}`
+    );
+    return {
+      success: true,
+      result: {
+        success: false,
+        code: "SAVE_FAILED",
+        message: "No he podido guardar el aviso ahora mismo.",
+      },
+    };
+  }
+}
+
+/**
+ * Tras liberar un hueco (única vía hoy: una cancelación), revisa los avisos
+ * pendientes de este negocio y, para el primero que ya vuelva a estar
+ * disponible, encola el WhatsApp y lo marca resuelto. No falla nunca la
+ * cancelación que la disparó: cualquier error aquí solo se loguea.
+ */
+async function notifyPendingAvailabilityWatchers(
+  business: BusinessVoiceConfig,
+  callLabel: string
+): Promise<void> {
+  try {
+    const watches = await prisma.lead.findMany({
+      where: {
+        type: "availability_watch",
+        resolvedAt: null,
+        call: { businessId: business.id },
+      },
+      select: { id: true, data: true },
+    });
+    if (watches.length === 0) return;
+
+    const templateName = process.env.WHATSAPP_TEMPLATE_SLOT_AVAILABLE_NAME;
+
+    for (const watch of watches) {
+      const data = watch.data as {
+        clientPhone: string;
+        startDateTime: string;
+        durationMinutes: number;
+        serviceIds?: string[];
+        professionalId?: string | null;
+      };
+
+      // Hora ya pasada: ya no tiene sentido avisar, limpia el aviso.
+      if (new Date(data.startDateTime).getTime() < Date.now()) {
+        await prisma.lead.update({
+          where: { id: watch.id },
+          data: { resolvedAt: new Date() },
+        });
+        continue;
+      }
+
+      const externalBusy = await fetchExternalBusyIntervals(
+        business,
+        data.startDateTime,
+        data.durationMinutes
+      );
+      const availability = await checkAvailability({
+        businessId: business.id,
+        schedule: business.schedule,
+        timezone: business.timezone,
+        bookingCapacity: business.bookingCapacity,
+        startDateTime: data.startDateTime,
+        durationMinutes: data.durationMinutes,
+        serviceIds: data.serviceIds,
+        professionalId: data.professionalId ?? undefined,
+        externalBusyIntervals: externalBusy.intervals,
+        calendarAvailabilityKnown: externalBusy.calendarAvailabilityKnown,
+        calendarOrigin: calendarOriginForBusiness(business),
+      });
+
+      if (!availability.available) continue;
+
+      if (!whatsappAdapter.isConfigured() || !templateName) {
+        // Sin plantilla aprobada todavía no hay forma de avisar — se deja
+        // pendiente (no se marca resuelto) para reintentar en la próxima
+        // cancelación, no se pierde el aviso en silencio.
+        console.warn(
+          `[VoiceTools] ${callLabel} tiene un hueco liberado para avisar pero WHATSAPP_TEMPLATE_SLOT_AVAILABLE_NAME no está configurado`
+        );
+        continue;
+      }
+
+      try {
+        await enqueueWhatsappJob({
+          toNumber: data.clientPhone,
+          templateName,
+          languageCode: resolveWhatsappLanguageCode(),
+          bodyParams: buildWhatsappSlotAvailableParams({
+            businessName: business.name,
+            businessPhone: business.telnyxPhoneNumber ?? "",
+            startDateTime: data.startDateTime,
+            timezone: business.timezone || "Europe/Madrid",
+          }),
+        });
+      } catch (error) {
+        console.error(
+          `[VoiceTools] ${callLabel} no pudo encolar el aviso de disponibilidad: ${errorMessage(error)}`
+        );
+        continue;
+      }
+
+      await prisma.lead.update({
+        where: { id: watch.id },
+        data: { resolvedAt: new Date() },
+      });
+    }
+  } catch (error) {
+    console.error(
+      `[VoiceTools] ${callLabel} no pudo comprobar avisos de disponibilidad pendientes: ${errorMessage(error)}`
+    );
+  }
+}
+
+/**
  * Cancela una cita identificada por find_my_appointment. Vuelve a comprobar
  * en servidor que el número de quien llama coincide y que dio consentimiento
  * — nunca se fía de que el LLM solo pase ids de citas propias.
@@ -1720,6 +1955,10 @@ async function executeCancelAppointment(
     }
   }
 
+  // notifyPendingAvailabilityWatchers nunca lanza (loguea internamente) — un
+  // fallo al avisar a OTRO cliente no debe tumbar la cancelación de este.
+  await notifyPendingAvailabilityWatchers(business, callLabel);
+
   return {
     success: true,
     result: { success: true, message: "Cita cancelada correctamente." },
@@ -1762,6 +2001,8 @@ export async function executeVoiceTool(
       return executeFindMyAppointment(business, callLabel, callId);
     case "cancel_appointment":
       return executeCancelAppointment(business, params, callLabel, callId);
+    case "notify_when_available":
+      return executeNotifyWhenAvailable(business, params, callLabel, callId);
     default:
       console.warn(`[VoiceTools] Tool desconocida: ${toolName}`);
       return { success: true };
