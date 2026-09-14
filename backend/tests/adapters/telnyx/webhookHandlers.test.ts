@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import {
   extractTelnyxEventEnvelope,
   handleCallInitiated,
@@ -464,14 +464,109 @@ describe("handleCallRecordingSaved", () => {
 });
 
 describe("handleCallConversationInsightsGenerated", () => {
-  it("acepta el evento y no lanza aunque no haya mapeo de insights todavía", async () => {
+  const ORIGINAL_ENV = { ...process.env };
+
+  beforeEach(() => {
+    process.env.TELNYX_INSIGHT_CALL_OUTCOME_ID = "insight_outcome";
+    process.env.TELNYX_INSIGHT_ESCALATION_REASON_ID = "insight_escalation";
+    process.env.TELNYX_INSIGHT_TOOL_FAILURE_ID = "insight_tool_failure";
+  });
+
+  afterEach(() => {
+    process.env = { ...ORIGINAL_ENV };
+  });
+
+  it("acepta el evento y no lanza si un insight_id no coincide con ninguno conocido", async () => {
     const result = await handleCallConversationInsightsGenerated({
       data: {
         id: "evt_5",
         event_type: "call.conversation_insights.generated",
         payload: {
           call_control_id: "call_ctrl_1",
-          results: [{ insight_id: "insight_1", result: "positive" }],
+          results: [{ insight_id: "insight_desconocido", result: "positive" }],
+        },
+      },
+    });
+
+    expect(result).toEqual({ success: true });
+    expect(mockedCallUpdate).not.toHaveBeenCalled();
+  });
+
+  it("mapea call_outcome/escalation_reason/tool_failure_detected a Call cuando el resultado viene envuelto en un objeto", async () => {
+    mockedCallUpdate.mockResolvedValue({} as any);
+
+    const result = await handleCallConversationInsightsGenerated({
+      data: {
+        id: "evt_5",
+        event_type: "call.conversation_insights.generated",
+        payload: {
+          call_control_id: "call_ctrl_1",
+          results: [
+            { insight_id: "insight_outcome", result: { call_outcome: "RESOLVED" } },
+            { insight_id: "insight_escalation", result: { escalation_reason: "NO_APLICA" } },
+            { insight_id: "insight_tool_failure", result: { tool_failure_detected: true } },
+          ],
+        },
+      },
+    });
+
+    expect(result).toEqual({ success: true });
+    expect(mockedCallUpdate).toHaveBeenCalledWith({
+      where: { callId: "call_ctrl_1" },
+      data: {
+        outcome: "RESOLVED",
+        escalationReason: "NO_APLICA",
+        toolFailureDetected: true,
+      },
+    });
+  });
+
+  it("también acepta el resultado sin envolver (por si Telnyx lo aplana)", async () => {
+    mockedCallUpdate.mockResolvedValue({} as any);
+
+    await handleCallConversationInsightsGenerated({
+      data: {
+        id: "evt_5",
+        event_type: "call.conversation_insights.generated",
+        payload: {
+          call_control_id: "call_ctrl_1",
+          results: [{ insight_id: "insight_outcome", result: "ESCALATED" }],
+        },
+      },
+    });
+
+    expect(mockedCallUpdate).toHaveBeenCalledWith({
+      where: { callId: "call_ctrl_1" },
+      data: { outcome: "ESCALATED" },
+    });
+  });
+
+  it("ignora un valor que no pertenece al enum en vez de guardar basura", async () => {
+    const result = await handleCallConversationInsightsGenerated({
+      data: {
+        id: "evt_5",
+        event_type: "call.conversation_insights.generated",
+        payload: {
+          call_control_id: "call_ctrl_1",
+          results: [{ insight_id: "insight_outcome", result: { call_outcome: "NO_ES_UN_VALOR_VALIDO" } }],
+        },
+      },
+    });
+
+    expect(result).toEqual({ success: true });
+    expect(mockedCallUpdate).not.toHaveBeenCalled();
+  });
+
+  it("no lanza si la llamada no existe en la base de datos al actualizar", async () => {
+    mockedCallUpdate.mockRejectedValue(new Error("Record to update not found"));
+
+    const result = await handleCallConversationInsightsGenerated({
+      data: {
+        id: "evt_5",
+        event_type: "call.conversation_insights.generated",
+        payload: {
+          call_control_id: "call_ctrl_1",
+          results: [{ insight_id: "insight_outcome", result: { call_outcome: "RESOLVED" } }],
         },
       },
     });
