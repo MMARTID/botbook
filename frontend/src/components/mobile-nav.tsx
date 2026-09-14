@@ -8,16 +8,22 @@ function buildPlansHref(niche?: string) {
   return niche ? `/planes?niche=${encodeURIComponent(niche)}` : "/planes";
 }
 
-const SECTION_LINKS = [
+const VERTICAL_SECTION_LINKS = [
   { href: "#por-que", label: "Por qué" },
   { href: "#como-funciona", label: "Cómo funciona" },
   { href: "#precios", label: "Precios" },
   { href: "#preguntas", label: "Preguntas" },
 ] as const;
 
-export function MobileNav({ niche }: { niche?: string }) {
+const MAIN_SECTION_LINKS = [
+  { href: "#como-funciona", label: "Cómo funciona" },
+  { href: "#sectores", label: "Para tu negocio" },
+] as const;
+
+export function MobileNav({ niche, variant = "vertical" }: { niche?: string; variant?: "main" | "vertical" }) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const plansHref = buildPlansHref(niche);
+  const sectionLinks = variant === "main" ? MAIN_SECTION_LINKS : VERTICAL_SECTION_LINKS;
   const containerRef = useRef<HTMLDivElement | null>(null);
   const toggleRef = useRef<HTMLButtonElement | null>(null);
 
@@ -84,7 +90,7 @@ export function MobileNav({ niche }: { niche?: string }) {
           className="absolute left-0 right-0 top-full border-t border-[#e5e5e5] bg-white px-4 py-4"
         >
           <div className="flex flex-col gap-1.5">
-            {SECTION_LINKS.map(({ href, label }) => (
+            {sectionLinks.map(({ href, label }) => (
               <a
                 key={href}
                 href={href}

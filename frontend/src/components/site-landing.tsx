@@ -11,7 +11,8 @@ import { CallForwardingFlow } from "@/components/call-forwarding-flow";
 import { ParticleField } from "@/components/particle-field";
 import { ParticleMouseLayer } from "@/components/particle-mouse-layer";
 import { formatIncludedMinutes, formatPlanPrice, plans, TRIAL_REASSURANCE } from "@/lib/plans";
-import { generalSectorData, type NicheLandingContent } from "@/lib/niche-landings";
+import { type NicheLandingContent } from "@/lib/niche-landings";
+import { MainLanding } from "@/components/main-landing";
 
 function buildPlansHref(niche?: string) {
   return niche ? `/planes?niche=${encodeURIComponent(niche)}` : "/planes";
@@ -101,6 +102,11 @@ const frequentlyAskedQuestions = [
 ] as const;
 
 export function SiteLanding({ content }: { content?: NicheLandingContent }) {
+  // La portada general tiene que resolver una sola pregunta —qué hace Alhabla
+  // y por qué probarlo—. El material largo vive en las páginas de cada sector,
+  // donde esa profundidad sí responde a una intención de búsqueda concreta.
+  if (!content) return <MainLanding />;
+
   const visibleBenefits = content?.benefits ?? businessBenefits;
   const visibleFaqs = content?.faqs ?? frequentlyAskedQuestions;
   const plansHref = buildPlansHref(content?.slug);
@@ -154,17 +160,7 @@ export function SiteLanding({ content }: { content?: NicheLandingContent }) {
         <LandingHero content={content} />
       </div>
 
-      {/* La landing genérica también necesita prueba: si no hay datos de nicho,
-          se muestran los transversales, todos con fuente externa citada. */}
-      {/*
-        El problema, de una vez: primero la evidencia del sector (datos de
-        terceros, con fuente) y justo después la estimación con las cifras del
-        propio negocio. Estaban separados por cuatro secciones —la calculadora
-        caía después de los beneficios—, así que la página planteaba dos veces
-        "cuánto pierdes" en sitios distintos en lugar de construir un solo
-        argumento que va de lo general a lo tuyo.
-      */}
-      <SectorDataSection data={content?.sectorData ?? generalSectorData} accent={content?.accent} />
+      {content.sectorData ? <SectorDataSection data={content.sectorData} accent={content.accent} /> : null}
       <RevenueLossCalculator content={content?.calculator} activeNiche={content?.slug} />
 
       {/*
