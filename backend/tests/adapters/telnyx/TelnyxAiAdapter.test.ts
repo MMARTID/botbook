@@ -23,6 +23,10 @@ const mockCallControlAppsUpdate = vi.fn();
 const mockBillingGroupsList = vi.fn();
 const mockBillingGroupsCreate = vi.fn();
 const mockAssistantTestsCreate = vi.fn();
+const mockAssistantTestsUpdate = vi.fn();
+const mockAssistantTestsList = vi.fn();
+const mockAssistantTestRunsTrigger = vi.fn();
+const mockAssistantTestRunsRetrieve = vi.fn();
 const mockInsightsList = vi.fn();
 const mockInsightsCreate = vi.fn();
 const mockInsightGroupsInsightsAssign = vi.fn();
@@ -43,7 +47,15 @@ const mockTelnyxClient = {
       update: mockAssistantsUpdate,
       retrieve: mockAssistantsRetrieve,
       delete: mockAssistantsDelete,
-      tests: { create: mockAssistantTestsCreate },
+      tests: {
+        create: mockAssistantTestsCreate,
+        update: mockAssistantTestsUpdate,
+        list: mockAssistantTestsList,
+        runs: {
+          trigger: mockAssistantTestRunsTrigger,
+          retrieve: mockAssistantTestRunsRetrieve,
+        },
+      },
     },
     conversations: {
       retrieve: mockConversationsRetrieve,
@@ -660,6 +672,95 @@ describe("TelnyxAiAdapter", () => {
         test_suite: "alhabla-dev",
         description: undefined,
       });
+    });
+  });
+
+  describe("updateAssistantTest", () => {
+    it("actualiza un test existente y mapea la respuesta", async () => {
+      mockAssistantTestsUpdate.mockResolvedValue({
+        test_id: "test_123",
+        name: "Peluquería - Reserva end-to-end (v2)",
+        rubric: [],
+        telnyx_conversation_channel: "phone_call",
+      });
+
+      const result = await adapter.updateAssistantTest("test_123", {
+        name: "Peluquería - Reserva end-to-end (v2)",
+        instructions: "Act as a pickier customer.",
+      });
+
+      expect(result).toEqual({ id: "test_123", name: "Peluquería - Reserva end-to-end (v2)" });
+      expect(mockAssistantTestsUpdate).toHaveBeenCalledWith("test_123", {
+        name: "Peluquería - Reserva end-to-end (v2)",
+        destination: undefined,
+        instructions: "Act as a pickier customer.",
+        rubric: undefined,
+        telnyx_conversation_channel: undefined,
+        max_duration_seconds: undefined,
+        test_suite: undefined,
+        description: undefined,
+      });
+    });
+  });
+
+  describe("listAssistantTests", () => {
+    it("pagina el async-iterable del SDK y mapea cada test", async () => {
+      mockAssistantTestsList.mockReturnValue(
+        asyncIterableOf([
+          { test_id: "test_1", name: "Escenario 1", destination: "+34930453218" },
+          { test_id: "test_2", name: "Escenario 2", destination: "+34930453218" },
+        ])
+      );
+
+      const result = await adapter.listAssistantTests({ testSuite: "alhabla-dev" });
+
+      expect(result).toEqual([
+        { id: "test_1", name: "Escenario 1", destination: "+34930453218" },
+        { id: "test_2", name: "Escenario 2", destination: "+34930453218" },
+      ]);
+      expect(mockAssistantTestsList).toHaveBeenCalledWith({
+        test_suite: "alhabla-dev",
+        destination: undefined,
+      });
+    });
+  });
+
+  describe("triggerAssistantTestRun / getAssistantTestRun", () => {
+    it("dispara una ejecución y mapea la respuesta", async () => {
+      mockAssistantTestRunsTrigger.mockResolvedValue({
+        run_id: "run_123",
+        status: "pending",
+        test_id: "test_123",
+        created_at: "2026-09-15T00:00:00Z",
+        triggered_by: "api",
+      });
+
+      const result = await adapter.triggerAssistantTestRun("test_123");
+
+      expect(result).toEqual({ runId: "run_123", status: "pending" });
+      expect(mockAssistantTestRunsTrigger).toHaveBeenCalledWith("test_123");
+    });
+
+    it("consulta el resultado detallado de una ejecución", async () => {
+      mockAssistantTestRunsRetrieve.mockResolvedValue({
+        run_id: "run_123",
+        status: "passed",
+        test_id: "test_123",
+        created_at: "2026-09-15T00:00:00Z",
+        triggered_by: "api",
+        detail_status: [{ name: "Reserva", status: "passed" }],
+        logs: "...",
+      });
+
+      const result = await adapter.getAssistantTestRun("test_123", "run_123");
+
+      expect(result).toEqual({
+        runId: "run_123",
+        status: "passed",
+        detailStatus: [{ name: "Reserva", status: "passed" }],
+        logs: "...",
+      });
+      expect(mockAssistantTestRunsRetrieve).toHaveBeenCalledWith("run_123", { test_id: "test_123" });
     });
   });
 

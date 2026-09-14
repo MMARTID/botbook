@@ -67,14 +67,14 @@ const db = process.env.PROD_DATABASE_URL
 // Se sobreescribe con TELNYX_CALL_CONTROL_APP_ID si está definido en el entorno.
 const PROD_CALL_CONTROL_APP_ID = "3048374727065208187";
 
-type BusinessSlug = "peluqueria" | "barberia" | "salon_unas" | "estetica" | "fisio";
+export type BusinessSlug = "peluqueria" | "barberia" | "salon_unas" | "estetica" | "fisio";
 
 // Números reales de las 5 cuentas de desarrollo (createTelnyxNativeTests.ts).
 // El número de peluquería cambió el 2026-09-xx (el original se dio de baja
 // por falta de inventario de móviles españoles en Telnyx, ver memoria
 // "telnyx-spain-mobile-number-no-inventory") — +34930453289 es el vigente,
 // confirmado contra la BD de dev.
-const BUSINESSES: Record<
+export const BUSINESSES: Record<
   BusinessSlug,
   { number: string; nichePersona: string; professionalName: string; professionalPersona: string }
 > = {
@@ -120,7 +120,7 @@ const BUSINESSES: Record<
   },
 };
 
-const SLUGS = Object.keys(BUSINESSES) as BusinessSlug[];
+export const SLUGS = Object.keys(BUSINESSES) as BusinessSlug[];
 
 /** Reutiliza el número Telnyx de otra cuenta de desarrollo como "cliente"
  * que llama — mismo patrón ya probado con éxito (barbería llamando a
