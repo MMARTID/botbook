@@ -13,6 +13,8 @@ import {
 import { resolveTelnyxEligibility } from "./telnyxEligibility.js";
 import { isBusinessType, type BusinessType } from "./businessType.js";
 import { buildRetellBeginMessage } from "./agentBootstrap.js";
+import { resolveDesiredOrchestrator } from "./voiceOrchestrator.js";
+import { repointTelnyxPhoneNumber } from "./voiceRouting.js";
 import type { CreateTelnyxAssistantInput } from "../adapters/telnyx/TelnyxAiAdapter.js";
 
 /** Idéntico en forma al hash que usará `syncAgentToRetell` cuando el
@@ -217,6 +219,97 @@ export async function syncAgentToTelnyx(
     }
   } catch (error) {
     console.error("[Agent] Fallo inesperado sincronizando Telnyx (no afecta a Retell):", {
+      businessId,
+      message: error instanceof Error ? error.message : String(error),
+    });
+  }
+}
+
+/**
+ * Cambia el orquestador PRIMARY de un negocio cuando cambian sus idiomas o
+ * su plan — hasta ahora `resolveTelnyxEligibility` solo se consultaba al
+ * crear el agente (agentBootstrap.ts) y nunca más, así que un negocio que
+ * activaba catalán DESPUÉS de creado se quedaba con `orchestrator="telnyx"`
+ * (Telnyx no soporta catalán) o, al revés, uno que lo desactivaba se quedaba
+ * en Retell para siempre pagando de más — decisión explícita del usuario
+ * 2026-09-14: Retell es "plan B", solo para catalán en planes Pro/Scale.
+ *
+ * Se llama desde PATCH /business/me cuando cambian `agentSettings`
+ * (businesses/routes.ts) — la selección de catalán para planes que no lo
+ * permiten ya se bloquea ahí antes de llegar aquí. Nunca lanza: un fallo no
+ * debe poder romper el guardado de ajustes que lo disparó.
+ */
+export async function reconcileVoiceOrchestrator(businessId: string): Promise<void> {
+  try {
+    const business = await prisma.business.findUnique({
+      where: { id: businessId },
+      select: {
+        orchestrator: true,
+        agentSettings: true,
+        stripePriceId: true,
+        telnyxPhoneNumberId: true,
+      },
+    });
+    if (!business) return;
+
+    const settings = parseAgentSettings(business.agentSettings);
+    const policyTarget = resolveDesiredOrchestrator({
+      languages: settings.languages,
+      stripePriceId: business.stripePriceId,
+    });
+
+    // La política puede pedir Telnyx, pero si la cuenta no tiene voz Telnyx
+    // compatible (u otro motivo de telnyxEligibility), Retell sigue siendo
+    // el único sitio operativo — mismo criterio que la creación inicial.
+    let desired: "telnyx" | "retell" = policyTarget;
+    if (policyTarget === "telnyx") {
+      const eligibility = await resolveTelnyxEligibility(settings);
+      if (!eligibility.eligible) desired = "retell";
+    }
+
+    if (desired === business.orchestrator) return;
+
+    if (!business.telnyxPhoneNumberId) {
+      // Todavía sin número propio (negocio a medio onboarding): basta con
+      // guardar la intención — phone/service.ts lee `orchestrator` en el
+      // momento de comprar/importar el número.
+      await prisma.business.update({
+        where: { id: businessId },
+        data: { orchestrator: desired, voiceRoutingTarget: desired },
+      });
+      console.log(
+        `[VoiceOrchestrator] Negocio ${businessId} marcado como "${desired}" (sin número todavía).`
+      );
+      return;
+    }
+
+    const result = await repointTelnyxPhoneNumber(
+      businessId,
+      business.telnyxPhoneNumberId,
+      desired
+    );
+    if (!result.success) {
+      console.error(
+        `[VoiceOrchestrator] No se pudo repuntar el número del negocio ${businessId} a "${desired}": ${result.error}`
+      );
+      return;
+    }
+
+    await prisma.business.update({
+      where: { id: businessId },
+      data: {
+        orchestrator: desired,
+        voiceRoutingTarget: desired,
+        voiceFailoverActive: false,
+        voiceFailoverReason: null,
+        voiceRoutingChangedAt: new Date(),
+      },
+    });
+    console.log(
+      `[VoiceOrchestrator] Negocio ${businessId} cambiado a "${desired}" por idioma/plan.`
+    );
+  } catch (error) {
+    console.error("[VoiceOrchestrator] Fallo reconciliando orquestador:", {
       businessId,
       message: error instanceof Error ? error.message : String(error),
     });

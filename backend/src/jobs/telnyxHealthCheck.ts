@@ -1,8 +1,7 @@
 import { prisma } from "../lib/prisma.js";
 import { getRedis } from "../lib/redis.js";
-import { acquireLock, releaseLock } from "../lib/bookingLock.js";
 import { checkTelnyxAiInfraStatus } from "../lib/telnyxStatusPage.js";
-import { telnyxAiAdapter } from "../adapters/telnyx/TelnyxAiAdapter.js";
+import { repointTelnyxPhoneNumber } from "../lib/voiceRouting.js";
 import { errorMessage } from "../lib/logUtils.js";
 
 // Plan §7: dos lecturas malas consecutivas activan el failover a Retell,
@@ -12,14 +11,6 @@ const CONSECUTIVE_GOOD_TO_FAILBACK = 5;
 
 const REDIS_KEY_BAD_STREAK = "telnyx_health:consecutive_bad";
 const REDIS_KEY_GOOD_STREAK = "telnyx_health:consecutive_good";
-
-// Mismo formato de clave que provisionPhoneNumber (phone/service.ts) — un
-// cambio de ruta y un aprovisionamiento inicial nunca deben poder pisarse.
-function phoneProvisionLockKey(businessId: string): string {
-  return `phone_provision_lock:${businessId}`;
-}
-const LOCK_TTL_MS = 60_000;
-const LOCK_ACQUIRE_BUDGET_MS = 5_000;
 
 function isVoiceFailoverEnabled(): boolean {
   // Kill switch global (plan §7) — por defecto apagado: sin esto, un
@@ -117,58 +108,32 @@ async function applyRoutingTarget(
     `[TelnyxHealth] Aplicando ruta "${target}" a ${businesses.length} negocio(s): ${reason}`
   );
 
-  const connectionId =
-    target === "telnyx"
-      ? process.env.TELNYX_CALL_CONTROL_APP_ID
-      : process.env.TELNYX_SIP_CONNECTION_ID;
-  if (!connectionId) {
-    console.error(
-      `[TelnyxHealth] Falta ${
-        target === "telnyx" ? "TELNYX_CALL_CONTROL_APP_ID" : "TELNYX_SIP_CONNECTION_ID"
-      } — no se puede cambiar de ruta a ningún negocio`
-    );
-    return;
-  }
-
   for (const business of businesses) {
-    const lockKey = phoneProvisionLockKey(business.id);
-    const lockToken = await acquireLock(
-      lockKey,
-      LOCK_TTL_MS,
-      LOCK_ACQUIRE_BUDGET_MS
+    const result = await repointTelnyxPhoneNumber(
+      business.id,
+      business.telnyxPhoneNumberId!,
+      target
     );
-    if (!lockToken) {
+
+    if (!result.success) {
       console.error(
-        `[TelnyxHealth] No se pudo bloquear el negocio ${business.id} para cambiar de ruta — se reintentará en el próximo ciclo`
+        `[TelnyxHealth] Fallo cambiando la ruta del negocio ${business.id}: ${result.error}`
       );
       continue;
     }
 
-    try {
-      await telnyxAiAdapter.setPhoneNumberConnectionId(
-        business.telnyxPhoneNumberId!,
-        connectionId
-      );
+    await prisma.business.update({
+      where: { id: business.id },
+      data: {
+        voiceRoutingTarget: target,
+        voiceFailoverActive: target === "retell",
+        voiceFailoverReason: target === "retell" ? reason : null,
+        voiceRoutingChangedAt: new Date(),
+      },
+    });
 
-      await prisma.business.update({
-        where: { id: business.id },
-        data: {
-          voiceRoutingTarget: target,
-          voiceFailoverActive: target === "retell",
-          voiceFailoverReason: target === "retell" ? reason : null,
-          voiceRoutingChangedAt: new Date(),
-        },
-      });
-
-      console.log(
-        `[TelnyxHealth] Negocio ${business.id} cambiado a ruta "${target}"`
-      );
-    } catch (error) {
-      console.error(
-        `[TelnyxHealth] Fallo cambiando la ruta del negocio ${business.id}: ${errorMessage(error)}`
-      );
-    } finally {
-      await releaseLock(lockKey, lockToken);
-    }
+    console.log(
+      `[TelnyxHealth] Negocio ${business.id} cambiado a ruta "${target}"`
+    );
   }
 }

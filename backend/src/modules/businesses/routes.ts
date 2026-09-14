@@ -7,7 +7,8 @@ import { calendarService } from "../calendar/service.js";
 import { AgentSettingsSchema, buildManagedAgentPrompt } from "../../lib/managedAgentPrompt.js";
 import { isBusinessType } from "../../lib/businessType.js";
 import { syncAgentNameWithBusinessType, syncAgentToRetell } from "../../lib/agentBootstrap.js";
-import { syncAgentToTelnyx } from "../../lib/telnyxAgentSync.js";
+import { syncAgentToTelnyx, reconcileVoiceOrchestrator } from "../../lib/telnyxAgentSync.js";
+import { planAllowsCatalanOnRetell } from "../../lib/voiceOrchestrator.js";
 import { E164_PHONE_REGEX } from "../../lib/phone.js";
 
 const UpdateBusinessSchema = z.object({
@@ -264,6 +265,23 @@ export async function businessesRoutes(fastify: FastifyInstance) {
       try {
         const data = UpdateBusinessSchema.parse(request.body);
 
+        // Catalán solo es viable hoy vía Retell (Telnyx no lo soporta) —
+        // decisión explícita del usuario 2026-09-14: se reserva a los planes
+        // Pro/Scale, la única razón para pagar el coste mayor de Retell.
+        // Se bloquea aquí, antes de guardar nada, para no dejar nunca un
+        // negocio con catalán activo en un plan que no lo permite.
+        if (data.agentSettings?.languages.includes("ca-ES")) {
+          const currentPlan = await prisma.business.findUnique({
+            where: { id: request.user!.businessId },
+            select: { stripePriceId: true },
+          });
+          if (!planAllowsCatalanOnRetell(currentPlan?.stripePriceId)) {
+            return reply.status(400).send({
+              error: "El catalán solo está disponible en los planes Pro y Scale.",
+            });
+          }
+        }
+
         const updateData: any = { ...data };
         if (data.schedule) {
             updateData.schedule = data.schedule as any;
@@ -332,6 +350,14 @@ export async function businessesRoutes(fastify: FastifyInstance) {
         if (shouldResyncPrompt) {
           await syncAgentToRetell(request.user!.businessId);
           await syncAgentToTelnyx(request.user!.businessId);
+        }
+
+        // Solo `agentSettings` puede tocar `languages` (catalán) — se
+        // reconcilia DESPUÉS de los syncs de arriba para que, si toca
+        // cambiar de orquestador, el que reciba las llamadas ya tenga la
+        // configuración al día.
+        if (data.agentSettings !== undefined) {
+          await reconcileVoiceOrchestrator(request.user!.businessId);
         }
 
         if (data.schedule !== undefined) {
