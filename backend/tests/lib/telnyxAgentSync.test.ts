@@ -111,6 +111,24 @@ describe("createTelnyxAssistantForAgent", () => {
     expect(result.reason).toContain("Telnyx 500");
   });
 
+  it("fija transcription.language según los idiomas activados, no un \"es\" fijo", async () => {
+    mockedBusinessFindUnique.mockResolvedValue({
+      ...BASE_BUSINESS,
+      agentSettings: { ...DEFAULT_AGENT_SETTINGS, languages: ["es-ES", "en-GB"] },
+    } as any);
+    mockedCreateAssistant.mockResolvedValue({
+      id: "assistant_1",
+      name: "alhabla-biz1-agent1",
+      instructions: "i",
+    });
+
+    await createTelnyxAssistantForAgent({ agentId: "agent1", businessId: "biz1" });
+
+    expect(mockedCreateAssistant.mock.calls[0][0]).toMatchObject({
+      transcription: { language: "multi" },
+    });
+  });
+
   it("devuelve no elegible si el negocio no existe", async () => {
     mockedBusinessFindUnique.mockResolvedValue(null);
 

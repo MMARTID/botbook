@@ -3,6 +3,7 @@ import { prisma } from "./prisma.js";
 import { telnyxAiAdapter } from "../adapters/telnyx/TelnyxAiAdapter.js";
 import {
   buildTelnyxAssistantPayload,
+  resolveTelnyxTranscriptionLanguage,
   type TelnyxWebhookToolInput,
 } from "./telnyxAssistantPayload.js";
 import {
@@ -86,7 +87,7 @@ export async function createTelnyxAssistantForAgent(args: {
       businessName: config.business.name,
       instructions: config.systemPrompt,
       greeting: buildRetellBeginMessage(config.business.name),
-      language: "es",
+      language: resolveTelnyxTranscriptionLanguage(config.agentSettings.languages),
       voice: eligibility.voiceId!,
     });
 
@@ -179,7 +180,9 @@ export async function syncAgentToTelnyx(
               ? agent.systemPrompt
               : config.systemPrompt,
             greeting: buildRetellBeginMessage(config.business.name),
-            language: "es",
+            language: resolveTelnyxTranscriptionLanguage(
+              config.agentSettings.languages
+            ),
             voice: eligibility.voiceId!,
             boostedKeywords,
             tools: options?.tools,

@@ -4,6 +4,7 @@ import {
   buildTelnyxAssistantName,
   buildTelnyxAssistantPayload,
   buildTelnyxHangupTool,
+  resolveTelnyxTranscriptionLanguage,
   toTelnyxWebhookTool,
 } from "../../src/lib/telnyxAssistantPayload.js";
 
@@ -108,6 +109,26 @@ describe("adaptManagedPromptForTelnyx", () => {
     );
 
     expect(result).toBe("Eres una recepcionista breve y profesional.");
+  });
+});
+
+describe("resolveTelnyxTranscriptionLanguage", () => {
+  it("usa la pista concreta cuando solo hay un idioma activado", () => {
+    expect(resolveTelnyxTranscriptionLanguage(["es-ES"])).toBe("es");
+    expect(resolveTelnyxTranscriptionLanguage(["en-GB"])).toBe("en");
+    expect(resolveTelnyxTranscriptionLanguage(["fr-FR"])).toBe("fr");
+  });
+
+  it("usa \"multi\" (sin pista fija) cuando hay más de un idioma activado", () => {
+    expect(resolveTelnyxTranscriptionLanguage(["es-ES", "en-GB"])).toBe("multi");
+    expect(resolveTelnyxTranscriptionLanguage(["es-ES", "en-GB", "fr-FR"])).toBe(
+      "multi"
+    );
+  });
+
+  it("cae a \"es\" si la lista está vacía o no reconoce ningún idioma", () => {
+    expect(resolveTelnyxTranscriptionLanguage([])).toBe("es");
+    expect(resolveTelnyxTranscriptionLanguage(["ca-ES"])).toBe("es");
   });
 });
 

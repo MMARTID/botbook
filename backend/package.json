@@ -18,6 +18,7 @@
     "test:coverage": "vitest run --coverage",
     "test:integration": "vitest run --config vitest.integration.config.ts",
     "test:integration:watch": "vitest --config vitest.integration.config.ts",
+    "test:simulations": "vitest run --config vitest.simulations.config.ts",
     "sim": "tsx scripts/retellSimulation.ts",
     "agents:sync-prompts": "tsx scripts/syncManagedAgentPrompts.ts"
   },
