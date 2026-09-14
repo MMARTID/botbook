@@ -263,6 +263,7 @@ describe("buildTelnyxAssistantPayload", () => {
       stop_on_conversation_end: true,
     });
     expect(payload.telephonySettings?.user_idle_timeout_secs).toBe(30);
+    expect(payload.telephonySettings?.user_idle_reply_secs).toBe(12);
     expect(payload.telephonySettings?.time_limit_secs).toBe(10 * 60);
   });
 
@@ -276,10 +277,12 @@ describe("buildTelnyxAssistantPayload", () => {
     const payload = buildTelnyxAssistantPayload({
       ...baseInput,
       userIdleTimeoutSecs: 45,
+      userIdleReplySecs: 20,
       maxCallDurationSecs: 300,
     });
 
     expect(payload.telephonySettings?.user_idle_timeout_secs).toBe(45);
+    expect(payload.telephonySettings?.user_idle_reply_secs).toBe(20);
     expect(payload.telephonySettings?.time_limit_secs).toBe(300);
   });
 
