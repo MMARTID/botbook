@@ -17,7 +17,8 @@ export default function RegisterBusinessTeamPage() {
   const router = useRouter();
   const [businessType, setBusinessType] = useState<BusinessType>("other");
   const [employees, setEmployees] = useState(2);
-  const [capacity, setCapacity] = useState(1);
+  const [capacity, setCapacity] = useState(2);
+  const [capacityTouched, setCapacityTouched] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [hasPlaceSchedule, setHasPlaceSchedule] = useState(false);
@@ -40,6 +41,25 @@ export default function RegisterBusinessTeamPage() {
       setBusinessType(typeFromUrl);
     }
   }, [router]);
+
+  // La capacidad sigue al número de profesionales por defecto — sin esto, un
+  // negocio con varios profesionales se queda con la capacidad en 1 (el
+  // valor inicial del slider) salvo que el usuario también toque el segundo
+  // slider, y check_availability rechaza citas con profesionales libres
+  // porque "ya tiene todas sus plazas ocupadas". En cuanto el usuario mueve
+  // el slider de capacidad a mano, deja de seguir a employees — sigue
+  // pudiendo fijar menos plazas que profesionales a propósito (ej. un solo
+  // sillón compartido por turnos).
+  useEffect(() => {
+    if (!capacityTouched) {
+      setCapacity(employees);
+    }
+  }, [employees, capacityTouched]);
+
+  const handleCapacityChange = (value: number) => {
+    setCapacityTouched(true);
+    setCapacity(value);
+  };
 
   const redirectToNextStep = () => {
     const params = new URLSearchParams();
@@ -131,7 +151,7 @@ export default function RegisterBusinessTeamPage() {
             min={CAPACITY_MIN}
             max={CAPACITY_MAX}
             step={1}
-            onChange={setCapacity}
+            onChange={handleCapacityChange}
             ariaValueText={`${capacity} ${capacity === 1 ? "reserva a la vez" : "reservas a la vez"}`}
             displayValue={`${capacity} ${capacity === 1 ? "reserva a la vez" : "reservas a la vez"}`}
             minLabel={`${CAPACITY_MIN} reserva`}
