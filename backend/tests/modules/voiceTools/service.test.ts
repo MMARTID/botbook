@@ -75,10 +75,9 @@ const mockedEnqueueWhatsappJob = vi.mocked(enqueueWhatsappJob);
 
 /** Los tests de SMS asumen que WhatsApp NO está configurado — sin esto,
  * dependerían de si el `.env` real de quien ejecuta los tests tiene
- * WHATSAPP_ACCESS_TOKEN puesto o no (lo tiene en dev desde 2026-09-14). */
+ * WHATSAPP_TELNYX_FROM_NUMBER puesto o no (lo tiene en dev desde 2026-09-14). */
 function clearWhatsappEnv() {
-  delete process.env.WHATSAPP_ACCESS_TOKEN;
-  delete process.env.WHATSAPP_PHONE_NUMBER_ID;
+  delete process.env.WHATSAPP_TELNYX_FROM_NUMBER;
   delete process.env.WHATSAPP_TEMPLATE_CONFIRMATION_NAME;
   delete process.env.WHATSAPP_TEMPLATE_REMINDER_NAME;
 }
@@ -647,8 +646,10 @@ describe("executeVoiceTool book_appointment — confirmación al cliente por Wha
 
   beforeEach(() => {
     vi.clearAllMocks();
-    process.env.WHATSAPP_ACCESS_TOKEN = "token_test";
-    process.env.WHATSAPP_PHONE_NUMBER_ID = "phone_id_test";
+    process.env.WHATSAPP_TELNYX_FROM_NUMBER = "+34900000001";
+    process.env.TELNYX_API_KEY = process.env.TELNYX_API_KEY || "test_key";
+    process.env.TELNYX_MESSAGING_PROFILE_ID =
+      process.env.TELNYX_MESSAGING_PROFILE_ID || "profile_test";
     process.env.WHATSAPP_TEMPLATE_CONFIRMATION_NAME = "confirmacion_cita";
     process.env.WHATSAPP_TEMPLATE_REMINDER_NAME = "recordatorio_cita";
     mockedBusinessFindUnique.mockResolvedValue(buildBusiness() as any);

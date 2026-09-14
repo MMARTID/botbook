@@ -685,11 +685,11 @@ function resolveWhatsappLanguageCode(): string {
 }
 
 /**
- * Variables {{1}}, {{2}}... del body de las plantillas de confirmación y
- * recordatorio — mismo contenido que las versiones SMS (negocio, servicios,
- * fecha/hora, teléfono). El ORDEN debe coincidir exactamente con el que
- * Meta apruebe; ajustar aquí en cuanto WHATSAPP_TEMPLATE_CONFIRMATION_NAME /
- * WHATSAPP_TEMPLATE_REMINDER_NAME queden definitivas.
+ * Variables con nombre del body de las plantillas de confirmación y
+ * recordatorio (`confirmacion_cita` / `recordatorio_cita`, aprobadas por
+ * Meta vía Telnyx) — las claves deben coincidir exactamente con las de la
+ * plantilla real: negocio_nombre, servicios, fecha_cita, hora_cita,
+ * profesional, negocio_telefono.
  */
 function buildWhatsappBookingParams(input: {
   businessName: string;
@@ -697,19 +697,31 @@ function buildWhatsappBookingParams(input: {
   startDateTime: string;
   timezone: string;
   serviceNames?: string[] | null;
-}): string[] {
-  const formattedDateTime = new Intl.DateTimeFormat("es-ES", {
+  professionalName?: string | null;
+}): Record<string, string> {
+  const date = new Date(input.startDateTime);
+  const fechaCita = new Intl.DateTimeFormat("es-ES", {
     timeZone: input.timezone,
     weekday: "short",
     day: "numeric",
     month: "short",
+  }).format(date);
+  const horaCita = new Intl.DateTimeFormat("es-ES", {
+    timeZone: input.timezone,
     hour: "2-digit",
     minute: "2-digit",
-  }).format(new Date(input.startDateTime));
+  }).format(date);
 
   const services = input.serviceNames?.filter(Boolean).join(" + ") || "tu cita";
 
-  return [input.businessName, services, formattedDateTime, input.businessPhone];
+  return {
+    negocio_nombre: input.businessName,
+    servicios: services,
+    fecha_cita: fechaCita,
+    hora_cita: horaCita,
+    profesional: input.professionalName || "nuestro equipo",
+    negocio_telefono: input.businessPhone,
+  };
 }
 
 /**
@@ -729,6 +741,7 @@ async function sendClientBookingMessage(
     startDateTime: string;
     timezone: string;
     serviceNames?: string[] | null;
+    professionalName?: string | null;
   },
   options?: { taskId?: string; scheduleTime?: Date }
 ): Promise<void> {
@@ -1330,13 +1343,13 @@ async function executeBookAppointment(
         // hasta ahora — solo si dio consentimiento explícito por voz
         // (smsConsent, reutilizado como consentimiento de mensajería en
         // general) para usar este número. Mismo aislamiento que el aviso al
-        // propietario: nunca debe poder tumbar la reserva. OJO: sin
-        // WhatsApp ni TELNYX_SMS_SENDER_ID configurados, el remitente SMS
-        // sigue siendo el número Telnyx del negocio, que hoy Telnyx bloquea
-        // para mensajería (40323/40305, ver AGENTS.md e issue #21) — ese
-        // bloque deja el pipeline listo (job correctamente encolado) para
-        // cuando se apruebe el Alphanumeric Sender ID, sin que la entrega
-        // real sea la condición de éxito ahora mismo.
+        // propietario: nunca debe poder tumbar la reserva. El envío por
+        // WhatsApp va vía Telnyx (BSP de Meta), no Meta Graph API directa —
+        // ver WhatsAppAdapter.ts. Sin WhatsApp ni TELNYX_SMS_SENDER_ID
+        // configurados, cae a SMS con el número Telnyx del negocio, que hoy
+        // Telnyx bloquea para mensajería (40323/40305, ver AGENTS.md e issue
+        // #21) — ese bloque deja el pipeline listo (job correctamente
+        // encolado) para cuando se apruebe el Alphanumeric Sender ID.
         if (
           smsConsent &&
           business.telnyxPhoneNumber &&
@@ -1358,6 +1371,7 @@ async function executeBookAppointment(
             startDateTime,
             timezone: business.timezone || "Europe/Madrid",
             serviceNames: verifiedServiceNames,
+            professionalName: resolvedProfessionalName,
           };
 
           try {

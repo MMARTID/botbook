@@ -1,12 +1,14 @@
-const GRAPH_API_BASE_URL = "https://graph.facebook.com/v21.0";
+const TELNYX_API_BASE_URL = "https://api.telnyx.com/v2";
 
 export interface WhatsAppTemplateMessage {
   /** Número del destinatario en formato E.164, p.ej. "+34600111222". */
   to: string;
   templateName: string;
   languageCode: string;
-  /** Variables {{1}}, {{2}}... del body de la plantilla, en orden. */
-  bodyParams: string[];
+  /** Variables con nombre del body de la plantilla ({{negocio_nombre}},
+   * {{servicios}}...), tal como las aprobó Meta — el nombre de cada clave
+   * debe coincidir exactamente con el de la plantilla. */
+  bodyParams: Record<string, string>;
 }
 
 export interface WhatsAppSendResult {
@@ -14,21 +16,34 @@ export interface WhatsAppSendResult {
 }
 
 /**
- * Cliente de la WhatsApp Cloud API de Meta (no de Telnyx — Telnyx no ofrece
- * WhatsApp Business como producto). Requiere una app de Meta for Developers
- * con el producto WhatsApp vinculado a la WhatsApp Business Account real del
- * negocio, un token de acceso permanente (System User, no el de 24h del
- * panel de pruebas) y las plantillas de mensaje aprobadas por Meta — fuera
- * de la ventana de 24h de conversación, solo se puede enviar con plantilla.
+ * Cliente de WhatsApp Business API vía Telnyx (Business Solution Provider de
+ * Meta) — no la Cloud API de Meta directamente. El WABA de Alhabla se conectó
+ * mediante el Embedded Signup de Telnyx (Mission Control → Messaging →
+ * WhatsApp), así que Meta gestiona esta cuenta bajo el Tech Provider de
+ * Telnyx y bloquea el acceso directo con un token de Meta propio
+ * ("API access blocked", OAuthException 200) — el envío real tiene que pasar
+ * por `POST /v2/messages/whatsapp` de Telnyx, con TELNYX_API_KEY.
+ *
+ * El número remitente (`WHATSAPP_TELNYX_FROM_NUMBER`) es español y Telnyx no
+ * permite asignarle un perfil de mensajería de forma permanente (error 40323,
+ * mismo bloqueo de números españoles que documenta
+ * `resolveSmsMessagingProfileId` en voiceTools/service.ts) — por eso
+ * `messaging_profile_id` va explícito en cada petición de envío en vez de
+ * dejar que Telnyx lo resuelva solo a partir del `from`.
  */
 export class WhatsAppAdapter {
-  private getConfig(): { phoneNumberId: string; accessToken: string } | null {
-    const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
-    const accessToken = process.env.WHATSAPP_ACCESS_TOKEN;
-    if (!phoneNumberId || !accessToken) {
+  private getConfig(): {
+    apiKey: string;
+    fromNumber: string;
+    messagingProfileId: string;
+  } | null {
+    const apiKey = process.env.TELNYX_API_KEY;
+    const fromNumber = process.env.WHATSAPP_TELNYX_FROM_NUMBER;
+    const messagingProfileId = process.env.TELNYX_MESSAGING_PROFILE_ID;
+    if (!apiKey || !fromNumber || !messagingProfileId) {
       return null;
     }
-    return { phoneNumberId, accessToken };
+    return { apiKey, fromNumber, messagingProfileId };
   }
 
   isConfigured(): boolean {
@@ -44,49 +59,48 @@ export class WhatsAppAdapter {
     const config = this.getConfig();
     if (!config) {
       throw new Error(
-        "WhatsApp no está configurado (faltan WHATSAPP_PHONE_NUMBER_ID / WHATSAPP_ACCESS_TOKEN)"
+        "WhatsApp no está configurado (faltan TELNYX_API_KEY / WHATSAPP_TELNYX_FROM_NUMBER / TELNYX_MESSAGING_PROFILE_ID)"
       );
     }
 
-    const response = await fetch(
-      `${GRAPH_API_BASE_URL}/${config.phoneNumberId}/messages`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${config.accessToken}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          messaging_product: "whatsapp",
-          to: to.replace(/^\+/, ""),
+    const parameters = Object.entries(bodyParams).map(([parameterName, text]) => ({
+      type: "text",
+      parameter_name: parameterName,
+      text,
+    }));
+
+    const response = await fetch(`${TELNYX_API_BASE_URL}/messages/whatsapp`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${config.apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        from: config.fromNumber,
+        to,
+        messaging_profile_id: config.messagingProfileId,
+        whatsapp_message: {
           type: "template",
           template: {
             name: templateName,
-            language: { code: languageCode },
-            ...(bodyParams.length > 0
-              ? {
-                  components: [
-                    {
-                      type: "body",
-                      parameters: bodyParams.map((text) => ({ type: "text", text })),
-                    },
-                  ],
-                }
+            language: { policy: "deterministic", code: languageCode },
+            ...(parameters.length > 0
+              ? { components: [{ type: "body", parameters }] }
               : {}),
           },
-        }),
-      }
-    );
+        },
+      }),
+    });
 
     if (!response.ok) {
       const errorBody = await response.text();
       throw new Error(
-        `Error ${response.status} al enviar la plantilla de WhatsApp "${templateName}": ${errorBody}`
+        `Error ${response.status} al enviar la plantilla de WhatsApp "${templateName}" vía Telnyx: ${errorBody}`
       );
     }
 
-    const data = (await response.json()) as { messages?: Array<{ id: string }> };
-    return { messageId: data.messages?.[0]?.id ?? "" };
+    const data = (await response.json()) as { data?: { id?: string } };
+    return { messageId: data.data?.id ?? "" };
   }
 }
 
