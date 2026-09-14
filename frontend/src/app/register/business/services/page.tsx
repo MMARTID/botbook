@@ -106,16 +106,28 @@ export default function RegisterBusinessServicesPage() {
       const servicesToCreate = allTemplates.filter(
         (service) => selected.has(service.name) && !existingNames.has(service.name),
       );
-      const results = await Promise.allSettled(
-        servicesToCreate.map((service) =>
-          createBookingService({
+      // Uno por uno, NO en paralelo: cada servicio creado dispara una
+      // sincronización completa del agente de Retell (borrador -> publicar)
+      // para el mismo agente, y dos de esas sincronizaciones a la vez para
+      // el mismo agente compiten entre sí — Retell responde "Cannot update
+      // published LLM" cuando una publica justo entre que la otra lee el
+      // borrador y lo actualiza. Antes casi nunca se disparaba (la
+      // selección venía premarcada y "configurar después" evitaba crear
+      // varios de golpe); con la selección mínima de 4 pasó a ser el
+      // camino normal, y encontrado 2026-09-14 probando el onboarding real.
+      let anyFailed = false;
+      for (const service of servicesToCreate) {
+        try {
+          await createBookingService({
             name: service.name,
             durationMinutes: service.durationMinutes,
             active: true,
-          })
-        )
-      );
-      if (results.some((result) => result.status === "rejected")) {
+          });
+        } catch {
+          anyFailed = true;
+        }
+      }
+      if (anyFailed) {
         throw new Error("No se pudieron guardar todos los servicios.");
       }
       window.localStorage.removeItem(REGISTRATION_NICHE_KEY);
