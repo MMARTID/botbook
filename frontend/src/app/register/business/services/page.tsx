@@ -2,15 +2,16 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Check, Clock, LoaderCircle, Scissors, Sparkles } from "lucide-react";
+import { Check, Clock, LoaderCircle, Plus, Scissors } from "lucide-react";
 import { createBookingService, getBookingSettings } from "@/lib/api";
 import { getPendingPlan, isPlanId } from "@/lib/billing-navigation";
 import { BUSINESS_TYPE_ONBOARDING_TEXTS, isBusinessType } from "@/lib/business-type";
-import { getServiceTemplate, type ServiceTemplate } from "@/lib/service-templates";
+import { getServiceTemplateCategories, type ServiceTemplateCategory } from "@/lib/service-templates";
 import type { BusinessType } from "@/lib/types";
 
 const REGISTRATION_NICHE_KEY = "alhabla_registration_niche";
 const DETECTED_BUSINESS_TYPE_KEY = "alhabla_detected_business_type";
+const MIN_SERVICES_REQUIRED = 4;
 
 function formatDuration(minutes: number) {
   if (minutes < 60) return `${minutes} min`;
@@ -22,7 +23,7 @@ function formatDuration(minutes: number) {
 export default function RegisterBusinessServicesPage() {
   const router = useRouter();
   const [businessType, setBusinessType] = useState<BusinessType>("other");
-  const [templates, setTemplates] = useState<ServiceTemplate[]>([]);
+  const [categories, setCategories] = useState<ServiceTemplateCategory[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -54,9 +55,14 @@ export default function RegisterBusinessServicesPage() {
       "other";
 
     setBusinessType(resolvedType);
-    const serviceTemplates = getServiceTemplate(resolvedType);
-    setTemplates(serviceTemplates);
-    setSelected(new Set(serviceTemplates.map((service) => service.name)));
+    // Empieza vacío a propósito: antes marcábamos todo el preset por
+    // defecto y se pedía "quitar lo que no aplique", una interacción que
+    // confundía (el botón pasa de blanco a negro según seleccionas) y
+    // llevaba a negocios a dejar fuera servicios reales que sí ofrecen —
+    // el agente terminaba sin poder reservarlos. Ahora es una selección
+    // activa: solo entra lo que el negocio marca explícitamente.
+    setCategories(getServiceTemplateCategories(resolvedType));
+    setSelected(new Set());
 
     if (selectedPlan) {
       window.localStorage.setItem("alhabla_pending_plan", selectedPlan);
@@ -85,21 +91,19 @@ export default function RegisterBusinessServicesPage() {
   };
 
   const handleConfirm = async () => {
-    if (selected.size === 0) {
-      redirectToNextStep();
-      return;
-    }
+    if (selected.size < MIN_SERVICES_REQUIRED) return;
 
     setSaving(true);
     setError("");
 
     try {
+      const allTemplates = categories.flatMap((category) => category.services);
       // Una petición puede terminar bien aunque otra del lote falle. Consultar
       // antes de reintentar evita duplicar los servicios que ya llegaron a
       // guardarse en ese intento parcial.
       const { services: existingServices } = await getBookingSettings();
       const existingNames = new Set(existingServices.map((service) => service.name));
-      const servicesToCreate = templates.filter(
+      const servicesToCreate = allTemplates.filter(
         (service) => selected.has(service.name) && !existingNames.has(service.name),
       );
       const results = await Promise.allSettled(
@@ -128,10 +132,12 @@ export default function RegisterBusinessServicesPage() {
   const ctaLabel = texts.services.cta
     .replace("{count}", String(selected.size))
     .replace("{s}", selected.size === 1 ? "" : "s");
+  const missing = Math.max(0, MIN_SERVICES_REQUIRED - selected.size);
+  const canContinue = selected.size >= MIN_SERVICES_REQUIRED;
 
   return (
     <div className="flex min-h-screen items-center justify-center px-4 py-12 sm:px-6 lg:px-8">
-      <div className="panel w-full max-w-lg p-8">
+      <div className="panel w-full max-w-xl p-8">
         <div className="space-y-4 text-center">
           <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-[#f3eeff] text-[#8b5cf6]">
             <Scissors className="h-7 w-7" />
@@ -144,55 +150,74 @@ export default function RegisterBusinessServicesPage() {
           </p>
         </div>
 
-        <div className="mt-8 max-h-72 overflow-y-auto pr-1">
-          <div className="flex flex-wrap gap-2">
-            {templates.map((service) => {
-              const isSelected = selected.has(service.name);
-              return (
-                <button
-                  key={service.name}
-                  type="button"
-                  onClick={() => toggleService(service.name)}
-                  disabled={saving}
-                  className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 ${
-                    isSelected
-                      ? "border-[#0a0a0a] bg-[#0a0a0a] text-white"
-                      : "border-[#e5e5e5] bg-white text-[#27272a] hover:bg-[#fafafa]"
-                  }`}
-                >
-                  {isSelected ? (
-                    <Check className="h-3.5 w-3.5" />
-                  ) : (
-                    <Sparkles className="h-3.5 w-3.5 text-[#a1a1aa]" />
-                  )}
-                  <span>{service.name}</span>
-                  <span
-                    className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs ${
-                      isSelected ? "bg-white/20 text-white" : "bg-[#f3eeff] text-[#6d28d9]"
-                    }`}
-                  >
-                    <Clock className="h-3 w-3" />
-                    {formatDuration(service.durationMinutes)}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
+        <div className="mt-6 flex items-center justify-center gap-2 text-sm font-semibold">
+          <span
+            className={`rounded-full px-3 py-1 ${
+              canContinue ? "bg-[#ecfdf3] text-[#2c7334]" : "bg-[#f3eeff] text-[#6d28d9]"
+            }`}
+          >
+            {canContinue
+              ? `${selected.size} servicios seleccionados`
+              : `Selecciona al menos ${MIN_SERVICES_REQUIRED} servicios · llevas ${selected.size} de ${MIN_SERVICES_REQUIRED}`}
+          </span>
         </div>
 
-        {selected.size === 0 && (
-          <p className="mt-4 text-sm text-[#a1a1aa]">
-            No has seleccionado ningún servicio. Puedes añadirlos más tarde en ajustes.
+        <div className="mt-6 max-h-96 space-y-5 overflow-y-auto pr-1">
+          {categories.map((category) => (
+            <div key={category.category}>
+              <h3 className="mb-2 text-xs font-bold uppercase tracking-wide text-[#a1a1aa]">
+                {category.category}
+              </h3>
+              <div className="flex flex-wrap gap-2">
+                {category.services.map((service) => {
+                  const isSelected = selected.has(service.name);
+                  return (
+                    <button
+                      key={service.name}
+                      type="button"
+                      onClick={() => toggleService(service.name)}
+                      disabled={saving}
+                      className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 ${
+                        isSelected
+                          ? "border-[#0a0a0a] bg-[#0a0a0a] text-white"
+                          : "border-[#e5e5e5] bg-white text-[#27272a] hover:border-[#8b5cf6] hover:bg-[#fafafa]"
+                      }`}
+                    >
+                      {isSelected ? (
+                        <Check className="h-3.5 w-3.5" />
+                      ) : (
+                        <Plus className="h-3.5 w-3.5 text-[#a1a1aa]" />
+                      )}
+                      <span>{service.name}</span>
+                      <span
+                        className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs ${
+                          isSelected ? "bg-white/20 text-white" : "bg-[#f3eeff] text-[#6d28d9]"
+                        }`}
+                      >
+                        <Clock className="h-3 w-3" />
+                        {formatDuration(service.durationMinutes)}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {!canContinue && (
+          <p className="mt-4 text-center text-sm text-[#a1a1aa]">
+            Marca los servicios que sí ofreces — te faltan {missing}. Podrás añadir o editar el resto más tarde en ajustes.
           </p>
         )}
 
         {error && <p className="mt-4 text-sm text-[#c53030]">{error}</p>}
 
-        <div className="mt-8 space-y-3">
+        <div className="mt-8">
           <button
             type="button"
             onClick={handleConfirm}
-            disabled={saving}
+            disabled={saving || !canContinue}
             className="btn-primary w-full justify-center disabled:cursor-not-allowed disabled:opacity-50"
           >
             {saving ? (
@@ -203,14 +228,6 @@ export default function RegisterBusinessServicesPage() {
             ) : (
               ctaLabel
             )}
-          </button>
-          <button
-            type="button"
-            onClick={() => redirectToNextStep()}
-            disabled={saving}
-            className="btn-secondary w-full justify-center disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            Configurar servicios después
           </button>
         </div>
       </div>
