@@ -1,5 +1,5 @@
-import { ArrowDown, Quote } from "lucide-react";
-import type { NicheAccent, SectorData } from "@/lib/niche-landings";
+import { ArrowDown, ExternalLink, Quote } from "lucide-react";
+import type { NicheAccent, SectorData, SectorSource } from "@/lib/niche-landings";
 import { Reveal } from "@/components/scroll-reveal";
 import { CountUp } from "@/components/count-up";
 
@@ -8,6 +8,32 @@ const FALLBACK_ACCENT: NicheAccent = {
   soft: "#f3eeff",
   deep: "#0a0a0a",
 };
+
+function Citation({ source, inverted = false }: { source: string | SectorSource; inverted?: boolean }) {
+  const citation = typeof source === "string" ? { publisher: source } : source;
+  const content = (
+    <>
+      <span className="font-semibold uppercase tracking-[0.12em]">Dato de terceros</span>
+      <span className="mt-1 block font-medium normal-case tracking-normal">{citation.publisher}</span>
+      {citation.title ? <span className="mt-0.5 block normal-case tracking-normal">{citation.title}</span> : null}
+    </>
+  );
+  const className = inverted
+    ? "group mt-6 block border-t border-white/15 pt-3 text-[11px] leading-4 text-white/65 transition hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#a78bfa]"
+    : "group mt-6 block border-t border-[#e5e5e5] pt-3 text-[11px] leading-4 text-[#52525b] transition hover:text-[#0a0a0a] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]";
+
+  if (!citation.href) return <p className={className}>{content}</p>;
+
+  return (
+    <a href={citation.href} target="_blank" rel="noreferrer" className={className}>
+      <span className="flex items-start justify-between gap-3">
+        <span>{content}</span>
+        <ExternalLink className="mt-0.5 h-3.5 w-3.5 shrink-0 opacity-70 transition group-hover:opacity-100" aria-hidden="true" />
+      </span>
+      <span className="mt-2 inline-block font-semibold underline underline-offset-4">Abrir publicación</span>
+    </a>
+  );
+}
 
 export function SectorDataSection({
   data,
@@ -44,7 +70,7 @@ export function SectorDataSection({
                     <CountUp value={stat.value} delay={i * 0.1} />
                   </p>
                   <p className="mt-4 max-w-xs text-sm leading-6 text-white/80">{stat.label}</p>
-                  {stat.source ? <p className="mt-6 text-xs text-white/60">Fuente: {stat.source}</p> : null}
+                  {stat.source ? <Citation source={stat.source} inverted /> : null}
                 </article>
               ) : (
                 <article className="panel flex h-full flex-col justify-between p-7 sm:p-8">
@@ -52,12 +78,7 @@ export function SectorDataSection({
                     <CountUp value={stat.value} delay={i * 0.1} />
                   </p>
                   <p className="mt-4 text-sm leading-6 text-[#52525b]">{stat.label}</p>
-                  {/* #a1a1aa (Silenciado) daba 2.56:1 sobre blanco a este tamaño — falla el
-                      4.5:1 de WCAG AA para texto normal. Ese token es para placeholders y
-                      decoración de baja jerarquía (así lo define DESIGN.md), no para una fuente
-                      citada que sí hay que poder leer. .text-muted (7.73:1) es el token correcto
-                      para "descripciones y ayudas". */}
-                  {stat.source ? <p className="mt-6 text-xs text-muted">Fuente: {stat.source}</p> : null}
+                  {stat.source ? <Citation source={stat.source} /> : null}
                 </article>
               )}
             </Reveal>
@@ -81,9 +102,7 @@ export function SectorDataSection({
                     <blockquote className="text-sm font-medium italic leading-6 text-[#27272a]">
                       &ldquo;{quote.text}&rdquo;
                     </blockquote>
-                    {quote.source ? (
-                      <figcaption className="mt-2 text-sm text-[#71717a]">{quote.source}</figcaption>
-                    ) : null}
+                    {quote.source ? <figcaption><Citation source={quote.source} /></figcaption> : null}
                   </div>
                 </figure>
               </Reveal>

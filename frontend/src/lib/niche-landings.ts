@@ -16,8 +16,20 @@ export type NicheAccent = {
   deep: string;
 };
 
-export type SectorStat = { value: string; label: string; source?: string };
-export type SectorQuote = { text: string; source?: string };
+/**
+ * Referencia editorial que acompaña a una cifra o cita. Las referencias
+ * heredadas pueden seguir siendo texto mientras se verifican, pero las nuevas
+ * deben enlazar a la publicación concreta para que el lector pueda comprobar
+ * el contexto sin salir a buscarlo.
+ */
+export type SectorSource = {
+  publisher: string;
+  title?: string;
+  href?: string;
+};
+
+export type SectorStat = { value: string; label: string; source?: string | SectorSource };
+export type SectorQuote = { text: string; source?: string | SectorSource };
 export type SectorData = {
   eyebrow: string;
   title: string;
@@ -712,25 +724,22 @@ export const generalSectorData: SectorData = {
     "No es una intuición del sector: está medido. En los negocios que trabajan con cita previa, el teléfono sigue siendo el canal principal de reserva y quien no recibe respuesta no vuelve a intentarlo.",
   stats: [
     {
-      value: "78%",
-      label: "de los clientes contrata al primer negocio que responde",
-      source: "minute-call.com",
+      value: "37%",
+      label: "de las llamadas a salones y spas no reciben respuesta",
+      source: {
+        publisher: "Zenoti · The Check-In",
+        title: "Phone calls were your salon or medspa's biggest blind spot",
+        href: "https://www.zenoti.com/thecheckin/how-track-salon-call-conversion-rate",
+      },
     },
     {
       value: "57%",
-      label: "de los clientes reserva por teléfono: sigue siendo el canal más importante",
-      source: "Zenoti",
-    },
-    {
-      value: "60%",
-      label: "de quienes no consiguen contactar no vuelve a llamar",
-      source: "heilo.io",
-    },
-  ],
-  quotes: [
-    {
-      text: "Antes el estar pendiente todo el rato al teléfono me limitaba muchos cortes al día, ahora puedo cortar a más gente y despreocuparme del móvil",
-      source: "Excelsior Barber Studio, Palma — Diario de Mallorca",
+      label: "de los clientes de belleza y bienestar sigue reservando por teléfono",
+      source: {
+        publisher: "Zenoti · The Check-In",
+        title: "Phone calls were your salon or medspa's biggest blind spot",
+        href: "https://www.zenoti.com/thecheckin/how-track-salon-call-conversion-rate",
+      },
     },
   ],
 };
