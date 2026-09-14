@@ -136,12 +136,16 @@ export async function getCall(id: string) {
 }
 
 export async function getGoogleCalendarAuthUrl() {
-  const { data } = await api.get<{ url: string }>("/calendar/auth/google");
+  const { data } = await api.get<{ url: string }>("/calendar/auth/google", {
+    withCredentials: true,
+  });
   return data.url;
 }
 
 export async function getMicrosoftCalendarAuthUrl() {
-  const { data } = await api.get<{ url: string }>("/calendar/auth/microsoft");
+  const { data } = await api.get<{ url: string }>("/calendar/auth/microsoft", {
+    withCredentials: true,
+  });
   return data.url;
 }
 
