@@ -113,6 +113,25 @@ describe("TelnyxAiAdapter", () => {
       });
       expect(payload.enabled_features).toEqual(["telephony"]);
     });
+
+    it("envía interruptionSettings como interruption_settings", async () => {
+      mockAssistantsCreate.mockResolvedValue({
+        id: "assistant_123",
+        name: "alhabla-biz1-agent1",
+        instructions: "Eres un asistente",
+      });
+
+      await adapter.createAssistant({
+        name: "alhabla-biz1-agent1",
+        instructions: "Eres un asistente",
+        interruptionSettings: { start_speaking_plan: { wait_seconds: 0.1 } },
+      });
+
+      const [payload] = mockAssistantsCreate.mock.calls[0];
+      expect(payload.interruption_settings).toEqual({
+        start_speaking_plan: { wait_seconds: 0.1 },
+      });
+    });
   });
 
   describe("updateAssistant", () => {
@@ -143,6 +162,22 @@ describe("TelnyxAiAdapter", () => {
 
       expect(mockAssistantsUpdate).toHaveBeenCalledWith("assistant_123", {
         insight_settings: { insight_group_id: "insight_grp_2" },
+      });
+    });
+
+    it("traduce interruptionSettings a interruption_settings", async () => {
+      mockAssistantsUpdate.mockResolvedValue({
+        id: "assistant_123",
+        name: "n",
+        instructions: "i",
+      });
+
+      await adapter.updateAssistant("assistant_123", {
+        interruptionSettings: { start_speaking_plan: { wait_seconds: 0.1 } },
+      });
+
+      expect(mockAssistantsUpdate).toHaveBeenCalledWith("assistant_123", {
+        interruption_settings: { start_speaking_plan: { wait_seconds: 0.1 } },
       });
     });
   });

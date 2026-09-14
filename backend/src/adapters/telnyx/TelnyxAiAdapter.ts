@@ -5,6 +5,7 @@ import type {
   AssistantUpdateParams,
   HangupTool,
   InferenceEmbedding,
+  InferenceEmbeddingInterruptionSettings,
   InferenceEmbeddingWebhookToolParams,
   PrivacySettings,
   TelephonySettings,
@@ -29,6 +30,17 @@ type TelephonySettingsInput = TelephonySettings & {
   send_conversation_message_events?: boolean;
 };
 
+/** `interrupt_prediction_threshold` es real (confirmado contra la API en
+ * vivo el 2026-09-14, un assistant ya lo devuelve) pero el SDK instalado
+ * (7.17.0) todavía no lo declara en `InferenceEmbeddingInterruptionSettings`
+ * — mismo patrón que `send_conversation_message_events` arriba. Gatea el
+ * "barge-in" por confianza (0.0-1.0, Telnyx recomienda 0.4 de partida):
+ * por debajo del umbral, un "sí"/"mmhm" del cliente no corta al agente a
+ * mitad de frase. Solo con deepgram/flux — no aplica a otros modelos de STT. */
+type InterruptionSettingsInput = InferenceEmbeddingInterruptionSettings & {
+  interrupt_prediction_threshold?: number;
+};
+
 export interface CreateTelnyxAssistantInput {
   name: string;
   instructions: string;
@@ -41,6 +53,11 @@ export interface CreateTelnyxAssistantInput {
   fallbackConfig?: { model?: string };
   voiceSettings?: VoiceSettings;
   transcription?: TranscriptionSettings;
+  /** Con deepgram/flux (modelo con turn-taking propio) solo importa
+   * `start_speaking_plan.wait_seconds` de aquí — el resto de detección de
+   * fin de turno vive en `transcription.settings` (eot_threshold,
+   * eot_timeout_ms, eager_eot_threshold), ver telnyxAssistantPayload.ts. */
+  interruptionSettings?: InterruptionSettingsInput;
   telephonySettings?: TelephonySettingsInput;
   privacySettings?: PrivacySettings;
   insightGroupId?: string;
@@ -66,6 +83,7 @@ function toAssistantCreatePayload(
     fallback_config: input.fallbackConfig,
     voice_settings: input.voiceSettings,
     transcription: input.transcription,
+    interruption_settings: input.interruptionSettings,
     telephony_settings: input.telephonySettings,
     privacy_settings: input.privacySettings,
     insight_settings: input.insightGroupId
@@ -152,6 +170,8 @@ export class TelnyxAiAdapter {
       payload.voice_settings = input.voiceSettings;
     if (input.transcription !== undefined)
       payload.transcription = input.transcription;
+    if (input.interruptionSettings !== undefined)
+      payload.interruption_settings = input.interruptionSettings;
     if (input.telephonySettings !== undefined)
       payload.telephony_settings = input.telephonySettings;
     if (input.privacySettings !== undefined)
