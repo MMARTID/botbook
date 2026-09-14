@@ -4,6 +4,7 @@ import { telnyxAiAdapter } from "../adapters/telnyx/TelnyxAiAdapter.js";
 import {
   buildTelnyxAssistantPayload,
   buildTelnyxVoiceTools,
+  resolveTelnyxTranscriptionLanguage,
   type TelnyxWebhookToolInput,
 } from "./telnyxAssistantPayload.js";
 import { getPublicWebhookBaseUrl } from "./serverUrl.js";
@@ -88,7 +89,7 @@ export async function createTelnyxAssistantForAgent(args: {
       businessName: config.business.name,
       instructions: config.systemPrompt,
       greeting: buildRetellBeginMessage(config.business.name),
-      language: "es",
+      language: resolveTelnyxTranscriptionLanguage(config.agentSettings.languages),
       voice: eligibility.voiceId!,
     });
 
@@ -205,7 +206,7 @@ export async function syncAgentToTelnyx(
               ? agent.systemPrompt
               : config.systemPrompt,
             greeting: buildRetellBeginMessage(config.business.name),
-            language: "es",
+            language: resolveTelnyxTranscriptionLanguage(config.agentSettings.languages),
             voice: eligibility.voiceId!,
             boostedKeywords,
             tools,
