@@ -51,7 +51,7 @@ import { prisma } from "../src/lib/prisma.js";
 import { getPublicWebhookBaseUrl } from "../src/lib/serverUrl.js";
 import { runOneCall } from "./telnyxCallHarness.js";
 
-const MAX_DURATION_SECS = 160;
+const MAX_DURATION_SECS = 230;
 
 // Si PROD_DATABASE_URL está definida, los resultados se leen de la BD de
 // producción (necesario cuando la batería corre contra api.alhabla.ai).
@@ -385,8 +385,24 @@ async function runBusinessScenarios(slug: BusinessSlug): Promise<ScenarioResult[
   return results;
 }
 
+// --one-each: un escenario distinto por negocio, todos en paralelo.
+// Asignación fija para cubrir los 5 tipos de prueba en una sola pasada:
+//   peluqueria   → consentimiento sí
+//   barberia     → consentimiento no
+//   salon_unas   → cancelar por número de quien llama
+//   estetica     → persona exigente del nicho
+//   fisio        → profesional concreto
+const ONE_EACH_SCENARIO: Record<BusinessSlug, (s: BusinessSlug) => Promise<ScenarioResult>> = {
+  peluqueria: (s) => runConsentScenario(s, true),
+  barberia: (s) => runConsentScenario(s, false),
+  salon_unas: (s) => runCancelByCallerIdScenario(s),
+  estetica: (s) => runNichePersonaScenario(s),
+  fisio: (s) => runProfessionalScenario(s),
+};
+
 async function main() {
   const only = readArg("only") as BusinessSlug | undefined;
+  const oneEach = process.argv.includes("--one-each");
 
   if (only && !BUSINESSES[only]) {
     console.error(`Negocio desconocido "${only}". Opciones: ${SLUGS.join(", ")}`);
@@ -401,7 +417,9 @@ async function main() {
       .join(", ")}`
   );
 
-  const perBusiness = await Promise.all(slugs.map(runBusinessScenarios));
+  const perBusiness = await Promise.all(
+    slugs.map((s) => oneEach ? ONE_EACH_SCENARIO[s](s).then((r) => [r]) : runBusinessScenarios(s))
+  );
   const results = perBusiness.flat();
 
   console.log(`\n\n=== Resumen (${results.length} escenarios) ===`);

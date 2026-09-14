@@ -347,15 +347,27 @@ export default function RegisterBusinessPage() {
                   <button
                     type="button"
                     onClick={() => handleSelect(place)}
-                    className="flex w-full items-start gap-3 px-4 py-3 text-left transition hover:bg-[#fafafa]"
+                    className="flex w-full items-center gap-3 px-3 py-2.5 text-left transition hover:bg-[#fafafa] focus-visible:bg-[#fafafa] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#8b5cf6]"
                   >
-                    <Building2 className="mt-0.5 h-4 w-4 shrink-0 text-muted" />
-                    <div>
-                      <p className="text-sm font-semibold text-[#27272a]">
+                    {place.photoUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element -- imagen remota de Google Places, tamaño dinámico por resultado.
+                      <img
+                        src={place.photoUrl}
+                        alt=""
+                        loading="lazy"
+                        className="h-14 w-14 shrink-0 rounded-xl object-cover"
+                      />
+                    ) : (
+                      <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-[#f3eeff] text-[#8b5cf6]">
+                        <Building2 className="h-5 w-5" />
+                      </span>
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-semibold text-[#27272a]">
                         {place.name}
                       </p>
                       {place.address && (
-                        <p className="text-xs text-muted">{place.address}</p>
+                        <p className="mt-0.5 truncate text-xs leading-5 text-muted">{place.address}</p>
                       )}
                     </div>
                   </button>

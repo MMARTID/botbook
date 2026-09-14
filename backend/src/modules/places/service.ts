@@ -54,6 +54,7 @@ export type PlaceSearchResult = {
   placeId: string;
   name: string;
   address: string;
+  photoUrl: string | null;
 };
 
 type PlacesRegularOpeningHours = {
@@ -73,6 +74,7 @@ type PlacesPlaceDetails = {
   internationalPhoneNumber?: string;
   regularOpeningHours?: PlacesRegularOpeningHours;
   types?: string[];
+  photos?: Array<{ name?: string }>;
 };
 
 export type PlaceDetails = {
@@ -94,6 +96,7 @@ export type PlaceSearchLocation = {
 // metropolitana sin restringir tanto como para perder negocios cercanos
 // en la periferia.
 const LOCATION_BIAS_RADIUS_METERS = 50_000;
+const ENRICHED_SEARCH_MAX_RESULTS = 5;
 
 export async function searchPlaces(query: string, location?: PlaceSearchLocation): Promise<PlaceSearchResult[]> {
   const body: Record<string, unknown> = { input: query };
@@ -128,8 +131,9 @@ export async function searchPlaces(query: string, location?: PlaceSearchLocation
   const data = (await response.json()) as PlacesAutocompleteResponse;
   const suggestions = data.suggestions ?? [];
 
-  return suggestions
+  const predictions = suggestions
     .filter((suggestion) => Boolean(suggestion.placePrediction?.placeId))
+    .slice(0, ENRICHED_SEARCH_MAX_RESULTS)
     .map((suggestion) => {
       const prediction = suggestion.placePrediction!;
       const structured = prediction.structuredFormat;
@@ -141,6 +145,17 @@ export async function searchPlaces(query: string, location?: PlaceSearchLocation
         address,
       };
     });
+
+  // Autocomplete conserva el sesgo por país y geolocalización que necesita
+  // el alta, pero Google no devuelve fotos en ese endpoint. Enriquecemos solo
+  // los cinco candidatos visibles y en paralelo; si una foto falla, el alta
+  // sigue siendo completamente utilizable con su icono de reserva.
+  return Promise.all(
+    predictions.map(async (prediction) => ({
+      ...prediction,
+      photoUrl: await getPlacePhotoUrl(prediction.placeId).catch(() => null),
+    })),
+  );
 }
 
 export type DemoPlaceSearchResult = PlaceSearchResult & {
@@ -163,8 +178,8 @@ type PlacesTextSearchResponse = {
 // Máximo de resultados enriquecidos con foto en la demo: cada uno añade una
 // llamada extra a la API de fotos, así que se limita para acotar coste y
 // latencia de una búsqueda pública sin autenticar.
-const DEMO_SEARCH_MAX_RESULTS = 5;
 const DEMO_PHOTO_MAX_WIDTH_PX = 160;
+const ONBOARDING_PHOTO_MAX_WIDTH_PX = 112;
 const PHOTO_NAME_PATTERN = /^places\/[^/]+\/photos\/[^/]+$/;
 
 /**
@@ -184,12 +199,28 @@ export async function resolvePlacePhotoUrl(photoName: string, maxWidthPx: number
   return response.headers.get('location');
 }
 
+async function getPlacePhotoUrl(placeId: string): Promise<string | null> {
+  const response = await fetch(`${PLACES_API_BASE_URL}/places/${encodeURIComponent(placeId)}`, {
+    method: 'GET',
+    headers: {
+      'X-Goog-Api-Key': getApiKey(),
+      'X-Goog-FieldMask': 'photos',
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Google Places photo lookup failed (${response.status})`);
+  }
+
+  const data = (await response.json()) as PlacesPlaceDetails;
+  const photoName = data.photos?.[0]?.name;
+  return photoName ? resolvePlacePhotoUrl(photoName, ONBOARDING_PHOTO_MAX_WIDTH_PX) : null;
+}
+
 /**
  * Búsqueda de negocios para la demo pública de la landing, enriquecida con
- * foto y tipo de negocio detectado — a diferencia de `searchPlaces` (usada en
- * el alta autenticada), que solo necesita nombre y dirección para el
- * autocompletado. Usa Places Text Search (New), que sí admite `photos` y
- * `types` por resultado; Autocomplete no los devuelve nunca.
+ * foto y tipo de negocio detectado. Usa Places Text Search (New), que sí
+ * admite `photos` y `types` por resultado; Autocomplete no los devuelve.
  */
 export async function searchPlacesForDemo(query: string): Promise<DemoPlaceSearchResult[]> {
   const response = await fetch(`${PLACES_API_BASE_URL}/places:searchText`, {
@@ -208,7 +239,7 @@ export async function searchPlacesForDemo(query: string): Promise<DemoPlaceSearc
   }
 
   const data = (await response.json()) as PlacesTextSearchResponse;
-  const places = (data.places ?? []).slice(0, DEMO_SEARCH_MAX_RESULTS);
+  const places = (data.places ?? []).slice(0, ENRICHED_SEARCH_MAX_RESULTS);
 
   const results = await Promise.all(
     places.map(async (place) => {
