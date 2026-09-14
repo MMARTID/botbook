@@ -15,6 +15,7 @@ import type {
 import type { MessageListResponse } from "telnyx/resources/ai/conversations/messages.js";
 import type { RecordingResponseData } from "telnyx/resources/recordings/recordings.js";
 import type { TelnyxConversationChannel } from "telnyx/resources/ai/assistants/tests/tests.js";
+import type { TestStatus } from "telnyx/resources/ai/assistants/tests/runs.js";
 
 /** Alias legible: es el tipo real que `AssistantCreateParams.tools` exige
  * para una tool de webhook (no confundir con `WebhookTool`, la forma que
@@ -641,6 +642,94 @@ export class TelnyxAiAdapter {
       description: input.description,
     });
     return { id: response.test_id, name: response.name };
+  }
+
+  /** Igual que `createAssistantTest` pero sobre un test ya existente —
+   * permite mantener idempotente la creación de una batería (buscar por
+   * `test_suite` con `listAssistantTests` y actualizar en vez de duplicar
+   * si el escenario ya existe con ese nombre). */
+  async updateAssistantTest(
+    testId: string,
+    input: {
+      name?: string;
+      destination?: string;
+      instructions?: string;
+      rubric?: Array<{ name: string; criteria: string }>;
+      telnyxConversationChannel?: TelnyxConversationChannel;
+      maxDurationSeconds?: number;
+      testSuite?: string;
+      description?: string;
+    }
+  ): Promise<{ id: string; name: string }> {
+    const client = getTelnyxClient();
+    const response = await client.ai.assistants.tests.update(testId, {
+      name: input.name,
+      destination: input.destination,
+      instructions: input.instructions,
+      rubric: input.rubric,
+      telnyx_conversation_channel: input.telnyxConversationChannel,
+      max_duration_seconds: input.maxDurationSeconds,
+      test_suite: input.testSuite,
+      description: input.description,
+    });
+    return { id: response.test_id, name: response.name };
+  }
+
+  /** Lista tests nativos existentes, opcionalmente filtrados por
+   * `test_suite` o `destination` — usado para no crear un test duplicado
+   * cada vez que se corre el script de la batería. */
+  async listAssistantTests(filter?: {
+    testSuite?: string;
+    destination?: string;
+  }): Promise<Array<{ id: string; name: string; destination?: string }>> {
+    const client = getTelnyxClient();
+    const results: Array<{ id: string; name: string; destination?: string }> = [];
+    for await (const test of client.ai.assistants.tests.list({
+      test_suite: filter?.testSuite,
+      destination: filter?.destination,
+    })) {
+      results.push({ id: test.test_id, name: test.name, destination: test.destination });
+    }
+    return results;
+  }
+
+  /**
+   * Dispara la ejecución real de un test nativo — Telnyx origina una
+   * llamada real (o conversación web/SMS según el canal) contra
+   * `destination` usando su propio agente de prueba, y evalúa la
+   * conversación contra `rubric` con su propio LLM juez. A diferencia de
+   * `telnyxCallBattery.ts` (que solo comprueba estado determinista en
+   * nuestra BD), esto cubre la evaluación subjetiva/de calidad que ese
+   * script dejaba como "REVISAR" manual — con coste real de llamada.
+   */
+  async triggerAssistantTestRun(
+    testId: string
+  ): Promise<{ runId: string; status: TestStatus }> {
+    const client = getTelnyxClient();
+    const response = await client.ai.assistants.tests.runs.trigger(testId);
+    return { runId: response.run_id, status: response.status };
+  }
+
+  /** Consulta el resultado (posiblemente aún en curso) de una ejecución. */
+  async getAssistantTestRun(
+    testId: string,
+    runId: string
+  ): Promise<{
+    runId: string;
+    status: TestStatus;
+    detailStatus?: Array<{ name: string; status: TestStatus }>;
+    logs?: string;
+  }> {
+    const client = getTelnyxClient();
+    const response = await client.ai.assistants.tests.runs.retrieve(runId, {
+      test_id: testId,
+    });
+    return {
+      runId: response.run_id,
+      status: response.status,
+      detailStatus: response.detail_status,
+      logs: response.logs,
+    };
   }
 
   // ---------------------------------------------------------------------
