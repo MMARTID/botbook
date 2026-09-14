@@ -31,12 +31,12 @@ describe("resolveTelnyxVoiceId", () => {
     expect(voiceId).toBe("Telnyx.Ultra.female-1");
   });
 
-  it("es insensible a mayúsculas en el idioma", async () => {
+  it("es insensible a mayúsculas en el idioma que devuelve la API (no en el parámetro, que ya es un enum tipado)", async () => {
     mockedListVoices.mockResolvedValue([
-      { id: "v1", language: "ES-es", gender: "Female" },
+      { id: "v1", language: "ES-es", gender: "female" },
     ]);
 
-    expect(await resolveTelnyxVoiceId("es-es", "femenina")).toBe("v1");
+    expect(await resolveTelnyxVoiceId("es-ES", "femenina")).toBe("v1");
   });
 
   it("devuelve null si no hay ninguna voz compatible", async () => {
@@ -70,12 +70,55 @@ describe("resolveTelnyxVoiceId", () => {
     expect(voiceId).toBe("Telnyx.Ultra.female-1");
   });
 
-  it("no aplica ninguna voz preferida para la voz masculina (no hay ninguna configurada)", async () => {
+  it("prefiere la voz masculina elegida a mano (Marcos) sobre el primer match, si sigue disponible en la cuenta", async () => {
+    mockedListVoices.mockResolvedValue([
+      ...SPANISH_VOICES,
+      {
+        id: "Telnyx.Ultra.13ff5deb-2591-42ad-a356-63a04e524411",
+        language: "es-ES",
+        gender: "Male",
+      },
+    ]);
+
+    const voiceId = await resolveTelnyxVoiceId("es-ES", "masculina");
+
+    expect(voiceId).toBe("Telnyx.Ultra.13ff5deb-2591-42ad-a356-63a04e524411");
+  });
+
+  it("cae al primer match si la voz masculina elegida a mano ya no está disponible en la cuenta", async () => {
     mockedListVoices.mockResolvedValue(SPANISH_VOICES);
 
     const voiceId = await resolveTelnyxVoiceId("es-ES", "masculina");
 
     expect(voiceId).toBe("Telnyx.Ultra.male-1");
+  });
+
+  it("resuelve la voz curada de inglés (en-GB), independiente de la de español", async () => {
+    mockedListVoices.mockResolvedValue([
+      {
+        id: "Telnyx.Ultra.2f251ac3-89a9-4a77-a452-704b474ccd01",
+        language: "en-GB",
+        gender: "Female",
+      },
+    ]);
+
+    expect(await resolveTelnyxVoiceId("en-GB", "femenina")).toBe(
+      "Telnyx.Ultra.2f251ac3-89a9-4a77-a452-704b474ccd01"
+    );
+  });
+
+  it("resuelve la voz curada de francés (fr-FR), independiente de la de español", async () => {
+    mockedListVoices.mockResolvedValue([
+      {
+        id: "Telnyx.Ultra.7345dfa5-ee04-44d2-abf4-29262b880ab4",
+        language: "fr-FR",
+        gender: "Male",
+      },
+    ]);
+
+    expect(await resolveTelnyxVoiceId("fr-FR", "masculina")).toBe(
+      "Telnyx.Ultra.7345dfa5-ee04-44d2-abf4-29262b880ab4"
+    );
   });
 });
 

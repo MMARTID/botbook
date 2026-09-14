@@ -94,6 +94,36 @@ export function adaptManagedPromptForTelnyx(
     .join("{{telnyx_current_time}}");
 }
 
+const TELNYX_TRANSCRIPTION_LANGUAGE_HINTS: Record<string, string> = {
+  "es-ES": "es",
+  "en-GB": "en",
+  "fr-FR": "fr",
+};
+
+/**
+ * `transcription.language` (deepgram/flux) a partir de los idiomas de
+ * atención activados en AgentSettings.languages: un solo idioma soportado
+ * usa su pista concreta (mejor precisión de transcripción); más de uno usa
+ * "multi" (sin pista fija, deepgram/flux detecta y cambia de idioma dentro
+ * de la misma llamada) — antes esta función no existía y el idioma venía
+ * fijo a "es" en telnyxAgentSync.ts sin mirar los idiomas activados, así que
+ * un negocio con inglés o francés activados igualmente transcribía en
+ * español. Catalán queda fuera porque resolveTelnyxEligibility ya bloquea
+ * Telnyx por completo si está activo.
+ */
+export function resolveTelnyxTranscriptionLanguage(
+  languages: readonly string[]
+): string {
+  const supported = languages.filter(
+    (language) => language in TELNYX_TRANSCRIPTION_LANGUAGE_HINTS
+  );
+  if (supported.length === 0) return "es";
+  if (supported.length === 1) {
+    return TELNYX_TRANSCRIPTION_LANGUAGE_HINTS[supported[0]];
+  }
+  return "multi";
+}
+
 export interface BuildTelnyxAssistantPayloadInput {
   businessId: string;
   agentId: string;

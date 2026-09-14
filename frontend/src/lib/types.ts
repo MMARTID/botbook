@@ -35,9 +35,15 @@ export type AgentSettings = {
   escalation: "take_message" | "request_callback";
   voiceGender: "femenina" | "masculina";
   languages: AgentLanguage[];
+  /** Idioma real de la voz (TTS) — independiente de `languages` (qué
+   * entiende el agente). Debe ser uno de los activados en `languages`. */
+  voiceLanguage: VoiceLanguage;
 };
 
 export type AgentLanguage = "es-ES" | "en-GB" | "fr-FR" | "ca-ES";
+
+/** Catalán queda fuera: sin voz Telnyx Ultra curada para ese idioma. */
+export type VoiceLanguage = "es-ES" | "en-GB" | "fr-FR";
 
 export type BusinessType =
   | "peluqueria"

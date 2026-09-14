@@ -594,7 +594,7 @@ export class CalendarService {
               smsConsent: {
                 type: "boolean",
                 description:
-                  "true si el cliente confirmó por voz que puedes enviarle la confirmación (y un recordatorio) por SMS a este número; false si dijo que no o no se le preguntó.",
+                  "true si el cliente confirmó por voz que puedes enviarle la confirmación (y un recordatorio) por WhatsApp a este número; false si dijo que no o no se le preguntó.",
               },
             },
           required: ["clientName", "availabilityToken"],
@@ -709,7 +709,7 @@ export class CalendarService {
           smsConsent: {
             type: "boolean",
             description:
-              "true si el cliente confirmó por voz que puedes enviarle la confirmación (y un recordatorio) por SMS a este número; false si dijo que no o no se le preguntó.",
+              "true si el cliente confirmó por voz que puedes enviarle la confirmación (y un recordatorio) por WhatsApp a este número; false si dijo que no o no se le preguntó.",
           },
         },
         required: ["clientName", "availabilityToken"],

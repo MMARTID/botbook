@@ -369,6 +369,11 @@ const RETELL_VOICE_PROFILES: Record<
   },
 };
 
+// No usa AgentSettings.voiceLanguage a propósito (2026-09-14): las voces
+// Cartesia de arriba ya son multilingües (es/en/fr con una sola voice_id,
+// ver comentario de RETELL_VOICE_PROFILES) y Retell es solo el fallback de
+// Telnyx — el catálogo de voces Ultra por idioma vive en
+// telnyxEligibility.ts, que sí es la ruta principal.
 export function resolveRetellVoiceProfile(settings: unknown): RetellVoiceProfile {
   const parsed = parseAgentSettings(settings);
   return parsed.languages.includes("ca-ES")
@@ -696,6 +701,36 @@ export async function createBusinessAgent(args: {
           businessId: args.businessId,
           prismaClient: client,
         });
+
+        // createTelnyxAssistantForAgent crea el assistant sin tools (solo
+        // añade `hangup` por defecto, ver telnyxAssistantPayload.ts) — la
+        // llamada a syncCalendarToolsToAgents de la línea 666 se ejecutó
+        // ANTES de que este assistant existiera, así que su filtro por
+        // telnyxAssistantId no encontró nada que sincronizar. Sin este
+        // segundo paso, el negocio queda con un assistant Telnyx que nunca
+        // puede consultar horario, comprobar disponibilidad ni reservar —
+        // encontrado 2026-09-14 con una llamada real: el agente decía "voy a
+        // comprobar la disponibilidad" y la llamada terminaba ahí (Telnyx
+        // marcaba tool_failure_detected porque check_availability no existía
+        // como tool en el assistant).
+        if (telnyxResult.eligible) {
+          try {
+            await calendarService.syncCalendarToolsToAgents(args.businessId);
+          } catch (toolsError) {
+            console.error(
+              "[Agent] No se pudieron sincronizar las herramientas de calendario en el assistant Telnyx recién creado:",
+              {
+                agentId: agent.id,
+                businessId: args.businessId,
+                message:
+                  toolsError instanceof Error
+                    ? toolsError.message
+                    : String(toolsError),
+              }
+            );
+          }
+        }
+
         await client.business
           .update({
             where: { id: args.businessId },

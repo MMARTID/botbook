@@ -142,6 +142,75 @@ describe("parseAgentSettings — voiceGender", () => {
   });
 });
 
+describe("parseAgentSettings — voiceLanguage", () => {
+  it("cae a voiceLanguage=es-ES en ajustes guardados antes de este campo", () => {
+    const parsed = parseAgentSettings({
+      version: 1,
+      tone: "warm",
+      primaryGoal: "bookings",
+      responseStyle: "concise",
+      escalation: "take_message",
+      voiceGender: "masculina",
+      languages: ["es-ES"],
+    });
+
+    expect(parsed.voiceLanguage).toBe("es-ES");
+  });
+
+  it("respeta un voiceLanguage guardado si está entre los idiomas activados", () => {
+    const parsed = parseAgentSettings({
+      ...DEFAULT_AGENT_SETTINGS,
+      languages: ["es-ES", "en-GB"],
+      voiceLanguage: "en-GB",
+    });
+
+    expect(parsed.voiceLanguage).toBe("en-GB");
+  });
+
+  it("rechaza voiceLanguage fuera de los idiomas activados y cae al fallback completo", () => {
+    const parsed = parseAgentSettings({
+      ...DEFAULT_AGENT_SETTINGS,
+      languages: ["es-ES"],
+      voiceLanguage: "fr-FR",
+    });
+
+    expect(parsed).toEqual(DEFAULT_AGENT_SETTINGS);
+  });
+});
+
+describe("buildManagedAgentPrompt — WhatsApp, duración y confirmación única (hallazgos de la llamada real a Barbería, 2026-09-14)", () => {
+  it("pregunta por WhatsApp, no por SMS, para la confirmación y el recordatorio", () => {
+    const prompt = buildManagedAgentPrompt({
+      businessName: "Barbería Ejemplo",
+      settings: DEFAULT_AGENT_SETTINGS,
+    });
+
+    expect(prompt).toContain(
+      "¿puedo enviarte la confirmación y un recordatorio por WhatsApp a este número?"
+    );
+    expect(prompt).not.toContain("por SMS a este número");
+  });
+
+  it("instruye a no preguntar la duración salvo que supere los 80 minutos o el cliente la pida", () => {
+    const prompt = buildManagedAgentPrompt({
+      businessName: "Barbería Ejemplo",
+      settings: DEFAULT_AGENT_SETTINGS,
+    });
+
+    expect(prompt).toContain("no le preguntes qué duración quiere");
+    expect(prompt).toContain("supera los 80 minutos");
+  });
+
+  it("instruye a no pedir confirmaciones sueltas de datos individuales", () => {
+    const prompt = buildManagedAgentPrompt({
+      businessName: "Barbería Ejemplo",
+      settings: DEFAULT_AGENT_SETTINGS,
+    });
+
+    expect(prompt).toContain("No pidas confirmaciones sueltas de datos individuales");
+  });
+});
+
 describe("buildManagedAgentPrompt — idiomas", () => {
   it("conserva la instrucción monolingüe de español por defecto", () => {
     const prompt = buildManagedAgentPrompt({
