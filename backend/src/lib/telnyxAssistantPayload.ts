@@ -57,6 +57,137 @@ export function buildTelnyxHangupTool(description: string): HangupTool {
   return { type: "hangup", hangup: { description } };
 }
 
+/**
+ * Las 5 tools de voz (catálogo, disponibilidad, reserva, buscar/cancelar
+ * cita) — pese al nombre histórico "calendario" en calendar/service.ts, no
+ * son específicas de tener un calendario externo conectado: son la única
+ * forma que tiene el assistant de consultar el negocio real y reservar.
+ * Vive aquí (no en calendar/service.ts) para que `syncAgentToTelnyx` pueda
+ * usarla como valor por defecto sin crear un import circular — hallazgo real
+ * (2026-09-14): guardar el horario (`PATCH /business/me`) o crear/editar un
+ * servicio o profesional llama a `syncAgentToTelnyx` SIN pasar `tools`,  y el
+ * reconciliador diario hace lo mismo; sin este valor por defecto, `tools:
+ * input.tools ?? []` volcaba el assistant real a solo la tool `hangup`,
+ * dejándolo incapaz de reservar nada pese a que su propio prompt seguía
+ * instruyéndole a usarlas — confirmado en vivo: los 25/25 escenarios de
+ * `telnyxCallBattery.ts` fallaron porque ningún assistant de las 5 cuentas
+ * de prueba tenía ya estas tools registradas.
+ */
+export function buildTelnyxVoiceTools(baseUrl: string): TelnyxWebhookToolInput[] {
+  const toolBaseUrl = `${baseUrl.replace(/\/$/, "")}/webhooks/telnyx/tools`;
+  const callControlHeader = {
+    name: "X-Alhabla-Call-Control-Id",
+    value: "{{call_control_id}}",
+  };
+
+  return [
+    {
+      name: "get_catalog",
+      description:
+        "Obtiene los servicios activos con sus IDs y duraciones, los profesionales y el horario del negocio. Úsala cuando el cliente pregunte por ellos o antes de comprobar/reservar si necesitas un ID o duración.",
+      url: `${toolBaseUrl}/get_catalog`,
+      method: "POST",
+      properties: {},
+      headers: [callControlHeader],
+      timeoutMs: 20000,
+    },
+    {
+      name: "check_availability",
+      description:
+        "Comprueba una cita en una fecha y hora concretas: valida horario, restricciones, capacidad, profesionales y calendario real. Úsala antes de book_appointment y conserva el availabilityToken que devuelve.",
+      url: `${toolBaseUrl}/check_availability`,
+      method: "POST",
+      properties: {
+        startDateTime: {
+          type: "string",
+          description:
+            "Inicio solicitado en formato ISO 8601, incluyendo zona horaria.",
+        },
+        durationMinutes: {
+          type: "number",
+          description: "Duración total de la cita en minutos.",
+        },
+        serviceIds: {
+          type: "array",
+          items: { type: "string" },
+          description:
+            "IDs de los servicios pedidos (opcional; puede ser más de uno si el cliente pide varios servicios en la misma cita, ej. corte y mechas). Se prioriza al profesional que domine todos esos servicios.",
+        },
+        professionalId: {
+          type: "string",
+          description:
+            "ID exacto de EMPLEADOS si el cliente pidió un profesional concreto por nombre (opcional). Déjalo vacío si no.",
+        },
+      },
+      required: ["startDateTime", "durationMinutes"],
+      headers: [callControlHeader],
+      timeoutMs: 20000,
+    },
+    {
+      name: "book_appointment",
+      description:
+        "Agenda una cita en el calendario activo. Úsala solo tras confirmación explícita y con el availabilityToken de check_availability.",
+      url: `${toolBaseUrl}/book_appointment`,
+      method: "POST",
+      properties: {
+        clientName: {
+          type: "string",
+          description: "El nombre del cliente que hace la reserva",
+        },
+        clientEmail: {
+          type: "string",
+          description:
+            "El correo electrónico del cliente, si lo proporciona (opcional)",
+        },
+        clientPhone: {
+          type: "string",
+          description:
+            "Teléfono de contacto solo si el cliente eligió uno distinto al detectado automáticamente (opcional).",
+        },
+        availabilityToken: {
+          type: "string",
+          description:
+            "Token exacto devuelto por check_availability para la opción confirmada.",
+        },
+        smsConsent: {
+          type: "boolean",
+          description:
+            "true si el cliente confirmó por voz que puedes enviarle la confirmación (y un recordatorio) por SMS a este número; false si dijo que no o no se le preguntó.",
+        },
+      },
+      required: ["clientName", "availabilityToken"],
+      headers: [callControlHeader],
+      timeoutMs: 20000,
+    },
+    {
+      name: "find_my_appointment",
+      description:
+        "Busca la próxima cita del negocio asociada al número desde el que llama, si el cliente dio consentimiento SMS al reservarla. Úsala solo si quien llama pide cambiar o cancelar una cita existente y no te ha dado datos concretos.",
+      url: `${toolBaseUrl}/find_my_appointment`,
+      method: "POST",
+      properties: {},
+      headers: [callControlHeader],
+      timeoutMs: 20000,
+    },
+    {
+      name: "cancel_appointment",
+      description:
+        "Cancela la cita cuyo id devolvió find_my_appointment. Úsala solo tras confirmación explícita del cliente. Para 'modificar' una cita: cancélala con esta tool y reserva la nueva con check_availability + book_appointment.",
+      url: `${toolBaseUrl}/cancel_appointment`,
+      method: "POST",
+      properties: {
+        bookingId: {
+          type: "string",
+          description: "El id de la cita devuelto por find_my_appointment.",
+        },
+      },
+      required: ["bookingId"],
+      headers: [callControlHeader],
+      timeoutMs: 20000,
+    },
+  ];
+}
+
 // Cadena exacta que produce managedAgentPrompt.ts para "hora actual en la
 // zona del negocio" — Retell resuelve el patrón anidado
 // {{current_time_<timezone>}} de forma nativa; Telnyx no tiene ese patrón,
@@ -203,16 +334,24 @@ export function buildTelnyxAssistantPayload(
     // "decisión explícita del usuario". Pendiente decidir con el usuario si
     // se cambia a una voz Natural (si el ritmo más rápido importa más que
     // Ultra) o se acepta la velocidad por defecto de Ultra.
-    // expressive_mode=true: SOLO disponible en voces Ultra (si es la nuestra)
-    // — añade matices emocionales vía SSML de forma automática, sin
-    // intervención nuestra en el texto. Coste cero, más natural.
+    // expressive_mode=true: SOLO disponible en voces Ultra/XAI — añade
+    // matices emocionales vía SSML de forma automática, sin intervención
+    // nuestra en el texto. Coste cero, más natural. Hallazgo real
+    // (2026-09-14): el comentario original asumía "la cuenta usa una voz
+    // Telnyx Ultra" como si fuera universal, pero `resolveTelnyxEligibility`
+    // asigna voces de un pool compartido — un negocio con una voz Natural (no
+    // Ultra/XAI) recibía expressive_mode:true igualmente y Telnyx rechazaba
+    // el `updateAssistant` entero con 400/10015, dejando ese negocio sin
+    // sincronizar (confirmado con la barbería de prueba). Ahora se activa
+    // solo si la voz asignada lo soporta.
     // background_audio "office" a volumen bajo (0.2 de 1.0, decisión
     // explícita del usuario 2026-09-14): sonido de oficina de fondo muy
     // sutil en vez de silencio total — silencio absoluto puede sonar
     // artificial en una llamada real.
     voiceSettings: {
       voice: input.voice,
-      expressive_mode: true,
+      expressive_mode:
+        input.voice.startsWith("Telnyx.Ultra.") || input.voice.startsWith("XAI."),
       background_audio: { type: "predefined_media", value: "office", volume: 0.2 },
     },
     // deepgram/flux — decisión explícita del usuario 2026-09-12: mejor

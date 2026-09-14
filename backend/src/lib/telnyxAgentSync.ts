@@ -3,9 +3,10 @@ import { prisma } from "./prisma.js";
 import { telnyxAiAdapter } from "../adapters/telnyx/TelnyxAiAdapter.js";
 import {
   buildTelnyxAssistantPayload,
-  resolveTelnyxTranscriptionLanguage,
+  buildTelnyxVoiceTools,
   type TelnyxWebhookToolInput,
 } from "./telnyxAssistantPayload.js";
+import { getPublicWebhookBaseUrl } from "./serverUrl.js";
 import {
   buildManagedAgentPrompt,
   parseAgentSettings,
@@ -87,7 +88,7 @@ export async function createTelnyxAssistantForAgent(args: {
       businessName: config.business.name,
       instructions: config.systemPrompt,
       greeting: buildRetellBeginMessage(config.business.name),
-      language: resolveTelnyxTranscriptionLanguage(config.agentSettings.languages),
+      language: "es",
       voice: eligibility.voiceId!,
     });
 
@@ -161,6 +162,25 @@ export async function syncAgentToTelnyx(
 
     const eligibility = await resolveTelnyxEligibility(config.agentSettings);
 
+    // Sin este valor por defecto, cualquier llamada a syncAgentToTelnyx que
+    // no pase `tools` explícitamente (guardar horario, crear/editar un
+    // servicio o profesional, el reconciliador diario) sobrescribía el
+    // assistant real con `tools: []` — dejándolo sin get_catalog/
+    // check_availability/book_appointment/find_my_appointment/
+    // cancel_appointment pese a que el prompt seguía instruyéndole a
+    // usarlas. Hallazgo real 2026-09-14: los 5 assistants de las cuentas de
+    // prueba lo sufrieron (probablemente el reconciliador diario) y las 25
+    // llamadas reales de telnyxCallBattery.ts fallaron en el 100% de los
+    // casos. buildTelnyxCalendarTools (calendar/service.ts) sigue siendo la
+    // única llamada que puede pasar `tools` explícito.
+    const baseUrl = getPublicWebhookBaseUrl();
+    const tools = options?.tools ?? (baseUrl ? buildTelnyxVoiceTools(baseUrl) : undefined);
+    if (!tools) {
+      console.error(
+        `[Agent] No hay URL pública configurada (BASE_URL o ngrok); no se pueden sincronizar tools de Telnyx para ${businessId}`
+      );
+    }
+
     for (const agent of agents) {
       if (options?.onlyManagedPrompts && agent.promptManuallyEdited) continue;
 
@@ -168,6 +188,11 @@ export async function syncAgentToTelnyx(
         if (!eligibility.eligible) {
           throw new Error(
             eligibility.reason ?? "Negocio no elegible para Telnyx."
+          );
+        }
+        if (!tools) {
+          throw new Error(
+            "No hay URL pública configurada (BASE_URL o ngrok); no se pueden sincronizar tools de Telnyx"
           );
         }
 
@@ -180,12 +205,10 @@ export async function syncAgentToTelnyx(
               ? agent.systemPrompt
               : config.systemPrompt,
             greeting: buildRetellBeginMessage(config.business.name),
-            language: resolveTelnyxTranscriptionLanguage(
-              config.agentSettings.languages
-            ),
+            language: "es",
             voice: eligibility.voiceId!,
             boostedKeywords,
-            tools: options?.tools,
+            tools,
           });
 
         const configHash = hashConfig(payload);
