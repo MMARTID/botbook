@@ -272,7 +272,12 @@ export function CallDetailModal({
                       Todavía no hay transcripción disponible para esta llamada.
                     </p>
                   ) : messages && messages.length > 0 ? (
-                    messages.map((message, index) => {
+                    messages
+                      .filter((m) => {
+                        const body = m.content ?? m.text ?? "";
+                        return m.role !== "tool" && body.trim().length > 0;
+                      })
+                      .map((message, index) => {
                       const isClient = message.role === "user" || message.role === "client";
                       return (
                         <div key={index} className={`flex ${isClient ? "justify-end" : "justify-start"}`}>
@@ -286,7 +291,7 @@ export function CallDetailModal({
                             <span className="mb-1 block text-xs font-semibold uppercase tracking-[0.12em] opacity-70">
                               {isClient ? "Cliente" : "Agente"}
                             </span>
-                            {message.content}
+                            {message.content ?? message.text}
                           </div>
                         </div>
                       );
