@@ -185,14 +185,37 @@ describe("buildTelnyxAssistantPayload", () => {
     expect(payload.transcription).toEqual({
       model: "deepgram/flux",
       language: "en",
-      settings: { keyterm: "corte,manicura" },
+      settings: {
+        keyterm: "corte,manicura",
+        eot_threshold: 0.8,
+        eot_timeout_ms: 5000,
+        eager_eot_threshold: 0.4,
+      },
     });
   });
 
-  it("omite settings.keyterm cuando no hay palabras clave", () => {
+  it("omite keyterm pero mantiene la config de fin de turno cuando no hay palabras clave", () => {
     const payload = buildTelnyxAssistantPayload(baseInput);
 
-    expect(payload.transcription?.settings).toBeUndefined();
+    expect(payload.transcription?.settings).toEqual({
+      eot_threshold: 0.8,
+      eot_timeout_ms: 5000,
+      eager_eot_threshold: 0.4,
+    });
+  });
+
+  it("fija wait_seconds bajo en start_speaking_plan, recomendación de Telnyx para flux", () => {
+    const payload = buildTelnyxAssistantPayload(baseInput);
+
+    expect(payload.interruptionSettings?.start_speaking_plan).toEqual({
+      wait_seconds: 0.1,
+    });
+  });
+
+  it("activa Interruption Prediction con el punto de partida recomendado por Telnyx (evita que un \"sí\"/\"vale\" corte al agente)", () => {
+    const payload = buildTelnyxAssistantPayload(baseInput);
+
+    expect(payload.interruptionSettings?.interrupt_prediction_threshold).toBe(0.4);
   });
 
   it("activa grabación dual y aplica los límites por defecto de silencio/duración", () => {
@@ -206,6 +229,12 @@ describe("buildTelnyxAssistantPayload", () => {
     });
     expect(payload.telephonySettings?.user_idle_timeout_secs).toBe(30);
     expect(payload.telephonySettings?.time_limit_secs).toBe(10 * 60);
+  });
+
+  it("desactiva la supresión de ruido a nivel de assistant (la hace Call Control por llamada, ver TelnyxAiAdapter)", () => {
+    const payload = buildTelnyxAssistantPayload(baseInput);
+
+    expect(payload.telephonySettings?.noise_suppression).toBe("disabled");
   });
 
   it("permite sobrescribir los límites de silencio y duración", () => {

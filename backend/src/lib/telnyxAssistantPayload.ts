@@ -178,12 +178,53 @@ export function buildTelnyxAssistantPayload(
     // procesan audio (ver Second-Brain, Bitácora § STT: proveedores nativos
     // vs externos, y issues #18/#19 de GitHub). `keyterm` sigue soportado
     // en flux igual que en nova-3.
+    //
+    // eot_threshold/eot_timeout_ms/eager_eot_threshold (verificado contra la
+    // documentación oficial de Telnyx, 2026-09-14): flux es un modelo con
+    // turn-taking propio, por lo que interruption_settings.start_speaking_plan
+    // NO decide el fin de turno aquí (solo aplica a modelos sin turn-taking) —
+    // se fijan explícitamente en vez de dejarlos en el default de cuenta para
+    // no depender de que Telnyx no los cambie sin avisar. eot_threshold=0.8 y
+    // eot_timeout_ms=5000 son justo los defaults documentados por Telnyx (ya
+    // conservadores contra cortar a quien llama a mitad de frase);
+    // eager_eot_threshold=0.4 (su propio default) habilita el procesamiento
+    // especulativo del LLM — el agente responde más rápido en cuanto detecta
+    // fin de turno sin bajar el umbral de confianza real, así que no aumenta
+    // el riesgo de interrumpir, solo reduce la latencia percibida.
     transcription: {
       model: "deepgram/flux",
       language: input.language,
-      settings: input.boostedKeywords?.length
-        ? { keyterm: input.boostedKeywords.join(",") }
-        : undefined,
+      settings: {
+        ...(input.boostedKeywords?.length
+          ? { keyterm: input.boostedKeywords.join(",") }
+          : {}),
+        eot_threshold: 0.8,
+        eot_timeout_ms: 5000,
+        eager_eot_threshold: 0.4,
+      },
+    },
+    // wait_seconds=0.1: recomendación explícita de Telnyx para flux ("Flux
+    // works best with low start speaking delays, such as 0.1 seconds for
+    // wait time") — es solo un suelo mínimo antes de que el agente pueda
+    // empezar a hablar, no decide si el turno terminó (eso lo hace
+    // transcription.settings de arriba), así que no aumenta el riesgo de
+    // cortar a quien llama.
+    //
+    // interrupt_prediction_threshold=0.4 (verificado contra la documentación
+    // y release notes de Telnyx, 2026-09-14): feature "Interruption
+    // Prediction", solo con deepgram/flux — por debajo del umbral, un "sí"/
+    // "mmhm"/"vale" sueltos del cliente no cortan al agente a mitad de
+    // frase (la propia Telnyx lo describe como "una de las razones más
+    // comunes por las que las llamadas de voz con IA se sienten rotas").
+    // Mismo problema que ya se arregló en Retell bajando
+    // interruptionSensitivity a 0.65 (agentBootstrap.ts) — aquí es la
+    // versión nativa de Telnyx para el mismo síntoma. Por defecto viene
+    // desactivado (0.0); 0.4 es el punto de partida que la propia Telnyx
+    // recomienda, subir para exigir más confianza (menos interrupciones
+    // falsas) o bajar para un barge-in más permisivo.
+    interruptionSettings: {
+      start_speaking_plan: { wait_seconds: 0.1 },
+      interrupt_prediction_threshold: 0.4,
     },
     telephonySettings: {
       recording_settings: {
@@ -195,9 +236,12 @@ export function buildTelnyxAssistantPayload(
       user_idle_timeout_secs:
         input.userIdleTimeoutSecs ?? DEFAULT_USER_IDLE_TIMEOUT_SECS,
       time_limit_secs: input.maxCallDurationSecs ?? DEFAULT_MAX_CALL_DURATION_SECS,
-      // Pendiente de comparar contra el audio real de Retell/Cartesia en la
-      // Fase 0 (§5 del plan) — krisp es el motor documentado por defecto.
-      noise_suppression: "krisp",
+      // Desactivado a propósito (antes "krisp"): el audio entrante ya se
+      // limpia por llamada vía Call Control con el motor AiCoustics/quail,
+      // específico para Voice AI/STT (ver TelnyxAiAdapter.startNoiseSuppression,
+      // 2026-09-14) — tener los dos motores encadenados sobre el mismo audio
+      // es redundante en el mejor caso y puede degradar la señal en el peor.
+      noise_suppression: "disabled",
       // Sin este campo (verificado en vivo el 2026-09-11, NO documentado en
       // el tipo TelephonySettings del SDK) la API nunca rellena
       // ai.conversations.messages para llamadas de voz — el historial vuelve
