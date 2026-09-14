@@ -169,6 +169,9 @@ describe("checkAvailability", () => {
   });
 
   it("rechaza citas fuera del horario comercial", async () => {
+    givenProfessionals([{ id: "prof_1", name: "Ana", serviceIds: [] }]);
+    givenBookings([]);
+
     const result = await checkAvailability({
       businessId,
       schedule: DEFAULT_BUSINESS_SCHEDULE,
@@ -180,6 +183,33 @@ describe("checkAvailability", () => {
 
     expect(result.available).toBe(false);
     expect(result.code).toBe("OUTSIDE_BUSINESS_HOURS");
+  });
+
+  it("cuando está cerrado, sugiere el hueco de apertura del siguiente día hábil", async () => {
+    givenProfessionals([{ id: "prof_1", name: "Ana", serviceIds: [] }]);
+    givenBookings([]);
+
+    // Sábado 2026-08-08 (cerrado todo el día, ver DEFAULT_BUSINESS_SCHEDULE) a
+    // las 10:00 -> el siguiente hueco libre es el lunes 2026-08-10 a las 09:00,
+    // hora de apertura. Offset +02:00 explícito (CEST) por el mismo motivo que
+    // el resto de tests de este archivo (Node en UTC en CI).
+    const result = await checkAvailability({
+      businessId,
+      schedule: DEFAULT_BUSINESS_SCHEDULE,
+      timezone: europeMadrid,
+      bookingCapacity: 1,
+      startDateTime: "2026-08-08T10:00:00+02:00",
+      durationMinutes: 60,
+    });
+
+    expect(result.available).toBe(false);
+    if (!result.available) {
+      expect(result.code).toBe("OUTSIDE_BUSINESS_HOURS");
+      expect(result.suggestedNextSlot).toEqual({
+        startDateTime: new Date("2026-08-10T09:00:00+02:00").toISOString(),
+        availableProfessionals: [{ id: "prof_1", name: "Ana" }],
+      });
+    }
   });
 
   it("rechaza cuando no hay profesionales activos", async () => {
@@ -414,11 +444,13 @@ describe("checkAvailability", () => {
     }
   });
 
-  it("no sugiere ningún hueco si la búsqueda llega al cierre del horario sin encontrar uno libre", async () => {
+  it("cuando no queda hueco antes del cierre, sigue buscando y sugiere el siguiente día hábil", async () => {
     givenProfessionals([{ id: "prof_1", name: "Ana", serviceIds: ["service_target"] }]);
     // Un único profesional, ocupado en bloques de 30 min sin hueco desde las
     // 17:00 hasta el cierre (18:00) — con 60 min de duración no cabe ninguna
-    // cita nueva antes de cerrar.
+    // cita nueva antes de cerrar hoy. Desde 2026-09-15 la búsqueda ya no se
+    // limita al mismo día: sigue hasta encontrar el siguiente hueco libre
+    // (martes 2026-08-11 a las 09:00, apertura) en vez de rendirse en null.
     givenBookings([
       { programedAt: new Date("2026-08-10T17:00:00+02:00"), professionalId: "prof_1" },
       { programedAt: new Date("2026-08-10T17:30:00+02:00"), professionalId: "prof_1" },
@@ -436,7 +468,10 @@ describe("checkAvailability", () => {
 
     expect(result.available).toBe(false);
     if (!result.available) {
-      expect(result.suggestedNextSlot).toBeNull();
+      expect(result.suggestedNextSlot).toEqual({
+        startDateTime: new Date("2026-08-11T09:00:00+02:00").toISOString(),
+        availableProfessionals: [{ id: "prof_1", name: "Ana" }],
+      });
     }
   });
 

@@ -14,6 +14,7 @@ vi.mock("../../../src/lib/prisma.js", () => ({
     booking: { upsert: vi.fn(), findUnique: vi.fn(), findFirst: vi.fn(), update: vi.fn() },
     professional: { findFirst: vi.fn(), findMany: vi.fn() },
     service: { findFirst: vi.fn(), findMany: vi.fn() },
+    lead: { create: vi.fn(), findMany: vi.fn(), update: vi.fn() },
   },
 }));
 
@@ -72,6 +73,9 @@ const mockedBookAppointment = vi.mocked(calendarService.bookAppointment);
 const mockedGetBusyIntervals = vi.mocked(calendarService.getBusyIntervals);
 const mockedEnqueueSmsJob = vi.mocked(enqueueSmsJob);
 const mockedEnqueueWhatsappJob = vi.mocked(enqueueWhatsappJob);
+const mockedLeadCreate = vi.mocked(prisma.lead.create);
+const mockedLeadFindMany = vi.mocked(prisma.lead.findMany);
+const mockedLeadUpdate = vi.mocked(prisma.lead.update);
 
 /** Los tests de SMS asumen que WhatsApp NO está configurado — sin esto,
  * dependerían de si el `.env` real de quien ejecuta los tests tiene
@@ -875,6 +879,9 @@ describe("executeVoiceTool cancel_appointment", () => {
     mockedCallFindUnique.mockResolvedValue({ id: "call_row_1", fromNumber: "+34600999888" } as any);
     mockedBookingUpdate.mockResolvedValue({} as any);
     mockedCancelAppointment.mockResolvedValue(undefined as any);
+    // Sin avisos de disponibilidad pendientes por defecto — los tests que
+    // los necesitan lo sobrescriben explícitamente.
+    mockedLeadFindMany.mockResolvedValue([]);
   });
 
   function buildOwnedBooking(overrides: Record<string, unknown> = {}) {
@@ -969,5 +976,160 @@ describe("executeVoiceTool cancel_appointment", () => {
 
     expect(result.result.success).toBe(true);
     expect(mockedBookingUpdate).toHaveBeenCalled();
+  });
+
+  describe("avisos de disponibilidad pendientes (notify_when_available)", () => {
+    beforeEach(() => {
+      process.env.WHATSAPP_TELNYX_FROM_NUMBER = "+34900000001";
+      process.env.TELNYX_API_KEY = process.env.TELNYX_API_KEY || "test_key";
+      process.env.TELNYX_MESSAGING_PROFILE_ID =
+        process.env.TELNYX_MESSAGING_PROFILE_ID || "profile_test";
+      process.env.WHATSAPP_TEMPLATE_SLOT_AVAILABLE_NAME = "hora_libre";
+      mockedBookingFindFirst.mockResolvedValue(buildOwnedBooking() as any);
+      mockedEnqueueWhatsappJob.mockResolvedValue(undefined);
+    });
+
+    afterEach(() => {
+      clearWhatsappEnv();
+      delete process.env.WHATSAPP_TEMPLATE_SLOT_AVAILABLE_NAME;
+    });
+
+    it("al liberarse un hueco por cancelación, avisa por WhatsApp al aviso pendiente y lo marca resuelto", async () => {
+      const desiredStart = new Date(Date.now() + 24 * 60 * 60_000).toISOString();
+      mockedLeadFindMany.mockResolvedValue([
+        {
+          id: "lead_1",
+          data: {
+            clientPhone: "+34611222333",
+            startDateTime: desiredStart,
+            durationMinutes: 30,
+            serviceIds: [],
+            professionalId: null,
+          },
+        },
+      ] as any);
+      mockedCheckAvailability.mockResolvedValue({
+        available: true,
+        message: "",
+        capacityUsed: 0,
+        capacityTotal: 1,
+        availableProfessionals: [{ id: "professional_123", name: "Ana" }],
+      } as any);
+      mockedGetBusyIntervals.mockResolvedValue([]);
+      mockedLeadUpdate.mockResolvedValue({} as any);
+
+      await executeVoiceTool({
+        businessId: "business_123",
+        toolName: "cancel_appointment",
+        params: { bookingId: "booking_1" },
+        callId: "call_vapi_1",
+      });
+
+      expect(mockedEnqueueWhatsappJob).toHaveBeenCalledWith(
+        expect.objectContaining({
+          toNumber: "+34611222333",
+          templateName: "hora_libre",
+        })
+      );
+      expect(mockedLeadUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: "lead_1" } })
+      );
+    });
+
+    it("no avisa ni marca resuelto si la hora pedida sigue sin estar disponible", async () => {
+      const desiredStart = new Date(Date.now() + 24 * 60 * 60_000).toISOString();
+      mockedLeadFindMany.mockResolvedValue([
+        {
+          id: "lead_1",
+          data: {
+            clientPhone: "+34611222333",
+            startDateTime: desiredStart,
+            durationMinutes: 30,
+            serviceIds: [],
+            professionalId: null,
+          },
+        },
+      ] as any);
+      mockedCheckAvailability.mockResolvedValue({
+        available: false,
+        code: "CAPACITY_REACHED",
+        message: "",
+      } as any);
+      mockedGetBusyIntervals.mockResolvedValue([]);
+
+      await executeVoiceTool({
+        businessId: "business_123",
+        toolName: "cancel_appointment",
+        params: { bookingId: "booking_1" },
+        callId: "call_vapi_1",
+      });
+
+      expect(mockedEnqueueWhatsappJob).not.toHaveBeenCalled();
+      expect(mockedLeadUpdate).not.toHaveBeenCalled();
+    });
+  });
+});
+
+describe("executeVoiceTool notify_when_available", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockedBusinessFindUnique.mockResolvedValue(buildBusiness() as any);
+    mockedCallFindUnique.mockResolvedValue({ id: "call_row_1", fromNumber: "+34600999888" } as any);
+    mockedLeadCreate.mockResolvedValue({ id: "lead_new" } as any);
+  });
+
+  it("guarda el aviso con el teléfono de quien llama y los datos de la hora pedida", async () => {
+    const desiredStart = "2026-09-20T10:00:00+02:00";
+
+    const result = await executeVoiceTool({
+      businessId: "business_123",
+      toolName: "notify_when_available",
+      params: { startDateTime: desiredStart, durationMinutes: 30 },
+      callId: "call_vapi_1",
+    });
+
+    expect(result.result.success).toBe(true);
+    expect(mockedLeadCreate).toHaveBeenCalledWith({
+      data: {
+        callId: "call_row_1",
+        type: "availability_watch",
+        isLead: false,
+        data: {
+          clientPhone: "+34600999888",
+          startDateTime: desiredStart,
+          durationMinutes: 30,
+          serviceIds: [],
+          professionalId: null,
+        },
+      },
+    });
+  });
+
+  it("rechaza si faltan datos de duración", async () => {
+    const result = await executeVoiceTool({
+      businessId: "business_123",
+      toolName: "notify_when_available",
+      params: { startDateTime: "2026-09-20T10:00:00+02:00" },
+      callId: "call_vapi_1",
+    });
+
+    expect(result.result.success).toBe(false);
+    expect(result.result.code).toBe("INVALID_PARAMS");
+    expect(mockedLeadCreate).not.toHaveBeenCalled();
+  });
+
+  it("rechaza si no hay un número de quien llama al que avisar", async () => {
+    mockedCallFindUnique.mockResolvedValue({ id: "call_row_1", fromNumber: null } as any);
+
+    const result = await executeVoiceTool({
+      businessId: "business_123",
+      toolName: "notify_when_available",
+      params: { startDateTime: "2026-09-20T10:00:00+02:00", durationMinutes: 30 },
+      callId: "call_vapi_1",
+    });
+
+    expect(result.result.success).toBe(false);
+    expect(result.result.code).toBe("NO_PHONE");
+    expect(mockedLeadCreate).not.toHaveBeenCalled();
   });
 });

@@ -20,13 +20,16 @@ export type CalendarOrigin = {
   calendarId: string;
 };
 
-/** Próximo hueco libre ese mismo día, calculado por el backend cuando la
- * hora pedida no está disponible por capacidad u ocupación — nunca por
- * OUTSIDE_BUSINESS_HOURS/PROFESSIONAL_NOT_FOUND/NO_AVAILABLE_PROFESSIONAL,
- * donde no tiene sentido buscar un hueco cercano. Existe para que el agente
- * de voz no tenga que inventar una alternativa y volver a llamar a la tool
- * para comprobarla — round-trip que en una llamada real de prueba
- * (2026-09-07) llevó a ofrecer una segunda hora que tampoco estaba libre. */
+/** Próximo hueco libre calculado por el backend cuando la hora pedida no
+ * está disponible por capacidad, ocupación u horario (OUTSIDE_BUSINESS_HOURS
+ * incluido desde 2026-09-15: cerrado ahora mismo no significa que no haya
+ * nada en los próximos días) — nunca por
+ * PROFESSIONAL_NOT_FOUND/NO_AVAILABLE_PROFESSIONAL, donde ningún
+ * desplazamiento en el tiempo cambia que no hay a quién asignar la cita.
+ * Existe para que el agente de voz no tenga que inventar una alternativa y
+ * volver a llamar a la tool para comprobarla — round-trip que en una llamada
+ * real de prueba (2026-09-07) llevó a ofrecer una segunda hora que tampoco
+ * estaba libre. */
 export type SuggestedSlot = {
   startDateTime: string;
   availableProfessionals: AvailableProfessional[];
@@ -97,9 +100,17 @@ function maxConcurrentBookings(
 }
 
 const NEXT_SLOT_SEARCH_INCREMENT_MINUTES = 15;
-/** 16 intentos × 15 min = 4 horas hacia adelante como máximo. checkBusinessHours
- * corta antes si el horario del negocio termina primero. */
-const NEXT_SLOT_SEARCH_MAX_ATTEMPTS = 16;
+/** 288 intentos × 15 min = 3 días hacia adelante como máximo. Antes eran 16
+ * intentos (4h): bastaba para "está lleno ahora mismo, ¿libra algo en lo
+ * que queda de turno?", pero dejaba sin sugerencia cualquier cierre real
+ * (fin de la jornada, fin de semana) — justo el caso donde más falta hace
+ * una alternativa, porque si no el agente tiene que colgar, adivinar un día
+ * y volver a llamar a check_availability (el mismo round-trip que
+ * SuggestedSlot ya evitaba para CAPACITY_REACHED). checkBusinessHours
+ * corta cada intento cerrado en O(1) en memoria, así que 288 intentos no es
+ * un coste real — el límite real es cuánto calendario externo se trae
+ * (ver computeAvailabilityLookaheadMs, usada también por quien llama). */
+const NEXT_SLOT_SEARCH_MAX_ATTEMPTS = 288;
 
 /**
  * Milisegundos que checkAvailability mira hacia delante desde
@@ -266,22 +277,24 @@ export async function checkAvailability(input: {
     calendarOrigin,
   } = input;
 
-  // 1. Horario comercial
+  // 1. Horario comercial. Un horario mal configurado no se arregla probando
+  // otra hora, así que corta aquí; "cerrado ahora mismo" en cambio sí puede
+  // tener una alternativa cercana — se decide más abajo, una vez calculados
+  // profesionales y reservas (que la propia sugerencia necesita).
   const hoursResult = checkBusinessHours(
     schedule,
     timezone,
     startDateTime,
     durationMinutes
   );
-  if (!hoursResult.success || !hoursResult.isOpen) {
+  if (!hoursResult.success) {
     return {
       available: false,
-      code: hoursResult.success
-        ? "OUTSIDE_BUSINESS_HOURS"
-        : "BUSINESS_HOURS_NOT_CONFIGURED",
+      code: "BUSINESS_HOURS_NOT_CONFIGURED",
       message: hoursResult.message,
     };
   }
+  const outsideBusinessHours = !hoursResult.isOpen;
 
   // 2. Profesionales que pueden atender el servicio
   const professionals = await prisma.professional.findMany({
@@ -451,6 +464,23 @@ export async function checkAvailability(input: {
       name: professional.name,
     })
   );
+
+  if (outsideBusinessHours) {
+    return {
+      available: false,
+      code: "OUTSIDE_BUSINESS_HOURS",
+      message: hoursResult.message,
+      suggestedNextSlot: findNextAvailableSlot({
+        schedule,
+        timezone,
+        bookingCapacity,
+        startDateTime,
+        durationMinutes,
+        rankedProfessionals: rankedProfessionalsForSearch,
+        bookings: overlappingBookings,
+      }),
+    };
+  }
 
   if (bookingsInSlot >= bookingCapacity) {
     return {
