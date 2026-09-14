@@ -215,8 +215,11 @@ export type Agent = {
 
 export type TranscriptMessage = {
   role?: string;
-  content?: string;
+  content?: string; // Retell
+  text?: string; // Telnyx
   timestamp?: string;
+  createdAt?: string;
+  sentAt?: string;
 };
 
 export type Transcript = {

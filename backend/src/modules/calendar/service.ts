@@ -9,7 +9,7 @@ import {
 } from "../../adapters/retell/RetellAdapter.js";
 import { getPublicWebhookBaseUrl } from "../../lib/serverUrl.js";
 import { syncAgentToTelnyx } from "../../lib/telnyxAgentSync.js";
-import type { TelnyxWebhookToolInput } from "../../lib/telnyxAssistantPayload.js";
+import { buildTelnyxVoiceTools } from "../../lib/telnyxAssistantPayload.js";
 import {
   createMicrosoftCalendarEvent,
   deleteMicrosoftCalendarEvent,
@@ -594,7 +594,7 @@ export class CalendarService {
               smsConsent: {
                 type: "boolean",
                 description:
-                  "true si el cliente confirmó por voz que puedes enviarle la confirmación (y un recordatorio) por WhatsApp a este número; false si dijo que no o no se le preguntó.",
+                  "true si el cliente confirmó por voz que puedes enviarle la confirmación (y un recordatorio) por SMS a este número; false si dijo que no o no se le preguntó.",
               },
             },
           required: ["clientName", "availabilityToken"],
@@ -630,121 +630,6 @@ export class CalendarService {
    * como el header sí funcionó, se quitó la query string para no mandar
    * dos veces el mismo dato.
    */
-  private buildTelnyxCalendarTools(baseUrl: string): TelnyxWebhookToolInput[] {
-    const toolBaseUrl = `${baseUrl.replace(/\/$/, "")}/webhooks/telnyx/tools`;
-    const callControlHeader = {
-      name: "X-Alhabla-Call-Control-Id",
-      value: "{{call_control_id}}",
-    };
-
-    return [
-      {
-        name: "get_catalog",
-        description:
-          "Obtiene los servicios activos con sus IDs y duraciones, los profesionales y el horario del negocio. Úsala cuando el cliente pregunte por ellos o antes de comprobar/reservar si necesitas un ID o duración.",
-        url: `${toolBaseUrl}/get_catalog`,
-        method: "POST",
-        properties: {},
-        headers: [callControlHeader],
-        timeoutMs: 20000,
-      },
-      {
-        name: "check_availability",
-        description:
-          "Comprueba una cita en una fecha y hora concretas: valida horario, restricciones, capacidad, profesionales y calendario real. Úsala antes de book_appointment y conserva el availabilityToken que devuelve.",
-        url: `${toolBaseUrl}/check_availability`,
-        method: "POST",
-        properties: {
-          startDateTime: {
-            type: "string",
-            description:
-              "Inicio solicitado en formato ISO 8601, incluyendo zona horaria.",
-          },
-          durationMinutes: {
-            type: "number",
-            description: "Duración total de la cita en minutos.",
-          },
-          serviceIds: {
-            type: "array",
-            items: { type: "string" },
-            description:
-              "IDs de los servicios pedidos (opcional; puede ser más de uno si el cliente pide varios servicios en la misma cita, ej. corte y mechas). Se prioriza al profesional que domine todos esos servicios.",
-          },
-          professionalId: {
-            type: "string",
-            description:
-              "ID exacto de EMPLEADOS si el cliente pidió un profesional concreto por nombre (opcional). Déjalo vacío si no.",
-          },
-        },
-        required: ["startDateTime", "durationMinutes"],
-        headers: [callControlHeader],
-        timeoutMs: 20000,
-      },
-      {
-        name: "book_appointment",
-        description:
-          "Agenda una cita en el calendario activo. Úsala solo tras confirmación explícita y con el availabilityToken de check_availability.",
-        url: `${toolBaseUrl}/book_appointment`,
-        method: "POST",
-        properties: {
-          clientName: {
-            type: "string",
-            description: "El nombre del cliente que hace la reserva",
-          },
-          clientEmail: {
-            type: "string",
-            description:
-              "El correo electrónico del cliente, si lo proporciona (opcional)",
-          },
-          clientPhone: {
-            type: "string",
-            description:
-              "Teléfono de contacto solo si el cliente eligió uno distinto al detectado automáticamente (opcional).",
-          },
-          availabilityToken: {
-            type: "string",
-            description:
-              "Token exacto devuelto por check_availability para la opción confirmada.",
-          },
-          smsConsent: {
-            type: "boolean",
-            description:
-              "true si el cliente confirmó por voz que puedes enviarle la confirmación (y un recordatorio) por WhatsApp a este número; false si dijo que no o no se le preguntó.",
-          },
-        },
-        required: ["clientName", "availabilityToken"],
-        headers: [callControlHeader],
-        timeoutMs: 20000,
-      },
-      {
-        name: "find_my_appointment",
-        description:
-          "Busca la próxima cita del negocio asociada al número desde el que llama, si el cliente dio consentimiento SMS al reservarla. Úsala solo si quien llama pide cambiar o cancelar una cita existente y no te ha dado datos concretos.",
-        url: `${toolBaseUrl}/find_my_appointment`,
-        method: "POST",
-        properties: {},
-        headers: [callControlHeader],
-        timeoutMs: 20000,
-      },
-      {
-        name: "cancel_appointment",
-        description:
-          "Cancela la cita cuyo id devolvió find_my_appointment. Úsala solo tras confirmación explícita del cliente. Para 'modificar' una cita: cancélala con esta tool y reserva la nueva con check_availability + book_appointment.",
-        url: `${toolBaseUrl}/cancel_appointment`,
-        method: "POST",
-        properties: {
-          bookingId: {
-            type: "string",
-            description: "El id de la cita devuelto por find_my_appointment.",
-          },
-        },
-        required: ["bookingId"],
-        headers: [callControlHeader],
-        timeoutMs: 20000,
-      },
-    ];
-  }
-
   async syncCalendarToolsToAgents(
     businessId: string,
     options?: { strict?: boolean }
@@ -884,7 +769,7 @@ export class CalendarService {
         console.error(message);
         recordError(message);
       } else {
-        const telnyxTools = this.buildTelnyxCalendarTools(baseUrl);
+        const telnyxTools = buildTelnyxVoiceTools(baseUrl);
         // syncAgentToTelnyx nunca lanza (un fallo de Telnyx no debe poder
         // bloquear este flujo) — en modo strict se comprueba
         // telnyxSyncError después para no dar por buena una sincronización

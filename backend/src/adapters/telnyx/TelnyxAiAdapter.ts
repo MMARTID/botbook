@@ -464,6 +464,13 @@ export class TelnyxAiAdapter {
     from: string;
     to: string;
     assistantId: string;
+    // Override de instructions solo para ESTA llamada (soportado nativamente
+    // por /calls/dial) — necesario para poder lanzar varias llamadas en
+    // paralelo contra el mismo assistant "cliente" del harness sin que se
+    // pisen las instrucciones entre sí (antes se reescribían con
+    // updateAssistant antes de cada llamada, lo que rompía la ejecución
+    // concurrente de telnyxCallBattery.ts, ver hallazgo 2026-09-14).
+    instructionsOverride?: string;
     webhookUrl: string;
     timeLimitSecs: number;
     record?: boolean;
@@ -473,7 +480,10 @@ export class TelnyxAiAdapter {
       connection_id: input.connectionId,
       from: input.from,
       to: input.to,
-      assistant: { id: input.assistantId },
+      assistant: {
+        id: input.assistantId,
+        instructions: input.instructionsOverride,
+      },
       webhook_url: input.webhookUrl,
       time_limit_secs: input.timeLimitSecs,
       record: input.record ? "record-from-answer" : undefined,

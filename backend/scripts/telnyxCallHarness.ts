@@ -57,22 +57,54 @@ function readArg(name: string): string | undefined {
   return index !== -1 ? process.argv[index + 1] : undefined;
 }
 
-async function ensureHarnessAssistant(instructions: string): Promise<string> {
+// Assistant "cliente" único y reutilizado entre llamadas — la persona de
+// cada escenario ya NO se le escribe encima (updateAssistant) antes de
+// marcar: eso pisaba las instrucciones de otras llamadas en vuelo en cuanto
+// se lanzaba más de una a la vez (telnyxCallBattery.ts en paralelo). Ahora
+// la persona viaja como `instructionsOverride` en el propio dial (soportado
+// nativamente por /calls/dial), así que el recurso compartido solo necesita
+// existir una vez — cacheado en memoria para no repetir el `list` en cada
+// llamada dentro de una misma ejecución del script.
+let cachedHarnessAssistantId: string | undefined;
+
+// Kimi-K2.6: modelo más ligero/barato disponible alojado por Telnyx para el
+// "cliente simulado" del harness (no el assistant bajo prueba, ese conserva
+// el suyo). Nota (ver telnyxAssistantPayload.ts): una llamada real confirmó
+// que el bloque ai-voice-assistant de Telnyx factura tarifa plana de
+// $0.05/min sin importar el modelo, así que esto no abarata el minuto de
+// Telnyx — se mantiene igualmente por pedido explícito del usuario
+// (2026-09-14) y porque, al no requerir Integration Secret propia, es la
+// opción más barata en términos absolutos (sin coste añadido de otro
+// proveedor por fuera de Telnyx).
+const HARNESS_MODEL = "moonshotai/Kimi-K2.6";
+
+async function ensureHarnessAssistant(): Promise<string> {
+  if (cachedHarnessAssistantId) return cachedHarnessAssistantId;
+
   const client = telnyxAiAdapter;
   const existing = await findAssistantByName(HARNESS_ASSISTANT_NAME);
   if (existing) {
-    await client.updateAssistant(existing, { instructions });
+    // El assistant ya existe de ejecuciones anteriores (se busca por
+    // nombre) — sincroniza el modelo aquí, una sola vez por ejecución del
+    // script, para que un cambio de HARNESS_MODEL no quede inerte.
+    await client.updateAssistant(existing, { model: HARNESS_MODEL });
+    cachedHarnessAssistantId = existing;
     return existing;
   }
   const created = await client.createAssistant({
     name: HARNESS_ASSISTANT_NAME,
-    instructions,
+    // Instructions base: nunca se usan de verdad en una llamada real, porque
+    // runOneCall siempre manda `instructionsOverride` con la persona del
+    // escenario — solo hace falta un valor no vacío para poder crear el
+    // assistant.
+    instructions: "Eres un cliente simulado esperando instrucciones de la llamada.",
     greeting: "",
-    model: "openai/gpt-5.6-luna",
+    model: HARNESS_MODEL,
     voiceSettings: { voice: HARNESS_VOICE, voice_speed: 1.0 },
     transcription: { model: "deepgram/flux", language: "es" },
     telephonySettings: { time_limit_secs: 300, user_idle_timeout_secs: 20 },
   });
+  cachedHarnessAssistantId = created.id;
   return created.id;
 }
 
@@ -100,10 +132,12 @@ export async function runOneCall(input: {
   maxDurationSecs: number;
   connectionId: string;
   baseUrl: string;
+  /** Cliente Prisma alternativo (p.ej. apuntando a BD de producción). */
+  db?: typeof prisma;
 }): Promise<CallHarnessResult> {
-  const { from, to, persona, maxDurationSecs, connectionId, baseUrl } = input;
+  const { from, to, persona, maxDurationSecs, connectionId, baseUrl, db = prisma } = input;
 
-  const destinationBusiness = await prisma.business.findUnique({
+  const destinationBusiness = await db.business.findUnique({
     where: { telnyxPhoneNumber: to },
     select: { id: true, name: true },
   });
@@ -111,7 +145,7 @@ export async function runOneCall(input: {
     return { ok: false, reason: `No hay ningún negocio con telnyxPhoneNumber=${to}` };
   }
 
-  const harnessAssistantId = await ensureHarnessAssistant(persona);
+  const harnessAssistantId = await ensureHarnessAssistant();
 
   const testStartedAt = new Date();
   const { callControlId } = await telnyxAiAdapter.dialWithAssistant({
@@ -119,6 +153,7 @@ export async function runOneCall(input: {
     from,
     to,
     assistantId: harnessAssistantId,
+    instructionsOverride: persona,
     webhookUrl: `${baseUrl.replace(/\/$/, "")}/webhooks/telnyx-harness`,
     timeLimitSecs: maxDurationSecs,
     record: true,
@@ -127,7 +162,7 @@ export async function runOneCall(input: {
   const waitSecs = maxDurationSecs + 25;
   await sleep(waitSecs * 1000);
 
-  const call = await prisma.call.findFirst({
+  const call = await db.call.findFirst({
     where: { businessId: destinationBusiness.id, startedAt: { gte: testStartedAt } },
     orderBy: { startedAt: "desc" },
     include: { transcript: true, recording: true },
