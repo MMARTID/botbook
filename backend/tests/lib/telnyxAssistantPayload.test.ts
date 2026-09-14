@@ -142,10 +142,10 @@ describe("buildTelnyxAssistantPayload", () => {
     expect(payload.voiceSettings?.voice).toBe("Telnyx.Ultra.Isabel");
   });
 
-  it("fija voice_speed a 1.1 — decisión explícita del usuario 2026-09-12", () => {
+  it("activa expressive_mode (matices emocionales SSML, solo disponible en voces Ultra)", () => {
     const payload = buildTelnyxAssistantPayload(baseInput);
 
-    expect(payload.voiceSettings?.voice_speed).toBe(1.1);
+    expect(payload.voiceSettings?.expressive_mode).toBe(true);
   });
 
   it("fija el modelo LLM primario y su fallback — decisión explícita del usuario 2026-09-12; el modelo NO afecta al coste (ai-voice-assistant es tarifa plana por minuto, confirmado con una llamada real)", () => {
@@ -190,17 +190,21 @@ describe("buildTelnyxAssistantPayload", () => {
         eot_threshold: 0.8,
         eot_timeout_ms: 5000,
         eager_eot_threshold: 0.4,
+        smart_format: true,
+        numerals: true,
       },
     });
   });
 
-  it("omite keyterm pero mantiene la config de fin de turno cuando no hay palabras clave", () => {
+  it("omite keyterm pero mantiene la config de fin de turno y formato inteligente cuando no hay palabras clave", () => {
     const payload = buildTelnyxAssistantPayload(baseInput);
 
     expect(payload.transcription?.settings).toEqual({
       eot_threshold: 0.8,
       eot_timeout_ms: 5000,
       eager_eot_threshold: 0.4,
+      smart_format: true,
+      numerals: true,
     });
   });
 

@@ -166,9 +166,17 @@ export function buildTelnyxAssistantPayload(
     // Integration Secret propia, y es el modelo ya validado con llamadas
     // reales antes de este cambio.
     fallbackConfig: { model: "moonshotai/Kimi-K2.6" },
-    // 1.1x: decisión explícita del usuario 2026-09-12. Rango válido de
-    // Telnyx: [0.25, 2.0], 1.0 = velocidad normal.
-    voiceSettings: { voice: input.voice, voice_speed: 1.1 },
+    // voice_speed retirado (encontrado 2026-09-14): la propia documentación
+    // del SDK dice "only applicable for Telnyx Natural voices" — la cuenta
+    // usa una voz Telnyx ULTRA (Blanca - Graceful Host), así que el 1.1x
+    // fijado el 2026-09-12 nunca tuvo efecto real, pese a documentarse como
+    // "decisión explícita del usuario". Pendiente decidir con el usuario si
+    // se cambia a una voz Natural (si el ritmo más rápido importa más que
+    // Ultra) o se acepta la velocidad por defecto de Ultra.
+    // expressive_mode=true: SOLO disponible en voces Ultra (si es la nuestra)
+    // — añade matices emocionales vía SSML de forma automática, sin
+    // intervención nuestra en el texto. Coste cero, más natural.
+    voiceSettings: { voice: input.voice, expressive_mode: true },
     // deepgram/flux — decisión explícita del usuario 2026-09-12: mejor
     // detección de turno de palabra (end-of-turn/eager end-of-turn) que
     // nova-3. Sigue siendo Deepgram (nativo de Telnyx, sin api_key_ref
@@ -201,6 +209,14 @@ export function buildTelnyxAssistantPayload(
         eot_threshold: 0.8,
         eot_timeout_ms: 5000,
         eager_eot_threshold: 0.4,
+        // smart_format/numerals (Deepgram, aplican a flux): formatea fechas,
+        // horas, teléfonos y números como se escriben, no como se dictan
+        // ("quince de marzo a las tres" → "15 de marzo a las 3") — ayuda
+        // tanto a la transcripción legible para el negocio como a que el
+        // propio modelo interprete bien lo que acaba de transcribir antes
+        // de llamar a check_availability/book_appointment.
+        smart_format: true,
+        numerals: true,
       },
     },
     // wait_seconds=0.1: recomendación explícita de Telnyx para flux ("Flux
