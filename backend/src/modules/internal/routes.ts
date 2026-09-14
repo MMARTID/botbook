@@ -47,7 +47,7 @@ const SendWhatsappSchema = z.object({
   toNumber: z.string().regex(E164_PHONE_REGEX),
   templateName: z.string(),
   languageCode: z.string(),
-  bodyParams: z.array(z.string()),
+  bodyParams: z.record(z.string()),
 });
 
 // Endpoints invocados por Cloud Tasks/Cloud Scheduler (no por negocios ni
