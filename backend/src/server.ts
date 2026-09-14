@@ -62,6 +62,25 @@ async function start() {
     },
   });
 
+  // Node por defecto cierra los sockets keep-alive tras solo 5s de
+  // inactividad (`http.Server.keepAliveTimeout`). Delante de Cloud Run, el
+  // proxy de Google (GFE) reutiliza conexiones keep-alive hacia el
+  // contenedor durante mucho más tiempo que eso — si Node cierra el socket
+  // primero, la siguiente petición que GFE reenvía sobre esa conexión ya
+  // cerrada llega como una conexión rota, sin que nuestro código llegue
+  // siquiera a verla (no aparece en los logs de Cloud Run ni en los
+  // nuestros). Encontrado el 2026-09-15 analizando la transcripción de una
+  // llamada real al centro de estética: dos intentos seguidos de la tool
+  // get_catalog volvieron "delivery_failed"/":closed" —error que genera
+  // Telnyx cuando la entrega del webhook nunca llega a completarse— y el
+  // tercer intento, ya sobre una conexión nueva, funcionó a la primera. Es
+  // el mismo problema documentado para cualquier servidor Node.js en Cloud
+  // Run: subir keepAliveTimeout por encima del timeout de GFE (~620s) lo
+  // resuelve. headersTimeout tiene que ser mayor que keepAliveTimeout o
+  // Node lo rechaza en arranque.
+  fastify.server.keepAliveTimeout = 620_000;
+  fastify.server.headersTimeout = 630_000;
+
   try {
     // Initialize external services
     console.log("[Server] Initializing external services...");

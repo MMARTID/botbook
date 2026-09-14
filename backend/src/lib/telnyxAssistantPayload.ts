@@ -281,6 +281,7 @@ export interface BuildTelnyxAssistantPayloadInput {
   boostedKeywords?: string[];
   maxCallDurationSecs?: number;
   userIdleTimeoutSecs?: number;
+  userIdleReplySecs?: number;
 }
 
 // Mismos límites que DEFAULT_RETELL_AGENT_CONFIG (agentBootstrap.ts): una
@@ -288,6 +289,12 @@ export interface BuildTelnyxAssistantPayloadInput {
 // ya indica que el cliente colgó o dejó el teléfono descolgado.
 const DEFAULT_MAX_CALL_DURATION_SECS = 10 * 60;
 const DEFAULT_USER_IDLE_TIMEOUT_SECS = 30;
+// A mitad del timeout total: da tiempo a que el cliente reaccione a un
+// "¿sigues ahí?" antes del corte a los 30s. Sin este campo (encontrado
+// 2026-09-15, nunca configurado) el agente se queda completamente callado
+// durante los 30s de silencio y luego cuelga sin avisar — una recepcionista
+// real pregunta antes de darse por vencida.
+const DEFAULT_USER_IDLE_REPLY_SECS = 12;
 
 export function buildTelnyxAssistantPayload(
   input: BuildTelnyxAssistantPayloadInput
@@ -428,6 +435,8 @@ export function buildTelnyxAssistantPayload(
       },
       user_idle_timeout_secs:
         input.userIdleTimeoutSecs ?? DEFAULT_USER_IDLE_TIMEOUT_SECS,
+      user_idle_reply_secs:
+        input.userIdleReplySecs ?? DEFAULT_USER_IDLE_REPLY_SECS,
       time_limit_secs: input.maxCallDurationSecs ?? DEFAULT_MAX_CALL_DURATION_SECS,
       // Desactivado a propósito (antes "krisp"): el audio entrante ya se
       // limpia por llamada vía Call Control con el motor AiCoustics/quail,
