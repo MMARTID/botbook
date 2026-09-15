@@ -243,9 +243,11 @@ function SettingsRow({
   at: number;
   icon: typeof CalendarCheck2;
 }) {
-  const opacity = useTransform(progress, [at, at + 0.05], [0.35, 1]);
-  const y = useTransform(progress, [at, at + 0.05], [14, 0]);
-  const x = useTransform(progress, [at, at + 0.05], [-8, 0]);
+  // Cada fila nace ya legible. Así, un gesto rápido que salta al segundo
+  // paso nunca aterriza en una tarjeta vacía mientras el scrub se asienta.
+  const opacity = useTransform(progress, [at, at + 0.05], [0.72, 1]);
+  const y = useTransform(progress, [at, at + 0.05], [8, 0]);
+  const x = useTransform(progress, [at, at + 0.05], [-4, 0]);
 
   return (
     <motion.div style={{ opacity, y, x }} className="flex items-center gap-3 rounded-2xl border border-[#e5e5e5] bg-white p-3.5">
@@ -257,9 +259,11 @@ function SettingsRow({
 }
 
 function ParallelScene({ progress, scale, visibility }: { progress: MotionValue<number>; scale: MotionValue<number>; visibility: MotionValue<string> }) {
-  const approvalOpacity = useTransform(progress, [0.4, 0.49, 0.61, 0.7], [0.2, 1, 1, 0]);
+  // La información esencial ya está presente al entrar en la fase. El resto
+  // sólo acaba de asentarse con el progreso amortiguado.
+  const approvalOpacity = useTransform(progress, [0.4, 0.49, 0.61, 0.7], [0.76, 1, 1, 0.76]);
   const approvalY = useTransform(progress, [0.4, 0.49], [18, 0]);
-  const preparingOpacity = useTransform(progress, [0.4, 0.49], [1, 0]);
+  const preparingOpacity = useTransform(progress, [0.4, 0.49], [1, 0.35]);
   const shimmer = useTransform(progress, [0.43, 0.59], ["0%", "100%"]);
 
   return (
@@ -293,12 +297,14 @@ function ParallelScene({ progress, scale, visibility }: { progress: MotionValue<
 }
 
 function OperationsScene({ progress, scale, visibility }: { progress: MotionValue<number>; scale: MotionValue<number>; visibility: MotionValue<string> }) {
-  const cardOneY = useTransform(progress, [0.7, 0.79], [28, 0]);
-  const cardTwoY = useTransform(progress, [0.75, 0.84], [30, 0]);
-  const cardThreeY = useTransform(progress, [0.8, 0.89], [32, 0]);
-  const cardOneOpacity = useTransform(progress, [0.7, 0.77], [0, 1]);
-  const cardTwoOpacity = useTransform(progress, [0.75, 0.82], [0, 1]);
-  const cardThreeOpacity = useTransform(progress, [0.8, 0.87], [0, 1]);
+  // El tercer paso debe poder leerse nada más llegar, aunque la rueda haya
+  // cruzado la segunda costura de una sola vez.
+  const cardOneY = useTransform(progress, [0.7, 0.79], [10, 0]);
+  const cardTwoY = useTransform(progress, [0.75, 0.84], [12, 0]);
+  const cardThreeY = useTransform(progress, [0.8, 0.89], [14, 0]);
+  const cardOneOpacity = useTransform(progress, [0.7, 0.77], [0.76, 1]);
+  const cardTwoOpacity = useTransform(progress, [0.75, 0.82], [0.76, 1]);
+  const cardThreeOpacity = useTransform(progress, [0.8, 0.87], [0.76, 1]);
   const focusOpacity = useTransform(progress, [0.75, 0.86], [0, 1]);
 
   return (
@@ -412,73 +418,6 @@ export function HowItWorksScrollytelling({
   }, [isStoryActive, onNarrativeActiveChange, reducedMotion]);
 
   useEffect(() => () => onNarrativeActiveChange?.(false), [onNarrativeActiveChange]);
-
-  useEffect(() => {
-    if (reducedMotion || !sectionRef.current) return;
-
-    const section = sectionRef.current;
-    let timeoutId: number | undefined;
-    let snapLockId: number | undefined;
-    let isSnapping = false;
-    let previousScrollY = window.scrollY;
-    let direction: "forward" | "backward" = "forward";
-
-    const transitionTarget = () => {
-      const rect = section.getBoundingClientRect();
-      if (rect.top > window.innerHeight * 0.65 || rect.bottom < window.innerHeight * 0.35) return null;
-
-      const sectionTop = window.scrollY + rect.top;
-      const scrollRange = section.offsetHeight - window.innerHeight;
-      if (scrollRange <= 0) return null;
-
-      const currentProgress = Math.max(0, Math.min(1, (window.scrollY - sectionTop) / scrollRange));
-      // El ajuste sólo existe en las dos costuras. Dentro de cada paso el
-      // scroll es completamente libre y conserva el scrubbing en directo.
-      if (currentProgress >= 0.312 && currentProgress <= 0.34) return direction === "forward" ? 0.4 : 0.27;
-      if (currentProgress >= 0.642 && currentProgress <= 0.67) return direction === "forward" ? 0.75 : 0.6;
-      return null;
-    };
-
-    const snapTransition = () => {
-      const targetProgress = transitionTarget();
-      if (targetProgress === null) return;
-
-      const rect = section.getBoundingClientRect();
-      const sectionTop = window.scrollY + rect.top;
-      const scrollRange = section.offsetHeight - window.innerHeight;
-      const target = sectionTop + scrollRange * targetProgress;
-      if (Math.abs(target - window.scrollY) <= 3) return;
-
-      isSnapping = true;
-      window.scrollTo({ top: target, behavior: "smooth" });
-      snapLockId = window.setTimeout(() => {
-        previousScrollY = window.scrollY;
-        isSnapping = false;
-      }, 420);
-    };
-
-    const scheduleTransitionSnap = () => {
-      if (isSnapping) return;
-      if (window.scrollY !== previousScrollY) direction = window.scrollY > previousScrollY ? "forward" : "backward";
-      previousScrollY = window.scrollY;
-      if (timeoutId) window.clearTimeout(timeoutId);
-      timeoutId = window.setTimeout(snapTransition, 220);
-    };
-
-    const snapTransitionAfterGesture = () => {
-      if (timeoutId) window.clearTimeout(timeoutId);
-      if (!isSnapping) snapTransition();
-    };
-
-    window.addEventListener("scroll", scheduleTransitionSnap, { passive: true });
-    if ("onscrollend" in window) window.addEventListener("scrollend", snapTransitionAfterGesture);
-    return () => {
-      window.removeEventListener("scroll", scheduleTransitionSnap);
-      if ("onscrollend" in window) window.removeEventListener("scrollend", snapTransitionAfterGesture);
-      if (timeoutId) window.clearTimeout(timeoutId);
-      if (snapLockId) window.clearTimeout(snapLockId);
-    };
-  }, [reducedMotion]);
 
   if (reducedMotion) return <StaticStory />;
 

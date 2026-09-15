@@ -38,6 +38,23 @@ Cuando una secuencia larga de scroll representa pasos discretos, ofrece una vía
 - Actualiza el paso activo sólo al cruzar un umbral semántico; no publiques progreso continuo en estado React ni en la URL.
 - Los controles son complementarios: no conviertas la barra de progreso en un carrusel que bloquee la lectura, ni obligues a pasar por fases intermedias al elegir una fase posterior.
 
+## Contrato para scroll rápido
+
+Un visitante no tiene por qué descubrir que debe usar una rueda lenta. El recorrido debe
+soportar tanto una primera pasada rápida como una inspección deliberada:
+
+- Modela cada fase como un estado completo y exclusivo. Un salto de progreso puede omitir una
+  fase, pero nunca puede dejar la siguiente a medio montar o revelar un espacio vacío.
+- Usa el progreso crudo para decidir la fase y el progreso amortiguado sólo para que los detalles
+  de la fase elegida lleguen con continuidad. No hagas que la visibilidad espere al muelle.
+- No llames a `window.scrollTo` después de cada pausa de scroll. Si existe una resolución de
+  costura, debe activarse únicamente al acabar dentro de una banda de error estrecha y debe
+  cancelarse en cuanto el usuario continúe el gesto. Un desplazamiento que atraviesa la banda no
+  se captura ni se reproduce paso a paso.
+- La entrada y salida de una fase deben tener un estado de reposo inequívoco. Si el usuario se
+  detiene inmediatamente después de cruzar una costura, el contenido prioritario ya debe estar
+  visible; los detalles pueden asentarse durante unos cientos de milisegundos.
+
 ## Validación con las herramientas disponibles
 
 1. Usa la skill `animation-evaluator` del proyecto para capturar un storyboard de la sección en móvil y escritorio. Inspecciona continuidad, jerarquía, solapes y contenido cortado.
