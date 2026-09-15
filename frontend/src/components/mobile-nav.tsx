@@ -16,6 +16,7 @@ const VERTICAL_SECTION_LINKS = [
 ] as const;
 
 const MAIN_SECTION_LINKS = [
+  { href: "#calculadora", label: "Calcula tu pérdida" },
   { href: "#como-funciona", label: "Cómo funciona" },
   { href: "#sectores", label: "Para tu negocio" },
 ] as const;

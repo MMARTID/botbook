@@ -233,7 +233,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   if (PUBLIC_ROUTES.includes(pathname)) return <>{children}</>;
 
   return (
-    <div className="min-h-screen bg-white lg:flex">
+    <div className="min-h-screen bg-[#f8f8fa] lg:flex">
       <a href="#main-content" className="sr-only z-[80] rounded-full bg-[#0a0a0a] px-4 py-3 text-sm font-semibold text-white focus:not-sr-only focus:fixed focus:left-4 focus:top-4">Saltar a contenido</a>
       <aside className="hidden h-screen w-72 shrink-0 flex-col border-r border-[#e5e5e5] bg-white lg:sticky lg:top-0 lg:flex">
         <div className="px-5 pb-6 pt-6">
@@ -260,9 +260,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </button>
           </div>
         </header>
-        <main id="main-content" className="mx-auto w-full max-w-[90rem] px-4 py-5 pb-28 sm:px-6 sm:py-8 lg:px-10 lg:py-10 lg:pb-10">{children}</main>
+        <main id="main-content" className="mx-auto w-full max-w-[90rem] px-4 py-4 pb-32 sm:px-6 sm:py-7 lg:px-10 lg:py-10 lg:pb-10">{children}</main>
       </div>
-      <nav className="fixed inset-x-0 bottom-0 z-50 border-t border-[#e5e5e5] bg-white/95 px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 backdrop-blur lg:hidden" aria-label="Navegación principal">
+      <nav className="fixed inset-x-3 bottom-3 z-50 rounded-2xl border border-[#e5e5e5] bg-white/95 px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 shadow-[0_12px_30px_rgba(0,0,0,0.08)] backdrop-blur lg:hidden" aria-label="Navegación principal">
         <div className="mx-auto grid max-w-xl grid-cols-5 gap-1">
           {[...PRIMARY_NAVIGATION, ...AGENT_NAVIGATION].map((item) => <NavigationLink key={item.href} item={item} pathname={pathname} compact />)}
           <button ref={moreTriggerRef} type="button" onClick={() => setMoreOpen(true)} aria-expanded={moreOpen} className="flex min-h-11 flex-col items-center justify-center gap-0.5 rounded-full border border-transparent px-2 text-[11px] font-semibold text-[#3f3f46] transition hover:bg-[#fafafa] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]">

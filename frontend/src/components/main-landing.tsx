@@ -11,6 +11,7 @@ import { HeroPulse } from "@/components/hero-pulse";
 import { HowItWorksScrollytelling } from "@/components/how-it-works-scrollytelling";
 import { MobileNav } from "@/components/mobile-nav";
 import { Reveal } from "@/components/scroll-reveal";
+import { RevenueLossCalculator } from "@/components/revenue-loss-calculator";
 import { SectorDataSection } from "@/components/sector-data-section";
 import { generalSectorData } from "@/lib/niche-landings";
 
@@ -33,6 +34,7 @@ function LandingHeader({ hiddenOnMobile }: { hiddenOnMobile: boolean }) {
           <span className="text-base font-black tracking-tight text-[#0a0a0a]">Alhabla</span>
         </Link>
         <nav className="hidden items-center gap-5 md:flex" aria-label="Navegación principal">
+          <a href="#calculadora" className="text-sm font-medium text-[#3f3f46] transition hover:text-[#0a0a0a]">Calcula tu pérdida</a>
           <a href="#como-funciona" className="text-sm font-medium text-[#3f3f46] transition hover:text-[#0a0a0a]">Cómo funciona</a>
           <a href="#sectores" className="text-sm font-medium text-[#3f3f46] transition hover:text-[#0a0a0a]">Para tu negocio</a>
           <Link href="/login" className="btn-secondary h-10 px-4">Iniciar sesión</Link>
@@ -66,7 +68,7 @@ export function MainLanding() {
       <LandingHeader hiddenOnMobile={hideHeaderOnMobile} />
 
       <section id="contenido" className="border-b border-[#e5e5e5]" tabIndex={-1}>
-        <div className="mx-auto grid max-w-7xl items-center gap-10 px-4 py-12 sm:px-6 sm:py-16 lg:grid-cols-[1.05fr_0.95fr] lg:gap-14 lg:px-8 lg:py-24">
+        <div className="mx-auto grid max-w-7xl items-center gap-10 px-4 py-12 sm:px-6 sm:py-16 lg:grid-cols-[1.05fr_0.95fr] lg:gap-14 lg:px-8 lg:py-16">
           <div className="max-w-3xl space-y-7">
             <Reveal y={14}>
               <span className="badge-soft">Recepción telefónica para negocios con cita previa</span>
@@ -97,9 +99,11 @@ export function MainLanding() {
         </div>
       </section>
 
-      <HowItWorksScrollytelling onNarrativeActiveChange={setIsNarrativeActive} />
+      <RevenueLossCalculator />
 
       <SectorDataSection data={generalSectorData} />
+
+      <HowItWorksScrollytelling onNarrativeActiveChange={setIsNarrativeActive} />
 
       <section id="sectores" className="scroll-m-20 border-t border-[#e5e5e5] py-16 sm:py-24">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8"><Reveal className="flex max-w-3xl flex-col justify-between gap-5 sm:flex-row sm:items-end"><div><p className="text-sm font-bold uppercase tracking-[0.14em] text-[#6d28d9]">Hecho para tu ritmo</p><h2 className="mt-4 text-3xl font-black tracking-tight sm:text-5xl">Cada negocio tiene su forma de llenar la agenda.</h2></div></Reveal><div className="mt-10 grid gap-4 lg:grid-cols-3">{SECTORES.map(({ href, title, description, icon: Icon }, index) => <Reveal key={href} delay={index * 0.08}><Link href={href} className="group block h-full rounded-3xl border border-[#e5e5e5] p-6 transition duration-300 hover:-translate-y-1 hover:border-[#ddd6fe] hover:shadow-[0_18px_35px_-24px_rgba(109,40,217,0.55)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] focus-visible:ring-offset-4"><span className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#f3eeff] text-[#8b5cf6]"><Icon className="h-5 w-5" aria-hidden="true" /></span><h3 className="mt-7 text-xl font-bold">{title}</h3><p className="mt-3 text-sm leading-6 text-[#52525b]">{description}</p><span className="mt-6 inline-flex items-center gap-2 text-sm font-semibold text-[#0a0a0a]">Ver cómo funciona <ArrowRight className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-1" aria-hidden="true" /></span></Link></Reveal>)}</div></div>
