@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { LegalPage, LegalSection, LegalTodo } from "@/components/legal-page";
+import { LegalPage, LegalSection } from "@/components/legal-page";
 import { absoluteUrl, siteName } from "@/lib/seo";
 
 export const metadata: Metadata = {
@@ -26,19 +26,15 @@ export default function AvisoLegalPage() {
     <LegalPage
       title="Aviso legal"
       description="Quién está detrás de Alhabla, en qué condiciones puedes usarlo y qué implica contratar una suscripción."
-      updatedAt="2026-09-03"
+      updatedAt="2026-09-15"
     >
-      <LegalTodo>
-        la razón social, el CIF, el domicilio social y los datos de inscripción registral. La Ley 34/2002 (LSSI) exige
-        que esta información sea accesible antes de que nadie contrate.
-      </LegalTodo>
-
       <LegalSection title="Titularidad del sitio">
         <p>
-          Este sitio web y el servicio Alhabla son titularidad del prestador identificado más arriba. Puedes contactar
-          con nosotros en{" "}
-          <a href="mailto:hola@alhabla.ai" className="font-medium text-[#6d28d9] underline underline-offset-2">
-            hola@alhabla.ai
+          Este sitio web y el servicio Alhabla son titularidad de Miguel Martín Delgado, profesional autónomo con NIF
+          49456776Z y domicilio profesional en Carrer Sot de Bacs 175, Sant Celoni. No está inscrito en el Registro
+          Mercantil. Puedes contactar con nosotros en{" "}
+          <a href="mailto:support@alhabla.ai" className="font-medium text-[#6d28d9] underline underline-offset-2">
+            support@alhabla.ai
           </a>
           .
         </p>
@@ -75,16 +71,12 @@ export default function AvisoLegalPage() {
           <Link href="/planes" className="font-medium text-[#6d28d9] underline underline-offset-2">
             página de planes
           </Link>
-          . Los precios se indican en euros y sin perjuicio de los impuestos que resulten aplicables.
+          . Los precios se indican en euros e incluyen el IVA aplicable.
         </p>
         <p>
           La suscripción incluye un periodo de prueba de 7 días. No hay compromiso de permanencia: puedes cambiar de
           plan o cancelar cuando quieras desde el portal de facturación de tu cuenta.
         </p>
-        <LegalTodo>
-          confirmar el tratamiento fiscal del IVA y si los precios mostrados lo incluyen, y precisar el momento exacto
-          del primer cargo tras el periodo de prueba.
-        </LegalTodo>
       </LegalSection>
 
       <LegalSection title="Desistimiento">
@@ -108,10 +100,6 @@ export default function AvisoLegalPage() {
           La recepcionista está configurada para no inventar información: comprueba tu horario y tu disponibilidad real
           antes de confirmar cualquier cita. Aun así, te recomendamos revisar tu agenda con normalidad.
         </p>
-        <LegalTodo>
-          revisar con asesoría jurídica los límites de responsabilidad y si procede publicar un acuerdo de nivel de
-          servicio.
-        </LegalTodo>
       </LegalSection>
 
       <LegalSection title="Propiedad intelectual">
@@ -185,12 +173,6 @@ export default function AvisoLegalPage() {
           suscripción, a tu elección eliminamos o te devolvemos las grabaciones y transcripciones asociadas a tu
           negocio, salvo que debamos conservarlas por obligación legal.
         </p>
-        <LegalTodo>
-          la identidad completa del responsable (razón social, CIF y domicilio) que falta arriba en este documento —
-          hasta entonces esta cláusula recoge el contenido mínimo del artículo 28.3 RGPD, pero no sustituye la revisión
-          de un asesor legal antes de operar con clientes de pago reales. Si en el futuro algún cliente necesita un DPA
-          firmado aparte (habitual en cuentas grandes o corporativas), se puede ofrecer sin conflicto con esta cláusula.
-        </LegalTodo>
       </LegalSection>
 
       <LegalSection title="Legislación aplicable">
