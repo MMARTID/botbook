@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Check } from "lucide-react";
+import { ArrowLeft, Check } from "lucide-react";
 import { api } from "@/lib/api";
 import Link from "next/link";
 import { GoogleAuthButton } from "@/components/google-auth-button";
@@ -80,6 +80,13 @@ export default function RegisterPage() {
     <div className="relative isolate flex min-h-screen items-center justify-center px-4 py-12 sm:px-6 lg:px-8">
       <ParticleField />
       <ParticleMouseLayer />
+      <Link
+        href="/landing"
+        className="absolute left-4 top-4 z-10 inline-flex h-11 items-center gap-2 rounded-full border border-[#e5e5e5] bg-white px-4 text-sm font-semibold text-[#27272a] transition hover:border-[#ddd6fe] hover:bg-[#f3eeff] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] sm:left-6 sm:top-6"
+      >
+        <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+        Ver Alhabla
+      </Link>
       <div className="panel w-full max-w-lg p-8">
         <div className="space-y-4 text-center">
           <BrandMark className="mx-auto h-14 w-14" />
