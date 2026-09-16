@@ -110,6 +110,27 @@ describe("adaptManagedPromptForTelnyx", () => {
 
     expect(result).toBe("Eres una recepcionista breve y profesional.");
   });
+
+  it("sustituye {{zona_horaria}} suelta por la zona real del negocio, sin romper el patrón anidado de current_time", () => {
+    const result = adaptManagedPromptForTelnyx(
+      "Usa la zona {{zona_horaria}} en las tools.\n{{current_time_{{zona_horaria}} }}",
+      "Peluquería Ejemplo",
+      "Atlantic/Canary"
+    );
+
+    expect(result).toBe(
+      "Usa la zona Atlantic/Canary en las tools.\n{{telnyx_current_time}}"
+    );
+  });
+
+  it("usa Europe/Madrid como zona por defecto si no se indica", () => {
+    const result = adaptManagedPromptForTelnyx(
+      "Zona: {{zona_horaria}}.",
+      "Peluquería Ejemplo"
+    );
+
+    expect(result).toBe("Zona: Europe/Madrid.");
+  });
 });
 
 describe("resolveTelnyxTranscriptionLanguage", () => {
@@ -152,6 +173,16 @@ describe("buildTelnyxAssistantPayload", () => {
     expect(payload.instructions).toBe(
       "Hola Peluquería Ejemplo, usa {{telnyx_end_user_target}}."
     );
+  });
+
+  it("propaga la zona horaria del negocio a {{zona_horaria}} del prompt", () => {
+    const payload = buildTelnyxAssistantPayload({
+      ...baseInput,
+      timezone: "Atlantic/Canary",
+      instructions: "startDateTime en la zona {{zona_horaria}}.",
+    });
+
+    expect(payload.instructions).toBe("startDateTime en la zona Atlantic/Canary.");
   });
 
   it("usa el nombre determinista y propaga instructions/greeting/voz sin transformarlos", () => {

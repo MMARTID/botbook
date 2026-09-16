@@ -287,6 +287,8 @@ describe("executeVoiceTool — catálogo y token de disponibilidad", () => {
   });
 
   it("crea un token temporal al comprobar una cita disponible", async () => {
+    mockedServiceFindMany.mockResolvedValue([{ id: "service_123" }] as any);
+
     const result = await executeVoiceTool({
       businessId: "business_123",
       toolName: "check_availability",
@@ -304,6 +306,70 @@ describe("executeVoiceTool — catálogo y token de disponibilidad", () => {
       expect.objectContaining({
         serviceIds: ["service_123"],
         durationMinutes: 30,
+      })
+    );
+  });
+
+  it("rechaza con un error explícito un serviceId que no existe en el negocio (el LLM puede corromper IDs al copiarlos)", async () => {
+    mockedServiceFindMany.mockResolvedValue([{ id: "service_123" }] as any);
+
+    const result = await executeVoiceTool({
+      businessId: "business_123",
+      toolName: "check_availability",
+      callId: "call_123",
+      params: {
+        startDateTime: "2026-08-25T17:00:00+02:00",
+        durationMinutes: 30,
+        // Híbrido inventado, como el de la llamada real del 2026-09-14.
+        serviceIds: ["service_123", "service_hibrido_inventado"],
+      },
+    });
+
+    expect(result.result).toMatchObject({
+      available: false,
+      code: "UNKNOWN_SERVICE_ID",
+    });
+    expect(mockedCheckAvailability).not.toHaveBeenCalled();
+  });
+
+  it("rechaza con un error explícito un professionalId desconocido", async () => {
+    mockedProfessionalFindFirst.mockResolvedValue(null);
+
+    const result = await executeVoiceTool({
+      businessId: "business_123",
+      toolName: "check_availability",
+      callId: "call_123",
+      params: {
+        startDateTime: "2026-08-25T17:00:00+02:00",
+        durationMinutes: 30,
+        professionalId: "prof_inventado",
+      },
+    });
+
+    expect(result.result).toMatchObject({
+      available: false,
+      code: "UNKNOWN_PROFESSIONAL_ID",
+    });
+    expect(mockedCheckAvailability).not.toHaveBeenCalled();
+  });
+
+  it("reinterpreta en hora local del negocio un startDateTime marcado como UTC por el LLM", async () => {
+    // Caso real (2026-09-14): "el viernes a las cuatro" llegó como
+    // 16:00+00:00 y el horario lo rechazaba por caer a las 18:00 locales.
+    const result = await executeVoiceTool({
+      businessId: "business_123",
+      toolName: "check_availability",
+      callId: "call_123",
+      params: {
+        startDateTime: "2026-08-25T17:00:00+00:00",
+        durationMinutes: 30,
+      },
+    });
+
+    expect(result.result.available).toBe(true);
+    expect(mockedCheckAvailability).toHaveBeenCalledWith(
+      expect.objectContaining({
+        startDateTime: "2026-08-25T17:00:00+02:00",
       })
     );
   });
@@ -441,6 +507,14 @@ describe("executeVoiceTool book_appointment — varios servicios en la misma cit
     expect(result.result.success).toBe(true);
     expect(mockedBookAppointment).toHaveBeenCalledWith(
       expect.objectContaining({ serviceNames: ["Corte", "Tratamiento capilar"] })
+    );
+    // El nombre del cliente queda también en la reserva de BD — es lo que
+    // find_my_appointment devuelve para poder recrear citas al mismo nombre.
+    expect(mockedBookingUpsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        create: expect.objectContaining({ clientName: "María" }),
+        update: expect.objectContaining({ clientName: "María" }),
+      })
     );
     expect(mockedBookingUpsert).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -822,6 +896,7 @@ describe("executeVoiceTool find_my_appointment", () => {
       id: "booking_1",
       programedAt: new Date("2026-09-20T10:00:00+02:00"),
       serviceIds: ["svc_1"],
+      clientName: "Pilar Broncano",
       professional: { name: "Ana" },
     } as any);
     mockedServiceFindMany.mockResolvedValue([{ name: "Corte" }] as any);
@@ -836,11 +911,34 @@ describe("executeVoiceTool find_my_appointment", () => {
     expect(result.result.success).toBe(true);
     expect(result.result.bookingId).toBe("booking_1");
     expect(result.result.serviceNames).toEqual(["Corte"]);
+    // Sin el nombre, el LLM llegó a reservar a nombre de "titular anterior"
+    // al recrear una cita (llamada real del 2026-09-15).
+    expect(result.result.clientName).toBe("Pilar Broncano");
     expect(mockedBookingFindFirst).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({ smsConsent: true, isCancelled: false }),
       })
     );
+  });
+
+  it("devuelve clientName null en reservas anteriores a la columna, sin fallar", async () => {
+    mockedBookingFindFirst.mockResolvedValue({
+      id: "booking_1",
+      programedAt: new Date("2026-09-20T10:00:00+02:00"),
+      serviceIds: [],
+      clientName: null,
+      professional: null,
+    } as any);
+
+    const result = await executeVoiceTool({
+      businessId: "business_123",
+      toolName: "find_my_appointment",
+      params: {},
+      callId: "call_vapi_1",
+    });
+
+    expect(result.result.success).toBe(true);
+    expect(result.result.clientName).toBeNull();
   });
 
   it("no encuentra nada si no hay ninguna reserva con consentimiento para ese número", async () => {

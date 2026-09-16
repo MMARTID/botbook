@@ -1,5 +1,5 @@
 /**
- * Crea (si no existen) los 3 insights custom que clasifican el resultado de
+ * Crea (si no existen) los insights custom que clasifican el resultado de
  * una llamada Telnyx — equivalente a CALL_OUTCOME_ANALYSIS_FIELD/
  * ESCALATION_REASON_FIELD/TOOL_FAILURE_FIELD de Retell (agentBootstrap.ts),
  * mismas categorías exactas para que ambos proveedores sean comparables. Los
@@ -71,6 +71,39 @@ const INSIGHTS = [
       required: ["tool_failure_detected"],
     },
     envVar: "TELNYX_INSIGHT_TOOL_FAILURE_ID",
+  },
+  // Los dos siguientes nacen de la revisión de transcripciones reales del
+  // 2026-09-14/16: una llamada perdida por malentendidos de transcripción
+  // encadenados (barbería, "Miguel Martín Pilosa") y otra perdida porque el
+  // agente rechazó como no disponibles horas que sí lo estaban (bug de zona
+  // horaria UTC). Sirven para vigilar que no reaparezcan y para medir la
+  // demanda de horas que se quedan sin reservar.
+  {
+    name: "comprehension_issue",
+    instructions:
+      "true si durante la llamada hubo problemas claros de comprensión entre el asistente y el cliente: frases transcritas sin sentido que el asistente trató como datos reales, el cliente teniendo que repetir o corregir lo mismo más de una vez, el asistente preguntando de nuevo algo ya respondido, o el cliente expresando confusión ('¿perdón?', '¿cómo?') más de una vez. false si la conversación fluyó sin estos problemas.",
+    jsonSchema: {
+      type: "object",
+      additionalProperties: false,
+      properties: { comprehension_issue: { type: "boolean" } },
+      required: ["comprehension_issue"],
+    },
+    envVar: "TELNYX_INSIGHT_COMPREHENSION_ISSUE_ID",
+  },
+  {
+    name: "requested_time_unavailable",
+    instructions:
+      "Si el cliente pidió una fecha y hora concretas y el asistente le dijo que no estaban disponibles (por horario, capacidad o calendario), devuelve requested_time con esa fecha y hora tal y como la pidió el cliente (texto libre, ej. 'viernes 18 a las 16:00') y booked_alternative=true solo si al final reservó otra hora en la misma llamada. Si ninguna hora pedida fue rechazada, devuelve requested_time como cadena vacía y booked_alternative=false.",
+    jsonSchema: {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        requested_time: { type: "string" },
+        booked_alternative: { type: "boolean" },
+      },
+      required: ["requested_time", "booked_alternative"],
+    },
+    envVar: "TELNYX_INSIGHT_REQUESTED_TIME_UNAVAILABLE_ID",
   },
 ] as const;
 

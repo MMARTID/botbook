@@ -399,6 +399,12 @@ model Booking {
   // reserva, nunca algo que se consulte desde el otro lado (Service no
   // necesita saber en qué reservas aparece).
   serviceIds   String[]     @default([])
+  // Nombre con el que se hizo la reserva — antes solo vivía en el título del
+  // evento de calendario, así que find_my_appointment no podía devolverlo y
+  // el agente de voz no tenía forma de conservar el nombre al recrear una
+  // cita ("cámbiala al mismo nombre"). Nullable: las reservas anteriores a
+  // esta columna no lo tienen.
+  clientName   String?
   // Solo se rellena si el cliente pidió usar un número distinto al de la
   // llamada (Call.fromNumber) — si es el mismo, no hace falta guardarlo aquí.
   clientPhone  String?
