@@ -11,6 +11,7 @@ import { activateRoiContext, getSavedRoiEstimate, saveRoiEstimate } from "@/lib/
 import { Reveal } from "@/components/scroll-reveal";
 import { RangeSlider } from "@/components/range-slider";
 import { AnimatedCurrency } from "@/components/animated-currency";
+import type { NicheAccent } from "@/lib/niche-landings";
 
 const TICKET_MIN = 10;
 const TICKET_MAX = 200;
@@ -30,7 +31,17 @@ function clamp(value: number, minimum: number, maximum: number) {
   return Math.min(Math.max(value, minimum), maximum);
 }
 
-export function RevenueLossCalculator({ content, activeNiche }: { content?: NicheLandingContent["calculator"]; activeNiche?: string }) {
+export function RevenueLossCalculator({
+  content,
+  activeNiche,
+  accent,
+}: {
+  content?: NicheLandingContent["calculator"];
+  activeNiche?: string;
+  // Sin esto, el momento de mayor intención emocional de la página (el
+  // número de pérdida) queda en morado de marca sin importar el nicho.
+  accent?: NicheAccent;
+}) {
   const router = useRouter();
   const [averageTicket, setAverageTicket] = useState(content?.initialTicket ?? 35);
   const [missedAppointmentsPerWeek, setMissedAppointmentsPerWeek] = useState(3);
@@ -75,7 +86,10 @@ export function RevenueLossCalculator({ content, activeNiche }: { content?: Nich
     <section id="calculadora" aria-labelledby="revenue-loss-title" className="scroll-m-20 py-16 sm:py-20">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <Reveal className="mx-auto max-w-3xl text-center">
-          <span className="badge-soft gap-2">
+          <span
+            className="badge-soft gap-2"
+            style={accent ? { backgroundColor: accent.soft, color: accent.deep } : undefined}
+          >
             <ArrowDown className="h-3.5 w-3.5" aria-hidden="true" />
             {content?.badge ?? "Calcula tu pérdida real"}
           </span>
@@ -115,6 +129,7 @@ export function RevenueLossCalculator({ content, activeNiche }: { content?: Nich
                 minLabel={currencyFormatter.format(TICKET_MIN)}
                 maxLabel={currencyFormatter.format(TICKET_MAX)}
                 bare
+                accent={accent}
               />
 
               <div className="my-5 border-t border-[#e5e5e5]" />
@@ -133,6 +148,7 @@ export function RevenueLossCalculator({ content, activeNiche }: { content?: Nich
                 minLabel={`${APPOINTMENTS_MIN} cita`}
                 maxLabel={`${APPOINTMENTS_MAX} citas`}
                 bare
+                accent={accent}
               />
             </div>
           </div>
@@ -142,7 +158,10 @@ export function RevenueLossCalculator({ content, activeNiche }: { content?: Nich
               <p className="text-sm font-semibold text-white/60">Pérdida estimada al mes</p>
 
               <div className="mt-4 border-b border-white/10 pb-8">
-                <p className="tabular-nums text-5xl font-black tracking-[-0.03em] text-[#a78bfa] sm:text-6xl lg:text-7xl">
+                <p
+                  className="tabular-nums text-5xl font-black tracking-[-0.03em] sm:text-6xl lg:text-7xl"
+                  style={{ color: accent?.strong ?? "#a78bfa" }}
+                >
                   <AnimatedCurrency value={monthlyLoss} />
                 </p>
                 <p className="mt-3 tabular-nums text-base leading-7 text-white/65">
@@ -160,12 +179,17 @@ export function RevenueLossCalculator({ content, activeNiche }: { content?: Nich
               </div>
 
               <div className="mt-auto pt-8">
-                <button type="button" onClick={openPersonalizedPlans} className="btn-purple min-h-12 w-full">
+                <button
+                  type="button"
+                  onClick={openPersonalizedPlans}
+                  className="btn-purple min-h-12 w-full"
+                  style={accent ? { backgroundColor: accent.strong } : undefined}
+                >
                   Recuperar mis {monthlyLoss.toLocaleString("es-ES")} €
                   <ArrowRight className="h-4 w-4 shrink-0" aria-hidden="true" />
                 </button>
                 <p className="mt-4 flex items-center justify-center gap-2 text-xs font-medium text-white/55">
-                  <Check className="h-3.5 w-3.5 text-[#a78bfa]" aria-hidden="true" />
+                  <Check className="h-3.5 w-3.5" style={{ color: accent?.strong ?? "#a78bfa" }} aria-hidden="true" />
                   Sin permanencia · Configuración guiada
                 </p>
               </div>

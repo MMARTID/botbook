@@ -84,11 +84,26 @@ export function MobileNav({ niche, variant = "vertical" }: { niche?: string; var
       </button>
 
       {isMenuOpen ? (
-        <nav
-          id="mobile-menu"
-          aria-label="Navegación móvil"
-          className="absolute left-0 right-0 top-full border-t border-[#e5e5e5] bg-white px-4 py-4"
-        >
+        <>
+          {/* Fondo que cierra al tocar fuera y contiene visualmente el menú:
+              antes el panel solo se posicionaba `absolute` respecto a su
+              contenedor en el flujo normal, así que un scroll programático (o
+              de accesibilidad, que `overflow:hidden` en el body no bloquea)
+              podía desincronizarlo del contenido de debajo. */}
+          <div
+            className="fixed inset-0 z-40 bg-[#0a0a0a]/20"
+            aria-hidden="true"
+            onClick={() => setIsMenuOpen(false)}
+          />
+          {/* `aria-modal` no es un atributo válido en un landmark `nav`
+              (role implícito "navigation", no "dialog") — jsx-a11y lo marca
+              con razón. La contención real la dan `fixed` + el backdrop de
+              arriba, no este atributo. */}
+          <nav
+            id="mobile-menu"
+            aria-label="Navegación móvil"
+            className="fixed inset-x-0 top-16 z-50 max-h-[calc(100svh-4rem)] overflow-y-auto border-t border-[#e5e5e5] bg-white px-4 py-4 shadow-[0_16px_36px_-24px_rgba(0,0,0,0.35)]"
+          >
           <div className="flex flex-col gap-1.5">
             {sectionLinks.map(({ href, label }) => (
               <a
@@ -115,7 +130,8 @@ export function MobileNav({ niche, variant = "vertical" }: { niche?: string; var
               Empezar ahora
             </Link>
           </div>
-        </nav>
+          </nav>
+        </>
       ) : null}
     </div>
   );

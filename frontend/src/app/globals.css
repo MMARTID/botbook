@@ -137,16 +137,21 @@ body {
     @apply h-11 rounded-full border border-[#e5e5e5] bg-white px-4 text-sm outline-none transition duration-200 placeholder:text-[#a1a1aa] focus:border-[#8b5cf6] focus:ring-2 focus:ring-[#8b5cf6]/30 disabled:cursor-not-allowed disabled:bg-[#fafafa];
   }
 
+  /* Anillo de foco morado en los tres: sin esto, cada botón primario,
+     secundario y morado de la app cae al outline por defecto del navegador
+     en vez del anillo documentado en DESIGN.md — requisito del compromiso
+     WCAG 2.1 AA, no una preferencia visual. Un solo punto de arreglo aquí
+     cubre cada instancia de estas clases en toda la aplicación. */
   .btn-primary {
-    @apply inline-flex h-12 items-center justify-center gap-2 rounded-full bg-[#0a0a0a] px-6 text-sm font-semibold text-white transition duration-200 hover:-translate-y-0.5 hover:bg-[#262626] disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0;
+    @apply inline-flex h-12 items-center justify-center gap-2 rounded-full bg-[#0a0a0a] px-6 text-sm font-semibold text-white transition duration-200 hover:-translate-y-0.5 hover:bg-[#262626] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0;
   }
 
   .btn-secondary {
-    @apply inline-flex h-12 items-center justify-center gap-2 rounded-full border border-[#0a0a0a] bg-white px-6 text-sm font-semibold text-[#0a0a0a] transition duration-200 hover:-translate-y-0.5 hover:bg-[#fafafa] disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0;
+    @apply inline-flex h-12 items-center justify-center gap-2 rounded-full border border-[#0a0a0a] bg-white px-6 text-sm font-semibold text-[#0a0a0a] transition duration-200 hover:-translate-y-0.5 hover:bg-[#fafafa] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0;
   }
 
   .btn-purple {
-    @apply inline-flex h-12 items-center justify-center gap-2 rounded-full bg-[#8b5cf6] px-6 text-sm font-semibold text-white transition duration-200 hover:-translate-y-0.5 hover:bg-[#7c3aed] disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0;
+    @apply inline-flex h-12 items-center justify-center gap-2 rounded-full bg-[#8b5cf6] px-6 text-sm font-semibold text-white transition duration-200 hover:-translate-y-0.5 hover:bg-[#7c3aed] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0;
   }
 
   .badge-soft {

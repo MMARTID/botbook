@@ -23,8 +23,18 @@ export default function LoginPage() {
       const { data } = await api.post<{ token: string }>("/auth/login", { email, password });
       window.localStorage.setItem("alhabla_token", data.token);
       window.location.href = "/";
-    } catch {
-      setError("Credenciales incorrectas o error de conexión.");
+    } catch (error) {
+      // Distinguir credenciales de un fallo de red: antes el mismo mensaje
+      // cubría los dos casos y el usuario no podía saber si reintentar
+      // servía de algo o si el problema era la conexión.
+      const status = (error as { response?: { status?: number } }).response?.status;
+      if (status === 401) {
+        setError("Email o contraseña incorrectos.");
+      } else if (status !== undefined) {
+        setError("Error al iniciar sesión. Inténtalo de nuevo.");
+      } else {
+        setError("No se pudo conectar. Comprueba tu conexión e inténtalo de nuevo.");
+      }
     } finally {
       setLoading(false);
     }
@@ -47,18 +57,18 @@ export default function LoginPage() {
           <GoogleAuthButton onError={setError} acceptedTerms />
           <p className="mt-3 text-center text-xs leading-5 text-muted">
             Si es tu primera vez, al continuar aceptas los{" "}
-            <Link href="/legal/aviso-legal" target="_blank" className="font-medium text-[#7c3aed] underline underline-offset-2 hover:text-[#6d28d9]">
+            <Link href="/legal/aviso-legal" target="_blank" className="rounded font-medium text-[#7c3aed] underline underline-offset-2 hover:text-[#6d28d9] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] focus-visible:ring-offset-2">
               Términos y Condiciones
             </Link>{" "}
             y la{" "}
-            <Link href="/legal/privacidad" target="_blank" className="font-medium text-[#7c3aed] underline underline-offset-2 hover:text-[#6d28d9]">
+            <Link href="/legal/privacidad" target="_blank" className="rounded font-medium text-[#7c3aed] underline underline-offset-2 hover:text-[#6d28d9] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] focus-visible:ring-offset-2">
               Política de privacidad
             </Link>
             .
           </p>
           <div className="my-6 flex items-center gap-4" aria-hidden="true">
             <div className="h-px flex-1 bg-[#e5e5e5]" />
-            <span className="text-xs font-medium uppercase tracking-[0.12em] text-[#a1a1aa]">o con email</span>
+            <span className="text-xs font-medium uppercase tracking-[0.12em] text-[#71717a]">o con email</span>
             <div className="h-px flex-1 bg-[#e5e5e5]" />
           </div>
         </div>
@@ -66,10 +76,13 @@ export default function LoginPage() {
         <form className="space-y-6" onSubmit={handleSubmit}>
           <div className="space-y-4">
             <div>
-              <label className="text-sm font-medium text-[#27272a]">Email</label>
+              <label htmlFor="login-email" className="text-sm font-medium text-[#27272a]">Email</label>
               <input
+                id="login-email"
+                name="email"
                 type="email"
                 required
+                autoComplete="email"
                 className="field mt-2 w-full"
                 placeholder="tucorreo@dominio.com"
                 value={email}
@@ -77,10 +90,14 @@ export default function LoginPage() {
               />
             </div>
             <div>
-              <label className="text-sm font-medium text-[#27272a]">Contraseña</label>
+              <label htmlFor="login-password" className="text-sm font-medium text-[#27272a]">Contraseña</label>
               <input
+                id="login-password"
+                name="password"
                 type="password"
                 required
+                minLength={8}
+                autoComplete="current-password"
                 className="field mt-2 w-full"
                 placeholder="Mínimo 8 caracteres"
                 value={password}
@@ -89,7 +106,10 @@ export default function LoginPage() {
             </div>
           </div>
 
-          {error && <p className="text-sm text-[#c53030]">{error}</p>}
+          {/* Alto reservado aunque no haya error: así el botón no se
+              desplaza justo cuando el usuario reintenta con el pulgar ya
+              puesto encima. */}
+          <p className="min-h-5 text-sm text-[#c53030]" role="alert">{error}</p>
 
           <button
             type="submit"
@@ -101,7 +121,7 @@ export default function LoginPage() {
 
           <div className="text-center text-sm text-muted">
             ¿No tienes cuenta?{' '}
-            <Link href="/register" className="font-semibold text-[#7c3aed] transition hover:text-[#6d28d9]">
+            <Link href="/register" className="rounded font-semibold text-[#7c3aed] transition hover:text-[#6d28d9] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] focus-visible:ring-offset-2">
               Regístrate aquí
             </Link>
           </div>

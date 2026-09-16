@@ -65,8 +65,8 @@ describe("LoginPage", () => {
     expect(location.getHref()).toBe("/");
   });
 
-  it("muestra un error genérico si las credenciales son incorrectas", async () => {
-    vi.spyOn(api, "post").mockRejectedValue(new Error("Unauthorized"));
+  it("muestra un error específico si las credenciales son incorrectas (401)", async () => {
+    vi.spyOn(api, "post").mockRejectedValue({ response: { status: 401 } });
     const user = userEvent.setup();
     render(<LoginPage />);
 
@@ -74,6 +74,30 @@ describe("LoginPage", () => {
     await user.type(screen.getByPlaceholderText("Mínimo 8 caracteres"), "wrong");
     await user.click(screen.getByRole("button", { name: /^entrar$/i }));
 
-    expect(await screen.findByText("Credenciales incorrectas o error de conexión.")).toBeInTheDocument();
+    expect(await screen.findByText("Email o contraseña incorrectos.")).toBeInTheDocument();
+  });
+
+  it("muestra un error de conexión si la petición no llega a obtener respuesta", async () => {
+    vi.spyOn(api, "post").mockRejectedValue(new Error("Network Error"));
+    const user = userEvent.setup();
+    render(<LoginPage />);
+
+    await user.type(screen.getByPlaceholderText("tucorreo@dominio.com"), "ana@example.com");
+    await user.type(screen.getByPlaceholderText("Mínimo 8 caracteres"), "wrong");
+    await user.click(screen.getByRole("button", { name: /^entrar$/i }));
+
+    expect(await screen.findByText("No se pudo conectar. Comprueba tu conexión e inténtalo de nuevo.")).toBeInTheDocument();
+  });
+
+  it("muestra un error genérico si el backend responde con otro código", async () => {
+    vi.spyOn(api, "post").mockRejectedValue({ response: { status: 500 } });
+    const user = userEvent.setup();
+    render(<LoginPage />);
+
+    await user.type(screen.getByPlaceholderText("tucorreo@dominio.com"), "ana@example.com");
+    await user.type(screen.getByPlaceholderText("Mínimo 8 caracteres"), "wrong");
+    await user.click(screen.getByRole("button", { name: /^entrar$/i }));
+
+    expect(await screen.findByText("Error al iniciar sesión. Inténtalo de nuevo.")).toBeInTheDocument();
   });
 });

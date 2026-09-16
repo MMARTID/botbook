@@ -2,6 +2,9 @@
 
 import type { LucideIcon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import type { NicheAccent } from "@/lib/niche-landings";
+
+const DEFAULT_ACCENT: NicheAccent = { strong: "#8b5cf6", soft: "#f3eeff", deep: "#7c3aed" };
 
 // Ancho real del thumb visual (h-6/w-6 = 1.5rem a 16px de raíz).
 const SLIDER_THUMB_PX = 24;
@@ -38,6 +41,7 @@ export function RangeSlider({
   hint,
   showTicks = true,
   bare = false,
+  accent,
 }: {
   id: string;
   icon?: LucideIcon;
@@ -57,7 +61,11 @@ export function RangeSlider({
   // varios sliders relacionados en una sola tarjeta compartida (ver
   // RevenueLossCalculator) en vez de repetir el mismo borde por cada uno.
   bare?: boolean;
+  // Acento de nicho: sin él, el slider cae en el morado de marca — el mismo
+  // patrón que el resto del sistema (icon-tile, relleno, thumb).
+  accent?: NicheAccent;
 }) {
+  const a = accent ?? DEFAULT_ACCENT;
   const trackRef = useRef<HTMLDivElement | null>(null);
   const [trackWidth, setTrackWidth] = useState(0);
 
@@ -81,7 +89,10 @@ export function RangeSlider({
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
         <div className="flex items-center gap-3">
           {Icon ? (
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#f3eeff] text-[#8b5cf6] sm:h-10 sm:w-10">
+            <span
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl sm:h-10 sm:w-10"
+              style={{ backgroundColor: a.soft, color: a.strong }}
+            >
               <Icon className="h-5 w-5" aria-hidden="true" />
             </span>
           ) : null}
@@ -121,8 +132,12 @@ export function RangeSlider({
         {/* relleno: un div con su propio border-radius y un degradado morado con
             resplandor — no un corte recto sobre un color plano */}
         <div
-          className="pointer-events-none absolute left-0 top-1/2 h-2.5 -translate-y-1/2 rounded-full bg-[linear-gradient(90deg,#7c3aed,#a78bfa)] shadow-[0_0_14px_rgba(139,92,246,0.5)]"
-          style={{ width: `${thumbLeft}px` }}
+          className="pointer-events-none absolute left-0 top-1/2 h-2.5 -translate-y-1/2 rounded-full"
+          style={{
+            width: `${thumbLeft}px`,
+            backgroundImage: `linear-gradient(90deg, ${a.deep}, ${a.strong})`,
+            boxShadow: `0 0 14px ${a.strong}80`,
+          }}
         />
         {/* input nativo: pinta invisible pero sigue siendo el foco/teclado/arrastre real */}
         <input
@@ -139,8 +154,13 @@ export function RangeSlider({
         {/* thumb visual: usa el mismo `thumbLeft` que el relleno, alineados por construcción */}
         <div
           aria-hidden="true"
-          className="pointer-events-none absolute top-1/2 h-6 w-6 -translate-x-1/2 -translate-y-1/2 rounded-full border-4 border-white bg-[#7c3aed] shadow-[0_2px_10px_rgba(124,58,237,0.45),0_1px_3px_rgba(0,0,0,0.15)] transition-transform duration-150 ease-out group-hover:scale-110 group-active:scale-95 peer-focus-visible:ring-4 peer-focus-visible:ring-[#8b5cf6]/30 peer-focus-visible:ring-offset-2"
-          style={{ left: `${thumbLeft}px` }}
+          className="pointer-events-none absolute top-1/2 h-6 w-6 -translate-x-1/2 -translate-y-1/2 rounded-full border-4 border-white shadow-[0_1px_3px_rgba(0,0,0,0.15)] transition-transform duration-150 ease-out group-hover:scale-110 group-active:scale-95 peer-focus-visible:ring-4 peer-focus-visible:ring-offset-2"
+          style={{
+            left: `${thumbLeft}px`,
+            backgroundColor: a.deep,
+            boxShadow: `0 2px 10px ${a.deep}73, 0 1px 3px rgba(0,0,0,0.15)`,
+            ["--tw-ring-color" as string]: `${a.strong}4d`,
+          }}
         />
       </div>
 

@@ -79,7 +79,7 @@ export function CallForwardingFlow({ accent }: { accent?: NicheAccent }) {
           <button
             type="button"
             onClick={replay}
-            className="shrink-0 rounded-full border border-[#e5e5e5] bg-white px-3 py-2 text-xs font-semibold text-[#3f3f46] transition hover:border-[#0a0a0a] hover:text-[#0a0a0a] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]"
+            className="flex h-11 shrink-0 items-center rounded-full border border-[#e5e5e5] bg-white px-4 text-xs font-semibold text-[#3f3f46] transition hover:border-[#0a0a0a] hover:text-[#0a0a0a] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]"
           >
             Reproducir
           </button>

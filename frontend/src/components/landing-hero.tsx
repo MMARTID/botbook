@@ -2,13 +2,14 @@
 "use client";
 
 import Link from "next/link";
+import type { CSSProperties } from "react";
 import { useState } from "react";
 import { ArrowDown, ArrowRight, Check, Headphones } from "lucide-react";
 
 import { HeroPulse } from "@/components/hero-pulse";
 import { DemoVoiceCall } from "@/components/demo-voice-call";
 import { Reveal } from "@/components/scroll-reveal";
-import type { NicheLandingContent } from "@/lib/niche-landings";
+import type { NicheAccent, NicheLandingContent } from "@/lib/niche-landings";
 
 function buildPlansHref(niche?: string) {
   return niche ? `/planes?niche=${encodeURIComponent(niche)}` : "/planes";
@@ -24,7 +25,7 @@ const RESALTADO_POR_DEFECTO = "ya reservó en otro sitio";
  * su resaltado—, se devuelve el titular entero sin subrayar en vez de fallar
  * o subrayar un trozo equivocado.
  */
-function TitularConSubrayado({ titulo, resaltado }: { titulo: string; resaltado?: string }) {
+function TitularConSubrayado({ titulo, resaltado, accent }: { titulo: string; resaltado?: string; accent?: NicheAccent }) {
   const frase = resaltado ?? RESALTADO_POR_DEFECTO;
   const desde = frase ? titulo.indexOf(frase) : -1;
 
@@ -33,7 +34,15 @@ function TitularConSubrayado({ titulo, resaltado }: { titulo: string; resaltado?
   return (
     <>
       {titulo.slice(0, desde)}
-      <span className="titular-subrayado">{frase}</span>
+      {/* `--purple-ring` es fijo en globals.css; se sobreescribe aquí por
+          instancia para que el trazo del subrayado siga el acento del
+          nicho en vez de quedar morado en las 5 landings. */}
+      <span
+        className="titular-subrayado"
+        style={accent ? ({ "--purple-ring": accent.soft } as CSSProperties) : undefined}
+      >
+        {frase}
+      </span>
       {titulo.slice(desde + frase.length)}
     </>
   );
@@ -61,7 +70,11 @@ export function LandingHero({ content }: { content?: NicheLandingContent }) {
           <Reveal y={14}>
             <span
               className="badge-soft gap-2"
-              style={accent ? { backgroundColor: accent.soft, color: accent.strong } : undefined}
+              // `strong` es el acento de icono/borde del nicho, no de texto —
+              // 3 de los 5 acentos (salon-de-unas, barbería, fisioterapia)
+              // caen por debajo de AA como texto sobre `soft`. `deep` está
+              // pensado para esto y pasa en los cinco (ver niche-accents.ts).
+              style={accent ? { backgroundColor: accent.soft, color: accent.deep } : undefined}
             >
               <ArrowDown className="h-3.5 w-3.5" />
               {content?.eyebrow ?? "60% de quienes no logran contactarte no vuelve a intentarlo"}
@@ -73,6 +86,7 @@ export function LandingHero({ content }: { content?: NicheLandingContent }) {
                 <TitularConSubrayado
                   titulo={content?.heroTitle ?? "Cada llamada sin contestar es un cliente que ya reservó en otro sitio."}
                   resaltado={content?.heroHighlight}
+                  accent={accent}
                 />
               </h1>
               <p className="mx-auto max-w-xl text-base leading-7 text-[#52525b] sm:text-lg sm:leading-8 lg:mx-0">
