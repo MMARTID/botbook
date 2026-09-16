@@ -421,3 +421,38 @@ body {
     background-size: 100% 100%;
   }
 }
+
+/* ---------------------------------------------------------------------------
+   Carril de sectores de la portada: una sola línea con scroll-snap. Mismo
+   patrón que .calendar-track; las flechas de escritorio viven en la cabecera
+   de la sección y en móvil se navega arrastrando. */
+.sector-track {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: min(82vw, 300px);
+  gap: 16px;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  scroll-snap-type: inline mandatory;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  /* Aire para que la sombra/elevación del hover no se recorte. */
+  padding: 8px 4px 16px;
+  margin: -8px -4px -16px;
+}
+
+.sector-track::-webkit-scrollbar {
+  display: none;
+}
+
+@media (min-width: 1024px) {
+  .sector-track {
+    grid-auto-columns: calc((100% - 3 * 16px) / 3.5);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sector-track {
+    scroll-behavior: auto;
+  }
+}
