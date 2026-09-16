@@ -26,9 +26,10 @@ export const metadata: Metadata = {
   description: defaultDescription,
   keywords: seoKeywords,
   applicationName: siteName,
-  alternates: {
-    canonical: absoluteUrl("/"),
-  },
+  // OJO: aquí no va `alternates.canonical`. Una canónica en el root layout la
+  // hereda TODA página sin canónica propia (/planes, /login, el panel...) y
+  // Google las marcaba como duplicadas de la home. Cada página indexable
+  // declara la suya (landing, nichos, /planes, legales).
   category: "business software",
   robots: {
     index: true,

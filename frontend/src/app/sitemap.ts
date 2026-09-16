@@ -4,18 +4,15 @@ import { absoluteUrl } from "@/lib/seo";
 export default function sitemap(): MetadataRoute.Sitemap {
   const now = new Date();
 
+  // Solo páginas SEO reales. Ni "/" (es el panel autenticado, que redirige a
+  // /landing en cliente), ni /login ni /register (flujos privados, noindex):
+  // tenerlas aquí hacía que Google las rastreara y marcara duplicados.
   return [
-    {
-      url: absoluteUrl("/"),
-      lastModified: now,
-      changeFrequency: "weekly",
-      priority: 1,
-    },
     {
       url: absoluteUrl("/landing"),
       lastModified: now,
       changeFrequency: "weekly",
-      priority: 0.9,
+      priority: 1,
     },
     ...["/peluqueria", "/centro-de-estetica", "/salon-de-unas", "/barberia", "/fisioterapia"].map((path) => ({
       url: absoluteUrl(path),
@@ -28,18 +25,6 @@ export default function sitemap(): MetadataRoute.Sitemap {
       lastModified: now,
       changeFrequency: "weekly",
       priority: 0.8,
-    },
-    {
-      url: absoluteUrl("/register"),
-      lastModified: now,
-      changeFrequency: "monthly",
-      priority: 0.7,
-    },
-    {
-      url: absoluteUrl("/login"),
-      lastModified: now,
-      changeFrequency: "monthly",
-      priority: 0.4,
     },
   ];
 }

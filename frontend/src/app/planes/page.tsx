@@ -1,8 +1,32 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { CalendarDays, Clock3, PhoneCall, Sparkles } from "lucide-react";
 import { PlansWithRoi } from "@/components/plans-with-roi";
 import { PlansHeadline } from "@/components/plans-headline";
 import { BackLink } from "@/components/back-link";
+import { absoluteUrl, siteName } from "@/lib/seo";
+
+const planesTitle = "Planes y precios";
+const planesDescription =
+  "Planes de Alhabla desde 69€/mes: recepcionista telefónica con IA que atiende 24/7 y reserva citas en tu calendario. 7 días de prueba, sin permanencia.";
+
+// Canónica propia: sin ella, esta página heredaba la canónica global del
+// root layout (la home) y Google la trataba como duplicada.
+export const metadata: Metadata = {
+  title: planesTitle,
+  description: planesDescription,
+  alternates: {
+    canonical: absoluteUrl("/planes"),
+  },
+  openGraph: {
+    type: "website",
+    locale: "es_ES",
+    url: absoluteUrl("/planes"),
+    siteName,
+    title: planesTitle,
+    description: planesDescription,
+  },
+};
 
 const benefits = [
   { title: "Sin fricción", description: "Elige plan primero y crea tu cuenta después.", icon: Sparkles },
