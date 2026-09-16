@@ -2,12 +2,12 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { ArrowRight, Check, Headphones, Scissors, Sparkles, Store } from "lucide-react";
-import { motion } from "framer-motion";
+import { ArrowRight, Check, Headphones } from "lucide-react";
+import { motion, useReducedMotion } from "framer-motion";
 
 import { BrandMark } from "@/components/brand-mark";
 import { DemoVoiceCall } from "@/components/demo-voice-call";
-import { HeroScene } from "@/components/hero-scene";
+import { HeroPulse } from "@/components/hero-pulse";
 import { HowItWorksScrollytelling } from "@/components/how-it-works-scrollytelling";
 import { MobileNav } from "@/components/mobile-nav";
 import { Reveal } from "@/components/scroll-reveal";
@@ -15,11 +15,46 @@ import { SectorDataSection } from "@/components/sector-data-section";
 import { generalSectorData } from "@/lib/niche-landings";
 import { formatIncludedMinutes, formatPlanPrice, plans, TRIAL_REASSURANCE } from "@/lib/plans";
 
+/**
+ * Un sector por tarjeta, cada uno con su escena en vídeo (los clips de
+ * `public/heroes/`, generados con Seedance bajo la dirección de arte del
+ * sistema): la escena real del oficio con las manos ocupadas mientras el
+ * teléfono espera. Antes barbería/uñas/fisio compartían tarjeta y solo se
+ * enlazaba /barberia — ahora cada landing de nicho tiene su entrada.
+ */
 const SECTORES = [
-  { href: "/peluqueria", title: "Peluquerías", description: "Cortes, color y tratamientos sin soltar el secador.", icon: Scissors },
-  { href: "/centro-de-estetica", title: "Estética", description: "Reservas y dudas resueltas mientras estás en cabina.", icon: Sparkles },
-  { href: "/barberia", title: "Barberías, uñas y fisioterapia", description: "Una recepción que encaja con tu agenda y tu equipo.", icon: Store },
+  { href: "/peluqueria", title: "Peluquerías", description: "Cortes, color y tratamientos sin soltar el secador.", video: "/heroes/peluqueria.mp4", poster: "/heroes/peluqueria.jpg" },
+  { href: "/barberia", title: "Barberías", description: "Degradados y arreglos sin dejar la máquina a medias.", video: "/heroes/barberia.mp4", poster: "/heroes/barberia.jpg" },
+  { href: "/salon-de-unas", title: "Salones de uñas", description: "Manicuras sin interrupciones; la agenda se llena sola.", video: "/heroes/salon-de-unas.mp4", poster: "/heroes/salon-de-unas.jpg" },
+  { href: "/centro-de-estetica", title: "Centros de estética", description: "Reservas y dudas resueltas mientras estás en cabina.", video: "/heroes/centro-de-estetica.mp4", poster: "/heroes/centro-de-estetica.jpg" },
+  { href: "/fisioterapia", title: "Fisioterapia", description: "Las citas entran solas mientras tratas en camilla.", video: "/heroes/fisioterapia.mp4", poster: "/heroes/fisioterapia.jpg" },
 ] as const;
+
+/** Media de la tarjeta de sector: vídeo mudo en bucle, o su fotograma si el
+ * visitante prefiere menos movimiento. `preload="metadata"` mantiene ligera
+ * la carga inicial (los 5 clips suman ~3MB pero solo se traen al reproducir). */
+function SectorSceneMedia({ video, poster, reducedMotion }: { video: string; poster: string; reducedMotion: boolean }) {
+  return (
+    <span className="block overflow-hidden rounded-2xl border border-[#e5e5e5]">
+      {reducedMotion ? (
+        // eslint-disable-next-line @next/next/no-img-element -- fotograma local
+        <img src={poster} alt="" className="aspect-[4/3] w-full object-cover" />
+      ) : (
+        <video
+          className="aspect-[4/3] w-full object-cover"
+          src={video}
+          poster={poster}
+          autoPlay
+          muted
+          loop
+          playsInline
+          preload="metadata"
+          aria-hidden="true"
+        />
+      )}
+    </span>
+  );
+}
 
 // FAQ recortada a las 4 dudas que más frenan una decisión justo antes del
 // CTA de cierre — la lista completa (9 preguntas) vive en las landings de
@@ -71,6 +106,7 @@ function LandingHeader({ hiddenOnMobile }: { hiddenOnMobile: boolean }) {
 
 export function MainLanding() {
   const [isDemoOpen, setIsDemoOpen] = useState(false);
+  const sectorReducedMotion = useReducedMotion() === true;
   const [isNarrativeActive, setIsNarrativeActive] = useState(false);
   const [hideHeaderOnMobile, setHideHeaderOnMobile] = useState(false);
 
@@ -116,11 +152,8 @@ export function MainLanding() {
               </p>
             </Reveal>
           </div>
-          <Reveal delay={0.1} y={18} className="hidden lg:block">
-            {/* La escena de la portada: el mostrador con el teléfono esperando
-                mientras la profesional atiende — HeroScene trae su propio
-                marco, de ahí que el panel de HeroPulse desaparezca aquí. */}
-            <HeroScene video={{ src: "/heroes/general.mp4", poster: "/heroes/general.jpg" }} />
+          <Reveal delay={0.1} y={18} className="hidden rounded-3xl border border-[#e5e5e5] bg-[#fafafa] px-5 py-8 sm:px-8 lg:block lg:px-10">
+            <HeroPulse />
           </Reveal>
         </div>
       </section>
@@ -140,14 +173,16 @@ export function MainLanding() {
               <h2 className="mt-4 text-3xl font-black tracking-tight sm:text-5xl">Cada negocio tiene su forma de llenar la agenda.</h2>
             </div>
           </Reveal>
-          <div className="mt-10 grid gap-4 lg:grid-cols-3">
-            {SECTORES.map(({ href, title, description, icon: Icon }, index) => (
+          <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {SECTORES.map(({ href, title, description, video, poster }, index) => (
               <Reveal key={href} delay={index * 0.08}>
-                <Link href={href} className="group block h-full rounded-3xl border border-[#e5e5e5] p-6 transition duration-300 hover:-translate-y-1 hover:border-[#ddd6fe] hover:shadow-[0_18px_35px_-24px_rgba(109,40,217,0.55)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] focus-visible:ring-offset-4">
-                  <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#f3eeff] text-[#8b5cf6]"><Icon className="h-5 w-5" aria-hidden="true" /></span>
-                  <h3 className="mt-7 text-xl font-bold">{title}</h3>
-                  <p className="mt-3 text-sm leading-6 text-[#52525b]">{description}</p>
-                  <span className="mt-6 inline-flex items-center gap-2 text-sm font-semibold text-[#0a0a0a]">Ver planes y precios <ArrowRight className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-1" aria-hidden="true" /></span>
+                <Link href={href} className="group block h-full rounded-3xl border border-[#e5e5e5] p-4 transition duration-300 hover:-translate-y-1 hover:border-[#ddd6fe] hover:shadow-[0_18px_35px_-24px_rgba(109,40,217,0.55)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] focus-visible:ring-offset-4">
+                  <SectorSceneMedia video={video} poster={poster} reducedMotion={sectorReducedMotion} />
+                  <span className="block px-2 pb-2">
+                    <h3 className="mt-5 text-xl font-bold">{title}</h3>
+                    <p className="mt-2 text-sm leading-6 text-[#52525b]">{description}</p>
+                    <span className="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-[#0a0a0a]">Ver planes y precios <ArrowRight className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-1" aria-hidden="true" /></span>
+                  </span>
                 </Link>
               </Reveal>
             ))}
