@@ -7,7 +7,7 @@ import { motion } from "framer-motion";
 
 import { BrandMark } from "@/components/brand-mark";
 import { DemoVoiceCall } from "@/components/demo-voice-call";
-import { HeroPulse } from "@/components/hero-pulse";
+import { HeroScene } from "@/components/hero-scene";
 import { HowItWorksScrollytelling } from "@/components/how-it-works-scrollytelling";
 import { MobileNav } from "@/components/mobile-nav";
 import { Reveal } from "@/components/scroll-reveal";
@@ -116,8 +116,11 @@ export function MainLanding() {
               </p>
             </Reveal>
           </div>
-          <Reveal delay={0.1} y={18} className="hidden rounded-3xl border border-[#e5e5e5] bg-[#fafafa] px-5 py-8 sm:px-8 lg:block lg:px-10">
-            <HeroPulse />
+          <Reveal delay={0.1} y={18} className="hidden lg:block">
+            {/* La escena de la portada: el mostrador con el teléfono esperando
+                mientras la profesional atiende — HeroScene trae su propio
+                marco, de ahí que el panel de HeroPulse desaparezca aquí. */}
+            <HeroScene video={{ src: "/heroes/general.mp4", poster: "/heroes/general.jpg" }} />
           </Reveal>
         </div>
       </section>
