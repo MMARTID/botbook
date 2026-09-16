@@ -95,10 +95,13 @@ export function MobileNav({ niche, variant = "vertical" }: { niche?: string; var
             aria-hidden="true"
             onClick={() => setIsMenuOpen(false)}
           />
+          {/* `aria-modal` no es un atributo válido en un landmark `nav`
+              (role implícito "navigation", no "dialog") — jsx-a11y lo marca
+              con razón. La contención real la dan `fixed` + el backdrop de
+              arriba, no este atributo. */}
           <nav
             id="mobile-menu"
             aria-label="Navegación móvil"
-            aria-modal="true"
             className="fixed inset-x-0 top-16 z-50 max-h-[calc(100svh-4rem)] overflow-y-auto border-t border-[#e5e5e5] bg-white px-4 py-4 shadow-[0_16px_36px_-24px_rgba(0,0,0,0.35)]"
           >
           <div className="flex flex-col gap-1.5">
