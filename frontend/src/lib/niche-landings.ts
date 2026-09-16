@@ -39,13 +39,6 @@ export type SectorData = {
   painPoint?: string;
 };
 
-/** Clip del hero (mudo, en bucle) con su fotograma de reserva. Ambos viven
- * en `public/heroes/`. Opcional: sin clip, el hero usa HeroPulse. */
-export type NicheHeroVideo = {
-  src: string;
-  poster: string;
-};
-
 export type NicheLandingContent = {
   slug: NicheSlug;
   name: string;
@@ -60,7 +53,6 @@ export type NicheLandingContent = {
    * en heroTitle; si no, el titular se muestra sin subrayar. */
   heroHighlight?: string;
   heroDescription: string;
-  heroVideo?: NicheHeroVideo;
   demoTitle: string;
   demoSteps: [string, string, string];
   conversations?: import("@/components/hero-conversation").Conversation[];
@@ -109,7 +101,6 @@ export const nicheLandings: Record<NicheSlug, NicheLandingContent> = {
       "gestión de citas para peluquerías",
     ],
     accent: NICHE_ACCENTS.peluqueria,
-    heroVideo: { src: "/heroes/peluqueria.mp4", poster: "/heroes/peluqueria.jpg" },
     heroTitle: "No pierdas otra cita de peluquería por no contestar el teléfono",
     heroHighlight: "por no contestar el teléfono",
     heroDescription: "Alhabla atiende llamadas, resuelve dudas sobre cortes y color, y agenda citas 24/7 — incluso cuando todo el equipo está con clientes.",
@@ -215,7 +206,6 @@ export const nicheLandings: Record<NicheSlug, NicheLandingContent> = {
       "atención telefónica para estética",
     ],
     accent: NICHE_ACCENTS["centro-de-estetica"],
-    heroVideo: { src: "/heroes/centro-de-estetica.mp4", poster: "/heroes/centro-de-estetica.jpg" },
     heroTitle: "No pierdas otra consulta de estética por no contestar el teléfono",
     heroHighlight: "por no contestar el teléfono",
     heroDescription: "Alhabla atiende llamadas, informa sobre tratamientos y agenda citas 24/7 — incluso mientras estás en cabina.",
@@ -322,7 +312,6 @@ export const nicheLandings: Record<NicheSlug, NicheLandingContent> = {
       "atender llamadas en salón de uñas",
     ],
     accent: NICHE_ACCENTS["salon-de-unas"],
-    heroVideo: { src: "/heroes/salon-de-unas.mp4", poster: "/heroes/salon-de-unas.jpg" },
     heroTitle: "No pierdas otra manicura por no contestar el teléfono",
     heroHighlight: "por no contestar el teléfono",
     heroDescription: "Alhabla atiende llamadas, responde precios y agenda citas 24/7 — incluso mientras trabajas en una uña.",
@@ -426,7 +415,6 @@ export const nicheLandings: Record<NicheSlug, NicheLandingContent> = {
       "atender llamadas en barbería",
     ],
     accent: NICHE_ACCENTS.barberia,
-    heroVideo: { src: "/heroes/barberia.mp4", poster: "/heroes/barberia.jpg" },
     heroTitle: "No pierdas otro corte por no contestar el teléfono",
     heroHighlight: "por no contestar el teléfono",
     heroDescription: "Alhabla atiende llamadas, resuelve dudas sobre servicios y agenda citas 24/7 — incluso con todas las sillas ocupadas.",
@@ -533,7 +521,6 @@ export const nicheLandings: Record<NicheSlug, NicheLandingContent> = {
       "reservar sesión de fisioterapia",
     ],
     accent: NICHE_ACCENTS.fisioterapia,
-    heroVideo: { src: "/heroes/fisioterapia.mp4", poster: "/heroes/fisioterapia.jpg" },
     heroTitle: "No pierdas otra primera visita por no contestar el teléfono",
     heroHighlight: "por no contestar el teléfono",
     heroDescription: "Alhabla atiende llamadas, recoge el motivo de consulta y agenda citas 24/7 — incluso mientras tratas a un paciente.",
