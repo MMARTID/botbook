@@ -87,3 +87,15 @@ export const landingStructuredData = {
     },
   ],
 } as const;
+
+/**
+ * Metadata para páginas privadas (panel, login, registro, checkout...):
+ * fuera del índice de Google y sin heredar canónicas ni OG del root layout.
+ */
+export const noindexMetadata = {
+  robots: {
+    index: false,
+    follow: false,
+    googleBot: { index: false, follow: false },
+  },
+} as const;
