@@ -13,6 +13,7 @@ import { suspendOverdueCallsJob } from "../../jobs/suspendOverdueCalls.js";
 import { processUsageReportJob } from "../../jobs/processUsageReport.js";
 import { attachUsagePricesJob } from "../../jobs/attachUsagePrices.js";
 import { retryUsageReportsJob } from "../../jobs/retryUsageReports.js";
+import { sendWeeklySummaryJob } from "../../jobs/sendWeeklySummary.js";
 import { E164_PHONE_REGEX } from "../../lib/phone.js";
 
 const ProcessRecordingSchema = z.object({
@@ -248,6 +249,22 @@ export const internalJobsRoutes: FastifyPluginAsync = async (fastify) => {
         return reply.send({ received: true, suspendedBusinesses });
       } catch (error) {
         fastify.log.error({ err: error }, "suspend-overdue-calls job failed");
+        return reply.status(500).send({ error: "Job processing failed" });
+      }
+    }
+  );
+
+  // Lunes a las 08:00 Europe/Madrid (Cloud Scheduler). Resumen de actividad
+  // de los últimos 7 días para negocios Pro/Scale — ver sendWeeklySummary.ts.
+  fastify.post(
+    "/jobs/send-weekly-summaries",
+    { preValidation: [fastify.verifyCloudTasks] },
+    async (_request, reply) => {
+      try {
+        const result = await sendWeeklySummaryJob();
+        return reply.send({ received: true, ...result });
+      } catch (error) {
+        fastify.log.error({ err: error }, "send-weekly-summaries job failed");
         return reply.status(500).send({ error: "Job processing failed" });
       }
     }
