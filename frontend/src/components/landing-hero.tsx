@@ -59,13 +59,13 @@ export function LandingHero({ content }: { content?: NicheLandingContent }) {
         <div className="space-y-7 text-center lg:space-y-8 lg:text-left">
           {/*
             El hero no tenía ninguna animación de entrada propia — aparecía de
-            golpe mientras el pulso del fondo (ParticleField) y la conversación
-            del móvil (con su propio ritmo de ~5s) sí se movían, dando una
-            sensación de piezas sueltas. Mismo lenguaje que el resto de la
-            página (Reveal, curva [0.22,1,.36,1]), con un stagger rápido para
-            que todo el bloque de texto llegue en el mismo aliento que el
-            pulso de partículas (~900ms) — la conversación del móvil sigue a
-            su propio ritmo después, eso es contenido, no llegada.
+            golpe mientras la conversación del móvil (con su propio ritmo de
+            ~5s) sí se movía, dando una sensación de piezas sueltas. Mismo
+            lenguaje que el resto de la página (Reveal, curva [0.22,1,.36,1]),
+            con un stagger rápido (~900ms) para que todo el bloque de texto
+            llegue en el mismo aliento — la conversación del móvil sigue a su
+            propio ritmo después, eso es contenido, no llegada. (El campo de
+            partículas del fondo se retiró de las landings el 2026-09-16.)
           */}
           <Reveal y={14}>
             <span
