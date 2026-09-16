@@ -13,6 +13,7 @@ import type {
   Business,
   CalendarListResponse,
   Call,
+  CallAnalytics,
   CreateAgentPayload,
   OnboardingState,
   Paginated,
@@ -107,6 +108,14 @@ export async function getPendingBookings() {
 
 export async function getBillingSummary() {
   const { data } = await api.get<BillingSummary>("/billing/summary");
+  return data;
+}
+
+/** Analítica avanzada de llamadas (plan Scale) — 403 PLAN_LIMIT_ANALYTICS si el plan no la incluye. */
+export async function getCallAnalytics(days = 30) {
+  const { data } = await api.get<CallAnalytics>("/business/me/calls/analytics", {
+    params: { days },
+  });
   return data;
 }
 

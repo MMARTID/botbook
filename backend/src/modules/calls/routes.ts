@@ -2,10 +2,16 @@ import { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import { prisma } from "../../lib/prisma.js";
 import { z } from "zod";
 import { getSignedRecordingUrl } from "../../lib/storage.js";
+import { planAllows, resolvePlanId } from "../../lib/planFeatures.js";
+import { getCallAnalytics } from "./analytics.js";
 
 const PaginationSchema = z.object({
   limit: z.coerce.number().min(1).max(100).default(50),
   offset: z.coerce.number().min(0).default(0),
+});
+
+const AnalyticsQuerySchema = z.object({
+  days: z.coerce.number().int().min(7).max(90).default(30),
 });
 
 /**
@@ -106,6 +112,47 @@ export async function callsRoutes(fastify: FastifyInstance) {
   );
 
   // Get a single call by ID (must belong to user's business)
+  // Analítica avanzada — feature del plan Scale (planFeatures.ts). Registrada
+  // antes de /:id; Fastify resuelve la ruta estática con prioridad igualmente.
+  fastify.get<{ Querystring: z.infer<typeof AnalyticsQuerySchema> }>(
+    "/business/me/calls/analytics",
+    { preValidation: [fastify.authenticate] },
+    async (request, reply) => {
+      try {
+        const { days } = AnalyticsQuerySchema.parse(request.query);
+        const businessId = request.user!.businessId;
+
+        const business = await prisma.business.findUnique({
+          where: { id: businessId },
+          select: { plan: true, stripePriceId: true },
+        });
+        if (!business) {
+          return reply.status(404).send({ error: "Negocio no encontrado" });
+        }
+        const planId = resolvePlanId(business);
+        if (!planAllows(planId, "analitica_avanzada")) {
+          return reply.status(403).send({
+            error:
+              "La analítica avanzada está disponible en el plan Scale.",
+            code: "PLAN_LIMIT_ANALYTICS",
+            planId,
+            limit: null,
+          });
+        }
+
+        return reply.send(await getCallAnalytics(businessId, days));
+      } catch (error) {
+        if (error instanceof z.ZodError) {
+          return reply.status(400).send({ error: error.errors });
+        }
+        fastify.log.error({ err: error }, "[Calls] analytics failed");
+        return reply
+          .status(500)
+          .send({ error: "No se pudo calcular la analítica" });
+      }
+    }
+  );
+
   fastify.get<{ Params: { id: string } }>(
     "/business/me/calls/:id",
     { preValidation: [fastify.authenticate] },

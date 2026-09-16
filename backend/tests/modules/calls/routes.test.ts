@@ -10,9 +10,20 @@ vi.mock("../../../src/lib/prisma.js", () => ({
       findMany: vi.fn(),
       count: vi.fn(),
       findUnique: vi.fn(),
+      aggregate: vi.fn(),
+      groupBy: vi.fn(),
     },
     service: {
       findMany: vi.fn(),
+    },
+    business: {
+      findUnique: vi.fn(),
+    },
+    booking: {
+      count: vi.fn(),
+    },
+    lead: {
+      count: vi.fn(),
     },
   },
 }));
@@ -172,5 +183,85 @@ describe("GET /business/me/calls", () => {
         { id: "srv_2", name: "Color", priceCents: null },
       ],
     });
+  });
+});
+
+describe("GET /business/me/calls/analytics — gating por plan Scale", () => {
+  let fastify: ReturnType<typeof Fastify>;
+  const mockedBusinessFindUnique = vi.mocked(prisma.business.findUnique);
+  const mockedCallAggregate = vi.mocked(prisma.call.aggregate);
+  const mockedCallGroupBy = vi.mocked(prisma.call.groupBy);
+  const mockedBookingCount = vi.mocked(prisma.booking.count);
+  const mockedLeadCount = vi.mocked(prisma.lead.count);
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    fastify = Fastify();
+    fastify.decorate("authenticate", async (request: any) => {
+      request.user = { businessId: "biz_1" };
+    });
+    await fastify.register(callsRoutes);
+  });
+
+  it("devuelve 403 PLAN_LIMIT_ANALYTICS para un plan que no sea Scale", async () => {
+    mockedBusinessFindUnique.mockResolvedValue({
+      plan: "pro",
+      stripePriceId: null,
+    } as any);
+
+    const response = await fastify.inject({
+      method: "GET",
+      url: "/business/me/calls/analytics",
+    });
+
+    expect(response.statusCode).toBe(403);
+    expect(response.json().code).toBe("PLAN_LIMIT_ANALYTICS");
+    expect(mockedCallAggregate).not.toHaveBeenCalled();
+  });
+
+  it("calcula la analítica para un negocio Scale con horas en la zona del negocio", async () => {
+    // Primera llamada: gate del plan; segunda (desde analytics.ts): timezone.
+    mockedBusinessFindUnique
+      .mockResolvedValueOnce({ plan: "enterprise", stripePriceId: null } as any)
+      .mockResolvedValueOnce({ timezone: "Europe/Madrid" } as any);
+    mockedCallAggregate.mockResolvedValue({
+      _count: { _all: 2 },
+      _sum: { durationSecs: 190 },
+      _avg: { durationSecs: 95 },
+    } as any);
+    mockedCallGroupBy
+      .mockResolvedValueOnce([
+        { outcome: "RESOLVED", _count: { _all: 2 } },
+      ] as any)
+      .mockResolvedValueOnce([
+        { sentiment: "POSITIVE", _count: { _all: 1 } },
+      ] as any)
+      .mockResolvedValueOnce([
+        { requestedService: "Corte", _count: { _all: 2 } },
+      ] as any);
+    // 16:00Z en septiembre = 18:00 en Madrid.
+    mockedCallFindMany.mockResolvedValue([
+      { startedAt: new Date("2026-09-10T16:00:00Z") },
+      { startedAt: new Date("2026-09-10T16:30:00Z") },
+    ] as any);
+    mockedBookingCount.mockResolvedValueOnce(1).mockResolvedValueOnce(0);
+    mockedLeadCount.mockResolvedValue(3);
+
+    const response = await fastify.inject({
+      method: "GET",
+      url: "/business/me/calls/analytics?days=30",
+    });
+
+    expect(response.statusCode).toBe(200);
+    const body = response.json();
+    expect(body.totals).toMatchObject({
+      calls: 2,
+      minutes: 4,
+      bookings: 1,
+      waitlistLeads: 3,
+    });
+    expect(body.byHour).toEqual([{ hour: 18, count: 2 }]);
+    expect(body.byWeekday).toEqual([{ weekday: 4, count: 2 }]); // jueves
+    expect(body.topServices).toEqual([{ service: "Corte", count: 2 }]);
   });
 });
