@@ -456,3 +456,25 @@ body {
     scroll-behavior: auto;
   }
 }
+
+/* Fundidos laterales del carril de sectores: la tarjeta cortada se disuelve
+   en el blanco de la página en vez de terminar en un corte seco. Cada borde
+   se enciende/apaga desde React según haya contenido oculto por ese lado. */
+.sector-fade {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 72px;
+  pointer-events: none;
+  transition: opacity 0.25s ease;
+}
+
+.sector-fade-izquierda {
+  left: -4px;
+  background: linear-gradient(to right, #ffffff 12%, rgba(255, 255, 255, 0));
+}
+
+.sector-fade-derecha {
+  right: -4px;
+  background: linear-gradient(to left, #ffffff 12%, rgba(255, 255, 255, 0));
+}
