@@ -9,6 +9,7 @@ import {
   createBookingService,
   deleteBookingProfessional,
   deleteBookingService,
+  getBillingSummary,
   getBookingSettings,
   getCalendarList,
   getGoogleCalendarAuthUrl,
@@ -162,6 +163,17 @@ function AgenteContent() {
     queryFn: getBookingSettings,
     enabled: hasToken === true,
   });
+
+  // Gating por plan: elegir voz e idiomas es feature de Pro/Scale. Mientras
+  // no llega el summary, no se bloquea nada (el backend valida igualmente).
+  const billingSummaryQuery = useQuery({
+    queryKey: ["billing-summary"],
+    queryFn: getBillingSummary,
+    enabled: hasToken === true,
+  });
+  const voiceLocked =
+    billingSummaryQuery.data !== undefined &&
+    !billingSummaryQuery.data.planFeatures?.includes("voz_idioma");
 
   useEffect(() => {
     if (settingsQuery.data) {
@@ -1038,6 +1050,7 @@ function AgenteContent() {
         onSave={() => agentSettingsMutation.mutate()}
         open={isSectionOpen("agent-settings")}
         onToggle={() => toggleSection("agent-settings")}
+        voiceLocked={voiceLocked}
       />
 
     </div>

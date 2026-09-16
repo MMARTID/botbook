@@ -101,6 +101,10 @@ function buildBusiness(overrides: Record<string, unknown> = {}) {
     outlookCalendarConnected: null,
     phone: "+34600111222",
     telnyxPhoneNumber: "+34911222333",
+    // El recordatorio de cita es feature de Pro/Scale (planFeatures.ts): el
+    // mismo mock de findUnique responde también a la consulta del plan.
+    plan: "pro",
+    stripePriceId: null,
     ...overrides,
   };
 }
@@ -693,6 +697,32 @@ describe("executeVoiceTool book_appointment — consentimiento SMS al cliente", 
         taskId: "reminder-sms-booking_1",
         scheduleTime: expect.any(Date),
       })
+    );
+  });
+
+  it("no programa recordatorio en el plan Inicio — es feature de Pro/Scale — pero sí envía la confirmación", async () => {
+    mockedBusinessFindUnique.mockResolvedValue(
+      buildBusiness({ plan: "basic" }) as any
+    );
+
+    await executeVoiceTool(
+      buildBookAppointmentInput({
+        callId: "call_vapi_1",
+        params: {
+          clientName: "María",
+          startDateTime: farFutureStart,
+          durationMinutes: 30,
+          professionalId: "professional_123",
+          smsConsent: true,
+        },
+      })
+    );
+
+    // Confirmación inmediata + aviso al propietario sí; recordatorio no.
+    expect(mockedEnqueueSmsJob).toHaveBeenCalledTimes(2);
+    expect(mockedEnqueueSmsJob).not.toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ taskId: "reminder-sms-booking_1" })
     );
   });
 

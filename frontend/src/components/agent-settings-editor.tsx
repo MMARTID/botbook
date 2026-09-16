@@ -1,6 +1,7 @@
 "use client";
 
-import { Bot, Check, Languages, Mic, Save } from "lucide-react";
+import Link from "next/link";
+import { Bot, Check, Languages, Lock, Mic, Save } from "lucide-react";
 import { SettingsSection } from "@/components/settings-section";
 import type { AgentLanguage, AgentSettings, VoiceLanguage } from "@/lib/types";
 
@@ -34,6 +35,20 @@ const voiceLanguageOptions: Array<{ value: VoiceLanguage; label: string }> = [
   { value: "en-GB", label: "Inglés" },
   { value: "fr-FR", label: "Francés" },
 ];
+
+function VoiceUpgradeNotice() {
+  return (
+    <p className="mb-3 flex items-start gap-2 rounded-lg border border-[#ddd6fe] bg-[#f3eeff] px-3 py-2 text-xs leading-5 text-[#6d28d9]">
+      <Lock className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+      <span>
+        Elegir la voz y los idiomas está disponible en los planes Pro y Scale.{" "}
+        <Link href="/ajustes/facturacion" className="font-semibold underline underline-offset-2">
+          Ampliar plan
+        </Link>
+      </span>
+    </p>
+  );
+}
 
 function normalizeLanguages(languages: AgentLanguage[]): AgentLanguage[] {
   return languageOptions
@@ -89,6 +104,7 @@ export function AgentSettingsEditor({
   onSave,
   open,
   onToggle,
+  voiceLocked = false,
 }: {
   value: AgentSettings;
   isSaving: boolean;
@@ -96,6 +112,8 @@ export function AgentSettingsEditor({
   onSave: () => void;
   open: boolean;
   onToggle: () => void;
+  /** true cuando el plan (Inicio) no incluye elegir voz e idiomas. */
+  voiceLocked?: boolean;
 }) {
   const languageSummary = normalizeLanguages(value.languages)
     .map((language) => languageOptions.find((option) => option.value === language)?.label)
@@ -149,18 +167,20 @@ export function AgentSettingsEditor({
           <p className="mb-3 mt-1 text-sm text-muted">
             La recepcionista empieza en español y continúa en el idioma de quien llama.
           </p>
+          {voiceLocked ? <VoiceUpgradeNotice /> : null}
           <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-4">
             {languageOptions.map((option) => {
               const selected = value.languages.includes(option.value);
+              const disabled = option.required || voiceLocked;
               return (
                 <label
                   key={option.value}
-                  className={`relative flex cursor-pointer items-center justify-between gap-3 rounded-xl border px-4 py-3 transition ${selected ? "border-[#8b5cf6] bg-[#f3eeff]" : "border-[#e5e5e5] bg-white hover:border-[#ddd6fe]"} ${option.required ? "cursor-not-allowed" : ""}`}
+                  className={`relative flex cursor-pointer items-center justify-between gap-3 rounded-xl border px-4 py-3 transition ${selected ? "border-[#8b5cf6] bg-[#f3eeff]" : "border-[#e5e5e5] bg-white hover:border-[#ddd6fe]"} ${disabled ? "cursor-not-allowed" : ""} ${voiceLocked && !selected ? "opacity-60" : ""}`}
                 >
                   <input
                     type="checkbox"
                     checked={selected}
-                    disabled={option.required}
+                    disabled={disabled}
                     onChange={() => toggleLanguage(option.value)}
                     className="peer sr-only"
                   />
@@ -189,6 +209,7 @@ export function AgentSettingsEditor({
           <p className="mb-3 mt-1 text-sm text-muted">
             Con qué voz atiende las llamadas.
           </p>
+          {voiceLocked ? <VoiceUpgradeNotice /> : null}
           <div className="grid gap-4 md:grid-cols-2">
             <div className="grid gap-2">
               {[
@@ -200,8 +221,9 @@ export function AgentSettingsEditor({
                   <button
                     key={option.value}
                     type="button"
+                    disabled={voiceLocked}
                     onClick={() => onChange({ ...value, voiceGender: option.value })}
-                    className={`flex items-center justify-between gap-3 rounded-xl border px-4 py-3 text-left transition ${selected ? "border-[#8b5cf6] bg-[#f3eeff]" : "border-[#e5e5e5] bg-white hover:border-[#ddd6fe]"}`}
+                    className={`flex items-center justify-between gap-3 rounded-xl border px-4 py-3 text-left transition ${selected ? "border-[#8b5cf6] bg-[#f3eeff]" : "border-[#e5e5e5] bg-white hover:border-[#ddd6fe]"} ${voiceLocked ? "cursor-not-allowed" : ""} ${voiceLocked && !selected ? "opacity-60" : ""}`}
                   >
                     <span>
                       <span className="block text-sm font-semibold text-[#27272a]">{option.label}</span>
@@ -220,7 +242,7 @@ export function AgentSettingsEditor({
               </p>
               <div className="grid gap-2">
                 {voiceLanguageOptions.map((option) => {
-                  const available = value.languages.includes(option.value);
+                  const available = value.languages.includes(option.value) && !voiceLocked;
                   const selected = value.voiceLanguage === option.value;
                   return (
                     <button
