@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
-import { ArrowRight, Check, Headphones } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { ArrowRight, Check, ChevronLeft, ChevronRight, Headphones } from "lucide-react";
 import { motion, useReducedMotion } from "framer-motion";
 
 import { BrandMark } from "@/components/brand-mark";
@@ -107,6 +107,16 @@ function LandingHeader({ hiddenOnMobile }: { hiddenOnMobile: boolean }) {
 export function MainLanding() {
   const [isDemoOpen, setIsDemoOpen] = useState(false);
   const sectorReducedMotion = useReducedMotion() === true;
+  const sectorTrackRef = useRef<HTMLDivElement>(null);
+
+  // Avanza/retrocede una tarjeta exacta del carrusel de sectores.
+  const desplazarSectores = (direccion: 1 | -1) => {
+    const track = sectorTrackRef.current;
+    if (!track) return;
+    const tarjeta = track.querySelector<HTMLElement>("[data-sector-card]");
+    const paso = (tarjeta?.offsetWidth ?? 320) + 16;
+    track.scrollBy({ left: direccion * paso, behavior: sectorReducedMotion ? "auto" : "smooth" });
+  };
   const [isNarrativeActive, setIsNarrativeActive] = useState(false);
   const [hideHeaderOnMobile, setHideHeaderOnMobile] = useState(false);
 
@@ -167,21 +177,28 @@ export function MainLanding() {
       */}
       <section id="sectores" className="scroll-m-20 border-t border-[#e5e5e5] py-16 sm:py-24">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <Reveal className="flex max-w-3xl flex-col justify-between gap-5 sm:flex-row sm:items-end">
-            <div>
+          <Reveal className="flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
+            <div className="max-w-3xl">
               <p className="text-sm font-bold uppercase tracking-[0.14em] text-[#6d28d9]">Hecho para tu ritmo</p>
               <h2 className="mt-4 text-3xl font-black tracking-tight sm:text-5xl">Cada negocio tiene su forma de llenar la agenda.</h2>
             </div>
+            <div className="hidden shrink-0 items-center gap-2 sm:flex">
+              <button type="button" onClick={() => desplazarSectores(-1)} className="calendar-arrow h-11 w-11 rounded-full" aria-label="Sectores anteriores"><ChevronLeft className="h-5 w-5" aria-hidden="true" /></button>
+              <button type="button" onClick={() => desplazarSectores(1)} className="calendar-arrow h-11 w-11 rounded-full" aria-label="Sectores siguientes"><ChevronRight className="h-5 w-5" aria-hidden="true" /></button>
+            </div>
           </Reveal>
-          <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {/* Una sola línea: carril con scroll-snap (rueda/arrastre en móvil,
+              flechas en escritorio). El grid anterior de 3+2 ocupaba media
+              página — feedback directo del usuario. */}
+          <div ref={sectorTrackRef} className="sector-track mt-10" aria-label="Sectores">
             {SECTORES.map(({ href, title, description, video, poster }, index) => (
-              <Reveal key={href} delay={index * 0.08}>
-                <Link href={href} className="group block h-full rounded-3xl border border-[#e5e5e5] p-4 transition duration-300 hover:-translate-y-1 hover:border-[#ddd6fe] hover:shadow-[0_18px_35px_-24px_rgba(109,40,217,0.55)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] focus-visible:ring-offset-4">
+              <Reveal key={href} delay={index * 0.06} className="h-full snap-start">
+                <Link data-sector-card href={href} className="group flex h-full flex-col rounded-3xl border border-[#e5e5e5] p-3 transition duration-300 hover:-translate-y-1 hover:border-[#ddd6fe] hover:shadow-[0_18px_35px_-24px_rgba(109,40,217,0.55)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] focus-visible:ring-offset-4">
                   <SectorSceneMedia video={video} poster={poster} reducedMotion={sectorReducedMotion} />
-                  <span className="block px-2 pb-2">
-                    <h3 className="mt-5 text-xl font-bold">{title}</h3>
-                    <p className="mt-2 text-sm leading-6 text-[#52525b]">{description}</p>
-                    <span className="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-[#0a0a0a]">Ver planes y precios <ArrowRight className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-1" aria-hidden="true" /></span>
+                  <span className="flex min-h-0 flex-1 flex-col px-2 pb-2">
+                    <h3 className="mt-4 text-lg font-bold">{title}</h3>
+                    <p className="mt-1.5 text-sm leading-6 text-[#52525b]">{description}</p>
+                    <span className="mt-auto inline-flex items-center gap-2 pt-3 text-sm font-semibold text-[#0a0a0a]">Ver planes y precios <ArrowRight className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-1" aria-hidden="true" /></span>
                   </span>
                 </Link>
               </Reveal>
