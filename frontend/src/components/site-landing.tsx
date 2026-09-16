@@ -161,7 +161,7 @@ export function SiteLanding({ content }: { content?: NicheLandingContent }) {
       </div>
 
       {content.sectorData ? <SectorDataSection data={content.sectorData} accent={content.accent} /> : null}
-      <RevenueLossCalculator content={content?.calculator} activeNiche={content?.slug} />
+      <RevenueLossCalculator content={content?.calculator} activeNiche={content?.slug} accent={content?.accent} />
 
       {/*
         Sin fondo propio a partir de aquí (salvo los bloques negros reales,
@@ -192,7 +192,10 @@ export function SiteLanding({ content }: { content?: NicheLandingContent }) {
                       solo ordena. */}
                   <span
                     className="text-sm font-extrabold tracking-[0.02em] text-[#8b5cf6]"
-                    style={content?.accent ? { color: content.accent.strong } : undefined}
+                    // `strong` como texto falla AA en 3 de los 5 acentos de
+                    // nicho (salon-de-unas, barbería, fisioterapia); `deep`
+                    // es la variante pensada para texto sobre blanco.
+                    style={content?.accent ? { color: content.accent.deep } : undefined}
                   >
                     {String(index + 1).padStart(2, "0")}
                   </span>
@@ -232,7 +235,10 @@ export function SiteLanding({ content }: { content?: NicheLandingContent }) {
                 return (
                   <Reveal key={example} delay={index * 0.1} y={14}>
                     <div className="flex items-center gap-4 rounded-2xl border border-[#e5e5e5] bg-white p-4">
-                      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#f3eeff] text-[#8b5cf6]">
+                      <span
+                        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
+                        style={content?.accent ? { backgroundColor: content.accent.soft, color: content.accent.strong } : { backgroundColor: "#f3eeff", color: "#8b5cf6" }}
+                      >
                         <Icon className="h-5 w-5" />
                       </span>
                       <p className="text-sm font-semibold leading-5 text-[#27272a]">{example}</p>
@@ -259,14 +265,17 @@ export function SiteLanding({ content }: { content?: NicheLandingContent }) {
               return (
                 <Reveal key={title} delay={index * 0.1}>
                   <article className="panel h-full p-6 sm:p-7">
-                    <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#f3eeff] text-[#8b5cf6]">
+                    <div
+                      className="flex h-11 w-11 items-center justify-center rounded-xl"
+                      style={content?.accent ? { backgroundColor: content.accent.soft, color: content.accent.strong } : { backgroundColor: "#f3eeff", color: "#8b5cf6" }}
+                    >
                       <Icon className="h-5 w-5" />
                     </div>
                     <h3 className="mt-5 text-lg font-bold text-[#0a0a0a]">{title}</h3>
                     <p className="mt-3 text-sm leading-6 text-[#52525b]">{description}</p>
                     <div className="mt-5 border-t border-[#e5e5e5] pt-4">
                       <p className="flex items-start gap-2 text-sm font-semibold leading-5 text-[#27272a]">
-                        <Check className="mt-0.5 h-4 w-4 shrink-0 text-[#8b5cf6]" />
+                        <Check className="mt-0.5 h-4 w-4 shrink-0" style={{ color: content?.accent?.strong ?? "#8b5cf6" }} />
                         {result}
                       </p>
                     </div>
@@ -282,7 +291,7 @@ export function SiteLanding({ content }: { content?: NicheLandingContent }) {
         <Reveal className="max-w-2xl">
           <h2 className="text-3xl font-black tracking-tight text-[#0a0a0a] sm:text-4xl">Planes claros, sin permanencia.</h2>
           <p className="mt-4 flex flex-wrap items-center gap-2 text-base font-semibold leading-7 text-[#27272a]">
-            <Check className="h-5 w-5 shrink-0 text-[#8b5cf6]" aria-hidden="true" />
+            <Check className="h-5 w-5 shrink-0" style={{ color: content?.accent?.strong ?? "#8b5cf6" }} aria-hidden="true" />
             {TRIAL_REASSURANCE}
           </p>
         </Reveal>
@@ -346,7 +355,7 @@ export function SiteLanding({ content }: { content?: NicheLandingContent }) {
                 <details className="group rounded-2xl border border-[#e5e5e5] bg-white p-5">
                   <summary className="flex cursor-pointer list-none items-start justify-between gap-4 text-sm font-semibold leading-6 text-[#0a0a0a] marker:content-none">
                     {question}
-                    <span className="mt-1 text-lg leading-none text-[#8b5cf6] transition group-open:rotate-45" aria-hidden="true">+</span>
+                    <span className="mt-1 text-lg leading-none transition group-open:rotate-45" style={{ color: content?.accent?.strong ?? "#8b5cf6" }} aria-hidden="true">+</span>
                   </summary>
                   <p className="mt-3 border-t border-[#e5e5e5] pt-3 text-sm leading-6 text-[#52525b]">{answer}</p>
                 </details>

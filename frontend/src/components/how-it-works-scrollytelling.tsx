@@ -432,10 +432,18 @@ export function HowItWorksScrollytelling({
       if (scrollRange <= 0) return null;
 
       const currentProgress = Math.max(0, Math.min(1, (window.scrollY - sectionTop) / scrollRange));
-      // El ajuste sólo existe en las dos costuras. Dentro de cada paso el
-      // scroll es completamente libre y conserva el scrubbing en directo.
-      if (currentProgress >= 0.312 && currentProgress <= 0.34) return direction === "forward" ? 0.4 : 0.27;
-      if (currentProgress >= 0.642 && currentProgress <= 0.67) return direction === "forward" ? 0.75 : 0.6;
+      // El ajuste sólo existe en las dos costuras y sólo hacia delante: sirve
+      // para no dejar al usuario a medio camino de una transición cuando
+      // avanza por el relato. Hacia atrás NO se ajusta — un usuario que
+      // scrollea hacia arriba para salir de la sección (p. ej. para volver
+      // a la cabecera) cruza las mismas costuras varias veces si viene de
+      // una etapa avanzada, y cada ajuste hacia atrás lo devolvía al
+      // interior de la historia en vez de dejarlo salir. Dentro de cada
+      // paso, y en todo el sentido "atrás", el scroll es completamente
+      // libre y conserva el scrubbing en directo.
+      if (direction !== "forward") return null;
+      if (currentProgress >= 0.312 && currentProgress <= 0.34) return 0.4;
+      if (currentProgress >= 0.642 && currentProgress <= 0.67) return 0.75;
       return null;
     };
 
@@ -499,10 +507,20 @@ export function HowItWorksScrollytelling({
                   aria-current={activeStage === index ? "step" : undefined}
                   aria-label={`Ir al paso ${MOMENTS[index].number}: ${MOMENTS[index].title}`}
                   onClick={() => navigateToStage(index)}
-                  className="group flex h-11 flex-1 items-center rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] focus-visible:ring-offset-2"
+                  className="group flex flex-1 flex-col items-start gap-1.5 rounded-2xl py-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] focus-visible:ring-offset-2"
                 >
                   <span className="relative h-1 w-full overflow-hidden rounded-full bg-[#e5e5e5] transition-[height] duration-150 group-hover:h-1.5 group-focus-visible:h-1.5">
                     <motion.span style={{ opacity }} className="absolute inset-0 bg-[#8b5cf6]" />
+                  </span>
+                  {/* Etiqueta real de la etapa, no un punto desnudo — siempre
+                      visible (no depende del progreso de la barra) para que
+                      se pueda orientar qué paso sigue antes de llegar a él. */}
+                  <span
+                    className={`hidden text-xs font-bold transition-colors duration-200 sm:block ${
+                      activeStage === index ? "text-[#6d28d9]" : "text-[#a1a1aa]"
+                    }`}
+                  >
+                    {MOMENTS[index].title}
                   </span>
                 </button>
               ))}

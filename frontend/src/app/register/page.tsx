@@ -101,7 +101,7 @@ export default function RegisterPage() {
           />
           <div className="my-6 flex items-center gap-4" aria-hidden="true">
             <div className="h-px flex-1 bg-[#e5e5e5]" />
-            <span className="text-xs font-medium uppercase tracking-[0.12em] text-[#a1a1aa]">o con email</span>
+            <span className="text-xs font-medium uppercase tracking-[0.12em] text-[#71717a]">o con email</span>
             <div className="h-px flex-1 bg-[#e5e5e5]" />
           </div>
         </div>
@@ -109,10 +109,13 @@ export default function RegisterPage() {
         <form className="space-y-6" onSubmit={handleSubmit}>
           <div className="space-y-4">
             <div>
-              <label className="text-sm font-medium text-[#27272a]">Email</label>
+              <label htmlFor="register-email" className="text-sm font-medium text-[#27272a]">Email</label>
               <input
+                id="register-email"
+                name="email"
                 type="email"
                 required
+                autoComplete="email"
                 className="field mt-2 w-full"
                 placeholder="tucorreo@dominio.com"
                 value={email}
@@ -120,10 +123,14 @@ export default function RegisterPage() {
               />
             </div>
             <div>
-              <label className="text-sm font-medium text-[#27272a]">Contraseña</label>
+              <label htmlFor="register-password" className="text-sm font-medium text-[#27272a]">Contraseña</label>
               <input
+                id="register-password"
+                name="password"
                 type="password"
                 required
+                minLength={8}
+                autoComplete="new-password"
                 className="field mt-2 w-full"
                 placeholder="Mínimo 8 caracteres"
                 value={password}
@@ -157,7 +164,7 @@ export default function RegisterPage() {
                 Lo usamos para preparar tu asistente conforme a la RGPD desde el primer día.
               </p>
             </fieldset>
-            <label className="flex items-start gap-3 text-sm text-[#27272a]">
+            <label className="flex min-h-11 items-start gap-3 py-1.5 text-sm text-[#27272a]">
               <input
                 type="checkbox"
                 required
@@ -167,11 +174,11 @@ export default function RegisterPage() {
               />
               <span>
                 He leído y acepto los{" "}
-                <Link href="/legal/aviso-legal" target="_blank" className="font-semibold text-[#7c3aed] underline underline-offset-2 transition hover:text-[#6d28d9]">
+                <Link href="/legal/aviso-legal" target="_blank" className="rounded font-semibold text-[#7c3aed] underline underline-offset-2 transition hover:text-[#6d28d9] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] focus-visible:ring-offset-2">
                   Términos y Condiciones
                 </Link>{" "}
                 y la{" "}
-                <Link href="/legal/privacidad" target="_blank" className="font-semibold text-[#7c3aed] underline underline-offset-2 transition hover:text-[#6d28d9]">
+                <Link href="/legal/privacidad" target="_blank" className="rounded font-semibold text-[#7c3aed] underline underline-offset-2 transition hover:text-[#6d28d9] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] focus-visible:ring-offset-2">
                   Política de privacidad
                 </Link>
                 .
@@ -179,7 +186,9 @@ export default function RegisterPage() {
             </label>
           </div>
 
-          {error && <p className="text-sm text-[#c53030]">{error}</p>}
+          {/* Alto reservado: sin esto, un error real (email ya registrado)
+              desplaza el botón justo cuando el usuario reintenta. */}
+          <p className="min-h-5 text-sm text-[#c53030]" role="alert">{error}</p>
 
           <button
             type="submit"
@@ -191,7 +200,7 @@ export default function RegisterPage() {
 
           <div className="text-center text-sm text-muted">
             ¿Ya tienes cuenta?{' '}
-            <Link href="/login" className="font-semibold text-[#7c3aed] transition hover:text-[#6d28d9]">
+            <Link href="/login" className="rounded font-semibold text-[#7c3aed] transition hover:text-[#6d28d9] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] focus-visible:ring-offset-2">
               Inicia sesión
             </Link>
           </div>

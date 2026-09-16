@@ -1,7 +1,8 @@
 import Link from "next/link";
-import { ArrowLeft, CalendarDays, Clock3, PhoneCall, Sparkles } from "lucide-react";
+import { CalendarDays, Clock3, PhoneCall, Sparkles } from "lucide-react";
 import { PlansWithRoi } from "@/components/plans-with-roi";
 import { PlansHeadline } from "@/components/plans-headline";
+import { BackLink } from "@/components/back-link";
 
 const benefits = [
   { title: "Sin fricción", description: "Elige plan primero y crea tu cuenta después.", icon: Sparkles },
@@ -15,10 +16,7 @@ export default function PlansPage() {
     <main className="min-h-screen bg-white text-[#0a0a0a]">
       <div className="mx-auto flex min-h-screen max-w-7xl flex-col px-6 py-6 lg:px-8">
         <header className="flex items-center justify-between gap-4">
-          <Link href="/landing" className="btn-secondary px-4">
-            <ArrowLeft className="h-4 w-4" />
-            Volver
-          </Link>
+          <BackLink fallbackHref="/landing" />
           <Link href="/login" className="btn-secondary px-4">
             Ya tengo cuenta
           </Link>

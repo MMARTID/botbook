@@ -51,7 +51,10 @@ function PlanCard({
           </span>
         ) : null}
         {plan.featured ? (
-          <span className="inline-flex items-center gap-2 rounded-full bg-[#8b5cf6] px-3 py-1 text-xs font-semibold text-white">
+          // `#8b5cf6` con texto blanco a este tamaño (12px) da 4.23:1, por
+          // debajo de AA (4.5:1); `#7c3aed` (purple-strong, ya documentado
+          // como estado hover) da 5.70:1.
+          <span className="inline-flex items-center gap-2 rounded-full bg-[#7c3aed] px-3 py-1 text-xs font-semibold text-white">
             <BadgeCheck className="h-3.5 w-3.5" aria-hidden="true" /> Recomendado
           </span>
         ) : null}
@@ -73,13 +76,12 @@ function PlanCard({
 
       {/* Contraste de valor: solo aparece cuando la persona viene de la calculadora
           y solo si su propia estimación cubre el plan. Si no lo cubre, callar es
-          más honesto que enseñar una resta en contra. */}
+          más honesto que enseñar una resta en contra. La cifra recuperada ya
+          la dice el titular de la página una vez — aquí solo lo específico de
+          este plan, para no repetir la misma frase en las 3 tarjetas. */}
       {contrast?.opportunityCoversPlan ? (
         <div className={`mt-6 rounded-2xl p-4 ${isDark ? "border border-white/10 bg-white/5" : "border border-[#ddd6fe] bg-[#f3eeff]"}`}>
-          <p className={`text-sm font-semibold leading-6 ${isDark ? "text-white" : "text-[#0a0a0a]"}`}>
-            Según tu estimación, recuperarías {currencyFormatter.format(contrast.monthlyOpportunity)} al mes.
-          </p>
-          <p className={`mt-1 text-sm leading-6 ${isDark ? "text-white/65" : "text-[#52525b]"}`}>
+          <p className={`text-sm leading-6 ${isDark ? "text-white/65" : "text-[#52525b]"}`}>
             Este plan cuesta {currencyFormatter.format(contrast.monthlyPlanCost)}: te quedarían{" "}
             <strong className={`font-semibold ${isDark ? "text-[#a78bfa]" : "text-[#7c3aed]"}`}>
               {currencyFormatter.format(contrast.monthlyDifference)} de margen

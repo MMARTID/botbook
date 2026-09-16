@@ -48,7 +48,7 @@ export function PlanSelectionLink({ planId, planName, featured, preselected = fa
         type="button"
         onClick={selectPlan}
         disabled={navigating}
-        className={`mt-8 inline-flex h-12 items-center justify-center rounded-full px-5 text-sm font-semibold transition hover:-translate-y-0.5 disabled:cursor-wait disabled:opacity-70 ${
+        className={`mt-8 inline-flex h-12 items-center justify-center rounded-full px-5 text-sm font-semibold transition hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] focus-visible:ring-offset-2 disabled:cursor-wait disabled:opacity-70 ${
           featured
             ? "bg-[#8b5cf6] text-white hover:bg-[#7c3aed]"
             : preselected

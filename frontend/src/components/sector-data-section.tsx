@@ -9,6 +9,11 @@ const FALLBACK_ACCENT: NicheAccent = {
   deep: "#0a0a0a",
 };
 
+// Color de texto del badge: siempre la tinta oscura de la familia morada
+// (6,25–7,27:1), nunca el acento crudo `strong` (3,73:1, falla AA) — ver
+// La Regla del Semántico Aparte / token badge-soft en DESIGN.md.
+const FALLBACK_INK = "#6d28d9";
+
 function Citation({ source, inverted = false }: { source: string | SectorSource; inverted?: boolean }) {
   const citation = typeof source === "string" ? { publisher: source } : source;
   const content = (
@@ -44,12 +49,20 @@ export function SectorDataSection({
 }) {
   const a = accent ?? FALLBACK_ACCENT;
   const cells = data.stats;
+  // `strong` es el color de icono/borde del nicho, no de texto — pasarlo
+  // directo como color de badge cae por debajo de AA (3,73:1 en el acento
+  // morado por defecto). `deep` está pensado para "tarjetas destacadas" y
+  // es suficientemente oscuro para texto; en el nicho por defecto usamos la
+  // Tinta Morada ya establecida en el resto de la página en vez del negro
+  // puro de FALLBACK_ACCENT.deep, para no romper la identidad morada del
+  // badge genérico.
+  const badgeInk = accent ? accent.deep : FALLBACK_INK;
 
   return (
     <section id="por-que" className="scroll-m-20 border-y border-[#e5e5e5] py-16 sm:py-20">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <Reveal className="mb-10 max-w-2xl">
-          <span className="badge-soft gap-2" style={{ backgroundColor: a.soft, color: a.strong }}>
+          <span className="badge-soft gap-2" style={{ backgroundColor: a.soft, color: badgeInk }}>
             <ArrowDown className="h-3.5 w-3.5" />
             {data.eyebrow}
           </span>
@@ -61,7 +74,7 @@ export function SectorDataSection({
           </p>
         </Reveal>
 
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <div className={`grid grid-cols-1 gap-4 ${cells.length === 2 ? "sm:grid-cols-2" : "sm:grid-cols-3"}`}>
           {cells.map((stat, i) => (
             <Reveal key={i} delay={i * 0.1}>
               {i === 0 ? (
@@ -99,7 +112,16 @@ export function SectorDataSection({
                 <figure className="flex h-full items-start gap-4 rounded-3xl border border-[#e5e5e5] bg-white p-6">
                   <Quote className="mt-0.5 h-5 w-5 shrink-0 text-[#8b5cf6]" style={{ color: a.strong }} aria-hidden="true" />
                   <div>
-                    <blockquote className="text-sm font-medium italic leading-6 text-[#27272a]">
+                    {/* La etiqueta va ANTES de la cita, no solo en la nota al
+                        pie: de un vistazo rápido, comillas + cursiva se leen
+                        como testimonio de cliente. Alhabla no tiene clientes
+                        de pago todavía — esto es comentario de sector, y
+                        tiene que quedar claro antes de leer la frase, no
+                        después. */}
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#a1a1aa]">
+                      Dato de terceros sobre el sector
+                    </p>
+                    <blockquote className="mt-2 text-sm font-medium italic leading-6 text-[#27272a]">
                       &ldquo;{quote.text}&rdquo;
                     </blockquote>
                     {quote.source ? <figcaption><Citation source={quote.source} /></figcaption> : null}

@@ -13,11 +13,34 @@ import { MobileNav } from "@/components/mobile-nav";
 import { Reveal } from "@/components/scroll-reveal";
 import { SectorDataSection } from "@/components/sector-data-section";
 import { generalSectorData } from "@/lib/niche-landings";
+import { formatIncludedMinutes, formatPlanPrice, plans, TRIAL_REASSURANCE } from "@/lib/plans";
 
 const SECTORES = [
   { href: "/peluqueria", title: "Peluquerías", description: "Cortes, color y tratamientos sin soltar el secador.", icon: Scissors },
   { href: "/centro-de-estetica", title: "Estética", description: "Reservas y dudas resueltas mientras estás en cabina.", icon: Sparkles },
   { href: "/barberia", title: "Barberías, uñas y fisioterapia", description: "Una recepción que encaja con tu agenda y tu equipo.", icon: Store },
+] as const;
+
+// FAQ recortada a las 4 dudas que más frenan una decisión justo antes del
+// CTA de cierre — la lista completa (9 preguntas) vive en las landings de
+// nicho, donde sí hay intención de búsqueda concreta para justificarla.
+const QUICK_FAQS = [
+  {
+    question: "¿Mantengo mi número de teléfono de siempre?",
+    answer: "Sí, completamente. Alhabla atiende mediante un desvío desde tu móvil o fijo habitual; no publicas un número nuevo ni avisas a nadie.",
+  },
+  {
+    question: "¿Es difícil de configurar?",
+    answer: "No. Activas el desvío marcando un código rápido en tu teléfono; tarda unos 15 segundos y te guiamos paso a paso para tu operador.",
+  },
+  {
+    question: "¿Hay permanencia?",
+    answer: "No. Empiezas con el plan que mejor encaje y lo cambias cuando lo necesites, sin contratos largos.",
+  },
+  {
+    question: "¿Qué pasa si supero los minutos incluidos?",
+    answer: "Sin sorpresas: cada plan muestra el coste por minuto adicional antes de contratar.",
+  },
 ] as const;
 
 function LandingHeader({ hiddenOnMobile }: { hiddenOnMobile: boolean }) {
@@ -33,8 +56,9 @@ function LandingHeader({ hiddenOnMobile }: { hiddenOnMobile: boolean }) {
           <span className="text-base font-black tracking-tight text-[#0a0a0a]">Alhabla</span>
         </Link>
         <nav className="hidden items-center gap-5 md:flex" aria-label="Navegación principal">
+          <a href="#sectores" className="text-sm font-medium text-[#3f3f46] transition hover:text-[#0a0a0a]">Tu negocio</a>
           <a href="#como-funciona" className="text-sm font-medium text-[#3f3f46] transition hover:text-[#0a0a0a]">Cómo funciona</a>
-          <a href="#sectores" className="text-sm font-medium text-[#3f3f46] transition hover:text-[#0a0a0a]">Para tu negocio</a>
+          <a href="#precios" className="text-sm font-medium text-[#3f3f46] transition hover:text-[#0a0a0a]">Precios</a>
           <Link href="/login" className="btn-secondary h-10 px-4">Iniciar sesión</Link>
           <Link href="/planes" className="btn-primary h-10 px-4">Empezar ahora</Link>
         </nav>
@@ -97,12 +121,102 @@ export function MainLanding() {
         </div>
       </section>
 
+      {/*
+        Las tarjetas de sector suben justo después del hero: una visitante
+        con intención clara (busca "peluquería" o "fisioterapia") se enruta
+        a su landing de nicho — con precio y FAQ propios — antes de invertir
+        tiempo en el relato genérico. Quien no tiene un sector claro en
+        mente simplemente sigue bajando por la página como antes.
+      */}
+      <section id="sectores" className="scroll-m-20 border-t border-[#e5e5e5] py-16 sm:py-24">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <Reveal className="flex max-w-3xl flex-col justify-between gap-5 sm:flex-row sm:items-end">
+            <div>
+              <p className="text-sm font-bold uppercase tracking-[0.14em] text-[#6d28d9]">Hecho para tu ritmo</p>
+              <h2 className="mt-4 text-3xl font-black tracking-tight sm:text-5xl">Cada negocio tiene su forma de llenar la agenda.</h2>
+            </div>
+          </Reveal>
+          <div className="mt-10 grid gap-4 lg:grid-cols-3">
+            {SECTORES.map(({ href, title, description, icon: Icon }, index) => (
+              <Reveal key={href} delay={index * 0.08}>
+                <Link href={href} className="group block h-full rounded-3xl border border-[#e5e5e5] p-6 transition duration-300 hover:-translate-y-1 hover:border-[#ddd6fe] hover:shadow-[0_18px_35px_-24px_rgba(109,40,217,0.55)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] focus-visible:ring-offset-4">
+                  <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#f3eeff] text-[#8b5cf6]"><Icon className="h-5 w-5" aria-hidden="true" /></span>
+                  <h3 className="mt-7 text-xl font-bold">{title}</h3>
+                  <p className="mt-3 text-sm leading-6 text-[#52525b]">{description}</p>
+                  <span className="mt-6 inline-flex items-center gap-2 text-sm font-semibold text-[#0a0a0a]">Ver planes y precios <ArrowRight className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-1" aria-hidden="true" /></span>
+                </Link>
+              </Reveal>
+            ))}
+          </div>
+        </div>
+      </section>
+
       <HowItWorksScrollytelling onNarrativeActiveChange={setIsNarrativeActive} />
 
       <SectorDataSection data={generalSectorData} />
 
-      <section id="sectores" className="scroll-m-20 border-t border-[#e5e5e5] py-16 sm:py-24">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8"><Reveal className="flex max-w-3xl flex-col justify-between gap-5 sm:flex-row sm:items-end"><div><p className="text-sm font-bold uppercase tracking-[0.14em] text-[#6d28d9]">Hecho para tu ritmo</p><h2 className="mt-4 text-3xl font-black tracking-tight sm:text-5xl">Cada negocio tiene su forma de llenar la agenda.</h2></div></Reveal><div className="mt-10 grid gap-4 lg:grid-cols-3">{SECTORES.map(({ href, title, description, icon: Icon }, index) => <Reveal key={href} delay={index * 0.08}><Link href={href} className="group block h-full rounded-3xl border border-[#e5e5e5] p-6 transition duration-300 hover:-translate-y-1 hover:border-[#ddd6fe] hover:shadow-[0_18px_35px_-24px_rgba(109,40,217,0.55)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] focus-visible:ring-offset-4"><span className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#f3eeff] text-[#8b5cf6]"><Icon className="h-5 w-5" aria-hidden="true" /></span><h3 className="mt-7 text-xl font-bold">{title}</h3><p className="mt-3 text-sm leading-6 text-[#52525b]">{description}</p><span className="mt-6 inline-flex items-center gap-2 text-sm font-semibold text-[#0a0a0a]">Ver cómo funciona <ArrowRight className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-1" aria-hidden="true" /></span></Link></Reveal>)}</div></div>
+      {/* Precio y FAQ compactos aquí mismo: la visitante que llega convencida
+          por el relato anterior no tiene que salir de la página para ver un
+          número o resolver la duda que la frena justo antes del CTA final. */}
+      <section id="precios" className="scroll-m-20 border-t border-[#e5e5e5] py-16 sm:py-24">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <Reveal className="max-w-2xl">
+            <h2 className="text-3xl font-black tracking-tight text-[#0a0a0a] sm:text-4xl">Planes claros, sin permanencia.</h2>
+            <p className="mt-4 flex flex-wrap items-center gap-2 text-base font-semibold leading-7 text-[#27272a]">
+              <Check className="h-5 w-5 shrink-0 text-[#8b5cf6]" aria-hidden="true" />
+              {TRIAL_REASSURANCE}
+            </p>
+          </Reveal>
+
+          <div className="mt-8 grid gap-5 lg:grid-cols-3">
+            {plans.map((plan, index) => (
+              <Reveal key={plan.id} delay={index * 0.1}>
+                <article
+                  className={
+                    plan.featured
+                      ? "relative flex h-full flex-col rounded-3xl bg-white p-7 ring-2 ring-[#8b5cf6]"
+                      : "flex h-full flex-col rounded-3xl border border-[#e5e5e5] bg-white p-7"
+                  }
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <h3 className="text-lg font-bold text-[#0a0a0a]">{plan.name}</h3>
+                    {plan.featured ? <span className="badge-soft">Recomendado</span> : null}
+                  </div>
+                  <p className="mt-6 text-4xl font-black tracking-tight text-[#0a0a0a]">
+                    {formatPlanPrice(plan.price)}
+                    <span className="text-base font-medium text-[#71717a]">/mes</span>
+                  </p>
+                  <p className="mt-3 text-sm font-semibold text-[#27272a]">{formatIncludedMinutes(plan.minutes)} minutos incluidos</p>
+                  <p className="mt-2 text-sm leading-7 text-[#52525b]">{plan.summary}</p>
+                  <Link href={`/planes?plan=${plan.id}`} className={plan.featured ? "btn-primary mt-6" : "btn-secondary mt-6"}>
+                    Elegir {plan.name}
+                  </Link>
+                </article>
+              </Reveal>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section id="preguntas" className="scroll-m-20 border-y border-[#e5e5e5] py-16 sm:py-20">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <Reveal>
+            <h2 className="text-3xl font-black tracking-tight text-[#0a0a0a] sm:text-4xl">Resuelve tus dudas antes de empezar.</h2>
+          </Reveal>
+          <div className="mt-8 grid items-start gap-3 sm:grid-cols-2">
+            {QUICK_FAQS.map(({ question, answer }, index) => (
+              <Reveal key={question} delay={Math.min(index, 5) * 0.05} y={12}>
+                <details className="group rounded-2xl border border-[#e5e5e5] bg-white p-5">
+                  <summary className="flex cursor-pointer list-none items-start justify-between gap-4 text-sm font-semibold leading-6 text-[#0a0a0a] marker:content-none">
+                    {question}
+                    <span className="mt-1 text-lg leading-none text-[#8b5cf6] transition group-open:rotate-45" aria-hidden="true">+</span>
+                  </summary>
+                  <p className="mt-3 border-t border-[#e5e5e5] pt-3 text-sm leading-6 text-[#52525b]">{answer}</p>
+                </details>
+              </Reveal>
+            ))}
+          </div>
+        </div>
       </section>
 
       <section className="bg-[#0a0a0a] text-white"><Reveal className="mx-auto flex max-w-7xl flex-col items-start justify-between gap-7 px-4 py-16 sm:px-6 sm:py-20 lg:flex-row lg:items-center lg:px-8"><div><p className="text-sm font-bold uppercase tracking-[0.14em] text-[#a78bfa]">Tu recepción, siempre disponible</p><h2 className="mt-3 max-w-xl text-3xl font-black tracking-tight sm:text-5xl">Prueba qué pasa cuando nadie deja una llamada sin atender.</h2></div><Link href="/planes" className="btn-purple shrink-0">Empezar ahora <ArrowRight className="h-4 w-4" aria-hidden="true" /></Link></Reveal></section>

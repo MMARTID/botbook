@@ -13,6 +13,16 @@ export default function CheckoutResultPage({
 }) {
   const sessionId = searchParams.session_id ?? null;
   const [hasPlaceSchedule, setHasPlaceSchedule] = useState(false);
+  // Si la confirmación tarda demasiado, la copia pasa a un segundo nivel con
+  // contacto de soporte — sin esto, un usuario real puede quedarse mirando
+  // "estamos confirmando" con sondeos cada 2,5s indefinidamente, sin ninguna
+  // señal de que algo podría ir mal.
+  const [isTakingLong, setIsTakingLong] = useState(false);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setIsTakingLong(true), 60_000);
+    return () => window.clearTimeout(timer);
+  }, []);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -46,17 +56,26 @@ export default function CheckoutResultPage({
   return (
     <section className="mx-auto max-w-2xl py-16 text-center">
       <div className="panel p-8 sm:p-12">
-        <div className={`mx-auto flex h-16 w-16 items-center justify-center rounded-full ${confirmed ? "bg-[#eef6dc] text-[#2c7334]" : "bg-[#f3f1e8] text-[#8a6d22]"}`}>
+        <div className={`mx-auto flex h-16 w-16 items-center justify-center rounded-full ${confirmed ? "bg-[#ecf7ec] text-[#2c7334]" : "bg-[#fef8e7] text-[#9f7a15]"}`}>
           {confirmed ? <CheckCircle2 className="h-8 w-8" /> : <Clock3 className="h-8 w-8" />}
         </div>
-        <h1 className="mt-6 text-3xl font-semibold tracking-tight text-[#1e2b22]">
+        <h1 className="mt-6 text-3xl font-semibold tracking-tight text-[#0a0a0a]">
           {confirmed ? "Suscripción confirmada" : "Estamos confirmando tu suscripción"}
         </h1>
         <p className="mt-4 leading-7 text-muted">
           {confirmed
             ? "Tu trial y los permisos del plan ya están sincronizados."
-            : "Stripe ha recibido el proceso. Esperamos el webhook seguro antes de activar el plan."}
+            : "Stripe está procesando el pago. En unos segundos activamos tu plan automáticamente."}
         </p>
+        {!confirmed && isTakingLong ? (
+          <p className="mt-3 text-sm leading-6 text-[#9f7a15]">
+            Esto está tardando más de lo normal. Si no se confirma en unos minutos, escríbenos a{" "}
+            <a href="mailto:hola@alhabla.ai" className="font-semibold underline underline-offset-2">
+              hola@alhabla.ai
+            </a>{" "}
+            y te ayudamos.
+          </p>
+        ) : null}
         {isLoading ? <p className="mt-4 text-sm text-muted">Consultando estado…</p> : null}
         <div className="mt-8 flex flex-wrap justify-center gap-3">
           {confirmed ? null : (
