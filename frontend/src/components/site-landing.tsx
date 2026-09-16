@@ -8,8 +8,6 @@ import { RevenueLossCalculator } from "@/components/revenue-loss-calculator";
 import { Reveal } from "@/components/scroll-reveal";
 import { BrandMark } from "@/components/brand-mark";
 import { CallForwardingFlow } from "@/components/call-forwarding-flow";
-import { ParticleField } from "@/components/particle-field";
-import { ParticleMouseLayer } from "@/components/particle-mouse-layer";
 import { formatIncludedMinutes, formatPlanPrice, plans, TRIAL_REASSURANCE } from "@/lib/plans";
 import { type NicheLandingContent } from "@/lib/niche-landings";
 import { MainLanding } from "@/components/main-landing";
@@ -114,13 +112,12 @@ export function SiteLanding({ content }: { content?: NicheLandingContent }) {
   return (
     <main
       id="main-content"
-      // Sin fondo propio y con `isolate`: el blanco lo pone el `body` y el
-      // campo de partículas queda por detrás del contenido (ver ParticleField).
-      className="relative isolate min-h-screen w-full text-[#0a0a0a]"
+      // Sin campo de partículas (decisión 2026-09-16): en la landing ensuciaba
+      // el contenido y competiría con las animaciones del hero; queda
+      // reservado a login/registro/onboarding.
+      className="relative isolate min-h-screen w-full bg-white text-[#0a0a0a]"
       data-landing="alhabla"
     >
-      <ParticleField color={content?.accent?.strong} />
-      <ParticleMouseLayer color={content?.accent?.strong} />
       <a
         href="#contenido"
         className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-[60] focus:rounded-full focus:bg-[#0a0a0a] focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-white"
@@ -161,7 +158,6 @@ export function SiteLanding({ content }: { content?: NicheLandingContent }) {
       </div>
 
       {content.sectorData ? <SectorDataSection data={content.sectorData} accent={content.accent} /> : null}
-      <RevenueLossCalculator content={content?.calculator} activeNiche={content?.slug} accent={content?.accent} />
 
       {/*
         Sin fondo propio a partir de aquí (salvo los bloques negros reales,
@@ -286,6 +282,17 @@ export function SiteLanding({ content }: { content?: NicheLandingContent }) {
           </div>
         </div>
       </section>
+
+      {/*
+        Orden decidido (2026-09-16): la calculadora vive justo antes de
+        Precios, no tras los datos del sector. El arco es problema (datos) →
+        solución (cómo funciona) → prueba (calendario) → encaje (beneficios) →
+        cuantificación (calculadora) → precio: la cifra de pérdida queda
+        fresca al ver los 69€, y /planes reutiliza esa estimación
+        (plans-with-roi) — su CTA ya no pide comprar antes de haber visto
+        cómo funciona el producto.
+      */}
+      <RevenueLossCalculator content={content?.calculator} activeNiche={content?.slug} accent={content?.accent} />
 
       <section id="precios" className="scroll-m-20 mx-auto max-w-7xl px-4 py-16 sm:px-6 sm:py-20 lg:px-8">
         <Reveal className="max-w-2xl">
