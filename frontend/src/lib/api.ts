@@ -56,6 +56,22 @@ export async function getGoogleAuthUrl(acceptedTerms?: boolean) {
   return data.url;
 }
 
+/**
+ * Pide el enlace de restablecimiento. El backend responde igual exista o no
+ * la cuenta, así que aquí no hay nada que distinguir: solo confirmar que la
+ * petición llegó.
+ */
+export async function requestPasswordReset(email: string) {
+  const { data } = await api.post<{ message: string }>("/auth/forgot-password", { email });
+  return data;
+}
+
+/** Devuelve la sesión ya iniciada: recibir el enlace demuestra que el buzón es suyo. */
+export async function resetPassword(input: { token: string; password: string }) {
+  const { data } = await api.post<{ message: string; token: string }>("/auth/reset-password", input);
+  return data;
+}
+
 export async function consumeGoogleSession() {
   const { data } = await api.post<{ token: string }>("/auth/google/session", undefined, {
     withCredentials: true,

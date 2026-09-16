@@ -54,6 +54,8 @@ const PUBLIC_ROUTES = [
   "/barberia",
   "/fisioterapia",
   "/login",
+  "/recuperar-contrasena",
+  "/restablecer-contrasena",
   "/register",
   "/register/business",
   "/register/business/niche",

@@ -59,6 +59,7 @@ function LandingHeader({ hiddenOnMobile }: { hiddenOnMobile: boolean }) {
           <a href="#sectores" className="text-sm font-medium text-[#3f3f46] transition hover:text-[#0a0a0a]">Tu negocio</a>
           <a href="#como-funciona" className="text-sm font-medium text-[#3f3f46] transition hover:text-[#0a0a0a]">Cómo funciona</a>
           <a href="#precios" className="text-sm font-medium text-[#3f3f46] transition hover:text-[#0a0a0a]">Precios</a>
+          <a href="#preguntas" className="text-sm font-medium text-[#3f3f46] transition hover:text-[#0a0a0a]">Preguntas</a>
           <Link href="/login" className="btn-secondary h-10 px-4">Iniciar sesión</Link>
           <Link href="/planes" className="btn-primary h-10 px-4">Empezar ahora</Link>
         </nav>

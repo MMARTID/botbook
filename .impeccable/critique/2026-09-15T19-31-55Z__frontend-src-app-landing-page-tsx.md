@@ -46,13 +46,13 @@ Específico de Alhabla vía el scrollytelling de desvío de llamada. Detector li
 2. Disciplina de tokens — coincide con DESIGN.md salvo la excepción anotada.
 3. Voz de copy fiel al brief de marca.
 
-## Problemas prioritarios
+## Problemas prioritarios (con estado tras el arreglo)
 
-[P0] Sin precio en `/landing`. Fix: sección compacta con ancla #precios. Comando: clarify/distill.
-[P1] Scroll-hijack atrapa navegación hacia arriba en móvil. Fix: soltar snap tras primera etapa o reforzar affordance de salto. Comando: harden/polish.
-[P2] Sin FAQ antes del CTA de cierre. Fix: portar 3-4 preguntas de site-landing.tsx. Comando: distill/onboard.
-[P3] Grid de estadísticas desbalanceado en desktop (3 columnas, 2 datos). Comando: layout.
-[P3] Badge de contraste bajo, real y trazable a sector-data-section.tsx:52. Comando: audit/fix directo.
+[P0] Sin precio en `/landing` — ARREGLADO (commit 78f10a9, 2026-09-16): sección `#precios` con los 3 planes y `TRIAL_REASSURANCE` en main-landing.tsx, enlazada desde la navegación de escritorio. El menú móvil de la portada seguía sin «Precios» ni «Preguntas» — ARREGLADO 2026-09-16 (mobile-nav.tsx, mismas entradas y orden que el escritorio).
+[P1] Scroll-hijack atrapa navegación hacia arriba en móvil — ARREGLADO (78f10a9): el ajuste a las costuras solo actúa hacia delante; hacia atrás el scroll es libre y se sale de la sección sin rebotes. Verificado en viewport móvil 2026-09-16.
+[P2] Sin FAQ antes del CTA de cierre — ARREGLADO (78f10a9): `QUICK_FAQS` con las 4 dudas que más frenan, sección `#preguntas`.
+[P3] Grid de estadísticas desbalanceado en desktop (3 columnas, 2 datos). Comando: layout. PENDIENTE.
+[P3] Badge de contraste bajo en sector-data-section.tsx:52 — ARREGLADO (78f10a9): el badge usa `accent.deep` o la Tinta Morada `#6d28d9`, nunca `strong` como texto.
 
 ## Alertas de persona
 

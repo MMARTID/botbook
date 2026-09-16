@@ -90,7 +90,15 @@ export default function LoginPage() {
               />
             </div>
             <div>
-              <label htmlFor="login-password" className="text-sm font-medium text-[#27272a]">Contraseña</label>
+              <div className="flex items-center justify-between gap-4">
+                <label htmlFor="login-password" className="text-sm font-medium text-[#27272a]">Contraseña</label>
+                <Link
+                  href="/recuperar-contrasena"
+                  className="rounded text-sm font-medium text-[#7c3aed] transition hover:text-[#6d28d9] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] focus-visible:ring-offset-2"
+                >
+                  ¿La has olvidado?
+                </Link>
+              </div>
               <input
                 id="login-password"
                 name="password"

@@ -15,9 +15,14 @@ const VERTICAL_SECTION_LINKS = [
   { href: "#preguntas", label: "Preguntas" },
 ] as const;
 
+// Mismas entradas y mismo orden que la navegación de escritorio de la
+// portada: el móvil tenía la mitad y dejaba «Precios» sin ruta directa
+// justo para quien mira desde el móvil entre clientas.
 const MAIN_SECTION_LINKS = [
+  { href: "#sectores", label: "Tu negocio" },
   { href: "#como-funciona", label: "Cómo funciona" },
-  { href: "#sectores", label: "Para tu negocio" },
+  { href: "#precios", label: "Precios" },
+  { href: "#preguntas", label: "Preguntas" },
 ] as const;
 
 export function MobileNav({ niche, variant = "vertical" }: { niche?: string; variant?: "main" | "vertical" }) {

@@ -109,6 +109,7 @@ Each module is a folder containing a `routes.ts` file (and optionally `service.t
 | `/` | Dashboard (protected) — calls, stats, setup score, file uploads, upcoming events |
 | `/landing` | Generic conversion landing |
 | `/login`, `/register`, `/register/business`, `/register/business/niche`, `/register/business/services`, `/register/business/team`, `/register/business/calendar` | Auth flow |
+| `/recuperar-contrasena`, `/restablecer-contrasena?token=` | Password recovery — request the emailed link, then set a new password (signs the user in on success) |
 | `/auth/google/callback` | Google OAuth session consumption |
 | `/barberia`, `/peluqueria`, `/fisioterapia`, `/centro-de-estetica`, `/salon-de-unas` | Niche SEO landings |
 | `/planes` | Pricing page with ROI-aware headline |
@@ -300,6 +301,20 @@ The backend uses a custom JWT scheme:
 5. Routes that need auth use `onRequest: fastify.authenticate` or `preValidation: [fastify.authenticate]` in their route options.
 
 All business-scoped data is filtered by `businessId` from the token. Never trust a `businessId` coming from the request body for read/write operations — always use `request.user.businessId`.
+
+### Password Reset (Auth)
+
+- `POST /auth/forgot-password` `{ email }` — always `200` with the same message whether or not the
+  account exists (no user enumeration). When it does, a 32-byte token is generated, **only its
+  SHA-256 hash** is stored in Redis (`auth:password-reset:<hash>` → `userId`, 1 h TTL) and the link
+  `${FRONTEND_URL}/restablecer-contrasena?token=` is emailed through the `send-email` job from
+  `support@`. Google-only accounts (no password) can use it too — receiving the mail proves
+  ownership, same as setting a password from `/ajustes`. Rate limit: 5/min.
+- `POST /auth/reset-password` `{ token, password }` — consumes the hash with `GETDEL` (single use),
+  applies the same password rules as `/auth/change-password`, hashes with bcrypt(12), sends the
+  "password changed" confirmation and returns a JWT so the frontend signs the user in directly.
+  Invalid/expired token → `400` "El enlace no es válido o ha caducado. Pide uno nuevo.".
+- Logic lives in `backend/src/modules/auth/passwordResetService.ts`; no Prisma model is involved.
 
 ### Google OAuth Flow (Auth)
 

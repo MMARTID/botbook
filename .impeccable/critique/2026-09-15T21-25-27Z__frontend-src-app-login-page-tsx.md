@@ -29,7 +29,7 @@ El BrandMark, el campo de partículas y el botón negro sí marcan la página co
 
 ## Problemas prioritarios (con estado tras el arreglo)
 [P0] Mensaje de error genérico sin diferenciar credenciales de red — ARREGLADO: ahora distingue 401 ("Email o contraseña incorrectos"), otro status ("Error al iniciar sesión...") y sin respuesta ("No se pudo conectar...").
-[P0] Sin ruta de recuperación de contraseña — PENDIENTE, requiere decisión de producto/backend (no hay endpoint ni página hoy). Backlog.
+[P0] Sin ruta de recuperación de contraseña — ARREGLADO 2026-09-16 (decisión del usuario): enlace «¿La has olvidado?» junto al campo, página `/recuperar-contrasena` (pide el enlace; misma respuesta exista o no la cuenta) y `/restablecer-contrasena?token=` (contraseña nueva y entra directamente). Backend: `POST /auth/forgot-password` y `POST /auth/reset-password`, token de un solo uso con hash en Redis y 1 h de caducidad, correo vía el job de email.
 [P1] El mensaje de error desplazaba el botón "Entrar" al aparecer — ARREGLADO con min-h-5 reservado.
 [P1] Sin autoComplete en los campos — ARREGLADO (email/current-password).
 [P1 técnico] Labels sin asociación programática (sin htmlFor/id) — ARREGLADO, confirmado en DOM vivo.

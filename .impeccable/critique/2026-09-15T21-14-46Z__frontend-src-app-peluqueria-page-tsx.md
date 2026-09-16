@@ -29,13 +29,13 @@ Copy genuinamente de peluquería. Pero el acento por nicho solo cubre ~40% de la
 2. Sourcing de datos de terceros correcto (etiqueta + fuente + enlace), respeta restricción de prelanzamiento.
 3. Copy con vocabulario real de peluquería.
 
-## Problemas prioritarios
-[P1] Acento de nicho incompleto (~40% cobertura): .titular-subrayado fijo, RangeSlider sin prop de acento, revenue-loss-calculator.tsx:145,168 con text-[#a78bfa] fijo, iconos de beneficio fijos en site-landing.tsx. Comando: colorize.
-[P2] HeroPulse oculto en móvil (landing-hero.tsx:112, hidden lg:block) — pierde la prueba visual justo en el dispositivo de la persona principal. Comando: adapt.
-[P2] Cita de prensa puede leerse como testimonio de cliente (sector-data-section.tsx:112-120, etiqueta "DATO DE TERCEROS" a 11px debajo de la cita). Comando: clarify.
-[P2 técnico] Menú móvil sin fixed/backdrop/aria-modal (mobile-nav.tsx:86-119) — robustez de accesibilidad real. Comando: harden.
-[P3 técnico] Dos objetivos táctiles <44px: logo (32px), botón "Reproducir" en call-forwarding-flow.tsx:79-85 (34px). Comando: adapt.
-[P3] Sin reassurance explícito para salón de una silla. Comando: clarify.
+## Problemas prioritarios (con estado tras el arreglo)
+[P1] Acento de nicho incompleto (~40% cobertura) — ARREGLADO (commit 78f10a9, 2026-09-16): `.titular-subrayado` toma `--purple-ring` del acento por instancia, `RangeSlider` recibe `accent` (icono, relleno, thumb y anillo de foco), la calculadora tiñe la cifra de pérdida, el check y el botón con `accent.strong`, y los iconos de beneficio y de calendario en site-landing.tsx usan `accent.soft/strong`. Revisión 2026-09-16: no queda morado de marca fijo en la ruta de nicho salvo la demo de voz (UI del producto, no del nicho) y el `.btn-purple` del cierre negro.
+[P2] HeroPulse oculto en móvil (landing-hero.tsx, hidden lg:block). Comando: adapt. PENDIENTE — decisión 2026-09-16: fuera de esta pasada.
+[P2] Cita de prensa puede leerse como testimonio de cliente (sector-data-section.tsx:112-120). Comando: clarify. PENDIENTE.
+[P2 técnico] Menú móvil sin fixed/backdrop — ARREGLADO (78f10a9): panel `fixed` con backdrop que cierra al tocar fuera; `aria-modal` descartado a propósito (no es válido en un landmark `nav`).
+[P3 técnico] Objetivos táctiles <44px — botón "Reproducir" ARREGLADO (78f10a9, `h-11`); el logotipo sigue en 32px pero su enlace incluye el nombre de la marca, así que el objetivo real es más ancho. Comando: adapt.
+[P3] Sin reassurance explícito para salón de una silla. Comando: clarify. PENDIENTE.
 
 ## Hallazgos técnicos
 A11y: jerarquía de encabezados limpia, sliders correctamente etiquetados, sin img sueltas. Contraste del badge hero (#b23a68/#fbe9f1) pasa por margen estrecho (4.87:1) — riesgo arquitectónico en landing-hero.tsx a verificar en las otras 4 niches. Rendimiento limpio (transform/opacity, sin antipatrón scrollY). Sin overflow móvil. Consola limpia incluso tras interacción con la calculadora.

@@ -35,9 +35,9 @@ Contextualmente específico: el contraste de ROI real de la calculadora y el est
 [Técnico, hallazgo B] Badge "Recomendado" con fallo real de contraste (blanco sobre #8b5cf6 a 12px = 4.23:1, falla AA) — ARREGLADO a #7c3aed (5.70:1).
 [P1] "Volver" fijo a /landing sin importar de dónde llegó el usuario (landing de nicho, /register) — ARREGLADO: nuevo componente BackLink usa router.back() con fallback a /landing solo si no hay historial.
 [P2] La misma frase de ROI ("recuperarías X € al mes") se repetía en el titular y en las 3 tarjetas — ARREGLADO: cada tarjeta ahora solo muestra el margen específico de ese plan, el titular ya dice la cifra una vez.
-[P0] Sin reassurance junto al CTA sobre qué implica pulsar "Elegir X" (crea cuenta, no cobra) — PENDIENTE, decisión de copy/producto, no se tocó.
+[P0] Sin reassurance junto al CTA sobre qué implica pulsar "Elegir X" (crea cuenta, no cobra) — ARREGLADO 2026-09-16 (decisión del usuario): línea bajo cada botón, enlazada por `aria-describedby`. Cuando el embudo navega: «Crea tu cuenta y añade una tarjeta: no se cobra nada hasta que termina la prueba.» (Stripe exige tarjeta: `payment_method_collection: "always"`); con sesión iniciada se omite «Crea tu cuenta y». En producción, con el registro cerrado: «Registro por invitación mientras terminamos el desarrollo.»
 [P1] Flash de contenido genérico→personalizado al cargar (headline y ROI) — verificado por Assessment B: NO hay hydration mismatch (el patrón useState+useEffect es seguro), pero sí hay un salto visual tras el montaje. No se tocó — es un trade-off de UX menor, no un bug.
-[P3] Titular puede crecer a 6 líneas en móvil cuando está personalizado, empujando los planes fuera de la vista — PENDIENTE, cambio de copy/tipografía responsive no aplicado.
+[P3] Titular puede crecer a 6 líneas en móvil cuando está personalizado — ARREGLADO 2026-09-16: copy más corto («Convierte esas 12 llamadas al mes en 420 € de reservas, sin complicarte.») y un paso menos de cuerpo en móvil (`text-3xl sm:text-4xl`) solo en la variante personalizada, con `text-balance`.
 
 ## Alertas de persona
 Usuario que llega "frío" a /planes: mejor servido ahora que el foco es visible en cada CTA.

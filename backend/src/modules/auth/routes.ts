@@ -18,6 +18,10 @@ import {
   deleteAccount,
   getAccountOverview,
 } from "./accountService.js";
+import {
+  requestPasswordReset,
+  resetPasswordWithToken,
+} from "./passwordResetService.js";
 
 const GOOGLE_AUTH_STATE_TTL_SECONDS = 10 * 60;
 const GOOGLE_SESSION_TTL_SECONDS = 60;
@@ -32,15 +36,33 @@ const GOOGLE_SESSION_COOKIE = "alhabla_google_session";
 const GOOGLE_OAUTH_STATE_COOKIE = "alhabla_google_oauth_state";
 const FIRST_USER_BOOTSTRAP_SECRET_ENV = "FIRST_USER_BOOTSTRAP_SECRET";
 
+// Mismas reglas al cambiarla desde Ajustes y al restablecerla por correo:
+// una sola definición para que nunca diverjan.
+const NewPasswordSchema = z
+  .string()
+  .min(8, "La nueva contraseña debe tener al menos 8 caracteres")
+  .max(128, "La nueva contraseña es demasiado larga")
+  .regex(/[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]/, "Añade al menos una letra")
+  .regex(/\d/, "Añade al menos un número");
+
 const ChangePasswordSchema = z.object({
   currentPassword: z.string().max(200).optional(),
-  newPassword: z
-    .string()
-    .min(8, "La nueva contraseña debe tener al menos 8 caracteres")
-    .max(128, "La nueva contraseña es demasiado larga")
-    .regex(/[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]/, "Añade al menos una letra")
-    .regex(/\d/, "Añade al menos un número"),
+  newPassword: NewPasswordSchema,
 });
+
+const ForgotPasswordSchema = z.object({
+  email: z.string().trim().email("Escribe un email válido").max(254),
+});
+
+const ResetPasswordSchema = z.object({
+  token: z.string().min(20).max(200),
+  password: NewPasswordSchema,
+});
+
+// Misma respuesta exista o no la cuenta: no se puede usar este formulario
+// para averiguar qué emails están registrados.
+const FORGOT_PASSWORD_MESSAGE =
+  "Si existe una cuenta con ese email, te hemos enviado un enlace para crear una contraseña nueva.";
 
 const DeleteAccountSchema = z.object({
   currentPassword: z.string().max(200).optional(),
@@ -286,6 +308,56 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
         message: "Usuario registrado con éxito",
         token: createToken(result.user),
       });
+    }
+  );
+
+  fastify.post(
+    "/forgot-password",
+    {
+      config: { rateLimit: veryStrictRateLimit },
+    },
+    async (request, reply) => {
+      try {
+        const { email } = ForgotPasswordSchema.parse(request.body);
+        await requestPasswordReset(email);
+        return reply.send({ message: FORGOT_PASSWORD_MESSAGE });
+      } catch (error) {
+        const response = sendAccountActionError(reply, error);
+        if (response) return response;
+        fastify.log.error({ err: error }, "Unable to start password reset");
+        return reply
+          .status(500)
+          .send({ error: "No se pudo enviar el correo. Inténtalo de nuevo." });
+      }
+    }
+  );
+
+  fastify.post(
+    "/reset-password",
+    {
+      config: { rateLimit: veryStrictRateLimit },
+    },
+    async (request, reply) => {
+      try {
+        const { token, password } = ResetPasswordSchema.parse(request.body);
+        const user = await resetPasswordWithToken({
+          token,
+          newPassword: password,
+        });
+        // Recibir el enlace ya demuestra que el buzón es suyo: se entra
+        // directamente, sin obligar a teclear la contraseña recién creada.
+        return reply.send({
+          message: "Contraseña actualizada",
+          token: createToken(user),
+        });
+      } catch (error) {
+        const response = sendAccountActionError(reply, error);
+        if (response) return response;
+        fastify.log.error({ err: error }, "Unable to reset password");
+        return reply
+          .status(500)
+          .send({ error: "No se pudo cambiar la contraseña. Inténtalo de nuevo." });
+      }
     }
   );
 

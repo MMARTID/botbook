@@ -4,6 +4,7 @@ import {
   paymentApprovedEmail,
   paymentFailedEmail,
   passwordChangedEmail,
+  passwordResetEmail,
   subscriptionCancellationInstructionsEmail,
 } from "../../src/lib/emailTemplates.js";
 
@@ -91,5 +92,24 @@ describe("emails de seguridad de la cuenta", () => {
 
     expect(subject).toContain("Peluquería Ana");
     expect(html).toContain("desvío de llamadas");
+  });
+});
+
+describe("passwordResetEmail", () => {
+  it("lleva el enlace de restablecimiento como CTA y avisa de la caducidad", () => {
+    const { subject, html } = passwordResetEmail({
+      resetUrl: "https://app.alhabla.ai/restablecer-contrasena?token=abc123",
+    });
+
+    expect(subject).toBe("Restablece tu contraseña de Alhabla");
+    expect(html).toContain('href="https://app.alhabla.ai/restablecer-contrasena?token=abc123"');
+    expect(html).toContain("1 hora");
+    expect(html).toContain("<!DOCTYPE html>");
+  });
+
+  it("deja claro que ignorarlo no cambia nada, para quien no lo pidió", () => {
+    const { html } = passwordResetEmail({ resetUrl: "https://app.alhabla.ai/x" });
+
+    expect(html).toContain("Si no has pedido este cambio");
   });
 });
