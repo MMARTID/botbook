@@ -7,7 +7,7 @@ import { motion } from "framer-motion";
 
 import { BrandMark } from "@/components/brand-mark";
 import { DemoVoiceCall } from "@/components/demo-voice-call";
-import { HeroPulse } from "@/components/hero-pulse";
+import { HeroScene } from "@/components/hero-scene";
 import { HowItWorksScrollytelling } from "@/components/how-it-works-scrollytelling";
 import { MobileNav } from "@/components/mobile-nav";
 import { Reveal } from "@/components/scroll-reveal";
@@ -56,10 +56,10 @@ function LandingHeader({ hiddenOnMobile }: { hiddenOnMobile: boolean }) {
           <span className="text-base font-black tracking-tight text-[#0a0a0a]">Alhabla</span>
         </Link>
         <nav className="hidden items-center gap-5 md:flex" aria-label="Navegación principal">
-          <a href="#sectores" className="text-sm font-medium text-[#3f3f46] transition hover:text-[#0a0a0a]">Tu negocio</a>
-          <a href="#como-funciona" className="text-sm font-medium text-[#3f3f46] transition hover:text-[#0a0a0a]">Cómo funciona</a>
-          <a href="#precios" className="text-sm font-medium text-[#3f3f46] transition hover:text-[#0a0a0a]">Precios</a>
-          <a href="#preguntas" className="text-sm font-medium text-[#3f3f46] transition hover:text-[#0a0a0a]">Preguntas</a>
+          <a href="#sectores" className="enlace-nav">Tu negocio</a>
+          <a href="#como-funciona" className="enlace-nav">Cómo funciona</a>
+          <a href="#precios" className="enlace-nav">Precios</a>
+          <a href="#preguntas" className="enlace-nav">Preguntas</a>
           <Link href="/login" className="btn-secondary h-10 px-4">Iniciar sesión</Link>
           <Link href="/planes" className="btn-primary h-10 px-4">Empezar ahora</Link>
         </nav>
@@ -116,8 +116,11 @@ export function MainLanding() {
               </p>
             </Reveal>
           </div>
-          <Reveal delay={0.1} y={18} className="hidden rounded-3xl border border-[#e5e5e5] bg-[#fafafa] px-5 py-8 sm:px-8 lg:block lg:px-10">
-            <HeroPulse />
+          <Reveal delay={0.1} y={18} className="hidden lg:block">
+            {/* La escena de la portada: el mostrador con el teléfono esperando
+                mientras la profesional atiende — HeroScene trae su propio
+                marco, de ahí que el panel de HeroPulse desaparezca aquí. */}
+            <HeroScene video={{ src: "/heroes/general.mp4", poster: "/heroes/general.jpg" }} />
           </Reveal>
         </div>
       </section>

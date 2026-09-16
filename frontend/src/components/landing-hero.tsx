@@ -7,6 +7,7 @@ import { useState } from "react";
 import { ArrowDown, ArrowRight, Check, Headphones } from "lucide-react";
 
 import { HeroPulse } from "@/components/hero-pulse";
+import { HeroScene } from "@/components/hero-scene";
 import { DemoVoiceCall } from "@/components/demo-voice-call";
 import { Reveal } from "@/components/scroll-reveal";
 import type { NicheAccent, NicheLandingContent } from "@/lib/niche-landings";
@@ -124,7 +125,13 @@ export function LandingHero({ content }: { content?: NicheLandingContent }) {
         </div>
 
         <Reveal delay={0.1} y={18} id="demo-llamada" className="hidden scroll-m-24 lg:block">
-          <HeroPulse accent={accent} />
+          {/* Con clip de nicho, la escena real del negocio; sin él, el pulso
+              de llamada de siempre. */}
+          {content?.heroVideo ? (
+            <HeroScene video={content.heroVideo} accent={accent} />
+          ) : (
+            <HeroPulse accent={accent} />
+          )}
         </Reveal>
       </section>
 
