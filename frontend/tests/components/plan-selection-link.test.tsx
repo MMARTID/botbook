@@ -42,6 +42,35 @@ describe("PlanSelectionLink", () => {
     expect(screen.getByText(/social@alhabla\.ai/)).toBeInTheDocument();
   });
 
+  it("en producción la nota bajo el botón no promete una cuenta que no se va a crear", () => {
+    mockedIsProductionBuild.mockReturnValue(true);
+    render(<PlanSelectionLink planId="pro" planName="Pro" featured />);
+
+    const button = screen.getByRole("button", { name: "Elegir Pro" });
+    expect(button).toHaveAccessibleDescription("Registro por invitación mientras terminamos el desarrollo.");
+    expect(screen.queryByText(/no se cobra nada/)).not.toBeInTheDocument();
+  });
+
+  it("fuera de producción, sin sesión, avisa de que crea cuenta, pide tarjeta y no cobra durante la prueba", () => {
+    mockedIsProductionBuild.mockReturnValue(false);
+    render(<PlanSelectionLink planId="inicio" planName="Inicio" featured={false} />);
+
+    expect(screen.getByRole("button", { name: "Elegir Inicio" })).toHaveAccessibleDescription(
+      "Crea tu cuenta y añade una tarjeta: no se cobra nada hasta que termina la prueba."
+    );
+  });
+
+  it("fuera de producción, con sesión iniciada, omite el paso de crear cuenta", async () => {
+    mockedIsProductionBuild.mockReturnValue(false);
+    window.localStorage.setItem("alhabla_token", "jwt_123");
+    render(<PlanSelectionLink planId="scale" planName="Scale" featured={false} />);
+
+    expect(
+      await screen.findByText("Añade una tarjeta: no se cobra nada hasta que termina la prueba.")
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/Crea tu cuenta/)).not.toBeInTheDocument();
+  });
+
   // Fuera de producción (npm run dev, puerto 3001) navega de verdad, para
   // poder probar el flujo de registro/onboarding completo sin el aviso de
   // "en desarrollo" de por medio — decisión explícita del usuario 2026-09-14.

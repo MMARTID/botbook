@@ -112,6 +112,27 @@ export function passwordChangedEmail(): { subject: string; html: string } {
   return { subject, html };
 }
 
+export function passwordResetEmail(input: { resetUrl: string }): {
+  subject: string;
+  html: string;
+} {
+  const subject = "Restablece tu contraseña de Alhabla";
+  const html = emailShell(`
+    <p style="font-size:18px;font-weight:600;margin:0 0 16px 0;">Crea una contraseña nueva</p>
+    <p style="margin:0 0 16px 0;">Hola,</p>
+    <p style="margin:0 0 16px 0;">
+      Hemos recibido una solicitud para restablecer la contraseña de tu cuenta de Alhabla.
+      Pulsa el botón para elegir una nueva. El enlace caduca en <strong>1 hora</strong> y solo sirve una vez.
+    </p>
+    ${ctaButton(input.resetUrl, "Crear una contraseña nueva")}
+    <p style="margin:20px 0 0 0;">
+      Si no has pedido este cambio, puedes ignorar este correo: tu contraseña sigue siendo la misma.
+    </p>
+    <p style="margin:16px 0 0 0;">Un saludo,<br/>El equipo de Alhabla</p>
+  `);
+  return { subject, html };
+}
+
 export function accountDeletedEmail(input: { businessName: string }): {
   subject: string;
   html: string;

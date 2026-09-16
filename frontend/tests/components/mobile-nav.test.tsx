@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MobileNav } from "@/components/mobile-nav";
 
@@ -73,5 +73,18 @@ describe("MobileNav", () => {
     render(<MobileNav />);
 
     expect(screen.getByRole("link", { name: /Empezar/ })).toHaveAttribute("href", "/planes");
+  });
+
+  it("en la portada el menú ofrece las mismas secciones que el escritorio, precios incluidos", async () => {
+    const user = userEvent.setup();
+    render(<MobileNav variant="main" />);
+    await user.click(screen.getByRole("button", { name: "Abrir menú" }));
+
+    const menu = screen.getByRole("navigation", { name: "Navegación móvil" });
+    const labels = within(menu)
+      .getAllByRole("link")
+      .map((link) => link.textContent?.trim());
+    expect(labels).toEqual(["Tu negocio", "Cómo funciona", "Precios", "Preguntas", "Iniciar sesión", "Empezar ahora"]);
+    expect(within(menu).getByRole("link", { name: "Precios" })).toHaveAttribute("href", "#precios");
   });
 });
