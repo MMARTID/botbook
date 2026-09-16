@@ -58,7 +58,7 @@ export const plans: readonly Plan[] = [
       "Todo lo de Pro",
       "Profesionales sin límite en tu agenda",
       "Analítica avanzada: demanda no atendida y calidad de cada llamada",
-      "Varios números de teléfono para más de una sede",
+      "Varios números para más de una sede (próximamente)",
       "1.000 minutos de llamadas incluidos",
     ],
     featured: false,
