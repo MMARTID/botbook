@@ -16,6 +16,7 @@ import {
   subscriptionCancellationInstructionsEmail,
 } from "../../lib/emailTemplates.js";
 import { acquireLock, releaseLock } from "../../lib/bookingLock.js";
+import { getPlanLimits, resolvePlanId } from "../../lib/planFeatures.js";
 
 const CHECKOUT_TRIAL_DAYS = 7;
 const PAYMENT_FAILURE_SUSPENSION_DAYS = 7;
@@ -117,6 +118,15 @@ export async function getBillingSummary(businessId: string) {
   const consumedSeconds = aggregation._sum.durationSecs ?? 0;
   const consumedMinutes = Math.ceil(consumedSeconds / 60);
 
+  // Límites y features del plan efectivo, para que el frontend pinte el
+  // gating (aviso de minutos, límite de profesionales, features bloqueadas)
+  // sin duplicar la tabla de planFeatures.ts.
+  const effectivePlanId = resolvePlanId(business);
+  const planLimits = getPlanLimits(effectivePlanId);
+  const activeProfessionals = await prisma.professional.count({
+    where: { businessId, active: true, deletedAt: null },
+  });
+
   return {
     planId: plan?.id ?? null,
     legacyPlan: business.plan,
@@ -131,6 +141,10 @@ export async function getBillingSummary(businessId: string) {
     includedMinutes: plan?.includedMinutes ?? null,
     extraMinuteCents: plan?.extraMinuteCents ?? null,
     consumedMinutes,
+    effectivePlanId,
+    maxProfessionals: planLimits.maxProfessionals,
+    activeProfessionals,
+    planFeatures: planLimits.features,
   };
 }
 

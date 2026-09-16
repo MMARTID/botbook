@@ -17,6 +17,7 @@ import { errorMessage } from "../../lib/logUtils.js";
 import { enqueueRetryBookingJob, enqueueSmsJob, enqueueWhatsappJob } from "../../lib/cloudTasks.js";
 import { whatsappAdapter } from "../../adapters/whatsapp/WhatsAppAdapter.js";
 import { isValidE164Phone } from "../../lib/phone.js";
+import { planAllows, resolvePlanId } from "../../lib/planFeatures.js";
 import {
   acquireBookingLock,
   releaseBookingLock,
@@ -1494,7 +1495,17 @@ async function executeBookAppointment(
           const reminderAt = new Date(
             new Date(startDateTime).getTime() - REMINDER_LEAD_HOURS * 60 * 60 * 1000
           );
-          if (bookingId && reminderAt.getTime() > Date.now()) {
+          // El recordatorio (no la confirmación) es feature de Pro/Scale. Se
+          // consulta la BD directamente y no la caché de voice_config, que
+          // puede ser anterior a un cambio de plan.
+          const planFields = await prisma.business.findUnique({
+            where: { id: business.id },
+            select: { plan: true, stripePriceId: true },
+          });
+          const reminderAllowed =
+            planFields !== null &&
+            planAllows(resolvePlanId(planFields), "recordatorios_cita");
+          if (bookingId && reminderAllowed && reminderAt.getTime() > Date.now()) {
             try {
               await sendClientBookingMessage("reminder", clientMessageInput, {
                 taskId: `reminder-sms-${bookingId}`,

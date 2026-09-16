@@ -157,3 +157,42 @@ export function usageWarningEmail(input: { businessName: string; planName: strin
   `);
   return { subject, html };
 }
+
+export function weeklySummaryEmail(input: {
+  businessName: string;
+  weekStart: Date;
+  weekEnd: Date;
+  callCount: number;
+  totalMinutes: number;
+  bookingCount: number;
+  leadCount: number;
+  panelUrl: string;
+}): { subject: string; html: string } {
+  const formatter = new Intl.DateTimeFormat("es-ES", {
+    day: "numeric",
+    month: "long",
+    timeZone: "Europe/Madrid",
+  });
+  const range = `${formatter.format(input.weekStart)} – ${formatter.format(input.weekEnd)}`;
+  const subject = `Tu semana en Alhabla (${range}) — ${input.businessName}`;
+
+  const statRow = (label: string, value: string) => `
+    <tr>
+      <td style="padding:10px 0;border-bottom:1px solid #f4f4f5;color:#52525b;font-size:14px;">${label}</td>
+      <td style="padding:10px 0;border-bottom:1px solid #f4f4f5;text-align:right;font-weight:700;font-size:16px;color:#0a0a0a;">${value}</td>
+    </tr>`;
+
+  const html = emailShell(`
+    <p style="font-size:18px;font-weight:600;margin:0 0 16px 0;">Así ha ido la semana en ${input.businessName}</p>
+    <p style="margin:0 0 16px 0;">Resumen del ${range} de tu recepcionista de voz:</p>
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 8px 0;">
+      ${statRow("Llamadas atendidas", String(input.callCount))}
+      ${statRow("Minutos al teléfono", String(input.totalMinutes))}
+      ${statRow("Citas reservadas", String(input.bookingCount))}
+      ${statRow("Clientes interesados sin cita (leads)", String(input.leadCount))}
+    </table>
+    ${ctaButton(input.panelUrl, "Ver el detalle en tu panel")}
+    <p style="margin:20px 0 0 0;">Un saludo,<br/>El equipo de Alhabla</p>
+  `);
+  return { subject, html };
+}

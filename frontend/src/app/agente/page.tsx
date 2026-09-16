@@ -9,6 +9,7 @@ import {
   createBookingService,
   deleteBookingProfessional,
   deleteBookingService,
+  getBillingSummary,
   getBookingSettings,
   getCalendarList,
   getGoogleCalendarAuthUrl,
@@ -20,6 +21,7 @@ import {
   updateMyBusiness,
 } from "@/lib/api";
 import { formatPrice } from "@/lib/format";
+import { getPlanLimitInfo, planLimitUpgradeMessage } from "@/lib/plan-limit";
 import { getNextAgentSetupSection } from "@/lib/agent-configuration";
 import { useBusiness } from "@/components/providers";
 import { BusinessHoursEditor } from "@/components/business-hours-editor";
@@ -162,6 +164,17 @@ function AgenteContent() {
     enabled: hasToken === true,
   });
 
+  // Gating por plan: elegir voz e idiomas es feature de Pro/Scale. Mientras
+  // no llega el summary, no se bloquea nada (el backend valida igualmente).
+  const billingSummaryQuery = useQuery({
+    queryKey: ["billing-summary"],
+    queryFn: getBillingSummary,
+    enabled: hasToken === true,
+  });
+  const voiceLocked =
+    billingSummaryQuery.data !== undefined &&
+    !billingSummaryQuery.data.planFeatures?.includes("voz_idioma");
+
   useEffect(() => {
     if (settingsQuery.data) {
       setCapacity(String(settingsQuery.data.bookingCapacity));
@@ -302,8 +315,15 @@ function AgenteContent() {
       setBanner({ type: "success", message: "Profesional creado." });
       void invalidateAll();
     },
-    onError: () =>
-      setBanner({ type: "error", message: "No se pudo crear el profesional." }),
+    onError: (error) => {
+      const planLimit = getPlanLimitInfo(error);
+      setBanner({
+        type: "error",
+        message: planLimit
+          ? `${planLimitUpgradeMessage(planLimit)} Puedes cambiar de plan en Ajustes → Facturación.`
+          : "No se pudo crear el profesional.",
+      });
+    },
   });
 
   const services = settingsQuery.data?.services ?? [];
@@ -1030,6 +1050,7 @@ function AgenteContent() {
         onSave={() => agentSettingsMutation.mutate()}
         open={isSectionOpen("agent-settings")}
         onToggle={() => toggleSection("agent-settings")}
+        voiceLocked={voiceLocked}
       />
 
     </div>
@@ -1291,7 +1312,7 @@ function ProfessionalEditor({
   }) => Promise<unknown>;
   onDelete: () => Promise<void>;
   onSuccess: () => void | Promise<void>;
-  onError: () => void;
+  onError: (error?: unknown) => void;
   onDeleted: () => void | Promise<void>;
   onDeleteError: () => void;
 }) {
@@ -1317,9 +1338,15 @@ function ProfessionalEditor({
       setFeedback({ type: "success", message: "Cambios guardados." });
       setEditing(false);
     },
-    onError: () => {
-      onError();
-      setFeedback({ type: "error", message: "No se pudieron guardar los cambios." });
+    onError: (error) => {
+      onError(error);
+      const planLimit = getPlanLimitInfo(error);
+      setFeedback({
+        type: "error",
+        message: planLimit
+          ? planLimitUpgradeMessage(planLimit)
+          : "No se pudieron guardar los cambios.",
+      });
     },
   });
   const deleteMutation = useMutation({

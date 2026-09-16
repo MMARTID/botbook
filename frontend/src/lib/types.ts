@@ -138,7 +138,38 @@ export type BillingSummary = {
   includedMinutes: number | null;
   extraMinuteCents: number | null;
   consumedMinutes: number;
+  /** Plan efectivo resuelto en backend (priceId de Stripe o columna legacy). */
+  effectivePlanId: PlanId;
+  /** null = sin límite. */
+  maxProfessionals: number | null;
+  activeProfessionals: number;
+  planFeatures: PlanFeatureKey[];
 };
+
+export type CallAnalytics = {
+  days: number;
+  totals: {
+    calls: number;
+    minutes: number;
+    averageDurationSecs: number;
+    bookings: number;
+    cancelledBookings: number;
+    waitlistLeads: number;
+  };
+  outcomes: Array<{ outcome: string; count: number }>;
+  sentiments: Array<{ sentiment: string; count: number }>;
+  byHour: Array<{ hour: number; count: number }>;
+  /** 1 = lunes … 7 = domingo, en la zona horaria del negocio. */
+  byWeekday: Array<{ weekday: number; count: number }>;
+  topServices: Array<{ service: string; count: number }>;
+};
+
+export type PlanFeatureKey =
+  | "recordatorios_cita"
+  | "resumen_semanal"
+  | "voz_idioma"
+  | "analitica_avanzada"
+  | "multi_sede";
 
 export type BookingService = {
   id: string;

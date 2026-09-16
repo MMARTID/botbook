@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { CalendarClock, LoaderCircle, Users } from "lucide-react";
 import { createBookingProfessional, getBookingSettings, updateMyBusiness } from "@/lib/api";
+import { getPlanLimitInfo, planLimitUpgradeMessage } from "@/lib/plan-limit";
 import { BUSINESS_TYPE_ONBOARDING_TEXTS, isBusinessType } from "@/lib/business-type";
 import { RangeSlider } from "@/components/range-slider";
 import type { BusinessType } from "@/lib/types";
@@ -98,7 +99,24 @@ export default function RegisterBusinessTeamPage() {
       const results = await Promise.allSettled(
         professionals.map((professional) => createBookingProfessional(professional)),
       );
-      if (results.some((result) => result.status === "rejected")) {
+      const rejections = results.filter(
+        (result): result is PromiseRejectedResult => result.status === "rejected",
+      );
+      if (rejections.length > 0) {
+        // Si el fallo es el límite de profesionales del plan, el mensaje debe
+        // invitar a subir de plan, no pedir un reintento que fallará igual.
+        const planLimit = rejections
+          .map((rejection) => getPlanLimitInfo(rejection.reason))
+          .find((info) => info !== null);
+        if (planLimit) {
+          setError(
+            planLimit.limit != null
+              ? `${planLimitUpgradeMessage(planLimit)} Ajusta el equipo a ${planLimit.limit} para continuar, o amplía el plan después desde Ajustes → Facturación.`
+              : planLimitUpgradeMessage(planLimit),
+          );
+          setSaving(false);
+          return;
+        }
         throw new Error("No se pudieron guardar todos los profesionales.");
       }
 

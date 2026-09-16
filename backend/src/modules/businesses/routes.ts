@@ -4,7 +4,8 @@ import { z } from "zod";
 import { prisma } from "../../lib/prisma.js";
 import { BusinessScheduleSchema } from "../../lib/businessSchedule.js";
 import { calendarService } from "../calendar/service.js";
-import { AgentSettingsSchema, buildManagedAgentPrompt } from "../../lib/managedAgentPrompt.js";
+import { AgentSettingsSchema, buildManagedAgentPrompt, parseAgentSettings } from "../../lib/managedAgentPrompt.js";
+import { planAllows, resolvePlanId } from "../../lib/planFeatures.js";
 import { isBusinessType } from "../../lib/businessType.js";
 import { syncAgentNameWithBusinessType, syncAgentToRetell } from "../../lib/agentBootstrap.js";
 import { syncAgentToTelnyx } from "../../lib/telnyxAgentSync.js";
@@ -263,6 +264,36 @@ export async function businessesRoutes(fastify: FastifyInstance) {
     ) => {
       try {
         const data = UpdateBusinessSchema.parse(request.body);
+
+        // Cambiar la voz o los idiomas del agente es feature de Pro/Scale.
+        // Solo bloquea si esos campos CAMBIAN respecto a lo guardado: un
+        // negocio Inicio puede seguir editando tono/objetivo sin tocar la voz.
+        if (data.agentSettings !== undefined) {
+          const current = await prisma.business.findUnique({
+            where: { id: request.user!.businessId },
+            select: { agentSettings: true, plan: true, stripePriceId: true },
+          });
+          if (current) {
+            const planId = resolvePlanId(current);
+            if (!planAllows(planId, "voz_idioma")) {
+              const saved = parseAgentSettings(current.agentSettings);
+              const next = data.agentSettings;
+              const voiceChanged =
+                next.voiceGender !== saved.voiceGender ||
+                next.voiceLanguage !== saved.voiceLanguage ||
+                next.languages.join(",") !== saved.languages.join(",");
+              if (voiceChanged) {
+                return reply.status(403).send({
+                  error:
+                    "Elegir la voz y los idiomas de tu recepcionista está disponible en los planes Pro y Scale.",
+                  code: "PLAN_LIMIT_VOICE",
+                  planId,
+                  limit: null,
+                });
+              }
+            }
+          }
+        }
 
         const updateData: any = { ...data };
         if (data.schedule) {

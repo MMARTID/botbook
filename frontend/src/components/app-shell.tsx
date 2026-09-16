@@ -8,6 +8,7 @@ import {
   Bot,
   CalendarDays,
   ChevronRight,
+  Clock3,
   CircleUserRound,
   CreditCard,
   LayoutDashboard,
@@ -20,9 +21,11 @@ import {
   X,
   type LucideIcon,
 } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
 import { BrandMark } from "@/components/brand-mark";
 import { useBusiness } from "@/components/providers";
 import { clearAuthTokens } from "@/lib/billing-navigation";
+import { getBillingSummary } from "@/lib/api";
 
 type NavItem = {
   href: string;
@@ -119,6 +122,68 @@ function NavGroup({ label, items, pathname }: { label: string; items: NavItem[];
   );
 }
 
+/**
+ * Aviso de consumo: cuando queda un 25% o menos de los minutos del plan,
+ * el menú enseña un globo advirtiendo de que el excedente se factura como
+ * minutos extra. Devuelve null mientras no haya motivo de aviso.
+ */
+function useMinutesWarning() {
+  const { hasToken } = useBusiness();
+  const summary = useQuery({
+    queryKey: ["billing-summary"],
+    queryFn: getBillingSummary,
+    enabled: hasToken === true,
+  });
+
+  const data = summary.data;
+  if (!data?.includedMinutes || data.includedMinutes <= 0) return null;
+
+  const remaining = data.includedMinutes - data.consumedMinutes;
+  const remainingPct = Math.max(0, Math.round((remaining / data.includedMinutes) * 100));
+  if (remainingPct > 25) return null;
+
+  const extraPrice = data.extraMinuteCents != null
+    ? `${(data.extraMinuteCents / 100).toFixed(2).replace(".", ",")}€/min`
+    : null;
+
+  return {
+    exhausted: remaining <= 0,
+    remainingPct,
+    remainingMinutes: Math.max(0, remaining),
+    extraPrice,
+  };
+}
+
+function MinutesWarningCard({ onNavigate }: { onNavigate?: () => void }) {
+  const warning = useMinutesWarning();
+  if (!warning) return null;
+
+  return (
+    <div className="mt-3 rounded-2xl border border-[#f0dfa8] bg-[#fef8e7] p-3" role="status">
+      <div className="flex items-center gap-2">
+        <Clock3 className="h-4 w-4 text-[#9f7a15]" aria-hidden="true" />
+        <p className="text-xs font-semibold text-[#9f7a15]">
+          {warning.exhausted
+            ? "Minutos del plan agotados"
+            : `Te queda un ${warning.remainingPct}% de tus minutos`}
+        </p>
+      </div>
+      <p className="mt-1 text-xs leading-5 text-[#52525b]">
+        {warning.exhausted
+          ? `Las llamadas siguen atendiéndose${warning.extraPrice ? ` y se facturan a ${warning.extraPrice}` : " como minutos extra"}.`
+          : `Al agotarlos, las llamadas se seguirán atendiendo${warning.extraPrice ? ` a ${warning.extraPrice}` : " como minutos extra"}.`}
+      </p>
+      <Link
+        href="/ajustes/facturacion"
+        onClick={onNavigate}
+        className="mt-2 inline-flex text-xs font-semibold text-[#9f7a15] underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]"
+      >
+        Ver consumo y planes
+      </Link>
+    </div>
+  );
+}
+
 function AccountFooter({ pathname }: { pathname: string }) {
   const { business } = useBusiness();
   const hasIssue = business?.callsSuspendedAt || business?.subscriptionStatus === "PAST_DUE" || business?.subscriptionStatus === "UNPAID";
@@ -126,6 +191,7 @@ function AccountFooter({ pathname }: { pathname: string }) {
   return (
     <div className="border-t border-[#e5e5e5] px-4 py-4">
       <NavGroup label="Cuenta" items={ACCOUNT_NAVIGATION} pathname={pathname} />
+      <MinutesWarningCard />
       <div className={`mt-4 rounded-2xl border p-3 ${hasIssue ? "border-[#f0dfa8] bg-[#fef8e7]" : "border-[#ddd6fe] bg-[#f3eeff]"}`}>
         <div className="flex items-center gap-2">
           <Activity className={`h-4 w-4 ${hasIssue ? "text-[#9f7a15]" : "text-[#6d28d9]"}`} aria-hidden="true" />
@@ -202,6 +268,7 @@ function MobileMoreSheet({ pathname, onClose }: { pathname: string; onClose: () 
             <X className="h-5 w-5" aria-hidden="true" />
           </button>
         </div>
+        <MinutesWarningCard onNavigate={onClose} />
         <nav className="mt-5 space-y-1" aria-label="Cuenta">
           {ACCOUNT_NAVIGATION.map((item) => <NavigationLink key={item.href} item={item} pathname={pathname} onNavigate={onClose} />)}
           <Link href="/legal/privacidad" onClick={onClose} className="flex min-h-11 items-center gap-3 rounded-full px-4 text-sm font-semibold text-[#3f3f46] transition hover:bg-[#fafafa] hover:text-[#0a0a0a] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]">
@@ -219,6 +286,7 @@ function MobileMoreSheet({ pathname, onClose }: { pathname: string; onClose: () 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const { business, hasToken } = useBusiness();
   const pathname = usePathname();
+  const minutesWarning = useMinutesWarning();
   const [moreOpen, setMoreOpen] = useState(false);
   const moreTriggerRef = useRef<HTMLButtonElement>(null);
   const wasMoreOpenRef = useRef(false);
@@ -257,8 +325,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               <BrandMark className="h-9 w-9 shrink-0" />
               <span className="min-w-0"><span className="block text-sm font-bold leading-4 text-[#0a0a0a]">Alhabla</span><span className="block truncate text-xs leading-4 text-muted">{business?.name ?? "Mi negocio"}</span></span>
             </Link>
-            <button type="button" onClick={() => setMoreOpen(true)} className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[#e5e5e5] bg-white text-[#27272a] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]" aria-label="Abrir cuenta y ayuda" aria-expanded={moreOpen}>
+            <button type="button" onClick={() => setMoreOpen(true)} className="relative inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[#e5e5e5] bg-white text-[#27272a] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]" aria-label="Abrir cuenta y ayuda" aria-expanded={moreOpen}>
               <CircleUserRound className="h-5 w-5" aria-hidden="true" />
+              {minutesWarning ? <span className="absolute right-1.5 top-1.5 h-2.5 w-2.5 rounded-full border-2 border-white bg-[#9f7a15]" aria-hidden="true" /> : null}
             </button>
           </div>
         </header>
@@ -267,8 +336,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <nav className="fixed inset-x-0 bottom-0 z-50 border-t border-[#e5e5e5] bg-white/95 px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 backdrop-blur lg:hidden" aria-label="Navegación principal">
         <div className="mx-auto grid max-w-xl grid-cols-5 gap-1">
           {[...PRIMARY_NAVIGATION, ...AGENT_NAVIGATION].map((item) => <NavigationLink key={item.href} item={item} pathname={pathname} compact />)}
-          <button ref={moreTriggerRef} type="button" onClick={() => setMoreOpen(true)} aria-expanded={moreOpen} className="flex min-h-11 flex-col items-center justify-center gap-0.5 rounded-full border border-transparent px-2 text-[11px] font-semibold text-[#3f3f46] transition hover:bg-[#fafafa] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]">
+          <button ref={moreTriggerRef} type="button" onClick={() => setMoreOpen(true)} aria-expanded={moreOpen} className="relative flex min-h-11 flex-col items-center justify-center gap-0.5 rounded-full border border-transparent px-2 text-[11px] font-semibold text-[#3f3f46] transition hover:bg-[#fafafa] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]">
             <Menu className="h-4 w-4" aria-hidden="true" /> Más
+            {minutesWarning ? <span className="absolute right-2 top-1 h-2 w-2 rounded-full bg-[#9f7a15]" aria-hidden="true" /> : null}
           </button>
         </div>
       </nav>
