@@ -36,6 +36,7 @@ async function loadManagedAssistantConfig(
     where: { id: businessId },
     select: {
       name: true,
+      timezone: true,
       businessDetails: true,
       businessType: true,
       agentSettings: true,
@@ -87,6 +88,7 @@ export async function createTelnyxAssistantForAgent(args: {
       businessId: args.businessId,
       agentId: args.agentId,
       businessName: config.business.name,
+      timezone: config.business.timezone,
       instructions: config.systemPrompt,
       greeting: buildRetellBeginMessage(config.business.name),
       language: resolveTelnyxTranscriptionLanguage(config.agentSettings.languages),
@@ -202,6 +204,7 @@ export async function syncAgentToTelnyx(
             businessId,
             agentId: agent.id,
             businessName: config.business.name,
+            timezone: config.business.timezone,
             instructions: agent.promptManuallyEdited
               ? agent.systemPrompt
               : config.systemPrompt,

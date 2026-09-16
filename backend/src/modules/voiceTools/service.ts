@@ -12,6 +12,7 @@ import {
   type ExternalBusyInterval,
 } from "../../lib/availability.js";
 import { calendarService } from "../calendar/service.js";
+import { normalizeVoiceToolDateTime } from "../../lib/voiceDateTime.js";
 import { errorMessage } from "../../lib/logUtils.js";
 import { enqueueRetryBookingJob, enqueueSmsJob, enqueueWhatsappJob } from "../../lib/cloudTasks.js";
 import { whatsappAdapter } from "../../adapters/whatsapp/WhatsAppAdapter.js";
@@ -295,7 +296,9 @@ async function executeCheckBusinessHours(
 ): Promise<{ success: boolean; result?: any }> {
   try {
     const startDateTime =
-      typeof params?.startDateTime === "string" ? params.startDateTime : "";
+      typeof params?.startDateTime === "string"
+        ? normalizeVoiceToolDateTime(params.startDateTime, business.timezone || "Europe/Madrid")
+        : "";
     const durationMinutes =
       typeof params?.durationMinutes === "number" ? params.durationMinutes : 0;
     const hoursResult = checkBusinessHours(
@@ -393,8 +396,14 @@ async function executeCheckAvailability(
   callId?: string
 ): Promise<{ success: boolean; result?: any }> {
   try {
+    // Normaliza la hora ANTES de tocar horario/calendario — ver
+    // voiceDateTime.ts: una hora hablada marcada como UTC por el LLM
+    // rechazaba citas perfectamente válidas (OUTSIDE_BUSINESS_HOURS) y el
+    // draft de disponibilidad guardaba ese instante desplazado.
     const startDateTime =
-      typeof params?.startDateTime === "string" ? params.startDateTime : "";
+      typeof params?.startDateTime === "string"
+        ? normalizeVoiceToolDateTime(params.startDateTime, business.timezone || "Europe/Madrid")
+        : "";
     const durationMinutes =
       typeof params?.durationMinutes === "number" ? params.durationMinutes : 0;
     if (!isValidAppointmentDuration(durationMinutes)) {
@@ -407,6 +416,58 @@ async function executeCheckAvailability(
       typeof params?.professionalId === "string"
         ? params.professionalId
         : undefined;
+
+    // El LLM puede corromper un ID largo al copiarlo (llamada real del
+    // 2026-09-14: envió "cmu1h326w001ts601zp5xut70", un híbrido de dos IDs
+    // reales del catálogo). Ignorarlo en silencio acaba en reservas sin
+    // servicio o con el profesional equivocado — mejor un error explícito
+    // que el modelo sabe corregir volviendo a get_catalog.
+    if (serviceIds?.length) {
+      const knownServices = await prisma.service.findMany({
+        where: {
+          id: { in: serviceIds },
+          businessId: business.id,
+          active: true,
+          deletedAt: null,
+        },
+        select: { id: true },
+      });
+      const knownIds = new Set(knownServices.map((service) => service.id));
+      const unknownIds = serviceIds.filter((id) => !knownIds.has(id));
+      if (unknownIds.length > 0) {
+        return {
+          success: true,
+          result: {
+            available: false,
+            code: "UNKNOWN_SERVICE_ID",
+            message:
+              "Algún serviceId no existe en este negocio. Vuelve a consultar get_catalog y copia los IDs exactamente, carácter a carácter.",
+          },
+        };
+      }
+    }
+    if (professionalId) {
+      const knownProfessional = await prisma.professional.findFirst({
+        where: {
+          id: professionalId,
+          businessId: business.id,
+          active: true,
+          deletedAt: null,
+        },
+        select: { id: true },
+      });
+      if (!knownProfessional) {
+        return {
+          success: true,
+          result: {
+            available: false,
+            code: "UNKNOWN_PROFESSIONAL_ID",
+            message:
+              "Ese professionalId no existe en este negocio. Vuelve a consultar get_catalog y copia el ID exactamente; si el cliente no pidió un profesional concreto, no envíes professionalId.",
+          },
+        };
+      }
+    }
 
     const externalBusy = await fetchExternalBusyIntervals(
       business,
@@ -951,7 +1012,15 @@ async function executeBookAppointment(
     };
   }
 
-  const startDateTime = draft?.startDateTime ?? rawParams.startDateTime;
+  // El draft ya se guardó normalizado en check_availability; la ruta sin
+  // token (rawParams) necesita la misma corrección de zona horaria — la
+  // normalización es idempotente, así que aplicarla al valor resuelto cubre
+  // ambos caminos (ver voiceDateTime.ts).
+  const rawStartDateTime = draft?.startDateTime ?? rawParams.startDateTime;
+  const startDateTime =
+    typeof rawStartDateTime === "string"
+      ? normalizeVoiceToolDateTime(rawStartDateTime, business.timezone || "Europe/Madrid")
+      : rawStartDateTime;
   const durationMinutes = draft?.durationMinutes ?? rawParams.durationMinutes;
   const professionalId = draft?.professionalId ?? rawParams.professionalId;
   const requestedServiceIds = draft?.serviceIds ?? (Array.isArray(rawParams.serviceIds)
@@ -1309,6 +1378,7 @@ async function executeBookAppointment(
               numberPeople: 1,
               professionalId: resolvedProfessionalId ?? undefined,
               serviceIds: verifiedServiceIds,
+              clientName,
               clientPhone: clientPhone || undefined,
               smsConsent,
               externalEventId: (result as { id?: string })?.id ?? undefined,
@@ -1323,6 +1393,7 @@ async function executeBookAppointment(
               durationMinutes: effectiveDuration,
               professionalId: resolvedProfessionalId ?? undefined,
               serviceIds: verifiedServiceIds,
+              clientName,
               clientPhone: clientPhone || undefined,
               smsConsent,
               externalEventId: (result as { id?: string })?.id ?? undefined,
@@ -1635,6 +1706,7 @@ async function executeFindMyAppointment(
       id: true,
       programedAt: true,
       serviceIds: true,
+      clientName: true,
       professional: { select: { name: true } },
     },
   });
@@ -1668,6 +1740,11 @@ async function executeFindMyAppointment(
       formattedDateTime,
       serviceNames: services.map((s) => s.name),
       professionalName: booking.professional?.name ?? null,
+      // Sin este campo, al "cambiar la cita al mismo nombre" el LLM no tenía
+      // forma de saber el nombre original y llegó a reservar literalmente a
+      // nombre de "titular anterior" (llamada real del 2026-09-15). Puede
+      // venir null en reservas anteriores a la columna Booking.clientName.
+      clientName: booking.clientName ?? null,
     },
   };
 }
@@ -1690,7 +1767,9 @@ async function executeNotifyWhenAvailable(
   callId?: string
 ): Promise<{ success: boolean; result?: any }> {
   const startDateTime =
-    typeof params?.startDateTime === "string" ? params.startDateTime : "";
+    typeof params?.startDateTime === "string"
+      ? normalizeVoiceToolDateTime(params.startDateTime, business.timezone || "Europe/Madrid")
+      : "";
   const durationMinutes =
     typeof params?.durationMinutes === "number" ? params.durationMinutes : 0;
   if (!startDateTime || !isValidAppointmentDuration(durationMinutes)) {

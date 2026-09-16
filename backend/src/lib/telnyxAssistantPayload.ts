@@ -101,7 +101,7 @@ export function buildTelnyxVoiceTools(baseUrl: string): TelnyxWebhookToolInput[]
         startDateTime: {
           type: "string",
           description:
-            "Inicio solicitado en formato ISO 8601, incluyendo zona horaria.",
+            "Inicio solicitado en formato ISO 8601, en HORA LOCAL del negocio con su offset explícito (ej. 2026-09-18T16:00:00+02:00). Nunca en UTC (+00:00/Z): las cuatro de la tarde son 16:00 con el offset local.",
         },
         durationMinutes: {
           type: "number",
@@ -111,12 +111,12 @@ export function buildTelnyxVoiceTools(baseUrl: string): TelnyxWebhookToolInput[]
           type: "array",
           items: { type: "string" },
           description:
-            "IDs de los servicios pedidos (opcional; puede ser más de uno si el cliente pide varios servicios en la misma cita, ej. corte y mechas). Se prioriza al profesional que domine todos esos servicios.",
+            "IDs de los servicios pedidos, copiados exactamente de get_catalog carácter a carácter (opcional; puede ser más de uno si el cliente pide varios servicios en la misma cita, ej. corte y mechas). Se prioriza al profesional que domine todos esos servicios.",
         },
         professionalId: {
           type: "string",
           description:
-            "ID exacto de EMPLEADOS si el cliente pidió un profesional concreto por nombre (opcional). Déjalo vacío si no.",
+            "ID exacto de EMPLEADOS, copiado tal cual de get_catalog, solo si el cliente pidió un profesional concreto por nombre (opcional). Déjalo vacío si no.",
         },
       },
       required: ["startDateTime", "durationMinutes"],
@@ -162,7 +162,7 @@ export function buildTelnyxVoiceTools(baseUrl: string): TelnyxWebhookToolInput[]
     {
       name: "find_my_appointment",
       description:
-        "Busca la próxima cita del negocio asociada al número desde el que llama, si el cliente dio consentimiento SMS al reservarla. Úsala solo si quien llama pide cambiar o cancelar una cita existente y no te ha dado datos concretos.",
+        "Busca la próxima cita del negocio asociada al número desde el que llama, si el cliente dio consentimiento SMS al reservarla. Devuelve también clientName (el nombre con el que se reservó; puede venir vacío en citas antiguas) — úsalo si el cliente quiere recrear la cita al mismo nombre. Úsala solo si quien llama pide cambiar o cancelar una cita existente y no te ha dado datos concretos.",
       url: `${toolBaseUrl}/find_my_appointment`,
       method: "POST",
       properties: {},
@@ -195,7 +195,7 @@ export function buildTelnyxVoiceTools(baseUrl: string): TelnyxWebhookToolInput[]
         startDateTime: {
           type: "string",
           description:
-            "La hora exacta que el cliente quería y no estaba disponible, en formato ISO 8601 con zona horaria.",
+            "La hora exacta que el cliente quería y no estaba disponible, en formato ISO 8601 en hora local del negocio con su offset explícito (nunca UTC).",
         },
         durationMinutes: {
           type: "number",
@@ -241,10 +241,17 @@ const RETELL_CURRENT_TIME_PLACEHOLDER = "{{current_time_{{zona_horaria}} }}";
  * el webhook de llamada entrante de Retell. Telnyx no tiene ese mecanismo
  * para el flujo normal (ver plan §2: sin `dynamic_variables_webhook_url`),
  * así que aquí se sustituye por el nombre real del negocio en texto plano.
+ *
+ * `{{zona_horaria}}` también es de Alhabla (dynamic variable de Retell): el
+ * prompt gestionado la usa suelta en la regla de zona horaria de las tools
+ * (managedAgentPrompt.ts § Uso de herramientas). El reemplazo del patrón
+ * anidado de current_time va PRIMERO — contiene `{{zona_horaria}}` dentro, y
+ * sustituir la variable suelta antes rompería ese patrón.
  */
 export function adaptManagedPromptForTelnyx(
   instructions: string,
-  businessName: string
+  businessName: string,
+  timezone: string = "Europe/Madrid"
 ): string {
   return instructions
     .split("{{nombre_negocio}}")
@@ -252,7 +259,9 @@ export function adaptManagedPromptForTelnyx(
     .split("{{user_number}}")
     .join("{{telnyx_end_user_target}}")
     .split(RETELL_CURRENT_TIME_PLACEHOLDER)
-    .join("{{telnyx_current_time}}");
+    .join("{{telnyx_current_time}}")
+    .split("{{zona_horaria}}")
+    .join(timezone);
 }
 
 const TELNYX_TRANSCRIPTION_LANGUAGE_HINTS: Record<string, string> = {
@@ -291,6 +300,9 @@ export interface BuildTelnyxAssistantPayloadInput {
   /** Nombre real del negocio — sustituye a `{{nombre_negocio}}` en el
    * prompt (ver adaptManagedPromptForTelnyx). */
   businessName: string;
+  /** Zona horaria IANA del negocio — sustituye a `{{zona_horaria}}` en el
+   * prompt (regla de startDateTime local de las tools). */
+  timezone?: string;
   /** Prompt gestionado completo (managedAgentPrompt.ts) o el prompt manual
    * del negocio — igual que `Assistant.instructions` en Retell. Se traduce
    * automáticamente a las variables de sistema de Telnyx. */
@@ -345,7 +357,8 @@ export function buildTelnyxAssistantPayload(
     name: buildTelnyxAssistantName(input.businessId, input.agentId),
     instructions: adaptManagedPromptForTelnyx(
       input.instructions,
-      input.businessName
+      input.businessName,
+      input.timezone
     ),
     greeting: input.greeting,
     // Decisión explícita del usuario 2026-09-12: sin fijar `model`, Telnyx
