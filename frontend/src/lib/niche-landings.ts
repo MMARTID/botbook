@@ -39,6 +39,13 @@ export type SectorData = {
   painPoint?: string;
 };
 
+/** Clip del hero (mudo, en bucle) con su fotograma de reserva. Ambos viven
+ * en `public/heroes/`. Opcional: sin clip, el hero usa HeroPulse. */
+export type NicheHeroVideo = {
+  src: string;
+  poster: string;
+};
+
 export type NicheLandingContent = {
   slug: NicheSlug;
   name: string;
@@ -53,6 +60,7 @@ export type NicheLandingContent = {
    * en heroTitle; si no, el titular se muestra sin subrayar. */
   heroHighlight?: string;
   heroDescription: string;
+  heroVideo?: NicheHeroVideo;
   demoTitle: string;
   demoSteps: [string, string, string];
   conversations?: import("@/components/hero-conversation").Conversation[];

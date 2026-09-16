@@ -56,10 +56,10 @@ function LandingHeader({ hiddenOnMobile }: { hiddenOnMobile: boolean }) {
           <span className="text-base font-black tracking-tight text-[#0a0a0a]">Alhabla</span>
         </Link>
         <nav className="hidden items-center gap-5 md:flex" aria-label="Navegación principal">
-          <a href="#sectores" className="text-sm font-medium text-[#3f3f46] transition hover:text-[#0a0a0a]">Tu negocio</a>
-          <a href="#como-funciona" className="text-sm font-medium text-[#3f3f46] transition hover:text-[#0a0a0a]">Cómo funciona</a>
-          <a href="#precios" className="text-sm font-medium text-[#3f3f46] transition hover:text-[#0a0a0a]">Precios</a>
-          <a href="#preguntas" className="text-sm font-medium text-[#3f3f46] transition hover:text-[#0a0a0a]">Preguntas</a>
+          <a href="#sectores" className="enlace-nav">Tu negocio</a>
+          <a href="#como-funciona" className="enlace-nav">Cómo funciona</a>
+          <a href="#precios" className="enlace-nav">Precios</a>
+          <a href="#preguntas" className="enlace-nav">Preguntas</a>
           <Link href="/login" className="btn-secondary h-10 px-4">Iniciar sesión</Link>
           <Link href="/planes" className="btn-primary h-10 px-4">Empezar ahora</Link>
         </nav>

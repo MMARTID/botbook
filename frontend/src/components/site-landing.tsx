@@ -129,16 +129,16 @@ export function SiteLanding({ content }: { content?: NicheLandingContent }) {
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-3 px-4 sm:px-6 lg:h-[4.5rem] lg:px-8">
           <BrandLogo />
           <nav className="hidden items-center gap-3 md:flex" aria-label="Navegación principal">
-            <a href="#por-que" className="text-sm font-medium text-[#3f3f46] transition hover:text-[#0a0a0a]">
+            <a href="#por-que" className="enlace-nav">
               Por qué
             </a>
-            <a href="#como-funciona" className="text-sm font-medium text-[#3f3f46] transition hover:text-[#0a0a0a]">
+            <a href="#como-funciona" className="enlace-nav">
               Cómo funciona
             </a>
-            <a href="#precios" className="text-sm font-medium text-[#3f3f46] transition hover:text-[#0a0a0a]">
+            <a href="#precios" className="enlace-nav">
               Precios
             </a>
-            <a href="#preguntas" className="text-sm font-medium text-[#3f3f46] transition hover:text-[#0a0a0a]">
+            <a href="#preguntas" className="enlace-nav">
               Preguntas
             </a>
             <Link href="/login" className="btn-secondary h-10 px-4">
@@ -182,7 +182,7 @@ export function SiteLanding({ content }: { content?: NicheLandingContent }) {
           <div className="grid gap-5 lg:grid-cols-3">
             {threeSteps.map((step, index) => (
               <Reveal key={step.title} delay={index * 0.1}>
-                <article className="panel h-full p-7 sm:p-8">
+                <article className="panel landing-card-hover h-full p-7 sm:p-8">
                   {/* El número deja de ser un titular gigante: en la dirección
                       editorial el peso lo lleva el título del paso, y la cifra
                       solo ordena. */}
@@ -260,7 +260,7 @@ export function SiteLanding({ content }: { content?: NicheLandingContent }) {
               const Icon = BENEFIT_ICONS[index] ?? Store;
               return (
                 <Reveal key={title} delay={index * 0.1}>
-                  <article className="panel h-full p-6 sm:p-7">
+                  <article className="panel landing-card-hover h-full p-6 sm:p-7">
                     <div
                       className="flex h-11 w-11 items-center justify-center rounded-xl"
                       style={content?.accent ? { backgroundColor: content.accent.soft, color: content.accent.strong } : { backgroundColor: "#f3eeff", color: "#8b5cf6" }}
@@ -317,8 +317,8 @@ export function SiteLanding({ content }: { content?: NicheLandingContent }) {
               <article
                 className={
                   plan.featured
-                    ? "relative flex h-full flex-col rounded-3xl bg-white p-7 ring-2 ring-[#8b5cf6]"
-                    : "flex h-full flex-col rounded-3xl border border-[#e5e5e5] bg-white p-7"
+                    ? "landing-card-hover relative flex h-full flex-col rounded-3xl bg-white p-7 ring-2 ring-[#8b5cf6]"
+                    : "landing-card-hover flex h-full flex-col rounded-3xl border border-[#e5e5e5] bg-white p-7"
                 }
                 style={
                   plan.featured && content?.accent
