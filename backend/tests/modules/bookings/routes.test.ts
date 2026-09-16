@@ -34,6 +34,7 @@ vi.mock("../../../src/lib/prisma.js", () => ({
       create: vi.fn(),
       findFirst: vi.fn(),
       update: vi.fn(),
+      count: vi.fn(),
     },
     professionalService: {
       deleteMany: vi.fn(),
@@ -179,5 +180,123 @@ describe("PATCH /bookings/ (capacidad) — invalidación de caché (hallazgo #16
       where: { id: "professional_1" },
       data: { active: false, deletedAt: expect.any(Date) },
     });
+  });
+});
+
+describe("POST /professionals — límite de profesionales por plan", () => {
+  let fastify: ReturnType<typeof Fastify>;
+  const mockedProfessionalCount = vi.mocked(prisma.professional.count);
+  const mockedProfessionalCreate = vi.mocked(prisma.professional.create);
+  const mockedServiceCount = vi.mocked(prisma.service.count);
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    mockRedis.del.mockResolvedValue(1);
+    fastify = Fastify();
+    fastify.decorate("authenticate", async (request: any) => {
+      request.user = { businessId: "biz_1" };
+    });
+    await fastify.register(bookingSettingsRoutes);
+  });
+
+  it("devuelve 403 con PLAN_LIMIT_PROFESSIONALS cuando el plan Inicio ya tiene 3 activos", async () => {
+    mockedGetBookingSettingsBusinessFindUnique.mockResolvedValue({
+      plan: "basic",
+      stripePriceId: null,
+    } as any);
+    mockedProfessionalCount.mockResolvedValue(3);
+
+    const response = await fastify.inject({
+      method: "POST",
+      url: "/professionals",
+      payload: { name: "Cuarto", active: true, serviceIds: [] },
+    });
+
+    expect(response.statusCode).toBe(403);
+    const body = response.json();
+    expect(body.code).toBe("PLAN_LIMIT_PROFESSIONALS");
+    expect(body.planId).toBe("inicio");
+    expect(body.limit).toBe(3);
+    expect(mockedProfessionalCreate).not.toHaveBeenCalled();
+  });
+
+  it("permite crear el décimo profesional en Pro pero rechaza el undécimo", async () => {
+    mockedGetBookingSettingsBusinessFindUnique.mockResolvedValue({
+      plan: "pro",
+      stripePriceId: null,
+    } as any);
+    mockedServiceCount.mockResolvedValue(0);
+    mockedProfessionalCount.mockResolvedValue(9);
+    mockedProfessionalCreate.mockResolvedValue({
+      id: "professional_10",
+      name: "Décimo",
+      active: true,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      serviceLinks: [],
+    } as any);
+
+    const allowed = await fastify.inject({
+      method: "POST",
+      url: "/professionals",
+      payload: { name: "Décimo", active: true, serviceIds: [] },
+    });
+    expect(allowed.statusCode).toBe(201);
+
+    mockedProfessionalCount.mockResolvedValue(10);
+    const rejected = await fastify.inject({
+      method: "POST",
+      url: "/professionals",
+      payload: { name: "Undécimo", active: true, serviceIds: [] },
+    });
+    expect(rejected.statusCode).toBe(403);
+    expect(rejected.json().limit).toBe(10);
+  });
+
+  it("no aplica límite al plan Scale", async () => {
+    mockedGetBookingSettingsBusinessFindUnique.mockResolvedValue({
+      plan: "enterprise",
+      stripePriceId: null,
+    } as any);
+    mockedProfessionalCreate.mockResolvedValue({
+      id: "professional_50",
+      name: "Sin límite",
+      active: true,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      serviceLinks: [],
+    } as any);
+
+    const response = await fastify.inject({
+      method: "POST",
+      url: "/professionals",
+      payload: { name: "Sin límite", active: true, serviceIds: [] },
+    });
+
+    expect(response.statusCode).toBe(201);
+    expect(mockedProfessionalCount).not.toHaveBeenCalled();
+  });
+
+  it("bloquea también la reactivación de un profesional cuando el cupo está lleno", async () => {
+    mockedProfessionalFindFirst.mockResolvedValue({
+      id: "professional_4",
+      businessId: "biz_1",
+      name: "Inactivo",
+      active: false,
+    } as any);
+    mockedGetBookingSettingsBusinessFindUnique.mockResolvedValue({
+      plan: "basic",
+      stripePriceId: null,
+    } as any);
+    mockedProfessionalCount.mockResolvedValue(3);
+
+    const response = await fastify.inject({
+      method: "PATCH",
+      url: "/professionals/professional_4",
+      payload: { active: true },
+    });
+
+    expect(response.statusCode).toBe(403);
+    expect(response.json().code).toBe("PLAN_LIMIT_PROFESSIONALS");
   });
 });

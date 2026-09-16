@@ -20,6 +20,7 @@ import {
   updateMyBusiness,
 } from "@/lib/api";
 import { formatPrice } from "@/lib/format";
+import { getPlanLimitInfo, planLimitUpgradeMessage } from "@/lib/plan-limit";
 import { getNextAgentSetupSection } from "@/lib/agent-configuration";
 import { useBusiness } from "@/components/providers";
 import { BusinessHoursEditor } from "@/components/business-hours-editor";
@@ -302,8 +303,15 @@ function AgenteContent() {
       setBanner({ type: "success", message: "Profesional creado." });
       void invalidateAll();
     },
-    onError: () =>
-      setBanner({ type: "error", message: "No se pudo crear el profesional." }),
+    onError: (error) => {
+      const planLimit = getPlanLimitInfo(error);
+      setBanner({
+        type: "error",
+        message: planLimit
+          ? `${planLimitUpgradeMessage(planLimit)} Puedes cambiar de plan en Ajustes → Facturación.`
+          : "No se pudo crear el profesional.",
+      });
+    },
   });
 
   const services = settingsQuery.data?.services ?? [];
@@ -1291,7 +1299,7 @@ function ProfessionalEditor({
   }) => Promise<unknown>;
   onDelete: () => Promise<void>;
   onSuccess: () => void | Promise<void>;
-  onError: () => void;
+  onError: (error?: unknown) => void;
   onDeleted: () => void | Promise<void>;
   onDeleteError: () => void;
 }) {
@@ -1317,9 +1325,15 @@ function ProfessionalEditor({
       setFeedback({ type: "success", message: "Cambios guardados." });
       setEditing(false);
     },
-    onError: () => {
-      onError();
-      setFeedback({ type: "error", message: "No se pudieron guardar los cambios." });
+    onError: (error) => {
+      onError(error);
+      const planLimit = getPlanLimitInfo(error);
+      setFeedback({
+        type: "error",
+        message: planLimit
+          ? planLimitUpgradeMessage(planLimit)
+          : "No se pudieron guardar los cambios.",
+      });
     },
   });
   const deleteMutation = useMutation({

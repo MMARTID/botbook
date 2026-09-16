@@ -1,6 +1,11 @@
 import { z } from "zod";
 import { syncAgentToRetell } from "../../lib/agentBootstrap.js";
 import { syncAgentToTelnyx } from "../../lib/telnyxAgentSync.js";
+import {
+  getPlanLimits,
+  PlanLimitError,
+  resolvePlanId,
+} from "../../lib/planFeatures.js";
 import { prisma } from "../../lib/prisma.js";
 import { getRedis } from "../../lib/redis.js";
 import {
@@ -181,10 +186,42 @@ export async function deleteService(businessId: string, id: string) {
   return deleted;
 }
 
+/**
+ * Aplica el límite de profesionales activos del plan antes de añadir uno más
+ * (creación o reactivación). Cuenta solo activos no borrados: retirar a
+ * alguien libera su plaza.
+ */
+async function ensureProfessionalSlotAvailable(businessId: string) {
+  const business = await prisma.business.findUnique({
+    where: { id: businessId },
+    select: { plan: true, stripePriceId: true },
+  });
+  if (!business) return;
+
+  const planId = resolvePlanId(business);
+  const { maxProfessionals } = getPlanLimits(planId);
+  if (maxProfessionals === null) return;
+
+  const activeCount = await prisma.professional.count({
+    where: { businessId, active: true, deletedAt: null },
+  });
+  if (activeCount >= maxProfessionals) {
+    throw new PlanLimitError({
+      code: "PLAN_LIMIT_PROFESSIONALS",
+      planId,
+      limit: maxProfessionals,
+      message: `Tu plan incluye hasta ${maxProfessionals} profesionales activos.`,
+    });
+  }
+}
+
 export async function createProfessional(
   businessId: string,
   input: z.infer<typeof ProfessionalSchema>
 ) {
+  if (input.active !== false) {
+    await ensureProfessionalSlotAvailable(businessId);
+  }
   await ensureServicesBelongToBusiness(businessId, input.serviceIds);
 
   const professional = await prisma.professional.create({
@@ -219,6 +256,10 @@ export async function updateProfessional(
     where: { id, businessId, deletedAt: null },
   });
   if (!professional) return null;
+
+  if (input.active === true && !professional.active) {
+    await ensureProfessionalSlotAvailable(businessId);
+  }
 
   if (input.serviceIds !== undefined) {
     await ensureServicesBelongToBusiness(businessId, input.serviceIds);

@@ -21,6 +21,19 @@ import {
   updateService,
 } from "./service.js";
 import { prisma } from "../../lib/prisma.js";
+import { PlanLimitError } from "../../lib/planFeatures.js";
+
+function sendPlanLimitError(
+  reply: { status: (code: number) => { send: (body: unknown) => unknown } },
+  error: PlanLimitError
+) {
+  return reply.status(403).send({
+    error: error.message,
+    code: error.code,
+    planId: error.planId,
+    limit: error.limit,
+  });
+}
 
 function sendValidationError(
   reply: { status: (code: number) => { send: (body: unknown) => unknown } },
@@ -200,6 +213,9 @@ export async function bookingSettingsRoutes(fastify: FastifyInstance) {
         return reply.status(201).send(professional);
       } catch (error) {
         if (error instanceof z.ZodError) return sendValidationError(reply, error);
+        if (error instanceof PlanLimitError) {
+          return sendPlanLimitError(reply, error);
+        }
         if (isKnownClientError(error)) {
           return reply.status(400).send({ error: error.message });
         }
@@ -233,6 +249,9 @@ export async function bookingSettingsRoutes(fastify: FastifyInstance) {
         return reply.send(professional);
       } catch (error) {
         if (error instanceof z.ZodError) return sendValidationError(reply, error);
+        if (error instanceof PlanLimitError) {
+          return sendPlanLimitError(reply, error);
+        }
         if (isKnownClientError(error)) {
           return reply.status(400).send({ error: error.message });
         }

@@ -23,6 +23,9 @@ vi.mock("../../../src/lib/prisma.js", () => ({
     call: {
       aggregate: vi.fn(),
     },
+    professional: {
+      count: vi.fn().mockResolvedValue(0),
+    },
     stripeWebhookEvent: {
       findUnique: vi.fn(),
       upsert: vi.fn(),
