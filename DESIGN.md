@@ -67,6 +67,7 @@ typography:
     letterSpacing: "normal"
 rounded:
   sm: "8px"
+  control: "10px"
   md: "12px"
   lg: "16px"
   xl: "24px"
@@ -83,7 +84,7 @@ components:
   button-primary:
     backgroundColor: "{colors.accent}"
     textColor: "#ffffff"
-    rounded: "{rounded.pill}"
+    rounded: "{rounded.control}"
     padding: "0 24px"
     height: "48px"
   button-primary-hover:
@@ -91,7 +92,7 @@ components:
   button-secondary:
     backgroundColor: "{colors.surface}"
     textColor: "{colors.accent}"
-    rounded: "{rounded.pill}"
+    rounded: "{rounded.control}"
     padding: "0 24px"
     height: "48px"
   button-secondary-hover:
@@ -99,7 +100,7 @@ components:
   button-purple:
     backgroundColor: "{colors.purple}"
     textColor: "#ffffff"
-    rounded: "{rounded.pill}"
+    rounded: "{rounded.control}"
     padding: "0 24px"
     height: "48px"
   button-purple-hover:
@@ -107,7 +108,7 @@ components:
   input-field:
     backgroundColor: "{colors.surface}"
     textColor: "{colors.foreground}"
-    rounded: "{rounded.pill}"
+    rounded: "{rounded.control}"
     padding: "0 16px"
     height: "44px"
   panel:
@@ -175,7 +176,8 @@ sí se conservan intactos: éxito, aviso y error.
 - Profundidad casi siempre por borde de 1 px (`#e5e5e5`), no por sombra. Cuando hay sombra, es
   negra (`rgba(0,0,0,…)`) y solo en elementos realmente flotantes.
 - Radios generosos y consistentes: paneles y tarjetas grandes en `rounded-3xl` (24 px), tarjetas
-  y azulejos de icono en `rounded-xl`/`rounded-2xl` (12–16 px), campos y botones en píldora.
+  y azulejos de icono en `rounded-xl`/`rounded-2xl` (12–16 px), campos y botones en 10 px
+  (`rounded-[10px]`) — píldora queda para círculos, badges y navegación.
 - Tipografía con peso real: titulares en `font-black`/`font-extrabold`, nunca semibold tibio.
 - Español de España en toda la interfaz; iconografía Lucide sobre azulejo `#f3eeff` con trazo
   morado `#8b5cf6`.
@@ -426,21 +428,29 @@ es la deriva más común hacia el registro de app de consumo.
 
 Escala de radios generosa y deliberada, de menor a mayor superficie:
 
-- **Píldora** (`rounded-full`) — campos, botones (`.btn-primary`, `.btn-secondary`, `.btn-purple`)
-  y controles pequeños. A diferencia del sistema anterior, aquí el control interactivo es el más
-  redondeado: se lee como táctil e invitante, no como recuadro técnico.
+- **10 px** (`rounded-[10px]`) — botones (`.btn-primary`, `.btn-secondary`, `.btn-purple`) y campos
+  (`.field`). Radio propio, distinto del de las tarjetas: suficiente para leerse suave y táctil sin
+  caer en la píldora completa del sistema anterior (agosto 2026 → septiembre 2026, decisión
+  2026-09-17: los controles interactivos rectangulares dejaron de ser píldora — quedaban
+  desproporcionados, sobre todo en campos anchos).
 - **12 px** (`rounded-xl`) — tarjetas, azulejos de icono y contenedores intermedios.
 - **16 px** (`rounded-2xl`) — tarjetas grandes, secciones de wizard, banners de estado.
 - **24 px** (`rounded-3xl`) — `.panel` y contenedores mayores de página. Es el radio más grande y
   se reserva para las superficies de más alto nivel.
+- **Píldora** (`rounded-full`) — reservada a lo que es genuinamente circular o una etiqueta: badges
+  y chips de información (`.badge-soft`), navegación en pastilla (enlaces de sidebar, nav inferior
+  móvil), controles segmentados tipo pestañas (p. ej. el selector "Hoy / 7 días / 30 días" de
+  agenda), barras de progreso, el pomo y el raíl de los sliders, y botones solo-icono realmente
+  circulares (cerrar, volver, avatar). Ya no es la forma por defecto de un botón o un campo de
+  texto.
 
 Los bordes son de 1 px y neutros: `#e5e5e5` en controles, tarjetas y paneles. El morado (`#8b5cf6`
 o `#ddd6fe`) solo aparece en el borde cuando la tarjeta está seleccionada, activa o destacada — no
 como borde por defecto.
 
-**La Regla de la Escala Amplia.** Píldora / 12 / 16 / 24. No hay un radio pequeño de 8 px en este
-sistema: los controles pequeños de 8 px del mundo anterior pasaron a píldora al migrar de verde a
-negro/blanco/morado. No reintroducir `rounded-lg` (8 px) como radio de control interactivo.
+**La Regla de la Escala Amplia.** 10 / 12 / 16 / 24, más píldora solo para lo que es círculo o
+etiqueta. No hay un radio de 8 px en este sistema: no reintroducir `rounded-lg` (8 px) ni como
+radio de control interactivo ni como sustituto barato del radio de 10 px de botones/campos.
 
 ## Components
 
@@ -450,7 +460,7 @@ pequeño. La respuesta física es la firma del sistema; la espectacularidad no. 
 
 ### Buttons
 
-- **Shape:** píldora (`rounded-full`), altura fija de 44–48 px (`h-11`/`h-12`), relleno lateral de
+- **Shape:** 10 px (`rounded-[10px]`), altura fija de 44–48 px (`h-11`/`h-12`), relleno lateral de
   20–24 px, `inline-flex` con 8 px de hueco para el icono.
 - **Primary (`.btn-primary`):** negro `#0a0a0a` con texto blanco, texto de 0.875 rem en semibold.
 - **Secondary (`.btn-secondary`):** superficie blanca, borde negro `#0a0a0a`, texto negro; en hover
@@ -480,8 +490,8 @@ pequeño. La respuesta física es la firma del sistema; la espectacularidad no. 
 
 ### Inputs / Fields
 
-- **Style (`.field`):** 44 px de alto, forma píldora, borde `#e5e5e5`, fondo blanco, texto de
-  0.875 rem, 16 px de relleno lateral. Placeholder en `#a1a1aa`.
+- **Style (`.field`):** 44 px de alto, radio de 10 px (`rounded-[10px]`), borde `#e5e5e5`, fondo
+  blanco, texto de 0.875 rem, 16 px de relleno lateral. Placeholder en `#a1a1aa`.
 - **Focus:** el borde pasa a morado `#8b5cf6` y aparece un anillo de 2 px al 30 % de opacidad.
   Transición de 200 ms. El foco siempre es visible; nunca se suprime el outline sin sustituto.
 - **Disabled:** fondo `#fafafa` y cursor no permitido.
@@ -519,7 +529,8 @@ Lucide y al logotipo raster anterior en header, footer, favicon, `apple-icon` e 
 ### Do:
 
 - **Do** usar fondo blanco plano en toda página — landing, auth, registro, panel y ajustes.
-- **Do** limitarse a la escala de radios píldora / 12 / 16 / 24 px.
+- **Do** limitarse a la escala de radios 10 / 12 / 16 / 24 px, más píldora para círculos y
+  etiquetas.
 - **Do** teñir toda sombra estructural con `rgba(0,0,0,…)` y reservarla a elementos que
   realmente flotan.
 - **Do** reservar `font-semibold` o más para titulares, títulos de tarjeta, CTAs y cifras clave, y
@@ -554,4 +565,7 @@ Lucide y al logotipo raster anterior en header, footer, favicon, `apple-icon` e 
 - **Don't** dejar que un contenedor colapse mientras carga: el checkout embebido reserva
   `min-h-[480px]` y todo contenedor asíncrono debe reservar su altura igual.
 - **Don't** usar `rounded-lg` (8 px) como radio de botón o campo — ese tamaño de radio quedó
-  reservado a detalles muy pequeños, no a controles interactivos, tras la migración a píldora.
+  reservado a detalles muy pequeños, no a controles interactivos.
+- **Don't** usar píldora completa (`rounded-full`) en un botón o un campo de texto — quedó
+  reservada a círculos de verdad, badges/chips, navegación en pastilla, controles segmentados y
+  barras de progreso (decisión 2026-09-17). Botones y campos van en `rounded-[10px]`.

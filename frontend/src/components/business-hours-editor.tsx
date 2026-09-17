@@ -117,7 +117,7 @@ export function BusinessHoursEditor({
               key={day.key}
               type="button"
               onClick={() => setSelectedDay(day.key)}
-              className={`flex w-full items-center gap-3 rounded-xl border px-3 py-3 text-left transition ${selectedDay === day.key ? "border-[#8b5cf6] bg-[#f3eeff]" : "border-[#e5e5e5] bg-white hover:bg-[#fafafa]"}`}
+              className={`flex w-full items-center gap-3 rounded-xl border px-3 py-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] focus-visible:ring-offset-2 ${selectedDay === day.key ? "border-[#8b5cf6] bg-[#f3eeff]" : "border-[#e5e5e5] bg-white hover:bg-[#fafafa]"}`}
             >
               <span className={`flex h-8 w-8 items-center justify-center rounded-full text-xs font-semibold ${schedule.week[day.key].enabled ? "bg-[#8b5cf6] text-[#ffffff]" : "bg-[#f4f4f5] text-[#a1a1aa]"}`}>
                 {day.shortLabel}
@@ -136,7 +136,7 @@ export function BusinessHoursEditor({
               <p className="text-lg font-semibold text-[#0a0a0a]">{DAYS.find((day) => day.key === selectedDay)?.label}</p>
               <p className="text-sm text-muted">Activa el día y añade hasta tres tramos.</p>
             </div>
-            <label className="flex cursor-pointer items-center gap-2 rounded-full border border-[#e5e5e5] bg-white px-3 py-2 text-sm font-semibold text-[#27272a]">
+            <label className="flex cursor-pointer items-center gap-2 rounded-[10px] border border-[#e5e5e5] bg-white px-3 py-2 text-sm font-semibold text-[#27272a]">
               <input
                 type="checkbox"
                 className="accent-[#8b5cf6]"

@@ -15,7 +15,7 @@ type LegalPageProps = {
 export function LegalPage({ title, description, updatedAt, children }: LegalPageProps) {
   return (
     <main className="min-h-screen bg-white text-[#0a0a0a]">
-      <a href="#contenido-legal" className="sr-only z-[80] rounded-full bg-[#0a0a0a] px-4 py-3 text-sm font-semibold text-white focus:not-sr-only focus:fixed focus:left-4 focus:top-4">Saltar al contenido legal</a>
+      <a href="#contenido-legal" className="sr-only z-[80] rounded-[10px] bg-[#0a0a0a] px-4 py-3 text-sm font-semibold text-white focus:not-sr-only focus:fixed focus:left-4 focus:top-4">Saltar al contenido legal</a>
       <header className="sticky top-0 z-50 border-b border-[#e5e5e5] bg-white/95 backdrop-blur">
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-4 px-4 sm:h-[4.5rem] sm:px-6 lg:px-8">
           <Link href="/landing" aria-label="Ir al inicio de Alhabla" className="flex min-w-0 items-center gap-3 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]">

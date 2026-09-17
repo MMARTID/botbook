@@ -1,13 +1,17 @@
 "use client";
 
 import Link from "next/link";
-import { RefreshCw } from "lucide-react";
+import { AlertTriangle, Check, RefreshCw } from "lucide-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { provisionPhoneNumber } from "@/lib/api";
-import { OPERATIONAL_TONE, useOperationalStatus } from "@/components/operational-status";
+import { OPERATIONAL_TONE, useOperationalStatus, type OperationalTone } from "@/components/operational-status";
 import type { Business } from "@/lib/types";
 
 type StatusStripProps = { business: Business; agentActive: boolean };
+
+// Los problemas van primero: en una franja de cuatro señales, el negocio
+// necesita ver lo que falla antes que lo que ya funciona solo.
+const SEVERITY_RANK: Record<OperationalTone, number> = { error: 0, warning: 1, waiting: 2, ok: 3 };
 
 /** Vista completa de la fuente única de salud operativa para el Panel. */
 export function StatusStrip({ business, agentActive }: StatusStripProps) {
@@ -18,10 +22,24 @@ export function StatusStrip({ business, agentActive }: StatusStripProps) {
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["phone-number"] }),
   });
 
+  const needsAttention = items.filter((item) => item.tone === "error" || item.tone === "warning");
+  const hasError = items.some((item) => item.tone === "error");
+  const ordered = [...items].sort((a, b) => SEVERITY_RANK[a.tone] - SEVERITY_RANK[b.tone]);
+
+  const banner = needsAttention.length === 0
+    ? { Icon: Check, text: "text-[#2c7334]", bg: "bg-[#ecf7ec]", border: "border-[#d8efd7]", message: "Todo funcionando correctamente" }
+    : hasError
+      ? { Icon: AlertTriangle, text: "text-[#c53030]", bg: "bg-[#fff1f1]", border: "border-[#f5d3d3]", message: needsAttention.length === 1 ? "Un asunto requiere tu atención" : `${needsAttention.length} asuntos requieren tu atención` }
+      : { Icon: AlertTriangle, text: "text-[#9f7a15]", bg: "bg-[#fef8e7]", border: "border-[#f0dfa8]", message: needsAttention.length === 1 ? "Un asunto conviene revisarlo" : `${needsAttention.length} asuntos conviene revisarlos` };
+
   return (
     <section aria-label="Estado del servicio" className="panel overflow-hidden p-0">
+      <div className={`flex items-center gap-2 border-b px-4 py-3 ${banner.bg} ${banner.border}`}>
+        <banner.Icon className={`h-4 w-4 shrink-0 ${banner.text}`} aria-hidden="true" />
+        <p className={`text-sm font-semibold ${banner.text}`}>{banner.message}</p>
+      </div>
       <ul className="grid grid-cols-1 gap-px bg-[#e5e5e5] sm:grid-cols-2 xl:grid-cols-4">
-        {items.map((item) => {
+        {ordered.map((item) => {
           const tone = OPERATIONAL_TONE[item.tone];
           return (
             <li key={item.key} className="flex items-start gap-3 bg-white p-4">

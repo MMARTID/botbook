@@ -133,7 +133,7 @@ export function CallDetailModal({
             type="button"
             onClick={onClose}
             aria-label="Cerrar detalle de llamada"
-            className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-[#e5e5e5] bg-white text-[#0a0a0a] transition hover:bg-[#fafafa]"
+            className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-[#e5e5e5] bg-white text-[#0a0a0a] transition hover:bg-[#fafafa] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] focus-visible:ring-offset-2"
           >
             <X className="h-4 w-4" />
           </button>

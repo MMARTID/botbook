@@ -38,7 +38,7 @@ const voiceLanguageOptions: Array<{ value: VoiceLanguage; label: string }> = [
 
 function VoiceUpgradeNotice() {
   return (
-    <p className="mb-3 flex items-start gap-2 rounded-lg border border-[#ddd6fe] bg-[#f3eeff] px-3 py-2 text-xs leading-5 text-[#6d28d9]">
+    <p className="mb-3 flex items-start gap-2 rounded-xl border border-[#ddd6fe] bg-[#f3eeff] px-3 py-2 text-xs leading-5 text-[#6d28d9]">
       <Lock className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
       <span>
         Elegir la voz y los idiomas está disponible en los planes Pro y Scale.{" "}
@@ -196,7 +196,7 @@ export function AgentSettingsEditor({
             })}
           </div>
           {value.languages.length > 1 ? (
-            <p className="mt-3 rounded-lg border border-[#ddd6fe] bg-white px-3 py-2 text-xs leading-5 text-muted">
+            <p className="mt-3 rounded-xl border border-[#ddd6fe] bg-white px-3 py-2 text-xs leading-5 text-muted">
               Activa solo los idiomas que atiendes habitualmente: cuantos menos haya activos, más precisa será la detección.
             </p>
           ) : null}
@@ -223,7 +223,7 @@ export function AgentSettingsEditor({
                     type="button"
                     disabled={voiceLocked}
                     onClick={() => onChange({ ...value, voiceGender: option.value })}
-                    className={`flex items-center justify-between gap-3 rounded-xl border px-4 py-3 text-left transition ${selected ? "border-[#8b5cf6] bg-[#f3eeff]" : "border-[#e5e5e5] bg-white hover:border-[#ddd6fe]"} ${voiceLocked ? "cursor-not-allowed" : ""} ${voiceLocked && !selected ? "opacity-60" : ""}`}
+                    className={`flex items-center justify-between gap-3 rounded-xl border px-4 py-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] focus-visible:ring-offset-2 ${selected ? "border-[#8b5cf6] bg-[#f3eeff]" : "border-[#e5e5e5] bg-white hover:border-[#ddd6fe]"} ${voiceLocked ? "cursor-not-allowed" : ""} ${voiceLocked && !selected ? "opacity-60" : ""}`}
                   >
                     <span>
                       <span className="block text-sm font-semibold text-[#27272a]">{option.label}</span>
@@ -250,7 +250,7 @@ export function AgentSettingsEditor({
                       type="button"
                       disabled={!available}
                       onClick={() => onChange({ ...value, voiceLanguage: option.value })}
-                      className={`flex items-center justify-between gap-3 rounded-xl border px-4 py-3 text-left transition ${
+                      className={`flex items-center justify-between gap-3 rounded-xl border px-4 py-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] focus-visible:ring-offset-2 ${
                         !available
                           ? "cursor-not-allowed border-[#e5e5e5] bg-[#f4f4f5] opacity-60"
                           : selected
@@ -284,7 +284,7 @@ export function AgentSettingsEditor({
                     key={option.value}
                     type="button"
                     onClick={() => onChange({ ...value, [field.key]: option.value })}
-                    className={`flex items-center justify-between gap-3 rounded-xl border px-4 py-3 text-left transition ${selected ? "border-[#8b5cf6] bg-[#f3eeff]" : "border-[#e5e5e5] bg-white hover:border-[#ddd6fe]"}`}
+                    className={`flex items-center justify-between gap-3 rounded-xl border px-4 py-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] focus-visible:ring-offset-2 ${selected ? "border-[#8b5cf6] bg-[#f3eeff]" : "border-[#e5e5e5] bg-white hover:border-[#ddd6fe]"}`}
                   >
                     <span>
                       <span className="block text-sm font-semibold text-[#27272a]">{option.label}</span>

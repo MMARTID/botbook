@@ -3,8 +3,17 @@
 import Link from "next/link";
 import { useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { AlertTriangle, CreditCard, ExternalLink, ReceiptText, X } from "lucide-react";
+import {
+  AlertTriangle,
+  CreditCard,
+  ExternalLink,
+  Loader2,
+  ReceiptText,
+  X,
+} from "lucide-react";
 import { createBillingPortalSession, getBillingSummary } from "@/lib/api";
+import { AppPageHeader } from "@/components/app-page-header";
+import { SectionErrorState } from "@/components/section-card";
 import { useBusiness } from "@/components/providers";
 import { formatPrice } from "@/lib/format";
 import { plans } from "@/lib/plans";
@@ -70,30 +79,23 @@ export default function BillingSettingsPage() {
 
   return (
     <section className="space-y-6">
-      <header className="flex items-start gap-3 border-b border-[#e5e5e5] pb-6">
-        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#f3eeff] text-[#8b5cf6]"><CreditCard className="h-5 w-5" aria-hidden="true" /></span>
-        <div>
-        <p className="text-sm font-semibold text-[#6d28d9]">Cuenta</p>
-        <h1 className="text-2xl font-semibold tracking-tight text-[#0a0a0a] sm:text-3xl">
-          Plan y pagos
-        </h1>
-        <p className="mt-2 text-muted">
-          Tu suscripción, el consumo de minutos y tus facturas.
-        </p>
-        </div>
-      </header>
+      <AppPageHeader
+        icon={CreditCard}
+        title="Plan y pagos"
+        description="Tu suscripción, el consumo de minutos y tus facturas."
+      />
 
       {summary.isLoading ? <div className="panel p-8 text-muted">Cargando facturación…</div> : null}
       {summary.isError ? (
-        <div className="panel border-[#f5d3d3] bg-[#fff1f1] p-6 text-sm text-[#c53030]">
-          No se pudo consultar tu facturación. Vuelve a intentarlo en unos minutos; si sigue igual,
-          escríbenos antes de que afecte al servicio.
-        </div>
+        <SectionErrorState
+          message="No se pudo consultar tu facturación. Vuelve a intentarlo en unos minutos; si sigue igual, escríbenos antes de que afecte al servicio."
+          onRetry={() => summary.refetch()}
+        />
       ) : null}
 
       {/* Lo más grave primero: sin llamadas, el producto no existe. */}
       {suspendido ? (
-        <div className="panel border-[#f5d3d3] bg-[#fff1f1] p-4 sm:p-5">
+        <div className="rounded-2xl border border-[#f5d3d3] bg-[#fff1f1] p-4 sm:p-5">
           <div className="flex items-start gap-3">
             <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-[#c53030]">
               <AlertTriangle className="h-5 w-5" aria-hidden="true" />
@@ -233,7 +235,11 @@ export default function BillingSettingsPage() {
                 disabled={portal.isPending}
                 className="btn-primary mt-6 h-11 justify-center px-5"
               >
-                <ExternalLink className="h-4 w-4" aria-hidden="true" />
+                {portal.isPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                ) : (
+                  <ExternalLink className="h-4 w-4" aria-hidden="true" />
+                )}
                 {portal.isPending ? "Abriendo…" : "Gestionar en Stripe"}
               </button>
             ) : (
@@ -251,17 +257,17 @@ export default function BillingSettingsPage() {
       ) : null}
 
       {showCancellationNotice ? (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="cancellation-notice-title"
-        >
-          <div className="relative w-full max-w-md rounded-3xl bg-white p-6 shadow-[0_24px_60px_rgba(0,0,0,0.18)]">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0a0a0a]/60 p-4 backdrop-blur-sm">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="cancellation-notice-title"
+            className="relative w-full max-w-md rounded-3xl border border-[#e5e5e5] bg-white p-6 shadow-[0_24px_60px_rgba(0,0,0,0.18)]"
+          >
             <button
               type="button"
               onClick={() => setShowCancellationNotice(false)}
-              className="absolute right-4 top-4 rounded-full p-2 text-[#52525b] transition duration-200 hover:bg-[#f4f4f5] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]"
+              className="absolute right-4 top-4 inline-flex h-10 w-10 items-center justify-center rounded-full border border-[#e5e5e5] bg-white text-[#52525b] transition duration-200 hover:bg-[#fafafa] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] focus-visible:ring-offset-2"
               aria-label="Cerrar aviso"
             >
               <X className="h-5 w-5" aria-hidden="true" />

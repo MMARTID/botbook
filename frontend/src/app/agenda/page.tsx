@@ -32,7 +32,7 @@ export default function AgendaPage() {
     <div className="space-y-6">
       <AppPageHeader icon={CalendarRange} title="Agenda" description="Las citas verificadas que tu recepcionista ha reservado para el negocio.">
         <div className="flex w-full gap-1 rounded-full border border-[#e5e5e5] bg-[#fafafa] p-1 sm:w-auto" aria-label="Periodo de agenda">
-          {RANGES.map((range) => <button key={range.value} type="button" onClick={() => { setDays(range.value); setOffset(0); }} aria-pressed={days === range.value} className={`min-h-10 flex-1 rounded-full px-3 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] sm:flex-none ${days === range.value ? "bg-white text-[#0a0a0a] shadow-[0_1px_2px_rgba(0,0,0,0.08)]" : "text-[#52525b] hover:text-[#0a0a0a]"}`}>{range.label}</button>)}
+          {RANGES.map((range) => <button key={range.value} type="button" onClick={() => { setDays(range.value); setOffset(0); }} aria-pressed={days === range.value} className={`min-h-10 flex-1 rounded-full px-3 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] sm:flex-none ${days === range.value ? "bg-white text-[#0a0a0a]" : "text-[#52525b] hover:text-[#0a0a0a]"}`}>{range.label}</button>)}
         </div>
       </AppPageHeader>
       <AgendaTimeline days={days} offset={offset} timeZone={business.timezone || "Europe/Madrid"} calendarProvider={calendarProvider} hasCalendar={hasCalendar} onOffsetChange={setOffset} />

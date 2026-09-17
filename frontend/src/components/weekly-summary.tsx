@@ -4,6 +4,7 @@ import Link from "next/link";
 import { ArrowDownRight, ArrowRight, ArrowUpRight } from "lucide-react";
 import { formatPrice } from "@/lib/format";
 import type { WeeklyStats } from "@/lib/types";
+import { SectionCard } from "@/components/section-card";
 
 type WeeklySummaryProps = {
   week: WeeklyStats;
@@ -19,11 +20,7 @@ export function WeeklySummary({ week }: WeeklySummaryProps) {
     week.calls > 0 ? Math.round((week.bookings / week.calls) * 100) : null;
 
   return (
-    <section className="panel p-4 sm:p-6" aria-labelledby="weekly-summary-title">
-      <h2 id="weekly-summary-title" className="text-lg font-semibold text-[#0a0a0a] sm:text-xl">
-        Últimos 7 días
-      </h2>
-
+    <SectionCard id="weekly-summary" title="Últimos 7 días">
       <div className="mt-4 grid gap-4 sm:mt-5 sm:grid-cols-3 sm:gap-6">
         <div className="sm:col-span-1">
           <p className="text-4xl font-semibold tabular-nums tracking-tight text-[#0a0a0a] sm:text-5xl">
@@ -79,7 +76,7 @@ export function WeeklySummary({ week }: WeeklySummaryProps) {
           )}
         </div>
       </div>
-    </section>
+    </SectionCard>
   );
 }
 

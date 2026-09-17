@@ -304,7 +304,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-screen bg-white lg:flex">
-      <a href="#main-content" className="sr-only z-[80] rounded-full bg-[#0a0a0a] px-4 py-3 text-sm font-semibold text-white focus:not-sr-only focus:fixed focus:left-4 focus:top-4">Saltar a contenido</a>
+      <a href="#main-content" className="sr-only z-[80] rounded-[10px] bg-[#0a0a0a] px-4 py-3 text-sm font-semibold text-white focus:not-sr-only focus:fixed focus:left-4 focus:top-4">Saltar a contenido</a>
       <aside className="hidden h-screen w-72 shrink-0 flex-col border-r border-[#e5e5e5] bg-white lg:sticky lg:top-0 lg:flex">
         <div className="px-5 pb-6 pt-6">
           <Link href="/" aria-label="Ir al panel de Alhabla" className="flex items-center gap-3 rounded-2xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]">

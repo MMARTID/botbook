@@ -1,9 +1,8 @@
 "use client";
 
-import Link from "next/link";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowRight, CalendarCheck, ChevronRight, Frown, Meh, PhoneCall, RefreshCw, Smile } from "lucide-react";
+import { CalendarCheck, ChevronRight, Frown, Meh, PhoneCall, Smile } from "lucide-react";
 import { getCalls } from "@/lib/api";
 import {
   escalationReasonChip,
@@ -16,6 +15,7 @@ import {
   sentimentTone,
 } from "@/lib/format";
 import { CallDetailModal } from "@/components/call-detail-modal";
+import { SectionCard, SectionEmptyState, SectionErrorState } from "@/components/section-card";
 
 const RECENT_CALLS_LIMIT = 6;
 
@@ -45,22 +45,12 @@ export function RecentCalls() {
   const calls = callsQuery.data?.data ?? [];
 
   return (
-    <section className="panel min-w-0 p-4 sm:p-5 lg:p-6" aria-labelledby="recent-calls-title">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <h2 id="recent-calls-title" className="text-lg font-semibold text-[#0a0a0a] sm:text-xl">
-            Llamadas recientes
-          </h2>
-          <p className="mt-1 text-sm text-muted">
-            Toca una llamada para leer la conversación y escuchar la grabación.
-          </p>
-        </div>
-        <Link href="/llamadas" className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full border border-[#e5e5e5] bg-white px-3 text-sm font-semibold text-[#27272a] transition duration-200 hover:bg-[#fafafa] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]">
-          Ver historial
-          <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
-        </Link>
-      </div>
-
+    <SectionCard
+      id="recent-calls"
+      title="Llamadas recientes"
+      description="Toca una llamada para leer la conversación y escuchar la grabación."
+      action={{ kind: "link", href: "/llamadas", label: "Ver historial" }}
+    >
       {callsQuery.isLoading ? (
         <div className="mt-4 space-y-2" aria-label="Cargando llamadas recientes">
           {Array.from({ length: 3 }, (_, index) => (
@@ -74,29 +64,18 @@ export function RecentCalls() {
           ))}
         </div>
       ) : callsQuery.isError ? (
-        <div className="mt-4 flex flex-col items-center gap-3 rounded-xl border border-[#f5d3d3] bg-[#fff1f1] px-4 py-6 text-center">
-          <p className="text-sm font-medium text-[#c53030]">No se pudieron cargar las llamadas.</p>
-          <button
-            type="button"
-            onClick={() => callsQuery.refetch()}
-            className="inline-flex items-center gap-2 text-sm font-semibold text-[#27272a]"
-          >
-            <RefreshCw className="h-4 w-4" />
-            Reintentar
-          </button>
-        </div>
+        <SectionErrorState
+          className="mt-4"
+          message="No se pudieron cargar las llamadas."
+          onRetry={() => callsQuery.refetch()}
+        />
       ) : calls.length === 0 ? (
-        <div className="mt-4 flex items-center gap-3 rounded-xl border border-dashed border-[#e5e5e5] bg-[#fafafa] px-4 py-6">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#f3eeff] text-[#8b5cf6]">
-            <PhoneCall className="h-5 w-5" />
-          </div>
-          <div>
-            <p className="text-sm font-semibold text-[#27272a]">Aún no hay llamadas</p>
-            <p className="mt-1 text-sm text-muted">
-              En cuanto el agente atienda a un cliente, la llamada aparecerá aquí con su resultado.
-            </p>
-          </div>
-        </div>
+        <SectionEmptyState
+          className="mt-4"
+          icon={PhoneCall}
+          title="Aún no hay llamadas"
+          description="En cuanto el agente atienda a un cliente, la llamada aparecerá aquí con su resultado."
+        />
       ) : (
         <ul className="mt-4 divide-y divide-[#e5e5e5]">
           {calls.map((call) => {
@@ -166,6 +145,6 @@ export function RecentCalls() {
       {selectedCallId ? (
         <CallDetailModal callId={selectedCallId} onClose={() => setSelectedCallId(null)} />
       ) : null}
-    </section>
+    </SectionCard>
   );
 }

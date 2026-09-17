@@ -17,6 +17,7 @@ import { getPlanLimitInfo } from "@/lib/plan-limit";
 import { useBusiness } from "@/components/providers";
 import { AppPageHeader } from "@/components/app-page-header";
 import { BackLink } from "@/components/back-link";
+import { SectionCard, SectionErrorState } from "@/components/section-card";
 
 const OUTCOME_LABELS: Record<string, string> = {
   RESOLVED: "Resuelta",
@@ -50,7 +51,7 @@ function StatCard({
       <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#f3eeff] text-[#8b5cf6]">
         <Icon className="h-5 w-5" aria-hidden="true" />
       </div>
-      <p className="mt-4 text-3xl font-black tracking-tight text-[#0a0a0a]">{value}</p>
+      <p className="mt-4 text-3xl font-black tabular-nums tracking-tight text-[#0a0a0a]">{value}</p>
       <p className="mt-1 text-sm font-semibold text-[#27272a]">{label}</p>
       {detail ? <p className="mt-1 text-xs leading-5 text-muted">{detail}</p> : null}
     </article>
@@ -58,19 +59,19 @@ function StatCard({
 }
 
 function BarList({
+  id,
   title,
   description,
   rows,
 }: {
+  id: string;
   title: string;
   description: string;
   rows: Array<{ label: string; count: number }>;
 }) {
   const max = Math.max(1, ...rows.map((row) => row.count));
   return (
-    <article className="panel p-5 sm:p-6">
-      <h2 className="text-lg font-bold text-[#0a0a0a]">{title}</h2>
-      <p className="mt-1 text-sm leading-6 text-muted">{description}</p>
+    <SectionCard id={id} title={title} description={description}>
       {rows.length === 0 ? (
         <p className="mt-4 text-sm text-muted">Sin datos todavía en este periodo.</p>
       ) : (
@@ -91,7 +92,7 @@ function BarList({
           ))}
         </ul>
       )}
-    </article>
+    </SectionCard>
   );
 }
 
@@ -155,9 +156,10 @@ export default function CallAnalyticsPage() {
       {planLimit ? (
         <UpgradePanel />
       ) : analyticsQuery.isError ? (
-        <p className="p-8 text-center text-sm text-[#c53030]">
-          No se pudo cargar la analítica. Inténtalo de nuevo en unos minutos.
-        </p>
+        <SectionErrorState
+          message="No se pudo cargar la analítica. Inténtalo de nuevo en unos minutos."
+          onRetry={() => analyticsQuery.refetch()}
+        />
       ) : data ? (
         <>
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -192,6 +194,7 @@ export default function CallAnalyticsPage() {
 
           <div className="grid gap-4 xl:grid-cols-2">
             <BarList
+              id="calls-by-hour"
               title="Horas con más llamadas"
               description="Hora local del negocio. Útil para decidir refuerzos y horarios."
               rows={data.byHour.map((row) => ({
@@ -200,6 +203,7 @@ export default function CallAnalyticsPage() {
               }))}
             />
             <BarList
+              id="calls-by-weekday"
               title="Días con más llamadas"
               description="Distribución semanal de la demanda."
               rows={data.byWeekday.map((row) => ({
@@ -208,6 +212,7 @@ export default function CallAnalyticsPage() {
               }))}
             />
             <BarList
+              id="calls-outcomes"
               title="Resultado de las llamadas"
               description="En qué acaba cada conversación."
               rows={data.outcomes.map((row) => ({
@@ -216,6 +221,7 @@ export default function CallAnalyticsPage() {
               }))}
             />
             <BarList
+              id="calls-sentiments"
               title="Sentimiento del cliente"
               description="Cómo se fue el cliente de la llamada."
               rows={data.sentiments.map((row) => ({
@@ -226,6 +232,7 @@ export default function CallAnalyticsPage() {
           </div>
 
           <BarList
+            id="calls-top-services"
             title="Servicios más pedidos"
             description="Lo que la gente pide por teléfono, se reserve o no — la señal para ampliar oferta o disponibilidad."
             rows={data.topServices.map((row) => ({

@@ -1,11 +1,11 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import Link from "next/link";
-import { ArrowRight, CalendarDays, Phone, RefreshCw, Users } from "lucide-react";
+import { CalendarDays, Phone, Users } from "lucide-react";
 import { getAgenda } from "@/lib/api";
 import { formatClock, formatDayLabel, formatPhone, formatPrice } from "@/lib/format";
 import type { AgendaBooking } from "@/lib/types";
+import { SectionCard, SectionEmptyState, SectionErrorState } from "@/components/section-card";
 
 const AGENDA_DAYS = 7;
 
@@ -31,24 +31,16 @@ export function UpcomingBookings({ timeZone }: UpcomingBookingsProps) {
   const days = groupByDay(bookings, timeZone);
 
   return (
-    <section className="panel min-w-0 p-4 sm:p-5 lg:p-6" aria-labelledby="upcoming-bookings-title">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <h2 id="upcoming-bookings-title" className="text-lg font-semibold text-[#0a0a0a] sm:text-xl">
-            Próximas citas
-          </h2>
-          <p className="mt-1 text-sm text-muted">
-            {bookings.length > 0
-              ? `${bookings.length} ${bookings.length === 1 ? "cita reservada" : "citas reservadas"} en los próximos ${AGENDA_DAYS} días.`
-              : `Lo que tu recepcionista tiene agendado para los próximos ${AGENDA_DAYS} días.`}
-          </p>
-        </div>
-        <Link href="/agenda" className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full border border-[#e5e5e5] bg-white px-3 text-sm font-semibold text-[#27272a] transition duration-200 hover:bg-[#fafafa] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]">
-          Ver agenda
-          <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
-        </Link>
-      </div>
-
+    <SectionCard
+      id="upcoming-bookings"
+      title="Próximas citas"
+      description={
+        bookings.length > 0
+          ? `${bookings.length} ${bookings.length === 1 ? "cita reservada" : "citas reservadas"} en los próximos ${AGENDA_DAYS} días.`
+          : `Lo que tu recepcionista tiene agendado para los próximos ${AGENDA_DAYS} días.`
+      }
+      action={{ kind: "link", href: "/agenda", label: "Ver agenda" }}
+    >
       {agendaQuery.isLoading ? (
         <div className="mt-5 space-y-4" aria-label="Cargando próximas citas">
           {Array.from({ length: 3 }, (_, index) => (
@@ -62,30 +54,18 @@ export function UpcomingBookings({ timeZone }: UpcomingBookingsProps) {
           ))}
         </div>
       ) : agendaQuery.isError ? (
-        <div className="mt-5 flex flex-col items-center gap-3 rounded-2xl border border-[#f5d3d3] bg-[#fff1f1] px-4 py-6 text-center">
-          <p className="text-sm font-medium text-[#c53030]">No se pudieron cargar las próximas citas.</p>
-          <button
-            type="button"
-            onClick={() => agendaQuery.refetch()}
-            className="inline-flex h-10 items-center gap-2 rounded-full border border-[#f5d3d3] bg-white px-4 text-sm font-semibold text-[#c53030] transition duration-200 hover:bg-[#fff1f1] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]"
-          >
-            <RefreshCw className="h-4 w-4" aria-hidden="true" />
-            Reintentar
-          </button>
-        </div>
+        <SectionErrorState
+          className="mt-5"
+          message="No se pudieron cargar las próximas citas."
+          onRetry={() => agendaQuery.refetch()}
+        />
       ) : days.length === 0 ? (
-        <div className="mt-5 flex flex-col items-start gap-3 rounded-2xl border border-dashed border-[#e5e5e5] bg-[#fafafa] px-4 py-6 sm:flex-row sm:items-center">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#f3eeff] text-[#8b5cf6]">
-            <CalendarDays className="h-5 w-5" aria-hidden="true" />
-          </div>
-          <div className="min-w-0">
-            <p className="text-sm font-semibold text-[#27272a]">Ninguna cita en los próximos días</p>
-            <p className="mt-1 text-sm leading-6 text-muted">
-              Cuando tu recepcionista reserve una cita por teléfono, aparecerá aquí con el cliente, el
-              servicio y el profesional asignado.
-            </p>
-          </div>
-        </div>
+        <SectionEmptyState
+          className="mt-5"
+          icon={CalendarDays}
+          title="Ninguna cita en los próximos días"
+          description="Cuando tu recepcionista reserve una cita por teléfono, aparecerá aquí con el cliente, el servicio y el profesional asignado."
+        />
       ) : (
         <div className="mt-5 space-y-5">
           {days.map(({ key, label, bookings: dayBookings }) => (
@@ -105,7 +85,7 @@ export function UpcomingBookings({ timeZone }: UpcomingBookingsProps) {
           ))}
         </div>
       )}
-    </section>
+    </SectionCard>
   );
 }
 
