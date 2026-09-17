@@ -22,9 +22,11 @@ import {
 } from "../../adapters/calendar/errors.js";
 import {
   DESCRIPTORES_DE_PROVEEDOR,
+  normalizarProveedorDeCalendario,
   type CalendarBusyInterval,
   type CalendarBusyIntervalsResult,
   type CalendarConnection,
+  type CalendarioDisponible,
   type CalendarProviderId,
   type ConexionActiva,
   type EventoCreado,
@@ -43,6 +45,7 @@ import {
 import { obtenerProveedorDeCalendario } from "../../adapters/calendar/registry.js";
 import {
   conCallbackDeRotacion,
+  estadoDeConexion,
   guardarConexionDeCalendario,
   resolverConexionDeCalendario,
 } from "./conexion.js";
@@ -105,6 +108,14 @@ type EntradaPlanaDeConexion = {
   outlookCalendarId?: string | null;
 };
 
+/** Forma nueva: los consumidores entregan la conexión ya resuelta por
+ * conexion.ts y dejan de conocer columnas. */
+type EntradaConConexion = { conexion: CalendarConnection };
+
+/** Transitorio: mientras se migran los consumidores, las operaciones aceptan
+ * las dos formas y se discrimina por la presencia de `conexion`. */
+type EntradaDeConexion = EntradaConConexion | EntradaPlanaDeConexion;
+
 /** provider + 4 columnas → CalendarConnection, con la misma resolución que
  * usarán los consumidores (conexion.ts): el proveedor viene forzado por la
  * entrada y los flags de conexión no se conocen aquí. */
@@ -125,6 +136,13 @@ function conexionDesdeEntradaPlana(
   );
 }
 
+/** Entrada dual → CalendarConnection. */
+function conexionDesdeEntrada(input: EntradaDeConexion): CalendarConnection {
+  return "conexion" in input
+    ? input.conexion
+    : conexionDesdeEntradaPlana(input);
+}
+
 /** Guardas comunes a las operaciones. Reproducen exactamente los textos y
  * códigos que antes tenía cada rama por proveedor:
  *  - sin credenciales → <P>_CALENDAR_RECONNECT_REQUIRED
@@ -138,12 +156,16 @@ function exigirConexionActiva(
   operacion: "reservar" | "cancelar" | "proximos"
 ): ConexionActiva {
   const { nombre, nombreCorto } = DESCRIPTORES_DE_PROVEEDOR[conexion.provider];
-  if (!conexion.credentials) {
-    throw new CalendarBusinessError(
+  const errorDeReconexion = () =>
+    new CalendarBusinessError(
       codigoDeReconexion(conexion.provider),
       `El negocio no tiene conectado ${nombre}.`,
       conexion.provider
     );
+  // Mismos tres estados que estadoDeConexion(); se comprueban en línea para
+  // que TypeScript estreche credentials/calendarId sin casts.
+  if (!conexion.credentials) {
+    throw errorDeReconexion();
   }
   if (!conexion.calendarId) {
     if (operacion === "reservar") {
@@ -152,11 +174,7 @@ function exigirConexionActiva(
         `No se ha seleccionado un calendario de ${nombreCorto}.`
       );
     }
-    throw new CalendarBusinessError(
-      codigoDeReconexion(conexion.provider),
-      `El negocio no tiene conectado ${nombre}.`,
-      conexion.provider
-    );
+    throw errorDeReconexion();
   }
   return {
     provider: conexion.provider,
@@ -248,6 +266,25 @@ export class CalendarService {
     return business;
   }
 
+  /** Calendarios de la cuenta conectada (paso de selección: aún puede no
+   * haber calendarId). Sin credenciales lanza el RECONNECT del proveedor. */
+  async listarCalendarios(
+    conexion: CalendarConnection
+  ): Promise<CalendarioDisponible[]> {
+    if (!conexion.credentials) {
+      throw new CalendarBusinessError(
+        codigoDeReconexion(conexion.provider),
+        `El negocio no tiene conectado ${DESCRIPTORES_DE_PROVEEDOR[conexion.provider].nombre}.`,
+        conexion.provider
+      );
+    }
+    return obtenerProveedorDeCalendario(conexion.provider).listarCalendarios(
+      conCallbackDeRotacion(conexion.credentials)
+    );
+  }
+
+  /** @deprecated Usa listarCalendarios(conexion); se conserva por los tests
+   * antiguos de service.test.ts. */
   async listGoogleCalendars(googleRefreshToken: string) {
     return obtenerProveedorDeCalendario("google").listarCalendarios(
       conCallbackDeRotacion({
@@ -257,6 +294,8 @@ export class CalendarService {
     );
   }
 
+  /** @deprecated Usa listarCalendarios(conexion); se conserva por los tests
+   * antiguos de service.test.ts. */
   async listOutlookCalendars(outlookRefreshToken: string) {
     return obtenerProveedorDeCalendario("outlook").listarCalendarios(
       conCallbackDeRotacion({
@@ -264,6 +303,19 @@ export class CalendarService {
         refreshToken: outlookRefreshToken,
       })
     );
+  }
+
+  /** Despacho de POST /calendar/select por el proveedor guardado del negocio.
+   * Conserva la asimetría: Outlook resincroniza las tools, Google no. */
+  async seleccionarCalendario(businessId: string, calendarId: string) {
+    const business = await prisma.business.findUnique({
+      where: { id: businessId },
+      select: { calendarProvider: true },
+    });
+    return normalizarProveedorDeCalendario(business?.calendarProvider) ===
+      "outlook"
+      ? this.connectMicrosoftCalendar(businessId, calendarId)
+      : this.selectGoogleCalendar(businessId, calendarId);
   }
 
   /** A diferencia de connectMicrosoftCalendar, no resincroniza las tools de
@@ -665,20 +717,35 @@ export class CalendarService {
   }
 
   async getUpcomingEvents(
+    conexion: CalendarConnection,
+    maxResults?: number
+  ): Promise<EventoProximo[]>;
+  /** @deprecated Forma plana transitoria; pasa una CalendarConnection. */
+  async getUpcomingEvents(
     provider: CalendarProviderId,
-    options: {
-      googleRefreshToken?: string | null;
-      googleCalendarId?: string | null;
-      outlookRefreshToken?: string | null;
-      outlookCalendarId?: string | null;
-    },
-    maxResults: number = 5
+    options: Omit<EntradaPlanaDeConexion, "provider">,
+    maxResults?: number
+  ): Promise<EventoProximo[]>;
+  async getUpcomingEvents(
+    conexionOProvider: CalendarConnection | CalendarProviderId,
+    optionsOMaxResults?: Omit<EntradaPlanaDeConexion, "provider"> | number,
+    maxResultsPlano?: number
   ): Promise<EventoProximo[]> {
+    let conexion: CalendarConnection;
+    let maxResults: number;
+    if (typeof conexionOProvider === "string") {
+      conexion = conexionDesdeEntradaPlana({
+        provider: conexionOProvider,
+        ...(typeof optionsOMaxResults === "object" ? optionsOMaxResults : {}),
+      });
+      maxResults = maxResultsPlano ?? 5;
+    } else {
+      conexion = conexionOProvider;
+      maxResults =
+        typeof optionsOMaxResults === "number" ? optionsOMaxResults : 5;
+    }
     const safeMaxResults = Math.min(Math.max(Math.trunc(maxResults), 1), 15);
-    const activa = exigirConexionActiva(
-      conexionDesdeEntradaPlana({ provider, ...options }),
-      "proximos"
-    );
+    const activa = exigirConexionActiva(conexion, "proximos");
     return obtenerProveedorDeCalendario(activa.provider).listarProximosEventos(
       activa,
       safeMaxResults
@@ -697,10 +764,10 @@ export class CalendarService {
    * sigue siendo la red de seguridad mínima en ese caso. NUNCA lanza.
    */
   async getBusyIntervals(
-    input: EntradaPlanaDeConexion & { timeMin: Date; timeMax: Date }
+    input: EntradaDeConexion & { timeMin: Date; timeMax: Date }
   ): Promise<CalendarBusyIntervalsResult> {
-    const conexion = conexionDesdeEntradaPlana(input);
-    if (!conexion.credentials || !conexion.calendarId) {
+    const conexion = conexionDesdeEntrada(input);
+    if (estadoDeConexion(conexion) !== "ok") {
       return { intervals: [], calendarAvailabilityKnown: false };
     }
     try {
@@ -722,7 +789,7 @@ export class CalendarService {
   }
 
   async bookAppointment(
-    input: EntradaPlanaDeConexion & {
+    input: EntradaDeConexion & {
       clientName: string;
       startDateTime: string;
       durationMinutes?: number;
@@ -739,7 +806,7 @@ export class CalendarService {
     }
   ): Promise<EventoCreado> {
     const activa = exigirConexionActiva(
-      conexionDesdeEntradaPlana(input),
+      conexionDesdeEntrada(input),
       "reservar"
     );
     const startTime = new Date(input.startDateTime);
@@ -772,10 +839,10 @@ export class CalendarService {
    * borrado se trata como éxito idempotente — puede haberlo borrado ya un
    * reintento anterior o el propio propietario a mano. */
   async cancelAppointment(
-    input: EntradaPlanaDeConexion & { eventId: string }
+    input: EntradaDeConexion & { eventId: string }
   ): Promise<void> {
     const activa = exigirConexionActiva(
-      conexionDesdeEntradaPlana(input),
+      conexionDesdeEntrada(input),
       "cancelar"
     );
     await obtenerProveedorDeCalendario(activa.provider).borrarEvento(
