@@ -27,7 +27,6 @@ import {
   type CalendarBusyIntervalsResult,
   type CalendarConnection,
   type CalendarioDisponible,
-  type CalendarProviderId,
   type ConexionActiva,
   type EventoCreado,
   type EventoProximo,
@@ -47,7 +46,6 @@ import {
   conCallbackDeRotacion,
   estadoDeConexion,
   guardarConexionDeCalendario,
-  resolverConexionDeCalendario,
 } from "./conexion.js";
 
 // Re-exports de compatibilidad: calendar/routes.ts y los tests importan estos
@@ -97,51 +95,9 @@ async function consumeCalendarOAuthState(
   return getRedis().getdel(calendarOAuthStateRedisKey(provider, state));
 }
 
-/** Columnas planas que hoy reciben las operaciones (voiceTools, el job y
- * calendar/routes las pasan tal cual desde Business). Desaparece cuando los
- * consumidores pasen a entregar una CalendarConnection. */
-type EntradaPlanaDeConexion = {
-  provider: CalendarProviderId;
-  googleRefreshToken?: string | null;
-  googleCalendarId?: string | null;
-  outlookRefreshToken?: string | null;
-  outlookCalendarId?: string | null;
-};
-
-/** Forma nueva: los consumidores entregan la conexión ya resuelta por
- * conexion.ts y dejan de conocer columnas. */
+/** Las operaciones reciben la conexión ya resuelta por conexion.ts: los
+ * consumidores (voiceTools, el job, calendar/routes) no conocen columnas. */
 type EntradaConConexion = { conexion: CalendarConnection };
-
-/** Transitorio: mientras se migran los consumidores, las operaciones aceptan
- * las dos formas y se discrimina por la presencia de `conexion`. */
-type EntradaDeConexion = EntradaConConexion | EntradaPlanaDeConexion;
-
-/** provider + 4 columnas → CalendarConnection, con la misma resolución que
- * usarán los consumidores (conexion.ts): el proveedor viene forzado por la
- * entrada y los flags de conexión no se conocen aquí. */
-function conexionDesdeEntradaPlana(
-  input: EntradaPlanaDeConexion
-): CalendarConnection {
-  return resolverConexionDeCalendario(
-    {
-      calendarProvider: input.provider,
-      googleRefreshToken: input.googleRefreshToken ?? null,
-      googleCalendarId: input.googleCalendarId ?? null,
-      googleCalendarConnected: null,
-      outlookRefreshToken: input.outlookRefreshToken ?? null,
-      outlookCalendarId: input.outlookCalendarId ?? null,
-      outlookCalendarConnected: null,
-    },
-    { provider: input.provider }
-  );
-}
-
-/** Entrada dual → CalendarConnection. */
-function conexionDesdeEntrada(input: EntradaDeConexion): CalendarConnection {
-  return "conexion" in input
-    ? input.conexion
-    : conexionDesdeEntradaPlana(input);
-}
 
 /** Guardas comunes a las operaciones. Reproducen exactamente los textos y
  * códigos que antes tenía cada rama por proveedor:
@@ -718,32 +674,8 @@ export class CalendarService {
 
   async getUpcomingEvents(
     conexion: CalendarConnection,
-    maxResults?: number
-  ): Promise<EventoProximo[]>;
-  /** @deprecated Forma plana transitoria; pasa una CalendarConnection. */
-  async getUpcomingEvents(
-    provider: CalendarProviderId,
-    options: Omit<EntradaPlanaDeConexion, "provider">,
-    maxResults?: number
-  ): Promise<EventoProximo[]>;
-  async getUpcomingEvents(
-    conexionOProvider: CalendarConnection | CalendarProviderId,
-    optionsOMaxResults?: Omit<EntradaPlanaDeConexion, "provider"> | number,
-    maxResultsPlano?: number
+    maxResults = 5
   ): Promise<EventoProximo[]> {
-    let conexion: CalendarConnection;
-    let maxResults: number;
-    if (typeof conexionOProvider === "string") {
-      conexion = conexionDesdeEntradaPlana({
-        provider: conexionOProvider,
-        ...(typeof optionsOMaxResults === "object" ? optionsOMaxResults : {}),
-      });
-      maxResults = maxResultsPlano ?? 5;
-    } else {
-      conexion = conexionOProvider;
-      maxResults =
-        typeof optionsOMaxResults === "number" ? optionsOMaxResults : 5;
-    }
     const safeMaxResults = Math.min(Math.max(Math.trunc(maxResults), 1), 15);
     const activa = exigirConexionActiva(conexion, "proximos");
     return obtenerProveedorDeCalendario(activa.provider).listarProximosEventos(
@@ -764,9 +696,9 @@ export class CalendarService {
    * sigue siendo la red de seguridad mínima en ese caso. NUNCA lanza.
    */
   async getBusyIntervals(
-    input: EntradaDeConexion & { timeMin: Date; timeMax: Date }
+    input: EntradaConConexion & { timeMin: Date; timeMax: Date }
   ): Promise<CalendarBusyIntervalsResult> {
-    const conexion = conexionDesdeEntrada(input);
+    const { conexion } = input;
     if (estadoDeConexion(conexion) !== "ok") {
       return { intervals: [], calendarAvailabilityKnown: false };
     }
@@ -789,7 +721,7 @@ export class CalendarService {
   }
 
   async bookAppointment(
-    input: EntradaDeConexion & {
+    input: EntradaConConexion & {
       clientName: string;
       startDateTime: string;
       durationMinutes?: number;
@@ -805,10 +737,7 @@ export class CalendarService {
       idempotencyKey?: string;
     }
   ): Promise<EventoCreado> {
-    const activa = exigirConexionActiva(
-      conexionDesdeEntrada(input),
-      "reservar"
-    );
+    const activa = exigirConexionActiva(input.conexion, "reservar");
     const startTime = new Date(input.startDateTime);
     const endTime = new Date(
       startTime.getTime() + (input.durationMinutes ?? 30) * 60000
@@ -839,12 +768,9 @@ export class CalendarService {
    * borrado se trata como éxito idempotente — puede haberlo borrado ya un
    * reintento anterior o el propio propietario a mano. */
   async cancelAppointment(
-    input: EntradaDeConexion & { eventId: string }
+    input: EntradaConConexion & { eventId: string }
   ): Promise<void> {
-    const activa = exigirConexionActiva(
-      conexionDesdeEntrada(input),
-      "cancelar"
-    );
+    const activa = exigirConexionActiva(input.conexion, "cancelar");
     await obtenerProveedorDeCalendario(activa.provider).borrarEvento(
       activa,
       input.eventId
