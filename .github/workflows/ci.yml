@@ -52,4 +52,13 @@ jobs:
       - run: npm run test
       # No hay script `typecheck` en frontend/package.json — `next build`
       # tipa como parte de la compilación (ver AGENTS.md).
+      #
+      # NEXT_PUBLIC_API_BASE_URL es obligatoria desde 2026-09-17: sin ella el
+      # bundle salía apuntando a un rewrite hacia localhost y la aplicación se
+      # publicaba muda (pasó dos veces en producción), así que lib/api.ts
+      # ahora lanza en build. No es un secreto — es la URL pública del backend
+      # — y Vercel ya la tiene configurada en su propio build, que es el que
+      # de verdad protege el despliegue.
       - run: npm run build
+        env:
+          NEXT_PUBLIC_API_BASE_URL: https://api.alhabla.ai
