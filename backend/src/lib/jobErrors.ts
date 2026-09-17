@@ -15,9 +15,18 @@ export class PermanentJobError extends Error {
   }
 }
 
-/** Un 4xx que no sea 408/429 es culpa de la petición, no del momento. */
+/**
+ * Un 4xx suele ser culpa de la petición y no mejora repitiéndola. Quedan
+ * fuera los que sí pueden arreglarse solos:
+ * - 408/429: tiempo agotado o límite de ritmo.
+ * - 401/403: casi siempre un token caducado o revocado; el siguiente intento
+ *   renueva credenciales. Tirar aquí el correo de "tu pago ha fallado"
+ *   porque Zoho devolvió un 401 sería mucho peor que reintentarlo.
+ */
 export function esFalloPermanentePorEstado(status: number | undefined): boolean {
   if (status === undefined) return false;
-  if (status === 408 || status === 429) return false;
+  if (status === 401 || status === 403 || status === 408 || status === 429) {
+    return false;
+  }
   return status >= 400 && status < 500;
 }
