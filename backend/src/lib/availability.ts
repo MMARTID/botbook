@@ -6,6 +6,101 @@ export type AvailableProfessional = {
   name: string;
 };
 
+/** Nivel de un profesional PARA los servicios pedidos en esta reserva. Sale
+ * de sus filas de ProfessionalService: NO_SUGERIR si alguno de los servicios
+ * pedidos lo tiene así, ESPECIALISTA si los tiene todos como especialidad, y
+ * "normal" (lo hace) en el resto — incluido no tener fila, que es el estado
+ * por defecto de cualquier profesional activo. */
+export type ProfessionalTier = "especialista" | "normal" | "no_sugerir";
+
+type ProfessionalServiceLink = {
+  serviceId: string;
+  /** Opcional para tolerar filas anteriores a la columna (mocks, datos
+   * viejos): sin nivel se lee como especialidad, que es lo que significaba
+   * la fila antes de existir el campo. */
+  level?: "ESPECIALISTA" | "NO_SUGERIR" | null;
+};
+
+type RankedProfessional = AvailableProfessional & { tier: ProfessionalTier };
+
+const TIER_RANK: Record<ProfessionalTier, number> = {
+  especialista: 0,
+  normal: 1,
+  no_sugerir: 2,
+};
+
+export function professionalTierFor(
+  links: ProfessionalServiceLink[],
+  requestedServiceIds: string[]
+): ProfessionalTier {
+  if (requestedServiceIds.length === 0) return "normal";
+  const levelByService = new Map(
+    links.map((link) => [link.serviceId, link.level ?? "ESPECIALISTA"] as const)
+  );
+  if (requestedServiceIds.some((id) => levelByService.get(id) === "NO_SUGERIR")) {
+    return "no_sugerir";
+  }
+  if (requestedServiceIds.every((id) => levelByService.get(id) === "ESPECIALISTA")) {
+    return "especialista";
+  }
+  return "normal";
+}
+
+/** Fecha local del negocio (YYYY-MM-DD) para agrupar "las citas de ese día":
+ * a las 23:30 en Madrid la fecha UTC ya es la del día siguiente. */
+function claveDeDiaLocal(date: Date, timezone: string): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: timezone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(date);
+}
+
+/** Nº de citas por profesional y día local, calculado una sola vez sobre las
+ * reservas ya cargadas: es el desempate entre profesionales del mismo nivel
+ * ("a quien tenga el día más despejado"). Los bloqueos del calendario
+ * externo (professionalId null) no son de nadie y no cuentan. */
+function cargaPorDiaYProfesional(
+  bookings: Array<{ professionalId: string | null; programedAt: Date }>,
+  timezone: string
+): Map<string, Map<string, number>> {
+  const carga = new Map<string, Map<string, number>>();
+  for (const booking of bookings) {
+    if (!booking.professionalId) continue;
+    const dia = claveDeDiaLocal(new Date(booking.programedAt), timezone);
+    const porProfesional = carga.get(dia) ?? new Map<string, number>();
+    porProfesional.set(
+      booking.professionalId,
+      (porProfesional.get(booking.professionalId) ?? 0) + 1
+    );
+    carga.set(dia, porProfesional);
+  }
+  return carga;
+}
+
+/** Orden de asignación para un instante concreto: primero el nivel
+ * (especialista antes que "lo hace"), después quien tenga menos citas ese
+ * día, y a igualdad el orden en que se dieron de alta. Sort estable: la
+ * lista de entrada ya viene por createdAt. */
+function ordenarParaAsignar(
+  professionals: RankedProfessional[],
+  slotStart: Date,
+  timezone: string,
+  carga: Map<string, Map<string, number>>
+): RankedProfessional[] {
+  const dia = claveDeDiaLocal(slotStart, timezone);
+  const cargaDelDia = carga.get(dia);
+  const citasDe = (id: string) => cargaDelDia?.get(id) ?? 0;
+  return [...professionals].sort(
+    (a, b) => TIER_RANK[a.tier] - TIER_RANK[b.tier] || citasDe(a.id) - citasDe(b.id)
+  );
+}
+
+function sinNivel(professional: RankedProfessional): AvailableProfessional {
+  return { id: professional.id, name: professional.name };
+}
+
 export type ExternalBusyInterval = {
   start: Date;
   end: Date;
@@ -35,13 +130,34 @@ export type SuggestedSlot = {
   availableProfessionals: AvailableProfessional[];
 };
 
+/** Solo cuando el cliente pidió por su nombre a alguien marcado como "no
+ * sugerir" para estos servicios y hay otro profesional del pool automático
+ * libre a esa misma hora: es a quien el agente propone UNA vez. Si el
+ * cliente insiste, se reserva con quien pidió (el resultado principal ya es
+ * el de esa persona). Nunca lleva el motivo: el cliente no debe oír que a
+ * alguien "no se le da bien". */
+export type ProfessionalRecommendation = {
+  professional: AvailableProfessional;
+  /** Si el recomendado es especialista en todo lo pedido; deja al agente
+   * decirlo en positivo. */
+  isSpecialist: boolean;
+};
+
 export type AvailabilityResult =
   | {
       available: true;
       message: string;
       capacityUsed: number;
       capacityTotal: number;
+      /** Ordenados para asignar: availableProfessionals[0] es a quien se da
+       * la cita si el cliente no pidió a nadie. Sin professionalId nunca
+       * incluye a los marcados "no sugerir". */
       availableProfessionals: AvailableProfessional[];
+      /** IDs de availableProfessionals que son especialistas en TODO lo
+       * pedido. Sirve para que la confirmación pueda decir "te he puesto con
+       * Laura, nuestra especialista en color". */
+      specialistIds?: string[];
+      recommendedProfessional?: ProfessionalRecommendation;
     }
   | {
       available: false;
@@ -52,6 +168,7 @@ export type AvailabilityResult =
       /** null si no se buscó (código no aplicable) o no quedó ningún hueco
        * libre en la ventana de búsqueda. */
       suggestedNextSlot?: SuggestedSlot | null;
+      recommendedProfessional?: ProfessionalRecommendation;
     };
 
 /** Nº máximo de reservas activas al mismo tiempo, en cualquier instante
@@ -147,12 +264,16 @@ function findNextAvailableSlot(input: {
   bookingCapacity: number;
   startDateTime: string;
   durationMinutes: number;
-  rankedProfessionals: AvailableProfessional[];
+  /** Candidatos a la cita (sin professionalId pedido: ya sin los "no
+   * sugerir"). Se reordenan por nivel y carga del día de CADA candidato,
+   * porque el hueco alternativo puede caer otro día. */
+  rankedProfessionals: RankedProfessional[];
   bookings: Array<{
     professionalId: string | null;
     programedAt: Date;
     durationMinutes: number | null;
   }>;
+  cargaPorDia: Map<string, Map<string, number>>;
 }): SuggestedSlot | null {
   const {
     schedule,
@@ -162,6 +283,7 @@ function findNextAvailableSlot(input: {
     durationMinutes,
     rankedProfessionals,
     bookings,
+    cargaPorDia,
   } = input;
 
   if (rankedProfessionals.length === 0) {
@@ -234,9 +356,14 @@ function findNextAvailableSlot(input: {
         .map((booking) => booking.professionalId)
         .filter((id): id is string => Boolean(id))
     );
-    const availableProfessionals = rankedProfessionals.filter(
-      (professional) => !busyProfessionalIds.has(professional.id)
-    );
+    const availableProfessionals = ordenarParaAsignar(
+      rankedProfessionals.filter(
+        (professional) => !busyProfessionalIds.has(professional.id)
+      ),
+      candidateStart,
+      timezone,
+      cargaPorDia
+    ).map(sinNivel);
 
     if (availableProfessionals.length > 0) {
       return { startDateTime: candidateISO, availableProfessionals };
@@ -312,20 +439,30 @@ export async function checkAvailability(input: {
   }
   const outsideBusinessHours = !hoursResult.isOpen;
 
-  // 2. Profesionales que pueden atender el servicio
-  const professionals = await prisma.professional.findMany({
-    where: {
-      businessId,
-      active: true,
-      deletedAt: null,
-      ...(professionalId ? { id: professionalId } : {}),
-    },
-    include: {
-      serviceLinks: true,
-    },
+  // 2. Profesionales activos del negocio. Se cargan TODOS aunque el cliente
+  // haya pedido a alguien concreto: si esa persona está marcada "no sugerir"
+  // para el servicio, hay que saber quién más está libre a esa hora para
+  // recomendarlo. El filtro por professionalId se aplica en memoria.
+  const todosLosProfesionales = await prisma.professional.findMany({
+    where: { businessId, active: true, deletedAt: null },
+    include: { serviceLinks: true },
+    // Último desempate del ranking: el orden de alta. Sin orderBy el orden
+    // era el que quisiera Postgres.
+    orderBy: { createdAt: "asc" },
   });
 
-  if (professionalId && professionals.length === 0) {
+  const requestedServiceIds = serviceIds?.filter(Boolean) ?? [];
+  const conNivel: RankedProfessional[] = todosLosProfesionales.map((professional) => ({
+    id: professional.id,
+    name: professional.name,
+    tier: professionalTierFor(professional.serviceLinks ?? [], requestedServiceIds),
+  }));
+
+  const pedido = professionalId
+    ? conNivel.find((professional) => professional.id === professionalId)
+    : undefined;
+
+  if (professionalId && !pedido) {
     return {
       available: false,
       code: "PROFESSIONAL_NOT_FOUND",
@@ -333,7 +470,7 @@ export async function checkAvailability(input: {
     };
   }
 
-  if (professionals.length === 0) {
+  if (conNivel.length === 0) {
     return {
       available: false,
       code: "NO_AVAILABLE_PROFESSIONAL",
@@ -341,31 +478,26 @@ export async function checkAvailability(input: {
     };
   }
 
-  // Los servicios marcados en un profesional son una preferencia de
-  // especialidad, no una restricción: cualquier profesional activo puede
-  // atender cualquier servicio (un profesional sin ningún servicio marcado
-  // puede hacerlos todos, sin prioridad frente a los demás). Cuando se piden
-  // uno o varios servicios sin especificar profesional, se prioriza a quien
-  // los tenga TODOS marcados como especialidad — el resto sigue contando
-  // como alternativa si nadie cubre todos los servicios o los especialistas
-  // están ocupados.
-  const requestedServiceIds = serviceIds?.filter(Boolean) ?? [];
-  const rankedProfessionals =
-    requestedServiceIds.length > 0
-      ? [...professionals].sort((a, b) => {
-          const aCoversAll = requestedServiceIds.every((id) =>
-            a.serviceLinks.some((link) => link.serviceId === id)
-          )
-            ? 0
-            : 1;
-          const bCoversAll = requestedServiceIds.every((id) =>
-            b.serviceLinks.some((link) => link.serviceId === id)
-          )
-            ? 0
-            : 1;
-          return aCoversAll - bCoversAll;
-        })
-      : professionals;
+  // Tres niveles por profesional y servicio (ver ProfessionalServiceLevel en
+  // el esquema): el especialista se lleva la cita cuando el cliente no pide a
+  // nadie; "lo hace" (sin fila) es el valor por defecto de cualquier
+  // profesional activo; "no sugerir" nunca entra en la asignación
+  // automática, pero sí se le reserva si el cliente lo pide por su nombre —
+  // entonces es `pedido` y el pool automático solo sirve para recomendar.
+  const poolAutomatico = conNivel.filter(
+    (professional) => professional.tier !== "no_sugerir"
+  );
+
+  if (!pedido && poolAutomatico.length === 0) {
+    return {
+      available: false,
+      code: "NO_AVAILABLE_PROFESSIONAL",
+      message:
+        "Ningún profesional está configurado para atender este servicio sin que el cliente lo pida por su nombre.",
+    };
+  }
+
+  const candidatos: RankedProfessional[] = pedido ? [pedido] : poolAutomatico;
 
   // 3. Citas existentes en el slot — la ventana de la consulta ya cubre
   // también la búsqueda de un hueco alternativo (ver findNextAvailableSlot
@@ -501,27 +633,58 @@ export async function checkAvailability(input: {
   });
 
   const bookingsInSlot = maxConcurrentBookings(start, end, activeBookings);
-  const rankedProfessionalsForSearch = rankedProfessionals.map(
-    (professional) => ({
-      id: professional.id,
-      name: professional.name,
-    })
+  const cargaPorDia = cargaPorDiaYProfesional(reconciledLocalBookings, timezone);
+  const buscarSiguienteHueco = () =>
+    findNextAvailableSlot({
+      schedule,
+      timezone,
+      bookingCapacity,
+      startDateTime,
+      durationMinutes,
+      rankedProfessionals: candidatos,
+      bookings: overlappingBookings,
+      cargaPorDia,
+    });
+
+  // 4. Profesionales ocupados en el slot
+  const busyProfessionalIds = new Set(
+    activeBookings
+      .map((booking) => booking.professionalId)
+      .filter((id): id is string => Boolean(id))
   );
+  const libres = (lista: RankedProfessional[]) =>
+    ordenarParaAsignar(
+      lista.filter((professional) => !busyProfessionalIds.has(professional.id)),
+      start,
+      timezone,
+      cargaPorDia
+    );
+
+  // El cliente pidió por su nombre a alguien marcado "no sugerir" para estos
+  // servicios: se le reserva igual si insiste, pero antes el agente propone
+  // UNA vez a quien mejor lo hace y está libre a esa misma hora. Se calcula
+  // también si el pedido está ocupado o fuera de horario: la recomendación
+  // sigue siendo válida para la hora que el cliente quería.
+  const recomendacion: ProfessionalRecommendation | undefined = (() => {
+    if (!pedido || pedido.tier !== "no_sugerir" || outsideBusinessHours) return undefined;
+    if (bookingsInSlot >= bookingCapacity) return undefined;
+    const [mejorLibre] = libres(
+      poolAutomatico.filter((professional) => professional.id !== pedido.id)
+    );
+    if (!mejorLibre) return undefined;
+    return {
+      professional: sinNivel(mejorLibre),
+      isSpecialist: mejorLibre.tier === "especialista",
+    };
+  })();
+  const conRecomendacion = recomendacion ? { recommendedProfessional: recomendacion } : {};
 
   if (outsideBusinessHours) {
     return {
       available: false,
       code: "OUTSIDE_BUSINESS_HOURS",
       message: hoursResult.message,
-      suggestedNextSlot: findNextAvailableSlot({
-        schedule,
-        timezone,
-        bookingCapacity,
-        startDateTime,
-        durationMinutes,
-        rankedProfessionals: rankedProfessionalsForSearch,
-        bookings: overlappingBookings,
-      }),
+      suggestedNextSlot: buscarSiguienteHueco(),
     };
   }
 
@@ -532,30 +695,13 @@ export async function checkAvailability(input: {
       message: "El negocio ya tiene todas sus plazas ocupadas en ese horario.",
       capacityUsed: bookingsInSlot,
       capacityTotal: bookingCapacity,
-      suggestedNextSlot: findNextAvailableSlot({
-        schedule,
-        timezone,
-        bookingCapacity,
-        startDateTime,
-        durationMinutes,
-        rankedProfessionals: rankedProfessionalsForSearch,
-        bookings: overlappingBookings,
-      }),
+      suggestedNextSlot: buscarSiguienteHueco(),
     };
   }
 
-  // 4. Profesionales ocupados en el slot
-  const busyProfessionalIds = new Set(
-    activeBookings
-      .map((booking) => booking.professionalId)
-      .filter((id): id is string => Boolean(id))
-  );
+  const disponibles = libres(candidatos);
 
-  const availableProfessionals = rankedProfessionals
-    .filter((professional) => !busyProfessionalIds.has(professional.id))
-    .map((professional) => ({ id: professional.id, name: professional.name }));
-
-  if (availableProfessionals.length === 0) {
+  if (disponibles.length === 0) {
     return {
       available: false,
       code: "ALL_PROFESSIONALS_BUSY",
@@ -563,23 +709,22 @@ export async function checkAvailability(input: {
         "Todos los profesionales que pueden hacer este servicio están ocupados en ese horario.",
       capacityUsed: bookingsInSlot,
       capacityTotal: bookingCapacity,
-      suggestedNextSlot: findNextAvailableSlot({
-        schedule,
-        timezone,
-        bookingCapacity,
-        startDateTime,
-        durationMinutes,
-        rankedProfessionals: rankedProfessionalsForSearch,
-        bookings: overlappingBookings,
-      }),
+      suggestedNextSlot: buscarSiguienteHueco(),
+      ...conRecomendacion,
     };
   }
 
+  const specialistIds = disponibles
+    .filter((professional) => professional.tier === "especialista")
+    .map((professional) => professional.id);
+
   return {
     available: true,
-    message: `Hay ${availableProfessionals.length} profesional${availableProfessionals.length === 1 ? "" : "es"} libre${availableProfessionals.length === 1 ? "" : "s"} y quedan ${bookingCapacity - bookingsInSlot} plazas disponibles.`,
+    message: `Hay ${disponibles.length} profesional${disponibles.length === 1 ? "" : "es"} libre${disponibles.length === 1 ? "" : "s"} y quedan ${bookingCapacity - bookingsInSlot} plazas disponibles.`,
     capacityUsed: bookingsInSlot,
     capacityTotal: bookingCapacity,
-    availableProfessionals,
+    availableProfessionals: disponibles.map(sinNivel),
+    ...(specialistIds.length > 0 ? { specialistIds } : {}),
+    ...conRecomendacion,
   };
 }

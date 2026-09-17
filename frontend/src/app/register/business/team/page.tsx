@@ -78,14 +78,13 @@ export default function RegisterBusinessTeamPage() {
     try {
       await updateMyBusiness({ bookingCapacity: capacity });
 
-      // Se asume que cualquier profesional puede atender cualquiera de los
-      // servicios ya elegidos en el paso anterior — sin esto, un negocio
-      // recién registrado no tiene ningún profesional vinculado a ningún
-      // servicio y check_availability falla siempre con
-      // NO_AVAILABLE_PROFESSIONAL en la primera llamada real. Se puede
-      // afinar después en Ajustes.
-      const { services, professionals: existingProfessionals } = await getBookingSettings();
-      const serviceIds = services.map((service) => service.id);
+      // No se manda ningún vínculo con servicios a propósito: para el backend,
+      // un profesional sin nivel explícito en un servicio «lo hace» (se le
+      // puede reservar si lo piden por su nombre), así que check_availability
+      // ya encuentra a todo el equipo disponible desde la primera llamada.
+      // Marcar especialistas o retirar a alguien de las sugerencias se hace
+      // después, en Agente → Profesionales.
+      const { professionals: existingProfessionals } = await getBookingSettings();
       const existingNames = new Set(existingProfessionals.map((professional) => professional.name));
 
       // Igual que los servicios, el lote puede quedar parcialmente creado si
@@ -93,7 +92,7 @@ export default function RegisterBusinessTeamPage() {
       // faltan en vez de duplicar los que ya existen.
       const professionals = Array.from({ length: employees }, (_, index) => {
         const name = `Profesional ${index + 1}`;
-        return { name, active: true, serviceIds };
+        return { name, active: true };
       }).filter((professional) => !existingNames.has(professional.name));
 
       const results = await Promise.allSettled(

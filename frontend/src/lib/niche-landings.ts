@@ -39,6 +39,23 @@ export type SectorData = {
   painPoint?: string;
 };
 
+/**
+ * Reparto de citas por especialidad: cómo la recepcionista decide con quién
+ * reserva cada servicio según lo que el negocio ha marcado por profesional
+ * (especialista / lo hace / solo si lo piden). Regla de copy innegociable:
+ * nunca en negativo hacia un profesional — el tercer nivel se cuenta como
+ * «a quien prefieras reservar solo si lo piden», no como falta de nivel.
+ */
+export type TeamRoutingRule = { title: string; description: string };
+export type TeamRouting = {
+  badge: string;
+  title: string;
+  description: string;
+  rules: [TeamRoutingRule, TeamRoutingRule, TeamRoutingRule];
+  /** Línea de cierre: el desempate entre dos igual de preparados. */
+  tieBreak: string;
+};
+
 export type NicheLandingContent = {
   slug: NicheSlug;
   name: string;
@@ -67,6 +84,7 @@ export type NicheLandingContent = {
     description: string;
     examples: [string, string, string];
   };
+  teamRouting: TeamRouting;
   calculator: {
     badge: string;
     title: string;
@@ -163,9 +181,20 @@ export const nicheLandings: Record<NicheSlug, NicheLandingContent> = {
       description: "Alhabla consulta Google Calendar antes de confirmar una cita. Si tus reservas de web, WhatsApp, Instagram o software ya llegan ahí, el agente respeta esos huecos ocupados.",
       examples: ["Las reservas online bloquean el hueco automáticamente", "Sólo ofrece horarios realmente libres", "Las llamadas se añaden a la misma agenda"],
     },
+    teamRouting: {
+      badge: "Incluido en todos los planes",
+      title: "Las mechas, con quien tú se las confiarías.",
+      description: "Marca, por estilista y servicio, quién es especialista, quién lo hace y a quién prefieres reservar solo si lo piden. La recepcionista reparte la agenda como tú al frente del salón: unas mechas nuevas van a tu colorista, sin que nadie tenga que pedirlo.",
+      rules: [
+        { title: "Si no piden a nadie, va al especialista", description: "Un alisado cae en quien tú hayas marcado como especialista en tratamientos." },
+        { title: "Si piden a Marta, se reserva con Marta", description: "Una clienta de siempre pide a su estilista por su nombre y se queda con ella, sin más preguntas." },
+        { title: "Y si a alguien prefieres reservarle solo si lo piden", description: "La recepcionista propone una vez a quien tú propondrías con hueco; si la clienta insiste, reserva con quien pidió." },
+      ],
+      tieBreak: "Entre dos estilistas igual de preparados, la cita va a quien tenga el día más despejado.",
+    },
     calculator: { badge: "Calcula las citas que se escapan", title: "¿Cuánto pierde tu peluquería por no contestar?", description: "Estima el valor de cortes, coloraciones y tratamientos que pueden terminar en otro salón.", ticketLabel: "Ticket medio por cita", appointmentsLabel: "Citas perdidas cada semana", initialTicket: 45 },
     faqs: [
-      { question: "¿Puede distinguir entre un corte y un servicio de color?", answer: "Sí. Configuras cada servicio con su duración, precio orientativo y profesionales compatibles para reservar el hueco adecuado." },
+      { question: "¿Puede distinguir entre un corte y un servicio de color?", answer: "Sí. Configuras cada servicio con su duración y precio orientativo, y marcas quién es especialista en color y quién hace cortes para reservar el hueco adecuado." },
       { question: "¿Qué ocurre si una coloración necesita valoración previa?", answer: "El asistente recoge la información y deja la consulta preparada para que tu equipo confirme el servicio antes de reservarlo." },
       { question: "¿Atiende cuando todos estamos trabajando?", answer: "Sí. Está disponible durante horas punta, fuera de horario y en festivos para que una llamada no interrumpa el servicio." },
       { question: "¿Puede cambiar o cancelar una cita?", answer: "Sí. Consulta la agenda y gestiona cambios o cancelaciones según las reglas que definas." },
@@ -268,11 +297,22 @@ export const nicheLandings: Record<NicheSlug, NicheLandingContent> = {
       description: "Alhabla usa Google Calendar como referencia antes de reservar. Así respeta las citas que entren desde tu web, WhatsApp o herramienta de reservas sincronizada.",
       examples: ["Las citas existentes protegen tus cabinas", "Evita dobles reservas entre canales", "Centraliza nuevas llamadas en la misma agenda"],
     },
+    teamRouting: {
+      badge: "Incluido en todos los planes",
+      title: "Cada tratamiento, en las manos que tú elegirías.",
+      description: "Marca, por esteticista y tratamiento, quién es especialista en faciales, quién hace corporales y bonos y a quién prefieres reservar solo si lo piden. La recepcionista reparte la agenda como lo harías tú en recepción: cada tratamiento con la persona que tú propondrías.",
+      rules: [
+        { title: "Si no piden a nadie, va a tu especialista", description: "Un facial con peeling cae en quien tú hayas marcado como especialista en faciales." },
+        { title: "Si piden a Sara, sigue con Sara", description: "Un cliente con bono pide a su esteticista por su nombre y continúa con ella, sin más preguntas." },
+        { title: "Y si prefieres que a alguien solo le reserven si lo piden", description: "La recepcionista sugiere una vez a quien tú sugerirías con hueco; si el cliente insiste, reserva con quien pidió." },
+      ],
+      tieBreak: "Entre dos igual de preparadas para el mismo tratamiento, la cita va a quien tenga el día más despejado.",
+    },
     calculator: { badge: "Calcula oportunidades sin atender", title: "¿Cuánto valen las consultas que no puedes responder?", description: "Estima tratamientos y valoraciones que podrías recuperar con recepción continua.", ticketLabel: "Ticket medio por tratamiento", appointmentsLabel: "Consultas perdidas cada semana", initialTicket: 80 },
     faqs: [
       { question: "¿Puede recomendar un tratamiento?", answer: "Puede explicar información aprobada y recoger necesidades, pero deriva al equipo cualquier recomendación que requiera valoración profesional." },
       { question: "¿Gestiona bonos y sesiones recurrentes?", answer: "Puede informar sobre condiciones y organizar sesiones según las reglas y disponibilidad configuradas." },
-      { question: "¿Puede reservar por cabina o profesional?", answer: "Sí. La configuración permite respetar profesionales compatibles, capacidad y tiempos de cada tratamiento." },
+      { question: "¿Puede reservar por cabina o profesional?", answer: "Sí. Si el cliente pide a alguien por su nombre, reserva con esa persona; si no, la cita va a tu especialista en ese tratamiento, respetando cabinas y tiempos." },
       { question: "¿Cómo evita respuestas incorrectas?", answer: "Trabaja con la información, límites y documentos que apruebes, y deriva las consultas fuera de alcance." },
       { question: "¿Tengo que abandonar mi sistema de reservas?", answer: "No. Si tu sistema sincroniza las citas con Google Calendar, Alhabla las respeta antes de ofrecer disponibilidad por teléfono." },
     ],
@@ -316,7 +356,7 @@ export const nicheLandings: Record<NicheSlug, NicheLandingContent> = {
     heroHighlight: "por no contestar el teléfono",
     heroDescription: "Alhabla atiende llamadas, responde precios y agenda citas 24/7 — incluso mientras trabajas en una uña.",
     demoTitle: "Así reserva una cita de uñas",
-    demoSteps: ["Configura técnicas, retiradas y extras de nail art.", "Asigna duración y profesionales compatibles.", "Recupera citas recurrentes incluso fuera de horario."],
+    demoSteps: ["Configura técnicas, retiradas y extras de nail art.", "Asigna duración y especialista a cada técnica.", "Recupera citas recurrentes incluso fuera de horario."],
     conversations: [
       {
         caller: "Clienta · móvil",
@@ -374,10 +414,22 @@ export const nicheLandings: Record<NicheSlug, NicheLandingContent> = {
       description: "Si las citas de mensajes, Instagram o tu sistema de reservas se sincronizan con Google Calendar, Alhabla las ve antes de proponer un horario por teléfono.",
       examples: ["No ofrece huecos ya ocupados", "Respeta la duración de cada servicio", "Añade las llamadas a tu agenda habitual"],
     },
+    teamRouting: {
+      badge: "Incluido en todos los planes",
+      title: "El nail art, con la técnica que lo borda.",
+      description: "Marca, por profesional y servicio, quién es especialista en acrílico, quién hace semipermanente y retiradas y a quién prefieres reservar solo si lo piden. La recepcionista reparte las citas como tú desde la mesa: cada servicio con la persona que se lo confiarías.",
+      rules: [
+        { title: "Si no piden a nadie, va a tu especialista", description: "Unas uñas de acrílico caen en quien tú hayas marcado como especialista en acrílico." },
+        { title: "Si piden a Laura, con Laura", description: "Una clienta habitual pide a su técnica por su nombre y se reserva con ella, sin más preguntas." },
+        { title: "Y si a alguien prefieres reservarle solo si lo piden", description: "Sugiere una sola vez a la más indicada con hueco y, si la clienta insiste, reserva con quien pidió." },
+      ],
+      tieBreak: "Entre dos técnicas igual de preparadas, la cita va a quien tenga el día más despejado.",
+    },
     calculator: { badge: "Calcula citas recurrentes perdidas", title: "¿Cuánto pierde tu salón cuando no responde?", description: "Mide el impacto mensual de manicuras y pedicuras que terminan reservándose en otro sitio.", ticketLabel: "Ticket medio por servicio", appointmentsLabel: "Citas perdidas cada semana", initialTicket: 30 },
     faqs: [
       { question: "¿Puede preguntar si necesito retirada?", answer: "Sí. El flujo puede comprobar técnica previa, retirada y extras para asignar la duración correcta." },
       { question: "¿Distingue una manicura sencilla de nail art?", answer: "Sí. Configuras categorías, tiempos y reglas para recoger el nivel de diseño antes de reservar." },
+      { question: "¿Puedo decidir quién hace cada técnica?", answer: "Sí. Marcas por profesional quién es especialista en acrílico, semipermanente o nail art y a quién prefieres reservar solo si lo piden; la recepcionista reparte así las citas." },
       { question: "¿Puede agendar la próxima cita?", answer: "Sí. Consulta disponibilidad y facilita que las clientas mantengan su frecuencia habitual." },
       { question: "¿Responde precios de cada técnica?", answer: "Sí. Usa tu catálogo real y puede aclarar qué extras afectan al precio antes de la visita." },
       { question: "¿Puedo seguir recibiendo reservas por Instagram o WhatsApp?", answer: "Sí. Si esas citas llegan a Google Calendar, Alhabla las tiene en cuenta y sólo ofrece por teléfono horarios que siguen libres." },
@@ -462,7 +514,7 @@ export const nicheLandings: Record<NicheSlug, NicheLandingContent> = {
     sectionDescription: "Convierte consultas rápidas en citas confirmadas sin detener un corte ni perder ritmo en el local.",
     highlights: [
       { title: "Citas rápidas", description: "Responde y reserva en pocos pasos.", result: "Menos fricción para clientes" },
-      { title: "Barbero preferido", description: "Comprueba disponibilidad del profesional solicitado.", result: "Más fidelidad y recurrencia" },
+      { title: "Barbero preferido", description: "Si piden a su barbero por su nombre, reserva con él.", result: "Más fidelidad y recurrencia" },
       { title: "Packs bien agendados", description: "Reserva corte y barba con su duración completa.", result: "Sin retrasos entre clientes" },
     ],
     benefitsTitle: "Tu barbería sigue atendiendo incluso con todas las sillas ocupadas.",
@@ -477,9 +529,20 @@ export const nicheLandings: Record<NicheSlug, NicheLandingContent> = {
       description: "Alhabla consulta Google Calendar antes de confirmar un corte o un pack. Las citas que ya entren desde web, WhatsApp u otra herramienta sincronizada se respetan automáticamente.",
       examples: ["Sin solapes entre teléfono y reservas online", "Huecos actualizados para cada barbero", "Todas las citas quedan en la misma agenda"],
     },
+    teamRouting: {
+      badge: "Incluido en todos los planes",
+      title: "Cada corte, con el barbero que tú elegirías.",
+      description: "Marca, por barbero y servicio, quién es especialista, quién lo hace y a quién prefieres reservar solo si lo piden. La recepcionista reparte las citas como lo harías tú desde el mostrador: sin preguntar de más y sin dejar un degradado al azar.",
+      rules: [
+        { title: "Si no piden a nadie, va al especialista", description: "El degradado cae en quien tú hayas marcado como el mejor en degradados." },
+        { title: "Si piden a alguien por su nombre, con esa persona", description: "Un cliente de siempre pide a Luis y se reserva con Luis, sin más preguntas." },
+        { title: "Y si prefieres que a alguien solo le reserven si lo piden", description: "La recepcionista sugiere una vez al más indicado con hueco; si el cliente insiste, reserva con quien pidió." },
+      ],
+      tieBreak: "Entre dos igual de preparados, la cita va a quien tenga el día más despejado.",
+    },
     calculator: { badge: "Calcula cortes que se escapan", title: "¿Cuánto pierde tu barbería en horas punta?", description: "Estima el valor de cortes y packs que no se reservan cuando nadie puede atender el teléfono.", ticketLabel: "Ticket medio por visita", appointmentsLabel: "Citas perdidas cada semana", initialTicket: 25 },
     faqs: [
-      { question: "¿Puede reservar con un barbero concreto?", answer: "Sí. Consulta la disponibilidad del profesional solicitado y ofrece alternativas si no tiene hueco." },
+      { question: "¿Puede reservar con un barbero concreto?", answer: "Sí. Si el cliente pide a un barbero por su nombre, reserva con él; si no tiene hueco, ofrece alternativas. Si no pide a nadie, va a tu especialista." },
       { question: "¿Distingue corte, barba y pack?", answer: "Sí. Cada servicio tiene su duración y reglas para bloquear el tiempo correcto." },
       { question: "¿Funciona para citas rápidas del mismo día?", answer: "Sí. Consulta huecos reales y puede ofrecer la primera franja disponible según tus reglas." },
       { question: "¿Atiende fuera del horario de apertura?", answer: "Sí. Tus clientes pueden consultar y reservar aunque la barbería esté cerrada." },
@@ -579,13 +642,24 @@ export const nicheLandings: Record<NicheSlug, NicheLandingContent> = {
     benefitsDescription: "Resuelve preguntas administrativas, organiza la agenda y deriva al profesional cualquier consulta que requiera criterio clínico.",
     benefits: [
       { title: "Primera consulta", description: "Recoge datos básicos y el motivo general para reservar la duración correcta.", result: "Primera visita mejor preparada" },
-      { title: "Sesiones de seguimiento", description: "Busca huecos compatibles con el fisioterapeuta habitual.", result: "Menos fricción entre sesiones" },
-      { title: "Especialidades", description: "Orienta la reserva por profesional o servicio configurado, sin emitir diagnósticos.", result: "Consultas correctamente derivadas" },
+      { title: "Sesiones de seguimiento", description: "Reserva con el fisioterapeuta habitual cuando el paciente lo pide por su nombre.", result: "Menos fricción entre sesiones" },
+      { title: "Especialidades", description: "Lleva cada primera visita al fisioterapeuta que marques como especialista, sin emitir diagnósticos.", result: "Consultas correctamente derivadas" },
     ],
     calendarIntegration: {
       title: "Protege la agenda de tu consulta en todos los canales.",
       description: "Alhabla consulta Google Calendar antes de ofrecer una cita. Respeta las sesiones que ya entren por recepción, formulario web u otro sistema sincronizado.",
       examples: ["Evita solapes entre pacientes", "Mantiene visibles las sesiones ya registradas", "Añade llamadas nuevas a tu calendario"],
+    },
+    teamRouting: {
+      badge: "Incluido en todos los planes",
+      title: "Cada paciente, con el fisioterapeuta que tú le asignarías.",
+      description: "Marca, por fisioterapeuta y tipo de sesión, quién es especialista en cada zona, quién lleva seguimientos y a quién prefieres reservar solo si lo piden. La recepcionista organiza la agenda con tu criterio: cada paciente con quien tú decidirías, sin entrar en nada clínico.",
+      rules: [
+        { title: "Si no piden a nadie, va al especialista", description: "Una primera visita por dolor lumbar cae en quien tú hayas marcado como especialista en columna." },
+        { title: "Si piden a Pablo, sigue con Pablo", description: "Un paciente en seguimiento pide a su fisioterapeuta por su nombre y continúa con él, sin más preguntas." },
+        { title: "Y si prefieres que a alguien solo le reserven si lo piden", description: "La recepcionista propone una vez al más indicado con hueco; si el paciente insiste, reserva con quien pidió." },
+      ],
+      tieBreak: "Entre dos igual de preparados, el paciente va a quien tenga el día más despejado.",
     },
     calculator: {
       badge: "Calcula pacientes que no consiguen cita",
@@ -596,9 +670,9 @@ export const nicheLandings: Record<NicheSlug, NicheLandingContent> = {
       initialTicket: 45,
     },
     faqs: [
-      { question: "¿Puede gestionar primeras visitas y seguimientos?", answer: "Sí. Puedes configurar cada tipo de cita con su duración y profesionales compatibles para bloquear el hueco adecuado." },
+      { question: "¿Puede gestionar primeras visitas y seguimientos?", answer: "Sí. Configuras cada tipo de cita con su duración y marcas qué fisioterapeuta es especialista en cada una para bloquear el hueco adecuado." },
       { question: "¿El asistente ofrece diagnósticos o recomendaciones clínicas?", answer: "No. Recoge información general, responde cuestiones administrativas y deriva cualquier valoración clínica al fisioterapeuta." },
-      { question: "¿Puede reservar con el fisioterapeuta habitual del paciente?", answer: "Sí. Consulta su disponibilidad y puede ofrecer alternativas si el profesional solicitado no tiene hueco." },
+      { question: "¿Puede reservar con el fisioterapeuta habitual del paciente?", answer: "Sí. Si el paciente lo pide por su nombre, reserva con él sin más preguntas; si no tiene hueco, ofrece alternativas. Sin preferencia, va al especialista." },
       { question: "¿Atiende mientras estoy en una sesión?", answer: "Sí. Está disponible durante las sesiones, fuera de horario y en festivos para que una llamada no interrumpa el tratamiento." },
       { question: "¿Puedo mantener mi agenda o sistema actual?", answer: "Sí. Alhabla consulta Google Calendar como referencia de disponibilidad y respeta las sesiones de otros canales que ya estén sincronizadas." },
     ],
@@ -742,4 +816,32 @@ export const generalSectorData: SectorData = {
       },
     },
   ],
+};
+
+/**
+ * Reparto por especialidad para la landing genérica: «tu equipo», sin oficio.
+ * Las cinco landings de nicho llevan su propia variante en `teamRouting`, con
+ * el sustantivo del oficio (barbero, colorista, técnica, esteticista,
+ * fisioterapeuta) y servicios reales de cada sector.
+ */
+export const generalTeamRouting: TeamRouting = {
+  badge: "Incluido en todos los planes",
+  title: "Cada cita, con la persona que tú elegirías.",
+  description:
+    "Marca, por profesional y servicio, quién es especialista, quién lo hace y a quién prefieres reservar solo si lo piden. Con eso, la recepcionista reparte las citas como lo harías tú: sin preguntar de más al cliente y sin dejar la agenda al azar.",
+  rules: [
+    {
+      title: "Si no piden a nadie, va al especialista",
+      description: "El servicio cae en quien tú hayas marcado como el mejor en ese servicio y tenga hueco.",
+    },
+    {
+      title: "Si piden a alguien por su nombre, con esa persona",
+      description: "Un cliente de siempre pide a Marta y se reserva con Marta, sin más preguntas.",
+    },
+    {
+      title: "Y si prefieres que a alguien solo le reserven si lo piden",
+      description: "La recepcionista sugiere una vez al más indicado con hueco; si el cliente insiste, reserva con quien pidió.",
+    },
+  ],
+  tieBreak: "Entre dos igual de preparados, la cita va a quien tenga el día más despejado.",
 };

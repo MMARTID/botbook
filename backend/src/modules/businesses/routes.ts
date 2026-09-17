@@ -9,6 +9,7 @@ import { planAllows, resolvePlanId } from "../../lib/planFeatures.js";
 import { isBusinessType } from "../../lib/businessType.js";
 import { syncAgentNameWithBusinessType, syncAgentToRetell } from "../../lib/agentBootstrap.js";
 import { syncAgentToTelnyx } from "../../lib/telnyxAgentSync.js";
+import { nonDeletedServiceLinks, serializeProfessional } from "../bookings/service.js";
 import { E164_PHONE_REGEX } from "../../lib/phone.js";
 
 const UpdateBusinessSchema = z.object({
@@ -216,13 +217,10 @@ export async function businessesRoutes(fastify: FastifyInstance) {
             professionals: {
               where: { deletedAt: null },
               orderBy: [{ active: 'desc' }, { name: 'asc' }],
-              include: {
-                serviceLinks: {
-                  select: {
-                    serviceId: true,
-                  },
-                },
-              },
+              // El mismo include y serializador que /booking-settings: antes
+              // cada ruta tenía el suyo y ya habían divergido (este no
+              // filtraba servicios borrados).
+              include: { serviceLinks: nonDeletedServiceLinks },
             },
           },
         });
@@ -236,14 +234,7 @@ export async function businessesRoutes(fastify: FastifyInstance) {
         void outlookRefreshToken;
         return reply.send({
           ...publicBusiness,
-          professionals: professionals.map((professional) => ({
-            id: professional.id,
-            name: professional.name,
-            active: professional.active,
-            createdAt: professional.createdAt,
-            updatedAt: professional.updatedAt,
-            serviceIds: professional.serviceLinks.map((link) => link.serviceId),
-          })),
+          professionals: professionals.map(serializeProfessional),
         });
       } catch (error) {
         fastify.log.error({ err: error }, "[Business] Failed to fetch /business/me");

@@ -1357,3 +1357,247 @@ describe("executeVoiceTool notify_when_available", () => {
     expect(mockedLeadCreate).not.toHaveBeenCalled();
   });
 });
+
+// Tres niveles por profesional y servicio (17-09-2026). Cuando el cliente
+// pide por su nombre a alguien marcado "no sugerir", check_availability
+// devuelve una recomendación con su propio token y book_appointment frena
+// UNA vez hasta que el cliente acepte a la persona propuesta o insista.
+describe("executeVoiceTool — recomendación de profesional", () => {
+  const redisStore = new Map<string, string>();
+  const redisMock = {
+    get: vi.fn(async (key: string) => redisStore.get(key) ?? null),
+    set: vi.fn(async (key: string, value: string) => {
+      redisStore.set(key, value);
+      return "OK";
+    }),
+    del: vi.fn(async (key: string) => {
+      redisStore.delete(key);
+      return 1;
+    }),
+    eval: vi.fn().mockResolvedValue(1),
+  };
+  const fabricaOriginal = vi.mocked(getRedis).getMockImplementation();
+
+  function draftsGuardados() {
+    return [...redisStore.entries()]
+      .filter(([key]) => key.startsWith("availability_draft:"))
+      .map(([key, value]) => ({ token: key.replace("availability_draft:", ""), ...JSON.parse(value) }));
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    redisStore.clear();
+    vi.mocked(getRedis).mockImplementation(() => redisMock as any);
+    mockedBusinessFindUnique.mockResolvedValue(buildBusiness() as any);
+    mockedGetBusyIntervals.mockResolvedValue({ intervals: [], calendarAvailabilityKnown: true } as any);
+    // book_appointment suma la duración real de los servicios verificados.
+    mockedServiceFindMany.mockResolvedValue([{ id: "corte", name: "Corte", durationMinutes: 30 }] as any);
+    // Devuelve al profesional que se pide, como haría la BD.
+    mockedProfessionalFindFirst.mockImplementation((async (args: any) => {
+      const id = args?.where?.id;
+      return id === "senior" ? { id, name: "Laura" } : { id, name: "Marta" };
+    }) as any);
+    mockedCheckBusinessHours.mockReturnValue({ success: true, isOpen: true } as any);
+    mockedCallFindUnique.mockResolvedValue({ id: "call_123", businessId: "business_123" } as any);
+    mockedBookingFindUnique.mockResolvedValue(null);
+  });
+
+  afterEach(() => {
+    if (fabricaOriginal) vi.mocked(getRedis).mockImplementation(fabricaOriginal);
+  });
+
+  const disponibleConRecomendacion = {
+    available: true,
+    message: "Hay 1 profesional libre y quedan 2 plazas disponibles.",
+    capacityUsed: 0,
+    capacityTotal: 2,
+    availableProfessionals: [{ id: "aprendiz", name: "Marta" }],
+    recommendedProfessional: { professional: { id: "senior", name: "Laura" }, isSpecialist: true },
+  };
+
+  it("traduce la recomendación a algo que el agente pueda decir, con su token, y guarda la marca en el draft del pedido", async () => {
+    mockedCheckAvailability.mockResolvedValue(disponibleConRecomendacion as any);
+
+    const result = await executeVoiceTool({
+      businessId: "business_123",
+      toolName: "check_availability",
+      callId: "call_123",
+      params: { startDateTime: "2026-08-25T17:00:00+02:00", durationMinutes: 30, serviceIds: ["corte"], professionalId: "aprendiz" },
+    });
+
+    expect(result.result.available).toBe(true);
+    expect(result.result.recommendation).toEqual({
+      professional: { id: "senior", name: "Laura" },
+      isSpecialist: true,
+      availabilityToken: expect.any(String),
+      instructions: expect.stringContaining("Propón UNA sola vez"),
+    });
+    expect(result.result.recommendation.instructions).toContain("Marta");
+    expect(result.result.recommendation.instructions).toContain("Laura es quien más hace este servicio");
+    // Los campos internos del ranking no llegan al LLM.
+    expect(result.result).not.toHaveProperty("recommendedProfessional");
+    expect(result.result).not.toHaveProperty("specialistIds");
+
+    const drafts = draftsGuardados();
+    const delPedido = drafts.find((draft) => draft.token === result.result.availabilityToken);
+    const delRecomendado = drafts.find((draft) => draft.token === result.result.recommendation.availabilityToken);
+    expect(delPedido).toMatchObject({
+      professionalId: "aprendiz",
+      professionalRequested: true,
+      recommendationOffered: { professionalId: "senior", professionalName: "Laura", availabilityToken: delRecomendado?.token },
+    });
+    // Quien acepta a Laura la quiere a ella: su token es filtro duro.
+    expect(delRecomendado).toMatchObject({ professionalId: "senior", professionalRequested: true });
+    expect(delRecomendado).not.toHaveProperty("recommendationOffered");
+  });
+
+  it("si el cliente ya insistió (professionalConfirmed), no vuelve a proponer a nadie", async () => {
+    mockedCheckAvailability.mockResolvedValue(disponibleConRecomendacion as any);
+
+    const result = await executeVoiceTool({
+      businessId: "business_123",
+      toolName: "check_availability",
+      callId: "call_123",
+      params: { startDateTime: "2026-08-25T17:00:00+02:00", durationMinutes: 30, serviceIds: ["corte"], professionalId: "aprendiz", professionalConfirmed: true },
+    });
+
+    expect(result.result.available).toBe(true);
+    expect(result.result).not.toHaveProperty("recommendation");
+    expect(draftsGuardados()).toHaveLength(1);
+    expect(draftsGuardados()[0]).not.toHaveProperty("recommendationOffered");
+  });
+
+  it("también recomienda cuando la persona pedida está ocupada a esa hora", async () => {
+    mockedCheckAvailability.mockResolvedValue({
+      available: false,
+      code: "ALL_PROFESSIONALS_BUSY",
+      message: "Todos los profesionales que pueden hacer este servicio están ocupados en ese horario.",
+      suggestedNextSlot: null,
+      recommendedProfessional: { professional: { id: "senior", name: "Laura" }, isSpecialist: false },
+    } as any);
+
+    const result = await executeVoiceTool({
+      businessId: "business_123",
+      toolName: "check_availability",
+      callId: "call_123",
+      params: { startDateTime: "2026-08-25T17:00:00+02:00", durationMinutes: 30, serviceIds: ["corte"], professionalId: "aprendiz" },
+    });
+
+    expect(result.result.available).toBe(false);
+    expect(result.result.recommendation.professional).toEqual({ id: "senior", name: "Laura" });
+    expect(result.result.recommendation.instructions).toContain("Laura es la persona más indicada");
+  });
+
+  it("sin profesional pedido, dice con quién queda la cita y si es especialista", async () => {
+    mockedCheckAvailability.mockResolvedValue({
+      available: true,
+      message: "Hay 2 profesionales libres y quedan 2 plazas disponibles.",
+      capacityUsed: 0,
+      capacityTotal: 2,
+      availableProfessionals: [{ id: "senior", name: "Laura" }, { id: "normal", name: "Pedro" }],
+      specialistIds: ["senior"],
+    } as any);
+
+    const result = await executeVoiceTool({
+      businessId: "business_123",
+      toolName: "check_availability",
+      callId: "call_123",
+      params: { startDateTime: "2026-08-25T17:00:00+02:00", durationMinutes: 30, serviceIds: ["corte"] },
+    });
+
+    expect(result.result.assignedProfessional).toEqual({ id: "senior", name: "Laura", isSpecialist: true });
+    expect(result.result).not.toHaveProperty("recommendation");
+    expect(result.result).not.toHaveProperty("specialistIds");
+    expect(draftsGuardados()[0]).toMatchObject({ professionalId: "senior", professionalRequested: false });
+  });
+
+  it("book_appointment frena una vez si hubo recomendación y el cliente no ha insistido", async () => {
+    redisStore.set(
+      "availability_draft:token-marta",
+      JSON.stringify({
+        businessId: "business_123",
+        callId: "call_123",
+        startDateTime: "2026-08-25T17:00:00+02:00",
+        durationMinutes: 30,
+        serviceIds: ["corte"],
+        professionalId: "aprendiz",
+        professionalRequested: true,
+        recommendationOffered: { professionalId: "senior", professionalName: "Laura", availabilityToken: "token-laura" },
+      })
+    );
+
+    const result = await executeVoiceTool({
+      businessId: "business_123",
+      toolName: "book_appointment",
+      callId: "call_123",
+      params: { clientName: "María", availabilityToken: "token-marta" },
+    });
+
+    expect(result.result).toMatchObject({
+      success: false,
+      code: "PROFESSIONAL_CONFIRMATION_REQUIRED",
+      recommendation: { professional: { id: "senior", name: "Laura" }, availabilityToken: "token-laura" },
+    });
+    expect(result.result.message).toContain("professionalConfirmed: true");
+    expect(mockedCheckAvailability).not.toHaveBeenCalled();
+  });
+
+  it("con professionalConfirmed reserva con la persona pedida como filtro duro", async () => {
+    redisStore.set(
+      "availability_draft:token-marta",
+      JSON.stringify({
+        businessId: "business_123",
+        callId: "call_123",
+        startDateTime: "2026-08-25T17:00:00+02:00",
+        durationMinutes: 30,
+        serviceIds: ["corte"],
+        professionalId: "aprendiz",
+        professionalRequested: true,
+        recommendationOffered: { professionalId: "senior", professionalName: "Laura", availabilityToken: "token-laura" },
+      })
+    );
+    mockedCheckAvailability.mockResolvedValue({
+      available: false,
+      code: "ALL_PROFESSIONALS_BUSY",
+      message: "ocupado",
+    } as any);
+
+    const result = await executeVoiceTool({
+      businessId: "business_123",
+      toolName: "book_appointment",
+      callId: "call_123",
+      params: { clientName: "María", availabilityToken: "token-marta", professionalConfirmed: true },
+    });
+
+    // Ha pasado la puerta: la reserva sigue su curso normal (aquí se frena por
+    // el mock de disponibilidad, no por la recomendación).
+    expect(result.result.code).not.toBe("PROFESSIONAL_CONFIRMATION_REQUIRED");
+    expect(mockedCheckAvailability).toHaveBeenCalledWith(expect.objectContaining({ professionalId: "aprendiz" }));
+  });
+
+  it("el token de la persona recomendada reserva sin frenar: el cliente la aceptó", async () => {
+    redisStore.set(
+      "availability_draft:token-laura",
+      JSON.stringify({
+        businessId: "business_123",
+        callId: "call_123",
+        startDateTime: "2026-08-25T17:00:00+02:00",
+        durationMinutes: 30,
+        serviceIds: ["corte"],
+        professionalId: "senior",
+        professionalRequested: true,
+      })
+    );
+    mockedCheckAvailability.mockResolvedValue({ available: false, code: "ALL_PROFESSIONALS_BUSY", message: "ocupado" } as any);
+
+    const result = await executeVoiceTool({
+      businessId: "business_123",
+      toolName: "book_appointment",
+      callId: "call_123",
+      params: { clientName: "María", availabilityToken: "token-laura" },
+    });
+
+    expect(result.result.code).not.toBe("PROFESSIONAL_CONFIRMATION_REQUIRED");
+    expect(mockedCheckAvailability).toHaveBeenCalledWith(expect.objectContaining({ professionalId: "senior" }));
+  });
+});

@@ -556,7 +556,7 @@ export class CalendarService {
       {
         name: "check_availability",
         description:
-          "Comprueba una cita en una fecha y hora concretas: valida horario, restricciones, capacidad, profesionales y calendario real. Úsala antes de book_appointment y conserva el availabilityToken que devuelve.",
+          "Comprueba una cita en una fecha y hora concretas: valida horario, restricciones, capacidad, profesionales y calendario real. Úsala antes de book_appointment y conserva el availabilityToken que devuelve. Si el cliente no pide a nadie, no envíes professionalId: el sistema asigna a quien mejor hace el servicio y lo devuelve en assignedProfessional. Si devuelve recommendation, propón UNA vez a esa persona siguiendo sus instructions.",
         url: `${toolBaseUrl}/check_availability`,
         method: "POST",
         args_at_root: false,
@@ -581,7 +581,12 @@ export class CalendarService {
             professionalId: {
               type: "string",
               description:
-                "ID exacto de EMPLEADOS si el cliente pidió un profesional concreto por nombre (opcional). Déjalo vacío si no.",
+                "ID exacto de get_catalog solo si el cliente pidió a un profesional concreto por su nombre (opcional). Déjalo vacío si no lo nombró: nunca elijas tú a nadie.",
+            },
+            professionalConfirmed: {
+              type: "boolean",
+              description:
+                "true SOLO si ya propusiste una vez a la persona que recomendó la herramienta y el cliente insistió en la que pidió por su nombre. Nunca lo envíes en la primera comprobación.",
             },
           },
           required: ["startDateTime", "durationMinutes"],
@@ -625,6 +630,11 @@ export class CalendarService {
                 type: "boolean",
                 description:
                   "true si el cliente confirmó por voz que puedes enviarle la confirmación (y un recordatorio) por SMS a este número; false si dijo que no o no se le preguntó.",
+              },
+              professionalConfirmed: {
+                type: "boolean",
+                description:
+                  "true SOLO si check_availability devolvió una recomendación, la propusiste una vez y el cliente insistió en la persona que pidió. Sin esto, la reserva se frena hasta que lo hayas propuesto.",
               },
             },
           required: ["clientName", "availabilityToken"],

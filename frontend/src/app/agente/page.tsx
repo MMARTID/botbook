@@ -35,10 +35,16 @@ import { SettingsSection } from "@/components/settings-section";
 import { AgentOperationalSummary } from "@/components/agent-operational-summary";
 import { AppPageHeader } from "@/components/app-page-header";
 import { LottieAnimation } from "@/components/lottie-animation";
+import {
+  describeServiceLevels,
+  ProfessionalServiceLevels,
+  type ServiceLevelMap,
+} from "@/components/professional-service-levels";
 import { SectionEmptyState } from "@/components/section-card";
 import type {
   AgentSettings,
   BookingProfessional,
+  BookingProfessionalInput,
   BookingService,
   BookingSettings,
   BusinessSchedule,
@@ -187,9 +193,12 @@ function AgenteContent() {
     durationMinutes: "30",
     price: "",
   });
-  const [professionalDraft, setProfessionalDraft] = useState({
+  const [professionalDraft, setProfessionalDraft] = useState<{
+    name: string;
+    serviceLevels: ServiceLevelMap;
+  }>({
     name: "",
-    serviceIds: [] as string[],
+    serviceLevels: {},
   });
   const [businessDetails, setBusinessDetails] = useState("");
   const [agentSettings, setAgentSettings] = useState<AgentSettings>(
@@ -403,7 +412,7 @@ function AgenteContent() {
     mutationFn: createBookingProfessional,
     onSuccess: (professional) => {
       appendBookingProfessional(professional);
-      setProfessionalDraft({ name: "", serviceIds: [] });
+      setProfessionalDraft({ name: "", serviceLevels: {} });
       setBanner({ type: "success", message: "Profesional creado." });
       void invalidateAll();
     },
@@ -780,8 +789,9 @@ function AgenteContent() {
       >
         <div className="space-y-5 p-4 sm:p-5">
           <p className="text-sm text-muted">
-            Si el cliente no pide uno concreto, el sistema elegirá uno
-            compatible y libre.
+            Si el cliente no pide a nadie, la recepcionista da la cita a quien
+            hayas marcado como especialista en ese servicio; si pide a alguien
+            por su nombre, reserva con esa persona.
           </p>
 
           <details className="group rounded-xl border border-[#e5e5e5] bg-[#fafafa]">
@@ -802,37 +812,24 @@ function AgenteContent() {
                 aria-label="Nombre del profesional"
                 className="field"
               />
-              <fieldset className="text-sm font-medium text-[#27272a]">
-                <legend>Servicios compatibles</legend>
-                <div className="mt-2 grid gap-2 sm:grid-cols-2">
-                  {services.map((service) => {
-                    const checked = professionalDraft.serviceIds.includes(
-                      service.id
-                    );
-                    return (
-                      <label
-                        key={service.id}
-                        className="flex min-h-11 items-center gap-2 rounded-xl border border-[#e5e5e5] bg-white px-3 py-2 text-sm text-[#27272a]"
-                      >
-                        <input
-                          type="checkbox"
-                          className="accent-[#8b5cf6]"
-                          checked={checked}
-                          onChange={() => {
-                            setProfessionalDraft((current) => ({
-                              ...current,
-                              serviceIds: checked
-                                ? current.serviceIds.filter(
-                                    (serviceId) => serviceId !== service.id
-                                  )
-                                : [...current.serviceIds, service.id],
-                            }));
-                          }}
-                        />
-                        <span>{service.name}</span>
-                      </label>
-                    );
-                  })}
+              {/* `min-w-0`: el navegador da a <fieldset> min-width: min-content
+                  y en móvil el segmentado desbordaría la tarjeta. */}
+              <fieldset className="min-w-0">
+                <legend className="text-sm font-medium text-[#27272a]">
+                  Servicios que hace
+                </legend>
+                <div className="mt-2">
+                  <ProfessionalServiceLevels
+                    services={services}
+                    value={professionalDraft.serviceLevels}
+                    onChange={(serviceLevels) =>
+                      setProfessionalDraft((current) => ({
+                        ...current,
+                        serviceLevels,
+                      }))
+                    }
+                    idPrefix="nuevo-profesional"
+                  />
                 </div>
               </fieldset>
               <button
@@ -1374,11 +1371,7 @@ function ProfessionalEditor({
 }: {
   professional: BookingProfessional;
   services: BookingService[];
-  onSave: (payload: {
-    name?: string;
-    active?: boolean;
-    serviceIds?: string[];
-  }) => Promise<unknown>;
+  onSave: (payload: Partial<BookingProfessionalInput>) => Promise<unknown>;
   onDelete: () => Promise<void>;
   onSuccess: () => void | Promise<void>;
   onError: (error?: unknown) => void;
@@ -1387,8 +1380,9 @@ function ProfessionalEditor({
 }) {
   const [name, setName] = useState(professional.name);
   const [active, setActive] = useState(professional.active);
-  const [serviceIds, setServiceIds] = useState<string[]>(
-    professional.serviceIds
+  // `?? {}` cubre respuestas antiguas sin `serviceLevels` (= todo «Lo hace»).
+  const [serviceLevels, setServiceLevels] = useState<ServiceLevelMap>(
+    professional.serviceLevels ?? {}
   );
   const [editing, setEditing] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
@@ -1396,9 +1390,7 @@ function ProfessionalEditor({
     type: "success" | "error";
     message: string;
   } | null>(null);
-  const compatibleServices = services.filter((service) =>
-    serviceIds.includes(service.id)
-  );
+  const levelsSummary = describeServiceLevels(serviceLevels, services);
 
   const saveMutation = useMutation({
     mutationFn: onSave,
@@ -1435,8 +1427,8 @@ function ProfessionalEditor({
             {professional.name}
           </span>
           <span className="mt-0.5 block truncate text-xs text-muted">
-            {professional.active ? "Activo" : "Inactivo"} ·{" "}
-            {compatibleServices.length} servicios compatibles
+            {professional.active ? "Activo" : "Inactivo"}
+            {levelsSummary ? ` · ${levelsSummary}` : null}
           </span>
         </div>
         <CardActionButtons
@@ -1485,41 +1477,26 @@ function ProfessionalEditor({
           </label>
           <button
             type="button"
-            onClick={() => saveMutation.mutate({ name, active, serviceIds })}
+            onClick={() =>
+              saveMutation.mutate({ name, active, serviceLevels })
+            }
             disabled={saveMutation.isPending || !name.trim()}
             className="btn-secondary h-11 w-full self-end px-4 md:w-auto"
           >
             {saveMutation.isPending ? "Guardando..." : "Guardar cambios"}
           </button>
         </div>
-        <fieldset>
-          <legend className="text-xs font-semibold text-[#52525b]">Servicios compatibles</legend>
-          <div className="mt-2 grid gap-2 sm:grid-cols-2">
-          {services.map((service) => {
-            const checked = serviceIds.includes(service.id);
-            return (
-              <label
-                key={service.id}
-                className="flex min-h-11 items-center gap-2 rounded-xl border border-[#e5e5e5] bg-white px-3 py-2 text-sm text-[#27272a]"
-              >
-                <input
-                  type="checkbox"
-                  className="accent-[#8b5cf6]"
-                  checked={checked}
-                  onChange={() => {
-                    setServiceIds((current) =>
-                      checked
-                        ? current.filter(
-                            (serviceId) => serviceId !== service.id
-                          )
-                        : [...current, service.id]
-                    );
-                  }}
-                />
-                <span>{service.name}</span>
-              </label>
-            );
-          })}
+        <fieldset className="min-w-0">
+          <legend className="text-xs font-semibold text-[#52525b]">
+            Servicios que hace
+          </legend>
+          <div className="mt-2">
+            <ProfessionalServiceLevels
+              services={services}
+              value={serviceLevels}
+              onChange={setServiceLevels}
+              idPrefix={`profesional-${professional.id}`}
+            />
           </div>
         </fieldset>
       </div>

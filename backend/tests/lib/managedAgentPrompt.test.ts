@@ -259,3 +259,35 @@ describe("buildManagedAgentPrompt — idiomas", () => {
     expect(prompt).not.toContain("Habla siempre en español de España");
   });
 });
+
+// Tres niveles por profesional y servicio (17-09-2026): el prompt es lo que
+// convierte la recomendación de la herramienta en conducta al teléfono.
+describe("buildManagedAgentPrompt — profesionales y especialidades", () => {
+  const prompt = buildManagedAgentPrompt({
+    businessName: "Peluquería Ejemplo",
+    settings: DEFAULT_AGENT_SETTINGS,
+  });
+
+  it("no pregunta con quién quiere la cita: respeta el nombre si lo dice y deja la asignación al sistema", () => {
+    expect(prompt).toContain("No preguntes con quién quiere la cita");
+    expect(prompt).not.toContain("preferencia de profesional");
+    expect(prompt).toContain("solo si el cliente ha pedido a alguien por su nombre");
+  });
+
+  it("explica la recomendación única y cómo reservar si el cliente insiste", () => {
+    expect(prompt).toContain("## Profesionales");
+    expect(prompt).toContain("propón UNA sola vez");
+    expect(prompt).toContain("professionalConfirmed: true");
+    expect(prompt).toContain("PROFESSIONAL_CONFIRMATION_REQUIRED");
+  });
+
+  it("prohíbe decir que a alguien no se le da bien un servicio o mencionar niveles", () => {
+    expect(prompt).toContain("Nunca digas ni insinúes que un profesional no hace un servicio");
+    expect(prompt).toContain("Nunca menciones niveles");
+  });
+
+  it("deja decir en positivo con quién queda la cita cuando es especialista", () => {
+    expect(prompt).toContain("assignedProfessional");
+    expect(prompt).toContain("isSpecialist");
+  });
+});

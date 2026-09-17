@@ -7,11 +7,13 @@ import { syncAgentToRetell } from "../../../src/lib/agentBootstrap.js";
 
 const {
   mockTransactionProfessionalServiceDeleteMany,
+  mockTransactionProfessionalServiceCreateMany,
   mockTransactionProfessionalUpdate,
   mockTransactionServiceUpdate,
   mockTransactionProfessionalCreate,
 } = vi.hoisted(() => ({
   mockTransactionProfessionalServiceDeleteMany: vi.fn(),
+  mockTransactionProfessionalServiceCreateMany: vi.fn(),
   mockTransactionProfessionalUpdate: vi.fn(),
   mockTransactionServiceUpdate: vi.fn(),
   mockTransactionProfessionalCreate: vi.fn(),
@@ -57,7 +59,7 @@ vi.mock("../../../src/lib/prisma.js", () => ({
         },
         professionalService: {
           deleteMany: mockTransactionProfessionalServiceDeleteMany,
-          createMany: vi.fn(),
+          createMany: mockTransactionProfessionalServiceCreateMany,
         },
       })
     ),
@@ -309,5 +311,154 @@ describe("POST /professionals — límite de profesionales por plan", () => {
 
     expect(response.statusCode).toBe(403);
     expect(response.json().code).toBe("PLAN_LIMIT_PROFESSIONALS");
+  });
+});
+
+// Tres niveles por profesional y servicio (17-09-2026): el panel manda un
+// mapa serviceId → especialista | normal | no_sugerir; solo los dos extremos
+// se guardan como fila. `serviceIds` sigue aceptándose como legado.
+describe("profesionales — niveles por servicio", () => {
+  let fastify: ReturnType<typeof Fastify>;
+  const mockedServiceCount = vi.mocked(prisma.service.count);
+  const mockedProfessionalCount = vi.mocked(prisma.professional.count);
+
+  function profesionalGuardado(serviceLinks: Array<{ serviceId: string; level: string }>) {
+    return {
+      id: "prof_1",
+      name: "Marta",
+      active: true,
+      createdAt: new Date("2026-09-17T10:00:00Z"),
+      updatedAt: new Date("2026-09-17T10:00:00Z"),
+      serviceLinks,
+    } as any;
+  }
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    mockRedis.del.mockResolvedValue(1);
+    mockedGetBookingSettingsBusinessFindUnique.mockResolvedValue({ plan: "pro", stripePriceId: null } as any);
+    mockedProfessionalCount.mockResolvedValue(0);
+    fastify = Fastify();
+    fastify.decorate("authenticate", async (request: any) => {
+      request.user = { businessId: "biz_1" };
+    });
+    await fastify.register(bookingSettingsRoutes);
+  });
+
+  it("al crear, guarda fila solo para especialista y no sugerir, y valida también los ids 'normal'", async () => {
+    mockedServiceCount.mockResolvedValue(3);
+    mockTransactionProfessionalCreate.mockResolvedValue(
+      profesionalGuardado([
+        { serviceId: "corte", level: "ESPECIALISTA" },
+        { serviceId: "color", level: "NO_SUGERIR" },
+      ])
+    );
+
+    const response = await fastify.inject({
+      method: "POST",
+      url: "/professionals",
+      payload: { name: "Marta", serviceLevels: { corte: "especialista", color: "no_sugerir", mechas: "normal" } },
+    });
+
+    expect(response.statusCode).toBe(201);
+    // Los tres ids tienen que ser del negocio, aunque "mechas" no genere fila.
+    expect(mockedServiceCount).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ id: { in: ["corte", "color", "mechas"] } }) })
+    );
+    expect(mockTransactionProfessionalCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          serviceLinks: {
+            create: [
+              { serviceId: "corte", level: "ESPECIALISTA" },
+              { serviceId: "color", level: "NO_SUGERIR" },
+            ],
+          },
+        }),
+      })
+    );
+    expect(response.json()).toMatchObject({
+      serviceLevels: { corte: "especialista", color: "no_sugerir" },
+      // Legado: solo los especialistas.
+      serviceIds: ["corte"],
+    });
+  });
+
+  it("el payload legado con serviceIds sigue funcionando: cada id es especialista", async () => {
+    mockedServiceCount.mockResolvedValue(1);
+    mockTransactionProfessionalCreate.mockResolvedValue(profesionalGuardado([{ serviceId: "corte", level: "ESPECIALISTA" }]));
+
+    const response = await fastify.inject({
+      method: "POST",
+      url: "/professionals",
+      payload: { name: "Marta", serviceIds: ["corte", "corte"] },
+    });
+
+    expect(response.statusCode).toBe(201);
+    // Un id repetido ya no hace saltar la clave primaria compuesta.
+    expect(mockTransactionProfessionalCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ serviceLinks: { create: [{ serviceId: "corte", level: "ESPECIALISTA" }] } }),
+      })
+    );
+  });
+
+  it("al editar, serviceLevels reemplaza todos los vínculos; {} los deja todos en 'lo hace'", async () => {
+    mockedProfessionalFindFirst.mockResolvedValue({ id: "prof_1", businessId: "biz_1", active: true } as any);
+    mockedServiceCount.mockResolvedValue(0);
+    mockTransactionProfessionalUpdate.mockResolvedValue(profesionalGuardado([]));
+
+    const response = await fastify.inject({
+      method: "PATCH",
+      url: "/professionals/prof_1",
+      payload: { serviceLevels: {} },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(mockTransactionProfessionalServiceDeleteMany).toHaveBeenCalledWith({ where: { professionalId: "prof_1" } });
+    expect(mockTransactionProfessionalServiceCreateMany).not.toHaveBeenCalled();
+    expect(response.json()).toMatchObject({ serviceLevels: {}, serviceIds: [] });
+  });
+
+  it("al editar con niveles, crea las filas con su nivel", async () => {
+    mockedProfessionalFindFirst.mockResolvedValue({ id: "prof_1", businessId: "biz_1", active: true } as any);
+    mockedServiceCount.mockResolvedValue(2);
+    mockTransactionProfessionalUpdate.mockResolvedValue(
+      profesionalGuardado([{ serviceId: "color", level: "NO_SUGERIR" }, { serviceId: "corte", level: "ESPECIALISTA" }])
+    );
+
+    const response = await fastify.inject({
+      method: "PATCH",
+      url: "/professionals/prof_1",
+      payload: { serviceLevels: { corte: "especialista", color: "no_sugerir" } },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(mockTransactionProfessionalServiceCreateMany).toHaveBeenCalledWith({
+      data: [
+        { professionalId: "prof_1", serviceId: "corte", level: "ESPECIALISTA" },
+        { professionalId: "prof_1", serviceId: "color", level: "NO_SUGERIR" },
+      ],
+    });
+  });
+
+  it("rechaza con 400 un nivel que no existe", async () => {
+    const response = await fastify.inject({
+      method: "POST",
+      url: "/professionals",
+      payload: { name: "Marta", serviceLevels: { corte: "principiante" } },
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(mockTransactionProfessionalCreate).not.toHaveBeenCalled();
+  });
+
+  it("una fila antigua sin nivel se lee como especialista (era la casilla 'especialidad')", async () => {
+    mockedProfessionalFindFirst.mockResolvedValue(profesionalGuardado([{ serviceId: "corte" } as any]));
+
+    const response = await fastify.inject({ method: "GET", url: "/professionals/prof_1" });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({ serviceLevels: { corte: "especialista" }, serviceIds: ["corte"] });
   });
 });

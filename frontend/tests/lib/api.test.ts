@@ -2,12 +2,14 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 import {
   api,
   changeAccountPassword,
+  createBookingProfessional,
   createDemoWebCall,
   deleteAccount,
   deleteBookingProfessional,
   deleteBookingService,
   getAccountOverview,
   getGoogleAuthUrl,
+  updateBookingProfessional,
 } from "@/lib/api";
 
 describe("getGoogleAuthUrl", () => {
@@ -126,6 +128,67 @@ describe("operaciones de ajustes", () => {
 
     expect(deleteSpy).toHaveBeenNthCalledWith(1, "/booking-settings/services/service_123");
     expect(deleteSpy).toHaveBeenNthCalledWith(2, "/booking-settings/professionals/professional_123");
+  });
+
+  // Contrato de asignación por especialidad: el vínculo profesional↔servicio
+  // viaja como `serviceLevels` (mapa completo, sin claves «normal»), nunca
+  // como el `serviceIds` legado.
+  it("actualiza un profesional mandando serviceLevels en el body del PATCH", async () => {
+    const patchSpy = vi.spyOn(api, "patch").mockResolvedValue({
+      data: {
+        id: "professional_123",
+        name: "Ana",
+        active: true,
+        serviceIds: ["corte"],
+        serviceLevels: { corte: "especialista", mechas: "no_sugerir" },
+        createdAt: "2026-09-17T00:00:00.000Z",
+        updatedAt: "2026-09-17T00:00:00.000Z",
+      },
+    });
+
+    const result = await updateBookingProfessional("professional_123", {
+      name: "Ana",
+      active: true,
+      serviceLevels: { corte: "especialista", mechas: "no_sugerir" },
+    });
+
+    expect(patchSpy).toHaveBeenCalledWith("/booking-settings/professionals/professional_123", {
+      name: "Ana",
+      active: true,
+      serviceLevels: { corte: "especialista", mechas: "no_sugerir" },
+    });
+    const [, body] = patchSpy.mock.calls[0];
+    expect(body).not.toHaveProperty("serviceIds");
+    expect(result.serviceLevels).toEqual({ corte: "especialista", mechas: "no_sugerir" });
+  });
+
+  it("crea un profesional sin obligar a mandar vínculos con servicios", async () => {
+    const postSpy = vi.spyOn(api, "post").mockResolvedValue({
+      data: {
+        id: "professional_456",
+        name: "Profesional 1",
+        active: true,
+        serviceIds: [],
+        serviceLevels: {},
+        createdAt: "2026-09-17T00:00:00.000Z",
+        updatedAt: "2026-09-17T00:00:00.000Z",
+      },
+    });
+
+    await createBookingProfessional({ name: "Profesional 1", active: true });
+    await createBookingProfessional({
+      name: "Luis",
+      serviceLevels: { corte: "especialista" },
+    });
+
+    expect(postSpy).toHaveBeenNthCalledWith(1, "/booking-settings/professionals", {
+      name: "Profesional 1",
+      active: true,
+    });
+    expect(postSpy).toHaveBeenNthCalledWith(2, "/booking-settings/professionals", {
+      name: "Luis",
+      serviceLevels: { corte: "especialista" },
+    });
   });
 
   it("usa las rutas de cuenta para consultar, cambiar contraseña y eliminar", async () => {

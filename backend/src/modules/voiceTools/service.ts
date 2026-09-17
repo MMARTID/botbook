@@ -90,7 +90,37 @@ type AvailabilityDraft = {
    * profesional se ocupó, seguía habiendo hueco con otro y el agente decía
    * que no quedaba nada. */
   professionalRequested?: boolean;
+  /** El profesional pedido está marcado "no sugerir" para estos servicios y
+   * check_availability devolvió una recomendación. book_appointment con este
+   * token exige `professionalConfirmed: true` (el cliente insistió tras oír
+   * la propuesta): es la red de seguridad para que un prompt antiguo no
+   * reserve con esa persona sin haber propuesto antes a la recomendada. */
+  recommendationOffered?: {
+    professionalId: string;
+    professionalName: string;
+    availabilityToken: string;
+  };
 };
+
+/** Lo que el agente lee cuando hay alguien mejor que proponer. Lleva su
+ * propio token para que "vale, con Laura" se reserve sin otra comprobación. */
+type RecommendationForAgent = {
+  professional: { id: string; name: string };
+  isSpecialist: boolean;
+  availabilityToken: string;
+  instructions: string;
+};
+
+function instruccionesDeRecomendacion(
+  recomendado: string,
+  pedido: string,
+  isSpecialist: boolean
+): string {
+  const porQue = isSpecialist
+    ? `${recomendado} es quien más hace este servicio`
+    : `${recomendado} es la persona más indicada`;
+  return `Propón UNA sola vez, en positivo, reservar con ${recomendado} (${porQue} y tiene hueco a esa hora); reserva con su availabilityToken si el cliente acepta. Si el cliente insiste en ${pedido}, reserva con el availabilityToken principal y professionalConfirmed: true, sin explicar nada. Nunca digas ni insinúes que ${pedido} no hace o no domina este servicio.`;
+}
 
 function availabilityDraftKey(token: string): string {
   return `availability_draft:${token}`;
@@ -438,6 +468,9 @@ async function executeCheckAvailability(
       typeof params?.professionalId === "string"
         ? params.professionalId
         : undefined;
+    // true solo cuando el cliente ya oyó la recomendación e insistió en la
+    // persona que pidió: entonces no se vuelve a proponer a nadie.
+    const professionalConfirmed = params?.professionalConfirmed === true;
 
     // El LLM puede corromper un ID largo al copiarlo (llamada real del
     // 2026-09-14: envió "cmu1h326w001ts601zp5xut70", un híbrido de dos IDs
@@ -468,6 +501,7 @@ async function executeCheckAvailability(
         };
       }
     }
+    let requestedProfessionalName = "la persona que pidió";
     if (professionalId) {
       const knownProfessional = await prisma.professional.findFirst({
         where: {
@@ -476,8 +510,9 @@ async function executeCheckAvailability(
           active: true,
           deletedAt: null,
         },
-        select: { id: true },
+        select: { id: true, name: true },
       });
+      if (knownProfessional?.name) requestedProfessionalName = knownProfessional.name;
       if (!knownProfessional) {
         return {
           success: true,
@@ -510,17 +545,78 @@ async function executeCheckAvailability(
       calendarOrigin: calendarOriginForBusiness(business),
     });
 
+    // Lo que se le devuelve al LLM no lleva los campos internos del ranking
+    // (specialistIds, recommendedProfessional): se traducen a cosas que puede
+    // decir. Un profesional "no sugerir" nunca aparece como tal.
+    const { recommendedProfessional, ...sinRecomendacion } = availability;
+    const specialistIds = availability.available ? availability.specialistIds : undefined;
+    const paraElAgente: Omit<typeof sinRecomendacion, "specialistIds"> = Object.fromEntries(
+      Object.entries(sinRecomendacion).filter(([clave]) => clave !== "specialistIds")
+    ) as Omit<typeof sinRecomendacion, "specialistIds">;
+
+    // El cliente pidió por su nombre a alguien marcado "no sugerir" y hay
+    // alguien mejor libre a esa hora: se le propone UNA vez, con su propio
+    // token. Si el cliente ya insistió (professionalConfirmed), no se
+    // vuelve a proponer.
+    const recommendation: RecommendationForAgent | undefined =
+      recommendedProfessional && !professionalConfirmed
+        ? {
+            professional: recommendedProfessional.professional,
+            isSpecialist: recommendedProfessional.isSpecialist,
+            availabilityToken: await createAvailabilityDraft({
+              businessId: business.id,
+              callId,
+              startDateTime,
+              durationMinutes,
+              serviceIds: serviceIds ?? [],
+              professionalId: recommendedProfessional.professional.id,
+              professionalRequested: true,
+            }),
+            instructions: instruccionesDeRecomendacion(
+              recommendedProfessional.professional.name,
+              requestedProfessionalName,
+              recommendedProfessional.isSpecialist
+            ),
+          }
+        : undefined;
+    const conRecomendacion = recommendation ? { recommendation } : {};
+
     if (availability.available) {
+      const asignado = availability.availableProfessionals[0];
       const availabilityToken = await createAvailabilityDraft({
         businessId: business.id,
         callId,
         startDateTime,
         durationMinutes,
         serviceIds: serviceIds ?? [],
-        professionalId: professionalId ?? availability.availableProfessionals[0]?.id,
+        professionalId: professionalId ?? asignado?.id,
         professionalRequested: Boolean(professionalId),
+        ...(recommendation && professionalId
+          ? {
+              recommendationOffered: {
+                professionalId: recommendation.professional.id,
+                professionalName: recommendation.professional.name,
+                availabilityToken: recommendation.availabilityToken,
+              },
+            }
+          : {}),
       });
-      return { success: true, result: { ...availability, availabilityToken } };
+      // Sin profesional pedido, el hueco va a availableProfessionals[0]: el
+      // agente puede decir con quién queda y, si es especialista, decirlo en
+      // positivo al confirmar.
+      const assignedProfessional =
+        !professionalId && asignado
+          ? {
+              assignedProfessional: {
+                ...asignado,
+                isSpecialist: specialistIds?.includes(asignado.id) ?? false,
+              },
+            }
+          : {};
+      return {
+        success: true,
+        result: { ...paraElAgente, availabilityToken, ...assignedProfessional, ...conRecomendacion },
+      };
     }
 
     if (availability.suggestedNextSlot) {
@@ -537,16 +633,17 @@ async function executeCheckAvailability(
       return {
         success: true,
         result: {
-          ...availability,
+          ...paraElAgente,
           suggestedNextSlot: {
             ...availability.suggestedNextSlot,
             availabilityToken: suggestedToken,
           },
+          ...conRecomendacion,
         },
       };
     }
 
-    return { success: true, result: availability };
+    return { success: true, result: { ...paraElAgente, ...conRecomendacion } };
   } catch (error) {
     console.error(
       `[VoiceTools] ${callLabel} no pudo comprobar disponibilidad: ${errorMessage(
@@ -1124,6 +1221,7 @@ async function executeBookAppointment(
     professionalId?: string;
     availabilityToken?: string;
     smsConsent?: boolean;
+    professionalConfirmed?: boolean;
   };
   const clientName = rawParams.clientName;
   const clientEmail = rawParams.clientEmail;
@@ -1144,6 +1242,27 @@ async function executeBookAppointment(
         success: false,
         code: "AVAILABILITY_TOKEN_EXPIRED",
         message: "La comprobación de disponibilidad caducó. Vuelvo a comprobar la hora que prefieras.",
+      },
+    };
+  }
+
+  // check_availability propuso a alguien mejor para este servicio y el
+  // agente intenta reservar con la persona pedida sin decir que el cliente
+  // insistió. Se frena una vez: o el cliente acepta a quien se le propuso
+  // (token de la recomendación) o insiste (professionalConfirmed). Es la red
+  // de seguridad para prompts editados a mano que no conocen la regla.
+  if (draft?.recommendationOffered && rawParams.professionalConfirmed !== true) {
+    const recomendado = draft.recommendationOffered;
+    return {
+      success: true,
+      result: {
+        success: false,
+        code: "PROFESSIONAL_CONFIRMATION_REQUIRED",
+        recommendation: {
+          professional: { id: recomendado.professionalId, name: recomendado.professionalName },
+          availabilityToken: recomendado.availabilityToken,
+        },
+        message: `Antes de reservar, propón una sola vez reservar con ${recomendado.professionalName}, que tiene hueco a esa hora (usa su availabilityToken si el cliente acepta). Si el cliente insiste en la persona que pidió, repite book_appointment con este mismo availabilityToken y professionalConfirmed: true. No expliques el motivo ni digas que alguien no hace este servicio.`,
       },
     };
   }
@@ -1540,6 +1659,7 @@ async function executeBookAppointment(
               success: true,
               message: "Cita agendada correctamente.",
               professionalId: resolvedProfessionalId,
+              professionalName: resolvedProfessionalName ?? null,
             },
           };
         }
@@ -1789,6 +1909,9 @@ async function executeBookAppointment(
             message: "Cita agendada correctamente.",
             eventLink: (result as { htmlLink?: string })?.htmlLink,
             professionalId: resolvedProfessionalId,
+            // Para que la confirmación pueda decir con quién queda la cita
+            // (el preasignado puede haber cambiado si se ocupó entre medias).
+            professionalName: resolvedProfessionalName ?? null,
           },
         };
       } catch (error) {
