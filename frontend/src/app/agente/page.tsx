@@ -21,6 +21,8 @@ import {
   updateMyBusiness,
 } from "@/lib/api";
 import { formatPrice } from "@/lib/format";
+import { SiGooglecalendar } from "@icons-pack/react-simple-icons";
+import { MicrosoftLogo } from "@/components/brand-icons";
 import { getPlanLimitInfo, planLimitUpgradeMessage } from "@/lib/plan-limit";
 import { getNextAgentSetupSection } from "@/lib/agent-configuration";
 import { useBusiness } from "@/components/providers";
@@ -873,7 +875,8 @@ function AgenteContent() {
                     className="flex flex-col justify-between rounded-xl border border-[#ddd6fe] bg-[#f3eeff] p-4 text-left transition duration-200 hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     <div>
-                      <p className="text-sm font-semibold text-[#0a0a0a]">
+                      <p className="flex items-center gap-2 text-sm font-semibold text-[#0a0a0a]">
+                        <SiGooglecalendar className="h-4 w-4 shrink-0" color="#4285F4" />
                         Conecta Google Calendar
                       </p>
                       <p className="mt-1 text-sm leading-6 text-muted">
@@ -895,7 +898,8 @@ function AgenteContent() {
                     className="flex flex-col justify-between rounded-xl border border-[#ddd6fe] bg-[#f3eeff] p-4 text-left transition duration-200 hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     <div>
-                      <p className="text-sm font-semibold text-[#0a0a0a]">
+                      <p className="flex items-center gap-2 text-sm font-semibold text-[#0a0a0a]">
+                        <MicrosoftLogo className="h-4 w-4 shrink-0" />
                         Conecta Outlook
                       </p>
                       <p className="mt-1 text-sm leading-6 text-muted">

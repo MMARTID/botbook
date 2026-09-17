@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { BadgeCheck, CheckCircle2 } from "lucide-react";
+import { SiWhatsapp } from "@icons-pack/react-simple-icons";
 import { PlanSelectionLink } from "@/components/plan-selection-link";
 import { formatExtraMinute, formatIncludedMinutes, formatPlanPrice, plans, TRIAL_REASSURANCE, type Plan } from "@/lib/plans";
 import { calculatePlanValueContrast, getActiveRoiContext, type RoiEstimate } from "@/lib/roi-context";
@@ -95,7 +96,11 @@ function PlanCard({
       <ul className="mt-8 flex-1 space-y-3">
         {plan.features.map((feature) => (
           <li key={feature} className={`flex items-start gap-3 text-sm leading-6 ${isDark ? "text-white/80" : "text-[#27272a]"}`}>
-            <CheckCircle2 className={`mt-0.5 h-4 w-4 shrink-0 ${isDark ? "text-[#a78bfa]" : "text-[#8b5cf6]"}`} aria-hidden="true" /> {feature}
+            {feature.includes("WhatsApp") ? (
+              <SiWhatsapp className="mt-0.5 h-4 w-4 shrink-0" color="#25D366" aria-hidden="true" />
+            ) : (
+              <CheckCircle2 className={`mt-0.5 h-4 w-4 shrink-0 ${isDark ? "text-[#a78bfa]" : "text-[#8b5cf6]"}`} aria-hidden="true" />
+            )} {feature}
           </li>
         ))}
       </ul>
