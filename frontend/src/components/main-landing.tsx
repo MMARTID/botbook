@@ -34,6 +34,16 @@ const SECTORES = [
  * visitante prefiere menos movimiento. `preload="metadata"` mantiene ligera
  * la carga inicial (los 5 clips suman ~3MB pero solo se traen al reproducir). */
 function SectorSceneMedia({ video, poster, reducedMotion }: { video: string; poster: string; reducedMotion: boolean }) {
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  // El atributo autoPlay solo actúa al insertarse el elemento: tras un
+  // remontaje (HMR, navegación de vuelta) o un bloqueo puntual del navegador
+  // los vídeos quedaban en pausa. Un play() explícito al montar lo cubre;
+  // si el navegador lo rechaza, se queda el poster y no pasa nada.
+  useEffect(() => {
+    if (!reducedMotion) videoRef.current?.play().catch(() => {});
+  }, [reducedMotion]);
+
   return (
     <span className="block overflow-hidden rounded-2xl border border-[#e5e5e5]">
       {reducedMotion ? (
@@ -41,6 +51,7 @@ function SectorSceneMedia({ video, poster, reducedMotion }: { video: string; pos
         <img src={poster} alt="" className="aspect-[4/3] w-full object-cover" />
       ) : (
         <video
+          ref={videoRef}
           className="aspect-[4/3] w-full object-cover"
           src={video}
           poster={poster}
@@ -108,6 +119,27 @@ export function MainLanding() {
   const [isDemoOpen, setIsDemoOpen] = useState(false);
   const sectorReducedMotion = useReducedMotion() === true;
   const sectorTrackRef = useRef<HTMLDivElement>(null);
+  const [sectorFades, setSectorFades] = useState({ izquierda: false, derecha: true });
+
+  // El fundido de cada borde solo aparece cuando hay tarjetas cortadas por
+  // ese lado (a scroll cero no hay nada oculto a la izquierda, y al final
+  // nada a la derecha).
+  const actualizarFundidos = () => {
+    const track = sectorTrackRef.current;
+    if (!track) return;
+    const maximo = track.scrollWidth - track.clientWidth;
+    setSectorFades({
+      izquierda: track.scrollLeft > 8,
+      derecha: track.scrollLeft < maximo - 8,
+    });
+  };
+
+  useEffect(() => {
+    actualizarFundidos();
+    window.addEventListener("resize", actualizarFundidos);
+    return () => window.removeEventListener("resize", actualizarFundidos);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Avanza/retrocede una tarjeta exacta del carrusel de sectores.
   const desplazarSectores = (direccion: 1 | -1) => {
@@ -190,7 +222,8 @@ export function MainLanding() {
           {/* Una sola línea: carril con scroll-snap (rueda/arrastre en móvil,
               flechas en escritorio). El grid anterior de 3+2 ocupaba media
               página — feedback directo del usuario. */}
-          <div ref={sectorTrackRef} className="sector-track mt-10" aria-label="Sectores">
+          <div className="relative mt-14 sm:mt-16">
+          <div ref={sectorTrackRef} onScroll={actualizarFundidos} className="sector-track" aria-label="Sectores">
             {SECTORES.map(({ href, title, description, video, poster }, index) => (
               <Reveal key={href} delay={index * 0.06} className="h-full snap-start">
                 <Link data-sector-card href={href} className="group flex h-full flex-col rounded-3xl border border-[#e5e5e5] p-3 transition duration-300 hover:-translate-y-1 hover:border-[#ddd6fe] hover:shadow-[0_18px_35px_-24px_rgba(109,40,217,0.55)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] focus-visible:ring-offset-4">
@@ -203,6 +236,9 @@ export function MainLanding() {
                 </Link>
               </Reveal>
             ))}
+          </div>
+          <span aria-hidden="true" className="sector-fade sector-fade-izquierda" style={{ opacity: sectorFades.izquierda ? 1 : 0 }} />
+          <span aria-hidden="true" className="sector-fade sector-fade-derecha" style={{ opacity: sectorFades.derecha ? 1 : 0 }} />
           </div>
         </div>
       </section>
