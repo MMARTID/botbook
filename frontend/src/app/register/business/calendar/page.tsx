@@ -2,7 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { CalendarDays, Check, LoaderCircle, Mail, Video } from "lucide-react";
+import { CalendarDays, Check, LoaderCircle } from "lucide-react";
+import { SiGooglecalendar } from "@icons-pack/react-simple-icons";
+import { MicrosoftLogo } from "@/components/brand-icons";
 import { getGoogleCalendarAuthUrl, getMicrosoftCalendarAuthUrl } from "@/lib/api";
 import { consumePendingPlan, isPlanId } from "@/lib/billing-navigation";
 import { BUSINESS_TYPE_ONBOARDING_TEXTS, isBusinessType } from "@/lib/business-type";
@@ -112,8 +114,8 @@ export default function RegisterBusinessCalendarPage() {
             disabled={loading !== null}
             className="flex w-full items-center gap-4 rounded-2xl border border-[#e5e5e5] bg-white p-5 text-left transition hover:border-[#8b5cf6] hover:bg-[#fafafa] disabled:cursor-not-allowed disabled:opacity-50"
           >
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#f3eeff] text-[#8b5cf6]">
-              <Video className="h-6 w-6" />
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-[#e5e5e5] bg-white">
+              <SiGooglecalendar className="h-6 w-6" color="#4285F4" />
             </div>
             <div className="flex-1">
               <p className="font-semibold text-[#0a0a0a]">Google Calendar</p>
@@ -132,8 +134,8 @@ export default function RegisterBusinessCalendarPage() {
             disabled={loading !== null}
             className="flex w-full items-center gap-4 rounded-2xl border border-[#e5e5e5] bg-white p-5 text-left transition hover:border-[#8b5cf6] hover:bg-[#fafafa] disabled:cursor-not-allowed disabled:opacity-50"
           >
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#f3eeff] text-[#8b5cf6]">
-              <Mail className="h-6 w-6" />
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-[#e5e5e5] bg-white">
+              <MicrosoftLogo className="h-6 w-6" />
             </div>
             <div className="flex-1">
               <p className="font-semibold text-[#0a0a0a]">Outlook / Microsoft 365</p>

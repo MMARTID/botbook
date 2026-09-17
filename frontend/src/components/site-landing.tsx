@@ -10,6 +10,8 @@ import { BrandMark } from "@/components/brand-mark";
 import { CallForwardingFlow } from "@/components/call-forwarding-flow";
 import { formatIncludedMinutes, formatPlanPrice, plans, TRIAL_REASSURANCE } from "@/lib/plans";
 import { type NicheLandingContent } from "@/lib/niche-landings";
+import { SiGooglecalendar } from "@icons-pack/react-simple-icons";
+import { MicrosoftLogo } from "@/components/brand-icons";
 import { MainLanding } from "@/components/main-landing";
 
 function buildPlansHref(niche?: string) {
@@ -208,7 +210,8 @@ export function SiteLanding({ content }: { content?: NicheLandingContent }) {
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <Reveal>
             <span className="badge-soft gap-2">
-              <CalendarDays className="h-3.5 w-3.5" />
+              <SiGooglecalendar className="h-3.5 w-3.5" color="#4285F4" />
+              <MicrosoftLogo className="h-3.5 w-3.5" />
               Google Calendar & Outlook
             </span>
           </Reveal>
