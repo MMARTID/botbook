@@ -35,7 +35,6 @@ import { SettingsSection } from "@/components/settings-section";
 import { AgentOperationalSummary } from "@/components/agent-operational-summary";
 import { AppPageHeader } from "@/components/app-page-header";
 import { LottieAnimation } from "@/components/lottie-animation";
-import { SectionEmptyState } from "@/components/section-card";
 import type {
   AgentSettings,
   BookingProfessional,
@@ -60,114 +59,25 @@ import {
   X,
 } from "lucide-react";
 
+function EmptyState({
+  title,
+  description,
+}: {
+  title: string;
+  description: string;
+}) {
+  return (
+    <div className="rounded-xl border border-dashed border-[#e5e5e5] bg-[#fafafa] px-4 py-6 text-sm text-muted">
+      <p className="font-semibold text-[#27272a]">{title}</p>
+      <p className="mt-1 leading-6">{description}</p>
+    </div>
+  );
+}
+
 function isValidPlaceSchedule(value: unknown): value is BusinessSchedule {
   if (!value || typeof value !== "object") return false;
   const candidate = value as Partial<BusinessSchedule>;
   return candidate.version === 1 && Boolean(candidate.week);
-}
-
-/**
- * Aviso de éxito/error inline, en dos variantes: `standalone` (caja con
- * borde propio, para la cabecera de página o de sección) y `attached`
- * (franja pegada al borde superior de una tarjeta, para el feedback de
- * guardado/eliminación de un editor).
- */
-function StatusBanner({
-  type,
-  message,
-  variant = "standalone",
-}: {
-  type: "success" | "error";
-  message: string;
-  variant?: "standalone" | "attached";
-}) {
-  const tone =
-    type === "success"
-      ? "border-[#d8efd7] bg-[#ecf7ec] text-[#2c7334]"
-      : "border-[#f5d3d3] bg-[#fff1f1] text-[#c53030]";
-  const shape =
-    variant === "standalone"
-      ? "rounded-xl border px-4 py-3 text-sm font-medium"
-      : "border-t px-4 py-2 text-sm";
-  return (
-    <div role="status" aria-live="polite" className={`${shape} ${tone}`}>
-      {message}
-    </div>
-  );
-}
-
-/** Botones "Editar"/"Eliminar" de la cabecera de una tarjeta de servicio o profesional. */
-function CardActionButtons({
-  editing,
-  onToggleEdit,
-  onRequestDelete,
-}: {
-  editing: boolean;
-  onToggleEdit: () => void;
-  onRequestDelete: () => void;
-}) {
-  return (
-    <div className="flex shrink-0 gap-2">
-      <button
-        type="button"
-        onClick={onToggleEdit}
-        aria-expanded={editing}
-        className="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-full border border-[#e5e5e5] px-4 text-sm font-semibold text-[#27272a] transition hover:bg-[#fafafa] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] sm:flex-none"
-      >
-        {editing ? <X className="h-4 w-4" /> : <Pencil className="h-4 w-4" />}
-        {editing ? "Cerrar" : "Editar"}
-      </button>
-      <button
-        type="button"
-        onClick={onRequestDelete}
-        className="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-full border border-[#f5d3d3] px-4 text-sm font-semibold text-[#c53030] transition hover:bg-[#fff1f1] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#c53030] sm:flex-none"
-      >
-        <Trash2 className="h-4 w-4" /> Eliminar
-      </button>
-    </div>
-  );
-}
-
-/** Franja de confirmación de borrado de una tarjeta de servicio o profesional. */
-function DeleteConfirmBar({
-  message,
-  onCancel,
-  onConfirm,
-  pending,
-  confirmLabel,
-  pendingLabel,
-}: {
-  message: string;
-  onCancel: () => void;
-  onConfirm: () => void;
-  pending: boolean;
-  confirmLabel: string;
-  pendingLabel: string;
-}) {
-  return (
-    <div className="flex flex-col gap-3 border-t border-[#f5d3d3] bg-[#fff1f1] p-4 sm:flex-row sm:items-center sm:justify-between">
-      <p className="text-sm leading-6 text-[#c53030]">{message}</p>
-      <div className="flex shrink-0 gap-2">
-        <button
-          type="button"
-          onClick={onCancel}
-          disabled={pending}
-          className="btn-secondary h-11 px-4"
-        >
-          Cancelar
-        </button>
-        <button
-          type="button"
-          onClick={onConfirm}
-          disabled={pending}
-          className="inline-flex h-11 items-center justify-center gap-2 rounded-full bg-[#c53030] px-4 text-sm font-semibold text-white transition hover:bg-[#9f2424] disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#c53030] focus-visible:ring-offset-2"
-        >
-          <Trash2 className="h-4 w-4" />
-          {pending ? pendingLabel : confirmLabel}
-        </button>
-      </div>
-    </div>
-  );
 }
 
 function AgenteContent() {
@@ -530,28 +440,44 @@ function AgenteContent() {
 
   if (settingsQuery.isError) {
     return (
-      <FullPageError
-        title="No se pudo cargar la configuración operativa"
-        message={
-          settingsQuery.error instanceof Error
+      <div className="panel mx-auto max-w-2xl space-y-4 p-6 text-center">
+        <h1 className="text-2xl font-semibold text-[#0a0a0a]">
+          No se pudo cargar la configuración operativa
+        </h1>
+        <p className="text-sm leading-6 text-muted">
+          {settingsQuery.error instanceof Error
             ? settingsQuery.error.message
-            : "La ruta `/booking-settings` devolvió un error."
-        }
-        onRetry={() => settingsQuery.refetch()}
-      />
+            : "La ruta `/booking-settings` devolvió un error."}
+        </p>
+        <button
+          type="button"
+          onClick={() => settingsQuery.refetch()}
+          className="btn-primary mx-auto"
+        >
+          Reintentar
+        </button>
+      </div>
     );
   }
 
   if (isBusinessError) {
     return (
-      <FullPageError
-        title="No se pudo cargar la configuración del agente"
-        message={
-          errorMessage ??
-          "El backend devolvió un error al cargar la configuración del negocio."
-        }
-        onRetry={() => window.location.reload()}
-      />
+      <div className="panel mx-auto max-w-2xl space-y-4 p-6 text-center">
+        <h1 className="text-2xl font-semibold text-[#0a0a0a]">
+          No se pudo cargar la configuración del agente
+        </h1>
+        <p className="text-sm leading-6 text-muted">
+          {errorMessage ??
+            "El backend devolvió un error al cargar la configuración del negocio."}
+        </p>
+        <button
+          type="button"
+          onClick={() => window.location.reload()}
+          className="btn-primary mx-auto"
+        >
+          Reintentar
+        </button>
+      </div>
     );
   }
 
@@ -574,7 +500,13 @@ function AgenteContent() {
       <AppPageHeader icon={Bot} title="Tu agente" description="Configura cómo atiende, qué puede reservar y qué información utiliza al hablar con tus clientes." />
       <AgentOperationalSummary business={business} agentActive={business.agents?.[0]?.active !== false} />
       {banner ? (
-        <StatusBanner type={banner.type} message={banner.message} />
+        <div
+          role="status"
+          aria-live="polite"
+          className={`rounded-xl border px-4 py-3 text-sm ${banner.type === "success" ? "border-[#d8efd7] bg-[#ecf7ec] text-[#2c7334]" : "border-[#f5d3d3] bg-[#fff1f1] text-[#c53030]"}`}
+        >
+          {banner.message}
+        </div>
       ) : null}
       <SectionGroupHeading title="Disponibilidad" description="Define cuándo puede reservar tu recepcionista y cuántas citas puede confirmar a la vez." />
       <BusinessHoursEditor
@@ -600,7 +532,7 @@ function AgenteContent() {
             su horario. Es independiente del número de profesionales.
           </p>
           <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-end">
-            <label className="max-w-xs flex-1 text-sm font-semibold text-[#27272a]">
+            <label className="max-w-xs flex-1 text-sm font-medium text-[#27272a]">
               Máximo de citas simultáneas
               <input
                 type="number"
@@ -651,7 +583,7 @@ function AgenteContent() {
           </p>
 
           <details className="group rounded-xl border border-[#e5e5e5] bg-[#fafafa]">
-            <summary className="flex cursor-pointer list-none items-center justify-between gap-3 rounded-t-xl px-4 py-3 text-sm font-semibold text-[#27272a] transition duration-200 hover:bg-[#f4f4f5] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#8b5cf6]">
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-semibold text-[#27272a]">
               Añadir servicio
               <ChevronDown className="h-4 w-4 transition group-open:rotate-180" />
             </summary>
@@ -720,8 +652,7 @@ function AgenteContent() {
 
           <div className="space-y-3">
             {services.length === 0 ? (
-              <SectionEmptyState
-                icon={ScissorsLineDashed}
+              <EmptyState
                 title="Todavía no hay servicios"
                 description="Empieza por crear los tratamientos o citas que el agente podrá ofrecer por teléfono."
               />
@@ -787,7 +718,7 @@ function AgenteContent() {
           </p>
 
           <details className="group rounded-xl border border-[#e5e5e5] bg-[#fafafa]">
-            <summary className="flex cursor-pointer list-none items-center justify-between gap-3 rounded-t-xl px-4 py-3 text-sm font-semibold text-[#27272a] transition duration-200 hover:bg-[#f4f4f5] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#8b5cf6]">
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-semibold text-[#27272a]">
               Añadir profesional
               <ChevronDown className="h-4 w-4 transition group-open:rotate-180" />
             </summary>
@@ -857,8 +788,7 @@ function AgenteContent() {
 
           <div className="space-y-3">
             {professionals.length === 0 ? (
-              <SectionEmptyState
-                icon={UserRoundCheck}
+              <EmptyState
                 title="Todavía no hay profesionales"
                 description="Añade el equipo disponible para que la reserva no asigne más trabajo del que podéis absorber."
               />
@@ -923,10 +853,11 @@ function AgenteContent() {
       >
         <div className="space-y-4 p-4 sm:p-5">
           {calendarStatus && (
-            <StatusBanner
-              type={calendarStatus.type}
-              message={calendarStatus.message}
-            />
+            <div
+              className={`rounded-xl border px-4 py-3 text-sm font-medium ${calendarStatus.type === "success" ? "border-[#d8efd7] bg-[#ecf7ec] text-[#2c7334]" : "border-[#f5d3d3] bg-[#fff1f1] text-[#c53030]"}`}
+            >
+              {calendarStatus.message}
+            </div>
           )}
 
           {!hasCalendar ? (
@@ -1130,27 +1061,6 @@ function AgenteContent() {
   );
 }
 
-/** Estado de error a página completa: recarga de negocio o de booking-settings. */
-function FullPageError({
-  title,
-  message,
-  onRetry,
-}: {
-  title: string;
-  message: string;
-  onRetry: () => void;
-}) {
-  return (
-    <div className="panel mx-auto max-w-2xl space-y-4 p-6 text-center">
-      <h1 className="text-2xl font-semibold text-[#0a0a0a]">{title}</h1>
-      <p className="text-sm leading-6 text-muted">{message}</p>
-      <button type="button" onClick={onRetry} className="btn-primary mx-auto">
-        Reintentar
-      </button>
-    </div>
-  );
-}
-
 function SectionGroupHeading({ title, description }: { title: string; description: string }) {
   return (
     <div className="border-b border-[#e5e5e5] pb-3 pt-4 sm:flex sm:items-end sm:justify-between sm:gap-6">
@@ -1244,25 +1154,40 @@ function ServiceEditor({
             {service.active ? "Activo" : "Inactivo"}
           </span>
         </div>
-        <CardActionButtons
-          editing={editing}
-          onToggleEdit={() => {
-            setEditing((current) => !current);
-            setConfirmingDelete(false);
-          }}
-          onRequestDelete={() => {
-            setConfirmingDelete(true);
-            setEditing(false);
-          }}
-        />
+        <div className="flex shrink-0 gap-2">
+          <button
+            type="button"
+            onClick={() => {
+              setEditing((current) => !current);
+              setConfirmingDelete(false);
+            }}
+            aria-expanded={editing}
+            className="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-full border border-[#e5e5e5] px-4 text-sm font-semibold text-[#27272a] transition hover:bg-[#fafafa] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] sm:flex-none"
+          >
+            {editing ? <X className="h-4 w-4" /> : <Pencil className="h-4 w-4" />}
+            {editing ? "Cerrar" : "Editar"}
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setConfirmingDelete(true);
+              setEditing(false);
+            }}
+            className="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-full border border-[#f5d3d3] px-4 text-sm font-semibold text-[#c53030] transition hover:bg-[#fff1f1] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#c53030] sm:flex-none"
+          >
+            <Trash2 className="h-4 w-4" /> Eliminar
+          </button>
+        </div>
       </div>
 
       {feedback ? (
-        <StatusBanner
-          type={feedback.type}
-          message={feedback.message}
-          variant="attached"
-        />
+        <p
+          role="status"
+          aria-live="polite"
+          className={`border-t px-4 py-2 text-sm ${feedback.type === "success" ? "border-[#d8efd7] bg-[#ecf7ec] text-[#2c7334]" : "border-[#f5d3d3] bg-[#fff1f1] text-[#c53030]"}`}
+        >
+          {feedback.message}
+        </p>
       ) : null}
 
       {editing ? (
@@ -1329,14 +1254,30 @@ function ServiceEditor({
       ) : null}
 
       {confirmingDelete ? (
-        <DeleteConfirmBar
-          message="Se retirará de las nuevas reservas y de todos los profesionales. El historial se conserva."
-          onCancel={() => setConfirmingDelete(false)}
-          onConfirm={() => deleteMutation.mutate()}
-          pending={deleteMutation.isPending}
-          confirmLabel="Eliminar servicio"
-          pendingLabel="Eliminando..."
-        />
+        <div className="flex flex-col gap-3 border-t border-[#f5d3d3] bg-[#fff1f1] p-4 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-sm leading-6 text-[#c53030]">
+            Se retirará de las nuevas reservas y de todos los profesionales. El historial se conserva.
+          </p>
+          <div className="flex shrink-0 gap-2">
+            <button
+              type="button"
+              onClick={() => setConfirmingDelete(false)}
+              disabled={deleteMutation.isPending}
+              className="btn-secondary h-11 px-4"
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              onClick={() => deleteMutation.mutate()}
+              disabled={deleteMutation.isPending}
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-full bg-[#c53030] px-4 text-sm font-semibold text-white transition hover:bg-[#9f2424] disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#c53030] focus-visible:ring-offset-2"
+            >
+              <Trash2 className="h-4 w-4" />
+              {deleteMutation.isPending ? "Eliminando..." : "Eliminar servicio"}
+            </button>
+          </div>
+        </div>
       ) : null}
     </article>
   );
@@ -1433,25 +1374,40 @@ function ProfessionalEditor({
             {compatibleServices.length} servicios compatibles
           </span>
         </div>
-        <CardActionButtons
-          editing={editing}
-          onToggleEdit={() => {
-            setEditing((current) => !current);
-            setConfirmingDelete(false);
-          }}
-          onRequestDelete={() => {
-            setConfirmingDelete(true);
-            setEditing(false);
-          }}
-        />
+        <div className="flex shrink-0 gap-2">
+          <button
+            type="button"
+            onClick={() => {
+              setEditing((current) => !current);
+              setConfirmingDelete(false);
+            }}
+            aria-expanded={editing}
+            className="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-full border border-[#e5e5e5] px-4 text-sm font-semibold text-[#27272a] transition hover:bg-[#fafafa] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] sm:flex-none"
+          >
+            {editing ? <X className="h-4 w-4" /> : <Pencil className="h-4 w-4" />}
+            {editing ? "Cerrar" : "Editar"}
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setConfirmingDelete(true);
+              setEditing(false);
+            }}
+            className="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-full border border-[#f5d3d3] px-4 text-sm font-semibold text-[#c53030] transition hover:bg-[#fff1f1] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#c53030] sm:flex-none"
+          >
+            <Trash2 className="h-4 w-4" /> Eliminar
+          </button>
+        </div>
       </div>
 
       {feedback ? (
-        <StatusBanner
-          type={feedback.type}
-          message={feedback.message}
-          variant="attached"
-        />
+        <p
+          role="status"
+          aria-live="polite"
+          className={`border-t px-4 py-2 text-sm ${feedback.type === "success" ? "border-[#d8efd7] bg-[#ecf7ec] text-[#2c7334]" : "border-[#f5d3d3] bg-[#fff1f1] text-[#c53030]"}`}
+        >
+          {feedback.message}
+        </p>
       ) : null}
 
       {editing ? (
@@ -1520,14 +1476,30 @@ function ProfessionalEditor({
       ) : null}
 
       {confirmingDelete ? (
-        <DeleteConfirmBar
-          message="Ya no recibirá nuevas citas. Sus citas anteriores seguirán visibles en el historial."
-          onCancel={() => setConfirmingDelete(false)}
-          onConfirm={() => deleteMutation.mutate()}
-          pending={deleteMutation.isPending}
-          confirmLabel="Eliminar profesional"
-          pendingLabel="Eliminando..."
-        />
+        <div className="flex flex-col gap-3 border-t border-[#f5d3d3] bg-[#fff1f1] p-4 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-sm leading-6 text-[#c53030]">
+            Ya no recibirá nuevas citas. Sus citas anteriores seguirán visibles en el historial.
+          </p>
+          <div className="flex shrink-0 gap-2">
+            <button
+              type="button"
+              onClick={() => setConfirmingDelete(false)}
+              disabled={deleteMutation.isPending}
+              className="btn-secondary h-11 px-4"
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              onClick={() => deleteMutation.mutate()}
+              disabled={deleteMutation.isPending}
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-full bg-[#c53030] px-4 text-sm font-semibold text-white transition hover:bg-[#9f2424] disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#c53030] focus-visible:ring-offset-2"
+            >
+              <Trash2 className="h-4 w-4" />
+              {deleteMutation.isPending ? "Eliminando..." : "Eliminar profesional"}
+            </button>
+          </div>
+        </div>
       ) : null}
     </article>
   );
