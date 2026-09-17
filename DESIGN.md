@@ -322,6 +322,46 @@ sigue el mismo principio — física simple (repulsión + amortiguación), sin t
 además limita el riesgo por construcción: en móvil, que es donde vivían los bugs anteriores, el
 bucle ni arranca.
 
+**Hilos de voz en el hero de las landings (2026-09-17).** Las landings ya no llevan campo de
+partículas (retirado el 2026-09-16: ensuciaba el contenido); su única animación de fondo es
+`frontend/src/components/hero-hilos.tsx`, que sustituyó al pulso de llamada (anillos + pastillas)
+de la columna derecha. El hero pasó a una columna con el titular centrado y, detrás, un haz de
+hilos finos en gris (`#0a0a0a` a ≤30 % de opacidad, en campana hacia los bordes del haz) que cruza
+en diagonal y se arruga con ruido de valor; de vez en cuando un pulso en el acento de la página
+(morado en `/landing`, `accent.strong` en cada nicho) recorre un hilo. Referencia: la cinta de
+ondas de heydiga.com, con otra geometría y otro movimiento a propósito.
+
+El ratón no empuja los hilos "a pelo" como en la referencia: la tela es un campo masa-muelle
+(`hero-hilos-fisica.ts`: cada punto con muelle a reposo, tensión con sus vecinos del hilo y
+acoplamiento con los hilos contiguos), así que el cursor la aparta con inercia, una pasada rápida
+deja estela y la sacudida viaja por el hilo y se asienta sola. La integración lee los vecinos del
+estado anterior (doble buffer) y va a paso fijo de 1/120 s con subpasos: la primera versión
+actualizaba en el sitio y explotaba a 30 fps, mientras que a 144 fps se veía perfecta — la
+estabilidad no puede depender de la tasa de refresco. El cursor se sigue con `useSpring` de
+framer-motion y su velocidad sale de `useVelocity`; ambos se leen con `.get()` dentro del bucle,
+sin re-render, y una `presencia` con muelle funde la influencia al entrar y salir del hero. Los
+hilos bajo el cursor se encienden en el acento con un degradado a lo largo del hilo (lámpara, no
+hilo entero). Mismas reglas que la capa de ratón: canvas 2D con `requestAnimationFrame` pero
+**sin leer nunca `scrollY`**, ratón solo con `pointer: fine`, un único fotograma quieto con
+`prefers-reduced-motion`, bucle parado fuera de pantalla y con la pestaña oculta, oculto por
+debajo de `md`. La sección del hero necesita `relative isolate` y no puede pintar fondo propio
+(mismo motivo que el campo de partículas).
+
+**Antes de culpar al dibujo, medir la tasa de fotogramas.** El mismo 2026-09-17 esta capa se
+retiró y se restauró en el día: en el Safari del usuario "iba a tirones" y se dio por hecho que
+canvas 2D a retina no daba la talla. `frontend/tests/manual/bench-hero.html` (misma geometría con
+canvas 2D a 1× y 2×, con degradados, WebGL por líneas y WebGL por shader) demostró que las cinco
+técnicas daban **exactamente los mismos fps**: 15 con el Modo de bajo consumo de macOS, 30 en un
+monitor y 144 en otro — Safari capa `requestAnimationFrame` antes de que el dibujo cuente, y esta
+capa cuesta ~0,6 ms de CPU por fotograma. Ningún framework (OGL, three.js, PixiJS, Rive) cambia
+ese tope; se descartó cambiar de técnica. Lo que sí se hizo: un **modo ligero** — si en una
+ventana de 2 s la mayoría de los fotogramas llegan por debajo de ~45 fps (la primera ventana no
+cuenta), el efecto del ratón se apaga con fundido y quedan solo los hilos y los pulsos, porque a
+30 fps una tela que persigue al cursor parece rota y un fondo que se mece no. Es definitivo para
+esa visita (`data-modo="ligero"` en el canvas). Y con cualquier animación por fotograma: probarla
+en WebKit (Playwright `webkit` está instalado) y con `dt` de 1/30 s antes de enseñarla, porque el
+navegador integrado de Claude es Chromium a 144 fps y tapa inestabilidades.
+
 ## Typography
 
 **Display Font:** Geist Sans (variable 100–900, servida local desde `app/fonts/GeistVF.woff`)

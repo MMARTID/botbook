@@ -1066,7 +1066,6 @@ partir vacía de `main` como marcador.
 
 | Rama | Componente | Issue | Notas |
 |------|-----------|-------|-------|
-| `hero-animation-landing` | `frontend/src/components/hero-pulse.tsx` (animación del hero, "pulse") | [#11](https://github.com/MMARTID/botbook/issues/11) | Pulir y/o rediseñar el pulso de llamada entrante del hero de la landing. |
 | `step-followups-landing` | `frontend/src/components/call-forwarding-flow.tsx` + tarjetas `threeSteps` en `site-landing.tsx` (sección "Cómo funciona") | [#12](https://github.com/MMARTID/botbook/issues/12) | Pulir y/o rediseñar el recorrido de 3 pasos. |
 | `demo-modal-landing` | Modal/experiencia de "Escuchar una llamada" del hero (`DemoVoiceCall`) | — | Pulir y/o rediseñar la demo de llamada de voz que se abre desde la landing. Sin Issue todavía. |
 

@@ -6,7 +6,7 @@ import type { CSSProperties } from "react";
 import { useState } from "react";
 import { ArrowDown, ArrowRight, Check, Headphones } from "lucide-react";
 
-import { HeroPulse } from "@/components/hero-pulse";
+import { HeroHilos } from "@/components/hero-hilos";
 import { DemoVoiceCall } from "@/components/demo-voice-call";
 import { Reveal } from "@/components/scroll-reveal";
 import type { NicheAccent, NicheLandingContent } from "@/lib/niche-landings";
@@ -55,17 +55,26 @@ export function LandingHero({ content }: { content?: NicheLandingContent }) {
 
   return (
     <>
-      <section className="mx-auto grid max-w-7xl items-center gap-10 px-4 py-12 sm:px-6 sm:py-16 lg:grid-cols-[1.02fr_0.98fr] lg:gap-14 lg:px-8 lg:py-20">
-        <div className="space-y-7 text-center lg:space-y-8 lg:text-left">
+      {/*
+        Hero a una columna con el titular centrado y los hilos de voz detrás
+        (2026-09-17): el pulso de llamada que ocupaba la columna derecha se
+        retiró. `relative isolate` es obligatorio para que el canvas en
+        `-z-10` quede por encima del fondo del <main> y no desaparezca; la
+        sección no puede pintar fondo propio por lo mismo (ver DESIGN.md). Los
+        pulsos que recorren los hilos van en el acento del nicho.
+      */}
+      <section className="relative isolate overflow-hidden">
+        <HeroHilos color={accent?.strong} />
+        <div className="mx-auto flex max-w-4xl flex-col items-center space-y-7 px-4 py-16 text-center sm:px-6 sm:py-24 lg:space-y-8 lg:px-8 lg:py-28">
           {/*
             El hero no tenía ninguna animación de entrada propia — aparecía de
             golpe mientras la conversación del móvil (con su propio ritmo de
             ~5s) sí se movía, dando una sensación de piezas sueltas. Mismo
             lenguaje que el resto de la página (Reveal, curva [0.22,1,.36,1]),
             con un stagger rápido (~900ms) para que todo el bloque de texto
-            llegue en el mismo aliento — la conversación del móvil sigue a su
-            propio ritmo después, eso es contenido, no llegada. (El campo de
-            partículas del fondo se retiró de las landings el 2026-09-16.)
+            llegue en el mismo aliento. Los hilos del fondo siguen a su propio
+            ritmo después: eso es ambiente, no llegada. (El campo de partículas
+            se retiró de las landings el 2026-09-16.)
           */}
           <Reveal y={14}>
             <span
@@ -82,21 +91,21 @@ export function LandingHero({ content }: { content?: NicheLandingContent }) {
           </Reveal>
           <Reveal delay={0.06} y={16}>
             <div className="space-y-5">
-              <h1 className="mx-auto max-w-3xl text-[2.65rem] font-black leading-[1.05] tracking-[-0.03em] text-[#0a0a0a] sm:text-5xl lg:mx-0 lg:text-[4.25rem]">
+              <h1 className="mx-auto max-w-3xl text-balance text-[2.65rem] font-black leading-[1.05] tracking-[-0.03em] text-[#0a0a0a] sm:text-5xl lg:text-[4.25rem]">
                 <TitularConSubrayado
                   titulo={content?.heroTitle ?? "Cada llamada sin contestar es un cliente que ya reservó en otro sitio."}
                   resaltado={content?.heroHighlight}
                   accent={accent}
                 />
               </h1>
-              <p className="mx-auto max-w-xl text-base leading-7 text-[#52525b] sm:text-lg sm:leading-8 lg:mx-0">
+              <p className="mx-auto max-w-xl text-base leading-7 text-[#52525b] sm:text-lg sm:leading-8">
                 {content?.heroDescription ?? "Alhabla responde, resuelve dudas y agenda citas 24/7 con tu número de siempre — sin cambiar cómo trabajas."}
               </p>
             </div>
           </Reveal>
 
           <Reveal delay={0.12} y={16}>
-            <div className="flex flex-col items-center gap-3 sm:flex-row sm:flex-wrap sm:justify-center lg:justify-start">
+            <div className="flex flex-col items-center gap-3 sm:flex-row sm:flex-wrap sm:justify-center">
               <button
                 type="button"
                 onClick={() => setIsDemoOpen(true)}
@@ -112,7 +121,7 @@ export function LandingHero({ content }: { content?: NicheLandingContent }) {
             </div>
           </Reveal>
           <Reveal delay={0.18} y={12}>
-            <div className="flex flex-wrap justify-center gap-x-5 gap-y-2 text-sm font-medium text-[#3f3f46] lg:justify-start">
+            <div className="flex flex-wrap justify-center gap-x-5 gap-y-2 text-sm font-medium text-[#3f3f46]">
               {["Sin permanencia", "Mismo número de siempre", "7 días de prueba"].map((item) => (
                 <span key={item} className="inline-flex items-center gap-1.5">
                   <Check className="h-4 w-4 text-[#8b5cf6]" style={accent ? { color: accent.strong } : undefined} />
@@ -122,17 +131,12 @@ export function LandingHero({ content }: { content?: NicheLandingContent }) {
             </div>
           </Reveal>
         </div>
-
-        <Reveal delay={0.1} y={18} id="demo-llamada" className="hidden scroll-m-24 lg:block">
-          <HeroPulse accent={accent} />
-        </Reveal>
       </section>
 
       {/*
         Ya no se pasa onActiveChange: existía para pausar la conversación
-        simulada del hero mientras sonaba la demo. La huella de voz que la
-        sustituye se representa una sola vez al entrar en pantalla y no compite
-        con el audio, así que no hay nada que pausar.
+        simulada del hero mientras sonaba la demo. Los hilos del fondo son
+        ambiente mudo y no compiten con el audio, así que no hay nada que pausar.
       */}
       <DemoVoiceCall
         open={isDemoOpen}
