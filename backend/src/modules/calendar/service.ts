@@ -429,7 +429,10 @@ export class CalendarService {
     const calendar = google.calendar({ version: "v3", auth: oauth2Client });
 
     try {
-      const response = await calendar.calendarList.list();
+      const response = await calendar.calendarList.list(
+        {},
+        { timeout: CALENDAR_REQUEST_TIMEOUT_MS }
+      );
       return (response.data.items ?? [])
         .filter((item) => Boolean(item.id))
         .map((item) => ({
@@ -598,6 +601,83 @@ export class CalendarService {
               },
             },
           required: ["clientName", "availabilityToken"],
+        },
+        speak_during_execution: true,
+        speak_after_execution: true,
+        timeout_ms: 20000,
+      },
+      {
+        // Estas tres existían solo en Telnyx, pero el prompt gestionado es el
+        // MISMO para los dos orquestadores y le dice al agente que las use:
+        // en Retell el agente prometía localizar o cancelar una cita con una
+        // herramienta que su LLM no tenía, y acababa improvisando o creando
+        // una cita nueva encima de la que el cliente quería cambiar.
+        name: "find_my_appointment",
+        description:
+          "Busca la próxima cita del negocio asociada al número desde el que llama. Devuelve también clientName (el nombre con el que se reservó; puede venir vacío en citas antiguas) — úsalo si el cliente quiere recrear la cita al mismo nombre. Úsala solo si quien llama pide cambiar o cancelar una cita existente y no te ha dado datos concretos.",
+        url: `${toolBaseUrl}/find_my_appointment`,
+        method: "POST",
+        args_at_root: false,
+        parameters: {
+          type: "object",
+          properties: {},
+        },
+        speak_during_execution: true,
+        speak_after_execution: true,
+        timeout_ms: 20000,
+      },
+      {
+        name: "cancel_appointment",
+        description:
+          "Cancela la cita cuyo id devolvió find_my_appointment. Úsala solo tras confirmación explícita del cliente. Para 'modificar' una cita: cancélala con esta tool y reserva la nueva con check_availability + book_appointment.",
+        url: `${toolBaseUrl}/cancel_appointment`,
+        method: "POST",
+        args_at_root: false,
+        parameters: {
+          type: "object",
+          properties: {
+            bookingId: {
+              type: "string",
+              description: "El id de la cita devuelto por find_my_appointment.",
+            },
+          },
+          required: ["bookingId"],
+        },
+        speak_during_execution: true,
+        speak_after_execution: true,
+        timeout_ms: 20000,
+      },
+      {
+        name: "notify_when_available",
+        description:
+          "Guarda el aviso de que el cliente quiere que le escribamos por WhatsApp si se libera la hora que pidió y no estaba disponible. Válido tanto si el cliente se va sin reservar nada más como si reserva otra hora igualmente. Úsala solo cuando lo pida explícitamente y haya dado consentimiento para WhatsApp a este número.",
+        url: `${toolBaseUrl}/notify_when_available`,
+        method: "POST",
+        args_at_root: false,
+        parameters: {
+          type: "object",
+          properties: {
+            startDateTime: {
+              type: "string",
+              description:
+                "La hora exacta que el cliente quería y no estaba disponible, en formato ISO 8601 en hora local del negocio con su offset explícito (nunca UTC).",
+            },
+            durationMinutes: {
+              type: "number",
+              description: "Duración en minutos de la cita que quería.",
+            },
+            serviceIds: {
+              type: "array",
+              items: { type: "string" },
+              description: "IDs de los servicios que pidió, si los mencionó (opcional).",
+            },
+            professionalId: {
+              type: "string",
+              description:
+                "ID del profesional concreto que pidió, si lo mencionó (opcional).",
+            },
+          },
+          required: ["startDateTime", "durationMinutes"],
         },
         speak_during_execution: true,
         speak_after_execution: true,
@@ -867,13 +947,16 @@ export class CalendarService {
     const calendarId = options.googleCalendarId || "primary";
 
     try {
-      const response = await calendar.events.list({
-        calendarId,
-        timeMin: new Date().toISOString(),
-        maxResults: safeMaxResults,
-        singleEvents: true,
-        orderBy: "startTime",
-      });
+      const response = await calendar.events.list(
+        {
+          calendarId,
+          timeMin: new Date().toISOString(),
+          maxResults: safeMaxResults,
+          singleEvents: true,
+          orderBy: "startTime",
+        },
+        { timeout: CALENDAR_REQUEST_TIMEOUT_MS }
+      );
 
       return (response.data.items || []).map((event) => ({
         id: event.id ?? null,
@@ -1186,10 +1269,16 @@ export class CalendarService {
       // perdió su respuesta. Recuperarlo convierte el retry en idempotente.
       if (idempotencyKey && isGoogleConflictError(err)) {
         try {
-          const existing = await calendar.events.get({
-            calendarId,
-            eventId: googleEventIdFromIdempotencyKey(idempotencyKey),
-          });
+          const existing = await calendar.events.get(
+            {
+              calendarId,
+              eventId: googleEventIdFromIdempotencyKey(idempotencyKey),
+            },
+            // Este get corre dentro de la ruta de voz y justo cuando Google
+            // está dando problemas: sin tope podía comerse el presupuesto
+            // entero de la tool call.
+            { timeout: CALENDAR_REQUEST_TIMEOUT_MS }
+          );
           return existing.data;
         } catch (getError) {
           console.error(

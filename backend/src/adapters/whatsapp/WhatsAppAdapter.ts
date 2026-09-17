@@ -1,4 +1,5 @@
 const TELNYX_API_BASE_URL = "https://api.telnyx.com/v2";
+const WHATSAPP_TIMEOUT_MS = 10_000;
 
 export interface WhatsAppTemplateMessage {
   /** Número del destinatario en formato E.164, p.ej. "+34600111222". */
@@ -90,6 +91,7 @@ export class WhatsAppAdapter {
           },
         },
       }),
+      signal: AbortSignal.timeout(WHATSAPP_TIMEOUT_MS),
     });
 
     if (!response.ok) {

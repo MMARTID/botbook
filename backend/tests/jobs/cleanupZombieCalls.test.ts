@@ -42,12 +42,17 @@ describe("cleanupZombieCallsJob", () => {
 
   it("marca como TIMED_OUT las llamadas zombie encontradas", async () => {
     mockedFindMany.mockResolvedValue([{ id: "call_1" }, { id: "call_2" }] as any);
+    mockedUpdateMany.mockResolvedValue({ count: 2 } as any);
 
     await cleanupZombieCallsJob();
 
-    expect(mockedUpdateMany).toHaveBeenCalledWith({
-      where: { id: { in: ["call_1", "call_2"] } },
-      data: { status: "TIMED_OUT" },
-    });
+    const update = mockedUpdateMany.mock.calls[0][0] as any;
+    expect(update.where.id).toEqual({ in: ["call_1", "call_2"] });
+    expect(update.data).toEqual({ status: "TIMED_OUT" });
+    // El predicado se repite en el update: si entre la búsqueda y la
+    // escritura llega el webhook call_ended, la llamada ya está COMPLETED y
+    // no debe degradarse a TIMED_OUT.
+    expect(update.where.status).toBe("IN_PROGRESS");
+    expect(update.where.updatedAt.lt).toBeInstanceOf(Date);
   });
 });

@@ -222,7 +222,12 @@ export function buildTelnyxVoiceTools(baseUrl: string): TelnyxWebhookToolInput[]
 // zona del negocio" — Retell resuelve el patrón anidado
 // {{current_time_<timezone>}} de forma nativa; Telnyx no tiene ese patrón,
 // pero sí su propia variable de sistema con la hora actual.
-const RETELL_CURRENT_TIME_PLACEHOLDER = "{{current_time_{{zona_horaria}} }}";
+// Patrón, no cadena fija: managedAgentPrompt.ts escribe ahora la zona
+// literal dentro de la variable de Retell ({{current_time_Europe/Madrid}}).
+// La alternativa con llaves internas cubre los prompts antiguos, que siguen
+// guardados en la columna systemPrompt de agentes ya creados.
+const RETELL_CURRENT_TIME_PATTERN =
+  /\{\{current_time_(?:\{\{[^{}]*\}\}\s*|[^{}]*)\}\}/g;
 
 /**
  * Traduce un prompt gestionado escrito con las variables nativas de Retell
@@ -258,8 +263,7 @@ export function adaptManagedPromptForTelnyx(
     .join(businessName)
     .split("{{user_number}}")
     .join("{{telnyx_end_user_target}}")
-    .split(RETELL_CURRENT_TIME_PLACEHOLDER)
-    .join("{{telnyx_current_time}}")
+    .replace(RETELL_CURRENT_TIME_PATTERN, "{{telnyx_current_time}}")
     .split("{{zona_horaria}}")
     .join(timezone);
 }

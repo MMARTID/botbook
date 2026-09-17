@@ -3,6 +3,11 @@ import { detectBusinessTypeFromPlaceTypes, type BusinessType } from '../../lib/b
 
 const PLACES_API_BASE_URL = 'https://places.googleapis.com/v1';
 
+/** Google Places se llama desde el onboarding y desde la demo pública: sin
+ * tope, una respuesta lenta deja la instancia de Cloud Run ocupada y el
+ * formulario girando sin fin. */
+const PLACES_TIMEOUT_MS = 8_000;
+
 function getApiKey() {
   const apiKey = process.env.GOOGLE_PLACES_API_KEY;
   if (!apiKey) {
@@ -121,6 +126,7 @@ export async function searchPlaces(query: string, location?: PlaceSearchLocation
       'X-Goog-Api-Key': getApiKey(),
     },
     body: JSON.stringify(body),
+    signal: AbortSignal.timeout(PLACES_TIMEOUT_MS),
   });
 
   if (!response.ok) {
@@ -195,7 +201,10 @@ export async function resolvePlacePhotoUrl(photoName: string, maxWidthPx: number
   }
 
   const url = `${PLACES_API_BASE_URL}/${photoName}/media?maxWidthPx=${maxWidthPx}&key=${getApiKey()}`;
-  const response = await fetch(url, { redirect: 'manual' });
+  const response = await fetch(url, {
+    redirect: 'manual',
+    signal: AbortSignal.timeout(PLACES_TIMEOUT_MS),
+  });
   return response.headers.get('location');
 }
 
@@ -206,6 +215,7 @@ async function getPlacePhotoUrl(placeId: string): Promise<string | null> {
       'X-Goog-Api-Key': getApiKey(),
       'X-Goog-FieldMask': 'photos',
     },
+    signal: AbortSignal.timeout(PLACES_TIMEOUT_MS),
   });
 
   if (!response.ok) {
@@ -231,6 +241,7 @@ export async function searchPlacesForDemo(query: string): Promise<DemoPlaceSearc
       'X-Goog-FieldMask': 'places.id,places.displayName,places.formattedAddress,places.types,places.photos',
     },
     body: JSON.stringify({ textQuery: query, regionCode: 'ES', languageCode: 'es' }),
+    signal: AbortSignal.timeout(PLACES_TIMEOUT_MS),
   });
 
   if (!response.ok) {
@@ -269,6 +280,7 @@ export async function getPlaceDetails(placeId: string): Promise<PlaceDetails> {
       'X-Goog-Api-Key': getApiKey(),
       'X-Goog-FieldMask': 'id,displayName,formattedAddress,nationalPhoneNumber,internationalPhoneNumber,regularOpeningHours,types',
     },
+    signal: AbortSignal.timeout(PLACES_TIMEOUT_MS),
   });
 
   if (!response.ok) {

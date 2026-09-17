@@ -188,6 +188,9 @@ describe("CalendarService.bookAppointment", () => {
         calendarId: "primary",
         eventId: expect.stringMatching(/^alhabla[0-9a-f]{64}$/),
       }),
+      // La recuperación del 409 también lleva timeout: corre dentro de la
+      // llamada de voz y justo cuando Google va mal.
+      expect.objectContaining({ timeout: expect.any(Number) }),
     );
   });
 

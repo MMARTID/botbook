@@ -525,6 +525,9 @@ export function buildRetellAgentPayload(input: {
   voiceModel?: RetellVoiceProfile["voiceModel"];
   fallbackVoiceIds?: string[];
   languages?: AgentSettings["languages"];
+  /** Zona del negocio. Sin esto, todos los agentes creían estar en Madrid y
+   * un negocio canario recibía "ahora" con una hora de más. */
+  timezone?: string | null;
 }) {
   return {
     name: buildSafeAssistantName(input.name),
@@ -539,7 +542,7 @@ export function buildRetellAgentPayload(input: {
     voiceModel: input.voiceModel,
     fallbackVoiceIds: input.fallbackVoiceIds,
     webhookUrl: input.webhookUrl,
-    timezone: DEFAULT_RETELL_AGENT_CONFIG.timezone,
+    timezone: resolvePromptTimezone(input.timezone),
     postCallAnalysisData: input.postCallAnalysisData ?? [
       CALL_OUTCOME_ANALYSIS_FIELD,
     ],
@@ -571,6 +574,7 @@ export async function createBusinessAgent(args: {
       name: true,
       businessDetails: true,
       agentSettings: true,
+      timezone: true,
       minAdvanceBookingMinutes: true,
       maxAppointmentDurationMinutes: true,
     },
@@ -596,6 +600,7 @@ export async function createBusinessAgent(args: {
       businessDetails: business?.businessDetails,
       businessType,
       settings: agentSettings,
+      timezone: business?.timezone,
       minAdvanceBookingMinutes: business?.minAdvanceBookingMinutes,
       maxAppointmentDurationMinutes: business?.maxAppointmentDurationMinutes,
     }),
@@ -639,6 +644,7 @@ export async function createBusinessAgent(args: {
           voiceModel: voiceProfile.voiceModel,
           fallbackVoiceIds: voiceProfile.fallbackVoiceIds,
           languages: agentSettings.languages,
+          timezone: business?.timezone,
         })
       );
       await publishRetellAgentUpdate(retellAgent.agent_id, retellAgent);
@@ -861,6 +867,7 @@ export async function syncAgentToRetell(
       businessType: true,
       agentSettings: true,
       orchestrator: true,
+      timezone: true,
       minAdvanceBookingMinutes: true,
       maxAppointmentDurationMinutes: true,
     },
@@ -906,6 +913,7 @@ export async function syncAgentToRetell(
     businessDetails: business.businessDetails,
     businessType,
     settings: business.agentSettings,
+    timezone: business.timezone,
     minAdvanceBookingMinutes: business.minAdvanceBookingMinutes,
     maxAppointmentDurationMinutes: business.maxAppointmentDurationMinutes,
   });
@@ -952,6 +960,15 @@ export async function syncAgentToRetell(
         voiceModel: voiceProfile.voiceModel,
         fallbackVoiceIds: voiceProfile.fallbackVoiceIds,
         language: toRetellLanguageSetting(agentSettings.languages),
+        // Estos tres viajaban SOLO en la creación del agente, así que los
+        // agentes creados antes de que existieran (commit 3be1e12) se
+        // quedaban sin tope de duración ni corte por silencio para siempre:
+        // un teléfono descolgado facturaba hasta el default de Retell, una
+        // hora, contra los minutos incluidos del plan. Al mandarlos en cada
+        // sincronización, cualquier guardado de ajustes los pone al día.
+        timezone: resolvePromptTimezone(business.timezone),
+        endCallAfterSilenceMs: DEFAULT_RETELL_AGENT_CONFIG.endCallAfterSilenceMs,
+        maxCallDurationMs: DEFAULT_RETELL_AGENT_CONFIG.maxCallDurationMs,
         interruptionSensitivity:
           DEFAULT_RETELL_AGENT_CONFIG.interruptionSensitivity,
         dataStorageRetentionDays:

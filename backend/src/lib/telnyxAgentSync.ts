@@ -55,6 +55,7 @@ async function loadManagedAssistantConfig(
     businessDetails: business.businessDetails,
     businessType,
     settings: agentSettings,
+    timezone: business.timezone,
     minAdvanceBookingMinutes: business.minAdvanceBookingMinutes,
     maxAppointmentDurationMinutes: business.maxAppointmentDurationMinutes,
   });

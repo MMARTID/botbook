@@ -333,12 +333,18 @@ export async function businessesRoutes(fastify: FastifyInstance) {
         if (shouldResyncPrompt) {
           const currentBusiness = await prisma.business.findUnique({
             where: { id: request.user!.businessId },
-            select: { name: true, businessDetails: true, agentSettings: true },
+            select: {
+              name: true,
+              businessDetails: true,
+              agentSettings: true,
+              timezone: true,
+            },
           });
           const agentPrompt = buildManagedAgentPrompt({
             businessName: data.name ?? currentBusiness?.name ?? "el negocio",
             businessDetails: data.businessDetails ?? currentBusiness?.businessDetails,
             settings: data.agentSettings ?? currentBusiness?.agentSettings,
+            timezone: data.timezone ?? currentBusiness?.timezone,
           });
           updateData.systemPrompt = agentPrompt;
 
@@ -415,38 +421,37 @@ export async function businessesRoutes(fastify: FastifyInstance) {
       try {
         const businessId = request.user!.businessId;
 
-        const totalCalls = await prisma.call.count({
-          where: { businessId },
-        });
-
-        const calls = await prisma.call.findMany({
-          where: { businessId },
-          select: { durationSecs: true },
-        });
-
-        const totalMinutes = Math.ceil(
-          calls.reduce((acc, call) => acc + (call.durationSecs || 0), 0) / 60
-        );
-
-        const leads = await prisma.lead.count({
-          where: {
-            call: {
-              businessId,
+        // Una sola agregación en la base de datos en vez de traerse la
+        // columna durationSecs de todas las llamadas del negocio y sumarlas
+        // en memoria, y las tres consultas restantes en paralelo en vez de
+        // encadenadas: el panel de inicio pide esto en cada carga.
+        const [resumenLlamadas, leads, bookings, week] = await Promise.all([
+          prisma.call.aggregate({
+            where: { businessId },
+            _count: { _all: true },
+            _sum: { durationSecs: true },
+          }),
+          prisma.lead.count({
+            where: {
+              call: {
+                businessId,
+              },
+              isLead: true,
             },
-            isLead: true,
-          },
-        });
-
-        const bookings = await prisma.booking.count({
-          where: {
-            isCancelled: false,
-            call: {
-              businessId,
+          }),
+          prisma.booking.count({
+            where: {
+              isCancelled: false,
+              call: {
+                businessId,
+              },
             },
-          },
-        });
+          }),
+          buildWeeklyStats(businessId),
+        ]);
 
-        const week = await buildWeeklyStats(businessId);
+        const totalCalls = resumenLlamadas._count._all;
+        const totalMinutes = Math.ceil((resumenLlamadas._sum.durationSecs || 0) / 60);
 
         return reply.send({ totalCalls, totalMinutes, leads, bookings, week });
       } catch (error) {

@@ -22,14 +22,26 @@ const internalAuthPlugin: FastifyPluginAsync = async (fastify) => {
         return reply.status(401).send({ error: "Unauthorized: Missing OIDC token" });
       }
 
+      // Las dos variables son obligatorias: google-auth-library se salta la
+      // comprobación de audience cuando se le pasa undefined, así que con la
+      // configuración a medias la verificación se debilita en silencio.
+      // Mejor rechazar la petición que aceptarla con menos garantías.
+      const expectedAudience = process.env.INTERNAL_JOBS_BASE_URL;
+      const expectedServiceAccount = process.env.CLOUD_TASKS_INVOKER_SERVICE_ACCOUNT;
+      if (!expectedAudience || !expectedServiceAccount) {
+        fastify.log.error(
+          "[InternalAuth] Falta INTERNAL_JOBS_BASE_URL o CLOUD_TASKS_INVOKER_SERVICE_ACCOUNT: se rechazan los jobs internos"
+        );
+        return reply.status(503).send({ error: "Internal jobs auth is not configured" });
+      }
+
       const idToken = authHeader.slice("Bearer ".length);
       const ticket = await oauthClient.verifyIdToken({
         idToken,
-        audience: process.env.INTERNAL_JOBS_BASE_URL,
+        audience: expectedAudience,
       });
 
       const payload = ticket.getPayload();
-      const expectedServiceAccount = process.env.CLOUD_TASKS_INVOKER_SERVICE_ACCOUNT;
 
       if (!payload?.email || !payload.email_verified || payload.email !== expectedServiceAccount) {
         return reply.status(403).send({ error: "Forbidden: Unexpected token issuer" });

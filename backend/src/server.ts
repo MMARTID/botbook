@@ -60,6 +60,14 @@ async function start() {
     logger: {
       level: process.env.LOG_LEVEL || "debug",
     },
+    // En Cloud Run cada petición llega a través del proxy de Google, así que
+    // el socket siempre trae la IP del GFE: sin esto, `request.ip` es la misma
+    // para todos los clientes y el rate limit de /auth/login se convierte en
+    // un cubo compartido (ni frena una fuerza bruta ni distingue a quien la
+    // sufre). La IP real viaja en X-Forwarded-For, que Cloud Run reescribe
+    // añadiendo la del cliente al final, por lo que confiar en el proxy aquí
+    // es seguro: nadie puede falsificar su posición en la cadena.
+    trustProxy: true,
   });
 
   // Node por defecto cierra los sockets keep-alive tras solo 5s de
@@ -113,6 +121,15 @@ async function start() {
     await fastify.register(rateLimit, {
       max: 100,
       timeWindow: "1 minute",
+      // Sin store compartido el contador vive en la memoria de cada instancia:
+      // se reinicia en cada arranque en frío y se multiplica por el número de
+      // instancias de Cloud Run, así que el límite real era muchas veces el
+      // configurado. Redis lo hace global. `skipOnError` deja pasar la
+      // petición si Redis no responde: preferimos quedarnos sin límite un rato
+      // a devolver 500 en toda la API por una caída de la caché.
+      redis: getRedis(),
+      nameSpace: "ratelimit:",
+      skipOnError: true,
       errorResponseBuilder: (_req, context) => ({
         statusCode: 429,
         error: "Too Many Requests",
@@ -580,11 +597,16 @@ async function start() {
     // que handleCallInitiated intente resolver un negocio para la pata
     // saliente (no es una llamada entrante de ningún negocio) y confunda el
     // enrutamiento real. No hace nada más que registrar y responder 200.
-    fastify.post("/webhooks/telnyx-harness", async (request, reply) => {
-      const body = request.body as { data?: { event_type?: string } } | undefined;
-      console.log(`[Telnyx Harness] Evento ignorado: ${body?.data?.event_type ?? "desconocido"}`);
-      return reply.status(200).send({ received: true });
-    });
+    // Solo se registra fuera de producción: es el webhook de un script de
+    // pruebas, no lleva firma, y no hay razón para exponer un endpoint
+    // público más en el servicio real.
+    if (process.env.NODE_ENV !== "production") {
+      fastify.post("/webhooks/telnyx-harness", async (request, reply) => {
+        const body = request.body as { data?: { event_type?: string } } | undefined;
+        console.log(`[Telnyx Harness] Evento ignorado: ${body?.data?.event_type ?? "desconocido"}`);
+        return reply.status(200).send({ received: true });
+      });
+    }
 
     // Register routes
     console.log("[Server] Registering routes...");

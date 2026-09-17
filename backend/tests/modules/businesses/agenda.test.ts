@@ -8,7 +8,7 @@ vi.mock("../../../src/lib/prisma.js", () => ({
     business: { findUnique: vi.fn(), update: vi.fn() },
     booking: { findMany: vi.fn(), count: vi.fn() },
     service: { findMany: vi.fn(), count: vi.fn() },
-    call: { count: vi.fn(), findMany: vi.fn() },
+    call: { count: vi.fn(), findMany: vi.fn(), aggregate: vi.fn() },
     lead: { count: vi.fn(), findMany: vi.fn() },
   },
 }));
@@ -27,6 +27,7 @@ const mockedServiceFindMany = vi.mocked(prisma.service.findMany);
 const mockedServiceCount = vi.mocked(prisma.service.count);
 const mockedCallCount = vi.mocked(prisma.call.count);
 const mockedCallFindMany = vi.mocked(prisma.call.findMany);
+const mockedCallAggregate = vi.mocked(prisma.call.aggregate);
 const mockedLeadCount = vi.mocked(prisma.lead.count);
 const mockedLeadFindMany = vi.mocked(prisma.lead.findMany);
 
@@ -167,6 +168,12 @@ describe("GET /business/me/stats (ventana semanal)", () => {
     // Totales históricos, que esta suite no ejercita.
     mockedCallFindMany.mockResolvedValue([] as any);
     vi.mocked(prisma.booking.count).mockResolvedValue(0 as any);
+    // /business/me/stats agrega los totales en la base de datos en vez de
+    // traerse todas las llamadas y sumarlas en memoria.
+    mockedCallAggregate.mockResolvedValue({
+      _count: { _all: 0 },
+      _sum: { durationSecs: 0 },
+    } as any);
   });
 
   it("no inventa ingresos cuando ningún servicio tiene precio", async () => {

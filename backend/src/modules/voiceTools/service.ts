@@ -601,12 +601,22 @@ async function resolveCallForBusiness(
   const exactCall = callId
     ? await prisma.call.findUnique({
         where: { callId },
-        select: { id: true, fromNumber: true },
+        select: { id: true, fromNumber: true, businessId: true },
       })
     : null;
 
   if (exactCall) {
-    return exactCall;
+    // El callId viene del sobre del webhook y el negocio se deriva del agente
+    // de la URL: son dos datos independientes. Si no coinciden, vincular la
+    // fila ajena metería esta reserva en la agenda de otro negocio, así que
+    // se corta aquí en vez de caer al heurístico.
+    if (exactCall.businessId !== businessId) {
+      console.error(
+        `[VoiceTools] ${callLabel}: la llamada ${callId} pertenece a otro negocio; no se vincula`
+      );
+      return null;
+    }
+    return { id: exactCall.id, fromNumber: exactCall.fromNumber };
   }
 
   if (callId) {
@@ -1706,7 +1716,11 @@ async function executeFindMyAppointment(
       call: { businessId: business.id },
       isCancelled: false,
       programedAt: { gte: new Date() },
-      smsConsent: true,
+      // Ya no se exige smsConsent. Ese campo dice "puedes escribirme", no
+      // "esta cita es mía": quien dijo que no a los mensajes seguía siendo el
+      // titular, pero el agente no encontraba su cita, y el prompt le
+      // empujaba entonces a reservar una nueva — el negocio acababa con dos
+      // citas y una silla vacía. La identidad la da el número entrante.
       OR: [
         { clientPhone: callerNumber },
         { clientPhone: null, call: { fromNumber: callerNumber } },
@@ -1999,9 +2013,10 @@ async function executeCancelAppointment(
     include: { call: { select: { fromNumber: true } } },
   });
 
+  // Mismo criterio que find_my_appointment: la pertenencia se comprueba por
+  // el número desde el que llama, no por el consentimiento de mensajería.
   const ownsBooking =
     booking &&
-    booking.smsConsent &&
     callerNumber &&
     (booking.clientPhone
       ? booking.clientPhone === callerNumber

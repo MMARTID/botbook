@@ -8,7 +8,10 @@ export function getStripeClient() {
     throw new Error("STRIPE_SECRET_KEY is not configured");
   }
 
-  stripeClient ??= new Stripe(apiKey);
+  // Sin timeout explícito el SDK espera 80s por intento y reintenta hasta 3
+  // veces: 4 minutos colgado de una petición, más de lo que dura el lock del
+  // checkout que la envuelve.
+  stripeClient ??= new Stripe(apiKey, { timeout: 10_000 });
   return stripeClient;
 }
 
