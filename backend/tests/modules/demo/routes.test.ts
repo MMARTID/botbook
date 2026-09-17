@@ -5,6 +5,7 @@ const DEMO_ENV_VARS = [
   "RETELL_DEMO_AGENT_ID",
   "RETELL_DEMO_PELUQUERIA_AGENT_ID",
   "RETELL_DEMO_CENTRO_ESTETICA_AGENT_ID",
+  "RETELL_DEMO_SALON_UNAS_AGENT_ID",
   "RETELL_DEMO_SALON_UÑAS_AGENT_ID",
   "RETELL_DEMO_BARBERIA_AGENT_ID",
   "RETELL_DEMO_FISIOTERAPIA_AGENT_ID",
@@ -50,8 +51,23 @@ describe("getDemoAgentId", () => {
     expect(getDemoAgentId()).toBe("agent_general");
   });
 
-  it("mapea el salón de uñas a su variable con Ñ", () => {
-    process.env.RETELL_DEMO_SALON_UÑAS_AGENT_ID = "agent_unas";
+  // Cloud Run no admite Ñ en el nombre de una variable, así que la del salón
+  // de uñas nunca llegó a producción y la demo usaba el agente genérico.
+  it("mapea el salón de uñas a su variable sin Ñ", () => {
+    process.env.RETELL_DEMO_SALON_UNAS_AGENT_ID = "agent_unas";
+
+    expect(getDemoAgentId("salon-de-unas")).toBe("agent_unas");
+  });
+
+  it("sigue aceptando el nombre antiguo con Ñ como respaldo (.env locales)", () => {
+    process.env.RETELL_DEMO_SALON_UÑAS_AGENT_ID = "agent_unas_viejo";
+
+    expect(getDemoAgentId("salon-de-unas")).toBe("agent_unas_viejo");
+  });
+
+  it("el nombre nuevo manda sobre el antiguo si están los dos", () => {
+    process.env.RETELL_DEMO_SALON_UNAS_AGENT_ID = "agent_unas";
+    process.env.RETELL_DEMO_SALON_UÑAS_AGENT_ID = "agent_unas_viejo";
 
     expect(getDemoAgentId("salon-de-unas")).toBe("agent_unas");
   });

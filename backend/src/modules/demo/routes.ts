@@ -35,12 +35,16 @@ const DemoPlaceIdParamsSchema = z.object({
   placeId: z.string().trim().min(1).max(200),
 });
 
-const DEMO_AGENT_ENV_BY_NICHE: Record<DemoNiche, string> = {
-  peluqueria: "RETELL_DEMO_PELUQUERIA_AGENT_ID",
-  "centro-de-estetica": "RETELL_DEMO_CENTRO_ESTETICA_AGENT_ID",
-  "salon-de-unas": "RETELL_DEMO_SALON_UÑAS_AGENT_ID",
-  barberia: "RETELL_DEMO_BARBERIA_AGENT_ID",
-  fisioterapia: "RETELL_DEMO_FISIOTERAPIA_AGENT_ID",
+// Sin Ñ en el nombre de la variable: Cloud Run (y la interpolación de
+// compose) solo admiten [A-Za-z0-9_], así que RETELL_DEMO_SALON_UÑAS_AGENT_ID
+// nunca llegó a producción y la demo de uñas usaba el agente genérico. El
+// nombre antiguo se sigue leyendo como respaldo para los .env locales.
+const DEMO_AGENT_ENV_BY_NICHE: Record<DemoNiche, string[]> = {
+  peluqueria: ["RETELL_DEMO_PELUQUERIA_AGENT_ID"],
+  "centro-de-estetica": ["RETELL_DEMO_CENTRO_ESTETICA_AGENT_ID"],
+  "salon-de-unas": ["RETELL_DEMO_SALON_UNAS_AGENT_ID", "RETELL_DEMO_SALON_UÑAS_AGENT_ID"],
+  barberia: ["RETELL_DEMO_BARBERIA_AGENT_ID"],
+  fisioterapia: ["RETELL_DEMO_FISIOTERAPIA_AGENT_ID"],
 };
 
 /**
@@ -49,9 +53,11 @@ const DEMO_AGENT_ENV_BY_NICHE: Record<DemoNiche, string> = {
  */
 export function getDemoAgentId(niche?: DemoNiche): string | null {
   if (niche) {
-    const nicheAgentId = process.env[DEMO_AGENT_ENV_BY_NICHE[niche]];
-    if (nicheAgentId) {
-      return nicheAgentId;
+    for (const variable of DEMO_AGENT_ENV_BY_NICHE[niche]) {
+      const nicheAgentId = process.env[variable];
+      if (nicheAgentId) {
+        return nicheAgentId;
+      }
     }
   }
   return process.env.RETELL_DEMO_AGENT_ID || null;

@@ -1,6 +1,7 @@
 import Retell from "retell-sdk";
 import type { LlmResponse } from "retell-sdk/resources/llm.js";
-import type { AgentResponse } from "retell-sdk/resources/agent.js";
+import type { AgentResponse, AgentListResponse } from "retell-sdk/resources/agent.js";
+import type { LlmListResponse } from "retell-sdk/resources/llm.js";
 
 /** Tool HTTP nuestra: Retell llama a `url` y le pasa los argumentos. */
 export interface RetellCustomTool {
@@ -24,6 +25,13 @@ export interface RetellCustomTool {
 /** Tool integrada de Retell: sin url ni parámetros. Es la única forma de que
  * el agente pueda colgar por su cuenta; sin ella la llamada sigue abierta
  * hasta que cuelga el cliente o se agota max_call_duration_ms. */
+export interface RetellAgentSummary {
+  agent_id: string;
+  agent_name: string;
+  channel?: "voice" | "chat";
+  user_modified_timestamp?: number;
+}
+
 export interface RetellEndCallTool {
   type: "end_call";
   name: string;
@@ -565,6 +573,52 @@ export class RetellAdapter {
       nickname: item.nickname,
       inbound_agent_id: item.inbound_agent_id,
     }));
+  }
+
+  /**
+   * Todos los agentes de la cuenta de Retell (paginado). Solo lo que devuelve
+   * el listado: id, nombre, canal y última modificación — el LLM de cada uno
+   * hay que pedirlo con getAgent.
+   */
+  async listAgents(): Promise<RetellAgentSummary[]> {
+    this.ensureApiKey();
+    const agents: RetellAgentSummary[] = [];
+    let paginationKey: string | undefined;
+    do {
+      const page: AgentListResponse = await this.client.agent.list(
+        paginationKey ? { limit: 1000, pagination_key: paginationKey } : { limit: 1000 }
+      );
+      for (const item of page.items ?? []) {
+        agents.push({
+          agent_id: item.agent_id,
+          agent_name: item.agent_name ?? "",
+          channel: item.channel,
+          user_modified_timestamp: item.user_modified_timestamp,
+        });
+      }
+      paginationKey = page.has_more ? page.pagination_key : undefined;
+    } while (paginationKey);
+    return agents;
+  }
+
+  /** Todos los LLM de la cuenta de Retell (paginado). */
+  async listLlms(): Promise<Array<{ llm_id: string; last_modification_timestamp?: number }>> {
+    this.ensureApiKey();
+    const llms: Array<{ llm_id: string; last_modification_timestamp?: number }> = [];
+    let paginationKey: string | undefined;
+    do {
+      const page: LlmListResponse = await this.client.llm.list(
+        paginationKey ? { limit: 1000, pagination_key: paginationKey } : { limit: 1000 }
+      );
+      for (const item of page.items ?? []) {
+        llms.push({
+          llm_id: item.llm_id,
+          last_modification_timestamp: item.last_modification_timestamp,
+        });
+      }
+      paginationKey = page.has_more ? page.pagination_key : undefined;
+    } while (paginationKey);
+    return llms;
   }
 
   /**
