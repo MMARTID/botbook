@@ -10,6 +10,57 @@ const PAGE_SIZE = 100;
  * acercaban al límite, y al reintentar el job entero los primeros recibían
  * el correo por segunda vez. */
 const CONCURRENCIA = 5;
+/** El resumen se manda a negocios españoles; la ventana se ancla a su día. */
+const TIMEZONE_RESUMEN = "Europe/Madrid";
+
+/**
+ * Inicio de la semana que se resume: el lunes a las 00:00 de Madrid anterior
+ * a la ejecución. Anclar la ventana (en vez de usar "ahora menos 7 días") es
+ * lo que hace que dos ejecuciones del mismo lunes produzcan exactamente el
+ * mismo contenido y que la marca de "ya enviado" sirva de algo.
+ */
+/**
+ * Desfase de una zona respecto a UTC en un instante concreto, sin depender de
+ * la zona en la que corra el proceso. `toLocaleString` + `new Date` no sirve
+ * aquí: el parseo usa la zona de la máquina, así que en un portátil en Madrid
+ * el desfase de Madrid salía siempre 0 (y la ventana empezaba a las 02:00 en
+ * vez de a medianoche).
+ */
+function desfaseDeZonaMs(instante: Date, timeZone: string): number {
+  const partes = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(instante);
+  const valor = (tipo: string) =>
+    Number(partes.find((parte) => parte.type === tipo)?.value ?? "0");
+
+  const comoSiFueraUtc = Date.UTC(
+    valor("year"),
+    valor("month") - 1,
+    valor("day"),
+    valor("hour"),
+    valor("minute"),
+    valor("second")
+  );
+  return comoSiFueraUtc - instante.getTime();
+}
+
+/** Instante exacto de la medianoche local de esa fecha en esa zona. */
+function medianocheLocal(fecha: string, timeZone: string): Date {
+  const medianocheUtc = new Date(`${fecha}T00:00:00Z`).getTime();
+  // Dos pasadas: la primera estimación usa el desfase de la medianoche UTC,
+  // que en el día del cambio de hora puede ser el del lado equivocado.
+  const primera = new Date(
+    medianocheUtc - desfaseDeZonaMs(new Date(medianocheUtc), timeZone)
+  );
+  return new Date(medianocheUtc - desfaseDeZonaMs(primera, timeZone));
+}
 
 /**
  * Inicio de la semana que se resume: el lunes a las 00:00 de Madrid anterior
@@ -19,7 +70,7 @@ const CONCURRENCIA = 5;
  */
 export function resolveInicioDeSemana(ahora: Date): Date {
   const partes = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Europe/Madrid",
+    timeZone: TIMEZONE_RESUMEN,
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
@@ -32,20 +83,21 @@ export function resolveInicioDeSemana(ahora: Date): Date {
       valor("weekday")
     ] ?? 0;
 
-  // Medianoche local del día en curso, obtenida a partir de la fecha local y
-  // el desfase real de esa fecha (no del desfase de hoy): así el cambio de
-  // hora de octubre y marzo no desplaza la ventana.
-  const medianocheUtc = new Date(
-    `${valor("year")}-${valor("month")}-${valor("day")}T00:00:00Z`
+  const hoy = medianocheLocal(
+    `${valor("year")}-${valor("month")}-${valor("day")}`,
+    TIMEZONE_RESUMEN
   );
-  const desfaseMs =
-    medianocheUtc.getTime() -
-    new Date(
-      medianocheUtc.toLocaleString("en-US", { timeZone: "Europe/Madrid" })
-    ).getTime();
-  const medianocheLocal = new Date(medianocheUtc.getTime() + desfaseMs);
 
-  return new Date(medianocheLocal.getTime() - diasDesdeLunes * 24 * 60 * 60 * 1000);
+  // Restar días sobre la fecha, no sobre el instante: una semana con cambio
+  // de hora tiene 169 u 167 horas, y restar 7×24h desplazaría el lunes.
+  const lunes = new Date(hoy.getTime() - diasDesdeLunes * 24 * 60 * 60 * 1000);
+  const fechaDelLunes = new Intl.DateTimeFormat("en-CA", {
+    timeZone: TIMEZONE_RESUMEN,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(lunes);
+  return medianocheLocal(fechaDelLunes, TIMEZONE_RESUMEN);
 }
 
 /**
