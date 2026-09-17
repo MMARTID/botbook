@@ -136,8 +136,14 @@ export class TelnyxAdapter {
         phoneNumber: data.phone_number,
         status: data.status,
       };
-    } catch {
-      return null;
+    } catch (error) {
+      // Solo un 404 significa "no existe". Devolver null ante un 5xx o un
+      // corte de red hacía indistinguible "no está" de "no he podido
+      // mirarlo", y quien llama podía decidir crear el recurso otra vez.
+      if ((error as { status?: number })?.status === 404) {
+        return null;
+      }
+      throw error;
     }
   }
 

@@ -1,8 +1,14 @@
 import { prisma } from "../lib/prisma.js";
-import { processUsageReportJob } from "./processUsageReport.js";
+import { enqueueUsageReportJob } from "../lib/cloudTasks.js";
 import { errorMessage } from "../lib/logUtils.js";
 
 const BUSINESSES_PER_BATCH = 100;
+
+/** Sufijo por hora: identifica la tanda para que dos entregas del mismo tick
+ * no creen dos tareas por negocio, pero la siguiente hora sí pueda reintentar. */
+function claveDeReintento(): string {
+  return new Date().toISOString().slice(0, 13);
+}
 
 /**
  * Recupera informes que no pudieron encolarse al terminar una llamada. No
@@ -29,13 +35,21 @@ export async function retryUsageReportsJob(): Promise<void> {
     });
     if (businesses.length === 0) break;
 
+    // Una tarea por negocio en vez de procesarlos en serie dentro de esta
+    // petición: cada uno habla con Stripe (cientos de ms), así que con unos
+    // cuantos cientos de negocios este job se acercaba al plazo de la tarea y
+    // Cloud Tasks lo reintentaba entero. El endpoint /jobs/report-usage ya es
+    // idempotente por `identifier`, así que encolar es seguro.
     for (const business of businesses) {
       try {
-        await processUsageReportJob({ businessId: business.id });
+        await enqueueUsageReportJob(
+          { businessId: business.id },
+          `retry-usage-${business.id}-${claveDeReintento()}`
+        );
       } catch (error) {
         failures++;
         console.error(
-          `[Billing] No se pudo recuperar el consumo del negocio ${business.id}: ${errorMessage(error)}`
+          `[Billing] No se pudo encolar la recuperación del consumo del negocio ${business.id}: ${errorMessage(error)}`
         );
       }
     }
@@ -45,6 +59,11 @@ export async function retryUsageReportsJob(): Promise<void> {
   }
 
   if (failures > 0) {
-    throw new Error(`No se pudo recuperar el consumo de ${failures} negocio(s)`);
+    // Lanzar reintenta el LOTE ENTERO, incluidos los negocios que sí se
+    // encolaron. Como cada negocio tiene ya su propia tarea con reintentos
+    // propios, aquí basta con dejar constancia.
+    console.error(
+      `[Billing] No se pudo encolar la recuperación del consumo de ${failures} negocio(s); se reintentará en la próxima pasada`
+    );
   }
 }

@@ -81,6 +81,10 @@ model Business {
   // España. telnyxNumberOrderId se persiste nada más crear el pedido
   // (asíncrono en Telnyx) para poder reanudarlo en un reintento sin duplicar
   // la compra.
+  // Número elegido y apuntado ANTES de pedirlo a Telnyx. Si el proceso muere
+  // entre la compra y el guardado del pedido, el reintento mira aquí y adopta
+  // el número que ya se compró en vez de comprar (y facturar) otro.
+  telnyxPendingPhoneNumber     String?
   telnyxNumberOrderId          String?   @unique
   telnyxPhoneNumber            String?   @unique
   telnyxPhoneNumberId          String?   @unique

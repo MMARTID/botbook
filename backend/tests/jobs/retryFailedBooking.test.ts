@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
+import { enqueueRetryBookingJob } from "../../src/lib/cloudTasks.js";
 import { processRetryFailedBookingJob } from "../../src/jobs/retryFailedBooking.js";
 import { prisma } from "../../src/lib/prisma.js";
 import { calendarService } from "../../src/modules/calendar/service.js";
@@ -6,6 +7,9 @@ import { checkBusinessHours, checkBookingRestrictions } from "../../src/lib/busi
 import { checkAvailability } from "../../src/lib/availability.js";
 import { acquireBookingLock, releaseBookingLock } from "../../src/lib/bookingLock.js";
 
+vi.mock("../../src/lib/cloudTasks.js", () => ({
+  enqueueRetryBookingJob: vi.fn(),
+}));
 vi.mock("../../src/lib/prisma.js", () => ({
   prisma: {
     lead: { findUnique: vi.fn(), update: vi.fn() },
@@ -46,6 +50,7 @@ vi.mock("../../src/lib/redis.js", () => ({
 }));
 
 const mockedLeadFindUnique = vi.mocked(prisma.lead.findUnique);
+const mockedEnqueueRetryBookingJob = vi.mocked(enqueueRetryBookingJob);
 const mockedLeadUpdate = vi.mocked(prisma.lead.update);
 const mockedCallFindUnique = vi.mocked(prisma.call.findUnique);
 const mockedBusinessFindUnique = vi.mocked(prisma.business.findUnique);
@@ -164,29 +169,53 @@ describe("processRetryFailedBookingJob", () => {
     );
   });
 
-  it("lanza (para que se reintente más tarde) si Google sigue sin reconectar", async () => {
+  it("reprograma el reintento, sin gastarlo, si Google sigue sin reconectar", async () => {
     mockedLeadFindUnique.mockResolvedValue(buildLead() as any);
     mockedCallFindUnique.mockResolvedValue({ businessId: "biz_1" } as any);
     mockedBusinessFindUnique.mockResolvedValue(
       buildBusiness({ googleRefreshToken: null }) as any
     );
 
-    await expect(processRetryFailedBookingJob({ leadId })).rejects.toThrow(
-      "Calendario todavía desconectado"
+    // Ya no lanza: lanzar gastaba los cuatro reintentos de Cloud Tasks en
+    // minutos mientras el negocio tardaba días en reconectar, y el lead se
+    // quedaba pendiente para siempre sin que nadie volviera a intentarlo.
+    await expect(
+      processRetryFailedBookingJob({ leadId })
+    ).resolves.toBeUndefined();
+    expect(mockedBookAppointment).not.toHaveBeenCalled();
+
+    const [payload, taskId, scheduleTime] =
+      mockedEnqueueRetryBookingJob.mock.calls[0];
+    expect(payload).toEqual({ leadId, attempt: 1 });
+    expect(taskId).toBe(`retry-failed-booking-${leadId}-1`);
+    expect((scheduleTime as Date).getTime()).toBeGreaterThan(Date.now());
+  });
+
+  it("deja de reprogramar cuando se agota el plazo con el calendario desconectado", async () => {
+    mockedLeadFindUnique.mockResolvedValue(buildLead() as any);
+    mockedCallFindUnique.mockResolvedValue({ businessId: "biz_1" } as any);
+    mockedBusinessFindUnique.mockResolvedValue(
+      buildBusiness({ googleRefreshToken: null }) as any
     );
+
+    await processRetryFailedBookingJob({ leadId, attempt: 8 });
+
+    // El lead sigue sin resolver: aparece en el panel y en el resumen
+    // semanal para que el negocio llame al cliente.
+    expect(mockedEnqueueRetryBookingJob).not.toHaveBeenCalled();
     expect(mockedBookAppointment).not.toHaveBeenCalled();
   });
 
-  it("lanza si Outlook es el proveedor pero sigue sin reconectar", async () => {
+  it("reprograma también si Outlook es el proveedor y sigue sin reconectar", async () => {
     mockedLeadFindUnique.mockResolvedValue(buildLead() as any);
     mockedCallFindUnique.mockResolvedValue({ businessId: "biz_1" } as any);
     mockedBusinessFindUnique.mockResolvedValue(
       buildBusiness({ calendarProvider: "outlook", outlookRefreshToken: null }) as any
     );
 
-    await expect(processRetryFailedBookingJob({ leadId })).rejects.toThrow(
-      "Calendario todavía desconectado"
-    );
+    await processRetryFailedBookingJob({ leadId });
+
+    expect(mockedEnqueueRetryBookingJob).toHaveBeenCalledTimes(1);
   });
 
   it("reserva con Google, guarda la reserva y marca el lead como resuelto", async () => {

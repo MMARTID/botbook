@@ -1571,6 +1571,7 @@ async function executeBookAppointment(
         // Persist booking in database, vinculada a la llamada exacta cuando se
         // conoce su callId (ver resolveCallForBusiness).
         if (call) {
+          try {
           await prisma.booking.upsert({
             where: { callId: call.id },
             create: {
@@ -1606,6 +1607,32 @@ async function executeBookAppointment(
                   : business.googleCalendarId || "primary",
             },
           });
+          } catch (errorAlGuardar) {
+            // El evento ya está en el calendario del negocio pero la reserva
+            // no se ha podido guardar. Si lo dejáramos así, el dueño vería una
+            // cita que para nosotros no existe: ni cuenta para la
+            // disponibilidad ni se puede cancelar por voz. Se borra el evento
+            // y se sigue por el camino de "no he podido agendarla", que guarda
+            // los datos del cliente para reintentarlo.
+            const eventoHuerfano = (result as { id?: string })?.id;
+            if (eventoHuerfano) {
+              try {
+                await calendarService.cancelAppointment({
+                  provider,
+                  googleRefreshToken: business.googleRefreshToken,
+                  googleCalendarId: business.googleCalendarId,
+                  outlookRefreshToken: business.outlookRefreshToken,
+                  outlookCalendarId: business.outlookCalendarId,
+                  eventId: eventoHuerfano,
+                });
+              } catch (errorAlBorrar) {
+                console.error(
+                  `[VoiceTools] ${callLabel} no pudo deshacer el evento ${eventoHuerfano} tras fallar el guardado: ${errorMessage(errorAlBorrar)}`
+                );
+              }
+            }
+            throw errorAlGuardar;
+          }
         }
 
         // El cliente cambió de hora dentro de la misma llamada: la reserva
@@ -2110,7 +2137,13 @@ async function executeNotifyWhenAvailable(
  */
 async function notifyPendingAvailabilityWatchers(
   business: BusinessVoiceConfig,
-  callLabel: string
+  callLabel: string,
+  /** Hueco que se acaba de liberar. Solo los avisos que lo pisan pueden
+   * haberse vuelto reservables, así que el resto ni se comprueban: antes esta
+   * función consultaba el calendario de Google UNA VEZ POR AVISO PENDIENTE,
+   * en serie, mientras el cliente esperaba al teléfono a que le confirmaran
+   * la cancelación. */
+  huecoLiberado?: { inicioMs: number; finMs: number }
 ): Promise<void> {
   try {
     const watches = await prisma.lead.findMany({
@@ -2120,6 +2153,10 @@ async function notifyPendingAvailabilityWatchers(
         call: { businessId: business.id },
       },
       select: { id: true, data: true },
+      orderBy: { createdAt: "asc" },
+      // Cota dura: quien lleva más tiempo esperando va primero, y la
+      // cancelación nunca se convierte en un trabajo sin límite.
+      take: 25,
     });
     if (watches.length === 0) return;
 
@@ -2133,6 +2170,15 @@ async function notifyPendingAvailabilityWatchers(
         serviceIds?: string[];
         professionalId?: string | null;
       };
+
+      // Solo interesa quien esperaba justo por ese hueco.
+      if (huecoLiberado) {
+        const inicioAviso = new Date(data.startDateTime).getTime();
+        const finAviso = inicioAviso + (data.durationMinutes || 30) * 60_000;
+        const pisaElHueco =
+          inicioAviso < huecoLiberado.finMs && finAviso > huecoLiberado.inicioMs;
+        if (!pisaElHueco) continue;
+      }
 
       // Hora ya pasada: ya no tiene sentido avisar, limpia el aviso.
       if (new Date(data.startDateTime).getTime() < Date.now()) {
@@ -2197,6 +2243,11 @@ async function notifyPendingAvailabilityWatchers(
         where: { id: watch.id },
         data: { resolvedAt: new Date() },
       });
+
+      // Un hueco libre es una plaza: avisado el primero de la cola, se para.
+      // Avisar a varios por el mismo hueco los manda a competir por una hora
+      // que solo uno puede coger.
+      break;
     }
   } catch (error) {
     console.error(
@@ -2290,7 +2341,11 @@ async function executeCancelAppointment(
 
   // notifyPendingAvailabilityWatchers nunca lanza (loguea internamente) — un
   // fallo al avisar a OTRO cliente no debe tumbar la cancelación de este.
-  await notifyPendingAvailabilityWatchers(business, callLabel);
+  await notifyPendingAvailabilityWatchers(business, callLabel, {
+    inicioMs: booking.programedAt.getTime(),
+    finMs:
+      booking.programedAt.getTime() + (booking.durationMinutes || 30) * 60_000,
+  });
 
   return {
     success: true,

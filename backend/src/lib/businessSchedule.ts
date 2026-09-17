@@ -42,10 +42,39 @@ const weekShape = Object.fromEntries(
   WEEK_DAYS.map((day) => [day, ScheduleDaySchema]),
 ) as Record<WeekDay, typeof ScheduleDaySchema>;
 
+/**
+ * Excepción para una fecha concreta: un festivo, un puente, las vacaciones o
+ * un día con horario especial. Sin esto, el 25 de diciembre era "jueves" y el
+ * agente reservaba y confirmaba citas para un negocio cerrado.
+ */
+const ScheduleExceptionSchema = z
+  .object({
+    /** Fecha local del negocio, YYYY-MM-DD. */
+    date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "La fecha debe usar el formato YYYY-MM-DD"),
+    /** true = cerrado todo el día; false = abierto con un horario distinto. */
+    closed: z.boolean(),
+    /** Tramos del día cuando no está cerrado (horario especial). */
+    intervals: z.array(ScheduleIntervalSchema).max(3).default([]),
+    /** Etiqueta opcional para el panel y para lo que dice el agente. */
+    label: z.string().max(60).optional(),
+  })
+  .superRefine((exception, context) => {
+    if (!exception.closed && exception.intervals.length === 0) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Un día abierto con horario especial necesita al menos un tramo",
+      });
+    }
+  });
+
 export const BusinessScheduleSchema = z.object({
   version: z.literal(1),
   week: z.object(weekShape),
+  // Opcional para no invalidar los horarios ya guardados, que no lo traen.
+  exceptions: z.array(ScheduleExceptionSchema).max(120).default([]),
 });
+
+export type ScheduleException = z.infer<typeof ScheduleExceptionSchema>;
 
 export type BusinessSchedule = z.infer<typeof BusinessScheduleSchema>;
 
@@ -60,6 +89,7 @@ export const DEFAULT_BUSINESS_SCHEDULE: BusinessSchedule = {
     saturday: { enabled: false, intervals: [] },
     sunday: { enabled: false, intervals: [] },
   },
+  exceptions: [],
 };
 
 const WEEKDAY_LABELS_ES: Record<WeekDay, string> = {
@@ -84,7 +114,7 @@ export function formatScheduleForPrompt(scheduleInput: unknown): string {
     return "Horario no configurado todavía.";
   }
 
-  return WEEK_DAYS.map((day) => {
+  const semana = WEEK_DAYS.map((day) => {
     const daySchedule = parsed.data.week[day];
     const label = WEEKDAY_LABELS_ES[day];
     if (!daySchedule.enabled || daySchedule.intervals.length === 0) {
@@ -93,6 +123,28 @@ export function formatScheduleForPrompt(scheduleInput: unknown): string {
     const ranges = daySchedule.intervals.map((interval) => `${interval.start}–${interval.end}`).join(", ");
     return `${label}: ${ranges}.`;
   }).join(" ");
+
+  // Las excepciones próximas van también en el prompt para que el agente
+  // pueda decir "ese día cerramos por vacaciones" en vez de un genérico
+  // "no tengo hueco" cuando la comprobación de horario le rechace la fecha.
+  const hoy = new Date().toISOString().slice(0, 10);
+  const proximas = parsed.data.exceptions
+    .filter((exception) => exception.date >= hoy)
+    .sort((izquierda, derecha) => izquierda.date.localeCompare(derecha.date))
+    .slice(0, 12)
+    .map((exception) => {
+      if (exception.closed) {
+        return `${exception.date}: cerrado${exception.label ? ` (${exception.label})` : ""}.`;
+      }
+      const ranges = exception.intervals
+        .map((interval) => `${interval.start}–${interval.end}`)
+        .join(", ");
+      return `${exception.date}: horario especial ${ranges}${exception.label ? ` (${exception.label})` : ""}.`;
+    });
+
+  return proximas.length > 0
+    ? `${semana} Días especiales: ${proximas.join(" ")}`
+    : semana;
 }
 
 const ENGLISH_WEEKDAY_TO_KEY: Record<string, WeekDay> = {
@@ -149,23 +201,48 @@ export function checkBusinessHours(
   const localStart = localDateTimeParts(start, timeZone);
   const localEnd = localDateTimeParts(end, timeZone);
   const daySchedule = parsedSchedule.data.week[localStart.day];
-  const matchingInterval = localStart.date === localEnd.date && daySchedule.enabled
-    ? daySchedule.intervals.find((interval) => localStart.time >= interval.start && localEnd.time <= interval.end)
-    : undefined;
+
+  // La excepción de esa fecha manda sobre el patrón semanal: un festivo cierra
+  // un día que "por ser jueves" estaría abierto, y un horario especial
+  // sustituye a los tramos de siempre.
+  const exception = parsedSchedule.data.exceptions.find(
+    (candidate) => candidate.date === localStart.date
+  );
+  const abiertoEseDia = exception ? !exception.closed : daySchedule.enabled;
+  const intervalsDelDia = exception
+    ? exception.intervals
+    : daySchedule.intervals;
+
+  const matchingInterval =
+    localStart.date === localEnd.date && abiertoEseDia
+      ? intervalsDelDia.find(
+          (interval) =>
+            localStart.time >= interval.start && localEnd.time <= interval.end
+        )
+      : undefined;
+
+  const cerradoPorExcepcion = Boolean(exception?.closed);
 
   return {
     success: true,
     isOpen: Boolean(matchingInterval),
-    code: matchingInterval ? "WITHIN_BUSINESS_HOURS" : "OUTSIDE_BUSINESS_HOURS",
+    code: matchingInterval
+      ? "WITHIN_BUSINESS_HOURS"
+      : cerradoPorExcepcion
+        ? "CLOSED_ON_DATE"
+        : "OUTSIDE_BUSINESS_HOURS",
     timeZone,
     localStart: `${localStart.date}T${localStart.time}`,
     localEnd: `${localEnd.date}T${localEnd.time}`,
     day: localStart.day,
-    intervals: daySchedule.enabled ? daySchedule.intervals : [],
+    intervals: abiertoEseDia ? intervalsDelDia : [],
+    exception: exception ?? null,
     schedule: parsedSchedule.data,
     message: matchingInterval
       ? "La cita está completamente dentro del horario del negocio."
-      : "La cita queda fuera del horario configurado del negocio.",
+      : cerradoPorExcepcion
+        ? `El negocio está cerrado ese día${exception?.label ? ` (${exception.label})` : ""}.`
+        : "La cita queda fuera del horario configurado del negocio.",
   } as const;
 }
 

@@ -6,6 +6,9 @@ export interface ProcessRecordingJob {
 
 export interface RetryFailedBookingJob {
   leadId: string;
+  /** Vuelta del reintento diferido cuando el calendario sigue desconectado.
+   * Acota cuántas veces se reprograma antes de dejarlo en manos del negocio. */
+  attempt?: number;
 }
 
 export interface ReportUsageJob {

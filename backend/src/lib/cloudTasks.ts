@@ -89,8 +89,22 @@ export async function enqueueRecordingJob(payload: ProcessRecordingJob, taskId?:
   });
 }
 
-export async function enqueueRetryBookingJob(payload: RetryFailedBookingJob, taskId?: string): Promise<void> {
+export async function enqueueRetryBookingJob(
+  payload: RetryFailedBookingJob,
+  taskId?: string,
+  /** Para reprogramar el reintento a horas vista mientras el negocio no
+   * reconecta su calendario. */
+  scheduleTime?: Date
+): Promise<void> {
   if (!IS_PRODUCTION) {
+    // En dev no hay Cloud Tasks: un reintento programado a horas vista no
+    // puede ejecutarse ya mismo, solo se deja constancia.
+    if (scheduleTime && scheduleTime.getTime() > Date.now()) {
+      console.log(
+        `[Job] Reintento de reserva programado para ${scheduleTime.toISOString()} (no se ejecuta ahora, no hay Cloud Tasks en dev)`
+      );
+      return;
+    }
     await processRetryFailedBookingJob(payload);
     return;
   }
@@ -99,6 +113,7 @@ export async function enqueueRetryBookingJob(payload: RetryFailedBookingJob, tas
     path: "/internal/jobs/retry-failed-booking",
     payload,
     taskId,
+    scheduleTime,
   });
 }
 

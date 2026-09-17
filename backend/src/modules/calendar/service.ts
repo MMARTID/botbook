@@ -1071,10 +1071,18 @@ export class CalendarService {
       );
 
       const intervals = (response.data.items ?? [])
-        .filter(
-          (event) =>
-            event.status !== "cancelled" && event.transparency !== "transparent"
-        )
+        .filter((event) => {
+          if (event.status === "cancelled") return false;
+          // Google marca los eventos de día completo como "Libre"
+          // (transparency: transparent) por defecto, así que el "VACACIONES"
+          // que el dueño pone de todo el día se descartaba en silencio y el
+          // día seguía reservable. Un evento de día completo (viene con
+          // start.date, no start.dateTime) significa siempre "ese día no
+          // trabajo": cuenta como ocupado aunque figure como libre.
+          const esDeDiaCompleto = Boolean(event.start?.date);
+          if (esDeDiaCompleto) return true;
+          return event.transparency !== "transparent";
+        })
         .map(
           (event): {
             start: Date | null;

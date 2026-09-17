@@ -376,6 +376,24 @@ export async function checkAvailability(input: {
     start.getTime() + computeAvailabilityLookaheadMs(durationMinutes)
   );
 
+  // Las canceladas se traen aparte, solo para saber qué eventos del
+  // calendario externo son restos nuestros: si el borrado del evento falló al
+  // cancelar (Google caído, calendario reconectado a mano), ese evento
+  // huérfano se contaba como ocupación ajena y bloqueaba el hueco PARA
+  // SIEMPRE, sin que nada lo reconciliara nunca.
+  const canceladasConEvento = await prisma.booking.findMany({
+    where: {
+      call: { businessId },
+      isCancelled: true,
+      externalEventId: { not: null },
+      programedAt: {
+        gte: new Date(start.getTime() - OVERLAP_LOOKBACK_MS),
+        lt: nextSlotSearchWindowEnd,
+      },
+    },
+    select: { externalEventId: true },
+  });
+
   const localBookings = await prisma.booking.findMany({
     where: {
       call: { businessId },
@@ -441,9 +459,12 @@ export async function checkAvailability(input: {
   });
 
   const localExternalEventIds = new Set(
-    reconciledLocalBookings
-      .map((booking) => booking.externalEventId)
-      .filter((eventId): eventId is string => Boolean(eventId))
+    [
+      ...reconciledLocalBookings.map((booking) => booking.externalEventId),
+      // Un evento de una cita ya cancelada es basura nuestra, no ocupación
+      // del negocio: no puede seguir bloqueando la hora.
+      ...canceladasConEvento.map((booking) => booking.externalEventId),
+    ].filter((eventId): eventId is string => Boolean(eventId))
   );
 
   // professionalId: null a propósito (ver comentario en el parámetro) — un

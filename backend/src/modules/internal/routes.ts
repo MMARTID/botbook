@@ -1,11 +1,13 @@
 import type { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
+import { PermanentJobError } from "../../lib/jobErrors.js";
 import { processRecordingJob } from "../../jobs/processRecording.js";
 import { processRetryFailedBookingJob } from "../../jobs/retryFailedBooking.js";
 import { processSendEmailJob } from "../../jobs/sendEmail.js";
 import { processSendSmsJob } from "../../jobs/sendSms.js";
 import { processSendWhatsappJob } from "../../jobs/sendWhatsapp.js";
 import { cleanupZombieCallsJob } from "../../jobs/cleanupZombieCalls.js";
+import { purgeOldRecordingsJob } from "../../jobs/purgeOldRecordings.js";
 import { telnyxHealthCheckJob } from "../../jobs/telnyxHealthCheck.js";
 import { telnyxReconcilerJob } from "../../jobs/telnyxReconciler.js";
 import { retryStuckRecordingsJob } from "../../jobs/retryStuckRecordings.js";
@@ -24,6 +26,7 @@ const ProcessRecordingSchema = z.object({
 
 const RetryFailedBookingSchema = z.object({
   leadId: z.string(),
+  attempt: z.number().int().min(0).optional(),
 });
 const ReportUsageSchema = z.object({ businessId: z.string() });
 
@@ -68,6 +71,16 @@ export const internalJobsRoutes: FastifyPluginAsync = async (fastify) => {
         if (error instanceof z.ZodError) {
           return reply.status(400).send({ error: error.errors });
         }
+        // Un fallo definitivo (destinatario inválido, plantilla no aprobada,
+        // número rechazado) se responde 200: devolver 500 solo conseguía que
+        // Cloud Tasks repitiera cuatro veces algo que nunca va a salir bien.
+        if (error instanceof PermanentJobError) {
+          fastify.log.warn(
+            { err: error, reason: error.reason },
+            "process-recording job failed descartado por fallo definitivo"
+          );
+          return reply.send({ received: true, skipped: error.reason });
+        }
         fastify.log.error({ err: error }, "process-recording job failed");
         return reply.status(500).send({ error: "Job processing failed" });
       }
@@ -85,6 +98,16 @@ export const internalJobsRoutes: FastifyPluginAsync = async (fastify) => {
       } catch (error) {
         if (error instanceof z.ZodError) {
           return reply.status(400).send({ error: error.errors });
+        }
+        // Un fallo definitivo (destinatario inválido, plantilla no aprobada,
+        // número rechazado) se responde 200: devolver 500 solo conseguía que
+        // Cloud Tasks repitiera cuatro veces algo que nunca va a salir bien.
+        if (error instanceof PermanentJobError) {
+          fastify.log.warn(
+            { err: error, reason: error.reason },
+            "retry-failed-booking job failed descartado por fallo definitivo"
+          );
+          return reply.send({ received: true, skipped: error.reason });
         }
         fastify.log.error({ err: error }, "retry-failed-booking job failed");
         return reply.status(500).send({ error: "Job processing failed" });
@@ -104,6 +127,16 @@ export const internalJobsRoutes: FastifyPluginAsync = async (fastify) => {
         if (error instanceof z.ZodError) {
           return reply.status(400).send({ error: error.errors });
         }
+        // Un fallo definitivo (destinatario inválido, plantilla no aprobada,
+        // número rechazado) se responde 200: devolver 500 solo conseguía que
+        // Cloud Tasks repitiera cuatro veces algo que nunca va a salir bien.
+        if (error instanceof PermanentJobError) {
+          fastify.log.warn(
+            { err: error, reason: error.reason },
+            "send-email job failed descartado por fallo definitivo"
+          );
+          return reply.send({ received: true, skipped: error.reason });
+        }
         fastify.log.error({ err: error }, "send-email job failed");
         return reply.status(500).send({ error: "Job processing failed" });
       }
@@ -121,6 +154,16 @@ export const internalJobsRoutes: FastifyPluginAsync = async (fastify) => {
       } catch (error) {
         if (error instanceof z.ZodError) {
           return reply.status(400).send({ error: error.errors });
+        }
+        // Un fallo definitivo (destinatario inválido, plantilla no aprobada,
+        // número rechazado) se responde 200: devolver 500 solo conseguía que
+        // Cloud Tasks repitiera cuatro veces algo que nunca va a salir bien.
+        if (error instanceof PermanentJobError) {
+          fastify.log.warn(
+            { err: error, reason: error.reason },
+            "send-sms job failed descartado por fallo definitivo"
+          );
+          return reply.send({ received: true, skipped: error.reason });
         }
         fastify.log.error({ err: error }, "send-sms job failed");
         return reply.status(500).send({ error: "Job processing failed" });
@@ -140,7 +183,31 @@ export const internalJobsRoutes: FastifyPluginAsync = async (fastify) => {
         if (error instanceof z.ZodError) {
           return reply.status(400).send({ error: error.errors });
         }
+        // Un fallo definitivo (destinatario inválido, plantilla no aprobada,
+        // número rechazado) se responde 200: devolver 500 solo conseguía que
+        // Cloud Tasks repitiera cuatro veces algo que nunca va a salir bien.
+        if (error instanceof PermanentJobError) {
+          fastify.log.warn(
+            { err: error, reason: error.reason },
+            "send-whatsapp job failed descartado por fallo definitivo"
+          );
+          return reply.send({ received: true, skipped: error.reason });
+        }
         fastify.log.error({ err: error }, "send-whatsapp job failed");
+        return reply.status(500).send({ error: "Job processing failed" });
+      }
+    }
+  );
+
+  fastify.post(
+    "/jobs/purge-old-recordings",
+    { preValidation: [fastify.verifyCloudTasks] },
+    async (_request, reply) => {
+      try {
+        const result = await purgeOldRecordingsJob();
+        return reply.send({ received: true, ...result });
+      } catch (error) {
+        fastify.log.error({ err: error }, "purge-old-recordings job failed");
         return reply.status(500).send({ error: "Job processing failed" });
       }
     }
@@ -154,6 +221,13 @@ export const internalJobsRoutes: FastifyPluginAsync = async (fastify) => {
         await cleanupZombieCallsJob();
         return reply.send({ received: true });
       } catch (error) {
+        if (error instanceof PermanentJobError) {
+          fastify.log.warn(
+            { err: error, reason: error.reason },
+            "cleanup-zombie-calls job failed descartado por fallo definitivo"
+          );
+          return reply.send({ received: true, skipped: error.reason });
+        }
         fastify.log.error({ err: error }, "cleanup-zombie-calls job failed");
         return reply.status(500).send({ error: "Job processing failed" });
       }
@@ -172,6 +246,13 @@ export const internalJobsRoutes: FastifyPluginAsync = async (fastify) => {
         await telnyxHealthCheckJob();
         return reply.send({ received: true });
       } catch (error) {
+        if (error instanceof PermanentJobError) {
+          fastify.log.warn(
+            { err: error, reason: error.reason },
+            "telnyx-health-check job failed descartado por fallo definitivo"
+          );
+          return reply.send({ received: true, skipped: error.reason });
+        }
         fastify.log.error({ err: error }, "telnyx-health-check job failed");
         return reply.status(500).send({ error: "Job processing failed" });
       }
@@ -191,6 +272,13 @@ export const internalJobsRoutes: FastifyPluginAsync = async (fastify) => {
         const result = await telnyxReconcilerJob();
         return reply.send({ received: true, result });
       } catch (error) {
+        if (error instanceof PermanentJobError) {
+          fastify.log.warn(
+            { err: error, reason: error.reason },
+            "telnyx-reconciler job failed descartado por fallo definitivo"
+          );
+          return reply.send({ received: true, skipped: error.reason });
+        }
         fastify.log.error({ err: error }, "telnyx-reconciler job failed");
         return reply.status(500).send({ error: "Job processing failed" });
       }
@@ -206,6 +294,13 @@ export const internalJobsRoutes: FastifyPluginAsync = async (fastify) => {
         return reply.send({ received: true });
       } catch (error) {
         if (error instanceof z.ZodError) return reply.status(400).send({ error: error.errors });
+        if (error instanceof PermanentJobError) {
+          fastify.log.warn(
+            { err: error, reason: error.reason },
+            "report-usage job failed descartado por fallo definitivo"
+          );
+          return reply.send({ received: true, skipped: error.reason });
+        }
         fastify.log.error({ err: error }, "report-usage job failed");
         return reply.status(500).send({ error: "Job processing failed" });
       }
@@ -220,6 +315,13 @@ export const internalJobsRoutes: FastifyPluginAsync = async (fastify) => {
         const attachedSubscriptions = await attachUsagePricesJob();
         return reply.send({ received: true, attachedSubscriptions });
       } catch (error) {
+        if (error instanceof PermanentJobError) {
+          fastify.log.warn(
+            { err: error, reason: error.reason },
+            "attach-usage-prices job failed descartado por fallo definitivo"
+          );
+          return reply.send({ received: true, skipped: error.reason });
+        }
         fastify.log.error({ err: error }, "attach-usage-prices job failed");
         return reply.status(500).send({ error: "Job processing failed" });
       }
@@ -234,6 +336,13 @@ export const internalJobsRoutes: FastifyPluginAsync = async (fastify) => {
         await retryUsageReportsJob();
         return reply.send({ received: true });
       } catch (error) {
+        if (error instanceof PermanentJobError) {
+          fastify.log.warn(
+            { err: error, reason: error.reason },
+            "retry-usage-reports job failed descartado por fallo definitivo"
+          );
+          return reply.send({ received: true, skipped: error.reason });
+        }
         fastify.log.error({ err: error }, "retry-usage-reports job failed");
         return reply.status(500).send({ error: "Job processing failed" });
       }
@@ -248,6 +357,13 @@ export const internalJobsRoutes: FastifyPluginAsync = async (fastify) => {
         const suspendedBusinesses = await suspendOverdueCallsJob();
         return reply.send({ received: true, suspendedBusinesses });
       } catch (error) {
+        if (error instanceof PermanentJobError) {
+          fastify.log.warn(
+            { err: error, reason: error.reason },
+            "suspend-overdue-calls job failed descartado por fallo definitivo"
+          );
+          return reply.send({ received: true, skipped: error.reason });
+        }
         fastify.log.error({ err: error }, "suspend-overdue-calls job failed");
         return reply.status(500).send({ error: "Job processing failed" });
       }
@@ -264,6 +380,13 @@ export const internalJobsRoutes: FastifyPluginAsync = async (fastify) => {
         const result = await sendWeeklySummaryJob();
         return reply.send({ received: true, ...result });
       } catch (error) {
+        if (error instanceof PermanentJobError) {
+          fastify.log.warn(
+            { err: error, reason: error.reason },
+            "send-weekly-summaries job failed descartado por fallo definitivo"
+          );
+          return reply.send({ received: true, skipped: error.reason });
+        }
         fastify.log.error({ err: error }, "send-weekly-summaries job failed");
         return reply.status(500).send({ error: "Job processing failed" });
       }
@@ -278,6 +401,13 @@ export const internalJobsRoutes: FastifyPluginAsync = async (fastify) => {
         await retryStuckRecordingsJob();
         return reply.send({ received: true });
       } catch (error) {
+        if (error instanceof PermanentJobError) {
+          fastify.log.warn(
+            { err: error, reason: error.reason },
+            "retry-stuck-recordings job failed descartado por fallo definitivo"
+          );
+          return reply.send({ received: true, skipped: error.reason });
+        }
         fastify.log.error({ err: error }, "retry-stuck-recordings job failed");
         return reply.status(500).send({ error: "Job processing failed" });
       }

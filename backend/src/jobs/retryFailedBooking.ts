@@ -1,4 +1,5 @@
 import { prisma } from "../lib/prisma.js";
+import { enqueueRetryBookingJob } from "../lib/cloudTasks.js";
 import { createHash } from "node:crypto";
 import { getRedis } from "../lib/redis.js";
 import { calendarService } from "../modules/calendar/service.js";
@@ -59,6 +60,12 @@ async function abandonLead(leadId: string, reason: string): Promise<void> {
  * reconectar el calendario, lanzamos un error para que Cloud Tasks reintente
  * más tarde en vez de dar la reserva por perdida.
  */
+/** Cada cuánto se vuelve a mirar si el negocio ya reconectó el calendario, y
+ * cuántas veces: 8 intentos cada 6 horas cubren dos días, que es lo que tarda
+ * un negocio pequeño en darse cuenta por el aviso del panel o del correo. */
+const HORAS_ENTRE_REINTENTOS = 6;
+const MAX_REINTENTOS_POR_CALENDARIO = 8;
+
 export async function processRetryFailedBookingJob(
   data: RetryFailedBookingJob
 ): Promise<void> {
@@ -124,11 +131,29 @@ export async function processRetryFailedBookingJob(
         business.googleCalendarConnected !== false;
 
   if (!hasCalendarConnection) {
-    // El negocio sigue sin reconectar el calendario: no tiene sentido
-    // reintentar de verdad todavía, pero tampoco damos el lead por perdido.
-    throw new Error(
-      "Calendario todavía desconectado; se reintentará más tarde"
+    // El negocio sigue sin reconectar el calendario. Antes esto lanzaba, y
+    // Cloud Tasks gastaba sus cuatro reintentos en cuestión de minutos
+    // mientras el negocio tardaba días en reconectar: el lead se quedaba
+    // pendiente para siempre y nadie volvía a intentarlo. Ahora se reprograma
+    // el propio reintento unas horas más tarde, hasta agotar el plazo.
+    const siguienteIntento = (data.attempt ?? 0) + 1;
+    if (siguienteIntento <= MAX_REINTENTOS_POR_CALENDARIO) {
+      await enqueueRetryBookingJob(
+        { leadId, attempt: siguienteIntento },
+        `retry-failed-booking-${leadId}-${siguienteIntento}`,
+        new Date(Date.now() + HORAS_ENTRE_REINTENTOS * 60 * 60 * 1000)
+      );
+      console.log(
+        `[Job] Calendario de ${call.businessId} aún desconectado; reintento ${siguienteIntento}/${MAX_REINTENTOS_POR_CALENDARIO} del lead ${leadId} programado para dentro de ${HORAS_ENTRE_REINTENTOS}h`
+      );
+      return;
+    }
+    // Agotado el plazo: el lead sigue sin resolver, visible en el panel y en
+    // el resumen semanal del negocio, que es quien tiene que llamar al cliente.
+    console.warn(
+      `[Job] Lead ${leadId}: se agotaron los reintentos con el calendario desconectado; queda pendiente de gestión manual`
     );
+    return;
   }
 
   // Resueltos aparte (no vienen guardados en el Lead) para que el evento de

@@ -53,3 +53,6 @@ CREATE INDEX "recordings_storageKey_deletedAt_idx" ON "recordings"("storageKey",
 -- RenameIndex
 ALTER INDEX "calls_vapiCallId_key" RENAME TO "calls_callId_key";
 
+
+-- AlterTable
+ALTER TABLE "businesses" ADD COLUMN     "telnyxPendingPhoneNumber" TEXT;

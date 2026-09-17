@@ -1,4 +1,5 @@
 import { randomBytes } from "node:crypto";
+import { isUniqueConstraintError } from "../../lib/prismaErrors.js";
 import type { FastifyPluginAsync, FastifyReply } from "fastify";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
@@ -292,12 +293,24 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
       }
 
       const normalizedBusinessType = normalizeBusinessType(businessType);
-      const result = await createUserWithBusiness({
-        email: normalizedEmail,
-        password: await bcrypt.hash(password, 10),
-        isEuropeanUnion,
-        businessType: normalizedBusinessType,
-      });
+      let result;
+      try {
+        result = await createUserWithBusiness({
+          email: normalizedEmail,
+          password: await bcrypt.hash(password, 10),
+          isEuropeanUnion,
+          businessType: normalizedBusinessType,
+        });
+      } catch (error) {
+        // La comprobación de arriba es un check-then-act: entre ella y esta
+        // creación cabe otro registro con el mismo correo (doble clic, dos
+        // pestañas). Sin esto, el usuario veía un 500 en vez de saber que ya
+        // tiene cuenta.
+        if (isUniqueConstraintError(error)) {
+          return reply.status(400).send({ error: "El usuario ya existe" });
+        }
+        throw error;
+      }
       await bootstrapBusinessAgent(
         result.business.id,
         normalizedEmail,

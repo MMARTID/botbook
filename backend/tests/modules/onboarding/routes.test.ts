@@ -8,8 +8,9 @@ vi.mock("../../../src/lib/prisma.js", () => ({
     business: { findUnique: vi.fn() },
     call: { findFirst: vi.fn() },
     onboardingState: {
-      findUnique: vi.fn(),
-      create: vi.fn(),
+      // upsert, no findUnique + create: dos cargas simultáneas del panel
+      // chocaban contra el unique de businessId y devolvían un 500.
+      upsert: vi.fn(),
       update: vi.fn(),
     },
   },
@@ -17,7 +18,7 @@ vi.mock("../../../src/lib/prisma.js", () => ({
 
 const mockedBusinessFindUnique = vi.mocked(prisma.business.findUnique);
 const mockedCallFindFirst = vi.mocked(prisma.call.findFirst);
-const mockedStateFindUnique = vi.mocked(prisma.onboardingState.findUnique);
+const mockedStateUpsert = vi.mocked(prisma.onboardingState.upsert);
 const mockedStateUpdate = vi.mocked(prisma.onboardingState.update);
 
 const HORARIO_VALIDO = {
@@ -54,7 +55,7 @@ describe("GET /business/me/onboarding", () => {
 
   beforeEach(async () => {
     vi.clearAllMocks();
-    mockedStateFindUnique.mockResolvedValue({
+    mockedStateUpsert.mockResolvedValue({
       id: "onb_1",
       businessId: "biz_1",
       dismissedAt: null,
@@ -126,7 +127,7 @@ describe("GET /business/me/onboarding", () => {
   });
 
   it("acepta la confirmación manual del negocio aunque no haya llamadas todavía", async () => {
-    mockedStateFindUnique.mockResolvedValue({
+    mockedStateUpsert.mockResolvedValue({
       id: "onb_1",
       businessId: "biz_1",
       dismissedAt: null,
@@ -173,7 +174,7 @@ describe("POST /business/me/onboarding/confirm-forwarding", () => {
 
   beforeEach(async () => {
     vi.clearAllMocks();
-    mockedStateFindUnique.mockResolvedValue({
+    mockedStateUpsert.mockResolvedValue({
       id: "onb_1",
       businessId: "biz_1",
       forwardingConfirmedAt: null,

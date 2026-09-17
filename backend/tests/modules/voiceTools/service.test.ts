@@ -1059,6 +1059,10 @@ describe("executeVoiceTool cancel_appointment", () => {
       externalEventId: "evt_1",
       externalCalendarProvider: "google",
       externalCalendarId: "primary",
+      // La cancelación acota los avisos pendientes al hueco que libera, así
+      // que necesita saber cuándo y cuánto duraba la cita.
+      programedAt: new Date("2026-09-20T10:00:00+02:00"),
+      durationMinutes: 60,
       call: { fromNumber: "+34600999888" },
       ...overrides,
     };
@@ -1169,7 +1173,14 @@ describe("executeVoiceTool cancel_appointment", () => {
       process.env.TELNYX_MESSAGING_PROFILE_ID =
         process.env.TELNYX_MESSAGING_PROFILE_ID || "profile_test";
       process.env.WHATSAPP_TEMPLATE_SLOT_AVAILABLE_NAME = "hora_libre";
-      mockedBookingFindFirst.mockResolvedValue(buildOwnedBooking() as any);
+      // La cita cancelada ocupa exactamente la hora que el otro cliente
+      // esperaba: solo los avisos que pisan el hueco liberado se comprueban.
+      mockedBookingFindFirst.mockResolvedValue(
+        buildOwnedBooking({
+          programedAt: new Date(Date.now() + 24 * 60 * 60_000),
+          durationMinutes: 30,
+        }) as any
+      );
       mockedEnqueueWhatsappJob.mockResolvedValue(undefined);
     });
 
@@ -1218,6 +1229,35 @@ describe("executeVoiceTool cancel_appointment", () => {
       expect(mockedLeadUpdate).toHaveBeenCalledWith(
         expect.objectContaining({ where: { id: "lead_1" } })
       );
+    });
+
+    it("no consulta el calendario por avisos de otra hora distinta a la liberada", async () => {
+      // Aviso para pasado mañana; la cita cancelada es de mañana.
+      const otraHora = new Date(Date.now() + 48 * 60 * 60_000).toISOString();
+      mockedLeadFindMany.mockResolvedValue([
+        {
+          id: "lead_otro",
+          data: {
+            clientPhone: "+34611222333",
+            startDateTime: otraHora,
+            durationMinutes: 30,
+            serviceIds: [],
+            professionalId: null,
+          },
+        },
+      ] as any);
+
+      await executeVoiceTool({
+        businessId: "business_123",
+        toolName: "cancel_appointment",
+        params: { bookingId: "booking_1" },
+        callId: "call_vapi_1",
+      });
+
+      // Ni una llamada al calendario externo: el cliente está al teléfono
+      // esperando a que se le confirme la cancelación.
+      expect(mockedGetBusyIntervals).not.toHaveBeenCalled();
+      expect(mockedEnqueueWhatsappJob).not.toHaveBeenCalled();
     });
 
     it("no avisa ni marca resuelto si la hora pedida sigue sin estar disponible", async () => {

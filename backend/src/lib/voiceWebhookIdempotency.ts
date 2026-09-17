@@ -1,13 +1,7 @@
 import { prisma } from "./prisma.js";
+import { isUniqueConstraintError } from "./prismaErrors.js";
 
-function isUniqueConstraintError(error: unknown) {
-  return (
-    typeof error === "object" &&
-    error !== null &&
-    "code" in error &&
-    (error as { code?: unknown }).code === "P2002"
-  );
-}
+
 
 /**
  * Reclama un evento de webhook de voz para procesarlo exactamente una vez —
