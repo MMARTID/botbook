@@ -559,27 +559,8 @@ describe("TelnyxAiAdapter", () => {
     });
   });
 
-  describe("listRecordingsByCallControlId", () => {
-    it("filtra por call_control_id", async () => {
-      mockRecordingsList.mockReturnValue(
-        asyncIterableOf([{ id: "rec_1", call_control_id: "call_ctrl_1" }])
-      );
-
-      const result = await adapter.listRecordingsByCallControlId("call_ctrl_1");
-
-      expect(result).toEqual([
-        {
-          id: "rec_1",
-          callControlId: "call_ctrl_1",
-          callLegId: undefined,
-          downloadUrls: undefined,
-        },
-      ]);
-      expect(mockRecordingsList).toHaveBeenCalledWith({
-        filter: { call_control_id: "call_ctrl_1" },
-      });
-    });
-  });
+  // No hay test de "filtrar por call_control_id": la API de Telnyx ignora ese
+  // filtro (comprobado en la cuenta real el 2026-09-17) y el método se quitó.
 
   describe("listRecordingsByCallLegId", () => {
     it("filtra por call_leg_id — call.recording.saved no trae call_control_id", async () => {

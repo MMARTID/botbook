@@ -2,13 +2,85 @@ import { Readable, Transform } from "stream";
 import { prisma } from "../lib/prisma.js";
 import { uploadRecording } from "../lib/storage.js";
 import { ProcessRecordingJob } from "../lib/jobTypes.js";
+import { PermanentJobError } from "../lib/jobErrors.js";
+import { telnyxAiAdapter } from "../adapters/telnyx/TelnyxAiAdapter.js";
 
 const RECORDING_DOWNLOAD_TIMEOUT_MS = 5 * 60_000;
 const MAX_RECORDING_BYTES = 200 * 1024 * 1024;
 const MAX_RECORDING_REDIRECTS = 5;
 
+// Telnyx guarda el audio en S3 bajo `<conexión>/<fecha>/<call_leg_id>-<n>.wav`.
+// Las grabaciones anteriores a esta versión no tienen `providerLegId` en la
+// fila: el leg se rescata de esa ruta la primera vez y se persiste. Solo
+// UUIDs v1 (tercer grupo empieza por 1), que es lo que emite Telnyx.
+const LEG_EN_RUTA_DE_TELNYX =
+  /\/([0-9a-f]{8}-[0-9a-f]{4}-1[0-9a-f]{3}-[0-9a-f]{4}-[0-9a-f]{12})-\d+\.(?:wav|mp3)$/i;
+
 function esRedirect(response: Response): boolean {
   return response.status >= 300 && response.status < 400;
+}
+
+/** El origen contestó pero se negó a servir el audio (4xx/5xx). */
+class DescargaRechazadaError extends Error {
+  constructor(
+    readonly status: number,
+    statusText: string
+  ) {
+    super(`Failed to download recording: ${statusText || status}`);
+    this.name = "DescargaRechazadaError";
+  }
+}
+
+/**
+ * Un 4xx al descargar no se arregla repitiendo la misma URL: la firma ha
+ * caducado (S3 responde 403), el fichero ya no está (404/410) o la URL está
+ * mal (400). O se consigue una URL nueva o la grabación es irrecuperable.
+ */
+function esUrlAgotada(status: number): boolean {
+  return status === 400 || status === 403 || status === 404 || status === 410;
+}
+
+function legIdDesdeUrl(url: string): string | null {
+  try {
+    return new URL(url).pathname.match(LEG_EN_RUTA_DE_TELNYX)?.[1] ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Pide a Telnyx una URL de descarga fresca para la grabación de esta llamada.
+ * Devuelve null si no hay leg con el que preguntar o Telnyx ya no la tiene.
+ * Solo Telnyx: sus URLs firmadas caducan a los 10 minutos, y si el primer
+ * intento no llegó a tiempo (webhook con el backend caído, cola atascada)
+ * la grabación seguía en Telnyx pero nosotros la dábamos por perdida y la
+ * reintentábamos cada 15 minutos contra la misma URL muerta. Retell no
+ * necesita esto: sus URLs no caducan.
+ */
+async function pedirUrlNuevaATelnyx(
+  callId: string,
+  legConocido: string | null,
+  urlAntigua: string
+): Promise<string | null> {
+  const legId = legConocido ?? legIdDesdeUrl(urlAntigua);
+  if (!legId) return null;
+
+  const [grabacion] = await telnyxAiAdapter.listRecordingsByCallLegId(legId);
+  const urlNueva = grabacion?.downloadUrls?.mp3 ?? grabacion?.downloadUrls?.wav;
+  if (!urlNueva) return null;
+
+  await prisma.recording.update({
+    where: { callId },
+    data: { providerLegId: legId, externalUrl: urlNueva },
+  });
+  return urlNueva;
+}
+
+async function marcarIrrecuperable(callId: string, motivo: string): Promise<void> {
+  await prisma.recording.update({
+    where: { callId },
+    data: { processingFailedAt: new Date(), processingError: motivo },
+  });
 }
 
 /**
@@ -29,7 +101,7 @@ export async function processRecordingJob(data: ProcessRecordingJob): Promise<vo
       // R2 de un fichero que ya estaba guardado.
       prisma.recording.findFirst({
         where: { callId, deletedAt: null, storageKey: null },
-        select: { id: true },
+        select: { id: true, providerLegId: true, processingFailedAt: true },
       }),
     ]);
     if (!call) {
@@ -41,9 +113,36 @@ export async function processRecordingJob(data: ProcessRecordingJob): Promise<vo
       );
       return;
     }
+    if (pendingRecording.processingFailedAt) {
+      // Ya se dio por irrecuperable en un intento anterior; una tarea rezagada
+      // de Cloud Tasks no tiene por qué volver a preguntarle a Telnyx.
+      console.log(`[Job] La grabación de ${callId} ya está marcada como irrecuperable`);
+      return;
+    }
 
     console.log(`[Job] Downloading recording from: ${externalUrl}`);
-    const recording = await downloadRecording(externalUrl);
+    let recording: Awaited<ReturnType<typeof downloadRecording>>;
+    try {
+      recording = await downloadRecording(externalUrl);
+    } catch (error) {
+      if (!(error instanceof DescargaRechazadaError) || !esUrlAgotada(error.status)) {
+        throw error;
+      }
+      const urlNueva =
+        call.voiceProvider === "telnyx"
+          ? await pedirUrlNuevaATelnyx(callId, pendingRecording.providerLegId, externalUrl)
+          : null;
+      if (!urlNueva) {
+        const motivo = `El proveedor respondió ${error.status} al descargar y no hay grabación que volver a pedir`;
+        await marcarIrrecuperable(callId, motivo);
+        throw new PermanentJobError(
+          `[Job] Grabación de ${callId} irrecuperable: ${motivo}`,
+          "recording_unavailable"
+        );
+      }
+      console.log(`[Job] URL caducada (${error.status}); Telnyx ha dado una nueva para ${callId}`);
+      recording = await downloadRecording(urlNueva);
+    }
 
     // El negocio sale de la fila Call, no del payload del job: si ambos no
     // coincidieran, guardar bajo el prefijo del payload dejaría el audio de
@@ -65,7 +164,13 @@ export async function processRecordingJob(data: ProcessRecordingJob): Promise<vo
 
     console.log(`[Job] Recording successfully processed for call ${callId}`);
   } catch (error) {
-    console.error(`[Job] Error processing recording for call ${data.callId}:`, error);
+    if (error instanceof PermanentJobError) {
+      // Ya está marcada en la BD; la ruta interna responde 200 y Cloud Tasks
+      // no la repite. Es un aviso, no un error que investigar.
+      console.warn(error.message);
+    } else {
+      console.error(`[Job] Error processing recording for call ${data.callId}:`, error);
+    }
     throw error;
   }
 }
@@ -135,7 +240,7 @@ async function downloadRecording(url: string): Promise<{
     throw new Error("La descarga de la grabación encadenó demasiados redirects");
   }
   if (!response.ok) {
-    throw new Error(`Failed to download recording: ${response.statusText}`);
+    throw new DescargaRechazadaError(response.status, response.statusText);
   }
   if (!response.body) {
     throw new Error("Recording download returned an empty body");
