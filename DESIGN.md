@@ -332,9 +332,12 @@ en diagonal y se arruga con ruido de valor; de vez en cuando un pulso en el acen
 ondas de heydiga.com, con otra geometría y otro movimiento a propósito.
 
 El ratón no empuja los hilos "a pelo" como en la referencia: la tela es un campo masa-muelle
-(cada punto con muelle a reposo, tensión con sus vecinos del hilo y acoplamiento con los hilos
-contiguos), así que el cursor la aparta con inercia, una pasada rápida deja estela y la sacudida
-viaja por el hilo y se asienta sola. El cursor se sigue con `useSpring` de framer-motion y su
+(`hero-hilos-fisica.ts`: cada punto con muelle a reposo, tensión con sus vecinos del hilo y
+acoplamiento con los hilos contiguos), así que el cursor la aparta con inercia, una pasada rápida
+deja estela y la sacudida viaja por el hilo y se asienta sola. La integración lee los vecinos del
+estado anterior (doble buffer) y va a paso fijo de 1/120 s con subpasos: la primera versión
+actualizaba en el sitio y explotaba en Safari a 30 fps (modo de bajo consumo), mientras que en
+Chromium a 144 fps se veía perfecta — la estabilidad no puede depender de la tasa de refresco. El cursor se sigue con `useSpring` de framer-motion y su
 velocidad sale de `useVelocity`; ambos se leen con `.get()` dentro del bucle, sin re-render, y una
 `presencia` con muelle funde la influencia al entrar y salir del hero. Los hilos bajo el cursor se
 encienden en el acento con un degradado a lo largo del hilo (lámpara, no hilo entero). Mismas
