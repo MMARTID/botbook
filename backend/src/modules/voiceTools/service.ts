@@ -1,6 +1,7 @@
 import { prisma } from "../../lib/prisma.js";
 import { randomUUID, createHash } from "node:crypto";
 import { getRedis } from "../../lib/redis.js";
+import { claveDeCacheDeVoz } from "../../lib/voiceConfigCache.js";
 import {
   checkBusinessHours,
   checkBookingRestrictions,
@@ -12,6 +13,25 @@ import {
   type ExternalBusyInterval,
 } from "../../lib/availability.js";
 import { calendarService } from "../calendar/service.js";
+import {
+  conexionConfirmada,
+  conexionOperativa,
+  marcarCalendarioDesconectado,
+  origenDeCalendario,
+  resolverConexionDeCalendario,
+  SELECT_CONEXION_DE_CALENDARIO,
+  usaCalendarioExterno,
+  type FilaDeConexionDeCalendario,
+} from "../calendar/conexion.js";
+import {
+  DESCRIPTORES_DE_PROVEEDOR,
+  normalizarProveedorDeCalendario,
+} from "../../adapters/calendar/CalendarProvider.js";
+import {
+  codigoDeReconexion,
+  esCalendarBusinessError,
+  proveedorDesdeErrorDeReconexion,
+} from "../../adapters/calendar/errors.js";
 import { normalizeVoiceToolDateTime } from "../../lib/voiceDateTime.js";
 import { errorMessage } from "../../lib/logUtils.js";
 import { pendingBookingAlertEmail } from "../../lib/emailTemplates.js";
@@ -170,19 +190,14 @@ export interface ExecuteVoiceToolInput {
   callId?: string;
 }
 
-interface BusinessVoiceConfig {
+/** Las columnas de calendario vienen de FilaDeConexionDeCalendario: aquí
+ * nunca se leen por nombre, se pasan a resolverConexionDeCalendario. */
+type BusinessVoiceConfig = FilaDeConexionDeCalendario & {
   id: string;
   name: string;
   schedule: unknown;
   timezone: string;
   bookingCapacity: number;
-  calendarProvider: string | null;
-  googleRefreshToken: string | null;
-  googleCalendarId: string | null;
-  googleCalendarConnected: boolean | null;
-  outlookRefreshToken: string | null;
-  outlookCalendarId: string | null;
-  outlookCalendarConnected: boolean | null;
   minAdvanceBookingMinutes: number | null;
   maxAppointmentDurationMinutes: number | null;
   // Teléfono del propietario del negocio (no el número que usa Retell para
@@ -197,25 +212,7 @@ interface BusinessVoiceConfig {
   // reserva ante un estado explícito de "no está pagando" (ver
   // executeBookAppointment) — hallazgo #9 de la auditoría.
   subscriptionStatus: string | null;
-}
-
-function calendarOriginForBusiness(
-  business: Pick<
-    BusinessVoiceConfig,
-    "calendarProvider" | "googleCalendarId" | "outlookCalendarId"
-  >
-) {
-  if (business.calendarProvider === "outlook") {
-    return business.outlookCalendarId
-      ? { provider: "outlook" as const, calendarId: business.outlookCalendarId }
-      : null;
-  }
-
-  return {
-    provider: "google" as const,
-    calendarId: business.googleCalendarId || "primary",
-  };
-}
+};
 
 async function loadBusinessConfig(
   businessId: string
@@ -228,13 +225,7 @@ async function loadBusinessConfig(
       schedule: true,
       timezone: true,
       bookingCapacity: true,
-      calendarProvider: true,
-      googleRefreshToken: true,
-      googleCalendarId: true,
-      googleCalendarConnected: true,
-      outlookRefreshToken: true,
-      outlookCalendarId: true,
-      outlookCalendarConnected: true,
+      ...SELECT_CONEXION_DE_CALENDARIO,
       minAdvanceBookingMinutes: true,
       maxAppointmentDurationMinutes: true,
       phone: true,
@@ -244,32 +235,19 @@ async function loadBusinessConfig(
   });
 }
 
-function getVoiceConfigRedisKey(businessId: string): string {
-  return `voice_config:${businessId}`;
-}
-
 async function getCachedVoiceConfig(
   businessId: string
 ): Promise<BusinessVoiceConfig | null> {
   const redis = getRedis();
-  const redisKey = getVoiceConfigRedisKey(businessId);
+  const redisKey = claveDeCacheDeVoz(businessId);
 
   try {
     const cachedConfigStr = await redis.get(redisKey);
     if (cachedConfigStr) {
       const parsed = JSON.parse(cachedConfigStr) as BusinessVoiceConfig;
-      const provider =
-        parsed.calendarProvider === "outlook" ? "outlook" : "google";
-      const hasToken =
-        provider === "outlook"
-          ? !!parsed.outlookRefreshToken
-          : !!parsed.googleRefreshToken;
-      const connectedFlag =
-        provider === "outlook"
-          ? parsed.outlookCalendarConnected === true
-          : parsed.googleCalendarConnected === true;
-
-      if (hasToken && connectedFlag) {
+      // Token presente y flag === true: una entrada cacheada con el
+      // calendario roto se descarta para releer de BD.
+      if (conexionConfirmada(resolverConexionDeCalendario(parsed))) {
         return parsed;
       }
 
@@ -301,7 +279,7 @@ async function setCachedVoiceConfig(
   const redis = getRedis();
   try {
     await redis.set(
-      getVoiceConfigRedisKey(businessId),
+      claveDeCacheDeVoz(businessId),
       JSON.stringify(config),
       "EX",
       3600
@@ -411,14 +389,8 @@ async function fetchExternalBusyIntervals(
   if (Number.isNaN(start.getTime())) {
     return { intervals: [], calendarAvailabilityKnown: false };
   }
-  const provider =
-    business.calendarProvider === "outlook" ? "outlook" : "google";
   const result = await calendarService.getBusyIntervals({
-    provider,
-    googleRefreshToken: business.googleRefreshToken,
-    googleCalendarId: business.googleCalendarId,
-    outlookRefreshToken: business.outlookRefreshToken,
-    outlookCalendarId: business.outlookCalendarId,
+    conexion: resolverConexionDeCalendario(business),
     timeMin: start,
     timeMax: new Date(
       start.getTime() + computeAvailabilityLookaheadMs(durationMinutes)
@@ -430,15 +402,6 @@ async function fetchExternalBusyIntervals(
   return Array.isArray(result)
     ? { intervals: result, calendarAvailabilityKnown: false }
     : result;
-}
-
-/** ¿El negocio trabaja con un calendario externo conectado? Distingue el
- * "no hay nada que leer" (negocio sin calendario, funciona solo con nuestra
- * agenda) del "no he podido leerlo", que es una caída y no un permiso. */
-function tieneCalendarioConectado(business: BusinessVoiceConfig): boolean {
-  return business.calendarProvider === "outlook"
-    ? Boolean(business.outlookRefreshToken && business.outlookCalendarId)
-    : Boolean(business.googleRefreshToken);
 }
 
 async function executeCheckAvailability(
@@ -542,7 +505,9 @@ async function executeCheckAvailability(
       professionalId,
       externalBusyIntervals: externalBusy.intervals,
       calendarAvailabilityKnown: externalBusy.calendarAvailabilityKnown,
-      calendarOrigin: calendarOriginForBusiness(business),
+      calendarOrigin: origenDeCalendario(
+        resolverConexionDeCalendario(business)
+      ),
     });
 
     // Lo que se le devuelve al LLM no lleva los campos internos del ranking
@@ -1385,14 +1350,8 @@ async function executeBookAppointment(
       return invalidDurationResult();
     }
 
-    const provider =
-      business.calendarProvider === "outlook" ? "outlook" : "google";
-    const hasCalendarConnection =
-      provider === "outlook"
-        ? !!business.outlookRefreshToken &&
-          business.outlookCalendarConnected !== false
-        : !!business.googleRefreshToken &&
-          business.googleCalendarConnected !== false;
+    const conexion = resolverConexionDeCalendario(business);
+    const hasCalendarConnection = conexionOperativa(conexion);
 
     // Resuelto aquí arriba, antes de cualquier punto de fallo, para no
     // repetir la misma consulta a Call en cada uno de los tres sitios que
@@ -1403,12 +1362,8 @@ async function executeBookAppointment(
     const effectiveClientPhone = clientPhone || call?.fromNumber || undefined;
 
     if (!hasCalendarConnection) {
-      const reconnectCode =
-        provider === "outlook"
-          ? "OUTLOOK_CALENDAR_RECONNECT_REQUIRED"
-          : "GOOGLE_CALENDAR_RECONNECT_REQUIRED";
-      const providerLabel =
-        provider === "outlook" ? "Outlook Calendar" : "Google Calendar";
+      const reconnectCode = codigoDeReconexion(conexion.provider);
+      const providerLabel = DESCRIPTORES_DE_PROVEEDOR[conexion.provider].nombre;
       console.warn(
         `[VoiceTools] ${callLabel} no puede reservar: ${providerLabel} requiere reconexión`
       );
@@ -1551,7 +1506,9 @@ async function executeBookAppointment(
         professionalId: verifiedProfessionalId,
         externalBusyIntervals: externalBusy.intervals,
         calendarAvailabilityKnown: externalBusy.calendarAvailabilityKnown,
-        calendarOrigin: calendarOriginForBusiness(business),
+        calendarOrigin: origenDeCalendario(
+          resolverConexionDeCalendario(business)
+        ),
       });
 
       if (!availability.available) {
@@ -1569,8 +1526,11 @@ async function executeBookAppointment(
       // (5xx de Google, timeout). Confirmar aquí es reservar a ciegas: si el
       // dueño había metido una cita a mano en ese hueco, acabamos con dos
       // clientes a la misma hora. Se guarda como pendiente y se reintenta.
+      // ¿El negocio trabaja con un calendario externo? Distingue el "no hay
+      // nada que leer" (negocio sin calendario, funciona solo con nuestra
+      // agenda) del "no he podido leerlo", que es una caída y no un permiso.
       if (
-        tieneCalendarioConectado(business) &&
+        usaCalendarioExterno(conexion) &&
         !externalBusy.calendarAvailabilityKnown
       ) {
         console.warn(
@@ -1674,11 +1634,8 @@ async function executeBookAppointment(
           clientPhone: effectiveClientPhone,
           serviceNames: verifiedServiceNames,
           professionalName: resolvedProfessionalName,
-          provider,
-          googleRefreshToken: business.googleRefreshToken,
-          googleCalendarId: business.googleCalendarId,
-          outlookRefreshToken: business.outlookRefreshToken,
-          outlookCalendarId: business.outlookCalendarId,
+          conexion,
+          timezone: business.timezone,
           idempotencyKey: call
             ? buildCalendarIdempotencyKey({
                 callId: call.id,
@@ -1705,11 +1662,8 @@ async function executeBookAppointment(
               clientPhone: clientPhone || undefined,
               smsConsent,
               externalEventId: (result as { id?: string })?.id ?? undefined,
-              externalCalendarProvider: provider,
-              externalCalendarId:
-                provider === "outlook"
-                  ? business.outlookCalendarId
-                  : business.googleCalendarId || "primary",
+              externalCalendarProvider: conexion.provider,
+              externalCalendarId: conexion.calendarId,
             },
             update: {
               programedAt: new Date(startDateTime),
@@ -1720,11 +1674,8 @@ async function executeBookAppointment(
               clientPhone: clientPhone || undefined,
               smsConsent,
               externalEventId: (result as { id?: string })?.id ?? undefined,
-              externalCalendarProvider: provider,
-              externalCalendarId:
-                provider === "outlook"
-                  ? business.outlookCalendarId
-                  : business.googleCalendarId || "primary",
+              externalCalendarProvider: conexion.provider,
+              externalCalendarId: conexion.calendarId,
             },
           });
           } catch (errorAlGuardar) {
@@ -1738,11 +1689,7 @@ async function executeBookAppointment(
             if (eventoHuerfano) {
               try {
                 await calendarService.cancelAppointment({
-                  provider,
-                  googleRefreshToken: business.googleRefreshToken,
-                  googleCalendarId: business.googleCalendarId,
-                  outlookRefreshToken: business.outlookRefreshToken,
-                  outlookCalendarId: business.outlookCalendarId,
+                  conexion,
                   eventId: eventoHuerfano,
                 });
               } catch (errorAlBorrar) {
@@ -1767,17 +1714,15 @@ async function executeBookAppointment(
           reservaPrevia.externalEventId !== eventoNuevoId
         ) {
           try {
+            // `|| undefined`: sin calendario guardado en la reserva previa
+            // se cae a la columna del negocio, como siempre.
             await calendarService.cancelAppointment({
-              provider:
-                reservaPrevia.externalCalendarProvider === "outlook"
-                  ? "outlook"
-                  : "google",
-              googleRefreshToken: business.googleRefreshToken,
-              googleCalendarId:
-                reservaPrevia.externalCalendarId || business.googleCalendarId,
-              outlookRefreshToken: business.outlookRefreshToken,
-              outlookCalendarId:
-                reservaPrevia.externalCalendarId || business.outlookCalendarId,
+              conexion: resolverConexionDeCalendario(business, {
+                provider: normalizarProveedorDeCalendario(
+                  reservaPrevia.externalCalendarProvider
+                ),
+                calendarId: reservaPrevia.externalCalendarId || undefined,
+              }),
               eventId: reservaPrevia.externalEventId,
             });
           } catch (error) {
@@ -1915,53 +1860,17 @@ async function executeBookAppointment(
           },
         };
       } catch (error) {
-        const e = error as any;
-        if (
-          e?.name === "CalendarBusinessError" &&
-          (e?.code === "GOOGLE_CALENDAR_RECONNECT_REQUIRED" ||
-            e?.code === "OUTLOOK_CALENDAR_RECONNECT_REQUIRED")
-        ) {
-          const errorProvider =
-            e?.code === "OUTLOOK_CALENDAR_RECONNECT_REQUIRED"
-              ? "outlook"
-              : "google";
-          try {
-            await prisma.business.update({
-              where: { id: business.id },
-              data:
-                errorProvider === "outlook"
-                  ? {
-                      outlookCalendarConnected: false,
-                      outlookRefreshToken: null,
-                      outlookCalendarDisconnectedAt: new Date(),
-                      outlookCalendarLastError: "invalid_grant",
-                    }
-                  : {
-                      googleCalendarConnected: false,
-                      googleRefreshToken: null,
-                      googleCalendarDisconnectedAt: new Date(),
-                      googleCalendarLastError: "invalid_grant",
-                    },
-            });
-          } catch (dbErr) {
-            console.error(
-              `[VoiceTools] No se pudo actualizar el estado de ${
-                errorProvider === "outlook"
-                  ? "Outlook Calendar"
-                  : "Google Calendar"
-              }: ${errorMessage(dbErr)}`
-            );
-          }
-
-          try {
-            await getRedis().del(getVoiceConfigRedisKey(business.id));
-          } catch (redisErr) {
-            console.error(
-              `[VoiceTools] No se pudo invalidar la caché de calendario: ${errorMessage(
-                redisErr
-              )}`
-            );
-          }
+        const proveedorRoto = proveedorDesdeErrorDeReconexion(error);
+        if (proveedorRoto) {
+          // El token ya fue rechazado (invalid_grant): se marca desconectado,
+          // se anula el refresh token y se invalida la caché de voz.
+          await marcarCalendarioDesconectado(
+            business.id,
+            proveedorRoto,
+            { modo: "revocar" },
+            { prefijo: "[VoiceTools]" }
+          );
+          const codigoReconexion = codigoDeReconexion(proveedorRoto);
 
           // Reconectar el calendario requiere una acción manual del negocio:
           // guardamos la solicitud pero NO la reintentamos sola en segundo plano.
@@ -1975,7 +1884,7 @@ async function executeBookAppointment(
             durationMinutes: effectiveDuration,
             serviceIds: verifiedServiceIds,
             professionalId: resolvedProfessionalId,
-            failureCode: e.code,
+            failureCode: codigoReconexion,
             callLabel,
           });
 
@@ -1983,11 +1892,9 @@ async function executeBookAppointment(
             success: true,
             result: {
               success: false,
-              code: e.code,
+              code: codigoReconexion,
               message:
-                (errorProvider === "outlook"
-                  ? "No pude acceder al calendario del negocio porque la conexión con Outlook expiró o fue revocada."
-                  : "No pude acceder al calendario del negocio porque la conexión con Google expiró o fue revocada.") +
+                `No pude acceder al calendario del negocio porque la conexión con ${DESCRIPTORES_DE_PROVEEDOR[proveedorRoto].nombreCorto} expiró o fue revocada.` +
                 (leadReconexion
                   ? " He tomado nota de tu solicitud para confirmártela en cuanto el negocio la reconecte."
                   : mensajeDeSeguimiento(null, business.phone)),
@@ -2000,13 +1907,12 @@ async function executeBookAppointment(
         // degradamos a un mensaje hablable y dejamos la solicitud guardada para
         // reintento automático en segundo plano, porque estos sí pueden ser
         // transitorios.
-        const code =
-          e?.name === "CalendarBusinessError"
-            ? e.code
-            : "BOOK_APPOINTMENT_UNEXPECTED_ERROR";
+        const code = esCalendarBusinessError(error)
+          ? error.code
+          : "BOOK_APPOINTMENT_UNEXPECTED_ERROR";
         const baseMessage =
-          e?.name === "CalendarBusinessError" && typeof e.message === "string"
-            ? e.message
+          esCalendarBusinessError(error) && typeof error.message === "string"
+            ? error.message
             : "No pude agendar la cita en este momento.";
         console.error(
           `[VoiceTools] ${callLabel} no pudo agendar la cita (${code}): ${errorMessage(error)}`
@@ -2328,7 +2234,9 @@ async function notifyPendingAvailabilityWatchers(
         professionalId: data.professionalId ?? undefined,
         externalBusyIntervals: externalBusy.intervals,
         calendarAvailabilityKnown: externalBusy.calendarAvailabilityKnown,
-        calendarOrigin: calendarOriginForBusiness(business),
+        calendarOrigin: origenDeCalendario(
+          resolverConexionDeCalendario(business)
+        ),
       });
 
       if (!availability.available) continue;
@@ -2442,13 +2350,15 @@ async function executeCancelAppointment(
 
   if (booking.externalEventId && booking.externalCalendarProvider) {
     try {
+      // Se cancela contra el proveedor y el calendario con los que se creó
+      // la reserva, aunque el negocio haya cambiado de proveedor después.
       await calendarService.cancelAppointment({
-        provider:
-          booking.externalCalendarProvider === "outlook" ? "outlook" : "google",
-        googleRefreshToken: business.googleRefreshToken,
-        googleCalendarId: booking.externalCalendarId,
-        outlookRefreshToken: business.outlookRefreshToken,
-        outlookCalendarId: booking.externalCalendarId,
+        conexion: resolverConexionDeCalendario(business, {
+          provider: normalizarProveedorDeCalendario(
+            booking.externalCalendarProvider
+          ),
+          calendarId: booking.externalCalendarId,
+        }),
         eventId: booking.externalEventId,
       });
     } catch (error) {

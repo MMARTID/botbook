@@ -1084,7 +1084,10 @@ describe("executeVoiceTool cancel_appointment", () => {
       data: { isCancelled: true },
     });
     expect(mockedCancelAppointment).toHaveBeenCalledWith(
-      expect.objectContaining({ provider: "google", eventId: "evt_1" })
+      expect.objectContaining({
+        conexion: expect.objectContaining({ provider: "google" }),
+        eventId: "evt_1",
+      })
     );
   });
 

@@ -1,5 +1,6 @@
 import { prisma } from "./prisma.js";
 import { checkBusinessHours } from "./businessSchedule.js";
+import type { CalendarProviderId } from "../adapters/calendar/CalendarProvider.js";
 
 export type AvailableProfessional = {
   id: string;
@@ -111,7 +112,7 @@ export type ExternalBusyInterval = {
 };
 
 export type CalendarOrigin = {
-  provider: "google" | "outlook";
+  provider: CalendarProviderId;
   calendarId: string;
 };
 

@@ -1,7 +1,7 @@
-import { getRedis } from "../../lib/redis.js";
 import { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import { z } from "zod";
 import { prisma } from "../../lib/prisma.js";
+import { invalidarCacheDeVoz } from "../../lib/voiceConfigCache.js";
 import { BusinessScheduleSchema } from "../../lib/businessSchedule.js";
 import { calendarService } from "../calendar/service.js";
 import { AgentSettingsSchema, buildManagedAgentPrompt, parseAgentSettings } from "../../lib/managedAgentPrompt.js";
@@ -382,11 +382,7 @@ export async function businessesRoutes(fastify: FastifyInstance) {
           // antiguo hasta que el caché de 1h expire por su cuenta.
           data.phone !== undefined
         ) {
-          try {
-            await getRedis().del(`voice_config:${request.user!.businessId}`);
-          } catch (err) {
-            fastify.log.error({ err }, 'Failed to invalidate Redis cache for business voice config');
-          }
+          await invalidarCacheDeVoz(request.user!.businessId);
         }
 
         const { googleRefreshToken, outlookRefreshToken, ...publicBusiness } = business;

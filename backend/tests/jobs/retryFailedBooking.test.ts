@@ -126,7 +126,10 @@ describe("processRetryFailedBookingJob", () => {
       availableProfessionals: [{ id: "pro_1", name: "Montse" }],
     } as any);
     mockedAcquireBookingLock.mockResolvedValue("lock-token");
-    mockedGetBusyIntervals.mockResolvedValue([]);
+    mockedGetBusyIntervals.mockResolvedValue({
+      intervals: [],
+      calendarAvailabilityKnown: true,
+    });
     mockedReleaseBookingLock.mockResolvedValue(undefined);
     mockRedisClient.del.mockResolvedValue(1);
     mockedBusinessUpdate.mockResolvedValue({} as any);
@@ -232,8 +235,10 @@ describe("processRetryFailedBookingJob", () => {
         clientPhone: "+34600123456",
         serviceNames: ["Corte"],
         professionalName: "Montse",
-        provider: "google",
-        googleRefreshToken: "google_refresh_token",
+        conexion: expect.objectContaining({
+          provider: "google",
+          credentials: { provider: "google", refreshToken: "google_refresh_token" },
+        }),
       })
     );
     expect(mockUpsert).toHaveBeenCalledWith(
@@ -268,7 +273,12 @@ describe("processRetryFailedBookingJob", () => {
     await processRetryFailedBookingJob({ leadId });
 
     expect(mockedBookAppointment).toHaveBeenCalledWith(
-      expect.objectContaining({ provider: "outlook", outlookRefreshToken: "outlook_refresh_token" })
+      expect.objectContaining({
+        conexion: expect.objectContaining({
+          provider: "outlook",
+          credentials: { provider: "outlook", refreshToken: "outlook_refresh_token" },
+        }),
+      })
     );
   });
 

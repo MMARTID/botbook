@@ -9,6 +9,10 @@ import { retellAdapter } from "../../../src/adapters/retell/RetellAdapter.js";
 import { getPublicWebhookBaseUrl } from "../../../src/lib/serverUrl.js";
 import { getRedis } from "../../../src/lib/redis.js";
 import { syncAgentToTelnyx } from "../../../src/lib/telnyxAgentSync.js";
+import {
+  resolverConexionDeCalendario,
+  type FilaDeConexionDeCalendario,
+} from "../../../src/modules/calendar/conexion.js";
 import { google } from "googleapis";
 
 vi.mock("../../../src/lib/prisma.js", () => ({
@@ -64,6 +68,7 @@ vi.mock("googleapis", () => ({
 
 vi.mock("../../../src/lib/microsoftGraph.js", () => ({
   createMicrosoftCalendarEvent: vi.fn(),
+  deleteMicrosoftCalendarEvent: vi.fn(),
   exchangeMicrosoftCode: vi.fn(),
   getMicrosoftAuthUrl: vi.fn(),
   getMicrosoftProfile: vi.fn(),
@@ -94,6 +99,23 @@ const mockedGetPublicWebhookBaseUrl = vi.mocked(getPublicWebhookBaseUrl);
 const mockedGoogleCalendar = vi.mocked(google.calendar);
 const mockedGetRedis = vi.mocked(getRedis);
 const mockedSyncAgentToTelnyx = vi.mocked(syncAgentToTelnyx);
+
+/** Conexión de prueba pasando por el resolver REAL de conexion.ts (misma
+ * resolución que usarán voiceTools, el job y las rutas): así los tests nuevos
+ * fijan también el default "primary" de Google y el `null` de Outlook sin
+ * calendario elegido. */
+function conexionDePrueba(fila: Partial<FilaDeConexionDeCalendario>) {
+  return resolverConexionDeCalendario({
+    calendarProvider: null,
+    googleRefreshToken: null,
+    googleCalendarId: null,
+    googleCalendarConnected: null,
+    outlookRefreshToken: null,
+    outlookCalendarId: null,
+    outlookCalendarConnected: null,
+    ...fila,
+  });
+}
 
 describe("isGoogleInvalidGrantError", () => {
   it("detecta invalid_grant en el mensaje del error", () => {
@@ -136,9 +158,11 @@ describe("CalendarService.bookAppointment", () => {
       startDateTime: "2026-08-10T10:00:00Z",
       durationMinutes: 60,
       clientEmail: "maria@example.com",
-      provider: "google",
-      googleRefreshToken: "refresh_token_123",
-      googleCalendarId: "primary",
+      conexion: conexionDePrueba({
+        calendarProvider: "google",
+        googleRefreshToken: "refresh_token_123",
+        googleCalendarId: "primary",
+      }),
     });
 
     expect(result.htmlLink).toBe("https://calendar.google.com/event/1");
@@ -167,9 +191,11 @@ describe("CalendarService.bookAppointment", () => {
       clientName: "María",
       startDateTime: "2026-08-10T10:00:00Z",
       durationMinutes: 60,
-      provider: "google",
-      googleRefreshToken: "refresh_token_123",
-      googleCalendarId: "primary",
+      conexion: conexionDePrueba({
+        calendarProvider: "google",
+        googleRefreshToken: "refresh_token_123",
+        googleCalendarId: "primary",
+      }),
       idempotencyKey: "call_123:2026-08-10T10:00:00Z:60",
     });
 
@@ -216,9 +242,11 @@ describe("CalendarService.bookAppointment", () => {
         professionalName: "Montse",
         startDateTime: "2026-08-10T10:00:00Z",
         durationMinutes: 60,
-        provider: "google",
-        googleRefreshToken: "refresh_token_123",
-        googleCalendarId: "primary",
+        conexion: conexionDePrueba({
+          calendarProvider: "google",
+          googleRefreshToken: "refresh_token_123",
+          googleCalendarId: "primary",
+        }),
       });
 
       expect(insertMock).toHaveBeenCalledWith(
@@ -255,7 +283,9 @@ describe("CalendarService.bookAppointment", () => {
         clientName: "María",
         startDateTime: "2026-08-10T10:00:00Z",
         durationMinutes: 60,
-        provider: "google",
+        conexion: conexionDePrueba({
+          calendarProvider: "google",
+        }),
       })
     ).rejects.toThrow(CalendarBusinessError);
 
@@ -264,7 +294,9 @@ describe("CalendarService.bookAppointment", () => {
         clientName: "María",
         startDateTime: "2026-08-10T10:00:00Z",
         durationMinutes: 60,
-        provider: "google",
+        conexion: conexionDePrueba({
+          calendarProvider: "google",
+        }),
       });
     } catch (error) {
       expect((error as CalendarBusinessError).code).toBe("GOOGLE_CALENDAR_RECONNECT_REQUIRED");
@@ -284,8 +316,10 @@ describe("CalendarService.bookAppointment", () => {
         clientName: "María",
         startDateTime: "2026-08-10T10:00:00Z",
         durationMinutes: 60,
-        provider: "google",
-        googleRefreshToken: "refresh_token_123",
+        conexion: conexionDePrueba({
+          calendarProvider: "google",
+          googleRefreshToken: "refresh_token_123",
+        }),
       })
     ).rejects.toThrow(CalendarBusinessError);
   });
@@ -303,8 +337,10 @@ describe("CalendarService.bookAppointment", () => {
         clientName: "María",
         startDateTime: "2026-08-10T10:00:00Z",
         durationMinutes: 60,
-        provider: "google",
-        googleRefreshToken: "refresh_token_123",
+        conexion: conexionDePrueba({
+          calendarProvider: "google",
+          googleRefreshToken: "refresh_token_123",
+        }),
       })
     ).rejects.toThrow(CalendarBusinessError);
 
@@ -313,8 +349,10 @@ describe("CalendarService.bookAppointment", () => {
         clientName: "María",
         startDateTime: "2026-08-10T10:00:00Z",
         durationMinutes: 60,
-        provider: "google",
-        googleRefreshToken: "refresh_token_123",
+        conexion: conexionDePrueba({
+          calendarProvider: "google",
+          googleRefreshToken: "refresh_token_123",
+        }),
       });
     } catch (error) {
       expect((error as CalendarBusinessError).code).toBe("BOOK_APPOINTMENT_FAILED");
@@ -344,9 +382,11 @@ describe("CalendarService.bookAppointment", () => {
         professionalName: "Montse",
         startDateTime: "2026-08-10T10:00:00Z",
         durationMinutes: 60,
-        provider: "outlook",
-        outlookRefreshToken: "refresh_token_123",
-        outlookCalendarId: "calendar_123",
+        conexion: conexionDePrueba({
+          calendarProvider: "outlook",
+          outlookRefreshToken: "refresh_token_123",
+          outlookCalendarId: "calendar_123",
+        }),
       });
 
       expect(createMicrosoftCalendarEvent).toHaveBeenCalledWith(
@@ -385,9 +425,11 @@ describe("CalendarService.bookAppointment", () => {
         clientName: "María",
         startDateTime: "2026-08-10T10:00:00Z",
         durationMinutes: 60,
-        provider: "google",
-        googleRefreshToken: "refresh_token_123",
-        googleCalendarId: "primary",
+        conexion: conexionDePrueba({
+          calendarProvider: "google",
+          googleRefreshToken: "refresh_token_123",
+          googleCalendarId: "primary",
+        }),
       });
 
       expect(insertMock).toHaveBeenCalledWith(
@@ -424,9 +466,11 @@ describe("CalendarService.bookAppointment", () => {
         clientName: "María",
         startDateTime: "2026-10-01T10:00:00Z", // >4 semanas después del "ahora" fijado
         durationMinutes: 60,
-        provider: "google",
-        googleRefreshToken: "refresh_token_123",
-        googleCalendarId: "primary",
+        conexion: conexionDePrueba({
+          calendarProvider: "google",
+          googleRefreshToken: "refresh_token_123",
+          googleCalendarId: "primary",
+        }),
       });
 
       expect(insertMock).toHaveBeenCalledWith(
@@ -462,9 +506,11 @@ describe("CalendarService.bookAppointment", () => {
         clientName: "María",
         startDateTime: "2026-10-01T10:00:00Z",
         durationMinutes: 60,
-        provider: "outlook",
-        outlookRefreshToken: "refresh_token_123",
-        outlookCalendarId: "calendar_123",
+        conexion: conexionDePrueba({
+          calendarProvider: "outlook",
+          outlookRefreshToken: "refresh_token_123",
+          outlookCalendarId: "calendar_123",
+        }),
       });
 
       expect(createMicrosoftCalendarEvent).toHaveBeenCalledWith(
@@ -490,9 +536,11 @@ describe("CalendarService.bookAppointment", () => {
         clientName: "María",
         startDateTime: "2026-08-10T10:00:00Z",
         durationMinutes: 60,
-        provider: "outlook",
-        outlookRefreshToken: "refresh_token_123",
-        outlookCalendarId: "calendar_123",
+        conexion: conexionDePrueba({
+          calendarProvider: "outlook",
+          outlookRefreshToken: "refresh_token_123",
+          outlookCalendarId: "calendar_123",
+        }),
       });
       expect.fail("debía lanzar");
     } catch (error) {
@@ -513,9 +561,11 @@ describe("CalendarService.bookAppointment", () => {
         clientName: "María",
         startDateTime: "2026-08-10T10:00:00Z",
         durationMinutes: 60,
-        provider: "outlook",
-        outlookRefreshToken: "refresh_token_123",
-        outlookCalendarId: "calendar_123",
+        conexion: conexionDePrueba({
+          calendarProvider: "outlook",
+          outlookRefreshToken: "refresh_token_123",
+          outlookCalendarId: "calendar_123",
+        }),
       });
       expect.fail("debía lanzar");
     } catch (error) {
@@ -552,10 +602,13 @@ describe("CalendarService.getUpcomingEvents", () => {
       },
     } as any);
 
-    const events = await calendarService.getUpcomingEvents("google", {
-      googleRefreshToken: "refresh_token_123",
-      googleCalendarId: "primary",
-    });
+    const events = await calendarService.getUpcomingEvents(
+      conexionDePrueba({
+        calendarProvider: "google",
+        googleRefreshToken: "refresh_token_123",
+        googleCalendarId: "primary",
+      })
+    );
 
     expect(events).toHaveLength(1);
     expect(events[0].summary).toBe("Cita 1");
@@ -563,7 +616,9 @@ describe("CalendarService.getUpcomingEvents", () => {
 
   it("lanza GOOGLE_CALENDAR_RECONNECT_REQUIRED si falta refresh token", async () => {
     await expect(
-      calendarService.getUpcomingEvents("google", {})
+      calendarService.getUpcomingEvents(
+        conexionDePrueba({ calendarProvider: "google" })
+      )
     ).rejects.toThrow(CalendarBusinessError);
   });
 });
@@ -703,9 +758,11 @@ describe("CalendarService.getBusyIntervals", () => {
     } as any);
 
     const busy = await calendarService.getBusyIntervals({
-      provider: "google",
-      googleRefreshToken: "refresh_token_123",
-      googleCalendarId: null,
+      conexion: conexionDePrueba({
+        calendarProvider: "google",
+        googleRefreshToken: "refresh_token_123",
+        googleCalendarId: null,
+      }),
       timeMin,
       timeMax,
     });
@@ -736,9 +793,11 @@ describe("CalendarService.getBusyIntervals", () => {
     } as any);
 
     const busy = await calendarService.getBusyIntervals({
-      provider: "google",
-      googleRefreshToken: "refresh_token_123",
-      googleCalendarId: null,
+      conexion: conexionDePrueba({
+        calendarProvider: "google",
+        googleRefreshToken: "refresh_token_123",
+        googleCalendarId: null,
+      }),
       timeMin: new Date(),
       timeMax: new Date(),
     });
@@ -748,9 +807,11 @@ describe("CalendarService.getBusyIntervals", () => {
 
   it("Google: devuelve [] sin llamar a la API si el negocio no tiene refresh token", async () => {
     const busy = await calendarService.getBusyIntervals({
-      provider: "google",
-      googleRefreshToken: null,
-      googleCalendarId: null,
+      conexion: conexionDePrueba({
+        calendarProvider: "google",
+        googleRefreshToken: null,
+        googleCalendarId: null,
+      }),
       timeMin: new Date(),
       timeMax: new Date(),
     });
@@ -767,9 +828,11 @@ describe("CalendarService.getBusyIntervals", () => {
     const timeMin = new Date("2026-08-10T09:00:00Z");
     const timeMax = new Date("2026-08-10T14:00:00Z");
     const busy = await calendarService.getBusyIntervals({
-      provider: "outlook",
-      outlookRefreshToken: "refresh_token_123",
-      outlookCalendarId: "calendar_1",
+      conexion: conexionDePrueba({
+        calendarProvider: "outlook",
+        outlookRefreshToken: "refresh_token_123",
+        outlookCalendarId: "calendar_1",
+      }),
       timeMin,
       timeMax,
     });
@@ -780,9 +843,11 @@ describe("CalendarService.getBusyIntervals", () => {
 
   it("Outlook: devuelve [] sin llamar a Graph si no hay calendario conectado", async () => {
     const busy = await calendarService.getBusyIntervals({
-      provider: "outlook",
-      outlookRefreshToken: null,
-      outlookCalendarId: null,
+      conexion: conexionDePrueba({
+        calendarProvider: "outlook",
+        outlookRefreshToken: null,
+        outlookCalendarId: null,
+      }),
       timeMin: new Date(),
       timeMax: new Date(),
     });
@@ -795,9 +860,11 @@ describe("CalendarService.getBusyIntervals", () => {
     vi.mocked(refreshMicrosoftAccessToken).mockRejectedValue(new Error("invalid_grant"));
 
     const busy = await calendarService.getBusyIntervals({
-      provider: "outlook",
-      outlookRefreshToken: "refresh_token_123",
-      outlookCalendarId: "calendar_1",
+      conexion: conexionDePrueba({
+        calendarProvider: "outlook",
+        outlookRefreshToken: "refresh_token_123",
+        outlookCalendarId: "calendar_1",
+      }),
       timeMin: new Date(),
       timeMax: new Date(),
     });
@@ -1197,5 +1264,474 @@ describe("CalendarService.syncCalendarToolsToAgents", () => {
     await expect(
       calendarService.syncCalendarToolsToAgents("business_123", { strict: true })
     ).rejects.toThrow("No se pudieron sincronizar las tools de calendario");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Tests aditivos del refactor CalendarProvider: usan ya la forma `conexion`
+// (CalendarConnection resuelta por conexion.ts) en vez de las columnas planas.
+// ---------------------------------------------------------------------------
+
+describe("CalendarService.cancelAppointment", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    process.env.GOOGLE_CLIENT_ID = "client_id";
+    process.env.GOOGLE_CLIENT_SECRET = "client_secret";
+    process.env.GOOGLE_REDIRECT_URI = "http://localhost/callback";
+  });
+
+  const conexionGoogle = () =>
+    conexionDePrueba({
+      calendarProvider: "google",
+      googleRefreshToken: "refresh_token_123",
+      googleCalendarId: "cal_google",
+    });
+
+  it("Google: borra el evento del calendario de la conexión con timeout", async () => {
+    const deleteMock = vi.fn().mockResolvedValue({});
+    mockedGoogleCalendar.mockReturnValue({
+      events: { insert: vi.fn(), list: vi.fn(), delete: deleteMock },
+    } as any);
+
+    await expect(
+      calendarService.cancelAppointment({
+        conexion: conexionGoogle(),
+        eventId: "evt_1",
+      })
+    ).resolves.toBeUndefined();
+
+    expect(deleteMock).toHaveBeenCalledWith(
+      { calendarId: "cal_google", eventId: "evt_1" },
+      expect.objectContaining({ timeout: expect.any(Number) })
+    );
+  });
+
+  it.each([404, 410])(
+    "Google: un evento ya borrado (%i) cuenta como éxito idempotente",
+    async (code) => {
+      mockedGoogleCalendar.mockReturnValue({
+        events: {
+          insert: vi.fn(),
+          list: vi.fn(),
+          delete: vi
+            .fn()
+            .mockRejectedValue(Object.assign(new Error("Gone"), { code })),
+        },
+      } as any);
+
+      await expect(
+        calendarService.cancelAppointment({
+          conexion: conexionGoogle(),
+          eventId: "evt_1",
+        })
+      ).resolves.toBeUndefined();
+    }
+  );
+
+  it("Google: lanza GOOGLE_CALENDAR_RECONNECT_REQUIRED ante invalid_grant", async () => {
+    mockedGoogleCalendar.mockReturnValue({
+      events: {
+        insert: vi.fn(),
+        list: vi.fn(),
+        delete: vi.fn().mockRejectedValue(new Error("invalid_grant")),
+      },
+    } as any);
+
+    try {
+      await calendarService.cancelAppointment({
+        conexion: conexionGoogle(),
+        eventId: "evt_1",
+      });
+      expect.fail("debía lanzar");
+    } catch (error) {
+      expect(error).toBeInstanceOf(CalendarBusinessError);
+      expect((error as CalendarBusinessError).code).toBe(
+        "GOOGLE_CALENDAR_RECONNECT_REQUIRED"
+      );
+      expect((error as CalendarBusinessError).provider).toBe("google");
+    }
+  });
+
+  it("Google: lanza CANCEL_APPOINTMENT_FAILED ante un error genérico", async () => {
+    mockedGoogleCalendar.mockReturnValue({
+      events: {
+        insert: vi.fn(),
+        list: vi.fn(),
+        delete: vi.fn().mockRejectedValue(new Error("Backend Error")),
+      },
+    } as any);
+
+    try {
+      await calendarService.cancelAppointment({
+        conexion: conexionGoogle(),
+        eventId: "evt_1",
+      });
+      expect.fail("debía lanzar");
+    } catch (error) {
+      expect((error as CalendarBusinessError).code).toBe(
+        "CANCEL_APPOINTMENT_FAILED"
+      );
+    }
+  });
+
+  it("Google: sin credenciales lanza RECONNECT sin llamar a la API", async () => {
+    const deleteMock = vi.fn();
+    mockedGoogleCalendar.mockReturnValue({
+      events: { insert: vi.fn(), list: vi.fn(), delete: deleteMock },
+    } as any);
+
+    try {
+      await calendarService.cancelAppointment({
+        conexion: conexionDePrueba({ calendarProvider: "google" }),
+        eventId: "evt_1",
+      });
+      expect.fail("debía lanzar");
+    } catch (error) {
+      expect((error as CalendarBusinessError).code).toBe(
+        "GOOGLE_CALENDAR_RECONNECT_REQUIRED"
+      );
+      expect((error as CalendarBusinessError).message).toBe(
+        "El negocio no tiene conectado Google Calendar."
+      );
+    }
+    expect(deleteMock).not.toHaveBeenCalled();
+    expect(mockedGoogleCalendar).not.toHaveBeenCalled();
+  });
+
+  it("Outlook: borra el evento con el access token renovado y trata el 404 como éxito", async () => {
+    const { refreshMicrosoftAccessToken, deleteMicrosoftCalendarEvent } =
+      await import("../../../src/lib/microsoftGraph.js");
+    vi.mocked(refreshMicrosoftAccessToken).mockResolvedValue({
+      access_token: "access_123",
+    } as any);
+    vi.mocked(deleteMicrosoftCalendarEvent).mockRejectedValue(
+      Object.assign(new Error("Microsoft Graph request failed: 404"), {
+        status: 404,
+      })
+    );
+
+    await expect(
+      calendarService.cancelAppointment({
+        conexion: conexionDePrueba({
+          calendarProvider: "outlook",
+          outlookRefreshToken: "refresh_token_123",
+          outlookCalendarId: "cal_outlook",
+        }),
+        eventId: "evt_1",
+      })
+    ).resolves.toBeUndefined();
+
+    expect(deleteMicrosoftCalendarEvent).toHaveBeenCalledWith(
+      "access_123",
+      "cal_outlook",
+      "evt_1"
+    );
+  });
+
+  it("Outlook: lanza OUTLOOK_CALENDAR_RECONNECT_REQUIRED si el refresh devuelve invalid_grant", async () => {
+    const { refreshMicrosoftAccessToken, deleteMicrosoftCalendarEvent } =
+      await import("../../../src/lib/microsoftGraph.js");
+    vi.mocked(refreshMicrosoftAccessToken).mockRejectedValue(
+      Object.assign(
+        new Error("Microsoft token refresh failed: 400 | invalid_grant"),
+        { status: 400, oauthErrorCode: "invalid_grant" }
+      )
+    );
+
+    try {
+      await calendarService.cancelAppointment({
+        conexion: conexionDePrueba({
+          calendarProvider: "outlook",
+          outlookRefreshToken: "refresh_token_123",
+          outlookCalendarId: "cal_outlook",
+        }),
+        eventId: "evt_1",
+      });
+      expect.fail("debía lanzar");
+    } catch (error) {
+      expect((error as CalendarBusinessError).code).toBe(
+        "OUTLOOK_CALENDAR_RECONNECT_REQUIRED"
+      );
+    }
+    expect(deleteMicrosoftCalendarEvent).not.toHaveBeenCalled();
+  });
+
+  it("Outlook: con token pero sin calendario elegido lanza RECONNECT sin tocar Graph", async () => {
+    const { refreshMicrosoftAccessToken } =
+      await import("../../../src/lib/microsoftGraph.js");
+
+    try {
+      await calendarService.cancelAppointment({
+        conexion: conexionDePrueba({
+          calendarProvider: "outlook",
+          outlookRefreshToken: "refresh_token_123",
+          outlookCalendarId: null,
+        }),
+        eventId: "evt_1",
+      });
+      expect.fail("debía lanzar");
+    } catch (error) {
+      expect((error as CalendarBusinessError).code).toBe(
+        "OUTLOOK_CALENDAR_RECONNECT_REQUIRED"
+      );
+      expect((error as CalendarBusinessError).message).toBe(
+        "El negocio no tiene conectado Outlook Calendar."
+      );
+    }
+    expect(refreshMicrosoftAccessToken).not.toHaveBeenCalled();
+  });
+});
+
+describe("CalendarService.getBusyIntervals (conexión resuelta)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    process.env.GOOGLE_CLIENT_ID = "client_id";
+    process.env.GOOGLE_CLIENT_SECRET = "client_secret";
+    process.env.GOOGLE_REDIRECT_URI = "http://localhost/callback";
+  });
+
+  it("Google: un evento de día completo cuenta como ocupado aunque figure como libre (VACACIONES), y uno con hora marcado libre se excluye", async () => {
+    const listMock = vi.fn().mockResolvedValue({
+      data: {
+        items: [
+          {
+            id: "vacaciones",
+            start: { date: "2026-08-10" },
+            end: { date: "2026-08-11" },
+            transparency: "transparent",
+          },
+          {
+            id: "recordatorio-libre",
+            start: { dateTime: "2026-08-10T10:00:00+02:00" },
+            end: { dateTime: "2026-08-10T10:30:00+02:00" },
+            transparency: "transparent",
+          },
+          {
+            id: "cita-real",
+            start: { dateTime: "2026-08-10T12:00:00+02:00" },
+            end: { dateTime: "2026-08-10T12:30:00+02:00" },
+          },
+        ],
+      },
+    });
+    mockedGoogleCalendar.mockReturnValue({
+      events: { insert: vi.fn(), list: listMock },
+      calendarList: { list: vi.fn() },
+    } as any);
+
+    const busy = await calendarService.getBusyIntervals({
+      conexion: conexionDePrueba({
+        calendarProvider: "google",
+        googleRefreshToken: "refresh_token_123",
+        googleCalendarId: null,
+      }),
+      timeMin: new Date("2026-08-10T00:00:00Z"),
+      timeMax: new Date("2026-08-11T00:00:00Z"),
+    });
+
+    expect(busy.calendarAvailabilityKnown).toBe(true);
+    expect(busy.intervals.map((i) => i.externalEventId)).toEqual([
+      "vacaciones",
+      "cita-real",
+    ]);
+    expect(busy.intervals[0]).toEqual({
+      externalEventId: "vacaciones",
+      start: new Date("2026-08-10"),
+      end: new Date("2026-08-11"),
+    });
+    // El resolver real aplica el default "primary" de Google.
+    expect(listMock).toHaveBeenCalledWith(
+      expect.objectContaining({ calendarId: "primary" }),
+      expect.anything()
+    );
+  });
+});
+
+describe("CalendarService.getUpcomingEvents (conexión resuelta)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("Outlook: devuelve los eventos de Graph tal cual, consultando el calendario elegido con el access token renovado", async () => {
+    const { refreshMicrosoftAccessToken, listMicrosoftUpcomingEvents } =
+      await import("../../../src/lib/microsoftGraph.js");
+    vi.mocked(refreshMicrosoftAccessToken).mockResolvedValue({
+      access_token: "access_123",
+    } as any);
+    const eventos = [
+      {
+        id: "evt_1",
+        summary: "Cita 1",
+        start: "2026-08-10T10:00:00Z",
+        end: "2026-08-10T11:00:00Z",
+        location: null,
+        htmlLink: null,
+      },
+    ];
+    vi.mocked(listMicrosoftUpcomingEvents).mockResolvedValue(eventos as any);
+
+    const resultado = await calendarService.getUpcomingEvents(
+      conexionDePrueba({
+        calendarProvider: "outlook",
+        outlookRefreshToken: "refresh_token_123",
+        outlookCalendarId: "cal_outlook",
+      })
+    );
+
+    expect(resultado).toEqual(eventos);
+    expect(listMicrosoftUpcomingEvents).toHaveBeenCalledWith(
+      "access_123",
+      "cal_outlook",
+      5
+    );
+  });
+});
+
+describe("CalendarService.bookAppointment (conexión resuelta)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("Outlook: con token pero sin calendario elegido lanza BOOK_APPOINTMENT_FAILED sin tocar Graph", async () => {
+    const { refreshMicrosoftAccessToken, createMicrosoftCalendarEvent } =
+      await import("../../../src/lib/microsoftGraph.js");
+
+    try {
+      await calendarService.bookAppointment({
+        conexion: conexionDePrueba({
+          calendarProvider: "outlook",
+          outlookRefreshToken: "refresh_token_123",
+          outlookCalendarId: null,
+        }),
+        clientName: "María",
+        startDateTime: "2026-08-10T10:00:00Z",
+        durationMinutes: 60,
+      });
+      expect.fail("debía lanzar");
+    } catch (error) {
+      expect(error).toBeInstanceOf(CalendarBusinessError);
+      expect((error as CalendarBusinessError).code).toBe(
+        "BOOK_APPOINTMENT_FAILED"
+      );
+      expect((error as CalendarBusinessError).message).toBe(
+        "No se ha seleccionado un calendario de Outlook."
+      );
+    }
+    expect(refreshMicrosoftAccessToken).not.toHaveBeenCalled();
+    expect(createMicrosoftCalendarEvent).not.toHaveBeenCalled();
+  });
+});
+
+describe("CalendarService.listarCalendarios", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    process.env.GOOGLE_CLIENT_ID = "client_id";
+    process.env.GOOGLE_CLIENT_SECRET = "client_secret";
+    process.env.GOOGLE_REDIRECT_URI = "http://localhost/callback";
+  });
+
+  it("delega en el proveedor de la conexión (Google) aunque no haya calendario elegido", async () => {
+    const listMock = vi.fn().mockResolvedValue({
+      data: { items: [{ id: "primary_id", summary: "María", primary: true }] },
+    });
+    mockedGoogleCalendar.mockReturnValue({
+      events: { insert: vi.fn(), list: vi.fn() },
+      calendarList: { list: listMock },
+    } as any);
+
+    const calendars = await calendarService.listarCalendarios(
+      conexionDePrueba({
+        calendarProvider: "google",
+        googleRefreshToken: "refresh_token_123",
+      })
+    );
+
+    expect(calendars).toEqual([
+      { id: "primary_id", name: "María", primary: true },
+    ]);
+  });
+
+  it("sin credenciales lanza el RECONNECT del proveedor sin llamar a la API", async () => {
+    const { refreshMicrosoftAccessToken } =
+      await import("../../../src/lib/microsoftGraph.js");
+
+    try {
+      await calendarService.listarCalendarios(
+        conexionDePrueba({ calendarProvider: "outlook" })
+      );
+      expect.fail("debía lanzar");
+    } catch (error) {
+      expect((error as CalendarBusinessError).code).toBe(
+        "OUTLOOK_CALENDAR_RECONNECT_REQUIRED"
+      );
+      expect((error as CalendarBusinessError).provider).toBe("outlook");
+    }
+    expect(refreshMicrosoftAccessToken).not.toHaveBeenCalled();
+  });
+});
+
+describe("CalendarService.seleccionarCalendario", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockedBusinessUpdate.mockResolvedValue({ id: "business_123" } as any);
+    mockedGetRedis.mockReturnValue({
+      del: vi.fn().mockResolvedValue(1),
+    } as any);
+  });
+
+  it("con proveedor google guarda el calendario sin resincronizar tools (asimetría conservada)", async () => {
+    mockedBusinessFindUnique.mockResolvedValue({
+      calendarProvider: "google",
+    } as any);
+
+    await calendarService.seleccionarCalendario("business_123", "cal_g");
+
+    expect(mockedBusinessUpdate).toHaveBeenCalledWith({
+      where: { id: "business_123" },
+      data: {
+        calendarProvider: "google",
+        googleCalendarId: "cal_g",
+        googleCalendarConnected: true,
+        googleCalendarDisconnectedAt: null,
+        googleCalendarLastError: null,
+      },
+    });
+    // selectGoogleCalendar no sincroniza tools: no se cargan los agentes.
+    expect(mockedAgentFindMany).not.toHaveBeenCalled();
+  });
+
+  it("con proveedor outlook guarda el calendario y resincroniza las tools", async () => {
+    mockedBusinessFindUnique.mockResolvedValue({
+      calendarProvider: "outlook",
+    } as any);
+    mockedAgentFindMany.mockResolvedValue([]);
+    mockedGetPublicWebhookBaseUrl.mockReturnValue(null);
+
+    await calendarService.seleccionarCalendario("business_123", "cal_o");
+
+    expect(mockedBusinessUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          calendarProvider: "outlook",
+          outlookCalendarId: "cal_o",
+          outlookCalendarConnected: true,
+        }),
+      })
+    );
+    expect(mockedAgentFindMany).toHaveBeenCalled();
+  });
+
+  it("sin proveedor guardado (null) cae a Google", async () => {
+    mockedBusinessFindUnique.mockResolvedValue({
+      calendarProvider: null,
+    } as any);
+
+    await calendarService.seleccionarCalendario("business_123", "cal_g");
+
+    expect(mockedBusinessUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ googleCalendarId: "cal_g" }),
+      })
+    );
   });
 });

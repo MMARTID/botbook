@@ -1,6 +1,11 @@
+// Fachada del calendario. Aquí viven el flujo OAuth (Google y Microsoft), la
+// selección de calendario, la sincronización de tools con los agentes de voz
+// y las operaciones genéricas (ocupación, reservar, cancelar, próximos
+// eventos, listar calendarios), que se delegan al adaptador del proveedor vía
+// adapters/calendar/registry.ts. No hay ramas por proveedor: cualquier cosa
+// específica de Google u Outlook va en su adaptador, y cualquier cosa que
+// dependa de las columnas google*/outlook* de Business va en ./conexion.ts.
 import { randomBytes } from "node:crypto";
-import { createHash } from "node:crypto";
-import { google } from "googleapis";
 import { prisma } from "../../lib/prisma.js";
 import { getRedis } from "../../lib/redis.js";
 import {
@@ -11,257 +16,53 @@ import { getPublicWebhookBaseUrl } from "../../lib/serverUrl.js";
 import { syncAgentToTelnyx } from "../../lib/telnyxAgentSync.js";
 import { buildTelnyxVoiceTools } from "../../lib/telnyxAssistantPayload.js";
 import {
-  createMicrosoftCalendarEvent,
-  deleteMicrosoftCalendarEvent,
   exchangeMicrosoftCode,
   getMicrosoftAuthUrl,
   getMicrosoftProfile,
-  listMicrosoftBusyIntervals,
   listMicrosoftCalendars,
-  listMicrosoftUpcomingEvents,
-  refreshMicrosoftAccessToken,
   type MicrosoftCalendar,
 } from "../../lib/microsoftGraph.js";
+import {
+  CalendarBusinessError,
+  codigoDeReconexion,
+  type CalendarBusinessErrorCode,
+} from "../../adapters/calendar/errors.js";
+import {
+  DESCRIPTORES_DE_PROVEEDOR,
+  normalizarProveedorDeCalendario,
+  type CalendarBusyInterval,
+  type CalendarBusyIntervalsResult,
+  type CalendarConnection,
+  type CalendarioDisponible,
+  type ConexionActiva,
+  type EventoCreado,
+  type EventoProximo,
+} from "../../adapters/calendar/CalendarProvider.js";
+import {
+  buildEventContent,
+  buildImmediateReminderMinutes,
+  hashDeIdempotencia,
+  REMINDER_MINUTES_BEFORE_START,
+} from "../../adapters/calendar/eventoDeCalendario.js";
+import {
+  crearClienteOAuthDeGoogle,
+  isGoogleInvalidGrantError,
+} from "../../adapters/calendar/google/GoogleCalendarProvider.js";
+import { obtenerProveedorDeCalendario } from "../../adapters/calendar/registry.js";
+import {
+  conCallbackDeRotacion,
+  estadoDeConexion,
+  guardarConexionDeCalendario,
+} from "./conexion.js";
 
-/** Recordatorio nativo de la app de calendario (Google Calendar / Outlook en
- * el móvil) que dispara la notificación push al propietario 2h antes de la
- * cita — no requiere ningún job ni canal de notificación propio, ambas
- * plataformas lo gestionan solas a partir de este campo del evento. */
-const REMINDER_MINUTES_BEFORE_START = 120;
-
-/** Límite documentado de Google Calendar para reminders.overrides[].minutes
- * (4 semanas) — Microsoft Graph no impone uno menor para
- * reminderMinutesBeforeStart, así que reutilizarlo para ambos providers es
- * seguro. */
-const MAX_REMINDER_MINUTES = 40_320;
-
-/** Google Calendar no avisa al propietario de que se creó un evento nuevo
- * por el simple hecho de insertarlo en su propio calendario (confirmado con
- * la documentación oficial — solo notifica a invitados vía sendUpdates, o
- * mediante un reminder configurado). Para lograr el aviso inmediato que
- * REMINDER_MINUTES_BEFORE_START no cubre si la cita es para dentro de más de
- * 2h, se calcula un segundo reminder cuyo "minutos antes del evento" resulta
- * en que dispare casi en el instante de la creación — un reminder normal,
- * no una notificación push especial, así que ambas apps lo soportan igual.
- * Un evento cuya cita ya está a <1 minuto (o en el pasado, si el reloj del
- * cliente y el servidor difieren un poco) usa 0 en vez de un valor negativo,
- * que Google/Outlook rechazarían. Si la cita está a más de
- * MAX_REMINDER_MINUTES vista (nada en el código impone un máximo de
- * antelación de reserva — checkBookingRestrictions solo valida un mínimo),
- * ese "minutos antes" ya no cabe en el límite de la API y devolvemos null:
- * mejor omitir el aviso inmediato que hacer fallar la reserva entera
- * intentando mandar un valor que Google/Outlook van a rechazar. */
-function buildImmediateReminderMinutes(startTime: Date): number | null {
-  // Math.floor ya trunca hacia abajo (hasta ~1 minuto de margen natural: si
-  // faltan 60.9 minutos da 60, no 61), así que no hace falta restar un
-  // minuto extra encima — eso solo añadía otro minuto de espera innecesario.
-  // Confirmado en una llamada real de prueba (2026-09-07): la notificación
-  // tardó "casi un minuto" en llegar con el margen doble.
-  const minutes = Math.max(
-    0,
-    Math.floor((startTime.getTime() - Date.now()) / 60_000)
-  );
-  return minutes <= MAX_REMINDER_MINUTES ? minutes : null;
-}
-
-/** Título y descripción del evento con todo lo que se conoce de la reserva.
- * Antes el evento solo llevaba "Reserva de <nombre>" y una frase genérica;
- * sin servicio, profesional ni teléfono, el propietario tenía que volver a
- * la app de Alhabla para saber de qué iba la cita. */
-function buildEventContent(input: {
-  clientName: string;
-  clientPhone?: string | null;
-  serviceNames?: string[] | null;
-  professionalName?: string | null;
-}) {
-  const services = input.serviceNames?.filter(Boolean) ?? [];
-  const summary =
-    services.length > 0
-      ? `${services.join(" + ")} — ${input.clientName}`
-      : `Reserva de ${input.clientName}`;
-
-  const descriptionLines = [
-    `Cliente: ${input.clientName}`,
-    input.clientPhone ? `Teléfono: ${input.clientPhone}` : null,
-    services.length > 0
-      ? `Servicio${services.length > 1 ? "s" : ""}: ${services.join(", ")}`
-      : null,
-    input.professionalName ? `Profesional: ${input.professionalName}` : null,
-    "",
-    "Cita generada por el asistente virtual de Alhabla.",
-  ].filter((line) => line !== null);
-
-  return { summary, description: descriptionLines.join("\n") };
-}
-
-// Helper: create a new OAuth2 client per operation to avoid shared mutable state
-function createOAuth2Client() {
-  return new google.auth.OAuth2(
-    process.env.GOOGLE_CLIENT_ID,
-    process.env.GOOGLE_CLIENT_SECRET,
-    process.env.GOOGLE_REDIRECT_URI
-  );
-}
-
-export type CalendarBusinessErrorCode =
-  | "GOOGLE_CALENDAR_RECONNECT_REQUIRED"
-  | "OUTLOOK_CALENDAR_RECONNECT_REQUIRED"
-  | "BOOK_APPOINTMENT_FAILED"
-  | "CANCEL_APPOINTMENT_FAILED"
-  | "CALENDAR_TIMEOUT"
-  | "CALENDAR_RATE_LIMITED";
-
-// Límite propio bajo el timeout de 20s que Retell aplica a cada tool call:
-// así el backend corta la petición él mismo en vez de dejarla colgada
-// respondiendo a nadie cuando Retell ya se rindió.
-const CALENDAR_REQUEST_TIMEOUT_MS = 8000;
-
-export type CalendarBusyInterval = {
-  start: Date;
-  end: Date;
-  externalEventId?: string;
+// Re-exports de compatibilidad: calendar/routes.ts y los tests importan estos
+// nombres desde aquí; su definición vive ahora en adapters/calendar/.
+export { CalendarBusinessError, isGoogleInvalidGrantError };
+export type {
+  CalendarBusinessErrorCode,
+  CalendarBusyInterval,
+  CalendarBusyIntervalsResult,
 };
-
-export type CalendarBusyIntervalsResult = {
-  intervals: CalendarBusyInterval[];
-  /** false cuando no se pudo consultar el calendario. */
-  calendarAvailabilityKnown: boolean;
-};
-
-function googleEventIdFromIdempotencyKey(key: string): string {
-  // El ID de Google Calendar solo admite caracteres base32hex en minúscula.
-  return `alhabla${createHash("sha256").update(key).digest("hex")}`;
-}
-
-function outlookTransactionIdFromIdempotencyKey(key: string): string {
-  const digest = createHash("sha256").update(key).digest("hex");
-  // UUID determinista (variante RFC 4122), formato que Graph acepta para
-  // transactionId y que hace idempotente la creación durante 24h.
-  return `${digest.slice(0, 8)}-${digest.slice(8, 12)}-5${digest.slice(13, 16)}-a${digest.slice(17, 20)}-${digest.slice(20, 32)}`;
-}
-
-function isGoogleConflictError(error: unknown): boolean {
-  const e = error as { code?: number; response?: { status?: number } };
-  return e?.code === 409 || e?.response?.status === 409;
-}
-
-export class CalendarBusinessError extends Error {
-  code: CalendarBusinessErrorCode;
-  constructor(code: CalendarBusinessErrorCode, message: string) {
-    super(message);
-    this.code = code;
-    this.name = "CalendarBusinessError";
-  }
-}
-
-// Detecta timeouts o rate limiting de Google, distintos de un fallo de credencial.
-function classifyGoogleTransientError(
-  error: unknown
-): "timeout" | "rate_limit" | null {
-  const e = error as any;
-  const status = e?.response?.status ?? e?.code;
-  const message = String(e?.message || "").toLowerCase();
-
-  if (status === 429) return "rate_limit";
-  if (
-    message.includes("timeout") ||
-    message.includes("etimedout") ||
-    message.includes("esockettimedout") ||
-    e?.code === "ECONNABORTED"
-  ) {
-    return "timeout";
-  }
-  return null;
-}
-
-// Detecta errores de Google relacionados con invalid_grant
-export function isGoogleInvalidGrantError(error: unknown): boolean {
-  const e = error as any;
-
-  // Google client libraries sometimes put details in e.response.data
-  const status = e?.response?.status;
-  const data = e?.response?.data;
-  const message = String(
-    e?.message || data?.error_description || data?.error || ""
-  ).toLowerCase();
-
-  if (status === 401 || status === 400) {
-    if (data?.error === "invalid_grant") return true;
-    if (message.includes("invalid_grant")) return true;
-  }
-
-  if (message.includes("invalid_grant")) return true;
-
-  return false;
-}
-
-// Equivalente Microsoft de classifyGoogleTransientError — antes,
-// listOutlookCalendars y la rama Outlook de getUpcomingEvents convertían
-// CUALQUIER error (429, timeout, un 500 de Graph) en
-// OUTLOOK_CALENDAR_RECONNECT_REQUIRED sin distinguir, y las rutas que
-// atrapan ese código marcan la conexión como desconectada en la BD — un
-// simple hipo de Graph desconectaba el calendario del negocio sin motivo
-// (hallazgo #21 de la auditoría). Usa el `.status` estructurado que
-// microsoftGraph.ts ahora adjunta a sus errores (ver createMicrosoftOAuthError
-// / graphFetch) en vez de buscar substrings en el mensaje.
-function classifyMicrosoftTransientError(
-  error: unknown
-): "timeout" | "rate_limit" | null {
-  const e = error as { status?: number; name?: string; message?: string };
-  if (e?.status === 429) return "rate_limit";
-  if (e?.status !== undefined && e.status >= 500) return "timeout";
-  if (e?.name === "TimeoutError" || e?.name === "AbortError") return "timeout";
-  const message = String(e?.message || "").toLowerCase();
-  if (message.includes("timeout") || message.includes("etimedout"))
-    return "timeout";
-  return null;
-}
-
-// Detecta errores de Microsoft relacionados con invalid_grant (refresh
-// token revocado o caducado) — antes, bookAppointment solo reconocía como
-// "hay que reconectar" un mensaje que contuviera literalmente "401" o "403"
-// como substring, pero el invalid_grant real de Microsoft llega como HTTP
-// 400 con body {error: "invalid_grant"}, así que nunca coincidía: el fallo
-// más común de reconexión de Outlook se trataba como error genérico
-// (hallazgo #22 de la auditoría).
-function isMicrosoftInvalidGrantError(error: unknown): boolean {
-  const e = error as {
-    status?: number;
-    oauthErrorCode?: string;
-    message?: string;
-  };
-  if (e?.oauthErrorCode === "invalid_grant") return true;
-  const message = String(e?.message || "").toLowerCase();
-  return message.includes("invalid_grant");
-}
-
-function getGoogleErrorDetails(error: unknown) {
-  const googleError = error as {
-    message?: string;
-    code?: string | number;
-    response?: {
-      status?: number;
-      data?: {
-        error?: string | { code?: number; message?: string; status?: string };
-        error_description?: string;
-      };
-    };
-  };
-  const responseError = googleError.response?.data?.error;
-
-  return {
-    status: googleError.response?.status ?? googleError.code,
-    code:
-      typeof responseError === "object"
-        ? (responseError.status ?? responseError.code)
-        : responseError,
-    message:
-      (typeof responseError === "object" ? responseError.message : undefined) ??
-      googleError.response?.data?.error_description ??
-      googleError.message ??
-      "Unknown Google Calendar error",
-  };
-}
 
 // El callback de OAuth es un endpoint público (Google/Microsoft lo llaman
 // por redirect del navegador, sin nuestro JWT) — el `state` es la única
@@ -301,49 +102,48 @@ async function consumeCalendarOAuthState(
   return getRedis().getdel(calendarOAuthStateRedisKey(provider, state));
 }
 
-/** voice_config:<businessId> (voiceTools/service.ts) cachea calendarProvider
- * y las credenciales de calendario hasta 1h — sin invalidar aquí, una
- * llamada de voz dentro de esa hora sigue usando el proveedor o la cuenta
- * anteriores aunque el panel ya muestre la nueva conexión (hallazgo #8 de la
- * auditoría). Se llama tras cualquier escritura que toque
- * calendarProvider/refreshToken/calendarId de un negocio. */
-async function invalidateVoiceConfigCache(businessId: string): Promise<void> {
-  try {
-    await getRedis().del(`voice_config:${businessId}`);
-  } catch (err) {
-    console.error(
-      `[Calendar] No se pudo invalidar la caché de configuración de voz para ${businessId}:`,
-      err
-    );
-  }
-}
+/** Las operaciones reciben la conexión ya resuelta por conexion.ts: los
+ * consumidores (voiceTools, el job, calendar/routes) no conocen columnas. */
+type EntradaConConexion = { conexion: CalendarConnection };
 
-// Usamos instancias por llamada; esto evita condiciones de carrera entre negocios
-/**
- * Refresca el token de Outlook y GUARDA el refresh token nuevo si Microsoft
- * lo rota (lo hace casi siempre). Sin esto se seguía usando indefinidamente
- * el token original de la conexión, que caduca por inactividad a los 90 días:
- * meses después, Outlook se desconectaba solo con invalid_grant y todas las
- * reservas de ese negocio pasaban a quedarse pendientes.
- */
-async function refrescarTokenDeOutlook(refreshToken: string) {
-  const respuesta = await refreshMicrosoftAccessToken(refreshToken);
-  if (respuesta.refresh_token && respuesta.refresh_token !== refreshToken) {
-    try {
-      await prisma.business.updateMany({
-        where: { outlookRefreshToken: refreshToken },
-        data: { outlookRefreshToken: respuesta.refresh_token },
-      });
-    } catch (error) {
-      // Que no se guarde no puede tumbar la operación en curso: el token
-      // viejo sigue sirviendo hasta que caduque su ventana.
-      console.error(
-        "[Calendar] No se pudo guardar el refresh token rotado de Outlook:",
-        error instanceof Error ? error.message : String(error)
+/** Guardas comunes a las operaciones. Reproducen exactamente los textos y
+ * códigos que antes tenía cada rama por proveedor:
+ *  - sin credenciales → <P>_CALENDAR_RECONNECT_REQUIRED
+ *    "El negocio no tiene conectado <nombre>."
+ *  - sin calendario (solo posible con calendarIdPorDefecto null, hoy Outlook):
+ *    reservar → BOOK_APPOINTMENT_FAILED
+ *      "No se ha seleccionado un calendario de <nombreCorto>."
+ *    resto → RECONNECT "El negocio no tiene conectado <nombre>." */
+function exigirConexionActiva(
+  conexion: CalendarConnection,
+  operacion: "reservar" | "cancelar" | "proximos"
+): ConexionActiva {
+  const { nombre, nombreCorto } = DESCRIPTORES_DE_PROVEEDOR[conexion.provider];
+  const errorDeReconexion = () =>
+    new CalendarBusinessError(
+      codigoDeReconexion(conexion.provider),
+      `El negocio no tiene conectado ${nombre}.`,
+      conexion.provider
+    );
+  // Mismos tres estados que estadoDeConexion(); se comprueban en línea para
+  // que TypeScript estreche credentials/calendarId sin casts.
+  if (!conexion.credentials) {
+    throw errorDeReconexion();
+  }
+  if (!conexion.calendarId) {
+    if (operacion === "reservar") {
+      throw new CalendarBusinessError(
+        "BOOK_APPOINTMENT_FAILED",
+        `No se ha seleccionado un calendario de ${nombreCorto}.`
       );
     }
+    throw errorDeReconexion();
   }
-  return respuesta;
+  return {
+    provider: conexion.provider,
+    calendarId: conexion.calendarId,
+    ...conCallbackDeRotacion(conexion.credentials),
+  } as ConexionActiva;
 }
 
 export class CalendarService {
@@ -351,7 +151,7 @@ export class CalendarService {
 
   async getAuthUrl(businessId: string): Promise<string> {
     const state = await createCalendarOAuthState("google", businessId);
-    const oauth2Client = createOAuth2Client();
+    const oauth2Client = crearClienteOAuthDeGoogle();
     const url = oauth2Client.generateAuthUrl({
       access_type: "offline",
       prompt: "consent",
@@ -383,24 +183,17 @@ export class CalendarService {
       );
     }
 
-    const oauth2Client = createOAuth2Client();
+    const oauth2Client = crearClienteOAuthDeGoogle();
 
     const { tokens } = await oauth2Client.getToken(code);
 
     if (tokens.refresh_token) {
-      await prisma.business.update({
-        where: { id: businessId },
-        data: {
-          calendarProvider: "google",
-          googleRefreshToken: tokens.refresh_token,
-          googleCalendarId: "primary",
-          googleCalendarConnected: true,
-          googleCalendarDisconnectedAt: null,
-          googleCalendarLastError: null,
-        },
+      await guardarConexionDeCalendario(businessId, {
+        provider: "google",
+        refreshToken: tokens.refresh_token,
+        calendarId: "primary",
+        conectado: true,
       });
-
-      await invalidateVoiceConfigCache(businessId);
       await this.syncCalendarToolsToAgents(businessId);
     }
 
@@ -424,18 +217,12 @@ export class CalendarService {
     const profile = await getMicrosoftProfile(tokens.access_token);
     const calendars = await listMicrosoftCalendars(tokens.access_token);
 
-    await prisma.business.update({
-      where: { id: businessId },
-      data: {
-        calendarProvider: "outlook",
-        outlookRefreshToken: tokens.refresh_token,
-        outlookCalendarConnected: false,
-        outlookCalendarDisconnectedAt: null,
-        outlookCalendarLastError: null,
-        outlookUserEmail: profile.mail ?? profile.userPrincipalName ?? null,
-      },
+    await guardarConexionDeCalendario(businessId, {
+      provider: "outlook",
+      refreshToken: tokens.refresh_token,
+      conectado: false,
+      userEmail: profile.mail ?? profile.userPrincipalName ?? null,
     });
-    await invalidateVoiceConfigCache(businessId);
 
     return {
       calendars,
@@ -444,103 +231,75 @@ export class CalendarService {
   }
 
   async connectMicrosoftCalendar(businessId: string, calendarId: string) {
-    const business = await prisma.business.update({
-      where: { id: businessId },
-      data: {
-        calendarProvider: "outlook",
-        outlookCalendarId: calendarId,
-        outlookCalendarConnected: true,
-        outlookCalendarDisconnectedAt: null,
-        outlookCalendarLastError: null,
-      },
+    const business = await guardarConexionDeCalendario(businessId, {
+      provider: "outlook",
+      calendarId,
+      conectado: true,
     });
-
-    await invalidateVoiceConfigCache(businessId);
     await this.syncCalendarToolsToAgents(businessId);
     return business;
   }
 
+  /** Calendarios de la cuenta conectada (paso de selección: aún puede no
+   * haber calendarId). Sin credenciales lanza el RECONNECT del proveedor. */
+  async listarCalendarios(
+    conexion: CalendarConnection
+  ): Promise<CalendarioDisponible[]> {
+    if (!conexion.credentials) {
+      throw new CalendarBusinessError(
+        codigoDeReconexion(conexion.provider),
+        `El negocio no tiene conectado ${DESCRIPTORES_DE_PROVEEDOR[conexion.provider].nombre}.`,
+        conexion.provider
+      );
+    }
+    return obtenerProveedorDeCalendario(conexion.provider).listarCalendarios(
+      conCallbackDeRotacion(conexion.credentials)
+    );
+  }
+
+  /** @deprecated Usa listarCalendarios(conexion); se conserva por los tests
+   * antiguos de service.test.ts. */
   async listGoogleCalendars(googleRefreshToken: string) {
-    const oauth2Client = createOAuth2Client();
-    oauth2Client.setCredentials({ refresh_token: googleRefreshToken });
-
-    const calendar = google.calendar({ version: "v3", auth: oauth2Client });
-
-    try {
-      const response = await calendar.calendarList.list(
-        {},
-        { timeout: CALENDAR_REQUEST_TIMEOUT_MS }
-      );
-      return (response.data.items ?? [])
-        .filter((item) => Boolean(item.id))
-        .map((item) => ({
-          id: item.id as string,
-          name: item.summaryOverride || item.summary || "Sin nombre",
-          primary: item.primary === true,
-        }));
-    } catch (err) {
-      if (isGoogleInvalidGrantError(err)) {
-        throw new CalendarBusinessError(
-          "GOOGLE_CALENDAR_RECONNECT_REQUIRED",
-          "La conexión con Google ya no es válida."
-        );
-      }
-      console.error(
-        "[Calendar] Failed to list calendars:",
-        getGoogleErrorDetails(err)
-      );
-      throw new CalendarBusinessError(
-        "BOOK_APPOINTMENT_FAILED",
-        "No se pudo obtener la lista de calendarios."
-      );
-    }
+    return obtenerProveedorDeCalendario("google").listarCalendarios(
+      conCallbackDeRotacion({
+        provider: "google",
+        refreshToken: googleRefreshToken,
+      })
+    );
   }
 
+  /** @deprecated Usa listarCalendarios(conexion); se conserva por los tests
+   * antiguos de service.test.ts. */
   async listOutlookCalendars(outlookRefreshToken: string) {
-    try {
-      const { access_token } =
-        await refrescarTokenDeOutlook(outlookRefreshToken);
-      const calendars = await listMicrosoftCalendars(access_token);
-      return calendars.map((item) => ({
-        id: item.id,
-        name: item.name,
-        primary: false,
-      }));
-    } catch (err) {
-      const transient = classifyMicrosoftTransientError(err);
-      if (transient === "rate_limit") {
-        throw new CalendarBusinessError(
-          "CALENDAR_RATE_LIMITED",
-          "Outlook Calendar está limitando las peticiones en este momento."
-        );
-      }
-      if (transient === "timeout") {
-        throw new CalendarBusinessError(
-          "CALENDAR_TIMEOUT",
-          "Outlook Calendar está tardando más de lo normal en responder."
-        );
-      }
-      console.error("[Calendar] Failed to list Outlook calendars:", err);
-      throw new CalendarBusinessError(
-        "OUTLOOK_CALENDAR_RECONNECT_REQUIRED",
-        "La conexión con Outlook ya no es válida."
-      );
-    }
+    return obtenerProveedorDeCalendario("outlook").listarCalendarios(
+      conCallbackDeRotacion({
+        provider: "outlook",
+        refreshToken: outlookRefreshToken,
+      })
+    );
   }
 
-  async selectGoogleCalendar(businessId: string, calendarId: string) {
-    const business = await prisma.business.update({
+  /** Despacho de POST /calendar/select por el proveedor guardado del negocio.
+   * Conserva la asimetría: Outlook resincroniza las tools, Google no. */
+  async seleccionarCalendario(businessId: string, calendarId: string) {
+    const business = await prisma.business.findUnique({
       where: { id: businessId },
-      data: {
-        calendarProvider: "google",
-        googleCalendarId: calendarId,
-        googleCalendarConnected: true,
-        googleCalendarDisconnectedAt: null,
-        googleCalendarLastError: null,
-      },
+      select: { calendarProvider: true },
     });
-    await invalidateVoiceConfigCache(businessId);
-    return business;
+    return normalizarProveedorDeCalendario(business?.calendarProvider) ===
+      "outlook"
+      ? this.connectMicrosoftCalendar(businessId, calendarId)
+      : this.selectGoogleCalendar(businessId, calendarId);
+  }
+
+  /** A diferencia de connectMicrosoftCalendar, no resincroniza las tools de
+   * los agentes (asimetría histórica que se conserva a propósito). */
+  async selectGoogleCalendar(businessId: string, calendarId: string) {
+    return guardarConexionDeCalendario(businessId, {
+      provider: "google",
+      calendarId,
+      conectado: true,
+    });
   }
 
   private buildRetellCalendarTools(
@@ -932,104 +691,15 @@ export class CalendarService {
   }
 
   async getUpcomingEvents(
-    provider: "google" | "outlook",
-    options: {
-      googleRefreshToken?: string | null;
-      googleCalendarId?: string | null;
-      outlookRefreshToken?: string | null;
-      outlookCalendarId?: string | null;
-    },
-    maxResults: number = 5
-  ) {
+    conexion: CalendarConnection,
+    maxResults = 5
+  ): Promise<EventoProximo[]> {
     const safeMaxResults = Math.min(Math.max(Math.trunc(maxResults), 1), 15);
-
-    if (provider === "outlook") {
-      if (!options.outlookRefreshToken || !options.outlookCalendarId) {
-        throw new CalendarBusinessError(
-          "OUTLOOK_CALENDAR_RECONNECT_REQUIRED",
-          "El negocio no tiene conectado Outlook Calendar."
-        );
-      }
-
-      try {
-        const tokenResponse = await refrescarTokenDeOutlook(
-          options.outlookRefreshToken
-        );
-        return await listMicrosoftUpcomingEvents(
-          tokenResponse.access_token,
-          options.outlookCalendarId,
-          safeMaxResults
-        );
-      } catch (error) {
-        const transient = classifyMicrosoftTransientError(error);
-        if (transient === "rate_limit") {
-          throw new CalendarBusinessError(
-            "CALENDAR_RATE_LIMITED",
-            "Outlook Calendar está limitando las peticiones en este momento."
-          );
-        }
-        if (transient === "timeout") {
-          throw new CalendarBusinessError(
-            "CALENDAR_TIMEOUT",
-            "Outlook Calendar está tardando más de lo normal en responder."
-          );
-        }
-        throw new CalendarBusinessError(
-          "OUTLOOK_CALENDAR_RECONNECT_REQUIRED",
-          "La conexión con Outlook ya no es válida."
-        );
-      }
-    }
-
-    if (!options.googleRefreshToken) {
-      throw new CalendarBusinessError(
-        "GOOGLE_CALENDAR_RECONNECT_REQUIRED",
-        "El negocio no tiene conectado Google Calendar."
-      );
-    }
-
-    const oauth2Client = createOAuth2Client();
-    oauth2Client.setCredentials({ refresh_token: options.googleRefreshToken });
-
-    const calendar = google.calendar({ version: "v3", auth: oauth2Client });
-    const calendarId = options.googleCalendarId || "primary";
-
-    try {
-      const response = await calendar.events.list(
-        {
-          calendarId,
-          timeMin: new Date().toISOString(),
-          maxResults: safeMaxResults,
-          singleEvents: true,
-          orderBy: "startTime",
-        },
-        { timeout: CALENDAR_REQUEST_TIMEOUT_MS }
-      );
-
-      return (response.data.items || []).map((event) => ({
-        id: event.id ?? null,
-        summary: event.summary || "Sin título",
-        start: event.start?.dateTime || event.start?.date || null,
-        end: event.end?.dateTime || event.end?.date || null,
-        location: event.location || null,
-        htmlLink: event.htmlLink || null,
-      }));
-    } catch (err) {
-      if (isGoogleInvalidGrantError(err)) {
-        throw new CalendarBusinessError(
-          "GOOGLE_CALENDAR_RECONNECT_REQUIRED",
-          "La conexión con Google ya no es válida."
-        );
-      }
-      console.error(
-        "[Calendar] Failed to list upcoming events:",
-        getGoogleErrorDetails(err)
-      );
-      throw new CalendarBusinessError(
-        "BOOK_APPOINTMENT_FAILED",
-        "No se pudo obtener los eventos del calendario."
-      );
-    }
+    const activa = exigirConexionActiva(conexion, "proximos");
+    return obtenerProveedorDeCalendario(activa.provider).listarProximosEventos(
+      activa,
+      safeMaxResults
+    );
   }
 
   /**
@@ -1041,422 +711,88 @@ export class CalendarService {
    * tampoco la liberaba aquí. Se degrada a "sin bloqueos" (array vacío) ante
    * cualquier fallo — nunca debe poder bloquear TODAS las reservas porque el
    * calendario esté lento o caído un momento; el propio Booking de Postgres
-   * sigue siendo la red de seguridad mínima en ese caso.
+   * sigue siendo la red de seguridad mínima en ese caso. NUNCA lanza.
    */
-  async getBusyIntervals(input: {
-    provider: "google" | "outlook";
-    googleRefreshToken?: string | null;
-    googleCalendarId?: string | null;
-    outlookRefreshToken?: string | null;
-    outlookCalendarId?: string | null;
-    timeMin: Date;
-    timeMax: Date;
-  }): Promise<CalendarBusyIntervalsResult> {
+  async getBusyIntervals(
+    input: EntradaConConexion & { timeMin: Date; timeMax: Date }
+  ): Promise<CalendarBusyIntervalsResult> {
+    const { conexion } = input;
+    if (estadoDeConexion(conexion) !== "ok") {
+      return { intervals: [], calendarAvailabilityKnown: false };
+    }
     try {
-      if (input.provider === "outlook") {
-        if (!input.outlookRefreshToken || !input.outlookCalendarId) {
-          return { intervals: [], calendarAvailabilityKnown: false };
-        }
-        const { access_token } = await refrescarTokenDeOutlook(
-          input.outlookRefreshToken
-        );
-        const intervals = await listMicrosoftBusyIntervals(
-          access_token,
-          input.outlookCalendarId,
-          input.timeMin,
-          input.timeMax
-        );
-        return { intervals, calendarAvailabilityKnown: true };
-      }
-
-      if (!input.googleRefreshToken) {
-        return { intervals: [], calendarAvailabilityKnown: false };
-      }
-
-      const oauth2Client = createOAuth2Client();
-      oauth2Client.setCredentials({ refresh_token: input.googleRefreshToken });
-      const calendar = google.calendar({ version: "v3", auth: oauth2Client });
-      const calendarId = input.googleCalendarId || "primary";
-
-      const response = await calendar.events.list(
-        {
-          calendarId,
-          timeMin: input.timeMin.toISOString(),
-          timeMax: input.timeMax.toISOString(),
-          singleEvents: true,
-          orderBy: "startTime",
-          showDeleted: false,
-          maxResults: 2500,
-        },
-        { timeout: CALENDAR_REQUEST_TIMEOUT_MS }
-      );
-
-      const intervals = (response.data.items ?? [])
-        .filter((event) => {
-          if (event.status === "cancelled") return false;
-          // Google marca los eventos de día completo como "Libre"
-          // (transparency: transparent) por defecto, así que el "VACACIONES"
-          // que el dueño pone de todo el día se descartaba en silencio y el
-          // día seguía reservable. Un evento de día completo (viene con
-          // start.date, no start.dateTime) significa siempre "ese día no
-          // trabajo": cuenta como ocupado aunque figure como libre.
-          const esDeDiaCompleto = Boolean(event.start?.date);
-          if (esDeDiaCompleto) return true;
-          return event.transparency !== "transparent";
-        })
-        .map(
-          (event): {
-            start: Date | null;
-            end: Date | null;
-            externalEventId?: string;
-          } => {
-          const start = event.start?.dateTime ?? event.start?.date;
-          const end = event.end?.dateTime ?? event.end?.date;
-          return {
-            start: start ? new Date(start) : null,
-            end: end ? new Date(end) : null,
-            externalEventId: event.id ?? undefined,
-          };
-          }
-        )
-        .filter(
-          (interval): interval is CalendarBusyInterval =>
-            Boolean(
-              interval.start &&
-                interval.end &&
-                !Number.isNaN(interval.start.getTime()) &&
-                !Number.isNaN(interval.end.getTime())
-            )
-        );
+      const activa = exigirConexionActiva(conexion, "proximos");
+      const intervals = await obtenerProveedorDeCalendario(
+        activa.provider
+      ).listarOcupacion(activa, {
+        timeMin: input.timeMin,
+        timeMax: input.timeMax,
+      });
       return { intervals, calendarAvailabilityKnown: true };
     } catch (err) {
       console.error(
         "[Calendar] No se pudo consultar la ocupación real del calendario, se ignora para esta comprobación:",
-        getGoogleErrorDetails(err)
+        err instanceof Error ? err.message : err
       );
       return { intervals: [], calendarAvailabilityKnown: false };
     }
   }
 
-  async bookAppointment(input: {
-    clientName: string;
-    startDateTime: string;
-    durationMinutes?: number;
-    clientEmail?: string;
-    clientPhone?: string | null;
-    serviceNames?: string[] | null;
-    professionalName?: string | null;
-    provider: "google" | "outlook";
-    googleRefreshToken?: string | null;
-    googleCalendarId?: string | null;
-    outlookRefreshToken?: string | null;
-    outlookCalendarId?: string | null;
-    /** Clave estable por llamada/reserva para que un timeout no cree dos
-     * eventos externos. */
-    idempotencyKey?: string;
-  }) {
-    const {
-      clientName,
-      startDateTime,
-      durationMinutes = 30,
-      clientEmail,
-      clientPhone,
-      serviceNames,
-      professionalName,
-      provider,
-      googleRefreshToken,
-      googleCalendarId,
-      outlookRefreshToken,
-      outlookCalendarId,
-      idempotencyKey,
-    } = input;
-
-    const startTime = new Date(startDateTime);
-    const endTime = new Date(startTime.getTime() + durationMinutes * 60000);
-    const { summary, description } = buildEventContent({
-      clientName,
-      clientPhone,
-      serviceNames,
-      professionalName,
-    });
-
-    if (provider === "outlook") {
-      if (!outlookRefreshToken) {
-        throw new CalendarBusinessError(
-          "OUTLOOK_CALENDAR_RECONNECT_REQUIRED",
-          "El negocio no tiene conectado Outlook Calendar."
-        );
-      }
-      if (!outlookCalendarId) {
-        throw new CalendarBusinessError(
-          "BOOK_APPOINTMENT_FAILED",
-          "No se ha seleccionado un calendario de Outlook."
-        );
-      }
-
-      try {
-        const { access_token } =
-          await refrescarTokenDeOutlook(outlookRefreshToken);
-        const event = await createMicrosoftCalendarEvent({
-          accessToken: access_token,
-          calendarId: outlookCalendarId,
-          subject: summary,
-          startDateTime: startTime.toISOString(),
-          endDateTime: endTime.toISOString(),
-          attendeeEmail: clientEmail,
-          description,
-          transactionId: idempotencyKey
-            ? outlookTransactionIdFromIdempotencyKey(idempotencyKey)
-            : undefined,
-          // Microsoft Graph solo admite un único reminderMinutesBeforeStart
-          // por evento (a diferencia de Google, que acepta varios overrides)
-          // — se prioriza el aviso inmediato porque es el que resuelve el
-          // problema real reportado (el propietario no se enteraba de que
-          // había una reserva nueva), a costa de perder el aviso a 2h antes
-          // en Outlook. Si la cita está demasiado lejos para que el aviso
-          // inmediato sea válido (ver MAX_REMINDER_MINUTES), cae al de 2h.
-          reminderMinutesBeforeStart:
-            buildImmediateReminderMinutes(startTime) ??
-            REMINDER_MINUTES_BEFORE_START,
-        });
-
-        return event;
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        // isMicrosoftInvalidGrantError primero: el 400+invalid_grant real de
-        // Microsoft (refresh token revocado) no contiene "401" ni "403" en
-        // ningún sitio del mensaje, así que antes caía siempre al genérico
-        // BOOK_APPOINTMENT_FAILED — el fallo de reconexión de Outlook más
-        // común quedaba encolado para reintentos que nunca podrían funcionar
-        // hasta que el negocio reconectara a mano (hallazgo #22).
-        if (
-          isMicrosoftInvalidGrantError(err) ||
-          message.includes("401") ||
-          message.includes("403")
-        ) {
-          throw new CalendarBusinessError(
-            "OUTLOOK_CALENDAR_RECONNECT_REQUIRED",
-            "La conexión con Outlook ha sido revocada o expiró."
-          );
-        }
-        const transient = classifyMicrosoftTransientError(err);
-        if (
-          transient === "timeout" ||
-          (err instanceof Error && err.name === "TimeoutError")
-        ) {
-          throw new CalendarBusinessError(
-            "CALENDAR_TIMEOUT",
-            "Outlook Calendar está tardando más de lo normal en responder."
-          );
-        }
-        if (transient === "rate_limit" || message.includes("429")) {
-          throw new CalendarBusinessError(
-            "CALENDAR_RATE_LIMITED",
-            "Outlook Calendar está limitando las peticiones en este momento."
-          );
-        }
-        console.error("[Calendar] Failed to create Outlook appointment:", err);
-        throw new CalendarBusinessError(
-          "BOOK_APPOINTMENT_FAILED",
-          "No se pudo crear el evento en Outlook Calendar."
-        );
-      }
+  async bookAppointment(
+    input: EntradaConConexion & {
+      clientName: string;
+      startDateTime: string;
+      durationMinutes?: number;
+      clientEmail?: string;
+      clientPhone?: string | null;
+      serviceNames?: string[] | null;
+      professionalName?: string | null;
+      /** Zona del negocio; "Europe/Madrid" por defecto. Inerte para Google
+       * (manda UTC) y Outlook (lib/microsoftGraph.ts la hardcodea). */
+      timezone?: string;
+      /** Clave estable por llamada/reserva para que un timeout no cree dos
+       * eventos externos. */
+      idempotencyKey?: string;
     }
+  ): Promise<EventoCreado> {
+    const activa = exigirConexionActiva(input.conexion, "reservar");
+    const startTime = new Date(input.startDateTime);
+    const endTime = new Date(
+      startTime.getTime() + (input.durationMinutes ?? 30) * 60000
+    );
+    const { summary, description } = buildEventContent(input);
 
-    if (!googleRefreshToken) {
-      throw new CalendarBusinessError(
-        "GOOGLE_CALENDAR_RECONNECT_REQUIRED",
-        "El negocio no tiene conectado Google Calendar."
-      );
-    }
-
-    const oauth2Client = createOAuth2Client();
-    oauth2Client.setCredentials({ refresh_token: googleRefreshToken });
-
-    const calendar = google.calendar({ version: "v3", auth: oauth2Client });
-
-    const event = {
-      ...(idempotencyKey ? { id: googleEventIdFromIdempotencyKey(idempotencyKey) } : {}),
+    return obtenerProveedorDeCalendario(activa.provider).crearEvento(activa, {
       summary,
       description,
-      start: { dateTime: startTime.toISOString() },
-      end: { dateTime: endTime.toISOString() },
-      attendees: clientEmail ? [{ email: clientEmail }] : [],
-      // Google sí admite varios reminders por evento: uno casi inmediato
-      // (avisa de la reserva nueva nada más crearse) y el de 2h antes de la
-      // cita — el inmediato se omite (no ambos) si la cita está demasiado
-      // lejos para que ese valor quepa en el límite de la API (ver
-      // MAX_REMINDER_MINUTES). Set para no duplicar el mismo par
-      // método+minutos si ambos coinciden (cita a ~121 minutos vista).
-      reminders: {
-        useDefault: false,
-        overrides: Array.from(
-          new Map(
-            [
-              {
-                method: "popup",
-                minutes: buildImmediateReminderMinutes(startTime),
-              },
-              { method: "popup", minutes: REMINDER_MINUTES_BEFORE_START },
-            ]
-              .filter(
-                (reminder): reminder is { method: string; minutes: number } =>
-                  reminder.minutes !== null
-              )
-              .map((reminder) => [
-                `${reminder.method}:${reminder.minutes}`,
-                reminder,
-              ])
-          ).values()
-        ),
+      startTime,
+      endTime,
+      cliente: {
+        nombre: input.clientName,
+        telefono: input.clientPhone ?? null,
+        email: input.clientEmail ?? null,
       },
-    };
-
-    const calendarId = googleCalendarId || "primary";
-
-    try {
-      const response = await calendar.events.insert(
-        { calendarId, requestBody: event },
-        { timeout: CALENDAR_REQUEST_TIMEOUT_MS }
-      );
-      return response.data;
-    } catch (err) {
-      // Google devuelve 409 si el primer intento creó el evento pero se
-      // perdió su respuesta. Recuperarlo convierte el retry en idempotente.
-      if (idempotencyKey && isGoogleConflictError(err)) {
-        try {
-          const existing = await calendar.events.get(
-            {
-              calendarId,
-              eventId: googleEventIdFromIdempotencyKey(idempotencyKey),
-            },
-            // Este get corre dentro de la ruta de voz y justo cuando Google
-            // está dando problemas: sin tope podía comerse el presupuesto
-            // entero de la tool call.
-            { timeout: CALENDAR_REQUEST_TIMEOUT_MS }
-          );
-          return existing.data;
-        } catch (getError) {
-          console.error(
-            "[Calendar] El evento idempotente de Google existe pero no se pudo recuperar:",
-            getGoogleErrorDetails(getError)
-          );
-        }
-      }
-      if (isGoogleInvalidGrantError(err)) {
-        throw new CalendarBusinessError(
-          "GOOGLE_CALENDAR_RECONNECT_REQUIRED",
-          "La conexión con Google ha sido revocada o expiró."
-        );
-      }
-      const transient = classifyGoogleTransientError(err);
-      if (transient === "rate_limit") {
-        throw new CalendarBusinessError(
-          "CALENDAR_RATE_LIMITED",
-          "Google Calendar está limitando las peticiones en este momento."
-        );
-      }
-      if (transient === "timeout") {
-        throw new CalendarBusinessError(
-          "CALENDAR_TIMEOUT",
-          "Google Calendar está tardando más de lo normal en responder."
-        );
-      }
-      console.error(
-        "[Calendar] Failed to create appointment:",
-        getGoogleErrorDetails(err)
-      );
-      throw new CalendarBusinessError(
-        "BOOK_APPOINTMENT_FAILED",
-        "No se pudo crear el evento en Google Calendar."
-      );
-    }
+      recordatorioInmediatoMinutos: buildImmediateReminderMinutes(startTime),
+      recordatorioPrevioMinutos: REMINDER_MINUTES_BEFORE_START,
+      zonaHoraria: input.timezone ?? "Europe/Madrid",
+      idempotencyDigest: input.idempotencyKey
+        ? hashDeIdempotencia(input.idempotencyKey)
+        : null,
+    });
   }
 
   /** Cancela el evento externo de una cita ya reservada (voz: ver
    * executeCancelAppointment en voiceTools/service.ts). Un evento ya
-   * borrado (404/410) se trata como éxito idempotente — puede haberlo
-   * borrado ya un reintento anterior o el propio propietario a mano. */
-  async cancelAppointment(input: {
-    provider: "google" | "outlook";
-    googleRefreshToken?: string | null;
-    googleCalendarId?: string | null;
-    outlookRefreshToken?: string | null;
-    outlookCalendarId?: string | null;
-    eventId: string;
-  }): Promise<void> {
-    const {
-      provider,
-      googleRefreshToken,
-      googleCalendarId,
-      outlookRefreshToken,
-      outlookCalendarId,
-      eventId,
-    } = input;
-
-    if (provider === "outlook") {
-      if (!outlookRefreshToken || !outlookCalendarId) {
-        throw new CalendarBusinessError(
-          "OUTLOOK_CALENDAR_RECONNECT_REQUIRED",
-          "El negocio no tiene conectado Outlook Calendar."
-        );
-      }
-      try {
-        const { access_token } =
-          await refrescarTokenDeOutlook(outlookRefreshToken);
-        await deleteMicrosoftCalendarEvent(access_token, outlookCalendarId, eventId);
-      } catch (err) {
-        if ((err as { status?: number })?.status === 404) return;
-        if (isMicrosoftInvalidGrantError(err)) {
-          throw new CalendarBusinessError(
-            "OUTLOOK_CALENDAR_RECONNECT_REQUIRED",
-            "La conexión con Outlook ha sido revocada o expiró."
-          );
-        }
-        console.error("[Calendar] Failed to cancel Outlook appointment:", err);
-        throw new CalendarBusinessError(
-          "CANCEL_APPOINTMENT_FAILED",
-          "No se pudo cancelar el evento en Outlook Calendar."
-        );
-      }
-      return;
-    }
-
-    if (!googleRefreshToken) {
-      throw new CalendarBusinessError(
-        "GOOGLE_CALENDAR_RECONNECT_REQUIRED",
-        "El negocio no tiene conectado Google Calendar."
-      );
-    }
-
-    const oauth2Client = createOAuth2Client();
-    oauth2Client.setCredentials({ refresh_token: googleRefreshToken });
-    const calendar = google.calendar({ version: "v3", auth: oauth2Client });
-    const calendarId = googleCalendarId || "primary";
-
-    try {
-      await calendar.events.delete(
-        { calendarId, eventId },
-        { timeout: CALENDAR_REQUEST_TIMEOUT_MS }
-      );
-    } catch (err) {
-      const status = (err as { code?: number })?.code;
-      if (status === 404 || status === 410) return;
-      if (isGoogleInvalidGrantError(err)) {
-        throw new CalendarBusinessError(
-          "GOOGLE_CALENDAR_RECONNECT_REQUIRED",
-          "La conexión con Google ha sido revocada o expiró."
-        );
-      }
-      console.error(
-        "[Calendar] Failed to cancel appointment:",
-        getGoogleErrorDetails(err)
-      );
-      throw new CalendarBusinessError(
-        "CANCEL_APPOINTMENT_FAILED",
-        "No se pudo cancelar el evento en Google Calendar."
-      );
-    }
+   * borrado se trata como éxito idempotente — puede haberlo borrado ya un
+   * reintento anterior o el propio propietario a mano. */
+  async cancelAppointment(
+    input: EntradaConConexion & { eventId: string }
+  ): Promise<void> {
+    const activa = exigirConexionActiva(input.conexion, "cancelar");
+    await obtenerProveedorDeCalendario(activa.provider).borrarEvento(
+      activa,
+      input.eventId
+    );
   }
 }
 
