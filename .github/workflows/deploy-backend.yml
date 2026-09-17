@@ -16,6 +16,14 @@ name: Deploy backend
 on:
   push:
     branches: [main]
+    # Solo cuando cambia algo que la imagen o este workflow usan. El
+    # environment `production` exige aprobación manual: sin este filtro,
+    # cada PR de frontend o de documentación fusionado pedía aprobar un
+    # deploy que reconstruía la misma imagen (pasó cuatro veces el 17-09).
+    # Vercel despliega el frontend por su cuenta.
+    paths:
+      - "backend/**"
+      - ".github/workflows/deploy-backend.yml"
 
 permissions:
   contents: read
