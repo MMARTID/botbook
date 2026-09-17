@@ -12,9 +12,21 @@ const SEVERITY_RANK: Record<OperationalTone, number> = { error: 0, warning: 1, u
 
 /** Versión compacta del mismo estado que se desarrolla en el Panel. */
 export function AgentOperationalSummary({ business, agentActive }: { business: Business; agentActive: boolean }) {
-  const { items } = useOperationalStatus(business, agentActive);
+  const { items, isLoading } = useOperationalStatus(business, agentActive);
   const needsAttention = items.filter((item) => item.tone === "error" || item.tone === "warning");
+  const unchecked = items.filter((item) => item.tone === "unknown");
   const ordered = [...items].sort((a, b) => SEVERITY_RANK[a.tone] - SEVERITY_RANK[b.tone]);
+
+  // El mismo criterio que la franja del Panel, y por el mismo motivo: si alguna
+  // comprobación no ha contestado, esta frase no puede dar el visto bueno
+  // mientras las tarjetas de debajo dicen "No se ha podido comprobar".
+  const titular = isLoading
+    ? "Comprobando el estado de la recepción…"
+    : needsAttention.length > 0
+      ? "Hay ajustes que requieren atención antes de que la recepción esté completa."
+      : unchecked.length > 0
+        ? "No hemos podido comprobar todo el estado. Recarga la página en un momento."
+        : "La recepción está preparada para atender llamadas.";
 
   return (
     <section className="rounded-3xl border border-[#e5e5e5] bg-[#fafafa] p-4 sm:p-5" aria-labelledby="agent-status-title">
@@ -22,7 +34,7 @@ export function AgentOperationalSummary({ business, agentActive }: { business: B
         <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#f3eeff] text-[#8b5cf6]"><Activity className="h-5 w-5" aria-hidden="true" /></span>
         <div className="min-w-0 flex-1">
           <h2 id="agent-status-title" className="text-base font-semibold text-[#0a0a0a]">Estado de la recepción</h2>
-          <p className="mt-1 text-sm leading-6 text-muted">{needsAttention.length ? "Hay ajustes que requieren atención antes de que la recepción esté completa." : "La recepción está preparada para atender llamadas."}</p>
+          <p className="mt-1 text-sm leading-6 text-muted">{titular}</p>
         </div>
       </div>
       <ul className="mt-4 grid gap-2 sm:grid-cols-2">
