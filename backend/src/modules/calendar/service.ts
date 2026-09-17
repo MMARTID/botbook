@@ -1,3 +1,10 @@
+// Fachada del calendario. Aquí viven el flujo OAuth (Google y Microsoft), la
+// selección de calendario, la sincronización de tools con los agentes de voz
+// y las operaciones genéricas (ocupación, reservar, cancelar, próximos
+// eventos, listar calendarios), que se delegan al adaptador del proveedor vía
+// adapters/calendar/registry.ts. No hay ramas por proveedor: cualquier cosa
+// específica de Google u Outlook va en su adaptador, y cualquier cosa que
+// dependa de las columnas google*/outlook* de Business va en ./conexion.ts.
 import { randomBytes } from "node:crypto";
 import { prisma } from "../../lib/prisma.js";
 import { getRedis } from "../../lib/redis.js";

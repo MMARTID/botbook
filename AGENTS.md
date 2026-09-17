@@ -649,6 +649,64 @@ Once the order succeeds, the number is imported into Retell via `retellAdapter.i
 - If a refresh token becomes invalid (`invalid_grant`), the backend throws a `CalendarBusinessError` with code `GOOGLE_CALENDAR_RECONNECT_REQUIRED` or `OUTLOOK_CALENDAR_RECONNECT_REQUIRED`. The frontend should prompt the user to reconnect.
 - **Appointment booking** (`book_appointment` webhook handler) supports both Google and Outlook Calendar. It creates the calendar event and persists a `Booking` row with `professionalId`, `serviceIds` and `durationMinutes` (duration recalculated server-side from the verified services). If no `professionalId` is provided, it selects `availableProfessionals[0]` from `checkAvailability` (specialist first, then the least-loaded that day; never a "no sugerir").
 
+### Arquitectura por adaptadores (`backend/src/adapters/calendar/`, desde 2026-09-18)
+
+Cada proveedor es un adaptador detrás de la interfaz `CalendarProvider`; `CalendarService`
+(`modules/calendar/service.ts`) es una fachada sin ramas `if (provider === ...)`, y los
+consumidores (voiceTools, `jobs/retryFailedBooking.ts`, `calendar/routes.ts`, onboarding)
+no conocen columnas de `Business`: reciben una `CalendarConnection` opaca.
+
+```
+backend/src/adapters/calendar/
+├── CalendarProvider.ts   # SOLO tipos y constantes (PROVEEDORES_DE_CALENDARIO, DESCRIPTORES_DE_PROVEEDOR,
+│                         #   CalendarConnection, ConexionActiva, NuevoEventoDeCalendario, interfaz CalendarProvider).
+│                         #   Prohibido importar googleapis, microsoftGraph, prisma o redis: lo importan voiceTools y el job.
+├── errors.ts             # CalendarBusinessError (+ `provider` opcional), codigoDeReconexion, esCalendarBusinessError
+│                         #   (duck-typed por `name`), proveedorDesdeErrorDeReconexion (null si desconocido: nunca cae a google)
+├── eventoDeCalendario.ts # buildEventContent, recordatorios, hashDeIdempotencia — común a todos los proveedores
+├── registry.ts           # obtenerProveedorDeCalendario(id) → singleton sin estado (como retellAdapter)
+├── google/GoogleCalendarProvider.ts    # googleapis; exporta crearClienteOAuthDeGoogle e isGoogleInvalidGrantError
+└── outlook/OutlookCalendarProvider.ts  # envuelve lib/microsoftGraph.ts (que no cambió)
+
+backend/src/modules/calendar/conexion.ts   # el ÚNICO fichero que conoce las columnas google*/outlook* de Business
+backend/src/lib/voiceConfigCache.ts        # claveDeCacheDeVoz / invalidarCacheDeVoz (antes 4 copias del literal)
+```
+
+- **Interfaz** (`CalendarProvider<P>`): `listarCalendarios(cuenta)`, `listarProximosEventos(conexion, max)`,
+  `listarOcupacion(conexion, ventana)` (devuelve intervalos ya filtrados con la regla del proveedor; puede lanzar
+  cualquier cosa, el servicio degrada a `{ intervals: [], calendarAvailabilityKnown: false }`), `crearEvento(conexion,
+  evento)` (idempotente por `idempotencyDigest`, devuelve `{ id, htmlLink }`) y `borrarEvento(conexion, eventId)`
+  (ya borrado = éxito). Los adaptadores reciben `ConexionActiva` (credenciales + `calendarId` garantizados) y un
+  callback opcional `alRotarCredenciales` (Outlook rota el refresh token en cada refresh; el adaptador no persiste nada).
+- **`conexion.ts`**: `resolverConexionDeCalendario(business, { provider?, calendarId? })` (aplica `"primary"` en Google,
+  admite forzar proveedor/calendario para cancelar un `Booking` creado con otro), `SELECT_CONEXION_DE_CALENDARIO`
+  (spread en los `select`), `estadoDeConexion`, y los cuatro predicados que **nombran** las cuatro semánticas de
+  "conectado" que ya existían (no se unificaron): `conexionOperativa` (token y flag `!== false`: voz y job),
+  `conexionConfirmada` (token y flag `=== true`: caché de voz y rutas del panel), `usaCalendarioExterno` (token y
+  calendario) y `marcadaComoConectada` (solo el flag: onboarding). `guardarConexionDeCalendario` centraliza las cuatro
+  escrituras de conexión (callbacks OAuth y selección) y `marcarCalendarioDesconectado(businessId, provider, modo)` la
+  única implementación de "desconectar", con dos modos: `{ modo: "panel", motivo }` (rutas del panel: conserva el refresh
+  token, guarda `error.message`) y `{ modo: "revocar" }` (voz y job: el token ya fue rechazado con `invalid_grant`, se
+  anula). Es best-effort **pero no silenciosa**: deja un `warn` en cada desconexión y, si la BD falla, un `error` con
+  proveedor, negocio, modo, motivo y el error completo (`FALLO AL MARCAR CALENDARIO DESCONECTADO`, buscable en Cloud
+  Logging); siempre invalida `voice_config:<id>`, así que la siguiente llamada volverá a pasar por aquí y el fallo se
+  repite en los logs en vez de perderse.
+- **Cambios de comportamiento deliberados en ese PR** (los únicos): en `GET /calendar/calendars` y
+  `/calendar/events/upcoming`, el marcado de desconexión pasó a best-effort (409 en vez de 500 si Postgres falla en ese
+  instante) y esas rutas ahora invalidan la caché de voz (antes la voz podía seguir reservando hasta 1 h con un token
+  revocado). Las asimetrías Google/Outlook preexistentes (mapeo de errores por operación, regla de día completo solo en
+  Google, `selectGoogleCalendar` no resincroniza tools y `connectMicrosoftCalendar` sí, `persistirCredencialesRotadas`
+  con `updateMany` por valor del token) se conservaron a propósito.
+- **Añadir un proveedor** (previsto: CalDAV para Apple/iCloud, con contraseña de aplicación; requiere antes la tabla
+  `CalendarConnection`, porque `Business` no tiene columnas donde guardar esas credenciales): (1) id en
+  `PROVEEDORES_DE_CALENDARIO` + tipo de credenciales en `CalendarCredentials` + descriptor en `DESCRIPTORES_DE_PROVEEDOR`
+  (`tipoDeAutorizacion: "credenciales"`); el código `<ID>_CALENDAR_RECONNECT_REQUIRED` aparece solo por el template
+  literal; (2) clase en `adapters/calendar/<id>/`, que nunca importa prisma/redis; (3) una línea en `registry.ts`;
+  (4) rama en `conexion.ts` para leer/escribir sus credenciales; (5) si no es OAuth, una ruta de alta
+  `POST /calendar/auth/:provider/connect` que valide con `listarCalendarios` y guarde con
+  `guardarConexionDeCalendario`. `CalendarService`, voiceTools, el job y el resto de rutas no se tocan.
+  Doctoralia queda fuera del roadmap por decisión de producto (2026-09-18).
+
 ## Booking & Availability
 
 ### Models
@@ -1003,7 +1061,9 @@ Separate suite (`npm run test:integration`, config `backend/vitest.integration.c
 | `backend/tests/modules/auth/routes.test.ts` | Login, register, register-first-user, Google OAuth URL |
 | `backend/tests/modules/billing/service.test.ts` | Stripe event handling, billing summary, checkout session, reconciliation |
 | `backend/tests/modules/phone/service.test.ts` | Phone provisioning idempotency, async order polling/resume, partial failure handling, status retrieval |
-| `backend/tests/modules/calendar/service.test.ts` | Google/Outlook Calendar booking, upcoming events, sync tools to agents, invalid_grant detection, timeout/rate-limit classification |
+| `backend/tests/modules/calendar/service.test.ts` | Google/Outlook Calendar booking, upcoming events, cancel, sync tools to agents, invalid_grant detection, timeout/rate-limit classification, `listarCalendarios`/`seleccionarCalendario` |
+| `backend/tests/modules/calendar/conexion.test.ts` | Resolver de conexión (matriz proveedor × columnas), los cuatro predicados de "conectado", `marcarCalendarioDesconectado` (modos panel/revocar, fallo de BD → log de error con identificadores, fallo de Redis), `guardarConexionDeCalendario`, rotación de credenciales |
+| `backend/tests/adapters/calendar/errors.test.ts`, `registry.test.ts` | Códigos de reconexión, duck typing de `CalendarBusinessError`, resolución de proveedor desde un error (null si desconocido), registro de adaptadores |
 | `backend/tests/modules/voiceTools/service.test.ts` | `book_appointment` call-linking (callId vs. most-recent-call fallback) |
 | `backend/tests/adapters/telnyx/TelnyxAdapter.test.ts` | Search, purchase (order), poll order, release, fetch Telnyx numbers |
 | `backend/tests/plugins/auth.test.ts` | Auth plugin (valid token, missing header, invalid token) |
