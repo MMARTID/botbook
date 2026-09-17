@@ -539,7 +539,10 @@ function AgenteContent() {
     );
   }
 
-  if (isBusinessError) {
+  // El `&& !business` evita que un refresco fallido al volver a la pestaña se
+  // lleve por delante la pantalla: React Query marca error pero conserva los
+  // datos en caché, y esta pantalla solo debe aparecer si no hay nada que pintar.
+  if (isBusinessError && !business) {
     return (
       <FullPageError
         title="No se pudo cargar la configuración de tu negocio"
