@@ -539,35 +539,25 @@ export class TelnyxAiAdapter {
     }
   }
 
-  async listRecordingsByCallControlId(
-    callControlId: string
-  ): Promise<TelnyxRecording[]> {
-    return this.listRecordings({ callControlId });
-  }
-
   /**
    * `call.recording.saved` no trae `call_control_id` en su payload (solo
    * `call_leg_id`/`call_session_id`, verificado contra los tipos de webhook
    * del SDK) — hace falta esta vía para correlacionar la grabación con
-   * nuestro `Call` cuando solo se tiene el leg.
+   * nuestro `Call` cuando solo se tiene el leg. También es la única forma de
+   * pedir una URL de descarga nueva cuando la del webhook ha caducado.
+   *
+   * El leg es el único filtro que sirve: el SDK documenta también
+   * `filter[call_control_id]`, pero la API lo ignora y devuelve una lista
+   * vacía (comprobado contra la cuenta real el 2026-09-17). Por eso no hay
+   * un `listRecordingsByCallControlId`.
    */
   async listRecordingsByCallLegId(
     callLegId: string
   ): Promise<TelnyxRecording[]> {
-    return this.listRecordings({ callLegId });
-  }
-
-  private async listRecordings(filter: {
-    callControlId?: string;
-    callLegId?: string;
-  }): Promise<TelnyxRecording[]> {
     const client = getTelnyxClient();
     const recordings: TelnyxRecording[] = [];
     for await (const recording of client.recordings.list({
-      filter: {
-        call_control_id: filter.callControlId,
-        call_leg_id: filter.callLegId,
-      },
+      filter: { call_leg_id: callLegId },
     })) {
       recordings.push(toTelnyxRecording(recording));
     }

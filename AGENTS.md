@@ -337,7 +337,7 @@ The schema lives in `backend/prisma/schema.prisma`. Key models:
 - `Agent` — voice agent config; `retellAgentId`/`retellLlmId` link to Retell, `telnyxAssistantId` to Telnyx. Includes voice/LLM/STT provider configs, integrations.
 - `Call` — a phone call handled by Retell or Telnyx. Status enum: `INITIATED`, `IN_PROGRESS`, `COMPLETED`, `FAILED`, `TIMED_OUT`. Outcome enum: `RESOLVED`, `FRUSTRATED`, `NO_ANSWER`, `ESCALATED`, `LEAD_CAPTURED` — set from Retell's `call_outcome` post_call_analysis_data field. Since 2026-09-11 the three remaining analysis fields are persisted too: `escalationReason` (enum `CallEscalationReason`), `toolFailureDetected` and `requestedService` (see Retell Configuration).
 - `Booking` — outcome extracted from a call; stores `professionalId`, `serviceIds` (array — since 2026-09-05 a booking can cover several services, e.g. "corte y mechas") and `durationMinutes` to track who performs the appointment and how long it lasts. `professionalId`/`serviceIds` supplied by the LLM are verified to belong to the business before being trusted (`voiceTools/service.ts`) — they are not enforced at the DB/FK level.
-- `Transcript` / `Recording` — call artifacts. Recording has `storageKey` and `storageUrl` for R2.
+- `Transcript` / `Recording` — call artifacts. Recording has `storageKey` and `storageUrl` for R2, `providerLegId` (Telnyx `call_leg_id`, to request a fresh download URL once the 10-minute webhook one expires) and `processingFailedAt`/`processingError` (declared unrecoverable; `retry-stuck-recordings` leaves it alone).
 - `Lead` — structured lead data captured during a call. `type: "pending_booking"` rows are created by `voiceTools/service.ts` when `book_appointment` fails, holding the attempted booking payload so it's never lost; `resolvedAt` is set once `jobs/retryFailedBooking.ts` confirms the booking in the background (still `null` if retries are exhausted or the failure needs a manual calendar reconnect).
 - `Service` / `Professional` / `ProfessionalService` — booking catalog (many-to-many between professionals and services). `Service.priceCents` is optional: a business may work without a published tariff, and the dashboard only estimates revenue for bookings whose services all have a price. `Service` and `Professional` use `deletedAt` plus `active: false` for logical deletion; their `ProfessionalService` rows are auxiliary and may be deleted physically when an assignment or resource is retired.
 - `OnboardingState` — per-business onboarding state. Tracks `dismissedAt`, `completedAt`, `forwardingConfirmedAt` and optional step metadata. The actual step completion is computed live from `Business.schedule`, `Service`, `Professional`, calendar connection state and call history (see Onboarding Flow).
@@ -479,6 +479,22 @@ is now a **Cloud Scheduler** job hitting the same kind of endpoint every
    - Downloads the call recording from Retell or Telnyx and uploads it to R2.
    - Updates `Recording` with `storageKey` and `storageUrl`.
    - Cloud Tasks queue `process-recording`: 5 attempts, exponential backoff 1s base.
+   - **Expired URLs (2026-09-17):** Telnyx's `recording_urls` are S3 presigned links
+     valid for **10 minutes**. If the first attempt misses that window, a plain retry
+     against the stored URL can only get `403`. On a 4xx download (400/403/404/410)
+     the job now asks Telnyx for a fresh URL via
+     `telnyxAiAdapter.listRecordingsByCallLegId(Recording.providerLegId)` and
+     downloads again; rows from before this change have no `providerLegId`, so it is
+     recovered from the S3 path (`…/<call_leg_id>-<n>.wav`) and persisted. If there is
+     nothing to ask (Retell call, no leg, Telnyx no longer has it) the row is marked
+     `processingFailedAt`/`processingError` and the job throws `PermanentJobError`
+     (route answers 200, task leaves the queue). 5xx/network errors still propagate so
+     Cloud Tasks retries. Background: ~50 simulation-battery recordings from 14–16 Sep
+     looped every 15 min for two days (~8,000 failing requests/day) before this.
+   - `filter[call_control_id]` on `GET /v2/recordings` is documented by the SDK but
+     **ignored by the API** (returns an empty list — verified against the live account
+     2026-09-17). Only `call_leg_id`/`call_session_id` filters work; the adapter no
+     longer exposes a by-call-control-id lookup.
 
 2. **`retry-failed-booking`**
    - Retries a `book_appointment` that failed during a live call for a probably-transient reason (`BOOK_APPOINTMENT_FAILED`, `CALENDAR_TIMEOUT`, `CALENDAR_RATE_LIMITED`, or an unclassified error) — enqueued by `capturePendingBookingLead`/`enqueueRetryFailedBooking` in `voiceTools/service.ts`. Not enqueued for `*_RECONNECT_REQUIRED` failures, since retrying doesn't help until the business reconnects the calendar manually.
@@ -524,6 +540,10 @@ is now a **Cloud Scheduler** job hitting the same kind of endpoint every
    - **Cloud Scheduler job `retry-stuck-recordings`** — provisioned in
      `europe-west1` on 2026-09-10, runs every 15 minutes with the same OIDC
      authentication and retry policy as `cleanup-zombie-calls`.
+   - Skips rows with `processingFailedAt` set (already declared unrecoverable by
+     `process-recording`), and before scanning marks as unrecoverable any un-copied
+     recording older than `RECORDING_RETENTION_DAYS` (30): neither Retell nor Telnyx
+     keeps the audio beyond that, so re-enqueueing it only produced 403s forever.
 
 7. **Recording purge** (`backend/src/jobs/purgeOldRecordings.ts`) — added 2026-09-17
    - `POST /internal/jobs/purge-old-recordings`. **Needs a Cloud Scheduler job

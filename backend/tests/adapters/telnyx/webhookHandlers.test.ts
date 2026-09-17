@@ -415,12 +415,13 @@ describe("handleCallRecordingSaved", () => {
 
     expect(result).toEqual({ success: true });
     expect(mockedListRecordingsByCallLegId).toHaveBeenCalledWith("leg_1");
-    expect(mockedRecordingUpsert).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: { callId: "call_db_1" },
-        create: { callId: "call_db_1", externalUrl: "https://example.com/a.mp3" },
-      })
-    );
+    // El leg se guarda con la grabación: la URL del webhook caduca a los 10
+    // minutos y es lo único con lo que processRecording puede pedir otra.
+    expect(mockedRecordingUpsert).toHaveBeenCalledWith({
+      where: { callId: "call_db_1" },
+      create: { callId: "call_db_1", externalUrl: "https://example.com/a.mp3", providerLegId: "leg_1" },
+      update: { externalUrl: "https://example.com/a.mp3", providerLegId: "leg_1" },
+    });
     expect(mockedEnqueueRecordingJob).toHaveBeenCalledWith(
       {
         callId: "call_db_1",

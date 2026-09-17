@@ -434,10 +434,12 @@ export async function handleCallRecordingSaved(
       return { success: false };
     }
 
+    // El leg se guarda porque esta URL caduca a los 10 minutos: si la copia
+    // a R2 no llega a tiempo, processRecording le pide otra a Telnyx con él.
     await prisma.recording.upsert({
       where: { callId: dbCall.id },
-      create: { callId: dbCall.id, externalUrl: url },
-      update: { externalUrl: url },
+      create: { callId: dbCall.id, externalUrl: url, providerLegId: call_leg_id },
+      update: { externalUrl: url, providerLegId: call_leg_id },
     });
 
     try {

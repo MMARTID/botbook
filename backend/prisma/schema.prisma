@@ -488,6 +488,17 @@ model Recording {
   storageUrl  String?
   reviewed    Boolean   @default(false)
   reviewNotes String?
+  // La URL que llega en el webhook de Telnyx caduca a los 10 minutos. Con el
+  // leg se le puede pedir una nueva (GET /v2/recordings?filter[call_leg_id])
+  // en vez de dar la grabación por perdida si el primer intento no llegó a
+  // tiempo. Retell no lo necesita: sus URLs no caducan.
+  providerLegId       String?
+  // Marca de "irrecuperable": el proveedor ya no tiene el audio (o nunca lo
+  // tuvo). retryStuckRecordings deja de reencolarla y el motivo queda para el
+  // panel. Sin esto, 50 grabaciones caducadas reintentaban cada 15 min para
+  // siempre (~8.000 peticiones al día a un 403).
+  processingFailedAt  DateTime?
+  processingError     String?
   // La revisión o retirada desde el panel no destruye de inmediato un dato
   // histórico. Las políticas de retención se encargan de la purga física.
   deletedAt   DateTime?
