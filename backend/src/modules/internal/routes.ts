@@ -59,9 +59,23 @@ const SendWhatsappSchema = z.object({
 // token OIDC. Cloud Tasks reintenta automáticamente cualquier respuesta que
 // no sea 2xx, según la configuración de reintentos de cada cola.
 export const internalJobsRoutes: FastifyPluginAsync = async (fastify) => {
+  // Fuera del limitador global de 100/min por IP (server.ts): estas rutas las
+  // llaman Cloud Tasks y Cloud Scheduler desde un puñado de IPs de Google y
+  // ya van autenticadas con OIDC. Con el límite hecho global en Redis, drenar
+  // una cola o encolar cien correos del resumen semanal a la vez devolvía
+  // 429 en cadena y Cloud Tasks agotaba reintentos sobre envíos legítimos
+  // (visto el 2026-09-17: 293 × 429 en process-recording en tres minutos).
+  // Va en las opciones de cada ruta, no en un hook onRoute de este plugin:
+  // @fastify/rate-limit lee `config.rateLimit` en su propio hook, que corre
+  // antes que cualquiera registrado aquí dentro.
+  const opcionesDeJob = {
+    preValidation: [fastify.verifyCloudTasks],
+    config: { rateLimit: false as const },
+  };
+
   fastify.post(
     "/jobs/process-recording",
-    { preValidation: [fastify.verifyCloudTasks] },
+    opcionesDeJob,
     async (request, reply) => {
       try {
         const data = ProcessRecordingSchema.parse(request.body);
@@ -89,7 +103,7 @@ export const internalJobsRoutes: FastifyPluginAsync = async (fastify) => {
 
   fastify.post(
     "/jobs/retry-failed-booking",
-    { preValidation: [fastify.verifyCloudTasks] },
+    opcionesDeJob,
     async (request, reply) => {
       try {
         const data = RetryFailedBookingSchema.parse(request.body);
@@ -117,7 +131,7 @@ export const internalJobsRoutes: FastifyPluginAsync = async (fastify) => {
 
   fastify.post(
     "/jobs/send-email",
-    { preValidation: [fastify.verifyCloudTasks] },
+    opcionesDeJob,
     async (request, reply) => {
       try {
         const data = SendEmailSchema.parse(request.body);
@@ -145,7 +159,7 @@ export const internalJobsRoutes: FastifyPluginAsync = async (fastify) => {
 
   fastify.post(
     "/jobs/send-sms",
-    { preValidation: [fastify.verifyCloudTasks] },
+    opcionesDeJob,
     async (request, reply) => {
       try {
         const data = SendSmsSchema.parse(request.body);
@@ -173,7 +187,7 @@ export const internalJobsRoutes: FastifyPluginAsync = async (fastify) => {
 
   fastify.post(
     "/jobs/send-whatsapp",
-    { preValidation: [fastify.verifyCloudTasks] },
+    opcionesDeJob,
     async (request, reply) => {
       try {
         const data = SendWhatsappSchema.parse(request.body);
@@ -201,7 +215,7 @@ export const internalJobsRoutes: FastifyPluginAsync = async (fastify) => {
 
   fastify.post(
     "/jobs/purge-old-recordings",
-    { preValidation: [fastify.verifyCloudTasks] },
+    opcionesDeJob,
     async (_request, reply) => {
       try {
         const result = await purgeOldRecordingsJob();
@@ -215,7 +229,7 @@ export const internalJobsRoutes: FastifyPluginAsync = async (fastify) => {
 
   fastify.post(
     "/jobs/cleanup-zombie-calls",
-    { preValidation: [fastify.verifyCloudTasks] },
+    opcionesDeJob,
     async (_request, reply) => {
       try {
         await cleanupZombieCallsJob();
@@ -240,7 +254,7 @@ export const internalJobsRoutes: FastifyPluginAsync = async (fastify) => {
   // ejecutar).
   fastify.post(
     "/jobs/telnyx-health-check",
-    { preValidation: [fastify.verifyCloudTasks] },
+    opcionesDeJob,
     async (_request, reply) => {
       try {
         await telnyxHealthCheckJob();
@@ -266,7 +280,7 @@ export const internalJobsRoutes: FastifyPluginAsync = async (fastify) => {
   // de ningún negocio — eso sigue siendo cosa de telnyx-health-check/Fase 5.
   fastify.post(
     "/jobs/telnyx-reconciler",
-    { preValidation: [fastify.verifyCloudTasks] },
+    opcionesDeJob,
     async (_request, reply) => {
       try {
         const result = await telnyxReconcilerJob();
@@ -287,7 +301,7 @@ export const internalJobsRoutes: FastifyPluginAsync = async (fastify) => {
 
   fastify.post(
     "/jobs/report-usage",
-    { preValidation: [fastify.verifyCloudTasks] },
+    opcionesDeJob,
     async (request, reply) => {
       try {
         await processUsageReportJob(ReportUsageSchema.parse(request.body));
@@ -309,7 +323,7 @@ export const internalJobsRoutes: FastifyPluginAsync = async (fastify) => {
 
   fastify.post(
     "/jobs/attach-usage-prices",
-    { preValidation: [fastify.verifyCloudTasks] },
+    opcionesDeJob,
     async (_request, reply) => {
       try {
         const attachedSubscriptions = await attachUsagePricesJob();
@@ -330,7 +344,7 @@ export const internalJobsRoutes: FastifyPluginAsync = async (fastify) => {
 
   fastify.post(
     "/jobs/retry-usage-reports",
-    { preValidation: [fastify.verifyCloudTasks] },
+    opcionesDeJob,
     async (_request, reply) => {
       try {
         await retryUsageReportsJob();
@@ -351,7 +365,7 @@ export const internalJobsRoutes: FastifyPluginAsync = async (fastify) => {
 
   fastify.post(
     "/jobs/suspend-overdue-calls",
-    { preValidation: [fastify.verifyCloudTasks] },
+    opcionesDeJob,
     async (_request, reply) => {
       try {
         const suspendedBusinesses = await suspendOverdueCallsJob();
@@ -374,7 +388,7 @@ export const internalJobsRoutes: FastifyPluginAsync = async (fastify) => {
   // de los últimos 7 días para negocios Pro/Scale — ver sendWeeklySummary.ts.
   fastify.post(
     "/jobs/send-weekly-summaries",
-    { preValidation: [fastify.verifyCloudTasks] },
+    opcionesDeJob,
     async (_request, reply) => {
       try {
         const result = await sendWeeklySummaryJob();
@@ -395,7 +409,7 @@ export const internalJobsRoutes: FastifyPluginAsync = async (fastify) => {
 
   fastify.post(
     "/jobs/retry-stuck-recordings",
-    { preValidation: [fastify.verifyCloudTasks] },
+    opcionesDeJob,
     async (_request, reply) => {
       try {
         await retryStuckRecordingsJob();

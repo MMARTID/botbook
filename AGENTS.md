@@ -326,7 +326,7 @@ All business-scoped data is filtered by `businessId` from the token. Never trust
 
 - **Validation:** Use `zod` schemas for route bodies and params. Return `400` with `error.errors` on `ZodError`.
 - **Global error handler** (`server.ts`): Normalizes all errors to `{ statusCode, error, message }`. Handles both `Error` instances and plain error objects (e.g. rate-limit errors from `@fastify/rate-limit`). Logs full error details with Pino. Returns generic "Internal server error" for 5xx to avoid leaking internals.
-- **Rate limiting:** Default 100 req/min. Retell webhook endpoints override to 300 req/min. Auth endpoints have stricter limits: 10/min (`/login`, `/register`) and 5/min (`/register-first-user`). Places endpoints use 10/min.
+- **Rate limiting:** Default 100 req/min per IP, counter in Redis (global across Cloud Run instances since 2026-09-17). Retell webhook endpoints override to 300 req/min. Auth endpoints have stricter limits: 10/min (`/login`, `/register`) and 5/min (`/register-first-user`). Places endpoints use 10/min. **`/internal/jobs/*` are exempt** (`config.rateLimit: false` on every route): Cloud Tasks/Scheduler call from a handful of Google IPs and are already OIDC-authenticated — with the limit made real, draining a queue produced 293 × 429 in three minutes, and a burst of weekly-summary emails would have exhausted Cloud Tasks retries on legitimate sends.
 
 ## Database (Prisma)
 
@@ -995,7 +995,7 @@ Separate suite (`npm run test:integration`, config `backend/vitest.integration.c
 
 - **JWT_SECRET** is mandatory — the server refuses to start without it.
 - CORS is restricted to the exact `FRONTEND_URL` origin.
-- Rate limiting is active globally (100 req/min) and raised for Retell webhooks (300 req/min). Places endpoints use 10/min.
+- Rate limiting is active globally (100 req/min per IP, Redis-backed) and raised for Retell webhooks (300 req/min). Places endpoints use 10/min. Internal job routes (`/internal/jobs/*`) are exempt.
 - Retell webhook signatures are verified via `retellAdapter.validateWebhookSignature` using the Retell API key. This also applies to the Retell custom tool endpoints (`/webhooks/retell/tools/:retellAgentId/:toolName`).
 - Stripe webhook signatures are verified in the route handler before calling `handleStripeEvent` (route uses `rawBody: true`).
 - Raw body parsing is enabled only on the Retell and Telnyx webhook routes to avoid memory overhead on regular routes.
