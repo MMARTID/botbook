@@ -195,11 +195,30 @@ export type BookingService = {
   updatedAt: string;
 };
 
+/**
+ * Nivel de un profesional en un servicio concreto. Ausencia de nivel = `normal`
+ * («Lo hace»): si lo piden por su nombre, se reserva sin más.
+ * - `especialista`: se le asigna primero cuando el cliente no pide a nadie.
+ * - `no_sugerir`: solo si el cliente lo pide por su nombre; la recepcionista
+ *   propone antes al más indicado. Es una nota interna del panel: el agente
+ *   nunca se lo dice al cliente.
+ */
+export type ProfessionalServiceLevel = "especialista" | "normal" | "no_sugerir";
+
 export type BookingProfessional = {
   id: string;
   name: string;
   active: boolean;
+  /**
+   * Legado: ids con nivel `especialista`. No usarlo para pintar el editor;
+   * la fuente de verdad es `serviceLevels`.
+   */
   serviceIds: string[];
+  /**
+   * Solo los servicios con nivel explícito. Un servicio que no aparece se
+   * entiende como `normal` («Lo hace»).
+   */
+  serviceLevels: Record<string, Exclude<ProfessionalServiceLevel, "normal">>;
   createdAt: string;
   updatedAt: string;
 };
@@ -221,7 +240,12 @@ export type BookingServiceInput = {
 export type BookingProfessionalInput = {
   name: string;
   active?: boolean;
-  serviceIds: string[];
+  /**
+   * Si se manda, es el mapa COMPLETO: reemplaza todos los vínculos con
+   * servicios. `normal` equivale a no incluir el servicio. Si se omite, el
+   * backend no toca los niveles que ya tuviera.
+   */
+  serviceLevels?: Record<string, ProfessionalServiceLevel>;
 };
 
 export type MicrosoftCalendarOption = {
