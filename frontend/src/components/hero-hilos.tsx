@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { useMotionValue, useSpring, useVelocity } from "framer-motion";
 
 /**
  * Hilos de voz: el fondo animado del hero.
@@ -17,6 +18,16 @@ import { useEffect, useRef } from "react";
  * movimiento: ruido de valor en vez de suma de senos (la tela se arruga, no
  * ondula), haz en diagonal en vez de cinta horizontal, y los pulsos como
  * único elemento de color.
+ *
+ * El ratón no desplaza los hilos "a pelo" como en la referencia (un empuje
+ * proporcional a la distancia que desaparece en cuanto el cursor se va): cada
+ * punto de cada hilo es una masa con su muelle, tensión con los vecinos del
+ * hilo y acoplamiento con los hilos de al lado. El cursor empuja y, si va
+ * rápido, arrastra; la tela responde con inercia, la perturbación viaja por
+ * el hilo como una onda y se asienta sola. El cursor en sí se sigue con un
+ * muelle de framer-motion (`useSpring`) y de ahí sale su velocidad
+ * (`useVelocity`), leídas cada fotograma sin re-render. Los hilos que tocas
+ * se encienden en el acento.
  *
  * Reglas heredadas de `particle-mouse-layer`: nunca se lee `scrollY` (la
  * animación no depende del desplazamiento, así que no hay nada que se pueda
@@ -40,9 +51,45 @@ const PENDIENTE = -0.105;
  * pantalla no es retina; por encima de ~0.2 compiten con el titular. */
 const OPACIDAD_HILO = 0.3;
 
-/** Radio y empuje de la repulsión al ratón, en px. */
-const RADIO_RATON = 170;
-const EMPUJE_RATON = 46;
+/** Física de la tela. Unidades: px, segundos.
+ * - RIGIDEZ: muelle de cada punto hacia su reposo (1/s²). ~1 Hz de oscilación.
+ * - TENSION: acoplamiento con los dos vecinos del mismo hilo; es lo que hace
+ *   que una sacudida viaje por el hilo en vez de quedarse donde se dio.
+ * - TELA: acoplamiento con el mismo punto de los hilos contiguos; sin esto
+ *   cada hilo iría por libre y no parecería tela.
+ * - AMORTIGUACION: fricción (1/s). Con ~3,5 la tela da un par de balanceos
+ *   antes de asentarse; más alto y responde como goma, más bajo y no para.
+ * Con el paso de tiempo limitado a 1/30 s, la integración semi-implícita
+ * aguanta de sobra estas constantes (el límite está cerca de dt·√(RIGIDEZ +
+ * 4·TENSION + 4·TELA) < 2). */
+const RIGIDEZ = 40;
+const TENSION = 120;
+const TELA = 55;
+const AMORTIGUACION = 3.5;
+const DT_MAXIMO = 1 / 30;
+
+/** Cursor: radio de influencia, empuje (px/s²) que aparta los hilos del
+ * cursor y arrastre que convierte la velocidad vertical del cursor (px/s) en
+ * aceleración de los puntos cercanos — la estela al pasar rápido. */
+const RADIO_RATON = 190;
+const EMPUJE_RATON = 1500;
+const ARRASTRE_RATON = 0.55;
+const VELOCIDAD_RATON_MAXIMA = 2600;
+
+/** Luz: radio vertical (px) alrededor del cursor en el que un hilo se
+ * enciende en el acento y engorda un poco, y alcance horizontal de esa luz a
+ * lo largo del hilo (se funde con el gris al alejarse del cursor, como una
+ * lámpara sobre la tela; sin esto el hilo entero se encendía de lado a lado
+ * y con varios hilos a la vez era demasiado morado). */
+const RADIO_LUZ = 150;
+const ALCANCE_LUZ = 460;
+
+/** Muelle con el que el dibujo sigue al puntero real: con un poco de retraso
+ * y un mínimo de rebote (ratio de amortiguación ≈ 0,9) para que el arrastre
+ * tenga cuerpo. `presencia` funde la influencia del cursor al entrar y salir
+ * del hero en vez de cortarla de golpe. */
+const MUELLE_CURSOR = { stiffness: 300, damping: 26, mass: 0.7 };
+const MUELLE_PRESENCIA = { stiffness: 140, damping: 22 };
 
 /** Pulsos: cuántos a la vez como máximo y cada cuánto nace uno (segundos). */
 const PULSOS_MAXIMOS = 4;
@@ -53,13 +100,14 @@ const ANCHO_PULSO = 0.07;
 
 type Pulso = { hilo: number; u: number; velocidad: number };
 
-/** "#rrggbb" a "r, g, b". */
-function hexARgb(hex: string): string {
+/** "#rrggbb" a [r, g, b]. */
+function hexARgb(hex: string): [number, number, number] {
   const limpio = hex.replace("#", "");
-  const r = parseInt(limpio.slice(0, 2), 16);
-  const g = parseInt(limpio.slice(2, 4), 16);
-  const b = parseInt(limpio.slice(4, 6), 16);
-  return `${r}, ${g}, ${b}`;
+  return [
+    parseInt(limpio.slice(0, 2), 16),
+    parseInt(limpio.slice(2, 4), 16),
+    parseInt(limpio.slice(4, 6), 16),
+  ];
 }
 
 function suavizar(t: number): number {
@@ -99,6 +147,17 @@ function cuantosHilos(ancho: number): number {
 export function HeroHilos({ color = "#8b5cf6" }: { color?: string }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
+  // Puntero real → cursor con muelle → velocidad del cursor. Son MotionValues:
+  // se leen con `.get()` dentro del bucle de dibujo sin provocar re-renders.
+  const punteroX = useMotionValue(0);
+  const punteroY = useMotionValue(0);
+  const cursorX = useSpring(punteroX, MUELLE_CURSOR);
+  const cursorY = useSpring(punteroY, MUELLE_CURSOR);
+  // Solo importa la velocidad vertical: los hilos van en horizontal y es el
+  // único eje en el que el cursor puede arrastrarlos.
+  const velocidadY = useVelocity(cursorY);
+  const presencia = useSpring(0, MUELLE_PRESENCIA);
+
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -107,24 +166,28 @@ export function HeroHilos({ color = "#8b5cf6" }: { color?: string }) {
 
     const movimientoReducido = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     const conRaton = window.matchMedia("(pointer: fine)").matches && !movimientoReducido;
-    const rgbPulso = hexARgb(color);
+    const [rAcento, gAcento, bAcento] = hexARgb(color);
+    const rgbPulso = `${rAcento}, ${gAcento}, ${bAcento}`;
 
     let ancho = 0;
     let alto = 0;
     let hilos = 0;
     let puntos = 0;
-    /** Alturas de los puntos del hilo que se está dibujando; se reutiliza. */
+    /** Estado de la tela, indexado por hilo·puntos + punto: desplazamiento y
+     * velocidad respecto al reposo, y la altura con la que se pintó cada
+     * punto en el último fotograma (para medir distancias al cursor). */
+    let desplazamiento = new Float32Array(0);
+    let velocidad = new Float32Array(0);
+    let ultimaAltura = new Float32Array(0);
+    /** Alturas del hilo que se está dibujando; se reutiliza. */
     let alturas = new Float32Array(0);
     let animacion = 0;
     let tiempo = 0;
     let ultimoFotograma = 0;
     let visible = true;
+    let cursorDentro = false;
     let pulsos: Pulso[] = [];
     let proximoPulso = 0.6;
-    /** Posición real del cursor y la suavizada que usa el dibujo: el empuje
-     * sigue al ratón con un pequeño retraso para que no dé tirones. */
-    const objetivoRaton = { x: -9999, y: -9999 };
-    const raton = { x: -9999, y: -9999 };
 
     function medir() {
       const caja = canvas!.getBoundingClientRect();
@@ -137,10 +200,16 @@ export function HeroHilos({ color = "#8b5cf6" }: { color?: string }) {
       hilos = cuantosHilos(ancho);
       puntos = Math.ceil(ancho / PASO_X) + 2;
       if (alturas.length < puntos) alturas = new Float32Array(puntos);
+      // Cambia la malla: la tela vuelve al reposo (no hay forma sensata de
+      // remapear desplazamientos entre dos rejillas distintas).
+      desplazamiento = new Float32Array(hilos * puntos);
+      velocidad = new Float32Array(hilos * puntos);
+      ultimaAltura = new Float32Array(hilos * puntos);
     }
 
-    /** Altura del hilo `i` en la abscisa `x` para el instante `t`. */
-    function alturaHilo(i: number, x: number, t: number): number {
+    /** Altura de reposo del hilo `i` en la abscisa `x` para el instante `t`:
+     * la forma de la tela sin contar la sacudida del cursor. */
+    function alturaReposo(i: number, x: number, t: number): number {
       const u = x / ancho;
       const centro = (hilos - 1) / 2;
       // El haz respira: se estrecha y se abre a lo largo del hero, como una
@@ -155,33 +224,104 @@ export function HeroHilos({ color = "#8b5cf6" }: { color?: string }) {
       // cuerpo), la corta la hace temblar.
       const arruga = ruido(u * 2.3 + t * 0.09, i * 0.09 + 3.1) - 0.5;
       const temblor = ruido(u * 6 + t * 0.16 + 7.7, i * 0.14) - 0.5;
-      let y = base + arruga * 180 + temblor * 36;
+      return base + arruga * 180 + temblor * 36;
+    }
 
-      if (conRaton) {
-        const dx = x - raton.x;
-        const dy = y - raton.y;
-        const d = Math.hypot(dx, dy);
-        if (d < RADIO_RATON) {
-          const fuerza = suavizar(1 - d / RADIO_RATON);
-          // Empuje vertical continuo: cerca de dy = 0 se atenúa en vez de
-          // saltar de signo, para que el hilo bajo el cursor no parpadee.
-          y += (dy / Math.max(Math.abs(dy), 14)) * fuerza * EMPUJE_RATON;
+    /** Un paso de física para toda la tela. Lee las alturas del último
+     * fotograma para medir la distancia al cursor y actualiza en el sitio
+     * (Gauss-Seidel): más estable que guardar copia y sobra para esto. */
+    function simularTela(dt: number) {
+      const cx = cursorX.get();
+      const cy = cursorY.get();
+      const fuerzaCursor = conRaton ? presencia.get() : 0;
+      const vy = Math.max(-VELOCIDAD_RATON_MAXIMA, Math.min(VELOCIDAD_RATON_MAXIMA, velocidadY.get()));
+      const friccion = Math.exp(-AMORTIGUACION * dt);
+      const radio2 = RADIO_RATON * RADIO_RATON;
+
+      for (let i = 0; i < hilos; i++) {
+        const fila = i * puntos;
+        for (let k = 0; k < puntos; k++) {
+          const idx = fila + k;
+          const d = desplazamiento[idx];
+          let aceleracion = -RIGIDEZ * d;
+
+          // Tensión a lo largo del hilo y acoplamiento con los hilos vecinos.
+          if (k > 0) aceleracion += TENSION * (desplazamiento[idx - 1] - d);
+          if (k < puntos - 1) aceleracion += TENSION * (desplazamiento[idx + 1] - d);
+          if (i > 0) aceleracion += TELA * (desplazamiento[idx - puntos] - d);
+          if (i < hilos - 1) aceleracion += TELA * (desplazamiento[idx + puntos] - d);
+
+          if (fuerzaCursor > 0.001) {
+            const dx = k * PASO_X - cx;
+            const dy = ultimaAltura[idx] - cy;
+            const dist2 = dx * dx + dy * dy;
+            if (dist2 < radio2) {
+              const f = suavizar(1 - Math.sqrt(dist2) / RADIO_RATON) * fuerzaCursor;
+              // Empuje vertical continuo: cerca de dy = 0 se atenúa en vez de
+              // saltar de signo, para que el hilo bajo el cursor no parpadee.
+              aceleracion += (dy / Math.max(Math.abs(dy), 16)) * f * EMPUJE_RATON;
+              // Arrastre: el cursor se lleva la tela en la dirección en la
+              // que se mueve, y la tela vuelve sola. Es la estela.
+              aceleracion += vy * ARRASTRE_RATON * f;
+            }
+          }
+
+          const v = (velocidad[idx] + aceleracion * dt) * friccion;
+          velocidad[idx] = v;
+          desplazamiento[idx] = d + v * dt;
         }
       }
-      return y;
+    }
+
+    /** Cuánto "toca" el cursor al hilo `i`: 1 justo encima, 0 fuera del radio
+     * de luz. Se mide en la abscisa del cursor, que es donde se nota. */
+    function cercaniaAlCursor(i: number): number {
+      if (!conRaton) return 0;
+      const p = presencia.get();
+      if (p < 0.001) return 0;
+      const cx = cursorX.get();
+      const k = Math.max(0, Math.min(puntos - 1, Math.round(cx / PASO_X)));
+      const distancia = Math.abs(ultimaAltura[i * puntos + k] - cursorY.get());
+      if (distancia >= RADIO_LUZ) return 0;
+      return suavizar(1 - distancia / RADIO_LUZ) * p;
     }
 
     function dibujarHilo(i: number, t: number) {
-      for (let k = 0; k < puntos; k++) alturas[k] = alturaHilo(i, k * PASO_X, t);
+      const fila = i * puntos;
+      for (let k = 0; k < puntos; k++) {
+        const y = alturaReposo(i, k * PASO_X, t) + desplazamiento[fila + k];
+        alturas[k] = y;
+        ultimaAltura[fila + k] = y;
+      }
 
       // Campana de opacidad: los hilos del centro del haz se ven, los de los
       // bordes se funden con el fondo. Por eso el haz no tiene contorno.
       const campana = Math.sin((i / (hilos - 1)) * Math.PI);
+      const gris = `rgba(10, 10, 10, ${(OPACIDAD_HILO * campana).toFixed(3)})`;
+      const luz = cercaniaAlCursor(i);
+
       contexto!.beginPath();
       contexto!.moveTo(0, alturas[0]);
       for (let k = 1; k < puntos; k++) contexto!.lineTo(k * PASO_X, alturas[k]);
-      contexto!.strokeStyle = `rgba(10, 10, 10, ${(OPACIDAD_HILO * campana).toFixed(3)})`;
-      contexto!.lineWidth = 1.1;
+      if (luz > 0.01) {
+        // Los hilos bajo el cursor se encienden hacia el acento y engordan un
+        // poco; la luz se funde con el gris a lo largo del hilo.
+        const alpha = Math.min(0.85, OPACIDAD_HILO * campana * (1 + 1.8 * luz) + 0.25 * luz);
+        const mezcla = luz * 0.85;
+        const r = Math.round(10 + (rAcento - 10) * mezcla);
+        const g = Math.round(10 + (gAcento - 10) * mezcla);
+        const b = Math.round(10 + (bAcento - 10) * mezcla);
+        const cx = cursorX.get();
+        const degradado = contexto!.createLinearGradient(cx - ALCANCE_LUZ, 0, cx + ALCANCE_LUZ, 0);
+        degradado.addColorStop(0, gris);
+        degradado.addColorStop(0.5, `rgba(${r}, ${g}, ${b}, ${alpha.toFixed(3)})`);
+        degradado.addColorStop(1, gris);
+        contexto!.strokeStyle = degradado;
+        contexto!.lineWidth = 1.1 + 0.7 * luz;
+      } else {
+        contexto!.strokeStyle = gris;
+        contexto!.lineWidth = 1.1;
+      }
       contexto!.stroke();
 
       for (const pulso of pulsos) {
@@ -245,14 +385,13 @@ export function HeroHilos({ color = "#8b5cf6" }: { color?: string }) {
     function fotograma(ahoraMs: number) {
       const ahora = ahoraMs / 1000;
       // Tras una pausa larga (pestaña oculta) el salto se recorta: la tela
-      // retoma donde estaba en vez de dar un brinco.
-      const dt = ultimoFotograma ? Math.min(ahora - ultimoFotograma, 0.05) : 0;
+      // retoma donde estaba en vez de dar un brinco. El tope también mantiene
+      // estable la física en un fotograma lento.
+      const dt = ultimoFotograma ? Math.min(ahora - ultimoFotograma, DT_MAXIMO) : 0;
       ultimoFotograma = ahora;
       tiempo += dt;
 
-      raton.x += (objetivoRaton.x - raton.x) * 0.14;
-      raton.y += (objetivoRaton.y - raton.y) * 0.14;
-
+      if (dt > 0) simularTela(dt);
       avanzarPulsos(dt);
       pintar(tiempo);
       animacion = window.requestAnimationFrame(fotograma);
@@ -272,13 +411,30 @@ export function HeroHilos({ color = "#8b5cf6" }: { color?: string }) {
 
     function alMoverRaton(evento: MouseEvent) {
       const caja = canvas!.getBoundingClientRect();
-      objetivoRaton.x = evento.clientX - caja.left;
-      objetivoRaton.y = evento.clientY - caja.top;
+      const x = evento.clientX - caja.left;
+      const y = evento.clientY - caja.top;
+      const dentro = x >= 0 && y >= 0 && x <= caja.width && y <= caja.height;
+
+      if (dentro && !cursorDentro) {
+        // Al entrar, el cursor con muelle aparece donde está el puntero en
+        // vez de venir volando desde donde salió la última vez (o desde 0,0).
+        cursorX.jump(x);
+        cursorY.jump(y);
+        punteroX.jump(x);
+        punteroY.jump(y);
+        presencia.set(1);
+      } else if (dentro) {
+        punteroX.set(x);
+        punteroY.set(y);
+      } else if (cursorDentro) {
+        presencia.set(0);
+      }
+      cursorDentro = dentro;
     }
 
     function alSalirRaton() {
-      objetivoRaton.x = -9999;
-      objetivoRaton.y = -9999;
+      cursorDentro = false;
+      presencia.set(0);
     }
 
     function alCambiarVisibilidad() {
@@ -325,7 +481,7 @@ export function HeroHilos({ color = "#8b5cf6" }: { color?: string }) {
       }
       document.removeEventListener("visibilitychange", alCambiarVisibilidad);
     };
-  }, [color]);
+  }, [color, punteroX, punteroY, cursorX, cursorY, velocidadY, presencia]);
 
   // Solo desde `md`: en móvil el hero es todo titular y no queda hueco donde
   // un fondo aporte algo — y con `display: none` el IntersectionObserver
