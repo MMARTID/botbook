@@ -322,25 +322,30 @@ sigue el mismo principio — física simple (repulsión + amortiguación), sin t
 además limita el riesgo por construcción: en móvil, que es donde vivían los bugs anteriores, el
 bucle ni arranca.
 
-**El hero de las landings no lleva animación de fondo (2026-09-17).** Las landings ya no llevan
-campo de partículas (retirado el 2026-09-16: ensuciaba el contenido) y el pulso de llamada de la
-columna derecha (anillos + pastillas) se retiró también: el hero pasó a una columna con el titular
-centrado. Ese mismo día se probó un fondo de "hilos de voz" en canvas 2D (haz de líneas finas con
-física de tela y reacción al ratón, inspirado en la cinta de ondas de heydiga.com) y se descartó
-antes de fusionarlo: en Chromium iba a 144 fps, pero en Safari iba a tirones — WebKit rasteriza los
-trazos de canvas 2D en CPU (CoreGraphics), y con `devicePixelRatio` 2 son 4× los píxeles de la
-referencia, que dibuja a 1× — y encima la integración física explotaba a 30 fps hasta que se
-corrigió. Lecciones para la próxima capa animada del hero, sea cual sea la técnica:
+**Hilos de voz en el hero de las landings (2026-09-17).** Las landings ya no llevan campo de
+partículas (retirado el 2026-09-16: ensuciaba el contenido); su única animación de fondo es
+`frontend/src/components/hero-hilos.tsx`, que sustituyó al pulso de llamada (anillos + pastillas)
+de la columna derecha. El hero pasó a una columna con el titular centrado y, detrás, un haz de
+hilos finos en gris (`#0a0a0a` a ≤30 % de opacidad, en campana hacia los bordes del haz) que cruza
+en diagonal y se arruga con ruido de valor; de vez en cuando un pulso en el acento de la página
+(morado en `/landing`, `accent.strong` en cada nicho) recorre un hilo. Referencia: la cinta de
+ondas de heydiga.com, con otra geometría y otro movimiento a propósito.
 
-1. Probarla en WebKit (Playwright `webkit` está instalado) y a 30 fps antes de enseñarla; el
-   navegador integrado de Claude es Chromium y no vale como única verificación.
-2. Nada de trazos por fotograma en canvas 2D a retina: o se dibuja a 1× como heydiga, o se va a
-   la GPU (WebGL/WebGPU).
-3. Mismas reglas que la capa de ratón: `requestAnimationFrame` **sin leer nunca `scrollY`**,
-   ratón solo con `pointer: fine`, un único fotograma quieto con `prefers-reduced-motion`, bucle
-   parado fuera de pantalla y con la pestaña oculta, oculto por debajo de `md`. La sección del
-   hero necesitará `relative isolate` y no pintar fondo propio (mismo motivo que el campo de
-   partículas).
+El ratón no empuja los hilos "a pelo" como en la referencia: la tela es un campo masa-muelle
+(`hero-hilos-fisica.ts`: cada punto con muelle a reposo, tensión con sus vecinos del hilo y
+acoplamiento con los hilos contiguos), así que el cursor la aparta con inercia, una pasada rápida
+deja estela y la sacudida viaja por el hilo y se asienta sola. La integración lee los vecinos del
+estado anterior (doble buffer) y va a paso fijo de 1/120 s con subpasos: la primera versión
+actualizaba en el sitio y explotaba en Safari a 30 fps (modo de bajo consumo), mientras que en
+Chromium a 144 fps se veía perfecta — la estabilidad no puede depender de la tasa de refresco. El cursor se sigue con `useSpring` de framer-motion y su
+velocidad sale de `useVelocity`; ambos se leen con `.get()` dentro del bucle, sin re-render, y una
+`presencia` con muelle funde la influencia al entrar y salir del hero. Los hilos bajo el cursor se
+encienden en el acento con un degradado a lo largo del hilo (lámpara, no hilo entero). Mismas
+reglas que la capa de ratón: canvas 2D con `requestAnimationFrame` pero **sin leer nunca
+`scrollY`**, ratón solo con `pointer: fine`, un único fotograma quieto con
+`prefers-reduced-motion`, bucle parado fuera de pantalla y con la pestaña oculta, oculto por
+debajo de `md`. La sección del hero necesita `relative isolate` y no puede pintar fondo propio
+(mismo motivo que el campo de partículas).
 
 ## Typography
 
