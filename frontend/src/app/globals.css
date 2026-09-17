@@ -422,59 +422,7 @@ body {
   }
 }
 
-/* ---------------------------------------------------------------------------
-   Carril de sectores de la portada: una sola línea con scroll-snap. Mismo
-   patrón que .calendar-track; las flechas de escritorio viven en la cabecera
-   de la sección y en móvil se navega arrastrando. */
-.sector-track {
-  display: grid;
-  grid-auto-flow: column;
-  grid-auto-columns: min(82vw, 300px);
-  gap: 16px;
-  overflow-x: auto;
-  overscroll-behavior-inline: contain;
-  scroll-snap-type: inline mandatory;
-  scrollbar-width: none;
-  -webkit-overflow-scrolling: touch;
-  /* Aire para que la sombra/elevación del hover no se recorte. */
-  padding: 8px 4px 16px;
-  margin: -8px -4px -16px;
-}
-
-.sector-track::-webkit-scrollbar {
-  display: none;
-}
-
-@media (min-width: 1024px) {
-  .sector-track {
-    grid-auto-columns: calc((100% - 3 * 16px) / 3.5);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .sector-track {
-    scroll-behavior: auto;
-  }
-}
-
-/* Fundidos laterales del carril de sectores: la tarjeta cortada se disuelve
-   en el blanco de la página en vez de terminar en un corte seco. Cada borde
-   se enciende/apaga desde React según haya contenido oculto por ese lado. */
-.sector-fade {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  width: 72px;
-  pointer-events: none;
-  transition: opacity 0.25s ease;
-}
-
-.sector-fade-izquierda {
-  left: -4px;
-  background: linear-gradient(to right, #ffffff 12%, rgba(255, 255, 255, 0));
-}
-
-.sector-fade-derecha {
-  right: -4px;
-  background: linear-gradient(to left, #ffffff 12%, rgba(255, 255, 255, 0));
-}
+/* La sección de sectores de la portada usa una pila de cartas (ver
+   SectorStackCard en main-landing.tsx, motion.div con animate de
+   framer-motion) — sin clases CSS propias, todo el posicionamiento se
+   calcula en JS por carta. */
