@@ -355,9 +355,20 @@ export class CalendarService {
     const url = oauth2Client.generateAuthUrl({
       access_type: "offline",
       prompt: "consent",
+      // Scopes mínimos: calendar.events cubre list/get/insert/delete de citas
+      // (voiceTools + CalendarService) y calendarlist.readonly cubre el
+      // selector de calendario en Ajustes (listGoogleCalendars). Se evita
+      // deliberadamente el scope completo "calendar" (gestión de
+      // calendarios/ACL/settings que esta app nunca usa) porque es el más
+      // amplio dentro de la categoría "sensitive" de Google — pedir solo lo
+      // necesario agiliza la revisión de verificación OAuth (Google exige
+      // justificar por qué no basta un scope más estrecho). Ningún scope de
+      // Calendar está en la lista "restricted" de Google a día de hoy
+      // (verificado en support.google.com/cloud/answer/13464325), así que
+      // esto no evita una asesoría CASA — reduce el scope pedido al mínimo.
       scope: [
-        "https://www.googleapis.com/auth/calendar",
         "https://www.googleapis.com/auth/calendar.events",
+        "https://www.googleapis.com/auth/calendar.calendarlist.readonly",
       ],
       state,
     });
