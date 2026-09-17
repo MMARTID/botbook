@@ -1,9 +1,14 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { CalendarClock, Copy, Plus, Save, Trash2 } from "lucide-react";
+import { CalendarClock, CalendarX2, Copy, Plus, Save, Trash2 } from "lucide-react";
 import { SettingsSection } from "@/components/settings-section";
-import type { BusinessSchedule, ScheduleDay, WeekDay } from "@/lib/types";
+import type {
+  BusinessSchedule,
+  ScheduleDay,
+  ScheduleException,
+  WeekDay,
+} from "@/lib/types";
 
 const DAYS: Array<{ key: WeekDay; label: string; shortLabel: string }> = [
   { key: "monday", label: "Lunes", shortLabel: "L" },
@@ -51,9 +56,43 @@ export function getScheduleSummary(schedule: BusinessSchedule): string {
   const firstText = scheduleSummary(schedule.week[openDays[0].key]);
   const uniform = openDays.every(({ key }) => scheduleSummary(schedule.week[key]) === firstText);
 
-  if (openDays.length === 7 && uniform) return `Todos los días · ${firstText}`;
-  if (uniform) return `${openDays.length} días · ${firstText}`;
-  return `${openDays.length} ${openDays.length === 1 ? "día abierto" : "días abiertos"} con horario propio`;
+  const base =
+    openDays.length === 7 && uniform
+      ? `Todos los días · ${firstText}`
+      : uniform
+        ? `${openDays.length} días · ${firstText}`
+        : `${openDays.length} ${openDays.length === 1 ? "día abierto" : "días abiertos"} con horario propio`;
+
+  const proximas = upcomingExceptions(schedule).length;
+  return proximas > 0
+    ? `${base} · ${proximas} ${proximas === 1 ? "día especial" : "días especiales"}`
+    : base;
+}
+
+/** Excepciones de hoy en adelante, ordenadas. Las pasadas se conservan en el
+ * horario guardado pero no se enseñan: solo serían ruido. */
+function upcomingExceptions(schedule: BusinessSchedule): ScheduleException[] {
+  const hoy = localDateString(new Date());
+  return (schedule.exceptions ?? [])
+    .filter((exception) => exception.date >= hoy)
+    .sort((izquierda, derecha) => izquierda.date.localeCompare(derecha.date));
+}
+
+function localDateString(date: Date): string {
+  // La fecha local del usuario, no la UTC: a las 23:30 en Madrid, toISOString
+  // ya devuelve el día siguiente y el festivo de hoy desaparecería de la lista.
+  const desfase = date.getTimezoneOffset() * 60_000;
+  return new Date(date.getTime() - desfase).toISOString().slice(0, 10);
+}
+
+function formatExceptionDate(date: string): string {
+  const [year, month, day] = date.split("-").map(Number);
+  return new Intl.DateTimeFormat("es-ES", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  }).format(new Date(year, month - 1, day));
 }
 
 export function BusinessHoursEditor({
@@ -77,6 +116,9 @@ export function BusinessHoursEditor({
   );
   const [schedule, setSchedule] = useState(initialSchedule);
   const [selectedDay, setSelectedDay] = useState<WeekDay>("monday");
+  const [nuevaFecha, setNuevaFecha] = useState("");
+  const [nuevoMotivo, setNuevoMotivo] = useState("");
+  const [errorExcepcion, setErrorExcepcion] = useState<string | null>(null);
 
   useEffect(() => setSchedule(initialSchedule), [initialSchedule]);
 
@@ -85,6 +127,45 @@ export function BusinessHoursEditor({
     setSchedule((current) => ({
       ...current,
       week: { ...current.week, [selectedDay]: updater(current.week[selectedDay]) },
+    }));
+  };
+
+  const excepciones = upcomingExceptions(schedule);
+
+  const añadirDiaCerrado = () => {
+    if (!nuevaFecha) {
+      setErrorExcepcion("Elige la fecha que quieres cerrar.");
+      return;
+    }
+    if (nuevaFecha < localDateString(new Date())) {
+      setErrorExcepcion("Esa fecha ya ha pasado.");
+      return;
+    }
+    if ((schedule.exceptions ?? []).some((item) => item.date === nuevaFecha)) {
+      setErrorExcepcion("Ese día ya está en la lista.");
+      return;
+    }
+    setErrorExcepcion(null);
+    setSchedule((current) => ({
+      ...current,
+      exceptions: [
+        ...(current.exceptions ?? []),
+        {
+          date: nuevaFecha,
+          closed: true,
+          intervals: [],
+          ...(nuevoMotivo.trim() ? { label: nuevoMotivo.trim() } : {}),
+        },
+      ],
+    }));
+    setNuevaFecha("");
+    setNuevoMotivo("");
+  };
+
+  const quitarExcepcion = (date: string) => {
+    setSchedule((current) => ({
+      ...current,
+      exceptions: (current.exceptions ?? []).filter((item) => item.date !== date),
     }));
   };
 
@@ -214,6 +295,97 @@ export function BusinessHoursEditor({
               <Save className="h-4 w-4" /> {isSaving ? "Guardando..." : "Guardar horario"}
             </button>
           </div>
+        </div>
+      </div>
+
+      {/* Días sueltos que no siguen el horario semanal. Sin esto, el agente
+          daba por abierto un festivo por ser "jueves" y confirmaba citas para
+          un día con la persiana bajada. */}
+      <div className="border-t border-[#e5e5e5] p-4 sm:p-6">
+        <div className="flex items-start gap-3">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#f3eeff] text-[#8b5cf6]">
+            <CalendarX2 className="h-5 w-5" aria-hidden="true" />
+          </span>
+          <div className="min-w-0">
+            <p className="text-lg font-semibold text-[#0a0a0a]">Festivos y días cerrados</p>
+            <p className="text-sm leading-6 text-muted">
+              Marca los días que cierras aunque toquen en un día que normalmente abres.
+              El agente no ofrecerá ni confirmará citas en esas fechas.
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-4 flex flex-wrap items-end gap-2">
+          <label className="flex min-w-[10rem] flex-1 flex-col gap-1 text-sm font-medium text-[#27272a]">
+            Fecha
+            <input
+              type="date"
+              value={nuevaFecha}
+              min={localDateString(new Date())}
+              onChange={(event) => setNuevaFecha(event.target.value)}
+              className="field px-3"
+            />
+          </label>
+          <label className="flex min-w-[12rem] flex-[2] flex-col gap-1 text-sm font-medium text-[#27272a]">
+            Motivo (opcional)
+            <input
+              type="text"
+              value={nuevoMotivo}
+              maxLength={60}
+              placeholder="Vacaciones, festivo local..."
+              onChange={(event) => setNuevoMotivo(event.target.value)}
+              className="field px-3"
+            />
+          </label>
+          <button type="button" onClick={añadirDiaCerrado} className="btn-secondary px-4">
+            <Plus className="h-4 w-4" /> Añadir día cerrado
+          </button>
+        </div>
+
+        <p className="min-h-5 pt-1 text-sm text-[#c53030]" role="alert">
+          {errorExcepcion}
+        </p>
+
+        {excepciones.length > 0 ? (
+          <ul className="mt-2 space-y-2">
+            {excepciones.map((exception) => (
+              <li
+                key={exception.date}
+                className="flex flex-wrap items-center gap-3 rounded-xl border border-[#e5e5e5] bg-white p-3"
+              >
+                <span className="min-w-0 flex-1">
+                  <span className="block text-sm font-semibold text-[#27272a]">
+                    {formatExceptionDate(exception.date)}
+                  </span>
+                  <span className="block text-xs text-muted">
+                    {exception.closed
+                      ? exception.label || "Cerrado todo el día"
+                      : exception.intervals
+                          .map((interval) => `${interval.start}–${interval.end}`)
+                          .join(" · ")}
+                  </span>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => quitarExcepcion(exception.date)}
+                  className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[#c53030] transition duration-200 hover:bg-[#fff1f1] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]"
+                  aria-label={`Quitar el día cerrado del ${formatExceptionDate(exception.date)}`}
+                >
+                  <Trash2 className="h-4 w-4" aria-hidden="true" />
+                </button>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="mt-2 rounded-xl border border-dashed border-[#e5e5e5] bg-[#fafafa] px-4 py-6 text-center text-sm text-muted">
+            No hay ningún día especial guardado. El agente seguirá el horario semanal.
+          </p>
+        )}
+
+        <div className="mt-4 flex justify-end">
+          <button type="button" onClick={() => onSave(schedule)} disabled={isSaving} className="btn-primary px-5">
+            <Save className="h-4 w-4" /> {isSaving ? "Guardando..." : "Guardar horario"}
+          </button>
         </div>
       </div>
     </SettingsSection>

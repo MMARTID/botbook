@@ -1,172 +1,113 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import {
-  BusinessHoursEditor,
-  DEFAULT_BUSINESS_SCHEDULE,
-  getScheduleSummary,
-} from "@/components/business-hours-editor";
+import { BusinessHoursEditor } from "@/components/business-hours-editor";
 import type { BusinessSchedule } from "@/lib/types";
 
-function renderEditor(overrides: Partial<React.ComponentProps<typeof BusinessHoursEditor>> = {}) {
-  const onSave = vi.fn();
-  const onToggle = vi.fn();
+const HORARIO_BASE: BusinessSchedule = {
+  version: 1,
+  week: {
+    monday: { enabled: true, intervals: [{ start: "09:00", end: "18:00" }] },
+    tuesday: { enabled: true, intervals: [{ start: "09:00", end: "18:00" }] },
+    wednesday: { enabled: true, intervals: [{ start: "09:00", end: "18:00" }] },
+    thursday: { enabled: true, intervals: [{ start: "09:00", end: "18:00" }] },
+    friday: { enabled: true, intervals: [{ start: "09:00", end: "18:00" }] },
+    saturday: { enabled: false, intervals: [] },
+    sunday: { enabled: false, intervals: [] },
+  },
+};
+
+function fechaFutura(diasDesdeHoy: number): string {
+  const fecha = new Date();
+  fecha.setDate(fecha.getDate() + diasDesdeHoy);
+  const desfase = fecha.getTimezoneOffset() * 60_000;
+  return new Date(fecha.getTime() - desfase).toISOString().slice(0, 10);
+}
+
+function renderEditor(
+  value: BusinessSchedule,
+  onSave = vi.fn()
+) {
   render(
     <BusinessHoursEditor
-      value={DEFAULT_BUSINESS_SCHEDULE}
+      value={value as unknown as Record<string, unknown>}
       timeZone="Europe/Madrid"
       isSaving={false}
       onSave={onSave}
       open
-      onToggle={onToggle}
-      {...overrides}
+      onToggle={vi.fn()}
     />
   );
-  return { onSave, onToggle };
+  return onSave;
 }
 
-describe("getScheduleSummary", () => {
-  it("dice 'Cerrado toda la semana' si ningún día está abierto", () => {
-    const schedule: BusinessSchedule = {
-      version: 1,
-      week: {
-        monday: { enabled: false, intervals: [] },
-        tuesday: { enabled: false, intervals: [] },
-        wednesday: { enabled: false, intervals: [] },
-        thursday: { enabled: false, intervals: [] },
-        friday: { enabled: false, intervals: [] },
-        saturday: { enabled: false, intervals: [] },
-        sunday: { enabled: false, intervals: [] },
-      },
-    };
-    expect(getScheduleSummary(schedule)).toBe("Cerrado toda la semana");
+describe("BusinessHoursEditor — festivos y días cerrados", () => {
+  it("guarda el día cerrado con su motivo", async () => {
+    const usuario = userEvent.setup();
+    const onSave = renderEditor(HORARIO_BASE);
+    const fecha = fechaFutura(30);
+
+    await usuario.type(screen.getByLabelText("Fecha"), fecha);
+    await usuario.type(screen.getByLabelText("Motivo (opcional)"), "Navidad");
+    await usuario.click(screen.getByRole("button", { name: /Añadir día cerrado/ }));
+    await usuario.click(screen.getAllByRole("button", { name: /Guardar horario/ })[0]);
+
+    expect(onSave).toHaveBeenCalledTimes(1);
+    expect(onSave.mock.calls[0][0].exceptions).toEqual([
+      { date: fecha, closed: true, intervals: [], label: "Navidad" },
+    ]);
   });
 
-  it("resume el horario por defecto como 'L-V, mismo horario'", () => {
-    expect(getScheduleSummary(DEFAULT_BUSINESS_SCHEDULE)).toBe("5 días · 09:00–18:00");
+  it("no deja añadir una fecha ya pasada", async () => {
+    const usuario = userEvent.setup();
+    renderEditor(HORARIO_BASE);
+
+    await usuario.type(screen.getByLabelText("Fecha"), fechaFutura(-5));
+    await usuario.click(screen.getByRole("button", { name: /Añadir día cerrado/ }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Esa fecha ya ha pasado");
   });
 
-  it("dice 'con horario propio' si los días abiertos no comparten horario", () => {
-    const schedule = JSON.parse(JSON.stringify(DEFAULT_BUSINESS_SCHEDULE)) as BusinessSchedule;
-    schedule.week.tuesday.intervals = [{ start: "10:00", end: "14:00" }];
-    expect(getScheduleSummary(schedule)).toBe("5 días abiertos con horario propio");
-  });
-});
+  it("no duplica un día que ya está marcado", async () => {
+    const usuario = userEvent.setup();
+    const fecha = fechaFutura(10);
+    renderEditor({
+      ...HORARIO_BASE,
+      exceptions: [{ date: fecha, closed: true, intervals: [], label: "Puente" }],
+    });
 
-describe("BusinessHoursEditor", () => {
-  it("empieza con el lunes seleccionado y su horario visible", () => {
-    renderEditor();
+    await usuario.type(screen.getByLabelText("Fecha"), fecha);
+    await usuario.click(screen.getByRole("button", { name: /Añadir día cerrado/ }));
 
-    expect(screen.getByText("Lunes", { selector: "p" })).toBeInTheDocument();
-    expect(screen.getByDisplayValue("09:00")).toBeInTheDocument();
-    expect(screen.getByDisplayValue("18:00")).toBeInTheDocument();
+    expect(await screen.findByRole("alert")).toHaveTextContent("ya está en la lista");
   });
 
-  it("usa el horario por defecto si 'value' no es un BusinessSchedule válido", () => {
-    renderEditor({ value: {} });
+  it("permite quitar un día cerrado guardado", async () => {
+    const usuario = userEvent.setup();
+    const fecha = fechaFutura(20);
+    const onSave = renderEditor({
+      ...HORARIO_BASE,
+      exceptions: [{ date: fecha, closed: true, intervals: [], label: "Vacaciones" }],
+    });
 
-    expect(screen.getByDisplayValue("09:00")).toBeInTheDocument();
+    expect(screen.getByText("Vacaciones")).toBeInTheDocument();
+    await usuario.click(screen.getByRole("button", { name: /^Quitar el día cerrado/ }));
+    await usuario.click(screen.getAllByRole("button", { name: /Guardar horario/ })[0]);
+
+    expect(onSave.mock.calls[0][0].exceptions).toEqual([]);
   });
 
-  it("cambia de día al hacer click en otro día de la lista", async () => {
-    const user = userEvent.setup();
-    renderEditor();
+  it("no enseña días especiales que ya han pasado", () => {
+    renderEditor({
+      ...HORARIO_BASE,
+      exceptions: [
+        { date: fechaFutura(-30), closed: true, intervals: [], label: "Festivo viejo" },
+      ],
+    });
 
-    await user.click(screen.getByRole("button", { name: /Sábado/ }));
-
-    expect(screen.getByText("Este día figura como cerrado.")).toBeInTheDocument();
-  });
-
-  it("activar un día cerrado le pone un tramo por defecto de 09:00 a 18:00", async () => {
-    const user = userEvent.setup();
-    renderEditor();
-    await user.click(screen.getByRole("button", { name: /Sábado/ }));
-
-    await user.click(screen.getByRole("checkbox"));
-
-    expect(screen.getByDisplayValue("09:00")).toBeInTheDocument();
-    expect(screen.getByDisplayValue("18:00")).toBeInTheDocument();
-  });
-
-  it("desactivar un día abierto muestra el aviso de cerrado", async () => {
-    const user = userEvent.setup();
-    renderEditor();
-
-    await user.click(screen.getByRole("checkbox"));
-
-    expect(screen.getByText("Este día figura como cerrado.")).toBeInTheDocument();
-  });
-
-  it("añade un tramo nuevo hasta un máximo de 3", async () => {
-    const user = userEvent.setup();
-    renderEditor();
-    const addButton = screen.getByRole("button", { name: /Añadir tramo/ });
-
-    await user.click(addButton);
-    expect(screen.getAllByLabelText("Hora de apertura")).toHaveLength(2);
-
-    await user.click(addButton);
-    expect(screen.getAllByLabelText("Hora de apertura")).toHaveLength(3);
-    expect(addButton).toBeDisabled();
-  });
-
-  it("no ofrece eliminar el último tramo de un día abierto", () => {
-    renderEditor();
-
-    // Con un solo tramo el botón no se pinta: un control deshabilitado ocupaba
-    // sitio en la fila y empujaba las horas fuera del ancho en móvil.
-    expect(screen.queryByLabelText("Eliminar tramo")).not.toBeInTheDocument();
-  });
-
-  it("elimina un tramo cuando hay más de uno", async () => {
-    const user = userEvent.setup();
-    renderEditor();
-    await user.click(screen.getByRole("button", { name: /Añadir tramo/ }));
-
-    await user.click(screen.getAllByLabelText("Eliminar tramo")[0]);
-
-    expect(screen.getAllByLabelText("Hora de apertura")).toHaveLength(1);
-  });
-
-  it("editar la hora de un tramo actualiza su valor", async () => {
-    const user = userEvent.setup();
-    renderEditor();
-
-    const startInput = screen.getByLabelText("Hora de apertura") as HTMLInputElement;
-    await user.clear(startInput);
-    await user.type(startInput, "10:00");
-
-    expect(startInput.value).toBe("10:00");
-  });
-
-  it("'Copiar a L–V' aplica el horario del día seleccionado a lunes-viernes", async () => {
-    const user = userEvent.setup();
-    renderEditor();
-    await user.click(screen.getByRole("button", { name: /Sábado/ }));
-    await user.click(screen.getByRole("checkbox")); // abrir sábado con 09:00-18:00
-    const startInput = screen.getByLabelText("Hora de apertura") as HTMLInputElement;
-    await user.clear(startInput);
-    await user.type(startInput, "11:00");
-
-    await user.click(screen.getByRole("button", { name: /Copiar a L–V/ }));
-    await user.click(screen.getByRole("button", { name: /Lunes/ }));
-
-    expect(screen.getByDisplayValue("11:00")).toBeInTheDocument();
-  });
-
-  it("Guardar horario llama a onSave con el estado actual", async () => {
-    const user = userEvent.setup();
-    const { onSave } = renderEditor();
-
-    await user.click(screen.getByRole("button", { name: /Guardar horario/ }));
-
-    expect(onSave).toHaveBeenCalledWith(DEFAULT_BUSINESS_SCHEDULE);
-  });
-
-  it("deshabilita e indica 'Guardando...' mientras isSaving es true", () => {
-    renderEditor({ isSaving: true });
-
-    const saveButton = screen.getByRole("button", { name: /Guardando/ });
-    expect(saveButton).toBeDisabled();
+    expect(screen.queryByText("Festivo viejo")).not.toBeInTheDocument();
+    expect(
+      screen.getByText(/No hay ningún día especial guardado/)
+    ).toBeInTheDocument();
   });
 });

@@ -458,8 +458,11 @@ is now a **Cloud Scheduler** job hitting the same kind of endpoint every
   fallback never actually runs during `vitest`.
 - **Receiving** (`backend/src/modules/internal/routes.ts`, prefix
   `/internal`): `POST /internal/jobs/process-recording`,
-  `/retry-failed-booking`, `/send-email`, `/send-sms`, `/cleanup-zombie-calls`,
-  `/retry-stuck-recordings`. Gated by
+  `/retry-failed-booking`, `/send-email`, `/send-sms`, `/send-whatsapp`,
+  `/cleanup-zombie-calls`, `/retry-stuck-recordings`, `/purge-old-recordings`,
+  `/send-weekly-summaries`, `/report-usage`, `/retry-usage-reports`,
+  `/attach-usage-prices`, `/suspend-overdue-calls`, `/telnyx-health-check`,
+  `/telnyx-reconciler`. Gated by
   `fastify.verifyCloudTasks` (`backend/src/plugins/internalAuth.ts`), which
   verifies the request carries a Google-signed OIDC token issued to
   `CLOUD_TASKS_INVOKER_SERVICE_ACCOUNT` with the right audience — anyone
@@ -499,7 +502,14 @@ is now a **Cloud Scheduler** job hitting the same kind of endpoint every
 
 5. **Zombie call cleanup** (`backend/src/jobs/cleanupZombieCalls.ts`)
    - Cloud Scheduler job `cleanup-zombie-calls`, every 15 minutes, 3 retry attempts.
-   - Threshold: 60 minutes.
+   - Threshold: **20 minutes** (lowered from 60 on 2026-09-17). The agent hangs
+     up on its own at 10 minutes (`maxCallDurationMs`), so anything still
+     `IN_PROGRESS` past 20 is a zombie. With the old threshold a dead call
+     could stay "in progress" for up to 75 minutes and
+     `resolveCallForBusiness`'s fallback heuristic could pick it as "the
+     current call" and overwrite another client's booking.
+   - The `updateMany` repeats the `status`/`updatedAt` predicate: between the
+     find and the write, `call_ended` may have completed the call legitimately.
    - Marks stale `IN_PROGRESS` calls as `TIMED_OUT`.
 
 6. **Stuck recording retry** (`backend/src/jobs/retryStuckRecordings.ts`)
@@ -514,6 +524,38 @@ is now a **Cloud Scheduler** job hitting the same kind of endpoint every
    - **Cloud Scheduler job `retry-stuck-recordings`** — provisioned in
      `europe-west1` on 2026-09-10, runs every 15 minutes with the same OIDC
      authentication and retry policy as `cleanup-zombie-calls`.
+
+7. **Recording purge** (`backend/src/jobs/purgeOldRecordings.ts`) — added 2026-09-17
+   - `POST /internal/jobs/purge-old-recordings`. **Needs a Cloud Scheduler job
+     to be created** (same OIDC config as `cleanup-zombie-calls`); daily is
+     enough:
+     ```bash
+     gcloud scheduler jobs create http purge-old-recordings \
+       --location=europe-west1 --schedule="30 4 * * *" --time-zone="Europe/Madrid" \
+       --uri="$INTERNAL_JOBS_BASE_URL/internal/jobs/purge-old-recordings" \
+       --http-method=POST --oidc-service-account-email="$CLOUD_TASKS_INVOKER_SERVICE_ACCOUNT" \
+       --oidc-token-audience="$INTERNAL_JOBS_BASE_URL"
+     ```
+   - Deletes the audio from R2 and clears `storageKey`/`storageUrl`/`externalUrl`
+     once it is older than `RECORDING_RETENTION_DAYS` (default 30, matching what
+     we ask Retell and Telnyx to keep), or 7 days after the panel soft-deleted
+     it. The `Recording` row survives so the call history still makes sense.
+   - Before this, `DELETE /recordings/:id` only set `deletedAt`: the audio and
+     the transcript stayed forever and a GDPR erasure request could not be
+     honoured.
+
+**Messaging idempotency (2026-09-17):** Cloud Tasks delivers **at least once**,
+so `send-email`, `send-sms` and `send-whatsapp` claim the send in
+`sent_messages` (unique `(channel, idempotencyKey)`) before calling the
+provider. The key is the task id, injected into the payload by the `enqueue*`
+helpers — pass a `taskId` whenever a duplicate would be visible to a customer.
+Tasks are created with `dispatchDeadline` 180s (the default 600s let a slow
+task be retried while the first was still running).
+
+**Permanent vs transient failures:** job handlers throw `PermanentJobError`
+(`backend/src/lib/jobErrors.ts`) for things retrying cannot fix (invalid
+recipient, 4xx from the provider). `internal/routes.ts` answers `200
+{skipped}` for those instead of 500, so the task leaves the queue.
 
 Call outcome classification is **not** a background job — Retell classifies each call natively via `post_call_analysis_data` (see Retell Configuration), no separate LLM call from this backend.
 
@@ -613,11 +655,13 @@ operativos o de auditoría creados por sus flujos específicos.
 
 ### Business Schedule (`backend/src/lib/businessSchedule.ts`)
 
-- Zod schema: `BusinessScheduleSchema` with `version: 1`, 7 days (`monday`–`sunday`), each day has `enabled` + up to 3 non-overlapping intervals (`HH:mm` format).
-- Default: L–V 09:00–18:00, S–D closed.
-- `checkBusinessHours(schedule, timezone, startDateTime, durationMinutes)` converts to local time and validates against intervals.
-- Returns codes: `WITHIN_BUSINESS_HOURS`, `OUTSIDE_BUSINESS_HOURS`, `BUSINESS_HOURS_NOT_CONFIGURED`, `INVALID_DATE_TIME`.
-- `checkBookingRestrictions(business, startDateTime, durationMinutes)` — separate from business hours: validates `Business.minAdvanceBookingMinutes`/`maxAppointmentDurationMinutes` (both optional, `null` = no restriction). Returns codes `MIN_ADVANCE_NOT_MET`, `MAX_DURATION_EXCEEDED`, `INVALID_DATE_TIME`. Called both by the `check_business_hours` tool (so the agent finds out before offering a slot) and by `book_appointment` itself (never trusts a prior tool call in the same conversation).
+- Zod schema: `BusinessScheduleSchema` with `version: 1`, 7 days (`monday`–`sunday`), each day has `enabled` + up to 3 non-overlapping intervals (`HH:mm` format), plus **`exceptions`** (added 2026-09-17).
+- **`exceptions`**: up to 120 entries `{ date: "YYYY-MM-DD", closed, intervals, label? }` for a single date — a public holiday, a bridge day, holidays, or a one-off special timetable. The exception **overrides the weekly pattern** for that date: `closed: true` shuts a day that would otherwise be open, `closed: false` replaces its intervals. Optional in the schema (`.default([])`) so schedules stored before it still parse. Edited from `/ajustes` (`BusinessHoursEditor`, "Festivos y días cerrados"); the next 12 upcoming ones are appended to the schedule string injected into the agent prompt, so the agent can say *why* there is no slot.
+  - This was a real hole: 25 December is a Thursday in 2026, so the agent confirmed appointments for a closed business. The usual workaround (blocking the day in Google Calendar) did not help either — Google marks all-day events as *free* (`transparency: "transparent"`) by default and `getBusyIntervals` filtered them out. It now treats any all-day event (`start.date` present) as busy regardless of transparency.
+- Default: L–V 09:00–18:00, S–D closed, no exceptions.
+- `checkBusinessHours(schedule, timezone, startDateTime, durationMinutes)` converts to local time, applies the date exception if there is one, and validates against intervals.
+- Returns codes: `WITHIN_BUSINESS_HOURS`, `OUTSIDE_BUSINESS_HOURS`, `CLOSED_ON_DATE`, `BUSINESS_HOURS_NOT_CONFIGURED`, `INVALID_DATE_TIME`.
+- `checkBookingRestrictions(business, startDateTime, durationMinutes)` — separate from business hours: validates `Business.minAdvanceBookingMinutes`/`maxAppointmentDurationMinutes` (both optional, `null` = no restriction). Returns codes `MIN_ADVANCE_NOT_MET`, `MAX_DURATION_EXCEEDED`, `TOO_FAR_IN_ADVANCE` (booking horizon, `MAX_ADVANCE_BOOKING_DAYS` = 120 — the counterpart of the minimum notice, without which a model that got the year wrong could confirm an appointment two years out), `INVALID_DATE_TIME`. Called both by the `check_business_hours` tool (so the agent finds out before offering a slot) and by `book_appointment` itself (never trusts a prior tool call in the same conversation).
 
 ### Availability (`backend/src/lib/availability.ts`)
 

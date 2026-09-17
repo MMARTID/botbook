@@ -23,9 +23,22 @@ export type CallEscalationReason =
 export type WeekDay = "monday" | "tuesday" | "wednesday" | "thursday" | "friday" | "saturday" | "sunday";
 export type ScheduleInterval = { start: string; end: string };
 export type ScheduleDay = { enabled: boolean; intervals: ScheduleInterval[] };
+/** Día suelto que no sigue el patrón semanal: un festivo, un puente o un
+ * horario especial. Sin esto, el agente daba por abierto el 25 de diciembre
+ * por ser jueves y confirmaba citas para un negocio cerrado. */
+export type ScheduleException = {
+  /** Fecha local del negocio, YYYY-MM-DD. */
+  date: string;
+  closed: boolean;
+  intervals: ScheduleInterval[];
+  label?: string;
+};
+
 export type BusinessSchedule = {
   version: 1;
   week: Record<WeekDay, ScheduleDay>;
+  /** Opcional: los horarios guardados antes de existir esto no la traen. */
+  exceptions?: ScheduleException[];
 };
 export type AgentSettings = {
   version: 1;
