@@ -683,12 +683,15 @@ describe("checkAvailability", () => {
 // sugerir" nunca se asigna sola, pero si el cliente la pide por su nombre se
 // le reserva y antes se recomienda una vez al mejor libre a esa hora.
 describe("checkAvailability — niveles por servicio", () => {
+  // Con offset explícito: CI corre Node en UTC y una hora "a secas" se
+  // interpreta en la zona de la máquina, con lo que las reservas de abajo
+  // (en Z) dejaban de solapar y dos tests pasaban en local y fallaban en CI.
   const base = {
     businessId,
     schedule: DEFAULT_BUSINESS_SCHEDULE,
     timezone: europeMadrid,
     bookingCapacity: 5,
-    startDateTime: "2026-08-10T10:00:00",
+    startDateTime: "2026-08-10T10:00:00+02:00",
     durationMinutes: 30,
     serviceIds: ["corte"],
   };
