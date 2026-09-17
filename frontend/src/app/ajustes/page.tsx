@@ -166,7 +166,11 @@ export default function AccountSettingsPage() {
 
   const account = accountQuery.data;
 
-  if (!business || !account || accountQuery.isError) {
+  // Sin `accountQuery.isError` a propósito: React Query conserva los datos en
+  // caché cuando un refresco falla (marca error sin soltar `data`), y esta
+  // pantalla solo debe aparecer si no hay nada que pintar. Si de verdad no
+  // llegó la cuenta, `!account` ya cubre ese caso.
+  if (!business || !account) {
     return (
       <div className="panel mx-auto max-w-2xl space-y-4 p-6 text-center">
         <h1 className="text-2xl font-semibold text-[#0a0a0a]">
