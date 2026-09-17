@@ -28,7 +28,12 @@ export default function AgendaPage() {
   // Carga y error son cosas distintas: si /business/me falla, `isLoading` pasa
   // a false y `business` se queda vacío, así que sin esta rama el negocio se
   // quedaba mirando "Cargando agenda…" para siempre.
-  if (isBusinessError) {
+  //
+  // El `&& !business` no sobra: esta query se refresca al volver a la pestaña y
+  // React Query conserva los datos en caché cuando ese refresco falla (marca
+  // error sin soltar `data`). Sin esa condición, un microcorte de red borraba
+  // la agenda que el usuario estaba mirando y la cambiaba por esta pantalla.
+  if (isBusinessError && !business) {
     return (
       <div className="panel mx-auto max-w-2xl space-y-4 p-6 text-center">
         <h1 className="text-2xl font-semibold text-[#0a0a0a]">No se pudo cargar tu agenda</h1>

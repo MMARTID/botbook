@@ -62,7 +62,11 @@ function DashboardContent() {
     return <div className="p-8 text-center text-muted">Cargando tu panel...</div>;
   }
 
-  if (isBusinessError) {
+  // El `&& !business` evita tirar abajo el panel ya pintado cuando lo que falla
+  // es el refresco al volver a la pestaña: React Query marca error pero mantiene
+  // los datos en caché, y sin esta condición un microcorte de red se llevaba por
+  // delante la pantalla entera.
+  if (isBusinessError && !business) {
     return (
       <div className="panel mx-auto max-w-2xl space-y-4 p-6 text-center">
         <h1 className="text-2xl font-semibold text-[#0a0a0a]">No se pudo cargar tu panel</h1>

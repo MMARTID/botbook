@@ -384,7 +384,12 @@ export function BusinessHoursEditor({
         <p className="mr-auto text-sm text-muted">
           Se guardan a la vez el horario semanal y los días especiales.
         </p>
-        <button type="button" onClick={() => onSave(schedule)} disabled={isSaving} className="btn-primary px-5">
+        <button
+          type="button"
+          onClick={() => onSave(schedule)}
+          disabled={isSaving}
+          className="btn-primary shrink-0 whitespace-nowrap px-5"
+        >
           <Save className="h-4 w-4" /> {isSaving ? "Guardando..." : "Guardar horario"}
         </button>
       </div>
