@@ -326,7 +326,7 @@ All business-scoped data is filtered by `businessId` from the token. Never trust
 
 - **Validation:** Use `zod` schemas for route bodies and params. Return `400` with `error.errors` on `ZodError`.
 - **Global error handler** (`server.ts`): Normalizes all errors to `{ statusCode, error, message }`. Handles both `Error` instances and plain error objects (e.g. rate-limit errors from `@fastify/rate-limit`). Logs full error details with Pino. Returns generic "Internal server error" for 5xx to avoid leaking internals.
-- **Rate limiting:** Default 100 req/min. Retell webhook endpoints override to 300 req/min. Auth endpoints have stricter limits: 10/min (`/login`, `/register`) and 5/min (`/register-first-user`). Places endpoints use 10/min.
+- **Rate limiting:** Default 100 req/min per IP, counter in Redis (global across Cloud Run instances since 2026-09-17). Retell webhook endpoints override to 300 req/min. Auth endpoints have stricter limits: 10/min (`/login`, `/register`) and 5/min (`/register-first-user`). Places endpoints use 10/min. **`/internal/jobs/*` are exempt** (`config.rateLimit: false` on every route): Cloud Tasks/Scheduler call from a handful of Google IPs and are already OIDC-authenticated — with the limit made real, draining a queue produced 293 × 429 in three minutes, and a burst of weekly-summary emails would have exhausted Cloud Tasks retries on legitimate sends.
 
 ## Database (Prisma)
 
@@ -995,7 +995,7 @@ Separate suite (`npm run test:integration`, config `backend/vitest.integration.c
 
 - **JWT_SECRET** is mandatory — the server refuses to start without it.
 - CORS is restricted to the exact `FRONTEND_URL` origin.
-- Rate limiting is active globally (100 req/min) and raised for Retell webhooks (300 req/min). Places endpoints use 10/min.
+- Rate limiting is active globally (100 req/min per IP, Redis-backed) and raised for Retell webhooks (300 req/min). Places endpoints use 10/min. Internal job routes (`/internal/jobs/*`) are exempt.
 - Retell webhook signatures are verified via `retellAdapter.validateWebhookSignature` using the Retell API key. This also applies to the Retell custom tool endpoints (`/webhooks/retell/tools/:retellAgentId/:toolName`).
 - Stripe webhook signatures are verified in the route handler before calling `handleStripeEvent` (route uses `rawBody: true`).
 - Raw body parsing is enabled only on the Retell and Telnyx webhook routes to avoid memory overhead on regular routes.
@@ -1084,8 +1084,11 @@ fusionar o descartar una rama, quita su fila de esta tabla.
   checks, kept as an independent pre-deploy gate on purpose, not just a dependency on `ci.yml`)
   must pass before the `deploy` job runs `gcloud builds submit --config cloudbuild.yaml
   --substitutions=_TAG=<commit sha>` then `gcloud run deploy alhabla-api --image=...:<sha>`, then
-  curls `/health` to confirm. Auto-deploys to production on every merge to `main` — deliberate
-  choice while there are no real customers yet (see PRODUCT.md); revisit if/when that changes.
+  curls `/health` to confirm. Runs on merges to `main` that touch `backend/**` (or the
+  workflow itself) — since 2026-09-17 a `paths` filter skips frontend-only and docs-only
+  merges, which used to request a manual production approval to rebuild an identical image.
+  The `production` environment requires that approval from MMARTID (since ~2026-09-15): a run
+  left in `waiting` holds the queue for every later push.
   **Frontend is not deployed by this workflow** — Vercel's own Git integration handles that
   (Root Directory must be `frontend`, not `.` — see Producción section below for the incident
   where this broke).
@@ -1126,6 +1129,35 @@ Supporting infra:
 - **R2 recordings bucket is private** (RGPD — real customer call audio). Playback URLs are generated on demand by `getSignedRecordingUrl()` (`storage.ts`, `@aws-sdk/s3-request-presigner`, 1h expiry) when the frontend requests a recording — never stored in the DB (a stored presigned URL would eventually expire). `R2_REGION` must be one of R2's location codes (`auto`, `weur`, `eeur`, ...) — a literal `"eu"` is rejected by the SDK.
 - **Image build:** via `gcloud builds submit` (Cloud Build), not local `docker build`. On Apple Silicon, a local build without `--platform=linux/amd64` produces an arm64 image Cloud Run rejects outright; Cloud Build's workers are amd64-native and sidestep it entirely. Needs a `cloudbuild.yaml` with an explicit `--target runtime` — without it, a multi-stage Dockerfile builds its *last* stage by default, which here is `development`.
 - **IAM:** this project's default Compute Engine service account (`PROJECT_NUMBER-compute@developer.gserviceaccount.com`) is reused for both Cloud Build and Cloud Run revisions, and starts with zero roles on a fresh project. Needs `roles/cloudbuild.builds.builder`, `roles/storage.objectViewer`, `roles/artifactregistry.writer` (build-time) and `roles/secretmanager.secretAccessor`, `roles/cloudsql.client` (runtime) granted explicitly.
+
+### Alertas (Cloud Monitoring)
+
+Set up on 2026-09-17 after two days of `process-recording` failing every ten seconds
+with `/health` and CI both green: **`/health` only proves Postgres, Redis and Retell
+answer — it says nothing about jobs, queues or 5xx rates.** All three policies notify
+the email channel *"Alhabla · avisos de producción (correo)"* (`miguel.zero.admin@gmail.com`,
+same inbox as `TELNYX_ALERT_EMAIL`); change the address in Monitoring › Alerting ›
+Notification channels, not in code.
+
+| Policy | Condition | Why this threshold |
+|---|---|---|
+| **alhabla-api · errores 5xx** | `run.googleapis.com/request_count` with `response_code_class=5xx`, summed over 5 min, **> 10** | The 15–17 Sep loop produced 29–30 per 5 min; a healthy day produces 0. Replayed against that day's data: would have fired continuously until the fix deployed. |
+| **Cloud Tasks · cola que no baja** | `cloudtasks.googleapis.com/queue/depth`, any queue, 5-min mean **> 200 for 15 min** | Queues drain in seconds at current traffic; a queue that grows is a task failing in a loop. Same incident peaked at ~9,000. |
+| **alhabla-api · /health caído** | Uptime check `alhabla-api-health-tJzyQ7cVqx8` (HTTPS `api.alhabla.ai/health` every minute from 6 regions, must contain `"status":"ok"`) failing from **more than one region for 60 s** | One region failing is usually the checker; two is us. |
+
+Resource ids (project `project-84381467-a606-4b71-a6e`): channel
+`notificationChannels/3301523917747931516`, policies `14798085137940900180` (5xx),
+`8824325884392888489` (queue), `14275085039933176867` (uptime). List with
+`gcloud alpha monitoring policies list` / `gcloud monitoring uptime list-configs`.
+
+**When one fires:** the policy's own documentation (visible in the email) says what to
+look at first. The habit that would have caught the September loop on day one: after
+any deploy, check response codes per revision (`gcloud logging read ... httpRequest.status>=500`)
+and the queues (`gcloud tasks list --queue=<q> --location=europe-west1`), not just `/health`.
+
+**Side effect worth knowing:** the uptime check hits `/health` ~6 times a minute, which
+keeps at least one Cloud Run instance warm most of the time — fewer cold starts for real
+callers, at the cost of a few thousand trivial requests a day.
 
 ### Re-syncing webhook URLs
 

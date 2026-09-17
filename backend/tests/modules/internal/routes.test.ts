@@ -282,3 +282,29 @@ describe("internalJobsRoutes", () => {
     });
   });
 });
+
+// El limitador global (server.ts, 100/min por IP, contador en Redis) es para
+// el público. Cloud Tasks y Cloud Scheduler llaman desde un puñado de IPs de
+// Google: el 2026-09-17, al drenar una cola atascada, process-recording
+// devolvió 293 × 429 en tres minutos. Con cien correos del resumen semanal
+// encolados a la vez habrían sido envíos perdidos tras cuatro reintentos.
+describe("internalJobsRoutes — fuera del rate limit global", () => {
+  it("las rutas internas no devuelven 429 aunque el limitador global esté al mínimo", async () => {
+    const { default: rateLimit } = await import("@fastify/rate-limit");
+    const app = Fastify();
+    await app.register(rateLimit, { max: 1, timeWindow: "1 minute" });
+    app.decorate("verifyCloudTasks", async () => {});
+    // Ruta de control: con el mismo limitador, la segunda petición ya es 429.
+    app.get("/publica", async () => ({ ok: true }));
+    await app.register(internalJobsRoutes);
+    mockedCleanupZombieCallsJob.mockResolvedValue(undefined);
+
+    const publicas = [];
+    for (let i = 0; i < 2; i += 1) publicas.push((await app.inject({ method: "GET", url: "/publica" })).statusCode);
+    const internas = [];
+    for (let i = 0; i < 5; i += 1) internas.push((await app.inject({ method: "POST", url: "/jobs/cleanup-zombie-calls" })).statusCode);
+
+    expect(publicas).toEqual([200, 429]);
+    expect(internas).toEqual([200, 200, 200, 200, 200]);
+  });
+});
