@@ -1,17 +1,15 @@
-import { describe, it, expect, vi, beforeEach, afterAll } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import {
   createTelnyxAssistantForAgent,
   syncAgentToTelnyx,
-  reconcileVoiceOrchestrator,
 } from "../../src/lib/telnyxAgentSync.js";
 import { prisma } from "../../src/lib/prisma.js";
 import { telnyxAiAdapter } from "../../src/adapters/telnyx/TelnyxAiAdapter.js";
-import { repointTelnyxPhoneNumber } from "../../src/lib/voiceRouting.js";
 import { DEFAULT_AGENT_SETTINGS } from "../../src/lib/managedAgentPrompt.js";
 
 vi.mock("../../src/lib/prisma.js", () => ({
   prisma: {
-    business: { findUnique: vi.fn(), update: vi.fn() },
+    business: { findUnique: vi.fn() },
     service: { findMany: vi.fn() },
     professional: { findMany: vi.fn() },
     agent: { findMany: vi.fn(), update: vi.fn() },
@@ -26,12 +24,7 @@ vi.mock("../../src/adapters/telnyx/TelnyxAiAdapter.js", () => ({
   },
 }));
 
-vi.mock("../../src/lib/voiceRouting.js", () => ({
-  repointTelnyxPhoneNumber: vi.fn(),
-}));
-
 const mockedBusinessFindUnique = vi.mocked(prisma.business.findUnique);
-const mockedBusinessUpdate = vi.mocked(prisma.business.update);
 const mockedServiceFindMany = vi.mocked(prisma.service.findMany);
 const mockedProfessionalFindMany = vi.mocked(prisma.professional.findMany);
 const mockedAgentFindMany = vi.mocked(prisma.agent.findMany);
@@ -39,7 +32,6 @@ const mockedAgentUpdate = vi.mocked(prisma.agent.update);
 const mockedCreateAssistant = vi.mocked(telnyxAiAdapter.createAssistant);
 const mockedUpdateAssistant = vi.mocked(telnyxAiAdapter.updateAssistant);
 const mockedListVoices = vi.mocked(telnyxAiAdapter.listVoices);
-const mockedRepointPhoneNumber = vi.mocked(repointTelnyxPhoneNumber);
 
 const ELIGIBLE_VOICES = [
   { id: "Telnyx.Ultra.isabel", language: "es-ES", gender: "Female" },
@@ -267,144 +259,5 @@ describe("syncAgentToTelnyx", () => {
     mockedBusinessFindUnique.mockRejectedValue(new Error("DB caída"));
 
     await expect(syncAgentToTelnyx("biz1")).resolves.toBeUndefined();
-  });
-});
-
-describe("reconcileVoiceOrchestrator", () => {
-  const ORIGINAL_ENV = {
-    STRIPE_PRICE_INICIO: process.env.STRIPE_PRICE_INICIO,
-    STRIPE_PRICE_PRO: process.env.STRIPE_PRICE_PRO,
-    STRIPE_PRICE_SCALE: process.env.STRIPE_PRICE_SCALE,
-  };
-
-  beforeEach(() => {
-    vi.clearAllMocks();
-    process.env.STRIPE_PRICE_INICIO = "price_inicio";
-    process.env.STRIPE_PRICE_PRO = "price_pro";
-    process.env.STRIPE_PRICE_SCALE = "price_scale";
-    mockedBusinessUpdate.mockResolvedValue({} as any);
-  });
-
-  afterAll(() => {
-    for (const [key, value] of Object.entries(ORIGINAL_ENV)) {
-      if (value === undefined) delete process.env[key];
-      else process.env[key] = value;
-    }
-  });
-
-  it("cambia a Retell cuando catalán está activo en un plan Pro", async () => {
-    mockedBusinessFindUnique.mockResolvedValue({
-      orchestrator: "telnyx",
-      agentSettings: { ...DEFAULT_AGENT_SETTINGS, languages: ["es-ES", "ca-ES"] },
-      stripePriceId: "price_pro",
-      telnyxPhoneNumberId: "pn_1",
-    } as any);
-    mockedRepointPhoneNumber.mockResolvedValue({ success: true });
-
-    await reconcileVoiceOrchestrator("biz1");
-
-    expect(mockedRepointPhoneNumber).toHaveBeenCalledWith("biz1", "pn_1", "retell");
-    expect(mockedBusinessUpdate).toHaveBeenCalledWith({
-      where: { id: "biz1" },
-      data: expect.objectContaining({
-        orchestrator: "retell",
-        voiceRoutingTarget: "retell",
-        voiceFailoverActive: false,
-      }),
-    });
-  });
-
-  it("cambia a Telnyx cuando catalán se desactiva y Telnyx es elegible", async () => {
-    mockedBusinessFindUnique.mockResolvedValue({
-      orchestrator: "retell",
-      agentSettings: { ...DEFAULT_AGENT_SETTINGS, languages: ["es-ES"] },
-      stripePriceId: "price_pro",
-      telnyxPhoneNumberId: "pn_1",
-    } as any);
-    mockedListVoices.mockResolvedValue(ELIGIBLE_VOICES);
-    mockedRepointPhoneNumber.mockResolvedValue({ success: true });
-
-    await reconcileVoiceOrchestrator("biz1");
-
-    expect(mockedRepointPhoneNumber).toHaveBeenCalledWith("biz1", "pn_1", "telnyx");
-    expect(mockedBusinessUpdate).toHaveBeenCalledWith({
-      where: { id: "biz1" },
-      data: expect.objectContaining({ orchestrator: "telnyx", voiceRoutingTarget: "telnyx" }),
-    });
-  });
-
-  it("no hace nada si el orquestador deseado ya coincide con el actual", async () => {
-    mockedBusinessFindUnique.mockResolvedValue({
-      orchestrator: "telnyx",
-      agentSettings: { ...DEFAULT_AGENT_SETTINGS, languages: ["es-ES"] },
-      stripePriceId: "price_inicio",
-      telnyxPhoneNumberId: "pn_1",
-    } as any);
-    mockedListVoices.mockResolvedValue(ELIGIBLE_VOICES);
-
-    await reconcileVoiceOrchestrator("biz1");
-
-    expect(mockedRepointPhoneNumber).not.toHaveBeenCalled();
-    expect(mockedBusinessUpdate).not.toHaveBeenCalled();
-  });
-
-  it("mantiene Retell como red de seguridad si catalán sigue activo en un plan Inicio (dato preexistente)", async () => {
-    // No debería poder guardarse hoy (la ruta lo bloquea antes de llegar
-    // aquí), pero si un negocio ya lo tenía guardado de antes, Telnyx sigue
-    // sin poder atender catalán — nunca debe terminar ahí pase lo que pase.
-    mockedBusinessFindUnique.mockResolvedValue({
-      orchestrator: "retell",
-      agentSettings: { ...DEFAULT_AGENT_SETTINGS, languages: ["es-ES", "ca-ES"] },
-      stripePriceId: "price_inicio",
-      telnyxPhoneNumberId: "pn_1",
-    } as any);
-
-    await reconcileVoiceOrchestrator("biz1");
-
-    expect(mockedRepointPhoneNumber).not.toHaveBeenCalled();
-    expect(mockedBusinessUpdate).not.toHaveBeenCalled();
-  });
-
-  it("solo actualiza la intención en BD si el negocio todavía no tiene número Telnyx propio", async () => {
-    mockedBusinessFindUnique.mockResolvedValue({
-      orchestrator: "telnyx",
-      agentSettings: { ...DEFAULT_AGENT_SETTINGS, languages: ["es-ES", "ca-ES"] },
-      stripePriceId: "price_scale",
-      telnyxPhoneNumberId: null,
-    } as any);
-
-    await reconcileVoiceOrchestrator("biz1");
-
-    expect(mockedRepointPhoneNumber).not.toHaveBeenCalled();
-    expect(mockedBusinessUpdate).toHaveBeenCalledWith({
-      where: { id: "biz1" },
-      data: { orchestrator: "retell", voiceRoutingTarget: "retell" },
-    });
-  });
-
-  it("no lanza y no actualiza nada si falla el repunte del número", async () => {
-    mockedBusinessFindUnique.mockResolvedValue({
-      orchestrator: "telnyx",
-      agentSettings: { ...DEFAULT_AGENT_SETTINGS, languages: ["es-ES", "ca-ES"] },
-      stripePriceId: "price_pro",
-      telnyxPhoneNumberId: "pn_1",
-    } as any);
-    mockedRepointPhoneNumber.mockResolvedValue({ success: false, error: "Telnyx 500" });
-
-    await expect(reconcileVoiceOrchestrator("biz1")).resolves.toBeUndefined();
-
-    expect(mockedBusinessUpdate).not.toHaveBeenCalled();
-  });
-
-  it("no lanza si el negocio no existe", async () => {
-    mockedBusinessFindUnique.mockResolvedValue(null);
-
-    await expect(reconcileVoiceOrchestrator("biz1")).resolves.toBeUndefined();
-  });
-
-  it("no lanza si prisma falla", async () => {
-    mockedBusinessFindUnique.mockRejectedValue(new Error("DB caída"));
-
-    await expect(reconcileVoiceOrchestrator("biz1")).resolves.toBeUndefined();
   });
 });

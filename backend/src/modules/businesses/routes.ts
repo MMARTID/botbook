@@ -8,7 +8,7 @@ import { AgentSettingsSchema, buildManagedAgentPrompt, parseAgentSettings } from
 import { planAllows, resolvePlanId } from "../../lib/planFeatures.js";
 import { isBusinessType } from "../../lib/businessType.js";
 import { syncAgentNameWithBusinessType, syncAgentToRetell } from "../../lib/agentBootstrap.js";
-import { syncAgentToTelnyx, reconcileVoiceOrchestrator } from "../../lib/telnyxAgentSync.js";
+import { syncAgentToTelnyx } from "../../lib/telnyxAgentSync.js";
 import { nonDeletedServiceLinks, serializeProfessional } from "../bookings/service.js";
 import { E164_PHONE_REGEX } from "../../lib/phone.js";
 
@@ -360,14 +360,6 @@ export async function businessesRoutes(fastify: FastifyInstance) {
         if (shouldResyncPrompt) {
           await syncAgentToRetell(request.user!.businessId);
           await syncAgentToTelnyx(request.user!.businessId);
-        }
-
-        // Solo `agentSettings` puede tocar `languages` (catalán) — se
-        // reconcilia DESPUÉS de los syncs de arriba para que, si toca
-        // cambiar de orquestador, el que reciba las llamadas ya tenga la
-        // configuración al día.
-        if (data.agentSettings !== undefined) {
-          await reconcileVoiceOrchestrator(request.user!.businessId);
         }
 
         if (data.schedule !== undefined) {
