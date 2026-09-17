@@ -12,7 +12,8 @@ import { HowItWorksScrollytelling } from "@/components/how-it-works-scrollytelli
 import { MobileNav } from "@/components/mobile-nav";
 import { Reveal } from "@/components/scroll-reveal";
 import { SectorDataSection } from "@/components/sector-data-section";
-import { generalSectorData } from "@/lib/niche-landings";
+import { TeamRoutingSection } from "@/components/team-routing-section";
+import { generalSectorData, generalTeamRouting } from "@/lib/niche-landings";
 import { formatIncludedMinutes, formatPlanPrice, plans, TRIAL_REASSURANCE } from "@/lib/plans";
 
 /**
@@ -244,6 +245,8 @@ export function MainLanding() {
       </section>
 
       <HowItWorksScrollytelling onNarrativeActiveChange={setIsNarrativeActive} />
+
+      <TeamRoutingSection data={generalTeamRouting} />
 
       <SectorDataSection data={generalSectorData} />
 
