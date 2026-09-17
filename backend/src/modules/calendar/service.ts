@@ -25,11 +25,8 @@ import {
   type CalendarBusyInterval,
   type CalendarBusyIntervalsResult,
   type CalendarConnection,
-  type CalendarCredentials,
   type CalendarProviderId,
   type ConexionActiva,
-  type CredencialesActivas,
-  type CredencialesDe,
   type EventoCreado,
   type EventoProximo,
 } from "../../adapters/calendar/CalendarProvider.js";
@@ -44,7 +41,11 @@ import {
   isGoogleInvalidGrantError,
 } from "../../adapters/calendar/google/GoogleCalendarProvider.js";
 import { obtenerProveedorDeCalendario } from "../../adapters/calendar/registry.js";
-import { invalidarCacheDeVoz } from "../../lib/voiceConfigCache.js";
+import {
+  conCallbackDeRotacion,
+  guardarConexionDeCalendario,
+  resolverConexionDeCalendario,
+} from "./conexion.js";
 
 // Re-exports de compatibilidad: calendar/routes.ts y los tests importan estos
 // nombres desde aquí; su definición vive ahora en adapters/calendar/.
@@ -104,70 +105,24 @@ type EntradaPlanaDeConexion = {
   outlookCalendarId?: string | null;
 };
 
-/** provider + 4 columnas → CalendarConnection. `||` y no `??` en el
- * calendario de Google: "" también cae a "primary", como hasta ahora. */
+/** provider + 4 columnas → CalendarConnection, con la misma resolución que
+ * usarán los consumidores (conexion.ts): el proveedor viene forzado por la
+ * entrada y los flags de conexión no se conocen aquí. */
 function conexionDesdeEntradaPlana(
   input: EntradaPlanaDeConexion
 ): CalendarConnection {
-  const { provider } = input;
-  const refreshToken =
-    provider === "outlook"
-      ? (input.outlookRefreshToken ?? null)
-      : (input.googleRefreshToken ?? null);
-  const calendarId =
-    provider === "outlook"
-      ? (input.outlookCalendarId ?? null)
-      : input.googleCalendarId || "primary";
-  return {
-    provider,
-    calendarId,
-    credentials: refreshToken
-      ? ({ provider, refreshToken } as CalendarCredentials)
-      : null,
-  };
-}
-
-/**
- * Persiste el refresh token de Outlook cuando Microsoft lo rota (lo hace
- * casi siempre). Sin esto se seguía usando indefinidamente el token original
- * de la conexión, que caduca por inactividad a los 90 días: meses después,
- * Outlook se desconectaba solo con invalid_grant y todas las reservas de ese
- * negocio pasaban a quedarse pendientes. updateMany por VALOR del token viejo
- * porque aquí no se conoce el businessId.
- */
-async function persistirCredencialesRotadas(
-  anteriores: CalendarCredentials,
-  nuevas: CalendarCredentials
-): Promise<void> {
-  if (anteriores.provider !== "outlook" || nuevas.provider !== "outlook") {
-    return;
-  }
-  if (nuevas.refreshToken === anteriores.refreshToken) return;
-  try {
-    await prisma.business.updateMany({
-      where: { outlookRefreshToken: anteriores.refreshToken },
-      data: { outlookRefreshToken: nuevas.refreshToken },
-    });
-  } catch (error) {
-    // Que no se guarde no puede tumbar la operación en curso: el token
-    // viejo sigue sirviendo hasta que caduque su ventana.
-    console.error(
-      "[Calendar] No se pudo guardar el refresh token rotado de Outlook:",
-      error instanceof Error ? error.message : String(error)
-    );
-  }
-}
-
-/** Adjunta el callback de rotación a unas credenciales antes de entregarlas
- * al adaptador (el adaptador no persiste nada). */
-function conCallbackDeRotacion<P extends CalendarProviderId>(
-  credentials: CredencialesDe<P>
-): CredencialesActivas<P> {
-  return {
-    credentials,
-    alRotarCredenciales: (nuevas) =>
-      persistirCredencialesRotadas(credentials, nuevas),
-  };
+  return resolverConexionDeCalendario(
+    {
+      calendarProvider: input.provider,
+      googleRefreshToken: input.googleRefreshToken ?? null,
+      googleCalendarId: input.googleCalendarId ?? null,
+      googleCalendarConnected: null,
+      outlookRefreshToken: input.outlookRefreshToken ?? null,
+      outlookCalendarId: input.outlookCalendarId ?? null,
+      outlookCalendarConnected: null,
+    },
+    { provider: input.provider }
+  );
 }
 
 /** Guardas comunes a las operaciones. Reproducen exactamente los textos y
@@ -241,19 +196,12 @@ export class CalendarService {
     const { tokens } = await oauth2Client.getToken(code);
 
     if (tokens.refresh_token) {
-      await prisma.business.update({
-        where: { id: businessId },
-        data: {
-          calendarProvider: "google",
-          googleRefreshToken: tokens.refresh_token,
-          googleCalendarId: "primary",
-          googleCalendarConnected: true,
-          googleCalendarDisconnectedAt: null,
-          googleCalendarLastError: null,
-        },
+      await guardarConexionDeCalendario(businessId, {
+        provider: "google",
+        refreshToken: tokens.refresh_token,
+        calendarId: "primary",
+        conectado: true,
       });
-
-      await invalidarCacheDeVoz(businessId);
       await this.syncCalendarToolsToAgents(businessId);
     }
 
@@ -277,18 +225,12 @@ export class CalendarService {
     const profile = await getMicrosoftProfile(tokens.access_token);
     const calendars = await listMicrosoftCalendars(tokens.access_token);
 
-    await prisma.business.update({
-      where: { id: businessId },
-      data: {
-        calendarProvider: "outlook",
-        outlookRefreshToken: tokens.refresh_token,
-        outlookCalendarConnected: false,
-        outlookCalendarDisconnectedAt: null,
-        outlookCalendarLastError: null,
-        outlookUserEmail: profile.mail ?? profile.userPrincipalName ?? null,
-      },
+    await guardarConexionDeCalendario(businessId, {
+      provider: "outlook",
+      refreshToken: tokens.refresh_token,
+      conectado: false,
+      userEmail: profile.mail ?? profile.userPrincipalName ?? null,
     });
-    await invalidarCacheDeVoz(businessId);
 
     return {
       calendars,
@@ -297,18 +239,11 @@ export class CalendarService {
   }
 
   async connectMicrosoftCalendar(businessId: string, calendarId: string) {
-    const business = await prisma.business.update({
-      where: { id: businessId },
-      data: {
-        calendarProvider: "outlook",
-        outlookCalendarId: calendarId,
-        outlookCalendarConnected: true,
-        outlookCalendarDisconnectedAt: null,
-        outlookCalendarLastError: null,
-      },
+    const business = await guardarConexionDeCalendario(businessId, {
+      provider: "outlook",
+      calendarId,
+      conectado: true,
     });
-
-    await invalidarCacheDeVoz(businessId);
     await this.syncCalendarToolsToAgents(businessId);
     return business;
   }
@@ -331,19 +266,14 @@ export class CalendarService {
     );
   }
 
+  /** A diferencia de connectMicrosoftCalendar, no resincroniza las tools de
+   * los agentes (asimetría histórica que se conserva a propósito). */
   async selectGoogleCalendar(businessId: string, calendarId: string) {
-    const business = await prisma.business.update({
-      where: { id: businessId },
-      data: {
-        calendarProvider: "google",
-        googleCalendarId: calendarId,
-        googleCalendarConnected: true,
-        googleCalendarDisconnectedAt: null,
-        googleCalendarLastError: null,
-      },
+    return guardarConexionDeCalendario(businessId, {
+      provider: "google",
+      calendarId,
+      conectado: true,
     });
-    await invalidarCacheDeVoz(businessId);
-    return business;
   }
 
   private buildRetellCalendarTools(
