@@ -12,6 +12,7 @@ import {
   X,
 } from "lucide-react";
 import { createBillingPortalSession, getBillingSummary } from "@/lib/api";
+import { useFocusTrap } from "@/hooks/use-focus-trap";
 import { AppPageHeader } from "@/components/app-page-header";
 import { SectionErrorState } from "@/components/section-card";
 import { useBusiness } from "@/components/providers";
@@ -55,6 +56,12 @@ function formatFecha(value: string) {
 
 export default function BillingSettingsPage() {
   const [showCancellationNotice, setShowCancellationNotice] = useState(false);
+  // Aviso previo a cancelar: se cierra con Escape y el tabulador no se sale de
+  // él, como el resto de diálogos de la app.
+  const cancellationDialogRef = useFocusTrap<HTMLDivElement>({
+    active: showCancellationNotice,
+    onEscape: () => setShowCancellationNotice(false),
+  });
   const { business } = useBusiness();
   const summary = useQuery({ queryKey: ["billing-summary"], queryFn: getBillingSummary });
   const portal = useMutation({
@@ -259,6 +266,7 @@ export default function BillingSettingsPage() {
       {showCancellationNotice ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0a0a0a]/60 p-4 backdrop-blur-sm">
           <div
+            ref={cancellationDialogRef}
             role="dialog"
             aria-modal="true"
             aria-labelledby="cancellation-notice-title"

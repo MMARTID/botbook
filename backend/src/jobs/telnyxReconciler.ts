@@ -36,6 +36,9 @@ export interface TelnyxReconcilerResult {
   businessesWithRoutingInconsistency: string[];
 }
 
+/** Tope de agentes por pasada del reconciliador. */
+const MAX_AGENTES_POR_PASADA = 200;
+
 export async function telnyxReconcilerJob(): Promise<TelnyxReconcilerResult> {
   const result: TelnyxReconcilerResult = {
     agentsChecked: 0,
@@ -46,6 +49,9 @@ export async function telnyxReconcilerJob(): Promise<TelnyxReconcilerResult> {
     businessesWithRoutingInconsistency: [],
   };
 
+  // Con cota: el reconciliador habla con la API de Telnyx una vez por agente,
+  // así que un parque grande desbordaría el plazo de la tarea. Los agentes que
+  // no entren en esta pasada se revisan en la siguiente (corre cada 15 min).
   const agentsBefore = await prisma.agent.findMany({
     where: { deletedAt: null, telnyxAssistantId: { not: null } },
     select: {
@@ -54,6 +60,10 @@ export async function telnyxReconcilerJob(): Promise<TelnyxReconcilerResult> {
       telnyxAssistantId: true,
       telnyxSyncError: true,
     },
+    // Los que tienen error de sincronización primero: son los que de verdad
+    // hay que reconciliar.
+    orderBy: [{ telnyxSyncError: { sort: "desc", nulls: "last" } }, { updatedAt: "asc" }],
+    take: MAX_AGENTES_POR_PASADA,
   });
   const agentIdsWithErrorBefore = new Set(
     agentsBefore.filter((agent) => agent.telnyxSyncError).map((agent) => agent.id)

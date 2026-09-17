@@ -184,12 +184,26 @@ describe("TelnyxAdapter", () => {
       });
     });
 
-    it("returns null when number is not found", async () => {
-      mockPhoneNumbersRetrieve.mockRejectedValue(new Error("Not found"));
+    it("devuelve null solo cuando Telnyx dice que el número no existe (404)", async () => {
+      mockPhoneNumbersRetrieve.mockRejectedValue(
+        Object.assign(new Error("Not found"), { status: 404 })
+      );
 
       const result = await adapter.getNumber("pn_999");
 
       expect(result).toBeNull();
+    });
+
+    it("propaga el error si Telnyx no responde, en vez de hacerlo pasar por 'no existe'", async () => {
+      // Devolver null ante un 5xx hacía indistinguible "no está" de "no he
+      // podido mirarlo", y quien llama podía recrear un recurso que ya existe.
+      mockPhoneNumbersRetrieve.mockRejectedValue(
+        Object.assign(new Error("Service unavailable"), { status: 503 })
+      );
+
+      await expect(adapter.getNumber("pn_999")).rejects.toThrow(
+        "Service unavailable"
+      );
     });
   });
 

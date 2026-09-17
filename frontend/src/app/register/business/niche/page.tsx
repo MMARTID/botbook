@@ -116,7 +116,7 @@ export default function RegisterBusinessNichePage() {
                 {BUSINESS_TYPE_LABELS[selectedType]}
               </p>
               {selectionSource === "places" ? (
-                <p className="mt-2 text-xs text-[#a1a1aa]">
+                <p className="mt-2 text-xs text-muted">
                   Basado en la información de Google Maps
                 </p>
               ) : null}

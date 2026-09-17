@@ -202,6 +202,11 @@ export class RetellAdapter {
     this.apiKey = process.env.RETELL_API_KEY || "";
     this.client = new Retell({
       apiKey: this.apiKey,
+      // Mismo motivo que en Telnyx: el SDK reintenta POSTs no idempotentes
+      // (crear LLM, crear agente) sin clave de idempotencia, así que un 5xx
+      // a medias deja recursos duplicados en la cuenta de Retell.
+      maxRetries: 0,
+      timeout: 10_000,
     });
   }
 
@@ -419,6 +424,7 @@ export class RetellAdapter {
           version,
           ...(versionDescription ? { version_description: versionDescription } : {}),
         }),
+        signal: AbortSignal.timeout(10_000),
       }
     );
     if (!response.ok) {

@@ -45,17 +45,14 @@ function isValidSchedule(schedule: unknown): boolean {
 }
 
 async function getOrCreateOnboardingState(businessId: string) {
-  let state = await prisma.onboardingState.findUnique({
+  // upsert en vez de leer y crear: dos peticiones simultáneas del panel
+  // (la carga inicial dispara varias) chocaban contra el unique de
+  // businessId y la segunda devolvía un 500 opaco.
+  return prisma.onboardingState.upsert({
     where: { businessId },
+    create: { businessId },
+    update: {},
   });
-
-  if (!state) {
-    state = await prisma.onboardingState.create({
-      data: { businessId },
-    });
-  }
-
-  return state;
 }
 
 export async function onboardingRoutes(fastify: FastifyInstance) {

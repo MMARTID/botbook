@@ -234,3 +234,84 @@ describe("formatScheduleForPrompt", () => {
     expect(formatScheduleForPrompt({ invalid: true })).toBe("Horario no configurado todavía.");
   });
 });
+
+describe("checkBusinessHours con excepciones por fecha", () => {
+  const horarioConNavidad = {
+    version: 1 as const,
+    week: {
+      monday: { enabled: true, intervals: [{ start: "09:00", end: "18:00" }] },
+      tuesday: { enabled: true, intervals: [{ start: "09:00", end: "18:00" }] },
+      wednesday: { enabled: true, intervals: [{ start: "09:00", end: "18:00" }] },
+      thursday: { enabled: true, intervals: [{ start: "09:00", end: "18:00" }] },
+      friday: { enabled: true, intervals: [{ start: "09:00", end: "18:00" }] },
+      saturday: { enabled: false, intervals: [] },
+      sunday: { enabled: false, intervals: [] },
+    },
+    exceptions: [
+      { date: "2026-12-25", closed: true, intervals: [], label: "Navidad" },
+      {
+        date: "2026-12-24",
+        closed: false,
+        intervals: [{ start: "09:00", end: "14:00" }],
+        label: "Nochebuena",
+      },
+    ],
+  };
+
+  it("cierra un día festivo aunque ese día de la semana esté abierto", () => {
+    // El 25 de diciembre de 2026 cae en viernes, día laborable en el patrón.
+    const resultado = checkBusinessHours(
+      horarioConNavidad,
+      "Europe/Madrid",
+      "2026-12-25T10:00:00+01:00",
+      60
+    );
+
+    expect(resultado.success).toBe(true);
+    expect(resultado.success && resultado.isOpen).toBe(false);
+    expect(resultado.success && resultado.code).toBe("CLOSED_ON_DATE");
+    expect(resultado.success && resultado.message).toContain("Navidad");
+  });
+
+  it("aplica el horario especial de un día, no el de siempre", () => {
+    const dentro = checkBusinessHours(
+      horarioConNavidad,
+      "Europe/Madrid",
+      "2026-12-24T10:00:00+01:00",
+      60
+    );
+    const fuera = checkBusinessHours(
+      horarioConNavidad,
+      "Europe/Madrid",
+      "2026-12-24T16:00:00+01:00",
+      60
+    );
+
+    expect(dentro.success && dentro.isOpen).toBe(true);
+    // A las 16:00 estaría abierto un jueves normal, pero ese día cierra a las 14:00.
+    expect(fuera.success && fuera.isOpen).toBe(false);
+  });
+
+  it("no altera los días sin excepción", () => {
+    const resultado = checkBusinessHours(
+      horarioConNavidad,
+      "Europe/Madrid",
+      "2026-12-22T10:00:00+01:00",
+      60
+    );
+
+    expect(resultado.success && resultado.isOpen).toBe(true);
+  });
+
+  it("sigue aceptando horarios guardados sin excepciones", () => {
+    const { exceptions, ...sinExcepciones } = horarioConNavidad;
+    const resultado = checkBusinessHours(
+      sinExcepciones,
+      "Europe/Madrid",
+      "2026-12-25T10:00:00+01:00",
+      60
+    );
+
+    expect(resultado.success && resultado.isOpen).toBe(true);
+  });
+});

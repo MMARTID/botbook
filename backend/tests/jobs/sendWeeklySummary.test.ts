@@ -5,7 +5,7 @@ import { enqueueEmailJob } from "../../src/lib/cloudTasks.js";
 
 vi.mock("../../src/lib/prisma.js", () => ({
   prisma: {
-    business: { findMany: vi.fn() },
+    business: { findMany: vi.fn(), updateMany: vi.fn() },
     call: { aggregate: vi.fn() },
     booking: { count: vi.fn() },
     lead: { count: vi.fn() },
@@ -16,6 +16,7 @@ vi.mock("../../src/lib/cloudTasks.js", () => ({
 }));
 
 const mockedFindMany = vi.mocked(prisma.business.findMany);
+const mockedBusinessUpdateMany = vi.mocked(prisma.business.updateMany);
 const mockedCallAggregate = vi.mocked(prisma.call.aggregate);
 const mockedBookingCount = vi.mocked(prisma.booking.count);
 const mockedLeadCount = vi.mocked(prisma.lead.count);
@@ -41,6 +42,9 @@ describe("sendWeeklySummaryJob", () => {
     } as any);
     mockedBookingCount.mockResolvedValue(5);
     mockedLeadCount.mockResolvedValue(2);
+    // La semana se "reclama" con un updateMany condicional: count 1 = este
+    // proceso es el que envía.
+    mockedBusinessUpdateMany.mockResolvedValue({ count: 1 } as any);
   });
 
   it("envía el resumen a un negocio Pro con actividad", async () => {
@@ -76,11 +80,51 @@ describe("sendWeeklySummaryJob", () => {
       _sum: { durationSecs: null },
     } as any);
     mockedBookingCount.mockResolvedValue(0);
+    // Incluye el contador de citas pendientes: sin actividad de ninguna clase.
+    mockedLeadCount.mockResolvedValue(0);
 
     const result = await sendWeeklySummaryJob();
 
     expect(result).toEqual({ sent: 0, skipped: 1 });
     expect(mockedEnqueueEmail).not.toHaveBeenCalled();
+  });
+
+  it("avisa aunque no haya habido llamadas si quedan citas sin llegar al calendario", async () => {
+    mockedFindMany.mockResolvedValue([buildBusiness()] as any);
+    mockedCallAggregate.mockResolvedValue({
+      _count: { _all: 0 },
+      _sum: { durationSecs: null },
+    } as any);
+    mockedBookingCount.mockResolvedValue(0);
+    // leadCount se usa para los leads de la semana y para las citas pendientes.
+    mockedLeadCount.mockResolvedValue(3);
+
+    const result = await sendWeeklySummaryJob();
+
+    expect(result).toEqual({ sent: 1, skipped: 0 });
+    expect(mockedEnqueueEmail.mock.calls[0][0].html).toContain(
+      "no llegaron a tu calendario"
+    );
+  });
+
+  it("no reenvía el resumen si la semana ya estaba marcada como enviada", async () => {
+    mockedFindMany.mockResolvedValue([buildBusiness()] as any);
+    // Otra entrega del mismo job ya reclamó la semana.
+    mockedBusinessUpdateMany.mockResolvedValue({ count: 0 } as any);
+
+    const result = await sendWeeklySummaryJob();
+
+    expect(result).toEqual({ sent: 0, skipped: 1 });
+    expect(mockedEnqueueEmail).not.toHaveBeenCalled();
+  });
+
+  it("encola el correo con un identificador estable por negocio y semana", async () => {
+    mockedFindMany.mockResolvedValue([buildBusiness()] as any);
+
+    await sendWeeklySummaryJob();
+
+    const taskId = mockedEnqueueEmail.mock.calls[0][1];
+    expect(taskId).toMatch(/^weekly-summary-biz_1-\d{4}-\d{2}-\d{2}$/);
   });
 
   it("un negocio que falla no impide el envío al resto", async () => {

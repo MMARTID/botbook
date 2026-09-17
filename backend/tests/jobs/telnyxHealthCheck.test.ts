@@ -37,7 +37,9 @@ const mockedReleaseLock = vi.mocked(releaseLock);
 const mockedCheckStatus = vi.mocked(checkTelnyxAiInfraStatus);
 const mockedSetConnectionId = vi.mocked(telnyxAiAdapter.setPhoneNumberConnectionId);
 
-const mockRedisClient = { incr: vi.fn(), del: vi.fn() };
+// expire además de incr: las rachas caducan para que una misma lectura
+// entregada dos veces por el scheduler no cuente como dos consecutivas.
+const mockRedisClient = { incr: vi.fn(), del: vi.fn(), expire: vi.fn() };
 
 const ORIGINAL_ENV = {
   VOICE_FAILOVER_ENABLED: process.env.VOICE_FAILOVER_ENABLED,

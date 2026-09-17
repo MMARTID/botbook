@@ -177,7 +177,7 @@ export default function RegisterBusinessServicesPage() {
         <div className="mt-6 max-h-96 space-y-5 overflow-y-auto pr-1">
           {categories.map((category) => (
             <div key={category.category}>
-              <h3 className="mb-2 text-xs font-bold uppercase tracking-wide text-[#a1a1aa]">
+              <h3 className="mb-2 text-xs font-bold uppercase tracking-wide text-muted">
                 {category.category}
               </h3>
               <div className="flex flex-wrap gap-2">
@@ -218,7 +218,7 @@ export default function RegisterBusinessServicesPage() {
         </div>
 
         {!canContinue && (
-          <p className="mt-4 text-center text-sm text-[#a1a1aa]">
+          <p className="mt-4 text-center text-sm text-muted">
             Marca los servicios que sí ofreces — te faltan {missing}. Podrás añadir o editar el resto más tarde en ajustes.
           </p>
         )}

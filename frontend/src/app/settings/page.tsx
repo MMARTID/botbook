@@ -7,6 +7,7 @@ import { CalendarCheck2, CircleAlert, Sparkles } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { connectMicrosoftCalendar } from "@/lib/api";
 import { parseOutlookCalendarSelection } from "@/lib/calendar-callback";
+import { clearRegistrationNextStep, consumeRegistrationNextStep } from "@/lib/registration-next-step";
 
 export default function SettingsCallbackPage() {
   return (
@@ -59,16 +60,17 @@ function SettingsCallbackContent() {
       setPhase("complete");
       redirectTimer = window.setTimeout(() => {
         if (isError) {
+          // La conexión falló: el paso de registro pendiente deja de tener
+          // sentido y, si se queda guardado, reaparece en la siguiente
+          // conexión de agenda aunque sea meses después desde Ajustes.
+          clearRegistrationNextStep();
           router.replace(isOutlookError ? "/?outlook_error=true" : "/?calendar_error=true");
           return;
         }
-        if (typeof window !== "undefined") {
-          const nextStep = window.localStorage.getItem("registration_next_step");
-          if (nextStep) {
-            window.localStorage.removeItem("registration_next_step");
-            router.replace(nextStep);
-            return;
-          }
+        const nextStep = consumeRegistrationNextStep();
+        if (nextStep) {
+          router.replace(nextStep);
+          return;
         }
         router.replace("/");
       }, 700);
@@ -86,7 +88,7 @@ function SettingsCallbackContent() {
       <main className="flex min-h-screen items-center justify-center bg-transparent px-4 py-16">
         <div className="panel w-full max-w-xl space-y-5 p-6">
           <div>
-            <p className="text-sm font-semibold uppercase tracking-[0.12em] text-[#a1a1aa]">Outlook Calendar</p>
+            <p className="text-sm font-semibold uppercase tracking-[0.12em] text-muted">Outlook Calendar</p>
             <h1 className="mt-2 text-2xl font-semibold text-[#0a0a0a]">Elige el calendario que quieres usar</h1>
             <p className="mt-2 text-sm leading-6 text-muted">Cuenta conectada: {parsedOutlookCalendars.email ?? "Cuenta Microsoft"}</p>
           </div>
@@ -102,16 +104,14 @@ function SettingsCallbackContent() {
                     const updatedBusiness = await connectMicrosoftCalendar(calendar.id);
                     queryClient.setQueryData(["my-business"], updatedBusiness);
                     await queryClient.invalidateQueries({ queryKey: ["calendar-events"] });
-                    if (typeof window !== "undefined") {
-                      const nextStep = window.localStorage.getItem("registration_next_step");
-                      if (nextStep) {
-                        window.localStorage.removeItem("registration_next_step");
-                        router.replace(nextStep);
-                        return;
-                      }
+                    const nextStep = consumeRegistrationNextStep();
+                    if (nextStep) {
+                      router.replace(nextStep);
+                      return;
                     }
                     router.replace("/?outlook_success=true");
                   } catch {
+                    clearRegistrationNextStep();
                     router.replace("/?outlook_error=true");
                   }
                 }}
@@ -138,7 +138,7 @@ function SettingsCallbackContent() {
               <CalendarCheck2 className="h-5 w-5" />
             </div>
             <div>
-              <p className="text-sm font-semibold uppercase tracking-[0.12em] text-[#a1a1aa]">
+              <p className="text-sm font-semibold uppercase tracking-[0.12em] text-muted">
                 {searchParams.has("outlook_error") ? "Outlook Calendar" : "Google Calendar"}
               </p>
               <h1 className="text-xl font-semibold text-[#0a0a0a]">
@@ -181,7 +181,7 @@ function SettingsCallbackContent() {
             </p>
           </div>
 
-          <div className="flex items-center justify-center gap-2 text-sm font-medium text-[#a1a1aa]">
+          <div className="flex items-center justify-center gap-2 text-sm font-medium text-muted">
             <Sparkles className="h-4 w-4" />
             Redirigiendo automáticamente
           </div>

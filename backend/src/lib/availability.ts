@@ -112,6 +112,11 @@ const NEXT_SLOT_SEARCH_INCREMENT_MINUTES = 15;
  * (ver computeAvailabilityLookaheadMs, usada también por quien llama). */
 const NEXT_SLOT_SEARCH_MAX_ATTEMPTS = 288;
 
+/** Cuánto hacia atrás hay que mirar para no perderse una cita que empezó
+ * antes de la ventana y todavía sigue ocupando al profesional. 24 h es
+ * holgadísimo para cualquier servicio real y mantiene la consulta acotada. */
+const OVERLAP_LOOKBACK_MS = 24 * 60 * 60 * 1000;
+
 /**
  * Milisegundos que checkAvailability mira hacia delante desde
  * startDateTime — la ventana de búsqueda de findNextAvailableSlot (4h) MÁS
@@ -165,6 +170,18 @@ function findNextAvailableSlot(input: {
 
   const originalStart = new Date(startDateTime);
 
+  // Los límites de cada reserva se calculan una sola vez, no 288 veces: el
+  // bucle de abajo recorre esta lista en cada intento y crear dos Date por
+  // reserva y por intento era el grueso del coste de la búsqueda.
+  const bookingsConLimites = bookings.map((booking) => {
+    const startMs = new Date(booking.programedAt).getTime();
+    return {
+      ...booking,
+      startMs,
+      endMs: startMs + (booking.durationMinutes || 30) * 60_000,
+    };
+  });
+
   for (let attempt = 1; attempt <= NEXT_SLOT_SEARCH_MAX_ATTEMPTS; attempt++) {
     const candidateStart = new Date(
       originalStart.getTime() +
@@ -198,13 +215,12 @@ function findNextAvailableSlot(input: {
     const candidateEnd = new Date(
       candidateStart.getTime() + Math.max(0, durationMinutes) * 60_000
     );
-    const overlapping = bookings.filter((booking) => {
-      const bookingStart = new Date(booking.programedAt);
-      const bookingEnd = new Date(
-        bookingStart.getTime() + (booking.durationMinutes || 30) * 60_000
-      );
-      return bookingStart < candidateEnd && bookingEnd > candidateStart;
-    });
+    const candidateStartMs = candidateStart.getTime();
+    const candidateEndMs = candidateEnd.getTime();
+    const overlapping = bookingsConLimites.filter(
+      (booking) =>
+        booking.startMs < candidateEndMs && booking.endMs > candidateStartMs
+    );
 
     if (
       maxConcurrentBookings(candidateStart, candidateEnd, overlapping) >=
@@ -360,11 +376,35 @@ export async function checkAvailability(input: {
     start.getTime() + computeAvailabilityLookaheadMs(durationMinutes)
   );
 
+  // Las canceladas se traen aparte, solo para saber qué eventos del
+  // calendario externo son restos nuestros: si el borrado del evento falló al
+  // cancelar (Google caído, calendario reconectado a mano), ese evento
+  // huérfano se contaba como ocupación ajena y bloqueaba el hueco PARA
+  // SIEMPRE, sin que nada lo reconciliara nunca.
+  const canceladasConEvento = await prisma.booking.findMany({
+    where: {
+      call: { businessId },
+      isCancelled: true,
+      externalEventId: { not: null },
+      programedAt: {
+        gte: new Date(start.getTime() - OVERLAP_LOOKBACK_MS),
+        lt: nextSlotSearchWindowEnd,
+      },
+    },
+    select: { externalEventId: true },
+  });
+
   const localBookings = await prisma.booking.findMany({
     where: {
       call: { businessId },
       isCancelled: false,
       programedAt: {
+        // Cota inferior imprescindible: sin ella esta consulta se traía TODAS
+        // las reservas del negocio desde el principio de los tiempos en cada
+        // tool call de voz (el cliente está al teléfono esperando). Una cita
+        // que empezó hace más de un día no puede solaparse con nada de esta
+        // ventana, y ningún servicio de un salón dura tanto.
+        gte: new Date(start.getTime() - OVERLAP_LOOKBACK_MS),
         lt: nextSlotSearchWindowEnd,
       },
     },
@@ -419,9 +459,12 @@ export async function checkAvailability(input: {
   });
 
   const localExternalEventIds = new Set(
-    reconciledLocalBookings
-      .map((booking) => booking.externalEventId)
-      .filter((eventId): eventId is string => Boolean(eventId))
+    [
+      ...reconciledLocalBookings.map((booking) => booking.externalEventId),
+      // Un evento de una cita ya cancelada es basura nuestra, no ocupación
+      // del negocio: no puede seguir bloqueando la hora.
+      ...canceladasConEvento.map((booking) => booking.externalEventId),
+    ].filter((eventId): eventId is string => Boolean(eventId))
   );
 
   // professionalId: null a propósito (ver comentario en el parámetro) — un

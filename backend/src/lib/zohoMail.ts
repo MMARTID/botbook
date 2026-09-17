@@ -2,6 +2,12 @@
 // centro de datos .eu). welcome@alhabla.ai y support@alhabla.ai son alias de
 // "enviar como" de la misma cuenta autenticada — no hace falta reautenticar
 // por alias, un único refresh token cubre ambos.
+import {
+  PermanentJobError,
+  esFalloPermanentePorEstado,
+} from "./jobErrors.js";
+
+const ZOHO_TIMEOUT_MS = 10_000;
 const ZOHO_ACCOUNTS_BASE_URL = "https://accounts.zoho.eu";
 const ZOHO_MAIL_BASE_URL = "https://mail.zoho.eu";
 
@@ -29,6 +35,7 @@ async function getZohoAccessToken(): Promise<string> {
 
   const response = await fetch(`${ZOHO_ACCOUNTS_BASE_URL}/oauth/v2/token?${params.toString()}`, {
     method: "POST",
+    signal: AbortSignal.timeout(ZOHO_TIMEOUT_MS),
   });
   const data = (await response.json()) as { access_token?: string; expires_in?: number; error?: string };
 
@@ -67,10 +74,21 @@ export async function sendZohoMail(input: {
       content: input.html,
       mailFormat: "html",
     }),
+    // Sin timeout, un Zoho lento dejaba el job colgado hasta que Cloud Tasks
+    // daba la tarea por perdida y la reintentaba — con el correo ya aceptado,
+    // es decir, el cliente recibiendo el mismo email dos veces.
+    signal: AbortSignal.timeout(ZOHO_TIMEOUT_MS),
   });
 
   if (!response.ok) {
     const body = await response.text();
-    throw new Error(`Zoho Mail send failed (${response.status}): ${body}`);
+    const mensaje = `Zoho Mail send failed (${response.status}): ${body}`;
+    // Una dirección mal escrita o un mensaje rechazado no mejora por
+    // reintentarlo: se marca como definitivo para que Cloud Tasks no lo
+    // repita cuatro veces.
+    if (esFalloPermanentePorEstado(response.status)) {
+      throw new PermanentJobError(mensaje, `zoho_${response.status}`);
+    }
+    throw new Error(mensaje);
   }
 }

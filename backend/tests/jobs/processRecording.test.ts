@@ -34,13 +34,13 @@ describe("processRecordingJob", () => {
   });
 
   it("no descarga ni sube una grabación retirada antes de ejecutar el job", async () => {
-    mockedCallFindUnique.mockResolvedValue({ id: "call_1" } as any);
+    mockedCallFindUnique.mockResolvedValue({ id: "call_1", businessId: "biz_1" } as any);
     mockedRecordingFindFirst.mockResolvedValue(null);
 
     await expect(processRecordingJob(payload)).resolves.toBeUndefined();
 
     expect(mockedRecordingFindFirst).toHaveBeenCalledWith({
-      where: { callId: "call_1", deletedAt: null },
+      where: { callId: "call_1", deletedAt: null, storageKey: null },
       select: { id: true },
     });
     expect(mockedUploadRecording).not.toHaveBeenCalled();
@@ -48,7 +48,7 @@ describe("processRecordingJob", () => {
   });
 
   it("descarga la grabación, la sube a storage y actualiza la BD", async () => {
-    mockedCallFindUnique.mockResolvedValue({ id: "call_1" } as any);
+    mockedCallFindUnique.mockResolvedValue({ id: "call_1", businessId: "biz_1" } as any);
     vi.stubGlobal(
       "fetch",
       vi.fn().mockResolvedValue(new Response("audio-fake", {
@@ -76,7 +76,7 @@ describe("processRecordingJob", () => {
   });
 
   it("pasa el content-length declarado por el origen a uploadRecording — sin esto, la subida en streaming a R2 falla (hallazgo real 2026-09-11)", async () => {
-    mockedCallFindUnique.mockResolvedValue({ id: "call_1" } as any);
+    mockedCallFindUnique.mockResolvedValue({ id: "call_1", businessId: "biz_1" } as any);
     vi.stubGlobal(
       "fetch",
       vi.fn().mockResolvedValue(new Response("audio-fake", {
@@ -96,8 +96,65 @@ describe("processRecordingJob", () => {
     );
   });
 
+  it("no vuelve a descargar una grabación que ya está subida (Cloud Tasks entrega al menos una vez)", async () => {
+    mockedCallFindUnique.mockResolvedValue({ id: "call_1", businessId: "biz_1" } as any);
+    // findFirst filtra por storageKey: null, así que una segunda entrega no
+    // encuentra nada pendiente.
+    mockedRecordingFindFirst.mockResolvedValue(null);
+    const fetchSpy = vi.fn();
+    vi.stubGlobal("fetch", fetchSpy);
+
+    await processRecordingJob(payload);
+
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(mockedUploadRecording).not.toHaveBeenCalled();
+  });
+
+  it("guarda bajo el negocio de la llamada, no el del payload", async () => {
+    mockedCallFindUnique.mockResolvedValue({ id: "call_1", businessId: "biz_real" } as any);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(new Response("audio-fake", {
+        headers: { "content-type": "audio/mpeg" },
+      }))
+    );
+    mockedUploadRecording.mockResolvedValue("https://r2.example/x.mp3");
+    mockedRecordingUpdate.mockResolvedValue({} as any);
+
+    await processRecordingJob({ ...payload, businessId: "biz_falso" });
+
+    expect(mockedUploadRecording).toHaveBeenCalledWith(
+      "recordings/biz_real/call_1.mp3",
+      expect.anything(),
+      "audio/mpeg",
+      undefined,
+    );
+  });
+
+  it("rechaza descargar de un destino interno (defensa contra SSRF)", async () => {
+    mockedCallFindUnique.mockResolvedValue({ id: "call_1", businessId: "biz_1" } as any);
+    const fetchSpy = vi.fn();
+    vi.stubGlobal("fetch", fetchSpy);
+
+    await expect(
+      processRecordingJob({ ...payload, externalUrl: "https://169.254.169.254/latest/meta-data" })
+    ).rejects.toThrow(/Destino no permitido/);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("rechaza descargar por http sin cifrar", async () => {
+    mockedCallFindUnique.mockResolvedValue({ id: "call_1", businessId: "biz_1" } as any);
+    const fetchSpy = vi.fn();
+    vi.stubGlobal("fetch", fetchSpy);
+
+    await expect(
+      processRecordingJob({ ...payload, externalUrl: "http://retell.example/rec.mp3" })
+    ).rejects.toThrow(/Esquema no permitido/);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
   it("lanza si la descarga de la grabación falla", async () => {
-    mockedCallFindUnique.mockResolvedValue({ id: "call_1" } as any);
+    mockedCallFindUnique.mockResolvedValue({ id: "call_1", businessId: "biz_1" } as any);
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(null, { status: 404, statusText: "Not Found" })));
 
     await expect(processRecordingJob(payload)).rejects.toThrow(
@@ -107,7 +164,7 @@ describe("processRecordingJob", () => {
   });
 
   it("propaga el error si falla la subida a storage", async () => {
-    mockedCallFindUnique.mockResolvedValue({ id: "call_1" } as any);
+    mockedCallFindUnique.mockResolvedValue({ id: "call_1", businessId: "biz_1" } as any);
     vi.stubGlobal(
       "fetch",
       vi.fn().mockResolvedValue(new Response("audio-fake"))
@@ -119,7 +176,7 @@ describe("processRecordingJob", () => {
   });
 
   it("rechaza antes de descargar en memoria una grabación declarada demasiado grande", async () => {
-    mockedCallFindUnique.mockResolvedValue({ id: "call_1" } as any);
+    mockedCallFindUnique.mockResolvedValue({ id: "call_1", businessId: "biz_1" } as any);
     vi.stubGlobal(
       "fetch",
       vi.fn().mockResolvedValue(new Response("audio-fake", {

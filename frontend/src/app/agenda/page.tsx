@@ -15,7 +15,7 @@ const RANGES: { value: AgendaRange; label: string }[] = [
 
 export default function AgendaPage() {
   const router = useRouter();
-  const { business, hasToken, isLoadingBusiness } = useBusiness();
+  const { business, hasToken, isLoadingBusiness, isError: isBusinessError, errorMessage } = useBusiness();
   const [days, setDays] = useState<AgendaRange>(7);
   const [offset, setOffset] = useState(0);
 
@@ -23,7 +23,30 @@ export default function AgendaPage() {
     if (hasToken === false) router.replace("/login");
   }, [hasToken, router]);
 
-  if (isLoadingBusiness || !business) return <div className="p-8 text-center text-muted">Cargando agenda…</div>;
+  if (isLoadingBusiness) return <div className="p-8 text-center text-muted">Cargando agenda…</div>;
+
+  // Carga y error son cosas distintas: si /business/me falla, `isLoading` pasa
+  // a false y `business` se queda vacío, así que sin esta rama el negocio se
+  // quedaba mirando "Cargando agenda…" para siempre.
+  if (isBusinessError) {
+    return (
+      <div className="panel mx-auto max-w-2xl space-y-4 p-6 text-center">
+        <h1 className="text-2xl font-semibold text-[#0a0a0a]">No se pudo cargar tu agenda</h1>
+        <p className="text-sm leading-6 text-muted">
+          Puede haber sido un corte momentáneo de conexión. Vuelve a intentarlo; si sigue sin cargar,
+          escríbenos y lo miramos.
+        </p>
+        {process.env.NODE_ENV === "development" && errorMessage ? (
+          <p className="font-mono text-xs leading-5 text-muted">{errorMessage}</p>
+        ) : null}
+        <button type="button" onClick={() => window.location.reload()} className="btn-primary mx-auto">
+          Reintentar
+        </button>
+      </div>
+    );
+  }
+
+  if (!business) return null; // Sin sesión: el efecto de arriba redirige a /login.
 
   const calendarProvider = business.calendarProvider === "outlook" ? "outlook" : "google";
   const hasCalendar = calendarProvider === "outlook" ? business.outlookCalendarConnected === true : business.googleCalendarConnected === true;

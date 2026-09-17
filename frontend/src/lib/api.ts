@@ -24,8 +24,21 @@ import type {
   DemoPlaceSearchResult,
 } from "./types";
 
+const configuredBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
+
+// Sin esta variable, el bundle cae en el rewrite de next.config.mjs, que
+// apunta a http://localhost:3000 — en Vercel eso es la propia función
+// serverless, así que ninguna pantalla carga nada y la app queda muda. Ya
+// pasó dos veces en producción, así que ahora rompe el build en vez de
+// desplegarse rota: es preferible un despliegue fallido a uno silencioso.
+if (!configuredBaseUrl && process.env.NODE_ENV === "production") {
+  throw new Error(
+    "Falta NEXT_PUBLIC_API_BASE_URL. En producción el frontend tiene que apuntar al backend real (https://api.alhabla.ai); el rewrite a localhost:3000 solo vale en desarrollo.",
+  );
+}
+
 export const api = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_BASE_URL ?? "/api/backend",
+  baseURL: configuredBaseUrl ?? "/api/backend",
 });
 
 api.interceptors.request.use((config) => {

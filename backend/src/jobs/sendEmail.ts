@@ -1,5 +1,6 @@
 import { sendZohoMail } from "../lib/zohoMail.js";
 import { SendEmailJob } from "../lib/jobTypes.js";
+import { reclamarEnvio } from "../lib/messageIdempotency.js";
 
 const FROM_ADDRESS: Record<SendEmailJob["fromAlias"], string> = {
   welcome: "welcome@alhabla.ai",
@@ -8,6 +9,9 @@ const FROM_ADDRESS: Record<SendEmailJob["fromAlias"], string> = {
 
 export async function processSendEmailJob(data: SendEmailJob): Promise<void> {
   const { fromAlias, toAddress, subject, html } = data;
+  if (!(await reclamarEnvio("email", data.idempotencyKey))) {
+    return;
+  }
   console.log(`[Job] Enviando email "${subject}" a ${toAddress} desde ${fromAlias}@`);
 
   await sendZohoMail({

@@ -169,6 +169,30 @@ export async function provisionPhoneNumber(businessId: string): Promise<{
     // Requirement Group pase a tipo "business").
     const locality = process.env.TELNYX_SPAIN_LOCALITY || undefined;
 
+    // Un intento anterior llegó a pedir un número pero no pudo guardar el id
+    // del pedido (la instancia murió, o falló la escritura). Antes de gastar
+    // dinero en otro, se comprueba si ese número ya es nuestro en Telnyx.
+    if (!business.telnyxNumberOrderId && business.telnyxPendingPhoneNumber) {
+      const yaComprado = await telnyxAdapter.getNumberByPhoneNumber(
+        business.telnyxPendingPhoneNumber
+      );
+      if (yaComprado) {
+        console.log(
+          `[Phone] El número ${business.telnyxPendingPhoneNumber} ya estaba comprado en Telnyx; se adopta en vez de comprar otro`
+        );
+        await prisma.business.update({
+          where: { id: businessId },
+          data: {
+            telnyxPhoneNumber: yaComprado.phoneNumber,
+            telnyxPhoneNumberId: yaComprado.id,
+            telnyxPendingPhoneNumber: null,
+          },
+        });
+        business.telnyxPhoneNumber = yaComprado.phoneNumber;
+        business.telnyxPhoneNumberId = yaComprado.id;
+      }
+    }
+
     let order;
     if (business.telnyxNumberOrderId) {
       // Ya hay un pedido en curso de un intento anterior (quedó "pending" en
@@ -206,6 +230,17 @@ export async function provisionPhoneNumber(businessId: string): Promise<{
       console.log(
         `[Phone] Purchasing number ${selected.phoneNumber} for business ${businessId}`
       );
+
+      // Dejar constancia del número ANTES de pedirlo. Entre la compra y el
+      // guardado del id del pedido había una ventana en la que, si la
+      // instancia moría, el número quedaba comprado y facturándose sin que
+      // nosotros lo supiéramos: el siguiente intento compraba otro. Con el
+      // número apuntado, el reintento lo reconoce como propio (arriba) en vez
+      // de duplicar la compra.
+      await prisma.business.update({
+        where: { id: businessId },
+        data: { telnyxPendingPhoneNumber: selected.phoneNumber },
+      });
 
       // 2. Place the order
       order = await telnyxAdapter.purchaseNumber(selected.phoneNumber, {
@@ -322,6 +357,8 @@ export async function provisionPhoneNumber(businessId: string): Promise<{
         telnyxPhoneNumberId: resolvedPhoneNumberId,
         telnyxPhoneNumberPurchasedAt: new Date(),
         phoneNumberStatus: "purchased",
+        // El número ya está en firme: la marca de compra en curso sobra.
+        telnyxPendingPhoneNumber: null,
       },
     });
 

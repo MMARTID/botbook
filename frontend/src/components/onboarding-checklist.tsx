@@ -67,6 +67,14 @@ export function OnboardingChecklist() {
         </button>
       </div>
 
+      {/* Ocultar la guía es lo único que hace esta X: si falla y no se dice,
+          el usuario vuelve a pulsarla pensando que no acertó. */}
+      {dismissMutation.isError ? (
+        <p className="mt-3 text-sm text-[#c53030]" role="alert">
+          No hemos podido ocultar la guía. Inténtalo de nuevo.
+        </p>
+      ) : null}
+
       <p className="mt-3 max-w-2xl text-sm leading-6 text-muted">
         {esperandoNumero
           ? "Tu número aún se está activando. Aprovecha estos minutos para dejar lista la configuración: es lo que tu recepcionista necesita para reservar citas."

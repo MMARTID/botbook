@@ -14,9 +14,32 @@ describe("buildManagedAgentPrompt", () => {
 
     expect(prompt).toContain("{{nombre_negocio}}");
     expect(prompt).toContain("{{user_number}}");
-    expect(prompt).toContain("{{current_time_{{zona_horaria}} }}");
+    // La zona va escrita literalmente, no anidada dentro de la variable:
+    // Retell no documenta que resuelva una variable dentro de otra.
+    expect(prompt).toContain("{{current_time_Europe/Madrid}}");
     expect(prompt).toContain("get_catalog");
     expect(prompt).not.toContain("{{servicios_disponibles}}");
+  });
+
+  it("escribe la zona real del negocio en la hora actual del agente", () => {
+    const prompt = buildManagedAgentPrompt({
+      businessName: "Peluquería Ejemplo",
+      settings: DEFAULT_AGENT_SETTINGS,
+      timezone: "Atlantic/Canary",
+    });
+
+    expect(prompt).toContain("{{current_time_Atlantic/Canary}}");
+    expect(prompt).not.toContain("{{current_time_Europe/Madrid}}");
+  });
+
+  it("cae a Europe/Madrid si la zona del negocio no es válida", () => {
+    const prompt = buildManagedAgentPrompt({
+      businessName: "Peluquería Ejemplo",
+      settings: DEFAULT_AGENT_SETTINGS,
+      timezone: "Marte/Olympus",
+    });
+
+    expect(prompt).toContain("{{current_time_Europe/Madrid}}");
   });
 
   it("reutiliza la variable nativa del número de quien llama", () => {

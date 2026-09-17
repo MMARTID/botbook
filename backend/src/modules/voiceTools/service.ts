@@ -14,7 +14,13 @@ import {
 import { calendarService } from "../calendar/service.js";
 import { normalizeVoiceToolDateTime } from "../../lib/voiceDateTime.js";
 import { errorMessage } from "../../lib/logUtils.js";
-import { enqueueRetryBookingJob, enqueueSmsJob, enqueueWhatsappJob } from "../../lib/cloudTasks.js";
+import { pendingBookingAlertEmail } from "../../lib/emailTemplates.js";
+import {
+  enqueueEmailJob,
+  enqueueRetryBookingJob,
+  enqueueSmsJob,
+  enqueueWhatsappJob,
+} from "../../lib/cloudTasks.js";
 import { whatsappAdapter } from "../../adapters/whatsapp/WhatsAppAdapter.js";
 import { isValidE164Phone } from "../../lib/phone.js";
 import { planAllows, resolvePlanId } from "../../lib/planFeatures.js";
@@ -78,6 +84,12 @@ type AvailabilityDraft = {
   durationMinutes: number;
   serviceIds: string[];
   professionalId?: string;
+  /** true solo si el cliente pidió a ese profesional por su nombre. Cuando el
+   * hueco se preasignó al primero libre, este campo va a false y la reserva
+   * NO lo usa como filtro: si mientras el cliente daba sus datos ese
+   * profesional se ocupó, seguía habiendo hueco con otro y el agente decía
+   * que no quedaba nada. */
+  professionalRequested?: boolean;
 };
 
 function availabilityDraftKey(token: string): string {
@@ -390,6 +402,15 @@ async function fetchExternalBusyIntervals(
     : result;
 }
 
+/** ¿El negocio trabaja con un calendario externo conectado? Distingue el
+ * "no hay nada que leer" (negocio sin calendario, funciona solo con nuestra
+ * agenda) del "no he podido leerlo", que es una caída y no un permiso. */
+function tieneCalendarioConectado(business: BusinessVoiceConfig): boolean {
+  return business.calendarProvider === "outlook"
+    ? Boolean(business.outlookRefreshToken && business.outlookCalendarId)
+    : Boolean(business.googleRefreshToken);
+}
+
 async function executeCheckAvailability(
   business: BusinessVoiceConfig,
   params: Record<string, unknown>,
@@ -497,6 +518,7 @@ async function executeCheckAvailability(
         durationMinutes,
         serviceIds: serviceIds ?? [],
         professionalId: professionalId ?? availability.availableProfessionals[0]?.id,
+        professionalRequested: Boolean(professionalId),
       });
       return { success: true, result: { ...availability, availabilityToken } };
     }
@@ -508,7 +530,9 @@ async function executeCheckAvailability(
         startDateTime: availability.suggestedNextSlot.startDateTime,
         durationMinutes,
         serviceIds: serviceIds ?? [],
-        professionalId: professionalId ?? availability.suggestedNextSlot.availableProfessionals[0]?.id,
+        professionalId:
+          professionalId ?? availability.suggestedNextSlot.availableProfessionals[0]?.id,
+        professionalRequested: Boolean(professionalId),
       });
       return {
         success: true,
@@ -587,6 +611,10 @@ async function executeGetCatalog(
   }
 }
 
+/** El agente cuelga a los 10 minutos (maxCallDurationMs), así que una
+ * llamada "en curso" más antigua que esto es un zombi, no la llamada actual. */
+const MAX_CALL_AGE_FOR_FALLBACK_MS = 15 * 60 * 1000;
+
 /**
  * Resuelve la fila Call a la que vincular una reserva o un lead pendiente:
  * por callId cuando se conoce (viene del sobre del webhook de Retell, no del
@@ -601,12 +629,22 @@ async function resolveCallForBusiness(
   const exactCall = callId
     ? await prisma.call.findUnique({
         where: { callId },
-        select: { id: true, fromNumber: true },
+        select: { id: true, fromNumber: true, businessId: true },
       })
     : null;
 
   if (exactCall) {
-    return exactCall;
+    // El callId viene del sobre del webhook y el negocio se deriva del agente
+    // de la URL: son dos datos independientes. Si no coinciden, vincular la
+    // fila ajena metería esta reserva en la agenda de otro negocio, así que
+    // se corta aquí en vez de caer al heurístico.
+    if (exactCall.businessId !== businessId) {
+      console.error(
+        `[VoiceTools] ${callLabel}: la llamada ${callId} pertenece a otro negocio; no se vincula`
+      );
+      return null;
+    }
+    return { id: exactCall.id, fromNumber: exactCall.fromNumber };
   }
 
   if (callId) {
@@ -624,8 +662,16 @@ async function resolveCallForBusiness(
   // reduce el heurístico a su caso de uso real: la fila de la llamada
   // actual, que solo tarda un instante en llegar por la carrera con
   // call_started, sigue "en curso" durante esa ventana.
+  // Acotado también en el tiempo: una llamada que el proveedor nunca cerró
+  // se queda IN_PROGRESS hasta que pasa el barrido de zombis, y el heurístico
+  // podía elegirla y sobrescribir la reserva de aquel cliente con los datos
+  // del que llama ahora. Ninguna llamada real dura más que el tope del agente.
   const fallbackCall = await prisma.call.findFirst({
-    where: { businessId, status: "IN_PROGRESS" },
+    where: {
+      businessId,
+      status: "IN_PROGRESS",
+      startedAt: { gte: new Date(Date.now() - MAX_CALL_AGE_FOR_FALLBACK_MS) },
+    },
     orderBy: { startedAt: "desc" },
     select: { id: true },
   });
@@ -640,6 +686,24 @@ async function resolveCallForBusiness(
   // cliente, así que su fromNumber nunca debe usarse como teléfono de
   // contacto de esta reserva.
   return { id: fallbackCall.id, fromNumber: null };
+}
+
+/**
+ * Lo que el agente le dice al cliente cuando la reserva no ha salido. Si el
+ * lead no se ha podido guardar, NADIE tiene sus datos: prometerle que le
+ * confirmaremos en breve es mentirle, y el cliente no vuelve a llamar porque
+ * cree que está resuelto. En ese caso se le da el teléfono del negocio.
+ */
+function mensajeDeSeguimiento(
+  leadId: string | null,
+  businessPhone: string | null | undefined
+): string {
+  if (leadId) {
+    return " He tomado nota de tus datos y te confirmaremos en breve.";
+  }
+  return businessPhone && isValidE164Phone(businessPhone)
+    ? ` No he podido dejar registrada tu solicitud, así que llama directamente al ${businessPhone} para confirmarla.`
+    : " No he podido dejar registrada tu solicitud: vuelve a llamar en unos minutos, por favor.";
 }
 
 /**
@@ -693,12 +757,83 @@ async function capturePendingBookingLead(args: {
       select: { id: true },
     });
 
+    // El negocio tiene que enterarse el mismo día, no el lunes siguiente: sin
+    // este aviso, una cita caída solo aparecía en un contador del panel que
+    // nadie mira el fin de semana, y el cliente se presentaba sin cita.
+    void avisarDeReservaPendiente({
+      businessId: args.businessId,
+      clientName: args.clientName,
+      clientPhone: args.clientPhone ?? null,
+      startDateTime: args.startDateTime,
+    });
+
     return lead.id;
   } catch (error) {
     console.error(
       `[VoiceTools] ${args.callLabel} no pudo guardar la reserva pendiente: ${errorMessage(error)}`
     );
     return null;
+  }
+}
+
+/**
+ * Email al propietario cuando una cita se queda sin llegar al calendario.
+ * Con antirrebote de una hora por negocio: si el calendario está caído, se
+ * avisa una vez, no una por cada llamada que entre esa tarde.
+ */
+async function avisarDeReservaPendiente(args: {
+  businessId: string;
+  clientName: string;
+  clientPhone: string | null;
+  startDateTime: string;
+}): Promise<void> {
+  try {
+    const clave = `pending_booking_alert:${args.businessId}`;
+    const primero = await getRedis().set(clave, "1", "EX", 3600, "NX");
+    if (primero !== "OK") {
+      return;
+    }
+
+    const business = await prisma.business.findUnique({
+      where: { id: args.businessId },
+      select: {
+        name: true,
+        timezone: true,
+        users: { select: { email: true }, take: 1 },
+      },
+    });
+    const email = business?.users[0]?.email;
+    if (!business || !email) {
+      return;
+    }
+
+    const frontendUrl = (
+      process.env.FRONTEND_URL || "http://localhost:3001"
+    ).replace(/\/$/, "");
+    const formattedDateTime = new Intl.DateTimeFormat("es-ES", {
+      timeZone: business.timezone || "Europe/Madrid",
+      weekday: "long",
+      day: "numeric",
+      month: "long",
+      hour: "2-digit",
+      minute: "2-digit",
+    }).format(new Date(args.startDateTime));
+
+    const { subject, html } = pendingBookingAlertEmail({
+      businessName: business.name,
+      clientName: args.clientName,
+      clientPhone: args.clientPhone,
+      formattedDateTime,
+      panelUrl: `${frontendUrl}/`,
+    });
+
+    await enqueueEmailJob({ fromAlias: "support", toAddress: email, subject, html });
+  } catch (error) {
+    // Un aviso que no sale no puede tumbar la captura del lead, que es lo
+    // que de verdad salva la cita.
+    console.error(
+      `[VoiceTools] No se pudo avisar de la reserva pendiente: ${errorMessage(error)}`
+    );
   }
 }
 
@@ -1023,7 +1158,16 @@ async function executeBookAppointment(
       ? normalizeVoiceToolDateTime(rawStartDateTime, business.timezone || "Europe/Madrid")
       : rawStartDateTime;
   const durationMinutes = draft?.durationMinutes ?? rawParams.durationMinutes;
-  const professionalId = draft?.professionalId ?? rawParams.professionalId;
+  // Un profesional preasignado por el draft es una preferencia, no una
+  // condición: se usa para la reserva si sigue libre, pero no se le pasa a
+  // checkAvailability como filtro duro.
+  const professionalPreasignado =
+    draft !== null && draft.professionalRequested === false
+      ? draft.professionalId
+      : undefined;
+  const professionalId = professionalPreasignado
+    ? undefined
+    : draft?.professionalId ?? rawParams.professionalId;
   const requestedServiceIds = draft?.serviceIds ?? (Array.isArray(rawParams.serviceIds)
     ? rawParams.serviceIds.filter((id): id is string => typeof id === "string")
     : []);
@@ -1302,11 +1446,60 @@ async function executeBookAppointment(
         };
       }
 
-      const resolvedProfessionalId =
-        verifiedProfessionalId ?? availability.availableProfessionals[0]?.id;
+      // El negocio tiene calendario conectado pero no hemos podido leerlo
+      // (5xx de Google, timeout). Confirmar aquí es reservar a ciegas: si el
+      // dueño había metido una cita a mano en ese hueco, acabamos con dos
+      // clientes a la misma hora. Se guarda como pendiente y se reintenta.
+      if (
+        tieneCalendarioConectado(business) &&
+        !externalBusy.calendarAvailabilityKnown
+      ) {
+        console.warn(
+          `[VoiceTools] ${callLabel}: no se pudo leer el calendario del negocio; la reserva se guarda como pendiente en vez de confirmarse a ciegas`
+        );
+        const leadCalendarioIlegible = await capturePendingBookingLead({
+          resolvedCall: call,
+          businessId: business.id,
+          clientName,
+          clientEmail,
+          clientPhone,
+          startDateTime,
+          durationMinutes: effectiveDuration,
+          serviceIds: verifiedServiceIds,
+          professionalId:
+            verifiedProfessionalId ??
+            availability.availableProfessionals[0]?.id,
+          failureCode: "CALENDAR_UNAVAILABLE",
+          callLabel,
+        });
+        if (leadCalendarioIlegible) {
+          await enqueueRetryFailedBooking(leadCalendarioIlegible);
+        }
+        return {
+          success: true,
+          result: {
+            success: false,
+            code: "CALENDAR_UNAVAILABLE",
+            message:
+              "No he podido comprobar la agenda del negocio en este momento." +
+              mensajeDeSeguimiento(leadCalendarioIlegible, business.phone),
+          },
+        };
+      }
+
+      // Si el hueco se había preasignado a alguien y sigue libre, se
+      // respeta (el cliente ya oyó ese nombre); si se ocupó, se coge a
+      // cualquier otro profesional disponible en vez de rechazar la cita.
+      const preferido = professionalPreasignado
+        ? availability.availableProfessionals.find(
+            (profesional) => profesional.id === professionalPreasignado
+          )
+        : undefined;
+      const elegido = preferido ?? availability.availableProfessionals[0];
+      const resolvedProfessionalId = verifiedProfessionalId ?? elegido?.id;
       const resolvedProfessionalName = verifiedProfessionalId
         ? verifiedProfessionalName
-        : availability.availableProfessionals[0]?.name;
+        : elegido?.name;
 
       // Idempotencia: si esta llamada YA tiene un Booking con un evento
       // externo creado para esta misma fecha/duración exactas (Retell
@@ -1315,15 +1508,23 @@ async function executeBookAppointment(
       // fecha/duración distinta sigue tratándose como un cambio de opinión
       // legítimo del cliente (nueva reserva sobre la misma llamada), no
       // como un reintento.
+      let reservaPrevia: {
+        externalEventId: string | null;
+        externalCalendarProvider: string | null;
+        externalCalendarId: string | null;
+      } | null = null;
       if (call) {
         const existingBooking = await prisma.booking.findUnique({
           where: { callId: call.id },
           select: {
             externalEventId: true,
+            externalCalendarProvider: true,
+            externalCalendarId: true,
             programedAt: true,
             durationMinutes: true,
           },
         });
+        reservaPrevia = existingBooking;
         if (
           existingBooking?.externalEventId &&
           existingBooking.programedAt.getTime() ===
@@ -1370,6 +1571,7 @@ async function executeBookAppointment(
         // Persist booking in database, vinculada a la llamada exacta cuando se
         // conoce su callId (ver resolveCallForBusiness).
         if (call) {
+          try {
           await prisma.booking.upsert({
             where: { callId: call.id },
             create: {
@@ -1405,6 +1607,67 @@ async function executeBookAppointment(
                   : business.googleCalendarId || "primary",
             },
           });
+          } catch (errorAlGuardar) {
+            // El evento ya está en el calendario del negocio pero la reserva
+            // no se ha podido guardar. Si lo dejáramos así, el dueño vería una
+            // cita que para nosotros no existe: ni cuenta para la
+            // disponibilidad ni se puede cancelar por voz. Se borra el evento
+            // y se sigue por el camino de "no he podido agendarla", que guarda
+            // los datos del cliente para reintentarlo.
+            const eventoHuerfano = (result as { id?: string })?.id;
+            if (eventoHuerfano) {
+              try {
+                await calendarService.cancelAppointment({
+                  provider,
+                  googleRefreshToken: business.googleRefreshToken,
+                  googleCalendarId: business.googleCalendarId,
+                  outlookRefreshToken: business.outlookRefreshToken,
+                  outlookCalendarId: business.outlookCalendarId,
+                  eventId: eventoHuerfano,
+                });
+              } catch (errorAlBorrar) {
+                console.error(
+                  `[VoiceTools] ${callLabel} no pudo deshacer el evento ${eventoHuerfano} tras fallar el guardado: ${errorMessage(errorAlBorrar)}`
+                );
+              }
+            }
+            throw errorAlGuardar;
+          }
+        }
+
+        // El cliente cambió de hora dentro de la misma llamada: la reserva
+        // anterior se sobrescribe en la base de datos, pero su evento seguía
+        // vivo en el calendario del negocio. Además de duplicar la cita a
+        // ojos del dueño, ese evento huérfano bloqueaba ese hueco para
+        // siempre, porque ya no quedaba ninguna reserva local que lo
+        // reconciliara.
+        const eventoNuevoId = (result as { id?: string })?.id;
+        if (
+          reservaPrevia?.externalEventId &&
+          reservaPrevia.externalEventId !== eventoNuevoId
+        ) {
+          try {
+            await calendarService.cancelAppointment({
+              provider:
+                reservaPrevia.externalCalendarProvider === "outlook"
+                  ? "outlook"
+                  : "google",
+              googleRefreshToken: business.googleRefreshToken,
+              googleCalendarId:
+                reservaPrevia.externalCalendarId || business.googleCalendarId,
+              outlookRefreshToken: business.outlookRefreshToken,
+              outlookCalendarId:
+                reservaPrevia.externalCalendarId || business.outlookCalendarId,
+              eventId: reservaPrevia.externalEventId,
+            });
+          } catch (error) {
+            // No se le cuenta al cliente: su cita nueva está confirmada. Se
+            // registra para que quede rastro del evento que hay que borrar.
+            console.error(
+              `[VoiceTools] ${callLabel} no pudo borrar el evento anterior ${reservaPrevia.externalEventId}:`,
+              error
+            );
+          }
         }
 
         console.log(`[VoiceTools] ${callLabel} agendó la cita correctamente`);
@@ -1579,7 +1842,7 @@ async function executeBookAppointment(
 
           // Reconectar el calendario requiere una acción manual del negocio:
           // guardamos la solicitud pero NO la reintentamos sola en segundo plano.
-          await capturePendingBookingLead({
+          const leadReconexion = await capturePendingBookingLead({
             resolvedCall: call,
             businessId: business.id,
             clientName,
@@ -1602,7 +1865,9 @@ async function executeBookAppointment(
                 (errorProvider === "outlook"
                   ? "No pude acceder al calendario del negocio porque la conexión con Outlook expiró o fue revocada."
                   : "No pude acceder al calendario del negocio porque la conexión con Google expiró o fue revocada.") +
-                " He tomado nota de tu solicitud para confirmártela en cuanto el negocio la reconecte.",
+                (leadReconexion
+                  ? " He tomado nota de tu solicitud para confirmártela en cuanto el negocio la reconecte."
+                  : mensajeDeSeguimiento(null, business.phone)),
             },
           };
         }
@@ -1646,7 +1911,7 @@ async function executeBookAppointment(
           result: {
             success: false,
             code,
-            message: `${baseMessage} He tomado nota de tus datos y te confirmaremos en breve.`,
+            message: `${baseMessage}${mensajeDeSeguimiento(leadId, business.phone)}`,
           },
         };
       }
@@ -1706,7 +1971,11 @@ async function executeFindMyAppointment(
       call: { businessId: business.id },
       isCancelled: false,
       programedAt: { gte: new Date() },
-      smsConsent: true,
+      // Ya no se exige smsConsent. Ese campo dice "puedes escribirme", no
+      // "esta cita es mía": quien dijo que no a los mensajes seguía siendo el
+      // titular, pero el agente no encontraba su cita, y el prompt le
+      // empujaba entonces a reservar una nueva — el negocio acababa con dos
+      // citas y una silla vacía. La identidad la da el número entrante.
       OR: [
         { clientPhone: callerNumber },
         { clientPhone: null, call: { fromNumber: callerNumber } },
@@ -1868,7 +2137,13 @@ async function executeNotifyWhenAvailable(
  */
 async function notifyPendingAvailabilityWatchers(
   business: BusinessVoiceConfig,
-  callLabel: string
+  callLabel: string,
+  /** Hueco que se acaba de liberar. Solo los avisos que lo pisan pueden
+   * haberse vuelto reservables, así que el resto ni se comprueban: antes esta
+   * función consultaba el calendario de Google UNA VEZ POR AVISO PENDIENTE,
+   * en serie, mientras el cliente esperaba al teléfono a que le confirmaran
+   * la cancelación. */
+  huecoLiberado?: { inicioMs: number; finMs: number }
 ): Promise<void> {
   try {
     const watches = await prisma.lead.findMany({
@@ -1878,6 +2153,10 @@ async function notifyPendingAvailabilityWatchers(
         call: { businessId: business.id },
       },
       select: { id: true, data: true },
+      orderBy: { createdAt: "asc" },
+      // Cota dura: quien lleva más tiempo esperando va primero, y la
+      // cancelación nunca se convierte en un trabajo sin límite.
+      take: 25,
     });
     if (watches.length === 0) return;
 
@@ -1891,6 +2170,15 @@ async function notifyPendingAvailabilityWatchers(
         serviceIds?: string[];
         professionalId?: string | null;
       };
+
+      // Solo interesa quien esperaba justo por ese hueco.
+      if (huecoLiberado) {
+        const inicioAviso = new Date(data.startDateTime).getTime();
+        const finAviso = inicioAviso + (data.durationMinutes || 30) * 60_000;
+        const pisaElHueco =
+          inicioAviso < huecoLiberado.finMs && finAviso > huecoLiberado.inicioMs;
+        if (!pisaElHueco) continue;
+      }
 
       // Hora ya pasada: ya no tiene sentido avisar, limpia el aviso.
       if (new Date(data.startDateTime).getTime() < Date.now()) {
@@ -1955,6 +2243,11 @@ async function notifyPendingAvailabilityWatchers(
         where: { id: watch.id },
         data: { resolvedAt: new Date() },
       });
+
+      // Un hueco libre es una plaza: avisado el primero de la cola, se para.
+      // Avisar a varios por el mismo hueco los manda a competir por una hora
+      // que solo uno puede coger.
+      break;
     }
   } catch (error) {
     console.error(
@@ -1999,9 +2292,10 @@ async function executeCancelAppointment(
     include: { call: { select: { fromNumber: true } } },
   });
 
+  // Mismo criterio que find_my_appointment: la pertenencia se comprueba por
+  // el número desde el que llama, no por el consentimiento de mensajería.
   const ownsBooking =
     booking &&
-    booking.smsConsent &&
     callerNumber &&
     (booking.clientPhone
       ? booking.clientPhone === callerNumber
@@ -2047,7 +2341,11 @@ async function executeCancelAppointment(
 
   // notifyPendingAvailabilityWatchers nunca lanza (loguea internamente) — un
   // fallo al avisar a OTRO cliente no debe tumbar la cancelación de este.
-  await notifyPendingAvailabilityWatchers(business, callLabel);
+  await notifyPendingAvailabilityWatchers(business, callLabel, {
+    inicioMs: booking.programedAt.getTime(),
+    finMs:
+      booking.programedAt.getTime() + (booking.durationMinutes || 30) * 60_000,
+  });
 
   return {
     success: true,

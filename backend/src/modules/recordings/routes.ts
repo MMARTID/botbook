@@ -46,33 +46,47 @@ export async function recordingsRoutes(fastify: FastifyInstance) {
         const offset = parseInt(request.query.offset || "0");
         const businessId = request.user!.businessId;
 
-        const recordings = await prisma.recording.findMany({
-          where: {
-            deletedAt: null,
-            call: {
-              businessId,
-            },
+        const filtroDelNegocio = {
+          deletedAt: null,
+          call: {
+            businessId,
           },
-          include: {
-            call: {
-              include: {
-                agent: true,
+        };
+
+        // select explícito y las dos consultas en paralelo: antes cada fila
+        // arrastraba la llamada entera (con su resumen) y el agente completo
+        // con su systemPrompt, y el total se pedía después de la lista.
+        const [recordings, total] = await Promise.all([
+          prisma.recording.findMany({
+            where: filtroDelNegocio,
+            select: {
+              id: true,
+              callId: true,
+              externalUrl: true,
+              storageKey: true,
+              storageUrl: true,
+              reviewed: true,
+              reviewNotes: true,
+              createdAt: true,
+              call: {
+                select: {
+                  id: true,
+                  callId: true,
+                  fromNumber: true,
+                  startedAt: true,
+                  durationSecs: true,
+                  status: true,
+                  outcome: true,
+                  agent: { select: { id: true, name: true } },
+                },
               },
             },
-          },
-          orderBy: { createdAt: "desc" },
-          take: limit,
-          skip: offset,
-        });
-
-        const total = await prisma.recording.count({
-          where: {
-            deletedAt: null,
-            call: {
-              businessId,
-            },
-          },
-        });
+            orderBy: { createdAt: "desc" },
+            take: limit,
+            skip: offset,
+          }),
+          prisma.recording.count({ where: filtroDelNegocio }),
+        ]);
 
         const data = await Promise.all(recordings.map(withSignedRecordingUrl));
 

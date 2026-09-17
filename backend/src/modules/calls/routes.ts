@@ -62,7 +62,10 @@ export async function callsRoutes(fastify: FastifyInstance) {
           prisma.call.findMany({
             where: { businessId },
             include: {
-              agent: true,
+              // select explícito en el agente: `agent: true` arrastraba el
+              // systemPrompt completo (varios KB del prompt gestionado) en
+              // cada una de las filas de la página, siempre el mismo texto.
+              agent: { select: { id: true, name: true, voice: true } },
               booking: { include: { professional: { select: { id: true, name: true } } } },
             },
             take: limit,
@@ -186,7 +189,7 @@ export async function callsRoutes(fastify: FastifyInstance) {
           [];
         if (call.booking?.serviceIds?.length) {
           services = await prisma.service.findMany({
-            where: { id: { in: call.booking.serviceIds } },
+            where: { id: { in: call.booking.serviceIds }, businessId },
             select: { id: true, name: true, durationMinutes: true },
           });
         }

@@ -26,6 +26,7 @@ import {
   type DemoPlaceDetails,
 } from "@/lib/api";
 import type { DemoPlaceSearchResult } from "@/lib/types";
+import { useFocusTrap } from "@/hooks/use-focus-trap";
 import { BrandMark } from "@/components/brand-mark";
 import { BUSINESS_TYPE_LABELS } from "@/lib/business-type";
 import { NICHE_ACCENTS } from "@/lib/niche-accents";
@@ -104,7 +105,6 @@ export function DemoVoiceCall({ open, onClose, onActiveChange, niche }: DemoVoic
   const closeTimeoutRef = useRef<number | null>(null);
   const closeButtonRef = useRef<HTMLButtonElement | null>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
-  const dialogRef = useRef<HTMLDivElement | null>(null);
 
   const isCallView = state !== "idle";
   const isCallInProgress = state === "active" || state === "connecting" || state === "requesting-permission" || state === "ending";
@@ -312,41 +312,25 @@ export function DemoVoiceCall({ open, onClose, onActiveChange, niche }: DemoVoic
     void endCall();
   }, [elapsedSeconds, endCall, open]);
 
-  useEffect(() => {
-    if (!open) return;
-    const handleKeydown = (event: KeyboardEvent) => {
-      if (event.key === "Tab") {
-        const dialog = dialogRef.current;
-        if (!dialog) return;
-        const focusable = Array.from(
-          dialog.querySelectorAll<HTMLElement>('a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'),
-        ).filter((element) => element.offsetParent !== null || element === document.activeElement);
-        if (focusable.length === 0) return;
-        const first = focusable[0];
-        const last = focusable[focusable.length - 1];
-        const active = document.activeElement;
-        if (event.shiftKey && (active === first || !dialog.contains(active))) {
-          event.preventDefault();
-          last.focus();
-        } else if (!event.shiftKey && active === last) {
-          event.preventDefault();
-          first.focus();
-        }
-        return;
-      }
-      if (event.key !== "Escape") return;
-      event.preventDefault();
+  // Escape y trampa de Tab. El bloqueo de scroll y la devolución del foco los
+  // hace el efecto de apertura, que es quien conoce la animación de cierre.
+  const dialogRef = useFocusTrap<HTMLDivElement>({
+    active: open,
+    onEscape: () => {
       if (isCallInProgress) void endCall();
       else handleClose();
-    };
+    },
+    initialFocusRef: closeButtonRef,
+    lockScroll: false,
+    restoreFocus: false,
+  });
+
+  useEffect(() => {
+    if (!open) return;
     const handlePageHide = () => retellRef.current?.stopCall();
-    window.addEventListener("keydown", handleKeydown);
     window.addEventListener("pagehide", handlePageHide);
-    return () => {
-      window.removeEventListener("keydown", handleKeydown);
-      window.removeEventListener("pagehide", handlePageHide);
-    };
-  }, [endCall, handleClose, isCallInProgress, open]);
+    return () => window.removeEventListener("pagehide", handlePageHide);
+  }, [open]);
 
   const toggleMute = () => {
     const nextValue = !isMuted;

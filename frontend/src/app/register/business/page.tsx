@@ -297,10 +297,11 @@ export default function RegisterBusinessPage() {
           </div>
         ) : locationStatus === "fallback" ? (
           <div className="mt-8">
-            <label className="text-sm font-medium text-[#27272a]">
+            <label htmlFor="register-business-country" className="text-sm font-medium text-[#27272a]">
               País del negocio
             </label>
             <select
+              id="register-business-country"
               className="field mt-2 w-full"
               value={country}
               onChange={(event) => {
@@ -324,7 +325,14 @@ export default function RegisterBusinessPage() {
           <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
             <Search className="h-5 w-5 text-[#a1a1aa]" />
           </div>
+          {/* El placeholder desaparece al escribir y no lo anuncia ningún
+              lector de pantalla: la etiqueta va aparte, oculta a la vista
+              porque el título de la pantalla ya explica qué se busca aquí. */}
+          <label htmlFor="register-business-search" className="sr-only">
+            Busca tu negocio por nombre o dirección
+          </label>
           <input
+            id="register-business-search"
             type="text"
             value={query}
             onChange={(event) => {

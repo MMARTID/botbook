@@ -193,11 +193,20 @@ function mapRetellRequestedService(value: string | undefined): string | null {
 async function resolveBusinessIdByRetellAgentId(
   retellAgentId: string
 ): Promise<string | null> {
-  const agent = await prisma.agent.findFirst({
-    where: { retellAgentId },
-    select: { businessId: true },
-  });
+  const agent = await resolveAgentByRetellId(retellAgentId);
   return agent?.businessId || null;
+}
+
+/** Devuelve id y negocio del agente en UNA consulta: los dos manejadores de
+ * webhook leían la misma fila dos veces seguidas (una para el negocio y otra
+ * para el id) en el camino crítico de cada llamada. */
+async function resolveAgentByRetellId(
+  retellAgentId: string
+): Promise<{ id: string; businessId: string } | null> {
+  return prisma.agent.findFirst({
+    where: { retellAgentId },
+    select: { id: true, businessId: true },
+  });
 }
 
 export async function handleCallStarted(
@@ -209,18 +218,14 @@ export async function handleCallStarted(
   console.log(`[Retell] Inició ${callLabel(call_id)} · agente=${agent_id}`);
 
   try {
-    const businessId = await resolveBusinessIdByRetellAgentId(agent_id);
+    const agent = await resolveAgentByRetellId(agent_id);
+    const businessId = agent?.businessId;
     if (!businessId) {
       console.error(
         `[Retell] No se pudo identificar el negocio de la ${callLabel(call_id)} (agente ${agent_id})`
       );
       return { success: false };
     }
-
-    const agent = await prisma.agent.findFirst({
-      where: { retellAgentId: agent_id },
-      select: { id: true },
-    });
 
     // No separar la lectura del estado y su actualización: call_ended puede
     // completar la llamada entre ambas operaciones. updateMany incluye el
@@ -288,9 +293,11 @@ export async function handleCallEnded(
   );
 
   try {
+    // select, no include: antes traía la fila Business entera (con sus
+    // refresh tokens y prompts) y el agente completo para usar solo dos ids.
     const dbCall = await prisma.call.findUnique({
       where: { callId: call_id },
-      include: { business: true, agent: true },
+      select: { id: true, businessId: true, agentId: true, status: true },
     });
 
     let businessId: string | null | undefined = dbCall?.businessId;
@@ -300,11 +307,8 @@ export async function handleCallEnded(
       console.warn(
         `[Retell] ${callLabel(call_id)} no existía en la base de datos; se intentará recuperar su agente`
       );
-      businessId = await resolveBusinessIdByRetellAgentId(agent_id);
-      const agent = await prisma.agent.findFirst({
-        where: { retellAgentId: agent_id },
-        select: { id: true },
-      });
+      const agent = await resolveAgentByRetellId(agent_id);
+      businessId = agent?.businessId;
       agentId = agent?.id || undefined;
 
       if (!businessId) {

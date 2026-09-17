@@ -169,6 +169,34 @@ async function getOrCreateCustomer(businessId: string, userId: string) {
   }
 
   const stripe = getStripeClient();
+
+  // La clave de idempotencia de Stripe solo cubre 24 horas: si el update de
+  // abajo falló y el usuario vuelve al día siguiente, se le crearía un
+  // segundo Customer y su suscripción quedaría colgando del cliente
+  // equivocado. Antes de crear, se busca por el businessId que guardamos en
+  // los metadatos.
+  try {
+    const existentes = await stripe.customers.search({
+      query: `metadata['businessId']:'${businessId}'`,
+      limit: 1,
+    });
+    const encontrado = existentes.data[0];
+    if (encontrado) {
+      await prisma.business.update({
+        where: { id: businessId },
+        data: { stripeCustomerId: encontrado.id },
+      });
+      return encontrado.id;
+    }
+  } catch (error) {
+    // El índice de búsqueda de Stripe tarda en refrescarse y puede fallar;
+    // no es motivo para no dejar pagar a nadie.
+    console.warn(
+      `[Billing] No se pudo buscar un Customer existente de ${businessId}:`,
+      error instanceof Error ? error.message : String(error)
+    );
+  }
+
   const customer = await stripe.customers.create(
     {
       name: business.name,

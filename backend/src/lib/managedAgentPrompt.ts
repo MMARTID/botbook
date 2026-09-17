@@ -184,11 +184,26 @@ function buildLanguageInstruction(settings: AgentSettings): string {
   return `Empieza siempre con el saludo en español de España. Tras la primera intervención de quien llama, responde y continúa exclusivamente en el idioma que use si es uno de estos: ${enabledLanguages}. Si cambia entre esos idiomas, acompaña el cambio sin pedirle que elija uno. No menciones que eres una IA salvo que te lo pregunten.`;
 }
 
+/** Zona válida o Madrid. La hora actual del agente depende de esto, así que
+ * una zona mal escrita no puede propagarse al prompt. */
+export function resolveManagedPromptTimezone(
+  timezone: string | null | undefined
+): string {
+  const candidate = timezone || "Europe/Madrid";
+  try {
+    new Intl.DateTimeFormat("es-ES", { timeZone: candidate }).format();
+    return candidate;
+  } catch {
+    return "Europe/Madrid";
+  }
+}
+
 export function buildManagedAgentPrompt(input: {
   businessName: string;
   businessDetails?: string | null;
   businessType?: BusinessType;
   settings: unknown;
+  timezone?: string | null;
   minAdvanceBookingMinutes?: number | null;
   maxAppointmentDurationMinutes?: number | null;
 }) {
@@ -239,6 +254,13 @@ export function buildManagedAgentPrompt(input: {
     "Si ordenan colgar, usa end_call en ese turno sin despedida. Ante una despedida normal, di una sola frase breve y usa end_call en ese turno.",
     "## Referencia temporal",
     businessDetails ? `Información del negocio: ${businessDetails}` : null,
-    "Momento actual en la zona del negocio:\n{{current_time_{{zona_horaria}} }}",
+    // La zona va escrita literalmente, no como {{zona_horaria}} anidada
+    // dentro de {{current_time_...}}: no está documentado en ningún sitio que
+    // Retell resuelva una variable dentro de otra, y si no la resuelve el
+    // agente se queda sin saber qué día es hoy — "mañana" o "el martes" se
+    // convierten en una fecha inventada y la cita acaba en el día equivocado.
+    `Momento actual en la zona del negocio:\n{{current_time_${resolveManagedPromptTimezone(
+      input.timezone
+    )}}}`,
   ].filter(Boolean).join("\n\n");
 }

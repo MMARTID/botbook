@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { CheckCircle2, Clock3, RefreshCw } from "lucide-react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { CheckCircle2, CircleAlert, Clock3, RefreshCw } from "lucide-react";
 import { getBillingSummary, reconcileCheckoutSession } from "@/lib/api";
 
 export default function CheckoutResultPage({
@@ -33,8 +33,13 @@ export default function CheckoutResultPage({
     }
   }, []);
 
-  const { data, isLoading, refetch, isFetching } = useQuery({
-    queryKey: ["billing-summary"],
+  const queryClient = useQueryClient();
+
+  // Clave propia: ["billing-summary"] la monta AppShell con un GET, y esta
+  // consulta hace un POST de reconciliación. Con la misma clave eran dos
+  // observadores con funciones distintas pisándose la caché mutuamente.
+  const { data, isLoading, isError, refetch, isFetching } = useQuery({
+    queryKey: ["checkout-reconcile", sessionId],
     queryFn: () => sessionId ? reconcileCheckoutSession(sessionId) : getBillingSummary(),
     refetchInterval: (query) => {
       const status = query.state.data?.status;
@@ -43,6 +48,18 @@ export default function CheckoutResultPage({
   });
 
   const confirmed = data?.status === "ACTIVE" || data?.status === "TRIALING";
+
+  useEffect(() => {
+    if (!confirmed) return;
+    // El resumen que enseña el resto de la app (aviso de minutos del menú)
+    // se queda obsoleto en cuanto Stripe confirma el plan.
+    void queryClient.invalidateQueries({ queryKey: ["billing-summary"] });
+  }, [confirmed, queryClient]);
+
+  // Si la reconciliación falla no hay nada que sondear: sin esta rama el
+  // usuario veía "Estamos confirmando tu suscripción" y un sondeo inútil.
+  const sinRespuesta = isError && !data;
+
   const ctaParams = new URLSearchParams();
   if (confirmed) {
     ctaParams.set("from", "checkout");
@@ -56,16 +73,22 @@ export default function CheckoutResultPage({
   return (
     <section className="mx-auto max-w-2xl py-16 text-center">
       <div className="panel p-8 sm:p-12">
-        <div className={`mx-auto flex h-16 w-16 items-center justify-center rounded-full ${confirmed ? "bg-[#ecf7ec] text-[#2c7334]" : "bg-[#fef8e7] text-[#9f7a15]"}`}>
-          {confirmed ? <CheckCircle2 className="h-8 w-8" /> : <Clock3 className="h-8 w-8" />}
+        <div className={`mx-auto flex h-16 w-16 items-center justify-center rounded-full ${confirmed ? "bg-[#ecf7ec] text-[#2c7334]" : sinRespuesta ? "bg-[#fff1f1] text-[#c53030]" : "bg-[#fef8e7] text-[#9f7a15]"}`}>
+          {confirmed ? <CheckCircle2 className="h-8 w-8" /> : sinRespuesta ? <CircleAlert className="h-8 w-8" /> : <Clock3 className="h-8 w-8" />}
         </div>
         <h1 className="mt-6 text-3xl font-semibold tracking-tight text-[#0a0a0a]">
-          {confirmed ? "Suscripción confirmada" : "Estamos confirmando tu suscripción"}
+          {confirmed
+            ? "Suscripción confirmada"
+            : sinRespuesta
+              ? "No hemos podido comprobar tu suscripción"
+              : "Estamos confirmando tu suscripción"}
         </h1>
         <p className="mt-4 leading-7 text-muted">
           {confirmed
             ? "Tu trial y los permisos del plan ya están sincronizados."
-            : "Stripe está procesando el pago. En unos segundos activamos tu plan automáticamente."}
+            : sinRespuesta
+              ? "Tu pago puede haberse completado igualmente: lo que ha fallado es la comprobación. Vuelve a intentarlo con el botón de abajo."
+              : "Stripe está procesando el pago. En unos segundos activamos tu plan automáticamente."}
         </p>
         {!confirmed && isTakingLong ? (
           <p className="mt-3 text-sm leading-6 text-[#9f7a15]">

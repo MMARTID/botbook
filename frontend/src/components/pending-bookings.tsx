@@ -3,6 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { AlertTriangle, Phone } from "lucide-react";
 import { getPendingBookings } from "@/lib/api";
+import { SectionCard, SectionErrorState } from "@/components/section-card";
 import { formatClock, formatDayLabel, formatPhone } from "@/lib/format";
 import type { PendingBooking } from "@/lib/types";
 
@@ -37,6 +38,25 @@ export function PendingBookings({ timeZone }: PendingBookingsProps) {
     queryFn: getPendingBookings,
     refetchInterval: 5 * 60_000,
   });
+
+  // Estas citas son la única tarea del panel que se pierde de verdad si no se
+  // ve: si la consulta falla no pueden desaparecer sin dejar rastro, porque el
+  // negocio no tiene forma de enterarse por ningún otro sitio.
+  if (pendingQuery.isError) {
+    return (
+      <SectionCard
+        id="pending-bookings"
+        title="Citas pendientes de confirmar"
+        description="Citas que tus clientes pidieron por teléfono y que quizá tengas que confirmar a mano."
+      >
+        <SectionErrorState
+          className="mt-4"
+          message="No hemos podido comprobar si hay citas sin reservar."
+          onRetry={() => void pendingQuery.refetch()}
+        />
+      </SectionCard>
+    );
+  }
 
   const pending = pendingQuery.data ?? [];
   if (pending.length === 0) return null;

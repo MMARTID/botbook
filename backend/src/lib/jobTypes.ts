@@ -6,6 +6,9 @@ export interface ProcessRecordingJob {
 
 export interface RetryFailedBookingJob {
   leadId: string;
+  /** Vuelta del reintento diferido cuando el calendario sigue desconectado.
+   * Acota cuántas veces se reprograma antes de dejarlo en manos del negocio. */
+  attempt?: number;
 }
 
 export interface ReportUsageJob {
@@ -17,6 +20,10 @@ export interface SendEmailJob {
   toAddress: string;
   subject: string;
   html: string;
+  /** Clave de envío único. La rellena enqueueEmailJob a partir del id de la
+   * tarea: el job la reclama antes de mandar nada, así una segunda entrega
+   * de Cloud Tasks no duplica el correo. */
+  idempotencyKey?: string;
 }
 
 export interface SendSmsJob {
@@ -29,6 +36,8 @@ export interface SendSmsJob {
   /** Obligatorio en la API de Telnyx cuando `fromNumber` es un Alphanumeric
    * Sender ID en vez de un número — ver `resolveSmsMessagingProfileId`. */
   messagingProfileId?: string;
+  /** Ver SendEmailJob.idempotencyKey. */
+  idempotencyKey?: string;
 }
 
 export interface SendWhatsappJob {
@@ -39,4 +48,6 @@ export interface SendWhatsappJob {
    * aprobadas por Meta — ver WHATSAPP_TEMPLATE_CONFIRMATION_NAME /
    * WHATSAPP_TEMPLATE_REMINDER_NAME en voiceTools/service.ts. */
   bodyParams: Record<string, string>;
+  /** Ver SendEmailJob.idempotencyKey. */
+  idempotencyKey?: string;
 }

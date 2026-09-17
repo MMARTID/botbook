@@ -319,6 +319,33 @@ async function invalidateVoiceConfigCache(businessId: string): Promise<void> {
 }
 
 // Usamos instancias por llamada; esto evita condiciones de carrera entre negocios
+/**
+ * Refresca el token de Outlook y GUARDA el refresh token nuevo si Microsoft
+ * lo rota (lo hace casi siempre). Sin esto se seguía usando indefinidamente
+ * el token original de la conexión, que caduca por inactividad a los 90 días:
+ * meses después, Outlook se desconectaba solo con invalid_grant y todas las
+ * reservas de ese negocio pasaban a quedarse pendientes.
+ */
+async function refrescarTokenDeOutlook(refreshToken: string) {
+  const respuesta = await refreshMicrosoftAccessToken(refreshToken);
+  if (respuesta.refresh_token && respuesta.refresh_token !== refreshToken) {
+    try {
+      await prisma.business.updateMany({
+        where: { outlookRefreshToken: refreshToken },
+        data: { outlookRefreshToken: respuesta.refresh_token },
+      });
+    } catch (error) {
+      // Que no se guarde no puede tumbar la operación en curso: el token
+      // viejo sigue sirviendo hasta que caduque su ventana.
+      console.error(
+        "[Calendar] No se pudo guardar el refresh token rotado de Outlook:",
+        error instanceof Error ? error.message : String(error)
+      );
+    }
+  }
+  return respuesta;
+}
+
 export class CalendarService {
   constructor() {}
 
@@ -429,7 +456,10 @@ export class CalendarService {
     const calendar = google.calendar({ version: "v3", auth: oauth2Client });
 
     try {
-      const response = await calendar.calendarList.list();
+      const response = await calendar.calendarList.list(
+        {},
+        { timeout: CALENDAR_REQUEST_TIMEOUT_MS }
+      );
       return (response.data.items ?? [])
         .filter((item) => Boolean(item.id))
         .map((item) => ({
@@ -458,7 +488,7 @@ export class CalendarService {
   async listOutlookCalendars(outlookRefreshToken: string) {
     try {
       const { access_token } =
-        await refreshMicrosoftAccessToken(outlookRefreshToken);
+        await refrescarTokenDeOutlook(outlookRefreshToken);
       const calendars = await listMicrosoftCalendars(access_token);
       return calendars.map((item) => ({
         id: item.id,
@@ -598,6 +628,83 @@ export class CalendarService {
               },
             },
           required: ["clientName", "availabilityToken"],
+        },
+        speak_during_execution: true,
+        speak_after_execution: true,
+        timeout_ms: 20000,
+      },
+      {
+        // Estas tres existían solo en Telnyx, pero el prompt gestionado es el
+        // MISMO para los dos orquestadores y le dice al agente que las use:
+        // en Retell el agente prometía localizar o cancelar una cita con una
+        // herramienta que su LLM no tenía, y acababa improvisando o creando
+        // una cita nueva encima de la que el cliente quería cambiar.
+        name: "find_my_appointment",
+        description:
+          "Busca la próxima cita del negocio asociada al número desde el que llama. Devuelve también clientName (el nombre con el que se reservó; puede venir vacío en citas antiguas) — úsalo si el cliente quiere recrear la cita al mismo nombre. Úsala solo si quien llama pide cambiar o cancelar una cita existente y no te ha dado datos concretos.",
+        url: `${toolBaseUrl}/find_my_appointment`,
+        method: "POST",
+        args_at_root: false,
+        parameters: {
+          type: "object",
+          properties: {},
+        },
+        speak_during_execution: true,
+        speak_after_execution: true,
+        timeout_ms: 20000,
+      },
+      {
+        name: "cancel_appointment",
+        description:
+          "Cancela la cita cuyo id devolvió find_my_appointment. Úsala solo tras confirmación explícita del cliente. Para 'modificar' una cita: cancélala con esta tool y reserva la nueva con check_availability + book_appointment.",
+        url: `${toolBaseUrl}/cancel_appointment`,
+        method: "POST",
+        args_at_root: false,
+        parameters: {
+          type: "object",
+          properties: {
+            bookingId: {
+              type: "string",
+              description: "El id de la cita devuelto por find_my_appointment.",
+            },
+          },
+          required: ["bookingId"],
+        },
+        speak_during_execution: true,
+        speak_after_execution: true,
+        timeout_ms: 20000,
+      },
+      {
+        name: "notify_when_available",
+        description:
+          "Guarda el aviso de que el cliente quiere que le escribamos por WhatsApp si se libera la hora que pidió y no estaba disponible. Válido tanto si el cliente se va sin reservar nada más como si reserva otra hora igualmente. Úsala solo cuando lo pida explícitamente y haya dado consentimiento para WhatsApp a este número.",
+        url: `${toolBaseUrl}/notify_when_available`,
+        method: "POST",
+        args_at_root: false,
+        parameters: {
+          type: "object",
+          properties: {
+            startDateTime: {
+              type: "string",
+              description:
+                "La hora exacta que el cliente quería y no estaba disponible, en formato ISO 8601 en hora local del negocio con su offset explícito (nunca UTC).",
+            },
+            durationMinutes: {
+              type: "number",
+              description: "Duración en minutos de la cita que quería.",
+            },
+            serviceIds: {
+              type: "array",
+              items: { type: "string" },
+              description: "IDs de los servicios que pidió, si los mencionó (opcional).",
+            },
+            professionalId: {
+              type: "string",
+              description:
+                "ID del profesional concreto que pidió, si lo mencionó (opcional).",
+            },
+          },
+          required: ["startDateTime", "durationMinutes"],
         },
         speak_during_execution: true,
         speak_after_execution: true,
@@ -824,7 +931,7 @@ export class CalendarService {
       }
 
       try {
-        const tokenResponse = await refreshMicrosoftAccessToken(
+        const tokenResponse = await refrescarTokenDeOutlook(
           options.outlookRefreshToken
         );
         return await listMicrosoftUpcomingEvents(
@@ -867,13 +974,16 @@ export class CalendarService {
     const calendarId = options.googleCalendarId || "primary";
 
     try {
-      const response = await calendar.events.list({
-        calendarId,
-        timeMin: new Date().toISOString(),
-        maxResults: safeMaxResults,
-        singleEvents: true,
-        orderBy: "startTime",
-      });
+      const response = await calendar.events.list(
+        {
+          calendarId,
+          timeMin: new Date().toISOString(),
+          maxResults: safeMaxResults,
+          singleEvents: true,
+          orderBy: "startTime",
+        },
+        { timeout: CALENDAR_REQUEST_TIMEOUT_MS }
+      );
 
       return (response.data.items || []).map((event) => ({
         id: event.id ?? null,
@@ -926,7 +1036,7 @@ export class CalendarService {
         if (!input.outlookRefreshToken || !input.outlookCalendarId) {
           return { intervals: [], calendarAvailabilityKnown: false };
         }
-        const { access_token } = await refreshMicrosoftAccessToken(
+        const { access_token } = await refrescarTokenDeOutlook(
           input.outlookRefreshToken
         );
         const intervals = await listMicrosoftBusyIntervals(
@@ -961,10 +1071,18 @@ export class CalendarService {
       );
 
       const intervals = (response.data.items ?? [])
-        .filter(
-          (event) =>
-            event.status !== "cancelled" && event.transparency !== "transparent"
-        )
+        .filter((event) => {
+          if (event.status === "cancelled") return false;
+          // Google marca los eventos de día completo como "Libre"
+          // (transparency: transparent) por defecto, así que el "VACACIONES"
+          // que el dueño pone de todo el día se descartaba en silencio y el
+          // día seguía reservable. Un evento de día completo (viene con
+          // start.date, no start.dateTime) significa siempre "ese día no
+          // trabajo": cuenta como ocupado aunque figure como libre.
+          const esDeDiaCompleto = Boolean(event.start?.date);
+          if (esDeDiaCompleto) return true;
+          return event.transparency !== "transparent";
+        })
         .map(
           (event): {
             start: Date | null;
@@ -1057,7 +1175,7 @@ export class CalendarService {
 
       try {
         const { access_token } =
-          await refreshMicrosoftAccessToken(outlookRefreshToken);
+          await refrescarTokenDeOutlook(outlookRefreshToken);
         const event = await createMicrosoftCalendarEvent({
           accessToken: access_token,
           calendarId: outlookCalendarId,
@@ -1186,10 +1304,16 @@ export class CalendarService {
       // perdió su respuesta. Recuperarlo convierte el retry en idempotente.
       if (idempotencyKey && isGoogleConflictError(err)) {
         try {
-          const existing = await calendar.events.get({
-            calendarId,
-            eventId: googleEventIdFromIdempotencyKey(idempotencyKey),
-          });
+          const existing = await calendar.events.get(
+            {
+              calendarId,
+              eventId: googleEventIdFromIdempotencyKey(idempotencyKey),
+            },
+            // Este get corre dentro de la ruta de voz y justo cuando Google
+            // está dando problemas: sin tope podía comerse el presupuesto
+            // entero de la tool call.
+            { timeout: CALENDAR_REQUEST_TIMEOUT_MS }
+          );
           return existing.data;
         } catch (getError) {
           console.error(
@@ -1258,7 +1382,7 @@ export class CalendarService {
       }
       try {
         const { access_token } =
-          await refreshMicrosoftAccessToken(outlookRefreshToken);
+          await refrescarTokenDeOutlook(outlookRefreshToken);
         await deleteMicrosoftCalendarEvent(access_token, outlookCalendarId, eventId);
       } catch (err) {
         if ((err as { status?: number })?.status === 404) return;
