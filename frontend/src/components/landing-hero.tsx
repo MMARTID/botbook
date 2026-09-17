@@ -6,7 +6,6 @@ import type { CSSProperties } from "react";
 import { useState } from "react";
 import { ArrowDown, ArrowRight, Check, Headphones } from "lucide-react";
 
-import { HeroHilos } from "@/components/hero-hilos";
 import { DemoVoiceCall } from "@/components/demo-voice-call";
 import { Reveal } from "@/components/scroll-reveal";
 import type { NicheAccent, NicheLandingContent } from "@/lib/niche-landings";
@@ -56,15 +55,13 @@ export function LandingHero({ content }: { content?: NicheLandingContent }) {
   return (
     <>
       {/*
-        Hero a una columna con el titular centrado y los hilos de voz detrás
-        (2026-09-17): el pulso de llamada que ocupaba la columna derecha se
-        retiró. `relative isolate` es obligatorio para que el canvas en
-        `-z-10` quede por encima del fondo del <main> y no desaparezca; la
-        sección no puede pintar fondo propio por lo mismo (ver DESIGN.md). Los
-        pulsos que recorren los hilos van en el acento del nicho.
+        Hero a una columna con el titular centrado (2026-09-17): el pulso de
+        llamada que ocupaba la columna derecha se retiró. El fondo animado que
+        lo sustituyó (hilos de voz en canvas 2D) se quitó el mismo día: en
+        Safari iba a tirones, así que el hero queda limpio hasta decidir una
+        técnica que rinda igual en todos los navegadores (ver DESIGN.md).
       */}
-      <section className="relative isolate overflow-hidden">
-        <HeroHilos color={accent?.strong} />
+      <section>
         <div className="mx-auto flex max-w-4xl flex-col items-center space-y-7 px-4 py-16 text-center sm:px-6 sm:py-24 lg:space-y-8 lg:px-8 lg:py-28">
           {/*
             El hero no tenía ninguna animación de entrada propia — aparecía de
@@ -72,9 +69,8 @@ export function LandingHero({ content }: { content?: NicheLandingContent }) {
             ~5s) sí se movía, dando una sensación de piezas sueltas. Mismo
             lenguaje que el resto de la página (Reveal, curva [0.22,1,.36,1]),
             con un stagger rápido (~900ms) para que todo el bloque de texto
-            llegue en el mismo aliento. Los hilos del fondo siguen a su propio
-            ritmo después: eso es ambiente, no llegada. (El campo de partículas
-            se retiró de las landings el 2026-09-16.)
+            llegue en el mismo aliento. (El campo de partículas se retiró de
+            las landings el 2026-09-16.)
           */}
           <Reveal y={14}>
             <span
@@ -135,8 +131,8 @@ export function LandingHero({ content }: { content?: NicheLandingContent }) {
 
       {/*
         Ya no se pasa onActiveChange: existía para pausar la conversación
-        simulada del hero mientras sonaba la demo. Los hilos del fondo son
-        ambiente mudo y no compiten con el audio, así que no hay nada que pausar.
+        simulada del hero mientras sonaba la demo. Sin animación en el hero no
+        hay nada que pausar.
       */}
       <DemoVoiceCall
         open={isDemoOpen}

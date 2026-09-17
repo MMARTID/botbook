@@ -7,7 +7,6 @@ import { motion, useReducedMotion } from "framer-motion";
 
 import { BrandMark } from "@/components/brand-mark";
 import { DemoVoiceCall } from "@/components/demo-voice-call";
-import { HeroHilos } from "@/components/hero-hilos";
 import { HowItWorksScrollytelling } from "@/components/how-it-works-scrollytelling";
 import { MobileNav } from "@/components/mobile-nav";
 import { Reveal } from "@/components/scroll-reveal";
@@ -169,14 +168,14 @@ export function MainLanding() {
       <LandingHeader hiddenOnMobile={hideHeaderOnMobile} />
 
       {/*
-        Hero a una columna con el titular centrado y los hilos de voz detrás
-        (2026-09-17): el pulso de llamada que ocupaba la columna derecha se
-        retiró. `relative isolate` es obligatorio para que el canvas en
-        `-z-10` quede por encima del fondo del <main> y no desaparezca; la
-        sección no puede pintar fondo propio por lo mismo (ver DESIGN.md).
+        Hero a una columna con el titular centrado (2026-09-17): el pulso de
+        llamada que ocupaba la columna derecha se retiró. El fondo animado que
+        lo sustituyó (hilos de voz en canvas 2D) se quitó el mismo día: en
+        Safari iba a tirones — WebKit rasteriza los trazos de canvas en CPU y
+        a retina son 4× píxeles — así que el hero queda limpio hasta decidir
+        una técnica que rinda igual en todos los navegadores (ver DESIGN.md).
       */}
-      <section id="contenido" className="relative isolate overflow-hidden border-b border-[#e5e5e5]" tabIndex={-1}>
-        <HeroHilos />
+      <section id="contenido" className="border-b border-[#e5e5e5]" tabIndex={-1}>
         <div className="mx-auto flex max-w-4xl flex-col items-center space-y-7 px-4 py-16 text-center sm:px-6 sm:py-24 lg:px-8 lg:py-28">
           <Reveal y={14}>
             <span className="badge-soft">Recepción telefónica para negocios con cita previa</span>
