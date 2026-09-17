@@ -319,6 +319,33 @@ async function invalidateVoiceConfigCache(businessId: string): Promise<void> {
 }
 
 // Usamos instancias por llamada; esto evita condiciones de carrera entre negocios
+/**
+ * Refresca el token de Outlook y GUARDA el refresh token nuevo si Microsoft
+ * lo rota (lo hace casi siempre). Sin esto se seguía usando indefinidamente
+ * el token original de la conexión, que caduca por inactividad a los 90 días:
+ * meses después, Outlook se desconectaba solo con invalid_grant y todas las
+ * reservas de ese negocio pasaban a quedarse pendientes.
+ */
+async function refrescarTokenDeOutlook(refreshToken: string) {
+  const respuesta = await refreshMicrosoftAccessToken(refreshToken);
+  if (respuesta.refresh_token && respuesta.refresh_token !== refreshToken) {
+    try {
+      await prisma.business.updateMany({
+        where: { outlookRefreshToken: refreshToken },
+        data: { outlookRefreshToken: respuesta.refresh_token },
+      });
+    } catch (error) {
+      // Que no se guarde no puede tumbar la operación en curso: el token
+      // viejo sigue sirviendo hasta que caduque su ventana.
+      console.error(
+        "[Calendar] No se pudo guardar el refresh token rotado de Outlook:",
+        error instanceof Error ? error.message : String(error)
+      );
+    }
+  }
+  return respuesta;
+}
+
 export class CalendarService {
   constructor() {}
 
@@ -461,7 +488,7 @@ export class CalendarService {
   async listOutlookCalendars(outlookRefreshToken: string) {
     try {
       const { access_token } =
-        await refreshMicrosoftAccessToken(outlookRefreshToken);
+        await refrescarTokenDeOutlook(outlookRefreshToken);
       const calendars = await listMicrosoftCalendars(access_token);
       return calendars.map((item) => ({
         id: item.id,
@@ -904,7 +931,7 @@ export class CalendarService {
       }
 
       try {
-        const tokenResponse = await refreshMicrosoftAccessToken(
+        const tokenResponse = await refrescarTokenDeOutlook(
           options.outlookRefreshToken
         );
         return await listMicrosoftUpcomingEvents(
@@ -1009,7 +1036,7 @@ export class CalendarService {
         if (!input.outlookRefreshToken || !input.outlookCalendarId) {
           return { intervals: [], calendarAvailabilityKnown: false };
         }
-        const { access_token } = await refreshMicrosoftAccessToken(
+        const { access_token } = await refrescarTokenDeOutlook(
           input.outlookRefreshToken
         );
         const intervals = await listMicrosoftBusyIntervals(
@@ -1140,7 +1167,7 @@ export class CalendarService {
 
       try {
         const { access_token } =
-          await refreshMicrosoftAccessToken(outlookRefreshToken);
+          await refrescarTokenDeOutlook(outlookRefreshToken);
         const event = await createMicrosoftCalendarEvent({
           accessToken: access_token,
           calendarId: outlookCalendarId,
@@ -1347,7 +1374,7 @@ export class CalendarService {
       }
       try {
         const { access_token } =
-          await refreshMicrosoftAccessToken(outlookRefreshToken);
+          await refrescarTokenDeOutlook(outlookRefreshToken);
         await deleteMicrosoftCalendarEvent(access_token, outlookCalendarId, eventId);
       } catch (err) {
         if ((err as { status?: number })?.status === 404) return;

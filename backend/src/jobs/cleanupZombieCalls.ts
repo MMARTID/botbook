@@ -1,9 +1,13 @@
 import { prisma } from "../lib/prisma.js";
 
-const ZOMBIE_CALL_THRESHOLD_MINUTES = 60;
+// 20 minutos, no 60: el agente cuelga solo a los 10 (maxCallDurationMs), así
+// que una llamada que sigue "en curso" pasados 20 es un zombi seguro. Con el
+// umbral anterior podía quedarse viva hasta 75 minutos y el heurístico de
+// vinculación de reservas llegaba a elegirla como "la llamada actual".
+const ZOMBIE_CALL_THRESHOLD_MINUTES = 20;
 
 /**
- * Marca como TIMED_OUT las llamadas que llevan más de una hora en
+ * Marca como TIMED_OUT las llamadas que llevan más de 20 minutos en
  * IN_PROGRESS sin actualizarse (el proveedor de voz nunca mandó el evento de
  * fin de llamada). Invocado cada 15 min por Cloud Scheduler vía
  * POST /internal/jobs/cleanup-zombie-calls.

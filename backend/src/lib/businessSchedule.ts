@@ -183,13 +183,17 @@ function formatMinutesForHumans(minutes: number): string {
  * hueco (check_business_hours) como al confirmar la reserva (book_appointment),
  * sin fiarse de una comprobación anterior en la misma llamada.
  */
+/** Horizonte máximo de reserva. Una peluquería no coge citas a dos años
+ * vista; el número redondo cubre de sobra la temporada alta. */
+export const MAX_ADVANCE_BOOKING_DAYS = 120;
+
 export function checkBookingRestrictions(
   business: { minAdvanceBookingMinutes?: number | null; maxAppointmentDurationMinutes?: number | null },
   startDateTime: string,
   durationMinutes: number,
 ):
   | { success: true }
-  | { success: false; code: "INVALID_DATE_TIME" | "APPOINTMENT_IN_PAST" | "MIN_ADVANCE_NOT_MET" | "MAX_DURATION_EXCEEDED"; message: string } {
+  | { success: false; code: "INVALID_DATE_TIME" | "APPOINTMENT_IN_PAST" | "MIN_ADVANCE_NOT_MET" | "MAX_DURATION_EXCEEDED" | "TOO_FAR_IN_ADVANCE"; message: string } {
   const start = new Date(startDateTime);
   if (Number.isNaN(start.getTime())) {
     return { success: false, code: "INVALID_DATE_TIME", message: "La fecha y hora no son válidas." };
@@ -216,6 +220,18 @@ export function checkBookingRestrictions(
       success: false,
       code: "MIN_ADVANCE_NOT_MET",
       message: `Este negocio necesita al menos ${formatMinutesForHumans(effectiveMinAdvance)} de antelación para reservar una cita.`,
+    };
+  }
+
+  // Contraparte de la antelación mínima, que no existía: sin techo, un
+  // modelo que se equivoca de año (2028 en vez de 2026) confirmaba la cita
+  // sin rechistar, y esa fila entraba luego en todas las comprobaciones de
+  // disponibilidad del negocio.
+  if (minutesUntilStart > MAX_ADVANCE_BOOKING_DAYS * 24 * 60) {
+    return {
+      success: false,
+      code: "TOO_FAR_IN_ADVANCE",
+      message: `Solo puedo reservar citas hasta ${MAX_ADVANCE_BOOKING_DAYS} días vista. ¿Te va bien una fecha más cercana?`,
     };
   }
 

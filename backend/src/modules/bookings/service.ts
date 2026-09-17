@@ -191,8 +191,15 @@ export async function deleteService(businessId: string, id: string) {
  * (creación o reactivación). Cuenta solo activos no borrados: retirar a
  * alguien libera su plaza.
  */
-async function ensureProfessionalSlotAvailable(businessId: string) {
-  const business = await prisma.business.findUnique({
+async function ensureProfessionalSlotAvailable(
+  businessId: string,
+  // Cliente de la transacción en curso: contar y crear tienen que ocurrir
+  // dentro de la MISMA transacción serializable. Con dos peticiones a la vez
+  // y una plaza libre, ambas contaban 2 < 3 y ambas creaban, dejando al
+  // negocio con más profesionales de los que incluye su plan.
+  client: Pick<typeof prisma, "business" | "professional"> = prisma
+) {
+  const business = await client.business.findUnique({
     where: { id: businessId },
     select: { plan: true, stripePriceId: true },
   });
@@ -202,7 +209,7 @@ async function ensureProfessionalSlotAvailable(businessId: string) {
   const { maxProfessionals } = getPlanLimits(planId);
   if (maxProfessionals === null) return;
 
-  const activeCount = await prisma.professional.count({
+  const activeCount = await client.professional.count({
     where: { businessId, active: true, deletedAt: null },
   });
   if (activeCount >= maxProfessionals) {
@@ -219,22 +226,27 @@ export async function createProfessional(
   businessId: string,
   input: z.infer<typeof ProfessionalSchema>
 ) {
-  if (input.active !== false) {
-    await ensureProfessionalSlotAvailable(businessId);
-  }
   await ensureServicesBelongToBusiness(businessId, input.serviceIds);
 
-  const professional = await prisma.professional.create({
-    data: {
-      businessId,
-      name: input.name,
-      active: input.active ?? true,
-      serviceLinks: {
-        create: input.serviceIds.map((serviceId) => ({ serviceId })),
-      },
+  const professional = await prisma.$transaction(
+    async (tx) => {
+      if (input.active !== false) {
+        await ensureProfessionalSlotAvailable(businessId, tx);
+      }
+      return tx.professional.create({
+        data: {
+          businessId,
+          name: input.name,
+          active: input.active ?? true,
+          serviceLinks: {
+            create: input.serviceIds.map((serviceId) => ({ serviceId })),
+          },
+        },
+        include: { serviceLinks: nonDeletedServiceLinks },
+      });
     },
-    include: { serviceLinks: nonDeletedServiceLinks },
-  });
+    { isolationLevel: "Serializable" }
+  );
   await syncBookingConfiguration(businessId);
   return serializeProfessional(professional);
 }
@@ -257,15 +269,17 @@ export async function updateProfessional(
   });
   if (!professional) return null;
 
-  if (input.active === true && !professional.active) {
-    await ensureProfessionalSlotAvailable(businessId);
-  }
-
   if (input.serviceIds !== undefined) {
     await ensureServicesBelongToBusiness(businessId, input.serviceIds);
   }
 
   const updated = await prisma.$transaction(async (tx) => {
+    // Reactivar ocupa plaza igual que crear: la comprobación va dentro de la
+    // transacción para que dos reactivaciones simultáneas no pasen las dos.
+    if (input.active === true && !professional.active) {
+      await ensureProfessionalSlotAvailable(businessId, tx);
+    }
+
     if (input.serviceIds !== undefined) {
       await tx.professionalService.deleteMany({
         where: { professionalId: professional.id },
@@ -289,7 +303,7 @@ export async function updateProfessional(
       },
       include: { serviceLinks: nonDeletedServiceLinks },
     });
-  });
+  }, { isolationLevel: "Serializable" });
   await syncBookingConfiguration(businessId);
   return serializeProfessional(updated);
 }

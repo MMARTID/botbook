@@ -38,6 +38,8 @@ async function enqueueCloudTask(input: {
   payload: unknown;
   taskId?: string;
   scheduleTime?: Date;
+  /** Plazo de la petición HTTP. Por defecto 180s. */
+  dispatchDeadlineSeconds?: number;
 }) {
   const projectId = requireEnv("GCP_PROJECT_ID");
   const location = requireEnv("GCP_REGION");
@@ -55,6 +57,11 @@ async function enqueueCloudTask(input: {
       scheduleTime: input.scheduleTime
         ? { seconds: Math.floor(input.scheduleTime.getTime() / 1000) }
         : undefined,
+      // Sin esto Cloud Tasks aplica 10 minutos: una tarea lenta se da por
+      // perdida y se reintenta mientras la primera sigue trabajando, que es
+      // como se solapaban dos subidas de la misma grabación o dos tandas de
+      // resúmenes. Los jobs de este servicio terminan muy por debajo de 3 min.
+      dispatchDeadline: { seconds: input.dispatchDeadlineSeconds ?? 180 },
       httpRequest: {
         httpMethod: "POST",
         url,
@@ -109,14 +116,18 @@ export async function enqueueUsageReportJob(payload: ReportUsageJob, taskId?: st
 }
 
 export async function enqueueEmailJob(payload: SendEmailJob, taskId?: string): Promise<void> {
+  // El id de la tarea viaja también dentro del payload: es la clave con la
+  // que el job comprueba que este correo no ha salido ya (Cloud Tasks entrega
+  // al menos una vez, y un reintento tras un timeout duplicaría el envío).
+  const conClave = taskId ? { ...payload, idempotencyKey: taskId } : payload;
   if (!IS_PRODUCTION) {
-    await processSendEmailJob(payload);
+    await processSendEmailJob(conClave);
     return;
   }
   await enqueueCloudTask({
     queue: "send-email",
     path: "/internal/jobs/send-email",
-    payload,
+    payload: conClave,
     taskId,
   });
 }
@@ -125,6 +136,9 @@ export async function enqueueSmsJob(
   payload: SendSmsJob,
   options?: { taskId?: string; scheduleTime?: Date }
 ): Promise<void> {
+  const conClave = options?.taskId
+    ? { ...payload, idempotencyKey: options.taskId }
+    : payload;
   if (!IS_PRODUCTION) {
     // Sin Cloud Tasks real en dev: un scheduleTime futuro (recordatorio a
     // horas vista) no debe disparar el SMS ya mismo, sería directamente
@@ -135,13 +149,13 @@ export async function enqueueSmsJob(
       );
       return;
     }
-    await processSendSmsJob(payload);
+    await processSendSmsJob(conClave);
     return;
   }
   await enqueueCloudTask({
     queue: "send-sms",
     path: "/internal/jobs/send-sms",
-    payload,
+    payload: conClave,
     taskId: options?.taskId,
     scheduleTime: options?.scheduleTime,
   });
@@ -151,6 +165,9 @@ export async function enqueueWhatsappJob(
   payload: SendWhatsappJob,
   options?: { taskId?: string; scheduleTime?: Date }
 ): Promise<void> {
+  const conClave = options?.taskId
+    ? { ...payload, idempotencyKey: options.taskId }
+    : payload;
   if (!IS_PRODUCTION) {
     // Mismo criterio que enqueueSmsJob: sin Cloud Tasks real en dev, un
     // scheduleTime futuro (recordatorio a horas vista) solo se loguea.
@@ -160,13 +177,13 @@ export async function enqueueWhatsappJob(
       );
       return;
     }
-    await processSendWhatsappJob(payload);
+    await processSendWhatsappJob(conClave);
     return;
   }
   await enqueueCloudTask({
     queue: "send-whatsapp",
     path: "/internal/jobs/send-whatsapp",
-    payload,
+    payload: conClave,
     taskId: options?.taskId,
     scheduleTime: options?.scheduleTime,
   });

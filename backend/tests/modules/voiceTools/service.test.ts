@@ -129,7 +129,7 @@ describe("executeVoiceTool book_appointment — vinculación a la llamada correc
     mockedBusinessFindUnique.mockResolvedValue(buildBusiness() as any);
     mockedCheckBusinessHours.mockReturnValue({ success: true, isOpen: true } as any);
     mockedBookAppointment.mockResolvedValue({ htmlLink: "https://calendar.google.com/event/1" } as any);
-    mockedGetBusyIntervals.mockResolvedValue([]);
+    mockedGetBusyIntervals.mockResolvedValue({ intervals: [], calendarAvailabilityKnown: true } as any);
     mockedProfessionalFindFirst.mockResolvedValue({ id: "professional_123" } as any);
     mockedProfessionalFindMany.mockResolvedValue([]);
     mockedServiceFindMany.mockResolvedValue([]);
@@ -194,11 +194,14 @@ describe("executeVoiceTool book_appointment — vinculación a la llamada correc
     // status: IN_PROGRESS a propósito también: descarta llamadas ya
     // finalizadas (que podrían tener su propia reserva ya confirmada) del
     // heurístico — ver hallazgo #14 de la auditoría.
-    expect(mockedCallFindFirst).toHaveBeenCalledWith({
-      where: { businessId: "business_123", status: "IN_PROGRESS" },
-      orderBy: { startedAt: "desc" },
-      select: { id: true },
-    });
+    const heuristico = mockedCallFindFirst.mock.calls[0][0] as any;
+    expect(heuristico.where.businessId).toBe("business_123");
+    expect(heuristico.where.status).toBe("IN_PROGRESS");
+    // Acotado en el tiempo: una llamada zombi de hace una hora no puede
+    // hacerse pasar por la llamada en curso y quedarse con su reserva.
+    expect(heuristico.where.startedAt.gte).toBeInstanceOf(Date);
+    expect(heuristico.orderBy).toEqual({ startedAt: "desc" });
+    expect(heuristico.select).toEqual({ id: true });
     expect(mockedBookingUpsert).toHaveBeenCalledWith(
       expect.objectContaining({ where: { callId: "call_row_MOST_RECENT" } })
     );
@@ -256,6 +259,32 @@ describe("executeVoiceTool book_appointment — vinculación a la llamada correc
     );
   });
 
+  it("no confirma a ciegas si el calendario del negocio no se ha podido leer", async () => {
+    mockedCallFindUnique.mockResolvedValue({
+      id: "call_row_1",
+      fromNumber: "+34600999888",
+      businessId: "business_123",
+    } as any);
+    // Google devolvió un 5xx: no sabemos qué hay en la agenda del negocio.
+    mockedGetBusyIntervals.mockResolvedValue({
+      intervals: [],
+      calendarAvailabilityKnown: false,
+    } as any);
+    mockedLeadCreate.mockResolvedValue({ id: "lead_1" } as any);
+
+    const result = await executeVoiceTool(
+      buildBookAppointmentInput({ callId: "call_vapi_1" })
+    );
+
+    expect(result.result.success).toBe(false);
+    expect(result.result.code).toBe("CALENDAR_UNAVAILABLE");
+    // La cita no se inventa en el calendario...
+    expect(mockedBookAppointment).not.toHaveBeenCalled();
+    // ...pero los datos del cliente no se pierden.
+    expect(mockedLeadCreate).toHaveBeenCalled();
+    expect(result.result.message).toContain("He tomado nota");
+  });
+
   it("prioriza el clientPhone explícito del cliente sobre Call.fromNumber", async () => {
     mockedCallFindUnique.mockResolvedValue({
       id: "call_row_1",
@@ -287,7 +316,7 @@ describe("executeVoiceTool — catálogo y token de disponibilidad", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockedBusinessFindUnique.mockResolvedValue(buildBusiness() as any);
-    mockedGetBusyIntervals.mockResolvedValue([]);
+    mockedGetBusyIntervals.mockResolvedValue({ intervals: [], calendarAvailabilityKnown: true } as any);
     mockedCheckAvailability.mockResolvedValue({
       available: true,
       message: "Hay disponibilidad.",
@@ -424,7 +453,7 @@ describe("executeVoiceTool book_appointment — varios servicios en la misma cit
     mockedBusinessFindUnique.mockResolvedValue(buildBusiness() as any);
     mockedCheckBusinessHours.mockReturnValue({ success: true, isOpen: true } as any);
     mockedBookAppointment.mockResolvedValue({ htmlLink: "https://calendar.google.com/event/1" } as any);
-    mockedGetBusyIntervals.mockResolvedValue([]);
+    mockedGetBusyIntervals.mockResolvedValue({ intervals: [], calendarAvailabilityKnown: true } as any);
     mockedProfessionalFindFirst.mockResolvedValue({ id: "professional_123" } as any);
     mockedCallFindFirst.mockResolvedValue({ id: "call_row_1" } as any);
     mockedCheckAvailability.mockResolvedValue({
@@ -584,7 +613,7 @@ describe("executeVoiceTool book_appointment — consentimiento SMS al cliente", 
     mockedBusinessFindUnique.mockResolvedValue(buildBusiness() as any);
     mockedCheckBusinessHours.mockReturnValue({ success: true, isOpen: true } as any);
     mockedBookAppointment.mockResolvedValue({ htmlLink: "https://calendar.google.com/event/1" } as any);
-    mockedGetBusyIntervals.mockResolvedValue([]);
+    mockedGetBusyIntervals.mockResolvedValue({ intervals: [], calendarAvailabilityKnown: true } as any);
     mockedProfessionalFindFirst.mockResolvedValue({ id: "professional_123" } as any);
     mockedProfessionalFindMany.mockResolvedValue([]);
     mockedServiceFindMany.mockResolvedValue([]);
@@ -770,7 +799,7 @@ describe("executeVoiceTool book_appointment — confirmación al cliente por Wha
     mockedBusinessFindUnique.mockResolvedValue(buildBusiness() as any);
     mockedCheckBusinessHours.mockReturnValue({ success: true, isOpen: true } as any);
     mockedBookAppointment.mockResolvedValue({ htmlLink: "https://calendar.google.com/event/1" } as any);
-    mockedGetBusyIntervals.mockResolvedValue([]);
+    mockedGetBusyIntervals.mockResolvedValue({ intervals: [], calendarAvailabilityKnown: true } as any);
     mockedProfessionalFindFirst.mockResolvedValue({ id: "professional_123" } as any);
     mockedProfessionalFindMany.mockResolvedValue([]);
     mockedServiceFindMany.mockResolvedValue([]);
@@ -887,7 +916,7 @@ describe("executeVoiceTool book_appointment — estado de la suscripción (halla
       availableProfessionals: [{ id: "professional_123", name: "Ana" }],
     } as any);
     mockedBookingFindUnique.mockResolvedValue(null);
-    mockedGetBusyIntervals.mockResolvedValue([]);
+    mockedGetBusyIntervals.mockResolvedValue({ intervals: [], calendarAvailabilityKnown: true } as any);
     mockedEnqueueSmsJob.mockResolvedValue(undefined);
   });
 
@@ -1170,7 +1199,7 @@ describe("executeVoiceTool cancel_appointment", () => {
         capacityTotal: 1,
         availableProfessionals: [{ id: "professional_123", name: "Ana" }],
       } as any);
-      mockedGetBusyIntervals.mockResolvedValue([]);
+      mockedGetBusyIntervals.mockResolvedValue({ intervals: [], calendarAvailabilityKnown: true } as any);
       mockedLeadUpdate.mockResolvedValue({} as any);
 
       await executeVoiceTool({
@@ -1210,7 +1239,7 @@ describe("executeVoiceTool cancel_appointment", () => {
         code: "CAPACITY_REACHED",
         message: "",
       } as any);
-      mockedGetBusyIntervals.mockResolvedValue([]);
+      mockedGetBusyIntervals.mockResolvedValue({ intervals: [], calendarAvailabilityKnown: true } as any);
 
       await executeVoiceTool({
         businessId: "business_123",

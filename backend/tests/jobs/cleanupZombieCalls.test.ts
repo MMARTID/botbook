@@ -27,7 +27,7 @@ describe("cleanupZombieCallsJob", () => {
     expect(mockedUpdateMany).not.toHaveBeenCalled();
   });
 
-  it("busca llamadas IN_PROGRESS con más de 60 minutos sin actualizar", async () => {
+  it("busca llamadas IN_PROGRESS con más de 20 minutos sin actualizar", async () => {
     mockedFindMany.mockResolvedValue([]);
 
     await cleanupZombieCallsJob();
@@ -35,9 +35,10 @@ describe("cleanupZombieCallsJob", () => {
     const query = mockedFindMany.mock.calls[0][0] as any;
     expect(query.where.status).toBe("IN_PROGRESS");
     const thresholdMs = Date.now() - query.where.updatedAt.lt.getTime();
-    // Debe rondar los 60 minutos (con margen por el tiempo de ejecución del test).
-    expect(thresholdMs).toBeGreaterThanOrEqual(60 * 60 * 1000);
-    expect(thresholdMs).toBeLessThan(60 * 60 * 1000 + 5000);
+    // 20 minutos: el agente cuelga solo a los 10, así que una llamada más
+    // antigua que esto ya no puede ser la que está en curso.
+    expect(thresholdMs).toBeGreaterThanOrEqual(20 * 60 * 1000);
+    expect(thresholdMs).toBeLessThan(20 * 60 * 1000 + 5000);
   });
 
   it("marca como TIMED_OUT las llamadas zombie encontradas", async () => {

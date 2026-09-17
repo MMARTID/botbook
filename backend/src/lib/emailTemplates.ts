@@ -158,6 +158,27 @@ export function usageWarningEmail(input: { businessName: string; planName: strin
   return { subject, html };
 }
 
+export function pendingBookingAlertEmail(input: {
+  businessName: string;
+  clientName: string;
+  clientPhone: string | null;
+  formattedDateTime: string;
+  panelUrl: string;
+}): { subject: string; html: string } {
+  const subject = `Una cita no ha llegado a tu calendario — ${input.businessName}`;
+  const contacto = input.clientPhone
+    ? `<strong>${input.clientName}</strong> (${input.clientPhone})`
+    : `<strong>${input.clientName}</strong>`;
+  const html = emailShell(`
+    <p style="font-size:18px;font-weight:600;margin:0 0 16px 0;">Hay una cita pendiente de confirmar a mano</p>
+    <p style="margin:0 0 16px 0;">Tu recepcionista ha atendido la llamada y ha tomado los datos, pero no ha podido dejar la cita en tu calendario.</p>
+    <p style="margin:0 0 16px 0;">${contacto} pidió cita para el <strong>${input.formattedDateTime}</strong>.</p>
+    <p style="margin:0;">Llámale para confirmarla, o revisa la conexión de tu calendario en el panel.</p>
+    ${ctaButton(input.panelUrl, "Ver las citas pendientes")}
+  `);
+  return { subject, html };
+}
+
 export function weeklySummaryEmail(input: {
   businessName: string;
   weekStart: Date;
@@ -166,6 +187,9 @@ export function weeklySummaryEmail(input: {
   totalMinutes: number;
   bookingCount: number;
   leadCount: number;
+  /** Citas que la recepcionista tomó pero que nunca llegaron al calendario:
+   * si nadie las repesca, ese cliente se queda sin su hora. */
+  pendingBookingCount: number;
   panelUrl: string;
 }): { subject: string; html: string } {
   const formatter = new Intl.DateTimeFormat("es-ES", {
@@ -191,6 +215,15 @@ export function weeklySummaryEmail(input: {
       ${statRow("Citas reservadas", String(input.bookingCount))}
       ${statRow("Clientes interesados sin cita (leads)", String(input.leadCount))}
     </table>
+    ${
+      input.pendingBookingCount > 0
+        ? `<p style="margin:0 0 8px 0;padding:12px 16px;background-color:#fdf6e3;border-radius:12px;color:#9f7a15;font-weight:600;">Tienes ${input.pendingBookingCount} ${
+            input.pendingBookingCount === 1
+              ? "cita que no llegó a tu calendario y sigue sin confirmar"
+              : "citas que no llegaron a tu calendario y siguen sin confirmar"
+          }.</p>`
+        : ""
+    }
     ${ctaButton(input.panelUrl, "Ver el detalle en tu panel")}
     <p style="margin:20px 0 0 0;">Un saludo,<br/>El equipo de Alhabla</p>
   `);

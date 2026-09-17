@@ -9,10 +9,12 @@ const {
   mockTransactionProfessionalServiceDeleteMany,
   mockTransactionProfessionalUpdate,
   mockTransactionServiceUpdate,
+  mockTransactionProfessionalCreate,
 } = vi.hoisted(() => ({
   mockTransactionProfessionalServiceDeleteMany: vi.fn(),
   mockTransactionProfessionalUpdate: vi.fn(),
   mockTransactionServiceUpdate: vi.fn(),
+  mockTransactionProfessionalCreate: vi.fn(),
 }));
 
 vi.mock("../../../src/lib/prisma.js", () => ({
@@ -40,10 +42,19 @@ vi.mock("../../../src/lib/prisma.js", () => ({
       deleteMany: vi.fn(),
       createMany: vi.fn(),
     },
+    // La comprobación del cupo del plan y la creación/reactivación ocurren
+    // dentro de la MISMA transacción serializable, así que el cliente de la
+    // transacción tiene que ofrecer también business.findUnique y
+    // professional.count/create.
     $transaction: vi.fn(async (operation) =>
       operation({
+        business: { findUnique: vi.mocked(prisma.business.findUnique) },
         service: { update: mockTransactionServiceUpdate },
-        professional: { update: mockTransactionProfessionalUpdate },
+        professional: {
+          update: mockTransactionProfessionalUpdate,
+          create: mockTransactionProfessionalCreate,
+          count: vi.mocked(prisma.professional.count),
+        },
         professionalService: {
           deleteMany: mockTransactionProfessionalServiceDeleteMany,
           createMany: vi.fn(),
@@ -227,7 +238,7 @@ describe("POST /professionals — límite de profesionales por plan", () => {
     } as any);
     mockedServiceCount.mockResolvedValue(0);
     mockedProfessionalCount.mockResolvedValue(9);
-    mockedProfessionalCreate.mockResolvedValue({
+    mockTransactionProfessionalCreate.mockResolvedValue({
       id: "professional_10",
       name: "Décimo",
       active: true,
@@ -258,7 +269,7 @@ describe("POST /professionals — límite de profesionales por plan", () => {
       plan: "enterprise",
       stripePriceId: null,
     } as any);
-    mockedProfessionalCreate.mockResolvedValue({
+    mockTransactionProfessionalCreate.mockResolvedValue({
       id: "professional_50",
       name: "Sin límite",
       active: true,
