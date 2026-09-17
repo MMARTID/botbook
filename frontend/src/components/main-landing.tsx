@@ -7,7 +7,7 @@ import { motion, useReducedMotion } from "framer-motion";
 
 import { BrandMark } from "@/components/brand-mark";
 import { DemoVoiceCall } from "@/components/demo-voice-call";
-import { HeroPulse } from "@/components/hero-pulse";
+import { HeroHilos } from "@/components/hero-hilos";
 import { HowItWorksScrollytelling } from "@/components/how-it-works-scrollytelling";
 import { MobileNav } from "@/components/mobile-nav";
 import { Reveal } from "@/components/scroll-reveal";
@@ -169,34 +169,37 @@ export function MainLanding() {
       <a href="#contenido" className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-[60] focus:rounded-[10px] focus:bg-[#0a0a0a] focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-white">Saltar al contenido</a>
       <LandingHeader hiddenOnMobile={hideHeaderOnMobile} />
 
-      <section id="contenido" className="border-b border-[#e5e5e5]" tabIndex={-1}>
-        <div className="mx-auto grid max-w-7xl items-center gap-10 px-4 py-12 sm:px-6 sm:py-16 lg:grid-cols-[1.05fr_0.95fr] lg:gap-14 lg:px-8 lg:py-24">
-          <div className="max-w-3xl space-y-7">
-            <Reveal y={14}>
-              <span className="badge-soft">Recepción telefónica para negocios con cita previa</span>
-            </Reveal>
-            <Reveal delay={0.06} y={16}>
-              <h1 className="text-[2.75rem] font-black leading-[1.02] tracking-[-0.045em] text-[#0a0a0a] sm:text-6xl lg:text-[4.6rem]">
-                Tu negocio no tiene que parar para atender el teléfono.
-              </h1>
-              <p className="mt-6 max-w-xl text-lg leading-8 text-[#52525b]">
-                Alhabla responde con tu número, consulta tu agenda y confirma citas mientras tu equipo sigue atendiendo.
-              </p>
-            </Reveal>
-            <Reveal delay={0.12} y={16}>
-              <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
-                <Link href="/planes" className="btn-primary h-12 px-6">Probar Alhabla 7 días <ArrowRight className="h-4 w-4" aria-hidden="true" /></Link>
-                <button type="button" onClick={() => setIsDemoOpen(true)} className="btn-secondary h-12 px-6"><Headphones className="h-4 w-4" aria-hidden="true" /> Escuchar cómo atiende</button>
-              </div>
-            </Reveal>
-            <Reveal delay={0.18} y={12}>
-              <p className="flex flex-wrap gap-x-5 gap-y-2 text-sm font-medium text-[#3f3f46]">
-                {["Sin cambiar de número", "Google Calendar y Outlook", "Sin permanencia"].map((item) => <span key={item} className="inline-flex items-center gap-1.5"><Check className="h-4 w-4 text-[#8b5cf6]" aria-hidden="true" />{item}</span>)}
-              </p>
-            </Reveal>
-          </div>
-          <Reveal delay={0.1} y={18} className="hidden rounded-3xl border border-[#e5e5e5] bg-[#fafafa] px-5 py-8 sm:px-8 lg:block lg:px-10">
-            <HeroPulse />
+      {/*
+        Hero a una columna con el titular centrado y los hilos de voz detrás
+        (2026-09-17): el pulso de llamada que ocupaba la columna derecha se
+        retiró. `relative isolate` es obligatorio para que el canvas en
+        `-z-10` quede por encima del fondo del <main> y no desaparezca; la
+        sección no puede pintar fondo propio por lo mismo (ver DESIGN.md).
+      */}
+      <section id="contenido" className="relative isolate overflow-hidden border-b border-[#e5e5e5]" tabIndex={-1}>
+        <HeroHilos />
+        <div className="mx-auto flex max-w-4xl flex-col items-center space-y-7 px-4 py-16 text-center sm:px-6 sm:py-24 lg:px-8 lg:py-28">
+          <Reveal y={14}>
+            <span className="badge-soft">Recepción telefónica para negocios con cita previa</span>
+          </Reveal>
+          <Reveal delay={0.06} y={16}>
+            <h1 className="text-balance text-[2.75rem] font-black leading-[1.02] tracking-[-0.045em] text-[#0a0a0a] sm:text-6xl lg:text-[4.6rem]">
+              Tu negocio no tiene que parar para atender el teléfono.
+            </h1>
+            <p className="mx-auto mt-6 max-w-xl text-lg leading-8 text-[#52525b]">
+              Alhabla responde con tu número, consulta tu agenda y confirma citas mientras tu equipo sigue atendiendo.
+            </p>
+          </Reveal>
+          <Reveal delay={0.12} y={16}>
+            <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:justify-center">
+              <Link href="/planes" className="btn-primary h-12 px-6">Probar Alhabla 7 días <ArrowRight className="h-4 w-4" aria-hidden="true" /></Link>
+              <button type="button" onClick={() => setIsDemoOpen(true)} className="btn-secondary h-12 px-6"><Headphones className="h-4 w-4" aria-hidden="true" /> Escuchar cómo atiende</button>
+            </div>
+          </Reveal>
+          <Reveal delay={0.18} y={12}>
+            <p className="flex flex-wrap justify-center gap-x-5 gap-y-2 text-sm font-medium text-[#3f3f46]">
+              {["Sin cambiar de número", "Google Calendar y Outlook", "Sin permanencia"].map((item) => <span key={item} className="inline-flex items-center gap-1.5"><Check className="h-4 w-4 text-[#8b5cf6]" aria-hidden="true" />{item}</span>)}
+            </p>
           </Reveal>
         </div>
       </section>
