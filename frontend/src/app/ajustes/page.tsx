@@ -21,6 +21,7 @@ import {
   ShieldCheck,
   Trash2,
 } from "lucide-react";
+import { AppPageHeader } from "@/components/app-page-header";
 import { useBusiness } from "@/components/providers";
 import {
   changeAccountPassword,
@@ -168,7 +169,7 @@ export default function AccountSettingsPage() {
   if (!business || !account || accountQuery.isError) {
     return (
       <div className="panel mx-auto max-w-2xl space-y-4 p-6 text-center">
-        <h1 className="text-2xl font-extrabold tracking-[-0.02em] text-[#0a0a0a]">
+        <h1 className="text-2xl font-semibold text-[#0a0a0a]">
           No se pudieron cargar los ajustes
         </h1>
         <p className="text-sm leading-6 text-muted">
@@ -189,20 +190,11 @@ export default function AccountSettingsPage() {
 
   return (
     <div className="space-y-5 sm:space-y-6">
-      <header className="flex items-start gap-3 border-b border-[#e5e5e5] pb-6">
-        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#f3eeff] text-[#8b5cf6]">
-          <Settings className="h-5 w-5" aria-hidden="true" />
-        </span>
-        <div>
-          <p className="text-sm font-semibold text-[#6d28d9]">Cuenta</p>
-          <h1 className="text-2xl font-extrabold tracking-[-0.02em] text-[#0a0a0a] sm:text-3xl">
-            Ajustes
-          </h1>
-          <p className="mt-1 max-w-2xl text-sm leading-6 text-muted">
-            Gestiona tu cuenta, la seguridad y los datos de contacto del negocio.
-          </p>
-        </div>
-      </header>
+      <AppPageHeader
+        icon={Settings}
+        title="Ajustes"
+        description="Gestiona tu cuenta, la seguridad y los datos de contacto del negocio."
+      />
 
       <section className="panel overflow-hidden" aria-labelledby="account-title">
         <div className="flex items-start gap-3 border-b border-[#e5e5e5] p-4 sm:p-6">
@@ -300,7 +292,11 @@ export default function AccountSettingsPage() {
             disabled={profileMutation.isPending || !businessProfile.name.trim() || !phoneIsValid}
             className="btn-primary shrink-0"
           >
-            <Save className="h-4 w-4" aria-hidden="true" />
+            {profileMutation.isPending ? (
+              <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+            ) : (
+              <Save className="h-4 w-4" aria-hidden="true" />
+            )}
             {profileMutation.isPending ? "Guardando…" : "Guardar datos"}
           </button>
         </div>
@@ -370,7 +366,11 @@ export default function AccountSettingsPage() {
               <FeedbackMessage value={passwordFeedback} />
             </div>
             <button type="submit" disabled={!passwordIsValid || passwordMutation.isPending} className="btn-primary shrink-0">
-              <KeyRound className="h-4 w-4" aria-hidden="true" />
+              {passwordMutation.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+              ) : (
+                <KeyRound className="h-4 w-4" aria-hidden="true" />
+              )}
               {passwordMutation.isPending
                 ? "Actualizando…"
                 : passwordConfigured
@@ -402,7 +402,7 @@ export default function AccountSettingsPage() {
             }}
             className="flex min-h-16 w-full items-center gap-3 px-4 py-3 text-left transition hover:bg-[#fafafa] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#8b5cf6] sm:px-6"
           >
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#f3eeff] text-[#8b5cf6]">
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[#f3eeff] text-[#8b5cf6]">
               <LogOut className="h-4 w-4" aria-hidden="true" />
             </span>
             <span>
@@ -426,7 +426,7 @@ export default function AccountSettingsPage() {
           </div>
         </div>
         <div className="space-y-4 p-4 sm:p-6">
-          <div className="rounded-xl border border-[#f0dfa8] bg-[#fef8e7] p-4 text-sm leading-6 text-[#7c5d0d]">
+          <div className="rounded-xl border border-[#f0dfa8] bg-[#fef8e7] p-4 text-sm leading-6 text-[#9f7a15]">
             <strong>Antes de continuar:</strong> desactiva en tu operador el desvío de llamadas hacia Alhabla. Si no lo haces, tus clientes podrían seguir llamando a un número que ya no atiende.
           </div>
           <label className="flex min-h-11 items-start gap-3 rounded-xl border border-[#e5e5e5] p-3 text-sm text-[#27272a]">
@@ -471,7 +471,7 @@ export default function AccountSettingsPage() {
                 if (canDelete) deleteMutation.mutate();
               }}
               disabled={!canDelete || deleteMutation.isPending}
-              className="inline-flex h-12 shrink-0 items-center justify-center gap-2 rounded-full bg-[#c53030] px-6 text-sm font-semibold text-white transition hover:bg-[#9f2424] disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#c53030] focus-visible:ring-offset-2"
+              className="inline-flex h-12 shrink-0 items-center justify-center gap-2 rounded-[10px] bg-[#c53030] px-6 text-sm font-semibold text-white transition hover:bg-[#9f2424] disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#c53030] focus-visible:ring-offset-2"
             >
               {deleteMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
               {deleteMutation.isPending ? "Eliminando cuenta…" : "Eliminar cuenta definitivamente"}
@@ -511,7 +511,7 @@ function SettingsLink({
       href={href}
       className="flex min-h-16 items-center gap-3 px-4 py-3 transition hover:bg-[#fafafa] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#8b5cf6] sm:px-6"
     >
-      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#f3eeff] text-[#8b5cf6]">
+      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[#f3eeff] text-[#8b5cf6]">
         <Icon className="h-4 w-4" aria-hidden="true" />
       </span>
       <span>

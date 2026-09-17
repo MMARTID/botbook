@@ -79,7 +79,7 @@ export function CallForwardingFlow({ accent }: { accent?: NicheAccent }) {
           <button
             type="button"
             onClick={replay}
-            className="flex h-11 shrink-0 items-center rounded-full border border-[#e5e5e5] bg-white px-4 text-xs font-semibold text-[#3f3f46] transition hover:border-[#0a0a0a] hover:text-[#0a0a0a] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]"
+            className="flex h-11 shrink-0 items-center rounded-[10px] border border-[#e5e5e5] bg-white px-4 text-xs font-semibold text-[#3f3f46] transition hover:border-[#0a0a0a] hover:text-[#0a0a0a] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]"
           >
             Reproducir
           </button>
@@ -173,11 +173,11 @@ export function CallForwardingFlow({ accent }: { accent?: NicheAccent }) {
             <span className="text-xs font-bold text-[#3f3f46]">Tu agenda</span>
           </div>
           <div className="mt-4 space-y-2 text-xs font-semibold">
-            <div className="flex items-center justify-between rounded-lg bg-[#fafafa] px-2.5 py-2 text-[#71717a]">
+            <div className="flex items-center justify-between rounded-xl bg-[#fafafa] px-2.5 py-2 text-[#71717a]">
               <span>16:30</span><span>Ocupado</span>
             </div>
             <motion.div
-              className="flex items-center justify-between rounded-lg px-2.5 py-2"
+              className="flex items-center justify-between rounded-xl px-2.5 py-2"
               animate={hasBooked ? { backgroundColor: accentSoft, color: accentDeep } : { backgroundColor: "#fafafa", color: "#71717a" }}
               transition={{ duration: 0.35 }}
             >

@@ -122,7 +122,7 @@ export function SiteLanding({ content }: { content?: NicheLandingContent }) {
     >
       <a
         href="#contenido"
-        className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-[60] focus:rounded-full focus:bg-[#0a0a0a] focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-white"
+        className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-[60] focus:rounded-[10px] focus:bg-[#0a0a0a] focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-white"
       >
         Saltar al contenido
       </a>
@@ -209,9 +209,24 @@ export function SiteLanding({ content }: { content?: NicheLandingContent }) {
       <section className="py-16 sm:py-20">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <Reveal>
-            <span className="badge-soft gap-2">
-              <SiGooglecalendar className="h-3.5 w-3.5" color="#4285F4" />
-              <MicrosoftLogo className="h-3.5 w-3.5" />
+            <span
+              className={
+                content?.accent
+                  ? "inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold ring-1 ring-inset"
+                  : "badge-soft gap-2"
+              }
+              style={
+                content?.accent
+                  ? ({
+                      backgroundColor: content.accent.soft,
+                      color: content.accent.deep,
+                      "--tw-ring-color": `${content.accent.strong}33`,
+                    } as React.CSSProperties)
+                  : undefined
+              }
+            >
+              <SiGooglecalendar className="h-4 w-4" color="#4285F4" />
+              <MicrosoftLogo className="h-4 w-4" />
               Google Calendar & Outlook
             </span>
           </Reveal>
@@ -235,10 +250,10 @@ export function SiteLanding({ content }: { content?: NicheLandingContent }) {
                   <Reveal key={example} delay={index * 0.1} y={14}>
                     <div className="flex items-center gap-4 rounded-2xl border border-[#e5e5e5] bg-white p-4">
                       <span
-                        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
+                        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl"
                         style={content?.accent ? { backgroundColor: content.accent.soft, color: content.accent.strong } : { backgroundColor: "#f3eeff", color: "#8b5cf6" }}
                       >
-                        <Icon className="h-5 w-5" />
+                        <Icon className="h-6 w-6" strokeWidth={2.25} />
                       </span>
                       <p className="text-sm font-semibold leading-5 text-[#27272a]">{example}</p>
                     </div>

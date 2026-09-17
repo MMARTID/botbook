@@ -110,7 +110,7 @@ export function RangeSlider({
       <div ref={trackRef} className="group relative mt-8 h-11 select-none">
         <div
           aria-hidden="true"
-          className="pointer-events-none absolute bottom-full mb-3 -translate-x-1/2 scale-90 whitespace-nowrap rounded-lg bg-[#0a0a0a] px-2.5 py-1 text-xs font-bold text-white opacity-0 shadow-[0_8px_20px_rgba(0,0,0,0.18)] transition-[opacity,transform] duration-150 ease-out group-hover:scale-100 group-hover:opacity-100 group-active:scale-100 group-active:opacity-100 peer-focus-visible:scale-100 peer-focus-visible:opacity-100"
+          className="pointer-events-none absolute bottom-full mb-3 -translate-x-1/2 scale-90 whitespace-nowrap rounded-xl bg-[#0a0a0a] px-2.5 py-1 text-xs font-bold text-white opacity-0 shadow-[0_8px_20px_rgba(0,0,0,0.18)] transition-[opacity,transform] duration-150 ease-out group-hover:scale-100 group-hover:opacity-100 group-active:scale-100 group-active:opacity-100 peer-focus-visible:scale-100 peer-focus-visible:opacity-100"
           style={{ left: `${thumbLeft}px` }}
         >
           {displayValue}

@@ -561,7 +561,7 @@ export function DemoVoiceCall({ open, onClose, onActiveChange, niche }: DemoVoic
               {state === "active" ? (
                 <div className="grid gap-2 sm:flex sm:flex-wrap sm:gap-3">
                   <button type="button" onClick={toggleMute} className="btn-secondary w-full px-5 sm:w-auto">{isMuted ? <Mic className="h-4 w-4" /> : <MicOff className="h-4 w-4" />}{isMuted ? "Activar micrófono" : "Silenciar micrófono"}</button>
-                  <button type="button" onClick={() => void endCall()} className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-full bg-[#c53030] px-5 text-sm font-semibold text-white transition hover:bg-[#a52626] sm:w-auto"><PhoneOff className="h-4 w-4" /> Colgar demo</button>
+                  <button type="button" onClick={() => void endCall()} className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-[10px] bg-[#c53030] px-5 text-sm font-semibold text-white transition hover:bg-[#a52626] sm:w-auto"><PhoneOff className="h-4 w-4" /> Colgar demo</button>
                 </div>
               ) : null}
               {state === "error" ? <div className="grid gap-2 sm:flex sm:flex-wrap sm:gap-3"><button type="button" onClick={() => void startDemo(selectedBusiness?.placeId, allowBusinessDataRetention)} className="btn-primary w-full px-5 sm:w-auto">Reintentar demo</button><button type="button" onClick={handleClose} className="btn-secondary w-full px-5 sm:w-auto">Cerrar</button></div> : null}

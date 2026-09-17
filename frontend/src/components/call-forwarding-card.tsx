@@ -246,7 +246,7 @@ function CodigoFila({
         <button
           type="button"
           onClick={() => onCopiar(valor, codigo.id)}
-          className="inline-flex h-11 shrink-0 items-center gap-2 rounded-full border border-[#e5e5e5] bg-white px-4 font-mono text-sm text-[#0a0a0a] transition duration-200 hover:border-[#8b5cf6] hover:bg-[#f3eeff] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]"
+          className="inline-flex h-11 shrink-0 items-center gap-2 rounded-[10px] border border-[#e5e5e5] bg-white px-4 font-mono text-sm text-[#0a0a0a] transition duration-200 hover:border-[#8b5cf6] hover:bg-[#f3eeff] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]"
           aria-label={`Copiar el código ${valor}`}
         >
           {copiado === codigo.id ? (

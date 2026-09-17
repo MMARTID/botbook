@@ -1,10 +1,11 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { CalendarDays, ChevronLeft, ChevronRight, ExternalLink, Phone, RefreshCw, Users } from "lucide-react";
+import { CalendarDays, ChevronLeft, ChevronRight, ExternalLink, Phone, Users } from "lucide-react";
 import { getAgenda } from "@/lib/api";
 import { formatClock, formatDayLabel, formatPhone, formatPrice } from "@/lib/format";
 import type { AgendaBooking } from "@/lib/types";
+import { SectionEmptyState, SectionErrorState } from "@/components/section-card";
 
 const PAGE_SIZE = 50;
 
@@ -52,15 +53,8 @@ export function AgendaTimeline({
     <section className="panel overflow-hidden" aria-labelledby="agenda-timeline-title">
       <div className="flex flex-col gap-4 border-b border-[#e5e5e5] p-4 sm:p-6 lg:flex-row lg:items-start lg:justify-between">
         <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#f3eeff] text-[#8b5cf6]">
-              <CalendarDays className="h-5 w-5" aria-hidden="true" />
-            </span>
-            <div>
-              <h2 id="agenda-timeline-title" className="text-lg font-semibold text-[#0a0a0a]">Citas creadas por Alhabla</h2>
-              <p className="mt-0.5 text-sm text-muted">Reservas verificadas que tu recepcionista ha añadido a la agenda.</p>
-            </div>
-          </div>
+          <h2 id="agenda-timeline-title" className="text-lg font-semibold text-[#0a0a0a] sm:text-xl">Citas creadas por Alhabla</h2>
+          <p className="mt-1 text-sm leading-6 text-muted">Reservas verificadas que tu recepcionista ha añadido a la agenda.</p>
         </div>
         {hasCalendar ? (
           <a href={calendarUrl} target="_blank" rel="noopener noreferrer" className="btn-secondary h-11 shrink-0 px-4">
@@ -72,23 +66,19 @@ export function AgendaTimeline({
 
       {agendaQuery.isLoading ? <AgendaLoading /> : null}
       {agendaQuery.isError ? (
-        <div className="m-4 flex flex-col items-center gap-3 rounded-2xl border border-[#f5d3d3] bg-[#fff1f1] px-4 py-8 text-center sm:m-6">
-          <p className="text-sm font-semibold text-[#c53030]">No se pudieron cargar las citas.</p>
-          <button type="button" onClick={() => agendaQuery.refetch()} className="btn-secondary h-11 border-[#f5d3d3] px-4 text-[#c53030]">
-            <RefreshCw className="h-4 w-4" aria-hidden="true" /> Reintentar
-          </button>
-        </div>
+        <SectionErrorState
+          className="m-4 sm:m-6"
+          message="No se pudieron cargar las citas."
+          onRetry={() => agendaQuery.refetch()}
+        />
       ) : null}
       {!agendaQuery.isLoading && !agendaQuery.isError && groupedDays.length === 0 ? (
-        <div className="m-4 flex flex-col items-start gap-3 rounded-2xl border border-dashed border-[#e5e5e5] bg-[#fafafa] p-5 sm:m-6 sm:flex-row sm:items-center">
-          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#f3eeff] text-[#8b5cf6]">
-            <CalendarDays className="h-5 w-5" aria-hidden="true" />
-          </span>
-          <div>
-            <p className="text-sm font-semibold text-[#27272a]">Aún no hay citas en este periodo</p>
-            <p className="mt-1 max-w-xl text-sm leading-6 text-muted">Cuando la recepcionista confirme una reserva por teléfono, verás aquí el servicio, la hora y a quién atenderá el negocio.</p>
-          </div>
-        </div>
+        <SectionEmptyState
+          className="m-4 sm:m-6"
+          icon={CalendarDays}
+          title="Aún no hay citas en este periodo"
+          description="Cuando la recepcionista confirme una reserva por teléfono, verás aquí el servicio, la hora y a quién atenderá el negocio."
+        />
       ) : null}
       {!agendaQuery.isLoading && !agendaQuery.isError && groupedDays.length > 0 ? (
         <div className="divide-y divide-[#e5e5e5]">
@@ -149,7 +139,7 @@ function AgendaBookingRow({ booking, timeZone }: { booking: AgendaBooking; timeZ
         <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2">
           {phone ? <span className="inline-flex items-center gap-1.5 text-xs font-medium tabular-nums text-[#52525b]"><Phone className="h-3.5 w-3.5 text-[#6d28d9]" aria-hidden="true" />{phone}</span> : <span className="text-xs text-muted">Teléfono no disponible</span>}
           {booking.numberPeople > 1 ? <span className="inline-flex items-center gap-1.5 text-xs font-medium text-[#52525b]"><Users className="h-3.5 w-3.5 text-[#6d28d9]" aria-hidden="true" />{booking.numberPeople} personas</span> : null}
-          {phone ? <a href={`tel:${booking.clientPhone}`} className="ml-auto inline-flex min-h-8 items-center rounded-full px-2 text-xs font-semibold text-[#6d28d9] underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]">Llamar</a> : null}
+          {phone ? <a href={`tel:${booking.clientPhone}`} className="ml-auto inline-flex min-h-10 items-center rounded-full px-2 text-xs font-semibold text-[#6d28d9] underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]">Llamar</a> : null}
         </div>
       </article>
     </li>
