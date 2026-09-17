@@ -1184,13 +1184,42 @@ A deploy alone does not touch the agents already created in Retell/Telnyx.
   daily 04:00, 200 assistants per pass) and every professional/service/schedule save push
   the new payload. A rejected schema lands in `Agent.telnyxSyncError` (reconciler email +
   panel) — check it is null after the deploy.
-- **Retell**: run `npm run agents:sync-prompts` from `backend/` after the deploy (prompt +
-  tools, strict tool verification in production). Since 2026-09-17 the script no longer
-  filters by `orchestrator: "retell"`: businesses promoted to Telnyx keep a live Retell
-  agent as fallback and were silently left with old tools/prompt. Agents with
-  `promptManuallyEdited=true` get the new tools but keep their text — which is why
-  behaviour that matters (e.g. `PROFESSIONAL_CONFIRMATION_REQUIRED`) is enforced by the
-  backend, not only by the prompt.
+- **Retell**: run `scripts/syncManagedAgentPrompts.ts` **against production** after the
+  deploy (prompt + tools, strict tool verification when `NODE_ENV=production`). The script
+  reads its configuration from the shell environment — not from `.env` — so with the local
+  `.env` it would sync the *dev* agents and register tool URLs pointing at ngrok. The dev
+  backend runs in Docker, so the host has no `tsx`: use `npx tsx`. Recipe (run by a human;
+  reading these secrets is blocked for Claude Code):
+  ```bash
+  # 1. Cloud SQL proxy (see § Producción for the socket-path trap)
+  mkdir -p /tmp/cloudsql && cloud-sql-proxy --unix-socket=/tmp/cloudsql project-84381467-a606-4b71-a6e:europe-west1:alhabla-db &
+  # 2. Production environment, in this shell only. TELNYX_API_KEY is needed too: the
+  #    script ends by syncing Telnyx tools, and without the key every Telnyx business is
+  #    reported as an error and gets telnyxSyncError written (harmless — the reconciler
+  #    clears it — but noisy).
+  export DATABASE_URL="$(gcloud secrets versions access latest --secret=DATABASE_URL --project=project-84381467-a606-4b71-a6e | sed 's#/cloudsql/#/tmp/cloudsql/#')" \
+         RETELL_API_KEY="$(gcloud secrets versions access latest --secret=RETELL_API_KEY --project=project-84381467-a606-4b71-a6e)" \
+         TELNYX_API_KEY="$(gcloud secrets versions access latest --secret=TELNYX_API_KEY --project=project-84381467-a606-4b71-a6e)" \
+         BASE_URL=https://api.alhabla.ai NODE_ENV=production
+  # 3. Dry run, then for real, from a checkout of main
+  cd backend && npx tsx scripts/syncManagedAgentPrompts.ts --dry-run && npx tsx scripts/syncManagedAgentPrompts.ts
+  # 4. Close the session: pkill cloud-sql-proxy; unset DATABASE_URL RETELL_API_KEY TELNYX_API_KEY BASE_URL NODE_ENV
+  ```
+  Since 2026-09-17 the script no longer filters by `orchestrator: "retell"`: businesses
+  promoted to Telnyx keep a live Retell agent as fallback and were silently left with old
+  tools/prompt. Agents with `promptManuallyEdited=true` get the new tools but keep their
+  text — which is why behaviour that matters (e.g. `PROFESSIONAL_CONFIRMATION_REQUIRED`)
+  is enforced by the backend, not only by the prompt.
+- **Cleaning the Retell account** (same environment as above, plus the demo agent ids —
+  they live in Cloud Run's env, not in `.env`): `scripts/inventarioAgentesRetell.ts
+  --proteger <demo ids>` cross-references every Retell agent with the `Agent` table and
+  classifies it (demo / business with Telnyx / business without Telnyx / unreferenced);
+  `scripts/borrarAgentesRetell.ts --ids … [--llms …] --proteger … [--confirm]` deletes
+  agents and their now-unused LLMs and clears `retellAgentId`/`retellLlmId` on the
+  affected `Agent` rows (dry run without `--confirm`). Used on 2026-09-17: 48 → 11 agents
+  (6 landing demos + 5 Telnyx fallbacks). The salon-de-uñas demo agent is
+  `agent_dbbdb6134a4cf5c8e4998560f5`; its env var is `RETELL_DEMO_SALON_UNAS_AGENT_ID`
+  (no Ñ — Cloud Run rejects it — the old name is still read as fallback).
 - Between the deploy and the resync an agent may have a new prompt with an old schema or
   vice versa: handlers treat a missing `professionalConfirmed` as false and nothing in the
   booking path depends on the new field to complete a plain reservation.

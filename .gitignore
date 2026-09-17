@@ -1,4 +1,8 @@
-node_modules/
+# Sin barra final: con `node_modules/` git solo ignoraba el directorio y un
+# enlace simbólico (worktree con node_modules enlazado) acabó commiteado en
+# main el 17-09-2026, sustituyendo el node_modules real de otro checkout por
+# un enlace a sí mismo.
+node_modules
 dist/
 .env*
 .DS_Store
