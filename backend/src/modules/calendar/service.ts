@@ -1,5 +1,4 @@
 import { randomBytes } from "node:crypto";
-import { createHash } from "node:crypto";
 import { google } from "googleapis";
 import { prisma } from "../../lib/prisma.js";
 import { getRedis } from "../../lib/redis.js";
@@ -22,77 +21,27 @@ import {
   refreshMicrosoftAccessToken,
   type MicrosoftCalendar,
 } from "../../lib/microsoftGraph.js";
+import {
+  CalendarBusinessError,
+  type CalendarBusinessErrorCode,
+} from "../../adapters/calendar/errors.js";
+import type {
+  CalendarBusyInterval,
+  CalendarBusyIntervalsResult,
+} from "../../adapters/calendar/CalendarProvider.js";
+import {
+  buildEventContent,
+  buildImmediateReminderMinutes,
+  CALENDAR_REQUEST_TIMEOUT_MS,
+  hashDeIdempotencia,
+  REMINDER_MINUTES_BEFORE_START,
+} from "../../adapters/calendar/eventoDeCalendario.js";
+import { invalidarCacheDeVoz } from "../../lib/voiceConfigCache.js";
 
-/** Recordatorio nativo de la app de calendario (Google Calendar / Outlook en
- * el móvil) que dispara la notificación push al propietario 2h antes de la
- * cita — no requiere ningún job ni canal de notificación propio, ambas
- * plataformas lo gestionan solas a partir de este campo del evento. */
-const REMINDER_MINUTES_BEFORE_START = 120;
-
-/** Límite documentado de Google Calendar para reminders.overrides[].minutes
- * (4 semanas) — Microsoft Graph no impone uno menor para
- * reminderMinutesBeforeStart, así que reutilizarlo para ambos providers es
- * seguro. */
-const MAX_REMINDER_MINUTES = 40_320;
-
-/** Google Calendar no avisa al propietario de que se creó un evento nuevo
- * por el simple hecho de insertarlo en su propio calendario (confirmado con
- * la documentación oficial — solo notifica a invitados vía sendUpdates, o
- * mediante un reminder configurado). Para lograr el aviso inmediato que
- * REMINDER_MINUTES_BEFORE_START no cubre si la cita es para dentro de más de
- * 2h, se calcula un segundo reminder cuyo "minutos antes del evento" resulta
- * en que dispare casi en el instante de la creación — un reminder normal,
- * no una notificación push especial, así que ambas apps lo soportan igual.
- * Un evento cuya cita ya está a <1 minuto (o en el pasado, si el reloj del
- * cliente y el servidor difieren un poco) usa 0 en vez de un valor negativo,
- * que Google/Outlook rechazarían. Si la cita está a más de
- * MAX_REMINDER_MINUTES vista (nada en el código impone un máximo de
- * antelación de reserva — checkBookingRestrictions solo valida un mínimo),
- * ese "minutos antes" ya no cabe en el límite de la API y devolvemos null:
- * mejor omitir el aviso inmediato que hacer fallar la reserva entera
- * intentando mandar un valor que Google/Outlook van a rechazar. */
-function buildImmediateReminderMinutes(startTime: Date): number | null {
-  // Math.floor ya trunca hacia abajo (hasta ~1 minuto de margen natural: si
-  // faltan 60.9 minutos da 60, no 61), así que no hace falta restar un
-  // minuto extra encima — eso solo añadía otro minuto de espera innecesario.
-  // Confirmado en una llamada real de prueba (2026-09-07): la notificación
-  // tardó "casi un minuto" en llegar con el margen doble.
-  const minutes = Math.max(
-    0,
-    Math.floor((startTime.getTime() - Date.now()) / 60_000)
-  );
-  return minutes <= MAX_REMINDER_MINUTES ? minutes : null;
-}
-
-/** Título y descripción del evento con todo lo que se conoce de la reserva.
- * Antes el evento solo llevaba "Reserva de <nombre>" y una frase genérica;
- * sin servicio, profesional ni teléfono, el propietario tenía que volver a
- * la app de Alhabla para saber de qué iba la cita. */
-function buildEventContent(input: {
-  clientName: string;
-  clientPhone?: string | null;
-  serviceNames?: string[] | null;
-  professionalName?: string | null;
-}) {
-  const services = input.serviceNames?.filter(Boolean) ?? [];
-  const summary =
-    services.length > 0
-      ? `${services.join(" + ")} — ${input.clientName}`
-      : `Reserva de ${input.clientName}`;
-
-  const descriptionLines = [
-    `Cliente: ${input.clientName}`,
-    input.clientPhone ? `Teléfono: ${input.clientPhone}` : null,
-    services.length > 0
-      ? `Servicio${services.length > 1 ? "s" : ""}: ${services.join(", ")}`
-      : null,
-    input.professionalName ? `Profesional: ${input.professionalName}` : null,
-    "",
-    "Cita generada por el asistente virtual de Alhabla.",
-  ].filter((line) => line !== null);
-
-  return { summary, description: descriptionLines.join("\n") };
-}
+// Re-exports de compatibilidad: calendar/routes.ts y los tests importan estos
+// nombres desde aquí; su definición vive ahora en adapters/calendar/.
+export { CalendarBusinessError, type CalendarBusinessErrorCode };
+export type { CalendarBusyInterval, CalendarBusyIntervalsResult };
 
 // Helper: create a new OAuth2 client per operation to avoid shared mutable state
 function createOAuth2Client() {
@@ -103,38 +52,13 @@ function createOAuth2Client() {
   );
 }
 
-export type CalendarBusinessErrorCode =
-  | "GOOGLE_CALENDAR_RECONNECT_REQUIRED"
-  | "OUTLOOK_CALENDAR_RECONNECT_REQUIRED"
-  | "BOOK_APPOINTMENT_FAILED"
-  | "CANCEL_APPOINTMENT_FAILED"
-  | "CALENDAR_TIMEOUT"
-  | "CALENDAR_RATE_LIMITED";
-
-// Límite propio bajo el timeout de 20s que Retell aplica a cada tool call:
-// así el backend corta la petición él mismo en vez de dejarla colgada
-// respondiendo a nadie cuando Retell ya se rindió.
-const CALENDAR_REQUEST_TIMEOUT_MS = 8000;
-
-export type CalendarBusyInterval = {
-  start: Date;
-  end: Date;
-  externalEventId?: string;
-};
-
-export type CalendarBusyIntervalsResult = {
-  intervals: CalendarBusyInterval[];
-  /** false cuando no se pudo consultar el calendario. */
-  calendarAvailabilityKnown: boolean;
-};
-
 function googleEventIdFromIdempotencyKey(key: string): string {
   // El ID de Google Calendar solo admite caracteres base32hex en minúscula.
-  return `alhabla${createHash("sha256").update(key).digest("hex")}`;
+  return `alhabla${hashDeIdempotencia(key)}`;
 }
 
 function outlookTransactionIdFromIdempotencyKey(key: string): string {
-  const digest = createHash("sha256").update(key).digest("hex");
+  const digest = hashDeIdempotencia(key);
   // UUID determinista (variante RFC 4122), formato que Graph acepta para
   // transactionId y que hace idempotente la creación durante 24h.
   return `${digest.slice(0, 8)}-${digest.slice(8, 12)}-5${digest.slice(13, 16)}-a${digest.slice(17, 20)}-${digest.slice(20, 32)}`;
@@ -143,15 +67,6 @@ function outlookTransactionIdFromIdempotencyKey(key: string): string {
 function isGoogleConflictError(error: unknown): boolean {
   const e = error as { code?: number; response?: { status?: number } };
   return e?.code === 409 || e?.response?.status === 409;
-}
-
-export class CalendarBusinessError extends Error {
-  code: CalendarBusinessErrorCode;
-  constructor(code: CalendarBusinessErrorCode, message: string) {
-    super(message);
-    this.code = code;
-    this.name = "CalendarBusinessError";
-  }
 }
 
 // Detecta timeouts o rate limiting de Google, distintos de un fallo de credencial.
@@ -301,23 +216,6 @@ async function consumeCalendarOAuthState(
   return getRedis().getdel(calendarOAuthStateRedisKey(provider, state));
 }
 
-/** voice_config:<businessId> (voiceTools/service.ts) cachea calendarProvider
- * y las credenciales de calendario hasta 1h — sin invalidar aquí, una
- * llamada de voz dentro de esa hora sigue usando el proveedor o la cuenta
- * anteriores aunque el panel ya muestre la nueva conexión (hallazgo #8 de la
- * auditoría). Se llama tras cualquier escritura que toque
- * calendarProvider/refreshToken/calendarId de un negocio. */
-async function invalidateVoiceConfigCache(businessId: string): Promise<void> {
-  try {
-    await getRedis().del(`voice_config:${businessId}`);
-  } catch (err) {
-    console.error(
-      `[Calendar] No se pudo invalidar la caché de configuración de voz para ${businessId}:`,
-      err
-    );
-  }
-}
-
 // Usamos instancias por llamada; esto evita condiciones de carrera entre negocios
 /**
  * Refresca el token de Outlook y GUARDA el refresh token nuevo si Microsoft
@@ -389,7 +287,7 @@ export class CalendarService {
         },
       });
 
-      await invalidateVoiceConfigCache(businessId);
+      await invalidarCacheDeVoz(businessId);
       await this.syncCalendarToolsToAgents(businessId);
     }
 
@@ -424,7 +322,7 @@ export class CalendarService {
         outlookUserEmail: profile.mail ?? profile.userPrincipalName ?? null,
       },
     });
-    await invalidateVoiceConfigCache(businessId);
+    await invalidarCacheDeVoz(businessId);
 
     return {
       calendars,
@@ -444,7 +342,7 @@ export class CalendarService {
       },
     });
 
-    await invalidateVoiceConfigCache(businessId);
+    await invalidarCacheDeVoz(businessId);
     await this.syncCalendarToolsToAgents(businessId);
     return business;
   }
@@ -528,7 +426,7 @@ export class CalendarService {
         googleCalendarLastError: null,
       },
     });
-    await invalidateVoiceConfigCache(businessId);
+    await invalidarCacheDeVoz(businessId);
     return business;
   }
 

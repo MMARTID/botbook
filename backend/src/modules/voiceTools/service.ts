@@ -1,6 +1,7 @@
 import { prisma } from "../../lib/prisma.js";
 import { randomUUID, createHash } from "node:crypto";
 import { getRedis } from "../../lib/redis.js";
+import { claveDeCacheDeVoz } from "../../lib/voiceConfigCache.js";
 import {
   checkBusinessHours,
   checkBookingRestrictions,
@@ -245,7 +246,7 @@ async function loadBusinessConfig(
 }
 
 function getVoiceConfigRedisKey(businessId: string): string {
-  return `voice_config:${businessId}`;
+  return claveDeCacheDeVoz(businessId);
 }
 
 async function getCachedVoiceConfig(

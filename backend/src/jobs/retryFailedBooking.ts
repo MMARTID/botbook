@@ -1,7 +1,7 @@
 import { prisma } from "../lib/prisma.js";
 import { enqueueRetryBookingJob } from "../lib/cloudTasks.js";
 import { createHash } from "node:crypto";
-import { getRedis } from "../lib/redis.js";
+import { invalidarCacheDeVoz } from "../lib/voiceConfigCache.js";
 import { calendarService } from "../modules/calendar/service.js";
 import {
   checkBusinessHours,
@@ -392,13 +392,7 @@ export async function processRetryFailedBookingJob(
             `[Job] No se pudo actualizar el estado del calendario de ${call.businessId}: ${errorMessage(dbErr)}`
           );
         }
-        try {
-          await getRedis().del(`voice_config:${call.businessId}`);
-        } catch (redisErr) {
-          console.error(
-            `[Job] No se pudo invalidar la caché de calendario de ${call.businessId}: ${errorMessage(redisErr)}`
-          );
-        }
+        await invalidarCacheDeVoz(call.businessId);
         await abandonLead(
           leadId,
           `conexión de ${errorProvider === "outlook" ? "Outlook" : "Google"} revocada o expirada; requiere reconexión manual`
