@@ -435,7 +435,8 @@ describe("marcarCalendarioDesconectado", () => {
   });
 
   it("no lanza si la BD falla y aun así invalida la caché de voz", async () => {
-    mockedBusinessUpdate.mockRejectedValue(new Error("postgres caído"));
+    const fallo = new Error("postgres caído");
+    mockedBusinessUpdate.mockRejectedValue(fallo);
     const errorSpy = vi
       .spyOn(console, "error")
       .mockImplementation(() => undefined);
@@ -450,11 +451,37 @@ describe("marcarCalendarioDesconectado", () => {
     ).resolves.toBeUndefined();
 
     expect(del).toHaveBeenCalledWith("voice_config:biz_1");
-    expect(errorSpy).toHaveBeenCalledWith(
-      expect.stringContaining("[VoiceTools]"),
-      "postgres caído"
-    );
+    // Best-effort no es silencioso: el log lleva prefijo, proveedor, negocio,
+    // modo y el error completo (no solo su message), para poder buscarlo.
+    expect(errorSpy).toHaveBeenCalledTimes(1);
+    const [mensaje, errorLogueado] = errorSpy.mock.calls[0];
+    expect(mensaje).toContain("[VoiceTools]");
+    expect(mensaje).toContain("FALLO AL MARCAR CALENDARIO DESCONECTADO");
+    expect(mensaje).toContain("Google Calendar");
+    expect(mensaje).toContain("biz_1");
+    expect(mensaje).toContain("modo=revocar");
+    expect(errorLogueado).toBe(fallo);
     errorSpy.mockRestore();
+  });
+
+  it("deja constancia (warn) de cada desconexión aunque la BD responda", async () => {
+    const warnSpy = vi
+      .spyOn(console, "warn")
+      .mockImplementation(() => undefined);
+
+    await marcarCalendarioDesconectado("biz_1", "outlook", {
+      modo: "panel",
+      motivo: "token caducado",
+    });
+
+    expect(warnSpy).toHaveBeenCalledTimes(1);
+    const [mensaje] = warnSpy.mock.calls[0];
+    expect(mensaje).toContain("[Calendar]");
+    expect(mensaje).toContain("Outlook Calendar");
+    expect(mensaje).toContain("biz_1");
+    expect(mensaje).toContain("modo=panel");
+    expect(mensaje).toContain("motivo=token caducado");
+    warnSpy.mockRestore();
   });
 
   it("no lanza si Redis falla", async () => {

@@ -30,7 +30,7 @@ export const DESCRIPTORES_DE_PROVEEDOR: Record<
     nombre: string;
     /** "primary" en Google; null = hay que elegir uno. */
     calendarIdPorDefecto: string | null;
-    /** Hueco para proveedores sin OAuth (CalDAV, Doctoralia). */
+    /** Hueco para proveedores sin OAuth (p. ej. CalDAV con contraseña de aplicación). */
     tipoDeAutorizacion: "oauth" | "credenciales";
   }
 > = {
@@ -125,7 +125,7 @@ export type NuevoEventoDeCalendario = {
   description: string;
   startTime: Date;
   endTime: Date;
-  /** Estructurado: Doctoralia exigirá teléfono. */
+  /** Estructurado para que cada adaptador decida qué datos del cliente usa. */
   cliente: { nombre: string; telefono: string | null; email: string | null };
   /** Minutos hasta la cita (>= 0) o null si supera MAX_REMINDER_MINUTES. */
   recordatorioInmediatoMinutos: number | null;

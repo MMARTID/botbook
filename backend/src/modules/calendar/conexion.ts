@@ -184,7 +184,14 @@ export type ModoDeDesconexion =
   | { modo: "revocar" };
 
 /** Única implementación de "marcar desconectado". Siempre best-effort (BD y
- * Redis en try/catch) y SIEMPRE invalida voice_config. */
+ * Redis en try/catch) y SIEMPRE invalida voice_config.
+ *
+ * Best-effort NO significa silencioso: una desconexión es un evento raro e
+ * importante, así que se deja constancia siempre (warn), y si la BD falla se
+ * loguea como error con todos los identificadores. En ese caso el negocio
+ * sigue figurando como conectado en BD y, al haberse invalidado la caché de
+ * voz, la siguiente llamada volverá a chocar con el token rechazado y a pasar
+ * por aquí: el fallo se repite en los logs en vez de perderse. */
 export async function marcarCalendarioDesconectado(
   businessId: string,
   provider: CalendarProviderId,
@@ -194,6 +201,10 @@ export async function marcarCalendarioDesconectado(
   const ahora = new Date();
   const ultimoError =
     opciones.modo === "panel" ? opciones.motivo : "invalid_grant";
+  const nombreProveedor = DESCRIPTORES_DE_PROVEEDOR[provider].nombre;
+  console.warn(
+    `${log.prefijo} Marcando ${nombreProveedor} como desconectado para el negocio ${businessId} (modo=${opciones.modo}, motivo=${ultimoError})`
+  );
   const data: Prisma.BusinessUpdateInput =
     provider === "outlook"
       ? {
@@ -211,9 +222,12 @@ export async function marcarCalendarioDesconectado(
   try {
     await prisma.business.update({ where: { id: businessId }, data });
   } catch (dbErr) {
+    // Se traga a propósito (la respuesta al cliente no depende de esto), pero
+    // con el error completo: si esto falla en silencio, la voz seguiría
+    // intentando reservar contra un token revocado sin que nadie lo vea.
     console.error(
-      `${log.prefijo} No se pudo actualizar el estado de ${DESCRIPTORES_DE_PROVEEDOR[provider].nombre} de ${businessId}:`,
-      dbErr instanceof Error ? dbErr.message : dbErr
+      `${log.prefijo} FALLO AL MARCAR CALENDARIO DESCONECTADO: ${nombreProveedor} del negocio ${businessId} sigue figurando como conectado en BD (modo=${opciones.modo}, motivo=${ultimoError}). Requiere revisión manual.`,
+      dbErr
     );
   }
   await invalidarCacheDeVoz(businessId);
