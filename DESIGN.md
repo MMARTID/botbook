@@ -322,6 +322,19 @@ sigue el mismo principio — física simple (repulsión + amortiguación), sin t
 además limita el riesgo por construcción: en móvil, que es donde vivían los bugs anteriores, el
 bucle ni arranca.
 
+**Hilos de voz en el hero de las landings (2026-09-17).** Las landings ya no llevan campo de
+partículas (retirado el 2026-09-16: ensuciaba el contenido); su única animación de fondo es
+`frontend/src/components/hero-hilos.tsx`, que sustituyó al pulso de llamada (anillos + pastillas)
+de la columna derecha. El hero pasó a una columna con el titular centrado y, detrás, un haz de
+hilos finos en gris (`#0a0a0a` a ≤30 % de opacidad, en campana hacia los bordes del haz) que cruza
+en diagonal y se arruga con ruido de valor; de vez en cuando un pulso en el acento de la página
+(morado en `/landing`, `accent.strong` en cada nicho) recorre un hilo. Referencia: la cinta de
+ondas de heydiga.com, con otra geometría y otro movimiento a propósito. Mismas reglas que la capa
+de ratón: canvas 2D con `requestAnimationFrame` pero **sin leer nunca `scrollY`**, ratón solo con
+`pointer: fine`, un único fotograma quieto con `prefers-reduced-motion`, bucle parado fuera de
+pantalla y con la pestaña oculta, oculto por debajo de `md`. La sección del hero necesita
+`relative isolate` y no puede pintar fondo propio (mismo motivo que el campo de partículas).
+
 ## Typography
 
 **Display Font:** Geist Sans (variable 100–900, servida local desde `app/fonts/GeistVF.woff`)
