@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useFocusTrap } from "@/hooks/use-focus-trap";
 import {
   CalendarCheck,
   Clock3,
@@ -56,38 +57,17 @@ export function CallDetailModal({
   onClose: () => void;
 }) {
   const closeButtonRef = useRef<HTMLButtonElement | null>(null);
-  const previousFocusRef = useRef<HTMLElement | null>(null);
+  // Escape y devolución del foco ya estaban; lo que faltaba era que el
+  // tabulador no se escapara del diálogo a la lista de llamadas de detrás.
+  const dialogRef = useFocusTrap<HTMLDivElement>({
+    onEscape: onClose,
+    initialFocusRef: closeButtonRef,
+  });
 
   const callQuery = useQuery({
     queryKey: ["call-detail", callId],
     queryFn: () => getCall(callId),
   });
-
-  useEffect(() => {
-    previousFocusRef.current =
-      document.activeElement instanceof HTMLElement
-        ? document.activeElement
-        : null;
-    closeButtonRef.current?.focus();
-
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-
-    const handleKeydown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        event.preventDefault();
-        onClose();
-      }
-    };
-    window.addEventListener("keydown", handleKeydown);
-
-    return () => {
-      document.body.style.overflow = previousOverflow;
-      window.removeEventListener("keydown", handleKeydown);
-      previousFocusRef.current?.focus();
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   const call = callQuery.data;
   const messages = call?.transcript
@@ -105,6 +85,7 @@ export function CallDetailModal({
       }}
     >
       <div
+        ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby="call-detail-titulo"

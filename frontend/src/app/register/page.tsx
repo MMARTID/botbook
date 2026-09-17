@@ -60,11 +60,22 @@ export default function RegisterPage() {
       const planParam = isPlanId(planFromUrl) ? `?plan=${planFromUrl}` : "";
       window.location.href = `/register/business${planParam}`;
     } catch (error) {
+      // Reenviar el mensaje del backend solo tiene sentido en los errores de
+      // negocio (400): esos vienen redactados en español. El registro está
+      // limitado a 5 intentos por minuto, así que el 429 es un caso real, y
+      // tanto ese como los 5xx llegan en inglés de Fastify ("Too Many
+      // Requests", "Internal Server Error") — texto inútil en la pantalla de
+      // crear cuenta. Mismo criterio que en /login.
       const responseError = error as {
-        response?: { data?: { error?: string | Array<{ message?: string }> } };
+        response?: { status?: number; data?: { error?: string | Array<{ message?: string }> } };
       };
+      const status = responseError.response?.status;
       const apiError = responseError.response?.data?.error;
-      if (typeof apiError === "string") {
+      if (status === 429) {
+        setError("Demasiados intentos seguidos. Espera un minuto y vuelve a intentarlo.");
+      } else if (status !== undefined && status >= 500) {
+        setError("No hemos podido crear la cuenta ahora mismo. Inténtalo de nuevo en unos minutos.");
+      } else if (typeof apiError === "string") {
         setError(apiError);
       } else if (Array.isArray(apiError) && apiError[0]?.message) {
         setError(apiError[0].message);

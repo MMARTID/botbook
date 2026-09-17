@@ -7,10 +7,9 @@ import { SiGooglecalendar } from "@icons-pack/react-simple-icons";
 import { MicrosoftLogo } from "@/components/brand-icons";
 import { getGoogleCalendarAuthUrl, getMicrosoftCalendarAuthUrl } from "@/lib/api";
 import { consumePendingPlan, isPlanId } from "@/lib/billing-navigation";
+import { saveRegistrationNextStep } from "@/lib/registration-next-step";
 import { BUSINESS_TYPE_ONBOARDING_TEXTS, isBusinessType } from "@/lib/business-type";
 import type { BusinessType } from "@/lib/types";
-
-const REGISTRATION_NEXT_STEP_KEY = "registration_next_step";
 
 export default function RegisterBusinessCalendarPage() {
   const router = useRouter();
@@ -65,8 +64,7 @@ export default function RegisterBusinessCalendarPage() {
     setError("");
 
     try {
-      window.localStorage.setItem(
-        REGISTRATION_NEXT_STEP_KEY,
+      saveRegistrationNextStep(
         `/register/business/calendar?completed=true&businessType=${businessType}${hasPlaceSchedule ? "&hasPlaceSchedule=true" : ""}`
       );
 

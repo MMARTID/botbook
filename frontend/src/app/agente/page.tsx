@@ -531,12 +531,9 @@ function AgenteContent() {
   if (settingsQuery.isError) {
     return (
       <FullPageError
-        title="No se pudo cargar la configuración operativa"
-        message={
-          settingsQuery.error instanceof Error
-            ? settingsQuery.error.message
-            : "La ruta `/booking-settings` devolvió un error."
-        }
+        title="No se pudo cargar la configuración de tu agente"
+        message="Puede haber sido un corte momentáneo de conexión. Vuelve a intentarlo; si sigue sin cargar, escríbenos y lo miramos."
+        detail={settingsQuery.error instanceof Error ? settingsQuery.error.message : null}
         onRetry={() => settingsQuery.refetch()}
       />
     );
@@ -545,11 +542,9 @@ function AgenteContent() {
   if (isBusinessError) {
     return (
       <FullPageError
-        title="No se pudo cargar la configuración del agente"
-        message={
-          errorMessage ??
-          "El backend devolvió un error al cargar la configuración del negocio."
-        }
+        title="No se pudo cargar la configuración de tu negocio"
+        message="Puede haber sido un corte momentáneo de conexión. Vuelve a intentarlo; si sigue sin cargar, escríbenos y lo miramos."
+        detail={errorMessage}
         onRetry={() => window.location.reload()}
       />
     );
@@ -1134,16 +1129,24 @@ function AgenteContent() {
 function FullPageError({
   title,
   message,
+  detail,
   onRetry,
 }: {
   title: string;
   message: string;
+  /** Texto técnico del fallo: solo se enseña en desarrollo. */
+  detail?: string | null;
   onRetry: () => void;
 }) {
   return (
     <div className="panel mx-auto max-w-2xl space-y-4 p-6 text-center">
       <h1 className="text-2xl font-semibold text-[#0a0a0a]">{title}</h1>
       <p className="text-sm leading-6 text-muted">{message}</p>
+      {/* El detalle técnico solo tiene sentido para quien puede hacer algo
+          con él: en producción no se enseña. */}
+      {process.env.NODE_ENV === "development" && detail ? (
+        <p className="font-mono text-xs leading-5 text-muted">{detail}</p>
+      ) : null}
       <button type="button" onClick={onRetry} className="btn-primary mx-auto">
         Reintentar
       </button>

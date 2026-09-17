@@ -8,7 +8,7 @@ import type { Business } from "@/lib/types";
 // Los problemas van primero, igual que en la franja completa del Panel
 // (status-strip.tsx): una sola fuente de criterio de orden para las mismas
 // señales, aquí en su versión compacta.
-const SEVERITY_RANK: Record<OperationalTone, number> = { error: 0, warning: 1, waiting: 2, ok: 3 };
+const SEVERITY_RANK: Record<OperationalTone, number> = { error: 0, warning: 1, unknown: 2, waiting: 3, ok: 4 };
 
 /** Versión compacta del mismo estado que se desarrolla en el Panel. */
 export function AgentOperationalSummary({ business, agentActive }: { business: Business; agentActive: boolean }) {

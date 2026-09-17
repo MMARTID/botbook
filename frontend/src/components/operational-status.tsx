@@ -7,6 +7,7 @@ import {
   CalendarDays,
   Check,
   Clock3,
+  HelpCircle,
   PhoneForwarded,
   Smartphone,
   type LucideIcon,
@@ -15,7 +16,12 @@ import { getOnboardingState, getPhoneNumberInfo } from "@/lib/api";
 import { formatPhone } from "@/lib/format";
 import type { Business, PhoneNumberInfo } from "@/lib/types";
 
-export type OperationalTone = "ok" | "warning" | "error" | "waiting";
+/**
+ * `unknown` no es un estado del negocio, sino de la comprobación: la consulta
+ * falló y no sabemos nada. Se separó de `waiting` porque decir "Activándose"
+ * de un número que lleva semanas funcionando es mentir al negocio.
+ */
+export type OperationalTone = "ok" | "warning" | "error" | "waiting" | "unknown";
 
 export type OperationalStatusItem = {
   key: "agent" | "phone" | "forwarding" | "calendar";
@@ -31,7 +37,10 @@ export const OPERATIONAL_TONE: Record<OperationalTone, { icon: LucideIcon; text:
   warning: { icon: AlertTriangle, text: "text-[#9f7a15]", dot: "bg-[#9f7a15]" },
   error: { icon: AlertTriangle, text: "text-[#c53030]", dot: "bg-[#c53030]" },
   waiting: { icon: Clock3, text: "text-[#52525b]", dot: "bg-[#a1a1aa]" },
+  unknown: { icon: HelpCircle, text: "text-[#52525b]", dot: "bg-[#a1a1aa]" },
 };
+
+const NO_COMPROBADO = "No se ha podido comprobar";
 
 /**
  * Fuente única para las señales de salud operativa. Las pantallas deciden si
@@ -43,11 +52,17 @@ export function buildOperationalStatus({
   agentActive,
   phone,
   forwardingStatus,
+  phoneUnavailable = false,
+  forwardingUnavailable = false,
 }: {
   business: Business;
   agentActive: boolean;
   phone: PhoneNumberInfo | undefined;
   forwardingStatus: string | null | undefined;
+  /** La consulta del teléfono falló: no hay dato, no es que esté en curso. */
+  phoneUnavailable?: boolean;
+  /** La consulta del onboarding falló: no sabemos si el desvío está puesto. */
+  forwardingUnavailable?: boolean;
 }): OperationalStatusItem[] {
   const hasPlan = business.subscriptionStatus === "ACTIVE" || business.subscriptionStatus === "TRIALING";
   const usesOutlook = business.calendarProvider === "outlook";
@@ -66,13 +81,17 @@ export function buildOperationalStatus({
       ? { key: "phone", label: "Tu número", icon: Smartphone, value: "Necesita un plan activo", tone: "warning", action: { label: "Elegir plan", href: "/ajustes/facturacion" } }
       : phone?.status === "failed"
         ? { key: "phone", label: "Tu número", icon: Smartphone, value: "No se pudo asignar", tone: "error", action: { label: "Reintentar", kind: "retry-phone" } }
-        : { key: "phone", label: "Tu número", icon: Smartphone, value: "Activándose", tone: "waiting" };
+        : phoneUnavailable
+          ? { key: "phone", label: "Tu número", icon: Smartphone, value: NO_COMPROBADO, tone: "unknown" }
+          : { key: "phone", label: "Tu número", icon: Smartphone, value: "Activándose", tone: "waiting" };
 
   const forwarding: OperationalStatusItem = forwardingStatus === "done"
     ? { key: "forwarding", label: "Desvío de llamadas", icon: PhoneForwarded, value: "Activo", tone: "ok" }
     : forwardingStatus === "ready"
       ? { key: "forwarding", label: "Desvío de llamadas", icon: PhoneForwarded, value: "Sin activar", tone: "error", action: { label: "Activarlo ahora", href: "/#desvio" } }
-      : { key: "forwarding", label: "Desvío de llamadas", icon: PhoneForwarded, value: "Esperando al número", tone: "waiting" };
+      : forwardingUnavailable
+        ? { key: "forwarding", label: "Desvío de llamadas", icon: PhoneForwarded, value: NO_COMPROBADO, tone: "unknown" }
+        : { key: "forwarding", label: "Desvío de llamadas", icon: PhoneForwarded, value: "Esperando al número", tone: "waiting" };
 
   const calendar: OperationalStatusItem = calendarConnected
     ? { key: "calendar", label: "Agenda", icon: CalendarDays, value: usesOutlook ? "Outlook Calendar" : "Google Calendar", tone: "ok" }
@@ -89,7 +108,14 @@ export function useOperationalStatus(business: Business | undefined, agentActive
 
   return {
     items: business
-      ? buildOperationalStatus({ business, agentActive, phone: phoneQuery.data, forwardingStatus: onboardingQuery.data?.forwarding?.status })
+      ? buildOperationalStatus({
+          business,
+          agentActive,
+          phone: phoneQuery.data,
+          forwardingStatus: onboardingQuery.data?.forwarding?.status,
+          phoneUnavailable: phoneQuery.isError,
+          forwardingUnavailable: onboardingQuery.isError,
+        })
       : [],
     phoneQuery,
     onboardingQuery,

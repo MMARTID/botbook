@@ -10,6 +10,7 @@ import { CallForwardingCard } from "@/components/call-forwarding-card";
 import { OnboardingChecklist } from "@/components/onboarding-checklist";
 import { PendingBookings } from "@/components/pending-bookings";
 import { RecentCalls } from "@/components/recent-calls";
+import { SectionErrorState } from "@/components/section-card";
 import { StatusStrip } from "@/components/status-strip";
 import { UpcomingBookings } from "@/components/upcoming-bookings";
 import { WeeklySummary } from "@/components/weekly-summary";
@@ -111,8 +112,15 @@ function DashboardContent() {
       ) : null}
 
       {/* Sin desvío no entra ni una llamada: mientras falte, es lo primero que
-          hay que resolver, por delante de cualquier métrica. */}
-      {forwarding && forwarding.status !== "done" ? (
+          hay que resolver, por delante de cualquier métrica. Por eso, si la
+          consulta falla, se avisa en vez de esconder la tarjeta en silencio:
+          un negocio sin desvío y sin instrucciones no recibe nada. */}
+      {onboardingQuery.isError ? (
+        <SectionErrorState
+          message="No hemos podido comprobar si el desvío de llamadas está activo. Hasta que no lo esté, tus clientes no llegan a tu recepcionista."
+          onRetry={() => void onboardingQuery.refetch()}
+        />
+      ) : forwarding && forwarding.status !== "done" ? (
         <CallForwardingCard forwarding={forwarding} />
       ) : null}
 
