@@ -589,7 +589,8 @@ The backend supports two voice-AI orchestrators. `Business.orchestrator` decides
 - **Endpoints used:** `POST /create-retell-llm`, `POST /create-agent`, `PATCH /update-agent/{id}`, `GET /get-agent/{id}`, `DELETE /delete-agent/{id}`, `GET /list-phone-numbers`, `POST /import-phone-number`, `DELETE /delete-phone-number/{id}`, `GET /get-call/{id}`, `POST /v2/create-web-call` (public landing demo). `RetellAdapter.createPhoneNumber` (`POST /create-phone-number`) also exists but is unused dead code today — it makes Retell buy a NEW number from its own Twilio/Telnyx inventory (US/CA only), not link a number you already own. `RetellAdapter.importPhoneNumber` (`POST /import-phone-number`) is the one `phone/service.ts` actually calls, since we always own the number ourselves (bought via Telnyx) — it requires a SIP trunk `termination_uri` (see Phone provisioning below).
 - Webhooks from Retell hit `POST /webhooks/retell`. The endpoint verifies the `x-retell-signature` using `retellAdapter.validateWebhookSignature` (timing-safe comparison with the Retell API key).
 - Supported Retell webhook events: `call_started`, `call_ended`, `call_analyzed`. Other events are acknowledged (`200`) but ignored.
-- Retell custom tools are exposed under `POST /webhooks/retell/tools/:retellAgentId/:toolName`. The `retellAgentId` path segment is required because Retell never includes an agent identifier in the tool-call body, so it's embedded in the URL itself (done in `buildRetellCalendarTools`, `backend/src/modules/calendar/service.ts`). Our tools are registered with `args_at_root: false` (see `RetellAdapter.createLlm`/`updateLlm`), so Retell sends `{name, call, args}` — `call.call_id` is threaded through as `callId` to `executeVoiceTool` so `book_appointment` can link the booking to the exact call instead of guessing "the most recent call for this business". The route still tolerates a flat args-only body (no `call_id`) for businesses not yet resynced with this config. The endpoint validates the `x-retell-signature` before executing any tool. Execution is delegated to `executeVoiceTool` in `backend/src/modules/voiceTools/service.ts`, which implements `check_business_hours`, `check_availability` and `book_appointment` (Google and Outlook Calendar supported). `check_availability` also accepts an optional `professionalId` (from the `EMPLEADOS` prompt block, see Agent Configuration) to check a specific professional's availability instead of "anyone free".
+- Retell custom tools are exposed under `POST /webhooks/retell/tools/:retellAgentId/:toolName`. The `retellAgentId` path segment is required because Retell never includes an agent identifier in the tool-call body, so it's embedded in the URL itself (done in `buildRetellCalendarTools`, `backend/src/modules/calendar/service.ts`). Our tools are registered with `args_at_root: false` (see `RetellAdapter.createLlm`/`updateLlm`), so Retell sends `{name, call, args}` — `call.call_id` is threaded through as `callId` to `executeVoiceTool` so `book_appointment` can link the booking to the exact call instead of guessing "the most recent call for this business". The route still tolerates a flat args-only body (no `call_id`) for businesses not yet resynced with this config. The endpoint validates the `x-retell-signature` before executing any tool. Execution is delegated to `executeVoiceTool` in `backend/src/modules/voiceTools/service.ts`, which implements `check_business_hours`, `check_availability` and `book_appointment` (Google and Outlook Calendar supported). `check_availability` also accepts an optional `professionalId` (copied from `get_catalog`; the prompt only sends it when the caller named someone) to check that specific professional instead of "anyone free".
+- **Professional levels in the tool contract (2026-09-17).** `check_availability` translates the ranking into things the agent may say, never the internal tiers: without `professionalId` the success result carries `assignedProfessional: { id, name, isSpecialist }` (= `availableProfessionals[0]`); when the named professional is marked "no sugerir" for the requested services and someone better is free at that time, the result (success or `ALL_PROFESSIONALS_BUSY`) carries `recommendation: { professional, isSpecialist, availabilityToken, instructions }` — its own token so "vale, con Laura" books without another round-trip — and the draft of the *requested* person is flagged `recommendationOffered`. Both tools accept `professionalConfirmed: boolean`: `check_availability` with it skips the recommendation; `book_appointment` **without it on a flagged draft returns `PROFESSIONAL_CONFIRMATION_REQUIRED`** (with the recommendation) instead of booking — the safety net for manually-edited prompts, which receive new tools but not the new prompt text. Booking results now include `professionalName`. Internal fields (`specialistIds`, `recommendedProfessional`) never reach the LLM.
 - **Tool errors never return HTTP 500 to Retell.** All three tools always resolve to `{success: true, result: {success: false, code, message}}` on failure — a Spanish, LLM-speakable message the agent can relay, never a raw exception. `book_appointment`'s calendar-related failures are classified into `*_RECONNECT_REQUIRED` (Google/Outlook auth revoked — needs manual reconnect), `CALENDAR_TIMEOUT` / `CALENDAR_RATE_LIMITED` (Google/Outlook request took over `CALENDAR_REQUEST_TIMEOUT_MS`/`GRAPH_REQUEST_TIMEOUT_MS`, both 8s — a margin under Retell's own 20s tool timeout so the backend cuts the request itself instead of leaving it dangling) or `BOOK_APPOINTMENT_FAILED`/`BOOK_APPOINTMENT_UNEXPECTED_ERROR` (anything else). Every failure except `*_RECONNECT_REQUIRED` also enqueues `retry-failed-booking` (see Background Jobs) after saving a `Lead` with the attempted booking.
 - **`serviceIds`/`professionalId` supplied by the LLM to `book_appointment` are verified against `businessId` before use** (`prisma.service.findFirst`/`prisma.professional.findFirst` scoped by `businessId`). An ID that doesn't belong to the business is treated as if it had never been given (falls back to auto-resolution) rather than failing the booking or silently trusting a cross-tenant ID.
 - When an agent is created or updated for a Retell business, `agentBootstrap.ts` creates/updates the LLM and agent in Retell and stores `retellAgentId`/`retellLlmId` in the `Agent` row.
@@ -646,7 +647,7 @@ Once the order succeeds, the number is imported into Retell via `retellAdapter.i
 - **Switching calendars:** `GET /calendar/calendars` lists the calendars of the connected account (Google `calendarList` or Microsoft Graph) with `{ provider, selectedCalendarId, calendars: [{ id, name, primary }] }`; `POST /calendar/select` with `{ calendarId }` switches the active calendar for either provider. The `/agente` calendar section uses both for its "Cambiar de calendario" picker.
 - `getUpcomingEvents` normalizes events from both providers into a common format.
 - If a refresh token becomes invalid (`invalid_grant`), the backend throws a `CalendarBusinessError` with code `GOOGLE_CALENDAR_RECONNECT_REQUIRED` or `OUTLOOK_CALENDAR_RECONNECT_REQUIRED`. The frontend should prompt the user to reconnect.
-- **Appointment booking** (`book_appointment` webhook handler) supports both Google and Outlook Calendar. It creates the calendar event and persists a `Booking` row with `professionalId`, `serviceIds` and `durationMinutes` (duration recalculated server-side from the verified services). If no `professionalId` is provided, it selects the first available professional from `checkAvailability`.
+- **Appointment booking** (`book_appointment` webhook handler) supports both Google and Outlook Calendar. It creates the calendar event and persists a `Booking` row with `professionalId`, `serviceIds` and `durationMinutes` (duration recalculated server-side from the verified services). If no `professionalId` is provided, it selects `availableProfessionals[0]` from `checkAvailability` (specialist first, then the least-loaded that day; never a "no sugerir").
 
 ## Booking & Availability
 
@@ -654,7 +655,11 @@ Once the order succeeds, the number is imported into Retell via `retellAdapter.i
 
 - `Service` — `name`, `durationMinutes` (5–480), `active`, `deletedAt`.
 - `Professional` — `name`, `active`, `deletedAt`.
-- `ProfessionalService` — many-to-many link with `assignedAt`.
+- `ProfessionalService` — many-to-many link with `assignedAt` and, since 2026-09-17,
+  `level: ESPECIALISTA | NO_SUGERIR`. **No row = "lo hace" (normal)**, the default for
+  any active professional. Rows that predate the column were the old "especialidad"
+  checkbox and keep that meaning via the column default. See § Availability for what
+  each level does at booking time and § CRUD for the `serviceLevels` API contract.
 
 ### CRUD de configuración (`/booking-settings`)
 
@@ -665,6 +670,15 @@ persistencia y sincronización vive en `service.ts`, y los contratos Zod en
 - `GET`/`PATCH /` — configuración agregada y capacidad.
 - `GET`/`POST`/`PATCH`/`DELETE /services/:id` — catálogo de servicios.
 - `GET`/`POST`/`PATCH`/`DELETE /professionals/:id` — equipo y sus servicios.
+  Contrato de niveles (2026-09-17): request acepta `serviceLevels: Record<serviceId,
+  "especialista" | "normal" | "no_sugerir">` (mapa COMPLETO: reemplaza todos los
+  vínculos; `"normal"` = sin fila; todos los ids se validan como del negocio aunque
+  no generen fila) y, como legado, `serviceIds: string[]` (cada id = especialista;
+  si vienen los dos manda `serviceLevels`). Response (`serializeProfessional`, compartido
+  con `GET /business/me`) devuelve `serviceLevels` (solo filas existentes; ausencia =
+  lo hace) y `serviceIds` (= solo especialistas, para clientes antiguos). Cada
+  guardado dispara `syncBookingConfiguration` (caché + resync de agentes), aunque
+  `availability.ts` lee los niveles de la BD en cada tool call y no depende de esa caché.
 
 `DELETE` nunca destruye un `Service` o `Professional`: marca `deletedAt` y
 `active: false`, retira solo las filas auxiliares de `ProfessionalService`,
@@ -688,11 +702,14 @@ operativos o de auditoría creados por sus flujos específicos.
 `checkAvailability({ businessId, schedule, timezone, bookingCapacity, startDateTime, durationMinutes, serviceIds?, professionalId? })`
 
 1. Validates business hours first.
-2. Finds active professionals, filtered by `id: professionalId` when given (an ID from another business simply matches nothing — no separate ownership check needed here) and/or by `serviceIds` via `serviceLinks` (specialists first — `serviceLinks` is a preference, not a filter). If `professionalId` matched no professional at all → `PROFESSIONAL_NOT_FOUND`.
+2. Loads **all** active professionals of the business (ordered by `createdAt`) and computes each one's tier *for the requested services* (`professionalTierFor`): `no_sugerir` if any requested service is marked NO_SUGERIR for them, `especialista` if all requested services are marked ESPECIALISTA, `normal` otherwise (no row = normal). If `professionalId` was given and is not in the list → `PROFESSIONAL_NOT_FOUND`.
+   - **Client named nobody:** candidates are everyone except `no_sugerir` (they are never auto-assigned). If that leaves nobody → `NO_AVAILABLE_PROFESSIONAL` with a message saying so.
+   - **Client named someone:** candidates = that person only, whatever their tier — asking for someone by name is always honoured. If their tier is `no_sugerir`, the result also carries `recommendedProfessional` (best free member of the automatic pool at that same time, with `isSpecialist`), computed even when the requested person is busy.
+   - **Order among candidates** (`ordenarParaAsignar`): tier first (especialista before normal), then fewest bookings that local day (counted from the already-loaded bookings, in the business timezone — "quien tenga el día más despejado"), then sign-up order. `availableProfessionals[0]` is who gets the appointment; `specialistIds` lists which of them are specialists in everything requested.
 3. Finds overlapping bookings in the time slot, using each booking's stored `durationMinutes` for overlap calculation.
 4. If `bookingsInSlot >= bookingCapacity` → `CAPACITY_REACHED`.
 5. Identifies busy professionals by `professionalId` from overlapping bookings and returns the free ones with `id` and `name`. If none → `ALL_PROFESSIONALS_BUSY`.
-6. Otherwise → `available: true` with `availableProfessionals` (array of `{ id, name }`) and capacity counts.
+6. Otherwise → `available: true` with `availableProfessionals` (array of `{ id, name }`, in assignment order), optional `specialistIds`, optional `recommendedProfessional`, and capacity counts. `findNextAvailableSlot` applies the same tier/load ordering per candidate day and, without `professionalId`, also excludes `no_sugerir`.
 
 ## Agent Configuration
 
@@ -1159,6 +1176,25 @@ and the queues (`gcloud tasks list --queue=<q> --location=europe-west1`), not ju
 **Side effect worth knowing:** the uptime check hits `/health` ~6 times a minute, which
 keeps at least one Cloud Run instance warm most of the time — fewer cold starts for real
 callers, at the cost of a few thousand trivial requests a day.
+
+### Propagating a tool-schema or prompt change to existing agents
+
+A deploy alone does not touch the agents already created in Retell/Telnyx.
+- **Telnyx**: automatic. `syncAgentToTelnyx` hashes the whole assistant payload (prompt +
+  tools); the reconciler (`jobs/telnyxReconciler.ts`, Cloud Scheduler `telnyx-reconciler`,
+  daily 04:00, 200 assistants per pass) and every professional/service/schedule save push
+  the new payload. A rejected schema lands in `Agent.telnyxSyncError` (reconciler email +
+  panel) — check it is null after the deploy.
+- **Retell**: run `npm run agents:sync-prompts` from `backend/` after the deploy (prompt +
+  tools, strict tool verification in production). Since 2026-09-17 the script no longer
+  filters by `orchestrator: "retell"`: businesses promoted to Telnyx keep a live Retell
+  agent as fallback and were silently left with old tools/prompt. Agents with
+  `promptManuallyEdited=true` get the new tools but keep their text — which is why
+  behaviour that matters (e.g. `PROFESSIONAL_CONFIRMATION_REQUIRED`) is enforced by the
+  backend, not only by the prompt.
+- Between the deploy and the resync an agent may have a new prompt with an old schema or
+  vice versa: handlers treat a missing `professionalConfirmed` as false and nothing in the
+  booking path depends on the new field to complete a plain reservation.
 
 ### Re-syncing webhook URLs
 

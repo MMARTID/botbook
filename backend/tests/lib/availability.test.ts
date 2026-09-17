@@ -20,7 +20,11 @@ const businessId = "biz_123";
 const mockedProfessionalFindMany = vi.mocked(prisma.professional.findMany);
 const mockedBookingFindMany = vi.mocked(prisma.booking.findMany);
 
-function givenProfessionals(professionals: Array<{ id: string; name: string; serviceIds: string[] }>) {
+// `serviceIds` crea filas ESPECIALISTA (lo que significaba la casilla antes
+// de existir el nivel); `noSugerir` crea filas NO_SUGERIR. Sin fila = lo hace.
+function givenProfessionals(
+  professionals: Array<{ id: string; name: string; serviceIds: string[]; noSugerir?: string[] }>
+) {
   mockedProfessionalFindMany.mockResolvedValue(
     professionals.map((p) => ({
       id: p.id,
@@ -29,11 +33,20 @@ function givenProfessionals(professionals: Array<{ id: string; name: string; ser
       active: true,
       createdAt: new Date(),
       updatedAt: new Date(),
-      serviceLinks: p.serviceIds.map((serviceId) => ({
-        professionalId: p.id,
-        serviceId,
-        assignedAt: new Date(),
-      })),
+      serviceLinks: [
+        ...p.serviceIds.map((serviceId) => ({
+          professionalId: p.id,
+          serviceId,
+          level: "ESPECIALISTA" as const,
+          assignedAt: new Date(),
+        })),
+        ...(p.noSugerir ?? []).map((serviceId) => ({
+          professionalId: p.id,
+          serviceId,
+          level: "NO_SUGERIR" as const,
+          assignedAt: new Date(),
+        })),
+      ],
     }))
   );
 }
@@ -662,5 +675,194 @@ describe("checkAvailability", () => {
     });
 
     expect(result.available).toBe(true);
+  });
+});
+
+// Tres niveles por profesional y servicio (17-09-2026): especialista se lleva
+// la cita si nadie pide a nadie; "lo hace" es el valor por defecto; "no
+// sugerir" nunca se asigna sola, pero si el cliente la pide por su nombre se
+// le reserva y antes se recomienda una vez al mejor libre a esa hora.
+describe("checkAvailability — niveles por servicio", () => {
+  const base = {
+    businessId,
+    schedule: DEFAULT_BUSINESS_SCHEDULE,
+    timezone: europeMadrid,
+    bookingCapacity: 5,
+    startDateTime: "2026-08-10T10:00:00",
+    durationMinutes: 30,
+    serviceIds: ["corte"],
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("sin profesional pedido, nunca asigna a quien está marcado 'no sugerir' para ese servicio", async () => {
+    givenProfessionals([
+      { id: "aprendiz", name: "Marta", serviceIds: [], noSugerir: ["corte"] },
+      { id: "senior", name: "Laura", serviceIds: [] },
+    ]);
+    givenBookings([]);
+
+    const result = await checkAvailability(base);
+
+    expect(result.available).toBe(true);
+    if (result.available) {
+      expect(result.availableProfessionals).toEqual([{ id: "senior", name: "Laura" }]);
+    }
+  });
+
+  it("si solo quedan 'no sugerir' libres y nadie pidió a nadie, la hora no está disponible", async () => {
+    givenProfessionals([
+      { id: "aprendiz", name: "Marta", serviceIds: [], noSugerir: ["corte"] },
+      { id: "senior", name: "Laura", serviceIds: ["corte"] },
+    ]);
+    givenBookings([{ programedAt: new Date("2026-08-10T08:00:00Z"), professionalId: "senior" }]);
+
+    const result = await checkAvailability(base);
+
+    expect(result.available).toBe(false);
+    if (!result.available) {
+      expect(result.code).toBe("ALL_PROFESSIONALS_BUSY");
+      // Y el hueco alternativo tampoco cuenta con Marta para el corte.
+      expect(result.suggestedNextSlot?.availableProfessionals).toEqual([{ id: "senior", name: "Laura" }]);
+    }
+  });
+
+  it("si todos los profesionales son 'no sugerir' para el servicio, lo dice en vez de asignar a ciegas", async () => {
+    givenProfessionals([{ id: "aprendiz", name: "Marta", serviceIds: [], noSugerir: ["corte"] }]);
+    givenBookings([]);
+
+    const result = await checkAvailability(base);
+
+    expect(result.available).toBe(false);
+    if (!result.available) expect(result.code).toBe("NO_AVAILABLE_PROFESSIONAL");
+  });
+
+  it("'no sugerir' en OTRO servicio no afecta: para el pedido sigue siendo 'lo hace'", async () => {
+    givenProfessionals([{ id: "aprendiz", name: "Marta", serviceIds: [], noSugerir: ["color"] }]);
+    givenBookings([]);
+
+    const result = await checkAvailability(base);
+
+    expect(result.available).toBe(true);
+    if (result.available) {
+      expect(result.availableProfessionals).toEqual([{ id: "aprendiz", name: "Marta" }]);
+    }
+  });
+
+  it("si piden por su nombre a un 'no sugerir', se le reserva igual y se recomienda al mejor libre a esa hora", async () => {
+    givenProfessionals([
+      { id: "aprendiz", name: "Marta", serviceIds: [], noSugerir: ["corte"] },
+      { id: "normal", name: "Pedro", serviceIds: [] },
+      { id: "senior", name: "Laura", serviceIds: ["corte"] },
+    ]);
+    givenBookings([]);
+
+    const result = await checkAvailability({ ...base, professionalId: "aprendiz" });
+
+    expect(result.available).toBe(true);
+    if (result.available) {
+      expect(result.availableProfessionals).toEqual([{ id: "aprendiz", name: "Marta" }]);
+      expect(result.recommendedProfessional).toEqual({
+        professional: { id: "senior", name: "Laura" },
+        isSpecialist: true,
+      });
+    }
+  });
+
+  it("la recomendación solo cuenta a quien está libre a esa hora", async () => {
+    givenProfessionals([
+      { id: "aprendiz", name: "Marta", serviceIds: [], noSugerir: ["corte"] },
+      { id: "senior", name: "Laura", serviceIds: ["corte"] },
+    ]);
+    givenBookings([{ programedAt: new Date("2026-08-10T08:00:00Z"), professionalId: "senior" }]);
+
+    const result = await checkAvailability({ ...base, professionalId: "aprendiz" });
+
+    expect(result.available).toBe(true);
+    if (result.available) expect(result.recommendedProfessional).toBeUndefined();
+  });
+
+  it("si piden a alguien que simplemente 'lo hace', no hay recomendación: se reserva sin comentarios", async () => {
+    givenProfessionals([
+      { id: "normal", name: "Pedro", serviceIds: [] },
+      { id: "senior", name: "Laura", serviceIds: ["corte"] },
+    ]);
+    givenBookings([]);
+
+    const result = await checkAvailability({ ...base, professionalId: "normal" });
+
+    expect(result.available).toBe(true);
+    if (result.available) expect(result.recommendedProfessional).toBeUndefined();
+  });
+
+  it("a igual nivel, la cita va a quien tenga menos citas ese día", async () => {
+    givenProfessionals([
+      { id: "ana", name: "Ana", serviceIds: [] },
+      { id: "bea", name: "Bea", serviceIds: [] },
+    ]);
+    // Ana ya tiene dos citas esa mañana (en horas que no solapan con la pedida).
+    givenBookings([
+      { programedAt: new Date("2026-08-10T06:00:00Z"), professionalId: "ana" },
+      { programedAt: new Date("2026-08-10T06:30:00Z"), professionalId: "ana" },
+    ]);
+
+    const result = await checkAvailability(base);
+
+    expect(result.available).toBe(true);
+    if (result.available) {
+      expect(result.availableProfessionals.map((p) => p.id)).toEqual(["bea", "ana"]);
+    }
+  });
+
+  it("el nivel manda sobre la carga: el especialista va primero aunque tenga más citas", async () => {
+    givenProfessionals([
+      { id: "ana", name: "Ana", serviceIds: ["corte"] },
+      { id: "bea", name: "Bea", serviceIds: [] },
+    ]);
+    givenBookings([
+      { programedAt: new Date("2026-08-10T06:00:00Z"), professionalId: "ana" },
+      { programedAt: new Date("2026-08-10T06:30:00Z"), professionalId: "ana" },
+    ]);
+
+    const result = await checkAvailability(base);
+
+    expect(result.available).toBe(true);
+    if (result.available) {
+      expect(result.availableProfessionals.map((p) => p.id)).toEqual(["ana", "bea"]);
+      expect(result.specialistIds).toEqual(["ana"]);
+    }
+  });
+
+  it("las citas de OTRO día no cuentan para el desempate (día local del negocio)", async () => {
+    givenProfessionals([
+      { id: "ana", name: "Ana", serviceIds: [] },
+      { id: "bea", name: "Bea", serviceIds: [] },
+    ]);
+    // 23:30 del día 9 en Madrid es 21:30Z: sigue siendo el día 9, no el 10.
+    givenBookings([{ programedAt: new Date("2026-08-09T21:30:00Z"), professionalId: "ana" }]);
+
+    const result = await checkAvailability(base);
+
+    expect(result.available).toBe(true);
+    if (result.available) {
+      expect(result.availableProfessionals.map((p) => p.id)).toEqual(["ana", "bea"]);
+    }
+  });
+
+  it("con varios servicios, basta un 'no sugerir' en uno de ellos para salir del reparto automático", async () => {
+    givenProfessionals([
+      { id: "marta", name: "Marta", serviceIds: ["corte"], noSugerir: ["color"] },
+      { id: "laura", name: "Laura", serviceIds: [] },
+    ]);
+    givenBookings([]);
+
+    const result = await checkAvailability({ ...base, serviceIds: ["corte", "color"] });
+
+    expect(result.available).toBe(true);
+    if (result.available) {
+      expect(result.availableProfessionals).toEqual([{ id: "laura", name: "Laura" }]);
+    }
   });
 });

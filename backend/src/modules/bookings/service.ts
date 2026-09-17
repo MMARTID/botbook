@@ -8,8 +8,10 @@ import {
 } from "../../lib/planFeatures.js";
 import { prisma } from "../../lib/prisma.js";
 import { getRedis } from "../../lib/redis.js";
+import type { ProfessionalServiceLevel } from "@prisma/client";
 import {
   ProfessionalSchema,
+  type ProfessionalServiceLevelInput,
   ServiceSchema,
   UpdateProfessionalSchema,
   UpdateServiceSchema,
@@ -26,14 +28,19 @@ export type BookingSettingsPayload = {
     createdAt: Date;
     updatedAt: Date;
   }>;
-  professionals: Array<{
-    id: string;
-    name: string;
-    active: boolean;
-    createdAt: Date;
-    updatedAt: Date;
-    serviceIds: string[];
-  }>;
+  professionals: Array<SerializedProfessional>;
+};
+
+export type SerializedProfessional = {
+  id: string;
+  name: string;
+  active: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+  /** Solo los servicios con nivel explícito; ausencia = lo hace. */
+  serviceLevels: Record<string, "especialista" | "no_sugerir">;
+  /** Legado (= especialistas). El panel actual ya lee serviceLevels. */
+  serviceIds: string[];
 };
 
 type ProfessionalWithServices = {
@@ -42,24 +49,66 @@ type ProfessionalWithServices = {
   active: boolean;
   createdAt: Date;
   updatedAt: Date;
-  serviceLinks: Array<{ serviceId: string }>;
+  serviceLinks: Array<{ serviceId: string; level?: ProfessionalServiceLevel | null }>;
 };
 
-function serializeProfessional(professional: ProfessionalWithServices) {
+export function serializeProfessional(
+  professional: ProfessionalWithServices
+): SerializedProfessional {
+  const serviceLevels: Record<string, "especialista" | "no_sugerir"> = {};
+  for (const link of professional.serviceLinks) {
+    // Filas anteriores a la columna (mocks, datos viejos) eran la casilla
+    // "especialidad": sin nivel se leen como especialista.
+    serviceLevels[link.serviceId] =
+      link.level === "NO_SUGERIR" ? "no_sugerir" : "especialista";
+  }
   return {
     id: professional.id,
     name: professional.name,
     active: professional.active,
     createdAt: professional.createdAt,
     updatedAt: professional.updatedAt,
-    serviceIds: professional.serviceLinks.map((link) => link.serviceId),
+    serviceLevels,
+    serviceIds: Object.entries(serviceLevels)
+      .filter(([, level]) => level === "especialista")
+      .map(([serviceId]) => serviceId),
   };
 }
 
-const nonDeletedServiceLinks = {
+export const nonDeletedServiceLinks = {
   where: { service: { deletedAt: null } },
-  select: { serviceId: true },
+  select: { serviceId: true, level: true },
 };
+
+/** Normaliza lo que manda el panel a las filas que hay que guardar: solo
+ * los dos extremos tienen fila; "normal" (lo hace) es no tener ninguna. Con
+ * `serviceLevels` presente se ignora `serviceIds` (legado: cada id era la
+ * casilla "especialidad"). Un Map de-duplica ids repetidos, que antes hacían
+ * saltar la clave primaria compuesta. */
+export function resolveServiceLinks(input: {
+  serviceLevels?: Record<string, ProfessionalServiceLevelInput>;
+  serviceIds?: string[];
+}): Array<{ serviceId: string; level: ProfessionalServiceLevel }> {
+  const filas = new Map<string, ProfessionalServiceLevel>();
+  if (input.serviceLevels) {
+    for (const [serviceId, level] of Object.entries(input.serviceLevels)) {
+      if (level === "especialista") filas.set(serviceId, "ESPECIALISTA");
+      else if (level === "no_sugerir") filas.set(serviceId, "NO_SUGERIR");
+    }
+  } else {
+    for (const serviceId of input.serviceIds ?? []) filas.set(serviceId, "ESPECIALISTA");
+  }
+  return [...filas.entries()].map(([serviceId, level]) => ({ serviceId, level }));
+}
+
+/** Todos los ids que el panel menciona, incluidos los "normal": también
+ * esos tienen que pertenecer al negocio aunque no generen fila. */
+function serviceIdsMencionados(input: {
+  serviceLevels?: Record<string, ProfessionalServiceLevelInput>;
+  serviceIds?: string[];
+}): string[] {
+  return input.serviceLevels ? Object.keys(input.serviceLevels) : (input.serviceIds ?? []);
+}
 
 export async function getBookingSettingsPayload(
   businessId: string
@@ -226,7 +275,8 @@ export async function createProfessional(
   businessId: string,
   input: z.infer<typeof ProfessionalSchema>
 ) {
-  await ensureServicesBelongToBusiness(businessId, input.serviceIds);
+  await ensureServicesBelongToBusiness(businessId, serviceIdsMencionados(input));
+  const serviceLinks = resolveServiceLinks(input);
 
   const professional = await prisma.$transaction(
     async (tx) => {
@@ -239,7 +289,7 @@ export async function createProfessional(
           name: input.name,
           active: input.active ?? true,
           serviceLinks: {
-            create: input.serviceIds.map((serviceId) => ({ serviceId })),
+            create: serviceLinks,
           },
         },
         include: { serviceLinks: nonDeletedServiceLinks },
@@ -269,8 +319,10 @@ export async function updateProfessional(
   });
   if (!professional) return null;
 
-  if (input.serviceIds !== undefined) {
-    await ensureServicesBelongToBusiness(businessId, input.serviceIds);
+  // Cualquiera de los dos campos reemplaza el conjunto completo de vínculos.
+  const reemplazaVinculos = input.serviceLevels !== undefined || input.serviceIds !== undefined;
+  if (reemplazaVinculos) {
+    await ensureServicesBelongToBusiness(businessId, serviceIdsMencionados(input));
   }
 
   const updated = await prisma.$transaction(async (tx) => {
@@ -280,17 +332,15 @@ export async function updateProfessional(
       await ensureProfessionalSlotAvailable(businessId, tx);
     }
 
-    if (input.serviceIds !== undefined) {
+    if (reemplazaVinculos) {
       await tx.professionalService.deleteMany({
         where: { professionalId: professional.id },
       });
 
-      if (input.serviceIds.length > 0) {
+      const filas = resolveServiceLinks(input);
+      if (filas.length > 0) {
         await tx.professionalService.createMany({
-          data: input.serviceIds.map((serviceId) => ({
-            professionalId: professional.id,
-            serviceId,
-          })),
+          data: filas.map((fila) => ({ professionalId: professional.id, ...fila })),
         });
       }
     }

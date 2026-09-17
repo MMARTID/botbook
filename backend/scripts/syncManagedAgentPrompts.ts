@@ -33,7 +33,11 @@ async function main() {
     const businesses = await prisma.business.findMany({
       where: {
         ...(businessId ? { id: businessId } : {}),
-        orchestrator: "retell",
+        // Sin filtrar por orchestrator: desde el 13-09 los negocios elegibles
+        // nacen con orchestrator "telnyx" y su agente de Retell sigue vivo
+        // como respaldo. Con el filtro antiguo ("retell") esos agentes se
+        // quedaban con el prompt y las tools viejos para siempre —
+        // syncAgentToRetell ya sincroniza sea cual sea el orquestador.
         agents: {
           some: {
             active: true,

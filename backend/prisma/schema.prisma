@@ -303,9 +303,25 @@ model Professional {
   @@map("professionals")
 }
 
+// Nivel de un profesional en un servicio concreto. No hay fila para el caso
+// normal ("lo hace"): solo se guardan los dos extremos.
+// - ESPECIALISTA: se lleva la cita cuando el cliente no pide a nadie, y el
+//   agente puede decirlo en positivo al confirmar.
+// - NO_SUGERIR (aprendiz, recepcionista, "no se le da bien"): nunca se asigna
+//   sola; si el cliente la pide por su nombre, el agente recomienda una vez a
+//   quien mejor lo hace y, si insiste, reserva con quien pidió. Es un
+//   concepto interno del panel: jamás se le dice al cliente.
+enum ProfessionalServiceLevel {
+  ESPECIALISTA
+  NO_SUGERIR
+}
+
 model ProfessionalService {
   professionalId String
   serviceId      String
+  // Las filas anteriores a este campo eran la casilla "especialidad" del
+  // panel: conservan ese significado con el valor por defecto.
+  level          ProfessionalServiceLevel @default(ESPECIALISTA)
   assignedAt     DateTime     @default(now())
   professional   Professional @relation(fields: [professionalId], references: [id], onDelete: Cascade)
   service        Service      @relation(fields: [serviceId], references: [id], onDelete: Cascade)
