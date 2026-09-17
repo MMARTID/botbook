@@ -3,6 +3,10 @@
 import { FastifyInstance, FastifyRequest } from "fastify";
 import { prisma } from "../../lib/prisma.js";
 import { BusinessScheduleSchema } from "../../lib/businessSchedule.js";
+import {
+  marcadaComoConectada,
+  resolverConexionDeCalendario,
+} from "../calendar/conexion.js";
 
 export type OnboardingSteps = {
   schedule: boolean;
@@ -106,19 +110,15 @@ export async function onboardingRoutes(fastify: FastifyInstance) {
           firstCallAt: firstCall?.startedAt.toISOString() ?? null,
         };
 
-        const activeCalendarProvider =
-          business.calendarProvider === "outlook" ? "outlook" : "google";
-        const hasCalendar =
-          (activeCalendarProvider === "outlook" &&
-            business.outlookCalendarConnected) ||
-          (activeCalendarProvider === "google" &&
-            business.googleCalendarConnected);
-
         const steps: OnboardingSteps = {
           schedule: isValidSchedule(business.schedule),
           services: business.services.length > 0,
           professionals: business.professionals.length > 0,
-          calendar: hasCalendar,
+          // Solo el flag del proveedor activo, sin mirar el token (semántica
+          // histórica de este paso del onboarding).
+          calendar: marcadaComoConectada(
+            resolverConexionDeCalendario(business)
+          ),
           forwarding: forwardingDone,
         };
 

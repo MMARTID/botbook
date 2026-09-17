@@ -1,8 +1,16 @@
 import { prisma } from "../lib/prisma.js";
 import { enqueueRetryBookingJob } from "../lib/cloudTasks.js";
 import { createHash } from "node:crypto";
-import { invalidarCacheDeVoz } from "../lib/voiceConfigCache.js";
 import { calendarService } from "../modules/calendar/service.js";
+import {
+  conexionOperativa,
+  marcarCalendarioDesconectado,
+  origenDeCalendario,
+  resolverConexionDeCalendario,
+  SELECT_CONEXION_DE_CALENDARIO,
+} from "../modules/calendar/conexion.js";
+import { DESCRIPTORES_DE_PROVEEDOR } from "../adapters/calendar/CalendarProvider.js";
+import { proveedorDesdeErrorDeReconexion } from "../adapters/calendar/errors.js";
 import {
   checkBusinessHours,
   checkBookingRestrictions,
@@ -12,7 +20,6 @@ import {
   computeAvailabilityLookaheadMs,
 } from "../lib/availability.js";
 import { acquireBookingLock, releaseBookingLock } from "../lib/bookingLock.js";
-import { errorMessage } from "../lib/logUtils.js";
 import { RetryFailedBookingJob } from "../lib/jobTypes.js";
 
 interface PendingBookingData {
@@ -106,13 +113,7 @@ export async function processRetryFailedBookingJob(
       bookingCapacity: true,
       minAdvanceBookingMinutes: true,
       maxAppointmentDurationMinutes: true,
-      calendarProvider: true,
-      googleRefreshToken: true,
-      googleCalendarId: true,
-      googleCalendarConnected: true,
-      outlookRefreshToken: true,
-      outlookCalendarId: true,
-      outlookCalendarConnected: true,
+      ...SELECT_CONEXION_DE_CALENDARIO,
     },
   });
   if (!business) {
@@ -121,16 +122,9 @@ export async function processRetryFailedBookingJob(
     );
   }
 
-  const provider =
-    business.calendarProvider === "outlook" ? "outlook" : "google";
-  const hasCalendarConnection =
-    provider === "outlook"
-      ? !!business.outlookRefreshToken &&
-        business.outlookCalendarConnected !== false
-      : !!business.googleRefreshToken &&
-        business.googleCalendarConnected !== false;
+  const conexion = resolverConexionDeCalendario(business);
 
-  if (!hasCalendarConnection) {
+  if (!conexionOperativa(conexion)) {
     // El negocio sigue sin reconectar el calendario. Antes esto lanzaba, y
     // Cloud Tasks gastaba sus cuatro reintentos en cuestión de minutos
     // mientras el negocio tardaba días en reconectar: el lead se quedaba
@@ -281,11 +275,7 @@ export async function processRetryFailedBookingJob(
     const externalBusy = Number.isNaN(startDate.getTime())
       ? { intervals: [], calendarAvailabilityKnown: false }
       : await calendarService.getBusyIntervals({
-          provider,
-          googleRefreshToken: business.googleRefreshToken,
-          googleCalendarId: business.googleCalendarId,
-          outlookRefreshToken: business.outlookRefreshToken,
-          outlookCalendarId: business.outlookCalendarId,
+          conexion,
           timeMin: startDate,
           timeMax: new Date(
             startDate.getTime() + computeAvailabilityLookaheadMs(data_.durationMinutes)
@@ -307,12 +297,7 @@ export async function processRetryFailedBookingJob(
       professionalId: verifiedProfessionalId,
       externalBusyIntervals: normalizedExternalBusy.intervals,
       calendarAvailabilityKnown: normalizedExternalBusy.calendarAvailabilityKnown,
-      calendarOrigin:
-        provider === "outlook"
-          ? business.outlookCalendarId
-            ? { provider: "outlook", calendarId: business.outlookCalendarId }
-            : null
-          : { provider: "google", calendarId: business.googleCalendarId || "primary" },
+      calendarOrigin: origenDeCalendario(conexion),
     });
     if (!availability.available) {
       await abandonLead(
@@ -332,6 +317,7 @@ export async function processRetryFailedBookingJob(
     let result: unknown;
     try {
       result = await calendarService.bookAppointment({
+        conexion,
         clientName: data_.clientName,
         startDateTime: data_.startDateTime,
         durationMinutes: data_.durationMinutes,
@@ -339,11 +325,7 @@ export async function processRetryFailedBookingJob(
         clientPhone: effectiveClientPhone,
         serviceNames,
         professionalName,
-        provider,
-        googleRefreshToken: business.googleRefreshToken,
-        googleCalendarId: business.googleCalendarId,
-        outlookRefreshToken: business.outlookRefreshToken,
-        outlookCalendarId: business.outlookCalendarId,
+        timezone: business.timezone || undefined,
         idempotencyKey: buildCalendarIdempotencyKey({
           callId: lead.callId,
           startDateTime: data_.startDateTime,
@@ -351,12 +333,8 @@ export async function processRetryFailedBookingJob(
         }),
       });
     } catch (error) {
-      const e = error as { name?: string; code?: string };
-      if (
-        e?.name === "CalendarBusinessError" &&
-        (e?.code === "GOOGLE_CALENDAR_RECONNECT_REQUIRED" ||
-          e?.code === "OUTLOOK_CALENDAR_RECONNECT_REQUIRED")
-      ) {
+      const proveedorRoto = proveedorDesdeErrorDeReconexion(error);
+      if (proveedorRoto) {
         // A diferencia de otros fallos (transitorios, reintentables), este
         // requiere una acción manual del negocio — igual que en la reserva
         // en vivo (voiceTools/service.ts), se marca el calendario como
@@ -367,35 +345,15 @@ export async function processRetryFailedBookingJob(
         // Business.googleCalendarConnected/outlookCalendarConnected en true
         // (el panel seguía mostrando "conectado") aunque en realidad la
         // conexión llevara horas rota.
-        const errorProvider =
-          e.code === "OUTLOOK_CALENDAR_RECONNECT_REQUIRED" ? "outlook" : "google";
-        try {
-          await prisma.business.update({
-            where: { id: call.businessId },
-            data:
-              errorProvider === "outlook"
-                ? {
-                    outlookCalendarConnected: false,
-                    outlookRefreshToken: null,
-                    outlookCalendarDisconnectedAt: new Date(),
-                    outlookCalendarLastError: "invalid_grant",
-                  }
-                : {
-                    googleCalendarConnected: false,
-                    googleRefreshToken: null,
-                    googleCalendarDisconnectedAt: new Date(),
-                    googleCalendarLastError: "invalid_grant",
-                  },
-          });
-        } catch (dbErr) {
-          console.error(
-            `[Job] No se pudo actualizar el estado del calendario de ${call.businessId}: ${errorMessage(dbErr)}`
-          );
-        }
-        await invalidarCacheDeVoz(call.businessId);
+        await marcarCalendarioDesconectado(
+          call.businessId,
+          proveedorRoto,
+          { modo: "revocar" },
+          { prefijo: "[Job]" }
+        );
         await abandonLead(
           leadId,
-          `conexión de ${errorProvider === "outlook" ? "Outlook" : "Google"} revocada o expirada; requiere reconexión manual`
+          `conexión de ${DESCRIPTORES_DE_PROVEEDOR[proveedorRoto].nombreCorto} revocada o expirada; requiere reconexión manual`
         );
         return;
       }
@@ -414,11 +372,8 @@ export async function processRetryFailedBookingJob(
           serviceIds: data_.serviceIds ?? [],
           clientPhone: effectiveClientPhone,
           externalEventId: (result as { id?: string })?.id ?? undefined,
-          externalCalendarProvider: provider,
-          externalCalendarId:
-            provider === "outlook"
-              ? business.outlookCalendarId
-              : business.googleCalendarId || "primary",
+          externalCalendarProvider: conexion.provider,
+          externalCalendarId: conexion.calendarId,
         },
         update: {
           programedAt: startDate,
@@ -427,11 +382,8 @@ export async function processRetryFailedBookingJob(
           serviceIds: data_.serviceIds ?? [],
           clientPhone: effectiveClientPhone,
           externalEventId: (result as { id?: string })?.id ?? undefined,
-          externalCalendarProvider: provider,
-          externalCalendarId:
-            provider === "outlook"
-              ? business.outlookCalendarId
-              : business.googleCalendarId || "primary",
+          externalCalendarProvider: conexion.provider,
+          externalCalendarId: conexion.calendarId,
         },
       });
       await tx.lead.update({

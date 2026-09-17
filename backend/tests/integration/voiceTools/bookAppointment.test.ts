@@ -18,6 +18,10 @@ vi.mock("../../../src/modules/calendar/service.js", () => ({
     bookAppointment: vi.fn().mockResolvedValue({
       htmlLink: "https://calendar.google.com/fake-event",
     }),
+    getBusyIntervals: vi.fn().mockResolvedValue({
+      intervals: [],
+      calendarAvailabilityKnown: true,
+    }),
   },
 }));
 

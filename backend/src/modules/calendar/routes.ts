@@ -1,6 +1,19 @@
 import { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { prisma } from "../../lib/prisma.js";
-import { CalendarBusinessError, calendarService } from "./service.js";
+import { calendarService } from "./service.js";
+import {
+  conexionConfirmada,
+  marcarCalendarioDesconectado,
+  resolverConexionDeCalendario,
+  SELECT_CONEXION_DE_CALENDARIO,
+  type ConexionResuelta,
+} from "./conexion.js";
+import { DESCRIPTORES_DE_PROVEEDOR } from "../../adapters/calendar/CalendarProvider.js";
+import {
+  codigoDeReconexion,
+  esCalendarBusinessError,
+  proveedorDesdeErrorDeReconexion,
+} from "../../adapters/calendar/errors.js";
 import { z } from "zod";
 
 const UpcomingEventsQuerySchema = z.object({
@@ -41,6 +54,49 @@ function stateFromAuthUrl(url: string) {
   return state;
 }
 
+/** Conexión de calendario del negocio autenticado, resuelta por conexion.ts
+ * (las rutas no conocen las columnas de Google ni de Outlook). */
+async function cargarConexion(businessId: string): Promise<ConexionResuelta> {
+  const business = await prisma.business.findUnique({
+    where: { id: businessId },
+    select: SELECT_CONEXION_DE_CALENDARIO,
+  });
+  return resolverConexionDeCalendario(business);
+}
+
+/** 409 del panel cuando el proveedor activo no está confirmado como
+ * conectado (flag && token). Mismo texto en inglés que siempre. */
+function respuestaNoConectado(reply: FastifyReply, conexion: ConexionResuelta) {
+  return reply.status(409).send({
+    code: codigoDeReconexion(conexion.provider),
+    error: `${DESCRIPTORES_DE_PROVEEDOR[conexion.provider].nombreCorto} Calendar is not connected`,
+  });
+}
+
+/** Errores de calendario en las rutas del panel: reconexión requerida ⇒ se
+ * marca desconectado (modo panel: conserva el refresh token, guarda el
+ * motivo e invalida la caché de voz) y 409; cualquier otro
+ * CalendarBusinessError ⇒ 502. Devuelve null si el error no es de
+ * calendario para que la ruta siga con su 500. */
+async function responderErrorDeCalendario(
+  reply: FastifyReply,
+  businessId: string,
+  error: unknown
+) {
+  const proveedorRoto = proveedorDesdeErrorDeReconexion(error);
+  if (proveedorRoto && esCalendarBusinessError(error)) {
+    await marcarCalendarioDesconectado(businessId, proveedorRoto, {
+      modo: "panel",
+      motivo: error.message,
+    });
+    return reply.status(409).send({ code: error.code, error: error.message });
+  }
+  if (esCalendarBusinessError(error)) {
+    return reply.status(502).send({ code: error.code, error: error.message });
+  }
+  return null;
+}
+
 export async function calendarRoutes(fastify: FastifyInstance) {
   
   // 1. Endpoint para que el frontend solicite la URL de autenticación
@@ -71,79 +127,26 @@ export async function calendarRoutes(fastify: FastifyInstance) {
       try {
         const { limit } = UpcomingEventsQuerySchema.parse(request.query);
         const businessId = request.user!.businessId;
-        const business = await prisma.business.findUnique({
-          where: { id: businessId },
-          select: {
-            calendarProvider: true,
-            googleRefreshToken: true,
-            googleCalendarId: true,
-            googleCalendarConnected: true,
-            outlookRefreshToken: true,
-            outlookCalendarId: true,
-            outlookCalendarConnected: true,
-          },
-        });
+        const conexion = await cargarConexion(businessId);
 
-        const provider = business?.calendarProvider === 'outlook' ? 'outlook' : 'google';
-        const isConnected = provider === 'outlook'
-          ? business?.outlookCalendarConnected && business.outlookRefreshToken
-          : business?.googleCalendarConnected && business.googleRefreshToken;
-
-        if (!isConnected) {
-          return reply.status(409).send({
-            code: provider === 'outlook' ? "OUTLOOK_CALENDAR_RECONNECT_REQUIRED" : "GOOGLE_CALENDAR_RECONNECT_REQUIRED",
-            error: `${provider === 'outlook' ? 'Outlook' : 'Google'} Calendar is not connected`,
-          });
+        if (!conexionConfirmada(conexion)) {
+          return respuestaNoConectado(reply, conexion);
         }
 
-        const events = await calendarService.getUpcomingEvents(
-          provider,
-          {
-            googleRefreshToken: business?.googleRefreshToken,
-            googleCalendarId: business?.googleCalendarId,
-            outlookRefreshToken: business?.outlookRefreshToken,
-            outlookCalendarId: business?.outlookCalendarId,
-          },
-          limit,
-        );
+        const events = await calendarService.getUpcomingEvents(conexion, limit);
 
-        return reply.send({ events, provider });
+        return reply.send({ events, provider: conexion.provider });
       } catch (error) {
         if (error instanceof z.ZodError) {
           return reply.status(400).send({ code: "INVALID_QUERY", error: error.errors });
         }
 
-        if (error instanceof CalendarBusinessError) {
-          if (error.code === "GOOGLE_CALENDAR_RECONNECT_REQUIRED") {
-            const businessId = request.user!.businessId;
-            await prisma.business.update({
-              where: { id: businessId },
-              data: {
-                googleCalendarConnected: false,
-                googleCalendarDisconnectedAt: new Date(),
-                googleCalendarLastError: error.message,
-              },
-            });
-
-            return reply.status(409).send({ code: error.code, error: error.message });
-          }
-
-          if (error.code === "OUTLOOK_CALENDAR_RECONNECT_REQUIRED") {
-            const businessId = request.user!.businessId;
-            await prisma.business.update({
-              where: { id: businessId },
-              data: {
-                outlookCalendarConnected: false,
-                outlookCalendarDisconnectedAt: new Date(),
-                outlookCalendarLastError: error.message,
-              },
-            });
-
-            return reply.status(409).send({ code: error.code, error: error.message });
-          }
-
-          return reply.status(502).send({ code: error.code, error: error.message });
-        }
+        const respondido = await responderErrorDeCalendario(
+          reply,
+          request.user!.businessId,
+          error
+        );
+        if (respondido) return respondido;
 
         fastify.log.error(error);
         return reply.status(500).send({
@@ -160,57 +163,28 @@ export async function calendarRoutes(fastify: FastifyInstance) {
     async (request: FastifyRequest, reply) => {
       try {
         const businessId = request.user!.businessId;
-        const business = await prisma.business.findUnique({
-          where: { id: businessId },
-          select: {
-            calendarProvider: true,
-            googleRefreshToken: true,
-            googleCalendarId: true,
-            googleCalendarConnected: true,
-            outlookRefreshToken: true,
-            outlookCalendarId: true,
-            outlookCalendarConnected: true,
-          },
-        });
+        const conexion = await cargarConexion(businessId);
 
-        const provider = business?.calendarProvider === 'outlook' ? 'outlook' : 'google';
-        const isConnected = provider === 'outlook'
-          ? business?.outlookCalendarConnected && business.outlookRefreshToken
-          : business?.googleCalendarConnected && business.googleRefreshToken;
-
-        if (!isConnected) {
-          return reply.status(409).send({
-            code: provider === 'outlook' ? "OUTLOOK_CALENDAR_RECONNECT_REQUIRED" : "GOOGLE_CALENDAR_RECONNECT_REQUIRED",
-            error: `${provider === 'outlook' ? 'Outlook' : 'Google'} Calendar is not connected`,
-          });
+        if (!conexionConfirmada(conexion)) {
+          return respuestaNoConectado(reply, conexion);
         }
 
-        const calendars = provider === 'outlook'
-          ? await calendarService.listOutlookCalendars(business!.outlookRefreshToken!)
-          : await calendarService.listGoogleCalendars(business!.googleRefreshToken!);
+        const calendars = await calendarService.listarCalendarios(conexion);
 
         return reply.send({
-          provider,
-          selectedCalendarId: provider === 'outlook' ? business!.outlookCalendarId : business!.googleCalendarId,
+          provider: conexion.provider,
+          // El id crudo de la columna, sin el default del proveedor: el panel
+          // distingue "no se ha elegido" de "primary".
+          selectedCalendarId: conexion.calendarIdConfigurado,
           calendars,
         });
       } catch (error) {
-        if (error instanceof CalendarBusinessError) {
-          if (error.code === "GOOGLE_CALENDAR_RECONNECT_REQUIRED" || error.code === "OUTLOOK_CALENDAR_RECONNECT_REQUIRED") {
-            const businessId = request.user!.businessId;
-            const isGoogle = error.code === "GOOGLE_CALENDAR_RECONNECT_REQUIRED";
-            await prisma.business.update({
-              where: { id: businessId },
-              data: isGoogle
-                ? { googleCalendarConnected: false, googleCalendarDisconnectedAt: new Date(), googleCalendarLastError: error.message }
-                : { outlookCalendarConnected: false, outlookCalendarDisconnectedAt: new Date(), outlookCalendarLastError: error.message },
-            });
-
-            return reply.status(409).send({ code: error.code, error: error.message });
-          }
-
-          return reply.status(502).send({ code: error.code, error: error.message });
-        }
+        const respondido = await responderErrorDeCalendario(
+          reply,
+          request.user!.businessId,
+          error
+        );
+        if (respondido) return respondido;
 
         fastify.log.error(error);
         return reply.status(500).send({
@@ -228,14 +202,10 @@ export async function calendarRoutes(fastify: FastifyInstance) {
       try {
         const { calendarId } = ConnectMicrosoftCalendarSchema.parse(request.body);
         const businessId = request.user!.businessId;
-        const business = await prisma.business.findUnique({
-          where: { id: businessId },
-          select: { calendarProvider: true },
-        });
-
-        const updated = business?.calendarProvider === 'outlook'
-          ? await calendarService.connectMicrosoftCalendar(businessId, calendarId)
-          : await calendarService.selectGoogleCalendar(businessId, calendarId);
+        const updated = await calendarService.seleccionarCalendario(
+          businessId,
+          calendarId
+        );
 
         const { googleRefreshToken, outlookRefreshToken, ...publicBusiness } = updated;
         void googleRefreshToken;
