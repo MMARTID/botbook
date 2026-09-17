@@ -289,12 +289,6 @@ export function BusinessHoursEditor({
               Este día figura como cerrado.
             </div>
           )}
-
-          <div className="mt-6 flex justify-end">
-            <button type="button" onClick={() => onSave(schedule)} disabled={isSaving} className="btn-primary px-5">
-              <Save className="h-4 w-4" /> {isSaving ? "Guardando..." : "Guardar horario"}
-            </button>
-          </div>
         </div>
       </div>
 
@@ -381,12 +375,18 @@ export function BusinessHoursEditor({
             No hay ningún día especial guardado. El agente seguirá el horario semanal.
           </p>
         )}
+      </div>
 
-        <div className="mt-4 flex justify-end">
-          <button type="button" onClick={() => onSave(schedule)} disabled={isSaving} className="btn-primary px-5">
-            <Save className="h-4 w-4" /> {isSaving ? "Guardando..." : "Guardar horario"}
-          </button>
-        </div>
+      {/* Un único Guardar para toda la sección: la semana y los días especiales
+          viajan en el mismo objeto y se guardan de una vez. Con un botón por
+          bloque salían dos primarios idénticos en el mismo panel. */}
+      <div className="flex flex-wrap items-center justify-end gap-3 border-t border-[#e5e5e5] p-4 sm:p-6">
+        <p className="mr-auto text-sm text-muted">
+          Se guardan a la vez el horario semanal y los días especiales.
+        </p>
+        <button type="button" onClick={() => onSave(schedule)} disabled={isSaving} className="btn-primary px-5">
+          <Save className="h-4 w-4" /> {isSaving ? "Guardando..." : "Guardar horario"}
+        </button>
       </div>
     </SettingsSection>
   );
