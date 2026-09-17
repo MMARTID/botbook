@@ -1,0 +1,174 @@
+<!doctype html>
+<!--
+  Banco de pruebas manual: dibuja la misma geometría del hero (50 hilos ×
+  110 puntos) con cinco técnicas y mide fps y ms de CPU por fotograma.
+
+  Existe porque el 2026-09-17 se atribuyó a la técnica de dibujo un "lag"
+  que en realidad era Safari capando requestAnimationFrame (15 fps con Modo
+  de bajo consumo, 30 fps en un monitor concreto, 144 fps en otro) — y las
+  cinco técnicas daban exactamente los mismos fps en cada caso. Antes de
+  culpar al canvas, medir aquí: si todas las filas dan lo mismo, el tope no
+  está en el dibujo.
+
+  Uso: copiar a frontend/public/dev/ (sin commitear) y abrir
+  http://localhost:3001/dev/bench-hero.html en el navegador a probar. No
+  vive en public/ para no desplegarse a producción.
+-->
+<meta charset="utf-8">
+<title>Bench hero — técnicas de dibujo</title>
+<style>
+  body { margin: 0; font: 14px/1.5 system-ui, sans-serif; background: #fff; color: #0a0a0a; }
+  #ui { position: fixed; top: 12px; left: 12px; z-index: 2; background: rgba(255,255,255,.94); padding: 10px 14px; border: 1px solid #ddd; border-radius: 10px; min-width: 520px; }
+  #ui b { font-size: 16px; }
+  table { border-collapse: collapse; margin-top: 8px; }
+  td, th { text-align: left; padding: 3px 12px 3px 0; font-variant-numeric: tabular-nums; }
+  th { color: #52525b; font-weight: 600; }
+  canvas { position: fixed; inset: 0; width: 100vw; height: 100vh; }
+  #estado { color: #6d28d9; font-weight: 600; }
+</style>
+<div id="ui">
+  <b>Bench hero</b> · <span id="info"></span><br>
+  <span id="estado">Preparando…</span>
+  <table><thead><tr><th>Técnica</th><th>fps</th><th>ms CPU / fotograma</th><th>fotogramas largos (&gt;20 ms)</th></tr></thead><tbody id="out"></tbody></table>
+</div>
+<canvas id="c2d"></canvas>
+<canvas id="cgl"></canvas>
+<script>
+const HILOS = 50, PUNTOS = 110, DURACION = 2500;
+const W = innerWidth, H = innerHeight;
+const c2d = document.getElementById("c2d"), cgl = document.getElementById("cgl");
+const info = document.getElementById("info"), out = document.getElementById("out"), estado = document.getElementById("estado");
+info.textContent = `${navigator.userAgent.match(/(Safari|Chrome|Firefox)\/[\d.]+/g)?.join(" ") ?? ""} · ${W}×${H} · dpr ${devicePixelRatio}`;
+
+// Misma geometría para todas las técnicas: 50 hilos × 110 puntos, ondulando.
+const pos = new Float32Array(HILOS * PUNTOS * 2);
+function geometria(t) {
+  for (let i = 0; i < HILOS; i++) for (let k = 0; k < PUNTOS; k++) {
+    const x = (k / (PUNTOS - 1)) * W, u = x / W;
+    const y = H * 0.5 + (i - HILOS / 2) * 8 + Math.sin(u * 6 + t + i * 0.1) * 60 + Math.cos(u * 3 - t * 0.7 + i * 0.05) * 90;
+    pos[(i * PUNTOS + k) * 2] = x; pos[(i * PUNTOS + k) * 2 + 1] = y;
+  }
+}
+
+function medir(nombre, preparar, dibujar) {
+  return new Promise((res) => {
+    preparar();
+    let frames = 0, cpu = 0, largos = 0, ultimo = 0;
+    const inicio = performance.now();
+    function tick(ahora) {
+      if (ultimo && ahora - ultimo > 20) largos++;
+      ultimo = ahora;
+      const t0 = performance.now();
+      geometria(ahora / 1000);
+      dibujar(ahora / 1000);
+      cpu += performance.now() - t0;
+      frames++;
+      if (ahora - inicio < DURACION) requestAnimationFrame(tick);
+      else {
+        const fps = frames / ((ahora - inicio) / 1000);
+        out.insertAdjacentHTML("beforeend", `<tr><td>${nombre}</td><td>${fps.toFixed(0)}</td><td>${(cpu / frames).toFixed(2)}</td><td>${largos}</td></tr>`);
+        res();
+      }
+    }
+    requestAnimationFrame(tick);
+  });
+}
+
+// ---------- Canvas 2D ----------
+function prepararCanvas(dpr) {
+  cgl.style.display = "none"; c2d.style.display = "block";
+  c2d.width = Math.round(W * dpr); c2d.height = Math.round(H * dpr);
+  const ctx = c2d.getContext("2d"); ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  return ctx;
+}
+function dibujoCanvas(ctx, gradientes) {
+  return () => {
+    ctx.clearRect(0, 0, W, H);
+    for (let i = 0; i < HILOS; i++) {
+      ctx.beginPath();
+      ctx.moveTo(pos[i * PUNTOS * 2], pos[i * PUNTOS * 2 + 1]);
+      for (let k = 1; k < PUNTOS; k++) ctx.lineTo(pos[(i * PUNTOS + k) * 2], pos[(i * PUNTOS + k) * 2 + 1]);
+      if (gradientes && i % 6 === 0) {
+        const g = ctx.createLinearGradient(W * 0.3, 0, W * 0.7, 0);
+        g.addColorStop(0, "rgba(10,10,10,0.3)"); g.addColorStop(0.5, "rgba(139,92,246,0.85)"); g.addColorStop(1, "rgba(10,10,10,0.3)");
+        ctx.strokeStyle = g; ctx.lineWidth = 1.6;
+      } else { ctx.strokeStyle = "rgba(10,10,10,0.3)"; ctx.lineWidth = 1.1; }
+      ctx.stroke();
+    }
+  };
+}
+
+// ---------- WebGL: líneas (LINE_STRIP por hilo), posiciones desde CPU ----------
+function gl2() {
+  c2d.style.display = "none"; cgl.style.display = "block";
+  return cgl.getContext("webgl2", { antialias: true, alpha: true, premultipliedAlpha: true });
+}
+function compilar(gl, vs, fs) {
+  const p = gl.createProgram();
+  for (const [tipo, src] of [[gl.VERTEX_SHADER, vs], [gl.FRAGMENT_SHADER, fs]]) {
+    const s = gl.createShader(tipo); gl.shaderSource(s, src); gl.compileShader(s);
+    if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s));
+    gl.attachShader(p, s);
+  }
+  gl.linkProgram(p); if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p));
+  return p;
+}
+function prepararGLLineas(dpr) {
+  const gl = gl2(); if (!gl) throw new Error("sin webgl2");
+  cgl.width = Math.round(W * dpr); cgl.height = Math.round(H * dpr); gl.viewport(0, 0, cgl.width, cgl.height);
+  const prog = compilar(gl, `#version 300 es
+    in vec2 p; uniform vec2 res; void main(){ vec2 c = p / res * 2.0 - 1.0; gl_Position = vec4(c.x, -c.y, 0.0, 1.0); }`,
+    `#version 300 es
+    precision mediump float; out vec4 o; void main(){ o = vec4(vec3(10.0/255.0) * 0.3, 0.3); }`);
+  gl.useProgram(prog); gl.uniform2f(gl.getUniformLocation(prog, "res"), W, H);
+  const buf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, buf); gl.bufferData(gl.ARRAY_BUFFER, pos.byteLength, gl.DYNAMIC_DRAW);
+  const loc = gl.getAttribLocation(prog, "p"); gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
+  gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA); gl.clearColor(0, 0, 0, 0);
+  return () => {
+    gl.clear(gl.COLOR_BUFFER_BIT);
+    gl.bufferSubData(gl.ARRAY_BUFFER, 0, pos);
+    for (let i = 0; i < HILOS; i++) gl.drawArrays(gl.LINE_STRIP, i * PUNTOS, PUNTOS);
+  };
+}
+
+// ---------- WebGL: un solo shader de fragmento que calcula los 50 hilos ----------
+function prepararGLShader(dpr) {
+  const gl = gl2(); if (!gl) throw new Error("sin webgl2");
+  cgl.width = Math.round(W * dpr); cgl.height = Math.round(H * dpr); gl.viewport(0, 0, cgl.width, cgl.height);
+  const prog = compilar(gl, `#version 300 es
+    void main(){ vec2 v = vec2((gl_VertexID << 1) & 2, gl_VertexID & 2); gl_Position = vec4(v * 2.0 - 1.0, 0.0, 1.0); }`,
+    `#version 300 es
+    precision highp float; uniform vec2 res; uniform float t; uniform float dpr; out vec4 o;
+    void main(){
+      vec2 px = gl_FragCoord.xy / dpr; float x = px.x, y = res.y - px.y; float u = x / res.x; float a = 0.0;
+      for (int i = 0; i < ${HILOS}; i++) {
+        float fi = float(i);
+        float yi = res.y * 0.5 + (fi - ${HILOS}.0 / 2.0) * 8.0 + sin(u * 6.0 + t + fi * 0.1) * 60.0 + cos(u * 3.0 - t * 0.7 + fi * 0.05) * 90.0;
+        a += (1.0 - smoothstep(0.0, 1.2, abs(y - yi))) * 0.3;
+      }
+      a = min(a, 0.9); o = vec4(vec3(10.0/255.0) * a, a);
+    }`);
+  gl.useProgram(prog);
+  gl.uniform2f(gl.getUniformLocation(prog, "res"), W, H); gl.uniform1f(gl.getUniformLocation(prog, "dpr"), dpr);
+  const ut = gl.getUniformLocation(prog, "t");
+  gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA); gl.clearColor(0, 0, 0, 0);
+  return (t) => { gl.clear(gl.COLOR_BUFFER_BIT); gl.uniform1f(ut, t); gl.drawArrays(gl.TRIANGLES, 0, 3); };
+}
+
+(async () => {
+  const pasos = [
+    ["Canvas 2D · dpr 1 · trazos planos (heydiga)", () => { const ctx = prepararCanvas(1); return dibujoCanvas(ctx, false); }],
+    ["Canvas 2D · dpr 2 · trazos planos", () => { const ctx = prepararCanvas(2); return dibujoCanvas(ctx, false); }],
+    ["Canvas 2D · dpr 2 · con 8 degradados (hilos)", () => { const ctx = prepararCanvas(2); return dibujoCanvas(ctx, true); }],
+    ["WebGL · líneas desde CPU · dpr 2", () => prepararGLLineas(2)],
+    ["WebGL · shader de fragmento · dpr 2", () => prepararGLShader(2)],
+  ];
+  for (const [nombre, preparar] of pasos) {
+    estado.textContent = `Midiendo: ${nombre}…`;
+    try { let dibujar; await medir(nombre, () => { dibujar = preparar(); }, (t) => dibujar(t)); }
+    catch (e) { out.insertAdjacentHTML("beforeend", `<tr><td>${nombre}</td><td colspan=3>error: ${e.message}</td></tr>`); }
+  }
+  estado.textContent = "Listo.";
+  window.__bench = out.innerText;
+})();
+</script>

@@ -32,6 +32,18 @@ import { avanzarTela, crearTela, type Cursor, type Tela } from "@/components/her
  * leídas cada fotograma sin re-render. Los hilos que tocas se encienden en
  * el acento.
  *
+ * Si en algún Safari se ve "a tirones", medir antes de tocar nada con
+ * `tests/manual/bench-hero.html`: el 2026-09-17 se comprobó que Safari capa
+ * `requestAnimationFrame` a 15 fps con el Modo de bajo consumo de macOS y a
+ * 30 fps en según qué monitor, con cualquier técnica (canvas 2D o WebGL dan
+ * los mismos fps); esta capa cuesta ~0,6 ms de CPU por fotograma en Safari.
+ * Para esos casos hay un modo ligero: si en una ventana de 2 s la mayoría
+ * de los fotogramas llegan por debajo de ~45 fps, el efecto del ratón se
+ * apaga (con fundido) y quedan solo los hilos y los pulsos — a 30 fps una
+ * tela que persigue al cursor parece rota, un fondo que se mece no. Es
+ * definitivo para esa visita: no vuelve a encenderse aunque los fps suban,
+ * para que no parpadee entre modos. Se ve en `data-modo="ligero"`.
+ *
  * Reglas heredadas de `particle-mouse-layer`: nunca se lee `scrollY` (la
  * animación no depende del desplazamiento, así que no hay nada que se pueda
  * desincronizar); el ratón solo se escucha con `pointer: fine`; con
@@ -57,6 +69,15 @@ const OPACIDAD_HILO = 0.3;
 /** Tope del tiempo que se simula por fotograma: tras una pestaña oculta la
  * tela retoma donde estaba en vez de dar un brinco. */
 const DT_MAXIMO = 1 / 30;
+
+/** Modo ligero: ventana de medición (s), umbral de fotograma lento (s) y
+ * proporción de fotogramas lentos en la ventana a partir de la cual se apaga
+ * el ratón. 1/45 s deja pasar los 60 fps con margen y pilla los 30 de Safari
+ * capado; la primera ventana se ignora porque la carga de la página siempre
+ * da tirones que no dicen nada del navegador. */
+const VENTANA_FPS = 2;
+const FOTOGRAMA_LENTO = 1 / 45;
+const PROPORCION_LENTOS = 0.6;
 
 /** Luz: radio vertical (px) alrededor del cursor en el que un hilo se
  * enciende en el acento y engorda un poco, y alcance horizontal de esa luz a
@@ -164,6 +185,11 @@ export function HeroHilos({ color = "#8b5cf6" }: { color?: string }) {
     let ultimoFotograma = 0;
     let visible = true;
     let cursorDentro = false;
+    let modoLigero = false;
+    let ventanaFrames = 0;
+    let ventanaLentos = 0;
+    let ventanaTiempo = 0;
+    let primeraVentana = true;
     let pulsos: Pulso[] = [];
     let proximoPulso = 0.6;
 
@@ -209,14 +235,14 @@ export function HeroHilos({ color = "#8b5cf6" }: { color?: string }) {
       cursor.x = cursorX.get();
       cursor.y = cursorY.get();
       cursor.vy = velocidadY.get();
-      cursor.fuerza = conRaton ? presencia.get() : 0;
+      cursor.fuerza = conRaton && !modoLigero ? presencia.get() : 0;
       avanzarTela(tela, dt, cursor, PASO_X);
     }
 
     /** Cuánto "toca" el cursor al hilo `i`: 1 justo encima, 0 fuera del radio
      * de luz. Se mide en la abscisa del cursor, que es donde se nota. */
     function cercaniaAlCursor(i: number): number {
-      if (!conRaton) return 0;
+      if (!conRaton || modoLigero) return 0;
       const p = presencia.get();
       if (p < 0.001) return 0;
       const cx = cursorX.get();
@@ -326,14 +352,39 @@ export function HeroHilos({ color = "#8b5cf6" }: { color?: string }) {
       const ahora = ahoraMs / 1000;
       // Acotado por arriba (pausa larga) y por abajo (WebKit puede entregar un
       // timestamp anterior al previo): un dt negativo invertiría la fricción.
-      const dt = ultimoFotograma ? Math.min(Math.max(ahora - ultimoFotograma, 0), DT_MAXIMO) : 0;
+      const dtCrudo = ultimoFotograma ? Math.max(ahora - ultimoFotograma, 0) : 0;
+      const dt = Math.min(dtCrudo, DT_MAXIMO);
       ultimoFotograma = ahora;
       tiempo += dt;
+      if (dtCrudo > 0) vigilarFotogramas(dtCrudo);
 
       if (dt > 0) simularTela(dt);
       avanzarPulsos(dt);
       pintar(tiempo);
       animacion = window.requestAnimationFrame(fotograma);
+    }
+
+    /** Mide la cadencia real de rAF (sin el tope de DT_MAXIMO) y apaga el
+     * ratón si el navegador no llega. Ver el bloque de arriba. */
+    function vigilarFotogramas(dtCrudo: number) {
+      if (modoLigero) return;
+      ventanaFrames++;
+      ventanaTiempo += dtCrudo;
+      if (dtCrudo > FOTOGRAMA_LENTO) ventanaLentos++;
+      if (ventanaTiempo < VENTANA_FPS) return;
+      if (!primeraVentana && ventanaLentos / ventanaFrames >= PROPORCION_LENTOS) activarModoLigero();
+      primeraVentana = false;
+      ventanaFrames = 0;
+      ventanaLentos = 0;
+      ventanaTiempo = 0;
+    }
+
+    function activarModoLigero() {
+      modoLigero = true;
+      canvas!.dataset.modo = "ligero";
+      // El muelle de presencia funde la influencia que quede; la tela se
+      // asienta sola con su propia física.
+      presencia.set(0);
     }
 
     function detener() {
@@ -349,6 +400,7 @@ export function HeroHilos({ color = "#8b5cf6" }: { color?: string }) {
     }
 
     function alMoverRaton(evento: MouseEvent) {
+      if (modoLigero) return;
       const caja = canvas!.getBoundingClientRect();
       const x = evento.clientX - caja.left;
       const y = evento.clientY - caja.top;

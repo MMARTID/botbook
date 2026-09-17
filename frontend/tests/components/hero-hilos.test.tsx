@@ -109,6 +109,60 @@ describe("HeroHilos", () => {
     expect(quitar).toHaveBeenCalledWith("mousemove", expect.any(Function));
   });
 
+  /**
+   * Conduce el bucle a mano con un rAF falso que entrega timestamps a la
+   * cadencia pedida, como haría un navegador capado (Safari a 30 fps con
+   * bajo consumo o en según qué monitor).
+   */
+  function conducirFotogramas({ fps, segundos }: { fps: number; segundos: number }) {
+    const cola: FrameRequestCallback[] = [];
+    vi.spyOn(window, "requestAnimationFrame").mockImplementation((cb) => {
+      cola.push(cb);
+      return cola.length;
+    });
+    const render = () => {
+      let ahora = 1000;
+      const paso = 1000 / fps;
+      for (let n = 0; n < fps * segundos; n++) {
+        ahora += paso;
+        const cb = cola.shift();
+        if (!cb) break;
+        cb(ahora);
+      }
+    };
+    return render;
+  }
+
+  it("apaga el ratón (modo ligero) si el navegador no pasa de ~45 fps de forma sostenida", () => {
+    simularMedios({ punteroFino: true, movimientoReducido: false });
+    const avanzar = conducirFotogramas({ fps: 30, segundos: 5 });
+
+    render(<HeroHilos />);
+    avanzar();
+
+    expect(screen.getByTestId("hero-hilos")).toHaveAttribute("data-modo", "ligero");
+  });
+
+  it("a 60 fps el ratón sigue activo", () => {
+    simularMedios({ punteroFino: true, movimientoReducido: false });
+    const avanzar = conducirFotogramas({ fps: 60, segundos: 5 });
+
+    render(<HeroHilos />);
+    avanzar();
+
+    expect(screen.getByTestId("hero-hilos")).not.toHaveAttribute("data-modo");
+  });
+
+  it("la primera ventana de 2 s no cuenta: la carga de la página siempre da tirones", () => {
+    simularMedios({ punteroFino: true, movimientoReducido: false });
+    const avanzar = conducirFotogramas({ fps: 30, segundos: 1.5 });
+
+    render(<HeroHilos />);
+    avanzar();
+
+    expect(screen.getByTestId("hero-hilos")).not.toHaveAttribute("data-modo");
+  });
+
   it("no lanza cuando el navegador no da contexto 2D", () => {
     simularMedios({ punteroFino: true, movimientoReducido: false });
     vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(null);
