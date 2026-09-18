@@ -91,10 +91,7 @@ model Business {
   telnyxPhoneNumberPurchasedAt DateTime?
 
   // Calendario: la conexión vive en CalendarConnection (una fila por
-  // proveedor); esto es solo el puntero al proveedor activo. Las antiguas
-  // columnas google*/outlook* ya no existen para el cliente Prisma; en la BD
-  // se borran en la migración siguiente, una vez desplegada esta revisión
-  // (la anterior aún las seleccionaba en consultas sin `select`).
+  // proveedor); esto es solo el puntero al proveedor activo.
   calendarProvider    String?
 
   // Marca de la última semana resumida por email. Cloud Scheduler entrega al

@@ -406,10 +406,11 @@ un `Business` al cliente; las rutas cargan las filas con `INCLUDE_CONEXIONES`. F
 
 Historial (expand/contract, porque `cloudbuild.yaml` migra antes del cambio de tráfico y la revisión
 anterior sigue sirviendo unos minutos contra el schema nuevo): PR #77 creó la tabla con backfill y
-escribía las columnas antiguas en espejo; el PR siguiente retiró el espejo y las columnas del schema
-Prisma (el cliente ya no las selecciona) **sin borrarlas de la BD**; la migración `DROP COLUMN` va en un
-PR aparte, una vez desplegado ese código. Si `prisma migrate dev` en dev detecta deriva por esas
-columnas, es esa migración pendiente.
+escribía las columnas antiguas en espejo; PR #78 retiró el espejo y las columnas del schema Prisma
+(el cliente ya no las selecciona) sin borrarlas de la BD; y, una vez desplegado ese código, la migración
+`20260918100000_drop_legacy_calendar_columns` las borró. Receta reutilizable para cualquier columna que
+haya que quitar: (1) dejar de leerla/escribirla y sacarla del schema, desplegar; (2) `DROP COLUMN` en
+el PR siguiente.
 
 ### Orchestrator Field on `Business`
 
