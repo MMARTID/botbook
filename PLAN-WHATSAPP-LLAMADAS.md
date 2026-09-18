@@ -40,7 +40,9 @@ Nada que migrar, nada que dar de baja.
 | Activación: `PATCH /v2/whatsapp/phone_numbers/{n}/calling_settings {"enabled": true}`; lectura con `GET …/calling_settings`. Al activar, Telnyx crea sola una «WhatsApp Calling connection». | Docs Telnyx |
 | Precio: 0,0025 $/min plano en llamadas entrantes y salientes; las salientes además pagan la tarifa de Meta. Entrantes = «standard call routing». | Help Center Telnyx |
 | Salientes: exigen permiso previo del usuario (petición por plantilla, 1/24 h y 2/7 días; o permiso permanente desde el perfil) y se marcan a `sip:<destino>@whatsapp-<numero_sin_mas>.sip.telnyx.com`. Sin restricción para números españoles. | Docs Telnyx |
-| Registro de un número en un WABA por API: `POST /v2/whatsapp/business_accounts/{waba_id}/phone_numbers` con `phone_number`, `display_name`, `verification_method: "sms" \| "voice"`, `language`. Estado en `GET /v2/whatsapp/phone_numbers` (`status`, `display_name`, `quality_rating`, `enabled`, `calling_enabled`, `is_on_biz_app`). Perfil en `GET/PATCH …/phone_numbers/{n}/profile` (`about`, `description`, `address`, `email`, `website`, `category`, `profile_photo_url`). | [API reference](https://developers.telnyx.com/api-reference/whatsapp-phone-numbers/list-whatsapp-phone-numbers) |
+| Registro de un número en un WABA por API: `POST /v2/whatsapp/business_accounts/{waba_id}/phone_numbers` con `phone_number`, `display_name`, `verification_method: "sms" \| "voice"`, `language` (204). Código recibido: `POST /v2/whatsapp/phone_numbers/{n}/verify {"code": "…"}` (204); reenvío: «Resend verification code». Estado en `GET /v2/whatsapp/phone_numbers[/{n}]` (`status`, `display_name`, `quality_rating`, `enabled`, `calling_enabled`, `is_on_biz_app`, `coexistence_state`). `PATCH …/calling_settings` solo admite `{"enabled": bool}`; horario de llamadas y «Allow callbacks» se gestionan en Meta Business Suite. Perfil en `GET/PATCH …/phone_numbers/{n}/profile` (`about`, `description`, `address`, `email`, `website`, `category`, foto en `…/profile_photo`). | [Índice de la API WhatsApp](https://developers.telnyx.com/public/llms/messaging/whatsapp.txt) |
+| El quickstart de Telnyx recomienda **verificación por llamada** para números fijos, y exige que el número Telnyx tenga **un perfil de mensajería activo** para registrarse en el WABA. Los números españoles no admiten perfil de mensajería permanente (error 40323) — hay que confirmar en Fase 0 cómo se registró el número de plataforma pese a eso. | [Quickstart](https://developers.telnyx.com/docs/messaging/whatsapp/quickstart) |
+| Existe **Tech Provider Embedded Signup**: Alhabla podría dar a cada negocio un enlace alojado (`POST /v2/whatsapp/hosted_signups` → `https://acct.fyi?token=…`, caduca a los 3 días) para que cree **su propio WABA** con su cuenta de Facebook; Telnyx registra el WABA solo (`POST /v2/whatsapp/business_accounts/tech_provider`). Requiere una app de Meta de Alhabla aprobada por App Review (`whatsapp_business_messaging`, `whatsapp_business_management`, acceso avanzado, varios días) y una invitación de partner que gestiona Telnyx (1–2 días). | [Tech Provider](https://developers.telnyx.com/docs/messaging/whatsapp/embedded-signup/tech-provider) |
 | Un número español de Telnyx **no recibe SMS** (bloqueo 40323 ya documentado en `WhatsAppAdapter.ts`), así que la verificación de Meta tiene que ser **por llamada de voz**, y esa llamada entra por la conexión de voz del número: hoy la contestaría el assistant o Retell. | AGENTS.md, `WhatsAppAdapter.ts` |
 | Límite de números: 2 por cartera hasta verificar la empresa; después Meta lo sube automáticamente según calidad y uso; por defecto 25 por WABA, ampliable a 120 por solicitud con caso de negocio. | Vonage/Sinch/Twilio (help centers) |
 | Nombre visible (display name): tiene que «tener relación con el negocio» y lo revisa Meta; no es visible para el usuario hasta que la empresa está verificada y el nombre aprobado (hasta entonces el cliente ve el número). | 360dialog docs |
@@ -53,10 +55,18 @@ Nada que migrar, nada que dar de baja.
 |---|---|---|---|
 | Fricción para el negocio | Cero: no toca Meta, no necesita Facebook ni Business Manager | Alta: cuenta de Facebook, cartera de Meta, verificación de empresa por cada peluquería | Alhabla |
 | Requisito de 2.000 de límite de mensajería | Se cumple una vez para toda la plataforma | Cada cartera nueva empieza en 250; para llegar a 2.000 cada negocio tendría que verificar su empresa con Meta | Alhabla |
-| Autoservicio | Todo por API desde el backend | El Embedded Signup de Telnyx vive en su portal, no es embebible en nuestra app | Alhabla |
+| Autoservicio | Todo por API desde el backend, sin cuenta de Facebook | Posible con Tech Provider Embedded Signup (enlace alojado), pero el negocio tiene que iniciar sesión en Facebook, completar la verificación de empresa de Meta y Alhabla necesita una app de Meta aprobada por App Review | Alhabla |
 | Nombre visible | Riesgo: Meta puede rechazar «Peluquería Loli» bajo la cartera de Alhabla | Sin riesgo | Riesgo asumido, con piloto (Fase 0) y patrón alternativo «Peluquería Loli · Alhabla» |
 | Escala | Tope de números por WABA (25 → 120 por solicitud); habrá que pedir ampliaciones o abrir varios WABAs en la misma cartera | Sin tope de plataforma | Se planifica en Fase 4 |
 | Calidad | Un negocio con mala calidad de mensajería afecta al nivel de toda la cartera | Aislado | Mitigación: solo plantillas de utilidad, sin marketing, monitorización (Fase 4) |
+
+Plan B documentado: si Meta rechaza sistemáticamente los nombres visibles de terceros bajo el
+WABA de Alhabla, o el tope de números se vuelve inmanejable, la vía es Tech Provider Embedded
+Signup (WABA propio de cada negocio, enlace alojado desde `/ajustes`). Sirve para mensajería
+desde el primer día, pero para **llamadas** cada cartera de negocio tendría que alcanzar por sí
+misma el límite de 2.000 (verificación de empresa de cada peluquería con Meta), y hay que
+confirmar con Telnyx que un número Telnyx de la cuenta de Alhabla puede vivir en un WABA ajeno y
+seguir cumpliendo el requisito de «misma cuenta Telnyx» para calling.
 
 Consecuencia importante: las confirmaciones y recordatorios de cada negocio pasarán a salir
 **desde su propio número** (mismo WABA, mismas plantillas ya aprobadas) en cuanto ese número esté
@@ -113,9 +123,12 @@ Todo con `curl -H "Authorization: Bearer $TELNYX_API_KEY"` contra `https://api.t
 5. **Verificación por voz de un número español.** Registrar un segundo número Telnyx de pruebas en
    el WABA con `POST /whatsapp/business_accounts/{waba}/phone_numbers {"verification_method":
    "voice", "language": "es_ES", …}` y observar cómo llega la llamada del código (¿qué `from`?,
-   ¿la contesta el assistant?). Documentar cómo se verificó el número actual el 14-09 (si Telnyx
-   verificó por «carrier API» sin llamada, el «modo verificación» de Fase 1 sobra).
-   Localizar en la referencia de la API el endpoint para enviar el código recibido.
+   ¿la contesta el assistant?) y enviar el código con `POST /whatsapp/phone_numbers/{n}/verify`.
+   Documentar cómo se verificó el número actual el 14-09 (si Telnyx verificó por «carrier API»
+   sin llamada, el «modo verificación» de Fase 1 sobra). **Antes**, resolver el requisito de
+   perfil de mensajería activo en un número español (40323): probar si basta con asignarlo
+   temporalmente (`assignMessagingProfile` en `TelnyxAdapter`) durante el registro, como
+   posiblemente se hizo a mano con el número de plataforma.
 6. **Piloto de nombre visible.** Registrar ese número de pruebas con el nombre de un negocio real
    de la cartera («Peluquería X») y ver si Meta lo aprueba bajo la cartera de Alhabla. Si lo
    rechaza, probar «Peluquería X · Alhabla». El resultado fija la política de nombres.
@@ -147,8 +160,10 @@ recibir el código de verificación por voz.
   1. Exige `phoneNumberStatus === "active"` y plan activo (402 si no, como el provisioning).
   2. Nombre visible = `Business.name` saneado según guías de Meta (sin emojis, sin mayúsculas
      completas, máx. 25 caracteres); patrón alternativo según resultado de Fase 0.6.
-  3. `initializePhoneNumberVerification` con `voice` + `es_ES` → `verification_pending`.
-  4. Recepción del código (ver «modo verificación») → `submitVerificationCode` → `verified`.
+  3. Si Fase 0.5 lo exige, asignar el perfil de mensajería al número justo antes del registro.
+     `initializePhoneNumberVerification` con `voice` + `es_ES` → `verification_pending`.
+  4. Recepción del código (ver «modo verificación») → `submitVerificationCode`
+     (`POST …/{n}/verify`) → `verified`; reenvío disponible desde el panel.
   5. `updateProfile` con categoría por `businessType`, dirección y descripción del negocio.
   6. `setCallingEnabled(true)` y relectura de `calling_enabled` → `calling_enabled`.
   Cada paso deja log `[WhatsApp]` con negocio, número, paso y error; un fallo guarda
