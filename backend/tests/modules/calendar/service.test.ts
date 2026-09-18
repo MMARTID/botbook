@@ -9,10 +9,11 @@ import { retellAdapter } from "../../../src/adapters/retell/RetellAdapter.js";
 import { getPublicWebhookBaseUrl } from "../../../src/lib/serverUrl.js";
 import { getRedis } from "../../../src/lib/redis.js";
 import { syncAgentToTelnyx } from "../../../src/lib/telnyxAgentSync.js";
+import { resolverConexionDeCalendario } from "../../../src/modules/calendar/conexion.js";
 import {
-  resolverConexionDeCalendario,
-  type FilaDeConexionDeCalendario,
-} from "../../../src/modules/calendar/conexion.js";
+  filaDeConexion,
+  negocioConConexiones,
+} from "../../helpers/conexionDeCalendario.js";
 import { google } from "googleapis";
 
 vi.mock("../../../src/lib/prisma.js", () => ({
@@ -104,17 +105,38 @@ const mockedSyncAgentToTelnyx = vi.mocked(syncAgentToTelnyx);
  * resolución que usarán voiceTools, el job y las rutas): así los tests nuevos
  * fijan también el default "primary" de Google y el `null` de Outlook sin
  * calendario elegido. */
-function conexionDePrueba(fila: Partial<FilaDeConexionDeCalendario>) {
-  return resolverConexionDeCalendario({
-    calendarProvider: null,
-    googleRefreshToken: null,
-    googleCalendarId: null,
-    googleCalendarConnected: null,
-    outlookRefreshToken: null,
-    outlookCalendarId: null,
-    outlookCalendarConnected: null,
-    ...fila,
-  });
+/** Construye una conexión con el resolver REAL a partir de una descripción
+ * plana (proveedor activo + token/calendario por proveedor), que es como se
+ * leen mejor los 22 casos de abajo. Por dentro produce filas de
+ * calendar_connections tal como las devuelve SELECT_CONEXION_DE_CALENDARIO:
+ * sin token no hay fila (negocio que nunca conectó ese proveedor). */
+function conexionDePrueba(fila: {
+  calendarProvider: "google" | "outlook";
+  googleRefreshToken?: string | null;
+  googleCalendarId?: string | null;
+  outlookRefreshToken?: string | null;
+  outlookCalendarId?: string | null;
+}) {
+  const conexiones = [];
+  if (fila.googleRefreshToken) {
+    conexiones.push(
+      filaDeConexion("google", {
+        refreshToken: fila.googleRefreshToken,
+        calendarId: fila.googleCalendarId ?? null,
+      })
+    );
+  }
+  if (fila.outlookRefreshToken) {
+    conexiones.push(
+      filaDeConexion("outlook", {
+        refreshToken: fila.outlookRefreshToken,
+        calendarId: fila.outlookCalendarId ?? null,
+      })
+    );
+  }
+  return resolverConexionDeCalendario(
+    negocioConConexiones(fila.calendarProvider, conexiones, "business_123")
+  );
 }
 
 describe("isGoogleInvalidGrantError", () => {
@@ -885,6 +907,8 @@ describe("CalendarService.selectGoogleCalendar", () => {
 
     await calendarService.selectGoogleCalendar("business_123", "secundario_id");
 
+    // Una sola query: fila de calendar_connections (fuente de verdad) y
+    // espejo en las columnas antiguas de Business. No toca credenciales.
     expect(mockedBusinessUpdate).toHaveBeenCalledWith({
       where: { id: "business_123" },
       data: {
@@ -893,6 +917,28 @@ describe("CalendarService.selectGoogleCalendar", () => {
         googleCalendarConnected: true,
         googleCalendarDisconnectedAt: null,
         googleCalendarLastError: null,
+        calendarConnections: {
+          upsert: {
+            where: {
+              businessId_provider: {
+                businessId: "business_123",
+                provider: "google",
+              },
+            },
+            create: {
+              provider: "google",
+              calendarId: "secundario_id",
+              connected: true,
+              accountEmail: null,
+            },
+            update: {
+              calendarId: "secundario_id",
+              connected: true,
+              disconnectedAt: null,
+              lastError: null,
+            },
+          },
+        },
       },
     });
     // voice_config:<businessId> cachea el calendarProvider/credenciales
@@ -1686,16 +1732,30 @@ describe("CalendarService.seleccionarCalendario", () => {
 
     await calendarService.seleccionarCalendario("business_123", "cal_g");
 
-    expect(mockedBusinessUpdate).toHaveBeenCalledWith({
-      where: { id: "business_123" },
-      data: {
-        calendarProvider: "google",
-        googleCalendarId: "cal_g",
-        googleCalendarConnected: true,
-        googleCalendarDisconnectedAt: null,
-        googleCalendarLastError: null,
-      },
-    });
+    expect(mockedBusinessUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "business_123" },
+        data: expect.objectContaining({
+          calendarProvider: "google",
+          googleCalendarId: "cal_g",
+          googleCalendarConnected: true,
+          calendarConnections: {
+            upsert: expect.objectContaining({
+              where: {
+                businessId_provider: {
+                  businessId: "business_123",
+                  provider: "google",
+                },
+              },
+              update: expect.objectContaining({
+                calendarId: "cal_g",
+                connected: true,
+              }),
+            }),
+          },
+        }),
+      })
+    );
     // selectGoogleCalendar no sincroniza tools: no se cargan los agentes.
     expect(mockedAgentFindMany).not.toHaveBeenCalled();
   });

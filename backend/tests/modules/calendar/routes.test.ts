@@ -1,4 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  filaDeConexion,
+  negocioConConexiones,
+} from "../../helpers/conexionDeCalendario.js";
 import Fastify from "fastify";
 import { calendarRoutes } from "../../../src/modules/calendar/routes.js";
 import { calendarService } from "../../../src/modules/calendar/service.js";
@@ -35,17 +39,16 @@ const mockedListarCalendarios = vi.mocked(calendarService.listarCalendarios);
 const mockedBusinessFindUnique = vi.mocked(prisma.business.findUnique);
 const mockedBusinessUpdate = vi.mocked(prisma.business.update);
 
-/** Fila de Business con Google conectado, tal como la lee cargarConexion. */
-function filaGoogleConectada() {
-  return {
-    calendarProvider: "google",
-    googleRefreshToken: "google_refresh_token",
-    googleCalendarId: null,
-    googleCalendarConnected: true,
-    outlookRefreshToken: null,
-    outlookCalendarId: null,
-    outlookCalendarConnected: false,
-  };
+/** Negocio con Google conectado, tal como lo lee cargarConexion (fila de
+ * calendar_connections sin calendario elegido ⇒ "primary" por defecto). */
+function filaGoogleConectada(opciones: { connected?: boolean } = {}) {
+  return negocioConConexiones("google", [
+    filaDeConexion("google", {
+      refreshToken: "google_refresh_token",
+      calendarId: null,
+      connected: opciones.connected ?? true,
+    }),
+  ]);
 }
 
 describe("calendarRoutes OAuth", () => {
@@ -137,10 +140,9 @@ describe("GET /calendars", () => {
   });
 
   it("responde 409 si el proveedor activo no está confirmado como conectado", async () => {
-    mockedBusinessFindUnique.mockResolvedValue({
-      ...filaGoogleConectada(),
-      googleCalendarConnected: false,
-    } as any);
+    mockedBusinessFindUnique.mockResolvedValue(
+      filaGoogleConectada({ connected: false }) as any
+    );
 
     const response = await fastify.inject({ method: "GET", url: "/calendars" });
 
@@ -173,11 +175,23 @@ describe("GET /calendars", () => {
     expect(mockedBusinessUpdate).toHaveBeenCalledTimes(1);
     const { where, data } = mockedBusinessUpdate.mock.calls[0][0] as any;
     expect(where).toEqual({ id: "biz_1" });
+    // Modo "panel": desconectada con el motivo, pero SIN tocar las
+    // credenciales (ni en la fila ni en el espejo de Business).
     expect(data).toEqual(
       expect.objectContaining({
         googleCalendarConnected: false,
         googleCalendarLastError: "x",
         googleCalendarDisconnectedAt: expect.any(Date),
+        calendarConnections: {
+          updateMany: {
+            where: { provider: "google" },
+            data: {
+              connected: false,
+              disconnectedAt: expect.any(Date),
+              lastError: "x",
+            },
+          },
+        },
       })
     );
     expect(data).not.toHaveProperty("googleRefreshToken");

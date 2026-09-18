@@ -53,7 +53,7 @@ describe("book_appointment (integración: Postgres + Redis reales)", () => {
       callId: callB.callId,
       params: {
         clientName: "Cliente de prueba",
-        startDateTime: slot.toISOString(),
+        startDateTime: slot.iso,
         durationMinutes: 30,
       },
     });
@@ -65,7 +65,9 @@ describe("book_appointment (integración: Postgres + Redis reales)", () => {
     const bookingForA = await prisma.booking.findUnique({ where: { callId: callA.id } });
 
     expect(bookingForB).not.toBeNull();
-    expect(bookingForB?.programedAt.toISOString()).toBe(slot.toISOString());
+    expect(bookingForB?.programedAt.toISOString()).toBe(
+      slot.date.toISOString()
+    );
     expect(bookingForA).toBeNull();
   });
 
@@ -88,7 +90,7 @@ describe("book_appointment (integración: Postgres + Redis reales)", () => {
       callId: "call_que_no_existe_todavia", // p. ej. carrera con el webhook call_started
       params: {
         clientName: "Cliente de prueba",
-        startDateTime: slot.toISOString(),
+        startDateTime: slot.iso,
         durationMinutes: 30,
       },
     });

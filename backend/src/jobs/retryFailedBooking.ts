@@ -341,10 +341,9 @@ export async function processRetryFailedBookingJob(
         // desconectado y se invalida la caché de voz, en vez de dejar que
         // Cloud Tasks siga reintentando contra una conexión que no va a
         // arreglarse sola. Sin este catch, el job simplemente fallaba una y
-        // otra vez hasta agotar los reintentos de Cloud Tasks, dejando
-        // Business.googleCalendarConnected/outlookCalendarConnected en true
-        // (el panel seguía mostrando "conectado") aunque en realidad la
-        // conexión llevara horas rota.
+        // otra vez hasta agotar los reintentos de Cloud Tasks, dejando la
+        // conexión marcada como conectada (el panel seguía mostrando
+        // "conectado") aunque en realidad llevara horas rota.
         await marcarCalendarioDesconectado(
           call.businessId,
           proveedorRoto,

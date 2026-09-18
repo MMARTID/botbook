@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { filaDeConexion } from "../../helpers/conexionDeCalendario.js";
 import { executeVoiceTool } from "../../../src/modules/voiceTools/service.js";
 import { prisma } from "../../../src/lib/prisma.js";
 import { getRedis } from "../../../src/lib/redis.js";
@@ -93,12 +94,9 @@ function buildBusiness(overrides: Record<string, unknown> = {}) {
     timezone: "Europe/Madrid",
     bookingCapacity: 1,
     calendarProvider: "google",
-    googleRefreshToken: "refresh_token",
-    googleCalendarId: "primary",
-    googleCalendarConnected: true,
-    outlookRefreshToken: null,
-    outlookCalendarId: null,
-    outlookCalendarConnected: null,
+    calendarConnections: [
+      filaDeConexion("google", { refreshToken: "refresh_token" }),
+    ],
     phone: "+34600111222",
     telnyxPhoneNumber: "+34911222333",
     // El recordatorio de cita es feature de Pro/Scale (planFeatures.ts): el

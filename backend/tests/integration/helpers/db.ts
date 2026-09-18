@@ -21,6 +21,7 @@ export async function resetDb(): Promise<void> {
     prisma.agent.deleteMany(),
     prisma.stripeWebhookEvent.deleteMany(),
     prisma.onboardingState.deleteMany(),
+    prisma.calendarConnection.deleteMany(),
     prisma.user.deleteMany(),
     prisma.business.deleteMany(),
   ]);

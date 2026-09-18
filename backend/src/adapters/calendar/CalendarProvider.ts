@@ -75,6 +75,10 @@ export type CalendarConnection<
   calendarId: string | null;
   /** null = el negocio no tiene credenciales de este proveedor. */
   credentials: CredencialesDe<P> | null;
+  /** Negocio dueño, si se conoce. Los adaptadores no lo reciben (ConexionActiva
+   * no lo lleva); lo usa conexion.ts para persistir credenciales rotadas por
+   * id en vez de por valor. */
+  businessId?: string | null;
 };
 
 /** Credenciales listas para operar, con el callback de rotación inyectado

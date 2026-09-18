@@ -380,22 +380,32 @@ retellPhoneNumberId (unique)   # persisted since 2026-09-06 on import:
 retellPhoneNumber (unique)
 ```
 
-### Calendar Fields on `Business`
+### `CalendarConnection` (desde 2026-09-18) y campos de calendario en `Business`
 
 ```
-calendarProvider
-googleRefreshToken (Text)
-googleCalendarId
-googleCalendarConnected (default false)
-googleCalendarDisconnectedAt
-googleCalendarLastError (Text)
-outlookRefreshToken (Text)
-outlookCalendarId
-outlookUserEmail
-outlookCalendarConnected (default false)
-outlookCalendarDisconnectedAt
-outlookCalendarLastError (Text)
+CalendarConnection  (@@map "calendar_connections", @@unique [businessId, provider])
+  businessId, provider ("google" | "outlook"; String, no enum)
+  calendarId      String?   // null = aún no elegido (Outlook tras el OAuth); Google usa "primary"
+  credentials     Json?     // misma forma que CalendarCredentials: { provider, refreshToken }; null = revocadas
+  connected       Boolean   @default(false)
+  disconnectedAt  DateTime?
+  lastError       String?
+  accountEmail    String?   // Outlook
 ```
+
+Una fila por negocio y proveedor; **`Business.calendarProvider` sigue siendo el puntero al
+proveedor activo**. Es la única fuente de verdad que lee el backend (todo pasa por
+`modules/calendar/conexion.ts`). Las columnas `google*`/`outlook*` de `Business`
+(`googleRefreshToken`, `googleCalendarId`, `googleCalendarConnected`, `googleCalendarDisconnectedAt`,
+`googleCalendarLastError` y sus equivalentes `outlook*` más `outlookUserEmail`) **siguen existiendo
+como espejo de escritura** — `conexion.ts` las actualiza en la misma query que la fila — y ya no se
+leen. Motivo (fase *expand* de un expand/contract): `cloudbuild.yaml` aplica `prisma migrate deploy`
+antes de que la revisión nueva reciba tráfico, así que durante el despliegue la revisión anterior
+sirve contra el schema nuevo; el espejo mantiene funcionando esa revisión, un rollback y el
+serializador de `Business` que consume el frontend. La migración `20260918090000_calendar_connections`
+hace el backfill desde esas columnas (idempotente, ids `cal_<md5(businessId:provider)>`). El PR
+*contract* pendiente: dejar de espejar, calcular los campos antiguos del serializador desde la
+tabla y borrar las columnas.
 
 ### Orchestrator Field on `Business`
 
@@ -433,7 +443,12 @@ el build, ver Dockerfile stage `builder`) y `cloudbuild.yaml` aplica
 `prisma migrate deploy` contra Cloud SQL *antes* de que `gcloud run deploy`
 publique esa imagen, así que el proceso que sirve tráfico siempre arranca ya
 con el cliente y el esquema en el mismo commit — nunca hay un proceso vivo
-con un cliente desactualizado que sobreviva a una migración.
+con un cliente desactualizado que sobreviva a una migración. **Matiz:** lo
+contrario sí ocurre — entre `migrate deploy` y el cambio de tráfico (minutos
+de build), la revisión *anterior* sirve contra el schema *nuevo*. Las
+migraciones aditivas no le afectan; **borrar o renombrar una columna que esa
+revisión todavía lee da 500 durante esa ventana**. Por eso los cambios
+destructivos van en dos PR (expand/contract), como `CalendarConnection`.
 
 ## Background Jobs (Cloud Tasks)
 
@@ -668,7 +683,7 @@ backend/src/adapters/calendar/
 ├── google/GoogleCalendarProvider.ts    # googleapis; exporta crearClienteOAuthDeGoogle e isGoogleInvalidGrantError
 └── outlook/OutlookCalendarProvider.ts  # envuelve lib/microsoftGraph.ts (que no cambió)
 
-backend/src/modules/calendar/conexion.ts   # el ÚNICO fichero que conoce las columnas google*/outlook* de Business
+backend/src/modules/calendar/conexion.ts   # el ÚNICO fichero que lee/escribe calendar_connections (y el espejo en Business)
 backend/src/lib/voiceConfigCache.ts        # claveDeCacheDeVoz / invalidarCacheDeVoz (antes 4 copias del literal)
 ```
 
@@ -678,9 +693,11 @@ backend/src/lib/voiceConfigCache.ts        # claveDeCacheDeVoz / invalidarCacheD
   evento)` (idempotente por `idempotencyDigest`, devuelve `{ id, htmlLink }`) y `borrarEvento(conexion, eventId)`
   (ya borrado = éxito). Los adaptadores reciben `ConexionActiva` (credenciales + `calendarId` garantizados) y un
   callback opcional `alRotarCredenciales` (Outlook rota el refresh token en cada refresh; el adaptador no persiste nada).
-- **`conexion.ts`**: `resolverConexionDeCalendario(business, { provider?, calendarId? })` (aplica `"primary"` en Google,
-  admite forzar proveedor/calendario para cancelar un `Booking` creado con otro), `SELECT_CONEXION_DE_CALENDARIO`
-  (spread en los `select`), `estadoDeConexion`, y los cuatro predicados que **nombran** las cuatro semánticas de
+- **`conexion.ts`**: `resolverConexionDeCalendario(business, { provider?, calendarId? })` (lee la fila del proveedor
+  activo de `business.calendarConnections`, valida `credentials` con Zod — una fila corrupta cuenta como "sin
+  credenciales" y se loguea, nunca lanza —, aplica `"primary"` en Google, admite forzar proveedor/calendario para
+  cancelar un `Booking` creado con otro), `SELECT_CONEXION_DE_CALENDARIO` (spread en los `select`; incluye `id` y la
+  relación con su `select` anidado), `estadoDeConexion`, y los cuatro predicados que **nombran** las cuatro semánticas de
   "conectado" que ya existían (no se unificaron): `conexionOperativa` (token y flag `!== false`: voz y job),
   `conexionConfirmada` (token y flag `=== true`: caché de voz y rutas del panel), `usaCalendarioExterno` (token y
   calendario) y `marcadaComoConectada` (solo el flag: onboarding). `guardarConexionDeCalendario` centraliza las cuatro
@@ -697,12 +714,13 @@ backend/src/lib/voiceConfigCache.ts        # claveDeCacheDeVoz / invalidarCacheD
   revocado). Las asimetrías Google/Outlook preexistentes (mapeo de errores por operación, regla de día completo solo en
   Google, `selectGoogleCalendar` no resincroniza tools y `connectMicrosoftCalendar` sí, `persistirCredencialesRotadas`
   con `updateMany` por valor del token) se conservaron a propósito.
-- **Añadir un proveedor** (previsto: CalDAV para Apple/iCloud, con contraseña de aplicación; requiere antes la tabla
-  `CalendarConnection`, porque `Business` no tiene columnas donde guardar esas credenciales): (1) id en
+- **Añadir un proveedor** (previsto: CalDAV para Apple/iCloud, con contraseña de aplicación; la tabla
+  `CalendarConnection` ya existe, así que sus credenciales caben en `credentials` sin migración): (1) id en
   `PROVEEDORES_DE_CALENDARIO` + tipo de credenciales en `CalendarCredentials` + descriptor en `DESCRIPTORES_DE_PROVEEDOR`
   (`tipoDeAutorizacion: "credenciales"`); el código `<ID>_CALENDAR_RECONNECT_REQUIRED` aparece solo por el template
   literal; (2) clase en `adapters/calendar/<id>/`, que nunca importa prisma/redis; (3) una línea en `registry.ts`;
-  (4) rama en `conexion.ts` para leer/escribir sus credenciales; (5) si no es OAuth, una ruta de alta
+  (4) en `conexion.ts`, su forma en `CredencialesSchema` (Zod) y en `credencialesComoJson` — sin espejo en `Business`,
+  `espejoEnColumnas` devuelve `{}` para proveedores sin columnas; (5) si no es OAuth, una ruta de alta
   `POST /calendar/auth/:provider/connect` que valide con `listarCalendarios` y guarde con
   `guardarConexionDeCalendario`. `CalendarService`, voiceTools, el job y el resto de rutas no se tocan.
   Doctoralia queda fuera del roadmap por decisión de producto (2026-09-18).
@@ -1062,7 +1080,7 @@ Separate suite (`npm run test:integration`, config `backend/vitest.integration.c
 | `backend/tests/modules/billing/service.test.ts` | Stripe event handling, billing summary, checkout session, reconciliation |
 | `backend/tests/modules/phone/service.test.ts` | Phone provisioning idempotency, async order polling/resume, partial failure handling, status retrieval |
 | `backend/tests/modules/calendar/service.test.ts` | Google/Outlook Calendar booking, upcoming events, cancel, sync tools to agents, invalid_grant detection, timeout/rate-limit classification, `listarCalendarios`/`seleccionarCalendario` |
-| `backend/tests/modules/calendar/conexion.test.ts` | Resolver de conexión (matriz proveedor × columnas), los cuatro predicados de "conectado", `marcarCalendarioDesconectado` (modos panel/revocar, fallo de BD → log de error con identificadores, fallo de Redis), `guardarConexionDeCalendario`, rotación de credenciales |
+| `backend/tests/modules/calendar/conexion.test.ts` | Resolver de conexión sobre filas de `calendar_connections` (proveedor activo, defaults, credenciales corruptas, caché antigua sin filas), los cuatro predicados de "conectado", `marcarCalendarioDesconectado` (modos panel/revocar sobre fila + espejo, fallo de BD → log de error con identificadores, fallo de Redis), `guardarConexionDeCalendario` (nested upsert exacto por cada caller), `actualizarCalendarioDeConexion`, rotación de credenciales por id y por valor. Fixtures compartidas en `tests/helpers/conexionDeCalendario.ts` |
 | `backend/tests/adapters/calendar/errors.test.ts`, `registry.test.ts` | Códigos de reconexión, duck typing de `CalendarBusinessError`, resolución de proveedor desde un error (null si desconocido), registro de adaptadores |
 | `backend/tests/modules/voiceTools/service.test.ts` | `book_appointment` call-linking (callId vs. most-recent-call fallback) |
 | `backend/tests/adapters/telnyx/TelnyxAdapter.test.ts` | Search, purchase (order), poll order, release, fetch Telnyx numbers |

@@ -220,11 +220,11 @@ async function loadBusinessConfig(
   return prisma.business.findUnique({
     where: { id: businessId },
     select: {
-      id: true,
       name: true,
       schedule: true,
       timezone: true,
       bookingCapacity: true,
+      // Incluye `id` y la relación calendarConnections.
       ...SELECT_CONEXION_DE_CALENDARIO,
       minAdvanceBookingMinutes: true,
       maxAppointmentDurationMinutes: true,

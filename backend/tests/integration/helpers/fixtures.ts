@@ -5,12 +5,27 @@ import type { Business, Call } from "@prisma/client";
 
 /** Próximo lunes a las 12:00 UTC (~13-14h Madrid según DST) — dentro del
  * horario por defecto (L-V 09:00-18:00) sin depender de cuándo se corra el test. */
-export function nextOpenSlot(): Date {
-  const date = new Date();
-  const daysUntilMonday = (8 - date.getUTCDay()) % 7 || 7;
-  date.setUTCDate(date.getUTCDate() + daysUntilMonday);
-  date.setUTCHours(12, 0, 0, 0);
-  return date;
+/** Próximo lunes a las 12:00 hora de Madrid, expresado como lo envía el agente
+ * (con el offset local, p. ej. "2026-09-21T12:00:00+02:00"). Desde eb5e859
+ * lib/voiceDateTime.ts reinterpreta una hora con `Z` como hora de pared del
+ * negocio, así que mandar `toISOString()` (UTC) haría que 12:00Z se guardase
+ * como 12:00 Madrid = 10:00Z. */
+export function nextOpenSlot(): { iso: string; date: Date } {
+  const base = new Date();
+  const daysUntilMonday = (8 - base.getUTCDay()) % 7 || 7;
+  base.setUTCDate(base.getUTCDate() + daysUntilMonday);
+  const dia = base.toISOString().slice(0, 10);
+  // Offset de Europe/Madrid ese día (+02:00 en verano, +01:00 en invierno).
+  const offset =
+    new Intl.DateTimeFormat("en-US", {
+      timeZone: "Europe/Madrid",
+      timeZoneName: "longOffset",
+    })
+      .formatToParts(new Date(`${dia}T12:00:00Z`))
+      .find((p) => p.type === "timeZoneName")
+      ?.value.replace("GMT", "") || "+00:00";
+  const iso = `${dia}T12:00:00${offset}`;
+  return { iso, date: new Date(iso) };
 }
 
 export async function createTestBusiness(
@@ -24,9 +39,19 @@ export async function createTestBusiness(
       schedule: DEFAULT_BUSINESS_SCHEDULE as unknown as object,
       bookingCapacity: 1,
       calendarProvider: "google",
+      // Espejo en columnas (aún se escriben) + fila real en
+      // calendar_connections, que es lo que lee el backend.
       googleRefreshToken: "fake-refresh-token",
       googleCalendarId: "primary",
       googleCalendarConnected: true,
+      calendarConnections: {
+        create: {
+          provider: "google",
+          calendarId: "primary",
+          credentials: { provider: "google", refreshToken: "fake-refresh-token" },
+          connected: true,
+        },
+      },
       ...overrides,
     },
   });
