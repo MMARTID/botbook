@@ -2,7 +2,11 @@ import { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import { z } from "zod";
 import { prisma } from "../../lib/prisma.js";
 import { invalidarCacheDeVoz } from "../../lib/voiceConfigCache.js";
-import { actualizarCalendarioDeConexion } from "../calendar/conexion.js";
+import {
+  actualizarCalendarioDeConexion,
+  INCLUDE_CONEXIONES,
+  serializarBusiness,
+} from "../calendar/conexion.js";
 import { BusinessScheduleSchema } from "../../lib/businessSchedule.js";
 import { calendarService } from "../calendar/service.js";
 import { AgentSettingsSchema, buildManagedAgentPrompt, parseAgentSettings } from "../../lib/managedAgentPrompt.js";
@@ -223,6 +227,10 @@ export async function businessesRoutes(fastify: FastifyInstance) {
               // filtraba servicios borrados).
               include: { serviceLinks: nonDeletedServiceLinks },
             },
+            // Filas de calendario: serializarBusiness las convierte en los
+            // campos googleCalendarConnected/outlookUserEmail/... que lee el
+            // panel y NO deja pasar las credenciales.
+            ...INCLUDE_CONEXIONES,
           },
         });
 
@@ -230,11 +238,9 @@ export async function businessesRoutes(fastify: FastifyInstance) {
           return reply.status(404).send({ error: "Business not found" });
         }
 
-        const { googleRefreshToken, outlookRefreshToken, professionals, ...publicBusiness } = business;
-        void googleRefreshToken;
-        void outlookRefreshToken;
+        const { professionals, ...resto } = business;
         return reply.send({
-          ...publicBusiness,
+          ...serializarBusiness(resto),
           professionals: professionals.map(serializeProfessional),
         });
       } catch (error) {
@@ -356,7 +362,7 @@ export async function businessesRoutes(fastify: FastifyInstance) {
           );
         }
 
-        const business = await prisma.business.update({
+        await prisma.business.update({
           where: { id: request.user!.businessId },
           data: updateData,
         });
@@ -407,10 +413,13 @@ export async function businessesRoutes(fastify: FastifyInstance) {
           await invalidarCacheDeVoz(request.user!.businessId);
         }
 
-        const { googleRefreshToken, outlookRefreshToken, ...publicBusiness } = business;
-        void googleRefreshToken;
-        void outlookRefreshToken;
-        return reply.send(publicBusiness);
+        // Se relee al final para que la respuesta refleje también los
+        // calendarios cambiados por actualizarCalendarioDeConexion.
+        const business = await prisma.business.findUniqueOrThrow({
+          where: { id: request.user!.businessId },
+          include: INCLUDE_CONEXIONES,
+        });
+        return reply.send(serializarBusiness(business));
       } catch (error) {
         if (error instanceof z.ZodError) {
           return reply.status(400).send({ error: error.errors });

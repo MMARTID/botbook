@@ -16,6 +16,7 @@ vi.mock("../../src/lib/prisma.js", () => ({
     lead: { findUnique: vi.fn(), update: vi.fn() },
     call: { findUnique: vi.fn() },
     business: { findUnique: vi.fn(), update: vi.fn() },
+    calendarConnection: { updateMany: vi.fn() },
     service: { findMany: vi.fn() },
     professional: { findFirst: vi.fn() },
     booking: { findUnique: vi.fn() },
@@ -378,22 +379,13 @@ describe("processRetryFailedBookingJob", () => {
     await expect(processRetryFailedBookingJob({ leadId })).resolves.toBeUndefined();
 
     // Modo "revocar": la fila de calendar_connections queda sin
-    // credenciales y desconectada (y el espejo en Business igual).
-    expect(mockedBusinessUpdate).toHaveBeenCalledWith(
+    // credenciales y desconectada.
+    expect(vi.mocked(prisma.calendarConnection.updateMany)).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { id: "biz_1" },
+        where: { businessId: "biz_1", provider: "google" },
         data: expect.objectContaining({
-          googleCalendarConnected: false,
-          googleRefreshToken: null,
-          calendarConnections: {
-            updateMany: {
-              where: { provider: "google" },
-              data: expect.objectContaining({
-                connected: false,
-                lastError: "invalid_grant",
-              }),
-            },
-          },
+          connected: false,
+          lastError: "invalid_grant",
         }),
       })
     );

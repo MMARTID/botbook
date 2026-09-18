@@ -4,6 +4,7 @@ import { prisma } from "../../../src/lib/prisma.js";
 import { getRedis } from "../../../src/lib/redis.js";
 import {
   actualizarCalendarioDeConexion,
+  camposDeCalendarioParaElPanel,
   conCallbackDeRotacion,
   conexionConfirmada,
   conexionOperativa,
@@ -15,6 +16,7 @@ import {
   persistirCredencialesRotadas,
   resolverConexionDeCalendario,
   SELECT_CONEXION_DE_CALENDARIO,
+  serializarBusiness,
   usaCalendarioExterno,
 } from "../../../src/modules/calendar/conexion.js";
 import {
@@ -26,12 +28,10 @@ vi.mock("../../../src/lib/prisma.js", () => ({
   prisma: {
     business: {
       update: vi.fn(),
-      updateMany: vi.fn(),
     },
     calendarConnection: {
       updateMany: vi.fn(),
     },
-    $transaction: vi.fn(),
   },
 }));
 
@@ -40,11 +40,9 @@ vi.mock("../../../src/lib/redis.js", () => ({
 }));
 
 const mockedBusinessUpdate = vi.mocked(prisma.business.update);
-const mockedBusinessUpdateMany = vi.mocked(prisma.business.updateMany);
 const mockedConnectionUpdateMany = vi.mocked(
   prisma.calendarConnection.updateMany
 );
-const mockedTransaction = vi.mocked(prisma.$transaction);
 const mockedGetRedis = vi.mocked(getRedis);
 
 describe("SELECT_CONEXION_DE_CALENDARIO", () => {
@@ -394,94 +392,57 @@ describe("marcarCalendarioDesconectado", () => {
     vi.clearAllMocks();
     del = vi.fn().mockResolvedValue(1);
     mockedGetRedis.mockReturnValue({ del } as any);
-    mockedBusinessUpdate.mockResolvedValue({} as any);
+    mockedConnectionUpdateMany.mockResolvedValue({ count: 1 });
     warnSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined);
   });
 
-  function dataDelUpdate() {
-    return mockedBusinessUpdate.mock.calls[0][0].data as Record<string, any>;
+  function llamada() {
+    return mockedConnectionUpdateMany.mock.calls[0][0] as any;
   }
 
-  it("modo revocar en Google: fila sin credenciales + espejo sin refresh token, invalid_grant", async () => {
+  it("modo revocar en Google: fila desconectada, sin credenciales, invalid_grant", async () => {
     await marcarCalendarioDesconectado("biz_1", "google", { modo: "revocar" });
 
-    expect(mockedBusinessUpdate).toHaveBeenCalledTimes(1);
-    expect(mockedBusinessUpdate.mock.calls[0][0].where).toEqual({
-      id: "biz_1",
-    });
-    expect(dataDelUpdate()).toEqual({
-      googleCalendarConnected: false,
-      googleCalendarDisconnectedAt: expect.any(Date),
-      googleCalendarLastError: "invalid_grant",
-      googleRefreshToken: null,
-      calendarConnections: {
-        updateMany: {
-          where: { provider: "google" },
-          data: {
-            connected: false,
-            disconnectedAt: expect.any(Date),
-            lastError: "invalid_grant",
-            credentials: Prisma.DbNull,
-          },
-        },
+    expect(mockedConnectionUpdateMany).toHaveBeenCalledTimes(1);
+    expect(llamada()).toEqual({
+      where: { businessId: "biz_1", provider: "google" },
+      data: {
+        connected: false,
+        disconnectedAt: expect.any(Date),
+        lastError: "invalid_grant",
+        credentials: Prisma.DbNull,
       },
     });
     expect(del).toHaveBeenCalledWith("voice_config:biz_1");
   });
 
-  it("modo panel en Google conserva las credenciales y guarda el motivo", async () => {
+  it("modo panel conserva las credenciales y guarda el motivo", async () => {
     await marcarCalendarioDesconectado("biz_1", "google", {
       modo: "panel",
       motivo: "token caducado",
     });
 
-    const data = dataDelUpdate();
-    expect(data).not.toHaveProperty("googleRefreshToken");
-    expect(data.googleCalendarLastError).toBe("token caducado");
-    expect(data.calendarConnections.updateMany.data).toEqual({
+    expect(llamada().data).toEqual({
       connected: false,
       disconnectedAt: expect.any(Date),
       lastError: "token caducado",
     });
   });
 
-  it("modo revocar en Outlook toca solo las columnas outlook* y la fila outlook", async () => {
+  it("solo toca la fila del proveedor indicado (Outlook no afecta a Google)", async () => {
     await marcarCalendarioDesconectado("biz_1", "outlook", {
       modo: "revocar",
     });
-
-    const data = dataDelUpdate();
-    expect(Object.keys(data).sort()).toEqual([
-      "calendarConnections",
-      "outlookCalendarConnected",
-      "outlookCalendarDisconnectedAt",
-      "outlookCalendarLastError",
-      "outlookRefreshToken",
-    ]);
-    expect(data.outlookRefreshToken).toBeNull();
-    expect(data.calendarConnections.updateMany.where).toEqual({
+    expect(llamada().where).toEqual({
+      businessId: "biz_1",
       provider: "outlook",
     });
-    expect(data.calendarConnections.updateMany.data.credentials).toBe(
-      Prisma.DbNull
-    );
-  });
-
-  it("modo panel en Outlook conserva el refresh token", async () => {
-    await marcarCalendarioDesconectado("biz_1", "outlook", {
-      modo: "panel",
-      motivo: "x",
-    });
-    const data = dataDelUpdate();
-    expect(data).not.toHaveProperty("outlookRefreshToken");
-    expect(data.calendarConnections.updateMany.data).not.toHaveProperty(
-      "credentials"
-    );
+    expect(llamada().data.credentials).toBe(Prisma.DbNull);
   });
 
   it("no lanza si la BD falla y aun así invalida la caché de voz", async () => {
     const fallo = new Error("postgres caído");
-    mockedBusinessUpdate.mockRejectedValue(fallo);
+    mockedConnectionUpdateMany.mockRejectedValue(fallo);
     const errorSpy = vi
       .spyOn(console, "error")
       .mockImplementation(() => undefined);
@@ -532,7 +493,7 @@ describe("marcarCalendarioDesconectado", () => {
     await expect(
       marcarCalendarioDesconectado("biz_1", "google", { modo: "revocar" })
     ).resolves.toBeUndefined();
-    expect(mockedBusinessUpdate).toHaveBeenCalledTimes(1);
+    expect(mockedConnectionUpdateMany).toHaveBeenCalledTimes(1);
     errorSpy.mockRestore();
   });
 });
@@ -562,12 +523,9 @@ describe("guardarConexionDeCalendario", () => {
     expect(mockedBusinessUpdate).toHaveBeenCalledTimes(1);
     expect(mockedBusinessUpdate).toHaveBeenCalledWith({
       where: { id: "biz_1" },
+      include: { calendarConnections: expect.any(Object) },
       data: {
         calendarProvider: "google",
-        googleCalendarId: "secundario_id",
-        googleCalendarConnected: true,
-        googleCalendarDisconnectedAt: null,
-        googleCalendarLastError: null,
         calendarConnections: {
           upsert: {
             where: where("google"),
@@ -599,8 +557,6 @@ describe("guardarConexionDeCalendario", () => {
     });
 
     const data = mockedBusinessUpdate.mock.calls[0][0].data as any;
-    expect(data.googleRefreshToken).toBe("rt_nuevo");
-    expect(data.googleCalendarId).toBe("primary");
     expect(data.calendarConnections.upsert.create).toEqual({
       provider: "google",
       calendarId: "primary",
@@ -628,11 +584,6 @@ describe("guardarConexionDeCalendario", () => {
     const data = mockedBusinessUpdate.mock.calls[0][0].data as any;
     expect(data).toEqual({
       calendarProvider: "outlook",
-      outlookRefreshToken: "rt_o",
-      outlookCalendarConnected: false,
-      outlookCalendarDisconnectedAt: null,
-      outlookCalendarLastError: null,
-      outlookUserEmail: "barber@outlook.com",
       calendarConnections: {
         upsert: {
           where: where("outlook"),
@@ -663,7 +614,6 @@ describe("guardarConexionDeCalendario", () => {
       userEmail: null,
     });
     const data = mockedBusinessUpdate.mock.calls[0][0].data as any;
-    expect(data.outlookUserEmail).toBeNull();
     expect(data.calendarConnections.upsert.update.accountEmail).toBeNull();
   });
 
@@ -674,9 +624,9 @@ describe("guardarConexionDeCalendario", () => {
       conectado: true,
     });
     const data = mockedBusinessUpdate.mock.calls[0][0].data as any;
-    expect(data).not.toHaveProperty("outlookRefreshToken");
-    expect(data).not.toHaveProperty("outlookUserEmail");
-    expect(data.outlookCalendarId).toBe("cal_o");
+    expect(data.calendarConnections.upsert.update).not.toHaveProperty(
+      "credentials"
+    );
     expect(data.calendarConnections.upsert.update).toEqual({
       calendarId: "cal_o",
       connected: true,
@@ -701,30 +651,21 @@ describe("guardarConexionDeCalendario", () => {
 describe("actualizarCalendarioDeConexion (PATCH /business/me)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockedBusinessUpdate.mockResolvedValue({} as any);
+    mockedConnectionUpdateMany.mockResolvedValue({ count: 1 });
   });
 
-  it("cambia solo el calendario de la fila y su espejo, sin tocar estado ni credenciales", async () => {
+  it("cambia solo el calendario de la fila, sin tocar estado ni credenciales", async () => {
     await actualizarCalendarioDeConexion("biz_1", "outlook", "cal_nuevo");
-    expect(mockedBusinessUpdate).toHaveBeenCalledWith({
-      where: { id: "biz_1" },
-      data: {
-        outlookCalendarId: "cal_nuevo",
-        calendarConnections: {
-          updateMany: {
-            where: { provider: "outlook" },
-            data: { calendarId: "cal_nuevo" },
-          },
-        },
-      },
+    expect(mockedConnectionUpdateMany).toHaveBeenCalledWith({
+      where: { businessId: "biz_1", provider: "outlook" },
+      data: { calendarId: "cal_nuevo" },
     });
+    expect(mockedBusinessUpdate).not.toHaveBeenCalled();
   });
 
   it("admite null (volver al calendario por defecto)", async () => {
     await actualizarCalendarioDeConexion("biz_1", "google", null);
-    const data = mockedBusinessUpdate.mock.calls[0][0].data as any;
-    expect(data.googleCalendarId).toBeNull();
-    expect(data.calendarConnections.updateMany.data).toEqual({
+    expect(mockedConnectionUpdateMany.mock.calls[0][0].data).toEqual({
       calendarId: null,
     });
   });
@@ -736,23 +677,16 @@ describe("persistirCredencialesRotadas", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mockedTransaction.mockResolvedValue([] as any);
-    mockedConnectionUpdateMany.mockReturnValue("q_conexion" as any);
-    mockedBusinessUpdateMany.mockReturnValue("q_espejo" as any);
+    mockedConnectionUpdateMany.mockResolvedValue({ count: 1 });
   });
 
-  it("con businessId escribe por id en la fila y en el espejo, en una transacción", async () => {
+  it("con businessId escribe por id en la fila", async () => {
     await persistirCredencialesRotadas(viejas, nuevas, "biz_1");
 
     expect(mockedConnectionUpdateMany).toHaveBeenCalledWith({
       where: { businessId: "biz_1", provider: "outlook" },
       data: { credentials: { provider: "outlook", refreshToken: "rt_nuevo" } },
     });
-    expect(mockedBusinessUpdateMany).toHaveBeenCalledWith({
-      where: { id: "biz_1" },
-      data: { outlookRefreshToken: "rt_nuevo" },
-    });
-    expect(mockedTransaction).toHaveBeenCalledWith(["q_conexion", "q_espejo"]);
   });
 
   it("sin businessId busca por VALOR del token viejo (wrappers deprecated)", async () => {
@@ -765,15 +699,11 @@ describe("persistirCredencialesRotadas", () => {
       },
       data: { credentials: { provider: "outlook", refreshToken: "rt_nuevo" } },
     });
-    expect(mockedBusinessUpdateMany).toHaveBeenCalledWith({
-      where: { outlookRefreshToken: "rt_viejo" },
-      data: { outlookRefreshToken: "rt_nuevo" },
-    });
   });
 
   it("no escribe si el token es el mismo", async () => {
     await persistirCredencialesRotadas(viejas, viejas, "biz_1");
-    expect(mockedTransaction).not.toHaveBeenCalled();
+    expect(mockedConnectionUpdateMany).not.toHaveBeenCalled();
   });
 
   it("no escribe para Google (no rota el refresh token)", async () => {
@@ -782,11 +712,11 @@ describe("persistirCredencialesRotadas", () => {
       { provider: "google", refreshToken: "b" },
       "biz_1"
     );
-    expect(mockedTransaction).not.toHaveBeenCalled();
+    expect(mockedConnectionUpdateMany).not.toHaveBeenCalled();
   });
 
   it("no lanza si la BD falla (el token viejo sigue sirviendo)", async () => {
-    mockedTransaction.mockRejectedValue(new Error("postgres caído"));
+    mockedConnectionUpdateMany.mockRejectedValue(new Error("postgres caído"));
     const errorSpy = vi
       .spyOn(console, "error")
       .mockImplementation(() => undefined);
@@ -802,7 +732,7 @@ describe("persistirCredencialesRotadas", () => {
 describe("conCallbackDeRotacion", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockedTransaction.mockResolvedValue([] as any);
+    mockedConnectionUpdateMany.mockResolvedValue({ count: 1 });
   });
 
   it("devuelve las credenciales tal cual y un callback que persiste la rotación por id", async () => {
@@ -822,5 +752,73 @@ describe("conCallbackDeRotacion", () => {
         where: { businessId: "biz_1", provider: "outlook" },
       })
     );
+  });
+});
+
+describe("camposDeCalendarioParaElPanel / serializarBusiness", () => {
+  it("calcula los campos históricos del panel desde las filas", () => {
+    const desconexion = new Date("2026-09-18T10:00:00Z");
+    const campos = camposDeCalendarioParaElPanel([
+      filaDeConexion("google", {
+        calendarId: "cal_g",
+        connected: false,
+        disconnectedAt: desconexion,
+        lastError: "invalid_grant",
+        refreshToken: null,
+      }),
+      filaDeConexion("outlook", {
+        calendarId: "cal_o",
+        accountEmail: "barber@outlook.com",
+      }),
+    ]);
+    expect(campos).toEqual({
+      googleCalendarId: "cal_g",
+      googleCalendarConnected: false,
+      googleCalendarDisconnectedAt: desconexion,
+      googleCalendarLastError: "invalid_grant",
+      outlookCalendarId: "cal_o",
+      outlookCalendarConnected: true,
+      outlookCalendarDisconnectedAt: null,
+      outlookCalendarLastError: null,
+      outlookUserEmail: "barber@outlook.com",
+    });
+  });
+
+  it("sin filas devuelve la forma de un negocio sin calendario (flags false, resto null)", () => {
+    expect(camposDeCalendarioParaElPanel([])).toEqual({
+      googleCalendarId: null,
+      googleCalendarConnected: false,
+      googleCalendarDisconnectedAt: null,
+      googleCalendarLastError: null,
+      outlookCalendarId: null,
+      outlookCalendarConnected: false,
+      outlookCalendarDisconnectedAt: null,
+      outlookCalendarLastError: null,
+      outlookUserEmail: null,
+    });
+    expect(
+      camposDeCalendarioParaElPanel(undefined).googleCalendarConnected
+    ).toBe(false);
+  });
+
+  it("serializarBusiness quita calendarConnections (credenciales) y conserva el resto", () => {
+    const salida = serializarBusiness({
+      id: "biz_1",
+      name: "Pelu",
+      calendarProvider: "google",
+      calendarConnections: [
+        filaDeConexion("google", { refreshToken: "SECRETO" }),
+      ],
+    });
+    expect(salida).not.toHaveProperty("calendarConnections");
+    expect(JSON.stringify(salida)).not.toContain("SECRETO");
+    expect(salida).toMatchObject({
+      id: "biz_1",
+      name: "Pelu",
+      calendarProvider: "google",
+      googleCalendarConnected: true,
+      googleCalendarId: "primary",
+      outlookCalendarConnected: false,
+    });
   });
 });

@@ -90,25 +90,12 @@ model Business {
   telnyxPhoneNumberId          String?   @unique
   telnyxPhoneNumberPurchasedAt DateTime?
 
-  // Calendar integrations. Desde 2026-09-18 la fuente de verdad es la tabla
-  // CalendarConnection (una fila por proveedor); `calendarProvider` sigue
-  // aquí como puntero al proveedor activo. Las columnas google*/outlook* de
-  // abajo son un ESPEJO que modules/calendar/conexion.ts mantiene al escribir,
-  // para que la revisión anterior (durante el despliegue), un rollback y el
-  // serializador del frontend sigan funcionando. Se borran en el PR
-  // "contract" cuando el frontend deje de leerlas.
-  calendarProvider              String?
-  googleRefreshToken            String?   @db.Text
-  googleCalendarId              String?
-  googleCalendarConnected       Boolean   @default(false)
-  googleCalendarDisconnectedAt  DateTime?
-  googleCalendarLastError       String?   @db.Text
-  outlookRefreshToken           String?   @db.Text
-  outlookCalendarId             String?
-  outlookUserEmail              String?
-  outlookCalendarConnected      Boolean   @default(false)
-  outlookCalendarDisconnectedAt DateTime?
-  outlookCalendarLastError      String?   @db.Text
+  // Calendario: la conexión vive en CalendarConnection (una fila por
+  // proveedor); esto es solo el puntero al proveedor activo. Las antiguas
+  // columnas google*/outlook* ya no existen para el cliente Prisma; en la BD
+  // se borran en la migración siguiente, una vez desplegada esta revisión
+  // (la anterior aún las seleccionaba en consultas sin `select`).
+  calendarProvider    String?
 
   // Marca de la última semana resumida por email. Cloud Scheduler entrega al
   // menos una vez, así que el job reclama la semana con un updateMany

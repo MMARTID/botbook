@@ -7,6 +7,7 @@ import {
   resolverConexionDeCalendario,
   SELECT_CONEXION_DE_CALENDARIO,
   type ConexionResuelta,
+  serializarBusiness,
 } from "./conexion.js";
 import { DESCRIPTORES_DE_PROVEEDOR } from "../../adapters/calendar/CalendarProvider.js";
 import {
@@ -207,10 +208,7 @@ export async function calendarRoutes(fastify: FastifyInstance) {
           calendarId
         );
 
-        const { googleRefreshToken, outlookRefreshToken, ...publicBusiness } = updated;
-        void googleRefreshToken;
-        void outlookRefreshToken;
-        return reply.send(publicBusiness);
+        return reply.send(serializarBusiness(updated));
       } catch (error) {
         if (error instanceof z.ZodError) {
           return reply.status(400).send({ error: error.flatten() });
@@ -249,10 +247,7 @@ export async function calendarRoutes(fastify: FastifyInstance) {
       try {
         const { calendarId } = ConnectMicrosoftCalendarSchema.parse(request.body);
         const business = await calendarService.connectMicrosoftCalendar(request.user!.businessId, calendarId);
-        const { googleRefreshToken, outlookRefreshToken, ...publicBusiness } = business;
-        void googleRefreshToken;
-        void outlookRefreshToken;
-        return reply.send(publicBusiness);
+        return reply.send(serializarBusiness(business));
       } catch (error) {
         if (error instanceof z.ZodError) {
           return reply.status(400).send({ error: error.flatten() });

@@ -1,17 +1,15 @@
 // ÚNICO fichero que sabe cómo se persiste la conexión de calendario de un
-// negocio. Desde 2026-09-18 la fuente de verdad es la tabla
-// CalendarConnection (una fila por proveedor); Business.calendarProvider
-// sigue señalando el proveedor activo. Las columnas google*/outlook* de
-// Business NO se leen ya: solo se escriben en espejo (ver espejoEnColumnas)
-// para que la revisión anterior durante el despliegue, un rollback y el
-// serializador que consume el frontend sigan funcionando hasta el PR
-// "contract" que las borre.
+// negocio: la tabla CalendarConnection (una fila por proveedor), con
+// Business.calendarProvider como puntero al proveedor activo. Las antiguas
+// columnas google*/outlook* de Business ya no existen para el cliente Prisma;
+// el frontend sigue recibiendo esos campos porque serializarBusiness los
+// calcula desde las filas (ver camposDeCalendarioParaElPanel).
 //
 // Los consumidores (CalendarService, voiceTools, el job de reintentos, las
 // rutas) reciben una CalendarConnection opaca y deciden con los predicados
 // de aquí. No importa el registro de adaptadores ni service.ts: así los
 // tests de voiceTools/job/onboarding no cargan googleapis.
-import { Prisma, type Business } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "../../lib/prisma.js";
 import { invalidarCacheDeVoz } from "../../lib/voiceConfigCache.js";
@@ -169,70 +167,6 @@ export const origenDeCalendario = (
 ): CalendarOrigin | null =>
   c.calendarId ? { provider: c.provider, calendarId: c.calendarId } : null;
 
-/** Cambios de una conexión expresados en el dominio; espejoEnColumnas los
- * traduce a las columnas google* y outlook* de Business. `undefined` = no
- * tocar ese campo. */
-type CambiosDeConexion = {
-  refreshToken?: string | null;
-  calendarId?: string | null;
-  connected?: boolean;
-  disconnectedAt?: Date | null;
-  lastError?: string | null;
-  accountEmail?: string | null;
-};
-
-/** Espejo TEMPORAL en las columnas antiguas de Business. Solo incluye las
- * claves recibidas. Un proveedor sin columnas propias (el futuro CalDAV)
- * simplemente no se espeja. Desaparece con el PR "contract". */
-function espejoEnColumnas(
-  provider: CalendarProviderId,
-  cambios: CambiosDeConexion
-): Prisma.BusinessUpdateInput {
-  const definido = <T>(valor: T | undefined): valor is T => valor !== undefined;
-  if (provider === "google") {
-    return {
-      ...(definido(cambios.refreshToken)
-        ? { googleRefreshToken: cambios.refreshToken }
-        : {}),
-      ...(definido(cambios.calendarId)
-        ? { googleCalendarId: cambios.calendarId }
-        : {}),
-      ...(definido(cambios.connected)
-        ? { googleCalendarConnected: cambios.connected }
-        : {}),
-      ...(definido(cambios.disconnectedAt)
-        ? { googleCalendarDisconnectedAt: cambios.disconnectedAt }
-        : {}),
-      ...(definido(cambios.lastError)
-        ? { googleCalendarLastError: cambios.lastError }
-        : {}),
-    };
-  }
-  if (provider === "outlook") {
-    return {
-      ...(definido(cambios.refreshToken)
-        ? { outlookRefreshToken: cambios.refreshToken }
-        : {}),
-      ...(definido(cambios.calendarId)
-        ? { outlookCalendarId: cambios.calendarId }
-        : {}),
-      ...(definido(cambios.connected)
-        ? { outlookCalendarConnected: cambios.connected }
-        : {}),
-      ...(definido(cambios.disconnectedAt)
-        ? { outlookCalendarDisconnectedAt: cambios.disconnectedAt }
-        : {}),
-      ...(definido(cambios.lastError)
-        ? { outlookCalendarLastError: cambios.lastError }
-        : {}),
-      ...(definido(cambios.accountEmail)
-        ? { outlookUserEmail: cambios.accountEmail }
-        : {}),
-    };
-  }
-  return {};
-}
-
 /** JSON que se guarda en calendar_connections.credentials. */
 function credencialesComoJson(
   provider: CalendarProviderId,
@@ -247,8 +181,8 @@ function credencialesComoJson(
  * de la conexión, que caduca por inactividad a los 90 días: meses después,
  * Outlook se desconectaba solo con invalid_grant y todas las reservas de ese
  * negocio pasaban a quedarse pendientes. Con businessId escribe por id; sin
- * él (wrappers @deprecated que solo reciben el token) busca por valor del
- * token viejo. En ambos casos actualiza también el espejo de Business.
+ * él (wrappers @deprecated que solo reciben el token) busca la fila por
+ * valor del token viejo.
  */
 export async function persistirCredencialesRotadas(
   anteriores: CalendarCredentials,
@@ -259,28 +193,21 @@ export async function persistirCredencialesRotadas(
     return;
   }
   if (nuevas.refreshToken === anteriores.refreshToken) return;
-  const credentials = credencialesComoJson("outlook", nuevas.refreshToken);
   try {
-    await prisma.$transaction([
-      prisma.calendarConnection.updateMany({
-        where: businessId
-          ? { businessId, provider: "outlook" }
-          : {
-              provider: "outlook",
-              credentials: {
-                path: ["refreshToken"],
-                equals: anteriores.refreshToken,
-              },
+    await prisma.calendarConnection.updateMany({
+      where: businessId
+        ? { businessId, provider: "outlook" }
+        : {
+            provider: "outlook",
+            credentials: {
+              path: ["refreshToken"],
+              equals: anteriores.refreshToken,
             },
-        data: { credentials },
-      }),
-      prisma.business.updateMany({
-        where: businessId
-          ? { id: businessId }
-          : { outlookRefreshToken: anteriores.refreshToken },
-        data: { outlookRefreshToken: nuevas.refreshToken },
-      }),
-    ]);
+          },
+      data: {
+        credentials: credencialesComoJson("outlook", nuevas.refreshToken),
+      },
+    });
   } catch (error) {
     // Que no se guarde no puede tumbar la operación en curso: el token
     // viejo sigue sirviendo hasta que caduque su ventana.
@@ -339,27 +266,16 @@ export async function marcarCalendarioDesconectado(
     `${log.prefijo} Marcando ${nombreProveedor} como desconectado para el negocio ${businessId} (modo=${opciones.modo}, motivo=${ultimoError})`
   );
   const revocar = opciones.modo === "revocar";
-  const data: Prisma.BusinessUpdateInput = {
-    ...espejoEnColumnas(provider, {
-      connected: false,
-      disconnectedAt: ahora,
-      lastError: ultimoError,
-      ...(revocar ? { refreshToken: null } : {}),
-    }),
-    calendarConnections: {
-      updateMany: {
-        where: { provider },
-        data: {
-          connected: false,
-          disconnectedAt: ahora,
-          lastError: ultimoError,
-          ...(revocar ? { credentials: Prisma.DbNull } : {}),
-        },
-      },
-    },
-  };
   try {
-    await prisma.business.update({ where: { id: businessId }, data });
+    await prisma.calendarConnection.updateMany({
+      where: { businessId, provider },
+      data: {
+        connected: false,
+        disconnectedAt: ahora,
+        lastError: ultimoError,
+        ...(revocar ? { credentials: Prisma.DbNull } : {}),
+      },
+    });
   } catch (dbErr) {
     // Se traga a propósito (la respuesta al cliente no depende de esto), pero
     // con el error completo: si esto falla en silencio, la voz seguiría
@@ -372,11 +288,26 @@ export async function marcarCalendarioDesconectado(
   await invalidarCacheDeVoz(businessId);
 }
 
+/** Business con sus filas de conexión, tal como lo devuelven las escrituras
+ * de aquí para que la ruta lo serialice con serializarBusiness. */
+export type BusinessConConexiones = Prisma.BusinessGetPayload<{
+  include: {
+    calendarConnections: typeof INCLUDE_CONEXIONES.calendarConnections;
+  };
+}>;
+
+/** `include` para cargar las filas junto a un Business completo (rutas que
+ * devuelven el negocio al panel). Mismo select que
+ * SELECT_CONEXION_DE_CALENDARIO. */
+export const INCLUDE_CONEXIONES = {
+  calendarConnections: SELECT_CONEXION_DE_CALENDARIO.calendarConnections,
+} as const satisfies Prisma.BusinessInclude;
+
 /** Escrituras de conexión (handleCallback, handleMicrosoftCallback,
  * connectMicrosoftCalendar, selectGoogleCalendar). Crea o actualiza la fila
- * del proveedor, lo marca como activo y actualiza el espejo. Solo toca los
- * campos recibidos: p. ej. seleccionar calendario no pisa las credenciales.
- * Una única query (nested upsert), así fila y espejo no pueden divergir. */
+ * del proveedor y lo marca como activo, en una única query (nested upsert).
+ * Solo toca los campos recibidos: p. ej. seleccionar calendario no pisa las
+ * credenciales. */
 export async function guardarConexionDeCalendario(
   businessId: string,
   datos: {
@@ -386,7 +317,7 @@ export async function guardarConexionDeCalendario(
     conectado: boolean;
     userEmail?: string | null;
   }
-): Promise<Business> {
+): Promise<BusinessConConexiones> {
   const { provider } = datos;
   const credentials =
     datos.refreshToken !== undefined
@@ -396,14 +327,6 @@ export async function guardarConexionDeCalendario(
     where: { id: businessId },
     data: {
       calendarProvider: provider,
-      ...espejoEnColumnas(provider, {
-        refreshToken: datos.refreshToken,
-        calendarId: datos.calendarId,
-        connected: datos.conectado,
-        disconnectedAt: null,
-        lastError: null,
-        accountEmail: datos.userEmail,
-      }),
       calendarConnections: {
         upsert: {
           where: { businessId_provider: { businessId, provider } },
@@ -429,6 +352,7 @@ export async function guardarConexionDeCalendario(
         },
       },
     },
+    include: INCLUDE_CONEXIONES,
   });
   await invalidarCacheDeVoz(businessId);
   return business;
@@ -443,13 +367,46 @@ export async function actualizarCalendarioDeConexion(
   provider: CalendarProviderId,
   calendarId: string | null
 ): Promise<void> {
-  await prisma.business.update({
-    where: { id: businessId },
-    data: {
-      ...espejoEnColumnas(provider, { calendarId }),
-      calendarConnections: {
-        updateMany: { where: { provider }, data: { calendarId } },
-      },
-    },
+  await prisma.calendarConnection.updateMany({
+    where: { businessId, provider },
+    data: { calendarId },
   });
+}
+
+/** Campos de calendario con la forma que el panel lleva leyendo desde
+ * siempre (`googleCalendarConnected`, `outlookUserEmail`, ...), calculados
+ * desde las filas. Mantiene el contrato de GET/PATCH /business/me,
+ * POST /calendar/select y POST /calendar/auth/microsoft/connect sin que el
+ * frontend tenga que cambiar. Nunca incluye credenciales. */
+export function camposDeCalendarioParaElPanel(
+  conexiones: FilaDeConexion[] | null | undefined
+) {
+  const fila = (provider: CalendarProviderId) =>
+    conexiones?.find((c) => c.provider === provider) ?? null;
+  const google = fila("google");
+  const outlook = fila("outlook");
+  return {
+    googleCalendarId: google?.calendarId ?? null,
+    googleCalendarConnected: google?.connected ?? false,
+    googleCalendarDisconnectedAt: google?.disconnectedAt ?? null,
+    googleCalendarLastError: google?.lastError ?? null,
+    outlookCalendarId: outlook?.calendarId ?? null,
+    outlookCalendarConnected: outlook?.connected ?? false,
+    outlookCalendarDisconnectedAt: outlook?.disconnectedAt ?? null,
+    outlookCalendarLastError: outlook?.lastError ?? null,
+    outlookUserEmail: outlook?.accountEmail ?? null,
+  };
+}
+
+/** Forma pública de un Business para el panel: quita `calendarConnections`
+ * (lleva las credenciales) y añade los campos de calendario históricos. Es
+ * la ÚNICA manera correcta de devolver un Business al cliente. */
+export function serializarBusiness<
+  T extends { calendarConnections?: FilaDeConexion[] | null },
+>(
+  business: T
+): Omit<T, "calendarConnections"> &
+  ReturnType<typeof camposDeCalendarioParaElPanel> {
+  const { calendarConnections, ...resto } = business;
+  return { ...resto, ...camposDeCalendarioParaElPanel(calendarConnections) };
 }
