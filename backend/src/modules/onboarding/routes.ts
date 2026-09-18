@@ -6,6 +6,7 @@ import { BusinessScheduleSchema } from "../../lib/businessSchedule.js";
 import {
   marcadaComoConectada,
   resolverConexionDeCalendario,
+  SELECT_CONEXION_DE_CALENDARIO,
 } from "../calendar/conexion.js";
 
 export type OnboardingSteps = {
@@ -73,6 +74,7 @@ export async function onboardingRoutes(fastify: FastifyInstance) {
           include: {
             services: { where: { active: true } },
             professionals: { where: { active: true } },
+            calendarConnections: SELECT_CONEXION_DE_CALENDARIO.calendarConnections,
           },
         });
 

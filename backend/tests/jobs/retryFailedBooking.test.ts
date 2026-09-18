@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
+import { filaDeConexion } from "../helpers/conexionDeCalendario.js";
 import { enqueueRetryBookingJob } from "../../src/lib/cloudTasks.js";
 import { processRetryFailedBookingJob } from "../../src/jobs/retryFailedBooking.js";
 import { prisma } from "../../src/lib/prisma.js";
@@ -90,13 +91,11 @@ function buildLead(overrides: Record<string, unknown> = {}) {
 
 function buildBusiness(overrides: Record<string, unknown> = {}) {
   return {
+    id: "biz_1",
     calendarProvider: "google",
-    googleRefreshToken: "google_refresh_token",
-    googleCalendarId: "primary",
-    googleCalendarConnected: true,
-    outlookRefreshToken: null,
-    outlookCalendarId: null,
-    outlookCalendarConnected: false,
+    calendarConnections: [
+      filaDeConexion("google", { refreshToken: "google_refresh_token" }),
+    ],
     ...overrides,
   };
 }
@@ -176,7 +175,9 @@ describe("processRetryFailedBookingJob", () => {
     mockedLeadFindUnique.mockResolvedValue(buildLead() as any);
     mockedCallFindUnique.mockResolvedValue({ businessId: "biz_1" } as any);
     mockedBusinessFindUnique.mockResolvedValue(
-      buildBusiness({ googleRefreshToken: null }) as any
+      buildBusiness({
+        calendarConnections: [filaDeConexion("google", { refreshToken: null })],
+      }) as any
     );
 
     // Ya no lanza: lanzar gastaba los cuatro reintentos de Cloud Tasks en
@@ -198,7 +199,9 @@ describe("processRetryFailedBookingJob", () => {
     mockedLeadFindUnique.mockResolvedValue(buildLead() as any);
     mockedCallFindUnique.mockResolvedValue({ businessId: "biz_1" } as any);
     mockedBusinessFindUnique.mockResolvedValue(
-      buildBusiness({ googleRefreshToken: null }) as any
+      buildBusiness({
+        calendarConnections: [filaDeConexion("google", { refreshToken: null })],
+      }) as any
     );
 
     await processRetryFailedBookingJob({ leadId, attempt: 8 });
@@ -213,7 +216,10 @@ describe("processRetryFailedBookingJob", () => {
     mockedLeadFindUnique.mockResolvedValue(buildLead() as any);
     mockedCallFindUnique.mockResolvedValue({ businessId: "biz_1" } as any);
     mockedBusinessFindUnique.mockResolvedValue(
-      buildBusiness({ calendarProvider: "outlook", outlookRefreshToken: null }) as any
+      buildBusiness({
+        calendarProvider: "outlook",
+        calendarConnections: [filaDeConexion("outlook", { refreshToken: null })],
+      }) as any
     );
 
     await processRetryFailedBookingJob({ leadId });
@@ -264,9 +270,12 @@ describe("processRetryFailedBookingJob", () => {
     mockedBusinessFindUnique.mockResolvedValue(
       buildBusiness({
         calendarProvider: "outlook",
-        outlookRefreshToken: "outlook_refresh_token",
-        outlookCalendarId: "calendar_1",
-        outlookCalendarConnected: true,
+        calendarConnections: [
+          filaDeConexion("outlook", {
+            refreshToken: "outlook_refresh_token",
+            calendarId: "calendar_1",
+          }),
+        ],
       }) as any
     );
 
@@ -365,15 +374,26 @@ describe("processRetryFailedBookingJob", () => {
 
     // Sin este catch específico (antes no existía), el job simplemente
     // fallaba en bucle contra una conexión que no iba a arreglarse sola,
-    // sin que Business.googleCalendarConnected reflejara nunca la rotura.
+    // sin que la conexión reflejara nunca la rotura.
     await expect(processRetryFailedBookingJob({ leadId })).resolves.toBeUndefined();
 
+    // Modo "revocar": la fila de calendar_connections queda sin
+    // credenciales y desconectada (y el espejo en Business igual).
     expect(mockedBusinessUpdate).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { id: "biz_1" },
         data: expect.objectContaining({
           googleCalendarConnected: false,
           googleRefreshToken: null,
+          calendarConnections: {
+            updateMany: {
+              where: { provider: "google" },
+              data: expect.objectContaining({
+                connected: false,
+                lastError: "invalid_grant",
+              }),
+            },
+          },
         }),
       })
     );

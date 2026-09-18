@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
+import { filaDeConexion } from "../../helpers/conexionDeCalendario.js";
 import Fastify from "fastify";
 import { onboardingRoutes } from "../../../src/modules/onboarding/routes.js";
 import { prisma } from "../../../src/lib/prisma.js";
@@ -42,8 +43,7 @@ function businessConfigurado(overrides: Record<string, unknown> = {}) {
     services: [{ id: "srv_1" }],
     professionals: [{ id: "pro_1" }],
     calendarProvider: "google",
-    googleCalendarConnected: true,
-    outlookCalendarConnected: false,
+    calendarConnections: [filaDeConexion("google")],
     telnyxPhoneNumber: "+34930453218",
     phoneNumberStatus: "active",
     ...overrides,

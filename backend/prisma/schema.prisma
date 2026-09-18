@@ -90,7 +90,13 @@ model Business {
   telnyxPhoneNumberId          String?   @unique
   telnyxPhoneNumberPurchasedAt DateTime?
 
-  // Calendar integrations
+  // Calendar integrations. Desde 2026-09-18 la fuente de verdad es la tabla
+  // CalendarConnection (una fila por proveedor); `calendarProvider` sigue
+  // aquí como puntero al proveedor activo. Las columnas google*/outlook* de
+  // abajo son un ESPEJO que modules/calendar/conexion.ts mantiene al escribir,
+  // para que la revisión anterior (durante el despliegue), un rollback y el
+  // serializador del frontend sigan funcionando. Se borran en el PR
+  // "contract" cuando el frontend deje de leerlas.
   calendarProvider              String?
   googleRefreshToken            String?   @db.Text
   googleCalendarId              String?
@@ -120,6 +126,7 @@ model Business {
   stripeWebhookEvents StripeWebhookEvent[]
   billingUsagePeriods BillingUsagePeriod[]
   onboardingState     OnboardingState?
+  calendarConnections CalendarConnection[]
 
   @@map("businesses")
 }
@@ -153,6 +160,36 @@ model BillingUsageReport {
 
   @@index([periodId, reportedAt])
   @@map("billing_usage_reports")
+}
+
+// Conexión de un negocio con un proveedor de calendario (Google, Outlook y,
+// en el futuro, CalDAV). Una fila por proveedor y negocio; el proveedor
+// activo lo señala Business.calendarProvider. Solo la lee y escribe
+// modules/calendar/conexion.ts.
+model CalendarConnection {
+  id             String    @id @default(cuid())
+  businessId     String
+  business       Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  /// "google" | "outlook" (CalendarProviderId). String y no enum para que
+  /// añadir un proveedor no exija migración.
+  provider       String
+  /// Calendario elegido dentro de la cuenta. null = aún no se eligió (Outlook
+  /// tras el OAuth y antes del selector); Google usa "primary" por defecto.
+  calendarId     String?
+  /// Credenciales con la misma forma que CalendarCredentials (p. ej.
+  /// { provider: "google", refreshToken }). null = revocadas (invalid_grant):
+  /// hace falta reconectar.
+  credentials    Json?
+  connected      Boolean   @default(false)
+  disconnectedAt DateTime?
+  lastError      String?   @db.Text
+  /// Email de la cuenta conectada cuando el proveedor lo da (Outlook).
+  accountEmail   String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@unique([businessId, provider])
+  @@map("calendar_connections")
 }
 
 model OnboardingState {

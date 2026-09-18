@@ -142,7 +142,7 @@ function exigirConexionActiva(
   return {
     provider: conexion.provider,
     calendarId: conexion.calendarId,
-    ...conCallbackDeRotacion(conexion.credentials),
+    ...conCallbackDeRotacion(conexion.credentials, conexion.businessId ?? null),
   } as ConexionActiva;
 }
 
@@ -253,7 +253,7 @@ export class CalendarService {
       );
     }
     return obtenerProveedorDeCalendario(conexion.provider).listarCalendarios(
-      conCallbackDeRotacion(conexion.credentials)
+      conCallbackDeRotacion(conexion.credentials, conexion.businessId ?? null)
     );
   }
 

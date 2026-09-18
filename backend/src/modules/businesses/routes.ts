@@ -2,6 +2,7 @@ import { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import { z } from "zod";
 import { prisma } from "../../lib/prisma.js";
 import { invalidarCacheDeVoz } from "../../lib/voiceConfigCache.js";
+import { actualizarCalendarioDeConexion } from "../calendar/conexion.js";
 import { BusinessScheduleSchema } from "../../lib/businessSchedule.js";
 import { calendarService } from "../calendar/service.js";
 import { AgentSettingsSchema, buildManagedAgentPrompt, parseAgentSettings } from "../../lib/managedAgentPrompt.js";
@@ -286,7 +287,13 @@ export async function businessesRoutes(fastify: FastifyInstance) {
           }
         }
 
-        const updateData: any = { ...data };
+        // Los calendarios elegidos viven en calendar_connections (ver
+        // modules/calendar/conexion.ts), no en columnas de Business: se
+        // separan del update y se aplican después por conexión.
+        // `calendarProvider` sí sigue siendo columna (proveedor activo).
+        const { googleCalendarId, outlookCalendarId, ...camposDeBusiness } =
+          data;
+        const updateData: any = { ...camposDeBusiness };
         if (data.schedule) {
             updateData.schedule = data.schedule as any;
         }
@@ -353,6 +360,21 @@ export async function businessesRoutes(fastify: FastifyInstance) {
           where: { id: request.user!.businessId },
           data: updateData,
         });
+
+        if (googleCalendarId !== undefined) {
+          await actualizarCalendarioDeConexion(
+            request.user!.businessId,
+            "google",
+            googleCalendarId
+          );
+        }
+        if (outlookCalendarId !== undefined) {
+          await actualizarCalendarioDeConexion(
+            request.user!.businessId,
+            "outlook",
+            outlookCalendarId
+          );
+        }
 
         // Empuja el prompt gestionado + post_call_analysis_data a Retell.
         // Sin esto, editar tono/objetivo/horario/nicho en el dashboard solo
