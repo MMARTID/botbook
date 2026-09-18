@@ -289,6 +289,7 @@ Copy `.env.example` to `.env` and fill in all required secrets. Key groups:
 | **Telnyx** | `TELNYX_API_KEY`, `TELNYX_SIP_CONNECTION_ID`, `TELNYX_SPAIN_REQUIREMENT_GROUP_ID`, `PHONE_NUMBER_COUNTRY` |
 | **Retell SIP trunk** | `RETELL_SIP_TERMINATION_URI`, `RETELL_SIP_TRUNK_AUTH_USERNAME`, `RETELL_SIP_TRUNK_AUTH_PASSWORD` (Telnyx SIP Connection used by `RetellAdapter.importPhoneNumber`) |
 | **Server** | `FRONTEND_URL`, `PORT`, `NODE_ENV`, `LOG_LEVEL` |
+| **Calendario** | `CALENDAR_CREDENTIALS_KEY` (obligatoria; cifrado en reposo de `calendar_connections.credentials`) |
 
 ## Authentication & Authorization
 
@@ -395,6 +396,17 @@ CalendarConnection  (@@map "calendar_connections", @@unique [businessId, provide
 
 Una fila por negocio y proveedor; **`Business.calendarProvider` es el único campo de calendario
 que queda en `Business`** (puntero al proveedor activo). Todo pasa por `modules/calendar/conexion.ts`.
+
+**Credenciales cifradas en reposo (desde 2026-09-18):** `credentials` es siempre un sobre AES-256-GCM
+(`{ v: 1, alg, iv, tag, data }`, `lib/cifradoDeCredenciales.ts`) con la clave `CALENDAR_CREDENTIALS_KEY`
+(32 bytes en base64; Secret Manager en producción, `.env` en dev). Solo `conexion.ts` cifra/descifra. Sin
+clave **el servidor no arranca** (`server.ts`): Cloud Run deja la revisión anterior sirviendo, que es mejor
+que fallar en cada llamada de voz. Un sobre que no descifra (otra clave, fila manipulada) cuenta como "sin
+credenciales" → RECONNECT + `console.error`. Transitoriamente se aceptan filas en claro con un `console.warn`;
+`scripts/cifrarCredencialesCalendario.ts` (idempotente, `--dry-run`) las recifra tras el despliegue. Como
+no se puede buscar por valor de token, `persistirCredencialesRotadas` exige `businessId` (los wrappers
+`@deprecated` sin él avisan y no persisten). **Si se pierde la clave, todos los negocios tienen que
+reconectar su calendario.**
 
 **El contrato con el frontend no cambió:** `GET/PATCH /business/me`, `POST /calendar/select` y
 `POST /calendar/auth/microsoft/connect` siguen devolviendo `googleCalendarId`, `googleCalendarConnected`,
@@ -1086,6 +1098,7 @@ Separate suite (`npm run test:integration`, config `backend/vitest.integration.c
 | `backend/tests/modules/phone/service.test.ts` | Phone provisioning idempotency, async order polling/resume, partial failure handling, status retrieval |
 | `backend/tests/modules/calendar/service.test.ts` | Google/Outlook Calendar booking, upcoming events, cancel, sync tools to agents, invalid_grant detection, timeout/rate-limit classification, `listarCalendarios`/`seleccionarCalendario` |
 | `backend/tests/modules/calendar/conexion.test.ts` | Resolver de conexión sobre filas de `calendar_connections` (proveedor activo, defaults, credenciales corruptas, caché antigua sin filas), los cuatro predicados de "conectado", `marcarCalendarioDesconectado` (modos panel/revocar, fallo de BD → log de error con identificadores, fallo de Redis), `guardarConexionDeCalendario` (nested upsert exacto por cada caller), `actualizarCalendarioDeConexion`, rotación de credenciales por id y por valor, `serializarBusiness`/`camposDeCalendarioParaElPanel`. Fixtures compartidas en `tests/helpers/conexionDeCalendario.ts` |
+| `backend/tests/lib/cifradoDeCredenciales.test.ts` | Sobre AES-256-GCM: ida y vuelta, IV aleatorio, manipulación y clave distinta fallan, clave ausente/corta falla explícitamente |
 | `backend/tests/modules/businesses/me.test.ts` | Contrato de `GET /business/me` con el panel: campos de calendario históricos calculados desde las filas, nunca `calendarConnections` ni credenciales |
 | `backend/tests/adapters/calendar/errors.test.ts`, `registry.test.ts` | Códigos de reconexión, duck typing de `CalendarBusinessError`, resolución de proveedor desde un error (null si desconocido), registro de adaptadores |
 | `backend/tests/modules/voiceTools/service.test.ts` | `book_appointment` call-linking (callId vs. most-recent-call fallback) |

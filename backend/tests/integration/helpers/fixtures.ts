@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { prisma } from "../../../src/lib/prisma.js";
+import { cifrarJson } from "../../../src/lib/cifradoDeCredenciales.js";
 import { DEFAULT_BUSINESS_SCHEDULE } from "../../../src/lib/businessSchedule.js";
 import type { Business, Call } from "@prisma/client";
 
@@ -43,7 +44,10 @@ export async function createTestBusiness(
         create: {
           provider: "google",
           calendarId: "primary",
-          credentials: { provider: "google", refreshToken: "fake-refresh-token" },
+          credentials: cifrarJson({
+            provider: "google",
+            refreshToken: "fake-refresh-token",
+          }),
           connected: true,
         },
       },
@@ -66,7 +70,10 @@ export async function createTestCall(
   });
 }
 
-export async function createTestProfessional(businessId: string, name = "Profesional de prueba") {
+export async function createTestProfessional(
+  businessId: string,
+  name = "Profesional de prueba"
+) {
   return prisma.professional.create({
     data: { businessId, name, active: true },
   });

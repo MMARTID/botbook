@@ -14,6 +14,11 @@ import { z } from "zod";
 import { prisma } from "../../lib/prisma.js";
 import { invalidarCacheDeVoz } from "../../lib/voiceConfigCache.js";
 import {
+  cifrarJson,
+  descifrarJson,
+  esSobreCifrado,
+} from "../../lib/cifradoDeCredenciales.js";
+import {
   DESCRIPTORES_DE_PROVEEDOR,
   normalizarProveedorDeCalendario,
   type CalendarConnection,
@@ -86,16 +91,37 @@ const CredencialesSchema = z.discriminatedUnion("provider", [
   z.object({ provider: z.literal("outlook"), refreshToken: z.string().min(1) }),
 ]);
 
-/** Valida el JSON de la fila contra la forma de CalendarCredentials. Una fila
- * corrupta o de otro proveedor se trata como "sin credenciales" (el
- * consumidor pedirá reconectar) y se deja constancia: nunca se lanza desde
- * aquí porque el resolver corre en el camino crítico de una llamada. */
+/** Descifra y valida el JSON de la fila contra la forma de
+ * CalendarCredentials. Una fila manipulada, cifrada con otra clave, corrupta
+ * o de otro proveedor se trata como "sin credenciales" (el consumidor pedirá
+ * reconectar) y se deja constancia: nunca se lanza desde aquí porque el
+ * resolver corre en el camino crítico de una llamada.
+ *
+ * Transitorio: acepta también credenciales en claro (filas anteriores al
+ * cifrado, o escritas por la revisión anterior durante el despliegue) y lo
+ * avisa; scripts/cifrar-credenciales-calendario.ts las recifra todas. */
 function parsearCredenciales(
   provider: CalendarProviderId,
   json: unknown
 ): CalendarCredentials | null {
   if (json === null || json === undefined) return null;
-  const resultado = CredencialesSchema.safeParse(json);
+  let enClaro: unknown = json;
+  if (esSobreCifrado(json)) {
+    try {
+      enClaro = descifrarJson(json);
+    } catch (error) {
+      console.error(
+        `[Calendar] No se pudieron descifrar las credenciales de ${provider} en calendar_connections (¿clave distinta o fila manipulada?); se tratan como ausentes:`,
+        error instanceof Error ? error.message : String(error)
+      );
+      return null;
+    }
+  } else {
+    console.warn(
+      `[Calendar] Credenciales de ${provider} guardadas SIN cifrar en calendar_connections; ejecuta scripts/cifrar-credenciales-calendario.ts`
+    );
+  }
+  const resultado = CredencialesSchema.safeParse(enClaro);
   if (!resultado.success || resultado.data.provider !== provider) {
     console.error(
       `[Calendar] Credenciales de ${provider} con forma inválida en calendar_connections; se tratan como ausentes`
@@ -167,12 +193,13 @@ export const origenDeCalendario = (
 ): CalendarOrigin | null =>
   c.calendarId ? { provider: c.provider, calendarId: c.calendarId } : null;
 
-/** JSON que se guarda en calendar_connections.credentials. */
-function credencialesComoJson(
-  provider: CalendarProviderId,
-  refreshToken: string
+/** JSON que se guarda en calendar_connections.credentials: SIEMPRE un sobre
+ * cifrado (lib/cifradoDeCredenciales.ts). Exportada para el script de
+ * recifrado. */
+export function credencialesComoJson(
+  credenciales: CalendarCredentials
 ): Prisma.InputJsonObject {
-  return { provider, refreshToken };
+  return cifrarJson(credenciales) as unknown as Prisma.InputJsonObject;
 }
 
 /**
@@ -180,9 +207,10 @@ function credencialesComoJson(
  * casi siempre). Sin esto se seguía usando indefinidamente el token original
  * de la conexión, que caduca por inactividad a los 90 días: meses después,
  * Outlook se desconectaba solo con invalid_grant y todas las reservas de ese
- * negocio pasaban a quedarse pendientes. Con businessId escribe por id; sin
- * él (wrappers @deprecated que solo reciben el token) busca la fila por
- * valor del token viejo.
+ * negocio pasaban a quedarse pendientes. Escribe por id de negocio; sin
+ * businessId (wrappers @deprecated que solo reciben el token) no hay forma
+ * de localizar la fila —las credenciales van cifradas, no se puede buscar
+ * por valor— y se deja constancia.
  */
 export async function persistirCredencialesRotadas(
   anteriores: CalendarCredentials,
@@ -193,26 +221,22 @@ export async function persistirCredencialesRotadas(
     return;
   }
   if (nuevas.refreshToken === anteriores.refreshToken) return;
+  if (!businessId) {
+    console.warn(
+      "[Calendar] Outlook rotó el refresh token pero no se conoce el negocio (llamada sin businessId); no se persiste"
+    );
+    return;
+  }
   try {
     await prisma.calendarConnection.updateMany({
-      where: businessId
-        ? { businessId, provider: "outlook" }
-        : {
-            provider: "outlook",
-            credentials: {
-              path: ["refreshToken"],
-              equals: anteriores.refreshToken,
-            },
-          },
-      data: {
-        credentials: credencialesComoJson("outlook", nuevas.refreshToken),
-      },
+      where: { businessId, provider: "outlook" },
+      data: { credentials: credencialesComoJson(nuevas) },
     });
   } catch (error) {
     // Que no se guarde no puede tumbar la operación en curso: el token
     // viejo sigue sirviendo hasta que caduque su ventana.
     console.error(
-      `[Calendar] No se pudo guardar el refresh token rotado de Outlook${businessId ? ` del negocio ${businessId}` : ""}:`,
+      `[Calendar] No se pudo guardar el refresh token rotado de Outlook del negocio ${businessId}:`,
       error instanceof Error ? error.message : String(error)
     );
   }
@@ -321,7 +345,10 @@ export async function guardarConexionDeCalendario(
   const { provider } = datos;
   const credentials =
     datos.refreshToken !== undefined
-      ? credencialesComoJson(provider, datos.refreshToken)
+      ? credencialesComoJson({
+          provider,
+          refreshToken: datos.refreshToken,
+        } as CalendarCredentials)
       : undefined;
   const business = await prisma.business.update({
     where: { id: businessId },
