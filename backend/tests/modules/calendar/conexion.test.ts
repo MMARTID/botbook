@@ -23,6 +23,11 @@ import {
   filaDeConexion,
   negocioConConexiones,
 } from "../../helpers/conexionDeCalendario.js";
+import {
+  cifrarJson,
+  descifrarJson,
+  esSobreCifrado,
+} from "../../../src/lib/cifradoDeCredenciales.js";
 
 vi.mock("../../../src/lib/prisma.js", () => ({
   prisma: {
@@ -190,6 +195,62 @@ describe("resolverConexionDeCalendario", () => {
     expect(ajena.credentials).toBeNull();
     expect(errorSpy).toHaveBeenCalledTimes(2);
     expect(errorSpy.mock.calls[0][0]).toContain("[Calendar]");
+    errorSpy.mockRestore();
+  });
+
+  it("lee credenciales cifradas (sobre AES-GCM) y las descifra", () => {
+    const c = resolverConexionDeCalendario(
+      negocioConConexiones("google", [
+        {
+          ...filaDeConexion("google"),
+          credentials: cifrarJson({
+            provider: "google",
+            refreshToken: "rt_cifrado",
+          }),
+        },
+      ])
+    );
+    expect(c.credentials).toEqual({
+      provider: "google",
+      refreshToken: "rt_cifrado",
+    });
+  });
+
+  it("credenciales en claro (transitorio) se aceptan con un aviso", () => {
+    const warnSpy = vi
+      .spyOn(console, "warn")
+      .mockImplementation(() => undefined);
+    const c = resolverConexionDeCalendario(
+      negocioConConexiones("google", [
+        filaDeConexion("google", { refreshToken: "rt_claro", enClaro: true }),
+      ])
+    );
+    expect(c.credentials).toEqual({
+      provider: "google",
+      refreshToken: "rt_claro",
+    });
+    expect(warnSpy).toHaveBeenCalledTimes(1);
+    expect(warnSpy.mock.calls[0][0]).toContain("SIN cifrar");
+    warnSpy.mockRestore();
+  });
+
+  it("un sobre que no descifra (otra clave o manipulado) ⇒ sin credenciales y error en el log", () => {
+    const errorSpy = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => undefined);
+    const sobre = cifrarJson({ provider: "google", refreshToken: "rt" });
+    const manipulado = {
+      ...sobre,
+      tag: Buffer.alloc(16, 1).toString("base64"),
+    };
+    const c = resolverConexionDeCalendario(
+      negocioConConexiones("google", [
+        { ...filaDeConexion("google"), credentials: manipulado },
+      ])
+    );
+    expect(c.credentials).toBeNull();
+    expect(errorSpy).toHaveBeenCalledTimes(1);
+    expect(errorSpy.mock.calls[0][0]).toContain("descifrar");
     errorSpy.mockRestore();
   });
 
@@ -557,16 +618,26 @@ describe("guardarConexionDeCalendario", () => {
     });
 
     const data = mockedBusinessUpdate.mock.calls[0][0].data as any;
-    expect(data.calendarConnections.upsert.create).toEqual({
+    const { create, update } = data.calendarConnections.upsert;
+    // Las credenciales van SIEMPRE cifradas (sobre AES-GCM), nunca en claro.
+    expect(esSobreCifrado(create.credentials)).toBe(true);
+    expect(JSON.stringify(data)).not.toContain("rt_nuevo");
+    expect(descifrarJson(create.credentials)).toEqual({
+      provider: "google",
+      refreshToken: "rt_nuevo",
+    });
+    expect(create).toMatchObject({
       provider: "google",
       calendarId: "primary",
-      credentials: { provider: "google", refreshToken: "rt_nuevo" },
       connected: true,
       accountEmail: null,
     });
-    expect(data.calendarConnections.upsert.update).toEqual({
+    expect(descifrarJson(update.credentials)).toEqual({
+      provider: "google",
+      refreshToken: "rt_nuevo",
+    });
+    expect(update).toMatchObject({
       calendarId: "primary",
-      credentials: { provider: "google", refreshToken: "rt_nuevo" },
       connected: true,
       disconnectedAt: null,
       lastError: null,
@@ -590,12 +661,12 @@ describe("guardarConexionDeCalendario", () => {
           create: {
             provider: "outlook",
             calendarId: null,
-            credentials: { provider: "outlook", refreshToken: "rt_o" },
+            credentials: expect.objectContaining({ v: 1, alg: "aes-256-gcm" }),
             connected: false,
             accountEmail: "barber@outlook.com",
           },
           update: {
-            credentials: { provider: "outlook", refreshToken: "rt_o" },
+            credentials: expect.objectContaining({ v: 1, alg: "aes-256-gcm" }),
             connected: false,
             disconnectedAt: null,
             lastError: null,
@@ -604,6 +675,9 @@ describe("guardarConexionDeCalendario", () => {
         },
       },
     });
+    expect(
+      descifrarJson(data.calendarConnections.upsert.create.credentials)
+    ).toEqual({ provider: "outlook", refreshToken: "rt_o" });
   });
 
   it("handleMicrosoftCallback: userEmail null se escribe como null (no se omite)", async () => {
@@ -680,25 +754,27 @@ describe("persistirCredencialesRotadas", () => {
     mockedConnectionUpdateMany.mockResolvedValue({ count: 1 });
   });
 
-  it("con businessId escribe por id en la fila", async () => {
+  it("con businessId escribe por id en la fila, cifrado", async () => {
     await persistirCredencialesRotadas(viejas, nuevas, "biz_1");
 
-    expect(mockedConnectionUpdateMany).toHaveBeenCalledWith({
-      where: { businessId: "biz_1", provider: "outlook" },
-      data: { credentials: { provider: "outlook", refreshToken: "rt_nuevo" } },
+    expect(mockedConnectionUpdateMany).toHaveBeenCalledTimes(1);
+    const llamada = mockedConnectionUpdateMany.mock.calls[0][0] as any;
+    expect(llamada.where).toEqual({ businessId: "biz_1", provider: "outlook" });
+    expect(esSobreCifrado(llamada.data.credentials)).toBe(true);
+    expect(descifrarJson(llamada.data.credentials)).toEqual({
+      provider: "outlook",
+      refreshToken: "rt_nuevo",
     });
   });
 
-  it("sin businessId busca por VALOR del token viejo (wrappers deprecated)", async () => {
+  it("sin businessId no puede localizar la fila (cifrado ⇒ no se busca por valor): avisa y no escribe", async () => {
+    const warnSpy = vi
+      .spyOn(console, "warn")
+      .mockImplementation(() => undefined);
     await persistirCredencialesRotadas(viejas, nuevas);
-
-    expect(mockedConnectionUpdateMany).toHaveBeenCalledWith({
-      where: {
-        provider: "outlook",
-        credentials: { path: ["refreshToken"], equals: "rt_viejo" },
-      },
-      data: { credentials: { provider: "outlook", refreshToken: "rt_nuevo" } },
-    });
+    expect(mockedConnectionUpdateMany).not.toHaveBeenCalled();
+    expect(warnSpy).toHaveBeenCalledTimes(1);
+    warnSpy.mockRestore();
   });
 
   it("no escribe si el token es el mismo", async () => {

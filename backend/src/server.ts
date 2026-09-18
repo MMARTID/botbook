@@ -42,6 +42,7 @@ import {
   extractTelnyxEventEnvelope,
 } from "./adapters/telnyx/webhookHandlers.js";
 import { telnyxAiAdapter } from "./adapters/telnyx/TelnyxAiAdapter.js";
+import { comprobarClaveDeCifrado } from "./lib/cifradoDeCredenciales.js";
 import {
   claimVoiceWebhookEvent,
   completeVoiceWebhookEvent,
@@ -52,6 +53,19 @@ const HOST = process.env.HOST || "0.0.0.0";
 
 if (!process.env.JWT_SECRET) {
   console.error("[Server] JWT_SECRET is not defined. The server cannot start safely without it.");
+  process.exit(1);
+}
+
+// Las credenciales de calendario van cifradas en reposo: sin clave no se
+// podría leer ninguna conexión existente ni guardar una nueva. Mejor no
+// arrancar (Cloud Run deja la revisión anterior sirviendo) que fallar en
+// cada llamada de voz con "reconecta tu calendario".
+try {
+  comprobarClaveDeCifrado();
+} catch (error) {
+  console.error(
+    `[Server] ${error instanceof Error ? error.message : String(error)}. El servidor no puede arrancar sin la clave de cifrado de credenciales de calendario.`
+  );
   process.exit(1);
 }
 
