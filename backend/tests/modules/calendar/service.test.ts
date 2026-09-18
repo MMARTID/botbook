@@ -907,16 +907,13 @@ describe("CalendarService.selectGoogleCalendar", () => {
 
     await calendarService.selectGoogleCalendar("business_123", "secundario_id");
 
-    // Una sola query: fila de calendar_connections (fuente de verdad) y
-    // espejo en las columnas antiguas de Business. No toca credenciales.
+    // Una sola query sobre la fila de calendar_connections; no toca
+    // credenciales. Devuelve el Business con sus filas para serializar.
     expect(mockedBusinessUpdate).toHaveBeenCalledWith({
       where: { id: "business_123" },
+      include: { calendarConnections: expect.any(Object) },
       data: {
         calendarProvider: "google",
-        googleCalendarId: "secundario_id",
-        googleCalendarConnected: true,
-        googleCalendarDisconnectedAt: null,
-        googleCalendarLastError: null,
         calendarConnections: {
           upsert: {
             where: {
@@ -1044,7 +1041,23 @@ describe("CalendarService.connectMicrosoftCalendar", () => {
     expect(mockedBusinessUpdate).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { id: "business_123" },
-        data: expect.objectContaining({ outlookCalendarId: "outlook_cal_1", outlookCalendarConnected: true }),
+        data: expect.objectContaining({
+          calendarProvider: "outlook",
+          calendarConnections: {
+            upsert: expect.objectContaining({
+              where: {
+                businessId_provider: {
+                  businessId: "business_123",
+                  provider: "outlook",
+                },
+              },
+              update: expect.objectContaining({
+                calendarId: "outlook_cal_1",
+                connected: true,
+              }),
+            }),
+          },
+        }),
       })
     );
     expect(del).toHaveBeenCalledWith("voice_config:business_123");
@@ -1737,8 +1750,6 @@ describe("CalendarService.seleccionarCalendario", () => {
         where: { id: "business_123" },
         data: expect.objectContaining({
           calendarProvider: "google",
-          googleCalendarId: "cal_g",
-          googleCalendarConnected: true,
           calendarConnections: {
             upsert: expect.objectContaining({
               where: {
@@ -1773,8 +1784,17 @@ describe("CalendarService.seleccionarCalendario", () => {
       expect.objectContaining({
         data: expect.objectContaining({
           calendarProvider: "outlook",
-          outlookCalendarId: "cal_o",
-          outlookCalendarConnected: true,
+          calendarConnections: {
+            upsert: expect.objectContaining({
+              where: {
+                businessId_provider: {
+                  businessId: "business_123",
+                  provider: "outlook",
+                },
+              },
+              update: expect.objectContaining({ calendarId: "cal_o" }),
+            }),
+          },
         }),
       })
     );
@@ -1790,7 +1810,14 @@ describe("CalendarService.seleccionarCalendario", () => {
 
     expect(mockedBusinessUpdate).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: expect.objectContaining({ googleCalendarId: "cal_g" }),
+        data: expect.objectContaining({
+          calendarProvider: "google",
+          calendarConnections: {
+            upsert: expect.objectContaining({
+              update: expect.objectContaining({ calendarId: "cal_g" }),
+            }),
+          },
+        }),
       })
     );
   });

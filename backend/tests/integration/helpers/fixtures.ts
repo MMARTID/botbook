@@ -39,11 +39,6 @@ export async function createTestBusiness(
       schedule: DEFAULT_BUSINESS_SCHEDULE as unknown as object,
       bookingCapacity: 1,
       calendarProvider: "google",
-      // Espejo en columnas (aún se escriben) + fila real en
-      // calendar_connections, que es lo que lee el backend.
-      googleRefreshToken: "fake-refresh-token",
-      googleCalendarId: "primary",
-      googleCalendarConnected: true,
       calendarConnections: {
         create: {
           provider: "google",

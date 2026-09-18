@@ -393,19 +393,23 @@ CalendarConnection  (@@map "calendar_connections", @@unique [businessId, provide
   accountEmail    String?   // Outlook
 ```
 
-Una fila por negocio y proveedor; **`Business.calendarProvider` sigue siendo el puntero al
-proveedor activo**. Es la única fuente de verdad que lee el backend (todo pasa por
-`modules/calendar/conexion.ts`). Las columnas `google*`/`outlook*` de `Business`
-(`googleRefreshToken`, `googleCalendarId`, `googleCalendarConnected`, `googleCalendarDisconnectedAt`,
-`googleCalendarLastError` y sus equivalentes `outlook*` más `outlookUserEmail`) **siguen existiendo
-como espejo de escritura** — `conexion.ts` las actualiza en la misma query que la fila — y ya no se
-leen. Motivo (fase *expand* de un expand/contract): `cloudbuild.yaml` aplica `prisma migrate deploy`
-antes de que la revisión nueva reciba tráfico, así que durante el despliegue la revisión anterior
-sirve contra el schema nuevo; el espejo mantiene funcionando esa revisión, un rollback y el
-serializador de `Business` que consume el frontend. La migración `20260918090000_calendar_connections`
-hace el backfill desde esas columnas (idempotente, ids `cal_<md5(businessId:provider)>`). El PR
-*contract* pendiente: dejar de espejar, calcular los campos antiguos del serializador desde la
-tabla y borrar las columnas.
+Una fila por negocio y proveedor; **`Business.calendarProvider` es el único campo de calendario
+que queda en `Business`** (puntero al proveedor activo). Todo pasa por `modules/calendar/conexion.ts`.
+
+**El contrato con el frontend no cambió:** `GET/PATCH /business/me`, `POST /calendar/select` y
+`POST /calendar/auth/microsoft/connect` siguen devolviendo `googleCalendarId`, `googleCalendarConnected`,
+`googleCalendarDisconnectedAt`, `googleCalendarLastError`, sus equivalentes `outlook*` y `outlookUserEmail`
+— pero ahora los **calcula `serializarBusiness()`** desde las filas (`camposDeCalendarioParaElPanel`),
+que además quita `calendarConnections` (lleva las credenciales). Es la única manera correcta de devolver
+un `Business` al cliente; las rutas cargan las filas con `INCLUDE_CONEXIONES`. Fijado en
+`tests/modules/businesses/me.test.ts`.
+
+Historial (expand/contract, porque `cloudbuild.yaml` migra antes del cambio de tráfico y la revisión
+anterior sigue sirviendo unos minutos contra el schema nuevo): PR #77 creó la tabla con backfill y
+escribía las columnas antiguas en espejo; el PR siguiente retiró el espejo y las columnas del schema
+Prisma (el cliente ya no las selecciona) **sin borrarlas de la BD**; la migración `DROP COLUMN` va en un
+PR aparte, una vez desplegado ese código. Si `prisma migrate dev` en dev detecta deriva por esas
+columnas, es esa migración pendiente.
 
 ### Orchestrator Field on `Business`
 
@@ -683,7 +687,7 @@ backend/src/adapters/calendar/
 ├── google/GoogleCalendarProvider.ts    # googleapis; exporta crearClienteOAuthDeGoogle e isGoogleInvalidGrantError
 └── outlook/OutlookCalendarProvider.ts  # envuelve lib/microsoftGraph.ts (que no cambió)
 
-backend/src/modules/calendar/conexion.ts   # el ÚNICO fichero que lee/escribe calendar_connections (y el espejo en Business)
+backend/src/modules/calendar/conexion.ts   # el ÚNICO fichero que lee/escribe calendar_connections; serializarBusiness para el panel
 backend/src/lib/voiceConfigCache.ts        # claveDeCacheDeVoz / invalidarCacheDeVoz (antes 4 copias del literal)
 ```
 
@@ -719,8 +723,8 @@ backend/src/lib/voiceConfigCache.ts        # claveDeCacheDeVoz / invalidarCacheD
   `PROVEEDORES_DE_CALENDARIO` + tipo de credenciales en `CalendarCredentials` + descriptor en `DESCRIPTORES_DE_PROVEEDOR`
   (`tipoDeAutorizacion: "credenciales"`); el código `<ID>_CALENDAR_RECONNECT_REQUIRED` aparece solo por el template
   literal; (2) clase en `adapters/calendar/<id>/`, que nunca importa prisma/redis; (3) una línea en `registry.ts`;
-  (4) en `conexion.ts`, su forma en `CredencialesSchema` (Zod) y en `credencialesComoJson` — sin espejo en `Business`,
-  `espejoEnColumnas` devuelve `{}` para proveedores sin columnas; (5) si no es OAuth, una ruta de alta
+  (4) en `conexion.ts`, su forma en `CredencialesSchema` (Zod) y en `credencialesComoJson`, y si el panel debe
+  mostrarlo, sus campos en `camposDeCalendarioParaElPanel`; (5) si no es OAuth, una ruta de alta
   `POST /calendar/auth/:provider/connect` que valide con `listarCalendarios` y guarde con
   `guardarConexionDeCalendario`. `CalendarService`, voiceTools, el job y el resto de rutas no se tocan.
   Doctoralia queda fuera del roadmap por decisión de producto (2026-09-18).
@@ -1080,7 +1084,8 @@ Separate suite (`npm run test:integration`, config `backend/vitest.integration.c
 | `backend/tests/modules/billing/service.test.ts` | Stripe event handling, billing summary, checkout session, reconciliation |
 | `backend/tests/modules/phone/service.test.ts` | Phone provisioning idempotency, async order polling/resume, partial failure handling, status retrieval |
 | `backend/tests/modules/calendar/service.test.ts` | Google/Outlook Calendar booking, upcoming events, cancel, sync tools to agents, invalid_grant detection, timeout/rate-limit classification, `listarCalendarios`/`seleccionarCalendario` |
-| `backend/tests/modules/calendar/conexion.test.ts` | Resolver de conexión sobre filas de `calendar_connections` (proveedor activo, defaults, credenciales corruptas, caché antigua sin filas), los cuatro predicados de "conectado", `marcarCalendarioDesconectado` (modos panel/revocar sobre fila + espejo, fallo de BD → log de error con identificadores, fallo de Redis), `guardarConexionDeCalendario` (nested upsert exacto por cada caller), `actualizarCalendarioDeConexion`, rotación de credenciales por id y por valor. Fixtures compartidas en `tests/helpers/conexionDeCalendario.ts` |
+| `backend/tests/modules/calendar/conexion.test.ts` | Resolver de conexión sobre filas de `calendar_connections` (proveedor activo, defaults, credenciales corruptas, caché antigua sin filas), los cuatro predicados de "conectado", `marcarCalendarioDesconectado` (modos panel/revocar, fallo de BD → log de error con identificadores, fallo de Redis), `guardarConexionDeCalendario` (nested upsert exacto por cada caller), `actualizarCalendarioDeConexion`, rotación de credenciales por id y por valor, `serializarBusiness`/`camposDeCalendarioParaElPanel`. Fixtures compartidas en `tests/helpers/conexionDeCalendario.ts` |
+| `backend/tests/modules/businesses/me.test.ts` | Contrato de `GET /business/me` con el panel: campos de calendario históricos calculados desde las filas, nunca `calendarConnections` ni credenciales |
 | `backend/tests/adapters/calendar/errors.test.ts`, `registry.test.ts` | Códigos de reconexión, duck typing de `CalendarBusinessError`, resolución de proveedor desde un error (null si desconocido), registro de adaptadores |
 | `backend/tests/modules/voiceTools/service.test.ts` | `book_appointment` call-linking (callId vs. most-recent-call fallback) |
 | `backend/tests/adapters/telnyx/TelnyxAdapter.test.ts` | Search, purchase (order), poll order, release, fetch Telnyx numbers |
