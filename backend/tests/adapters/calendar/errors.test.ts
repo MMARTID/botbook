@@ -114,11 +114,20 @@ describe("proveedorDesdeErrorDeReconexion", () => {
     ).toBeNull();
   });
 
-  it("devuelve null (no cae a google) para un proveedor desconocido", () => {
+  it("resuelve caldav por parseo del código (desde que existe el adaptador)", () => {
     expect(
       proveedorDesdeErrorDeReconexion({
         name: "CalendarBusinessError",
         code: "CALDAV_CALENDAR_RECONNECT_REQUIRED",
+      })
+    ).toBe("caldav");
+  });
+
+  it("devuelve null (no cae a google) para un proveedor desconocido", () => {
+    expect(
+      proveedorDesdeErrorDeReconexion({
+        name: "CalendarBusinessError",
+        code: "EXCHANGE_CALENDAR_RECONNECT_REQUIRED",
       })
     ).toBeNull();
   });

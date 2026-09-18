@@ -2,7 +2,11 @@
 // googleapis, microsoftGraph, prisma o redis: este fichero lo cargan
 // voiceTools y los jobs sin necesidad de arrastrar ningún SDK.
 
-export const PROVEEDORES_DE_CALENDARIO = ["google", "outlook"] as const;
+export const PROVEEDORES_DE_CALENDARIO = [
+  "google",
+  "outlook",
+  "caldav",
+] as const;
 export type CalendarProviderId = (typeof PROVEEDORES_DE_CALENDARIO)[number];
 
 export function esProveedorDeCalendario(
@@ -46,7 +50,19 @@ export const DESCRIPTORES_DE_PROVEEDOR: Record<
     calendarIdPorDefecto: null,
     tipoDeAutorizacion: "oauth",
   },
+  // CalDAV genérico (serverUrl en las credenciales), pero el producto lo
+  // presenta como "Apple": el formulario del panel fija iCloud. Fastmail,
+  // Nextcloud, etc. funcionan por API con otro serverUrl.
+  caldav: {
+    nombreCorto: "Apple",
+    nombre: "Calendario de Apple",
+    calendarIdPorDefecto: null,
+    tipoDeAutorizacion: "credenciales",
+  },
 };
+
+/** Servidor CalDAV de iCloud: el que usa el formulario del panel. */
+export const SERVIDOR_CALDAV_ICLOUD = "https://caldav.icloud.com";
 
 export type GoogleCalendarCredentials = {
   provider: "google";
@@ -56,9 +72,19 @@ export type OutlookCalendarCredentials = {
   provider: "outlook";
   refreshToken: string;
 };
-// Futuro: { provider: "caldav"; serverUrl: string; username: string; appPassword: string }
+/** CalDAV con autenticación básica: Apple ID + contraseña de aplicación
+ * (appleid.apple.com → Contraseñas de apps). serverUrl es la raíz del
+ * servidor; las URLs de calendario y de evento que se guardan son absolutas. */
+export type CaldavCalendarCredentials = {
+  provider: "caldav";
+  serverUrl: string;
+  username: string;
+  appPassword: string;
+};
 export type CalendarCredentials =
-  GoogleCalendarCredentials | OutlookCalendarCredentials;
+  | GoogleCalendarCredentials
+  | OutlookCalendarCredentials
+  | CaldavCalendarCredentials;
 export type CredencialesDe<P extends CalendarProviderId> = Extract<
   CalendarCredentials,
   { provider: P }

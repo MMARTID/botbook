@@ -4,6 +4,8 @@ import {
   isGoogleInvalidGrantError,
   CalendarBusinessError,
 } from "../../../src/modules/calendar/service.js";
+import { createAccount, fetchCalendars } from "tsdav";
+import { descifrarJson } from "../../../src/lib/cifradoDeCredenciales.js";
 import { prisma } from "../../../src/lib/prisma.js";
 import { retellAdapter } from "../../../src/adapters/retell/RetellAdapter.js";
 import { getPublicWebhookBaseUrl } from "../../../src/lib/serverUrl.js";
@@ -66,6 +68,15 @@ vi.mock("googleapis", () => ({
     }),
   },
 }));
+
+vi.mock("tsdav", async (importOriginal) => {
+  const real = await importOriginal<typeof import("tsdav")>();
+  return {
+    ...real,
+    createAccount: vi.fn(),
+    fetchCalendars: vi.fn(),
+  };
+});
 
 vi.mock("../../../src/lib/microsoftGraph.js", () => ({
   createMicrosoftCalendarEvent: vi.fn(),
@@ -1801,6 +1812,42 @@ describe("CalendarService.seleccionarCalendario", () => {
     expect(mockedAgentFindMany).toHaveBeenCalled();
   });
 
+  it("con proveedor caldav guarda el calendario (URL) y resincroniza las tools", async () => {
+    mockedBusinessFindUnique.mockResolvedValue({
+      calendarProvider: "caldav",
+    } as any);
+    mockedAgentFindMany.mockResolvedValue([]);
+    mockedGetPublicWebhookBaseUrl.mockReturnValue(null);
+
+    await calendarService.seleccionarCalendario(
+      "business_123",
+      "https://p01-caldav.icloud.com/123/calendars/abc/"
+    );
+
+    expect(mockedBusinessUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          calendarProvider: "caldav",
+          calendarConnections: {
+            upsert: expect.objectContaining({
+              where: {
+                businessId_provider: {
+                  businessId: "business_123",
+                  provider: "caldav",
+                },
+              },
+              update: expect.objectContaining({
+                calendarId: "https://p01-caldav.icloud.com/123/calendars/abc/",
+                connected: true,
+              }),
+            }),
+          },
+        }),
+      })
+    );
+    expect(mockedAgentFindMany).toHaveBeenCalled();
+  });
+
   it("sin proveedor guardado (null) cae a Google", async () => {
     mockedBusinessFindUnique.mockResolvedValue({
       calendarProvider: null,
@@ -1822,3 +1869,84 @@ describe("CalendarService.seleccionarCalendario", () => {
     );
   });
 });
+
+describe("CalendarService.conectarConCredenciales (CalDAV)", () => {
+  const credenciales = {
+    provider: "caldav" as const,
+    serverUrl: "https://caldav.icloud.com",
+    username: "pelu@icloud.com",
+    appPassword: "abcd-efgh-ijkl-mnop",
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockedBusinessUpdate.mockResolvedValue({ id: "business_123" } as any);
+    mockedGetRedis.mockReturnValue({ del: vi.fn().mockResolvedValue(1) } as any);
+    vi.mocked(createAccount).mockResolvedValue({
+      serverUrl: "https://caldav.icloud.com",
+      accountType: "caldav",
+      homeUrl: "https://p01-caldav.icloud.com/123/calendars/",
+    });
+  });
+
+  it("valida listando calendarios, guarda la conexión sin calendario y devuelve la lista", async () => {
+    vi.mocked(fetchCalendars).mockResolvedValue([
+      {
+        url: "https://p01-caldav.icloud.com/123/calendars/abc/",
+        displayName: "Peluquería",
+        components: ["VEVENT"],
+      },
+    ] as any);
+
+    const resultado = await calendarService.conectarConCredenciales(
+      "business_123",
+      credenciales
+    );
+
+    expect(resultado).toEqual({
+      calendars: [
+        {
+          id: "https://p01-caldav.icloud.com/123/calendars/abc/",
+          name: "Peluquería",
+          primary: false,
+        },
+      ],
+      email: "pelu@icloud.com",
+    });
+    const data = mockedBusinessUpdate.mock.calls[0][0].data as any;
+    expect(data.calendarProvider).toBe("caldav");
+    expect(data.calendarConnections.upsert.create).toMatchObject({
+      provider: "caldav",
+      calendarId: null,
+      connected: false,
+      accountEmail: "pelu@icloud.com",
+    });
+    expect(
+      descifrarJson(data.calendarConnections.upsert.create.credentials)
+    ).toEqual(credenciales);
+    expect(JSON.stringify(data)).not.toContain("abcd-efgh");
+  });
+
+  it("si el descubrimiento falla NO guarda nada y propaga un CalendarBusinessError", async () => {
+    vi.mocked(createAccount).mockRejectedValue(new Error("cannot find principalUrl"));
+    const errorSpy = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => undefined);
+    await expect(
+      calendarService.conectarConCredenciales("business_123", credenciales)
+    ).rejects.toMatchObject({ name: "CalendarBusinessError" });
+    expect(mockedBusinessUpdate).not.toHaveBeenCalled();
+    errorSpy.mockRestore();
+  });
+
+  it("rechaza proveedores OAuth (Google/Outlook no se conectan con credenciales)", async () => {
+    await expect(
+      calendarService.conectarConCredenciales("business_123", {
+        provider: "google",
+        refreshToken: "rt",
+      })
+    ).rejects.toMatchObject({ code: "BOOK_APPOINTMENT_FAILED" });
+    expect(mockedBusinessUpdate).not.toHaveBeenCalled();
+  });
+});
+

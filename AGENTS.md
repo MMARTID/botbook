@@ -698,7 +698,9 @@ backend/src/adapters/calendar/
 ├── eventoDeCalendario.ts # buildEventContent, recordatorios, hashDeIdempotencia — común a todos los proveedores
 ├── registry.ts           # obtenerProveedorDeCalendario(id) → singleton sin estado (como retellAdapter)
 ├── google/GoogleCalendarProvider.ts    # googleapis; exporta crearClienteOAuthDeGoogle e isGoogleInvalidGrantError
-└── outlook/OutlookCalendarProvider.ts  # envuelve lib/microsoftGraph.ts (que no cambió)
+├── outlook/OutlookCalendarProvider.ts  # envuelve lib/microsoftGraph.ts (que no cambió)
+└── caldav/                             # Apple/iCloud (y cualquier CalDAV): CaldavCalendarProvider.ts sobre tsdav,
+                                        #   ics.ts (iCalendar ↔ dominio con ical.js, funciones puras)
 
 backend/src/modules/calendar/conexion.ts   # el ÚNICO fichero que lee/escribe calendar_connections; serializarBusiness para el panel
 backend/src/lib/voiceConfigCache.ts        # claveDeCacheDeVoz / invalidarCacheDeVoz (antes 4 copias del literal)
@@ -731,16 +733,41 @@ backend/src/lib/voiceConfigCache.ts        # claveDeCacheDeVoz / invalidarCacheD
   revocado). Las asimetrías Google/Outlook preexistentes (mapeo de errores por operación, regla de día completo solo en
   Google, `selectGoogleCalendar` no resincroniza tools y `connectMicrosoftCalendar` sí, `persistirCredencialesRotadas`
   con `updateMany` por valor del token) se conservaron a propósito.
-- **Añadir un proveedor** (previsto: CalDAV para Apple/iCloud, con contraseña de aplicación; la tabla
-  `CalendarConnection` ya existe, así que sus credenciales caben en `credentials` sin migración): (1) id en
-  `PROVEEDORES_DE_CALENDARIO` + tipo de credenciales en `CalendarCredentials` + descriptor en `DESCRIPTORES_DE_PROVEEDOR`
-  (`tipoDeAutorizacion: "credenciales"`); el código `<ID>_CALENDAR_RECONNECT_REQUIRED` aparece solo por el template
-  literal; (2) clase en `adapters/calendar/<id>/`, que nunca importa prisma/redis; (3) una línea en `registry.ts`;
-  (4) en `conexion.ts`, su forma en `CredencialesSchema` (Zod) y en `credencialesComoJson`, y si el panel debe
-  mostrarlo, sus campos en `camposDeCalendarioParaElPanel`; (5) si no es OAuth, una ruta de alta
-  `POST /calendar/auth/:provider/connect` que valide con `listarCalendarios` y guarde con
-  `guardarConexionDeCalendario`. `CalendarService`, voiceTools, el job y el resto de rutas no se tocan.
-  Doctoralia queda fuera del roadmap por decisión de producto (2026-09-18).
+- **CalDAV / Apple (desde 2026-09-18).** Proveedor `caldav`, descriptor «Calendario de Apple» con
+  `tipoDeAutorizacion: "credenciales"` y `SERVIDOR_CALDAV_ICLOUD`. Credenciales
+  `{ provider, serverUrl, username, appPassword }` (Apple ID + contraseña de aplicación de appleid.apple.com),
+  cifradas como las demás. `calendarId` es la **URL absoluta** del calendario y `externalEventId` la del objeto
+  `.ics`. Alta sin OAuth: `POST /calendar/auth/caldav/connect` `{ username, appPassword, serverUrl? }` →
+  `CalendarService.conectarConCredenciales` valida listando calendarios (401 → **400 `CALDAV_INVALID_CREDENTIALS`**
+  con mensaje hablable, sin dejar conexión a medias), guarda la conexión sin calendario y devuelve
+  `{ calendars, email }` con el mismo contrato que el callback de Microsoft; el panel termina con
+  `POST /calendar/select` (`seleccionarCalendario` resincroniza tools para todo lo que no sea Google).
+  Detalles del adaptador (`adapters/calendar/caldav/`):
+  - **`fetchVigilado`**: envuelve el `fetch` que se inyecta a tsdav y convierte 401/403/429/5xx en `ErrorHttpCaldav`.
+    Sin esto tsdav devuelve **lista vacía ante un 401** y una consulta de ocupación con contraseña revocada diría
+    "agenda libre" (dobles reservas). 404 y 412 pasan porque borrar y crear los interpretan.
+  - Crear = `PUT` con `If-None-Match: *` y UID `alhabla-<digest>@alhabla.ai`; **412 = ya existía por un reintento**
+    → mismo href, sin duplicar. Borrar: 404/410 = éxito. Sin `ATTENDEE` a propósito (iCloud mandaría
+    invitaciones desde la cuenta del negocio). Fechas en UTC; dos VALARM como los recordatorios de Google.
+  - Ocupación: `calendar-query` con `time-range` y `expand` (si el servidor no expande, `ics.ts` expande la RRULE);
+    **misma regla que Google** (cancelado no cuenta; día completo cuenta aunque sea `TRANSPARENT`; con hora y
+    `TRANSPARENT` no cuenta); día completo anclado a medianoche UTC; se registran los `VTIMEZONE` del objeto
+    (iCloud manda `DTSTART;TZID=…`) para que en Cloud Run (UTC) no se desplacen las horas.
+  - Errores: 401/403 → `CALDAV_CALENDAR_RECONNECT_REQUIRED`; 429 → `CALENDAR_RATE_LIMITED`; 5xx/timeout →
+    `CALENDAR_TIMEOUT`; resto → `*_FAILED`. `listarOcupacion` deja pasar el error crudo (el servicio degrada a
+    "disponibilidad desconocida").
+  - Comprobación manual sin mocks contra Radicale en Docker: `scripts/manual/caldav-e2e.mts` (receta en su
+    cabecera). Contra iCloud real basta cambiar servidor/usuario/contraseña. **Pendiente**: la primera prueba con
+    una cuenta iCloud de verdad y el formulario del panel («Conectar mi calendario de Apple»), que hoy no existe:
+    el frontend sigue con la regla `=== "outlook" ? "outlook" : "google"` y no sabe pintar `caldav`; para eso las
+    respuestas de `Business` llevan ya `activeCalendar` (`{ provider, connected, calendarId, accountEmail,
+    disconnectedAt, lastError }` del proveedor activo, sin nombres de proveedor en las claves).
+- **Añadir otro proveedor**: (1) id en `PROVEEDORES_DE_CALENDARIO` + tipo de credenciales en `CalendarCredentials`
+  + descriptor en `DESCRIPTORES_DE_PROVEEDOR`; el código `<ID>_CALENDAR_RECONNECT_REQUIRED` aparece solo por el
+  template literal; (2) clase en `adapters/calendar/<id>/`, que nunca importa prisma/redis; (3) una línea en
+  `registry.ts`; (4) en `conexion.ts`, su forma en `CredencialesSchema` (Zod); (5) si no es OAuth, reutilizar
+  `conectarConCredenciales` desde una ruta de alta. `CalendarService`, voiceTools, el job y el resto de rutas no
+  se tocan. Doctoralia queda fuera del roadmap por decisión de producto (2026-09-18).
 
 ## Booking & Availability
 
@@ -1098,6 +1125,7 @@ Separate suite (`npm run test:integration`, config `backend/vitest.integration.c
 | `backend/tests/modules/phone/service.test.ts` | Phone provisioning idempotency, async order polling/resume, partial failure handling, status retrieval |
 | `backend/tests/modules/calendar/service.test.ts` | Google/Outlook Calendar booking, upcoming events, cancel, sync tools to agents, invalid_grant detection, timeout/rate-limit classification, `listarCalendarios`/`seleccionarCalendario` |
 | `backend/tests/modules/calendar/conexion.test.ts` | Resolver de conexión sobre filas de `calendar_connections` (proveedor activo, defaults, credenciales corruptas, caché antigua sin filas), los cuatro predicados de "conectado", `marcarCalendarioDesconectado` (modos panel/revocar, fallo de BD → log de error con identificadores, fallo de Redis), `guardarConexionDeCalendario` (nested upsert exacto por cada caller), `actualizarCalendarioDeConexion`, rotación de credenciales por id y por valor, `serializarBusiness`/`camposDeCalendarioParaElPanel`. Fixtures compartidas en `tests/helpers/conexionDeCalendario.ts` |
+| `backend/tests/adapters/calendar/caldav/ics.test.ts`, `CaldavCalendarProvider.test.ts` | iCalendar ↔ dominio (UID determinista, escapado, alarmas, día completo, TRANSPARENT, cancelado, RRULE, TZID+VTIMEZONE) y adaptador con tsdav mockeado (Basic auth, If-None-Match/412, 404 al borrar, mapeo de errores, `fetchVigilado`) |
 | `backend/tests/lib/cifradoDeCredenciales.test.ts` | Sobre AES-256-GCM: ida y vuelta, IV aleatorio, manipulación y clave distinta fallan, clave ausente/corta falla explícitamente |
 | `backend/tests/modules/businesses/me.test.ts` | Contrato de `GET /business/me` con el panel: campos de calendario históricos calculados desde las filas, nunca `calendarConnections` ni credenciales |
 | `backend/tests/adapters/calendar/errors.test.ts`, `registry.test.ts` | Códigos de reconexión, duck typing de `CalendarBusinessError`, resolución de proveedor desde un error (null si desconocido), registro de adaptadores |
