@@ -89,6 +89,12 @@ export type ConexionResuelta = CalendarConnection & {
 const CredencialesSchema = z.discriminatedUnion("provider", [
   z.object({ provider: z.literal("google"), refreshToken: z.string().min(1) }),
   z.object({ provider: z.literal("outlook"), refreshToken: z.string().min(1) }),
+  z.object({
+    provider: z.literal("caldav"),
+    serverUrl: z.string().url(),
+    username: z.string().min(1),
+    appPassword: z.string().min(1),
+  }),
 ]);
 
 /** Descifra y valida el JSON de la fila contra la forma de
@@ -336,19 +342,22 @@ export async function guardarConexionDeCalendario(
   businessId: string,
   datos: {
     provider: CalendarProviderId;
-    refreshToken?: string;
+    /** Solo al conectar/reconectar; seleccionar calendario no las toca. */
+    credenciales?: CalendarCredentials;
     calendarId?: string;
     conectado: boolean;
     userEmail?: string | null;
   }
 ): Promise<BusinessConConexiones> {
   const { provider } = datos;
+  if (datos.credenciales && datos.credenciales.provider !== provider) {
+    throw new Error(
+      `Credenciales de ${datos.credenciales.provider} para una conexión ${provider}`
+    );
+  }
   const credentials =
-    datos.refreshToken !== undefined
-      ? credencialesComoJson({
-          provider,
-          refreshToken: datos.refreshToken,
-        } as CalendarCredentials)
+    datos.credenciales !== undefined
+      ? credencialesComoJson(datos.credenciales)
       : undefined;
   const business = await prisma.business.update({
     where: { id: businessId },
@@ -425,15 +434,49 @@ export function camposDeCalendarioParaElPanel(
   };
 }
 
+/** Estado del proveedor ACTIVO, sin nombres de proveedor en las claves: es
+ * lo que el panel debe usar en adelante (los campos google* y outlook* de
+ * arriba son el contrato antiguo). null si el negocio no tiene ninguna
+ * conexión con ese proveedor. */
+export function calendarioActivoParaElPanel(
+  calendarProvider: string | null | undefined,
+  conexiones: FilaDeConexion[] | null | undefined
+) {
+  const provider = normalizarProveedorDeCalendario(calendarProvider);
+  const fila = conexiones?.find((c) => c.provider === provider) ?? null;
+  if (!fila) return null;
+  return {
+    provider,
+    connected: fila.connected,
+    calendarId: fila.calendarId,
+    accountEmail: fila.accountEmail ?? null,
+    disconnectedAt: fila.disconnectedAt ?? null,
+    lastError: fila.lastError ?? null,
+  };
+}
+
 /** Forma pública de un Business para el panel: quita `calendarConnections`
- * (lleva las credenciales) y añade los campos de calendario históricos. Es
- * la ÚNICA manera correcta de devolver un Business al cliente. */
+ * (lleva las credenciales) y añade los campos de calendario históricos más
+ * `activeCalendar`. Es la ÚNICA manera correcta de devolver un Business al
+ * cliente. */
 export function serializarBusiness<
-  T extends { calendarConnections?: FilaDeConexion[] | null },
+  T extends {
+    calendarProvider?: string | null;
+    calendarConnections?: FilaDeConexion[] | null;
+  },
 >(
   business: T
 ): Omit<T, "calendarConnections"> &
-  ReturnType<typeof camposDeCalendarioParaElPanel> {
+  ReturnType<typeof camposDeCalendarioParaElPanel> & {
+    activeCalendar: ReturnType<typeof calendarioActivoParaElPanel>;
+  } {
   const { calendarConnections, ...resto } = business;
-  return { ...resto, ...camposDeCalendarioParaElPanel(calendarConnections) };
+  return {
+    ...resto,
+    ...camposDeCalendarioParaElPanel(calendarConnections),
+    activeCalendar: calendarioActivoParaElPanel(
+      business.calendarProvider,
+      calendarConnections
+    ),
+  };
 }

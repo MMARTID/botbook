@@ -7,6 +7,7 @@ import {
   INCLUDE_CONEXIONES,
   serializarBusiness,
 } from "../calendar/conexion.js";
+import { PROVEEDORES_DE_CALENDARIO } from "../../adapters/calendar/CalendarProvider.js";
 import { BusinessScheduleSchema } from "../../lib/businessSchedule.js";
 import { calendarService } from "../calendar/service.js";
 import { AgentSettingsSchema, buildManagedAgentPrompt, parseAgentSettings } from "../../lib/managedAgentPrompt.js";
@@ -34,7 +35,7 @@ const UpdateBusinessSchema = z.object({
   agentSettings: AgentSettingsSchema.optional(),
   googleCalendarId: z.string().optional().nullable(),
   outlookCalendarId: z.string().optional().nullable(),
-  calendarProvider: z.enum(["google", "outlook"]).optional(),
+  calendarProvider: z.enum(PROVEEDORES_DE_CALENDARIO).optional(),
   bookingCapacity: z.coerce.number().int().min(1).max(50).optional(),
   businessType: z.string().optional(),
   // null = sin restricción. Antelación tope de 1 semana, duración tope de 24h

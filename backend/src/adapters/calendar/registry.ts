@@ -4,6 +4,7 @@ import type {
 } from "./CalendarProvider.js";
 import { GoogleCalendarProvider } from "./google/GoogleCalendarProvider.js";
 import { OutlookCalendarProvider } from "./outlook/OutlookCalendarProvider.js";
+import { CaldavCalendarProvider } from "./caldav/CaldavCalendarProvider.js";
 
 // Singletons sin estado (como retellAdapter): el estado por operación
 // (cliente OAuth de Google, access token de Outlook) vive dentro de cada
@@ -12,6 +13,7 @@ import { OutlookCalendarProvider } from "./outlook/OutlookCalendarProvider.js";
 const registro: { [P in CalendarProviderId]: CalendarProvider<P> } = {
   google: new GoogleCalendarProvider(),
   outlook: new OutlookCalendarProvider(),
+  caldav: new CaldavCalendarProvider(),
 };
 
 /** Sin fallback: el id ya viene normalizado por

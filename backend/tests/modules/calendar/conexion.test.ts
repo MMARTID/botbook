@@ -254,6 +254,52 @@ describe("resolverConexionDeCalendario", () => {
     errorSpy.mockRestore();
   });
 
+  it("credenciales CalDAV: se leen completas; sin serverUrl válida cuentan como ausentes", () => {
+    const completas = resolverConexionDeCalendario(
+      negocioConConexiones("caldav", [
+        {
+          ...filaDeConexion("google"),
+          provider: "caldav",
+          calendarId: "https://p01-caldav.icloud.com/123/calendars/abc/",
+          credentials: cifrarJson({
+            provider: "caldav",
+            serverUrl: "https://caldav.icloud.com",
+            username: "pelu@icloud.com",
+            appPassword: "abcd-efgh-ijkl-mnop",
+          }),
+        },
+      ])
+    );
+    expect(completas.provider).toBe("caldav");
+    expect(completas.calendarId).toBe(
+      "https://p01-caldav.icloud.com/123/calendars/abc/"
+    );
+    expect(completas.credentials).toMatchObject({
+      provider: "caldav",
+      username: "pelu@icloud.com",
+    });
+
+    const errorSpy = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => undefined);
+    const rota = resolverConexionDeCalendario(
+      negocioConConexiones("caldav", [
+        {
+          ...filaDeConexion("google"),
+          provider: "caldav",
+          credentials: cifrarJson({
+            provider: "caldav",
+            serverUrl: "no-es-una-url",
+            username: "x",
+            appPassword: "y",
+          }),
+        },
+      ])
+    );
+    expect(rota.credentials).toBeNull();
+    errorSpy.mockRestore();
+  });
+
   it("negocio sin calendarConnections (caché de voz anterior a la tabla) ⇒ sin credenciales", () => {
     const c = resolverConexionDeCalendario({
       id: "biz_1",
@@ -612,7 +658,7 @@ describe("guardarConexionDeCalendario", () => {
   it("handleCallback: Google con refresh token y calendario 'primary'", async () => {
     await guardarConexionDeCalendario("biz_1", {
       provider: "google",
-      refreshToken: "rt_nuevo",
+      credenciales: { provider: "google", refreshToken: "rt_nuevo" },
       calendarId: "primary",
       conectado: true,
     });
@@ -647,7 +693,7 @@ describe("guardarConexionDeCalendario", () => {
   it("handleMicrosoftCallback: Outlook con email, credenciales, sin conectar y SIN calendarId", async () => {
     await guardarConexionDeCalendario("biz_1", {
       provider: "outlook",
-      refreshToken: "rt_o",
+      credenciales: { provider: "outlook", refreshToken: "rt_o" },
       conectado: false,
       userEmail: "barber@outlook.com",
     });
@@ -683,7 +729,7 @@ describe("guardarConexionDeCalendario", () => {
   it("handleMicrosoftCallback: userEmail null se escribe como null (no se omite)", async () => {
     await guardarConexionDeCalendario("biz_1", {
       provider: "outlook",
-      refreshToken: "rt_o",
+      credenciales: { provider: "outlook", refreshToken: "rt_o" },
       conectado: false,
       userEmail: null,
     });
@@ -707,6 +753,43 @@ describe("guardarConexionDeCalendario", () => {
       disconnectedAt: null,
       lastError: null,
     });
+  });
+
+  it("conectarConCredenciales (CalDAV): guarda las credenciales completas cifradas, sin calendario y con el Apple ID como cuenta", async () => {
+    await guardarConexionDeCalendario("biz_1", {
+      provider: "caldav",
+      credenciales: {
+        provider: "caldav",
+        serverUrl: "https://caldav.icloud.com",
+        username: "pelu@icloud.com",
+        appPassword: "abcd-efgh-ijkl-mnop",
+      },
+      conectado: false,
+      userEmail: "pelu@icloud.com",
+    });
+    const data = mockedBusinessUpdate.mock.calls[0][0].data as any;
+    expect(data.calendarProvider).toBe("caldav");
+    const { create } = data.calendarConnections.upsert;
+    expect(create.calendarId).toBeNull();
+    expect(create.accountEmail).toBe("pelu@icloud.com");
+    expect(JSON.stringify(data)).not.toContain("abcd-efgh");
+    expect(descifrarJson(create.credentials)).toEqual({
+      provider: "caldav",
+      serverUrl: "https://caldav.icloud.com",
+      username: "pelu@icloud.com",
+      appPassword: "abcd-efgh-ijkl-mnop",
+    });
+  });
+
+  it("rechaza credenciales de otro proveedor que el de la conexión", async () => {
+    await expect(
+      guardarConexionDeCalendario("biz_1", {
+        provider: "caldav",
+        credenciales: { provider: "google", refreshToken: "rt" },
+        conectado: true,
+      })
+    ).rejects.toThrow(/Credenciales de google/);
+    expect(mockedBusinessUpdate).not.toHaveBeenCalled();
   });
 
   it("propaga el fallo de BD (no es best-effort) sin invalidar la caché", async () => {
@@ -875,6 +958,40 @@ describe("camposDeCalendarioParaElPanel / serializarBusiness", () => {
     expect(
       camposDeCalendarioParaElPanel(undefined).googleCalendarConnected
     ).toBe(false);
+  });
+
+  it("serializarBusiness añade activeCalendar (estado del proveedor activo, sin credenciales)", () => {
+    const desconexion = new Date("2026-09-18T10:00:00Z");
+    const salida = serializarBusiness({
+      id: "biz_1",
+      calendarProvider: "caldav",
+      calendarConnections: [
+        filaDeConexion("google"),
+        {
+          ...filaDeConexion("google", {
+            connected: false,
+            disconnectedAt: desconexion,
+            lastError: "401",
+            accountEmail: "pelu@icloud.com",
+          }),
+          provider: "caldav",
+          calendarId: "https://p01-caldav.icloud.com/123/calendars/abc/",
+        },
+      ],
+    });
+    expect(salida.activeCalendar).toEqual({
+      provider: "caldav",
+      connected: false,
+      calendarId: "https://p01-caldav.icloud.com/123/calendars/abc/",
+      accountEmail: "pelu@icloud.com",
+      disconnectedAt: desconexion,
+      lastError: "401",
+    });
+    expect(JSON.stringify(salida)).not.toContain("refresh_token");
+    expect(
+      serializarBusiness({ calendarProvider: null, calendarConnections: [] })
+        .activeCalendar
+    ).toBeNull();
   });
 
   it("serializarBusiness quita calendarConnections (credenciales) y conserva el resto", () => {

@@ -9,7 +9,10 @@ import {
   type ConexionResuelta,
   serializarBusiness,
 } from "./conexion.js";
-import { DESCRIPTORES_DE_PROVEEDOR } from "../../adapters/calendar/CalendarProvider.js";
+import {
+  DESCRIPTORES_DE_PROVEEDOR,
+  SERVIDOR_CALDAV_ICLOUD,
+} from "../../adapters/calendar/CalendarProvider.js";
 import {
   codigoDeReconexion,
   esCalendarBusinessError,
@@ -19,6 +22,24 @@ import { z } from "zod";
 
 const UpcomingEventsQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(15).default(15),
+});
+
+/** Alta de un calendario CalDAV. El formulario del panel fija iCloud
+ * (Apple ID + contraseña de aplicación); `serverUrl` queda para otros
+ * servidores CalDAV por API. La contraseña de aplicación de Apple tiene la
+ * forma xxxx-xxxx-xxxx-xxxx, pero no se valida el formato: otros servidores
+ * usan otras. */
+const ConnectCaldavSchema = z.object({
+  username: z.string().trim().min(1, "Falta el usuario (Apple ID)."),
+  appPassword: z
+    .string()
+    .trim()
+    .min(1, "Falta la contraseña de aplicación."),
+  serverUrl: z
+    .string()
+    .trim()
+    .url("La URL del servidor no es válida.")
+    .default(SERVIDOR_CALDAV_ICLOUD),
 });
 
 const ConnectMicrosoftCalendarSchema = z.object({
@@ -256,6 +277,58 @@ export async function calendarRoutes(fastify: FastifyInstance) {
         return reply.status(500).send({ error: "Failed to connect Outlook calendar" });
       }
     },
+  );
+
+  // Alta sin OAuth: Apple/iCloud (CalDAV). Valida las credenciales contra el
+  // servidor, guarda la conexión sin calendario elegido y devuelve la lista
+  // de calendarios; el panel termina con POST /calendar/select.
+  fastify.post(
+    "/auth/caldav/connect",
+    { preValidation: [fastify.authenticate] },
+    async (
+      request: FastifyRequest<{
+        Body: { username: string; appPassword: string; serverUrl?: string };
+      }>,
+      reply
+    ) => {
+      try {
+        const datos = ConnectCaldavSchema.parse(request.body);
+        const resultado = await calendarService.conectarConCredenciales(
+          request.user!.businessId,
+          {
+            provider: "caldav",
+            serverUrl: datos.serverUrl,
+            username: datos.username,
+            appPassword: datos.appPassword,
+          }
+        );
+        return reply.send(resultado);
+      } catch (error) {
+        if (error instanceof z.ZodError) {
+          return reply.status(400).send({ error: error.flatten() });
+        }
+        // Credenciales rechazadas por el servidor: error del usuario, no del
+        // sistema (400 con mensaje hablable, sin marcar nada como
+        // desconectado: todavía no hay conexión).
+        if (
+          esCalendarBusinessError(error) &&
+          error.code === "CALDAV_CALENDAR_RECONNECT_REQUIRED"
+        ) {
+          return reply.status(400).send({
+            code: "CALDAV_INVALID_CREDENTIALS",
+            error:
+              "Apple ID o contraseña de aplicación incorrectos. Genera una contraseña de aplicación en appleid.apple.com y vuelve a intentarlo.",
+          });
+        }
+        if (esCalendarBusinessError(error)) {
+          return reply.status(502).send({ code: error.code, error: error.message });
+        }
+        fastify.log.error(error);
+        return reply
+          .status(500)
+          .send({ error: "No se pudo conectar el calendario de Apple" });
+      }
+    }
   );
 
   // 2. Endpoint de Callback que Google llamará con el código

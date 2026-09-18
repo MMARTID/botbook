@@ -31,6 +31,7 @@ vi.mock("../../../src/modules/calendar/service.js", () => ({
     handleCallback: vi.fn(),
     handleMicrosoftCallback: vi.fn(),
     listarCalendarios: vi.fn(),
+    conectarConCredenciales: vi.fn(),
   },
 }));
 
@@ -229,5 +230,140 @@ describe("GET /calendars", () => {
     });
     expect(mockedBusinessUpdate).not.toHaveBeenCalled();
     expect(mockRedisClient.del).not.toHaveBeenCalled();
+  });
+});
+
+describe("POST /auth/caldav/connect (alta de Apple/iCloud)", () => {
+  let fastify: ReturnType<typeof Fastify>;
+  const mockedConectar = vi.mocked(calendarService.conectarConCredenciales);
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    fastify = Fastify();
+    fastify.decorate("authenticate", async (request: any) => {
+      request.user = { businessId: "biz_1" };
+    });
+    await fastify.register(calendarRoutes);
+  });
+
+  it("valida contra el servidor, guarda y devuelve la lista de calendarios (iCloud por defecto)", async () => {
+    mockedConectar.mockResolvedValue({
+      calendars: [
+        { id: "https://p01/cal/abc/", name: "Peluquería", primary: false },
+      ],
+      email: "pelu@icloud.com",
+    });
+
+    const response = await fastify.inject({
+      method: "POST",
+      url: "/auth/caldav/connect",
+      payload: {
+        username: " pelu@icloud.com ",
+        appPassword: "abcd-efgh-ijkl-mnop",
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({
+      calendars: [
+        { id: "https://p01/cal/abc/", name: "Peluquería", primary: false },
+      ],
+      email: "pelu@icloud.com",
+    });
+    // Siempre el businessId del JWT, nunca del body; serverUrl por defecto iCloud.
+    expect(mockedConectar).toHaveBeenCalledWith("biz_1", {
+      provider: "caldav",
+      serverUrl: "https://caldav.icloud.com",
+      username: "pelu@icloud.com",
+      appPassword: "abcd-efgh-ijkl-mnop",
+    });
+  });
+
+  it("admite otro servidor CalDAV por serverUrl", async () => {
+    mockedConectar.mockResolvedValue({
+      calendars: [],
+      email: "u@fastmail.com",
+    });
+    await fastify.inject({
+      method: "POST",
+      url: "/auth/caldav/connect",
+      payload: {
+        username: "u@fastmail.com",
+        appPassword: "x",
+        serverUrl: "https://caldav.fastmail.com/",
+      },
+    });
+    expect(mockedConectar.mock.calls[0][1]).toMatchObject({
+      serverUrl: "https://caldav.fastmail.com/",
+    });
+  });
+
+  it("400 con mensaje hablable si el servidor rechaza las credenciales (no marca nada como desconectado)", async () => {
+    mockedConectar.mockRejectedValue(
+      Object.assign(new Error("rechazado"), {
+        name: "CalendarBusinessError",
+        code: "CALDAV_CALENDAR_RECONNECT_REQUIRED",
+      })
+    );
+
+    const response = await fastify.inject({
+      method: "POST",
+      url: "/auth/caldav/connect",
+      payload: { username: "pelu@icloud.com", appPassword: "mala" },
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json()).toMatchObject({
+      code: "CALDAV_INVALID_CREDENTIALS",
+    });
+    expect(response.json().error).toContain("contraseña de aplicación");
+    expect(mockedBusinessUpdate).not.toHaveBeenCalled();
+    expect(
+      vi.mocked(prisma.calendarConnection.updateMany)
+    ).not.toHaveBeenCalled();
+  });
+
+  it("400 de validación si faltan campos o la URL no es válida", async () => {
+    let response = await fastify.inject({
+      method: "POST",
+      url: "/auth/caldav/connect",
+      payload: { username: "pelu@icloud.com" },
+    });
+    expect(response.statusCode).toBe(400);
+    response = await fastify.inject({
+      method: "POST",
+      url: "/auth/caldav/connect",
+      payload: { username: "u", appPassword: "p", serverUrl: "no-es-url" },
+    });
+    expect(response.statusCode).toBe(400);
+    expect(mockedConectar).not.toHaveBeenCalled();
+  });
+
+  it("502 ante otro CalendarBusinessError (servidor caído) y 500 ante un error inesperado", async () => {
+    mockedConectar.mockRejectedValue(
+      Object.assign(new Error("tarda"), {
+        name: "CalendarBusinessError",
+        code: "CALENDAR_TIMEOUT",
+      })
+    );
+    let response = await fastify.inject({
+      method: "POST",
+      url: "/auth/caldav/connect",
+      payload: { username: "u", appPassword: "p" },
+    });
+    expect(response.statusCode).toBe(502);
+    expect(response.json()).toEqual({
+      code: "CALENDAR_TIMEOUT",
+      error: "tarda",
+    });
+
+    mockedConectar.mockRejectedValue(new Error("boom"));
+    response = await fastify.inject({
+      method: "POST",
+      url: "/auth/caldav/connect",
+      payload: { username: "u", appPassword: "p" },
+    });
+    expect(response.statusCode).toBe(500);
+    expect(JSON.stringify(response.json())).not.toContain("boom");
   });
 });

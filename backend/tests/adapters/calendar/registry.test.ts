@@ -55,6 +55,10 @@ describe("normalizarProveedorDeCalendario", () => {
     expect(normalizarProveedorDeCalendario(undefined)).toBe("google");
   });
 
+  it("conserva caldav", () => {
+    expect(normalizarProveedorDeCalendario("caldav")).toBe("caldav");
+  });
+
   it("conserva google y outlook", () => {
     expect(normalizarProveedorDeCalendario("google")).toBe("google");
     expect(normalizarProveedorDeCalendario("outlook")).toBe("outlook");

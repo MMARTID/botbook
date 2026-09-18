@@ -37,6 +37,7 @@ import {
   type ConexionActiva,
   type EventoCreado,
   type EventoProximo,
+  type CalendarCredentials,
 } from "../../adapters/calendar/CalendarProvider.js";
 import {
   buildEventContent,
@@ -190,7 +191,10 @@ export class CalendarService {
     if (tokens.refresh_token) {
       await guardarConexionDeCalendario(businessId, {
         provider: "google",
-        refreshToken: tokens.refresh_token,
+        credenciales: {
+          provider: "google",
+          refreshToken: tokens.refresh_token,
+        },
         calendarId: "primary",
         conectado: true,
       });
@@ -219,7 +223,7 @@ export class CalendarService {
 
     await guardarConexionDeCalendario(businessId, {
       provider: "outlook",
-      refreshToken: tokens.refresh_token,
+      credenciales: { provider: "outlook", refreshToken: tokens.refresh_token },
       conectado: false,
       userEmail: profile.mail ?? profile.userPrincipalName ?? null,
     });
@@ -279,17 +283,64 @@ export class CalendarService {
     );
   }
 
+  /** Alta sin OAuth (CalDAV): valida las credenciales listando los
+   * calendarios de la cuenta —un 401 sale como CALDAV_CALENDAR_RECONNECT_REQUIRED
+   * y la ruta lo convierte en 400 "usuario o contraseña incorrectos"—, guarda
+   * la conexión sin calendario elegido y devuelve la lista para que el panel
+   * llame a POST /calendar/select. Mismo contrato que handleMicrosoftCallback. */
+  async conectarConCredenciales(
+    businessId: string,
+    credenciales: CalendarCredentials
+  ): Promise<{ calendars: CalendarioDisponible[]; email: string | null }> {
+    const { provider } = credenciales;
+    if (
+      DESCRIPTORES_DE_PROVEEDOR[provider].tipoDeAutorizacion !== "credenciales"
+    ) {
+      throw new CalendarBusinessError(
+        "BOOK_APPOINTMENT_FAILED",
+        `${DESCRIPTORES_DE_PROVEEDOR[provider].nombre} se conecta con OAuth, no con credenciales.`
+      );
+    }
+    // Sin callback de rotación: las credenciales de tipo usuario+contraseña
+    // no rotan.
+    const calendars = await obtenerProveedorDeCalendario(
+      provider
+    ).listarCalendarios({ credentials: credenciales } as never);
+    const email =
+      credenciales.provider === "caldav" ? credenciales.username : null;
+    await guardarConexionDeCalendario(businessId, {
+      provider,
+      credenciales,
+      conectado: false,
+      userEmail: email,
+    });
+    return { calendars, email };
+  }
+
   /** Despacho de POST /calendar/select por el proveedor guardado del negocio.
-   * Conserva la asimetría: Outlook resincroniza las tools, Google no. */
+   * Conserva la asimetría histórica: Google no resincroniza las tools; el
+   * resto (Outlook, CalDAV) sí. */
   async seleccionarCalendario(businessId: string, calendarId: string) {
     const business = await prisma.business.findUnique({
       where: { id: businessId },
       select: { calendarProvider: true },
     });
-    return normalizarProveedorDeCalendario(business?.calendarProvider) ===
-      "outlook"
-      ? this.connectMicrosoftCalendar(businessId, calendarId)
-      : this.selectGoogleCalendar(businessId, calendarId);
+    const provider = normalizarProveedorDeCalendario(
+      business?.calendarProvider
+    );
+    if (provider === "google") {
+      return this.selectGoogleCalendar(businessId, calendarId);
+    }
+    if (provider === "outlook") {
+      return this.connectMicrosoftCalendar(businessId, calendarId);
+    }
+    const actualizado = await guardarConexionDeCalendario(businessId, {
+      provider,
+      calendarId,
+      conectado: true,
+    });
+    await this.syncCalendarToolsToAgents(businessId);
+    return actualizado;
   }
 
   /** A diferencia de connectMicrosoftCalendar, no resincroniza las tools de
@@ -386,27 +437,27 @@ export class CalendarService {
               description:
                 "El correo electrónico del cliente, si lo proporciona (opcional)",
             },
-              clientPhone: {
-                type: "string",
-                description:
-                  "Teléfono de contacto solo si el cliente eligió uno distinto a {{user_number}} (opcional).",
-              },
-              availabilityToken: {
-                type: "string",
-                description:
-                  "Token exacto devuelto por check_availability para la opción confirmada.",
-              },
-              smsConsent: {
-                type: "boolean",
-                description:
-                  "true si el cliente confirmó por voz que puedes enviarle la confirmación (y un recordatorio) por SMS a este número; false si dijo que no o no se le preguntó.",
-              },
-              professionalConfirmed: {
-                type: "boolean",
-                description:
-                  "true SOLO si check_availability devolvió una recomendación, la propusiste una vez y el cliente insistió en la persona que pidió. Sin esto, la reserva se frena hasta que lo hayas propuesto.",
-              },
+            clientPhone: {
+              type: "string",
+              description:
+                "Teléfono de contacto solo si el cliente eligió uno distinto a {{user_number}} (opcional).",
             },
+            availabilityToken: {
+              type: "string",
+              description:
+                "Token exacto devuelto por check_availability para la opción confirmada.",
+            },
+            smsConsent: {
+              type: "boolean",
+              description:
+                "true si el cliente confirmó por voz que puedes enviarle la confirmación (y un recordatorio) por SMS a este número; false si dijo que no o no se le preguntó.",
+            },
+            professionalConfirmed: {
+              type: "boolean",
+              description:
+                "true SOLO si check_availability devolvió una recomendación, la propusiste una vez y el cliente insistió en la persona que pidió. Sin esto, la reserva se frena hasta que lo hayas propuesto.",
+            },
+          },
           required: ["clientName", "availabilityToken"],
         },
         speak_during_execution: true,
@@ -476,7 +527,8 @@ export class CalendarService {
             serviceIds: {
               type: "array",
               items: { type: "string" },
-              description: "IDs de los servicios que pidió, si los mencionó (opcional).",
+              description:
+                "IDs de los servicios que pidió, si los mencionó (opcional).",
             },
             professionalId: {
               type: "string",
@@ -524,9 +576,7 @@ export class CalendarService {
     const errors: Error[] = [];
     const recordError = (message: string, error?: unknown) => {
       if (!options?.strict) return;
-      errors.push(
-        error instanceof Error ? error : new Error(message)
-      );
+      errors.push(error instanceof Error ? error : new Error(message));
     };
 
     const business = await prisma.business.findUnique({
