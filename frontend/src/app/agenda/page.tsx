@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { getCalendarState } from "@/lib/calendar-state";
 import { useRouter } from "next/navigation";
 import { CalendarRange } from "lucide-react";
 import { AgendaTimeline, type AgendaRange } from "@/components/agenda-timeline";
@@ -53,8 +54,7 @@ export default function AgendaPage() {
 
   if (!business) return null; // Sin sesión: el efecto de arriba redirige a /login.
 
-  const calendarProvider = business.calendarProvider === "outlook" ? "outlook" : "google";
-  const hasCalendar = calendarProvider === "outlook" ? business.outlookCalendarConnected === true : business.googleCalendarConnected === true;
+  const calendar = getCalendarState(business);
 
   return (
     <div className="space-y-6">
@@ -63,7 +63,7 @@ export default function AgendaPage() {
           {RANGES.map((range) => <button key={range.value} type="button" onClick={() => { setDays(range.value); setOffset(0); }} aria-pressed={days === range.value} className={`min-h-10 flex-1 rounded-full px-3 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] sm:flex-none ${days === range.value ? "bg-white text-[#0a0a0a]" : "text-[#52525b] hover:text-[#0a0a0a]"}`}>{range.label}</button>)}
         </div>
       </AppPageHeader>
-      <AgendaTimeline days={days} offset={offset} timeZone={business.timezone || "Europe/Madrid"} calendarProvider={calendarProvider} hasCalendar={hasCalendar} onOffsetChange={setOffset} />
+      <AgendaTimeline days={days} offset={offset} timeZone={business.timezone || "Europe/Madrid"} calendarProvider={calendar.provider} hasCalendar={calendar.connected} onOffsetChange={setOffset} />
     </div>
   );
 }

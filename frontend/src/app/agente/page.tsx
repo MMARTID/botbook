@@ -21,8 +21,11 @@ import {
   updateMyBusiness,
 } from "@/lib/api";
 import { formatPrice } from "@/lib/format";
-import { SiGooglecalendar } from "@icons-pack/react-simple-icons";
+import { SiApple, SiGooglecalendar } from "@icons-pack/react-simple-icons";
 import { MicrosoftLogo } from "@/components/brand-icons";
+import { AppleCalendarConnect } from "@/components/apple-calendar-connect";
+import { getCalendarState, providerFromReconnectCode } from "@/lib/calendar-state";
+import type { CalendarProviderId } from "@/lib/types";
 import { getPlanLimitInfo, planLimitUpgradeMessage } from "@/lib/plan-limit";
 import { getNextAgentSetupSection } from "@/lib/agent-configuration";
 import { useBusiness } from "@/components/providers";
@@ -218,6 +221,7 @@ function AgenteContent() {
   const [calendarReconnectRequired, setCalendarReconnectRequired] =
     useState(false);
   const [calendarPickerOpen, setCalendarPickerOpen] = useState(false);
+  const [appleFormOpen, setAppleFormOpen] = useState(false);
   const [openSections, setOpenSections] = useState<Record<
     string,
     boolean
@@ -452,12 +456,15 @@ function AgenteContent() {
   };
 
   const handleCalendarReconnectRequired = (
-    provider: "google" | "outlook" = "google"
+    provider: CalendarProviderId = "google"
   ) => {
     setCalendarReconnectRequired(true);
     setCalendarStatus({
       type: "error",
-      message: `La conexión con ${provider === "outlook" ? "Outlook Calendar" : "Google Calendar"} ha caducado. Vuelve a conectarla para continuar.`,
+      message:
+        provider === "caldav"
+          ? "Apple ha dejado de aceptar la contraseña de aplicación (¿la anulaste?). Genera una nueva y vuelve a conectar el calendario."
+          : `La conexión con ${provider === "outlook" ? "Outlook Calendar" : "Google Calendar"} ha caducado. Vuelve a conectarla para continuar.`,
     });
   };
 
@@ -491,12 +498,10 @@ function AgenteContent() {
     if (!error || !axios.isAxiosError(error)) return;
     const code = error.response?.data?.code;
     if (
-      code === "GOOGLE_CALENDAR_RECONNECT_REQUIRED" ||
-      code === "OUTLOOK_CALENDAR_RECONNECT_REQUIRED"
+      typeof code === "string" &&
+      code.endsWith("_CALENDAR_RECONNECT_REQUIRED")
     ) {
-      handleCalendarReconnectRequired(
-        code === "OUTLOOK_CALENDAR_RECONNECT_REQUIRED" ? "outlook" : "google"
-      );
+      handleCalendarReconnectRequired(providerFromReconnectCode(code));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [calendarsQuery.error]);
@@ -507,10 +512,7 @@ function AgenteContent() {
     sectionsInitRef.current = true;
 
     const requestedSection = searchParams.get("section");
-    const calendarConnected =
-      business.calendarProvider === "outlook"
-        ? business.outlookCalendarConnected === true
-        : business.googleCalendarConnected === true;
+    const calendarConnected = getCalendarState(business).connected;
     const pendingSection = getNextAgentSetupSection({
       hasSchedule: isValidPlaceSchedule(business.schedule),
       serviceCount: settingsQuery.data.services.length,
@@ -566,13 +568,8 @@ function AgenteContent() {
     return null;
   }
 
-  const activeCalendarProvider =
-    business.calendarProvider === "outlook" ? "outlook" : "google";
-  const hasCalendar =
-    (activeCalendarProvider === "outlook"
-      ? business.outlookCalendarConnected === true
-      : business.googleCalendarConnected === true) &&
-    !calendarReconnectRequired;
+  const calendarState = getCalendarState(business);
+  const hasCalendar = calendarState.connected && !calendarReconnectRequired;
 
   const selectedCalendarId = calendarsQuery.data?.selectedCalendarId ?? null;
 
@@ -909,7 +906,7 @@ function AgenteContent() {
         title="Calendario"
         summary={
           hasCalendar
-            ? `${activeCalendarProvider === "outlook" ? "Outlook Calendar" : "Google Calendar"} conectado${activeCalendarProvider === "outlook" && business.outlookUserEmail ? ` · ${business.outlookUserEmail}` : ""}`
+            ? `${calendarState.label} conectado${calendarState.accountEmail ? ` · ${calendarState.accountEmail}` : ""}`
             : "Sin conectar"
         }
         pending={!hasCalendar}
@@ -978,7 +975,50 @@ function AgenteContent() {
                       <ArrowUpRight className="h-4 w-4" />
                     </span>
                   </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCalendarStatus(null);
+                      setAppleFormOpen((current) => !current);
+                    }}
+                    disabled={calendarAuthLoading !== null}
+                    aria-expanded={appleFormOpen}
+                    className="flex flex-col justify-between rounded-xl border border-[#ddd6fe] bg-[#f3eeff] p-4 text-left transition duration-200 hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60 lg:col-span-2"
+                  >
+                    <div>
+                      <p className="flex items-center gap-2 text-sm font-semibold text-[#0a0a0a]">
+                        <SiApple className="h-4 w-4 shrink-0" color="#0a0a0a" />
+                        Conecta el calendario de Apple
+                      </p>
+                      <p className="mt-1 text-sm leading-6 text-muted">
+                        Si llevas la agenda en el iPhone o en iCloud, conéctala
+                        con tu Apple ID y una contraseña de aplicación.
+                      </p>
+                    </div>
+                    <span className="inline-flex items-center gap-1 text-sm font-semibold text-[#6d28d9]">
+                      {appleFormOpen ? "Cerrar" : "Conectar Apple"}
+                      <ArrowUpRight className="h-4 w-4" />
+                    </span>
+                  </button>
                 </div>
+                {appleFormOpen ? (
+                  <AppleCalendarConnect
+                    onCancel={() => setAppleFormOpen(false)}
+                    onConnected={async (updatedBusiness) => {
+                      queryClient.setQueryData(["my-business"], updatedBusiness);
+                      await Promise.all([
+                        queryClient.invalidateQueries({ queryKey: ["calendar-list"] }),
+                        queryClient.invalidateQueries({ queryKey: ["calendar-events"] }),
+                      ]);
+                      setAppleFormOpen(false);
+                      setCalendarReconnectRequired(false);
+                      setCalendarStatus({
+                        type: "success",
+                        message: "El calendario de Apple está conectado correctamente.",
+                      });
+                    }}
+                  />
+                ) : null}
               </div>
               <LottieAnimation
                 src="/animations/landing/CalendarCharacterAnimation.json"
@@ -992,15 +1032,11 @@ function AgenteContent() {
                   <CheckCircle2 className="h-5 w-5 shrink-0 text-[#2c7334]" />
                   <div className="min-w-0">
                     <p className="text-sm font-semibold text-[#2c7334]">
-                      {activeCalendarProvider === "outlook"
-                        ? "Outlook Calendar"
-                        : "Google Calendar"}{" "}
-                      conectado
+                      {calendarState.label} conectado
                     </p>
                     <p className="truncate text-xs text-[#2c7334]/70">
-                      {activeCalendarProvider === "outlook"
-                        ? (business.outlookUserEmail ?? "Cuenta de Outlook")
-                        : "Cuenta de Google"}
+                      {calendarState.accountEmail ??
+                        `Cuenta de ${calendarState.shortLabel}`}
                     </p>
                   </div>
                 </div>

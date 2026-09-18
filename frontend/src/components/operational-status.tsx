@@ -1,6 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
+import { getCalendarState } from "@/lib/calendar-state";
 import {
   AlertTriangle,
   Bot,
@@ -65,9 +66,9 @@ export function buildOperationalStatus({
   forwardingUnavailable?: boolean;
 }): OperationalStatusItem[] {
   const hasPlan = business.subscriptionStatus === "ACTIVE" || business.subscriptionStatus === "TRIALING";
-  const usesOutlook = business.calendarProvider === "outlook";
-  const calendarConnected = usesOutlook ? business.outlookCalendarConnected === true : business.googleCalendarConnected === true;
-  const calendarExpired = usesOutlook ? business.outlookCalendarDisconnectedAt != null : business.googleCalendarDisconnectedAt != null;
+  const calendarState = getCalendarState(business);
+  const calendarConnected = calendarState.connected;
+  const calendarExpired = calendarState.expired;
 
   const agent: OperationalStatusItem = business.callsSuspendedAt
     ? { key: "agent", label: "Recepcionista", icon: Bot, value: "Suspendida por impago", tone: "error", action: { label: "Regularizar el pago", href: "/ajustes/facturacion" } }
@@ -94,7 +95,7 @@ export function buildOperationalStatus({
         : { key: "forwarding", label: "Desvío de llamadas", icon: PhoneForwarded, value: "Esperando al número", tone: "waiting" };
 
   const calendar: OperationalStatusItem = calendarConnected
-    ? { key: "calendar", label: "Agenda", icon: CalendarDays, value: usesOutlook ? "Outlook Calendar" : "Google Calendar", tone: "ok" }
+    ? { key: "calendar", label: "Agenda", icon: CalendarDays, value: calendarState.label, tone: "ok" }
     : calendarExpired
       ? { key: "calendar", label: "Agenda", icon: CalendarDays, value: "Conexión caducada", tone: "error", action: { label: "Reconectar", href: "/agente?section=calendar-section" } }
       : { key: "calendar", label: "Agenda", icon: CalendarDays, value: "Sin conectar", tone: "warning", action: { label: "Conectar agenda", href: "/agente?section=calendar-section" } };

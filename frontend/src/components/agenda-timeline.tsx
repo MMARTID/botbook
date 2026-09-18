@@ -1,6 +1,8 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
+import { CALENDAR_PROVIDER_INFO } from "@/lib/calendar-state";
+import type { CalendarProviderId } from "@/lib/types";
 import { CalendarDays, ChevronLeft, ChevronRight, ExternalLink, Phone, Users } from "lucide-react";
 import { getAgenda } from "@/lib/api";
 import { formatClock, formatDayLabel, formatPhone, formatPrice } from "@/lib/format";
@@ -15,7 +17,7 @@ type AgendaTimelineProps = {
   days: AgendaRange;
   offset: number;
   timeZone: string;
-  calendarProvider: "google" | "outlook";
+  calendarProvider: CalendarProviderId;
   hasCalendar: boolean;
   onOffsetChange: (offset: number) => void;
 };
@@ -43,9 +45,7 @@ export function AgendaTimeline({
   });
   const agenda = agendaQuery.data;
   const groupedDays = groupByDay(agenda?.bookings ?? [], timeZone);
-  const calendarUrl = calendarProvider === "outlook"
-    ? "https://outlook.office.com/calendar/"
-    : "https://calendar.google.com/calendar/u/0/r/agenda";
+  const calendarUrl = CALENDAR_PROVIDER_INFO[calendarProvider].webUrl;
   const first = agenda ? agenda.offset + 1 : 0;
   const last = agenda ? agenda.offset + agenda.bookings.length : 0;
 

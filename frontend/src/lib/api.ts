@@ -22,6 +22,7 @@ import type {
   PlaceDetails,
   PlaceSearchResult,
   DemoPlaceSearchResult,
+  CalendarAccountConnected,
 } from "./types";
 
 const configuredBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
@@ -189,6 +190,20 @@ export async function getMicrosoftCalendarAuthUrl() {
 
 export async function connectMicrosoftCalendar(calendarId: string) {
   const { data } = await api.post<Business>("/calendar/auth/microsoft/connect", { calendarId });
+  return data;
+}
+
+/** Alta del calendario de Apple (iCloud) con Apple ID + contraseña de
+ * aplicación. El backend valida contra iCloud: credenciales incorrectas
+ * llegan como 400 con code CALDAV_INVALID_CREDENTIALS. */
+export async function connectAppleCalendar(input: {
+  username: string;
+  appPassword: string;
+}) {
+  const { data } = await api.post<CalendarAccountConnected>(
+    "/calendar/auth/caldav/connect",
+    input
+  );
   return data;
 }
 
