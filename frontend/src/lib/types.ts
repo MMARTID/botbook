@@ -91,6 +91,13 @@ export type Business = {
   outlookCalendarDisconnectedAt?: string | null;
   outlookCalendarLastError?: string | null;
   outlookUserEmail?: string | null;
+  /**
+   * Estado del proveedor de calendario activo, sin nombres de proveedor en
+   * las claves (lo calcula el backend desde calendar_connections). Es el
+   * contrato a usar en adelante; los campos google* y outlook* de arriba son
+   * el antiguo y desaparecerán.
+   */
+  activeCalendar?: ActiveCalendar | null;
   subscriptionStatus?: SubscriptionStatus | null;
   /**
    * Fecha en la que se suspendieron las llamadas por impago. Mientras esté
@@ -262,10 +269,28 @@ export type CalendarListItem = {
   primary: boolean;
 };
 
+export type CalendarProviderId = "google" | "outlook" | "caldav";
+
+export type ActiveCalendar = {
+  provider: CalendarProviderId;
+  connected: boolean;
+  calendarId: string | null;
+  accountEmail: string | null;
+  disconnectedAt: string | null;
+  lastError: string | null;
+};
+
 export type CalendarListResponse = {
-  provider: "google" | "outlook";
+  provider: CalendarProviderId;
   selectedCalendarId: string | null;
   calendars: CalendarListItem[];
+};
+
+/** Respuesta del alta de Apple/iCloud (y del callback de Outlook): la cuenta
+ * ya está guardada y falta elegir calendario con selectCalendar(). */
+export type CalendarAccountConnected = {
+  calendars: CalendarListItem[];
+  email: string | null;
 };
 
 export type Agent = {

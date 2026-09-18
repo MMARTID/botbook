@@ -23,25 +23,55 @@
 //   npx tsx scripts/manual/caldav-e2e.mts
 //   docker rm -f radicale-test
 //
-// Contra iCloud real: cambia serverUrl por https://caldav.icloud.com, username
-// por el Apple ID y appPassword por una contraseña de aplicación.
+// Contra iCloud real (contraseña de aplicación de appleid.apple.com; no la
+// de la cuenta). Opcional: CALDAV_CALENDAR_NAME para elegir calendario (si
+// no, «Peluquería» o el primero) y CALDAV_SERVER_URL para otro servidor.
+//   export CALDAV_USERNAME='apple-id@icloud.com' CALDAV_APP_PASSWORD='xxxx-xxxx-xxxx-xxxx'
+//   npx tsx scripts/manual/caldav-e2e.mts
 import { CaldavCalendarProvider } from "../../src/adapters/calendar/caldav/CaldavCalendarProvider.js";
 import { hashDeIdempotencia } from "../../src/adapters/calendar/eventoDeCalendario.js";
 
 const adaptador = new CaldavCalendarProvider();
-const cuenta = {
-  credentials: {
-    provider: "caldav" as const,
-    serverUrl: "http://localhost:5232",
-    username: "pelu",
-    appPassword: "secreto-app",
-  },
-};
+// Por defecto iCloud con las credenciales de las variables de entorno; sin
+// ellas, el Radicale local de la receta de arriba.
+const cuenta = process.env.CALDAV_USERNAME
+  ? {
+      credentials: {
+        provider: "caldav" as const,
+        serverUrl: process.env.CALDAV_SERVER_URL ?? "https://caldav.icloud.com",
+        username: process.env.CALDAV_USERNAME,
+        appPassword: process.env.CALDAV_APP_PASSWORD ?? "",
+      },
+    }
+  : {
+      credentials: {
+        provider: "caldav" as const,
+        serverUrl: "http://localhost:5232",
+        username: "pelu",
+        appPassword: "secreto-app",
+      },
+    };
+if (!cuenta.credentials.appPassword) {
+  console.error("Falta CALDAV_APP_PASSWORD (contraseña de aplicación).");
+  process.exit(1);
+}
+console.log(
+  `Servidor: ${cuenta.credentials.serverUrl} · usuario: ${cuenta.credentials.username}`
+);
 
 console.log("1) listarCalendarios");
 const calendarios = await adaptador.listarCalendarios(cuenta);
 console.log("   ", calendarios);
-const calendarId = calendarios.find((c) => c.name === "Peluquería")!.id;
+const elegido =
+  calendarios.find(
+    (c) => c.name === (process.env.CALDAV_CALENDAR_NAME ?? "Peluquería")
+  ) ?? calendarios[0];
+if (!elegido) {
+  console.error("La cuenta no tiene ningún calendario de eventos.");
+  process.exit(1);
+}
+console.log(`   usando el calendario «${elegido.name}»`);
+const calendarId = elegido.id;
 const conexion = { ...cuenta, provider: "caldav" as const, calendarId };
 
 const evento = {
