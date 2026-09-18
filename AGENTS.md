@@ -1145,7 +1145,7 @@ partir vacía de `main` como marcador.
 |------|-----------|-------|-------|
 | `step-followups-landing` | `frontend/src/components/call-forwarding-flow.tsx` + tarjetas `threeSteps` en `site-landing.tsx` (sección "Cómo funciona") | [#12](https://github.com/MMARTID/botbook/issues/12) | Pulir y/o rediseñar el recorrido de 3 pasos. |
 | `demo-modal-landing` | Modal/experiencia de "Escuchar una llamada" del hero (`DemoVoiceCall`) | — | Pulir y/o rediseñar la demo de llamada de voz que se abre desde la landing. Sin Issue todavía. |
-| `telnyx-whatsapp-calls` | Llamadas de voz por WhatsApp vía Telnyx — distinto de la mensajería de texto ya existente (`WhatsAppAdapter`, `jobs/sendWhatsapp.ts`, plantillas de confirmación/recordatorio) | — | Rama vacía como marcador; alcance aún sin definir. Sin Issue todavía. |
+| `telnyx-whatsapp-calls` | Llamadas de voz por WhatsApp vía Telnyx — distinto de la mensajería de texto ya existente (`WhatsAppAdapter`, `jobs/sendWhatsapp.ts`, plantillas de confirmación/recordatorio) | — | Plan de implementación en `PLAN-WHATSAPP-LLAMADAS.md` (2026-09-18): el número Alhabla de cada negocio pasa a ser número de WhatsApp Business con llamadas activas bajo el WABA de plataforma; pendiente de Fase 0 (validaciones con la cuenta real). Sin Issue todavía. |
 
 Al abrir el Issue correspondiente, añade su número en la columna "Issue". Al
 fusionar o descartar una rama, quita su fila de esta tabla.
