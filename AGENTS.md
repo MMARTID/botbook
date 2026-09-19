@@ -606,6 +606,13 @@ helpers — pass a `taskId` whenever a duplicate would be visible to a customer.
 Tasks are created with `dispatchDeadline` 180s (the default 600s let a slow
 task be retried while the first was still running).
 
+**Owner channel plan (2026-09-19):** everything that talks to the business
+owner (recados, pending bookings, cancellations, daily digest, owner chat with
+buttons, owner mode by voice, cross-channel memory) is designed in
+`PLAN-CANAL-DUENO.md` — WhatsApp two-way through the existing WABA, no second
+number, no push, **no outbound calls** (user decision). Inbound `message.*`
+events on `/webhooks/telnyx` are still ignored until phase 1 of that plan.
+
 **Permanent vs transient failures:** job handlers throw `PermanentJobError`
 (`backend/src/lib/jobErrors.ts`) for things retrying cannot fix (invalid
 recipient, 4xx from the provider). `internal/routes.ts` answers `200
