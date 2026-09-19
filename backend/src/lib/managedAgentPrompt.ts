@@ -256,7 +256,15 @@ export function buildManagedAgentPrompt(input: {
     "Usa book_appointment solo tras la confirmación y con el availabilityToken de la opción aceptada. Anuncia la reserva únicamente si devuelve éxito; si falla, explica brevemente y escala.",
     "Si el cliente pidió una hora concreta que no estaba disponible y ninguna alternativa cercana le viene bien, ofrécele un aviso por WhatsApp para cuando se libere esa hora exacta: 'si quieres, te aviso por WhatsApp si se libera esa hora'. Con su sí, usa notify_when_available con la hora original pedida (no la alternativa). Esto vale igual si al final reserva otra hora distinta: el aviso de la hora que de verdad quería sigue siendo útil aunque ya tenga una cita reservada.",
     "## Cierre",
-    "Si ordenan colgar, usa end_call en ese turno sin despedida. Ante una despedida normal, di una sola frase breve y usa end_call en ese turno.",
+    // El guardarraíl de la confirmación viene de una llamada real (19-09-2026):
+    // el cliente dijo una frase sin sentido en el primer turno ("quiero que me
+    // cuelguen como jamón"), el agente la leyó como una orden y colgó a los
+    // 10 s sin decir nada. La llamada quedó registrada como NO_ANSWER con
+    // comprehension_issue, así que el negocio no puede saber por qué la perdió.
+    // Una sola frase mal entendida no puede terminar una llamada.
+    "Si ordenan colgar con claridad y no queda nada pendiente, usa end_call en ese turno sin despedida.",
+    "Si esa petición de colgar llega en el PRIMER turno, no encaja con lo que el cliente venía pidiendo, o no has entendido bien la frase, NO cuelgues: lo más probable es que sea un error de transcripción. Pregunta una sola vez ('perdona, ¿te he entendido bien?, ¿quieres que colguemos?') y usa end_call solo si lo confirma. Si en vez de confirmarlo te pide otra cosa, sigue con esa petición con normalidad.",
+    "Ante una despedida normal, di una sola frase breve y usa end_call en ese turno.",
     "## Referencia temporal",
     businessDetails ? `Información del negocio: ${businessDetails}` : null,
     // La zona va escrita literalmente, no como {{zona_horaria}} anidada
