@@ -1,11 +1,28 @@
-# Plan: el canal con el dueño del negocio es WhatsApp bidireccional
+# Plan: el canal con el dueño del negocio es WhatsApp bidireccional (y WhatsApp como segunda puerta)
 
 ## Decisión de producto
 
 **La recepcionista también le escribe a su jefe.** La parte del producto que comunica con el
 propietario del negocio se resuelve con WhatsApp bidireccional a través del WABA de Telnyx ya
 conectado, con el panel como archivo y el email como registro. Ni segundo número por cuenta, ni
-notificaciones push, ni WhatsApp por negocio.
+notificaciones push, ni WABA por negocio.
+
+**Ampliación del mismo día (2026-09-19, tarde), decisión del usuario:**
+
+1. El **chat del dueño se implementa y sale etiquetado como Beta** (no queda como opción
+   condicionada al éxito de la fase 1).
+2. **Onboarding por WhatsApp**: tras elegir el negocio en Places y confirmar el tipo, un modal
+   nuevo permite configurar el perfil de WhatsApp de la recepcionista y, al terminar, **llamarla
+   por WhatsApp** desde el móvil del dueño. Antes de servicios, equipo, calendario y pago.
+3. **Los clientes también pueden llamar por WhatsApp.** Cada negocio tiene su número de Alhabla
+   registrado como número de WhatsApp Business dentro del WABA de Alhabla, con llamadas
+   activadas; la recepcionista las atiende igual que las de teléfono. Detalle técnico en
+   `PLAN-WHATSAPP-LLAMADAS.md` (plan del 2026-09-18, ahora subordinado a este).
+
+Esto cambia una decisión de la mañana: ya no hay "un solo remitente". El **dueño** habla con el
+contacto "Alhabla" (número de plataforma); los **clientes** hablan y llaman al número del
+negocio, con su nombre y su foto, y el número de plataforma queda de respaldo hasta que el del
+negocio esté verificado.
 
 Decisión tomada el 2026-09-19 sobre el diagnóstico de la auditoría de producto de ese día: el
 bucle técnico (llamada → cita en calendario → panel → factura) está cerrado y verificado en
@@ -15,10 +32,11 @@ lo que ve, y la recepcionista promete cosas que no ocurren.
 | Alternativa | Por qué se descarta |
 |---|---|
 | Segundo número Telnyx por cuenta ("línea del dueño") | La numeración geográfica española es *voice-only* de forma estructural (error 40323, ver `AGENTS.md` § send-sms): un segundo número tampoco podría mensajear. Lo único que aportaría, una línea de administración por voz, se consigue reconociendo el número del negocio en la misma línea. |
-| Un WhatsApp Business por negocio | Verificación de Meta negocio a negocio, plantillas por negocio, calidad de número por negocio. Inviable para una peluquería. Un solo remitente de Alhabla con el nombre del negocio dentro del mensaje. |
+| Un **WABA** (cuenta de WhatsApp Business de Meta) por negocio | Verificación de Meta negocio a negocio, Facebook Business Manager por peluquería, plantillas por negocio, y para llamadas cada cartera tendría que alcanzar por sí sola el límite de 2.000. Inviable. Lo que sí se hace es **un número por negocio dentro del WABA de Alhabla** (ver `PLAN-WHATSAPP-LLAMADAS.md` § 3). |
+| Atender el WhatsApp *actual* del negocio (su móvil con la app WhatsApp Business) | Las llamadas de WhatsApp son VoIP dentro de la app: no se desvían con `**61*`, y Meta no soporta llamadas por API en números en coexistencia. Nunca se promete en copy. |
 | Web Push desde el panel | Técnicamente posible (también en iPhone si añaden la app al inicio), pero frágil para este público: permisos, instalación, silenciado sin querer. Queda como capa opcional futura, nunca como columna vertebral. |
 | Esperar al Alphanumeric Sender ID de SMS | Sigue pendiente de la CNMC y es unidireccional. Pasa a ser *fallback* para el dueño sin WhatsApp, no la vía principal. |
-| Llamadas salientes de la recepcionista (recordatorio por voz, llamar al dueño si no reacciona) | Telnyx lo permite (eventos programados `phone_call`), pero **el usuario lo descartó el 2026-09-19**: nada de llamadas salientes. Se anota como idea; no forma parte de este plan. |
+| Llamadas salientes de la recepcionista (recordatorio por voz, llamar al dueño si no reacciona) | Telnyx lo permite (eventos programados `phone_call`), pero **el usuario lo descartó el 2026-09-19**: nada de llamadas salientes. Se anota como idea; no forma parte de este plan. Las llamadas de WhatsApp de este plan son siempre **entrantes**. |
 
 ## Objetivo
 
@@ -31,13 +49,29 @@ lo que ve, y la recepcionista promete cosas que no ocurren.
 4. Que el recordatorio al cliente lleve botones (confirmo / cancelar / cambiar) y que cancelar
    libere el hueco, avise al dueño y dispare la lista de espera.
 5. Que la recepcionista **recuerde** al cliente y al dueño entre canales (voz y WhatsApp).
+6. Que el dueño **oiga a su recepcionista en el minuto tres del alta**, llamándola por WhatsApp
+   desde su móvil, antes de meter servicios, equipo, calendario o tarjeta.
+7. Que el negocio tenga **presencia en WhatsApp Business sin tocar Meta**: contacto con su nombre
+   y su foto, llamadas de clientes por WhatsApp atendidas por la recepcionista, y confirmaciones
+   que llegan en ese mismo chat desde el nombre del negocio.
+8. Que el chat del dueño exista en el producto **como Beta** declarada, con su etiqueta, su
+   interruptor y su vía de feedback.
 
 ## Límites explícitos
 
-- **Sin llamadas salientes.** Ni recordatorios por voz, ni llamar al dueño. Decisión del usuario.
-- Sin segundo número, sin WABA por negocio, sin Web Push en este plan.
-- Un solo remitente de WhatsApp para toda Alhabla (`WHATSAPP_TELNYX_FROM_NUMBER`). Los mensajes
-  llevan siempre el nombre del negocio.
+- **Sin llamadas salientes.** Ni recordatorios por voz, ni llamar al dueño, ni llamadas de
+  WhatsApp iniciadas por la recepcionista. Decisión del usuario. Las llamadas de WhatsApp de
+  clientes y la llamada de prueba del onboarding son **entrantes**.
+- Sin segundo número Telnyx para el dueño, sin WABA por negocio, sin Web Push en este plan.
+- Dos remitentes por negocio, con papeles fijos: el **número de plataforma**
+  (`WHATSAPP_TELNYX_FROM_NUMBER`, contacto "Alhabla") es el canal del dueño y el respaldo de los
+  mensajes a clientes; el **número del negocio** (su número de Alhabla registrado en WhatsApp) es
+  la cara hacia los clientes: llamadas, confirmaciones y recordatorios, en cuanto esté verificado.
+- **El WhatsApp actual del negocio no se atiende.** Ni sus llamadas ni sus chats. El copy lo dice
+  en la landing, en el modal y en Ajustes.
+- La llamada de prueba del onboarding va al número de plataforma (el negocio aún no tiene
+  número) y se enruta por quien llama. Exige que ese número tenga llamadas de WhatsApp activas y
+  que la cartera de Alhabla cumpla el requisito de Meta (§ 13).
 - Las reservas normales **no** generan un mensaje por cita por defecto: ya aparecen en el
   calendario del negocio y en el panel; van al cierre del día. Instantáneo solo si el dueño lo
   activa.
@@ -189,10 +223,28 @@ idempotencia que los eventos de voz (`VoiceWebhookEvent`) y este enrutado, en es
 5. **Texto libre de un cliente**: respuesta fija con el teléfono del negocio. En este plan el
    cliente solo usa botones; su canal de gestión sigue siendo la llamada.
 
-### 5. Asistente de gestión (chat del dueño)
+### 5. Asistente de gestión (chat del dueño) — Beta
 
 Un assistant Telnyx **distinto** de la recepcionista, uno por negocio, sin telefonía ni
 mensajería activadas (solo se usa por `chat_ai_assistants`): `alhabla-gestion-<businessId>`.
+
+**Se implementa y sale como Beta** (decisión del usuario, 2026-09-19):
+
+- Etiqueta visible: cada respuesta del nivel 2 termina con una línea corta "_Beta · escribe
+  AYUDA para ver qué sé hacer_"; en el panel, el bloque del chat y la fila de Ajustes llevan el
+  badge «Beta» (`.badge-soft`). Las respuestas deterministas (botones, palabras clave) no llevan
+  la coletilla: no son beta.
+- Disponible para **todos los planes mientras sea Beta**, para aprender de uso real; al salir de
+  Beta pasa al gating de Pro previsto en la escalera. `planFeatures.ts` lleva `chat_dueno_beta`
+  ahora y `chat_dueno` después.
+- Feedback: la respuesta `AYUDA` lista lo que sabe hacer; cualquier respuesta del nivel 2 puede
+  contestarse con `MAL` y el backend guarda la última pareja pregunta/respuesta en
+  `OwnerChatFeedback` para revisarla; sin LLM de por medio.
+- Interruptor global `TELNYX_OWNER_CHAT_ENABLED` y por negocio (`Business.ownerChatEnabled`,
+  desde Ajustes › Avisos). Apagado ⇒ el texto libre recibe "Ahora mismo solo entiendo botones y
+  las palabras `agenda`, `mañana`, `hoy`, `pausa`".
+- Límites de Beta: 60 mensajes por dueño y día (evita bucles y coste); las acciones destructivas
+  siguen exigiendo botón de confirmación (no se relaja por ser Beta).
 
 - `conversation_id` (UUID) estable por dueño (uno por negocio) para que el contexto se mantenga
   entre mensajes; se rota cada 30 días o al hacer `BAJA`.
@@ -229,6 +281,11 @@ mensajería activadas (solo se usa por `chat_ai_assistants`): `alhabla-gestion-<
 - Con `es_dueno`, la instrucción de la recepcionista es una sola: traspasar (`handoff`, voz
   unificada) al asistente de gestión por voz, que es el mismo assistant de §5 pero con
   telefonía activada, o una copia gemela si Telnyx no permite chat y voz sobre el mismo.
+- El asistente de gestión abre con dos caminos: "Hola Ana, soy tu recepcionista. ¿Quieres probar
+  cómo atiendo a un cliente, o gestionar tu agenda?". **Probar** = traspaso de vuelta a la
+  recepcionista con `llamada_de_prueba: true` (§ 12); **gestionar** = tools de dueño.
+- Mientras el onboarding no esté completo (sin PIN, sin nada que gestionar) se va directo a
+  "probar", sin pregunta.
 - Consultas (agenda, cuántas llamadas) sin más. Acciones destructivas: PIN de cuatro cifras que el
   dueño fija en Ajustes, pedido una vez por llamada. Sin STIR/SHAKEN en España, el número que
   llama no es prueba suficiente.
@@ -294,6 +351,12 @@ Decisión del usuario (2026-09-19): memoria para el dueño **y** para los client
 - La promesa de la recepcionista se condiciona: la frase "te aviso por WhatsApp si se libera"
   solo entra en el prompt si la plantilla está configurada. Hasta entonces la tool se retira de
   los assistants.
+- **Remitente hacia el cliente**: en cuanto el número del negocio esté verificado en WhatsApp
+  (§ 13), confirmación, recordatorio y hueco libre salen **desde ese número** (mismo WABA, mismas
+  plantillas: no hay que reaprobar nada); si no, desde el de plataforma. Si el cliente llamó por
+  WhatsApp, la confirmación cae en el mismo chat desde el que llamó, y la recepcionista lo dice
+  ("te la mando a este mismo WhatsApp") en vez de pedir número; el consentimiento por voz se
+  pide igual.
 
 ### 10. Fallbacks y registro
 
@@ -320,8 +383,84 @@ Decisión del usuario (2026-09-19): memoria para el dueño **y** para los client
   resuelta por el dueño, reintentada); desaparece al resolverse.
 - Llamadas: el recado aparece como bloque propio en el detalle, con su estado (avisado,
   atendido).
-- Nuevo bloque "Tu chat con la recepcionista": historial (por API de conversaciones) y cuadro
-  de texto contra `chat_ai_assistants`.
+- Nuevo bloque "Tu chat con la recepcionista" con badge «Beta»: historial (por API de
+  conversaciones) y cuadro de texto contra `chat_ai_assistants`.
+- Ajustes › WhatsApp: estado del número del negocio (sin activar / verificando / activo / error),
+  perfil editable (el del modal del onboarding), enlace `wa.me` y QR, y "Copiar mensaje de
+  ausencia" para su WhatsApp de siempre. Detalle en `PLAN-WHATSAPP-LLAMADAS.md` § Fase 3.
+- Llamadas: chip «WhatsApp» en la lista y en el detalle (`Call.channel`); la llamada de prueba
+  del onboarding aparece marcada como tal.
+
+### 12. Onboarding por WhatsApp
+
+Nuevo paso del asistente de alta, **entre el tipo de negocio y los servicios**, como modal a
+pantalla completa "Tu recepcionista en WhatsApp". Tres partes, en este orden:
+
+1. **Perfil.** Una tarjeta de contacto tal como la verán los clientes en WhatsApp: nombre
+   visible, foto, descripción corta, dirección, categoría, web. Todo prerrellenado desde Google
+   Places (nombre, dirección, web, foto principal) y el tipo de negocio (categoría de WhatsApp:
+   *Belleza, spa y salón* para peluquería, barbería, uñas y estética; *Salud* para
+   fisioterapia). El nombre se sanea según las reglas de Meta (sin emojis, sin mayúsculas
+   completas, máximo 25 caracteres) y se avisa si hubo que recortarlo. Se guarda en
+   `Business.whatsappProfile` y se aplica al número del negocio cuando exista (§ 13); el dueño
+   no vuelve a tocarlo salvo que quiera.
+2. **Vincular su WhatsApp.** El «ALTA» de § 2, aquí: QR y enlace `wa.me`. Al recibir el mensaje,
+   el modal pasa solo al paso 3 (el panel consulta el estado cada pocos segundos). Sustituye al
+   teléfono placeholder y deja el consentimiento de avisos hecho desde el principio; la
+   checklist del panel conserva el paso solo para quien lo saltó.
+3. **Llámala.** Botón "Llama a tu recepcionista por WhatsApp": abre el chat con el contacto
+   "Alhabla" y una indicación de pulsar el icono de llamada (WhatsApp no tiene enlace directo
+   para iniciar una llamada). La llamada entra por el **número de plataforma**; como el dueño
+   acaba de vincular su WhatsApp, el backend resuelve el negocio **por quien llama**
+   (`from` = `ownerWhatsappNumber`) y la atiende **su** recepcionista, con su nombre, su tipo de
+   negocio y el horario de Places, en modo prueba (`llamada_de_prueba: true`): atiende como a un
+   cliente, y si el catálogo está vacío lo dice con naturalidad ("todavía no tengo tus servicios
+   cargados; en cuanto los añadas podré reservar") y toma un recado. Al colgar, el modal muestra
+   "Así te atenderé" con el resumen de esa llamada y el botón para seguir a servicios. Se puede
+   saltar ("Lo pruebo luego") sin penalización.
+
+Reglas:
+
+- El assistant del negocio existe desde el registro (`createBusinessAgent`), así que la llamada
+  de prueba no necesita número comprado, desvío ni tarjeta.
+- `handleCallInitiated`: si `to` es el número de plataforma, el negocio se resuelve por `from`
+  (dueño vinculado); si ese número pertenece a más de un negocio, se atiende el último en
+  onboarding y se ofrece cambiar por voz. Si `from` no es ningún dueño, mensaje corto y cuelgue
+  ("este número no atiende llamadas de clientes; llama al negocio").
+- La llamada de prueba cuenta como llamada del negocio (`Call.purpose = "onboarding_test"`), se
+  muestra en el panel, no cuenta para los minutos del plan, y se limita a 3 por negocio durante
+  el alta.
+- Prerrequisito técnico: llamadas de WhatsApp activas en el número de plataforma
+  (`calling_settings.enabled`) y cartera de Alhabla con límite de mensajería ≥ 2.000 (§ 13). Sin
+  eso el paso 3 no se muestra y el modal termina en el paso 2.
+- Después del onboarding, ese mismo camino (el dueño llama al contacto "Alhabla") es el modo
+  dueño por voz de § 6.
+
+### 13. Llamadas de WhatsApp de clientes: un número por negocio
+
+Lo define `PLAN-WHATSAPP-LLAMADAS.md` (fases 1-4); aquí solo lo que cambia o se decide:
+
+- **Automático tras el pago.** Cuando `provisionPhoneNumber` deja el número del negocio activo,
+  el mismo flujo lo registra en el WABA de Alhabla con `Business.whatsappProfile` (nombre visible,
+  foto, descripción, dirección, categoría), lo verifica y activa llamadas. Decisión 4 de aquel
+  plan: activación automática, no botón en Ajustes (queda el botón solo para reintentar).
+- **Verificación por voz.** Un número español no recibe SMS; Meta llama con el código. Mientras
+  `whatsappStatus = verification_pending` la llamada entrante al número se transfiere al móvil
+  del dueño o el código se captura con transcripción; se decide en la fase 0 (punto 9).
+- **Nombre visible.** Meta revisa cada nombre bajo la cartera de Alhabla. Hasta la aprobación el
+  cliente ve el número; si lo rechaza, patrón "Peluquería Ana · Alhabla" (piloto en fase 0).
+- **Las llamadas no necesitan código nuevo en su ruta**: entran por la misma conexión de voz del
+  número (`handleCallInitiated` resuelve el negocio por `to`). Lo nuevo es `Call.channel =
+  "whatsapp"` con el criterio que dé la fase 0 y el chip en el panel.
+- **Confirmaciones desde el número del negocio** (decisión 2 de aquel plan): sí, en cuanto esté
+  verificado; plataforma como respaldo.
+- **Escala.** El límite de mensajería es **por cartera** (todos los números lo comparten):
+  2.000 destinatarios únicos/24 h al empezar, sube solo con calidad y volumen (10K, 100K). Con
+  ~30 mensajes/día por negocio, 2.000 da para unos 60 negocios activos; los mensajes dentro de
+  la ventana de 24 h no cuentan. Alerta interna al 70 %. Tope de números por WABA (25, ampliable
+  a 120): alerta al 80 % y segundo WABA en la misma cartera cuando haga falta.
+- **Copy honesto** en landing, modal y Ajustes: "tus clientes te llaman por WhatsApp al número
+  de Alhabla; tu WhatsApp de siempre sigue siendo tuyo y no lo atendemos".
 
 ## Cambios de datos
 
@@ -333,6 +472,12 @@ Decisión del usuario (2026-09-19): memoria para el dueño **y** para los client
   canalFallback: "email" }`).
 - `ownerPinHash String?` para el modo dueño por voz.
 - `memoryEnabledForClients Boolean @default(false)` (se activa tras el trámite RGPD).
+- `ownerChatEnabled Boolean @default(true)` (interruptor por negocio del chat Beta).
+- `whatsappProfile Json?` (`displayName`, `about`, `description`, `address`, `email`,
+  `website`, `vertical`, `photoStorageKey`), rellenado en el modal del onboarding.
+- Estado del número del negocio en WhatsApp, tal como lo define `PLAN-WHATSAPP-LLAMADAS.md`
+  § Fase 1: `whatsappStatus`, `whatsappDisplayName`, `whatsappPhoneNumberId`, `whatsappWabaId`,
+  `whatsappVerificationRequestedAt`, `whatsappCallingEnabledAt`, `whatsappLastError`.
 
 ### `Agent`
 
@@ -341,6 +486,8 @@ Decisión del usuario (2026-09-19): memoria para el dueño **y** para los client
 
 ### `Call`
 
+- `channel String @default("pstn")` (`pstn | whatsapp`) y `purpose String?`
+  (`onboarding_test | owner_voice`), rellenados en `handleCallInitiated`.
 - `postCallReport Json?` (lo que devolvió `informar_al_negocio`, tal cual) y
   `postCallReportAt`. `outcome`/`escalationReason`/`toolFailureDetected`/`requestedService`
   siguen siendo las columnas canónicas; durante la doble escritura se rellenan desde ambas
@@ -363,6 +510,8 @@ Decisión del usuario (2026-09-19): memoria para el dueño **y** para los client
 - `ScheduleBlock` (`businessId`, `startsAt`, `endsAt`, `reason`): resta capacidad como un evento
   externo sin profesional. Sustituye a las excepciones globales de horario para bloqueos
   puntuales; las excepciones de día completo se mantienen.
+- `OwnerChatFeedback` (`businessId`, `question`, `answer`, `createdAt`): lo que el dueño marcó
+  con `MAL` durante la Beta.
 - `InboundMessage` (`providerMessageId @unique`, `fromNumber`, `businessId?`, `kind`
   `button|text|keyword`, `payload`, `handledAt`, `handler`, `error`): idempotencia y trazabilidad
   de todo lo que entra por el webhook de mensajería.
@@ -413,12 +562,14 @@ Las dos plantillas actuales (`confirmacion_cita`, `recordatorio_cita`) siguen v�
 
 | Plan | Incluye |
 |---|---|
-| Inicio | Alta por WhatsApp, mensajes #1, #2, #3 y #5, cierre del día, recordatorio con botones al cliente, lista de espera |
-| Pro | Todo lo anterior + chat bidireccional (asistente de gestión), aviso por cita opcional, memoria de clientes, historial y chat en el panel |
+| Todos (Beta) | Chat con la recepcionista **mientras sea Beta** (después, Pro) |
+| Inicio | Alta por WhatsApp, onboarding con llamada de prueba, mensajes #1, #2, #3 y #5, cierre del día, recordatorio con botones al cliente, lista de espera, **llamadas de clientes por WhatsApp** y confirmaciones desde el número del negocio |
+| Pro | Todo lo anterior + chat bidireccional fuera de Beta, aviso por cita opcional, memoria de clientes, historial y chat en el panel |
 | Scale | Todo lo anterior + modo dueño por voz. Sustituye a la promesa vacía de «varios números por sede (próximamente)», que se retira de `plans.ts` |
 
-El *gating* se hace en `planFeatures.ts` (`chat_dueno`, `memoria_clientes`, `modo_dueno_voz`)
-como el resto de features.
+El *gating* se hace en `planFeatures.ts` (`chat_dueno_beta` → `chat_dueno`, `memoria_clientes`,
+`modo_dueno_voz`) como el resto de features. Las llamadas de WhatsApp de clientes no se
+diferencian por plan: son la segunda puerta del producto, no un extra.
 
 ## Seguridad y cumplimiento
 
@@ -468,15 +619,34 @@ como el resto de features.
    segunda recuerda la primera, y que desde otro assistant **no** la recuerda.
 7. Confirmar con Telnyx (#13-16 siguen abiertos) si el chat por API y la memoria tienen residencia
    UE.
+8. **Cartera de Alhabla en Meta**: comprobar en WhatsApp Manager el límite de mensajería y el
+   estado de la verificación de empresa. Si no está en ≥ 2.000, completar Meta Business
+   Verification y la aprobación del nombre visible «Alhabla». **Lo hace el usuario; sin esto no
+   hay llamadas de WhatsApp, ni de prueba ni de clientes.** (Es el punto 2 de la fase 0 de
+   `PLAN-WHATSAPP-LLAMADAS.md`.)
+9. Activar llamadas en el número de plataforma (`calling_settings {enabled: true}`), apuntar su
+   conexión de voz al Call Control App y hacer una **llamada real de WhatsApp** desde el móvil
+   del usuario: guardar el `call.initiated` completo (cómo se distingue WhatsApp de PSTN, formato
+   de `from`), calidad de audio, coste. Con ese `from`, probar el enrutado por quien llama.
+10. Registrar un número Telnyx de pruebas en el WABA con verificación **por voz** y un nombre
+    visible de negocio real ("Peluquería X"): ver cómo llega la llamada del código y si Meta
+    aprueba el nombre bajo nuestra cartera. Si lo rechaza, probar "Peluquería X · Alhabla".
+    (Puntos 5 y 6 de la fase 0 de aquel plan.)
 
-**Criterio de salida:** payloads reales documentados, plantillas solicitadas, y los puntos 4-6
-con resultado escrito. Sin esto no se abre la fase 1.
+**Criterio de salida:** payloads reales documentados, plantillas solicitadas, los puntos 4-6 con
+resultado escrito, la cartera en ≥ 2.000, y una llamada de WhatsApp real atendida por un
+assistant. Sin lo primero no se abre la fase 1; sin lo último, la fase 1 se hace sin el paso 3
+del modal y la fase 3 espera.
 
 ### Fase 1 — Tapar la fuga
 
 - `WhatsAppAdapter.ts` sobre el SDK; tabla `WhatsappTemplate` con las dos plantillas actuales
   importadas y el webhook de estado; `SentMessage` con entrega y coste.
-- Alta por ALTA (QR/enlace, código, opt-in/opt-out), paso nuevo del onboarding, Ajustes › Avisos.
+- Alta por ALTA (QR/enlace, código, opt-in/opt-out) y Ajustes › Avisos.
+- **Modal "Tu recepcionista en WhatsApp"** en el asistente de alta (§ 12): perfil prerrellenado
+  de Places, vinculación por ALTA con avance automático, y llamada de prueba al número de
+  plataforma enrutada por quien llama con `llamada_de_prueba`. `Call.channel` y `Call.purpose`.
+  La checklist del panel mantiene el paso de ALTA para quien lo saltó.
 - Webhook de mensajería: idempotencia, identificación del remitente, STOP/ALTA, botones.
 - `informar_al_negocio` en post-conversación con doble escritura frente a los insights; `Lead`
   tipo `message`; mensaje #1 con sus dos botones.
@@ -488,10 +658,12 @@ con resultado escrito. Sin esto no se abre la fase 1.
 - Tests: unitarios del enrutado del webhook, del informe post-llamada y de la idempotencia;
   integración contra Postgres real de los tres mensajes y sus botones.
 
-**Criterio de salida:** en una llamada real a una cuenta de producción sin clientes, el recado
-llega al WhatsApp del dueño con botones, *Atendido* lo resuelve y el panel lo refleja.
+**Criterio de salida:** un alta nueva vincula su WhatsApp en el modal, llama a su recepcionista
+por WhatsApp antes de pagar y la oye con el nombre de su negocio; y en una llamada real a una
+cuenta de producción sin clientes, el recado llega al WhatsApp del dueño con botones, *Atendido*
+lo resuelve y el panel lo refleja.
 
-### Fase 2 — Darle manos
+### Fase 2 — Darle manos (chat Beta)
 
 - Asistente de gestión por negocio (creación en `createBusinessAgent`, sincronización con
   `syncAgentToTelnyx`, reconciliador).
@@ -500,20 +672,45 @@ llega al WhatsApp del dueño con botones, *Atendido* lo resuelve y el panel lo r
   de confirmación.
 - `ProfessionalAbsence` y `ScheduleBlock` en `availability.ts` y `get_catalog`.
 - Nivel 1 de palabras clave y nivel 2 por `chat_ai_assistants`; listas para ambigüedad.
-- Panel: historial del chat y "Pregúntale a tu recepcionista".
-- Gating Pro.
+- Panel: historial del chat y "Pregúntale a tu recepcionista", ambos con badge «Beta».
+- Etiqueta Beta en las respuestas del nivel 2, `AYUDA`, `MAL` → `OwnerChatFeedback`, límite
+  diario, interruptor por negocio. Disponible para todos los planes (`chat_dueno_beta`).
 
 **Criterio de salida:** "Laura no viene el viernes" por WhatsApp deja a Laura fuera de la
 disponibilidad del viernes y la recepcionista no le asigna citas ese día; "cancela la de Marta de
 las 5" pide confirmación con botón y cancela.
 
-### Fase 3 — Rematar
+### Fase 3 — El número del negocio en WhatsApp
+
+Ejecuta las fases 1, 2 y 4 de `PLAN-WHATSAPP-LLAMADAS.md` con las decisiones de § 13:
+
+- Registro automático del número tras `provisionPhoneNumber`, con `Business.whatsappProfile`;
+  verificación por voz con el mecanismo elegido en la fase 0.10; activación de llamadas.
+  Máquina de estados idempotente con lock, reanudable, con `whatsappLastError` legible.
+- `Call.channel = "whatsapp"` en llamadas de clientes; chip y filtro en el panel; analítica por
+  canal (Scale).
+- Confirmación, recordatorio y hueco libre desde el número del negocio; plataforma de respaldo.
+  Variable `canal_llamada` en el prompt ("te la mando a este mismo WhatsApp").
+- Ajustes › WhatsApp: estado, perfil, `wa.me`, QR, mensaje de ausencia para su WhatsApp de
+  siempre. Copy en landing, seis nichos y FAQ.
+- Job `whatsapp-reconciler` diario; alertas de tope de números y de límite de cartera; baja del
+  número en el WABA al liberar el número.
+- `WHATSAPP_CALLING_ROLLOUT=off|manual|all`: `manual` primero (botón en Ajustes), `all` cuando
+  el reconciliador y las alertas estén.
+
+**Criterio de salida:** un negocio real completa el alta, paga, y en menos de 15 minutos su número
+aparece en WhatsApp con su nombre y su foto; un cliente lo llama por WhatsApp, reserva, y la
+confirmación le llega en ese chat desde el nombre del negocio.
+
+### Fase 4 — Rematar
 
 - `recordatorio_cita_v2` con botones; `hueco_libre` y reactivación de `notify_when_available`.
 - Memoria: primero dueño (sin trámite), después clientes tras actualizar privacidad y añadir
   `OLVIDAR`.
 - Retirada de los insights custom cuando la doble escritura concuerde.
-- Modo dueño por voz (`handoff` + PIN). Gating Scale.
+- Modo dueño por voz (`handoff` + PIN) con los dos caminos de § 6. Gating Scale.
+- Salida de Beta del chat cuando `OwnerChatFeedback` y el uso lo justifiquen: quitar etiqueta,
+  pasar a `chat_dueno` (Pro).
 - Actualizar `plans.ts`, las seis landings y `PRODUCT.md` con lo que ahora es real; retirar
   «varios números por sede».
 
@@ -529,7 +726,9 @@ OWNER_ALTA_CODE_TTL_HOURS=72
 OWNER_DIGEST_DEFAULT_TIME=20:30
 TELNYX_MEMORY_ENABLED=false             # kill switch de la memoria (dueño y clientes)
 TELNYX_POST_CONVERSATION_ENABLED=false  # kill switch del informe post-llamada
-TELNYX_OWNER_CHAT_ENABLED=false         # kill switch del nivel 2 (chat beta)
+TELNYX_OWNER_CHAT_ENABLED=false         # kill switch del nivel 2 (chat Beta)
+WHATSAPP_PLATFORM_CALLING_ENABLED=false # muestra el paso 3 del modal (llamada de prueba)
+WHATSAPP_CALLING_ROLLOUT=off            # off | manual | all — número del negocio en WhatsApp
 ```
 
 Las plantillas dejan de ser variables de entorno: viven en `WhatsappTemplate` con su estado
@@ -553,6 +752,13 @@ PostgreSQL, como los assistants de voz.
 | `assistants.chat` es beta y cambia o desaparece | Kill switch `TELNYX_OWNER_CHAT_ENABLED`; el enrutado y los botones no dependen de él; sustituto propio con las mismas tools |
 | Meta reclasifica una plantilla `UTILITY` a `MARKETING` | Texto transaccional sin adjetivos; el webhook de estado y `WhatsappTemplate.category` lo detectan y se corrige el texto |
 | Las tools inline actuales quedan sin soporte antes de migrarlas | Solo las tools nuevas van como compartidas en este plan; se abre un issue aparte para migrar las cinco de voz |
+| La cartera de Alhabla no llega a 2.000 de límite de mensajería | Bloquea la llamada de prueba y las de clientes, no el resto del plan; verificación de empresa con Meta es el primer trámite (fase 0.8) |
+| Meta rechaza "Peluquería Ana" como nombre visible bajo la cartera de Alhabla | Piloto en fase 0.10; patrón "Peluquería Ana · Alhabla"; hasta la aprobación el cliente ve el número |
+| La llamada de verificación de Meta la contesta la recepcionista y el código se pierde | Modo verificación (transferencia al móvil del dueño) o captura por transcripción; se decide en fase 0.10 |
+| Un mal negocio baja la calidad de toda la cartera (límite compartido) | Solo plantillas de utilidad; webhook de calidad; pausa por negocio antes que por plataforma |
+| El dueño espera que su WhatsApp actual quede atendido | Copy honesto en landing, modal y Ajustes; nunca se promete |
+| El chat Beta responde mal y el dueño pierde confianza | Etiqueta, `MAL` con registro, límite diario, acciones solo por botón, apagado por negocio |
+| La llamada de prueba llega antes de que existan servicios y decepciona | Modo prueba explícito en el prompt: dice lo que falta y toma recado; el modal lo anticipa ("aún sin servicios") |
 
 ## Preguntas abiertas
 
@@ -566,5 +772,21 @@ PostgreSQL, como los assistants de voz.
    `context` del mensaje original)? El SDK no lo documenta; fase 0.1.
 6. ¿Puede una *shared tool* llevar una cabecera cuyo valor sea una variable dinámica distinta por
    assistant? Si no, el negocio se resuelve por `conversation_id` en el backend.
+7. ¿Cómo se distingue en `call.initiated` una llamada de WhatsApp de una PSTN (`connection_id`
+   de la WhatsApp Calling connection, cabecera SIP, formato de `from`)? Fase 0.9.
+8. ¿Un dueño con dos negocios en la misma cuenta de WhatsApp? Hoy: se atiende el último en
+   onboarding y se ofrece cambiar por voz. Confirmar si merece un menú.
+
+## Decisiones que necesita el usuario
+
+1. Chat Beta para **todos los planes** mientras sea Beta (propuesto) o solo Pro desde el
+   principio.
+2. Patrón de nombre visible si Meta rechaza el nombre del negocio a secas ("Peluquería Ana ·
+   Alhabla" propuesto).
+3. Si la llamada de prueba del onboarding debe existir aunque la cartera no llegue a 2.000
+   (entonces el paso 3 del modal se oculta y el "guau" se pospone al primer desvío) o si se
+   bloquea el lanzamiento del modal hasta tenerlo.
+4. Completar la verificación de empresa de Alhabla en Meta (WhatsApp Manager) — trámite que solo
+   puede hacer el titular de la cartera.
 4. Tarifa exacta por mensaje *utility* en España vía Telnyx (Meta + margen), para fijar el umbral
    de alerta de coste.
