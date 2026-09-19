@@ -154,7 +154,7 @@ plugin 0.4.0).
 | Errores: `131026` sin WhatsApp, `131047` fuera de ventana, `132015` plantilla pausada, `132000` parámetros, `40008` genérico | SDK | `131026` en el móvil del dueño ⇒ email en el acto y aviso en el panel |
 | Límite de mensajes iniciados por nosotros: destinatarios únicos/24 h **por cartera** (250 sin verificar → 2.000 con empresa verificada y nombre aprobado → 10K → 100K, sube con volumen y calidad) | Verificado el 2026-09-18 | Con un solo número, es el techo de toda la plataforma: la verificación de empresa de Alhabla en Meta es trámite de fase 0 |
 | Nombre visible: solo aparece como remitente tras verificación de empresa y aprobación del nombre; antes el cliente ve el número | Verificado el 2026-09-18 | Mismo trámite |
-| El payload de `message.received` documentado en el SDK solo contempla `SMS, MMS`; la forma del entrante de WhatsApp (texto, botón, lista) **no está documentada** | SDK `telnyx-messaging` | Fase 0.1 es bloqueante |
+| El entrante de WhatsApp **no** es `message.received`: es `whatsapp.messages` por el webhook del WABA (suscripción `messages`), con payload en formato Meta | Verificado en la fase 0.1 | Ver § Resultados de la fase 0 |
 | Auto-respuestas por palabra clave y país (`op: start/stop/info`) | SDK | Solo SMS; en WhatsApp el `STOP` lo gestiona Alhabla |
 | `client.ai.assistants.chat` (**BETA**) con `conversation_id`: ejecuta tools y devuelve `content`; `client.ai.conversations.*` para historial | SDK `telnyx-ai-assistants` | Las dos conversaciones (cliente y dueño) sin bucle de LLM propio; kill switch y sustituto |
 | `tools[]` inline **obsoleto** para integraciones nuevas; *shared tools* (`ai.tools.create` + `tool_ids`) | SDK | Toda tool nueva se define una vez y se adjunta por id; migrar las de voz es trabajo aparte |
@@ -291,15 +291,16 @@ Cliente llama → desvío → recepcionista reserva (consentimiento por voz, anu
 
 ### 6. Entrada: el webhook de mensajería
 
-`message.received` en `/webhooks/telnyx`, misma firma e idempotencia que los eventos de voz,
-tabla `InboundMessage`. Enrutado, en este orden:
+Evento **`whatsapp.messages`** del webhook del WABA en `/webhooks/telnyx` (formato Meta, ver
+§ Resultados de la fase 0), misma firma e idempotencia que los eventos de voz (id del
+evento y `messages[].id`), tabla `InboundMessage`. Enrutado, en este orden:
 
 1. **`STOP`/`BAJA`/`ALTA`**: deterministas, antes que nada. `STOP` de un cliente es global para
    ese número (todos los negocios); la recepcionista deja de ofrecerle WhatsApp.
-2. **Botón o comando**: un botón se correlaciona por `context.message_id` del mensaje al que
-   responde → `SentMessage` (`providerMessageId`, `callbackData` = `<tipo>:<recursoId>`), y por
-   `button_reply.id` en los interactivos; un comando (`/agenda`, `/hoy`, …) o un *ice breaker*
-   por su texto exacto. Handler por tipo de recurso. Nunca pasa por el LLM.
+2. **Botón o comando**: un botón se correlaciona por `context.id` del mensaje al que responde
+   → `SentMessage.providerMessageId` (confirmado en la fase 0.1), y por `button_reply.id` en
+   los interactivos; un comando (`/agenda`, `/hoy`, …) o un *ice breaker* por su texto exacto.
+   Handler por tipo de recurso. Nunca pasa por el LLM.
 3. **Identificar al remitente**: `ownerWhatsappNumber` de algún negocio ⇒ dueño; teléfono con
    reservas y consentimiento ⇒ cliente; ambos ⇒ se pregunta con dos botones ("¿Como dueño de
    Barbería Paco o como cliente de Peluquería Ana?"); ninguno ⇒ una única respuesta fija por día
@@ -541,20 +542,27 @@ Categoría **utility**, nombres `snake_case`, parámetros nombrados, creadas por
 `scripts/manual/crearPlantillasWhatsapp.mts` con ejemplos realistas, seguidas por webhook. Textos
 secos: Meta reclasifica a *marketing* lo que suena promocional. Todas a la vez.
 
-| Plantilla | Para | Cuerpo propuesto | Botones |
+| Plantilla | Para | Cuerpo enviado a Meta (2026-09-19, todas `PENDING`) | Botones |
 |---|---|---|---|
 | `bienvenida_negocio` | Dueño | "Soy Alhabla, la recepcionista de {{negocio_nombre}}. Pulsa para recibir aquí tus reservas, recados y avisos." | *Activar avisos* |
-| `nueva_reserva_negocio` | Dueño | "{{negocio_nombre}}: nueva cita. {{cliente_nombre}}, {{fecha_cita}} a las {{hora_cita}}, {{servicios}}{{profesional}}." | *Vale* · *Ver agenda de hoy* |
-| `recado_negocio` | Dueño | "{{negocio_nombre}}: recado de {{cliente_nombre}} ({{cliente_telefono}}). {{motivo}}" | *Atendido* · *Recuérdamelo mañana* |
-| `cita_pendiente_negocio` | Dueño | "{{negocio_nombre}}: {{cliente_nombre}}, {{fecha_cita}} {{hora_cita}} ({{servicios}}) no entró en tu calendario: {{motivo}}." | *La apunté yo* · *Reintentar* · *Reconectar* |
-| `cancelacion_negocio` | Dueño | "{{negocio_nombre}}: {{cliente_nombre}} canceló su cita del {{fecha_cita}} a las {{hora_cita}}. Hueco libre." | *Vale* · *Avisar a quien esperaba* |
-| `alerta_operativa_negocio` | Dueño | "Aviso de Alhabla para {{negocio_nombre}}: {{texto}}" | *Ir a Ajustes* (URL `/ajustes/{{1}}`) |
-| `cierre_del_dia` | Dueño | "{{negocio_nombre}}, hoy: {{llamadas}} llamadas, {{citas}} citas, {{recados}} recados. Mañana: {{citas_manana}} citas, la primera a las {{primera_hora}}." | *Ver mañana* · *Silenciar* |
-| `confirmacion_cita_v2` | Cliente | "Soy Alhabla, gestiono las reservas de {{negocio_nombre}}. Tu cita: {{servicios}}, {{fecha_cita}} a las {{hora_cita}}{{profesional}}. Para cambiarla, llama al {{negocio_telefono}}." | *Guardar contacto* · *Cómo llegar* (URL con sufijo) |
-| `recordatorio_cita_v2` | Cliente | "{{negocio_nombre}}: te recordamos tu cita de {{servicios}} mañana, {{fecha_cita}} a las {{hora_cita}}. ¿La mantienes?" | *Confirmo* · *Cancelar* · *Cambiar* |
-| `cambio_cita_cliente` | Cliente | "{{negocio_nombre}} ha movido tu cita de {{servicios}} al {{fecha_cita}} a las {{hora_cita}}. Si no te va bien, llama al {{negocio_telefono}}." | *Vale* · *No me va bien* |
-| `cancelacion_cita_cliente` | Cliente | "{{negocio_nombre}} ha cancelado tu cita del {{fecha_cita}} a las {{hora_cita}}. Para pedir otra, llama al {{negocio_telefono}}." | *Vale* |
-| `hueco_libre` | Cliente | "{{negocio_nombre}}: se ha liberado el {{fecha_cita}} a las {{hora_cita}}. ¿La quieres?" | *Sí, resérvala* · *Ya no* |
+| `nueva_reserva_negocio` | Dueño | "Nueva cita en {{negocio_nombre}}. La recepcionista ha reservado a {{cliente_nombre}} para {{servicio}} el {{cita}}. Ya está guardada en tu agenda, no tienes que hacer nada." | *Vale* · *Ver agenda de hoy* |
+| `recado_negocio` | Dueño | "Tienes un recado en {{negocio_nombre}}. Ha llamado {{cliente_nombre}} desde el {{cliente_telefono}} y pide lo siguiente: {{motivo}}. Pulsa un botón cuando lo hayas atendido." | *Atendido* · *Recuérdamelo mañana* |
+| `cita_pendiente_negocio` | Dueño | "Atención en {{negocio_nombre}}: la cita de {{cliente_nombre}} el {{cita}} se reservó por teléfono pero no ha entrado en tu calendario porque {{motivo}}. Elige qué hacer con ella." | *La apunté yo* · *Reintentar* · *Reconectar* |
+| `cancelacion_negocio` | Dueño | "Cancelación en {{negocio_nombre}}: {{cliente_nombre}} ha anulado su cita del {{cita}}. Ese hueco queda libre en tu agenda." | *Vale* · *Avisar a quien esperaba* |
+| `alerta_operativa_negocio` | Dueño | "Aviso de Alhabla para {{negocio_nombre}}: {{texto}}. Puedes revisarlo desde los ajustes de tu panel." | *Ir a Ajustes* (URL `https://alhabla.ai/ajustes/{{1}}`) |
+| `cierre_del_dia` | Dueño | "Resumen del día en {{negocio_nombre}}. Hoy tu recepcionista ha atendido {{resumen_hoy}}. Para mañana tienes {{resumen_manana}}. Que descanses." | *Ver mañana* · *Silenciar* |
+| `confirmacion_cita_v2` | Cliente | "Hola, soy Alhabla y gestiono las reservas de {{negocio_nombre}}. Tu cita para {{servicio}} queda confirmada el {{cita}}. Si necesitas cambiarla, llama al negocio al {{negocio_telefono}} y te atenderá la recepcionista." | *Guardar contacto* · *Cómo llegar* (URL `…maps/search/?api=1&query=place_id:{{1}}`) |
+| `recordatorio_cita_v2` | Cliente | "Hola, te escribimos desde {{negocio_nombre}} para recordarte tu cita de {{servicio}} mañana, {{cita}}. Dinos si la mantienes o si necesitas cancelarla o cambiarla." | *Confirmo* · *Cancelar* · *Cambiar* |
+| `cambio_cita_cliente` | Cliente | "Hola, {{negocio_nombre}} ha movido tu cita de {{servicio}} a una nueva hora: {{cita}}. Si no te viene bien, llama al {{negocio_telefono}} y buscamos otra." | *Vale* · *No me va bien* |
+| `cancelacion_cita_cliente` | Cliente | "Hola, {{negocio_nombre}} ha tenido que cancelar tu cita del {{cita}}. Sentimos las molestias. Si quieres pedir otra hora, llama al {{negocio_telefono}} y te atenderá la recepcionista." | *Vale* |
+| `hueco_libre` | Cliente | "Hola, te escribimos desde {{negocio_nombre}} porque se ha liberado la hora que nos pediste: {{cita}}. Dinos si la quieres y la reservamos a tu nombre." | *Sí, resérvala* · *Ya no* |
+
+Reglas de Meta aprendidas al crearlas (rechazos `2388299` y `2388293`): el cuerpo **no puede
+empezar ni terminar con una variable**, y hay un límite de variables por cantidad de texto (de
+ahí `{{cita}}` con fecha y hora juntas y el profesional dentro de `{{servicio}}`). Los parámetros
+**nombrados** los acepta la API de Telnyx aunque el SDK no los tipe (`parameter_format: "NAMED"`,
+`example.body_text_named_params`). Ya existía además una plantilla `hora_disponible` aprobada en
+categoría *marketing*: sirve de lista de espera mientras `hueco_libre` no esté aprobada.
 
 `confirmacion_cita` y `recordatorio_cita` actuales se retiran cuando sus `v2` estén aprobadas.
 Si Meta limita las respuestas rápidas a dos, `cita_pendiente_negocio` pierde *Reconectar* (pasa a
@@ -693,6 +701,58 @@ haría por teléfono.
 - Modo dueño por voz (`handoff` + PIN): la recepcionista reconoce al dueño cuando llama.
 - Web Push como capa extra. SMS por Sender ID cuando exista.
 
+## Resultados de la fase 0 (2026-09-19)
+
+**0.0 hecho.** WABA `804230d2-…` («Alhabla», `TIER_250`, verificación de empresa
+`pending_submission`, 2 números: el actual `CONNECTED`/`GREEN` y +34 930 454 394 `PENDING`,
+añadido por el usuario desde Meta). Ajustes del WABA: `webhook_url` de producción,
+`webhook_enabled`, y `webhook_events` con **los nombres de Meta**: `messages`,
+`message_template_status_update`, `template_category_update`, `phone_number_quality_update`,
+`phone_number_name_update`, `account_update`, `account_review_update` (la API acepta cualquier
+cadena sin validar: los nombres correctos son los de los campos de webhook de Meta). Perfil del
+número actual: `about` «Gestionamos tus reservas», `description`, `email`, `website`,
+`category` `PROF_SERVICES`; la foto se conserva. Componentes conversacionales: cuatro *ice
+breakers* y comandos `agenda`, `hoy`, `manana` (sin ñ, por seguridad), `pausa`, `ayuda`.
+
+**0.3 hecho.** Doce plantillas creadas por API con parámetros nombrados, todas `PENDING`
+(tabla de arriba con los textos definitivos).
+
+**0.1 hecho: los mensajes entrantes SÍ llegan, pero no como se esperaba.**
+
+- El número no tiene ni puede tener perfil de mensajería (`40323` confirmado otra vez), y **no
+  hace falta**: los mensajes entrantes de WhatsApp los entrega el **webhook del WABA** cuando
+  `webhook_events` incluye `messages`. Sin ese valor se pierden en silencio (ni MDR ni webhook),
+  aunque Meta sí los cuenta (la ventana de 24 h se actualizaba).
+- El evento entrante es **`whatsapp.messages`**, no `message.received`. Payload en formato
+  Meta: `payload.contacts[]` (`profile.name`, `wa_id`), `payload.messages[]` con `id` (UUID de
+  Telnyx), `foreign_id` (`wamid…`), `from` (E.164), `from_user_id`, `timestamp` (epoch en
+  segundos), `type` y el objeto del tipo; `payload.metadata` (`display_phone_number` = el número
+  de sector que recibe, `phone_number_id`). Verifica con la misma firma Ed25519 que los eventos
+  de voz (el handler actual lo acepta y lo descarta como "no procesable").
+- Formas capturadas: **texto** (`text.body`); **respuesta de botón** (`type: "interactive"`,
+  `interactive.type: "button_reply"`, `button_reply.id/title`, y **`context.id` = el id del
+  mensaje saliente al que responde**, el mismo que devolvió `POST /messages/whatsapp`: la
+  correlación por `context.id` → `SentMessage.providerMessageId` queda confirmada); **audio**
+  (nota de voz: `audio.url` en almacenamiento de Telnyx **`us-central-1`**, `mime_type`,
+  `voice: true`; ojo a #13-16). *Ice breakers* y comandos no se llegaron a pulsar: se asume que
+  llegan como `text`.
+- Por el mismo webhook del WABA llegan además **estados en formato Meta**
+  (`payload.statuses[]` con `id` = nuestro id de mensaje, `status` `sent|delivered|read`,
+  `biz_opaque_callback_data`), y por el webhook por mensaje o del perfil los clásicos
+  `message.sent` → `message.finalized` (`to[0].status: delivered`) → **`message.read`** (evento
+  propio, no documentado en la skill), con el `body` del mensaje ecoado. Basta con uno de los
+  dos caminos; el plan usa el del WABA y deja los clásicos como redundancia.
+- El envío exige `messaging_profile_id` explícito (`40305` sin él), como ya hace el adaptador.
+  `retrieveConversationWindow` funciona y **un toque de botón abre/renueva la ventana**
+  (`last_user_message_at` se actualizó con la pulsación).
+- Corrección a "sin evidencia de entrega": los MDR muestran entregas reales de WhatsApp al
+  móvil del usuario desde el 15-09 (confirmaciones y recordatorios `delivered`).
+
+**Pendiente de la fase 0:** 0.2 (entrega por `template_id` con `cost.amount`), 0.4-0.6, 0.7 y
+0.8 (verificación de empresa) y 0.9 (verificar +34 930 454 394 por voz: está `PENDING` en el
+WABA y aún `requirement-info-under-review` en Telnyx; WhatsApp dice "no tiene WhatsApp" hasta
+que Meta lo verifique).
+
 ## Variables de entorno previstas
 
 ```text
@@ -735,8 +795,8 @@ en PostgreSQL; el Gestor y las *shared tools* son configuración.
 ## Preguntas abiertas
 
 1. Residencia UE del chat por API y de la memoria (#13-16).
-2. Forma exacta del `message.received` de WhatsApp (texto, botón, lista) — fase 0.1.
-3. ¿Un toque de botón de plantilla abre la ventana de 24 h? — fase 0.1.
+2. ~~Forma exacta del entrante de WhatsApp~~ — resuelto: `whatsapp.messages` (§ Resultados).
+3. ~~¿Un toque de botón abre la ventana de 24 h?~~ — sí, confirmado.
 4. Límite de respuestas rápidas por plantilla de utilidad — al crearlas.
 5. Tarifa exacta por mensaje en España vía Telnyx (llega en `cost.amount`).
 6. ¿Qué identificador de conversación recibe una *shared tool* en un `chat` por API? (De ahí
@@ -747,9 +807,11 @@ en PostgreSQL; el Gestor y las *shared tools* son configuración.
 8. ¿Acepta Meta «Alhabla · Peluquerías» como nombre visible bajo la cartera de Alhabla, o solo
    «Alhabla»? Se sabe al registrar el primer número de sector (fase 0.9).
 9. ¿Qué hacer con el desvío de llamadas de los números de sector una vez verificados?
-10. ¿Acepta `POST /messages/whatsapp` de Telnyx el `payload` de `quick_reply` y los parámetros
-    nombrados aunque el SDK no los tipe? Si no, botones de plantilla con texto fijo y
-    correlación por `context.message_id`. Fase 0.1.
+10. Parámetros nombrados: **sí** los acepta la API (plantillas creadas así). `payload` de
+    `quick_reply` en plantillas: sin probar; la correlación va por `context.id`, así que no
+    bloquea.
+11. Los medios entrantes (notas de voz, imágenes) se guardan en almacenamiento de Telnyx en
+    `us-central-1`: ¿hay región UE? Va con #13-16.
 
 ## Decisiones tomadas el 2026-09-19
 
