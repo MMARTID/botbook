@@ -614,7 +614,7 @@ export class CalendarService {
         const baseUrl = getPublicWebhookBaseUrl();
         if (!baseUrl) {
           const message =
-            "[Calendar] No hay URL pública configurada (BASE_URL o ngrok); no se pueden sincronizar tools de Retell";
+            "[Calendar] Falta BASE_URL; no se pueden sincronizar tools de Retell";
           console.error(message);
           recordError(message);
           continue;
@@ -702,7 +702,7 @@ export class CalendarService {
     if (telnyxAgents.length > 0) {
       const baseUrl = getPublicWebhookBaseUrl();
       if (!baseUrl) {
-        const message = `[Calendar] No hay URL pública configurada (BASE_URL o ngrok); no se pueden sincronizar tools de Telnyx para ${businessId}`;
+        const message = `[Calendar] Falta BASE_URL; no se pueden sincronizar tools de Telnyx para ${businessId}`;
         console.error(message);
         recordError(message);
       } else {

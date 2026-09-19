@@ -1,32 +1,37 @@
 /**
  * Resincroniza las tools de voz (Telnyx primary + Retell fallback) de todos
- * los negocios de DESARROLLO contra la URL pública actual.
+ * los negocios de DESARROLLO contra `BASE_URL`.
  *
- * Existe porque ngrok rota el dominio en cada reinicio del contenedor y las
- * URLs de las tools quedan horneadas en el assistant: apuntan al túnel
- * anterior y todas las llamadas de tool fallan en silencio (ver AGENTS.md
- * § "Re-syncing webhook URLs"). También arrastra las tools nuevas a los
- * assistants sincronizados antes de que existieran.
+ * Con el hostname fijo del túnel de Cloudflare, la URL ya no cambia sola, así
+ * que esto dejó de ser una reparación rutinaria: sirve para empujar a los
+ * assistants ya creados un cambio de esquema de tools, de descripciones o de
+ * prompt, que un deploy por sí solo no propaga (ver AGENTS.md
+ * § "Propagating a tool-schema or prompt change to existing agents").
  *
- * Uso (dentro del contenedor de dev, que es quien ve http://ngrok:4040):
+ * Uso (dentro del contenedor de dev):
  *   docker exec alhabla_backend_dev npx tsx scripts/manual/resyncToolsDev.mts
  */
-import { fetchAndSetNgrokUrl } from "../../src/lib/ngrok.js";
 import { getPublicWebhookBaseUrl } from "../../src/lib/serverUrl.js";
 import { prisma } from "../../src/lib/prisma.js";
 import { calendarService } from "../../src/modules/calendar/service.js";
 
 async function main() {
-  // El script es un proceso aparte del servidor: serverConfig.webhookUrl
-  // empieza a null y hay que capturar el túnel aquí.
-  await fetchAndSetNgrokUrl();
   const baseUrl = getPublicWebhookBaseUrl();
   if (!baseUrl) {
     throw new Error(
-      "Sin URL pública (ni ngrok ni BASE_URL): abortado para no dejar las tools apuntando a nada."
+      "Falta BASE_URL: abortado para no dejar las tools apuntando a nada."
     );
   }
-  console.log(`[Resync] URL pública actual: ${baseUrl}`);
+  // Guardarraíl: este script es de desarrollo y escribe en los assistants
+  // reales de la cuenta (dev y producción comparten cuenta de Telnyx/Retell
+  // hoy). Con BASE_URL de producción reescribiría las URLs de los assistants
+  // de clientes reales apuntándolas a este proceso.
+  if (baseUrl.includes("api.alhabla.ai")) {
+    throw new Error(
+      `BASE_URL es la de producción (${baseUrl}). Este script es solo para desarrollo.`
+    );
+  }
+  console.log(`[Resync] BASE_URL: ${baseUrl}`);
 
   const businesses = await prisma.business.findMany({
     select: { id: true, name: true, orchestrator: true },

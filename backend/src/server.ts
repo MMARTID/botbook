@@ -30,7 +30,6 @@ import {
 import { retellAdapter } from "./adapters/retell/RetellAdapter.js";
 import { buildInboundCallDynamicVariables } from "./lib/agentBootstrap.js";
 import { executeVoiceTool } from "./modules/voiceTools/service.js";
-import { fetchAndSetNgrokUrl } from "./lib/ngrok.js";
 import {
   handleCallInitiated,
   handleCallHangup,
@@ -108,16 +107,15 @@ async function start() {
     console.log("[Server] Initializing external services...");
     initRedis();
     initStorage();
-    await fetchAndSetNgrokUrl();
 
     // Register plugins
     console.log("[Server] Registering plugins...");
     fastify.register(cors, {
       origin: (origin, callback) => {
         const frontendOrigin = process.env.FRONTEND_URL || "http://localhost:3001";
-        // Origen extra opcional (ej. un túnel ngrok temporal para ver el panel
-        // desde fuera) — no sustituye a FRONTEND_URL, que sigue gobernando
-        // redirects de OAuth/Stripe.
+        // Origen extra opcional (ej. un túnel para ver el panel desde fuera)
+        // — no sustituye a FRONTEND_URL, que sigue gobernando redirects de
+        // OAuth/Stripe.
         const extraOrigin = process.env.EXTRA_ALLOWED_ORIGIN;
         if (!origin || origin === frontendOrigin || (extraOrigin && origin === extraOrigin)) {
           callback(null, true);

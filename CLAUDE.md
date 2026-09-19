@@ -84,7 +84,7 @@ npm run prisma:studio  # :5555
 
 cd frontend && npm run dev   # Next.js :3001
 
-docker compose --profile dev up   # backend + postgres + redis + ngrok (desde la raíz)
+docker compose --profile dev up   # backend + postgres + redis + cloudflared (desde la raíz)
 ```
 
 ## Estructura

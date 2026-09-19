@@ -48,7 +48,7 @@ The codebase is fully in Spanish — UI copy, comments, variable names, and busi
 │   ├── src/components/     # React components
 │   ├── src/lib/            # API client, types, helpers, SEO, ROI
 │   └── src/hooks/          # Custom React hooks
-└── docker-compose.yml      # Postgres + Redis + backend + ngrok (dev profile)
+└── docker-compose.yml      # Postgres + Redis + backend + cloudflared (dev profile)
 ```
 
 ### Backend Module Organization (`backend/src/modules/`)
@@ -86,11 +86,10 @@ Each module is a folder containing a `routes.ts` file (and optionally `service.t
 - `availability.ts` — Booking availability check (professionals, capacity, overlapping bookings). Returns available professionals with IDs for explicit selection.
 - `logUtils.ts` — Shared logging helpers (`errorMessage`, `callLabel`).
 - `managedAgentPrompt.ts` — Dynamic system prompt builder from business settings (tone, goal, style, escalation).
-- `ngrok.ts` — Fetches public ngrok URL for local Retell webhooks.
+- `serverUrl.ts` — `getPublicWebhookBaseUrl()`: the public base URL used to register webhooks, always straight from `BASE_URL`.
 
 ### Configuration (`backend/src/config/`)
 
-- `serverConfig.ts` — Mutable singleton for runtime config (e.g. `webhookUrl` from ngrok).
 - `voiceAgent.ts` — Generic voice/LLM/STT catalog constants: voice providers (8), LLM providers (4) + models, STT providers (7) + models.
 
 ## Frontend Architecture
@@ -257,7 +256,7 @@ npm run lint
 ### Docker Compose
 
 ```bash
-# Development (backend with tsx watch, ngrok, postgres, redis)
+# Development (backend with tsx watch, cloudflared tunnel, postgres, redis)
 docker compose --profile dev up
 
 # Production (compiled backend only)
@@ -787,9 +786,9 @@ backend/src/lib/voiceConfigCache.ts        # claveDeCacheDeVoz / invalidarCacheD
        Google).
     3. Provisionar un número en dev para el negocio de pruebas: hay que poner antes su `subscriptionStatus` a
        `ACTIVE`/`TRIALING`, y compra un número real de Telnyx.
-  - **Antes de cualquiera de las tres: resincronizar.** Las URLs de las tools se hornean con la URL pública
-    del momento y ngrok rota al reiniciar, así que los assistants apuntan al túnel anterior y **todas las
-    tools fallan en silencio**. Ver "Re-syncing webhook URLs" para cómo comprobarlo y arreglarlo.
+  - Nota histórica: cuando esto se escribió, dev iba por ngrok y había que resincronizar antes de cada
+    prueba porque el túnel rotaba. Desde el 2026-09-19 el hostname de dev es fijo
+    (`https://dev-api.alhabla.ai`) y eso ya no hace falta.
 
 ### El panel y el proveedor activo (`frontend/src/lib/calendar-state.ts`, desde PR #82)
 
@@ -1295,8 +1294,11 @@ fusionar o descartar una rama, quita su fila de esta tabla.
 
 ### Local development (Docker Compose)
 
-- `docker-compose.yml` uses profiles: `--profile dev` for local development with ngrok, `--profile prod` for a production-like runtime locally.
-- For Retell/Telnyx webhooks to reach a local backend, use the `dev` profile, which includes an ngrok container. The backend auto-detects the ngrok URL on startup (`fetchAndSetNgrokUrl`) and uses it as the webhook server URL for both orchestrators. ngrok's free tier rotates its URL on every container restart — after a restart, both `backend-dev` needs to pick up the new URL (it's captured once at boot, not re-checked) **and** every agent/assistant that was already synced against the old URL needs re-syncing (see "Re-syncing webhook URLs" below), or their tool calls/webhooks silently go nowhere.
+- `docker-compose.yml` uses profiles: `--profile dev` for local development, `--profile prod` for a production-like runtime locally.
+- **Webhooks reach the local backend through a named Cloudflare tunnel on a fixed hostname, `https://dev-api.alhabla.ai`** (`cloudflared` service, `dev` profile). `BASE_URL` in `.env` is that hostname and is the single source of the public URL (`getPublicWebhookBaseUrl`, `lib/serverUrl.ts`) — nothing is auto-detected at runtime any more.
+- **Why it stopped being ngrok (2026-09-19).** ngrok's free tier rotates its hostname on every container restart. The URL is *baked in* when an agent or assistant is synced, so after a restart every Call Control App webhook and every tool URL still pointed at the dead tunnel and **failed silently** — nothing in `/health`, `telnyxSyncError` or the logs says so, and the agent just stalls mid-call. Verified on 2026-09-19: all 7 dev assistants were pointing at two different dead tunnels, and the dev Call Control App webhook at a third. A fixed hostname removes the whole class of bug: register once, valid forever. `lib/ngrok.ts` and `config/serverConfig.ts` were deleted.
+- **One-time setup** (the hostname and the token outlive any reinstall): in Cloudflare Zero Trust › Networks › Tunnels create a tunnel, add a public hostname `dev-api.alhabla.ai` routed to `http://backend-dev:3000`, and put its token in `CLOUDFLARE_TUNNEL_TOKEN` in `.env`. DNS for `alhabla.ai` is already on Cloudflare, so the record is created for you. The token does not expire and carries the routing inside it, so `docker compose --profile dev up` needs nothing else.
+- **After changing `BASE_URL`** (only when moving to a different hostname), re-sync once so the providers learn it — see "Re-syncing webhook URLs".
 
 ### Production (Google Cloud Run)
 
@@ -1353,7 +1355,7 @@ A deploy alone does not touch the agents already created in Retell/Telnyx.
 - **Retell**: run `scripts/syncManagedAgentPrompts.ts` **against production** after the
   deploy (prompt + tools, strict tool verification when `NODE_ENV=production`). The script
   reads its configuration from the shell environment — not from `.env` — so with the local
-  `.env` it would sync the *dev* agents and register tool URLs pointing at ngrok. The dev
+  `.env` it would sync the *dev* agents and register tool URLs pointing at the dev tunnel. The dev
   backend runs in Docker, so the host has no `tsx`: use `npx tsx`. Recipe (run by a human;
   reading these secrets is blocked for Claude Code):
   ```bash
@@ -1392,12 +1394,12 @@ A deploy alone does not touch the agents already created in Retell/Telnyx.
 
 ### Re-syncing webhook URLs
 
-Retell registers the webhook URL **per agent** via its own API when an agent is created or a business's calendar settings change — it is not something that updates itself when `BASE_URL` changes (e.g. moving from a local ngrok URL to `https://api.alhabla.ai`, or between two different ngrok sessions). An agent created before a `BASE_URL` change keeps calling the old URL until explicitly re-synced. **The same applies to Telnyx assistants, which are the primary orchestrator** — there the URL is baked into each webhook tool at sync time, so a stale assistant means every tool call goes nowhere:
+Retell registers the webhook URL **per agent** via its own API when an agent is created or a business's calendar settings change — it is not something that updates itself when `BASE_URL` changes (e.g. moving a dev tunnel to a new hostname, or pointing a local backend at `https://api.alhabla.ai`). An agent created before a `BASE_URL` change keeps calling the old URL until explicitly re-synced. **The same applies to Telnyx assistants, which are the primary orchestrator** — there the URL is baked into each webhook tool at sync time, so a stale assistant means every tool call goes nowhere:
 
 - **Retell:** `calendarService.syncCalendarToolsToAgents(businessId)` (LLM tools) and `retellAdapter.updateAgent(agentId, { webhookUrl })` (call lifecycle events `call_started`/`call_ended`/`call_analyzed`) — these are two independent registrations, fixing one doesn't fix the other.
 - **Telnyx:** the tail of that same `syncCalendarToolsToAgents(businessId)` — `buildTelnyxVoiceTools(baseUrl)` + `syncAgentToTelnyx(businessId, prisma, { tools })`, **once per business** (it walks every agent with a `telnyxAssistantId` internally, unlike Retell which needs one API call per agent). It runs whatever `orchestrator` says, so a business still in backfill also gets current tools. **`syncAgentToTelnyx` never throws**: a failed sync is only visible in `Agent.telnyxSyncError` / `telnyxSyncedAt` / `telnyxConfigHash`, so check those columns before believing a sync happened (`strict: true` re-reads them and raises).
 
-In dev, `backend/scripts/manual/resyncToolsDev.mts` does the whole sweep: it captures the current ngrok URL itself (a standalone process starts with `serverConfig.webhookUrl` at `null`, so it must call `fetchAndSetNgrokUrl()` before anything else) and re-syncs every business. Run it inside the container, which is what can reach `http://ngrok:4040`: `docker exec alhabla_backend_dev npx tsx scripts/manual/resyncToolsDev.mts`.
+In dev, `backend/scripts/manual/resyncToolsDev.mts` sweeps every business against `BASE_URL`: `docker exec alhabla_backend_dev npx tsx scripts/manual/resyncToolsDev.mts`. It refuses to run with a production `BASE_URL`, because dev and prod still share the Telnyx and Retell accounts and it would repoint real customers' assistants at this process. With the hostname now fixed, this is no longer routine repair — it is how a tool-schema or prompt change reaches assistants that already exist.
 
 This can be verified independently of the app's own DB by querying the provider's API directly with the account's API key and checking the registered URL against what's actually live: Retell `GET /get-agent/:id` and `GET /get-retell-llm/:id`, Telnyx `GET https://api.telnyx.com/v2/ai/assistants/:assistantId` (look at `tools[].webhook.url`; `tool_id` is the field to address a single tool, and the native `hangup` tool has neither URL nor webhook).
 
@@ -1406,4 +1408,4 @@ This can be verified independently of the app's own DB by querying the provider'
 - **Telnyx signs the test request**, so it clears `telnyx-signature-ed25519` on our route. The tester is a genuine end-to-end exercise of the production path, not a bypass.
 - **It needs a real `call_control_id`.** `/webhooks/telnyx/tools/:toolName` resolves the business *only* from the `x-alhabla-call-control-id` header (templated from `{{call_control_id}}`) via `prisma.call.findUnique({ where: { callId } })` — there is no assistant id in the tool body to fall back on. With no such `Call` row the route answers `404 Call not found` before reaching `executeVoiceTool`, and with none at all `400 Missing call_control_id`. Pass an existing call's id in `dynamic_variables.call_control_id`, or insert a throwaway `Call` row for the business in the dev DB. **Mind which business that call belongs to**: the tool runs against *its* `businessId`, not the assistant's.
 
-**Drift observed in dev on 2026-09-19** (a good illustration of both failure modes at once): the six seeded businesses had `telnyxSyncedAt = 2026-09-14`, so their assistants still pointed at that day's ngrok hostname **and** were missing `notify_when_available` entirely (the tool is unconditional in `telnyxAssistantPayload.ts`, it simply postdates their last sync) — five webhook tools plus `hangup` instead of six plus `hangup`. No `telnyxSyncError` on any of them: nothing had failed, nothing had re-run. A stale assistant is silent; only the provider's API tells you.
+**Drift observed in dev on 2026-09-19, the incident that killed ngrok** (both failure modes at once): the six seeded businesses had `telnyxSyncedAt = 2026-09-14`, so their assistants still pointed at that day's ngrok hostname **and** were missing `notify_when_available` entirely (the tool is unconditional in `telnyxAssistantPayload.ts`, it simply postdates their last sync) — five webhook tools plus `hangup` instead of six plus `hangup`. No `telnyxSyncError` on any of them: nothing had failed, nothing had re-run. The fixed hostname removes the URL half of this permanently; **the tool-set half remains**, because a deploy still does not touch assistants that already exist. A stale assistant is silent; only the provider's API tells you.
