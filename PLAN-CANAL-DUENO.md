@@ -41,10 +41,11 @@ lo que ve, y la recepcionista promete cosas que no ocurren.
 - Las reservas normales **no** generan un mensaje por cita por defecto: ya aparecen en el
   calendario del negocio y en el panel; van al cierre del día. Instantáneo solo si el dueño lo
   activa.
-- Nada de Meta Graph API directa: todo pasa por Telnyx (`POST /v2/messages/whatsapp` y el
-  webhook de mensajería), como ya hace `WhatsAppAdapter.ts`. El MCP de Telnyx no expone
-  `/v2/whatsapp/*` (plantillas, números de WhatsApp): eso se hace desde el portal o con llamadas
-  directas del adaptador.
+- Nada de Meta Graph API directa: todo pasa por Telnyx, como ya hace `WhatsAppAdapter.ts`.
+  Envío, plantillas, números de WhatsApp y ajustes del WABA se hacen con el SDK oficial
+  (`client.messages.sendWhatsapp`, `client.whatsapp.templates.*`,
+  `client.whatsapp.phoneNumbers.*`, `client.whatsapp.businessAccounts.settings.*`), no con
+  `fetch` a pelo ni desde el portal. El MCP de Telnyx no expone `/v2/whatsapp/*`, pero el SDK sí.
 - El SMS con Sender ID y el email siguen existiendo como *fallback* y registro. No se construye
   un sustituto temporal del SMS.
 
@@ -81,13 +82,22 @@ lo que ve, y la recepcionista promete cosas que no ocurren.
   apuntan a `dev-api`.
 - `Business.phone` nace como placeholder (`TEMP-…`) en el registro; el dueño puede editarlo en
   Ajustes. No hay verificación de ese número.
+- El backend usa `telnyx@7.17.0`; `WhatsAppAdapter.ts` llama a `/v2/messages/whatsapp` con
+  `fetch`. La versión publicada es 7.21.0 y expone `client.messages.sendWhatsapp`,
+  `client.whatsapp.*`, `client.ai.assistants.chat`, `client.ai.tools.*`,
+  `client.ai.conversations.*` y `client.verifications.triggerWhatsappVerification`.
+- Las tools de voz se registran **inline** en cada assistant (`tools[]`, una copia por negocio,
+  con URL de `dev-api`/`api`). El SDK marca ese campo como *"Deprecated for new integrations"*;
+  la vía nueva son las *shared tools* (`client.ai.tools.create` + `tool_ids`).
 
 ## Hallazgos de la API de Telnyx (2026-09-19)
 
 Verificados contra el MCP de Telnyx (`https://api.telnyx.com/v2/mcp`, esquemas de
 `create_ai_assistants`, `chat_ai_assistants`, `list_ai_conversations`,
 `create_assistants_ai_scheduled_events`, `create_messaging_profiles_autoresp_configs`, y
-`retrieve_ai_assistants` sobre un assistant real) y su documentación pública.
+`retrieve_ai_assistants` sobre un assistant real), su documentación pública y, en una segunda
+pasada el mismo día, las skills oficiales del SDK (`telnyx-whatsapp`, `telnyx-messaging`,
+`telnyx-ai-assistants`, `telnyx-verify`, variante JavaScript, plugin 0.4.0).
 
 | Capacidad | Dónde | Uso en este plan |
 |---|---|---|
@@ -106,6 +116,18 @@ Verificados contra el MCP de Telnyx (`https://api.telnyx.com/v2/mcp`, esquemas d
 | `widget_settings` y `supports_unauthenticated_web_calls` | Assistant | "Probar mi recepcionista" desde el panel (hoy no existe). Fuera del alcance de este plan; se apunta |
 | Eventos programados `phone_call` / `sms_chat` | `scheduled_events` | **Descartado** (sin llamadas salientes; `sms_chat` no sirve en España) |
 | `telnyx_end_user_target_verified` | Solo STIR/SHAKEN (EE. UU.) | No aplica en España: el PIN para acciones destructivas por voz se queda |
+| Plantillas por API: `client.whatsapp.templates.create/list`, referencia por `template_id` (UUID), estados `APPROVED/PENDING/REJECTED/DISABLED`, `quality_rating` por plantilla | SDK `telnyx-whatsapp` | Las ocho plantillas se crean con un script y se siguen por webhook; el envío usa `template_id`, no nombre + idioma |
+| Webhooks de plantilla (`whatsapp.template.approved/rejected/disabled`) y de calidad (`whatsapp.phone_number.quality_changed` GREEN/YELLOW/RED, `whatsapp.account.restricted`), suscritos con `businessAccounts.settings.update` (`message_template_status_update`, `phone_number_quality_update`) | SDK `telnyx-whatsapp` | Tabla `WhatsappTemplate` alimentada por webhook; el monitor de calidad reacciona a eventos, no a contadores propios |
+| Webhooks de entrega `message.sent` / `message.finalized` con `to[0].status` (queued, sent, delivered, read, failed), `template_name`, `cost.amount` y `errors[]` | SDK `telnyx-messaging` / `telnyx-whatsapp` | Estado de entrega y **coste real por mensaje** en `SentMessage`; la alerta de coste se calcula con lo que Telnyx factura |
+| Errores de WhatsApp: `131026` el destinatario no tiene WhatsApp; `131047` fuera de la ventana de 24 h; `132015` plantilla pausada por calidad; `132000` número de parámetros incorrecto; `40008` genérico de Meta | SDK `telnyx-whatsapp` | `131026` ⇒ ese dueño cae a email en el acto y el panel lo dice; `132015` ⇒ la plantilla se marca no usable hasta nuevo webhook |
+| Botones de plantilla: `QUICK_REPLY`, `URL` (un sufijo dinámico `{{1}}`), `PHONE_NUMBER` (número fijo), `COPY_CODE` | SDK `telnyx-whatsapp` | `alerta_operativa_negocio` lleva URL con sufijo dinámico a la sección exacta de Ajustes; `PHONE_NUMBER` no sirve (el teléfono del cliente cambia por mensaje) |
+| Categorías y facturación: `UTILITY` para transaccional; Meta puede **reclasificar** una plantilla a `MARKETING` (más cara) | SDK `telnyx-whatsapp` | Los textos evitan cualquier tono promocional; el webhook de plantilla y la tabla detectan la reclasificación |
+| `tools[]` inline del assistant **obsoleto** para integraciones nuevas; *shared tools* (`client.ai.tools.create`, `tool_ids`), tipos `webhook`, `handoff`, `retrieval`, `invite`, `client_side_tool`; `mcp_servers` por assistant | SDK `telnyx-ai-assistants` | Toda tool nueva de este plan (`informar_al_negocio`, tools de dueño, `proponer_accion`) se define **una vez** como compartida y se adjunta por `tool_ids`; migrar las cinco de voz es un trabajo aparte, no de este plan |
+| `client.ai.assistants.chat` está marcado **BETA** | SDK `telnyx-ai-assistants` | Riesgo explícito; el diseño mantiene a Alhabla como dueña del webhook y del enrutado, de modo que el nivel 2 puede sustituirse por un bucle propio (Claude + las mismas tools) sin tocar nada más |
+| `client.ai.assistants.tools.test` (prueba una webhook tool con argumentos y variables) | SDK `telnyx-ai-assistants` | Fase 0.4 y tests de contrato de las tools nuevas |
+| El payload de `message.received` documentado en el SDK solo contempla `type: SMS, MMS`; la forma del mensaje entrante de WhatsApp (texto, respuesta de botón, lista) **no está documentada** | SDK `telnyx-messaging` | La fase 0.1 es imprescindible: hay que capturar los payloads reales antes de escribir el enrutado |
+| Verify por WhatsApp: `client.verifications.triggerWhatsappVerification` + `client.verifications.byPhoneNumber.actions.verify` | SDK `telnyx-verify` | Alta alternativa desde Ajustes, dos llamadas; exige perfil de Verify con plantilla `AUTHENTICATION` |
+| `client.messages.schedule` (`send_at`) | SDK `telnyx-messaging` | **No se usa**: los envíos diferidos siguen en Cloud Tasks (`scheduleTime`), que ya da idempotencia y reintentos |
 
 ## Diseño destino
 
@@ -114,9 +136,10 @@ Verificados contra el MCP de Telnyx (`https://api.telnyx.com/v2/mcp`, esquemas d
 Un único remitente de WhatsApp de Alhabla. El dueño lo guarda como contacto ("Alhabla"). Cada
 mensaje empieza por el nombre del negocio cuando el destinatario es un cliente, y por el nombre
 del cliente cuando el destinatario es el dueño. Toda la mensajería (dueño y cliente) pasa por
-`WhatsAppAdapter.ts` y la cola `send-whatsapp`; el SMS (`send-sms`) queda como fallback cuando
-haya Sender ID; el email (`send-email`) como registro y para lo que ya cubre (facturación,
-resumen semanal, contraseñas).
+`WhatsAppAdapter.ts` (migrado a `client.messages.sendWhatsapp` del SDK, con `template_id`) y la
+cola `send-whatsapp`; el SMS (`send-sms`) queda como fallback cuando haya Sender ID; el email
+(`send-email`) como registro y para lo que ya cubre (facturación, resumen semanal, contraseñas).
+Ningún envío de plantilla sale si `WhatsappTemplate.status` no es `APPROVED`.
 
 ### 2. Alta del dueño
 
@@ -171,16 +194,21 @@ idempotencia que los eventos de voz (`VoiceWebhookEvent`) y este enrutado, en es
 Un assistant Telnyx **distinto** de la recepcionista, uno por negocio, sin telefonía ni
 mensajería activadas (solo se usa por `chat_ai_assistants`): `alhabla-gestion-<businessId>`.
 
-- `conversation_id` estable por dueño (uno por negocio) para que el contexto se mantenga entre
-  mensajes; se rota cada 30 días o al hacer `BAJA`.
+- `conversation_id` (UUID) estable por dueño (uno por negocio) para que el contexto se mantenga
+  entre mensajes; se rota cada 30 días o al hacer `BAJA`.
+- `client.ai.assistants.chat` es **BETA**. Se acepta porque Alhabla controla el webhook y el
+  enrutado: si la beta cambia o se retira, el nivel 2 se sustituye por un bucle propio (Claude
+  con las mismas tools por HTTP) sin tocar alta, botones, plantillas ni panel.
 - **Tools**: las de voz que ya existen (`get_catalog`, `check_availability`, `book_appointment`,
   `find_my_appointment` con número explícito, `cancel_appointment`) más las nuevas de dueño:
   `listar_agenda(fecha)`, `cancelar_cita_dueno(bookingId, motivo)`, `mover_cita(bookingId,
   nuevaHora)`, `marcar_ausencia(professionalId, desde, hasta)`, `bloquear_franja(desde, hasta,
   motivo)`, `activar_aviso_por_cita(bool)`, `resolver_pendiente(leadId)`.
-- Las tools de dueño exigen `X-Alhabla-Owner-Business` en la cabecera (plantilla del assistant) y
-  validan que la conversación pertenece a ese negocio; misma firma y verificación que
-  `/webhooks/telnyx/tools/:toolName`.
+- Todas las tools de este assistant se definen **una vez** como *shared tools*
+  (`client.ai.tools.create`) y se adjuntan por `tool_ids`; no se copian inline por negocio. La
+  URL es la misma para todos (`/webhooks/telnyx/tools/:toolName`); el negocio se resuelve por la
+  cabecera `X-Alhabla-Owner-Business`, cuyo valor es una variable dinámica del assistant, y se
+  valida que la conversación pertenece a ese negocio; misma firma y verificación que hoy.
 - **Confirmación**: toda acción destructiva (cancelar, mover, ausencia, bloqueo) la propone el
   assistant en texto y la ejecuta el backend solo cuando el dueño pulsa un botón de confirmación
   que el backend añade a la respuesta. El assistant nunca llama a la tool destructiva
@@ -225,6 +253,7 @@ recado: { nombre, telefono, motivo, quiere_que_le_llamen: boolean } | null
   esperada. Retell (fallback) mantiene su mecanismo mientras exista.
 - `recado` crea un `Lead` tipo `message` y encola el mensaje #1 del catálogo. Sin recado no hay
   mensaje.
+- Es una *shared tool* adjunta a todos los assistants de voz; no una copia por negocio.
 - La tool es idempotente por `call_control_id` (una llamada, un informe). Si el post-procesado no
   llega en 5 minutos, `Call` queda sin clasificar y el reconciliador lo marca para revisión, igual
   que hoy con los insights ausentes.
@@ -272,9 +301,15 @@ Decisión del usuario (2026-09-19): memoria para el dueño **y** para los client
   funciona en producción; plantillas nuevas en `emailTemplates.ts`) y por SMS cuando exista
   `TELNYX_SMS_SENDER_ID`. El cierre del día por email es opcional.
 - Todo mensaje enviado o recibido queda en `SentMessage` (ya existe) ampliado con dirección,
-  canal, `biz_opaque_callback_data` y estado de entrega, que hoy llega por webhook y se ignora.
-- Los recibos de entrega alimentan un contador de calidad: si un dueño acumula tres fallos de
-  entrega seguidos, se cae a email y se avisa en el panel.
+  canal, `providerMessageId`, `biz_opaque_callback_data`, estado de entrega
+  (queued, sent, delivered, read, failed, de `message.sent`/`message.finalized`), `templateName`
+  y `costCents` (de `cost.amount`). Hoy esos webhooks llegan y se ignoran.
+- Error `131026` (el número no tiene WhatsApp) al enviar a un dueño ⇒ `ownerWhatsappUnreachableAt`,
+  fallback a email en el acto y aviso en el panel. Tres `failed` seguidos por otra causa ⇒ igual.
+- La calidad del remitente se vigila por webhook (`whatsapp.phone_number.quality_changed`):
+  `YELLOW` ⇒ alerta interna y se pausa el aviso por cita opcional; `RED` ⇒ se pausan todos los
+  mensajes no críticos (solo #1, #2 y #5) hasta volver a `GREEN`. `whatsapp.account.restricted`
+  ⇒ alerta inmediata.
 
 ### 11. Panel
 
@@ -331,6 +366,16 @@ Decisión del usuario (2026-09-19): memoria para el dueño **y** para los client
 - `InboundMessage` (`providerMessageId @unique`, `fromNumber`, `businessId?`, `kind`
   `button|text|keyword`, `payload`, `handledAt`, `handler`, `error`): idempotencia y trazabilidad
   de todo lo que entra por el webhook de mensajería.
+- `WhatsappTemplate` (`key @unique` lógico como `recado_negocio`, `name`, `telnyxTemplateId
+  @unique`, `metaTemplateId`, `language`, `category`, `status`, `qualityRating`, `updatedAt`):
+  fuente de verdad de qué plantilla usar y si está aprobada, alimentada al crearla por API y por
+  los webhooks de estado. Sustituye a las variables `WHATSAPP_TEMPLATE_*_NAME`; las dos actuales
+  se importan en la fase 1.
+
+### `SentMessage`
+
+- `providerMessageId`, `direction`, `channel`, `templateName`, `deliveryStatus`,
+  `deliveredAt`, `readAt`, `failedAt`, `errorCode`, `costCents`, `callbackData`.
 
 ### Idempotencia
 
@@ -341,10 +386,14 @@ Decisión del usuario (2026-09-19): memoria para el dueño **y** para los client
 
 ## Plantillas de WhatsApp a solicitar
 
-Todas de categoría **utility** (las de marketing no aplican y cuestan más). Nombres en
-`snake_case` como exige Meta; parámetros **nombrados**, igual que las dos ya aprobadas. Los
-botones `quick_reply` llevan payload dinámico por envío. Conviene solicitarlas **todas a la vez**:
-la aprobación es de días y es el cuello de botella de la fase 1.
+Todas de categoría **utility** (las de marketing no aplican y cuestan más; Meta puede
+reclasificar una plantilla si le parece promocional, así que el texto es seco y transaccional).
+Nombres en `snake_case` como exige Meta; parámetros **nombrados**, igual que las dos ya
+aprobadas. Los botones `quick_reply` llevan payload dinámico por envío. Se crean **por API** con
+`client.whatsapp.templates.create` desde un script (`scripts/manual/crearPlantillasWhatsapp.mts`)
+con valores de ejemplo realistas en `example` (Meta los revisa), y se siguen por los webhooks de
+estado en la tabla `WhatsappTemplate`. Todas a la vez: la aprobación es de días y es el cuello de
+botella de la fase 1.
 
 | Plantilla | Destinatario | Cuerpo propuesto | Botones |
 |---|---|---|---|
@@ -352,7 +401,7 @@ la aprobación es de días y es el cuello de botella de la fase 1.
 | `cita_pendiente_negocio` | Dueño | "{{cliente_nombre}}, {{fecha_cita}} a las {{hora_cita}} ({{servicios}}) no entró en tu calendario: {{motivo}}." | *La apunté yo* · *Reintentar* · *Reconectar* |
 | `cancelacion_negocio` | Dueño | "{{cliente_nombre}} canceló su cita del {{fecha_cita}} a las {{hora_cita}} ({{servicios}}) en {{negocio_nombre}}. El hueco queda libre." | *Avisar a quien esperaba* · *Vale* |
 | `cierre_del_dia` | Dueño | "Hoy en {{negocio_nombre}}: {{llamadas}} llamadas, {{citas}} citas, {{recados}} recados. Mañana: {{citas_manana}} citas, la primera a las {{primera_hora}}." | *Ver mañana* · *Silenciar hoy* |
-| `alerta_operativa_negocio` | Dueño | "Aviso de Alhabla para {{negocio_nombre}}: {{texto}}." | *Ir a Ajustes* (URL) |
+| `alerta_operativa_negocio` | Dueño | "Aviso de Alhabla para {{negocio_nombre}}: {{texto}}." | *Ir a Ajustes* (URL con sufijo dinámico: `/ajustes/{{1}}`) |
 | `recordatorio_cita_v2` | Cliente | Igual que `recordatorio_cita` + "¿Mantienes la cita?" | *Confirmo* · *Cancelar* · *Cambiar* |
 | `hueco_libre` | Cliente | "Se ha liberado el {{fecha_cita}} a las {{hora_cita}} en {{negocio_nombre}}. ¿La quieres?" | *Sí, resérvala* · *Ya no* |
 | `alta_confirmada` | Dueño | Solo si la primera respuesta al ALTA cayera fuera de ventana (no debería): "Ya recibes los avisos de {{negocio_nombre}} aquí." | — |
@@ -393,14 +442,24 @@ como el resto de features.
 
 ### Fase 0 — Validación (sin código de producto)
 
+0. Subir `telnyx` a ≥ 7.21 y comprobar en un script que `client.messages.sendWhatsapp`,
+   `client.whatsapp.templates.list`, `client.ai.assistants.chat` y `client.ai.tools.create`
+   existen con la firma de la skill. Suscribir el WABA a `message_template_status_update` y
+   `phone_number_quality_update` (`businessAccounts.settings.update`) apuntando a
+   `/webhooks/telnyx`.
 1. Enviar un mensaje de prueba desde un móvil al remitente y comprobar **qué llega y dónde**
    (`/webhooks/telnyx`, forma exacta de `message.received` para texto, botón interactivo y botón
-   de plantilla). Documentar el payload real en `AGENTS.md`.
-2. Enviar un `confirmacion_cita` real a un número propio y confirmar entrega y recibo de estado.
-   Hoy no hay evidencia de una entrega de extremo a extremo.
-3. Solicitar en Telnyx las ocho plantillas de la tabla. Anotar fecha de solicitud y estado.
-4. Probar `chat_ai_assistants` con un assistant de prueba que tenga una webhook tool: confirmar
-   que ejecuta la tool, cómo llega la firma y qué devuelve cuando la tool falla.
+   de plantilla: el SDK no la documenta). Documentar el payload real en `AGENTS.md`.
+2. Enviar un `confirmacion_cita` real a un número propio por `template_id` y confirmar entrega,
+   `message.finalized` con `read` y `cost.amount`. Hoy no hay evidencia de una entrega de
+   extremo a extremo.
+3. Crear las ocho plantillas de la tabla con el script y verlas llegar a `PENDING` en
+   `client.whatsapp.templates.list`; anotar fecha. El webhook de aprobación se prueba con la
+   primera que apruebe Meta.
+4. Probar `client.ai.assistants.chat` (beta) con un assistant de prueba que tenga una *shared
+   tool* webhook adjunta por `tool_ids`: confirmar que ejecuta la tool, cómo llega la firma, qué
+   devuelve cuando la tool falla y si `conversation_id` mantiene el contexto entre llamadas
+   separadas por horas.
 5. Activar `post_conversation_settings` en un assistant de dev con una tool `informar_al_negocio`
    de prueba y hacer tres llamadas: con recado, sin recado, con fallo de tool. Medir cuánto tarda
    en llegar tras colgar.
@@ -415,6 +474,8 @@ con resultado escrito. Sin esto no se abre la fase 1.
 
 ### Fase 1 — Tapar la fuga
 
+- `WhatsAppAdapter.ts` sobre el SDK; tabla `WhatsappTemplate` con las dos plantillas actuales
+  importadas y el webhook de estado; `SentMessage` con entrega y coste.
 - Alta por ALTA (QR/enlace, código, opt-in/opt-out), paso nuevo del onboarding, Ajustes › Avisos.
 - Webhook de mensajería: idempotencia, identificación del remitente, STOP/ALTA, botones.
 - `informar_al_negocio` en post-conversación con doble escritura frente a los insights; `Lead`
@@ -463,21 +524,19 @@ sin abrir el panel.
 ## Variables de entorno previstas
 
 ```text
-WHATSAPP_TEMPLATE_RECADO_NAME
-WHATSAPP_TEMPLATE_CITA_PENDIENTE_NAME
-WHATSAPP_TEMPLATE_CANCELACION_NAME
-WHATSAPP_TEMPLATE_CIERRE_DIA_NAME
-WHATSAPP_TEMPLATE_ALERTA_NAME
-WHATSAPP_TEMPLATE_REMINDER_V2_NAME
-WHATSAPP_TEMPLATE_SLOT_AVAILABLE_NAME   # ya previsto, hoy vacío
+WHATSAPP_WABA_ID                        # UUID Telnyx del WABA (plantillas, ajustes, números)
 OWNER_ALTA_CODE_TTL_HOURS=72
 OWNER_DIGEST_DEFAULT_TIME=20:30
 TELNYX_MEMORY_ENABLED=false             # kill switch de la memoria (dueño y clientes)
 TELNYX_POST_CONVERSATION_ENABLED=false  # kill switch del informe post-llamada
+TELNYX_OWNER_CHAT_ENABLED=false         # kill switch del nivel 2 (chat beta)
 ```
 
-Los IDs del asistente de gestión y de la conversación del dueño no son variables de entorno: van
-por `Agent`/`Business` en PostgreSQL, como los assistants de voz.
+Las plantillas dejan de ser variables de entorno: viven en `WhatsappTemplate` con su estado
+real. `WHATSAPP_TEMPLATE_CONFIRMATION_NAME` y `WHATSAPP_TEMPLATE_REMINDER_NAME` se retiran en la
+fase 1 tras importarlas. Los IDs del asistente de gestión, de las *shared tools* y de la
+conversación del dueño tampoco son variables de entorno: van por `Agent`/`Business` en
+PostgreSQL, como los assistants de voz.
 
 ## Riesgos
 
@@ -491,6 +550,9 @@ por `Agent`/`Business` en PostgreSQL, como los assistants de voz.
 | El dueño no completa el ALTA | El onboarding lo pide; el resumen semanal por email lo recuerda; fallback por email sin degradar el producto |
 | Calidad del número de WhatsApp baja por bajas mal gestionadas | STOP determinista y probado; no reenviar tras opt-out; monitor de recibos |
 | El número español impide algo del lado de WhatsApp que hoy no sabemos | Fase 0.1 y 0.2 antes de escribir código |
+| `assistants.chat` es beta y cambia o desaparece | Kill switch `TELNYX_OWNER_CHAT_ENABLED`; el enrutado y los botones no dependen de él; sustituto propio con las mismas tools |
+| Meta reclasifica una plantilla `UTILITY` a `MARKETING` | Texto transaccional sin adjetivos; el webhook de estado y `WhatsappTemplate.category` lo detectan y se corrige el texto |
+| Las tools inline actuales quedan sin soporte antes de migrarlas | Solo las tools nuevas van como compartidas en este plan; se abre un issue aparte para migrar las cinco de voz |
 
 ## Preguntas abiertas
 
@@ -498,6 +560,11 @@ por `Agent`/`Business` en PostgreSQL, como los assistants de voz.
 2. ¿Puede un mismo assistant Telnyx usarse por `chat` y por voz a la vez, o el modo dueño por
    voz exige un gemelo? Se resuelve en fase 0.4.
 3. ¿Qué límite de botones acepta Meta en una plantilla *utility* con tres `quick_reply`? Si son
-   dos, `cita_pendiente_negocio` pierde *Reconectar* y pasa a URL.
+   dos, `cita_pendiente_negocio` pierde *Reconectar* y pasa a URL. Se resuelve al crearla por
+   API en la fase 0.3: Meta la rechaza o la acepta.
+5. ¿Con qué forma llega a `message.received` una respuesta de botón de WhatsApp (id del botón,
+   `context` del mensaje original)? El SDK no lo documenta; fase 0.1.
+6. ¿Puede una *shared tool* llevar una cabecera cuyo valor sea una variable dinámica distinta por
+   assistant? Si no, el negocio se resuelve por `conversation_id` en el backend.
 4. Tarifa exacta por mensaje *utility* en España vía Telnyx (Meta + margen), para fijar el umbral
    de alerta de coste.
