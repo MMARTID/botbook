@@ -26,6 +26,17 @@
  * exacto para que el usuario lo ejecute él mismo (ver receta del proxy en la
  * memoria "gcp-infra-alhabla").
  *
+ * REVERTIDO EL 2026-09-19. Este script se usó el 14-09 porque el túnel de
+ * desarrollo era ngrok y cambiaba de hostname en cada reinicio, así que era
+ * más cómodo probar contra producción. Con `dev-api.alhabla.ai` fijo eso ya no
+ * hace falta: los 5 números volvieron al Call Control App de desarrollo y las
+ * 5 copias se borraron de la Cloud SQL de producción junto con sus agentes de
+ * Retell y sus assistants de Telnyx. Antes de volver a ejecutarlo, piensa si de
+ * verdad lo necesitas — y si lo haces, revierte igual al terminar: dejar las
+ * copias vivas en producción significa que producción se apropia de esos cinco
+ * números y las llamadas de prueba dejan de llegar a desarrollo. Ver AGENTS.md
+ * § "Telnyx: qué es de desarrollo y qué de producción".
+ *
  * Uso (desde dentro de alhabla_backend_dev, con DATABASE_URL apuntando a la
  * BD de dev, que es la que ya usa el contenedor):
  *   npx tsx scripts/replicateTestAccountsToProd.ts

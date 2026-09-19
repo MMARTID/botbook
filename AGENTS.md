@@ -648,6 +648,44 @@ The backend supports two voice-AI orchestrators. `Business.orchestrator` decides
   - The adapter type is `RetellAnalysisField = RetellEnumAnalysisField | RetellBooleanAnalysisField` (`RetellAdapter.ts`), matching Retell SDK's `EnumAnalysisData`/`BooleanAnalysisData` shapes. Retell's SDK also supports `string`/`number`/`call-preset` analysis types, unused here.
 - **`syncAgentToRetell(businessId)`** (`agentBootstrap.ts`) is the single point that rebuilds the managed prompt (see Agent Configuration) and `post_call_analysis_data` from the business's current settings/services/professionals and pushes both to every Retell-backed `Agent` row. Called from `PATCH /business/me` (tone/goal/schedule/businessDetails/businessType/restrictions changes) and from `bookings/routes.ts` (service/professional CRUD). **Not** called from `PATCH /agents/:id`, which lets a business owner override the prompt with free text — that route instead calls `buildPostCallAnalysisDataForBusiness(businessId)` directly so post-call-analysis fields still stay current without touching the manually-edited prompt.
 
+### Telnyx: qué es de desarrollo y qué de producción
+
+Dev y producción **comparten la cuenta y la API key de Telnyx** (Managed Accounts existe pero
+no está habilitado en la cuenta: `/v2/managed_accounts` responde `10006 Not authorized`, y
+habilitarlo hay que pedírselo a soporte). La separación se apoya por tanto en tres cosas:
+
+1. **Dos Call Control Apps**, cada uno con su `webhook_event_url`; `TELNYX_CALL_CONTROL_APP_ID`
+   elige el del entorno. Un número llega a uno u otro backend por su `connection_id`.
+
+   | App | id | webhook |
+   |---|---|---|
+   | `alhabla-platform-production` | `3048374727065208187` | `https://api.alhabla.ai/webhooks/telnyx` |
+   | `alhabla-platform` (desarrollo) | `3046870077287696179` | `https://dev-api.alhabla.ai/webhooks/telnyx` |
+
+2. **Tags `env-dev` / `env-prod` en cada número** (desde 2026-09-19). `GET /v2/phone_numbers`
+   acepta `filter[tag]`, así que un script puede preguntar por los suyos en vez de mirar la
+   cuenta entera. Es la alternativa barata a Managed Accounts, y hay que **ponerla a mano al
+   comprar un número**: `provisionPhoneNumber` todavía no etiqueta.
+
+   | Número | Tag | Uso |
+   |---|---|---|
+   | +34930453219 / 236 / 237 / 238 / 289 | `env-dev` | Las 5 cuentas de prueba `test-*@alhabla.local` |
+   | +34930453216 | `env-prod` | Negocio real «Peluqueria Vide» |
+   | +34930453218 | `env-prod` | Emisor de WhatsApp gestionado por Telnyx — **no borrar**, no pertenece a ningún negocio de la BD |
+
+3. **Los scripts miran contra qué base de datos cruzan** (`describirEntorno()`), porque el daño
+   real no viene de compartir cuenta sino de apuntar a la BD equivocada.
+
+**Las cuentas de prueba viven en desarrollo (revertido el 2026-09-19).** El 14-09
+`scripts/replicateTestAccountsToProd.ts` las **copió** a producción —dev nunca las perdió— y
+movió sus 5 números al Call Control App de producción "de forma permanente", porque entonces el
+túnel de dev era ngrok y cambiaba de hostname cada dos por tres. Con `dev-api.alhabla.ai` fijo
+eso dejó de hacer falta: los 5 números volvieron al app de dev y las 5 copias se borraron de la
+Cloud SQL de producción (`DELETE FROM businesses`, cascada; 55 llamadas y 17 citas de prueba con
+ellas), junto con sus 5 agentes de Retell, sus 5 LLM y sus 5 assistants de Telnyx. Producción
+queda con tres negocios reales. **Si se vuelve a ejecutar ese script, hay que revertir lo mismo
+otra vez**; lo que no hay que hacer es dejar las copias vivas apropiándose de los números.
+
 ### Phone provisioning
 
 `provisionPhoneNumber` (`backend/src/modules/phone/service.ts`) buys a Telnyx number and imports it into Retell via SIP trunk, linking it to the business's active agent. Failures in Telnyx/Retell do not fail the Stripe webhook response.
