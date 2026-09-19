@@ -365,7 +365,7 @@ cliente).
 | Número | Estado en el WABA | Nombre visible | Uso |
 |---|---|---|---|
 | +34930453218 (`WHATSAPP_TELNYX_FROM_NUMBER`) | `CONNECTED`, calidad `GREEN`, nombre `PENDING_REVIEW` | «Alhabla» | **Negocios**: avisos al dueño, recados, Gestor. También respaldo |
-| +34930454394 (id Telnyx `3052564312288658571`) | En alta desde el portal de Telnyx (19-09 noche): se borró del WABA porque Telnyx no lograba registrarlo (ver abajo) | «Alhabla Reservas» | **Clientes**: confirmación, recordatorio, chat con la recepcionista |
+| +34930454394 (id Telnyx `3052564312288658571`, `phone_number_id` Meta `1305416552659363`) | `CONNECTED` desde el 19-09 a las 23:14 (dado de alta desde el portal de Telnyx tras borrarlo del WABA, ver abajo); calidad `UNKNOWN` hasta que envíe volumen | «Alhabla Reservas» (perfil actualizado; el nombre del número aún figura «Alhabla» a la espera de la revisión de Meta) | **Clientes**: confirmación, recordatorio, chat con la recepcionista |
 
 **Cómo se da de alta un número en el WABA (aprendido el 19-09).** Desde el **portal de Telnyx**
 (*Messaging → WhatsApp → Add phone number*, Embedded Signup): en la ventana de Meta se pone el
@@ -416,7 +416,12 @@ en «Alhabla»).
 **Envío.** `POST /v2/messages/whatsapp` — en el SDK es `client.messages.whatsapp(...)` (**no**
 `sendWhatsapp`, digan lo que digan las skills). `messaging_profile_id` es **obligatorio**
 (`TELNYX_MESSAGING_PROFILE_ID`; sin él, `40305 Invalid 'from' address`), porque el número español
-no puede estar asignado a ningún perfil (`40323`, reconfirmado). `whatsapp_message.type` ∈
+no puede estar asignado a ningún perfil (`40323`, reconfirmado). **Plantillas: enviar siempre por `template_id`**, no por `name` + `language`: con
+`language.code: "es_ES"` Meta devuelve `40008 Undeliverable` («recipient carrier did not accept»)
+desde cualquier número aunque la plantilla esté `APPROVED`, y la misma plantilla por `template_id`
+se entrega (verificado el 19-09 con `confirmacion_cita` `es_ES` `01a0a982-…`). Por nombre solo
+funciona con `es` (lo que usa producción hoy vía `WHATSAPP_TEMPLATE_LANGUAGE=es`).
+`whatsapp_message.type` ∈
 `template | text | interactive | contacts | location | reaction | image | …`;
 `biz_opaque_callback_data` vuelve en todos los estados. Texto, interactivos y `contacts` (vCard)
 **solo dentro de la ventana de 24 h**; fuera, plantilla. La ventana se consulta a Telnyx:

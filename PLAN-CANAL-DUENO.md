@@ -118,9 +118,9 @@ Dos tipos de assistant, y solo uno de ellos por negocio:
 - Los 9 assistants Telnyx tienen solo `telephony`, sin post-procesado ni webhook de variables
   dinámicas; tools registradas inline (vía marcada como obsoleta por el SDK); todos en `dev-api`.
 - **Números en el WABA (19-09, noche):** +34 930 453 218 «Alhabla», `CONNECTED`, es el de
-  **negocios**; +34 930 454 394 «Alhabla Reservas» es el de **clientes** y está en alta de
-  nuevo desde el portal de Telnyx (fase 0.9: se borró del WABA porque Telnyx no lograba
-  registrarlo). Los dos con `display_name_status: PENDING_REVIEW`.
+  **negocios**; +34 930 454 394 «Alhabla Reservas», **`CONNECTED` desde las 23:14** (dado de
+  alta desde el portal de Telnyx tras borrarlo del WABA, fase 0.9), es el de **clientes**.
+  Nombres visibles pendientes de la revisión de Meta.
 - Cinco números locales de Barcelona **comprados el 2026-09-19** (1 $ de alta + 1 $/mes cada
   uno, mismo Requirement Group de España que usa el provisioning, de uno en uno porque la
   cuenta de Telnyx recarga por goteo), pensados entonces como uno por sector. Todos con
@@ -655,10 +655,10 @@ URL) y `recordatorio_cita_v2` pierde *Cambiar* (el teléfono ya va en el texto).
    destinatarios/día y el WABA solo admite 2 números. **Lo hace el usuario.** No bloquea el
    código ni los dos números de audiencia; bloquea el lanzamiento y los cuatro números en
    reserva.
-9. **Segundo número, el de clientes** (+34 930 454 394, «Alhabla Reservas»): darlo de alta en
-   el WABA desde el portal de Telnyx con verificación por voz (la llamada llega al móvil
-   desviado) hasta verlo `CONNECTED`; fijar su perfil por API; enviar y recibir un mensaje
-   real. En curso (ver § Resultados). Decidir qué hacer con el desvío después de verificar.
+9. ~~**Segundo número, el de clientes** (+34 930 454 394, «Alhabla Reservas»): darlo de alta en
+   el WABA desde el portal de Telnyx con verificación por voz hasta verlo `CONNECTED`; fijar su
+   perfil por API; enviar un mensaje real~~ (hecho, ver § Resultados). Queda decidir qué hacer
+   con el desvío después de verificar.
 
 **Criterio de salida:** payloads documentados, plantillas creadas, puntos 4-6 con resultado
 escrito. Punto 8 en marcha.
@@ -847,7 +847,7 @@ si la respuesta es negativa.
 `pending_submission`. Mientras tanto: 250 destinatarios/día, nombre visible sin garantía y
 2 números, que son justo los dos de audiencia.
 
-**0.9 (segundo número): en curso.** Lo que pasó el 19-09 por la noche:
+**0.9 hecho (segundo número, `CONNECTED` a las 23:14).** Lo que pasó el 19-09 por la noche:
 
 - El usuario añadió +34 930 454 394 desde WhatsApp Manager de Meta y lo verificó allí. Telnyx
   lo veía `PENDING` con `platform_type: NOT_APPLICABLE`: Meta tenía la titularidad verificada
@@ -863,12 +863,20 @@ si la respuesta es negativa.
   que acepta un número de Telnyx con perfil de mensajería (imposible para los españoles,
   `40323`) o un número ya presente en el WABA de Meta. Con esto último probablemente habría
   bastado sin borrar: el portal lista «BYON numbers already on the connected WABAs».
-- **Vía correcta**: portal de Telnyx → *Messaging → WhatsApp → Add phone number* → en la
-  ventana de Meta, número, nombre «Alhabla Reservas», verificación por llamada (llega al móvil
-  desviado) → Telnyx registra el número → `CONNECTED`. Es como se registró el +34 930 453 218
-  el 13-09. Plan B: añadirlo en WhatsApp Manager de Meta **sin** verificar allí y completar con
-  `initializeVerification` + `verify` por API.
+- **Vía que funcionó**: portal de Telnyx → *Messaging → WhatsApp → Add phone number* → en la
+  ventana de Meta, número y verificación por llamada. El primer intento no generó llamada; el
+  segundo sí (23:11, desde +44 1202 057103, desviada al móvil del usuario), y a las 23:14 el
+  número estaba `CONNECTED` con `platform_type: CLOUD_API`, `phone_number_id` Meta
+  `1305416552659363`. Es como se registró el +34 930 453 218 el 13-09. Plan B no necesario.
+- Perfil fijado por API: «Alhabla Reservas», «Gestionamos tus reservas», descripción para
+  clientes, `PROF_SERVICES`, email y web. Sin *ice breakers* ni comandos hasta la fase 1.
+- Primer envío real desde el número de clientes: `confirmacion_cita` a +34 692 138 456,
+  `delivered`. **Ojo**: por `name` + `language: es_ES` Meta devuelve `40008 Undeliverable`
+  desde los dos números aunque la plantilla esté aprobada; por `template_id` se entrega. Regla
+  para el adaptador: **siempre por `template_id`** (`WhatsappTemplate` ya lo guarda).
 - El número de Telnyx no se ha tocado: `active`, desvío `always` → +34 692 138 456.
+- De paso, `business_verification_status` del WABA pasó de `pending_submission` a `pending`:
+  la verificación de empresa (#103) ya está enviada a Meta.
 
 ## Variables de entorno previstas
 
