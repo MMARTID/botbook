@@ -618,6 +618,28 @@ calling, no push, **no outbound calls** (user decisions). Inbound `message.*`
 events on `/webhooks/telnyx` are still ignored until phase 1 of that plan.
 `PLAN-WHATSAPP-LLAMADAS.md` is kept as reference only (discarded).
 
+**WhatsApp webhooks (verified 2026-09-19, phase 0.1 of `PLAN-CANAL-DUENO.md`):**
+inbound WhatsApp messages are delivered by the **WABA-level webhook**
+(`PATCH /v2/whatsapp/business_accounts/{id}/settings` with `webhook_url`,
+`webhook_enabled` and `webhook_events` using **Meta field names**: `messages`,
+`message_template_status_update`, `template_category_update`,
+`phone_number_quality_update`, `phone_number_name_update`, `account_update`,
+`account_review_update`). The Spanish number cannot be on a messaging profile
+(40323) and does not need one for this. Without `messages` in
+`webhook_events`, inbound messages are silently dropped (no MDR, no webhook)
+even though Meta counts them. The event is `whatsapp.messages` (not
+`message.received`): `payload.messages[]` with `id`, `foreign_id` (wamid),
+`from`, `timestamp` (epoch seconds), `type` (`text` → `text.body`;
+`interactive` → `interactive.button_reply.{id,title}` plus `context.id` = the
+Telnyx id of the outbound message being answered; `audio` → `audio.url` on
+Telnyx storage `us-central-1`); `payload.contacts[]` (`profile.name`, `wa_id`);
+`payload.metadata.display_phone_number`. The same webhook also carries
+Meta-style `payload.statuses[]` (`sent|delivered|read`, `biz_opaque_callback_data`).
+Classic `message.sent` → `message.finalized` → `message.read` still arrive via
+the per-message `webhook_url` or the messaging profile webhook. Signature is
+the usual Ed25519; `/webhooks/telnyx` currently logs these as "no procesable"
+and returns 200. Sends require an explicit `messaging_profile_id` (40305).
+
 **Permanent vs transient failures:** job handlers throw `PermanentJobError`
 (`backend/src/lib/jobErrors.ts`) for things retrying cannot fix (invalid
 recipient, 4xx from the provider). `internal/routes.ts` answers `200
