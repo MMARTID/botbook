@@ -13,6 +13,29 @@ const ZOHO_MAIL_BASE_URL = "https://mail.zoho.eu";
 
 let cachedAccessToken: { token: string; expiresAt: number } | undefined;
 
+/**
+ * Fuera de producción, a quién se le puede escribir DE VERDAD.
+ *
+ * Desarrollo y producción comparten las credenciales de Zoho (auditoría del
+ * 2026-09-19), así que un envío desde el portátil sale del buzón corporativo
+ * real. Hasta ahora nada lo impedía: solo se salvaba porque los negocios de
+ * prueba usan direcciones `@alhabla.local` y rebotan. La primera vez que
+ * alguien pruebe con una dirección real, el cliente recibe el correo.
+ *
+ * Lista separada por comas en `ZOHO_DEV_ALLOWED_RECIPIENTS`. Vacía = no se
+ * manda nada fuera de producción. `*` = mandar a cualquiera (úsalo solo si
+ * sabes lo que haces). En producción esta comprobación no se aplica.
+ */
+function destinatarioPermitidoFueraDeProduccion(toAddress: string): boolean {
+  const permitidos = (process.env.ZOHO_DEV_ALLOWED_RECIPIENTS ?? "")
+    .split(",")
+    .map((valor) => valor.trim())
+    .filter(Boolean);
+  if (permitidos.includes("*")) return true;
+  const destino = toAddress.trim().toLowerCase();
+  return permitidos.some((permitido) => permitido.toLowerCase() === destino);
+}
+
 function requireEnv(name: string) {
   const value = process.env[name];
   if (!value) {
@@ -57,6 +80,24 @@ export async function sendZohoMail(input: {
   subject: string;
   html: string;
 }): Promise<void> {
+  // Antes de pedir siquiera el token: si estamos fuera de producción y el
+  // destinatario no está permitido, no se manda. No lanza —para el job es un
+  // envío resuelto y no tiene sentido reintentarlo— pero deja un log
+  // inequívoco con el destinatario y el asunto, para que nadie se pregunte
+  // por qué no le llegó el correo de prueba.
+  if (
+    process.env.NODE_ENV !== "production" &&
+    !destinatarioPermitidoFueraDeProduccion(input.toAddress)
+  ) {
+    console.warn(
+      `[Zoho] CORREO NO ENVIADO (entorno ${process.env.NODE_ENV ?? "sin definir"}): ` +
+        `destino=${input.toAddress} asunto="${input.subject}" remitente=${input.fromAddress}. ` +
+        `Dev y producción comparten el buzón de Zoho, así que solo se escribe a las ` +
+        `direcciones de ZOHO_DEV_ALLOWED_RECIPIENTS (usa "*" para permitir cualquiera).`
+    );
+    return;
+  }
+
   const accessToken = await getZohoAccessToken();
   const accountId = requireEnv("ZOHO_ACCOUNT_ID");
 
