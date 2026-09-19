@@ -15,6 +15,8 @@ import { getPublicWebhookBaseUrl } from "../../src/lib/serverUrl.js";
 import { prisma } from "../../src/lib/prisma.js";
 import { calendarService } from "../../src/modules/calendar/service.js";
 
+const HOST_DE_PRODUCCION = "api.alhabla.ai";
+
 async function main() {
   const baseUrl = getPublicWebhookBaseUrl();
   if (!baseUrl) {
@@ -26,9 +28,19 @@ async function main() {
   // reales de la cuenta (dev y producción comparten cuenta de Telnyx/Retell
   // hoy). Con BASE_URL de producción reescribiría las URLs de los assistants
   // de clientes reales apuntándolas a este proceso.
-  if (baseUrl.includes("api.alhabla.ai")) {
+  //
+  // Comparación por host EXACTO, no por substring: "dev-api.alhabla.ai"
+  // contiene "api.alhabla.ai" como sufijo, así que un `includes` bloqueaba
+  // precisamente el caso que este script existe para atender.
+  let host: string;
+  try {
+    host = new URL(baseUrl).host;
+  } catch {
+    throw new Error(`BASE_URL no es una URL válida: ${baseUrl}`);
+  }
+  if (host === HOST_DE_PRODUCCION) {
     throw new Error(
-      `BASE_URL es la de producción (${baseUrl}). Este script es solo para desarrollo.`
+      `BASE_URL apunta a producción (${baseUrl}). Este script es solo para desarrollo.`
     );
   }
   console.log(`[Resync] BASE_URL: ${baseUrl}`);
