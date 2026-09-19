@@ -154,20 +154,23 @@ model CalendarConnection {
   id             String    @id @default(cuid())
   businessId     String
   business       Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  /// "google" | "outlook" (CalendarProviderId). String y no enum para que
-  /// añadir un proveedor no exija migración.
+  /// "google" | "outlook" | "caldav" (CalendarProviderId). String y no enum
+  /// para que añadir un proveedor no exija migración.
   provider       String
   /// Calendario elegido dentro de la cuenta. null = aún no se eligió (Outlook
-  /// tras el OAuth y antes del selector); Google usa "primary" por defecto.
+  /// tras el OAuth y CalDAV tras el alta, antes del selector); Google usa
+  /// "primary" por defecto. En CalDAV es la URL absoluta del calendario.
   calendarId     String?
   /// Credenciales con la misma forma que CalendarCredentials (p. ej.
-  /// { provider: "google", refreshToken }). null = revocadas (invalid_grant):
-  /// hace falta reconectar.
+  /// { provider: "google", refreshToken } o { provider: "caldav", serverUrl,
+  /// username, appPassword }), cifradas en reposo (lib/cifradoDeCredenciales).
+  /// null = revocadas (invalid_grant o 401 de CalDAV): hace falta reconectar.
   credentials    Json?
   connected      Boolean   @default(false)
   disconnectedAt DateTime?
   lastError      String?   @db.Text
-  /// Email de la cuenta conectada cuando el proveedor lo da (Outlook).
+  /// Email de la cuenta conectada cuando el proveedor lo da: Outlook (cuenta
+  /// de Graph) y CalDAV (el Apple ID con el que se autenticó).
   accountEmail   String?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt

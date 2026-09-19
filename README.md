@@ -6,7 +6,7 @@ Alhabla es una plataforma SaaS multi-tenant que proporciona recepcionistas de vo
 
 - **Agentes de voz multilingües** (español por defecto).
 - **Personalización por tipo de negocio**: el prompt del agente incluye instrucciones propias de cada nicho y un catálogo en vivo de servicios/empleados del negocio, para que nunca invente datos ni IDs.
-- **Reservas en calendario** (Google Calendar y Outlook) mediante herramientas de voz, con reintento automático en segundo plano si el calendario falla durante la llamada.
+- **Reservas en calendario** (Google Calendar, Outlook y Apple/iCloud vía CalDAV) mediante herramientas de voz, con reintento automático en segundo plano si el calendario falla durante la llamada.
 - **Detección de tipo de negocio** desde Google Places API para personalizar agentes y servicios.
 - **Flujo de registro guiado** con Google Places, selección de servicios, equipo y conexión de calendario.
 - **Facturación con Stripe** y provisioning automático de números Telnyx tras la suscripción.
@@ -30,7 +30,7 @@ Alhabla es una plataforma SaaS multi-tenant que proporciona recepcionistas de vo
 
 - Node.js 20+
 - Docker y Docker Compose
-- Cuentas y claves de API: Retell, Telnyx, Google Cloud (Calendar + Places), Microsoft Azure (Outlook), Stripe, Anthropic, Cloudflare R2
+- Cuentas y claves de API: Retell, Telnyx, Google Cloud (Calendar + Places), Microsoft Azure (Outlook), Stripe, Anthropic, Cloudflare R2 (Apple/iCloud no necesita alta de desarrollador: basta una contraseña de aplicación del negocio)
 
 ## Puesta en marcha rápida
 
@@ -163,7 +163,7 @@ graph TD
 3. `/register/business/niche` — tipo de negocio (detectado o manual).
 4. `/register/business/services` — plantilla de servicios.
 5. `/register/business/team` — empleados y capacidad.
-6. `/register/business/calendar` — conectar Google u Outlook.
+6. `/register/business/calendar` — conectar Google u Outlook (el calendario de Apple se conecta después, desde `/agente`).
 7. `/checkout` — Stripe checkout (obligatorio para finalizar).
 
 ## Seguridad
