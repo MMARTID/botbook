@@ -14,6 +14,10 @@ describe("sendZohoMail", () => {
     process.env.ZOHO_CLIENT_ID = "client_id_test";
     process.env.ZOHO_CLIENT_SECRET = "client_secret_test";
     process.env.ZOHO_ACCOUNT_ID = "account_id_test";
+    // Estos tests comprueban el envío en sí, no el guardarraíl de entorno:
+    // sin esto, todos caerían en el "no se manda fuera de producción". El
+    // guardarraíl tiene sus propios tests al final.
+    process.env.ZOHO_DEV_ALLOWED_RECIPIENTS = "*";
   });
 
   afterEach(() => {
@@ -136,5 +140,68 @@ describe("sendZohoMail", () => {
     await expect(
       sendZohoMail({ fromAddress: "welcome@alhabla.ai", toAddress: "a@b.com", subject: "s", html: "h" })
     ).rejects.toThrow("ZOHO_ACCOUNT_ID is not configured");
+  });
+  // Dev y producción comparten las credenciales de Zoho: un envío desde el
+  // portátil sale del buzón corporativo real (auditoría del 2026-09-19).
+  describe("guardarraíl de entorno", () => {
+    it("no manda nada fuera de producción si el destinatario no está permitido", async () => {
+      process.env.NODE_ENV = "development";
+      process.env.ZOHO_DEV_ALLOWED_RECIPIENTS = "";
+      const fetchMock = mockFetchSequence([]);
+      const avisos = vi.spyOn(console, "warn").mockImplementation(() => {});
+      const sendZohoMail = await loadSendZohoMail();
+
+      await sendZohoMail({
+        fromAddress: "welcome@alhabla.ai",
+        toAddress: "cliente.real@gmail.com",
+        subject: "Tu cita",
+        html: "<p>hola</p>",
+      });
+
+      // Ni siquiera pide el access token.
+      expect(fetchMock).not.toHaveBeenCalled();
+      const mensaje = avisos.mock.calls[0]?.[0] as string;
+      expect(mensaje).toContain("CORREO NO ENVIADO");
+      expect(mensaje).toContain("cliente.real@gmail.com");
+      expect(mensaje).toContain("Tu cita");
+    });
+
+    it("manda si el destinatario está en la lista, sin distinguir mayúsculas ni espacios", async () => {
+      process.env.NODE_ENV = "development";
+      process.env.ZOHO_DEV_ALLOWED_RECIPIENTS = " yo@alhabla.ai , otro@alhabla.ai ";
+      const fetchMock = mockFetchSequence([
+        { ok: true, json: { access_token: "access_token_1", expires_in: 3600 } },
+        { ok: true, json: { data: { messageId: "msg_1" } } },
+      ]);
+      const sendZohoMail = await loadSendZohoMail();
+
+      await sendZohoMail({
+        fromAddress: "welcome@alhabla.ai",
+        toAddress: "YO@Alhabla.ai",
+        subject: "s",
+        html: "h",
+      });
+
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    });
+
+    it("en producción manda a cualquiera aunque la lista esté vacía", async () => {
+      process.env.NODE_ENV = "production";
+      process.env.ZOHO_DEV_ALLOWED_RECIPIENTS = "";
+      const fetchMock = mockFetchSequence([
+        { ok: true, json: { access_token: "access_token_1", expires_in: 3600 } },
+        { ok: true, json: { data: { messageId: "msg_1" } } },
+      ]);
+      const sendZohoMail = await loadSendZohoMail();
+
+      await sendZohoMail({
+        fromAddress: "welcome@alhabla.ai",
+        toAddress: "cliente.real@gmail.com",
+        subject: "s",
+        html: "h",
+      });
+
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    });
   });
 });
