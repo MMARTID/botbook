@@ -343,7 +343,121 @@ The schema lives in `backend/prisma/schema.prisma`. Key models:
 - `OnboardingState` — per-business onboarding state. Tracks `dismissedAt`, `completedAt`, `forwardingConfirmedAt` and optional step metadata. The actual step completion is computed live from `Business.schedule`, `Service`, `Professional`, calendar connection state and call history (see Onboarding Flow).
 - `StripeWebhookEvent` — idempotency guard for Stripe webhooks.
 
-### Stripe Billing Fields on `Business`
+#### WhatsApp (Telnyx como BSP de Meta)
+
+Referencia de lo verificado contra la cuenta real el 2026-09-19 (fase 0 de
+`PLAN-CANAL-DUENO.md`). El SDK es `telnyx@7.21`; donde el SDK falla o no tipa algo se indica
+el `fetch` equivalente. **Nunca desde un route handler**: todo pasa por
+`backend/src/adapters/whatsapp/WhatsAppAdapter.ts`.
+
+**Cuenta.** Un solo WABA, «Alhabla»: id Telnyx `804230d2-c5e0-45dd-af65-95819468378a`, id Meta
+`1628104425601770`, conectado por Embedded Signup el 13-09. `messaging_limit_tier: TIER_250`
+(250 destinatarios únicos/24 h para **toda** la cartera), `business_verification_status:
+pending_submission` (issue #103: hasta verificar la empresa el remitente se ve como número
+pelado, el techo es 250 y el WABA admite **2 números**). `account_review_status: APPROVED`.
+`GET /v2/whatsapp/business_accounts` por `fetch`: `client.whatsapp.businessAccounts.list()` del
+SDK devuelve 404 (mismo path; `getAPIList` añade algo que el endpoint rechaza).
+
+**Números en el WABA.**
+
+| Número | Estado en el WABA | Nombre visible | Uso |
+|---|---|---|---|
+| +34930453218 (`WHATSAPP_TELNYX_FROM_NUMBER`) | `CONNECTED`, calidad `GREEN` | «Alhabla» | Remitente de plataforma: dueño, `other` y respaldo |
+| +34930454394 | `PENDING` (añadido por el usuario desde Meta el 19-09; ocupa el segundo hueco) | «Alhabla Peluqueria» | Sector `peluqueria` |
+
+**Números de sector comprados el 2026-09-19** (locales de Barcelona con
+`TELNYX_SPAIN_REQUIREMENT_GROUP_ID`, 1 $ + 1 $/mes, `active` en Telnyx; comprados **de uno en
+uno** porque la cuenta recarga por goteo y un pedido de cinco a la vez —10 $— fue rechazado con
+`20100 Insufficient Funds`). Todos con `customer_reference alhabla-whatsapp-<sector>`, tags
+`env-prod` + `whatsapp-sector` + `sector-<tipo>`, y **desvío de voz permanente**
+(`PATCH /v2/phone_numbers/{id}/voice` → `call_forwarding { call_forwarding_enabled: true,
+forwarding_type: "always", forwards_to: "+34692138456" }`) para que la llamada de verificación
+de Meta (los números españoles no reciben SMS) suene en el móvil del usuario.
+
+| Sector (`businessType`) | Número | Id en Telnyx |
+|---|---|---|
+| `peluqueria` | +34930454394 | `3052564312288658571` |
+| `barberia` | +34930454372 | `3052564335894201490` |
+| `salon-de-unas` | +34930454382 | `3052564355263497366` |
+| `centro-de-estetica` | +34930454375 | `3052565552728900934` |
+| `fisioterapia` | +34930454393 | `3052565576250557770` |
+
+Alta de un número en el WABA por API: `client.whatsapp.businessAccounts.phoneNumbers
+.initializeVerification(wabaId, { phone_number, display_name, language: "es_ES",
+verification_method: "voice" })` → `client.whatsapp.phoneNumbers.verify(number, { code })`
+(y `resendVerification`). Perfil por número: `client.whatsapp.phoneNumbers.profile.update(number,
+{ about, description, email, website, category })` y `profile.photo.upload(number, { file })`.
+Menú nativo por número (*ice breakers* ≤ 4 y comandos que WhatsApp muestra al escribir `/`):
+`client.whatsapp.phoneNumbers.conversationalComponents.patchAll(number, { ice_breakers,
+commands: [{ command, description }] })`. El número de plataforma ya tiene perfil («Gestionamos
+tus reservas», `PROF_SERVICES`), cuatro *ice breakers* («¿Cuándo es mi cita?», «Cómo llegar»,
+«Cancelar mi cita», «Soy el dueño de un negocio») y comandos `agenda`, `hoy`, `manana`, `pausa`,
+`ayuda`.
+
+**Envío.** `POST /v2/messages/whatsapp` — en el SDK es `client.messages.whatsapp(...)` (**no**
+`sendWhatsapp`, digan lo que digan las skills). `messaging_profile_id` es **obligatorio**
+(`TELNYX_MESSAGING_PROFILE_ID`; sin él, `40305 Invalid 'from' address`), porque el número español
+no puede estar asignado a ningún perfil (`40323`, reconfirmado). `whatsapp_message.type` ∈
+`template | text | interactive | contacts | location | reaction | image | …`;
+`biz_opaque_callback_data` vuelve en todos los estados. Texto, interactivos y `contacts` (vCard)
+**solo dentro de la ventana de 24 h**; fuera, plantilla. La ventana se consulta a Telnyx:
+`GET /v2/whatsapp/phone_numbers/{remitente}/conversation_window?destination_number=…` →
+`window_active`, `window_expires_at`, `last_user_message_at` (un toque de botón la renueva).
+Botones interactivos: `interactive.type: "button"` con hasta 3 `{ type: "reply", reply: { id,
+title } }`; también `list` y `cta_url`. El SDK tipa los parámetros de plantilla como
+posicionales y sin `payload` de `quick_reply`: para parámetros **nombrados** (los que usan
+todas nuestras plantillas) el adaptador sigue con `fetch`.
+
+**Plantillas** (`GET/POST /v2/whatsapp/message_templates`; el SDK tiene `client.whatsapp
+.templates.list/create` pero `list` da 404 como arriba). Todas de categoría `UTILITY`, idioma
+`es`, `parameter_format: "NAMED"` con `example.body_text_named_params` (la API lo acepta aunque
+el SDK no lo tipe). Reglas de Meta que rechazan la creación: **el cuerpo no puede empezar ni
+terminar con una variable** (`2388299`) y **hay un tope de variables por cantidad de texto**
+(`2388293`). Estado el 19-09: `confirmacion_cita` (dos, `es_ES` y `es`), `recordatorio_cita` y
+`hora_disponible` (esta última **MARKETING**, sirve de lista de espera provisional) aprobadas;
+las doce del plan (`bienvenida_negocio`, `nueva_reserva_negocio`, `recado_negocio`,
+`cita_pendiente_negocio`, `cancelacion_negocio`, `alerta_operativa_negocio`, `cierre_del_dia`,
+`confirmacion_cita_v2`, `recordatorio_cita_v2`, `cambio_cita_cliente`,
+`cancelacion_cita_cliente`, `hueco_libre`) en `PENDING`; textos definitivos en la tabla de
+plantillas de `PLAN-CANAL-DUENO.md`. Los cambios de estado llegan por webhook
+(`whatsapp.template.*`) si el WABA está suscrito (abajo).
+
+**Webhooks entrantes (la parte que nadie documenta bien).** Los mensajes entrantes de WhatsApp
+**no** van por perfil de mensajería: los entrega el **webhook del WABA**, configurado con
+`PATCH /v2/whatsapp/business_accounts/{id}/settings` → `webhook_url`, `webhook_enabled` y
+`webhook_events` con los **nombres de campo de webhook de Meta** (la API acepta cualquier
+cadena sin validar): hoy `messages`, `message_template_status_update`,
+`template_category_update`, `phone_number_quality_update`, `phone_number_name_update`,
+`account_update`, `account_review_update`, apuntando a `https://api.alhabla.ai/webhooks/telnyx`.
+**Sin `messages` en la lista, los entrantes se pierden en silencio** (ni MDR ni webhook) aunque
+Meta los cuente. El evento es **`whatsapp.messages`** (no `message.received`), firmado con la
+misma Ed25519 que los de voz, y `/webhooks/telnyx` hoy lo acepta y lo descarta como "no
+procesable" (200). Payload en formato Meta:
+
+- `payload.contacts[]`: `profile.name`, `wa_id`. `payload.metadata`: `display_phone_number` (el
+  número de sector que recibe, sin `+`), `phone_number_id`.
+- `payload.messages[]`: `id` (UUID de Telnyx), `foreign_id` (`wamid…`), `from` (E.164),
+  `from_user_id`, `timestamp` (epoch en segundos), `type` y su objeto: `text.body`;
+  `interactive` con `interactive.type: "button_reply"`, `button_reply.{id,title}` **y
+  `context.id` = el id del mensaje saliente al que responde** (el mismo que devolvió el envío:
+  correlación directa con `SentMessage`); `audio` con `audio.url` en almacenamiento de Telnyx
+  **`us-central-1`**, `mime_type`, `voice: true` (residencia UE: #13-16).
+- `payload.statuses[]` (mismo evento, sin `messages`): `id` = nuestro id de mensaje, `status`
+  `sent | delivered | read`, `biz_opaque_callback_data`.
+
+Por el webhook **por mensaje** (`webhook_url` en el envío) o el del **perfil de mensajería**
+(`TELNYX_MESSAGING_PROFILE_ID`, hoy a producción) llegan además los clásicos `message.sent` →
+`message.finalized` (`to[0].status: delivered`) → **`message.read`**, con el `body` del mensaje
+ecoado y `messaging_profile_id`. `cost.amount` venía `null` en las pruebas.
+
+**Otros datos útiles.** Los MDR (`GET /v2/detail_records?filter[record_type]=messaging`) solo
+registran salientes (hay entregas reales de WhatsApp al móvil del usuario desde el 15-09); los
+entrantes no aparecen ahí. Precio de modelos y catálogo: `GET /v2/ai/models` (ver plan). Desde
+el Mac del usuario no se llega por HTTP a los hosts de `alhabla.ai` proxied por Cloudflare
+(`dev-api.alhabla.ai`, `alhabla.ai`), aunque desde internet responden: probar con
+`web_fetch`/otro equipo, no con `curl` local.
+
+## Stripe Billing Fields on `Business`
 
 ```
 stripeCustomerId (unique)
@@ -618,27 +732,8 @@ calling, no push, **no outbound calls** (user decisions). Inbound `message.*`
 events on `/webhooks/telnyx` are still ignored until phase 1 of that plan.
 `PLAN-WHATSAPP-LLAMADAS.md` is kept as reference only (discarded).
 
-**WhatsApp webhooks (verified 2026-09-19, phase 0.1 of `PLAN-CANAL-DUENO.md`):**
-inbound WhatsApp messages are delivered by the **WABA-level webhook**
-(`PATCH /v2/whatsapp/business_accounts/{id}/settings` with `webhook_url`,
-`webhook_enabled` and `webhook_events` using **Meta field names**: `messages`,
-`message_template_status_update`, `template_category_update`,
-`phone_number_quality_update`, `phone_number_name_update`, `account_update`,
-`account_review_update`). The Spanish number cannot be on a messaging profile
-(40323) and does not need one for this. Without `messages` in
-`webhook_events`, inbound messages are silently dropped (no MDR, no webhook)
-even though Meta counts them. The event is `whatsapp.messages` (not
-`message.received`): `payload.messages[]` with `id`, `foreign_id` (wamid),
-`from`, `timestamp` (epoch seconds), `type` (`text` → `text.body`;
-`interactive` → `interactive.button_reply.{id,title}` plus `context.id` = the
-Telnyx id of the outbound message being answered; `audio` → `audio.url` on
-Telnyx storage `us-central-1`); `payload.contacts[]` (`profile.name`, `wa_id`);
-`payload.metadata.display_phone_number`. The same webhook also carries
-Meta-style `payload.statuses[]` (`sent|delivered|read`, `biz_opaque_callback_data`).
-Classic `message.sent` → `message.finalized` → `message.read` still arrive via
-the per-message `webhook_url` or the messaging profile webhook. Signature is
-the usual Ed25519; `/webhooks/telnyx` currently logs these as "no procesable"
-and returns 200. Sends require an explicit `messaging_profile_id` (40305).
+**WhatsApp:** everything about the WABA, numbers, templates, inbound webhooks and
+API quirks lives in § *WhatsApp (Telnyx como BSP de Meta)* under Voice Orchestrators.
 
 **Permanent vs transient failures:** job handlers throw `PermanentJobError`
 (`backend/src/lib/jobErrors.ts`) for things retrying cannot fix (invalid
@@ -721,6 +816,7 @@ La separación se apoya por tanto en tres cosas:
    | +34930453219 / 236 / 237 / 238 / 289 | `env-dev` | Las 5 cuentas de prueba `test-*@alhabla.local` |
    | +34930453216 | `env-prod` | Negocio real «Peluqueria Vide» |
    | +34930453218 | `env-prod` | Emisor de WhatsApp gestionado por Telnyx — **no borrar**, no pertenece a ningún negocio de la BD |
+   | +34930454394 / 372 / 382 / 375 / 393 | `env-prod`, `whatsapp-sector`, `sector-<tipo>` | Emisores de WhatsApp por sector (ver § WhatsApp) — **no borrar**, no pertenecen a ningún negocio; desvío de voz permanente a +34 692 138 456 |
 
 3. **Los scripts miran contra qué base de datos cruzan** (`describirEntorno()`), porque el daño
    real no viene de compartir cuenta sino de apuntar a la BD equivocada.
