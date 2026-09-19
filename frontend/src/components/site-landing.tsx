@@ -415,7 +415,13 @@ export function SiteLanding({ content }: { content?: NicheLandingContent }) {
 
       <footer className="bg-[#0a0a0a] text-white/70">
         <div className="mx-auto flex max-w-7xl flex-col gap-5 px-4 py-8 sm:px-6 md:flex-row md:items-center md:justify-between lg:px-8">
-          <p className="text-sm">© 2026 Alhabla</p>
+          {/* La razón social va aquí, y no solo en el aviso legal, porque las
+              verificaciones de empresa (Meta) piden el nombre del titular
+              publicado en la web y no siempre entran a la página legal. */}
+          <div className="flex flex-col gap-1">
+            <p className="text-sm">© 2026 Alhabla</p>
+            <p className="text-sm">Titular: Miguel Martín Delgado</p>
+          </div>
           <nav aria-label="Enlaces legales" className="flex flex-wrap items-center gap-x-4 text-sm font-medium">
             <Link href="/legal/privacidad" className="inline-flex h-11 items-center transition hover:text-white">Privacidad</Link>
             <Link href="/legal/aviso-legal" className="inline-flex h-11 items-center transition hover:text-white">Aviso legal</Link>
