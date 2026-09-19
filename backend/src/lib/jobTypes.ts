@@ -50,4 +50,8 @@ export interface SendWhatsappJob {
   bodyParams: Record<string, string>;
   /** Ver SendEmailJob.idempotencyKey. */
   idempotencyKey?: string;
+  /** Negocio al que pertenece el envío (para SentMessage y el contador). */
+  businessId?: string;
+  /** Desde qué número de Alhabla sale: "client" (por defecto) u "owner". */
+  audience?: "client" | "owner";
 }

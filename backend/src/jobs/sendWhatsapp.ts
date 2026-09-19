@@ -1,18 +1,27 @@
-import { whatsappAdapter } from "../adapters/whatsapp/WhatsAppAdapter.js";
 import { SendWhatsappJob } from "../lib/jobTypes.js";
 import { reclamarEnvio } from "../lib/messageIdempotency.js";
+import { enviarPlantilla } from "../modules/whatsapp/service.js";
 
-export async function processSendWhatsappJob(data: SendWhatsappJob): Promise<void> {
+export async function processSendWhatsappJob(
+  data: SendWhatsappJob
+): Promise<void> {
   const { toNumber, templateName, languageCode, bodyParams } = data;
   if (!(await reclamarEnvio("whatsapp", data.idempotencyKey))) {
     return;
   }
-  console.log(`[Job] Enviando WhatsApp (plantilla "${templateName}") a ${toNumber}`);
+  console.log(
+    `[Job] Enviando WhatsApp (plantilla "${templateName}") a ${toNumber}`
+  );
 
-  await whatsappAdapter.sendTemplate({
+  // Sale por el número de la audiencia (clientes por defecto) y, si la
+  // plantilla está en WhatsappTemplate aprobada, por template_id; si no,
+  // por nombre + idioma como hasta ahora.
+  await enviarPlantilla({
+    audience: data.audience ?? "client",
     to: toNumber,
-    templateName,
-    languageCode,
+    template: { name: templateName, language: languageCode },
     bodyParams,
+    businessId: data.businessId,
+    idempotencyKey: data.idempotencyKey,
   });
 }

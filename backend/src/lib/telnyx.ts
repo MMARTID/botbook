@@ -29,3 +29,39 @@ export function getTelnyxClient(): Telnyx {
 
   return client;
 }
+
+let whatsappClient: Telnyx | null = null;
+
+/**
+ * Cliente para los recursos `client.whatsapp.*` del SDK (WABA, números,
+ * plantillas, ventana de conversación, perfil).
+ *
+ * En telnyx@7.21 esos recursos están mal montados: el cliente normal tiene
+ * `baseURL` `https://api.telnyx.com/v2` y las rutas de `whatsapp/*` ya
+ * empiezan por `/v2/…`, así que toda petición acaba en `/v2/v2/whatsapp/…`
+ * y Telnyx responde `404 10005 Resource not found` (verificado el
+ * 2026-09-19 con `phoneNumbers.list`, `templates.list` y
+ * `retrieveConversationWindow`). Con `baseURL` sin el `/v2` funcionan
+ * todos. El envío (`client.messages.whatsapp`) usa la ruta correcta
+ * `/messages/whatsapp` y va por el cliente normal — no mezclar.
+ */
+export function getTelnyxWhatsappClient(): Telnyx {
+  if (whatsappClient) {
+    return whatsappClient;
+  }
+
+  const apiKey = process.env.TELNYX_API_KEY;
+
+  if (!apiKey) {
+    throw new Error("TELNYX_API_KEY is not configured");
+  }
+
+  whatsappClient = new Telnyx({
+    apiKey,
+    maxRetries: 0,
+    timeout: TELNYX_TIMEOUT_MS,
+    baseURL: "https://api.telnyx.com",
+  });
+
+  return whatsappClient;
+}
