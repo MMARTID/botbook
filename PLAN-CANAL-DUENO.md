@@ -24,6 +24,19 @@ Los tres casos de uso, tal como los fijó el usuario:
    citas y **mover o cancelar** citas; en este último caso Alhabla le pregunta si avisa al
    cliente con una plantilla o si prefiere llamarle él y ajustarla después en el chat o en su
    calendario.
+4. **El Gestor (añadido con el OK del usuario, misma noche).** La conversación del dueño no
+   comparte prompt con la del cliente ni con la recepcionista: es un tipo de assistant propio,
+   el **Gestor**, y sirve también para el **onboarding por chat** (crear servicios,
+   profesionales, horario, conectar el calendario) y para todos los cambios posteriores. Hay
+   **un solo Gestor para toda la plataforma**, no uno por negocio (§ 8).
+
+Tres tipos de assistant, y solo uno de ellos por negocio:
+
+| Tipo | Instancias | Canal | Qué hace |
+|---|---|---|---|
+| Recepcionista | Una por negocio (como hoy) | Voz | Atender clientes y reservar |
+| Gestor | **Una para toda la plataforma** | Chat | Onboarding y gestión: servicios, profesionales, horario, agenda, citas, ausencias |
+| Cliente | Una para toda la plataforma | Chat | Informar de la cita y redirigir al teléfono |
 
 | Alternativa | Por qué se descarta |
 |---|---|
@@ -115,7 +128,9 @@ plugin 0.4.0).
 | `client.ai.assistants.chat` (**BETA**) con `conversation_id`: ejecuta tools y devuelve `content`; `client.ai.conversations.*` para historial | SDK `telnyx-ai-assistants` | Las dos conversaciones (cliente y dueño) sin bucle de LLM propio; kill switch y sustituto |
 | `tools[]` inline **obsoleto** para integraciones nuevas; *shared tools* (`ai.tools.create` + `tool_ids`) | SDK | Toda tool nueva se define una vez y se adjunta por id; migrar las de voz es trabajo aparte |
 | Post-conversación (`post_conversation_settings.enabled`): el mismo modelo, con todo el contexto, ejecuta tools al colgar | Release 2026-04-21; campo presente en nuestros assistants | `informar_al_negocio`: recado y clasificación; sustituye a los insights |
-| Memoria entre conversaciones, compartida entre voz y mensajería, por `memory.conversation_query` en el webhook de variables dinámicas (1,5 s, *best effort*) | Documentación | Fase 3, dueño y clientes, con RGPD |
+| Memoria entre conversaciones, compartida entre voz y mensajería, por `memory.conversation_query` en el webhook de variables dinámicas | Documentación | Fase 3, dueño y clientes, con RGPD |
+| El timeout del webhook de variables dinámicas es **configurable hasta 10 s** (`dynamic_variables_webhook_timeout_ms`; 1,5 s por defecto, *best effort* si vence); la respuesta admite `dynamic_variables`, `memory` y `conversation.metadata` | Documentación *Dynamic Variables* | Tumba la objeción del plan Telnyx §2 para chat: un Gestor único puede recibir el contexto del negocio al empezar cada conversación |
+| Catálogo y precios reales de la cuenta (`GET /ai/models`, 2026-09-19): `openai/gpt-5.6-luna` (el de las recepcionistas) 0,20 $/M entrada, 1,20 $/M salida, 0,02 $/M en caché; `anthropic/claude-haiku-4-5` 1/5/0,10; `zai-org/GLM-5.3-Flash` 0,135/0,45/0,027 con región **EU**; `Qwen/Qwen3-235B-A22B` y `Llama-3.3-70B` también con región EU; los modelos de OpenAI y Anthropic no declaran región | MCP `retrieve_models_ai` | Un turno del Gestor cuesta ~0,002 $; el chat tolera cambiar de modelo, así que si la residencia UE (#13-16) se vuelve obligatoria, el Gestor pasa a un modelo europeo sin tocar nada más |
 | `client.ai.assistants.tools.test` | SDK | Tests de contrato de las tools nuevas |
 | Verify por WhatsApp (`triggerWhatsappVerification` + `byPhoneNumber.actions.verify`) | SDK `telnyx-verify` | Alternativa al botón *Activar avisos*; no es la vía principal |
 | `telnyx_end_user_target_verified` (STIR/SHAKEN, EE. UU.) | Documentación | No aplica en España |
@@ -222,18 +237,63 @@ tabla `InboundMessage`. Enrutado, en este orden:
   a mano, un interactivo con *Cancelar mi cita*).
 - Cada respuesta termina con "_Beta · para cambios, llama al negocio_". 20 mensajes por
   cliente y día.
+- Mismo esquema que el Gestor: assistant único, conversación creada por Alhabla con
+  `metadata: { business_id, client_phone, role: "client" }`, tools resueltas por
+  `conversation_id`, mismo modelo y mismos interruptores.
 
-### 8. Conversación con el dueño (Beta)
+### 8. El Gestor: conversación del dueño y onboarding por chat (Beta)
 
-Assistant `alhabla-gestion-<businessId>`, uno por negocio, usado por `chat` con
-`conversation_id` estable (rota a los 30 días o con `BAJA`).
+**Un assistant Telnyx para toda la plataforma**, `alhabla-gestor`, distinto de la recepcionista
+y del assistant de cliente. No hay un Gestor por negocio: hoy sostienen "un assistant por
+negocio" unas 2.800 líneas de creación, sincronización y reconciliación
+(`telnyxAgentSync`, `telnyxAssistantPayload`, `agentBootstrap`, `telnyxReconciler`, el
+adaptador), y de ahí han salido los bugs más caros del mes (assistants sin tools tras el
+cutover, mudos al rotar ngrok, scripts de resync). Un Gestor único no se sincroniza: un prompt,
+una versión, cero reconciliación.
+
+**El negocio es dato, no prompt.** La recepcionista lleva su catálogo horneado en las
+instrucciones porque una llamada no espera; el Gestor no lo necesita:
+
+- La conversación la crea Alhabla (`client.ai.conversations.create`) con `metadata:
+  { business_id, role: "owner" }`; `Business.ownerConversationId` la guarda (rota a los 30 días
+  o con `BAJA`).
+- Toda tool resuelve el negocio a partir del `conversation_id` en el backend; el aislamiento
+  multi-tenant lo garantiza Alhabla, nunca el LLM.
+- El nombre del negocio y su estado llegan al empezar por una de dos vías, a elegir en la fase
+  0.4: el webhook de variables dinámicas (si Telnyx lo dispara en conversaciones creadas por
+  API) o una tool `contexto_negocio` que el Gestor llama en el primer turno y devuelve nombre,
+  plan, checklist de onboarding y minutos.
+
+**Tools del Gestor** (*shared tools* adjuntas por `tool_ids`; misma firma que
+`/webhooks/telnyx/tools/:toolName`; todas reutilizan los servicios que ya usan las rutas del
+panel, límites de plan incluidos):
+
+| Grupo | Tools |
+|---|---|
+| Estado | `contexto_negocio` |
+| Catálogo (onboarding y cambios) | `crear_servicio`, `editar_servicio`, `retirar_servicio`, `crear_profesional`, `retirar_profesional`, `fijar_especialidad` (los tres niveles), `fijar_horario`, `cerrar_dia`, `conectar_calendario` (devuelve el enlace) |
+| Agenda | `listar_agenda`, `resumen_llamadas`, `añadir_cita`, `mover_cita`, `cancelar_cita`, `marcar_ausencia`, `bloquear_franja`, `resolver_pendiente` |
+| Control | `proponer_accion` (la única vía de ejecutar algo: el backend añade el botón) |
+
+**Onboarding por chat.** Tras *Activar avisos*, el Gestor lee `contexto_negocio` y guía lo que
+falte: "Vamos a preparar tu recepcionista. ¿Qué servicios ofreces y cuánto duran?" → "corte 30
+min 15 €, color hora y media 60 €, barba 20 min" → tabla propuesta → *Confirmar* → "¿Quién
+trabaja contigo?" → "Laura y Marta; Laura hace color" → *Confirmar* → "Tu horario según Google
+es L-V 9:30-20:00 y S 9:30-14:00, ¿es correcto?" → *Sí* → "Conecta tu calendario aquí: <enlace>".
+El asistente web de alta se mantiene (el checkout lo necesita y es la primera pantalla); el
+Gestor completa lo que el dueño saltó y gestiona todo lo posterior: "sube el corte a 17 €",
+"Marta ya no trabaja aquí", "el 12 de octubre cerramos". Cada cambio de catálogo dispara la
+misma sincronización de la recepcionista que hoy dispara el panel.
+
+**Gestión de la agenda:**
 
 - **Consultar**: "¿qué tengo mañana?" ⇒ `listar_agenda` ⇒ lista interactiva; "¿cuántas
   llamadas esta semana?" ⇒ `resumen_llamadas`.
-- **Añadir**: "apunta a Marta mañana a las 5, corte" ⇒ `get_catalog` + `check_availability` ⇒
-  propuesta ("Marta, jueves 17:00, corte, con Laura") con *Confirmar* · *Otra hora* ⇒ al
-  confirmar, `book_appointment` ⇒ "¿Le mando la confirmación por WhatsApp? Necesito su
-  número" ⇒ *Sí* (pide/usa el teléfono, envía `confirmacion_cita_v2`) · *No*.
+- **Añadir** (acto de gestión en nombre de un cliente, no una conversación de recepcionista):
+  "apunta a Marta mañana a las 5, corte" ⇒ `check_availability` ⇒ propuesta ("Marta, jueves
+  17:00, corte, con Laura") con *Confirmar* · *Otra hora* ⇒ al confirmar, `añadir_cita` ⇒ "¿Le
+  mando la confirmación por WhatsApp? Necesito su número" ⇒ *Sí* (envía
+  `confirmacion_cita_v2`) · *No*.
 - **Mover o cancelar**: "mueve la de Marta al viernes a las 6" ⇒ si hay dos Martas, lista ⇒
   `check_availability` ⇒ propuesta con *Confirmar* · *Antes la llamo* (responde con el teléfono
   del cliente y deja la acción pendiente 24 h: el dueño vuelve al chat o la mueve en su
@@ -242,15 +302,24 @@ Assistant `alhabla-gestion-<businessId>`, uno por negocio, usado por `chat` con
   del cliente).
 - **Ausencias y bloqueos** ("Laura no viene el viernes", "cierra el sábado tarde") ⇒
   `marcar_ausencia` / `bloquear_franja` con *Confirmar*.
-- **Regla de oro**: el LLM nunca ejecuta una acción; llama a `proponer_accion` y el backend
-  añade el botón. El botón ejecuta.
+
+**Reglas:**
+
+- **Regla de oro**: el LLM nunca ejecuta nada; llama a `proponer_accion` y el backend añade el
+  botón. El botón ejecuta. Vale para citas y para catálogo por igual.
 - Etiqueta "_Beta · escribe AYUDA_" en cada respuesta de texto libre; `MAL` guarda la última
   pareja en `OwnerChatFeedback`; 60 mensajes por dueño y día; interruptor global
   (`TELNYX_OWNER_CHAT_ENABLED`) y por negocio (`ownerChatEnabled`).
-- Tools como *shared tools* adjuntas por `tool_ids`; el negocio se resuelve por
-  `conversation_id` en el backend; misma firma que `/webhooks/telnyx/tools/:toolName`.
-- `client.ai.assistants.chat` es Beta en Telnyx: si cambia, el nivel 2 se sustituye por un
-  bucle propio (Claude + las mismas tools) sin tocar alta, botones ni plantillas.
+- Capa determinista antes del LLM (botones y palabras clave); respuestas de tools compactas;
+  prefijo de prompt estable para aprovechar la caché.
+- Modelo: el mismo que las recepcionistas (`openai/gpt-5.6-luna`, ~0,002 $ por turno; un dueño
+  con 60 mensajes/día ≈ 3,5 $/mes, uno normal céntimos), con `fallback_config`. Si la residencia
+  UE lo exige, `zai-org/GLM-5.3-Flash` o `Qwen3-235B` (región EU) sin cambiar nada más.
+- `client.ai.assistants.chat` es Beta en Telnyx: si cambia o se retira, el Gestor se
+  reimplementa como bucle propio (Claude + las mismas tools, en proceso) sin tocar alta,
+  botones, plantillas ni panel. Se elige Telnyx por un solo proveedor y una sola factura,
+  conversaciones y memoria voz+chat en el mismo sitio, y tools ya construidas como webhooks
+  firmados.
 
 ### 9. Ventana de 24 h y coste
 
@@ -318,9 +387,11 @@ voz.
   `memoryEnabledForClients Boolean @default(false)`.
 - `address String?`, `placeId String?` (de Places, para *Cómo llegar*).
 
-### `Agent`
+### `Business` (conversaciones)
 
-- `telnyxManagementAssistantId String?`, `telnyxManagementConversationId String?`.
+- `ownerConversationId String?` (conversación del dueño con el Gestor único). Los IDs de los
+  dos assistants de plataforma (Gestor y Cliente) y de las *shared tools* van en variables de
+  entorno, no por negocio.
 
 ### `Call`
 
@@ -421,7 +492,9 @@ URL) y `recordatorio_cita_v2` pierde *Cambiar* (el teléfono ya va en el texto).
    (`read`, `cost.amount`). Hoy no hay evidencia de entrega de extremo a extremo.
 3. Crear las doce plantillas con el script; verlas en `PENDING`; anotar fecha.
 4. `chat` (Beta) con un assistant de prueba y una *shared tool* por `tool_ids`: ejecuta, firma,
-   fallo de tool, contexto entre horas.
+   fallo de tool, contexto entre horas. Y las dos preguntas del Gestor único: si el webhook de
+   variables dinámicas se dispara en una conversación creada por API con `metadata`, y qué
+   identificador de conversación recibe la tool (para resolver el negocio en el backend).
 5. Post-conversación en un assistant de dev con `informar_al_negocio`: tres llamadas (recado, sin
    recado, fallo de tool); latencia tras colgar.
 6. Webhook de variables dinámicas devolviendo solo `memory.conversation_query`; dos llamadas
@@ -457,19 +530,26 @@ el cliente cancela desde el recordatorio y el dueño lo ve en su WhatsApp.
 
 ### Fase 2 — Conversaciones (Beta)
 
-- Assistant de cliente (`mi_cita`, `info_negocio`) y de gestión por negocio (`listar_agenda`,
-  `resumen_llamadas`, `proponer_accion` para añadir / mover / cancelar / ausencia / bloqueo,
-  `resolver_pendiente`); *shared tools*; `ClientConversation`; `pending_owner_action` con 24 h.
+- Assistant de cliente (`mi_cita`, `info_negocio`) y **Gestor único** (`contexto_negocio`,
+  catálogo: `crear_servicio`, `editar_servicio`, `retirar_servicio`, `crear_profesional`,
+  `retirar_profesional`, `fijar_especialidad`, `fijar_horario`, `cerrar_dia`,
+  `conectar_calendario`; agenda: `listar_agenda`, `resumen_llamadas`, `añadir_cita`,
+  `mover_cita`, `cancelar_cita`, `marcar_ausencia`, `bloquear_franja`, `resolver_pendiente`;
+  `proponer_accion`); *shared tools*; conversaciones creadas por Alhabla con metadatos;
+  `ClientConversation`; `pending_owner_action` con 24 h.
+- Onboarding por chat: el Gestor guía servicios → profesionales → horario → calendario según
+  la checklist; cada mutación con botón y con la misma sincronización que el panel.
 - Flujo de añadir con "¿le mando la confirmación?"; flujo de mover/cancelar con *Antes la
   llamo* y "¿aviso a la clienta?"; `cambio_cita_cliente` y `cancelacion_cita_cliente`.
 - `ProfessionalAbsence`, `ScheduleBlock` en `availability.ts` y `get_catalog`.
 - Etiquetas Beta, `AYUDA`, `MAL`, límites diarios, interruptores. Todos los planes.
 - Panel: historial y "Pregúntale a tu recepcionista".
 
-**Criterio de salida:** "apunta a Marta mañana a las 5, corte" termina con la cita en el
-calendario y la confirmación en el móvil de Marta; "mueve la de Marta al viernes" pide botón,
-mueve y ofrece avisarla; un cliente pregunta "¿cuándo tengo cita?" y recibe fecha, hora y "para
-cambios llama al negocio".
+**Criterio de salida:** un alta nueva completa servicios, profesionales y horario por WhatsApp
+sin abrir el panel y la recepcionista los usa en la siguiente llamada; "apunta a Marta mañana a
+las 5, corte" termina con la cita en el calendario y la confirmación en el móvil de Marta;
+"mueve la de Marta al viernes" pide botón, mueve y ofrece avisarla; un cliente pregunta
+"¿cuándo tengo cita?" y recibe fecha, hora y "para cambios llama al negocio".
 
 ### Fase 3 — Rematar
 
@@ -493,13 +573,16 @@ OWNER_ALTA_CODE_TTL_HOURS=72
 OWNER_DIGEST_DEFAULT_TIME=20:30
 TELNYX_OWNER_CHAT_ENABLED=false         # nivel 2 del dueño (Beta)
 TELNYX_CLIENT_CHAT_ENABLED=false        # nivel 2 del cliente (Beta)
+TELNYX_GESTOR_ASSISTANT_ID              # assistant único de plataforma (Gestor)
+TELNYX_CLIENTE_ASSISTANT_ID             # assistant único de plataforma (Cliente)
 TELNYX_MEMORY_ENABLED=false
 TELNYX_POST_CONVERSATION_ENABLED=false
 ```
 
 Las plantillas viven en `WhatsappTemplate`; `WHATSAPP_TEMPLATE_CONFIRMATION_NAME` y
-`WHATSAPP_TEMPLATE_REMINDER_NAME` se retiran tras importarlas. IDs de assistants, tools y
-conversaciones van en PostgreSQL.
+`WHATSAPP_TEMPLATE_REMINDER_NAME` se retiran tras importarlas. Los IDs de las recepcionistas
+(por negocio) y de las conversaciones van en PostgreSQL; los dos assistants de plataforma y
+las *shared tools* son configuración.
 
 ## Riesgos
 
@@ -517,6 +600,8 @@ conversaciones van en PostgreSQL.
 | `STOP` mal gestionado baja la calidad del número para todos | Determinista, probado, global por número |
 | Tools inline actuales sin soporte | Tools nuevas compartidas; issue aparte para migrar las de voz |
 | Memoria cruza tenants | Consulta acotada a `assistant_id`; test con dos negocios y un número |
+| Un Gestor único mezcla negocios | El negocio se resuelve por `conversation_id` en el backend en cada tool; test de integración con dos dueños y un mismo Gestor |
+| La residencia UE obliga a cambiar de modelo | El chat tolera el cambio: modelos con región EU en el catálogo (GLM-5.3-Flash, Qwen3-235B) sin tocar nada más |
 
 ## Preguntas abiertas
 
@@ -525,8 +610,10 @@ conversaciones van en PostgreSQL.
 3. ¿Un toque de botón de plantilla abre la ventana de 24 h? — fase 0.1.
 4. Límite de respuestas rápidas por plantilla de utilidad — al crearlas.
 5. Tarifa exacta por mensaje en España vía Telnyx (llega en `cost.amount`).
-6. ¿Puede una *shared tool* llevar cabecera con variable dinámica por assistant? Si no, el
-   negocio se resuelve por `conversation_id`.
+6. ¿Qué identificador de conversación recibe una *shared tool* en un `chat` por API? (De ahí
+   se resuelve el negocio.) Fase 0.4.
+7. ¿Se dispara el webhook de variables dinámicas en conversaciones creadas por API con
+   `metadata`? Si no, `contexto_negocio` en el primer turno. Fase 0.4.
 
 ## Decisiones tomadas el 2026-09-19
 
@@ -543,3 +630,4 @@ conversaciones van en PostgreSQL.
 | Memoria | Dueño y clientes, con RGPD, fase 3 |
 | Post-conversación | Sustituye a los insights, con doble escritura |
 | Verificación de empresa en Meta | Trámite del usuario, fase 0.8 |
+| Gestor | Tipo de assistant propio para el dueño, distinto de recepcionista y cliente; **uno para toda la plataforma**, negocio resuelto por conversación; hace también el onboarding por chat (servicios, profesionales, horario, calendario); modelo `gpt-5.6-luna` (~0,002 $/turno) con salida a modelo EU si hace falta |
