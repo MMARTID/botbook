@@ -51,7 +51,13 @@ export async function telnyxReconcilerJob(): Promise<TelnyxReconcilerResult> {
 
   // Con cota: el reconciliador habla con la API de Telnyx una vez por agente,
   // así que un parque grande desbordaría el plazo de la tarea. Los agentes que
-  // no entren en esta pasada se revisan en la siguiente (corre cada 15 min).
+  // no entren en esta pasada se revisan en la siguiente. OJO con la cadencia:
+  // el Cloud Scheduler `telnyx-reconciler` corre UNA VEZ AL DÍA (0 4 * * *),
+  // no cada 15 minutos como decía este comentario. Importa porque este job es
+  // lo único que propaga sola una mejora del prompt a los assistants ya
+  // creados: sin forzarlo, un cambio desplegado por la mañana no llega a los
+  // clientes hasta las 04:00 del día siguiente. El deploy lo fuerza (ver
+  // .github/workflows/deploy-backend.yml).
   const agentsBefore = await prisma.agent.findMany({
     where: { deletedAt: null, telnyxAssistantId: { not: null } },
     select: {
