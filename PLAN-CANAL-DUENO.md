@@ -588,6 +588,34 @@ ahí `{{cita}}` con fecha y hora juntas y el profesional dentro de `{{servicio}}
 categoría *marketing*: sirve de lista de espera mientras `hueco_libre` no esté aprobada.
 
 `confirmacion_cita` y `recordatorio_cita` actuales se retiran cuando sus `v2` estén aprobadas.
+
+**Todas con título (decisión del usuario, 19-09 noche).** Al probar el número de clientes recibió
+las dos `confirmacion_cita` aprobadas y prefirió la que lleva **cabecera** («Reserva
+confirmada!», componente `HEADER` de texto): se lee como un aviso, no como un chat. Las doce
+nuevas se enviaron a Meta sin cabecera y **una plantilla `PENDING` no se puede editar** (Meta solo
+permite editar `APPROVED`, `REJECTED` o `PAUSED`, hasta 10 veces al mes, y cada edición vuelve a
+revisión). Por eso, en cuanto Meta resuelva cada una, se le añade la cabecera con
+`client.whatsappMessageTemplates.update(id, { components })` (`PATCH
+/v2/whatsapp_message_templates/{id}`) y se espera la segunda aprobación; hasta entonces, para la
+confirmación se usa la aprobada con título (`01a0a982-…`, `es_ES`, por `template_id`). Títulos:
+
+| Plantilla | `HEADER` |
+|---|---|
+| `bienvenida_negocio` | Bienvenido a Alhabla |
+| `nueva_reserva_negocio` | Nueva reserva |
+| `recado_negocio` | Tienes un recado |
+| `cita_pendiente_negocio` | Cita pendiente de revisar |
+| `cancelacion_negocio` | Cita cancelada |
+| `alerta_operativa_negocio` | Aviso de Alhabla |
+| `cierre_del_dia` | Resumen del día |
+| `confirmacion_cita_v2` | Reserva confirmada |
+| `recordatorio_cita_v2` | Recordatorio de tu cita |
+| `cambio_cita_cliente` | Tu cita ha cambiado |
+| `cancelacion_cita_cliente` | Cita cancelada |
+| `hueco_libre` | Hay hueco para ti |
+
+Sin signos de exclamación ni variables en la cabecera (Meta admite una variable en cabeceras
+de texto, pero no hace falta y evita otro motivo de rechazo).
 Si Meta limita las respuestas rápidas a dos, `cita_pendiente_negocio` pierde *Reconectar* (pasa a
 URL) y `recordatorio_cita_v2` pierde *Cambiar* (el teléfono ya va en el texto).
 
