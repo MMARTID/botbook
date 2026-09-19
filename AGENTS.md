@@ -662,9 +662,24 @@ The backend supports two voice-AI orchestrators. `Business.orchestrator` decides
 
 ### Telnyx: qué es de desarrollo y qué de producción
 
-Dev y producción **comparten la cuenta y la API key de Telnyx** (Managed Accounts existe pero
-no está habilitado en la cuenta: `/v2/managed_accounts` responde `10006 Not authorized`, y
-habilitarlo hay que pedírselo a soporte). La separación se apoya por tanto en tres cosas:
+Dev y producción **comparten la cuenta y la API key de Telnyx**, y **Telnyx no ofrece ninguna
+forma autoservicio de separarlas** (comprobado el 2026-09-19 con los skills oficiales y contra la
+API real):
+
+- **Managed Accounts** —subcuenta con su propia API key, sus números y facturación agregada al
+  padre— exige que Telnyx te apruebe explícitamente como cuenta gestora. La documentación lo dice
+  literalmente: *«Users need to be explicitly approved by Telnyx in order to become manager
+  accounts»*. Sin esa aprobación, `/v2/managed_accounts` responde `10006 Not authorized`.
+- **Usuarios de organización con grupos** (`/v2/organizations/users`) responde `10005`: tampoco
+  está habilitado en esta cuenta.
+- **No existen API keys con permisos por recurso.** Las claves de Telnyx son de cuenta entera.
+
+Lo único disponible hoy sin pedir nada, además de los dos Call Control Apps y los tags: **billing
+groups** (`/v2/billing_groups`, y cada número admite `billing_group_id`). No aíslan nada, pero
+permitirían ver el gasto de desarrollo separado del de producción. Hay ya un grupo
+`alhabla-platform` creado y ningún número asignado.
+
+La separación se apoya por tanto en tres cosas:
 
 1. **Dos Call Control Apps**, cada uno con su `webhook_event_url`; `TELNYX_CALL_CONTROL_APP_ID`
    elige el del entorno. Un número llega a uno u otro backend por su `connection_id`.
@@ -694,9 +709,13 @@ secreto de Secret Manager con el `.env` local, sin imprimir valores): las cuenta
 de **Google** y **Microsoft** (`GOOGLE_AUTH_CLIENT_SECRET`, `GOOGLE_CLIENT_SECRET`,
 `MICROSOFT_CLIENT_SECRET`) y **Zoho** (`ZOHO_CLIENT_SECRET`, `ZOHO_REFRESH_TOKEN`).
 `TELNYX_SPAIN_REQUIREMENT_GROUP_ID` también, pero es un identificador regulatorio y compartirlo
-es lo correcto. **Zoho es el que menos se espera:** `lib/zohoMail.ts` no mira `NODE_ENV`, así que
-desde desarrollo se manda correo real desde el buzón de producción — hoy rebota porque los
-negocios de dev usan direcciones `@alhabla.local`, pero una dirección real recibiría de verdad.
+es lo correcto. **Zoho era el que menos se esperaba:** `lib/zohoMail.ts` no miraba `NODE_ENV`, así que desde
+desarrollo se mandaba correo real desde el buzón de producción — solo se salvaba porque los
+negocios de dev usan `@alhabla.local` y rebotan. Desde el 2026-09-19 hay guardarraíl: fuera de
+producción solo escribe a las direcciones de `ZOHO_DEV_ALLOWED_RECIPIENTS` (lista por comas;
+vacía = no manda nada, `*` = a cualquiera), y lo que no manda lo deja en un `console.warn` con
+destinatario y asunto. La comprobación va **antes** de pedir el token y **no lanza**: para el job
+es un envío resuelto y reintentarlo no cambiaría nada.
 Separados sí están: base de datos, backend, URL pública, Call Control Apps, números, R2, Stripe,
 `JWT_SECRET`, Places y `CALENDAR_CREDENTIALS_KEY`.
 
