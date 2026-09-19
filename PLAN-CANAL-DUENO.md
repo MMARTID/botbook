@@ -132,8 +132,9 @@ Dos tipos de assistant, y solo uno de ellos por negocio:
 - `Business.phone` viene de Google Places: es el fijo del local, no el WhatsApp del dueño.
   La dirección de Places se guarda como texto dentro de `businessDetails`; no hay `address` ni
   `placeId` estructurados.
-- Backend con `telnyx@7.17.0` y `WhatsAppAdapter.ts` con `fetch`; la 7.21 expone
-  `messages.sendWhatsapp`, `whatsapp.*`, `ai.assistants.chat`, `ai.tools.*`, `ai.conversations.*`.
+- SDK `telnyx` subido a **7.21.0** (PR #105, fase 0.0). `WhatsAppAdapter.ts` sigue con `fetch`
+  hasta la fase 1. Lo que expone de verdad el paquete instalado está en § Pasada final con el
+  SDK 7.21 (difiere en algunos nombres de lo que decía la skill).
 
 ## Hallazgos de la API de Telnyx (2026-09-19)
 
@@ -165,6 +166,35 @@ plugin 0.4.0).
 | Verify por WhatsApp (`triggerWhatsappVerification` + `byPhoneNumber.actions.verify`) | SDK `telnyx-verify` | Alternativa al botón *Activar avisos*; no es la vía principal |
 | `telnyx_end_user_target_verified` (STIR/SHAKEN, EE. UU.) | Documentación | No aplica en España |
 
+## Pasada final con el SDK 7.21 instalado (2026-09-20)
+
+Leído directamente en `node_modules/telnyx/resources/**/*.d.ts` de la 7.21.0. Manda esto sobre
+la skill cuando difieran.
+
+| Qué | En el SDK real | Consecuencia para el plan |
+|---|---|---|
+| Envío de WhatsApp | `client.messages.whatsapp({ from, to, whatsapp_message, messaging_profile_id?, webhook_url? })` (**no** `sendWhatsapp`). `whatsapp_message.type` ∈ `text · template · interactive · contacts · location · reaction · image · …`; `biz_opaque_callback_data` tipado | Los nombres del plan pasan a `messages.whatsapp`. Cada envío lleva `biz_opaque_callback_data = <tipo>:<recursoId>` y vuelve en los webhooks de entrega |
+| Parámetros de plantilla al enviar | `template.components[].parameters[].type` ∈ `text · image · video · document · currency · date_time`; **sin `payload`** para `quick_reply` y **sin parámetros nombrados** | Las dos plantillas actuales (parámetros nombrados) siguen por `fetch` o con *cast*; las nuevas se crean con parámetros **posicionales**. La correlación de un botón pulsado **no** depende de un payload: se hace por `context.message_id` de la respuesta → `SentMessage.providerMessageId` (fase 0.1 confirma que llega) |
+| Creación de plantillas | `client.whatsapp.templates.create({ waba_id, name, category, language, components })`; `BODY.example.body_text: string[][]` (posicional); botones `QUICK_REPLY · URL · PHONE_NUMBER · COPY_CODE · OTP · FLOW`; componente `CAROUSEL` | Script de la fase 0.3 con posicionales. `FLOW` (formularios nativos de WhatsApp) queda anotado como idea para el onboarding, no en este plan |
+| **Ventana de 24 h por API** | `client.whatsapp.phoneNumbers.retrieveConversationWindow(numero, { destination_number })` → `window_active`, `window_expires_at`, `last_user_message_at`, `window_type` | Telnyx es la fuente de verdad de la ventana; `ownerWindowOpenUntil` pasa a ser caché. Antes de cada envío al dueño: ventana activa ⇒ interactivo; si no ⇒ plantilla. Vale igual para clientes |
+| **Componentes conversacionales por número** | `client.whatsapp.phoneNumbers.conversationalComponents.patchAll(numero, { ice_breakers: string[] (≤4), commands: [{command, description}] })` | Menú nativo de WhatsApp: *ice breakers* para quien abre el chat por primera vez («¿Cuándo es mi cita?», «Cómo llegar», «Cancelar mi cita», «Soy el dueño de un negocio») y *comandos* `/agenda`, `/hoy`, `/mañana`, `/pausa`, `/ayuda` para el dueño. Sustituye a buena parte del "nivel 1 de palabras clave" por algo que el usuario ve |
+| Perfil por número | `client.whatsapp.phoneNumbers.profile.update(numero, { about, address, category, description, display_name?, email, website })` y `profile.photo.upload(numero, { file })` | Perfil e imagen por sector desde el script del reconciliador |
+| Alta de un número en el WABA | `client.whatsapp.businessAccounts.phoneNumbers.initializeVerification(wabaId, { display_name, phone_number, language, verification_method: 'voice' })`, `client.whatsapp.phoneNumbers.verify(numero, { code })`, `resendVerification`, `phoneNumbers.delete` | Fase 0.9 con el SDK; el código llega al móvil desviado |
+| Ajustes del WABA | `client.whatsapp.businessAccounts.settings.update(wabaId, …)` | Suscripción a eventos de plantilla y calidad (fase 0.0) |
+| Conversaciones | `client.ai.conversations.create({ metadata, name })`, `addMessage(id, { role, content, metadata })`, `messages.list(id)`, `retrieveConversationsInsights(id)` | El contexto del Gestor tiene una **tercera vía**, la más simple: `addMessage` con `role: "system"` (o el rol que acepte, fase 0.4) al crear la conversación. `messages.list` alimenta el historial del panel |
+| Chat con el assistant | `client.ai.assistants.chat(assistantId, { content, conversation_id, name?, stream? })` | Igual que en el plan; `stream` disponible si el panel quiere respuesta progresiva |
+| Assistant | `tool_ids`, `dynamic_variables_webhook_timeout_ms`, `post_conversation_settings { enabled }`, `messaging_settings { conversation_inactivity_minutes, … }`, `widget_settings { start_call_text, theme, … }`, `mcp_servers` | Todo lo que el plan usa está tipado. El *widget* confirma que "Probar mi recepcionista" desde el panel es viable más adelante |
+| *Shared tools* | `client.ai.tools.create({ display_name, type, webhook · handoff · function · retrieval · invite · pay · client_side_tool · update_dynamic_variables, timeout_ms })` | Como en el plan. `update_dynamic_variables` permite que el Gestor cambie variables de la conversación en marcha (por ejemplo, el negocio activo de un dueño con dos) |
+| **LLM alojado en Telnyx** | `client.ai.anthropic.v1.messages(…)` (API de Mensajes de Anthropic) y `client.ai.openai.chat.createCompletion(…)` (compatible OpenAI), con los modelos y precios del catálogo | El sustituto del `chat` (Beta) ya no exige otro proveedor: un bucle propio con las mismas tools en proceso puede correr sobre Telnyx con `anthropic/claude-haiku-4-5` o `gpt-5.6-luna`. Misma factura, misma residencia |
+| Verify | `client.verifications.triggerWhatsappVerification({ phone_number, verify_profile_id })` y `client.verifications.byPhoneNumber.actions.verify(numero, { code, verify_profile_id })` | Alternativa de alta, sin cambios |
+| Auto-respuestas SMS | `client.messagingProfiles.autorespConfigs.create(profileId, { country_code, keywords, op, resp_text })` | Solo SMS; sin cambios |
+
+Cambios que esto introduce en el diseño: la ventana de 24 h se consulta a Telnyx (§ 9); la
+correlación de botones va por `context.message_id` y `biz_opaque_callback_data`, no por payload
+(§ 6); cada número de sector lleva *ice breakers* y comandos (§ 1 y § 6); el Gestor prueba en la
+fase 0.4 las tres vías de contexto (webhook de variables dinámicas, `addMessage` con rol de
+sistema, `contexto_negocio`); y el plan B del chat corre en Telnyx.
+
 ## Diseño destino
 
 ### 1. Un contacto por sector: los perfiles de Alhabla
@@ -182,6 +212,10 @@ plugin 0.4.0).
   número del sector no está `verified`, se usa el de respaldo. Los webhooks entrantes llegan
   con `to` = número del sector, lo que ya acota la búsqueda del negocio.
 - Ventaja de calidad: Meta puntúa cada número; un mal mes en un sector no arrastra a los demás.
+- **Menú nativo por número** (`conversationalComponents.patchAll`): cuatro *ice breakers* al
+  abrir el chat («¿Cuándo es mi cita?», «Cómo llegar», «Cancelar mi cita», «Soy el dueño de un
+  negocio») y comandos con descripción para el dueño (`/agenda`, `/hoy`, `/mañana`, `/pausa`,
+  `/ayuda`). Se fijan con el perfil.
 - Alta de cada número en WhatsApp (una vez, por Alhabla): registro en el WABA con verificación
   **por voz** (los números españoles no reciben SMS), y para eso cada número lleva **desvío
   permanente de llamadas al móvil del usuario** (`call_forwarding: always → +34 692 138 456`),
@@ -262,8 +296,10 @@ tabla `InboundMessage`. Enrutado, en este orden:
 
 1. **`STOP`/`BAJA`/`ALTA`**: deterministas, antes que nada. `STOP` de un cliente es global para
    ese número (todos los negocios); la recepcionista deja de ofrecerle WhatsApp.
-2. **Botón** (`button_reply.id` o payload de `quick_reply`): handler por prefijo (`booking:`,
-   `lead:`, `watch:`, `digest:`, `contact:`). Nunca pasa por el LLM.
+2. **Botón o comando**: un botón se correlaciona por `context.message_id` del mensaje al que
+   responde → `SentMessage` (`providerMessageId`, `callbackData` = `<tipo>:<recursoId>`), y por
+   `button_reply.id` en los interactivos; un comando (`/agenda`, `/hoy`, …) o un *ice breaker*
+   por su texto exacto. Handler por tipo de recurso. Nunca pasa por el LLM.
 3. **Identificar al remitente**: `ownerWhatsappNumber` de algún negocio ⇒ dueño; teléfono con
    reservas y consentimiento ⇒ cliente; ambos ⇒ se pregunta con dos botones ("¿Como dueño de
    Barbería Paco o como cliente de Peluquería Ana?"); ninguno ⇒ una única respuesta fija por día
@@ -324,10 +360,11 @@ instrucciones porque una llamada no espera; el Gestor no lo necesita:
   o con `BAJA`).
 - Toda tool resuelve el negocio a partir del `conversation_id` en el backend; el aislamiento
   multi-tenant lo garantiza Alhabla, nunca el LLM.
-- El nombre del negocio y su estado llegan al empezar por una de dos vías, a elegir en la fase
-  0.4: el webhook de variables dinámicas (si Telnyx lo dispara en conversaciones creadas por
-  API) o una tool `contexto_negocio` que el Gestor llama en el primer turno y devuelve nombre,
-  plan, checklist de onboarding y minutos.
+- El nombre del negocio y su estado llegan al empezar por una de tres vías, a elegir en la fase
+  0.4: `conversations.addMessage(id, { role: "system", content })` justo al crear la
+  conversación (la más simple, si Telnyx acepta ese rol), el webhook de variables dinámicas (si
+  se dispara en conversaciones creadas por API) o una tool `contexto_negocio` que el Gestor
+  llama en el primer turno y devuelve nombre, plan, checklist de onboarding y minutos.
 
 **Tools del Gestor** (*shared tools* adjuntas por `tool_ids`; misma firma que
 `/webhooks/telnyx/tools/:toolName`; todas reutilizan los servicios que ya usan las rutas del
@@ -381,18 +418,21 @@ misma sincronización de la recepcionista que hoy dispara el panel.
   con 60 mensajes/día ≈ 3,5 $/mes, uno normal céntimos), con `fallback_config`. Si la residencia
   UE lo exige, `zai-org/GLM-5.3-Flash` o `Qwen3-235B` (región EU) sin cambiar nada más.
 - `client.ai.assistants.chat` es Beta en Telnyx: si cambia o se retira, el Gestor se
-  reimplementa como bucle propio (Claude + las mismas tools, en proceso) sin tocar alta,
-  botones, plantillas ni panel. Se elige Telnyx por un solo proveedor y una sola factura,
-  conversaciones y memoria voz+chat en el mismo sitio, y tools ya construidas como webhooks
-  firmados.
+  reimplementa como bucle propio con las mismas tools en proceso **sobre el LLM alojado en
+  Telnyx** (`client.ai.anthropic.v1.messages` con `anthropic/claude-haiku-4-5`, o
+  `client.ai.openai.chat.createCompletion` con `gpt-5.6-luna`), sin tocar alta, botones,
+  plantillas ni panel y sin segundo proveedor. Se elige el `chat` por conversaciones y memoria
+  voz+chat en el mismo sitio y tools ya construidas como webhooks firmados.
 
 ### 9. Ventana de 24 h y coste
 
 - Plantilla de utilidad: unos céntimos (Meta + Telnyx; el coste real llega en
   `message.finalized`). Mensaje dentro de la ventana abierta por el usuario: gratis.
 - Todos los avisos al dueño llevan botón. **Mientras el dueño pulse uno al día, sus avisos son
-  texto libre y gratis.** Al inicio de cada envío se mira `ownerWindowOpenUntil` (última
-  entrada + 24 h): dentro ⇒ interactivo; fuera ⇒ plantilla.
+  texto libre y gratis.** Antes de cada envío se consulta la ventana a Telnyx
+  (`retrieveConversationWindow(remitente, { destination_number })` → `window_active`,
+  `window_expires_at`); `ownerWindowOpenUntil` es solo caché de esa respuesta. Dentro ⇒
+  interactivo; fuera ⇒ plantilla.
 - Estimación con aviso por reserva y dueño que no interactúa: 15 reservas/día ≈ 10 €/mes.
   Contador mensual por negocio en `SentMessage`; alerta interna a 300 mensajes.
 - Que un toque de botón de plantilla abra la ventana se confirma en fase 0.1.
@@ -553,18 +593,23 @@ URL) y `recordatorio_cita_v2` pierde *Cambiar* (el teléfono ya va en el texto).
 
 ### Fase 0 — Validación (sin código de producto)
 
-0. Subir `telnyx` a ≥ 7.21; comprobar `messages.sendWhatsapp`, `whatsapp.templates.*`,
-   `ai.assistants.chat`, `ai.tools.create`. Suscribir el WABA a `message_template_status_update` y
-   `phone_number_quality_update`. Fijar el perfil de Alhabla por API y verlo desde un móvil.
+0. ~~Subir `telnyx` a ≥ 7.21~~ (hecho, PR #105; el paquete expone `messages.whatsapp`,
+   `whatsapp.*`, `ai.assistants.chat`, `ai.tools.*`, `ai.conversations.*`). Suscribir el WABA a
+   `message_template_status_update` y `phone_number_quality_update`. Fijar el perfil de Alhabla
+   por API (`profile.update` + `profile.photo.upload`) y los componentes conversacionales
+   (`conversationalComponents.patchAll`) del número actual, y verlos desde un móvil.
 1. Mensaje de prueba desde un móvil al remitente: **qué llega y dónde** para texto, botón
-   interactivo y botón de plantilla; y si el toque de un botón de plantilla abre la ventana
-   (mandar un `text` justo después). Documentar los payloads en `AGENTS.md`.
+   interactivo, botón de plantilla, *ice breaker* y comando; si la respuesta a un botón trae
+   `context.message_id`; y si el toque de un botón de plantilla abre la ventana (comprobar con
+   `retrieveConversationWindow` y mandando un `text` justo después). Documentar los payloads
+   en `AGENTS.md`.
 2. `confirmacion_cita` real a un número propio por `template_id`; ver `message.finalized`
    (`read`, `cost.amount`). Hoy no hay evidencia de entrega de extremo a extremo.
 3. Crear las doce plantillas con el script; verlas en `PENDING`; anotar fecha.
 4. `chat` (Beta) con un assistant de prueba y una *shared tool* por `tool_ids`: ejecuta, firma,
-   fallo de tool, contexto entre horas. Y las dos preguntas del Gestor único: si el webhook de
-   variables dinámicas se dispara en una conversación creada por API con `metadata`, y qué
+   fallo de tool, contexto entre horas. Y las tres vías de contexto del Gestor único: si
+   `conversations.addMessage` acepta `role: "system"` y el assistant lo respeta; si el webhook
+   de variables dinámicas se dispara en una conversación creada por API con `metadata`; y qué
    identificador de conversación recibe la tool (para resolver el negocio en el backend).
 5. Post-conversación en un assistant de dev con `informar_al_negocio`: tres llamadas (recado, sin
    recado, fallo de tool); latencia tras colgar.
@@ -702,6 +747,9 @@ en PostgreSQL; el Gestor y las *shared tools* son configuración.
 8. ¿Acepta Meta «Alhabla · Peluquerías» como nombre visible bajo la cartera de Alhabla, o solo
    «Alhabla»? Se sabe al registrar el primer número de sector (fase 0.9).
 9. ¿Qué hacer con el desvío de llamadas de los números de sector una vez verificados?
+10. ¿Acepta `POST /messages/whatsapp` de Telnyx el `payload` de `quick_reply` y los parámetros
+    nombrados aunque el SDK no los tipe? Si no, botones de plantilla con texto fijo y
+    correlación por `context.message_id`. Fase 0.1.
 
 ## Decisiones tomadas el 2026-09-19
 
@@ -720,4 +768,5 @@ en PostgreSQL; el Gestor y las *shared tools* son configuración.
 | Verificación de empresa en Meta | Trámite del usuario, fase 0.8 |
 | Gestor | Tipo de assistant propio para el dueño, distinto de la recepcionista; **uno para toda la plataforma**, negocio resuelto por conversación; hace también el onboarding por chat (servicios, profesionales, horario, calendario); modelo `gpt-5.6-luna` (~0,002 $/turno) con salida a modelo EU si hace falta |
 | Assistant de cliente (2026-09-20) | **Descartado**: la recepcionista del negocio atiende al cliente por chat con sus tools de siempre; el cliente puede consultar, cancelar, cambiar y reservar por WhatsApp |
+| Pasada final con el SDK 7.21 (2026-09-20) | `messages.whatsapp` (no `sendWhatsapp`); ventana de 24 h consultada a Telnyx; botones correlacionados por `context.message_id` + `biz_opaque_callback_data`; *ice breakers* y comandos por número; plan B del chat sobre el LLM alojado en Telnyx |
 | Números de WhatsApp (2026-09-20) | **Uno por sector** (cinco de Alhabla, mismo WABA, imagen y descripción por sector) más el actual para `other`/respaldo; con desvío permanente al móvil del usuario para la verificación por voz; comprados de uno en uno |
