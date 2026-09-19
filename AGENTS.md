@@ -358,17 +358,34 @@ pelado, el techo es 250 y el WABA admite **2 números**). `account_review_status
 `GET /v2/whatsapp/business_accounts` por `fetch`: `client.whatsapp.businessAccounts.list()` del
 SDK devuelve 404 (mismo path; `getAPIList` añade algo que el endpoint rechaza).
 
-**Números en el WABA.**
+**Números en el WABA — uno por audiencia** (decisión del 19-09 por la noche; son los dos que
+admite el WABA hasta #103, y el `to` del mensaje entrante ya dice si escribe un dueño o un
+cliente).
 
 | Número | Estado en el WABA | Nombre visible | Uso |
 |---|---|---|---|
-| +34930453218 (`WHATSAPP_TELNYX_FROM_NUMBER`) | `CONNECTED`, calidad `GREEN` | «Alhabla» | Remitente de plataforma: dueño, `other` y respaldo |
-| +34930454394 | `PENDING` (añadido por el usuario desde Meta el 19-09; ocupa el segundo hueco) | «Alhabla Peluqueria» | Sector `peluqueria` |
+| +34930453218 (`WHATSAPP_TELNYX_FROM_NUMBER`) | `CONNECTED`, calidad `GREEN`, nombre `PENDING_REVIEW` | «Alhabla» | **Negocios**: avisos al dueño, recados, Gestor. También respaldo |
+| +34930454394 (id Telnyx `3052564312288658571`) | En alta desde el portal de Telnyx (19-09 noche): se borró del WABA porque Telnyx no lograba registrarlo (ver abajo) | «Alhabla Reservas» | **Clientes**: confirmación, recordatorio, chat con la recepcionista |
 
-**Números de sector comprados el 2026-09-19** (locales de Barcelona con
+**Cómo se da de alta un número en el WABA (aprendido el 19-09).** Desde el **portal de Telnyx**
+(*Messaging → WhatsApp → Add phone number*, Embedded Signup): en la ventana de Meta se pone el
+número, el nombre visible y la verificación **por llamada** (los fijos no reciben SMS; el desvío
+de voz la lleva al móvil del usuario), y Telnyx hace el registro en Cloud API → `CONNECTED`.
+Lo que **no** funciona: (1) añadirlo y verificarlo en WhatsApp Manager de Meta deja el número
+verificado en Meta pero sin registrar por Telnyx (`PENDING`, `platform_type: NOT_APPLICABLE`),
+y Meta ya no emite otro código (`initializeVerification` → `10007 … Phone number already
+verified`, `resendVerification` → `10015 Verification not initialized`); (2)
+`initializeVerification` con un número que no está en el WABA → `404 10005 Phone number not
+found`: **ese endpoint no añade números**, solo pide el código de uno ya presente. `DELETE
+/v2/whatsapp/phone_numbers/{n}` sí lo quita del WABA (también en Meta). Plan B documentado:
+añadirlo en WhatsApp Manager **sin** verificar allí y completar por API.
+
+**Cinco números comprados el 2026-09-19** (locales de Barcelona con
 `TELNYX_SPAIN_REQUIREMENT_GROUP_ID`, 1 $ + 1 $/mes, `active` en Telnyx; comprados **de uno en
 uno** porque la cuenta recarga por goteo y un pedido de cinco a la vez —10 $— fue rechazado con
-`20100 Insufficient Funds`). Todos con `customer_reference alhabla-whatsapp-<sector>`, tags
+`20100 Insufficient Funds`). Se compraron como «uno por sector»; esa misma noche la decisión
+pasó a «uno por audiencia»: el de `peluqueria` es ahora el de clientes y los otros cuatro
+quedan **en reserva hasta #103** (tope de 2 números por WABA). Todos con `customer_reference alhabla-whatsapp-<sector>`, tags
 `env-prod` + `whatsapp-sector` + `sector-<tipo>`, y **desvío de voz permanente**
 (`PATCH /v2/phone_numbers/{id}/voice` → `call_forwarding { call_forwarding_enabled: true,
 forwarding_type: "always", forwards_to: "+34692138456" }`) para que la llamada de verificación
@@ -382,17 +399,19 @@ de Meta (los números españoles no reciben SMS) suene en el móvil del usuario.
 | `centro-de-estetica` | +34930454375 | `3052565552728900934` |
 | `fisioterapia` | +34930454393 | `3052565576250557770` |
 
-Alta de un número en el WABA por API: `client.whatsapp.businessAccounts.phoneNumbers
-.initializeVerification(wabaId, { phone_number, display_name, language: "es_ES",
+Verificación por API de un número **que ya está en el WABA**: `client.whatsapp.businessAccounts
+.phoneNumbers.initializeVerification(wabaId, { phone_number, display_name, language: "es_ES",
 verification_method: "voice" })` → `client.whatsapp.phoneNumbers.verify(number, { code })`
-(y `resendVerification`). Perfil por número: `client.whatsapp.phoneNumbers.profile.update(number,
+(y `resendVerification`); renombrar: `PATCH /v2/whatsapp/phone_numbers/{n}/profile` con
+`display_name` (queda `display_name_status: PENDING_REVIEW`). Perfil por número: `client.whatsapp.phoneNumbers.profile.update(number,
 { about, description, email, website, category })` y `profile.photo.upload(number, { file })`.
 Menú nativo por número (*ice breakers* ≤ 4 y comandos que WhatsApp muestra al escribir `/`):
 `client.whatsapp.phoneNumbers.conversationalComponents.patchAll(number, { ice_breakers,
 commands: [{ command, description }] })`. El número de plataforma ya tiene perfil («Gestionamos
-tus reservas», `PROF_SERVICES`), cuatro *ice breakers* («¿Cuándo es mi cita?», «Cómo llegar»,
-«Cancelar mi cita», «Soy el dueño de un negocio») y comandos `agenda`, `hoy`, `manana`, `pausa`,
-`ayuda`.
+tus reservas», `PROF_SERVICES`); los *ice breakers* y comandos se probaron y **se retiraron**
+del número de producción hasta que exista el enrutador (un cliente real los vería sin que nadie
+responda). El plan los reparte por audiencia (clientes en «Alhabla Reservas», dueño y comandos
+en «Alhabla»).
 
 **Envío.** `POST /v2/messages/whatsapp` — en el SDK es `client.messages.whatsapp(...)` (**no**
 `sendWhatsapp`, digan lo que digan las skills). `messaging_profile_id` es **obligatorio**
@@ -407,6 +426,13 @@ Botones interactivos: `interactive.type: "button"` con hasta 3 `{ type: "reply",
 title } }`; también `list` y `cta_url`. El SDK tipa los parámetros de plantilla como
 posicionales y sin `payload` de `quick_reply`: para parámetros **nombrados** (los que usan
 todas nuestras plantillas) el adaptador sigue con `fetch`.
+
+**Costes reales en España** (MDR `GET /v2/messages`, campos `billing_type`, `rate`,
+`carrier_fee`, `cost`, en USD; medidos el 19-09): plantilla de utilidad `whatsapp_utility` =
+0,004 $ de Telnyx + 0,020 $ de tasa de Meta = **0,024 $**; mensaje libre dentro de la ventana
+`whatsapp_service` = **0,004 $** (sin tasa de Meta). Los mensajes del usuario no se cobran. Una
+reserva (confirmación al cliente + aviso al negocio) ≈ 0,05 $; mantener la ventana abierta con
+botones sale seis veces más barato que reabrirla con plantilla.
 
 **Plantillas** (`GET/POST /v2/whatsapp/message_templates`; el SDK tiene `client.whatsapp
 .templates.list/create` pero `list` da 404 como arriba). Todas de categoría `UTILITY`, idioma
@@ -834,7 +860,7 @@ La separación se apoya por tanto en tres cosas:
    | +34930453219 / 236 / 237 / 238 / 289 | `env-dev` | Las 5 cuentas de prueba `test-*@alhabla.local` |
    | +34930453216 | `env-prod` | Negocio real «Peluqueria Vide» |
    | +34930453218 | `env-prod` | Emisor de WhatsApp gestionado por Telnyx — **no borrar**, no pertenece a ningún negocio de la BD |
-   | +34930454394 / 372 / 382 / 375 / 393 | `env-prod`, `whatsapp-sector`, `sector-<tipo>` | Emisores de WhatsApp por sector (ver § WhatsApp) — **no borrar**, no pertenecen a ningún negocio; desvío de voz permanente a +34 692 138 456 |
+   | +34930454394 / 372 / 382 / 375 / 393 | `env-prod`, `whatsapp-sector`, `sector-<tipo>` | Números de WhatsApp de Alhabla (ver § WhatsApp): el …394 es el de clientes «Alhabla Reservas», los otros cuatro en reserva — **no borrar**, no pertenecen a ningún negocio; desvío de voz permanente a +34 692 138 456 |
 
 3. **Los scripts miran contra qué base de datos cruzan** (`describirEntorno()`), porque el daño
    real no viene de compartir cuenta sino de apuntar a la BD equivocada.

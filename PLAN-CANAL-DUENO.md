@@ -1,4 +1,4 @@
-# Plan: el WhatsApp de Alhabla — un contacto por sector para clientes y negocios
+# Plan: el WhatsApp de Alhabla — un contacto para clientes y otro para negocios
 
 Versión 3 (2026-09-19, noche). Sustituye a las dos versiones del mismo día: la de la mañana
 (canal del dueño) y la de la tarde (número de WhatsApp por negocio, llamadas de WhatsApp, modal
@@ -7,12 +7,14 @@ gracia es que el negocio no configura nada.
 
 ## Decisión de producto
 
-**Un contacto de WhatsApp de Alhabla por sector, "Alhabla · Gestionamos tus reservas", que habla
-con el cliente y con el negocio.** La descripción es neutra a propósito: sirve para los dos.
-Cinco números de plataforma (peluquería, barbería, salón de uñas, centro de estética,
-fisioterapia), cada uno con su imagen y su descripción, dentro del mismo WABA de Alhabla; el
-número actual queda para `other` y como respaldo. Ningún número por negocio. Las llamadas
-siguen entrando por teléfono con el desvío de siempre.
+**Dos contactos de WhatsApp de Alhabla, uno por audiencia, en el mismo WABA:** «**Alhabla
+Reservas**» (+34 930 454 394) habla con los **clientes** y «**Alhabla**» (+34 930 453 218) habla
+con los **negocios**. Decisión del usuario del 19-09 (noche, tras la fase 0): son los dos
+números que el WABA admite antes de la verificación de empresa (#103), así que no bloquea nada,
+y el `to` del mensaje entrante dice ya si escribe un cliente o un dueño. `about` de los dos:
+«Gestionamos tus reservas». Los cinco números por sector comprados el mismo día quedan en
+reserva hasta #103. Ningún número por negocio. Las llamadas siguen entrando por teléfono con
+el desvío de siempre.
 
 Los tres casos de uso, tal como los fijó el usuario:
 
@@ -33,13 +35,15 @@ Los tres casos de uso, tal como los fijó el usuario:
    profesionales, horario, conectar el calendario) y para todos los cambios posteriores. Hay
    **un solo Gestor para toda la plataforma**, no uno por negocio (§ 8).
 
-5. **Sin assistant de cliente (decisión del usuario, 2026-09-20).** Era redundante: la
+5. **Sin assistant de cliente (decisión del usuario, 2026-09-19).** Era redundante: la
    recepcionista de cada negocio, la misma que atiende la llamada, atiende también al cliente
    por WhatsApp con las mismas tools (ver su cita, cancelarla, cambiarla, reservar). Un cliente
    con cita que escribe para modificarla ya está cubierto por lo que existe hoy.
-6. **Un número de WhatsApp por tipo de negocio (misma fecha).** Así la imagen y la descripción
-   del contacto pueden ser distintas para una peluquería y para una clínica de fisioterapia,
-   y la calidad del número (que Meta mide por número) queda aislada por sector.
+6. **Un número de WhatsApp por audiencia (19-09, noche).** Sustituye al «uno por sector» de
+   la tarde mientras Meta no verifique la empresa (#103): «Alhabla Reservas» para clientes y
+   «Alhabla» para negocios. La calidad del número (que Meta mide por número) queda aislada por
+   audiencia: un mal día con clientes no toca los avisos al negocio. Si tras #103 se retoma el
+   reparto por sector, sería del lado cliente; el de negocios no cambia.
 
 Dos tipos de assistant, y solo uno de ellos por negocio:
 
@@ -50,8 +54,8 @@ Dos tipos de assistant, y solo uno de ellos por negocio:
 
 | Alternativa | Por qué se descarta |
 |---|---|
-| Número de WhatsApp por negocio (el número de Alhabla del negocio registrado en el WABA) | Nombre visible revisado por Meta uno a uno, verificación por llamada de voz de cada número, tope de números por WABA. El negocio no tiene por qué existir en Meta. Descartado el 2026-09-19 (tarde). Lo que sí se hace es **un número por sector** (cinco, de Alhabla): mismo trámite pero una sola vez por sector, no por negocio. |
-| Un assistant de chat para clientes | Redundante: la recepcionista del negocio ya sabe ver, cambiar y cancelar la cita del cliente por su número. Descartado el 2026-09-20. |
+| Número de WhatsApp por negocio (el número de Alhabla del negocio registrado en el WABA) | Nombre visible revisado por Meta uno a uno, verificación por llamada de voz de cada número, tope de números por WABA. El negocio no tiene por qué existir en Meta. Descartado el 2026-09-19 (tarde). Lo que sí se hace es **un número por audiencia** (dos, de Alhabla): el mismo trámite, dos veces en total. |
+| Un assistant de chat para clientes | Redundante: la recepcionista del negocio ya sabe ver, cambiar y cancelar la cita del cliente por su número. Descartado el 2026-09-19. |
 | Llamadas de WhatsApp (clientes o prueba del onboarding) | Exigen el punto anterior más el límite 2.000 de la cartera. Descartado el mismo día. `PLAN-WHATSAPP-LLAMADAS.md` queda como documento aparte, sin fase. |
 | Segundo número Telnyx para el dueño | La numeración española es *voice-only* (error 40323): no podría mensajear. |
 | Web Push desde el panel | Frágil para este público (permisos, instalación). Capa opcional futura. |
@@ -78,9 +82,9 @@ Dos tipos de assistant, y solo uno de ellos por negocio:
 ## Límites explícitos
 
 - **Sin llamadas salientes.** Ni de voz ni de WhatsApp, ni al cliente ni al dueño.
-- **Un remitente por sector** (tabla `WhatsappSender`: cinco números de Alhabla más el actual
-  para `other` y respaldo), todos en el mismo WABA. Nada de números por negocio ni WABA por
-  negocio. Cada mensaje nombra al negocio en la primera línea.
+- **Un remitente por audiencia** (tabla `WhatsappSender`: «Alhabla Reservas» para clientes,
+  «Alhabla» para negocios y respaldo), los dos en el mismo WABA. Nada de números por negocio ni
+  WABA por negocio. Cada mensaje nombra al negocio en la primera línea.
 - **El cliente habla con la recepcionista del negocio**, por voz o por chat, con las mismas
   tools. Por chat puede consultar, cancelar (botón o texto), cambiar de hora y reservar. No
   hay un assistant de cliente aparte.
@@ -96,8 +100,8 @@ Dos tipos de assistant, y solo uno de ellos por negocio:
 ## Estado actual relevante
 
 - WABA conectado vía Embedded Signup de Telnyx; número remitente y dos plantillas aprobadas
-  (`confirmacion_cita`, `recordatorio_cita`) configuradas en producción. Sin evidencia en el repo
-  de una entrega real de extremo a extremo a un cliente.
+  (`confirmacion_cita`, `recordatorio_cita`) configuradas en producción. Los MDR de Telnyx
+  muestran plantillas de utilidad `delivered` desde producción desde el 14-09 (fase 0.2).
 - `WhatsAppAdapter.ts` + `jobs/sendWhatsapp.ts` + cola `send-whatsapp` funcionan para
   confirmación y recordatorio (24 h antes) con consentimiento por voz (`smsConsent`).
 - El aviso de hueco libre (`notify_when_available`) está registrado y el prompt lo ofrece
@@ -113,13 +117,16 @@ Dos tipos de assistant, y solo uno de ellos por negocio:
   custom); en Retell por `post_call_analysis_data`.
 - Los 9 assistants Telnyx tienen solo `telephony`, sin post-procesado ni webhook de variables
   dinámicas; tools registradas inline (vía marcada como obsoleta por el SDK); todos en `dev-api`.
-- Números de WhatsApp por sector, **comprados el 2026-09-20** (locales de Barcelona, 1 $ de
-  alta + 1 $/mes cada uno, mismo Requirement Group de España que usa el provisioning, de uno en
-  uno porque la cuenta de Telnyx recarga por goteo). Todos con `customer_reference`
-  `alhabla-whatsapp-<sector>` y **desvío permanente al móvil del usuario** (+34 692 138 456)
-  para recibir la llamada de verificación de Meta. Al comprarlos quedaron en
-  `requirement-info-under-review` (revisión regulatoria de Telnyx). Ninguno registrado aún en el
-  WABA (tope de 2 números hasta #103).
+- **Números en el WABA (19-09, noche):** +34 930 453 218 «Alhabla», `CONNECTED`, es el de
+  **negocios**; +34 930 454 394 «Alhabla Reservas» es el de **clientes** y está en alta de
+  nuevo desde el portal de Telnyx (fase 0.9: se borró del WABA porque Telnyx no lograba
+  registrarlo). Los dos con `display_name_status: PENDING_REVIEW`.
+- Cinco números locales de Barcelona **comprados el 2026-09-19** (1 $ de alta + 1 $/mes cada
+  uno, mismo Requirement Group de España que usa el provisioning, de uno en uno porque la
+  cuenta de Telnyx recarga por goteo), pensados entonces como uno por sector. Todos con
+  `customer_reference` `alhabla-whatsapp-<sector>` y **desvío permanente al móvil del usuario**
+  (+34 692 138 456) para recibir la llamada de verificación de Meta; ya `active`. El de
+  `peluqueria` pasa a ser el de clientes; los otros cuatro quedan **en reserva hasta #103**.
 
   | Sector | Número | Id en Telnyx |
   |---|---|---|
@@ -128,7 +135,7 @@ Dos tipos de assistant, y solo uno de ellos por negocio:
   | `salon-de-unas` | +34 930 454 382 | `3052564355263497366` |
   | `centro-de-estetica` | +34 930 454 375 | `3052565552728900934` |
   | `fisioterapia` | +34 930 454 393 | `3052565576250557770` |
-  | `other` / respaldo | `WHATSAPP_TELNYX_FROM_NUMBER` (el actual) | — |
+  | negocios / respaldo | +34 930 453 218 (`WHATSAPP_TELNYX_FROM_NUMBER`) | — |
 - `Business.phone` viene de Google Places: es el fijo del local, no el WhatsApp del dueño.
   La dirección de Places se guarda como texto dentro de `businessDetails`; no hay `address` ni
   `placeId` estructurados.
@@ -166,7 +173,7 @@ plugin 0.4.0).
 | Verify por WhatsApp (`triggerWhatsappVerification` + `byPhoneNumber.actions.verify`) | SDK `telnyx-verify` | Alternativa al botón *Activar avisos*; no es la vía principal |
 | `telnyx_end_user_target_verified` (STIR/SHAKEN, EE. UU.) | Documentación | No aplica en España |
 
-## Pasada final con el SDK 7.21 instalado (2026-09-20)
+## Pasada final con el SDK 7.21 instalado (2026-09-19)
 
 Leído directamente en `node_modules/telnyx/resources/**/*.d.ts` de la 7.21.0. Manda esto sobre
 la skill cuando difieran.
@@ -178,8 +185,8 @@ la skill cuando difieran.
 | Creación de plantillas | `client.whatsapp.templates.create({ waba_id, name, category, language, components })`; `BODY.example.body_text: string[][]` (posicional); botones `QUICK_REPLY · URL · PHONE_NUMBER · COPY_CODE · OTP · FLOW`; componente `CAROUSEL` | Script de la fase 0.3 con posicionales. `FLOW` (formularios nativos de WhatsApp) queda anotado como idea para el onboarding, no en este plan |
 | **Ventana de 24 h por API** | `client.whatsapp.phoneNumbers.retrieveConversationWindow(numero, { destination_number })` → `window_active`, `window_expires_at`, `last_user_message_at`, `window_type` | Telnyx es la fuente de verdad de la ventana; `ownerWindowOpenUntil` pasa a ser caché. Antes de cada envío al dueño: ventana activa ⇒ interactivo; si no ⇒ plantilla. Vale igual para clientes |
 | **Componentes conversacionales por número** | `client.whatsapp.phoneNumbers.conversationalComponents.patchAll(numero, { ice_breakers: string[] (≤4), commands: [{command, description}] })` | Menú nativo de WhatsApp: *ice breakers* para quien abre el chat por primera vez («¿Cuándo es mi cita?», «Cómo llegar», «Cancelar mi cita», «Soy el dueño de un negocio») y *comandos* `/agenda`, `/hoy`, `/mañana`, `/pausa`, `/ayuda` para el dueño. Sustituye a buena parte del "nivel 1 de palabras clave" por algo que el usuario ve |
-| Perfil por número | `client.whatsapp.phoneNumbers.profile.update(numero, { about, address, category, description, display_name?, email, website })` y `profile.photo.upload(numero, { file })` | Perfil e imagen por sector desde el script del reconciliador |
-| Alta de un número en el WABA | `client.whatsapp.businessAccounts.phoneNumbers.initializeVerification(wabaId, { display_name, phone_number, language, verification_method: 'voice' })`, `client.whatsapp.phoneNumbers.verify(numero, { code })`, `resendVerification`, `phoneNumbers.delete` | Fase 0.9 con el SDK; el código llega al móvil desviado |
+| Perfil por número | `client.whatsapp.phoneNumbers.profile.update(numero, { about, address, category, description, display_name?, email, website })` y `profile.photo.upload(numero, { file })` | Perfil e imagen por audiencia desde el script del reconciliador |
+| Alta de un número en el WABA | `client.whatsapp.businessAccounts.phoneNumbers.initializeVerification(wabaId, { display_name, phone_number, language, verification_method: 'voice' })`, `client.whatsapp.phoneNumbers.verify(numero, { code })`, `resendVerification`, `phoneNumbers.delete` | **Solo para números que ya están en el WABA** (fase 0.9): pide el código a Meta y lo entrega; **no da de alta el número** (`404 Phone number not found` si no está). El alta es por Embedded Signup en el portal de Telnyx |
 | Ajustes del WABA | `client.whatsapp.businessAccounts.settings.update(wabaId, …)` | Suscripción a eventos de plantilla y calidad (fase 0.0) |
 | Conversaciones | `client.ai.conversations.create({ metadata, name })`, `addMessage(id, { role, content, metadata })`, `messages.list(id)`, `retrieveConversationsInsights(id)` | El contexto del Gestor tiene una **tercera vía**, la más simple: `addMessage` con `role: "system"` (o el rol que acepte, fase 0.4) al crear la conversación. `messages.list` alimenta el historial del panel |
 | Chat con el assistant | `client.ai.assistants.chat(assistantId, { content, conversation_id, name?, stream? })` | Igual que en el plan; `stream` disponible si el panel quiere respuesta progresiva |
@@ -191,39 +198,52 @@ la skill cuando difieran.
 
 Cambios que esto introduce en el diseño: la ventana de 24 h se consulta a Telnyx (§ 9); la
 correlación de botones va por `context.message_id` y `biz_opaque_callback_data`, no por payload
-(§ 6); cada número de sector lleva *ice breakers* y comandos (§ 1 y § 6); el Gestor prueba en la
+(§ 6); cada número lleva *ice breakers* y comandos según su audiencia (§ 1 y § 6); el Gestor prueba en la
 fase 0.4 las tres vías de contexto (webhook de variables dinámicas, `addMessage` con rol de
 sistema, `contexto_negocio`); y el plan B del chat corre en Telnyx.
 
 ## Diseño destino
 
-### 1. Un contacto por sector: los perfiles de Alhabla
+### 1. Un contacto por audiencia: los dos perfiles de Alhabla
 
-- Cinco números de Alhabla, uno por `businessType` (`peluqueria`, `barberia`, `salon-de-unas`,
-  `centro-de-estetica`, `fisioterapia`); el número actual sirve a `other` y de respaldo. Todos
-  en el mismo WABA: mismas plantillas (no hay que reaprobar nada) y mismo límite de cartera.
-- Nombre visible «Alhabla» en todos (Meta exige que se relacione con la empresa de la cartera;
-  «Alhabla · Peluquerías» se pide como variante y, si Meta lo rechaza, queda «Alhabla»).
-  `about`: «Gestionamos tus reservas». `description`, foto y categoría **por sector**
-  (peluquería/barbería/uñas/estética con categoría *Belleza, spa y salón*; fisioterapia con
-  *Salud*). Se fija por API (`PATCH …/profile`) desde un script y se revisa en el
-  reconciliador.
-- El remitente de cada envío se resuelve por `Business.businessType` → `WhatsappSender`; si el
-  número del sector no está `verified`, se usa el de respaldo. Los webhooks entrantes llegan
-  con `to` = número del sector, lo que ya acota la búsqueda del negocio.
-- Ventaja de calidad: Meta puntúa cada número; un mal mes en un sector no arrastra a los demás.
-- **Menú nativo por número** (`conversationalComponents.patchAll`): cuatro *ice breakers* al
-  abrir el chat («¿Cuándo es mi cita?», «Cómo llegar», «Cancelar mi cita», «Soy el dueño de un
-  negocio») y comandos con descripción para el dueño (`/agenda`, `/hoy`, `/mañana`, `/pausa`,
-  `/ayuda`). Se fijan con el perfil.
-- Alta de cada número en WhatsApp (una vez, por Alhabla): registro en el WABA con verificación
-  **por voz** (los números españoles no reciben SMS), y para eso cada número lleva **desvío
-  permanente de llamadas al móvil del usuario** (`call_forwarding: always → +34 692 138 456`),
-  que escucha el código y lo envía con `POST /whatsapp/phone_numbers/{n}/verify`. Tras
-  verificar, el desvío se mantiene (nadie marca esos números; si alguien lo hace, llega al
-  usuario) o se cambia a un aviso grabado, a decidir en la fase 0.9.
-- **Tope de Meta**: hasta verificar la empresa (issue #103) un WABA admite **2 números**; con
-  el actual ya hay uno. Los cinco de sector esperan a #103.
+- Dos números de Alhabla en el mismo WABA (mismas plantillas, mismo límite de cartera):
+  **«Alhabla Reservas»** (+34 930 454 394) para todo lo que va al **cliente** (confirmación,
+  recordatorio, hueco libre, chat con la recepcionista) y **«Alhabla»** (+34 930 453 218) para
+  todo lo que va al **negocio** (aviso de reserva, recado, cita pendiente, cierre del día, chat
+  con el Gestor). El de negocios es también el respaldo si el de clientes no está `CONNECTED`.
+- Nombres visibles: «Alhabla Reservas» y «Alhabla» (Meta exige que se relacionen con la
+  empresa de la cartera; los dos están `PENDING_REVIEW`). `about` en ambos: «Gestionamos tus
+  reservas». `description`, foto y categoría por audiencia (clientes: *Servicios
+  profesionales*, texto para quien tiene cita; negocios: texto para el dueño). Se fija por API
+  (`PATCH …/profile`) desde un script y se revisa en el reconciliador.
+- El remitente de cada envío se resuelve por **audiencia** (`WhatsappSender.audience`
+  `client | owner`), no por negocio ni por sector. Los webhooks entrantes llegan con `to` =
+  uno de los dos números, así que **el número ya dice si escribe un cliente o un dueño** y la
+  identificación de § 6 se simplifica; el teléfono del dueño de un negocio que además es
+  cliente de otro deja de ser ambiguo (escribe a un contacto u otro).
+- Ventaja de calidad: Meta puntúa cada número; un incidente con clientes (bloqueos, `STOP`)
+  no toca el número por el que el negocio recibe sus avisos.
+- Si tras #103 se retoma el reparto por sector, sería solo del lado cliente (los cuatro
+  números en reserva); el contacto del negocio no cambia.
+- **Menú nativo por número** (`conversationalComponents.patchAll`), ahora **distinto por
+  audiencia**: en «Alhabla Reservas», *ice breakers* de cliente («¿Cuándo es mi cita?», «Cómo
+  llegar», «Cancelar mi cita», «Quiero reservar») y ningún comando; en «Alhabla», *ice
+  breakers* de dueño («Agenda de hoy», «Añadir una cita», «Soy nuevo, quiero darme de alta») y
+  los comandos (`/agenda`, `/hoy`, `/mañana`, `/pausa`, `/ayuda`). Desaparece «Soy el dueño de
+  un negocio» del lado cliente. Se fijan con el perfil. En producción se retiraron los *ice
+  breakers* del número actual hasta que exista el enrutador (fase 1).
+- Alta de cada número en WhatsApp (una vez, por Alhabla): **desde el portal de Telnyx**
+  (*Messaging → WhatsApp → Add phone number*, Embedded Signup), verificación **por voz** (los
+  números españoles no reciben SMS) gracias al **desvío permanente de llamadas al móvil del
+  usuario** (`call_forwarding: always → +34 692 138 456`). Lo aprendido el 19-09 (fase 0.9):
+  la API (`initializeVerification`/`verify`) solo sirve para números que ya están en el WABA;
+  y añadirlo desde WhatsApp Manager de Meta y verificarlo allí deja el número verificado en
+  Meta pero **sin registrar en Cloud API por Telnyx** (`PENDING`, `platform_type:
+  NOT_APPLICABLE`, y Meta rechaza pedir otro código: «already verified»). Tras verificar, el
+  desvío se mantiene (nadie marca esos números; si alguien lo hace, llega al usuario) o se
+  cambia a un aviso grabado, a decidir.
+- **Tope de Meta**: hasta verificar la empresa (issue #103) un WABA admite **2 números**: los
+  dos de audiencia. Los cuatro de sector en reserva esperan a #103.
 - La tarjeta de contacto (vCard `contacts`) lleva ese nombre y ese número, y se envía cuando el
   cliente pulsa *Guardar contacto* en la confirmación (§ 5). No cabe en la plantilla: el toque
   abre la ventana de 24 h y la vCard sale al instante como mensaje libre.
@@ -301,15 +321,17 @@ evento y `messages[].id`), tabla `InboundMessage`. Enrutado, en este orden:
    → `SentMessage.providerMessageId` (confirmado en la fase 0.1), y por `button_reply.id` en
    los interactivos; un comando (`/agenda`, `/hoy`, …) o un *ice breaker* por su texto exacto.
    Handler por tipo de recurso. Nunca pasa por el LLM.
-3. **Identificar al remitente**: `ownerWhatsappNumber` de algún negocio ⇒ dueño; teléfono con
-   reservas y consentimiento ⇒ cliente; ambos ⇒ se pregunta con dos botones ("¿Como dueño de
-   Barbería Paco o como cliente de Peluquería Ana?"); ninguno ⇒ una única respuesta fija por día
-   ("Soy Alhabla, gestiono reservas de negocios; para reservar, llama a tu negocio").
+3. **Identificar al remitente**: primero por el **`to`** (número de negocios ⇒ dueño; número de
+   clientes ⇒ cliente), después por el teléfono: en el de negocios, `ownerWhatsappNumber` de
+   algún negocio ⇒ dueño, si no ⇒ respuesta fija con el enlace de alta; en el de clientes,
+   teléfono con reservas ⇒ cliente, si no ⇒ una única respuesta fija por día ("Soy Alhabla,
+   gestiono reservas de negocios; para reservar, llama a tu negocio"). Un dueño que escribe
+   al número de clientes recibe la indicación de escribir al de negocios (y viceversa).
 4. **Texto libre del dueño**: nivel 1, palabras clave (`agenda`, `hoy`, `mañana`, `pausa`,
    `ayuda`); si no encaja, nivel 2 (§ 8).
-5. **Texto libre del cliente**: la recepcionista del negocio por chat (§ 7). El número de
-   destino (`to`) ya acota el sector; si aun así tiene citas en más de un negocio de ese sector,
-   primero lista para elegir.
+5. **Texto libre del cliente**: la recepcionista del negocio por chat (§ 7). El negocio se
+   resuelve por las citas del número; si tiene citas en más de un negocio, primero lista para
+   elegir.
 
 ### 7. Conversación con el cliente: la recepcionista por chat (Beta)
 
@@ -321,7 +343,7 @@ sus mismas tools: `get_catalog`, `check_availability`, `book_appointment`,
 
 - Conversación por cliente y negocio (`ClientConversation`), creada por Alhabla con
   `metadata { business_id, client_phone, role: "client", channel: "whatsapp" }`; el negocio
-  se resuelve por el `to` del mensaje (sector) más las citas del número; `conversation_id`
+  se resuelve por las citas del número (el `to` ya dice que es un cliente); `conversation_id`
   fija el negocio para el resto del hilo.
 - **Modo chat en el prompt de la recepcionista**: un bloque corto y condicional. El backend
   antepone `[WhatsApp]` a cada mensaje del cliente y el prompt dice: "Si el mensaje empieza por
@@ -350,8 +372,8 @@ adaptador), y de ahí han salido los bugs más caros del mes (assistants sin too
 cutover, mudos al rotar ngrok, scripts de resync). Un Gestor único no se sincroniza: un prompt,
 una versión, cero reconciliación.
 
-El dueño escribe al número de **su sector** (el mismo contacto que ven sus clientes); el
-Gestor único está detrás de los cinco.
+El dueño escribe al número de **negocios** («Alhabla», +34 930 453 218), distinto del que
+ven sus clientes; el Gestor único está detrás de ese número.
 
 **El negocio es dato, no prompt.** La recepcionista lleva su catálogo horneado en las
 instrucciones porque una llamada no espera; el Gestor no lo necesita:
@@ -526,9 +548,9 @@ voz.
   script y webhooks. Sustituye a las variables `WHATSAPP_TEMPLATE_*`.
 - `ClientConversation` (`clientPhone`, `businessId`, `conversationId`, `lastInboundAt`): estado
   del chat del cliente con la recepcionista de ese negocio.
-- `WhatsappSender` (`businessType @unique`, `phoneNumber`, `telnyxPhoneNumberId`,
+- `WhatsappSender` (`audience @unique` `client | owner`, `phoneNumber`, `telnyxPhoneNumberId`,
   `displayName`, `status` `pending | verified | calling_disabled`, `qualityRating`,
-  `profileVersion`): los remitentes por sector y el de respaldo. Sustituye a
+  `profileVersion`): los dos remitentes; el de `owner` es también el respaldo. Sustituye a
   `WHATSAPP_TELNYX_FROM_NUMBER` como fuente de verdad; la variable queda como respaldo.
 - `OwnerChatFeedback` (`businessId`, `question`, `answer`, `createdAt`).
 
@@ -612,8 +634,8 @@ URL) y `recordatorio_cita_v2` pierde *Cambiar* (el teléfono ya va en el texto).
    `context.message_id`; y si el toque de un botón de plantilla abre la ventana (comprobar con
    `retrieveConversationWindow` y mandando un `text` justo después). Documentar los payloads
    en `AGENTS.md`.
-2. `confirmacion_cita` real a un número propio por `template_id`; ver `message.finalized`
-   (`read`, `cost.amount`). Hoy no hay evidencia de entrega de extremo a extremo.
+2. ~~`confirmacion_cita` real a un número propio por `template_id`; ver `message.finalized`
+   (`read`, `cost.amount`)~~ (hecho, ver § Resultados: entregada, y costes reales por MDR).
 3. Crear las doce plantillas con el script; verlas en `PENDING`; anotar fecha.
 4. `chat` (Beta) con un assistant de prueba y una *shared tool* por `tool_ids`: ejecuta, firma,
    fallo de tool, contexto entre horas. Y las tres vías de contexto del Gestor único: si
@@ -624,16 +646,19 @@ URL) y `recordatorio_cita_v2` pierde *Cambiar* (el teléfono ya va en el texto).
    recado, fallo de tool); latencia tras colgar.
 6. Webhook de variables dinámicas devolviendo solo `memory.conversation_query`; dos llamadas
    seguidas recuerdan; desde otro assistant no.
-7. Residencia UE del chat y la memoria (#13-16 abiertos).
+7. Residencia UE del chat y la memoria (#13-16 abiertos). Qué significa: dónde procesa y
+   guarda Telnyx las conversaciones del chat, la memoria, los medios entrantes de WhatsApp
+   (hoy en `us-central-1`) y el LLM (`gpt-5.6-luna` sin región EU; GLM-5.3-Flash y Qwen3-235B
+   sí la tienen). Estado: **sin confirmar**; es una consulta a Telnyx, no código.
 8. **Verificación de empresa de Alhabla en Meta** y aprobación del nombre visible «Alhabla»
    (WhatsApp Manager). Sin esto el cliente ve un número pelado, el techo es de 250
    destinatarios/día y el WABA solo admite 2 números. **Lo hace el usuario.** No bloquea el
-   código; bloquea el lanzamiento y los números de sector.
-9. **Números de sector** (comprados y con desvío el 2026-09-20, ver § Estado actual):
-   esperar a que Telnyx los ponga `active`; registrar **uno** en el WABA con verificación por
-   voz (el segundo hueco disponible antes de #103) y documentar cómo llega la llamada del
-   código y si la recibe el móvil desviado; fijar su perfil por API. Los otros cuatro, tras
-   #103. Decidir qué hacer con el desvío después de verificar.
+   código ni los dos números de audiencia; bloquea el lanzamiento y los cuatro números en
+   reserva.
+9. **Segundo número, el de clientes** (+34 930 454 394, «Alhabla Reservas»): darlo de alta en
+   el WABA desde el portal de Telnyx con verificación por voz (la llamada llega al móvil
+   desviado) hasta verlo `CONNECTED`; fijar su perfil por API; enviar y recibir un mensaje
+   real. En curso (ver § Resultados). Decidir qué hacer con el desvío después de verificar.
 
 **Criterio de salida:** payloads documentados, plantillas creadas, puntos 4-6 con resultado
 escrito. Punto 8 en marcha.
@@ -641,8 +666,8 @@ escrito. Punto 8 en marcha.
 ### Fase 1 — El caso 1 completo
 
 - `WhatsAppAdapter.ts` sobre el SDK; `WhatsappTemplate` con webhook de estado; `WhatsappSender`
-  (remitente por sector con respaldo) y perfiles por sector en el reconciliador; `SentMessage`
-  con entrega y coste.
+  (remitente por audiencia, el de negocios como respaldo) y los dos perfiles en el
+  reconciliador; `SentMessage` con entrega y coste.
 - Alta: campo del móvil, `bienvenida_negocio` con *Activar avisos*, `STOP`, Ajustes › WhatsApp,
   `131026` ⇒ email.
 - Webhook de mensajería: idempotencia, enrutado por prefijo de botón, identificación de dueño /
@@ -671,7 +696,7 @@ el cliente cancela desde el recordatorio y el dueño lo ve en su WhatsApp.
   `pending_owner_action` con 24 h.
 - La recepcionista por chat: `ClientConversation` por cliente y negocio contra el assistant de
   voz del negocio; marcador `[WhatsApp]` y bloque "modo chat" en el prompt
-  (`managedAgentPrompt.ts`); lista para elegir negocio si hay varios del mismo sector; botón
+  (`managedAgentPrompt.ts`); lista para elegir negocio si tiene citas en varios; botón
   *Cambiar* del recordatorio abre esa conversación.
 - Onboarding por chat: el Gestor guía servicios → profesionales → horario → calendario según
   la checklist; cada mutación con botón y con la misma sincronización que el panel.
@@ -706,7 +731,7 @@ haría por teléfono.
 
 **0.0 hecho.** WABA `804230d2-…` («Alhabla», `TIER_250`, verificación de empresa
 `pending_submission`, 2 números: el actual `CONNECTED`/`GREEN` y +34 930 454 394 `PENDING`,
-añadido por el usuario desde Meta). Ajustes del WABA: `webhook_url` de producción,
+añadido por el usuario desde Meta; ver 0.9 para lo que pasó después). Ajustes del WABA: `webhook_url` de producción,
 `webhook_enabled`, y `webhook_events` con **los nombres de Meta**: `messages`,
 `message_template_status_update`, `template_category_update`, `phone_number_quality_update`,
 `phone_number_name_update`, `account_update`, `account_review_update` (la API acepta cualquier
@@ -728,7 +753,7 @@ breakers* y comandos `agenda`, `hoy`, `manana` (sin ñ, por seguridad), `pausa`,
   Meta: `payload.contacts[]` (`profile.name`, `wa_id`), `payload.messages[]` con `id` (UUID de
   Telnyx), `foreign_id` (`wamid…`), `from` (E.164), `from_user_id`, `timestamp` (epoch en
   segundos), `type` y el objeto del tipo; `payload.metadata` (`display_phone_number` = el número
-  de sector que recibe, `phone_number_id`). Verifica con la misma firma Ed25519 que los eventos
+  de Alhabla que recibe, `phone_number_id`). Verifica con la misma firma Ed25519 que los eventos
   de voz (el handler actual lo acepta y lo descarta como "no procesable").
 - Formas capturadas: **texto** (`text.body`); **respuesta de botón** (`type: "interactive"`,
   `interactive.type: "button_reply"`, `button_reply.id/title`, y **`context.id` = el id del
@@ -796,11 +821,54 @@ te llamara para explicarte cómo funcionan las mechas; dejé tu teléfono…"). 
 cruzada con otro assistant queda por construcción (la consulta lleva `assistant_id`); no se
 llamó a la Barbería.
 
-**Pendiente de la fase 0:** 0.2 (entrega por `template_id` con `cost.amount`), 0.7
-(residencia UE: ahora también medios en `us-central-1` y `in_transit_region` de las
-conversaciones), 0.8 (verificación de empresa) y 0.9 (verificar +34 930 454 394 por voz: está
-`PENDING` en el WABA y ya `active` en Telnyx; WhatsApp dice "no tiene WhatsApp" hasta que Meta
-lo verifique).
+**0.2 hecho (entrega y coste).** Entrega de extremo a extremo confirmada: la plantilla enviada
+al móvil del usuario el 19-09 (20:32 UTC) figura en el MDR como `delivered`, y los MDR de
+producción muestran plantillas de utilidad `delivered` desde el 14-09 (recordatorios de las
+09:00 y 13:00 incluidos). **Costes reales en España vía Telnyx** (moneda USD, del MDR
+`GET /v2/messages` con `billing_type`):
+
+| Tipo | `billing_type` | Tarifa Telnyx | Tasa de Meta (`carrier_fee`) | Total |
+|---|---|---|---|---|
+| Plantilla de utilidad (confirmación, aviso, recordatorio) | `whatsapp_utility` | 0,004 $ | 0,020 $ | **0,024 $** |
+| Mensaje libre dentro de la ventana (texto, interactivo, vCard) | `whatsapp_service` | 0,004 $ | 0 | **0,004 $** |
+
+Es decir: una reserva con confirmación al cliente y aviso al negocio cuesta ~0,05 $; toda la
+conversación posterior por botones o chat, 0,004 $ por mensaje de Alhabla (los del usuario no
+se cobran). Confirma la regla del plan: mantener la ventana abierta con botones sale seis veces
+más barato que una plantilla.
+
+**0.7 (residencia UE): sin confirmar.** Es una consulta a Telnyx (#13-16), no código: dónde se
+procesan y guardan las conversaciones del chat y la memoria (`in_transit_region`), los medios
+entrantes de WhatsApp (hoy en `us-central-1`) y el modelo (`gpt-5.6-luna` no tiene región EU;
+GLM-5.3-Flash y Qwen3-235B sí). No bloquea la fase 1; bloquea la memoria de clientes (fase 3)
+si la respuesta es negativa.
+
+**0.8 (verificación de empresa en Meta): pendiente, trámite del usuario** (#103). Sigue
+`pending_submission`. Mientras tanto: 250 destinatarios/día, nombre visible sin garantía y
+2 números, que son justo los dos de audiencia.
+
+**0.9 (segundo número): en curso.** Lo que pasó el 19-09 por la noche:
+
+- El usuario añadió +34 930 454 394 desde WhatsApp Manager de Meta y lo verificó allí. Telnyx
+  lo veía `PENDING` con `platform_type: NOT_APPLICABLE`: Meta tenía la titularidad verificada
+  pero **Telnyx nunca hizo el registro en Cloud API**. Renombrado por API a «Alhabla Reservas»
+  (`display_name_status: PENDING_REVIEW`).
+- `resendVerification` → `10015 Verification not initialized`; `initializeVerification` →
+  `10007 … Phone number already verified` (Meta se niega a emitir otro código). Callejón sin
+  salida por API.
+- Se borró del WABA (`DELETE /v2/whatsapp/phone_numbers/+34930454394` → 204) para darlo de alta
+  por API, y `initializeVerification` devolvió `404 10005 Phone number not found` con los dos
+  ids del WABA: **ese endpoint no añade números al WABA**, solo pide el código de uno que ya
+  está. Según la documentación de Telnyx los números se añaden por Embedded Signup (portal),
+  que acepta un número de Telnyx con perfil de mensajería (imposible para los españoles,
+  `40323`) o un número ya presente en el WABA de Meta. Con esto último probablemente habría
+  bastado sin borrar: el portal lista «BYON numbers already on the connected WABAs».
+- **Vía correcta**: portal de Telnyx → *Messaging → WhatsApp → Add phone number* → en la
+  ventana de Meta, número, nombre «Alhabla Reservas», verificación por llamada (llega al móvil
+  desviado) → Telnyx registra el número → `CONNECTED`. Es como se registró el +34 930 453 218
+  el 13-09. Plan B: añadirlo en WhatsApp Manager de Meta **sin** verificar allí y completar con
+  `initializeVerification` + `verify` por API.
+- El número de Telnyx no se ha tocado: `active`, desvío `always` → +34 692 138 456.
 
 ## Variables de entorno previstas
 
@@ -811,7 +879,7 @@ OWNER_DIGEST_DEFAULT_TIME=20:30
 TELNYX_OWNER_CHAT_ENABLED=false         # nivel 2 del dueño (Beta)
 TELNYX_CLIENT_CHAT_ENABLED=false        # nivel 2 del cliente (Beta)
 TELNYX_GESTOR_ASSISTANT_ID              # assistant único de plataforma (Gestor)
-WHATSAPP_FORWARDING_NUMBER=+34692138456 # desvío de los números de sector (verificación de Meta)
+WHATSAPP_FORWARDING_NUMBER=+34692138456 # desvío de los números de Alhabla (verificación de Meta)
 TELNYX_MEMORY_ENABLED=false
 TELNYX_POST_CONVERSATION_ENABLED=false
 ```
@@ -835,7 +903,7 @@ en PostgreSQL; el Gestor y las *shared tools* son configuración.
 | `assistants.chat` es Beta en Telnyx | Kill switches; sustituto propio con las mismas tools |
 | El LLM del dueño ejecuta algo indebido | Solo `proponer_accion`; el botón ejecuta |
 | La recepcionista por chat arrastra instrucciones de voz (end_call, "se lee en voz alta") | Bloque "modo chat" condicional en el prompt; pruebas de contrato de las cinco tools por chat en fase 0.4 |
-| Un sector con muchos bloqueos baja la calidad de su número | Aislado por sector; el resto de números no se ven afectados; respaldo al número actual |
+| Un incidente con clientes (bloqueos, `STOP`) baja la calidad del número | Aislado por audiencia: los avisos al negocio salen por el otro número; respaldo al de negocios si el de clientes cae |
 | `STOP` mal gestionado baja la calidad del número para todos | Determinista, probado, global por número |
 | Tools inline actuales sin soporte | Tools nuevas compartidas; issue aparte para migrar las de voz |
 | Memoria cruza tenants | Consulta acotada a `assistant_id`; test con dos negocios y un número |
@@ -855,9 +923,9 @@ en PostgreSQL; el Gestor y las *shared tools* son configuración.
    metadatos como variables en las cabeceras de las tools (fase 0.4). Para la recepcionista por
    chat, el marcador `[WhatsApp]` sigue siendo la vía (no se probó el webhook de variables en
    chat por API).
-8. ¿Acepta Meta «Alhabla · Peluquerías» como nombre visible bajo la cartera de Alhabla, o solo
-   «Alhabla»? Se sabe al registrar el primer número de sector (fase 0.9).
-9. ¿Qué hacer con el desvío de llamadas de los números de sector una vez verificados?
+8. ¿Acepta Meta «Alhabla Reservas» como nombre visible bajo la cartera de Alhabla? Está
+   `PENDING_REVIEW` junto con «Alhabla» (fase 0.9); si lo rechaza, queda «Alhabla» en los dos.
+9. ¿Qué hacer con el desvío de llamadas de los números de Alhabla una vez verificados?
 10. Parámetros nombrados: **sí** los acepta la API (plantillas creadas así). `payload` de
     `quick_reply` en plantillas: sin probar; la correlación va por `context.id`, así que no
     bloquea.
@@ -880,6 +948,7 @@ en PostgreSQL; el Gestor y las *shared tools* son configuración.
 | Post-conversación | Sustituye a los insights, con doble escritura |
 | Verificación de empresa en Meta | Trámite del usuario, fase 0.8 |
 | Gestor | Tipo de assistant propio para el dueño, distinto de la recepcionista; **uno para toda la plataforma**, negocio resuelto por conversación; hace también el onboarding por chat (servicios, profesionales, horario, calendario); modelo `gpt-5.6-luna` (~0,002 $/turno) con salida a modelo EU si hace falta |
-| Assistant de cliente (2026-09-20) | **Descartado**: la recepcionista del negocio atiende al cliente por chat con sus tools de siempre; el cliente puede consultar, cancelar, cambiar y reservar por WhatsApp |
-| Pasada final con el SDK 7.21 (2026-09-20) | `messages.whatsapp` (no `sendWhatsapp`); ventana de 24 h consultada a Telnyx; botones correlacionados por `context.message_id` + `biz_opaque_callback_data`; *ice breakers* y comandos por número; plan B del chat sobre el LLM alojado en Telnyx |
-| Números de WhatsApp (2026-09-20) | **Uno por sector** (cinco de Alhabla, mismo WABA, imagen y descripción por sector) más el actual para `other`/respaldo; con desvío permanente al móvil del usuario para la verificación por voz; comprados de uno en uno |
+| Assistant de cliente (2026-09-19) | **Descartado**: la recepcionista del negocio atiende al cliente por chat con sus tools de siempre; el cliente puede consultar, cancelar, cambiar y reservar por WhatsApp |
+| Pasada final con el SDK 7.21 (2026-09-19) | `messages.whatsapp` (no `sendWhatsapp`); ventana de 24 h consultada a Telnyx; botones correlacionados por `context.message_id` + `biz_opaque_callback_data`; *ice breakers* y comandos por número; plan B del chat sobre el LLM alojado en Telnyx |
+| Números de WhatsApp (2026-09-19, tarde) | Uno por sector (cinco comprados de uno en uno, con desvío permanente al móvil del usuario para la verificación por voz) — **sustituido esa misma noche** por la fila siguiente; los números quedan en reserva hasta #103 |
+| Números de WhatsApp (2026-09-19, noche) | **Uno por audiencia**: +34 930 453 218 «Alhabla» para negocios (el verificado) y +34 930 454 394 «Alhabla Reservas» para clientes (en alta desde el portal de Telnyx); son los dos números que admite el WABA antes de #103; el `to` identifica la audiencia; el de negocios es el respaldo |
