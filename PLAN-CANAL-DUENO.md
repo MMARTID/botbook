@@ -361,11 +361,12 @@ instrucciones porque una llamada no espera; el Gestor no lo necesita:
   o con `BAJA`).
 - Toda tool resuelve el negocio a partir del `conversation_id` en el backend; el aislamiento
   multi-tenant lo garantiza Alhabla, nunca el LLM.
-- El nombre del negocio y su estado llegan al empezar por una de tres vías, a elegir en la fase
-  0.4: `conversations.addMessage(id, { role: "system", content })` justo al crear la
-  conversación (la más simple, si Telnyx acepta ese rol), el webhook de variables dinámicas (si
-  se dispara en conversaciones creadas por API) o una tool `contexto_negocio` que el Gestor
-  llama en el primer turno y devuelve nombre, plan, checklist de onboarding y minutos.
+- El nombre del negocio y su estado llegan al empezar por **`system_prompt` de la
+  conversación** (`PUT /v2/ai/conversations/{id}`, verificado en la fase 0.4), y las tools
+  reciben el negocio en una cabecera `X-Alhabla-Business: {{business_id}}` que Telnyx resuelve
+  desde los metadatos de la conversación (verificado). `addMessage` con `role: "system"` sirve
+  para cambios en mitad del hilo; `contexto_negocio` queda como tool de consulta, no como vía
+  de contexto.
 
 **Tools del Gestor** (*shared tools* adjuntas por `tool_ids`; misma firma que
 `/webhooks/telnyx/tools/:toolName`; todas reutilizan los servicios que ya usan las rutas del
@@ -748,10 +749,58 @@ breakers* y comandos `agenda`, `hoy`, `manana` (sin ñ, por seguridad), `pausa`,
 - Corrección a "sin evidencia de entrega": los MDR muestran entregas reales de WhatsApp al
   móvil del usuario desde el 15-09 (confirmaciones y recordatorios `delivered`).
 
-**Pendiente de la fase 0:** 0.2 (entrega por `template_id` con `cost.amount`), 0.4-0.6, 0.7 y
-0.8 (verificación de empresa) y 0.9 (verificar +34 930 454 394 por voz: está `PENDING` en el
-WABA y aún `requirement-info-under-review` en Telnyx; WhatsApp dice "no tiene WhatsApp" hasta
-que Meta lo verifique).
+**0.4 hecho (chat Beta), con un puente temporal WhatsApp ⇄ `chat` en dev y un Gestor de
+prueba con una *shared tool*.**
+
+- `client.ai.assistants.chat` ejecuta las *shared tools* adjuntas por `tool_ids`, con firma
+  Ed25519 (`telnyx-signature-ed25519` + `telnyx-timestamp`, `user-agent: ai_assistants`).
+  Turnos de 1,6-3,7 s (el primero, con tool, 3,7 s). Comportamiento correcto: propone y pide
+  confirmación, respeta límites, coletilla Beta, `AYUDA`.
+- **Las claves de los `metadata` de la conversación resuelven como variables dinámicas en las
+  cabeceras de las tools** (`{{business_id}}`, `{{role}}`, `{{remitente}}`): es la vía del
+  Gestor único. No resuelven `{{conversation_id}}`, `{{telnyx_end_user_target}}` ni
+  `{{telnyx_current_time}}` (llegan literales). `telnyx_conversation_channel` = `web_chat`.
+- Contexto inicial, tres vías válidas: **`PUT /v2/ai/conversations/{id}` con `system_prompt`**
+  (la más limpia; el SDK lo llama `update`), `POST …/message` con `role: "system"` (cambió el
+  trato a usted en mitad del chat) y la tool `contexto_negocio`.
+- La respuesta de `conversations.create` viene envuelta en `data` aunque el tipo del SDK diga
+  `Conversation`; Telnyx añade a los metadatos `assistant_id`, `assistant_version_id`,
+  `called_tools`, `telnyx_conversation_channel`. La conversación tiene además
+  `retention_in_hours`, `pii_redaction`, `in_transit_region`, `use_insights_for_memory`.
+- Los assistants se borran en *soft delete*: una *shared tool* usada por uno borrado no se
+  puede eliminar (`10015`).
+
+**0.5 hecho (post-conversación) sobre la recepcionista de dev de Peluquería Alhambra.**
+
+- Con `post_conversation_settings.enabled` y un bloque "Al terminar la llamada" en las
+  instrucciones, la tool `informar_al_negocio` llegó **~1 s después de colgar** (llamada de 31 s),
+  con cabeceras `{{call_control_id}}`, `{{telnyx_end_user_target}}` y canal `phone_call`, y un
+  informe correcto: `LEAD_CAPTURED`, `CLIENTE_LO_PIDIO`, recado con motivo, teléfono del que
+  llama y `quiere_que_le_llamen`.
+- **Llega dos veces por llamada** (a los ~1 s y a los ~11 s), y en la segunda llamada de prueba
+  **con contenido distinto** (primero `LEAD_CAPTURED` con recado, luego `RESOLVED` sin él). La
+  idempotencia por `call_control_id` no basta con "primero gana": hay que decidir la regla (el
+  plan propone: primero gana, y si el segundo trae recado y el primero no, se añade el recado
+  sin cambiar el resultado). Se mide en el piloto.
+- El nombre del cliente llegó vacío cuando no lo dijo; la recepcionista usó el número del que
+  llama para el recado **sin preguntar**, y el usuario se quejó de ello en la llamada: el prompt
+  debe pedir "¿te llamamos a este número?" antes de guardarlo.
+
+**0.6 hecho (memoria).** `dynamic_variables_webhook_url` (timeout 5 s) recibe al descolgar
+`assistant.initialization` con `assistant_id`, **`telnyx_conversation_id`**, `call_control_id`,
+`call_session_id`, `call_leg_id`, `to`/`from`, `telnyx_agent_target`, `telnyx_end_user_target`,
+`telnyx_conversation_channel`, `telnyx_call_caller_id_name`, `telnyx_current_time` y
+`telnyx_end_user_target_verified: false`. Devolviendo `memory.conversation_query` acotada a
+`assistant_id` y al número, **la segunda llamada recordó la primera** ("me pediste que el dueño
+te llamara para explicarte cómo funcionan las mechas; dejé tu teléfono…"). La comprobación
+cruzada con otro assistant queda por construcción (la consulta lleva `assistant_id`); no se
+llamó a la Barbería.
+
+**Pendiente de la fase 0:** 0.2 (entrega por `template_id` con `cost.amount`), 0.7
+(residencia UE: ahora también medios en `us-central-1` y `in_transit_region` de las
+conversaciones), 0.8 (verificación de empresa) y 0.9 (verificar +34 930 454 394 por voz: está
+`PENDING` en el WABA y ya `active` en Telnyx; WhatsApp dice "no tiene WhatsApp" hasta que Meta
+lo verifique).
 
 ## Variables de entorno previstas
 
@@ -780,6 +829,7 @@ en PostgreSQL; el Gestor y las *shared tools* son configuración.
 | Techo de destinatarios/día compartido por toda la plataforma | Verificación de Meta pronto; alerta al 70 % del nivel; solo utilidad |
 | Un cliente de dos negocios se lía en un solo chat | Negocio en cada mensaje; botones con recurso; lista para elegir |
 | Meta tarda o rechaza plantillas | Doce a la vez en fase 0; ventana abierta no depende de plantilla; email |
+| El post-procesado llega **dos veces y a veces con contenido distinto** (verificado en la fase 0.5) | Idempotencia por `call_control_id` con regla explícita: primero gana; si el segundo trae recado y el primero no, se añade el recado sin cambiar el resultado |
 | Meta reclasifica una plantilla a marketing | Textos secos; webhook y tabla lo detectan |
 | El coste del aviso por reserva | Botones mantienen la ventana; contador y alerta; el dueño puede apagarlo |
 | `assistants.chat` es Beta en Telnyx | Kill switches; sustituto propio con las mismas tools |
@@ -799,11 +849,12 @@ en PostgreSQL; el Gestor y las *shared tools* son configuración.
 3. ~~¿Un toque de botón abre la ventana de 24 h?~~ — sí, confirmado.
 4. Límite de respuestas rápidas por plantilla de utilidad — al crearlas.
 5. Tarifa exacta por mensaje en España vía Telnyx (llega en `cost.amount`).
-6. ¿Qué identificador de conversación recibe una *shared tool* en un `chat` por API? (De ahí
-   se resuelve el negocio.) Fase 0.4.
-7. ¿Se dispara el webhook de variables dinámicas en conversaciones creadas por API con
-   `metadata`? Si no, `contexto_negocio` en el primer turno (Gestor) y marcador `[WhatsApp]`
-   (recepcionista). Fase 0.4.
+6. ~~¿Qué identificador de conversación recibe una *shared tool*?~~ — ninguno por variable
+   (`{{conversation_id}}` no resuelve); el negocio va en `{{business_id}}` desde los metadatos.
+7. ~~Contexto del Gestor por conversación~~ — resuelto: `system_prompt` por conversación y
+   metadatos como variables en las cabeceras de las tools (fase 0.4). Para la recepcionista por
+   chat, el marcador `[WhatsApp]` sigue siendo la vía (no se probó el webhook de variables en
+   chat por API).
 8. ¿Acepta Meta «Alhabla · Peluquerías» como nombre visible bajo la cartera de Alhabla, o solo
    «Alhabla»? Se sabe al registrar el primer número de sector (fase 0.9).
 9. ¿Qué hacer con el desvío de llamadas de los números de sector una vez verificados?

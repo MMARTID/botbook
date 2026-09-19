@@ -450,6 +450,24 @@ Por el webhook **por mensaje** (`webhook_url` en el envío) o el del **perfil de
 `message.finalized` (`to[0].status: delivered`) → **`message.read`**, con el `body` del mensaje
 ecoado y `messaging_profile_id`. `cost.amount` venía `null` en las pruebas.
 
+**AI Assistants por chat y post-conversación (verificado 2026-09-19, fase 0.4-0.6).**
+`POST /v2/ai/assistants/{id}/chat` (`client.ai.assistants.chat`, Beta) ejecuta las *shared
+tools* del assistant (`tool_ids`) firmando con la Ed25519 de siempre; 1,6-3,7 s por turno con
+`gpt-5.6-luna`. La conversación la crea Alhabla (`POST /v2/ai/conversations` con `metadata`;
+la respuesta viene envuelta en `data`) y **sus claves de `metadata` resuelven como variables
+dinámicas en las cabeceras de las tools** (`{{business_id}}`), mientras que
+`{{conversation_id}}`, `{{telnyx_end_user_target}}` y `{{telnyx_current_time}}` llegan
+literales; `telnyx_conversation_channel` es `web_chat`. Contexto por conversación:
+`PUT /v2/ai/conversations/{id}` con `system_prompt`, o `POST …/message` con `role: "system"`.
+`post_conversation_settings.enabled` + un bloque "Al terminar la llamada" en las
+instrucciones dispara la tool **~1 s después de colgar, pero dos veces por llamada y a veces
+con contenido distinto**: idempotencia obligatoria. `dynamic_variables_webhook_url` recibe
+`assistant.initialization` con `telnyx_conversation_id`, `call_control_id`, `from`/`to`,
+`telnyx_end_user_target`, canal; devolviendo `memory.conversation_query` acotada a
+`assistant_id` y al número, la siguiente llamada recuerda la anterior (verificado). Los
+assistants se borran en *soft delete*; una *shared tool* usada por uno borrado no se puede
+eliminar (`10015`).
+
 **Otros datos útiles.** Los MDR (`GET /v2/detail_records?filter[record_type]=messaging`) solo
 registran salientes (hay entregas reales de WhatsApp al móvil del usuario desde el 15-09); los
 entrantes no aparecen ahí. Precio de modelos y catálogo: `GET /v2/ai/models` (ver plan). Desde
