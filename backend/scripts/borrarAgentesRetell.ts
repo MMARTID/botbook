@@ -6,8 +6,16 @@
  *
  * Es IRREVERSIBLE en Retell. Sin --confirm solo enseña lo que haría.
  *
- * Uso (con DATABASE_URL y RETELL_API_KEY de producción en el entorno):
- *   npx tsx scripts/borrarAgentesRetell.ts --ids id1,id2 [--llms llm1,llm2] [--proteger id3] [--confirm]
+ * OJO CON EL ENTORNO: desarrollo y producción comparten la cuenta de Retell,
+ * y este script decide qué es borrable cruzando la cuenta con la base de datos
+ * que tenga esta shell. Un agente que no esté en ESA base de datos es
+ * `desconocido` — casi siempre del otro entorno — y NO se borra salvo que se
+ * pida explícitamente con --incluir-desconocidos. Sin esa salvaguarda, correr
+ * esto con la BD equivocada se lleva por delante los agentes del otro entorno;
+ * ya pasó con seis negocios de desarrollo.
+ *
+ * Uso (con DATABASE_URL y RETELL_API_KEY del entorno que quieras limpiar):
+ *   npx tsx scripts/borrarAgentesRetell.ts --ids id1,id2 [--llms llm1,llm2] [--proteger id3] [--incluir-desconocidos] [--confirm]
  *
  * --llms: LLM sueltos (sin ningún agente) que el inventario listó aparte.
  *
@@ -17,6 +25,7 @@
 import { prisma } from "../src/lib/prisma.js";
 import { retellAdapter } from "../src/adapters/retell/RetellAdapter.js";
 import {
+  describirEntorno,
   idsProtegidosPorEntorno,
   inventariarAgentesRetell,
   type AgenteInventariado,
@@ -43,6 +52,9 @@ async function main() {
   const inventario = await inventariarAgentesRetell({ protegidos });
   const porId = new Map(inventario.map((a) => [a.agentId, a]));
 
+  const incluirDesconocidos = process.argv.includes("--incluir-desconocidos");
+  console.log(`[Borrado] Base de datos de esta shell: ${describirEntorno()}`);
+
   const aBorrar: AgenteInventariado[] = [];
   for (const id of ids) {
     const agente = porId.get(id);
@@ -52,6 +64,14 @@ async function main() {
     }
     if (agente.clase === "demo" || protegidos.has(id)) {
       console.warn(`[Borrado] ${id} (${agente.nombre}) está protegido; se ignora.`);
+      continue;
+    }
+    if (agente.clase === "desconocido" && !incluirDesconocidos) {
+      console.warn(
+        `[Borrado] ${id} (${agente.nombre}) NO está en esta base de datos (${describirEntorno()}).` +
+          ` Lo más probable es que sea de otro entorno: NO se borra.` +
+          ` Si de verdad quieres, repite con --incluir-desconocidos.`
+      );
       continue;
     }
     if (agente.clase === "negocio-con-telnyx") {

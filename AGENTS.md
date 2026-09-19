@@ -1381,13 +1381,26 @@ A deploy alone does not touch the agents already created in Retell/Telnyx.
 - **Cleaning the Retell account** (same environment as above, plus the demo agent ids —
   they live in Cloud Run's env, not in `.env`): `scripts/inventarioAgentesRetell.ts
   --proteger <demo ids>` cross-references every Retell agent with the `Agent` table and
-  classifies it (demo / business with Telnyx / business without Telnyx / unreferenced);
-  `scripts/borrarAgentesRetell.ts --ids … [--llms …] --proteger … [--confirm]` deletes
-  agents and their now-unused LLMs and clears `retellAgentId`/`retellLlmId` on the
+  classifies it (demo / business with Telnyx / business without Telnyx / **not in this
+  DB**); `scripts/borrarAgentesRetell.ts --ids … [--llms …] --proteger … [--confirm]`
+  deletes agents and their now-unused LLMs and clears `retellAgentId`/`retellLlmId` on the
   affected `Agent` rows (dry run without `--confirm`). Used on 2026-09-17: 48 → 11 agents
   (6 landing demos + 5 Telnyx fallbacks). The salon-de-uñas demo agent is
   `agent_dbbdb6134a4cf5c8e4998560f5`; its env var is `RETELL_DEMO_SALON_UNAS_AGENT_ID`
   (no Ñ — Cloud Run rejects it — the old name is still read as fallback).
+  - **These two scripts are environment-blind by construction, and that has already cost
+    agents.** `listAgents()` returns the *whole* Retell account, which dev and production
+    share, but the cross-reference is against whatever single database this shell points
+    at. Anything in the account without a row here used to be classed `huerfano` and
+    printed in a ready-to-paste `--ids` line; that is how six dev businesses lost their
+    Retell agents. Since 2026-09-19 that class is `desconocido`, it is **excluded from the
+    candidate list**, it is reported in a loud warning naming the database, and
+    `borrarAgentesRetell.ts` refuses to delete it without `--incluir-desconocidos`. Both
+    scripts print the database they are cross-referencing against (`describirEntorno()`,
+    name + host, never the password) — run the inventory from dev today and it correctly
+    reports production's six agents as not-yours instead of offering them for deletion.
+    The protection is about the *database*, not the account: it also catches pointing at
+    the wrong DB within one environment.
 - Between the deploy and the resync an agent may have a new prompt with an old schema or
   vice versa: handlers treat a missing `professionalConfirmed` as false and nothing in the
   booking path depends on the new field to complete a plain reservation.
