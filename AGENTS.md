@@ -608,10 +608,14 @@ task be retried while the first was still running).
 
 **Owner channel plan (2026-09-19):** everything that talks to the business
 owner (recados, pending bookings, cancellations, daily digest, owner chat with
-buttons, owner mode by voice, cross-channel memory) is designed in
-`PLAN-CANAL-DUENO.md` — WhatsApp two-way through the existing WABA, no second
-number, no push, **no outbound calls** (user decision). Inbound `message.*`
-events on `/webhooks/telnyx` are still ignored until phase 1 of that plan.
+buttons — shipping as **Beta** —, owner mode by voice, cross-channel memory) is
+designed in `PLAN-CANAL-DUENO.md` — WhatsApp two-way through the existing WABA,
+no second number, no push, **no outbound calls** (user decision). The same plan
+adds a WhatsApp step to the signup wizard (profile + link the owner's WhatsApp +
+a test call to the *platform* number routed by caller) and, as its phase 3,
+one WhatsApp number per business for **inbound** client calls
+(`PLAN-WHATSAPP-LLAMADAS.md`). Inbound `message.*` events on `/webhooks/telnyx`
+are still ignored until phase 1 of that plan.
 
 **Permanent vs transient failures:** job handlers throw `PermanentJobError`
 (`backend/src/lib/jobErrors.ts`) for things retrying cannot fix (invalid
@@ -1294,7 +1298,7 @@ partir vacía de `main` como marcador.
 |------|-----------|-------|-------|
 | `step-followups-landing` | `frontend/src/components/call-forwarding-flow.tsx` + tarjetas `threeSteps` en `site-landing.tsx` (sección "Cómo funciona") | [#12](https://github.com/MMARTID/botbook/issues/12) | Pulir y/o rediseñar el recorrido de 3 pasos. |
 | `demo-modal-landing` | Modal/experiencia de "Escuchar una llamada" del hero (`DemoVoiceCall`) | — | Pulir y/o rediseñar la demo de llamada de voz que se abre desde la landing. Sin Issue todavía. |
-| `telnyx-whatsapp-calls` | Llamadas de voz por WhatsApp vía Telnyx — distinto de la mensajería de texto ya existente (`WhatsAppAdapter`, `jobs/sendWhatsapp.ts`, plantillas de confirmación/recordatorio) | — | Rama vacía como marcador; alcance aún sin definir. Sin Issue todavía. |
+| `telnyx-whatsapp-calls` | Llamadas de voz por WhatsApp vía Telnyx — distinto de la mensajería de texto ya existente (`WhatsAppAdapter`, `jobs/sendWhatsapp.ts`, plantillas de confirmación/recordatorio) | — | Plan en `PLAN-WHATSAPP-LLAMADAS.md` (ya en `main`), subordinado a `PLAN-CANAL-DUENO.md` fase 3. Sin implementar. Sin Issue todavía. |
 
 Al abrir el Issue correspondiente, añade su número en la columna "Issue". Al
 fusionar o descartar una rama, quita su fila de esta tabla.
