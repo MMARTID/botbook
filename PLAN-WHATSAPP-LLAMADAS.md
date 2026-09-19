@@ -3,15 +3,14 @@
 Rama: `telnyx-whatsapp-calls` · Fecha del plan: 2026-09-18 · Estado: **sin implementar**, pendiente de
 Fase 0 (validaciones con la cuenta real de Telnyx y Meta).
 
-> **Nota (2026-09-19):** este plan pasa a ser la **fase 3 de `PLAN-CANAL-DUENO.md`** y se trae a
-> `main` para poder enlazarlo. Aquel plan decide lo que aquí quedaba abierto (§ 7): activación
-> **automática** tras el pago con el perfil que el dueño configura en el modal del onboarding
-> (decisión 4), confirmaciones **desde el número del negocio** en cuanto esté verificado
-> (decisión 2), y añade la **llamada de prueba del onboarding** al número de plataforma enrutada
-> por quien llama. La fase 0 de aquí (puntos 2, 4, 5 y 6) se ejecuta dentro de su fase 0
-> (puntos 8-10). Lo que este documento dice del MCP de Telnyx sobre `/v2/whatsapp/*` sigue siendo
-> cierto para el MCP; el **SDK** sí expone esos endpoints (`client.whatsapp.*`), ver
-> `PLAN-CANAL-DUENO.md` § Hallazgos.
+> **Nota (2026-09-19, noche):** **descartado como línea de producto** por el usuario. Alhabla
+> mensajea desde un único contacto de plataforma («Alhabla · Gestionamos tus reservas») y las
+> llamadas siguen entrando por teléfono con desvío: ver `PLAN-CANAL-DUENO.md` (versión 3). Este
+> documento se conserva como referencia de lo verificado con Telnyx y Meta (límite 2.000 por
+> cartera, verificación por voz, nombre visible, coexistencia) por si alguna vez se retoma. No
+> tiene fase asignada ni rama activa de trabajo. Lo que dice del MCP de Telnyx sobre
+> `/v2/whatsapp/*` sigue siendo cierto para el MCP; el SDK sí expone esos endpoints
+> (`client.whatsapp.*`).
 
 ## 1. Resumen de la decisión
 
