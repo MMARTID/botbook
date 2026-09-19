@@ -688,6 +688,18 @@ habilitarlo hay que pedírselo a soporte). La separación se apoya por tanto en 
 3. **Los scripts miran contra qué base de datos cruzan** (`describirEntorno()`), porque el daño
    real no viene de compartir cuenta sino de apuntar a la BD equivocada.
 
+**Lo que dev y producción siguen compartiendo** (auditado el 2026-09-19 comparando por hash cada
+secreto de Secret Manager con el `.env` local, sin imprimir valores): las cuentas de **Telnyx** y
+**Retell** (`RETELL_API_KEY`, `RETELL_SIP_TRUNK_AUTH_PASSWORD`, `TELNYX_API_KEY`), las apps OAuth
+de **Google** y **Microsoft** (`GOOGLE_AUTH_CLIENT_SECRET`, `GOOGLE_CLIENT_SECRET`,
+`MICROSOFT_CLIENT_SECRET`) y **Zoho** (`ZOHO_CLIENT_SECRET`, `ZOHO_REFRESH_TOKEN`).
+`TELNYX_SPAIN_REQUIREMENT_GROUP_ID` también, pero es un identificador regulatorio y compartirlo
+es lo correcto. **Zoho es el que menos se espera:** `lib/zohoMail.ts` no mira `NODE_ENV`, así que
+desde desarrollo se manda correo real desde el buzón de producción — hoy rebota porque los
+negocios de dev usan direcciones `@alhabla.local`, pero una dirección real recibiría de verdad.
+Separados sí están: base de datos, backend, URL pública, Call Control Apps, números, R2, Stripe,
+`JWT_SECRET`, Places y `CALENDAR_CREDENTIALS_KEY`.
+
 **Las cuentas de prueba viven en desarrollo (revertido el 2026-09-19).** El 14-09
 `scripts/replicateTestAccountsToProd.ts` las **copió** a producción —dev nunca las perdió— y
 movió sus 5 números al Call Control App de producción "de forma permanente", porque entonces el
@@ -1368,6 +1380,22 @@ fusionar o descartar una rama, quita su fila de esta tabla.
   **Frontend is not deployed by this workflow** — Vercel's own Git integration handles that
   (Root Directory must be `frontend`, not `.` — see Producción section below for the incident
   where this broke).
+  - **Preview deployments point at the dev backend, not production** (fixed 2026-09-19).
+    `NEXT_PUBLIC_API_BASE_URL` used to be a single Vercel entry targeting `production` **and**
+    `preview`, so every PR preview talked to `https://api.alhabla.ai` — clicking through a
+    preview (registering, creating a business, saving a schedule) wrote to the **production
+    database**, which is part of how production accumulated accounts nobody meant to create.
+    There are now two entries: `production` → `https://api.alhabla.ai`, `preview` →
+    `https://dev-api.alhabla.ai`. A preview therefore needs the Cloudflare tunnel up
+    (`docker compose --profile dev up`) to work; the build still succeeds without it, the calls
+    just fail. The accidental mitigation that was already there:
+    `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` is production-only, so checkout in a preview breaks
+    rather than charging anyone.
+  - **Four variables were deleted from Vercel** the same day because no file under `frontend/`
+    referenced them: `GOOGLE_CLIENT_SECRET` (which Vercel itself flagged `readable-secret`),
+    `GOOGLE_CLIENT_ID`, `GOOGLE_REDIRECT_URI` and `FRONTEND_URL`. Those belong to the backend and
+    live in Secret Manager. The three `NEXT_PUBLIC_VAPI_DEMO_*` entries are unused too (the
+    landing demo runs on Retell now) but were left alone.
 - **Auth: Workload Identity Federation, no stored keys.** A dedicated service account
   (`github-actions-ci@project-84381467-a606-4b71-a6e.iam.gserviceaccount.com`, least-privilege —
   deliberately *not* the default Compute Engine SA that Cloud Run/Cloud Build use for everything
