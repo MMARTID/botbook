@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-Alhabla is a multi-tenant SaaS platform that provides AI-powered voice receptionists for small businesses in Spain (hair salons, barbershops, physiotherapy clinics, beauty centers, etc.). Each business gets one or more voice agents built on top of the Retell.ai voice-AI platform, used for its RGPD compliance. The agents handle incoming phone calls, answer questions, check business hours, check availability, and book appointments directly into the business's Google or Outlook calendar.
+Alhabla is a multi-tenant SaaS platform that provides AI-powered voice receptionists for small businesses in Spain (hair salons, barbershops, physiotherapy clinics, beauty centers, etc.). Each business gets one or more voice agents built on top of the Retell.ai voice-AI platform, used for its RGPD compliance. The agents handle incoming phone calls, answer questions, check business hours, check availability, and book appointments directly into the business's Google, Outlook or Apple/iCloud (CalDAV) calendar.
 
 The codebase is fully in Spanish — UI copy, comments, variable names, and business logic are written in Spanish. Keep everything in Spanish when modifying code or adding user-facing text.
 
@@ -20,7 +20,7 @@ The codebase is fully in Spanish — UI copy, comments, variable names, and busi
 | **Object storage** | Cloudflare R2 (S3-compatible) |
 | **Telephony** | Telnyx (phone number purchase for Spain) |
 | **Billing** | Stripe (Checkout Sessions, Customer Portal, webhooks) |
-| **Calendar** | Google Calendar API, Microsoft Graph (Outlook) |
+| **Calendar** | Google Calendar API, Microsoft Graph (Outlook), CalDAV vía `tsdav` + `ical.js` (Apple/iCloud) |
 | **Auth** | JWT (custom) + Google OAuth 2.0 |
 | **Containerization** | Docker + Docker Compose |
 | **Testing** | Vitest (backend), MSW (mocking), @testcontainers/postgresql |
@@ -62,7 +62,7 @@ Each module is a folder containing a `routes.ts` file (and optionally `service.t
 | `agents` | *(none)* | Yes | Agent CRUD, sync to Retell assistants |
 | `calls` | *(none)* | Yes | Call logs, transcripts, outcomes (paginated) |
 | `recordings` | *(none)* | Yes | Recording metadata, review notes |
-| `calendar` | `/calendar` | Yes* | Google/Outlook OAuth, list events, book appointments |
+| `calendar` | `/calendar` | Yes* | Google/Outlook OAuth, Apple/CalDAV sign-in with credentials, list events, book appointments |
 | `bookings` | `/booking-settings` | Yes | CRUD de servicios y profesionales, asignaciones y capacidad de reserva; las retiradas son lógicas |
 | `billing` | `/billing` | Yes* | Stripe checkout, portal, subscription summary, webhooks |
 | `phone` | `/phone` | Yes | Telnyx phone number status, manual provisioning retry |
@@ -118,7 +118,7 @@ Each module is a folder containing a `routes.ts` file (and optionally `service.t
 | `/agente` | Full agent setup (schedule, services, professionals, calendar, knowledge and behavior) |
 | `/ajustes` | Account settings (identity, business contact data, password, session and account deletion) |
 | `/ajustes/facturacion` | Billing summary & Stripe Customer Portal |
-| `/settings` | Calendar OAuth callback handler (Google/Outlook) |
+| `/settings` | Calendar OAuth callback handler (Google/Outlook; Apple/CalDAV has no callback — it is a credentials form in `/agente`) |
 | `/legal/privacidad` | Privacy policy — covers the voice demo, recorded calls and calendar scopes |
 | `/legal/aviso-legal` | Legal notice — service terms, trial, withdrawal |
 
@@ -385,13 +385,16 @@ retellPhoneNumber (unique)
 
 ```
 CalendarConnection  (@@map "calendar_connections", @@unique [businessId, provider])
-  businessId, provider ("google" | "outlook"; String, no enum)
-  calendarId      String?   // null = aún no elegido (Outlook tras el OAuth); Google usa "primary"
-  credentials     Json?     // misma forma que CalendarCredentials: { provider, refreshToken }; null = revocadas
+  businessId, provider ("google" | "outlook" | "caldav"; String, no enum)
+  calendarId      String?   // null = aún no elegido (Outlook y CalDAV tras el alta); Google usa
+                            //   "primary"; en CalDAV es la URL absoluta del calendario
+  credentials     Json?     // misma forma que CalendarCredentials ({ provider, refreshToken } en
+                            //   OAuth; { provider, serverUrl, username, appPassword } en CalDAV);
+                            //   null = revocadas
   connected       Boolean   @default(false)
   disconnectedAt  DateTime?
   lastError       String?
-  accountEmail    String?   // Outlook
+  accountEmail    String?   // Outlook (cuenta de Graph) y CalDAV (el Apple ID)
 ```
 
 Una fila por negocio y proveedor; **`Business.calendarProvider` es el único campo de calendario
@@ -430,7 +433,7 @@ el PR siguiente.
 orchestrator (String, default "retell")
 ```
 
-Determines the voice-AI provider for the business — `"retell"` or `"telnyx"`. `detectVoiceOrchestrator()` (`backend/src/lib/voiceOrchestrator.ts`) always assigns `"retell"` at registration; a business only moves to `"telnyx"` later via the cutover process (see PLAN-TELNYX-ORQUESTADOR.md). The value is stored in `Business.orchestrator`.
+Determines the voice-AI provider for the business — `"retell"` or `"telnyx"`. `detectVoiceOrchestrator()` (`backend/src/lib/voiceOrchestrator.ts`) still returns `"retell"` for every registration, **but that is no longer the value the business ends up with**: since 2026-09-13, when `VOICE_TELNYX_ROLLOUT` is on (anything but `off`; dev runs `all`), `createBusinessAgent` auto-promotes the business to `"telnyx"` as soon as its Telnyx assistant really exists (`agentBootstrap.ts`, "Auto-promoción a Telnyx-primary"). The manual cutover script (`scripts/cutoverToTelnyx.ts`, PLAN-TELNYX-ORQUESTADOR.md) is only for businesses created before that. **In practice every business in dev and in production is `telnyx`-primary**, so a change that only reaches Retell reaches nothing that answers a real call. The value is stored in `Business.orchestrator`.
 
 ### Business Type Field on `Business`
 
@@ -613,7 +616,7 @@ Call outcome classification is **not** a background job — Retell classifies ea
 
 ## Voice Orchestrators (Retell & Telnyx)
 
-The backend supports two voice-AI orchestrators. `Business.orchestrator` decides which is primary for a given business (`retell` or `telnyx`). Registration always assigns `retell`; a business moves to `telnyx` only via the cutover process (see PLAN-TELNYX-ORQUESTADOR.md). Retell always stays wired as the hot fallback regardless of which is primary.
+The backend supports two voice-AI orchestrators. `Business.orchestrator` decides which is primary for a given business (`retell` or `telnyx`). **Telnyx is the primary for every business today** — with `VOICE_TELNYX_ROLLOUT` on, a new business is auto-promoted at agent creation (see "Orchestrator Field on `Business`"); the cutover script only covers older ones. Retell always stays wired as the hot fallback regardless of which is primary, which is why `syncCalendarToolsToAgents` syncs both. When verifying anything about tools by hand, **check the Telnyx assistant, not just the Retell LLM**.
 
 ### Retell (`backend/src/adapters/retell/RetellAdapter.ts`)
 
@@ -621,9 +624,9 @@ The backend supports two voice-AI orchestrators. `Business.orchestrator` decides
 - **Endpoints used:** `POST /create-retell-llm`, `POST /create-agent`, `PATCH /update-agent/{id}`, `GET /get-agent/{id}`, `DELETE /delete-agent/{id}`, `GET /list-phone-numbers`, `POST /import-phone-number`, `DELETE /delete-phone-number/{id}`, `GET /get-call/{id}`, `POST /v2/create-web-call` (public landing demo). `RetellAdapter.createPhoneNumber` (`POST /create-phone-number`) also exists but is unused dead code today — it makes Retell buy a NEW number from its own Twilio/Telnyx inventory (US/CA only), not link a number you already own. `RetellAdapter.importPhoneNumber` (`POST /import-phone-number`) is the one `phone/service.ts` actually calls, since we always own the number ourselves (bought via Telnyx) — it requires a SIP trunk `termination_uri` (see Phone provisioning below).
 - Webhooks from Retell hit `POST /webhooks/retell`. The endpoint verifies the `x-retell-signature` using `retellAdapter.validateWebhookSignature` (timing-safe comparison with the Retell API key).
 - Supported Retell webhook events: `call_started`, `call_ended`, `call_analyzed`. Other events are acknowledged (`200`) but ignored.
-- Retell custom tools are exposed under `POST /webhooks/retell/tools/:retellAgentId/:toolName`. The `retellAgentId` path segment is required because Retell never includes an agent identifier in the tool-call body, so it's embedded in the URL itself (done in `buildRetellCalendarTools`, `backend/src/modules/calendar/service.ts`). Our tools are registered with `args_at_root: false` (see `RetellAdapter.createLlm`/`updateLlm`), so Retell sends `{name, call, args}` — `call.call_id` is threaded through as `callId` to `executeVoiceTool` so `book_appointment` can link the booking to the exact call instead of guessing "the most recent call for this business". The route still tolerates a flat args-only body (no `call_id`) for businesses not yet resynced with this config. The endpoint validates the `x-retell-signature` before executing any tool. Execution is delegated to `executeVoiceTool` in `backend/src/modules/voiceTools/service.ts`, which implements `check_business_hours`, `check_availability` and `book_appointment` (Google and Outlook Calendar supported). `check_availability` also accepts an optional `professionalId` (copied from `get_catalog`; the prompt only sends it when the caller named someone) to check that specific professional instead of "anyone free".
+- Retell custom tools are exposed under `POST /webhooks/retell/tools/:retellAgentId/:toolName`. The `retellAgentId` path segment is required because Retell never includes an agent identifier in the tool-call body, so it's embedded in the URL itself (done in `buildRetellCalendarTools`, `backend/src/modules/calendar/service.ts`). Our tools are registered with `args_at_root: false` (see `RetellAdapter.createLlm`/`updateLlm`), so Retell sends `{name, call, args}` — `call.call_id` is threaded through as `callId` to `executeVoiceTool` so `book_appointment` can link the booking to the exact call instead of guessing "the most recent call for this business". The route still tolerates a flat args-only body (no `call_id`) for businesses not yet resynced with this config. The endpoint validates the `x-retell-signature` before executing any tool. Execution is delegated to `executeVoiceTool` in `backend/src/modules/voiceTools/service.ts`, which implements `check_business_hours`, `check_availability` and `book_appointment` (Google, Outlook and Apple/CalDAV supported). `check_availability` also accepts an optional `professionalId` (copied from `get_catalog`; the prompt only sends it when the caller named someone) to check that specific professional instead of "anyone free".
 - **Professional levels in the tool contract (2026-09-17).** `check_availability` translates the ranking into things the agent may say, never the internal tiers: without `professionalId` the success result carries `assignedProfessional: { id, name, isSpecialist }` (= `availableProfessionals[0]`); when the named professional is marked "no sugerir" for the requested services and someone better is free at that time, the result (success or `ALL_PROFESSIONALS_BUSY`) carries `recommendation: { professional, isSpecialist, availabilityToken, instructions }` — its own token so "vale, con Laura" books without another round-trip — and the draft of the *requested* person is flagged `recommendationOffered`. Both tools accept `professionalConfirmed: boolean`: `check_availability` with it skips the recommendation; `book_appointment` **without it on a flagged draft returns `PROFESSIONAL_CONFIRMATION_REQUIRED`** (with the recommendation) instead of booking — the safety net for manually-edited prompts, which receive new tools but not the new prompt text. Booking results now include `professionalName`. Internal fields (`specialistIds`, `recommendedProfessional`) never reach the LLM.
-- **Tool errors never return HTTP 500 to Retell.** All three tools always resolve to `{success: true, result: {success: false, code, message}}` on failure — a Spanish, LLM-speakable message the agent can relay, never a raw exception. `book_appointment`'s calendar-related failures are classified into `*_RECONNECT_REQUIRED` (Google/Outlook auth revoked — needs manual reconnect), `CALENDAR_TIMEOUT` / `CALENDAR_RATE_LIMITED` (Google/Outlook request took over `CALENDAR_REQUEST_TIMEOUT_MS`/`GRAPH_REQUEST_TIMEOUT_MS`, both 8s — a margin under Retell's own 20s tool timeout so the backend cuts the request itself instead of leaving it dangling) or `BOOK_APPOINTMENT_FAILED`/`BOOK_APPOINTMENT_UNEXPECTED_ERROR` (anything else). Every failure except `*_RECONNECT_REQUIRED` also enqueues `retry-failed-booking` (see Background Jobs) after saving a `Lead` with the attempted booking.
+- **Tool errors never return HTTP 500 to Retell.** All three tools always resolve to `{success: true, result: {success: false, code, message}}` on failure — a Spanish, LLM-speakable message the agent can relay, never a raw exception. `book_appointment`'s calendar-related failures are classified into `*_RECONNECT_REQUIRED` (Google/Outlook/CalDAV credentials revoked — needs manual reconnect), `CALENDAR_TIMEOUT` / `CALENDAR_RATE_LIMITED` (the provider request took over `CALENDAR_REQUEST_TIMEOUT_MS`/`GRAPH_REQUEST_TIMEOUT_MS`, both 8s — a margin under Retell's own 20s tool timeout so the backend cuts the request itself instead of leaving it dangling) or `BOOK_APPOINTMENT_FAILED`/`BOOK_APPOINTMENT_UNEXPECTED_ERROR` (anything else). Every failure except `*_RECONNECT_REQUIRED` also enqueues `retry-failed-booking` (see Background Jobs) after saving a `Lead` with the attempted booking.
 - **`serviceIds`/`professionalId` supplied by the LLM to `book_appointment` are verified against `businessId` before use** (`prisma.service.findFirst`/`prisma.professional.findFirst` scoped by `businessId`). An ID that doesn't belong to the business is treated as if it had never been given (falls back to auto-resolution) rather than failing the booking or silently trusting a cross-tenant ID.
 - When an agent is created or updated for a Retell business, `agentBootstrap.ts` creates/updates the LLM and agent in Retell and stores `retellAgentId`/`retellLlmId` in the `Agent` row.
 - Retell agents use the name built by `buildAgentDisplayName(businessName, businessType)` so they are easy to identify in the Retell dashboard.
@@ -673,13 +676,15 @@ Once the order succeeds, the number is imported into Retell via `retellAdapter.i
 
 ## Calendar Integration
 
-- **Google Calendar:** OAuth 2.0 offline access (`prompt: consent`, `access_type: offline`). Refresh tokens are stored in `Business.googleRefreshToken`. Supports `primary` calendar or a specific `googleCalendarId`.
-- **Outlook Calendar:** Microsoft Graph OAuth. Stores refresh token in `Business.outlookRefreshToken`. After OAuth, the user selects a calendar from a list; then `connectMicrosoftCalendar` saves the choice.
-- **Calendar selection:** Google callback redirects directly to frontend. Microsoft callback returns a JSON payload with calendar list; frontend shows selector and calls `POST /calendar/auth/microsoft/connect`.
-- **Switching calendars:** `GET /calendar/calendars` lists the calendars of the connected account (Google `calendarList` or Microsoft Graph) with `{ provider, selectedCalendarId, calendars: [{ id, name, primary }] }`; `POST /calendar/select` with `{ calendarId }` switches the active calendar for either provider. The `/agente` calendar section uses both for its "Cambiar de calendario" picker.
-- `getUpcomingEvents` normalizes events from both providers into a common format.
-- If a refresh token becomes invalid (`invalid_grant`), the backend throws a `CalendarBusinessError` with code `GOOGLE_CALENDAR_RECONNECT_REQUIRED` or `OUTLOOK_CALENDAR_RECONNECT_REQUIRED`. The frontend should prompt the user to reconnect.
-- **Appointment booking** (`book_appointment` webhook handler) supports both Google and Outlook Calendar. It creates the calendar event and persists a `Booking` row with `professionalId`, `serviceIds` and `durationMinutes` (duration recalculated server-side from the verified services). If no `professionalId` is provided, it selects `availableProfessionals[0]` from `checkAvailability` (specialist first, then the least-loaded that day; never a "no sugerir").
+- **Three providers:** Google Calendar, Outlook Calendar and Apple/iCloud (any CalDAV server). **Credentials are never stored on `Business`**: since PR #79 (2026-09-18) the `google*`/`outlook*` columns are dropped and every credential lives encrypted in `calendar_connections.credentials` (one row per business and provider). `Business.calendarProvider` is just a pointer to the active provider. See "Arquitectura por adaptadores" below.
+- **Google Calendar:** OAuth 2.0 offline access (`prompt: consent`, `access_type: offline`). Minimum scopes: `calendar.events` + `calendar.calendarlist.readonly` (never the full `calendar` scope — PR #73). Supports the `primary` calendar or a specific calendar id.
+- **Outlook Calendar:** Microsoft Graph OAuth. After OAuth, the user selects a calendar from a list; then `connectMicrosoftCalendar` saves the choice. Graph rotates the refresh token on every refresh, so the adapter reports it back through `alRotarCredenciales` and `conexion.ts` persists it.
+- **Apple / iCloud (CalDAV):** no OAuth. `POST /calendar/auth/caldav/connect` takes `{ username, appPassword, serverUrl? }` (Apple ID + app-specific password from appleid.apple.com; the server defaults to `SERVIDOR_CALDAV_ICLOUD`) and returns the same `{ calendars, email }` contract as the Microsoft callback. Only reachable from `/agente` — the onboarding step `/register/business/calendar` still offers Google and Outlook only.
+- **Calendar selection:** Google callback redirects directly to frontend. Microsoft callback returns a JSON payload with calendar list; frontend shows selector and calls `POST /calendar/auth/microsoft/connect`. CalDAV returns its calendar list straight from the connect call and finishes with `POST /calendar/select`.
+- **Switching calendars:** `GET /calendar/calendars` lists the calendars of the connected account (Google `calendarList`, Microsoft Graph or a CalDAV `PROPFIND`) with `{ provider, selectedCalendarId, calendars: [{ id, name, primary }] }`; `POST /calendar/select` with `{ calendarId }` switches the active calendar for any of the three. The `/agente` calendar section uses both for its "Cambiar de calendario" picker.
+- `getUpcomingEvents` normalizes events from all three providers into a common format.
+- If credentials stop working (Google/Graph `invalid_grant`, CalDAV 401/403), the backend throws a `CalendarBusinessError` with code `GOOGLE_CALENDAR_RECONNECT_REQUIRED`, `OUTLOOK_CALENDAR_RECONNECT_REQUIRED` or `CALDAV_CALENDAR_RECONNECT_REQUIRED`. The frontend should prompt the user to reconnect.
+- **Appointment booking** (`book_appointment` webhook handler) works with all three providers. It creates the calendar event and persists a `Booking` row with `professionalId`, `serviceIds` and `durationMinutes` (duration recalculated server-side from the verified services). If no `professionalId` is provided, it selects `availableProfessionals[0]` from `checkAvailability` (specialist first, then the least-loaded that day; never a "no sugerir").
 
 ### Arquitectura por adaptadores (`backend/src/adapters/calendar/`, desde 2026-09-18)
 
@@ -757,11 +762,46 @@ backend/src/lib/voiceConfigCache.ts        # claveDeCacheDeVoz / invalidarCacheD
     `CALENDAR_TIMEOUT`; resto → `*_FAILED`. `listarOcupacion` deja pasar el error crudo (el servicio degrada a
     "disponibilidad desconocida").
   - Comprobación manual sin mocks contra Radicale en Docker: `scripts/manual/caldav-e2e.mts` (receta en su
-    cabecera). Contra iCloud real basta cambiar servidor/usuario/contraseña. **Pendiente**: la primera prueba con
-    una cuenta iCloud de verdad y el formulario del panel («Conectar mi calendario de Apple»), que hoy no existe:
-    el frontend sigue con la regla `=== "outlook" ? "outlook" : "google"` y no sabe pintar `caldav`; para eso las
-    respuestas de `Business` llevan ya `activeCalendar` (`{ provider, connected, calendarId, accountEmail,
-    disconnectedAt, lastError }` del proveedor activo, sin nombres de proveedor en las claves).
+    cabecera). Contra iCloud real basta cambiar servidor/usuario/contraseña.
+  - **Estado (2026-09-19):** una cuenta de iCloud real quedó vinculada con éxito **desde el panel en
+    desarrollo**. Verificado en la BD de dev: fila `caldav` con `connected = true`, `calendarId` con la URL
+    absoluta de iCloud (`https://caldav.icloud.com/<id>/calendars/<uuid>/`), `accountEmail` con el Apple ID y
+    `credentials` como sobre `aes-256-gcm`. El Apple ID va completo, **con `@`**: sin la arroba iCloud
+    responde 401 y la ruta devuelve `400 CALDAV_INVALID_CREDENTIALS`.
+  - **El alta resincronizó bien los dos orquestadores.** El negocio de pruebas es `orchestrator = "telnyx"`
+    (auto-promoción del rollout) y su assistant de Telnyx quedó con las seis webhook tools + `hangup`
+    (`telnyxSyncedAt` seis segundos después de crear la conexión, sin `telnyxSyncError`); el LLM de Retell,
+    que sigue de fallback caliente, con las siete equivalentes. Es la prueba de que `seleccionarCalendario`
+    resincroniza tools en todo lo que no es Google **y** de que llega a Telnyx, no solo a Retell.
+  - **Pendiente: la prueba de extremo a extremo por voz** (`check_availability` contra el calendario de Apple
+    → `book_appointment` → evento en iCloud). El negocio de pruebas **no tiene número de teléfono
+    provisionado** y su `subscriptionStatus` es `null`, así que la provisión está cerrada por el gate de plan
+    (`modules/phone/routes.ts` exige `ACTIVE` o `TRIALING`). Ojo: **`/demo/web-call` no sirve** para esto —
+    usa el agente de demo del nicho (o el genérico), no el del negocio, así que no toca su calendario.
+    Vías reales, de menos a más coste, **todas contra Telnyx** (es el primary):
+    1. **Probar las tools sin llamada:** `POST /v2/ai/assistants/:assistantId/tools/:toolId/test` con
+       `arguments` y `dynamic_variables` (ver "Re-syncing webhook URLs"). Ejercita el webhook real, así que
+       cubre el camino completo hasta iCloud; lo que no cubre es la conversación.
+    2. Conectar Apple desde `/agente` en un negocio de dev que **ya** tenga número y llamarlo de verdad (hoy
+       los que tienen número están con Google; hacerlo cambia su proveedor activo y se revierte reconectando
+       Google).
+    3. Provisionar un número en dev para el negocio de pruebas: hay que poner antes su `subscriptionStatus` a
+       `ACTIVE`/`TRIALING`, y compra un número real de Telnyx.
+  - **Antes de cualquiera de las tres: resincronizar.** Las URLs de las tools se hornean con la URL pública
+    del momento y ngrok rota al reiniciar, así que los assistants apuntan al túnel anterior y **todas las
+    tools fallan en silencio**. Ver "Re-syncing webhook URLs" para cómo comprobarlo y arreglarlo.
+
+### El panel y el proveedor activo (`frontend/src/lib/calendar-state.ts`, desde PR #82)
+
+Las respuestas de `Business` llevan `activeCalendar` (`{ provider, connected, calendarId, accountEmail,
+disconnectedAt, lastError }` del proveedor activo, sin nombres de proveedor en las claves). El frontend
+tiene **una sola** regla de estado de calendario en `lib/calendar-state.ts` (`getCalendarState`,
+`CALENDAR_PROVIDER_INFO`, `normalizeCalendarProvider`), que sustituyó a las cuatro copias de
+`=== "outlook" ? "outlook" : "google"` repartidas por los componentes, que no sabían pintar `caldav`.
+Lee `activeCalendar` y cae a los campos `google*`/`outlook*` antiguos si la respuesta todavía no lo trae.
+El alta de Apple es la tarjeta «Conecta el calendario de Apple» de `/agente`
+(`components/apple-calendar-connect.tsx`), con formulario en línea: Apple ID + contraseña de aplicación →
+`POST /calendar/auth/caldav/connect` → selector de calendario → `POST /calendar/select`.
 - **Añadir otro proveedor**: (1) id en `PROVEEDORES_DE_CALENDARIO` + tipo de credenciales en `CalendarCredentials`
   + descriptor en `DESCRIPTORES_DE_PROVEEDOR`; el código `<ID>_CALENDAR_RECONNECT_REQUIRED` aparece solo por el
   template literal; (2) clase en `adapters/calendar/<id>/`, que nunca importa prisma/redis; (3) una línea en
@@ -915,7 +955,7 @@ After confirming the business type, the user is taken to `/register/business/ser
 
 The next step is `/register/business/team`, where the user sets the number of employees (1–20) and booking capacity (1–50). The backend creates placeholder professionals (`Profesional 1…N`) and updates `Business.bookingCapacity`.
 
-The final setup step is `/register/business/calendar`, where the user connects Google or Outlook Calendar. The frontend stores `registration_next_step` in `localStorage` before starting OAuth so `/settings` can bounce the user back into the registration flow after the provider callback. The flow always ends at `/checkout?plan=` (if a plan is pending) or `/planes?from=register` (to select one).
+The final setup step is `/register/business/calendar`, where the user connects Google or Outlook Calendar (Apple/CalDAV is only offered later, from `/agente`). The frontend stores `registration_next_step` in `localStorage` before starting OAuth so `/settings` can bounce the user back into the registration flow after the provider callback. The flow always ends at `/checkout?plan=` (if a plan is pending) or `/planes?from=register` (to select one).
 
 Onboarding texts for headings, subheadings and CTAs are dynamically selected per business type via `BUSINESS_TYPE_ONBOARDING_TEXTS` in `frontend/src/lib/business-type.ts`.
 
@@ -928,7 +968,7 @@ The onboarding checklist lives on the dashboard (`/`). It guides the business th
 1. **Schedule** — valid `BusinessSchedule` configured.
 2. **Services** — at least one active `Service` created.
 3. **Professionals** — at least one active `Professional` created.
-4. **Calendar** — Google or Outlook calendar connected.
+4. **Calendar** — a calendar connected with the active provider (Google, Outlook or Apple/CalDAV): `marcadaComoConectada`, i.e. only the `connected` flag, without looking at the credentials (historical semantics of this step).
 5. **Forwarding** — the business's own line is forwarded to its Alhabla number.
 
 **The forwarding step is the only one we cannot verify directly**: it is activated on the
@@ -1123,7 +1163,7 @@ Separate suite (`npm run test:integration`, config `backend/vitest.integration.c
 | `backend/tests/modules/auth/routes.test.ts` | Login, register, register-first-user, Google OAuth URL |
 | `backend/tests/modules/billing/service.test.ts` | Stripe event handling, billing summary, checkout session, reconciliation |
 | `backend/tests/modules/phone/service.test.ts` | Phone provisioning idempotency, async order polling/resume, partial failure handling, status retrieval |
-| `backend/tests/modules/calendar/service.test.ts` | Google/Outlook Calendar booking, upcoming events, cancel, sync tools to agents, invalid_grant detection, timeout/rate-limit classification, `listarCalendarios`/`seleccionarCalendario` |
+| `backend/tests/modules/calendar/service.test.ts` | Google/Outlook/CalDAV booking, upcoming events, cancel, sync tools to agents, invalid_grant detection, timeout/rate-limit classification, `listarCalendarios`/`seleccionarCalendario`/`conectarConCredenciales` |
 | `backend/tests/modules/calendar/conexion.test.ts` | Resolver de conexión sobre filas de `calendar_connections` (proveedor activo, defaults, credenciales corruptas, caché antigua sin filas), los cuatro predicados de "conectado", `marcarCalendarioDesconectado` (modos panel/revocar, fallo de BD → log de error con identificadores, fallo de Redis), `guardarConexionDeCalendario` (nested upsert exacto por cada caller), `actualizarCalendarioDeConexion`, rotación de credenciales por id y por valor, `serializarBusiness`/`camposDeCalendarioParaElPanel`. Fixtures compartidas en `tests/helpers/conexionDeCalendario.ts` |
 | `backend/tests/adapters/calendar/caldav/ics.test.ts`, `CaldavCalendarProvider.test.ts` | iCalendar ↔ dominio (UID determinista, escapado, alarmas, día completo, TRANSPARENT, cancelado, RRULE, TZID+VTIMEZONE) y adaptador con tsdav mockeado (Basic auth, If-None-Match/412, 404 al borrar, mapeo de errores, `fetchVigilado`) |
 | `backend/tests/lib/cifradoDeCredenciales.test.ts` | Sobre AES-256-GCM: ida y vuelta, IV aleatorio, manipulación y clave distinta fallan, clave ausente/corta falla explícitamente |
@@ -1352,8 +1392,18 @@ A deploy alone does not touch the agents already created in Retell/Telnyx.
 
 ### Re-syncing webhook URLs
 
-Retell registers the webhook URL **per agent** via its own API when an agent is created or a business's calendar settings change — it is not something that updates itself when `BASE_URL` changes (e.g. moving from a local ngrok URL to `https://api.alhabla.ai`, or between two different ngrok sessions). An agent created before a `BASE_URL` change keeps calling the old URL until explicitly re-synced:
+Retell registers the webhook URL **per agent** via its own API when an agent is created or a business's calendar settings change — it is not something that updates itself when `BASE_URL` changes (e.g. moving from a local ngrok URL to `https://api.alhabla.ai`, or between two different ngrok sessions). An agent created before a `BASE_URL` change keeps calling the old URL until explicitly re-synced. **The same applies to Telnyx assistants, which are the primary orchestrator** — there the URL is baked into each webhook tool at sync time, so a stale assistant means every tool call goes nowhere:
 
 - **Retell:** `calendarService.syncCalendarToolsToAgents(businessId)` (LLM tools) and `retellAdapter.updateAgent(agentId, { webhookUrl })` (call lifecycle events `call_started`/`call_ended`/`call_analyzed`) — these are two independent registrations, fixing one doesn't fix the other.
+- **Telnyx:** the tail of that same `syncCalendarToolsToAgents(businessId)` — `buildTelnyxVoiceTools(baseUrl)` + `syncAgentToTelnyx(businessId, prisma, { tools })`, **once per business** (it walks every agent with a `telnyxAssistantId` internally, unlike Retell which needs one API call per agent). It runs whatever `orchestrator` says, so a business still in backfill also gets current tools. **`syncAgentToTelnyx` never throws**: a failed sync is only visible in `Agent.telnyxSyncError` / `telnyxSyncedAt` / `telnyxConfigHash`, so check those columns before believing a sync happened (`strict: true` re-reads them and raises).
 
-This can be verified independently of the app's own DB by querying the provider's API directly with the account's API key (`GET /get-agent/:id` / `GET /get-retell-llm/:id`) and checking the registered URL against what's actually live.
+In dev, `backend/scripts/manual/resyncToolsDev.mts` does the whole sweep: it captures the current ngrok URL itself (a standalone process starts with `serverConfig.webhookUrl` at `null`, so it must call `fetchAndSetNgrokUrl()` before anything else) and re-syncs every business. Run it inside the container, which is what can reach `http://ngrok:4040`: `docker exec alhabla_backend_dev npx tsx scripts/manual/resyncToolsDev.mts`.
+
+This can be verified independently of the app's own DB by querying the provider's API directly with the account's API key and checking the registered URL against what's actually live: Retell `GET /get-agent/:id` and `GET /get-retell-llm/:id`, Telnyx `GET https://api.telnyx.com/v2/ai/assistants/:assistantId` (look at `tools[].webhook.url`; `tool_id` is the field to address a single tool, and the native `hangup` tool has neither URL nor webhook).
+
+**Telnyx's tool tester** hits the real webhook without placing a call: `POST /v2/ai/assistants/:assistantId/tools/:toolId/test` with `arguments` and `dynamic_variables`, returning `{ status_code, response, success }`. Two things to know before relying on it (both confirmed 2026-09-19):
+
+- **Telnyx signs the test request**, so it clears `telnyx-signature-ed25519` on our route. The tester is a genuine end-to-end exercise of the production path, not a bypass.
+- **It needs a real `call_control_id`.** `/webhooks/telnyx/tools/:toolName` resolves the business *only* from the `x-alhabla-call-control-id` header (templated from `{{call_control_id}}`) via `prisma.call.findUnique({ where: { callId } })` — there is no assistant id in the tool body to fall back on. With no such `Call` row the route answers `404 Call not found` before reaching `executeVoiceTool`, and with none at all `400 Missing call_control_id`. Pass an existing call's id in `dynamic_variables.call_control_id`, or insert a throwaway `Call` row for the business in the dev DB. **Mind which business that call belongs to**: the tool runs against *its* `businessId`, not the assistant's.
+
+**Drift observed in dev on 2026-09-19** (a good illustration of both failure modes at once): the six seeded businesses had `telnyxSyncedAt = 2026-09-14`, so their assistants still pointed at that day's ngrok hostname **and** were missing `notify_when_available` entirely (the tool is unconditional in `telnyxAssistantPayload.ts`, it simply postdates their last sync) — five webhook tools plus `hangup` instead of six plus `hangup`. No `telnyxSyncError` on any of them: nothing had failed, nothing had re-run. A stale assistant is silent; only the provider's API tells you.

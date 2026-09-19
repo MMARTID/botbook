@@ -3,7 +3,7 @@
 SaaS multi-tenant de recepcionistas de voz con IA para pequeños negocios en España
 (peluquerías, barberías, salones de uñas, centros de estética, clínicas de fisioterapia).
 Los agentes de voz atienden llamadas, consultan horario y disponibilidad, y reservan citas
-en el calendario de Google u Outlook del negocio.
+en el calendario de Google, Outlook o Apple/iCloud del negocio.
 
 Backend Fastify 5 + Prisma/PostgreSQL + Redis. Frontend Next.js 14 App Router
 (puerto 3001) con Tailwind 3 y TanStack Query. Voz vía Retell.ai, telefonía Telnyx, pagos
