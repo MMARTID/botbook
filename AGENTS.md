@@ -1308,14 +1308,38 @@ fusionar o descartar una rama, quita su fila de esta tabla.
 ### Automated CI/CD (GitHub Actions) — added 2026-09-04
 
 - **`.github/workflows/ci.yml`** — on every PR and every push to `main`: backend
-  (`typecheck`/`lint`/`test`) and frontend (`lint`/`test`/`build`, which also type-checks — there
-  is no `typecheck` script in `frontend/package.json`) run as two parallel jobs. Test-only, never
-  deploys.
+  (`typecheck`/`lint`/`test`), **backend integration** and frontend (`lint`/`test`/`build`, which
+  also type-checks — there is no `typecheck` script in `frontend/package.json`) run as three
+  parallel jobs. Test-only, never deploys.
+  - The **integration** job (added 2026-09-19) runs `npm run test:integration` against real
+    Postgres and Redis service containers, after `npx prisma migrate deploy` creates the schema.
+    That suite existed for a while but **nothing ran it** — only the unit tests were gated, so the
+    one layer that exercises the real schema and transactions was only ever checked by hand.
+    Locally it reads `backend/.env.test` (gitignored); in CI the values come from the job's `env`,
+    which wins because `tests/integration/setup.ts` loads dotenv **without** `override`. CI uses
+    port 5432 where local uses 5433: that 5433 only exists to dodge Homebrew's Postgres, which
+    holds `127.0.0.1:5432` on the dev machine and answers `P1010` to these credentials.
 - **`.github/workflows/deploy-backend.yml`** — on push to `main` only: a `test` job (same backend
   checks, kept as an independent pre-deploy gate on purpose, not just a dependency on `ci.yml`)
   must pass before the `deploy` job runs `gcloud builds submit --config cloudbuild.yaml
   --substitutions=_TAG=<commit sha>` then `gcloud run deploy alhabla-api --image=...:<sha>`, then
-  curls `/health` to confirm. Runs on merges to `main` that touch `backend/**` (or the
+  curls `/health` to confirm (three attempts, for cold starts).
+  Two steps were added on 2026-09-19:
+  - **Automatic rollback.** The job records the serving revision *before* deploying and, if
+    `/health` never answers ok, sends 100% of traffic back to it. Without this a revision that
+    doesn't come up keeps serving everything while the workflow sits red — the failure is visible
+    on GitHub but production stays broken until a human notices. The revision is captured
+    beforehand rather than derived afterwards as "the second newest": if the deploy fails without
+    creating a revision, the second newest is two deploys old and rolling back to it would undo
+    more than the bad deploy.
+  - **Propagating agent behaviour.** If the push touches `lib/managedAgentPrompt.ts` or
+    `lib/telnyxAssistantPayload.ts`, the job forces the `telnyx-reconciler` Cloud Scheduler job
+    instead of waiting for its daily 04:00 pass, and prints a warning that the **Retell fallback
+    is still manual** (`scripts/syncManagedAgentPrompts.ts`). It never fails the deploy: if the
+    trigger is refused (the CI service account needs `roles/cloudscheduler.jobsRunner`), the
+    daily pass will reconcile anyway. This exists because a deploy changes the code that *runs*
+    tools but not the prompt and tool URLs **baked into each assistant at the provider** — on
+    2026-09-19 a prompt fix had to be pushed to production by hand for exactly this reason. Runs on merges to `main` that touch `backend/**` (or the
   workflow itself) — since 2026-09-17 a `paths` filter skips frontend-only and docs-only
   merges, which used to request a manual production approval to rebuild an identical image.
   The `production` environment requires that approval from MMARTID (since ~2026-09-15): a run

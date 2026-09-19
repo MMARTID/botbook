@@ -65,7 +65,11 @@ jobs:
     runs-on: ubuntu-latest
     environment: production
     steps:
+      # fetch-depth: 0 para poder comparar el diff real del push y decidir si
+      # hay que forzar el reconciliador de agentes (ver el último paso).
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - id: auth
         name: Autenticar contra GCP (Workload Identity Federation)
@@ -117,6 +121,19 @@ jobs:
             esac
           done
 
+      # Se captura ANTES de desplegar en vez de deducirla después como "la
+      # penúltima": si el deploy falla sin llegar a crear revisión, la
+      # penúltima sería la buena de hace dos deploys y revertiríamos de más.
+      - name: Anotar la revisión que está sirviendo ahora
+        id: revision_previa
+        run: |
+          ACTUAL=$(gcloud run services describe alhabla-api \
+            --region="${{ env.GCP_REGION }}" \
+            --project="${{ env.GCP_PROJECT_ID }}" \
+            --format='value(status.traffic[0].revisionName)')
+          echo "Sirviendo ahora: $ACTUAL"
+          echo "nombre=$ACTUAL" >> "$GITHUB_OUTPUT"
+
       - name: Desplegar la revisión nueva en alhabla-api
         run: |
           gcloud run deploy alhabla-api \
@@ -126,5 +143,72 @@ jobs:
             --quiet
 
       - name: Verificar /health tras el deploy
+        id: health
         run: |
-          curl -sf https://api.alhabla.ai/health | tee /dev/stderr | grep -q '"status":"ok"'
+          # Tres intentos: la revisión ya está sirviendo cuando `gcloud run
+          # deploy` vuelve, pero un arranque en frío puede tardar en responder
+          # y no queremos revertir un deploy sano por un segundo de más.
+          for intento in 1 2 3; do
+            if curl -sf --max-time 20 https://api.alhabla.ai/health | tee /dev/stderr | grep -q '"status":"ok"'; then
+              exit 0
+            fi
+            echo "Intento $intento fallido; reintentando en 10 s..."
+            sleep 10
+          done
+          echo "::error::/health no responde ok tras el deploy"
+          exit 1
+
+      # Sin esto, una revisión que no levanta se queda sirviendo el 100% del
+      # tráfico con el workflow en rojo y nadie delante: el fallo se ve en
+      # GitHub, pero producción sigue rota hasta que alguien entra a mano.
+      - name: Revertir a la revisión anterior si /health ha fallado
+        if: failure() && steps.health.conclusion == 'failure'
+        run: |
+          ANTERIOR="${{ steps.revision_previa.outputs.nombre }}"
+          if [ -z "$ANTERIOR" ]; then
+            echo "::error::No hay revisión anterior a la que volver; hay que intervenir a mano."
+            exit 1
+          fi
+          echo "Devolviendo el 100% del tráfico a $ANTERIOR"
+          gcloud run services update-traffic alhabla-api \
+            --to-revisions="$ANTERIOR=100" \
+            --region="${{ env.GCP_REGION }}" \
+            --project="${{ env.GCP_PROJECT_ID }}" \
+            --quiet
+          echo "::error::Deploy revertido a $ANTERIOR porque /health no respondía ok."
+
+      # Un deploy NO cambia los agentes ya creados: el prompt y las URLs de
+      # las tools van horneados dentro de cada assistant del proveedor. Telnyx
+      # se repara solo, pero con el reconciliador diario de las 04:00, así que
+      # una mejora desplegada por la mañana no llega a los clientes hasta el
+      # día siguiente. Si el diff toca el comportamiento del agente, lo
+      # forzamos ahora. El respaldo de Retell NO se repara solo y sigue siendo
+      # manual (scripts/syncManagedAgentPrompts.ts).
+      - name: Propagar cambios de prompt o de tools a los agentes vivos
+        if: success()
+        run: |
+          ANTES="${{ github.event.before }}"
+          if [ -z "$ANTES" ] || [ "$ANTES" = "0000000000000000000000000000000000000000" ]; then
+            # HEAD~1 es el primer padre: en un merge a main, la punta de
+            # main anterior al merge, que es justo lo que queremos comparar.
+            CAMBIOS=$(git diff --name-only HEAD~1 HEAD)
+          else
+            CAMBIOS=$(git diff --name-only "$ANTES" "${{ github.sha }}")
+          fi
+
+          if ! echo "$CAMBIOS" | grep -qE '^backend/src/lib/(managedAgentPrompt|telnyxAssistantPayload)\.ts$'; then
+            echo "El deploy no toca el prompt ni el payload del assistant: nada que propagar."
+            exit 0
+          fi
+
+          echo "::warning::Este deploy cambia el comportamiento del agente. Telnyx se fuerza abajo; el respaldo de RETELL sigue con la versión anterior hasta que alguien corra backend/scripts/syncManagedAgentPrompts.ts contra producción."
+
+          # No bloquea el deploy: si falta el permiso o el job no existe, el
+          # reconciliador diario acabará haciéndolo igual.
+          if gcloud scheduler jobs run telnyx-reconciler \
+              --location="${{ env.GCP_REGION }}" \
+              --project="${{ env.GCP_PROJECT_ID }}"; then
+            echo "Reconciliador de Telnyx lanzado."
+          else
+            echo "::warning::No se pudo lanzar telnyx-reconciler (¿falta roles/cloudscheduler.jobsRunner en github-actions-ci?). Los assistants se reconciliarán en la pasada de las 04:00."
+          fi
