@@ -43,7 +43,7 @@ cd frontend && npm install && cd ..
 cp .env.example .env
 # Editar .env con tus credenciales
 
-# Levantar backend + Postgres + Redis + ngrok (dev)
+# Levantar backend + Postgres + Redis + túnel de Cloudflare (dev)
 docker compose --profile dev up -d
 
 # Ejecutar migraciones
@@ -82,7 +82,7 @@ npm run lint
 ### Docker
 
 ```bash
-# Desarrollo completo (backend tsx watch, ngrok, postgres, redis)
+# Desarrollo completo (backend tsx watch, túnel de Cloudflare, postgres, redis)
 docker compose --profile dev up
 
 # Producción local (backend compilado, para probar el runtime sin desplegar)

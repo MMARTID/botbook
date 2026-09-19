@@ -181,7 +181,7 @@ export async function syncAgentToTelnyx(
     const tools = options?.tools ?? (baseUrl ? buildTelnyxVoiceTools(baseUrl) : undefined);
     if (!tools) {
       console.error(
-        `[Agent] No hay URL pública configurada (BASE_URL o ngrok); no se pueden sincronizar tools de Telnyx para ${businessId}`
+        `[Agent] Falta BASE_URL; no se pueden sincronizar tools de Telnyx para ${businessId}`
       );
     }
 
@@ -196,7 +196,7 @@ export async function syncAgentToTelnyx(
         }
         if (!tools) {
           throw new Error(
-            "No hay URL pública configurada (BASE_URL o ngrok); no se pueden sincronizar tools de Telnyx"
+            "Falta BASE_URL; no se pueden sincronizar tools de Telnyx"
           );
         }
 

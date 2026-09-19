@@ -92,14 +92,17 @@ services:
       - prod
 
   # ---------- PERFIL DE DESARROLLO ----------
-  ngrok:
-    image: ngrok/ngrok:latest
+  # Túnel con nombre de Cloudflare: expone backend-dev en un hostname FIJO
+  # (https://dev-api.alhabla.ai). Sustituye a ngrok, cuyo plan gratuito rotaba
+  # el hostname en cada reinicio y dejaba los webhooks ya registrados en Telnyx
+  # y Retell apuntando al túnel anterior, fallando en silencio. El token lleva
+  # dentro a qué túnel se conecta y su enrutado; el hostname se configura una
+  # vez en Cloudflare (ver AGENTS.md § Local development).
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: alhabla_cloudflared
     restart: unless-stopped
-    command: http backend-dev:3000
-    environment:
-      - NGROK_AUTHTOKEN=${NGROK_AUTHTOKEN}
-    ports:
-      - "4040:4040"
+    command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN}
     depends_on:
       - backend-dev
     profiles:
