@@ -30,11 +30,19 @@ const RetryFailedBookingSchema = z.object({
 });
 const ReportUsageSchema = z.object({ businessId: z.string() });
 
+// `idempotencyKey` viaja en el payload de la tarea (enqueue*Job la añade a
+// partir del taskId) y es lo que `reclamarEnvio` usa para que Cloud Tasks,
+// que entrega al menos una vez, no mande dos veces el mismo mensaje. Sin
+// declararla aquí, z.object la descartaba en silencio y la protección no
+// existía en producción.
+const idempotencyKey = z.string().optional();
+
 const SendEmailSchema = z.object({
   fromAlias: z.enum(["welcome", "support"]),
   toAddress: z.string().email(),
   subject: z.string(),
   html: z.string(),
+  idempotencyKey,
 });
 
 const SendSmsSchema = z.object({
@@ -45,6 +53,7 @@ const SendSmsSchema = z.object({
   fromNumber: z.string().regex(E164_PHONE_REGEX),
   toNumber: z.string().regex(E164_PHONE_REGEX),
   text: z.string(),
+  idempotencyKey,
 });
 
 const SendWhatsappSchema = z.object({
@@ -52,6 +61,9 @@ const SendWhatsappSchema = z.object({
   templateName: z.string(),
   languageCode: z.string(),
   bodyParams: z.record(z.string()),
+  idempotencyKey,
+  businessId: z.string().optional(),
+  audience: z.enum(["client", "owner"]).optional(),
 });
 
 // Endpoints invocados por Cloud Tasks/Cloud Scheduler (no por negocios ni

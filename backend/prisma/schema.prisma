@@ -100,6 +100,13 @@ model Business {
   // segunda entrega mandaba el resumen dos veces.
   weeklySummarySentAt DateTime?
 
+  // WhatsApp del dueño (PLAN-CANAL-DUENO.md § 2): el móvil desde el que el
+  // dueño escribe a Alhabla y al que le llegan los avisos. No es
+  // `Business.phone` (el fijo del local, de Google Places). Lo rellena el
+  // alta por WhatsApp (fase 1); el webhook entrante lo usa para saber si
+  // quien escribe al número de negocios es un dueño.
+  ownerWhatsappNumber String?
+
   createdAt           DateTime             @default(now())
   updatedAt           DateTime             @updatedAt
   users               User[]
@@ -112,6 +119,7 @@ model Business {
   onboardingState     OnboardingState?
   calendarConnections CalendarConnection[]
 
+  @@index([ownerWhatsappNumber])
   @@map("businesses")
 }
 
@@ -586,14 +594,155 @@ model SentMessage {
    */
   channel        String
   /**
-   * Clave determinista del envío, la misma que el id de la tarea.
+   * Clave determinista del envío, la misma que el id de la tarea. Los envíos
+   * de WhatsApp hechos fuera de un job (respuestas del webhook, scripts) usan
+   * `adhoc:<id del mensaje en Telnyx>`.
    */
   idempotencyKey String
   sentAt         DateTime @default(now())
 
+  // Entrega y coste de los mensajes de WhatsApp (PLAN-CANAL-DUENO.md
+  // § SentMessage). Todo opcional: las filas de email/SMS y las anteriores a
+  // esta columna solo tienen channel + idempotencyKey. `providerMessageId`
+  // es el id del mensaje en Telnyx, y es lo que trae `context.id` cuando el
+  // destinatario responde a un botón — la correlación botón → recurso pasa
+  // por aquí (verificado en la fase 0.1).
+  providerMessageId String?   @unique
+  businessId        String?
+  /** "client" | "owner" — a qué remitente de Alhabla pertenece el envío. */
+  audience          String?
+  fromNumber        String?
+  toNumber          String?
+  /** "template" | "text" | "interactive" | "contacts" */
+  kind              String?
+  templateName      String?
+  templateLanguage  String?
+  /** `biz_opaque_callback_data`: vuelve en los `statuses[]` de Meta. */
+  callbackData      String?
+  /** Último estado conocido: queued | sent | delivered | read | failed */
+  deliveryStatus    String?
+  deliveredAt       DateTime?
+  readAt            DateTime?
+  failedAt          DateTime?
+  errorCode         String?
+  errorDetail       String?   @db.Text
+  /** Coste en USD con cuatro decimales, tal como lo informa Telnyx. */
+  costAmount        Decimal?  @db.Decimal(10, 5)
+  costCurrency      String?
+
   @@unique([channel, idempotencyKey])
   @@index([sentAt])
+  @@index([businessId, sentAt])
+  @@index([toNumber, sentAt])
   @@map("sent_messages")
+}
+
+/**
+ * Remitentes de WhatsApp de Alhabla, uno por audiencia (PLAN-CANAL-DUENO.md
+ * § 1): `client` («Alhabla Reservas», +34 930 454 394) para todo lo que va
+ * al cliente y `owner` («Alhabla», +34 930 453 218) para todo lo que va al
+ * negocio. Fuente de verdad de qué número usa cada envío; la variable
+ * `WHATSAPP_TELNYX_FROM_NUMBER` queda solo como respaldo cuando la tabla
+ * está vacía. Se rellena con `scripts/manual/sincronizarWhatsapp.mts` a
+ * partir del WABA.
+ */
+model WhatsappSender {
+  id                  String    @id @default(cuid())
+  /** "client" | "owner" */
+  audience            String    @unique
+  /** E.164, p.ej. "+34930454394". */
+  phoneNumber         String    @unique
+  telnyxPhoneNumberId String?
+  /** `phone_number_id` de Meta, el que llega en `metadata` del webhook. */
+  metaPhoneNumberId   String?
+  displayName         String?
+  displayNameStatus   String?
+  /** Estado en el WABA tal como lo informa Telnyx: CONNECTED, PENDING… */
+  status              String
+  qualityRating       String?
+  messagingLimit      String?
+  /** Versión del perfil (about, descripción, foto) aplicada por el script. */
+  profileVersion      Int       @default(0)
+  lastSyncedAt        DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  @@map("whatsapp_senders")
+}
+
+/**
+ * Plantillas de WhatsApp del WABA de Alhabla, sincronizadas desde Telnyx
+ * (script) y mantenidas al día por los webhooks `whatsapp.template.*`.
+ * `key` es el uso que le da el código ("confirmacion_cita",
+ * "nueva_reserva_negocio"…): una sola fila por uso, asignada por el script.
+ * Sustituye a las variables `WHATSAPP_TEMPLATE_*_NAME`, que quedan como
+ * respaldo mientras la tabla no tenga la plantilla.
+ */
+model WhatsappTemplate {
+  id               String    @id @default(cuid())
+  key              String?   @unique
+  name             String
+  language         String
+  /** UUID de Telnyx — es por lo que se envía SIEMPRE (por nombre + idioma
+   * `es_ES` Meta devuelve 40008; verificado el 19-09). */
+  telnyxTemplateId String    @unique
+  metaTemplateId   String?
+  /** UTILITY | MARKETING | AUTHENTICATION */
+  category         String
+  /** APPROVED | PENDING | REJECTED | PAUSED | DISABLED | PENDING_DELETION */
+  status           String
+  qualityRating    String?
+  rejectionReason  String?   @db.Text
+  components       Json?
+  lastSyncedAt     DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@unique([name, language])
+  @@map("whatsapp_templates")
+}
+
+/**
+ * Mensajes entrantes de WhatsApp (evento `whatsapp.messages` del webhook del
+ * WABA, formato Meta). Una fila por `messages[].id`: la unicidad de
+ * `providerMessageId` es la idempotencia del entrante, además de la del
+ * evento (VoiceWebhookEvent). Guarda el payload completo para no perder
+ * nada mientras los handlers de la fase 1 se van añadiendo.
+ */
+model InboundMessage {
+  id                String    @id @default(cuid())
+  /** `messages[].id` (UUID de Telnyx). */
+  providerMessageId String    @unique
+  /** `messages[].foreign_id` (`wamid…` de Meta). */
+  foreignId         String?
+  eventId           String?
+  fromNumber        String
+  /** Número de Alhabla que recibe, en E.164. */
+  toNumber          String
+  /** "client" | "owner" | null si el número receptor no es un remitente conocido. */
+  audience          String?
+  /** "owner" | "client" | "unknown" — quién escribe, según la BD. */
+  role              String
+  businessId        String?
+  /** "text" | "button" | "keyword" | "audio" | "media" | "other" */
+  kind              String
+  text              String?   @db.Text
+  buttonId          String?
+  buttonTitle       String?
+  /** `context.id`: id del mensaje saliente al que responde (botón o cita). */
+  contextMessageId  String?
+  contactName       String?
+  payload           Json
+  receivedAt        DateTime
+  handledAt         DateTime?
+  handler           String?
+  error             String?   @db.Text
+  createdAt         DateTime  @default(now())
+
+  @@index([fromNumber, receivedAt])
+  @@index([businessId, receivedAt])
+  @@index([contextMessageId])
+  @@map("inbound_messages")
 }
 
 enum CallStatus {

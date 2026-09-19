@@ -693,9 +693,19 @@ escrito. Punto 8 en marcha.
 
 ### Fase 1 — El caso 1 completo
 
-- `WhatsAppAdapter.ts` sobre el SDK; `WhatsappTemplate` con webhook de estado; `WhatsappSender`
-  (remitente por audiencia, el de negocios como respaldo) y los dos perfiles en el
-  reconciliador; `SentMessage` con entrega y coste.
+Se ejecuta en cinco PRs, cada uno fusionable en verde y sin cambio visible hasta que se
+active: (1) cimientos, (2) alta del dueño, (3) avisos al negocio, (4) lado cliente, (5)
+piloto. Decisión del usuario del 20-09 (madrugada): cimientos primero.
+
+- ~~`WhatsAppAdapter.ts` sobre el SDK; `WhatsappTemplate` con webhook de estado; `WhatsappSender`
+  (remitente por audiencia, el de negocios como respaldo); `SentMessage` con entrega y coste~~
+  — **PR 1 (cimientos), hecho el 20-09**: adaptador sobre el SDK (con un segundo cliente
+  `baseURL` sin `/v2` porque `client.whatsapp.*` del SDK 7.21 duplica el prefijo), servicio
+  con remitente por audiencia y plantilla por `template_id`, webhook entrante que guarda y
+  clasifica cada mensaje en `InboundMessage` (aún sin responder), entregas y costes en
+  `SentMessage`, estado de plantillas por webhook, script de sincronización. Texto, botones y
+  vCard verificados entregados desde el número de clientes. Los perfiles en el reconciliador
+  quedan para el PR 4. Detalle en `AGENTS.md` § WhatsApp › Código.
 - Alta: campo del móvil, `bienvenida_negocio` con *Activar avisos*, `STOP`, Ajustes › WhatsApp,
   `131026` ⇒ email.
 - Webhook de mensajería: idempotencia, enrutado por prefijo de botón, identificación de dueño /

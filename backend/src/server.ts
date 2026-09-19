@@ -40,6 +40,11 @@ import {
   handleTelnyxToolInvocation,
   extractTelnyxEventEnvelope,
 } from "./adapters/telnyx/webhookHandlers.js";
+import {
+  handleWhatsappMessages,
+  handleMessageStatusEvent,
+  handleTemplateStatusEvent,
+} from "./modules/whatsapp/webhooks.js";
 import { telnyxAiAdapter } from "./adapters/telnyx/TelnyxAiAdapter.js";
 import { comprobarClaveDeCifrado } from "./lib/cifradoDeCredenciales.js";
 import {
@@ -518,7 +523,22 @@ async function start() {
           case "call.cost":
             result = await handleCallCost(payload);
             break;
+          // WhatsApp (PLAN-CANAL-DUENO.md § 6): entrantes y entregas del
+          // webhook del WABA, eventos clásicos de cada envío y estado de
+          // las plantillas. Misma firma e idempotencia que la voz.
+          case "whatsapp.messages":
+            result = await handleWhatsappMessages(payload);
+            break;
+          case "message.sent":
+          case "message.finalized":
+          case "message.read":
+            result = await handleMessageStatusEvent(payload);
+            break;
           default:
+            if (envelope.eventType.startsWith("whatsapp.template.")) {
+              result = await handleTemplateStatusEvent(payload);
+              break;
+            }
             fastify.log.debug(
               { eventType: envelope.eventType },
               "[Telnyx] Evento no procesable ignorado"

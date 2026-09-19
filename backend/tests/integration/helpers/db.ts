@@ -9,6 +9,10 @@ import { getRedis } from "../../../src/lib/redis.js";
  */
 export async function resetDb(): Promise<void> {
   await prisma.$transaction([
+    prisma.inboundMessage.deleteMany(),
+    prisma.sentMessage.deleteMany(),
+    prisma.whatsappTemplate.deleteMany(),
+    prisma.whatsappSender.deleteMany(),
     prisma.booking.deleteMany(),
     prisma.order.deleteMany(),
     prisma.transcript.deleteMany(),

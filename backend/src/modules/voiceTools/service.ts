@@ -1026,6 +1026,7 @@ function buildWhatsappSlotAvailableParams(input: {
 async function sendClientBookingMessage(
   kind: "confirmation" | "reminder",
   input: {
+    businessId: string;
     fromNumber: string;
     messagingProfileId?: string;
     toNumber: string;
@@ -1050,6 +1051,8 @@ async function sendClientBookingMessage(
         templateName,
         languageCode: resolveWhatsappLanguageCode(),
         bodyParams: buildWhatsappBookingParams(input),
+        businessId: input.businessId,
+        audience: "client",
       },
       options
     );
@@ -1797,6 +1800,7 @@ async function executeBookAppointment(
             : undefined;
 
           const clientMessageInput = {
+            businessId: business.id,
             fromNumber: resolveSmsFromAddress(business)!,
             messagingProfileId: resolveSmsMessagingProfileId(),
             toNumber: effectiveClientPhone,
@@ -2256,6 +2260,8 @@ async function notifyPendingAvailabilityWatchers(
           toNumber: data.clientPhone,
           templateName,
           languageCode: resolveWhatsappLanguageCode(),
+          businessId: business.id,
+          audience: "client",
           bodyParams: buildWhatsappSlotAvailableParams({
             businessName: business.name,
             businessPhone: business.telnyxPhoneNumber ?? "",

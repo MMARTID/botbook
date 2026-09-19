@@ -837,6 +837,10 @@ describe("executeVoiceTool book_appointment — confirmación al cliente por Wha
         toNumber: "+34600999888",
         templateName: "confirmacion_cita",
         languageCode: "es",
+        // Atribución del envío (SentMessage) y número de Alhabla por el que
+        // sale: al cliente siempre por el de clientes.
+        businessId: expect.any(String),
+        audience: "client",
       }),
       { taskId: "confirm-sms-booking_1" }
     );

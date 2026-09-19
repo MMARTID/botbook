@@ -350,13 +350,63 @@ Referencia de lo verificado contra la cuenta real el 2026-09-19 (fase 0 de
 el `fetch` equivalente. **Nunca desde un route handler**: todo pasa por
 `backend/src/adapters/whatsapp/WhatsAppAdapter.ts`.
 
+**Código (fase 1, cimientos — PR de 2026-09-20).**
+- `adapters/whatsapp/WhatsAppAdapter.ts`: solo API, sobre el SDK. `sendTemplate` (por
+  `templateId`, con parámetros nombrados; nombre + idioma solo de respaldo), `sendText`,
+  `sendInteractiveButtons` (1-3 botones; la cabecera lleva `type: "text"`, que el SDK no tipa
+  y la API exige), `sendContacts` (vCard en formato Meta `name.formatted_name`; verificado
+  entregado), `getConversationWindow`, `listWabaPhoneNumbers`, `listTemplates`.
+- `modules/whatsapp/service.ts`: la política. `resolverRemitente(audience)` lee
+  `WhatsappSender` (`client` → +34 930 454 394, `owner` → +34 930 453 218; caché 60 s; el de
+  `owner` es el respaldo del de `client`, y `WHATSAPP_TELNYX_FROM_NUMBER` el de todo);
+  `resolverPlantilla({ key } | { name, language })` devuelve la fila **aprobada** de
+  `WhatsappTemplate` o null; `enviarPlantilla/enviarTexto/enviarBotones/enviarContacto`
+  envían y registran el mensaje en `SentMessage` (`providerMessageId`, audiencia, negocio,
+  tipo, estado) — es la fila con la que se correlacionan después los `statuses[]` y el
+  `context.id` de un botón; `ventanaAbierta(audience, to)` pregunta a Telnyx;
+  `actualizarEstadoEnvio` aplica entregas sin retroceder (un `delivered` tardío no pisa un
+  `read`; `failed` siempre gana) y crea la fila `adhoc:<id>` si el envío no pasó por aquí.
+- `modules/whatsapp/webhooks.ts`: `handleWhatsappMessages` (evento `whatsapp.messages`:
+  guarda cada `messages[]` en `InboundMessage` — idempotente por `providerMessageId` — con
+  audiencia por el `to`, rol por la BD (`Business.ownerWhatsappNumber` en el número de
+  negocios; `Booking.clientPhone`/`Call.fromNumber` en el de clientes) y `kind`
+  (`text | keyword | button | audio | media | other`), y aplica los `statuses[]`),
+  `handleMessageStatusEvent` (`message.sent/finalized/read`, con `cost` y `errors`) y
+  `handleTemplateStatusEvent` (`whatsapp.template.*`). Los tres cuelgan del `switch` de
+  `/webhooks/telnyx` en `server.ts`, con la misma firma e idempotencia por id de evento que
+  la voz.
+- `modules/whatsapp/router.ts`: `enrutarEntrante` — todavía **no responde a nadie**; clasifica
+  y deja `handler: pendiente:…` para que los siguientes PRs (alta/STOP, botones de avisos,
+  chat Beta) rellenen cada rama.
+- `jobs/sendWhatsapp.ts` pasa por el servicio: los envíos de voz (`confirmacion_cita`,
+  `recordatorio_cita`, `hora_disponible`) salen por el número de **clientes** y por
+  `template_id` en cuanto la tabla tiene la plantilla; si no, por nombre + `es` como antes.
+  `SendWhatsappJob` lleva ahora `businessId` y `audience`. Las rutas internas de jobs
+  declaran `idempotencyKey` en Zod: hasta este PR `z.object` la descartaba y `reclamarEnvio`
+  no deduplicaba nada en producción (email, SMS y WhatsApp).
+- `scripts/manual/sincronizarWhatsapp.mts --clientes +34… --negocios +34… --clave
+  confirmacion_cita=<uuid>`: vuelca en la BD los números del WABA y las 18 plantillas con su
+  estado; la `key` de cada plantilla es su nombre cuando es único y se fija con `--clave`
+  cuando hay dos con el mismo nombre. Ejecutado en dev el 20-09; en producción, contra Cloud
+  SQL por el proxy, tras el deploy. Requiere `WHATSAPP_WABA_ID`.
+- Tablas nuevas: `WhatsappSender`, `WhatsappTemplate`, `InboundMessage`; `SentMessage`
+  ampliada (entrega, coste, correlación); `Business.ownerWhatsappNumber`. Migración
+  `20260919230000_whatsapp_cimientos`, solo aditiva.
+
 **Cuenta.** Un solo WABA, «Alhabla»: id Telnyx `804230d2-c5e0-45dd-af65-95819468378a`, id Meta
 `1628104425601770`, conectado por Embedded Signup el 13-09. `messaging_limit_tier: TIER_250`
 (250 destinatarios únicos/24 h para **toda** la cartera), `business_verification_status:
 pending_submission` (issue #103: hasta verificar la empresa el remitente se ve como número
 pelado, el techo es 250 y el WABA admite **2 números**). `account_review_status: APPROVED`.
-`GET /v2/whatsapp/business_accounts` por `fetch`: `client.whatsapp.businessAccounts.list()` del
-SDK devuelve 404 (mismo path; `getAPIList` añade algo que el endpoint rechaza).
+**Bug del SDK 7.21 en `client.whatsapp.*`**: el cliente normal tiene `baseURL`
+`https://api.telnyx.com/v2` y esos recursos ya llevan `/v2/` en la ruta, así que toda llamada
+(`businessAccounts.list`, `phoneNumbers.list`, `templates.list`, `retrieveConversationWindow`,
+perfil…) va a `/v2/v2/whatsapp/…` y devuelve `404 10005`. Solución en
+`lib/telnyx.ts`: `getTelnyxWhatsappClient()`, un segundo cliente con `baseURL:
+"https://api.telnyx.com"` solo para `whatsapp.*` (el envío, `messages.whatsapp`, usa la ruta
+correcta y va por el cliente normal). Con eso el SDK sirve para todo; `whatsappMessageTemplates
+.retrieve` sigue dando 404 (ese endpoint no existe). El filtro de `templates.list` es `waba_id`
+(el tipo del SDK dice `filter[waba_id]`, que devuelve cero).
 
 **Números en el WABA — uno por audiencia** (decisión del 19-09 por la noche; son los dos que
 admite el WABA hasta #103, y el `to` del mensaje entrante ya dice si escribe un dueño o un
@@ -439,8 +489,8 @@ todas nuestras plantillas) el adaptador sigue con `fetch`.
 reserva (confirmación al cliente + aviso al negocio) ≈ 0,05 $; mantener la ventana abierta con
 botones sale seis veces más barato que reabrirla con plantilla.
 
-**Plantillas** (`GET/POST /v2/whatsapp/message_templates`; el SDK tiene `client.whatsapp
-.templates.list/create` pero `list` da 404 como arriba). Todas de categoría `UTILITY`, idioma
+**Plantillas** (`GET/POST /v2/whatsapp/message_templates`; `client.whatsapp.templates
+.list/create` con el cliente de `getTelnyxWhatsappClient()`). Todas de categoría `UTILITY`, idioma
 `es`, `parameter_format: "NAMED"` con `example.body_text_named_params` (la API lo acepta aunque
 el SDK no lo tipe). Reglas de Meta que rechazan la creación: **el cuerpo no puede empezar ni
 terminar con una variable** (`2388299`) y **hay un tope de variables por cantidad de texto**
