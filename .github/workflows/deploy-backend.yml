@@ -210,5 +210,5 @@ jobs:
               --project="${{ env.GCP_PROJECT_ID }}"; then
             echo "Reconciliador de Telnyx lanzado."
           else
-            echo "::warning::No se pudo lanzar telnyx-reconciler (¿falta roles/cloudscheduler.jobsRunner en github-actions-ci?). Los assistants se reconciliarán en la pasada de las 04:00."
+            echo "::warning::No se pudo lanzar telnyx-reconciler (¿falta roles/cloudscheduler.jobRunner en github-actions-ci?). Los assistants se reconciliarán en la pasada de las 04:00."
           fi

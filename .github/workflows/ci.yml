@@ -95,6 +95,79 @@ jobs:
 
       - run: npm run test:integration
 
+  diff:
+    name: Cambios — migraciones y orden de despliegue
+    # Solo en PR: son avisos para quien revisa. En un push a main ya es tarde.
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # cloudbuild.yaml aplica las migraciones ANTES de cambiar el tráfico, así
+      # que durante el despliegue conviven el esquema nuevo y la revisión
+      # antigua. Quitar o renombrar una columna en el mismo deploy que el
+      # código que deja de usarla rompe esa revisión mientras dura el cambio:
+      # hay que hacerlo en DOS deploys (dejar de usarla → borrarla). Esa regla
+      # vivía solo en la cabeza de quien la aprendió con los calendarios.
+      - name: Migraciones destructivas sin confirmar
+        env:
+          ETIQUETAS: ${{ join(github.event.pull_request.labels.*.name, ',') }}
+        run: |
+          BASE="origin/${{ github.base_ref }}"
+          NUEVAS=$(git diff --name-only --diff-filter=AM "$BASE"...HEAD -- 'backend/prisma/migrations/**/migration.sql' || true)
+          if [ -z "$NUEVAS" ]; then
+            echo "El PR no añade ni cambia migraciones."
+            exit 0
+          fi
+          echo "Migraciones en este PR:"
+          echo "$NUEVAS" | sed 's/^/  /'
+
+          HALLAZGOS="$RUNNER_TEMP/migraciones-peligrosas.txt"
+          : > "$HALLAZGOS"
+          PATRON='DROP[[:space:]]+(COLUMN|TABLE)|RENAME[[:space:]]+(COLUMN|TO)|SET[[:space:]]+NOT[[:space:]]+NULL'
+          for f in $NUEVAS; do
+            grep -niE "$PATRON" "$f" | sed "s|^|  $f:|" >> "$HALLAZGOS" || true
+          done
+
+          if [ ! -s "$HALLAZGOS" ]; then
+            echo "Ninguna sentencia destructiva."
+            exit 0
+          fi
+
+          echo "Sentencias que rompen la revisión antigua durante el despliegue:"
+          cat "$HALLAZGOS"
+
+          # Dos formas de confirmar que es deliberado y que la fase previa ya
+          # está desplegada: la etiqueta del PR, o un commit que lo diga.
+          if echo ",$ETIQUETAS," | grep -q ',migracion-contract,'; then
+            echo "::notice::Confirmado con la etiqueta 'migracion-contract'."
+            exit 0
+          fi
+          if git log --format=%B "$BASE"..HEAD | grep -qiF 'contract-migration: ok'; then
+            echo "::notice::Confirmado con 'contract-migration: ok' en un commit."
+            exit 0
+          fi
+
+          echo "::error::Esta migración rompe la revisión antigua mientras dura el despliegue (cloudbuild aplica las migraciones antes de cambiar el tráfico). Si el código que usaba esas columnas YA está desplegado, confírmalo con la etiqueta 'migracion-contract' en el PR o con la línea 'contract-migration: ok' en un commit. Si no, pártelo en dos deploys."
+          exit 1
+
+      # No bloquea: el riesgo real es bajo y ocasional, pero conviene recordar
+      # el orden. Vercel publica el frontend en cuanto se fusiona, mientras que
+      # el backend pasa por build, migraciones y despliegue de revisión.
+      - name: Aviso si el PR toca frontend y backend a la vez
+        run: |
+          BASE="origin/${{ github.base_ref }}"
+          CAMBIOS=$(git diff --name-only "$BASE"...HEAD)
+          TOCA_FRONT=$(echo "$CAMBIOS" | grep -c '^frontend/' || true)
+          TOCA_BACK=$(echo "$CAMBIOS" | grep -c '^backend/' || true)
+          if [ "$TOCA_FRONT" -gt 0 ] && [ "$TOCA_BACK" -gt 0 ]; then
+            echo "::warning::Este PR toca frontend ($TOCA_FRONT ficheros) y backend ($TOCA_BACK). Vercel publica el frontend en cuanto se fusiona y el backend tarda varios minutos: si el frontend depende de algo nuevo del backend, habrá una ventana en la que falle. Si es el caso, fusiona antes el backend."
+          else
+            echo "El PR no mezcla frontend y backend."
+          fi
+
   frontend:
     name: Frontend — lint, test, build
     runs-on: ubuntu-latest

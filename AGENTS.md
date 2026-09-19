@@ -1320,6 +1320,19 @@ fusionar o descartar una rama, quita su fila de esta tabla.
     which wins because `tests/integration/setup.ts` loads dotenv **without** `override`. CI uses
     port 5432 where local uses 5433: that 5433 only exists to dodge Homebrew's Postgres, which
     holds `127.0.0.1:5432` on the dev machine and answers `P1010` to these credentials.
+  - The **diff** job (pull requests only, added 2026-09-19) reads the PR's own diff rather than
+    the code:
+    - **Destructive migrations fail the PR.** `cloudbuild.yaml` applies migrations *before*
+      traffic switches, so during a deploy the new schema coexists with the old revision. A
+      `DROP COLUMN`/`DROP TABLE`/`RENAME`/`SET NOT NULL` shipped alongside the code that stopped
+      using the column breaks that old revision while the switch happens — the expand/contract
+      rule (two deploys: stop using it, then drop it) that until now lived only in whoever
+      learned it on the calendar migrations. To ship it deliberately, label the PR
+      `migracion-contract` or put `contract-migration: ok` in a commit message.
+    - **A warning when one PR touches frontend and backend.** Vercel publishes the frontend on
+      merge while the backend still has to build, migrate and roll out a revision, so a frontend
+      that depends on something new can be live first. It never blocks — the window is short and
+      the risk occasional.
 - **`.github/workflows/deploy-backend.yml`** — on push to `main` only: a `test` job (same backend
   checks, kept as an independent pre-deploy gate on purpose, not just a dependency on `ci.yml`)
   must pass before the `deploy` job runs `gcloud builds submit --config cloudbuild.yaml
@@ -1343,8 +1356,15 @@ fusionar o descartar una rama, quita su fila de esta tabla.
     2026-09-19 a prompt fix had to be pushed to production by hand for exactly this reason. Runs on merges to `main` that touch `backend/**` (or the
   workflow itself) — since 2026-09-17 a `paths` filter skips frontend-only and docs-only
   merges, which used to request a manual production approval to rebuild an identical image.
-  The `production` environment requires that approval from MMARTID (since ~2026-09-15): a run
-  left in `waiting` holds the queue for every later push.
+  The `production` environment **no longer requires manual approval** (removed 2026-09-19; the
+  branch policy stays, so only protected branches deploy). It had required approval from MMARTID
+  since ~2026-09-15, and with `cancel-in-progress: false` a run left in `waiting` held the queue
+  for every later push — on 2026-09-19 one sat for 1h46m and blocked the two behind it. The gate
+  is now the `test` job plus the automatic rollback below, which catch more than a human clicking
+  approve on a diff they already reviewed in the PR. **Removing the reviewers fails any run that
+  was already waiting** (that is how the deploy for PR #88 ended, at 2h08m); the next merge
+  redeploys the same code, so nothing is lost, but it is worth knowing before touching this
+  setting again.
   **Frontend is not deployed by this workflow** — Vercel's own Git integration handles that
   (Root Directory must be `frontend`, not `.` — see Producción section below for the incident
   where this broke).
