@@ -21,6 +21,7 @@ import {
 } from "../lib/availability.js";
 import { acquireBookingLock, releaseBookingLock } from "../lib/bookingLock.js";
 import { RetryFailedBookingJob } from "../lib/jobTypes.js";
+import { avisarCitaRecuperada } from "../modules/whatsapp/avisosNegocio.js";
 
 interface PendingBookingData {
   clientName: string;
@@ -48,7 +49,9 @@ function buildCalendarIdempotencyKey(input: {
   durationMinutes: number;
 }): string {
   return createHash("sha256")
-    .update(`${input.callId}\u0000${input.startDateTime}\u0000${input.durationMinutes}`)
+    .update(
+      `${input.callId}\u0000${input.startDateTime}\u0000${input.durationMinutes}`
+    )
     .digest("hex");
 }
 
@@ -108,6 +111,7 @@ export async function processRetryFailedBookingJob(
   const business = await prisma.business.findUnique({
     where: { id: call.businessId },
     select: {
+      name: true,
       schedule: true,
       timezone: true,
       bookingCapacity: true,
@@ -218,7 +222,11 @@ export async function processRetryFailedBookingJob(
     // actual) sería el propio bug que este fix corrige.
     const existingBooking = await prisma.booking.findUnique({
       where: { callId: lead.callId },
-      select: { externalEventId: true, programedAt: true, durationMinutes: true },
+      select: {
+        externalEventId: true,
+        programedAt: true,
+        durationMinutes: true,
+      },
     });
     if (existingBooking) {
       const sameRequest =
@@ -278,7 +286,8 @@ export async function processRetryFailedBookingJob(
           conexion,
           timeMin: startDate,
           timeMax: new Date(
-            startDate.getTime() + computeAvailabilityLookaheadMs(data_.durationMinutes)
+            startDate.getTime() +
+              computeAvailabilityLookaheadMs(data_.durationMinutes)
           ),
         });
 
@@ -296,7 +305,8 @@ export async function processRetryFailedBookingJob(
       serviceIds: requestedServiceIds,
       professionalId: verifiedProfessionalId,
       externalBusyIntervals: normalizedExternalBusy.intervals,
-      calendarAvailabilityKnown: normalizedExternalBusy.calendarAvailabilityKnown,
+      calendarAvailabilityKnown:
+        normalizedExternalBusy.calendarAvailabilityKnown,
       calendarOrigin: origenDeCalendario(conexion),
     });
     if (!availability.available) {
@@ -396,6 +406,17 @@ export async function processRetryFailedBookingJob(
         (result as { htmlLink?: string })?.htmlLink ?? "n/d"
       }`
     );
+
+    // El dueño recibió el aviso de cita pendiente: que sepa que ya entró.
+    // Solo dentro de la ventana de 24 h (sin plantilla propia); nunca lanza.
+    await avisarCitaRecuperada({
+      businessId: call.businessId,
+      businessName: business.name,
+      timezone: business.timezone || "Europe/Madrid",
+      leadId: lead.id,
+      clientName: data_.clientName,
+      startDateTime: startDate,
+    });
   } finally {
     await releaseBookingLock(call.businessId, lockToken);
   }

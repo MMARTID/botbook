@@ -7,6 +7,11 @@ import { checkBusinessHours } from "../../../src/lib/businessSchedule.js";
 import { checkAvailability } from "../../../src/lib/availability.js";
 import { calendarService } from "../../../src/modules/calendar/service.js";
 import { enqueueSmsJob, enqueueWhatsappJob } from "../../../src/lib/cloudTasks.js";
+import {
+  avisarCancelacion,
+  avisarCitaPendiente,
+  avisarNuevaReserva,
+} from "../../../src/modules/whatsapp/avisosNegocio.js";
 
 vi.mock("../../../src/lib/prisma.js", () => ({
   prisma: {
@@ -55,6 +60,15 @@ vi.mock("../../../src/lib/cloudTasks.js", () => ({
   enqueueRetryBookingJob: vi.fn(),
   enqueueSmsJob: vi.fn(),
   enqueueWhatsappJob: vi.fn(),
+}));
+
+// Los avisos al dueño por WhatsApp (PR 3) tienen sus propios tests; aquí
+// solo se comprueba que se piden con los datos de la reserva.
+vi.mock("../../../src/modules/whatsapp/avisosNegocio.js", () => ({
+  avisarNuevaReserva: vi.fn().mockResolvedValue({ via: "interactivo" }),
+  avisarCitaPendiente: vi.fn().mockResolvedValue({ via: "interactivo" }),
+  avisarCancelacion: vi.fn().mockResolvedValue({ via: "interactivo" }),
+  nombreDeServicios: vi.fn().mockResolvedValue([]),
 }));
 
 const mockedBusinessFindUnique = vi.mocked(prisma.business.findUnique);
@@ -177,6 +191,40 @@ describe("executeVoiceTool book_appointment — vinculación a la llamada correc
     );
   });
 
+  it("avisa al dueño por WhatsApp (aviso #1) con el id de la reserva guardada", async () => {
+    mockedCallFindUnique.mockResolvedValue({
+      id: "call_row_1",
+      businessId: "business_123",
+    } as any);
+    mockedBookingUpsert.mockResolvedValue({ id: "booking_9" } as any);
+
+    const result = await executeVoiceTool(
+      buildBookAppointmentInput({ callId: "call_vapi_1" })
+    );
+
+    expect(result.result.success).toBe(true);
+    expect(avisarNuevaReserva).toHaveBeenCalledWith(
+      expect.objectContaining({
+        businessId: "business_123",
+        bookingId: "booking_9",
+        startDateTime: expect.any(Date),
+        serviceNames: expect.any(Array),
+      })
+    );
+  });
+
+  it("si la reserva no se guarda (upsert sin fila) no avisa por WhatsApp", async () => {
+    mockedCallFindUnique.mockResolvedValue({
+      id: "call_row_1",
+      businessId: "business_123",
+    } as any);
+    mockedBookingUpsert.mockResolvedValue(undefined as any);
+
+    await executeVoiceTool(buildBookAppointmentInput({ callId: "call_vapi_1" }));
+
+    expect(avisarNuevaReserva).not.toHaveBeenCalled();
+  });
+
   it("cae al heurístico de llamada más reciente si el callId no tiene fila Call todavía", async () => {
     mockedCallFindUnique.mockResolvedValue(null);
     mockedCallFindFirst.mockResolvedValue({ id: "call_row_MOST_RECENT" } as any);
@@ -281,6 +329,16 @@ describe("executeVoiceTool book_appointment — vinculación a la llamada correc
     // ...pero los datos del cliente no se pierden.
     expect(mockedLeadCreate).toHaveBeenCalled();
     expect(result.result.message).toContain("He tomado nota");
+    // ...y el dueño se entera por WhatsApp (aviso #3), con el email de
+    // respaldo por si el móvil no está activo.
+    expect(avisarCitaPendiente).toHaveBeenCalledWith(
+      expect.objectContaining({
+        businessId: "business_123",
+        leadId: "lead_1",
+        startDateTime: expect.any(Date),
+        email: expect.any(Function),
+      })
+    );
   });
 
   it("prioriza el clientPhone explícito del cliente sobre Call.fromNumber", async () => {
@@ -1083,8 +1141,19 @@ describe("executeVoiceTool cancel_appointment", () => {
     expect(result.result.success).toBe(true);
     expect(mockedBookingUpdate).toHaveBeenCalledWith({
       where: { id: "booking_1" },
-      data: { isCancelled: true },
+      data: {
+        isCancelled: true,
+        cancelledAt: expect.any(Date),
+        cancelledBy: "client_voice",
+      },
     });
+    // Aviso #4 al dueño por WhatsApp con los datos de la cita cancelada.
+    expect(avisarCancelacion).toHaveBeenCalledWith(
+      expect.objectContaining({
+        businessId: "business_123",
+        bookingId: "booking_1",
+      })
+    );
     expect(mockedCancelAppointment).toHaveBeenCalledWith(
       expect.objectContaining({
         conexion: expect.objectContaining({ provider: "google" }),

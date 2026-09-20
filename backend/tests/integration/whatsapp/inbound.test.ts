@@ -135,7 +135,7 @@ describe("WhatsApp entrante (integración)", () => {
         role: "owner",
         businessId: business.id,
         kind: "keyword",
-        handler: "pendiente:palabra-clave:AGENDA",
+        handler: "agenda:sin-negocio",
       })
     );
     expect(enClientes).toEqual(

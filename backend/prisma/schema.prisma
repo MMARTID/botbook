@@ -106,6 +106,10 @@ model Business {
   // alta por WhatsApp (fase 1); el webhook entrante lo usa para saber si
   // quien escribe al número de negocios es un dueño.
   ownerWhatsappNumber String?
+  // Preferencias de avisos por WhatsApp (PLAN-CANAL-DUENO.md § 4):
+  // `{ avisoPorReserva?: boolean }`; ausente = activado. Ver
+  // modules/whatsapp/avisosNegocio.ts.
+  notificationPrefs   Json?
 
   // Alta del dueño por WhatsApp (PLAN-CANAL-DUENO.md § 2, § 6, § 12).
   // El consentimiento tiene que ser demostrable: cuándo, por qué vía y con
@@ -524,6 +528,10 @@ model Booking {
   // desde ese mismo número pueda localizar/cancelar la cita por voz — ver
   // find_my_appointment/cancel_appointment en voiceTools/service.ts.
   smsConsent               Boolean       @default(false)
+  // Quién y cuándo canceló (`client_voice`, `client_button`, `owner_chat`,
+  // `system`); las cancelaciones anteriores a estas columnas no lo tienen.
+  cancelledAt              DateTime?
+  cancelledBy              String?
 
   @@index([professionalId])
   @@index([externalCalendarProvider, externalCalendarId])
@@ -598,6 +606,10 @@ model Lead {
   // Se marca cuando un reintento en segundo plano (jobs/retryFailedBooking.ts)
   // confirma una reserva que había fallado durante la llamada.
   resolvedAt DateTime?
+  // Aviso al negocio de esta cita pendiente (WhatsApp o email): cuándo y por
+  // qué vía (`interactivo`, `plantilla`, `email`, o `ninguna:<motivo>`).
+  notifiedAt  DateTime?
+  notifiedVia String?
   createdAt  DateTime  @default(now())
   call       Call      @relation(fields: [callId], references: [id], onDelete: Cascade)
 
