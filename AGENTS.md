@@ -918,6 +918,83 @@ el `fetch` equivalente. **Nunca desde un route handler**: todo pasa por
   pasos, AYUDA cuenta que se puede pedir por chat. Límite conocido: un móvil dueño de dos
   negocios habla por el que `identificarRemitente` elige.
 
+**Código (fase 2, PR 4 — citas, avisos al cliente, ausencias y bloqueos, 2026-09-20).**
+- `modules/gestor/accionesAgenda.ts`, seis acciones más por el mismo registro
+  (`ACCIONES_DE_AGENDA`): `añadir_cita` (alias `anadir_cita` por si el modelo pierde la eñe),
+  `mover_cita`, `cancelar_cita`, `avisar_cliente`, `marcar_ausencia` y `bloquear_franja`;
+  `cerrar_dia` (catálogo) gana `hastaFecha` (vacaciones, hasta 31 días seguidos, una
+  excepción por fecha). Fechas y horas **en hora local del negocio** (`AAAA-MM-DDTHH:MM`,
+  `instanteLocal` con doble pasada por el cambio de hora): el LLM no convierte zonas.
+- **Citas**: `añadir_cita` resuelve servicios/profesional por id o nombre, suma la duración de
+  los servicios si no se dice, y `comprobar` ya hace la comprobación real (`comprobarHueco`:
+  horario, `checkBookingRestrictions`, calendario **operativo** — sin él no se apunta, como la
+  voz —, ocupación externa y `checkAvailability`); si no hay hueco, el motivo lleva el
+  `suggestedNextSlot` en palabras y el LLM lo ofrece. `ejecutar` es la receta de la lista de
+  espera: lock de reserva, evento en el calendario con clave determinista por acción
+  (`whatsapp:gestor:<accionId>` + `distintivo` = entrante del botón), transacción con la Call
+  sintética (`voiceProvider: "whatsapp"`) y el `Booking` (`createdVia: "owner_chat"`,
+  `smsConsent: false`), y deshacer el evento si la transacción falla. `mover_cita` comprueba
+  con `excluir: { bookingId, externalEventId }` (nuevo en `checkAvailability`: la cita no se
+  bloquea a sí misma ni por su propio evento), crea el evento nuevo → `updateMany` condicional
+  (`isCancelled: false`) → borra el viejo (best-effort) → `programarMensajesAlCliente({
+  confirmacion: false })` para el recordatorio de la hora nueva (el de la vieja se descarta
+  solo por `HORA_CAMBIADA`); pone `confirmedByClientAt` a null. `cancelar_cita` usa
+  `cancelarReserva` con `cancelledBy: "owner_chat"`, que **no manda el aviso #4 al propio
+  dueño** y avisa a la lista de espera con origen `cancelacion_dueno`.
+- **«¿Le mando la confirmación?» / «¿Le aviso?»**: `ResultadoDeEjecucion` gana `siguiente`
+  (`{ tipo, parametros, resumen, pregunta, botones }`). Tras el «Hecho», el enrutador
+  (`preguntarTrasAccion`) registra esa propuesta con `registrarPropuesta` (pasa por `comprobar`
+  de `avisar_cliente`: móvil, número de Alhabla en el negocio, sin STOP, tipo coherente con el
+  estado de la cita) y manda la pregunta como interactivo con los mismos ids
+  `accion:<id>:confirmar|cancelar` y otros títulos («Sí, mándasela» · «No»; «Sí, avísale» ·
+  «Le llamo yo»); si no se puede proponer, el turno de seguimiento del Gestor sigue como
+  siempre. Un «No» a esa pregunta responde `avisoAlClienteDescartado` y no abre turno (no es
+  una propuesta que rehacer). `avisar_cliente.ejecutar` marca `smsConsent: true` (el dueño
+  responde del número y autoriza) y `clientPhone` si viene otro, y encola: `confirmacion` ⇒
+  `programarMensajesAlCliente` (confirmación + recordatorio); `cambio` / `cancelacion` ⇒
+  `programarAvisoAlCliente` (nueva: una tarea por petición, la cancelación solo sobre una
+  reserva ya cancelada). Propósitos nuevos en `mensajesCliente.ts` y `jobTypes.ts`:
+  `cambio` (plantilla `cambio_cita_cliente`, 4 parámetros con la hora nueva) y `cancelacion`
+  (`cancelacion_cita_cliente`, 3), ambas sin v2 ni variable de entorno; el job admite la
+  reserva cancelada para `cancelacion` (`RESERVA_ACTIVA` si no lo está) y anota
+  `clientNotifiedAt`. Las dos plantillas siguen `PENDING` en Meta (#103): hasta que se aprueben
+  el job las descarta con `SIN_PLANTILLA`. El botón «No me va bien» del cliente (fase 1) ya
+  avisa al dueño por la vía del recado (`avisarRecado`, con el móvil del cliente y «quiere que
+  le llamen»).
+- **Ausencias**: tabla nueva `ProfessionalAbsence` (`professional_absences`: `businessId`,
+  `professionalId`, `startsAt`/`endsAt` UTC, `reason`, `createdVia`; migración
+  `20260921090000_ausencias_profesionales`, solo añade). `checkAvailability` las carga por
+  negocio en la misma ventana que las reservas y las mete como ocupación con `ausencia: true`:
+  **ocupan a su profesional, no restan plazas** (`maxConcurrentBookings` las salta) y no cuentan
+  para la carga del día. `get_catalog` (voz y chat) dice cuándo no está cada uno («no está del
+  5 al 7 de octubre», 60 días vista) y `listar_agenda` devuelve `ausencias` del día
+  (recortadas: «todo el día»). `marcar_ausencia`: días enteros si no hay horas, hasta 62
+  días, sin solapes con otra ausencia de la misma persona, y avisa de las citas ya reservadas
+  en el tramo («no se mueven solas»; el prompt ofrece moverlas o cancelarlas una a una).
+- **Bloqueos no son tabla**: `bloquear_franja` escribe una excepción del horario con horario
+  especial (`restarTramo` quita `[desde, hasta)` de los tramos del día; si no queda nada,
+  `closed`), lo que `checkBusinessHours`, `get_catalog`, el panel (`business-hours-editor`) y
+  la sincronización de la recepcionista ya entienden; `ScheduleBlock` del plan queda
+  descartado por redundante. Tope de 3 tramos abiertos por día (límite del esquema).
+- Tool nueva `buscar_hueco` (`modules/gestor/buscarHueco.ts`): la misma disponibilidad que la
+  recepcionista para «¿tiene hueco Laura el jueves a las 10?», con `huecoMasCercano.fechaHora`
+  ya en formato local para pasarlo a `añadir_cita`. Prompt: bloque «## Agenda» (proponer
+  `añadir_cita` directamente y ofrecer la alternativa que devuelva; localizar por
+  `listar_agenda`; escribir el móvil del cliente en la propuesta de mover/cancelar; no
+  preguntar «¿le aviso?» porque lo hace el sistema; ausencias vs. cierres).
+- Probado en vivo en dev (túnel, negocio de prueba desechable creado por `/auth/register`):
+  `buscar_hueco` («sí, Laura tiene libre mañana a las 17:00»), «Laura no viene el viernes» →
+  ausencia (fila UTC correcta) → «¿tiene hueco Laura el viernes a las 10?» → «no, el más
+  cercano es el sábado a las 09:30»; «este sábado cerramos por la tarde» → excepción
+  09:30-14:00; cancelar dos citas sembradas → «Hecho» + pregunta con botones → «Le llamo yo»
+  cierra sin turno; «Sí, avísale» sin número de Alhabla → «no he podido» (ahora se comprueba
+  antes de preguntar); «vacaciones del 5 al 9 de octubre» → cinco excepciones; `listar_agenda`
+  del viernes cuenta la ausencia. **`añadir_cita` y `mover_cita` no se pudieron probar en
+  vivo**: la única conexión de Google en la BD de dev no descifra con la
+  `CALENDAR_CREDENTIALS_KEY` de `.env` (la creó otro proceso con otra clave) y el OAuth no se
+  puede hacer por script; el Gestor respondió correctamente «el calendario necesita volver a
+  conectarse». Quedan cubiertos por tests unitarios (evento, transacción, deshacer, `excluir`).
+
 **Cuenta.** Un solo WABA, «Alhabla»: id Telnyx `804230d2-c5e0-45dd-af65-95819468378a`, id Meta
 `1628104425601770`, conectado por Embedded Signup el 13-09. `messaging_limit_tier: TIER_250`
 (250 destinatarios únicos/24 h para **toda** la cartera), `business_verification_status:

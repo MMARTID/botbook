@@ -11,6 +11,9 @@ vi.mock("../../src/lib/prisma.js", () => ({
     booking: {
       findMany: vi.fn(),
     },
+    professionalAbsence: {
+      findMany: vi.fn(),
+    },
   },
 }));
 
@@ -81,6 +84,7 @@ function givenBookings(bookings: Array<{
 describe("checkAvailability", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(prisma.professionalAbsence.findMany).mockResolvedValue([]);
   });
 
   it("cuenta una sola vez una reserva propia presente también en el calendario", async () => {
@@ -698,6 +702,7 @@ describe("checkAvailability — niveles por servicio", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(prisma.professionalAbsence.findMany).mockResolvedValue([]);
   });
 
   it("sin profesional pedido, nunca asigna a quien está marcado 'no sugerir' para ese servicio", async () => {
@@ -867,5 +872,119 @@ describe("checkAvailability — niveles por servicio", () => {
     if (result.available) {
       expect(result.availableProfessionals).toEqual([{ id: "laura", name: "Laura" }]);
     }
+  });
+
+  describe("ausencias y reserva excluida (el Gestor, fase 2)", () => {
+    beforeEach(() => {
+      vi.mocked(prisma.professionalAbsence.findMany).mockResolvedValue([]);
+    });
+
+    function givenAusencias(
+      ausencias: Array<{ professionalId: string; startsAt: string; endsAt: string }>
+    ) {
+      vi.mocked(prisma.professionalAbsence.findMany).mockResolvedValue(
+        ausencias.map((a, index) => ({
+          id: `ausencia_${index}`,
+          businessId,
+          professionalId: a.professionalId,
+          startsAt: new Date(a.startsAt),
+          endsAt: new Date(a.endsAt),
+          reason: null,
+          createdVia: "owner_chat",
+          createdAt: new Date(),
+        })) as never
+      );
+    }
+
+    it("una ausencia ocupa a su profesional pero no resta plazas al negocio", async () => {
+      givenProfessionals([
+        { id: "laura", name: "Laura", serviceIds: [] },
+        { id: "marta", name: "Marta", serviceIds: [] },
+      ]);
+      givenBookings([]);
+      givenAusencias([
+        { professionalId: "laura", startsAt: "2026-08-10T00:00:00Z", endsAt: "2026-08-11T00:00:00Z" },
+      ]);
+
+      const result = await checkAvailability({
+        businessId,
+        schedule: DEFAULT_BUSINESS_SCHEDULE,
+        timezone: europeMadrid,
+        bookingCapacity: 1,
+        startDateTime: "2026-08-10T10:00:00Z",
+        durationMinutes: 30,
+      });
+
+      expect(result.available).toBe(true);
+      if (result.available) {
+        expect(result.availableProfessionals).toEqual([{ id: "marta", name: "Marta" }]);
+        expect(result.capacityUsed).toBe(0);
+      }
+    });
+
+    it("si piden por su nombre a quien está ausente, no hay hueco y el siguiente hueco cae tras la ausencia", async () => {
+      givenProfessionals([{ id: "laura", name: "Laura", serviceIds: [] }]);
+      givenBookings([]);
+      givenAusencias([
+        { professionalId: "laura", startsAt: "2026-08-10T08:00:00Z", endsAt: "2026-08-10T12:00:00Z" },
+      ]);
+
+      const result = await checkAvailability({
+        businessId,
+        schedule: DEFAULT_BUSINESS_SCHEDULE,
+        timezone: europeMadrid,
+        bookingCapacity: 2,
+        startDateTime: "2026-08-10T10:00:00Z",
+        durationMinutes: 30,
+        professionalId: "laura",
+      });
+
+      expect(result.available).toBe(false);
+      if (!result.available) {
+        expect(result.code).toBe("ALL_PROFESSIONALS_BUSY");
+        expect(result.suggestedNextSlot?.startDateTime).toBe("2026-08-10T12:00:00.000Z");
+      }
+    });
+
+    it("la reserva que se mueve no se bloquea a sí misma ni por su evento externo", async () => {
+      givenProfessionals([{ id: "laura", name: "Laura", serviceIds: [] }]);
+      givenBookings([
+        {
+          programedAt: new Date("2026-08-10T10:00:00Z"),
+          durationMinutes: 60,
+          professionalId: "laura",
+          externalEventId: "event-propio",
+          externalCalendarProvider: "google",
+          externalCalendarId: "primary",
+        },
+      ]);
+
+      const result = await checkAvailability({
+        businessId,
+        schedule: DEFAULT_BUSINESS_SCHEDULE,
+        timezone: europeMadrid,
+        bookingCapacity: 1,
+        startDateTime: "2026-08-10T10:30:00Z",
+        durationMinutes: 60,
+        professionalId: "laura",
+        externalBusyIntervals: [{
+          externalEventId: "event-propio",
+          start: new Date("2026-08-10T10:00:00Z"),
+          end: new Date("2026-08-10T11:00:00Z"),
+        }],
+        calendarAvailabilityKnown: true,
+        calendarOrigin: { provider: "google", calendarId: "primary" },
+        excluir: { bookingId: "booking_0", externalEventId: "event-propio" },
+      });
+
+      expect(mockedBookingFindMany).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ id: { not: "booking_0" } }),
+        })
+      );
+      // El mock devuelve la reserva igualmente (no filtra por id): lo que se
+      // comprueba aquí es que su evento externo tampoco cuenta.
+      expect(result.available).toBe(true);
+    });
   });
 });

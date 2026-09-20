@@ -549,8 +549,8 @@ voz.
 
 ### Nuevas tablas
 
-- `ProfessionalAbsence`, `ScheduleBlock` (ausencias y bloqueos; `availability.ts` y
-  `get_catalog` los respetan).
+- `ProfessionalAbsence` (ausencias; `availability.ts`, `get_catalog` y `listar_agenda` la
+  respetan). ~~`ScheduleBlock`~~: los bloqueos son excepciones del horario (PR 4 de la fase 2).
 - `InboundMessage` (`providerMessageId @unique`, `fromNumber`, `businessId?`, `role`
   `owner | client | unknown`, `kind` `button | text | keyword`, `payload`, `handledAt`, `handler`,
   `error`).
@@ -839,9 +839,18 @@ interruptores globales quedan apagados en producción hasta que el usuario lo pr
   navegador, así que el Gestor da el enlace al panel (`contexto_negocio.enlaces`). Bienvenida
   tras el alta con «escríbeme "empezamos"» si falta algo. Onboarding completo probado en vivo
   en dev. Detalle en `AGENTS.md` § WhatsApp › Código (fase 2, PR 3).
-- Flujo de añadir con "¿le mando la confirmación?"; flujo de mover/cancelar con *Antes la
-  llamo* y "¿aviso a la clienta?"; `cambio_cita_cliente` y `cancelacion_cita_cliente`.
-- `ProfessionalAbsence`, `ScheduleBlock` en `availability.ts` y `get_catalog`.
+- ~~Flujo de añadir con "¿le mando la confirmación?"; flujo de mover/cancelar con *Antes la
+  llamo* y "¿aviso a la clienta?"; `cambio_cita_cliente` y `cancelacion_cita_cliente`.~~ —
+  **PR 4 hecho el 20-09**: `añadir_cita`, `mover_cita`, `cancelar_cita`, `avisar_cliente`,
+  `marcar_ausencia`, `bloquear_franja` y `cerrar_dia` con rango, por el mismo registro; tras
+  el «Hecho» el sistema pregunta con botones «¿Le mando la confirmación?» / «¿Le aviso?» («Sí,
+  avísale» · «Le llamo yo»); *Antes la llamo* no es un tercer botón: la propuesta lleva el
+  móvil del cliente y espera 24 h. Tool `buscar_hueco`. Sin calendario operativo no se apunta
+  (como la voz). Detalle en `AGENTS.md` § WhatsApp › Código (fase 2, PR 4).
+- ~~`ProfessionalAbsence`, `ScheduleBlock` en `availability.ts` y `get_catalog`.~~ —
+  `ProfessionalAbsence` hecho (ocupa a la persona, no resta plazas; `get_catalog` y
+  `listar_agenda` lo cuentan); `ScheduleBlock` DESCARTADO: un bloqueo es una excepción del
+  horario con horario especial, que todo el sistema ya entiende.
 - ~~Etiquetas Beta~~ (solo en el panel, decisión del 20-09), `AYUDA`, `MAL`, límites diarios,
   interruptores. Todos los planes.
 - Panel: historial y "Pregúntale a tu recepcionista".

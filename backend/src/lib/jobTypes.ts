@@ -74,8 +74,9 @@ export interface SendWhatsappJobLegado {
  * encolar y enviar no manda un mensaje falso.
  */
 export interface SendWhatsappJobPorProposito {
-  proposito: "confirmacion" | "recordatorio" | "hueco_libre";
-  /** confirmacion / recordatorio. */
+  proposito:
+    "confirmacion" | "recordatorio" | "hueco_libre" | "cambio" | "cancelacion";
+  /** confirmacion / recordatorio / cambio / cancelacion. */
   bookingId?: string;
   /** hueco_libre. */
   leadId?: string;

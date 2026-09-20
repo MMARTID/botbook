@@ -9,14 +9,16 @@ import {
   describirServicio,
 } from "../whatsapp/avisosNegocio.js";
 import { ACCIONES_DE_CATALOGO } from "./accionesCatalogo.js";
+import { ACCIONES_DE_AGENDA } from "./accionesAgenda.js";
 
 /**
  * Acciones que el Gestor puede PROPONER y que solo el botón «Confirmar» del
  * dueño ejecuta (PLAN-CANAL-DUENO.md § 8, regla de oro). Cada tipo declara
  * su esquema de parámetros, cómo se comprueba contra el negocio al proponer
  * (que el recurso exista y sea suyo) y cómo se ejecuta al confirmar.
- * Este PR trae una sola: `resolver_pendiente`. Catálogo, citas, ausencias y
- * bloqueos llegan en los PRs 3 y 4 por este mismo registro.
+ * Aquí vive `resolver_pendiente`; el catálogo y el horario en
+ * accionesCatalogo.ts (PR 3) y la agenda (citas, avisos al cliente,
+ * ausencias, bloqueos) en accionesAgenda.ts (PR 4).
  */
 
 export const ACCION_CADUCA_MS = 24 * 60 * 60 * 1000;
@@ -51,10 +53,22 @@ export type ResultadoDeComprobacion<P> =
   | { ok: true; descripcion: string; parametros?: P }
   | { ok: false; motivo: string };
 
+/** Pregunta con botones que sigue a un «Hecho» (PR 4: «¿Le mando la
+ * confirmación?» tras apuntar una cita). Es otra propuesta del registro,
+ * que el enrutador registra y envía sin pasar por el LLM; los botones
+ * llevan los mismos ids `accion:<id>:confirmar|cancelar` con otro título. */
+export interface PropuestaSiguiente {
+  tipo: string;
+  parametros: unknown;
+  resumen: string;
+  pregunta: string;
+  botones: { confirmar: string; cancelar: string };
+}
+
 /** `mensaje` se lo lee el dueño por WhatsApp; `nota`, si viene, es lo que se
  * anota en la conversación de Telnyx para el Gestor (puede llevar ids). */
 export type ResultadoDeEjecucion =
-  | { ok: true; mensaje: string; nota?: string }
+  | { ok: true; mensaje: string; nota?: string; siguiente?: PropuestaSiguiente }
   | { ok: false; mensaje: string; nota?: string };
 
 const ResolverPendienteParams = z
@@ -152,6 +166,7 @@ const resolverPendiente: AccionDelGestor<
 export const ACCIONES_DEL_GESTOR: Record<string, AccionDelGestor<unknown>> = {
   resolver_pendiente: resolverPendiente as AccionDelGestor<unknown>,
   ...ACCIONES_DE_CATALOGO,
+  ...ACCIONES_DE_AGENDA,
 };
 
 export function accionConocida(tipo: string): boolean {
@@ -264,7 +279,12 @@ export async function registrarPropuesta(input: {
 }
 
 export type ResultadoDeBoton =
-  | { estado: "ejecutada"; mensaje: string; nota?: string }
+  | {
+      estado: "ejecutada";
+      mensaje: string;
+      nota?: string;
+      siguiente?: PropuestaSiguiente;
+    }
   | { estado: "rechazada" }
   | { estado: "fallida"; mensaje: string; nota?: string }
   | { estado: "caducada" }
@@ -373,6 +393,7 @@ export async function decidirPropuesta(input: {
           estado: "ejecutada",
           mensaje: resultado.mensaje,
           nota: resultado.nota,
+          siguiente: resultado.siguiente,
         }
       : { estado: "fallida", mensaje: resultado.mensaje, nota: resultado.nota };
   } catch (error) {

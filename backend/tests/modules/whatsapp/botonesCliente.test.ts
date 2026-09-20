@@ -76,7 +76,10 @@ vi.mock(
       await importActual<
         typeof import("../../../src/modules/whatsapp/avisosNegocio.js")
       >();
-    return { formatearCita: actual.formatearCita };
+    return {
+      formatearCita: actual.formatearCita,
+      avisarRecado: vi.fn().mockResolvedValue({ via: "interactivo" }),
+    };
   }
 );
 
@@ -920,6 +923,9 @@ describe("Vale / No me va bien (fase 2)", () => {
     );
     mockedLeadFindFirst.mockResolvedValueOnce(null);
     mockedLeadCreate.mockResolvedValue({ id: "lead_x" } as never);
+    const { avisarRecado } =
+      await import("../../../src/modules/whatsapp/avisosNegocio.js");
+    vi.mocked(avisarRecado).mockResolvedValue({ via: "interactivo" });
     const mensaje = boton("No me va bien");
     expect(await botonEnClientes(mensaje)).toEqual({
       handler: "cliente:no_me_va_bien",
@@ -935,6 +941,7 @@ describe("Vale / No me va bien (fase 2)", () => {
           inboundMessageId: mensaje.id,
         },
       },
+      select: { id: true },
     });
     expect(cuerpo(0)).toBe(
       mensajes.cambioNoMeVaBien({
@@ -942,10 +949,20 @@ describe("Vale / No me va bien (fase 2)", () => {
         telefono: TELEFONO,
       })
     );
+    // El dueño se entera como de un recado, con el teléfono del cliente.
+    expect(vi.mocked(avisarRecado)).toHaveBeenCalledWith(
+      expect.objectContaining({
+        businessId: "biz_1",
+        leadId: "lead_x",
+        clientPhone: MOVIL,
+        quiereQueLeLlamen: true,
+      })
+    );
 
     mockedLeadFindFirst.mockResolvedValueOnce({ id: "lead_x" } as never);
     await botonEnClientes(boton("No me va bien"));
     expect(mockedLeadCreate).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(avisarRecado)).toHaveBeenCalledTimes(1);
   });
 });
 

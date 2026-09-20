@@ -47,10 +47,15 @@ describe("ACCIONES_PROPONIBLES", () => {
   it("coincide con el registro de acciones y le cuenta al LLM la forma de cada parámetro", async () => {
     const { ACCIONES_DEL_GESTOR } =
       await import("../../src/modules/gestor/acciones.js");
+    // `anadir_cita` (sin eñe) es un alias del registro, no un tipo aparte.
     expect(ACCIONES_PROPONIBLES.map((a) => a.tipo).sort()).toEqual(
-      Object.keys(ACCIONES_DEL_GESTOR).sort()
+      Object.keys(ACCIONES_DEL_GESTOR)
+        .filter((tipo) => tipo !== "anadir_cita")
+        .sort()
     );
-    const tool = buildGestorTools("https://api.alhabla.ai")[3];
+    const tool = buildGestorTools("https://api.alhabla.ai").find(
+      (t) => t.name === "proponer_accion"
+    )!;
     for (const a of ACCIONES_PROPONIBLES) {
       expect(tool.properties.tipo.description).toContain(`"${a.tipo}"`);
       expect(tool.properties.parametros.description).toContain(
@@ -61,11 +66,12 @@ describe("ACCIONES_PROPONIBLES", () => {
 });
 
 describe("buildGestorTools", () => {
-  it("las cuatro tools apuntan a /webhooks/telnyx/gestor y llevan el negocio y el rol por cabecera desde los metadata", () => {
+  it("las cinco tools apuntan a /webhooks/telnyx/gestor y llevan el negocio y el rol por cabecera desde los metadata", () => {
     const tools = buildGestorTools("https://api.alhabla.ai/");
     expect(tools.map((t) => t.name)).toEqual([
       "contexto_negocio",
       "listar_agenda",
+      "buscar_hueco",
       "resumen_llamadas",
       "proponer_accion",
     ]);
@@ -81,7 +87,8 @@ describe("buildGestorTools", () => {
       expect(Object.keys(tool.properties)).not.toContain("businessId");
     }
     expect(tools[1].required).toEqual(["dia"]);
-    expect(tools[3].required).toEqual(["tipo", "parametros", "resumen"]);
+    expect(tools[2].required).toEqual(["fechaHora"]);
+    expect(tools[4].required).toEqual(["tipo", "parametros", "resumen"]);
   });
 });
 
@@ -92,7 +99,7 @@ describe("buildGestorAssistantPayload", () => {
     expect(payload.model).toBe(GESTOR_MODEL);
     expect(payload.greeting).toBe("");
     expect(payload.instructions).toBe(buildGestorPrompt());
-    expect(payload.tools).toHaveLength(4);
+    expect(payload.tools).toHaveLength(5);
     expect(payload.tools!.every((t) => t.type === "webhook")).toBe(true);
     expect(payload.fallbackConfig).toBeUndefined();
   });

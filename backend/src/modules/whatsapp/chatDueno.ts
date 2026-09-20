@@ -403,10 +403,21 @@ export async function continuarTrasAccion(input: {
   }
 }
 
-export function botonesDeAccion(accionId: string) {
+/** Los ids no cambian nunca (el enrutador decide por ellos); el título sí
+ * puede («Sí, avísale» · «Le llamo yo» en las preguntas tras una acción). */
+export function botonesDeAccion(
+  accionId: string,
+  titulos: { confirmar: string; cancelar: string } = {
+    confirmar: "Confirmar",
+    cancelar: "Cancelar",
+  }
+) {
   return [
-    { id: `accion:${accionId}:confirmar`, title: "Confirmar" },
-    { id: `accion:${accionId}:cancelar`, title: "Cancelar" },
+    {
+      id: `accion:${accionId}:confirmar`,
+      title: titulos.confirmar.slice(0, 20),
+    },
+    { id: `accion:${accionId}:cancelar`, title: titulos.cancelar.slice(0, 20) },
   ];
 }
 

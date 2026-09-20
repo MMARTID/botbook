@@ -30,6 +30,7 @@ vi.mock("../../../src/lib/prisma.js", () => ({
       update: vi.fn(),
     },
     professional: { findFirst: vi.fn(), findMany: vi.fn() },
+    professionalAbsence: { findMany: vi.fn().mockResolvedValue([]) },
     service: { findFirst: vi.fn(), findMany: vi.fn() },
     lead: { create: vi.fn(), findMany: vi.fn(), update: vi.fn() },
   },
@@ -566,6 +567,40 @@ describe("executeVoiceTool — catálogo y token de disponibilidad", () => {
 
     expect(result.result.services).toContain("[service_123] Corte (30 min)");
     expect(result.result.professionals).toContain("[professional_123] Ana");
+  });
+
+  it("el catálogo dice cuándo no está cada profesional (ausencias del Gestor)", async () => {
+    mockedServiceFindMany.mockResolvedValue([] as any);
+    mockedProfessionalFindMany.mockResolvedValue([
+      { id: "professional_123", name: "Ana" },
+      { id: "professional_456", name: "Luis" },
+    ] as any);
+    vi.mocked(prisma.professionalAbsence.findMany).mockResolvedValueOnce([
+      {
+        professionalId: "professional_123",
+        // Días enteros en Europe/Madrid: del 5 al 7 de octubre.
+        startsAt: new Date("2026-10-04T22:00:00Z"),
+        endsAt: new Date("2026-10-07T22:00:00Z"),
+      },
+      {
+        professionalId: "professional_456",
+        startsAt: new Date("2026-10-09T07:00:00Z"),
+        endsAt: new Date("2026-10-09T12:00:00Z"),
+      },
+    ] as any);
+
+    const result = await executeVoiceTool({
+      businessId: "business_123",
+      toolName: "get_catalog",
+      params: {},
+    });
+
+    expect(result.result.professionals).toContain(
+      "[professional_123] Ana (no está del 5 de octubre al 7 de octubre)"
+    );
+    expect(result.result.professionals).toContain(
+      "[professional_456] Luis (no está el 9 de octubre de 09:00 a 14:00)"
+    );
   });
 });
 

@@ -141,6 +141,11 @@ export function accionRechazada(): string {
   return "Vale, no hago nada. Si cambias de idea, vuelve a pedírmelo.";
 }
 
+/** «No» / «Le llamo yo» a la pregunta de avisar al cliente. */
+export function avisoAlClienteDescartado(): string {
+  return "Vale, no le aviso yo.";
+}
+
 export function accionCaducada(): string {
   return "Esa propuesta ya caducó (tenía 24 horas). Si sigues queriéndolo, vuelve a pedírmelo y te lo propongo de nuevo.";
 }
