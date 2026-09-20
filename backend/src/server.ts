@@ -41,6 +41,7 @@ import {
   handleTelnyxToolInvocation,
   extractTelnyxEventEnvelope,
 } from "./adapters/telnyx/webhookHandlers.js";
+import { handleGestorToolInvocation } from "./modules/gestor/tools.js";
 import {
   handleWhatsappMessages,
   handleMessageStatusEvent,
@@ -631,6 +632,56 @@ async function start() {
         callControlId,
         toolName,
         params: toolParams,
+      });
+      return reply.status(status).send(body);
+    });
+
+    // Tools del Gestor (fase 2 del plan de WhatsApp, § 8): el assistant
+    // único de plataforma con el que chatea el dueño. Misma firma Ed25519 que
+    // las tools de voz; el negocio no viene de una Call sino de las cabeceras
+    // X-Alhabla-Business / X-Alhabla-Role, que Telnyx templa desde los
+    // metadata de la conversación creada por Alhabla (modules/gestor/tools.ts).
+    fastify.post("/webhooks/telnyx/gestor/:toolName", {
+      config: {
+        rawBody: true,
+        rateLimit: {
+          max: 300,
+          timeWindow: "1 minute",
+        },
+      },
+    }, async (request, reply) => {
+      const signature = request.headers["telnyx-signature-ed25519"];
+      const timestamp = request.headers["telnyx-timestamp"];
+      if (
+        typeof signature !== "string" ||
+        typeof timestamp !== "string" ||
+        !request.rawBody
+      ) {
+        fastify.log.warn("[Gestor Tool] Missing signature, timestamp or raw body");
+        return reply.status(400).send({ error: "Missing webhook signature or body" });
+      }
+
+      const rawBodyString = typeof request.rawBody === "string" ? request.rawBody : request.rawBody.toString("utf8");
+      let isValid: boolean;
+      try {
+        isValid = await telnyxAiAdapter.verifyWebhookSignature(rawBodyString, signature, timestamp);
+      } catch (error) {
+        fastify.log.error({ err: error }, "[Gestor Tool] No se pudo verificar la firma");
+        return reply.status(500).send({ error: "Signature verification not configured" });
+      }
+      if (!isValid) {
+        fastify.log.warn("[Gestor Tool] Invalid signature");
+        return reply.status(401).send({ error: "Invalid webhook signature" });
+      }
+
+      const { toolName } = request.params as { toolName: string };
+      const businessHeader = request.headers["x-alhabla-business"];
+      const roleHeader = request.headers["x-alhabla-role"];
+      const { status, body } = await handleGestorToolInvocation({
+        businessId: typeof businessHeader === "string" ? businessHeader : undefined,
+        role: typeof roleHeader === "string" ? roleHeader : undefined,
+        toolName,
+        params: (request.body as Record<string, unknown>) || {},
       });
       return reply.status(status).send(body);
     });

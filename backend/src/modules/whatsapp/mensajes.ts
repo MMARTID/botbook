@@ -75,13 +75,21 @@ export function avisosReactivados(input: { negocios: string[] }): string {
 export function ayudaDueno(input: {
   negocios: string[];
   panelUrl: string;
+  /** Con el Gestor encendido, la ayuda cuenta que se puede preguntar. */
+  chat?: boolean;
 }): string {
   return [
     `Soy Alhabla, la recepcionista de ${listarNegocios(input.negocios)}. Por aquí te aviso de las reservas y los recados que atiendo por teléfono.`,
     "Puedes escribirme:",
     "AYUDA: ver este mensaje.",
+    "AGENDA, HOY o MAÑANA: las citas del día.",
     "STOP: dejar de recibir avisos.",
     "ALTA: volver a recibirlos.",
+    ...(input.chat
+      ? [
+          "También puedes preguntarme con tus palabras: qué tienes mañana, cómo ha ido la semana, qué falta por configurar o si una cita pendiente ya la has apuntado tú. Si una respuesta no te sirve, escribe MAL.",
+        ]
+      : []),
     `Para cambiar tu horario, tus servicios o tu equipo, entra en tu panel: ${input.panelUrl}`,
   ].join("\n");
 }
@@ -91,6 +99,58 @@ export function todaviaNoChateo(input: { panelUrl: string }): string {
     `Por ahora solo puedo mandarte avisos por aquí; todavía no sé responder a lo que me escribas. Para ver tu agenda o cambiar algo, entra en tu panel: ${input.panelUrl}`,
     "Escribe AYUDA si quieres ver qué entiendo.",
   ].join("\n");
+}
+
+// ---------------------------------------------------------------------------
+// El Gestor por chat (fase 2, § 8)
+// ---------------------------------------------------------------------------
+
+/** Turno 61 del día: el Gestor descansa hasta mañana. */
+export function limiteDiarioDelGestor(input: { panelUrl: string }): string {
+  return `Por hoy hemos llegado al límite de mensajes por aquí. Mañana seguimos; mientras tanto tienes todo en tu panel: ${input.panelUrl}`;
+}
+
+/** El Gestor no ha podido responder (Telnyx caído o sin respuesta). */
+export function gestorNoDisponible(input: {
+  negocio: string;
+  panelUrl: string;
+}): string {
+  return `Ahora mismo no puedo atenderte por aquí. Inténtalo en un rato o entra en el panel de ${input.negocio}: ${input.panelUrl}`;
+}
+
+/** Botón «Confirmar»: la acción se ha ejecutado; `mensaje` lo pone la acción. */
+export function accionEjecutada(input: { mensaje: string }): string {
+  return input.mensaje;
+}
+
+/** Botón «Confirmar» pero la acción no pudo hacerse. */
+export function accionFallida(input: { mensaje: string }): string {
+  return input.mensaje;
+}
+
+export function accionRechazada(): string {
+  return "Vale, no hago nada. Si cambias de idea, vuelve a pedírmelo.";
+}
+
+export function accionCaducada(): string {
+  return "Esa propuesta ya caducó (tenía 24 horas). Si sigues queriéndolo, vuelve a pedírmelo y te lo propongo de nuevo.";
+}
+
+export function accionYaDecidida(): string {
+  return "Esa propuesta ya estaba decidida; no he hecho nada nuevo.";
+}
+
+export function accionNoEncontrada(): string {
+  return "No encuentro esa propuesta. Vuelve a pedírmelo y te la propongo de nuevo.";
+}
+
+/** MAL: la última pareja pregunta/respuesta queda guardada para revisar. */
+export function feedbackGuardado(): string {
+  return "Anotado. Lo revisaremos para mejorar las respuestas. Si quieres, dime qué esperabas y sigo.";
+}
+
+export function feedbackSinConversacion(): string {
+  return "No tengo ninguna respuesta reciente que anotar. Escribe MAL justo después de una respuesta que no te haya servido.";
 }
 
 export function desconocidoEnNegocios(): string {

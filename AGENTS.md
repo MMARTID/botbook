@@ -784,6 +784,66 @@ el `fetch` equivalente. **Nunca desde un route handler**: todo pasa por
   `{{telnyx_current_time_<zona IANA>}}` (`adaptManagedPromptForTelnyx`), verificado por chat en
   dev («cinco y treinta y seis de la tarde» a las 17:36 de Madrid).
 
+**Código (fase 2, PR 2 — el Gestor base, 2026-09-20).**
+- **Un assistant de Telnyx para toda la plataforma**, `alhabla-gestor` (§ 8), detrás del número
+  de negocios; su id va en `TELNYX_GESTOR_ASSISTANT_ID` (uno por entorno; dev:
+  `assistant-776758e8-…`, creado el 20-09 y apuntando a `dev-api.alhabla.ai`; producción:
+  pendiente de crear cuando el usuario decida encenderlo). Se crea con
+  `scripts/manual/sincronizarGestor.mts --crear` y lo mantiene al día el reconciliador diario
+  (`lib/gestorSync.ts › sincronizarGestor`: compara instrucciones, modelo y la firma de las
+  tools — nombre, url, cabeceras, descripción, parámetros — y no el JSON entero, que trae
+  valores por defecto de Telnyx); el deploy fuerza el reconciliador cuando cambian
+  `gestorPayload.ts` o `gestorSync.ts`. Modelo `openai/gpt-5.6-luna` (el mismo que las
+  recepcionistas); **sin `fallback_config`**: el `zai-org/GLM-5.3-Flash` del plan no está
+  disponible para assistants (10027).
+- **El negocio es dato, no prompt** (`lib/gestorPayload.ts`): prompt único y estable; la
+  conversación de Telnyx la crea Alhabla con `metadata { business_id, role: "owner", channel,
+  owner_phone }` y `system_prompt` con nombre, sector y zona; Telnyx templa los metadata en las
+  cabeceras de las tools inline `X-Alhabla-Business: {{business_id}}` y `X-Alhabla-Role:
+  {{role}}` (verificado en vivo el 20-09 con un túnel a un backend de la rama). Tools inline y
+  no *shared tools* por `tool_ids` (con un único assistant no aportan nada y una shared tool
+  usada por un assistant borrado no se puede eliminar). Ruta
+  `POST /webhooks/telnyx/gestor/:toolName` (server.ts): misma firma Ed25519 que las tools de
+  voz; `modules/gestor/tools.ts › handleGestorToolInvocation` exige la cabecera del negocio
+  (400 si falta o llega el placeholder sin resolver) y `role === "owner"` (403). Tools:
+  `contexto_negocio` (negocio, sector, zona, teléfonos, plan, servicios con precio en euros,
+  profesionales, horario, calendario operativo, `faltaPorConfigurar`, citas pendientes y
+  recados con sus ids), `listar_agenda({ dia: hoy|manana|AAAA-MM-DD })`, `resumen_llamadas({
+  dias 1-31 })` (excluye las Call `whatsapp`, resultados traducidos) y `proponer_accion`.
+- **Regla de oro (`modules/gestor/acciones.ts`)**: el LLM nunca ejecuta. `proponer_accion`
+  valida tipo y parámetros (Zod `.strict()` por tipo), comprueba que el recurso sea del negocio
+  y guarda una `OwnerPendingAction` (24 h; tabla propia y no `Lead pending_owner_action` como
+  decía el plan, porque un Lead exige Call y sale en los listados). El turno en curso vive en
+  Redis (`gestor:turno:<biz>` = entrante + conversación, TTL 180 s) para que la tool sepa a qué
+  responde; la tool deja `gestor:propuesta:<biz>` = id y `chatDueno.ts` manda la respuesta del
+  LLM como interactivo con «Confirmar» · «Cancelar» (`accion:<id>:confirmar|cancelar`,
+  `responder()` acepta `botones`). El botón (`router.ts › botonDeAccion`) exige que la propuesta
+  sea de un negocio cuyo móvil dado de alta es el que pulsa, reclama atómicamente
+  (`confirmedAt/rejectedAt` null en el where: dos toques no ejecutan dos veces), ejecuta por el
+  registro `ACCIONES_DEL_GESTOR`, guarda el resultado y **lo anota en la conversación de Telnyx
+  como mensaje `system`** para que el siguiente turno del Gestor lo sepa. Única acción de este
+  PR: `resolver_pendiente` (cierra un lead `pending_booking` con `resolvedBy: owner_chat`, como
+  «La apunté yo»). Probado en vivo en dev: agenda → citas pendientes → «la de Elena ya la apunté
+  yo» → interactivo con botones → Confirmar → lead resuelto → segundo toque «ya decidida».
+- `modules/whatsapp/chatDueno.ts › conversarConGestor`: interruptor global
+  `TELNYX_OWNER_CHAT_ENABLED` (ausente = apagado, decisión del usuario) y por negocio
+  (`ownerChatEnabled`), `TELNYX_GESTOR_ASSISTANT_ID` obligatorio, negocio activo y sin
+  suscripción bloqueada, **solo el móvil dado de alta y `activo()`** (STOP o sin consentir ⇒
+  respuesta fija), 60 turnos por negocio y día (Redis, zona del negocio), lock por hilo,
+  conversación en `Business.ownerConversationId` (rota a los 30 días por
+  `ownerConversationCreatedAt`, se cierra con STOP/BAJA y se reabre sola si Telnyx devuelve
+  404), marcador `[WhatsApp · <fecha y hora local>]` delante de cada mensaje, timeout 30 s, sin
+  etiqueta «Beta»; `limiteDiarioDelGestor` y `gestorNoDisponible` una vez al día. Enganches en
+  `router.ts`: texto del dueño → Gestor (si no atiende, `todaviaNoChateo`), `MAL` →
+  `OwnerChatFeedback` con la última pareja pregunta/respuesta leída de Telnyx (sin el
+  marcador), `AYUDA` cuenta que se puede preguntar solo con el Gestor encendido. Un dueño con
+  varios negocios habla por el que `identificarRemitente` elige (el más reciente): la elección
+  por chat queda para más adelante.
+- Migración `20260920120000_whatsapp_gestor` (solo aditiva): `owner_pending_actions` y
+  `owner_chat_feedback`. Variables nuevas: `TELNYX_GESTOR_ASSISTANT_ID` (`.env.example`,
+  `docker-compose.yml`). Queda para los PRs 3 y 4: catálogo y onboarding por chat, citas,
+  ausencias y bloqueos (mismo registro de acciones), y la lista para elegir negocio.
+
 **Cuenta.** Un solo WABA, «Alhabla»: id Telnyx `804230d2-c5e0-45dd-af65-95819468378a`, id Meta
 `1628104425601770`, conectado por Embedded Signup el 13-09. `messaging_limit_tier: TIER_250`
 (250 destinatarios únicos/24 h para **toda** la cartera), `business_verification_status:

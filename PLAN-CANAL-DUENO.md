@@ -808,7 +808,16 @@ interruptores globales quedan apagados en producción hasta que el usuario lo pr
   `conectar_calendario`; agenda: `listar_agenda`, `resumen_llamadas`, `añadir_cita`,
   `mover_cita`, `cancelar_cita`, `marcar_ausencia`, `bloquear_franja`, `resolver_pendiente`;
   `proponer_accion`); *shared tools*; conversaciones creadas por Alhabla con metadatos;
-  `pending_owner_action` con 24 h.
+  `pending_owner_action` con 24 h. — **PR 2 hecho el 20-09 (base)**: assistant único
+  `alhabla-gestor` creado por script y mantenido por el reconciliador, conversación por negocio
+  con `metadata { business_id, role: "owner" }` y `system_prompt`, tools inline (no shared) con
+  `X-Alhabla-Business: {{business_id}}`, `contexto_negocio`, `listar_agenda`,
+  `resumen_llamadas` y `proponer_accion` con botones «Confirmar» · «Cancelar» sobre una tabla
+  `OwnerPendingAction` (24 h); única acción por ahora `resolver_pendiente`; `MAL` →
+  `OwnerChatFeedback`; 60 turnos/día; sin `fallback_config` (GLM-5.3-Flash no vale para
+  assistants). Probado de extremo a extremo en dev con el móvil del usuario. Quedan catálogo,
+  onboarding, citas, ausencias y bloqueos (PRs 3 y 4) por el mismo registro de acciones.
+  Detalle en `AGENTS.md` § WhatsApp › Código (fase 2, PR 2).
 - ~~La recepcionista por chat: `ClientConversation` por cliente y negocio contra el assistant de
   voz del negocio; marcador `[WhatsApp]` y bloque "modo chat" en el prompt
   (`managedAgentPrompt.ts`); botón *Cambiar* del recordatorio abre esa conversación.~~ —
@@ -1009,7 +1018,7 @@ OWNER_ALTA_CODE_TTL_HOURS=72
 OWNER_DIGEST_DEFAULT_TIME=20:30
 TELNYX_OWNER_CHAT_ENABLED=false         # nivel 2 del dueño (Beta) — existe desde el PR 1 de la fase 2
 TELNYX_CLIENT_CHAT_ENABLED=false        # nivel 2 del cliente (Beta) — ídem; apagado en producción
-TELNYX_GESTOR_ASSISTANT_ID              # assistant único de plataforma (Gestor)
+TELNYX_GESTOR_ASSISTANT_ID              # assistant único de plataforma (Gestor) — existe desde el PR 2 de la fase 2
 WHATSAPP_FORWARDING_NUMBER=+34692138456 # desvío de los números de Alhabla (verificación de Meta)
 TELNYX_MEMORY_ENABLED=false
 TELNYX_POST_CONVERSATION_ENABLED=false

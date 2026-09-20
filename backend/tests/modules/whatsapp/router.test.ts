@@ -23,6 +23,15 @@ import {
 import { botonEnClientes } from "../../../src/modules/whatsapp/botonesCliente.js";
 import { avisarAQuienEsperaba } from "../../../src/modules/whatsapp/listaDeEspera.js";
 import { conversarConRecepcionista } from "../../../src/modules/whatsapp/chatCliente.js";
+import {
+  anotarEnConversacionDelDueno,
+  cerrarConversacionDelDueno,
+  chatDelDuenoActivo,
+  conversarConGestor,
+  gestorAssistantId,
+} from "../../../src/modules/whatsapp/chatDueno.js";
+import { decidirPropuesta } from "../../../src/modules/gestor/acciones.js";
+import { telnyxAiAdapter } from "../../../src/adapters/telnyx/TelnyxAiAdapter.js";
 import * as mensajes from "../../../src/modules/whatsapp/mensajes.js";
 import { enrutarEntrante } from "../../../src/modules/whatsapp/router.js";
 
@@ -44,6 +53,8 @@ vi.mock("../../../src/lib/prisma.js", () => ({
       updateMany: vi.fn(),
     },
     inboundMessage: { count: vi.fn() },
+    ownerPendingAction: { findUnique: vi.fn() },
+    ownerChatFeedback: { create: vi.fn() },
   },
 }));
 vi.mock("../../../src/lib/messageIdempotency.js", () => ({
@@ -84,6 +95,21 @@ vi.mock("../../../src/modules/whatsapp/listaDeEspera.js", () => ({
 vi.mock("../../../src/modules/whatsapp/chatCliente.js", () => ({
   conversarConRecepcionista: vi.fn(),
 }));
+// El Gestor (fase 2, PR 2) tiene sus tests en chatDueno.test.ts y
+// gestor/acciones.test.ts; aquí solo se comprueba el enrutado.
+vi.mock("../../../src/modules/whatsapp/chatDueno.js", () => ({
+  conversarConGestor: vi.fn(),
+  cerrarConversacionDelDueno: vi.fn(),
+  anotarEnConversacionDelDueno: vi.fn(),
+  chatDelDuenoActivo: vi.fn(() => false),
+  gestorAssistantId: vi.fn(() => null),
+}));
+vi.mock("../../../src/modules/gestor/acciones.js", () => ({
+  decidirPropuesta: vi.fn(),
+}));
+vi.mock("../../../src/adapters/telnyx/TelnyxAiAdapter.js", () => ({
+  telnyxAiAdapter: { listConversationMessages: vi.fn() },
+}));
 // `nombreParaCliente` y `telefonoDeContacto` son puras: se usan las reales.
 vi.mock(
   "../../../src/modules/whatsapp/mensajesCliente.js",
@@ -113,6 +139,11 @@ vi.mock("../../../src/modules/whatsapp/altaDueno.js", async (importActual) => {
 
 const mockedTextoAgenda = vi.mocked(textoAgendaDelDia);
 const mockedChat = vi.mocked(conversarConRecepcionista);
+const mockedGestor = vi.mocked(conversarConGestor);
+const mockedCerrarConversacion = vi.mocked(cerrarConversacionDelDueno);
+const mockedAnotar = vi.mocked(anotarEnConversacionDelDueno);
+const mockedDecidir = vi.mocked(decidirPropuesta);
+const mockedListarMensajes = vi.mocked(telnyxAiAdapter.listConversationMessages);
 const mockedEnqueueRetry = vi.mocked(enqueueRetryBookingJob);
 const mockedEnqueueRecado = vi.mocked(enqueueRecordarRecadoJob);
 const mockedBizFindFirst = vi.mocked(prisma.business.findFirst);
@@ -236,6 +267,13 @@ beforeEach(() => {
   mockedBizFindUnique.mockResolvedValue(null);
   mockedBizCount.mockResolvedValue(0);
   mockedBizUpdateMany.mockResolvedValue({ count: 0 });
+  // Por defecto el Gestor (fase 2) no atiende: el texto del dueño recibe la
+  // respuesta fija; chatDelDuenoActivo/gestorAssistantId quedan en false/null
+  // (vi.fn con implementación en el mock) salvo que un test los cambie.
+  mockedGestor.mockResolvedValue({ atendido: false, motivo: "apagado" });
+  mockedChat.mockResolvedValue({ atendido: false, motivo: "apagado" });
+  vi.mocked(chatDelDuenoActivo).mockReturnValue(false);
+  vi.mocked(gestorAssistantId).mockReturnValue(null);
   mockedSentCount.mockResolvedValue(0);
   mockedSentFindUnique.mockResolvedValue(null);
   mockedSentFindMany.mockResolvedValue([]);
@@ -388,6 +426,8 @@ describe("STOP / BAJA en el número de negocios", () => {
       inboundMessageId: mensaje.id,
       businessId: "biz_1",
     });
+    // La conversación con el Gestor se cierra con la baja (fase 2).
+    expect(mockedCerrarConversacion).toHaveBeenCalledWith(MOVIL);
     expect(enviado()).toEqual(
       expect.objectContaining({
         body: mensajes.bajaDueno({ negocios: ["Peluquería Ana"] }),
@@ -958,7 +998,24 @@ describe("botón «Activar avisos»", () => {
 });
 
 describe("texto libre, audio y medios en el número de negocios", () => {
+  it("el texto del dueño pasa por el Gestor y, si atiende, ahí acaba", async () => {
+    mockedGestor.mockResolvedValueOnce({
+      atendido: true,
+      resultado: { handler: "chat:dueno" },
+    });
+    expect(
+      await enrutarEntrante(
+        texto("¿qué tengo mañana?", { role: "owner", businessId: "biz_1" })
+      )
+    ).toEqual({ handler: "chat:dueno" });
+    expect(mockedGestor).toHaveBeenCalledWith(
+      expect.objectContaining({ businessId: "biz_1", texto: "¿qué tengo mañana?" })
+    );
+    expect(mockedEnviarTexto).not.toHaveBeenCalled();
+  });
+
   it("dueño: respuesta fija una vez al día; audio del dueño pendiente", async () => {
+    mockedGestor.mockResolvedValue({ atendido: false, motivo: "apagado" });
     expect(await enrutarEntrante(texto("hola", { role: "owner" }))).toEqual({
       handler: "texto:dueno",
     });
@@ -1798,5 +1855,156 @@ describe("botones del aviso de recado (#2)", () => {
     ).toEqual({ handler: "aviso:recado:manana:lead-ajeno" });
     expect(mockedLeadUpdate).not.toHaveBeenCalled();
     expect(mockedEnqueueRecado).not.toHaveBeenCalled();
+  });
+});
+
+describe("el Gestor en el número de negocios (fase 2, PR 2)", () => {
+  const PROPUESTA_ID = "acc_1";
+
+  function botonDeAccion(decision: "confirmar" | "cancelar") {
+    return entrante({
+      kind: "button",
+      text: null,
+      role: "owner",
+      businessId: "biz_1",
+      buttonId: `accion:${PROPUESTA_ID}:${decision}`,
+      buttonTitle: decision === "confirmar" ? "Confirmar" : "Cancelar",
+      contextMessageId: "msg_prop",
+    });
+  }
+
+  it("«Confirmar» ejecuta la propuesta del negocio del móvil, responde el resultado y lo anota en la conversación", async () => {
+    vi.mocked(prisma.ownerPendingAction.findUnique).mockResolvedValue({
+      businessId: "biz_1",
+    } as never);
+    mockedBizFindFirst.mockResolvedValue({ id: "biz_1", timezone: "Europe/Madrid" } as never);
+    mockedDecidir.mockResolvedValue({
+      estado: "ejecutada",
+      mensaje: "Hecho: doy por resuelta la cita pendiente de Elena.",
+    });
+
+    const mensaje = botonDeAccion("confirmar");
+    expect(await enrutarEntrante(mensaje)).toEqual({ handler: "accion:confirmar" });
+    expect(mockedDecidir).toHaveBeenCalledWith({
+      accionId: PROPUESTA_ID,
+      businessId: "biz_1",
+      timezone: "Europe/Madrid",
+      decision: "confirmar",
+      inboundMessageId: mensaje.id,
+    });
+    expect(enviado()?.body).toBe("Hecho: doy por resuelta la cita pendiente de Elena.");
+    expect(mockedAnotar).toHaveBeenCalledWith(
+      "biz_1",
+      expect.stringContaining("pulsó Confirmar")
+    );
+  });
+
+  it("«Cancelar» rechaza; caducada, ya decidida y no encontrada responden su texto", async () => {
+    vi.mocked(prisma.ownerPendingAction.findUnique).mockResolvedValue({
+      businessId: "biz_1",
+    } as never);
+    mockedBizFindFirst.mockResolvedValue({ id: "biz_1", timezone: "Europe/Madrid" } as never);
+
+    mockedDecidir.mockResolvedValueOnce({ estado: "rechazada" });
+    expect(await enrutarEntrante(botonDeAccion("cancelar"))).toEqual({
+      handler: "accion:cancelar",
+    });
+    expect(enviado(0)?.body).toBe(mensajes.accionRechazada());
+
+    mockedDecidir.mockResolvedValueOnce({ estado: "caducada" });
+    expect(await enrutarEntrante(botonDeAccion("confirmar"))).toEqual({
+      handler: "accion:confirmar:caducada",
+    });
+    expect(enviado(1)?.body).toBe(mensajes.accionCaducada());
+
+    mockedDecidir.mockResolvedValueOnce({ estado: "ya_decidida" });
+    expect(await enrutarEntrante(botonDeAccion("confirmar"))).toEqual({
+      handler: "accion:confirmar:ya-decidida",
+    });
+    expect(enviado(2)?.body).toBe(mensajes.accionYaDecidida());
+
+    mockedDecidir.mockResolvedValueOnce({
+      estado: "fallida",
+      mensaje: "No he podido hacerlo ahora mismo.",
+    });
+    expect(await enrutarEntrante(botonDeAccion("confirmar"))).toEqual({
+      handler: "accion:confirmar:fallida",
+    });
+    expect(enviado(3)?.body).toBe("No he podido hacerlo ahora mismo.");
+  });
+
+  it("un botón sobre una propuesta de otro negocio (o de un móvil distinto) no ejecuta nada", async () => {
+    vi.mocked(prisma.ownerPendingAction.findUnique).mockResolvedValue({
+      businessId: "biz_ajeno",
+    } as never);
+    mockedBizFindFirst.mockResolvedValue(null);
+
+    expect(await enrutarEntrante(botonDeAccion("confirmar"))).toEqual({
+      handler: "accion:boton:ajena",
+    });
+    expect(mockedDecidir).not.toHaveBeenCalled();
+    expect(enviado()?.body).toBe(mensajes.accionNoEncontrada());
+    expect(mockedBizFindFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ id: "biz_ajeno", ownerWhatsappNumber: MOVIL }),
+      })
+    );
+  });
+
+  it("un id de botón accion: malformado no responde", async () => {
+    expect(
+      await enrutarEntrante(
+        entrante({ kind: "button", text: null, role: "owner", buttonId: "accion:x:borrar" })
+      )
+    ).toEqual({ handler: "accion:boton:malformado" });
+    expect(mockedEnviarTexto).not.toHaveBeenCalled();
+  });
+
+  it("MAL guarda la última pareja pregunta/respuesta de la conversación del Gestor (sin el marcador)", async () => {
+    mockedBizFindFirst.mockResolvedValue({
+      id: "biz_1",
+      ownerConversationId: "conv_dueno",
+    } as never);
+    mockedListarMensajes.mockResolvedValue([
+      { role: "assistant", text: "Mañana no tienes citas." },
+      { role: "tool", text: "{}" },
+      { role: "user", text: "[WhatsApp · domingo 20 de septiembre, 18:09 (Europe/Madrid)] ¿Qué tengo mañana?" },
+      { role: "assistant", text: "Hola, ¿en qué te ayudo?" },
+    ]);
+    vi.mocked(prisma.ownerChatFeedback.create).mockResolvedValue({} as never);
+
+    expect(
+      await enrutarEntrante(keyword("MAL", { role: "owner", businessId: "biz_1" }))
+    ).toEqual({ handler: "mal:guardado" });
+    expect(prisma.ownerChatFeedback.create).toHaveBeenCalledWith({
+      data: {
+        businessId: "biz_1",
+        conversationId: "conv_dueno",
+        question: "¿Qué tengo mañana?",
+        answer: "Mañana no tienes citas.",
+      },
+    });
+    expect(enviado()?.body).toBe(mensajes.feedbackGuardado());
+  });
+
+  it("MAL sin conversación con el Gestor responde que no hay nada que anotar (una vez al día)", async () => {
+    mockedBizFindFirst.mockResolvedValue({ id: "biz_1", ownerConversationId: null } as never);
+    expect(
+      await enrutarEntrante(keyword("MAL", { role: "owner", businessId: "biz_1" }))
+    ).toEqual({ handler: "mal:sin-conversacion" });
+    expect(enviado()?.body).toBe(mensajes.feedbackSinConversacion());
+    expect(mockedListarMensajes).not.toHaveBeenCalled();
+  });
+
+  it("AYUDA cuenta que se puede preguntar solo con el Gestor encendido", async () => {
+    mockedBizFindMany.mockResolvedValue([ACTIVO] as never);
+    vi.mocked(chatDelDuenoActivo).mockReturnValueOnce(true);
+    vi.mocked(gestorAssistantId).mockReturnValueOnce("assistant-gestor");
+
+    await enrutarEntrante(keyword("AYUDA", { role: "owner" }));
+    expect(enviado()?.body).toBe(
+      mensajes.ayudaDueno({ negocios: ["Peluquería Ana"], panelUrl: PANEL, chat: true })
+    );
+    expect(enviado()?.body).toContain("MAL");
   });
 });

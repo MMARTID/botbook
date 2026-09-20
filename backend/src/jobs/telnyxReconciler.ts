@@ -5,6 +5,7 @@ import { sendZohoMail } from "../lib/zohoMail.js";
 import { errorMessage } from "../lib/logUtils.js";
 import { buildTelnyxAssistantName } from "../lib/telnyxAssistantPayload.js";
 import { refrescarPlantillasConClave } from "../modules/whatsapp/service.js";
+import { sincronizarGestor } from "../lib/gestorSync.js";
 
 /**
  * Reconciliador diario Telnyx (PLAN-TELNYX-ORQUESTADOR.md Fase 6:
@@ -60,6 +61,20 @@ export async function telnyxReconcilerJob(): Promise<TelnyxReconcilerResult> {
   } catch (error) {
     console.error(
       `[TelnyxReconciler] refrescarPlantillasConClave inesperado: ${errorMessage(error)}`
+    );
+  }
+
+  // El Gestor (fase 2 del plan de WhatsApp): un solo assistant de plataforma
+  // que no pasa por syncAgentToTelnyx; se mantiene igual al payload del
+  // código aquí. Sin TELNYX_GESTOR_ASSISTANT_ID no hace nada.
+  try {
+    const gestor = await sincronizarGestor();
+    if (gestor.estado !== "sin_id") {
+      console.log(`[TelnyxReconciler] Gestor: ${gestor.estado}${"id" in gestor && gestor.id ? ` (${gestor.id})` : ""}${gestor.estado === "error" ? ` — ${gestor.motivo}` : ""}`);
+    }
+  } catch (error) {
+    console.error(
+      `[TelnyxReconciler] sincronizarGestor inesperado: ${errorMessage(error)}`
     );
   }
 
