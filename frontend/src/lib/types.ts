@@ -125,6 +125,9 @@ export type Business = {
   ownerWhatsappUnreachableAt?: string | null;
   /** Preferencias de avisos por WhatsApp; el PATCH las fusiona con las guardadas. */
   notificationPrefs?: { avisoPorReserva?: boolean } | null;
+  /** Conversaciones de la fase 2 (Beta): el Gestor y la recepcionista por chat. */
+  ownerChatEnabled?: boolean;
+  clientChatEnabled?: boolean;
   agents?: Agent[];
   calls?: Call[];
 };
@@ -162,6 +165,42 @@ export type EstadoWhatsappDueno = {
   avisoPorReserva: boolean;
   /** Mensaje «ALTA <código>» listo para enviar; `null` solo cuando está activo. */
   alta: { code: string; text: string; link: string; expiresAt: string } | null;
+};
+
+/** «Tu Gestor» en el panel (fase 2 / PR 5): lo que devuelve GET /business/me/gestor. */
+export type MensajeDelGestor = {
+  de: "dueno" | "gestor";
+  texto: string;
+  en: string | null;
+};
+
+export type PropuestaDelGestor = {
+  id: string;
+  resumen: string;
+  expiresAt: string;
+  botones: { confirmar: string; cancelar: string };
+};
+
+export type EstadoDelGestor = {
+  disponible: boolean;
+  activoEnNegocio: boolean;
+  whatsapp: WhatsappOwnerStatus;
+  mensajes: MensajeDelGestor[];
+  propuesta: PropuestaDelGestor | null;
+};
+
+export type RespuestaDelGestor = {
+  ok: true;
+  respuesta: string;
+  propuesta: PropuestaDelGestor | null;
+};
+
+export type DecisionDelGestor = {
+  ok: true;
+  estado: "ejecutada" | "fallida" | "rechazada";
+  mensaje: string;
+  propuesta: PropuestaDelGestor | null;
+  seguimiento: string | null;
 };
 
 export type PlanId = "inicio" | "pro" | "scale";

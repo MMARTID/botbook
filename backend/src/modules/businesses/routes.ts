@@ -69,6 +69,11 @@ const UpdateBusinessSchema = z.object({
     .object({ avisoPorReserva: z.boolean().optional() })
     .strict()
     .optional(),
+  // Las conversaciones de la fase 2 (Beta): el Gestor por WhatsApp/panel y
+  // la recepcionista por chat con los clientes. Interruptores por negocio;
+  // los globales (`TELNYX_*_CHAT_ENABLED`) mandan por encima.
+  ownerChatEnabled: z.boolean().optional(),
+  clientChatEnabled: z.boolean().optional(),
   // De Google Places, para el botón «Cómo llegar» de la confirmación por
   // WhatsApp (sufijo de la URL de Google Maps): solo el alfabeto de un
   // place_id, así nunca puede alterar el enlace con & o /.

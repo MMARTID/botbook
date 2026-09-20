@@ -33,6 +33,10 @@ export const AVISO_PARECE_FIJO =
   "Parece el teléfono del local. Necesitamos el móvil en el que usas WhatsApp.";
 export const AYUDA_AVISO_RESERVA =
   "Si lo desactivas dejarás de recibir el aviso de cada cita que reserve la recepcionista. Las citas pendientes de confirmar, las cancelaciones y los recados te llegarán igual.";
+export const AYUDA_GESTOR =
+  "Escríbele por WhatsApp o desde el panel: te dice qué tienes, apunta o mueve citas y cambia servicios, equipo y horario, siempre con tu confirmación. Si lo desactivas, los avisos siguen llegando.";
+export const AYUDA_CHAT_CLIENTES =
+  "Cuando un cliente escriba al WhatsApp de reservas, la recepcionista le atenderá por chat con tus mismos servicios, horario y calendario. Si lo desactivas, se le pedirá que llame.";
 
 type Feedback = { type: "success" | "error"; message: string } | null;
 
@@ -278,6 +282,53 @@ export function WhatsappDueno({ business, hasToken }: WhatsappDuenoProps) {
         message: describeApiError(
           error,
           "No se pudo guardar la preferencia. Inténtalo de nuevo."
+        ),
+      }),
+  });
+
+  // Interruptores de las conversaciones (Beta): mismo PATCH, guardado al
+  // instante; el negocio actualizado sustituye al de la caché.
+  const [feedbackChat, setFeedbackChat] = useState<Feedback>(null);
+  const chatMutation = useMutation({
+    mutationFn: async (cambio: {
+      campo: "ownerChatEnabled" | "clientChatEnabled";
+      valor: boolean;
+    }) => {
+      const updated = await updateMyBusiness({ [cambio.campo]: cambio.valor });
+      return {
+        updated,
+        cambio,
+        guardado: updated[cambio.campo] === cambio.valor,
+      };
+    },
+    onSuccess: ({ updated, cambio, guardado }) => {
+      queryClient.setQueryData(["my-business"], updated);
+      void queryClient.invalidateQueries({ queryKey: ["gestor"] });
+      setFeedbackChat(
+        guardado
+          ? {
+              type: "success",
+              message:
+                cambio.campo === "ownerChatEnabled"
+                  ? cambio.valor
+                    ? "El Gestor queda activado."
+                    : "El Gestor queda desactivado."
+                  : cambio.valor
+                    ? "La recepcionista atenderá a los clientes por chat."
+                    : "Los clientes que escriban recibirán un aviso para llamar.",
+            }
+          : {
+              type: "error",
+              message: "No se pudo guardar el ajuste. Inténtalo de nuevo.",
+            }
+      );
+    },
+    onError: (error) =>
+      setFeedbackChat({
+        type: "error",
+        message: describeApiError(
+          error,
+          "No se pudo guardar el ajuste. Inténtalo de nuevo."
         ),
       }),
   });
@@ -557,6 +608,70 @@ export function WhatsappDueno({ business, hasToken }: WhatsappDuenoProps) {
           <FeedbackMessage value={feedbackAviso} />
         </div>
       ) : null}
+
+      <div className="space-y-2" id="conversaciones">
+        <div className="flex items-center gap-2">
+          <h3 className="text-sm font-semibold text-[#0a0a0a]">
+            Conversaciones
+          </h3>
+          <span className="badge-soft">Beta</span>
+        </div>
+        <label className="flex min-h-11 items-start gap-3 rounded-xl border border-[#e5e5e5] p-3 text-sm text-[#27272a]">
+          <input
+            type="checkbox"
+            checked={business.ownerChatEnabled !== false}
+            disabled={chatMutation.isPending}
+            onChange={(event) => {
+              setFeedbackChat(null);
+              chatMutation.mutate({
+                campo: "ownerChatEnabled",
+                valor: event.target.checked,
+              });
+            }}
+            aria-describedby="settings-gestor-hint"
+            className="mt-1 accent-[#8b5cf6]"
+          />
+          <span>
+            <span className="font-semibold">
+              Tu Gestor por WhatsApp y en el panel
+            </span>
+            <span
+              id="settings-gestor-hint"
+              className="mt-1 block text-xs leading-5 text-muted"
+            >
+              {AYUDA_GESTOR}
+            </span>
+          </span>
+        </label>
+        <label className="flex min-h-11 items-start gap-3 rounded-xl border border-[#e5e5e5] p-3 text-sm text-[#27272a]">
+          <input
+            type="checkbox"
+            checked={business.clientChatEnabled !== false}
+            disabled={chatMutation.isPending}
+            onChange={(event) => {
+              setFeedbackChat(null);
+              chatMutation.mutate({
+                campo: "clientChatEnabled",
+                valor: event.target.checked,
+              });
+            }}
+            aria-describedby="settings-chat-clientes-hint"
+            className="mt-1 accent-[#8b5cf6]"
+          />
+          <span>
+            <span className="font-semibold">
+              La recepcionista atiende a tus clientes por chat
+            </span>
+            <span
+              id="settings-chat-clientes-hint"
+              className="mt-1 block text-xs leading-5 text-muted"
+            >
+              {AYUDA_CHAT_CLIENTES}
+            </span>
+          </span>
+        </label>
+        <FeedbackMessage value={feedbackChat} />
+      </div>
     </div>
   );
 }

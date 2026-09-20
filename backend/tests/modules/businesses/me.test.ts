@@ -242,6 +242,19 @@ describe("PATCH /business/me (móvil del dueño para WhatsApp)", () => {
     expect(malo.statusCode).toBe(400);
   });
 
+  it("los interruptores de las conversaciones (Beta) se guardan tal cual y solo aceptan booleanos", async () => {
+    const response = await patch({
+      ownerChatEnabled: false,
+      clientChatEnabled: true,
+    } as never);
+    expect(response.statusCode).toBe(200);
+    const updateData = mockedBusinessUpdate.mock.calls[0][0].data as Record<string, unknown>;
+    expect(updateData).toMatchObject({ ownerChatEnabled: false, clientChatEnabled: true });
+
+    const malo = await patch({ ownerChatEnabled: "no" } as never);
+    expect(malo.statusCode).toBe(400);
+  });
+
   it("el número de Alhabla se rechaza ANTES de tocar los agentes o el nombre", async () => {
     mockedEsNumeroDeAlhabla.mockResolvedValue(true);
 

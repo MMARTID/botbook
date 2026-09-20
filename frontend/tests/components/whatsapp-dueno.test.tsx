@@ -778,4 +778,38 @@ describe("WhatsappDueno", () => {
       within(bloque).getByRole("button", { name: /Copiar enlace/ })
     ).toBeInTheDocument();
   });
+
+  it("los interruptores de las conversaciones (Beta) salen marcados por defecto, también sin móvil, y guardan al instante", async () => {
+    const user = userEvent.setup();
+    mockedGetOwnerWhatsapp.mockResolvedValue(estado());
+    mockedUpdateMyBusiness.mockResolvedValue({
+      ...NEGOCIO,
+      ownerChatEnabled: false,
+    });
+
+    const queryClient = renderComponent();
+
+    const gestor = await screen.findByRole("checkbox", {
+      name: /Tu Gestor por WhatsApp y en el panel/,
+    });
+    const clientes = screen.getByRole("checkbox", {
+      name: /La recepcionista atiende a tus clientes por chat/,
+    });
+    expect(gestor).toBeChecked();
+    expect(clientes).toBeChecked();
+    expect(screen.getByText("Beta")).toBeInTheDocument();
+
+    await user.click(gestor);
+    await waitFor(() =>
+      expect(mockedUpdateMyBusiness).toHaveBeenCalledWith({
+        ownerChatEnabled: false,
+      })
+    );
+    expect(
+      await screen.findByText("El Gestor queda desactivado.")
+    ).toBeInTheDocument();
+    expect(queryClient.getQueryData(["my-business"])).toMatchObject({
+      ownerChatEnabled: false,
+    });
+  });
 });

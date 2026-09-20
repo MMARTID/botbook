@@ -995,6 +995,49 @@ el `fetch` equivalente. **Nunca desde un route handler**: todo pasa por
   puede hacer por script; el Gestor respondió correctamente «el calendario necesita volver a
   conectarse». Quedan cubiertos por tests unitarios (evento, transacción, deshacer, `excluir`).
 
+**Código (fase 2, PR 5 — el Gestor en el panel y tests de integración, 2026-09-20).**
+- `modules/gestor/panel.ts` + rutas en `modules/whatsapp/routes.ts`: `GET /business/me/gestor`
+  (estado: `disponible` = interruptor global + assistant, `activoEnNegocio` =
+  `ownerChatEnabled`, `whatsapp` = estado del móvil; historial de la conversación de Telnyx
+  limpio —sin marcadores, sin turnos sintéticos «(El dueño ha pulsado…)» ni sus «Listo.», del
+  más viejo al más nuevo, 60 como mucho— y la propuesta pendiente con sus títulos de botón),
+  `POST /business/me/gestor/mensajes` (`{ texto }`, 30 por 10 min) y
+  `POST /business/me/gestor/acciones/:accionId` (`{ decision }`). Mismo Gestor, **misma
+  conversación de Telnyx** y mismo registro de propuestas que por WhatsApp: `chatDueno.ts ›
+  turnoDelGestor` es la parte sin canal (contador diario, lock del hilo, conversación, marcador,
+  `chatWithAssistant`, propuesta del turno) que ahora comparten `conversarConGestor` (WhatsApp)
+  y el panel. El panel **no exige WhatsApp dado de alta** (el JWT ya dice quién es); la
+  conversación se abre con `owner_phone: "panel"` si no hay móvil. `inboundMessageId` de las
+  propuestas del panel es `panel:<uuid>`. `decidirEnElPanel` hace lo que `botonDeAccion` en el
+  enrutador: `decidirPropuesta` → nota en la conversación («desde el panel») → pregunta
+  `siguiente` registrada y devuelta con sus botones, o turno de seguimiento
+  (`TEXTO_DE_SEGUIMIENTO`, compartido) cuya respuesta vuelve como `seguimiento` (null si
+  «Listo.») y cuya propuesta, si la hay, también; «No» a la pregunta de avisar responde
+  `avisoAlClienteDescartado` sin turno. Errores con `code` (`limite` 429, `ocupado` 409,
+  `sin_respuesta` 502, resto 403; propuestas `no_encontrada` 404, caducada/decidida 409).
+- `PATCH /business/me` acepta `ownerChatEnabled` y `clientChatEnabled` (booleanos).
+- Panel: página `/gestor` («Tu Gestor», badge Beta, entrada «Gestor» bajo Recepcionista en la
+  barra lateral y en «Más» en móvil: la barra inferior tiene cinco huecos justos) con
+  `components/gestor-chat.tsx` (historial, burbujas, propuesta con sus dos botones, ejemplos
+  para empezar, Enter envía, invalida `my-business`/`booking-settings`/`agenda` tras un botón);
+  Ajustes › WhatsApp gana el bloque «Conversaciones · Beta» con los dos interruptores
+  (guardado al instante por el PATCH; se enseñan aunque no haya móvil, porque el Gestor
+  también va por el panel). «Beta» solo aquí, nunca en un mensaje de WhatsApp.
+- Tests de integración de la fase 2 (`tests/integration/gestor/agenda.test.ts`, Postgres/Redis
+  reales, calendario/WhatsApp/LLM sustituidos): `añadir_cita` (Call sintética + Booking en
+  transacción, nombres resueltos a ids, segundo toque `ya_decidida`), `mover_cita` (evento nuevo,
+  reserva actualizada, evento viejo borrado, **no se bloquea a sí misma** con capacidad 1),
+  `cancelar_cita` como `owner_chat` sin aviso #4, `marcar_ausencia` que `checkAvailability`
+  real respeta sin restar plazas, `bloquear_franja` que deja el día con horario especial, y el
+  panel de punta a punta (turno con `proponer_accion` real vía `handleGestorToolInvocation` con
+  el turno en Redis → propuesta devuelta → botón → ausencia guardada → nota en la
+  conversación; negocio apagado; propuesta de otro negocio `no_encontrada`). `resetDb` limpia
+  las tablas nuevas de la fase 2.
+- Probado en vivo en dev con el frontend de la rama contra un backend de la rama y el túnel:
+  «Laura no viene el viernes» → propuesta con botones en la página → Confirmar → «Hecho» →
+  «¿tiene hueco Laura el viernes a las 10?» → «no; el más cercano es el lunes 28 a las 09:30»
+  (sábado cerrado); el interruptor del Gestor en Ajustes apaga la página con enlace de vuelta.
+
 **Cuenta.** Un solo WABA, «Alhabla»: id Telnyx `804230d2-c5e0-45dd-af65-95819468378a`, id Meta
 `1628104425601770`, conectado por Embedded Signup el 13-09. `messaging_limit_tier: TIER_250`
 (250 destinatarios únicos/24 h para **toda** la cartera), `business_verification_status:
