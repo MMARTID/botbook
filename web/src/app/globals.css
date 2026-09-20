@@ -1,0 +1,457 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: #ffffff;
+  --foreground: #0a0a0a;
+  --surface: #ffffff;
+  --surface-soft: #fafafa;
+  --border: #e5e5e5;
+  /* Gris neutro sobre blanco puro: 7.5:1, muy por encima de WCAG AA (4.5:1). */
+  --muted: #52525b;
+  --accent: #0a0a0a;
+  --accent-strong: #262626;
+  --accent-soft: #a78bfa;
+  --purple: #8b5cf6;
+  --purple-strong: #7c3aed;
+  --purple-wash: #f3eeff;
+  --purple-ink: #6d28d9;
+  --purple-ring: #ddd6fe;
+  --success: #2c7334;
+  --success-surface: #ecf7ec;
+  --warning: #9f7a15;
+  --error: #c53030;
+}
+
+body {
+  min-height: 100vh;
+  margin: 0;
+  color: var(--foreground);
+  background: var(--background);
+  font-family: var(--font-geist-sans), sans-serif;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+.settings-section-focus {
+  animation: settings-section-focus 1.1s ease-out;
+}
+
+.demo-call-modal {
+  animation: demo-call-modal-enter 320ms cubic-bezier(0.33, 1, 0.68, 1) both;
+}
+
+.demo-call-modal-closing {
+  animation: demo-call-modal-exit 320ms cubic-bezier(0.32, 0, 0.67, 0) both;
+}
+
+.demo-call-backdrop {
+  animation: demo-call-backdrop-enter 320ms cubic-bezier(0.33, 1, 0.68, 1) both;
+}
+
+.demo-call-backdrop-closing {
+  animation: demo-call-backdrop-exit 320ms cubic-bezier(0.32, 0, 0.67, 0) both;
+}
+
+@keyframes demo-call-backdrop-enter {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes demo-call-backdrop-exit {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes demo-call-modal-enter {
+  from {
+    opacity: 0;
+    transform: translateY(100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes demo-call-modal-exit {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(100%);
+  }
+}
+
+@keyframes settings-section-focus {
+  0% {
+    box-shadow: 0 0 0 0 rgba(139, 92, 246, 0.45), 0 8px 24px rgba(0, 0, 0, 0.06);
+  }
+  100% {
+    box-shadow: 0 0 0 14px rgba(139, 92, 246, 0), 0 8px 24px rgba(0, 0, 0, 0.06);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .settings-section-focus {
+    animation: none;
+    outline: 2px solid #8b5cf6;
+    outline-offset: 3px;
+  }
+
+  .demo-call-modal,
+  .demo-call-modal-closing,
+  .demo-call-backdrop,
+  .demo-call-backdrop-closing {
+    animation: none;
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  .text-muted {
+    color: var(--muted);
+  }
+}
+
+@layer components {
+  .panel {
+    @apply rounded-3xl border border-[#e5e5e5] bg-white shadow-none;
+  }
+
+  .field {
+    @apply h-11 rounded-[10px] border border-[#e5e5e5] bg-white px-4 text-sm outline-none transition duration-200 placeholder:text-[#52525b] focus:border-[#8b5cf6] focus:ring-2 focus:ring-[#8b5cf6]/30 disabled:cursor-not-allowed disabled:bg-[#fafafa];
+  }
+
+  /* Anillo de foco morado en los tres: sin esto, cada botón primario,
+     secundario y morado de la app cae al outline por defecto del navegador
+     en vez del anillo documentado en DESIGN.md — requisito del compromiso
+     WCAG 2.1 AA, no una preferencia visual. Un solo punto de arreglo aquí
+     cubre cada instancia de estas clases en toda la aplicación. */
+  .btn-primary {
+    @apply inline-flex h-12 items-center justify-center gap-2 rounded-[10px] bg-[#0a0a0a] px-6 text-sm font-semibold text-white transition duration-200 hover:-translate-y-0.5 hover:bg-[#262626] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0;
+  }
+
+  .btn-secondary {
+    @apply inline-flex h-12 items-center justify-center gap-2 rounded-[10px] border border-[#0a0a0a] bg-white px-6 text-sm font-semibold text-[#0a0a0a] transition duration-200 hover:-translate-y-0.5 hover:bg-[#fafafa] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0;
+  }
+
+  .btn-purple {
+    @apply inline-flex h-12 items-center justify-center gap-2 rounded-[10px] bg-[#8b5cf6] px-6 text-sm font-semibold text-white transition duration-200 hover:-translate-y-0.5 hover:bg-[#7c3aed] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0;
+  }
+
+  .badge-soft {
+    @apply inline-flex items-center rounded-full bg-[#f3eeff] px-3 py-1 text-xs font-semibold text-[#6d28d9] ring-1 ring-inset ring-[#ddd6fe];
+  }
+
+  /* Tarjeta de landing con microelevación al pasar: complementa el lift de
+     los botones sin robar protagonismo. Solo elevación y sombra suave; el
+     borde no cambia de color para no pelear con la Regla del Acento Único. */
+  .landing-card-hover {
+    @apply transition duration-200 motion-safe:hover:-translate-y-1 motion-safe:hover:shadow-[0_14px_36px_rgba(0,0,0,0.07)];
+  }
+
+  /* Enlace de navegación de las landings: subrayado que se dibuja de
+     izquierda a derecha al pasar. */
+  .enlace-nav {
+    @apply relative text-sm font-medium text-[#3f3f46] transition hover:text-[#0a0a0a];
+    background-image: linear-gradient(currentColor, currentColor);
+    background-repeat: no-repeat;
+    background-position: 0 100%;
+    background-size: 0% 1.5px;
+    padding-bottom: 2px;
+  }
+
+  @media (hover: hover) and (prefers-reduced-motion: no-preference) {
+    .enlace-nav {
+      transition:
+        color 0.2s,
+        background-size 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+
+    .enlace-nav:hover {
+      background-size: 100% 1.5px;
+    }
+
+    /* La flecha de un CTA se asoma 3px al pasar — el gesto de "vamos". Solo
+       flechas hacia delante: otros iconos (auriculares, guardar) no señalan
+       dirección y moverlos sería ruido. */
+    .btn-primary svg.lucide-arrow-right,
+    .btn-purple svg.lucide-arrow-right,
+    .btn-secondary svg.lucide-arrow-right {
+      transition: transform 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+
+    .btn-primary:hover svg.lucide-arrow-right,
+    .btn-purple:hover svg.lucide-arrow-right,
+    .btn-secondary:hover svg.lucide-arrow-right {
+      transform: translateX(3px);
+    }
+  }
+
+  .calendar-track {
+    --calendar-visible-items: 3;
+    --calendar-gap: 0.5rem;
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: calc((100% - (var(--calendar-visible-items) - 1) * var(--calendar-gap)) / var(--calendar-visible-items));
+    gap: var(--calendar-gap);
+    overflow-x: auto;
+    overscroll-behavior-inline: contain;
+    scroll-snap-type: inline mandatory;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .calendar-track::-webkit-scrollbar {
+    display: none;
+  }
+
+  .calendar-card {
+    @apply block min-h-32 scroll-m-2 snap-start rounded-xl border border-[#e5e5e5] bg-white p-3;
+  }
+
+  .calendar-arrow {
+    @apply inline-flex h-8 w-8 items-center justify-center rounded-lg border border-[#e5e5e5] bg-white text-[#52525b] transition hover:bg-[#fafafa] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] disabled:cursor-default disabled:opacity-25;
+  }
+
+  @media (min-width: 640px) {
+    .calendar-track {
+      --calendar-visible-items: 5;
+      --calendar-gap: 0.75rem;
+    }
+
+    .calendar-card {
+      @apply min-h-36 p-4;
+    }
+  }
+
+  @media (min-width: 1280px) {
+    .calendar-track {
+      --calendar-visible-items: 6;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .calendar-track {
+      scroll-behavior: auto;
+    }
+  }
+
+  /* Barra de scroll fina y neutra, coherente con el sistema blanco/negro/morado.
+     El carril de citas (.calendar-track) queda excluido: usa flechas propias y
+     oculta su barra nativa más arriba. */
+  html {
+    scrollbar-width: thin;
+    scrollbar-color: #d4d4d8 transparent;
+  }
+
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background-color: #d4d4d8;
+    border-radius: 9999px;
+    border: 2.5px solid #ffffff;
+    background-clip: padding-box;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background-color: #a1a1aa;
+  }
+
+  ::-webkit-scrollbar-corner {
+    background: transparent;
+  }
+
+  /* Variante para contenedores con fondo oscuro (p. ej. la transcripción de la
+     demo de voz sobre el panel negro): el borde del thumb pasa a coincidir con
+     ese fondo en vez de con el blanco de página. */
+  .scrollbar-dark {
+    scrollbar-color: rgba(255, 255, 255, 0.3) transparent;
+  }
+
+  .scrollbar-dark::-webkit-scrollbar-thumb {
+    background-color: rgba(255, 255, 255, 0.3);
+    border-color: #0a0a0a;
+  }
+
+  .scrollbar-dark::-webkit-scrollbar-thumb:hover {
+    background-color: rgba(255, 255, 255, 0.5);
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Campo de partículas — fondo de las superficies de venta.
+
+   Todo el movimiento lo lleva el compositor (`transform` / `opacity`): tras
+   dibujar los tiles una sola vez, no queda ni un fotograma de JavaScript. La
+   versión anterior repintaba un canvas en cada `requestAnimationFrame`
+   leyendo `window.scrollY`, que es el antipatrón clásico de scroll-linked
+   effects: en móvil el scroll lo gobierna el hilo del compositor, así que en
+   cuanto el hilo principal se retrasa el fondo se desincroniza del contenido.
+   --------------------------------------------------------------------------- */
+
+.campo-particulas {
+  position: fixed;
+  inset: 0;
+  z-index: -10;
+  overflow: hidden;
+  pointer-events: none;
+  animation: campo-entrada 900ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.campo-particulas__capa {
+  position: absolute;
+  inset: 0;
+}
+
+.campo-particulas__deriva {
+  position: absolute;
+  left: 0;
+  right: 0;
+  /* Holgura por arriba y por abajo: el bucle desplaza un tile entero y el
+     parallax añade unos cientos de píxeles más, así que el patrón nunca
+     puede dejar un borde a la vista. */
+  top: calc(var(--tile) * -1);
+  height: calc(100% + var(--tile) * 3);
+  background-repeat: repeat-y;
+  background-size: 100% var(--tile);
+  animation: campo-deriva var(--duracion) linear infinite;
+  will-change: transform;
+}
+
+@keyframes campo-entrada {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Al desplazarse exactamente un tile, el patrón coincide consigo mismo: el
+   bucle no tiene costura. */
+@keyframes campo-deriva {
+  from {
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    transform: translate3d(0, calc(var(--tile) * -1), 0);
+  }
+}
+
+@keyframes campo-parallax {
+  from {
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    transform: translate3d(0, var(--parallax), 0);
+  }
+}
+
+/* Profundidad al deslizar, en el hilo del compositor y sin tocar el principal.
+   Mejora progresiva: donde no hay soporte (hoy Firefox, aún tras flag) queda
+   la deriva ambiente, que por sí sola ya separa las capas. */
+@supports (animation-timeline: scroll()) {
+  .campo-particulas__capa {
+    animation: campo-parallax linear both;
+    animation-timeline: scroll(root block);
+    will-change: transform;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .campo-particulas,
+  .campo-particulas__capa,
+  .campo-particulas__deriva {
+    animation: none;
+  }
+}
+
+/* Subrayado del titular del hero: el trazo se dibuja de izquierda a derecha,
+   como al pasar un rotulador, en vez de aparecer ya hecho. Arranca a los 0,7 s
+   para que el titular se lea antes de que nada se mueva.
+
+   Va como background-size y no como una barra absoluta a propósito: la frase
+   subrayada parte de línea en móvil, y una barra absoluta solo cubriría el
+   primer trozo. Con box-decoration-break: clone cada línea recibe su propio
+   trazo. */
+@keyframes titular-subrayado {
+  from {
+    background-size: 0% 100%;
+  }
+  to {
+    background-size: 100% 100%;
+  }
+}
+
+.titular-subrayado {
+  background-image: linear-gradient(to bottom, transparent 62%, var(--purple-ring) 62%);
+  background-repeat: no-repeat;
+  background-size: 0% 100%;
+  animation: titular-subrayado 0.55s cubic-bezier(0.22, 1, 0.36, 1) 0.7s forwards;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .titular-subrayado {
+    animation: none;
+    background-size: 100% 100%;
+  }
+}
+
+/* La sección de sectores de la portada usa una pila de cartas (ver
+   SectorStackCard en main-landing.tsx, motion.div con animate de
+   framer-motion) — sin clases CSS propias, todo el posicionamiento se
+   calcula en JS por carta. */
+
+/* Cuerpo de los artículos del blog (MDX sin plugin de tipografía). */
+.articulo {
+  @apply text-base leading-7 text-[#27272a];
+}
+.articulo > * + * {
+  @apply mt-5;
+}
+.articulo h2 {
+  @apply mt-10 text-2xl font-bold tracking-tight text-[#0a0a0a];
+}
+.articulo h3 {
+  @apply mt-8 text-xl font-semibold tracking-tight text-[#0a0a0a];
+}
+.articulo ul {
+  @apply list-disc space-y-2 pl-6;
+}
+.articulo ol {
+  @apply list-decimal space-y-2 pl-6;
+}
+.articulo a {
+  @apply font-semibold text-[#6d28d9] underline underline-offset-2;
+}
+.articulo strong {
+  @apply font-semibold text-[#0a0a0a];
+}
+.articulo blockquote {
+  @apply border-l-2 border-[#8b5cf6] pl-4 text-muted;
+}
