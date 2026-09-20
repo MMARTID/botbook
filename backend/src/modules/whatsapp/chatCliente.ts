@@ -38,9 +38,11 @@ import * as mensajes from "./mensajes.js";
  *
  * Reglas: interruptor global (TELNYX_CLIENT_CHAT_ENABLED) y por negocio
  * (`clientChatEnabled`); 20 turnos por cliente, negocio y día; un turno a
- * la vez por hilo (lock); coletilla Beta con el teléfono del negocio; nunca
- * lanza — si el chat no puede atender, devuelve `atendido: false` y el
- * enrutador responde lo de siempre.
+ * la vez por hilo (lock); nunca lanza — si el chat no puede atender,
+ * devuelve `atendido: false` y el enrutador responde lo de siempre. Sin
+ * etiqueta «Beta» ni coletilla en los mensajes (decisión del usuario,
+ * 20-09: «Beta» solo en el panel); la recepcionista ya da el teléfono del
+ * negocio cuando el cliente prefiere hablar.
  */
 
 export const TURNOS_POR_CLIENTE_Y_DIA = 20;
@@ -118,19 +120,6 @@ export function marcadorDeChat(input: {
   ahora?: Date;
 }): string {
   return `[WhatsApp · ${input.clientPhone} · ${formatearMomento(input.ahora ?? new Date(), input.timezone)}]`;
-}
-
-/** Coletilla Beta de cada respuesta de texto libre (§ 7). */
-export function coletillaBeta(negocio: {
-  name: string;
-  phone: string;
-  telnyxPhoneNumber: string | null;
-}): string {
-  const nombre = nombreParaCliente(negocio);
-  const telefono = telefonoDeContacto(negocio);
-  return telefono
-    ? `_Beta · si prefieres, llama a ${nombre}: ${telefono}_`
-    : `_Beta · si prefieres, llama a ${nombre}_`;
 }
 
 function claveDelDia(
@@ -442,7 +431,7 @@ export async function conversarConRecepcionista(input: {
     const enviada = await responder(
       message,
       "chat",
-      `${respuesta.trim()}\n\n${coletillaBeta(business)}`,
+      respuesta.trim(),
       opciones
     );
     if (conversacion) {

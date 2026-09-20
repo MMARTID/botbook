@@ -10,7 +10,6 @@ import * as mensajes from "../../../src/modules/whatsapp/mensajes.js";
 import {
   TURNOS_POR_CLIENTE_Y_DIA,
   callIdDeChat,
-  coletillaBeta,
   conversacionVigente,
   conversarConRecepcionista,
   formatearMomento,
@@ -121,7 +120,7 @@ function cuerpoEnviado(n = 0): string | undefined {
     ?.body;
 }
 
-describe("chatCliente — marcador, coletilla y momento", () => {
+describe("chatCliente — marcador y momento", () => {
   it("formatea el momento en la zona del negocio y lo nombra", () => {
     const texto = formatearMomento(
       new Date("2026-09-20T14:51:00.000Z"),
@@ -141,15 +140,6 @@ describe("chatCliente — marcador, coletilla y momento", () => {
     expect(marcador.startsWith("[WhatsApp · +34600123456 · ")).toBe(true);
     expect(marcador).toContain("16:51");
     expect(marcador.endsWith("]")).toBe(true);
-  });
-
-  it("la coletilla Beta lleva el nombre y el teléfono de contacto formateado", () => {
-    expect(coletillaBeta(NEGOCIO)).toBe(
-      "_Beta · si prefieres, llama a Peluquería Ana: +34 930 454 394_"
-    );
-    expect(
-      coletillaBeta({ ...NEGOCIO, telnyxPhoneNumber: null, phone: "TEMP-1" })
-    ).toBe("_Beta · si prefieres, llama a Peluquería Ana_");
   });
 
   it("callIdDeChat es determinista", () => {
@@ -339,7 +329,7 @@ describe("conversarConRecepcionista", () => {
     expect(mockedChat).not.toHaveBeenCalled();
   });
 
-  it("un turno normal: marcador + texto al assistant, respuesta con coletilla Beta, turno anotado", async () => {
+  it("un turno normal: marcador + texto al assistant, respuesta tal cual (sin etiqueta Beta), turno anotado", async () => {
     const message = entrante();
     const resultado = await conversarConRecepcionista({
       message,
@@ -368,8 +358,9 @@ describe("conversarConRecepcionista", () => {
       expect.objectContaining({ audience: "client", toNumber: MOVIL })
     );
     expect(cuerpoEnviado()).toBe(
-      "Mañana a las cinco tengo hueco. ¿Te lo reservo?\n\n_Beta · si prefieres, llama a Peluquería Ana: +34 930 454 394_"
+      "Mañana a las cinco tengo hueco. ¿Te lo reservo?"
     );
+    expect(cuerpoEnviado()).not.toMatch(/beta/i);
     expect(mockedConvUpdate).toHaveBeenCalledWith({
       where: { conversationId: "conv_1" },
       data: expect.objectContaining({ turns: { increment: 1 } }),

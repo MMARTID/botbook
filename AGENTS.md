@@ -757,8 +757,10 @@ el `fetch` equivalente. **Nunca desde un route handler**: todo pasa por
   30 s o devuelve vacío). `conversacionVigente` reutiliza la conversación guardada (< 30 días) o
   crea otra (rotación) y su Call sintética en una transacción; un 404 de Telnyx en el turno
   rota y repite una sola vez. Respuesta por `responder(message, "chat", …)` (reclamo
-  `entrante:<id>:chat`, techo 20/h) con la coletilla `_Beta · si prefieres, llama a <negocio>:
-  <teléfono>_`; `limiteDiarioDelChat` y `chatNoDisponible` una vez al día. Tabla
+  `entrante:<id>:chat`, techo 20/h) **tal cual la devuelve la recepcionista: sin etiqueta
+  «Beta» ni coletilla** (decisión del usuario del 20-09 al ver los mensajes: «Beta» solo en el
+  panel; vale también para el Gestor); `limiteDiarioDelChat` y `chatNoDisponible` una vez al
+  día. Tabla
   `client_conversations` (`ClientConversation`: `@@unique([businessId, clientPhone])`,
   `conversationId` y `callId` únicos, `startedAt` para la rotación, `turns`).
 - Enganches: `router.ts › textoEnClientes` (texto o palabra clave de un cliente conocido con

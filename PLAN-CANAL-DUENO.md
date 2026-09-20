@@ -364,8 +364,10 @@ sus mismas tools: `get_catalog`, `check_availability`, `book_appointment`,
   otra, preguntar horario, dirección y precios. Cada acción con confirmación explícita, como
   por voz; nada de botones de confirmación generados por el backend en este lado (la
   recepcionista ya confirma en lenguaje natural y es el flujo probado).
-- Coletilla "_Beta · si prefieres, llama a Peluquería Ana: 9XX_" en cada respuesta de texto
-  libre. 20 mensajes por cliente y día. Interruptor `TELNYX_CLIENT_CHAT_ENABLED` y por negocio.
+- ~~Coletilla "_Beta · si prefieres, llama a Peluquería Ana: 9XX_" en cada respuesta de texto
+  libre.~~ **Sin coletilla ni etiqueta «Beta» en ningún mensaje de WhatsApp** (decisión del
+  usuario, 20-09, al ver los mensajes reales; «Beta» solo en el panel). 20 mensajes por
+  cliente y día. Interruptor `TELNYX_CLIENT_CHAT_ENABLED` y por negocio.
 - Post-conversación e `informar_al_negocio` se aplican también a estas conversaciones: un
   recado por chat llega al dueño igual que uno por voz.
 
@@ -440,7 +442,8 @@ misma sincronización de la recepcionista que hoy dispara el panel.
 
 - **Regla de oro**: el LLM nunca ejecuta nada; llama a `proponer_accion` y el backend añade el
   botón. El botón ejecuta. Vale para citas y para catálogo por igual.
-- Etiqueta "_Beta · escribe AYUDA_" en cada respuesta de texto libre; `MAL` guarda la última
+- ~~Etiqueta "_Beta · escribe AYUDA_" en cada respuesta de texto libre~~ (sin etiquetas Beta en
+  los mensajes, decisión del 20-09; AYUDA sigue existiendo como comando); `MAL` guarda la última
   pareja en `OwnerChatFeedback`; 60 mensajes por dueño y día; interruptor global
   (`TELNYX_OWNER_CHAT_ENABLED`) y por negocio (`ownerChatEnabled`).
 - Capa determinista antes del LLM (botones y palabras clave); respuestas de tools compactas;
@@ -813,7 +816,7 @@ interruptores globales quedan apagados en producción hasta que el usuario lo pr
   porque la conversación lleva `call_control_id` en sus metadata (Call sintética
   `whatsapp:chat:<uuid>`); marcador con móvil y fecha/hora local porque en chat
   `{{telnyx_end_user_target}}` no resuelve y `{{telnyx_current_time}}` llega en UTC; 20
-  turnos por cliente y día, lock por hilo, rotación a los 30 días, coletilla Beta; probado de
+  turnos por cliente y día, lock por hilo, rotación a los 30 días, sin coletilla; probado de
   extremo a extremo en dev (catálogo → reserva real en Google Calendar → cancelación).
   Queda la lista para elegir negocio si tiene citas en varios (hoy: el de la reserva más
   reciente). Detalle en `AGENTS.md` § WhatsApp › Código (fase 2, PR 1).
@@ -822,7 +825,8 @@ interruptores globales quedan apagados en producción hasta que el usuario lo pr
 - Flujo de añadir con "¿le mando la confirmación?"; flujo de mover/cancelar con *Antes la
   llamo* y "¿aviso a la clienta?"; `cambio_cita_cliente` y `cancelacion_cita_cliente`.
 - `ProfessionalAbsence`, `ScheduleBlock` en `availability.ts` y `get_catalog`.
-- Etiquetas Beta, `AYUDA`, `MAL`, límites diarios, interruptores. Todos los planes.
+- ~~Etiquetas Beta~~ (solo en el panel, decisión del 20-09), `AYUDA`, `MAL`, límites diarios,
+  interruptores. Todos los planes.
 - Panel: historial y "Pregúntale a tu recepcionista".
 
 **Criterio de salida:** un alta nueva completa servicios, profesionales y horario por WhatsApp
