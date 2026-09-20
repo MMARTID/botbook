@@ -25,6 +25,8 @@ export function panelUrl(ruta = "/ajustes#whatsapp"): string {
 export function bienvenidaTrasAlta(input: {
   negocios: string[];
   movilApuntado: boolean;
+  /** Con el Gestor encendido y algo por configurar: ofrece hacerlo por chat. */
+  ofrecerPuestaEnMarcha?: boolean;
 }): string {
   const lineas = [
     `Listo. Soy Alhabla, la recepcionista de ${listarNegocios(input.negocios)}. A partir de ahora te aviso aquí de cada reserva y cada recado que atienda por teléfono.`,
@@ -32,6 +34,11 @@ export function bienvenidaTrasAlta(input: {
   ];
   if (input.movilApuntado) {
     lineas.push("He apuntado este móvil en tu panel, en Ajustes › WhatsApp.");
+  }
+  if (input.ofrecerPuestaEnMarcha) {
+    lineas.push(
+      "Todavía me falta algo para poder atender llamadas. Si quieres, escríbeme «empezamos» y lo dejamos listo ahora mismo por aquí: servicios, equipo y horario."
+    );
   }
   return lineas.join("\n");
 }
@@ -90,7 +97,9 @@ export function ayudaDueno(input: {
           "También puedes preguntarme con tus palabras: qué tienes mañana, cómo ha ido la semana, qué falta por configurar o si una cita pendiente ya la has apuntado tú. Si una respuesta no te sirve, escribe MAL.",
         ]
       : []),
-    `Para cambiar tu horario, tus servicios o tu equipo, entra en tu panel: ${input.panelUrl}`,
+    input.chat
+      ? `Tu horario, tus servicios y tu equipo puedes cambiarlos pidiéndomelo aquí (yo te lo propongo y tú confirmas con un botón) o desde tu panel: ${input.panelUrl}`
+      : `Para cambiar tu horario, tus servicios o tu equipo, entra en tu panel: ${input.panelUrl}`,
   ].join("\n");
 }
 

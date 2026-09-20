@@ -10,10 +10,12 @@ import {
 } from "../../lib/businessType.js";
 import {
   SELECT_CONEXION_DE_CALENDARIO,
+  calendarioActivoParaElPanel,
   conexionOperativa,
   resolverConexionDeCalendario,
 } from "../calendar/conexion.js";
 import { limitesDelDia, mapaDeServicios } from "../whatsapp/avisosNegocio.js";
+import { panelUrl } from "../whatsapp/mensajes.js";
 import { registrarPropuesta } from "./acciones.js";
 
 /**
@@ -93,7 +95,14 @@ const SELECT_NEGOCIO_DEL_GESTOR = {
   professionals: {
     where: { active: true },
     orderBy: { name: "asc" as const },
-    select: { id: true, name: true },
+    select: {
+      id: true,
+      name: true,
+      serviceLinks: {
+        where: { service: { deletedAt: null } },
+        select: { serviceId: true, level: true },
+      },
+    },
   },
 } as const;
 
@@ -213,9 +222,23 @@ async function contextoNegocio(businessId: string) {
     return { status: 404, body: { error: "Negocio no encontrado" } };
   }
   const conexion = resolverConexionDeCalendario(business);
+  const activo = calendarioActivoParaElPanel(
+    business.calendarProvider,
+    business.calendarConnections
+  );
   const calendario = conexionOperativa(conexion)
-    ? { conectado: true, proveedor: conexion.provider }
-    : { conectado: false, proveedor: null };
+    ? { conectado: true, proveedor: conexion.provider, estado: "conectado" }
+    : {
+        conectado: false,
+        proveedor: activo?.provider ?? null,
+        // «a medias»: Outlook/Apple con la cuenta enlazada pero sin
+        // calendario elegido; «caducado»: hay que volver a conectar.
+        estado: !activo
+          ? "sin conectar"
+          : activo.disconnectedAt || activo.lastError || activo.connected
+            ? "caducado: hay que volver a conectarlo desde el panel"
+            : "a medias: falta elegir el calendario en el panel",
+      };
   const { citasPendientes, recados } = await pendientesYRecados(
     business.id,
     business.timezone
@@ -259,13 +282,32 @@ async function contextoNegocio(businessId: string) {
         duracionMinutos: s.durationMinutes,
         precio: euros(s.priceCents),
       })),
-      profesionales: business.professionals.map((p) => ({
-        profesionalId: p.id,
-        nombre: p.name,
-      })),
+      profesionales: business.professionals.map((p) => {
+        const nombreDe = (id: string) =>
+          business.services.find((s) => s.id === id)?.name ?? null;
+        return {
+          profesionalId: p.id,
+          nombre: p.name,
+          especialista: p.serviceLinks
+            .filter((l) => l.level === "ESPECIALISTA")
+            .map((l) => nombreDe(l.serviceId))
+            .filter((n): n is string => n !== null),
+          noSugerir: p.serviceLinks
+            .filter((l) => l.level === "NO_SUGERIR")
+            .map((l) => nombreDe(l.serviceId))
+            .filter((n): n is string => n !== null),
+        };
+      }),
       horario: formatScheduleForPrompt(business.schedule),
       calendario,
       faltaPorConfigurar,
+      // El calendario se conecta desde el panel (OAuth con cookie de estado
+      // del navegador): el Gestor solo puede dar el enlace.
+      enlaces: {
+        panel: panelUrl("/"),
+        calendario: panelUrl("/agente"),
+        ajustes: panelUrl("/ajustes"),
+      },
       citasPendientes,
       recados,
     },

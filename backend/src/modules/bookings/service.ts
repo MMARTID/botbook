@@ -172,18 +172,26 @@ export async function invalidateBusinessAgentConfigCache(businessId: string) {
   }
 }
 
-async function syncBookingConfiguration(businessId: string) {
+/**
+ * Tras cambiar el catálogo: caché de voz fuera y la recepcionista al día en
+ * los dos orquestadores. Exportada para que el Gestor (fase 2 del plan de
+ * WhatsApp) sincronice UNA vez al final de un lote (`{ sync: false }` en
+ * cada alta) en vez de una por servicio o profesional.
+ */
+export async function syncBookingConfiguration(businessId: string) {
   await invalidateBusinessAgentConfigCache(businessId);
   // También actualizamos los agentes temporalmente inactivos: se pueden
   // reactivar desde PATCH /agents/:id y deben recuperar el catálogo y el
-  // análisis post-llamada vigentes en ese momento.
-  await syncAgentToRetell(businessId, prisma);
+  // análisis post-llamada vigentes en ese momento.  // Telnyx es el orquestador de todos los negocios: va primero, para que un
+  // fallo de Retell (que lanza) no lo deje sin sincronizar.
   await syncAgentToTelnyx(businessId, prisma);
+  await syncAgentToRetell(businessId, prisma);
 }
 
 export async function createService(
   businessId: string,
-  input: z.infer<typeof ServiceSchema>
+  input: z.infer<typeof ServiceSchema>,
+  opciones: { sync?: boolean } = {}
 ) {
   const service = await prisma.service.create({
     data: {
@@ -194,7 +202,9 @@ export async function createService(
       active: input.active ?? true,
     },
   });
-  await syncBookingConfiguration(businessId);
+  if (opciones.sync !== false) {
+    await syncBookingConfiguration(businessId);
+  }
   return service;
 }
 
@@ -207,7 +217,8 @@ export async function getService(businessId: string, id: string) {
 export async function updateService(
   businessId: string,
   id: string,
-  input: z.infer<typeof UpdateServiceSchema>
+  input: z.infer<typeof UpdateServiceSchema>,
+  opciones: { sync?: boolean } = {}
 ) {
   const service = await getService(businessId, id);
   if (!service) return null;
@@ -216,11 +227,17 @@ export async function updateService(
     where: { id: service.id },
     data: input,
   });
-  await syncBookingConfiguration(businessId);
+  if (opciones.sync !== false) {
+    await syncBookingConfiguration(businessId);
+  }
   return updated;
 }
 
-export async function deleteService(businessId: string, id: string) {
+export async function deleteService(
+  businessId: string,
+  id: string,
+  opciones: { sync?: boolean } = {}
+) {
   const service = await getService(businessId, id);
   if (!service) return null;
 
@@ -231,7 +248,9 @@ export async function deleteService(businessId: string, id: string) {
       data: { active: false, deletedAt: new Date() },
     });
   });
-  await syncBookingConfiguration(businessId);
+  if (opciones.sync !== false) {
+    await syncBookingConfiguration(businessId);
+  }
   return deleted;
 }
 
@@ -273,7 +292,8 @@ async function ensureProfessionalSlotAvailable(
 
 export async function createProfessional(
   businessId: string,
-  input: z.infer<typeof ProfessionalSchema>
+  input: z.infer<typeof ProfessionalSchema>,
+  opciones: { sync?: boolean } = {}
 ) {
   await ensureServicesBelongToBusiness(businessId, serviceIdsMencionados(input));
   const serviceLinks = resolveServiceLinks(input);
@@ -297,7 +317,9 @@ export async function createProfessional(
     },
     { isolationLevel: "Serializable" }
   );
-  await syncBookingConfiguration(businessId);
+  if (opciones.sync !== false) {
+    await syncBookingConfiguration(businessId);
+  }
   return serializeProfessional(professional);
 }
 
@@ -312,7 +334,8 @@ export async function getProfessional(businessId: string, id: string) {
 export async function updateProfessional(
   businessId: string,
   id: string,
-  input: z.infer<typeof UpdateProfessionalSchema>
+  input: z.infer<typeof UpdateProfessionalSchema>,
+  opciones: { sync?: boolean } = {}
 ) {
   const professional = await prisma.professional.findFirst({
     where: { id, businessId, deletedAt: null },
@@ -354,11 +377,17 @@ export async function updateProfessional(
       include: { serviceLinks: nonDeletedServiceLinks },
     });
   }, { isolationLevel: "Serializable" });
-  await syncBookingConfiguration(businessId);
+  if (opciones.sync !== false) {
+    await syncBookingConfiguration(businessId);
+  }
   return serializeProfessional(updated);
 }
 
-export async function deleteProfessional(businessId: string, id: string) {
+export async function deleteProfessional(
+  businessId: string,
+  id: string,
+  opciones: { sync?: boolean } = {}
+) {
   const professional = await prisma.professional.findFirst({
     where: { id, businessId, deletedAt: null },
   });
@@ -373,6 +402,8 @@ export async function deleteProfessional(businessId: string, id: string) {
       data: { active: false, deletedAt: new Date() },
     });
   });
-  await syncBookingConfiguration(businessId);
+  if (opciones.sync !== false) {
+    await syncBookingConfiguration(businessId);
+  }
   return deleted;
 }

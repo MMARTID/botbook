@@ -844,6 +844,80 @@ el `fetch` equivalente. **Nunca desde un route handler**: todo pasa por
   `docker-compose.yml`). Queda para los PRs 3 y 4: catálogo y onboarding por chat, citas,
   ausencias y bloqueos (mismo registro de acciones), y la lista para elegir negocio.
 
+**Código (fase 2, PR 3 — catálogo y onboarding por chat, 2026-09-20).**
+- `modules/gestor/accionesCatalogo.ts`, ocho acciones más por el mismo registro
+  (`ACCIONES_DEL_GESTOR` = `resolver_pendiente` + `ACCIONES_DE_CATALOGO`): `crear_servicios`
+  (lote de hasta 20), `editar_servicio`, `retirar_servicio`, `crear_profesionales` (lote de
+  hasta 10, con `especialidades`), `retirar_profesional`, `fijar_especialidad` (tres niveles;
+  «normal» borra la fila), `fijar_horario` (la semana entera, claves en español sin tilde,
+  hasta 3 tramos por día; conserva las excepciones) y `cerrar_dia` (excepción `closed` por
+  fecha; exige horario semanal ya fijado — un negocio recién creado tiene `schedule: {}` y no
+  se le inventa una semana; la fecha tiene que existir y no haber pasado en la zona del
+  negocio; se deduplica por fecha). **Los lotes existen para que el onboarding sea una
+  confirmación por paso** (una tabla de servicios ⇒ un botón). Servicios y profesionales se
+  nombran por id o por nombre exacto sin mayúsculas ni acentos (`resolverPorIdONombre`; si el
+  nombre es ambiguo, no resuelve). Precios en euros (`precioEuros`, `null` quita la tarifa) y
+  conversión a céntimos al ejecutar: los parámetros guardados se re-parsean al confirmar, así
+  que los esquemas no llevan `transform`. `comprobar` corre al proponer y `ejecutar` hasta 24 h
+  después: `ejecutar` revalida duplicados por nombre y el límite de plan lo aplica el propio
+  servicio (`PlanLimitError` ⇒ mensaje del plan). `parametros` inválidos devuelven el `path`
+  de Zod («servicios.0.duracionMinutos: …») para que el LLM sepa qué corregir.
+- Reutiliza los servicios del panel (`modules/bookings/service.ts`: `createService`,
+  `updateService`, `deleteService`, `createProfessional`, `updateProfessional`,
+  `deleteProfessional`) con la opción nueva `{ sync: false }` y sincroniza UNA vez por lote con
+  `syncBookingConfiguration` (ahora exportada) envuelta en `sincronizarCatalogo`: **best-effort
+  con log ruidoso**, porque `syncAgentToRetell` lanza si la publicación falla y el cambio ya está
+  en la BD (el reconciliador repara el drift). El horario va por
+  `modules/businesses/horario.ts › guardarHorarioDelNegocio` (update → caché de voz →
+  Retell → Telnyx → tools de calendario, mismos pasos que `PATCH /business/me`; la parte de
+  sincronización también best-effort). El PATCH del panel no se toca.
+- `ResultadoDeEjecucion` gana `nota`: `mensaje` es lo que lee el dueño por WhatsApp y `nota`
+  (con ids) lo que se anota como mensaje `system` en la conversación de Telnyx — así el
+  siguiente turno del Gestor tiene los ids de lo recién creado sin volver a llamar a
+  `contexto_negocio`.
+- `contexto_negocio` devuelve además los niveles de cada profesional (`especialista`,
+  `noSugerir` por nombre de servicio), `enlaces` (`panel`, `calendario` = `/agente`,
+  `ajustes`) y el estado del calendario con matices (`conectado` · `sin conectar` · `a medias:
+  falta elegir el calendario` · `caducado`). **El calendario no se puede conectar desde el
+  chat**: el OAuth exige la cookie de estado del navegador (`GET /calendar/auth/google` la fija
+  en la misma respuesta) y un enlace abierto desde el móvil sin sesión acaba en `/login` sin
+  `next=`; el Gestor da el enlace al panel y punto. Un enlace de un solo uso queda para más
+  adelante.
+- Prompt (`lib/gestorPayload.ts`): bloque «## Poner en marcha la recepcionista» (si
+  `faltaPorConfigurar` no está vacío, por pasos y en orden — servicios → equipo → horario →
+  calendario —, un paso por mensaje, una propuesta por paso con todos los datos, completar la
+  semana entera con domingo cerrado, HH:MM de 24 h), «una sola propuesta a la vez» y
+  `ACCIONES_PROPONIBLES` (tipo + forma de los parámetros + cuándo), que alimenta la descripción
+  de `proponer_accion` y se contrasta con el registro en un test. La bienvenida tras el alta
+  (`bienvenidaTrasAlta`) ofrece «escríbeme "empezamos"» cuando el Gestor está encendido y falta
+  horario, servicios o equipo (`chatDueno.ts › ofrecerPuestaEnMarcha`).
+- Probado en vivo en dev (túnel a un backend de la rama, `Barbería Prueba Miguel` = el negocio
+  de prueba vacío con el móvil del usuario): «empezamos» → servicios (3 en una propuesta) →
+  equipo (Laura especialista en Color, por id de la nota) → horario L-V 09:30-20:00 y S
+  09:30-14:00 → «¿qué me falta?» (calendario y número, con enlaces) → cerrar el 12-10 → subir
+  el corte a 17 € → «Miguel no hace color» (`no_sugerir`); el límite del plan Inicio (3) rechazó
+  «Pedro y Sofía» al proponer con el texto del plan. Turnos de 3,5-6 s; confirmar el horario
+  8,5 s (dos orquestadores + tools).
+- Revisión adversarial (workflow de 5 dimensiones × 3 verificadores, 20-09) y lo que cambió por
+  ella: **tras un botón el Gestor recibe un turno de seguimiento** (`chatDueno.ts ›
+  continuarTrasAccion`: sin él, el «Hecho» fijo dejaba el onboarding parado hasta que el dueño
+  volvía a escribir; si contesta «Listo.» no se manda nada); al proponer, **las propuestas
+  anteriores sin decidir se cierran como sustituidas** (un botón viejo no ejecuta una intención
+  corregida); **lock por negocio al ejecutar** (`lock:gestor:accion:<biz>`: dos «Confirmar»
+  paralelos sobre el mismo horario no se pisan); anotar el resultado tras ejecutar es
+  best-effort (no convierte un «hecho» en «no he podido»); **los nombres se resuelven a ids al
+  proponer** (`comprobar` devuelve `parametros` normalizados, que son los guardados) y un nombre
+  repetido se declara ambiguo en vez de «no existe»; `editar_servicio` no deja renombrar a un
+  nombre que ya existe; el botón exige además consentimiento vigente y `ownerChatEnabled`;
+  tramos ordenados; `Id` admite 80 caracteres; los errores crudos (Prisma, red) no llegan al
+  dueño; **Telnyx (primary) se sincroniza antes que Retell** en `syncBookingConfiguration` y
+  `guardarHorarioDelNegocio` (Retell lanza y dejaba a Telnyx sin sincronizar); una respuesta
+  con propuesta de más de 1000 caracteres va como texto + un interactivo aparte con el resumen
+  (Meta limita el cuerpo a 1024); prompt: los parámetros inválidos los corrige el LLM sin
+  decírselo al dueño, «empezamos» es la señal de arranque, el número y el calendario no son
+  pasos, AYUDA cuenta que se puede pedir por chat. Límite conocido: un móvil dueño de dos
+  negocios habla por el que `identificarRemitente` elige.
+
 **Cuenta.** Un solo WABA, «Alhabla»: id Telnyx `804230d2-c5e0-45dd-af65-95819468378a`, id Meta
 `1628104425601770`, conectado por Embedded Signup el 13-09. `messaging_limit_tier: TIER_250`
 (250 destinatarios únicos/24 h para **toda** la cartera), `business_verification_status:

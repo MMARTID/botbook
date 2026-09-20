@@ -38,8 +38,10 @@ import {
   anotarEnConversacionDelDueno,
   cerrarConversacionDelDueno,
   chatDelDuenoActivo,
+  continuarTrasAccion,
   conversarConGestor,
   gestorAssistantId,
+  ofrecerPuestaEnMarcha,
 } from "./chatDueno.js";
 import { decidirPropuesta } from "../gestor/acciones.js";
 import { avisarAQuienEsperaba } from "./listaDeEspera.js";
@@ -451,6 +453,7 @@ async function altaConCodigo(
           mensajes.bienvenidaTrasAlta({
             negocios: [nombreParaWhatsapp(business)],
             movilApuntado: numeroAnterior !== null && from !== numeroAnterior,
+            ofrecerPuestaEnMarcha: await ofrecerPuestaEnMarcha(business.id),
           }),
           { businessId: business.id }
         )
@@ -726,13 +729,17 @@ async function botonDeAccion(
   const propuesta = await prisma.ownerPendingAction.findUnique({
     where: { id: accionId },
     select: { businessId: true },
-  });
+  }); // Mismas condiciones que para chatear: el móvil dado de alta, con el
+  // consentimiento vigente (sin STOP) y con el Gestor encendido en el negocio.
   const business = propuesta
     ? await prisma.business.findFirst({
         where: {
           id: propuesta.businessId,
           active: true,
           ownerWhatsappNumber: from,
+          ownerWhatsappOptInAt: { not: null },
+          ownerWhatsappOptOutAt: null,
+          ownerChatEnabled: true,
         },
         select: { id: true, timezone: true },
       })
@@ -766,45 +773,60 @@ async function botonDeAccion(
     case "ejecutada":
       await anotarEnConversacionDelDueno(
         business.id,
-        `El dueño pulsó Confirmar en la propuesta ${accionId} y se ejecutó. Resultado: ${r.mensaje}`
+        `El dueño pulsó Confirmar en la propuesta ${accionId} y se ejecutó. Resultado: ${r.nota ?? r.mensaje}`
       );
-      return resultado(
-        base,
-        await responder(
+      {
+        const enviada = await responder(
           message,
           "accion-ejecutada",
           mensajes.accionEjecutada(r),
           opciones
-        )
-      );
+        );
+        await continuarTrasAccion({
+          message,
+          businessId: business.id,
+          resultado: "ejecutada",
+        });
+        return resultado(base, enviada);
+      }
     case "fallida":
       await anotarEnConversacionDelDueno(
         business.id,
-        `El dueño pulsó Confirmar en la propuesta ${accionId} pero no se pudo ejecutar: ${r.mensaje}`
+        `El dueño pulsó Confirmar en la propuesta ${accionId} pero no se pudo ejecutar: ${r.nota ?? r.mensaje}`
       );
-      return resultado(
-        `${base}:fallida`,
-        await responder(
+      {
+        const enviada = await responder(
           message,
           "accion-fallida",
           mensajes.accionFallida(r),
           opciones
-        )
-      );
+        );
+        await continuarTrasAccion({
+          message,
+          businessId: business.id,
+          resultado: "fallida",
+        });
+        return resultado(`${base}:fallida`, enviada);
+      }
     case "rechazada":
       await anotarEnConversacionDelDueno(
         business.id,
         `El dueño pulsó Cancelar en la propuesta ${accionId}: no se hizo nada.`
       );
-      return resultado(
-        base,
-        await responder(
+      {
+        const enviada = await responder(
           message,
           "accion-rechazada",
           mensajes.accionRechazada(),
           opciones
-        )
-      );
+        );
+        await continuarTrasAccion({
+          message,
+          businessId: business.id,
+          resultado: "rechazada",
+        });
+        return resultado(base, enviada);
+      }
     case "caducada":
       return resultado(
         `${base}:caducada`,
@@ -1464,7 +1486,11 @@ async function activarPorBoton(
     await responder(
       message,
       "bienvenida",
-      mensajes.bienvenidaTrasAlta({ negocios: [nombre], movilApuntado: false }),
+      mensajes.bienvenidaTrasAlta({
+        negocios: [nombre],
+        movilApuntado: false,
+        ofrecerPuestaEnMarcha: await ofrecerPuestaEnMarcha(business.id),
+      }),
       { businessId: business.id }
     )
   );

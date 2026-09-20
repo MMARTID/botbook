@@ -19,6 +19,7 @@ import {
   anotarEnConversacionDelDueno,
   botonesDeAccion,
   cerrarConversacionDelDueno,
+  continuarTrasAccion,
   conversacionDelDueno,
   conversarConGestor,
   marcadorDelGestor,
@@ -29,6 +30,7 @@ vi.mock("../../../src/lib/prisma.js", () => ({
   prisma: {
     business: { findUnique: vi.fn(), update: vi.fn(), updateMany: vi.fn() },
     sentMessage: { count: vi.fn(), updateMany: vi.fn() },
+    ownerPendingAction: { findUnique: vi.fn() },
   },
 }));
 vi.mock("../../../src/lib/redis.js", () => {
@@ -515,5 +517,108 @@ describe("conversarConGestor", () => {
     expect(mockedChat).toHaveBeenCalledTimes(2);
     expect(mockedChat.mock.calls[1]![1].conversationId).toBe("conv_nueva");
     expect(cuerpoTexto()).toBe("Hola de nuevo.");
+  });
+});
+
+describe("continuarTrasAccion (turno de seguimiento tras un botón)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.spyOn(console, "log").mockImplementation(() => undefined);
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    process.env.TELNYX_OWNER_CHAT_ENABLED = "true";
+    process.env.TELNYX_GESTOR_ASSISTANT_ID = "assistant-gestor";
+    mockedBizFindUnique.mockResolvedValue(NEGOCIO as never);
+    redis.incr.mockResolvedValue(1);
+    redis.expire.mockResolvedValue(1);
+    redis.get.mockResolvedValue(null);
+    redis.set.mockResolvedValue("OK");
+    redis.del.mockResolvedValue(1);
+    mockedAcquire.mockResolvedValue("token");
+    mockedSentCount.mockResolvedValue(0);
+    mockedReclamar.mockResolvedValue(true);
+    mockedEnviarTexto.mockResolvedValue({ messageId: "out_1" } as never);
+  });
+  afterEach(() => {
+    delete process.env.TELNYX_OWNER_CHAT_ENABLED;
+    delete process.env.TELNYX_GESTOR_ASSISTANT_ID;
+  });
+
+  it("tras una acción ejecutada da un turno al Gestor con el contexto y manda su respuesta como seguimiento", async () => {
+    mockedChat.mockResolvedValueOnce(
+      "Ahora el equipo: ¿quién trabaja contigo?"
+    );
+    await continuarTrasAccion({
+      message: entrante(),
+      businessId: "biz_1",
+      resultado: "ejecutada",
+    });
+    expect(mockedChat.mock.calls[0]![1].content).toContain(
+      "ha pulsado Confirmar y la acción ya está hecha"
+    );
+    expect(mockedReclamar).toHaveBeenCalledWith(
+      "whatsapp",
+      "entrante:in_1:chat-dueno-seguimiento",
+      expect.anything()
+    );
+    expect(cuerpoTexto()).toBe("Ahora el equipo: ¿quién trabaja contigo?");
+  });
+
+  it("si el Gestor contesta «Listo.» no se manda nada; con el chat apagado no hace nada; un fallo no lanza", async () => {
+    mockedChat.mockResolvedValueOnce("Listo.");
+    await continuarTrasAccion({
+      message: entrante(),
+      businessId: "biz_1",
+      resultado: "ejecutada",
+    });
+    expect(mockedEnviarTexto).not.toHaveBeenCalled();
+
+    process.env.TELNYX_OWNER_CHAT_ENABLED = "false";
+    await continuarTrasAccion({
+      message: entrante(),
+      businessId: "biz_1",
+      resultado: "rechazada",
+    });
+    expect(mockedChat).toHaveBeenCalledTimes(1);
+
+    process.env.TELNYX_OWNER_CHAT_ENABLED = "true";
+    mockedBizFindUnique.mockRejectedValueOnce(new Error("bd"));
+    await expect(
+      continuarTrasAccion({
+        message: entrante(),
+        businessId: "biz_1",
+        resultado: "fallida",
+      })
+    ).resolves.toBeUndefined();
+  });
+
+  it("una propuesta con respuesta larga manda el texto y aparte los botones con el resumen", async () => {
+    redis.get.mockImplementation(async (clave: string) =>
+      clave === claveDePropuesta("biz_1") ? "acc_7" : null
+    );
+    vi.mocked(prisma.ownerPendingAction.findUnique).mockResolvedValue({
+      resumen: "Doy de alta 15 servicios.",
+    } as never);
+    mockedChat.mockResolvedValueOnce(
+      "Si confirmas, daré de alta: " +
+        "- Servicio con nombre largo, 30 minutos, 15 euros\n".repeat(30)
+    );
+    mockedEnviarBotones.mockResolvedValue({ messageId: "out_2" } as never);
+
+    const r = await conversarConGestor({
+      message: entrante(),
+      businessId: "biz_1",
+      texto: "dalos de alta",
+    });
+    expect(r).toEqual({
+      atendido: true,
+      resultado: { handler: "chat:dueno:propuesta" },
+    });
+    expect(mockedEnviarTexto).toHaveBeenCalledTimes(1);
+    expect(mockedEnviarBotones).toHaveBeenCalledWith(
+      expect.objectContaining({
+        body: "¿Confirmas? Doy de alta 15 servicios.",
+        buttons: botonesDeAccion("acc_7"),
+      })
+    );
   });
 });
