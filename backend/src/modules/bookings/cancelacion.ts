@@ -24,7 +24,8 @@ import { avisarAQuienEsperaba } from "../whatsapp/listaDeEspera.js";
 export async function cancelarReserva(input: {
   bookingId: string;
   businessId: string;
-  cancelledBy: "client_voice" | "client_button";
+  /** `client_chat`: la recepcionista por chat de WhatsApp (fase 2). */
+  cancelledBy: "client_voice" | "client_button" | "client_chat";
   /** Para los logs («llamada …», «boton cliente <inboundId>»). */
   etiqueta: string;
   inboundMessageId?: string;

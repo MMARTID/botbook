@@ -136,6 +136,26 @@ export function desconocidoEnClientes(): string {
 }
 
 // ---------------------------------------------------------------------------
+// La recepcionista por chat (fase 2, § 7)
+// ---------------------------------------------------------------------------
+
+/** Vigésimo primer turno del día: el chat descansa hasta mañana. */
+export function limiteDiarioDelChat(input: {
+  negocio: string;
+  telefono: string | null;
+}): string {
+  return `Por hoy hemos llegado al límite de mensajes por aquí. Mañana podemos seguir; si es urgente, ${llamar(input.negocio, input.telefono)}.`;
+}
+
+/** La recepcionista no ha podido responder (Telnyx caído o sin respuesta). */
+export function chatNoDisponible(input: {
+  negocio: string;
+  telefono: string | null;
+}): string {
+  return `Ahora mismo no puedo atenderte por aquí. Inténtalo en un rato o ${llamar(input.negocio, input.telefono)}.`;
+}
+
+// ---------------------------------------------------------------------------
 // Botones del cliente (PR 4)
 // ---------------------------------------------------------------------------
 // `{negocio}` llega por `nombreParaCliente` (respaldo «el negocio», nunca «tu

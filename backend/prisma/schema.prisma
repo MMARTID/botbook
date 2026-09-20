@@ -147,6 +147,18 @@ model Business {
   // en este PR.
   address             String?
 
+  // Fase 2 (conversaciones Beta, PLAN-CANAL-DUENO.md § 7 y § 8). Los dos
+  // interruptores por negocio están por debajo de los globales
+  // TELNYX_CLIENT_CHAT_ENABLED / TELNYX_OWNER_CHAT_ENABLED: con el global
+  // apagado no chatea nadie aunque aquí siga a true.
+  clientChatEnabled          Boolean   @default(true)
+  ownerChatEnabled           Boolean   @default(true)
+  // Conversación del dueño con el Gestor único (Telnyx `ai.conversations`),
+  // creada por Alhabla con metadata { business_id, role: "owner" }. Rota a
+  // los 30 días o con BAJA. Se usa desde el PR del Gestor.
+  ownerConversationId        String?
+  ownerConversationCreatedAt DateTime?
+
   createdAt           DateTime             @default(now())
   updatedAt           DateTime             @updatedAt
   users               User[]
@@ -158,9 +170,39 @@ model Business {
   billingUsagePeriods BillingUsagePeriod[]
   onboardingState     OnboardingState?
   calendarConnections CalendarConnection[]
+  clientConversations ClientConversation[]
 
   @@index([ownerWhatsappNumber])
   @@map("businesses")
+}
+
+/// Chat de un cliente con la recepcionista de un negocio por WhatsApp
+/// (fase 2, § 7): una conversación de Telnyx por cliente y negocio, contra
+/// el mismo assistant que atiende la llamada. `callId` es la Call sintética
+/// `whatsapp:chat:<id>` que las tools de voz resuelven: la conversación
+/// lleva `call_control_id` en sus metadata y Telnyx lo templa en la cabecera
+/// X-Alhabla-Call-Control-Id de las tools (verificado en dev el 2026-09-20).
+model ClientConversation {
+  id             String    @id @default(cuid())
+  businessId     String
+  /// Móvil del cliente en E.164 (el `from` de WhatsApp).
+  clientPhone    String
+  /// Id de la conversación en Telnyx. Cambia al rotar (30 días).
+  conversationId String    @unique
+  /// `Call.callId` de la Call sintética de este hilo (`whatsapp:chat:<id>`).
+  callId         String    @unique
+  /// Fecha de creación de la conversación de Telnyx vigente (rotación).
+  startedAt      DateTime  @default(now())
+  lastInboundAt  DateTime?
+  lastOutboundAt DateTime?
+  /// Turnos atendidos por el LLM en este hilo (informativo).
+  turns          Int       @default(0)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  business       Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@unique([businessId, clientPhone])
+  @@map("client_conversations")
 }
 
 model BillingUsagePeriod {

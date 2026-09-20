@@ -794,6 +794,11 @@ el cliente cancela desde el recordatorio y el dueño lo ve en su WhatsApp.
 
 ### Fase 2 — Conversaciones (Beta)
 
+**En marcha desde el 20-09 (decisión del usuario): «cliente primero».** PR 1 = cimientos +
+la recepcionista por chat; PR 2-4 = el Gestor (base y agenda de lectura → catálogo y
+onboarding → citas, ausencias y bloqueos); PR 5 = panel y tests de integración. Los
+interruptores globales quedan apagados en producción hasta que el usuario lo pruebe.
+
 - **Gestor único** (`contexto_negocio`,
   catálogo: `crear_servicio`, `editar_servicio`, `retirar_servicio`, `crear_profesional`,
   `retirar_profesional`, `fijar_especialidad`, `fijar_horario`, `cerrar_dia`,
@@ -801,10 +806,17 @@ el cliente cancela desde el recordatorio y el dueño lo ve en su WhatsApp.
   `mover_cita`, `cancelar_cita`, `marcar_ausencia`, `bloquear_franja`, `resolver_pendiente`;
   `proponer_accion`); *shared tools*; conversaciones creadas por Alhabla con metadatos;
   `pending_owner_action` con 24 h.
-- La recepcionista por chat: `ClientConversation` por cliente y negocio contra el assistant de
+- ~~La recepcionista por chat: `ClientConversation` por cliente y negocio contra el assistant de
   voz del negocio; marcador `[WhatsApp]` y bloque "modo chat" en el prompt
-  (`managedAgentPrompt.ts`); lista para elegir negocio si tiene citas en varios; botón
-  *Cambiar* del recordatorio abre esa conversación.
+  (`managedAgentPrompt.ts`); botón *Cambiar* del recordatorio abre esa conversación.~~ —
+  **PR 1 hecho el 20-09**: las tools de voz funcionan en chat sin tocar ningún assistant
+  porque la conversación lleva `call_control_id` en sus metadata (Call sintética
+  `whatsapp:chat:<uuid>`); marcador con móvil y fecha/hora local porque en chat
+  `{{telnyx_end_user_target}}` no resuelve y `{{telnyx_current_time}}` llega en UTC; 20
+  turnos por cliente y día, lock por hilo, rotación a los 30 días, coletilla Beta; probado de
+  extremo a extremo en dev (catálogo → reserva real en Google Calendar → cancelación).
+  Queda la lista para elegir negocio si tiene citas en varios (hoy: el de la reserva más
+  reciente). Detalle en `AGENTS.md` § WhatsApp › Código (fase 2, PR 1).
 - Onboarding por chat: el Gestor guía servicios → profesionales → horario → calendario según
   la checklist; cada mutación con botón y con la misma sincronización que el panel.
 - Flujo de añadir con "¿le mando la confirmación?"; flujo de mover/cancelar con *Antes la
@@ -991,8 +1003,8 @@ si la respuesta es negativa.
 WHATSAPP_WABA_ID                        # UUID Telnyx del WABA
 OWNER_ALTA_CODE_TTL_HOURS=72
 OWNER_DIGEST_DEFAULT_TIME=20:30
-TELNYX_OWNER_CHAT_ENABLED=false         # nivel 2 del dueño (Beta)
-TELNYX_CLIENT_CHAT_ENABLED=false        # nivel 2 del cliente (Beta)
+TELNYX_OWNER_CHAT_ENABLED=false         # nivel 2 del dueño (Beta) — existe desde el PR 1 de la fase 2
+TELNYX_CLIENT_CHAT_ENABLED=false        # nivel 2 del cliente (Beta) — ídem; apagado en producción
 TELNYX_GESTOR_ASSISTANT_ID              # assistant único de plataforma (Gestor)
 WHATSAPP_FORWARDING_NUMBER=+34692138456 # desvío de los números de Alhabla (verificación de Meta)
 TELNYX_MEMORY_ENABLED=false

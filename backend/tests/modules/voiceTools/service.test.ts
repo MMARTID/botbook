@@ -1051,6 +1051,35 @@ describe("executeVoiceTool book_appointment — confirmación al cliente por Wha
     );
   });
 
+  it("desde el chat de WhatsApp (Call whatsapp:chat:<id>) la reserva se anota createdVia client_chat", async () => {
+    mockedCallFindUnique.mockResolvedValue({
+      id: "call_db_chat",
+      callId: "whatsapp:chat:conv_1",
+      fromNumber: "+34600999888",
+      businessId: "business_123",
+    } as never);
+
+    const result = await executeVoiceTool(
+      buildBookAppointmentInput({
+        callId: "whatsapp:chat:conv_1",
+        params: {
+          clientName: "María",
+          startDateTime: farFutureStart,
+          durationMinutes: 30,
+          professionalId: "professional_123",
+          smsConsent: true,
+        },
+      })
+    );
+
+    expect(result.result.success).toBe(true);
+    expect(mockedBookingUpsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        create: expect.objectContaining({ createdVia: "client_chat" }),
+      })
+    );
+  });
+
   it("devuelve mensajeCliente ninguno si la confirmación no queda programada (sin consentimiento, STOP, fallo al encolar)", async () => {
     mockedProgramarMensajes.mockResolvedValue({
       confirmacion: "no",
@@ -1520,6 +1549,19 @@ describe("executeVoiceTool cancel_appointment", () => {
       // Ni el evento ni la reserva se tocan desde la tool: es cancelarReserva.
       expect(mockedCancelAppointment).not.toHaveBeenCalled();
       expect(mockedBookingUpdate).not.toHaveBeenCalled();
+    });
+
+    it("desde el chat de WhatsApp cancela con client_chat", async () => {
+      await executeVoiceTool({
+        businessId: "business_123",
+        toolName: "cancel_appointment",
+        params: { bookingId: "booking_1" },
+        callId: "whatsapp:chat:conv_1",
+      });
+
+      expect(mockedCancelarReserva).toHaveBeenCalledWith(
+        expect.objectContaining({ cancelledBy: "client_chat" })
+      );
     });
 
     it("si cancelarReserva devuelve ya_cancelada (carrera con otro toque) responde que ya estaba cancelada", async () => {

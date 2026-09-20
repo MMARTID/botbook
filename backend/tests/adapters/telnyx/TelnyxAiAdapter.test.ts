@@ -30,6 +30,10 @@ const mockAssistantTestRunsRetrieve = vi.fn();
 const mockInsightsList = vi.fn();
 const mockInsightsCreate = vi.fn();
 const mockInsightGroupsInsightsAssign = vi.fn();
+const mockConversationsCreate = vi.fn();
+const mockConversationsUpdate = vi.fn();
+const mockConversationsAddMessage = vi.fn();
+const mockAssistantsChat = vi.fn();
 
 const mockTelnyxClient = {
   callControlApplications: {
@@ -47,6 +51,7 @@ const mockTelnyxClient = {
       update: mockAssistantsUpdate,
       retrieve: mockAssistantsRetrieve,
       delete: mockAssistantsDelete,
+      chat: mockAssistantsChat,
       tests: {
         create: mockAssistantTestsCreate,
         update: mockAssistantTestsUpdate,
@@ -59,6 +64,9 @@ const mockTelnyxClient = {
     },
     conversations: {
       retrieve: mockConversationsRetrieve,
+      create: mockConversationsCreate,
+      update: mockConversationsUpdate,
+      addMessage: mockConversationsAddMessage,
       messages: { list: mockMessagesList },
       insights: { list: mockInsightsList, create: mockInsightsCreate },
       insightGroups: {
@@ -526,6 +534,89 @@ describe("TelnyxAiAdapter", () => {
         },
       ]);
       expect(mockMessagesList).toHaveBeenCalledWith("conv_1");
+    });
+  });
+
+  describe("chat (fase 2): createConversation / updateConversation / addConversationMessage / chatWithAssistant", () => {
+    it("createConversation desenvuelve {data} y devuelve el id", async () => {
+      mockConversationsCreate.mockResolvedValue({ data: { id: "conv_9" } });
+
+      const result = await adapter.createConversation({
+        name: "whatsapp:cliente:biz_1:+34600000000",
+        metadata: { business_id: "biz_1", call_control_id: "whatsapp:chat:x" },
+      });
+
+      expect(result).toEqual({ id: "conv_9" });
+      expect(mockConversationsCreate).toHaveBeenCalledWith({
+        name: "whatsapp:cliente:biz_1:+34600000000",
+        metadata: { business_id: "biz_1", call_control_id: "whatsapp:chat:x" },
+      });
+    });
+
+    it("createConversation acepta también la respuesta sin envolver y lanza si no hay id", async () => {
+      mockConversationsCreate.mockResolvedValueOnce({ id: "conv_plano" });
+      expect(
+        await adapter.createConversation({ metadata: { role: "owner" } })
+      ).toEqual({ id: "conv_plano" });
+
+      mockConversationsCreate.mockResolvedValueOnce({ data: {} });
+      await expect(
+        adapter.createConversation({ metadata: { role: "owner" } })
+      ).rejects.toThrow("id de la conversación");
+    });
+
+    it("updateConversation manda metadata y system_prompt solo si vienen", async () => {
+      mockConversationsUpdate.mockResolvedValue({});
+
+      await adapter.updateConversation("conv_9", {
+        systemPrompt: "Eres el Gestor de Peluquería Ana.",
+      });
+      expect(mockConversationsUpdate).toHaveBeenCalledWith("conv_9", {
+        system_prompt: "Eres el Gestor de Peluquería Ana.",
+      });
+
+      await adapter.updateConversation("conv_9", {
+        metadata: { ai_disabled: "true" },
+      });
+      expect(mockConversationsUpdate).toHaveBeenLastCalledWith("conv_9", {
+        metadata: { ai_disabled: "true" },
+      });
+    });
+
+    it("addConversationMessage pasa role y content", async () => {
+      mockConversationsAddMessage.mockResolvedValue(undefined);
+      await adapter.addConversationMessage("conv_9", {
+        role: "system",
+        content: "La cita se movió al viernes.",
+      });
+      expect(mockConversationsAddMessage).toHaveBeenCalledWith("conv_9", {
+        role: "system",
+        content: "La cita se movió al viernes.",
+      });
+    });
+
+    it("chatWithAssistant devuelve el content y cadena vacía si no viene", async () => {
+      mockAssistantsChat.mockResolvedValueOnce({ content: "Hola, ¿en qué te ayudo?" });
+      expect(
+        await adapter.chatWithAssistant("assistant-1", {
+          content: "[WhatsApp · +34600000000 · hoy] hola",
+          conversationId: "conv_9",
+          name: "Marta",
+        })
+      ).toBe("Hola, ¿en qué te ayudo?");
+      expect(mockAssistantsChat).toHaveBeenCalledWith("assistant-1", {
+        content: "[WhatsApp · +34600000000 · hoy] hola",
+        conversation_id: "conv_9",
+        name: "Marta",
+      });
+
+      mockAssistantsChat.mockResolvedValueOnce({});
+      expect(
+        await adapter.chatWithAssistant("assistant-1", {
+          content: "hola",
+          conversationId: "conv_9",
+        })
+      ).toBe("");
     });
   });
 
