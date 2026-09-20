@@ -8,13 +8,34 @@ import {
   resolverConexionDeCalendario,
   SELECT_CONEXION_DE_CALENDARIO,
 } from "../calendar/conexion.js";
+import {
+  estadoWhatsappDelDueno,
+  type EstadoWhatsappDueno,
+} from "../whatsapp/altaDueno.js";
+import { bajaVigente } from "../whatsapp/bajas.js";
+
+/**
+ * Si el paso de WhatsApp cuenta en `progress` e `isActive`. Con `false`
+ * (mientras el frontend desplegado no conozca el paso), un negocio con los
+ * otros cinco pasos hechos sigue en progreso 100 y la guía no reaparece
+ * vacía tras desplegar solo el backend. `steps.whatsapp` y `whatsapp.status`
+ * se devuelven igual. Poner a `true` cuando el frontend del PR 2 esté en
+ * producción.
+ */
+export const CONTAR_WHATSAPP_EN_PROGRESO = false;
 
 export type OnboardingSteps = {
   schedule: boolean;
   services: boolean;
   professionals: boolean;
   calendar: boolean;
+  whatsapp: boolean;
   forwarding: boolean;
+};
+
+export type OnboardingWhatsapp = {
+  status: EstadoWhatsappDueno;
+  ownerWhatsappNumber: string | null;
 };
 
 /**
@@ -41,6 +62,7 @@ export type OnboardingStateResponse = {
   dismissedAt: string | null;
   completedAt: string | null;
   isActive: boolean;
+  whatsapp: OnboardingWhatsapp;
   forwarding: OnboardingForwarding;
 };
 
@@ -74,7 +96,8 @@ export async function onboardingRoutes(fastify: FastifyInstance) {
           include: {
             services: { where: { active: true } },
             professionals: { where: { active: true } },
-            calendarConnections: SELECT_CONEXION_DE_CALENDARIO.calendarConnections,
+            calendarConnections:
+              SELECT_CONEXION_DE_CALENDARIO.calendarConnections,
           },
         });
 
@@ -112,6 +135,14 @@ export async function onboardingRoutes(fastify: FastifyInstance) {
           firstCallAt: firstCall?.startedAt.toISOString() ?? null,
         };
 
+        // WhatsApp del dueño: el mismo estado alimenta el paso y el detalle
+        // para que no puedan divergir. `activo` o `baja` cuentan como
+        // resuelto (una baja es una decisión del dueño, no un pendiente).
+        const bajaGlobal = business.ownerWhatsappNumber
+          ? await bajaVigente("owner", business.ownerWhatsappNumber)
+          : null;
+        const whatsappStatus = estadoWhatsappDelDueno(business, bajaGlobal);
+
         const steps: OnboardingSteps = {
           schedule: isValidSchedule(business.schedule),
           services: business.services.length > 0,
@@ -121,11 +152,17 @@ export async function onboardingRoutes(fastify: FastifyInstance) {
           calendar: marcadaComoConectada(
             resolverConexionDeCalendario(business)
           ),
+          whatsapp: whatsappStatus === "activo" || whatsappStatus === "baja",
           forwarding: forwardingDone,
         };
 
-        const totalSteps = Object.keys(steps).length;
-        const completedSteps = Object.values(steps).filter(Boolean).length;
+        // Mientras el paso de WhatsApp no cuente, un negocio con los otros
+        // cinco hechos sigue en progreso 100 y no ve reaparecer la guía.
+        const pasosContados = Object.entries(steps).filter(
+          ([key]) => CONTAR_WHATSAPP_EN_PROGRESO || key !== "whatsapp"
+        );
+        const totalSteps = pasosContados.length;
+        const completedSteps = pasosContados.filter(([, done]) => done).length;
         const progress = Math.round((completedSteps / totalSteps) * 100);
 
         const isActive =
@@ -139,13 +176,19 @@ export async function onboardingRoutes(fastify: FastifyInstance) {
           dismissedAt: onboardingState.dismissedAt?.toISOString() ?? null,
           completedAt: onboardingState.completedAt?.toISOString() ?? null,
           isActive,
+          whatsapp: {
+            status: whatsappStatus,
+            ownerWhatsappNumber: business.ownerWhatsappNumber ?? null,
+          },
           forwarding,
         };
 
         return reply.send(response);
       } catch (error) {
         fastify.log.error({ err: error }, "[Onboarding] Failed to fetch state");
-        return reply.status(500).send({ error: "Failed to fetch onboarding state" });
+        return reply
+          .status(500)
+          .send({ error: "Failed to fetch onboarding state" });
       }
     }
   );
@@ -169,7 +212,9 @@ export async function onboardingRoutes(fastify: FastifyInstance) {
         });
       } catch (error) {
         fastify.log.error({ err: error }, "[Onboarding] Failed to dismiss");
-        return reply.status(500).send({ error: "Failed to dismiss onboarding" });
+        return reply
+          .status(500)
+          .send({ error: "Failed to dismiss onboarding" });
       }
     }
   );
@@ -223,7 +268,9 @@ export async function onboardingRoutes(fastify: FastifyInstance) {
         });
       } catch (error) {
         fastify.log.error({ err: error }, "[Onboarding] Failed to complete");
-        return reply.status(500).send({ error: "Failed to complete onboarding" });
+        return reply
+          .status(500)
+          .send({ error: "Failed to complete onboarding" });
       }
     }
   );

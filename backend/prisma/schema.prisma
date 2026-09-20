@@ -107,6 +107,34 @@ model Business {
   // quien escribe al número de negocios es un dueño.
   ownerWhatsappNumber String?
 
+  // Alta del dueño por WhatsApp (PLAN-CANAL-DUENO.md § 2, § 6, § 12).
+  // El consentimiento tiene que ser demostrable: cuándo, por qué vía y con
+  // qué mensaje (la fila de InboundMessage conserva el payload de Meta).
+  ownerWhatsappOptInAt          DateTime?
+  /// "boton_plantilla" | "alta_codigo" | "alta_palabra" (esta última solo
+  /// como REACTIVACIÓN tras un STOP; nunca como primer consentimiento).
+  ownerWhatsappOptInVia         String?
+  /// InboundMessage.id del mensaje que dio el consentimiento.
+  ownerWhatsappOptInMessageId   String?
+  // STOP/BAJA desde el móvil. La prueba está en WhatsappOptOut. Se limpia
+  // solo cuando ese mismo móvil vuelve a dar el consentimiento.
+  ownerWhatsappOptOutAt         DateTime?
+  // Error 131026 de Meta (el número no tiene WhatsApp), que llega en
+  // diferido como fallo de entrega. Se limpia al cambiar el número, al
+  // entregarse cualquier mensaje o al recibir uno desde ese móvil.
+  ownerWhatsappUnreachableAt    DateTime?
+  // Último envío de bienvenida_negocio: freno de «Reenviar activación».
+  // Se reclama ANTES de enviar con un updateMany condicional (atómico).
+  ownerWhatsappActivationSentAt DateTime?
+  // Fin de la ventana de 24 h abierta por el último mensaje del dueño
+  // (receivedAt + 24 h). El PR 3 elige interactivo o plantilla con esto.
+  ownerWindowOpenUntil          DateTime?
+  // Código de «ALTA <código>»: 6 símbolos de ABCDEFGHJKLMNPQRSTUVWXYZ23456789
+  // (sin 0/O/1/I), crypto.randomBytes, único entre negocios, caduca a los
+  // 7 días y se anula con CUALQUIER opt-in (código, botón o reactivación).
+  ownerAltaCode                 String?   @unique
+  ownerAltaCodeExpiresAt        DateTime?
+
   createdAt           DateTime             @default(now())
   updatedAt           DateTime             @updatedAt
   users               User[]
@@ -742,7 +770,41 @@ model InboundMessage {
   @@index([fromNumber, receivedAt])
   @@index([businessId, receivedAt])
   @@index([contextMessageId])
+  /// Barrido de filas sin enrutar (proceso muerto entre guardar y enrutar).
+  @@index([handledAt, receivedAt])
   @@map("inbound_messages")
+}
+
+/**
+ * Bajas de WhatsApp por número y audiencia (PLAN-CANAL-DUENO.md § 6.1). Un
+ * STOP al número de clientes es GLOBAL para ese móvil (todos los negocios);
+ * un STOP al de negocios deja además ownerWhatsappOptOutAt en cada negocio
+ * con ese móvil. La consultan TODOS los envíos del servicio antes de salir.
+ * Baja vigente ⇔ revokedAt IS NULL. Al escribir ALTA se conserva la fila con
+ * revokedAt (historial demostrable). No se borra nunca, ni al borrar la
+ * cuenta: es la voluntad de una persona, no un dato del tenant.
+ */
+model WhatsappOptOut {
+  id                 String    @id @default(cuid())
+  /** E.164 del móvil que pidió la baja. */
+  phoneNumber        String
+  /** "client" | "owner": a qué número de Alhabla escribió. */
+  audience           String
+  optedOutAt         DateTime
+  /** "STOP" | "BAJA": la palabra exacta que escribió. */
+  keyword            String
+  /** InboundMessage.id del STOP (prueba). */
+  inboundMessageId   String?
+  /** Negocio con el que se le identificó en ese momento (informativo). */
+  businessId         String?
+  revokedAt          DateTime?
+  /** InboundMessage.id del ALTA que la revocó. */
+  revokedByMessageId String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@unique([phoneNumber, audience])
+  @@map("whatsapp_opt_outs")
 }
 
 enum CallStatus {

@@ -50,6 +50,7 @@ function eventoMensajes(
 describe("WhatsApp entrante (integración)", () => {
   beforeEach(async () => {
     await resetDb();
+    vi.clearAllMocks();
     invalidarCacheRemitentes();
     await prisma.whatsappSender.createMany({
       data: [
@@ -61,6 +62,7 @@ describe("WhatsApp entrante (integración)", () => {
       messageId: "msg-out-1",
       status: "queued",
     });
+    vi.spyOn(console, "log").mockImplementation(() => undefined);
   });
 
   it("identifica al cliente por sus reservas, guarda el mensaje una sola vez y deja el handler pendiente", async () => {
@@ -266,6 +268,98 @@ describe("WhatsApp entrante (integración)", () => {
     });
     expect(fallido).toEqual(
       expect.objectContaining({ deliveryStatus: "failed", errorCode: "40008" })
+    );
+  });
+
+  it("un entrante real del dueño abre la ventana de 24 h y limpia la marca de 131026", async () => {
+    const business = await createTestBusiness({
+      ownerWhatsappNumber: MOVIL,
+      ownerWhatsappUnreachableAt: new Date("2026-09-19T10:00:00Z"),
+    });
+    const timestamp = 1789845237;
+
+    await handleWhatsappMessages(
+      eventoMensajes(
+        "evt-8",
+        [
+          {
+            id: "in-8",
+            from: MOVIL,
+            timestamp: String(timestamp),
+            type: "text",
+            text: { body: "hola" },
+          },
+        ],
+        [],
+        NEGOCIOS
+      )
+    );
+
+    const actualizado = await prisma.business.findUniqueOrThrow({
+      where: { id: business.id },
+    });
+    expect(actualizado.ownerWindowOpenUntil).toEqual(
+      new Date((timestamp + 86_400) * 1000)
+    );
+    expect(actualizado.ownerWhatsappUnreachableAt).toBeNull();
+  });
+
+  it("una reacción del dueño se guarda pero no toca la ventana ni responde", async () => {
+    const business = await createTestBusiness({ ownerWhatsappNumber: MOVIL });
+
+    await handleWhatsappMessages(
+      eventoMensajes(
+        "evt-9",
+        [
+          {
+            id: "in-9",
+            from: MOVIL,
+            type: "reaction",
+            reaction: { emoji: "👍", message_id: "x" },
+          },
+        ],
+        [],
+        NEGOCIOS
+      )
+    );
+
+    const guardado = await prisma.inboundMessage.findUniqueOrThrow({
+      where: { providerMessageId: "in-9" },
+    });
+    expect(guardado).toEqual(
+      expect.objectContaining({
+        kind: "other",
+        handler: "ignorado:reaction",
+        role: "owner",
+      })
+    );
+    expect(
+      (await prisma.business.findUniqueOrThrow({ where: { id: business.id } }))
+        .ownerWindowOpenUntil
+    ).toBeNull();
+    expect(whatsappAdapter.sendText).not.toHaveBeenCalled();
+  });
+
+  it("un duplicado con otro data.id no crea una segunda respuesta", async () => {
+    await createTestBusiness({ ownerWhatsappNumber: MOVIL });
+    const mensaje = {
+      id: "in-10",
+      from: MOVIL,
+      type: "text",
+      text: { body: "hola" },
+    };
+
+    await handleWhatsappMessages(
+      eventoMensajes("evt-10", [mensaje], [], NEGOCIOS)
+    );
+    await handleWhatsappMessages(
+      eventoMensajes("evt-11", [mensaje], [], NEGOCIOS)
+    );
+
+    expect(await prisma.inboundMessage.count()).toBe(1);
+    expect(whatsappAdapter.sendText).toHaveBeenCalledTimes(1);
+    expect(await prisma.sentMessage.count({ where: { toNumber: MOVIL } })).toBe(
+      1
     );
   });
 });

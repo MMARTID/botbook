@@ -9,6 +9,11 @@ import {
 import { prisma } from "../../lib/prisma.js";
 import { errorMessage } from "../../lib/logUtils.js";
 import { isUniqueConstraintError } from "../../lib/prismaErrors.js";
+import { estaDadoDeBaja, WhatsappOptOutError } from "./bajas.js";
+import {
+  limpiarDuenoSinWhatsapp,
+  marcarDuenoSinWhatsapp,
+} from "./altaDueno.js";
 
 /**
  * Servicio de WhatsApp (PLAN-CANAL-DUENO.md § 1, § 9 y § SentMessage): decide
@@ -147,6 +152,88 @@ export async function resolverPlantilla(
   }
 }
 
+const REFRESCO_PLANTILLA_MS = 24 * 60 * 60 * 1000;
+/** Tras un fallo del WABA no se vuelve a intentar hasta pasado este tiempo. */
+export const ENFRIAMIENTO_REFRESCO_FALLIDO_MS = 15 * 60 * 1000;
+/**
+ * Último intento fallido por plantilla, en memoria (por instancia): un
+ * fallo no deja marca en la fila, y sin esto cada GET del panel dispararía
+ * una llamada al WABA mientras Telnyx devuelva 429/5xx.
+ */
+const ultimoRefrescoFallido = new Map<string, number>();
+
+/** Solo para tests: olvida los intentos fallidos. */
+export function reiniciarEnfriamientoDePlantillas(): void {
+  ultimoRefrescoFallido.clear();
+}
+
+/**
+ * Red de seguridad para el estado de una plantilla: si su fila lleva más de
+ * 24 h sin sincronizar (o nunca), se consulta el WABA y se actualiza. Cubre
+ * el caso de que el evento `whatsapp.template.*` no llegue, o llegue con
+ * otro nombre (no verificado en la fase 0). Nunca lanza, y tras un fallo
+ * espera 15 min antes de volver a llamar al WABA.
+ */
+export async function refrescarPlantilla(key: string): Promise<void> {
+  const wabaId = process.env.WHATSAPP_WABA_ID;
+  if (!wabaId) {
+    return;
+  }
+  const ultimoFallo = ultimoRefrescoFallido.get(key);
+  if (
+    ultimoFallo !== undefined &&
+    Date.now() - ultimoFallo < ENFRIAMIENTO_REFRESCO_FALLIDO_MS
+  ) {
+    return;
+  }
+  try {
+    const row = await prisma.whatsappTemplate.findUnique({ where: { key } });
+    if (!row) {
+      return;
+    }
+    if (
+      row.lastSyncedAt &&
+      Date.now() - row.lastSyncedAt.getTime() < REFRESCO_PLANTILLA_MS
+    ) {
+      return;
+    }
+    const templates = await whatsappAdapter.listTemplates(wabaId);
+    ultimoRefrescoFallido.delete(key);
+    const remota =
+      templates.find((t) => t.telnyxTemplateId === row.telnyxTemplateId) ??
+      templates.find((t) => t.name === row.name && t.language === row.language);
+    if (!remota) {
+      console.warn(
+        `[WhatsApp] La plantilla ${key} (${row.name}/${row.language}) no aparece en el WABA; se deja como está`
+      );
+      await prisma.whatsappTemplate.update({
+        where: { id: row.id },
+        data: { lastSyncedAt: new Date() },
+      });
+      return;
+    }
+    await prisma.whatsappTemplate.update({
+      where: { id: row.id },
+      data: {
+        status: remota.status,
+        qualityRating: remota.qualityRating ?? undefined,
+        rejectionReason: remota.rejectionReason ?? undefined,
+        lastSyncedAt: new Date(),
+      },
+    });
+    if (remota.status !== row.status) {
+      console.log(
+        `[WhatsApp] Plantilla ${key} refrescada desde el WABA: ${row.status} → ${remota.status}`
+      );
+    }
+  } catch (error) {
+    ultimoRefrescoFallido.set(key, Date.now());
+    console.error(
+      `[WhatsApp] No se pudo refrescar el estado de ${key}; no se reintenta hasta dentro de ${ENFRIAMIENTO_REFRESCO_FALLIDO_MS / 60000} min: ${errorMessage(error)}`
+    );
+  }
+}
+
 interface EnvioComun {
   audience: WhatsappAudience;
   to: string;
@@ -155,6 +242,63 @@ interface EnvioComun {
   idempotencyKey?: string;
   /** Vuelve en cada `statuses[]` de Meta; correlación adicional a `providerMessageId`. */
   callbackData?: string;
+  /**
+   * Salta la guardia de baja (`WhatsappOptOut`). Solo para las confirmaciones
+   * del propio STOP: cualquier otro envío a un número con baja se suprime.
+   */
+  permitirBaja?: boolean;
+}
+
+/**
+ * Última capa antes del adaptador (PLAN-CANAL-DUENO.md § 6.1): un número con
+ * baja vigente no recibe nada salvo la confirmación de su STOP. Si la fila
+ * de `SentMessage` ya estaba reclamada (`idempotencyKey`), queda marcada
+ * como suprimida para que el job no la reintente ni cuente como enviada.
+ * Un fallo de la base de datos deja pasar el envío (fail-open, misma regla
+ * que `reclamarEnvio`) y lo deja en el log.
+ */
+async function guardiaDeBaja(
+  input: EnvioComun,
+  kind: "template" | "text" | "interactive" | "contacts"
+): Promise<void> {
+  if (input.permitirBaja) {
+    return;
+  }
+  let dadoDeBaja: boolean;
+  try {
+    dadoDeBaja = await estaDadoDeBaja(input.audience, input.to);
+  } catch (error) {
+    console.error(
+      `[WhatsApp] No se pudo comprobar la baja de ${input.to} (${input.audience}, negocio ${input.businessId ?? "—"}) antes de enviar ${kind}; se envía: ${errorMessage(error)}`
+    );
+    return;
+  }
+  if (!dadoDeBaja) {
+    return;
+  }
+  console.log(
+    `[WhatsApp] Envío ${kind} a ${input.to} (${input.audience}, negocio ${input.businessId ?? "—"}) suprimido: el número pidió STOP`
+  );
+  if (input.idempotencyKey) {
+    await marcarEnvioSuprimido(input.idempotencyKey);
+  }
+  throw new WhatsappOptOutError(input.audience, input.to);
+}
+
+/** Marca como suprimida la fila reclamada por `reclamarEnvio`. Nunca lanza. */
+export async function marcarEnvioSuprimido(
+  idempotencyKey: string
+): Promise<void> {
+  try {
+    await prisma.sentMessage.updateMany({
+      where: { channel: "whatsapp", idempotencyKey },
+      data: { deliveryStatus: "suppressed", errorCode: "OPT_OUT" },
+    });
+  } catch (error) {
+    console.error(
+      `[WhatsApp] No se pudo marcar como suprimido el envío ${idempotencyKey}: ${errorMessage(error)}`
+    );
+  }
 }
 
 export type EnvioPlantilla = EnvioComun & {
@@ -223,13 +367,55 @@ async function registrarEnvio(input: {
       },
     });
   } catch (error) {
-    if (isUniqueConstraintError(error)) {
+    if (isUniqueConstraintError(error) && input.result.messageId) {
+      // El `statuses[]` de Meta se adelantó al registro y
+      // `actualizarEstadoEnvio` ya creó la fila `adhoc:<id>`: se fusiona
+      // con lo que sabemos del envío (negocio, audiencia, destino,
+      // callback) sin tocar el estado de entrega que ya trajo el webhook.
+      await fusionarFilaAdhoc(input.result.messageId, data);
       return;
     }
     // Ya está enviado: no se puede fallar aquí. Pero sin la fila, el botón
     // que pulse el destinatario no se podrá correlacionar — que se vea.
     console.error(
       `[WhatsApp] Mensaje ${input.result.messageId} enviado a ${input.to} (${input.kind}, negocio ${input.businessId ?? "—"}) pero no se pudo registrar en SentMessage: ${errorMessage(error)}`
+    );
+  }
+}
+
+async function fusionarFilaAdhoc(
+  providerMessageId: string,
+  data: {
+    businessId: string | null;
+    audience: string;
+    fromNumber: string;
+    toNumber: string;
+    kind: string;
+    templateName: string | null;
+    templateLanguage: string | null;
+    callbackData: string | null;
+  }
+): Promise<void> {
+  try {
+    await prisma.sentMessage.updateMany({
+      where: { providerMessageId },
+      data: {
+        businessId: data.businessId,
+        audience: data.audience,
+        fromNumber: data.fromNumber,
+        toNumber: data.toNumber,
+        kind: data.kind,
+        templateName: data.templateName,
+        templateLanguage: data.templateLanguage,
+        callbackData: data.callbackData,
+      },
+    });
+    console.log(
+      `[WhatsApp] Mensaje ${providerMessageId} ya tenía fila adhoc; se fusiona (negocio ${data.businessId ?? "—"}, ${data.kind} a ${data.toNumber})`
+    );
+  } catch (error) {
+    console.error(
+      `[WhatsApp] Mensaje ${providerMessageId} (${data.kind} a ${data.toNumber}, negocio ${data.businessId ?? "—"}) no se pudo fusionar con su fila adhoc: ${errorMessage(error)}`
     );
   }
 }
@@ -241,6 +427,7 @@ async function registrarEnvio(input: {
 export async function enviarPlantilla(
   input: EnvioPlantilla
 ): Promise<EnvioRegistrado> {
+  await guardiaDeBaja(input, "template");
   const { phoneNumber: from } = await resolverRemitente(input.audience);
 
   let templateId: string | undefined;
@@ -293,6 +480,7 @@ export async function enviarPlantilla(
 export async function enviarTexto(
   input: EnvioComun & { body: string; previewUrl?: boolean }
 ): Promise<EnvioRegistrado> {
+  await guardiaDeBaja(input, "text");
   const { phoneNumber: from } = await resolverRemitente(input.audience);
   const result = await whatsappAdapter.sendText({
     from,
@@ -323,6 +511,7 @@ export async function enviarBotones(
     footer?: string;
   }
 ): Promise<EnvioRegistrado> {
+  await guardiaDeBaja(input, "interactive");
   const { phoneNumber: from } = await resolverRemitente(input.audience);
   const result = await whatsappAdapter.sendInteractiveButtons({
     from,
@@ -350,6 +539,7 @@ export async function enviarBotones(
 export async function enviarContacto(
   input: EnvioComun & { contact: WhatsAppContactCard }
 ): Promise<EnvioRegistrado> {
+  await guardiaDeBaja(input, "contacts");
   const { phoneNumber: from } = await resolverRemitente(input.audience);
   const result = await whatsappAdapter.sendContacts({
     from,
@@ -418,10 +608,25 @@ export async function actualizarEstadoEnvio(input: {
     read: 3,
     failed: 4,
   };
+  let existing: {
+    id: string;
+    deliveryStatus: string | null;
+    audience: string | null;
+    businessId: string | null;
+    toNumber: string | null;
+    callbackData: string | null;
+  } | null = null;
   try {
-    const existing = await prisma.sentMessage.findUnique({
+    existing = await prisma.sentMessage.findUnique({
       where: { providerMessageId: input.providerMessageId },
-      select: { id: true, deliveryStatus: true },
+      select: {
+        id: true,
+        deliveryStatus: true,
+        audience: true,
+        businessId: true,
+        toNumber: true,
+        callbackData: true,
+      },
     });
     const current = existing?.deliveryStatus as
       EstadoEntrega | null | undefined;
@@ -457,39 +662,109 @@ export async function actualizarEstadoEnvio(input: {
     };
     if (existing) {
       await prisma.sentMessage.update({ where: { id: existing.id }, data });
-      return;
+    } else {
+      await prisma.sentMessage.create({
+        data: {
+          channel: "whatsapp",
+          idempotencyKey: `adhoc:${input.providerMessageId}`,
+          providerMessageId: input.providerMessageId,
+          fromNumber: input.from ?? null,
+          toNumber: input.to ?? null,
+          deliveryStatus: input.status,
+          ...(input.status === "delivered" || input.status === "read"
+            ? { deliveredAt: input.at }
+            : {}),
+          ...(input.status === "read" ? { readAt: input.at } : {}),
+          ...(input.status === "failed"
+            ? {
+                failedAt: input.at,
+                errorCode: input.errorCode ?? null,
+                errorDetail: input.errorDetail ?? null,
+              }
+            : {}),
+          ...(cost
+            ? { costAmount: cost, costCurrency: input.costCurrency ?? "USD" }
+            : {}),
+          callbackData: input.callbackData ?? null,
+        },
+      });
     }
-    await prisma.sentMessage.create({
-      data: {
-        channel: "whatsapp",
-        idempotencyKey: `adhoc:${input.providerMessageId}`,
-        providerMessageId: input.providerMessageId,
-        fromNumber: input.from ?? null,
-        toNumber: input.to ?? null,
-        deliveryStatus: input.status,
-        ...(input.status === "delivered" || input.status === "read"
-          ? { deliveredAt: input.at }
-          : {}),
-        ...(input.status === "read" ? { readAt: input.at } : {}),
-        ...(input.status === "failed"
-          ? {
-              failedAt: input.at,
-              errorCode: input.errorCode ?? null,
-              errorDetail: input.errorDetail ?? null,
-            }
-          : {}),
-        ...(cost
-          ? { costAmount: cost, costCurrency: input.costCurrency ?? "USD" }
-          : {}),
-        callbackData: input.callbackData ?? null,
-      },
+  } catch (error) {
+    if (!isUniqueConstraintError(error)) {
+      console.error(
+        `[WhatsApp] No se pudo actualizar la entrega del mensaje ${input.providerMessageId} (${input.status}): ${errorMessage(error)}`
+      );
+    }
+  }
+
+  // Efectos sobre el dueño (PLAN-CANAL-DUENO.md § 12): el 131026 de Meta (el
+  // número no tiene WhatsApp) llega en diferido como fallo de entrega, no en
+  // la respuesta del envío; un delivered/read prueba que vuelve a llegar.
+  // El `message.finalized` clásico no trae callback: se hereda de la fila.
+  try {
+    await aplicarEfectosDeEntrega({
+      status: input.status,
+      at: input.at,
+      errorCode: input.errorCode ?? null,
+      errorDetail: input.errorDetail ?? null,
+      callbackData: input.callbackData ?? existing?.callbackData ?? null,
+      toNumber: input.to ?? existing?.toNumber ?? null,
+      audience: existing?.audience ?? null,
+      businessId: existing?.businessId ?? null,
     });
   } catch (error) {
-    if (isUniqueConstraintError(error)) {
+    console.error(
+      `[WhatsApp] No se pudieron aplicar los efectos de la entrega ${input.status} del mensaje ${input.providerMessageId} (${input.errorCode ?? "sin código"}): ${errorMessage(error)}`
+    );
+  }
+}
+
+/** Código de Meta: el destinatario no tiene cuenta de WhatsApp. */
+export const CODIGO_SIN_WHATSAPP = "131026";
+
+function negocioDelCallback(callbackData: string | null): string | null {
+  return callbackData?.startsWith("alta:") ? callbackData.slice(5) : null;
+}
+
+async function aplicarEfectosDeEntrega(input: {
+  status: EstadoEntrega;
+  at: Date;
+  errorCode: string | null;
+  errorDetail: string | null;
+  callbackData: string | null;
+  toNumber: string | null;
+  audience: string | null;
+  businessId: string | null;
+}): Promise<void> {
+  const esActivacion = input.callbackData?.startsWith("alta:") ?? false;
+  const businessId = input.businessId ?? negocioDelCallback(input.callbackData);
+  const esDelDueno = input.audience === "owner" || esActivacion;
+
+  if (input.status === "failed") {
+    const sinWhatsapp =
+      input.errorCode === CODIGO_SIN_WHATSAPP ||
+      /\b131026\b/.test(input.errorDetail ?? "");
+    if (!sinWhatsapp) {
       return;
     }
-    console.error(
-      `[WhatsApp] No se pudo actualizar la entrega del mensaje ${input.providerMessageId} (${input.status}): ${errorMessage(error)}`
+    if (esDelDueno && businessId && input.toNumber) {
+      await marcarDuenoSinWhatsapp(businessId, input.toNumber, input.at);
+      return;
+    }
+    console.log(
+      `[WhatsApp] ${input.toNumber ?? "destino desconocido"} no tiene WhatsApp (131026, ${input.audience ?? "audiencia desconocida"}, negocio ${businessId ?? "—"}); sin efectos fuera del dueño`
     );
+    return;
+  }
+
+  // Solo limpia si el envío iba al móvil actual (sin `to` no se sabe): un
+  // `read` tardío de un envío al móvil antiguo no toca la marca del nuevo.
+  if (
+    (input.status === "delivered" || input.status === "read") &&
+    input.audience === "owner" &&
+    businessId &&
+    input.toNumber
+  ) {
+    await limpiarDuenoSinWhatsapp(businessId, input.toNumber);
   }
 }

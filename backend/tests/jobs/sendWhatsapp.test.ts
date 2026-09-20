@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 import { processSendWhatsappJob } from "../../src/jobs/sendWhatsapp.js";
 import { reclamarEnvio } from "../../src/lib/messageIdempotency.js";
 import { enviarPlantilla } from "../../src/modules/whatsapp/service.js";
+import { WhatsappOptOutError } from "../../src/modules/whatsapp/bajas.js";
 
 vi.mock("../../src/lib/messageIdempotency.js", () => ({
   reclamarEnvio: vi.fn(),
@@ -74,5 +75,40 @@ describe("processSendWhatsappJob", () => {
     });
 
     expect(mockedEnviar).not.toHaveBeenCalled();
+  });
+
+  it("si el número pidió la baja, el job termina sin lanzar (no hay nada que reintentar)", async () => {
+    mockedEnviar.mockRejectedValue(
+      new WhatsappOptOutError("client", "+34600111222")
+    );
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => undefined);
+
+    await expect(
+      processSendWhatsappJob({
+        toNumber: "+34600111222",
+        templateName: "x",
+        languageCode: "es",
+        bodyParams: {},
+        idempotencyKey: "k",
+        audience: "client",
+      })
+    ).resolves.toBeUndefined();
+    expect(logSpy).toHaveBeenCalledWith(
+      expect.stringContaining("descartado: el número pidió la baja (client)")
+    );
+    logSpy.mockRestore();
+  });
+
+  it("cualquier otro error sigue lanzando para que Cloud Tasks reintente", async () => {
+    mockedEnviar.mockRejectedValue(new Error("Telnyx 500"));
+
+    await expect(
+      processSendWhatsappJob({
+        toNumber: "+34600111222",
+        templateName: "x",
+        languageCode: "es",
+        bodyParams: {},
+      })
+    ).rejects.toThrow("Telnyx 500");
   });
 });

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { Prisma } from "@prisma/client";
+import type { InboundMessage, Prisma } from "@prisma/client";
 import type { WhatsappAudience } from "../../adapters/whatsapp/WhatsAppAdapter.js";
 import { prisma } from "../../lib/prisma.js";
 import { errorMessage } from "../../lib/logUtils.js";
@@ -10,6 +10,7 @@ import {
   type EstadoEntrega,
 } from "./service.js";
 import { enrutarEntrante } from "./router.js";
+import { normalizarCodigoAlta } from "./altaDueno.js";
 
 /**
  * Webhooks de WhatsApp que llegan a `/webhooks/telnyx` (PLAN-CANAL-DUENO.md
@@ -198,17 +199,72 @@ export const PALABRAS_CLAVE = [
 
 export type PalabraClave = (typeof PALABRAS_CLAVE)[number];
 
-/** Normaliza una palabra clave: sin acentos, sin barra, en mayúsculas. */
-export function palabraClaveDe(text: string): PalabraClave | null {
-  const normalized = text
-    .trim()
-    .replace(/^\//, "")
+export interface ComandoInterpretado {
+  keyword: PalabraClave;
+  /** Solo con `ALTA <código>`: el código ya normalizado. */
+  code: string | null;
+}
+
+const SOLO_PALABRA_SOLA: readonly PalabraClave[] = [
+  "BAJA",
+  "MAL",
+  "AGENDA",
+  "HOY",
+  "MANANA",
+  "PAUSA",
+];
+const CODIGO_ALTA_REGEX = /^ALTA[\s:-]*([A-Z0-9]{6})?$/;
+
+/**
+ * Interpreta un texto como comando (PLAN-CANAL-DUENO.md § 6). Normaliza:
+ * sin barra ni puntuación inicial («¡», «¿», comillas, paréntesis,
+ * asterisco), sin acentos, en mayúsculas, sin puntuación de cierre.
+ * - `STOP` y `AYUDA` valen por la PRIMERA palabra («Stop.», «¡STOP!»,
+ *   «stop ya», «Ayuda, por favor»): no tienen uso conversacional, o su
+ *   respuesta es inocua.
+ * - `BAJA` solo como palabra sola: «Baja el precio» es texto libre (una
+ *   baja accidental deja una fila de oposición que la persona no quiso).
+ * - `ALTA` solo sola o con un código de seis símbolos («ALTA 7KP3MQ»,
+ *   «alta: 7kp3mq», «ALTA7KP3MQ»); «alta por favor» y «Alta demanda hoy»
+ *   son texto libre, y un código que no es del alfabeto tampoco es comando.
+ * - El resto (`MAL`, `AGENDA`, `HOY`, `MANANA`, `PAUSA`) solo sola.
+ */
+export function interpretarComando(text: string): ComandoInterpretado | null {
+  const normalizado = text
+    .replace(/^[\s/¡¿"'(*]+/, "")
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
-    .toUpperCase();
-  return (PALABRAS_CLAVE as readonly string[]).includes(normalized)
-    ? (normalized as PalabraClave)
-    : null;
+    .toUpperCase()
+    .replace(/[\s.,!?;:"')*]+$/, "")
+    .trim();
+  if (!normalizado) {
+    return null;
+  }
+  const partes = normalizado.split(/[\s:,;.!?-]+/).filter(Boolean);
+  const primera = partes[0];
+  if (primera === "STOP" || primera === "AYUDA") {
+    return { keyword: primera, code: null };
+  }
+  if (
+    partes.length === 1 &&
+    (SOLO_PALABRA_SOLA as readonly string[]).includes(primera)
+  ) {
+    return { keyword: primera as PalabraClave, code: null };
+  }
+  const alta = CODIGO_ALTA_REGEX.exec(normalizado);
+  if (alta) {
+    if (alta[1] === undefined) {
+      return { keyword: "ALTA", code: null };
+    }
+    const code = normalizarCodigoAlta(alta[1]);
+    return code ? { keyword: "ALTA", code } : null;
+  }
+  return null;
+}
+
+/** Palabra clave de un texto (sin el código), o null si no es comando. */
+export function palabraClaveDe(text: string): PalabraClave | null {
+  return interpretarComando(text)?.keyword ?? null;
 }
 
 /** Meta manda `display_phone_number` y `context.from` sin el `+`. */
@@ -253,7 +309,7 @@ export function clasificarEntrante(
   switch (message.type) {
     case "text": {
       text = message.text?.body ?? "";
-      kind = palabraClaveDe(text) ? "keyword" : "text";
+      kind = interpretarComando(text) ? "keyword" : "text";
       break;
     }
     case "interactive": {
@@ -347,6 +403,12 @@ export async function handleWhatsappMessages(
     return { success: false };
   }
   const { data } = parsed.data;
+
+  // Filas guardadas y nunca enrutadas (proceso muerto entre el `create` y
+  // el enrutador). El reintento de Telnyx llega con el mismo `data.id` y la
+  // ruta lo descarta como duplicado sin tocar nada, así que se recogen aquí.
+  await barrerEntrantesSinEnrutar();
+
   const toNumber = data.payload.metadata?.display_phone_number
     ? aE164(data.payload.metadata.display_phone_number)
     : null;
@@ -435,24 +497,86 @@ export async function handleWhatsappMessages(
       `[WhatsApp] Entrante ${entrante.kind} de ${role} ${entrante.fromNumber} al número de ${audience ?? "?"} (negocio ${businessId ?? "—"})`
     );
 
-    try {
-      const outcome = await enrutarEntrante(row);
-      await prisma.inboundMessage.update({
-        where: { id: row.id },
-        data: { handledAt: new Date(), handler: outcome.handler },
-      });
-    } catch (error) {
-      const message = errorMessage(error);
-      console.error(
-        `[WhatsApp] Error enrutando el entrante ${entrante.providerMessageId} (${entrante.kind}, ${role}, negocio ${businessId ?? "—"}): ${message}`
-      );
-      await prisma.inboundMessage
-        .update({ where: { id: row.id }, data: { error: message } })
-        .catch(() => undefined);
-    }
+    await enrutarYGuardar(row);
   }
 
   return { success: true };
+}
+
+/** Enruta una fila guardada y deja `handledAt`, `handler` y `error`. */
+async function enrutarYGuardar(row: InboundMessage): Promise<void> {
+  try {
+    const outcome = await enrutarEntrante(row);
+    await prisma.inboundMessage.update({
+      where: { id: row.id },
+      data: {
+        handledAt: new Date(),
+        handler: outcome.handler,
+        error: outcome.error ?? null,
+      },
+    });
+    console.log(
+      `[WhatsApp] Entrante ${row.providerMessageId} (${row.kind}, ${row.role}, número de ${row.audience ?? "?"}, negocio ${row.businessId ?? "—"}) → ${outcome.handler}${outcome.error ? ` (error: ${outcome.error})` : ""}`
+    );
+  } catch (error) {
+    const message = errorMessage(error);
+    console.error(
+      `[WhatsApp] Error enrutando el entrante ${row.providerMessageId} (${row.kind}, ${row.role}, negocio ${row.businessId ?? "—"}): ${message}`
+    );
+    await prisma.inboundMessage
+      .update({ where: { id: row.id }, data: { error: message } })
+      .catch(() => undefined);
+  }
+}
+
+const BARRIDO_EDAD_MINIMA_MS = 2 * 60 * 1000;
+const BARRIDO_EDAD_MAXIMA_MS = 7 * 24 * 60 * 60 * 1000;
+const BARRIDO_MAX_FILAS = 20;
+
+/**
+ * Barrido de filas con `handledAt` null de más de 2 min (y menos de 7 d).
+ * Reclamo atómico por fila (`handler: "reintento:en-curso"` con el handler
+ * previo en el `where`): dos webhooks concurrentes no la enrutan dos veces.
+ * Una fila que ya estaba `reintento:en-curso` y sigue sin `handledAt`
+ * vuelve a ser candidata (el proceso anterior también murió). Nunca afecta
+ * al evento actual: cualquier fallo se queda en el log.
+ */
+async function barrerEntrantesSinEnrutar(): Promise<void> {
+  try {
+    const now = Date.now();
+    const pendientes = await prisma.inboundMessage.findMany({
+      where: {
+        handledAt: null,
+        receivedAt: {
+          lt: new Date(now - BARRIDO_EDAD_MINIMA_MS),
+          gt: new Date(now - BARRIDO_EDAD_MAXIMA_MS),
+        },
+        // `receivedAt` es la marca de Meta, que puede ser antigua en una
+        // entrega retrasada: la fila tiene que llevar además 2 min creada
+        // para no reclamar una que otro proceso está enrutando ahora.
+        createdAt: { lt: new Date(now - BARRIDO_EDAD_MINIMA_MS) },
+      },
+      orderBy: { receivedAt: "asc" },
+      take: BARRIDO_MAX_FILAS,
+    });
+    for (const fila of pendientes) {
+      const reclamada = await prisma.inboundMessage.updateMany({
+        where: { id: fila.id, handledAt: null, handler: fila.handler },
+        data: { handler: "reintento:en-curso" },
+      });
+      if (reclamada.count === 0) {
+        continue;
+      }
+      console.log(
+        `[WhatsApp] Entrante ${fila.providerMessageId} sin enrutar desde ${fila.receivedAt.toISOString()}; se reintenta`
+      );
+      await enrutarYGuardar(fila);
+    }
+  } catch (error) {
+    console.error(
+      `[WhatsApp] El barrido de entrantes sin enrutar falló; el evento actual sigue: ${errorMessage(error)}`
+    );
+  }
 }
 
 function mapEstadoMeta(status: string): EstadoEntrega | null {
