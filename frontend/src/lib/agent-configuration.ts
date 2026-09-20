@@ -1,13 +1,20 @@
 import {
   CalendarClock,
   CalendarDays,
+  MessageCircle,
   PhoneForwarded,
   ScissorsLineDashed,
   UserRoundCheck,
   type LucideIcon,
 } from "lucide-react";
 
-export type AgentSetupKey = "schedule" | "services" | "professionals" | "calendar" | "forwarding";
+export type AgentSetupKey =
+  | "schedule"
+  | "services"
+  | "professionals"
+  | "calendar"
+  | "whatsapp"
+  | "forwarding";
 
 /** El mismo itinerario guía el panel y decide qué bloque abrir en Agente. */
 export const AGENT_CONFIGURATION_STEPS: Array<{
@@ -44,6 +51,14 @@ export const AGENT_CONFIGURATION_STEPS: Array<{
     description: "Es lo que permite al agente reservar las citas automáticamente.",
     href: "/agente?section=calendar-section",
     icon: CalendarDays,
+  },
+  {
+    key: "whatsapp",
+    title: "Activa los avisos por WhatsApp",
+    description:
+      "Un mensaje desde tu móvil y recibirás cada reserva y recado al momento.",
+    href: "/ajustes#whatsapp",
+    icon: MessageCircle,
   },
   {
     key: "forwarding",

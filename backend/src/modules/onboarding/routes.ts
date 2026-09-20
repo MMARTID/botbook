@@ -15,14 +15,12 @@ import {
 import { bajaVigente } from "../whatsapp/bajas.js";
 
 /**
- * Si el paso de WhatsApp cuenta en `progress` e `isActive`. Con `false`
- * (mientras el frontend desplegado no conozca el paso), un negocio con los
- * otros cinco pasos hechos sigue en progreso 100 y la guía no reaparece
- * vacía tras desplegar solo el backend. `steps.whatsapp` y `whatsapp.status`
- * se devuelven igual. Poner a `true` cuando el frontend del PR 2 esté en
- * producción.
+ * Si el paso de WhatsApp cuenta en `progress` e `isActive`. Estuvo en
+ * `false` mientras el frontend desplegado no conocía el paso (un negocio
+ * con los otros cinco hechos habría visto reaparecer la guía vacía); desde
+ * el PR del panel (2026-09-20) el paso cuenta como los demás.
  */
-export const CONTAR_WHATSAPP_EN_PROGRESO = false;
+export const CONTAR_WHATSAPP_EN_PROGRESO = true;
 
 export type OnboardingSteps = {
   schedule: boolean;

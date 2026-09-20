@@ -14,7 +14,7 @@ vi.mock("@/lib/api", () => ({
 const mockedGetOnboardingState = vi.mocked(getOnboardingState);
 const mockedDismissOnboarding = vi.mocked(dismissOnboarding);
 
-const TOTAL_PASOS = 5;
+const TOTAL_PASOS = 6;
 
 function buildState(
   steps: Partial<OnboardingSteps> = {},
@@ -26,6 +26,7 @@ function buildState(
     services: false,
     professionals: false,
     calendar: false,
+    whatsapp: false,
     forwarding: false,
     ...steps,
   };
@@ -43,6 +44,10 @@ function buildState(
       confirmedAt: null,
       firstCallAt: null,
       ...forwarding,
+    },
+    whatsapp: {
+      status: pasos.whatsapp ? "activo" : "sin_numero",
+      ownerWhatsappNumber: pasos.whatsapp ? "+34600123456" : null,
     },
     ...overrides,
   };
@@ -86,6 +91,7 @@ describe("OnboardingChecklist", () => {
         services: true,
         professionals: true,
         calendar: true,
+        whatsapp: true,
         forwarding: true,
       })
     );
@@ -179,8 +185,76 @@ describe("OnboardingChecklist", () => {
     renderWithClient();
 
     const barra = await screen.findByRole("progressbar", { name: "Progreso de configuración" });
-    expect(barra).toHaveAttribute("aria-valuenow", "40");
-    expect(screen.getByText("2 de 5")).toBeInTheDocument();
+    expect(barra).toHaveAttribute("aria-valuenow", "33");
+    expect(screen.getByText("2 de 6")).toBeInTheDocument();
+  });
+
+  it("enseña el paso de WhatsApp con «Activar», enlazado a Ajustes y antes del desvío", async () => {
+    mockedGetOnboardingState.mockResolvedValue(
+      buildState({ schedule: true, services: true, professionals: true, calendar: true })
+    );
+
+    renderWithClient();
+
+    const whatsapp = await screen.findByRole("link", { name: /Activa los avisos por WhatsApp/ });
+    expect(whatsapp).toHaveAttribute("href", "/ajustes#whatsapp");
+    expect(whatsapp).toHaveTextContent("Activar");
+    expect(whatsapp).toHaveTextContent(
+      "Un mensaje desde tu móvil y recibirás cada reserva y recado al momento."
+    );
+
+    const desvio = screen.getByRole("link", { name: /Desvía tu teléfono/ });
+    expect(whatsapp.compareDocumentPosition(desvio) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("cuando el móvil no tiene WhatsApp pide cambiar el número en vez de activar", async () => {
+    mockedGetOnboardingState.mockResolvedValue(
+      buildState(
+        { schedule: true, services: true, professionals: true, calendar: true },
+        { whatsapp: { status: "sin_whatsapp", ownerWhatsappNumber: "+34600123456" } }
+      )
+    );
+
+    renderWithClient();
+
+    const whatsapp = await screen.findByRole("link", { name: /Activa los avisos por WhatsApp/ });
+    expect(whatsapp).toHaveTextContent(
+      "El móvil que pusiste no tiene WhatsApp. Cambia el número en Ajustes."
+    );
+    expect(whatsapp).toHaveTextContent("Cambiar número");
+    expect(whatsapp).not.toHaveTextContent(/Activar$/);
+  });
+
+  it("cuenta el paso de WhatsApp como pendiente si el backend aún no lo devuelve", async () => {
+    mockedGetOnboardingState.mockResolvedValue({
+      ...buildState({ schedule: true, services: true, professionals: true, calendar: true }),
+      steps: { schedule: true, services: true, professionals: true, calendar: true, forwarding: false },
+      whatsapp: undefined,
+    });
+
+    renderWithClient();
+
+    expect(
+      await screen.findByRole("link", { name: /Activa los avisos por WhatsApp/ })
+    ).toBeInTheDocument();
+    expect(screen.getByText("4 de 6")).toBeInTheDocument();
+  });
+
+  // Mientras `CONTAR_WHATSAPP_EN_PROGRESO` sea false en el backend, `progress`
+  // sale de los cinco pasos clásicos: el «n de 6» lo cuenta el propio panel.
+  it("la barra y el «n de 6» salen del mismo recuento, no del `progress` del backend", async () => {
+    // El backend calcula `progress` sobre sus propios pasos (80 = 4 de 5
+    // mientras WhatsApp no cuenta allí); la barra no puede contradecir al
+    // texto de al lado.
+    mockedGetOnboardingState.mockResolvedValue(
+      buildState({ schedule: true, services: true, professionals: true, calendar: true }, { progress: 80 })
+    );
+
+    renderWithClient();
+
+    const barra = await screen.findByRole("progressbar", { name: "Progreso de configuración" });
+    expect(barra).toHaveAttribute("aria-valuenow", "67");
+    expect(screen.getByText("4 de 6")).toBeInTheDocument();
   });
 
   it("tolera la respuesta anterior del backend mientras termina un despliegue escalonado", async () => {

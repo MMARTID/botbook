@@ -106,8 +106,50 @@ export type Business = {
    */
   callsSuspendedAt?: string | null;
   subscriptionCurrentPeriodEnd?: string | null;
+  /**
+   * Móvil del dueño para los avisos por WhatsApp (no es `phone`, el teléfono
+   * del local). Opcional porque un backend anterior no lo devuelve: el alta
+   * lo usa para saber si el PATCH lo guardó de verdad.
+   */
+  ownerWhatsappNumber?: string | null;
+  ownerWhatsappOptInAt?: string | null;
+  ownerWhatsappOptOutAt?: string | null;
+  ownerWhatsappUnreachableAt?: string | null;
   agents?: Agent[];
   calls?: Call[];
+};
+
+/**
+ * Estado del móvil del dueño en WhatsApp, tal y como lo calcula el backend.
+ * - `sin_numero`: no ha puesto móvil.
+ * - `pendiente`: hay móvil pero aún no ha dado el consentimiento desde él.
+ * - `activo`: recibe avisos.
+ * - `sin_whatsapp`: Meta no pudo entregar (el número no tiene WhatsApp).
+ * - `baja`: escribió STOP; solo él puede reactivarlo desde el móvil.
+ */
+export type WhatsappOwnerStatus =
+  | "sin_numero"
+  | "pendiente"
+  | "activo"
+  | "sin_whatsapp"
+  | "baja";
+
+export type EstadoWhatsappDueno = {
+  ownerWhatsappNumber: string | null;
+  status: WhatsappOwnerStatus;
+  optInAt: string | null;
+  optInVia: "boton_plantilla" | "alta_codigo" | "alta_palabra" | null;
+  optOutAt: string | null;
+  unreachableAt: string | null;
+  activationSentAt: string | null;
+  /** `bienvenida_negocio` aprobada por Meta (hoy está PENDING). */
+  templateApproved: boolean;
+  /** Aprobada y con plan activo o en prueba: se puede enviar la plantilla. */
+  canSendTemplate: boolean;
+  /** Número de Alhabla para negocios, en E.164. */
+  alhablaNumber: string;
+  /** Mensaje «ALTA <código>» listo para enviar; `null` solo cuando está activo. */
+  alta: { code: string; text: string; link: string; expiresAt: string } | null;
 };
 
 export type PlanId = "inicio" | "pro" | "scale";
@@ -423,6 +465,8 @@ export type OnboardingSteps = {
   services: boolean;
   professionals: boolean;
   calendar: boolean;
+  /** Opcional: un backend anterior a la fase 1 de WhatsApp no lo devuelve. */
+  whatsapp?: boolean;
   forwarding: boolean;
 };
 
@@ -448,6 +492,10 @@ export type OnboardingState = {
   completedAt: string | null;
   isActive: boolean;
   forwarding: OnboardingForwarding;
+  whatsapp?: {
+    status: WhatsappOwnerStatus;
+    ownerWhatsappNumber: string | null;
+  };
 };
 
 export type AgendaService = {

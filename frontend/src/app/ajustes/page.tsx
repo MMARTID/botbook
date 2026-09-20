@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import axios from "axios";
 import {
   AlertTriangle,
   Building2,
@@ -16,6 +15,7 @@ import {
   LockKeyhole,
   LogOut,
   MailCheck,
+  MessageCircle,
   Save,
   Settings,
   ShieldCheck,
@@ -29,19 +29,15 @@ import {
   getAccountOverview,
   updateMyBusiness,
 } from "@/lib/api";
+import { describeApiError } from "@/lib/api-errors";
 import { clearAuthTokens } from "@/lib/billing-navigation";
+import { E164_PHONE_REGEX } from "@/lib/phone";
+import { WhatsappDueno } from "@/components/whatsapp-dueno";
 
-const E164_PHONE_REGEX = /^\+[1-9]\d{6,14}$/;
 const PASSWORD_HAS_LETTER = /[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]/;
 const PASSWORD_HAS_NUMBER = /\d/;
 
 type Feedback = { type: "success" | "error"; message: string } | null;
-
-function describeApiError(error: unknown, fallback: string) {
-  if (!axios.isAxiosError(error)) return fallback;
-  const message = error.response?.data?.error;
-  return typeof message === "string" && message.length <= 180 ? message : fallback;
-}
 
 export default function AccountSettingsPage() {
   const router = useRouter();
@@ -251,16 +247,17 @@ export default function AccountSettingsPage() {
           </span>
           <div>
             <h2 id="business-title" className="text-lg font-semibold text-[#0a0a0a]">Datos del negocio</h2>
-            <p className="mt-1 text-sm leading-6 text-muted">El nombre que ves en el panel y el móvil donde recibes avisos.</p>
+            <p className="mt-1 text-sm leading-6 text-muted">El nombre que ves en el panel y el teléfono del local.</p>
           </div>
         </div>
         <div className="mt-5 grid gap-4 lg:grid-cols-2">
           <label className="text-sm font-semibold text-[#27272a]">
-            Nombre del local
+            Nombre del negocio
             <input
               value={businessProfile.name}
               onChange={(event) => setBusinessProfile((current) => ({ ...current, name: event.target.value }))}
               autoComplete="organization"
+              maxLength={80}
               aria-describedby="settings-business-name-hint"
               className="field mt-2 w-full"
             />
@@ -269,7 +266,7 @@ export default function AccountSettingsPage() {
             </span>
           </label>
           <label className="text-sm font-semibold text-[#27272a]">
-            Teléfono móvil para avisos
+            Teléfono del negocio
             <input
               type="tel"
               inputMode="tel"
@@ -283,8 +280,8 @@ export default function AccountSettingsPage() {
             />
             <span id="settings-phone-hint" className={`mt-1 block text-xs font-normal leading-5 ${phoneIsValid ? "text-muted" : "text-[#c53030]"}`}>
               {phoneIsValid
-                ? "Usa el formato internacional, por ejemplo +34600123456."
-                : "Añade el prefijo del país y escribe solo números."}
+                ? "El número al que llaman tus clientes. Lo dice la recepcionista cuando alguien tiene que llamar al local. Los avisos para ti llegan al WhatsApp de abajo."
+                : "Añade el prefijo del país y escribe solo números, por ejemplo +34930453218."}
             </span>
           </label>
         </div>
@@ -304,6 +301,23 @@ export default function AccountSettingsPage() {
             {profileMutation.isPending ? "Guardando…" : "Guardar datos"}
           </button>
         </div>
+      </section>
+
+      <section
+        id="whatsapp"
+        className="panel scroll-mt-24 p-4 sm:p-6"
+        aria-labelledby="whatsapp-title"
+      >
+        <div className="flex items-start gap-3">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#f3eeff] text-[#8b5cf6]">
+            <MessageCircle className="h-5 w-5" aria-hidden="true" />
+          </span>
+          <div>
+            <h2 id="whatsapp-title" className="text-lg font-semibold text-[#0a0a0a]">WhatsApp</h2>
+            <p className="mt-1 text-sm leading-6 text-muted">El móvil donde la recepcionista te avisa de reservas y recados.</p>
+          </div>
+        </div>
+        <WhatsappDueno business={business} hasToken={hasToken} />
       </section>
 
       <section className="panel p-4 sm:p-6" aria-labelledby="security-title">

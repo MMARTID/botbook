@@ -99,13 +99,13 @@ describe("GET /business/me/onboarding", () => {
       phoneNumber: "+34930453218",
       firstCallAt: null,
     });
-    // Cuatro de los cinco pasos contados: WhatsApp no cuenta en el
-    // progreso mientras CONTAR_WHATSAPP_EN_PROGRESO sea false.
-    expect(body.progress).toBe(80);
+    // Cinco de los seis pasos (falta el desvío): WhatsApp cuenta como los
+    // demás desde que el panel conoce el paso.
+    expect(body.progress).toBe(83);
     expect(body.isActive).toBe(true);
   });
 
-  it("WhatsApp pendiente no reabre la guía de un negocio con los otros pasos hechos (backend desplegado antes que el frontend)", async () => {
+  it("WhatsApp pendiente mantiene la guía abierta aunque los otros cinco pasos estén hechos", async () => {
     mockedBusinessFindUnique.mockResolvedValue(
       businessConfigurado({
         ownerWhatsappNumber: null,
@@ -122,8 +122,8 @@ describe("GET /business/me/onboarding", () => {
 
     expect(body.steps.whatsapp).toBe(false);
     expect(body.steps.forwarding).toBe(true);
-    expect(body.progress).toBe(100);
-    expect(body.isActive).toBe(false);
+    expect(body.progress).toBe(83);
+    expect(body.isActive).toBe(true);
   });
 
   it("el paso de WhatsApp va antes del desvío y refleja el estado del dueño", async () => {
@@ -167,7 +167,8 @@ describe("GET /business/me/onboarding", () => {
       status: "sin_numero",
       ownerWhatsappNumber: null,
     });
-    expect(body.progress).toBe(80);
+    // Cuatro de seis: faltan WhatsApp y el desvío.
+    expect(body.progress).toBe(67);
     expect(mockedBajaVigente).not.toHaveBeenCalled();
 
     mockedBusinessFindUnique.mockResolvedValue(

@@ -3,8 +3,9 @@ import { render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import AccountSettingsPage from "@/app/ajustes/page";
 import { useBusiness } from "@/components/providers";
-import { getAccountOverview } from "@/lib/api";
+import { getAccountOverview, getOwnerWhatsapp } from "@/lib/api";
 import type { AccountOverview } from "@/lib/api";
+import type { EstadoWhatsappDueno } from "@/lib/types";
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace: vi.fn(), push: vi.fn() }),
@@ -19,10 +20,13 @@ vi.mock("@/lib/api", () => ({
   changeAccountPassword: vi.fn(),
   deleteAccount: vi.fn(),
   updateMyBusiness: vi.fn(),
+  getOwnerWhatsapp: vi.fn(),
+  sendOwnerWhatsappActivation: vi.fn(),
 }));
 
 const mockedUseBusiness = vi.mocked(useBusiness);
 const mockedGetAccountOverview = vi.mocked(getAccountOverview);
+const mockedGetOwnerWhatsapp = vi.mocked(getOwnerWhatsapp);
 
 const CLAVE_CUENTA = ["account-overview"];
 
@@ -37,6 +41,25 @@ const CUENTA: AccountOverview = {
   email: "lola@peluquerialola.es",
   passwordConfigured: true,
   googleConnected: false,
+};
+
+const ESTADO_WHATSAPP: EstadoWhatsappDueno = {
+  ownerWhatsappNumber: null,
+  status: "sin_numero",
+  optInAt: null,
+  optInVia: null,
+  optOutAt: null,
+  unreachableAt: null,
+  activationSentAt: null,
+  templateApproved: false,
+  canSendTemplate: false,
+  alhablaNumber: "+34930453218",
+  alta: {
+    code: "7KP3MQ",
+    text: "ALTA 7KP3MQ",
+    link: "https://wa.me/34930453218?text=ALTA%207KP3MQ",
+    expiresAt: "2026-09-27T10:00:00.000Z",
+  },
 };
 
 function estadoDeNegocio(overrides: Partial<ReturnType<typeof useBusiness>>) {
@@ -63,7 +86,10 @@ function renderPage(queryClient = new QueryClient({ defaultOptions: { queries: {
 }
 
 describe("AccountSettingsPage", () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockedGetOwnerWhatsapp.mockResolvedValue(ESTADO_WHATSAPP);
+  });
 
   it("enseña la pantalla de error si la cuenta no llega y no hay nada en caché", async () => {
     estadoDeNegocio({ business: NEGOCIO });
@@ -113,5 +139,33 @@ describe("AccountSettingsPage", () => {
     renderPage();
 
     expect(screen.getByText("Cargando ajustes…")).toBeInTheDocument();
+  });
+
+  it("coloca la sección de WhatsApp entre «Datos del negocio» y «Seguridad»", async () => {
+    estadoDeNegocio({ business: NEGOCIO });
+    mockedGetAccountOverview.mockResolvedValue(CUENTA);
+
+    renderPage();
+
+    const whatsapp = await screen.findByRole("region", { name: "WhatsApp" });
+    expect(whatsapp).toHaveAttribute("id", "whatsapp");
+    const negocio = screen.getByRole("region", { name: "Datos del negocio" });
+    const seguridad = screen.getByRole("region", { name: "Seguridad" });
+    // compareDocumentPosition: FOLLOWING (4) = el argumento va después del nodo.
+    expect(negocio.compareDocumentPosition(whatsapp) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(whatsapp.compareDocumentPosition(seguridad) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(await screen.findByLabelText(/Tu móvil con WhatsApp/)).toBeInTheDocument();
+    expect(mockedGetOwnerWhatsapp).toHaveBeenCalledTimes(1);
+  });
+
+  it("llama «Teléfono del negocio» al fijo del local y limita el nombre a 80 caracteres", async () => {
+    estadoDeNegocio({ business: NEGOCIO });
+    mockedGetAccountOverview.mockResolvedValue(CUENTA);
+
+    renderPage();
+
+    expect(await screen.findByLabelText(/Teléfono del negocio/)).toHaveValue(NEGOCIO!.phone);
+    expect(screen.queryByLabelText(/Teléfono móvil para avisos/)).not.toBeInTheDocument();
+    expect(screen.getByLabelText(/Nombre del negocio/)).toHaveAttribute("maxLength", "80");
   });
 });
