@@ -521,6 +521,142 @@ el `fetch` equivalente. **Nunca desde un route handler**: todo pasa por
   (sin ellas, todo lo que llegue al número de clientes acaba en `ignorado:sin-audiencia`) y
   `whatsapp_templates` con `key = 'bienvenida_negocio'` (sin ella el estado nunca cambia).
 
+**Código (fase 1, PR 4 — lado cliente, 2026-09-20).**
+- `modules/whatsapp/mensajesCliente.ts`: todo lo que sale al CLIENTE por plantilla. Parámetros
+  POR PLANTILLA con el conjunto exacto de claves (Meta rechaza en diferido cualquier clave de
+  más o de menos, sin reintento posible): `confirmacion_cita_v2` (4: negocio_nombre, servicio,
+  cita, negocio_telefono + botón URL «Cómo llegar» con el `placeId`, índice derivado de
+  `WhatsappTemplate.components`, respaldo 1), `confirmacion_cita` es_ES (5, SIN profesional),
+  `recordatorio_cita_v2` (3), `recordatorio_cita`/env (6), `hueco_libre` (2),
+  `hora_disponible`/env (4). Cascada `elegirPlantillaCliente` en el momento del envío: v2
+  aprobada (la confirmación solo con `Business.placeId`) → aprobada actual → variable
+  `WHATSAPP_TEMPLATE_*_NAME` → `SIN_PLANTILLA`; antes de cada clave `refrescarPlantilla` (≤ 1
+  llamada al WABA/día/clave), así una v2 aprobada entra sola en ≤ 24 h sin deploy.
+  `programarMensajesAlCliente({ bookingId })` encola la confirmación
+  (`booking-<id>-confirmacion-<epochSeg>`) y, con plan Pro/Scale y > 24 h, el recordatorio
+  (`booking-<id>-recordatorio-<epochSeg>`; a más de 29 d se programa a 29 d y el job se reencola
+  con taskId `-s<n>`, máximo 12 saltos, conservando esa clave en el payload: `enqueueWhatsappJob`
+  solo pone `idempotencyKey = taskId` cuando el payload no trae una, así la fila final de
+  `sent_messages` lleva la clave documentada); devuelve si la confirmación quedó programada (sin
+  consentimiento, sin número, sin `telnyxPhoneNumber`, cancelada, negocio inactivo o STOP ⇒ no;
+  ALREADY_EXISTS de Cloud Tasks = «ya programado»). `enviarMensajeAlCliente` (cuerpo del job
+  `send-whatsapp` para la forma por propósito, `lib/jobTypes.ts › SendWhatsappJobPorProposito`)
+  relee la reserva o el lead y descarta con fila `skipped` (`RESERVA_CANCELADA`, `HORA_CAMBIADA`,
+  `DESTINO_CAMBIADO` — el `toNumber` de la tarea ya no es el titular `clientPhone ??
+  call.fromNumber` de la reserva, o el `clientPhone` del lead: un número corregido en la misma
+  llamada no recibe la cita de otro —, `SIN_CONSENTIMIENTO`, `RECORDATORIO_TARDIO` — también si
+  `now` ya es el día civil de la cita —, `AVISO_CERRADO`, `HORA_PASADA`); solo `enviarPlantilla`
+  va en el try/catch que marca `failed`
+  (`where providerMessageId: null`) y relanza; después escribe `Booking.clientNotifiedAt` o
+  `Lead.notifiedAt/notifiedVia` sin relanzar. `nombreParaCliente` (respaldo «el negocio», nunca
+  «tu negocio»), `telefonoDeContacto` (Telnyx formateado `+34 930 454 394` → `phone` E.164 →
+  null), `sanearNombre` (80 caracteres, una línea), vCard `TARJETA_ALHABLA_RESERVAS`.
+- `modules/whatsapp/botonesCliente.ts` (`router.ts › enrutarEnClientes` delega todo `button`):
+  `resolverBotonDeCliente` exige `context.id` → fila `SentMessage` con `audience client`,
+  `toNumber === from` y `callbackData cliente:<tipo>:<recurso>` (`confirmacion | recordatorio |
+  hueco | cambio | cancelacion`); la acción sale del id `cliente:<tipo>:<recurso>:<accion>` (debe
+  casar con el callback) o del título (lista cerrada, sin acentos ni puntuación) y se valida
+  contra el tipo. Rechazos ⇒ `cliente:boton:<motivo>` (`sin-contexto`, `sin-fila`,
+  `remitente-distinto`, `sin-callback`, `recurso-distinto`, `titulo-desconocido`,
+  `accion-no-permitida`, `negocio-inactivo`, `recurso-ajeno`, `no-titular`); solo `sin-contexto`
+  y `titulo-desconocido` responden (`botonSinContexto`, una vez al día). El negocio sale de la
+  fila del envío, nunca del payload; la reserva/lead se busca con `call: { businessId }` y la
+  titularidad es `(clientPhone ?? call.fromNumber) === from` / `data.clientPhone === from`.
+  Handlers `cliente:<accion>[:sufijo]`: `guardar_contacto` (vCard reclamada por
+  `contacto-<bookingId>`, `:repetido` sin respuesta, `:baja`, `:fallido` ⇒ `contactoComoTexto`),
+  `confirmo` (`updateMany` con `confirmedByClientAt: null`; `:repetido`, `:cancelada`, `:pasada`),
+  `cancelar` (`cancelarReserva` con `client_button`; `:ya-cancelada`, `:pasada`), `cambiar` (solo
+  da el teléfono), `reservar` (`reservarDesdeListaDeEspera`; la respuesta `huecoReservado` ES la
+  confirmación, salta el techo y escribe `clientNotifiedAt` si sale; si Telnyx falla se encola
+  la plantilla de confirmación como respaldo; `:ya-reservada`, `:ocupado`, `:fuera-de-plazo`,
+  `:pasada`, `:cerrado`, `:sin_calendario | :calendario_caido | :lock | :error` ⇒
+  `noPudeReservarAhora`), `ya_no` (`cerrarAviso` y `avisarAQuienEsperaba(origen renuncia)`;
+  sobre un lead `reservado` cuya reserva ya se canceló, `:reserva-cancelada` + `huecoRechazado`,
+  nunca «esa hora ya está reservada a tu nombre»),
+  `vale` (sin respuesta), `no_me_va_bien` (Lead `client_change_rejected`, aviso al dueño en fase
+  2). Sobre una cita cancelada/pasada, «Confirmo/Cancelar/Cambiar» nombran la otra cita activa
+  del mismo teléfono en ese negocio (`otraCitaActiva`). Las acciones de BD se ejecutan aunque la
+  respuesta se silencie (techo 20/h) o se suprima (STOP). Respuestas en `respuestas.ts`
+  (`responder`/`resultado`/`normalizarTitulo`, movidos tal cual de `router.ts`).
+- `modules/whatsapp/listaDeEspera.ts` (sustituye a `notifyPendingAvailabilityWatchers` de
+  voiceTools): `avisarAQuienEsperaba({ businessId, hueco, origen })` ofrece la plaza AL PRIMERO
+  y para. Carga 50 leads `availability_watch` del negocio por antigüedad; ANTES del filtro de
+  solapamiento cierra los pasados (`resolvedBy pasado`) y las ofertas caducadas (`notifiedVia
+  plantilla:*` y ≥ 10 min ⇒ `sin_respuesta`, reabrible por un «Sí» tardío). La limpieza
+  garantiza PROGRESO ENTRE DISPAROS, no dentro del mismo: si la página de 50 son todo zombis, ese
+  disparo los cierra y devuelve `nadie`, y el 51.º recibe la plaza en el siguiente («Ya no», otra
+  cancelación o el botón del dueño); los `encolado` muertos no se cierran, solo vuelven a ser
+  candidatos; una oferta vigente
+  (< 10 min) devuelve `en_oferta` y retiene la plaza; un `encolado` con ≥ 10 min vuelve a ser
+  candidato; STOP ⇒ `baja`; `checkBusinessHours`/`checkBookingRestrictions` y disponibilidad real
+  (calendario + `checkAvailability`) antes de ofrecer; reclamo atómico (`updateMany` sobre
+  `notifiedAt null | encolado caducado` ⇒ `notifiedVia encolado`) y job `hueco_libre` con clave
+  `espera-<leadId>-<epochSeg>` (una por OFERTA). Resultados: `avisado | en_oferta | nadie |
+  sin_plantilla | error`. `reservarDesdeListaDeEspera` («Sí, resérvala») calca
+  `retryFailedBooking`: lock por negocio, relectura del lead dentro del lock, `fuera_de_plazo` ≠
+  `ocupado`, no reserva a ciegas (`calendario_caido`), evento con `buildCalendarIdempotencyKey`
+  (`lib/calendarIdempotency.ts`, compartido con voz y el job) con `distintivo =
+  inboundMessageId` (una clave por TOQUE: tras un `error` con el evento deshecho, la misma clave
+  haría que Google devolviera el evento CANCELADO como éxito ante el 409 — reserva invisible y
+  doble reserva; la idempotencia entre toques la dan el lock, la relectura y la Call sintética)
+  y en UNA transacción la Call sintética (`callId = whatsapp:espera:<leadId>`, `voiceProvider
+  whatsapp`, `providerCallId = leadId`, `RESOLVED`, 0 s), el Booking colgado de `llamada.id` (FK
+  a `calls.id`, NUNCA la cadena) con `createdVia whatsapp_lista_espera` y `smsConsent true`, y el
+  cierre CONDICIONAL del lead (`updateMany` sobre `resolvedAt null | sin_respuesta`; count 0 = un
+  «Ya no» concurrente lo cerró ⇒ se deshace todo, evento incluido, y responde `cerrado`); después
+  #1 al dueño y solo el recordatorio. Un «Sí» que no acaba en reserva no deja ninguna Call. Un
+  lead `reservado` cuya reserva ya está cancelada (`reservaDelLeadCancelada`, solo reservas de
+  ese negocio) responde `cerrado`, no `ya_reservada`. `cerrarAviso` («Ya no»).
+  Botón del dueño «Avisar lista espera» (#4; la plantilla `cancelacion_negocio` dice «Avisar a
+  quien esperaba» y se resuelve por título) en `router.ts › botonDeListaDeEspera`: reserva de
+  ESE negocio, `:no-cancelada`, `:pasada`, `:reserva-ajena`, y las respuestas `listaDeEspera*`
+  (nombre o «la primera persona que esperaba», nunca el teléfono).
+- `modules/bookings/cancelacion.ts › cancelarReserva` (voz y botón): `updateMany` sobre
+  `isCancelled: false` (idempotente: `ya_cancelada` sin segundo #4 ni segunda oferta), evento
+  externo con la conexión con la que se creó, #4 y lista de espera, todo best-effort con log
+  `[Booking]`. `cancel_appointment` conserva la titularidad por `fromNumber` y delega.
+- Efectos de entrega (`service.ts › aplicarEfectosDeEntrega`, callback `cliente:*`): Meta
+  rechaza EN DIFERIDO por `statuses[].failed` (132xxx parámetros/plantilla, 131049 marketing,
+  130429/131048 tier, 40008, 131026); siempre `console.error` con plantilla, negocio, destino y
+  código; `cliente:confirmacion` ⇒ `clientNotifiedAt: null` y, si era la v2 y el código es
+  132000/132001/132012/132015/132016, encola UNA vez el respaldo con `sinV2: true` (sale
+  `confirmacion_cita`), con taskId `booking-<id>-confirmacion-<epochSeg>-respaldo` derivado de la
+  RESERVA (si el `statuses[]` se adelantó al registro la fila es `adhoc:<wamid>` y Cloud Tasks
+  rechazaría los `:`); `cliente:hueco` ⇒ reabre el lead (`notifiedAt null`, `notifiedVia
+  ninguna:meta:<código>`, `resolvedAt null`) salvo 131026 (`sin_whatsapp`) o si ya respondió;
+  `recordatorio`/`contacto` solo log. `SentMessage.templateName/templateLanguage` se escriben
+  también al enviar por `{ id }` (campos opcionales nuevos de `EnvioPlantilla`).
+- Prompt (`lib/managedAgentPrompt.ts`): la recepcionista solo anuncia «un WhatsApp de Alhabla»
+  si `book_appointment` devuelve `mensajeCliente: "whatsapp"` (la tool lo calcula por
+  `programarMensajesAlCliente`; un STOP previo NO se revoca por consentimiento de voz, solo con
+  ALTA en el chat); la frase «te aviso por WhatsApp si se libera esa hora» entra solo con
+  `listaDeEspera: true` = `listaDeEsperaDisponible()` (`service.ts`: `hueco_libre` APPROVED,
+  caché 60 s, ante BD caída el último valor conocido sin cachear), propagado desde
+  `telnyxAgentSync`, `agentBootstrap` y `PATCH /business/me`; con `false` instruye a no usar
+  `notify_when_available` (la tool sigue registrada; gana `clientName` opcional). El cambio de
+  estado de `hueco_libre` (webhook o `refrescarPlantilla`) invalida la caché y lo deja en el log;
+  el assistant se reescribe en el `telnyxReconciler` diario, que ahora empieza por
+  `refrescarPlantillasConClave()`.
+- `lib/messageIdempotency.ts › reclamarEnvio(..., { reintentarFallidos: true })`: re-reclama
+  una fila `failed` SIN `providerMessageId` (Telnyx nunca la aceptó); opt-in solo en los envíos al
+  cliente, la vCard y la forma legada del job; `enviarAvisoAlNegocio` y `responder` no cambian.
+  Los upserts de reserva (voz, `retryFailedBooking`, lista de espera) escriben `createdVia` en
+  `create` y resetean `isCancelled/cancelledAt/cancelledBy` en `update` (cancelar y volver a
+  reservar en la misma llamada reactiva la fila; el atajo idempotente de `executeBookAppointment`
+  exige además `!isCancelled`, y la clave del calendario lleva `distintivo
+  reactivada:<cancelledAt>` para no recibir el evento ya borrado; el evento previo no se vuelve a
+  borrar). `PATCH /business/me` acepta `placeId`
+  (`[A-Za-z0-9_-]{1,512}`) y `address` (≤ 500), sin resincronizar el prompt. Migración
+  `20260920050000_whatsapp_lado_cliente` (solo aditiva): `businesses.placeId/address`,
+  `bookings.confirmedByClientAt/createdVia/clientNotifiedAt`. Sin variables de entorno nuevas
+  (`WHATSAPP_TEMPLATE_*_NAME` son el último respaldo). Límites conocidos: A→B→A dentro de la
+  misma llamada (la tercera confirmación tiene el nombre de tarea de la primera: ALREADY_EXISTS,
+  «ya programado»); las Call `voiceProvider: "whatsapp"` aparecen en el listado y en las
+  estadísticas (filtrarlas es seguimiento); sin retro-relleno de `placeId` en negocios ya dados de
+  alta (reciben `confirmacion_cita` hasta tenerlo). Antes de fusionar: leer `components` de
+  `confirmacion_cita_v2` en producción y confirmar la posición del botón URL, y probar la URL
+  de «Cómo llegar» con un `placeId` real (`query=place_id:` no es la forma documentada por Google).
+
 **Cuenta.** Un solo WABA, «Alhabla»: id Telnyx `804230d2-c5e0-45dd-af65-95819468378a`, id Meta
 `1628104425601770`, conectado por Embedded Signup el 13-09. `messaging_limit_tier: TIER_250`
 (250 destinatarios únicos/24 h para **toda** la cartera), `business_verification_status:

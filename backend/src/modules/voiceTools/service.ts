@@ -1,5 +1,5 @@
 import { prisma } from "../../lib/prisma.js";
-import { randomUUID, createHash } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import { getRedis } from "../../lib/redis.js";
 import { claveDeCacheDeVoz } from "../../lib/voiceConfigCache.js";
 import {
@@ -39,21 +39,29 @@ import {
   enqueueEmailJob,
   enqueueRetryBookingJob,
   enqueueSmsJob,
-  enqueueWhatsappJob,
 } from "../../lib/cloudTasks.js";
 import { whatsappAdapter } from "../../adapters/whatsapp/WhatsAppAdapter.js";
 import {
-  avisarCancelacion,
   avisarCitaPendiente,
   avisarNuevaReserva,
-  nombreDeServicios,
 } from "../whatsapp/avisosNegocio.js";
+import {
+  programarMensajesAlCliente,
+  REMINDER_LEAD_HOURS,
+  sanearNombre,
+} from "../whatsapp/mensajesCliente.js";
+import { cancelarReserva } from "../bookings/cancelacion.js";
 import { isValidE164Phone } from "../../lib/phone.js";
-import { planAllows, resolvePlanId } from "../../lib/planFeatures.js";
+import {
+  ESTADOS_DE_SUSCRIPCION_BLOQUEADOS,
+  planAllows,
+  resolvePlanId,
+} from "../../lib/planFeatures.js";
 import {
   acquireBookingLock,
   releaseBookingLock,
 } from "../../lib/bookingLock.js";
+import { buildCalendarIdempotencyKey } from "../../lib/calendarIdempotency.js";
 
 export type VoiceToolName =
   | "get_catalog"
@@ -63,24 +71,9 @@ export type VoiceToolName =
   | "find_my_appointment"
   | "cancel_appointment";
 
-// Estados de SubscriptionStatus (schema.prisma) que significan "el negocio
-// no está pagando ahora mismo" — no incluye TRIALING/ACTIVE (pagando de
-// facto) ni INCOMPLETE/PAUSED (transitorios/ambiguos, no el caso que este
-// fix ataja) para no bloquear de más. Ver hallazgo #9 de la auditoría.
-const BLOCKED_SUBSCRIPTION_STATUSES = new Set([
-  "CANCELED",
-  "UNPAID",
-  "PAST_DUE",
-  "INCOMPLETE_EXPIRED",
-]);
-
 const AVAILABILITY_TOKEN_TTL_SECONDS = 5 * 60;
 const MAX_CATALOG_ITEMS = 60;
 const MAX_APPOINTMENT_DURATION_MINUTES = 24 * 60;
-// Antelación del recordatorio SMS al cliente. Si la cita queda más cerca que
-// esto, no se manda recordatorio (solo la confirmación inmediata) — mandarlo
-// ya prácticamente encima de la confirmación no aporta nada.
-const REMINDER_LEAD_HOURS = 24;
 
 function isValidAppointmentDuration(value: unknown): value is number {
   return (
@@ -970,138 +963,68 @@ function resolveSmsMessagingProfileId(): string | undefined {
     : undefined;
 }
 
-function resolveWhatsappLanguageCode(): string {
-  return process.env.WHATSAPP_TEMPLATE_LANGUAGE || "es";
-}
-
 /**
- * Variables con nombre del body de las plantillas de confirmación y
- * recordatorio (`confirmacion_cita` / `recordatorio_cita`, aprobadas por
- * Meta vía Telnyx) — las claves deben coincidir exactamente con las de la
- * plantilla real: negocio_nombre, servicios, fecha_cita, hora_cita,
- * profesional, negocio_telefono.
+ * Confirmación y recordatorio al cliente por SMS: solo cuando WhatsApp no
+ * está configurado (ver `programarMensajesAlCliente` para el camino de
+ * WhatsApp). Hoy el SMS no sale (40323, ver AGENTS.md e issue #21): este
+ * bloque deja el pipeline listo para cuando se apruebe el Sender ID.
  */
-function buildWhatsappBookingParams(input: {
-  businessName: string;
-  businessPhone: string;
-  startDateTime: string;
-  timezone: string;
-  serviceNames?: string[] | null;
-  professionalName?: string | null;
-}): Record<string, string> {
-  const date = new Date(input.startDateTime);
-  const fechaCita = new Intl.DateTimeFormat("es-ES", {
-    timeZone: input.timezone,
-    weekday: "short",
-    day: "numeric",
-    month: "short",
-  }).format(date);
-  const horaCita = new Intl.DateTimeFormat("es-ES", {
-    timeZone: input.timezone,
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(date);
-
-  const services = input.serviceNames?.filter(Boolean).join(" + ") || "tu cita";
-
-  return {
-    negocio_nombre: input.businessName,
-    servicios: services,
-    fecha_cita: fechaCita,
-    hora_cita: horaCita,
-    profesional: input.professionalName || "nuestro equipo",
-    negocio_telefono: input.businessPhone,
-  };
-}
-
-/**
- * Variables con nombre para la plantilla de "la hora que pediste ya está
- * libre" (WHATSAPP_TEMPLATE_SLOT_AVAILABLE_NAME) — todavía sin aprobar por
- * Meta a fecha de este cambio, ver AGENTS.md. Reutiliza el mismo formato de
- * fecha/hora que buildWhatsappBookingParams para que ambas plantillas suenen
- * consistentes.
- */
-function buildWhatsappSlotAvailableParams(input: {
-  businessName: string;
-  businessPhone: string;
-  startDateTime: string;
-  timezone: string;
-}): Record<string, string> {
-  const date = new Date(input.startDateTime);
-  const fechaCita = new Intl.DateTimeFormat("es-ES", {
-    timeZone: input.timezone,
-    weekday: "short",
-    day: "numeric",
-    month: "short",
-  }).format(date);
-  const horaCita = new Intl.DateTimeFormat("es-ES", {
-    timeZone: input.timezone,
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(date);
-
-  return {
-    negocio_nombre: input.businessName,
-    fecha_cita: fechaCita,
-    hora_cita: horaCita,
-    negocio_telefono: input.businessPhone,
-  };
-}
-
-/**
- * Confirmación/recordatorio de cita al cliente: por WhatsApp cuando está
- * configurado (WHATSAPP_ACCESS_TOKEN/WHATSAPP_PHONE_NUMBER_ID y la plantilla
- * correspondiente), si no cae a SMS como hasta ahora (ver
- * resolveSmsFromAddress — bloqueado hoy por la aprobación del Sender ID).
- */
-async function sendClientBookingMessage(
-  kind: "confirmation" | "reminder",
+async function enviarMensajesAlClientePorSms(
+  business: BusinessVoiceConfig,
   input: {
-    businessId: string;
-    fromNumber: string;
-    messagingProfileId?: string;
+    bookingId: string | undefined;
     toNumber: string;
-    businessName: string;
-    businessPhone: string;
     startDateTime: string;
-    timezone: string;
-    serviceNames?: string[] | null;
-    professionalName?: string | null;
-  },
-  options?: { taskId?: string; scheduleTime?: Date }
-): Promise<void> {
-  const templateName =
-    kind === "confirmation"
-      ? process.env.WHATSAPP_TEMPLATE_CONFIRMATION_NAME
-      : process.env.WHATSAPP_TEMPLATE_REMINDER_NAME;
-
-  if (whatsappAdapter.isConfigured() && templateName) {
-    await enqueueWhatsappJob(
-      {
-        toNumber: input.toNumber,
-        templateName,
-        languageCode: resolveWhatsappLanguageCode(),
-        bodyParams: buildWhatsappBookingParams(input),
-        businessId: input.businessId,
-        audience: "client",
-      },
-      options
-    );
-    return;
+    serviceNames: string[];
+    callLabel: string;
   }
-
-  await enqueueSmsJob(
-    {
-      fromNumber: input.fromNumber,
-      toNumber: input.toNumber,
-      text:
-        kind === "confirmation"
-          ? buildClientConfirmationSmsText(input)
-          : buildClientReminderSmsText(input),
-      messagingProfileId: input.messagingProfileId,
-    },
-    options
+): Promise<void> {
+  const smsInput = {
+    businessName: business.name,
+    businessPhone: business.telnyxPhoneNumber ?? "",
+    startDateTime: input.startDateTime,
+    timezone: business.timezone || "Europe/Madrid",
+    serviceNames: input.serviceNames,
+  };
+  const base = {
+    fromNumber: resolveSmsFromAddress(business)!,
+    toNumber: input.toNumber,
+    messagingProfileId: resolveSmsMessagingProfileId(),
+  };
+  try {
+    await enqueueSmsJob(
+      { ...base, text: buildClientConfirmationSmsText(smsInput) },
+      input.bookingId ? { taskId: `confirm-sms-${input.bookingId}` } : undefined
+    );
+  } catch (smsError) {
+    console.error(
+      `[VoiceTools] ${input.callLabel} no pudo encolar la confirmación al cliente: ${errorMessage(smsError)}`
+    );
+  }
+  const reminderAt = new Date(
+    new Date(input.startDateTime).getTime() - REMINDER_LEAD_HOURS * 60 * 60 * 1000
   );
+  // El recordatorio es feature de Pro/Scale; se lee de la BD, no de la
+  // caché de voice_config, que puede ser anterior a un cambio de plan.
+  const planFields = await prisma.business.findUnique({
+    where: { id: business.id },
+    select: { plan: true, stripePriceId: true },
+  });
+  const reminderAllowed =
+    planFields !== null &&
+    planAllows(resolvePlanId(planFields), "recordatorios_cita");
+  if (input.bookingId && reminderAllowed && reminderAt.getTime() > Date.now()) {
+    try {
+      await enqueueSmsJob(
+        { ...base, text: buildClientReminderSmsText(smsInput) },
+        { taskId: `reminder-sms-${input.bookingId}`, scheduleTime: reminderAt }
+      );
+    } catch (smsError) {
+      console.error(
+        `[VoiceTools] ${input.callLabel} no pudo encolar el recordatorio al cliente: ${errorMessage(smsError)}`
+      );
+    }
+  }
 }
 
 /** Texto corto (pensado para caber en un único segmento SMS) con lo esencial
@@ -1189,19 +1112,6 @@ function buildClientReminderSmsText(input: {
   ].filter(Boolean);
 
   return parts.join(" — ");
-}
-
-function buildCalendarIdempotencyKey(input: {
-  callId: string;
-  startDateTime: string;
-  durationMinutes: number;
-}): string {
-  // No exponemos ni reutilizamos el identificador de llamada directamente en
-  // el proveedor. El hash mantiene una clave determinista, opaca y estable
-  // para el mismo intento de reserva.
-  return createHash("sha256")
-    .update(`${input.callId}\u0000${input.startDateTime}\u0000${input.durationMinutes}`)
-    .digest("hex");
 }
 
 async function executeBookAppointment(
@@ -1312,7 +1222,7 @@ async function executeBookAppointment(
   // un estado explícito de "no está pagando".
   if (
     business.subscriptionStatus &&
-    BLOCKED_SUBSCRIPTION_STATUSES.has(business.subscriptionStatus)
+    ESTADOS_DE_SUSCRIPCION_BLOQUEADOS.has(business.subscriptionStatus)
   ) {
     console.warn(
       `[VoiceTools] ${callLabel} no puede reservar: suscripción en estado ${business.subscriptionStatus}`
@@ -1625,21 +1535,30 @@ async function executeBookAppointment(
         externalEventId: string | null;
         externalCalendarProvider: string | null;
         externalCalendarId: string | null;
+        isCancelled: boolean;
+        cancelledAt: Date | null;
       } | null = null;
       if (call) {
         const existingBooking = await prisma.booking.findUnique({
           where: { callId: call.id },
           select: {
+            id: true,
             externalEventId: true,
             externalCalendarProvider: true,
             externalCalendarId: true,
             programedAt: true,
             durationMinutes: true,
+            isCancelled: true,
+            cancelledAt: true,
           },
         });
         reservaPrevia = existingBooking;
+        // Una reserva cancelada en esta misma llamada NO es un reintento: su
+        // evento ya se borró al cancelar, así que hay que crear uno nuevo y
+        // reactivar la fila (el `update` del upsert de abajo).
         if (
           existingBooking?.externalEventId &&
+          !existingBooking.isCancelled &&
           existingBooking.programedAt.getTime() ===
             new Date(startDateTime).getTime() &&
           existingBooking.durationMinutes === effectiveDuration
@@ -1647,6 +1566,18 @@ async function executeBookAppointment(
           console.log(
             `[VoiceTools] ${callLabel} ya tenía un evento creado para esta reserva exacta (${existingBooking.externalEventId}); no se crea uno nuevo`
           );
+          // Reintento del tool call: los mensajes al cliente ya quedaron
+          // programados (idempotentes por clave), pero el LLM solo ve ESTA
+          // respuesta, así que se vuelve a calcular `mensajeCliente`.
+          let mensajeClienteRepetido: "whatsapp" | "ninguno" = "ninguno";
+          if (whatsappAdapter.isConfigured()) {
+            const programado = await programarMensajesAlCliente({
+              bookingId: existingBooking.id,
+              etiqueta: callLabel,
+            });
+            mensajeClienteRepetido =
+              programado.confirmacion === "programada" ? "whatsapp" : "ninguno";
+          }
           return {
             success: true,
             result: {
@@ -1654,6 +1585,7 @@ async function executeBookAppointment(
               message: "Cita agendada correctamente.",
               professionalId: resolvedProfessionalId,
               professionalName: resolvedProfessionalName ?? null,
+              mensajeCliente: mensajeClienteRepetido,
             },
           };
         }
@@ -1670,11 +1602,18 @@ async function executeBookAppointment(
           professionalName: resolvedProfessionalName,
           conexion,
           timezone: business.timezone,
+          // Tras cancelar en la misma llamada la clave cambia (`distintivo`):
+          // con la misma, Google respondería 409 y el adaptador devolvería
+          // el evento CANCELADO como si fuera nuevo (invisible en la agenda
+          // y descartado al reconciliar: doble reserva).
           idempotencyKey: call
             ? buildCalendarIdempotencyKey({
                 callId: call.id,
                 startDateTime,
                 durationMinutes: effectiveDuration,
+                distintivo: reservaPrevia?.isCancelled
+                  ? `reactivada:${reservaPrevia.cancelledAt?.getTime() ?? "sin-fecha"}`
+                  : undefined,
               })
             : undefined,
         });
@@ -1696,6 +1635,7 @@ async function executeBookAppointment(
               clientName,
               clientPhone: clientPhone || undefined,
               smsConsent,
+              createdVia: "voice",
               externalEventId: (result as { id?: string })?.id ?? undefined,
               externalCalendarProvider: conexion.provider,
               externalCalendarId: conexion.calendarId,
@@ -1711,6 +1651,12 @@ async function executeBookAppointment(
               externalEventId: (result as { id?: string })?.id ?? undefined,
               externalCalendarProvider: conexion.provider,
               externalCalendarId: conexion.calendarId,
+              // Cancelar y volver a reservar en la misma llamada reactiva la
+              // fila: sin esto quedaba cancelada con la hora nueva y el job
+              // de confirmación la descartaba (RESERVA_CANCELADA).
+              isCancelled: false,
+              cancelledAt: null,
+              cancelledBy: null,
             },
             select: { id: true },
           });
@@ -1745,9 +1691,12 @@ async function executeBookAppointment(
         // ojos del dueño, ese evento huérfano bloqueaba ese hueco para
         // siempre, porque ya no quedaba ninguna reserva local que lo
         // reconciliara.
+        // Si la reserva previa estaba cancelada, su evento ya lo borró
+        // `cancelarReserva`: no hay nada que limpiar.
         const eventoNuevoId = (result as { id?: string })?.id;
         if (
           reservaPrevia?.externalEventId &&
+          !reservaPrevia.isCancelled &&
           reservaPrevia.externalEventId !== eventoNuevoId
         ) {
           try {
@@ -1825,80 +1774,35 @@ async function executeBookAppointment(
           }
         }
 
-        // Confirmación (y recordatorio) al cliente — por WhatsApp si está
-        // configurado (ver sendClientBookingMessage), si no por SMS como
-        // hasta ahora — solo si dio consentimiento explícito por voz
-        // (smsConsent, reutilizado como consentimiento de mensajería en
-        // general) para usar este número. Mismo aislamiento que el aviso al
-        // propietario: nunca debe poder tumbar la reserva. El envío por
-        // WhatsApp va vía Telnyx (BSP de Meta), no Meta Graph API directa —
-        // ver WhatsAppAdapter.ts. Sin WhatsApp ni TELNYX_SMS_SENDER_ID
-        // configurados, cae a SMS con el número Telnyx del negocio, que hoy
-        // Telnyx bloquea para mensajería (40323/40305, ver AGENTS.md e issue
-        // #21) — ese bloque deja el pipeline listo (job correctamente
-        // encolado) para cuando se apruebe el Alphanumeric Sender ID.
-        if (
+        // Confirmación (y recordatorio) al cliente. Por WhatsApp cuando está
+        // configurado: `programarMensajesAlCliente` (mensajesCliente.ts)
+        // encola los jobs por propósito, que releen la reserva al enviar y
+        // eligen la plantilla aprobada; devuelve si la confirmación quedó
+        // programada para que la recepcionista solo la prometa si va a
+        // salir (`mensajeCliente`). Si no, cae a SMS como hasta ahora. Nunca
+        // tumba la reserva y se espera (Cloud Run congela el proceso al
+        // responder al tool call).
+        let mensajeCliente: "whatsapp" | "ninguno" = "ninguno";
+        if (reservaGuardadaId && whatsappAdapter.isConfigured()) {
+          const programado = await programarMensajesAlCliente({
+            bookingId: reservaGuardadaId,
+            etiqueta: callLabel,
+          });
+          mensajeCliente =
+            programado.confirmacion === "programada" ? "whatsapp" : "ninguno";
+        } else if (
           smsConsent &&
           business.telnyxPhoneNumber &&
           effectiveClientPhone &&
           isValidE164Phone(effectiveClientPhone)
         ) {
-          const bookingId = call?.id
-            ? await prisma.booking
-                .findUnique({ where: { callId: call.id }, select: { id: true } })
-                .then((b) => b?.id)
-            : undefined;
-
-          const clientMessageInput = {
-            businessId: business.id,
-            fromNumber: resolveSmsFromAddress(business)!,
-            messagingProfileId: resolveSmsMessagingProfileId(),
+          await enviarMensajesAlClientePorSms(business, {
+            bookingId: reservaGuardadaId ?? undefined,
             toNumber: effectiveClientPhone,
-            businessName: business.name,
-            businessPhone: business.telnyxPhoneNumber,
             startDateTime,
-            timezone: business.timezone || "Europe/Madrid",
             serviceNames: verifiedServiceNames,
-            professionalName: resolvedProfessionalName,
-          };
-
-          try {
-            await sendClientBookingMessage(
-              "confirmation",
-              clientMessageInput,
-              bookingId ? { taskId: `confirm-sms-${bookingId}` } : undefined
-            );
-          } catch (smsError) {
-            console.error(
-              `[VoiceTools] ${callLabel} no pudo encolar la confirmación al cliente: ${errorMessage(smsError)}`
-            );
-          }
-
-          const reminderAt = new Date(
-            new Date(startDateTime).getTime() - REMINDER_LEAD_HOURS * 60 * 60 * 1000
-          );
-          // El recordatorio (no la confirmación) es feature de Pro/Scale. Se
-          // consulta la BD directamente y no la caché de voice_config, que
-          // puede ser anterior a un cambio de plan.
-          const planFields = await prisma.business.findUnique({
-            where: { id: business.id },
-            select: { plan: true, stripePriceId: true },
+            callLabel,
           });
-          const reminderAllowed =
-            planFields !== null &&
-            planAllows(resolvePlanId(planFields), "recordatorios_cita");
-          if (bookingId && reminderAllowed && reminderAt.getTime() > Date.now()) {
-            try {
-              await sendClientBookingMessage("reminder", clientMessageInput, {
-                taskId: `reminder-sms-${bookingId}`,
-                scheduleTime: reminderAt,
-              });
-            } catch (smsError) {
-              console.error(
-                `[VoiceTools] ${callLabel} no pudo encolar el recordatorio al cliente: ${errorMessage(smsError)}`
-              );
-            }
-          }
         }
 
         return {
@@ -1911,6 +1815,9 @@ async function executeBookAppointment(
             // Para que la confirmación pueda decir con quién queda la cita
             // (el preasignado puede haber cambiado si se ocupó entre medias).
             professionalName: resolvedProfessionalName ?? null,
+            // "whatsapp" solo si la confirmación por WhatsApp quedó
+            // programada de verdad: el prompt condiciona el anuncio a esto.
+            mensajeCliente,
           },
         };
       } catch (error) {
@@ -2151,6 +2058,8 @@ async function executeNotifyWhenAvailable(
     : [];
   const professionalId =
     typeof params?.professionalId === "string" ? params.professionalId : undefined;
+  // Para reservar a su nombre si se libera la hora (lista de espera, PR 4).
+  const clientName = sanearNombre(params?.clientName);
 
   const call = await resolveCallForBusiness(callId, business.id, callLabel);
   const clientPhone = call?.fromNumber;
@@ -2187,6 +2096,7 @@ async function executeNotifyWhenAvailable(
           durationMinutes,
           serviceIds,
           professionalId: professionalId ?? null,
+          ...(clientName ? { clientName } : {}),
         },
       },
     });
@@ -2209,137 +2119,6 @@ async function executeNotifyWhenAvailable(
         message: "No he podido guardar el aviso ahora mismo.",
       },
     };
-  }
-}
-
-/**
- * Tras liberar un hueco (única vía hoy: una cancelación), revisa los avisos
- * pendientes de este negocio y, para el primero que ya vuelva a estar
- * disponible, encola el WhatsApp y lo marca resuelto. No falla nunca la
- * cancelación que la disparó: cualquier error aquí solo se loguea.
- */
-async function notifyPendingAvailabilityWatchers(
-  business: BusinessVoiceConfig,
-  callLabel: string,
-  /** Hueco que se acaba de liberar. Solo los avisos que lo pisan pueden
-   * haberse vuelto reservables, así que el resto ni se comprueban: antes esta
-   * función consultaba el calendario de Google UNA VEZ POR AVISO PENDIENTE,
-   * en serie, mientras el cliente esperaba al teléfono a que le confirmaran
-   * la cancelación. */
-  huecoLiberado?: { inicioMs: number; finMs: number }
-): Promise<void> {
-  try {
-    const watches = await prisma.lead.findMany({
-      where: {
-        type: "availability_watch",
-        resolvedAt: null,
-        call: { businessId: business.id },
-      },
-      select: { id: true, data: true },
-      orderBy: { createdAt: "asc" },
-      // Cota dura: quien lleva más tiempo esperando va primero, y la
-      // cancelación nunca se convierte en un trabajo sin límite.
-      take: 25,
-    });
-    if (watches.length === 0) return;
-
-    const templateName = process.env.WHATSAPP_TEMPLATE_SLOT_AVAILABLE_NAME;
-
-    for (const watch of watches) {
-      const data = watch.data as {
-        clientPhone: string;
-        startDateTime: string;
-        durationMinutes: number;
-        serviceIds?: string[];
-        professionalId?: string | null;
-      };
-
-      // Solo interesa quien esperaba justo por ese hueco.
-      if (huecoLiberado) {
-        const inicioAviso = new Date(data.startDateTime).getTime();
-        const finAviso = inicioAviso + (data.durationMinutes || 30) * 60_000;
-        const pisaElHueco =
-          inicioAviso < huecoLiberado.finMs && finAviso > huecoLiberado.inicioMs;
-        if (!pisaElHueco) continue;
-      }
-
-      // Hora ya pasada: ya no tiene sentido avisar, limpia el aviso.
-      if (new Date(data.startDateTime).getTime() < Date.now()) {
-        await prisma.lead.update({
-          where: { id: watch.id },
-          data: { resolvedAt: new Date() },
-        });
-        continue;
-      }
-
-      const externalBusy = await fetchExternalBusyIntervals(
-        business,
-        data.startDateTime,
-        data.durationMinutes
-      );
-      const availability = await checkAvailability({
-        businessId: business.id,
-        schedule: business.schedule,
-        timezone: business.timezone,
-        bookingCapacity: business.bookingCapacity,
-        startDateTime: data.startDateTime,
-        durationMinutes: data.durationMinutes,
-        serviceIds: data.serviceIds,
-        professionalId: data.professionalId ?? undefined,
-        externalBusyIntervals: externalBusy.intervals,
-        calendarAvailabilityKnown: externalBusy.calendarAvailabilityKnown,
-        calendarOrigin: origenDeCalendario(
-          resolverConexionDeCalendario(business)
-        ),
-      });
-
-      if (!availability.available) continue;
-
-      if (!whatsappAdapter.isConfigured() || !templateName) {
-        // Sin plantilla aprobada todavía no hay forma de avisar — se deja
-        // pendiente (no se marca resuelto) para reintentar en la próxima
-        // cancelación, no se pierde el aviso en silencio.
-        console.warn(
-          `[VoiceTools] ${callLabel} tiene un hueco liberado para avisar pero WHATSAPP_TEMPLATE_SLOT_AVAILABLE_NAME no está configurado`
-        );
-        continue;
-      }
-
-      try {
-        await enqueueWhatsappJob({
-          toNumber: data.clientPhone,
-          templateName,
-          languageCode: resolveWhatsappLanguageCode(),
-          businessId: business.id,
-          audience: "client",
-          bodyParams: buildWhatsappSlotAvailableParams({
-            businessName: business.name,
-            businessPhone: business.telnyxPhoneNumber ?? "",
-            startDateTime: data.startDateTime,
-            timezone: business.timezone || "Europe/Madrid",
-          }),
-        });
-      } catch (error) {
-        console.error(
-          `[VoiceTools] ${callLabel} no pudo encolar el aviso de disponibilidad: ${errorMessage(error)}`
-        );
-        continue;
-      }
-
-      await prisma.lead.update({
-        where: { id: watch.id },
-        data: { resolvedAt: new Date() },
-      });
-
-      // Un hueco libre es una plaza: avisado el primero de la cola, se para.
-      // Avisar a varios por el mismo hueco los manda a competir por una hora
-      // que solo uno puede coger.
-      break;
-    }
-  } catch (error) {
-    console.error(
-      `[VoiceTools] ${callLabel} no pudo comprobar avisos de disponibilidad pendientes: ${errorMessage(error)}`
-    );
   }
 }
 
@@ -2399,53 +2178,26 @@ async function executeCancelAppointment(
     };
   }
 
-  await prisma.booking.update({
-    where: { id: booking.id },
-    data: { isCancelled: true, cancelledAt: new Date(), cancelledBy: "client_voice" },
-  });
-
-  // Aviso #4 al dueño por WhatsApp (PLAN-CANAL-DUENO.md § 4). Nunca lanza.
-  await avisarCancelacion({
-    businessId: business.id,
-    businessName: business.name,
-    timezone: business.timezone || "Europe/Madrid",
+  // Cancelación en BD (fuente de verdad), borrado del evento externo con la
+  // conexión con la que se creó, aviso #4 al dueño y lista de espera: todo
+  // en `cancelarReserva` (compartido con el botón «Cancelar» del
+  // recordatorio por WhatsApp). Idempotente: un segundo intento devuelve
+  // `ya_cancelada` sin segundo aviso ni segunda oferta de hueco.
+  const cancelacion = await cancelarReserva({
     bookingId: booking.id,
-    clientName: booking.clientName,
-    startDateTime: booking.programedAt,
-    serviceNames: await nombreDeServicios(booking.serviceIds),
+    businessId: business.id,
+    cancelledBy: "client_voice",
+    etiqueta: callLabel,
   });
-
-  if (booking.externalEventId && booking.externalCalendarProvider) {
-    try {
-      // Se cancela contra el proveedor y el calendario con los que se creó
-      // la reserva, aunque el negocio haya cambiado de proveedor después.
-      await calendarService.cancelAppointment({
-        conexion: resolverConexionDeCalendario(business, {
-          provider: normalizarProveedorDeCalendario(
-            booking.externalCalendarProvider
-          ),
-          calendarId: booking.externalCalendarId,
-        }),
-        eventId: booking.externalEventId,
-      });
-    } catch (error) {
-      // La cancelación en nuestra BD es la fuente de verdad — un fallo al
-      // borrar el evento externo (calendario reconectado a mano, rate
-      // limit, etc.) no debe impedir que la cita quede cancelada para el
-      // cliente.
-      console.error(
-        `[VoiceTools] ${callLabel} canceló la cita ${booking.id} pero no pudo borrar el evento externo: ${errorMessage(error)}`
-      );
-    }
+  if (cancelacion.resultado === "ya_cancelada") {
+    return {
+      success: true,
+      result: { success: true, message: "Esa cita ya estaba cancelada." },
+    };
   }
-
-  // notifyPendingAvailabilityWatchers nunca lanza (loguea internamente) — un
-  // fallo al avisar a OTRO cliente no debe tumbar la cancelación de este.
-  await notifyPendingAvailabilityWatchers(business, callLabel, {
-    inicioMs: booking.programedAt.getTime(),
-    finMs:
-      booking.programedAt.getTime() + (booking.durationMinutes || 30) * 60_000,
-  });
+  if (cancelacion.resultado === "no_encontrada") {
+    return notFoundResult;
+  }
 
   return {
     success: true,

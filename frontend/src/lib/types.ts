@@ -80,6 +80,14 @@ export type Business = {
   updatedAt: string;
   systemPrompt?: string;
   businessDetails?: string;
+  /**
+   * Identificador del negocio en Google Places y su dirección postal, tal y
+   * como los eligió en el alta. El placeId alimenta el botón «Cómo llegar»
+   * de la confirmación por WhatsApp al cliente. Opcionales porque un backend
+   * anterior no los devuelve.
+   */
+  placeId?: string | null;
+  address?: string | null;
   agentSettings?: AgentSettings | null;
   calendarProvider?: string | null;
   googleCalendarId?: string | null;

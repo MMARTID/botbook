@@ -217,12 +217,77 @@ describe("RegisterBusinessPage — móvil con WhatsApp", () => {
       name: LUGAR.name,
       businessDetails: `${LUGAR.name}\n${LUGAR.address}`,
       schedule: LUGAR.schedule,
+      placeId: LUGAR.placeId,
+      address: LUGAR.address,
       ownerWhatsappNumber: "+34600123456",
     });
     await waitFor(() => expect(mockedSendActivation).toHaveBeenCalledTimes(1));
     await waitFor(() =>
       expect(location.getHref()).toBe("/register/business/niche")
     );
+  });
+
+  it("el PATCH lleva placeId y address del negocio elegido, también sin móvil", async () => {
+    const user = userEvent.setup();
+    mockedUpdateMyBusiness.mockResolvedValue(NEGOCIO_GUARDADO);
+    render(<RegisterBusinessPage />);
+    await elegirNegocio(user);
+
+    await user.click(
+      screen.getByRole("button", { name: /Confirmar y continuar/ })
+    );
+
+    await waitFor(() =>
+      expect(mockedUpdateMyBusiness).toHaveBeenCalledTimes(1)
+    );
+    expect(mockedUpdateMyBusiness).toHaveBeenCalledWith({
+      name: LUGAR.name,
+      businessDetails: `${LUGAR.name}\n${LUGAR.address}`,
+      schedule: LUGAR.schedule,
+      placeId: "place_1",
+      address: "Calle Mayor 1, Madrid",
+    });
+    expect(mockedSendActivation).not.toHaveBeenCalled();
+    await waitFor(() =>
+      expect(location.getHref()).toBe("/register/business/niche")
+    );
+  });
+
+  it("sin dirección en Google Places manda address null (el backend acepta nulo)", async () => {
+    const user = userEvent.setup();
+    mockedUpdateMyBusiness.mockResolvedValue(NEGOCIO_GUARDADO);
+    mockedSearchPlaces.mockResolvedValue([
+      { placeId: "place_2", name: "Barbería Sol", address: "", photoUrl: null },
+    ]);
+    mockedGetPlaceDetails.mockResolvedValue({
+      ...LUGAR,
+      placeId: "place_2",
+      name: "Barbería Sol",
+      address: "",
+    });
+    render(<RegisterBusinessPage />);
+
+    await user.type(
+      screen.getByLabelText("Busca tu negocio por nombre o dirección"),
+      "Sol"
+    );
+    await user.click(
+      await screen.findByRole("button", { name: /Barbería Sol/ })
+    );
+    await user.click(
+      await screen.findByRole("button", { name: /Confirmar y continuar/ })
+    );
+
+    await waitFor(() =>
+      expect(mockedUpdateMyBusiness).toHaveBeenCalledTimes(1)
+    );
+    expect(mockedUpdateMyBusiness).toHaveBeenCalledWith({
+      name: "Barbería Sol",
+      businessDetails: "Barbería Sol",
+      schedule: LUGAR.schedule,
+      placeId: "place_2",
+      address: null,
+    });
   });
 
   it("si el PATCH no devuelve el móvil (backend antiguo) avisa, no activa y continúa a los 4 s", async () => {

@@ -4,6 +4,7 @@ import { prisma } from "../../src/lib/prisma.js";
 import { telnyxAiAdapter } from "../../src/adapters/telnyx/TelnyxAiAdapter.js";
 import { syncAgentToTelnyx } from "../../src/lib/telnyxAgentSync.js";
 import { sendZohoMail } from "../../src/lib/zohoMail.js";
+import { refrescarPlantillasConClave } from "../../src/modules/whatsapp/service.js";
 
 vi.mock("../../src/lib/prisma.js", () => ({
   prisma: {
@@ -24,17 +25,23 @@ vi.mock("../../src/lib/zohoMail.js", () => ({
   sendZohoMail: vi.fn(),
 }));
 
+vi.mock("../../src/modules/whatsapp/service.js", () => ({
+  refrescarPlantillasConClave: vi.fn(),
+}));
+
 const mockedAgentFindMany = vi.mocked(prisma.agent.findMany);
 const mockedBusinessFindMany = vi.mocked(prisma.business.findMany);
 const mockedGetAssistant = vi.mocked(telnyxAiAdapter.getAssistant);
 const mockedSync = vi.mocked(syncAgentToTelnyx);
 const mockedSendMail = vi.mocked(sendZohoMail);
+const mockedRefrescarPlantillas = vi.mocked(refrescarPlantillasConClave);
 
 const ORIGINAL_ALERT_EMAIL = process.env.TELNYX_ALERT_EMAIL;
 
 beforeEach(() => {
   vi.clearAllMocks();
   mockedSync.mockResolvedValue(undefined);
+  mockedRefrescarPlantillas.mockResolvedValue(undefined);
   mockedBusinessFindMany.mockResolvedValue([]);
   process.env.TELNYX_ALERT_EMAIL = "ops@alhabla.ai";
 });
@@ -45,6 +52,43 @@ afterEach(() => {
 });
 
 describe("telnyxReconcilerJob", () => {
+  it("el reconciler llama a refrescarPlantillasConClave antes de sincronizar y un fallo suyo no aborta la reconciliación", async () => {
+    mockedAgentFindMany
+      .mockResolvedValueOnce([
+        {
+          id: "a1",
+          businessId: "b1",
+          telnyxAssistantId: "as1",
+          telnyxSyncError: null,
+        },
+      ] as any)
+      .mockResolvedValueOnce([
+        { id: "a1", businessId: "b1", telnyxSyncError: null },
+      ] as any);
+    mockedGetAssistant.mockResolvedValue({
+      id: "as1",
+      name: "alhabla-b1-a1",
+      instructions: "",
+    } as any);
+    mockedRefrescarPlantillas.mockRejectedValue(new Error("WABA caído"));
+    const errorSpy = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => undefined);
+
+    const result = await telnyxReconcilerJob();
+
+    expect(mockedRefrescarPlantillas).toHaveBeenCalledTimes(1);
+    expect(mockedRefrescarPlantillas.mock.invocationCallOrder[0]).toBeLessThan(
+      mockedSync.mock.invocationCallOrder[0]
+    );
+    expect(mockedSync).toHaveBeenCalledWith("b1");
+    expect(result.agentsChecked).toBe(1);
+    expect(errorSpy).toHaveBeenCalledWith(
+      expect.stringContaining("refrescarPlantillasConClave")
+    );
+    errorSpy.mockRestore();
+  });
+
   it("no encuentra nada que revisar y no envía correo si no hay agentes con assistant Telnyx", async () => {
     mockedAgentFindMany.mockResolvedValue([]);
 
@@ -58,8 +102,18 @@ describe("telnyxReconcilerJob", () => {
   it("llama a syncAgentToTelnyx una vez por negocio, no por agente", async () => {
     mockedAgentFindMany
       .mockResolvedValueOnce([
-        { id: "agent1", businessId: "biz1", telnyxAssistantId: "asst_1", telnyxSyncError: null },
-        { id: "agent2", businessId: "biz1", telnyxAssistantId: "asst_2", telnyxSyncError: null },
+        {
+          id: "agent1",
+          businessId: "biz1",
+          telnyxAssistantId: "asst_1",
+          telnyxSyncError: null,
+        },
+        {
+          id: "agent2",
+          businessId: "biz1",
+          telnyxAssistantId: "asst_2",
+          telnyxSyncError: null,
+        },
       ] as any)
       .mockResolvedValueOnce([
         { id: "agent1", businessId: "biz1", telnyxSyncError: null },
@@ -80,7 +134,12 @@ describe("telnyxReconcilerJob", () => {
   it("cuenta un agente como resincronizado si su telnyxSyncError desaparece tras el sync", async () => {
     mockedAgentFindMany
       .mockResolvedValueOnce([
-        { id: "agent1", businessId: "biz1", telnyxAssistantId: "asst_1", telnyxSyncError: "fallo previo" },
+        {
+          id: "agent1",
+          businessId: "biz1",
+          telnyxAssistantId: "asst_1",
+          telnyxSyncError: "fallo previo",
+        },
       ] as any)
       .mockResolvedValueOnce([
         { id: "agent1", businessId: "biz1", telnyxSyncError: null },
@@ -100,7 +159,12 @@ describe("telnyxReconcilerJob", () => {
   it("deja constancia si el error de sincronización persiste tras el sync", async () => {
     mockedAgentFindMany
       .mockResolvedValueOnce([
-        { id: "agent1", businessId: "biz1", telnyxAssistantId: "asst_1", telnyxSyncError: "fallo previo" },
+        {
+          id: "agent1",
+          businessId: "biz1",
+          telnyxAssistantId: "asst_1",
+          telnyxSyncError: "fallo previo",
+        },
       ] as any)
       .mockResolvedValueOnce([
         { id: "agent1", businessId: "biz1", telnyxSyncError: "sigue fallando" },
@@ -121,7 +185,12 @@ describe("telnyxReconcilerJob", () => {
   it("detecta un assistant que ya no existe en Telnyx", async () => {
     mockedAgentFindMany
       .mockResolvedValueOnce([
-        { id: "agent1", businessId: "biz1", telnyxAssistantId: "asst_missing", telnyxSyncError: null },
+        {
+          id: "agent1",
+          businessId: "biz1",
+          telnyxAssistantId: "asst_missing",
+          telnyxSyncError: null,
+        },
       ] as any)
       .mockResolvedValueOnce([
         { id: "agent1", businessId: "biz1", telnyxSyncError: null },
@@ -138,7 +207,12 @@ describe("telnyxReconcilerJob", () => {
   it("detecta un assistant remoto con nombre distinto al determinista esperado", async () => {
     mockedAgentFindMany
       .mockResolvedValueOnce([
-        { id: "agent1", businessId: "biz1", telnyxAssistantId: "asst_1", telnyxSyncError: null },
+        {
+          id: "agent1",
+          businessId: "biz1",
+          telnyxAssistantId: "asst_1",
+          telnyxSyncError: null,
+        },
       ] as any)
       .mockResolvedValueOnce([
         { id: "agent1", businessId: "biz1", telnyxSyncError: null },

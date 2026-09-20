@@ -8,9 +8,13 @@ import {
   enviarContacto,
   enviarPlantilla,
   enviarTexto,
+  invalidarCacheListaDeEspera,
   invalidarCacheRemitentes,
+  listaDeEsperaDisponible,
   refrescarPlantilla,
+  refrescarPlantillasConClave,
   reiniciarEnfriamientoDePlantillas,
+  resolverPlantilla,
   ENFRIAMIENTO_REFRESCO_FALLIDO_MS,
   resolverRemitente,
   ventanaAbierta,
@@ -20,11 +24,16 @@ import {
   limpiarDuenoSinWhatsapp,
   marcarDuenoSinWhatsapp,
 } from "../../../src/modules/whatsapp/altaDueno.js";
+import { enqueueWhatsappJob } from "../../../src/lib/cloudTasks.js";
 
 vi.mock("../../../src/lib/prisma.js", () => ({
   prisma: {
     whatsappSender: { findMany: vi.fn() },
-    whatsappTemplate: { findUnique: vi.fn(), update: vi.fn() },
+    whatsappTemplate: {
+      findUnique: vi.fn(),
+      findMany: vi.fn(),
+      update: vi.fn(),
+    },
     sentMessage: {
       upsert: vi.fn(),
       create: vi.fn(),
@@ -32,7 +41,15 @@ vi.mock("../../../src/lib/prisma.js", () => ({
       update: vi.fn(),
       updateMany: vi.fn(),
     },
+    booking: { findFirst: vi.fn(), updateMany: vi.fn() },
+    lead: { findFirst: vi.fn(), update: vi.fn() },
   },
+}));
+
+// El respaldo de la confirmación (efectos de entrega) encola por Cloud Tasks
+// con un import diferido; aquí se sustituye.
+vi.mock("../../../src/lib/cloudTasks.js", () => ({
+  enqueueWhatsappJob: vi.fn(),
 }));
 
 vi.mock("../../../src/adapters/whatsapp/WhatsAppAdapter.js", () => ({
@@ -61,6 +78,12 @@ vi.mock("../../../src/modules/whatsapp/altaDueno.js", () => ({
 
 const mockedSenders = vi.mocked(prisma.whatsappSender.findMany);
 const mockedTemplateFindUnique = vi.mocked(prisma.whatsappTemplate.findUnique);
+const mockedTemplateFindMany = vi.mocked(prisma.whatsappTemplate.findMany);
+const mockedBookingFindFirst = vi.mocked(prisma.booking.findFirst);
+const mockedBookingUpdateMany = vi.mocked(prisma.booking.updateMany);
+const mockedLeadFindFirst = vi.mocked(prisma.lead.findFirst);
+const mockedLeadUpdate = vi.mocked(prisma.lead.update);
+const mockedEnqueue = vi.mocked(enqueueWhatsappJob);
 const mockedSentUpsert = vi.mocked(prisma.sentMessage.upsert);
 const mockedSentCreate = vi.mocked(prisma.sentMessage.create);
 const mockedSentFindUnique = vi.mocked(prisma.sentMessage.findUnique);
@@ -273,6 +296,68 @@ describe("enviarPlantilla", () => {
         languageCode: "es",
       })
     );
+  });
+
+  it("enviarPlantilla por id con templateName/templateLanguage informados los escribe en SentMessage; sin ellos sigue como hoy", async () => {
+    await enviarPlantilla({
+      audience: "client",
+      to: "+34600111222",
+      template: { id: "tpl-conf-v2" },
+      templateName: "confirmacion_cita_v2",
+      templateLanguage: "es",
+      bodyParams: {},
+      businessId: "biz_1",
+      idempotencyKey: "booking-b1-confirmacion-1",
+    });
+    expect(mockedSendTemplate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        templateId: "tpl-conf-v2",
+        templateName: undefined,
+      })
+    );
+    expect(mockedSentUpsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        update: expect.objectContaining({
+          templateName: "confirmacion_cita_v2",
+          templateLanguage: "es",
+        }),
+      })
+    );
+
+    mockedSentUpsert.mockClear();
+    await enviarPlantilla({
+      audience: "owner",
+      to: "+34600111222",
+      template: { id: "tpl-x" },
+      bodyParams: {},
+      idempotencyKey: "aviso:x",
+    });
+    expect(mockedSentUpsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        update: expect.objectContaining({
+          templateName: null,
+          templateLanguage: null,
+        }),
+      })
+    );
+  });
+
+  it("resolverPlantilla devuelve components", async () => {
+    const components = [{ type: "BUTTONS", buttons: [{ type: "URL" }] }];
+    mockedTemplateFindUnique.mockResolvedValue({
+      telnyxTemplateId: "tpl-conf-v2",
+      name: "confirmacion_cita_v2",
+      language: "es",
+      status: "APPROVED",
+      components,
+    } as never);
+
+    expect(await resolverPlantilla({ key: "confirmacion_cita_v2" })).toEqual({
+      telnyxTemplateId: "tpl-conf-v2",
+      name: "confirmacion_cita_v2",
+      language: "es",
+      components,
+    });
   });
 
   it("una plantilla pendiente de aprobación no vale como clave", async () => {
@@ -569,6 +654,186 @@ describe("refrescarPlantilla", () => {
   });
 });
 
+describe("listaDeEsperaDisponible (gate del prompt)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    reiniciarEnfriamientoDePlantillas();
+    invalidarCacheListaDeEspera();
+    delete process.env.WHATSAPP_WABA_ID;
+  });
+
+  it("true solo con hueco_libre APPROVED (hora_disponible no cuenta), llama a refrescarPlantilla, caché de 60 s e invalidarCacheListaDeEspera", async () => {
+    // Sin WHATSAPP_WABA_ID refrescarPlantilla vuelve sin leer; con él lee
+    // la fila (sincronizada hace poco ⇒ no consulta el WABA).
+    process.env.WHATSAPP_WABA_ID = "waba-1";
+    mockedTemplateFindUnique.mockResolvedValue({
+      id: "wt_h",
+      key: "hueco_libre",
+      status: "APPROVED",
+      lastSyncedAt: new Date(),
+    } as never);
+
+    expect(await listaDeEsperaDisponible()).toBe(true);
+    // refrescarPlantilla (1) + lectura del gate (1).
+    expect(mockedTemplateFindUnique).toHaveBeenCalledTimes(2);
+    expect(mockedTemplateFindUnique).toHaveBeenLastCalledWith({
+      where: { key: "hueco_libre" },
+      select: { status: true },
+    });
+    expect(mockedListTemplates).not.toHaveBeenCalled();
+
+    // Cacheado 60 s: ni refresco ni lectura.
+    mockedTemplateFindUnique.mockClear();
+    expect(await listaDeEsperaDisponible()).toBe(true);
+    expect(mockedTemplateFindUnique).not.toHaveBeenCalled();
+
+    invalidarCacheListaDeEspera();
+    mockedTemplateFindUnique.mockResolvedValue({
+      id: "wt_h",
+      key: "hueco_libre",
+      status: "PENDING",
+      lastSyncedAt: new Date(),
+    } as never);
+    expect(await listaDeEsperaDisponible()).toBe(false);
+
+    // Solo mira hueco_libre: una fila hora_disponible aprobada no activa nada.
+    invalidarCacheListaDeEspera();
+    mockedTemplateFindUnique.mockImplementation(async (args) =>
+      (args as { where: { key?: string } }).where.key === "hora_disponible"
+        ? ({ status: "APPROVED" } as never)
+        : (null as never)
+    );
+    expect(await listaDeEsperaDisponible()).toBe(false);
+    for (const llamada of mockedTemplateFindUnique.mock.calls) {
+      expect((llamada[0] as { where: { key: string } }).where.key).toBe(
+        "hueco_libre"
+      );
+    }
+  });
+
+  it("con la BD caída devuelve el último valor conocido sin cachearlo y loguea; sin valor previo devuelve false", async () => {
+    const errorSpy = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => undefined);
+    mockedTemplateFindUnique.mockRejectedValue(new Error("BD caída"));
+
+    expect(await listaDeEsperaDisponible()).toBe(false);
+    expect(errorSpy).toHaveBeenCalledWith(
+      expect.stringContaining("se mantiene false")
+    );
+
+    // Un valor real, después la BD cae: se mantiene true y no se cachea el fallo.
+    mockedTemplateFindUnique.mockResolvedValue({ status: "APPROVED" } as never);
+    expect(await listaDeEsperaDisponible()).toBe(true);
+    invalidarCacheListaDeEspera();
+    mockedTemplateFindUnique.mockRejectedValue(new Error("BD caída"));
+    expect(await listaDeEsperaDisponible()).toBe(true);
+    expect(errorSpy).toHaveBeenLastCalledWith(
+      expect.stringContaining("se mantiene true")
+    );
+    // Sin caché del fallo: la siguiente llamada vuelve a leer.
+    mockedTemplateFindUnique.mockClear();
+    mockedTemplateFindUnique.mockResolvedValue({ status: "PAUSED" } as never);
+    expect(await listaDeEsperaDisponible()).toBe(false);
+    expect(mockedTemplateFindUnique).toHaveBeenCalled();
+    errorSpy.mockRestore();
+  });
+
+  it("refrescarPlantillasConClave refresca cada fila con key y nunca lanza", async () => {
+    process.env.WHATSAPP_WABA_ID = "waba-1";
+    mockedTemplateFindMany.mockResolvedValue([
+      { key: "hueco_libre" },
+      { key: "confirmacion_cita_v2" },
+    ] as never);
+    mockedTemplateFindUnique.mockResolvedValue({
+      id: "wt",
+      status: "PENDING",
+      lastSyncedAt: new Date(),
+    } as never);
+
+    await refrescarPlantillasConClave();
+
+    expect(mockedTemplateFindMany).toHaveBeenCalledWith({
+      where: { key: { not: null } },
+      select: { key: true },
+    });
+    expect(mockedTemplateFindUnique).toHaveBeenCalledWith({
+      where: { key: "hueco_libre" },
+    });
+    expect(mockedTemplateFindUnique).toHaveBeenCalledWith({
+      where: { key: "confirmacion_cita_v2" },
+    });
+
+    const errorSpy = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => undefined);
+    mockedTemplateFindMany.mockRejectedValue(new Error("BD caída"));
+    await expect(refrescarPlantillasConClave()).resolves.toBeUndefined();
+    expect(errorSpy).toHaveBeenCalled();
+    errorSpy.mockRestore();
+  });
+
+  it("refrescarPlantilla que cambia hueco_libre hacia/desde APPROVED invalida la caché del gate y lo loguea", async () => {
+    process.env.WHATSAPP_WABA_ID = "waba-1";
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => undefined);
+    const fila = {
+      id: "wt_h",
+      key: "hueco_libre",
+      name: "hueco_libre",
+      language: "es",
+      telnyxTemplateId: "tpl-h",
+      status: "PENDING",
+      lastSyncedAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
+    };
+    const remota = {
+      telnyxTemplateId: "tpl-h",
+      metaTemplateId: null,
+      name: "hueco_libre",
+      language: "es",
+      category: "UTILITY",
+      status: "APPROVED",
+      qualityRating: null,
+      rejectionReason: null,
+      components: null,
+    };
+    // Primero el gate cachea false (fila PENDING, sincronizada hace poco).
+    mockedTemplateFindUnique.mockResolvedValue({
+      ...fila,
+      lastSyncedAt: new Date(),
+    } as never);
+    expect(await listaDeEsperaDisponible()).toBe(false);
+
+    // El refresco la ve APPROVED en el WABA: invalida la caché.
+    mockedTemplateFindUnique.mockResolvedValue(fila as never);
+    mockedListTemplates.mockResolvedValue([remota]);
+    mockedTemplateUpdate.mockResolvedValue({} as never);
+    await refrescarPlantilla("hueco_libre");
+    expect(logSpy).toHaveBeenCalledWith(
+      expect.stringContaining(
+        "hueco_libre APPROVED: la frase de la lista de espera cambia"
+      )
+    );
+
+    // Sin la invalidación, el gate seguiría devolviendo el false cacheado.
+    mockedTemplateFindUnique.mockResolvedValue({
+      ...fila,
+      status: "APPROVED",
+      lastSyncedAt: new Date(),
+    } as never);
+    expect(await listaDeEsperaDisponible()).toBe(true);
+
+    // Un cambio que no cruza APPROVED (PENDING → REJECTED) no avisa.
+    logSpy.mockClear();
+    mockedTemplateFindUnique.mockResolvedValue(fila as never);
+    mockedListTemplates.mockResolvedValue([{ ...remota, status: "REJECTED" }]);
+    await refrescarPlantilla("hueco_libre");
+    expect(logSpy).not.toHaveBeenCalledWith(
+      expect.stringContaining("la frase de la lista de espera cambia")
+    );
+    logSpy.mockRestore();
+  });
+});
+
 describe("ventanaAbierta", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -844,5 +1109,227 @@ describe("actualizarEstadoEnvio", () => {
       });
       expect(mockedLimpiarSinWhatsapp).not.toHaveBeenCalled();
     });
+  });
+});
+
+describe("efectos de entrega sobre los envíos al cliente (PR 4)", () => {
+  const at = new Date("2026-09-20T12:00:00Z");
+  const CITA = new Date("2026-09-24T15:00:00Z");
+  const filaCliente = {
+    id: "sm_c",
+    idempotencyKey: "booking-booking_1-confirmacion-1",
+    deliveryStatus: "sent",
+    audience: "client",
+    businessId: "biz_1",
+    toNumber: "+34600111222",
+    callbackData: "cliente:confirmacion:booking_1",
+    templateName: "confirmacion_cita_v2",
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    vi.spyOn(console, "log").mockImplementation(() => undefined);
+    mockedSentUpdate.mockResolvedValue({} as never);
+    mockedBookingFindFirst.mockResolvedValue({
+      id: "booking_1",
+      programedAt: CITA,
+    } as never);
+    mockedBookingUpdateMany.mockResolvedValue({ count: 1 });
+    mockedLeadUpdate.mockResolvedValue({} as never);
+    mockedEnqueue.mockResolvedValue(undefined);
+  });
+
+  it("un statuses failed 132012 sobre cliente:confirmacion:<id> (plantilla confirmacion_cita_v2) loguea con la plantilla, deja clientNotifiedAt en null y encola una vez el respaldo -respaldo con sinV2; sobre la fila -respaldo no encola nada más", async () => {
+    mockedSentFindUnique.mockResolvedValue(filaCliente as never);
+
+    await actualizarEstadoEnvio({
+      providerMessageId: "msg-1",
+      status: "failed",
+      at,
+      errorCode: "132012",
+      errorDetail: "Parameter format does not match",
+    });
+
+    expect(console.error).toHaveBeenCalledWith(
+      expect.stringMatching(
+        /Meta rechazó cliente:confirmacion:booking_1 \(plantilla confirmacion_cita_v2, negocio biz_1, destino \+34600111222\): 132012/
+      )
+    );
+    expect(mockedBookingFindFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "booking_1", call: { businessId: "biz_1" } },
+      })
+    );
+    expect(mockedBookingUpdateMany).toHaveBeenCalledWith({
+      where: { id: "booking_1" },
+      data: { clientNotifiedAt: null },
+    });
+    expect(mockedEnqueue).toHaveBeenCalledWith(
+      {
+        proposito: "confirmacion",
+        bookingId: "booking_1",
+        programedAtMs: CITA.getTime(),
+        toNumber: "+34600111222",
+        businessId: "biz_1",
+        audience: "client",
+        sinV2: true,
+      },
+      {
+        taskId: `booking-booking_1-confirmacion-${Math.floor(CITA.getTime() / 1000)}-respaldo`,
+      }
+    );
+
+    // La fila del respaldo rechazada: solo limpia y loguea.
+    mockedEnqueue.mockClear();
+    mockedBookingUpdateMany.mockClear();
+    mockedSentFindUnique.mockResolvedValue({
+      ...filaCliente,
+      idempotencyKey: "booking-booking_1-confirmacion-1-respaldo",
+      templateName: "confirmacion_cita",
+    } as never);
+    await actualizarEstadoEnvio({
+      providerMessageId: "msg-2",
+      status: "failed",
+      at,
+      errorCode: "132012",
+    });
+    expect(mockedBookingUpdateMany).toHaveBeenCalledTimes(1);
+    expect(mockedEnqueue).not.toHaveBeenCalled();
+
+    // Un código que no es de plantilla (tier) tampoco encola respaldo.
+    mockedSentFindUnique.mockResolvedValue(filaCliente as never);
+    await actualizarEstadoEnvio({
+      providerMessageId: "msg-3",
+      status: "failed",
+      at,
+      errorCode: "130429",
+    });
+    expect(mockedEnqueue).not.toHaveBeenCalled();
+  });
+
+  it("si el statuses[] se adelantó al registro (fila adhoc:<wamid>), el respaldo se encola igual con un taskId válido para Cloud Tasks (solo [A-Za-z0-9_-]) derivado de la reserva", async () => {
+    mockedSentFindUnique.mockResolvedValue({
+      ...filaCliente,
+      idempotencyKey:
+        "adhoc:wamid.HBgLMzQ2OTIxMzg0NTYVAgARGBI5QUI3QzQ4RkY2RTk1RkU2AA==",
+    } as never);
+
+    await actualizarEstadoEnvio({
+      providerMessageId:
+        "wamid.HBgLMzQ2OTIxMzg0NTYVAgARGBI5QUI3QzQ4RkY2RTk1RkU2AA==",
+      status: "failed",
+      at,
+      errorCode: "132012",
+    });
+
+    expect(mockedEnqueue).toHaveBeenCalledTimes(1);
+    const taskId = (mockedEnqueue.mock.calls[0][1] as { taskId: string })
+      .taskId;
+    expect(taskId).toBe(
+      `booking-booking_1-confirmacion-${Math.floor(CITA.getTime() / 1000)}-respaldo`
+    );
+    expect(taskId).toMatch(/^[A-Za-z0-9_-]+$/);
+  });
+
+  it("un statuses failed sobre cliente:hueco:<leadId> reabre el lead (notifiedAt null, notifiedVia ninguna:meta:<código>, resolvedAt null) salvo si resolvedBy está presente; 131026 lo cierra sin_whatsapp", async () => {
+    const filaHueco = {
+      ...filaCliente,
+      idempotencyKey: "espera-lead_1-1",
+      callbackData: "cliente:hueco:lead_1",
+      templateName: "hueco_libre",
+    };
+    mockedSentFindUnique.mockResolvedValue(filaHueco as never);
+    mockedLeadFindFirst.mockResolvedValue({
+      id: "lead_1",
+      data: { clientPhone: "+34600111222" },
+    } as never);
+
+    await actualizarEstadoEnvio({
+      providerMessageId: "msg-1",
+      status: "failed",
+      at,
+      errorCode: "131049",
+    });
+    expect(mockedLeadFindFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          id: "lead_1",
+          type: "availability_watch",
+          call: { businessId: "biz_1" },
+        },
+      })
+    );
+    expect(mockedLeadUpdate).toHaveBeenCalledWith({
+      where: { id: "lead_1" },
+      data: {
+        resolvedAt: null,
+        notifiedAt: null,
+        notifiedVia: "ninguna:meta:131049",
+      },
+    });
+
+    mockedLeadUpdate.mockClear();
+    mockedLeadFindFirst.mockResolvedValue({
+      id: "lead_1",
+      data: { clientPhone: "+34600111222", resolvedBy: "reservado" },
+    } as never);
+    await actualizarEstadoEnvio({
+      providerMessageId: "msg-2",
+      status: "failed",
+      at,
+      errorCode: "131049",
+    });
+    expect(mockedLeadUpdate).not.toHaveBeenCalled();
+
+    mockedLeadFindFirst.mockResolvedValue({
+      id: "lead_1",
+      data: { clientPhone: "+34600111222" },
+    } as never);
+    await actualizarEstadoEnvio({
+      providerMessageId: "msg-3",
+      status: "failed",
+      at,
+      errorCode: "131026",
+    });
+    expect(mockedLeadUpdate).toHaveBeenCalledWith({
+      where: { id: "lead_1" },
+      data: {
+        resolvedAt: at,
+        data: { clientPhone: "+34600111222", resolvedBy: "sin_whatsapp" },
+      },
+    });
+    // Nunca toca al dueño.
+    expect(mockedMarcarSinWhatsapp).not.toHaveBeenCalled();
+  });
+
+  it("un statuses failed sobre cliente:recordatorio o cliente:contacto solo loguea", async () => {
+    for (const callbackData of [
+      "cliente:recordatorio:booking_1",
+      "cliente:contacto:booking_1",
+    ]) {
+      mockedSentFindUnique.mockResolvedValue({
+        ...filaCliente,
+        callbackData,
+      } as never);
+      await actualizarEstadoEnvio({
+        providerMessageId: "msg-1",
+        status: "failed",
+        at,
+        errorCode: "132000",
+      });
+    }
+    expect(console.error).toHaveBeenCalledTimes(2);
+    expect(mockedBookingUpdateMany).not.toHaveBeenCalled();
+    expect(mockedLeadUpdate).not.toHaveBeenCalled();
+    expect(mockedEnqueue).not.toHaveBeenCalled();
+    // Los delivered/read de audiencia client no tienen efectos.
+    mockedSentFindUnique.mockResolvedValue(filaCliente as never);
+    await actualizarEstadoEnvio({
+      providerMessageId: "msg-1",
+      status: "read",
+      at,
+    });
+    expect(mockedLimpiarSinWhatsapp).not.toHaveBeenCalled();
   });
 });

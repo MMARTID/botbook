@@ -22,6 +22,7 @@ import {
 } from "./managedAgentPrompt.js";
 import { calendarService } from "../modules/calendar/service.js";
 import { createTelnyxAssistantForAgent } from "./telnyxAgentSync.js";
+import { listaDeEsperaDisponible } from "../modules/whatsapp/service.js";
 import { isVoiceTelnyxRolloutEnabled } from "./voiceRollout.js";
 
 /**
@@ -407,7 +408,8 @@ export function buildAgentDisplayName(
 export function getAgentTemplateForBusinessType(
   businessType: BusinessType,
   baseName: string,
-  businessName: string
+  businessName: string,
+  listaDeEspera?: boolean
 ): AgentTemplateConfig {
   return getDefaultAgentConfig({
     name: baseName,
@@ -416,6 +418,7 @@ export function getAgentTemplateForBusinessType(
       businessName,
       businessType,
       settings: DEFAULT_AGENT_SETTINGS,
+      listaDeEspera,
     }),
   });
 }
@@ -586,10 +589,12 @@ export async function createBusinessAgent(args: {
   const orchestrator = business?.orchestrator || "retell";
   const displayName = buildAgentDisplayName(args.name, businessType);
 
+  const listaDeEspera = await listaDeEsperaDisponible();
   const templateConfig = getAgentTemplateForBusinessType(
     businessType,
     displayName,
-    args.name
+    args.name,
+    listaDeEspera
   );
   const agentSettings = parseAgentSettings(business?.agentSettings);
   const voiceProfile = resolveRetellVoiceProfile(agentSettings);
@@ -603,6 +608,7 @@ export async function createBusinessAgent(args: {
       timezone: business?.timezone,
       minAdvanceBookingMinutes: business?.minAdvanceBookingMinutes,
       maxAppointmentDurationMinutes: business?.maxAppointmentDurationMinutes,
+      listaDeEspera,
     }),
   };
 
@@ -916,6 +922,7 @@ export async function syncAgentToRetell(
     timezone: business.timezone,
     minAdvanceBookingMinutes: business.minAdvanceBookingMinutes,
     maxAppointmentDurationMinutes: business.maxAppointmentDurationMinutes,
+    listaDeEspera: await listaDeEsperaDisponible(),
   });
 
   const postCallAnalysisData = buildPostCallAnalysisData(

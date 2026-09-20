@@ -22,6 +22,7 @@ import {
   esNumeroDeAlhabla,
   NumeroDeAlhablaError,
 } from "../whatsapp/altaDueno.js";
+import { listaDeEsperaDisponible } from "../whatsapp/service.js";
 
 const UpdateBusinessSchema = z.object({
   // Sin máximo: los nombres de Google Places pueden pasar de 80 caracteres y
@@ -61,6 +62,15 @@ const UpdateBusinessSchema = z.object({
     )
     .nullable()
     .optional(),
+  // De Google Places, para el botón «Cómo llegar» de la confirmación por
+  // WhatsApp (sufijo de la URL de Google Maps): solo el alfabeto de un
+  // place_id, así nunca puede alterar el enlace con & o /.
+  placeId: z
+    .string()
+    .regex(/^[A-Za-z0-9_-]{1,512}$/, "Identificador de Google Places no válido")
+    .nullable()
+    .optional(),
+  address: z.string().trim().max(500).nullable().optional(),
 });
 
 const AgendaQuerySchema = z.object({
@@ -386,6 +396,7 @@ export async function businessesRoutes(fastify: FastifyInstance) {
             businessDetails: data.businessDetails ?? currentBusiness?.businessDetails,
             settings: data.agentSettings ?? currentBusiness?.agentSettings,
             timezone: data.timezone ?? currentBusiness?.timezone,
+            listaDeEspera: await listaDeEsperaDisponible(),
           });
           updateData.systemPrompt = agentPrompt;
 

@@ -32,6 +32,10 @@ vi.mock("../../../src/lib/agentBootstrap.js", () => ({
 vi.mock("../../../src/lib/telnyxAgentSync.js", () => ({
   syncAgentToTelnyx: vi.fn(),
 }));
+// Gate de la frase de la lista de espera en el prompt (PR 4).
+vi.mock("../../../src/modules/whatsapp/service.js", () => ({
+  listaDeEsperaDisponible: vi.fn().mockResolvedValue(true),
+}));
 vi.mock("../../../src/modules/whatsapp/altaDueno.js", async (importActual) => {
   const actual =
     await importActual<
@@ -241,6 +245,33 @@ describe("PATCH /business/me (móvil del dueño para WhatsApp)", () => {
     expect(mockedAgentUpdate).not.toHaveBeenCalled();
     expect(mockedBusinessUpdate).not.toHaveBeenCalled();
     expect(mockedCambiarMovil).not.toHaveBeenCalled();
+  });
+
+  it("PATCH /business/me guarda placeId y address, devuelve 400 con un placeId con caracteres fuera de [A-Za-z0-9_-] y no resincroniza el prompt", async () => {
+    const response = await patch({
+      placeId: "ChIJd8BlQ2BZwokRAFUEcm_qrcA",
+      address: "  Calle Mayor 1, Madrid  ",
+    });
+
+    expect(response.statusCode).toBe(200);
+    const updateData = mockedBusinessUpdate.mock.calls[0][0].data as Record<
+      string,
+      unknown
+    >;
+    expect(updateData.placeId).toBe("ChIJd8BlQ2BZwokRAFUEcm_qrcA");
+    expect(updateData.address).toBe("Calle Mayor 1, Madrid");
+    // No entra en shouldResyncPrompt: ni prompt nuevo ni agentes tocados.
+    expect(updateData).not.toHaveProperty("systemPrompt");
+    expect(mockedAgentUpdate).not.toHaveBeenCalled();
+
+    const rechazado = await patch({ placeId: "abc&query=x" });
+    expect(rechazado.statusCode).toBe(400);
+
+    mockedBusinessUpdate.mockClear();
+    await patch({ placeId: null, address: null });
+    expect(mockedBusinessUpdate.mock.calls[0][0].data).toEqual(
+      expect.objectContaining({ placeId: null, address: null })
+    );
   });
 
   it("si solo cambia el nombre no se toca el móvil", async () => {

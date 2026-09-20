@@ -180,8 +180,13 @@ export async function enqueueWhatsappJob(
   payload: SendWhatsappJob,
   options?: { taskId?: string; scheduleTime?: Date }
 ): Promise<void> {
+  // Una clave ya informada en el payload se conserva: el recordatorio a más
+  // de 29 días se reencola con un taskId por salto (`-s<n>`) pero la fila de
+  // sent_messages debe llevar la clave documentada
+  // (`booking-<id>-recordatorio-<epoch>`). Los demás llamadores no traen
+  // idempotencyKey, así que para ellos no cambia nada.
   const conClave = options?.taskId
-    ? { ...payload, idempotencyKey: options.taskId }
+    ? { ...payload, idempotencyKey: payload.idempotencyKey ?? options.taskId }
     : payload;
   if (!IS_PRODUCTION) {
     // Mismo criterio que enqueueSmsJob: sin Cloud Tasks real en dev, un

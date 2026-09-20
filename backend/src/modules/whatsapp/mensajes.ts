@@ -136,6 +136,157 @@ export function desconocidoEnClientes(): string {
 }
 
 // ---------------------------------------------------------------------------
+// Botones del cliente (PR 4)
+// ---------------------------------------------------------------------------
+// `{negocio}` llega por `nombreParaCliente` (respaldo «el negocio», nunca «tu
+// negocio»), `{cita}` por `formatearCita`, `{telefono}` por
+// `telefonoDeContacto` (ya formateado) o null, `{otraCita}` por
+// `otraCitaActiva` o null.
+
+function llamar(negocio: string, telefono: string | null): string {
+  return telefono
+    ? `llama a ${negocio} al ${telefono}`
+    : `llama directamente a ${negocio}`;
+}
+
+function laQueTienes(otraCita: string | null): string {
+  return otraCita
+    ? ` La cita que tienes ahora es el ${otraCita}: para anularla, pulsa Cancelar en su recordatorio o llama al negocio.`
+    : "";
+}
+
+/** «Guardar contacto» cuando la vCard no ha podido salir. */
+export function contactoComoTexto(input: { numero: string }): string {
+  return `No he podido enviarte la tarjeta. Guarda este número como Alhabla Reservas: ${input.numero}.`;
+}
+
+/** Botón «Confirmo». */
+export function citaConfirmadaPorCliente(input: {
+  negocio: string;
+  cita: string;
+}): string {
+  return `Gracias. Tu cita en ${input.negocio} del ${input.cita} queda confirmada. Te esperamos.`;
+}
+
+export function citaYaConfirmada(input: {
+  negocio: string;
+  cita: string;
+}): string {
+  return `Tu cita en ${input.negocio} del ${input.cita} ya estaba confirmada. No tienes que hacer nada más.`;
+}
+
+export function citaYaCancelada(input: {
+  negocio: string;
+  telefono: string | null;
+  otraCita: string | null;
+}): string {
+  return `Esa cita en ${input.negocio} ya está cancelada.${laQueTienes(input.otraCita)} Si quieres otra hora, ${llamar(input.negocio, input.telefono)} y te atenderá la recepcionista.`;
+}
+
+export function citaYaPasada(input: {
+  negocio: string;
+  telefono: string | null;
+  otraCita: string | null;
+}): string {
+  return `Esa cita en ${input.negocio} ya ha pasado.${laQueTienes(input.otraCita)} Si quieres pedir otra, ${llamar(input.negocio, input.telefono)} y te atenderá la recepcionista.`;
+}
+
+/** Botón «Cancelar». */
+export function citaCanceladaPorCliente(input: {
+  negocio: string;
+  cita: string;
+  telefono: string | null;
+}): string {
+  return `Hecho. Tu cita en ${input.negocio} del ${input.cita} queda cancelada. Gracias por avisar. Si quieres otra hora, ${llamar(input.negocio, input.telefono)} y te atenderá la recepcionista.`;
+}
+
+/** Botón «Cambiar»: en la fase 1 solo da el teléfono. */
+export function comoCambiarCita(input: {
+  negocio: string;
+  cita: string;
+  telefono: string | null;
+}): string {
+  return `Para cambiar tu cita del ${input.cita}, ${llamar(input.negocio, input.telefono)} y la recepcionista te busca otra hora. Mientras tanto la cita sigue en pie. Si prefieres anularla, pulsa Cancelar en el recordatorio.`;
+}
+
+/** Botón «Sí, resérvala»: la reserva ha entrado. Es la confirmación. */
+export function huecoReservado(input: {
+  negocio: string;
+  servicio: string;
+  cita: string;
+  telefono: string | null;
+}): string {
+  return `Hecho, la hora es tuya. Tu cita en ${input.negocio} para ${input.servicio} queda confirmada el ${input.cita}. Si necesitas cambiarla, ${llamar(input.negocio, input.telefono)} y te atenderá la recepcionista.`;
+}
+
+export function huecoYaReservado(input: {
+  negocio: string;
+  cita: string;
+}): string {
+  return `Esa hora ya es tuya: tu cita en ${input.negocio} queda el ${input.cita}. No hace falta que hagas nada más.`;
+}
+
+export function huecoYaOcupado(input: {
+  negocio: string;
+  telefono: string | null;
+}): string {
+  return `Vaya, esa hora en ${input.negocio} se acaba de ocupar. Si quieres otra, ${llamar(input.negocio, input.telefono)} y la recepcionista te la busca.`;
+}
+
+export function huecoFueraDePlazo(input: {
+  negocio: string;
+  telefono: string | null;
+}): string {
+  return `Esa hora en ${input.negocio} ya no se puede reservar con tan poca antelación. Si quieres otra, ${llamar(input.negocio, input.telefono)} y la recepcionista te la busca.`;
+}
+
+export function huecoYaPasado(input: {
+  negocio: string;
+  telefono: string | null;
+}): string {
+  return `Esa hora en ${input.negocio} ya ha pasado. Si quieres pedir otra, ${llamar(input.negocio, input.telefono)} y te atenderá la recepcionista.`;
+}
+
+export function huecoCerrado(input: {
+  negocio: string;
+  telefono: string | null;
+}): string {
+  return `Ese aviso de ${input.negocio} ya está cerrado. Si sigues queriendo cita, ${llamar(input.negocio, input.telefono)} y te atenderá la recepcionista.`;
+}
+
+export function noPudeReservarAhora(input: {
+  negocio: string;
+  telefono: string | null;
+}): string {
+  return `No he podido reservarla en ${input.negocio} ahora mismo. Vuelve a pulsar en un minuto o ${llamar(input.negocio, input.telefono)}.`;
+}
+
+/** Botón «Ya no». */
+export function huecoRechazado(input: { negocio: string }): string {
+  return `Entendido, no te guardamos esa hora en ${input.negocio}. Gracias por avisar.`;
+}
+
+export function huecoYaReservadoNoSeAnula(input: {
+  negocio: string;
+  cita: string;
+}): string {
+  return `Esa hora ya está reservada a tu nombre en ${input.negocio} para el ${input.cita}. Si no la quieres, pulsa Cancelar en el recordatorio o llama al negocio.`;
+}
+
+/** Botón «No me va bien» (cambio_cita_cliente, fase 2). */
+export function cambioNoMeVaBien(input: {
+  negocio: string;
+  telefono: string | null;
+}): string {
+  return `Entendido, se lo hago saber a ${input.negocio}. Si quieres buscar otra hora ya, ${llamar(input.negocio, input.telefono)} y te atenderá la recepcionista.`;
+}
+
+/** Botón sin `context.id` o con título desconocido: no se sabe el negocio. */
+export function botonSinContexto(): string {
+  return "No sé a qué cita te refieres. Llama al negocio y te atenderá la recepcionista.";
+}
+
+// ---------------------------------------------------------------------------
 // Avisos al negocio (PR 3) y sus botones
 // ---------------------------------------------------------------------------
 
@@ -202,9 +353,49 @@ export function citaYaResuelta(): string {
   return "Esa cita ya está resuelta. No hay nada más que hacer.";
 }
 
-/** Botón «Avisar a quien esperaba» (lista de espera): llega en el PR 4. */
-export function listaDeEsperaTodaviaNo(): string {
-  return "La lista de espera todavía no está lista; en cuanto lo esté, este botón avisará al primer cliente que pidió esa hora.";
+// ---------------------------------------------------------------------------
+// Lista de espera (botón del dueño «Avisar a quien esperaba», PR 4)
+// ---------------------------------------------------------------------------
+// `{negocio}` por `nombreParaWhatsapp` (es el dueño); `{cliente}` es el
+// nombre o null. Ninguna respuesta lleva el teléfono del que esperaba.
+
+function quien(cliente: string | null): string {
+  return cliente ?? "la primera persona que esperaba";
+}
+
+export function listaDeEsperaAvisada(input: {
+  negocio: string;
+  cliente: string | null;
+}): string {
+  return `${input.negocio}: he avisado a ${quien(input.cliente)}, que pedía esa hora. Si la reserva, te llega el aviso de nueva cita.`;
+}
+
+export function listaDeEsperaEnOferta(input: {
+  negocio: string;
+  cliente: string | null;
+  minutos: number;
+}): string {
+  return `${input.negocio}: ya avisé a ${quien(input.cliente)} hace ${input.minutos} minutos. Le doy diez minutos; si no contesta, vuelve a pulsar y aviso al siguiente.`;
+}
+
+export function listaDeEsperaNadie(input: { negocio: string }): string {
+  return `${input.negocio}: nadie esperaba esa hora. El hueco queda libre en tu agenda.`;
+}
+
+export function listaDeEsperaSinPlantilla(input: { negocio: string }): string {
+  return `${input.negocio}: ahora mismo no puedo escribir por WhatsApp a quien esperaba esa hora. En cuanto pueda, este botón lo hará.`;
+}
+
+export function listaDeEsperaSinHueco(input: { negocio: string }): string {
+  return `${input.negocio}: esa cita sigue en pie, así que no hay hueco que ofrecer.`;
+}
+
+export function listaDeEsperaPasada(input: { negocio: string }): string {
+  return `${input.negocio}: esa hora ya ha pasado; no hay a quién avisar.`;
+}
+
+export function listaDeEsperaError(input: { negocio: string }): string {
+  return `${input.negocio}: no he podido avisar a quien esperaba ahora mismo. Vuelve a pulsar en unos minutos.`;
 }
 
 /** Botón «Ver agenda de hoy» y palabras clave AGENDA / HOY / MAÑANA. */

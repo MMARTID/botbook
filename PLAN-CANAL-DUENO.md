@@ -307,7 +307,14 @@ Cliente llama → desvío → recepcionista reserva (consentimiento por voz, anu
   explícita, como por voz. Si el cliente prefiere hablar, el teléfono del negocio va en el
   texto.
 - La frase "te aviso por WhatsApp si se libera" solo entra en el prompt cuando `hueco_libre`
-  esté aprobada; hasta entonces la tool se retira.
+  esté aprobada; hasta entonces la tool se retira (PR 4: se retira la frase del prompt, la tool
+  sigue registrada porque `hora_disponible` ya está aprobada y el flujo es correcto).
+- Los rechazos de Meta (parámetros o plantilla mal formados 132xxx, marketing 131049, tier
+  130429/131048, sin WhatsApp 131026) NO llegan en la respuesta del envío: llegan en diferido
+  por `statuses[].failed`, sin reintento posible. Por eso los parámetros se construyen por
+  plantilla con un test que fija sus claves exactas, y un `failed` sobre un envío `cliente:*`
+  revierte lo que el envío había afirmado (`clientNotifiedAt`, la oferta del lead) y, si era
+  la v2 de la confirmación, encola una vez el respaldo con la aprobada.
 
 ### 6. Entrada: el webhook de mensajería
 
@@ -726,10 +733,30 @@ piloto. Decisión del usuario del 20-09 (madrugada): cimientos primero.
   apunté yo», «Reintentar», «Reconectar», agenda por AGENDA/HOY/MAÑANA, cita recuperada. Quedan
   para PRs propios: #2 (recado por post-conversación `informar_al_negocio`, exige tocar los
   assistants de Telnyx) y #5 (alertas operativas), y el toggle de `avisoPorReserva` en el panel.
-- `confirmacion_cita_v2` con *Guardar contacto* (vCard al toque) y *Cómo llegar* (`placeId`);
-  `Business.address`/`placeId` desde Places. La recepcionista anuncia el WhatsApp por voz.
-- `recordatorio_cita_v2` con *Confirmo* · *Cancelar* · *Cambiar*; cancelar libera, avisa (#4)
-  y dispara la lista de espera; `hueco_libre` y reactivación de `notify_when_available`.
+- ~~`confirmacion_cita_v2` con *Guardar contacto* (vCard al toque) y *Cómo llegar* (`placeId`);
+  `Business.address`/`placeId` desde Places. La recepcionista anuncia el WhatsApp por voz.~~
+  ~~`recordatorio_cita_v2` con *Confirmo* · *Cancelar* · *Cambiar*; cancelar libera, avisa (#4)
+  y dispara la lista de espera; `hueco_libre` y reactivación de `notify_when_available`.~~ —
+  **PR 4 (lado cliente), backend hecho el 20-09**: `mensajesCliente.ts` (parámetros por
+  plantilla, cascada v2 aprobada → aprobada actual → variable de entorno decidida en el momento
+  del envío, jobs por propósito que releen la reserva), `botonesCliente.ts` (los siete botones,
+  correlación por `context.id` y doble prueba de identidad), `listaDeEspera.ts` (oferta al
+  primero con retén de 10 min, «Sí, resérvala» con Call sintética `whatsapp:espera:<leadId>` y
+  Booking en una transacción, botón del dueño «Avisar lista espera» en el #4),
+  `bookings/cancelacion.ts` (compartido voz/botón), efectos de los `failed` diferidos de Meta,
+  `mensajeCliente` en `book_appointment` y gate `listaDeEspera` del prompt por `hueco_libre`.
+  Revisión del 20-09 incorporada: volver a reservar la misma hora tras cancelar en la misma
+  llamada crea evento nuevo y reactiva la fila (clave de calendario distinta), «Sí, resérvala» y
+  «Ya no» sobre un lead reservado cuya cita ya se canceló responden «cerrado»/«no te guardamos
+  esa hora», cada toque de «Sí» pide al calendario una clave propia, un «Ya no» concurrente
+  deshace la reserva en curso, el job descarta `DESTINO_CAMBIADO` si la reserva ya no es del
+  número de la tarea, el respaldo tras un 132xxx lleva un taskId válido aunque la fila fuese
+  `adhoc:`, y la limpieza de la lista de espera garantiza progreso entre disparos (no dentro del
+  mismo). Mientras las v2 sigan `PENDING` sale `confirmacion_cita` (con cabecera, 5 parámetros),
+  `recordatorio_cita` y `hora_disponible` (sin botones). Queda: el frontend (`placeId`/`address`
+  desde Places en el alta, `types.ts`), retro-relleno de `placeId` en negocios ya dados de alta,
+  comprobar en producción la posición del botón URL en `components` y la URL de «Cómo llegar»,
+  y la prueba manual del criterio de salida. Detalle en `AGENTS.md` § WhatsApp › Código (PR 4).
 - Fallback por email de #2, #3 y #5.
 - Tests: enrutado, botones, idempotencia, informe post-llamada; integración contra Postgres.
 

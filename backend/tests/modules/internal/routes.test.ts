@@ -5,26 +5,49 @@ import { processRecordingJob } from "../../../src/jobs/processRecording.js";
 import { processRetryFailedBookingJob } from "../../../src/jobs/retryFailedBooking.js";
 import { processSendEmailJob } from "../../../src/jobs/sendEmail.js";
 import { processSendSmsJob } from "../../../src/jobs/sendSms.js";
+import { processSendWhatsappJob } from "../../../src/jobs/sendWhatsapp.js";
 import { cleanupZombieCallsJob } from "../../../src/jobs/cleanupZombieCalls.js";
 import { retryStuckRecordingsJob } from "../../../src/jobs/retryStuckRecordings.js";
 import { suspendOverdueCallsJob } from "../../../src/jobs/suspendOverdueCalls.js";
 import { attachUsagePricesJob } from "../../../src/jobs/attachUsagePrices.js";
 import { retryUsageReportsJob } from "../../../src/jobs/retryUsageReports.js";
 
-vi.mock("../../../src/jobs/processRecording.js", () => ({ processRecordingJob: vi.fn() }));
-vi.mock("../../../src/jobs/retryFailedBooking.js", () => ({ processRetryFailedBookingJob: vi.fn() }));
-vi.mock("../../../src/jobs/sendEmail.js", () => ({ processSendEmailJob: vi.fn() }));
+vi.mock("../../../src/jobs/processRecording.js", () => ({
+  processRecordingJob: vi.fn(),
+}));
+vi.mock("../../../src/jobs/retryFailedBooking.js", () => ({
+  processRetryFailedBookingJob: vi.fn(),
+}));
+vi.mock("../../../src/jobs/sendEmail.js", () => ({
+  processSendEmailJob: vi.fn(),
+}));
 vi.mock("../../../src/jobs/sendSms.js", () => ({ processSendSmsJob: vi.fn() }));
-vi.mock("../../../src/jobs/cleanupZombieCalls.js", () => ({ cleanupZombieCallsJob: vi.fn() }));
-vi.mock("../../../src/jobs/retryStuckRecordings.js", () => ({ retryStuckRecordingsJob: vi.fn() }));
-vi.mock("../../../src/jobs/suspendOverdueCalls.js", () => ({ suspendOverdueCallsJob: vi.fn() }));
-vi.mock("../../../src/jobs/attachUsagePrices.js", () => ({ attachUsagePricesJob: vi.fn() }));
-vi.mock("../../../src/jobs/retryUsageReports.js", () => ({ retryUsageReportsJob: vi.fn() }));
+vi.mock("../../../src/jobs/sendWhatsapp.js", () => ({
+  processSendWhatsappJob: vi.fn(),
+}));
+vi.mock("../../../src/jobs/cleanupZombieCalls.js", () => ({
+  cleanupZombieCallsJob: vi.fn(),
+}));
+vi.mock("../../../src/jobs/retryStuckRecordings.js", () => ({
+  retryStuckRecordingsJob: vi.fn(),
+}));
+vi.mock("../../../src/jobs/suspendOverdueCalls.js", () => ({
+  suspendOverdueCallsJob: vi.fn(),
+}));
+vi.mock("../../../src/jobs/attachUsagePrices.js", () => ({
+  attachUsagePricesJob: vi.fn(),
+}));
+vi.mock("../../../src/jobs/retryUsageReports.js", () => ({
+  retryUsageReportsJob: vi.fn(),
+}));
 
 const mockedProcessRecordingJob = vi.mocked(processRecordingJob);
-const mockedProcessRetryFailedBookingJob = vi.mocked(processRetryFailedBookingJob);
+const mockedProcessRetryFailedBookingJob = vi.mocked(
+  processRetryFailedBookingJob
+);
 const mockedProcessSendEmailJob = vi.mocked(processSendEmailJob);
 const mockedProcessSendSmsJob = vi.mocked(processSendSmsJob);
+const mockedProcessSendWhatsappJob = vi.mocked(processSendWhatsappJob);
 const mockedCleanupZombieCallsJob = vi.mocked(cleanupZombieCallsJob);
 const mockedRetryStuckRecordingsJob = vi.mocked(retryStuckRecordingsJob);
 const mockedSuspendOverdueCallsJob = vi.mocked(suspendOverdueCallsJob);
@@ -44,8 +67,105 @@ describe("internalJobsRoutes", () => {
     await fastify.register(internalJobsRoutes);
   });
 
+  describe("POST /jobs/send-whatsapp", () => {
+    it("send-whatsapp acepta la forma legada y la forma por propósito (con sinV2 y saltos opcionales), y rechaza (400) un propósito sin bookingId+programedAtMs o sin leadId", async () => {
+      mockedProcessSendWhatsappJob.mockResolvedValue(undefined);
+
+      const legado = {
+        toNumber: "+34600111222",
+        templateName: "confirmacion_cita",
+        languageCode: "es",
+        bodyParams: { negocio_nombre: "Peluquería Ana" },
+        idempotencyKey: "k1",
+        businessId: "biz_1",
+        audience: "client",
+      };
+      let response = await fastify.inject({
+        method: "POST",
+        url: "/jobs/send-whatsapp",
+        payload: legado,
+      });
+      expect(response.statusCode).toBe(200);
+      expect(mockedProcessSendWhatsappJob).toHaveBeenLastCalledWith(legado);
+
+      const porProposito = {
+        proposito: "confirmacion",
+        bookingId: "booking_1",
+        programedAtMs: 1_800_000_000_000,
+        toNumber: "+34600111222",
+        businessId: "biz_1",
+        idempotencyKey: "booking-booking_1-confirmacion-1800000000",
+        sinV2: true,
+      };
+      response = await fastify.inject({
+        method: "POST",
+        url: "/jobs/send-whatsapp",
+        payload: porProposito,
+      });
+      expect(response.statusCode).toBe(200);
+      expect(mockedProcessSendWhatsappJob).toHaveBeenLastCalledWith({
+        ...porProposito,
+        audience: "client",
+      });
+
+      response = await fastify.inject({
+        method: "POST",
+        url: "/jobs/send-whatsapp",
+        payload: {
+          proposito: "recordatorio",
+          bookingId: "booking_1",
+          programedAtMs: 1_800_000_000_000,
+          toNumber: "+34600111222",
+          businessId: "biz_1",
+          saltos: 3,
+        },
+      });
+      expect(response.statusCode).toBe(200);
+
+      response = await fastify.inject({
+        method: "POST",
+        url: "/jobs/send-whatsapp",
+        payload: {
+          proposito: "hueco_libre",
+          leadId: "lead_1",
+          toNumber: "+34600111222",
+          businessId: "biz_1",
+        },
+      });
+      expect(response.statusCode).toBe(200);
+
+      // Sin bookingId+programedAtMs / sin leadId: 400.
+      response = await fastify.inject({
+        method: "POST",
+        url: "/jobs/send-whatsapp",
+        payload: {
+          proposito: "confirmacion",
+          bookingId: "booking_1",
+          toNumber: "+34600111222",
+          businessId: "biz_1",
+        },
+      });
+      expect(response.statusCode).toBe(400);
+      response = await fastify.inject({
+        method: "POST",
+        url: "/jobs/send-whatsapp",
+        payload: {
+          proposito: "hueco_libre",
+          toNumber: "+34600111222",
+          businessId: "biz_1",
+        },
+      });
+      expect(response.statusCode).toBe(400);
+      expect(mockedProcessSendWhatsappJob).toHaveBeenCalledTimes(4);
+    });
+  });
+
   describe("POST /jobs/process-recording", () => {
-    const validPayload = { callId: "call_1", externalUrl: "https://vapi.example/rec.mp3", businessId: "biz_1" };
+    const validPayload = {
+      callId: "call_1",
+      externalUrl: "https://vapi.example/rec.mp3",
+      businessId: "biz_1",
+    };
 
     it("valida el body y despacha el job", async () => {
       mockedProcessRecordingJob.mockResolvedValue(undefined);
@@ -97,11 +217,15 @@ describe("internalJobsRoutes", () => {
       });
 
       expect(response.statusCode).toBe(200);
-      expect(mockedProcessRetryFailedBookingJob).toHaveBeenCalledWith({ leadId: "lead_1" });
+      expect(mockedProcessRetryFailedBookingJob).toHaveBeenCalledWith({
+        leadId: "lead_1",
+      });
     });
 
     it("devuelve 500 si el calendario sigue desconectado (reintento pendiente)", async () => {
-      mockedProcessRetryFailedBookingJob.mockRejectedValue(new Error("Calendario todavía desconectado"));
+      mockedProcessRetryFailedBookingJob.mockRejectedValue(
+        new Error("Calendario todavía desconectado")
+      );
 
       const response = await fastify.inject({
         method: "POST",
@@ -189,7 +313,9 @@ describe("internalJobsRoutes", () => {
     });
 
     it("devuelve 500 si el job falla (para que Cloud Tasks reintente)", async () => {
-      mockedProcessSendSmsJob.mockRejectedValue(new Error("Telnyx no responde"));
+      mockedProcessSendSmsJob.mockRejectedValue(
+        new Error("Telnyx no responde")
+      );
 
       const response = await fastify.inject({
         method: "POST",
@@ -206,7 +332,10 @@ describe("internalJobsRoutes", () => {
     it("despacha el job sin necesitar body", async () => {
       mockedCleanupZombieCallsJob.mockResolvedValue(undefined);
 
-      const response = await fastify.inject({ method: "POST", url: "/jobs/cleanup-zombie-calls" });
+      const response = await fastify.inject({
+        method: "POST",
+        url: "/jobs/cleanup-zombie-calls",
+      });
 
       expect(response.statusCode).toBe(200);
       expect(mockedCleanupZombieCallsJob).toHaveBeenCalled();
@@ -215,7 +344,10 @@ describe("internalJobsRoutes", () => {
     it("devuelve 500 si el job falla", async () => {
       mockedCleanupZombieCallsJob.mockRejectedValue(new Error("DB caída"));
 
-      const response = await fastify.inject({ method: "POST", url: "/jobs/cleanup-zombie-calls" });
+      const response = await fastify.inject({
+        method: "POST",
+        url: "/jobs/cleanup-zombie-calls",
+      });
 
       expect(response.statusCode).toBe(500);
     });
@@ -225,17 +357,26 @@ describe("internalJobsRoutes", () => {
     it("suspende los negocios cuyo plazo de impago venció", async () => {
       mockedSuspendOverdueCallsJob.mockResolvedValue(2);
 
-      const response = await fastify.inject({ method: "POST", url: "/jobs/suspend-overdue-calls" });
+      const response = await fastify.inject({
+        method: "POST",
+        url: "/jobs/suspend-overdue-calls",
+      });
 
       expect(response.statusCode).toBe(200);
-      expect(response.json()).toEqual({ received: true, suspendedBusinesses: 2 });
+      expect(response.json()).toEqual({
+        received: true,
+        suspendedBusinesses: 2,
+      });
       expect(mockedSuspendOverdueCallsJob).toHaveBeenCalled();
     });
 
     it("devuelve 500 para que Cloud Scheduler lo reintente", async () => {
       mockedSuspendOverdueCallsJob.mockRejectedValue(new Error("DB caída"));
 
-      const response = await fastify.inject({ method: "POST", url: "/jobs/suspend-overdue-calls" });
+      const response = await fastify.inject({
+        method: "POST",
+        url: "/jobs/suspend-overdue-calls",
+      });
 
       expect(response.statusCode).toBe(500);
     });
@@ -245,10 +386,16 @@ describe("internalJobsRoutes", () => {
     it("añade precios medidos a suscripciones existentes", async () => {
       mockedAttachUsagePricesJob.mockResolvedValue(3);
 
-      const response = await fastify.inject({ method: "POST", url: "/jobs/attach-usage-prices" });
+      const response = await fastify.inject({
+        method: "POST",
+        url: "/jobs/attach-usage-prices",
+      });
 
       expect(response.statusCode).toBe(200);
-      expect(response.json()).toEqual({ received: true, attachedSubscriptions: 3 });
+      expect(response.json()).toEqual({
+        received: true,
+        attachedSubscriptions: 3,
+      });
     });
   });
 
@@ -256,7 +403,10 @@ describe("internalJobsRoutes", () => {
     it("recupera informes de consumo pendientes", async () => {
       mockedRetryUsageReportsJob.mockResolvedValue(undefined);
 
-      const response = await fastify.inject({ method: "POST", url: "/jobs/retry-usage-reports" });
+      const response = await fastify.inject({
+        method: "POST",
+        url: "/jobs/retry-usage-reports",
+      });
 
       expect(response.statusCode).toBe(200);
       expect(mockedRetryUsageReportsJob).toHaveBeenCalled();
@@ -267,7 +417,10 @@ describe("internalJobsRoutes", () => {
     it("despacha el job sin necesitar body", async () => {
       mockedRetryStuckRecordingsJob.mockResolvedValue(undefined);
 
-      const response = await fastify.inject({ method: "POST", url: "/jobs/retry-stuck-recordings" });
+      const response = await fastify.inject({
+        method: "POST",
+        url: "/jobs/retry-stuck-recordings",
+      });
 
       expect(response.statusCode).toBe(200);
       expect(mockedRetryStuckRecordingsJob).toHaveBeenCalled();
@@ -276,7 +429,10 @@ describe("internalJobsRoutes", () => {
     it("devuelve 500 si el job falla", async () => {
       mockedRetryStuckRecordingsJob.mockRejectedValue(new Error("DB caída"));
 
-      const response = await fastify.inject({ method: "POST", url: "/jobs/retry-stuck-recordings" });
+      const response = await fastify.inject({
+        method: "POST",
+        url: "/jobs/retry-stuck-recordings",
+      });
 
       expect(response.statusCode).toBe(500);
     });
@@ -300,9 +456,20 @@ describe("internalJobsRoutes — fuera del rate limit global", () => {
     mockedCleanupZombieCallsJob.mockResolvedValue(undefined);
 
     const publicas = [];
-    for (let i = 0; i < 2; i += 1) publicas.push((await app.inject({ method: "GET", url: "/publica" })).statusCode);
+    for (let i = 0; i < 2; i += 1)
+      publicas.push(
+        (await app.inject({ method: "GET", url: "/publica" })).statusCode
+      );
     const internas = [];
-    for (let i = 0; i < 5; i += 1) internas.push((await app.inject({ method: "POST", url: "/jobs/cleanup-zombie-calls" })).statusCode);
+    for (let i = 0; i < 5; i += 1)
+      internas.push(
+        (
+          await app.inject({
+            method: "POST",
+            url: "/jobs/cleanup-zombie-calls",
+          })
+        ).statusCode
+      );
 
     expect(publicas).toEqual([200, 429]);
     expect(internas).toEqual([200, 200, 200, 200, 200]);

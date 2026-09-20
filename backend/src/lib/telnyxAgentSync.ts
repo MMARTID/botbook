@@ -15,6 +15,7 @@ import {
 import { resolveTelnyxEligibility } from "./telnyxEligibility.js";
 import { isBusinessType, type BusinessType } from "./businessType.js";
 import { buildRetellBeginMessage } from "./agentBootstrap.js";
+import { listaDeEsperaDisponible } from "../modules/whatsapp/service.js";
 import type { CreateTelnyxAssistantInput } from "../adapters/telnyx/TelnyxAiAdapter.js";
 
 /** Idéntico en forma al hash que usará `syncAgentToRetell` cuando el
@@ -58,6 +59,7 @@ async function loadManagedAssistantConfig(
     timezone: business.timezone,
     minAdvanceBookingMinutes: business.minAdvanceBookingMinutes,
     maxAppointmentDurationMinutes: business.maxAppointmentDurationMinutes,
+    listaDeEspera: await listaDeEsperaDisponible(),
   });
 
   return { business, agentSettings, systemPrompt };

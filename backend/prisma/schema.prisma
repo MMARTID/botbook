@@ -139,6 +139,14 @@ model Business {
   ownerAltaCode                 String?   @unique
   ownerAltaCodeExpiresAt        DateTime?
 
+  // Id de Google Places del local; alimenta el sufijo del botón URL «Cómo
+  // llegar» de confirmacion_cita_v2. Solo [A-Za-z0-9_-], lo valida
+  // PATCH /business/me (y otra vez placeIdValido al enviar).
+  placeId             String?
+  // Dirección formateada de Places; informativa, no va en ninguna plantilla
+  // en este PR.
+  address             String?
+
   createdAt           DateTime             @default(now())
   updatedAt           DateTime             @updatedAt
   users               User[]
@@ -532,6 +540,17 @@ model Booking {
   // `system`); las cancelaciones anteriores a estas columnas no lo tienen.
   cancelledAt              DateTime?
   cancelledBy              String?
+  // Botón «Confirmo» del recordatorio por WhatsApp; se escribe una sola vez
+  // (updateMany con confirmedByClientAt: null).
+  confirmedByClientAt      DateTime?
+  // "voice" | "whatsapp_lista_espera" | "owner_chat" (fase 2). Null en las
+  // reservas anteriores a esta columna = voz.
+  createdVia               String?
+  // Cuándo salió de verdad la confirmación al cliente: la pone el job
+  // send-whatsapp al enviar, o la respuesta de «Sí, resérvala» cuando sale.
+  // Se limpia si Meta devuelve failed en diferido. Null = no se le mandó
+  // nada (sin consentimiento, sin número, baja, fallo).
+  clientNotifiedAt         DateTime?
 
   @@index([professionalId])
   @@index([externalCalendarProvider, externalCalendarId])

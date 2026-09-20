@@ -530,6 +530,13 @@ export async function avisarCancelacion(input: {
     }),
     botones: [
       { id: idDeBoton("cancelacion", input.bookingId, "vale"), title: "Vale" },
+      {
+        id: idDeBoton("cancelacion", input.bookingId, "avisar_espera"),
+        // 19 caracteres (tope 20 del interactivo); la plantilla
+        // `cancelacion_negocio` lleva «Avisar a quien esperaba» y se
+        // resuelve por título.
+        title: "Avisar lista espera",
+      },
     ],
     plantilla: {
       key: "cancelacion_negocio",

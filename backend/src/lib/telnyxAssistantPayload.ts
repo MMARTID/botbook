@@ -220,6 +220,11 @@ export function buildTelnyxVoiceTools(baseUrl: string): TelnyxWebhookToolInput[]
           type: "string",
           description: "ID del profesional concreto que pidió, si lo mencionó (opcional).",
         },
+        clientName: {
+          type: "string",
+          description:
+            "Nombre del cliente si ya lo sabes, para reservar a su nombre si se libera la hora.",
+        },
       },
       required: ["startDateTime", "durationMinutes"],
       headers: [callControlHeader],

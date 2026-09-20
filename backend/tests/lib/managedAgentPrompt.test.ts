@@ -70,7 +70,9 @@ describe("buildManagedAgentPrompt", () => {
       settings: DEFAULT_AGENT_SETTINGS,
     });
 
-    expect(prompt).toContain("Eres la recepcionista virtual de {{nombre_negocio}}.");
+    expect(prompt).toContain(
+      "Eres la recepcionista virtual de {{nombre_negocio}}."
+    );
     expect(prompt).toContain("corte, barba o ambos");
   });
 
@@ -139,7 +141,10 @@ describe("parseAgentSettings — voiceGender", () => {
   });
 
   it("respeta voiceGender=masculina cuando ya está guardado", () => {
-    const parsed = parseAgentSettings({ ...DEFAULT_AGENT_SETTINGS, voiceGender: "masculina" });
+    const parsed = parseAgentSettings({
+      ...DEFAULT_AGENT_SETTINGS,
+      voiceGender: "masculina",
+    });
 
     expect(parsed.voiceGender).toBe("masculina");
   });
@@ -160,8 +165,15 @@ describe("parseAgentSettings — voiceGender", () => {
   });
 
   it("rechaza una selección sin español o con idiomas repetidos", () => {
-    expect(parseAgentSettings({ ...DEFAULT_AGENT_SETTINGS, languages: ["ca-ES"] })).toEqual(DEFAULT_AGENT_SETTINGS);
-    expect(parseAgentSettings({ ...DEFAULT_AGENT_SETTINGS, languages: ["es-ES", "ca-ES", "ca-ES"] })).toEqual(DEFAULT_AGENT_SETTINGS);
+    expect(
+      parseAgentSettings({ ...DEFAULT_AGENT_SETTINGS, languages: ["ca-ES"] })
+    ).toEqual(DEFAULT_AGENT_SETTINGS);
+    expect(
+      parseAgentSettings({
+        ...DEFAULT_AGENT_SETTINGS,
+        languages: ["es-ES", "ca-ES", "ca-ES"],
+      })
+    ).toEqual(DEFAULT_AGENT_SETTINGS);
   });
 });
 
@@ -230,7 +242,48 @@ describe("buildManagedAgentPrompt — WhatsApp, duración y confirmación única
       settings: DEFAULT_AGENT_SETTINGS,
     });
 
-    expect(prompt).toContain("No pidas confirmaciones sueltas de datos individuales");
+    expect(prompt).toContain(
+      "No pidas confirmaciones sueltas de datos individuales"
+    );
+  });
+});
+
+describe("buildManagedAgentPrompt — WhatsApp al cliente y lista de espera (PR 4)", () => {
+  const base = {
+    businessName: "Peluquería Ejemplo",
+    settings: DEFAULT_AGENT_SETTINGS,
+  };
+
+  it("anuncia el WhatsApp de Alhabla solo si el cliente aceptó y book_appointment devuelve mensajeCliente whatsapp", () => {
+    const prompt = buildManagedAgentPrompt(base);
+    expect(prompt).toContain("un WhatsApp de Alhabla");
+    expect(prompt).toContain("mensajeCliente");
+    expect(prompt).toContain("no menciones ningún mensaje");
+    expect(prompt).not.toContain("Alhabla Reservas");
+  });
+
+  it("mantiene la oferta de aviso por WhatsApp por defecto y con listaDeEspera: true", () => {
+    for (const prompt of [
+      buildManagedAgentPrompt(base),
+      buildManagedAgentPrompt({ ...base, listaDeEspera: true }),
+    ]) {
+      expect(prompt).toContain("te aviso por WhatsApp si se libera esa hora");
+      expect(prompt).toContain("notify_when_available con la hora original");
+      expect(prompt).not.toContain("no uses notify_when_available");
+    }
+    // Sin el flag, la salida es byte a byte la de siempre.
+    expect(buildManagedAgentPrompt(base)).toBe(
+      buildManagedAgentPrompt({ ...base, listaDeEspera: true })
+    );
+  });
+
+  it("con listaDeEspera: false no promete avisos e instruye a no usar notify_when_available", () => {
+    const prompt = buildManagedAgentPrompt({ ...base, listaDeEspera: false });
+    expect(prompt).not.toContain("te aviso por WhatsApp");
+    expect(prompt).toContain("no uses notify_when_available");
+    expect(prompt).toContain("invítale a volver a llamar más adelante");
+    // Sin huecos: la línea sustituye a la otra, no la borra.
+    expect(prompt).not.toContain("\n\n\n");
   });
 });
 
@@ -253,7 +306,9 @@ describe("buildManagedAgentPrompt — idiomas", () => {
       },
     });
 
-    expect(prompt).toContain("Empieza siempre con el saludo en español de España");
+    expect(prompt).toContain(
+      "Empieza siempre con el saludo en español de España"
+    );
     expect(prompt).toContain("inglés, francés, catalán");
     expect(prompt).toContain("acompaña el cambio sin pedirle que elija uno");
     expect(prompt).not.toContain("Habla siempre en español de España");
@@ -271,7 +326,9 @@ describe("buildManagedAgentPrompt — profesionales y especialidades", () => {
   it("no pregunta con quién quiere la cita: respeta el nombre si lo dice y deja la asignación al sistema", () => {
     expect(prompt).toContain("No preguntes con quién quiere la cita");
     expect(prompt).not.toContain("preferencia de profesional");
-    expect(prompt).toContain("solo si el cliente ha pedido a alguien por su nombre");
+    expect(prompt).toContain(
+      "solo si el cliente ha pedido a alguien por su nombre"
+    );
   });
 
   it("explica la recomendación única y cómo reservar si el cliente insiste", () => {
@@ -282,7 +339,9 @@ describe("buildManagedAgentPrompt — profesionales y especialidades", () => {
   });
 
   it("prohíbe decir que a alguien no se le da bien un servicio o mencionar niveles", () => {
-    expect(prompt).toContain("Nunca digas ni insinúes que un profesional no hace un servicio");
+    expect(prompt).toContain(
+      "Nunca digas ni insinúes que un profesional no hace un servicio"
+    );
     expect(prompt).toContain("Nunca menciones niveles");
   });
 

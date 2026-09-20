@@ -3,6 +3,8 @@ import { processSendWhatsappJob } from "../../src/jobs/sendWhatsapp.js";
 import { reclamarEnvio } from "../../src/lib/messageIdempotency.js";
 import { enviarPlantilla } from "../../src/modules/whatsapp/service.js";
 import { WhatsappOptOutError } from "../../src/modules/whatsapp/bajas.js";
+import { enviarMensajeAlCliente } from "../../src/modules/whatsapp/mensajesCliente.js";
+import { prisma } from "../../src/lib/prisma.js";
 
 vi.mock("../../src/lib/messageIdempotency.js", () => ({
   reclamarEnvio: vi.fn(),
@@ -10,9 +12,19 @@ vi.mock("../../src/lib/messageIdempotency.js", () => ({
 vi.mock("../../src/modules/whatsapp/service.js", () => ({
   enviarPlantilla: vi.fn(),
 }));
+vi.mock("../../src/modules/whatsapp/mensajesCliente.js", () => ({
+  enviarMensajeAlCliente: vi.fn(),
+}));
+vi.mock("../../src/lib/prisma.js", () => ({
+  prisma: {
+    sentMessage: { updateMany: vi.fn().mockResolvedValue({ count: 1 }) },
+  },
+}));
 
 const mockedReclamar = vi.mocked(reclamarEnvio);
 const mockedEnviar = vi.mocked(enviarPlantilla);
+const mockedEnviarAlCliente = vi.mocked(enviarMensajeAlCliente);
+const mockedUpdateMany = vi.mocked(prisma.sentMessage.updateMany);
 
 describe("processSendWhatsappJob", () => {
   beforeEach(() => {
@@ -38,7 +50,9 @@ describe("processSendWhatsappJob", () => {
 
     expect(mockedReclamar).toHaveBeenCalledWith(
       "whatsapp",
-      "confirm-sms-booking_1"
+      "confirm-sms-booking_1",
+      undefined,
+      { reintentarFallidos: true }
     );
     expect(mockedEnviar).toHaveBeenCalledWith({
       audience: "client",
@@ -110,5 +124,78 @@ describe("processSendWhatsappJob", () => {
         bodyParams: {},
       })
     ).rejects.toThrow("Telnyx 500");
+  });
+
+  it("la forma legada (templateName + languageCode + bodyParams) sigue enviando igual", async () => {
+    await processSendWhatsappJob({
+      toNumber: "+34600111222",
+      templateName: "hora_disponible",
+      languageCode: "es",
+      bodyParams: { negocio_nombre: "Peluquería Ana" },
+      idempotencyKey: "k-legado",
+      businessId: "biz_1",
+      audience: "client",
+    });
+
+    expect(mockedEnviarAlCliente).not.toHaveBeenCalled();
+    expect(mockedEnviar).toHaveBeenCalledWith(
+      expect.objectContaining({
+        template: { name: "hora_disponible", language: "es" },
+        idempotencyKey: "k-legado",
+      })
+    );
+  });
+
+  it("la forma por propósito delega en enviarMensajeAlCliente", async () => {
+    const data = {
+      proposito: "confirmacion" as const,
+      bookingId: "booking_1",
+      programedAtMs: 1_800_000_000_000,
+      toNumber: "+34600111222",
+      businessId: "biz_1",
+      audience: "client" as const,
+      idempotencyKey: "booking-booking_1-confirmacion-1800000000",
+    };
+
+    await processSendWhatsappJob(data);
+
+    expect(mockedEnviarAlCliente).toHaveBeenCalledWith(data);
+    expect(mockedReclamar).not.toHaveBeenCalled();
+    expect(mockedEnviar).not.toHaveBeenCalled();
+  });
+
+  it("un error de envío en la forma legada marca la fila failed antes de relanzar y reclama con reintentarFallidos", async () => {
+    mockedEnviar.mockRejectedValue(new Error("Telnyx 502"));
+
+    await expect(
+      processSendWhatsappJob({
+        toNumber: "+34600111222",
+        templateName: "x",
+        languageCode: "es",
+        bodyParams: {},
+        idempotencyKey: "k-fallo",
+      })
+    ).rejects.toThrow("Telnyx 502");
+
+    expect(mockedReclamar).toHaveBeenCalledWith(
+      "whatsapp",
+      "k-fallo",
+      undefined,
+      {
+        reintentarFallidos: true,
+      }
+    );
+    expect(mockedUpdateMany).toHaveBeenCalledWith({
+      where: {
+        channel: "whatsapp",
+        idempotencyKey: "k-fallo",
+        providerMessageId: null,
+      },
+      data: {
+        deliveryStatus: "failed",
+        errorCode: "SEND_ERROR",
+        errorDetail: "Telnyx 502",
+      },
+    });
   });
 });

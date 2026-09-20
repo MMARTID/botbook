@@ -206,6 +206,11 @@ export function buildManagedAgentPrompt(input: {
   timezone?: string | null;
   minAdvanceBookingMinutes?: number | null;
   maxAppointmentDurationMinutes?: number | null;
+  /** ¿Está aprobada la plantilla `hueco_libre` (lista de espera por
+   * WhatsApp)? `true` por defecto: el prompt de siempre. Con `false` la
+   * recepcionista no promete avisos ni usa notify_when_available. Lo
+   * calcula `listaDeEsperaDisponible()` (modules/whatsapp/service.ts). */
+  listaDeEspera?: boolean;
 }) {
   const settings = parseAgentSettings(input.settings);
   const responseInstruction = settings.responseStyle === "concise"
@@ -238,6 +243,11 @@ export function buildManagedAgentPrompt(input: {
     "No pidas confirmaciones sueltas de datos individuales (nombre, servicio, profesional, hora...) mientras completas la reserva, ni siquiera como pregunta breve ('¿te viene bien esa hora?', '¿confirmo con Marta?'). Sigue recogiendo datos hasta tenerlos todos. La única confirmación explícita es el resumen final de abajo, junto con la pregunta de WhatsApp — no la repitas ni la reformules una segunda vez si el cliente ya respondió con claridad.",
     buildRestrictionsFragment(input),
     "Paso obligatorio en toda reserva, antes del resumen final: pregunta explícitamente '¿puedo enviarte la confirmación y un recordatorio por WhatsApp a este número?'. No lo omitas aunque el cliente no lo mencione. Usa la respuesta para smsConsent en book_appointment: true solo si acepta con claridad, false en cualquier otro caso (dice que no, duda, o no contesta a esto). Si dice que no, no insistas y sigue con la reserva.",
+    // Se dice «de Alhabla», no «de un contacto llamado Alhabla Reservas»: el
+    // nombre visible sigue en revisión en Meta y el cliente puede ver solo
+    // el número. `mensajeCliente` lo devuelve book_appointment solo cuando
+    // la confirmación quedó programada de verdad (programarMensajesAlCliente).
+    'Si aceptó el WhatsApp y book_appointment devuelve mensajeCliente = "whatsapp", dile en la misma frase de cierre que le llegará un WhatsApp de Alhabla con la confirmación de la cita, así no le extraña un número que no conoce. Si dijo que no, o mensajeCliente es "ninguno", no menciones ningún mensaje.',
     "Antes de reservar, resume servicio, día, hora y nombre y pide confirmación explícita.",
     "## Profesionales",
     "Envía professionalId a check_availability solo si el cliente ha pedido a alguien por su nombre. Si no lo ha nombrado, no elijas tú: la herramienta devuelve en assignedProfessional con quién queda la cita, y si isSpecialist es true puedes decirlo en positivo al confirmar ('te dejo con Laura, que es nuestra especialista en color').",
@@ -254,7 +264,13 @@ export function buildManagedAgentPrompt(input: {
     "Si available es true, guarda su availabilityToken. No repitas check_availability mientras no cambien servicio, fecha, hora o profesional (o el cliente insista en la persona que pidió tras una recomendación): completa los datos y confirma.",
     "Si available es false pero suggestedNextSlot incluye availabilityToken, esa alternativa ya está comprobada: ofrécela. Si la aceptan sin cambios, confirma. Sin alternativa, pide otro día o franja.",
     "Usa book_appointment solo tras la confirmación y con el availabilityToken de la opción aceptada. Anuncia la reserva únicamente si devuelve éxito; si falla, explica brevemente y escala.",
-    "Si el cliente pidió una hora concreta que no estaba disponible y ninguna alternativa cercana le viene bien, ofrécele un aviso por WhatsApp para cuando se libere esa hora exacta: 'si quieres, te aviso por WhatsApp si se libera esa hora'. Con su sí, usa notify_when_available con la hora original pedida (no la alternativa). Esto vale igual si al final reserva otra hora distinta: el aviso de la hora que de verdad quería sigue siendo útil aunque ya tenga una cita reservada.",
+    // La oferta de aviso solo entra cuando la plantilla `hueco_libre` está
+    // aprobada en Meta (gate `listaDeEspera`); si no, la recepcionista no
+    // promete nada y no usa la tool (que sigue registrada por si el LLM la
+    // llamara: `hora_disponible` está aprobada y el flujo es correcto).
+    input.listaDeEspera !== false
+      ? "Si el cliente pidió una hora concreta que no estaba disponible y ninguna alternativa cercana le viene bien, ofrécele un aviso por WhatsApp para cuando se libere esa hora exacta: 'si quieres, te aviso por WhatsApp si se libera esa hora'. Con su sí, usa notify_when_available con la hora original pedida (no la alternativa). Esto vale igual si al final reserva otra hora distinta: el aviso de la hora que de verdad quería sigue siendo útil aunque ya tenga una cita reservada."
+      : "Si el cliente pidió una hora concreta que no estaba disponible y ninguna alternativa cercana le viene bien, invítale a volver a llamar más adelante. No prometas avisos por WhatsApp para cuando se libere una hora y no uses notify_when_available.",
     "## Cierre",
     // El guardarraíl de la confirmación viene de una llamada real (19-09-2026):
     // el cliente dijo una frase sin sentido en el primer turno ("quiero que me

@@ -2,12 +2,21 @@ import type { Business, InboundMessage } from "@prisma/client";
 import type { WhatsappAudience } from "../../adapters/whatsapp/WhatsAppAdapter.js";
 import { prisma } from "../../lib/prisma.js";
 import { errorMessage } from "../../lib/logUtils.js";
-import { reclamarEnvio } from "../../lib/messageIdempotency.js";
 import { enqueueRetryBookingJob } from "../../lib/cloudTasks.js";
 import { interpretarComando, type PalabraClave } from "./webhooks.js";
 import { textoAgendaDelDia, type TipoAviso } from "./avisosNegocio.js";
-import { enviarTexto, resolverRemitente } from "./service.js";
+import { resolverRemitente } from "./service.js";
 import { registrarBaja, revocarBaja } from "./bajas.js";
+import {
+  HORA_MS,
+  DIA_MS,
+  normalizarTitulo,
+  responder,
+  resultado,
+  type Respuesta,
+} from "./respuestas.js";
+export type { ResultadoEnrutado } from "./respuestas.js";
+import type { ResultadoEnrutado } from "./respuestas.js";
 import {
   activarAvisosDelDueno,
   activo,
@@ -17,6 +26,9 @@ import {
   nombreParaWhatsapp,
   reactivarDueno,
 } from "./altaDueno.js";
+import { botonEnClientes } from "./botonesCliente.js";
+import { avisarAQuienEsperaba } from "./listaDeEspera.js";
+import { nombreParaCliente, telefonoDeContacto } from "./mensajesCliente.js";
 import * as mensajes from "./mensajes.js";
 
 /**
@@ -24,8 +36,9 @@ import * as mensajes from "./mensajes.js";
  * alta del dueño (`ALTA <código>`, botón «Activar avisos»), STOP/BAJA en
  * los dos números, `ALTA` a secas (reactivación), AYUDA, los botones de los
  * avisos al negocio (PR 3: `aviso:<tipo>:<recurso>:<accion>`), la agenda
- * del día (AGENDA/HOY/MAÑANA) y respuestas fijas a todo lo demás. El chat
- * (fase 2) y los botones del lado cliente (PR 4) siguen en `pendiente:*`.
+ * del día (AGENDA/HOY/MAÑANA), los botones del cliente (PR 4, en
+ * `botonesCliente.ts`) y respuestas fijas a todo lo demás. El chat (fase 2)
+ * sigue en `pendiente:*`.
  *
  * Reglas:
  * - Primero la base de datos, después la respuesta. Nunca lanza por un
@@ -41,17 +54,7 @@ import * as mensajes from "./mensajes.js";
  * - Toda escritura de estado lleva el número del remitente en el `where`.
  */
 
-export interface ResultadoEnrutado {
-  /** Nombre del handler que atendió el mensaje (con sufijo `:silenciado` o `:baja`). */
-  handler: string;
-  /** Motivo si la respuesta no pudo salir; el estado ya está guardado. */
-  error?: string;
-}
-
-const HORA_MS = 60 * 60 * 1000;
-const DIA_MS = 24 * HORA_MS;
 const RESPALDO_BOTON_MS = 72 * HORA_MS;
-const TECHO_RESPUESTAS_POR_HORA = 20;
 const MAX_FALLOS_CODIGO_POR_HORA = 5;
 
 type SubtipoIgnorado = "reaction" | "system" | "unsupported";
@@ -60,166 +63,6 @@ const SUBTIPOS_IGNORADOS: readonly string[] = [
   "system",
   "unsupported",
 ];
-
-interface OpcionesRespuesta {
-  /** Solo la confirmación del propio STOP: salta la guardia de baja. */
-  permitirBaja?: boolean;
-  /** Solo la confirmación del STOP: ignora el techo por hora una vez al día. */
-  saltarTecho?: boolean;
-  /** Ramas informativas: una respuesta de este tipo por número y día. */
-  unaVezAlDia?: boolean;
-  /** Negocio al que atribuir la respuesta (si no, el del entrante). */
-  businessId?: string | null;
-}
-
-interface Respuesta {
-  /** "" | ":silenciado" | ":baja" */
-  sufijo: string;
-  error?: string;
-}
-
-function esErrorDeBaja(error: unknown): boolean {
-  return (
-    typeof error === "object" &&
-    error !== null &&
-    (error as { code?: unknown }).code === "WHATSAPP_OPT_OUT"
-  );
-}
-
-/**
- * ¿Ya se envió una respuesta de este tipo a este número en 24 h? Una fila
- * reclamada cuyo envío falló (`failed`) no cuenta: si Telnyx cae en la
- * primera respuesta del día, la siguiente lo vuelve a intentar. Una fila
- * `suppressed` (el número pidió STOP) sí cuenta.
- */
-async function yaAvisadoHoy(
-  inbound: InboundMessage,
-  tipo: string
-): Promise<boolean> {
-  const count = await prisma.sentMessage.count({
-    where: {
-      toNumber: inbound.fromNumber,
-      audience: inbound.audience ?? undefined,
-      callbackData: `aviso:${tipo}`,
-      sentAt: { gt: new Date(Date.now() - DIA_MS) },
-      NOT: { deliveryStatus: "failed" },
-    },
-  });
-  return count > 0;
-}
-
-/**
- * Responde al entrante con un texto desde el número al que escribió.
- * Devuelve el sufijo del handler y, si el envío falló, el motivo.
- */
-async function responder(
-  inbound: InboundMessage,
-  tipo: string,
-  body: string,
-  opciones: OpcionesRespuesta = {}
-): Promise<Respuesta> {
-  const audience = inbound.audience as WhatsappAudience;
-  const from = inbound.fromNumber;
-  const businessId = opciones.businessId ?? inbound.businessId ?? undefined;
-  const callbackData = `aviso:${tipo}`;
-
-  try {
-    if (opciones.unaVezAlDia && (await yaAvisadoHoy(inbound, tipo))) {
-      return { sufijo: ":silenciado" };
-    }
-    const enUltimaHora = await prisma.sentMessage.count({
-      where: {
-        toNumber: from,
-        audience,
-        sentAt: { gt: new Date(Date.now() - HORA_MS) },
-      },
-    });
-    if (enUltimaHora >= TECHO_RESPUESTAS_POR_HORA) {
-      const excepcion =
-        opciones.saltarTecho === true && !(await yaAvisadoHoy(inbound, tipo));
-      if (!excepcion) {
-        console.warn(
-          `[WhatsApp] Respuesta ${tipo} a ${from} silenciada: ${enUltimaHora} respuestas en la última hora desde el número de ${audience}`
-        );
-        return { sufijo: ":silenciado" };
-      }
-    }
-  } catch (error) {
-    // Sin contadores se responde igual: la idempotencia por entrante sigue.
-    console.error(
-      `[WhatsApp] No se pudieron leer los contadores de respuestas de ${from} (${tipo}); se responde: ${errorMessage(error)}`
-    );
-  }
-
-  const idempotencyKey = `entrante:${inbound.id}:${tipo}`;
-  const reclamado = await reclamarEnvio("whatsapp", idempotencyKey, {
-    businessId: businessId ?? null,
-    audience,
-    toNumber: from,
-    callbackData,
-    kind: "text",
-  });
-  if (!reclamado) {
-    return { sufijo: "" };
-  }
-
-  try {
-    const result = await enviarTexto({
-      audience,
-      to: from,
-      businessId,
-      body,
-      idempotencyKey,
-      callbackData,
-      permitirBaja: opciones.permitirBaja,
-    });
-    console.log(
-      `[WhatsApp] Respuesta ${tipo} a ${from} (negocio ${businessId ?? "—"}): ${result.messageId}`
-    );
-    return { sufijo: "" };
-  } catch (error) {
-    if (esErrorDeBaja(error)) {
-      // Caso correcto, no un fallo: el número pidió STOP.
-      console.log(
-        `[WhatsApp] Respuesta ${tipo} a ${from} omitida: el número pidió STOP`
-      );
-      await prisma.sentMessage
-        .updateMany({
-          where: { channel: "whatsapp", idempotencyKey },
-          data: { deliveryStatus: "suppressed", errorCode: "OPT_OUT" },
-        })
-        .catch(() => undefined);
-      return { sufijo: ":baja" };
-    }
-    const motivo = errorMessage(error);
-    console.error(
-      `[WhatsApp] No se pudo responder (${tipo}) a ${from} desde el número de ${audience} (negocio ${businessId ?? "—"}): ${motivo}`
-    );
-    // Que la fila reclamada no cuente como respuesta enviada (una vez al
-    // día): el siguiente entrante lo vuelve a intentar.
-    await prisma.sentMessage
-      .updateMany({
-        where: { channel: "whatsapp", idempotencyKey },
-        data: {
-          deliveryStatus: "failed",
-          errorCode: "SEND_ERROR",
-          errorDetail: motivo,
-        },
-      })
-      .catch((marcaError: unknown) => {
-        console.error(
-          `[WhatsApp] No se pudo marcar como fallida la respuesta ${idempotencyKey} a ${from}; contará como enviada hoy: ${errorMessage(marcaError)}`
-        );
-      });
-    return { sufijo: "", error: motivo };
-  }
-}
-
-function resultado(base: string, respuesta: Respuesta): ResultadoEnrutado {
-  return respuesta.error
-    ? { handler: `${base}${respuesta.sufijo}`, error: respuesta.error }
-    : { handler: `${base}${respuesta.sufijo}` };
-}
 
 function nombres(negocios: Array<{ name: string }>): string[] {
   return negocios.map((b) => nombreParaWhatsapp(b));
@@ -699,15 +542,6 @@ async function ayudaEnNegocios(
   );
 }
 
-function normalizarTitulo(value: string | null): string {
-  return (value ?? "")
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
-    .toUpperCase()
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
 function esEnvioDeActivacion(enviado: {
   callbackData: string | null;
   templateName: string | null;
@@ -862,6 +696,7 @@ function accionPorTitulo(titulo: string): string | null {
     case "RECONECTAR":
       return "reconectar";
     case "AVISAR A QUIEN ESPERABA":
+    case "AVISAR LISTA ESPERA":
       return "avisar_espera";
     default:
       return null;
@@ -989,19 +824,129 @@ async function botonDeAviso(
     case "reconectar":
       return botonDeCitaPendiente(message, aviso, business, base);
     case "avisar_espera":
+      return botonDeListaDeEspera(message, aviso, business, base);
+    default:
+      return { handler: `pendiente:boton:aviso:${aviso.accion}` };
+  }
+}
+
+/**
+ * «Avisar a quien esperaba» del aviso #4 (PR 4): ofrece el hueco de la cita
+ * cancelada al primero de la lista de espera de ESE negocio. Ninguna
+ * respuesta nombra el teléfono del que esperaba. Doble toque ⇒ `en_oferta`
+ * (la plaza está retenida) o `nadie`.
+ */
+async function botonDeListaDeEspera(
+  message: InboundMessage,
+  aviso: BotonDeAviso,
+  business: Business,
+  base: string
+): Promise<ResultadoEnrutado> {
+  const negocio = nombreParaWhatsapp(business);
+  const opciones = { businessId: business.id };
+  const booking = await prisma.booking.findFirst({
+    where: { id: aviso.recursoId, call: { businessId: business.id } },
+    select: {
+      id: true,
+      isCancelled: true,
+      programedAt: true,
+      durationMinutes: true,
+    },
+  });
+  if (!booking) {
+    console.warn(
+      `[WhatsApp] Botón avisar_espera de ${message.fromNumber} para la reserva ${aviso.recursoId}, que no es del negocio ${business.id}; se ignora`
+    );
+    return { handler: `${base}:reserva-ajena` };
+  }
+  if (!booking.isCancelled) {
+    return resultado(
+      `${base}:no-cancelada`,
+      await responder(
+        message,
+        "lista-espera-sin-hueco",
+        mensajes.listaDeEsperaSinHueco({ negocio }),
+        opciones
+      )
+    );
+  }
+  if (booking.programedAt.getTime() < Date.now()) {
+    return resultado(
+      `${base}:pasada`,
+      await responder(
+        message,
+        "lista-espera-pasada",
+        mensajes.listaDeEsperaPasada({ negocio }),
+        opciones
+      )
+    );
+  }
+  const r = await avisarAQuienEsperaba({
+    businessId: business.id,
+    hueco: {
+      inicioMs: booking.programedAt.getTime(),
+      finMs:
+        booking.programedAt.getTime() +
+        (booking.durationMinutes || 30) * 60_000,
+    },
+    origen: "boton_dueno",
+    etiqueta: `boton dueño ${message.id}`,
+  });
+  switch (r.resultado) {
+    case "avisado":
       return resultado(
-        `${base}:pendiente`,
+        base,
         await responder(
           message,
-          "lista-espera",
-          mensajes.listaDeEsperaTodaviaNo(),
-          {
-            businessId: business.id,
-          }
+          "lista-espera-avisada",
+          mensajes.listaDeEsperaAvisada({ negocio, cliente: r.cliente }),
+          opciones
+        )
+      );
+    case "en_oferta":
+      return resultado(
+        `${base}:en-oferta`,
+        await responder(
+          message,
+          "lista-espera-en-oferta",
+          mensajes.listaDeEsperaEnOferta({
+            negocio,
+            cliente: r.cliente,
+            minutos: r.minutos,
+          }),
+          opciones
+        )
+      );
+    case "nadie":
+      return resultado(
+        `${base}:nadie`,
+        await responder(
+          message,
+          "lista-espera-nadie",
+          mensajes.listaDeEsperaNadie({ negocio }),
+          opciones
+        )
+      );
+    case "sin_plantilla":
+      return resultado(
+        `${base}:sin-plantilla`,
+        await responder(
+          message,
+          "lista-espera-sin-plantilla",
+          mensajes.listaDeEsperaSinPlantilla({ negocio }),
+          opciones
         )
       );
     default:
-      return { handler: `pendiente:boton:aviso:${aviso.accion}` };
+      return resultado(
+        `${base}:error`,
+        await responder(
+          message,
+          "lista-espera-error",
+          mensajes.listaDeEsperaError({ negocio }),
+          opciones
+        )
+      );
   }
 }
 
@@ -1229,8 +1174,7 @@ async function enrutarEnClientes(
   }
 
   if (message.kind === "button") {
-    const prefix = message.buttonId?.split(":")[0] ?? "?";
-    return { handler: `pendiente:boton:${prefix}` };
+    return botonEnClientes(message);
   }
 
   if (message.kind === "text" || message.kind === "keyword") {
@@ -1273,7 +1217,7 @@ async function textoEnClientes(
     const business = message.businessId
       ? await prisma.business.findUnique({
           where: { id: message.businessId },
-          select: { name: true, phone: true },
+          select: { name: true, phone: true, telnyxPhoneNumber: true },
         })
       : null;
     return resultado(
@@ -1282,11 +1226,8 @@ async function textoEnClientes(
         message,
         "cliente-conocido",
         mensajes.clienteConocido({
-          negocio: business ? nombreParaWhatsapp(business) : "tu negocio",
-          telefono:
-            business && !business.phone.startsWith("TEMP-")
-              ? business.phone
-              : null,
+          negocio: business ? nombreParaCliente(business) : "el negocio",
+          telefono: business ? telefonoDeContacto(business) : null,
         }),
         { unaVezAlDia: true }
       )

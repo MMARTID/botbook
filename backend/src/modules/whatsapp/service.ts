@@ -117,6 +117,9 @@ export interface PlantillaResuelta {
   telnyxTemplateId: string;
   name: string;
   language: string;
+  /** `components` de Meta tal como los guardó la sincronización (para
+   * derivar, p. ej., el índice del botón URL). */
+  components: unknown;
 }
 
 /**
@@ -143,6 +146,7 @@ export async function resolverPlantilla(
       telnyxTemplateId: row.telnyxTemplateId,
       name: row.name,
       language: row.language,
+      components: row.components ?? null,
     };
   } catch (error) {
     console.error(
@@ -225,12 +229,109 @@ export async function refrescarPlantilla(key: string): Promise<void> {
       console.log(
         `[WhatsApp] Plantilla ${key} refrescada desde el WABA: ${row.status} → ${remota.status}`
       );
+      avisarCambioDeListaDeEspera(key, row.status, remota.status);
     }
   } catch (error) {
     ultimoRefrescoFallido.set(key, Date.now());
     console.error(
       `[WhatsApp] No se pudo refrescar el estado de ${key}; no se reintenta hasta dentro de ${ENFRIAMIENTO_REFRESCO_FALLIDO_MS / 60000} min: ${errorMessage(error)}`
     );
+  }
+}
+
+/**
+ * Barrido diario (telnyxReconciler): refresca en serie todas las filas con
+ * `key`. Cada una respeta su propio enfriamiento (24 h / 15 min), así que
+ * cuesta como mucho un puñado de llamadas al WABA al día. Nunca lanza.
+ */
+export async function refrescarPlantillasConClave(): Promise<void> {
+  let filas: Array<{ key: string | null }>;
+  try {
+    filas = await prisma.whatsappTemplate.findMany({
+      where: { key: { not: null } },
+      select: { key: true },
+    });
+  } catch (error) {
+    console.error(
+      `[WhatsApp] No se pudieron listar las plantillas con clave para refrescarlas: ${errorMessage(error)}`
+    );
+    return;
+  }
+  for (const fila of filas) {
+    if (fila.key) {
+      await refrescarPlantilla(fila.key);
+    }
+  }
+}
+
+/** Clave de la plantilla cuya aprobación activa la lista de espera. */
+export const CLAVE_LISTA_DE_ESPERA = "hueco_libre";
+const LISTA_DE_ESPERA_CACHE_TTL_MS = 60_000;
+
+let listaDeEsperaCache: { at: number; value: boolean } | null = null;
+let ultimoValorConocidoListaDeEspera: boolean | null = null;
+
+/** Borra la caché del gate (no el último valor conocido). */
+export function invalidarCacheListaDeEspera(): void {
+  listaDeEsperaCache = null;
+}
+
+/**
+ * Si la fila con `key === "hueco_libre"` cruza el estado APPROVED (hacia o
+ * desde), el prompt de los assistants tiene que cambiar; aquí solo se
+ * invalida la caché del gate y se deja en el log: la resincronización la
+ * hace el reconciliador diario (o el script manual en dev).
+ */
+export function avisarCambioDeListaDeEspera(
+  key: string | null,
+  estadoAnterior: string | null | undefined,
+  estadoNuevo: string
+): void {
+  if (key !== CLAVE_LISTA_DE_ESPERA) {
+    return;
+  }
+  const antes = estadoAnterior === "APPROVED";
+  const despues = estadoNuevo === "APPROVED";
+  if (antes === despues) {
+    return;
+  }
+  invalidarCacheListaDeEspera();
+  console.log(
+    `[WhatsApp] ${CLAVE_LISTA_DE_ESPERA} ${estadoNuevo}: la frase de la lista de espera cambia en los assistants en la próxima reconciliación diaria (o resincroniza a mano con scripts/manual/resyncToolsDev.mts en dev)`
+  );
+}
+
+/**
+ * Gate del prompt (managedAgentPrompt › listaDeEspera): true solo si
+ * `hueco_libre` está APPROVED (`hora_disponible`, MARKETING y sin botones, no
+ * cuenta). Se cachea 60 s. Ante un fallo de la base de datos devuelve el
+ * último valor conocido SIN renovar la caché: un fallo transitorio durante
+ * el reconciliador no puede reescribir todos los assistants sin la frase.
+ */
+export async function listaDeEsperaDisponible(): Promise<boolean> {
+  const now = Date.now();
+  if (
+    listaDeEsperaCache &&
+    now - listaDeEsperaCache.at < LISTA_DE_ESPERA_CACHE_TTL_MS
+  ) {
+    return listaDeEsperaCache.value;
+  }
+  await refrescarPlantilla(CLAVE_LISTA_DE_ESPERA);
+  try {
+    const row = await prisma.whatsappTemplate.findUnique({
+      where: { key: CLAVE_LISTA_DE_ESPERA },
+      select: { status: true },
+    });
+    const value = row?.status === "APPROVED";
+    listaDeEsperaCache = { at: now, value };
+    ultimoValorConocidoListaDeEspera = value;
+    return value;
+  } catch (error) {
+    const valor = ultimoValorConocidoListaDeEspera ?? false;
+    console.error(
+      `[WhatsApp] No se pudo leer ${CLAVE_LISTA_DE_ESPERA} para el gate de la lista de espera; se mantiene ${valor}: ${errorMessage(error)}`
+    );
+    return valor;
   }
 }
 
@@ -306,6 +407,10 @@ export type EnvioPlantilla = EnvioComun & {
     { key: string } | { name: string; language: string } | { id: string };
   bodyParams: Record<string, string>;
   buttonUrlParams?: Array<{ index: number; text: string }>;
+  /** Solo con `template: { id }`: nombre e idioma de la fila para que
+   * `SentMessage.templateName/templateLanguage` queden escritos. */
+  templateName?: string;
+  templateLanguage?: string;
 };
 
 export interface EnvioRegistrado extends WhatsAppSendResult {
@@ -435,6 +540,8 @@ export async function enviarPlantilla(
   let language: string | undefined;
   if ("id" in input.template) {
     templateId = input.template.id;
+    templateName = input.templateName;
+    language = input.templateLanguage;
   } else {
     const resolved = await resolverPlantilla(input.template);
     if (resolved) {
@@ -610,22 +717,26 @@ export async function actualizarEstadoEnvio(input: {
   };
   let existing: {
     id: string;
+    idempotencyKey: string;
     deliveryStatus: string | null;
     audience: string | null;
     businessId: string | null;
     toNumber: string | null;
     callbackData: string | null;
+    templateName: string | null;
   } | null = null;
   try {
     existing = await prisma.sentMessage.findUnique({
       where: { providerMessageId: input.providerMessageId },
       select: {
         id: true,
+        idempotencyKey: true,
         deliveryStatus: true,
         audience: true,
         businessId: true,
         toNumber: true,
         callbackData: true,
+        templateName: true,
       },
     });
     const current = existing?.deliveryStatus as
@@ -711,6 +822,8 @@ export async function actualizarEstadoEnvio(input: {
       toNumber: input.to ?? existing?.toNumber ?? null,
       audience: existing?.audience ?? null,
       businessId: existing?.businessId ?? null,
+      idempotencyKey: existing?.idempotencyKey ?? null,
+      templateName: existing?.templateName ?? null,
     });
   } catch (error) {
     console.error(
@@ -726,6 +839,15 @@ function negocioDelCallback(callbackData: string | null): string | null {
   return callbackData?.startsWith("alta:") ? callbackData.slice(5) : null;
 }
 
+/** Códigos de Meta por plantilla o parámetros mal formados (diferidos). */
+const CODIGOS_DE_PLANTILLA: readonly string[] = [
+  "132000",
+  "132001",
+  "132012",
+  "132015",
+  "132016",
+];
+
 async function aplicarEfectosDeEntrega(input: {
   status: EstadoEntrega;
   at: Date;
@@ -735,6 +857,8 @@ async function aplicarEfectosDeEntrega(input: {
   toNumber: string | null;
   audience: string | null;
   businessId: string | null;
+  idempotencyKey?: string | null;
+  templateName?: string | null;
 }): Promise<void> {
   const esActivacion = input.callbackData?.startsWith("alta:") ?? false;
   const businessId = input.businessId ?? negocioDelCallback(input.callbackData);
@@ -744,6 +868,10 @@ async function aplicarEfectosDeEntrega(input: {
     const sinWhatsapp =
       input.errorCode === CODIGO_SIN_WHATSAPP ||
       /\b131026\b/.test(input.errorDetail ?? "");
+    if (input.callbackData?.startsWith("cliente:")) {
+      await efectosDeFalloAlCliente({ ...input, businessId, sinWhatsapp });
+      return;
+    }
     if (!sinWhatsapp) {
       return;
     }
@@ -767,4 +895,124 @@ async function aplicarEfectosDeEntrega(input: {
   ) {
     await limpiarDuenoSinWhatsapp(businessId, input.toNumber);
   }
+}
+
+/**
+ * Un `statuses[].failed` sobre un envío al cliente (PR 4). Meta rechaza en
+ * diferido los parámetros y plantillas mal formados (132xxx), el marketing
+ * (131049) y el tier (130429/131048): el envío había afirmado un estado
+ * (`clientNotifiedAt`, oferta del lead) que aquí se revierte. Best-effort:
+ * el `catch` de `actualizarEstadoEnvio` envuelve cualquier fallo.
+ */
+async function efectosDeFalloAlCliente(input: {
+  callbackData: string | null;
+  toNumber: string | null;
+  businessId: string | null;
+  errorCode: string | null;
+  errorDetail: string | null;
+  idempotencyKey?: string | null;
+  templateName?: string | null;
+  at: Date;
+  sinWhatsapp: boolean;
+}): Promise<void> {
+  const callback = input.callbackData ?? "";
+  console.error(
+    `[WhatsApp] Meta rechazó ${callback} (plantilla ${input.templateName ?? "?"}, negocio ${input.businessId ?? "—"}, destino ${input.toNumber ?? "?"}): ${input.errorCode ?? "sin código"} ${input.errorDetail ?? ""}`.trimEnd()
+  );
+  const partes = callback.split(":");
+  const tipo = partes[1];
+  const recursoId = partes.slice(2).join(":");
+  if (!recursoId || !input.businessId) {
+    return;
+  }
+
+  if (tipo === "confirmacion") {
+    const reserva = await prisma.booking.findFirst({
+      where: { id: recursoId, call: { businessId: input.businessId } },
+      select: { id: true, programedAt: true },
+    });
+    if (!reserva) {
+      return;
+    }
+    await prisma.booking.updateMany({
+      where: { id: reserva.id },
+      data: { clientNotifiedAt: null },
+    });
+    const esRespaldo = input.idempotencyKey?.endsWith("-respaldo") ?? false;
+    if (
+      input.errorCode &&
+      CODIGOS_DE_PLANTILLA.includes(input.errorCode) &&
+      !esRespaldo &&
+      input.templateName === "confirmacion_cita_v2" &&
+      input.idempotencyKey &&
+      input.toNumber
+    ) {
+      // Import diferido: lib/cloudTasks importa los jobs, que importan este
+      // servicio; el uso solo en tiempo de llamada evita el ciclo estático.
+      const { enqueueWhatsappJob } = await import("../../lib/cloudTasks.js");
+      await enqueueWhatsappJob(
+        {
+          proposito: "confirmacion",
+          bookingId: reserva.id,
+          programedAtMs: reserva.programedAt.getTime(),
+          toNumber: input.toNumber,
+          businessId: input.businessId,
+          audience: "client",
+          sinV2: true,
+        },
+        // El nombre de la tarea sale de la RESERVA, no de la clave de la
+        // fila: si el `statuses[]` se adelantó al registro, la fila es
+        // `adhoc:<wamid>` y Cloud Tasks rechaza los `:` del nombre
+        // (solo admite [A-Za-z0-9_-]); el cliente se quedaría sin respaldo.
+        {
+          taskId: `booking-${reserva.id}-confirmacion-${Math.floor(reserva.programedAt.getTime() / 1000)}-respaldo`,
+        }
+      );
+      console.log(
+        `[WhatsApp] Confirmación de la reserva ${reserva.id} (negocio ${input.businessId}): la v2 fue rechazada por Meta; se encola el respaldo con confirmacion_cita`
+      );
+    }
+    return;
+  }
+
+  if (tipo === "hueco") {
+    const lead = await prisma.lead.findFirst({
+      where: {
+        id: recursoId,
+        type: "availability_watch",
+        call: { businessId: input.businessId },
+      },
+      select: { id: true, data: true },
+    });
+    if (!lead) {
+      return;
+    }
+    const data = (lead.data as Record<string, unknown> | null) ?? {};
+    if (typeof data.resolvedBy === "string") {
+      // Ya respondió (reservado / ya_no / …): el rechazo llegó tarde.
+      return;
+    }
+    if (input.sinWhatsapp) {
+      await prisma.lead.update({
+        where: { id: lead.id },
+        data: {
+          resolvedAt: input.at,
+          data: { ...data, resolvedBy: "sin_whatsapp" },
+        },
+      });
+      return;
+    }
+    // Se reabre (también el cerrado por hora_disponible): el siguiente
+    // disparo lo vuelve a ofrecer con clave nueva.
+    await prisma.lead.update({
+      where: { id: lead.id },
+      data: {
+        resolvedAt: null,
+        notifiedAt: null,
+        notifiedVia: `ninguna:meta:${input.errorCode ?? "desconocido"}`,
+      },
+    });
+    return;
+  }
+  // recordatorio / contacto / cambio / cancelacion: solo el log.
 }

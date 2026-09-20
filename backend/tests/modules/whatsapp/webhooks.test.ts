@@ -13,6 +13,7 @@ import {
 import {
   actualizarEstadoEnvio,
   audienciaDelNumero,
+  avisarCambioDeListaDeEspera,
 } from "../../../src/modules/whatsapp/service.js";
 import { enrutarEntrante } from "../../../src/modules/whatsapp/router.js";
 
@@ -26,13 +27,14 @@ vi.mock("../../../src/lib/prisma.js", () => ({
       findMany: vi.fn(),
       updateMany: vi.fn(),
     },
-    whatsappTemplate: { updateMany: vi.fn() },
+    whatsappTemplate: { updateMany: vi.fn(), findFirst: vi.fn() },
   },
 }));
 
 vi.mock("../../../src/modules/whatsapp/service.js", () => ({
   actualizarEstadoEnvio: vi.fn(),
   audienciaDelNumero: vi.fn(),
+  avisarCambioDeListaDeEspera: vi.fn(),
 }));
 
 vi.mock("../../../src/modules/whatsapp/router.js", () => ({
@@ -46,6 +48,7 @@ const mockedInboundUpdate = vi.mocked(prisma.inboundMessage.update);
 const mockedInboundFindMany = vi.mocked(prisma.inboundMessage.findMany);
 const mockedInboundUpdateMany = vi.mocked(prisma.inboundMessage.updateMany);
 const mockedTemplateUpdateMany = vi.mocked(prisma.whatsappTemplate.updateMany);
+const mockedTemplateFindFirst = vi.mocked(prisma.whatsappTemplate.findFirst);
 const mockedActualizarEstado = vi.mocked(actualizarEstadoEnvio);
 const mockedAudiencia = vi.mocked(audienciaDelNumero);
 const mockedEnrutar = vi.mocked(enrutarEntrante);
@@ -667,6 +670,58 @@ describe("handleTemplateStatusEvent", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockedTemplateUpdateMany.mockResolvedValue({ count: 1 });
+    mockedTemplateFindFirst.mockResolvedValue(null);
+  });
+
+  it("hueco_libre → APPROVED (y APPROVED → PAUSED) invalida la caché de la lista de espera y lo loguea", async () => {
+    mockedTemplateFindFirst.mockResolvedValue({
+      key: "hueco_libre",
+      status: "PENDING",
+    } as never);
+    await handleTemplateStatusEvent({
+      data: {
+        id: "evt-6",
+        event_type: "whatsapp.template.approved",
+        payload: { template_id: "tpl-hueco", status: "APPROVED" },
+      },
+    });
+    // El servicio decide si cruza APPROVED (y loguea); aquí se le pasa el
+    // estado anterior de la fila y el nuevo.
+    expect(avisarCambioDeListaDeEspera).toHaveBeenCalledWith(
+      "hueco_libre",
+      "PENDING",
+      "APPROVED"
+    );
+
+    mockedTemplateFindFirst.mockResolvedValue({
+      key: "hueco_libre",
+      status: "APPROVED",
+    } as never);
+    await handleTemplateStatusEvent({
+      data: {
+        id: "evt-7",
+        event_type: "whatsapp.template.paused",
+        payload: { template_id: "tpl-hueco" },
+      },
+    });
+    expect(avisarCambioDeListaDeEspera).toHaveBeenLastCalledWith(
+      "hueco_libre",
+      "APPROVED",
+      "PAUSED"
+    );
+
+    // Una plantilla que no está en la tabla no avisa de nada.
+    mockedTemplateFindFirst.mockResolvedValue(null);
+    mockedTemplateUpdateMany.mockResolvedValue({ count: 0 });
+    vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    await handleTemplateStatusEvent({
+      data: {
+        id: "evt-8",
+        event_type: "whatsapp.template.approved",
+        payload: { template_id: "tpl-otra" },
+      },
+    });
+    expect(avisarCambioDeListaDeEspera).toHaveBeenCalledTimes(2);
   });
 
   it("actualiza el estado de la plantilla por su id de Telnyx", async () => {
