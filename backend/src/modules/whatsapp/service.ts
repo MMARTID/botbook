@@ -642,6 +642,41 @@ export async function enviarBotones(
   return { ...result, from };
 }
 
+/** Mensaje con un botón que abre una URL (solo dentro de la ventana). */
+export async function enviarCtaUrl(
+  input: EnvioComun & {
+    body: string;
+    buttonText: string;
+    url: string;
+    header?: string;
+    footer?: string;
+  }
+): Promise<EnvioRegistrado> {
+  await guardiaDeBaja(input, "interactive");
+  const { phoneNumber: from } = await resolverRemitente(input.audience);
+  const result = await whatsappAdapter.sendInteractiveCtaUrl({
+    from,
+    to: input.to,
+    body: input.body,
+    buttonText: input.buttonText,
+    url: input.url,
+    header: input.header,
+    footer: input.footer,
+    callbackData: input.callbackData,
+  });
+  await registrarEnvio({
+    result,
+    from,
+    to: input.to,
+    audience: input.audience,
+    kind: "interactive",
+    businessId: input.businessId,
+    idempotencyKey: input.idempotencyKey,
+    callbackData: input.callbackData,
+  });
+  return { ...result, from };
+}
+
 /** Tarjeta de contacto de Alhabla (solo dentro de la ventana). */
 export async function enviarContacto(
   input: EnvioComun & { contact: WhatsAppContactCard }

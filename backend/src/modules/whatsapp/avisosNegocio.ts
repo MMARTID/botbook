@@ -9,6 +9,7 @@ import { bajaVigente } from "./bajas.js";
 import { nombreParaWhatsapp, puedeRecibirAvisos } from "./altaDueno.js";
 import {
   enviarBotones,
+  enviarCtaUrl,
   enviarPlantilla,
   resolverPlantilla,
   ventanaAbierta,
@@ -42,7 +43,8 @@ export type TipoAviso =
   | "nueva_reserva"
   | "cita_pendiente"
   | "cancelacion"
-  | "recado";
+  | "recado"
+  | "alerta";
 
 export type ViaAviso = "interactivo" | "plantilla" | "email" | "ninguna";
 
@@ -61,8 +63,15 @@ interface AvisoAlNegocio {
   texto: string;
   /** Botones del interactivo; sus ids llevan `aviso:<tipo>:<recursoId>:<accion>`. */
   botones: WhatsAppButton[];
+  /** En vez de botones de respuesta: un único botón que abre una URL. */
+  ctaUrl?: { texto: string; url: string };
   /** Plantilla aprobada por Meta para fuera de la ventana. */
-  plantilla: { key: string; params: Record<string, string> };
+  plantilla: {
+    key: string;
+    params: Record<string, string>;
+    /** Sufijos dinámicos de los botones URL de la plantilla. */
+    buttonUrlParams?: Array<{ index: number; text: string }>;
+  };
   /** Respaldo cuando WhatsApp no es posible. Nunca debe lanzar. */
   email?: () => Promise<void>;
 }
@@ -246,15 +255,26 @@ export async function enviarAvisoAlNegocio(
   const ventana = await ventanaAbierta("owner", numero);
   try {
     if (ventana) {
-      const result = await enviarBotones({
-        audience: "owner",
-        to: numero,
-        businessId: business.id,
-        body: aviso.texto,
-        buttons: aviso.botones,
-        idempotencyKey,
-        callbackData,
-      });
+      const result = aviso.ctaUrl
+        ? await enviarCtaUrl({
+            audience: "owner",
+            to: numero,
+            businessId: business.id,
+            body: aviso.texto,
+            buttonText: aviso.ctaUrl.texto,
+            url: aviso.ctaUrl.url,
+            idempotencyKey,
+            callbackData,
+          })
+        : await enviarBotones({
+            audience: "owner",
+            to: numero,
+            businessId: business.id,
+            body: aviso.texto,
+            buttons: aviso.botones,
+            idempotencyKey,
+            callbackData,
+          });
       console.log(
         `[WhatsApp] ${etiqueta}: interactivo a ${numero} (${result.messageId})`
       );
@@ -270,6 +290,7 @@ export async function enviarAvisoAlNegocio(
         businessId: business.id,
         template: { id: plantilla.telnyxTemplateId },
         bodyParams: aviso.plantilla.params,
+        buttonUrlParams: aviso.plantilla.buttonUrlParams,
         idempotencyKey,
         callbackData,
       });
@@ -598,6 +619,57 @@ export async function avisarRecado(input: {
     email: input.email,
   });
   return marcarLeadAvisado(input.leadId, resultado);
+}
+
+/** Causas del aviso #5 y a qué pantalla del panel llevan. */
+export type CausaDeAlerta =
+  | "calendario"
+  | "telefono"
+  | "prueba"
+  | "minutos"
+  | "pago";
+
+/** Sufijo del botón URL de la plantilla (`https://alhabla.ai/ajustes/{{1}}`)
+ * y ruta real del panel. `calendario` y `telefono` viven en /agente: el
+ * frontend redirige /ajustes/calendario y /ajustes/telefono allí. */
+export const RUTA_DE_ALERTA: Record<CausaDeAlerta, string> = {
+  calendario: "calendario",
+  telefono: "telefono",
+  prueba: "facturacion",
+  minutos: "facturacion",
+  pago: "facturacion",
+};
+
+/** #5 — Alerta operativa: algo que el dueño tiene que arreglar en el panel. */
+export async function avisarAlerta(input: {
+  businessId: string;
+  businessName: string;
+  causa: CausaDeAlerta;
+  /** Texto de la alerta sin el nombre del negocio (se antepone aquí). */
+  texto: string;
+  /** Identifica esta alerta concreta (idempotencia): p.ej. `pago:<invoiceId>`. */
+  recursoId: string;
+  email?: () => Promise<void>;
+}): Promise<ResultadoAviso> {
+  const negocio = nombreParaWhatsapp({ name: input.businessName });
+  const ruta = RUTA_DE_ALERTA[input.causa];
+  return enviarAvisoAlNegocio({
+    businessId: input.businessId,
+    tipo: "alerta",
+    recursoId: input.recursoId,
+    texto: `${negocio}: ${input.texto}`,
+    botones: [],
+    ctaUrl: {
+      texto: "Ir a Ajustes",
+      url: mensajes.panelUrl(`/ajustes/${ruta}`),
+    },
+    plantilla: {
+      key: "alerta_operativa_negocio",
+      params: { negocio_nombre: negocio, texto: input.texto },
+      buttonUrlParams: [{ index: 0, text: ruta }],
+    },
+    email: input.email,
+  });
 }
 
 /** Aviso de que una cita pendiente entró por fin en el calendario. */

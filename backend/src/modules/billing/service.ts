@@ -1,6 +1,10 @@
 import { randomBytes } from "node:crypto";
 import type Stripe from "stripe";
 import { prisma } from "../../lib/prisma.js";
+import {
+  alertarPagoFallido,
+  alertarPruebaTermina,
+} from "../whatsapp/alertas.js";
 import { getStripeClient } from "../../lib/stripe.js";
 import { provisionPhoneNumber } from "../phone/service.js";
 import {
@@ -675,8 +679,30 @@ async function processStripeEvent(event: Stripe.Event) {
             html,
           });
         }
+        // Alerta #5 por WhatsApp además del email (idempotente por factura).
+        await alertarPagoFallido({
+          businessId,
+          invoiceId: invoice.id,
+          suspensionAt,
+        });
       }
 
+      return businessId;
+    }
+    case "customer.subscription.trial_will_end": {
+      // Stripe lo manda tres días antes de que termine la prueba: alerta #5
+      // al dueño por WhatsApp (email de respaldo si no tiene WhatsApp).
+      const subscription = event.data.object as Stripe.Subscription;
+      const businessId = await resolveBusinessId({
+        customerId: stripeId(subscription.customer),
+      });
+      if (businessId && subscription.trial_end) {
+        await alertarPruebaTermina({
+          businessId,
+          subscriptionId: subscription.id,
+          trialEnd: new Date(subscription.trial_end * 1000),
+        });
+      }
       return businessId;
     }
     default:

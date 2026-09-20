@@ -521,6 +521,25 @@ el `fetch` equivalente. **Nunca desde un route handler**: todo pasa por
   (sin ellas, todo lo que llegue al número de clientes acaba en `ignorado:sin-audiencia`) y
   `whatsapp_templates` con `key = 'bienvenida_negocio'` (sin ella el estado nunca cambia).
 
+**Código (fase 1, PR 6 — alertas operativas, 2026-09-20).**
+- `modules/whatsapp/alertas.ts`: las cinco alertas del plan (§ 4 fila 5): `alertarCalendarioDesconectado`
+  (desde `calendar/conexion.ts` › `marcarCalendarioDesconectado`, solo si no lo pidió el dueño
+  desde el panel; una por proveedor y día), `alertarNumeroNoActivo` (`phone/service.ts` al
+  marcar `phoneNumberStatus: failed`; una al día), `alertarPruebaTermina` (evento de Stripe
+  `customer.subscription.trial_will_end`, nuevo en `billing/service.ts`), `alertarMinutos`
+  (`jobs/processUsageReport.ts`, junto al email del 80 %) y `alertarPagoFallido`
+  (`invoice.payment_failed`, junto al email). Nunca lanzan. Las dos de facturación no llevan
+  email de respaldo (ya sale el suyo); las otras tres sí (`operationalAlertEmail`).
+- `avisarAlerta` (avisosNegocio.ts, tipo `alerta`): dentro de la ventana es un interactivo
+  **`cta_url`** con el botón «Ir a Ajustes» (`WhatsAppAdapter.sendInteractiveCtaUrl`,
+  verificado entregado el 20-09; los botones de respuesta rápida no pueden llevar enlace);
+  fuera, la plantilla `alerta_operativa_negocio` (`negocio_nombre`, `texto`) con el sufijo del
+  botón URL `https://alhabla.ai/ajustes/{{1}}` = `facturacion | calendario | telefono`. El
+  frontend redirige `/ajustes/calendario` y `/ajustes/telefono` a `/agente`, que es donde viven
+  el calendario y el teléfono. Idempotente por recurso (`pago:<invoiceId>`,
+  `minutos:<periodId>`, `prueba:<subscriptionId>`, `calendario:<biz>:<proveedor>:<día>`,
+  `telefono:<biz>:<día>`).
+
 **Código (fase 1, PR 5 — recado por post-conversación, 2026-09-20).**
 - Tool `informar_al_negocio` (`buildInformarAlNegocioTool` en `lib/telnyxAssistantPayload.ts`,
   inline como las demás — la migración a *shared tools* es #102) y

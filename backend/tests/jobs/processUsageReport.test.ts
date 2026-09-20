@@ -14,6 +14,10 @@ vi.mock("../../src/lib/prisma.js", () => ({
   },
 }));
 vi.mock("../../src/lib/stripe.js", () => ({ getStripeClient: vi.fn() }));
+vi.mock("../../src/lib/cloudTasks.js", () => ({ enqueueEmailJob: vi.fn() }));
+vi.mock("../../src/modules/whatsapp/alertas.js", () => ({
+  alertarMinutos: vi.fn().mockResolvedValue({ via: "interactivo" }),
+}));
 vi.mock("../../src/lib/bookingLock.js", () => ({ acquireLock: vi.fn(), releaseLock: vi.fn() }));
 
 const mockedFindBusiness = vi.mocked(prisma.business.findUnique);
@@ -72,6 +76,39 @@ describe("processUsageReportJob", () => {
       expect.objectContaining({ data: expect.objectContaining({ minutes: 3 }) })
     );
     expect(mockedReleaseLock).toHaveBeenCalledWith("billing_usage:business_123", "lock-token");
+  });
+
+  it("al 80 % de los minutos avisa por email y por WhatsApp (alerta #5) una sola vez", async () => {
+    const { enqueueEmailJob } = await import("../../src/lib/cloudTasks.js");
+    const { alertarMinutos } = await import("../../src/modules/whatsapp/alertas.js");
+    const createMeterEvent = vi.fn().mockResolvedValue({ identifier: "x" });
+    mockedGetStripeClient.mockReturnValue({ billing: { meterEvents: { create: createMeterEvent } } } as any);
+    mockedFindBusiness.mockResolvedValue({
+      stripeCustomerId: "cus_123",
+      stripePriceId: "price_inicio",
+      subscriptionCurrentPeriodStart: new Date("2026-09-01T00:00:00.000Z"),
+      subscriptionCurrentPeriodEnd: new Date("2026-10-01T00:00:00.000Z"),
+      usageBillingStartsAt: null,
+      name: "Peluquería Test",
+      users: [{ email: "dueno@example.com" }],
+    } as any);
+    // 100 minutos incluidos en Inicio: 85 consumidos pasan del 80 %.
+    mockedAggregate.mockResolvedValue({ _sum: { durationSecs: 85 * 60 } } as any);
+    mockedFindPeriod.mockReset();
+    mockedFindPeriod.mockResolvedValue({ reportedMinutes: 85 } as any);
+
+    await processUsageReportJob({ businessId: "business_123" });
+
+    expect(enqueueEmailJob).toHaveBeenCalledWith(
+      expect.objectContaining({ toAddress: "dueno@example.com" })
+    );
+    expect(alertarMinutos).toHaveBeenCalledWith({
+      businessId: "business_123",
+      periodId: "period_123",
+      consumidos: 85,
+      incluidos: 100,
+      extraMinuteCents: expect.any(Number),
+    });
   });
 
   it("no informa consumo antes del periodo activado para una suscripción existente", async () => {

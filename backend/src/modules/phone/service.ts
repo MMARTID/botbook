@@ -4,6 +4,7 @@ import { retellAdapter } from "../../adapters/retell/RetellAdapter.js";
 import { getPublicWebhookBaseUrl } from "../../lib/serverUrl.js";
 import { getRedis } from "../../lib/redis.js";
 import { acquireLock, releaseLock } from "../../lib/bookingLock.js";
+import { alertarNumeroNoActivo } from "../whatsapp/alertas.js";
 
 // El webhook de Stripe (checkout.session.completed) y el fallback de
 // reconcile del frontend pueden disparar provisionPhoneNumber casi a la vez
@@ -470,6 +471,8 @@ export async function provisionPhoneNumber(businessId: string): Promise<{
         phoneNumberStatus: "failed",
       },
     });
+    // Alerta #5 al dueño (una vez al día). Nunca lanza.
+    await alertarNumeroNoActivo({ businessId });
 
     return { success: false, status: "failed", error: message };
   } finally {

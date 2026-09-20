@@ -427,6 +427,35 @@ export function recadoYaAtendido(): string {
   return "Ese recado ya está atendido.";
 }
 
+// ---------------------------------------------------------------------------
+// Alertas operativas (#5): texto sin el nombre del negocio (lo antepone
+// avisarAlerta) y sin exclamaciones; una frase de qué pasa y otra de qué hacer.
+// ---------------------------------------------------------------------------
+
+export function alertaCalendario(input: { proveedor: string }): string {
+  return `tu calendario de ${input.proveedor} se ha desconectado. Hasta que lo reconectes, las citas se guardan como pendientes y no entran en tu agenda.`;
+}
+
+export function alertaTelefono(): string {
+  return "no hemos podido activar tu número de teléfono. Sin él, tu recepcionista no puede atender llamadas; revísalo en el panel o escríbenos.";
+}
+
+export function alertaPruebaTermina(input: { fecha: string }): string {
+  return `tu periodo de prueba termina el ${input.fecha}. Para que la recepcionista siga atendiendo, elige un plan antes de esa fecha.`;
+}
+
+export function alertaMinutos(input: {
+  consumidos: number;
+  incluidos: number;
+  precioExtra: string;
+}): string {
+  return `has usado ${input.consumidos} de los ${input.incluidos} minutos de tu plan este mes. A partir de ahí cada minuto cuesta ${input.precioExtra}; puedes cambiar de plan en el panel.`;
+}
+
+export function alertaPagoFallido(input: { fecha: string }): string {
+  return `no hemos podido cobrar tu suscripción. Actualiza tu forma de pago antes del ${input.fecha} para que la recepcionista siga atendiendo.`;
+}
+
 /** Botón «Ver agenda de hoy» y palabras clave AGENDA / HOY / MAÑANA. */
 export function agendaDelDia(input: {
   negocio: string;

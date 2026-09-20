@@ -51,6 +51,16 @@ export interface WhatsAppButtonsMessage extends WhatsAppOutbound {
   footer?: string;
 }
 
+export interface WhatsAppCtaUrlMessage extends WhatsAppOutbound {
+  body: string;
+  /** Texto del botón (hasta 20 caracteres). */
+  buttonText: string;
+  /** URL que abre el botón (https). */
+  url: string;
+  header?: string;
+  footer?: string;
+}
+
 export interface WhatsAppContactCard {
   formattedName: string;
   firstName?: string;
@@ -304,6 +314,42 @@ export class WhatsAppAdapter {
         },
       },
       "un mensaje con botones"
+    );
+  }
+
+  /**
+   * Mensaje interactivo con UN botón que abre una URL (`cta_url`), solo
+   * dentro de la ventana. Es lo que usan las alertas operativas («Ir a
+   * Ajustes»): los botones de respuesta rápida no pueden llevar enlace.
+   */
+  async sendInteractiveCtaUrl(
+    message: WhatsAppCtaUrlMessage
+  ): Promise<WhatsAppSendResult> {
+    if (!/^https:\/\//.test(message.url)) {
+      throw new Error("El botón de una alerta solo puede abrir una URL https");
+    }
+    return this.send(
+      message,
+      {
+        type: "interactive",
+        interactive: {
+          type: "cta_url",
+          ...(message.header
+            ? {
+                header: { type: "text", text: message.header } as unknown as NonNullable<
+                  Telnyx.Messages.WhatsappInteractive["header"]
+                >,
+              }
+            : {}),
+          body: { text: message.body },
+          ...(message.footer ? { footer: { text: message.footer } } : {}),
+          action: {
+            name: "cta_url",
+            parameters: { display_text: message.buttonText, url: message.url },
+          },
+        },
+      },
+      "un mensaje con enlace"
     );
   }
 

@@ -201,6 +201,22 @@ export function messageLeadEmail(input: {
   return { subject, html };
 }
 
+/** Aviso #5 (alerta operativa) por email cuando el dueño no tiene WhatsApp activo. */
+export function operationalAlertEmail(input: {
+  businessName: string;
+  texto: string;
+  panelUrl: string;
+}): { subject: string; html: string } {
+  const subject = `Necesita tu atención — ${input.businessName}`;
+  const primera = input.texto.charAt(0).toUpperCase() + input.texto.slice(1);
+  const html = emailShell(`
+    <p style="font-size:18px;font-weight:600;margin:0 0 16px 0;">Hay algo que revisar en ${input.businessName}</p>
+    <p style="margin:0;">${primera}</p>
+    ${ctaButton(input.panelUrl, "Ir a Ajustes")}
+  `);
+  return { subject, html };
+}
+
 export function weeklySummaryEmail(input: {
   businessName: string;
   weekStart: Date;
