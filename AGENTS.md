@@ -720,6 +720,67 @@ el `fetch` equivalente. **Nunca desde un route handler**: todo pasa por
   devuelve el negocio entero) y, si la respuesta no trae el valor pedido (backend anterior), lo
   dice en vez de darlo por guardado — mismo patrón que el móvil.
 
+**Código (fase 2, PR 1 — cimientos de conversaciones + la recepcionista por chat, 2026-09-20).**
+- Decisiones del usuario (20-09): la fase 2 va «cliente primero» (este PR) → Gestor en tres
+  PRs (base y agenda de lectura → catálogo y onboarding → citas, ausencias y bloqueos) → panel y
+  tests de integración; los interruptores globales quedan **apagados en producción** hasta que
+  el usuario lo pruebe (`TELNYX_CLIENT_CHAT_ENABLED` / `TELNYX_OWNER_CHAT_ENABLED`, ausentes =
+  `false`; con `false` el texto libre recibe la respuesta fija de siempre).
+- **Cómo funcionan las tools en chat (verificado en dev, 2026-09-20):** la conversación de
+  Telnyx se crea con `metadata.call_control_id = "whatsapp:chat:<uuid>"` y Telnyx lo templa en
+  la cabecera `X-Alhabla-Call-Control-Id: {{call_control_id}}` de las tools inline de la
+  recepcionista, igual que en una llamada (las claves de los metadata resuelven como variables
+  dinámicas; hallazgo de la fase 0.4). El backend resuelve esa **Call sintética**
+  (`voiceProvider: "whatsapp"`, `providerCallId = callId`, `providerConversationId` = id de la
+  conversación, `fromNumber` = móvil del cliente, `status: COMPLETED` para que ni el barrido de
+  zombis ni el panel la vean en curso) y todas las tools de voz funcionan sin tocar ningún
+  assistant: probado de extremo a extremo contra la recepcionista de dev de Peluquería
+  Alhambra — `get_catalog` → `check_availability` (con especialidad) → `book_appointment`
+  (evento real en Google Calendar) → `find_my_appointment` → `cancel_appointment`, turnos de
+  3,7-5,7 s. En chat `{{telnyx_end_user_target}}` no resuelve y **`{{telnyx_current_time}}`
+  resuelve en UTC** (la recepcionista dijo «14:51 hora de Madrid» a las 16:51): por eso el
+  backend antepone a cada mensaje el marcador `[WhatsApp · <móvil> · <fecha y hora en la zona
+  del negocio> (<zona>)]` y el prompt tiene el bloque «## Chat por WhatsApp»
+  (`managedAgentPrompt.ts`: el marcador es la única fuente fiable del número y del momento;
+  sin `end_call` ni referencias a voz; `smsConsent: true` sin preguntar; el cliente que «ha
+  pulsado Cambiar» se atiende con find_my_appointment → nueva hora → cancelar + reservar). El
+  cambio de prompt resincroniza todos los assistants por el reconciliador (hash de configuración).
+- `modules/whatsapp/chatCliente.ts` › `conversarConRecepcionista({ message, businessId, texto,
+  etiqueta? })`: nunca lanza; devuelve `{ atendido: false, motivo }` (`apagado`,
+  `apagado_negocio` = `Business.clientChatEnabled` false, `negocio_inactivo` = inactivo o
+  suscripción en `ESTADOS_DE_SUSCRIPCION_BLOQUEADOS`, `sin_recepcionista` = sin
+  `Agent.telnyxAssistantId`, `sin_texto`) y el enrutador responde lo de siempre, o
+  `{ atendido: true, resultado }` con handler `chat:cliente` (`:limite` 21.º turno del día por
+  cliente y negocio en Redis, `whatsapp:chat:cliente:<biz>:<from>:<yyyy-mm-dd>` en la zona del
+  negocio; `:ocupado` si el lock del hilo `lock:whatsapp:chat:<biz>:<from>` no se consigue en
+  25 s — dos mensajes seguidos se atienden en orden; `:error` si Telnyx falla, no responde en
+  30 s o devuelve vacío). `conversacionVigente` reutiliza la conversación guardada (< 30 días) o
+  crea otra (rotación) y su Call sintética en una transacción; un 404 de Telnyx en el turno
+  rota y repite una sola vez. Respuesta por `responder(message, "chat", …)` (reclamo
+  `entrante:<id>:chat`, techo 20/h) **tal cual la devuelve la recepcionista: sin etiqueta
+  «Beta» ni coletilla** (decisión del usuario del 20-09 al ver los mensajes: «Beta» solo en el
+  panel; vale también para el Gestor); `limiteDiarioDelChat` y `chatNoDisponible` una vez al
+  día. Tabla
+  `client_conversations` (`ClientConversation`: `@@unique([businessId, clientPhone])`,
+  `conversationId` y `callId` únicos, `startedAt` para la rotación, `turns`).
+- Enganches: `router.ts › textoEnClientes` (texto o palabra clave de un cliente conocido con
+  `businessId` → chat; si no atiende, `clienteConocido`) y `botonesCliente.ts › cambiar`
+  («Cambiar» del recordatorio abre el chat con «He pulsado Cambiar en el recordatorio de mi
+  cita del <cita> con <profesional>…», etiqueta `cliente:cambiar:chat`; sin chat,
+  `comoCambiarCita`). Las reservas hechas por chat llevan `createdVia: "client_chat"` y las
+  cancelaciones `cancelledBy: "client_chat"` (`canalDeLaTool` en voiceTools/service.ts por el
+  prefijo del callId; `cancelarReserva` lo acepta).
+- Adaptador (`TelnyxAiAdapter`): `createConversation` (desenvuelve `data`), `updateConversation`
+  (`metadata`, `system_prompt` aunque el SDK no lo tipe), `addConversationMessage`,
+  `chatWithAssistant` (`ai.assistants.chat` → `content`). Migración
+  `20260920100000_whatsapp_conversaciones` (solo aditiva): `businesses.clientChatEnabled /
+  ownerChatEnabled` (default true) / `ownerConversationId / ownerConversationCreatedAt` (para el
+  Gestor) y la tabla `client_conversations`. Variables nuevas en `.env.example` y
+  `docker-compose.yml`. Queda para PRs siguientes: la lista para elegir negocio cuando el
+  cliente tiene citas en varios (hoy va al de la reserva más reciente), el panel («Tu chat con la
+  recepcionista», toggle «chat Beta» en Ajustes) y los tests de integración. **Pendiente
+  preexistente (voz):** `{{telnyx_current_time}}` en UTC también en las llamadas — issue aparte.
+
 **Cuenta.** Un solo WABA, «Alhabla»: id Telnyx `804230d2-c5e0-45dd-af65-95819468378a`, id Meta
 `1628104425601770`, conectado por Embedded Signup el 13-09. `messaging_limit_tier: TIER_250`
 (250 destinatarios únicos/24 h para **toda** la cartera), `business_verification_status:

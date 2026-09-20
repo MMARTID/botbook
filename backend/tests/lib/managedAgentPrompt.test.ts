@@ -365,3 +365,19 @@ describe("buildManagedAgentPrompt — recados y post-conversación (PR 5)", () =
     expect(prompt).toContain("No la uses durante la conversación");
   });
 });
+
+describe("buildManagedAgentPrompt — chat por WhatsApp (fase 2)", () => {
+  it("explica el marcador [WhatsApp …], veta end_call en chat y da por dado el consentimiento", () => {
+    const prompt = buildManagedAgentPrompt({
+      businessName: "Peluquería Ejemplo",
+      settings: DEFAULT_AGENT_SETTINGS,
+    });
+
+    expect(prompt).toContain("## Chat por WhatsApp");
+    expect(prompt).toContain("[WhatsApp · número · fecha y hora]");
+    expect(prompt).toContain("única fuente fiable del número desde el que escribe");
+    expect(prompt).toContain("no uses end_call");
+    expect(prompt).toContain("usa smsConsent: true");
+    expect(prompt).toContain("ha pulsado Cambiar en el recordatorio");
+  });
+});

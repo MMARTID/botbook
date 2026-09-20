@@ -27,6 +27,7 @@ import {
 } from "./listaDeEspera.js";
 import { cancelarReserva } from "../bookings/cancelacion.js";
 import * as mensajes from "./mensajes.js";
+import { conversarConRecepcionista } from "./chatCliente.js";
 
 /**
  * Botones que pulsa el CLIENTE en el número «Alhabla Reservas» (PLAN-CANAL-
@@ -484,6 +485,19 @@ async function botonDeReserva(
             opciones
           )
         );
+      }
+      // Fase 2: «Cambiar» abre el chat con la recepcionista con la cita ya
+      // identificada; ella pide la nueva hora y la cambia (cancelar +
+      // reservar) con confirmación, como por teléfono. Sin chat, el texto
+      // de siempre (llamar al negocio).
+      const chat = await conversarConRecepcionista({
+        message,
+        businessId: business.id,
+        texto: `He pulsado «Cambiar» en el recordatorio de mi cita del ${cita}${booking.professional?.name ? ` con ${booking.professional.name}` : ""}. Quiero cambiarla de día u hora.`,
+        etiqueta: `${base}:chat`,
+      });
+      if (chat.atendido) {
+        return chat.resultado;
       }
       return resultado(
         base,

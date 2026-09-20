@@ -22,6 +22,7 @@ import {
 } from "../../../src/modules/whatsapp/altaDueno.js";
 import { botonEnClientes } from "../../../src/modules/whatsapp/botonesCliente.js";
 import { avisarAQuienEsperaba } from "../../../src/modules/whatsapp/listaDeEspera.js";
+import { conversarConRecepcionista } from "../../../src/modules/whatsapp/chatCliente.js";
 import * as mensajes from "../../../src/modules/whatsapp/mensajes.js";
 import { enrutarEntrante } from "../../../src/modules/whatsapp/router.js";
 
@@ -77,6 +78,12 @@ vi.mock("../../../src/modules/whatsapp/botonesCliente.js", () => ({
 vi.mock("../../../src/modules/whatsapp/listaDeEspera.js", () => ({
   avisarAQuienEsperaba: vi.fn(),
 }));
+// La recepcionista por chat (fase 2) tiene sus tests en chatCliente.test.ts;
+// aquí solo se comprueba que el texto del cliente pasa por ella y que, si
+// no atiende, sigue la respuesta fija.
+vi.mock("../../../src/modules/whatsapp/chatCliente.js", () => ({
+  conversarConRecepcionista: vi.fn(),
+}));
 // `nombreParaCliente` y `telefonoDeContacto` son puras: se usan las reales.
 vi.mock(
   "../../../src/modules/whatsapp/mensajesCliente.js",
@@ -105,6 +112,7 @@ vi.mock("../../../src/modules/whatsapp/altaDueno.js", async (importActual) => {
 });
 
 const mockedTextoAgenda = vi.mocked(textoAgendaDelDia);
+const mockedChat = vi.mocked(conversarConRecepcionista);
 const mockedEnqueueRetry = vi.mocked(enqueueRetryBookingJob);
 const mockedEnqueueRecado = vi.mocked(enqueueRecordarRecadoJob);
 const mockedBizFindFirst = vi.mocked(prisma.business.findFirst);
@@ -1068,7 +1076,32 @@ describe("número de clientes", () => {
     expect(enviado(1)?.body).toBe(mensajes.desconocidoEnClientes());
   });
 
+  it("el texto de un cliente conocido pasa por la recepcionista por chat y, si atiende, ahí acaba", async () => {
+    mockedChat.mockResolvedValueOnce({
+      atendido: true,
+      resultado: { handler: "chat:cliente" },
+    });
+    expect(
+      await enrutarEntrante(
+        enClientes({
+          kind: "text",
+          text: "¿tenéis hueco mañana?",
+          role: "client",
+          businessId: "biz_1",
+        })
+      )
+    ).toEqual({ handler: "chat:cliente" });
+    expect(mockedChat).toHaveBeenCalledWith(
+      expect.objectContaining({
+        businessId: "biz_1",
+        texto: "¿tenéis hueco mañana?",
+      })
+    );
+    expect(mockedEnviarTexto).not.toHaveBeenCalled();
+  });
+
   it("cliente conocido con y sin teléfono del negocio, una vez al día", async () => {
+    mockedChat.mockResolvedValue({ atendido: false, motivo: "apagado" });
     mockedBizFindUnique.mockResolvedValueOnce({
       name: "Peluquería Ana",
       phone: "+34930000000",

@@ -32,6 +32,7 @@ import {
   reactivarDueno,
 } from "./altaDueno.js";
 import { botonEnClientes } from "./botonesCliente.js";
+import { conversarConRecepcionista } from "./chatCliente.js";
 import { avisarAQuienEsperaba } from "./listaDeEspera.js";
 import { nombreParaCliente, telefonoDeContacto } from "./mensajesCliente.js";
 import * as mensajes from "./mensajes.js";
@@ -42,8 +43,10 @@ import * as mensajes from "./mensajes.js";
  * los dos números, `ALTA` a secas (reactivación), AYUDA, los botones de los
  * avisos al negocio (PR 3: `aviso:<tipo>:<recurso>:<accion>`), la agenda
  * del día (AGENDA/HOY/MAÑANA), los botones del cliente (PR 4, en
- * `botonesCliente.ts`) y respuestas fijas a todo lo demás. El chat (fase 2)
- * sigue en `pendiente:*`.
+ * `botonesCliente.ts`) y respuestas fijas a todo lo demás. Fase 2: el texto
+ * libre de un cliente conocido va a la recepcionista de su negocio por chat
+ * (`chatCliente.ts`) cuando el interruptor está encendido; el del dueño
+ * (Gestor) sigue en `pendiente:*`.
  *
  * Reglas:
  * - Primero la base de datos, después la respuesta. Nunca lanza por un
@@ -1313,6 +1316,19 @@ async function textoEnClientes(
   }
 
   if (message.role === "client") {
+    // Fase 2: la recepcionista por chat. Si no puede atender (interruptor,
+    // negocio sin recepcionista en Telnyx, suscripción bloqueada) se cae a
+    // la respuesta fija de siempre.
+    if (message.businessId && message.text) {
+      const chat = await conversarConRecepcionista({
+        message,
+        businessId: message.businessId,
+        texto: message.text,
+      });
+      if (chat.atendido) {
+        return chat.resultado;
+      }
+    }
     const business = message.businessId
       ? await prisma.business.findUnique({
           where: { id: message.businessId },

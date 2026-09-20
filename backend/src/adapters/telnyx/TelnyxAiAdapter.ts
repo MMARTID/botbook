@@ -532,6 +532,72 @@ export class TelnyxAiAdapter {
   }
 
   // ---------------------------------------------------------------------
+  // Chat (fase 2 del plan de WhatsApp): conversaciones creadas por Alhabla
+  // y turnos por `ai.assistants.chat`. Hallazgos de la fase 0.4 y del
+  // 2026-09-20 en dev: la respuesta de `conversations.create` viene envuelta
+  // en `data` aunque el tipo del SDK diga `Conversation`; las claves de los
+  // `metadata` resuelven como variables dinámicas en las cabeceras de las
+  // tools (por eso `call_control_id` en los metadata hace que las tools de
+  // voz funcionen en chat sin tocarlas); `system_prompt` se acepta en el
+  // update aunque el SDK no lo tipe.
+  // ---------------------------------------------------------------------
+
+  async createConversation(input: {
+    name?: string;
+    metadata: Record<string, string>;
+  }): Promise<{ id: string }> {
+    const client = getTelnyxClient();
+    const response = (await client.ai.conversations.create({
+      name: input.name,
+      metadata: input.metadata,
+    })) as unknown as { data?: { id?: string }; id?: string };
+    const id = response?.data?.id ?? response?.id;
+    if (!id) {
+      throw new Error("Telnyx no devolvió el id de la conversación creada");
+    }
+    return { id };
+  }
+
+  async updateConversation(
+    conversationId: string,
+    input: { metadata?: Record<string, string>; systemPrompt?: string }
+  ): Promise<void> {
+    const client = getTelnyxClient();
+    const body: Record<string, unknown> = {};
+    if (input.metadata) body.metadata = input.metadata;
+    if (input.systemPrompt !== undefined) body.system_prompt = input.systemPrompt;
+    await client.ai.conversations.update(
+      conversationId,
+      body as Parameters<typeof client.ai.conversations.update>[1]
+    );
+  }
+
+  async addConversationMessage(
+    conversationId: string,
+    input: { role: "system" | "assistant" | "user"; content: string }
+  ): Promise<void> {
+    const client = getTelnyxClient();
+    await client.ai.conversations.addMessage(conversationId, {
+      role: input.role,
+      content: input.content,
+    });
+  }
+
+  /** Un turno de chat con un assistant; devuelve el texto de su respuesta. */
+  async chatWithAssistant(
+    assistantId: string,
+    input: { content: string; conversationId: string; name?: string }
+  ): Promise<string> {
+    const client = getTelnyxClient();
+    const response = await client.ai.assistants.chat(assistantId, {
+      content: input.content,
+      conversation_id: input.conversationId,
+      name: input.name,
+    });
+    return typeof response?.content === "string" ? response.content : "";
+  }
+
+  // ---------------------------------------------------------------------
   // Grabación
   // ---------------------------------------------------------------------
 

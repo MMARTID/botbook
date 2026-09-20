@@ -678,6 +678,16 @@ async function executeGetCatalog(
 const MAX_CALL_AGE_FOR_FALLBACK_MS = 15 * 60 * 1000;
 
 /**
+ * Canal desde el que se ejecuta la tool, según la Call: una llamada real o
+ * el chat de WhatsApp con la recepcionista (fase 2: Call sintética
+ * `whatsapp:chat:<id>`, ver modules/whatsapp/chatCliente.ts). Solo cambia
+ * lo que se anota en la reserva (`createdVia`, `cancelledBy`).
+ */
+function canalDeLaTool(callId?: string): "voice" | "client_chat" {
+  return callId?.startsWith("whatsapp:chat:") ? "client_chat" : "voice";
+}
+
+/**
  * Resuelve la fila Call a la que vincular una reserva o un lead pendiente:
  * por callId cuando se conoce (viene del sobre del webhook de Retell, no del
  * LLM) y, si su fila aún no existe por una carrera con call_started, cae al
@@ -1636,7 +1646,7 @@ async function executeBookAppointment(
               clientName,
               clientPhone: clientPhone || undefined,
               smsConsent,
-              createdVia: "voice",
+              createdVia: canalDeLaTool(callId),
               externalEventId: (result as { id?: string })?.id ?? undefined,
               externalCalendarProvider: conexion.provider,
               externalCalendarId: conexion.calendarId,
@@ -2187,7 +2197,8 @@ async function executeCancelAppointment(
   const cancelacion = await cancelarReserva({
     bookingId: booking.id,
     businessId: business.id,
-    cancelledBy: "client_voice",
+    cancelledBy:
+      canalDeLaTool(callId) === "client_chat" ? "client_chat" : "client_voice",
     etiqueta: callLabel,
   });
   if (cancelacion.resultado === "ya_cancelada") {

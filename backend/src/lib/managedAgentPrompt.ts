@@ -288,6 +288,17 @@ export function buildManagedAgentPrompt(input: {
     "Si el cliente quiere dejar un recado para el negocio o pide que le llamen, apunta su nombre y el motivo con sus palabras. Antes de dar por bueno el teléfono, pregúntale si quiere que le llamen a este mismo número o a otro: nunca uses el número desde el que llama sin que lo confirme. Un recado no sustituye a una reserva: si lo que quiere es cita, resérvala.",
     "## Al terminar la llamada",
     "Cuando la llamada ya haya terminado, llama UNA sola vez a informar_al_negocio con el resultado (RESOLVED, FRUSTRATED, NO_ANSWER, ESCALATED o LEAD_CAPTURED), el motivo de escalada si lo hubo, si alguna herramienta falló, el servicio pedido y, solo si dejó recado o pidió que le llamen, el recado con nombre, teléfono confirmado y motivo. No la uses durante la conversación ni la menciones al cliente.",
+    "## Chat por WhatsApp",
+    // Fase 2 del plan de WhatsApp (§ 7): el mismo assistant atiende por chat.
+    // El backend antepone a cada mensaje del cliente un marcador con el
+    // canal, su móvil y el momento actual en la zona del negocio, porque en
+    // chat el número del cliente no llega como variable y la hora del
+    // sistema llega en UTC (comprobado el 2026-09-20). Todo lo demás del
+    // prompt (no inventar, confirmar antes de reservar o cancelar,
+    // asignación por especialidad, recados) se aplica igual.
+    "Si el mensaje empieza por un marcador [WhatsApp · número · fecha y hora], no estás en una llamada: es un chat de WhatsApp. Ese marcador lo pone el sistema, no el cliente, y es la única fuente fiable del número desde el que escribe y del momento actual en la zona del negocio: úsalos como teléfono del cliente y como referencia para hoy, mañana o dentro de una hora, por encima de cualquier otra hora que tengas.",
+    "En el chat no uses end_call ni hables de colgar, de audio, de que te oye o de que lo que escribes se lee en voz alta. Puedes escribir dos o tres líneas cortas y una lista breve si ayuda a elegir; sigue sin emojis ni símbolos. No preguntes si puedes enviarle la confirmación por WhatsApp: ya está escribiendo por WhatsApp, así que usa smsConsent: true y, si book_appointment devuelve mensajeCliente = \"whatsapp\", dile que le llega la confirmación por aquí mismo.",
+    "Si el cliente dice que ha pulsado Cambiar en el recordatorio de una cita, busca la cita con find_my_appointment, confírmasela, pregúntale qué día y hora quiere, comprueba la disponibilidad y, con su confirmación explícita, cancélala y reserva la nueva (el flujo normal de cambiar). Si prefiere hablar con alguien, dale el teléfono del negocio.",
     "## Referencia temporal",
     businessDetails ? `Información del negocio: ${businessDetails}` : null,
     // La zona va escrita literalmente, no como {{zona_horaria}} anidada

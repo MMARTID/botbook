@@ -19,6 +19,7 @@ import {
 } from "../../../src/modules/whatsapp/mensajesCliente.js";
 import { cancelarReserva } from "../../../src/modules/bookings/cancelacion.js";
 import * as mensajes from "../../../src/modules/whatsapp/mensajes.js";
+import { conversarConRecepcionista } from "../../../src/modules/whatsapp/chatCliente.js";
 import {
   accionPorTituloCliente,
   botonEnClientes,
@@ -44,6 +45,9 @@ vi.mock("../../../src/modules/whatsapp/listaDeEspera.js", () => ({
   cerrarAviso: vi.fn(),
   reservaDelLeadCancelada: vi.fn(),
   reservarDesdeListaDeEspera: vi.fn(),
+}));
+vi.mock("../../../src/modules/whatsapp/chatCliente.js", () => ({
+  conversarConRecepcionista: vi.fn(),
 }));
 vi.mock(
   "../../../src/modules/whatsapp/mensajesCliente.js",
@@ -213,6 +217,11 @@ beforeEach(() => {
     messageId: "msg-vcard",
     status: "queued",
     from: CLIENTES,
+  });
+  // Por defecto el chat (fase 2) no atiende: «Cambiar» responde el texto fijo.
+  vi.mocked(conversarConRecepcionista).mockResolvedValue({
+    atendido: false,
+    motivo: "apagado",
   });
   mockedBizFindFirst.mockResolvedValue(NEGOCIO as never);
   mockedBookingFindFirst.mockResolvedValue(reserva() as never);
@@ -568,7 +577,32 @@ describe("Confirmo / Cancelar / Cambiar", () => {
     expect(mockedCancelar).toHaveBeenCalledTimes(2);
   });
 
+  it("Cambiar abre el chat con la recepcionista con la cita identificada cuando el chat atiende", async () => {
+    vi.mocked(conversarConRecepcionista).mockResolvedValueOnce({
+      atendido: true,
+      resultado: { handler: "cliente:cambiar:chat" },
+    });
+    expect(await botonEnClientes(boton("Cambiar"))).toEqual({
+      handler: "cliente:cambiar:chat",
+    });
+    expect(conversarConRecepcionista).toHaveBeenCalledWith(
+      expect.objectContaining({
+        businessId: "biz_1",
+        etiqueta: "cliente:cambiar:chat",
+        texto: expect.stringContaining(
+          `recordatorio de mi cita del ${CITA_TEXTO}`
+        ),
+      })
+    );
+    expect(mockedEnviarTexto).not.toHaveBeenCalled();
+    expect(mockedCancelar).not.toHaveBeenCalled();
+  });
+
   it("Cambiar responde comoCambiarCita con el teléfono de contacto y no toca la reserva", async () => {
+    vi.mocked(conversarConRecepcionista).mockResolvedValueOnce({
+      atendido: false,
+      motivo: "apagado",
+    });
     expect(await botonEnClientes(boton("Cambiar"))).toEqual({
       handler: "cliente:cambiar",
     });
