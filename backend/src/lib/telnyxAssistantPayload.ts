@@ -3,6 +3,7 @@ import type {
   HangupTool,
   TelnyxWebhookTool,
 } from "../adapters/telnyx/TelnyxAiAdapter.js";
+import { resolveManagedPromptTimezone } from "./managedAgentPrompt.js";
 
 /**
  * Nombre estable y determinista del assistant Telnyx de un agente — permite
@@ -318,8 +319,16 @@ export function buildInformarAlNegocioTool(
 
 // Cadena exacta que produce managedAgentPrompt.ts para "hora actual en la
 // zona del negocio" — Retell resuelve el patrón anidado
-// {{current_time_<timezone>}} de forma nativa; Telnyx no tiene ese patrón,
-// pero sí su propia variable de sistema con la hora actual.
+// {{current_time_<timezone>}} de forma nativa. Telnyx tiene el equivalente
+// {{telnyx_current_time_<zona IANA>}} (documentado en dynamic-variables ›
+// «Timezone variants», ej. {{telnyx_current_time_America/New_York}}), que
+// es el que se usa desde el 2026-09-20: hasta entonces se traducía a
+// {{telnyx_current_time}} a secas, que Telnyx resuelve en UTC, y el prompt lo
+// presentaba como «momento actual en la zona del negocio» — la recepcionista
+// iba dos horas atrasada en verano para «dentro de una hora», «ahora mismo»
+// (issue #122; visto en un chat de dev: dijo «14:51 hora de Madrid» a las
+// 16:51). Si Telnyx no reconoce la zona deja el placeholder sin resolver, por
+// eso la zona pasa siempre por resolveManagedPromptTimezone.
 // Patrón, no cadena fija: managedAgentPrompt.ts escribe ahora la zona
 // literal dentro de la variable de Retell ({{current_time_Europe/Madrid}}).
 // La alternativa con llaves internas cubre los prompts antiguos, que siguen
@@ -354,16 +363,20 @@ const RETELL_CURRENT_TIME_PATTERN =
 export function adaptManagedPromptForTelnyx(
   instructions: string,
   businessName: string,
-  timezone: string = "Europe/Madrid"
+  timezone?: string | null
 ): string {
+  // Zona IANA válida siempre: con una desconocida Telnyx dejaría
+  // {{telnyx_current_time_<zona>}} sin resolver y el agente sin saber qué
+  // día es (fecha inventada para «mañana»).
+  const zona = resolveManagedPromptTimezone(timezone);
   return instructions
     .split("{{nombre_negocio}}")
     .join(businessName)
     .split("{{user_number}}")
     .join("{{telnyx_end_user_target}}")
-    .replace(RETELL_CURRENT_TIME_PATTERN, "{{telnyx_current_time}}")
+    .replace(RETELL_CURRENT_TIME_PATTERN, `{{telnyx_current_time_${zona}}}`)
     .split("{{zona_horaria}}")
-    .join(timezone);
+    .join(zona);
 }
 
 const TELNYX_TRANSCRIPTION_LANGUAGE_HINTS: Record<string, string> = {
