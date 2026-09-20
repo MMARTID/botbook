@@ -63,6 +63,7 @@ import {
   releaseBookingLock,
 } from "../../lib/bookingLock.js";
 import { buildCalendarIdempotencyKey } from "../../lib/calendarIdempotency.js";
+import { appUrl } from "../../lib/urls.js";
 
 export type VoiceToolName =
   | "get_catalog"
@@ -949,9 +950,7 @@ async function avisarDeReservaPendiente(args: {
       return;
     }
 
-    const frontendUrl = (
-      process.env.FRONTEND_URL || "http://localhost:3001"
-    ).replace(/\/$/, "");
+    const frontendUrl = appUrl();
     const formattedDateTime = new Intl.DateTimeFormat("es-ES", {
       timeZone: business.timezone || "Europe/Madrid",
       weekday: "long",

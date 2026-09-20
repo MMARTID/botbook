@@ -2,6 +2,7 @@ import { prisma } from "../lib/prisma.js";
 import { enqueueEmailJob } from "../lib/cloudTasks.js";
 import { weeklySummaryEmail } from "../lib/emailTemplates.js";
 import { planAllows, resolvePlanId } from "../lib/planFeatures.js";
+import { appUrl } from "../lib/urls.js";
 
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 const PAGE_SIZE = 100;
@@ -120,9 +121,7 @@ export async function sendWeeklySummaryJob(): Promise<{
   const weekStart = resolveInicioDeSemana(new Date());
   const weekEnd = new Date(weekStart.getTime() + WEEK_MS);
 
-  const frontendUrl = (
-    process.env.FRONTEND_URL || "http://localhost:3001"
-  ).replace(/\/$/, "");
+  const frontendUrl = appUrl();
 
   let sent = 0;
   let skipped = 0;

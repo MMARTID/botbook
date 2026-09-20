@@ -23,6 +23,8 @@ import {
   requestPasswordReset,
   resetPasswordWithToken,
 } from "./passwordResetService.js";
+import { appUrl } from "../../lib/urls.js";
+import { canjearPase, crearPase, esPaseConFormatoValido } from "./pase.js";
 
 const GOOGLE_AUTH_STATE_TTL_SECONDS = 10 * 60;
 const GOOGLE_SESSION_TTL_SECONDS = 60;
@@ -93,10 +95,7 @@ function createToken(user: { id: string; businessId: string }) {
 }
 
 function getFrontendUrl() {
-  return (process.env.FRONTEND_URL || "http://localhost:3001").replace(
-    /\/$/,
-    ""
-  );
+  return appUrl();
 }
 
 function getGoogleAuthClient() {
@@ -317,10 +316,32 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
         normalizedBusinessType
       );
 
+      // `pase`: código de un solo uso para entrar en la app desde la web de
+      // marketing sin que el token viaje en la URL (PLAN-APP-DOMINIO.md § 3).
+      const pase = await crearPase(result.user);
       return reply.status(201).send({
         message: "Usuario registrado con éxito",
         token: createToken(result.user),
+        ...(pase ? { pase } : {}),
       });
+    }
+  );
+
+  fastify.post(
+    "/pase/canjear",
+    { config: { rateLimit: veryStrictRateLimit } },
+    async (request, reply) => {
+      const { pase } = (request.body ?? {}) as { pase?: unknown };
+      if (!esPaseConFormatoValido(pase)) {
+        return reply.status(400).send({ error: "Pase no válido" });
+      }
+      const user = await canjearPase(pase);
+      if (!user) {
+        return reply
+          .status(401)
+          .send({ error: "El pase no es válido o ha caducado", code: "PASE_INVALIDO" });
+      }
+      return reply.send({ token: createToken(user) });
     }
   );
 

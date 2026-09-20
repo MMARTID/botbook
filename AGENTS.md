@@ -287,7 +287,7 @@ Copy `.env.example` to `.env` and fill in all required secrets. Key groups:
 | **R2 / S3** | `R2_ACCOUNT_ID`, `R2_ACCESS_KEY`, `R2_SECRET_KEY`, `R2_BUCKET`, `R2_REGION`, `R2_ENDPOINT` |
 | **Telnyx** | `TELNYX_API_KEY`, `TELNYX_SIP_CONNECTION_ID`, `TELNYX_SPAIN_REQUIREMENT_GROUP_ID`, `PHONE_NUMBER_COUNTRY` |
 | **Retell SIP trunk** | `RETELL_SIP_TERMINATION_URI`, `RETELL_SIP_TRUNK_AUTH_USERNAME`, `RETELL_SIP_TRUNK_AUTH_PASSWORD` (Telnyx SIP Connection used by `RetellAdapter.importPhoneNumber`) |
-| **Server** | `FRONTEND_URL`, `PORT`, `NODE_ENV`, `LOG_LEVEL` |
+| **Server** | `APP_URL` (la app, app.alhabla.ai), `WEB_URL` (la web de marketing, alhabla.ai), `FRONTEND_URL` (respaldo de las dos), `EXTRA_ALLOWED_ORIGIN`, `PORT`, `NODE_ENV`, `LOG_LEVEL` — ver `lib/urls.ts` |
 | **Calendario** | `CALENDAR_CREDENTIALS_KEY` (obligatoria; cifrado en reposo de `calendar_connections.credentials`) |
 
 ## Authentication & Authorization
@@ -307,7 +307,7 @@ All business-scoped data is filtered by `businessId` from the token. Never trust
 - `POST /auth/forgot-password` `{ email }` — always `200` with the same message whether or not the
   account exists (no user enumeration). When it does, a 32-byte token is generated, **only its
   SHA-256 hash** is stored in Redis (`auth:password-reset:<hash>` → `userId`, 1 h TTL) and the link
-  `${FRONTEND_URL}/restablecer-contrasena?token=` is emailed through the `send-email` job from
+  `${APP_URL}/restablecer-contrasena?token=` is emailed through the `send-email` job from
   `support@`. Google-only accounts (no password) can use it too — receiving the mail proves
   ownership, same as setting a password from `/ajustes`. Rate limit: 5/min.
 - `POST /auth/reset-password` `{ token, password }` — consumes the hash with `GETDEL` (single use),
@@ -326,7 +326,7 @@ All business-scoped data is filtered by `businessId` from the token. Never trust
 
 - **Validation:** Use `zod` schemas for route bodies and params. Return `400` with `error.errors` on `ZodError`.
 - **Global error handler** (`server.ts`): Normalizes all errors to `{ statusCode, error, message }`. Handles both `Error` instances and plain error objects (e.g. rate-limit errors from `@fastify/rate-limit`). Logs full error details with Pino. Returns generic "Internal server error" for 5xx to avoid leaking internals.
-- **Rate limiting:** Default 100 req/min per IP, counter in Redis (global across Cloud Run instances since 2026-09-17). Retell webhook endpoints override to 300 req/min. Auth endpoints have stricter limits: 10/min (`/login`, `/register`) and 5/min (`/register-first-user`). Places endpoints use 10/min. **`/internal/jobs/*` are exempt** (`config.rateLimit: false` on every route): Cloud Tasks/Scheduler call from a handful of Google IPs and are already OIDC-authenticated — with the limit made real, draining a queue produced 293 × 429 in three minutes, and a burst of weekly-summary emails would have exhausted Cloud Tasks retries on legitimate sends.
+- **Rate limiting:** Default 100 req/min per IP, counter in Redis (global across Cloud Run instances since 2026-09-17). Retell webhook endpoints override to 300 req/min. Auth endpoints have stricter limits: 10/min (`/login`, `/register`) and 5/min (`/register-first-user`, `/pase/canjear`). **Pase de un solo uso** (PLAN-APP-DOMINIO.md § 3, fase 0, 2026-09-21): `POST /auth/register` devuelve además `pase` (64 hex, `auth:pase:<código>` en Redis, 60 s, best-effort) y `POST /auth/pase/canjear { pase }` lo cambia por el JWT una sola vez (`getdel`; 401 `PASE_INVALIDO` si no existe o ya se usó, 400 si el formato no es el esperado). Es el puente entre el registro en la web de marketing y la sesión en la app (`lib/urls.ts`, `modules/auth/pase.ts`). Places endpoints use 10/min. **`/internal/jobs/*` are exempt** (`config.rateLimit: false` on every route): Cloud Tasks/Scheduler call from a handful of Google IPs and are already OIDC-authenticated — with the limit made real, draining a queue produced 293 × 429 in three minutes, and a burst of weekly-summary emails would have exhausted Cloud Tasks retries on legitimate sends.
 
 ## Database (Prisma)
 
@@ -2120,7 +2120,7 @@ Separate suite (`npm run test:integration`, config `backend/vitest.integration.c
 ## Security Checklist
 
 - **JWT_SECRET** is mandatory — the server refuses to start without it.
-- CORS is restricted to the exact `FRONTEND_URL` origin.
+- CORS is restricted to the exact `APP_URL`, `WEB_URL` and `EXTRA_ALLOWED_ORIGIN` origins (`lib/urls.ts › origenesPermitidos`).
 - Rate limiting is active globally (100 req/min per IP, Redis-backed) and raised for Retell webhooks (300 req/min). Places endpoints use 10/min. Internal job routes (`/internal/jobs/*`) are exempt.
 - Retell webhook signatures are verified via `retellAdapter.validateWebhookSignature` using the Retell API key. This also applies to the Retell custom tool endpoints (`/webhooks/retell/tools/:retellAgentId/:toolName`).
 - Stripe webhook signatures are verified in the route handler before calling `handleStripeEvent` (route uses `rawBody: true`).

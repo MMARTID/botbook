@@ -186,6 +186,44 @@ describe("authRoutes", () => {
       );
     });
 
+    it("devuelve además un pase de un solo uso guardado en Redis 60 s; sin Redis, solo el token", async () => {
+      mockedUserFindUnique.mockResolvedValue(null);
+      mockedBcryptHash.mockResolvedValue("hashed_password" as any);
+      mockedJwtSign.mockReturnValue("token_123" as any);
+      mockedTransaction.mockImplementation(async (callback: any) => {
+        mockedBusinessCreate.mockResolvedValue({ id: "business_123" } as any);
+        mockedUserCreate.mockResolvedValue({ id: "user_123", businessId: "business_123" } as any);
+        return callback({ business: { create: mockedBusinessCreate }, user: { create: mockedUserCreate } });
+      });
+      const redisMock = { set: vi.fn().mockResolvedValue("OK") };
+      mockedGetRedis.mockReturnValue(redisMock as any);
+
+      const response = await fastify.inject({
+        method: "POST",
+        url: "/register",
+        payload: { email: "test@example.com", password: "password", isEuropeanUnion: true, acceptedTerms: true },
+      });
+      expect(response.statusCode).toBe(201);
+      const { pase } = response.json();
+      expect(pase).toMatch(/^[0-9a-f]{64}$/);
+      expect(redisMock.set).toHaveBeenCalledWith(
+        `auth:pase:${pase}`,
+        JSON.stringify({ id: "user_123", businessId: "business_123" }),
+        "EX",
+        60
+      );
+
+      mockedGetRedis.mockReturnValue({ set: vi.fn().mockRejectedValue(new Error("redis caído")) } as any);
+      const sinRedis = await fastify.inject({
+        method: "POST",
+        url: "/register",
+        payload: { email: "test2@example.com", password: "password", isEuropeanUnion: true, acceptedTerms: true },
+      });
+      expect(sinRedis.statusCode).toBe(201);
+      expect(sinRedis.json().token).toBe("token_123");
+      expect(sinRedis.json().pase).toBeUndefined();
+    });
+
     it("rechaza registro si el usuario ya existe", async () => {
       mockedUserFindUnique.mockResolvedValue({ id: "user_123" } as any);
 
@@ -243,6 +281,40 @@ describe("authRoutes", () => {
       expect(mockedCreateBusinessAgent).toHaveBeenCalledWith(
         expect.objectContaining({ businessType: "peluqueria" })
       );
+    });
+  });
+
+  describe("POST /pase/canjear", () => {
+    const PASE = "a".repeat(64);
+
+    it("canjea el pase una sola vez (getdel) y devuelve un token del usuario guardado", async () => {
+      const redisMock = {
+        getdel: vi.fn().mockResolvedValue(JSON.stringify({ id: "user_9", businessId: "business_9" })),
+      };
+      mockedGetRedis.mockReturnValue(redisMock as any);
+      mockedJwtSign.mockReturnValue("token_9" as any);
+
+      const response = await fastify.inject({ method: "POST", url: "/pase/canjear", payload: { pase: PASE } });
+      expect(response.statusCode).toBe(200);
+      expect(response.json()).toEqual({ token: "token_9" });
+      expect(redisMock.getdel).toHaveBeenCalledWith(`auth:pase:${PASE}`);
+      expect(mockedJwtSign).toHaveBeenCalledWith(
+        { id: "user_9", businessId: "business_9" },
+        expect.any(String),
+        expect.anything()
+      );
+    });
+
+    it("un pase inexistente, caducado o ya usado es 401; un formato raro es 400 sin tocar Redis", async () => {
+      const redisMock = { getdel: vi.fn().mockResolvedValue(null) };
+      mockedGetRedis.mockReturnValue(redisMock as any);
+      const caducado = await fastify.inject({ method: "POST", url: "/pase/canjear", payload: { pase: PASE } });
+      expect(caducado.statusCode).toBe(401);
+      expect(caducado.json().code).toBe("PASE_INVALIDO");
+
+      const raro = await fastify.inject({ method: "POST", url: "/pase/canjear", payload: { pase: "../x" } });
+      expect(raro.statusCode).toBe(400);
+      expect(redisMock.getdel).toHaveBeenCalledTimes(1);
     });
   });
 
