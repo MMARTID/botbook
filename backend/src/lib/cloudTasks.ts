@@ -1,5 +1,5 @@
 import { CloudTasksClient } from "@google-cloud/tasks";
-import { ProcessRecordingJob, ReportUsageJob, RetryFailedBookingJob, SendEmailJob, SendSmsJob, SendWhatsappJob } from "./jobTypes.js";
+import { ProcessRecordingJob, RecordarRecadoJob, ReportUsageJob, RetryFailedBookingJob, SendEmailJob, SendSmsJob, SendWhatsappJob } from "./jobTypes.js";
 import { processRecordingJob } from "../jobs/processRecording.js";
 import { processRetryFailedBookingJob } from "../jobs/retryFailedBooking.js";
 import { processSendEmailJob } from "../jobs/sendEmail.js";
@@ -173,6 +173,31 @@ export async function enqueueSmsJob(
     payload: conClave,
     taskId: options?.taskId,
     scheduleTime: options?.scheduleTime,
+  });
+}
+
+/**
+ * Recordatorio de un recado pospuesto («Recuérdamelo mañana»). Va por la
+ * cola `send-whatsapp` (no hace falta una cola nueva en GCP) con una tarea
+ * por lead y día: un segundo toque el mismo día no crea otra.
+ */
+export async function enqueueRecordarRecadoJob(
+  payload: RecordarRecadoJob,
+  scheduleTime: Date
+): Promise<void> {
+  if (!IS_PRODUCTION) {
+    console.log(
+      `[Job] Recordatorio del recado ${payload.leadId} programado para ${scheduleTime.toISOString()} (no se ejecuta ahora, no hay Cloud Tasks en dev)`
+    );
+    return;
+  }
+  const dia = scheduleTime.toISOString().slice(0, 10).replace(/-/g, "");
+  await enqueueCloudTask({
+    queue: "send-whatsapp",
+    path: "/internal/jobs/recordar-recado",
+    payload,
+    taskId: `recado-${payload.leadId}-${dia}-${payload.intento ?? 1}`,
+    scheduleTime,
   });
 }
 

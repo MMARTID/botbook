@@ -730,9 +730,12 @@ piloto. Decisión del usuario del 20-09 (madrugada): cimientos primero.
 - ~~Mensaje #1 por reserva (plantilla o interactivo según ventana), #3 con *La apunté yo*,
   #4~~ — **PR 3 (avisos al negocio), backend hecho el 20-09**: `avisosNegocio.ts` con la
   cascada ventana → plantilla aprobada → email/nada, botones «Vale», «Ver agenda de hoy», «La
-  apunté yo», «Reintentar», «Reconectar», agenda por AGENDA/HOY/MAÑANA, cita recuperada. Quedan
-  para PRs propios: #2 (recado por post-conversación `informar_al_negocio`, exige tocar los
-  assistants de Telnyx) y #5 (alertas operativas), y el toggle de `avisoPorReserva` en el panel.
+  apunté yo», «Reintentar», «Reconectar», agenda por AGENDA/HOY/MAÑANA, cita recuperada.
+  **#2 hecho (PR 5, 20-09)**: tool `informar_al_negocio` + `post_conversation_settings` en
+  todos los assistants, prompt con «Recados» y «Al terminar la llamada», primer informe gana
+  con reclamo atómico, doble escritura con los insights (discrepancias al log), recado ⇒ `Lead`
+  `message` ⇒ aviso con «Atendido» · «Recuérdamelo mañana» (job `recordar-recado` a las 09:00)
+  y email de respaldo. Quedan #5 (alertas operativas) y el toggle de `avisoPorReserva`.
 - ~~`confirmacion_cita_v2` con *Guardar contacto* (vCard al toque) y *Cómo llegar* (`placeId`);
   `Business.address`/`placeId` desde Places. La recepcionista anuncia el WhatsApp por voz.~~
   ~~`recordatorio_cita_v2` con *Confirmo* · *Cancelar* · *Cambiar*; cancelar libera, avisa (#4)

@@ -373,3 +373,50 @@ describe("buildTelnyxVoiceTools — notify_when_available (PR 4)", () => {
     expect(tool!.required).toEqual(["startDateTime", "durationMinutes"]);
   });
 });
+
+describe("buildTelnyxVoiceTools — informar_al_negocio (PR 5, post-conversación)", () => {
+  it("la tool existe, con el resultado obligatorio, el recado como objeto opcional y la cabecera del call_control_id", () => {
+    const tool = buildTelnyxVoiceTools("https://api.alhabla.ai").find(
+      (t) => t.name === "informar_al_negocio"
+    );
+    expect(tool).toBeDefined();
+    expect(tool!.url).toBe(
+      "https://api.alhabla.ai/webhooks/telnyx/tools/informar_al_negocio"
+    );
+    expect(tool!.required).toEqual(["resultado"]);
+    expect(tool!.properties.resultado).toEqual(
+      expect.objectContaining({
+        type: "string",
+        enum: ["RESOLVED", "FRUSTRATED", "NO_ANSWER", "ESCALATED", "LEAD_CAPTURED"],
+      })
+    );
+    expect(tool!.properties.recado).toEqual(
+      expect.objectContaining({
+        type: "object",
+        required: ["motivo"],
+        properties: expect.objectContaining({
+          telefono: expect.objectContaining({
+            description: expect.stringContaining("Nunca lo rellenes por tu cuenta"),
+          }),
+        }),
+      })
+    );
+    expect(tool!.headers).toEqual([
+      { name: "X-Alhabla-Call-Control-Id", value: "{{call_control_id}}" },
+    ]);
+  });
+
+  it("el payload del assistant activa la post-conversación", () => {
+    const payload = buildTelnyxAssistantPayload({
+      businessId: "biz_1",
+      agentId: "agent_1",
+      businessName: "Peluquería Ana",
+      instructions: "x",
+      timezone: "Europe/Madrid",
+      greeting: "",
+      language: "es",
+      voice: "Telnyx.KokoroTTS.af",
+    });
+    expect(payload.postConversationSettings).toEqual({ enabled: true });
+  });
+});

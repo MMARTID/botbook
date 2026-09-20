@@ -11,7 +11,10 @@ import {
   revocarBaja,
 } from "../../../src/modules/whatsapp/bajas.js";
 import { textoAgendaDelDia } from "../../../src/modules/whatsapp/avisosNegocio.js";
-import { enqueueRetryBookingJob } from "../../../src/lib/cloudTasks.js";
+import {
+  enqueueRecordarRecadoJob,
+  enqueueRetryBookingJob,
+} from "../../../src/lib/cloudTasks.js";
 import {
   activarAvisosDelDueno,
   darDeBajaDueno,
@@ -53,12 +56,18 @@ vi.mock("../../../src/modules/whatsapp/bajas.js", () => ({
   registrarBaja: vi.fn(),
   revocarBaja: vi.fn(),
 }));
-vi.mock("../../../src/modules/whatsapp/avisosNegocio.js", () => ({
-  textoAgendaDelDia: vi.fn(),
-}));
+vi.mock("../../../src/modules/whatsapp/avisosNegocio.js", async (importActual) => {
+  const actual =
+    await importActual<
+      typeof import("../../../src/modules/whatsapp/avisosNegocio.js")
+    >();
+  // limitesDelDia es pura (fechas) y la usa «Recuérdamelo mañana».
+  return { ...actual, textoAgendaDelDia: vi.fn() };
+});
 vi.mock("../../../src/lib/cloudTasks.js", () => ({
   enqueueRetryBookingJob: vi.fn(),
   enqueueWhatsappJob: vi.fn(),
+  enqueueRecordarRecadoJob: vi.fn(),
 }));
 // Los botones del cliente (PR 4) tienen sus propios tests en
 // botonesCliente.test.ts; aquí solo se comprueba la delegación.
@@ -97,6 +106,7 @@ vi.mock("../../../src/modules/whatsapp/altaDueno.js", async (importActual) => {
 
 const mockedTextoAgenda = vi.mocked(textoAgendaDelDia);
 const mockedEnqueueRetry = vi.mocked(enqueueRetryBookingJob);
+const mockedEnqueueRecado = vi.mocked(enqueueRecordarRecadoJob);
 const mockedBizFindFirst = vi.mocked(prisma.business.findFirst);
 const mockedLeadFindFirst = vi.mocked(prisma.lead.findFirst);
 const mockedLeadUpdate = vi.mocked(prisma.lead.update);
@@ -1658,5 +1668,102 @@ describe("botones de los avisos al negocio (PR 3)", () => {
       expect(mockedEnviarTexto).toHaveBeenCalledTimes(2);
       expect(mockedAvisarAQuienEsperaba).not.toHaveBeenCalled();
     });
+  });
+});
+
+describe("botones del aviso de recado (#2)", () => {
+  const AVISO_RECADO = {
+    id: "sm_rec",
+    providerMessageId: "msg-rec",
+    businessId: "biz_1",
+    audience: "owner",
+    toNumber: MOVIL,
+    callbackData: "aviso:recado:lead_9",
+  };
+  function boton(id: string, title: string) {
+    return entrante({
+      kind: "button",
+      text: null,
+      buttonId: id,
+      buttonTitle: title,
+      contextMessageId: "msg-rec",
+      payload: { type: "interactive" },
+      role: "owner",
+      businessId: "biz_1",
+    });
+  }
+
+  beforeEach(() => {
+    mockedSentFindUnique.mockResolvedValue(AVISO_RECADO as never);
+    mockedBizFindFirst.mockResolvedValue({
+      ...ACTIVO,
+      timezone: "Europe/Madrid",
+    } as never);
+    mockedLeadFindFirst.mockResolvedValue({
+      id: "lead_9",
+      resolvedAt: null,
+    } as never);
+    mockedLeadUpdate.mockResolvedValue({} as never);
+    mockedEnqueueRecado.mockResolvedValue(undefined);
+  });
+
+  it("«Atendido» resuelve el recado del negocio y lo confirma", async () => {
+    expect(
+      await enrutarEntrante(boton("aviso:recado:lead_9:atendido", "Atendido"))
+    ).toEqual({ handler: "aviso:recado:atendido" });
+    expect(mockedLeadFindFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "lead_9", type: "message", call: { businessId: "biz_1" } },
+      })
+    );
+    expect(mockedLeadUpdate).toHaveBeenCalledWith({
+      where: { id: "lead_9" },
+      data: { resolvedAt: expect.any(Date), snoozedUntil: null },
+    });
+    expect(enviado()?.body).toBe(mensajes.recadoAtendido());
+  });
+
+  it("«Recuérdamelo mañana» pospone hasta las 09:00 del día siguiente y programa el job (también desde el botón de la plantilla)", async () => {
+    expect(
+      await enrutarEntrante(boton("Recuérdamelo mañana", "Recuérdamelo mañana"))
+    ).toEqual({ handler: "aviso:recado:manana" });
+    expect(mockedLeadUpdate).toHaveBeenCalledWith({
+      where: { id: "lead_9" },
+      data: { snoozedUntil: expect.any(Date) },
+    });
+    const cuando = (
+      mockedLeadUpdate.mock.calls[0][0].data as { snoozedUntil: Date }
+    ).snoozedUntil;
+    expect(cuando.getTime()).toBeGreaterThan(Date.now());
+    expect(
+      new Intl.DateTimeFormat("es-ES", {
+        timeZone: "Europe/Madrid",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      }).format(cuando)
+    ).toBe("09:00");
+    expect(mockedEnqueueRecado).toHaveBeenCalledWith({ leadId: "lead_9" }, cuando);
+    expect(enviado()?.body).toBe(mensajes.recadoPospuesto());
+  });
+
+  it("un recado ya atendido o ajeno no se toca", async () => {
+    mockedLeadFindFirst.mockResolvedValue({
+      id: "lead_9",
+      resolvedAt: new Date(),
+    } as never);
+    expect(
+      await enrutarEntrante(boton("aviso:recado:lead_9:atendido", "Atendido"))
+    ).toEqual({ handler: "aviso:recado:atendido:ya-atendido" });
+    expect(enviado()?.body).toBe(mensajes.recadoYaAtendido());
+
+    mockedLeadFindFirst.mockResolvedValue(null);
+    expect(
+      await enrutarEntrante(
+        boton("aviso:recado:lead_9:manana", "Recuérdamelo mañana")
+      )
+    ).toEqual({ handler: "aviso:recado:manana:lead-ajeno" });
+    expect(mockedLeadUpdate).not.toHaveBeenCalled();
+    expect(mockedEnqueueRecado).not.toHaveBeenCalled();
   });
 });

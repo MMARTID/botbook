@@ -350,3 +350,18 @@ describe("buildManagedAgentPrompt — profesionales y especialidades", () => {
     expect(prompt).toContain("isSpecialist");
   });
 });
+
+describe("buildManagedAgentPrompt — recados y post-conversación (PR 5)", () => {
+  it("pide confirmar el teléfono del recado y llamar una vez a informar_al_negocio al terminar", () => {
+    const prompt = buildManagedAgentPrompt({
+      businessName: "Peluquería Ejemplo",
+      settings: DEFAULT_AGENT_SETTINGS,
+    });
+
+    expect(prompt).toContain("## Recados");
+    expect(prompt).toContain("nunca uses el número desde el que llama sin que lo confirme");
+    expect(prompt).toContain("## Al terminar la llamada");
+    expect(prompt).toContain("llama UNA sola vez a informar_al_negocio");
+    expect(prompt).toContain("No la uses durante la conversación");
+  });
+});

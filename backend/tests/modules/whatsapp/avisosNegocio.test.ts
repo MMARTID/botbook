@@ -13,6 +13,7 @@ import {
   avisarCancelacion,
   avisarCitaPendiente,
   avisarNuevaReserva,
+  avisarRecado,
   describirServicio,
   formatearCita,
   formatearCitaCorta,
@@ -489,5 +490,72 @@ describe("textoAgendaDelDia", () => {
       1
     );
     expect(texto).toMatch(/^Peluquería Ana, mañana \(.+\): sin citas\.$/);
+  });
+});
+
+describe("avisarRecado (#2)", () => {
+  it("interactivo con «Atendido» y «Recuérdamelo mañana», parámetros de la plantilla recado_negocio y anotación en el lead", async () => {
+    const email = vi.fn().mockResolvedValue(undefined);
+
+    expect(
+      await avisarRecado({
+        businessId: "biz_1",
+        businessName: "Peluquería Ana",
+        leadId: "lead_7",
+        clientName: "María",
+        clientPhone: "+34612345678",
+        motivo: "Quiere saber si hacéis balayage.",
+        quiereQueLeLlamen: true,
+        email,
+      })
+    ).toEqual({ via: "interactivo" });
+    expect(mockedBotones).toHaveBeenCalledWith(
+      expect.objectContaining({
+        body: "Peluquería Ana: recado de María (+34612345678). Quiere saber si hacéis balayage. Pide que le llames.",
+        buttons: [
+          { id: "aviso:recado:lead_7:atendido", title: "Atendido" },
+          { id: "aviso:recado:lead_7:manana", title: "Recuérdamelo mañana" },
+        ],
+        idempotencyKey: "aviso:recado:lead_7",
+      })
+    );
+    expect(email).not.toHaveBeenCalled();
+    expect(mockedLeadUpdate).toHaveBeenCalledWith({
+      where: { id: "lead_7" },
+      data: { notifiedAt: expect.any(Date), notifiedVia: "interactivo" },
+    });
+  });
+
+  it("fuera de la ventana usa recado_negocio con sus cuatro parámetros; un recordatorio lleva sufijo de intento", async () => {
+    mockedVentana.mockResolvedValue(false);
+    mockedResolverPlantilla.mockResolvedValue({
+      telnyxTemplateId: "tpl-recado",
+      name: "recado_negocio",
+      language: "es",
+    });
+
+    await avisarRecado({
+      businessId: "biz_1",
+      businessName: "Peluquería Ana",
+      leadId: "lead_7",
+      clientName: null,
+      clientPhone: null,
+      motivo: "Pregunta por precios.",
+      quiereQueLeLlamen: false,
+      intento: 2,
+    });
+
+    expect(mockedPlantilla).toHaveBeenCalledWith(
+      expect.objectContaining({
+        template: { id: "tpl-recado" },
+        bodyParams: {
+          negocio_nombre: "Peluquería Ana",
+          cliente_nombre: "Un cliente",
+          cliente_telefono: "sin teléfono",
+          motivo: "Pregunta por precios.",
+        },
+        idempotencyKey: "aviso:recado:lead_7:r2",
+      })
+    );
   });
 });

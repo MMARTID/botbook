@@ -52,6 +52,7 @@ import {
 } from "../whatsapp/mensajesCliente.js";
 import { cancelarReserva } from "../bookings/cancelacion.js";
 import { isValidE164Phone } from "../../lib/phone.js";
+import { procesarInformeFinal } from "../whatsapp/recados.js";
 import {
   ESTADOS_DE_SUSCRIPCION_BLOQUEADOS,
   planAllows,
@@ -2243,6 +2244,24 @@ export async function executeVoiceTool(
       return executeCancelAppointment(business, params, callLabel, callId);
     case "notify_when_available":
       return executeNotifyWhenAvailable(business, params, callLabel, callId);
+    case "informar_al_negocio": {
+      // Post-conversación (PLAN-CANAL-DUENO.md § 10): siempre 200, para que
+      // el assistant no reintente y duplique el recado.
+      if (!callId) {
+        console.error(`[VoiceTools] ${callLabel} informar_al_negocio sin callId`);
+        return { success: true, result: { success: false } };
+      }
+      const informe = await procesarInformeFinal({
+        business: {
+          id: business.id,
+          name: business.name,
+          timezone: business.timezone || "Europe/Madrid",
+        },
+        callControlId: callId,
+        params,
+      });
+      return { success: true, result: { success: true, outcome: informe.outcome } };
+    }
     default:
       console.warn(`[VoiceTools] Tool desconocida: ${toolName}`);
       return { success: true };

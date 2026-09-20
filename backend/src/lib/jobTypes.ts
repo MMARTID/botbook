@@ -45,6 +45,13 @@ export interface SendSmsJob {
  * parámetros ya construidos por quien encola. La siguen usando los envíos
  * que no pasan por `modules/whatsapp/mensajesCliente.ts`.
  */
+/** «Recuérdamelo mañana» de un recado: volver a avisar si sigue sin atender. */
+export interface RecordarRecadoJob {
+  leadId: string;
+  /** Número de recordatorio (1 = el primero); forma el recurso del aviso. */
+  intento?: number;
+}
+
 export interface SendWhatsappJobLegado {
   toNumber: string;
   templateName: string;

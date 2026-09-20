@@ -230,7 +230,90 @@ export function buildTelnyxVoiceTools(baseUrl: string): TelnyxWebhookToolInput[]
       headers: [callControlHeader],
       timeoutMs: 20000,
     },
+    buildInformarAlNegocioTool(toolBaseUrl, callControlHeader),
   ];
+}
+
+/**
+ * Tool de POST-CONVERSACIÓN (PLAN-CANAL-DUENO.md § 10): Telnyx vuelve a
+ * invocar al assistant ~1 s después de colgar (`post_conversation_settings
+ * .enabled`) y el prompt le pide llamar UNA vez a esta tool con el informe
+ * de la llamada. Verificado en la fase 0.5: llega, pero DOS veces por
+ * llamada y a veces con contenido distinto — la idempotencia por
+ * call_control_id la hace `procesarInformeFinal` (modules/whatsapp/
+ * recados.ts). El recado (nombre, teléfono, motivo) se convierte en un
+ * `Lead` tipo `message` y en el aviso #2 al dueño.
+ */
+export function buildInformarAlNegocioTool(
+  toolBaseUrl: string,
+  callControlHeader: { name: string; value: string }
+): TelnyxWebhookToolInput {
+  return {
+    name: "informar_al_negocio",
+    description:
+      "Informe final de la llamada para el negocio. Llámala UNA sola vez, solo cuando la llamada ya ha terminado (post-conversación), nunca durante la conversación. Resume cómo acabó y, si el cliente dejó un recado o pidió que le llamen, inclúyelo en recado.",
+    url: `${toolBaseUrl}/informar_al_negocio`,
+    method: "POST",
+    properties: {
+      resultado: {
+        type: "string",
+        enum: ["RESOLVED", "FRUSTRATED", "NO_ANSWER", "ESCALATED", "LEAD_CAPTURED"],
+        description:
+          "RESOLVED si el cliente consiguió lo que quería (reservar, consultar, cancelar); FRUSTRATED si se fue molesto o sin solución; NO_ANSWER si nadie habló o colgó enseguida; ESCALATED si hubo que remitirle al negocio; LEAD_CAPTURED si dejó recado o pidió que le llamen.",
+      },
+      motivo_escalada: {
+        type: "string",
+        enum: [
+          "CLIENTE_LO_PIDIO",
+          "FALLO_TECNICO",
+          "FUERA_DE_HORARIO",
+          "CONSULTA_COMPLEJA",
+          "NO_APLICA",
+        ],
+        description:
+          "Por qué no se resolvió en la llamada. NO_APLICA si se resolvió.",
+      },
+      fallo_de_tool: {
+        type: "boolean",
+        description:
+          "true si alguna herramienta (disponibilidad, reserva, cancelación) falló o devolvió error durante la llamada.",
+      },
+      servicio_pedido: {
+        type: "string",
+        description:
+          "Nombre del servicio que pidió el cliente, tal como aparece en el catálogo; vacío si no pidió ninguno.",
+      },
+      recado: {
+        type: "object",
+        description:
+          "Solo si el cliente dejó un recado explícito o pidió que el negocio le llame. Si no, no lo envíes.",
+        properties: {
+          nombre: {
+            type: "string",
+            description: "Nombre que dio el cliente; vacío si no lo dijo.",
+          },
+          telefono: {
+            type: "string",
+            description:
+              "Teléfono al que quiere que le llamen, SOLO si el cliente lo dictó o confirmó que le llamen al número desde el que llama. Nunca lo rellenes por tu cuenta.",
+          },
+          motivo: {
+            type: "string",
+            description:
+              "Qué quiere o qué pregunta, en una o dos frases, con sus palabras.",
+          },
+          quiere_que_le_llamen: {
+            type: "boolean",
+            description: "true si pidió que el negocio le devuelva la llamada.",
+          },
+        },
+        required: ["motivo"],
+      },
+    },
+    required: ["resultado"],
+    headers: [callControlHeader],
+    timeoutMs: 20000,
+  };
 }
 
 // Cadena exacta que produce managedAgentPrompt.ts para "hora actual en la
@@ -525,6 +608,9 @@ export function buildTelnyxAssistantPayload(
     // como en Retell, solo este booleano) — pendiente de la Fase 0.
     privacySettings: { data_retention: true },
     insightGroupId: input.insightGroupId,
+    // Post-conversación (PLAN-CANAL-DUENO.md § 10): el assistant vuelve a
+    // ejecutarse tras colgar para llamar a informar_al_negocio.
+    postConversationSettings: { enabled: true },
     tools,
   };
 }

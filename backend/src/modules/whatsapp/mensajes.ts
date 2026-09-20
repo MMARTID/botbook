@@ -398,6 +398,35 @@ export function listaDeEsperaError(input: { negocio: string }): string {
   return `${input.negocio}: no he podido avisar a quien esperaba ahora mismo. Vuelve a pulsar en unos minutos.`;
 }
 
+/** #2 — Recado tomado por la recepcionista. */
+export function avisoRecado(input: {
+  negocio: string;
+  cliente: string | null;
+  telefono: string | null;
+  motivo: string;
+  quiereQueLeLlamen: boolean;
+}): string {
+  const quien = input.cliente ?? "Un cliente";
+  const desde = input.telefono ? ` (${input.telefono})` : "";
+  const llamada = input.quiereQueLeLlamen ? " Pide que le llames." : "";
+  return `${input.negocio}: recado de ${quien}${desde}. ${input.motivo}${llamada}`;
+}
+
+/** Botón «Atendido» del recado. */
+export function recadoAtendido(): string {
+  return "Perfecto, doy el recado por atendido.";
+}
+
+/** Botón «Recuérdamelo mañana» del recado. */
+export function recadoPospuesto(): string {
+  return "Vale, te lo recuerdo mañana a las nueve.";
+}
+
+/** El botón llegó tarde: el recado ya estaba atendido. */
+export function recadoYaAtendido(): string {
+  return "Ese recado ya está atendido.";
+}
+
 /** Botón «Ver agenda de hoy» y palabras clave AGENDA / HOY / MAÑANA. */
 export function agendaDelDia(input: {
   negocio: string;

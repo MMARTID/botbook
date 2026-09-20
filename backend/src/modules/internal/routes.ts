@@ -6,6 +6,7 @@ import { processRetryFailedBookingJob } from "../../jobs/retryFailedBooking.js";
 import { processSendEmailJob } from "../../jobs/sendEmail.js";
 import { processSendSmsJob } from "../../jobs/sendSms.js";
 import { processSendWhatsappJob } from "../../jobs/sendWhatsapp.js";
+import { processRecordarRecadoJob } from "../../jobs/recordarRecado.js";
 import { cleanupZombieCallsJob } from "../../jobs/cleanupZombieCalls.js";
 import { purgeOldRecordingsJob } from "../../jobs/purgeOldRecordings.js";
 import { telnyxHealthCheckJob } from "../../jobs/telnyxHealthCheck.js";
@@ -22,6 +23,11 @@ const ProcessRecordingSchema = z.object({
   callId: z.string(),
   externalUrl: z.string(),
   businessId: z.string(),
+});
+
+const RecordarRecadoSchema = z.object({
+  leadId: z.string(),
+  intento: z.number().int().min(1).max(10).optional(),
 });
 
 const RetryFailedBookingSchema = z.object({
@@ -136,6 +142,24 @@ export const internalJobsRoutes: FastifyPluginAsync = async (fastify) => {
           return reply.send({ received: true, skipped: error.reason });
         }
         fastify.log.error({ err: error }, "process-recording job failed");
+        return reply.status(500).send({ error: "Job processing failed" });
+      }
+    }
+  );
+
+  fastify.post(
+    "/jobs/recordar-recado",
+    opcionesDeJob,
+    async (request, reply) => {
+      try {
+        const data = RecordarRecadoSchema.parse(request.body);
+        await processRecordarRecadoJob(data);
+        return reply.send({ received: true });
+      } catch (error) {
+        if (error instanceof z.ZodError) {
+          return reply.status(400).send({ error: error.errors });
+        }
+        fastify.log.error({ err: error }, "recordar-recado job failed");
         return reply.status(500).send({ error: "Job processing failed" });
       }
     }

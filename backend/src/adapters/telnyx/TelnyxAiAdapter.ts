@@ -64,6 +64,9 @@ export interface CreateTelnyxAssistantInput {
   insightGroupId?: string;
   tools?: Array<TelnyxWebhookTool | HangupTool>;
   enabledFeatures?: AssistantCreateParams["enabled_features"];
+  /** `post_conversation_settings.enabled`: el assistant se invoca de nuevo
+   * al terminar la llamada para las tools finales (informar_al_negocio). */
+  postConversationSettings?: { enabled: boolean };
 }
 
 export interface TelnyxAssistant {
@@ -92,6 +95,7 @@ function toAssistantCreatePayload(
       : undefined,
     tools: input.tools,
     enabled_features: input.enabledFeatures ?? ["telephony"],
+    post_conversation_settings: input.postConversationSettings,
   };
 }
 
@@ -183,6 +187,8 @@ export class TelnyxAiAdapter {
     if (input.tools !== undefined) payload.tools = input.tools;
     if (input.enabledFeatures !== undefined)
       payload.enabled_features = input.enabledFeatures;
+    if (input.postConversationSettings !== undefined)
+      payload.post_conversation_settings = input.postConversationSettings;
 
     const response = await client.ai.assistants.update(
       assistantId,

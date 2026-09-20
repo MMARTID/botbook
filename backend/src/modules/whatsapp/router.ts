@@ -4,7 +4,12 @@ import { prisma } from "../../lib/prisma.js";
 import { errorMessage } from "../../lib/logUtils.js";
 import { enqueueRetryBookingJob } from "../../lib/cloudTasks.js";
 import { interpretarComando, type PalabraClave } from "./webhooks.js";
-import { textoAgendaDelDia, type TipoAviso } from "./avisosNegocio.js";
+import {
+  limitesDelDia,
+  textoAgendaDelDia,
+  type TipoAviso,
+} from "./avisosNegocio.js";
+import { enqueueRecordarRecadoJob } from "../../lib/cloudTasks.js";
 import { resolverRemitente } from "./service.js";
 import { registrarBaja, revocarBaja } from "./bajas.js";
 import {
@@ -680,6 +685,7 @@ const TIPOS_DE_AVISO: readonly string[] = [
   "nueva_reserva",
   "cita_pendiente",
   "cancelacion",
+  "recado",
 ];
 
 /** Acción por el título del botón de una PLANTILLA (sin id propio). */
@@ -695,6 +701,10 @@ function accionPorTitulo(titulo: string): string | null {
       return "reintentar";
     case "RECONECTAR":
       return "reconectar";
+    case "ATENDIDO":
+      return "atendido";
+    case "RECUERDAMELO MANANA":
+      return "manana";
     case "AVISAR A QUIEN ESPERABA":
     case "AVISAR LISTA ESPERA":
       return "avisar_espera";
@@ -825,9 +835,98 @@ async function botonDeAviso(
       return botonDeCitaPendiente(message, aviso, business, base);
     case "avisar_espera":
       return botonDeListaDeEspera(message, aviso, business, base);
+    case "atendido":
+    case "manana":
+      return botonDeRecado(message, aviso, business, base);
     default:
       return { handler: `pendiente:boton:aviso:${aviso.accion}` };
   }
+}
+
+/**
+ * Botones del aviso #2 (recado): «Atendido» resuelve el lead;
+ * «Recuérdamelo mañana» lo pospone hasta las 09:00 del día siguiente en la
+ * zona del negocio y programa el job `recordar-recado`, que vuelve a avisar
+ * si sigue sin atender. El lead tiene que ser de ESTE negocio; el id del
+ * recurso puede llevar el sufijo `:r<n>` de un recordatorio.
+ */
+async function botonDeRecado(
+  message: InboundMessage,
+  aviso: BotonDeAviso,
+  business: Business,
+  base: string
+): Promise<ResultadoEnrutado> {
+  const leadId = aviso.recursoId.replace(/:r\d+$/, "");
+  const lead = await prisma.lead.findFirst({
+    where: { id: leadId, type: "message", call: { businessId: business.id } },
+    select: { id: true, resolvedAt: true },
+  });
+  if (!lead) {
+    console.warn(
+      `[WhatsApp] Botón ${aviso.accion} de ${message.fromNumber} para el recado ${leadId}, que no es del negocio ${business.id}; se ignora`
+    );
+    return { handler: `${base}:lead-ajeno` };
+  }
+  if (lead.resolvedAt) {
+    return resultado(
+      `${base}:ya-atendido`,
+      await responder(message, "recado-atendido", mensajes.recadoYaAtendido(), {
+        businessId: business.id,
+      })
+    );
+  }
+  if (aviso.accion === "atendido") {
+    await prisma.lead.update({
+      where: { id: lead.id },
+      data: { resolvedAt: new Date(), snoozedUntil: null },
+    });
+    console.log(
+      `[WhatsApp] Recado ${lead.id} del negocio ${business.id} atendido por el dueño (${message.fromNumber})`
+    );
+    return resultado(
+      base,
+      await responder(message, "recado-atendido", mensajes.recadoAtendido(), {
+        businessId: business.id,
+      })
+    );
+  }
+  // manana
+  const cuando = manana9h(business.timezone || "Europe/Madrid");
+  await prisma.lead.update({
+    where: { id: lead.id },
+    data: { snoozedUntil: cuando },
+  });
+  try {
+    await enqueueRecordarRecadoJob({ leadId: lead.id }, cuando);
+  } catch (error) {
+    console.error(
+      `[WhatsApp] No se pudo programar el recordatorio del recado ${lead.id} (negocio ${business.id}) para ${cuando.toISOString()}: ${errorMessage(error)}`
+    );
+    return resultado(
+      `${base}:sin-programar`,
+      await responder(
+        message,
+        "recado-pospuesto",
+        `No he podido programar el recordatorio. El recado sigue en tu panel: ${mensajes.panelUrl("/llamadas")}`,
+        { businessId: business.id }
+      )
+    );
+  }
+  console.log(
+    `[WhatsApp] Recado ${lead.id} del negocio ${business.id} pospuesto hasta ${cuando.toISOString()}`
+  );
+  return resultado(
+    base,
+    await responder(message, "recado-pospuesto", mensajes.recadoPospuesto(), {
+      businessId: business.id,
+    })
+  );
+}
+
+/** Las 09:00 del día siguiente en la zona del negocio. */
+export function manana9h(timezone: string, ahora: Date = new Date()): Date {
+  const { inicio } = limitesDelDia(timezone, 1, ahora);
+  return new Date(inicio.getTime() + 9 * 60 * 60 * 1000);
 }
 
 /**
