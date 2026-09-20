@@ -706,8 +706,15 @@ piloto. Decisión del usuario del 20-09 (madrugada): cimientos primero.
   `SentMessage`, estado de plantillas por webhook, script de sincronización. Texto, botones y
   vCard verificados entregados desde el número de clientes. Los perfiles en el reconciliador
   quedan para el PR 4. Detalle en `AGENTS.md` § WhatsApp › Código.
-- Alta: campo del móvil, `bienvenida_negocio` con *Activar avisos*, `STOP`, Ajustes › WhatsApp,
-  `131026` ⇒ email.
+- ~~Alta: campo del móvil, `bienvenida_negocio` con *Activar avisos*, `STOP`, Ajustes › WhatsApp,
+  `131026` ⇒ email~~ — **PR 2 (alta del dueño), backend hecho el 20-09**: `ownerWhatsappNumber`
+  por `PATCH /business/me`, `GET /business/me/whatsapp` y `POST
+  /business/me/whatsapp/activation`, enrutador que responde (`ALTA <código>`, botón, `STOP`,
+  `AYUDA`, respuestas fijas), tabla `WhatsappOptOut` con guardia en el servicio, `131026` ⇒
+  `sin_whatsapp` (el email al dueño queda para el PR 3). La plantilla sigue `PENDING` en Meta:
+  la vía activa es `ALTA <código>` (enlace/QR desde Ajustes), y `ALTA` a secas **solo
+  reactiva** a un móvil que ya había consentido (nunca es primer consentimiento). Detalle en
+  `AGENTS.md` § WhatsApp › Código (PR 2).
 - Webhook de mensajería: idempotencia, enrutado por prefijo de botón, identificación de dueño /
   cliente / desconocido, `ownerWindowOpenUntil`.
 - Mensaje #1 por reserva (plantilla o interactivo según ventana), #2 con `informar_al_negocio`

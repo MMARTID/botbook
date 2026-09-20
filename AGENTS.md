@@ -393,6 +393,97 @@ el `fetch` equivalente. **Nunca desde un route handler**: todo pasa por
   ampliada (entrega, coste, correlación); `Business.ownerWhatsappNumber`. Migración
   `20260919230000_whatsapp_cimientos`, solo aditiva.
 
+**Código (fase 1, PR 2 — alta del dueño, 2026-09-20).**
+- `modules/whatsapp/altaDueno.ts`: estado del dueño (`estadoWhatsappDelDueno`: `sin_numero |
+  pendiente | activo | sin_whatsapp | baja`, pura; `puedeRecibirAvisos` para el PR 3), código
+  de `ALTA <código>` (6 símbolos sin 0/O/1/I, `crypto.randomBytes`, `@unique` global, 7 días,
+  se consume con CUALQUIER opt-in), `cambiarMovilDelDueno` (`updateMany` cuyo `where` también
+  casa la columna a NULL; reinicia consentimiento/baja/131026/ventana/freno/código),
+  `activarAvisosDelDueno` (código o botón; `ownerAltaCode` en el `where` ⇒ dos códigos
+  concurrentes activan uno; con el botón el `where` lleva `ownerWhatsappNumber: from`, para
+  que un PATCH concurrente que cambie el móvil no quede pisado), `reactivarDueno` (`ALTA` a secas: SOLO negocios con
+  `ownerWhatsappOptInAt` y `ownerWhatsappOptOutAt` puestos — nunca es primer consentimiento),
+  `darDeBajaDueno`, `marcarDuenoSinWhatsapp`/`limpiarDuenoSinWhatsapp(businessId, toNumber)`
+  (131026; las dos exigen que el envío fuera al móvil ACTUAL: un `read` tardío de un envío al
+  móvil antiguo no limpia la marca del nuevo),
+  `iniciarActivacionDelDueno` (plantilla `bienvenida_negocio` solo con la fila `APPROVED` y
+  `subscriptionStatus ∈ {ACTIVE, TRIALING}`; tope de 2 plantillas de activación por móvil
+  destino/24 h entre todas las cuentas, contando solo filas que no estén `failed`/`suppressed`;
+  freno de 5 min por negocio reclamado ANTES de enviar con `updateMany` condicional; si Telnyx
+  falla se revierte el freno, la fila reclamada queda `failed`/`SEND_ERROR` y se devuelve
+  `sent: "link"`), `resumenWhatsappDelDueno` (lo que devuelve el GET; refresca la plantilla por
+  `listTemplates` si lleva >24 h sin sincronizar, con enfriamiento en memoria de 15 min tras un
+  fallo del WABA para no amplificar contra la cuota de Telnyx), `nombreParaWhatsapp` (nunca
+  sale el email: «tu negocio»; recorta a 60 caracteres — por eso `name` no lleva máximo en Zod).
+  Ganchos solo-log: `avisarDuenoSinWhatsapp`, `avisarCambioDeMovil` (email en el PR 3).
+- `modules/whatsapp/bajas.ts`: tabla `WhatsappOptOut` (una fila por número y audiencia; baja
+  vigente ⇔ `revokedAt IS NULL`; nunca se borra). `bajaVigente`/`estaDadoDeBaja`,
+  `registrarBaja` (upsert), `revocarBaja`, `WhatsappOptOutError` (`code: WHATSAPP_OPT_OUT`).
+  **Guardia en el servicio**: `enviarPlantilla/enviarTexto/enviarBotones/enviarContacto`
+  lanzan `WhatsappOptOutError` a un número con baja salvo `permitirBaja: true` (solo la
+  confirmación del STOP); la fila reclamada queda `deliveryStatus: suppressed`,
+  `errorCode: OPT_OUT`. `jobs/sendWhatsapp.ts` la captura y no reintenta.
+- `modules/whatsapp/mensajes.ts`: todo el copy (funciones puras, los tests comparan contra ellas).
+- `modules/whatsapp/routes.ts`: `GET /business/me/whatsapp` y `POST
+  /business/me/whatsapp/activation` (registradas en `server.ts` tras `onboardingRoutes`). El
+  móvil se cambia por `PATCH /business/me { ownerWhatsappNumber }` (E.164 o null; 400
+  `OWNER_WHATSAPP_IS_ALHABLA` ANTES de cualquier escritura; `name` sin máximo: los nombres de
+  Places pueden pasar de 80). `GET /business/me/onboarding` gana el paso `whatsapp` (antes de
+  `forwarding`; `activo` o `baja` = resuelto) y el bloque `whatsapp: { status,
+  ownerWhatsappNumber }`. Mientras `CONTAR_WHATSAPP_EN_PROGRESO` (onboarding/routes.ts) sea
+  `false`, el paso NO cuenta en `progress`/`isActive`: un negocio con los otros cinco hechos no
+  ve reaparecer la guía si se despliega el backend antes que el frontend. Ponerlo a `true`
+  cuando el frontend del PR 2 esté en producción.
+- `modules/whatsapp/router.ts` ya responde. Handlers: `stop:dueno | stop:desconocido |
+  stop:cliente`, `alta:vinculado | alta:ya-activo | alta:ya-activo:codigo (código gastado o
+  ajeno desde un móvil ya activo: responde «ya activo» pero CUENTA para el bloqueo de 5
+  intentos/hora) | alta:codigo-invalido | alta:codigo-caducado | alta:bloqueado |
+  alta:reactivado | alta:sin-codigo | alta:cliente-reactivado | alta:numero-equivocado`,
+  `boton:activacion:{ok,por-envio,ya-activo,remitente-distinto,numero-antiguo}`,
+  `pendiente:boton:{sin-contexto,sin-fila,ambiguo}` (botón «Activar avisos» con `context.id`
+  sin fila, o sin `context.id` con activaciones de dos negocios al mismo móvil en 72 h: no se
+  adivina), `ayuda:dueno | ayuda:sin-consentimiento (el móvil solo lo tecleó un negocio, quizá
+  otro tenant: no se nombra) | ayuda:desconocido`, `texto:dueno | texto:desconocido |
+  texto:dueno-en-clientes`, `bienvenida-chat:<audience>`, `ignorado:{sin-audiencia,reaction,
+  system,unsupported,audio,media,other}`, y `pendiente:*` para lo de los PRs 3/4 y la fase 2.
+  Sufijos: `:silenciado` (una vez al día por tipo, o techo de 20 respuestas por número y hora)
+  y `:baja` (el número pidió STOP: no es error). Como mucho una respuesta por entrante, siempre
+  texto desde el número al que escribió, reclamada con `reclamarEnvio`
+  (`entrante:<InboundMessage.id>:<tipo>`, `callbackData: aviso:<tipo>`). Si el envío falla, la
+  fila reclamada queda `failed`/`SEND_ERROR` y NO cuenta para «una vez al día» (el siguiente
+  entrante lo reintenta); una `suppressed` sí cuenta. La ventana de 24 h
+  (`ownerWindowOpenUntil`) solo avanza: el barrido de una fila vieja no la retrocede. Los
+  contadores leen columnas que se escriben tras el envío: aproximados bajo concurrencia
+  (asumido). `interpretarComando` (`webhooks.ts`): quita puntuación inicial (`¡¿"'(*`) y de
+  cierre antes de partir; `STOP`/`AYUDA` por primera palabra («¡STOP!», «Ayuda, por favor»);
+  `BAJA` solo sola («¡Baja!» sí, «Baja el precio» no); `ALTA` sola o `ALTA <código>`
+  (`/^ALTA[\s:-]*([A-Z0-9]{6})?$/`); «Alta demanda hoy» es texto libre.
+- Convenciones de `SentMessage`: `callbackData = alta:<businessId>` en la plantilla de
+  activación (correlación del botón por `context.id → providerMessageId`, atribución del 131026
+  y tope por destino), `aviso:<tipo>` en cada respuesta; `idempotencyKey = alta:<businessId>:
+  <epoch ms>` / `entrante:<id>:<tipo>`. `reclamarEnvio(channel, key, extra?)` acepta un tercer
+  argumento para que la fila nazca con `businessId/audience/toNumber/callbackData/kind`; si el
+  `statuses[]` se adelanta al registro, la fila `adhoc:<id>` se **fusiona** con esos datos.
+- 131026 (el destinatario no tiene WhatsApp) llega ASÍNCRONO como fallo de entrega
+  (`statuses[].failed` con `errors[].code` o `message.finalized` `delivery_failed`), nunca en
+  la respuesta del envío: `actualizarEstadoEnvio` marca `ownerWhatsappUnreachableAt` solo si el
+  `toNumber` sigue siendo el `ownerWhatsappNumber`; un `delivered/read` al móvil actual o
+  cualquier entrante real del dueño la limpia.
+- **Barrido de filas sin enrutar**: el reintento de Telnyx llega con el mismo `data.id` y
+  `server.ts` lo descarta como duplicado sin reprocesar nada, así que una fila guardada y no
+  enrutada (proceso muerto) la recoge `handleWhatsappMessages` al inicio de cualquier evento
+  posterior (`handledAt null`, >2 min y <7 d, reclamo atómico con `handler:
+  "reintento:en-curso"`, 20 por pasada). Si el volumen crece se mueve a Cloud Scheduler.
+- El nombre real del evento `whatsapp.template.*` no está verificado (fase 0): el `default:`
+  del switch de `/webhooks/telnyx` avisa con `warn` de cualquier `whatsapp.*`/`message.*` sin
+  handler, y el GET refresca la plantilla cada 24 h por `listTemplates`.
+- Migración `20260920010000_whatsapp_alta_dueno` (solo aditiva): columnas `ownerWhatsapp*`,
+  `ownerWindowOpenUntil`, `ownerAltaCode(@unique)`/`ownerAltaCodeExpiresAt` en `businesses`;
+  índice `[handledAt, receivedAt]` en `inbound_messages`; tabla `whatsapp_opt_outs`.
+  Checklist de deploy: `whatsapp_senders` con `owner +34930453218` y `client +34930454394`
+  (sin ellas, todo lo que llegue al número de clientes acaba en `ignorado:sin-audiencia`) y
+  `whatsapp_templates` con `key = 'bienvenida_negocio'` (sin ella el estado nunca cambia).
+
 **Cuenta.** Un solo WABA, «Alhabla»: id Telnyx `804230d2-c5e0-45dd-af65-95819468378a`, id Meta
 `1628104425601770`, conectado por Embedded Signup el 13-09. `messaging_limit_tier: TIER_250`
 (250 destinatarios únicos/24 h para **toda** la cartera), `business_verification_status:

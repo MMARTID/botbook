@@ -20,6 +20,7 @@ import { billingRoutes } from "./modules/billing/routes.js";
 import { phoneRoutes } from "./modules/phone/routes.js";
 import { selectRetellInboundAgent } from "./modules/phone/retellInbound.js";
 import { onboardingRoutes } from "./modules/onboarding/routes.js";
+import { whatsappRoutes } from "./modules/whatsapp/routes.js";
 import { demoRoutes } from "./modules/demo/routes.js";
 import {
   handleCallStarted,
@@ -539,10 +540,22 @@ async function start() {
               result = await handleTemplateStatusEvent(payload);
               break;
             }
-            fastify.log.debug(
-              { eventType: envelope.eventType },
-              "[Telnyx] Evento no procesable ignorado"
-            );
+            if (
+              envelope.eventType.startsWith("whatsapp.") ||
+              envelope.eventType.startsWith("message.")
+            ) {
+              // El nombre real del evento de plantilla no está verificado
+              // (fase 0): que se vea de inmediato si llega con otro nombre.
+              fastify.log.warn(
+                { eventType: envelope.eventType },
+                "[Telnyx] Evento de WhatsApp/mensajería sin handler; se ignora"
+              );
+            } else {
+              fastify.log.debug(
+                { eventType: envelope.eventType },
+                "[Telnyx] Evento no procesable ignorado"
+              );
+            }
             await completeVoiceWebhookEvent("telnyx", envelope.id, "success");
             return reply.status(200).send({ success: true, ignored: true });
         }
@@ -653,6 +666,7 @@ async function start() {
     fastify.register(billingRoutes, { prefix: '/billing' });
     fastify.register(phoneRoutes, { prefix: '/phone' });
     fastify.register(onboardingRoutes);
+    fastify.register(whatsappRoutes);
     fastify.register(demoRoutes, { prefix: '/demo' });
     fastify.register(internalAuthPlugin);
     fastify.register(internalJobsRoutes, { prefix: '/internal' });

@@ -10,6 +10,21 @@ function esErrorDeUnicidad(error: unknown): boolean {
 }
 
 /**
+ * Datos con los que puede nacer la fila de `SentMessage` al reclamarla. Los
+ * envíos de WhatsApp los rellenan para que un webhook de estado que llegue
+ * antes que `registrarEnvio` (carrera envío ↔ `statuses[]`) ya encuentre a
+ * qué negocio, audiencia y destino pertenece el mensaje. Los jobs de voz
+ * siguen llamando sin ellos.
+ */
+export interface DatosDelEnvio {
+  businessId?: string | null;
+  audience?: string;
+  toNumber?: string;
+  callbackData?: string;
+  kind?: string;
+}
+
+/**
  * Reclama un envío para que salga exactamente una vez. Cloud Tasks entrega al
  * menos una vez: un correo que tarda más que el plazo de la tarea se
  * reintenta aunque el proveedor ya lo haya aceptado, y el cliente recibe dos
@@ -22,13 +37,16 @@ function esErrorDeUnicidad(error: unknown): boolean {
  */
 export async function reclamarEnvio(
   channel: "email" | "sms" | "whatsapp",
-  idempotencyKey: string | undefined
+  idempotencyKey: string | undefined,
+  extra?: DatosDelEnvio
 ): Promise<boolean> {
   if (!idempotencyKey) {
     return true;
   }
   try {
-    await prisma.sentMessage.create({ data: { channel, idempotencyKey } });
+    await prisma.sentMessage.create({
+      data: { channel, idempotencyKey, ...(extra ?? {}) },
+    });
     return true;
   } catch (error) {
     if (esErrorDeUnicidad(error)) {

@@ -3,10 +3,20 @@ import Fastify from "fastify";
 import { businessesRoutes } from "../../../src/modules/businesses/routes.js";
 import { prisma } from "../../../src/lib/prisma.js";
 import { filaDeConexion } from "../../helpers/conexionDeCalendario.js";
+import {
+  cambiarMovilDelDueno,
+  esNumeroDeAlhabla,
+} from "../../../src/modules/whatsapp/altaDueno.js";
+import { syncAgentNameWithBusinessType } from "../../../src/lib/agentBootstrap.js";
 
 vi.mock("../../../src/lib/prisma.js", () => ({
   prisma: {
-    business: { findUnique: vi.fn(), update: vi.fn() },
+    business: {
+      findUnique: vi.fn(),
+      update: vi.fn(),
+      findUniqueOrThrow: vi.fn(),
+    },
+    agent: { findMany: vi.fn(), update: vi.fn() },
   },
 }));
 
@@ -19,8 +29,31 @@ vi.mock("../../../src/lib/agentBootstrap.js", () => ({
   syncAgentNameWithBusinessType: vi.fn(),
   syncAgentToRetell: vi.fn(),
 }));
+vi.mock("../../../src/lib/telnyxAgentSync.js", () => ({
+  syncAgentToTelnyx: vi.fn(),
+}));
+vi.mock("../../../src/modules/whatsapp/altaDueno.js", async (importActual) => {
+  const actual =
+    await importActual<
+      typeof import("../../../src/modules/whatsapp/altaDueno.js")
+    >();
+  return {
+    ...actual,
+    cambiarMovilDelDueno: vi.fn(),
+    esNumeroDeAlhabla: vi.fn(),
+  };
+});
 
 const mockedBusinessFindUnique = vi.mocked(prisma.business.findUnique);
+const mockedBusinessUpdate = vi.mocked(prisma.business.update);
+const mockedBusinessFindUniqueOrThrow = vi.mocked(
+  prisma.business.findUniqueOrThrow
+);
+const mockedAgentFindMany = vi.mocked(prisma.agent.findMany);
+const mockedAgentUpdate = vi.mocked(prisma.agent.update);
+const mockedCambiarMovil = vi.mocked(cambiarMovilDelDueno);
+const mockedEsNumeroDeAlhabla = vi.mocked(esNumeroDeAlhabla);
+const mockedSyncName = vi.mocked(syncAgentNameWithBusinessType);
 
 async function buildServer() {
   const fastify = Fastify();
@@ -135,5 +168,120 @@ describe("GET /business/me (contrato de calendario con el panel)", () => {
     expect(body.outlookCalendarConnected).toBe(false);
     expect(body.outlookUserEmail).toBeNull();
     expect(body.googleCalendarId).toBeNull();
+  });
+});
+
+describe("PATCH /business/me (móvil del dueño para WhatsApp)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockedEsNumeroDeAlhabla.mockResolvedValue(false);
+    mockedCambiarMovil.mockResolvedValue({ count: 1 });
+    mockedBusinessFindUnique.mockResolvedValue({
+      name: "Peluquería Test",
+      businessDetails: null,
+      agentSettings: null,
+      timezone: "Europe/Madrid",
+    } as any);
+    mockedBusinessUpdate.mockResolvedValue({} as any);
+    mockedAgentFindMany.mockResolvedValue([{ id: "agent_1" }] as any);
+    mockedAgentUpdate.mockResolvedValue({} as any);
+    mockedBusinessFindUniqueOrThrow.mockResolvedValue(
+      negocioDePrisma({ ownerWhatsappNumber: "+34600123456" }) as any
+    );
+  });
+
+  async function patch(body: unknown) {
+    const fastify = await buildServer();
+    return fastify.inject({
+      method: "PATCH",
+      url: "/business/me",
+      payload: body as any,
+    });
+  }
+
+  it("un móvil que no es E.164 es un 400 de Zod", async () => {
+    const response = await patch({ ownerWhatsappNumber: "600123456" });
+    expect(response.statusCode).toBe(400);
+    expect(mockedCambiarMovil).not.toHaveBeenCalled();
+  });
+
+  it("un móvil válido pasa por cambiarMovilDelDueno con el negocio del JWT y no llega al update genérico", async () => {
+    const response = await patch({ ownerWhatsappNumber: "+34600123456" });
+
+    expect(response.statusCode).toBe(200);
+    expect(mockedCambiarMovil).toHaveBeenCalledWith("biz_1", "+34600123456");
+    const updateData = mockedBusinessUpdate.mock.calls[0][0].data as Record<
+      string,
+      unknown
+    >;
+    expect(updateData).not.toHaveProperty("ownerWhatsappNumber");
+    expect(response.json().ownerWhatsappNumber).toBe("+34600123456");
+  });
+
+  it("null quita el móvil", async () => {
+    await patch({ ownerWhatsappNumber: null });
+    expect(mockedCambiarMovil).toHaveBeenCalledWith("biz_1", null);
+  });
+
+  it("el número de Alhabla se rechaza ANTES de tocar los agentes o el nombre", async () => {
+    mockedEsNumeroDeAlhabla.mockResolvedValue(true);
+
+    const response = await patch({
+      ownerWhatsappNumber: "+34930453218",
+      name: "Otro nombre",
+      businessType: "peluqueria",
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json()).toEqual({
+      error: "Ese número es el de Alhabla. Escribe tu propio móvil.",
+      code: "OWNER_WHATSAPP_IS_ALHABLA",
+    });
+    expect(mockedSyncName).not.toHaveBeenCalled();
+    expect(mockedAgentUpdate).not.toHaveBeenCalled();
+    expect(mockedBusinessUpdate).not.toHaveBeenCalled();
+    expect(mockedCambiarMovil).not.toHaveBeenCalled();
+  });
+
+  it("si solo cambia el nombre no se toca el móvil", async () => {
+    const response = await patch({ name: "Peluquería Nueva" });
+    expect(response.statusCode).toBe(200);
+    expect(mockedCambiarMovil).not.toHaveBeenCalled();
+  });
+
+  it("las columnas de consentimiento no son escribibles desde el panel", async () => {
+    await patch({
+      name: "Peluquería Nueva",
+      ownerWhatsappOptInAt: "2026-09-20T00:00:00Z",
+      ownerAltaCode: "AAAAAA",
+      ownerWhatsappOptOutAt: null,
+    });
+
+    const updateData = mockedBusinessUpdate.mock.calls[0][0].data as Record<
+      string,
+      unknown
+    >;
+    expect(updateData).not.toHaveProperty("ownerWhatsappOptInAt");
+    expect(updateData).not.toHaveProperty("ownerAltaCode");
+    expect(updateData).not.toHaveProperty("ownerWhatsappOptOutAt");
+  });
+
+  it("un nombre largo de Google Places no se rechaza (la plantilla lo acota aparte)", async () => {
+    const largo =
+      "Centro de Estética y Belleza Integral María del Carmen Fernández Rodríguez - Salón Unisex";
+    expect(largo.length).toBeGreaterThan(80);
+    expect((await patch({ name: largo })).statusCode).toBe(200);
+    expect((await patch({ name: "" })).statusCode).toBe(400);
+  });
+
+  it("si cambiarMovilDelDueno lanza NumeroDeAlhablaError también es un 400 con código", async () => {
+    const { NumeroDeAlhablaError } =
+      await import("../../../src/modules/whatsapp/altaDueno.js");
+    mockedCambiarMovil.mockRejectedValue(new NumeroDeAlhablaError());
+
+    const response = await patch({ ownerWhatsappNumber: "+34600123456" });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json().code).toBe("OWNER_WHATSAPP_IS_ALHABLA");
   });
 });

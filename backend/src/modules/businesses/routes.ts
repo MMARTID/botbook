@@ -17,8 +17,16 @@ import { syncAgentNameWithBusinessType, syncAgentToRetell } from "../../lib/agen
 import { syncAgentToTelnyx } from "../../lib/telnyxAgentSync.js";
 import { nonDeletedServiceLinks, serializeProfessional } from "../bookings/service.js";
 import { E164_PHONE_REGEX } from "../../lib/phone.js";
+import {
+  cambiarMovilDelDueno,
+  esNumeroDeAlhabla,
+  NumeroDeAlhablaError,
+} from "../whatsapp/altaDueno.js";
 
 const UpdateBusinessSchema = z.object({
+  // Sin máximo: los nombres de Google Places pueden pasar de 80 caracteres y
+  // un 400 aquí rompería el alta. El parámetro {{negocio_nombre}} de la
+  // plantilla de WhatsApp ya lo acota nombreParaWhatsapp (60 caracteres).
   name: z.string().min(1).optional(),
   // Sin esto no había NINGÚN endpoint que permitiera cambiar el teléfono del
   // negocio: se crea en el registro con un placeholder (`TEMP-...`, ver
@@ -42,6 +50,17 @@ const UpdateBusinessSchema = z.object({
   // — límites generosos, solo para evitar valores absurdos.
   minAdvanceBookingMinutes: z.coerce.number().int().min(0).max(10080).nullable().optional(),
   maxAppointmentDurationMinutes: z.coerce.number().int().min(1).max(1440).nullable().optional(),
+  // Móvil del dueño para los avisos por WhatsApp (no es `phone`, el fijo del
+  // local). Se aplica aparte del update genérico porque cambiarlo reinicia el
+  // consentimiento y el código de alta (modules/whatsapp/altaDueno.ts).
+  ownerWhatsappNumber: z
+    .string()
+    .regex(
+      E164_PHONE_REGEX,
+      "El móvil debe estar en formato internacional (ej. +34600123456)"
+    )
+    .nullable()
+    .optional(),
 });
 
 const AgendaQuerySchema = z.object({
@@ -264,6 +283,19 @@ export async function businessesRoutes(fastify: FastifyInstance) {
       try {
         const data = UpdateBusinessSchema.parse(request.body);
 
+        // Validación pura ANTES de cualquier escritura: más abajo se tocan
+        // los agentes antes que el negocio, y un 400 tardío dejaba los
+        // prompts cambiados y el Business sin cambiar.
+        if (
+          data.ownerWhatsappNumber &&
+          (await esNumeroDeAlhabla(data.ownerWhatsappNumber))
+        ) {
+          return reply.status(400).send({
+            error: "Ese número es el de Alhabla. Escribe tu propio móvil.",
+            code: "OWNER_WHATSAPP_IS_ALHABLA",
+          });
+        }
+
         // Cambiar la voz o los idiomas del agente es feature de Pro/Scale.
         // Solo bloquea si esos campos CAMBIAN respecto a lo guardado: un
         // negocio Inicio puede seguir editando tono/objetivo sin tocar la voz.
@@ -298,8 +330,12 @@ export async function businessesRoutes(fastify: FastifyInstance) {
         // modules/calendar/conexion.ts), no en columnas de Business: se
         // separan del update y se aplican después por conexión.
         // `calendarProvider` sí sigue siendo columna (proveedor activo).
-        const { googleCalendarId, outlookCalendarId, ...camposDeBusiness } =
-          data;
+        const {
+          googleCalendarId,
+          outlookCalendarId,
+          ownerWhatsappNumber,
+          ...camposDeBusiness
+        } = data;
         const updateData: any = { ...camposDeBusiness };
         if (data.schedule) {
             updateData.schedule = data.schedule as any;
@@ -360,6 +396,13 @@ export async function businessesRoutes(fastify: FastifyInstance) {
                 data: { systemPrompt: agentPrompt },
               })
             )
+          );
+        }
+
+        if (ownerWhatsappNumber !== undefined) {
+          await cambiarMovilDelDueno(
+            request.user!.businessId,
+            ownerWhatsappNumber
           );
         }
 
@@ -425,6 +468,15 @@ export async function businessesRoutes(fastify: FastifyInstance) {
         if (error instanceof z.ZodError) {
           return reply.status(400).send({ error: error.errors });
         }
+        if (error instanceof NumeroDeAlhablaError) {
+          return reply
+            .status(400)
+            .send({ error: error.message, code: error.code });
+        }
+        fastify.log.error(
+          { err: error },
+          "[Business] Failed to update /business/me"
+        );
         return reply
           .status(500)
           .send({ error: "Failed to update business" });

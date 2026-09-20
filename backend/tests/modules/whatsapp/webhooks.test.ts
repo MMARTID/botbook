@@ -7,6 +7,7 @@ import {
   handleTemplateStatusEvent,
   handleWhatsappMessages,
   identificarRemitente,
+  interpretarComando,
   palabraClaveDe,
 } from "../../../src/modules/whatsapp/webhooks.js";
 import {
@@ -19,7 +20,12 @@ vi.mock("../../../src/lib/prisma.js", () => ({
   prisma: {
     business: { findFirst: vi.fn() },
     booking: { findFirst: vi.fn() },
-    inboundMessage: { create: vi.fn(), update: vi.fn() },
+    inboundMessage: {
+      create: vi.fn(),
+      update: vi.fn(),
+      findMany: vi.fn(),
+      updateMany: vi.fn(),
+    },
     whatsappTemplate: { updateMany: vi.fn() },
   },
 }));
@@ -37,6 +43,8 @@ const mockedBusinessFindFirst = vi.mocked(prisma.business.findFirst);
 const mockedBookingFindFirst = vi.mocked(prisma.booking.findFirst);
 const mockedInboundCreate = vi.mocked(prisma.inboundMessage.create);
 const mockedInboundUpdate = vi.mocked(prisma.inboundMessage.update);
+const mockedInboundFindMany = vi.mocked(prisma.inboundMessage.findMany);
+const mockedInboundUpdateMany = vi.mocked(prisma.inboundMessage.updateMany);
 const mockedTemplateUpdateMany = vi.mocked(prisma.whatsappTemplate.updateMany);
 const mockedActualizarEstado = vi.mocked(actualizarEstadoEnvio);
 const mockedAudiencia = vi.mocked(audienciaDelNumero);
@@ -104,6 +112,93 @@ describe("palabraClaveDe / aE164", () => {
   });
 });
 
+describe("interpretarComando", () => {
+  it("ALTA con código en todas sus grafías", () => {
+    for (const texto of [
+      "ALTA 7KP3MQ",
+      "alta: 7kp3mq",
+      "/alta-7KP3MQ",
+      "ALTA 7KP3MQ.",
+      "ALTA7KP3MQ",
+    ]) {
+      expect(interpretarComando(texto)).toEqual({
+        keyword: "ALTA",
+        code: "7KP3MQ",
+      });
+    }
+    expect(interpretarComando("ALTA")).toEqual({ keyword: "ALTA", code: null });
+  });
+
+  it("ALTA con texto detrás que no es código es texto libre (ni fallo ni consentimiento)", () => {
+    expect(interpretarComando("alta por favor")).toBeNull();
+    expect(interpretarComando("Alta demanda hoy")).toBeNull();
+    expect(interpretarComando("ALTA 7KP0MQ")).toBeNull();
+    expect(interpretarComando("ALTA 7KP3M")).toBeNull();
+  });
+
+  it("STOP y AYUDA por la primera palabra; BAJA solo sola", () => {
+    expect(interpretarComando("Stop.")).toEqual({
+      keyword: "STOP",
+      code: null,
+    });
+    expect(interpretarComando("stop ya")).toEqual({
+      keyword: "STOP",
+      code: null,
+    });
+    expect(interpretarComando("BAJA")).toEqual({ keyword: "BAJA", code: null });
+    expect(interpretarComando("baja.")).toEqual({
+      keyword: "BAJA",
+      code: null,
+    });
+    expect(interpretarComando("BAJA!")).toEqual({
+      keyword: "BAJA",
+      code: null,
+    });
+    expect(interpretarComando("Baja el precio")).toBeNull();
+    expect(
+      interpretarComando("Baja por enfermedad, cierro el jueves")
+    ).toBeNull();
+    expect(interpretarComando("Ayuda con la agenda")).toEqual({
+      keyword: "AYUDA",
+      code: null,
+    });
+  });
+
+  it("la puntuación inicial y de cierre no esconde el comando", () => {
+    const STOP = { keyword: "STOP", code: null };
+    expect(interpretarComando("¡STOP!")).toEqual(STOP);
+    expect(interpretarComando('"STOP"')).toEqual(STOP);
+    expect(interpretarComando("(stop)")).toEqual(STOP);
+    expect(interpretarComando("*STOP*")).toEqual(STOP);
+    expect(interpretarComando("¿stop?")).toEqual(STOP);
+    expect(interpretarComando("¡Baja!")).toEqual({
+      keyword: "BAJA",
+      code: null,
+    });
+    expect(interpretarComando("Ayuda, por favor")).toEqual({
+      keyword: "AYUDA",
+      code: null,
+    });
+    // Sigue sin convertir frases normales en oposición o consentimiento.
+    expect(interpretarComando("¡Baja el precio!")).toBeNull();
+    expect(interpretarComando("¡Alta demanda hoy!")).toBeNull();
+    expect(interpretarComando("¡ALTA 7KP3MQ!")).toEqual({
+      keyword: "ALTA",
+      code: "7KP3MQ",
+    });
+  });
+
+  it("el resto de comandos solo como palabra sola", () => {
+    expect(interpretarComando("Hoy no puedo ir")).toBeNull();
+    expect(interpretarComando("hoy")).toEqual({ keyword: "HOY", code: null });
+    expect(interpretarComando("Mañana")).toEqual({
+      keyword: "MANANA",
+      code: null,
+    });
+    expect(interpretarComando("")).toBeNull();
+  });
+});
+
 describe("clasificarEntrante", () => {
   const contexto = { toNumber: "+34930454394", contactName: "Miki" };
 
@@ -132,6 +227,32 @@ describe("clasificarEntrante", () => {
         contexto
       ).kind
     ).toBe("keyword");
+    expect(
+      clasificarEntrante(
+        { ...TEXTO, text: { body: "ALTA 7KP3MQ" } } as never,
+        contexto
+      ).kind
+    ).toBe("keyword");
+    expect(
+      clasificarEntrante(
+        { ...TEXTO, text: { body: "Baja el precio" } } as never,
+        contexto
+      ).kind
+    ).toBe("text");
+  });
+
+  it("una reacción se guarda como other con el subtipo en el payload", () => {
+    const entrante = clasificarEntrante(
+      {
+        ...TEXTO,
+        text: undefined,
+        type: "reaction",
+        reaction: { emoji: "👍" },
+      } as never,
+      contexto
+    );
+    expect(entrante.kind).toBe("other");
+    expect((entrante.payload as { type: string }).type).toBe("reaction");
   });
 
   it("respuesta a un botón interactivo, con el id del mensaje al que responde", () => {
@@ -257,6 +378,8 @@ describe("handleWhatsappMessages", () => {
       async ({ data }) => ({ id: "in_1", ...data }) as never
     );
     mockedInboundUpdate.mockResolvedValue({} as never);
+    mockedInboundFindMany.mockResolvedValue([]);
+    mockedInboundUpdateMany.mockResolvedValue({ count: 1 });
     mockedEnrutar.mockResolvedValue({ handler: "pendiente:texto:client" });
   });
 
@@ -288,7 +411,26 @@ describe("handleWhatsappMessages", () => {
       data: expect.objectContaining({
         handler: "pendiente:texto:client",
         handledAt: expect.any(Date),
+        error: null,
       }),
+    });
+  });
+
+  it("guarda el handler y el error cuando la respuesta no pudo salir", async () => {
+    mockedEnrutar.mockResolvedValue({
+      handler: "texto:desconocido",
+      error: "Telnyx caído",
+    });
+
+    await handleWhatsappMessages(eventoMensajes([TEXTO]));
+
+    expect(mockedInboundUpdate).toHaveBeenCalledWith({
+      where: { id: "in_1" },
+      data: {
+        handledAt: expect.any(Date),
+        handler: "texto:desconocido",
+        error: "Telnyx caído",
+      },
     });
   });
 
@@ -348,6 +490,82 @@ describe("handleWhatsappMessages", () => {
       to: "+34692138456",
     });
     expect(mockedInboundCreate).not.toHaveBeenCalled();
+  });
+
+  describe("barrido de filas sin enrutar", () => {
+    const filaVieja = {
+      id: "in_viejo",
+      providerMessageId: "pm_viejo",
+      kind: "keyword",
+      role: "unknown",
+      audience: "owner",
+      businessId: null,
+      handler: null,
+      receivedAt: new Date(Date.now() - 5 * 60 * 1000),
+    };
+
+    it("reclama atómicamente una fila de hace 5 min y la enruta", async () => {
+      mockedInboundFindMany.mockResolvedValue([filaVieja] as never);
+
+      await handleWhatsappMessages(eventoMensajes([TEXTO]));
+
+      expect(mockedInboundFindMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ handledAt: null }),
+          orderBy: { receivedAt: "asc" },
+          take: 20,
+        })
+      );
+      const { receivedAt } = mockedInboundFindMany.mock.calls[0][0]!.where as {
+        receivedAt: { lt: Date; gt: Date };
+      };
+      expect(Date.now() - receivedAt.lt.getTime()).toBeGreaterThanOrEqual(
+        2 * 60 * 1000 - 50
+      );
+      expect(mockedInboundUpdateMany).toHaveBeenCalledWith({
+        where: { id: "in_viejo", handledAt: null, handler: null },
+        data: { handler: "reintento:en-curso" },
+      });
+      expect(mockedEnrutar).toHaveBeenCalledWith(
+        expect.objectContaining({ id: "in_viejo" })
+      );
+      expect(mockedInboundUpdate).toHaveBeenCalledWith({
+        where: { id: "in_viejo" },
+        data: expect.objectContaining({ handledAt: expect.any(Date) }),
+      });
+      // Y el entrante del evento actual se procesa igual.
+      expect(mockedEnrutar).toHaveBeenCalledWith(
+        expect.objectContaining({ id: "in_1" })
+      );
+    });
+
+    it("si otro proceso la reclamó antes (count 0) no la enruta", async () => {
+      mockedInboundFindMany.mockResolvedValue([filaVieja] as never);
+      mockedInboundUpdateMany.mockResolvedValue({ count: 0 });
+
+      await handleWhatsappMessages(eventoMensajes([TEXTO]));
+
+      expect(mockedEnrutar).not.toHaveBeenCalledWith(
+        expect.objectContaining({ id: "in_viejo" })
+      );
+      expect(mockedEnrutar).toHaveBeenCalledTimes(1);
+    });
+
+    it("si el barrido lanza, el evento actual se procesa igual", async () => {
+      mockedInboundFindMany.mockRejectedValue(new Error("BD"));
+      const errorSpy = vi
+        .spyOn(console, "error")
+        .mockImplementation(() => undefined);
+
+      expect(await handleWhatsappMessages(eventoMensajes([TEXTO]))).toEqual({
+        success: true,
+      });
+      expect(mockedEnrutar).toHaveBeenCalledWith(
+        expect.objectContaining({ id: "in_1" })
+      );
+      expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining("barrido"));
+      errorSpy.mockRestore();
+    });
   });
 
   it("un payload con otra forma no rompe: se registra y se devuelve fallo", async () => {
