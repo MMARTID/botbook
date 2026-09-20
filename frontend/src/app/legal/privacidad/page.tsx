@@ -36,8 +36,38 @@ export default function PrivacidadPage() {
           <a href="mailto:privacidad@alhabla.ai" className="font-medium text-[#6d28d9] underline underline-offset-2">
             privacidad@alhabla.ai
           </a>{" "}
-          .
+          . Alhabla es una actividad profesional de autónomo, no una sociedad mercantil.
         </p>
+      </LegalSection>
+
+      <LegalSection title="Qué datos tratamos y de dónde proceden">
+        <p>
+          Los datos proceden principalmente de ti, del negocio que das de alta, de las personas que llaman a ese negocio
+          y de los servicios que decides conectar. Según el uso, las categorías son: datos identificativos y de contacto,
+          credenciales de acceso, información del negocio, datos de facturación, eventos y disponibilidad de calendario,
+          grabaciones, transcripciones, resúmenes y metadatos de llamadas —como fecha, duración y número de origen o
+          destino—, además de registros técnicos necesarios para operar y proteger el servicio.
+        </p>
+        <p>
+          No solicitamos deliberadamente categorías especiales de datos. Si una persona revela información especialmente
+          sensible durante una llamada, el negocio debe valorar si puede tratarla y configurar a su agente para no pedir
+          datos que no sean necesarios para gestionar una consulta o cita.
+        </p>
+      </LegalSection>
+
+      <LegalSection title="Para qué los usamos y con qué base legal">
+        <ul className="list-disc space-y-2 pl-5">
+          <li>Crear y administrar la cuenta, configurar la recepcionista y gestionar citas: ejecución del contrato.</li>
+          <li>Facturar, atender obligaciones contables y responder a requerimientos legales: obligación legal.</li>
+          <li>
+            Prevenir fraude, proteger cuentas, resolver incidencias y defender reclamaciones: interés legítimo en la
+            seguridad y continuidad del servicio.
+          </li>
+          <li>
+            Procesar la demo y tratar los datos opcionales de un negocio seleccionado: consentimiento, que puedes retirar
+            sin afectar al resto del servicio.
+          </li>
+        </ul>
       </LegalSection>
 
       <LegalSection title="La demo de voz de la web">
@@ -103,6 +133,16 @@ export default function PrivacidadPage() {
         </p>
       </LegalSection>
 
+      <LegalSection title="Procesos automatizados y decisiones">
+        <p>
+          La recepcionista utiliza inteligencia artificial para comprender la llamada, producir una transcripción,
+          clasificar su resultado y proponer o registrar una cita conforme a la configuración del negocio. No usamos esos
+          procesos para adoptar decisiones automatizadas que produzcan efectos jurídicos o efectos equivalentes
+          significativos sobre quien llama. La persona puede pedir atención humana o contactar directamente con el
+          negocio cuando una respuesta o reserva no sea correcta.
+        </p>
+      </LegalSection>
+
       <LegalSection title="Tu calendario">
         <p>
           Si conectas Google Calendar o Outlook, te pedimos permiso para consultar tu disponibilidad y crear, modificar
@@ -153,11 +193,38 @@ export default function PrivacidadPage() {
         <ul className="list-disc space-y-2 pl-5">
           <li>
             <strong className="font-semibold text-[#1e2b22]">Retell.</strong> Procesa la conversación de voz y las
-            transcripciones para atender llamadas y elaborar sus resultados.
+            transcripciones para atender llamadas y elaborar sus resultados. Consulta su{" "}
+            <a
+              href="https://www.retellai.com/legal/privacy-policy"
+              target="_blank"
+              rel="noreferrer"
+              className="font-medium text-[#6d28d9] underline underline-offset-2"
+            >
+              política de privacidad
+            </a>
+            .
           </li>
           <li>
             <strong className="font-semibold text-[#1e2b22]">Telnyx.</strong> Proporciona telefonía, mensajería y
-            WhatsApp para cursar llamadas y comunicaciones del servicio.
+            WhatsApp para cursar llamadas y comunicaciones del servicio. Puedes consultar su{" "}
+            <a
+              href="https://telnyx.com/privacy-policy"
+              target="_blank"
+              rel="noreferrer"
+              className="font-medium text-[#6d28d9] underline underline-offset-2"
+            >
+              política de privacidad
+            </a>{" "}
+            y su{" "}
+            <a
+              href="https://telnyx.com/legal/data-processing-addendum"
+              target="_blank"
+              rel="noreferrer"
+              className="font-medium text-[#6d28d9] underline underline-offset-2"
+            >
+              anexo de tratamiento de datos
+            </a>
+            .
           </li>
           <li>
             <strong className="font-semibold text-[#1e2b22]">Stripe.</strong> Gestiona la suscripción y los pagos.
@@ -172,11 +239,18 @@ export default function PrivacidadPage() {
             respectivamente, almacenar grabaciones cifradas, servir la aplicación y entregar correos transaccionales.
           </li>
         </ul>
+      </LegalSection>
+
+      <LegalSection title="Transferencias internacionales">
         <p>
-          Estos proveedores solo reciben los datos necesarios para su función. Cuando un tratamiento implique una
-          transferencia internacional, aplicamos las garantías exigibles por la normativa, como decisiones de
-          adecuación o cláusulas contractuales tipo, según corresponda. Puedes pedir información actualizada sobre los
-          encargados y garantías aplicables escribiendo a privacidad@alhabla.ai.
+          Algunos proveedores pueden procesar datos fuera del Espacio Económico Europeo. Por ejemplo, Retell informa de
+          que procesa principalmente datos en Estados Unidos; Telnyx publica los mecanismos que emplea para transferencias
+          internacionales. Cuando corresponde, las transferencias se amparan en una decisión de adecuación, el Marco de
+          Privacidad de Datos UE-EE. UU. o cláusulas contractuales tipo, según el proveedor y el tratamiento.
+        </p>
+        <p>
+          Los proveedores solo reciben los datos necesarios para su función. Puedes pedir información actualizada sobre
+          destinatarios y garantías aplicables escribiendo a privacidad@alhabla.ai.
         </p>
       </LegalSection>
 
@@ -185,7 +259,8 @@ export default function PrivacidadPage() {
           Las grabaciones y transcripciones se conservan durante 90 días y después se eliminan. Los datos de la cuenta,
           negocio, configuración y reservas se conservan mientras la suscripción esté activa y durante tres meses tras
           la baja, salvo que debamos conservarlos bloqueados para atender responsabilidades legales. Las credenciales de
-          calendario se eliminan cuando revocas el acceso.
+          calendario se eliminan cuando revocas el acceso. Al terminar cada plazo, los datos se eliminan o se anonimizan,
+          salvo conservación obligatoria o necesaria para formular, ejercer o defender reclamaciones.
         </p>
         <p>
           La información de facturación se conserva durante seis años, conforme a las obligaciones contables y fiscales
@@ -196,11 +271,11 @@ export default function PrivacidadPage() {
       <LegalSection title="Tus derechos">
         <p>
           Puedes solicitar acceso a tus datos, su rectificación o supresión, la limitación u oposición al tratamiento,
-          y la portabilidad. Escríbenos a{" "}
+          y la portabilidad; también puedes retirar el consentimiento cuando esa sea la base del tratamiento. Escríbenos a{" "}
           <a href="mailto:privacidad@alhabla.ai" className="font-medium text-[#6d28d9] underline underline-offset-2">
             privacidad@alhabla.ai
           </a>{" "}
-          y te responderemos en el plazo legal.
+          y te responderemos en el plazo legal, normalmente en un mes.
         </p>
         <p>
           Si consideras que no hemos atendido tu solicitud correctamente, puedes presentar una reclamación ante la{" "}
@@ -225,6 +300,18 @@ export default function PrivacidadPage() {
         <p>
           Si incorporamos analítica, publicidad o cookies no técnicas, mostraremos antes un mecanismo de consentimiento
           que te permita aceptarlas, rechazarlas o configurarlas.
+        </p>
+      </LegalSection>
+
+      <LegalSection title="Menores y cambios en esta política">
+        <p>
+          Alhabla es un servicio dirigido a negocios y no está diseñado para que lo contraten menores de edad. Si crees
+          que hemos recibido datos de un menor sin la base legal necesaria, escríbenos a privacidad@alhabla.ai.
+        </p>
+        <p>
+          Podemos actualizar esta política cuando cambie el servicio o la normativa. Indicaremos la fecha de la última
+          actualización y, si el cambio es relevante, lo comunicaremos por los canales razonables antes de que sea
+          aplicable.
         </p>
       </LegalSection>
 
