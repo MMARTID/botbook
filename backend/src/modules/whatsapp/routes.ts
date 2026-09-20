@@ -1,8 +1,21 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
+import { z } from "zod";
 import {
   iniciarActivacionDelDueno,
   resumenWhatsappDelDueno,
 } from "./altaDueno.js";
+import {
+  decidirEnElPanel,
+  historialDelGestor,
+  preguntarAlGestor,
+} from "../gestor/panel.js";
+
+const MensajeAlGestorSchema = z
+  .object({ texto: z.string().trim().min(1).max(1000) })
+  .strict();
+const DecisionSchema = z
+  .object({ decision: z.enum(["confirmar", "cancelar"]) })
+  .strict();
 
 /**
  * Rutas del panel para el WhatsApp del dueño (PLAN-CANAL-DUENO.md § 2 y
@@ -96,6 +109,111 @@ export async function whatsappRoutes(fastify: FastifyInstance) {
         return reply
           .status(500)
           .send({ error: "No se pudo iniciar la activación por WhatsApp" });
+      }
+    }
+  );
+
+  // «Tu Gestor» en el panel (fase 2 / PR 5): historial, un mensaje y los
+  // botones de una propuesta. Mismo Gestor y misma conversación que por
+  // WhatsApp; la respuesta vuelve aquí en vez de salir como mensaje.
+  fastify.get(
+    "/business/me/gestor",
+    { preValidation: [fastify.authenticate] },
+    async (request: FastifyRequest, reply) => {
+      try {
+        const estado = await historialDelGestor(request.user!.businessId);
+        if (!estado) {
+          return reply.status(404).send({ error: "Business not found" });
+        }
+        return reply.send(estado);
+      } catch (error) {
+        fastify.log.error(
+          { err: error },
+          "[Gestor] No se pudo cargar el chat del panel"
+        );
+        return reply
+          .status(500)
+          .send({ error: "No se pudo cargar el chat con el Gestor" });
+      }
+    }
+  );
+
+  fastify.post(
+    "/business/me/gestor/mensajes",
+    {
+      preValidation: [fastify.authenticate],
+      config: { rateLimit: { max: 30, timeWindow: "10 minutes" } },
+    },
+    async (request: FastifyRequest, reply) => {
+      const parsed = MensajeAlGestorSchema.safeParse(request.body);
+      if (!parsed.success) {
+        return reply.status(400).send({ error: parsed.error.errors });
+      }
+      try {
+        const r = await preguntarAlGestor({
+          businessId: request.user!.businessId,
+          texto: parsed.data.texto,
+        });
+        if (!r.ok) {
+          const status =
+            r.motivo === "limite"
+              ? 429
+              : r.motivo === "ocupado"
+                ? 409
+                : r.motivo === "sin_respuesta"
+                  ? 502
+                  : 403;
+          return reply
+            .status(status)
+            .send({ error: r.mensaje, code: r.motivo });
+        }
+        return reply.send(r);
+      } catch (error) {
+        fastify.log.error(
+          { err: error },
+          "[Gestor] El mensaje desde el panel falló"
+        );
+        return reply
+          .status(500)
+          .send({ error: "El Gestor no ha podido atender el mensaje" });
+      }
+    }
+  );
+
+  fastify.post(
+    "/business/me/gestor/acciones/:accionId",
+    {
+      preValidation: [fastify.authenticate],
+      config: { rateLimit: { max: 30, timeWindow: "10 minutes" } },
+    },
+    async (request: FastifyRequest, reply) => {
+      const parsed = DecisionSchema.safeParse(request.body);
+      const { accionId } = request.params as { accionId?: string };
+      if (!parsed.success || !accionId || accionId.length > 64) {
+        return reply.status(400).send({
+          error: parsed.success ? "Acción no válida" : parsed.error.errors,
+        });
+      }
+      try {
+        const r = await decidirEnElPanel({
+          businessId: request.user!.businessId,
+          accionId,
+          decision: parsed.data.decision,
+        });
+        if (!r.ok) {
+          return reply
+            .status(r.motivo === "no_encontrada" ? 404 : 409)
+            .send({ error: r.mensaje, code: r.motivo });
+        }
+        return reply.send(r);
+      } catch (error) {
+        fastify.log.error(
+          { err: error },
+          "[Gestor] El botón desde el panel falló"
+        );
+        return reply
+          .status(500)
+          .send({ error: "No se pudo decidir la propuesta" });
       }
     }
   );

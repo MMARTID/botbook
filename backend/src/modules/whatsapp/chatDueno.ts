@@ -373,6 +373,25 @@ export async function ofrecerPuestaEnMarcha(
  * del onboarding, o nada más si no toca). Best-effort: si el chat está
  * apagado o falla, el «Hecho» ya salió.
  */
+/** Lo que recibe el Gestor en el turno sintético tras un botón; lo usan el
+ * WhatsApp (`continuarTrasAccion`) y el panel. */
+export const TEXTO_DE_SEGUIMIENTO: Record<
+  "ejecutada" | "fallida" | "rechazada",
+  string
+> = {
+  ejecutada:
+    "(El dueño ha pulsado Confirmar y la acción ya está hecha; ya se le ha dicho «hecho». Si estabas guiando la puesta en marcha, sigue con el siguiente paso que falte, sin repetir lo hecho. Si no falta nada ni había más pasos, responde solo «Listo.»)",
+  rechazada:
+    "(El dueño ha pulsado Cancelar: no se ha hecho nada y ya se le ha dicho. Pregunta brevemente qué quiere cambiar, sin volver a proponer lo mismo.)",
+  fallida:
+    "(La acción confirmada no se ha podido hacer y ya se le ha dicho al dueño. Sugiere el panel o que lo vuelva a pedir más tarde, en una frase.)",
+};
+
+/** Respuesta del turno de seguimiento que significa «nada que añadir». */
+export function esRespuestaVacia(texto: string): boolean {
+  return /^listo\.?$/i.test(texto.trim());
+}
+
 export async function continuarTrasAccion(input: {
   message: InboundMessage;
   businessId: string;
@@ -383,12 +402,7 @@ export async function continuarTrasAccion(input: {
     const r = await conversarConGestor({
       message: input.message,
       businessId: input.businessId,
-      texto:
-        input.resultado === "ejecutada"
-          ? "(El dueño ha pulsado Confirmar y la acción ya está hecha; ya se le ha dicho «hecho». Si estabas guiando la puesta en marcha, sigue con el siguiente paso que falte, sin repetir lo hecho. Si no falta nada ni había más pasos, responde solo «Listo.»)"
-          : input.resultado === "rechazada"
-            ? "(El dueño ha pulsado Cancelar: no se ha hecho nada y ya se le ha dicho. Pregunta brevemente qué quiere cambiar, sin volver a proponer lo mismo.)"
-            : "(La acción confirmada no se ha podido hacer y ya se le ha dicho al dueño. Sugiere el panel o que lo vuelva a pedir más tarde, en una frase.)",
+      texto: TEXTO_DE_SEGUIMIENTO[input.resultado],
       etiqueta: "chat:dueno:seguimiento",
     });
     if (!r.atendido) {
@@ -476,11 +490,15 @@ export async function conversarConGestor(input: {
   const negocio = nombreParaWhatsapp(business);
   const opciones = { businessId: business.id };
 
-  const turnos = await turnosDeHoy(business.id, business.timezone);
-  if (turnos > TURNOS_POR_DUENO_Y_DIA) {
-    console.warn(
-      `[WhatsApp] Chat dueño ${business.id}/${from}: ${turnos} turnos hoy, límite ${TURNOS_POR_DUENO_Y_DIA}`
-    );
+  const turno = await turnoDelGestor({
+    business,
+    ownerPhone: from,
+    texto,
+    inboundMessageId: message.id,
+    contactName: message.contactName,
+    etiqueta: `${business.id}/${from}`,
+  });
+  if (turno.estado === "limite") {
     return {
       atendido: true,
       resultado: resultado(
@@ -494,14 +512,134 @@ export async function conversarConGestor(input: {
       ),
     };
   }
-
-  const lockKey = `lock:whatsapp:chat:dueno:${business.id}`;
-  const lockToken = await acquireLock(lockKey, LOCK_TTL_MS, LOCK_ESPERA_MS);
-  if (!lockToken) {
+  if (turno.estado === "ocupado") {
     console.warn(
       `[WhatsApp] Chat dueño ${business.id}/${from}: hilo ocupado ${LOCK_ESPERA_MS} ms; el entrante ${message.id} no se atiende`
     );
     return { atendido: true, resultado: { handler: `${base}:ocupado` } };
+  }
+  const { respuesta, motivoDeFallo, accionId } = turno;
+  if (respuesta === null || respuesta.trim() === "") {
+    console.error(
+      `[WhatsApp] Chat dueño ${business.id}/${from}: sin respuesta del Gestor${motivoDeFallo ? ` (${motivoDeFallo})` : ""}; se responde que no está disponible`
+    );
+    return {
+      atendido: true,
+      resultado: resultado(
+        `${base}:error`,
+        await responder(
+          message,
+          "chat-dueno-no-disponible",
+          mensajes.gestorNoDisponible({
+            negocio,
+            panelUrl: mensajes.panelUrl("/"),
+          }),
+          { ...opciones, unaVezAlDia: true }
+        )
+      ),
+    };
+  }
+  const textoRespuesta = respuesta.trim();
+  if (!accionId && esRespuestaVacia(textoRespuesta)) {
+    // El turno de seguimiento no tenía nada que añadir.
+    return { atendido: true, resultado: { handler: `${base}:nada` } };
+  }
+  if (accionId && textoRespuesta.length > MAX_CUERPO_INTERACTIVO) {
+    // Meta limita el cuerpo de un interactivo a 1024 caracteres: una lista
+    // larga de servicios no cabe con los botones. Va el texto entero y,
+    // aparte, los botones con el resumen de la propuesta.
+    const propuesta = await prisma.ownerPendingAction.findUnique({
+      where: { id: accionId },
+      select: { resumen: true },
+    });
+    await responder(message, "chat-dueno", textoRespuesta, opciones);
+    const conBotones = await responder(
+      message,
+      "chat-dueno-botones",
+      `¿Confirmas? ${propuesta?.resumen ?? ""}`.trim(),
+      { ...opciones, botones: botonesDeAccion(accionId) }
+    );
+    return {
+      atendido: true,
+      resultado: resultado(`${base}:propuesta`, conBotones),
+    };
+  }
+  const enviada = await responder(
+    message,
+    base === "chat:dueno" ? "chat-dueno" : "chat-dueno-seguimiento",
+    textoRespuesta,
+    {
+      ...opciones,
+      botones: accionId ? botonesDeAccion(accionId) : undefined,
+    }
+  );
+  return {
+    atendido: true,
+    resultado: resultado(accionId ? `${base}:propuesta` : base, enviada),
+  };
+}
+
+export type ResultadoDelTurno =
+  | { estado: "limite" }
+  | { estado: "ocupado" }
+  | {
+      estado: "ok";
+      respuesta: string | null;
+      motivoDeFallo: string | null;
+      /** Propuesta registrada por `proponer_accion` en este turno. */
+      accionId: string | null;
+      turnos: number;
+    };
+
+/**
+ * Un turno con el Gestor, sin canal: cuenta el turno del día, toma el lock
+ * del hilo, asegura la conversación de Telnyx, manda el texto con el
+ * marcador y recoge la propuesta del turno. Lo usan el WhatsApp del dueño
+ * (`conversarConGestor`) y el chat del panel (modules/gestor/panel.ts).
+ * `inboundMessageId` es el entrante de WhatsApp o un id sintético
+ * `panel:<uuid>`: `proponer_accion` lo guarda en la propuesta.
+ */
+export async function turnoDelGestor(input: {
+  business: Pick<
+    NegocioDelChatDueno,
+    | "id"
+    | "name"
+    | "businessType"
+    | "timezone"
+    | "ownerConversationId"
+    | "ownerConversationCreatedAt"
+  >;
+  ownerPhone: string;
+  texto: string;
+  inboundMessageId: string;
+  contactName?: string | null;
+  /** Para los logs («<negocio>/<móvil>» o «<negocio>/panel»). */
+  etiqueta: string;
+}): Promise<ResultadoDelTurno> {
+  const { business, etiqueta } = input;
+  const assistantId = gestorAssistantId();
+  if (!assistantId) {
+    return {
+      estado: "ok",
+      respuesta: null,
+      motivoDeFallo: "sin TELNYX_GESTOR_ASSISTANT_ID",
+      accionId: null,
+      turnos: 0,
+    };
+  }
+  const texto = input.texto.trim();
+  const turnos = await turnosDeHoy(business.id, business.timezone);
+  if (turnos > TURNOS_POR_DUENO_Y_DIA) {
+    console.warn(
+      `[WhatsApp] Chat dueño ${etiqueta}: ${turnos} turnos hoy, límite ${TURNOS_POR_DUENO_Y_DIA}`
+    );
+    return { estado: "limite" };
+  }
+
+  const lockKey = `lock:whatsapp:chat:dueno:${business.id}`;
+  const lockToken = await acquireLock(lockKey, LOCK_TTL_MS, LOCK_ESPERA_MS);
+  if (!lockToken) {
+    return { estado: "ocupado" };
   }
 
   try {
@@ -509,11 +647,11 @@ export async function conversarConGestor(input: {
     let motivoDeFallo: string | null = null;
     let conversacion = await conversacionDelDueno({
       business,
-      ownerPhone: from,
+      ownerPhone: input.ownerPhone,
     });
     for (let intento = 0; conversacion && intento < 2; intento++) {
       await anotarTurno(business.id, {
-        inboundMessageId: message.id,
+        inboundMessageId: input.inboundMessageId,
         conversationId: conversacion.conversationId,
       });
       const content = `${marcadorDelGestor({ timezone: business.timezone })} ${texto}`;
@@ -523,12 +661,12 @@ export async function conversarConGestor(input: {
           telnyxAiAdapter.chatWithAssistant(assistantId, {
             content,
             conversationId: conversacion.conversationId,
-            name: message.contactName ?? undefined,
+            name: input.contactName ?? undefined,
           }),
           TIMEOUT_TURNO_DUENO_MS
         );
         console.log(
-          `[WhatsApp] Chat dueño ${business.id}/${from}: turno ${turnos} en ${Date.now() - t0} ms (conversación ${conversacion.conversationId})`
+          `[WhatsApp] Chat dueño ${etiqueta}: turno ${turnos} en ${Date.now() - t0} ms (conversación ${conversacion.conversationId})`
         );
         break;
       } catch (error) {
@@ -539,11 +677,11 @@ export async function conversarConGestor(input: {
           esConversacionInexistente(error)
         ) {
           console.warn(
-            `[WhatsApp] Chat dueño ${business.id}/${from}: la conversación ${conversacion.conversationId} ya no existe en Telnyx; se abre otra`
+            `[WhatsApp] Chat dueño ${etiqueta}: la conversación ${conversacion.conversationId} ya no existe en Telnyx; se abre otra`
           );
           conversacion = await conversacionDelDueno({
             business,
-            ownerPhone: from,
+            ownerPhone: input.ownerPhone,
             forzarNueva: true,
           });
           continue;
@@ -551,67 +689,8 @@ export async function conversarConGestor(input: {
         break;
       }
     }
-
     const accionId = await propuestaDelTurno(business.id);
-
-    if (respuesta === null || respuesta.trim() === "") {
-      console.error(
-        `[WhatsApp] Chat dueño ${business.id}/${from}: sin respuesta del Gestor${motivoDeFallo ? ` (${motivoDeFallo})` : ""}; se responde que no está disponible`
-      );
-      return {
-        atendido: true,
-        resultado: resultado(
-          `${base}:error`,
-          await responder(
-            message,
-            "chat-dueno-no-disponible",
-            mensajes.gestorNoDisponible({
-              negocio,
-              panelUrl: mensajes.panelUrl("/"),
-            }),
-            { ...opciones, unaVezAlDia: true }
-          )
-        ),
-      };
-    }
-    const textoRespuesta = respuesta.trim();
-    if (!accionId && /^listo\.?$/i.test(textoRespuesta)) {
-      // El turno de seguimiento no tenía nada que añadir.
-      return { atendido: true, resultado: { handler: `${base}:nada` } };
-    }
-    if (accionId && textoRespuesta.length > MAX_CUERPO_INTERACTIVO) {
-      // Meta limita el cuerpo de un interactivo a 1024 caracteres: una lista
-      // larga de servicios no cabe con los botones. Va el texto entero y,
-      // aparte, los botones con el resumen de la propuesta.
-      const propuesta = await prisma.ownerPendingAction.findUnique({
-        where: { id: accionId },
-        select: { resumen: true },
-      });
-      await responder(message, "chat-dueno", textoRespuesta, opciones);
-      const conBotones = await responder(
-        message,
-        "chat-dueno-botones",
-        `¿Confirmas? ${propuesta?.resumen ?? ""}`.trim(),
-        { ...opciones, botones: botonesDeAccion(accionId) }
-      );
-      return {
-        atendido: true,
-        resultado: resultado(`${base}:propuesta`, conBotones),
-      };
-    }
-    const enviada = await responder(
-      message,
-      base === "chat:dueno" ? "chat-dueno" : "chat-dueno-seguimiento",
-      textoRespuesta,
-      {
-        ...opciones,
-        botones: accionId ? botonesDeAccion(accionId) : undefined,
-      }
-    );
-    return {
-      atendido: true,
-      resultado: resultado(accionId ? `${base}:propuesta` : base, enviada),
-    };
+    return { estado: "ok", respuesta, motivoDeFallo, accionId, turnos };
   } finally {
     await releaseLock(lockKey, lockToken);
   }

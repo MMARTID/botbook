@@ -15,6 +15,7 @@ import {
   Loader2,
   LogOut,
   Menu,
+  MessageSquareText,
   PhoneCall,
   Settings,
   ShieldCheck,
@@ -43,6 +44,13 @@ const PRIMARY_NAVIGATION: NavItem[] = [
 
 const AGENT_NAVIGATION: NavItem[] = [
   { href: "/agente", label: "Agente", icon: Bot, exact: true },
+];
+
+// «Tu Gestor» (fase 2 del canal de WhatsApp, Beta): en la barra lateral con
+// la recepcionista; en móvil va en «Más», porque la barra inferior tiene
+// cinco huecos justos.
+const GESTOR_NAVIGATION: NavItem[] = [
+  { href: "/gestor", label: "Gestor", icon: MessageSquareText, exact: true },
 ];
 
 const ACCOUNT_NAVIGATION: NavItem[] = [
@@ -245,7 +253,7 @@ function MobileMoreSheet({ pathname, onClose }: { pathname: string; onClose: () 
         </div>
         <MinutesWarningCard onNavigate={onClose} />
         <nav className="mt-5 space-y-1" aria-label="Cuenta">
-          {ACCOUNT_NAVIGATION.map((item) => <NavigationLink key={item.href} item={item} pathname={pathname} onNavigate={onClose} />)}
+          {[...GESTOR_NAVIGATION, ...ACCOUNT_NAVIGATION].map((item) => <NavigationLink key={item.href} item={item} pathname={pathname} onNavigate={onClose} />)}
           <Link href="/legal/privacidad" onClick={onClose} className="flex min-h-11 items-center gap-3 rounded-full px-4 text-sm font-semibold text-[#3f3f46] transition hover:bg-[#fafafa] hover:text-[#0a0a0a] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]">
             <ShieldCheck className="h-4 w-4" aria-hidden="true" /> Privacidad y datos
           </Link>
@@ -289,7 +297,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </div>
         <nav className="flex-1 space-y-7 overflow-y-auto px-4 pb-6" aria-label="Navegación principal">
           <NavGroup label="Operación" items={PRIMARY_NAVIGATION} pathname={pathname} />
-          <NavGroup label="Recepcionista" items={AGENT_NAVIGATION} pathname={pathname} />
+          <NavGroup label="Recepcionista" items={[...AGENT_NAVIGATION, ...GESTOR_NAVIGATION]} pathname={pathname} />
         </nav>
         <AccountFooter pathname={pathname} />
       </aside>

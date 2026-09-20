@@ -24,6 +24,9 @@ import type {
   DemoPlaceSearchResult,
   CalendarAccountConnected,
   EstadoWhatsappDueno,
+  EstadoDelGestor,
+  RespuestaDelGestor,
+  DecisionDelGestor,
 } from "./types";
 
 const configuredBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
@@ -372,6 +375,30 @@ export async function sendOwnerWhatsappActivation() {
   const { data } = await api.post<
     EstadoWhatsappDueno & { sent: "template" | "link" }
   >("/business/me/whatsapp/activation");
+  return data;
+}
+
+export async function getGestor() {
+  const { data } = await api.get<EstadoDelGestor>("/business/me/gestor");
+  return data;
+}
+
+export async function sendGestorMessage(texto: string) {
+  const { data } = await api.post<RespuestaDelGestor>(
+    "/business/me/gestor/mensajes",
+    { texto }
+  );
+  return data;
+}
+
+export async function decideGestorAction(
+  accionId: string,
+  decision: "confirmar" | "cancelar"
+) {
+  const { data } = await api.post<DecisionDelGestor>(
+    `/business/me/gestor/acciones/${encodeURIComponent(accionId)}`,
+    { decision }
+  );
   return data;
 }
 

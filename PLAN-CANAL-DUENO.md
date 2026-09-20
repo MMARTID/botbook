@@ -510,11 +510,12 @@ voz.
 - Alta: campo del móvil con WhatsApp; checklist con el paso "Activa los avisos" hasta el toque.
 - Ajustes › WhatsApp: número, estado (activo / sin WhatsApp / baja), aviso por reserva sí/no,
   cierre del día y hora, chat Beta sí/no, botón *Reenviar activación*, QR de ALTA. Hecho en la
-  fase 1 todo menos el cierre del día (fase 3) y el chat Beta (fase 2).
+  fase 1 todo menos el cierre del día (fase 3); el chat Beta (dos interruptores) en el PR 5 de
+  la fase 2.
 - Inicio: pendientes con estado (avisada, resuelta por el dueño, reintentada).
 - Llamadas: recado como bloque propio con su estado.
-- "Tu chat con la recepcionista" con badge «Beta»: historial (API de conversaciones) y cuadro
-  de texto contra el mismo `chat`.
+- ~~"Tu chat con la recepcionista" con badge «Beta»: historial (API de conversaciones) y cuadro
+  de texto contra el mismo `chat`.~~ Hecho como «Tu Gestor» (`/gestor`, PR 5 de la fase 2).
 
 ## Cambios de datos
 
@@ -853,7 +854,11 @@ interruptores globales quedan apagados en producción hasta que el usuario lo pr
   horario con horario especial, que todo el sistema ya entiende.
 - ~~Etiquetas Beta~~ (solo en el panel, decisión del 20-09), `AYUDA`, `MAL`, límites diarios,
   interruptores. Todos los planes.
-- Panel: historial y "Pregúntale a tu recepcionista".
+- ~~Panel: historial y "Pregúntale a tu recepcionista".~~ — **PR 5 hecho el 20-09**: página
+  `/gestor` («Tu Gestor», Beta) con historial de la misma conversación, cuadro de texto y
+  botones de propuesta contra el mismo registro (`GET/POST /business/me/gestor…`); Ajustes ›
+  WhatsApp con los interruptores del Gestor y del chat con clientes (Beta); tests de
+  integración de la fase 2. Detalle en `AGENTS.md` § WhatsApp › Código (fase 2, PR 5).
 
 **Criterio de salida:** un alta nueva completa servicios, profesionales y horario por WhatsApp
 sin abrir el panel y la recepcionista los usa en la siguiente llamada; "apunta a Marta mañana a
