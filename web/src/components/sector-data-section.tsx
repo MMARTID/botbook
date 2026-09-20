@@ -1,0 +1,148 @@
+import { ArrowDown, ExternalLink, Quote } from "lucide-react";
+import type { NicheAccent, SectorData, SectorSource } from "@/lib/niche-landings";
+import { Reveal } from "@/components/scroll-reveal";
+import { CountUp } from "@/components/count-up";
+
+const FALLBACK_ACCENT: NicheAccent = {
+  strong: "#8b5cf6",
+  soft: "#f3eeff",
+  deep: "#0a0a0a",
+};
+
+// Color de texto del badge: siempre la tinta oscura de la familia morada
+// (6,25–7,27:1), nunca el acento crudo `strong` (3,73:1, falla AA) — ver
+// La Regla del Semántico Aparte / token badge-soft en DESIGN.md.
+const FALLBACK_INK = "#6d28d9";
+
+function Citation({ source, inverted = false }: { source: string | SectorSource; inverted?: boolean }) {
+  const citation = typeof source === "string" ? { publisher: source } : source;
+  const content = (
+    <>
+      <span className="font-semibold uppercase tracking-[0.12em]">Dato de terceros</span>
+      <span className="mt-1 block font-medium normal-case tracking-normal">{citation.publisher}</span>
+      {citation.title ? <span className="mt-0.5 block normal-case tracking-normal">{citation.title}</span> : null}
+    </>
+  );
+  const className = inverted
+    ? "group mt-6 block border-t border-white/15 pt-3 text-[11px] leading-4 text-white/65 transition hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#a78bfa]"
+    : "group mt-6 block border-t border-[#e5e5e5] pt-3 text-[11px] leading-4 text-[#52525b] transition hover:text-[#0a0a0a] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]";
+
+  if (!citation.href) return <p className={className}>{content}</p>;
+
+  return (
+    <a href={citation.href} target="_blank" rel="noreferrer" className={className}>
+      <span className="flex items-start justify-between gap-3">
+        <span>{content}</span>
+        <ExternalLink className="mt-0.5 h-3.5 w-3.5 shrink-0 opacity-70 transition group-hover:opacity-100" aria-hidden="true" />
+      </span>
+      <span className="mt-2 inline-block font-semibold underline underline-offset-4">Abrir publicación</span>
+    </a>
+  );
+}
+
+export function SectorDataSection({
+  data,
+  accent,
+}: {
+  data: SectorData;
+  accent?: NicheAccent;
+}) {
+  const a = accent ?? FALLBACK_ACCENT;
+  const cells = data.stats;
+  // `strong` es el color de icono/borde del nicho, no de texto — pasarlo
+  // directo como color de badge cae por debajo de AA (3,73:1 en el acento
+  // morado por defecto). `deep` está pensado para "tarjetas destacadas" y
+  // es suficientemente oscuro para texto; en el nicho por defecto usamos la
+  // Tinta Morada ya establecida en el resto de la página en vez del negro
+  // puro de FALLBACK_ACCENT.deep, para no romper la identidad morada del
+  // badge genérico.
+  const badgeInk = accent ? accent.deep : FALLBACK_INK;
+
+  return (
+    <section id="por-que" className="scroll-m-20 border-y border-[#e5e5e5] py-16 sm:py-20">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <Reveal className="mb-10 max-w-2xl">
+          <span className="badge-soft gap-2" style={{ backgroundColor: a.soft, color: badgeInk }}>
+            <ArrowDown className="h-3.5 w-3.5" />
+            {data.eyebrow}
+          </span>
+          <h2 className="mt-5 text-3xl font-black leading-tight tracking-tight text-[#0a0a0a] sm:text-4xl">
+            {data.title}
+          </h2>
+          <p className="mt-4 text-base leading-7 text-[#52525b]">
+            {data.description}
+          </p>
+        </Reveal>
+
+        <div className={`grid grid-cols-1 gap-4 ${cells.length === 2 ? "sm:grid-cols-2" : "sm:grid-cols-3"}`}>
+          {cells.map((stat, i) => (
+            <Reveal key={i} delay={i * 0.1}>
+              {i === 0 ? (
+                <article className="flex h-full flex-col justify-between rounded-3xl bg-[#0a0a0a] p-7 text-white sm:p-8">
+                  <p className="text-5xl font-black tracking-tight tabular-nums sm:text-6xl">
+                    <CountUp value={stat.value} delay={i * 0.1} />
+                  </p>
+                  <p className="mt-4 max-w-xs text-sm leading-6 text-white/80">{stat.label}</p>
+                  {stat.source ? <Citation source={stat.source} inverted /> : null}
+                </article>
+              ) : (
+                <article className="panel flex h-full flex-col justify-between p-7 sm:p-8">
+                  <p className="text-3xl font-black tracking-tight tabular-nums text-[#0a0a0a] sm:text-4xl">
+                    <CountUp value={stat.value} delay={i * 0.1} />
+                  </p>
+                  <p className="mt-4 text-sm leading-6 text-[#52525b]">{stat.label}</p>
+                  {stat.source ? <Citation source={stat.source} /> : null}
+                </article>
+              )}
+            </Reveal>
+          ))}
+        </div>
+
+        {data.quotes && data.quotes.length > 0 ? (
+          <div className="mt-6 grid gap-4 sm:grid-cols-2">
+            {data.quotes.map((quote, i) => (
+              <Reveal key={i} delay={i * 0.1}>
+                {/*
+                  Sin borde izquierdo de color: una tarjeta redondeada con un
+                  filete de acento en un lado es uno de los tópicos que el
+                  sistema evita a propósito, y además sumaba un segundo morado
+                  compitiendo con el icono de comillas. El icono ya marca la
+                  cita; el borde neutro de siempre basta para el resto.
+                */}
+                <figure className="flex h-full items-start gap-4 rounded-3xl border border-[#e5e5e5] bg-white p-6">
+                  <Quote className="mt-0.5 h-5 w-5 shrink-0 text-[#8b5cf6]" style={{ color: a.strong }} aria-hidden="true" />
+                  <div>
+                    {/* La etiqueta va ANTES de la cita, no solo en la nota al
+                        pie: de un vistazo rápido, comillas + cursiva se leen
+                        como testimonio de cliente. Alhabla no tiene clientes
+                        de pago todavía — esto es comentario de sector, y
+                        tiene que quedar claro antes de leer la frase, no
+                        después. */}
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#a1a1aa]">
+                      Dato de terceros sobre el sector
+                    </p>
+                    <blockquote className="mt-2 text-sm font-medium italic leading-6 text-[#27272a]">
+                      &ldquo;{quote.text}&rdquo;
+                    </blockquote>
+                    {quote.source ? <figcaption><Citation source={quote.source} /></figcaption> : null}
+                  </div>
+                </figure>
+              </Reveal>
+            ))}
+          </div>
+        ) : null}
+
+        {data.painPoint ? (
+          <Reveal className="mt-6">
+            <div className="relative overflow-hidden rounded-3xl bg-[#0a0a0a] p-6 text-white sm:p-8">
+              <p className="text-sm font-semibold" style={{ color: a.soft === FALLBACK_ACCENT.soft ? "#a78bfa" : a.soft }}>
+                El problema real
+              </p>
+              <p className="mt-2 max-w-3xl text-base leading-7 text-white/80">{data.painPoint}</p>
+            </div>
+          </Reveal>
+        ) : null}
+      </div>
+    </section>
+  );
+}
