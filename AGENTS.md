@@ -486,6 +486,34 @@ el `fetch` equivalente. **Nunca desde un route handler**: todo pasa por
   `600 123 456` → `+34600123456`, `esFijoEspanol`, `formatearMovil`), `lib/api-errors.ts`
   (`describeApiError`, `apiErrorCode`), `getOwnerWhatsapp`/`sendOwnerWhatsappActivation` en
   `lib/api.ts`.
+**Código (fase 1, PR 3 — avisos al negocio, 2026-09-20).**
+- `modules/whatsapp/avisosNegocio.ts`: `enviarAvisoAlNegocio` decide la vía en este orden —
+  móvil `activo` y sin baja global (si no, respaldo por email cuando el aviso lo trae) →
+  ventana de 24 h abierta (Telnyx) ⇒ interactivo con botones (0,004 $) → plantilla del aviso
+  si está `APPROVED` (0,024 $) → sin ventana ni plantilla ⇒ email o nada, fila `skipped`
+  (`SIN_VENTANA_NI_PLANTILLA`). Idempotente por recurso (`aviso:<tipo>:<recursoId>`), nunca
+  lanza. Avisos: `avisarNuevaReserva` (#1, botones «Vale» · «Ver agenda de hoy»; respeta
+  `Business.notificationPrefs.avisoPorReserva`), `avisarCitaPendiente` (#3, «La apunté yo» ·
+  «Reintentar» · «Reconectar»; tope de 5 por negocio y hora en Redis; anota
+  `Lead.notifiedAt/notifiedVia`; el email `pendingBookingAlertEmail` queda como respaldo),
+  `avisarCancelacion` (#4, «Vale»; `Booking.cancelledAt/cancelledBy`), `avisarCitaRecuperada`
+  (cuando el reintento en segundo plano mete la cita; solo dentro de la ventana).
+  `textoAgendaDelDia` (citas de hoy/mañana en la zona del negocio). Mientras las plantillas
+  sigan `PENDING`, fuera de la ventana los avisos #1 y #4 no salen y el #3 va por email.
+- Botones de los avisos en `router.ts`: por id `aviso:<tipo>:<recurso>:<accion>` (interactivo)
+  o por título + `context.id` → `SentMessage.callbackData` (botón de plantilla). El envío
+  original tiene que existir y haber ido a ese móvil; el negocio del aviso tiene que seguir
+  teniendo ese móvil; el lead tiene que ser de ese negocio. Handlers `aviso:<tipo>:<accion>`
+  (`vale` no responde; `agenda_hoy`; `apuntada` resuelve el lead con `resolvedBy:
+  owner_whatsapp`; `reintentar` encola `retry-failed-booking`; `reconectar` manda al panel;
+  `avisar_espera` avisa de que la lista de espera es del PR 4) y palabras clave AGENDA / HOY /
+  MAÑANA (`agenda:hoy|manana`, solo negocios con consentimiento).
+- Ganchos: `voiceTools/service.ts` (tras el upsert de la reserva, al crear el lead
+  `pending_booking` y en `cancel_appointment`) y `jobs/retryFailedBooking.ts` (cita
+  recuperada). Los avisos se esperan (`await`) por la misma razón que el SMS: Cloud Run
+  congela el proceso al responder. Migración `20260920030000_whatsapp_avisos_negocio` (solo
+  aditiva): `Business.notificationPrefs`, `Lead.notifiedAt/notifiedVia`,
+  `Booking.cancelledAt/cancelledBy`.
 - Migración `20260920010000_whatsapp_alta_dueno` (solo aditiva): columnas `ownerWhatsapp*`,
   `ownerWindowOpenUntil`, `ownerAltaCode(@unique)`/`ownerAltaCodeExpiresAt` en `businesses`;
   índice `[handledAt, receivedAt]` en `inbound_messages`; tabla `whatsapp_opt_outs`.

@@ -10,6 +10,8 @@ import {
   registrarBaja,
   revocarBaja,
 } from "../../../src/modules/whatsapp/bajas.js";
+import { textoAgendaDelDia } from "../../../src/modules/whatsapp/avisosNegocio.js";
+import { enqueueRetryBookingJob } from "../../../src/lib/cloudTasks.js";
 import {
   activarAvisosDelDueno,
   darDeBajaDueno,
@@ -23,9 +25,11 @@ vi.mock("../../../src/lib/prisma.js", () => ({
     business: {
       findMany: vi.fn(),
       findUnique: vi.fn(),
+      findFirst: vi.fn(),
       count: vi.fn(),
       updateMany: vi.fn(),
     },
+    lead: { findFirst: vi.fn(), update: vi.fn() },
     sentMessage: {
       count: vi.fn(),
       findUnique: vi.fn(),
@@ -46,6 +50,12 @@ vi.mock("../../../src/modules/whatsapp/bajas.js", () => ({
   registrarBaja: vi.fn(),
   revocarBaja: vi.fn(),
 }));
+vi.mock("../../../src/modules/whatsapp/avisosNegocio.js", () => ({
+  textoAgendaDelDia: vi.fn(),
+}));
+vi.mock("../../../src/lib/cloudTasks.js", () => ({
+  enqueueRetryBookingJob: vi.fn(),
+}));
 vi.mock("../../../src/modules/whatsapp/altaDueno.js", async (importActual) => {
   const actual =
     await importActual<
@@ -59,6 +69,11 @@ vi.mock("../../../src/modules/whatsapp/altaDueno.js", async (importActual) => {
   };
 });
 
+const mockedTextoAgenda = vi.mocked(textoAgendaDelDia);
+const mockedEnqueueRetry = vi.mocked(enqueueRetryBookingJob);
+const mockedBizFindFirst = vi.mocked(prisma.business.findFirst);
+const mockedLeadFindFirst = vi.mocked(prisma.lead.findFirst);
+const mockedLeadUpdate = vi.mocked(prisma.lead.update);
 const mockedBizFindMany = vi.mocked(prisma.business.findMany);
 const mockedBizFindUnique = vi.mocked(prisma.business.findUnique);
 const mockedBizCount = vi.mocked(prisma.business.count);
@@ -679,20 +694,54 @@ describe("AYUDA y comandos pendientes", () => {
     expect(mockedEnviarTexto).toHaveBeenCalledTimes(1);
   });
 
-  it("AGENDA del dueño queda pendiente (fase 2) con la respuesta fija, y la segunda se silencia", async () => {
-    expect(await enrutarEntrante(keyword("agenda", { role: "owner" }))).toEqual(
-      {
-        handler: "pendiente:palabra-clave:AGENDA",
-      }
-    );
+  it("PAUSA del dueño queda pendiente (fase 2) con la respuesta fija, y la segunda se silencia", async () => {
+    expect(await enrutarEntrante(keyword("pausa", { role: "owner" }))).toEqual({
+      handler: "pendiente:palabra-clave:PAUSA",
+    });
     expect(enviado()?.body).toBe(mensajes.todaviaNoChateo({ panelUrl: PANEL }));
 
     mockedSentCount.mockImplementation(async ({ where }) =>
       (where as { callbackData?: string }).callbackData ? 1 : 0
     );
-    expect(await enrutarEntrante(keyword("HOY", { role: "owner" }))).toEqual({
-      handler: "pendiente:palabra-clave:HOY:silenciado",
+    expect(await enrutarEntrante(keyword("PAUSA", { role: "owner" }))).toEqual({
+      handler: "pendiente:palabra-clave:PAUSA:silenciado",
     });
+  });
+
+  it("AGENDA / HOY / MAÑANA responden con la agenda del día de los negocios que consintieron", async () => {
+    mockedBizFindMany.mockResolvedValue([ACTIVO, PENDIENTE] as never);
+    mockedTextoAgenda.mockImplementation(
+      async (business, dia) =>
+        `${business.name} · ${dia === 0 ? "hoy" : "mañana"}`
+    );
+
+    expect(await enrutarEntrante(keyword("agenda", { role: "owner" }))).toEqual(
+      {
+        handler: "agenda:hoy",
+      }
+    );
+    // Solo el negocio con consentimiento; el pendiente no se lista.
+    expect(mockedTextoAgenda).toHaveBeenCalledTimes(1);
+    expect(mockedTextoAgenda).toHaveBeenCalledWith(ACTIVO, 0);
+    expect(enviado()?.body).toBe("Peluquería Ana · hoy");
+    expect(enviado()?.callbackData).toBe("aviso:agenda-0");
+
+    expect(await enrutarEntrante(keyword("Mañana", { role: "owner" }))).toEqual(
+      {
+        handler: "agenda:manana",
+      }
+    );
+    expect(mockedTextoAgenda).toHaveBeenLastCalledWith(ACTIVO, 1);
+  });
+
+  it("AGENDA desde un móvil sin negocio consentido recibe la respuesta fija", async () => {
+    mockedBizFindMany.mockResolvedValue([PENDIENTE] as never);
+
+    expect(await enrutarEntrante(keyword("hoy", { role: "owner" }))).toEqual({
+      handler: "agenda:sin-negocio",
+    });
+    expect(mockedTextoAgenda).not.toHaveBeenCalled();
+    expect(enviado()?.body).toBe(mensajes.todaviaNoChateo({ panelUrl: PANEL }));
   });
 });
 
@@ -1196,5 +1245,213 @@ describe("responder", () => {
       handler: "stop:dueno",
     });
     expect(mockedEnviarTexto).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("botones de los avisos al negocio (PR 3)", () => {
+  const AVISO_RESERVA = {
+    id: "sm_av",
+    providerMessageId: "msg-aviso",
+    businessId: "biz_1",
+    audience: "owner",
+    toNumber: MOVIL,
+    callbackData: "aviso:nueva_reserva:booking_1",
+  };
+  const AVISO_PENDIENTE = {
+    ...AVISO_RESERVA,
+    providerMessageId: "msg-pend",
+    callbackData: "aviso:cita_pendiente:lead_1",
+  };
+
+  function boton(
+    id: string,
+    title: string,
+    context: string | null = "msg-aviso"
+  ) {
+    return entrante({
+      kind: "button",
+      text: null,
+      buttonId: id,
+      buttonTitle: title,
+      contextMessageId: context,
+      payload: { type: "interactive" },
+      role: "owner",
+      businessId: "biz_1",
+    });
+  }
+
+  beforeEach(() => {
+    mockedSentFindUnique.mockResolvedValue(AVISO_RESERVA as never);
+    mockedBizFindFirst.mockResolvedValue(ACTIVO as never);
+    mockedLeadUpdate.mockResolvedValue({} as never);
+    mockedEnqueueRetry.mockResolvedValue(undefined);
+  });
+
+  it("«Vale» solo cierra el aviso, sin responder", async () => {
+    expect(
+      await enrutarEntrante(boton("aviso:nueva_reserva:booking_1:vale", "Vale"))
+    ).toEqual({ handler: "aviso:nueva_reserva:vale" });
+    expect(mockedEnviarTexto).not.toHaveBeenCalled();
+  });
+
+  it("«Ver agenda de hoy» responde con la agenda del negocio del aviso", async () => {
+    mockedTextoAgenda.mockResolvedValue("Peluquería Ana, hoy: sin citas.");
+
+    expect(
+      await enrutarEntrante(
+        boton("aviso:nueva_reserva:booking_1:agenda_hoy", "Ver agenda de hoy")
+      )
+    ).toEqual({ handler: "aviso:nueva_reserva:agenda_hoy" });
+    expect(mockedTextoAgenda).toHaveBeenCalledWith(ACTIVO, 0);
+    expect(enviado()?.body).toBe("Peluquería Ana, hoy: sin citas.");
+  });
+
+  it("el botón de una PLANTILLA (sin id propio) se resuelve por el título y el context.id", async () => {
+    mockedTextoAgenda.mockResolvedValue("agenda");
+
+    expect(
+      await enrutarEntrante(boton("Ver agenda de hoy", "Ver agenda de hoy"))
+    ).toEqual({ handler: "aviso:nueva_reserva:agenda_hoy" });
+  });
+
+  it("un botón de aviso sin envío original o de un envío a otro móvil no actúa", async () => {
+    mockedSentFindUnique.mockResolvedValue(null);
+    expect(
+      await enrutarEntrante(
+        boton("aviso:nueva_reserva:booking_1:vale", "Vale", null)
+      )
+    ).toEqual({ handler: "pendiente:boton:aviso" });
+
+    mockedSentFindUnique.mockResolvedValue({
+      ...AVISO_RESERVA,
+      toNumber: "+34600000000",
+    } as never);
+    expect(
+      await enrutarEntrante(boton("aviso:nueva_reserva:booking_1:vale", "Vale"))
+    ).toEqual({ handler: "pendiente:boton:aviso" });
+    expect(mockedEnviarTexto).not.toHaveBeenCalled();
+  });
+
+  it("si el negocio del aviso ya no tiene este móvil, responde «otro móvil» y no toca nada", async () => {
+    mockedBizFindFirst.mockResolvedValue(null);
+
+    expect(
+      await enrutarEntrante(boton("aviso:nueva_reserva:booking_1:vale", "Vale"))
+    ).toEqual({ handler: "aviso:nueva_reserva:vale:numero-antiguo" });
+    expect(enviado()?.body).toBe(mensajes.mensajeParaOtroMovil());
+  });
+
+  it("«La apunté yo» resuelve el lead del negocio y lo confirma", async () => {
+    mockedSentFindUnique.mockResolvedValue(AVISO_PENDIENTE as never);
+    mockedLeadFindFirst.mockResolvedValue({
+      id: "lead_1",
+      resolvedAt: null,
+      data: { clientName: "Juan" },
+    } as never);
+
+    expect(
+      await enrutarEntrante(
+        boton(
+          "aviso:cita_pendiente:lead_1:apuntada",
+          "La apunté yo",
+          "msg-pend"
+        )
+      )
+    ).toEqual({ handler: "aviso:cita_pendiente:apuntada" });
+    expect(mockedLeadFindFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          id: "lead_1",
+          type: "pending_booking",
+          call: { businessId: "biz_1" },
+        },
+      })
+    );
+    expect(mockedLeadUpdate).toHaveBeenCalledWith({
+      where: { id: "lead_1" },
+      data: {
+        resolvedAt: expect.any(Date),
+        data: expect.objectContaining({
+          clientName: "Juan",
+          resolvedBy: "owner_whatsapp",
+        }),
+      },
+    });
+    expect(enviado()?.body).toBe(mensajes.citaApuntada({ cliente: "Juan" }));
+  });
+
+  it("«Reintentar» encola el reintento; un lead ya resuelto o ajeno no hace nada", async () => {
+    mockedSentFindUnique.mockResolvedValue(AVISO_PENDIENTE as never);
+    mockedLeadFindFirst.mockResolvedValue({
+      id: "lead_1",
+      resolvedAt: null,
+      data: {},
+    } as never);
+
+    expect(
+      await enrutarEntrante(
+        boton(
+          "aviso:cita_pendiente:lead_1:reintentar",
+          "Reintentar",
+          "msg-pend"
+        )
+      )
+    ).toEqual({ handler: "aviso:cita_pendiente:reintentar" });
+    expect(mockedEnqueueRetry).toHaveBeenCalledWith({ leadId: "lead_1" });
+    expect(enviado()?.body).toBe(
+      mensajes.reintentandoCita({ cliente: "ese cliente" })
+    );
+
+    mockedLeadFindFirst.mockResolvedValue({
+      id: "lead_1",
+      resolvedAt: new Date(),
+      data: {},
+    } as never);
+    expect(
+      await enrutarEntrante(
+        boton(
+          "aviso:cita_pendiente:lead_1:reintentar",
+          "Reintentar",
+          "msg-pend"
+        )
+      )
+    ).toEqual({ handler: "aviso:cita_pendiente:reintentar:ya-resuelta" });
+
+    mockedLeadFindFirst.mockResolvedValue(null);
+    expect(
+      await enrutarEntrante(
+        boton(
+          "aviso:cita_pendiente:lead_1:apuntada",
+          "La apunté yo",
+          "msg-pend"
+        )
+      )
+    ).toEqual({ handler: "aviso:cita_pendiente:apuntada:lead-ajeno" });
+    expect(mockedEnqueueRetry).toHaveBeenCalledTimes(1);
+  });
+
+  it("«Reconectar» manda al panel y «Avisar a quien esperaba» avisa de que aún no existe", async () => {
+    mockedSentFindUnique.mockResolvedValue(AVISO_PENDIENTE as never);
+    expect(
+      await enrutarEntrante(
+        boton(
+          "aviso:cita_pendiente:lead_1:reconectar",
+          "Reconectar",
+          "msg-pend"
+        )
+      )
+    ).toEqual({ handler: "aviso:cita_pendiente:reconectar" });
+    expect(enviado()?.body).toContain("https://alhabla.ai/ajustes");
+
+    mockedSentFindUnique.mockResolvedValue({
+      ...AVISO_RESERVA,
+      callbackData: "aviso:cancelacion:booking_1",
+    } as never);
+    expect(
+      await enrutarEntrante(
+        boton("Avisar a quien esperaba", "Avisar a quien esperaba")
+      )
+    ).toEqual({ handler: "aviso:cancelacion:avisar_espera:pendiente" });
+    expect(enviado(1)?.body).toBe(mensajes.listaDeEsperaTodaviaNo());
   });
 });

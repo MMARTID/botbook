@@ -720,8 +720,12 @@ piloto. Decisión del usuario del 20-09 (madrugada): cimientos primero.
   pantalla se revisará en una sesión de diseño aparte.
 - Webhook de mensajería: idempotencia, enrutado por prefijo de botón, identificación de dueño /
   cliente / desconocido, `ownerWindowOpenUntil`.
-- Mensaje #1 por reserva (plantilla o interactivo según ventana), #2 con `informar_al_negocio`
-  en doble escritura, #3 con *La apunté yo*, #4, #5.
+- ~~Mensaje #1 por reserva (plantilla o interactivo según ventana), #3 con *La apunté yo*,
+  #4~~ — **PR 3 (avisos al negocio), backend hecho el 20-09**: `avisosNegocio.ts` con la
+  cascada ventana → plantilla aprobada → email/nada, botones «Vale», «Ver agenda de hoy», «La
+  apunté yo», «Reintentar», «Reconectar», agenda por AGENDA/HOY/MAÑANA, cita recuperada. Quedan
+  para PRs propios: #2 (recado por post-conversación `informar_al_negocio`, exige tocar los
+  assistants de Telnyx) y #5 (alertas operativas), y el toggle de `avisoPorReserva` en el panel.
 - `confirmacion_cita_v2` con *Guardar contacto* (vCard al toque) y *Cómo llegar* (`placeId`);
   `Business.address`/`placeId` desde Places. La recepcionista anuncia el WhatsApp por voz.
 - `recordatorio_cita_v2` con *Confirmo* · *Cancelar* · *Cambiar*; cancelar libera, avisa (#4)

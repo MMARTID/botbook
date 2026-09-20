@@ -3,7 +3,9 @@ import type { WhatsappAudience } from "../../adapters/whatsapp/WhatsAppAdapter.j
 import { prisma } from "../../lib/prisma.js";
 import { errorMessage } from "../../lib/logUtils.js";
 import { reclamarEnvio } from "../../lib/messageIdempotency.js";
+import { enqueueRetryBookingJob } from "../../lib/cloudTasks.js";
 import { interpretarComando, type PalabraClave } from "./webhooks.js";
+import { textoAgendaDelDia, type TipoAviso } from "./avisosNegocio.js";
 import { enviarTexto, resolverRemitente } from "./service.js";
 import { registrarBaja, revocarBaja } from "./bajas.js";
 import {
@@ -18,11 +20,12 @@ import {
 import * as mensajes from "./mensajes.js";
 
 /**
- * Enrutador de mensajes entrantes (PLAN-CANAL-DUENO.md § 6), fase 1 / PR 2:
+ * Enrutador de mensajes entrantes (PLAN-CANAL-DUENO.md § 6), fase 1:
  * alta del dueño (`ALTA <código>`, botón «Activar avisos»), STOP/BAJA en
- * los dos números, `ALTA` a secas (reactivación), AYUDA y respuestas fijas
- * a todo lo demás. Los botones de los avisos (PR 3) y el chat (fase 2)
- * siguen en `pendiente:*`.
+ * los dos números, `ALTA` a secas (reactivación), AYUDA, los botones de los
+ * avisos al negocio (PR 3: `aviso:<tipo>:<recurso>:<accion>`), la agenda
+ * del día (AGENDA/HOY/MAÑANA) y respuestas fijas a todo lo demás. El chat
+ * (fase 2) y los botones del lado cliente (PR 4) siguen en `pendiente:*`.
  *
  * Reglas:
  * - Primero la base de datos, después la respuesta. Nunca lanza por un
@@ -407,13 +410,48 @@ async function palabraClavePendiente(
   keyword: PalabraClave
 ): Promise<ResultadoEnrutado> {
   if (message.role === "owner") {
-    // Comandos del Gestor (fase 2): por ahora, la respuesta fija del dueño.
+    if (keyword === "AGENDA" || keyword === "HOY" || keyword === "MANANA") {
+      return agendaEnNegocios(message, keyword === "MANANA" ? 1 : 0);
+    }
+    // PAUSA y el resto de comandos del Gestor (fase 2): la respuesta fija.
     return resultado(
       `pendiente:palabra-clave:${keyword}`,
       await todaviaNoChateo(message)
     );
   }
   return textoDesconocidoEnNegocios(message);
+}
+
+/** AGENDA / HOY / MAÑANA: las citas del día de los negocios del móvil. */
+async function agendaEnNegocios(
+  message: InboundMessage,
+  dia: 0 | 1
+): Promise<ResultadoEnrutado> {
+  const negocios = (await negociosDelMovil(message.fromNumber)).filter((b) =>
+    consintio(b)
+  );
+  if (negocios.length === 0) {
+    return resultado("agenda:sin-negocio", await todaviaNoChateo(message));
+  }
+  const textos: string[] = [];
+  for (const business of negocios) {
+    try {
+      textos.push(await textoAgendaDelDia(business, dia));
+    } catch (error) {
+      console.error(
+        `[WhatsApp] No se pudo montar la agenda de ${dia === 0 ? "hoy" : "mañana"} del negocio ${business.id}: ${errorMessage(error)}`
+      );
+      textos.push(
+        `${nombreParaWhatsapp(business)}: no he podido leer la agenda ahora mismo.`
+      );
+    }
+  }
+  return resultado(
+    `agenda:${dia === 0 ? "hoy" : "manana"}`,
+    await responder(message, `agenda-${dia}`, textos.join("\n\n"), {
+      businessId: negocios[0].id,
+    })
+  );
 }
 
 async function stopEnNegocios(
@@ -783,9 +821,292 @@ async function botonEnNegocios(
     return { handler: "pendiente:boton:sin-contexto" };
   }
 
-  // Botones de los avisos (PR 3) y del lado cliente (PR 4).
+  const aviso = await resolverBotonDeAviso(message);
+  if (aviso) {
+    return botonDeAviso(message, aviso);
+  }
+
   const prefix = message.buttonId?.split(":")[0] ?? "?";
   return { handler: `pendiente:boton:${prefix}` };
+}
+
+// ---------------------------------------------------------------------------
+// Botones de los avisos al negocio (PR 3)
+// ---------------------------------------------------------------------------
+
+interface BotonDeAviso {
+  tipo: TipoAviso;
+  recursoId: string;
+  accion: string;
+  /** Negocio al que se envió el aviso (SentMessage.businessId). */
+  businessId: string | null;
+}
+
+const TIPOS_DE_AVISO: readonly string[] = [
+  "nueva_reserva",
+  "cita_pendiente",
+  "cancelacion",
+];
+
+/** Acción por el título del botón de una PLANTILLA (sin id propio). */
+function accionPorTitulo(titulo: string): string | null {
+  switch (normalizarTitulo(titulo)) {
+    case "VALE":
+      return "vale";
+    case "VER AGENDA DE HOY":
+      return "agenda_hoy";
+    case "LA APUNTE YO":
+      return "apuntada";
+    case "REINTENTAR":
+      return "reintentar";
+    case "RECONECTAR":
+      return "reconectar";
+    case "AVISAR A QUIEN ESPERABA":
+      return "avisar_espera";
+    default:
+      return null;
+  }
+}
+
+/**
+ * Un botón de aviso llega de dos formas: interactivo (el id lleva
+ * `aviso:<tipo>:<recurso>:<accion>`) o de plantilla (solo el título; el
+ * aviso se sabe por `context.id` → SentMessage.callbackData
+ * `aviso:<tipo>:<recurso>`). En los dos casos el envío original tiene que
+ * existir y haber ido a este móvil: nunca se actúa sobre un recurso que la
+ * persona no recibió.
+ */
+async function resolverBotonDeAviso(
+  message: InboundMessage
+): Promise<BotonDeAviso | null> {
+  const enviado = message.contextMessageId
+    ? await prisma.sentMessage.findUnique({
+        where: { providerMessageId: message.contextMessageId },
+        select: {
+          businessId: true,
+          audience: true,
+          toNumber: true,
+          callbackData: true,
+        },
+      })
+    : null;
+  if (
+    enviado &&
+    (enviado.audience !== "owner" || enviado.toNumber !== message.fromNumber)
+  ) {
+    return null;
+  }
+
+  const partesId = (message.buttonId ?? "").split(":");
+  if (partesId[0] === "aviso" && partesId.length >= 4) {
+    const tipo = partesId[1];
+    const accion = partesId[partesId.length - 1];
+    const recursoId = partesId.slice(2, -1).join(":");
+    if (TIPOS_DE_AVISO.includes(tipo) && recursoId && accion) {
+      if (!enviado) {
+        // Sin el envío original no se sabe si este móvil recibió el aviso.
+        console.warn(
+          `[WhatsApp] Botón ${message.buttonId} desde ${message.fromNumber} sin envío original (context ${message.contextMessageId ?? "—"}); se ignora`
+        );
+        return null;
+      }
+      return {
+        tipo: tipo as TipoAviso,
+        recursoId,
+        accion,
+        businessId: enviado.businessId,
+      };
+    }
+  }
+
+  const callback = enviado?.callbackData ?? "";
+  const partesCb = callback.split(":");
+  if (
+    partesCb[0] === "aviso" &&
+    TIPOS_DE_AVISO.includes(partesCb[1]) &&
+    partesCb.length >= 3
+  ) {
+    const accion = accionPorTitulo(
+      message.buttonTitle ?? message.buttonId ?? ""
+    );
+    if (!accion) return null;
+    return {
+      tipo: partesCb[1] as TipoAviso,
+      recursoId: partesCb.slice(2).join(":"),
+      accion,
+      businessId: enviado?.businessId ?? null,
+    };
+  }
+  return null;
+}
+
+async function botonDeAviso(
+  message: InboundMessage,
+  aviso: BotonDeAviso
+): Promise<ResultadoEnrutado> {
+  const from = message.fromNumber;
+  const base = `aviso:${aviso.tipo}:${aviso.accion}`;
+  const business = aviso.businessId
+    ? await prisma.business.findFirst({
+        where: {
+          id: aviso.businessId,
+          ownerWhatsappNumber: from,
+          active: true,
+        },
+      })
+    : null;
+  if (!business) {
+    // El aviso era de un negocio que ya no tiene este móvil: no se actúa.
+    return resultado(
+      `${base}:numero-antiguo`,
+      await responder(message, "otro-movil", mensajes.mensajeParaOtroMovil(), {
+        businessId: aviso.businessId,
+      })
+    );
+  }
+
+  switch (aviso.accion) {
+    case "vale":
+      // Solo cierra el aviso; el toque ya abrió la ventana de 24 h.
+      return { handler: base };
+    case "agenda_hoy":
+      return resultado(
+        base,
+        await responder(
+          message,
+          "agenda-0",
+          await textoAgendaDelDia(business, 0).catch((error: unknown) => {
+            console.error(
+              `[WhatsApp] No se pudo montar la agenda de hoy del negocio ${business.id}: ${errorMessage(error)}`
+            );
+            return `${nombreParaWhatsapp(business)}: no he podido leer la agenda ahora mismo.`;
+          }),
+          { businessId: business.id }
+        )
+      );
+    case "apuntada":
+    case "reintentar":
+    case "reconectar":
+      return botonDeCitaPendiente(message, aviso, business, base);
+    case "avisar_espera":
+      return resultado(
+        `${base}:pendiente`,
+        await responder(
+          message,
+          "lista-espera",
+          mensajes.listaDeEsperaTodaviaNo(),
+          {
+            businessId: business.id,
+          }
+        )
+      );
+    default:
+      return { handler: `pendiente:boton:aviso:${aviso.accion}` };
+  }
+}
+
+async function botonDeCitaPendiente(
+  message: InboundMessage,
+  aviso: BotonDeAviso,
+  business: Business,
+  base: string
+): Promise<ResultadoEnrutado> {
+  if (aviso.accion === "reconectar") {
+    return resultado(
+      base,
+      await responder(
+        message,
+        "reconectar",
+        mensajes.reconectarCalendario({
+          panelUrl: mensajes.panelUrl("/ajustes"),
+        }),
+        { businessId: business.id }
+      )
+    );
+  }
+  // El lead tiene que ser de ESTE negocio: el id viene del botón.
+  const lead = await prisma.lead.findFirst({
+    where: {
+      id: aviso.recursoId,
+      type: "pending_booking",
+      call: { businessId: business.id },
+    },
+    select: { id: true, resolvedAt: true, data: true },
+  });
+  if (!lead) {
+    console.warn(
+      `[WhatsApp] Botón ${aviso.accion} de ${message.fromNumber} para el lead ${aviso.recursoId}, que no es una cita pendiente del negocio ${business.id}; se ignora`
+    );
+    return { handler: `${base}:lead-ajeno` };
+  }
+  const cliente =
+    (
+      (lead.data as { clientName?: unknown } | null)?.clientName as
+        string | undefined
+    )?.trim() || "ese cliente";
+  if (lead.resolvedAt) {
+    return resultado(
+      `${base}:ya-resuelta`,
+      await responder(message, "cita-resuelta", mensajes.citaYaResuelta(), {
+        businessId: business.id,
+      })
+    );
+  }
+  if (aviso.accion === "apuntada") {
+    await prisma.lead.update({
+      where: { id: lead.id },
+      data: {
+        resolvedAt: new Date(),
+        data: {
+          ...((lead.data as Record<string, unknown> | null) ?? {}),
+          resolvedBy: "owner_whatsapp",
+          resolvedFromInboundMessageId: message.id,
+        },
+      },
+    });
+    console.log(
+      `[WhatsApp] Cita pendiente ${lead.id} del negocio ${business.id} resuelta a mano por el dueño (${message.fromNumber})`
+    );
+    return resultado(
+      base,
+      await responder(
+        message,
+        "cita-apuntada",
+        mensajes.citaApuntada({ cliente }),
+        {
+          businessId: business.id,
+        }
+      )
+    );
+  }
+  // reintentar
+  try {
+    await enqueueRetryBookingJob({ leadId: lead.id });
+  } catch (error) {
+    console.error(
+      `[WhatsApp] No se pudo encolar el reintento de la cita pendiente ${lead.id} (negocio ${business.id}): ${errorMessage(error)}`
+    );
+    return resultado(
+      `${base}:sin-encolar`,
+      await responder(
+        message,
+        "reintento-fallido",
+        `No he podido programar el reintento de la cita de ${cliente}. Inténtalo desde el panel: ${mensajes.panelUrl("/")}`,
+        { businessId: business.id }
+      )
+    );
+  }
+  return resultado(
+    base,
+    await responder(
+      message,
+      "cita-reintento",
+      mensajes.reintentandoCita({ cliente }),
+      {
+        businessId: business.id,
+      }
+    )
+  );
 }
 
 async function activarPorBoton(

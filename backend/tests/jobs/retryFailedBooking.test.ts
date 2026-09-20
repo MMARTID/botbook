@@ -4,12 +4,21 @@ import { enqueueRetryBookingJob } from "../../src/lib/cloudTasks.js";
 import { processRetryFailedBookingJob } from "../../src/jobs/retryFailedBooking.js";
 import { prisma } from "../../src/lib/prisma.js";
 import { calendarService } from "../../src/modules/calendar/service.js";
-import { checkBusinessHours, checkBookingRestrictions } from "../../src/lib/businessSchedule.js";
+import {
+  checkBusinessHours,
+  checkBookingRestrictions,
+} from "../../src/lib/businessSchedule.js";
 import { checkAvailability } from "../../src/lib/availability.js";
-import { acquireBookingLock, releaseBookingLock } from "../../src/lib/bookingLock.js";
+import {
+  acquireBookingLock,
+  releaseBookingLock,
+} from "../../src/lib/bookingLock.js";
 
 vi.mock("../../src/lib/cloudTasks.js", () => ({
   enqueueRetryBookingJob: vi.fn(),
+}));
+vi.mock("../../src/modules/whatsapp/avisosNegocio.js", () => ({
+  avisarCitaRecuperada: vi.fn().mockResolvedValue({ via: "interactivo" }),
 }));
 vi.mock("../../src/lib/prisma.js", () => ({
   prisma: {
@@ -35,7 +44,9 @@ vi.mock("../../src/lib/businessSchedule.js", () => ({
 
 vi.mock("../../src/lib/availability.js", () => ({
   checkAvailability: vi.fn(),
-  computeAvailabilityLookaheadMs: vi.fn((durationMinutes: number) => 4 * 60 * 60_000 + durationMinutes * 60_000),
+  computeAvailabilityLookaheadMs: vi.fn(
+    (durationMinutes: number) => 4 * 60 * 60_000 + durationMinutes * 60_000
+  ),
 }));
 
 vi.mock("../../src/lib/bookingLock.js", () => ({
@@ -110,13 +121,27 @@ describe("processRetryFailedBookingJob", () => {
     mockUpsert = vi.fn().mockResolvedValue({});
     mockLeadUpdate = vi.fn().mockResolvedValue({});
     mockedTransaction.mockImplementation(async (callback: any) =>
-      callback({ booking: { upsert: mockUpsert }, lead: { update: mockLeadUpdate } })
+      callback({
+        booking: { upsert: mockUpsert },
+        lead: { update: mockLeadUpdate },
+      })
     );
-    mockedBookAppointment.mockResolvedValue({ id: "gcal_event_1", htmlLink: "https://calendar.google.com/event/1" } as any);
-    mockedServiceFindMany.mockResolvedValue([{ id: "service_1", name: "Corte" }] as any);
-    mockedProfessionalFindFirst.mockResolvedValue({ id: "pro_1", name: "Montse" } as any);
+    mockedBookAppointment.mockResolvedValue({
+      id: "gcal_event_1",
+      htmlLink: "https://calendar.google.com/event/1",
+    } as any);
+    mockedServiceFindMany.mockResolvedValue([
+      { id: "service_1", name: "Corte" },
+    ] as any);
+    mockedProfessionalFindFirst.mockResolvedValue({
+      id: "pro_1",
+      name: "Montse",
+    } as any);
     mockedBookingFindUnique.mockResolvedValue(null);
-    mockedCheckBusinessHours.mockReturnValue({ success: true, isOpen: true } as any);
+    mockedCheckBusinessHours.mockReturnValue({
+      success: true,
+      isOpen: true,
+    } as any);
     mockedCheckBookingRestrictions.mockReturnValue({ success: true } as any);
     mockedCheckAvailability.mockResolvedValue({
       available: true,
@@ -146,7 +171,9 @@ describe("processRetryFailedBookingJob", () => {
   });
 
   it("no hace nada si el lead ya está resuelto", async () => {
-    mockedLeadFindUnique.mockResolvedValue(buildLead({ resolvedAt: new Date() }) as any);
+    mockedLeadFindUnique.mockResolvedValue(
+      buildLead({ resolvedAt: new Date() }) as any
+    );
 
     await processRetryFailedBookingJob({ leadId });
 
@@ -219,7 +246,9 @@ describe("processRetryFailedBookingJob", () => {
     mockedBusinessFindUnique.mockResolvedValue(
       buildBusiness({
         calendarProvider: "outlook",
-        calendarConnections: [filaDeConexion("outlook", { refreshToken: null })],
+        calendarConnections: [
+          filaDeConexion("outlook", { refreshToken: null }),
+        ],
       }) as any
     );
 
@@ -244,7 +273,10 @@ describe("processRetryFailedBookingJob", () => {
         professionalName: "Montse",
         conexion: expect.objectContaining({
           provider: "google",
-          credentials: { provider: "google", refreshToken: "google_refresh_token" },
+          credentials: {
+            provider: "google",
+            refreshToken: "google_refresh_token",
+          },
         }),
       })
     );
@@ -286,7 +318,10 @@ describe("processRetryFailedBookingJob", () => {
       expect.objectContaining({
         conexion: expect.objectContaining({
           provider: "outlook",
-          credentials: { provider: "outlook", refreshToken: "outlook_refresh_token" },
+          credentials: {
+            provider: "outlook",
+            refreshToken: "outlook_refresh_token",
+          },
         }),
       })
     );
@@ -296,7 +331,9 @@ describe("processRetryFailedBookingJob", () => {
     mockedLeadFindUnique.mockResolvedValue(buildLead() as any);
     mockedCallFindUnique.mockResolvedValue({ businessId: "biz_1" } as any);
     mockedBusinessFindUnique.mockResolvedValue(buildBusiness() as any);
-    mockedBookAppointment.mockRejectedValue(new Error("Calendario de Google no responde"));
+    mockedBookAppointment.mockRejectedValue(
+      new Error("Calendario de Google no responde")
+    );
 
     await expect(processRetryFailedBookingJob({ leadId })).rejects.toThrow(
       "Calendario de Google no responde"
@@ -327,7 +364,10 @@ describe("processRetryFailedBookingJob", () => {
     mockedLeadFindUnique.mockResolvedValue(
       buildLead({ data: { ...pendingBookingData, clientPhone: null } }) as any
     );
-    mockedCallFindUnique.mockResolvedValue({ businessId: "biz_1", fromNumber: "+34611222333" } as any);
+    mockedCallFindUnique.mockResolvedValue({
+      businessId: "biz_1",
+      fromNumber: "+34611222333",
+    } as any);
     mockedBusinessFindUnique.mockResolvedValue(buildBusiness() as any);
 
     await processRetryFailedBookingJob({ leadId });
@@ -358,7 +398,8 @@ describe("processRetryFailedBookingJob", () => {
     // ambas verla vacía, serializarse en el lock, y la segunda —que ya no
     // vuelve a comprobar tras conseguirlo— duplicaría la reserva.
     const lockOrder = mockedAcquireBookingLock.mock.invocationCallOrder[0];
-    const idempotencyCheckOrder = mockedBookingFindUnique.mock.invocationCallOrder[0];
+    const idempotencyCheckOrder =
+      mockedBookingFindUnique.mock.invocationCallOrder[0];
     expect(lockOrder).toBeLessThan(idempotencyCheckOrder);
   });
 
@@ -367,20 +408,27 @@ describe("processRetryFailedBookingJob", () => {
     mockedCallFindUnique.mockResolvedValue({ businessId: "biz_1" } as any);
     mockedBusinessFindUnique.mockResolvedValue(buildBusiness() as any);
     mockedBookAppointment.mockRejectedValue(
-      Object.assign(new Error("La conexión con Google ha sido revocada o expiró."), {
-        name: "CalendarBusinessError",
-        code: "GOOGLE_CALENDAR_RECONNECT_REQUIRED",
-      })
+      Object.assign(
+        new Error("La conexión con Google ha sido revocada o expiró."),
+        {
+          name: "CalendarBusinessError",
+          code: "GOOGLE_CALENDAR_RECONNECT_REQUIRED",
+        }
+      )
     );
 
     // Sin este catch específico (antes no existía), el job simplemente
     // fallaba en bucle contra una conexión que no iba a arreglarse sola,
     // sin que la conexión reflejara nunca la rotura.
-    await expect(processRetryFailedBookingJob({ leadId })).resolves.toBeUndefined();
+    await expect(
+      processRetryFailedBookingJob({ leadId })
+    ).resolves.toBeUndefined();
 
     // Modo "revocar": la fila de calendar_connections queda sin
     // credenciales y desconectada.
-    expect(vi.mocked(prisma.calendarConnection.updateMany)).toHaveBeenCalledWith(
+    expect(
+      vi.mocked(prisma.calendarConnection.updateMany)
+    ).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { businessId: "biz_1", provider: "google" },
         data: expect.objectContaining({

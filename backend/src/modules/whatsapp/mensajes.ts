@@ -13,9 +13,9 @@ export function listarNegocios(nombres: string[]): string {
   return `${nombres.slice(0, -1).join(", ")} y ${nombres[nombres.length - 1]}`;
 }
 
-/** Enlace directo a Ajustes › WhatsApp del panel. */
-export function panelUrl(): string {
-  return `${process.env.FRONTEND_URL ?? "https://alhabla.ai"}/ajustes#whatsapp`;
+/** Enlace al panel; por defecto, Ajustes › WhatsApp. */
+export function panelUrl(ruta = "/ajustes#whatsapp"): string {
+  return `${(process.env.FRONTEND_URL ?? "https://alhabla.ai").replace(/\/$/, "")}${ruta}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -133,4 +133,92 @@ export function clienteConocido(input: {
 
 export function desconocidoEnClientes(): string {
   return "Hola, soy Alhabla y gestiono las reservas de varios negocios. Por aquí solo recibirás mensajes sobre tus citas. Para pedir una, llama al negocio y te atenderá la recepcionista. Escribe STOP si no quieres recibir mensajes.";
+}
+
+// ---------------------------------------------------------------------------
+// Avisos al negocio (PR 3) y sus botones
+// ---------------------------------------------------------------------------
+
+/** #1 — Cuerpo del interactivo dentro de la ventana. */
+export function avisoNuevaReserva(input: {
+  negocio: string;
+  cliente: string;
+  cita: string;
+  servicio: string;
+}): string {
+  return `${input.negocio}: nueva cita. ${input.cliente}, ${input.cita}, ${input.servicio}. Ya está en tu agenda.`;
+}
+
+/** #3 — La cita no entró en el calendario. */
+export function avisoCitaPendiente(input: {
+  negocio: string;
+  cliente: string;
+  cita: string;
+  motivo: string;
+  panelUrl: string;
+}): string {
+  return [
+    `${input.negocio}: la cita de ${input.cliente}, ${input.cita}, no entró en tu calendario porque ${input.motivo}.`,
+    `Si la apuntas tú a mano, pulsa «La apunté yo». Si prefieres que lo intente otra vez, «Reintentar». Para reconectar el calendario: ${input.panelUrl}`,
+  ].join("\n");
+}
+
+/** #4 — El cliente ha cancelado. */
+export function avisoCancelacion(input: {
+  negocio: string;
+  cliente: string;
+  cita: string;
+  servicio: string;
+}): string {
+  return `${input.negocio}: ${input.cliente} canceló su cita del ${input.cita} (${input.servicio}). Ese hueco queda libre.`;
+}
+
+/** Una cita pendiente entró por fin en el calendario. */
+export function avisoCitaRecuperada(input: {
+  negocio: string;
+  cliente: string;
+  cita: string;
+}): string {
+  return `${input.negocio}: la cita de ${input.cliente}, ${input.cita}, ya está en tu calendario.`;
+}
+
+/** Botón «La apunté yo». */
+export function citaApuntada(input: { cliente: string }): string {
+  return `Perfecto, doy por apuntada la cita de ${input.cliente}. No volveré a intentar meterla en el calendario.`;
+}
+
+/** Botón «Reintentar». */
+export function reintentandoCita(input: { cliente: string }): string {
+  return `Lo intento otra vez ahora con la cita de ${input.cliente}. Si entra, te aviso por aquí.`;
+}
+
+/** Botón «Reconectar». */
+export function reconectarCalendario(input: { panelUrl: string }): string {
+  return `Para reconectar el calendario entra en tu panel: ${input.panelUrl}. En cuanto esté conectado, vuelvo a intentar las citas pendientes.`;
+}
+
+/** El botón llegó tarde: el lead ya estaba resuelto. */
+export function citaYaResuelta(): string {
+  return "Esa cita ya está resuelta. No hay nada más que hacer.";
+}
+
+/** Botón «Avisar a quien esperaba» (lista de espera): llega en el PR 4. */
+export function listaDeEsperaTodaviaNo(): string {
+  return "La lista de espera todavía no está lista; en cuanto lo esté, este botón avisará al primer cliente que pidió esa hora.";
+}
+
+/** Botón «Ver agenda de hoy» y palabras clave AGENDA / HOY / MAÑANA. */
+export function agendaDelDia(input: {
+  negocio: string;
+  dia: "hoy" | "mañana";
+  etiqueta: string;
+  lineas: string[];
+}): string {
+  if (input.lineas.length === 0) {
+    return `${input.negocio}, ${input.dia} (${input.etiqueta}): sin citas.`;
+  }
+  return [
+    `${input.negocio}, ${input.dia} (${input.etiqueta}): ${input.lineas.length} ${input.lineas.length === 1 ? "cita" : "citas"}.`,
+    ...input.lineas,
+  ].join("\n");
 }

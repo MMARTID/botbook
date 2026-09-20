@@ -42,6 +42,12 @@ import {
   enqueueWhatsappJob,
 } from "../../lib/cloudTasks.js";
 import { whatsappAdapter } from "../../adapters/whatsapp/WhatsAppAdapter.js";
+import {
+  avisarCancelacion,
+  avisarCitaPendiente,
+  avisarNuevaReserva,
+  nombreDeServicios,
+} from "../whatsapp/avisosNegocio.js";
 import { isValidE164Phone } from "../../lib/phone.js";
 import { planAllows, resolvePlanId } from "../../lib/planFeatures.js";
 import {
@@ -821,13 +827,38 @@ async function capturePendingBookingLead(args: {
 
     // El negocio tiene que enterarse el mismo día, no el lunes siguiente: sin
     // este aviso, una cita caída solo aparecía en un contador del panel que
-    // nadie mira el fin de semana, y el cliente se presentaba sin cita.
-    void avisarDeReservaPendiente({
-      businessId: args.businessId,
-      clientName: args.clientName,
-      clientPhone: args.clientPhone ?? null,
-      startDateTime: args.startDateTime,
+    // nadie mira el fin de semana, y el cliente se presentaba sin cita. Por
+    // WhatsApp (aviso #3, con botones) y, si no es posible, por email.
+    const negocio = await prisma.business.findUnique({
+      where: { id: args.businessId },
+      select: { name: true, timezone: true },
     });
+    const fechaCita = new Date(args.startDateTime);
+    if (negocio && !Number.isNaN(fechaCita.getTime())) {
+      await avisarCitaPendiente({
+        businessId: args.businessId,
+        businessName: negocio.name,
+        timezone: negocio.timezone || "Europe/Madrid",
+        leadId: lead.id,
+        clientName: args.clientName,
+        startDateTime: fechaCita,
+        failureCode: args.failureCode,
+        email: () =>
+          avisarDeReservaPendiente({
+            businessId: args.businessId,
+            clientName: args.clientName,
+            clientPhone: args.clientPhone ?? null,
+            startDateTime: args.startDateTime,
+          }),
+      });
+    } else {
+      void avisarDeReservaPendiente({
+        businessId: args.businessId,
+        clientName: args.clientName,
+        clientPhone: args.clientPhone ?? null,
+        startDateTime: args.startDateTime,
+      });
+    }
 
     return lead.id;
   } catch (error) {
@@ -1650,9 +1681,10 @@ async function executeBookAppointment(
 
         // Persist booking in database, vinculada a la llamada exacta cuando se
         // conoce su callId (ver resolveCallForBusiness).
+        let reservaGuardadaId: string | null = null;
         if (call) {
           try {
-          await prisma.booking.upsert({
+          const reservaGuardada = await prisma.booking.upsert({
             where: { callId: call.id },
             create: {
               callId: call.id,
@@ -1680,7 +1712,9 @@ async function executeBookAppointment(
               externalCalendarProvider: conexion.provider,
               externalCalendarId: conexion.calendarId,
             },
+            select: { id: true },
           });
+          reservaGuardadaId = reservaGuardada?.id ?? null;
           } catch (errorAlGuardar) {
             // El evento ya está en el calendario del negocio pero la reserva
             // no se ha podido guardar. Si lo dejáramos así, el dueño vería una
@@ -1739,6 +1773,22 @@ async function executeBookAppointment(
         }
 
         console.log(`[VoiceTools] ${callLabel} agendó la cita correctamente`);
+
+        // Aviso #1 al dueño por WhatsApp (PLAN-CANAL-DUENO.md § 4). Nunca
+        // lanza y es idempotente por reserva; se espera por la misma razón
+        // que el SMS de abajo (Cloud Run congela el proceso al responder).
+        if (reservaGuardadaId) {
+          await avisarNuevaReserva({
+            businessId: business.id,
+            businessName: business.name,
+            timezone: business.timezone || "Europe/Madrid",
+            bookingId: reservaGuardadaId,
+            clientName,
+            startDateTime: new Date(startDateTime),
+            serviceNames: verifiedServiceNames,
+            professionalName: resolvedProfessionalName ?? null,
+          });
+        }
 
         // Aviso al propietario por SMS (Telnyx), no por email: nunca puede
         // hacer fallar la reserva en sí (try/catch propio). Dos guardas antes
@@ -2351,7 +2401,18 @@ async function executeCancelAppointment(
 
   await prisma.booking.update({
     where: { id: booking.id },
-    data: { isCancelled: true },
+    data: { isCancelled: true, cancelledAt: new Date(), cancelledBy: "client_voice" },
+  });
+
+  // Aviso #4 al dueño por WhatsApp (PLAN-CANAL-DUENO.md § 4). Nunca lanza.
+  await avisarCancelacion({
+    businessId: business.id,
+    businessName: business.name,
+    timezone: business.timezone || "Europe/Madrid",
+    bookingId: booking.id,
+    clientName: booking.clientName,
+    startDateTime: booking.programedAt,
+    serviceNames: await nombreDeServicios(booking.serviceIds),
   });
 
   if (booking.externalEventId && booking.externalCalendarProvider) {
