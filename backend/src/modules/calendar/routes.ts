@@ -19,6 +19,7 @@ import {
   proveedorDesdeErrorDeReconexion,
 } from "../../adapters/calendar/errors.js";
 import { z } from "zod";
+import { appUrl } from "../../lib/urls.js";
 
 const UpcomingEventsQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(15).default(15),
@@ -346,11 +347,11 @@ export async function calendarRoutes(fastify: FastifyInstance) {
         setStateCookie(reply, GOOGLE_CALENDAR_OAUTH_STATE_COOKIE, "", 0);
 
         if (!state || !expectedState || state !== expectedState) {
-          return reply.redirect(`${process.env.FRONTEND_URL}/settings?calendar_error=invalid_state`);
+          return reply.redirect(`${appUrl()}/settings?calendar_error=invalid_state`);
         }
 
         if (error) {
-          return reply.redirect(`${process.env.FRONTEND_URL}/settings?calendar_error=${error}`);
+          return reply.redirect(`${appUrl()}/settings?calendar_error=${error}`);
         }
 
         if (!code || !state) {
@@ -363,10 +364,10 @@ export async function calendarRoutes(fastify: FastifyInstance) {
         await calendarService.handleCallback(code, state);
 
         // Redirigir de vuelta al frontend indicando éxito
-        return reply.redirect(`${process.env.FRONTEND_URL}/settings?calendar_success=true`);
+        return reply.redirect(`${appUrl()}/settings?calendar_success=true`);
       } catch (error) {
         fastify.log.error(error);
-        return reply.redirect(`${process.env.FRONTEND_URL}/settings?calendar_error=true`);
+        return reply.redirect(`${appUrl()}/settings?calendar_error=true`);
       }
     }
   );
@@ -383,23 +384,23 @@ export async function calendarRoutes(fastify: FastifyInstance) {
         setStateCookie(reply, MICROSOFT_CALENDAR_OAUTH_STATE_COOKIE, "", 0);
 
         if (!state || !expectedState || state !== expectedState) {
-          return reply.redirect(`${process.env.FRONTEND_URL}/settings?outlook_error=invalid_state`);
+          return reply.redirect(`${appUrl()}/settings?outlook_error=invalid_state`);
         }
 
         if (error) {
-          return reply.redirect(`${process.env.FRONTEND_URL}/settings?outlook_error=${encodeURIComponent(error)}`);
+          return reply.redirect(`${appUrl()}/settings?outlook_error=${encodeURIComponent(error)}`);
         }
 
         if (!code || !state) {
-          return reply.redirect(`${process.env.FRONTEND_URL}/settings?outlook_error=missing_code`);
+          return reply.redirect(`${appUrl()}/settings?outlook_error=missing_code`);
         }
 
         const result = await calendarService.handleMicrosoftCallback(code, state);
         const payload = encodeURIComponent(JSON.stringify(result));
-        return reply.redirect(`${process.env.FRONTEND_URL}/settings?outlook_calendars=${payload}`);
+        return reply.redirect(`${appUrl()}/settings?outlook_calendars=${payload}`);
       } catch (error) {
         fastify.log.error(error);
-        return reply.redirect(`${process.env.FRONTEND_URL}/settings?outlook_error=true`);
+        return reply.redirect(`${appUrl()}/settings?outlook_error=true`);
       }
     },
   );

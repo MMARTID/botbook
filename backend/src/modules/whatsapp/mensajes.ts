@@ -6,6 +6,8 @@
  * los nombres de negocio llegan ya pasados por `nombreParaWhatsapp`.
  */
 
+import { appUrl } from "../../lib/urls.js";
+
 /** «A», «A y B», «A, B y C». */
 export function listarNegocios(nombres: string[]): string {
   if (nombres.length === 0) return "";
@@ -15,7 +17,7 @@ export function listarNegocios(nombres: string[]): string {
 
 /** Enlace al panel; por defecto, Ajustes › WhatsApp. */
 export function panelUrl(ruta = "/ajustes#whatsapp"): string {
-  return `${(process.env.FRONTEND_URL ?? "https://alhabla.ai").replace(/\/$/, "")}${ruta}`;
+  return appUrl(ruta, { porDefecto: "https://alhabla.ai" });
 }
 
 // ---------------------------------------------------------------------------

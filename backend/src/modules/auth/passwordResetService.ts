@@ -8,6 +8,7 @@ import {
   passwordResetEmail,
 } from "../../lib/emailTemplates.js";
 import { AccountActionError } from "./accountService.js";
+import { appUrl } from "../../lib/urls.js";
 
 /**
  * Recuperación de contraseña sin tabla nueva: el token vive en Redis con
@@ -24,10 +25,7 @@ function hashToken(token: string) {
 }
 
 function getFrontendUrl() {
-  return (process.env.FRONTEND_URL || "http://localhost:3001").replace(
-    /\/$/,
-    ""
-  );
+  return appUrl();
 }
 
 export function buildPasswordResetUrl(token: string) {

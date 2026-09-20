@@ -1,6 +1,7 @@
 # Plan: separar la web (alhabla.ai) de la aplicación (app.alhabla.ai)
 
-Estado: **plan aprobado en decisiones, sin empezar** (21-09-2026).
+Estado: **fase 0 hecha** (21-09-2026; PR de backend con `APP_URL`/`WEB_URL`, CORS doble y el
+pase). Siguiente: fase 1 (`web/`).
 
 ## 1. Qué está al revés hoy
 
@@ -137,10 +138,10 @@ Orden pensado para que en ningún momento un enlace ya enviado deje de funcionar
 
 1. DNS: `app.alhabla.ai` → Vercel (CNAME). En Vercel, dominio `app.alhabla.ai` al proyecto
    `frontend`. Comprobar `https://app.alhabla.ai/login`.
-2. Google Cloud Console (OAuth «Alhabla», el de login y el de calendario): añadir
-   `https://app.alhabla.ai` a los orígenes JavaScript autorizados; los `redirect_uri` son del
-   backend y no cambian. Mismo aviso para la verificación de Google en curso (privacidad
-   sigue en `alhabla.ai/legal/privacidad`: la URL declarada no cambia).
+2. Google Cloud Console: **nada que tocar**. El login de Google y el OAuth de calendario son
+   redirects que construye el backend con su propio `redirect_uri` (`api.alhabla.ai`), no
+   botones JS con orígenes autorizados. La verificación de Google en curso tampoco cambia
+   (la privacidad sigue en `alhabla.ai/legal/privacidad`).
 3. Backend (Cloud Run, sin redeploy de imagen): `APP_URL=https://app.alhabla.ai`,
    `WEB_URL=https://alhabla.ai`, `FRONTEND_URL=https://app.alhabla.ai`. Desde este momento
    emails, WhatsApp, Stripe y OAuth mandan a la app. Stripe: las URLs de éxito/cancelación se
@@ -178,7 +179,7 @@ Marcha atrás: volver a apuntar `alhabla.ai` al proyecto `frontend` en Vercel y 
 |---|---|
 | Registro roto entre dominios (la conversión) | El pase se prueba en integración (Redis real) y de punta a punta en preview antes del corte; Google Login no cambia de mecanismo |
 | Enlaces antiguos (emails, plantillas de Meta con `alhabla.ai/ajustes/…`) | Redirects 301 en la web; se comprueba con un botón real de WhatsApp en el paso 3.5 |
-| OAuth de Google (login y calendario) rechaza el origen nuevo | Orígenes añadidos antes de mover el DNS; los `redirect_uri` no cambian |
+| OAuth de Google (login y calendario) | No cambia: los `redirect_uri` son del backend y no hay orígenes JS autorizados que añadir |
 | Previews de Vercel de la web llaman a la API con un origen no permitido | Mismo régimen que hoy para el `frontend` (memoria: «los previews ya no escriben en producción») |
 | SEO: la landing cambia de `/landing` a `/` | 301 de `/landing` → `/`; sitemap nuevo; el contenido y las URLs de sectores no cambian |
 | El bug conocido del registro (`register/page.tsx` con errores de validación como array) | Se arregla al reescribir `/register` en la web (fase 1), no se arrastra |

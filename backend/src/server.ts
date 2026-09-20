@@ -53,6 +53,7 @@ import {
   claimVoiceWebhookEvent,
   completeVoiceWebhookEvent,
 } from "./lib/voiceWebhookIdempotency.js";
+import { origenesPermitidos } from "./lib/urls.js";
 
 const PORT = parseInt(process.env.PORT || "3000", 10);
 const HOST = process.env.HOST || "0.0.0.0";
@@ -119,12 +120,11 @@ async function start() {
     console.log("[Server] Registering plugins...");
     fastify.register(cors, {
       origin: (origin, callback) => {
-        const frontendOrigin = process.env.FRONTEND_URL || "http://localhost:3001";
-        // Origen extra opcional (ej. un túnel para ver el panel desde fuera)
-        // — no sustituye a FRONTEND_URL, que sigue gobernando redirects de
-        // OAuth/Stripe.
-        const extraOrigin = process.env.EXTRA_ALLOWED_ORIGIN;
-        if (!origin || origin === frontendOrigin || (extraOrigin && origin === extraOrigin)) {
+        // La app (APP_URL), la web de marketing (WEB_URL: registro y
+        // recuperación de contraseña) y un origen extra opcional (un túnel
+        // para ver el panel desde fuera). Los redirects de OAuth/Stripe los
+        // gobierna APP_URL, no esta lista.
+        if (!origin || origenesPermitidos().has(origin)) {
           callback(null, true);
           return;
         }

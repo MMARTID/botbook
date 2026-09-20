@@ -21,6 +21,7 @@ import {
 } from "../../lib/emailTemplates.js";
 import { acquireLock, releaseLock } from "../../lib/bookingLock.js";
 import { getPlanLimits, resolvePlanId } from "../../lib/planFeatures.js";
+import { appUrl } from "../../lib/urls.js";
 
 const CHECKOUT_TRIAL_DAYS = 7;
 const PAYMENT_FAILURE_SUSPENSION_DAYS = 7;
@@ -282,9 +283,7 @@ export async function createCheckoutSession(input: {
 
   const priceId = getPriceId(input.planId);
   const usagePriceId = getUsagePriceId(input.planId);
-  const frontendUrl = (
-    process.env.FRONTEND_URL || "http://localhost:3001"
-  ).replace(/\/$/, "");
+  const frontendUrl = appUrl();
   const integrationIdentifier = `alhabla-subscription-${randomBytes(4).toString("hex")}`;
 
   const session = await stripe.checkout.sessions.create({
@@ -332,9 +331,7 @@ export async function createCustomerPortalSession(businessId: string) {
     throw new Error("This business does not have a Stripe customer yet");
   }
 
-  const frontendUrl = (
-    process.env.FRONTEND_URL || "http://localhost:3001"
-  ).replace(/\/$/, "");
+  const frontendUrl = appUrl();
   return getStripeClient().billingPortal.sessions.create({
     customer: business.stripeCustomerId,
     return_url: `${frontendUrl}/ajustes/facturacion`,
@@ -530,7 +527,7 @@ async function sendCancellationInstructions(input: {
   const email = business?.users[0]?.email;
   if (!business || !email) return;
 
-  const frontendUrl = (process.env.FRONTEND_URL || "http://localhost:3001").replace(/\/$/, "");
+  const frontendUrl = appUrl();
   const { subject, html } = subscriptionCancellationInstructionsEmail({
     businessName: business.name,
     serviceEndsAt: input.serviceEndsAt,
@@ -662,9 +659,7 @@ async function processStripeEvent(event: Stripe.Event) {
         });
         const email = invoice.customer_email ?? business?.users[0]?.email;
         if (business && email) {
-          const frontendUrl = (
-            process.env.FRONTEND_URL || "http://localhost:3001"
-          ).replace(/\/$/, "");
+          const frontendUrl = appUrl();
           const { subject, html } = paymentFailedEmail({
             businessName: business.name,
             suspensionAt,
