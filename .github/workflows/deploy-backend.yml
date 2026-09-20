@@ -196,8 +196,8 @@ jobs:
             CAMBIOS=$(git diff --name-only "$ANTES" "${{ github.sha }}")
           fi
 
-          if ! echo "$CAMBIOS" | grep -qE '^backend/src/lib/(managedAgentPrompt|telnyxAssistantPayload)\.ts$'; then
-            echo "El deploy no toca el prompt ni el payload del assistant: nada que propagar."
+          if ! echo "$CAMBIOS" | grep -qE '^backend/src/lib/(managedAgentPrompt|telnyxAssistantPayload|gestorPayload|gestorSync)\.ts$'; then
+            echo "El deploy no toca el prompt ni el payload de los assistants (recepcionista o Gestor): nada que propagar."
             exit 0
           fi
 

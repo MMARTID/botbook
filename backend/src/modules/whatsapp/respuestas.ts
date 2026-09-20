@@ -1,9 +1,12 @@
 import type { InboundMessage } from "@prisma/client";
-import type { WhatsappAudience } from "../../adapters/whatsapp/WhatsAppAdapter.js";
+import type {
+  WhatsappAudience,
+  WhatsAppButton,
+} from "../../adapters/whatsapp/WhatsAppAdapter.js";
 import { prisma } from "../../lib/prisma.js";
 import { errorMessage } from "../../lib/logUtils.js";
 import { reclamarEnvio } from "../../lib/messageIdempotency.js";
-import { enviarTexto } from "./service.js";
+import { enviarBotones, enviarTexto } from "./service.js";
 
 /**
  * Respuestas del enrutador de WhatsApp (movido tal cual de `router.ts` para
@@ -35,6 +38,9 @@ export interface OpcionesRespuesta {
   unaVezAlDia?: boolean;
   /** Negocio al que atribuir la respuesta (si no, el del entrante). */
   businessId?: string | null;
+  /** Con botones la respuesta sale como interactivo (el Gestor, fase 2:
+   * «Confirmar» · «Cancelar» sobre una acción propuesta). Mismas reglas. */
+  botones?: WhatsAppButton[];
 }
 
 export interface Respuesta {
@@ -117,27 +123,39 @@ export async function responder(
   }
 
   const idempotencyKey = `entrante:${inbound.id}:${tipo}`;
+  const conBotones = (opciones.botones?.length ?? 0) > 0;
   const reclamado = await reclamarEnvio("whatsapp", idempotencyKey, {
     businessId: businessId ?? null,
     audience,
     toNumber: from,
     callbackData,
-    kind: "text",
+    kind: conBotones ? "interactive" : "text",
   });
   if (!reclamado) {
     return { sufijo: "" };
   }
 
   try {
-    const result = await enviarTexto({
-      audience,
-      to: from,
-      businessId,
-      body,
-      idempotencyKey,
-      callbackData,
-      permitirBaja: opciones.permitirBaja,
-    });
+    const result = conBotones
+      ? await enviarBotones({
+          audience,
+          to: from,
+          businessId,
+          body,
+          buttons: opciones.botones!,
+          idempotencyKey,
+          callbackData,
+          permitirBaja: opciones.permitirBaja,
+        })
+      : await enviarTexto({
+          audience,
+          to: from,
+          businessId,
+          body,
+          idempotencyKey,
+          callbackData,
+          permitirBaja: opciones.permitirBaja,
+        });
     console.log(
       `[WhatsApp] Respuesta ${tipo} a ${from} (negocio ${businessId ?? "—"}): ${result.messageId}`
     );

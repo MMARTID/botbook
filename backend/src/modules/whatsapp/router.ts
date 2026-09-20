@@ -2,6 +2,7 @@ import type { Business, InboundMessage } from "@prisma/client";
 import type { WhatsappAudience } from "../../adapters/whatsapp/WhatsAppAdapter.js";
 import { prisma } from "../../lib/prisma.js";
 import { errorMessage } from "../../lib/logUtils.js";
+import { telnyxAiAdapter } from "../../adapters/telnyx/TelnyxAiAdapter.js";
 import { enqueueRetryBookingJob } from "../../lib/cloudTasks.js";
 import { interpretarComando, type PalabraClave } from "./webhooks.js";
 import {
@@ -33,6 +34,14 @@ import {
 } from "./altaDueno.js";
 import { botonEnClientes } from "./botonesCliente.js";
 import { conversarConRecepcionista } from "./chatCliente.js";
+import {
+  anotarEnConversacionDelDueno,
+  cerrarConversacionDelDueno,
+  chatDelDuenoActivo,
+  conversarConGestor,
+  gestorAssistantId,
+} from "./chatDueno.js";
+import { decidirPropuesta } from "../gestor/acciones.js";
 import { avisarAQuienEsperaba } from "./listaDeEspera.js";
 import { nombreParaCliente, telefonoDeContacto } from "./mensajesCliente.js";
 import * as mensajes from "./mensajes.js";
@@ -45,8 +54,8 @@ import * as mensajes from "./mensajes.js";
  * del día (AGENDA/HOY/MAÑANA), los botones del cliente (PR 4, en
  * `botonesCliente.ts`) y respuestas fijas a todo lo demás. Fase 2: el texto
  * libre de un cliente conocido va a la recepcionista de su negocio por chat
- * (`chatCliente.ts`) cuando el interruptor está encendido; el del dueño
- * (Gestor) sigue en `pendiente:*`.
+ * (`chatCliente.ts`) cuando el interruptor está encendido, y el del dueño al
+ * Gestor (`chatDueno.ts`, PR 2) con sus botones `accion:<id>:confirmar|cancelar`.
  *
  * Reglas:
  * - Primero la base de datos, después la respuesta. Nunca lanza por un
@@ -218,6 +227,18 @@ async function enrutarEnNegocios(
 
   if (message.kind === "text") {
     if (message.role === "owner") {
+      // Fase 2: el Gestor. Si no puede atender (interruptor, negocio o
+      // dueño no activo) se cae a la respuesta fija de siempre.
+      if (message.businessId && message.text) {
+        const chat = await conversarConGestor({
+          message,
+          businessId: message.businessId,
+          texto: message.text,
+        });
+        if (chat.atendido) {
+          return chat.resultado;
+        }
+      }
       return resultado("texto:dueno", await todaviaNoChateo(message));
     }
     return textoDesconocidoEnNegocios(message);
@@ -264,7 +285,10 @@ async function palabraClavePendiente(
     if (keyword === "AGENDA" || keyword === "HOY" || keyword === "MANANA") {
       return agendaEnNegocios(message, keyword === "MANANA" ? 1 : 0);
     }
-    // PAUSA y el resto de comandos del Gestor (fase 2): la respuesta fija.
+    if (keyword === "MAL") {
+      return malEnNegocios(message);
+    }
+    // PAUSA (fase 3): la respuesta fija.
     return resultado(
       `pendiente:palabra-clave:${keyword}`,
       await todaviaNoChateo(message)
@@ -319,6 +343,8 @@ async function stopEnNegocios(
       inboundMessageId: message.id,
       businessId: message.businessId ?? negocios[0].id,
     });
+    // La conversación con el Gestor se cierra con la baja (§ 8).
+    await cerrarConversacionDelDueno(from);
     // No se nombra un negocio al que nunca dijo que sí.
     const consentidos = negocios.filter(consintio);
     const respuesta =
@@ -535,6 +561,7 @@ async function ayudaEnNegocios(
         mensajes.ayudaDueno({
           negocios: nombres(consentidos),
           panelUrl: mensajes.panelUrl(),
+          chat: chatDelDuenoActivo() && gestorAssistantId() !== null,
         })
       )
     );
@@ -663,6 +690,10 @@ async function botonEnNegocios(
     return { handler: "pendiente:boton:sin-contexto" };
   }
 
+  if (message.buttonId?.startsWith("accion:")) {
+    return botonDeAccion(message);
+  }
+
   const aviso = await resolverBotonDeAviso(message);
   if (aviso) {
     return botonDeAviso(message, aviso);
@@ -670,6 +701,246 @@ async function botonEnNegocios(
 
   const prefix = message.buttonId?.split(":")[0] ?? "?";
   return { handler: `pendiente:boton:${prefix}` };
+}
+
+// ---------------------------------------------------------------------------
+// El Gestor (fase 2, PR 2): botones de una acción propuesta y MAL
+// ---------------------------------------------------------------------------
+
+/**
+ * «Confirmar» · «Cancelar» sobre una propuesta del Gestor
+ * (`accion:<id>:confirmar|cancelar`). La propuesta tiene que ser de un
+ * negocio cuyo móvil dado de alta es el que pulsa; el reclamo atómico vive
+ * en `decidirPropuesta`. Se responde siempre (el botón abre la ventana).
+ */
+async function botonDeAccion(
+  message: InboundMessage
+): Promise<ResultadoEnrutado> {
+  const from = message.fromNumber;
+  const partes = (message.buttonId ?? "").split(":");
+  const accionId = partes[1] ?? "";
+  const decision = partes[2];
+  if (!accionId || (decision !== "confirmar" && decision !== "cancelar")) {
+    return { handler: "accion:boton:malformado" };
+  }
+  const propuesta = await prisma.ownerPendingAction.findUnique({
+    where: { id: accionId },
+    select: { businessId: true },
+  });
+  const business = propuesta
+    ? await prisma.business.findFirst({
+        where: {
+          id: propuesta.businessId,
+          active: true,
+          ownerWhatsappNumber: from,
+        },
+        select: { id: true, timezone: true },
+      })
+    : null;
+  if (!business) {
+    console.warn(
+      `[WhatsApp] Botón ${message.buttonId} desde ${from} sobre una propuesta que no es de su negocio; se ignora`
+    );
+    return resultado(
+      "accion:boton:ajena",
+      await responder(
+        message,
+        "accion-no-encontrada",
+        mensajes.accionNoEncontrada(),
+        {
+          unaVezAlDia: true,
+        }
+      )
+    );
+  }
+  const base = `accion:${decision}`;
+  const opciones = { businessId: business.id };
+  const r = await decidirPropuesta({
+    accionId,
+    businessId: business.id,
+    timezone: business.timezone,
+    decision,
+    inboundMessageId: message.id,
+  });
+  switch (r.estado) {
+    case "ejecutada":
+      await anotarEnConversacionDelDueno(
+        business.id,
+        `El dueño pulsó Confirmar en la propuesta ${accionId} y se ejecutó. Resultado: ${r.mensaje}`
+      );
+      return resultado(
+        base,
+        await responder(
+          message,
+          "accion-ejecutada",
+          mensajes.accionEjecutada(r),
+          opciones
+        )
+      );
+    case "fallida":
+      await anotarEnConversacionDelDueno(
+        business.id,
+        `El dueño pulsó Confirmar en la propuesta ${accionId} pero no se pudo ejecutar: ${r.mensaje}`
+      );
+      return resultado(
+        `${base}:fallida`,
+        await responder(
+          message,
+          "accion-fallida",
+          mensajes.accionFallida(r),
+          opciones
+        )
+      );
+    case "rechazada":
+      await anotarEnConversacionDelDueno(
+        business.id,
+        `El dueño pulsó Cancelar en la propuesta ${accionId}: no se hizo nada.`
+      );
+      return resultado(
+        base,
+        await responder(
+          message,
+          "accion-rechazada",
+          mensajes.accionRechazada(),
+          opciones
+        )
+      );
+    case "caducada":
+      return resultado(
+        `${base}:caducada`,
+        await responder(
+          message,
+          "accion-caducada",
+          mensajes.accionCaducada(),
+          opciones
+        )
+      );
+    case "ya_decidida":
+      return resultado(
+        `${base}:ya-decidida`,
+        await responder(
+          message,
+          "accion-ya-decidida",
+          mensajes.accionYaDecidida(),
+          {
+            ...opciones,
+            unaVezAlDia: true,
+          }
+        )
+      );
+    case "no_encontrada":
+      return resultado(
+        `${base}:no-encontrada`,
+        await responder(
+          message,
+          "accion-no-encontrada",
+          mensajes.accionNoEncontrada(),
+          {
+            ...opciones,
+            unaVezAlDia: true,
+          }
+        )
+      );
+  }
+}
+
+/**
+ * MAL del dueño: guarda la última pareja pregunta/respuesta de su
+ * conversación con el Gestor (leída de Telnyx) en `OwnerChatFeedback`.
+ */
+async function malEnNegocios(
+  message: InboundMessage
+): Promise<ResultadoEnrutado> {
+  const from = message.fromNumber;
+  const business = message.businessId
+    ? await prisma.business.findFirst({
+        where: {
+          id: message.businessId,
+          ownerWhatsappNumber: from,
+          active: true,
+        },
+        select: { id: true, ownerConversationId: true },
+      })
+    : null;
+  if (!business?.ownerConversationId) {
+    return resultado(
+      "mal:sin-conversacion",
+      await responder(
+        message,
+        "mal-sin-conversacion",
+        mensajes.feedbackSinConversacion(),
+        {
+          businessId: business?.id ?? null,
+          unaVezAlDia: true,
+        }
+      )
+    );
+  }
+  try {
+    const mensajesDeTelnyx = await telnyxAiAdapter.listConversationMessages(
+      business.ownerConversationId
+    );
+    // Telnyx devuelve los mensajes del más reciente al más antiguo; la
+    // pareja es la última respuesta del assistant y el último mensaje del
+    // dueño anterior a ella.
+    const ordenados = mensajesDeTelnyx.filter((m) => m.role !== "tool");
+    const idxRespuesta = ordenados.findIndex(
+      (m) => m.role === "assistant" && m.text.trim()
+    );
+    const respuesta = idxRespuesta >= 0 ? ordenados[idxRespuesta] : null;
+    const pregunta = respuesta
+      ? ordenados.slice(idxRespuesta + 1).find((m) => m.role === "user")
+      : null;
+    if (!respuesta || !pregunta) {
+      return resultado(
+        "mal:sin-pareja",
+        await responder(
+          message,
+          "mal-sin-conversacion",
+          mensajes.feedbackSinConversacion(),
+          {
+            businessId: business.id,
+            unaVezAlDia: true,
+          }
+        )
+      );
+    }
+    await prisma.ownerChatFeedback.create({
+      data: {
+        businessId: business.id,
+        conversationId: business.ownerConversationId,
+        question: pregunta.text
+          .replace(/^\[WhatsApp[^\]]*\]\s*/, "")
+          .slice(0, 4000),
+        answer: respuesta.text.slice(0, 4000),
+      },
+    });
+    console.log(
+      `[WhatsApp] MAL del dueño ${from} (negocio ${business.id}): pareja guardada de la conversación ${business.ownerConversationId}`
+    );
+    return resultado(
+      "mal:guardado",
+      await responder(message, "mal-guardado", mensajes.feedbackGuardado(), {
+        businessId: business.id,
+      })
+    );
+  } catch (error) {
+    console.error(
+      `[WhatsApp] MAL del dueño ${from} (negocio ${business.id}): no se pudo guardar la pareja: ${errorMessage(error)}`
+    );
+    return resultado(
+      "mal:error",
+      await responder(
+        message,
+        "mal-sin-conversacion",
+        mensajes.feedbackSinConversacion(),
+        {
+          businessId: business.id,
+          unaVezAlDia: true,
+        }
+      )
+    );
+  }
 }
 
 // ---------------------------------------------------------------------------

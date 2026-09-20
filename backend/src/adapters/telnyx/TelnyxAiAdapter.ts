@@ -74,6 +74,10 @@ export interface TelnyxAssistant {
   name: string;
   instructions: string;
   greeting?: string;
+  model?: string;
+  /** Tools tal como las devuelve Telnyx (sin tipar del todo por el SDK). Las
+   * lee el sync del Gestor (lib/gestorSync.ts) para saber si hay drift. */
+  tools?: unknown[];
 }
 
 function toAssistantCreatePayload(
@@ -105,6 +109,8 @@ function toTelnyxAssistant(response: InferenceEmbedding): TelnyxAssistant {
     name: response.name,
     instructions: response.instructions,
     greeting: response.greeting,
+    model: response.model,
+    tools: Array.isArray(response.tools) ? (response.tools as unknown[]) : undefined,
   };
 }
 

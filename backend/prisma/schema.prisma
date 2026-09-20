@@ -171,9 +171,57 @@ model Business {
   onboardingState     OnboardingState?
   calendarConnections CalendarConnection[]
   clientConversations ClientConversation[]
+  ownerPendingActions OwnerPendingAction[]
+  ownerChatFeedback   OwnerChatFeedback[]
 
   @@index([ownerWhatsappNumber])
   @@map("businesses")
+}
+
+/// Acción que el Gestor (fase 2, § 8) propuso al dueño por chat y espera su
+/// botón «Confirmar». Regla de oro: el LLM nunca ejecuta nada; llama a
+/// `proponer_accion`, el backend añade los botones a su respuesta y el botón
+/// ejecuta. Caduca a las 24 h. El plan la llamaba `Lead pending_owner_action`;
+/// va en tabla propia porque un Lead exige una Call y sale en los listados.
+model OwnerPendingAction {
+  id               String    @id @default(cuid())
+  businessId       String
+  /// Conversación de Telnyx del dueño en la que se propuso.
+  conversationId   String?
+  /// Entrante del dueño al que respondía el Gestor cuando la propuso.
+  inboundMessageId String?
+  /// Clave del registro de acciones (modules/gestor/acciones.ts).
+  tipo             String
+  parametros       Json
+  /// Lo que el dueño confirma, con palabras del Gestor.
+  resumen          String    @db.Text
+  expiresAt        DateTime
+  confirmedAt      DateTime?
+  rejectedAt       DateTime?
+  executedAt       DateTime?
+  resultado        Json?
+  error            String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  business         Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@index([businessId, createdAt])
+  @@map("owner_pending_actions")
+}
+
+/// `MAL` del dueño en el chat del Gestor: la última pareja pregunta/respuesta
+/// tal como estaba en la conversación de Telnyx, para revisar el prompt.
+model OwnerChatFeedback {
+  id             String   @id @default(cuid())
+  businessId     String
+  conversationId String?
+  question       String   @db.Text
+  answer         String   @db.Text
+  createdAt      DateTime @default(now())
+  business       Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@index([businessId, createdAt])
+  @@map("owner_chat_feedback")
 }
 
 /// Chat de un cliente con la recepcionista de un negocio por WhatsApp

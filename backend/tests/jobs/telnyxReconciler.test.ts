@@ -29,6 +29,12 @@ vi.mock("../../src/modules/whatsapp/service.js", () => ({
   refrescarPlantillasConClave: vi.fn(),
 }));
 
+// El Gestor (fase 2) se sincroniza en su propio módulo (gestorSync.test.ts);
+// aquí solo importa que el reconciliador lo llame y siga si falla.
+vi.mock("../../src/lib/gestorSync.js", () => ({
+  sincronizarGestor: vi.fn(async () => ({ estado: "sin_id" })),
+}));
+
 const mockedAgentFindMany = vi.mocked(prisma.agent.findMany);
 const mockedBusinessFindMany = vi.mocked(prisma.business.findMany);
 const mockedGetAssistant = vi.mocked(telnyxAiAdapter.getAssistant);
