@@ -430,6 +430,14 @@ model Call {
   // existentes en el resto del esquema) hasta migrarlo por completo a estos
   // campos genéricos — ver PLAN-TELNYX-ORQUESTADOR.md § "Cambios de datos".
   voiceProvider          String                @default("retell")
+  // Informe que la recepcionista manda con la tool informar_al_negocio al
+  // terminar la llamada (post-conversación de Telnyx, PLAN-CANAL-DUENO.md
+  // § 10): resultado, motivo de escalada, fallo de tool, servicio pedido y
+  // recado. Se guarda el PRIMER informe (Telnyx lo manda dos veces); si el
+  // segundo trae recado y el primero no, se añade. Convive con los insights
+  // (doble escritura) hasta medir la concordancia.
+  postCallReport         Json?
+  postCallReportAt       DateTime?
   providerCallId         String?
   providerConversationId String?
   // OJO: en Telnyx, providerCostCents viene del webhook call.cost y SOLO
@@ -629,6 +637,9 @@ model Lead {
   // qué vía (`interactivo`, `plantilla`, `email`, o `ninguna:<motivo>`).
   notifiedAt  DateTime?
   notifiedVia String?
+  // «Recuérdamelo mañana» en el aviso de un recado: hasta cuándo se pospone
+  // (el job recordar-recado lo vuelve a avisar si sigue sin resolver).
+  snoozedUntil DateTime?
   createdAt  DateTime  @default(now())
   call       Call      @relation(fields: [callId], references: [id], onDelete: Cascade)
 

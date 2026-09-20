@@ -83,6 +83,9 @@ vi.mock("../../../src/modules/whatsapp/avisosNegocio.js", () => ({
   avisarCancelacion: vi.fn().mockResolvedValue({ via: "interactivo" }),
   nombreDeServicios: vi.fn().mockResolvedValue([]),
 }));
+vi.mock("../../../src/modules/whatsapp/recados.js", () => ({
+  procesarInformeFinal: vi.fn().mockResolvedValue({ outcome: "guardado", leadId: "lead_1" }),
+}));
 
 // Los mensajes al cliente por WhatsApp (PR 4) tienen sus propios tests en
 // tests/modules/whatsapp/mensajesCliente.test.ts; aquí solo se comprueba
@@ -1986,5 +1989,53 @@ describe("executeVoiceTool — recomendación de profesional", () => {
     expect(mockedCheckAvailability).toHaveBeenCalledWith(
       expect.objectContaining({ professionalId: "senior" })
     );
+  });
+});
+
+describe("executeVoiceTool informar_al_negocio (post-conversación)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockedBusinessFindUnique.mockResolvedValue(buildBusiness() as any);
+  });
+
+  it("delega el informe con el negocio de la llamada y responde 200 siempre", async () => {
+    const { procesarInformeFinal } = await import(
+      "../../../src/modules/whatsapp/recados.js"
+    );
+    const params = { resultado: "LEAD_CAPTURED", recado: { motivo: "balayage" } };
+
+    const result = await executeVoiceTool({
+      businessId: "business_123",
+      toolName: "informar_al_negocio",
+      params,
+      callId: "v3:abc",
+    });
+
+    expect(result).toEqual({
+      success: true,
+      result: { success: true, outcome: "guardado" },
+    });
+    expect(procesarInformeFinal).toHaveBeenCalledWith({
+      business: expect.objectContaining({ id: "business_123" }),
+      callControlId: "v3:abc",
+      params,
+    });
+  });
+
+  it("sin callId no procesa nada pero tampoco falla", async () => {
+    const { procesarInformeFinal } = await import(
+      "../../../src/modules/whatsapp/recados.js"
+    );
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+    const result = await executeVoiceTool({
+      businessId: "business_123",
+      toolName: "informar_al_negocio",
+      params: { resultado: "RESOLVED" },
+    });
+
+    expect(result.success).toBe(true);
+    expect(procesarInformeFinal).not.toHaveBeenCalled();
+    errorSpy.mockRestore();
   });
 });

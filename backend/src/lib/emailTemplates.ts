@@ -179,6 +179,28 @@ export function pendingBookingAlertEmail(input: {
   return { subject, html };
 }
 
+/** Aviso #2 (recado) cuando el dueño no tiene WhatsApp activo. */
+export function messageLeadEmail(input: {
+  businessName: string;
+  clientName: string | null;
+  clientPhone: string | null;
+  motivo: string;
+  quiereQueLeLlamen: boolean;
+  panelUrl: string;
+}): { subject: string; html: string } {
+  const quien = input.clientName ? `<strong>${input.clientName}</strong>` : "Un cliente";
+  const telefono = input.clientPhone ? ` (${input.clientPhone})` : "";
+  const subject = `Tienes un recado — ${input.businessName}`;
+  const html = emailShell(`
+    <p style="font-size:18px;font-weight:600;margin:0 0 16px 0;">Tienes un recado</p>
+    <p style="margin:0 0 16px 0;">${quien}${telefono} ha llamado a ${input.businessName} y tu recepcionista ha tomado nota:</p>
+    <p style="margin:0 0 16px 0;padding:12px 16px;background:#f4f4f5;border-radius:12px;">${input.motivo}</p>
+    <p style="margin:0;">${input.quiereQueLeLlamen ? "Pide que le llames." : "No ha pedido que le llames; queda a tu criterio."}</p>
+    ${ctaButton(input.panelUrl, "Ver las llamadas")}
+  `);
+  return { subject, html };
+}
+
 export function weeklySummaryEmail(input: {
   businessName: string;
   weekStart: Date;

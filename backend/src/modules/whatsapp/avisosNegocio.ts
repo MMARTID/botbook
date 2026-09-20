@@ -38,7 +38,11 @@ import * as mensajes from "./mensajes.js";
  * que lo origina.
  */
 
-export type TipoAviso = "nueva_reserva" | "cita_pendiente" | "cancelacion";
+export type TipoAviso =
+  | "nueva_reserva"
+  | "cita_pendiente"
+  | "cancelacion"
+  | "recado";
 
 export type ViaAviso = "interactivo" | "plantilla" | "email" | "ninguna";
 
@@ -547,6 +551,53 @@ export async function avisarCancelacion(input: {
       },
     },
   });
+}
+
+/** #2 — Recado o petición de llamada tomados en la post-conversación. */
+export async function avisarRecado(input: {
+  businessId: string;
+  businessName: string;
+  leadId: string;
+  clientName: string | null;
+  clientPhone: string | null;
+  motivo: string;
+  quiereQueLeLlamen: boolean;
+  /** Sufijo del recurso para los recordatorios («Recuérdamelo mañana»). */
+  intento?: number;
+  email?: () => Promise<void>;
+}): Promise<ResultadoAviso> {
+  const negocio = nombreParaWhatsapp({ name: input.businessName });
+  const recursoId = input.intento ? `${input.leadId}:r${input.intento}` : input.leadId;
+  const resultado = await enviarAvisoAlNegocio({
+    businessId: input.businessId,
+    tipo: "recado",
+    recursoId,
+    texto: mensajes.avisoRecado({
+      negocio,
+      cliente: input.clientName,
+      telefono: input.clientPhone,
+      motivo: input.motivo,
+      quiereQueLeLlamen: input.quiereQueLeLlamen,
+    }),
+    botones: [
+      { id: idDeBoton("recado", input.leadId, "atendido"), title: "Atendido" },
+      {
+        id: idDeBoton("recado", input.leadId, "manana"),
+        title: "Recuérdamelo mañana",
+      },
+    ],
+    plantilla: {
+      key: "recado_negocio",
+      params: {
+        negocio_nombre: negocio,
+        cliente_nombre: input.clientName ?? "Un cliente",
+        cliente_telefono: input.clientPhone ?? "sin teléfono",
+        motivo: input.motivo,
+      },
+    },
+    email: input.email,
+  });
+  return marcarLeadAvisado(input.leadId, resultado);
 }
 
 /** Aviso de que una cita pendiente entró por fin en el calendario. */

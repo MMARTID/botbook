@@ -521,6 +521,33 @@ el `fetch` equivalente. **Nunca desde un route handler**: todo pasa por
   (sin ellas, todo lo que llegue al número de clientes acaba en `ignorado:sin-audiencia`) y
   `whatsapp_templates` con `key = 'bienvenida_negocio'` (sin ella el estado nunca cambia).
 
+**Código (fase 1, PR 5 — recado por post-conversación, 2026-09-20).**
+- Tool `informar_al_negocio` (`buildInformarAlNegocioTool` en `lib/telnyxAssistantPayload.ts`,
+  inline como las demás — la migración a *shared tools* es #102) y
+  `post_conversation_settings.enabled: true` en el payload del assistant (adaptador: create y
+  update). Prompt (`lib/managedAgentPrompt.ts`): bloque «## Recados» (preguntar antes de usar el
+  número del que llama — hallazgo de la fase 0.5) y «## Al terminar la llamada» (llamar UNA vez
+  a la tool, nunca durante la conversación). Se propaga a los assistants por el reconciliador
+  (el deploy lo fuerza al tocar esos ficheros).
+- `modules/whatsapp/recados.ts` › `procesarInformeFinal` (case `informar_al_negocio` de
+  `executeVoiceTool`, siempre 200): reclamo atómico del PRIMER informe en `Call.postCallReport`
+  (`updateMany` con `postCallReport: { equals: DbNull }` — Telnyx lo manda dos veces); si el
+  segundo trae recado y el primero no, se añade y se avisa; **doble escritura** con los
+  insights: `outcome/escalationReason/toolFailureDetected/requestedService` solo si están a
+  null, y `warn` «discrepancia insights/informe» cuando difieren (esa es la medida para retirar
+  los insights); recado ⇒ `Lead` tipo `message` (`isLead: true`, data `clientName/clientPhone
+  (E.164 o null)/motivo/quiereQueLeLlamen/callControlId`) ⇒ aviso #2 `avisarRecado`
+  (botones «Atendido» · «Recuérdamelo mañana»; plantilla `recado_negocio` con
+  `negocio_nombre/cliente_nombre/cliente_telefono/motivo`; respaldo `messageLeadEmail` al
+  primer usuario del negocio, clave `recado-<leadId>`).
+- Botones (`router.ts` › `botonDeRecado`): «Atendido» ⇒ `resolvedAt`; «Recuérdamelo mañana» ⇒
+  `Lead.snoozedUntil` = 09:00 del día siguiente en la zona del negocio y job
+  `recordar-recado` (`jobs/recordarRecado.ts`, ruta `/internal/jobs/recordar-recado`, cola
+  `send-whatsapp`, taskId `recado-<leadId>-<yyyymmdd>-<n>`, máximo 3 recordatorios) que vuelve a
+  avisar si sigue sin atender (recurso `<leadId>:r<n>`). Migración
+  `20260920070000_whatsapp_recado` (aditiva): `Call.postCallReport/postCallReportAt`,
+  `Lead.snoozedUntil`.
+
 **Código (fase 1, PR 4 — lado cliente, 2026-09-20).**
 - `modules/whatsapp/mensajesCliente.ts`: todo lo que sale al CLIENTE por plantilla. Parámetros
   POR PLANTILLA con el conjunto exacto de claves (Meta rechaza en diferido cualquier clave de

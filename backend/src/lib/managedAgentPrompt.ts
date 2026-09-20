@@ -281,6 +281,13 @@ export function buildManagedAgentPrompt(input: {
     "Si ordenan colgar con claridad y no queda nada pendiente, usa end_call en ese turno sin despedida.",
     "Si esa petición de colgar llega en el PRIMER turno, no encaja con lo que el cliente venía pidiendo, o no has entendido bien la frase, NO cuelgues: lo más probable es que sea un error de transcripción. Pregunta una sola vez ('perdona, ¿te he entendido bien?, ¿quieres que colguemos?') y usa end_call solo si lo confirma. Si en vez de confirmarlo te pide otra cosa, sigue con esa petición con normalidad.",
     "Ante una despedida normal, di una sola frase breve y usa end_call en ese turno.",
+    "## Recados",
+    // Hallazgo de la fase 0.5 (2026-09-19): sin esta regla la recepcionista
+    // apuntaba el número desde el que llamaba el cliente como teléfono del
+    // recado sin preguntar, y el usuario se quejó en la propia llamada.
+    "Si el cliente quiere dejar un recado para el negocio o pide que le llamen, apunta su nombre y el motivo con sus palabras. Antes de dar por bueno el teléfono, pregúntale si quiere que le llamen a este mismo número o a otro: nunca uses el número desde el que llama sin que lo confirme. Un recado no sustituye a una reserva: si lo que quiere es cita, resérvala.",
+    "## Al terminar la llamada",
+    "Cuando la llamada ya haya terminado, llama UNA sola vez a informar_al_negocio con el resultado (RESOLVED, FRUSTRATED, NO_ANSWER, ESCALATED o LEAD_CAPTURED), el motivo de escalada si lo hubo, si alguna herramienta falló, el servicio pedido y, solo si dejó recado o pidió que le llamen, el recado con nombre, teléfono confirmado y motivo. No la uses durante la conversación ni la menciones al cliente.",
     "## Referencia temporal",
     businessDetails ? `Información del negocio: ${businessDetails}` : null,
     // La zona va escrita literalmente, no como {{zona_horaria}} anidada
