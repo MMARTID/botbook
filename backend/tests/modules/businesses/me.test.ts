@@ -227,6 +227,21 @@ describe("PATCH /business/me (móvil del dueño para WhatsApp)", () => {
     expect(mockedCambiarMovil).toHaveBeenCalledWith("biz_1", null);
   });
 
+  it("notificationPrefs se fusiona con lo guardado y rechaza claves desconocidas", async () => {
+    mockedBusinessFindUnique.mockResolvedValueOnce({
+      notificationPrefs: { otraClave: true },
+    } as never);
+
+    const response = await patch({ notificationPrefs: { avisoPorReserva: false } });
+
+    expect(response.statusCode).toBe(200);
+    const updateData = mockedBusinessUpdate.mock.calls[0][0].data as Record<string, unknown>;
+    expect(updateData.notificationPrefs).toEqual({ otraClave: true, avisoPorReserva: false });
+
+    const malo = await patch({ notificationPrefs: { loQueSea: true } as never });
+    expect(malo.statusCode).toBe(400);
+  });
+
   it("el número de Alhabla se rechaza ANTES de tocar los agentes o el nombre", async () => {
     mockedEsNumeroDeAlhabla.mockResolvedValue(true);
 

@@ -123,6 +123,8 @@ export type Business = {
   ownerWhatsappOptInAt?: string | null;
   ownerWhatsappOptOutAt?: string | null;
   ownerWhatsappUnreachableAt?: string | null;
+  /** Preferencias de avisos por WhatsApp; el PATCH las fusiona con las guardadas. */
+  notificationPrefs?: { avisoPorReserva?: boolean } | null;
   agents?: Agent[];
   calls?: Call[];
 };
@@ -156,6 +158,8 @@ export type EstadoWhatsappDueno = {
   canSendTemplate: boolean;
   /** Número de Alhabla para negocios, en E.164. */
   alhablaNumber: string;
+  /** Aviso por cada reserva nueva (por defecto `true`); el resto de avisos van siempre. */
+  avisoPorReserva: boolean;
   /** Mensaje «ALTA <código>» listo para enviar; `null` solo cuando está activo. */
   alta: { code: string; text: string; link: string; expiresAt: string } | null;
 };

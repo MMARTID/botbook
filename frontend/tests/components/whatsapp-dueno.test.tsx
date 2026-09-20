@@ -3,7 +3,10 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AxiosError, type AxiosResponse } from "axios";
-import { WhatsappDueno } from "@/components/whatsapp-dueno";
+import {
+  AYUDA_AVISO_RESERVA,
+  WhatsappDueno,
+} from "@/components/whatsapp-dueno";
 import {
   getOwnerWhatsapp,
   sendOwnerWhatsappActivation,
@@ -45,6 +48,7 @@ function estado(
     templateApproved: false,
     canSendTemplate: false,
     alhablaNumber: "+34930453218",
+    avisoPorReserva: true,
     alta: {
       code: "7KP3MQ",
       text: "ALTA 7KP3MQ",
@@ -589,6 +593,152 @@ describe("WhatsappDueno", () => {
     expect(
       await screen.findByText(/Te enviamos un WhatsApp el/)
     ).toBeInTheDocument();
+  });
+
+  it("sin número no enseña el toggle de aviso por reserva", async () => {
+    mockedGetOwnerWhatsapp.mockResolvedValue(estado());
+
+    renderComponent();
+
+    expect(await screen.findByText(/Añade tu móvil/)).toBeInTheDocument();
+    expect(
+      screen.queryByRole("checkbox", {
+        name: /Avisarme por WhatsApp de cada reserva nueva/,
+      })
+    ).not.toBeInTheDocument();
+  });
+
+  it("activo: el toggle sale marcado por defecto y explica qué avisos siguen llegando", async () => {
+    mockedGetOwnerWhatsapp.mockResolvedValue(
+      estado({
+        ownerWhatsappNumber: "+34600123456",
+        status: "activo",
+        optInAt: "2026-09-18T10:00:00.000Z",
+        optInVia: "alta_codigo",
+        alta: null,
+      })
+    );
+
+    renderComponent({ ...NEGOCIO, ownerWhatsappNumber: "+34600123456" });
+
+    const toggle = await screen.findByRole("checkbox", {
+      name: /Avisarme por WhatsApp de cada reserva nueva/,
+    });
+    expect(toggle).toBeChecked();
+    expect(toggle).toHaveAccessibleDescription(AYUDA_AVISO_RESERVA);
+  });
+
+  it("desmarcar el toggle guarda notificationPrefs y lo confirma sin esperar al refetch", async () => {
+    const user = userEvent.setup();
+    mockedGetOwnerWhatsapp.mockResolvedValue(
+      estado({
+        ownerWhatsappNumber: "+34600123456",
+        status: "activo",
+        optInAt: "2026-09-18T10:00:00.000Z",
+        optInVia: "alta_codigo",
+        alta: null,
+      })
+    );
+    const negocio = { ...NEGOCIO, ownerWhatsappNumber: "+34600123456" };
+    mockedUpdateMyBusiness.mockResolvedValue({
+      ...negocio,
+      notificationPrefs: { avisoPorReserva: false },
+    });
+
+    const queryClient = renderComponent(negocio);
+
+    await user.click(
+      await screen.findByRole("checkbox", {
+        name: /Avisarme por WhatsApp de cada reserva nueva/,
+      })
+    );
+
+    await waitFor(() =>
+      expect(mockedUpdateMyBusiness).toHaveBeenCalledWith({
+        notificationPrefs: { avisoPorReserva: false },
+      })
+    );
+    expect(
+      await screen.findByText("Ya no te avisaremos de cada reserva nueva.")
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("checkbox", {
+        name: /Avisarme por WhatsApp de cada reserva nueva/,
+      })
+    ).not.toBeChecked();
+    expect(queryClient.getQueryData(["my-business"])).toMatchObject({
+      notificationPrefs: { avisoPorReserva: false },
+    });
+    // El móvil no se toca: el toggle solo manda la preferencia.
+    expect(mockedUpdateMyBusiness).toHaveBeenCalledTimes(1);
+    expect(mockedSendActivation).not.toHaveBeenCalled();
+  });
+
+  it("si el backend no devuelve la preferencia (versión antigua) no la da por guardada", async () => {
+    const user = userEvent.setup();
+    mockedGetOwnerWhatsapp.mockResolvedValue(
+      estado({
+        ownerWhatsappNumber: "+34600123456",
+        status: "activo",
+        optInAt: "2026-09-18T10:00:00.000Z",
+        optInVia: "alta_codigo",
+        alta: null,
+      })
+    );
+    const negocio = { ...NEGOCIO, ownerWhatsappNumber: "+34600123456" };
+    mockedUpdateMyBusiness.mockResolvedValue({ ...negocio });
+
+    renderComponent(negocio);
+
+    await user.click(
+      await screen.findByRole("checkbox", {
+        name: /Avisarme por WhatsApp de cada reserva nueva/,
+      })
+    );
+
+    expect(
+      await screen.findByText(
+        "No se pudo guardar la preferencia. Inténtalo de nuevo."
+      )
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("checkbox", {
+        name: /Avisarme por WhatsApp de cada reserva nueva/,
+      })
+    ).toBeChecked();
+  });
+
+  it("si guardar la preferencia falla, el toggle vuelve a su estado y lo dice", async () => {
+    const user = userEvent.setup();
+    mockedGetOwnerWhatsapp.mockResolvedValue(
+      estado({
+        ownerWhatsappNumber: "+34600123456",
+        status: "activo",
+        optInAt: "2026-09-18T10:00:00.000Z",
+        optInVia: "alta_codigo",
+        alta: null,
+      })
+    );
+    mockedUpdateMyBusiness.mockRejectedValue(errorHttp(500, {}));
+
+    renderComponent({ ...NEGOCIO, ownerWhatsappNumber: "+34600123456" });
+
+    await user.click(
+      await screen.findByRole("checkbox", {
+        name: /Avisarme por WhatsApp de cada reserva nueva/,
+      })
+    );
+
+    expect(
+      await screen.findByText(
+        "No se pudo guardar la preferencia. Inténtalo de nuevo."
+      )
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("checkbox", {
+        name: /Avisarme por WhatsApp de cada reserva nueva/,
+      })
+    ).toBeChecked();
   });
 
   it("si el estado no carga, deja el campo y ofrece reintentar", async () => {

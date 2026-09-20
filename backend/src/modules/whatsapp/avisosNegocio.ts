@@ -7,6 +7,7 @@ import { getRedis } from "../../lib/redis.js";
 import { timezoneOffsetMinutes } from "../../lib/voiceDateTime.js";
 import { bajaVigente } from "./bajas.js";
 import { nombreParaWhatsapp, puedeRecibirAvisos } from "./altaDueno.js";
+import { preferenciasDeAvisos } from "./preferencias.js";
 import {
   enviarBotones,
   enviarCtaUrl,
@@ -76,24 +77,10 @@ interface AvisoAlNegocio {
   email?: () => Promise<void>;
 }
 
-/** Preferencias de avisos del negocio (`Business.notificationPrefs`). */
-export interface PreferenciasDeAvisos {
-  /** Aviso #1 por cada reserva. Activado salvo que el dueño lo apague. */
-  avisoPorReserva?: boolean;
-}
-
-export function preferenciasDeAvisos(
-  raw: Prisma.JsonValue | null | undefined
-): PreferenciasDeAvisos {
-  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
-  const prefs = raw as Record<string, unknown>;
-  return {
-    avisoPorReserva:
-      typeof prefs.avisoPorReserva === "boolean"
-        ? prefs.avisoPorReserva
-        : undefined,
-  };
-}
+export {
+  preferenciasDeAvisos,
+  type PreferenciasDeAvisos,
+} from "./preferencias.js";
 
 /** Tope de avisos de cita pendiente por negocio y hora: si el calendario
  * está caído, cinco avisos bastan para enterarse; el resto queda en el
