@@ -788,7 +788,9 @@ el `fetch` equivalente. **Nunca desde un route handler**: todo pasa por
 - **Un assistant de Telnyx para toda la plataforma**, `alhabla-gestor` (§ 8), detrás del número
   de negocios; su id va en `TELNYX_GESTOR_ASSISTANT_ID` (uno por entorno; dev:
   `assistant-776758e8-…`, creado el 20-09 y apuntando a `dev-api.alhabla.ai`; producción:
-  pendiente de crear cuando el usuario decida encenderlo). Se crea con
+  `assistant-302a2a23-e77c-43ec-8fc7-db094ea0c5c3`, creado el 21-09 apuntando a
+  `api.alhabla.ai`, con `TELNYX_OWNER_CHAT_ENABLED=true` en Cloud Run desde la revisión
+  `alhabla-api-00160`; `TELNYX_CLIENT_CHAT_ENABLED` sigue apagado). Se crea con
   `scripts/manual/sincronizarGestor.mts --crear` y lo mantiene al día el reconciliador diario
   (`lib/gestorSync.ts › sincronizarGestor`: compara instrucciones, modelo y la firma de las
   tools — nombre, url, cabeceras, descripción, parámetros — y no el JSON entero, que trae
