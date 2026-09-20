@@ -2,12 +2,7 @@
 
 import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  ArrowRight,
-  Check,
-  Clock3,
-  X,
-} from "lucide-react";
+import { ArrowRight, Check, Clock3, X } from "lucide-react";
 import { dismissOnboarding, getOnboardingState } from "@/lib/api";
 import { AGENT_CONFIGURATION_STEPS } from "@/lib/agent-configuration";
 
@@ -33,11 +28,26 @@ export function OnboardingChecklist() {
   // este aviso solo tiene sentido cuando falta algo de verdad.
   if (!estado?.isActive) return null;
 
-  const pendientes = AGENT_CONFIGURATION_STEPS.filter((paso) => !estado.steps[paso.key]);
-  const completados = AGENT_CONFIGURATION_STEPS.filter((paso) => estado.steps[paso.key]);
+  // Un paso que el backend no devuelve (despliegue escalonado: Vercel publica
+  // antes que Cloud Run) cuenta como pendiente, nunca rompe el panel.
+  const pendientes = AGENT_CONFIGURATION_STEPS.filter(
+    (paso) => !estado.steps[paso.key]
+  );
+  const completados = AGENT_CONFIGURATION_STEPS.filter(
+    (paso) => estado.steps[paso.key]
+  );
+  // La barra y el «n de N» salen del mismo recuento: `estado.progress` lo
+  // calcula el backend sobre sus propios pasos (hoy sin WhatsApp mientras
+  // el paso no cuenta allí) y se contradecía con el texto de al lado.
+  const porcentaje = Math.round(
+    (completados.length / AGENT_CONFIGURATION_STEPS.length) * 100
+  );
   // Compatibilidad con la respuesta anterior durante un despliegue escalonado
   // frontend (Vercel) → backend (Cloud Run): antes no existía `forwarding`.
   const esperandoNumero = estado.forwarding?.status === "waiting_number";
+  // El móvil que puso no tiene WhatsApp: el paso cambia de «actívalo» a
+  // «cambia el número», que es lo único que lo desbloquea.
+  const movilSinWhatsapp = estado.whatsapp?.status === "sin_whatsapp";
 
   return (
     <section
@@ -86,13 +96,13 @@ export function OnboardingChecklist() {
           className="h-1.5 flex-1 overflow-hidden rounded-full bg-white"
           role="progressbar"
           aria-label="Progreso de configuración"
-          aria-valuenow={estado.progress}
+          aria-valuenow={porcentaje}
           aria-valuemin={0}
           aria-valuemax={100}
         >
           <div
             className="h-full rounded-full bg-[#8b5cf6] transition-all duration-200"
-            style={{ width: `${estado.progress}%` }}
+            style={{ width: `${porcentaje}%` }}
           />
         </div>
         <span className="shrink-0 text-xs font-semibold tabular-nums text-[#6d28d9]">
@@ -118,7 +128,9 @@ export function OnboardingChecklist() {
                   <Icono className="h-4 w-4" aria-hidden="true" />
                 </span>
                 <span className="min-w-0 flex-1">
-                  <span className="block text-sm font-semibold text-[#0a0a0a]">{paso.title}</span>
+                  <span className="block text-sm font-semibold text-[#0a0a0a]">
+                    {paso.title}
+                  </span>
                   <span className="block text-xs leading-5 text-muted">
                     Disponible en cuanto tu número esté activo.
                   </span>
@@ -131,6 +143,17 @@ export function OnboardingChecklist() {
             );
           }
 
+          const whatsappSinServicio =
+            paso.key === "whatsapp" && movilSinWhatsapp;
+          const descripcion = whatsappSinServicio
+            ? "El móvil que pusiste no tiene WhatsApp. Cambia el número en Ajustes."
+            : paso.description;
+          const etiqueta = whatsappSinServicio
+            ? "Cambiar número"
+            : paso.key === "forwarding" || paso.key === "whatsapp"
+              ? "Activar"
+              : "Configurar";
+
           return (
             <li key={paso.key}>
               <Link
@@ -141,12 +164,19 @@ export function OnboardingChecklist() {
                   <Icono className="h-4 w-4" aria-hidden="true" />
                 </span>
                 <span className="min-w-0 flex-1">
-                  <span className="block text-sm font-semibold text-[#0a0a0a]">{paso.title}</span>
-                  <span className="block text-xs leading-5 text-muted">{paso.description}</span>
+                  <span className="block text-sm font-semibold text-[#0a0a0a]">
+                    {paso.title}
+                  </span>
+                  <span className="block text-xs leading-5 text-muted">
+                    {descripcion}
+                  </span>
                 </span>
                 <span className="inline-flex shrink-0 items-center gap-1 text-sm font-semibold text-[#6d28d9]">
-                  {paso.key === "forwarding" ? "Activar" : "Configurar"}
-                  <ArrowRight className="h-4 w-4 transition duration-200 group-hover:translate-x-0.5" aria-hidden="true" />
+                  {etiqueta}
+                  <ArrowRight
+                    className="h-4 w-4 transition duration-200 group-hover:translate-x-0.5"
+                    aria-hidden="true"
+                  />
                 </span>
               </Link>
             </li>
@@ -161,7 +191,10 @@ export function OnboardingChecklist() {
               key={paso.key}
               className="inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-1 text-xs font-semibold text-[#52525b]"
             >
-              <Check className="h-3.5 w-3.5 text-[#2c7334]" aria-hidden="true" />
+              <Check
+                className="h-3.5 w-3.5 text-[#2c7334]"
+                aria-hidden="true"
+              />
               {paso.title}
             </li>
           ))}

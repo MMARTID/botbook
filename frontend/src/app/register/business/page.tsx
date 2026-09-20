@@ -9,11 +9,19 @@ import {
   MapPin,
   Phone,
   Search,
+  Smartphone,
 } from "lucide-react";
 import { LottieAnimation } from "@/components/lottie-animation";
-import { getPlaceDetails, searchPlaces, updateMyBusiness } from "@/lib/api";
+import {
+  getPlaceDetails,
+  searchPlaces,
+  sendOwnerWhatsappActivation,
+  updateMyBusiness,
+} from "@/lib/api";
+import { apiErrorCode, describeApiError } from "@/lib/api-errors";
 import { consumePendingPlan, isPlanId } from "@/lib/billing-navigation";
 import { detectBusinessTypeFromPlaceTypes } from "@/lib/business-type";
+import { esFijoEspanol, normalizarMovil } from "@/lib/phone";
 import type {
   BusinessSchedule,
   PlaceDetails,
@@ -22,6 +30,12 @@ import type {
 } from "@/lib/types";
 
 const DETECTED_BUSINESS_TYPE_KEY = "alhabla_detected_business_type";
+
+// Cuánto se enseña el aviso de «no se pudo guardar tu móvil» antes de seguir:
+// el registro no se bloquea por WhatsApp, pero la persona tiene que leerlo.
+const AVISO_MOVIL_NO_GUARDADO_MS = 4_000;
+const AVISO_MOVIL_NO_GUARDADO =
+  "No se pudo guardar tu móvil. Añádelo más tarde en Ajustes › WhatsApp.";
 
 // Cuánto tiempo esperamos a que el navegador resuelva la geolocalización
 // antes de rendirnos y mostrar el selector de país como alternativa.
@@ -94,6 +108,9 @@ export default function RegisterBusinessPage() {
   const [country, setCountry] = useState<string>("ES");
   const [locationStatus, setLocationStatus] = useState<LocationStatus>("detecting");
   const [coords, setCoords] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [ownerMobile, setOwnerMobile] = useState("");
+  const [ownerMobileError, setOwnerMobileError] = useState("");
+  const [ownerMobileWarning, setOwnerMobileWarning] = useState("");
   const debouncedQuery = useDebounce(query, 350);
 
   // Preferimos geolocalizar al negocio en vez de preguntarle el país: menos
@@ -216,8 +233,82 @@ export default function RegisterBusinessPage() {
     }
   };
 
+  // Vacío = válido (es opcional). Si escribe algo, tiene que ser un móvil.
+  const validateOwnerMobile = (value: string): string | null | false => {
+    if (value.trim() === "") {
+      setOwnerMobileError("");
+      setOwnerMobileWarning("");
+      return null;
+    }
+    const normalizado = normalizarMovil(value);
+    if (!normalizado) {
+      setOwnerMobileError(
+        "Escribe un móvil válido, por ejemplo 600 123 456 o +34 600 123 456."
+      );
+      setOwnerMobileWarning("");
+      return false;
+    }
+    setOwnerMobileError("");
+    const telefonoDelLocal = selected?.phone
+      ? normalizarMovil(selected.phone)
+      : null;
+    const pareceDelLocal =
+      esFijoEspanol(normalizado) ||
+      (telefonoDelLocal !== null && telefonoDelLocal === normalizado);
+    setOwnerMobileWarning(
+      pareceDelLocal
+        ? "Parece el teléfono del local. Necesitamos el móvil en el que usas WhatsApp."
+        : ""
+    );
+    return normalizado;
+  };
+
+  const ownerMobileIsValid =
+    ownerMobile.trim() === "" || normalizarMovil(ownerMobile) !== null;
+
+  /**
+   * Guarda el móvil junto al resto de datos y pide la activación. Devuelve
+   * `false` si el backend aún no conoce el campo (despliegue escalonado:
+   * Vercel publica antes que Cloud Run): entonces se avisa y se sigue.
+   */
+  const saveAndActivate = async (
+    payload: Parameters<typeof updateMyBusiness>[0],
+    movil: string | null
+  ) => {
+    const updated = await updateMyBusiness({
+      ...payload,
+      ...(movil ? { ownerWhatsappNumber: movil } : {}),
+    });
+    if (!movil) return true;
+    if (updated.ownerWhatsappNumber !== movil) return false;
+    await sendOwnerWhatsappActivation().catch(() => undefined);
+    return true;
+  };
+
+  const handleSaveError = (err: unknown) => {
+    if (apiErrorCode(err) === "OWNER_WHATSAPP_IS_ALHABLA") {
+      setOwnerMobileError(
+        describeApiError(
+          err,
+          "Ese número es el de Alhabla. Escribe tu propio móvil."
+        )
+      );
+      return;
+    }
+    setError(
+      "No se pudo guardar la información del negocio. Inténtalo de nuevo."
+    );
+  };
+
+  const continueAfterMobileWarning = () => {
+    setOwnerMobileWarning(AVISO_MOVIL_NO_GUARDADO);
+    window.setTimeout(redirectToNextStep, AVISO_MOVIL_NO_GUARDADO_MS);
+  };
+
   const handleConfirm = async () => {
     if (!selected) return;
+    const movil = validateOwnerMobile(ownerMobile);
+    if (movil === false) return;
 
     setSaving(true);
     setError("");
@@ -227,24 +318,51 @@ export default function RegisterBusinessPage() {
         .filter(Boolean)
         .join("\n");
 
-      await updateMyBusiness({
-        name: selected.name,
-        businessDetails,
-        schedule: selected.schedule,
-      });
-
-      redirectToNextStep();
-    } catch {
-      setError(
-        "No se pudo guardar la información del negocio. Inténtalo de nuevo."
+      const movilGuardado = await saveAndActivate(
+        {
+          name: selected.name,
+          businessDetails,
+          schedule: selected.schedule,
+        },
+        movil
       );
-    } finally {
+
+      // Mientras se avisa (4 s) o se redirige, los botones siguen bloqueados:
+      // si se soltaran, un segundo clic repetiría el PATCH y la activación.
+      if (!movilGuardado) {
+        continueAfterMobileWarning();
+        return;
+      }
+      redirectToNextStep();
+    } catch (err) {
+      handleSaveError(err);
       setSaving(false);
     }
   };
 
-  const handleSkip = () => {
-    redirectToNextStep();
+  const handleSkip = async () => {
+    const movil = validateOwnerMobile(ownerMobile);
+    if (movil === false) return;
+    if (!movil) {
+      redirectToNextStep();
+      return;
+    }
+
+    // Sin negocio elegido solo se guarda el móvil; si eso falla, se enseña el
+    // error y NO se redirige: la persona lo escribió para algo.
+    setSaving(true);
+    setError("");
+    try {
+      const movilGuardado = await saveAndActivate({}, movil);
+      if (!movilGuardado) {
+        continueAfterMobileWarning();
+        return;
+      }
+      redirectToNextStep();
+    } catch (err) {
+      handleSaveError(err);
+      setSaving(false);
+    }
   };
 
   const redirectToNextStep = () => {
@@ -424,13 +542,76 @@ export default function RegisterBusinessPage() {
           </div>
         )}
 
+        <div className="mt-6 rounded-2xl border border-[#e5e5e5] p-5">
+          <div className="flex items-start gap-3">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#f3eeff] text-[#8b5cf6]">
+              <Smartphone className="h-5 w-5" aria-hidden="true" />
+            </span>
+            <div className="min-w-0 flex-1">
+              <label
+                htmlFor="register-owner-mobile"
+                className="text-sm font-semibold text-[#27272a]"
+              >
+                Tu móvil con WhatsApp (opcional)
+              </label>
+              <input
+                id="register-owner-mobile"
+                type="tel"
+                inputMode="tel"
+                autoComplete="tel"
+                value={ownerMobile}
+                onChange={(event) => {
+                  setOwnerMobile(event.target.value);
+                  if (ownerMobileError) setOwnerMobileError("");
+                }}
+                onBlur={() => validateOwnerMobile(ownerMobile)}
+                placeholder="600 123 456"
+                aria-describedby={
+                  ownerMobileError
+                    ? "register-owner-mobile-hint register-owner-mobile-error"
+                    : "register-owner-mobile-hint"
+                }
+                aria-invalid={Boolean(ownerMobileError)}
+                className="field mt-2 w-full"
+              />
+              <p
+                id="register-owner-mobile-hint"
+                className="mt-1 text-xs leading-5 text-muted"
+              >
+                Aquí te avisará la recepcionista de cada reserva y recado. Es tu
+                móvil, no el teléfono del local. Puedes añadirlo o cambiarlo más
+                tarde en Ajustes.
+              </p>
+              {ownerMobileError ? (
+                <p
+                  id="register-owner-mobile-error"
+                  className="mt-1 text-xs leading-5 text-[#c53030]"
+                >
+                  {ownerMobileError}
+                </p>
+              ) : (
+                // Siempre montada para que el lector de pantalla anuncie el
+                // aviso cuando aparece (una región aria-live que nace con
+                // texto no se anuncia).
+                <p
+                  id="register-owner-mobile-warning"
+                  className="mt-1 text-xs leading-5 text-[#9f7a15]"
+                  aria-live="polite"
+                >
+                  {ownerMobileWarning}
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+
         {error && <p className="mt-4 text-sm text-[#c53030]">{error}</p>}
 
         <div className="mt-8 space-y-3">
           <button
             type="button"
             onClick={handleConfirm}
-            disabled={!selected || saving}
+            disabled={!selected || saving || !ownerMobileIsValid}
             className="btn-primary w-full justify-center disabled:cursor-not-allowed disabled:opacity-50"
           >
             {saving ? "Guardando..." : "Confirmar y continuar"}
@@ -438,7 +619,7 @@ export default function RegisterBusinessPage() {
           <button
             type="button"
             onClick={handleSkip}
-            disabled={saving}
+            disabled={saving || !ownerMobileIsValid}
             className="btn-secondary w-full justify-center disabled:cursor-not-allowed disabled:opacity-50"
           >
             No encontré mi negocio / configurar después

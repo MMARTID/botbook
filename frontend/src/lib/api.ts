@@ -23,6 +23,7 @@ import type {
   PlaceSearchResult,
   DemoPlaceSearchResult,
   CalendarAccountConnected,
+  EstadoWhatsappDueno,
 } from "./types";
 
 const configuredBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
@@ -353,6 +354,24 @@ export async function confirmForwarding() {
 
 export async function completeOnboarding() {
   const { data } = await api.post<{ completedAt: string | null }>("/business/me/onboarding/complete");
+  return data;
+}
+
+/** Estado del móvil del dueño en WhatsApp (Ajustes › WhatsApp). */
+export async function getOwnerWhatsapp() {
+  const { data } = await api.get<EstadoWhatsappDueno>("/business/me/whatsapp");
+  return data;
+}
+
+/**
+ * Pide la plantilla de activación al móvil guardado. `sent: "link"` significa
+ * que no salió nada (plantilla sin aprobar, sin plan o fallo del proveedor)
+ * y la persona tiene que escribir ALTA desde su móvil con el enlace o el QR.
+ */
+export async function sendOwnerWhatsappActivation() {
+  const { data } = await api.post<
+    EstadoWhatsappDueno & { sent: "template" | "link" }
+  >("/business/me/whatsapp/activation");
   return data;
 }
 
