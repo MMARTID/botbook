@@ -1,4 +1,6 @@
 /** @type {import('next').NextConfig} */
+const webUrl = (process.env.NEXT_PUBLIC_WEB_URL ?? "http://localhost:3002").replace(/\/$/, "");
+
 const nextConfig = {
   async rewrites() {
     return [
@@ -10,11 +12,17 @@ const nextConfig = {
   },
   async redirects() {
     return [
-      { source: "/peluquerias", destination: "/peluqueria", permanent: true },
-      { source: "/barberias", destination: "/barberia", permanent: true },
-      { source: "/centros-de-estetica", destination: "/centro-de-estetica", permanent: true },
-      { source: "/salones-de-unas", destination: "/salon-de-unas", permanent: true },
-      { source: "/fisioterapeutas", destination: "/fisioterapia", permanent: true },
+      // Lo público vive en la web (PLAN-APP-DOMINIO.md): quien llegue a la
+      // app con una ruta de marketing va allí. El registro de cuenta también;
+      // el asistente del negocio de después ya es /bienvenida, aquí.
+      ...["/landing", "/peluqueria", "/barberia", "/centro-de-estetica", "/salon-de-unas", "/fisioterapia", "/planes", "/blog"].map(
+        (source) => ({ source, destination: `${webUrl}${source === "/landing" ? "/" : source}`, permanent: true }),
+      ),
+      { source: "/legal/:path*", destination: `${webUrl}/legal/:path*`, permanent: true },
+      { source: "/blog/:path*", destination: `${webUrl}/blog/:path*`, permanent: true },
+      { source: "/register", destination: `${webUrl}/register`, permanent: true },
+      { source: "/register/business", destination: "/bienvenida", permanent: true },
+      { source: "/register/business/:path*", destination: "/bienvenida/:path*", permanent: true },
       // Destinos del botón «Ir a Ajustes» de las alertas por WhatsApp: la
       // plantilla de Meta solo admite un sufijo bajo /ajustes/, y el
       // calendario y el teléfono viven en /agente.
@@ -25,4 +33,3 @@ const nextConfig = {
 };
 
 export default nextConfig;
-

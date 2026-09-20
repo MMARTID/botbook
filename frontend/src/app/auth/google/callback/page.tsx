@@ -33,7 +33,7 @@ export default function GoogleCallbackPage() {
         window.localStorage.setItem("alhabla_token", token);
         const selectedPlan = consumePendingPlan();
         const planParam = selectedPlan ? `?plan=${selectedPlan}` : "";
-        window.location.replace(`/register/business${planParam}`);
+        window.location.replace(`/bienvenida${planParam}`);
       })
       .catch(() => {
         setError("La sesión de Google ha caducado. Vuelve a intentarlo.");

@@ -33,6 +33,7 @@ import { describeApiError } from "@/lib/api-errors";
 import { clearAuthTokens } from "@/lib/billing-navigation";
 import { E164_PHONE_REGEX } from "@/lib/phone";
 import { WhatsappDueno } from "@/components/whatsapp-dueno";
+import { webUrl } from "@/lib/web-url";
 
 const PASSWORD_HAS_LETTER = /[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]/;
 const PASSWORD_HAS_NUMBER = /\d/;
@@ -137,7 +138,7 @@ export default function AccountSettingsPage() {
       }),
     onSuccess: () => {
       clearAuthTokens();
-      window.location.replace("/landing");
+      window.location.replace(webUrl("/"));
     },
     onError: (error) =>
       setDeleteFeedback({
@@ -411,7 +412,7 @@ export default function AccountSettingsPage() {
         </div>
         <div className="divide-y divide-[#e5e5e5]">
           <SettingsLink href="/ajustes/facturacion" icon={CreditCard} title="Plan y facturación" description="Consulta el consumo, las facturas y tu suscripción." />
-          <SettingsLink href="/legal/privacidad" icon={LifeBuoy} title="Privacidad y datos" description="Revisa cómo tratamos los datos y tus derechos." />
+          <SettingsLink href={webUrl("/legal/privacidad")} icon={LifeBuoy} title="Privacidad y datos" description="Revisa cómo tratamos los datos y tus derechos." />
           <button
             type="button"
             onClick={() => {

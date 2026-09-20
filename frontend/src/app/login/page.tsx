@@ -8,6 +8,7 @@ import { GoogleAuthButton } from "@/components/google-auth-button";
 import { BrandMark } from "@/components/brand-mark";
 import { ParticleField } from "@/components/particle-field";
 import { ParticleMouseLayer } from "@/components/particle-mouse-layer";
+import { webUrl } from "@/lib/web-url";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -45,13 +46,13 @@ export default function LoginPage() {
     <div className="relative isolate flex min-h-screen items-center justify-center px-4 py-12 sm:px-6 lg:px-8">
       <ParticleField />
       <ParticleMouseLayer />
-      <Link
-        href="/landing"
-        aria-label="Volver a la landing"
+      <a
+        href={webUrl("/")}
+        aria-label="Volver a la web de Alhabla"
         className="fixed left-4 top-4 z-10 inline-flex h-10 w-10 items-center justify-center rounded-full border border-[#e5e5e5] bg-white text-[#27272a] shadow-[0_8px_24px_rgba(0,0,0,0.08)] transition duration-200 hover:bg-[#fafafa] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] focus-visible:ring-offset-2 sm:left-6 sm:top-6"
       >
         <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-      </Link>
+      </a>
       <div className="panel w-full max-w-lg p-8">
         <div className="space-y-4 text-center">
           <BrandMark className="mx-auto h-14 w-14" />
@@ -65,13 +66,13 @@ export default function LoginPage() {
           <GoogleAuthButton onError={setError} acceptedTerms />
           <p className="mt-3 text-center text-xs leading-5 text-muted">
             Si es tu primera vez, al continuar aceptas los{" "}
-            <Link href="/legal/aviso-legal" target="_blank" className="rounded font-medium text-[#7c3aed] underline underline-offset-2 hover:text-[#6d28d9] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] focus-visible:ring-offset-2">
+            <a href={webUrl("/legal/aviso-legal")} target="_blank" rel="noopener" className="rounded font-medium text-[#7c3aed] underline underline-offset-2 hover:text-[#6d28d9] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] focus-visible:ring-offset-2">
               Términos y Condiciones
-            </Link>{" "}
+            </a>{" "}
             y la{" "}
-            <Link href="/legal/privacidad" target="_blank" className="rounded font-medium text-[#7c3aed] underline underline-offset-2 hover:text-[#6d28d9] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] focus-visible:ring-offset-2">
+            <a href={webUrl("/legal/privacidad")} target="_blank" rel="noopener" className="rounded font-medium text-[#7c3aed] underline underline-offset-2 hover:text-[#6d28d9] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] focus-visible:ring-offset-2">
               Política de privacidad
-            </Link>
+            </a>
             .
           </p>
           <div className="my-6 flex items-center gap-4" aria-hidden="true">
@@ -137,9 +138,9 @@ export default function LoginPage() {
 
           <div className="text-center text-sm text-muted">
             ¿No tienes cuenta?{' '}
-            <Link href="/register" className="rounded font-semibold text-[#7c3aed] transition hover:text-[#6d28d9] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] focus-visible:ring-offset-2">
+            <a href={webUrl("/register")} className="rounded font-semibold text-[#7c3aed] transition hover:text-[#6d28d9] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] focus-visible:ring-offset-2">
               Regístrate aquí
-            </Link>
+            </a>
           </div>
         </form>
       </div>

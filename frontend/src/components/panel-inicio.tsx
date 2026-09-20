@@ -26,7 +26,7 @@ function DashboardContent() {
 
   useEffect(() => {
     if (hasToken === false) {
-      router.replace("/landing");
+      router.replace("/login");
       return;
     }
 

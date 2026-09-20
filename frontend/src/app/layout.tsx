@@ -4,7 +4,7 @@ import { Analytics } from "@vercel/analytics/next";
 import "./globals.css";
 import { Providers } from "@/components/providers";
 import { AppShell } from "@/components/app-shell";
-import { absoluteUrl, defaultDescription, defaultTitle, seoKeywords, siteName, siteUrl } from "@/lib/seo";
+import { defaultDescription, noindexMetadata, siteName, siteUrl } from "@/lib/seo";
 
 const geistSans = localFont({
   src: "./fonts/GeistVF.woff",
@@ -18,50 +18,19 @@ const geistMono = localFont({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL(siteUrl ?? "https://alhabla.ai"),
+  metadataBase: new URL(siteUrl ?? "https://app.alhabla.ai"),
   title: {
-    default: defaultTitle,
+    default: `Panel | ${siteName}`,
     template: `%s | ${siteName}`,
   },
   description: defaultDescription,
-  keywords: seoKeywords,
   applicationName: siteName,
-  // OJO: aquí no va `alternates.canonical`. Una canónica en el root layout la
-  // hereda TODA página sin canónica propia (/planes, /login, el panel...) y
-  // Google las marcaba como duplicadas de la home. Cada página indexable
-  // declara la suya (landing, nichos, /planes, legales).
-  category: "business software",
-  robots: {
-    index: true,
-    follow: true,
-    googleBot: {
-      index: true,
-      follow: true,
-      "max-image-preview": "large",
-      "max-snippet": -1,
-      "max-video-preview": -1,
-    },
-  },
-  openGraph: {
-    type: "website",
-    locale: "es_ES",
-    url: absoluteUrl("/"),
-    siteName,
-    title: defaultTitle,
-    description: defaultDescription,
-  },
-  twitter: {
-    card: "summary_large_image",
-    title: defaultTitle,
-    description: defaultDescription,
-  },
+  // La app no se indexa (PLAN-APP-DOMINIO.md): lo público vive en la web.
+  ...noindexMetadata,
   formatDetection: {
     telephone: false,
     address: false,
     email: false,
-  },
-  other: {
-    "facebook-domain-verification": "0qcw7992738v1h1nm0dbtslrw8dzqx",
   },
 };
 

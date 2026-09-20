@@ -1,12 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import Link from "next/link";
 import { EmbeddedCheckout, EmbeddedCheckoutProvider } from "@stripe/react-stripe-js";
 import { loadStripe } from "@stripe/stripe-js";
 import { AlertTriangle, ArrowLeft, ShieldCheck } from "lucide-react";
 import { createCheckoutSession } from "@/lib/api";
 import type { PlanId } from "@/lib/types";
+import { webUrl } from "@/lib/web-url";
 
 const stripePromise = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
   ? loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY)
@@ -60,7 +60,7 @@ export default function CheckoutPage({ searchParams }: { searchParams: { plan?: 
     return (
       <section className="mx-auto max-w-xl py-16 text-center">
         <h1 className="text-3xl font-semibold text-[#0a0a0a]">Selecciona un plan válido</h1>
-        <Link href="/planes" className="btn-primary mt-6">Ver planes</Link>
+        <a href={webUrl("/planes")} className="btn-primary mt-6">Ver planes</a>
       </section>
     );
   }
@@ -77,10 +77,10 @@ export default function CheckoutPage({ searchParams }: { searchParams: { plan?: 
   return (
     <section className="mx-auto max-w-5xl py-4 sm:py-10">
       <div className="mb-6 flex items-center justify-between gap-4">
-        <Link href="/planes" className="btn-secondary px-4">
+        <a href={webUrl("/planes")} className="btn-secondary px-4">
           <ArrowLeft className="h-4 w-4" />
           Planes
-        </Link>
+        </a>
         <span className="inline-flex items-center gap-2 text-sm font-medium text-muted">
           <ShieldCheck className="h-4 w-4 text-[#2c7334]" />
           Pago protegido por Stripe · Cancela cuando quieras
@@ -102,9 +102,9 @@ export default function CheckoutPage({ searchParams }: { searchParams: { plan?: 
               <button type="button" onClick={() => setAttempt((n) => n + 1)} className="btn-primary">
                 Reintentar
               </button>
-              <Link href="/planes" className="btn-secondary">
+              <a href={webUrl("/planes")} className="btn-secondary">
                 Ver planes
-              </Link>
+              </a>
             </div>
           </div>
         ) : clientSecret ? (
