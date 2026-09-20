@@ -27,8 +27,9 @@ import {
   anotarEnConversacionDelDueno,
   cerrarConversacionDelDueno,
   chatDelDuenoActivo,
-  conversarConGestor,
-  gestorAssistantId,
+  conversarConGestor,  gestorAssistantId,
+  ofrecerPuestaEnMarcha,
+  continuarTrasAccion,
 } from "../../../src/modules/whatsapp/chatDueno.js";
 import { decidirPropuesta } from "../../../src/modules/gestor/acciones.js";
 import { telnyxAiAdapter } from "../../../src/adapters/telnyx/TelnyxAiAdapter.js";
@@ -102,7 +103,8 @@ vi.mock("../../../src/modules/whatsapp/chatDueno.js", () => ({
   cerrarConversacionDelDueno: vi.fn(),
   anotarEnConversacionDelDueno: vi.fn(),
   chatDelDuenoActivo: vi.fn(() => false),
-  gestorAssistantId: vi.fn(() => null),
+  gestorAssistantId: vi.fn(() => null),  ofrecerPuestaEnMarcha: vi.fn(async () => false),
+  continuarTrasAccion: vi.fn(async () => undefined),
 }));
 vi.mock("../../../src/modules/gestor/acciones.js", () => ({
   decidirPropuesta: vi.fn(),
@@ -274,6 +276,7 @@ beforeEach(() => {
   mockedChat.mockResolvedValue({ atendido: false, motivo: "apagado" });
   vi.mocked(chatDelDuenoActivo).mockReturnValue(false);
   vi.mocked(gestorAssistantId).mockReturnValue(null);
+  vi.mocked(ofrecerPuestaEnMarcha).mockResolvedValue(false);
   mockedSentCount.mockResolvedValue(0);
   mockedSentFindUnique.mockResolvedValue(null);
   mockedSentFindMany.mockResolvedValue([]);
@@ -1892,11 +1895,16 @@ describe("el Gestor en el número de negocios (fase 2, PR 2)", () => {
       decision: "confirmar",
       inboundMessageId: mensaje.id,
     });
-    expect(enviado()?.body).toBe("Hecho: doy por resuelta la cita pendiente de Elena.");
-    expect(mockedAnotar).toHaveBeenCalledWith(
+    expect(enviado()?.body).toBe("Hecho: doy por resuelta la cita pendiente de Elena.");    expect(mockedAnotar).toHaveBeenCalledWith(
       "biz_1",
       expect.stringContaining("pulsó Confirmar")
     );
+    // Tras el botón, el Gestor recibe un turno para seguir (onboarding).
+    expect(vi.mocked(continuarTrasAccion)).toHaveBeenCalledWith({
+      message: mensaje,
+      businessId: "biz_1",
+      resultado: "ejecutada",
+    });
   });
 
   it("«Cancelar» rechaza; caducada, ya decidida y no encontrada responden su texto", async () => {
@@ -1945,8 +1953,12 @@ describe("el Gestor en el número de negocios (fase 2, PR 2)", () => {
     expect(mockedDecidir).not.toHaveBeenCalled();
     expect(enviado()?.body).toBe(mensajes.accionNoEncontrada());
     expect(mockedBizFindFirst).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: expect.objectContaining({ id: "biz_ajeno", ownerWhatsappNumber: MOVIL }),
+      expect.objectContaining({        where: expect.objectContaining({
+          id: "biz_ajeno",
+          ownerWhatsappNumber: MOVIL,
+          ownerWhatsappOptOutAt: null,
+          ownerChatEnabled: true,
+        }),
       })
     );
   });
@@ -1994,6 +2006,20 @@ describe("el Gestor en el número de negocios (fase 2, PR 2)", () => {
     ).toEqual({ handler: "mal:sin-conversacion" });
     expect(enviado()?.body).toBe(mensajes.feedbackSinConversacion());
     expect(mockedListarMensajes).not.toHaveBeenCalled();
+  });
+
+  it("la bienvenida tras el alta ofrece la puesta en marcha por chat cuando el Gestor lo indica", async () => {
+    mockedBizFindUnique.mockResolvedValue({
+      ...negocio(),
+      ownerAltaCode: "7KP3MQ",
+      ownerAltaCodeExpiresAt: new Date(AHORA.getTime() + 7 * 24 * 60 * 60 * 1000),
+    } as never);
+    mockedActivar.mockResolvedValue({ count: 1, numeroAnterior: null } as never);
+    vi.mocked(ofrecerPuestaEnMarcha).mockResolvedValueOnce(true);
+
+    await enrutarEntrante(keyword("alta: 7kp3mq"));
+    expect(vi.mocked(ofrecerPuestaEnMarcha)).toHaveBeenCalledWith("biz_1");
+    expect(enviado()?.body).toContain("escríbeme «empezamos»");
   });
 
   it("AYUDA cuenta que se puede preguntar solo con el Gestor encendido", async () => {

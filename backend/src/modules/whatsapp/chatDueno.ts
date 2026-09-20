@@ -5,6 +5,7 @@ import { errorMessage } from "../../lib/logUtils.js";
 import { acquireLock, releaseLock } from "../../lib/bookingLock.js";
 import { ESTADOS_DE_SUSCRIPCION_BLOQUEADOS } from "../../lib/planFeatures.js";
 import { telnyxAiAdapter } from "../../adapters/telnyx/TelnyxAiAdapter.js";
+import { BusinessScheduleSchema } from "../../lib/businessSchedule.js";
 import {
   BUSINESS_TYPE_LABELS,
   isBusinessType,
@@ -48,6 +49,8 @@ export const TURNOS_POR_DUENO_Y_DIA = 60;
 export const ROTACION_CONVERSACION_DUENO_MS = 30 * DIA_MS;
 export const TIMEOUT_TURNO_DUENO_MS = 30_000;
 const LOCK_TTL_MS = 60_000;
+/** Límite de Meta para el cuerpo de un mensaje interactivo, con margen. */
+const MAX_CUERPO_INTERACTIVO = 1000;
 const LOCK_ESPERA_MS = 25_000;
 
 export function chatDelDuenoActivo(): boolean {
@@ -324,6 +327,82 @@ export async function anotarEnConversacionDelDueno(
   }
 }
 
+/**
+ * Tras el alta: si el Gestor está encendido y a la recepcionista le falta
+ * algo (servicios, equipo u horario), la bienvenida ofrece dejarla lista
+ * por chat (PLAN-CANAL-DUENO.md § 8, onboarding). Best-effort: en duda, no.
+ */
+export async function ofrecerPuestaEnMarcha(
+  businessId: string
+): Promise<boolean> {
+  if (!chatDelDuenoActivo() || !gestorAssistantId()) return false;
+  try {
+    const business = await prisma.business.findUnique({
+      where: { id: businessId },
+      select: {
+        schedule: true,
+        ownerChatEnabled: true,
+        _count: {
+          select: {
+            services: { where: { active: true, deletedAt: null } },
+            professionals: { where: { active: true, deletedAt: null } },
+          },
+        },
+      },
+    });
+    if (!business || !business.ownerChatEnabled) return false;
+    const sinHorario = !BusinessScheduleSchema.safeParse(business.schedule)
+      .success;
+    return (
+      sinHorario ||
+      business._count.services === 0 ||
+      business._count.professionals === 0
+    );
+  } catch (error) {
+    console.error(
+      `[WhatsApp] No se pudo saber si al negocio ${businessId} le falta configuración: ${errorMessage(error)}`
+    );
+    return false;
+  }
+}
+
+/**
+ * Tras ejecutar (o rechazar) una propuesta, el Gestor no recibía turno: el
+ * botón respondía «Hecho» y la puesta en marcha se paraba hasta que el dueño
+ * escribiera otra vez. Este turno sintético le deja seguir (siguiente paso
+ * del onboarding, o nada más si no toca). Best-effort: si el chat está
+ * apagado o falla, el «Hecho» ya salió.
+ */
+export async function continuarTrasAccion(input: {
+  message: InboundMessage;
+  businessId: string;
+  resultado: "ejecutada" | "fallida" | "rechazada";
+}): Promise<void> {
+  if (!chatDelDuenoActivo() || !gestorAssistantId()) return;
+  try {
+    const r = await conversarConGestor({
+      message: input.message,
+      businessId: input.businessId,
+      texto:
+        input.resultado === "ejecutada"
+          ? "(El dueño ha pulsado Confirmar y la acción ya está hecha; ya se le ha dicho «hecho». Si estabas guiando la puesta en marcha, sigue con el siguiente paso que falte, sin repetir lo hecho. Si no falta nada ni había más pasos, responde solo «Listo.»)"
+          : input.resultado === "rechazada"
+            ? "(El dueño ha pulsado Cancelar: no se ha hecho nada y ya se le ha dicho. Pregunta brevemente qué quiere cambiar, sin volver a proponer lo mismo.)"
+            : "(La acción confirmada no se ha podido hacer y ya se le ha dicho al dueño. Sugiere el panel o que lo vuelva a pedir más tarde, en una frase.)",
+      etiqueta: "chat:dueno:seguimiento",
+    });
+    if (!r.atendido) {
+      console.log(
+        `[WhatsApp] Chat dueño ${input.businessId}: sin turno de seguimiento tras la acción (${r.motivo})`
+      );
+    }
+  } catch (error) {
+    console.error(
+      `[WhatsApp] Chat dueño ${input.businessId}: el turno de seguimiento tras la acción falló: ${errorMessage(error)}`
+    );
+  }
+}
+
 export function botonesDeAccion(accionId: string) {
   return [
     { id: `accion:${accionId}:confirmar`, title: "Confirmar" },
@@ -336,10 +415,12 @@ export async function conversarConGestor(input: {
   message: InboundMessage;
   businessId: string;
   texto: string;
+  /** Sufijo del handler y del reclamo (por defecto `chat:dueno`). */
+  etiqueta?: string;
 }): Promise<ResultadoDelChatDueno> {
   const { message, businessId } = input;
   const from = message.fromNumber;
-  const base = "chat:dueno";
+  const base = input.etiqueta ?? "chat:dueno";
   const texto = input.texto.trim();
 
   if (!chatDelDuenoActivo()) {
@@ -482,11 +563,40 @@ export async function conversarConGestor(input: {
         ),
       };
     }
-
-    const enviada = await responder(message, "chat-dueno", respuesta.trim(), {
-      ...opciones,
-      botones: accionId ? botonesDeAccion(accionId) : undefined,
-    });
+    const textoRespuesta = respuesta.trim();
+    if (!accionId && /^listo\.?$/i.test(textoRespuesta)) {
+      // El turno de seguimiento no tenía nada que añadir.
+      return { atendido: true, resultado: { handler: `${base}:nada` } };
+    }
+    if (accionId && textoRespuesta.length > MAX_CUERPO_INTERACTIVO) {
+      // Meta limita el cuerpo de un interactivo a 1024 caracteres: una lista
+      // larga de servicios no cabe con los botones. Va el texto entero y,
+      // aparte, los botones con el resumen de la propuesta.
+      const propuesta = await prisma.ownerPendingAction.findUnique({
+        where: { id: accionId },
+        select: { resumen: true },
+      });
+      await responder(message, "chat-dueno", textoRespuesta, opciones);
+      const conBotones = await responder(
+        message,
+        "chat-dueno-botones",
+        `¿Confirmas? ${propuesta?.resumen ?? ""}`.trim(),
+        { ...opciones, botones: botonesDeAccion(accionId) }
+      );
+      return {
+        atendido: true,
+        resultado: resultado(`${base}:propuesta`, conBotones),
+      };
+    }
+    const enviada = await responder(
+      message,
+      base === "chat:dueno" ? "chat-dueno" : "chat-dueno-seguimiento",
+      textoRespuesta,
+      {
+        ...opciones,
+        botones: accionId ? botonesDeAccion(accionId) : undefined,
+      }
+    );
     return {
       atendido: true,
       resultado: resultado(accionId ? `${base}:propuesta` : base, enviada),

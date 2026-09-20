@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  ACCIONES_PROPONIBLES,
   GESTOR_ASSISTANT_NAME,
   GESTOR_MODEL,
   buildGestorAssistantPayload,
@@ -26,6 +27,36 @@ describe("buildGestorPrompt", () => {
     expect(prompt).toContain("puede escribir AYUDA");
     expect(prompt).not.toMatch(/beta/i);
     expect(prompt).not.toMatch(/end_call|colgar/);
+  });
+
+  it("guía la puesta en marcha por pasos y en orden, una propuesta por paso (PR 3)", () => {
+    const prompt = buildGestorPrompt();
+    expect(prompt).toContain("## Poner en marcha la recepcionista");
+    expect(prompt).toContain("faltaPorConfigurar");
+    expect(prompt).toMatch(
+      /servicios .*personas del equipo.*horario semanal.*calendario/s
+    );
+    expect(prompt).toContain("no lo puedes conectar tú");
+    expect(prompt).toContain("una sola propuesta");
+    expect(prompt).toContain("Una sola propuesta a la vez");
+    expect(prompt).toContain("formato HH:MM de 24 horas");
+  });
+});
+
+describe("ACCIONES_PROPONIBLES", () => {
+  it("coincide con el registro de acciones y le cuenta al LLM la forma de cada parámetro", async () => {
+    const { ACCIONES_DEL_GESTOR } =
+      await import("../../src/modules/gestor/acciones.js");
+    expect(ACCIONES_PROPONIBLES.map((a) => a.tipo).sort()).toEqual(
+      Object.keys(ACCIONES_DEL_GESTOR).sort()
+    );
+    const tool = buildGestorTools("https://api.alhabla.ai")[3];
+    for (const a of ACCIONES_PROPONIBLES) {
+      expect(tool.properties.tipo.description).toContain(`"${a.tipo}"`);
+      expect(tool.properties.parametros.description).toContain(
+        `${a.tipo} → ${a.parametros}`
+      );
+    }
   });
 });
 

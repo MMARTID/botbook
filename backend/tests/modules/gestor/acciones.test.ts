@@ -7,6 +7,10 @@ import {
   registrarPropuesta,
 } from "../../../src/modules/gestor/acciones.js";
 
+vi.mock("../../../src/lib/bookingLock.js", () => ({
+  acquireLock: vi.fn(async () => "token"),
+  releaseLock: vi.fn(async () => undefined),
+}));
 vi.mock("../../../src/lib/prisma.js", () => ({
   prisma: {
     lead: { findFirst: vi.fn(), updateMany: vi.fn() },
@@ -52,6 +56,8 @@ beforeEach(() => {
   mockedServiceFindMany.mockResolvedValue([
     { id: "svc_1", name: "Corte" },
   ] as never);
+  mockedUpdateMany.mockResolvedValue({ count: 0 });
+  mockedUpdate.mockResolvedValue({} as never);
 });
 
 describe("registrarPropuesta", () => {
@@ -294,6 +300,29 @@ describe("decidirPropuesta", () => {
         error: null,
       }),
     });
+  });
+
+  it("si no consigue el lock del negocio no ejecuta y pide esperar", async () => {
+    mockedFindFirst.mockResolvedValueOnce(FILA as never);
+    mockedUpdateMany.mockResolvedValueOnce({ count: 1 });
+    const { acquireLock } = await import("../../../src/lib/bookingLock.js");
+    vi.mocked(acquireLock).mockResolvedValueOnce(null);
+    const r = await decidirPropuesta({ ...DECISION, decision: "confirmar" });
+    expect(r).toMatchObject({
+      estado: "fallida",
+      mensaje: expect.stringContaining("otra acción"),
+    });
+    expect(mockedLeadUpdateMany).not.toHaveBeenCalled();
+  });
+
+  it("si la acción se ejecuta pero no se puede anotar el resultado, sigue siendo «ejecutada»", async () => {
+    mockedFindFirst.mockResolvedValueOnce(FILA as never);
+    mockedUpdateMany.mockResolvedValueOnce({ count: 1 });
+    mockedLeadFindFirst.mockResolvedValueOnce(LEAD as never);
+    mockedLeadUpdateMany.mockResolvedValueOnce({ count: 1 });
+    mockedUpdate.mockRejectedValueOnce(new Error("bd"));
+    const r = await decidirPropuesta({ ...DECISION, decision: "confirmar" });
+    expect(r.estado).toBe("ejecutada");
   });
 
   it("dos toques a la vez: el segundo pierde el reclamo y no ejecuta", async () => {

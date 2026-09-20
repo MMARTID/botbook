@@ -73,8 +73,15 @@ const NEGOCIO = {
     { id: "svc_3", name: "Barba", durationMinutes: 20, priceCents: null },
   ],
   professionals: [
-    { id: "pro_1", name: "Laura" },
-    { id: "pro_2", name: "Marta" },
+    {
+      id: "pro_1",
+      name: "Laura",
+      serviceLinks: [
+        { serviceId: "svc_2", level: "ESPECIALISTA" },
+        { serviceId: "svc_3", level: "NO_SUGERIR" },
+      ],
+    },
+    { id: "pro_2", name: "Marta", serviceLinks: [] },
   ],
 };
 
@@ -240,11 +247,30 @@ describe("contexto_negocio", () => {
       },
     ]);
     expect(body.profesionales).toEqual([
-      { profesionalId: "pro_1", nombre: "Laura" },
-      { profesionalId: "pro_2", nombre: "Marta" },
+      {
+        profesionalId: "pro_1",
+        nombre: "Laura",
+        especialista: ["Color"],
+        noSugerir: ["Barba"],
+      },
+      {
+        profesionalId: "pro_2",
+        nombre: "Marta",
+        especialista: [],
+        noSugerir: [],
+      },
     ]);
-    expect(body.calendario).toEqual({ conectado: true, proveedor: "google" });
+    expect(body.calendario).toEqual({
+      conectado: true,
+      proveedor: "google",
+      estado: "conectado",
+    });
     expect(body.faltaPorConfigurar).toEqual([]);
+    expect(body.enlaces).toEqual({
+      panel: "https://alhabla.ai/",
+      calendario: "https://alhabla.ai/agente",
+      ajustes: "https://alhabla.ai/ajustes",
+    });
     expect(body.citasPendientes).toEqual([
       expect.objectContaining({
         pendienteId: "lead_1",
@@ -291,7 +317,11 @@ describe("contexto_negocio", () => {
       "calendario",
       "número de teléfono de Alhabla",
     ]);
-    expect(body.calendario).toEqual({ conectado: false, proveedor: null });
+    expect(body.calendario).toEqual({
+      conectado: false,
+      proveedor: null,
+      estado: "sin conectar",
+    });
     expect(
       (body.negocio as Record<string, unknown>).telefonoDelLocal
     ).toBeNull();
@@ -299,6 +329,57 @@ describe("contexto_negocio", () => {
       (body.negocio as Record<string, unknown>).numeroDeAlhabla
     ).toBeNull();
     expect((body.negocio as Record<string, unknown>).sector).toBe("otro");
+  });
+});
+
+describe("contexto_negocio — calendario a medias o caducado", () => {
+  it("distingue una cuenta enlazada sin calendario elegido y una conexión caducada", async () => {
+    mockedBizFindUnique.mockResolvedValueOnce({
+      ...NEGOCIO,
+      calendarProvider: "outlook",
+      calendarConnections: [
+        {
+          provider: "outlook",
+          calendarId: null,
+          credentials: null,
+          connected: false,
+          disconnectedAt: null,
+          lastError: null,
+          accountEmail: "ana@outlook.com",
+        },
+      ],
+    } as never);
+    let r = await handleGestorToolInvocation({
+      ...CABECERAS,
+      toolName: "contexto_negocio",
+      params: {},
+    });
+    expect((r.body as { calendario: unknown }).calendario).toEqual({
+      conectado: false,
+      proveedor: "outlook",
+      estado: "a medias: falta elegir el calendario en el panel",
+    });
+
+    mockedBizFindUnique.mockResolvedValueOnce({
+      ...NEGOCIO,
+      calendarConnections: [
+        {
+          ...NEGOCIO.calendarConnections[0],
+          credentials: null,
+          connected: false,
+          disconnectedAt: new Date(),
+          lastError: "invalid_grant",
+        },
+      ],
+    } as never);
+    r = await handleGestorToolInvocation({
+      ...CABECERAS,
+      toolName: "contexto_negocio",
+      params: {},
+    });
+    expect(
+      (r.body as { calendario: { estado: string } }).calendario.estado
+    ).toContain("caducado");
   });
 });
 

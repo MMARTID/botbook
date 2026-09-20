@@ -2,11 +2,13 @@ import { z } from "zod";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "../../lib/prisma.js";
 import { errorMessage } from "../../lib/logUtils.js";
+import { acquireLock, releaseLock } from "../../lib/bookingLock.js";
 import {
   formatearCita,
   nombreDeServicios,
   describirServicio,
 } from "../whatsapp/avisosNegocio.js";
+import { ACCIONES_DE_CATALOGO } from "./accionesCatalogo.js";
 
 /**
  * Acciones que el Gestor puede PROPONER y que solo el botón «Confirmar» del
@@ -18,6 +20,8 @@ import {
  */
 
 export const ACCION_CADUCA_MS = 24 * 60 * 60 * 1000;
+const LOCK_ACCION_TTL_MS = 120_000;
+const LOCK_ACCION_ESPERA_MS = 20_000;
 
 export interface ContextoDeAccion {
   businessId: string;
@@ -25,19 +29,33 @@ export interface ContextoDeAccion {
 }
 
 export interface AccionDelGestor<P> {
-  schema: z.ZodType<P>;
+  /** Entrada `unknown`: el esquema puede tener valores por defecto. */
+  schema: z.ZodType<P, z.ZodTypeDef, unknown>;
   /** Comprueba el recurso y devuelve un texto corto para el log/la respuesta,
    * o un motivo de rechazo. */
   comprobar(
     ctx: ContextoDeAccion,
     params: P
-  ): Promise<{ ok: true; descripcion: string } | { ok: false; motivo: string }>;
+  ): Promise<ResultadoDeComprobacion<P>>;
   ejecutar(
     ctx: ContextoDeAccion,
     params: P,
     meta: { inboundMessageId: string; accionId: string }
-  ): Promise<{ ok: true; mensaje: string } | { ok: false; mensaje: string }>;
+  ): Promise<ResultadoDeEjecucion>;
 }
+
+/** `parametros`, si vienen, son los normalizados (nombres resueltos a ids):
+ * se guardan y son los que recibe `ejecutar`, para que el botón actúe sobre
+ * el recurso descrito y no sobre otro con el mismo nombre 24 h después. */
+export type ResultadoDeComprobacion<P> =
+  | { ok: true; descripcion: string; parametros?: P }
+  | { ok: false; motivo: string };
+
+/** `mensaje` se lo lee el dueño por WhatsApp; `nota`, si viene, es lo que se
+ * anota en la conversación de Telnyx para el Gestor (puede llevar ids). */
+export type ResultadoDeEjecucion =
+  | { ok: true; mensaje: string; nota?: string }
+  | { ok: false; mensaje: string; nota?: string };
 
 const ResolverPendienteParams = z
   .object({ pendienteId: z.string().min(1).max(64) })
@@ -133,6 +151,7 @@ const resolverPendiente: AccionDelGestor<
 
 export const ACCIONES_DEL_GESTOR: Record<string, AccionDelGestor<unknown>> = {
   resolver_pendiente: resolverPendiente as AccionDelGestor<unknown>,
+  ...ACCIONES_DE_CATALOGO,
 };
 
 export function accionConocida(tipo: string): boolean {
@@ -175,7 +194,11 @@ export async function registrarPropuesta(input: {
   if (!parsed.success) {
     return {
       ok: false,
-      motivo: `Parámetros no válidos para ${tipo}: ${parsed.error.issues.map((i) => i.message).join("; ")}.`,
+      motivo: `Parámetros no válidos para ${tipo}: ${parsed.error.issues
+        .map((i) =>
+          i.path.length ? `${i.path.join(".")}: ${i.message}` : i.message
+        )
+        .join("; ")}.`,
     };
   }
   const resumen =
@@ -190,13 +213,31 @@ export async function registrarPropuesta(input: {
       return { ok: false, motivo: comprobacion.motivo };
     }
     const expiresAt = new Date(Date.now() + ACCION_CADUCA_MS);
+    // «Una sola propuesta a la vez»: las anteriores sin decidir se cierran
+    // como sustituidas, para que un botón viejo (p. ej. el horario que el
+    // dueño corrigió en el mensaje siguiente) no ejecute una intención ya
+    // corregida.
+    const sustituidas = await prisma.ownerPendingAction.updateMany({
+      where: {
+        businessId: input.businessId,
+        confirmedAt: null,
+        rejectedAt: null,
+      },
+      data: { rejectedAt: new Date(), error: "sustituida por otra propuesta" },
+    });
+    if (sustituidas.count > 0) {
+      console.log(
+        `[Gestor] ${sustituidas.count} propuesta(s) anteriores del negocio ${input.businessId} cerradas al proponer ${tipo}`
+      );
+    }
     const fila = await prisma.ownerPendingAction.create({
       data: {
         businessId: input.businessId,
         conversationId: input.conversationId,
         inboundMessageId: input.inboundMessageId,
         tipo,
-        parametros: parsed.data as Prisma.InputJsonValue,
+        parametros: (comprobacion.parametros ??
+          parsed.data) as Prisma.InputJsonValue,
         resumen,
         expiresAt,
       },
@@ -223,9 +264,9 @@ export async function registrarPropuesta(input: {
 }
 
 export type ResultadoDeBoton =
-  | { estado: "ejecutada"; mensaje: string }
+  | { estado: "ejecutada"; mensaje: string; nota?: string }
   | { estado: "rechazada" }
-  | { estado: "fallida"; mensaje: string }
+  | { estado: "fallida"; mensaje: string; nota?: string }
   | { estado: "caducada" }
   | { estado: "ya_decidida" }
   | { estado: "no_encontrada" };
@@ -275,6 +316,28 @@ export async function decidirPropuesta(input: {
 
   const accion = ACCIONES_DEL_GESTOR[fila.tipo];
   const ctx = { businessId: input.businessId, timezone: input.timezone };
+  // Una acción a la vez por negocio: dos «Confirmar» casi seguidos (dos
+  // propuestas distintas) llegan en webhooks paralelos y las acciones de
+  // horario son leer-modificar-escribir sobre el mismo JSON.
+  const lockKey = `lock:gestor:accion:${input.businessId}`;
+  const lockToken = await acquireLock(
+    lockKey,
+    LOCK_ACCION_TTL_MS,
+    LOCK_ACCION_ESPERA_MS
+  );
+  if (!lockToken) {
+    console.error(
+      `[Gestor] La acción ${fila.id} (${fila.tipo}) del negocio ${input.businessId} no consiguió el lock en ${LOCK_ACCION_ESPERA_MS} ms`
+    );
+    await prisma.ownerPendingAction
+      .update({ where: { id: fila.id }, data: { error: "sin lock" } })
+      .catch(() => undefined);
+    return {
+      estado: "fallida",
+      mensaje:
+        "Estoy terminando otra acción tuya. Espera un momento y vuelve a pedírmelo.",
+    };
+  }
   try {
     if (!accion) {
       throw new Error(`tipo de acción desconocido: ${fila.tipo}`);
@@ -289,17 +352,29 @@ export async function decidirPropuesta(input: {
       inboundMessageId: input.inboundMessageId,
       accionId: fila.id,
     });
-    await prisma.ownerPendingAction.update({
-      where: { id: fila.id },
-      data: {
-        executedAt: new Date(),
-        resultado: resultado as unknown as Prisma.InputJsonValue,
-        error: resultado.ok ? null : resultado.mensaje,
-      },
-    });
+    // La acción ya está hecha: anotar el resultado es best-effort, un fallo
+    // aquí no puede convertir un «hecho» en un «no he podido».
+    await prisma.ownerPendingAction
+      .update({
+        where: { id: fila.id },
+        data: {
+          executedAt: new Date(),
+          resultado: resultado as unknown as Prisma.InputJsonValue,
+          error: resultado.ok ? null : resultado.mensaje,
+        },
+      })
+      .catch((error: unknown) => {
+        console.error(
+          `[Gestor] La acción ${fila.id} (${fila.tipo}) del negocio ${input.businessId} se ejecutó pero no se pudo anotar el resultado: ${errorMessage(error)}`
+        );
+      });
     return resultado.ok
-      ? { estado: "ejecutada", mensaje: resultado.mensaje }
-      : { estado: "fallida", mensaje: resultado.mensaje };
+      ? {
+          estado: "ejecutada",
+          mensaje: resultado.mensaje,
+          nota: resultado.nota,
+        }
+      : { estado: "fallida", mensaje: resultado.mensaje, nota: resultado.nota };
   } catch (error) {
     const motivo = errorMessage(error);
     console.error(
@@ -313,5 +388,7 @@ export async function decidirPropuesta(input: {
       mensaje:
         "No he podido hacerlo ahora mismo. Inténtalo desde el panel o vuelve a pedírmelo en un rato.",
     };
+  } finally {
+    await releaseLock(lockKey, lockToken);
   }
 }

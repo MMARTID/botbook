@@ -829,8 +829,16 @@ interruptores globales quedan apagados en producción hasta que el usuario lo pr
   extremo a extremo en dev (catálogo → reserva real en Google Calendar → cancelación).
   Queda la lista para elegir negocio si tiene citas en varios (hoy: el de la reserva más
   reciente). Detalle en `AGENTS.md` § WhatsApp › Código (fase 2, PR 1).
-- Onboarding por chat: el Gestor guía servicios → profesionales → horario → calendario según
-  la checklist; cada mutación con botón y con la misma sincronización que el panel.
+- ~~Onboarding por chat: el Gestor guía servicios → profesionales → horario → calendario según
+  la checklist; cada mutación con botón y con la misma sincronización que el panel.~~ — **PR 3
+  hecho el 20-09**: ocho acciones de catálogo y horario por el mismo registro
+  (`crear_servicios` y `crear_profesionales` en lote para una confirmación por paso,
+  `editar_servicio`, `retirar_servicio`, `retirar_profesional`, `fijar_especialidad`,
+  `fijar_horario`, `cerrar_dia`), reutilizando los servicios del panel con sincronización única
+  por lote y best-effort; `conectar_calendario` no es una acción: el OAuth exige la cookie del
+  navegador, así que el Gestor da el enlace al panel (`contexto_negocio.enlaces`). Bienvenida
+  tras el alta con «escríbeme "empezamos"» si falta algo. Onboarding completo probado en vivo
+  en dev. Detalle en `AGENTS.md` § WhatsApp › Código (fase 2, PR 3).
 - Flujo de añadir con "¿le mando la confirmación?"; flujo de mover/cancelar con *Antes la
   llamo* y "¿aviso a la clienta?"; `cambio_cita_cliente` y `cancelacion_cita_cliente`.
 - `ProfessionalAbsence`, `ScheduleBlock` en `availability.ts` y `get_catalog`.
