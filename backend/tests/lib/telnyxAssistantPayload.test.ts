@@ -92,14 +92,28 @@ describe("adaptManagedPromptForTelnyx", () => {
     );
   });
 
-  it("traduce el patrón anidado current_time de Retell a la variable de sistema de Telnyx", () => {
+  it("traduce el patrón anidado current_time de Retell a la variante CON ZONA de Telnyx (nunca a la UTC a secas)", () => {
     const result = adaptManagedPromptForTelnyx(
       "Momento actual en la zona del negocio:\n{{current_time_{{zona_horaria}} }}",
       "Peluquería Ejemplo"
     );
 
+    // {{telnyx_current_time}} sin sufijo es UTC (issue #122).
     expect(result).toBe(
-      "Momento actual en la zona del negocio:\n{{telnyx_current_time}}"
+      "Momento actual en la zona del negocio:\n{{telnyx_current_time_Europe/Madrid}}"
+    );
+    expect(result).not.toContain("{{telnyx_current_time}}");
+  });
+
+  it("la zona literal ya escrita por managedAgentPrompt ({{current_time_Europe/Madrid}}) también va a la variante con zona", () => {
+    const result = adaptManagedPromptForTelnyx(
+      "Momento actual en la zona del negocio:\n{{current_time_Atlantic/Canary}}",
+      "Peluquería Ejemplo",
+      "Atlantic/Canary"
+    );
+
+    expect(result).toBe(
+      "Momento actual en la zona del negocio:\n{{telnyx_current_time_Atlantic/Canary}}"
     );
   });
 
@@ -120,7 +134,19 @@ describe("adaptManagedPromptForTelnyx", () => {
     );
 
     expect(result).toBe(
-      "Usa la zona Atlantic/Canary en las tools.\n{{telnyx_current_time}}"
+      "Usa la zona Atlantic/Canary en las tools.\n{{telnyx_current_time_Atlantic/Canary}}"
+    );
+  });
+
+  it("una zona desconocida cae a Europe/Madrid: Telnyx dejaría el placeholder sin resolver", () => {
+    const result = adaptManagedPromptForTelnyx(
+      "Zona {{zona_horaria}}.\n{{current_time_{{zona_horaria}} }}",
+      "Peluquería Ejemplo",
+      "Marte/Olympus"
+    );
+
+    expect(result).toBe(
+      "Zona Europe/Madrid.\n{{telnyx_current_time_Europe/Madrid}}"
     );
   });
 

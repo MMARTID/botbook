@@ -778,8 +778,11 @@ el `fetch` equivalente. **Nunca desde un route handler**: todo pasa por
   Gestor) y la tabla `client_conversations`. Variables nuevas en `.env.example` y
   `docker-compose.yml`. Queda para PRs siguientes: la lista para elegir negocio cuando el
   cliente tiene citas en varios (hoy va al de la reserva más reciente), el panel («Tu chat con la
-  recepcionista», toggle «chat Beta» en Ajustes) y los tests de integración. **Pendiente
-  preexistente (voz):** `{{telnyx_current_time}}` en UTC también en las llamadas — issue aparte.
+  recepcionista», toggle «chat Beta» en Ajustes) y los tests de integración. El UTC de
+  `{{telnyx_current_time}}` afectaba también a las llamadas de voz desde el primer día de Telnyx
+  (issue #122): resuelto el 20-09 traduciendo el patrón de Retell a la variante con zona
+  `{{telnyx_current_time_<zona IANA>}}` (`adaptManagedPromptForTelnyx`), verificado por chat en
+  dev («cinco y treinta y seis de la tarde» a las 17:36 de Madrid).
 
 **Cuenta.** Un solo WABA, «Alhabla»: id Telnyx `804230d2-c5e0-45dd-af65-95819468378a`, id Meta
 `1628104425601770`, conectado por Embedded Signup el 13-09. `messaging_limit_tier: TIER_250`
