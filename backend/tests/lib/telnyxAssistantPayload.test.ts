@@ -4,6 +4,7 @@ import {
   buildTelnyxAssistantName,
   buildTelnyxAssistantPayload,
   buildTelnyxHangupTool,
+  buildTelnyxVoiceTools,
   resolveTelnyxTranscriptionLanguage,
   toTelnyxWebhookTool,
 } from "../../src/lib/telnyxAssistantPayload.js";
@@ -356,5 +357,19 @@ describe("buildTelnyxAssistantPayload", () => {
     });
 
     expect(payload.insightGroupId).toBe("insight_grp_1");
+  });
+});
+
+describe("buildTelnyxVoiceTools — notify_when_available (PR 4)", () => {
+  it("notify_when_available admite clientName opcional sin hacerlo obligatorio", () => {
+    const tool = buildTelnyxVoiceTools("https://api.alhabla.ai").find(
+      (t) => t.name === "notify_when_available"
+    );
+    expect(tool).toBeDefined();
+    expect(tool!.properties.clientName).toEqual({
+      type: "string",
+      description: expect.stringContaining("reservar a su nombre"),
+    });
+    expect(tool!.required).toEqual(["startDateTime", "durationMinutes"]);
   });
 });

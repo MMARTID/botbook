@@ -318,11 +318,15 @@ export default function RegisterBusinessPage() {
         .filter(Boolean)
         .join("\n");
 
+      // placeId y dirección van aparte de businessDetails: el backend los
+      // usa para el botón «Cómo llegar» de la confirmación al cliente.
       const movilGuardado = await saveAndActivate(
         {
           name: selected.name,
           businessDetails,
           schedule: selected.schedule,
+          placeId: selected.placeId,
+          address: selected.address || null,
         },
         movil
       );

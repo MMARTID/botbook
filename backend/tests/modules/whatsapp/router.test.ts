@@ -17,6 +17,8 @@ import {
   darDeBajaDueno,
   reactivarDueno,
 } from "../../../src/modules/whatsapp/altaDueno.js";
+import { botonEnClientes } from "../../../src/modules/whatsapp/botonesCliente.js";
+import { avisarAQuienEsperaba } from "../../../src/modules/whatsapp/listaDeEspera.js";
 import * as mensajes from "../../../src/modules/whatsapp/mensajes.js";
 import { enrutarEntrante } from "../../../src/modules/whatsapp/router.js";
 
@@ -30,6 +32,7 @@ vi.mock("../../../src/lib/prisma.js", () => ({
       updateMany: vi.fn(),
     },
     lead: { findFirst: vi.fn(), update: vi.fn() },
+    booking: { findFirst: vi.fn() },
     sentMessage: {
       count: vi.fn(),
       findUnique: vi.fn(),
@@ -55,7 +58,30 @@ vi.mock("../../../src/modules/whatsapp/avisosNegocio.js", () => ({
 }));
 vi.mock("../../../src/lib/cloudTasks.js", () => ({
   enqueueRetryBookingJob: vi.fn(),
+  enqueueWhatsappJob: vi.fn(),
 }));
+// Los botones del cliente (PR 4) tienen sus propios tests en
+// botonesCliente.test.ts; aquí solo se comprueba la delegación.
+vi.mock("../../../src/modules/whatsapp/botonesCliente.js", () => ({
+  botonEnClientes: vi.fn(),
+}));
+vi.mock("../../../src/modules/whatsapp/listaDeEspera.js", () => ({
+  avisarAQuienEsperaba: vi.fn(),
+}));
+// `nombreParaCliente` y `telefonoDeContacto` son puras: se usan las reales.
+vi.mock(
+  "../../../src/modules/whatsapp/mensajesCliente.js",
+  async (importActual) => {
+    const actual =
+      await importActual<
+        typeof import("../../../src/modules/whatsapp/mensajesCliente.js")
+      >();
+    return {
+      nombreParaCliente: actual.nombreParaCliente,
+      telefonoDeContacto: actual.telefonoDeContacto,
+    };
+  }
+);
 vi.mock("../../../src/modules/whatsapp/altaDueno.js", async (importActual) => {
   const actual =
     await importActual<
@@ -74,6 +100,9 @@ const mockedEnqueueRetry = vi.mocked(enqueueRetryBookingJob);
 const mockedBizFindFirst = vi.mocked(prisma.business.findFirst);
 const mockedLeadFindFirst = vi.mocked(prisma.lead.findFirst);
 const mockedLeadUpdate = vi.mocked(prisma.lead.update);
+const mockedBookingFindFirst = vi.mocked(prisma.booking.findFirst);
+const mockedBotonEnClientes = vi.mocked(botonEnClientes);
+const mockedAvisarAQuienEsperaba = vi.mocked(avisarAQuienEsperaba);
 const mockedBizFindMany = vi.mocked(prisma.business.findMany);
 const mockedBizFindUnique = vi.mocked(prisma.business.findUnique);
 const mockedBizCount = vi.mocked(prisma.business.count);
@@ -1086,22 +1115,50 @@ describe("número de clientes", () => {
     });
   });
 
-  it("botones y medios siguen pendientes o ignorados", async () => {
-    expect(
-      await enrutarEntrante(
-        enClientes({
-          kind: "button",
-          text: null,
-          buttonId: "booking:b1:cancelo",
-        })
-      )
-    ).toEqual({
-      handler: "pendiente:boton:booking",
+  it("un botón en el número de clientes se delega a botonEnClientes; los medios se ignoran", async () => {
+    mockedBotonEnClientes.mockResolvedValue({ handler: "cliente:confirmo" });
+    const boton = enClientes({
+      kind: "button",
+      text: null,
+      buttonId: "Confirmo",
+      buttonTitle: "Confirmo",
+      contextMessageId: "msg-rec",
     });
+
+    expect(await enrutarEntrante(boton)).toEqual({
+      handler: "cliente:confirmo",
+    });
+    expect(mockedBotonEnClientes).toHaveBeenCalledWith(boton);
     expect(
       await enrutarEntrante(enClientes({ kind: "media", text: null }))
     ).toEqual({ handler: "ignorado:media" });
     expect(mockedEnviarTexto).not.toHaveBeenCalled();
+  });
+
+  it("el texto de un cliente conocido usa el número Telnyx del negocio formateado, no phone, y nombreParaCliente", async () => {
+    mockedBizFindUnique.mockResolvedValueOnce({
+      name: "Negocio de ana@correo.es",
+      phone: "+34930000000",
+      telnyxPhoneNumber: "+34930454394",
+    } as never);
+
+    await enrutarEntrante(
+      enClientes({
+        kind: "text",
+        text: "hola",
+        role: "client",
+        businessId: "biz_1",
+      })
+    );
+
+    expect(enviado(0)?.body).toBe(
+      mensajes.clienteConocido({
+        negocio: "el negocio",
+        telefono: "+34 930 454 394",
+      })
+    );
+    expect(enviado(0)?.body).not.toContain("tu negocio");
+    expect(enviado(0)?.body).not.toContain("+34930000000");
   });
 });
 
@@ -1430,7 +1487,7 @@ describe("botones de los avisos al negocio (PR 3)", () => {
     expect(mockedEnqueueRetry).toHaveBeenCalledTimes(1);
   });
 
-  it("«Reconectar» manda al panel y «Avisar a quien esperaba» avisa de que aún no existe", async () => {
+  it("«Reconectar» manda al panel", async () => {
     mockedSentFindUnique.mockResolvedValue(AVISO_PENDIENTE as never);
     expect(
       await enrutarEntrante(
@@ -1442,16 +1499,164 @@ describe("botones de los avisos al negocio (PR 3)", () => {
       )
     ).toEqual({ handler: "aviso:cita_pendiente:reconectar" });
     expect(enviado()?.body).toContain("https://alhabla.ai/ajustes");
+  });
 
-    mockedSentFindUnique.mockResolvedValue({
-      ...AVISO_RESERVA,
-      callbackData: "aviso:cancelacion:booking_1",
-    } as never);
-    expect(
-      await enrutarEntrante(
-        boton("Avisar a quien esperaba", "Avisar a quien esperaba")
-      )
-    ).toEqual({ handler: "aviso:cancelacion:avisar_espera:pendiente" });
-    expect(enviado(1)?.body).toBe(mensajes.listaDeEsperaTodaviaNo());
+  describe("«Avisar a quien esperaba» (lista de espera, PR 4)", () => {
+    const CANCELADA = {
+      id: "booking_1",
+      isCancelled: true,
+      programedAt: EN_UNA_SEMANA,
+      durationMinutes: 45,
+    };
+
+    beforeEach(() => {
+      mockedSentFindUnique.mockResolvedValue({
+        ...AVISO_RESERVA,
+        callbackData: "aviso:cancelacion:booking_1",
+      } as never);
+      mockedBookingFindFirst.mockResolvedValue(CANCELADA as never);
+    });
+
+    it("(interactivo y por título Avisar lista espera) dispara avisarAQuienEsperaba y responde avisada / en oferta / nadie / sin plantilla / error sin nombrar el teléfono", async () => {
+      mockedAvisarAQuienEsperaba.mockResolvedValueOnce({
+        resultado: "avisado",
+        leadId: "lead_9",
+        cliente: "Marta",
+      });
+      expect(
+        await enrutarEntrante(
+          boton(
+            "aviso:cancelacion:booking_1:avisar_espera",
+            "Avisar lista espera"
+          )
+        )
+      ).toEqual({ handler: "aviso:cancelacion:avisar_espera" });
+      expect(mockedAvisarAQuienEsperaba).toHaveBeenCalledWith({
+        businessId: "biz_1",
+        hueco: {
+          inicioMs: EN_UNA_SEMANA.getTime(),
+          finMs: EN_UNA_SEMANA.getTime() + 45 * 60_000,
+        },
+        origen: "boton_dueno",
+        etiqueta: expect.stringContaining("boton dueño"),
+      });
+      // La reserva se busca en ESTE negocio, nunca solo por id.
+      expect(mockedBookingFindFirst).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: "booking_1", call: { businessId: "biz_1" } },
+        })
+      );
+      expect(enviado(0)?.body).toBe(
+        mensajes.listaDeEsperaAvisada({
+          negocio: "Peluquería Ana",
+          cliente: "Marta",
+        })
+      );
+
+      // Por título de la plantilla («Avisar a quien esperaba»), sin id propio.
+      mockedAvisarAQuienEsperaba.mockResolvedValueOnce({
+        resultado: "en_oferta",
+        cliente: null,
+        minutos: 4,
+      });
+      expect(
+        await enrutarEntrante(
+          boton("Avisar a quien esperaba", "Avisar a quien esperaba")
+        )
+      ).toEqual({ handler: "aviso:cancelacion:avisar_espera:en-oferta" });
+      expect(enviado(1)?.body).toBe(
+        mensajes.listaDeEsperaEnOferta({
+          negocio: "Peluquería Ana",
+          cliente: null,
+          minutos: 4,
+        })
+      );
+
+      mockedAvisarAQuienEsperaba.mockResolvedValueOnce({ resultado: "nadie" });
+      expect(
+        await enrutarEntrante(
+          boton("Avisar lista espera", "Avisar lista espera")
+        )
+      ).toEqual({ handler: "aviso:cancelacion:avisar_espera:nadie" });
+      expect(enviado(2)?.body).toBe(
+        mensajes.listaDeEsperaNadie({ negocio: "Peluquería Ana" })
+      );
+
+      mockedAvisarAQuienEsperaba.mockResolvedValueOnce({
+        resultado: "sin_plantilla",
+      });
+      expect(
+        await enrutarEntrante(
+          boton("Avisar lista espera", "Avisar lista espera")
+        )
+      ).toEqual({ handler: "aviso:cancelacion:avisar_espera:sin-plantilla" });
+      expect(enviado(3)?.body).toBe(
+        mensajes.listaDeEsperaSinPlantilla({ negocio: "Peluquería Ana" })
+      );
+
+      mockedAvisarAQuienEsperaba.mockResolvedValueOnce({
+        resultado: "error",
+        motivo: "BD",
+      });
+      expect(
+        await enrutarEntrante(
+          boton("Avisar lista espera", "Avisar lista espera")
+        )
+      ).toEqual({ handler: "aviso:cancelacion:avisar_espera:error" });
+      expect(enviado(4)?.body).toBe(
+        mensajes.listaDeEsperaError({ negocio: "Peluquería Ana" })
+      );
+
+      for (const llamada of mockedEnviarTexto.mock.calls) {
+        expect(llamada[0].body).not.toMatch(/\+34\d{9}/);
+        expect(llamada[0].audience).toBe("owner");
+      }
+    });
+
+    it("sobre una cita no cancelada responde que sigue en pie, sobre una pasada que ya pasó y sobre una reserva ajena no actúa", async () => {
+      mockedBookingFindFirst.mockResolvedValueOnce({
+        ...CANCELADA,
+        isCancelled: false,
+      } as never);
+      expect(
+        await enrutarEntrante(
+          boton(
+            "aviso:cancelacion:booking_1:avisar_espera",
+            "Avisar lista espera"
+          )
+        )
+      ).toEqual({ handler: "aviso:cancelacion:avisar_espera:no-cancelada" });
+      expect(enviado(0)?.body).toBe(
+        mensajes.listaDeEsperaSinHueco({ negocio: "Peluquería Ana" })
+      );
+
+      mockedBookingFindFirst.mockResolvedValueOnce({
+        ...CANCELADA,
+        programedAt: new Date(Date.now() - 60_000),
+      } as never);
+      expect(
+        await enrutarEntrante(
+          boton(
+            "aviso:cancelacion:booking_1:avisar_espera",
+            "Avisar lista espera"
+          )
+        )
+      ).toEqual({ handler: "aviso:cancelacion:avisar_espera:pasada" });
+      expect(enviado(1)?.body).toBe(
+        mensajes.listaDeEsperaPasada({ negocio: "Peluquería Ana" })
+      );
+
+      mockedBookingFindFirst.mockResolvedValueOnce(null);
+      expect(
+        await enrutarEntrante(
+          boton(
+            "aviso:cancelacion:booking_1:avisar_espera",
+            "Avisar lista espera"
+          )
+        )
+      ).toEqual({ handler: "aviso:cancelacion:avisar_espera:reserva-ajena" });
+      expect(mockedEnviarTexto).toHaveBeenCalledTimes(2);
+      expect(mockedAvisarAQuienEsperaba).not.toHaveBeenCalled();
+    });
   });
 });

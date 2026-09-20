@@ -1,13 +1,28 @@
-import { SendWhatsappJob } from "../lib/jobTypes.js";
+import { esJobPorProposito, type SendWhatsappJob } from "../lib/jobTypes.js";
 import { reclamarEnvio } from "../lib/messageIdempotency.js";
+import { errorMessage } from "../lib/logUtils.js";
+import { prisma } from "../lib/prisma.js";
 import { enviarPlantilla } from "../modules/whatsapp/service.js";
 import { WhatsappOptOutError } from "../modules/whatsapp/bajas.js";
+import { enviarMensajeAlCliente } from "../modules/whatsapp/mensajesCliente.js";
 
 export async function processSendWhatsappJob(
   data: SendWhatsappJob
 ): Promise<void> {
+  // Forma por propósito (PR 4): el job relee la reserva o el lead y elige
+  // la plantilla aprobada en el momento del envío.
+  if (esJobPorProposito(data)) {
+    return enviarMensajeAlCliente(data);
+  }
+
   const { toNumber, templateName, languageCode, bodyParams } = data;
-  if (!(await reclamarEnvio("whatsapp", data.idempotencyKey))) {
+  // Una fila `failed` que Telnyx nunca aceptó se vuelve a reclamar: si no,
+  // el reintento de Cloud Tasks encontraba la clave y no reenviaba nada.
+  if (
+    !(await reclamarEnvio("whatsapp", data.idempotencyKey, undefined, {
+      reintentarFallidos: true,
+    }))
+  ) {
     return;
   }
   console.log(
@@ -37,6 +52,26 @@ export async function processSendWhatsappJob(
         `[Job] WhatsApp a ${toNumber} descartado: el número pidió la baja (${data.audience ?? "client"})`
       );
       return;
+    }
+    if (data.idempotencyKey) {
+      await prisma.sentMessage
+        .updateMany({
+          where: {
+            channel: "whatsapp",
+            idempotencyKey: data.idempotencyKey,
+            providerMessageId: null,
+          },
+          data: {
+            deliveryStatus: "failed",
+            errorCode: "SEND_ERROR",
+            errorDetail: errorMessage(error),
+          },
+        })
+        .catch((marcaError: unknown) => {
+          console.error(
+            `[Job] No se pudo marcar como fallido el WhatsApp ${data.idempotencyKey}: ${errorMessage(marcaError)}`
+          );
+        });
     }
     throw error;
   }

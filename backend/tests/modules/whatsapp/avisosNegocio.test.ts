@@ -404,10 +404,38 @@ describe("avisarCancelacion", () => {
     expect(mockedBotones).toHaveBeenCalledWith(
       expect.objectContaining({
         body: "Peluquería Ana: Un cliente canceló su cita del jueves 17:00 (Mechas). Ese hueco queda libre.",
-        buttons: [{ id: "aviso:cancelacion:booking_1:vale", title: "Vale" }],
+        buttons: [
+          { id: "aviso:cancelacion:booking_1:vale", title: "Vale" },
+          {
+            id: "aviso:cancelacion:booking_1:avisar_espera",
+            title: "Avisar lista espera",
+          },
+        ],
         idempotencyKey: "aviso:cancelacion:booking_1",
       })
     );
+  });
+
+  it("#4 lleva los botones Vale y Avisar lista espera (≤ 20 caracteres) con ids aviso:cancelacion:<id>:vale y :avisar_espera", async () => {
+    await avisarCancelacion({
+      businessId: "biz_1",
+      businessName: "Peluquería Ana",
+      timezone: "Europe/Madrid",
+      bookingId: "booking_2",
+      clientName: "Laura",
+      startDateTime: CITA,
+      serviceNames: [],
+    });
+
+    const botones = mockedBotones.mock.calls[0][0].buttons;
+    expect(botones.map((b) => b.id)).toEqual([
+      "aviso:cancelacion:booking_2:vale",
+      "aviso:cancelacion:booking_2:avisar_espera",
+    ]);
+    for (const boton of botones) {
+      expect(boton.title.length).toBeLessThanOrEqual(20);
+    }
+    expect(botones[1].title).toBe("Avisar lista espera");
   });
 });
 

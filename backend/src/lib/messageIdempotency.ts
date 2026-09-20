@@ -35,10 +35,22 @@ export interface DatosDelEnvio {
  * Si la base de datos falla, también devuelve `true`: preferimos arriesgarnos
  * a un duplicado antes que dejar a un cliente sin su confirmación.
  */
+export interface OpcionesDeReclamo {
+  /**
+   * Si la clave ya existe pero su fila quedó `failed` SIN `providerMessageId`
+   * (Telnyx nunca aceptó el mensaje), se vuelve a reclamar: se limpia el
+   * fallo y se devuelve `true`. Solo para envíos que un reintento debe
+   * repetir de verdad (mensajes al cliente, vCard); los avisos al negocio y
+   * las respuestas del enrutador conservan la semántica de siempre.
+   */
+  reintentarFallidos?: boolean;
+}
+
 export async function reclamarEnvio(
   channel: "email" | "sms" | "whatsapp",
   idempotencyKey: string | undefined,
-  extra?: DatosDelEnvio
+  extra?: DatosDelEnvio,
+  opciones?: OpcionesDeReclamo
 ): Promise<boolean> {
   if (!idempotencyKey) {
     return true;
@@ -50,6 +62,15 @@ export async function reclamarEnvio(
     return true;
   } catch (error) {
     if (esErrorDeUnicidad(error)) {
+      if (opciones?.reintentarFallidos) {
+        const reabierta = await reclamarFilaFallida(channel, idempotencyKey);
+        if (reabierta) {
+          console.log(
+            `[Job] ${channel} ${idempotencyKey} había fallado; se vuelve a intentar`
+          );
+          return true;
+        }
+      }
       console.log(
         `[Job] ${channel} ${idempotencyKey} ya se había enviado; se descarta la entrega repetida`
       );
@@ -60,5 +81,41 @@ export async function reclamarEnvio(
       error instanceof Error ? error.message : String(error)
     );
     return true;
+  }
+}
+
+/**
+ * Reabre una fila `failed` que Telnyx nunca aceptó (`providerMessageId`
+ * null). Una fila `queued/sent/delivered/read/suppressed/skipped`, o
+ * `failed` con `providerMessageId` (el fallo fue posterior a la
+ * aceptación), nunca se re-reclama. Devuelve si se reabrió.
+ */
+async function reclamarFilaFallida(
+  channel: "email" | "sms" | "whatsapp",
+  idempotencyKey: string
+): Promise<boolean> {
+  try {
+    const result = await prisma.sentMessage.updateMany({
+      where: {
+        channel,
+        idempotencyKey,
+        deliveryStatus: "failed",
+        providerMessageId: null,
+      },
+      data: {
+        deliveryStatus: null,
+        errorCode: null,
+        errorDetail: null,
+        failedAt: null,
+        sentAt: new Date(),
+      },
+    });
+    return result.count === 1;
+  } catch (error) {
+    console.error(
+      `[Job] No se pudo reabrir la fila fallida de ${channel} ${idempotencyKey}:`,
+      error instanceof Error ? error.message : String(error)
+    );
+    return false;
   }
 }

@@ -56,7 +56,7 @@ const SendSmsSchema = z.object({
   idempotencyKey,
 });
 
-const SendWhatsappSchema = z.object({
+const SendWhatsappLegadoSchema = z.object({
   toNumber: z.string().regex(E164_PHONE_REGEX),
   templateName: z.string(),
   languageCode: z.string(),
@@ -65,6 +65,34 @@ const SendWhatsappSchema = z.object({
   businessId: z.string().optional(),
   audience: z.enum(["client", "owner"]).optional(),
 });
+
+// Forma por propósito (PR 4, lado cliente): el job relee la reserva o el
+// lead y elige la plantilla aprobada en el momento del envío.
+const SendWhatsappPorPropositoSchema = z
+  .object({
+    proposito: z.enum(["confirmacion", "recordatorio", "hueco_libre"]),
+    bookingId: z.string().optional(),
+    leadId: z.string().optional(),
+    programedAtMs: z.number().int().optional(),
+    toNumber: z.string().regex(E164_PHONE_REGEX),
+    businessId: z.string(),
+    audience: z.literal("client").optional(),
+    idempotencyKey,
+    sinV2: z.boolean().optional(),
+    saltos: z.number().int().min(0).max(12).optional(),
+  })
+  .refine(
+    (d) =>
+      d.proposito === "hueco_libre"
+        ? !!d.leadId
+        : !!d.bookingId && d.programedAtMs !== undefined,
+    { message: "Falta bookingId+programedAtMs o leadId" }
+  );
+
+const SendWhatsappSchema = z.union([
+  SendWhatsappPorPropositoSchema,
+  SendWhatsappLegadoSchema,
+]);
 
 // Endpoints invocados por Cloud Tasks/Cloud Scheduler (no por negocios ni
 // desde el frontend) — ver plugins/internalAuth.ts para la verificación del
@@ -203,7 +231,9 @@ export const internalJobsRoutes: FastifyPluginAsync = async (fastify) => {
     async (request, reply) => {
       try {
         const data = SendWhatsappSchema.parse(request.body);
-        await processSendWhatsappJob(data);
+        await processSendWhatsappJob(
+          "proposito" in data ? { ...data, audience: "client" } : data
+        );
         return reply.send({ received: true });
       } catch (error) {
         if (error instanceof z.ZodError) {

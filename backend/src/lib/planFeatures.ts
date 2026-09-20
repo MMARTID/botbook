@@ -109,3 +109,17 @@ export class PlanLimitError extends Error {
     this.limit = input.limit;
   }
 }
+
+/**
+ * Estados de SubscriptionStatus (schema.prisma) que significan «el negocio
+ * no está pagando ahora mismo». No incluye TRIALING/ACTIVE (pagando de
+ * facto) ni INCOMPLETE/PAUSED (transitorios/ambiguos) para no bloquear de
+ * más; null (cuentas de prueba/demo sin Stripe) se trata como permitido.
+ * Lo consultan la reserva por voz y la reserva desde la lista de espera.
+ */
+export const ESTADOS_DE_SUSCRIPCION_BLOQUEADOS: ReadonlySet<string> = new Set([
+  "CANCELED",
+  "UNPAID",
+  "PAST_DUE",
+  "INCOMPLETE_EXPIRED",
+]);

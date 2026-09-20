@@ -6,6 +6,7 @@ import {
 import { prisma } from "../../src/lib/prisma.js";
 import { telnyxAiAdapter } from "../../src/adapters/telnyx/TelnyxAiAdapter.js";
 import { DEFAULT_AGENT_SETTINGS } from "../../src/lib/managedAgentPrompt.js";
+import { listaDeEsperaDisponible } from "../../src/modules/whatsapp/service.js";
 
 vi.mock("../../src/lib/prisma.js", () => ({
   prisma: {
@@ -22,6 +23,12 @@ vi.mock("../../src/adapters/telnyx/TelnyxAiAdapter.js", () => ({
     updateAssistant: vi.fn(),
     listVoices: vi.fn(),
   },
+}));
+
+// Gate de la frase de la lista de espera en el prompt (PR 4): por defecto
+// aprobada, para que la salida de estos tests no cambie.
+vi.mock("../../src/modules/whatsapp/service.js", () => ({
+  listaDeEsperaDisponible: vi.fn().mockResolvedValue(true),
 }));
 
 const mockedBusinessFindUnique = vi.mocked(prisma.business.findUnique);
@@ -46,14 +53,43 @@ const BASE_BUSINESS = {
   maxAppointmentDurationMinutes: null,
 };
 
+const mockedListaDeEspera = vi.mocked(listaDeEsperaDisponible);
+
 beforeEach(() => {
   vi.clearAllMocks();
   mockedServiceFindMany.mockResolvedValue([]);
   mockedProfessionalFindMany.mockResolvedValue([]);
   mockedListVoices.mockResolvedValue(ELIGIBLE_VOICES);
+  mockedListaDeEspera.mockResolvedValue(true);
 });
 
 describe("createTelnyxAssistantForAgent", () => {
+  it("pasa listaDeEspera al prompt según listaDeEsperaDisponible (true con hueco_libre aprobada, false si no)", async () => {
+    mockedBusinessFindUnique.mockResolvedValue(BASE_BUSINESS as any);
+    mockedCreateAssistant.mockResolvedValue({
+      id: "assistant_1",
+      name: "alhabla-biz1-agent1",
+      instructions: "i",
+    });
+
+    await createTelnyxAssistantForAgent({
+      agentId: "agent1",
+      businessId: "biz1",
+    });
+    const conOferta = mockedCreateAssistant.mock.calls[0][0].instructions;
+    expect(conOferta).toContain("te aviso por WhatsApp si se libera esa hora");
+
+    mockedListaDeEspera.mockResolvedValue(false);
+    await createTelnyxAssistantForAgent({
+      agentId: "agent1",
+      businessId: "biz1",
+    });
+    const sinOferta = mockedCreateAssistant.mock.calls[1][0].instructions;
+    expect(sinOferta).not.toContain("te aviso por WhatsApp");
+    expect(sinOferta).toContain("no uses notify_when_available");
+    expect(mockedListaDeEspera).toHaveBeenCalledTimes(2);
+  });
+
   it("crea el assistant y persiste su id cuando el negocio es elegible", async () => {
     mockedBusinessFindUnique.mockResolvedValue(BASE_BUSINESS as any);
     mockedCreateAssistant.mockResolvedValue({
@@ -111,10 +147,13 @@ describe("createTelnyxAssistantForAgent", () => {
     expect(result.reason).toContain("Telnyx 500");
   });
 
-  it("fija transcription.language según los idiomas activados, no un \"es\" fijo", async () => {
+  it('fija transcription.language según los idiomas activados, no un "es" fijo', async () => {
     mockedBusinessFindUnique.mockResolvedValue({
       ...BASE_BUSINESS,
-      agentSettings: { ...DEFAULT_AGENT_SETTINGS, languages: ["es-ES", "en-GB"] },
+      agentSettings: {
+        ...DEFAULT_AGENT_SETTINGS,
+        languages: ["es-ES", "en-GB"],
+      },
     } as any);
     mockedCreateAssistant.mockResolvedValue({
       id: "assistant_1",
@@ -122,7 +161,10 @@ describe("createTelnyxAssistantForAgent", () => {
       instructions: "i",
     });
 
-    await createTelnyxAssistantForAgent({ agentId: "agent1", businessId: "biz1" });
+    await createTelnyxAssistantForAgent({
+      agentId: "agent1",
+      businessId: "biz1",
+    });
 
     expect(mockedCreateAssistant.mock.calls[0][0]).toMatchObject({
       transcription: { language: "multi" },

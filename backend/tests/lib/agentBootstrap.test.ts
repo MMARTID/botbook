@@ -59,6 +59,12 @@ vi.mock("../../src/modules/calendar/service.js", () => ({
   },
 }));
 
+// Gate de la frase de la lista de espera en el prompt (PR 4): aprobada por
+// defecto para que la salida de estos tests no cambie.
+vi.mock("../../src/modules/whatsapp/service.js", () => ({
+  listaDeEsperaDisponible: vi.fn().mockResolvedValue(true),
+}));
+
 const mockedBusinessFindUnique = vi.mocked(prisma.business.findUnique);
 const mockedServiceFindMany = vi.mocked(prisma.service.findMany);
 const mockedProfessionalFindMany = vi.mocked(prisma.professional.findMany);

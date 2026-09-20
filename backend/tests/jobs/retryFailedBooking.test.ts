@@ -13,6 +13,7 @@ import {
   acquireBookingLock,
   releaseBookingLock,
 } from "../../src/lib/bookingLock.js";
+import { buildCalendarIdempotencyKey } from "../../src/lib/calendarIdempotency.js";
 
 vi.mock("../../src/lib/cloudTasks.js", () => ({
   enqueueRetryBookingJob: vi.fn(),
@@ -382,6 +383,35 @@ describe("processRetryFailedBookingJob", () => {
       expect.objectContaining({
         create: expect.objectContaining({ clientPhone: "+34611222333" }),
         update: expect.objectContaining({ clientPhone: "+34611222333" }),
+      })
+    );
+  });
+
+  it("la reserva recuperada nace con createdVia voice, resetea la cancelación en update y usa buildCalendarIdempotencyKey de lib/calendarIdempotency", async () => {
+    mockedLeadFindUnique.mockResolvedValue(buildLead() as any);
+    mockedCallFindUnique.mockResolvedValue({ businessId: "biz_1" } as any);
+    mockedBusinessFindUnique.mockResolvedValue(buildBusiness() as any);
+
+    await processRetryFailedBookingJob({ leadId });
+
+    expect(mockUpsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        create: expect.objectContaining({ createdVia: "voice" }),
+        update: expect.objectContaining({
+          isCancelled: false,
+          cancelledAt: null,
+          cancelledBy: null,
+        }),
+      })
+    );
+    expect(mockUpsert.mock.calls[0][0].update).not.toHaveProperty("createdVia");
+    expect(mockedBookAppointment).toHaveBeenCalledWith(
+      expect.objectContaining({
+        idempotencyKey: buildCalendarIdempotencyKey({
+          callId: "call_1",
+          startDateTime: pendingBookingData.startDateTime,
+          durationMinutes: 30,
+        }),
       })
     );
   });

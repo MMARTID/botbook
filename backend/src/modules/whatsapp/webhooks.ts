@@ -7,6 +7,7 @@ import { isUniqueConstraintError } from "../../lib/prismaErrors.js";
 import {
   actualizarEstadoEnvio,
   audienciaDelNumero,
+  avisarCambioDeListaDeEspera,
   type EstadoEntrega,
 } from "./service.js";
 import { enrutarEntrante } from "./router.js";
@@ -698,6 +699,12 @@ export async function handleTemplateStatusEvent(
     );
     return { success: true };
   }
+  // Para saber si `hueco_libre` cruza APPROVED (el gate del prompt de la
+  // lista de espera) hace falta el estado anterior.
+  const anterior = await prisma.whatsappTemplate.findFirst({
+    where,
+    select: { key: true, status: true },
+  });
   const updated = await prisma.whatsappTemplate.updateMany({
     where,
     data: {
@@ -715,6 +722,9 @@ export async function handleTemplateStatusEvent(
     console.log(
       `[WhatsApp] Plantilla ${data.payload.template_name ?? data.payload.template_id} → ${status}`
     );
+    if (anterior) {
+      avisarCambioDeListaDeEspera(anterior.key, anterior.status, status);
+    }
   }
   return { success: true };
 }

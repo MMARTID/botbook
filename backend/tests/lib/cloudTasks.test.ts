@@ -182,6 +182,48 @@ describe("cloudTasks", () => {
       );
     });
 
+    it("send-whatsapp: el taskId pasa a idempotencyKey solo si el payload no traía una (el salto -s<n> del recordatorio conserva la clave documentada)", async () => {
+      const { enqueueWhatsappJob } =
+        await import("../../src/lib/cloudTasks.js");
+      const base = {
+        proposito: "recordatorio" as const,
+        bookingId: "booking_1",
+        programedAtMs: 1_800_000_000_000,
+        toNumber: "+34600111222",
+        businessId: "biz_1",
+        audience: "client" as const,
+      };
+      const cuerpo = (n: number) =>
+        JSON.parse(
+          Buffer.from(
+            mockCreateTask.mock.calls[n][0].task.httpRequest.body,
+            "base64"
+          ).toString()
+        );
+
+      await enqueueWhatsappJob(base, {
+        taskId: "booking-booking_1-recordatorio-1800000000",
+      });
+      expect(cuerpo(0).idempotencyKey).toBe(
+        "booking-booking_1-recordatorio-1800000000"
+      );
+
+      await enqueueWhatsappJob(
+        {
+          ...base,
+          saltos: 1,
+          idempotencyKey: "booking-booking_1-recordatorio-1800000000",
+        },
+        { taskId: "booking-booking_1-recordatorio-1800000000-s1" }
+      );
+      expect(cuerpo(1).idempotencyKey).toBe(
+        "booking-booking_1-recordatorio-1800000000"
+      );
+      expect(mockCreateTask.mock.calls[1][0].task.name).toBe(
+        "projects/project_test/locations/europe-west1/queues/send-whatsapp/tasks/booking-booking_1-recordatorio-1800000000-s1"
+      );
+    });
+
     it("no fija scheduleTime si el envío es inmediato", async () => {
       const { enqueueSmsJob } = await import("../../src/lib/cloudTasks.js");
 

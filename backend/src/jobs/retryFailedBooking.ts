@@ -1,6 +1,6 @@
 import { prisma } from "../lib/prisma.js";
 import { enqueueRetryBookingJob } from "../lib/cloudTasks.js";
-import { createHash } from "node:crypto";
+import { buildCalendarIdempotencyKey } from "../lib/calendarIdempotency.js";
 import { calendarService } from "../modules/calendar/service.js";
 import {
   conexionOperativa,
@@ -41,18 +41,6 @@ function isValidAppointmentDuration(value: unknown): value is number {
     value > 0 &&
     value <= 24 * 60
   );
-}
-
-function buildCalendarIdempotencyKey(input: {
-  callId: string;
-  startDateTime: string;
-  durationMinutes: number;
-}): string {
-  return createHash("sha256")
-    .update(
-      `${input.callId}\u0000${input.startDateTime}\u0000${input.durationMinutes}`
-    )
-    .digest("hex");
 }
 
 async function abandonLead(leadId: string, reason: string): Promise<void> {
@@ -380,6 +368,7 @@ export async function processRetryFailedBookingJob(
           professionalId: resolvedProfessionalId ?? undefined,
           serviceIds: data_.serviceIds ?? [],
           clientPhone: effectiveClientPhone,
+          createdVia: "voice",
           externalEventId: (result as { id?: string })?.id ?? undefined,
           externalCalendarProvider: conexion.provider,
           externalCalendarId: conexion.calendarId,
@@ -393,6 +382,10 @@ export async function processRetryFailedBookingJob(
           externalEventId: (result as { id?: string })?.id ?? undefined,
           externalCalendarProvider: conexion.provider,
           externalCalendarId: conexion.calendarId,
+          // Reservar de nuevo tras una cancelación reactiva la fila.
+          isCancelled: false,
+          cancelledAt: null,
+          cancelledBy: null,
         },
       });
       await tx.lead.update({

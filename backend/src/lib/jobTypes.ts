@@ -40,13 +40,17 @@ export interface SendSmsJob {
   idempotencyKey?: string;
 }
 
-export interface SendWhatsappJob {
+/**
+ * Forma legada del job de WhatsApp: plantilla por nombre + idioma y
+ * parámetros ya construidos por quien encola. La siguen usando los envíos
+ * que no pasan por `modules/whatsapp/mensajesCliente.ts`.
+ */
+export interface SendWhatsappJobLegado {
   toNumber: string;
   templateName: string;
   languageCode: string;
   /** Variables con nombre del body de la plantilla, con las claves exactas
-   * aprobadas por Meta — ver WHATSAPP_TEMPLATE_CONFIRMATION_NAME /
-   * WHATSAPP_TEMPLATE_REMINDER_NAME en voiceTools/service.ts. */
+   * aprobadas por Meta. */
   bodyParams: Record<string, string>;
   /** Ver SendEmailJob.idempotencyKey. */
   idempotencyKey?: string;
@@ -54,4 +58,39 @@ export interface SendWhatsappJob {
   businessId?: string;
   /** Desde qué número de Alhabla sale: "client" (por defecto) u "owner". */
   audience?: "client" | "owner";
+}
+
+/**
+ * Mensajes al cliente por propósito (PR 4, lado cliente): el job relee la
+ * reserva o el lead en el momento del envío y elige la plantilla aprobada
+ * (`elegirPlantillaCliente`), así una cancelación o un cambio de hora entre
+ * encolar y enviar no manda un mensaje falso.
+ */
+export interface SendWhatsappJobPorProposito {
+  proposito: "confirmacion" | "recordatorio" | "hueco_libre";
+  /** confirmacion / recordatorio. */
+  bookingId?: string;
+  /** hueco_libre. */
+  leadId?: string;
+  /** `Booking.programedAt` al encolar: si cambió, el job no envía. */
+  programedAtMs?: number;
+  toNumber: string;
+  businessId: string;
+  audience: "client";
+  /** Ver SendEmailJob.idempotencyKey. */
+  idempotencyKey?: string;
+  /** Respaldo tras un failed diferido de la v2: salta el paso (a) de la
+   * cascada y sale la plantilla aprobada. */
+  sinV2?: boolean;
+  /** Recordatorio a más de 29 días: número de reencolados ya hechos. */
+  saltos?: number;
+}
+
+export type SendWhatsappJob =
+  SendWhatsappJobLegado | SendWhatsappJobPorProposito;
+
+export function esJobPorProposito(
+  data: SendWhatsappJob
+): data is SendWhatsappJobPorProposito {
+  return "proposito" in data;
 }

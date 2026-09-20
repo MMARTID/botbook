@@ -6,18 +6,29 @@ import { getRedis } from "../../../src/lib/redis.js";
 import { checkBusinessHours } from "../../../src/lib/businessSchedule.js";
 import { checkAvailability } from "../../../src/lib/availability.js";
 import { calendarService } from "../../../src/modules/calendar/service.js";
-import { enqueueSmsJob, enqueueWhatsappJob } from "../../../src/lib/cloudTasks.js";
 import {
-  avisarCancelacion,
+  enqueueSmsJob,
+  enqueueWhatsappJob,
+} from "../../../src/lib/cloudTasks.js";
+import {
   avisarCitaPendiente,
   avisarNuevaReserva,
 } from "../../../src/modules/whatsapp/avisosNegocio.js";
+import { programarMensajesAlCliente } from "../../../src/modules/whatsapp/mensajesCliente.js";
+import { cancelarReserva } from "../../../src/modules/bookings/cancelacion.js";
+import { buildCalendarIdempotencyKey } from "../../../src/lib/calendarIdempotency.js";
+import { normalizeVoiceToolDateTime } from "../../../src/lib/voiceDateTime.js";
 
 vi.mock("../../../src/lib/prisma.js", () => ({
   prisma: {
     business: { findUnique: vi.fn() },
     call: { findUnique: vi.fn(), findFirst: vi.fn() },
-    booking: { upsert: vi.fn(), findUnique: vi.fn(), findFirst: vi.fn(), update: vi.fn() },
+    booking: {
+      upsert: vi.fn(),
+      findUnique: vi.fn(),
+      findFirst: vi.fn(),
+      update: vi.fn(),
+    },
     professional: { findFirst: vi.fn(), findMany: vi.fn() },
     service: { findFirst: vi.fn(), findMany: vi.fn() },
     lead: { create: vi.fn(), findMany: vi.fn(), update: vi.fn() },
@@ -45,7 +56,9 @@ vi.mock("../../../src/lib/businessSchedule.js", () => ({
 
 vi.mock("../../../src/lib/availability.js", () => ({
   checkAvailability: vi.fn(),
-  computeAvailabilityLookaheadMs: vi.fn((durationMinutes: number) => 4 * 60 * 60_000 + durationMinutes * 60_000),
+  computeAvailabilityLookaheadMs: vi.fn(
+    (durationMinutes: number) => 4 * 60 * 60_000 + durationMinutes * 60_000
+  ),
 }));
 
 vi.mock("../../../src/modules/calendar/service.js", () => ({
@@ -71,6 +84,33 @@ vi.mock("../../../src/modules/whatsapp/avisosNegocio.js", () => ({
   nombreDeServicios: vi.fn().mockResolvedValue([]),
 }));
 
+// Los mensajes al cliente por WhatsApp (PR 4) tienen sus propios tests en
+// tests/modules/whatsapp/mensajesCliente.test.ts; aquí solo se comprueba
+// que book_appointment los programa con el id de la reserva y traduce el
+// resultado a `mensajeCliente`. `sanearNombre` es pura: se usa la real.
+vi.mock(
+  "../../../src/modules/whatsapp/mensajesCliente.js",
+  async (importActual) => {
+    const actual =
+      await importActual<
+        typeof import("../../../src/modules/whatsapp/mensajesCliente.js")
+      >();
+    return {
+      ...actual,
+      programarMensajesAlCliente: vi
+        .fn()
+        .mockResolvedValue({ confirmacion: "programada" }),
+    };
+  }
+);
+
+// La cancelación (BD, evento externo, aviso #4, lista de espera) vive en
+// modules/bookings/cancelacion.ts con sus propios tests; cancel_appointment
+// solo conserva la titularidad por número y delega.
+vi.mock("../../../src/modules/bookings/cancelacion.js", () => ({
+  cancelarReserva: vi.fn().mockResolvedValue({ resultado: "cancelada" }),
+}));
+
 const mockedBusinessFindUnique = vi.mocked(prisma.business.findUnique);
 const mockedCallFindUnique = vi.mocked(prisma.call.findUnique);
 const mockedCallFindFirst = vi.mocked(prisma.call.findFirst);
@@ -89,8 +129,8 @@ const mockedGetBusyIntervals = vi.mocked(calendarService.getBusyIntervals);
 const mockedEnqueueSmsJob = vi.mocked(enqueueSmsJob);
 const mockedEnqueueWhatsappJob = vi.mocked(enqueueWhatsappJob);
 const mockedLeadCreate = vi.mocked(prisma.lead.create);
-const mockedLeadFindMany = vi.mocked(prisma.lead.findMany);
-const mockedLeadUpdate = vi.mocked(prisma.lead.update);
+const mockedProgramarMensajes = vi.mocked(programarMensajesAlCliente);
+const mockedCancelarReserva = vi.mocked(cancelarReserva);
 
 /** Los tests de SMS asumen que WhatsApp NO está configurado — sin esto,
  * dependerían de si el `.env` real de quien ejecuta los tests tiene
@@ -139,10 +179,20 @@ describe("executeVoiceTool book_appointment — vinculación a la llamada correc
   beforeEach(() => {
     vi.clearAllMocks();
     mockedBusinessFindUnique.mockResolvedValue(buildBusiness() as any);
-    mockedCheckBusinessHours.mockReturnValue({ success: true, isOpen: true } as any);
-    mockedBookAppointment.mockResolvedValue({ htmlLink: "https://calendar.google.com/event/1" } as any);
-    mockedGetBusyIntervals.mockResolvedValue({ intervals: [], calendarAvailabilityKnown: true } as any);
-    mockedProfessionalFindFirst.mockResolvedValue({ id: "professional_123" } as any);
+    mockedCheckBusinessHours.mockReturnValue({
+      success: true,
+      isOpen: true,
+    } as any);
+    mockedBookAppointment.mockResolvedValue({
+      htmlLink: "https://calendar.google.com/event/1",
+    } as any);
+    mockedGetBusyIntervals.mockResolvedValue({
+      intervals: [],
+      calendarAvailabilityKnown: true,
+    } as any);
+    mockedProfessionalFindFirst.mockResolvedValue({
+      id: "professional_123",
+    } as any);
     mockedProfessionalFindMany.mockResolvedValue([]);
     mockedServiceFindMany.mockResolvedValue([]);
     // checkAvailability ahora se llama SIEMPRE (antes se saltaba si venía un
@@ -220,14 +270,18 @@ describe("executeVoiceTool book_appointment — vinculación a la llamada correc
     } as any);
     mockedBookingUpsert.mockResolvedValue(undefined as any);
 
-    await executeVoiceTool(buildBookAppointmentInput({ callId: "call_vapi_1" }));
+    await executeVoiceTool(
+      buildBookAppointmentInput({ callId: "call_vapi_1" })
+    );
 
     expect(avisarNuevaReserva).not.toHaveBeenCalled();
   });
 
   it("cae al heurístico de llamada más reciente si el callId no tiene fila Call todavía", async () => {
     mockedCallFindUnique.mockResolvedValue(null);
-    mockedCallFindFirst.mockResolvedValue({ id: "call_row_MOST_RECENT" } as any);
+    mockedCallFindFirst.mockResolvedValue({
+      id: "call_row_MOST_RECENT",
+    } as any);
 
     const result = await executeVoiceTool(
       buildBookAppointmentInput({ callId: "call_vapi_NOT_YET_PERSISTED" })
@@ -258,7 +312,9 @@ describe("executeVoiceTool book_appointment — vinculación a la llamada correc
     // Aunque el mock devolviera fromNumber, resolveCallForBusiness ya no lo
     // selecciona en el path heurístico — este test fija el contrato: el
     // evento de calendario no debe llevar ningún teléfono en este caso.
-    mockedCallFindFirst.mockResolvedValue({ id: "call_row_MOST_RECENT" } as any);
+    mockedCallFindFirst.mockResolvedValue({
+      id: "call_row_MOST_RECENT",
+    } as any);
 
     const result = await executeVoiceTool(
       buildBookAppointmentInput({ callId: "call_vapi_NOT_YET_PERSISTED" })
@@ -271,9 +327,13 @@ describe("executeVoiceTool book_appointment — vinculación a la llamada correc
   });
 
   it("usa el heurístico directamente cuando no se conoce el callId", async () => {
-    mockedCallFindFirst.mockResolvedValue({ id: "call_row_MOST_RECENT" } as any);
+    mockedCallFindFirst.mockResolvedValue({
+      id: "call_row_MOST_RECENT",
+    } as any);
 
-    const result = await executeVoiceTool(buildBookAppointmentInput({ callId: undefined }));
+    const result = await executeVoiceTool(
+      buildBookAppointmentInput({ callId: undefined })
+    );
 
     expect(result.result.success).toBe(true);
     expect(mockedCallFindUnique).not.toHaveBeenCalled();
@@ -372,7 +432,10 @@ describe("executeVoiceTool — catálogo y token de disponibilidad", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockedBusinessFindUnique.mockResolvedValue(buildBusiness() as any);
-    mockedGetBusyIntervals.mockResolvedValue({ intervals: [], calendarAvailabilityKnown: true } as any);
+    mockedGetBusyIntervals.mockResolvedValue({
+      intervals: [],
+      calendarAvailabilityKnown: true,
+    } as any);
     mockedCheckAvailability.mockResolvedValue({
       available: true,
       message: "Hay disponibilidad.",
@@ -507,10 +570,20 @@ describe("executeVoiceTool book_appointment — varios servicios en la misma cit
   beforeEach(() => {
     vi.clearAllMocks();
     mockedBusinessFindUnique.mockResolvedValue(buildBusiness() as any);
-    mockedCheckBusinessHours.mockReturnValue({ success: true, isOpen: true } as any);
-    mockedBookAppointment.mockResolvedValue({ htmlLink: "https://calendar.google.com/event/1" } as any);
-    mockedGetBusyIntervals.mockResolvedValue({ intervals: [], calendarAvailabilityKnown: true } as any);
-    mockedProfessionalFindFirst.mockResolvedValue({ id: "professional_123" } as any);
+    mockedCheckBusinessHours.mockReturnValue({
+      success: true,
+      isOpen: true,
+    } as any);
+    mockedBookAppointment.mockResolvedValue({
+      htmlLink: "https://calendar.google.com/event/1",
+    } as any);
+    mockedGetBusyIntervals.mockResolvedValue({
+      intervals: [],
+      calendarAvailabilityKnown: true,
+    } as any);
+    mockedProfessionalFindFirst.mockResolvedValue({
+      id: "professional_123",
+    } as any);
     mockedCallFindFirst.mockResolvedValue({ id: "call_row_1" } as any);
     mockedCheckAvailability.mockResolvedValue({
       available: true,
@@ -544,7 +617,9 @@ describe("executeVoiceTool book_appointment — varios servicios en la misma cit
     expect(result.result.success).toBe(true);
     expect(mockedServiceFindMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: expect.objectContaining({ id: { in: ["svc_corte", "svc_mechas"] } }),
+        where: expect.objectContaining({
+          id: { in: ["svc_corte", "svc_mechas"] },
+        }),
       })
     );
     expect(mockedBookingUpsert).toHaveBeenCalledWith(
@@ -558,7 +633,9 @@ describe("executeVoiceTool book_appointment — varios servicios en la misma cit
   });
 
   it("descarta solo los serviceIds que no pertenecen al negocio, sin fallar toda la reserva", async () => {
-    mockedServiceFindMany.mockResolvedValue([{ id: "svc_corte", durationMinutes: 30 }] as any);
+    mockedServiceFindMany.mockResolvedValue([
+      { id: "svc_corte", durationMinutes: 30 },
+    ] as any);
 
     const result = await executeVoiceTool(
       buildBookAppointmentInput({
@@ -584,7 +661,11 @@ describe("executeVoiceTool book_appointment — varios servicios en la misma cit
     // findMany({ id: { in } }) no garantiza el orden de requestedServiceIds
     // — se simula aquí devolviéndolos al revés a propósito.
     mockedServiceFindMany.mockResolvedValue([
-      { id: "svc_tratamiento", name: "Tratamiento capilar", durationMinutes: 45 },
+      {
+        id: "svc_tratamiento",
+        name: "Tratamiento capilar",
+        durationMinutes: 45,
+      },
       { id: "svc_corte", name: "Corte", durationMinutes: 30 },
     ] as any);
 
@@ -602,7 +683,9 @@ describe("executeVoiceTool book_appointment — varios servicios en la misma cit
 
     expect(result.result.success).toBe(true);
     expect(mockedBookAppointment).toHaveBeenCalledWith(
-      expect.objectContaining({ serviceNames: ["Corte", "Tratamiento capilar"] })
+      expect.objectContaining({
+        serviceNames: ["Corte", "Tratamiento capilar"],
+      })
     );
     // El nombre del cliente queda también en la reserva de BD — es lo que
     // find_my_appointment devuelve para poder recrear citas al mismo nombre.
@@ -614,7 +697,9 @@ describe("executeVoiceTool book_appointment — varios servicios en la misma cit
     );
     expect(mockedBookingUpsert).toHaveBeenCalledWith(
       expect.objectContaining({
-        create: expect.objectContaining({ serviceIds: ["svc_corte", "svc_tratamiento"] }),
+        create: expect.objectContaining({
+          serviceIds: ["svc_corte", "svc_tratamiento"],
+        }),
       })
     );
   });
@@ -642,7 +727,9 @@ describe("executeVoiceTool book_appointment — varios servicios en la misma cit
   });
 
   it("no intenta enviar SMS si el negocio todavía no tiene número Telnyx propio", async () => {
-    mockedBusinessFindUnique.mockResolvedValue(buildBusiness({ telnyxPhoneNumber: null }) as any);
+    mockedBusinessFindUnique.mockResolvedValue(
+      buildBusiness({ telnyxPhoneNumber: null }) as any
+    );
 
     const result = await executeVoiceTool(buildBookAppointmentInput());
 
@@ -667,10 +754,20 @@ describe("executeVoiceTool book_appointment — consentimiento SMS al cliente", 
     vi.clearAllMocks();
     clearWhatsappEnv();
     mockedBusinessFindUnique.mockResolvedValue(buildBusiness() as any);
-    mockedCheckBusinessHours.mockReturnValue({ success: true, isOpen: true } as any);
-    mockedBookAppointment.mockResolvedValue({ htmlLink: "https://calendar.google.com/event/1" } as any);
-    mockedGetBusyIntervals.mockResolvedValue({ intervals: [], calendarAvailabilityKnown: true } as any);
-    mockedProfessionalFindFirst.mockResolvedValue({ id: "professional_123" } as any);
+    mockedCheckBusinessHours.mockReturnValue({
+      success: true,
+      isOpen: true,
+    } as any);
+    mockedBookAppointment.mockResolvedValue({
+      htmlLink: "https://calendar.google.com/event/1",
+    } as any);
+    mockedGetBusyIntervals.mockResolvedValue({
+      intervals: [],
+      calendarAvailabilityKnown: true,
+    } as any);
+    mockedProfessionalFindFirst.mockResolvedValue({
+      id: "professional_123",
+    } as any);
     mockedProfessionalFindMany.mockResolvedValue([]);
     mockedServiceFindMany.mockResolvedValue([]);
     mockedCheckAvailability.mockResolvedValue({
@@ -680,10 +777,15 @@ describe("executeVoiceTool book_appointment — consentimiento SMS al cliente", 
       capacityTotal: 1,
       availableProfessionals: [{ id: "professional_123", name: "Ana" }],
     } as any);
-    mockedCallFindUnique.mockResolvedValue({ id: "call_row_1", fromNumber: "+34600999888", businessId: "business_123" } as any);
-    // Se reutiliza para la comprobación de idempotencia (sin externalEventId,
-    // así que no la dispara) y para resolver el id de Booking recién creado.
+    mockedCallFindUnique.mockResolvedValue({
+      id: "call_row_1",
+      fromNumber: "+34600999888",
+      businessId: "business_123",
+    } as any);
+    // Sin externalEventId: la comprobación de idempotencia no se dispara.
     mockedBookingFindUnique.mockResolvedValue({ id: "booking_1" } as any);
+    // El id de la reserva sale del propio upsert (antes se releía).
+    mockedBookingUpsert.mockResolvedValue({ id: "booking_1" } as any);
     mockedEnqueueSmsJob.mockResolvedValue(undefined);
   });
 
@@ -703,7 +805,9 @@ describe("executeVoiceTool book_appointment — consentimiento SMS al cliente", 
 
     expect(result.result.success).toBe(true);
     expect(mockedBookingUpsert).toHaveBeenCalledWith(
-      expect.objectContaining({ create: expect.objectContaining({ smsConsent: true }) })
+      expect.objectContaining({
+        create: expect.objectContaining({ smsConsent: true }),
+      })
     );
     expect(mockedEnqueueSmsJob).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -732,12 +836,18 @@ describe("executeVoiceTool book_appointment — consentimiento SMS al cliente", 
       );
 
       expect(mockedEnqueueSmsJob).toHaveBeenCalledWith(
-        expect.objectContaining({ fromNumber: "ALHABLA", toNumber: "+34600999888" }),
+        expect.objectContaining({
+          fromNumber: "ALHABLA",
+          toNumber: "+34600999888",
+        }),
         expect.anything()
       );
       // El aviso al propietario también debe usar el Sender ID, no el número.
       expect(mockedEnqueueSmsJob).toHaveBeenCalledWith(
-        expect.objectContaining({ fromNumber: "ALHABLA", toNumber: "+34600111222" })
+        expect.objectContaining({
+          fromNumber: "ALHABLA",
+          toNumber: "+34600111222",
+        })
       );
     } finally {
       delete process.env.TELNYX_SMS_SENDER_ID;
@@ -760,7 +870,9 @@ describe("executeVoiceTool book_appointment — consentimiento SMS al cliente", 
 
     expect(result.result.success).toBe(true);
     expect(mockedBookingUpsert).toHaveBeenCalledWith(
-      expect.objectContaining({ create: expect.objectContaining({ smsConsent: false }) })
+      expect.objectContaining({
+        create: expect.objectContaining({ smsConsent: false }),
+      })
     );
     // El único SMS que se encola es el aviso al propietario (a business.phone).
     expect(mockedEnqueueSmsJob).toHaveBeenCalledTimes(1);
@@ -784,7 +896,9 @@ describe("executeVoiceTool book_appointment — consentimiento SMS al cliente", 
     );
 
     expect(mockedEnqueueSmsJob).toHaveBeenCalledWith(
-      expect.objectContaining({ text: expect.stringContaining("Recordatorio") }),
+      expect.objectContaining({
+        text: expect.stringContaining("Recordatorio"),
+      }),
       expect.objectContaining({
         taskId: "reminder-sms-booking_1",
         scheduleTime: expect.any(Date),
@@ -844,19 +958,43 @@ describe("executeVoiceTool book_appointment — consentimiento SMS al cliente", 
 describe("executeVoiceTool book_appointment — confirmación al cliente por WhatsApp", () => {
   const farFutureStart = new Date(Date.now() + 48 * 60 * 60_000).toISOString();
 
+  function reservar(params: Record<string, unknown> = {}) {
+    return executeVoiceTool(
+      buildBookAppointmentInput({
+        callId: "call_vapi_1",
+        params: {
+          clientName: "María",
+          startDateTime: farFutureStart,
+          durationMinutes: 30,
+          professionalId: "professional_123",
+          smsConsent: true,
+          ...params,
+        },
+      })
+    );
+  }
+
   beforeEach(() => {
     vi.clearAllMocks();
     process.env.WHATSAPP_TELNYX_FROM_NUMBER = "+34900000001";
     process.env.TELNYX_API_KEY = process.env.TELNYX_API_KEY || "test_key";
     process.env.TELNYX_MESSAGING_PROFILE_ID =
       process.env.TELNYX_MESSAGING_PROFILE_ID || "profile_test";
-    process.env.WHATSAPP_TEMPLATE_CONFIRMATION_NAME = "confirmacion_cita";
-    process.env.WHATSAPP_TEMPLATE_REMINDER_NAME = "recordatorio_cita";
     mockedBusinessFindUnique.mockResolvedValue(buildBusiness() as any);
-    mockedCheckBusinessHours.mockReturnValue({ success: true, isOpen: true } as any);
-    mockedBookAppointment.mockResolvedValue({ htmlLink: "https://calendar.google.com/event/1" } as any);
-    mockedGetBusyIntervals.mockResolvedValue({ intervals: [], calendarAvailabilityKnown: true } as any);
-    mockedProfessionalFindFirst.mockResolvedValue({ id: "professional_123" } as any);
+    mockedCheckBusinessHours.mockReturnValue({
+      success: true,
+      isOpen: true,
+    } as any);
+    mockedBookAppointment.mockResolvedValue({
+      htmlLink: "https://calendar.google.com/event/1",
+    } as any);
+    mockedGetBusyIntervals.mockResolvedValue({
+      intervals: [],
+      calendarAvailabilityKnown: true,
+    } as any);
+    mockedProfessionalFindFirst.mockResolvedValue({
+      id: "professional_123",
+    } as any);
     mockedProfessionalFindMany.mockResolvedValue([]);
     mockedServiceFindMany.mockResolvedValue([]);
     mockedCheckAvailability.mockResolvedValue({
@@ -866,107 +1004,207 @@ describe("executeVoiceTool book_appointment — confirmación al cliente por Wha
       capacityTotal: 1,
       availableProfessionals: [{ id: "professional_123", name: "Ana" }],
     } as any);
-    mockedCallFindUnique.mockResolvedValue({ id: "call_row_1", fromNumber: "+34600999888", businessId: "business_123" } as any);
-    mockedBookingFindUnique.mockResolvedValue({ id: "booking_1" } as any);
+    mockedCallFindUnique.mockResolvedValue({
+      id: "call_row_1",
+      fromNumber: "+34600999888",
+      businessId: "business_123",
+    } as any);
+    mockedBookingFindUnique.mockResolvedValue(null);
+    mockedBookingUpsert.mockResolvedValue({ id: "booking_1" } as any);
     mockedEnqueueSmsJob.mockResolvedValue(undefined);
-    mockedEnqueueWhatsappJob.mockResolvedValue(undefined);
+    mockedProgramarMensajes.mockResolvedValue({ confirmacion: "programada" });
   });
 
   afterEach(() => {
     clearWhatsappEnv();
   });
 
-  it("confirma por WhatsApp en vez de SMS cuando está configurado, pero el aviso al propietario sigue por SMS", async () => {
-    await executeVoiceTool(
-      buildBookAppointmentInput({
-        callId: "call_vapi_1",
-        params: {
-          clientName: "María",
-          startDateTime: farFutureStart,
-          durationMinutes: 30,
-          professionalId: "professional_123",
+  it("book_appointment escribe createdVia voice en create, resetea la cancelación en update, programa los mensajes por WhatsApp con el bookingId y devuelve mensajeCliente whatsapp", async () => {
+    const result = await reservar();
+
+    expect(result.result.success).toBe(true);
+    expect(result.result.mensajeCliente).toBe("whatsapp");
+    expect(mockedBookingUpsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        create: expect.objectContaining({
+          createdVia: "voice",
           smsConsent: true,
-        },
+        }),
+        update: expect.objectContaining({
+          isCancelled: false,
+          cancelledAt: null,
+          cancelledBy: null,
+        }),
       })
     );
-
-    expect(mockedEnqueueWhatsappJob).toHaveBeenCalledWith(
-      expect.objectContaining({
-        toNumber: "+34600999888",
-        templateName: "confirmacion_cita",
-        languageCode: "es",
-        // Atribución del envío (SentMessage) y número de Alhabla por el que
-        // sale: al cliente siempre por el de clientes.
-        businessId: expect.any(String),
-        audience: "client",
-      }),
-      { taskId: "confirm-sms-booking_1" }
-    );
-    // El aviso al propietario nunca pasa por WhatsApp, solo la confirmación
-    // y el recordatorio al cliente.
+    expect(mockedProgramarMensajes).toHaveBeenCalledWith({
+      bookingId: "booking_1",
+      etiqueta: expect.any(String),
+    });
+    // Ningún SMS al cliente: el único SMS es el aviso al propietario.
     expect(mockedEnqueueSmsJob).toHaveBeenCalledTimes(1);
     expect(mockedEnqueueSmsJob).toHaveBeenCalledWith(
       expect.objectContaining({ toNumber: "+34600111222" })
     );
   });
 
-  it("programa el recordatorio por WhatsApp con el nombre de plantilla correcto", async () => {
-    await executeVoiceTool(
-      buildBookAppointmentInput({
-        callId: "call_vapi_1",
-        params: {
-          clientName: "María",
-          startDateTime: farFutureStart,
-          durationMinutes: 30,
-          professionalId: "professional_123",
-          smsConsent: true,
-        },
-      })
-    );
+  it("devuelve mensajeCliente ninguno si la confirmación no queda programada (sin consentimiento, STOP, fallo al encolar)", async () => {
+    mockedProgramarMensajes.mockResolvedValue({
+      confirmacion: "no",
+      motivo: "sin consentimiento",
+    });
 
-    expect(mockedEnqueueWhatsappJob).toHaveBeenCalledWith(
-      expect.objectContaining({ templateName: "recordatorio_cita" }),
-      expect.objectContaining({ taskId: "reminder-sms-booking_1", scheduleTime: expect.any(Date) })
+    const result = await reservar({ smsConsent: false });
+
+    expect(result.result.success).toBe(true);
+    expect(result.result.mensajeCliente).toBe("ninguno");
+    // La decisión (consentimiento, baja, número) es de programarMensajesAlCliente.
+    expect(mockedProgramarMensajes).toHaveBeenCalledWith(
+      expect.objectContaining({ bookingId: "booking_1" })
     );
   });
 
-  it("cae a SMS solo para la confirmación si falta el nombre de esa plantilla, sin afectar al recordatorio", async () => {
-    delete process.env.WHATSAPP_TEMPLATE_CONFIRMATION_NAME;
+  it("sin WhatsApp configurado cae a SMS para el cliente y devuelve mensajeCliente ninguno", async () => {
+    clearWhatsappEnv();
 
-    await executeVoiceTool(
-      buildBookAppointmentInput({
-        callId: "call_vapi_1",
-        params: {
-          clientName: "María",
-          startDateTime: farFutureStart,
-          durationMinutes: 30,
-          professionalId: "professional_123",
-          smsConsent: true,
-        },
+    const result = await reservar();
+
+    expect(result.result.mensajeCliente).toBe("ninguno");
+    expect(mockedProgramarMensajes).not.toHaveBeenCalled();
+    expect(mockedEnqueueSmsJob).toHaveBeenCalledWith(
+      expect.objectContaining({
+        toNumber: "+34600999888",
+        text: expect.stringContaining("confirmada"),
+      }),
+      { taskId: "confirm-sms-booking_1" }
+    );
+  });
+
+  it("volver a reservar tras cancelar en la misma llamada reactiva la reserva", async () => {
+    // La reserva previa de esta llamada quedó cancelada por voz; el upsert
+    // por callId la sobrescribe y su `update` limpia la cancelación, así el
+    // job de confirmación no la descarta por RESERVA_CANCELADA.
+    mockedBookingFindUnique.mockResolvedValue({
+      externalEventId: null,
+      externalCalendarProvider: "google",
+      externalCalendarId: "primary",
+      programedAt: new Date(farFutureStart),
+      durationMinutes: 30,
+      isCancelled: true,
+    } as any);
+
+    const result = await reservar();
+
+    expect(result.result.success).toBe(true);
+    expect(mockedBookingUpsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { callId: "call_row_1" },
+        update: expect.objectContaining({
+          isCancelled: false,
+          cancelledBy: null,
+        }),
       })
     );
+    expect(mockedProgramarMensajes).toHaveBeenCalledWith(
+      expect.objectContaining({ bookingId: "booking_1" })
+    );
+  });
 
-    expect(mockedEnqueueWhatsappJob).not.toHaveBeenCalledWith(
-      expect.anything(),
-      { taskId: "confirm-sms-booking_1" }
+  it("cancelar y volver a reservar la MISMA hora en la misma llamada no toma el atajo idempotente: crea evento nuevo con otra clave, reactiva la fila y devuelve mensajeCliente whatsapp", async () => {
+    // La reserva cancelada conserva externalEventId (cancelarReserva no lo
+    // limpia) y la misma hora/duración: antes se devolvía «Cita agendada»
+    // sin evento ni reactivación.
+    // La tool normaliza la hora a la zona del negocio antes de comparar y
+    // de calcular la clave: la reserva previa debe llevar ESA hora.
+    const startNormalizado = normalizeVoiceToolDateTime(
+      farFutureStart,
+      "Europe/Madrid"
     );
-    expect(mockedEnqueueSmsJob).toHaveBeenCalledWith(
-      expect.objectContaining({ toNumber: "+34600999888", text: expect.stringContaining("confirmada") }),
-      { taskId: "confirm-sms-booking_1" }
+    const cancelledAt = new Date(Date.now() - 60_000);
+    mockedBookingFindUnique.mockResolvedValue({
+      id: "booking_1",
+      externalEventId: "evt_1",
+      externalCalendarProvider: "google",
+      externalCalendarId: "primary",
+      programedAt: new Date(startNormalizado),
+      durationMinutes: 30,
+      isCancelled: true,
+      cancelledAt,
+    } as any);
+
+    const result = await reservar();
+
+    expect(result.result.success).toBe(true);
+    expect(result.result.mensajeCliente).toBe("whatsapp");
+    expect(mockedBookAppointment).toHaveBeenCalledTimes(1);
+    const clave = (mockedBookAppointment.mock.calls[0][0] as any)
+      .idempotencyKey as string;
+    // Distinta de la del evento borrado (Google devolvería ese evento
+    // cancelado como éxito ante un 409 con la misma clave).
+    expect(clave).not.toBe(
+      buildCalendarIdempotencyKey({
+        callId: "call_row_1",
+        startDateTime: startNormalizado,
+        durationMinutes: 30,
+      })
     );
-    // El recordatorio sí tiene su plantilla configurada — no debe verse afectado.
-    expect(mockedEnqueueWhatsappJob).toHaveBeenCalledWith(
-      expect.objectContaining({ templateName: "recordatorio_cita" }),
-      expect.objectContaining({ taskId: "reminder-sms-booking_1" })
+    expect(clave).toBe(
+      buildCalendarIdempotencyKey({
+        callId: "call_row_1",
+        startDateTime: startNormalizado,
+        durationMinutes: 30,
+        distintivo: `reactivada:${cancelledAt.getTime()}`,
+      })
     );
+    expect(mockedBookingUpsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { callId: "call_row_1" },
+        update: expect.objectContaining({
+          isCancelled: false,
+          cancelledAt: null,
+          cancelledBy: null,
+        }),
+      })
+    );
+    // El evento viejo ya lo borró cancelarReserva: no se intenta otra vez.
+    expect(mockedCancelAppointment).not.toHaveBeenCalled();
+    expect(mockedProgramarMensajes).toHaveBeenCalledWith(
+      expect.objectContaining({ bookingId: "booking_1" })
+    );
+  });
+
+  it("un reintento del tool call con la reserva VIVA y el mismo evento sigue tomando el atajo (sin segundo evento)", async () => {
+    mockedBookingFindUnique.mockResolvedValue({
+      id: "booking_1",
+      externalEventId: "evt_1",
+      externalCalendarProvider: "google",
+      externalCalendarId: "primary",
+      programedAt: new Date(
+        normalizeVoiceToolDateTime(farFutureStart, "Europe/Madrid")
+      ),
+      durationMinutes: 30,
+      isCancelled: false,
+      cancelledAt: null,
+    } as any);
+
+    const result = await reservar();
+
+    expect(result.result.success).toBe(true);
+    expect(mockedBookAppointment).not.toHaveBeenCalled();
+    expect(mockedBookingUpsert).not.toHaveBeenCalled();
   });
 });
 
 describe("executeVoiceTool book_appointment — estado de la suscripción (hallazgo #9 de la auditoría)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockedCheckBusinessHours.mockReturnValue({ success: true, isOpen: true } as any);
-    mockedProfessionalFindFirst.mockResolvedValue({ id: "professional_123" } as any);
+    mockedCheckBusinessHours.mockReturnValue({
+      success: true,
+      isOpen: true,
+    } as any);
+    mockedProfessionalFindFirst.mockResolvedValue({
+      id: "professional_123",
+    } as any);
     mockedServiceFindMany.mockResolvedValue([]);
     mockedCheckAvailability.mockResolvedValue({
       available: true,
@@ -976,7 +1214,10 @@ describe("executeVoiceTool book_appointment — estado de la suscripción (halla
       availableProfessionals: [{ id: "professional_123", name: "Ana" }],
     } as any);
     mockedBookingFindUnique.mockResolvedValue(null);
-    mockedGetBusyIntervals.mockResolvedValue({ intervals: [], calendarAvailabilityKnown: true } as any);
+    mockedGetBusyIntervals.mockResolvedValue({
+      intervals: [],
+      calendarAvailabilityKnown: true,
+    } as any);
     mockedEnqueueSmsJob.mockResolvedValue(undefined);
   });
 
@@ -1014,7 +1255,11 @@ describe("executeVoiceTool find_my_appointment", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockedBusinessFindUnique.mockResolvedValue(buildBusiness() as any);
-    mockedCallFindUnique.mockResolvedValue({ id: "call_row_1", fromNumber: "+34600999888", businessId: "business_123" } as any);
+    mockedCallFindUnique.mockResolvedValue({
+      id: "call_row_1",
+      fromNumber: "+34600999888",
+      businessId: "business_123",
+    } as any);
   });
 
   it("encuentra la próxima cita con consentimiento asociada al número de quien llama", async () => {
@@ -1084,7 +1329,11 @@ describe("executeVoiceTool find_my_appointment", () => {
   });
 
   it("no busca nada si no se puede identificar el número de quien llama", async () => {
-    mockedCallFindUnique.mockResolvedValue({ id: "call_row_1", fromNumber: null, businessId: "business_123" } as any);
+    mockedCallFindUnique.mockResolvedValue({
+      id: "call_row_1",
+      fromNumber: null,
+      businessId: "business_123",
+    } as any);
 
     const result = await executeVoiceTool({
       businessId: "business_123",
@@ -1102,12 +1351,14 @@ describe("executeVoiceTool cancel_appointment", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockedBusinessFindUnique.mockResolvedValue(buildBusiness() as any);
-    mockedCallFindUnique.mockResolvedValue({ id: "call_row_1", fromNumber: "+34600999888", businessId: "business_123" } as any);
+    mockedCallFindUnique.mockResolvedValue({
+      id: "call_row_1",
+      fromNumber: "+34600999888",
+      businessId: "business_123",
+    } as any);
     mockedBookingUpdate.mockResolvedValue({} as any);
     mockedCancelAppointment.mockResolvedValue(undefined as any);
-    // Sin avisos de disponibilidad pendientes por defecto — los tests que
-    // los necesitan lo sobrescriben explícitamente.
-    mockedLeadFindMany.mockResolvedValue([]);
+    mockedCancelarReserva.mockResolvedValue({ resultado: "cancelada" });
   });
 
   function buildOwnedBooking(overrides: Record<string, unknown> = {}) {
@@ -1139,27 +1390,15 @@ describe("executeVoiceTool cancel_appointment", () => {
     });
 
     expect(result.result.success).toBe(true);
-    expect(mockedBookingUpdate).toHaveBeenCalledWith({
-      where: { id: "booking_1" },
-      data: {
-        isCancelled: true,
-        cancelledAt: expect.any(Date),
-        cancelledBy: "client_voice",
-      },
+    // Cancelación en BD, evento externo, aviso #4 y lista de espera: todo
+    // en cancelarReserva (compartido con el botón «Cancelar» de WhatsApp).
+    expect(mockedCancelarReserva).toHaveBeenCalledWith({
+      bookingId: "booking_1",
+      businessId: "business_123",
+      cancelledBy: "client_voice",
+      etiqueta: expect.any(String),
     });
-    // Aviso #4 al dueño por WhatsApp con los datos de la cita cancelada.
-    expect(avisarCancelacion).toHaveBeenCalledWith(
-      expect.objectContaining({
-        businessId: "business_123",
-        bookingId: "booking_1",
-      })
-    );
-    expect(mockedCancelAppointment).toHaveBeenCalledWith(
-      expect.objectContaining({
-        conexion: expect.objectContaining({ provider: "google" }),
-        eventId: "evt_1",
-      })
-    );
+    expect(mockedBookingUpdate).not.toHaveBeenCalled();
   });
 
   it("no cancela ni revela la cita si el número de quien llama no coincide", async () => {
@@ -1176,13 +1415,15 @@ describe("executeVoiceTool cancel_appointment", () => {
 
     expect(result.result.success).toBe(false);
     expect(result.result.code).toBe("APPOINTMENT_NOT_FOUND");
-    expect(mockedBookingUpdate).not.toHaveBeenCalled();
+    expect(mockedCancelarReserva).not.toHaveBeenCalled();
   });
 
   it("cancela aunque la reserva no tenga consentimiento de mensajería, si el número coincide", async () => {
     // El consentimiento de WhatsApp/SMS no es una credencial: quien llama
     // desde el número de la reserva es su titular igualmente.
-    mockedBookingFindFirst.mockResolvedValue(buildOwnedBooking({ smsConsent: false }) as any);
+    mockedBookingFindFirst.mockResolvedValue(
+      buildOwnedBooking({ smsConsent: false }) as any
+    );
 
     const result = await executeVoiceTool({
       businessId: "business_123",
@@ -1192,7 +1433,9 @@ describe("executeVoiceTool cancel_appointment", () => {
     });
 
     expect(result.result.success).toBe(true);
-    expect(mockedBookingUpdate).toHaveBeenCalled();
+    expect(mockedCancelarReserva).toHaveBeenCalledWith(
+      expect.objectContaining({ cancelledBy: "client_voice" })
+    );
   });
 
   it("no cancela si el número de quien llama no es el de la reserva", async () => {
@@ -1208,11 +1451,13 @@ describe("executeVoiceTool cancel_appointment", () => {
     });
 
     expect(result.result.success).toBe(false);
-    expect(mockedBookingUpdate).not.toHaveBeenCalled();
+    expect(mockedCancelarReserva).not.toHaveBeenCalled();
   });
 
   it("responde con éxito idempotente si la cita ya estaba cancelada", async () => {
-    mockedBookingFindFirst.mockResolvedValue(buildOwnedBooking({ isCancelled: true }) as any);
+    mockedBookingFindFirst.mockResolvedValue(
+      buildOwnedBooking({ isCancelled: true }) as any
+    );
 
     const result = await executeVoiceTool({
       businessId: "business_123",
@@ -1222,12 +1467,15 @@ describe("executeVoiceTool cancel_appointment", () => {
     });
 
     expect(result.result.success).toBe(true);
-    expect(mockedBookingUpdate).not.toHaveBeenCalled();
+    expect(result.result.message).toBe("Esa cita ya estaba cancelada.");
+    expect(mockedCancelarReserva).not.toHaveBeenCalled();
   });
 
   it("cancela en BD aunque falle el borrado del evento externo", async () => {
+    // El borrado del evento es best-effort dentro de cancelarReserva: la
+    // tool sigue respondiendo éxito con lo que devuelva.
     mockedBookingFindFirst.mockResolvedValue(buildOwnedBooking() as any);
-    mockedCancelAppointment.mockRejectedValueOnce(new Error("Google no responde"));
+    mockedCancelarReserva.mockResolvedValue({ resultado: "cancelada" });
 
     const result = await executeVoiceTool({
       businessId: "business_123",
@@ -1237,56 +1485,20 @@ describe("executeVoiceTool cancel_appointment", () => {
     });
 
     expect(result.result.success).toBe(true);
-    expect(mockedBookingUpdate).toHaveBeenCalled();
+    expect(result.result.message).toBe("Cita cancelada correctamente.");
   });
 
-  describe("avisos de disponibilidad pendientes (notify_when_available)", () => {
+  describe("delegación en cancelarReserva (lista de espera y aviso #4 viven allí)", () => {
     beforeEach(() => {
-      process.env.WHATSAPP_TELNYX_FROM_NUMBER = "+34900000001";
-      process.env.TELNYX_API_KEY = process.env.TELNYX_API_KEY || "test_key";
-      process.env.TELNYX_MESSAGING_PROFILE_ID =
-        process.env.TELNYX_MESSAGING_PROFILE_ID || "profile_test";
-      process.env.WHATSAPP_TEMPLATE_SLOT_AVAILABLE_NAME = "hora_libre";
-      // La cita cancelada ocupa exactamente la hora que el otro cliente
-      // esperaba: solo los avisos que pisan el hueco liberado se comprueban.
       mockedBookingFindFirst.mockResolvedValue(
         buildOwnedBooking({
           programedAt: new Date(Date.now() + 24 * 60 * 60_000),
           durationMinutes: 30,
         }) as any
       );
-      mockedEnqueueWhatsappJob.mockResolvedValue(undefined);
     });
 
-    afterEach(() => {
-      clearWhatsappEnv();
-      delete process.env.WHATSAPP_TEMPLATE_SLOT_AVAILABLE_NAME;
-    });
-
-    it("al liberarse un hueco por cancelación, avisa por WhatsApp al aviso pendiente y lo marca resuelto", async () => {
-      const desiredStart = new Date(Date.now() + 24 * 60 * 60_000).toISOString();
-      mockedLeadFindMany.mockResolvedValue([
-        {
-          id: "lead_1",
-          data: {
-            clientPhone: "+34611222333",
-            startDateTime: desiredStart,
-            durationMinutes: 30,
-            serviceIds: [],
-            professionalId: null,
-          },
-        },
-      ] as any);
-      mockedCheckAvailability.mockResolvedValue({
-        available: true,
-        message: "",
-        capacityUsed: 0,
-        capacityTotal: 1,
-        availableProfessionals: [{ id: "professional_123", name: "Ana" }],
-      } as any);
-      mockedGetBusyIntervals.mockResolvedValue({ intervals: [], calendarAvailabilityKnown: true } as any);
-      mockedLeadUpdate.mockResolvedValue({} as any);
-
+    it("cancel_appointment conserva la titularidad por fromNumber y delega en cancelarReserva con client_voice", async () => {
       await executeVoiceTool({
         businessId: "business_123",
         toolName: "cancel_appointment",
@@ -1294,76 +1506,47 @@ describe("executeVoiceTool cancel_appointment", () => {
         callId: "call_vapi_1",
       });
 
-      expect(mockedEnqueueWhatsappJob).toHaveBeenCalledWith(
+      expect(mockedCancelarReserva).toHaveBeenCalledTimes(1);
+      expect(mockedCancelarReserva).toHaveBeenCalledWith(
         expect.objectContaining({
-          toNumber: "+34611222333",
-          templateName: "hora_libre",
+          bookingId: "booking_1",
+          businessId: "business_123",
+          cancelledBy: "client_voice",
         })
       );
-      expect(mockedLeadUpdate).toHaveBeenCalledWith(
-        expect.objectContaining({ where: { id: "lead_1" } })
-      );
+      // Ni el evento ni la reserva se tocan desde la tool: es cancelarReserva.
+      expect(mockedCancelAppointment).not.toHaveBeenCalled();
+      expect(mockedBookingUpdate).not.toHaveBeenCalled();
     });
 
-    it("no consulta el calendario por avisos de otra hora distinta a la liberada", async () => {
-      // Aviso para pasado mañana; la cita cancelada es de mañana.
-      const otraHora = new Date(Date.now() + 48 * 60 * 60_000).toISOString();
-      mockedLeadFindMany.mockResolvedValue([
-        {
-          id: "lead_otro",
-          data: {
-            clientPhone: "+34611222333",
-            startDateTime: otraHora,
-            durationMinutes: 30,
-            serviceIds: [],
-            professionalId: null,
-          },
-        },
-      ] as any);
+    it("si cancelarReserva devuelve ya_cancelada (carrera con otro toque) responde que ya estaba cancelada", async () => {
+      mockedCancelarReserva.mockResolvedValue({ resultado: "ya_cancelada" });
 
-      await executeVoiceTool({
+      const result = await executeVoiceTool({
         businessId: "business_123",
         toolName: "cancel_appointment",
         params: { bookingId: "booking_1" },
         callId: "call_vapi_1",
       });
 
-      // Ni una llamada al calendario externo: el cliente está al teléfono
-      // esperando a que se le confirme la cancelación.
-      expect(mockedGetBusyIntervals).not.toHaveBeenCalled();
-      expect(mockedEnqueueWhatsappJob).not.toHaveBeenCalled();
+      expect(result.result).toEqual({
+        success: true,
+        message: "Esa cita ya estaba cancelada.",
+      });
     });
 
-    it("no avisa ni marca resuelto si la hora pedida sigue sin estar disponible", async () => {
-      const desiredStart = new Date(Date.now() + 24 * 60 * 60_000).toISOString();
-      mockedLeadFindMany.mockResolvedValue([
-        {
-          id: "lead_1",
-          data: {
-            clientPhone: "+34611222333",
-            startDateTime: desiredStart,
-            durationMinutes: 30,
-            serviceIds: [],
-            professionalId: null,
-          },
-        },
-      ] as any);
-      mockedCheckAvailability.mockResolvedValue({
-        available: false,
-        code: "CAPACITY_REACHED",
-        message: "",
-      } as any);
-      mockedGetBusyIntervals.mockResolvedValue({ intervals: [], calendarAvailabilityKnown: true } as any);
+    it("si cancelarReserva no encuentra la reserva en el negocio responde APPOINTMENT_NOT_FOUND", async () => {
+      mockedCancelarReserva.mockResolvedValue({ resultado: "no_encontrada" });
 
-      await executeVoiceTool({
+      const result = await executeVoiceTool({
         businessId: "business_123",
         toolName: "cancel_appointment",
         params: { bookingId: "booking_1" },
         callId: "call_vapi_1",
       });
 
-      expect(mockedEnqueueWhatsappJob).not.toHaveBeenCalled();
-      expect(mockedLeadUpdate).not.toHaveBeenCalled();
+      expect(result.result.success).toBe(false);
+      expect(result.result.code).toBe("APPOINTMENT_NOT_FOUND");
     });
   });
 });
@@ -1372,7 +1555,11 @@ describe("executeVoiceTool notify_when_available", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockedBusinessFindUnique.mockResolvedValue(buildBusiness() as any);
-    mockedCallFindUnique.mockResolvedValue({ id: "call_row_1", fromNumber: "+34600999888", businessId: "business_123" } as any);
+    mockedCallFindUnique.mockResolvedValue({
+      id: "call_row_1",
+      fromNumber: "+34600999888",
+      businessId: "business_123",
+    } as any);
     mockedLeadCreate.mockResolvedValue({ id: "lead_new" } as any);
   });
 
@@ -1403,6 +1590,28 @@ describe("executeVoiceTool notify_when_available", () => {
     });
   });
 
+  it("notify_when_available guarda clientName saneado a 80 si viene", async () => {
+    const largo = `  Marta\n  ${"x".repeat(100)}`;
+
+    await executeVoiceTool({
+      businessId: "business_123",
+      toolName: "notify_when_available",
+      params: {
+        startDateTime: "2026-09-20T10:00:00+02:00",
+        durationMinutes: 30,
+        clientName: largo,
+      },
+      callId: "call_vapi_1",
+    });
+
+    const data = mockedLeadCreate.mock.calls[0][0].data.data as {
+      clientName: string;
+    };
+    expect(data.clientName).toHaveLength(80);
+    expect(data.clientName.startsWith("Marta x")).toBe(true);
+    expect(data.clientName).not.toContain("\n");
+  });
+
   it("rechaza si faltan datos de duración", async () => {
     const result = await executeVoiceTool({
       businessId: "business_123",
@@ -1417,12 +1626,19 @@ describe("executeVoiceTool notify_when_available", () => {
   });
 
   it("rechaza si no hay un número de quien llama al que avisar", async () => {
-    mockedCallFindUnique.mockResolvedValue({ id: "call_row_1", fromNumber: null, businessId: "business_123" } as any);
+    mockedCallFindUnique.mockResolvedValue({
+      id: "call_row_1",
+      fromNumber: null,
+      businessId: "business_123",
+    } as any);
 
     const result = await executeVoiceTool({
       businessId: "business_123",
       toolName: "notify_when_available",
-      params: { startDateTime: "2026-09-20T10:00:00+02:00", durationMinutes: 30 },
+      params: {
+        startDateTime: "2026-09-20T10:00:00+02:00",
+        durationMinutes: 30,
+      },
       callId: "call_vapi_1",
     });
 
@@ -1455,7 +1671,10 @@ describe("executeVoiceTool — recomendación de profesional", () => {
   function draftsGuardados() {
     return [...redisStore.entries()]
       .filter(([key]) => key.startsWith("availability_draft:"))
-      .map(([key, value]) => ({ token: key.replace("availability_draft:", ""), ...JSON.parse(value) }));
+      .map(([key, value]) => ({
+        token: key.replace("availability_draft:", ""),
+        ...JSON.parse(value),
+      }));
   }
 
   beforeEach(() => {
@@ -1463,21 +1682,33 @@ describe("executeVoiceTool — recomendación de profesional", () => {
     redisStore.clear();
     vi.mocked(getRedis).mockImplementation(() => redisMock as any);
     mockedBusinessFindUnique.mockResolvedValue(buildBusiness() as any);
-    mockedGetBusyIntervals.mockResolvedValue({ intervals: [], calendarAvailabilityKnown: true } as any);
+    mockedGetBusyIntervals.mockResolvedValue({
+      intervals: [],
+      calendarAvailabilityKnown: true,
+    } as any);
     // book_appointment suma la duración real de los servicios verificados.
-    mockedServiceFindMany.mockResolvedValue([{ id: "corte", name: "Corte", durationMinutes: 30 }] as any);
+    mockedServiceFindMany.mockResolvedValue([
+      { id: "corte", name: "Corte", durationMinutes: 30 },
+    ] as any);
     // Devuelve al profesional que se pide, como haría la BD.
     mockedProfessionalFindFirst.mockImplementation((async (args: any) => {
       const id = args?.where?.id;
       return id === "senior" ? { id, name: "Laura" } : { id, name: "Marta" };
     }) as any);
-    mockedCheckBusinessHours.mockReturnValue({ success: true, isOpen: true } as any);
-    mockedCallFindUnique.mockResolvedValue({ id: "call_123", businessId: "business_123" } as any);
+    mockedCheckBusinessHours.mockReturnValue({
+      success: true,
+      isOpen: true,
+    } as any);
+    mockedCallFindUnique.mockResolvedValue({
+      id: "call_123",
+      businessId: "business_123",
+    } as any);
     mockedBookingFindUnique.mockResolvedValue(null);
   });
 
   afterEach(() => {
-    if (fabricaOriginal) vi.mocked(getRedis).mockImplementation(fabricaOriginal);
+    if (fabricaOriginal)
+      vi.mocked(getRedis).mockImplementation(fabricaOriginal);
   });
 
   const disponibleConRecomendacion = {
@@ -1486,17 +1717,27 @@ describe("executeVoiceTool — recomendación de profesional", () => {
     capacityUsed: 0,
     capacityTotal: 2,
     availableProfessionals: [{ id: "aprendiz", name: "Marta" }],
-    recommendedProfessional: { professional: { id: "senior", name: "Laura" }, isSpecialist: true },
+    recommendedProfessional: {
+      professional: { id: "senior", name: "Laura" },
+      isSpecialist: true,
+    },
   };
 
   it("traduce la recomendación a algo que el agente pueda decir, con su token, y guarda la marca en el draft del pedido", async () => {
-    mockedCheckAvailability.mockResolvedValue(disponibleConRecomendacion as any);
+    mockedCheckAvailability.mockResolvedValue(
+      disponibleConRecomendacion as any
+    );
 
     const result = await executeVoiceTool({
       businessId: "business_123",
       toolName: "check_availability",
       callId: "call_123",
-      params: { startDateTime: "2026-08-25T17:00:00+02:00", durationMinutes: 30, serviceIds: ["corte"], professionalId: "aprendiz" },
+      params: {
+        startDateTime: "2026-08-25T17:00:00+02:00",
+        durationMinutes: 30,
+        serviceIds: ["corte"],
+        professionalId: "aprendiz",
+      },
     });
 
     expect(result.result.available).toBe(true);
@@ -1507,32 +1748,53 @@ describe("executeVoiceTool — recomendación de profesional", () => {
       instructions: expect.stringContaining("Propón UNA sola vez"),
     });
     expect(result.result.recommendation.instructions).toContain("Marta");
-    expect(result.result.recommendation.instructions).toContain("Laura es quien más hace este servicio");
+    expect(result.result.recommendation.instructions).toContain(
+      "Laura es quien más hace este servicio"
+    );
     // Los campos internos del ranking no llegan al LLM.
     expect(result.result).not.toHaveProperty("recommendedProfessional");
     expect(result.result).not.toHaveProperty("specialistIds");
 
     const drafts = draftsGuardados();
-    const delPedido = drafts.find((draft) => draft.token === result.result.availabilityToken);
-    const delRecomendado = drafts.find((draft) => draft.token === result.result.recommendation.availabilityToken);
+    const delPedido = drafts.find(
+      (draft) => draft.token === result.result.availabilityToken
+    );
+    const delRecomendado = drafts.find(
+      (draft) => draft.token === result.result.recommendation.availabilityToken
+    );
     expect(delPedido).toMatchObject({
       professionalId: "aprendiz",
       professionalRequested: true,
-      recommendationOffered: { professionalId: "senior", professionalName: "Laura", availabilityToken: delRecomendado?.token },
+      recommendationOffered: {
+        professionalId: "senior",
+        professionalName: "Laura",
+        availabilityToken: delRecomendado?.token,
+      },
     });
     // Quien acepta a Laura la quiere a ella: su token es filtro duro.
-    expect(delRecomendado).toMatchObject({ professionalId: "senior", professionalRequested: true });
+    expect(delRecomendado).toMatchObject({
+      professionalId: "senior",
+      professionalRequested: true,
+    });
     expect(delRecomendado).not.toHaveProperty("recommendationOffered");
   });
 
   it("si el cliente ya insistió (professionalConfirmed), no vuelve a proponer a nadie", async () => {
-    mockedCheckAvailability.mockResolvedValue(disponibleConRecomendacion as any);
+    mockedCheckAvailability.mockResolvedValue(
+      disponibleConRecomendacion as any
+    );
 
     const result = await executeVoiceTool({
       businessId: "business_123",
       toolName: "check_availability",
       callId: "call_123",
-      params: { startDateTime: "2026-08-25T17:00:00+02:00", durationMinutes: 30, serviceIds: ["corte"], professionalId: "aprendiz", professionalConfirmed: true },
+      params: {
+        startDateTime: "2026-08-25T17:00:00+02:00",
+        durationMinutes: 30,
+        serviceIds: ["corte"],
+        professionalId: "aprendiz",
+        professionalConfirmed: true,
+      },
     });
 
     expect(result.result.available).toBe(true);
@@ -1545,21 +1807,35 @@ describe("executeVoiceTool — recomendación de profesional", () => {
     mockedCheckAvailability.mockResolvedValue({
       available: false,
       code: "ALL_PROFESSIONALS_BUSY",
-      message: "Todos los profesionales que pueden hacer este servicio están ocupados en ese horario.",
+      message:
+        "Todos los profesionales que pueden hacer este servicio están ocupados en ese horario.",
       suggestedNextSlot: null,
-      recommendedProfessional: { professional: { id: "senior", name: "Laura" }, isSpecialist: false },
+      recommendedProfessional: {
+        professional: { id: "senior", name: "Laura" },
+        isSpecialist: false,
+      },
     } as any);
 
     const result = await executeVoiceTool({
       businessId: "business_123",
       toolName: "check_availability",
       callId: "call_123",
-      params: { startDateTime: "2026-08-25T17:00:00+02:00", durationMinutes: 30, serviceIds: ["corte"], professionalId: "aprendiz" },
+      params: {
+        startDateTime: "2026-08-25T17:00:00+02:00",
+        durationMinutes: 30,
+        serviceIds: ["corte"],
+        professionalId: "aprendiz",
+      },
     });
 
     expect(result.result.available).toBe(false);
-    expect(result.result.recommendation.professional).toEqual({ id: "senior", name: "Laura" });
-    expect(result.result.recommendation.instructions).toContain("Laura es la persona más indicada");
+    expect(result.result.recommendation.professional).toEqual({
+      id: "senior",
+      name: "Laura",
+    });
+    expect(result.result.recommendation.instructions).toContain(
+      "Laura es la persona más indicada"
+    );
   });
 
   it("sin profesional pedido, dice con quién queda la cita y si es especialista", async () => {
@@ -1568,7 +1844,10 @@ describe("executeVoiceTool — recomendación de profesional", () => {
       message: "Hay 2 profesionales libres y quedan 2 plazas disponibles.",
       capacityUsed: 0,
       capacityTotal: 2,
-      availableProfessionals: [{ id: "senior", name: "Laura" }, { id: "normal", name: "Pedro" }],
+      availableProfessionals: [
+        { id: "senior", name: "Laura" },
+        { id: "normal", name: "Pedro" },
+      ],
       specialistIds: ["senior"],
     } as any);
 
@@ -1576,13 +1855,24 @@ describe("executeVoiceTool — recomendación de profesional", () => {
       businessId: "business_123",
       toolName: "check_availability",
       callId: "call_123",
-      params: { startDateTime: "2026-08-25T17:00:00+02:00", durationMinutes: 30, serviceIds: ["corte"] },
+      params: {
+        startDateTime: "2026-08-25T17:00:00+02:00",
+        durationMinutes: 30,
+        serviceIds: ["corte"],
+      },
     });
 
-    expect(result.result.assignedProfessional).toEqual({ id: "senior", name: "Laura", isSpecialist: true });
+    expect(result.result.assignedProfessional).toEqual({
+      id: "senior",
+      name: "Laura",
+      isSpecialist: true,
+    });
     expect(result.result).not.toHaveProperty("recommendation");
     expect(result.result).not.toHaveProperty("specialistIds");
-    expect(draftsGuardados()[0]).toMatchObject({ professionalId: "senior", professionalRequested: false });
+    expect(draftsGuardados()[0]).toMatchObject({
+      professionalId: "senior",
+      professionalRequested: false,
+    });
   });
 
   it("book_appointment frena una vez si hubo recomendación y el cliente no ha insistido", async () => {
@@ -1596,7 +1886,11 @@ describe("executeVoiceTool — recomendación de profesional", () => {
         serviceIds: ["corte"],
         professionalId: "aprendiz",
         professionalRequested: true,
-        recommendationOffered: { professionalId: "senior", professionalName: "Laura", availabilityToken: "token-laura" },
+        recommendationOffered: {
+          professionalId: "senior",
+          professionalName: "Laura",
+          availabilityToken: "token-laura",
+        },
       })
     );
 
@@ -1610,7 +1904,10 @@ describe("executeVoiceTool — recomendación de profesional", () => {
     expect(result.result).toMatchObject({
       success: false,
       code: "PROFESSIONAL_CONFIRMATION_REQUIRED",
-      recommendation: { professional: { id: "senior", name: "Laura" }, availabilityToken: "token-laura" },
+      recommendation: {
+        professional: { id: "senior", name: "Laura" },
+        availabilityToken: "token-laura",
+      },
     });
     expect(result.result.message).toContain("professionalConfirmed: true");
     expect(mockedCheckAvailability).not.toHaveBeenCalled();
@@ -1627,7 +1924,11 @@ describe("executeVoiceTool — recomendación de profesional", () => {
         serviceIds: ["corte"],
         professionalId: "aprendiz",
         professionalRequested: true,
-        recommendationOffered: { professionalId: "senior", professionalName: "Laura", availabilityToken: "token-laura" },
+        recommendationOffered: {
+          professionalId: "senior",
+          professionalName: "Laura",
+          availabilityToken: "token-laura",
+        },
       })
     );
     mockedCheckAvailability.mockResolvedValue({
@@ -1640,13 +1941,19 @@ describe("executeVoiceTool — recomendación de profesional", () => {
       businessId: "business_123",
       toolName: "book_appointment",
       callId: "call_123",
-      params: { clientName: "María", availabilityToken: "token-marta", professionalConfirmed: true },
+      params: {
+        clientName: "María",
+        availabilityToken: "token-marta",
+        professionalConfirmed: true,
+      },
     });
 
     // Ha pasado la puerta: la reserva sigue su curso normal (aquí se frena por
     // el mock de disponibilidad, no por la recomendación).
     expect(result.result.code).not.toBe("PROFESSIONAL_CONFIRMATION_REQUIRED");
-    expect(mockedCheckAvailability).toHaveBeenCalledWith(expect.objectContaining({ professionalId: "aprendiz" }));
+    expect(mockedCheckAvailability).toHaveBeenCalledWith(
+      expect.objectContaining({ professionalId: "aprendiz" })
+    );
   });
 
   it("el token de la persona recomendada reserva sin frenar: el cliente la aceptó", async () => {
@@ -1662,7 +1969,11 @@ describe("executeVoiceTool — recomendación de profesional", () => {
         professionalRequested: true,
       })
     );
-    mockedCheckAvailability.mockResolvedValue({ available: false, code: "ALL_PROFESSIONALS_BUSY", message: "ocupado" } as any);
+    mockedCheckAvailability.mockResolvedValue({
+      available: false,
+      code: "ALL_PROFESSIONALS_BUSY",
+      message: "ocupado",
+    } as any);
 
     const result = await executeVoiceTool({
       businessId: "business_123",
@@ -1672,6 +1983,8 @@ describe("executeVoiceTool — recomendación de profesional", () => {
     });
 
     expect(result.result.code).not.toBe("PROFESSIONAL_CONFIRMATION_REQUIRED");
-    expect(mockedCheckAvailability).toHaveBeenCalledWith(expect.objectContaining({ professionalId: "senior" }));
+    expect(mockedCheckAvailability).toHaveBeenCalledWith(
+      expect.objectContaining({ professionalId: "senior" })
+    );
   });
 });

@@ -3,10 +3,11 @@ import { prisma } from "../../src/lib/prisma.js";
 import { reclamarEnvio } from "../../src/lib/messageIdempotency.js";
 
 vi.mock("../../src/lib/prisma.js", () => ({
-  prisma: { sentMessage: { create: vi.fn() } },
+  prisma: { sentMessage: { create: vi.fn(), updateMany: vi.fn() } },
 }));
 
 const mockedCreate = vi.mocked(prisma.sentMessage.create);
+const mockedUpdateMany = vi.mocked(prisma.sentMessage.updateMany);
 
 describe("reclamarEnvio", () => {
   beforeEach(() => {
@@ -64,5 +65,58 @@ describe("reclamarEnvio", () => {
 
     logSpy.mockRestore();
     errorSpy.mockRestore();
+  });
+
+  it("reclamarEnvio con reintentarFallidos vuelve a reclamar una fila failed sin providerMessageId (la limpia y devuelve true) y no una queued/sent/suppressed ni una failed con providerMessageId", async () => {
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => undefined);
+    mockedCreate.mockRejectedValue({ code: "P2002" });
+
+    // El updateMany condicional es el que distingue los casos: solo la
+    // fila failed + providerMessageId null casa con el where.
+    mockedUpdateMany.mockResolvedValueOnce({ count: 1 });
+    expect(
+      await reclamarEnvio("whatsapp", "k", undefined, {
+        reintentarFallidos: true,
+      })
+    ).toBe(true);
+    expect(mockedUpdateMany).toHaveBeenCalledWith({
+      where: {
+        channel: "whatsapp",
+        idempotencyKey: "k",
+        deliveryStatus: "failed",
+        providerMessageId: null,
+      },
+      data: {
+        deliveryStatus: null,
+        errorCode: null,
+        errorDetail: null,
+        failedAt: null,
+        sentAt: expect.any(Date),
+      },
+    });
+    expect(logSpy).toHaveBeenCalledWith(
+      expect.stringContaining("había fallado; se vuelve a intentar")
+    );
+
+    // queued / sent / suppressed, o failed con providerMessageId: 0 filas.
+    mockedUpdateMany.mockResolvedValueOnce({ count: 0 });
+    expect(
+      await reclamarEnvio("whatsapp", "k", undefined, {
+        reintentarFallidos: true,
+      })
+    ).toBe(false);
+    logSpy.mockRestore();
+  });
+
+  it("reclamarEnvio sin la opción sigue devolviendo false ante cualquier fila existente, también failed", async () => {
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => undefined);
+    mockedCreate.mockRejectedValue({ code: "P2002" });
+
+    expect(await reclamarEnvio("whatsapp", "k")).toBe(false);
+    expect(await reclamarEnvio("whatsapp", "k", { audience: "owner" })).toBe(
+      false
+    );
+    expect(mockedUpdateMany).not.toHaveBeenCalled();
+    logSpy.mockRestore();
   });
 });

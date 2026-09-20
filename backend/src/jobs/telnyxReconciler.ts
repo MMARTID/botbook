@@ -4,6 +4,7 @@ import { syncAgentToTelnyx } from "../lib/telnyxAgentSync.js";
 import { sendZohoMail } from "../lib/zohoMail.js";
 import { errorMessage } from "../lib/logUtils.js";
 import { buildTelnyxAssistantName } from "../lib/telnyxAssistantPayload.js";
+import { refrescarPlantillasConClave } from "../modules/whatsapp/service.js";
 
 /**
  * Reconciliador diario Telnyx (PLAN-TELNYX-ORQUESTADOR.md Fase 6:
@@ -48,6 +49,19 @@ export async function telnyxReconcilerJob(): Promise<TelnyxReconcilerResult> {
     businessesWithSyncError: [],
     businessesWithRoutingInconsistency: [],
   };
+
+  // Barrido diario de plantillas de WhatsApp (PR 4): pone al día el estado
+  // de cada fila con `key` aunque el webhook `whatsapp.template.*` no llegue.
+  // Va antes del sync de assistants para que la aprobación de `hueco_libre`
+  // (gate de la frase de la lista de espera en el prompt) entre en este mismo
+  // ciclo. Nunca lanza; un fallo suyo no aborta la reconciliación.
+  try {
+    await refrescarPlantillasConClave();
+  } catch (error) {
+    console.error(
+      `[TelnyxReconciler] refrescarPlantillasConClave inesperado: ${errorMessage(error)}`
+    );
+  }
 
   // Con cota: el reconciliador habla con la API de Telnyx una vez por agente,
   // así que un parque grande desbordaría el plazo de la tarea. Los agentes que

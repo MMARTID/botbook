@@ -210,7 +210,9 @@ describe("WhatsApp entrante (integración)", () => {
         kind: "button",
         buttonId: "booking:b1:confirmo",
         contextMessageId: "msg-out-1",
-        handler: "pendiente:boton:booking",
+        // La fila del envío es `adhoc` (sin callbackData `cliente:*`): el
+        // botón se correlaciona pero no hay recurso sobre el que actuar.
+        handler: "cliente:boton:sin-callback",
       })
     );
     const actualizado = await prisma.sentMessage.findUniqueOrThrow({
@@ -360,6 +362,71 @@ describe("WhatsApp entrante (integración)", () => {
     expect(whatsappAdapter.sendText).toHaveBeenCalledTimes(1);
     expect(await prisma.sentMessage.count({ where: { toNumber: MOVIL } })).toBe(
       1
+    );
+  });
+
+  it("un botón de plantilla type: button con context.id acaba en handler cliente:confirmo", async () => {
+    const business = await createTestBusiness({
+      telnyxPhoneNumber: "+34930111222",
+    });
+    const call = await createTestCall(business.id, { fromNumber: MOVIL });
+    const booking = await prisma.booking.create({
+      data: {
+        callId: call.id,
+        programedAt: new Date(Date.now() + 3 * 86_400_000),
+        numberPeople: 1,
+        smsConsent: true,
+      },
+    });
+    await prisma.sentMessage.create({
+      data: {
+        channel: "whatsapp",
+        idempotencyKey: "booking-x-recordatorio-1",
+        providerMessageId: "msg-recordatorio",
+        businessId: business.id,
+        audience: "client",
+        toNumber: MOVIL,
+        kind: "template",
+        templateName: "recordatorio_cita_v2",
+        callbackData: `cliente:recordatorio:${booking.id}`,
+      },
+    });
+    const boton = {
+      id: "in-12",
+      from: MOVIL,
+      type: "button",
+      button: { payload: "Confirmo", text: "Confirmo" },
+      context: { from: CLIENTES.slice(1), id: "msg-recordatorio" },
+    };
+
+    expect(
+      await handleWhatsappMessages(eventoMensajes("evt-12", [boton]))
+    ).toEqual({ success: true });
+
+    const guardado = await prisma.inboundMessage.findUniqueOrThrow({
+      where: { providerMessageId: "in-12" },
+    });
+    expect(guardado).toEqual(
+      expect.objectContaining({
+        kind: "button",
+        buttonId: "Confirmo",
+        buttonTitle: "Confirmo",
+        contextMessageId: "msg-recordatorio",
+        audience: "client",
+        role: "client",
+        handler: "cliente:confirmo",
+      })
+    );
+    const confirmada = await prisma.booking.findUniqueOrThrow({
+      where: { id: booking.id },
+    });
+    expect(confirmada.confirmedByClientAt).not.toBeNull();
+    expect(whatsappAdapter.sendText).toHaveBeenCalledWith(
+      expect.objectContaining({
+        from: CLIENTES,
+        to: MOVIL,
+        body: expect.stringContaining("queda confirmada"),
+      })
     );
   });
 });
