@@ -36,6 +36,7 @@ import { botonEnClientes } from "./botonesCliente.js";
 import { conversarConRecepcionista } from "./chatCliente.js";
 import {
   anotarEnConversacionDelDueno,
+  botonesDeAccion,
   cerrarConversacionDelDueno,
   chatDelDuenoActivo,
   continuarTrasAccion,
@@ -43,7 +44,11 @@ import {
   gestorAssistantId,
   ofrecerPuestaEnMarcha,
 } from "./chatDueno.js";
-import { decidirPropuesta } from "../gestor/acciones.js";
+import {
+  decidirPropuesta,
+  registrarPropuesta,
+  type PropuestaSiguiente,
+} from "../gestor/acciones.js";
 import { avisarAQuienEsperaba } from "./listaDeEspera.js";
 import { nombreParaCliente, telefonoDeContacto } from "./mensajesCliente.js";
 import * as mensajes from "./mensajes.js";
@@ -711,6 +716,53 @@ async function botonEnNegocios(
 // ---------------------------------------------------------------------------
 
 /**
+ * Registra la propuesta que sigue a una acción ejecutada (avisar al
+ * cliente) y manda la pregunta con sus botones. Devuelve el id de la nueva
+ * propuesta, o null si no se pudo (entonces el turno de seguimiento del
+ * Gestor sigue como siempre). Best-effort: el «Hecho» ya salió.
+ */
+async function preguntarTrasAccion(input: {
+  message: InboundMessage;
+  businessId: string;
+  timezone: string;
+  accionId: string;
+  siguiente: PropuestaSiguiente;
+}): Promise<string | null> {
+  try {
+    const propuesta = await registrarPropuesta({
+      businessId: input.businessId,
+      timezone: input.timezone,
+      conversationId: null,
+      inboundMessageId: input.message.id,
+      tipo: input.siguiente.tipo,
+      parametros: input.siguiente.parametros,
+      resumen: input.siguiente.resumen,
+    });
+    if (!propuesta.ok) {
+      console.warn(
+        `[WhatsApp] Tras la acción ${input.accionId} del negocio ${input.businessId} no se pudo proponer ${input.siguiente.tipo}: ${propuesta.motivo}`
+      );
+      return null;
+    }
+    await responder(
+      input.message,
+      "accion-pregunta",
+      input.siguiente.pregunta,
+      {
+        businessId: input.businessId,
+        botones: botonesDeAccion(propuesta.accionId, input.siguiente.botones),
+      }
+    );
+    return propuesta.accionId;
+  } catch (error) {
+    console.error(
+      `[WhatsApp] Tras la acción ${input.accionId} del negocio ${input.businessId} falló la pregunta de ${input.siguiente.tipo}: ${errorMessage(error)}`
+    );
+    return null;
+  }
+}
+
+/**
  * «Confirmar» · «Cancelar» sobre una propuesta del Gestor
  * (`accion:<id>:confirmar|cancelar`). La propuesta tiene que ser de un
  * negocio cuyo móvil dado de alta es el que pulsa; el reclamo atómico vive
@@ -728,7 +780,7 @@ async function botonDeAccion(
   }
   const propuesta = await prisma.ownerPendingAction.findUnique({
     where: { id: accionId },
-    select: { businessId: true },
+    select: { businessId: true, tipo: true },
   }); // Mismas condiciones que para chatear: el móvil dado de alta, con el
   // consentimiento vigente (sin STOP) y con el Gestor encendido en el negocio.
   const business = propuesta
@@ -770,25 +822,42 @@ async function botonDeAccion(
     inboundMessageId: message.id,
   });
   switch (r.estado) {
-    case "ejecutada":
+    case "ejecutada": {
+      const enviada = await responder(
+        message,
+        "accion-ejecutada",
+        mensajes.accionEjecutada(r),
+        opciones
+      );
+      // «¿Le mando la confirmación?» (PR 4): la pregunta con botones sale
+      // del propio sistema, sin turno del Gestor, para que el dueño decida
+      // con un toque; el Gestor se entera por la nota.
+      const pregunta = r.siguiente
+        ? await preguntarTrasAccion({
+            message,
+            businessId: business.id,
+            timezone: business.timezone,
+            accionId,
+            siguiente: r.siguiente,
+          })
+        : null;
       await anotarEnConversacionDelDueno(
         business.id,
-        `El dueño pulsó Confirmar en la propuesta ${accionId} y se ejecutó. Resultado: ${r.nota ?? r.mensaje}`
+        `El dueño pulsó Confirmar en la propuesta ${accionId} y se ejecutó. Resultado: ${r.nota ?? r.mensaje}${
+          pregunta
+            ? ` A continuación el sistema le ha preguntado con botones: «${r.siguiente!.pregunta}» (propuesta ${pregunta}); no lo vuelvas a preguntar.`
+            : ""
+        }`
       );
-      {
-        const enviada = await responder(
-          message,
-          "accion-ejecutada",
-          mensajes.accionEjecutada(r),
-          opciones
-        );
+      if (!pregunta) {
         await continuarTrasAccion({
           message,
           businessId: business.id,
           resultado: "ejecutada",
         });
-        return resultado(base, enviada);
       }
+      return resultado(base, enviada);
+    }
     case "fallida":
       await anotarEnConversacionDelDueno(
         business.id,
@@ -808,25 +877,33 @@ async function botonDeAccion(
         });
         return resultado(`${base}:fallida`, enviada);
       }
-    case "rechazada":
+    case "rechazada": {
+      // «No» / «Le llamo yo» a la pregunta de avisar al cliente no es una
+      // propuesta rechazada que haya que rehacer: se cierra sin más.
+      const eraAviso = propuesta?.tipo === "avisar_cliente";
       await anotarEnConversacionDelDueno(
         business.id,
-        `El dueño pulsó Cancelar en la propuesta ${accionId}: no se hizo nada.`
+        eraAviso
+          ? `El dueño ha decidido no avisar al cliente por WhatsApp (propuesta ${accionId}); si acaso, le llama él. No hay nada más que hacer.`
+          : `El dueño pulsó Cancelar en la propuesta ${accionId}: no se hizo nada.`
       );
-      {
-        const enviada = await responder(
-          message,
-          "accion-rechazada",
-          mensajes.accionRechazada(),
-          opciones
-        );
+      const enviada = await responder(
+        message,
+        "accion-rechazada",
+        eraAviso
+          ? mensajes.avisoAlClienteDescartado()
+          : mensajes.accionRechazada(),
+        opciones
+      );
+      if (!eraAviso) {
         await continuarTrasAccion({
           message,
           businessId: business.id,
           resultado: "rechazada",
         });
-        return resultado(base, enviada);
       }
+      return resultado(base, enviada);
+    }
     case "caducada":
       return resultado(
         `${base}:caducada`,

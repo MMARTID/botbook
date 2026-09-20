@@ -27,6 +27,7 @@ import {
   parametrosHuecoLibre,
   parametrosRecordatorioV2,
   placeIdValido,
+  programarAvisoAlCliente,
   programarMensajesAlCliente,
   reiniciarAvisoDeIndiceUrl,
   sanearNombre,
@@ -574,6 +575,154 @@ describe("elegirPlantillaCliente", () => {
 // Programación
 // ---------------------------------------------------------------------------
 
+describe("cambio y cancelación (avisos que pide el dueño, fase 2 / PR 4)", () => {
+  it("elige cambio_cita_cliente (4 parámetros, la hora nueva) y cancelacion_cita_cliente (3), ambas con botones y sin variable de entorno de respaldo", async () => {
+    plantillas({
+      cambio_cita_cliente: {
+        telnyxTemplateId: "tpl-cambio",
+        name: "cambio_cita_cliente",
+        language: "es",
+        components: null,
+      },
+      cancelacion_cita_cliente: {
+        telnyxTemplateId: "tpl-cancel",
+        name: "cancelacion_cita_cliente",
+        language: "es",
+        components: null,
+      },
+    });
+    expect(await elegirPlantillaCliente("cambio", CTX)).toEqual({
+      etiqueta: "cambio_cita_cliente",
+      template: { id: "tpl-cambio" },
+      templateName: "cambio_cita_cliente",
+      templateLanguage: "es",
+      bodyParams: {
+        negocio_nombre: "Peluquería Ana",
+        servicio: "Corte y Mechas con Laura",
+        cita: "jueves 24 de septiembre a las 17:00",
+        negocio_telefono: "+34 930 454 394",
+      },
+      conBotones: true,
+    });
+    expect(await elegirPlantillaCliente("cancelacion", CTX)).toEqual({
+      etiqueta: "cancelacion_cita_cliente",
+      template: { id: "tpl-cancel" },
+      templateName: "cancelacion_cita_cliente",
+      templateLanguage: "es",
+      bodyParams: {
+        negocio_nombre: "Peluquería Ana",
+        cita: "jueves 24 de septiembre a las 17:00",
+        negocio_telefono: "+34 930 454 394",
+      },
+      conBotones: true,
+    });
+    // Sin teléfono del negocio no salen; sin fila aprobada, SIN_PLANTILLA.
+    expect(
+      await elegirPlantillaCliente("cambio", {
+        ...CTX,
+        negocio: { ...NEGOCIO, telnyxPhoneNumber: null, phone: "TEMP-1" },
+      })
+    ).toEqual({ motivo: "SIN_TELEFONO" });
+    sinPlantillas();
+    expect(await elegirPlantillaCliente("cancelacion", CTX)).toEqual({
+      motivo: "SIN_PLANTILLA",
+    });
+  });
+
+  it("programarAvisoAlCliente encola una tarea por petición; la cancelación solo sobre una reserva cancelada, el cambio solo sobre una activa", async () => {
+    const reserva = {
+      id: "booking_1",
+      programedAt: CITA,
+      smsConsent: true,
+      clientPhone: "+34600111222",
+      isCancelled: true,
+      call: { fromNumber: null, businessId: "biz_1" },
+    };
+    mockedBookingFindUnique.mockResolvedValue(reserva as never);
+    mockedBusinessFindUnique.mockResolvedValue({
+      id: "biz_1",
+      telnyxPhoneNumber: "+34930454394",
+      active: true,
+    } as never);
+
+    expect(
+      await programarAvisoAlCliente({
+        bookingId: "booking_1",
+        proposito: "cancelacion",
+        etiqueta: "t",
+      })
+    ).toEqual({ programado: true });
+    expect(mockedEnqueue).toHaveBeenCalledWith(
+      {
+        proposito: "cancelacion",
+        bookingId: "booking_1",
+        toNumber: "+34600111222",
+        businessId: "biz_1",
+        audience: "client",
+      },
+      { taskId: expect.stringMatching(/^booking-booking_1-cancelacion-\d+$/) }
+    );
+    expect(
+      await programarAvisoAlCliente({
+        bookingId: "booking_1",
+        proposito: "cambio",
+        etiqueta: "t",
+      })
+    ).toEqual({ programado: false, motivo: "reserva cancelada" });
+
+    mockedBookingFindUnique.mockResolvedValue({
+      ...reserva,
+      isCancelled: false,
+    } as never);
+    expect(
+      await programarAvisoAlCliente({
+        bookingId: "booking_1",
+        proposito: "cambio",
+        etiqueta: "t",
+      })
+    ).toEqual({ programado: true });
+    expect(mockedEnqueue).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        proposito: "cambio",
+        programedAtMs: CITA.getTime(),
+      }),
+      expect.anything()
+    );
+    expect(
+      await programarAvisoAlCliente({
+        bookingId: "booking_1",
+        proposito: "cancelacion",
+        etiqueta: "t",
+      })
+    ).toEqual({ programado: false, motivo: "la reserva sigue activa" });
+
+    mockedBookingFindUnique.mockResolvedValue({
+      ...reserva,
+      isCancelled: false,
+      smsConsent: false,
+    } as never);
+    expect(
+      await programarAvisoAlCliente({
+        bookingId: "booking_1",
+        proposito: "cambio",
+        etiqueta: "t",
+      })
+    ).toEqual({ programado: false, motivo: "sin consentimiento" });
+    mockedBookingFindUnique.mockResolvedValue({
+      ...reserva,
+      isCancelled: false,
+    } as never);
+    mockedBaja.mockResolvedValue(true);
+    expect(
+      await programarAvisoAlCliente({
+        bookingId: "booking_1",
+        proposito: "cambio",
+        etiqueta: "t",
+      })
+    ).toEqual({ programado: false, motivo: "el número pidió STOP" });
+  });
+});
+
 describe("programarMensajesAlCliente", () => {
   const EN_DOS_DIAS = new Date(Date.now() + 48 * 60 * 60_000);
   const EPOCH = Math.floor(EN_DOS_DIAS.getTime() / 1000);
@@ -824,6 +973,60 @@ describe("enviarMensajeAlCliente", () => {
       messageId: "msg-1",
       status: "queued",
       from: "+34930454394",
+    });
+  });
+
+  it("la cancelación se manda sobre la reserva YA cancelada (y no sobre una activa) y anota clientNotifiedAt", async () => {
+    plantillas({
+      cancelacion_cita_cliente: {
+        telnyxTemplateId: "tpl-cancel",
+        name: "cancelacion_cita_cliente",
+        language: "es",
+        components: null,
+      },
+    });
+    mockedBookingFindFirst.mockResolvedValue(
+      reservaBd({ isCancelled: true }) as never
+    );
+    await enviarMensajeAlCliente(
+      jobConfirmacion({
+        proposito: "cancelacion",
+        programedAtMs: undefined,
+        idempotencyKey: "booking-booking_1-cancelacion-1",
+      })
+    );
+    expect(mockedEnviar).toHaveBeenCalledWith(
+      expect.objectContaining({
+        template: { id: "tpl-cancel" },
+        callbackData: "cliente:cancelacion:booking_1",
+      })
+    );
+    expect(mockedBookingUpdate).toHaveBeenCalledWith({
+      where: { id: "booking_1" },
+      data: { clientNotifiedAt: expect.any(Date) },
+    });
+
+    vi.clearAllMocks();
+    mockedReclamar.mockResolvedValue(true);
+    mockedBusinessFindUnique.mockResolvedValue(NEGOCIO_BD as never);
+    mockedBookingFindFirst.mockResolvedValue(reservaBd() as never);
+    await enviarMensajeAlCliente(
+      jobConfirmacion({
+        proposito: "cancelacion",
+        programedAtMs: undefined,
+        idempotencyKey: "booking-booking_1-cancelacion-2",
+      })
+    );
+    expect(mockedEnviar).not.toHaveBeenCalled();
+    expect(mockedSentUpdateMany).toHaveBeenCalledWith({
+      where: {
+        channel: "whatsapp",
+        idempotencyKey: "booking-booking_1-cancelacion-2",
+      },
+      data: expect.objectContaining({
+        deliveryStatus: "skipped",
+        errorCode: "RESERVA_ACTIVA",
+      }),
     });
   });
 

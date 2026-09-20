@@ -166,6 +166,7 @@ model Business {
   calls               Call[]
   services            Service[]
   professionals       Professional[]
+  professionalAbsences ProfessionalAbsence[]
   stripeWebhookEvents StripeWebhookEvent[]
   billingUsagePeriods BillingUsagePeriod[]
   onboardingState     OnboardingState?
@@ -459,10 +460,34 @@ model Professional {
   business     Business              @relation(fields: [businessId], references: [id], onDelete: Cascade)
   serviceLinks ProfessionalService[]
   bookings     Booking[]
+  absences     ProfessionalAbsence[]
 
   @@index([businessId])
   @@index([businessId, deletedAt])
   @@map("professionals")
+}
+
+/// Ausencia de un profesional (vacaciones, baja, «Laura no viene el
+/// viernes»), fase 2 / PR 4 del canal con el dueño. Durante el tramo
+/// [startsAt, endsAt) `checkAvailability` lo trata como ocupado sin restar
+/// plazas al negocio. Los cierres del negocio entero (días o tramos) no van
+/// aquí: son excepciones del horario (`Business.schedule.exceptions`).
+model ProfessionalAbsence {
+  id             String       @id @default(cuid())
+  businessId     String
+  professionalId String
+  startsAt       DateTime
+  endsAt         DateTime
+  reason         String?
+  /// `owner_chat` (el Gestor) o `panel`.
+  createdVia     String?
+  createdAt      DateTime     @default(now())
+  business       Business     @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  professional   Professional @relation(fields: [professionalId], references: [id], onDelete: Cascade)
+
+  @@index([businessId, startsAt])
+  @@index([professionalId, endsAt])
+  @@map("professional_absences")
 }
 
 // Nivel de un profesional en un servicio concreto. No hay fila para el caso

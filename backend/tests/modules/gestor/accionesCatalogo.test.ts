@@ -121,14 +121,21 @@ beforeEach(() => {
 });
 
 describe("registro", () => {
-  it("expone las nueve acciones", () => {
+  it("expone las acciones de catálogo, horario y agenda", () => {
     expect(Object.keys(ACCIONES_DEL_GESTOR).sort()).toEqual([
+      "anadir_cita",
+      "avisar_cliente",
+      "añadir_cita",
+      "bloquear_franja",
+      "cancelar_cita",
       "cerrar_dia",
       "crear_profesionales",
       "crear_servicios",
       "editar_servicio",
       "fijar_especialidad",
       "fijar_horario",
+      "marcar_ausencia",
+      "mover_cita",
       "resolver_pendiente",
       "retirar_profesional",
       "retirar_servicio",
@@ -739,6 +746,51 @@ describe("cerrar_dia", () => {
       },
       { date: "2027-12-25", closed: true, intervals: [], label: "Navidad" },
     ]);
+  });
+
+  it("con hastaFecha cierra el rango entero (vacaciones) y rechaza más de 31 días", async () => {
+    expect(
+      (
+        await comprobar("cerrar_dia", {
+          fecha: "2027-08-01",
+          hastaFecha: "2027-09-15",
+        })
+      ).motivo
+    ).toContain("31 días");
+    expect(
+      (
+        await comprobar("cerrar_dia", {
+          fecha: "2027-08-10",
+          hastaFecha: "2027-08-01",
+        })
+      ).motivo
+    ).toContain("hastaFecha");
+    expect(
+      await comprobar("cerrar_dia", {
+        fecha: "2027-08-01",
+        hastaFecha: "2027-08-15",
+        motivo: "Vacaciones",
+      })
+    ).toMatchObject({
+      ok: true,
+      descripcion:
+        "cerrar del domingo, 1 de agosto al domingo, 15 de agosto (Vacaciones): la recepcionista no reservará esos días",
+    });
+    const r = await ejecutar("cerrar_dia", {
+      fecha: "2027-08-01",
+      hastaFecha: "2027-08-15",
+      motivo: "Vacaciones",
+    });
+    expect(r.ok).toBe(true);
+    const guardado = mockedGuardarHorario.mock.calls[0]![1];
+    expect(guardado.exceptions).toHaveLength(15);
+    expect(guardado.exceptions[0]).toEqual({
+      date: "2027-08-01",
+      closed: true,
+      intervals: [],
+      label: "Vacaciones",
+    });
+    expect(guardado.exceptions[14]!.date).toBe("2027-08-15");
   });
 
   it("un día que ya está cerrado no se propone dos veces", async () => {

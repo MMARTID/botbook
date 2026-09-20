@@ -1001,12 +1001,42 @@ const fijarHorario: AccionDelGestor<z.infer<typeof FijarHorarioParams>> = {
   },
 };
 
+const MAX_DIAS_DE_CIERRE_SEGUIDOS = 31;
+
 const CerrarDiaParams = z
   .object({
     fecha: Fecha,
+    /** Último día del cierre, incluido (vacaciones); sin él, solo `fecha`. */
+    hastaFecha: Fecha.optional(),
     motivo: z.string().trim().max(60).optional(),
   })
-  .strict();
+  .strict()
+  .refine((p) => !p.hastaFecha || p.hastaFecha >= p.fecha, {
+    message: "hastaFecha debe ser igual o posterior a fecha",
+  });
+
+/** Fechas civiles de `desde` a `hasta`, ambas incluidas. */
+function fechasEntre(desde: string, hasta: string): string[] {
+  const fechas: string[] = [];
+  const [y, m, d] = desde.split("-").map(Number);
+  for (let i = 0; ; i += 1) {
+    const fecha = new Date(Date.UTC(y, m - 1, d + i))
+      .toISOString()
+      .slice(0, 10);
+    if (fecha > hasta) break;
+    fechas.push(fecha);
+  }
+  return fechas;
+}
+
+function describirCierre(params: {
+  fecha: string;
+  hastaFecha?: string;
+}): string {
+  return params.hastaFecha && params.hastaFecha !== params.fecha
+    ? `del ${fechaLarga(params.fecha)} al ${fechaLarga(params.hastaFecha)}`
+    : `el ${fechaLarga(params.fecha)}`;
+}
 
 function fechaLocalDeHoy(timezone: string): string {
   return new Intl.DateTimeFormat("en-CA", {
@@ -1033,6 +1063,13 @@ const cerrarDia: AccionDelGestor<z.infer<typeof CerrarDiaParams>> = {
     if (params.fecha < fechaLocalDeHoy(ctx.timezone)) {
       return { ok: false, motivo: "Esa fecha ya ha pasado." };
     }
+    const fechas = fechasEntre(params.fecha, params.hastaFecha ?? params.fecha);
+    if (fechas.length > MAX_DIAS_DE_CIERRE_SEGUIDOS) {
+      return {
+        ok: false,
+        motivo: `Un cierre no puede pasar de ${MAX_DIAS_DE_CIERRE_SEGUIDOS} días seguidos; para más, cambia el horario semanal o hazlo desde el panel.`,
+      };
+    }
     const actual = await horarioActual(ctx.businessId);
     if (!actual) {
       // Un negocio recién creado tiene `schedule: {}`; cerrar un día sobre
@@ -1044,13 +1081,23 @@ const cerrarDia: AccionDelGestor<z.infer<typeof CerrarDiaParams>> = {
       };
     }
     const excepciones = actual.exceptions;
-    if (excepciones.some((e) => e.date === params.fecha && e.closed)) {
+    const yaCerradas = fechas.filter((f) =>
+      excepciones.some((e) => e.date === f && e.closed)
+    );
+    if (yaCerradas.length === fechas.length) {
       return {
         ok: false,
-        motivo: `El ${fechaLarga(params.fecha)} ya está marcado como cerrado.`,
+        motivo:
+          fechas.length === 1
+            ? `El ${fechaLarga(params.fecha)} ya está marcado como cerrado.`
+            : "Esos días ya están marcados como cerrados.",
       };
     }
-    if (excepciones.filter((e) => e.date !== params.fecha).length >= 120) {
+    if (
+      excepciones.filter((e) => !fechas.includes(e.date)).length +
+        fechas.length >
+      120
+    ) {
       return {
         ok: false,
         motivo:
@@ -1059,7 +1106,7 @@ const cerrarDia: AccionDelGestor<z.infer<typeof CerrarDiaParams>> = {
     }
     return {
       ok: true,
-      descripcion: `cerrar el ${fechaLarga(params.fecha)}${params.motivo ? ` (${params.motivo})` : ""}: la recepcionista no reservará ese día`,
+      descripcion: `cerrar ${describirCierre(params)}${params.motivo ? ` (${params.motivo})` : ""}: la recepcionista no reservará ${fechas.length === 1 ? "ese día" : "esos días"}`,
     };
   },
   async ejecutar(ctx, params) {
@@ -1071,15 +1118,21 @@ const cerrarDia: AccionDelGestor<z.infer<typeof CerrarDiaParams>> = {
           mensaje: "Primero hay que fijar el horario semanal.",
         };
       }
-      const excepciones = actual.exceptions.filter(
-        (e) => e.date !== params.fecha
+      const fechas = fechasEntre(
+        params.fecha,
+        params.hastaFecha ?? params.fecha
       );
-      excepciones.push({
-        date: params.fecha,
-        closed: true,
-        intervals: [],
-        ...(params.motivo ? { label: params.motivo } : {}),
-      });
+      const excepciones = actual.exceptions.filter(
+        (e) => !fechas.includes(e.date)
+      );
+      for (const fecha of fechas) {
+        excepciones.push({
+          date: fecha,
+          closed: true,
+          intervals: [],
+          ...(params.motivo ? { label: params.motivo } : {}),
+        });
+      }
       const horario = BusinessScheduleSchema.parse({
         ...actual,
         exceptions: excepciones,
@@ -1087,8 +1140,8 @@ const cerrarDia: AccionDelGestor<z.infer<typeof CerrarDiaParams>> = {
       await guardarHorarioDelNegocio(ctx.businessId, horario);
       return {
         ok: true,
-        mensaje: `Hecho: el ${fechaLarga(params.fecha)} queda cerrado. Las citas ya reservadas ese día no se cancelan solas: revísalas en la agenda.`,
-        nota: `Día cerrado: ${params.fecha}${params.motivo ? ` (${params.motivo})` : ""}.`,
+        mensaje: `Hecho: ${describirCierre(params)} queda cerrado. Las citas ya reservadas ${fechas.length === 1 ? "ese día" : "esos días"} no se cancelan solas: revísalas en la agenda.`,
+        nota: `Cierre: ${params.fecha}${params.hastaFecha && params.hastaFecha !== params.fecha ? ` a ${params.hastaFecha}` : ""}${params.motivo ? ` (${params.motivo})` : ""}.`,
       };
     } catch (error) {
       return {

@@ -356,7 +356,11 @@ export async function avisarAQuienEsperaba(input: {
   businessId: string;
   hueco: Hueco;
   origen:
-    "cancelacion_voz" | "cancelacion_cliente" | "boton_dueno" | "renuncia";
+    | "cancelacion_voz"
+    | "cancelacion_cliente"
+    | "cancelacion_dueno"
+    | "boton_dueno"
+    | "renuncia";
   etiqueta: string;
 }): Promise<ResultadoListaDeEspera> {
   const { businessId, hueco } = input;

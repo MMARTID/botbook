@@ -14,6 +14,7 @@ vi.mock("../../../src/lib/prisma.js", () => ({
   prisma: {
     business: { findUnique: vi.fn() },
     booking: { findMany: vi.fn(), count: vi.fn() },
+    professionalAbsence: { findMany: vi.fn().mockResolvedValue([]) },
     lead: { findMany: vi.fn() },
     service: { findMany: vi.fn() },
     call: { aggregate: vi.fn(), groupBy: vi.fn() },
@@ -401,6 +402,21 @@ describe("listar_agenda", () => {
     mockedServiceFindMany.mockResolvedValue([
       { id: "svc_1", name: "Corte" },
     ] as never);
+    // Laura falta toda la semana; Pedro solo la mañana del 21 (Madrid).
+    vi.mocked(prisma.professionalAbsence.findMany).mockResolvedValue([
+      {
+        startsAt: new Date("2026-09-13T22:00:00Z"),
+        endsAt: new Date("2026-09-27T22:00:00Z"),
+        reason: "vacaciones",
+        professional: { name: "Laura" },
+      },
+      {
+        startsAt: new Date("2026-09-21T07:00:00Z"),
+        endsAt: new Date("2026-09-21T12:00:00Z"),
+        reason: null,
+        professional: { name: "Pedro" },
+      },
+    ] as never);
 
     for (const dia of ["hoy", "manana", "mañana", "2026-09-21"]) {
       const r = await handleGestorToolInvocation({
@@ -430,6 +446,15 @@ describe("listar_agenda", () => {
       params: { dia: "2026-09-21" },
     });
     expect((fecha.body as { dia: string }).dia).toBe("lunes, 21 de septiembre");
+    expect((fecha.body as { ausencias: unknown }).ausencias).toEqual([
+      {
+        profesional: "Laura",
+        desde: "todo el día",
+        hasta: null,
+        motivo: "vacaciones",
+      },
+      { profesional: "Pedro", desde: "09:00", hasta: "14:00", motivo: null },
+    ]);
     const rango = mockedBookingFindMany.mock.calls.at(-1)![0]!.where as {
       programedAt: { gte: Date; lt: Date };
     };

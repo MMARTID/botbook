@@ -3,6 +3,7 @@ import type { InboundMessage } from "@prisma/client";
 import { prisma } from "../../../src/lib/prisma.js";
 import { reclamarEnvio } from "../../../src/lib/messageIdempotency.js";
 import {
+  enviarBotones,
   enviarTexto,
   resolverRemitente,
 } from "../../../src/modules/whatsapp/service.js";
@@ -31,7 +32,10 @@ import {
   ofrecerPuestaEnMarcha,
   continuarTrasAccion,
 } from "../../../src/modules/whatsapp/chatDueno.js";
-import { decidirPropuesta } from "../../../src/modules/gestor/acciones.js";
+import {
+  decidirPropuesta,
+  registrarPropuesta,
+} from "../../../src/modules/gestor/acciones.js";
 import { telnyxAiAdapter } from "../../../src/adapters/telnyx/TelnyxAiAdapter.js";
 import * as mensajes from "../../../src/modules/whatsapp/mensajes.js";
 import { enrutarEntrante } from "../../../src/modules/whatsapp/router.js";
@@ -63,6 +67,7 @@ vi.mock("../../../src/lib/messageIdempotency.js", () => ({
 }));
 vi.mock("../../../src/modules/whatsapp/service.js", () => ({
   enviarTexto: vi.fn(),
+  enviarBotones: vi.fn(),
   resolverRemitente: vi.fn(),
 }));
 vi.mock("../../../src/modules/whatsapp/bajas.js", () => ({
@@ -105,9 +110,16 @@ vi.mock("../../../src/modules/whatsapp/chatDueno.js", () => ({
   chatDelDuenoActivo: vi.fn(() => false),
   gestorAssistantId: vi.fn(() => null),  ofrecerPuestaEnMarcha: vi.fn(async () => false),
   continuarTrasAccion: vi.fn(async () => undefined),
+  botonesDeAccion: vi.fn(
+    (accionId: string, titulos = { confirmar: "Confirmar", cancelar: "Cancelar" }) => [
+      { id: `accion:${accionId}:confirmar`, title: titulos.confirmar },
+      { id: `accion:${accionId}:cancelar`, title: titulos.cancelar },
+    ]
+  ),
 }));
 vi.mock("../../../src/modules/gestor/acciones.js", () => ({
   decidirPropuesta: vi.fn(),
+  registrarPropuesta: vi.fn(),
 }));
 vi.mock("../../../src/adapters/telnyx/TelnyxAiAdapter.js", () => ({
   telnyxAiAdapter: { listConversationMessages: vi.fn() },
@@ -1905,6 +1917,84 @@ describe("el Gestor en el número de negocios (fase 2, PR 2)", () => {
       businessId: "biz_1",
       resultado: "ejecutada",
     });
+  });
+
+  it("una acción con pregunta de seguimiento («¿le mando la confirmación?») registra la nueva propuesta y la manda con sus botones, sin turno del Gestor", async () => {
+    vi.mocked(prisma.ownerPendingAction.findUnique).mockResolvedValue({
+      businessId: "biz_1",
+      tipo: "añadir_cita",
+    } as never);
+    mockedBizFindFirst.mockResolvedValue({ id: "biz_1", timezone: "Europe/Madrid" } as never);
+    mockedDecidir.mockResolvedValue({
+      estado: "ejecutada",
+      mensaje: "Hecho: Marta queda apuntada.",
+      nota: "Cita b_1 creada.",
+      siguiente: {
+        tipo: "avisar_cliente",
+        parametros: { cita: "b_1", tipo: "confirmacion" },
+        resumen: "Le mando a Marta la confirmación.",
+        pregunta: "¿Le mando a Marta la confirmación por WhatsApp al +34600111222?",
+        botones: { confirmar: "Sí, mándasela", cancelar: "No" },
+      },
+    });
+    vi.mocked(registrarPropuesta).mockResolvedValue({
+      ok: true,
+      accionId: "acc_2",
+      descripcion: "mandar a Marta la confirmación",
+      expiresAt: new Date(),
+    });
+    vi.mocked(enviarBotones).mockResolvedValue({ messageId: "m_btn" } as never);
+
+    const mensaje = botonDeAccion("confirmar");
+    expect(await enrutarEntrante(mensaje)).toEqual({ handler: "accion:confirmar" });
+    expect(enviado()?.body).toBe("Hecho: Marta queda apuntada.");
+    expect(vi.mocked(registrarPropuesta)).toHaveBeenCalledWith({
+      businessId: "biz_1",
+      timezone: "Europe/Madrid",
+      conversationId: null,
+      inboundMessageId: mensaje.id,
+      tipo: "avisar_cliente",
+      parametros: { cita: "b_1", tipo: "confirmacion" },
+      resumen: "Le mando a Marta la confirmación.",
+    });
+    expect(vi.mocked(enviarBotones)).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: MOVIL,
+        body: "¿Le mando a Marta la confirmación por WhatsApp al +34600111222?",
+        buttons: [
+          { id: "accion:acc_2:confirmar", title: "Sí, mándasela" },
+          { id: "accion:acc_2:cancelar", title: "No" },
+        ],
+      })
+    );
+    expect(mockedAnotar).toHaveBeenCalledWith(
+      "biz_1",
+      expect.stringContaining("propuesta acc_2")
+    );
+    expect(vi.mocked(continuarTrasAccion)).not.toHaveBeenCalled();
+
+    // Si la pregunta no se puede registrar, el seguimiento sigue como siempre.
+    vi.mocked(registrarPropuesta).mockResolvedValueOnce({ ok: false, motivo: "sin móvil" });
+    await enrutarEntrante(botonDeAccion("confirmar"));
+    expect(vi.mocked(continuarTrasAccion)).toHaveBeenCalledTimes(1);
+  });
+
+  it("«No» / «Le llamo yo» a la pregunta de avisar al cliente cierra sin turno de seguimiento", async () => {
+    vi.mocked(prisma.ownerPendingAction.findUnique).mockResolvedValue({
+      businessId: "biz_1",
+      tipo: "avisar_cliente",
+    } as never);
+    mockedBizFindFirst.mockResolvedValue({ id: "biz_1", timezone: "Europe/Madrid" } as never);
+    mockedDecidir.mockResolvedValueOnce({ estado: "rechazada" });
+    expect(await enrutarEntrante(botonDeAccion("cancelar"))).toEqual({
+      handler: "accion:cancelar",
+    });
+    expect(enviado()?.body).toBe(mensajes.avisoAlClienteDescartado());
+    expect(mockedAnotar).toHaveBeenCalledWith(
+      "biz_1",
+      expect.stringContaining("no avisar al cliente")
+    );
+    expect(vi.mocked(continuarTrasAccion)).not.toHaveBeenCalled();
   });
 
   it("«Cancelar» rechaza; caducada, ya decidida y no encontrada responden su texto", async () => {

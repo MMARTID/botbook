@@ -61,9 +61,10 @@ beforeEach(() => {
 });
 
 describe("registrarPropuesta", () => {
-  it("solo conoce resolver_pendiente", () => {
+  it("conoce las acciones registradas y nada del prototipo", () => {
     expect(accionConocida("resolver_pendiente")).toBe(true);
-    expect(accionConocida("cancelar_cita")).toBe(false);
+    expect(accionConocida("cancelar_cita")).toBe(true);
+    expect(accionConocida("borrar_negocio")).toBe(false);
     expect(accionConocida("constructor")).toBe(false);
   });
 

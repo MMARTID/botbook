@@ -17,6 +17,7 @@ import {
 import { limitesDelDia, mapaDeServicios } from "../whatsapp/avisosNegocio.js";
 import { panelUrl } from "../whatsapp/mensajes.js";
 import { registrarPropuesta } from "./acciones.js";
+import { buscarHueco } from "./buscarHueco.js";
 
 /**
  * Tools del Gestor (PLAN-CANAL-DUENO.md § 8): `POST
@@ -386,11 +387,36 @@ async function listarAgenda(
   const porId = await mapaDeServicios([
     ...new Set(reservas.flatMap((r) => r.serviceIds)),
   ]);
+  const ausencias = await prisma.professionalAbsence.findMany({
+    where: {
+      businessId: business.id,
+      startsAt: { lt: limites.fin },
+      endsAt: { gt: limites.inicio },
+    },
+    select: {
+      startsAt: true,
+      endsAt: true,
+      reason: true,
+      professional: { select: { name: true } },
+    },
+  });
   return {
     status: 200,
     body: {
       dia: limites.etiqueta,
       total: reservas.length,
+      ausencias: ausencias.map((a) => ({
+        profesional: a.professional.name,
+        // Recortado al día consultado: una ausencia de una semana se lee
+        // «todo el día» en cada uno de sus días.
+        desde:
+          a.startsAt <= limites.inicio
+            ? "todo el día"
+            : hora(a.startsAt, business.timezone),
+        hasta:
+          a.endsAt >= limites.fin ? null : hora(a.endsAt, business.timezone),
+        motivo: a.reason,
+      })),
       citas: reservas.map((r) => ({
         citaId: r.id,
         hora: hora(r.programedAt, business.timezone),
@@ -584,6 +610,8 @@ export async function handleGestorToolInvocation(input: {
         return await listarAgenda(businessId, params);
       case "resumen_llamadas":
         return await resumenLlamadas(businessId, params);
+      case "buscar_hueco":
+        return await buscarHueco(businessId, params);
       case "proponer_accion":
         return await proponerAccion(businessId, params);
       default:

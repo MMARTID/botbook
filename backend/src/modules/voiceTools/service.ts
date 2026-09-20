@@ -626,12 +626,35 @@ async function executeCheckAvailability(
   }
 }
 
+const AUSENCIAS_LOOKAHEAD_MS = 60 * 24 * 60 * 60 * 1000;
+
+/** «del 3 al 7 de octubre» o «el 3 de octubre de 09:00 a 14:00», en la zona
+ * del negocio, para el catálogo que lee el agente. */
+function describirAusencia(startsAt: Date, endsAt: Date, timezone: string): string {
+  const zona = timezone || "Europe/Madrid";
+  const dia = new Intl.DateTimeFormat("es-ES", { timeZone: zona, day: "numeric", month: "long" });
+  const horaMin = new Intl.DateTimeFormat("es-ES", { timeZone: zona, hour: "2-digit", minute: "2-digit", hour12: false });
+  // El fin es exclusivo: una ausencia de días enteros acaba a las 00:00 del
+  // día siguiente, que para el dueño es «hasta el 7».
+  const ultimoInstante = new Date(endsAt.getTime() - 60_000);
+  const diasEnteros = horaMin.format(startsAt) === "00:00" && horaMin.format(ultimoInstante) === "23:59";
+  const mismoDia = dia.format(startsAt) === dia.format(ultimoInstante);
+  if (diasEnteros) {
+    return mismoDia ? `el ${dia.format(startsAt)}` : `del ${dia.format(startsAt)} al ${dia.format(ultimoInstante)}`;
+  }
+  if (mismoDia) {
+    return `el ${dia.format(startsAt)} de ${horaMin.format(startsAt)} a ${horaMin.format(endsAt)}`;
+  }
+  return `desde el ${dia.format(startsAt)} a las ${horaMin.format(startsAt)} hasta el ${dia.format(endsAt)} a las ${horaMin.format(endsAt)}`;
+}
+
 async function executeGetCatalog(
   business: BusinessVoiceConfig,
   callLabel: string
 ): Promise<{ success: boolean; result?: any }> {
   try {
-    const [services, professionals] = await Promise.all([
+    const ahora = new Date();
+    const [services, professionals, ausencias] = await Promise.all([
       prisma.service.findMany({
         where: { businessId: business.id, active: true, deletedAt: null },
         select: { id: true, name: true, durationMinutes: true },
@@ -644,7 +667,24 @@ async function executeGetCatalog(
         orderBy: { name: "asc" },
         take: MAX_CATALOG_ITEMS,
       }),
+      // Ausencias en curso o próximas (fase 2 / PR 4): el agente sabe de
+      // antemano que Laura no está esa semana, en vez de descubrirlo hueco
+      // a hueco en check_availability.
+      prisma.professionalAbsence.findMany({
+        where: {
+          businessId: business.id,
+          endsAt: { gt: ahora },
+          startsAt: { lt: new Date(ahora.getTime() + AUSENCIAS_LOOKAHEAD_MS) },
+        },
+        select: { professionalId: true, startsAt: true, endsAt: true },
+        orderBy: { startsAt: "asc" },
+        take: MAX_CATALOG_ITEMS,
+      }),
     ]);
+    const ausenciasDe = (professionalId: string) =>
+      ausencias
+        .filter((a) => a.professionalId === professionalId)
+        .map((a) => describirAusencia(a.startsAt, a.endsAt, business.timezone));
 
     return {
       success: true,
@@ -653,7 +693,12 @@ async function executeGetCatalog(
           ? services.map((service) => `[${service.id}] ${service.name} (${service.durationMinutes} min)`).join("\n")
           : "No hay servicios configurados.",
         professionals: professionals.length
-          ? professionals.map((professional) => `[${professional.id}] ${professional.name}`).join("\n")
+          ? professionals
+              .map((professional) => {
+                const fuera = ausenciasDe(professional.id);
+                return `[${professional.id}] ${professional.name}${fuera.length ? ` (no está ${fuera.join(", ")})` : ""}`;
+              })
+              .join("\n")
           : "No hay profesionales individuales configurados.",
         schedule: formatScheduleForPrompt(business.schedule),
       },

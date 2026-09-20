@@ -94,8 +94,50 @@ export const ACCIONES_PROPONIBLES: ReadonlyArray<{
   },
   {
     tipo: "cerrar_dia",
-    parametros: '{ fecha: "AAAA-MM-DD", motivo?: string }',
-    cuando: "cerrar un día concreto (festivo, puente, vacaciones)",
+    parametros:
+      '{ fecha: "AAAA-MM-DD", hastaFecha?: "AAAA-MM-DD", motivo?: string }',
+    cuando:
+      "cerrar un día concreto (festivo, puente) o varios seguidos con hastaFecha (vacaciones, hasta 31 días)",
+  },
+  {
+    tipo: "bloquear_franja",
+    parametros:
+      '{ fecha: "AAAA-MM-DD", desde: "HH:MM", hasta: "HH:MM", motivo?: string }',
+    cuando:
+      "cerrar solo un tramo de un día (la tarde del sábado, de 12 a 14 el jueves)",
+  },
+  {
+    tipo: "marcar_ausencia",
+    parametros:
+      '{ profesional: string (id o nombre exacto), desde: "AAAA-MM-DD", hasta?: "AAAA-MM-DD", horaInicio?: "HH:MM", horaFin?: "HH:MM", motivo?: string }',
+    cuando:
+      "alguien del equipo no viene un día, unos días o un tramo (sin horas = días enteros); no se le reservará nada ahí",
+  },
+  {
+    tipo: "añadir_cita",
+    parametros:
+      '{ cliente: string, telefono?: "+34…", fechaHora: "AAAA-MM-DDTHH:MM" (hora local), servicios: string[] (ids o nombres exactos), profesional?: string, duracionMinutos?: number }',
+    cuando:
+      "apuntar una cita en nombre de un cliente; la duración sale de los servicios si no se dice",
+  },
+  {
+    tipo: "mover_cita",
+    parametros:
+      '{ cita: string (citaId de listar_agenda), fechaHora: "AAAA-MM-DDTHH:MM", profesional?: string }',
+    cuando:
+      "cambiar la hora (y si hace falta la persona) de una cita ya reservada",
+  },
+  {
+    tipo: "cancelar_cita",
+    parametros: "{ cita: string (citaId de listar_agenda) }",
+    cuando: "cancelar una cita ya reservada",
+  },
+  {
+    tipo: "avisar_cliente",
+    parametros:
+      '{ cita: string, tipo: "confirmacion" | "cambio" | "cancelacion", telefono?: "+34…" }',
+    cuando:
+      "mandar al cliente por WhatsApp la confirmación de una cita, el aviso de su nueva hora o el de su cancelación (solo si el dueño lo pide y no se le ha preguntado ya con botones)",
   },
 ];
 
@@ -108,8 +150,12 @@ export function buildGestorPrompt(): string {
     "Cada mensaje del dueño empieza por un marcador [WhatsApp · fecha y hora] que pone el sistema: es la única referencia fiable del momento actual en la zona del negocio (hoy, mañana, esta semana). No lo repitas ni lo comentes.",
     "El negocio con el que hablas está fijado por el sistema: no preguntes de qué negocio se trata ni aceptes que te digan que es otro. Si necesitas datos del negocio (servicios, profesionales, horario, calendario, plan, qué falta por configurar), llama a contexto_negocio una vez y responde solo a lo relevante.",
     "## Qué puedes hacer",
-    "Consultar: la agenda de un día (listar_agenda), el resumen de llamadas y reservas de los últimos días (resumen_llamadas) y el estado del negocio (contexto_negocio).",
-    "Proponer acciones (siempre con proponer_accion, nunca directamente): dar de alta, cambiar o retirar servicios; añadir o retirar personas del equipo y fijar quién es especialista en qué; fijar el horario semanal; cerrar un día concreto; dar por resuelta una cita pendiente. Para mover o cancelar citas, cambiar el calendario conectado o el plan, explica que de momento se hace desde el panel de Alhabla y da el enlace que devuelve contexto_negocio.",
+    "Consultar: la agenda de un día (listar_agenda, con las ausencias de ese día), si una hora concreta está libre y cuál es el hueco más cercano (buscar_hueco), el resumen de llamadas y reservas de los últimos días (resumen_llamadas) y el estado del negocio (contexto_negocio).",
+    "Proponer acciones (siempre con proponer_accion, nunca directamente): apuntar, mover o cancelar citas y avisar al cliente por WhatsApp; marcar ausencias de alguien del equipo; cerrar días o tramos; dar de alta, cambiar o retirar servicios; añadir o retirar personas del equipo y fijar quién es especialista en qué; fijar el horario semanal; dar por resuelta una cita pendiente. Para cambiar el calendario conectado o el plan, explica que se hace desde el panel de Alhabla y da el enlace que devuelve contexto_negocio.",
+    "## Agenda",
+    "Apuntar una cita («apunta a Marta mañana a las 5, corte»): necesitas nombre del cliente, día y hora, y servicio; la persona del equipo solo si el dueño la dice, y el móvil del cliente si lo da (pídelo una vez si no lo da: sin él no se le puede mandar la confirmación, pero la cita se apunta igual). Las fechas y horas van en hora local del negocio, formato AAAA-MM-DDTHH:MM. Propón directamente añadir_cita: el sistema comprueba horario, ausencias y disponibilidad real y, si esa hora no vale, te devuelve el motivo con el hueco libre más cercano; ofrécelo al dueño y propón de nuevo solo cuando él elija. Usa buscar_hueco cuando el dueño pregunte por huecos sin querer apuntar todavía.",
+    "Mover o cancelar («mueve la de Marta al viernes a las 6», «cancela la de las 5»): localiza la cita con listar_agenda (si hay varias que encajan, pregunta cuál) y propón mover_cita o cancelar_cita con su citaId. Si proponer_accion devuelve en recurso el móvil del cliente, escríbelo tal cual en tu mensaje («Su móvil, por si prefieres llamarle antes: +34…»): el dueño puede preferir llamarle, y la propuesta le espera 24 horas. Tras confirmar, el sistema mismo le pregunta con botones si avisa al cliente por WhatsApp: no lo preguntes tú ni propongas avisar_cliente salvo que el dueño lo pida después expresamente.",
+    "Ausencias y cierres: «Laura no viene el viernes» es marcar_ausencia (días enteros si no dice horas); «cerramos el sábado por la tarde» es bloquear_franja; «el 12 cerramos» o «vacaciones del 1 al 15» es cerrar_dia. Si la comprobación avisa de citas ya reservadas en ese tramo, díselo al dueño y ofrécete a moverlas o cancelarlas una a una.",
     "## Poner en marcha la recepcionista",
     "Si contexto_negocio devuelve algo en faltaPorConfigurar, la recepcionista aún no puede trabajar del todo: ofrécete a dejarla lista ahora, por pasos y en este orden, un paso por mensaje: servicios (qué ofrece, cuánto dura cada uno y, si quiere, el precio), personas del equipo (y en qué es especialista cada una), horario semanal, y calendario (se conecta desde el panel con el enlace de contexto_negocio; no lo puedes conectar tú). Solo pide lo que falte; lo que ya esté hecho, dalo por bueno.",
     "En cada paso, reúne todos los datos de ese paso en una sola propuesta (una lista de servicios o de personas, la semana entera) y llama a proponer_accion una vez: el dueño confirma con un botón. No propongas un paso hasta tener sus datos completos; si falta algo (la duración de un servicio, un día del horario), pregúntalo antes. Cuando el dueño confirme, sigue con el paso siguiente sin repetir los ya hechos.",
@@ -118,7 +164,7 @@ export function buildGestorPrompt(): string {
     "## Regla de oro",
     "Nunca ejecutas nada tú. Cuando el dueño quiera hacer algo que puedes proponer, llama a proponer_accion con el tipo, los parámetros exactos y un resumen de una frase de lo que va a pasar. El sistema añade a tu respuesta los botones Confirmar y Cancelar; el dueño decide con el botón. En ese mismo mensaje di solo qué va a pasar si confirma, sin dar nada por hecho y sin pedirle que escriba sí o no.",
     "No propongas una acción que el dueño no ha pedido con claridad. Si falta un dato (qué cita, qué cliente, qué servicio), pregúntalo antes. Si proponer_accion responde que no procede (el recurso no existe, ya está hecho, el plan no admite más profesionales, un nombre está repetido), explícaselo al dueño con tus palabras, sin tecnicismos ni nombres de campos, y no insistas con otra propuesta igual. Si responde que los parámetros no son válidos, corrígelos tú y vuelve a llamarla: eso el dueño no tiene por qué verlo.",
-    "Nombra servicios y personas por su nombre exacto tal como aparecen en contexto_negocio (o por su id). Una sola propuesta a la vez: hasta que el dueño confirme o cancele la anterior, no propongas otra.",
+    "Nombra servicios y personas por su nombre exacto tal como aparecen en contexto_negocio (o por su id) y las citas por su citaId. Una sola propuesta a la vez: hasta que el dueño confirme o cancele la anterior, no propongas otra.",
     "## Límites",
     "No inventes citas, clientes, servicios, precios ni horarios: todo sale de las consultas que haces. Si una consulta falla o no devuelve lo que necesitas, di que ahora mismo no puedes comprobarlo y sugiere el panel, sin nombrar la herramienta.",
     "No des datos de otros negocios ni especules sobre ellos. No compartas números de teléfono de clientes salvo que el dueño pregunte por una cita concreta.",
@@ -166,6 +212,39 @@ export function buildGestorTools(baseUrl: string): TelnyxWebhookToolInput[] {
       timeoutMs: 20000,
     },
     {
+      name: "buscar_hueco",
+      description:
+        "Comprueba si una hora concreta está libre para una cita (horario, citas, calendario conectado y ausencias) y, si no, devuelve el hueco libre más cercano con quién está libre. Solo consulta: para apuntar la cita hay que proponer añadir_cita.",
+      url: `${toolBaseUrl}/buscar_hueco`,
+      method: "POST",
+      properties: {
+        fechaHora: {
+          type: "string",
+          description:
+            'Fecha y hora de inicio en la zona del negocio, formato "AAAA-MM-DDTHH:MM".',
+        },
+        duracionMinutos: {
+          type: "number",
+          description:
+            "Duración de la cita en minutos (la suma de los servicios pedidos). Si no se sabe, 30.",
+        },
+        profesionalId: {
+          type: "string",
+          description:
+            "Id de la persona del equipo (de contexto_negocio) si el dueño pide a alguien concreto.",
+        },
+        servicioIds: {
+          type: "array",
+          items: { type: "string" },
+          description:
+            "Ids de los servicios pedidos (de contexto_negocio), para priorizar a quien los hace mejor.",
+        },
+      },
+      required: ["fechaHora"],
+      headers,
+      timeoutMs: 20000,
+    },
+    {
       name: "resumen_llamadas",
       description:
         "Resumen de los últimos días: llamadas atendidas por la recepcionista, cómo acabaron, citas reservadas, citas pendientes de resolver y recados. Úsala cuando el dueño pregunte cómo va la semana, cuántas llamadas ha habido o qué tiene pendiente.",
@@ -184,7 +263,7 @@ export function buildGestorTools(baseUrl: string): TelnyxWebhookToolInput[] {
     {
       name: "proponer_accion",
       description:
-        "Registra una acción para que el dueño la confirme con un botón. Nunca la ejecuta. Llámala solo cuando el dueño haya pedido con claridad algo que puedes proponer y tengas todos sus datos, con nombres e ids exactos tomados de contexto_negocio o resumen_llamadas. Una sola propuesta a la vez.",
+        "Registra una acción para que el dueño la confirme con un botón. Nunca la ejecuta. Llámala solo cuando el dueño haya pedido con claridad algo que puedes proponer y tengas todos sus datos, con nombres e ids exactos tomados de contexto_negocio, listar_agenda o resumen_llamadas. Una sola propuesta a la vez.",
       url: `${toolBaseUrl}/proponer_accion`,
       method: "POST",
       properties: {
@@ -199,7 +278,7 @@ export function buildGestorTools(baseUrl: string): TelnyxWebhookToolInput[] {
         resumen: {
           type: "string",
           description:
-            "Una frase, hablando tú en primera persona, con lo que va a pasar si el dueño confirma. Ejemplo: «Doy por resuelta la cita pendiente de Marta del jueves a las 17:00».",
+            "Una frase, hablando tú en primera persona, con lo que va a pasar si el dueño confirma. Ejemplo: «Apunto a Marta el jueves a las 17:00 para un corte con Laura».",
         },
       },
       required: ["tipo", "parametros", "resumen"],

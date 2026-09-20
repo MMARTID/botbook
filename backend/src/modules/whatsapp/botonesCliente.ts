@@ -3,7 +3,7 @@ import { prisma } from "../../lib/prisma.js";
 import { errorMessage } from "../../lib/logUtils.js";
 import { reclamarEnvio } from "../../lib/messageIdempotency.js";
 import { enviarContacto } from "./service.js";
-import { formatearCita } from "./avisosNegocio.js";
+import { avisarRecado, formatearCita } from "./avisosNegocio.js";
 import {
   esErrorDeBaja,
   normalizarTitulo,
@@ -223,6 +223,7 @@ interface ReservaDelBoton {
   callId: string;
   programedAt: Date;
   isCancelled: boolean;
+  clientName: string | null;
   clientPhone: string | null;
   serviceIds: string[];
   call: { fromNumber: string | null; businessId: string };
@@ -525,7 +526,7 @@ async function botonDeReserva(
         select: { id: true },
       });
       if (!existente) {
-        await prisma.lead.create({
+        const lead = await prisma.lead.create({
           data: {
             callId: booking.callId,
             type: "client_change_rejected",
@@ -536,11 +537,30 @@ async function botonDeReserva(
               inboundMessageId: message.id,
             },
           },
+          select: { id: true },
         });
+        console.warn(
+          `[WhatsApp] Cliente ${from} rechazó el cambio de la cita ${booking.id} del negocio ${business.id}; se avisa al dueño`
+        );
+        // Aviso al dueño con el teléfono del cliente (fase 2 / PR 4), por la
+        // misma vía que un recado: botones «Atendido» · «Recuérdamelo
+        // mañana» y plantilla `recado_negocio` fuera de la ventana.
+        try {
+          await avisarRecado({
+            businessId: business.id,
+            businessName: business.name,
+            leadId: lead.id,
+            clientName: booking.clientName,
+            clientPhone: from,
+            motivo: `La nueva hora de su cita (${cita}) no le va bien; quiere buscar otra.`,
+            quiereQueLeLlamen: true,
+          });
+        } catch (error) {
+          console.error(
+            `[WhatsApp] No se pudo avisar al negocio ${business.id} de que ${from} rechazó el cambio de la cita ${booking.id}: ${errorMessage(error)}`
+          );
+        }
       }
-      console.warn(
-        `[WhatsApp] Cliente ${from} rechazó el cambio de la cita ${booking.id} del negocio ${business.id}; el aviso al dueño llega en la fase 2`
-      );
       return resultado(
         base,
         await responder(

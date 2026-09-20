@@ -188,13 +188,19 @@ export type AvailabilityResult =
 function maxConcurrentBookings(
   intervalStart: Date,
   intervalEnd: Date,
-  bookings: Array<{ programedAt: Date; durationMinutes: number | null }>
+  bookings: Array<{
+    programedAt: Date;
+    durationMinutes: number | null;
+    ausencia?: boolean;
+  }>
 ): number {
   const intervalStartMs = intervalStart.getTime();
   const intervalEndMs = intervalEnd.getTime();
   const events: Array<{ time: number; delta: 1 | -1 }> = [];
 
   for (const booking of bookings) {
+    // Una ausencia ocupa a SU profesional, no una plaza del negocio.
+    if (booking.ausencia) continue;
     const bookingStartMs = new Date(booking.programedAt).getTime();
     const bookingEndMs =
       bookingStartMs + (booking.durationMinutes || 30) * 60_000;
@@ -273,6 +279,7 @@ function findNextAvailableSlot(input: {
     professionalId: string | null;
     programedAt: Date;
     durationMinutes: number | null;
+    ausencia?: boolean;
   }>;
   cargaPorDia: Map<string, Map<string, number>>;
 }): SuggestedSlot | null {
@@ -406,6 +413,11 @@ export async function checkAvailability(input: {
   /** Calendario del que proceden externalBusyIntervals. Solo ese calendario
    * puede confirmar que un evento propio fue borrado manualmente. */
   calendarOrigin?: CalendarOrigin | null;
+  /** Reserva que se está MOVIENDO (el Gestor, fase 2): no cuenta como
+   * ocupación, ni ella ni su evento en el calendario externo, porque la
+   * hora nueva puede solaparse con la vieja (misma tarde, media hora más
+   * tarde) y sin esto se bloquearía a sí misma. */
+  excluir?: { bookingId: string; externalEventId?: string | null } | null;
 }): Promise<AvailabilityResult> {
   const {
     businessId,
@@ -419,6 +431,7 @@ export async function checkAvailability(input: {
     externalBusyIntervals,
     calendarAvailabilityKnown = false,
     calendarOrigin,
+    excluir,
   } = input;
 
   // 1. Horario comercial. Un horario mal configurado no se arregla probando
@@ -531,6 +544,7 @@ export async function checkAvailability(input: {
     where: {
       call: { businessId },
       isCancelled: false,
+      ...(excluir ? { id: { not: excluir.bookingId } } : {}),
       programedAt: {
         // Cota inferior imprescindible: sin ella esta consulta se traía TODAS
         // las reservas del negocio desde el principio de los tiempos en cada
@@ -551,7 +565,11 @@ export async function checkAvailability(input: {
     },
   });
 
-  const externalIntervals = externalBusyIntervals ?? [];
+  const externalIntervals = (externalBusyIntervals ?? []).filter(
+    (interval) =>
+      !excluir?.externalEventId ||
+      interval.externalEventId !== excluir.externalEventId
+  );
   const externalIntervalsById = new Map(
     externalIntervals
       .filter((interval) => Boolean(interval.externalEventId))
@@ -623,7 +641,33 @@ export async function checkAvailability(input: {
       ),
     }));
 
-  const overlappingBookings = [...reconciledLocalBookings, ...externalBookings];
+  // Ausencias (vacaciones, baja, «Laura no viene el viernes», fase 2 /
+  // PR 4): ocupan a su profesional en todo el tramo, como una cita larga,
+  // pero no restan plazas al negocio (`ausencia: true`, ver
+  // maxConcurrentBookings). No entran en la carga del día: no son trabajo.
+  const ausencias = await prisma.professionalAbsence.findMany({
+    where: {
+      businessId,
+      startsAt: { lt: nextSlotSearchWindowEnd },
+      endsAt: { gt: start },
+    },
+    select: { professionalId: true, startsAt: true, endsAt: true },
+  });
+  const ausenciasComoOcupacion = ausencias.map((ausencia) => ({
+    professionalId: ausencia.professionalId as string | null,
+    programedAt: ausencia.startsAt,
+    durationMinutes: Math.max(
+      1,
+      (ausencia.endsAt.getTime() - ausencia.startsAt.getTime()) / 60_000
+    ),
+    ausencia: true,
+  }));
+
+  const overlappingBookings = [
+    ...reconciledLocalBookings,
+    ...externalBookings,
+    ...ausenciasComoOcupacion,
+  ];
 
   const activeBookings = overlappingBookings.filter((booking) => {
     const bookingStart = new Date(booking.programedAt);

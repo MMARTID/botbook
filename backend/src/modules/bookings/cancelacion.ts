@@ -24,8 +24,10 @@ import { avisarAQuienEsperaba } from "../whatsapp/listaDeEspera.js";
 export async function cancelarReserva(input: {
   bookingId: string;
   businessId: string;
-  /** `client_chat`: la recepcionista por chat de WhatsApp (fase 2). */
-  cancelledBy: "client_voice" | "client_button" | "client_chat";
+  /** `client_chat`: la recepcionista por chat de WhatsApp (fase 2);
+   * `owner_chat`: el dueño desde el Gestor (fase 2 / PR 4), que no recibe
+   * el aviso #4 de su propia cancelación. */
+  cancelledBy: "client_voice" | "client_button" | "client_chat" | "owner_chat";
   /** Para los logs («llamada …», «boton cliente <inboundId>»). */
   etiqueta: string;
   inboundMessageId?: string;
@@ -99,8 +101,9 @@ export async function cancelarReserva(input: {
     }
   }
 
-  // Aviso #4 al dueño (idempotente por aviso:cancelacion:<bookingId>).
-  if (business) {
+  // Aviso #4 al dueño (idempotente por aviso:cancelacion:<bookingId>). No
+  // cuando cancela él mismo desde el chat: ya lo sabe.
+  if (business && input.cancelledBy !== "owner_chat") {
     try {
       await avisarCancelacion({
         businessId: input.businessId,
@@ -131,7 +134,9 @@ export async function cancelarReserva(input: {
       origen:
         input.cancelledBy === "client_voice"
           ? "cancelacion_voz"
-          : "cancelacion_cliente",
+          : input.cancelledBy === "owner_chat"
+            ? "cancelacion_dueno"
+            : "cancelacion_cliente",
       etiqueta: input.etiqueta,
     });
   } catch (error) {

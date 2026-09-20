@@ -35,7 +35,10 @@ import { estaDadoDeBaja, WhatsappOptOutError } from "./bajas.js";
  * los que llaman aquí.
  */
 
-export type PropositoCliente = "confirmacion" | "recordatorio" | "hueco_libre";
+/** `cambio` y `cancelacion` (fase 2 / PR 4): avisos que el dueño pide
+ * enviar desde el chat con el Gestor tras mover o cancelar una cita. */
+export type PropositoCliente =
+  "confirmacion" | "recordatorio" | "hueco_libre" | "cambio" | "cancelacion";
 
 export interface ContextoCita {
   negocio: {
@@ -53,7 +56,8 @@ export interface ContextoCita {
 
 export interface PlantillaElegida {
   /** "confirmacion_cita_v2" | "confirmacion_cita" | "recordatorio_cita_v2" |
-   * "recordatorio_cita" | "hueco_libre" | "hora_disponible" | "env:<nombre>";
+   * "recordatorio_cita" | "hueco_libre" | "hora_disponible" |
+   * "cambio_cita_cliente" | "cancelacion_cita_cliente" | "env:<nombre>";
    * va al log y decide los efectos sobre el lead. */
   etiqueta: string;
   template: { id: string } | { name: string; language: string };
@@ -323,6 +327,35 @@ export function parametrosRecordatorioV2(
   });
 }
 
+/** cambio_cita_cliente (PENDING): 4 parámetros; `cita` es la hora NUEVA. */
+export function parametrosCambio(
+  ctx: ContextoCita,
+  telefono: string
+): Record<string, string> {
+  return limpiarParametros({
+    negocio_nombre: nombreParaCliente(ctx.negocio),
+    servicio: describirServicioParaCliente(
+      ctx.serviceNames,
+      ctx.professionalName
+    ),
+    cita: formatearCita(ctx.startDateTime, ctx.negocio.timezone),
+    negocio_telefono: telefono,
+  });
+}
+
+/** cancelacion_cita_cliente (PENDING): 3 parámetros; `cita` es la hora que
+ * tenía la cita cancelada. */
+export function parametrosCancelacion(
+  ctx: ContextoCita,
+  telefono: string
+): Record<string, string> {
+  return limpiarParametros({
+    negocio_nombre: nombreParaCliente(ctx.negocio),
+    cita: formatearCita(ctx.startDateTime, ctx.negocio.timezone),
+    negocio_telefono: telefono,
+  });
+}
+
 /** hueco_libre (PENDING): 2 parámetros. */
 export function parametrosHuecoLibre(
   ctx: ContextoCita
@@ -489,6 +522,31 @@ export async function elegirPlantillaCliente(
         return porVariableDeEntorno(
           nombreEnv,
           parametrosAntiguos(ctx, telefono)
+        );
+      }
+    }
+    return { motivo: saltadaPorTelefono ? "SIN_TELEFONO" : "SIN_PLANTILLA" };
+  }
+
+  if (proposito === "cambio" || proposito === "cancelacion") {
+    // Sin v2 ni variable de entorno: solo existen estas plantillas (ambas
+    // llevan el teléfono del negocio, así que sin él no salen).
+    const key =
+      proposito === "cambio"
+        ? "cambio_cita_cliente"
+        : "cancelacion_cita_cliente";
+    const fila = await resolver(key);
+    if (fila) {
+      if (!telefono) {
+        sinTelefono();
+      } else {
+        return porFila(
+          key,
+          fila,
+          proposito === "cambio"
+            ? parametrosCambio(ctx, telefono)
+            : parametrosCancelacion(ctx, telefono),
+          true
         );
       }
     }
@@ -709,6 +767,99 @@ export async function programarMensajesAlCliente(input: {
   }
 
   return motivo ? { confirmacion, motivo } : { confirmacion };
+}
+
+/**
+ * Aviso de cambio o de cancelación que el dueño pide desde el chat con el
+ * Gestor (fase 2 / PR 4, acción `avisar_cliente`). Mismas condiciones que la
+ * confirmación (consentimiento, número válido, sin STOP, negocio con
+ * número), pero una cancelación se manda sobre una reserva YA cancelada.
+ * Una tarea por petición (`-<epoch de ahora>`): si el dueño lo pide dos
+ * veces, sale dos veces, que es lo que ha pedido.
+ */
+export async function programarAvisoAlCliente(input: {
+  bookingId: string;
+  proposito: "cambio" | "cancelacion";
+  etiqueta: string;
+}): Promise<{ programado: true } | { programado: false; motivo: string }> {
+  const sinAviso = (motivo: string) => {
+    console.log(
+      `[WhatsApp] Reserva ${input.bookingId}: sin aviso de ${input.proposito} al cliente (${motivo})`
+    );
+    return { programado: false as const, motivo };
+  };
+  let booking;
+  let business;
+  try {
+    booking = await prisma.booking.findUnique({
+      where: { id: input.bookingId },
+      select: {
+        id: true,
+        programedAt: true,
+        smsConsent: true,
+        clientPhone: true,
+        isCancelled: true,
+        call: { select: { fromNumber: true, businessId: true } },
+      },
+    });
+    if (!booking) {
+      return sinAviso("reserva inexistente");
+    }
+    business = await prisma.business.findUnique({
+      where: { id: booking.call.businessId },
+      select: { id: true, telnyxPhoneNumber: true, active: true },
+    });
+  } catch (error) {
+    console.error(
+      `[WhatsApp] Reserva ${input.bookingId} (${input.etiqueta}): no se pudo leer para programar el aviso de ${input.proposito}: ${errorMessage(error)}`
+    );
+    return sinAviso("error de lectura");
+  }
+  if (!business || !business.active) {
+    return sinAviso("negocio inexistente o inactivo");
+  }
+  if (booking.isCancelled !== (input.proposito === "cancelacion")) {
+    return sinAviso(
+      booking.isCancelled ? "reserva cancelada" : "la reserva sigue activa"
+    );
+  }
+  if (!booking.smsConsent) {
+    return sinAviso("sin consentimiento");
+  }
+  const to = booking.clientPhone ?? booking.call.fromNumber;
+  if (!to || !isValidE164Phone(to)) {
+    return sinAviso("sin número válido");
+  }
+  if (!business.telnyxPhoneNumber) {
+    return sinAviso("el negocio no tiene número de teléfono");
+  }
+  if (await estaDadoDeBaja("client", to)) {
+    return sinAviso("el número pidió STOP");
+  }
+  try {
+    await enqueueWhatsappJob(
+      {
+        proposito: input.proposito,
+        bookingId: booking.id,
+        ...(input.proposito === "cambio"
+          ? { programedAtMs: booking.programedAt.getTime() }
+          : {}),
+        toNumber: to,
+        businessId: business.id,
+        audience: "client",
+      },
+      {
+        taskId: `booking-${booking.id}-${input.proposito}-${epochSegundos(new Date())}`,
+      }
+    );
+    return { programado: true };
+  } catch (error) {
+    const motivo = errorMessage(error);
+    console.error(
+      `[WhatsApp] Reserva ${booking.id} (negocio ${business.id}, ${input.etiqueta}): no se pudo encolar el aviso de ${input.proposito} al cliente: ${motivo}`
+    );
+    return sinAviso(motivo);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -969,8 +1120,14 @@ export async function enviarMensajeAlCliente(
       );
       return;
     }
-    if (booking.isCancelled) {
+    if (booking.isCancelled && proposito !== "cancelacion") {
       await descartar("RESERVA_CANCELADA", "la reserva está cancelada");
+      return;
+    }
+    if (proposito === "cancelacion" && !booking.isCancelled) {
+      // Se volvió a activar (o nunca se canceló): avisar de una cancelación
+      // que no existe sería peor que no avisar.
+      await descartar("RESERVA_ACTIVA", "la reserva no está cancelada");
       return;
     }
     if (
@@ -1081,7 +1238,11 @@ export async function enviarMensajeAlCliente(
 
   // Efectos tras enviar: nunca relanzan.
   try {
-    if (proposito === "confirmacion") {
+    if (
+      proposito === "confirmacion" ||
+      proposito === "cambio" ||
+      proposito === "cancelacion"
+    ) {
       await prisma.booking.update({
         where: { id: recursoId },
         data: { clientNotifiedAt: new Date() },
