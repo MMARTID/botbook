@@ -430,10 +430,9 @@ el `fetch` equivalente. **Nunca desde un route handler**: todo pasa por
   `OWNER_WHATSAPP_IS_ALHABLA` ANTES de cualquier escritura; `name` sin máximo: los nombres de
   Places pueden pasar de 80). `GET /business/me/onboarding` gana el paso `whatsapp` (antes de
   `forwarding`; `activo` o `baja` = resuelto) y el bloque `whatsapp: { status,
-  ownerWhatsappNumber }`. Mientras `CONTAR_WHATSAPP_EN_PROGRESO` (onboarding/routes.ts) sea
-  `false`, el paso NO cuenta en `progress`/`isActive`: un negocio con los otros cinco hechos no
-  ve reaparecer la guía si se despliega el backend antes que el frontend. Ponerlo a `true`
-  cuando el frontend del PR 2 esté en producción.
+  ownerWhatsappNumber }`. `CONTAR_WHATSAPP_EN_PROGRESO` (onboarding/routes.ts) estuvo en
+  `false` entre el deploy del backend y el del panel (para que la guía no reapareciera vacía);
+  desde el PR del panel es `true` y el paso cuenta como los demás (seis pasos).
 - `modules/whatsapp/router.ts` ya responde. Handlers: `stop:dueno | stop:desconocido |
   stop:cliente`, `alta:vinculado | alta:ya-activo | alta:ya-activo:codigo (código gastado o
   ajeno desde un móvil ya activo: responde «ya activo» pero CUENTA para el bloqueo de 5
@@ -477,6 +476,16 @@ el `fetch` equivalente. **Nunca desde un route handler**: todo pasa por
 - El nombre real del evento `whatsapp.template.*` no está verificado (fase 0): el `default:`
   del switch de `/webhooks/telnyx` avisa con `warn` de cualquier `whatsapp.*`/`message.*` sin
   handler, y el GET refresca la plantilla cada 24 h por `listTemplates`.
+- Panel (PR 2b): `frontend/src/components/whatsapp-dueno.tsx` (Ajustes › WhatsApp: estado,
+  móvil, «Guardar y activar», «Reenviar activación», «Quitar el móvil», enlace `wa.me` con
+  `ALTA <código>`, copiar y QR con `qrcode.react`; se refresca cada 10 s mientras esté
+  pendiente), campo opcional «Tu móvil con WhatsApp» en `/register/business` (guarda en el
+  mismo PATCH y pide la activación en silencio; tolera un backend que ignore el campo), paso
+  «Activa los avisos por WhatsApp» en `onboarding-checklist.tsx` (la barra y el «n de 6» salen
+  del mismo recuento del frontend, no de `progress`), `lib/phone.ts` (`normalizarMovil`:
+  `600 123 456` → `+34600123456`, `esFijoEspanol`, `formatearMovil`), `lib/api-errors.ts`
+  (`describeApiError`, `apiErrorCode`), `getOwnerWhatsapp`/`sendOwnerWhatsappActivation` en
+  `lib/api.ts`.
 - Migración `20260920010000_whatsapp_alta_dueno` (solo aditiva): columnas `ownerWhatsapp*`,
   `ownerWindowOpenUntil`, `ownerAltaCode(@unique)`/`ownerAltaCodeExpiresAt` en `businesses`;
   índice `[handledAt, receivedAt]` en `inbound_messages`; tabla `whatsapp_opt_outs`.

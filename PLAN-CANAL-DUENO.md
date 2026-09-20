@@ -714,7 +714,10 @@ piloto. Decisión del usuario del 20-09 (madrugada): cimientos primero.
   `sin_whatsapp` (el email al dueño queda para el PR 3). La plantilla sigue `PENDING` en Meta:
   la vía activa es `ALTA <código>` (enlace/QR desde Ajustes), y `ALTA` a secas **solo
   reactiva** a un móvil que ya había consentido (nunca es primer consentimiento). Detalle en
-  `AGENTS.md` § WhatsApp › Código (PR 2).
+  `AGENTS.md` § WhatsApp › Código (PR 2). **Panel hecho el mismo día (PR 2b)**: campo del
+  móvil en el alta y en Ajustes › WhatsApp con estado, enlace/QR de `ALTA <código>`, reenvío
+  y baja del móvil; paso «Activa los avisos por WhatsApp» en la checklist (seis pasos). La
+  pantalla se revisará en una sesión de diseño aparte.
 - Webhook de mensajería: idempotencia, enrutado por prefijo de botón, identificación de dueño /
   cliente / desconocido, `ownerWindowOpenUntil`.
 - Mensaje #1 por reserva (plantilla o interactivo según ventana), #2 con `informar_al_negocio`
