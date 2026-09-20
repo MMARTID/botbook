@@ -4,6 +4,7 @@ import { prisma } from "../../lib/prisma.js";
 import { errorMessage } from "../../lib/logUtils.js";
 import { isUniqueConstraintError } from "../../lib/prismaErrors.js";
 import { reclamarEnvio } from "../../lib/messageIdempotency.js";
+import { preferenciasDeAvisos } from "./preferencias.js";
 import {
   bajaVigente,
   registrarBaja,
@@ -470,6 +471,7 @@ const SELECT_ESTADO_DUENO = {
   ownerWhatsappActivationSentAt: true,
   ownerAltaCode: true,
   ownerAltaCodeExpiresAt: true,
+  notificationPrefs: true,
 } as const;
 
 async function leerNegocioParaWhatsapp(businessId: string) {
@@ -656,6 +658,8 @@ export interface ResumenWhatsappDueno {
   templateApproved: boolean;
   canSendTemplate: boolean;
   alhablaNumber: string;
+  /** Aviso #1 por cada reserva (PLAN § 4): activado salvo que lo apague. */
+  avisoPorReserva: boolean;
   alta: {
     code: string;
     text: string;
@@ -710,6 +714,9 @@ export async function resumenWhatsappDelDueno(
     canSendTemplate:
       templateApproved && tienePlanActivo(business.subscriptionStatus),
     alhablaNumber,
+    avisoPorReserva:
+      preferenciasDeAvisos(business.notificationPrefs).avisoPorReserva !==
+      false,
     alta,
   };
 }

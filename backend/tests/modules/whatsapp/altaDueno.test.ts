@@ -838,6 +838,7 @@ describe("resumenWhatsappDelDueno", () => {
       templateApproved: false,
       canSendTemplate: false,
       alhablaNumber: NEGOCIOS,
+      avisoPorReserva: true,
       alta: {
         code: "7KP3MQ",
         text: "ALTA 7KP3MQ",

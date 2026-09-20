@@ -62,6 +62,13 @@ const UpdateBusinessSchema = z.object({
     )
     .nullable()
     .optional(),
+  // Preferencias de avisos por WhatsApp (PLAN-CANAL-DUENO.md § 4): hoy solo
+  // el aviso #1 por cada reserva (activado salvo que el dueño lo apague).
+  // Se fusiona con lo guardado: mandar una clave no borra las demás.
+  notificationPrefs: z
+    .object({ avisoPorReserva: z.boolean().optional() })
+    .strict()
+    .optional(),
   // De Google Places, para el botón «Cómo llegar» de la confirmación por
   // WhatsApp (sufijo de la URL de Google Maps): solo el alfabeto de un
   // place_id, así nunca puede alterar el enlace con & o /.
@@ -344,9 +351,23 @@ export async function businessesRoutes(fastify: FastifyInstance) {
           googleCalendarId,
           outlookCalendarId,
           ownerWhatsappNumber,
+          notificationPrefs,
           ...camposDeBusiness
         } = data;
         const updateData: any = { ...camposDeBusiness };
+        if (notificationPrefs !== undefined) {
+          const actual = await prisma.business.findUnique({
+            where: { id: request.user!.businessId },
+            select: { notificationPrefs: true },
+          });
+          const previas =
+            actual?.notificationPrefs &&
+            typeof actual.notificationPrefs === "object" &&
+            !Array.isArray(actual.notificationPrefs)
+              ? (actual.notificationPrefs as Record<string, unknown>)
+              : {};
+          updateData.notificationPrefs = { ...previas, ...notificationPrefs };
+        }
         if (data.schedule) {
             updateData.schedule = data.schedule as any;
         }

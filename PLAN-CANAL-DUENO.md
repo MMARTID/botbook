@@ -506,7 +506,8 @@ voz.
 
 - Alta: campo del móvil con WhatsApp; checklist con el paso "Activa los avisos" hasta el toque.
 - Ajustes › WhatsApp: número, estado (activo / sin WhatsApp / baja), aviso por reserva sí/no,
-  cierre del día y hora, chat Beta sí/no, botón *Reenviar activación*, QR de ALTA.
+  cierre del día y hora, chat Beta sí/no, botón *Reenviar activación*, QR de ALTA. Hecho en la
+  fase 1 todo menos el cierre del día (fase 3) y el chat Beta (fase 2).
 - Inicio: pendientes con estado (avisada, resuelta por el dueño, reintentada).
 - Llamadas: recado como bloque propio con su estado.
 - "Tu chat con la recepcionista" con badge «Beta»: historial (API de conversaciones) y cuadro
@@ -725,8 +726,12 @@ piloto. Decisión del usuario del 20-09 (madrugada): cimientos primero.
   móvil en el alta y en Ajustes › WhatsApp con estado, enlace/QR de `ALTA <código>`, reenvío
   y baja del móvil; paso «Activa los avisos por WhatsApp» en la checklist (seis pasos). La
   pantalla se revisará en una sesión de diseño aparte.
-- Webhook de mensajería: idempotencia, enrutado por prefijo de botón, identificación de dueño /
-  cliente / desconocido, `ownerWindowOpenUntil`.
+- ~~Webhook de mensajería: idempotencia, enrutado por prefijo de botón, identificación de dueño /
+  cliente / desconocido, `ownerWindowOpenUntil`.~~ — hecho entre el PR 1 (idempotencia por
+  `providerMessageId`, audiencia por número destino) y los PR 2-4 (enrutado por prefijo
+  `aviso:` / `cliente:`, dueño por BD, desconocido con respuesta fija). `ownerWindowOpenUntil`
+  existe en BD pero la ventana se consulta a Telnyx en cada envío (`ventanaAbierta`), que es la
+  fuente de verdad.
 - ~~Mensaje #1 por reserva (plantilla o interactivo según ventana), #3 con *La apunté yo*,
   #4~~ — **PR 3 (avisos al negocio), backend hecho el 20-09**: `avisosNegocio.ts` con la
   cascada ventana → plantilla aprobada → email/nada, botones «Vale», «Ver agenda de hoy», «La
@@ -738,7 +743,10 @@ piloto. Decisión del usuario del 20-09 (madrugada): cimientos primero.
   y email de respaldo. **#5 hecho (PR 6, 20-09)**: calendario desconectado, número no activo,
   prueba que termina (`trial_will_end`), 80 % de minutos y pago fallido, con botón «Ir a
   Ajustes» (`cta_url` en ventana; plantilla con sufijo fuera) y email de respaldo donde no lo
-  había. Queda el toggle de `avisoPorReserva` en el panel.
+  había. **Toggle hecho (PR 7, 20-09)**: `notificationPrefs.avisoPorReserva` por `PATCH
+  /business/me` (fusión con el JSON guardado, `strict`), expuesto en `GET /business/me/whatsapp`
+  y casilla «Avisarme por WhatsApp de cada reserva nueva» en Ajustes › WhatsApp; solo afecta al
+  #1, el resto de avisos y alertas van siempre.
 - ~~`confirmacion_cita_v2` con *Guardar contacto* (vCard al toque) y *Cómo llegar* (`placeId`);
   `Business.address`/`placeId` desde Places. La recepcionista anuncia el WhatsApp por voz.~~
   ~~`recordatorio_cita_v2` con *Confirmo* · *Cancelar* · *Cambiar*; cancelar libera, avisa (#4)
@@ -763,8 +771,22 @@ piloto. Decisión del usuario del 20-09 (madrugada): cimientos primero.
   desde Places en el alta, `types.ts`), retro-relleno de `placeId` en negocios ya dados de alta,
   comprobar en producción la posición del botón URL en `components` y la URL de «Cómo llegar»,
   y la prueba manual del criterio de salida. Detalle en `AGENTS.md` § WhatsApp › Código (PR 4).
-- Fallback por email de #2, #3 y #5.
-- Tests: enrutado, botones, idempotencia, informe post-llamada; integración contra Postgres.
+- ~~Fallback por email de #2, #3 y #5.~~ — hecho: #2 `emailDeRecado` (PR 5), #3
+  `pendingBookingAlertEmail` (ya existía, PR 3 lo deja como respaldo), #5 `operationalAlertEmail`
+  para las tres alertas sin email propio (PR 6).
+- ~~Tests: enrutado, botones, idempotencia, informe post-llamada; integración contra Postgres.~~
+  — hecho: 1.282 unitarios + 44 de integración en el backend, 322 en el frontend (20-09).
+
+**Cierre de la fase 1 en código (20-09).** PRs #111-#119 más el toggle (PR 7). Queda fuera del
+código: la aprobación de las 12 plantillas en Meta (#103, verificación de empresa `pending`) —
+hasta entonces fuera de la ventana de 24 h el #1 y el #4 no salen, el #3 va por email y los
+clientes reciben `confirmacion_cita`/`recordatorio_cita`/`hora_disponible` sin botones —, la
+pasada de diseño de Ajustes › WhatsApp y del alta (sesión aparte, decisión del usuario), el
+retro-relleno de `placeId` en negocios ya dados de alta, y la **prueba del criterio de salida**,
+que exige un negocio de producción completo (número Telnyx activo, assistant de Telnyx, plan
+activo y móvil del dueño activado): Peluquería Vide tiene número y móvil pero va por Retell y
+sin plan; INFINITY Hair Salon tiene assistant pero ni número ni plan ni móvil. El usuario
+decidió no preparar ninguno todavía.
 
 **Criterio de salida:** una llamada real a una cuenta de producción sin clientes termina con la
 confirmación en el móvil del cliente (con la vCard tras pulsar) y el aviso en el móvil del dueño;

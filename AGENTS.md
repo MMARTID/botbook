@@ -703,6 +703,23 @@ el `fetch` equivalente. **Nunca desde un route handler**: todo pasa por
   `confirmacion_cita_v2` en producción y confirmar la posición del botón URL, y probar la URL
   de «Cómo llegar» con un `placeId` real (`query=place_id:` no es la forma documentada por Google).
 
+**Código (fase 1, PR 7 — toggle «aviso por reserva», 2026-09-20).**
+- `modules/whatsapp/preferencias.ts` › `preferenciasDeAvisos(raw)` lee `Business.notificationPrefs`
+  (JSON) sin fiarse de su forma: solo booleanos, `null`/array/basura ⇒ `{}`. Vive en su propio
+  fichero para que `altaDueno.ts` no importe `avisosNegocio.ts` (ciclo); `avisosNegocio.ts` lo
+  reexporta por compatibilidad. `avisarNuevaReserva` (#1) no sale si `avisoPorReserva === false`;
+  #2-#5 y las alertas no dependen de la preferencia.
+- `PATCH /business/me` acepta `notificationPrefs: { avisoPorReserva?: boolean }` (`.strict()`:
+  cualquier otra clave ⇒ 400) y lo **fusiona** con el JSON guardado (nunca lo sustituye), para
+  que las preferencias que vengan después (`cierreDelDia`, `chatBeta`) no se pisen entre sí.
+  Sin resincronizar el prompt.
+- `GET /business/me/whatsapp` devuelve `avisoPorReserva: boolean` (ausente ⇒ `true`).
+- Panel (`components/whatsapp-dueno.tsx`): casilla «Avisarme por WhatsApp de cada reserva nueva»
+  bajo el bloque ALTA, solo cuando hay móvil guardado (`status !== "sin_numero"`); guarda al
+  cambiar, actualiza `["my-business"]` y `["owner-whatsapp"]` con la respuesta del PATCH (que
+  devuelve el negocio entero) y, si la respuesta no trae el valor pedido (backend anterior), lo
+  dice en vez de darlo por guardado — mismo patrón que el móvil.
+
 **Cuenta.** Un solo WABA, «Alhabla»: id Telnyx `804230d2-c5e0-45dd-af65-95819468378a`, id Meta
 `1628104425601770`, conectado por Embedded Signup el 13-09. `messaging_limit_tier: TIER_250`
 (250 destinatarios únicos/24 h para **toda** la cartera), `business_verification_status:

@@ -31,6 +31,8 @@ export const ERROR_MOVIL_INVALIDO =
   "Escribe un móvil válido, por ejemplo 600 123 456 o +34 600 123 456.";
 export const AVISO_PARECE_FIJO =
   "Parece el teléfono del local. Necesitamos el móvil en el que usas WhatsApp.";
+export const AYUDA_AVISO_RESERVA =
+  "Si lo desactivas dejarás de recibir el aviso de cada cita que reserve la recepcionista. Las citas pendientes de confirmar, las cancelaciones y los recados te llegarán igual.";
 
 type Feedback = { type: "success" | "error"; message: string } | null;
 
@@ -84,6 +86,7 @@ export function WhatsappDueno({ business, hasToken }: WhatsappDuenoProps) {
   const [movilError, setMovilError] = useState<string | null>(null);
   const [movilAviso, setMovilAviso] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<Feedback>(null);
+  const [feedbackAviso, setFeedbackAviso] = useState<Feedback>(null);
   const [copiado, setCopiado] = useState(false);
 
   const estadoQuery = useQuery({
@@ -233,6 +236,50 @@ export function WhatsappDueno({ business, hasToken }: WhatsappDuenoProps) {
         ),
       });
     },
+  });
+
+  // El toggle guarda al instante: el PATCH fusiona la preferencia con las
+  // demás y devuelve el negocio entero, así que el estado de WhatsApp se
+  // pone al día con la respuesta, sin esperar a un refetch.
+  const avisoMutation = useMutation({
+    mutationFn: async (avisoPorReserva: boolean) => {
+      const updated = await updateMyBusiness({
+        notificationPrefs: { avisoPorReserva },
+      });
+      // Un backend anterior descarta el campo sin error: la respuesta no lo
+      // trae con el valor pedido. Se avisa en vez de fingir que se guardó.
+      const guardado =
+        updated.notificationPrefs?.avisoPorReserva === avisoPorReserva;
+      return { updated, avisoPorReserva, guardado };
+    },
+    onSuccess: ({ updated, avisoPorReserva, guardado }) => {
+      queryClient.setQueryData(["my-business"], updated);
+      if (!guardado) {
+        setFeedbackAviso({
+          type: "error",
+          message: "No se pudo guardar la preferencia. Inténtalo de nuevo.",
+        });
+        return;
+      }
+      queryClient.setQueryData<EstadoWhatsappDueno>(
+        ["owner-whatsapp"],
+        (previo) => (previo ? { ...previo, avisoPorReserva } : previo)
+      );
+      setFeedbackAviso({
+        type: "success",
+        message: avisoPorReserva
+          ? "Te avisaremos de cada reserva nueva."
+          : "Ya no te avisaremos de cada reserva nueva.",
+      });
+    },
+    onError: (error) =>
+      setFeedbackAviso({
+        type: "error",
+        message: describeApiError(
+          error,
+          "No se pudo guardar la preferencia. Inténtalo de nuevo."
+        ),
+      }),
   });
 
   const guardar = (valor: string) => {
@@ -479,6 +526,36 @@ export function WhatsappDueno({ business, hasToken }: WhatsappDuenoProps) {
           copiado={copiado}
           onCopiar={() => void copiarEnlace(alta.link)}
         />
+      ) : null}
+
+      {estado && status !== "sin_numero" ? (
+        <div className="space-y-2">
+          <label className="flex min-h-11 items-start gap-3 rounded-xl border border-[#e5e5e5] p-3 text-sm text-[#27272a]">
+            <input
+              type="checkbox"
+              checked={estado.avisoPorReserva}
+              disabled={avisoMutation.isPending}
+              onChange={(event) => {
+                setFeedbackAviso(null);
+                avisoMutation.mutate(event.target.checked);
+              }}
+              aria-describedby="settings-owner-whatsapp-aviso-hint"
+              className="mt-1 accent-[#8b5cf6]"
+            />
+            <span>
+              <span className="font-semibold">
+                Avisarme por WhatsApp de cada reserva nueva
+              </span>
+              <span
+                id="settings-owner-whatsapp-aviso-hint"
+                className="mt-1 block text-xs leading-5 text-muted"
+              >
+                {AYUDA_AVISO_RESERVA}
+              </span>
+            </span>
+          </label>
+          <FeedbackMessage value={feedbackAviso} />
+        </div>
       ) : null}
     </div>
   );

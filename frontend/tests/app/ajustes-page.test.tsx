@@ -54,6 +54,7 @@ const ESTADO_WHATSAPP: EstadoWhatsappDueno = {
   templateApproved: false,
   canSendTemplate: false,
   alhablaNumber: "+34930453218",
+  avisoPorReserva: true,
   alta: {
     code: "7KP3MQ",
     text: "ALTA 7KP3MQ",
