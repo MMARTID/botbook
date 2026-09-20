@@ -801,7 +801,9 @@ el cliente cancela desde el recordatorio y el dueño lo ve en su WhatsApp.
 **En marcha desde el 20-09 (decisión del usuario): «cliente primero».** PR 1 = cimientos +
 la recepcionista por chat; PR 2-4 = el Gestor (base y agenda de lectura → catálogo y
 onboarding → citas, ausencias y bloqueos); PR 5 = panel y tests de integración. Los
-interruptores globales quedan apagados en producción hasta que el usuario lo pruebe.
+interruptores globales quedan apagados en producción hasta que el usuario lo pruebe. **21-09:
+el Gestor existe en producción y `TELNYX_OWNER_CHAT_ENABLED=true` (decisión del usuario);
+`TELNYX_CLIENT_CHAT_ENABLED` sigue apagado.**
 
 - **Gestor único** (`contexto_negocio`,
   catálogo: `crear_servicio`, `editar_servicio`, `retirar_servicio`, `crear_profesional`,
