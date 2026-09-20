@@ -229,7 +229,7 @@ describe("telnyxReconcilerJob", () => {
     expect(mockedSendMail).toHaveBeenCalled();
   });
 
-  it("detecta un negocio orchestrator=telnyx sin telnyxPhoneNumberId", async () => {
+  it("detecta un negocio con número activo pero sin telnyxPhoneNumberId", async () => {
     mockedAgentFindMany.mockResolvedValue([]);
     mockedBusinessFindMany.mockResolvedValue([
       {
@@ -237,6 +237,8 @@ describe("telnyxReconcilerJob", () => {
         voiceRoutingTarget: "telnyx",
         voiceFailoverActive: false,
         telnyxPhoneNumberId: null,
+        telnyxPhoneNumber: "+34930000001",
+        phoneNumberStatus: "active",
       },
     ] as any);
 
@@ -245,6 +247,25 @@ describe("telnyxReconcilerJob", () => {
     expect(result.businessesWithRoutingInconsistency).toEqual([
       "biz1: orchestrator=telnyx sin telnyxPhoneNumberId",
     ]);
+  });
+
+  it("no avisa de un negocio que aún no ha comprado número (registrado sin plan)", async () => {
+    mockedAgentFindMany.mockResolvedValue([]);
+    mockedBusinessFindMany.mockResolvedValue([
+      {
+        id: "biz_sin_numero",
+        voiceRoutingTarget: "telnyx",
+        voiceFailoverActive: false,
+        telnyxPhoneNumberId: null,
+        telnyxPhoneNumber: null,
+        phoneNumberStatus: "pending",
+      },
+    ] as any);
+
+    const result = await telnyxReconcilerJob();
+
+    expect(result.businessesWithRoutingInconsistency).toEqual([]);
+    expect(mockedSendMail).not.toHaveBeenCalled();
   });
 
   it("detecta voiceRoutingTarget desalineado con voiceFailoverActive", async () => {

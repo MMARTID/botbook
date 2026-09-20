@@ -149,13 +149,25 @@ export async function telnyxReconcilerJob(): Promise<TelnyxReconcilerResult> {
       voiceRoutingTarget: true,
       voiceFailoverActive: true,
       telnyxPhoneNumberId: true,
+      telnyxPhoneNumber: true,
+      phoneNumberStatus: true,
     },
   });
   for (const business of routingBusinesses) {
+    // Un negocio que se registró y aún no ha comprado número (o cuya compra
+    // falló) no tiene nada que enrutar: no es una inconsistencia, es una
+    // cuenta a medias. Solo se avisa cuando el número existe (activo o con
+    // E.164 guardado) y falta el id con el que Telnyx lo enruta — el 20-09
+    // el correo diario señalaba una peluquería sin plan ni número.
+    const tieneNumero =
+      business.phoneNumberStatus === "active" ||
+      business.telnyxPhoneNumber !== null;
     if (!business.telnyxPhoneNumberId) {
-      result.businessesWithRoutingInconsistency.push(
-        `${business.id}: orchestrator=telnyx sin telnyxPhoneNumberId`
-      );
+      if (tieneNumero) {
+        result.businessesWithRoutingInconsistency.push(
+          `${business.id}: orchestrator=telnyx sin telnyxPhoneNumberId`
+        );
+      }
       continue;
     }
     const expectedTarget = business.voiceFailoverActive ? "retell" : "telnyx";
