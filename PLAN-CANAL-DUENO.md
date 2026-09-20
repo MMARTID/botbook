@@ -735,7 +735,10 @@ piloto. Decisión del usuario del 20-09 (madrugada): cimientos primero.
   todos los assistants, prompt con «Recados» y «Al terminar la llamada», primer informe gana
   con reclamo atómico, doble escritura con los insights (discrepancias al log), recado ⇒ `Lead`
   `message` ⇒ aviso con «Atendido» · «Recuérdamelo mañana» (job `recordar-recado` a las 09:00)
-  y email de respaldo. Quedan #5 (alertas operativas) y el toggle de `avisoPorReserva`.
+  y email de respaldo. **#5 hecho (PR 6, 20-09)**: calendario desconectado, número no activo,
+  prueba que termina (`trial_will_end`), 80 % de minutos y pago fallido, con botón «Ir a
+  Ajustes» (`cta_url` en ventana; plantilla con sufijo fuera) y email de respaldo donde no lo
+  había. Queda el toggle de `avisoPorReserva` en el panel.
 - ~~`confirmacion_cita_v2` con *Guardar contacto* (vCard al toque) y *Cómo llegar* (`placeId`);
   `Business.address`/`placeId` desde Places. La recepcionista anuncia el WhatsApp por voz.~~
   ~~`recordatorio_cita_v2` con *Confirmo* · *Cancelar* · *Cambiar*; cancelar libera, avisa (#4)

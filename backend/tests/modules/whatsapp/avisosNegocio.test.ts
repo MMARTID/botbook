@@ -5,11 +5,13 @@ import { getRedis } from "../../../src/lib/redis.js";
 import { bajaVigente } from "../../../src/modules/whatsapp/bajas.js";
 import {
   enviarBotones,
+  enviarCtaUrl,
   enviarPlantilla,
   resolverPlantilla,
   ventanaAbierta,
 } from "../../../src/modules/whatsapp/service.js";
 import {
+  avisarAlerta,
   avisarCancelacion,
   avisarCitaPendiente,
   avisarNuevaReserva,
@@ -45,6 +47,7 @@ vi.mock("../../../src/modules/whatsapp/bajas.js", () => ({
 }));
 vi.mock("../../../src/modules/whatsapp/service.js", () => ({
   enviarBotones: vi.fn(),
+  enviarCtaUrl: vi.fn(),
   enviarPlantilla: vi.fn(),
   resolverPlantilla: vi.fn(),
   ventanaAbierta: vi.fn(),
@@ -59,6 +62,7 @@ const mockedReclamar = vi.mocked(reclamarEnvio);
 const mockedRedis = vi.mocked(getRedis);
 const mockedBaja = vi.mocked(bajaVigente);
 const mockedBotones = vi.mocked(enviarBotones);
+const mockedCta = vi.mocked(enviarCtaUrl);
 const mockedPlantilla = vi.mocked(enviarPlantilla);
 const mockedResolverPlantilla = vi.mocked(resolverPlantilla);
 const mockedVentana = vi.mocked(ventanaAbierta);
@@ -555,6 +559,68 @@ describe("avisarRecado (#2)", () => {
           motivo: "Pregunta por precios.",
         },
         idempotencyKey: "aviso:recado:lead_7:r2",
+      })
+    );
+  });
+});
+
+describe("avisarAlerta (#5)", () => {
+  beforeEach(() => {
+    mockedCta.mockResolvedValue({
+      messageId: "msg-3",
+      status: "queued",
+      from: "+34930453218",
+    });
+  });
+
+  it("dentro de la ventana: un botón «Ir a Ajustes» con la URL de la causa", async () => {
+    expect(
+      await avisarAlerta({
+        businessId: "biz_1",
+        businessName: "Peluquería Ana",
+        causa: "calendario",
+        texto: "tu calendario se ha desconectado.",
+        recursoId: "calendario:biz_1:google:20260920",
+      })
+    ).toEqual({ via: "interactivo" });
+    expect(mockedCta).toHaveBeenCalledWith({
+      audience: "owner",
+      to: MOVIL,
+      businessId: "biz_1",
+      body: "Peluquería Ana: tu calendario se ha desconectado.",
+      buttonText: "Ir a Ajustes",
+      url: "https://alhabla.ai/ajustes/calendario",
+      idempotencyKey: "aviso:alerta:calendario:biz_1:google:20260920",
+      callbackData: "aviso:alerta:calendario:biz_1:google:20260920",
+    });
+    expect(mockedBotones).not.toHaveBeenCalled();
+  });
+
+  it("fuera de la ventana: plantilla alerta_operativa_negocio con el sufijo del botón URL", async () => {
+    mockedVentana.mockResolvedValue(false);
+    mockedResolverPlantilla.mockResolvedValue({
+      telnyxTemplateId: "tpl-alerta",
+      name: "alerta_operativa_negocio",
+      language: "es",
+    });
+
+    expect(
+      await avisarAlerta({
+        businessId: "biz_1",
+        businessName: "Peluquería Ana",
+        causa: "pago",
+        texto: "no hemos podido cobrar tu suscripción.",
+        recursoId: "pago:in_1",
+      })
+    ).toEqual({ via: "plantilla" });
+    expect(mockedPlantilla).toHaveBeenCalledWith(
+      expect.objectContaining({
+        template: { id: "tpl-alerta" },
+        bodyParams: {
+          negocio_nombre: "Peluquería Ana",
+          texto: "no hemos podido cobrar tu suscripción.",
+        },
+        buttonUrlParams: [{ index: 0, text: "facturacion" }],
       })
     );
   });

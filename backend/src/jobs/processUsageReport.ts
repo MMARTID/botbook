@@ -3,6 +3,7 @@ import { getStripeClient } from "../lib/stripe.js";
 import { getPlanByPriceId } from "../modules/billing/catalog.js";
 import { acquireLock, releaseLock } from "../lib/bookingLock.js";
 import { usageWarningEmail } from "../lib/emailTemplates.js";
+import { alertarMinutos } from "../modules/whatsapp/alertas.js";
 
 /** Registra en Stripe los minutos acumulados. Los precios de Stripe contienen
  * el tramo gratuito de cada plan, por lo que se informa TODO el consumo y
@@ -58,6 +59,14 @@ export async function processUsageReportJob(input: { businessId: string }): Prom
         });
         const { enqueueEmailJob } = await import("../lib/cloudTasks.js");
         await enqueueEmailJob({ fromAlias: "support", toAddress: email, subject, html });
+        // Alerta #5 por WhatsApp además del email (idempotente por periodo).
+        await alertarMinutos({
+          businessId: input.businessId,
+          periodId: period.id,
+          consumidos: consumedMinutes,
+          incluidos: plan.includedMinutes,
+          extraMinuteCents: plan.extraMinuteCents,
+        });
         // Se marca después de encolarlo: si Cloud Tasks no acepta el correo,
         // el siguiente intento debe poder avisar al negocio.
         await prisma.billingUsagePeriod.updateMany({

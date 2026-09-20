@@ -225,3 +225,46 @@ describe("WhatsAppAdapter", () => {
     );
   });
 });
+
+describe("WhatsAppAdapter — cta_url (alertas)", () => {
+  const adapter = new WhatsAppAdapter();
+
+  beforeEach(() => {
+    process.env.TELNYX_API_KEY = "KEY";
+    process.env.WHATSAPP_TELNYX_FROM_NUMBER = "+34930453218";
+    process.env.TELNYX_MESSAGING_PROFILE_ID = "perfil-1";
+    mockedWhatsappSend.mockResolvedValue({
+      data: { id: "msg-1", to: [{ phone_number: "+34600111222", status: "queued" }] },
+    });
+    vi.mocked(getTelnyxClient).mockReturnValue({
+      messages: { whatsapp: mockedWhatsappSend },
+    } as never);
+  });
+
+  it("monta el interactivo cta_url con el botón y la URL, y rechaza URLs que no sean https", async () => {
+    await adapter.sendInteractiveCtaUrl({
+      to: "+34600111222",
+      header: "Alerta",
+      body: "Tu calendario se ha desconectado.",
+      buttonText: "Ir a Ajustes",
+      url: "https://alhabla.ai/ajustes/calendario",
+    });
+
+    expect(mockedWhatsappSend.mock.calls.at(-1)![0].whatsapp_message).toEqual({
+      type: "interactive",
+      interactive: {
+        type: "cta_url",
+        header: { type: "text", text: "Alerta" },
+        body: { text: "Tu calendario se ha desconectado." },
+        action: {
+          name: "cta_url",
+          parameters: { display_text: "Ir a Ajustes", url: "https://alhabla.ai/ajustes/calendario" },
+        },
+      },
+    });
+
+    await expect(
+      adapter.sendInteractiveCtaUrl({ to: "+34600111222", body: "x", buttonText: "Ir", url: "http://alhabla.ai" })
+    ).rejects.toThrow("https");
+  });
+});

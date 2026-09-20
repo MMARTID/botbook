@@ -44,6 +44,9 @@ const { mockRedisClient } = vi.hoisted(() => ({
   },
 }));
 
+vi.mock("../../../src/modules/whatsapp/alertas.js", () => ({
+  alertarNumeroNoActivo: vi.fn().mockResolvedValue({ via: "interactivo" }),
+}));
 vi.mock("../../../src/lib/redis.js", () => ({
   getRedis: () => mockRedisClient,
 }));
@@ -389,6 +392,11 @@ describe("provisionPhoneNumber", () => {
 
     expect(result.success).toBe(false);
     expect(result.status).toBe("failed");
+    // Alerta #5 al dueño por WhatsApp.
+    const { alertarNumeroNoActivo } = await import(
+      "../../../src/modules/whatsapp/alertas.js"
+    );
+    expect(alertarNumeroNoActivo).toHaveBeenCalledWith({ businessId });
   });
 
   it("deja el pedido en 'pending' si Telnyx sigue revisando los requisitos tras el margen de espera, sin dar error genérico", async () => {

@@ -40,6 +40,11 @@ vi.mock("../../../src/lib/prisma.js", () => ({
   },
 }));
 
+vi.mock("../../../src/modules/whatsapp/alertas.js", () => ({
+  alertarCalendarioDesconectado: vi
+    .fn()
+    .mockResolvedValue({ via: "interactivo" }),
+}));
 vi.mock("../../../src/lib/redis.js", () => ({
   getRedis: vi.fn(),
 }));
@@ -521,9 +526,23 @@ describe("marcarCalendarioDesconectado", () => {
       },
     });
     expect(del).toHaveBeenCalledWith("voice_config:biz_1");
+    // Alerta #5 al dueño: la desconexión la detectó el sistema.
+    const { alertarCalendarioDesconectado } = await import(
+      "../../../src/modules/whatsapp/alertas.js"
+    );
+    expect(alertarCalendarioDesconectado).toHaveBeenCalledWith({
+      businessId: "biz_1",
+      proveedor: "Google Calendar",
+      providerId: "google",
+    });
   });
 
-  it("modo panel conserva las credenciales y guarda el motivo", async () => {
+  it("modo panel conserva las credenciales y guarda el motivo, y no avisa (lo pidió el dueño)", async () => {
+    const { alertarCalendarioDesconectado } = await import(
+      "../../../src/modules/whatsapp/alertas.js"
+    );
+    vi.mocked(alertarCalendarioDesconectado).mockClear();
+
     await marcarCalendarioDesconectado("biz_1", "google", {
       modo: "panel",
       motivo: "token caducado",
@@ -534,6 +553,7 @@ describe("marcarCalendarioDesconectado", () => {
       disconnectedAt: expect.any(Date),
       lastError: "token caducado",
     });
+    expect(alertarCalendarioDesconectado).not.toHaveBeenCalled();
   });
 
   it("solo toca la fila del proveedor indicado (Outlook no afecta a Google)", async () => {

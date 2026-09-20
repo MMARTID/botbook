@@ -13,6 +13,7 @@ import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "../../lib/prisma.js";
 import { invalidarCacheDeVoz } from "../../lib/voiceConfigCache.js";
+import { alertarCalendarioDesconectado } from "../whatsapp/alertas.js";
 import {
   cifrarJson,
   descifrarJson,
@@ -306,6 +307,16 @@ export async function marcarCalendarioDesconectado(
         ...(revocar ? { credentials: Prisma.DbNull } : {}),
       },
     });
+    // Alerta #5 al dueño por WhatsApp (una vez al día por proveedor). Solo
+    // cuando la desconexión la detecta el sistema: si la pidió el propio
+    // dueño desde el panel, no hay nada que avisar. Nunca lanza.
+    if (opciones.modo !== "panel") {
+      await alertarCalendarioDesconectado({
+        businessId,
+        proveedor: nombreProveedor,
+        providerId: provider,
+      });
+    }
   } catch (dbErr) {
     // Se traga a propósito (la respuesta al cliente no depende de esto), pero
     // con el error completo: si esto falla en silencio, la voz seguiría

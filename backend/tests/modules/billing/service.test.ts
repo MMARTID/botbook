@@ -49,6 +49,10 @@ vi.mock("../../../src/modules/phone/service.js", () => ({
   provisionPhoneNumber: vi.fn(),
 }));
 
+vi.mock("../../../src/modules/whatsapp/alertas.js", () => ({
+  alertarPagoFallido: vi.fn().mockResolvedValue({ via: "interactivo" }),
+  alertarPruebaTermina: vi.fn().mockResolvedValue({ via: "interactivo" }),
+}));
 vi.mock("../../../src/lib/bookingLock.js", () => ({
   acquireLock: vi.fn(),
   releaseLock: vi.fn(),
@@ -217,7 +221,37 @@ describe("handleStripeEvent", () => {
         }),
       })
     );
+    // Alerta #5 por WhatsApp además del email.
+    const { alertarPagoFallido } = await import(
+      "../../../src/modules/whatsapp/alertas.js"
+    );
+    expect(alertarPagoFallido).toHaveBeenCalledWith({
+      businessId,
+      invoiceId: "inv_test_1",
+      suspensionAt: new Date("2026-09-15T10:00:00.000Z"),
+    });
     vi.useRealTimers();
+  });
+
+  it("customer.subscription.trial_will_end avisa al dueño por WhatsApp", async () => {
+    const event = buildStripeEvent("customer.subscription.trial_will_end", {
+      id: subscriptionId,
+      customer: customerId,
+      status: "trialing",
+      trial_end: 1758672000,
+    });
+    mockedBusinessFindFirst.mockResolvedValue(buildBusiness() as any);
+
+    await handleStripeEvent(event);
+
+    const { alertarPruebaTermina } = await import(
+      "../../../src/modules/whatsapp/alertas.js"
+    );
+    expect(alertarPruebaTermina).toHaveBeenCalledWith({
+      businessId,
+      subscriptionId,
+      trialEnd: new Date(1758672000 * 1000),
+    });
   });
 
   it("envía una sola instrucción para retirar el desvío al programar la baja", async () => {
