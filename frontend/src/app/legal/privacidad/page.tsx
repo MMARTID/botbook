@@ -30,6 +30,7 @@ export default function PrivacidadPage() {
     >
       <LegalSection title="Quién es el responsable">
         <p>
+          Esta política se aplica específicamente a <strong className="font-semibold text-[#1e2b22]">Alhabla</strong>.
           El responsable del tratamiento es <strong className="font-semibold text-[#1e2b22]">Miguel Martín
           Delgado</strong>, profesional autónomo con NIF 49456776Z y domicilio fiscal en Carrer Sot De Bacs 175,
           08470 Sant Celoni, Barcelona. Para cualquier cuestión sobre privacidad puedes escribir a{" "}
@@ -171,6 +172,11 @@ export default function PrivacidadPage() {
           mejorar la gestión de citas que has solicitado, para proteger el servicio frente a abuso o fraude, o para
           cumplir una obligación legal. El acceso humano a esos datos queda limitado a soporte solicitado por ti,
           seguridad o cumplimiento legal.
+        </p>
+        <p>
+          Los datos obtenidos a través de las APIs de Google Workspace no se usan para desarrollar, mejorar ni entrenar
+          modelos de inteligencia artificial o aprendizaje automático no personalizados. Tampoco se venden, se emplean
+          para publicidad dirigida ni se transfieren a terceros para esos fines.
         </p>
         <p>
           El uso de los datos de Google por Alhabla se rige por la{" "}
