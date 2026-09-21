@@ -31,7 +31,7 @@ import {
 } from "@/lib/api";
 import { describeApiError } from "@/lib/api-errors";
 import { clearAuthTokens } from "@/lib/billing-navigation";
-import { E164_PHONE_REGEX } from "@/lib/phone";
+import { E164_PHONE_REGEX, tipoDeLineaTrasCambiarTelefono } from "@/lib/phone";
 import { WhatsappDueno } from "@/components/whatsapp-dueno";
 import { webUrl } from "@/lib/web-url";
 
@@ -84,13 +84,22 @@ export default function AccountSettingsPage() {
     (!accountQuery.data?.passwordConfigured || currentPassword.length > 0);
 
   const profileMutation = useMutation({
-    mutationFn: () =>
-      updateMyBusiness({
+    mutationFn: () => {
+      const phone = businessProfile.phone.trim();
+      // Si la línea de clientes cambia de naturaleza (un fijo pasa a ser un
+      // móvil o al revés), el tipo guardado en el alta dejaría a la tarjeta
+      // de desvío enseñando los códigos equivocados: se corrige o se vuelve
+      // a preguntar (PLAN-TELEFONIA-UX.md § 5, fase 1).
+      const tipoDeLinea =
+        phone && phone !== business?.phone
+          ? tipoDeLineaTrasCambiarTelefono(business?.customerLineType ?? null, phone)
+          : undefined;
+      return updateMyBusiness({
         name: businessProfile.name.trim(),
-        ...(businessProfile.phone.trim()
-          ? { phone: businessProfile.phone.trim() }
-          : {}),
-      }),
+        ...(phone ? { phone } : {}),
+        ...(tipoDeLinea !== undefined ? { customerLineType: tipoDeLinea } : {}),
+      });
+    },
     onSuccess: (updatedBusiness) => {
       queryClient.setQueryData(["my-business"], updatedBusiness);
       setProfileFeedback({ type: "success", message: "Datos del negocio actualizados." });

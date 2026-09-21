@@ -223,6 +223,35 @@ describe("CallForwardingCard · códigos según el tipo de línea", () => {
     ).toBeEnabled();
   });
 
+  it("tras el fallo la tarjeta se suelta y se puede reintentar la misma opción", async () => {
+    const user = userEvent.setup();
+    mockedUpdateMyBusiness.mockRejectedValueOnce(new Error("Network Error"));
+    renderCard(forwarding(), null);
+
+    const movilDeTrabajo = screen.getByRole("radio", {
+      name: /Un móvil de trabajo/,
+    });
+    await user.click(movilDeTrabajo);
+    await screen.findByRole("alert");
+
+    // Un radio que siguiera marcado no volvería a disparar onChange.
+    expect(movilDeTrabajo).not.toBeChecked();
+
+    mockedUpdateMyBusiness.mockResolvedValueOnce({
+      id: "neg_1",
+      customerLineType: "movil_trabajo",
+    } as Business);
+    await user.click(movilDeTrabajo);
+
+    await waitFor(() =>
+      expect(mockedUpdateMyBusiness).toHaveBeenCalledTimes(2)
+    );
+    expect(mockedUpdateMyBusiness).toHaveBeenLastCalledWith({
+      customerLineType: "movil_trabajo",
+    });
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
   it("sin línea de clientes no tiene sentido preguntar el tipo", () => {
     renderCard(forwarding({ customerLine: null }), null);
 

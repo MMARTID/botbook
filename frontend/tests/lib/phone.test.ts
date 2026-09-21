@@ -6,6 +6,7 @@ import {
   formatearMovil,
   inferirTipoDeLinea,
   normalizarMovil,
+  tipoDeLineaTrasCambiarTelefono,
 } from "@/lib/phone";
 
 describe("normalizarMovil", () => {
@@ -91,5 +92,43 @@ describe("inferirTipoDeLinea", () => {
     expect(inferirTipoDeLinea("")).toBeNull();
     expect(inferirTipoDeLinea("12345")).toBeNull();
     expect(inferirTipoDeLinea("+33 6 12 34 56 78")).toBeNull();
+  });
+});
+
+describe("tipoDeLineaTrasCambiarTelefono", () => {
+  it("un fijo que pasa a ser un móvil vuelve a preguntar (null)", () => {
+    expect(tipoDeLineaTrasCambiarTelefono("fijo", "+34600123456")).toBeNull();
+  });
+
+  it.each(["movil_trabajo", "movil_personal"] as const)(
+    "un %s que pasa a ser un fijo se corrige a «fijo»",
+    (actual) => {
+      expect(tipoDeLineaTrasCambiarTelefono(actual, "+34930111222")).toBe(
+        "fijo"
+      );
+    }
+  );
+
+  it.each([
+    ["fijo", "+34930111222"],
+    ["movil_trabajo", "+34600123456"],
+    ["movil_personal", "+34700123456"],
+  ] as const)(
+    "con %s y un número de la misma naturaleza no toca nada",
+    (actual, telefono) => {
+      expect(tipoDeLineaTrasCambiarTelefono(actual, telefono)).toBeUndefined();
+    }
+  );
+
+  it("sin tipo, con «alhabla» o con un número del que no se sabe nada no toca nada", () => {
+    expect(
+      tipoDeLineaTrasCambiarTelefono(null, "+34600123456")
+    ).toBeUndefined();
+    expect(
+      tipoDeLineaTrasCambiarTelefono("alhabla", "+34930111222")
+    ).toBeUndefined();
+    expect(
+      tipoDeLineaTrasCambiarTelefono("fijo", "+33612345678")
+    ).toBeUndefined();
   });
 });

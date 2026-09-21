@@ -80,3 +80,26 @@ export function formatearMovil(e164: string): string {
   const resto = cuerpo.slice(2).replace(/(\d{3})(?=\d)/g, "$1 ");
   return `+${prefijo} ${resto}`.trim();
 }
+
+/**
+ * Qué hacer con `Business.customerLineType` cuando el dueño cambia la línea
+ * de clientes desde Ajustes. La tarjeta de desvío enseña los códigos según
+ * ese tipo, así que un fijo que pasa a ser un móvil (o al revés) no puede
+ * quedarse con el tipo antiguo.
+ *
+ * - `undefined`: no hay que tocarlo (mismo tipo, sin tipo aún, «alhabla»,
+ *   o un número del que no sabemos nada, como uno extranjero).
+ * - `"fijo"`: el número nuevo es un fijo español y antes era un móvil.
+ * - `null`: el número nuevo es un móvil español y antes era un fijo; hay
+ *   que volver a preguntar si es de trabajo o personal.
+ */
+export function tipoDeLineaTrasCambiarTelefono(
+  actual: "fijo" | "movil_trabajo" | "movil_personal" | "alhabla" | null,
+  nuevoTelefono: string
+): "fijo" | null | undefined {
+  if (actual === null || actual === "alhabla") return undefined;
+  const inferido = inferirTipoDeLinea(nuevoTelefono);
+  if (inferido === null) return undefined;
+  if (inferido === "fijo") return actual === "fijo" ? undefined : "fijo";
+  return actual === "fijo" ? null : undefined;
+}

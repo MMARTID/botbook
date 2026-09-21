@@ -1,9 +1,14 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import AccountSettingsPage from "@/app/ajustes/page";
 import { useBusiness } from "@/components/providers";
-import { getAccountOverview, getOwnerWhatsapp } from "@/lib/api";
+import {
+  getAccountOverview,
+  getOwnerWhatsapp,
+  updateMyBusiness,
+} from "@/lib/api";
 import type { AccountOverview } from "@/lib/api";
 import type { EstadoWhatsappDueno } from "@/lib/types";
 
@@ -27,6 +32,7 @@ vi.mock("@/lib/api", () => ({
 const mockedUseBusiness = vi.mocked(useBusiness);
 const mockedGetAccountOverview = vi.mocked(getAccountOverview);
 const mockedGetOwnerWhatsapp = vi.mocked(getOwnerWhatsapp);
+const mockedUpdateMyBusiness = vi.mocked(updateMyBusiness);
 
 const CLAVE_CUENTA = ["account-overview"];
 
@@ -168,5 +174,62 @@ describe("AccountSettingsPage", () => {
     expect(await screen.findByLabelText(/Teléfono del negocio/)).toHaveValue(NEGOCIO!.phone);
     expect(screen.queryByLabelText(/Teléfono móvil para avisos/)).not.toBeInTheDocument();
     expect(screen.getByLabelText(/Nombre del negocio/)).toHaveAttribute("maxLength", "80");
+  });
+
+  describe("cambiar el teléfono del negocio y el tipo de línea", () => {
+    async function guardarTelefono(
+      negocio: Record<string, unknown>,
+      telefonoNuevo: string
+    ) {
+      const user = userEvent.setup();
+      estadoDeNegocio({
+        business: { ...NEGOCIO, ...negocio } as ReturnType<typeof useBusiness>["business"],
+      });
+      mockedGetAccountOverview.mockResolvedValue(CUENTA);
+      mockedUpdateMyBusiness.mockResolvedValue({ ...NEGOCIO, ...negocio, phone: telefonoNuevo } as never);
+      renderPage();
+
+      const campo = await screen.findByLabelText(/Teléfono del negocio/);
+      await user.clear(campo);
+      await user.type(campo, telefonoNuevo);
+      await user.click(screen.getByRole("button", { name: /Guardar datos/ }));
+      await waitFor(() => expect(mockedUpdateMyBusiness).toHaveBeenCalledTimes(1));
+      return mockedUpdateMyBusiness.mock.calls[0][0];
+    }
+
+    it("si el fijo pasa a ser un móvil, deja el tipo en null para que la tarjeta de desvío vuelva a preguntar", async () => {
+      const body = await guardarTelefono(
+        { phone: "+34930111222", customerLineType: "fijo" },
+        "+34600123456"
+      );
+
+      expect(body).toEqual({
+        name: "Peluquería Lola",
+        phone: "+34600123456",
+        customerLineType: null,
+      });
+    });
+
+    it("si el móvil pasa a ser un fijo, corrige el tipo a «fijo»", async () => {
+      const body = await guardarTelefono(
+        { phone: "+34600111222", customerLineType: "movil_personal" },
+        "+34930111222"
+      );
+
+      expect(body).toEqual({
+        name: "Peluquería Lola",
+        phone: "+34930111222",
+        customerLineType: "fijo",
+      });
+    });
+
+    it("con un número de la misma naturaleza no manda customerLineType", async () => {
+      const body = await guardarTelefono(
+        { phone: "+34600111222", customerLineType: "movil_trabajo" },
+        "+34600999888"
+      );
+
+      expect(body).toEqual({ name: "Peluquería Lola", phone: "+34600999888" });
+    });
   });
 });

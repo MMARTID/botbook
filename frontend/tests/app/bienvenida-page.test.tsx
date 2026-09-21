@@ -194,7 +194,7 @@ describe("RegisterBusinessPage — móvil con WhatsApp", () => {
     ).toBeDisabled();
   });
 
-  it("ya no avisa de «parece el teléfono del local»: el fijo va en su sitio y el móvil se pide aparte", async () => {
+  it("el fijo va en su sitio y el móvil se pide aparte; un fijo en «Tu móvil» avisa sin bloquear, como en Ajustes", async () => {
     const user = userEvent.setup();
     render(<RegisterBusinessPage />);
     await elegirNegocio(user);
@@ -204,18 +204,27 @@ describe("RegisterBusinessPage — móvil con WhatsApp", () => {
       "+34 930 111 222"
     );
 
-    await user.type(
-      screen.getByLabelText("Tu móvil con WhatsApp (opcional)"),
-      "930 111 222"
-    );
+    const movil = screen.getByLabelText("Tu móvil con WhatsApp (opcional)");
+    await user.type(movil, "930 111 222");
     await user.tab();
 
     expect(
-      screen.queryByText(/Parece el teléfono del local/)
-    ).not.toBeInTheDocument();
+      screen.getByText(
+        "Parece el teléfono del local. Necesitamos el móvil en el que usas WhatsApp."
+      )
+    ).toBeInTheDocument();
+    expect(movil).toHaveAttribute("aria-invalid", "false");
     expect(
       screen.getByRole("button", { name: /Confirmar y continuar/ })
     ).toBeEnabled();
+
+    // Al corregirlo el aviso se va.
+    await user.clear(movil);
+    await user.type(movil, "600 123 456");
+    await user.tab();
+    expect(
+      screen.queryByText(/Parece el teléfono del local/)
+    ).not.toBeInTheDocument();
   });
 
   it("guarda el móvil normalizado en el mismo PATCH y después pide la activación", async () => {
@@ -445,7 +454,7 @@ describe("RegisterBusinessPage — ¿A qué número te llaman tus clientes?", ()
     ).not.toBeInTheDocument();
   });
 
-  it("un móvil en Google Places propone «un móvil de trabajo» con los avisos aparte; marcar la casilla usa la línea como WhatsApp del dueño", async () => {
+  it("un móvil en Google Places propone «un móvil de trabajo» con los avisos a ese mismo móvil por defecto (plan § 5, casos B y C)", async () => {
     const user = userEvent.setup();
     mockedUpdateMyBusiness.mockResolvedValue({
       ...NEGOCIO_GUARDADO,
@@ -461,16 +470,11 @@ describe("RegisterBusinessPage — ¿A qué número te llaman tus clientes?", ()
     expect(screen.getByLabelText("Móvil de trabajo")).toHaveValue(
       "+34 600 111 222"
     );
-    const casilla = screen.getByRole("checkbox", {
-      name: /Mándame los avisos a este mismo móvil/,
-    });
-    expect(casilla).not.toBeChecked();
     expect(
-      screen.getByLabelText("Tu móvil con WhatsApp (opcional)")
-    ).toBeInTheDocument();
-
-    await user.click(casilla);
-
+      screen.getByRole("checkbox", {
+        name: /Mándame los avisos a este mismo móvil/,
+      })
+    ).toBeChecked();
     expect(
       screen.queryByLabelText("Tu móvil con WhatsApp (opcional)")
     ).not.toBeInTheDocument();
@@ -614,11 +618,11 @@ describe("RegisterBusinessPage — ¿A qué número te llaman tus clientes?", ()
       screen.getByRole("radio", { name: /Un móvil de trabajo/ })
     );
     await user.type(screen.getByLabelText("Móvil de trabajo"), "600 111 222");
-    await user.click(
+    expect(
       screen.getByRole("checkbox", {
         name: /Mándame los avisos a este mismo móvil/,
       })
-    );
+    ).toBeChecked();
     await user.click(
       screen.getByRole("button", { name: /No encontré mi negocio/ })
     );
@@ -637,5 +641,245 @@ describe("RegisterBusinessPage — ¿A qué número te llaman tus clientes?", ()
     await waitFor(() =>
       expect(location.getHref()).toBe("/bienvenida/niche")
     );
+  });
+
+  it("desmarcar «los avisos a este mismo móvil» vuelve a pedir el móvil aparte y no manda ownerPhoneIsCustomerLine", async () => {
+    const user = userEvent.setup();
+    mockedUpdateMyBusiness.mockResolvedValue(NEGOCIO_GUARDADO);
+    mockedSendActivation.mockResolvedValue({} as never);
+    render(<RegisterBusinessPage />);
+    await elegirNegocio(user, { ...LUGAR, phone: "+34 600 111 222" });
+
+    await user.click(
+      screen.getByRole("checkbox", {
+        name: /Mándame los avisos a este mismo móvil/,
+      })
+    );
+
+    await user.type(
+      screen.getByLabelText("Tu móvil con WhatsApp (opcional)"),
+      "600 123 456"
+    );
+    await user.click(
+      screen.getByRole("button", { name: /Confirmar y continuar/ })
+    );
+
+    await waitFor(() =>
+      expect(mockedUpdateMyBusiness).toHaveBeenCalledTimes(1)
+    );
+    expect(mockedUpdateMyBusiness).toHaveBeenCalledWith({
+      ...DATOS_DEL_LUGAR,
+      phone: "+34600111222",
+      customerLineType: "movil_trabajo",
+      ownerPhoneIsCustomerLine: false,
+      hideOwnerNumberFromClients: false,
+      ownerWhatsappNumber: "+34600123456",
+    });
+  });
+
+  it("con la casilla marcada y la línea vacía no guarda: pide el móvil o desmarcar la casilla", async () => {
+    const user = userEvent.setup();
+    render(<RegisterBusinessPage />);
+
+    // Sin negocio (o sin teléfono en Google Places): la persona elige «Mi
+    // móvil personal», la casilla se marca sola y no escribe nada.
+    await user.click(screen.getByRole("radio", { name: /Mi móvil personal/ }));
+    expect(
+      screen.getByRole("checkbox", {
+        name: /Mándame los avisos a este mismo móvil/,
+      })
+    ).toBeChecked();
+
+    await user.click(
+      screen.getByRole("button", { name: /No encontré mi negocio/ })
+    );
+
+    const linea = screen.getByLabelText("Tu móvil");
+    expect(
+      await screen.findByText(
+        "Escribe el móvil al que te mandamos los avisos o desmarca «Mándame los avisos a este mismo móvil»."
+      )
+    ).toBeInTheDocument();
+    expect(linea).toHaveAttribute("aria-invalid", "true");
+    expect(mockedUpdateMyBusiness).not.toHaveBeenCalled();
+    expect(location.getHref()).toBe("http://localhost/bienvenida");
+
+    // Desmarcar la casilla es una salida válida: el error se va y el tipo
+    // se guarda sin móvil.
+    mockedUpdateMyBusiness.mockResolvedValue(NEGOCIO_GUARDADO);
+    await user.click(
+      screen.getByRole("checkbox", {
+        name: /Mándame los avisos a este mismo móvil/,
+      })
+    );
+    expect(
+      screen.queryByText(/Escribe el móvil al que te mandamos los avisos/)
+    ).not.toBeInTheDocument();
+    expect(linea).toHaveAttribute("aria-invalid", "false");
+    await user.click(
+      screen.getByRole("button", { name: /No encontré mi negocio/ })
+    );
+    await waitFor(() =>
+      expect(mockedUpdateMyBusiness).toHaveBeenCalledWith({
+        customerLineType: "movil_personal",
+        ownerPhoneIsCustomerLine: false,
+        hideOwnerNumberFromClients: false,
+      })
+    );
+    expect(mockedSendActivation).not.toHaveBeenCalled();
+  });
+
+  it("un fijo con «los avisos a este mismo móvil» bloquea los botones y lo explica, al instante al cambiar de tarjeta", async () => {
+    const user = userEvent.setup();
+    render(<RegisterBusinessPage />);
+    await elegirNegocio(user);
+
+    // El fijo de Google Places queda en el campo al pasar a «Mi móvil
+    // personal», y la casilla se marca sola: ese fijo iría como WhatsApp.
+    await user.click(screen.getByRole("radio", { name: /Mi móvil personal/ }));
+
+    const linea = screen.getByLabelText("Tu móvil");
+    expect(linea).toHaveValue("+34 930 111 222");
+    expect(
+      screen.getByText(
+        "Ese número es un fijo y no tiene WhatsApp. Escribe tu móvil o desmarca «Mándame los avisos a este mismo móvil»."
+      )
+    ).toBeInTheDocument();
+    expect(linea).toHaveAttribute("aria-invalid", "true");
+    expect(
+      screen.getByRole("button", { name: /Confirmar y continuar/ })
+    ).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: /No encontré mi negocio/ })
+    ).toBeDisabled();
+
+    // Desmarcar la casilla lo desbloquea: el fijo puede ser la línea de
+    // clientes, solo no puede ser el WhatsApp del dueño.
+    await user.click(
+      screen.getByRole("checkbox", {
+        name: /Mándame los avisos a este mismo móvil/,
+      })
+    );
+    expect(
+      screen.queryByText(/Ese número es un fijo y no tiene WhatsApp/)
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /Confirmar y continuar/ })
+    ).toBeEnabled();
+    expect(mockedUpdateMyBusiness).not.toHaveBeenCalled();
+  });
+
+  it("elegir el negocio después no pisa la tarjeta, la línea ni las casillas que la persona ya había rellenado", async () => {
+    const user = userEvent.setup();
+    mockedUpdateMyBusiness.mockResolvedValue(NEGOCIO_GUARDADO);
+    mockedSendActivation.mockResolvedValue({} as never);
+    render(<RegisterBusinessPage />);
+
+    await user.click(screen.getByRole("radio", { name: /Mi móvil personal/ }));
+    await user.type(screen.getByLabelText("Tu móvil"), "600 123 456");
+    await user.click(
+      screen.getByRole("checkbox", { name: /No des mi número a los clientes/ })
+    );
+
+    // Google Places trae un fijo: sin la protección, la tarjeta pasaría a
+    // «fijo», el número escrito se perdería y las casillas se reiniciarían.
+    await elegirNegocio(user);
+
+    expect(
+      screen.getByRole("radio", { name: /Mi móvil personal/ })
+    ).toBeChecked();
+    expect(screen.getByLabelText("Tu móvil")).toHaveValue("600 123 456");
+    expect(
+      screen.getByRole("checkbox", {
+        name: /Mándame los avisos a este mismo móvil/,
+      })
+    ).toBeChecked();
+    expect(
+      screen.getByRole("checkbox", { name: /No des mi número a los clientes/ })
+    ).toBeChecked();
+
+    await user.click(
+      screen.getByRole("button", { name: /Confirmar y continuar/ })
+    );
+    await waitFor(() =>
+      expect(mockedUpdateMyBusiness).toHaveBeenCalledWith({
+        ...DATOS_DEL_LUGAR,
+        phone: "+34600123456",
+        customerLineType: "movil_personal",
+        ownerPhoneIsCustomerLine: true,
+        hideOwnerNumberFromClients: true,
+        ownerWhatsappNumber: "+34600123456",
+      })
+    );
+  });
+
+  it("si la persona no ha tocado nada, cambiar de negocio sí actualiza la propuesta de Google Places", async () => {
+    const user = userEvent.setup();
+    render(<RegisterBusinessPage />);
+    await elegirNegocio(user);
+    expect(screen.getByRole("radio", { name: /El fijo del local/ })).toBeChecked();
+
+    // Editar el buscador suelta el negocio; el segundo trae un móvil. La
+    // búsqueda tiene que cambiar de texto o el debounce no la repite.
+    const buscador = screen.getByLabelText(
+      "Busca tu negocio por nombre o dirección"
+    );
+    await user.clear(buscador);
+    await user.type(buscador, "Peluquería ");
+    await elegirNegocio(user, { ...LUGAR, phone: "+34 600 111 222" });
+
+    expect(
+      screen.getByRole("radio", { name: /Un móvil de trabajo/ })
+    ).toBeChecked();
+    expect(screen.getByLabelText("Móvil de trabajo")).toHaveValue(
+      "+34 600 111 222"
+    );
+  });
+
+  it("con los avisos al mismo móvil, el aviso de «no se pudo guardar tu móvil» se ve aunque el bloque del móvil no esté", async () => {
+    const user = userEvent.setup();
+    mockedUpdateMyBusiness.mockResolvedValue({
+      id: "neg_1",
+      name: "Peluquería Lola",
+    } as Business);
+    let continuar: (() => void) | null = null;
+    const setTimeoutOriginal = window.setTimeout;
+    vi.spyOn(window, "setTimeout").mockImplementation(((
+      handler: TimerHandler,
+      timeout?: number,
+      ...args: unknown[]
+    ) => {
+      if (timeout === 4_000 && typeof handler === "function") {
+        continuar = handler as () => void;
+        return 0;
+      }
+      return setTimeoutOriginal(handler, timeout, ...args);
+    }) as typeof window.setTimeout);
+    render(<RegisterBusinessPage />);
+
+    await user.click(screen.getByRole("radio", { name: /Mi móvil personal/ }));
+    await user.type(screen.getByLabelText("Tu móvil"), "600 123 456");
+    expect(
+      screen.queryByLabelText("Tu móvil con WhatsApp (opcional)")
+    ).not.toBeInTheDocument();
+
+    await user.click(
+      screen.getByRole("button", { name: /No encontré mi negocio/ })
+    );
+
+    const aviso = await screen.findByText(
+      "No se pudo guardar tu móvil. Añádelo más tarde en Ajustes › WhatsApp."
+    );
+    expect(aviso).toHaveAttribute("aria-live", "polite");
+    expect(aviso).not.toHaveClass("sr-only");
+    expect(mockedSendActivation).not.toHaveBeenCalled();
+    expect(
+      screen.getByRole("button", { name: /No encontré mi negocio/ })
+    ).toBeDisabled();
+    expect(location.getHref()).toBe("http://localhost/bienvenida");
+
+    expect(continuar).not.toBeNull();
+    act(() => continuar!());
+    expect(location.getHref()).toBe("/bienvenida/niche");
   });
 });

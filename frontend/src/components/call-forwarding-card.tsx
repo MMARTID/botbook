@@ -428,9 +428,11 @@ function PreguntaTipoDeLinea({ customerLine }: { customerLine: string }) {
         códigos que le corresponden.
       </p>
       <div className="mt-3">
+        {/* Si el PATCH falla, la tarjeta se suelta: un radio que sigue marcado
+            no vuelve a disparar onChange y no se podría reintentar la misma. */}
         <TarjetasDeLinea
           name="desvio-tipo-de-linea"
-          value={guardarMutation.variables ?? null}
+          value={guardarMutation.isError ? null : (guardarMutation.variables ?? null)}
           onChange={(tipo) => guardarMutation.mutate(tipo)}
           tipos={TIPOS_CON_LINEA_PROPIA}
           disabled={guardarMutation.isPending}
