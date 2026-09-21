@@ -1,9 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useComingSoonBubble } from "@/components/coming-soon-bubble";
 import { getGoogleAuthUrl } from "@/lib/api";
-import { isProductionBuild } from "@/lib/env";
 
 type GoogleAuthButtonProps = {
   onError: (message: string) => void;
@@ -23,22 +21,11 @@ function GoogleIcon() {
   );
 }
 
-// Registro público desactivado en producción mientras se siguen haciendo
-// cambios — este botón también puede crear una cuenta nueva silenciosamente
-// (mismo callback de Google tanto en /login como en /register), así que se
-// bloquea igual que PlanSelectionLink. En desarrollo (npm run dev, puerto
-// 3001) navega de verdad a Google, para poder probar el flujo completo sin
-// tocar este bloqueo cada vez (decisión explícita 2026-09-14).
+// Registro abierto (el bloqueo «por invitación» de producción se retiró el
+// 2026-09-21, cuando el producto quedó listo para la prueba real).
 export function GoogleAuthButton({ onError, beforeStart, disabled, acceptedTerms }: GoogleAuthButtonProps) {
   const [loading, setLoading] = useState(false);
-  const { openAt, bubble } = useComingSoonBubble();
-
-  const startGoogleAuth = async (event: React.MouseEvent<HTMLButtonElement>) => {
-    if (isProductionBuild()) {
-      openAt(event);
-      return;
-    }
-
+  const startGoogleAuth = async () => {
     setLoading(true);
     onError("");
 
@@ -62,7 +49,6 @@ export function GoogleAuthButton({ onError, beforeStart, disabled, acceptedTerms
         <GoogleIcon />
         {loading ? "Conectando con Google..." : "Continuar con Google"}
       </button>
-      {bubble}
     </>
   );
 }

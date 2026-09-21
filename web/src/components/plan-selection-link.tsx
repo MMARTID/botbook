@@ -1,9 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useComingSoonBubble } from "@/components/coming-soon-bubble";
 import { normalizeBusinessType } from "@/lib/business-type";
-import { isProductionBuild } from "@/lib/env";
 import type { PlanId } from "@/lib/types";
 
 type PlanSelectionLinkProps = {
@@ -20,27 +18,17 @@ type PlanSelectionLinkProps = {
  * mano. La duración de la prueba ya la dice la línea bajo las tarjetas
  * (TRIAL_REASSURANCE); no se repite tres veces.
  */
-function describeSelection({ production }: { production: boolean }) {
-  if (production) return "Registro por invitación mientras terminamos el desarrollo.";
+function describeSelection() {
   return "Crea tu cuenta y añade una tarjeta: no se cobra nada hasta que termina la prueba.";
 }
 
-// Registro público desactivado en producción mientras se siguen haciendo
-// cambios — pero en desarrollo (npm run dev, puerto 3001) navega de verdad,
-// para poder probar de punta a punta el flujo de registro/onboarding sin
-// tocar este bloqueo cada vez (decisión explícita 2026-09-14).
+// Registro abierto (el bloqueo «por invitación» de producción se retiró el
+// 2026-09-21).
 export function PlanSelectionLink({ planId, planName, featured, preselected = false }: PlanSelectionLinkProps) {
   const [navigating, setNavigating] = useState(false);
-  const { openAt, bubble } = useComingSoonBubble();
-  const production = isProductionBuild();
   const noteId = `plan-${planId}-nota`;
 
-  const selectPlan = (event: React.MouseEvent<HTMLButtonElement>) => {
-    if (production) {
-      openAt(event);
-      return;
-    }
-
+  const selectPlan = () => {
     setNavigating(true);
 
     // En la web nunca hay sesión (vive en app.alhabla.ai): el plan y el
@@ -72,9 +60,8 @@ export function PlanSelectionLink({ planId, planName, featured, preselected = fa
         {navigating ? "Continuando…" : `Elegir ${planName}`}
       </button>
       <p id={noteId} className={`mt-3 text-xs leading-5 ${featured ? "text-white/65" : "text-[#52525b]"}`}>
-        {describeSelection({ production })}
+        {describeSelection()}
       </p>
-      {bubble}
     </>
   );
 }
