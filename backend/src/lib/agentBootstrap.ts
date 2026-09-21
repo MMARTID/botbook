@@ -580,6 +580,7 @@ export async function createBusinessAgent(args: {
       timezone: true,
       minAdvanceBookingMinutes: true,
       maxAppointmentDurationMinutes: true,
+      hideOwnerNumberFromClients: true,
     },
   });
 
@@ -609,6 +610,7 @@ export async function createBusinessAgent(args: {
       minAdvanceBookingMinutes: business?.minAdvanceBookingMinutes,
       maxAppointmentDurationMinutes: business?.maxAppointmentDurationMinutes,
       listaDeEspera,
+      ocultarNumeroDelNegocio: business?.hideOwnerNumberFromClients,
     }),
   };
 
@@ -876,6 +878,7 @@ export async function syncAgentToRetell(
       timezone: true,
       minAdvanceBookingMinutes: true,
       maxAppointmentDurationMinutes: true,
+      hideOwnerNumberFromClients: true,
     },
   });
 
@@ -923,6 +926,7 @@ export async function syncAgentToRetell(
     minAdvanceBookingMinutes: business.minAdvanceBookingMinutes,
     maxAppointmentDurationMinutes: business.maxAppointmentDurationMinutes,
     listaDeEspera: await listaDeEsperaDisponible(),
+    ocultarNumeroDelNegocio: business.hideOwnerNumberFromClients,
   });
 
   const postCallAnalysisData = buildPostCallAnalysisData(

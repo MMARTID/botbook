@@ -215,6 +215,12 @@ type BusinessVoiceConfig = FilaDeConexionDeCalendario & {
   // se reutiliza como remitente del SMS en vez de comprar/gestionar un
   // segundo número solo para mensajería.
   telnyxPhoneNumber: string | null;
+  // Privacidad (PLAN-TELEFONIA-UX.md § 3, caso C): con true las respuestas
+  // de las tools no dicen la línea del dueño (`phone`); se ofrece recado.
+  // El número de Alhabla (recepcionista) se sigue dando, también en el SMS.
+  // Puede faltar en entradas de caché anteriores a la columna:
+  // undefined = false.
+  hideOwnerNumberFromClients?: boolean;
   // null = nunca pasó por Stripe (cuentas de prueba/demo creadas a mano) —
   // se trata como "permitido", no como "sin pagar". Solo se bloquea la
   // reserva ante un estado explícito de "no está pagando" (ver
@@ -238,9 +244,21 @@ async function loadBusinessConfig(
       maxAppointmentDurationMinutes: true,
       phone: true,
       telnyxPhoneNumber: true,
+      hideOwnerNumberFromClients: true,
       subscriptionStatus: true,
     },
   });
+}
+
+/**
+ * Teléfono del negocio que se le puede decir al CLIENTE: null si el dueño
+ * pidió no darlo (hideOwnerNumberFromClients). Los textos que lo reciben
+ * ya tienen variante sin número.
+ */
+function telefonoParaClientes(
+  business: Pick<BusinessVoiceConfig, "phone" | "hideOwnerNumberFromClients">
+): string | null {
+  return business.hideOwnerNumberFromClients === true ? null : business.phone;
 }
 
 async function getCachedVoiceConfig(
@@ -1048,6 +1066,11 @@ async function enviarMensajesAlClientePorSms(
 ): Promise<void> {
   const smsInput = {
     businessName: business.name,
+    // Siempre el número de Alhabla, también con hideOwnerNumberFromClients:
+    // lo atiende la recepcionista (no el dueño), igual que en WhatsApp
+    // (`mensajesCliente.telefonoDeContacto`), y el SMS sale con Alphanumeric
+    // Sender ID, al que no se puede responder — sin número el cliente no
+    // tendría forma de cambiar ni cancelar la cita.
     businessPhone: business.telnyxPhoneNumber ?? "",
     startDateTime: input.startDateTime,
     timezone: business.timezone || "Europe/Madrid",
@@ -1572,7 +1595,10 @@ async function executeBookAppointment(
             code: "CALENDAR_UNAVAILABLE",
             message:
               "No he podido comprobar la agenda del negocio en este momento." +
-              mensajeDeSeguimiento(leadCalendarioIlegible, business.phone),
+              mensajeDeSeguimiento(
+                leadCalendarioIlegible,
+                telefonoParaClientes(business)
+              ),
           },
         };
       }
@@ -1942,7 +1968,7 @@ async function executeBookAppointment(
                 `No pude acceder al calendario del negocio porque la conexión con ${DESCRIPTORES_DE_PROVEEDOR[proveedorRoto].nombreCorto} expiró o fue revocada.` +
                 (leadReconexion
                   ? " He tomado nota de tu solicitud para confirmártela en cuanto el negocio la reconecte."
-                  : mensajeDeSeguimiento(null, business.phone)),
+                  : mensajeDeSeguimiento(null, telefonoParaClientes(business))),
             },
           };
         }
@@ -1985,7 +2011,7 @@ async function executeBookAppointment(
           result: {
             success: false,
             code,
-            message: `${baseMessage}${mensajeDeSeguimiento(leadId, business.phone)}`,
+            message: `${baseMessage}${mensajeDeSeguimiento(leadId, telefonoParaClientes(business))}`,
           },
         };
       }

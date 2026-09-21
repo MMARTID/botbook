@@ -33,6 +33,7 @@ import { buildInboundCallDynamicVariables } from "./lib/agentBootstrap.js";
 import { executeVoiceTool } from "./modules/voiceTools/service.js";
 import {
   handleCallInitiated,
+  handleCallAnswered,
   handleCallHangup,
   handleCallConversationEnded,
   handleCallRecordingSaved,
@@ -509,6 +510,11 @@ async function start() {
         switch (envelope.eventType) {
           case "call.initiated":
             result = await handleCallInitiated(payload);
+            break;
+          // Solo actúa sobre la pata saliente de «Comprobar desvío» (por su
+          // client_state); en las llamadas de clientes no hace nada.
+          case "call.answered":
+            result = await handleCallAnswered(payload);
             break;
           case "call.hangup":
             result = await handleCallHangup(payload);

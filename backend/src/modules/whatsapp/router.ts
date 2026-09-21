@@ -1706,7 +1706,12 @@ async function textoEnClientes(
     const business = message.businessId
       ? await prisma.business.findUnique({
           where: { id: message.businessId },
-          select: { name: true, phone: true, telnyxPhoneNumber: true },
+          select: {
+            name: true,
+            phone: true,
+            telnyxPhoneNumber: true,
+            hideOwnerNumberFromClients: true,
+          },
         })
       : null;
     return resultado(

@@ -13,6 +13,12 @@ import {
   type EstadoWhatsappDueno,
 } from "../whatsapp/altaDueno.js";
 import { bajaVigente } from "../whatsapp/bajas.js";
+import {
+  ComprobacionDeDesvioError,
+  iniciarComprobacionDeDesvio,
+  obtenerComprobacionDeDesvio,
+  type ComprobacionDeDesvio,
+} from "./comprobacionDesvio.js";
 
 /**
  * Si el paso de WhatsApp cuenta en `progress` e `isActive`. Estuvo en
@@ -52,7 +58,33 @@ export type OnboardingForwarding = {
   phoneNumber: string | null;
   confirmedAt: string | null;
   firstCallAt: string | null;
+  /** Última «Comprobar desvío» que entró de verdad (PLAN-TELEFONIA-UX.md
+   * § 4); null = nunca comprobado. Distinto de `confirmedAt` («el usuario
+   * dice»). */
+  checkedAt: string | null;
+  /** Línea de clientes (`Business.phone`) a la que llamará la comprobación;
+   * null mientras sea el placeholder del registro. */
+  customerLine: string | null;
 };
+
+/** Lo que el panel consulta por polling mientras la comprobación está en
+ * marcha: sin `businessId` ni `callControlId`, que no le hacen falta. */
+export type ForwardingCheckResponse = Pick<
+  ComprobacionDeDesvio,
+  "id" | "linea" | "startedAt" | "resultado" | "resueltaAt"
+>;
+
+function serializarComprobacion(
+  check: ComprobacionDeDesvio
+): ForwardingCheckResponse {
+  return {
+    id: check.id,
+    linea: check.linea,
+    startedAt: check.startedAt,
+    resultado: check.resultado,
+    resueltaAt: check.resueltaAt,
+  };
+}
 
 export type OnboardingStateResponse = {
   steps: OnboardingSteps;
@@ -131,6 +163,10 @@ export async function onboardingRoutes(fastify: FastifyInstance) {
           confirmedAt:
             onboardingState.forwardingConfirmedAt?.toISOString() ?? null,
           firstCallAt: firstCall?.startedAt.toISOString() ?? null,
+          checkedAt: onboardingState.forwardingCheckedAt?.toISOString() ?? null,
+          customerLine: business.phone.startsWith("TEMP-")
+            ? null
+            : business.phone,
         };
 
         // WhatsApp del dueño: el mismo estado alimenta el paso y el detalle
@@ -243,6 +279,62 @@ export async function onboardingRoutes(fastify: FastifyInstance) {
         return reply
           .status(500)
           .send({ error: "Failed to confirm call forwarding" });
+      }
+    }
+  );
+
+  // «Comprobar desvío» (PLAN-TELEFONIA-UX.md § 4): origina una llamada real
+  // desde el número de Alhabla a la línea de clientes; el resultado llega
+  // por los webhooks de Telnyx y el panel lo consulta con el GET de abajo.
+  fastify.post(
+    "/business/me/onboarding/forwarding/check",
+    { preValidation: [fastify.authenticate] },
+    async (request: FastifyRequest, reply) => {
+      const businessId = request.user!.businessId;
+      try {
+        const check = await iniciarComprobacionDeDesvio(businessId);
+        return reply.status(202).send(serializarComprobacion(check));
+      } catch (error) {
+        if (error instanceof ComprobacionDeDesvioError) {
+          return reply
+            .status(error.status)
+            .send({ error: error.message, code: error.codigo });
+        }
+        fastify.log.error(
+          { err: error, businessId },
+          "[Onboarding] No se pudo iniciar la comprobación del desvío"
+        );
+        return reply
+          .status(500)
+          .send({ error: "Failed to start forwarding check" });
+      }
+    }
+  );
+
+  // Solo se ve la comprobación del propio negocio: un id ajeno es un 404,
+  // igual que uno inexistente o ya caducado.
+  fastify.get(
+    "/business/me/onboarding/forwarding/check/:id",
+    { preValidation: [fastify.authenticate] },
+    async (request: FastifyRequest, reply) => {
+      const businessId = request.user!.businessId;
+      const { id } = request.params as { id: string };
+      try {
+        const check = await obtenerComprobacionDeDesvio(id, businessId);
+        if (!check) {
+          return reply
+            .status(404)
+            .send({ error: "Forwarding check not found" });
+        }
+        return reply.send(serializarComprobacion(check));
+      } catch (error) {
+        fastify.log.error(
+          { err: error, businessId },
+          "[Onboarding] No se pudo leer la comprobación del desvío"
+        );
+        return reply
+          .status(500)
+          .send({ error: "Failed to fetch forwarding check" });
       }
     }
   );

@@ -48,6 +48,8 @@ export interface ContextoCita {
     timezone: string;
     telnyxPhoneNumber: string | null;
     phone: string;
+    /** Privacidad (caso C): sin número en ningún mensaje al cliente. */
+    hideOwnerNumberFromClients?: boolean;
     placeId: string | null;
   };
   startDateTime: Date;
@@ -109,15 +111,27 @@ export function nombreParaCliente(negocio: { name: string }): string {
  * Teléfono al que el cliente puede llamar: el número que atiende la
  * recepcionista (Telnyx), formateado; si no, `phone` si es E.164 real (no el
  * `TEMP-` del registro); si no, null (los textos tienen variante).
+ *
+ * Con `hideOwnerNumberFromClients` (PLAN-TELEFONIA-UX.md § 3, caso C: «no
+ * des mi número a los clientes») lo que se oculta es la línea del dueño
+ * (`phone`): el número de Alhabla lo atiende la recepcionista, que toma el
+ * recado, así que sigue dándose (todas las plantillas de confirmación,
+ * cambio y cancelación exigen `negocio_telefono`; sin él el cliente no
+ * recibiría nada después de que la recepcionista le prometiera el WhatsApp).
+ * Solo sin número de Alhabla devuelve null, y las variantes sin teléfono
+ * («llama directamente a …», o la plantilla sin `negocio_telefono`) hacen el
+ * resto. El cliente siempre puede responder por WhatsApp.
  */
 export function telefonoDeContacto(negocio: {
   telnyxPhoneNumber: string | null;
   phone: string;
+  hideOwnerNumberFromClients?: boolean;
 }): string | null {
   if (negocio.telnyxPhoneNumber) {
     return formatearTelefonoLegible(negocio.telnyxPhoneNumber);
   }
   if (
+    negocio.hideOwnerNumberFromClients !== true &&
     negocio.phone &&
     !negocio.phone.startsWith("TEMP-") &&
     isValidE164Phone(negocio.phone)
@@ -945,6 +959,7 @@ const SELECT_NEGOCIO_CLIENTE = {
   timezone: true,
   telnyxPhoneNumber: true,
   phone: true,
+  hideOwnerNumberFromClients: true,
   placeId: true,
   active: true,
 } as const;
