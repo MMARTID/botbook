@@ -1,12 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { LegalPage, LegalSection } from "@/components/legal-page";
-import { absoluteUrl, siteName } from "@/lib/seo";
+import { absoluteUrl, ogImages, siteName } from "@/lib/seo";
 
 export const metadata: Metadata = {
   title: "Política de privacidad",
   description:
-    "Qué datos trata Alhabla, con qué finalidad, quién los procesa y cómo ejercer tus derechos. Incluye el tratamiento de la demo de voz y de las llamadas atendidas por la recepcionista virtual.",
+    "Qué datos trata Alhabla, con qué finalidad, quién los procesa y cómo ejercer tus derechos, incluidas las llamadas que atiende la recepcionista virtual.",
   alternates: {
     canonical: absoluteUrl("/legal/privacidad"),
   },
@@ -17,6 +17,7 @@ export const metadata: Metadata = {
     siteName,
     locale: "es_ES",
     type: "website",
+    images: ogImages(),
   },
   robots: { index: true, follow: true },
 };

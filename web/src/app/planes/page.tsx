@@ -4,9 +4,11 @@ import { CalendarDays, Clock3, PhoneCall, Sparkles } from "lucide-react";
 import { PlansWithRoi } from "@/components/plans-with-roi";
 import { PlansHeadline } from "@/components/plans-headline";
 import { BackLink } from "@/components/back-link";
-import { absoluteUrl, siteName } from "@/lib/seo";
+import { SiteFooter } from "@/components/site-footer";
+import { absoluteUrl, buildBreadcrumbStructuredData, ogImages, siteName, websiteId } from "@/lib/seo";
 
-const planesTitle = "Planes y precios";
+// Título con la palabra clave: «Planes y precios» a secas no dice de qué.
+const planesTitle = "Planes y precios del asistente telefónico con IA";
 const planesDescription =
   "Planes de Alhabla desde 69€/mes: recepcionista telefónica con IA que atiende 24/7 y reserva citas en tu calendario. 7 días de prueba, sin permanencia.";
 
@@ -25,7 +27,30 @@ export const metadata: Metadata = {
     siteName,
     title: planesTitle,
     description: planesDescription,
+    images: ogImages(),
   },
+  twitter: {
+    card: "summary_large_image",
+    title: planesTitle,
+    description: planesDescription,
+    images: ogImages(),
+  },
+};
+
+const planesStructuredData = {
+  "@context": "https://schema.org",
+  "@graph": [
+    buildBreadcrumbStructuredData([{ name: "Planes y precios", path: "/planes" }]),
+    {
+      "@type": "WebPage",
+      "@id": `${absoluteUrl("/planes")}#webpage`,
+      name: `${planesTitle} | ${siteName}`,
+      description: planesDescription,
+      url: absoluteUrl("/planes"),
+      inLanguage: "es-ES",
+      isPartOf: { "@id": websiteId() },
+    },
+  ],
 };
 
 const benefits = [
@@ -72,6 +97,11 @@ export default function PlansPage() {
           </div>
         </section>
       </div>
+      <SiteFooter />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(planesStructuredData) }}
+      />
     </main>
   );
 }
