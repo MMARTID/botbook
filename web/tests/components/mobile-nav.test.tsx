@@ -75,16 +75,32 @@ describe("MobileNav", () => {
     expect(screen.getByRole("link", { name: /Empezar/ })).toHaveAttribute("href", "/planes");
   });
 
-  it("en la portada el menú ofrece las mismas secciones que el escritorio, precios incluidos", async () => {
+  it("incluye los cinco sectores como enlaces reales, no anclas", async () => {
     const user = userEvent.setup();
-    render(<MobileNav variant="main" />);
+    render(<MobileNav />);
     await user.click(screen.getByRole("button", { name: "Abrir menú" }));
 
     const menu = screen.getByRole("navigation", { name: "Navegación móvil" });
-    const labels = within(menu)
-      .getAllByRole("link")
-      .map((link) => link.textContent?.trim());
-    expect(labels).toEqual(["Tu negocio", "Cómo funciona", "Precios", "Preguntas", "Iniciar sesión", "Empezar ahora"]);
-    expect(within(menu).getByRole("link", { name: "Precios" })).toHaveAttribute("href", "#precios");
+    for (const [label, href] of [
+      ["Peluquerías", "/peluqueria"],
+      ["Barberías", "/barberia"],
+      ["Salones de uñas", "/salon-de-unas"],
+      ["Centros de estética", "/centro-de-estetica"],
+      ["Clínicas y consultas de fisioterapia", "/fisioterapia"],
+    ]) {
+      expect(within(menu).getByRole("link", { name: label })).toHaveAttribute("href", href);
+    }
+  });
+
+  it("Precios y Blog son páginas reales; Cómo funciona y Preguntas siguen siendo anclas", async () => {
+    const user = userEvent.setup();
+    render(<MobileNav niche="barberia" />);
+    await user.click(screen.getByRole("button", { name: "Abrir menú" }));
+
+    const menu = screen.getByRole("navigation", { name: "Navegación móvil" });
+    expect(within(menu).getByRole("link", { name: "Precios" })).toHaveAttribute("href", "/planes?niche=barberia");
+    expect(within(menu).getByRole("link", { name: "Blog" })).toHaveAttribute("href", "/blog");
+    expect(within(menu).getByRole("link", { name: "Cómo funciona" })).toHaveAttribute("href", "#como-funciona");
+    expect(within(menu).getByRole("link", { name: "Preguntas" })).toHaveAttribute("href", "#preguntas");
   });
 });

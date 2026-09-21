@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { SiteLanding } from "@/components/site-landing";
-import { absoluteUrl, defaultDescription, landingStructuredData, seoKeywords, siteName } from "@/lib/seo";
+import { HOME_QUICK_FAQS } from "@/lib/home-faqs";
+import { absoluteUrl, buildFaqPageStructuredData, defaultDescription, landingStructuredData, seoKeywords, siteName } from "@/lib/seo";
 
 export const metadata: Metadata = {
   title: { absolute: "Asistente telefónico con IA para reservas 24/7 | Alhabla" },
@@ -32,6 +33,11 @@ export const metadata: Metadata = {
   },
 };
 
+const faqStructuredData = {
+  "@context": "https://schema.org",
+  ...buildFaqPageStructuredData(HOME_QUICK_FAQS),
+};
+
 export default function LandingPage() {
   return (
     <>
@@ -39,6 +45,10 @@ export default function LandingPage() {
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(landingStructuredData) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(faqStructuredData) }}
       />
     </>
   );

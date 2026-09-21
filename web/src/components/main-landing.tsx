@@ -1,20 +1,21 @@
 "use client";
 
 import Link from "next/link";
-import { appUrl } from "@/lib/app-url";
 import { useEffect, useRef, useState } from "react";
 import { ArrowRight, Check, ChevronLeft, ChevronRight, Headphones } from "lucide-react";
 import { motion, useReducedMotion, type PanInfo } from "framer-motion";
 
-import { BrandMark } from "@/components/brand-mark";
 import { DemoVoiceCall } from "@/components/demo-voice-call";
 import { HeroHilos } from "@/components/hero-hilos";
 import { HowItWorksScrollytelling } from "@/components/how-it-works-scrollytelling";
-import { MobileNav } from "@/components/mobile-nav";
+import { SiteHeader } from "@/components/site-header";
 import { Reveal } from "@/components/scroll-reveal";
 import { SectorDataSection } from "@/components/sector-data-section";
 import { TeamRoutingSection } from "@/components/team-routing-section";
-import { generalSectorData, generalTeamRouting } from "@/lib/niche-landings";
+import { OwnerAssistantSection } from "@/components/owner-assistant-section";
+import { WhatsAppBenefitsTable } from "@/components/whatsapp-benefits-table";
+import { generalOwnerAssistant, generalSectorData, generalTeamRouting } from "@/lib/niche-landings";
+import { HOME_QUICK_FAQS } from "@/lib/home-faqs";
 import { formatIncludedMinutes, formatPlanPrice, plans, TRIAL_REASSURANCE } from "@/lib/plans";
 
 /**
@@ -291,53 +292,6 @@ function SectorFeatureCard({ sector, reducedMotion }: { sector: (typeof SECTORES
   );
 }
 
-// FAQ recortada a las 4 dudas que más frenan una decisión justo antes del
-// CTA de cierre — la lista completa (9 preguntas) vive en las landings de
-// nicho, donde sí hay intención de búsqueda concreta para justificarla.
-const QUICK_FAQS = [
-  {
-    question: "¿Mantengo mi número de teléfono de siempre?",
-    answer: "Sí, completamente. Alhabla atiende mediante un desvío desde tu móvil o fijo habitual; no publicas un número nuevo ni avisas a nadie.",
-  },
-  {
-    question: "¿Es difícil de configurar?",
-    answer: "No. Activas el desvío marcando un código rápido en tu teléfono; tarda unos 15 segundos y te guiamos paso a paso para tu operador.",
-  },
-  {
-    question: "¿Hay permanencia?",
-    answer: "No. Empiezas con el plan que mejor encaje y lo cambias cuando lo necesites, sin contratos largos.",
-  },
-  {
-    question: "¿Qué pasa si supero los minutos incluidos?",
-    answer: "Sin sorpresas: cada plan muestra el coste por minuto adicional antes de contratar.",
-  },
-] as const;
-
-function LandingHeader({ hiddenOnMobile }: { hiddenOnMobile: boolean }) {
-  return (
-    <motion.header
-      animate={{ y: hiddenOnMobile ? -72 : 0, opacity: hiddenOnMobile ? 0 : 1 }}
-      transition={{ type: "spring", stiffness: 340, damping: 32, mass: 0.55 }}
-      className={`sticky top-0 z-50 overflow-hidden bg-white/90 backdrop-blur-xl transition-[height,border-color] duration-300 ${hiddenOnMobile ? "h-0 border-b border-transparent pointer-events-none" : "h-16 border-b border-[#e5e5e5] lg:h-[4.5rem]"}`}
-    >
-      <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-3 px-4 sm:px-6 lg:h-[4.5rem] lg:px-8">
-        <Link href="/" aria-label="Ir al inicio de Alhabla" className="flex min-w-0 items-center gap-2.5">
-          <BrandMark className="h-8 w-8 shrink-0 sm:h-9 sm:w-9" />
-          <span className="text-base font-black tracking-tight text-[#0a0a0a]">Alhabla</span>
-        </Link>
-        <nav className="hidden items-center gap-5 md:flex" aria-label="Navegación principal">
-          <a href="#sectores" className="enlace-nav">Tu negocio</a>
-          <a href="#como-funciona" className="enlace-nav">Cómo funciona</a>
-          <a href="#precios" className="enlace-nav">Precios</a>
-          <a href="#preguntas" className="enlace-nav">Preguntas</a>
-          <a href={appUrl("/login")} className="btn-secondary h-10 px-4">Iniciar sesión</a>
-          <Link href="/planes" className="btn-primary h-10 px-4">Empezar ahora</Link>
-        </nav>
-        <MobileNav variant="main" />
-      </div>
-    </motion.header>
-  );
-}
 
 export function MainLanding() {
   const [isDemoOpen, setIsDemoOpen] = useState(false);
@@ -356,24 +310,10 @@ export function MainLanding() {
     });
   const sectorActivo = ordenSectores[0];
 
-  const [isNarrativeActive, setIsNarrativeActive] = useState(false);
-  const [hideHeaderOnMobile, setHideHeaderOnMobile] = useState(false);
-
-  useEffect(() => {
-    const mobileQuery = window.matchMedia("(max-width: 767px)");
-    const updateHeader = () => setHideHeaderOnMobile(mobileQuery.matches && isNarrativeActive);
-
-    updateHeader();
-    mobileQuery.addEventListener("change", updateHeader);
-    return () => {
-      mobileQuery.removeEventListener("change", updateHeader);
-    };
-  }, [isNarrativeActive]);
-
   return (
     <main id="main-content" className="min-h-screen bg-white text-[#0a0a0a]" data-landing="alhabla" data-landing-variant="principal">
       <a href="#contenido" className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-[60] focus:rounded-[10px] focus:bg-[#0a0a0a] focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-white">Saltar al contenido</a>
-      <LandingHeader hiddenOnMobile={hideHeaderOnMobile} />
+      <SiteHeader />
 
       {/*
         Hero a una columna con el titular centrado y los hilos de voz detrás
@@ -410,12 +350,24 @@ export function MainLanding() {
         </div>
       </section>
 
+      <HowItWorksScrollytelling />
+
+      <TeamRoutingSection data={generalTeamRouting} />
+
+      <OwnerAssistantSection data={generalOwnerAssistant} />
+
+      <WhatsAppBenefitsTable />
+
+      <SectorDataSection data={generalSectorData} />
+
       {/*
-        Las tarjetas de sector suben justo después del hero: una visitante
-        con intención clara (busca "peluquería" o "fisioterapia") se enruta
-        a su landing de nicho — con precio y FAQ propios — antes de invertir
-        tiempo en el relato genérico. Quien no tiene un sector claro en
-        mente simplemente sigue bajando por la página como antes.
+        Las tarjetas de sector bajan aquí a propósito (2026-09-21): antes
+        subían justo después del hero para enrutar a quien ya sabía su
+        sector, pero eso sacaba a la mitad de las visitantes de la página
+        antes de leer el relato genérico completo (cómo funciona, reparto
+        por especialidad, el Gestor, el coste de no contestar). Ahora ese
+        relato va primero y esto queda como el puente hacia "quiero verlo
+        ya adaptado a mi negocio", justo antes de precios.
       */}
       <section id="sectores" className="scroll-m-20 border-t border-[#e5e5e5] py-16 sm:py-24">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
@@ -520,12 +472,6 @@ export function MainLanding() {
         </div>
       </section>
 
-      <HowItWorksScrollytelling onNarrativeActiveChange={setIsNarrativeActive} />
-
-      <TeamRoutingSection data={generalTeamRouting} />
-
-      <SectorDataSection data={generalSectorData} />
-
       {/* Precio y FAQ compactos aquí mismo: la visitante que llega convencida
           por el relato anterior no tiene que salir de la página para ver un
           número o resolver la duda que la frena justo antes del CTA final. */}
@@ -575,7 +521,7 @@ export function MainLanding() {
             <h2 className="text-3xl font-black tracking-tight text-[#0a0a0a] sm:text-4xl">Resuelve tus dudas antes de empezar.</h2>
           </Reveal>
           <div className="mt-8 grid items-start gap-3 sm:grid-cols-2">
-            {QUICK_FAQS.map(({ question, answer }, index) => (
+            {HOME_QUICK_FAQS.map(({ question, answer }, index) => (
               <Reveal key={question} delay={Math.min(index, 5) * 0.05} y={12}>
                 <details className="group rounded-2xl border border-[#e5e5e5] bg-white p-5">
                   <summary className="flex cursor-pointer list-none items-start justify-between gap-4 text-sm font-semibold leading-6 text-[#0a0a0a] marker:content-none">
