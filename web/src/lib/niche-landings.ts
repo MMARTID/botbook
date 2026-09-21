@@ -64,11 +64,26 @@ export type TeamRouting = {
  * cierre.
  */
 export type OwnerAssistantExample = { title: string; description: string };
+
+/**
+ * Guion del mockup de conversación de WhatsApp: el caso de la ausencia de
+ * un profesional, turno a turno tal como ocurre de verdad (propuesta con
+ * botones, confirmación). Un solo caso dramatizado, no los tres — los otros
+ * dos quedan en `examples`.
+ */
+export type OwnerAssistantChat = {
+  ownerMessage: string;
+  proposal: string;
+  buttons: [string, string];
+  confirmation: string;
+};
+
 export type OwnerAssistant = {
   badge: string;
   title: string;
   description: string;
   examples: [OwnerAssistantExample, OwnerAssistantExample, OwnerAssistantExample];
+  chat: OwnerAssistantChat;
   /** Línea de cierre: qué pasa de verdad con lo que se confirma por WhatsApp. */
   closing: string;
 };
@@ -219,6 +234,12 @@ export const nicheLandings: Record<NicheSlug, NicheLandingContent> = {
         { title: "Si cierras antes o un día entero", description: "«cerramos el sábado por la tarde» o «vacaciones del 1 al 15» — queda bloqueado en tu agenda sin tocar el calendario a mano." },
         { title: "Si necesitas ver o mover algo rápido", description: "«¿qué tengo mañana?» o «mueve el corte de las 5 al viernes» — te responde al momento, sin entrar al panel." },
       ],
+      chat: {
+        ownerMessage: "Marta está de baja hoy",
+        proposal: "Entendido, dejo de ofrecer hueco con Marta. Tenía mechas a las 11:00 — ¿se las muevo a Laura?",
+        buttons: ["Sí, muévelas", "Ya lo hago yo"],
+        confirmation: "Hecho ✓ Las mechas de las 11:00 ya están con Laura.",
+      },
       closing: "Todo lo que confirmas por WhatsApp queda en tu agenda real al momento — nunca solo en la conversación.",
     },
     calculator: { badge: "Calcula las citas que se escapan", title: "¿Cuánto pierde tu peluquería por no contestar?", description: "Estima el valor de cortes, coloraciones y tratamientos que pueden terminar en otro salón.", ticketLabel: "Ticket medio por cita", appointmentsLabel: "Citas perdidas cada semana", initialTicket: 45 },
@@ -346,6 +367,12 @@ export const nicheLandings: Record<NicheSlug, NicheLandingContent> = {
         { title: "Si cierras antes o un día entero", description: "«cerramos el sábado por la tarde» o «vacaciones del 1 al 15» — queda bloqueado en tu agenda sin tocar el calendario a mano." },
         { title: "Si necesitas ver o mover algo rápido", description: "«¿qué tengo esta tarde?» o «mueve la sesión de las 12 al jueves» — te responde al momento, sin entrar al panel." },
       ],
+      chat: {
+        ownerMessage: "Sara está de baja hoy",
+        proposal: "Entendido, dejo de ofrecer hueco con Sara. Tenía un facial a las 12:00 — ¿se lo muevo a Elena?",
+        buttons: ["Sí, muévelo", "Ya lo hago yo"],
+        confirmation: "Hecho ✓ El facial de las 12:00 ya está con Elena.",
+      },
       closing: "Todo lo que confirmas por WhatsApp queda en tu agenda real al momento — nunca solo en la conversación.",
     },
     calculator: { badge: "Calcula oportunidades sin atender", title: "¿Cuánto valen las consultas que no puedes responder?", description: "Estima tratamientos y valoraciones que podrías recuperar con recepción continua.", ticketLabel: "Ticket medio por tratamiento", appointmentsLabel: "Consultas perdidas cada semana", initialTicket: 80 },
@@ -474,6 +501,12 @@ export const nicheLandings: Record<NicheSlug, NicheLandingContent> = {
         { title: "Si cierras antes o un día entero", description: "«cerramos el sábado por la tarde» o «vacaciones del 1 al 15» — queda bloqueado en tu agenda sin tocar el calendario a mano." },
         { title: "Si necesitas ver o mover algo rápido", description: "«¿qué tengo mañana?» o «mueve la manicura de las 11 a mañana» — te responde al momento, sin entrar al panel." },
       ],
+      chat: {
+        ownerMessage: "Laura está de baja hoy",
+        proposal: "Entendido, dejo de ofrecer hueco con Laura. Tenía una manicura a las 11:00 — ¿se la muevo a Noa?",
+        buttons: ["Sí, muévela", "Ya lo hago yo"],
+        confirmation: "Hecho ✓ La manicura de las 11:00 ya está con Noa.",
+      },
       closing: "Todo lo que confirmas por WhatsApp queda en tu agenda real al momento — nunca solo en la conversación.",
     },
     calculator: { badge: "Calcula citas recurrentes perdidas", title: "¿Cuánto pierde tu salón cuando no responde?", description: "Mide el impacto mensual de manicuras y pedicuras que terminan reservándose en otro sitio.", ticketLabel: "Ticket medio por servicio", appointmentsLabel: "Citas perdidas cada semana", initialTicket: 30 },
@@ -600,6 +633,12 @@ export const nicheLandings: Record<NicheSlug, NicheLandingContent> = {
         { title: "Si cierras antes o un día entero", description: "«cerramos el sábado por la tarde» o «vacaciones del 1 al 15» — queda bloqueado en tu agenda sin tocar el calendario a mano." },
         { title: "Si necesitas ver o mover algo rápido", description: "«¿qué tengo mañana?» o «mueve el corte de las 6 al sábado» — te responde al momento, sin entrar al panel." },
       ],
+      chat: {
+        ownerMessage: "Luis está de baja hoy",
+        proposal: "Entendido, dejo de ofrecer hueco con Luis. Tenía un corte a las 12:00 — ¿se lo muevo a Dani?",
+        buttons: ["Sí, muévelo", "Ya lo hago yo"],
+        confirmation: "Hecho ✓ El corte de las 12:00 ya está con Dani.",
+      },
       closing: "Todo lo que confirmas por WhatsApp queda en tu agenda real al momento — nunca solo en la conversación.",
     },
     calculator: { badge: "Calcula cortes que se escapan", title: "¿Cuánto pierde tu barbería en horas punta?", description: "Estima el valor de cortes y packs que no se reservan cuando nadie puede atender el teléfono.", ticketLabel: "Ticket medio por visita", appointmentsLabel: "Citas perdidas cada semana", initialTicket: 25 },
@@ -732,6 +771,12 @@ export const nicheLandings: Record<NicheSlug, NicheLandingContent> = {
         { title: "Si cierras antes o un día entero", description: "«cerramos el sábado por la tarde» o «vacaciones del 1 al 15» — queda bloqueado en tu agenda sin tocar el calendario a mano." },
         { title: "Si necesitas ver o mover algo rápido", description: "«¿qué tengo mañana?» o «mueve la sesión de las 5 al viernes» — te responde al momento, sin entrar al panel." },
       ],
+      chat: {
+        ownerMessage: "Pablo está de baja hoy",
+        proposal: "Entendido, dejo de ofrecer hueco con Pablo. Tenía una sesión a las 11:00 — ¿se la muevo a Irene?",
+        buttons: ["Sí, muévela", "Ya lo hago yo"],
+        confirmation: "Hecho ✓ La sesión de las 11:00 ya está con Irene.",
+      },
       closing: "Todo lo que confirmas por WhatsApp queda en tu agenda real al momento — nunca solo en la conversación.",
     },
     calculator: {
@@ -943,5 +988,11 @@ export const generalOwnerAssistant: OwnerAssistant = {
       description: "«¿qué tengo mañana?» o «mueve la cita de las 5 al viernes» — te responde al momento, sin entrar al panel.",
     },
   ],
+  chat: {
+    ownerMessage: "Ana está de baja hoy",
+    proposal: "Entendido, dejo de ofrecer hueco con Ana. Tenía una cita a las 11:00 — ¿se la muevo a Marcos, que tiene hueco esa hora?",
+    buttons: ["Sí, muévela", "Ya lo hago yo"],
+    confirmation: "Hecho ✓ La cita de las 11:00 ya está con Marcos.",
+  },
   closing: "Todo lo que confirmas por WhatsApp queda en tu agenda real al momento — nunca solo en la conversación.",
 };

@@ -15,6 +15,7 @@ import { Reveal } from "@/components/scroll-reveal";
 import { SectorDataSection } from "@/components/sector-data-section";
 import { TeamRoutingSection } from "@/components/team-routing-section";
 import { OwnerAssistantSection } from "@/components/owner-assistant-section";
+import { WhatsAppBenefitsTable } from "@/components/whatsapp-benefits-table";
 import { generalOwnerAssistant, generalSectorData, generalTeamRouting } from "@/lib/niche-landings";
 import { formatIncludedMinutes, formatPlanPrice, plans, TRIAL_REASSURANCE } from "@/lib/plans";
 
@@ -411,12 +412,24 @@ export function MainLanding() {
         </div>
       </section>
 
+      <HowItWorksScrollytelling onNarrativeActiveChange={setIsNarrativeActive} />
+
+      <TeamRoutingSection data={generalTeamRouting} />
+
+      <OwnerAssistantSection data={generalOwnerAssistant} />
+
+      <WhatsAppBenefitsTable />
+
+      <SectorDataSection data={generalSectorData} />
+
       {/*
-        Las tarjetas de sector suben justo después del hero: una visitante
-        con intención clara (busca "peluquería" o "fisioterapia") se enruta
-        a su landing de nicho — con precio y FAQ propios — antes de invertir
-        tiempo en el relato genérico. Quien no tiene un sector claro en
-        mente simplemente sigue bajando por la página como antes.
+        Las tarjetas de sector bajan aquí a propósito (2026-09-21): antes
+        subían justo después del hero para enrutar a quien ya sabía su
+        sector, pero eso sacaba a la mitad de las visitantes de la página
+        antes de leer el relato genérico completo (cómo funciona, reparto
+        por especialidad, el Gestor, el coste de no contestar). Ahora ese
+        relato va primero y esto queda como el puente hacia "quiero verlo
+        ya adaptado a mi negocio", justo antes de precios.
       */}
       <section id="sectores" className="scroll-m-20 border-t border-[#e5e5e5] py-16 sm:py-24">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
@@ -520,14 +533,6 @@ export function MainLanding() {
           </div>
         </div>
       </section>
-
-      <HowItWorksScrollytelling onNarrativeActiveChange={setIsNarrativeActive} />
-
-      <TeamRoutingSection data={generalTeamRouting} />
-
-      <OwnerAssistantSection data={generalOwnerAssistant} />
-
-      <SectorDataSection data={generalSectorData} />
 
       {/* Precio y FAQ compactos aquí mismo: la visitante que llega convencida
           por el relato anterior no tiene que salir de la página para ver un

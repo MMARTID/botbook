@@ -7,6 +7,7 @@ import { MobileNav } from "@/components/mobile-nav";
 import { SectorDataSection } from "@/components/sector-data-section";
 import { TeamRoutingSection } from "@/components/team-routing-section";
 import { OwnerAssistantSection } from "@/components/owner-assistant-section";
+import { WhatsAppBenefitsTable } from "@/components/whatsapp-benefits-table";
 import { RevenueLossCalculator } from "@/components/revenue-loss-calculator";
 import { Reveal } from "@/components/scroll-reveal";
 import { BrandMark } from "@/components/brand-mark";
@@ -284,6 +285,8 @@ export function SiteLanding({ content }: { content?: NicheLandingContent }) {
         no un bloque suelto.
       */}
       <OwnerAssistantSection data={content.ownerAssistant} accent={content.accent} />
+
+      <WhatsAppBenefitsTable />
 
       <section className="py-16 sm:py-20 lg:py-24">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
