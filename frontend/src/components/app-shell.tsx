@@ -73,6 +73,7 @@ const PUBLIC_ROUTES = [
   "/bienvenida/calendar",
   "/auth/google/callback",
   "/auth/entrar",
+  "/elegir-plan",
   "/dev/entrar",
 ];
 

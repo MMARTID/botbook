@@ -17,6 +17,7 @@ const APP_PATHS = [
   "/ajustes/:path*",
   "/checkout",
   "/checkout/:path*",
+  "/elegir-plan",
   "/auth/:path*",
   "/settings",
   "/recuperar-contrasena",
