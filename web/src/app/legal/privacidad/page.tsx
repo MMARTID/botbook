@@ -17,7 +17,7 @@ export const metadata: Metadata = {
     siteName,
     locale: "es_ES",
     type: "website",
-    images: ogImages(),
+    images: ogImages("/legal/privacidad", `Política de privacidad | ${siteName}`),
   },
   robots: { index: true, follow: true },
 };

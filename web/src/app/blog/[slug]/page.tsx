@@ -30,13 +30,13 @@ export function generateMetadata({ params }: Props): Metadata {
       title: articulo.titulo,
       description: articulo.resumen,
       publishedTime: articulo.fecha,
-      images: ogImages(),
+      images: ogImages(`/blog/${articulo.slug}`, articulo.titulo),
     },
     twitter: {
       card: "summary_large_image",
       title: articulo.titulo,
       description: articulo.resumen,
-      images: ogImages(),
+      images: ogImages(`/blog/${articulo.slug}`, articulo.titulo),
     },
   };
 }
@@ -89,7 +89,7 @@ export default function ArticuloPage({ params }: Props) {
                   "@id": `${absoluteUrl(`/blog/${articulo.slug}`)}#article`,
                   headline: articulo.titulo,
                   description: articulo.resumen,
-                  image: ogImages().map((i) => i.url),
+                  image: ogImages(`/blog/${articulo.slug}`).map((i) => i.url),
                   datePublished: articulo.fecha,
                   dateModified: articulo.fecha,
                   inLanguage: "es-ES",
