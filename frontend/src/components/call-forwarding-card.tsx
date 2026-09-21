@@ -373,12 +373,12 @@ export function CallForwardingCard({
             </ul>
           </details>
 
-          {esMovil ? (
-            <NotaDeLinea>
-              Este desvío sustituye al buzón de voz: las llamadas que no cojas irán a tu recepcionista
-              en vez de al contestador.
-            </NotaDeLinea>
-          ) : null}
+          {/* También sin tipo confirmado: si la línea resulta ser un móvil,
+              conviene saber que el buzón de voz deja de saltar. */}
+          <NotaDeLinea>
+            Este desvío sustituye al buzón de voz: las llamadas que no cojas irán a tu recepcionista
+            en vez de al contestador.
+          </NotaDeLinea>
         </>
       ) : null}
 

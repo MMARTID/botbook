@@ -7,6 +7,7 @@ import { processSendEmailJob } from "../../../src/jobs/sendEmail.js";
 import { processSendSmsJob } from "../../../src/jobs/sendSms.js";
 import { processSendWhatsappJob } from "../../../src/jobs/sendWhatsapp.js";
 import { cleanupZombieCallsJob } from "../../../src/jobs/cleanupZombieCalls.js";
+import { recordarDesvioSinComprobarJob } from "../../../src/jobs/recordarDesvioSinComprobar.js";
 import { retryStuckRecordingsJob } from "../../../src/jobs/retryStuckRecordings.js";
 import { suspendOverdueCallsJob } from "../../../src/jobs/suspendOverdueCalls.js";
 import { attachUsagePricesJob } from "../../../src/jobs/attachUsagePrices.js";
@@ -27,6 +28,9 @@ vi.mock("../../../src/jobs/sendWhatsapp.js", () => ({
 }));
 vi.mock("../../../src/jobs/cleanupZombieCalls.js", () => ({
   cleanupZombieCallsJob: vi.fn(),
+}));
+vi.mock("../../../src/jobs/recordarDesvioSinComprobar.js", () => ({
+  recordarDesvioSinComprobarJob: vi.fn(),
 }));
 vi.mock("../../../src/jobs/retryStuckRecordings.js", () => ({
   retryStuckRecordingsJob: vi.fn(),
@@ -49,6 +53,7 @@ const mockedProcessSendEmailJob = vi.mocked(processSendEmailJob);
 const mockedProcessSendSmsJob = vi.mocked(processSendSmsJob);
 const mockedProcessSendWhatsappJob = vi.mocked(processSendWhatsappJob);
 const mockedCleanupZombieCallsJob = vi.mocked(cleanupZombieCallsJob);
+const mockedRecordarDesvioJob = vi.mocked(recordarDesvioSinComprobarJob);
 const mockedRetryStuckRecordingsJob = vi.mocked(retryStuckRecordingsJob);
 const mockedSuspendOverdueCallsJob = vi.mocked(suspendOverdueCallsJob);
 const mockedAttachUsagePricesJob = vi.mocked(attachUsagePricesJob);
@@ -347,6 +352,36 @@ describe("internalJobsRoutes", () => {
       const response = await fastify.inject({
         method: "POST",
         url: "/jobs/cleanup-zombie-calls",
+      });
+
+      expect(response.statusCode).toBe(500);
+    });
+  });
+
+  describe("POST /jobs/recordar-desvio-sin-comprobar", () => {
+    it("despacha el job sin body y devuelve el recuento", async () => {
+      mockedRecordarDesvioJob.mockResolvedValue({ recordados: 1, omitidos: 2 });
+
+      const response = await fastify.inject({
+        method: "POST",
+        url: "/jobs/recordar-desvio-sin-comprobar",
+      });
+
+      expect(response.statusCode).toBe(200);
+      expect(response.json()).toEqual({
+        received: true,
+        recordados: 1,
+        omitidos: 2,
+      });
+      expect(mockedRecordarDesvioJob).toHaveBeenCalledTimes(1);
+    });
+
+    it("devuelve 500 si el job falla", async () => {
+      mockedRecordarDesvioJob.mockRejectedValue(new Error("DB caída"));
+
+      const response = await fastify.inject({
+        method: "POST",
+        url: "/jobs/recordar-desvio-sin-comprobar",
       });
 
       expect(response.statusCode).toBe(500);

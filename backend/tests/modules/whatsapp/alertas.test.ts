@@ -4,6 +4,7 @@ import { enqueueEmailJob } from "../../../src/lib/cloudTasks.js";
 import { avisarAlerta } from "../../../src/modules/whatsapp/avisosNegocio.js";
 import {
   alertarCalendarioDesconectado,
+  alertarDesvioSinComprobar,
   alertarMinutos,
   alertarNumeroNoActivo,
   alertarPagoFallido,
@@ -93,6 +94,22 @@ describe("alertas operativas (#5)", () => {
         causa: "telefono",
         recursoId: `telefono:biz_1:${HOY}`,
       })
+    );
+  });
+
+  it("desvío sin comprobar: causa teléfono, un solo recurso por negocio y email de respaldo", async () => {
+    await alertarDesvioSinComprobar({ businessId: "biz_1" });
+    expect(mockedAvisar).toHaveBeenCalledWith(
+      expect.objectContaining({
+        causa: "telefono",
+        recursoId: "desvio:biz_1",
+        texto: expect.stringContaining("aún no has comprobado el desvío"),
+        email: expect.any(Function),
+      })
+    );
+    await mockedAvisar.mock.calls[0][0].email!();
+    expect(mockedEmail.mock.calls[0][0].html).toContain(
+      "https://alhabla.ai/ajustes/telefono"
     );
   });
 

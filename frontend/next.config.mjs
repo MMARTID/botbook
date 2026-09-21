@@ -24,10 +24,11 @@ const nextConfig = {
       { source: "/register/business", destination: "/bienvenida", permanent: true },
       { source: "/register/business/:path*", destination: "/bienvenida/:path*", permanent: true },
       // Destinos del botón «Ir a Ajustes» de las alertas por WhatsApp: la
-      // plantilla de Meta solo admite un sufijo bajo /ajustes/, y el
-      // calendario y el teléfono viven en /agente.
+      // plantilla de Meta solo admite un sufijo bajo /ajustes/. El calendario
+      // vive en /agente; el teléfono, desde la fase 2 del plan de telefonía,
+      // en la sección «Teléfono» de Ajustes.
       { source: "/ajustes/calendario", destination: "/agente", permanent: false },
-      { source: "/ajustes/telefono", destination: "/agente", permanent: false },
+      { source: "/ajustes/telefono", destination: "/ajustes#telefono", permanent: false },
     ];
   },
 };

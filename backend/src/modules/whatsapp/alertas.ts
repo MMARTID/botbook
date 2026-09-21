@@ -144,6 +144,25 @@ export async function alertarNumeroNoActivo(input: {
   });
 }
 
+/**
+ * Recordatorio único «aún no has comprobado el desvío» (PLAN-TELEFONIA-UX.md
+ * § 5, fase 5), que manda jobs/recordarDesvioSinComprobar.ts entre 24 y 48 h
+ * después de comprar el número. La idempotencia de verdad está en
+ * `Business.forwardingReminderSentAt`; el recursoId sin fecha solo evita que
+ * una doble entrega del job repita el mensaje.
+ */
+export async function alertarDesvioSinComprobar(input: {
+  businessId: string;
+}): Promise<ResultadoAviso> {
+  return alertar({
+    businessId: input.businessId,
+    causa: "telefono",
+    recursoId: () => `desvio:${input.businessId}`,
+    texto: () => mensajes.alertaDesvioSinComprobar(),
+    conEmailDeRespaldo: true,
+  });
+}
+
 /** Stripe avisa tres días antes de que termine la prueba. */
 export async function alertarPruebaTermina(input: {
   businessId: string;

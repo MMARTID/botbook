@@ -190,6 +190,14 @@ describe("CallForwardingCard · códigos según el tipo de línea", () => {
     expect(screen.getByText("Desde un móvil")).toBeInTheDocument();
     expect(screen.getByText("Desde un fijo")).toBeInTheDocument();
     expect(screen.getByText("**61*+34930453218#")).toBeInTheDocument();
+    // Las dos notas del contestador (fase 5 del plan): la del buzón bajo los
+    // códigos de móvil y la del fijo en su párrafo.
+    expect(
+      screen.getByText(/Este desvío sustituye al buzón de voz/)
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/fijo tiene contestador, desactívalo/)
+    ).toBeInTheDocument();
     expect(screen.getByText("¿De qué tipo es esta línea?")).toBeInTheDocument();
     expect(
       screen.getAllByRole("radio").map((radio) => radio.getAttribute("value"))

@@ -536,10 +536,11 @@ el `fetch` equivalente. **Nunca desde un route handler**: todo pasa por
   verificado entregado el 20-09; los botones de respuesta rápida no pueden llevar enlace);
   fuera, la plantilla `alerta_operativa_negocio` (`negocio_nombre`, `texto`) con el sufijo del
   botón URL `https://alhabla.ai/ajustes/{{1}}` = `facturacion | calendario | telefono`. El
-  frontend redirige `/ajustes/calendario` y `/ajustes/telefono` a `/agente`, que es donde viven
-  el calendario y el teléfono. Idempotente por recurso (`pago:<invoiceId>`,
+  frontend (`next.config.mjs`) redirige `/ajustes/calendario` a `/agente` (donde vive el
+  calendario) y `/ajustes/telefono` a `/ajustes#telefono` (Ajustes › Teléfono, desde la fase 2
+  del plan de telefonía). Idempotente por recurso (`pago:<invoiceId>`,
   `minutos:<periodId>`, `prueba:<subscriptionId>`, `calendario:<biz>:<proveedor>:<día>`,
-  `telefono:<biz>:<día>`).
+  `telefono:<biz>:<día>`, `desvio:<biz>` para el recordatorio de desvío sin comprobar).
 
 **Código (fase 1, PR 5 — recado por post-conversación, 2026-09-20).**
 - Tool `informar_al_negocio` (`buildInformarAlNegocioTool` en `lib/telnyxAssistantPayload.ts`,
@@ -1357,7 +1358,7 @@ is now a **Cloud Scheduler** job hitting the same kind of endpoint every
   `/cleanup-zombie-calls`, `/retry-stuck-recordings`, `/purge-old-recordings`,
   `/send-weekly-summaries`, `/report-usage`, `/retry-usage-reports`,
   `/attach-usage-prices`, `/suspend-overdue-calls`, `/telnyx-health-check`,
-  `/telnyx-reconciler`. Gated by
+  `/telnyx-reconciler`, `/recordar-desvio-sin-comprobar`. Gated by
   `fastify.verifyCloudTasks` (`backend/src/plugins/internalAuth.ts`), which
   verifies the request carries a Google-signed OIDC token issued to
   `CLOUD_TASKS_INVOKER_SERVICE_ACCOUNT` with the right audience — anyone
@@ -1458,6 +1459,41 @@ is now a **Cloud Scheduler** job hitting the same kind of endpoint every
    - Before this, `DELETE /recordings/:id` only set `deletedAt`: the audio and
      the transcript stayed forever and a GDPR erasure request could not be
      honoured.
+
+8. **Recordatorio «aún no has comprobado el desvío»**
+   (`backend/src/jobs/recordarDesvioSinComprobar.ts`) — added 2026-09-22,
+   PLAN-TELEFONIA-UX.md § 5, fase 5.
+   - `POST /internal/jobs/recordar-desvio-sin-comprobar`, pensado para
+     ejecutarse **cada hora**. **Needs a Cloud Scheduler job to be created**
+     (same OIDC config as `cleanup-zombie-calls`):
+     ```bash
+     gcloud scheduler jobs create http recordar-desvio-sin-comprobar \
+       --location=europe-west1 --schedule="15 * * * *" --time-zone="Europe/Madrid" \
+       --uri="$INTERNAL_JOBS_BASE_URL/internal/jobs/recordar-desvio-sin-comprobar" \
+       --http-method=POST --oidc-service-account-email="$CLOUD_TASKS_INVOKER_SERVICE_ACCOUNT" \
+       --oidc-token-audience="$INTERNAL_JOBS_BASE_URL" --max-retry-attempts=3
+     ```
+   - Barre los negocios activos con número de Alhabla activo cuyo
+     `telnyxPhoneNumberPurchasedAt` cae entre **24 y 48 h** atrás, con
+     `customerLineType` distinto de `"alhabla"` (o null),
+     `OnboardingState.forwardingCheckedAt` a null, **ninguna llamada real**
+     (`calls` sin ninguna fila con `voiceProvider != "whatsapp"`; las Call
+     sintéticas del chat no pasan por el desvío) y `forwardingReminderSentAt`
+     a null. Si `phone === telnyxPhoneNumber` (caso E sin la columna puesta)
+     se salta sin marcar.
+   - Manda **una vez** la alerta operativa `alertarDesvioSinComprobar`
+     (`modules/whatsapp/alertas.ts`, causa `telefono`, recursoId
+     `desvio:<businessId>`, texto en `mensajes.alertaDesvioSinComprobar`) por
+     la cascada habitual del canal del dueño (interactivo con botón «Ir a
+     Ajustes» → plantilla `alerta_operativa_negocio` → email
+     `operationalAlertEmail`). El enlace es `/ajustes/telefono`, que
+     `frontend/next.config.mjs` redirige a `/ajustes#telefono` (Ajustes ›
+     Teléfono).
+   - Idempotente: reclama `Business.forwardingReminderSentAt` con un
+     `updateMany` condicional **antes** de avisar (Cloud Scheduler entrega al
+     menos una vez); si el aviso no sale por ninguna vía (`via: "ninguna"`)
+     retira la marca con un `console.error` para reintentar en la siguiente
+     pasada mientras dure la ventana.
 
 **Messaging idempotency (2026-09-17):** Cloud Tasks delivers **at least once**,
 so `send-email`, `send-sms` and `send-whatsapp` claim the send in
@@ -1603,6 +1639,116 @@ Only Spain (`PHONE_NUMBER_COUNTRY=ES`) is supported today — searches only `loc
 **Telnyx number orders are asynchronous** (`status: "pending" | "success" | "failure"`). `provisionPhoneNumber` persists `telnyxNumberOrderId` as soon as the order is created, then polls `getNumberOrder` for a bounded window (5 attempts, 2s apart). If still `"pending"` after that, it returns `status: "pending"` rather than an error — a retry (via the frontend's "Reintentar asignación de número" button, or the `checkout-session/:id/reconcile` fallback) resumes the same order (`telnyxAdapter.getNumberOrder(business.telnyxNumberOrderId)`) instead of placing a duplicate purchase.
 
 Once the order succeeds, the number is imported into Retell via `retellAdapter.importPhoneNumber`, which requires a **SIP trunk** — a Telnyx SIP Connection created once (manually, in the Telnyx portal) pointing inbound traffic at Retell (`sip:sip.retellai.com`), with credential-based auth since Retell has no static IP. Its termination URI and SIP credentials are platform-level config (`RETELL_SIP_TERMINATION_URI`, `RETELL_SIP_TRUNK_AUTH_USERNAME`, `RETELL_SIP_TRUNK_AUTH_PASSWORD`), reused for every business, same as the Requirement Group. `TELNYX_SIP_CONNECTION_ID` is passed at order time so the purchased number is assigned to that connection automatically.
+
+## Telefonía
+
+Plan completo en `PLAN-TELEFONIA-UX.md` (fases 0-3 y 5 en main desde 2026-09-22; la
+fase 4, «Alhabla como número principal» con transferencia al dueño, sigue pendiente).
+Nace de la prueba real de producción (#130): el dueño no sabía qué número era cuál.
+
+### Los tres papeles del número
+
+| Campo | Papel | Quién lo ve |
+|---|---|---|
+| `Business.phone` | **Línea de clientes**: a la que llaman, la que se desvía y la que la recepcionista dice en voz alta y pone en SMS/WhatsApp («para cambiarla, llama al…»). Viene de Google Places; placeholder `TEMP-…` hasta que el dueño la guarda. | Clientes |
+| `Business.telnyxPhoneNumber` | **Número de Alhabla**: destino del desvío. El dueño lo marca una vez dentro del código y no se lo da a nadie (salvo en el caso E, donde lo publica como principal). | Solo el dueño |
+| `Business.ownerWhatsappNumber` | **Móvil del dueño**: avisos, recados y el Gestor por WhatsApp. | Solo Alhabla |
+
+Columnas de la fase 0 (`migrations/20260921180000_telefonia_fase0`), todas aditivas y
+aceptadas por `PATCH /business/me` (`modules/businesses/routes.ts`):
+
+- `Business.customerLineType`: `"fijo" | "movil_trabajo" | "movil_personal" | "alhabla"`
+  o **null** (negocio anterior al plan: el panel infiere fijo/móvil con
+  `esFijoEspanol`/`inferirTipoDeLinea` de `frontend/src/lib/phone.ts` hasta que el dueño lo
+  confirma; `CallForwardingCard` y Ajustes › Teléfono se lo preguntan una vez).
+- `Business.ownerPhoneIsCustomerLine` (caso C: la línea de clientes es el mismo móvil que
+  recibe los avisos; evita preguntar dos veces por el número).
+- `Business.hideOwnerNumberFromClients` (**privacidad del número**, caso C): la recepcionista
+  no dice `phone` ni lo escribe en SMS/WhatsApp; ofrece «dejo recado y te llaman». Lo aplican
+  `telefonoParaClientes()` en `voiceTools/service.ts`, `lib/managedAgentPrompt.ts` (regla en el
+  prompt), `lib/telnyxAgentSync.ts` y `whatsapp/mensajesCliente.ts`. El número de Alhabla se
+  sigue dando siempre: es el de la propia recepcionista.
+- `OnboardingState.forwardingCheckedAt`: el desvío se **comprobó de verdad** (ver abajo).
+  Distinto de `forwardingConfirmedAt` («el usuario dice que sí») y de la primera llamada.
+- `Business.forwardingReminderSentAt` (fase 5): marca del recordatorio único, § Background Jobs 8.
+
+Tipos de línea y códigos: **los MMI son los mismos en todos los operadores españoles**
+(`*21*`, `*61*`, `*62*`, `*67*` + número + `#`; con `**` en móviles; se quitan con `#21#`,
+`##21#`…), así que no se pregunta el operador. Solo cambia la explicación por tipo:
+fijo → `*61*`/`*21*` sin `**`, marcados desde el propio aparato tras el tono, con la nota del
+contestador («si tu fijo tiene contestador, desactívalo o se quedará él las llamadas», en
+Movistar `#10#`); móvil → los cuatro códigos con `**61*` recomendado y la nota «este desvío
+sustituye al buzón de voz»; `alhabla` → no hay tarjeta de desvío. Las listas viven en
+`CODIGOS_FIJO`/`CODIGOS_MOVIL` de `frontend/src/components/call-forwarding-card.tsx`.
+
+Pantallas: el alta pregunta «¿A qué número te llaman tus clientes?» con cuatro tarjetas
+(`frontend/src/components/tarjetas-de-linea.tsx`, usadas en `app/bienvenida/page.tsx`) y
+Ajustes tiene una sola sección «Teléfono» (`components/ajustes-telefono.tsx`, `id="telefono"`)
+con tres bloques: línea de clientes (número + tipo + «Comprobar desvío» + códigos), tu
+recepcionista (número de Alhabla) y tu móvil (`WhatsappDueno` + privacidad). El teléfono ya
+no se edita en «Datos del negocio».
+
+### «Comprobar desvío» (`backend/src/modules/onboarding/comprobacionDesvio.ts`)
+
+El único mecanismo nuevo de backend del plan: el número de Alhabla llama a la línea de
+clientes y, si el desvío está bien, esa llamada vuelve a entrar por el propio número de
+Alhabla. Todo el estado vive en Redis; en Postgres solo queda `forwardingCheckedAt`.
+
+1. `POST /business/me/onboarding/forwarding/check` (`onboarding/routes.ts`) →
+   `iniciarComprobacionDeDesvio(businessId)`. Requisitos, con su código de error
+   (`CODIGOS_DE_ERROR_DE_COMPROBACION`): número de Alhabla `active` (`sin_numero`, 402);
+   `phone` E.164 distinto del número de Alhabla y `customerLineType != "alhabla"`
+   (`linea_de_clientes_invalida`, 409); fijo o móvil **español** según
+   `esLineaDeClientesEspanola` de `lib/phone.ts` — la llamada la paga Alhabla
+   (`linea_no_admitida`, 409); `voiceRoutingTarget === "telnyx"` y
+   `TELNYX_CALL_CONTROL_APP_ID` (`telefonia_no_configurada`, 503); una sola en curso por
+   negocio (`comprobacion_en_curso`, 409); **3 por hora** (`limite_alcanzado`, 429); fallo
+   al originar (`no_se_pudo_llamar`, 502).
+2. Claves de Redis (TTL `COMPROBACION_TTL_SEGUNDOS` = 120 s):
+   - `desvio:check:<id>` — hash de la comprobación (`id`, `businessId`, `linea`,
+     `startedAt`, `callControlId`, `contestada`, `resolucion` = JSON `{resultado, resueltaAt}`).
+     Cada webhook escribe **solo su campo**: el fallo del colgado con `HSETNX`, el `ok` de la
+     entrada con `HSET` (pisa un fallo previo). Los dos webhooks llegan con segundos de
+     diferencia, en cualquier orden y quizá en instancias distintas de Cloud Run.
+   - `desvio:check:negocio:<businessId>` — turno (`SET NX`); se libera al resolverse.
+   - `desvio:check:ultima:<businessId>` — puntero a la última comprobación, resuelta o no; es
+     lo único que enlaza la entrante (sin `client_state`) con su comprobación y no se borra
+     al fallar.
+   - `desvio:check:limite:<businessId>` — contador por hora; solo cuentan las llamadas que
+     de verdad salieron.
+   La comprobación se guarda **antes** de marcar: con desvío «todas» la entrante puede
+   llegar antes de que `dialCall` devuelva.
+3. La saliente sale por `telnyxAiAdapter.dialCall` (`adapters/telnyx/TelnyxAiAdapter.ts`)
+   con `from` = número de Alhabla, `to` = línea, `timeout_secs` 35, `time_limit_secs` 60 y
+   `client_state` = base64 de `{ tipo: "comprobacion_desvio", businessId, checkId }`
+   (`codificarClientState`/`leerClientStateDeComprobacion`).
+4. Reconocimiento en `adapters/telnyx/webhookHandlers.ts`:
+   - `call.initiated` con nuestro `client_state` o `direction: "outgoing"` → pata propia,
+     se ignora (sin esto se colgaría como «negocio desconocido»).
+   - `call.initiated` entrante al número de Alhabla con `from` = **el propio número de
+     Alhabla** (ningún cliente llama desde ahí), o `from` = la línea de clientes si hay una
+     comprobación de hace menos de `VENTANA_DE_ATRIBUCION_SEGUNDOS` (45 s;
+     `comprobacionDeDesvioReciente`) → `esLlamadaDeComprobacionDeDesvio` →
+     `recibirLlamadaDeComprobacion`: `registrarLlamadaDeComprobacionRecibida` pone
+     `forwardingCheckedAt` (y `forwardingConfirmedAt` si estaba a null), marca `ok` y
+     **cuelga sin arrancar la recepcionista**: ninguna `Call`, transcripción ni coste. Si no
+     hay comprobación viva se anota igualmente con un `console.warn`.
+   - `call.answered` con nuestro `client_state` → `registrarSalienteContestada` (alguien la
+     cogió: el dueño por reflejo o un contestador) y se cuelga.
+   - `call.hangup` con nuestro `client_state` → `registrarSalienteColgada`: si no hay
+     resultado, `fallo` con motivo (`motivoDeFalloPorColgado`): `contestada` →
+     `la_has_cogido`; `user_busy`/`call_rejected` → `comunicando`; `timeout`/`no_answer` →
+     `sin_desvio`; otro → `desconocido`.
+   - `call.cost` con nuestro `client_state` → solo log; no hay `Call` a la que cargarlo.
+5. El panel hace polling a `GET /business/me/onboarding/forwarding/check/:id` cada 2 s hasta
+   50 s (`ComprobarDesvio` en `call-forwarding-card.tsx`, reutilizado por
+   `ajustes-telefono.tsx` con `contexto="ajustes"`) y pinta «Desvío funcionando» o el motivo
+   con qué hacer (`TEXTO_POR_MOTIVO`). «Ya lo he activado» sigue existiendo como respaldo
+   solo en la tarjeta del panel de inicio.
+
+Recordatorio: si a las 24 h de comprar el número no hay comprobación ni llamada real, el job
+`recordar-desvio-sin-comprobar` (§ Background Jobs 8) manda una única alerta operativa con
+enlace a Ajustes › Teléfono.
 
 ## Stripe Billing
 
@@ -1935,6 +2081,8 @@ he activado" (`OnboardingState.forwardingConfirmedAt`). Its `status` also gates 
 | `POST` | `/business/me/onboarding/dismiss` | Persists `dismissedAt`. |
 | `POST` | `/business/me/onboarding/complete` | Persists `completedAt`. |
 | `POST` | `/business/me/onboarding/confirm-forwarding` | Persists `forwardingConfirmedAt` — the user's word, not a verification. |
+| `POST` | `/business/me/onboarding/forwarding/check` | «Comprobar desvío»: origina una llamada real desde el número de Alhabla a la línea de clientes (202 con `{ id, linea, startedAt, resultado, resueltaAt }`). Ver § Telefonía. |
+| `GET` | `/business/me/onboarding/forwarding/check/:id` | Estado de esa comprobación (polling del panel); 404 si no es del negocio del token o ya caducó. |
 
 ### Frontend (`frontend/src/app/ajustes/page.tsx`)
 

@@ -132,6 +132,13 @@ model Business {
   // («te llamamos nosotros»). Lo leen voiceTools, whatsapp/mensajesCliente
   // y el prompt gestionado.
   hideOwnerNumberFromClients Boolean @default(false)
+  // Recordatorio único «aún no has comprobado el desvío» (PLAN-TELEFONIA-
+  // UX.md § 5, fase 5): lo manda jobs/recordarDesvioSinComprobar.ts entre
+  // 24 y 48 h después de comprar el número si forwardingCheckedAt sigue a
+  // null y no ha entrado ninguna llamada real. La marca se reclama con un
+  // updateMany condicional ANTES de enviar (Cloud Scheduler entrega al menos
+  // una vez) y se retira si el aviso no salió por ninguna vía.
+  forwardingReminderSentAt   DateTime?
 
   // Alta del dueño por WhatsApp (PLAN-CANAL-DUENO.md § 2, § 6, § 12).
   // El consentimiento tiene que ser demostrable: cuándo, por qué vía y con
