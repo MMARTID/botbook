@@ -9,6 +9,13 @@ import {
 import { callLabel, errorMessage } from "../../lib/logUtils.js";
 import { selectTelnyxInboundAgent } from "../../modules/phone/telnyxInbound.js";
 import { executeVoiceTool } from "../../modules/voiceTools/service.js";
+import {
+  comprobacionDeDesvioEnCurso,
+  leerClientStateDeComprobacion,
+  registrarLlamadaDeComprobacionRecibida,
+  registrarSalienteColgada,
+  registrarSalienteContestada,
+} from "../../modules/onboarding/comprobacionDesvio.js";
 
 /**
  * Envoltorio real verificado en vivo el 2026-09-11 y contra los tipos de
@@ -27,6 +34,23 @@ const TelnyxCallInitiatedSchema = z.object({
         call_control_id: z.string(),
         from: z.string().optional(),
         to: z.string().optional(),
+        // `outgoing` en la pata que origina `client.calls.dial()` (hoy solo
+        // «Comprobar desvío») — nunca es una llamada de cliente.
+        direction: z.string().optional(),
+        client_state: z.string().optional(),
+      })
+      .passthrough(),
+  }),
+});
+
+const TelnyxCallAnsweredSchema = z.object({
+  data: z.object({
+    id: z.string(),
+    event_type: z.literal("call.answered"),
+    payload: z
+      .object({
+        call_control_id: z.string(),
+        client_state: z.string().optional(),
       })
       .passthrough(),
   }),
@@ -40,6 +64,7 @@ const TelnyxCallHangupSchema = z.object({
       .object({
         call_control_id: z.string(),
         hangup_cause: z.string().optional(),
+        client_state: z.string().optional(),
       })
       .passthrough(),
   }),
@@ -119,6 +144,7 @@ const TelnyxCallCostSchema = z.object({
     payload: z
       .object({
         call_control_id: z.string().optional(),
+        client_state: z.string().optional(),
         // Sin campo de moneda propio a este nivel (sí lo tiene cada
         // cost_part) — se asume USD, el default habitual de Telnyx, hasta
         // confirmar lo contrario para esta cuenta.
@@ -152,15 +178,125 @@ export function extractTelnyxEventEnvelope(
   return { id: parsed.data.data.id, eventType: parsed.data.data.event_type };
 }
 
+/**
+ * «Comprobar desvío» (PLAN-TELEFONIA-UX.md § 4): el número de Alhabla del
+ * negocio llama a su línea de clientes y, si el desvío funciona, la llamada
+ * vuelve a entrar por ese mismo número de Alhabla con `from` = el propio
+ * número de Alhabla — ningún cliente llama desde ahí. Por si la operadora
+ * de la línea presentase como llamante a la propia línea desviada en vez
+ * de al llamante original, también cuenta `from` = línea de clientes, pero
+ * solo mientras haya una comprobación en curso (ventana de segundos).
+ */
+async function esLlamadaDeComprobacionDeDesvio(
+  business: { id: string; phone: string; telnyxPhoneNumber: string | null },
+  from: string | undefined
+): Promise<boolean> {
+  if (!from) return false;
+  if (business.telnyxPhoneNumber && from === business.telnyxPhoneNumber) {
+    return true;
+  }
+  if (from !== business.phone) return false;
+  try {
+    return (await comprobacionDeDesvioEnCurso(business.id)) !== null;
+  } catch (error) {
+    console.error(
+      `[Telnyx] Negocio ${business.id}: no se pudo consultar si hay una comprobación de desvío en curso: ${errorMessage(error)}`
+    );
+    return false;
+  }
+}
+
+/**
+ * La llamada de comprobación se cuelga sin contestar y sin crear Call: no
+ * es una llamada de cliente, no hay recepcionista, transcripción ni coste
+ * que registrar. Marcar el resultado y colgar son independientes: aunque
+ * Redis/Postgres fallen, la llamada no se queda sonando.
+ */
+async function recibirLlamadaDeComprobacion(
+  businessId: string,
+  callControlId: string
+): Promise<{ success: boolean }> {
+  let success = true;
+  try {
+    const check = await registrarLlamadaDeComprobacionRecibida(businessId);
+    console.log(
+      `[Telnyx] ${callLabel(callControlId)} es la comprobación de desvío ${check?.id ?? "(sin comprobación en curso)"} del negocio ${businessId}; se cuelga sin arrancar la recepcionista`
+    );
+  } catch (error) {
+    success = false;
+    console.error(
+      `[Telnyx] Negocio ${businessId}: no se pudo registrar la llamada de comprobación de desvío ${callLabel(callControlId)}: ${errorMessage(error)}`
+    );
+  }
+  try {
+    await telnyxAiAdapter.hangupCall(callControlId);
+  } catch (error) {
+    success = false;
+    console.error(
+      `[Telnyx] No se pudo colgar la llamada de comprobación ${callLabel(callControlId)}: ${errorMessage(error)}`
+    );
+  }
+  return { success };
+}
+
+/**
+ * `call.answered` solo interesa para la pata saliente de «Comprobar
+ * desvío»: si alguien la coge (el dueño por reflejo o su contestador), la
+ * comprobación ya no puede salir bien, así que se anota y se cuelga para no
+ * dejar a nadie escuchando silencio. Para las llamadas de clientes (la
+ * recepcionista contesta con `answerCallWithAssistant`) no hay nada que
+ * hacer aquí.
+ */
+export async function handleCallAnswered(
+  payload: unknown
+): Promise<{ success: boolean }> {
+  const event = TelnyxCallAnsweredSchema.parse(payload);
+  const { call_control_id, client_state } = event.data.payload;
+
+  const comprobacion = leerClientStateDeComprobacion(client_state);
+  if (!comprobacion) return { success: true };
+
+  try {
+    const check = await registrarSalienteContestada(comprobacion.checkId);
+    console.log(
+      `[Telnyx] La llamada de comprobación de desvío ${comprobacion.checkId} del negocio ${comprobacion.businessId} la ha cogido alguien${check ? "" : " (comprobación ya caducada)"}; se cuelga`
+    );
+  } catch (error) {
+    console.error(
+      `[Telnyx] No se pudo anotar que la comprobación ${comprobacion.checkId} fue contestada: ${errorMessage(error)}`
+    );
+  }
+  try {
+    await telnyxAiAdapter.hangupCall(call_control_id);
+  } catch (error) {
+    console.error(
+      `[Telnyx] No se pudo colgar la saliente de comprobación ${callLabel(call_control_id)}: ${errorMessage(error)}`
+    );
+  }
+  return { success: true };
+}
+
 export async function handleCallInitiated(
   payload: unknown
 ): Promise<{ success: boolean }> {
   const event = TelnyxCallInitiatedSchema.parse(payload);
-  const { call_control_id, from, to } = event.data.payload;
+  const { call_control_id, from, to, direction, client_state } =
+    event.data.payload;
 
   console.log(
     `[Telnyx] Inició ${callLabel(call_control_id)} → ${to ?? "número desconocido"}`
   );
+
+  // Pata saliente de «Comprobar desvío» (o cualquier otra que originemos
+  // nosotros): no es una llamada de cliente. Sin esta salida, el `to` (la
+  // línea del negocio) no casaría con ningún número de Alhabla y se
+  // colgaría nuestra propia llamada como «negocio desconocido».
+  if (leerClientStateDeComprobacion(client_state) || direction === "outgoing") {
+    console.log(
+      `[Telnyx] ${callLabel(call_control_id)} es una pata saliente propia; no se trata como llamada de cliente`
+    );
+    return { success: true };
+  }
 
   if (!to) {
     console.error(
@@ -174,6 +310,8 @@ export async function handleCallInitiated(
       where: { telnyxPhoneNumber: to },
       select: {
         id: true,
+        phone: true,
+        telnyxPhoneNumber: true,
         callsSuspendedAt: true,
         paymentFailureSuspensionAt: true,
         agents: {
@@ -193,6 +331,10 @@ export async function handleCallInitiated(
       console.error(`[Telnyx] No hay negocio registrado para el número ${to}`);
       await telnyxAiAdapter.hangupCall(call_control_id).catch(() => {});
       return { success: false };
+    }
+
+    if (await esLlamadaDeComprobacionDeDesvio(business, from)) {
+      return recibirLlamadaDeComprobacion(business.id, call_control_id);
     }
 
     const agent = selectTelnyxInboundAgent(business);
@@ -252,11 +394,27 @@ export async function handleCallHangup(
   payload: unknown
 ): Promise<{ success: boolean }> {
   const event = TelnyxCallHangupSchema.parse(payload);
-  const { call_control_id, hangup_cause } = event.data.payload;
+  const { call_control_id, hangup_cause, client_state } = event.data.payload;
 
   console.log(
     `[Telnyx] Colgó ${callLabel(call_control_id)} · motivo=${hangup_cause ?? "no indicado"}`
   );
+
+  // Pata saliente de «Comprobar desvío»: cierra la comprobación (fallo si
+  // la llamada nunca volvió a entrar por el número de Alhabla) y nada más —
+  // no hay Call que actualizar ni consumo que reportar.
+  const comprobacion = leerClientStateDeComprobacion(client_state);
+  if (comprobacion) {
+    try {
+      await registrarSalienteColgada(comprobacion.checkId, hangup_cause);
+    } catch (error) {
+      console.error(
+        `[Telnyx] No se pudo cerrar la comprobación de desvío ${comprobacion.checkId} del negocio ${comprobacion.businessId}: ${errorMessage(error)}`
+      );
+      return { success: false };
+    }
+    return { success: true };
+  }
 
   try {
     const dbCall = await prisma.call.findUnique({
@@ -616,8 +774,18 @@ export async function handleCallCost(
   payload: unknown
 ): Promise<{ success: boolean }> {
   const event = TelnyxCallCostSchema.parse(payload);
-  const { call_control_id, total_cost, status, cost_parts } =
+  const { call_control_id, total_cost, status, cost_parts, client_state } =
     event.data.payload;
+
+  // El coste de la pata saliente de «Comprobar desvío» no es de ninguna
+  // llamada de cliente: se deja en el log y no se busca una Call que no
+  // existe.
+  if (leerClientStateDeComprobacion(client_state)) {
+    console.log(
+      `[Telnyx] Coste de la llamada de comprobación de desvío ${callLabel(call_control_id)}: ${total_cost ?? "sin importe"} (no se guarda)`
+    );
+    return { success: true };
+  }
 
   if (!call_control_id) {
     console.error(`[Telnyx] call.cost sin call_control_id`);

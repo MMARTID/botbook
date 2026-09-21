@@ -1,11 +1,27 @@
 "use client";
 
-import { useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Check, ChevronDown, Copy, Loader2, PhoneForwarded, Clock3 } from "lucide-react";
-import { confirmForwarding } from "@/lib/api";
+import { useRef, useState } from "react";
+import Link from "next/link";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  Check,
+  ChevronDown,
+  CircleCheck,
+  Copy,
+  Loader2,
+  PhoneCall,
+  PhoneForwarded,
+  Clock3,
+  TriangleAlert,
+} from "lucide-react";
+import { confirmForwarding, getForwardingCheck, startForwardingCheck } from "@/lib/api";
+import { apiErrorCode } from "@/lib/api-errors";
 import { formatPhone } from "@/lib/format";
-import type { OnboardingForwarding } from "@/lib/types";
+import type {
+  ForwardingCheckErrorCode,
+  ForwardingCheckFailureReason,
+  OnboardingForwarding,
+} from "@/lib/types";
 
 /**
  * Códigos MMI del estándar GSM (3GPP TS 22.030): son los mismos en Movistar,
@@ -49,6 +65,55 @@ const CODIGOS_MOVIL = [
     recomendado: false,
   },
 ];
+
+/**
+ * «Comprobar desvío» (PLAN-TELEFONIA-UX.md § 4): el panel pregunta el
+ * resultado cada 2 s. La llamada saliente espera hasta 35 s a que salte el
+ * desvío y luego llega el webhook, así que 25 consultas (50 s) cubren el
+ * caso más lento; pasado eso se da por no recibido y se ofrece repetir.
+ */
+export const INTERVALO_DE_CONSULTA_MS = 2000;
+export const MAX_CONSULTAS = 25;
+
+/** Qué hacer según por qué no ha funcionado (§ 4 punto 5 del plan). */
+export const TEXTO_POR_MOTIVO: Record<ForwardingCheckFailureReason, { titulo: string; detalle: string }> = {
+  la_has_cogido: {
+    titulo: "Alguien ha cogido la llamada",
+    detalle:
+      "Puede que la hayas cogido tú por reflejo o que la tenga un contestador. Vuelve a comprobarlo y deja que suene sin cogerla; si esa línea tiene contestador, desactívalo antes.",
+  },
+  comunicando: {
+    titulo: "Tu línea estaba comunicando o ha rechazado la llamada",
+    detalle:
+      "Cuelga lo que tengas en curso y vuelve a comprobarlo. Si quieres que las llamadas que entran mientras hablas también lleguen a tu recepcionista, activa además el desvío «cuando estás comunicando».",
+  },
+  sin_desvio: {
+    titulo: "No ha saltado el desvío",
+    detalle:
+      "La llamada ha sonado hasta agotar el tiempo sin llegar a tu recepcionista. Revisa que marcaste bien el código desde el teléfono de esa línea. Si es un fijo con contestador, desactívalo (en Movistar, #10#) o se quedará él las llamadas.",
+  },
+  desconocido: {
+    titulo: "No hemos podido completar la llamada",
+    detalle:
+      "Inténtalo otra vez en unos minutos. Si estás seguro de que el desvío está activo, marca «Ya lo he activado» y lo confirmaremos con la primera llamada real.",
+  },
+};
+
+const TEXTO_POR_CODIGO_DE_ERROR: Record<ForwardingCheckErrorCode, string> = {
+  sin_numero: "Tu número de Alhabla todavía no está activo. Espera unos minutos y vuelve a probar.",
+  linea_de_clientes_invalida:
+    "Necesitamos el teléfono al que te llaman tus clientes, distinto del número de Alhabla. Revísalo en Ajustes.",
+  comprobacion_en_curso: "Ya hay una comprobación en marcha. Espera un minuto y vuelve a probar.",
+  limite_alcanzado: "Has agotado las tres comprobaciones de esta hora. Puedes volver a intentarlo más tarde.",
+  telefonia_no_configurada: "No hemos podido llamar a tu línea. Inténtalo en unos minutos.",
+  no_se_pudo_llamar: "No hemos podido llamar a tu línea. Inténtalo en unos minutos.",
+};
+
+function textoDeErrorAlComprobar(error: unknown): string {
+  const code = apiErrorCode(error) as ForwardingCheckErrorCode | null;
+  return (code && TEXTO_POR_CODIGO_DE_ERROR[code]) ||
+    "No hemos podido iniciar la comprobación. Inténtalo otra vez en unos segundos.";
+}
 
 type CallForwardingCardProps = {
   forwarding: OnboardingForwarding;
@@ -192,9 +257,11 @@ export function CallForwardingCard({ forwarding }: CallForwardingCardProps) {
         cliente.
       </p>
 
+      <ComprobarDesvio customerLine={forwarding.customerLine} />
+
       <div className="mt-5 flex flex-col gap-3 border-t border-[#ddd6fe] pt-4 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-sm text-muted">
-          En cuanto entre la primera llamada lo damos por hecho automáticamente.
+          Si prefieres no comprobarlo, en cuanto entre la primera llamada lo damos por hecho automáticamente.
         </p>
         <button
           type="button"
@@ -217,6 +284,213 @@ export function CallForwardingCard({ forwarding }: CallForwardingCardProps) {
         </p>
       ) : null}
     </section>
+  );
+}
+
+/**
+ * Estados: inactiva → aviso («te vamos a llamar, no lo cojas») → en curso
+ * (polling) → ok / fallo con motivo / sin respuesta. El resultado ok no
+ * cierra la tarjeta solo: el mensaje se queda a la vista hasta que la
+ * persona pulsa «Continuar», que refresca la guía (y la tarjeta desaparece
+ * porque el paso ya está hecho).
+ */
+function ComprobarDesvio({ customerLine }: { customerLine: string | null | undefined }) {
+  const queryClient = useQueryClient();
+  const [fase, setFase] = useState<"inactiva" | "aviso" | "en_curso">("inactiva");
+  const [checkId, setCheckId] = useState<string | null>(null);
+  const consultas = useRef(0);
+
+  const startMutation = useMutation({
+    mutationFn: startForwardingCheck,
+    onSuccess: (check) => {
+      consultas.current = 0;
+      setCheckId(check.id);
+      setFase("en_curso");
+    },
+  });
+
+  const checkQuery = useQuery({
+    queryKey: ["forwarding-check", checkId],
+    queryFn: () => {
+      consultas.current += 1;
+      return getForwardingCheck(checkId!);
+    },
+    enabled: checkId !== null,
+    staleTime: 0,
+    refetchInterval: (query) => {
+      if (query.state.data?.resultado || consultas.current >= MAX_CONSULTAS) return false;
+      return INTERVALO_DE_CONSULTA_MS;
+    },
+  });
+
+  // Desestructurado a propósito: TanStack solo vuelve a renderizar por las
+  // propiedades leídas en el render, y `isFetching` tiene que contar aunque
+  // el dato (sin resultado) no cambie entre consultas.
+  const {
+    data: comprobacionActual,
+    isFetching: consultando,
+    isError: consultaFallida,
+  } = checkQuery;
+  const resultado = comprobacionActual?.resultado ?? null;
+  const sinRespuesta =
+    fase === "en_curso" && !resultado && consultas.current >= MAX_CONSULTAS && !consultando;
+  const fallo = resultado?.estado === "fallo" ? resultado : null;
+
+  const empezar = () => {
+    setCheckId(null);
+    startMutation.mutate();
+  };
+
+  const reiniciar = () => {
+    setCheckId(null);
+    startMutation.reset();
+    setFase("aviso");
+  };
+
+  const continuar = () => {
+    void queryClient.invalidateQueries({ queryKey: ["onboarding-state"] });
+  };
+
+  // `undefined` = backend anterior a la fase 3 (Vercel puede publicar esta
+  // interfaz unos minutos antes que Cloud Run): sin el bloque, sin ruido.
+  if (customerLine === undefined) return null;
+
+  if (customerLine === null) {
+    return (
+      <div className="mt-5 rounded-2xl bg-white p-4">
+        <h3 className="text-sm font-semibold text-[#0a0a0a]">Comprueba que funciona</h3>
+        <p className="mt-1 text-sm leading-6 text-muted">
+          Para comprobar el desvío necesitamos el teléfono al que te llaman tus clientes.{" "}
+          <Link
+            href="/ajustes"
+            className="font-semibold text-[#6d28d9] underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]"
+          >
+            Añádelo en Ajustes
+          </Link>{" "}
+          y vuelve aquí.
+        </p>
+      </div>
+    );
+  }
+
+  const lineaLegible = formatPhone(customerLine);
+
+  return (
+    <div className="mt-5 rounded-2xl bg-white p-4" aria-live="polite">
+      <h3 className="text-sm font-semibold text-[#0a0a0a]">Comprueba que funciona</h3>
+
+      {fase === "inactiva" ? (
+        <div className="mt-1 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-sm leading-6 text-muted">
+            Te llamamos a tu línea de clientes desde tu número de Alhabla y vemos si la llamada
+            vuelve a tu recepcionista. Tarda menos de un minuto.
+          </p>
+          <button type="button" onClick={() => setFase("aviso")} className="btn-purple h-11 shrink-0 px-5">
+            <PhoneCall className="h-4 w-4" aria-hidden="true" />
+            Comprobar desvío
+          </button>
+        </div>
+      ) : null}
+
+      {fase === "aviso" ? (
+        <div className="mt-2 rounded-2xl border border-[#ddd6fe] bg-[#f3eeff] p-4">
+          <p className="text-sm font-semibold text-[#0a0a0a]">
+            Vamos a llamar al {lineaLegible}. No lo cojas.
+          </p>
+          <p className="mt-1 text-sm leading-6 text-muted">
+            Deja que suene: si has activado el desvío «cuando no contestas», tardará unos segundos
+            en saltar a tu recepcionista. Si lo coges, la comprobación no vale.
+          </p>
+          <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+            <button
+              type="button"
+              onClick={empezar}
+              disabled={startMutation.isPending}
+              className="btn-purple h-11 px-5 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {startMutation.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+              ) : (
+                <PhoneCall className="h-4 w-4" aria-hidden="true" />
+              )}
+              Llamar ahora
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                startMutation.reset();
+                setFase("inactiva");
+              }}
+              disabled={startMutation.isPending}
+              className="btn-secondary h-11 px-5"
+            >
+              Cancelar
+            </button>
+          </div>
+          {startMutation.isError ? (
+            <p role="alert" className="mt-3 text-sm font-medium text-[#c53030]">
+              {textoDeErrorAlComprobar(startMutation.error)}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
+
+      {fase === "en_curso" && !resultado && !sinRespuesta ? (
+        <div className="mt-2 flex items-start gap-3 rounded-2xl border border-[#ddd6fe] bg-[#f3eeff] p-4">
+          <Loader2 className="mt-0.5 h-5 w-5 shrink-0 animate-spin text-[#8b5cf6]" aria-hidden="true" />
+          <div>
+            <p className="text-sm font-semibold text-[#0a0a0a]">Llamando al {lineaLegible}… no lo cojas</p>
+            <p className="mt-1 text-sm leading-6 text-muted">
+              Estamos esperando a que la llamada llegue a tu recepcionista. Puede tardar hasta un minuto.
+            </p>
+          </div>
+        </div>
+      ) : null}
+
+      {resultado?.estado === "ok" ? (
+        <div className="mt-2 rounded-2xl border border-[#d8efd7] bg-[#ecf7ec] p-4" role="status">
+          <p className="flex items-center gap-2 text-sm font-semibold text-[#2c7334]">
+            <CircleCheck className="h-5 w-5 shrink-0" aria-hidden="true" />
+            Desvío funcionando
+          </p>
+          <p className="mt-1 text-sm leading-6 text-[#2c7334]">
+            La llamada al {lineaLegible} ha llegado a tu recepcionista. Tus clientes ya pueden reservar
+            aunque no cojas el teléfono.
+          </p>
+          <button type="button" onClick={continuar} className="btn-primary mt-3 h-11 px-5">
+            <Check className="h-4 w-4" aria-hidden="true" />
+            Continuar
+          </button>
+        </div>
+      ) : null}
+
+      {fallo || sinRespuesta ? (
+        <div className="mt-2 rounded-2xl border border-[#f5d3d3] bg-[#fff1f1] p-4" role="alert">
+          <p className="flex items-center gap-2 text-sm font-semibold text-[#c53030]">
+            <TriangleAlert className="h-5 w-5 shrink-0" aria-hidden="true" />
+            {fallo ? TEXTO_POR_MOTIVO[fallo.motivo].titulo : "No hemos recibido respuesta"}
+          </p>
+          <p className="mt-1 text-sm leading-6 text-[#7f1d1d]">
+            {fallo
+              ? TEXTO_POR_MOTIVO[fallo.motivo].detalle
+              : "La comprobación no ha terminado a tiempo. Espera un minuto y vuelve a intentarlo."}
+          </p>
+          <button type="button" onClick={reiniciar} className="btn-secondary mt-3 h-11 px-5">
+            <PhoneCall className="h-4 w-4" aria-hidden="true" />
+            Volver a comprobar
+          </button>
+        </div>
+      ) : null}
+
+      {fase === "en_curso" && consultaFallida ? (
+        <p role="alert" className="mt-3 text-sm font-medium text-[#c53030]">
+          Hemos perdido el hilo de la comprobación. Vuelve a intentarlo en un minuto.{" "}
+          <button type="button" onClick={reiniciar} className="font-semibold underline underline-offset-2">
+            Volver a comprobar
+          </button>
+        </p>
+      ) : null}
+    </div>
   );
 }
 

@@ -555,7 +555,42 @@ export type OnboardingForwarding = {
   phoneNumber: string | null;
   confirmedAt: string | null;
   firstCallAt: string | null;
+  /** Última «Comprobar desvío» que entró de verdad; null = nunca. Opcional:
+   * un backend anterior a la fase 3 del plan de telefonía no lo devuelve. */
+  checkedAt?: string | null;
+  /** Línea de clientes (`Business.phone`) a la que llama la comprobación;
+   * null mientras sea el placeholder del registro. Opcional, como arriba. */
+  customerLine?: string | null;
 };
+
+/** Por qué no ha funcionado «Comprobar desvío» (PLAN-TELEFONIA-UX.md § 4). */
+export type ForwardingCheckFailureReason =
+  | "la_has_cogido"
+  | "comunicando"
+  | "sin_desvio"
+  | "desconocido";
+
+export type ForwardingCheckResult =
+  | { estado: "ok" }
+  | { estado: "fallo"; motivo: ForwardingCheckFailureReason };
+
+/** Estado de una comprobación de desvío; `resultado` es null mientras dura. */
+export type ForwardingCheck = {
+  id: string;
+  linea: string;
+  startedAt: string;
+  resultado: ForwardingCheckResult | null;
+  resueltaAt: string | null;
+};
+
+/** `code` con el que el backend rechaza arrancar una comprobación. */
+export type ForwardingCheckErrorCode =
+  | "sin_numero"
+  | "linea_de_clientes_invalida"
+  | "comprobacion_en_curso"
+  | "limite_alcanzado"
+  | "telefonia_no_configurada"
+  | "no_se_pudo_llamar";
 
 export type OnboardingState = {
   steps: OnboardingSteps;
