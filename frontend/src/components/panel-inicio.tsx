@@ -35,6 +35,11 @@ function DashboardContent() {
       router.replace("/");
     }
 
+    if (searchParams.get("calendar_success")) {
+      setCalendarStatus({ type: "success", message: "Google Calendar está conectado correctamente." });
+      router.replace("/");
+    }
+
     if (searchParams.get("outlook_error")) {
       setCalendarStatus({ type: "error", message: "Hubo un error al conectar Outlook Calendar." });
       router.replace("/");
