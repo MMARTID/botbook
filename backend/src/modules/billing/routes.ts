@@ -69,9 +69,12 @@ export const billingRoutes: FastifyPluginAsync = async (fastify) => {
     },
   );
 
+  // Límite estándar (30/min), no estricto: /checkout/resultado sondea este
+  // endpoint cada 5 s mientras Stripe confirma, y con 10/min los sondeos
+  // empezaban a recibir 429 a los 25 s (repaso de seguridad, 2026-09-21).
   fastify.post(
     "/checkout-session/:sessionId/reconcile",
-    { preValidation: [fastify.authenticate], config: { rateLimit: strictRateLimit } },
+    { preValidation: [fastify.authenticate], config: { rateLimit: standardRateLimit } },
     async (request, reply) => {
       const { sessionId } = request.params as { sessionId?: string };
       if (!sessionId?.startsWith("cs_")) {

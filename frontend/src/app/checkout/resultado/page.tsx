@@ -41,9 +41,14 @@ export default function CheckoutResultPage({
   const { data, isLoading, isError, refetch, isFetching } = useQuery({
     queryKey: ["checkout-reconcile", sessionId],
     queryFn: () => sessionId ? reconcileCheckoutSession(sessionId) : getBillingSummary(),
+    // Cada 5 s: la reconciliación relee la sesión en Stripe y sincroniza la
+    // suscripción; a 2,5 s superaba el límite del endpoint (30/min) en un
+    // minuto de espera. Tras 5 min sin confirmación se deja de sondear (el
+    // aviso de «está tardando» y el botón de reintentar siguen ahí).
     refetchInterval: (query) => {
       const status = query.state.data?.status;
-      return status === "ACTIVE" || status === "TRIALING" ? false : 2500;
+      if (status === "ACTIVE" || status === "TRIALING") return false;
+      return query.state.dataUpdateCount + query.state.errorUpdateCount >= 60 ? false : 5000;
     },
   });
 
