@@ -40,6 +40,29 @@ export function esFijoEspanol(e164: string): boolean {
   return /^\+34[89]\d{8}$/.test(e164);
 }
 
+/** Un móvil español (6xx / 7xx). */
+export function esMovilEspanol(e164: string): boolean {
+  return /^\+34[67]\d{8}$/.test(e164);
+}
+
+/**
+ * Tipo de línea de clientes que se propone en el alta a partir del teléfono
+ * que trae Google Places (PLAN-TELEFONIA-UX.md § 5, fase 1): un fijo español
+ * es «el fijo del local» y un móvil español, «un móvil de trabajo». Con
+ * cualquier otra cosa (sin teléfono, extranjero) no se propone nada y el
+ * dueño elige.
+ */
+export function inferirTipoDeLinea(
+  telefono: string | null | undefined
+): "fijo" | "movil_trabajo" | null {
+  if (!telefono) return null;
+  const normalizado = normalizarMovil(telefono);
+  if (!normalizado) return null;
+  if (esFijoEspanol(normalizado)) return "fijo";
+  if (esMovilEspanol(normalizado)) return "movil_trabajo";
+  return null;
+}
+
 /**
  * Presenta un E.164 para leerlo: «+34 930 453 218». Fuera de España se agrupa
  * de tres en tres tras el prefijo, que es lo más legible sin conocer el plan

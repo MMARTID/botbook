@@ -19,18 +19,26 @@ import {
   confirmForwarding,
   getForwardingCheck,
   startForwardingCheck,
+  updateMyBusiness,
 } from "@/lib/api";
-import type { ForwardingCheck, OnboardingForwarding } from "@/lib/types";
+import type {
+  Business,
+  CustomerLineType,
+  ForwardingCheck,
+  OnboardingForwarding,
+} from "@/lib/types";
 
 vi.mock("@/lib/api", () => ({
   confirmForwarding: vi.fn(),
   getForwardingCheck: vi.fn(),
   startForwardingCheck: vi.fn(),
+  updateMyBusiness: vi.fn(),
 }));
 
 const mockedStart = vi.mocked(startForwardingCheck);
 const mockedGet = vi.mocked(getForwardingCheck);
 const mockedConfirm = vi.mocked(confirmForwarding);
+const mockedUpdateMyBusiness = vi.mocked(updateMyBusiness);
 
 const CHECK_ID = "a".repeat(32);
 
@@ -76,13 +84,19 @@ function errorHttp(status: number, data: Record<string, unknown>) {
   );
 }
 
-function renderCard(estado: OnboardingForwarding = forwarding()) {
+function renderCard(
+  estado: OnboardingForwarding = forwarding(),
+  customerLineType: CustomerLineType | null = null
+) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
   render(
     <QueryClientProvider client={queryClient}>
-      <CallForwardingCard forwarding={estado} />
+      <CallForwardingCard
+        forwarding={estado}
+        customerLineType={customerLineType}
+      />
     </QueryClientProvider>
   );
   return queryClient;
@@ -93,6 +107,131 @@ async function lanzarComprobacion(user: ReturnType<typeof userEvent.setup>) {
   await user.click(screen.getByRole("button", { name: /comprobar desvío/i }));
   await user.click(screen.getByRole("button", { name: /llamar ahora/i }));
 }
+
+describe("CallForwardingCard · códigos según el tipo de línea", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("con un fijo enseña *61* y *21* sin el doble asterisco, con la nota del contestador", () => {
+    renderCard(forwarding(), "fijo");
+
+    expect(screen.getByText("*61*+34930453218#")).toBeInTheDocument();
+    expect(screen.getByText("*21*+34930453218#")).toBeInTheDocument();
+    expect(screen.queryByText(/\*\*61\*/)).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("Otras formas de desviar")
+    ).not.toBeInTheDocument();
+    expect(screen.getByText("Recomendado")).toBeInTheDocument();
+    expect(
+      screen.getByText(/Si tu fijo tiene contestador, desactívalo/)
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Desde un móvil")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("¿De qué tipo es esta línea?")
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /comprobar desvío/i })
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /ya lo he activado/i })
+    ).toBeInTheDocument();
+  });
+
+  it.each(["movil_trabajo", "movil_personal"] as const)(
+    "con %s enseña los códigos de móvil, «cuando no contestas» recomendado y la nota del buzón",
+    (tipo) => {
+      renderCard(forwarding(), tipo);
+
+      expect(screen.getByText("**61*+34930453218#")).toBeInTheDocument();
+      expect(screen.getByText("Recomendado")).toBeInTheDocument();
+      expect(screen.getByText("Otras formas de desviar")).toBeInTheDocument();
+      expect(screen.getByText("**21*+34930453218#")).toBeInTheDocument();
+      expect(
+        screen.getByText(/Este desvío sustituye al buzón de voz/)
+      ).toBeInTheDocument();
+      expect(screen.queryByText("Desde un fijo")).not.toBeInTheDocument();
+      expect(screen.queryByText("*61*+34930453218#")).not.toBeInTheDocument();
+      expect(
+        screen.queryByText("¿De qué tipo es esta línea?")
+      ).not.toBeInTheDocument();
+    }
+  );
+
+  it("con Alhabla como número principal no hay tarjeta, ni siquiera mientras se activa el número", () => {
+    const { container } = render(
+      <QueryClientProvider client={new QueryClient()}>
+        <CallForwardingCard
+          forwarding={forwarding()}
+          customerLineType="alhabla"
+        />
+        <CallForwardingCard
+          forwarding={forwarding({
+            status: "waiting_number",
+            phoneNumber: null,
+          })}
+          customerLineType="alhabla"
+        />
+      </QueryClientProvider>
+    );
+
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  it("sin tipo (negocio antiguo) enseña móvil y fijo y pregunta el tipo; elegir uno lo guarda y actualiza el negocio en caché", async () => {
+    const user = userEvent.setup();
+    const negocio = { id: "neg_1", customerLineType: "fijo" } as Business;
+    mockedUpdateMyBusiness.mockResolvedValue(negocio);
+    const queryClient = renderCard(forwarding(), null);
+    const invalidar = vi.spyOn(queryClient, "invalidateQueries");
+
+    expect(screen.getByText("Desde un móvil")).toBeInTheDocument();
+    expect(screen.getByText("Desde un fijo")).toBeInTheDocument();
+    expect(screen.getByText("**61*+34930453218#")).toBeInTheDocument();
+    expect(screen.getByText("¿De qué tipo es esta línea?")).toBeInTheDocument();
+    expect(
+      screen.getAllByRole("radio").map((radio) => radio.getAttribute("value"))
+    ).toEqual(["fijo", "movil_trabajo", "movil_personal"]);
+
+    await user.click(screen.getByRole("radio", { name: /El fijo del local/ }));
+
+    await waitFor(() =>
+      expect(mockedUpdateMyBusiness).toHaveBeenCalledWith({
+        customerLineType: "fijo",
+      })
+    );
+    await waitFor(() =>
+      expect(queryClient.getQueryData(["my-business"])).toBe(negocio)
+    );
+    expect(invalidar).toHaveBeenCalledWith({ queryKey: ["onboarding-state"] });
+  });
+
+  it("si guardar el tipo falla lo dice y deja volver a elegir", async () => {
+    const user = userEvent.setup();
+    mockedUpdateMyBusiness.mockRejectedValue(new Error("Network Error"));
+    renderCard(forwarding(), null);
+
+    await user.click(
+      screen.getByRole("radio", { name: /Un móvil de trabajo/ })
+    );
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      /No se pudo guardar el tipo de línea/
+    );
+    expect(
+      screen.getByRole("radio", { name: /El fijo del local/ })
+    ).toBeEnabled();
+  });
+
+  it("sin línea de clientes no tiene sentido preguntar el tipo", () => {
+    renderCard(forwarding({ customerLine: null }), null);
+
+    expect(
+      screen.queryByText("¿De qué tipo es esta línea?")
+    ).not.toBeInTheDocument();
+    expect(screen.getByText("**61*+34930453218#")).toBeInTheDocument();
+  });
+});
 
 describe("CallForwardingCard · «Comprobar desvío»", () => {
   beforeEach(() => {

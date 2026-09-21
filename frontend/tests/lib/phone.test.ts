@@ -2,7 +2,9 @@ import { describe, it, expect } from "vitest";
 import {
   E164_PHONE_REGEX,
   esFijoEspanol,
+  esMovilEspanol,
   formatearMovil,
+  inferirTipoDeLinea,
   normalizarMovil,
 } from "@/lib/phone";
 
@@ -65,5 +67,29 @@ describe("formatearMovil", () => {
 
   it("devuelve tal cual lo que no es E.164", () => {
     expect(formatearMovil("600123456")).toBe("600123456");
+  });
+});
+
+describe("esMovilEspanol", () => {
+  it("reconoce los 6xx y 7xx españoles y nada más", () => {
+    expect(esMovilEspanol("+34600123456")).toBe(true);
+    expect(esMovilEspanol("+34700123456")).toBe(true);
+    expect(esMovilEspanol("+34930453218")).toBe(false);
+    expect(esMovilEspanol("+33612345678")).toBe(false);
+  });
+});
+
+describe("inferirTipoDeLinea", () => {
+  it("propone «fijo» con un fijo español y «móvil de trabajo» con un móvil español", () => {
+    expect(inferirTipoDeLinea("+34 930 111 222")).toBe("fijo");
+    expect(inferirTipoDeLinea("600 123 456")).toBe("movil_trabajo");
+  });
+
+  it("no propone nada sin teléfono, con uno inválido o de otro país", () => {
+    expect(inferirTipoDeLinea(null)).toBeNull();
+    expect(inferirTipoDeLinea(undefined)).toBeNull();
+    expect(inferirTipoDeLinea("")).toBeNull();
+    expect(inferirTipoDeLinea("12345")).toBeNull();
+    expect(inferirTipoDeLinea("+33 6 12 34 56 78")).toBeNull();
   });
 });

@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -14,14 +14,33 @@ import {
   Clock3,
   TriangleAlert,
 } from "lucide-react";
-import { confirmForwarding, getForwardingCheck, startForwardingCheck } from "@/lib/api";
+import {
+  TIPOS_CON_LINEA_PROPIA,
+  TarjetasDeLinea,
+} from "@/components/tarjetas-de-linea";
+import {
+  confirmForwarding,
+  getForwardingCheck,
+  startForwardingCheck,
+  updateMyBusiness,
+} from "@/lib/api";
 import { apiErrorCode } from "@/lib/api-errors";
 import { formatPhone } from "@/lib/format";
 import type {
+  CustomerLineType,
   ForwardingCheckErrorCode,
   ForwardingCheckFailureReason,
   OnboardingForwarding,
 } from "@/lib/types";
+
+type CodigoDeDesvio = {
+  id: string;
+  titulo: string;
+  descripcion: string;
+  activar: (numero: string) => string;
+  desactivar: string;
+  recomendado: boolean;
+};
 
 /**
  * Códigos MMI del estándar GSM (3GPP TS 22.030): son los mismos en Movistar,
@@ -31,7 +50,7 @@ import type {
  * El primero es el que corresponde a la promesa del producto — «solo las
  * llamadas que no contestas» — así que va primero y es el recomendado.
  */
-const CODIGOS_MOVIL = [
+const CODIGOS_MOVIL: CodigoDeDesvio[] = [
   {
     id: "no-contesta",
     titulo: "Cuando no contestas",
@@ -62,6 +81,30 @@ const CODIGOS_MOVIL = [
     descripcion: "Tu teléfono no suena: todas van directas a la recepcionista.",
     activar: (numero: string) => `**21*${numero}#`,
     desactivar: "##21#",
+    recomendado: false,
+  },
+];
+
+/**
+ * En un fijo los códigos son los mismos pero sin el `**` inicial (PLAN-
+ * TELEFONIA-UX.md § 2): se marcan desde el propio aparato tras el tono. Solo
+ * los dos que tienen sentido en un local: «si no contestas» y «todas».
+ */
+const CODIGOS_FIJO: CodigoDeDesvio[] = [
+  {
+    id: "fijo-no-contesta",
+    titulo: "Cuando no contestas",
+    descripcion: "Suena en el local; si nadie lo coge, atiende tu recepcionista. Es el recomendado.",
+    activar: (numero: string) => `*61*${numero}#`,
+    desactivar: "#61#",
+    recomendado: true,
+  },
+  {
+    id: "fijo-todas",
+    titulo: "Todas las llamadas",
+    descripcion: "El fijo no suena: todas van directas a la recepcionista.",
+    activar: (numero: string) => `*21*${numero}#`,
+    desactivar: "#21#",
     recomendado: false,
   },
 ];
@@ -119,11 +162,21 @@ function textoDeErrorAlComprobar(error: unknown): string {
 
 type CallForwardingCardProps = {
   forwarding: OnboardingForwarding;
+  /**
+   * Tipo de la línea de clientes (`Business.customerLineType`): decide qué
+   * códigos y qué avisos se enseñan. null o ausente = negocio anterior a la
+   * fase 1 del plan de telefonía: se enseña todo y se pregunta aquí mismo.
+   */
+  customerLineType?: CustomerLineType | null;
 };
 
-export function CallForwardingCard({ forwarding }: CallForwardingCardProps) {
+export function CallForwardingCard({
+  forwarding,
+  customerLineType,
+}: CallForwardingCardProps) {
   const queryClient = useQueryClient();
   const [copiado, setCopiado] = useState<string | null>(null);
+  const tipoDeLinea = customerLineType ?? null;
 
   const confirmMutation = useMutation({
     mutationFn: confirmForwarding,
@@ -143,6 +196,10 @@ export function CallForwardingCard({ forwarding }: CallForwardingCardProps) {
       setCopiado(null);
     }
   };
+
+  // Con el número de Alhabla como teléfono del negocio no hay nada que
+  // desviar: el paso se da por hecho (el backend lo marca como tal).
+  if (tipoDeLinea === "alhabla") return null;
 
   if (forwarding.status === "waiting_number") {
     return (
@@ -169,6 +226,9 @@ export function CallForwardingCard({ forwarding }: CallForwardingCardProps) {
   const numero = forwarding.phoneNumber;
   if (!numero) return null;
 
+  const esMovil =
+    tipoDeLinea === "movil_trabajo" || tipoDeLinea === "movil_personal";
+  const esFijo = tipoDeLinea === "fijo";
   const recomendado = CODIGOS_MOVIL[0];
   const otrosCodigos = CODIGOS_MOVIL.slice(1);
 
@@ -220,44 +280,86 @@ export function CallForwardingCard({ forwarding }: CallForwardingCardProps) {
         </button>
       </div>
 
-      <h3 className="mt-5 text-sm font-semibold text-[#0a0a0a]">Desde un móvil</h3>
-      <p className="mt-1 text-sm leading-6 text-muted">
-        Marca el código en tu teléfono como si fuera una llamada normal. Funciona igual en Movistar,
-        Vodafone, Orange, Yoigo y MásMóvil.
-      </p>
+      {tipoDeLinea === null && forwarding.customerLine ? (
+        <PreguntaTipoDeLinea customerLine={forwarding.customerLine} />
+      ) : null}
 
-      {/* Solo el recomendado a la vista: elegir entre cuatro modos de desvío
-          es una decisión que este usuario no tiene por qué tomar para empezar. */}
-      <div className="mt-3">
-        <CodigoFila
-          codigo={recomendado}
-          numero={numero}
-          copiado={copiado}
-          onCopiar={copiar}
-        />
-      </div>
+      {esFijo ? (
+        <>
+          <h3 className="mt-5 text-sm font-semibold text-[#0a0a0a]">Desde el fijo del local</h3>
+          <p className="mt-1 text-sm leading-6 text-muted">
+            Descuelga el teléfono del local y marca el código tras el tono, como si fuera una llamada.
+            Es el mismo en todas las compañías.
+          </p>
+          <ul className="mt-3 space-y-2">
+            {CODIGOS_FIJO.map((codigo) => (
+              <li key={codigo.id}>
+                <CodigoFila codigo={codigo} numero={numero} copiado={copiado} onCopiar={copiar} />
+              </li>
+            ))}
+          </ul>
+          <NotaDeLinea>
+            Si tu fijo tiene contestador, desactívalo o se quedará él las llamadas. En Movistar se
+            quita marcando <span className="font-mono text-[#27272a]">#10#</span>.
+          </NotaDeLinea>
+        </>
+      ) : null}
 
-      <details className="group mt-2">
-        <summary className="inline-flex cursor-pointer list-none items-center gap-1.5 rounded-full px-1 py-2 text-sm font-semibold text-[#6d28d9] transition duration-200 hover:text-[#8b5cf6] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]">
-          Otras formas de desviar
-          <ChevronDown className="h-4 w-4 transition duration-200 group-open:rotate-180" aria-hidden="true" />
-        </summary>
-        <ul className="mt-2 space-y-2">
-          {otrosCodigos.map((codigo) => (
-            <li key={codigo.id}>
-              <CodigoFila codigo={codigo} numero={numero} copiado={copiado} onCopiar={copiar} />
-            </li>
-          ))}
-        </ul>
-      </details>
+      {esMovil || tipoDeLinea === null ? (
+        <>
+          <h3 className="mt-5 text-sm font-semibold text-[#0a0a0a]">
+            {esMovil ? "Desde tu móvil" : "Desde un móvil"}
+          </h3>
+          <p className="mt-1 text-sm leading-6 text-muted">
+            Marca el código en tu teléfono como si fuera una llamada normal. Funciona igual en Movistar,
+            Vodafone, Orange, Yoigo y MásMóvil.
+          </p>
 
-      <h3 className="mt-5 text-sm font-semibold text-[#0a0a0a]">Desde un fijo</h3>
-      <p className="mt-1 max-w-2xl text-sm leading-6 text-muted">
-        En las líneas fijas el código sí cambia según la compañía. Lo habitual es marcar{" "}
-        <span className="font-mono text-[#27272a]">*21*{numero}#</span> para desviar todas las llamadas,
-        pero si no funciona, tu operadora puede activarlo por ti en un minuto llamando a su atención al
-        cliente.
-      </p>
+          {/* Solo el recomendado a la vista: elegir entre cuatro modos de desvío
+              es una decisión que este usuario no tiene por qué tomar para empezar. */}
+          <div className="mt-3">
+            <CodigoFila
+              codigo={recomendado}
+              numero={numero}
+              copiado={copiado}
+              onCopiar={copiar}
+            />
+          </div>
+
+          <details className="group mt-2">
+            <summary className="inline-flex cursor-pointer list-none items-center gap-1.5 rounded-full px-1 py-2 text-sm font-semibold text-[#6d28d9] transition duration-200 hover:text-[#8b5cf6] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]">
+              Otras formas de desviar
+              <ChevronDown className="h-4 w-4 transition duration-200 group-open:rotate-180" aria-hidden="true" />
+            </summary>
+            <ul className="mt-2 space-y-2">
+              {otrosCodigos.map((codigo) => (
+                <li key={codigo.id}>
+                  <CodigoFila codigo={codigo} numero={numero} copiado={copiado} onCopiar={copiar} />
+                </li>
+              ))}
+            </ul>
+          </details>
+
+          {esMovil ? (
+            <NotaDeLinea>
+              Este desvío sustituye al buzón de voz: las llamadas que no cojas irán a tu recepcionista
+              en vez de al contestador.
+            </NotaDeLinea>
+          ) : null}
+        </>
+      ) : null}
+
+      {tipoDeLinea === null ? (
+        <>
+          <h3 className="mt-5 text-sm font-semibold text-[#0a0a0a]">Desde un fijo</h3>
+          <p className="mt-1 max-w-2xl text-sm leading-6 text-muted">
+            Descuelga y marca <span className="font-mono text-[#27272a]">*61*{numero}#</span> tras el
+            tono para desviar las llamadas que no contestas, o{" "}
+            <span className="font-mono text-[#27272a]">*21*{numero}#</span> para desviarlas todas. Si el
+            fijo tiene contestador, desactívalo o se quedará él las llamadas.
+          </p>
+        </>
+      ) : null}
 
       <ComprobarDesvio customerLine={forwarding.customerLine} />
 
@@ -286,6 +388,61 @@ export function CallForwardingCard({ forwarding }: CallForwardingCardProps) {
         </p>
       ) : null}
     </section>
+  );
+}
+
+/** Aviso corto bajo los códigos (contestador, buzón de voz). */
+function NotaDeLinea({ children }: { children: ReactNode }) {
+  return (
+    <p className="mt-3 flex items-start gap-2 rounded-2xl bg-white px-4 py-3 text-sm leading-6 text-[#9f7a15]">
+      <TriangleAlert className="mt-1 h-4 w-4 shrink-0" aria-hidden="true" />
+      <span>{children}</span>
+    </p>
+  );
+}
+
+/**
+ * Negocio anterior a la fase 1 del plan de telefonía: no dijo de qué tipo
+ * es su línea. Se pregunta aquí, una vez, y se guarda al elegir; el negocio
+ * en caché se sustituye por el que devuelve el PATCH para que la tarjeta
+ * cambie de códigos al instante.
+ */
+function PreguntaTipoDeLinea({ customerLine }: { customerLine: string }) {
+  const queryClient = useQueryClient();
+  const guardarMutation = useMutation({
+    mutationFn: (tipo: CustomerLineType) =>
+      updateMyBusiness({ customerLineType: tipo }),
+    onSuccess: (updated) => {
+      queryClient.setQueryData(["my-business"], updated);
+      void queryClient.invalidateQueries({ queryKey: ["onboarding-state"] });
+    },
+  });
+
+  return (
+    <div className="mt-4 rounded-2xl bg-white p-4">
+      <h3 id="desvio-tipo-de-linea-title" className="text-sm font-semibold text-[#0a0a0a]">
+        ¿De qué tipo es esta línea?
+      </h3>
+      <p className="mt-1 text-sm leading-6 text-muted">
+        Tus clientes te llaman al {formatPhone(customerLine)}. Dinos qué es y te enseñamos solo los
+        códigos que le corresponden.
+      </p>
+      <div className="mt-3">
+        <TarjetasDeLinea
+          name="desvio-tipo-de-linea"
+          value={guardarMutation.variables ?? null}
+          onChange={(tipo) => guardarMutation.mutate(tipo)}
+          tipos={TIPOS_CON_LINEA_PROPIA}
+          disabled={guardarMutation.isPending}
+          aria-labelledby="desvio-tipo-de-linea-title"
+        />
+      </div>
+      {guardarMutation.isError ? (
+        <p role="alert" className="mt-3 text-sm font-medium text-[#c53030]">
+          No se pudo guardar el tipo de línea. Inténtalo otra vez en unos segundos.
+        </p>
+      ) : null}
+    </div>
   );
 }
 
@@ -502,7 +659,7 @@ function CodigoFila({
   copiado,
   onCopiar,
 }: {
-  codigo: (typeof CODIGOS_MOVIL)[number];
+  codigo: CodigoDeDesvio;
   numero: string;
   copiado: string | null;
   onCopiar: (valor: string, id: string) => void;

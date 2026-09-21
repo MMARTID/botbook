@@ -150,9 +150,14 @@ export function WhatsappDueno({ business, hasToken }: WhatsappDuenoProps) {
     const telefonoDelLocal = business.phone.startsWith("TEMP-")
       ? null
       : normalizarMovil(business.phone);
+    // Si en el alta dijo que los avisos van al mismo móvil al que le llaman
+    // los clientes (caso C del plan de telefonía), coincidir con la línea
+    // no es una sospecha: es lo que pidió.
     const pareceDelLocal =
       esFijoEspanol(normalizado) ||
-      (telefonoDelLocal !== null && telefonoDelLocal === normalizado);
+      (!business.ownerPhoneIsCustomerLine &&
+        telefonoDelLocal !== null &&
+        telefonoDelLocal === normalizado);
     setMovilAviso(pareceDelLocal ? AVISO_PARECE_FIJO : null);
     return { ok: true, normalizado };
   };

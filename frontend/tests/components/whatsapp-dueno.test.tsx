@@ -442,6 +442,30 @@ describe("WhatsappDueno", () => {
     ).toBeEnabled();
   });
 
+  it("no avisa si el dueño pidió los avisos en la misma línea de clientes (móvil)", async () => {
+    const user = userEvent.setup();
+    mockedGetOwnerWhatsapp.mockResolvedValue(estado());
+
+    renderComponent({
+      ...NEGOCIO,
+      phone: "+34600111222",
+      customerLineType: "movil_personal",
+      ownerPhoneIsCustomerLine: true,
+    });
+
+    await user.type(
+      await screen.findByLabelText(/Tu móvil con WhatsApp/),
+      "600 111 222"
+    );
+    await user.tab();
+
+    expect(
+      screen.queryByText(
+        "Parece el teléfono del local. Necesitamos el móvil en el que usas WhatsApp."
+      )
+    ).not.toBeInTheDocument();
+  });
+
   it("cambiar un móvil activo pide confirmación y respeta la negativa", async () => {
     const user = userEvent.setup();
     vi.mocked(window.confirm).mockReturnValue(false);

@@ -150,8 +150,12 @@ export async function onboardingRoutes(fastify: FastifyInstance) {
         const phoneIsActive =
           business.phoneNumberStatus === "active" && phoneNumber !== null;
 
+        // Con el número de Alhabla como teléfono del negocio (caso E del
+        // plan de telefonía) no hay línea que desviar: el paso está hecho.
         const forwardingDone =
-          firstCall !== null || onboardingState.forwardingConfirmedAt !== null;
+          firstCall !== null ||
+          onboardingState.forwardingConfirmedAt !== null ||
+          business.customerLineType === "alhabla";
 
         const forwarding: OnboardingForwarding = {
           status: forwardingDone

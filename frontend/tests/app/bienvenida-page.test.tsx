@@ -47,6 +47,23 @@ const NEGOCIO_GUARDADO = {
   ownerWhatsappNumber: "+34600123456",
 } as unknown as Business;
 
+/** Lo que el alta manda del negocio elegido, sin la telefonía. */
+const DATOS_DEL_LUGAR = {
+  name: LUGAR.name,
+  businessDetails: `${LUGAR.name}\n${LUGAR.address}`,
+  schedule: LUGAR.schedule,
+  placeId: LUGAR.placeId,
+  address: LUGAR.address,
+};
+
+/** Con el fijo de Google Places la tarjeta «el fijo del local» va prefijada. */
+const TELEFONIA_FIJO = {
+  phone: "+34930111222",
+  customerLineType: "fijo",
+  ownerPhoneIsCustomerLine: false,
+  hideOwnerNumberFromClients: false,
+};
+
 function mockLocation() {
   const original = window.location;
   let hrefValue = "http://localhost/bienvenida";
@@ -90,7 +107,10 @@ function errorHttp(status: number, data: Record<string, unknown>) {
   );
 }
 
-async function elegirNegocio(user: ReturnType<typeof userEvent.setup>) {
+async function elegirNegocio(
+  user: ReturnType<typeof userEvent.setup>,
+  lugar: PlaceDetails = LUGAR
+) {
   mockedSearchPlaces.mockResolvedValue([
     {
       placeId: LUGAR.placeId,
@@ -99,7 +119,7 @@ async function elegirNegocio(user: ReturnType<typeof userEvent.setup>) {
       photoUrl: null,
     },
   ]);
-  mockedGetPlaceDetails.mockResolvedValue(LUGAR);
+  mockedGetPlaceDetails.mockResolvedValue(lugar);
 
   await user.type(
     screen.getByLabelText("Busca tu negocio por nombre o dirección"),
@@ -174,10 +194,15 @@ describe("RegisterBusinessPage — móvil con WhatsApp", () => {
     ).toBeDisabled();
   });
 
-  it("avisa, sin bloquear, cuando el móvil coincide con el teléfono del local", async () => {
+  it("ya no avisa de «parece el teléfono del local»: el fijo va en su sitio y el móvil se pide aparte", async () => {
     const user = userEvent.setup();
     render(<RegisterBusinessPage />);
     await elegirNegocio(user);
+
+    expect(screen.getByRole("radio", { name: /El fijo del local/ })).toBeChecked();
+    expect(screen.getByLabelText("Teléfono fijo del local")).toHaveValue(
+      "+34 930 111 222"
+    );
 
     await user.type(
       screen.getByLabelText("Tu móvil con WhatsApp (opcional)"),
@@ -186,10 +211,8 @@ describe("RegisterBusinessPage — móvil con WhatsApp", () => {
     await user.tab();
 
     expect(
-      await screen.findByText(
-        "Parece el teléfono del local. Necesitamos el móvil en el que usas WhatsApp."
-      )
-    ).toBeInTheDocument();
+      screen.queryByText(/Parece el teléfono del local/)
+    ).not.toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: /Confirmar y continuar/ })
     ).toBeEnabled();
@@ -214,11 +237,8 @@ describe("RegisterBusinessPage — móvil con WhatsApp", () => {
       expect(mockedUpdateMyBusiness).toHaveBeenCalledTimes(1)
     );
     expect(mockedUpdateMyBusiness).toHaveBeenCalledWith({
-      name: LUGAR.name,
-      businessDetails: `${LUGAR.name}\n${LUGAR.address}`,
-      schedule: LUGAR.schedule,
-      placeId: LUGAR.placeId,
-      address: LUGAR.address,
+      ...DATOS_DEL_LUGAR,
+      ...TELEFONIA_FIJO,
       ownerWhatsappNumber: "+34600123456",
     });
     await waitFor(() => expect(mockedSendActivation).toHaveBeenCalledTimes(1));
@@ -241,11 +261,8 @@ describe("RegisterBusinessPage — móvil con WhatsApp", () => {
       expect(mockedUpdateMyBusiness).toHaveBeenCalledTimes(1)
     );
     expect(mockedUpdateMyBusiness).toHaveBeenCalledWith({
-      name: LUGAR.name,
-      businessDetails: `${LUGAR.name}\n${LUGAR.address}`,
-      schedule: LUGAR.schedule,
-      placeId: "place_1",
-      address: "Calle Mayor 1, Madrid",
+      ...DATOS_DEL_LUGAR,
+      ...TELEFONIA_FIJO,
     });
     expect(mockedSendActivation).not.toHaveBeenCalled();
     await waitFor(() =>
@@ -287,6 +304,7 @@ describe("RegisterBusinessPage — móvil con WhatsApp", () => {
       schedule: LUGAR.schedule,
       placeId: "place_2",
       address: null,
+      ...TELEFONIA_FIJO,
     });
   });
 
@@ -391,5 +409,233 @@ describe("RegisterBusinessPage — móvil con WhatsApp", () => {
     ).toBeInTheDocument();
     expect(campo).toHaveAttribute("aria-invalid", "true");
     expect(location.getHref()).toBe("http://localhost/bienvenida");
+  });
+});
+
+describe("RegisterBusinessPage — ¿A qué número te llaman tus clientes?", () => {
+  let location: ReturnType<typeof mockLocation>;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    window.localStorage.clear();
+    window.localStorage.setItem("alhabla_token", "token");
+    location = mockLocation();
+  });
+
+  afterEach(() => {
+    location.restore();
+    vi.restoreAllMocks();
+  });
+
+  it("enseña las cuatro tarjetas sin ninguna elegida hasta que Google Places diga algo", () => {
+    render(<RegisterBusinessPage />);
+
+    const tarjetas = screen.getAllByRole("radio");
+    expect(tarjetas.map((radio) => radio.getAttribute("value"))).toEqual([
+      "fijo",
+      "movil_trabajo",
+      "movil_personal",
+      "alhabla",
+    ]);
+    expect(tarjetas.some((radio) => (radio as HTMLInputElement).checked)).toBe(
+      false
+    );
+    expect(
+      screen.queryByLabelText("Teléfono fijo del local")
+    ).not.toBeInTheDocument();
+  });
+
+  it("un móvil en Google Places propone «un móvil de trabajo» con los avisos aparte; marcar la casilla usa la línea como WhatsApp del dueño", async () => {
+    const user = userEvent.setup();
+    mockedUpdateMyBusiness.mockResolvedValue({
+      ...NEGOCIO_GUARDADO,
+      ownerWhatsappNumber: "+34600111222",
+    });
+    mockedSendActivation.mockResolvedValue({} as never);
+    render(<RegisterBusinessPage />);
+    await elegirNegocio(user, { ...LUGAR, phone: "+34 600 111 222" });
+
+    expect(
+      screen.getByRole("radio", { name: /Un móvil de trabajo/ })
+    ).toBeChecked();
+    expect(screen.getByLabelText("Móvil de trabajo")).toHaveValue(
+      "+34 600 111 222"
+    );
+    const casilla = screen.getByRole("checkbox", {
+      name: /Mándame los avisos a este mismo móvil/,
+    });
+    expect(casilla).not.toBeChecked();
+    expect(
+      screen.getByLabelText("Tu móvil con WhatsApp (opcional)")
+    ).toBeInTheDocument();
+
+    await user.click(casilla);
+
+    expect(
+      screen.queryByLabelText("Tu móvil con WhatsApp (opcional)")
+    ).not.toBeInTheDocument();
+
+    await user.click(
+      screen.getByRole("button", { name: /Confirmar y continuar/ })
+    );
+
+    await waitFor(() =>
+      expect(mockedUpdateMyBusiness).toHaveBeenCalledTimes(1)
+    );
+    expect(mockedUpdateMyBusiness).toHaveBeenCalledWith({
+      ...DATOS_DEL_LUGAR,
+      phone: "+34600111222",
+      customerLineType: "movil_trabajo",
+      ownerPhoneIsCustomerLine: true,
+      hideOwnerNumberFromClients: false,
+      ownerWhatsappNumber: "+34600111222",
+    });
+    await waitFor(() => expect(mockedSendActivation).toHaveBeenCalledTimes(1));
+    await waitFor(() =>
+      expect(location.getHref()).toBe("/bienvenida/niche")
+    );
+  });
+
+  it("«mi móvil personal» marca por defecto los avisos al mismo móvil y permite no dar el número", async () => {
+    const user = userEvent.setup();
+    mockedUpdateMyBusiness.mockResolvedValue(NEGOCIO_GUARDADO);
+    mockedSendActivation.mockResolvedValue({} as never);
+    render(<RegisterBusinessPage />);
+    await elegirNegocio(user);
+
+    await user.click(screen.getByRole("radio", { name: /Mi móvil personal/ }));
+
+    expect(
+      screen.getByRole("checkbox", {
+        name: /Mándame los avisos a este mismo móvil/,
+      })
+    ).toBeChecked();
+    expect(
+      screen.queryByLabelText("Tu móvil con WhatsApp (opcional)")
+    ).not.toBeInTheDocument();
+
+    const linea = screen.getByLabelText("Tu móvil");
+    await user.clear(linea);
+    await user.type(linea, "600 123 456");
+    await user.click(
+      screen.getByRole("checkbox", { name: /No des mi número a los clientes/ })
+    );
+    await user.click(
+      screen.getByRole("button", { name: /Confirmar y continuar/ })
+    );
+
+    await waitFor(() =>
+      expect(mockedUpdateMyBusiness).toHaveBeenCalledTimes(1)
+    );
+    expect(mockedUpdateMyBusiness).toHaveBeenCalledWith({
+      ...DATOS_DEL_LUGAR,
+      phone: "+34600123456",
+      customerLineType: "movil_personal",
+      ownerPhoneIsCustomerLine: true,
+      hideOwnerNumberFromClients: true,
+      ownerWhatsappNumber: "+34600123456",
+    });
+    await waitFor(() => expect(mockedSendActivation).toHaveBeenCalledTimes(1));
+  });
+
+  it("«quiero usar el de Alhabla» no pide número: guarda el tipo sin tocar phone y pide el móvil aparte", async () => {
+    const user = userEvent.setup();
+    mockedUpdateMyBusiness.mockResolvedValue(NEGOCIO_GUARDADO);
+    mockedSendActivation.mockResolvedValue({} as never);
+    render(<RegisterBusinessPage />);
+    await elegirNegocio(user);
+
+    await user.click(
+      screen.getByRole("radio", { name: /quiero usar el de Alhabla/ })
+    );
+
+    expect(
+      screen.queryByLabelText("Teléfono fijo del local")
+    ).not.toBeInTheDocument();
+    expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
+    expect(screen.getByText(/no hay nada que desviar/)).toBeInTheDocument();
+
+    await user.type(
+      screen.getByLabelText("Tu móvil con WhatsApp (opcional)"),
+      "600 123 456"
+    );
+    await user.click(
+      screen.getByRole("button", { name: /Confirmar y continuar/ })
+    );
+
+    await waitFor(() =>
+      expect(mockedUpdateMyBusiness).toHaveBeenCalledTimes(1)
+    );
+    expect(mockedUpdateMyBusiness).toHaveBeenCalledWith({
+      ...DATOS_DEL_LUGAR,
+      customerLineType: "alhabla",
+      ownerPhoneIsCustomerLine: false,
+      hideOwnerNumberFromClients: false,
+      ownerWhatsappNumber: "+34600123456",
+    });
+    expect(mockedUpdateMyBusiness.mock.calls[0][0]).not.toHaveProperty("phone");
+  });
+
+  it("una línea de clientes inválida bloquea los botones y lo explica", async () => {
+    const user = userEvent.setup();
+    render(<RegisterBusinessPage />);
+    await elegirNegocio(user);
+
+    const linea = screen.getByLabelText("Teléfono fijo del local");
+    await user.clear(linea);
+    await user.type(linea, "12345");
+    await user.tab();
+
+    expect(
+      await screen.findByText(
+        "Escribe un teléfono válido, por ejemplo 930 123 456 o +34 600 123 456."
+      )
+    ).toBeInTheDocument();
+    expect(linea).toHaveAttribute("aria-invalid", "true");
+    expect(
+      screen.getByRole("button", { name: /Confirmar y continuar/ })
+    ).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: /No encontré mi negocio/ })
+    ).toBeDisabled();
+    expect(mockedUpdateMyBusiness).not.toHaveBeenCalled();
+  });
+
+  it("sin negocio elegido, «configurar después» guarda igualmente la línea y su tipo", async () => {
+    const user = userEvent.setup();
+    mockedUpdateMyBusiness.mockResolvedValue({
+      ...NEGOCIO_GUARDADO,
+      ownerWhatsappNumber: "+34600111222",
+    });
+    mockedSendActivation.mockResolvedValue({} as never);
+    render(<RegisterBusinessPage />);
+
+    await user.click(
+      screen.getByRole("radio", { name: /Un móvil de trabajo/ })
+    );
+    await user.type(screen.getByLabelText("Móvil de trabajo"), "600 111 222");
+    await user.click(
+      screen.getByRole("checkbox", {
+        name: /Mándame los avisos a este mismo móvil/,
+      })
+    );
+    await user.click(
+      screen.getByRole("button", { name: /No encontré mi negocio/ })
+    );
+
+    await waitFor(() =>
+      expect(mockedUpdateMyBusiness).toHaveBeenCalledTimes(1)
+    );
+    expect(mockedUpdateMyBusiness).toHaveBeenCalledWith({
+      phone: "+34600111222",
+      customerLineType: "movil_trabajo",
+      ownerPhoneIsCustomerLine: true,
+      hideOwnerNumberFromClients: false,
+      ownerWhatsappNumber: "+34600111222",
+    });
+    await waitFor(() => expect(mockedSendActivation).toHaveBeenCalledTimes(1));
+    await waitFor(() =>
+      expect(location.getHref()).toBe("/bienvenida/niche")
+    );
   });
 });
