@@ -24,6 +24,16 @@ import {
 } from "../whatsapp/altaDueno.js";
 import { listaDeEsperaDisponible } from "../whatsapp/service.js";
 
+/** Tipos de línea de clientes (PLAN-TELEFONIA-UX.md § 3): el fijo del
+ * local (A), un móvil de trabajo (B), el móvil personal (C) o el número de
+ * Alhabla como principal, sin desvío (E). */
+export const TIPOS_DE_LINEA_DE_CLIENTES = [
+  "fijo",
+  "movil_trabajo",
+  "movil_personal",
+  "alhabla",
+] as const;
+
 const UpdateBusinessSchema = z.object({
   // Sin máximo: los nombres de Google Places pueden pasar de 80 caracteres y
   // un 400 aquí rompería el alta. El parámetro {{negocio_nombre}} de la
@@ -83,6 +93,16 @@ const UpdateBusinessSchema = z.object({
     .nullable()
     .optional(),
   address: z.string().trim().max(500).nullable().optional(),
+  // Telefonía sin confusión (PLAN-TELEFONIA-UX.md § 5, fase 0): tipo de la
+  // línea de clientes (`phone`), «los avisos van a este mismo móvil» (caso
+  // C) y «no des mi número a los clientes» (privacidad, caso C). null en
+  // customerLineType = sin confirmar por el dueño.
+  customerLineType: z
+    .enum(TIPOS_DE_LINEA_DE_CLIENTES)
+    .nullable()
+    .optional(),
+  ownerPhoneIsCustomerLine: z.boolean().optional(),
+  hideOwnerNumberFromClients: z.boolean().optional(),
 });
 
 const AgendaQuerySchema = z.object({
@@ -439,7 +459,9 @@ export async function businessesRoutes(fastify: FastifyInstance) {
           data.name !== undefined ||
           data.businessType !== undefined ||
           data.minAdvanceBookingMinutes !== undefined ||
-          data.maxAppointmentDurationMinutes !== undefined;
+          data.maxAppointmentDurationMinutes !== undefined ||
+          // La privacidad («no des mi número») es una regla del prompt.
+          data.hideOwnerNumberFromClients !== undefined;
 
         if (shouldResyncPrompt) {
           const currentBusiness = await prisma.business.findUnique({
@@ -449,6 +471,7 @@ export async function businessesRoutes(fastify: FastifyInstance) {
               businessDetails: true,
               agentSettings: true,
               timezone: true,
+              hideOwnerNumberFromClients: true,
             },
           });
           const agentPrompt = buildManagedAgentPrompt({
@@ -457,6 +480,10 @@ export async function businessesRoutes(fastify: FastifyInstance) {
             settings: data.agentSettings ?? currentBusiness?.agentSettings,
             timezone: data.timezone ?? currentBusiness?.timezone,
             listaDeEspera: await listaDeEsperaDisponible(),
+            ocultarNumeroDelNegocio:
+              data.hideOwnerNumberFromClients ??
+              currentBusiness?.hideOwnerNumberFromClients ??
+              false,
           });
           updateData.systemPrompt = agentPrompt;
 
@@ -523,7 +550,11 @@ export async function businessesRoutes(fastify: FastifyInstance) {
           // phone está en BusinessVoiceConfig (voiceTools/service.ts) —
           // sin invalidar, el SMS de aviso seguiría yendo al teléfono
           // antiguo hasta que el caché de 1h expire por su cuenta.
-          data.phone !== undefined
+          data.phone !== undefined ||
+          // hideOwnerNumberFromClients también vive en BusinessVoiceConfig:
+          // decide si el SMS y los mensajes de la recepcionista llevan el
+          // número del negocio.
+          data.hideOwnerNumberFromClients !== undefined
         ) {
           await invalidarCacheDeVoz(request.user!.businessId);
         }

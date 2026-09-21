@@ -220,6 +220,25 @@ describe("helpers puros", () => {
     ).toBeNull();
   });
 
+  // Privacidad (PLAN-TELEFONIA-UX.md § 3, caso C): «no des mi número a los
+  // clientes» deja todos los mensajes sin teléfono, ni siquiera el de Alhabla.
+  it("telefonoDeContacto devuelve null con hideOwnerNumberFromClients aunque haya número Telnyx o phone", () => {
+    expect(
+      telefonoDeContacto({ ...NEGOCIO, hideOwnerNumberFromClients: true })
+    ).toBeNull();
+    expect(
+      telefonoDeContacto({
+        telnyxPhoneNumber: null,
+        phone: "+34930000000",
+        hideOwnerNumberFromClients: true,
+      })
+    ).toBeNull();
+    // Sin la opción (o en false) todo sigue igual.
+    expect(
+      telefonoDeContacto({ ...NEGOCIO, hideOwnerNumberFromClients: false })
+    ).toBe("+34 930 454 394");
+  });
+
   it("nombreParaCliente: recorta a 60, y con «Negocio de Ana» o un nombre con @ devuelve «el negocio», nunca «tu negocio»", () => {
     expect(nombreParaCliente({ name: "  Peluquería\n  Ana " })).toBe(
       "Peluquería Ana"

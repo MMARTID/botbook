@@ -75,6 +75,7 @@ interface NegocioDelChat {
   name: string;
   phone: string;
   telnyxPhoneNumber: string | null;
+  hideOwnerNumberFromClients: boolean;
   timezone: string;
   active: boolean;
   clientChatEnabled: boolean;
@@ -87,6 +88,7 @@ const SELECT_NEGOCIO_DEL_CHAT = {
   name: true,
   phone: true,
   telnyxPhoneNumber: true,
+  hideOwnerNumberFromClients: true,
   timezone: true,
   active: true,
   clientChatEnabled: true,

@@ -264,6 +264,7 @@ export async function botonEnClientes(
       timezone: true,
       telnyxPhoneNumber: true,
       phone: true,
+      hideOwnerNumberFromClients: true,
       placeId: true,
     },
   });

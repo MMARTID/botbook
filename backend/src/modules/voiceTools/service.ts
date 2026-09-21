@@ -215,6 +215,11 @@ type BusinessVoiceConfig = FilaDeConexionDeCalendario & {
   // se reutiliza como remitente del SMS en vez de comprar/gestionar un
   // segundo número solo para mensajería.
   telnyxPhoneNumber: string | null;
+  // Privacidad (PLAN-TELEFONIA-UX.md § 3, caso C): con true ningún texto
+  // al cliente (SMS, respuestas de las tools) lleva un número de teléfono;
+  // se ofrece recado y «te llamamos nosotros». Puede faltar en entradas de
+  // caché anteriores a la columna: undefined = false.
+  hideOwnerNumberFromClients?: boolean;
   // null = nunca pasó por Stripe (cuentas de prueba/demo creadas a mano) —
   // se trata como "permitido", no como "sin pagar". Solo se bloquea la
   // reserva ante un estado explícito de "no está pagando" (ver
@@ -238,9 +243,21 @@ async function loadBusinessConfig(
       maxAppointmentDurationMinutes: true,
       phone: true,
       telnyxPhoneNumber: true,
+      hideOwnerNumberFromClients: true,
       subscriptionStatus: true,
     },
   });
+}
+
+/**
+ * Teléfono del negocio que se le puede decir al CLIENTE: null si el dueño
+ * pidió no darlo (hideOwnerNumberFromClients). Los textos que lo reciben
+ * ya tienen variante sin número.
+ */
+function telefonoParaClientes(
+  business: Pick<BusinessVoiceConfig, "phone" | "hideOwnerNumberFromClients">
+): string | null {
+  return business.hideOwnerNumberFromClients === true ? null : business.phone;
 }
 
 async function getCachedVoiceConfig(
@@ -1048,7 +1065,11 @@ async function enviarMensajesAlClientePorSms(
 ): Promise<void> {
   const smsInput = {
     businessName: business.name,
-    businessPhone: business.telnyxPhoneNumber ?? "",
+    // Con hideOwnerNumberFromClients el SMS no lleva ningún número: el
+    // cliente responde al mensaje o el negocio le llama.
+    businessPhone: business.hideOwnerNumberFromClients
+      ? null
+      : (business.telnyxPhoneNumber ?? ""),
     startDateTime: input.startDateTime,
     timezone: business.timezone || "Europe/Madrid",
     serviceNames: input.serviceNames,
@@ -1124,11 +1145,22 @@ function buildBookingSmsText(input: {
   return parts.join(" — ");
 }
 
+/**
+ * Cierre del SMS al cliente: con número, «llama al …»; con null (privacidad,
+ * PLAN-TELEFONIA-UX.md § 3 caso C) se le pide que responda al mensaje y el
+ * negocio le llama. Solo null activa la variante: el resto sigue igual.
+ */
+function cierreDeSmsAlCliente(businessPhone: string | null): string {
+  return businessPhone === null
+    ? "Para cambiarla o cancelarla, responde a este mensaje y te llamamos nosotros"
+    : `Para cambiarla o cancelarla, llama al ${businessPhone}`;
+}
+
 /** Confirmación al cliente tras reservar — solo se manda si dio
  * consentimiento (smsConsent) para usar ese número. */
 function buildClientConfirmationSmsText(input: {
   businessName: string;
-  businessPhone: string;
+  businessPhone: string | null;
   startDateTime: string;
   timezone: string;
   serviceNames?: string[] | null;
@@ -1147,7 +1179,7 @@ function buildClientConfirmationSmsText(input: {
     `Cita confirmada en ${input.businessName}`,
     services.length > 0 ? services.join(" + ") : null,
     formattedDateTime,
-    `Para cambiarla o cancelarla, llama al ${input.businessPhone}`,
+    cierreDeSmsAlCliente(input.businessPhone),
   ].filter(Boolean);
 
   return parts.join(" — ");
@@ -1156,7 +1188,7 @@ function buildClientConfirmationSmsText(input: {
 /** Recordatorio programado (REMINDER_LEAD_HOURS antes de la cita). */
 function buildClientReminderSmsText(input: {
   businessName: string;
-  businessPhone: string;
+  businessPhone: string | null;
   startDateTime: string;
   timezone: string;
   serviceNames?: string[] | null;
@@ -1175,7 +1207,7 @@ function buildClientReminderSmsText(input: {
     `Recordatorio: tienes una cita en ${input.businessName}`,
     services.length > 0 ? services.join(" + ") : null,
     formattedDateTime,
-    `Para cambiarla o cancelarla, llama al ${input.businessPhone}`,
+    cierreDeSmsAlCliente(input.businessPhone),
   ].filter(Boolean);
 
   return parts.join(" — ");
@@ -1572,7 +1604,10 @@ async function executeBookAppointment(
             code: "CALENDAR_UNAVAILABLE",
             message:
               "No he podido comprobar la agenda del negocio en este momento." +
-              mensajeDeSeguimiento(leadCalendarioIlegible, business.phone),
+              mensajeDeSeguimiento(
+                leadCalendarioIlegible,
+                telefonoParaClientes(business)
+              ),
           },
         };
       }
@@ -1942,7 +1977,7 @@ async function executeBookAppointment(
                 `No pude acceder al calendario del negocio porque la conexión con ${DESCRIPTORES_DE_PROVEEDOR[proveedorRoto].nombreCorto} expiró o fue revocada.` +
                 (leadReconexion
                   ? " He tomado nota de tu solicitud para confirmártela en cuanto el negocio la reconecte."
-                  : mensajeDeSeguimiento(null, business.phone)),
+                  : mensajeDeSeguimiento(null, telefonoParaClientes(business))),
             },
           };
         }
@@ -1985,7 +2020,7 @@ async function executeBookAppointment(
           result: {
             success: false,
             code,
-            message: `${baseMessage}${mensajeDeSeguimiento(leadId, business.phone)}`,
+            message: `${baseMessage}${mensajeDeSeguimiento(leadId, telefonoParaClientes(business))}`,
           },
         };
       }

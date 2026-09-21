@@ -255,6 +255,58 @@ describe("PATCH /business/me (móvil del dueño para WhatsApp)", () => {
     expect(malo.statusCode).toBe(400);
   });
 
+  // Telefonía sin confusión, fase 0 (PLAN-TELEFONIA-UX.md § 5).
+  it("guarda customerLineType (solo los cuatro valores), ownerPhoneIsCustomerLine y hideOwnerNumberFromClients", async () => {
+    const response = await patch({
+      customerLineType: "movil_personal",
+      ownerPhoneIsCustomerLine: true,
+      hideOwnerNumberFromClients: true,
+    } as never);
+    expect(response.statusCode).toBe(200);
+    const updateData = mockedBusinessUpdate.mock.calls[0][0].data as Record<
+      string,
+      unknown
+    >;
+    expect(updateData).toMatchObject({
+      customerLineType: "movil_personal",
+      ownerPhoneIsCustomerLine: true,
+      hideOwnerNumberFromClients: true,
+    });
+    // La privacidad es una regla del prompt: se resincroniza con ella.
+    expect(updateData.systemPrompt).toContain("## Privacidad");
+    expect(mockedAgentUpdate).toHaveBeenCalled();
+
+    mockedBusinessUpdate.mockClear();
+    const sinTipo = await patch({ customerLineType: null } as never);
+    expect(sinTipo.statusCode).toBe(200);
+    expect(mockedBusinessUpdate.mock.calls[0][0].data).toEqual(
+      expect.objectContaining({ customerLineType: null })
+    );
+
+    const malo = await patch({ customerLineType: "paloma" } as never);
+    expect(malo.statusCode).toBe(400);
+    const maloBool = await patch({ hideOwnerNumberFromClients: "sí" } as never);
+    expect(maloBool.statusCode).toBe(400);
+  });
+
+  it("quitar hideOwnerNumberFromClients devuelve el prompt sin la sección de privacidad", async () => {
+    mockedBusinessFindUnique.mockResolvedValue({
+      name: "Peluquería Test",
+      businessDetails: null,
+      agentSettings: null,
+      timezone: "Europe/Madrid",
+      hideOwnerNumberFromClients: true,
+    } as any);
+    const response = await patch({ hideOwnerNumberFromClients: false } as never);
+    expect(response.statusCode).toBe(200);
+    const updateData = mockedBusinessUpdate.mock.calls[0][0].data as Record<
+      string,
+      unknown
+    >;
+    expect(updateData.hideOwnerNumberFromClients).toBe(false);
+    expect(updateData.systemPrompt).not.toContain("## Privacidad");
+  });
+
   it("el número de Alhabla se rechaza ANTES de tocar los agentes o el nombre", async () => {
     mockedEsNumeroDeAlhabla.mockResolvedValue(true);
 
