@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { getGoogleAuthUrl } from "@/lib/api";
+import { BetaPill } from "@/components/beta-pill";
 
 type GoogleAuthButtonProps = {
   onError: (message: string) => void;
@@ -38,8 +39,11 @@ export function GoogleAuthButton({ onError, beforeStart, disabled, acceptedTerms
     }
   };
 
+  // Beta: la app de Google sigue en revisión y solo entran cuentas de
+  // prueba; la pastilla avisa, el botón sigue funcionando.
   return (
-    <>
+    <div className="relative">
+      <BetaPill />
       <button
         type="button"
         onClick={startGoogleAuth}
@@ -49,6 +53,6 @@ export function GoogleAuthButton({ onError, beforeStart, disabled, acceptedTerms
         <GoogleIcon />
         {loading ? "Conectando con Google..." : "Continuar con Google"}
       </button>
-    </>
+    </div>
   );
 }

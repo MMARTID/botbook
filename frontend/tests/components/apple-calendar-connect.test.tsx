@@ -109,6 +109,35 @@ describe("AppleCalendarConnect", () => {
     ).toBeInTheDocument();
   });
 
+  it("normaliza la contraseña pegada con mayúsculas, espacios o sin guiones antes de enviarla", async () => {
+    mockedConnect.mockResolvedValue({ email: "pelu@icloud.com", calendars: [] });
+    renderizar();
+
+    rellenarYEnviar("pelu@icloud.com", " ABCD EFGH ijklmnop ");
+
+    await waitFor(() => expect(mockedConnect).toHaveBeenCalled());
+    expect(mockedConnect.mock.calls[0][0]).toEqual({
+      username: "pelu@icloud.com",
+      appPassword: "abcd-efgh-ijkl-mnop",
+    });
+  });
+
+  it("si pegan algo que no es una contraseña de aplicación, avisa sin llamar a iCloud", () => {
+    renderizar();
+
+    rellenarYEnviar("pelu@icloud.com", "MiContraseñaDeApple2026!");
+
+    expect(mockedConnect).not.toHaveBeenCalled();
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      /no parece una contraseña de aplicación/
+    );
+  });
+
+  it("marca la conexión de Apple como Beta", () => {
+    renderizar();
+    expect(screen.getByText("Beta")).toBeInTheDocument();
+  });
+
   it("al elegir un calendario lo guarda y avisa con el negocio actualizado", async () => {
     mockedConnect.mockResolvedValue({
       email: "pelu@icloud.com",
@@ -134,7 +163,8 @@ describe("AppleCalendarConnect", () => {
     );
     renderizar();
 
-    rellenarYEnviar("pelu@icloud.com", "mala");
+    // Formato correcto pero Apple la rechaza (anulada, o de otra cuenta).
+    rellenarYEnviar("pelu@icloud.com", "abcd-efgh-ijkl-mnop");
 
     await waitFor(() =>
       expect(screen.getByRole("alert")).toHaveTextContent(/Apple ha rechazado/)

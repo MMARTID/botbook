@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { CalendarDays, Check, LoaderCircle } from "lucide-react";
 import { SiGooglecalendar } from "@icons-pack/react-simple-icons";
+import { BetaPill } from "@/components/beta-pill";
 import { MicrosoftLogo } from "@/components/brand-icons";
 import { getGoogleCalendarAuthUrl, getMicrosoftCalendarAuthUrl } from "@/lib/api";
 import { consumePendingPlan, isPlanId } from "@/lib/billing-navigation";
@@ -110,8 +111,9 @@ export default function RegisterBusinessCalendarPage() {
             type="button"
             onClick={() => startOAuth("google")}
             disabled={loading !== null}
-            className="flex w-full items-center gap-4 rounded-2xl border border-[#e5e5e5] bg-white p-5 text-left transition hover:border-[#8b5cf6] hover:bg-[#fafafa] disabled:cursor-not-allowed disabled:opacity-50"
+            className="relative flex w-full items-center gap-4 rounded-2xl border border-[#e5e5e5] bg-white p-5 text-left transition hover:border-[#8b5cf6] hover:bg-[#fafafa] disabled:cursor-not-allowed disabled:opacity-50"
           >
+            <BetaPill />
             <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-[#e5e5e5] bg-white">
               <SiGooglecalendar className="h-6 w-6" color="#4285F4" />
             </div>

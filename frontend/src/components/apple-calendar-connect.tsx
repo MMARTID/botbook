@@ -4,6 +4,12 @@ import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import axios from "axios";
 import { Check, ExternalLink, KeyRound } from "lucide-react";
+import { BetaPill } from "@/components/beta-pill";
+import {
+  errorPrevioDeApple,
+  normalizarContrasenaDeApp,
+  pareceContrasenaDeApp,
+} from "@/lib/apple-app-password";
 import { connectAppleCalendar, selectCalendar } from "@/lib/api";
 import type { Business, CalendarListItem } from "@/lib/types";
 
@@ -25,6 +31,8 @@ export function AppleCalendarConnect({
 }) {
   const [username, setUsername] = useState("");
   const [appPassword, setAppPassword] = useState("");
+  // Error de formato detectado aquí, sin llamar a iCloud.
+  const [errorPrevio, setErrorPrevio] = useState<string | null>(null);
   const [account, setAccount] = useState<{
     email: string | null;
     calendars: CalendarListItem[];
@@ -40,7 +48,8 @@ export function AppleCalendarConnect({
     onSuccess: (business) => onConnected(business),
   });
 
-  const connectError = errorMessage(connectMutation.error);
+  const connectError = errorPrevio ?? errorMessage(connectMutation.error);
+  const formatoCorrecto = appPassword.length > 0 && pareceContrasenaDeApp(appPassword);
   const selectError = selectMutation.error
     ? "No se pudo guardar el calendario elegido. Inténtalo de nuevo."
     : null;
@@ -95,15 +104,22 @@ export function AppleCalendarConnect({
 
   return (
     <form
-      className="space-y-4 rounded-xl border border-[#ddd6fe] bg-[#f3eeff] p-4"
+      className="relative space-y-4 rounded-xl border border-[#ddd6fe] bg-[#f3eeff] p-4"
       onSubmit={(event) => {
         event.preventDefault();
+        // Se comprueba el formato antes de molestar a iCloud: el error más
+        // común es pegar la contraseña de la cuenta en vez de la de aplicación.
+        const fallo = errorPrevioDeApple(username, appPassword);
+        setErrorPrevio(fallo);
+        if (fallo) return;
+        connectMutation.reset();
         connectMutation.mutate({
           username: username.trim(),
-          appPassword: appPassword.trim(),
+          appPassword: normalizarContrasenaDeApp(appPassword),
         });
       }}
     >
+      <BetaPill />
       <div>
         <p className="flex items-center gap-2 text-sm font-semibold text-[#0a0a0a]">
           <KeyRound className="h-4 w-4 shrink-0 text-[#8b5cf6]" />
@@ -129,7 +145,12 @@ export function AppleCalendarConnect({
             → Iniciar sesión y seguridad → Contraseñas de apps.
           </li>
           <li>Pulsa «Generar contraseña de app» y llámala «Alhabla».</li>
-          <li>Copia aquí el código (tiene la forma xxxx-xxxx-xxxx-xxxx).</li>
+          <li>
+            Pégala aquí tal cual: 16 letras en cuatro bloques
+            (xxxx-xxxx-xxxx-xxxx). Da igual con guiones, sin ellos o en
+            mayúsculas. La contraseña de tu cuenta de Apple <strong>no</strong>{" "}
+            vale.
+          </li>
         </ol>
       </div>
 
@@ -144,7 +165,10 @@ export function AppleCalendarConnect({
             autoComplete="username"
             required
             value={username}
-            onChange={(event) => setUsername(event.target.value)}
+            onChange={(event) => {
+              setUsername(event.target.value);
+              setErrorPrevio(null);
+            }}
             placeholder="tu@icloud.com"
             className="field"
           />
@@ -159,11 +183,24 @@ export function AppleCalendarConnect({
             autoComplete="off"
             required
             value={appPassword}
-            onChange={(event) => setAppPassword(event.target.value)}
+            onChange={(event) => {
+              setAppPassword(event.target.value);
+              setErrorPrevio(null);
+            }}
             placeholder="xxxx-xxxx-xxxx-xxxx"
             className="field"
+            aria-describedby="apple-app-password-ayuda"
           />
         </label>
+        {/* Fuera del <label> para no ensuciar su nombre accesible. */}
+        <p
+          id="apple-app-password-ayuda"
+          className={`-mt-1 text-xs sm:col-span-2 ${formatoCorrecto ? "text-[#2c7334]" : "text-muted"}`}
+        >
+          {formatoCorrecto
+            ? "Tiene el formato de una contraseña de aplicación."
+            : "16 letras, con o sin guiones."}
+        </p>
       </div>
 
       {connectError ? (
