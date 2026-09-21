@@ -14,7 +14,8 @@ import { MobileNav } from "@/components/mobile-nav";
 import { Reveal } from "@/components/scroll-reveal";
 import { SectorDataSection } from "@/components/sector-data-section";
 import { TeamRoutingSection } from "@/components/team-routing-section";
-import { generalSectorData, generalTeamRouting } from "@/lib/niche-landings";
+import { OwnerAssistantSection } from "@/components/owner-assistant-section";
+import { generalOwnerAssistant, generalSectorData, generalTeamRouting } from "@/lib/niche-landings";
 import { formatIncludedMinutes, formatPlanPrice, plans, TRIAL_REASSURANCE } from "@/lib/plans";
 
 /**
@@ -523,6 +524,8 @@ export function MainLanding() {
       <HowItWorksScrollytelling onNarrativeActiveChange={setIsNarrativeActive} />
 
       <TeamRoutingSection data={generalTeamRouting} />
+
+      <OwnerAssistantSection data={generalOwnerAssistant} />
 
       <SectorDataSection data={generalSectorData} />
 
