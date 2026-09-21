@@ -8,6 +8,8 @@ import {
   esNumeroDeAlhabla,
 } from "../../../src/modules/whatsapp/altaDueno.js";
 import { syncAgentNameWithBusinessType } from "../../../src/lib/agentBootstrap.js";
+import { syncAgentToTelnyx } from "../../../src/lib/telnyxAgentSync.js";
+import { DEFAULT_AGENT_SETTINGS } from "../../../src/lib/managedAgentPrompt.js";
 
 vi.mock("../../../src/lib/prisma.js", () => ({
   prisma: {
@@ -58,6 +60,7 @@ const mockedAgentUpdate = vi.mocked(prisma.agent.update);
 const mockedCambiarMovil = vi.mocked(cambiarMovilDelDueno);
 const mockedEsNumeroDeAlhabla = vi.mocked(esNumeroDeAlhabla);
 const mockedSyncName = vi.mocked(syncAgentNameWithBusinessType);
+const mockedSyncTelnyx = vi.mocked(syncAgentToTelnyx);
 
 async function buildServer() {
   const fastify = Fastify();
@@ -305,6 +308,101 @@ describe("PATCH /business/me (móvil del dueño para WhatsApp)", () => {
     >;
     expect(updateData.hideOwnerNumberFromClients).toBe(false);
     expect(updateData.systemPrompt).not.toContain("## Privacidad");
+  });
+
+  it("«Cuándo pasarme llamadas» (fase 4) se guarda en agentSettings, pone el bloque en el prompt y resincroniza; solo admite los tres modos", async () => {
+    // Alhabla como principal con móvil del dueño: hay destino.
+    mockedBusinessFindUnique.mockResolvedValue({
+      name: "Peluquería Test",
+      businessDetails: null,
+      agentSettings: null,
+      timezone: "Europe/Madrid",
+      plan: "pro",
+      customerLineType: "alhabla",
+      phone: "+34930453218",
+      telnyxPhoneNumber: "+34930453218",
+      ownerWhatsappNumber: "+34600123456",
+      ownerPhoneIsCustomerLine: false,
+    } as any);
+
+    const response = await patch({
+      agentSettings: { ...DEFAULT_AGENT_SETTINGS, pasarLlamadas: "siempre" },
+    } as never);
+    expect(response.statusCode).toBe(200);
+    const updateData = mockedBusinessUpdate.mock.calls[0][0].data as Record<
+      string,
+      unknown
+    >;
+    expect(updateData.agentSettings).toMatchObject({ pasarLlamadas: "siempre" });
+    expect(updateData.systemPrompt).toContain("## Pasar la llamada");
+    expect(updateData.systemPrompt).toContain("Solo dentro del horario de apertura");
+    expect(mockedSyncTelnyx).toHaveBeenCalledWith("biz_1");
+
+    mockedBusinessUpdate.mockClear();
+    const nunca = await patch({
+      agentSettings: { ...DEFAULT_AGENT_SETTINGS, pasarLlamadas: "nunca" },
+    } as never);
+    expect(nunca.statusCode).toBe(200);
+    const sinBloque = mockedBusinessUpdate.mock.calls[0][0].data as Record<
+      string,
+      unknown
+    >;
+    expect(sinBloque.systemPrompt).not.toContain("## Pasar la llamada");
+
+    const malo = await patch({
+      agentSettings: { ...DEFAULT_AGENT_SETTINGS, pasarLlamadas: "a_veces" },
+    } as never);
+    expect(malo.statusCode).toBe(400);
+  });
+
+  it("pasar a Alhabla como principal activa la transferencia por defecto y resincroniza Telnyx; sin móvil del dueño no hay bloque", async () => {
+    mockedBusinessFindUnique.mockResolvedValue({
+      name: "Peluquería Test",
+      businessDetails: null,
+      agentSettings: null,
+      timezone: "Europe/Madrid",
+      customerLineType: "fijo",
+      phone: "+34931112233",
+      telnyxPhoneNumber: "+34930453218",
+      ownerWhatsappNumber: "+34600123456",
+      ownerPhoneIsCustomerLine: false,
+    } as any);
+
+    const response = await patch({
+      customerLineType: "alhabla",
+      phone: "+34930453218",
+    } as never);
+    expect(response.statusCode).toBe(200);
+    const updateData = mockedBusinessUpdate.mock.calls[0][0].data as Record<
+      string,
+      unknown
+    >;
+    // Con lo que va a quedar guardado («alhabla»), no con lo que había.
+    expect(updateData.systemPrompt).toContain("## Pasar la llamada");
+    expect(updateData.systemPrompt).toContain("Pásala solo si el cliente pide");
+    expect(mockedSyncTelnyx).toHaveBeenCalledWith("biz_1");
+
+    mockedBusinessUpdate.mockClear();
+    mockedSyncTelnyx.mockClear();
+    mockedBusinessFindUnique.mockResolvedValue({
+      name: "Peluquería Test",
+      businessDetails: null,
+      agentSettings: null,
+      timezone: "Europe/Madrid",
+      customerLineType: "alhabla",
+      phone: "+34930453218",
+      telnyxPhoneNumber: "+34930453218",
+      ownerWhatsappNumber: null,
+      ownerPhoneIsCustomerLine: false,
+    } as any);
+    const sinMovil = await patch({ ownerPhoneIsCustomerLine: false } as never);
+    expect(sinMovil.statusCode).toBe(200);
+    const sinBloque = mockedBusinessUpdate.mock.calls[0][0].data as Record<
+      string,
+      unknown
+    >;
+    expect(sinBloque.systemPrompt).not.toContain("## Pasar la llamada");
+    expect(mockedSyncTelnyx).toHaveBeenCalledWith("biz_1");
   });
 
   it("el número de Alhabla se rechaza ANTES de tocar los agentes o el nombre", async () => {

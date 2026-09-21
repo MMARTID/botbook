@@ -53,6 +53,45 @@ const BASE_BUSINESS = {
   maxAppointmentDurationMinutes: null,
 };
 
+// Alhabla como número principal con móvil del dueño (fase 4): la
+// transferencia se activa sola («si el cliente lo pide»).
+const NUMERO_DE_ALHABLA = "+34930453218";
+const MOVIL_DEL_DUENO = "+34600111222";
+const BUSINESS_PRINCIPAL = {
+  ...BASE_BUSINESS,
+  customerLineType: "alhabla",
+  phone: NUMERO_DE_ALHABLA,
+  telnyxPhoneNumber: NUMERO_DE_ALHABLA,
+  ownerWhatsappNumber: MOVIL_DEL_DUENO,
+  ownerPhoneIsCustomerLine: false,
+};
+const TOOL_TRANSFER_ESPERADA = {
+  type: "transfer",
+  transfer: {
+    from: NUMERO_DE_ALHABLA,
+    targets: [{ name: "Responsable del negocio", to: MOVIL_DEL_DUENO }],
+    warm_transfer_instructions: expect.stringContaining(
+      "recepcionista de Peluquería Ejemplo"
+    ),
+    voicemail_detection: {
+      detection_mode: "premium",
+      on_voicemail_detected: { action: "stop_transfer" },
+    },
+  },
+};
+
+function agenteSincronizable() {
+  return [
+    {
+      id: "agent1",
+      telnyxAssistantId: "assistant_1",
+      telnyxConfigHash: "hash-vieja",
+      systemPrompt: "prompt guardado",
+      promptManuallyEdited: false,
+    },
+  ] as any;
+}
+
 const mockedListaDeEspera = vi.mocked(listaDeEsperaDisponible);
 
 beforeEach(() => {
@@ -301,5 +340,127 @@ describe("syncAgentToTelnyx", () => {
     mockedBusinessFindUnique.mockRejectedValue(new Error("DB caída"));
 
     await expect(syncAgentToTelnyx("biz1")).resolves.toBeUndefined();
+  });
+});
+
+describe("transferencia al dueño (fase 4)", () => {
+  it("con Alhabla como principal y móvil del dueño registra la tool transfer con el formato exacto y el bloque del prompt", async () => {
+    mockedBusinessFindUnique.mockResolvedValue(BUSINESS_PRINCIPAL as any);
+    mockedAgentFindMany.mockResolvedValue(agenteSincronizable());
+
+    await syncAgentToTelnyx("biz1");
+
+    expect(mockedUpdateAssistant).toHaveBeenCalledTimes(1);
+    const payload = mockedUpdateAssistant.mock.calls[0][1];
+    const transfer = payload.tools!.filter((tool) => tool.type === "transfer");
+    expect(transfer).toHaveLength(1);
+    expect(transfer[0]).toEqual(TOOL_TRANSFER_ESPERADA);
+    // Las tools de voz y hangup siguen ahí: la de transferencia se añade,
+    // no sustituye.
+    expect(payload.tools!.map((tool) => tool.type)).toEqual(
+      expect.arrayContaining(["webhook", "hangup", "transfer"])
+    );
+    expect(payload.instructions).toContain("## Pasar la llamada");
+    expect(payload.instructions).toContain("Pásala solo si el cliente pide");
+  });
+
+  it("con el ajuste «nunca» no registra la tool ni el bloque, aunque haya destino", async () => {
+    mockedBusinessFindUnique.mockResolvedValue({
+      ...BUSINESS_PRINCIPAL,
+      agentSettings: { ...DEFAULT_AGENT_SETTINGS, pasarLlamadas: "nunca" },
+    } as any);
+    mockedAgentFindMany.mockResolvedValue(agenteSincronizable());
+
+    await syncAgentToTelnyx("biz1");
+
+    const payload = mockedUpdateAssistant.mock.calls[0][1];
+    expect(payload.tools!.some((tool) => tool.type === "transfer")).toBe(false);
+    expect(payload.instructions).not.toContain("## Pasar la llamada");
+  });
+
+  it("sin móvil del dueño no registra la tool aunque el ajuste sea «siempre»", async () => {
+    mockedBusinessFindUnique.mockResolvedValue({
+      ...BUSINESS_PRINCIPAL,
+      ownerWhatsappNumber: null,
+      agentSettings: { ...DEFAULT_AGENT_SETTINGS, pasarLlamadas: "siempre" },
+    } as any);
+    mockedAgentFindMany.mockResolvedValue(agenteSincronizable());
+
+    await syncAgentToTelnyx("biz1");
+
+    const payload = mockedUpdateAssistant.mock.calls[0][1];
+    expect(payload.tools!.some((tool) => tool.type === "transfer")).toBe(false);
+    expect(payload.instructions).not.toContain("## Pasar la llamada");
+  });
+
+  it("con desvío (fijo) no se activa por defecto, pero sí con el ajuste explícito y el modo «siempre» cambia la regla", async () => {
+    const conDesvio = {
+      ...BUSINESS_PRINCIPAL,
+      customerLineType: "fijo",
+      phone: "+34931112233",
+    };
+    mockedBusinessFindUnique.mockResolvedValue(conDesvio as any);
+    mockedAgentFindMany.mockResolvedValue(agenteSincronizable());
+    await syncAgentToTelnyx("biz1");
+    expect(
+      mockedUpdateAssistant.mock.calls[0][1].tools!.some(
+        (tool) => tool.type === "transfer"
+      )
+    ).toBe(false);
+
+    mockedUpdateAssistant.mockClear();
+    mockedBusinessFindUnique.mockResolvedValue({
+      ...conDesvio,
+      agentSettings: { ...DEFAULT_AGENT_SETTINGS, pasarLlamadas: "siempre" },
+    } as any);
+    await syncAgentToTelnyx("biz1");
+    const payload = mockedUpdateAssistant.mock.calls[0][1];
+    expect(payload.tools!.some((tool) => tool.type === "transfer")).toBe(true);
+    expect(payload.instructions).toContain(
+      "Solo dentro del horario de apertura"
+    );
+  });
+
+  it("también entra cuando calendar/service.ts pasa sus propias tools de webhook", async () => {
+    mockedBusinessFindUnique.mockResolvedValue(BUSINESS_PRINCIPAL as any);
+    mockedAgentFindMany.mockResolvedValue(agenteSincronizable());
+
+    await syncAgentToTelnyx("biz1", prisma, {
+      tools: [
+        {
+          name: "get_catalog",
+          description: "d",
+          url: "https://api.example.test/webhooks/telnyx/tools/get_catalog",
+          properties: {},
+        },
+      ],
+    });
+
+    const payload = mockedUpdateAssistant.mock.calls[0][1];
+    expect(payload.tools!.map((tool) => tool.type)).toEqual([
+      "webhook",
+      "transfer",
+      "hangup",
+    ]);
+  });
+
+  it("al crear el assistant también lleva la tool cuando procede", async () => {
+    mockedBusinessFindUnique.mockResolvedValue(BUSINESS_PRINCIPAL as any);
+    mockedCreateAssistant.mockResolvedValue({
+      id: "assistant_1",
+      name: "alhabla-biz1-agent1",
+      instructions: "i",
+    });
+
+    await createTelnyxAssistantForAgent({
+      agentId: "agent1",
+      businessId: "biz1",
+    });
+
+    const payload = mockedCreateAssistant.mock.calls[0][0];
+    expect(payload.tools!.filter((tool) => tool.type === "transfer")).toEqual([
+      TOOL_TRANSFER_ESPERADA,
+    ]);
+    expect(payload.instructions).toContain("## Pasar la llamada");
   });
 });

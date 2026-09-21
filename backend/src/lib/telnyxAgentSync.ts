@@ -16,6 +16,7 @@ import { resolveTelnyxEligibility } from "./telnyxEligibility.js";
 import { isBusinessType, type BusinessType } from "./businessType.js";
 import { buildRetellBeginMessage } from "./agentBootstrap.js";
 import { listaDeEsperaDisponible } from "../modules/whatsapp/service.js";
+import { resolverTransferenciaAlDueno } from "./transferenciaAlDueno.js";
 import type { CreateTelnyxAssistantInput } from "../adapters/telnyx/TelnyxAiAdapter.js";
 
 /** Idéntico en forma al hash que usará `syncAgentToRetell` cuando el
@@ -44,6 +45,13 @@ async function loadManagedAssistantConfig(
       minAdvanceBookingMinutes: true,
       maxAppointmentDurationMinutes: true,
       hideOwnerNumberFromClients: true,
+      // Transferencia al dueño (fase 4): de aquí salen el origen (número de
+      // Alhabla), el destino (móvil del dueño) y el modo por defecto.
+      customerLineType: true,
+      phone: true,
+      telnyxPhoneNumber: true,
+      ownerWhatsappNumber: true,
+      ownerPhoneIsCustomerLine: true,
     },
   });
   if (!business) return null;
@@ -52,6 +60,12 @@ async function loadManagedAssistantConfig(
     ? business.businessType
     : "other";
   const agentSettings = parseAgentSettings(business.agentSettings);
+  // La misma resolución decide el bloque del prompt Y la tool: nunca uno
+  // sin el otro.
+  const transferenciaAlDueno = resolverTransferenciaAlDueno(
+    business,
+    agentSettings.pasarLlamadas
+  );
   const systemPrompt = buildManagedAgentPrompt({
     businessName: business.name,
     businessDetails: business.businessDetails,
@@ -62,9 +76,17 @@ async function loadManagedAssistantConfig(
     maxAppointmentDurationMinutes: business.maxAppointmentDurationMinutes,
     listaDeEspera: await listaDeEsperaDisponible(),
     ocultarNumeroDelNegocio: business.hideOwnerNumberFromClients,
+    transferenciaAlDueno,
   });
 
-  return { business, agentSettings, systemPrompt };
+  return {
+    business,
+    agentSettings,
+    systemPrompt,
+    transferenciaAlDueno: transferenciaAlDueno.activa
+      ? { from: transferenciaAlDueno.origen!, to: transferenciaAlDueno.destino! }
+      : null,
+  };
 }
 
 /**
@@ -98,6 +120,7 @@ export async function createTelnyxAssistantForAgent(args: {
       greeting: buildRetellBeginMessage(config.business.name),
       language: resolveTelnyxTranscriptionLanguage(config.agentSettings.languages),
       voice: eligibility.voiceId!,
+      transferenciaAlDueno: config.transferenciaAlDueno,
     });
 
     const assistant = await telnyxAiAdapter.createAssistant(payload);
@@ -218,6 +241,9 @@ export async function syncAgentToTelnyx(
             voice: eligibility.voiceId!,
             boostedKeywords,
             tools,
+            // Va aparte de `tools` (que solo lleva tools de webhook): así
+            // también entra cuando calendar/service.ts pasa las suyas.
+            transferenciaAlDueno: config.transferenciaAlDueno,
           });
 
         const configHash = hashConfig(payload);

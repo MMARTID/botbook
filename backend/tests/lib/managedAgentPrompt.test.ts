@@ -392,6 +392,81 @@ describe("buildManagedAgentPrompt — privacidad del número (PLAN-TELEFONIA-UX.
   });
 });
 
+describe("buildManagedAgentPrompt — pasar la llamada al dueño (fase 4)", () => {
+  const activa = {
+    modo: "si_lo_pide" as const,
+    destino: "+34600111222",
+    origen: "+34930453218",
+    activa: true,
+  };
+
+  it("sin transferencia (o inactiva) no menciona la herramienta transfer", () => {
+    const sinNada = buildManagedAgentPrompt({
+      businessName: "Peluquería Ejemplo",
+      settings: DEFAULT_AGENT_SETTINGS,
+    });
+    const inactiva = buildManagedAgentPrompt({
+      businessName: "Peluquería Ejemplo",
+      settings: DEFAULT_AGENT_SETTINGS,
+      transferenciaAlDueno: { ...activa, modo: "nunca", activa: false },
+    });
+
+    for (const prompt of [sinNada, inactiva]) {
+      expect(prompt).not.toContain("## Pasar la llamada");
+      expect(prompt).not.toContain("(transfer)");
+    }
+  });
+
+  it("«si el cliente lo pide»: solo a petición clara, recado primero para quejas y pagos, y retoma si no cogen", () => {
+    const prompt = buildManagedAgentPrompt({
+      businessName: "Peluquería Ejemplo",
+      settings: DEFAULT_AGENT_SETTINGS,
+      transferenciaAlDueno: activa,
+    });
+
+    expect(prompt).toContain("## Pasar la llamada");
+    expect(prompt).toContain("herramienta de transferencia (transfer)");
+    expect(prompt).toContain("Pásala solo si el cliente pide de forma clara");
+    expect(prompt).toContain("ofrece primero tomar recado");
+    expect(prompt).not.toContain("Solo dentro del horario de apertura");
+    expect(prompt).toContain("Pásala una sola vez por llamada");
+    expect(prompt).toContain(
+      "Si la transferencia falla o el responsable no contesta, la llamada sigue contigo"
+    );
+    expect(prompt).toContain("si prefiere que le llamen o dejar recado");
+    // El bloque va antes del informe final, no dentro de él.
+    expect(prompt.indexOf("## Pasar la llamada")).toBeLessThan(
+      prompt.indexOf("## Al terminar la llamada")
+    );
+  });
+
+  it("«siempre que sea posible»: también quejas, urgencias y pagos, pero solo en horario", () => {
+    const prompt = buildManagedAgentPrompt({
+      businessName: "Peluquería Ejemplo",
+      settings: DEFAULT_AGENT_SETTINGS,
+      transferenciaAlDueno: { ...activa, modo: "siempre" },
+    });
+
+    expect(prompt).toContain("## Pasar la llamada");
+    expect(prompt).toContain("una queja, una urgencia, una pregunta sobre pagos");
+    expect(prompt).toContain("Solo dentro del horario de apertura del negocio");
+    expect(prompt).toContain("fuera de ese horario no la pases, toma recado");
+    expect(prompt).not.toContain("Pásala solo si el cliente pide de forma clara");
+  });
+
+  it("parseAgentSettings conserva pasarLlamadas y rechaza valores que no sean los tres modos", () => {
+    expect(
+      parseAgentSettings({ ...DEFAULT_AGENT_SETTINGS, pasarLlamadas: "siempre" })
+        .pasarLlamadas
+    ).toBe("siempre");
+    expect(parseAgentSettings(DEFAULT_AGENT_SETTINGS).pasarLlamadas).toBeUndefined();
+    // Un valor inválido tumba la validación entera → defaults (sin el modo).
+    expect(
+      parseAgentSettings({ ...DEFAULT_AGENT_SETTINGS, pasarLlamadas: "a_veces" })
+    ).toEqual(DEFAULT_AGENT_SETTINGS);
+  });
+});
+
 describe("buildManagedAgentPrompt — chat por WhatsApp (fase 2)", () => {
   it("explica el marcador [WhatsApp …], veta end_call en chat y da por dado el consentimiento", () => {
     const prompt = buildManagedAgentPrompt({

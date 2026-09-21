@@ -23,6 +23,7 @@ import {
   NumeroDeAlhablaError,
 } from "../whatsapp/altaDueno.js";
 import { listaDeEsperaDisponible } from "../whatsapp/service.js";
+import { resolverTransferenciaAlDueno } from "../../lib/transferenciaAlDueno.js";
 
 /** Tipos de línea de clientes (PLAN-TELEFONIA-UX.md § 3): el fijo del
  * local (A), un móvil de trabajo (B), el móvil personal (C) o el número de
@@ -450,6 +451,12 @@ export async function businessesRoutes(fastify: FastifyInstance) {
           },
         });
 
+        const cambiaLaTransferencia =
+          data.customerLineType !== undefined ||
+          data.phone !== undefined ||
+          data.ownerWhatsappNumber !== undefined ||
+          data.ownerPhoneIsCustomerLine !== undefined;
+
         // Mantiene el prompt libre del usuario y añade siempre el horario en un bloque estructurado estable.
         const shouldResyncPrompt =
           data.systemPrompt !== undefined ||
@@ -461,7 +468,11 @@ export async function businessesRoutes(fastify: FastifyInstance) {
           data.minAdvanceBookingMinutes !== undefined ||
           data.maxAppointmentDurationMinutes !== undefined ||
           // La privacidad («no des mi número») es una regla del prompt.
-          data.hideOwnerNumberFromClients !== undefined;
+          data.hideOwnerNumberFromClients !== undefined ||
+          // La transferencia al dueño (fase 4) depende de la línea de
+          // clientes y del móvil del dueño: cambiarlos registra o quita la
+          // tool `transfer` y su bloque del prompt.
+          cambiaLaTransferencia;
 
         if (shouldResyncPrompt) {
           const currentBusiness = await prisma.business.findUnique({
@@ -472,18 +483,44 @@ export async function businessesRoutes(fastify: FastifyInstance) {
               agentSettings: true,
               timezone: true,
               hideOwnerNumberFromClients: true,
+              customerLineType: true,
+              phone: true,
+              telnyxPhoneNumber: true,
+              ownerWhatsappNumber: true,
+              ownerPhoneIsCustomerLine: true,
             },
           });
+          const settings = data.agentSettings ?? currentBusiness?.agentSettings;
           const agentPrompt = buildManagedAgentPrompt({
             businessName: data.name ?? currentBusiness?.name ?? "el negocio",
             businessDetails: data.businessDetails ?? currentBusiness?.businessDetails,
-            settings: data.agentSettings ?? currentBusiness?.agentSettings,
+            settings,
             timezone: data.timezone ?? currentBusiness?.timezone,
             listaDeEspera: await listaDeEsperaDisponible(),
             ocultarNumeroDelNegocio:
               data.hideOwnerNumberFromClients ??
               currentBusiness?.hideOwnerNumberFromClients ??
               false,
+            // Con lo que va a quedar guardado, no con lo que había: es la
+            // copia del prompt que ve el panel.
+            transferenciaAlDueno: resolverTransferenciaAlDueno(
+              {
+                customerLineType:
+                  data.customerLineType !== undefined
+                    ? data.customerLineType
+                    : currentBusiness?.customerLineType,
+                phone: data.phone ?? currentBusiness?.phone,
+                telnyxPhoneNumber: currentBusiness?.telnyxPhoneNumber,
+                ownerWhatsappNumber:
+                  ownerWhatsappNumber !== undefined
+                    ? ownerWhatsappNumber
+                    : currentBusiness?.ownerWhatsappNumber,
+                ownerPhoneIsCustomerLine:
+                  data.ownerPhoneIsCustomerLine ??
+                  currentBusiness?.ownerPhoneIsCustomerLine,
+              },
+              parseAgentSettings(settings).pasarLlamadas
+            ),
           });
           updateData.systemPrompt = agentPrompt;
 

@@ -1658,8 +1658,10 @@ Once the order succeeds, the number is imported into Retell via `retellAdapter.i
 ## Telefonía
 
 Plan completo en `PLAN-TELEFONIA-UX.md` (fases 0-3 y 5 en main desde 2026-09-22; la
-fase 4, «Alhabla como número principal» con transferencia al dueño, sigue pendiente).
-Nace de la prueba real de producción (#130): el dueño no sabía qué número era cuál.
+fase 4, «Alhabla como número principal» con transferencia al dueño, en código desde el
+2026-09-22 y **pendiente de la prueba real** de la transferencia con un negocio de
+producción). Nace de la prueba real de producción (#130): el dueño no sabía qué número era
+cuál.
 
 ### Los tres papeles del número
 
@@ -1767,6 +1769,68 @@ Mensaje del día 1: a las 24 h de comprar el número, el job `recordar-desvio-si
 comprobó, o «aún no has comprobado el desvío» si no hay comprobación ni llamada real; en
 ambos casos con enlace a Ajustes › Teléfono, y solo a negocios a los que «Comprobar desvío»
 les funcionaría.
+
+### Alhabla como número principal y transferencia al dueño (fase 4)
+
+El caso E del plan: el negocio publica el número de Alhabla como su teléfono
+(`customerLineType = "alhabla"` y `phone` = `telnyxPhoneNumber`), no hay desvío y la
+recepcionista **pasa la llamada al móvil del dueño** cuando toca. Sin tabla ni columna
+nuevas: el ajuste vive en `Business.agentSettings.pasarLlamadas`.
+
+- **Ajuste «Cuándo pasarme llamadas»** (`AgentSettings.pasarLlamadas`, opcional):
+  `"nunca" | "si_lo_pide" | "siempre"`. Sin valor, el modo efectivo lo da
+  `modoDeTransferenciaPorDefecto` (`lib/transferenciaAlDueno.ts`): «si el cliente lo pide»
+  cuando el número de Alhabla es el principal y hay a quién pasar la llamada, «nunca» en el
+  resto. Se deja opcional a propósito: pasar a «Alhabla como principal» activa la
+  transferencia sin reescribir el ajuste. Se guarda como cualquier otro campo de
+  `agentSettings` (`PATCH /business/me` con el objeto entero; el panel manda
+  `{ ...DEFAULT_AGENT_SETTINGS, ...business.agentSettings, pasarLlamadas }`).
+- **Destino** (`destinoDeTransferencia`): `ownerWhatsappNumber` o, si
+  `ownerPhoneIsCustomerLine`, la línea de clientes. Debe ser un número español
+  (`esLineaDeClientesEspanola`: la pata la paga Alhabla), distinto del número de Alhabla y
+  **distinto de la línea de clientes desviada**: con un desvío «si no contesta», transferir
+  al móvil desviado volvería a entrar por el número de Alhabla como una segunda llamada y,
+  al llegar desde el propio número de Alhabla, «Comprobar desvío» la tomaría por una
+  comprobación. Con Alhabla como principal `phone` ya es el de Alhabla y la regla no estorba.
+- **Una sola resolución** (`resolverTransferenciaAlDueno` → `{ modo, destino, origen,
+  activa }`) decide a la vez la tool y el prompt: `loadManagedAssistantConfig`
+  (`lib/telnyxAgentSync.ts`) la pasa a `buildManagedAgentPrompt` (bloque «## Pasar la
+  llamada», solo con `activa`) y a `buildTelnyxAssistantPayload` (`transferenciaAlDueno:
+  { from, to }`, aparte de `tools` para que también entre cuando `calendar/service.ts`
+  pasa sus tools de webhook). Retell no la recibe: no tiene la tool.
+- **Tool nativa `transfer`** (`buildTelnyxTransferTool` en `lib/telnyxAssistantPayload.ts`,
+  formato de `AssistantTool.Transfer` del SDK telnyx 7.21): `from` = número de Alhabla,
+  `targets: [{ name: "Responsable del negocio", to: <móvil> }]`,
+  `warm_transfer_instructions` (el assistant compone un mensaje que el dueño oye antes de
+  unir las llamadas: «soy la recepcionista de X, te paso a un cliente que…») y
+  `voicemail_detection: { detection_mode: "premium", on_voicemail_detected: { action:
+  "stop_transfer" } }` (si salta el buzón del móvil, Telnyx cancela la pata y devuelve la
+  llamada a la recepcionista; sin esto el cliente acabaría en el contestador del dueño).
+  Sin `timeout_secs` (la tool nativa no lo tiene), sin `description` (la genera Telnyx) y
+  sin `warm_transfer_acceptance` (la documentación lo limita a llamadas arrancadas con
+  `ai_assistant_start`; las nuestras se contestan con `answer` + `assistant`).
+- **Reglas del prompt** (`buildTransferInstruction`, `lib/managedAgentPrompt.ts`):
+  `si_lo_pide` → solo si el cliente pide hablar con una persona; quejas/urgencias/pagos →
+  recado primero, transferencia si insiste. `siempre` → también quejas, urgencias, pagos y
+  lo que no sea reservar/consultar, **solo en horario de apertura**; fuera, recado. En
+  ambos: avisar al cliente antes, pasarla una sola vez, y si falla o no contestan «ahora no
+  puede atenderle, ¿prefiere que le llamen o dejar recado?» (recado = `informar_al_negocio`
+  de siempre). Que la llamada siga con la recepcionista tras un fallo lo dice la
+  documentación de Telnyx (transfer de Call Control y «Voicemail Detection on Transfer»);
+  **queda por confirmar en vivo** (§ 6 del plan: probar con INFINITY antes de exponerlo).
+- **Resincronización**: además de `agentSettings`, `PATCH /business/me` resincroniza prompt
+  y assistant cuando cambian `customerLineType`, `phone`, `ownerWhatsappNumber` u
+  `ownerPhoneIsCustomerLine` (`cambiaLaTransferencia`), porque los cuatro deciden si la
+  tool existe y hacia dónde.
+- **Pantallas**: `app/ajustes/numero-principal/page.tsx` («Usar Alhabla como número
+  principal»: qué cambia, dónde publicarlo —Google Business Profile, web, redes, WhatsApp
+  Business como «otro teléfono»—, qué hacer con el número antiguo —desvío «todas» durante la
+  transición o baja, con el código `*21*`/`**21*` según el tipo— y el ajuste; sin móvil del
+  dueño lo dice, enlaza a Ajustes › Teléfono › Tu móvil y no deja confirmar; al confirmar
+  hace el PATCH y vuelve a `/ajustes#telefono`). El botón «Usar como número principal» de
+  Ajustes › Teléfono es ahora un enlace a esa pantalla, y el bloque «Tu recepcionista»
+  enseña «Cuándo pasarme llamadas» (`components/pasar-llamadas.tsx`, helpers en
+  `lib/pasar-llamadas.ts`) cuando `customerLineType` es `alhabla`.
 
 ## Stripe Billing
 

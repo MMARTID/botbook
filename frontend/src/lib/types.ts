@@ -51,7 +51,12 @@ export type AgentSettings = {
   /** Idioma real de la voz (TTS) — independiente de `languages` (qué
    * entiende el agente). Debe ser uno de los activados en `languages`. */
   voiceLanguage: VoiceLanguage;
+  /** «Cuándo pasarme llamadas» (fase 4 del plan de telefonía). Sin valor,
+   * el backend aplica el de por defecto (ver lib/pasar-llamadas.ts). */
+  pasarLlamadas?: ModoDePasarLlamadas;
 };
+
+export type ModoDePasarLlamadas = "nunca" | "si_lo_pide" | "siempre";
 
 export type AgentLanguage = "es-ES" | "en-GB" | "fr-FR" | "ca-ES";
 

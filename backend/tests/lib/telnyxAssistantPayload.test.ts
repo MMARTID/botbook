@@ -4,6 +4,7 @@ import {
   buildTelnyxAssistantName,
   buildTelnyxAssistantPayload,
   buildTelnyxHangupTool,
+  buildTelnyxTransferTool,
   buildTelnyxVoiceTools,
   resolveTelnyxTranscriptionLanguage,
   toTelnyxWebhookTool,
@@ -13,6 +14,73 @@ describe("buildTelnyxAssistantName", () => {
   it("genera un nombre estable y determinista por negocio y agente", () => {
     expect(buildTelnyxAssistantName("biz1", "agent1")).toBe(
       "alhabla-biz1-agent1"
+    );
+  });
+});
+
+describe("buildTelnyxTransferTool", () => {
+  it("produce la tool nativa transfer con from, un solo destino con nombre, mensaje en caliente y detección de buzón", () => {
+    const tool = buildTelnyxTransferTool({
+      from: "+34930453218",
+      to: "+34600111222",
+      businessName: "Peluquería Ejemplo",
+    });
+
+    expect(tool).toEqual({
+      type: "transfer",
+      transfer: {
+        from: "+34930453218",
+        targets: [{ name: "Responsable del negocio", to: "+34600111222" }],
+        warm_transfer_instructions:
+          "Habla en español. En una sola frase, di que eres la recepcionista de Peluquería Ejemplo y que le pasas a un cliente: su nombre si lo dijo y qué quiere. No hagas preguntas ni esperes respuesta.",
+        voicemail_detection: {
+          detection_mode: "premium",
+          on_voicemail_detected: { action: "stop_transfer" },
+        },
+      },
+    });
+    // Sin campos que el SDK no declare ni descripción propia (la genera
+    // Telnyx) ni warm_transfer_acceptance (solo con ai_assistant_start).
+    expect(Object.keys(tool.transfer).sort()).toEqual([
+      "from",
+      "targets",
+      "voicemail_detection",
+      "warm_transfer_instructions",
+    ]);
+  });
+
+  it("buildTelnyxAssistantPayload la añade entre las de webhook y hangup solo si se pasa transferenciaAlDueno", () => {
+    const base = {
+      businessId: "biz1",
+      agentId: "agent1",
+      businessName: "Peluquería Ejemplo",
+      instructions: "i",
+      greeting: "",
+      language: "es",
+      voice: "Telnyx.Ultra.isabel",
+      tools: [
+        {
+          name: "get_catalog",
+          description: "d",
+          url: "https://api.example.test/t",
+          properties: {},
+        },
+      ],
+    };
+    const con = buildTelnyxAssistantPayload({
+      ...base,
+      transferenciaAlDueno: { from: "+34930453218", to: "+34600111222" },
+    });
+    expect(con.tools!.map((tool) => tool.type)).toEqual([
+      "webhook",
+      "transfer",
+      "hangup",
+    ]);
+
+    const sin = buildTelnyxAssistantPayload({ ...base, transferenciaAlDueno: null });
+    expect(sin.tools!.map((tool) => tool.type)).toEqual(["webhook", "hangup"]);
+    expect(buildTelnyxAssistantPayload(base).tools!.map((tool) => tool.type)).toEqual(
+      ["webhook", "hangup"]
     );
   });
 });

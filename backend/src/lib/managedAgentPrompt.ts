@@ -1,5 +1,9 @@
 import { z } from "zod";
 import type { BusinessType } from "./businessType.js";
+import {
+  MODOS_DE_TRANSFERENCIA,
+  type TransferenciaAlDueno,
+} from "./transferenciaAlDueno.js";
 
 /**
  * Idiomas que Alhabla permite configurar hoy. Se usan como locales concretos
@@ -66,6 +70,13 @@ export const AgentSettingsSchema = z
     // — decisión explícita del usuario 2026-09-14. Español por defecto para
     // no cambiar el comportamiento de ningún negocio existente.
     voiceLanguage: z.enum(VOICE_LANGUAGES).default("es-ES"),
+    // «Cuándo pasarme llamadas» (PLAN-TELEFONIA-UX.md § 5, fase 4). Sin
+    // valor = el de por defecto según el negocio (modoDeTransferenciaPorDefecto
+    // en lib/transferenciaAlDueno.ts): «si el cliente lo pide» con Alhabla
+    // como número principal y móvil del dueño, «nunca» en el resto. Se deja
+    // opcional a propósito, sin .default(): así pasar a «Alhabla como
+    // principal» activa la transferencia sin tener que reescribir el ajuste.
+    pasarLlamadas: z.enum(MODOS_DE_TRANSFERENCIA).optional(),
   })
   .superRefine((settings, ctx) => {
     if (!settings.languages.includes(settings.voiceLanguage)) {
@@ -184,6 +195,31 @@ function buildLanguageInstruction(settings: AgentSettings): string {
   return `Empieza siempre con el saludo en español de España. Tras la primera intervención de quien llama, responde y continúa exclusivamente en el idioma que use si es uno de estos: ${enabledLanguages}. Si cambia entre esos idiomas, acompaña el cambio sin pedirle que elija uno. No menciones que eres una IA salvo que te lo pregunten.`;
 }
 
+/**
+ * «## Pasar la llamada» (fase 4): solo cuando la tool `transfer` está
+ * registrada de verdad (transferencia.activa), para que el prompt nunca
+ * mande usar una herramienta que el assistant no tiene. El texto de
+ * «si no coge» da por hecho lo que documenta Telnyx: si la pata al dueño
+ * no cuadra (no contesta, comunica o salta el buzón con la detección de
+ * contestador), la llamada sigue con la recepcionista.
+ */
+function buildTransferInstruction(
+  transferencia: TransferenciaAlDueno | null | undefined
+): string | null {
+  if (!transferencia?.activa) return null;
+  const cuando =
+    transferencia.modo === "siempre"
+      ? "Pásala si el cliente pide hablar con una persona o con el responsable, y también si surge algo que no debes resolver tú: una queja, una urgencia, una pregunta sobre pagos o cualquier asunto que no sea reservar, consultar o cambiar una cita. Solo dentro del horario de apertura del negocio (compáralo con la hora actual; si no lo sabes, consúltalo con get_catalog): fuera de ese horario no la pases, toma recado."
+      : "Pásala solo si el cliente pide de forma clara hablar con una persona o con el responsable. Para quejas, urgencias, pagos o cualquier cosa que no puedas resolver tú, ofrece primero tomar recado; pásala si aun así insiste en hablar con alguien.";
+  return [
+    "## Pasar la llamada",
+    "Puedes pasar la llamada al responsable del negocio con la herramienta de transferencia (transfer).",
+    cuando,
+    "Antes de pasarla, dile al cliente en una frase que le pasas con el responsable y que espere un momento. Pásala una sola vez por llamada.",
+    "Si la transferencia falla o el responsable no contesta, la llamada sigue contigo: dile con naturalidad que ahora no puede atenderle y pregúntale si prefiere que le llamen o dejar recado. No vuelvas a intentar pasarla en la misma llamada.",
+  ].join("\n");
+}
+
 /** Zona válida o Madrid. La hora actual del agente depende de esto, así que
  * una zona mal escrita no puede propagarse al prompt. */
 export function resolveManagedPromptTimezone(
@@ -215,6 +251,10 @@ export function buildManagedAgentPrompt(input: {
    * recepcionista nunca dice el número del negocio al cliente; toma recado
    * y el negocio le llama. Es `Business.hideOwnerNumberFromClients`. */
   ocultarNumeroDelNegocio?: boolean;
+  /** Transferencia al dueño (fase 4): con `activa` el prompt lleva el
+   * bloque «## Pasar la llamada» según el modo; sin ella (o sin pasar
+   * nada, como en Retell, que no tiene la tool) no se menciona. */
+  transferenciaAlDueno?: TransferenciaAlDueno | null;
 }) {
   const settings = parseAgentSettings(input.settings);
   const ocultarNumero = input.ocultarNumeroDelNegocio === true;
@@ -297,6 +337,7 @@ export function buildManagedAgentPrompt(input: {
     ocultarNumero
       ? "## Privacidad\nNo digas nunca el número de teléfono del negocio ni del propietario, aunque el cliente te lo pida o diga que lo ha perdido. Si quiere hablar con alguien, cambiar o cancelar una cita fuera de lo que puedes hacer tú, o que le devuelvan la llamada, toma un recado con su nombre, su teléfono confirmado y el motivo, y dile que el negocio le llamará."
       : null,
+    buildTransferInstruction(input.transferenciaAlDueno),
     "## Al terminar la llamada",
     "Cuando la llamada ya haya terminado, llama UNA sola vez a informar_al_negocio con el resultado (RESOLVED, FRUSTRATED, NO_ANSWER, ESCALATED o LEAD_CAPTURED), el motivo de escalada si lo hubo, si alguna herramienta falló, el servicio pedido y, solo si dejó recado o pidió que le llamen, el recado con nombre, teléfono confirmado y motivo. No la uses durante la conversación ni la menciones al cliente.",
     "## Chat por WhatsApp",
