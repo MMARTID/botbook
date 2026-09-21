@@ -271,10 +271,11 @@ export async function listMicrosoftBusyIntervals(
       end?: { dateTime?: string | null } | null;
       showAs?: string | null;
       isCancelled?: boolean | null;
+      isAllDay?: boolean | null;
     }>;
   }>(
     accessToken,
-    `/me/calendars/${encodeURIComponent(calendarId)}/calendarView?startDateTime=${encodeURIComponent(start.toISOString())}&endDateTime=${encodeURIComponent(end.toISOString())}&$top=1000&$select=id,start,end,showAs,isCancelled`,
+    `/me/calendars/${encodeURIComponent(calendarId)}/calendarView?startDateTime=${encodeURIComponent(start.toISOString())}&endDateTime=${encodeURIComponent(end.toISOString())}&$top=1000&$select=id,start,end,showAs,isCancelled,isAllDay`,
     {
       headers: {
         Prefer: 'outlook.timezone="UTC"',
@@ -283,7 +284,16 @@ export async function listMicrosoftBusyIntervals(
   );
 
   return data.value
-    .filter((event) => !event.isCancelled && event.showAs !== "free")
+    .filter((event) => {
+      if (event.isCancelled) return false;
+      // Misma regla que Google y CalDAV: Outlook guarda los eventos de día
+      // completo como "libre" (showAs: free) salvo que el dueño lo cambie a
+      // mano, así que "VACACIONES" o "CERRADO" de todo el día no bloqueaba
+      // nada y se seguían reservando citas ese día (#145). Un día completo
+      // es siempre "ese día no trabajo".
+      if (event.isAllDay) return true;
+      return event.showAs !== "free";
+    })
     .map(
       (event): { start: Date | null; end: Date | null; externalEventId?: string } => ({
         start: event.start?.dateTime
