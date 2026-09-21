@@ -69,6 +69,30 @@ describe("listMicrosoftBusyIntervals", () => {
     ]);
   });
 
+  it("un evento de día completo cuenta como ocupado aunque Outlook lo marque 'free' (#145, misma regla que Google/CalDAV)", async () => {
+    const fetchMock = mockFetchOnce({
+      value: [
+        // Graph devuelve el día completo como medianoche a medianoche.
+        { id: "vacaciones", start: { dateTime: "2026-08-10T00:00:00.0000000" }, end: { dateTime: "2026-08-11T00:00:00.0000000" }, showAs: "free", isCancelled: false, isAllDay: true },
+        // Uno de día completo cancelado sigue sin contar.
+        { id: "cancelado", start: { dateTime: "2026-08-10T00:00:00.0000000" }, end: { dateTime: "2026-08-11T00:00:00.0000000" }, showAs: "free", isCancelled: true, isAllDay: true },
+      ],
+    });
+
+    const busy = await listMicrosoftBusyIntervals(
+      "access_token",
+      "calendar_1",
+      new Date("2026-08-10T00:00:00Z"),
+      new Date("2026-08-11T00:00:00Z")
+    );
+
+    expect(busy).toEqual([
+      { start: new Date("2026-08-10T00:00:00Z"), end: new Date("2026-08-11T00:00:00Z"), externalEventId: "vacaciones" },
+    ]);
+    // Sin pedir isAllDay en el $select, Graph no lo devuelve.
+    expect(String(fetchMock.mock.calls[0][0])).toContain("isAllDay");
+  });
+
   it("propaga el error si la petición a Graph falla (el caller decide degradar)", async () => {
     mockFetchOnce({ error: { code: "Forbidden", message: "no access" } }, false);
 

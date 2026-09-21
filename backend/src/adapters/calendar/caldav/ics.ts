@@ -107,15 +107,15 @@ function ocurrencias(
     }
   }
   const salida: Ocurrencia[] = [];
-  for (const vevent of vcalendar.getAllSubcomponents("vevent")) {
-    let evento: ICAL.Event;
-    try {
-      evento = new ICAL.Event(vevent);
-      if (!evento.startDate) continue;
-    } catch {
-      continue;
-    }
-    const comun = {
+  const fin = (inicio: ICAL.Time, finOpcional: ICAL.Time | null) =>
+    finOpcional ?? (inicio.isDate ? inicio.clone().adjust(1, 0, 0, 0) : inicio);
+  // Un día completo se ancla a medianoche UTC (como hace el adaptador de
+  // Google con `start.date`), no a la medianoche local del proceso.
+  const aFecha = (t: ICAL.Time): Date =>
+    t.isDate ? new Date(Date.UTC(t.year, t.month - 1, t.day)) : t.toJSDate();
+  const datosDe = (evento: ICAL.Event) => {
+    const vevent = evento.component;
+    return {
       summary: evento.summary ?? "",
       location: evento.location ?? null,
       esDeDiaCompleto: evento.startDate.isDate,
@@ -126,31 +126,70 @@ function ocurrencias(
         String(vevent.getFirstPropertyValue("status") ?? "").toUpperCase() ===
         "CANCELLED",
     };
-    const fin = (inicio: ICAL.Time, finOpcional: ICAL.Time | null) =>
-      finOpcional ??
-      (inicio.isDate ? inicio.clone().adjust(1, 0, 0, 0) : inicio);
-    // Un día completo se ancla a medianoche UTC (como hace el adaptador de
-    // Google con `start.date`), no a la medianoche local del proceso.
-    const aFecha = (t: ICAL.Time): Date =>
-      t.isDate ? new Date(Date.UTC(t.year, t.month - 1, t.day)) : t.toJSDate();
+  };
 
-    if (evento.isRecurring()) {
-      const iterador = evento.iterator();
-      let siguiente: ICAL.Time | null;
-      while ((siguiente = iterador.next())) {
-        const detalle = evento.getOccurrenceDetails(siguiente);
-        const start = aFecha(detalle.startDate);
-        if (start >= ventana.timeMax) break;
-        const end = aFecha(fin(detalle.startDate, detalle.endDate));
-        if (end <= ventana.timeMin) continue;
-        salida.push({ ...comun, start, end });
-      }
+  // Un objeto puede traer varios VEVENT con el mismo UID: el maestro (con
+  // RRULE) y una excepción por cada cita suelta de la serie que el dueño
+  // movió o editó (RECURRENCE-ID). Si cada uno se expandiera por su cuenta,
+  // la ocurrencia sustituida contaría dos veces: en su hora original (por
+  // la serie) y en la nueva (por la excepción), y un hueco libre se
+  // rechazaría (#144). Se agrupan por UID y las excepciones se relacionan
+  // con su maestro antes de expandir; ical.js entonces devuelve la
+  // excepción en lugar de la ocurrencia original.
+  const maestros = new Map<string, ICAL.Event>();
+  const excepciones: ICAL.Event[] = [];
+  const sueltos: ICAL.Event[] = [];
+  for (const vevent of vcalendar.getAllSubcomponents("vevent")) {
+    let evento: ICAL.Event;
+    try {
+      evento = new ICAL.Event(vevent);
+      if (!evento.startDate) continue;
+    } catch {
+      continue;
+    }
+    if (evento.isRecurrenceException()) {
+      excepciones.push(evento);
+    } else if (evento.isRecurring() && evento.uid) {
+      maestros.set(evento.uid, evento);
     } else {
-      const start = aFecha(evento.startDate);
-      const end = aFecha(fin(evento.startDate, evento.endDate));
-      if (start < ventana.timeMax && end > ventana.timeMin) {
-        salida.push({ ...comun, start, end });
-      }
+      sueltos.push(evento);
+    }
+  }
+  for (const excepcion of excepciones) {
+    const maestro = excepcion.uid ? maestros.get(excepcion.uid) : undefined;
+    if (!maestro) {
+      // Sin maestro en el objeto (el servidor solo devolvió la excepción):
+      // es un evento suelto en su hora nueva.
+      sueltos.push(excepcion);
+      continue;
+    }
+    try {
+      maestro.relateException(excepcion.component);
+    } catch {
+      sueltos.push(excepcion);
+    }
+  }
+
+  for (const evento of maestros.values()) {
+    const iterador = evento.iterator();
+    let siguiente: ICAL.Time | null;
+    while ((siguiente = iterador.next())) {
+      // `item` es la excepción cuando la ocurrencia fue sustituida: sus
+      // fechas, su estado (una cita suelta borrada llega CANCELLED) y su
+      // TRANSP mandan sobre los del maestro.
+      const detalle = evento.getOccurrenceDetails(siguiente);
+      const start = aFecha(detalle.startDate);
+      if (start >= ventana.timeMax) break;
+      const end = aFecha(fin(detalle.startDate, detalle.endDate));
+      if (end <= ventana.timeMin) continue;
+      salida.push({ ...datosDe(detalle.item), start, end });
+    }
+  }
+  for (const evento of sueltos) {
+    const start = aFecha(evento.startDate);
+    const end = aFecha(fin(evento.startDate, evento.endDate));
+    if (start < ventana.timeMax && end > ventana.timeMin) {
+      salida.push({ ...datosDe(evento), start, end });
     }
   }
   return salida;

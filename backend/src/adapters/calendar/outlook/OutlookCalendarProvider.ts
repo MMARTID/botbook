@@ -156,8 +156,8 @@ export class OutlookCalendarProvider implements CalendarProvider<"outlook"> {
   }
 
   /** Deja pasar el error crudo: CalendarService degrada a "sin bloqueos".
-   * Devuelve el array de Graph tal cual (sin regla de día completo ni filtro
-   * de NaN: asimetría con Google conservada a propósito). */
+   * La regla de día completo (cuenta siempre como ocupado, como en Google y
+   * CalDAV) se aplica en listMicrosoftBusyIntervals; no hay filtro de NaN. */
   async listarOcupacion(
     conexion: ConexionActiva<"outlook">,
     ventana: { timeMin: Date; timeMax: Date }
