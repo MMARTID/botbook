@@ -444,6 +444,8 @@ export type CallBooking = {
   durationMinutes: number;
   numberPeople: number;
   isCancelled: boolean;
+  /** Cancelada porque el cliente la cambió: id de la reserva nueva. */
+  rescheduledToId?: string | null;
   clientPhone: string | null;
   serviceIds: string[];
   professional?: { id: string; name: string } | null;

@@ -93,6 +93,18 @@ export function esChatDeWhatsapp(call: { voiceProvider?: string | null }) {
   return call.voiceProvider === "whatsapp";
 }
 
+/**
+ * Qué consiguió una conversación respecto a la cita: la creó, la cambió
+ * (cancelar + reservar: la nueva cuelga de otra conversación) o nada.
+ */
+export function etiquetaDeReserva(
+  booking: { isCancelled: boolean; rescheduledToId?: string | null } | null | undefined
+): "creada" | "modificada" | null {
+  if (!booking) return null;
+  if (!booking.isCancelled) return "creada";
+  return booking.rescheduledToId ? "modificada" : null;
+}
+
 /** «1m 45s» para una llamada; «Chat de WhatsApp» para una conversación. */
 export function formatCanalYDuracion(call: {
   voiceProvider?: string | null;

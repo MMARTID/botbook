@@ -92,7 +92,7 @@ model Business {
 
   // Calendario: la conexión vive en CalendarConnection (una fila por
   // proveedor); esto es solo el puntero al proveedor activo.
-  calendarProvider    String?
+  calendarProvider String?
 
   // Marca de la última semana resumida por email. Cloud Scheduler entrega al
   // menos una vez, así que el job reclama la semana con un updateMany
@@ -142,10 +142,10 @@ model Business {
   // Id de Google Places del local; alimenta el sufijo del botón URL «Cómo
   // llegar» de confirmacion_cita_v2. Solo [A-Za-z0-9_-], lo valida
   // PATCH /business/me (y otra vez placeIdValido al enviar).
-  placeId             String?
+  placeId String?
   // Dirección formateada de Places; informativa, no va en ninguna plantilla
   // en este PR.
-  address             String?
+  address String?
 
   // Fase 2 (conversaciones Beta, PLAN-CANAL-DUENO.md § 7 y § 8). Los dos
   // interruptores por negocio están por debajo de los globales
@@ -159,21 +159,21 @@ model Business {
   ownerConversationId        String?
   ownerConversationCreatedAt DateTime?
 
-  createdAt           DateTime             @default(now())
-  updatedAt           DateTime             @updatedAt
-  users               User[]
-  agents              Agent[]
-  calls               Call[]
-  services            Service[]
-  professionals       Professional[]
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
+  users                User[]
+  agents               Agent[]
+  calls                Call[]
+  services             Service[]
+  professionals        Professional[]
   professionalAbsences ProfessionalAbsence[]
-  stripeWebhookEvents StripeWebhookEvent[]
-  billingUsagePeriods BillingUsagePeriod[]
-  onboardingState     OnboardingState?
-  calendarConnections CalendarConnection[]
-  clientConversations ClientConversation[]
-  ownerPendingActions OwnerPendingAction[]
-  ownerChatFeedback   OwnerChatFeedback[]
+  stripeWebhookEvents  StripeWebhookEvent[]
+  billingUsagePeriods  BillingUsagePeriod[]
+  onboardingState      OnboardingState?
+  calendarConnections  CalendarConnection[]
+  clientConversations  ClientConversation[]
+  ownerPendingActions  OwnerPendingAction[]
+  ownerChatFeedback    OwnerChatFeedback[]
 
   @@index([ownerWhatsappNumber])
   @@map("businesses")
@@ -509,9 +509,9 @@ model ProfessionalService {
   // Las filas anteriores a este campo eran la casilla "especialidad" del
   // panel: conservan ese significado con el valor por defecto.
   level          ProfessionalServiceLevel @default(ESPECIALISTA)
-  assignedAt     DateTime     @default(now())
-  professional   Professional @relation(fields: [professionalId], references: [id], onDelete: Cascade)
-  service        Service      @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  assignedAt     DateTime                 @default(now())
+  professional   Professional             @relation(fields: [professionalId], references: [id], onDelete: Cascade)
+  service        Service                  @relation(fields: [serviceId], references: [id], onDelete: Cascade)
 
   @@id([professionalId, serviceId])
   @@index([serviceId])
@@ -674,6 +674,11 @@ model Booking {
   // Se limpia si Meta devuelve failed en diferido. Null = no se le mandó
   // nada (sin consentimiento, sin número, baja, fallo).
   clientNotifiedAt         DateTime?
+  // Cambiar una cita por teléfono/WhatsApp es cancelar + reservar: la
+  // cancelada apunta a la nueva (modules/bookings/reservaModificada.ts) y el
+  // panel la etiqueta «Reserva modificada» en vez de dejar la conversación
+  // original sin nada.
+  rescheduledToId          String?
 
   @@index([professionalId])
   @@index([externalCalendarProvider, externalCalendarId])
@@ -707,30 +712,30 @@ model Transcript {
 }
 
 model Recording {
-  id          String    @id @default(cuid())
-  callId      String    @unique
-  externalUrl String
-  storageKey  String?
-  storageUrl  String?
-  reviewed    Boolean   @default(false)
-  reviewNotes String?
+  id                 String    @id @default(cuid())
+  callId             String    @unique
+  externalUrl        String
+  storageKey         String?
+  storageUrl         String?
+  reviewed           Boolean   @default(false)
+  reviewNotes        String?
   // La URL que llega en el webhook de Telnyx caduca a los 10 minutos. Con el
   // leg se le puede pedir una nueva (GET /v2/recordings?filter[call_leg_id])
   // en vez de dar la grabación por perdida si el primer intento no llegó a
   // tiempo. Retell no lo necesita: sus URLs no caducan.
-  providerLegId       String?
+  providerLegId      String?
   // Marca de "irrecuperable": el proveedor ya no tiene el audio (o nunca lo
   // tuvo). retryStuckRecordings deja de reencolarla y el motivo queda para el
   // panel. Sin esto, 50 grabaciones caducadas reintentaban cada 15 min para
   // siempre (~8.000 peticiones al día a un 403).
-  processingFailedAt  DateTime?
-  processingError     String?
+  processingFailedAt DateTime?
+  processingError    String?
   // La revisión o retirada desde el panel no destruye de inmediato un dato
   // histórico. Las políticas de retención se encargan de la purga física.
-  deletedAt   DateTime?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  call        Call      @relation(fields: [callId], references: [id], onDelete: Cascade)
+  deletedAt          DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  call               Call      @relation(fields: [callId], references: [id], onDelete: Cascade)
 
   @@index([deletedAt])
   @@index([createdAt])
@@ -740,23 +745,23 @@ model Recording {
 }
 
 model Lead {
-  id         String    @id @default(cuid())
-  callId     String
-  type       String
-  data       Json
-  isLead     Boolean   @default(false)
+  id           String    @id @default(cuid())
+  callId       String
+  type         String
+  data         Json
+  isLead       Boolean   @default(false)
   // Se marca cuando un reintento en segundo plano (jobs/retryFailedBooking.ts)
   // confirma una reserva que había fallado durante la llamada.
-  resolvedAt DateTime?
+  resolvedAt   DateTime?
   // Aviso al negocio de esta cita pendiente (WhatsApp o email): cuándo y por
   // qué vía (`interactivo`, `plantilla`, `email`, o `ninguna:<motivo>`).
-  notifiedAt  DateTime?
-  notifiedVia String?
+  notifiedAt   DateTime?
+  notifiedVia  String?
   // «Recuérdamelo mañana» en el aviso de un recado: hasta cuándo se pospone
   // (el job recordar-recado lo vuelve a avisar si sigue sin resolver).
   snoozedUntil DateTime?
-  createdAt  DateTime  @default(now())
-  call       Call      @relation(fields: [callId], references: [id], onDelete: Cascade)
+  createdAt    DateTime  @default(now())
+  call         Call      @relation(fields: [callId], references: [id], onDelete: Cascade)
 
   @@index([callId])
   // El contador de citas pendientes del panel y el listado de leads filtran
@@ -794,24 +799,34 @@ model SentMessage {
   // por aquí (verificado en la fase 0.1).
   providerMessageId String?   @unique
   businessId        String?
-  /** "client" | "owner" — a qué remitente de Alhabla pertenece el envío. */
+  /**
+   * "client" | "owner" — a qué remitente de Alhabla pertenece el envío.
+   */
   audience          String?
   fromNumber        String?
   toNumber          String?
-  /** "template" | "text" | "interactive" | "contacts" */
+  /**
+   * "template" | "text" | "interactive" | "contacts"
+   */
   kind              String?
   templateName      String?
   templateLanguage  String?
-  /** `biz_opaque_callback_data`: vuelve en los `statuses[]` de Meta. */
+  /**
+   * `biz_opaque_callback_data`: vuelve en los `statuses[]` de Meta.
+   */
   callbackData      String?
-  /** Último estado conocido: queued | sent | delivered | read | failed */
+  /**
+   * Último estado conocido: queued | sent | delivered | read | failed
+   */
   deliveryStatus    String?
   deliveredAt       DateTime?
   readAt            DateTime?
   failedAt          DateTime?
   errorCode         String?
   errorDetail       String?   @db.Text
-  /** Coste en USD con cuatro decimales, tal como lo informa Telnyx. */
+  /**
+   * Coste en USD con cuatro decimales, tal como lo informa Telnyx.
+   */
   costAmount        Decimal?  @db.Decimal(10, 5)
   costCurrency      String?
 
@@ -833,20 +848,30 @@ model SentMessage {
  */
 model WhatsappSender {
   id                  String    @id @default(cuid())
-  /** "client" | "owner" */
+  /**
+   * "client" | "owner"
+   */
   audience            String    @unique
-  /** E.164, p.ej. "+34930454394". */
+  /**
+   * E.164, p.ej. "+34930454394".
+   */
   phoneNumber         String    @unique
   telnyxPhoneNumberId String?
-  /** `phone_number_id` de Meta, el que llega en `metadata` del webhook. */
+  /**
+   * `phone_number_id` de Meta, el que llega en `metadata` del webhook.
+   */
   metaPhoneNumberId   String?
   displayName         String?
   displayNameStatus   String?
-  /** Estado en el WABA tal como lo informa Telnyx: CONNECTED, PENDING… */
+  /**
+   * Estado en el WABA tal como lo informa Telnyx: CONNECTED, PENDING…
+   */
   status              String
   qualityRating       String?
   messagingLimit      String?
-  /** Versión del perfil (about, descripción, foto) aplicada por el script. */
+  /**
+   * Versión del perfil (about, descripción, foto) aplicada por el script.
+   */
   profileVersion      Int       @default(0)
   lastSyncedAt        DateTime?
   createdAt           DateTime  @default(now())
@@ -868,13 +893,19 @@ model WhatsappTemplate {
   key              String?   @unique
   name             String
   language         String
-  /** UUID de Telnyx — es por lo que se envía SIEMPRE (por nombre + idioma
-   * `es_ES` Meta devuelve 40008; verificado el 19-09). */
+  /**
+   * UUID de Telnyx — es por lo que se envía SIEMPRE (por nombre + idioma
+   * `es_ES` Meta devuelve 40008; verificado el 19-09).
+   */
   telnyxTemplateId String    @unique
   metaTemplateId   String?
-  /** UTILITY | MARKETING | AUTHENTICATION */
+  /**
+   * UTILITY | MARKETING | AUTHENTICATION
+   */
   category         String
-  /** APPROVED | PENDING | REJECTED | PAUSED | DISABLED | PENDING_DELETION */
+  /**
+   * APPROVED | PENDING | REJECTED | PAUSED | DISABLED | PENDING_DELETION
+   */
   status           String
   qualityRating    String?
   rejectionReason  String?   @db.Text
@@ -896,25 +927,39 @@ model WhatsappTemplate {
  */
 model InboundMessage {
   id                String    @id @default(cuid())
-  /** `messages[].id` (UUID de Telnyx). */
+  /**
+   * `messages[].id` (UUID de Telnyx).
+   */
   providerMessageId String    @unique
-  /** `messages[].foreign_id` (`wamid…` de Meta). */
+  /**
+   * `messages[].foreign_id` (`wamid…` de Meta).
+   */
   foreignId         String?
   eventId           String?
   fromNumber        String
-  /** Número de Alhabla que recibe, en E.164. */
+  /**
+   * Número de Alhabla que recibe, en E.164.
+   */
   toNumber          String
-  /** "client" | "owner" | null si el número receptor no es un remitente conocido. */
+  /**
+   * "client" | "owner" | null si el número receptor no es un remitente conocido.
+   */
   audience          String?
-  /** "owner" | "client" | "unknown" — quién escribe, según la BD. */
+  /**
+   * "owner" | "client" | "unknown" — quién escribe, según la BD.
+   */
   role              String
   businessId        String?
-  /** "text" | "button" | "keyword" | "audio" | "media" | "other" */
+  /**
+   * "text" | "button" | "keyword" | "audio" | "media" | "other"
+   */
   kind              String
   text              String?   @db.Text
   buttonId          String?
   buttonTitle       String?
-  /** `context.id`: id del mensaje saliente al que responde (botón o cita). */
+  /**
+   * `context.id`: id del mensaje saliente al que responde (botón o cita).
+   */
   contextMessageId  String?
   contactName       String?
   payload           Json
@@ -943,19 +988,31 @@ model InboundMessage {
  */
 model WhatsappOptOut {
   id                 String    @id @default(cuid())
-  /** E.164 del móvil que pidió la baja. */
+  /**
+   * E.164 del móvil que pidió la baja.
+   */
   phoneNumber        String
-  /** "client" | "owner": a qué número de Alhabla escribió. */
+  /**
+   * "client" | "owner": a qué número de Alhabla escribió.
+   */
   audience           String
   optedOutAt         DateTime
-  /** "STOP" | "BAJA": la palabra exacta que escribió. */
+  /**
+   * "STOP" | "BAJA": la palabra exacta que escribió.
+   */
   keyword            String
-  /** InboundMessage.id del STOP (prueba). */
+  /**
+   * InboundMessage.id del STOP (prueba).
+   */
   inboundMessageId   String?
-  /** Negocio con el que se le identificó en ese momento (informativo). */
+  /**
+   * Negocio con el que se le identificó en ese momento (informativo).
+   */
   businessId         String?
   revokedAt          DateTime?
-  /** InboundMessage.id del ALTA que la revocó. */
+  /**
+   * InboundMessage.id del ALTA que la revocó.
+   */
   revokedByMessageId String?
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
