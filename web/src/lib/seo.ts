@@ -36,16 +36,17 @@ export function absoluteUrl(path = "/") {
 export const contactEmail = "hola@alhabla.ai";
 
 /**
- * Imagen de Open Graph / Twitter para TODAS las páginas. La ruta
- * `app/opengraph-image.tsx` solo se hereda cuando la página no declara su
- * propio `openGraph`; en cuanto una página lo declara (todas las indexables
- * lo hacen para fijar título y canónica), Next sustituye el objeto entero y
- * la imagen desaparece — visto en el HTML generado de los nichos, /planes,
- * legales y artículos. Se añade explícitamente en cada una.
+ * Imagen de Open Graph / Twitter de una página: cada ruta indexable tiene
+ * su `opengraph-image.tsx` (portada, sectores, planes, blog, artículos,
+ * legales) generado con la plantilla de lib/og/plantilla.tsx. La ruta de
+ * fichero solo se hereda cuando la página no declara `openGraph`; como
+ * todas lo hacen (título y canónica propios), la imagen se referencia aquí
+ * explícitamente con la ruta de la propia página.
  */
 export const ogImageAlt = "Alhabla — Recepción telefónica para negocios con cita previa";
-export function ogImages() {
-  return [{ url: absoluteUrl("/opengraph-image"), width: 1200, height: 630, alt: ogImageAlt }];
+export function ogImages(path = "/", alt = ogImageAlt) {
+  const base = path === "/" ? "" : path.replace(/\/$/, "");
+  return [{ url: absoluteUrl(`${base}/opengraph-image`), width: 1200, height: 630, alt }];
 }
 
 /** Identificadores estables del grafo: los nichos y el blog los referencian

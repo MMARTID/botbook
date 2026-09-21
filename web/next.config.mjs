@@ -25,7 +25,19 @@ const APP_PATHS = [
   "/dev/:path*",
 ];
 
+// Las imágenes de Open Graph (lib/og/plantilla.tsx) leen del disco las
+// fuentes, el isotipo y las fotos de sector con rutas calculadas en
+// runtime; sin declararlas aquí, el trazado de Vercel no las empaqueta en
+// las funciones y la imagen sale sin foto ni tipografía.
+const OG_ASSETS = ["./src/lib/og/*.woff", "./public/brand/alhabla-isotipo.png", "./public/heroes/*.jpg"];
+
 const nextConfig = {
+  experimental: {
+    outputFileTracingIncludes: {
+      "/opengraph-image": OG_ASSETS,
+      "/**/opengraph-image": OG_ASSETS,
+    },
+  },
   async rewrites() {
     return [
       {
