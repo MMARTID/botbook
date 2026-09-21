@@ -234,7 +234,7 @@ describe("executeVoiceTool book_appointment — vinculación a la llamada correc
       where: { callId: "call_vapi_OLD" },
       // businessId en el select para comprobar que la llamada es de este
       // negocio antes de colgarle la reserva.
-      select: { id: true, fromNumber: true, businessId: true },
+      select: { id: true, fromNumber: true, businessId: true, startedAt: true },
     });
     expect(mockedCallFindFirst).not.toHaveBeenCalled();
     expect(mockedBookingUpsert).toHaveBeenCalledWith(
@@ -305,7 +305,7 @@ describe("executeVoiceTool book_appointment — vinculación a la llamada correc
     // hacerse pasar por la llamada en curso y quedarse con su reserva.
     expect(heuristico.where.startedAt.gte).toBeInstanceOf(Date);
     expect(heuristico.orderBy).toEqual({ startedAt: "desc" });
-    expect(heuristico.select).toEqual({ id: true });
+    expect(heuristico.select).toEqual({ id: true, startedAt: true });
     expect(mockedBookingUpsert).toHaveBeenCalledWith(
       expect.objectContaining({ where: { callId: "call_row_MOST_RECENT" } })
     );

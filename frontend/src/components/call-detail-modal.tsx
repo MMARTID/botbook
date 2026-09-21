@@ -196,7 +196,9 @@ export function CallDetailModal({
                   <div className="mt-2 space-y-2">
                     <p className="text-sm leading-6 text-muted">
                       {call.booking?.isCancelled
-                        ? "La reserva creada en esta llamada se canceló después."
+                        ? call.booking.rescheduledToId
+                          ? "La reserva creada en esta conversación la cambió el cliente después: la cita nueva está en la conversación en la que la cambió."
+                          : "La reserva creada en esta llamada se canceló después."
                         : "Esta llamada no generó ninguna reserva."}
                     </p>
                     {/* El motivo lo clasifica el análisis post-llamada; sin él

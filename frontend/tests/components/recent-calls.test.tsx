@@ -139,6 +139,24 @@ describe("RecentCalls", () => {
     expect(screen.queryByText("Reserva creada")).not.toBeInTheDocument();
   });
 
+  it("marca 'Reserva modificada' si el cliente cambió la cita en otra conversación", async () => {
+    mockedGetCalls.mockResolvedValue({
+      data: [
+        buildCall({
+          booking: { id: "booking_1", isCancelled: true, rescheduledToId: "booking_2" } as any,
+        }),
+      ],
+      total: 1,
+      limit: 6,
+      offset: 0,
+    });
+
+    renderWithClient();
+
+    await screen.findByText("Reserva modificada");
+    expect(screen.queryByText("Reserva creada")).not.toBeInTheDocument();
+  });
+
   it("un chat de WhatsApp se presenta como chat, no como llamada de 0 segundos", async () => {
     mockedGetCalls.mockResolvedValue({
       data: [buildCall({ voiceProvider: "whatsapp", durationSecs: 0, fromNumber: "+34691325557" })],

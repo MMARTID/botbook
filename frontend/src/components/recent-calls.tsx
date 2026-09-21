@@ -2,11 +2,12 @@
 
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { CalendarCheck, ChevronRight, Frown, Meh, MessageCircle, PhoneCall, Smile } from "lucide-react";
+import { CalendarCheck, CalendarClock, ChevronRight, Frown, Meh, MessageCircle, PhoneCall, Smile } from "lucide-react";
 import { getCalls } from "@/lib/api";
 import {
   escalationReasonChip,
   esChatDeWhatsapp,
+  etiquetaDeReserva,
   formatCanalYDuracion,
   formatDate,
   formatPhone,
@@ -81,7 +82,7 @@ export function RecentCalls() {
         <ul className="mt-4 divide-y divide-[#e5e5e5]">
           {calls.map((call) => {
             const tone = outcomeTone(call.outcome);
-            const hasBooking = call.booking && !call.booking.isCancelled;
+            const reserva = etiquetaDeReserva(call.booking);
             const motivo = escalationReasonChip(call.escalationReason);
             const SentimentIcon = call.sentiment ? SENTIMENT_ICON[call.sentiment] : null;
             return (
@@ -108,10 +109,17 @@ export function RecentCalls() {
                       <span>{formatDate(call.startedAt)}</span>
                       <span aria-hidden="true">·</span>
                       <span>{formatCanalYDuracion(call)}</span>
-                      {hasBooking ? (
+                      {reserva === "creada" ? (
                         <span className="inline-flex items-center gap-1 rounded-full bg-[#f3eeff] px-2 py-0.5 font-semibold text-[#6d28d9] ring-1 ring-inset ring-[#ddd6fe]">
                           <CalendarCheck className="h-3 w-3" aria-hidden="true" />
                           Reserva creada
+                        </span>
+                      ) : reserva === "modificada" ? (
+                        // El cliente la cambió en otra conversación: la cita
+                        // nueva lleva allí «Reserva creada».
+                        <span className="inline-flex items-center gap-1 rounded-full bg-[#f4f4f5] px-2 py-0.5 font-semibold text-[#52525b] ring-1 ring-inset ring-[#e5e5e5]">
+                          <CalendarClock className="h-3 w-3" aria-hidden="true" />
+                          Reserva modificada
                         </span>
                       ) : motivo ? (
                         // Solo cuando no hubo cita: ahí es cuando el motivo

@@ -2,6 +2,7 @@ import { prisma } from "../../lib/prisma.js";
 import { randomUUID } from "node:crypto";
 import { getRedis } from "../../lib/redis.js";
 import { nombreParaElCliente } from "../../lib/nombreProfesional.js";
+import { enlazarReservaModificada } from "../bookings/reservaModificada.js";
 import { claveDeCacheDeVoz } from "../../lib/voiceConfigCache.js";
 import {
   checkBusinessHours,
@@ -754,11 +755,11 @@ async function resolveCallForBusiness(
   callId: string | undefined,
   businessId: string,
   callLabel: string
-): Promise<{ id: string; fromNumber: string | null } | null> {
+): Promise<{ id: string; fromNumber: string | null; startedAt: Date } | null> {
   const exactCall = callId
     ? await prisma.call.findUnique({
         where: { callId },
-        select: { id: true, fromNumber: true, businessId: true },
+        select: { id: true, fromNumber: true, businessId: true, startedAt: true },
       })
     : null;
 
@@ -773,7 +774,7 @@ async function resolveCallForBusiness(
       );
       return null;
     }
-    return { id: exactCall.id, fromNumber: exactCall.fromNumber };
+    return { id: exactCall.id, fromNumber: exactCall.fromNumber, startedAt: exactCall.startedAt };
   }
 
   if (callId) {
@@ -802,7 +803,7 @@ async function resolveCallForBusiness(
       startedAt: { gte: new Date(Date.now() - MAX_CALL_AGE_FOR_FALLBACK_MS) },
     },
     orderBy: { startedAt: "desc" },
-    select: { id: true },
+    select: { id: true, startedAt: true },
   });
 
   if (!fallbackCall) {
@@ -814,7 +815,7 @@ async function resolveCallForBusiness(
   // llamadas simultáneas al mismo negocio puede devolver la de otro
   // cliente, así que su fromNumber nunca debe usarse como teléfono de
   // contacto de esta reserva.
-  return { id: fallbackCall.id, fromNumber: null };
+  return { id: fallbackCall.id, fromNumber: null, startedAt: fallbackCall.startedAt };
 }
 
 /**
@@ -1727,6 +1728,23 @@ async function executeBookAppointment(
             select: { id: true },
           });
           reservaGuardadaId = reservaGuardada?.id ?? null;
+          // Si el cliente acaba de cancelar otra cita en esta misma
+          // conversación, esto es un cambio, no una cita nueva: se enlaza
+          // para que la conversación original diga «Reserva modificada».
+          if (reservaGuardadaId) {
+            try {
+              await enlazarReservaModificada({
+                businessId: business.id,
+                nuevaReservaId: reservaGuardadaId,
+                conversacion: call,
+                clientPhone: effectiveClientPhone,
+              });
+            } catch (errorAlEnlazar) {
+              console.error(
+                `[VoiceTools] ${callLabel} no pudo enlazar la reserva modificada: ${errorMessage(errorAlEnlazar)}`
+              );
+            }
+          }
           } catch (errorAlGuardar) {
             // El evento ya está en el calendario del negocio pero la reserva
             // no se ha podido guardar. Si lo dejáramos así, el dueño vería una

@@ -2,11 +2,11 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { CalendarCheck, ChevronLeft, ChevronRight, Frown, Meh, MessageCircle, PhoneCall, Smile } from "lucide-react";
+import { CalendarCheck, CalendarClock, ChevronLeft, ChevronRight, Frown, Meh, MessageCircle, PhoneCall, Smile } from "lucide-react";
 import { CallDetailModal } from "@/components/call-detail-modal";
 import { SectionEmptyState, SectionErrorState } from "@/components/section-card";
 import { getCalls } from "@/lib/api";
-import { esChatDeWhatsapp, formatCanalYDuracion, formatDate, formatPhone, formatPrice, outcomeLabel, outcomeTone, sentimentLabel } from "@/lib/format";
+import { esChatDeWhatsapp, etiquetaDeReserva, formatCanalYDuracion, formatDate, formatPhone, formatPrice, outcomeLabel, outcomeTone, sentimentLabel } from "@/lib/format";
 import type { Call } from "@/lib/types";
 
 const PAGE_SIZE = 25;
@@ -102,7 +102,14 @@ function CallActivityRow({ call, onOpen }: { call: Call; onOpen: () => void }) {
               <span className="mt-1 block truncate text-xs leading-5 text-muted">{booking.professional?.name ? `${booking.professional.name} · ` : ""}{amount != null ? formatPrice(amount) : "Precio pendiente"}</span>
             </span>
           ) : (
-            <span className="block"><span className="text-sm font-medium text-[#27272a]">{outcomeLabel(call.outcome)}</span>{call.summary ? <span className="mt-1 line-clamp-1 block text-xs leading-5 text-muted">{call.summary}</span> : null}</span>
+            <span className="block">
+              {etiquetaDeReserva(call.booking) === "modificada" ? (
+                <span className="flex items-center gap-1.5 text-sm font-medium text-[#27272a]"><CalendarClock className="h-4 w-4 shrink-0 text-[#52525b]" aria-hidden="true" />Reserva modificada</span>
+              ) : (
+                <span className="text-sm font-medium text-[#27272a]">{outcomeLabel(call.outcome)}</span>
+              )}
+              {call.summary ? <span className="mt-1 line-clamp-1 block text-xs leading-5 text-muted">{call.summary}</span> : null}
+            </span>
           )}
         </span>
         <span className="flex items-center gap-2 sm:justify-end">
