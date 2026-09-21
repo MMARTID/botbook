@@ -28,6 +28,7 @@ import { BrandMark } from "@/components/brand-mark";
 import { useBusiness } from "@/components/providers";
 import { clearAuthTokens } from "@/lib/billing-navigation";
 import { getBillingSummary } from "@/lib/api";
+import { webUrl } from "@/lib/web-url";
 
 type NavItem = {
   href: string;
@@ -58,26 +59,20 @@ const ACCOUNT_NAVIGATION: NavItem[] = [
   { href: "/ajustes/facturacion", label: "Facturación", icon: CreditCard },
 ];
 
+// Pantallas de cuenta sin el armazón del panel (sin sesión o a medio
+// entrar). La landing, los sectores, los planes y las legales viven en la
+// web pública (PLAN-APP-DOMINIO.md), no aquí.
 const PUBLIC_ROUTES = [
-  "/landing",
-  "/peluqueria",
-  "/centro-de-estetica",
-  "/salon-de-unas",
-  "/barberia",
-  "/fisioterapia",
   "/login",
   "/recuperar-contrasena",
   "/restablecer-contrasena",
-  "/register",
-  "/register/business",
-  "/register/business/niche",
-  "/register/business/services",
-  "/register/business/team",
-  "/register/business/calendar",
-  "/planes",
+  "/bienvenida",
+  "/bienvenida/niche",
+  "/bienvenida/services",
+  "/bienvenida/team",
+  "/bienvenida/calendar",
   "/auth/google/callback",
-  "/legal/privacidad",
-  "/legal/aviso-legal",
+  "/auth/entrar",
   "/dev/entrar",
 ];
 
@@ -254,9 +249,9 @@ function MobileMoreSheet({ pathname, onClose }: { pathname: string; onClose: () 
         <MinutesWarningCard onNavigate={onClose} />
         <nav className="mt-5 space-y-1" aria-label="Cuenta">
           {[...GESTOR_NAVIGATION, ...ACCOUNT_NAVIGATION].map((item) => <NavigationLink key={item.href} item={item} pathname={pathname} onNavigate={onClose} />)}
-          <Link href="/legal/privacidad" onClick={onClose} className="flex min-h-11 items-center gap-3 rounded-full px-4 text-sm font-semibold text-[#3f3f46] transition hover:bg-[#fafafa] hover:text-[#0a0a0a] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]">
+          <a href={webUrl("/legal/privacidad")} onClick={onClose} className="flex min-h-11 items-center gap-3 rounded-full px-4 text-sm font-semibold text-[#3f3f46] transition hover:bg-[#fafafa] hover:text-[#0a0a0a] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]">
             <ShieldCheck className="h-4 w-4" aria-hidden="true" /> Privacidad y datos
-          </Link>
+          </a>
           <button type="button" onClick={() => { clearAuthTokens(); window.location.assign("/login"); }} className="flex min-h-11 w-full items-center gap-3 rounded-full px-4 text-left text-sm font-semibold text-[#3f3f46] transition hover:bg-[#fafafa] hover:text-[#0a0a0a] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]">
             <LogOut className="h-4 w-4" aria-hidden="true" /> Cerrar sesión
           </button>

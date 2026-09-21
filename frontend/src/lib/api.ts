@@ -91,6 +91,13 @@ export async function resetPassword(input: { token: string; password: string }) 
   return data;
 }
 
+/** Canjea el pase de un solo uso con el que la web pública manda a la app
+ * tras crear la cuenta (PLAN-APP-DOMINIO.md § 3). Devuelve el JWT. */
+export async function redeemPass(pase: string) {
+  const { data } = await api.post<{ token: string }>("/auth/pase/canjear", { pase });
+  return data.token;
+}
+
 export async function consumeGoogleSession() {
   const { data } = await api.post<{ token: string }>("/auth/google/session", undefined, {
     withCredentials: true,

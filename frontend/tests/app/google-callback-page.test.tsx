@@ -52,14 +52,14 @@ describe("GoogleCallbackPage", () => {
     restore();
   });
 
-  it("sin plan pendiente, guarda el token y redirige a /register/business", async () => {
+  it("sin plan pendiente, guarda el token y redirige a /bienvenida", async () => {
     const { replace, restore } = mockLocation("");
     mockedConsumeGoogleSession.mockResolvedValue("jwt_123");
 
     render(<GoogleCallbackPage />);
 
     await waitFor(() => expect(window.localStorage.getItem("alhabla_token")).toBe("jwt_123"));
-    expect(replace).toHaveBeenCalledWith("/register/business");
+    expect(replace).toHaveBeenCalledWith("/bienvenida");
     restore();
   });
 
@@ -70,7 +70,7 @@ describe("GoogleCallbackPage", () => {
 
     render(<GoogleCallbackPage />);
 
-    await waitFor(() => expect(replace).toHaveBeenCalledWith("/register/business?plan=pro"));
+    await waitFor(() => expect(replace).toHaveBeenCalledWith("/bienvenida?plan=pro"));
     // El plan pendiente se consume (se borra) al usarse.
     expect(window.localStorage.getItem("alhabla_pending_plan")).toBeNull();
     restore();
