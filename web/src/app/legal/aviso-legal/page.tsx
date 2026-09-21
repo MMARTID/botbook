@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { LegalPage, LegalSection } from "@/components/legal-page";
-import { absoluteUrl, siteName } from "@/lib/seo";
+import { absoluteUrl, ogImages, siteName } from "@/lib/seo";
 
 export const metadata: Metadata = {
   title: "Aviso legal",
@@ -17,6 +17,7 @@ export const metadata: Metadata = {
     siteName,
     locale: "es_ES",
     type: "website",
+    images: ogImages(),
   },
   robots: { index: true, follow: true },
 };

@@ -3,8 +3,9 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { MDXRemote } from "next-mdx-remote/rsc";
 import { BackLink } from "@/components/back-link";
+import { SiteFooter } from "@/components/site-footer";
 import { fechaLarga, leerArticulo, listarArticulos } from "@/lib/blog";
-import { absoluteUrl, siteName } from "@/lib/seo";
+import { absoluteUrl, buildBreadcrumbStructuredData, ogImages, organizationId, siteName, websiteId } from "@/lib/seo";
 
 type Props = { params: { slug: string } };
 
@@ -29,6 +30,13 @@ export function generateMetadata({ params }: Props): Metadata {
       title: articulo.titulo,
       description: articulo.resumen,
       publishedTime: articulo.fecha,
+      images: ogImages(),
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: articulo.titulo,
+      description: articulo.resumen,
+      images: ogImages(),
     },
   };
 }
@@ -67,16 +75,48 @@ export default function ArticuloPage({ params }: Props) {
           dangerouslySetInnerHTML={{
             __html: JSON.stringify({
               "@context": "https://schema.org",
-              "@type": "Article",
-              headline: articulo.titulo,
-              description: articulo.resumen,
-              datePublished: articulo.fecha,
-              author: { "@type": "Organization", name: siteName },
-              mainEntityOfPage: absoluteUrl(`/blog/${articulo.slug}`),
+              "@graph": [
+                buildBreadcrumbStructuredData([
+                  { name: "Blog", path: "/blog" },
+                  { name: articulo.titulo, path: `/blog/${articulo.slug}` },
+                ]),
+                {
+                  // BlogPosting (subtipo de Article) con lo que Google pide
+                  // para el resultado enriquecido: imagen, fechas y editor
+                  // con logo, referenciando la misma organización que el
+                  // resto del sitio.
+                  "@type": "BlogPosting",
+                  "@id": `${absoluteUrl(`/blog/${articulo.slug}`)}#article`,
+                  headline: articulo.titulo,
+                  description: articulo.resumen,
+                  image: ogImages().map((i) => i.url),
+                  datePublished: articulo.fecha,
+                  dateModified: articulo.fecha,
+                  inLanguage: "es-ES",
+                  author: { "@id": organizationId() },
+                  publisher: { "@id": organizationId() },
+                  isPartOf: { "@id": `${absoluteUrl("/blog")}#blog` },
+                  mainEntityOfPage: {
+                    "@type": "WebPage",
+                    "@id": absoluteUrl(`/blog/${articulo.slug}`),
+                    isPartOf: { "@id": websiteId() },
+                  },
+                },
+                // La organización se declara aquí también: el artículo se
+                // puede compartir/indexar sin pasar por la portada.
+                {
+                  "@type": "Organization",
+                  "@id": organizationId(),
+                  name: siteName,
+                  url: absoluteUrl("/"),
+                  logo: { "@type": "ImageObject", url: absoluteUrl("/icon.png"), width: 512, height: 512 },
+                },
+              ],
             }),
           }}
         />
       </div>
+      <SiteFooter />
     </main>
   );
 }

@@ -1,14 +1,50 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { BackLink } from "@/components/back-link";
+import { SiteFooter } from "@/components/site-footer";
 import { fechaLarga, listarArticulos } from "@/lib/blog";
-import { absoluteUrl } from "@/lib/seo";
+import { absoluteUrl, buildBreadcrumbStructuredData, ogImages, organizationId, siteName, websiteId } from "@/lib/seo";
+
+const blogTitle = "Blog: llamadas, citas y atención al cliente";
+const blogDescription =
+  "Guías y consejos para peluquerías, barberías, centros de estética, salones de uñas y clínicas de fisioterapia que no quieren perder ni una llamada.";
 
 export const metadata: Metadata = {
-  title: "Blog",
-  description:
-    "Guías y consejos para peluquerías, barberías, centros de estética, salones de uñas y clínicas de fisioterapia que no quieren perder ni una llamada.",
+  title: blogTitle,
+  description: blogDescription,
   alternates: { canonical: absoluteUrl("/blog"), types: { "application/rss+xml": absoluteUrl("/blog/rss.xml") } },
+  openGraph: {
+    type: "website",
+    locale: "es_ES",
+    url: absoluteUrl("/blog"),
+    siteName,
+    title: `${blogTitle} | ${siteName}`,
+    description: blogDescription,
+    images: ogImages(),
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: `${blogTitle} | ${siteName}`,
+    description: blogDescription,
+    images: ogImages(),
+  },
+};
+
+const blogStructuredData = {
+  "@context": "https://schema.org",
+  "@graph": [
+    buildBreadcrumbStructuredData([{ name: "Blog", path: "/blog" }]),
+    {
+      "@type": "Blog",
+      "@id": `${absoluteUrl("/blog")}#blog`,
+      name: `${blogTitle} | ${siteName}`,
+      description: blogDescription,
+      url: absoluteUrl("/blog"),
+      inLanguage: "es-ES",
+      isPartOf: { "@id": websiteId() },
+      publisher: { "@id": organizationId() },
+    },
+  ],
 };
 
 export default function BlogPage() {
@@ -47,6 +83,11 @@ export default function BlogPage() {
           </ul>
         )}
       </div>
+      <SiteFooter />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(blogStructuredData) }}
+      />
     </main>
   );
 }

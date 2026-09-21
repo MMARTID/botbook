@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { absoluteUrl, buildFaqPageStructuredData, siteName } from "@/lib/seo";
+import { absoluteUrl, buildFaqPageStructuredData, ogImages, organizationId, siteName, websiteId } from "@/lib/seo";
 import { NICHE_ACCENTS } from "@/lib/niche-accents";
 
 export type NicheSlug = "peluqueria" | "centro-de-estetica" | "salon-de-unas" | "barberia" | "fisioterapia";
@@ -835,11 +835,13 @@ export function getNicheMetadata(content: NicheLandingContent): Metadata {
       siteName,
       locale: "es_ES",
       type: "website",
+      images: ogImages(),
     },
     twitter: {
       card: "summary_large_image",
       title: `${content.title} | ${siteName}`,
       description: content.description,
+      images: ogImages(),
     },
     other: {
       "geo.region": "ES",
@@ -862,7 +864,9 @@ export function getNicheStructuredData(content: NicheLandingContent) {
         description: content.description,
         url,
         inLanguage: "es-ES",
-        isPartOf: { "@type": "WebSite", "@id": `${absoluteUrl("/")}#website`, name: siteName, url: absoluteUrl("/") },
+        // Misma entidad que declara la portada (seo.ts): sin repetir nombre
+        // ni url para que Google no vea dos WebSite distintos.
+        isPartOf: { "@id": websiteId() },
         about: { "@id": `${url}#service` },
         keywords: content.keywords.join(", "),
       },
@@ -871,7 +875,7 @@ export function getNicheStructuredData(content: NicheLandingContent) {
         "@id": `${url}#service`,
         name: content.primaryKeyword,
         serviceType: "Recepción telefónica con inteligencia artificial y gestión de citas",
-        provider: { "@type": "Organization", "@id": `${absoluteUrl("/")}#organization`, name: siteName, url: absoluteUrl("/") },
+        provider: { "@id": organizationId() },
         areaServed: { "@type": "Country", name: "España" },
         audience: { "@type": "BusinessAudience", audienceType: content.name },
         description: content.description,

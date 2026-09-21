@@ -32,21 +32,71 @@ export function absoluteUrl(path = "/") {
   return new URL(path, siteUrl).toString();
 }
 
+/** Correo público (el del pie de la web). */
+export const contactEmail = "hola@alhabla.ai";
+
+/**
+ * Imagen de Open Graph / Twitter para TODAS las páginas. La ruta
+ * `app/opengraph-image.tsx` solo se hereda cuando la página no declara su
+ * propio `openGraph`; en cuanto una página lo declara (todas las indexables
+ * lo hacen para fijar título y canónica), Next sustituye el objeto entero y
+ * la imagen desaparece — visto en el HTML generado de los nichos, /planes,
+ * legales y artículos. Se añade explícitamente en cada una.
+ */
+export const ogImageAlt = "Alhabla — Recepción telefónica para negocios con cita previa";
+export function ogImages() {
+  return [{ url: absoluteUrl("/opengraph-image"), width: 1200, height: 630, alt: ogImageAlt }];
+}
+
+/** Identificadores estables del grafo: los nichos y el blog los referencian
+ * con `isPartOf`/`publisher`, así que TODAS las páginas comparten la misma
+ * entidad de organización y de sitio web. */
+export const organizationId = () => `${absoluteUrl("/")}#organization`;
+export const websiteId = () => `${absoluteUrl("/")}#website`;
+
+export function organizationStructuredData() {
+  return {
+    "@type": "Organization",
+    "@id": organizationId(),
+    name: siteName,
+    url: absoluteUrl("/"),
+    logo: { "@type": "ImageObject", url: absoluteUrl("/icon.png"), width: 512, height: 512 },
+    description: defaultDescription,
+    contactPoint: {
+      "@type": "ContactPoint",
+      contactType: "customer support",
+      email: contactEmail,
+      availableLanguage: ["es"],
+      areaServed: "ES",
+    },
+  } as const;
+}
+
+/** Migas para el grafo de cualquier página interior (Inicio → … → página). */
+export function buildBreadcrumbStructuredData(items: readonly { name: string; path: string }[]) {
+  return {
+    "@type": "BreadcrumbList",
+    itemListElement: [{ name: "Inicio", path: "/" }, ...items].map((item, index) => ({
+      "@type": "ListItem",
+      position: index + 1,
+      name: item.name,
+      item: absoluteUrl(item.path),
+    })),
+  } as const;
+}
+
 export const landingStructuredData = {
   "@context": "https://schema.org",
   "@graph": [
-    {
-      "@type": "Organization",
-      name: siteName,
-      url: absoluteUrl("/"),
-      description: defaultDescription,
-    },
+    organizationStructuredData(),
     {
       "@type": "WebSite",
+      "@id": websiteId(),
       name: siteName,
       url: absoluteUrl("/"),
       inLanguage: "es-ES",
       description: defaultDescription,
+      publisher: { "@id": organizationId() },
     },
     {
       "@type": "SoftwareApplication",
@@ -71,11 +121,7 @@ export const landingStructuredData = {
     {
       "@type": "Service",
       serviceType: "Asistente telefónico 24/7 con IA",
-      provider: {
-        "@type": "Organization",
-        name: siteName,
-        url: absoluteUrl("/"),
-      },
+      provider: { "@id": organizationId() },
       areaServed: "ES",
       audience: {
         "@type": "Audience",

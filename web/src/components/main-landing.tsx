@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { SiteFooter } from "@/components/site-footer";
 import { useEffect, useRef, useState } from "react";
 import { ArrowRight, Check, ChevronLeft, ChevronRight, Headphones } from "lucide-react";
 import { motion, useReducedMotion, type PanInfo } from "framer-motion";
@@ -537,7 +538,7 @@ export function MainLanding() {
       </section>
 
       <section className="bg-[#0a0a0a] text-white"><Reveal className="mx-auto flex max-w-7xl flex-col items-start justify-between gap-7 px-4 py-16 sm:px-6 sm:py-20 lg:flex-row lg:items-center lg:px-8"><div><p className="text-sm font-bold uppercase tracking-[0.14em] text-[#a78bfa]">Tu recepción, siempre disponible</p><h2 className="mt-3 max-w-xl text-3xl font-black tracking-tight sm:text-5xl">Prueba qué pasa cuando nadie deja una llamada sin atender.</h2></div><Link href="/planes" className="btn-purple shrink-0">Empezar ahora <ArrowRight className="h-4 w-4" aria-hidden="true" /></Link></Reveal></section>
-      <footer className="bg-[#0a0a0a] text-white/70"><div className="mx-auto flex max-w-7xl flex-col gap-5 px-4 py-8 sm:px-6 md:flex-row md:items-center md:justify-between lg:px-8"><div className="flex flex-col gap-1"><p className="text-sm">© 2026 Alhabla</p><p className="text-sm">Titular: Miguel Martín Delgado</p></div><nav aria-label="Enlaces legales" className="flex flex-wrap items-center gap-x-4 text-sm font-medium"><Link href="/legal/privacidad" className="inline-flex h-11 items-center transition hover:text-white">Privacidad</Link><Link href="/legal/aviso-legal" className="inline-flex h-11 items-center transition hover:text-white">Aviso legal</Link><a href="mailto:hola@alhabla.ai" className="inline-flex h-11 items-center transition hover:text-white">Contacto</a></nav></div></footer>
+      <SiteFooter />
       <DemoVoiceCall open={isDemoOpen} onClose={() => setIsDemoOpen(false)} />
     </main>
   );
