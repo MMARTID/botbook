@@ -38,13 +38,13 @@ export const landingStructuredData = {
     {
       "@type": "Organization",
       name: siteName,
-      url: absoluteUrl("/landing"),
+      url: absoluteUrl("/"),
       description: defaultDescription,
     },
     {
       "@type": "WebSite",
       name: siteName,
-      url: absoluteUrl("/landing"),
+      url: absoluteUrl("/"),
       inLanguage: "es-ES",
       description: defaultDescription,
     },
@@ -59,7 +59,7 @@ export const landingStructuredData = {
         "@type": "Audience",
         audienceType: "Peluquerías, barberías, centros de estética y negocios con cita previa",
       },
-      url: absoluteUrl("/landing"),
+      url: absoluteUrl("/"),
       offers: {
         "@type": "AggregateOffer",
         lowPrice: "69",
@@ -74,7 +74,7 @@ export const landingStructuredData = {
       provider: {
         "@type": "Organization",
         name: siteName,
-        url: absoluteUrl("/landing"),
+        url: absoluteUrl("/"),
       },
       areaServed: "ES",
       audience: {
@@ -83,10 +83,27 @@ export const landingStructuredData = {
       },
       description:
         "Servicio de recepción telefónica inteligente para captar llamadas, reservar citas y mantener una atención constante sin ampliar equipo.",
-      url: absoluteUrl("/landing"),
+      url: absoluteUrl("/"),
     },
   ],
 } as const;
+
+/**
+ * Bloque FAQPage reutilizable: mismo formato para la portada (FAQ corta) y
+ * cada landing de nicho (FAQ completa) — antes vivía duplicado inline. Sin
+ * `@context` propio porque va anidado dentro de un `@graph` que ya lo
+ * declara; para usarlo como `<script>` suelto hay que añadirlo aparte.
+ */
+export function buildFaqPageStructuredData(faqs: readonly { question: string; answer: string }[]) {
+  return {
+    "@type": "FAQPage",
+    mainEntity: faqs.map(({ question, answer }) => ({
+      "@type": "Question",
+      name: question,
+      acceptedAnswer: { "@type": "Answer", text: answer },
+    })),
+  } as const;
+}
 
 /**
  * Metadata para páginas privadas (panel, login, registro, checkout...):

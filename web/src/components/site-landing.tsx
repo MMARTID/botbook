@@ -1,16 +1,14 @@
 
 import Link from "next/link";
-import { appUrl } from "@/lib/app-url";
 import { ArrowRight, CalendarDays, Check, Clock3, MessageCircleMore, Scissors, Sparkles, Store } from "lucide-react";
 import { LandingHero } from "@/components/landing-hero";
-import { MobileNav } from "@/components/mobile-nav";
+import { SiteHeader } from "@/components/site-header";
 import { SectorDataSection } from "@/components/sector-data-section";
 import { TeamRoutingSection } from "@/components/team-routing-section";
 import { OwnerAssistantSection } from "@/components/owner-assistant-section";
 import { WhatsAppBenefitsTable } from "@/components/whatsapp-benefits-table";
 import { RevenueLossCalculator } from "@/components/revenue-loss-calculator";
 import { Reveal } from "@/components/scroll-reveal";
-import { BrandMark } from "@/components/brand-mark";
 import { CallForwardingFlow } from "@/components/call-forwarding-flow";
 import { formatIncludedMinutes, formatPlanPrice, plans, TRIAL_REASSURANCE } from "@/lib/plans";
 import { type NicheLandingContent } from "@/lib/niche-landings";
@@ -20,15 +18,6 @@ import { MainLanding } from "@/components/main-landing";
 
 function buildPlansHref(niche?: string) {
   return niche ? `/planes?niche=${encodeURIComponent(niche)}` : "/planes";
-}
-
-function BrandLogo() {
-  return (
-    <Link href="/" aria-label="Ir al inicio de Alhabla" className="flex min-w-0 items-center gap-2.5">
-      <BrandMark className="h-8 w-8 shrink-0 sm:h-9 sm:w-9" />
-      <p className="text-base font-black leading-5 tracking-tight text-[#0a0a0a]">Alhabla</p>
-    </Link>
-  );
 }
 
 const businessBenefits = [
@@ -131,33 +120,7 @@ export function SiteLanding({ content }: { content?: NicheLandingContent }) {
         Saltar al contenido
       </a>
 
-      <header className="sticky top-0 z-50 border-b border-[#e5e5e5] bg-white/90 backdrop-blur-xl">
-        <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-3 px-4 sm:px-6 lg:h-[4.5rem] lg:px-8">
-          <BrandLogo />
-          <nav className="hidden items-center gap-3 md:flex" aria-label="Navegación principal">
-            <a href="#por-que" className="enlace-nav">
-              Por qué
-            </a>
-            <a href="#como-funciona" className="enlace-nav">
-              Cómo funciona
-            </a>
-            <a href="#precios" className="enlace-nav">
-              Precios
-            </a>
-            <a href="#preguntas" className="enlace-nav">
-              Preguntas
-            </a>
-            <a href={appUrl("/login")} className="btn-secondary h-10 px-4">
-              Iniciar sesión
-            </a>
-            <Link href={plansHref} className="btn-primary h-10 px-4">
-              Empezar ahora
-            </Link>
-          </nav>
-
-          <MobileNav niche={content?.slug} />
-        </div>
-      </header>
+      <SiteHeader niche={content?.slug} />
 
       <div id="contenido" tabIndex={-1} className="outline-none">
         <LandingHero content={content} />

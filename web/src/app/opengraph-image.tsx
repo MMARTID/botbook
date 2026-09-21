@@ -7,8 +7,11 @@ export const contentType = "image/png";
 
 /**
  * Imagen que se ve al compartir el enlace por WhatsApp, el canal principal de
- * este sector. Se dibuja con los tokens del sistema: papel verde, tinta Verde
- * Mostrador y un solo acento en Brote Claro.
+ * este sector. Se dibuja con los tokens actuales del sistema (rediseño
+ * negro/blanco/morado, agosto 2026, ver DESIGN.md): blanco puro, tinta casi
+ * negra (#0a0a0a) y el acento morado de marca (#8b5cf6 / #f3eeff) reservado
+ * a badges y al precio — la misma paleta que `globals.css`, no la del papel
+ * verde de mostrador anterior.
  */
 export default async function OpenGraphImage() {
   return new ImageResponse(
@@ -21,9 +24,9 @@ export default async function OpenGraphImage() {
           flexDirection: "column",
           justifyContent: "space-between",
           padding: "80px",
-          backgroundColor: "#eef2eb",
+          backgroundColor: "#ffffff",
           backgroundImage:
-            "radial-gradient(circle at 88% 8%, rgba(184,217,110,0.45), transparent 45%), linear-gradient(160deg, #f7f8f5 0%, #eef2eb 55%, #e7ece4 100%)",
+            "radial-gradient(circle at 88% 8%, rgba(139,92,246,0.14), transparent 45%), linear-gradient(160deg, #ffffff 0%, #fafafa 55%, #f3eeff 100%)",
           fontFamily: "sans-serif",
         }}
       >
@@ -33,11 +36,11 @@ export default async function OpenGraphImage() {
               width: "72px",
               height: "72px",
               borderRadius: "16px",
-              backgroundColor: "#1e2b22",
+              backgroundColor: "#0a0a0a",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              color: "#b8d96e",
+              color: "#ffffff",
               fontSize: "38px",
               fontWeight: 700,
             }}
@@ -45,10 +48,10 @@ export default async function OpenGraphImage() {
             A
           </div>
           <div style={{ display: "flex", flexDirection: "column" }}>
-            <span style={{ fontSize: "38px", fontWeight: 700, color: "#1e2b22", letterSpacing: "-0.02em" }}>
+            <span style={{ fontSize: "38px", fontWeight: 700, color: "#0a0a0a", letterSpacing: "-0.02em" }}>
               Alhabla
             </span>
-            <span style={{ fontSize: "24px", color: "#54634b" }}>Recepción telefónica con IA</span>
+            <span style={{ fontSize: "24px", color: "#52525b" }}>Recepción telefónica con IA</span>
           </div>
         </div>
 
@@ -58,14 +61,14 @@ export default async function OpenGraphImage() {
               fontSize: "76px",
               lineHeight: 1.06,
               fontWeight: 600,
-              color: "#1e2b22",
+              color: "#0a0a0a",
               letterSpacing: "-0.03em",
               maxWidth: "980px",
             }}
           >
             No pierdas otra reserva por no contestar el teléfono
           </span>
-          <span style={{ fontSize: "30px", lineHeight: 1.4, color: "#54634b", maxWidth: "860px" }}>
+          <span style={{ fontSize: "30px", lineHeight: 1.4, color: "#52525b", maxWidth: "860px" }}>
             Atiende llamadas, resuelve dudas y reserva citas en tu agenda 24/7 — incluso mientras atiendes a otro
             cliente.
           </span>
@@ -77,7 +80,7 @@ export default async function OpenGraphImage() {
               display: "flex",
               alignItems: "center",
               borderRadius: "9999px",
-              backgroundColor: "#1e2b22",
+              backgroundColor: "#0a0a0a",
               color: "#ffffff",
               padding: "16px 32px",
               fontSize: "26px",
@@ -86,7 +89,7 @@ export default async function OpenGraphImage() {
           >
             Desde 69 €/mes
           </div>
-          <span style={{ fontSize: "26px", color: "#54634b" }}>
+          <span style={{ fontSize: "26px", color: "#52525b" }}>
             7 días de prueba · Sin permanencia · Peluquerías, barberías, uñas, estética y fisioterapia
           </span>
         </div>

@@ -4,32 +4,15 @@ import Link from "next/link";
 import { appUrl } from "@/lib/app-url";
 import { useEffect, useRef, useState } from "react";
 import { ArrowRight, Menu, X } from "lucide-react";
+import { nicheLinks, type NicheSlug } from "@/lib/niche-landings";
 
-function buildPlansHref(niche?: string) {
+function buildPlansHref(niche?: NicheSlug) {
   return niche ? `/planes?niche=${encodeURIComponent(niche)}` : "/planes";
 }
 
-const VERTICAL_SECTION_LINKS = [
-  { href: "#por-que", label: "Por qué" },
-  { href: "#como-funciona", label: "Cómo funciona" },
-  { href: "#precios", label: "Precios" },
-  { href: "#preguntas", label: "Preguntas" },
-] as const;
-
-// Mismas entradas y mismo orden que la navegación de escritorio de la
-// portada: el móvil tenía la mitad y dejaba «Precios» sin ruta directa
-// justo para quien mira desde el móvil entre clientas.
-const MAIN_SECTION_LINKS = [
-  { href: "#sectores", label: "Tu negocio" },
-  { href: "#como-funciona", label: "Cómo funciona" },
-  { href: "#precios", label: "Precios" },
-  { href: "#preguntas", label: "Preguntas" },
-] as const;
-
-export function MobileNav({ niche, variant = "vertical" }: { niche?: string; variant?: "main" | "vertical" }) {
+export function MobileNav({ niche }: { niche?: NicheSlug }) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const plansHref = buildPlansHref(niche);
-  const sectionLinks = variant === "main" ? MAIN_SECTION_LINKS : VERTICAL_SECTION_LINKS;
   const containerRef = useRef<HTMLDivElement | null>(null);
   const toggleRef = useRef<HTMLButtonElement | null>(null);
 
@@ -71,6 +54,10 @@ export function MobileNav({ niche, variant = "vertical" }: { niche?: string; var
     };
   }, [isMenuOpen]);
 
+  const closeMenu = () => setIsMenuOpen(false);
+  const linkClass =
+    "flex h-11 items-center rounded-full px-3 text-sm font-medium text-[#3f3f46] transition duration-200 hover:bg-[#f3eeff] hover:text-[#0a0a0a]";
+
   return (
     <div ref={containerRef} className="flex items-center gap-2 md:hidden">
       <Link href={plansHref} className="btn-primary h-11 px-4 text-sm">
@@ -99,7 +86,7 @@ export function MobileNav({ niche, variant = "vertical" }: { niche?: string; var
           <div
             className="fixed inset-0 z-40 bg-[#0a0a0a]/20"
             aria-hidden="true"
-            onClick={() => setIsMenuOpen(false)}
+            onClick={closeMenu}
           />
           {/* `aria-modal` no es un atributo válido en un landmark `nav`
               (role implícito "navigation", no "dialog") — jsx-a11y lo marca
@@ -110,32 +97,37 @@ export function MobileNav({ niche, variant = "vertical" }: { niche?: string; var
             aria-label="Navegación móvil"
             className="fixed inset-x-0 top-16 z-50 max-h-[calc(100svh-4rem)] overflow-y-auto border-t border-[#e5e5e5] bg-white px-4 py-4 shadow-[0_16px_36px_-24px_rgba(0,0,0,0.35)]"
           >
-          <div className="flex flex-col gap-1.5">
-            {sectionLinks.map(({ href, label }) => (
-              <a
-                key={href}
-                href={href}
-                onClick={() => setIsMenuOpen(false)}
-                className="flex h-11 items-center rounded-full px-3 text-sm font-medium text-[#3f3f46] transition duration-200 hover:bg-[#f3eeff] hover:text-[#0a0a0a]"
-              >
-                {label}
+            <div className="flex flex-col gap-1.5">
+              <p className="px-3 pt-1 pb-0.5 text-xs font-semibold uppercase tracking-[0.12em] text-[#a1a1aa]">
+                Sectores
+              </p>
+              {nicheLinks.map(({ href, label }) => (
+                <Link key={href} href={href} onClick={closeMenu} className={linkClass}>
+                  {label}
+                </Link>
+              ))}
+
+              <div className="my-1 border-t border-[#e5e5e5]" />
+
+              <a href="#como-funciona" onClick={closeMenu} className={linkClass}>
+                Cómo funciona
               </a>
-            ))}
-            <a
-              href={appUrl("/login")}
-              onClick={() => setIsMenuOpen(false)}
-              className="flex h-11 items-center rounded-full px-3 text-sm font-medium text-[#3f3f46] transition duration-200 hover:bg-[#f3eeff] hover:text-[#0a0a0a]"
-            >
-              Iniciar sesión
-            </a>
-            <Link
-              href={plansHref}
-              onClick={() => setIsMenuOpen(false)}
-              className="btn-primary mt-1.5 justify-center"
-            >
-              Empezar ahora
-            </Link>
-          </div>
+              <Link href={plansHref} onClick={closeMenu} className={linkClass}>
+                Precios
+              </Link>
+              <Link href="/blog" onClick={closeMenu} className={linkClass}>
+                Blog
+              </Link>
+              <a href="#preguntas" onClick={closeMenu} className={linkClass}>
+                Preguntas
+              </a>
+              <a href={appUrl("/login")} onClick={closeMenu} className={linkClass}>
+                Iniciar sesión
+              </a>
+              <Link href={plansHref} onClick={closeMenu} className="btn-primary mt-1.5 justify-center">
+                Empezar ahora
+              </Link>
+            </div>
           </nav>
         </>
       ) : null}

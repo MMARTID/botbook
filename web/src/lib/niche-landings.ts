@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { absoluteUrl, siteName } from "@/lib/seo";
+import { absoluteUrl, buildFaqPageStructuredData, siteName } from "@/lib/seo";
 import { NICHE_ACCENTS } from "@/lib/niche-accents";
 
 export type NicheSlug = "peluqueria" | "centro-de-estetica" | "salon-de-unas" | "barberia" | "fisioterapia";
@@ -862,7 +862,7 @@ export function getNicheStructuredData(content: NicheLandingContent) {
         description: content.description,
         url,
         inLanguage: "es-ES",
-        isPartOf: { "@type": "WebSite", "@id": `${absoluteUrl("/landing")}#website`, name: siteName, url: absoluteUrl("/landing") },
+        isPartOf: { "@type": "WebSite", "@id": `${absoluteUrl("/")}#website`, name: siteName, url: absoluteUrl("/") },
         about: { "@id": `${url}#service` },
         keywords: content.keywords.join(", "),
       },
@@ -871,7 +871,7 @@ export function getNicheStructuredData(content: NicheLandingContent) {
         "@id": `${url}#service`,
         name: content.primaryKeyword,
         serviceType: "Recepción telefónica con inteligencia artificial y gestión de citas",
-        provider: { "@type": "Organization", "@id": `${absoluteUrl("/landing")}#organization`, name: siteName, url: absoluteUrl("/landing") },
+        provider: { "@type": "Organization", "@id": `${absoluteUrl("/")}#organization`, name: siteName, url: absoluteUrl("/") },
         areaServed: { "@type": "Country", name: "España" },
         audience: { "@type": "BusinessAudience", audienceType: content.name },
         description: content.description,
@@ -896,8 +896,8 @@ export function getNicheStructuredData(content: NicheLandingContent) {
         audience: { "@type": "BusinessAudience", audienceType: content.name },
         offers: { "@type": "AggregateOffer", lowPrice: "69", highPrice: "299", priceCurrency: "EUR", offerCount: "3" },
       },
-      { "@type": "FAQPage", mainEntity: content.faqs.map(({ question, answer }) => ({ "@type": "Question", name: question, acceptedAnswer: { "@type": "Answer", text: answer } })) },
-      { "@type": "BreadcrumbList", itemListElement: [{ "@type": "ListItem", position: 1, name: "Inicio", item: absoluteUrl("/landing") }, { "@type": "ListItem", position: 2, name: "Soluciones", item: absoluteUrl("/landing#soluciones") }, { "@type": "ListItem", position: 3, name: content.name, item: url }] },
+      buildFaqPageStructuredData(content.faqs),
+      { "@type": "BreadcrumbList", itemListElement: [{ "@type": "ListItem", position: 1, name: "Inicio", item: absoluteUrl("/") }, { "@type": "ListItem", position: 2, name: content.name, item: url }] },
     ],
   };
 }
