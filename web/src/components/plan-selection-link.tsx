@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { appUrl } from "@/lib/app-url";
 import { normalizeBusinessType } from "@/lib/business-type";
 import type { PlanId } from "@/lib/types";
 
@@ -19,7 +20,7 @@ type PlanSelectionLinkProps = {
  * (TRIAL_REASSURANCE); no se repite tres veces.
  */
 function describeSelection() {
-  return "Crea tu cuenta y añade una tarjeta: no se cobra nada hasta que termina la prueba.";
+  return "Si ya tienes cuenta vas directo al pago; si no, la creas. Se pide tarjeta, pero no se cobra nada hasta que termina la prueba.";
 }
 
 // Registro abierto (el bloqueo «por invitación» de producción se retiró el
@@ -31,15 +32,16 @@ export function PlanSelectionLink({ planId, planName, featured, preselected = fa
   const selectPlan = () => {
     setNavigating(true);
 
-    // En la web nunca hay sesión (vive en app.alhabla.ai): el plan y el
-    // sector viajan en la query hasta el registro y de ahí a la app.
+    // La web no sabe si hay sesión (vive en app.alhabla.ai): el plan y el
+    // sector viajan en la query a /elegir-plan de la app, que decide entre
+    // checkout (con sesión) y registro (sin ella).
     const params = new URLSearchParams();
     params.set("plan", planId);
     const niche = new URLSearchParams(window.location.search).get("niche");
     if (niche) {
       params.set("niche", normalizeBusinessType(niche));
     }
-    window.location.assign(`/register?${params.toString()}`);
+    window.location.assign(appUrl(`/elegir-plan?${params.toString()}`));
   };
 
   return (
