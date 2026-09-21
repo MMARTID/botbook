@@ -360,7 +360,11 @@ describe("internalJobsRoutes", () => {
 
   describe("POST /jobs/recordar-desvio-sin-comprobar", () => {
     it("despacha el job sin body y devuelve el recuento", async () => {
-      mockedRecordarDesvioJob.mockResolvedValue({ recordados: 1, omitidos: 2 });
+      mockedRecordarDesvioJob.mockResolvedValue({
+        recordados: 1,
+        confirmados: 3,
+        omitidos: 2,
+      });
 
       const response = await fastify.inject({
         method: "POST",
@@ -371,6 +375,7 @@ describe("internalJobsRoutes", () => {
       expect(response.json()).toEqual({
         received: true,
         recordados: 1,
+        confirmados: 3,
         omitidos: 2,
       });
       expect(mockedRecordarDesvioJob).toHaveBeenCalledTimes(1);

@@ -540,7 +540,9 @@ el `fetch` equivalente. **Nunca desde un route handler**: todo pasa por
   calendario) y `/ajustes/telefono` a `/ajustes#telefono` (Ajustes › Teléfono, desde la fase 2
   del plan de telefonía). Idempotente por recurso (`pago:<invoiceId>`,
   `minutos:<periodId>`, `prueba:<subscriptionId>`, `calendario:<biz>:<proveedor>:<día>`,
-  `telefono:<biz>:<día>`, `desvio:<biz>` para el recordatorio de desvío sin comprobar).
+  `telefono:<biz>:<día>`, `desvio:<biz>:<intento>` / `desvio-ok:<biz>:<intento>` para el
+  mensaje del día 1 sobre el desvío — con el instante del intento, para que el job pueda
+  reintentar si no salió por ninguna vía).
 
 **Código (fase 1, PR 5 — recado por post-conversación, 2026-09-20).**
 - Tool `informar_al_negocio` (`buildInformarAlNegocioTool` en `lib/telnyxAssistantPayload.ts`,
@@ -1460,8 +1462,9 @@ is now a **Cloud Scheduler** job hitting the same kind of endpoint every
      the transcript stayed forever and a GDPR erasure request could not be
      honoured.
 
-8. **Recordatorio «aún no has comprobado el desvío»**
-   (`backend/src/jobs/recordarDesvioSinComprobar.ts`) — added 2026-09-22,
+8. **Mensaje del día 1 sobre el desvío** («tu desvío está comprobado» o
+   «aún no has comprobado el desvío»;
+   `backend/src/jobs/recordarDesvioSinComprobar.ts`) — added 2026-09-22,
    PLAN-TELEFONIA-UX.md § 5, fase 5.
    - `POST /internal/jobs/recordar-desvio-sin-comprobar`, pensado para
      ejecutarse **cada hora**. **Needs a Cloud Scheduler job to be created**
@@ -1475,25 +1478,37 @@ is now a **Cloud Scheduler** job hitting the same kind of endpoint every
      ```
    - Barre los negocios activos con número de Alhabla activo cuyo
      `telnyxPhoneNumberPurchasedAt` cae entre **24 y 48 h** atrás, con
-     `customerLineType` distinto de `"alhabla"` (o null),
-     `OnboardingState.forwardingCheckedAt` a null, **ninguna llamada real**
-     (`calls` sin ninguna fila con `voiceProvider != "whatsapp"`; las Call
-     sintéticas del chat no pasan por el desvío) y `forwardingReminderSentAt`
-     a null. Si `phone === telnyxPhoneNumber` (caso E sin la columna puesta)
-     se salta sin marcar.
-   - Manda **una vez** la alerta operativa `alertarDesvioSinComprobar`
-     (`modules/whatsapp/alertas.ts`, causa `telefono`, recursoId
-     `desvio:<businessId>`, texto en `mensajes.alertaDesvioSinComprobar`) por
-     la cascada habitual del canal del dueño (interactivo con botón «Ir a
-     Ajustes» → plantilla `alerta_operativa_negocio` → email
-     `operationalAlertEmail`). El enlace es `/ajustes/telefono`, que
-     `frontend/next.config.mjs` redirige a `/ajustes#telefono` (Ajustes ›
-     Teléfono).
+     `customerLineType` distinto de `"alhabla"` (o null) y
+     `forwardingReminderSentAt` a null, **y que cumplen lo mismo que
+     «Comprobar desvío»** (el recordatorio promete «te llamamos»):
+     `voiceRoutingTarget = "telnyx"`, `phone` sin el `TEMP-` del registro y
+     fijo/móvil español (`esLineaDeClientesEspanola`, comprobado en el bucle).
+     Si `phone === telnyxPhoneNumber` (caso E sin la columna puesta) o la
+     línea no es española se salta **sin marcar**.
+   - Dos variantes, según `OnboardingState.forwardingCheckedAt`:
+     - puesto → **«tu desvío está comprobado»** (`alertarDesvioComprobado`,
+       recursoId `desvio-ok:<businessId>:<intento>`, texto en
+       `mensajes.alertaDesvioComprobado`, email `forwardingCheckedEmail`
+       «Todo listo», no el de alerta);
+     - a null y **ninguna llamada real** (`calls` sin ninguna fila con
+       `voiceProvider != "whatsapp"`; las Call sintéticas del chat no pasan
+       por el desvío) → **«aún no has comprobado el desvío»**
+       (`alertarDesvioSinComprobar`, recursoId `desvio:<businessId>:<intento>`,
+       texto en `mensajes.alertaDesvioSinComprobar`, email
+       `operationalAlertEmail`);
+     - a null pero con llamadas reales → nada.
+     Las dos salen por la cascada habitual del canal del dueño (interactivo
+     con botón «Ir a Ajustes» → plantilla `alerta_operativa_negocio` →
+     email). El enlace es `/ajustes/telefono`, que `frontend/next.config.mjs`
+     redirige a `/ajustes#telefono` (Ajustes › Teléfono).
    - Idempotente: reclama `Business.forwardingReminderSentAt` con un
      `updateMany` condicional **antes** de avisar (Cloud Scheduler entrega al
      menos una vez); si el aviso no sale por ninguna vía (`via: "ninguna"`)
      retira la marca con un `console.error` para reintentar en la siguiente
-     pasada mientras dure la ventana.
+     pasada mientras dure la ventana. El `<intento>` del recursoId es el
+     `ahora` de la pasada: con un recursoId fijo la fila de `sent_messages`
+     que crea `reclamarEnvio` haría que todo reintento devolviese «ya
+     enviado» y el mensaje no saldría nunca.
 
 **Messaging idempotency (2026-09-17):** Cloud Tasks delivers **at least once**,
 so `send-email`, `send-sms` and `send-whatsapp` claim the send in
@@ -1670,7 +1685,8 @@ aceptadas por `PATCH /business/me` (`modules/businesses/routes.ts`):
   sigue dando siempre: es el de la propia recepcionista.
 - `OnboardingState.forwardingCheckedAt`: el desvío se **comprobó de verdad** (ver abajo).
   Distinto de `forwardingConfirmedAt` («el usuario dice que sí») y de la primera llamada.
-- `Business.forwardingReminderSentAt` (fase 5): marca del recordatorio único, § Background Jobs 8.
+- `Business.forwardingReminderSentAt` (fase 5): marca del mensaje único del día 1 (en
+  cualquiera de sus dos variantes), § Background Jobs 8.
 
 Tipos de línea y códigos: **los MMI son los mismos en todos los operadores españoles**
 (`*21*`, `*61*`, `*62*`, `*67*` + número + `#`; con `**` en móviles; se quitan con `#21#`,
@@ -1746,9 +1762,11 @@ Alhabla. Todo el estado vive en Redis; en Postgres solo queda `forwardingChecked
    con qué hacer (`TEXTO_POR_MOTIVO`). «Ya lo he activado» sigue existiendo como respaldo
    solo en la tarjeta del panel de inicio.
 
-Recordatorio: si a las 24 h de comprar el número no hay comprobación ni llamada real, el job
-`recordar-desvio-sin-comprobar` (§ Background Jobs 8) manda una única alerta operativa con
-enlace a Ajustes › Teléfono.
+Mensaje del día 1: a las 24 h de comprar el número, el job `recordar-desvio-sin-comprobar`
+(§ Background Jobs 8) escribe una sola vez al dueño: «tu desvío está comprobado» si lo
+comprobó, o «aún no has comprobado el desvío» si no hay comprobación ni llamada real; en
+ambos casos con enlace a Ajustes › Teléfono, y solo a negocios a los que «Comprobar desvío»
+les funcionaría.
 
 ## Stripe Billing
 

@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   accountDeletedEmail,
+  forwardingCheckedEmail,
   paymentApprovedEmail,
   paymentFailedEmail,
   passwordChangedEmail,
@@ -111,5 +112,22 @@ describe("passwordResetEmail", () => {
     const { html } = passwordResetEmail({ resetUrl: "https://app.alhabla.ai/x" });
 
     expect(html).toContain("Si no has pedido este cambio");
+  });
+});
+
+describe("forwardingCheckedEmail", () => {
+  it("es una buena noticia: asunto con el negocio, texto con mayúscula inicial y CTA a Ajustes › Teléfono", () => {
+    const { subject, html } = forwardingCheckedEmail({
+      businessName: "Peluquería Ana",
+      texto: "tu desvío de llamadas está comprobado: todo bien.",
+      panelUrl: "https://app.alhabla.ai/ajustes/telefono",
+    });
+
+    expect(subject).toBe("Tu desvío está comprobado — Peluquería Ana");
+    expect(html).toContain("Todo listo en Peluquería Ana");
+    expect(html).toContain("Tu desvío de llamadas está comprobado: todo bien.");
+    expect(html).toContain('href="https://app.alhabla.ai/ajustes/telefono"');
+    expect(html).not.toContain("Necesita tu atención");
+    expect(html).toContain("<!DOCTYPE html>");
   });
 });

@@ -1,7 +1,10 @@
 import { prisma } from "../../lib/prisma.js";
 import { errorMessage } from "../../lib/logUtils.js";
 import { enqueueEmailJob } from "../../lib/cloudTasks.js";
-import { operationalAlertEmail } from "../../lib/emailTemplates.js";
+import {
+  forwardingCheckedEmail,
+  operationalAlertEmail,
+} from "../../lib/emailTemplates.js";
 import {
   avisarAlerta,
   RUTA_DE_ALERTA,
@@ -42,12 +45,21 @@ function diaDeHoy(timezone: string): string {
     .replace(/-/g, "");
 }
 
+/** Construye asunto y cuerpo del email de respaldo; por defecto, el de
+ * alerta operativa («Necesita tu atención»). */
+type PlantillaDeEmail = (input: {
+  businessName: string;
+  texto: string;
+  panelUrl: string;
+}) => { subject: string; html: string };
+
 async function emailDeAlerta(input: {
   businessId: string;
   businessName: string;
   causa: CausaDeAlerta;
   texto: string;
   recursoId: string;
+  plantillaDeEmail?: PlantillaDeEmail;
 }): Promise<void> {
   const usuario = await prisma.user.findFirst({
     where: { businessId: input.businessId },
@@ -57,7 +69,8 @@ async function emailDeAlerta(input: {
   if (!usuario?.email) {
     throw new Error("el negocio no tiene ningún correo");
   }
-  const { subject, html } = operationalAlertEmail({
+  const plantilla = input.plantillaDeEmail ?? operationalAlertEmail;
+  const { subject, html } = plantilla({
     businessName: input.businessName,
     texto: input.texto,
     panelUrl: mensajes.panelUrl(`/ajustes/${RUTA_DE_ALERTA[input.causa]}`),
@@ -77,6 +90,8 @@ async function alertar(input: {
   texto: (negocio: Negocio) => string;
   /** Las alertas de facturación ya tienen su email: no hace falta respaldo. */
   conEmailDeRespaldo: boolean;
+  /** Email distinto del de alerta operativa (p. ej. una buena noticia). */
+  plantillaDeEmail?: PlantillaDeEmail;
 }): Promise<ResultadoAviso> {
   let recursoId = `${input.causa}:${input.businessId}`;
   try {
@@ -103,6 +118,7 @@ async function alertar(input: {
               causa: input.causa,
               texto,
               recursoId,
+              plantillaDeEmail: input.plantillaDeEmail,
             })
         : undefined,
     });
@@ -145,21 +161,50 @@ export async function alertarNumeroNoActivo(input: {
 }
 
 /**
- * Recordatorio único «aún no has comprobado el desvío» (PLAN-TELEFONIA-UX.md
- * § 5, fase 5), que manda jobs/recordarDesvioSinComprobar.ts entre 24 y 48 h
- * después de comprar el número. La idempotencia de verdad está en
- * `Business.forwardingReminderSentAt`; el recursoId sin fecha solo evita que
- * una doble entrega del job repita el mensaje.
+ * Mensaje del día 1 sobre el desvío (PLAN-TELEFONIA-UX.md § 5, fase 5), en
+ * su variante negativa: «aún no has comprobado el desvío». Lo manda
+ * jobs/recordarDesvioSinComprobar.ts entre 24 y 48 h después de comprar el
+ * número. La idempotencia de verdad está en
+ * `Business.forwardingReminderSentAt`; el recursoId lleva el instante del
+ * intento (`intento`, el `ahora` con el que el job reclamó la marca) para
+ * que, si el aviso no sale por ninguna vía y el job retira la marca, la
+ * pasada siguiente pueda reintentarlo de verdad: con un recursoId fijo la
+ * fila de `sent_messages` que crea `reclamarEnvio` haría que todo reintento
+ * devolviese «ya enviado» y el dueño no recibiría nunca el mensaje.
  */
 export async function alertarDesvioSinComprobar(input: {
   businessId: string;
+  intento: Date;
 }): Promise<ResultadoAviso> {
   return alertar({
     businessId: input.businessId,
     causa: "telefono",
-    recursoId: () => `desvio:${input.businessId}`,
+    recursoId: () =>
+      `desvio:${input.businessId}:${input.intento.toISOString()}`,
     texto: () => mensajes.alertaDesvioSinComprobar(),
     conEmailDeRespaldo: true,
+  });
+}
+
+/**
+ * Mensaje del día 1 en su variante positiva: «tu desvío está comprobado».
+ * Mismo job, misma marca y mismo recursoId por intento que la negativa; sale
+ * por la cascada de alertas (interactivo → plantilla `alerta_operativa_negocio`
+ * → email), pero el email es `forwardingCheckedEmail`, no el de «Necesita tu
+ * atención».
+ */
+export async function alertarDesvioComprobado(input: {
+  businessId: string;
+  intento: Date;
+}): Promise<ResultadoAviso> {
+  return alertar({
+    businessId: input.businessId,
+    causa: "telefono",
+    recursoId: () =>
+      `desvio-ok:${input.businessId}:${input.intento.toISOString()}`,
+    texto: () => mensajes.alertaDesvioComprobado(),
+    conEmailDeRespaldo: true,
+    plantillaDeEmail: forwardingCheckedEmail,
   });
 }
 

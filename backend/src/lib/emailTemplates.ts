@@ -217,6 +217,25 @@ export function operationalAlertEmail(input: {
   return { subject, html };
 }
 
+/** Mensaje del día 1 en positivo (PLAN-TELEFONIA-UX.md § 5, fase 5): el
+ * desvío ya está comprobado. Respaldo por email de `alertarDesvioComprobado`
+ * cuando el dueño no tiene WhatsApp activo; no es una alerta, así que no
+ * lleva el «Necesita tu atención» de `operationalAlertEmail`. */
+export function forwardingCheckedEmail(input: {
+  businessName: string;
+  texto: string;
+  panelUrl: string;
+}): { subject: string; html: string } {
+  const subject = `Tu desvío está comprobado — ${input.businessName}`;
+  const primera = input.texto.charAt(0).toUpperCase() + input.texto.slice(1);
+  const html = emailShell(`
+    <p style="font-size:18px;font-weight:600;margin:0 0 16px 0;">Todo listo en ${input.businessName}</p>
+    <p style="margin:0;">${primera}</p>
+    ${ctaButton(input.panelUrl, "Ver Ajustes › Teléfono")}
+  `);
+  return { subject, html };
+}
+
 export function weeklySummaryEmail(input: {
   businessName: string;
   weekStart: Date;
