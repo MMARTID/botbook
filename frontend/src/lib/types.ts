@@ -476,6 +476,8 @@ export type Call = {
   requestedService: string | null;
   durationSecs: number | null;
   costCents: number | null;
+  /** "telnyx" | "retell" para llamadas; "whatsapp" para chats con la recepcionista. */
+  voiceProvider: string;
   startedAt: string;
   endedAt: string | null;
   createdAt: string;
@@ -594,7 +596,12 @@ export type PendingBooking = {
 export type WeeklyStats = {
   from: string;
   to: string;
+  /** Llamadas de voz; los chats de WhatsApp van en `chats`. */
   calls: number;
+  /** Conversaciones de WhatsApp con la recepcionista. */
+  chats: number;
+  /** Llamadas y chats que acabaron con cita, aunque luego se moviera o cancelara. */
+  conversationsWithBooking: number;
   bookings: number;
   /** `null` si el negocio no tiene ningún precio configurado. */
   revenueCents: number | null;
@@ -603,6 +610,8 @@ export type WeeklyStats = {
   pendingBookings: number;
   previous: {
     calls: number;
+    chats: number;
+    conversationsWithBooking: number;
     bookings: number;
     revenueCents: number | null;
   };

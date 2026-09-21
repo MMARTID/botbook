@@ -2,12 +2,13 @@
 
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { CalendarCheck, ChevronRight, Frown, Meh, PhoneCall, Smile } from "lucide-react";
+import { CalendarCheck, ChevronRight, Frown, Meh, MessageCircle, PhoneCall, Smile } from "lucide-react";
 import { getCalls } from "@/lib/api";
 import {
   escalationReasonChip,
+  esChatDeWhatsapp,
+  formatCanalYDuracion,
   formatDate,
-  formatDuration,
   formatPhone,
   outcomeLabel,
   outcomeTone,
@@ -91,7 +92,11 @@ export function RecentCalls() {
                   className="flex w-full items-center gap-3 rounded-xl px-2 py-3 text-left transition hover:bg-[#fafafa] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] sm:px-3"
                 >
                   <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#f3eeff] text-[#8b5cf6]">
-                    <PhoneCall className="h-4 w-4" />
+                    {esChatDeWhatsapp(call) ? (
+                      <MessageCircle className="h-4 w-4" aria-label="Chat de WhatsApp" />
+                    ) : (
+                      <PhoneCall className="h-4 w-4" />
+                    )}
                   </span>
                   <span className="min-w-0 flex-1">
                     {/* Quién llamó manda sobre cuándo: es el dato con el que
@@ -102,7 +107,7 @@ export function RecentCalls() {
                     <span className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-muted">
                       <span>{formatDate(call.startedAt)}</span>
                       <span aria-hidden="true">·</span>
-                      <span>{formatDuration(call.durationSecs)}</span>
+                      <span>{formatCanalYDuracion(call)}</span>
                       {hasBooking ? (
                         <span className="inline-flex items-center gap-1 rounded-full bg-[#f3eeff] px-2 py-0.5 font-semibold text-[#6d28d9] ring-1 ring-inset ring-[#ddd6fe]">
                           <CalendarCheck className="h-3 w-3" aria-hidden="true" />

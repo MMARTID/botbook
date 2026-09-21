@@ -130,8 +130,24 @@ async function resolveServices(
   return new Map(services.map((service) => [service.id, service]));
 }
 
+// `voiceProvider` de las filas Call sintéticas del chat de WhatsApp
+// (modules/whatsapp/chatCliente.ts).
+const CANAL_WHATSAPP = "whatsapp";
+
 type WindowStats = {
+  /** Llamadas de voz. Los chats de WhatsApp van aparte en `chats`. */
   calls: number;
+  /** Conversaciones de WhatsApp con la recepcionista (filas Call sintéticas). */
+  chats: number;
+  /**
+   * Llamadas y chats que acabaron con una cita, aunque luego se moviera o
+   * cancelara. Cambiar una cita por WhatsApp es cancelar + reservar: la cita
+   * nueva cuelga del chat y la vieja queda cancelada. Si se dividiera
+   * `bookings` entre conversaciones, ese cambio haría caer la conversión sin
+   * motivo (2 conversaciones, 1 cita viva → 50 %); contando conversaciones
+   * con cita, salen 2 de 2.
+   */
+  conversationsWithBooking: number;
   bookings: number;
   /** Céntimos; `null` si el negocio no tiene ningún precio configurado. */
   revenueCents: number | null;
@@ -145,9 +161,16 @@ async function buildWindowStats(
   to: Date,
   hasAnyPrice: boolean
 ): Promise<WindowStats> {
-  const [calls, bookings] = await Promise.all([
+  const ventana = { businessId, startedAt: { gte: from, lt: to } };
+  const [calls, chats, conversationsWithBooking, bookings] = await Promise.all([
     prisma.call.count({
-      where: { businessId, startedAt: { gte: from, lt: to } },
+      where: { ...ventana, voiceProvider: { not: CANAL_WHATSAPP } },
+    }),
+    prisma.call.count({
+      where: { ...ventana, voiceProvider: CANAL_WHATSAPP },
+    }),
+    prisma.call.count({
+      where: { ...ventana, booking: { isNot: null } },
     }),
     // Cuenta por fecha de creación, no por fecha de la cita: la pregunta que
     // responde el panel es qué ha conseguido la recepcionista este periodo,
@@ -165,6 +188,8 @@ async function buildWindowStats(
   if (!hasAnyPrice) {
     return {
       calls,
+      chats,
+      conversationsWithBooking,
       bookings: bookings.length,
       revenueCents: null,
       revenueIsPartial: false,
@@ -194,7 +219,14 @@ async function buildWindowStats(
     }
   }
 
-  return { calls, bookings: bookings.length, revenueCents, revenueIsPartial };
+  return {
+    calls,
+    chats,
+    conversationsWithBooking,
+    bookings: bookings.length,
+    revenueCents,
+    revenueIsPartial,
+  };
 }
 
 /**
@@ -231,6 +263,8 @@ async function buildWeeklyStats(businessId: string) {
     pendingBookings,
     previous: {
       calls: previous.calls,
+      chats: previous.chats,
+      conversationsWithBooking: previous.conversationsWithBooking,
       bookings: previous.bookings,
       revenueCents: previous.revenueCents,
     },

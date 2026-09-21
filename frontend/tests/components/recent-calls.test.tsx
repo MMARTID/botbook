@@ -37,6 +37,7 @@ function buildCall(overrides: Partial<Call> = {}): Call {
     requestedService: null,
     durationSecs: 95,
     costCents: 120,
+    voiceProvider: "telnyx",
     startedAt: "2026-09-04T10:00:00Z",
     endedAt: "2026-09-04T10:01:35Z",
     createdAt: "2026-09-04T10:00:00Z",
@@ -136,6 +137,21 @@ describe("RecentCalls", () => {
 
     await screen.findByText("Resuelta");
     expect(screen.queryByText("Reserva creada")).not.toBeInTheDocument();
+  });
+
+  it("un chat de WhatsApp se presenta como chat, no como llamada de 0 segundos", async () => {
+    mockedGetCalls.mockResolvedValue({
+      data: [buildCall({ voiceProvider: "whatsapp", durationSecs: 0, fromNumber: "+34691325557" })],
+      total: 1,
+      limit: 6,
+      offset: 0,
+    });
+
+    renderWithClient();
+
+    await screen.findByText("Chat de WhatsApp");
+    expect(screen.getByLabelText("Chat de WhatsApp")).toBeInTheDocument();
+    expect(screen.queryByText("0s")).not.toBeInTheDocument();
   });
 
   it("abre el detalle de la llamada al hacer click y lo cierra desde el modal", async () => {

@@ -1,6 +1,7 @@
 import { prisma } from "../../lib/prisma.js";
 import { randomUUID } from "node:crypto";
 import { getRedis } from "../../lib/redis.js";
+import { nombreParaElCliente } from "../../lib/nombreProfesional.js";
 import { claveDeCacheDeVoz } from "../../lib/voiceConfigCache.js";
 import {
   checkBusinessHours,
@@ -133,14 +134,19 @@ type RecommendationForAgent = {
 };
 
 function instruccionesDeRecomendacion(
-  recomendado: string,
-  pedido: string,
+  recomendado: string | null,
+  pedido: string | null,
   isSpecialist: boolean
 ): string {
+  // Sin nombre real (provisional del alta) se habla de «otra persona del
+  // equipo» / «la persona que pediste»: nunca se dice «Profesional 2».
+  const quien = recomendado ?? "otra persona del equipo";
+  const aQuien = pedido ?? "la persona que pidió";
   const porQue = isSpecialist
-    ? `${recomendado} es quien más hace este servicio`
-    : `${recomendado} es la persona más indicada`;
-  return `Propón UNA sola vez, en positivo, reservar con ${recomendado} (${porQue} y tiene hueco a esa hora); reserva con su availabilityToken si el cliente acepta. Si el cliente insiste en ${pedido}, reserva con el availabilityToken principal y professionalConfirmed: true, sin explicar nada. Nunca digas ni insinúes que ${pedido} no hace o no domina este servicio.`;
+    ? `${quien} es quien más hace este servicio`
+    : `${quien} es la persona más indicada`;
+  const sinNombres = recomendado && pedido ? "" : " No digas nombres provisionales tipo «Profesional 1».";
+  return `Propón UNA sola vez, en positivo, reservar con ${quien} (${porQue} y tiene hueco a esa hora); reserva con su availabilityToken si el cliente acepta. Si el cliente insiste en ${aQuien}, reserva con el availabilityToken principal y professionalConfirmed: true, sin explicar nada. Nunca digas ni insinúes que ${aQuien} no hace o no domina este servicio.${sinNombres}`;
 }
 
 function availabilityDraftKey(token: string): string {
@@ -539,8 +545,8 @@ async function executeCheckAvailability(
               professionalRequested: true,
             }),
             instructions: instruccionesDeRecomendacion(
-              recommendedProfessional.professional.name,
-              requestedProfessionalName,
+              nombreParaElCliente(recommendedProfessional.professional.name),
+              nombreParaElCliente(requestedProfessionalName),
               recommendedProfessional.isSpecialist
             ),
           }
@@ -697,7 +703,12 @@ async function executeGetCatalog(
           ? professionals
               .map((professional) => {
                 const fuera = ausenciasDe(professional.id);
-                return `[${professional.id}] ${professional.name}${fuera.length ? ` (no está ${fuera.join(", ")})` : ""}`;
+                // Nombre provisional del alta: el LLM necesita el id para
+                // reservar, pero no debe decirle ese nombre al cliente.
+                const nombre = nombreParaElCliente(professional.name)
+                  ? professional.name
+                  : "(sin nombre configurado: no digas este nombre al cliente, habla de «el equipo»)";
+                return `[${professional.id}] ${nombre}${fuera.length ? ` (no está ${fuera.join(", ")})` : ""}`;
               })
               .join("\n")
           : "No hay profesionales individuales configurados.",
@@ -1226,7 +1237,7 @@ async function executeBookAppointment(
           professional: { id: recomendado.professionalId, name: recomendado.professionalName },
           availabilityToken: recomendado.availabilityToken,
         },
-        message: `Antes de reservar, propón una sola vez reservar con ${recomendado.professionalName}, que tiene hueco a esa hora (usa su availabilityToken si el cliente acepta). Si el cliente insiste en la persona que pidió, repite book_appointment con este mismo availabilityToken y professionalConfirmed: true. No expliques el motivo ni digas que alguien no hace este servicio.`,
+        message: `Antes de reservar, propón una sola vez reservar con ${nombreParaElCliente(recomendado.professionalName) ?? "otra persona del equipo"}, que tiene hueco a esa hora (usa su availabilityToken si el cliente acepta). Si el cliente insiste en la persona que pidió, repite book_appointment con este mismo availabilityToken y professionalConfirmed: true. No expliques el motivo ni digas que alguien no hace este servicio.`,
       },
     };
   }
@@ -1639,7 +1650,7 @@ async function executeBookAppointment(
               success: true,
               message: "Cita agendada correctamente.",
               professionalId: resolvedProfessionalId,
-              professionalName: resolvedProfessionalName ?? null,
+              professionalName: nombreParaElCliente(resolvedProfessionalName),
               mensajeCliente: mensajeClienteRepetido,
             },
           };
@@ -1790,7 +1801,7 @@ async function executeBookAppointment(
             clientName,
             startDateTime: new Date(startDateTime),
             serviceNames: verifiedServiceNames,
-            professionalName: resolvedProfessionalName ?? null,
+            professionalName: nombreParaElCliente(resolvedProfessionalName),
           });
         }
 
@@ -1818,7 +1829,7 @@ async function executeBookAppointment(
                 startDateTime,
                 timezone: business.timezone || "Europe/Madrid",
                 serviceNames: verifiedServiceNames,
-                professionalName: resolvedProfessionalName,
+                professionalName: nombreParaElCliente(resolvedProfessionalName),
               }),
               messagingProfileId: resolveSmsMessagingProfileId(),
             });
@@ -1869,7 +1880,7 @@ async function executeBookAppointment(
             professionalId: resolvedProfessionalId,
             // Para que la confirmación pueda decir con quién queda la cita
             // (el preasignado puede haber cambiado si se ocupó entre medias).
-            professionalName: resolvedProfessionalName ?? null,
+            professionalName: nombreParaElCliente(resolvedProfessionalName),
             // "whatsapp" solo si la confirmación por WhatsApp quedó
             // programada de verdad: el prompt condiciona el anuncio a esto.
             mensajeCliente,
@@ -2064,7 +2075,7 @@ async function executeFindMyAppointment(
       bookingId: booking.id,
       formattedDateTime,
       serviceNames: services.map((s) => s.name),
-      professionalName: booking.professional?.name ?? null,
+      professionalName: nombreParaElCliente(booking.professional?.name),
       // Sin este campo, al "cambiar la cita al mismo nombre" el LLM no tenía
       // forma de saber el nombre original y llegó a reservar literalmente a
       // nombre de "titular anterior" (llamada real del 2026-09-15). Puede

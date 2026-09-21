@@ -1,4 +1,5 @@
 import type { WhatsAppContactCard } from "../../adapters/whatsapp/WhatsAppAdapter.js";
+import { nombreParaElCliente } from "../../lib/nombreProfesional.js";
 import { prisma } from "../../lib/prisma.js";
 import { errorMessage } from "../../lib/logUtils.js";
 import { reclamarEnvio } from "../../lib/messageIdempotency.js";
@@ -959,7 +960,7 @@ async function nombreDelProfesional(
     where: { id: professionalId, businessId },
     select: { name: true },
   });
-  return professional?.name ?? null;
+  return nombreParaElCliente(professional?.name);
 }
 
 /**
@@ -1168,7 +1169,7 @@ export async function enviarMensajeAlCliente(
       negocio: business,
       startDateTime: booking.programedAt,
       serviceNames: await nombreDeServicios(booking.serviceIds),
-      professionalName: booking.professional?.name ?? null,
+      professionalName: nombreParaElCliente(booking.professional?.name),
     };
   }
 

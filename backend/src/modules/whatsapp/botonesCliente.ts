@@ -1,5 +1,6 @@
 import type { InboundMessage } from "@prisma/client";
 import { prisma } from "../../lib/prisma.js";
+import { nombreParaElCliente } from "../../lib/nombreProfesional.js";
 import { errorMessage } from "../../lib/logUtils.js";
 import { reclamarEnvio } from "../../lib/messageIdempotency.js";
 import { enviarContacto } from "./service.js";
@@ -494,7 +495,7 @@ async function botonDeReserva(
       const chat = await conversarConRecepcionista({
         message,
         businessId: business.id,
-        texto: `He pulsado «Cambiar» en el recordatorio de mi cita del ${cita}${booking.professional?.name ? ` con ${booking.professional.name}` : ""}. Quiero cambiarla de día u hora.`,
+        texto: `He pulsado «Cambiar» en el recordatorio de mi cita del ${cita}${nombreParaElCliente(booking.professional?.name) ? ` con ${booking.professional!.name}` : ""}. Quiero cambiarla de día u hora.`,
         etiqueta: `${base}:chat`,
       });
       if (chat.atendido) {

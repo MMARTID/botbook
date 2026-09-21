@@ -26,6 +26,7 @@ function buildCall(overrides: Partial<Call> = {}): Call {
     toolFailureDetected: null,
     requestedService: null,
     durationSecs: 95,
+    voiceProvider: "telnyx",
     costCents: 120,
     startedAt: "2026-09-04T10:00:00Z",
     endedAt: "2026-09-04T10:01:35Z",

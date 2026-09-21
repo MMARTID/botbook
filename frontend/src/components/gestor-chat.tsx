@@ -167,7 +167,10 @@ export function GestorChat({ hasToken }: { hasToken: boolean | null }) {
   }
 
   return (
-    <div className="panel flex min-h-[60vh] flex-col overflow-hidden p-0">
+    // Altura acotada a la ventana: con una conversación larga hace scroll la
+    // lista de mensajes, no la página, y la cabecera «Tu Gestor» y el cuadro
+    // de texto se quedan siempre a la vista.
+    <div className="panel flex h-[calc(100dvh-15rem)] min-h-[24rem] flex-col overflow-hidden p-0 lg:h-[calc(100dvh-13rem)]">
       <div
         className="flex-1 space-y-3 overflow-y-auto px-4 py-5 sm:px-6"
         role="log"
