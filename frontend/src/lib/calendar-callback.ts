@@ -42,3 +42,41 @@ export function parseOutlookCalendarSelection(
     return null;
   }
 }
+
+/** Lista que devuelve el callback de Google (misma idea que Outlook). */
+export type GoogleCalendarSelection = {
+  calendars: Array<{ id: string; name: string; primary: boolean }>;
+  email: string | null;
+};
+
+function isGoogleCalendarOption(
+  value: unknown
+): value is GoogleCalendarSelection["calendars"][number] {
+  if (!value || typeof value !== "object") return false;
+  const calendar = value as Partial<GoogleCalendarSelection["calendars"][number]>;
+  return (
+    typeof calendar.id === "string" &&
+    typeof calendar.name === "string" &&
+    typeof calendar.primary === "boolean"
+  );
+}
+
+export function parseGoogleCalendarSelection(
+  value: string | null
+): GoogleCalendarSelection | null {
+  if (!value) return null;
+  try {
+    const parsed = JSON.parse(value) as Partial<GoogleCalendarSelection>;
+    if (
+      !Array.isArray(parsed.calendars) ||
+      parsed.calendars.length === 0 ||
+      !parsed.calendars.every(isGoogleCalendarOption) ||
+      (typeof parsed.email !== "string" && parsed.email !== null)
+    ) {
+      return null;
+    }
+    return { calendars: parsed.calendars, email: parsed.email };
+  } catch {
+    return null;
+  }
+}

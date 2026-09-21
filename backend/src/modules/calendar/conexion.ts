@@ -355,7 +355,9 @@ export async function guardarConexionDeCalendario(
     provider: CalendarProviderId;
     /** Solo al conectar/reconectar; seleccionar calendario no las toca. */
     credenciales?: CalendarCredentials;
-    calendarId?: string;
+    /** `null` borra el calendario elegido (al reconectar con otra cuenta el
+     * anterior ya no existe); `undefined` lo deja como está. */
+    calendarId?: string | null;
     conectado: boolean;
     userEmail?: string | null;
   }

@@ -1044,16 +1044,64 @@ function AgenteContent() {
                     </p>
                   </div>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setCalendarPickerOpen((current) => !current)}
-                  className="btn-secondary h-10 shrink-0 self-start px-4 sm:self-auto"
-                >
-                  {calendarPickerOpen
-                    ? "Cerrar selector"
-                    : "Cambiar de calendario"}
-                </button>
+                <div className="flex shrink-0 flex-wrap gap-2 self-start sm:self-auto">
+                  {calendarState.provider === "google" ||
+                  calendarState.provider === "outlook" ? (
+                    // Vuelve a pasar por la autorización del proveedor: para
+                    // entrar con otra cuenta (otro correo). Al terminar se
+                    // elige calendario de nuevo, como en la primera conexión.
+                    <button
+                      type="button"
+                      onClick={() =>
+                        void startCalendarConnection(calendarState.provider as "google" | "outlook")
+                      }
+                      disabled={calendarAuthLoading !== null}
+                      className="btn-secondary h-10 px-4"
+                    >
+                      {calendarAuthLoading === calendarState.provider
+                        ? "Conectando..."
+                        : "Cambiar de cuenta"}
+                    </button>
+                  ) : calendarState.provider === "caldav" ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCalendarStatus(null);
+                        setAppleFormOpen((current) => !current);
+                      }}
+                      className="btn-secondary h-10 px-4"
+                    >
+                      {appleFormOpen ? "Cerrar" : "Cambiar de cuenta"}
+                    </button>
+                  ) : null}
+                  <button
+                    type="button"
+                    onClick={() => setCalendarPickerOpen((current) => !current)}
+                    className="btn-secondary h-10 px-4"
+                  >
+                    {calendarPickerOpen
+                      ? "Cerrar selector"
+                      : "Cambiar de calendario"}
+                  </button>
+                </div>
               </div>
+              {appleFormOpen && calendarState.provider === "caldav" ? (
+                <AppleCalendarConnect
+                  onCancel={() => setAppleFormOpen(false)}
+                  onConnected={async (updatedBusiness) => {
+                    queryClient.setQueryData(["my-business"], updatedBusiness);
+                    await Promise.all([
+                      queryClient.invalidateQueries({ queryKey: ["calendar-list"] }),
+                      queryClient.invalidateQueries({ queryKey: ["calendar-events"] }),
+                    ]);
+                    setAppleFormOpen(false);
+                    setCalendarStatus({
+                      type: "success",
+                      message: "El calendario de Apple está conectado correctamente.",
+                    });
+                  }}
+                />
+              ) : null}
 
               {calendarPickerOpen ? (
                 <div className="space-y-2">
