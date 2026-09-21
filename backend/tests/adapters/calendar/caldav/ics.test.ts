@@ -203,6 +203,77 @@ describe("intervalosOcupadosDesdeIcs (misma regla que Google)", () => {
     ]);
   });
 
+  // #144: mover una sola cita de una serie desde el iPhone deja en el mismo
+  // objeto el maestro (RRULE) + una excepción (RECURRENCE-ID). Sin
+  // relacionarlas, la ocurrencia sustituida contaba dos veces.
+  function serieConExcepcion(excepcion: string) {
+    return [
+      "BEGIN:VCALENDAR",
+      "VERSION:2.0",
+      "BEGIN:VEVENT",
+      "UID:serie",
+      "DTSTART:20260914T090000Z",
+      "DTEND:20260914T100000Z",
+      "RRULE:FREQ=WEEKLY;COUNT=10",
+      "END:VEVENT",
+      "BEGIN:VEVENT",
+      "UID:serie",
+      "RECURRENCE-ID:20260921T090000Z",
+      excepcion,
+      "END:VEVENT",
+      "END:VCALENDAR",
+    ].join("\r\n");
+  }
+
+  it("una cita suelta de una serie movida a otra hora (RECURRENCE-ID) cuenta solo en la hora nueva", () => {
+    const r = intervalosOcupadosDesdeIcs(
+      [
+        {
+          url: "u",
+          data: serieConExcepcion(
+            "DTSTART:20260923T160000Z\r\nDTEND:20260923T170000Z"
+          ),
+        },
+      ],
+      VENTANA
+    );
+    expect(r.map((i) => i.start.toISOString())).toEqual([
+      "2026-09-23T16:00:00.000Z",
+    ]);
+  });
+
+  it("una cita suelta de una serie borrada (excepción CANCELLED) no cuenta ni en su hora original", () => {
+    const r = intervalosOcupadosDesdeIcs(
+      [
+        {
+          url: "u",
+          data: serieConExcepcion(
+            "DTSTART:20260921T090000Z\r\nDTEND:20260921T100000Z\r\nSTATUS:CANCELLED"
+          ),
+        },
+      ],
+      VENTANA
+    );
+    expect(r).toEqual([]);
+  });
+
+  it("una excepción sin su maestro en el objeto cuenta como evento suelto en su hora nueva", () => {
+    const r = intervalosOcupadosDesdeIcs(
+      [
+        {
+          url: "u",
+          data: ics(
+            "UID:serie\r\nRECURRENCE-ID:20260921T090000Z\r\nDTSTART:20260923T160000Z\r\nDTEND:20260923T170000Z"
+          ),
+        },
+      ],
+      VENTANA
+    );
+    expect(r.map((i) => i.start.toISOString())).toEqual([
+      "2026-09-23T16:00:00.000Z",
+    ]);
+  });
+
   it("hora de pared con TZID + VTIMEZONE (como manda iCloud) se convierte al instante correcto", () => {
     const conZona = [
       "BEGIN:VCALENDAR",

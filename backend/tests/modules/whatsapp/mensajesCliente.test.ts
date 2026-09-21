@@ -220,6 +220,27 @@ describe("helpers puros", () => {
     ).toBeNull();
   });
 
+  // Privacidad (PLAN-TELEFONIA-UX.md § 3, caso C): «no des mi número a los
+  // clientes» oculta la línea del dueño (phone), nunca el número de Alhabla,
+  // que atiende la recepcionista: sin él ninguna plantilla de confirmación,
+  // cambio o cancelación podría salir.
+  it("telefonoDeContacto con hideOwnerNumberFromClients sigue dando el número de Alhabla y solo sin él devuelve null (nunca phone)", () => {
+    expect(
+      telefonoDeContacto({ ...NEGOCIO, hideOwnerNumberFromClients: true })
+    ).toBe("+34 930 454 394");
+    expect(
+      telefonoDeContacto({
+        telnyxPhoneNumber: null,
+        phone: "+34930000000",
+        hideOwnerNumberFromClients: true,
+      })
+    ).toBeNull();
+    // Sin la opción (o en false) todo sigue igual.
+    expect(
+      telefonoDeContacto({ ...NEGOCIO, hideOwnerNumberFromClients: false })
+    ).toBe("+34 930 454 394");
+  });
+
   it("nombreParaCliente: recorta a 60, y con «Negocio de Ana» o un nombre con @ devuelve «el negocio», nunca «tu negocio»", () => {
     expect(nombreParaCliente({ name: "  Peluquería\n  Ana " })).toBe(
       "Peluquería Ana"
@@ -536,6 +557,57 @@ describe("elegirPlantillaCliente", () => {
     expect(
       Object.keys((env as { bodyParams: object }).bodyParams)
     ).toHaveLength(4);
+  });
+
+  // Privacidad (caso C): la recepcionista promete el WhatsApp al reservar,
+  // así que la cascada no puede quedarse sin plantilla por la opción; el
+  // número que va en `negocio_telefono` es el de Alhabla (lo atiende la
+  // recepcionista), nunca la línea del dueño.
+  it("con hideOwnerNumberFromClients la confirmación, el cambio y la cancelación salen con el número de Alhabla; solo sin número de Alhabla devuelve SIN_TELEFONO", async () => {
+    plantillas({
+      confirmacion_cita_v2: FILA_V2,
+      confirmacion_cita: FILA_APROBADA,
+      cambio_cita_cliente: {
+        telnyxTemplateId: "tpl-cambio",
+        name: "cambio_cita_cliente",
+        language: "es",
+        components: [],
+      },
+    });
+    const privado = {
+      ...CTX,
+      negocio: { ...NEGOCIO, hideOwnerNumberFromClients: true },
+    };
+
+    const confirmacion = await elegirPlantillaCliente("confirmacion", privado);
+    expect((confirmacion as { etiqueta: string }).etiqueta).toBe(
+      "confirmacion_cita_v2"
+    );
+    expect(
+      (confirmacion as { bodyParams: Record<string, string> }).bodyParams
+        .negocio_telefono
+    ).toBe("+34 930 454 394");
+
+    const cambio = await elegirPlantillaCliente("cambio", privado);
+    expect((cambio as { etiqueta: string }).etiqueta).toBe(
+      "cambio_cita_cliente"
+    );
+    expect(
+      (cambio as { bodyParams: Record<string, string> }).bodyParams
+        .negocio_telefono
+    ).toBe("+34 930 454 394");
+
+    // Sin número de Alhabla, la línea del dueño NO se usa aunque sea E.164.
+    expect(
+      await elegirPlantillaCliente("confirmacion", {
+        ...CTX,
+        negocio: {
+          ...NEGOCIO,
+          telnyxPhoneNumber: null,
+          hideOwnerNumberFromClients: true,
+        },
+      })
+    ).toEqual({ motivo: "SIN_TELEFONO" });
   });
 
   it("sin teléfono de contacto se salta la plantilla que lo exige y devuelve SIN_TELEFONO", async () => {

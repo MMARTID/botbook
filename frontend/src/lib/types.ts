@@ -66,6 +66,14 @@ export type BusinessType =
   | "fisioterapia"
   | "other";
 
+/** Tipos de línea de clientes (PLAN-TELEFONIA-UX.md § 3): fijo del local,
+ * móvil de trabajo, móvil personal o el número de Alhabla como principal. */
+export type CustomerLineType =
+  | "fijo"
+  | "movil_trabajo"
+  | "movil_personal"
+  | "alhabla";
+
 export type Business = {
   id: string;
   name: string;
@@ -128,6 +136,15 @@ export type Business = {
   /** Conversaciones de la fase 2 (Beta): el Gestor y la recepcionista por chat. */
   ownerChatEnabled?: boolean;
   clientChatEnabled?: boolean;
+  /**
+   * Telefonía sin confusión (PLAN-TELEFONIA-UX.md § 1): tipo de la línea de
+   * clientes (`phone`). null = el dueño aún no lo ha confirmado.
+   */
+  customerLineType?: CustomerLineType | null;
+  /** Caso C: los avisos van al mismo móvil al que llaman los clientes. */
+  ownerPhoneIsCustomerLine?: boolean;
+  /** Privacidad: la recepcionista no da el número del negocio; toma recado. */
+  hideOwnerNumberFromClients?: boolean;
   agents?: Agent[];
   calls?: Call[];
 };
@@ -538,7 +555,43 @@ export type OnboardingForwarding = {
   phoneNumber: string | null;
   confirmedAt: string | null;
   firstCallAt: string | null;
+  /** Última «Comprobar desvío» que entró de verdad; null = nunca. Opcional:
+   * un backend anterior a la fase 3 del plan de telefonía no lo devuelve. */
+  checkedAt?: string | null;
+  /** Línea de clientes (`Business.phone`) a la que llama la comprobación;
+   * null mientras sea el placeholder del registro. Opcional, como arriba. */
+  customerLine?: string | null;
 };
+
+/** Por qué no ha funcionado «Comprobar desvío» (PLAN-TELEFONIA-UX.md § 4). */
+export type ForwardingCheckFailureReason =
+  | "la_has_cogido"
+  | "comunicando"
+  | "sin_desvio"
+  | "desconocido";
+
+export type ForwardingCheckResult =
+  | { estado: "ok" }
+  | { estado: "fallo"; motivo: ForwardingCheckFailureReason };
+
+/** Estado de una comprobación de desvío; `resultado` es null mientras dura. */
+export type ForwardingCheck = {
+  id: string;
+  linea: string;
+  startedAt: string;
+  resultado: ForwardingCheckResult | null;
+  resueltaAt: string | null;
+};
+
+/** `code` con el que el backend rechaza arrancar una comprobación. */
+export type ForwardingCheckErrorCode =
+  | "sin_numero"
+  | "linea_de_clientes_invalida"
+  | "linea_no_admitida"
+  | "comprobacion_en_curso"
+  | "limite_alcanzado"
+  | "telefonia_no_configurada"
+  | "no_se_pudo_llamar";
 
 export type OnboardingState = {
   steps: OnboardingSteps;

@@ -366,6 +366,32 @@ describe("buildManagedAgentPrompt — recados y post-conversación (PR 5)", () =
   });
 });
 
+describe("buildManagedAgentPrompt — privacidad del número (PLAN-TELEFONIA-UX.md § 3, caso C)", () => {
+  it("sin la opción, deja dar el teléfono del negocio y no añade la sección de privacidad", () => {
+    const prompt = buildManagedAgentPrompt({
+      businessName: "Fisio a domicilio",
+      settings: DEFAULT_AGENT_SETTINGS,
+    });
+
+    expect(prompt).not.toContain("## Privacidad");
+    expect(prompt).toContain("dale el teléfono del negocio");
+  });
+
+  it("con ocultarNumeroDelNegocio prohíbe decir el número y manda tomar recado", () => {
+    const prompt = buildManagedAgentPrompt({
+      businessName: "Fisio a domicilio",
+      settings: DEFAULT_AGENT_SETTINGS,
+      ocultarNumeroDelNegocio: true,
+    });
+
+    expect(prompt).toContain("## Privacidad");
+    expect(prompt).toContain("No digas nunca el número de teléfono del negocio ni del propietario");
+    expect(prompt).toContain("dile que el negocio le llamará");
+    expect(prompt).not.toContain("dale el teléfono del negocio");
+    expect(prompt).toContain("toma recado y dile que el negocio le llamará; no le des ningún teléfono");
+  });
+});
+
 describe("buildManagedAgentPrompt — chat por WhatsApp (fase 2)", () => {
   it("explica el marcador [WhatsApp …], veta end_call en chat y da por dado el consentimiento", () => {
     const prompt = buildManagedAgentPrompt({

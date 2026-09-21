@@ -405,6 +405,45 @@ describe("executeVoiceTool book_appointment — vinculación a la llamada correc
     );
   });
 
+  // Privacidad (PLAN-TELEFONIA-UX.md § 3, caso C): si el lead no se ha
+  // podido guardar, la recepcionista da el teléfono del negocio como último
+  // recurso… salvo que el dueño haya pedido no darlo.
+  it("si no puede guardar el lead, dice el teléfono del negocio (sin la opción de privacidad)", async () => {
+    mockedGetBusyIntervals.mockResolvedValue({
+      intervals: [],
+      calendarAvailabilityKnown: false,
+    } as any);
+    mockedLeadCreate.mockRejectedValue(new Error("BD caída"));
+
+    const result = await executeVoiceTool(
+      buildBookAppointmentInput({ callId: "call_vapi_1" })
+    );
+
+    expect(result.result.success).toBe(false);
+    expect(result.result.code).toBe("CALENDAR_UNAVAILABLE");
+    expect(result.result.message).toContain("llama directamente al +34600111222");
+  });
+
+  it("con hideOwnerNumberFromClients no dice ningún número aunque no pueda guardar el lead", async () => {
+    mockedBusinessFindUnique.mockResolvedValue(
+      buildBusiness({ hideOwnerNumberFromClients: true }) as any
+    );
+    mockedGetBusyIntervals.mockResolvedValue({
+      intervals: [],
+      calendarAvailabilityKnown: false,
+    } as any);
+    mockedLeadCreate.mockRejectedValue(new Error("BD caída"));
+
+    const result = await executeVoiceTool(
+      buildBookAppointmentInput({ callId: "call_vapi_1" })
+    );
+
+    expect(result.result.success).toBe(false);
+    expect(result.result.code).toBe("CALENDAR_UNAVAILABLE");
+    expect(result.result.message).not.toContain("+34600111222");
+    expect(result.result.message).toContain("vuelve a llamar en unos minutos");
+  });
+
   it("prioriza el clientPhone explícito del cliente sobre Call.fromNumber", async () => {
     mockedCallFindUnique.mockResolvedValue({
       id: "call_row_1",
@@ -855,6 +894,68 @@ describe("executeVoiceTool book_appointment — consentimiento SMS al cliente", 
       }),
       { taskId: "confirm-sms-booking_1" }
     );
+  });
+
+  it("el SMS al cliente lleva «llama al <número de Alhabla>» cuando el dueño no ha pedido ocultarlo", async () => {
+    await executeVoiceTool(
+      buildBookAppointmentInput({
+        callId: "call_vapi_1",
+        params: {
+          clientName: "María",
+          startDateTime: farFutureStart,
+          durationMinutes: 30,
+          professionalId: "professional_123",
+          smsConsent: true,
+        },
+      })
+    );
+
+    expect(mockedEnqueueSmsJob).toHaveBeenCalledWith(
+      expect.objectContaining({
+        toNumber: "+34600999888",
+        text: expect.stringContaining(
+          "Para cambiarla o cancelarla, llama al +34911222333"
+        ),
+      }),
+      { taskId: "confirm-sms-booking_1" }
+    );
+  });
+
+  // Privacidad (PLAN-TELEFONIA-UX.md § 3, caso C): «no des mi número a los
+  // clientes» oculta la línea del dueño, no la de Alhabla: el SMS sigue
+  // diciendo «llama al <número de Alhabla>», que atiende la recepcionista
+  // (como en WhatsApp). El Sender ID alfanumérico no admite respuestas, así
+  // que un SMS sin número dejaría al cliente sin forma de cambiar la cita.
+  it("con hideOwnerNumberFromClients la confirmación y el recordatorio por SMS llevan el número de Alhabla y nunca el del dueño", async () => {
+    mockedBusinessFindUnique.mockResolvedValue(
+      buildBusiness({ hideOwnerNumberFromClients: true }) as any
+    );
+
+    await executeVoiceTool(
+      buildBookAppointmentInput({
+        callId: "call_vapi_1",
+        params: {
+          clientName: "María",
+          startDateTime: farFutureStart,
+          durationMinutes: 30,
+          professionalId: "professional_123",
+          smsConsent: true,
+        },
+      })
+    );
+
+    const alCliente = mockedEnqueueSmsJob.mock.calls
+      .map((call) => call[0])
+      .filter((job) => job.toNumber === "+34600999888");
+    // Confirmación + recordatorio (plan pro, cita a 48 h).
+    expect(alCliente).toHaveLength(2);
+    for (const job of alCliente) {
+      expect(job.text).toContain(
+        "Para cambiarla o cancelarla, llama al +34911222333"
+      );
+      expect(job.text).not.toContain("+34600111222");
+      expect(job.text).not.toContain("responde a este mensaje");
+    }
   });
 
   it("usa TELNYX_SMS_SENDER_ID como remitente cuando está configurado, en vez del número del negocio", async () => {

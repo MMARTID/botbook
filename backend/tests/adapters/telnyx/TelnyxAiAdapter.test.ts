@@ -34,6 +34,7 @@ const mockConversationsCreate = vi.fn();
 const mockConversationsUpdate = vi.fn();
 const mockConversationsAddMessage = vi.fn();
 const mockAssistantsChat = vi.fn();
+const mockDial = vi.fn();
 
 const mockTelnyxClient = {
   callControlApplications: {
@@ -75,6 +76,7 @@ const mockTelnyxClient = {
     },
   },
   calls: {
+    dial: mockDial,
     actions: {
       startAIAssistant: mockStartAIAssistant,
       stopAIAssistant: mockStopAIAssistant,
@@ -473,6 +475,55 @@ describe("TelnyxAiAdapter", () => {
       await adapter.hangupCall("call_ctrl_1");
 
       expect(mockHangup).toHaveBeenCalledWith("call_ctrl_1", {});
+    });
+  });
+
+  describe("dialCall", () => {
+    it("origina una llamada sin assistant, con client_state y timeouts, sin desviar los webhooks", async () => {
+      mockDial.mockResolvedValue({
+        data: { call_control_id: "call_ctrl_out", call_leg_id: "leg_out" },
+      });
+
+      const result = await adapter.dialCall({
+        connectionId: "cc_app_1",
+        from: "+34930453218",
+        to: "+34931112233",
+        timeoutSecs: 35,
+        timeLimitSecs: 60,
+        clientState: "ZXN0YWRv",
+      });
+
+      expect(result).toEqual({
+        callControlId: "call_ctrl_out",
+        callLegId: "leg_out",
+      });
+      expect(mockDial).toHaveBeenCalledWith({
+        connection_id: "cc_app_1",
+        from: "+34930453218",
+        to: "+34931112233",
+        timeout_secs: 35,
+        time_limit_secs: 60,
+        client_state: "ZXN0YWRv",
+      });
+      // Sin webhook_url ni assistant: los eventos de esta pata tienen que
+      // llegar al webhook de plataforma para que se reconozca la comprobación.
+      const payload = mockDial.mock.calls[0][0];
+      expect(payload).not.toHaveProperty("webhook_url");
+      expect(payload).not.toHaveProperty("assistant");
+    });
+
+    it("falla claro si Telnyx no devuelve los identificadores de la llamada", async () => {
+      mockDial.mockResolvedValue({ data: {} });
+
+      await expect(
+        adapter.dialCall({
+          connectionId: "cc_app_1",
+          from: "+34930453218",
+          to: "+34931112233",
+          timeoutSecs: 35,
+          clientState: "ZXN0YWRv",
+        })
+      ).rejects.toThrow("call_control_id/call_leg_id");
     });
   });
 

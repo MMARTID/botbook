@@ -5,8 +5,8 @@ import { Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { CalendarCheck2, CircleAlert, Sparkles } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { connectMicrosoftCalendar } from "@/lib/api";
-import { parseOutlookCalendarSelection } from "@/lib/calendar-callback";
+import { connectMicrosoftCalendar, selectCalendar } from "@/lib/api";
+import { parseGoogleCalendarSelection, parseOutlookCalendarSelection } from "@/lib/calendar-callback";
 import { clearRegistrationNextStep, consumeRegistrationNextStep } from "@/lib/registration-next-step";
 
 export default function SettingsCallbackPage() {
@@ -33,8 +33,17 @@ function SettingsCallbackContent() {
   );
   const hasInvalidOutlookCalendars = outlookCalendarsParam !== null && !parsedOutlookCalendars;
   const isOutlookError = searchParams.has("outlook_error") || hasInvalidOutlookCalendars;
+  // Google devuelve ahora su lista de calendarios para elegir, como Outlook:
+  // hasta que el dueño elija, la conexión queda sin confirmar.
+  const googleCalendarsParam = searchParams.get("google_calendars");
+  const parsedGoogleCalendars = useMemo(
+    () => parseGoogleCalendarSelection(googleCalendarsParam),
+    [googleCalendarsParam],
+  );
+  const hasInvalidGoogleCalendars = googleCalendarsParam !== null && !parsedGoogleCalendars;
   const isError =
     searchParams.has("calendar_error") ||
+    hasInvalidGoogleCalendars ||
     isOutlookError;
 
   useEffect(() => {
@@ -44,7 +53,7 @@ function SettingsCallbackContent() {
     }, 60);
 
     const finishTimer = window.setTimeout(async () => {
-      if (parsedOutlookCalendars) {
+      if (parsedOutlookCalendars || parsedGoogleCalendars) {
         setProgress(100);
         setPhase("complete");
         return;
@@ -81,7 +90,56 @@ function SettingsCallbackContent() {
       window.clearTimeout(finishTimer);
       if (redirectTimer !== undefined) window.clearTimeout(redirectTimer);
     };
-  }, [isError, isOutlookError, isSuccess, parsedOutlookCalendars, queryClient, router]);
+  }, [isError, isOutlookError, isSuccess, parsedGoogleCalendars, parsedOutlookCalendars, queryClient, router]);
+
+  if (parsedGoogleCalendars) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-transparent px-4 py-16">
+        <div className="panel w-full max-w-xl space-y-5 p-6">
+          <div>
+            <p className="text-sm font-semibold uppercase tracking-[0.12em] text-muted">Google Calendar</p>
+            <h1 className="mt-2 text-2xl font-semibold text-[#0a0a0a]">Elige el calendario que quieres usar</h1>
+            <p className="mt-2 text-sm leading-6 text-muted">
+              Cuenta conectada: {parsedGoogleCalendars.email ?? "Cuenta de Google"}. La recepcionista apuntará las citas
+              en el calendario que elijas y respetará lo que ya tengas en él.
+            </p>
+          </div>
+          <div className="grid gap-3">
+            {parsedGoogleCalendars.calendars.map((calendar) => (
+              <button
+                key={calendar.id}
+                type="button"
+                disabled={connectingCalendarId !== null}
+                onClick={async () => {
+                  setConnectingCalendarId(calendar.id);
+                  try {
+                    const updatedBusiness = await selectCalendar(calendar.id);
+                    queryClient.setQueryData(["my-business"], updatedBusiness);
+                    await queryClient.invalidateQueries({ queryKey: ["calendar-events"] });
+                    const nextStep = consumeRegistrationNextStep();
+                    if (nextStep) {
+                      router.replace(nextStep);
+                      return;
+                    }
+                    router.replace("/?calendar_success=true");
+                  } catch {
+                    clearRegistrationNextStep();
+                    router.replace("/?calendar_error=true");
+                  }
+                }}
+                className="rounded-2xl border border-[#e5e5e5] bg-white px-4 py-4 text-left shadow-sm transition hover:border-[#ddd6fe] hover:bg-[#fafafa] disabled:cursor-wait disabled:opacity-60"
+              >
+                <p className="text-sm font-semibold text-[#0a0a0a]">
+                  {connectingCalendarId === calendar.id ? "Conectando..." : calendar.name}
+                </p>
+                <p className="mt-1 text-xs text-muted">{calendar.primary ? "Calendario principal" : "Calendario secundario"}</p>
+              </button>
+            ))}
+          </div>
+        </div>
+      </main>
+    );
+  }
 
   if (parsedOutlookCalendars) {
     return (

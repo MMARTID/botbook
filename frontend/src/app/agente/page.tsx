@@ -24,6 +24,7 @@ import { formatPrice } from "@/lib/format";
 import { SiApple, SiGooglecalendar } from "@icons-pack/react-simple-icons";
 import { MicrosoftLogo } from "@/components/brand-icons";
 import { AppleCalendarConnect } from "@/components/apple-calendar-connect";
+import { BetaPill } from "@/components/beta-pill";
 import { getCalendarState, providerFromReconnectCode } from "@/lib/calendar-state";
 import type { CalendarProviderId } from "@/lib/types";
 import { getPlanLimitInfo, planLimitUpgradeMessage } from "@/lib/plan-limit";
@@ -933,8 +934,10 @@ function AgenteContent() {
                     type="button"
                     onClick={() => void startCalendarConnection("google")}
                     disabled={calendarAuthLoading !== null}
-                    className="flex flex-col justify-between rounded-xl border border-[#ddd6fe] bg-[#f3eeff] p-4 text-left transition duration-200 hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60"
+                    className="relative flex flex-col justify-between rounded-xl border border-[#ddd6fe] bg-[#f3eeff] p-4 text-left transition duration-200 hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60"
                   >
+                    {/* Beta: la app de Google sigue en revisión, solo entran cuentas de prueba. */}
+                    <BetaPill />
                     <div>
                       <p className="flex items-center gap-2 text-sm font-semibold text-[#0a0a0a]">
                         <SiGooglecalendar className="h-4 w-4 shrink-0" color="#4285F4" />
@@ -983,8 +986,9 @@ function AgenteContent() {
                     }}
                     disabled={calendarAuthLoading !== null}
                     aria-expanded={appleFormOpen}
-                    className="flex flex-col justify-between rounded-xl border border-[#ddd6fe] bg-[#f3eeff] p-4 text-left transition duration-200 hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60 lg:col-span-2"
+                    className="relative flex flex-col justify-between rounded-xl border border-[#ddd6fe] bg-[#f3eeff] p-4 text-left transition duration-200 hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60 lg:col-span-2"
                   >
+                    <BetaPill />
                     <div>
                       <p className="flex items-center gap-2 text-sm font-semibold text-[#0a0a0a]">
                         <SiApple className="h-4 w-4 shrink-0" color="#0a0a0a" />
@@ -1040,16 +1044,64 @@ function AgenteContent() {
                     </p>
                   </div>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setCalendarPickerOpen((current) => !current)}
-                  className="btn-secondary h-10 shrink-0 self-start px-4 sm:self-auto"
-                >
-                  {calendarPickerOpen
-                    ? "Cerrar selector"
-                    : "Cambiar de calendario"}
-                </button>
+                <div className="flex shrink-0 flex-wrap gap-2 self-start sm:self-auto">
+                  {calendarState.provider === "google" ||
+                  calendarState.provider === "outlook" ? (
+                    // Vuelve a pasar por la autorización del proveedor: para
+                    // entrar con otra cuenta (otro correo). Al terminar se
+                    // elige calendario de nuevo, como en la primera conexión.
+                    <button
+                      type="button"
+                      onClick={() =>
+                        void startCalendarConnection(calendarState.provider as "google" | "outlook")
+                      }
+                      disabled={calendarAuthLoading !== null}
+                      className="btn-secondary h-10 px-4"
+                    >
+                      {calendarAuthLoading === calendarState.provider
+                        ? "Conectando..."
+                        : "Cambiar de cuenta"}
+                    </button>
+                  ) : calendarState.provider === "caldav" ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCalendarStatus(null);
+                        setAppleFormOpen((current) => !current);
+                      }}
+                      className="btn-secondary h-10 px-4"
+                    >
+                      {appleFormOpen ? "Cerrar" : "Cambiar de cuenta"}
+                    </button>
+                  ) : null}
+                  <button
+                    type="button"
+                    onClick={() => setCalendarPickerOpen((current) => !current)}
+                    className="btn-secondary h-10 px-4"
+                  >
+                    {calendarPickerOpen
+                      ? "Cerrar selector"
+                      : "Cambiar de calendario"}
+                  </button>
+                </div>
               </div>
+              {appleFormOpen && calendarState.provider === "caldav" ? (
+                <AppleCalendarConnect
+                  onCancel={() => setAppleFormOpen(false)}
+                  onConnected={async (updatedBusiness) => {
+                    queryClient.setQueryData(["my-business"], updatedBusiness);
+                    await Promise.all([
+                      queryClient.invalidateQueries({ queryKey: ["calendar-list"] }),
+                      queryClient.invalidateQueries({ queryKey: ["calendar-events"] }),
+                    ]);
+                    setAppleFormOpen(false);
+                    setCalendarStatus({
+                      type: "success",
+                      message: "El calendario de Apple está conectado correctamente.",
+                    });
+                  }}
+                />
+              ) : null}
 
               {calendarPickerOpen ? (
                 <div className="space-y-2">

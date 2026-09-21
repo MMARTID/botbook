@@ -16,6 +16,7 @@ import type {
   CallAnalytics,
   CreateAgentPayload,
   OnboardingState,
+  ForwardingCheck,
   Paginated,
   PhoneNumberInfo,
   PlanId,
@@ -358,6 +359,22 @@ export async function dismissOnboarding() {
 export async function confirmForwarding() {
   const { data } = await api.post<{ confirmedAt: string | null }>(
     "/business/me/onboarding/confirm-forwarding"
+  );
+  return data;
+}
+
+/** «Comprobar desvío»: nos llama al teléfono de clientes desde el número de
+ * Alhabla; el resultado se consulta por polling con getForwardingCheck. */
+export async function startForwardingCheck() {
+  const { data } = await api.post<ForwardingCheck>(
+    "/business/me/onboarding/forwarding/check"
+  );
+  return data;
+}
+
+export async function getForwardingCheck(id: string) {
+  const { data } = await api.get<ForwardingCheck>(
+    `/business/me/onboarding/forwarding/check/${encodeURIComponent(id)}`
   );
   return data;
 }

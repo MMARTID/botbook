@@ -43,6 +43,7 @@ async function loadManagedAssistantConfig(
       agentSettings: true,
       minAdvanceBookingMinutes: true,
       maxAppointmentDurationMinutes: true,
+      hideOwnerNumberFromClients: true,
     },
   });
   if (!business) return null;
@@ -60,6 +61,7 @@ async function loadManagedAssistantConfig(
     minAdvanceBookingMinutes: business.minAdvanceBookingMinutes,
     maxAppointmentDurationMinutes: business.maxAppointmentDurationMinutes,
     listaDeEspera: await listaDeEsperaDisponible(),
+    ocultarNumeroDelNegocio: business.hideOwnerNumberFromClients,
   });
 
   return { business, agentSettings, systemPrompt };

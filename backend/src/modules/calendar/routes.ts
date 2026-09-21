@@ -361,10 +361,15 @@ export async function calendarRoutes(fastify: FastifyInstance) {
         // Procesar la conexión — handleCallback verifica el `state` contra
         // Redis (ver comentario en calendar/service.ts) antes de asociar el
         // token de Google a ningún negocio.
-        await calendarService.handleCallback(code, state);
-
-        // Redirigir de vuelta al frontend indicando éxito
-        return reply.redirect(`${appUrl()}/settings?calendar_success=true`);
+        const result = await calendarService.handleCallback(code, state);
+        if (result.calendars.length === 0) {
+          // Sin lista (sin refresh token nuevo o fallo al listar): conectado
+          // a «primary», como antes.
+          return reply.redirect(`${appUrl()}/settings?calendar_success=true`);
+        }
+        // Como Outlook: el dueño elige el calendario en el panel.
+        const payload = encodeURIComponent(JSON.stringify(result));
+        return reply.redirect(`${appUrl()}/settings?google_calendars=${payload}`);
       } catch (error) {
         fastify.log.error(error);
         return reply.redirect(`${appUrl()}/settings?calendar_error=true`);

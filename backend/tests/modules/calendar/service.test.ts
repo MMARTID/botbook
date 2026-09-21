@@ -1017,6 +1017,50 @@ describe("CalendarService OAuth state (hijack protection)", () => {
     expect(mockedBusinessUpdate).not.toHaveBeenCalled();
   });
 
+  it("handleCallback con lista de calendarios guarda la conexión SIN confirmar, con el correo, y devuelve la lista para elegir", async () => {
+    mockedBusinessUpdate.mockResolvedValue({ id: "business_real" } as any);
+    mockedAgentFindMany.mockResolvedValue([]);
+    mockedGoogleCalendar.mockReturnValue({
+      events: { insert: vi.fn(), list: vi.fn() },
+      calendarList: {
+        list: vi.fn().mockResolvedValue({
+          data: {
+            items: [
+              { id: "maria@gmail.com", summary: "María", primary: true },
+              { id: "res_1", summary: "Reservas" },
+            ],
+          },
+        }),
+      },
+    } as any);
+
+    await calendarService.getAuthUrl("business_real");
+    const state = [...redisStore.keys()][0].split(":").pop()!;
+
+    const result = await calendarService.handleCallback("some-code", state);
+
+    expect(result).toEqual({
+      calendars: [
+        { id: "maria@gmail.com", name: "María", primary: true },
+        { id: "res_1", name: "Reservas", primary: false },
+      ],
+      email: "maria@gmail.com",
+    });
+    const data = mockedBusinessUpdate.mock.calls[0][0].data as any;
+    expect(data.calendarConnections.upsert.create).toMatchObject({
+      provider: "google",
+      calendarId: null,
+      connected: false,
+      accountEmail: "maria@gmail.com",
+    });
+    // Al reconectar con otra cuenta, el calendario elegido antes se borra.
+    expect(data.calendarConnections.upsert.update).toMatchObject({
+      calendarId: null,
+      connected: false,
+      accountEmail: "maria@gmail.com",
+    });
+  });
+
   it("un state válido para OTRO negocio nunca conecta el calendario del negocio equivocado", async () => {
     mockedBusinessUpdate.mockResolvedValue({ id: "business_A" } as any);
     mockedAgentFindMany.mockResolvedValue([]);

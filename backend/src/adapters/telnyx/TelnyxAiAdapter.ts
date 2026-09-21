@@ -511,6 +511,48 @@ export class TelnyxAiAdapter {
     };
   }
 
+  /**
+   * Origina una llamada saliente SIN assistant desde el Call Control App de
+   * plataforma — hoy la usa «Comprobar desvío» (PLAN-TELEFONIA-UX.md § 4):
+   * el número de Alhabla del negocio llama a su línea de clientes y, si el
+   * desvío está bien, esa misma llamada vuelve a entrar por el número de
+   * Alhabla. A diferencia de `dialWithAssistant`, aquí NO se pasa
+   * `webhook_url`: los eventos de esta pata (`call.initiated` saliente,
+   * `call.answered`, `call.hangup`) tienen que llegar al webhook de
+   * plataforma con el `client_state` para que webhookHandlers.ts los
+   * reconozca y los aparte de las llamadas de clientes. `timeoutSecs` es lo
+   * que Telnyx espera a que contesten antes de colgar con `timeout`;
+   * `timeLimitSecs` acota la duración si alguien la coge.
+   */
+  async dialCall(input: {
+    connectionId: string;
+    from: string;
+    to: string;
+    timeoutSecs: number;
+    /** Base64 (lo exige Telnyx); viaja en cada webhook posterior de la pata. */
+    clientState: string;
+    timeLimitSecs?: number;
+  }): Promise<{ callControlId: string; callLegId: string }> {
+    const client = getTelnyxClient();
+    const response = await client.calls.dial({
+      connection_id: input.connectionId,
+      from: input.from,
+      to: input.to,
+      timeout_secs: input.timeoutSecs,
+      time_limit_secs: input.timeLimitSecs,
+      client_state: input.clientState,
+    });
+    if (!response.data?.call_control_id || !response.data.call_leg_id) {
+      throw new Error(
+        "Telnyx no devolvió call_control_id/call_leg_id al originar la llamada"
+      );
+    }
+    return {
+      callControlId: response.data.call_control_id,
+      callLegId: response.data.call_leg_id,
+    };
+  }
+
   // ---------------------------------------------------------------------
   // Conversación y transcripción
   // ---------------------------------------------------------------------

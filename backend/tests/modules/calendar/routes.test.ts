@@ -93,6 +93,7 @@ describe("calendarRoutes OAuth", () => {
     expect(rejected.headers.location).toContain("calendar_error=invalid_state");
     expect(mockedHandleCallback).not.toHaveBeenCalled();
 
+    mockedHandleCallback.mockResolvedValue({ calendars: [], email: null });
     const accepted = await fastify.inject({
       method: "GET",
       url: "/auth/google/callback?code=code&state=google_state",
@@ -100,6 +101,37 @@ describe("calendarRoutes OAuth", () => {
     });
     expect(accepted.headers.location).toContain("calendar_success=true");
     expect(mockedHandleCallback).toHaveBeenCalledWith("code", "google_state");
+  });
+
+  it("Google: con lista de calendarios manda al selector del panel en vez de conectar a «primary»", async () => {
+    mockedGetAuthUrl.mockResolvedValue(
+      "https://accounts.google.com/o/oauth2?state=google_state"
+    );
+    await fastify.inject({ method: "GET", url: "/auth/google" });
+    mockedHandleCallback.mockResolvedValue({
+      calendars: [
+        { id: "maria@gmail.com", name: "María", primary: true },
+        { id: "res_1", name: "Reservas", primary: false },
+      ],
+      email: "maria@gmail.com",
+    });
+
+    const respuesta = await fastify.inject({
+      method: "GET",
+      url: "/auth/google/callback?code=code&state=google_state",
+      headers: { cookie: "alhabla_google_calendar_oauth_state=google_state" },
+    });
+
+    const destino = new URL(respuesta.headers.location as string);
+    expect(destino.pathname).toBe("/settings");
+    expect(destino.searchParams.has("calendar_success")).toBe(false);
+    expect(JSON.parse(destino.searchParams.get("google_calendars")!)).toEqual({
+      calendars: [
+        { id: "maria@gmail.com", name: "María", primary: true },
+        { id: "res_1", name: "Reservas", primary: false },
+      ],
+      email: "maria@gmail.com",
+    });
   });
 
   it("liga también el state de Microsoft al navegador que inició la autorización", async () => {

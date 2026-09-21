@@ -111,6 +111,28 @@ model Business {
   // modules/whatsapp/avisosNegocio.ts.
   notificationPrefs   Json?
 
+  // Telefonía sin confusión (PLAN-TELEFONIA-UX.md § 1 y § 5, fase 0). Los
+  // tres números del negocio tienen papeles distintos: `phone` es la LÍNEA
+  // DE CLIENTES (a la que llaman y la que se desvía), `telnyxPhoneNumber`
+  // es el destino del desvío (el dueño no lo da a nadie) y
+  // `ownerWhatsappNumber` es el móvil del dueño (avisos y Gestor).
+  //
+  // Tipo de la línea de clientes: "fijo" (el fijo del local, caso A),
+  // "movil_trabajo" (caso B), "movil_personal" (caso C) o "alhabla" (el
+  // negocio publica el número de Alhabla como principal, sin desvío, caso
+  // E). null en negocios anteriores al plan: se infiere con
+  // esFijoEspanol(phone) hasta que el dueño lo confirme en Ajustes.
+  customerLineType           String?
+  // Caso C: la línea de clientes es el mismo móvil que recibe los avisos y
+  // el Gestor. Evita preguntar dos veces por el número en el alta y en
+  // Ajustes («es el mismo»).
+  ownerPhoneIsCustomerLine   Boolean @default(false)
+  // Privacidad (caso C): la recepcionista NO dice el número del negocio a
+  // los clientes ni lo escribe en SMS/WhatsApp; en su lugar toma recado
+  // («te llamamos nosotros»). Lo leen voiceTools, whatsapp/mensajesCliente
+  // y el prompt gestionado.
+  hideOwnerNumberFromClients Boolean @default(false)
+
   // Alta del dueño por WhatsApp (PLAN-CANAL-DUENO.md § 2, § 6, § 12).
   // El consentimiento tiene que ser demostrable: cuándo, por qué vía y con
   // qué mensaje (la fila de InboundMessage conserva el payload de Meta).
@@ -328,6 +350,11 @@ model OnboardingState {
   // primera llamada real; hasta entonces, esto guarda que el usuario dijo
   // haberlo activado.
   forwardingConfirmedAt DateTime?
+  // «Comprobar desvío» (PLAN-TELEFONIA-UX.md § 4): última vez que una
+  // llamada de comprobación desde el número de Alhabla entró desviada por
+  // la línea de clientes. Comprobado de verdad, a diferencia de
+  // forwardingConfirmedAt («el usuario dice»). null = nunca comprobado.
+  forwardingCheckedAt   DateTime?
   steps                 Json?
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt

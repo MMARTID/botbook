@@ -4,6 +4,11 @@ import Fastify from "fastify";
 import { onboardingRoutes } from "../../../src/modules/onboarding/routes.js";
 import { prisma } from "../../../src/lib/prisma.js";
 import { bajaVigente } from "../../../src/modules/whatsapp/bajas.js";
+import {
+  ComprobacionDeDesvioError,
+  iniciarComprobacionDeDesvio,
+  obtenerComprobacionDeDesvio,
+} from "../../../src/modules/onboarding/comprobacionDesvio.js";
 
 vi.mock("../../../src/lib/prisma.js", () => ({
   prisma: {
@@ -22,11 +27,31 @@ vi.mock("../../../src/modules/whatsapp/bajas.js", () => ({
   bajaVigente: vi.fn(),
 }));
 
+// La lógica de la comprobación (Redis, Telnyx) tiene su propio test; aquí
+// se prueba el contrato HTTP. La clase de error se deja real para que el
+// `instanceof` de la ruta funcione.
+vi.mock(
+  "../../../src/modules/onboarding/comprobacionDesvio.js",
+  async (importOriginal) => {
+    const original =
+      await importOriginal<
+        typeof import("../../../src/modules/onboarding/comprobacionDesvio.js")
+      >();
+    return {
+      ...original,
+      iniciarComprobacionDeDesvio: vi.fn(),
+      obtenerComprobacionDeDesvio: vi.fn(),
+    };
+  }
+);
+
 const mockedBusinessFindUnique = vi.mocked(prisma.business.findUnique);
 const mockedBajaVigente = vi.mocked(bajaVigente);
 const mockedCallFindFirst = vi.mocked(prisma.call.findFirst);
 const mockedStateUpsert = vi.mocked(prisma.onboardingState.upsert);
 const mockedStateUpdate = vi.mocked(prisma.onboardingState.update);
+const mockedIniciarComprobacion = vi.mocked(iniciarComprobacionDeDesvio);
+const mockedObtenerComprobacion = vi.mocked(obtenerComprobacionDeDesvio);
 
 const HORARIO_VALIDO = {
   version: 1,
@@ -46,6 +71,7 @@ const HORARIO_VALIDO = {
 function businessConfigurado(overrides: Record<string, unknown> = {}) {
   return {
     id: "biz_1",
+    phone: "+34931112233",
     schedule: HORARIO_VALIDO,
     services: [{ id: "srv_1" }],
     professionals: [{ id: "pro_1" }],
@@ -285,6 +311,43 @@ describe("GET /business/me/onboarding", () => {
       phoneNumber: null,
     });
   });
+
+  it("expone la línea de clientes y cuándo se comprobó el desvío de verdad", async () => {
+    mockedBusinessFindUnique.mockResolvedValue(businessConfigurado());
+    mockedCallFindFirst.mockResolvedValue(null);
+
+    let body = (
+      await fastify.inject({ method: "GET", url: "/business/me/onboarding" })
+    ).json();
+    expect(body.forwarding).toMatchObject({
+      checkedAt: null,
+      customerLine: "+34931112233",
+    });
+
+    // Comprobado de verdad (webhook): también cuenta como confirmado.
+    mockedStateUpsert.mockResolvedValue({
+      id: "onb_1",
+      businessId: "biz_1",
+      dismissedAt: null,
+      completedAt: null,
+      forwardingConfirmedAt: new Date("2026-09-21T10:00:00Z"),
+      forwardingCheckedAt: new Date("2026-09-21T10:00:00Z"),
+    } as any);
+    body = (
+      await fastify.inject({ method: "GET", url: "/business/me/onboarding" })
+    ).json();
+    expect(body.forwarding.checkedAt).toBe("2026-09-21T10:00:00.000Z");
+    expect(body.forwarding.status).toBe("done");
+
+    // El placeholder del registro no es una línea a la que llamar.
+    mockedBusinessFindUnique.mockResolvedValue(
+      businessConfigurado({ phone: "TEMP-1758470000-abcd" })
+    );
+    body = (
+      await fastify.inject({ method: "GET", url: "/business/me/onboarding" })
+    ).json();
+    expect(body.forwarding.customerLine).toBeNull();
+  });
 });
 
 describe("POST /business/me/onboarding/confirm-forwarding", () => {
@@ -319,6 +382,131 @@ describe("POST /business/me/onboarding/confirm-forwarding", () => {
     expect(response.json().confirmedAt).toBe("2026-09-11T12:00:00.000Z");
     expect(mockedStateUpdate).toHaveBeenCalledWith(
       expect.objectContaining({ where: { businessId: "biz_1" } })
+    );
+  });
+});
+
+describe("«Comprobar desvío»: POST y GET /business/me/onboarding/forwarding/check", () => {
+  let fastify: ReturnType<typeof Fastify>;
+
+  const COMPROBACION = {
+    id: "a".repeat(32),
+    businessId: "biz_1",
+    linea: "+34931112233",
+    startedAt: "2026-09-21T10:00:00.000Z",
+    callControlId: "call_ctrl_out",
+    contestada: false,
+    resultado: null,
+    resueltaAt: null,
+  };
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    fastify = Fastify();
+    fastify.decorate("authenticate", async (request: any) => {
+      request.user = { businessId: "biz_1" };
+    });
+    await fastify.register(onboardingRoutes);
+  });
+
+  it("arranca la comprobación del negocio del token y devuelve solo lo que el panel necesita", async () => {
+    mockedIniciarComprobacion.mockResolvedValue(COMPROBACION);
+
+    const response = await fastify.inject({
+      method: "POST",
+      url: "/business/me/onboarding/forwarding/check",
+    });
+
+    expect(response.statusCode).toBe(202);
+    expect(mockedIniciarComprobacion).toHaveBeenCalledWith("biz_1");
+    expect(response.json()).toEqual({
+      id: "a".repeat(32),
+      linea: "+34931112233",
+      startedAt: "2026-09-21T10:00:00.000Z",
+      resultado: null,
+      resueltaAt: null,
+    });
+  });
+
+  it("traduce cada motivo de rechazo a su código HTTP con un `code` claro", async () => {
+    const casos: Array<[string, number]> = [
+      ["sin_numero", 402],
+      ["linea_de_clientes_invalida", 409],
+      ["linea_no_admitida", 409],
+      ["comprobacion_en_curso", 409],
+      ["limite_alcanzado", 429],
+      ["telefonia_no_configurada", 503],
+      ["no_se_pudo_llamar", 502],
+    ];
+
+    for (const [codigo, status] of casos) {
+      mockedIniciarComprobacion.mockRejectedValueOnce(
+        new ComprobacionDeDesvioError(codigo as any, `motivo ${codigo}`)
+      );
+
+      const response = await fastify.inject({
+        method: "POST",
+        url: "/business/me/onboarding/forwarding/check",
+      });
+
+      expect(response.statusCode).toBe(status);
+      expect(response.json()).toEqual({
+        error: `motivo ${codigo}`,
+        code: codigo,
+      });
+    }
+  });
+
+  it("un fallo inesperado es un 500 sin filtrar detalles", async () => {
+    mockedIniciarComprobacion.mockRejectedValue(new Error("boom"));
+
+    const response = await fastify.inject({
+      method: "POST",
+      url: "/business/me/onboarding/forwarding/check",
+    });
+
+    expect(response.statusCode).toBe(500);
+    expect(response.json().error).not.toContain("boom");
+  });
+
+  it("devuelve el estado de la comprobación mientras dura y su resultado al terminar", async () => {
+    mockedObtenerComprobacion.mockResolvedValue({
+      ...COMPROBACION,
+      resultado: { estado: "fallo", motivo: "la_has_cogido" },
+      resueltaAt: "2026-09-21T10:00:20.000Z",
+    });
+
+    const response = await fastify.inject({
+      method: "GET",
+      url: `/business/me/onboarding/forwarding/check/${"a".repeat(32)}`,
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(mockedObtenerComprobacion).toHaveBeenCalledWith(
+      "a".repeat(32),
+      "biz_1"
+    );
+    expect(response.json()).toEqual({
+      id: "a".repeat(32),
+      linea: "+34931112233",
+      startedAt: "2026-09-21T10:00:00.000Z",
+      resultado: { estado: "fallo", motivo: "la_has_cogido" },
+      resueltaAt: "2026-09-21T10:00:20.000Z",
+    });
+  });
+
+  it("una comprobación de otro negocio (o caducada) es un 404", async () => {
+    mockedObtenerComprobacion.mockResolvedValue(null);
+
+    const response = await fastify.inject({
+      method: "GET",
+      url: `/business/me/onboarding/forwarding/check/${"b".repeat(32)}`,
+    });
+
+    expect(response.statusCode).toBe(404);
+    expect(mockedObtenerComprobacion).toHaveBeenCalledWith(
+      "b".repeat(32),
+      "biz_1"
     );
   });
 });

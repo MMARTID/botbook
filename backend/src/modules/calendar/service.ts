@@ -176,7 +176,17 @@ export class CalendarService {
     return url;
   }
 
-  async handleCallback(code: string, state: string): Promise<any> {
+  /** Callback de Google. Antes se conectaba directamente al calendario
+   * «primary»; ahora, como Outlook y Apple, se guardan las credenciales SIN
+   * confirmar y se devuelve la lista de calendarios para que el dueño elija
+   * (POST /calendar/select). Hasta que elija, la recepcionista no reserva
+   * (`conexionOperativa` es false con connected=false). Si la lista no se
+   * puede obtener, se conecta a «primary» como siempre: mejor eso que dejar
+   * al dueño a medias. */
+  async handleCallback(
+    code: string,
+    state: string
+  ): Promise<{ calendars: CalendarioDisponible[]; email: string | null }> {
     const businessId = await consumeCalendarOAuthState("google", state);
     if (!businessId) {
       throw new Error(
@@ -188,20 +198,45 @@ export class CalendarService {
 
     const { tokens } = await oauth2Client.getToken(code);
 
-    if (tokens.refresh_token) {
+    if (!tokens.refresh_token) {
+      return { calendars: [], email: null };
+    }
+    const credenciales = {
+      provider: "google" as const,
+      refreshToken: tokens.refresh_token,
+    };
+
+    let calendars: CalendarioDisponible[];
+    try {
+      calendars = await obtenerProveedorDeCalendario("google").listarCalendarios(
+        conCallbackDeRotacion(credenciales, businessId)
+      );
+    } catch (error) {
+      console.error(
+        `[Calendar] Google: no se pudo listar los calendarios del negocio ${businessId} tras autorizar; se conecta a "primary": ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      );
       await guardarConexionDeCalendario(businessId, {
         provider: "google",
-        credenciales: {
-          provider: "google",
-          refreshToken: tokens.refresh_token,
-        },
+        credenciales,
         calendarId: "primary",
         conectado: true,
       });
       await this.syncCalendarToolsToAgents(businessId);
+      return { calendars: [], email: null };
     }
 
-    return tokens;
+    // En Google el id del calendario principal es el correo de la cuenta.
+    const email = calendars.find((c) => c.primary)?.id ?? null;
+    await guardarConexionDeCalendario(businessId, {
+      provider: "google",
+      credenciales,
+      calendarId: null,
+      conectado: false,
+      userEmail: email,
+    });
+    return { calendars, email };
   }
 
   async getMicrosoftAuthUrl(businessId: string): Promise<string> {
