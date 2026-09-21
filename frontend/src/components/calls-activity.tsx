@@ -2,11 +2,11 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { CalendarCheck, ChevronLeft, ChevronRight, Frown, Meh, PhoneCall, Smile } from "lucide-react";
+import { CalendarCheck, ChevronLeft, ChevronRight, Frown, Meh, MessageCircle, PhoneCall, Smile } from "lucide-react";
 import { CallDetailModal } from "@/components/call-detail-modal";
 import { SectionEmptyState, SectionErrorState } from "@/components/section-card";
 import { getCalls } from "@/lib/api";
-import { formatDate, formatDuration, formatPhone, formatPrice, outcomeLabel, outcomeTone, sentimentLabel } from "@/lib/format";
+import { esChatDeWhatsapp, formatCanalYDuracion, formatDate, formatPhone, formatPrice, outcomeLabel, outcomeTone, sentimentLabel } from "@/lib/format";
 import type { Call } from "@/lib/types";
 
 const PAGE_SIZE = 25;
@@ -89,10 +89,10 @@ function CallActivityRow({ call, onOpen }: { call: Call; onOpen: () => void }) {
     <li>
       <button type="button" onClick={onOpen} className="grid w-full gap-3 p-4 text-left transition hover:bg-[#fafafa] focus-visible:relative focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#8b5cf6] sm:grid-cols-[minmax(10rem,0.8fr)_minmax(12rem,1.3fr)_minmax(7rem,0.7fr)_auto] sm:items-center sm:gap-5 sm:px-6">
         <div className="flex min-w-0 items-start gap-3">
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#f3eeff] text-[#8b5cf6]"><PhoneCall className="h-4 w-4" aria-hidden="true" /></span>
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#f3eeff] text-[#8b5cf6]">{esChatDeWhatsapp(call) ? <MessageCircle className="h-4 w-4" aria-label="Chat de WhatsApp" /> : <PhoneCall className="h-4 w-4" aria-hidden="true" />}</span>
           <span className="min-w-0">
             <span className="block truncate text-sm font-semibold tabular-nums text-[#0a0a0a]">{formatPhone(call.fromNumber) ?? "Número oculto"}</span>
-            <span className="mt-0.5 block text-xs leading-5 text-muted">{formatDate(call.startedAt)} · {formatDuration(call.durationSecs)}</span>
+            <span className="mt-0.5 block text-xs leading-5 text-muted">{formatDate(call.startedAt)} · {formatCanalYDuracion(call)}</span>
           </span>
         </div>
         <span className="min-w-0">

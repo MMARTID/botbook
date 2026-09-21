@@ -190,6 +190,28 @@ describe("GET /business/me/stats (ventana semanal)", () => {
     expect(week.bookings).toBe(1);
   });
 
+  it("separa llamadas de voz y chats de WhatsApp y cuenta conversaciones con cita", async () => {
+    mockedServiceCount.mockResolvedValue(0 as any);
+    mockedCallCount.mockImplementation((async (args: any) => {
+      const where = args?.where ?? {};
+      if (where.voiceProvider?.not === "whatsapp") return 1;
+      if (where.voiceProvider === "whatsapp") return 1;
+      if (where.booking?.isNot === null) return 2;
+      return 0;
+    }) as any);
+    // Una sola cita viva: la de voz se canceló al cambiarla por WhatsApp.
+    mockedBookingFindMany.mockResolvedValue([{ serviceIds: ["srv_1"] }] as any);
+    mockedLeadCount.mockResolvedValue(0 as any);
+
+    const response = await fastify.inject({ method: "GET", url: "/business/me/stats" });
+
+    const { week } = response.json();
+    expect(week.calls).toBe(1);
+    expect(week.chats).toBe(1);
+    expect(week.conversationsWithBooking).toBe(2);
+    expect(week.bookings).toBe(1);
+  });
+
   it("suma solo los servicios con precio y avisa de que la estimación es parcial", async () => {
     mockedServiceCount.mockResolvedValue(1 as any);
     mockedCallCount.mockResolvedValue(2 as any);
@@ -217,8 +239,11 @@ describe("GET /business/me/stats (ventana semanal)", () => {
 
     await fastify.inject({ method: "GET", url: "/business/me/stats" });
 
-    // Dos ventanas de conteo de llamadas: la actual y la anterior, contiguas.
+    // Dos ventanas de conteo de llamadas de voz: la actual y la anterior,
+    // contiguas (los chats de WhatsApp y las conversaciones con cita se
+    // cuentan aparte sobre las mismas ventanas).
     const rangos = mockedCallCount.mock.calls
+      .filter((call) => (call[0] as any)?.where?.voiceProvider?.not === "whatsapp")
       .map((call) => (call[0] as any)?.where?.startedAt)
       .filter(Boolean);
     expect(rangos).toHaveLength(2);

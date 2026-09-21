@@ -16,8 +16,15 @@ type WeeklySummaryProps = {
  * contra siete y siempre parece un desplome.
  */
 export function WeeklySummary({ week }: WeeklySummaryProps) {
+  // Conversión sobre conversaciones (llamadas + chats) que acabaron con
+  // cita, aunque luego se moviera o cancelara. Dividir citas vivas entre
+  // llamadas hacía caer el porcentaje cuando un cliente cambiaba su cita por
+  // WhatsApp (cancelar + reservar: 2 conversaciones, 1 cita → 50 %).
+  const conversaciones = week.calls + week.chats;
   const conversion =
-    week.calls > 0 ? Math.round((week.bookings / week.calls) * 100) : null;
+    conversaciones > 0
+      ? Math.round((week.conversationsWithBooking / conversaciones) * 100)
+      : null;
 
   return (
     <SectionCard id="weekly-summary" title="Últimos 7 días">
@@ -38,6 +45,9 @@ export function WeeklySummary({ week }: WeeklySummaryProps) {
           </p>
           <p className="mt-1 text-sm font-medium text-[#0a0a0a]">
             {week.calls === 1 ? "llamada atendida" : "llamadas atendidas"}
+            {week.chats > 0
+              ? ` y ${week.chats === 1 ? "1 chat" : `${week.chats} chats`} de WhatsApp`
+              : ""}
           </p>
           <p className="mt-2 text-sm leading-6 text-muted">
             {conversion !== null

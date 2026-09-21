@@ -84,6 +84,23 @@ export function formatDayLabel(value: string, timeZone: string) {
   return label.charAt(0).toUpperCase() + label.slice(1);
 }
 
+/**
+ * Los chats de WhatsApp con la recepcionista se guardan como filas Call
+ * sintéticas (`voiceProvider: "whatsapp"`). En el panel no son llamadas: sin
+ * duración ni grabación, y con su propio icono.
+ */
+export function esChatDeWhatsapp(call: { voiceProvider?: string | null }) {
+  return call.voiceProvider === "whatsapp";
+}
+
+/** «1m 45s» para una llamada; «Chat de WhatsApp» para una conversación. */
+export function formatCanalYDuracion(call: {
+  voiceProvider?: string | null;
+  durationSecs?: number | null;
+}) {
+  return esChatDeWhatsapp(call) ? "Chat de WhatsApp" : formatDuration(call.durationSecs);
+}
+
 export function formatDuration(seconds?: number | null) {
   if (!seconds) return "0s";
   const minutes = Math.floor(seconds / 60);

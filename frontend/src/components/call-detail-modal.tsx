@@ -22,7 +22,7 @@ import { getCall } from "@/lib/api";
 import {
   formatCurrency,
   formatDate,
-  formatDuration,
+  formatCanalYDuracion,
   formatPhone,
   escalationReasonLabel,
   outcomeLabel,
@@ -98,7 +98,7 @@ export function CallDetailModal({
             </h2>
             {call ? (
               <p className="mt-2 text-sm leading-6 text-[#52525b]">
-                {formatDuration(call.durationSecs)} · {statusLabel(call.status)}
+                {formatCanalYDuracion(call)} · {statusLabel(call.status)}
                 {call.fromNumber ? (
                   <span className="inline-flex items-center gap-1">
                     {" · "}
