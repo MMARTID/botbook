@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { SiteLanding } from "@/components/site-landing";
 import { HOME_QUICK_FAQS } from "@/lib/home-faqs";
-import { absoluteUrl, buildFaqPageStructuredData, defaultDescription, landingStructuredData, seoKeywords, siteName } from "@/lib/seo";
+import { absoluteUrl, buildFaqPageStructuredData, defaultDescription, landingStructuredData, ogImages, seoKeywords, siteName } from "@/lib/seo";
 
 export const metadata: Metadata = {
   title: { absolute: "Asistente telefónico con IA para reservas 24/7 | Alhabla" },
@@ -24,12 +24,13 @@ export const metadata: Metadata = {
     siteName,
     locale: "es_ES",
     type: "website",
+    images: ogImages(),
   },
   twitter: {
     card: "summary_large_image",
     title: "Asistente telefónico con IA para reservas 24/7 | Alhabla",
-    description: defaultDescription, 
-    
+    description: defaultDescription,
+    images: ogImages(),
   },
 };
 
