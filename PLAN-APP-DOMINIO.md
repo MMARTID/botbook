@@ -1,7 +1,10 @@
 # Plan: separar la web (alhabla.ai) de la aplicación (app.alhabla.ai)
 
-Estado: **fase 0 hecha** (21-09-2026; PR de backend con `APP_URL`/`WEB_URL`, CORS doble y el
-pase). Siguiente: fase 1 (`web/`).
+Estado: **hecho, corte ejecutado el 21-09-2026** (PRs #132 fase 0, #133 + #135 fase 1, #134
+fase 2; corte: `app.alhabla.ai` en Cloudflare → `alhabla-frontend`, Cloud Run con
+`APP_URL`/`WEB_URL`, `alhabla.ai` + `www` → `alhabla-web`, redirects 301 comprobados, sitemap
+nuevo servido). Lo que queda de la fase 4: retirar `FRONTEND_URL` del backend cuando ya no lo
+lea nadie (hoy es respaldo) y el paquete `packages/ui` solo si la duplicación molesta.
 
 ## 1. Qué está al revés hoy
 

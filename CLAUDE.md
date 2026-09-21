@@ -5,16 +5,21 @@ SaaS multi-tenant de recepcionistas de voz con IA para pequeños negocios en Esp
 Los agentes de voz atienden llamadas, consultan horario y disponibilidad, y reservan citas
 en el calendario de Google, Outlook o Apple/iCloud del negocio.
 
-Backend Fastify 5 + Prisma/PostgreSQL + Redis. Frontend Next.js 14 App Router
-(puerto 3001) con Tailwind 3 y TanStack Query. Voz vía Retell.ai, telefonía Telnyx, pagos
-Stripe.
+Backend Fastify 5 + Prisma/PostgreSQL + Redis. Dos webs Next.js 14 App Router con Tailwind 3
+(desde el 2026-09-21, `PLAN-APP-DOMINIO.md`): **la app** en `frontend/` (puerto 3001,
+`app.alhabla.ai`, TanStack Query, sesión JWT en `localStorage`) y **la web pública** en `web/`
+(puerto 3002, `alhabla.ai`: landing, sectores, planes, legal, registro de cuenta y blog en MDX,
+sin sesión). El registro crea la cuenta en la web y entra en la app con un pase de un solo uso
+(`POST /auth/pase/canjear`). Voz vía Retell.ai, telefonía Telnyx, pagos Stripe.
 
 **Producción** (desde 2026-09-01): backend en Google Cloud Run, **un solo servicio**,
 `alhabla-api` (`https://api.alhabla.ai`, tráfico público). Los jobs en segundo plano (antes
 BullMQ en un servicio `alhabla-worker` aparte) migraron el 2026-09-03 a Cloud Tasks/Cloud
 Scheduler, que llaman de vuelta a `alhabla-api` — ya no hace falta un servicio siempre
-encendido. Frontend en Vercel. Detalle completo, IDs de recursos y comandos reales en
-`AGENTS.md` § Deployment Notes.
+encendido. Las dos webs en Vercel (proyectos `alhabla-frontend`, root `frontend`, dominio
+`app.alhabla.ai`; y `alhabla-web`, root `web`, dominio `alhabla.ai`). `alhabla.ai` redirige con
+301 toda ruta de la app a `app.alhabla.ai`. Detalle completo, IDs de recursos y comandos reales
+en `AGENTS.md` § Deployment Notes.
 
 ## Reglas que no se negocian
 
@@ -48,6 +53,8 @@ encendido. Frontend en Vercel. Detalle completo, IDs de recursos y comandos real
   sin refetch on focus). `useBusiness()` para estado de auth.
 - Nueva variable de entorno ⇒ añadirla a `.env.example` **y** a `docker-compose.yml`
   (servicios `backend` y `backend-dev`). Sin defaults reales para secretos.
+- Un componente que usan las dos webs (`brand-mark`, `particle-*`, `google-auth-button`,
+  `range-slider`…) vive copiado en las dos: si lo cambias en una, cámbialo en la otra.
 
 ## Diseño (frontend)
 
@@ -82,7 +89,8 @@ npm run typecheck      # tsc --noEmit
 npm run prisma:migrate # migraciones en dev
 npm run prisma:studio  # :5555
 
-cd frontend && npm run dev   # Next.js :3001
+cd frontend && npm run dev   # la app, Next.js :3001
+cd web && npm run dev        # la web pública, Next.js :3002
 
 docker compose --profile dev up   # backend + postgres + redis + cloudflared (desde la raíz)
 ```
@@ -106,8 +114,13 @@ backend/
 ├── prisma/schema.prisma
 ├── tests/            # Vitest (tests/integration/ aparte, contra Postgres/Redis reales)
 └── Dockerfile
-frontend/src/{app,components,lib,hooks}/
+frontend/src/{app,components,lib,hooks}/   # la app (app.alhabla.ai)
+web/src/{app,components,lib,hooks}/        # la web pública (alhabla.ai); artículos en web/content/blog/*.mdx
 ```
+
+Enlaces entre las dos: la app enlaza a la web con `NEXT_PUBLIC_WEB_URL` (`frontend/src/lib/web-url.ts`)
+y la web a la app con `NEXT_PUBLIC_APP_URL` (`web/src/lib/app-url.ts`); el backend con `APP_URL`
+y `WEB_URL` (`backend/src/lib/urls.ts`). Nada de rutas de la otra web escritas a mano.
 
 ## Documentación
 

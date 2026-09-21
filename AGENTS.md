@@ -2260,9 +2260,21 @@ fusionar o descartar una rama, quita su fila de esta tabla.
   was already waiting** (that is how the deploy for PR #88 ended, at 2h08m); the next merge
   redeploys the same code, so nothing is lost, but it is worth knowing before touching this
   setting again.
-  **Frontend is not deployed by this workflow** — Vercel's own Git integration handles that
-  (Root Directory must be `frontend`, not `.` — see Producción section below for the incident
-  where this broke).
+  **Neither web is deployed by this workflow** — Vercel's own Git integration handles both
+  projects: `alhabla-frontend` (Root Directory `frontend`, domain `app.alhabla.ai`) and
+  `alhabla-web` (Root Directory `web`, domains `alhabla.ai` + `www` → 308 to `alhabla.ai`),
+  split on 2026-09-21 (`PLAN-APP-DOMINIO.md`). DNS lives in Cloudflare (proxied CNAMEs to the
+  project's `*.vercel-dns-017.com` target). `alhabla.ai` answers every app route with a 301 to
+  `app.alhabla.ai` (`web/next.config.mjs`), which is what keeps the Meta template URL buttons
+  (`alhabla.ai/ajustes/{{1}}`) and old emails working. Backend URLs: `APP_URL`
+  (`https://app.alhabla.ai`), `WEB_URL` (`https://alhabla.ai`), `FRONTEND_URL` kept equal to
+  `APP_URL` as a fallback. Vercel env: the app has `NEXT_PUBLIC_WEB_URL`; the web has
+  `NEXT_PUBLIC_APP_URL`, `NEXT_PUBLIC_SITE_URL` and `NEXT_PUBLIC_API_BASE_URL` (production →
+  `api.alhabla.ai`, preview → `dev-api.alhabla.ai`, same rule as the app). The Vercel MCP token
+  cannot write to the team; the `vercel` CLI session (`--scope mmartids-projects`) and the REST
+  API with its token can. The web project rejected `next-mdx-remote` 5 as vulnerable (Vercel's
+  build-time check): keep it on 6. Rollback of the cut: move `alhabla.ai` back to
+  `alhabla-frontend` in Vercel and set `APP_URL`/`FRONTEND_URL` back to `https://alhabla.ai`.
   - **Preview deployments point at the dev backend, not production** (fixed 2026-09-19).
     `NEXT_PUBLIC_API_BASE_URL` used to be a single Vercel entry targeting `production` **and**
     `preview`, so every PR preview talked to `https://api.alhabla.ai` — clicking through a
