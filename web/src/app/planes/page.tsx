@@ -27,13 +27,13 @@ export const metadata: Metadata = {
     siteName,
     title: planesTitle,
     description: planesDescription,
-    images: ogImages(),
+    images: ogImages("/planes", `${planesTitle} | ${siteName}`),
   },
   twitter: {
     card: "summary_large_image",
     title: planesTitle,
     description: planesDescription,
-    images: ogImages(),
+    images: ogImages("/planes", `${planesTitle} | ${siteName}`),
   },
 };
 

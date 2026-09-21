@@ -20,13 +20,13 @@ export const metadata: Metadata = {
     siteName,
     title: `${blogTitle} | ${siteName}`,
     description: blogDescription,
-    images: ogImages(),
+    images: ogImages("/blog", `${blogTitle} | ${siteName}`),
   },
   twitter: {
     card: "summary_large_image",
     title: `${blogTitle} | ${siteName}`,
     description: blogDescription,
-    images: ogImages(),
+    images: ogImages("/blog", `${blogTitle} | ${siteName}`),
   },
 };
 

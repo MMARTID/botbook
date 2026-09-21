@@ -835,13 +835,13 @@ export function getNicheMetadata(content: NicheLandingContent): Metadata {
       siteName,
       locale: "es_ES",
       type: "website",
-      images: ogImages(),
+      images: ogImages(`/${content.slug}`, `${content.title} | ${siteName}`),
     },
     twitter: {
       card: "summary_large_image",
       title: `${content.title} | ${siteName}`,
       description: content.description,
-      images: ogImages(),
+      images: ogImages(`/${content.slug}`, `${content.title} | ${siteName}`),
     },
     other: {
       "geo.region": "ES",
