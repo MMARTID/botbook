@@ -292,6 +292,23 @@ describe("GET /business/me/onboarding", () => {
     expect(body.forwarding.confirmedAt).toBe("2026-09-11T10:00:00.000Z");
   });
 
+  it("con el número de Alhabla como teléfono del negocio el desvío está hecho", async () => {
+    mockedBusinessFindUnique.mockResolvedValue(
+      businessConfigurado({ customerLineType: "alhabla" })
+    );
+    mockedCallFindFirst.mockResolvedValue(null);
+
+    const response = await fastify.inject({
+      method: "GET",
+      url: "/business/me/onboarding",
+    });
+
+    const body = response.json();
+    expect(body.steps.forwarding).toBe(true);
+    expect(body.forwarding.status).toBe("done");
+    expect(body.forwarding.confirmedAt).toBeNull();
+  });
+
   it("no da por activo un desvío cuyo número todavía no existe", async () => {
     mockedBusinessFindUnique.mockResolvedValue(
       businessConfigurado({

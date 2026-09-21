@@ -15,7 +15,7 @@ export function listarNegocios(nombres: string[]): string {
   return `${nombres.slice(0, -1).join(", ")} y ${nombres[nombres.length - 1]}`;
 }
 
-/** Enlace al panel; por defecto, Ajustes › WhatsApp. */
+/** Enlace al panel; por defecto, Ajustes › Teléfono › Tu móvil (ancla #whatsapp). */
 export function panelUrl(ruta = "/ajustes#whatsapp"): string {
   return appUrl(ruta, { porDefecto: "https://alhabla.ai" });
 }
@@ -35,7 +35,7 @@ export function bienvenidaTrasAlta(input: {
     "Guarda este número para reconocerme. Escribe AYUDA si tienes dudas y STOP si algún día quieres dejar de recibir avisos.",
   ];
   if (input.movilApuntado) {
-    lineas.push("He apuntado este móvil en tu panel, en Ajustes › WhatsApp.");
+    lineas.push("He apuntado este móvil en tu panel, en Ajustes › Teléfono.");
   }
   if (input.ofrecerPuestaEnMarcha) {
     lineas.push(
@@ -50,11 +50,11 @@ export function yaActivo(input: { negocios: string[] }): string {
 }
 
 export function codigoNoReconocido(): string {
-  return "No reconozco ese código. Cópialo tal cual desde tu panel, en Ajustes › WhatsApp, o pulsa allí «Abrir WhatsApp» para que venga ya escrito.";
+  return "No reconozco ese código. Cópialo tal cual desde tu panel, en Ajustes › Teléfono, o pulsa allí «Abrir WhatsApp» para que venga ya escrito.";
 }
 
 export function codigoCaducado(): string {
-  return "Ese código ya no vale. Entra en tu panel, en Ajustes › WhatsApp: verás uno nuevo.";
+  return "Ese código ya no vale. Entra en tu panel, en Ajustes › Teléfono: verás uno nuevo.";
 }
 
 export function demasiadosIntentos(): string {
@@ -63,7 +63,7 @@ export function demasiadosIntentos(): string {
 
 /** `ALTA` sin código desde un número desconocido o que aún no ha consentido. */
 export function comoDarseDeAlta(): string {
-  return "Para activar los avisos de tu negocio necesito tu código. Entra en tu panel de Alhabla, ve a Ajustes › WhatsApp y pulsa «Abrir WhatsApp»: el mensaje vendrá ya escrito.";
+  return "Para activar los avisos de tu negocio necesito tu código. Entra en tu panel de Alhabla, ve a Ajustes › Teléfono y pulsa «Abrir WhatsApp»: el mensaje vendrá ya escrito.";
 }
 
 /** STOP/BAJA del dueño con al menos un negocio que había consentido. */
@@ -170,11 +170,11 @@ export function feedbackSinConversacion(): string {
 }
 
 export function desconocidoEnNegocios(): string {
-  return "Hola, soy Alhabla. Este número es para los negocios que usan nuestra recepcionista. Si tienes uno, activa los avisos desde tu panel en alhabla.ai (Ajustes › WhatsApp). Si lo que quieres es pedir cita, llama directamente al negocio.";
+  return "Hola, soy Alhabla. Este número es para los negocios que usan nuestra recepcionista. Si tienes uno, activa los avisos desde tu panel en alhabla.ai (Ajustes › Teléfono). Si lo que quieres es pedir cita, llama directamente al negocio.";
 }
 
 export function mensajeParaOtroMovil(): string {
-  return "Este mensaje era para otro móvil. Si quieres recibir aquí los avisos, entra en tu panel, en Ajustes › WhatsApp, y pulsa «Abrir WhatsApp».";
+  return "Este mensaje era para otro móvil. Si quieres recibir aquí los avisos, entra en tu panel, en Ajustes › Teléfono, y pulsa «Abrir WhatsApp».";
 }
 
 // ---------------------------------------------------------------------------

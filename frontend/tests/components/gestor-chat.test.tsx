@@ -64,7 +64,7 @@ describe("GestorChat", () => {
       await screen.findByText(/Tienes el Gestor desactivado/)
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("link", { name: /Ajustes › WhatsApp/ })
+      screen.getByRole("link", { name: /Ajustes › Teléfono/ })
     ).toHaveAttribute("href", "/ajustes#whatsapp");
   });
 

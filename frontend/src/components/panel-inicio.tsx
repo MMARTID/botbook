@@ -130,7 +130,10 @@ function DashboardContent() {
           onRetry={() => void onboardingQuery.refetch()}
         />
       ) : forwarding && forwarding.status !== "done" ? (
-        <CallForwardingCard forwarding={forwarding} />
+        <CallForwardingCard
+          forwarding={forwarding}
+          customerLineType={business.customerLineType ?? null}
+        />
       ) : null}
 
       <OnboardingChecklist />

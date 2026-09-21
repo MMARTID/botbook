@@ -159,7 +159,7 @@ export function GestorChat({ hasToken }: { hasToken: boolean | null }) {
       <div className="panel p-6 text-sm leading-6 text-muted">
         Tienes el Gestor desactivado. Puedes volver a activarlo en{" "}
         <Link href="/ajustes#whatsapp" className="font-semibold text-[#6d28d9]">
-          Ajustes › WhatsApp
+          Ajustes › Teléfono
         </Link>
         .
       </div>

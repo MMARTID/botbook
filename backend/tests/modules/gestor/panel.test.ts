@@ -173,7 +173,12 @@ describe("preguntarAlGestor", () => {
     } as never);
     expect(
       await preguntarAlGestor({ businessId: "biz_1", texto: "hola" })
-    ).toMatchObject({ ok: false, motivo: "apagado_negocio" });
+    ).toMatchObject({
+      ok: false,
+      motivo: "apagado_negocio",
+      // El interruptor vive en Ajustes › Teléfono › Tu móvil (fase 2).
+      mensaje: "El Gestor está desactivado en Ajustes › Teléfono.",
+    });
     mockedBiz.mockResolvedValueOnce({
       ...NEGOCIO,
       subscriptionStatus: "UNPAID",

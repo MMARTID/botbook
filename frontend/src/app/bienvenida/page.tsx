@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Building2,
@@ -8,10 +8,12 @@ import {
   LoaderCircle,
   MapPin,
   Phone,
+  PhoneForwarded,
   Search,
   Smartphone,
 } from "lucide-react";
 import { LottieAnimation } from "@/components/lottie-animation";
+import { TarjetasDeLinea } from "@/components/tarjetas-de-linea";
 import {
   getPlaceDetails,
   searchPlaces,
@@ -21,9 +23,15 @@ import {
 import { apiErrorCode, describeApiError } from "@/lib/api-errors";
 import { consumePendingPlan, isPlanId } from "@/lib/billing-navigation";
 import { detectBusinessTypeFromPlaceTypes } from "@/lib/business-type";
-import { esFijoEspanol, normalizarMovil } from "@/lib/phone";
+import {
+  esFijoEspanol,
+  inferirTipoDeLinea,
+  normalizarMovil,
+} from "@/lib/phone";
 import type {
+  Business,
   BusinessSchedule,
+  CustomerLineType,
   PlaceDetails,
   PlaceSearchResult,
   WeekDay,
@@ -35,7 +43,32 @@ const DETECTED_BUSINESS_TYPE_KEY = "alhabla_detected_business_type";
 // el registro no se bloquea por WhatsApp, pero la persona tiene que leerlo.
 const AVISO_MOVIL_NO_GUARDADO_MS = 4_000;
 const AVISO_MOVIL_NO_GUARDADO =
-  "No se pudo guardar tu móvil. Añádelo más tarde en Ajustes › WhatsApp.";
+  "No se pudo guardar tu móvil. Añádelo más tarde en Ajustes › Teléfono.";
+
+const ERROR_MOVIL_INVALIDO =
+  "Escribe un móvil válido, por ejemplo 600 123 456 o +34 600 123 456.";
+const ERROR_LINEA_INVALIDA =
+  "Escribe un teléfono válido, por ejemplo 930 123 456 o +34 600 123 456.";
+// Un fijo español (8xx/9xx) no tiene WhatsApp: en el campo del móvil se avisa
+// sin bloquear (igual que en Ajustes › Teléfono); con «los avisos a este
+// mismo móvil» marcado sí bloquea, porque ese número se guardaría como el
+// WhatsApp del dueño y hay una alternativa clara (desmarcar la casilla).
+const AVISO_PARECE_FIJO =
+  "Parece el teléfono del local. Necesitamos el móvil en el que usas WhatsApp.";
+const ERROR_LINEA_FIJO_CON_AVISOS =
+  "Ese número es un fijo y no tiene WhatsApp. Escribe tu móvil o desmarca «Mándame los avisos a este mismo móvil».";
+const ERROR_LINEA_VACIA_CON_AVISOS =
+  "Escribe el móvil al que te mandamos los avisos o desmarca «Mándame los avisos a este mismo móvil».";
+
+/** Cómo se llama el campo de la línea según la tarjeta elegida. */
+const ETIQUETA_DE_LINEA: Record<
+  Exclude<CustomerLineType, "alhabla">,
+  { label: string; placeholder: string }
+> = {
+  fijo: { label: "Teléfono fijo del local", placeholder: "930 123 456" },
+  movil_trabajo: { label: "Móvil de trabajo", placeholder: "600 123 456" },
+  movil_personal: { label: "Tu móvil", placeholder: "600 123 456" },
+};
 
 // Cuánto tiempo esperamos a que el navegador resuelva la geolocalización
 // antes de rendirnos y mostrar el selector de país como alternativa.
@@ -110,7 +143,23 @@ export default function RegisterBusinessPage() {
   const [coords, setCoords] = useState<{ latitude: number; longitude: number } | null>(null);
   const [ownerMobile, setOwnerMobile] = useState("");
   const [ownerMobileError, setOwnerMobileError] = useState("");
+  const [ownerMobileAviso, setOwnerMobileAviso] = useState("");
   const [ownerMobileWarning, setOwnerMobileWarning] = useState("");
+  // «¿A qué número te llaman tus clientes?» (PLAN-TELEFONIA-UX.md § 5,
+  // fase 1): el tipo de la línea, la línea misma (Business.phone) y las dos
+  // decisiones que cuelgan de un móvil: avisos al mismo número y privacidad.
+  const [tipoDeLinea, setTipoDeLinea] = useState<CustomerLineType | null>(null);
+  const [lineaDeClientes, setLineaDeClientes] = useState("");
+  const [lineaError, setLineaError] = useState("");
+  const [avisosALaLinea, setAvisosALaLinea] = useState(false);
+  const [ocultarNumero, setOcultarNumero] = useState(false);
+  // En cuanto la persona toca la tarjeta, la línea o las casillas, la
+  // propuesta de Google Places deja de pisar lo que ha escrito.
+  const [telefoniaTocada, setTelefoniaTocada] = useState(false);
+  // Lo que hay escrito en «Tu móvil con WhatsApp» cuando llegan los detalles
+  // del negocio (después de un await, el estado de la clausura estaría viejo).
+  const ownerMobileRef = useRef(ownerMobile);
+  ownerMobileRef.current = ownerMobile;
   const debouncedQuery = useDebounce(query, 350);
 
   // Preferimos geolocalizar al negocio en vez de preguntarle el país: menos
@@ -225,6 +274,25 @@ export default function RegisterBusinessPage() {
       const detectedType = detectBusinessTypeFromPlaceTypes(details.types);
       window.localStorage.setItem(DETECTED_BUSINESS_TYPE_KEY, detectedType);
       setSelected(details);
+      // Google Places propone la línea de clientes: un fijo español es «el
+      // fijo del local» y un móvil español, «un móvil de trabajo». Solo
+      // mientras la persona no haya elegido nada por su cuenta.
+      if (!telefoniaTocada) {
+        elegirTipoDeLinea(inferirTipoDeLinea(details.phone));
+        setLineaDeClientes(details.phone ?? "");
+        setLineaError("");
+        // Si la persona ya había escrito su móvil en «Tu móvil con
+        // WhatsApp», los avisos van ahí: un móvil en la ficha de Google no
+        // puede marcar «a este mismo móvil» y descartar en silencio el que
+        // escribió (salvo que sea el mismo número).
+        const movilEscrito = ownerMobileRef.current.trim();
+        if (
+          movilEscrito !== "" &&
+          normalizarMovil(movilEscrito) !== normalizarMovil(details.phone ?? "")
+        ) {
+          setAvisosALaLinea(false);
+        }
+      }
     } catch {
       setError("No se pudieron cargar los detalles del negocio.");
       setSelected(null);
@@ -233,38 +301,117 @@ export default function RegisterBusinessPage() {
     }
   };
 
-  // Vacío = válido (es opcional). Si escribe algo, tiene que ser un móvil.
+  // Cambiar de tarjeta repone los valores por defecto de esa tarjeta: en los
+  // dos móviles los avisos van al mismo número salvo que se diga lo contrario
+  // (PLAN-TELEFONIA-UX.md § 5, fase 1), y la privacidad solo tiene sentido
+  // en el personal.
+  const elegirTipoDeLinea = (tipo: CustomerLineType | null) => {
+    setTipoDeLinea(tipo);
+    setAvisosALaLinea(tipo === "movil_trabajo" || tipo === "movil_personal");
+    if (tipo !== "movil_personal") setOcultarNumero(false);
+  };
+
+  const elegirTipoDeLineaAMano = (tipo: CustomerLineType) => {
+    setTelefoniaTocada(true);
+    elegirTipoDeLinea(tipo);
+  };
+
+  // Vacío = válido (es opcional). Si escribe algo, tiene que ser un móvil;
+  // un fijo español pasa, pero se avisa de que ahí no hay WhatsApp.
   const validateOwnerMobile = (value: string): string | null | false => {
     if (value.trim() === "") {
       setOwnerMobileError("");
-      setOwnerMobileWarning("");
+      setOwnerMobileAviso("");
       return null;
     }
     const normalizado = normalizarMovil(value);
     if (!normalizado) {
-      setOwnerMobileError(
-        "Escribe un móvil válido, por ejemplo 600 123 456 o +34 600 123 456."
-      );
-      setOwnerMobileWarning("");
+      setOwnerMobileError(ERROR_MOVIL_INVALIDO);
+      setOwnerMobileAviso("");
       return false;
     }
     setOwnerMobileError("");
-    const telefonoDelLocal = selected?.phone
-      ? normalizarMovil(selected.phone)
-      : null;
-    const pareceDelLocal =
-      esFijoEspanol(normalizado) ||
-      (telefonoDelLocal !== null && telefonoDelLocal === normalizado);
-    setOwnerMobileWarning(
-      pareceDelLocal
-        ? "Parece el teléfono del local. Necesitamos el móvil en el que usas WhatsApp."
-        : ""
-    );
+    setOwnerMobileAviso(esFijoEspanol(normalizado) ? AVISO_PARECE_FIJO : "");
     return normalizado;
   };
 
+  // La línea de clientes admite fijo o móvil, de España o de fuera: solo se
+  // exige que se pueda escribir en E.164, que es lo que guarda el backend.
+  const validateLinea = (value: string): string | null | false => {
+    if (value.trim() === "") {
+      setLineaError("");
+      return null;
+    }
+    const normalizado = normalizarMovil(value);
+    if (!normalizado) {
+      setLineaError(ERROR_LINEA_INVALIDA);
+      return false;
+    }
+    setLineaError("");
+    return normalizado;
+  };
+
+  const pideLineaPropia = tipoDeLinea !== null && tipoDeLinea !== "alhabla";
+  const lineaEsMovil =
+    tipoDeLinea === "movil_trabajo" || tipoDeLinea === "movil_personal";
+  const avisosAlMismoMovil = lineaEsMovil && avisosALaLinea;
+
   const ownerMobileIsValid =
     ownerMobile.trim() === "" || normalizarMovil(ownerMobile) !== null;
+  // Derivado en cada render, no en el blur: cambiar de tarjeta o marcar la
+  // casilla con un fijo ya escrito tiene que bloquear al instante.
+  const lineaNormalizada = normalizarMovil(lineaDeClientes);
+  const lineaFijoError =
+    avisosAlMismoMovil &&
+    lineaNormalizada !== null &&
+    esFijoEspanol(lineaNormalizada)
+      ? ERROR_LINEA_FIJO_CON_AVISOS
+      : "";
+  const lineaIsValid =
+    !pideLineaPropia ||
+    ((lineaDeClientes.trim() === "" || lineaNormalizada !== null) &&
+      !lineaFijoError);
+  const lineaErrorVisible = lineaError || lineaFijoError;
+  // Con los avisos al mismo móvil el campo del móvil no se ve: lo que quedara
+  // escrito en él no puede bloquear los botones.
+  const formularioValido =
+    lineaIsValid && (avisosAlMismoMovil || ownerMobileIsValid);
+
+  /**
+   * Los campos de telefonía del PATCH y el móvil del dueño que toca activar.
+   * `false` si algo escrito no vale (el error ya está a la vista). Sin
+   * tarjeta elegida no se manda nada de telefonía: el negocio se queda con
+   * `customerLineType` null y la tarjeta de desvío lo preguntará.
+   */
+  const construirTelefonia = ():
+    | { campos: Partial<Business>; movil: string | null }
+    | false => {
+    const linea = pideLineaPropia ? validateLinea(lineaDeClientes) : null;
+    if (linea === false) return false;
+
+    const campos: Partial<Business> = {};
+    if (tipoDeLinea) {
+      campos.customerLineType = tipoDeLinea;
+      campos.ownerPhoneIsCustomerLine = avisosAlMismoMovil;
+      campos.hideOwnerNumberFromClients =
+        tipoDeLinea === "movil_personal" && ocultarNumero;
+      if (linea) campos.phone = linea;
+    }
+
+    if (avisosAlMismoMovil) {
+      // La casilla promete avisos a «este mismo móvil»: sin número no hay a
+      // quién avisar, y con un fijo tampoco (el error ya está a la vista).
+      if (!linea) {
+        setLineaError(ERROR_LINEA_VACIA_CON_AVISOS);
+        return false;
+      }
+      if (esFijoEspanol(linea)) return false;
+      return { campos, movil: linea };
+    }
+    const movil = validateOwnerMobile(ownerMobile);
+    if (movil === false) return false;
+    return { campos, movil };
+  };
 
   /**
    * Guarda el móvil junto al resto de datos y pide la activación. Devuelve
@@ -287,12 +434,17 @@ export default function RegisterBusinessPage() {
 
   const handleSaveError = (err: unknown) => {
     if (apiErrorCode(err) === "OWNER_WHATSAPP_IS_ALHABLA") {
-      setOwnerMobileError(
-        describeApiError(
-          err,
-          "Ese número es el de Alhabla. Escribe tu propio móvil."
-        )
+      const texto = describeApiError(
+        err,
+        "Ese número es el de Alhabla. Escribe tu propio móvil."
       );
+      // Con los avisos al mismo móvil, el móvil rechazado es la línea de
+      // clientes: el error va bajo el campo que sí está a la vista.
+      if (avisosAlMismoMovil) {
+        setLineaError(texto);
+      } else {
+        setOwnerMobileError(texto);
+      }
       return;
     }
     setError(
@@ -307,8 +459,8 @@ export default function RegisterBusinessPage() {
 
   const handleConfirm = async () => {
     if (!selected) return;
-    const movil = validateOwnerMobile(ownerMobile);
-    if (movil === false) return;
+    const telefonia = construirTelefonia();
+    if (!telefonia) return;
 
     setSaving(true);
     setError("");
@@ -327,8 +479,9 @@ export default function RegisterBusinessPage() {
           schedule: selected.schedule,
           placeId: selected.placeId,
           address: selected.address || null,
+          ...telefonia.campos,
         },
-        movil
+        telefonia.movil
       );
 
       // Mientras se avisa (4 s) o se redirige, los botones siguen bloqueados:
@@ -345,19 +498,23 @@ export default function RegisterBusinessPage() {
   };
 
   const handleSkip = async () => {
-    const movil = validateOwnerMobile(ownerMobile);
-    if (movil === false) return;
-    if (!movil) {
+    const telefonia = construirTelefonia();
+    if (!telefonia) return;
+    if (!telefonia.movil && Object.keys(telefonia.campos).length === 0) {
       redirectToNextStep();
       return;
     }
 
-    // Sin negocio elegido solo se guarda el móvil; si eso falla, se enseña el
-    // error y NO se redirige: la persona lo escribió para algo.
+    // Sin negocio elegido solo se guarda la telefonía y el móvil; si eso
+    // falla, se enseña el error y NO se redirige: la persona lo escribió
+    // para algo.
     setSaving(true);
     setError("");
     try {
-      const movilGuardado = await saveAndActivate({}, movil);
+      const movilGuardado = await saveAndActivate(
+        telefonia.campos,
+        telefonia.movil
+      );
       if (!movilGuardado) {
         continueAfterMobileWarning();
         return;
@@ -549,65 +706,197 @@ export default function RegisterBusinessPage() {
         <div className="mt-6 rounded-2xl border border-[#e5e5e5] p-5">
           <div className="flex items-start gap-3">
             <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#f3eeff] text-[#8b5cf6]">
-              <Smartphone className="h-5 w-5" aria-hidden="true" />
+              <PhoneForwarded className="h-5 w-5" aria-hidden="true" />
             </span>
             <div className="min-w-0 flex-1">
-              <label
-                htmlFor="register-owner-mobile"
+              <h3
+                id="register-customer-line-title"
                 className="text-sm font-semibold text-[#27272a]"
               >
-                Tu móvil con WhatsApp (opcional)
-              </label>
-              <input
-                id="register-owner-mobile"
-                type="tel"
-                inputMode="tel"
-                autoComplete="tel"
-                value={ownerMobile}
-                onChange={(event) => {
-                  setOwnerMobile(event.target.value);
-                  if (ownerMobileError) setOwnerMobileError("");
-                }}
-                onBlur={() => validateOwnerMobile(ownerMobile)}
-                placeholder="600 123 456"
-                aria-describedby={
-                  ownerMobileError
-                    ? "register-owner-mobile-hint register-owner-mobile-error"
-                    : "register-owner-mobile-hint"
-                }
-                aria-invalid={Boolean(ownerMobileError)}
-                className="field mt-2 w-full"
-              />
-              <p
-                id="register-owner-mobile-hint"
-                className="mt-1 text-xs leading-5 text-muted"
-              >
-                Aquí te avisará la recepcionista de cada reserva y recado. Es tu
-                móvil, no el teléfono del local. Puedes añadirlo o cambiarlo más
-                tarde en Ajustes.
+                ¿A qué número te llaman tus clientes?
+              </h3>
+              <p className="mt-1 text-xs leading-5 text-muted">
+                Es la línea que desviarás a tu recepcionista y la que ella dará
+                a tus clientes para cambiar o anular una cita.
               </p>
-              {ownerMobileError ? (
-                <p
-                  id="register-owner-mobile-error"
-                  className="mt-1 text-xs leading-5 text-[#c53030]"
-                >
-                  {ownerMobileError}
-                </p>
-              ) : (
-                // Siempre montada para que el lector de pantalla anuncie el
-                // aviso cuando aparece (una región aria-live que nace con
-                // texto no se anuncia).
-                <p
-                  id="register-owner-mobile-warning"
-                  className="mt-1 text-xs leading-5 text-[#9f7a15]"
-                  aria-live="polite"
-                >
-                  {ownerMobileWarning}
-                </p>
-              )}
             </div>
           </div>
+          <div className="mt-4">
+            <TarjetasDeLinea
+              name="register-customer-line"
+              value={tipoDeLinea}
+              onChange={elegirTipoDeLineaAMano}
+              aria-labelledby="register-customer-line-title"
+            />
+          </div>
+
+          {tipoDeLinea !== null && tipoDeLinea !== "alhabla" ? (
+            <div className="mt-4">
+              <label
+                htmlFor="register-customer-line-number"
+                className="text-sm font-semibold text-[#27272a]"
+              >
+                {ETIQUETA_DE_LINEA[tipoDeLinea].label}
+              </label>
+              <input
+                id="register-customer-line-number"
+                type="tel"
+                inputMode="tel"
+                value={lineaDeClientes}
+                onChange={(event) => {
+                  setTelefoniaTocada(true);
+                  setLineaDeClientes(event.target.value);
+                  if (lineaError) setLineaError("");
+                }}
+                onBlur={() => validateLinea(lineaDeClientes)}
+                placeholder={ETIQUETA_DE_LINEA[tipoDeLinea].placeholder}
+                aria-describedby={
+                  lineaErrorVisible ? "register-customer-line-error" : undefined
+                }
+                aria-invalid={Boolean(lineaErrorVisible)}
+                className="field mt-2 w-full"
+              />
+              {lineaErrorVisible ? (
+                <p
+                  id="register-customer-line-error"
+                  className="mt-1 text-xs leading-5 text-[#c53030]"
+                >
+                  {lineaErrorVisible}
+                </p>
+              ) : null}
+            </div>
+          ) : null}
+
+          {lineaEsMovil ? (
+            <label className="mt-4 flex cursor-pointer items-start gap-3">
+              <input
+                type="checkbox"
+                checked={avisosALaLinea}
+                onChange={(event) => {
+                  setTelefoniaTocada(true);
+                  setAvisosALaLinea(event.target.checked);
+                  // El error «…o desmarca la casilla» deja de tener sentido.
+                  if (lineaError) setLineaError("");
+                }}
+                className="mt-0.5 h-4 w-4 shrink-0 rounded border-[#d4d4d8] text-[#8b5cf6] focus:ring-[#8b5cf6]"
+              />
+              <span className="text-sm text-[#27272a]">
+                Mándame los avisos a este mismo móvil
+                <span className="mt-0.5 block text-xs leading-5 text-muted">
+                  Cada reserva y cada recado te llegarán por WhatsApp a ese
+                  número.
+                </span>
+              </span>
+            </label>
+          ) : null}
+
+          {tipoDeLinea === "movil_personal" ? (
+            <label className="mt-3 flex cursor-pointer items-start gap-3">
+              <input
+                type="checkbox"
+                checked={ocultarNumero}
+                onChange={(event) => {
+                  setTelefoniaTocada(true);
+                  setOcultarNumero(event.target.checked);
+                }}
+                className="mt-0.5 h-4 w-4 shrink-0 rounded border-[#d4d4d8] text-[#8b5cf6] focus:ring-[#8b5cf6]"
+              />
+              <span className="text-sm text-[#27272a]">
+                No des mi número a los clientes
+                <span className="mt-0.5 block text-xs leading-5 text-muted">
+                  Tu recepcionista no lo dirá: que dejen recado y les llamas
+                  tú.
+                </span>
+              </span>
+            </label>
+          ) : null}
+
+          {tipoDeLinea === "alhabla" ? (
+            <p className="mt-4 rounded-2xl bg-[#f3eeff] px-4 py-3 text-xs leading-5 text-[#6d28d9]">
+              Al elegir tu plan te damos un número español. Publícalo como el
+              teléfono de tu negocio y tu recepcionista atenderá todas las
+              llamadas: no hay nada que desviar.
+            </p>
+          ) : null}
         </div>
+
+        {avisosAlMismoMovil ? null : (
+          <div className="mt-6 rounded-2xl border border-[#e5e5e5] p-5">
+            <div className="flex items-start gap-3">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#f3eeff] text-[#8b5cf6]">
+                <Smartphone className="h-5 w-5" aria-hidden="true" />
+              </span>
+              <div className="min-w-0 flex-1">
+                <label
+                  htmlFor="register-owner-mobile"
+                  className="text-sm font-semibold text-[#27272a]"
+                >
+                  Tu móvil con WhatsApp (opcional)
+                </label>
+                <input
+                  id="register-owner-mobile"
+                  type="tel"
+                  inputMode="tel"
+                  autoComplete="tel"
+                  value={ownerMobile}
+                  onChange={(event) => {
+                    setOwnerMobile(event.target.value);
+                    if (ownerMobileError) setOwnerMobileError("");
+                    if (ownerMobileAviso) setOwnerMobileAviso("");
+                  }}
+                  onBlur={() => validateOwnerMobile(ownerMobile)}
+                  placeholder="600 123 456"
+                  aria-describedby={
+                    ownerMobileError
+                      ? "register-owner-mobile-hint register-owner-mobile-error"
+                      : "register-owner-mobile-hint"
+                  }
+                  aria-invalid={Boolean(ownerMobileError)}
+                  className="field mt-2 w-full"
+                />
+                <p
+                  id="register-owner-mobile-hint"
+                  className="mt-1 text-xs leading-5 text-muted"
+                >
+                  Aquí te avisará la recepcionista de cada reserva y recado. Es tu
+                  móvil, no el teléfono del local. Puedes añadirlo o cambiarlo más
+                  tarde en Ajustes.
+                </p>
+                {ownerMobileError ? (
+                  <p
+                    id="register-owner-mobile-error"
+                    className="mt-1 text-xs leading-5 text-[#c53030]"
+                  >
+                    {ownerMobileError}
+                  </p>
+                ) : ownerMobileAviso ? (
+                  <p
+                    id="register-owner-mobile-aviso"
+                    className="mt-1 text-xs leading-5 text-[#9f7a15]"
+                  >
+                    {ownerMobileAviso}
+                  </p>
+                ) : null}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Fuera del bloque del móvil, que con «los avisos a este mismo móvil»
+            no se monta: el aviso tiene que verse en los dos casos. Siempre
+            montada para que el lector de pantalla lo anuncie cuando aparece
+            (una región aria-live que nace con texto no se anuncia). */}
+        <p
+          id="register-owner-mobile-warning"
+          className={
+            ownerMobileWarning
+              ? "mt-4 text-sm leading-6 text-[#9f7a15]"
+              : "sr-only"
+          }
+          aria-live="polite"
+        >
+          {ownerMobileWarning}
+        </p>
 
         {error && <p className="mt-4 text-sm text-[#c53030]">{error}</p>}
 
@@ -615,7 +904,7 @@ export default function RegisterBusinessPage() {
           <button
             type="button"
             onClick={handleConfirm}
-            disabled={!selected || saving || !ownerMobileIsValid}
+            disabled={!selected || saving || !formularioValido}
             className="btn-primary w-full justify-center disabled:cursor-not-allowed disabled:opacity-50"
           >
             {saving ? "Guardando..." : "Confirmar y continuar"}
@@ -623,7 +912,7 @@ export default function RegisterBusinessPage() {
           <button
             type="button"
             onClick={handleSkip}
-            disabled={saving || !ownerMobileIsValid}
+            disabled={saving || !formularioValido}
             className="btn-secondary w-full justify-center disabled:cursor-not-allowed disabled:opacity-50"
           >
             No encontré mi negocio / configurar después

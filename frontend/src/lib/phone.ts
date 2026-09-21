@@ -40,6 +40,29 @@ export function esFijoEspanol(e164: string): boolean {
   return /^\+34[89]\d{8}$/.test(e164);
 }
 
+/** Un móvil español (6xx / 7xx). */
+export function esMovilEspanol(e164: string): boolean {
+  return /^\+34[67]\d{8}$/.test(e164);
+}
+
+/**
+ * Tipo de línea de clientes que se propone en el alta a partir del teléfono
+ * que trae Google Places (PLAN-TELEFONIA-UX.md § 5, fase 1): un fijo español
+ * es «el fijo del local» y un móvil español, «un móvil de trabajo». Con
+ * cualquier otra cosa (sin teléfono, extranjero) no se propone nada y el
+ * dueño elige.
+ */
+export function inferirTipoDeLinea(
+  telefono: string | null | undefined
+): "fijo" | "movil_trabajo" | null {
+  if (!telefono) return null;
+  const normalizado = normalizarMovil(telefono);
+  if (!normalizado) return null;
+  if (esFijoEspanol(normalizado)) return "fijo";
+  if (esMovilEspanol(normalizado)) return "movil_trabajo";
+  return null;
+}
+
 /**
  * Presenta un E.164 para leerlo: «+34 930 453 218». Fuera de España se agrupa
  * de tres en tres tras el prefijo, que es lo más legible sin conocer el plan
@@ -56,4 +79,27 @@ export function formatearMovil(e164: string): string {
   const prefijo = cuerpo.slice(0, 2);
   const resto = cuerpo.slice(2).replace(/(\d{3})(?=\d)/g, "$1 ");
   return `+${prefijo} ${resto}`.trim();
+}
+
+/**
+ * Qué hacer con `Business.customerLineType` cuando el dueño cambia la línea
+ * de clientes desde Ajustes. La tarjeta de desvío enseña los códigos según
+ * ese tipo, así que un fijo que pasa a ser un móvil (o al revés) no puede
+ * quedarse con el tipo antiguo.
+ *
+ * - `undefined`: no hay que tocarlo (mismo tipo, sin tipo aún, «alhabla»,
+ *   o un número del que no sabemos nada, como uno extranjero).
+ * - `"fijo"`: el número nuevo es un fijo español y antes era un móvil.
+ * - `null`: el número nuevo es un móvil español y antes era un fijo; hay
+ *   que volver a preguntar si es de trabajo o personal.
+ */
+export function tipoDeLineaTrasCambiarTelefono(
+  actual: "fijo" | "movil_trabajo" | "movil_personal" | "alhabla" | null,
+  nuevoTelefono: string
+): "fijo" | null | undefined {
+  if (actual === null || actual === "alhabla") return undefined;
+  const inferido = inferirTipoDeLinea(nuevoTelefono);
+  if (inferido === null) return undefined;
+  if (inferido === "fijo") return actual === "fijo" ? undefined : "fijo";
+  return actual === "fijo" ? null : undefined;
 }

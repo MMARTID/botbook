@@ -11,26 +11,36 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AxiosError, type AxiosResponse } from "axios";
 import {
   CallForwardingCard,
+  ComprobarDesvio,
   INTERVALO_DE_CONSULTA_MS,
   MAX_CONSULTAS,
   TEXTO_POR_MOTIVO,
+  TEXTO_POR_MOTIVO_EN_AJUSTES,
 } from "@/components/call-forwarding-card";
 import {
   confirmForwarding,
   getForwardingCheck,
   startForwardingCheck,
+  updateMyBusiness,
 } from "@/lib/api";
-import type { ForwardingCheck, OnboardingForwarding } from "@/lib/types";
+import type {
+  Business,
+  CustomerLineType,
+  ForwardingCheck,
+  OnboardingForwarding,
+} from "@/lib/types";
 
 vi.mock("@/lib/api", () => ({
   confirmForwarding: vi.fn(),
   getForwardingCheck: vi.fn(),
   startForwardingCheck: vi.fn(),
+  updateMyBusiness: vi.fn(),
 }));
 
 const mockedStart = vi.mocked(startForwardingCheck);
 const mockedGet = vi.mocked(getForwardingCheck);
 const mockedConfirm = vi.mocked(confirmForwarding);
+const mockedUpdateMyBusiness = vi.mocked(updateMyBusiness);
 
 const CHECK_ID = "a".repeat(32);
 
@@ -76,13 +86,19 @@ function errorHttp(status: number, data: Record<string, unknown>) {
   );
 }
 
-function renderCard(estado: OnboardingForwarding = forwarding()) {
+function renderCard(
+  estado: OnboardingForwarding = forwarding(),
+  customerLineType: CustomerLineType | null = null
+) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
   render(
     <QueryClientProvider client={queryClient}>
-      <CallForwardingCard forwarding={estado} />
+      <CallForwardingCard
+        forwarding={estado}
+        customerLineType={customerLineType}
+      />
     </QueryClientProvider>
   );
   return queryClient;
@@ -93,6 +109,160 @@ async function lanzarComprobacion(user: ReturnType<typeof userEvent.setup>) {
   await user.click(screen.getByRole("button", { name: /comprobar desvío/i }));
   await user.click(screen.getByRole("button", { name: /llamar ahora/i }));
 }
+
+describe("CallForwardingCard · códigos según el tipo de línea", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("con un fijo enseña *61* y *21* sin el doble asterisco, con la nota del contestador", () => {
+    renderCard(forwarding(), "fijo");
+
+    expect(screen.getByText("*61*+34930453218#")).toBeInTheDocument();
+    expect(screen.getByText("*21*+34930453218#")).toBeInTheDocument();
+    expect(screen.queryByText(/\*\*61\*/)).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("Otras formas de desviar")
+    ).not.toBeInTheDocument();
+    expect(screen.getByText("Recomendado")).toBeInTheDocument();
+    expect(
+      screen.getByText(/Si tu fijo tiene contestador, desactívalo/)
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Desde un móvil")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("¿De qué tipo es esta línea?")
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /comprobar desvío/i })
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /ya lo he activado/i })
+    ).toBeInTheDocument();
+  });
+
+  it.each(["movil_trabajo", "movil_personal"] as const)(
+    "con %s enseña los códigos de móvil, «cuando no contestas» recomendado y la nota del buzón",
+    (tipo) => {
+      renderCard(forwarding(), tipo);
+
+      expect(screen.getByText("**61*+34930453218#")).toBeInTheDocument();
+      expect(screen.getByText("Recomendado")).toBeInTheDocument();
+      expect(screen.getByText("Otras formas de desviar")).toBeInTheDocument();
+      expect(screen.getByText("**21*+34930453218#")).toBeInTheDocument();
+      expect(
+        screen.getByText(/Este desvío sustituye al buzón de voz/)
+      ).toBeInTheDocument();
+      expect(screen.queryByText("Desde un fijo")).not.toBeInTheDocument();
+      expect(screen.queryByText("*61*+34930453218#")).not.toBeInTheDocument();
+      expect(
+        screen.queryByText("¿De qué tipo es esta línea?")
+      ).not.toBeInTheDocument();
+    }
+  );
+
+  it("con Alhabla como número principal no hay tarjeta, ni siquiera mientras se activa el número", () => {
+    const { container } = render(
+      <QueryClientProvider client={new QueryClient()}>
+        <CallForwardingCard
+          forwarding={forwarding()}
+          customerLineType="alhabla"
+        />
+        <CallForwardingCard
+          forwarding={forwarding({
+            status: "waiting_number",
+            phoneNumber: null,
+          })}
+          customerLineType="alhabla"
+        />
+      </QueryClientProvider>
+    );
+
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  it("sin tipo (negocio antiguo) enseña móvil y fijo y pregunta el tipo; elegir uno lo guarda y actualiza el negocio en caché", async () => {
+    const user = userEvent.setup();
+    const negocio = { id: "neg_1", customerLineType: "fijo" } as Business;
+    mockedUpdateMyBusiness.mockResolvedValue(negocio);
+    const queryClient = renderCard(forwarding(), null);
+    const invalidar = vi.spyOn(queryClient, "invalidateQueries");
+
+    expect(screen.getByText("Desde un móvil")).toBeInTheDocument();
+    expect(screen.getByText("Desde un fijo")).toBeInTheDocument();
+    expect(screen.getByText("**61*+34930453218#")).toBeInTheDocument();
+    expect(screen.getByText("¿De qué tipo es esta línea?")).toBeInTheDocument();
+    expect(
+      screen.getAllByRole("radio").map((radio) => radio.getAttribute("value"))
+    ).toEqual(["fijo", "movil_trabajo", "movil_personal"]);
+
+    await user.click(screen.getByRole("radio", { name: /El fijo del local/ }));
+
+    await waitFor(() =>
+      expect(mockedUpdateMyBusiness).toHaveBeenCalledWith({
+        customerLineType: "fijo",
+      })
+    );
+    await waitFor(() =>
+      expect(queryClient.getQueryData(["my-business"])).toBe(negocio)
+    );
+    expect(invalidar).toHaveBeenCalledWith({ queryKey: ["onboarding-state"] });
+  });
+
+  it("si guardar el tipo falla lo dice y deja volver a elegir", async () => {
+    const user = userEvent.setup();
+    mockedUpdateMyBusiness.mockRejectedValue(new Error("Network Error"));
+    renderCard(forwarding(), null);
+
+    await user.click(
+      screen.getByRole("radio", { name: /Un móvil de trabajo/ })
+    );
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      /No se pudo guardar el tipo de línea/
+    );
+    expect(
+      screen.getByRole("radio", { name: /El fijo del local/ })
+    ).toBeEnabled();
+  });
+
+  it("tras el fallo la tarjeta se suelta y se puede reintentar la misma opción", async () => {
+    const user = userEvent.setup();
+    mockedUpdateMyBusiness.mockRejectedValueOnce(new Error("Network Error"));
+    renderCard(forwarding(), null);
+
+    const movilDeTrabajo = screen.getByRole("radio", {
+      name: /Un móvil de trabajo/,
+    });
+    await user.click(movilDeTrabajo);
+    await screen.findByRole("alert");
+
+    // Un radio que siguiera marcado no volvería a disparar onChange.
+    expect(movilDeTrabajo).not.toBeChecked();
+
+    mockedUpdateMyBusiness.mockResolvedValueOnce({
+      id: "neg_1",
+      customerLineType: "movil_trabajo",
+    } as Business);
+    await user.click(movilDeTrabajo);
+
+    await waitFor(() =>
+      expect(mockedUpdateMyBusiness).toHaveBeenCalledTimes(2)
+    );
+    expect(mockedUpdateMyBusiness).toHaveBeenLastCalledWith({
+      customerLineType: "movil_trabajo",
+    });
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("sin línea de clientes no tiene sentido preguntar el tipo", () => {
+    renderCard(forwarding({ customerLine: null }), null);
+
+    expect(
+      screen.queryByText("¿De qué tipo es esta línea?")
+    ).not.toBeInTheDocument();
+    expect(screen.getByText("**61*+34930453218#")).toBeInTheDocument();
+  });
+});
 
 describe("CallForwardingCard · «Comprobar desvío»", () => {
   beforeEach(() => {
@@ -334,5 +504,79 @@ describe("CallForwardingCard · «Comprobar desvío»", () => {
     await waitFor(() =>
       expect(invalidar).toHaveBeenCalledWith({ queryKey: ["onboarding-state"] })
     );
+  });
+});
+
+describe("ComprobarDesvio en Ajustes › Teléfono", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockedStart.mockResolvedValue(comprobacion());
+    mockedGet.mockResolvedValue(comprobacion());
+  });
+
+  function renderEnAjustes(customerLine: string | null = "+34931112233") {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    render(
+      <QueryClientProvider client={queryClient}>
+        <ComprobarDesvio customerLine={customerLine} contexto="ajustes" />
+      </QueryClientProvider>
+    );
+    return queryClient;
+  }
+
+  it("el motivo «desconocido» no manda a un botón que en Ajustes no existe", async () => {
+    const user = userEvent.setup();
+    mockedGet.mockResolvedValue(
+      comprobacion({ estado: "fallo", motivo: "desconocido" })
+    );
+    renderEnAjustes();
+
+    await lanzarComprobacion(user);
+
+    const alerta = await screen.findByRole("alert");
+    expect(alerta).toHaveTextContent(
+      TEXTO_POR_MOTIVO_EN_AJUSTES.desconocido!.detalle
+    );
+    expect(alerta).not.toHaveTextContent(/ya lo he activado/i);
+    // Los demás motivos siguen con su texto de siempre.
+    expect(TEXTO_POR_MOTIVO_EN_AJUSTES.sin_desvio).toBeUndefined();
+  });
+
+  it("una línea no admitida manda al bloque de arriba, no «a Ajustes»", async () => {
+    const user = userEvent.setup();
+    mockedStart.mockRejectedValue(
+      errorHttp(409, { error: "Solo España", code: "linea_no_admitida" })
+    );
+    renderEnAjustes();
+
+    await lanzarComprobacion(user);
+
+    const alerta = await screen.findByRole("alert");
+    expect(alerta).toHaveTextContent(/revisa arriba/i);
+    expect(alerta).not.toHaveTextContent(/en Ajustes/i);
+  });
+
+  it("tras «Desvío funcionando», «Hecho» refresca el estado y vuelve al botón inicial", async () => {
+    const user = userEvent.setup();
+    mockedGet.mockResolvedValue(comprobacion({ estado: "ok" }));
+    const queryClient = renderEnAjustes();
+    const invalidar = vi.spyOn(queryClient, "invalidateQueries");
+
+    await lanzarComprobacion(user);
+
+    expect(await screen.findByText("Desvío funcionando")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /continuar/i })
+    ).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /^hecho$/i }));
+
+    expect(invalidar).toHaveBeenCalledWith({ queryKey: ["onboarding-state"] });
+    expect(screen.queryByText("Desvío funcionando")).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /comprobar desvío/i })
+    ).toBeInTheDocument();
   });
 });

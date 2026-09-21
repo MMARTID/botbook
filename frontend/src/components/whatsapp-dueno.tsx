@@ -77,7 +77,7 @@ const BADGES: Record<
 };
 
 /**
- * Ajustes › WhatsApp: el móvil del dueño, su estado y la vía de activación.
+ * Ajustes › Teléfono › Tu móvil: el móvil del dueño, su estado y la vía de activación.
  * Guardar el móvil no activa nada por sí solo: el consentimiento lo da la
  * persona desde su propio móvil (mensaje «ALTA <código>» o el botón de la
  * plantilla). Por eso el enlace/QR se enseña siempre que hay código.
@@ -150,17 +150,33 @@ export function WhatsappDueno({ business, hasToken }: WhatsappDuenoProps) {
     const telefonoDelLocal = business.phone.startsWith("TEMP-")
       ? null
       : normalizarMovil(business.phone);
+    // Si en el alta dijo que los avisos van al mismo móvil al que le llaman
+    // los clientes (caso C del plan de telefonía), coincidir con la línea
+    // no es una sospecha: es lo que pidió.
     const pareceDelLocal =
       esFijoEspanol(normalizado) ||
-      (telefonoDelLocal !== null && telefonoDelLocal === normalizado);
+      (!business.ownerPhoneIsCustomerLine &&
+        telefonoDelLocal !== null &&
+        telefonoDelLocal === normalizado);
     setMovilAviso(pareceDelLocal ? AVISO_PARECE_FIJO : null);
     return { ok: true, normalizado };
   };
 
   const guardarMutation = useMutation({
     mutationFn: async (normalizado: string | null) => {
+      // «Es el mismo que la línea de clientes» (Ajustes › Teléfono › Tu
+      // móvil) solo es verdad mientras el móvil de los avisos coincida con
+      // esa línea: si desde aquí se cambia o se quita, la casilla se apaga
+      // en el mismo PATCH para no dejar un estado imposible.
+      const lineaDeClientes = business.phone.startsWith("TEMP-")
+        ? null
+        : business.phone;
+      const dejaDeSerLaLinea =
+        business.ownerPhoneIsCustomerLine === true &&
+        normalizado !== lineaDeClientes;
       const updated = await updateMyBusiness({
         ownerWhatsappNumber: normalizado,
+        ...(dejaDeSerLaLinea ? { ownerPhoneIsCustomerLine: false } : {}),
       });
       // Un backend anterior descarta el campo sin error: la respuesta no lo
       // trae. En ese caso no se pide la activación (no hay móvil que activar).
