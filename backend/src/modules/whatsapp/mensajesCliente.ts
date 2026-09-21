@@ -113,23 +113,25 @@ export function nombreParaCliente(negocio: { name: string }): string {
  * `TEMP-` del registro); si no, null (los textos tienen variante).
  *
  * Con `hideOwnerNumberFromClients` (PLAN-TELEFONIA-UX.md § 3, caso C: «no
- * des mi número a los clientes») devuelve null siempre: ningún mensaje al
- * cliente lleva un número, ni siquiera el de Alhabla, y las variantes sin
- * teléfono («llama directamente a …», o la plantilla sin `negocio_telefono`)
- * hacen el resto. El cliente siempre puede responder por WhatsApp.
+ * des mi número a los clientes») lo que se oculta es la línea del dueño
+ * (`phone`): el número de Alhabla lo atiende la recepcionista, que toma el
+ * recado, así que sigue dándose (todas las plantillas de confirmación,
+ * cambio y cancelación exigen `negocio_telefono`; sin él el cliente no
+ * recibiría nada después de que la recepcionista le prometiera el WhatsApp).
+ * Solo sin número de Alhabla devuelve null, y las variantes sin teléfono
+ * («llama directamente a …», o la plantilla sin `negocio_telefono`) hacen el
+ * resto. El cliente siempre puede responder por WhatsApp.
  */
 export function telefonoDeContacto(negocio: {
   telnyxPhoneNumber: string | null;
   phone: string;
   hideOwnerNumberFromClients?: boolean;
 }): string | null {
-  if (negocio.hideOwnerNumberFromClients === true) {
-    return null;
-  }
   if (negocio.telnyxPhoneNumber) {
     return formatearTelefonoLegible(negocio.telnyxPhoneNumber);
   }
   if (
+    negocio.hideOwnerNumberFromClients !== true &&
     negocio.phone &&
     !negocio.phone.startsWith("TEMP-") &&
     isValidE164Phone(negocio.phone)
