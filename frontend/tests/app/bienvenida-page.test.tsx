@@ -350,7 +350,7 @@ describe("RegisterBusinessPage — móvil con WhatsApp", () => {
 
     expect(
       await screen.findByText(
-        "No se pudo guardar tu móvil. Añádelo más tarde en Ajustes › WhatsApp."
+        "No se pudo guardar tu móvil. Añádelo más tarde en Ajustes › Teléfono."
       )
     ).toBeInTheDocument();
     expect(mockedUpdateMyBusiness).toHaveBeenCalledWith({
@@ -868,7 +868,7 @@ describe("RegisterBusinessPage — ¿A qué número te llaman tus clientes?", ()
     );
 
     const aviso = await screen.findByText(
-      "No se pudo guardar tu móvil. Añádelo más tarde en Ajustes › WhatsApp."
+      "No se pudo guardar tu móvil. Añádelo más tarde en Ajustes › Teléfono."
     );
     expect(aviso).toHaveAttribute("aria-live", "polite");
     expect(aviso).not.toHaveClass("sr-only");

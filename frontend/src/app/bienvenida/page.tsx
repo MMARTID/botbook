@@ -43,14 +43,14 @@ const DETECTED_BUSINESS_TYPE_KEY = "alhabla_detected_business_type";
 // el registro no se bloquea por WhatsApp, pero la persona tiene que leerlo.
 const AVISO_MOVIL_NO_GUARDADO_MS = 4_000;
 const AVISO_MOVIL_NO_GUARDADO =
-  "No se pudo guardar tu móvil. Añádelo más tarde en Ajustes › WhatsApp.";
+  "No se pudo guardar tu móvil. Añádelo más tarde en Ajustes › Teléfono.";
 
 const ERROR_MOVIL_INVALIDO =
   "Escribe un móvil válido, por ejemplo 600 123 456 o +34 600 123 456.";
 const ERROR_LINEA_INVALIDA =
   "Escribe un teléfono válido, por ejemplo 930 123 456 o +34 600 123 456.";
 // Un fijo español (8xx/9xx) no tiene WhatsApp: en el campo del móvil se avisa
-// sin bloquear (igual que en Ajustes › WhatsApp); con «los avisos a este
+// sin bloquear (igual que en Ajustes › Teléfono); con «los avisos a este
 // mismo móvil» marcado sí bloquea, porque ese número se guardaría como el
 // WhatsApp del dueño y hay una alternativa clara (desmarcar la casilla).
 const AVISO_PARECE_FIJO =

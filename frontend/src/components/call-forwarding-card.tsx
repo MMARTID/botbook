@@ -33,7 +33,7 @@ import type {
   OnboardingForwarding,
 } from "@/lib/types";
 
-type CodigoDeDesvio = {
+export type CodigoDeDesvio = {
   id: string;
   titulo: string;
   descripcion: string;
@@ -50,7 +50,7 @@ type CodigoDeDesvio = {
  * El primero es el que corresponde a la promesa del producto — «solo las
  * llamadas que no contestas» — así que va primero y es el recomendado.
  */
-const CODIGOS_MOVIL: CodigoDeDesvio[] = [
+export const CODIGOS_MOVIL: CodigoDeDesvio[] = [
   {
     id: "no-contesta",
     titulo: "Cuando no contestas",
@@ -90,7 +90,7 @@ const CODIGOS_MOVIL: CodigoDeDesvio[] = [
  * TELEFONIA-UX.md § 2): se marcan desde el propio aparato tras el tono. Solo
  * los dos que tienen sentido en un local: «si no contestas» y «todas».
  */
-const CODIGOS_FIJO: CodigoDeDesvio[] = [
+export const CODIGOS_FIJO: CodigoDeDesvio[] = [
   {
     id: "fijo-no-contesta",
     titulo: "Cuando no contestas",
@@ -392,7 +392,7 @@ export function CallForwardingCard({
 }
 
 /** Aviso corto bajo los códigos (contestador, buzón de voz). */
-function NotaDeLinea({ children }: { children: ReactNode }) {
+export function NotaDeLinea({ children }: { children: ReactNode }) {
   return (
     <p className="mt-3 flex items-start gap-2 rounded-2xl bg-white px-4 py-3 text-sm leading-6 text-[#9f7a15]">
       <TriangleAlert className="mt-1 h-4 w-4 shrink-0" aria-hidden="true" />
@@ -454,8 +454,11 @@ function PreguntaTipoDeLinea({ customerLine }: { customerLine: string }) {
  * cierra la tarjeta solo: el mensaje se queda a la vista hasta que la
  * persona pulsa «Continuar», que refresca la guía (y la tarjeta desaparece
  * porque el paso ya está hecho).
+ *
+ * Se comparte con Ajustes › Teléfono (fase 2 del plan): mismo bloque, misma
+ * conversación con el backend.
  */
-function ComprobarDesvio({ customerLine }: { customerLine: string | null | undefined }) {
+export function ComprobarDesvio({ customerLine }: { customerLine: string | null | undefined }) {
   const queryClient = useQueryClient();
   const [fase, setFase] = useState<"inactiva" | "aviso" | "en_curso">("inactiva");
   const [checkId, setCheckId] = useState<string | null>(null);
@@ -655,7 +658,7 @@ function ComprobarDesvio({ customerLine }: { customerLine: string | null | undef
   );
 }
 
-function CodigoFila({
+export function CodigoFila({
   codigo,
   numero,
   copiado,

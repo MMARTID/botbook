@@ -15,12 +15,12 @@ import {
   LockKeyhole,
   LogOut,
   MailCheck,
-  MessageCircle,
   Save,
   Settings,
   ShieldCheck,
   Trash2,
 } from "lucide-react";
+import { AjustesTelefono } from "@/components/ajustes-telefono";
 import { AppPageHeader } from "@/components/app-page-header";
 import { useBusiness } from "@/components/providers";
 import {
@@ -31,8 +31,12 @@ import {
 } from "@/lib/api";
 import { describeApiError } from "@/lib/api-errors";
 import { clearAuthTokens } from "@/lib/billing-navigation";
-import { E164_PHONE_REGEX, tipoDeLineaTrasCambiarTelefono } from "@/lib/phone";
-import { WhatsappDueno } from "@/components/whatsapp-dueno";
+import {
+  BUSINESS_TYPES,
+  BUSINESS_TYPE_LABELS,
+  isBusinessType,
+} from "@/lib/business-type";
+import type { BusinessType } from "@/lib/types";
 import { webUrl } from "@/lib/web-url";
 
 const PASSWORD_HAS_LETTER = /[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]/;
@@ -50,7 +54,11 @@ export default function AccountSettingsPage() {
     enabled: hasToken === true,
   });
 
-  const [businessProfile, setBusinessProfile] = useState({ name: "", phone: "" });
+  const [businessProfile, setBusinessProfile] = useState<{
+    name: string;
+    address: string;
+    businessType: BusinessType | "";
+  }>({ name: "", address: "", businessType: "" });
   const [profileFeedback, setProfileFeedback] = useState<Feedback>(null);
   const [passwordFeedback, setPasswordFeedback] = useState<Feedback>(null);
   const [currentPassword, setCurrentPassword] = useState("");
@@ -69,13 +77,13 @@ export default function AccountSettingsPage() {
     if (!business) return;
     setBusinessProfile({
       name: business.name,
-      phone: business.phone.startsWith("TEMP-") ? "" : business.phone,
+      address: business.address ?? "",
+      businessType: isBusinessType(business.businessType)
+        ? business.businessType
+        : "",
     });
   }, [business]);
 
-  const phoneIsValid =
-    businessProfile.phone.trim() === "" ||
-    E164_PHONE_REGEX.test(businessProfile.phone.trim());
   const passwordIsValid =
     newPassword.length >= 8 &&
     PASSWORD_HAS_LETTER.test(newPassword) &&
@@ -85,19 +93,15 @@ export default function AccountSettingsPage() {
 
   const profileMutation = useMutation({
     mutationFn: () => {
-      const phone = businessProfile.phone.trim();
-      // Si la línea de clientes cambia de naturaleza (un fijo pasa a ser un
-      // móvil o al revés), el tipo guardado en el alta dejaría a la tarjeta
-      // de desvío enseñando los códigos equivocados: se corrige o se vuelve
-      // a preguntar (PLAN-TELEFONIA-UX.md § 5, fase 1).
-      const tipoDeLinea =
-        phone && phone !== business?.phone
-          ? tipoDeLineaTrasCambiarTelefono(business?.customerLineType ?? null, phone)
-          : undefined;
+      // El teléfono ya no va aquí: vive en Ajustes › Teléfono (PLAN-
+      // TELEFONIA-UX.md § 5, fase 2). Dirección y sector solo se mandan si
+      // cambian: el sector renombra al agente y resincroniza el prompt.
+      const address = businessProfile.address.trim();
+      const sector = businessProfile.businessType;
       return updateMyBusiness({
         name: businessProfile.name.trim(),
-        ...(phone ? { phone } : {}),
-        ...(tipoDeLinea !== undefined ? { customerLineType: tipoDeLinea } : {}),
+        ...(address !== (business?.address ?? "") ? { address: address || null } : {}),
+        ...(sector && sector !== business?.businessType ? { businessType: sector } : {}),
       });
     },
     onSuccess: (updatedBusiness) => {
@@ -203,7 +207,7 @@ export default function AccountSettingsPage() {
       <AppPageHeader
         icon={Settings}
         title="Ajustes"
-        description="Gestiona tu cuenta, la seguridad y los datos de contacto del negocio."
+        description="Gestiona tu cuenta, los datos del negocio, tus teléfonos y la seguridad."
       />
 
       <section className="panel overflow-hidden" aria-labelledby="account-title">
@@ -257,7 +261,7 @@ export default function AccountSettingsPage() {
           </span>
           <div>
             <h2 id="business-title" className="text-lg font-semibold text-[#0a0a0a]">Datos del negocio</h2>
-            <p className="mt-1 text-sm leading-6 text-muted">El nombre que ves en el panel y el teléfono del local.</p>
+            <p className="mt-1 text-sm leading-6 text-muted">El nombre que ves en el panel, la dirección y el sector. Los teléfonos están más abajo.</p>
           </div>
         </div>
         <div className="mt-5 grid gap-4 lg:grid-cols-2">
@@ -276,22 +280,42 @@ export default function AccountSettingsPage() {
             </span>
           </label>
           <label className="text-sm font-semibold text-[#27272a]">
-            Teléfono del negocio
-            <input
-              type="tel"
-              inputMode="tel"
-              autoComplete="tel"
-              value={businessProfile.phone}
-              onChange={(event) => setBusinessProfile((current) => ({ ...current, phone: event.target.value }))}
-              aria-describedby="settings-phone-hint"
-              aria-invalid={!phoneIsValid}
+            Sector
+            <select
+              value={businessProfile.businessType}
+              onChange={(event) =>
+                setBusinessProfile((current) => ({
+                  ...current,
+                  businessType: isBusinessType(event.target.value) ? event.target.value : "",
+                }))
+              }
+              aria-describedby="settings-business-type-hint"
               className="field mt-2 w-full"
-              placeholder="+34600123456"
+            >
+              <option value="">Sin especificar</option>
+              {BUSINESS_TYPES.map((tipo) => (
+                <option key={tipo} value={tipo}>
+                  {BUSINESS_TYPE_LABELS[tipo]}
+                </option>
+              ))}
+            </select>
+            <span id="settings-business-type-hint" className="mt-1 block text-xs font-normal leading-5 text-muted">
+              Ajusta cómo se presenta la recepcionista y qué servicios propone.
+            </span>
+          </label>
+          <label className="text-sm font-semibold text-[#27272a] lg:col-span-2">
+            Dirección
+            <input
+              value={businessProfile.address}
+              onChange={(event) => setBusinessProfile((current) => ({ ...current, address: event.target.value }))}
+              autoComplete="street-address"
+              maxLength={500}
+              aria-describedby="settings-business-address-hint"
+              className="field mt-2 w-full"
+              placeholder="Calle Mayor 12, 28013 Madrid"
             />
-            <span id="settings-phone-hint" className={`mt-1 block text-xs font-normal leading-5 ${phoneIsValid ? "text-muted" : "text-[#c53030]"}`}>
-              {phoneIsValid
-                ? "El número al que llaman tus clientes. Lo dice la recepcionista cuando alguien tiene que llamar al local. Los avisos para ti llegan al WhatsApp de abajo."
-                : "Añade el prefijo del país y escribe solo números, por ejemplo +34930453218."}
+            <span id="settings-business-address-hint" className="mt-1 block text-xs font-normal leading-5 text-muted">
+              La que trajimos de Google. Alimenta el botón «Cómo llegar» de la confirmación por WhatsApp.
             </span>
           </label>
         </div>
@@ -300,7 +324,7 @@ export default function AccountSettingsPage() {
           <button
             type="button"
             onClick={() => profileMutation.mutate()}
-            disabled={profileMutation.isPending || !businessProfile.name.trim() || !phoneIsValid}
+            disabled={profileMutation.isPending || !businessProfile.name.trim()}
             className="btn-primary shrink-0"
           >
             {profileMutation.isPending ? (
@@ -313,22 +337,7 @@ export default function AccountSettingsPage() {
         </div>
       </section>
 
-      <section
-        id="whatsapp"
-        className="panel scroll-mt-24 p-4 sm:p-6"
-        aria-labelledby="whatsapp-title"
-      >
-        <div className="flex items-start gap-3">
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#f3eeff] text-[#8b5cf6]">
-            <MessageCircle className="h-5 w-5" aria-hidden="true" />
-          </span>
-          <div>
-            <h2 id="whatsapp-title" className="text-lg font-semibold text-[#0a0a0a]">WhatsApp</h2>
-            <p className="mt-1 text-sm leading-6 text-muted">El móvil donde la recepcionista te avisa de reservas y recados.</p>
-          </div>
-        </div>
-        <WhatsappDueno business={business} hasToken={hasToken} />
-      </section>
+      <AjustesTelefono business={business} hasToken={hasToken} />
 
       <section className="panel p-4 sm:p-6" aria-labelledby="security-title">
         <div className="flex items-start gap-3">

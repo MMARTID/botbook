@@ -77,7 +77,7 @@ const BADGES: Record<
 };
 
 /**
- * Ajustes › WhatsApp: el móvil del dueño, su estado y la vía de activación.
+ * Ajustes › Teléfono › Tu móvil: el móvil del dueño, su estado y la vía de activación.
  * Guardar el móvil no activa nada por sí solo: el consentimiento lo da la
  * persona desde su propio móvil (mensaje «ALTA <código>» o el botón de la
  * plantilla). Por eso el enlace/QR se enseña siempre que hay código.

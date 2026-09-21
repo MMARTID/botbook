@@ -476,7 +476,8 @@ el `fetch` equivalente. **Nunca desde un route handler**: todo pasa por
 - El nombre real del evento `whatsapp.template.*` no está verificado (fase 0): el `default:`
   del switch de `/webhooks/telnyx` avisa con `warn` de cualquier `whatsapp.*`/`message.*` sin
   handler, y el GET refresca la plantilla cada 24 h por `listTemplates`.
-- Panel (PR 2b): `frontend/src/components/whatsapp-dueno.tsx` (Ajustes › WhatsApp: estado,
+- Panel (PR 2b): `frontend/src/components/whatsapp-dueno.tsx` (Ajustes › Teléfono › Tu móvil,
+  antes «Ajustes › WhatsApp»: estado,
   móvil, «Guardar y activar», «Reenviar activación», «Quitar el móvil», enlace `wa.me` con
   `ALTA <código>`, copiar y QR con `qrcode.react`; se refresca cada 10 s mientras esté
   pendiente), campo opcional «Tu móvil con WhatsApp» en `/register/business` (guarda en el
@@ -1022,7 +1023,7 @@ el `fetch` equivalente. **Nunca desde un route handler**: todo pasa por
   barra lateral y en «Más» en móvil: la barra inferior tiene cinco huecos justos) con
   `components/gestor-chat.tsx` (historial, burbujas, propuesta con sus dos botones, ejemplos
   para empezar, Enter envía, invalida `my-business`/`booking-settings`/`agenda` tras un botón);
-  Ajustes › WhatsApp gana el bloque «Conversaciones · Beta» con los dos interruptores
+  Ajustes › Teléfono › Tu móvil gana el bloque «Conversaciones · Beta» con los dos interruptores
   (guardado al instante por el PATCH; se enseñan aunque no haya móvil, porque el Gestor
   también va por el panel). «Beta» solo aquí, nunca en un mensaje de WhatsApp.
 - Tests de integración de la fase 2 (`tests/integration/gestor/agenda.test.ts`, Postgres/Redis

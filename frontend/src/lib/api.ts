@@ -384,7 +384,7 @@ export async function completeOnboarding() {
   return data;
 }
 
-/** Estado del móvil del dueño en WhatsApp (Ajustes › WhatsApp). */
+/** Estado del móvil del dueño en WhatsApp (Ajustes › Teléfono). */
 export async function getOwnerWhatsapp() {
   const { data } = await api.get<EstadoWhatsappDueno>("/business/me/whatsapp");
   return data;

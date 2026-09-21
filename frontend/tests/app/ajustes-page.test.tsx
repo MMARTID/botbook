@@ -1,16 +1,22 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import AccountSettingsPage from "@/app/ajustes/page";
 import { useBusiness } from "@/components/providers";
 import {
   getAccountOverview,
+  getOnboardingState,
   getOwnerWhatsapp,
+  getPhoneNumberInfo,
   updateMyBusiness,
 } from "@/lib/api";
 import type { AccountOverview } from "@/lib/api";
-import type { EstadoWhatsappDueno } from "@/lib/types";
+import type {
+  EstadoWhatsappDueno,
+  OnboardingState,
+  PhoneNumberInfo,
+} from "@/lib/types";
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace: vi.fn(), push: vi.fn() }),
@@ -27,11 +33,19 @@ vi.mock("@/lib/api", () => ({
   updateMyBusiness: vi.fn(),
   getOwnerWhatsapp: vi.fn(),
   sendOwnerWhatsappActivation: vi.fn(),
+  // Ajustes › Teléfono: estado del desvío, número de Alhabla y comprobación.
+  getOnboardingState: vi.fn(),
+  getPhoneNumberInfo: vi.fn(),
+  confirmForwarding: vi.fn(),
+  startForwardingCheck: vi.fn(),
+  getForwardingCheck: vi.fn(),
 }));
 
 const mockedUseBusiness = vi.mocked(useBusiness);
 const mockedGetAccountOverview = vi.mocked(getAccountOverview);
 const mockedGetOwnerWhatsapp = vi.mocked(getOwnerWhatsapp);
+const mockedGetOnboardingState = vi.mocked(getOnboardingState);
+const mockedGetPhoneNumberInfo = vi.mocked(getPhoneNumberInfo);
 const mockedUpdateMyBusiness = vi.mocked(updateMyBusiness);
 
 const CLAVE_CUENTA = ["account-overview"];
@@ -41,7 +55,33 @@ const NEGOCIO = {
   name: "Peluquería Lola",
   phone: "+34600111222",
   timezone: "Europe/Madrid",
+  address: "Calle Mayor 12, Madrid",
+  businessType: "peluqueria",
+  subscriptionStatus: "ACTIVE",
 } as unknown as ReturnType<typeof useBusiness>["business"];
+
+const ONBOARDING: OnboardingState = {
+  steps: {} as OnboardingState["steps"],
+  progress: 0,
+  dismissedAt: null,
+  completedAt: null,
+  isActive: true,
+  forwarding: {
+    status: "ready",
+    phoneNumber: "+34930453218",
+    confirmedAt: null,
+    firstCallAt: null,
+    checkedAt: null,
+    customerLine: "+34600111222",
+  },
+};
+
+const NUMERO_DE_ALHABLA: PhoneNumberInfo = {
+  phoneNumber: "+34930453218",
+  sid: "sid_1",
+  purchasedAt: "2026-09-01T00:00:00.000Z",
+  status: "active",
+};
 
 const CUENTA: AccountOverview = {
   email: "lola@peluquerialola.es",
@@ -96,6 +136,8 @@ describe("AccountSettingsPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockedGetOwnerWhatsapp.mockResolvedValue(ESTADO_WHATSAPP);
+    mockedGetOnboardingState.mockResolvedValue(ONBOARDING);
+    mockedGetPhoneNumberInfo.mockResolvedValue(NUMERO_DE_ALHABLA);
   });
 
   it("enseña la pantalla de error si la cuenta no llega y no hay nada en caché", async () => {
@@ -148,35 +190,88 @@ describe("AccountSettingsPage", () => {
     expect(screen.getByText("Cargando ajustes…")).toBeInTheDocument();
   });
 
-  it("coloca la sección de WhatsApp entre «Datos del negocio» y «Seguridad»", async () => {
+  it("coloca la sección «Teléfono» entre «Datos del negocio» y «Seguridad», con «Tu móvil» en el ancla #whatsapp", async () => {
     estadoDeNegocio({ business: NEGOCIO });
     mockedGetAccountOverview.mockResolvedValue(CUENTA);
 
     renderPage();
 
-    const whatsapp = await screen.findByRole("region", { name: "WhatsApp" });
-    expect(whatsapp).toHaveAttribute("id", "whatsapp");
+    const telefono = await screen.findByRole("region", { name: "Teléfono" });
+    expect(screen.queryByRole("region", { name: "WhatsApp" })).not.toBeInTheDocument();
     const negocio = screen.getByRole("region", { name: "Datos del negocio" });
     const seguridad = screen.getByRole("region", { name: "Seguridad" });
     // compareDocumentPosition: FOLLOWING (4) = el argumento va después del nodo.
-    expect(negocio.compareDocumentPosition(whatsapp) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(whatsapp.compareDocumentPosition(seguridad) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(negocio.compareDocumentPosition(telefono) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(telefono.compareDocumentPosition(seguridad) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // Los tres bloques del plan (PLAN-TELEFONIA-UX.md § 5, fase 2), en orden.
+    const linea = screen.getByRole("group", { name: "Línea de clientes" });
+    const recepcionista = screen.getByRole("group", { name: "Tu recepcionista" });
+    const movil = screen.getByRole("group", { name: "Tu móvil" });
+    expect(linea.compareDocumentPosition(recepcionista) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(recepcionista.compareDocumentPosition(movil) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // La checklist del panel y el Gestor siguen enlazando a /ajustes#whatsapp.
+    expect(movil).toHaveAttribute("id", "whatsapp");
     expect(await screen.findByLabelText(/Tu móvil con WhatsApp/)).toBeInTheDocument();
     expect(mockedGetOwnerWhatsapp).toHaveBeenCalledTimes(1);
   });
 
-  it("llama «Teléfono del negocio» al fijo del local y limita el nombre a 80 caracteres", async () => {
+  it("«Datos del negocio» se queda con nombre, dirección y sector; el teléfono vive en «Línea de clientes»", async () => {
     estadoDeNegocio({ business: NEGOCIO });
     mockedGetAccountOverview.mockResolvedValue(CUENTA);
 
     renderPage();
 
-    expect(await screen.findByLabelText(/Teléfono del negocio/)).toHaveValue(NEGOCIO!.phone);
+    expect(await screen.findByLabelText(/Nombre del negocio/)).toHaveAttribute("maxLength", "80");
+    expect(screen.queryByLabelText(/Teléfono del negocio/)).not.toBeInTheDocument();
     expect(screen.queryByLabelText(/Teléfono móvil para avisos/)).not.toBeInTheDocument();
-    expect(screen.getByLabelText(/Nombre del negocio/)).toHaveAttribute("maxLength", "80");
+    const negocio = within(screen.getByRole("region", { name: "Datos del negocio" }));
+    expect(negocio.getByLabelText(/Dirección/)).toHaveValue("Calle Mayor 12, Madrid");
+    expect(negocio.getByLabelText(/Sector/)).toHaveValue("peluqueria");
+    expect(negocio.queryByRole("textbox", { name: /Número al que te llaman/ })).not.toBeInTheDocument();
+    const linea = within(screen.getByRole("group", { name: "Línea de clientes" }));
+    expect(linea.getByLabelText(/Número al que te llaman tus clientes/)).toHaveValue(NEGOCIO!.phone);
   });
 
-  describe("cambiar el teléfono del negocio y el tipo de línea", () => {
+  describe("guardar los datos del negocio", () => {
+    async function guardarDatos(cambios: (user: ReturnType<typeof userEvent.setup>) => Promise<void>) {
+      const user = userEvent.setup();
+      estadoDeNegocio({ business: NEGOCIO });
+      mockedGetAccountOverview.mockResolvedValue(CUENTA);
+      mockedUpdateMyBusiness.mockResolvedValue(NEGOCIO as never);
+      renderPage();
+      await screen.findByLabelText(/Nombre del negocio/);
+      await cambios(user);
+      await user.click(screen.getByRole("button", { name: /Guardar datos/ }));
+      await waitFor(() => expect(mockedUpdateMyBusiness).toHaveBeenCalledTimes(1));
+      return mockedUpdateMyBusiness.mock.calls[0][0];
+    }
+
+    it("sin cambiar dirección ni sector solo manda el nombre (el sector resincroniza el agente)", async () => {
+      const body = await guardarDatos(async (user) => {
+        const nombre = screen.getByLabelText(/Nombre del negocio/);
+        await user.clear(nombre);
+        await user.type(nombre, "Lola Peluquería");
+      });
+
+      expect(body).toEqual({ name: "Lola Peluquería" });
+      expect(await screen.findByText("Datos del negocio actualizados.")).toBeInTheDocument();
+    });
+
+    it("manda la dirección y el sector cuando cambian, y la dirección vacía como null", async () => {
+      const body = await guardarDatos(async (user) => {
+        await user.clear(screen.getByLabelText(/Dirección/));
+        await user.selectOptions(screen.getByLabelText(/Sector/), "barberia");
+      });
+
+      expect(body).toEqual({
+        name: "Peluquería Lola",
+        address: null,
+        businessType: "barberia",
+      });
+    });
+  });
+
+  describe("cambiar la línea de clientes y el tipo de línea", () => {
     async function guardarTelefono(
       negocio: Record<string, unknown>,
       telefonoNuevo: string
@@ -189,10 +284,10 @@ describe("AccountSettingsPage", () => {
       mockedUpdateMyBusiness.mockResolvedValue({ ...NEGOCIO, ...negocio, phone: telefonoNuevo } as never);
       renderPage();
 
-      const campo = await screen.findByLabelText(/Teléfono del negocio/);
+      const campo = await screen.findByLabelText(/Número al que te llaman tus clientes/);
       await user.clear(campo);
       await user.type(campo, telefonoNuevo);
-      await user.click(screen.getByRole("button", { name: /Guardar datos/ }));
+      await user.click(screen.getByRole("button", { name: /Guardar línea/ }));
       await waitFor(() => expect(mockedUpdateMyBusiness).toHaveBeenCalledTimes(1));
       return mockedUpdateMyBusiness.mock.calls[0][0];
     }
@@ -203,11 +298,7 @@ describe("AccountSettingsPage", () => {
         "+34600123456"
       );
 
-      expect(body).toEqual({
-        name: "Peluquería Lola",
-        phone: "+34600123456",
-        customerLineType: null,
-      });
+      expect(body).toEqual({ phone: "+34600123456", customerLineType: null });
     });
 
     it("si el móvil pasa a ser un fijo, corrige el tipo a «fijo»", async () => {
@@ -216,11 +307,7 @@ describe("AccountSettingsPage", () => {
         "+34930111222"
       );
 
-      expect(body).toEqual({
-        name: "Peluquería Lola",
-        phone: "+34930111222",
-        customerLineType: "fijo",
-      });
+      expect(body).toEqual({ phone: "+34930111222", customerLineType: "fijo" });
     });
 
     it("con un número de la misma naturaleza no manda customerLineType", async () => {
@@ -229,7 +316,7 @@ describe("AccountSettingsPage", () => {
         "+34600999888"
       );
 
-      expect(body).toEqual({ name: "Peluquería Lola", phone: "+34600999888" });
+      expect(body).toEqual({ phone: "+34600999888" });
     });
   });
 });
