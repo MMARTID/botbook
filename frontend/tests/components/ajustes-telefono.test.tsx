@@ -1,5 +1,11 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import {
+  cleanup,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
@@ -8,8 +14,10 @@ import {
   AVISO_LINEA_PARECE_MOVIL,
   CONFIRMACION_CAMBIO_DE_MOVIL,
   TEXTO_ALHABLA_PRINCIPAL,
+  TEXTO_MOVIL_FUERA_DE_ESPANA_PARA_PASAR,
   TEXTO_SIN_MOVIL_PARA_PASAR,
 } from "@/components/ajustes-telefono";
+import { TEXTO_MOVIL_SIN_DESVIO_EN_AJUSTES } from "@/lib/numero-principal";
 import { DEFAULT_AGENT_SETTINGS } from "@/components/agent-settings-editor";
 import {
   getOnboardingState,
@@ -591,6 +599,57 @@ describe("AjustesTelefono", () => {
       // re-renderiza con la caché); aquí basta con la caché actualizada.
       const guardado = queryClient.getQueryData(["my-business"]) as Business;
       expect(guardado.agentSettings?.pasarLlamadas).toBe("siempre");
+    });
+
+    it("con la transferencia activa avisa de que el móvil no puede tener desvío hacia Alhabla; con «nunca» no hace falta", async () => {
+      renderSeccion(
+        negocio({
+          phone: NUMERO_DE_ALHABLA,
+          customerLineType: "alhabla",
+          ownerWhatsappNumber: "+34600111222",
+        })
+      );
+
+      expect(
+        await bloque("Tu recepcionista").findByText(
+          TEXTO_MOVIL_SIN_DESVIO_EN_AJUSTES
+        )
+      ).toBeInTheDocument();
+
+      cleanup();
+      renderSeccion(
+        negocio({
+          phone: NUMERO_DE_ALHABLA,
+          customerLineType: "alhabla",
+          ownerWhatsappNumber: "+34600111222",
+          agentSettings: { ...DEFAULT_AGENT_SETTINGS, pasarLlamadas: "nunca" },
+        })
+      );
+      await screen.findByRole("radiogroup", {
+        name: "Cuándo pasarme llamadas",
+      });
+      expect(
+        screen.queryByText(TEXTO_MOVIL_SIN_DESVIO_EN_AJUSTES)
+      ).not.toBeInTheDocument();
+    });
+
+    it("con un móvil fuera de España dice que no puede pasarle llamadas y no enseña los modos (el backend no registra la tool)", async () => {
+      renderSeccion(
+        negocio({
+          phone: NUMERO_DE_ALHABLA,
+          customerLineType: "alhabla",
+          ownerWhatsappNumber: "+447700900123",
+        })
+      );
+
+      expect(
+        await bloque("Tu recepcionista").findByText(
+          TEXTO_MOVIL_FUERA_DE_ESPANA_PARA_PASAR
+        )
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByRole("radiogroup", { name: "Cuándo pasarme llamadas" })
+      ).not.toBeInTheDocument();
     });
 
     it("con Alhabla como principal pero sin móvil del dueño pide el móvil y no enseña los modos", async () => {

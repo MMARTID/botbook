@@ -5,6 +5,7 @@ import { getPublicWebhookBaseUrl } from "../../lib/serverUrl.js";
 import { getRedis } from "../../lib/redis.js";
 import { acquireLock, releaseLock } from "../../lib/bookingLock.js";
 import { alertarNumeroNoActivo } from "../whatsapp/alertas.js";
+import { syncAgentToTelnyx } from "../../lib/telnyxAgentSync.js";
 
 // El webhook de Stripe (checkout.session.completed) y el fallback de
 // reconcile del frontend pueden disparar provisionPhoneNumber casi a la vez
@@ -377,6 +378,16 @@ export async function provisionPhoneNumber(businessId: string): Promise<{
         err
       );
     }
+
+    // La transferencia al dueño (fase 4, lib/transferenciaAlDueno.ts) sale
+    // DESDE el número de Alhabla: hasta ahora mismo no existía, así que el
+    // assistant de Telnyx se creó sin la tool `transfer` ni su regla aunque
+    // el negocio ya hubiera elegido «Alhabla como número principal» en el
+    // alta. Sin esta resincronización la tool no llegaba hasta el
+    // reconciliador de las 04:00 o hasta que el dueño tocara otro ajuste,
+    // mientras el panel ya prometía «te pasará la llamada». syncAgentToTelnyx
+    // nunca lanza y no hace nada si no hay assistant todavía.
+    await syncAgentToTelnyx(businessId);
 
     // 3. Find active agent to associate
     const agent = business.agents[0];

@@ -195,6 +195,10 @@ function buildLanguageInstruction(settings: AgentSettings): string {
   return `Empieza siempre con el saludo en español de España. Tras la primera intervención de quien llama, responde y continúa exclusivamente en el idioma que use si es uno de estos: ${enabledLanguages}. Si cambia entre esos idiomas, acompaña el cambio sin pedirle que elija uno. No menciones que eres una IA salvo que te lo pregunten.`;
 }
 
+/** Cabecera del bloque de transferencia; sirve para saber si un prompt
+ * editado a mano ya lo lleva (lib/telnyxAgentSync.ts). */
+export const TITULO_DEL_BLOQUE_DE_TRANSFERENCIA = "## Pasar la llamada";
+
 /**
  * «## Pasar la llamada» (fase 4): solo cuando la tool `transfer` está
  * registrada de verdad (transferencia.activa), para que el prompt nunca
@@ -202,8 +206,11 @@ function buildLanguageInstruction(settings: AgentSettings): string {
  * «si no coge» da por hecho lo que documenta Telnyx: si la pata al dueño
  * no cuadra (no contesta, comunica o salta el buzón con la detección de
  * contestador), la llamada sigue con la recepcionista.
+ *
+ * Exportado para que el sync de Telnyx pueda añadirlo a un prompt editado
+ * a mano: la tool nunca viaja sin su regla.
  */
-function buildTransferInstruction(
+export function buildTransferInstruction(
   transferencia: TransferenciaAlDueno | null | undefined
 ): string | null {
   if (!transferencia?.activa) return null;
@@ -212,7 +219,7 @@ function buildTransferInstruction(
       ? "Pásala si el cliente pide hablar con una persona o con el responsable, y también si surge algo que no debes resolver tú: una queja, una urgencia, una pregunta sobre pagos o cualquier asunto que no sea reservar, consultar o cambiar una cita. Solo dentro del horario de apertura del negocio (compáralo con la hora actual; si no lo sabes, consúltalo con get_catalog): fuera de ese horario no la pases, toma recado."
       : "Pásala solo si el cliente pide de forma clara hablar con una persona o con el responsable. Para quejas, urgencias, pagos o cualquier cosa que no puedas resolver tú, ofrece primero tomar recado; pásala si aun así insiste en hablar con alguien.";
   return [
-    "## Pasar la llamada",
+    TITULO_DEL_BLOQUE_DE_TRANSFERENCIA,
     "Puedes pasar la llamada al responsable del negocio con la herramienta de transferencia (transfer).",
     cuando,
     "Antes de pasarla, dile al cliente en una frase que le pasas con el responsable y que espere un momento. Pásala una sola vez por llamada.",

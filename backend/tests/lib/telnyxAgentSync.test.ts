@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import {
   createTelnyxAssistantForAgent,
+  promptManualConSuRegla,
   syncAgentToTelnyx,
 } from "../../src/lib/telnyxAgentSync.js";
 import { prisma } from "../../src/lib/prisma.js";
@@ -462,5 +463,89 @@ describe("transferencia al dueño (fase 4)", () => {
       TOOL_TRANSFER_ESPERADA,
     ]);
     expect(payload.instructions).toContain("## Pasar la llamada");
+  });
+});
+
+describe("transferencia al dueño — prompts editados a mano y copia del panel", () => {
+  const BLOQUE = "## Pasar la llamada\nPuedes pasar la llamada…";
+
+  it("promptManualConSuRegla añade el bloque al final solo si falta y hay tool", () => {
+    expect(promptManualConSuRegla("Mi prompt.\n", BLOQUE)).toBe(
+      `Mi prompt.\n\n${BLOQUE}`
+    );
+    // Sin tool no se toca ni una coma.
+    expect(promptManualConSuRegla("Mi prompt.\n", null)).toBe("Mi prompt.\n");
+    // El dueño ya escribió su propia regla: se respeta.
+    const conRegla = "Mi prompt.\n\n## Pasar la llamada\nNunca la pases.";
+    expect(promptManualConSuRegla(conRegla, BLOQUE)).toBe(conRegla);
+  });
+
+  it("un prompt editado a mano viaja a Telnyx con el bloque cuando se registra la tool transfer, y sin tocar Agent.systemPrompt", async () => {
+    mockedBusinessFindUnique.mockResolvedValue(BUSINESS_PRINCIPAL as any);
+    mockedAgentFindMany.mockResolvedValue([
+      {
+        id: "agent_manual",
+        telnyxAssistantId: "assistant_1",
+        telnyxConfigHash: null,
+        systemPrompt: "Eres la recepcionista de Lola. Sé breve.",
+        promptManuallyEdited: true,
+      },
+    ] as any);
+
+    await syncAgentToTelnyx("biz1");
+
+    const payload = mockedUpdateAssistant.mock.calls[0][1];
+    expect(payload.tools!.some((tool) => tool.type === "transfer")).toBe(true);
+    expect(
+      payload.instructions.startsWith("Eres la recepcionista de Lola.")
+    ).toBe(true);
+    expect(payload.instructions).toContain("## Pasar la llamada");
+    expect(payload.instructions).toContain("Pásala solo si el cliente pide");
+    // La copia del panel de un prompt manual no se pisa.
+    const data = (mockedAgentUpdate.mock.calls[0][0] as any).data;
+    expect(data).not.toHaveProperty("systemPrompt");
+  });
+
+  it("un prompt editado a mano no recibe el bloque si la tool no se registra", async () => {
+    mockedBusinessFindUnique.mockResolvedValue({
+      ...BUSINESS_PRINCIPAL,
+      agentSettings: { ...DEFAULT_AGENT_SETTINGS, pasarLlamadas: "nunca" },
+    } as any);
+    mockedAgentFindMany.mockResolvedValue([
+      {
+        id: "agent_manual",
+        telnyxAssistantId: "assistant_1",
+        telnyxConfigHash: null,
+        systemPrompt: "Eres la recepcionista de Lola. Sé breve.",
+        promptManuallyEdited: true,
+      },
+    ] as any);
+
+    await syncAgentToTelnyx("biz1");
+
+    const payload = mockedUpdateAssistant.mock.calls[0][1];
+    expect(payload.tools!.some((tool) => tool.type === "transfer")).toBe(false);
+    expect(payload.instructions).toBe(
+      "Eres la recepcionista de Lola. Sé breve."
+    );
+  });
+
+  it("en un agente gestionado guarda en Agent.systemPrompt la copia del panel con el bloque, la misma regla que manda a Telnyx", async () => {
+    mockedBusinessFindUnique.mockResolvedValue(BUSINESS_PRINCIPAL as any);
+    mockedAgentFindMany.mockResolvedValue(agenteSincronizable());
+
+    await syncAgentToTelnyx("biz1");
+
+    const payload = mockedUpdateAssistant.mock.calls[0][1];
+    expect(payload.instructions).toContain("## Pasar la llamada");
+    const data = (mockedAgentUpdate.mock.calls[0][0] as any).data;
+    expect(data.telnyxSyncError).toBeNull();
+    expect(data.systemPrompt).toContain("## Pasar la llamada");
+    expect(data.systemPrompt).toContain("Pásala solo si el cliente pide");
+    // Es la copia del panel (variables genéricas, como escribe PATCH
+    // /business/me), no la reescritura para Telnyx que hace
+    // buildTelnyxAssistantPayload ({{telnyx_current_time_…}}).
+    expect(data.systemPrompt).toContain("{{current_time_Europe/Madrid}}");
+    expect(data.systemPrompt).not.toContain("{{telnyx_");
   });
 });

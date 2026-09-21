@@ -1821,13 +1821,48 @@ nuevas: el ajuste vive en `Business.agentSettings.pasarLlamadas`.
 - **Resincronización**: además de `agentSettings`, `PATCH /business/me` resincroniza prompt
   y assistant cuando cambian `customerLineType`, `phone`, `ownerWhatsappNumber` u
   `ownerPhoneIsCustomerLine` (`cambiaLaTransferencia`), porque los cuatro deciden si la
-  tool existe y hacia dónde.
+  tool existe y hacia dónde. También `provisionPhoneNumber` (`modules/phone/service.ts`)
+  llama a `syncAgentToTelnyx` en cuanto guarda `telnyxPhoneNumber`: el origen de la
+  transferencia es ese número y, sin esto, un negocio que eligió «Alhabla como principal»
+  en el alta se quedaba sin la tool hasta el reconciliador de las 04:00.
+- **Copia del prompt en `Agent.systemPrompt`** (lo que enseña `/agente`): es el prompt del
+  primary, Telnyx, **con** el bloque cuando la tool está registrada. La escriben
+  `PATCH /business/me`, `syncAgentToTelnyx` (agentes gestionados) y `syncAgentToRetell`
+  (`promptDelPanel`, calculado aparte del `generalPrompt` que va a Retell, que no lleva el
+  bloque porque Retell no tiene la tool). Un prompt **editado a mano**
+  (`promptManuallyEdited`) viaja a Telnyx tal cual, pero si la tool se registra y el texto
+  no contiene «## Pasar la llamada», `promptManualConSuRegla` le añade el bloque al final:
+  nunca la tool sin su regla.
+- **Patas sin `Call`** (`adapters/telnyx/patasSinCall.ts`): la saliente que abre la tool
+  `transfer` nace en el mismo Call Control App con `direction: outgoing` y sin
+  `client_state`, y sus `call.hangup`/`call.cost` llegan como los de cualquier llamada.
+  `handleCallInitiated` la apunta en Redis (`telnyx:pata_sin_call:<call_control_id>`,
+  motivo `transferencia`; la entrante de «Comprobar desvío» se apunta como
+  `comprobacion`), y `handleCallHangup`/`handleCallCost` devuelven `success: true` sin
+  buscar `Call` cuando la marca existe. Sin esto cada transferencia correcta acababa en
+  404 y un `voice_webhook_events` en `error`. `call.cost` no trae `from`/`to`: no hay
+  forma sin estado de reconocerlo.
+- **El móvil del dueño no puede estar desviado a Alhabla** (caso C, o B con avisos al
+  mismo móvil): la pata de la transferencia entraría de vuelta por el número de Alhabla
+  con `from` = número de Alhabla, `esLlamadaDeComprobacionDeDesvio` la colgaría y el móvil
+  no sonaría nunca. Una vez `customerLineType = "alhabla"` no queda rastro de que esa
+  línea estuvo desviada, así que la protección es de copy: la pantalla de número principal
+  detecta que la línea antigua es el móvil del dueño (`lineaAntiguaEsElMovilDelDueno`,
+  `lib/pasar-llamadas.ts`) y en vez de proponer el desvío «todas» pide anular los desvíos
+  (`##002#`, `CODIGO_ANULAR_DESVIOS_MOVIL`); Ajustes › Teléfono lo recuerda bajo «Cuándo
+  pasarme llamadas» siempre que el modo no sea «nunca».
+- **Móvil fuera de España**: `motivoSinMovilParaPasarLlamadas` (frontend) exige lo mismo
+  que `destinoDeTransferencia` (`esLineaDeClientesEspanola`, copiada en
+  `frontend/src/lib/phone.ts`): con un `+44…` la pantalla y Ajustes dicen que no puede
+  pasar llamadas y no enseñan los modos, en vez de prometer una tool que el backend no
+  registra.
 - **Pantallas**: `app/ajustes/numero-principal/page.tsx` («Usar Alhabla como número
   principal»: qué cambia, dónde publicarlo —Google Business Profile, web, redes, WhatsApp
   Business como «otro teléfono»—, qué hacer con el número antiguo —desvío «todas» durante la
-  transición o baja, con el código `*21*`/`**21*` según el tipo— y el ajuste; sin móvil del
-  dueño lo dice, enlaza a Ajustes › Teléfono › Tu móvil y no deja confirmar; al confirmar
-  hace el PATCH y vuelve a `/ajustes#telefono`). El botón «Usar como número principal» de
+  transición o baja, con el código `*21*`/`**21*` según el tipo, salvo que la línea antigua
+  sea el móvil del dueño: entonces «no lo desvíes» y `##002#`— y el ajuste; sin móvil del
+  dueño (o con uno fuera de España) lo dice, enlaza a Ajustes › Teléfono › Tu móvil y no
+  deja confirmar; al confirmar hace el PATCH y vuelve a `/ajustes#telefono`). El botón «Usar como número principal» de
   Ajustes › Teléfono es ahora un enlace a esa pantalla, y el bloque «Tu recepcionista»
   enseña «Cuándo pasarme llamadas» (`components/pasar-llamadas.tsx`, helpers en
   `lib/pasar-llamadas.ts`) cuando `customerLineType` es `alhabla`.

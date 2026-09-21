@@ -24,6 +24,10 @@ import {
   registrarSalienteColgada,
   registrarSalienteContestada,
 } from "../../../src/modules/onboarding/comprobacionDesvio.js";
+import {
+  marcarPataSinCall,
+  motivoDePataSinCall,
+} from "../../../src/adapters/telnyx/patasSinCall.js";
 
 vi.mock("../../../src/lib/prisma.js", () => ({
   prisma: {
@@ -76,7 +80,17 @@ vi.mock(
   }
 );
 
+// Patas propias sin Call (transferencia al dueño, entrante de la
+// comprobación): la marca vive en Redis; aquí se comprueba que el webhook
+// la pone y la consulta.
+vi.mock("../../../src/adapters/telnyx/patasSinCall.js", () => ({
+  marcarPataSinCall: vi.fn().mockResolvedValue(undefined),
+  motivoDePataSinCall: vi.fn().mockResolvedValue(null),
+}));
+
 const mockedBusinessFindUnique = vi.mocked(prisma.business.findUnique);
+const mockedMarcarPataSinCall = vi.mocked(marcarPataSinCall);
+const mockedMotivoDePataSinCall = vi.mocked(motivoDePataSinCall);
 const mockedCallUpsert = vi.mocked(prisma.call.upsert);
 const mockedCallFindUnique = vi.mocked(prisma.call.findUnique);
 const mockedCallUpdate = vi.mocked(prisma.call.update);
@@ -107,6 +121,8 @@ const mockedRegistrarContestada = vi.mocked(registrarSalienteContestada);
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mockedMarcarPataSinCall.mockResolvedValue(undefined);
+  mockedMotivoDePataSinCall.mockResolvedValue(null);
 });
 
 describe("extractTelnyxEventEnvelope", () => {
@@ -1042,7 +1058,7 @@ describe("«Comprobar desvío» en los webhooks de Telnyx", () => {
     expect(mockedCallUpsert).not.toHaveBeenCalled();
   });
 
-  it("cualquier pata saliente propia se ignora aunque no lleve client_state", async () => {
+  it("cualquier pata saliente propia se ignora aunque no lleve client_state, y se apunta como pata sin Call (transferencia al dueño)", async () => {
     const result = await handleCallInitiated({
       data: {
         id: "evt_out",
@@ -1051,7 +1067,8 @@ describe("«Comprobar desvío» en los webhooks de Telnyx", () => {
           call_control_id: "call_ctrl_out",
           direction: "outgoing",
           from: ALHABLA,
-          to: LINEA,
+          to: "+34600111222",
+          client_state: null,
         },
       },
     });
@@ -1059,6 +1076,108 @@ describe("«Comprobar desvío» en los webhooks de Telnyx", () => {
     expect(result).toEqual({ success: true });
     expect(mockedBusinessFindUnique).not.toHaveBeenCalled();
     expect(mockedHangupCall).not.toHaveBeenCalled();
+    expect(mockedMarcarPataSinCall).toHaveBeenCalledWith(
+      "call_ctrl_out",
+      "transferencia"
+    );
+  });
+
+  it("la saliente de la comprobación (con client_state) no se apunta: sus eventos ya se reconocen por el client_state", async () => {
+    await handleCallInitiated({
+      data: {
+        id: "evt_out",
+        event_type: "call.initiated",
+        payload: {
+          call_control_id: "call_ctrl_out",
+          direction: "outgoing",
+          from: ALHABLA,
+          to: LINEA,
+          client_state: CLIENT_STATE,
+        },
+      },
+    });
+
+    expect(mockedMarcarPataSinCall).not.toHaveBeenCalled();
+  });
+
+  it("la entrante de la comprobación se apunta como pata sin Call antes de colgarla", async () => {
+    mockedBusinessFindUnique.mockResolvedValue(negocioConNumero());
+
+    await handleCallInitiated(entrante(ALHABLA));
+
+    expect(mockedMarcarPataSinCall).toHaveBeenCalledWith(
+      "call_ctrl_in",
+      "comprobacion"
+    );
+  });
+
+  it("el colgado y el coste de una pata propia sin Call (la transferencia al dueño) se dan por buenos: ni 404 ni evento en error", async () => {
+    mockedCallFindUnique.mockResolvedValue(null);
+    mockedMotivoDePataSinCall.mockResolvedValue("transferencia");
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    const colgada = await handleCallHangup({
+      data: {
+        id: "evt_hang_out",
+        event_type: "call.hangup",
+        payload: {
+          call_control_id: "call_ctrl_out",
+          hangup_cause: "normal_clearing",
+          client_state: null,
+        },
+      },
+    });
+    expect(colgada).toEqual({ success: true });
+    expect(mockedMotivoDePataSinCall).toHaveBeenCalledWith("call_ctrl_out");
+    expect(mockedCallUpdate).not.toHaveBeenCalled();
+    expect(mockedEnqueueUsageReportJob).not.toHaveBeenCalled();
+    expect(console.warn).not.toHaveBeenCalled();
+
+    const coste = await handleCallCost({
+      data: {
+        id: "evt_cost_out",
+        event_type: "call.cost",
+        payload: {
+          call_control_id: "call_ctrl_out",
+          total_cost: "0.0100",
+          status: "success",
+          client_state: null,
+        },
+      },
+    });
+    expect(coste).toEqual({ success: true });
+    expect(mockedCallUpdate).not.toHaveBeenCalled();
+    expect(console.warn).not.toHaveBeenCalled();
+  });
+
+  it("una llamada desconocida de verdad (sin marca) sigue devolviendo false al colgar y al recibir el coste", async () => {
+    mockedCallFindUnique.mockResolvedValue(null);
+    mockedMotivoDePataSinCall.mockResolvedValue(null);
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    const colgada = await handleCallHangup({
+      data: {
+        id: "evt_hang_x",
+        event_type: "call.hangup",
+        payload: { call_control_id: "call_fantasma", client_state: null },
+      },
+    });
+    const coste = await handleCallCost({
+      data: {
+        id: "evt_cost_x",
+        event_type: "call.cost",
+        payload: {
+          call_control_id: "call_fantasma",
+          total_cost: "0.0100",
+          status: "success",
+          client_state: null,
+        },
+      },
+    });
+
+    expect(colgada).toEqual({ success: false });
+    expect(coste).toEqual({ success: false });
+    expect(mockedMotivoDePataSinCall).toHaveBeenCalledTimes(2);
   });
 
   it("call.answered de la saliente: anota que la cogieron y cuelga; el de una llamada de cliente no hace nada", async () => {

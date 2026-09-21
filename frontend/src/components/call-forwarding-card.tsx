@@ -86,6 +86,13 @@ export const CODIGOS_MOVIL: CodigoDeDesvio[] = [
 ];
 
 /**
+ * Anula de una vez todos los desvíos de un móvil (3GPP TS 22.030, mismo
+ * estándar que los códigos de arriba). Se ofrece cuando el móvil del dueño
+ * va a ser el destino de la transferencia y no puede quedarse desviado.
+ */
+export const CODIGO_ANULAR_DESVIOS_MOVIL = "##002#";
+
+/**
  * En un fijo los códigos son los mismos pero sin el `**` inicial (PLAN-
  * TELEFONIA-UX.md § 2): se marcan desde el propio aparato tras el tono. Solo
  * los dos que tienen sentido en un local: «si no contestas» y «todas».

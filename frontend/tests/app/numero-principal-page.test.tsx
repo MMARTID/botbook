@@ -1,5 +1,11 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import {
+  cleanup,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import NumeroPrincipalPage from "@/app/ajustes/numero-principal/page";
@@ -7,6 +13,8 @@ import { DEFAULT_AGENT_SETTINGS } from "@/components/agent-settings-editor";
 import { useBusiness } from "@/components/providers";
 import { getPhoneNumberInfo, updateMyBusiness } from "@/lib/api";
 import {
+  TEXTO_MOVIL_FUERA_DE_ESPANA,
+  TEXTO_MOVIL_SIN_DESVIO,
   TEXTO_SIN_MOVIL,
   TEXTO_SIN_NUMERO,
   TEXTO_YA_ES_PRINCIPAL,
@@ -184,12 +192,6 @@ describe("NumeroPrincipalPage", () => {
     const pasar = within(
       await screen.findByRole("radiogroup", { name: "Cuándo pasarme llamadas" })
     );
-    // Con móvil de trabajo el código «todas» lleva los ** del móvil.
-    expect(
-      screen.getByRole("button", {
-        name: `Copiar el código **21*${NUMERO_DE_ALHABLA}#`,
-      })
-    ).toBeInTheDocument();
 
     await user.click(
       pasar.getByRole("radio", { name: /Siempre que sea posible/ })
@@ -212,6 +214,116 @@ describe("NumeroPrincipalPage", () => {
     const guardado = queryClient.getQueryData(["my-business"]) as Business;
     expect(guardado.customerLineType).toBe("alhabla");
     expect(guardado.phone).toBe(NUMERO_DE_ALHABLA);
+  });
+
+  it("con un móvil de trabajo distinto del móvil del dueño ofrece el desvío «todas» con los ** del móvil", async () => {
+    conNegocio(
+      negocio({
+        phone: "+34611222333",
+        customerLineType: "movil_trabajo",
+        ownerPhoneIsCustomerLine: false,
+      })
+    );
+    renderPage();
+
+    const antiguo = within(
+      await screen.findByRole("region", {
+        name: "Qué hacer con tu número de siempre",
+      })
+    );
+    expect(
+      antiguo.getByText(/Mantenlo con desvío «todas»/)
+    ).toBeInTheDocument();
+    expect(
+      antiguo.getByRole("button", {
+        name: `Copiar el código **21*${NUMERO_DE_ALHABLA}#`,
+      })
+    ).toBeInTheDocument();
+    expect(screen.queryByText(TEXTO_MOVIL_SIN_DESVIO)).not.toBeInTheDocument();
+  });
+
+  it("si la línea de siempre es el propio móvil del dueño (caso C, o B con avisos al mismo móvil) NO propone desviarla: pide quitar los desvíos con ##002#", async () => {
+    const user = userEvent.setup();
+    // Caso C: todo en el móvil personal.
+    conNegocio(
+      negocio({
+        phone: MOVIL,
+        customerLineType: "movil_personal",
+        ownerPhoneIsCustomerLine: true,
+      })
+    );
+    renderPage();
+
+    const antiguo = within(
+      await screen.findByRole("region", {
+        name: "Qué hacer con tu número de siempre",
+      })
+    );
+    expect(
+      antiguo.getByText(/a tu móvil \(\+34 600 11 12 22\)/)
+    ).toBeInTheDocument();
+    expect(antiguo.getByText(/No lo desvíes a Alhabla/)).toBeInTheDocument();
+    expect(
+      antiguo.getByText(new RegExp(TEXTO_MOVIL_SIN_DESVIO.slice(0, 40)))
+    ).toBeInTheDocument();
+    expect(
+      antiguo.queryByText(/Mantenlo con desvío «todas»/)
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", {
+        name: `Copiar el código **21*${NUMERO_DE_ALHABLA}#`,
+      })
+    ).not.toBeInTheDocument();
+    const anular = antiguo.getByRole("button", {
+      name: "Copiar el código ##002#",
+    });
+    // Los códigos de anular uno a uno, por si prefiere ir con cuidado.
+    expect(antiguo.getByText("##61#")).toBeInTheDocument();
+    expect(antiguo.getByText("##21#")).toBeInTheDocument();
+
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      value: { writeText },
+      configurable: true,
+    });
+    await user.click(anular);
+    expect(writeText).toHaveBeenCalledWith("##002#");
+    expect(boton()).toBeEnabled();
+
+    // Caso B con «avisos al mismo móvil» sin el flag pero con el mismo
+    // número guardado: misma protección.
+    cleanup();
+    conNegocio(
+      negocio({
+        phone: MOVIL,
+        customerLineType: "movil_trabajo",
+        ownerPhoneIsCustomerLine: false,
+        ownerWhatsappNumber: MOVIL,
+      })
+    );
+    renderPage();
+    expect(
+      await screen.findByRole("button", { name: "Copiar el código ##002#" })
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(/Mantenlo con desvío «todas»/)
+    ).not.toBeInTheDocument();
+  });
+
+  it("con un móvil fuera de España explica que no puede pasarle llamadas y no deja confirmar", async () => {
+    conNegocio(negocio({ ownerWhatsappNumber: "+447700900123" }));
+    renderPage();
+
+    expect(
+      await screen.findByText(TEXTO_MOVIL_FUERA_DE_ESPANA)
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "Cambiar mi móvil" })
+    ).toHaveAttribute("href", "/ajustes#whatsapp");
+    expect(
+      screen.queryByRole("radiogroup", { name: "Cuándo pasarme llamadas" })
+    ).not.toBeInTheDocument();
+    expect(boton()).toBeDisabled();
   });
 
   it("sin móvil del dueño lo dice, pide el móvil primero y no deja confirmar", async () => {

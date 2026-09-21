@@ -10,7 +10,9 @@ import {
 import { getPublicWebhookBaseUrl } from "./serverUrl.js";
 import {
   buildManagedAgentPrompt,
+  buildTransferInstruction,
   parseAgentSettings,
+  TITULO_DEL_BLOQUE_DE_TRANSFERENCIA,
 } from "./managedAgentPrompt.js";
 import { resolveTelnyxEligibility } from "./telnyxEligibility.js";
 import { isBusinessType, type BusinessType } from "./businessType.js";
@@ -86,7 +88,30 @@ async function loadManagedAssistantConfig(
     transferenciaAlDueno: transferenciaAlDueno.activa
       ? { from: transferenciaAlDueno.origen!, to: transferenciaAlDueno.destino! }
       : null,
+    /** El bloque «## Pasar la llamada» suelto, para los prompts editados a
+     * mano (ver promptManualConSuRegla). null si la tool no se registra. */
+    bloqueDeTransferencia: buildTransferInstruction(transferenciaAlDueno),
   };
+}
+
+/**
+ * Un prompt editado a mano (PATCH /agents/:id) se manda tal cual, pero la
+ * tool `transfer` se registra según los ajustes del negocio, no según el
+ * prompt: si el bloque no está, se añade al final para no romper la
+ * garantía «nunca la tool sin su regla». Si el dueño ya escribió su propio
+ * «## Pasar la llamada», se respeta.
+ */
+export function promptManualConSuRegla(
+  prompt: string,
+  bloqueDeTransferencia: string | null
+): string {
+  if (
+    !bloqueDeTransferencia ||
+    prompt.includes(TITULO_DEL_BLOQUE_DE_TRANSFERENCIA)
+  ) {
+    return prompt;
+  }
+  return `${prompt.trimEnd()}\n\n${bloqueDeTransferencia}`;
 }
 
 /**
@@ -234,7 +259,10 @@ export async function syncAgentToTelnyx(
             businessName: config.business.name,
             timezone: config.business.timezone,
             instructions: agent.promptManuallyEdited
-              ? agent.systemPrompt
+              ? promptManualConSuRegla(
+                  agent.systemPrompt,
+                  config.bloqueDeTransferencia
+                )
               : config.systemPrompt,
             greeting: buildRetellBeginMessage(config.business.name),
             language: resolveTelnyxTranscriptionLanguage(config.agentSettings.languages),
@@ -259,6 +287,13 @@ export async function syncAgentToTelnyx(
             telnyxConfigHash: configHash,
             telnyxSyncedAt: new Date(),
             telnyxSyncError: null,
+            // La copia del prompt que ve el panel (/agente) es la que
+            // ejecuta Telnyx, el primary: con el bloque de transferencia
+            // cuando la tool está registrada y sin él cuando no. Los
+            // prompts editados a mano no se pisan.
+            ...(agent.promptManuallyEdited
+              ? {}
+              : { systemPrompt: config.systemPrompt }),
           },
         });
       } catch (error) {

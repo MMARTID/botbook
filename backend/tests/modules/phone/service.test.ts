@@ -6,6 +6,7 @@ import {
 import { prisma } from "../../../src/lib/prisma.js";
 import { telnyxAdapter } from "../../../src/adapters/telnyx/TelnyxAdapter.js";
 import { retellAdapter } from "../../../src/adapters/retell/RetellAdapter.js";
+import { syncAgentToTelnyx } from "../../../src/lib/telnyxAgentSync.js";
 
 vi.mock("../../../src/lib/prisma.js", () => ({
   prisma: {
@@ -47,6 +48,11 @@ const { mockRedisClient } = vi.hoisted(() => ({
 vi.mock("../../../src/modules/whatsapp/alertas.js", () => ({
   alertarNumeroNoActivo: vi.fn().mockResolvedValue({ via: "interactivo" }),
 }));
+// La transferencia al dueño (fase 4) sale desde el número recién comprado:
+// aquí solo importa que la compra resincronice el assistant de Telnyx.
+vi.mock("../../../src/lib/telnyxAgentSync.js", () => ({
+  syncAgentToTelnyx: vi.fn().mockResolvedValue(undefined),
+}));
 vi.mock("../../../src/lib/redis.js", () => ({
   getRedis: () => mockRedisClient,
 }));
@@ -58,6 +64,7 @@ const mockedPurchaseNumber = vi.mocked(telnyxAdapter.purchaseNumber);
 const mockedGetNumberOrder = vi.mocked(telnyxAdapter.getNumberOrder);
 const mockedGetNumberByPhoneNumber = vi.mocked(telnyxAdapter.getNumberByPhoneNumber);
 const mockedImportPhoneNumber = vi.mocked(retellAdapter.importPhoneNumber);
+const mockedSyncAgentToTelnyx = vi.mocked(syncAgentToTelnyx);
 
 const businessId = "biz_123";
 const agentId = "agent_123";
@@ -326,6 +333,59 @@ describe("provisionPhoneNumber", () => {
     expect(result.success).toBe(true);
     expect(result.status).toBe("purchased");
     expect(mockedImportPhoneNumber).not.toHaveBeenCalled();
+  });
+
+  it("resincroniza el assistant de Telnyx en cuanto el número está comprado (fase 4: la tool transfer sale desde ese número), incluso si luego falla la importación en Retell", async () => {
+    mockedBusinessFindUnique.mockResolvedValue({
+      id: businessId,
+      name: "Peluquería Test",
+      phoneNumberStatus: "pending",
+      telnyxPhoneNumber: null,
+      telnyxNumberOrderId: null,
+      orchestrator: "telnyx",
+      agents: [{ id: agentId, retellAgentId, active: true }],
+    } as any);
+    mockedSearchAvailableNumbers.mockResolvedValue([
+      { phoneNumber: "+34886020712" },
+    ]);
+    mockedPurchaseNumber.mockResolvedValue({
+      orderId: "order_123",
+      status: "success",
+      phoneNumber: "+34886020712",
+      phoneNumberId: "pn_123",
+    });
+    mockedImportPhoneNumber.mockRejectedValue(new Error("Retell caído"));
+
+    const result = await provisionPhoneNumber(businessId);
+
+    expect(result.success).toBe(false);
+    expect(mockedSyncAgentToTelnyx).toHaveBeenCalledTimes(1);
+    expect(mockedSyncAgentToTelnyx).toHaveBeenCalledWith(businessId);
+    // Después de guardar el número (y no antes): la resolución de la
+    // transferencia lo lee de la base de datos.
+    const ordenGuardado = mockedBusinessUpdate.mock.invocationCallOrder.find(
+      (_, index) =>
+        (mockedBusinessUpdate.mock.calls[index][0].data as any)
+          .telnyxPhoneNumber === "+34886020712"
+    );
+    expect(ordenGuardado).toBeDefined();
+    expect(mockedSyncAgentToTelnyx.mock.invocationCallOrder[0]).toBeGreaterThan(
+      ordenGuardado!
+    );
+  });
+
+  it("no resincroniza Telnyx si el número ya estaba activo", async () => {
+    mockedBusinessFindUnique.mockResolvedValue({
+      id: businessId,
+      phoneNumberStatus: "active",
+      telnyxPhoneNumber: "+34886020712",
+      orchestrator: "telnyx",
+      agents: [],
+    } as any);
+
+    await provisionPhoneNumber(businessId);
+
+    expect(mockedSyncAgentToTelnyx).not.toHaveBeenCalled();
   });
 
   it("returns failed status when no numbers are available", async () => {

@@ -1,3 +1,4 @@
+import { esLineaDeClientesEspanola } from "@/lib/phone";
 import type { Business, ModoDePasarLlamadas } from "@/lib/types";
 
 /**
@@ -34,17 +35,32 @@ export const MODOS_DE_PASAR_LLAMADAS: ReadonlyArray<{
   },
 ];
 
+/** Por qué la recepcionista no puede pasar llamadas al móvil guardado. */
+export type MotivoSinMovilParaPasarLlamadas = "sin_movil" | "fuera_de_espana";
+
 /**
- * ¿Hay a quién pasar la llamada? El móvil del dueño, que no puede ser el
- * propio número de Alhabla. El backend afina más (solo números de España);
- * aquí basta para decidir si se pide el móvil primero.
+ * Las mismas condiciones que el backend (`destinoDeTransferencia`): tiene
+ * que haber móvil del dueño, no puede ser el propio número de Alhabla y
+ * tiene que ser un fijo o móvil de España (la pata la paga Alhabla). Con
+ * un móvil extranjero el backend nunca registra la tool, así que la
+ * pantalla no puede prometer que pasará llamadas.
  */
+export function motivoSinMovilParaPasarLlamadas(
+  business: Pick<Business, "ownerWhatsappNumber">,
+  numeroDeAlhabla: string | null
+): MotivoSinMovilParaPasarLlamadas | null {
+  const movil = business.ownerWhatsappNumber ?? null;
+  if (movil === null || movil === numeroDeAlhabla) return "sin_movil";
+  if (!esLineaDeClientesEspanola(movil)) return "fuera_de_espana";
+  return null;
+}
+
+/** ¿Hay a quién pasar la llamada? */
 export function hayMovilParaPasarLlamadas(
   business: Pick<Business, "ownerWhatsappNumber">,
   numeroDeAlhabla: string | null
 ): boolean {
-  const movil = business.ownerWhatsappNumber ?? null;
-  return movil !== null && movil !== numeroDeAlhabla;
+  return motivoSinMovilParaPasarLlamadas(business, numeroDeAlhabla) === null;
 }
 
 export function modoDePasarLlamadasPorDefecto(
@@ -68,5 +84,23 @@ export function modoDePasarLlamadas(
   return (
     business.agentSettings?.pasarLlamadas ??
     modoDePasarLlamadasPorDefecto(business, numeroDeAlhabla)
+  );
+}
+
+/**
+ * ¿La línea de siempre es el propio móvil del dueño (caso C, o B con los
+ * avisos al mismo móvil)? Entonces es también el destino de la
+ * transferencia y NO puede quedarse desviada al número de Alhabla: la
+ * llamada que le pasara la recepcionista volvería a entrar por Alhabla,
+ * se tomaría por una comprobación de desvío y el móvil no sonaría nunca.
+ */
+export function lineaAntiguaEsElMovilDelDueno(
+  business: Pick<Business, "ownerWhatsappNumber" | "ownerPhoneIsCustomerLine">,
+  lineaAntigua: string | null
+): boolean {
+  if (lineaAntigua === null) return false;
+  return (
+    business.ownerPhoneIsCustomerLine === true ||
+    lineaAntigua === business.ownerWhatsappNumber
   );
 }

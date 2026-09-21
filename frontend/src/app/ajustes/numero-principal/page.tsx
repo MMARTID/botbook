@@ -21,6 +21,7 @@ import {
 import { DEFAULT_AGENT_SETTINGS } from "@/components/agent-settings-editor";
 import { AppPageHeader } from "@/components/app-page-header";
 import {
+  CODIGO_ANULAR_DESVIOS_MOVIL,
   CODIGOS_FIJO,
   CODIGOS_MOVIL,
   CodigoFila,
@@ -31,10 +32,14 @@ import { getPhoneNumberInfo, updateMyBusiness } from "@/lib/api";
 import { describeApiError } from "@/lib/api-errors";
 import { formatPhone } from "@/lib/format";
 import {
-  hayMovilParaPasarLlamadas,
+  lineaAntiguaEsElMovilDelDueno,
   modoDePasarLlamadasPorDefecto,
+  motivoSinMovilParaPasarLlamadas,
 } from "@/lib/pasar-llamadas";
 import {
+  TEXTO_MOVIL_FUERA_DE_ESPANA,
+  TEXTO_MOVIL_SIN_DESVIO,
+  TEXTO_QUITAR_DESVIOS,
   TEXTO_SIN_MOVIL,
   TEXTO_SIN_NUMERO,
   TEXTO_YA_ES_PRINCIPAL,
@@ -100,9 +105,10 @@ export default function NumeroPrincipalPage() {
     phoneQuery.data?.status === "active"
       ? (phoneQuery.data.phoneNumber ?? null)
       : null;
-  const hayMovil = business
-    ? hayMovilParaPasarLlamadas(business, numeroDeAlhabla)
-    : false;
+  const motivoSinMovil = business
+    ? motivoSinMovilParaPasarLlamadas(business, numeroDeAlhabla)
+    : "sin_movil";
+  const hayMovil = motivoSinMovil === null;
   const modoPorDefecto = business
     ? modoDePasarLlamadasPorDefecto(
         { ...business, customerLineType: "alhabla" },
@@ -198,8 +204,16 @@ export default function NumeroPrincipalPage() {
   const yaEsPrincipal = business.customerLineType === "alhabla";
   const lineaAntigua = lineaPropia(business, numeroDeAlhabla);
   const tipoAntiguo = business.customerLineType;
-  const codigoTodas =
-    tipoAntiguo === "fijo"
+  // Si la línea de siempre es el propio móvil del dueño, es el destino de
+  // la transferencia: en vez de desviarla «todas» hay que quitarle los
+  // desvíos, o la recepcionista nunca podría pasarle una llamada.
+  const antiguaEsElMovil = lineaAntiguaEsElMovilDelDueno(
+    business,
+    lineaAntigua
+  );
+  const codigoTodas = antiguaEsElMovil
+    ? null
+    : tipoAntiguo === "fijo"
       ? CODIGOS_FIJO.find((codigo) => codigo.id === "fijo-todas")
       : tipoAntiguo === "movil_trabajo" || tipoAntiguo === "movil_personal"
         ? CODIGOS_MOVIL.find((codigo) => codigo.id === "todas")
@@ -305,7 +319,57 @@ export default function NumeroPrincipalPage() {
         </p>
       </Panel>
 
-      {lineaAntigua ? (
+      {lineaAntigua && antiguaEsElMovil ? (
+        <Panel
+          id="numero-antiguo"
+          icon={Smartphone}
+          titulo="Qué hacer con tu número de siempre"
+          descripcion={`Tus clientes seguirán llamando a tu móvil (${formatPhone(lineaAntigua)}) una temporada.`}
+        >
+          <ul className="list-disc space-y-2 pl-5 text-sm leading-6 text-[#27272a]">
+            <li>
+              <span className="font-semibold">No lo desvíes a Alhabla.</span>{" "}
+              {TEXTO_MOVIL_SIN_DESVIO}
+            </li>
+            <li>
+              <span className="font-semibold">Diles el nuevo número</span> a los
+              clientes que te llamen o te escriban: el de Alhabla es el que
+              atiende y reserva.
+            </li>
+          </ul>
+          <div className="rounded-2xl bg-[#fef8e7] p-4">
+            <p className="text-sm leading-6 text-[#9f7a15]">
+              {TEXTO_QUITAR_DESVIOS}
+            </p>
+            <button
+              type="button"
+              onClick={() => copiar(CODIGO_ANULAR_DESVIOS_MOVIL, "anular")}
+              className="mt-3 inline-flex h-11 items-center gap-2 rounded-[10px] border border-[#e5e5e5] bg-white px-4 font-mono text-sm text-[#0a0a0a] transition duration-200 hover:border-[#8b5cf6] hover:bg-[#f3eeff] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]"
+              aria-label={`Copiar el código ${CODIGO_ANULAR_DESVIOS_MOVIL}`}
+            >
+              {copiado === "anular" ? (
+                <Check className="h-4 w-4 text-[#2c7334]" aria-hidden="true" />
+              ) : (
+                <Copy className="h-4 w-4 text-[#52525b]" aria-hidden="true" />
+              )}
+              {CODIGO_ANULAR_DESVIOS_MOVIL}
+            </button>
+            <p className="mt-2 text-xs leading-5 text-muted">
+              Marca el código en tu móvil como si fuera una llamada. También
+              puedes anularlos uno a uno:{" "}
+              {CODIGOS_MOVIL.map((codigo, indice) => (
+                <span key={codigo.id}>
+                  {indice > 0 ? ", " : ""}
+                  <span className="font-mono text-[#27272a]">
+                    {codigo.desactivar}
+                  </span>
+                </span>
+              ))}
+              .
+            </p>
+          </div>
+        </Panel>
+      ) : lineaAntigua ? (
         <Panel
           id="numero-antiguo"
           icon={PhoneForwarded}
@@ -363,12 +427,18 @@ export default function NumeroPrincipalPage() {
           </>
         ) : (
           <Aviso tono="warning">
-            <span className="block">{TEXTO_SIN_MOVIL}</span>
+            <span className="block">
+              {motivoSinMovil === "fuera_de_espana"
+                ? TEXTO_MOVIL_FUERA_DE_ESPANA
+                : TEXTO_SIN_MOVIL}
+            </span>
             <Link
               href="/ajustes#whatsapp"
               className="mt-2 inline-block text-sm font-semibold text-[#6d28d9] underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]"
             >
-              Añadir mi móvil
+              {motivoSinMovil === "fuera_de_espana"
+                ? "Cambiar mi móvil"
+                : "Añadir mi móvil"}
             </Link>
           </Aviso>
         )}

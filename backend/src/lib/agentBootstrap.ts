@@ -24,6 +24,7 @@ import { calendarService } from "../modules/calendar/service.js";
 import { createTelnyxAssistantForAgent } from "./telnyxAgentSync.js";
 import { listaDeEsperaDisponible } from "../modules/whatsapp/service.js";
 import { isVoiceTelnyxRolloutEnabled } from "./voiceRollout.js";
+import { resolverTransferenciaAlDueno } from "./transferenciaAlDueno.js";
 
 /**
  * Campo de post_call_analysis_data para clasificar el resultado de la llamada:
@@ -879,6 +880,13 @@ export async function syncAgentToRetell(
       minAdvanceBookingMinutes: true,
       maxAppointmentDurationMinutes: true,
       hideOwnerNumberFromClients: true,
+      // Transferencia al dueño (fase 4): solo para la copia del prompt que
+      // ve el panel (ver promptDelPanel), Retell no tiene la tool.
+      customerLineType: true,
+      phone: true,
+      telnyxPhoneNumber: true,
+      ownerWhatsappNumber: true,
+      ownerPhoneIsCustomerLine: true,
     },
   });
 
@@ -916,17 +924,34 @@ export async function syncAgentToRetell(
   const businessType = isBusinessType(business.businessType)
     ? business.businessType
     : "other";
+  const agentSettings = parseAgentSettings(business.agentSettings);
 
-  const systemPrompt = buildManagedAgentPrompt({
+  const promptBase = {
     businessName: business.name,
     businessDetails: business.businessDetails,
     businessType,
-    settings: business.agentSettings,
+    settings: agentSettings,
     timezone: business.timezone,
     minAdvanceBookingMinutes: business.minAdvanceBookingMinutes,
     maxAppointmentDurationMinutes: business.maxAppointmentDurationMinutes,
     listaDeEspera: await listaDeEsperaDisponible(),
     ocultarNumeroDelNegocio: business.hideOwnerNumberFromClients,
+  };
+  // Lo que ejecuta Retell: sin el bloque «## Pasar la llamada», porque el
+  // agente de Retell no tiene la tool `transfer` y el prompt nunca debe
+  // mandar usar una herramienta que no existe.
+  const systemPrompt = buildManagedAgentPrompt(promptBase);
+  // Lo que guarda Agent.systemPrompt (la copia que enseña /agente): el
+  // prompt del primary, Telnyx, con el bloque de transferencia cuando la
+  // tool está registrada. Antes esta función lo pisaba con la versión sin
+  // bloque justo después de que PATCH /business/me lo escribiera con él, y
+  // el panel no enseñaba la regla que Telnyx sí aplicaba.
+  const promptDelPanel = buildManagedAgentPrompt({
+    ...promptBase,
+    transferenciaAlDueno: resolverTransferenciaAlDueno(
+      business,
+      agentSettings.pasarLlamadas
+    ),
   });
 
   const postCallAnalysisData = buildPostCallAnalysisData(
@@ -938,7 +963,6 @@ export async function syncAgentToRetell(
     ...services.map((service) => service.name),
     ...professionals.map((professional) => professional.name),
   ];
-  const agentSettings = parseAgentSettings(business.agentSettings);
   const voiceProfile = resolveRetellVoiceProfile(agentSettings);
   const voiceId = voiceProfile.voiceId;
 
@@ -999,7 +1023,7 @@ export async function syncAgentToRetell(
             }
           : {
               retellLlmId: retellDraft.llmId,
-              systemPrompt,
+              systemPrompt: promptDelPanel,
               voiceId,
               voiceProvider: voiceProfile.voiceProvider,
             },

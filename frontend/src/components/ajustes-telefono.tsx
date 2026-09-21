@@ -44,9 +44,10 @@ import {
 import { describeApiError } from "@/lib/api-errors";
 import { formatDate, formatPhone } from "@/lib/format";
 import {
-  hayMovilParaPasarLlamadas,
   modoDePasarLlamadas,
+  motivoSinMovilParaPasarLlamadas,
 } from "@/lib/pasar-llamadas";
+import { TEXTO_MOVIL_SIN_DESVIO_EN_AJUSTES } from "@/lib/numero-principal";
 import {
   esFijoEspanol,
   esMovilEspanol,
@@ -72,6 +73,10 @@ export const TEXTO_ALHABLA_PRINCIPAL =
   "Tu número de Alhabla es tu teléfono: publícalo en Google y en tu web. No hay nada que desviar.";
 export const TEXTO_SIN_MOVIL_PARA_PASAR =
   "Añade tu móvil más abajo para que tu recepcionista pueda pasarte llamadas.";
+/** El backend solo transfiere a fijos y móviles de España (la pata la paga
+ * Alhabla): con un móvil extranjero no hay tool, y hay que decirlo. */
+export const TEXTO_MOVIL_FUERA_DE_ESPANA_PARA_PASAR =
+  "Tu recepcionista solo puede pasar llamadas a un móvil o fijo de España, y el móvil que tienes guardado más abajo no lo es. Hasta que lo cambies, lo atenderá todo ella.";
 export const CONFIRMACION_CAMBIO_DE_MOVIL =
   "Los avisos pasarán a tu línea de clientes y tendrás que activarlos otra vez desde ese móvil. ¿Continuar?";
 export const ERROR_LINEA_SIN_WHATSAPP =
@@ -653,7 +658,11 @@ function TuRecepcionista({
   const [feedback, setFeedback] = useState<Feedback>(null);
   const esPrincipal = business.customerLineType === "alhabla";
   const numeroActivo = estado?.tone === "ok" && numeroDeAlhablaActivo !== null;
-  const hayMovil = hayMovilParaPasarLlamadas(business, numeroDeAlhablaActivo);
+  const motivoSinMovil = motivoSinMovilParaPasarLlamadas(
+    business,
+    numeroDeAlhablaActivo
+  );
+  const hayMovil = motivoSinMovil === null;
   const modoActual = modoDePasarLlamadas(business, numeroDeAlhablaActivo);
 
   // Se manda el bloque entero de agentSettings (como hace /agente): el
@@ -781,7 +790,9 @@ function TuRecepcionista({
           <p className="mt-1 text-sm leading-6 text-muted">
             {hayMovil && business.ownerWhatsappNumber
               ? `Tu recepcionista puede pasar la llamada a tu móvil (${formatPhone(business.ownerWhatsappNumber)}). Si no la coges, retoma ella y toma recado.`
-              : TEXTO_SIN_MOVIL_PARA_PASAR}
+              : motivoSinMovil === "fuera_de_espana"
+                ? TEXTO_MOVIL_FUERA_DE_ESPANA_PARA_PASAR
+                : TEXTO_SIN_MOVIL_PARA_PASAR}
           </p>
           {hayMovil ? (
             <div className="mt-3">
@@ -795,6 +806,13 @@ function TuRecepcionista({
                 disabled={pasarMutation.isPending}
                 aria-labelledby="ajustes-pasar-llamadas-title"
               />
+              {modoActual !== "nunca" ? (
+                // Con Alhabla como principal ya no sabemos si el móvil
+                // venía de ser la línea de clientes con desvío: se avisa
+                // siempre, porque un desvío al número de Alhabla anula la
+                // transferencia sin ningún otro síntoma.
+                <NotaDeLinea>{TEXTO_MOVIL_SIN_DESVIO_EN_AJUSTES}</NotaDeLinea>
+              ) : null}
             </div>
           ) : null}
           <div className="mt-2">
