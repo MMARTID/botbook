@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Building2,
@@ -156,6 +156,10 @@ export default function RegisterBusinessPage() {
   // En cuanto la persona toca la tarjeta, la línea o las casillas, la
   // propuesta de Google Places deja de pisar lo que ha escrito.
   const [telefoniaTocada, setTelefoniaTocada] = useState(false);
+  // Lo que hay escrito en «Tu móvil con WhatsApp» cuando llegan los detalles
+  // del negocio (después de un await, el estado de la clausura estaría viejo).
+  const ownerMobileRef = useRef(ownerMobile);
+  ownerMobileRef.current = ownerMobile;
   const debouncedQuery = useDebounce(query, 350);
 
   // Preferimos geolocalizar al negocio en vez de preguntarle el país: menos
@@ -277,6 +281,17 @@ export default function RegisterBusinessPage() {
         elegirTipoDeLinea(inferirTipoDeLinea(details.phone));
         setLineaDeClientes(details.phone ?? "");
         setLineaError("");
+        // Si la persona ya había escrito su móvil en «Tu móvil con
+        // WhatsApp», los avisos van ahí: un móvil en la ficha de Google no
+        // puede marcar «a este mismo móvil» y descartar en silencio el que
+        // escribió (salvo que sea el mismo número).
+        const movilEscrito = ownerMobileRef.current.trim();
+        if (
+          movilEscrito !== "" &&
+          normalizarMovil(movilEscrito) !== normalizarMovil(details.phone ?? "")
+        ) {
+          setAvisosALaLinea(false);
+        }
       }
     } catch {
       setError("No se pudieron cargar los detalles del negocio.");

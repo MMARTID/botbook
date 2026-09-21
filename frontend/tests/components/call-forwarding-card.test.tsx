@@ -11,9 +11,11 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AxiosError, type AxiosResponse } from "axios";
 import {
   CallForwardingCard,
+  ComprobarDesvio,
   INTERVALO_DE_CONSULTA_MS,
   MAX_CONSULTAS,
   TEXTO_POR_MOTIVO,
+  TEXTO_POR_MOTIVO_EN_AJUSTES,
 } from "@/components/call-forwarding-card";
 import {
   confirmForwarding,
@@ -502,5 +504,79 @@ describe("CallForwardingCard · «Comprobar desvío»", () => {
     await waitFor(() =>
       expect(invalidar).toHaveBeenCalledWith({ queryKey: ["onboarding-state"] })
     );
+  });
+});
+
+describe("ComprobarDesvio en Ajustes › Teléfono", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockedStart.mockResolvedValue(comprobacion());
+    mockedGet.mockResolvedValue(comprobacion());
+  });
+
+  function renderEnAjustes(customerLine: string | null = "+34931112233") {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    render(
+      <QueryClientProvider client={queryClient}>
+        <ComprobarDesvio customerLine={customerLine} contexto="ajustes" />
+      </QueryClientProvider>
+    );
+    return queryClient;
+  }
+
+  it("el motivo «desconocido» no manda a un botón que en Ajustes no existe", async () => {
+    const user = userEvent.setup();
+    mockedGet.mockResolvedValue(
+      comprobacion({ estado: "fallo", motivo: "desconocido" })
+    );
+    renderEnAjustes();
+
+    await lanzarComprobacion(user);
+
+    const alerta = await screen.findByRole("alert");
+    expect(alerta).toHaveTextContent(
+      TEXTO_POR_MOTIVO_EN_AJUSTES.desconocido!.detalle
+    );
+    expect(alerta).not.toHaveTextContent(/ya lo he activado/i);
+    // Los demás motivos siguen con su texto de siempre.
+    expect(TEXTO_POR_MOTIVO_EN_AJUSTES.sin_desvio).toBeUndefined();
+  });
+
+  it("una línea no admitida manda al bloque de arriba, no «a Ajustes»", async () => {
+    const user = userEvent.setup();
+    mockedStart.mockRejectedValue(
+      errorHttp(409, { error: "Solo España", code: "linea_no_admitida" })
+    );
+    renderEnAjustes();
+
+    await lanzarComprobacion(user);
+
+    const alerta = await screen.findByRole("alert");
+    expect(alerta).toHaveTextContent(/revisa arriba/i);
+    expect(alerta).not.toHaveTextContent(/en Ajustes/i);
+  });
+
+  it("tras «Desvío funcionando», «Hecho» refresca el estado y vuelve al botón inicial", async () => {
+    const user = userEvent.setup();
+    mockedGet.mockResolvedValue(comprobacion({ estado: "ok" }));
+    const queryClient = renderEnAjustes();
+    const invalidar = vi.spyOn(queryClient, "invalidateQueries");
+
+    await lanzarComprobacion(user);
+
+    expect(await screen.findByText("Desvío funcionando")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /continuar/i })
+    ).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /^hecho$/i }));
+
+    expect(invalidar).toHaveBeenCalledWith({ queryKey: ["onboarding-state"] });
+    expect(screen.queryByText("Desvío funcionando")).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /comprobar desvío/i })
+    ).toBeInTheDocument();
   });
 });

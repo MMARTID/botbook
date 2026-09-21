@@ -164,8 +164,19 @@ export function WhatsappDueno({ business, hasToken }: WhatsappDuenoProps) {
 
   const guardarMutation = useMutation({
     mutationFn: async (normalizado: string | null) => {
+      // «Es el mismo que la línea de clientes» (Ajustes › Teléfono › Tu
+      // móvil) solo es verdad mientras el móvil de los avisos coincida con
+      // esa línea: si desde aquí se cambia o se quita, la casilla se apaga
+      // en el mismo PATCH para no dejar un estado imposible.
+      const lineaDeClientes = business.phone.startsWith("TEMP-")
+        ? null
+        : business.phone;
+      const dejaDeSerLaLinea =
+        business.ownerPhoneIsCustomerLine === true &&
+        normalizado !== lineaDeClientes;
       const updated = await updateMyBusiness({
         ownerWhatsappNumber: normalizado,
+        ...(dejaDeSerLaLinea ? { ownerPhoneIsCustomerLine: false } : {}),
       });
       // Un backend anterior descarta el campo sin error: la respuesta no lo
       // trae. En ese caso no se pide la activación (no hay móvil que activar).

@@ -11,8 +11,12 @@ import {
   citaYaConfirmada,
   citaYaPasada,
   clienteConocido,
+  codigoCaducado,
+  codigoNoReconocido,
+  comoDarseDeAlta,
   comoCambiarCita,
   contactoComoTexto,
+  desconocidoEnNegocios,
   huecoCerrado,
   huecoFueraDePlazo,
   huecoRechazado,
@@ -29,6 +33,7 @@ import {
   listaDeEsperaSinHueco,
   listaDeEsperaSinPlantilla,
   listarNegocios,
+  mensajeParaOtroMovil,
   noPudeReservarAhora,
   panelUrl,
   yaActivo,
@@ -61,7 +66,7 @@ describe("copy del número de negocios", () => {
     });
     expect(conCambio).toContain("Peluquería Ana y Barbería Ana");
     expect(conCambio.split("\n")[2]).toBe(
-      "He apuntado este móvil en tu panel, en Ajustes › WhatsApp."
+      "He apuntado este móvil en tu panel, en Ajustes › Teléfono."
     );
   });
 
@@ -265,6 +270,25 @@ describe("lista de espera (botón del dueño)", () => {
     expect(listaDeEsperaError({ negocio: N })).toBe(
       `${N}: no he podido avisar a quien esperaba ahora mismo. Vuelve a pulsar en unos minutos.`
     );
+  });
+});
+
+describe("los textos que mandan al panel nombran la sección que existe", () => {
+  // Desde la fase 2 del plan de telefonía el móvil del dueño vive en
+  // Ajustes › Teléfono › Tu móvil; «Ajustes › WhatsApp» ya no es un título.
+  it("ningún mensaje al dueño manda a «Ajustes › WhatsApp»", () => {
+    const textos = [
+      bienvenidaTrasAlta({ negocios: ["Peluquería Ana"], movilApuntado: true }),
+      codigoNoReconocido(),
+      codigoCaducado(),
+      comoDarseDeAlta(),
+      desconocidoEnNegocios(),
+      mensajeParaOtroMovil(),
+    ];
+    for (const texto of textos) {
+      expect(texto).not.toContain("Ajustes › WhatsApp");
+      expect(texto).toContain("Ajustes › Teléfono");
+    }
   });
 });
 

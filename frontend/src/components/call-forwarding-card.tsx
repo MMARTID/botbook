@@ -142,6 +142,25 @@ export const TEXTO_POR_MOTIVO: Record<ForwardingCheckFailureReason, { titulo: st
   },
 };
 
+/**
+ * Dónde está montado el bloque «Comprobar desvío»: en la tarjeta del panel
+ * de inicio (con el respaldo «Ya lo he activado» al lado) o en Ajustes ›
+ * Teléfono, donde ese botón no existe y la línea de clientes se edita
+ * justo encima. Los textos que nombran una cosa u otra cambian con él.
+ */
+export type ContextoDeComprobacion = "panel" | "ajustes";
+
+/** Lo que cambia en Ajustes respecto a `TEXTO_POR_MOTIVO`. */
+export const TEXTO_POR_MOTIVO_EN_AJUSTES: Partial<
+  Record<ForwardingCheckFailureReason, { titulo: string; detalle: string }>
+> = {
+  desconocido: {
+    titulo: TEXTO_POR_MOTIVO.desconocido.titulo,
+    detalle:
+      "Inténtalo otra vez en unos minutos. Si estás seguro de que el desvío está activo, lo confirmaremos con la primera llamada real.",
+  },
+};
+
 const TEXTO_POR_CODIGO_DE_ERROR: Record<ForwardingCheckErrorCode, string> = {
   sin_numero: "Tu número de Alhabla todavía no está activo. Espera unos minutos y vuelve a probar.",
   linea_de_clientes_invalida:
@@ -154,10 +173,24 @@ const TEXTO_POR_CODIGO_DE_ERROR: Record<ForwardingCheckErrorCode, string> = {
   no_se_pudo_llamar: "No hemos podido llamar a tu línea. Inténtalo en unos minutos.",
 };
 
-function textoDeErrorAlComprobar(error: unknown): string {
+/** En Ajustes la línea se corrige en el bloque de arriba, no «en Ajustes». */
+const TEXTO_POR_CODIGO_DE_ERROR_EN_AJUSTES: Partial<Record<ForwardingCheckErrorCode, string>> = {
+  linea_de_clientes_invalida:
+    "Necesitamos el teléfono al que te llaman tus clientes, distinto del número de Alhabla. Revísalo arriba, en «Línea de clientes».",
+  linea_no_admitida:
+    "Solo podemos comprobar el desvío de un fijo o un móvil de España. Revisa arriba el número al que te llaman tus clientes.",
+};
+
+function textoDeErrorAlComprobar(error: unknown, contexto: ContextoDeComprobacion): string {
   const code = apiErrorCode(error) as ForwardingCheckErrorCode | null;
-  return (code && TEXTO_POR_CODIGO_DE_ERROR[code]) ||
+  const enAjustes = contexto === "ajustes" && code ? TEXTO_POR_CODIGO_DE_ERROR_EN_AJUSTES[code] : undefined;
+  return enAjustes ||
+    (code && TEXTO_POR_CODIGO_DE_ERROR[code]) ||
     "No hemos podido iniciar la comprobación. Inténtalo otra vez en unos segundos.";
+}
+
+function textoDeMotivo(motivo: ForwardingCheckFailureReason, contexto: ContextoDeComprobacion) {
+  return (contexto === "ajustes" && TEXTO_POR_MOTIVO_EN_AJUSTES[motivo]) || TEXTO_POR_MOTIVO[motivo];
 }
 
 type CallForwardingCardProps = {
@@ -456,9 +489,17 @@ function PreguntaTipoDeLinea({ customerLine }: { customerLine: string }) {
  * porque el paso ya está hecho).
  *
  * Se comparte con Ajustes › Teléfono (fase 2 del plan): mismo bloque, misma
- * conversación con el backend.
+ * conversación con el backend. Allí el bloque no desaparece al terminar,
+ * así que «Hecho» lo devuelve al estado inicial (el estado «Comprobado
+ * el …» lo pinta el bloque de arriba al refrescarse).
  */
-export function ComprobarDesvio({ customerLine }: { customerLine: string | null | undefined }) {
+export function ComprobarDesvio({
+  customerLine,
+  contexto = "panel",
+}: {
+  customerLine: string | null | undefined;
+  contexto?: ContextoDeComprobacion;
+}) {
   const queryClient = useQueryClient();
   const [fase, setFase] = useState<"inactiva" | "aviso" | "en_curso">("inactiva");
   const [checkId, setCheckId] = useState<string | null>(null);
@@ -513,6 +554,11 @@ export function ComprobarDesvio({ customerLine }: { customerLine: string | null 
 
   const continuar = () => {
     void queryClient.invalidateQueries({ queryKey: ["onboarding-state"] });
+    if (contexto === "ajustes") {
+      setCheckId(null);
+      startMutation.reset();
+      setFase("inactiva");
+    }
   };
 
   // `undefined` = backend anterior a la fase 3 (Vercel puede publicar esta
@@ -593,7 +639,7 @@ export function ComprobarDesvio({ customerLine }: { customerLine: string | null 
           </div>
           {startMutation.isError ? (
             <p role="alert" className="mt-3 text-sm font-medium text-[#c53030]">
-              {textoDeErrorAlComprobar(startMutation.error)}
+              {textoDeErrorAlComprobar(startMutation.error, contexto)}
             </p>
           ) : null}
         </div>
@@ -623,7 +669,7 @@ export function ComprobarDesvio({ customerLine }: { customerLine: string | null 
           </p>
           <button type="button" onClick={continuar} className="btn-primary mt-3 h-11 px-5">
             <Check className="h-4 w-4" aria-hidden="true" />
-            Continuar
+            {contexto === "ajustes" ? "Hecho" : "Continuar"}
           </button>
         </div>
       ) : null}
@@ -632,11 +678,11 @@ export function ComprobarDesvio({ customerLine }: { customerLine: string | null 
         <div className="mt-2 rounded-2xl border border-[#f5d3d3] bg-[#fff1f1] p-4" role="alert">
           <p className="flex items-center gap-2 text-sm font-semibold text-[#c53030]">
             <TriangleAlert className="h-5 w-5 shrink-0" aria-hidden="true" />
-            {fallo ? TEXTO_POR_MOTIVO[fallo.motivo].titulo : "No hemos recibido respuesta"}
+            {fallo ? textoDeMotivo(fallo.motivo, contexto).titulo : "No hemos recibido respuesta"}
           </p>
           <p className="mt-1 text-sm leading-6 text-[#7f1d1d]">
             {fallo
-              ? TEXTO_POR_MOTIVO[fallo.motivo].detalle
+              ? textoDeMotivo(fallo.motivo, contexto).detalle
               : "La comprobación no ha terminado a tiempo. Espera un minuto y vuelve a intentarlo."}
           </p>
           <button type="button" onClick={reiniciar} className="btn-secondary mt-3 h-11 px-5">

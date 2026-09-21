@@ -836,6 +836,75 @@ describe("RegisterBusinessPage — ¿A qué número te llaman tus clientes?", ()
     );
   });
 
+  it("un móvil escrito en «Tu móvil con WhatsApp» no se descarta cuando Google trae otro móvil: los avisos van al que escribió", async () => {
+    const user = userEvent.setup();
+    mockedUpdateMyBusiness.mockResolvedValue({
+      ...NEGOCIO_GUARDADO,
+      ownerWhatsappNumber: "+34699000111",
+    });
+    mockedSendActivation.mockResolvedValue({} as never);
+    render(<RegisterBusinessPage />);
+
+    await user.type(
+      screen.getByLabelText("Tu móvil con WhatsApp (opcional)"),
+      "699 000 111"
+    );
+    await elegirNegocio(user, { ...LUGAR, phone: "+34 600 111 222" });
+
+    // La propuesta de Google sí entra (tarjeta y línea), pero la casilla
+    // queda desmarcada y el móvil escrito sigue a la vista.
+    expect(
+      screen.getByRole("radio", { name: /Un móvil de trabajo/ })
+    ).toBeChecked();
+    expect(screen.getByLabelText("Móvil de trabajo")).toHaveValue(
+      "+34 600 111 222"
+    );
+    expect(
+      screen.getByRole("checkbox", {
+        name: /Mándame los avisos a este mismo móvil/,
+      })
+    ).not.toBeChecked();
+    expect(
+      screen.getByLabelText("Tu móvil con WhatsApp (opcional)")
+    ).toHaveValue("699 000 111");
+
+    await user.click(
+      screen.getByRole("button", { name: /Confirmar y continuar/ })
+    );
+
+    await waitFor(() =>
+      expect(mockedUpdateMyBusiness).toHaveBeenCalledWith({
+        ...DATOS_DEL_LUGAR,
+        phone: "+34600111222",
+        customerLineType: "movil_trabajo",
+        ownerPhoneIsCustomerLine: false,
+        hideOwnerNumberFromClients: false,
+        ownerWhatsappNumber: "+34699000111",
+      })
+    );
+    await waitFor(() => expect(mockedSendActivation).toHaveBeenCalledTimes(1));
+  });
+
+  it("si el móvil escrito es el mismo que trae Google, la casilla se queda marcada", async () => {
+    const user = userEvent.setup();
+    render(<RegisterBusinessPage />);
+
+    await user.type(
+      screen.getByLabelText("Tu móvil con WhatsApp (opcional)"),
+      "600 111 222"
+    );
+    await elegirNegocio(user, { ...LUGAR, phone: "+34 600 111 222" });
+
+    expect(
+      screen.getByRole("checkbox", {
+        name: /Mándame los avisos a este mismo móvil/,
+      })
+    ).toBeChecked();
+    expect(
+      screen.queryByLabelText("Tu móvil con WhatsApp (opcional)")
+    ).not.toBeInTheDocument();
+  });
+
   it("con los avisos al mismo móvil, el aviso de «no se pudo guardar tu móvil» se ve aunque el bloque del móvil no esté", async () => {
     const user = userEvent.setup();
     mockedUpdateMyBusiness.mockResolvedValue({

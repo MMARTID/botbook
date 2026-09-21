@@ -399,6 +399,77 @@ describe("WhatsappDueno", () => {
     );
   });
 
+  it("«Quitar el móvil» con los avisos en la línea de clientes apaga también «es el mismo»", async () => {
+    const user = userEvent.setup();
+    mockedGetOwnerWhatsapp.mockResolvedValue(
+      estado({ ownerWhatsappNumber: "+34600111222", status: "activo" })
+    );
+    mockedUpdateMyBusiness.mockResolvedValue({
+      ...NEGOCIO,
+      phone: "+34600111222",
+      ownerWhatsappNumber: null,
+      ownerPhoneIsCustomerLine: false,
+    });
+
+    renderComponent({
+      ...NEGOCIO,
+      phone: "+34600111222",
+      ownerWhatsappNumber: "+34600111222",
+      ownerPhoneIsCustomerLine: true,
+    });
+
+    await user.click(
+      await screen.findByRole("button", { name: /Quitar el móvil/ })
+    );
+
+    await waitFor(() =>
+      expect(mockedUpdateMyBusiness).toHaveBeenCalledWith({
+        ownerWhatsappNumber: null,
+        ownerPhoneIsCustomerLine: false,
+      })
+    );
+  });
+
+  it("guardar otro móvil distinto de la línea de clientes apaga «es el mismo»; guardar la misma línea no lo toca", async () => {
+    const user = userEvent.setup();
+    mockedGetOwnerWhatsapp.mockResolvedValue(estado());
+    mockedUpdateMyBusiness.mockResolvedValue({
+      ...NEGOCIO,
+      phone: "+34600111222",
+      ownerWhatsappNumber: "+34699999999",
+    });
+    mockedSendActivation.mockResolvedValue({ ...estado(), sent: "link" });
+
+    renderComponent({
+      ...NEGOCIO,
+      phone: "+34600111222",
+      ownerWhatsappNumber: null,
+      ownerPhoneIsCustomerLine: true,
+    });
+
+    const campo = await screen.findByLabelText(/Tu móvil con WhatsApp/);
+    await user.type(campo, "699 999 999");
+    await user.click(screen.getByRole("button", { name: /Guardar y activar/ }));
+
+    await waitFor(() =>
+      expect(mockedUpdateMyBusiness).toHaveBeenCalledWith({
+        ownerWhatsappNumber: "+34699999999",
+        ownerPhoneIsCustomerLine: false,
+      })
+    );
+
+    mockedUpdateMyBusiness.mockClear();
+    await user.clear(campo);
+    await user.type(campo, "600 111 222");
+    await user.click(screen.getByRole("button", { name: /Guardar y activar/ }));
+
+    await waitFor(() =>
+      expect(mockedUpdateMyBusiness).toHaveBeenCalledWith({
+        ownerWhatsappNumber: "+34600111222",
+      })
+    );
+  });
+
   it("un móvil inválido bloquea el guardado y lo explica", async () => {
     const user = userEvent.setup();
     mockedGetOwnerWhatsapp.mockResolvedValue(estado());

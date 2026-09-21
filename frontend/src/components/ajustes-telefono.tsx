@@ -28,11 +28,15 @@ import {
   OPERATIONAL_TONE,
   buildOperationalStatus,
 } from "@/components/operational-status";
-import { TarjetasDeLinea } from "@/components/tarjetas-de-linea";
+import {
+  TIPOS_CON_LINEA_PROPIA,
+  TarjetasDeLinea,
+} from "@/components/tarjetas-de-linea";
 import { WhatsappDueno } from "@/components/whatsapp-dueno";
 import {
   getOnboardingState,
   getPhoneNumberInfo,
+  sendOwnerWhatsappActivation,
   updateMyBusiness,
 } from "@/lib/api";
 import { describeApiError } from "@/lib/api-errors";
@@ -55,12 +59,16 @@ export const AVISO_LINEA_PARECE_MOVIL =
   "Ese número parece un móvil, no un fijo. Revisa el tipo de línea.";
 export const AVISO_LINEA_PARECE_FIJO =
   "Ese número parece un fijo, no un móvil. Revisa el tipo de línea.";
+export const AVISO_FALTA_NUMERO =
+  "Escribe el número al que te llaman tus clientes para guardar el tipo de línea.";
 export const TEXTO_ALHABLA_PRINCIPAL =
   "Tu número de Alhabla es tu teléfono: publícalo en Google y en tu web. No hay nada que desviar.";
 export const CONFIRMACION_NUMERO_PRINCIPAL =
-  "Tu recepcionista atenderá todas las llamadas que entren por tu número de Alhabla y dejará de hacer falta el desvío. Tendrás que publicar ese número en Google, en tu web y en tus tarjetas. ¿Quieres usarlo como número principal?";
+  "Tu recepcionista atenderá todas las llamadas que entren por tu número de Alhabla, será el número que dé a tus clientes para cambiar o anular una cita, y dejará de hacer falta el desvío. Tendrás que publicar ese número en Google, en tu web y en tus tarjetas. ¿Quieres usarlo como número principal?";
 export const CONFIRMACION_CAMBIO_DE_MOVIL =
   "Los avisos pasarán a tu línea de clientes y tendrás que activarlos otra vez desde ese móvil. ¿Continuar?";
+export const ERROR_LINEA_SIN_WHATSAPP =
+  "Esa línea es un fijo y no tiene WhatsApp. Escribe abajo el móvil al que quieres los avisos.";
 
 type Feedback = { type: "success" | "error"; message: string } | null;
 
@@ -78,6 +86,23 @@ const ES_MOVIL: Record<CustomerLineType, boolean> = {
 
 function telefonoGuardado(business: Business): string | null {
   return business.phone.startsWith("TEMP-") ? null : business.phone;
+}
+
+/**
+ * La línea de clientes propia del negocio: `Business.phone` salvo que sea
+ * el placeholder del registro o el propio número de Alhabla (caso E, «usar
+ * como número principal»), que no es una línea que desviar ni un móvil al
+ * que mandar avisos.
+ */
+function lineaPropia(
+  business: Business,
+  numeroDeAlhabla: string | null
+): string | null {
+  const telefono = telefonoGuardado(business);
+  if (telefono === null) return null;
+  return numeroDeAlhabla !== null && telefono === numeroDeAlhabla
+    ? null
+    : telefono;
 }
 
 /**
@@ -107,6 +132,12 @@ export function AjustesTelefono({ business, hasToken }: AjustesTelefonoProps) {
     phoneUnavailable: phoneQuery.isError,
     forwardingUnavailable: onboardingQuery.isError,
   }).find((item) => item.key === "phone");
+  // El número de Alhabla en E.164, solo cuando está activo de verdad: es el
+  // que se publica como teléfono del negocio al usarlo como principal.
+  const numeroDeAlhablaActivo =
+    phoneQuery.data?.status === "active"
+      ? (phoneQuery.data.phoneNumber ?? null)
+      : null;
 
   return (
     <section
@@ -137,14 +168,21 @@ export function AjustesTelefono({ business, hasToken }: AjustesTelefonoProps) {
           business={business}
           forwarding={forwarding}
           forwardingNoDisponible={onboardingQuery.isError}
-          numeroDeAlhablaActivo={phoneQuery.data?.status === "active"}
+          numeroDeAlhablaActivo={numeroDeAlhablaActivo}
         />
         <TuRecepcionista
           business={business}
           estado={numeroDeAlhabla ?? null}
+          numeroDeAlhablaActivo={numeroDeAlhablaActivo}
           cargando={phoneQuery.isLoading}
         />
-        <TuMovil business={business} hasToken={hasToken} />
+        <TuMovil
+          business={business}
+          hasToken={hasToken}
+          numeroDeAlhabla={
+            numeroDeAlhablaActivo ?? forwarding?.phoneNumber ?? null
+          }
+        />
       </div>
     </section>
   );
@@ -192,8 +230,9 @@ function Bloque({
 /**
  * Bloque 1: el número (`Business.phone`) y su tipo, editables juntos; el
  * estado del desvío con «Comprobar desvío» y los códigos para activarlo o
- * quitarlo según el tipo. Con el número de Alhabla como principal no hay
- * desvío que enseñar.
+ * quitarlo según el tipo. Con el número de Alhabla como principal, `phone`
+ * ES el número de Alhabla (es el que la recepcionista da a los clientes)
+ * y no hay desvío que enseñar.
  */
 function LineaDeClientes({
   business,
@@ -205,12 +244,16 @@ function LineaDeClientes({
   forwarding: OnboardingForwarding | undefined;
   /** La consulta del onboarding falló: no sabemos cómo está el desvío. */
   forwardingNoDisponible: boolean;
-  numeroDeAlhablaActivo: boolean;
+  /** Número de Alhabla en E.164 si está activo; null si no hay o no lo está. */
+  numeroDeAlhablaActivo: string | null;
 }) {
   const queryClient = useQueryClient();
+  const numeroDeAlhabla =
+    numeroDeAlhablaActivo ?? forwarding?.phoneNumber ?? null;
   const telefonoActual = telefonoGuardado(business);
+  const lineaActual = lineaPropia(business, numeroDeAlhabla);
   const tipoActual = business.customerLineType ?? null;
-  const [telefono, setTelefono] = useState(telefonoActual ?? "");
+  const [telefono, setTelefono] = useState(lineaActual ?? "");
   const [tipo, setTipo] = useState<CustomerLineType | null>(tipoActual);
   const [feedback, setFeedback] = useState<Feedback>(null);
   const [copiado, setCopiado] = useState<string | null>(null);
@@ -218,21 +261,34 @@ function LineaDeClientes({
   // Si el negocio cambia desde fuera (otra pestaña, «Usar como número
   // principal» más abajo), el formulario se pone al día con lo guardado.
   useEffect(() => {
-    setTelefono(telefonoActual ?? "");
+    setTelefono(lineaActual ?? "");
     setTipo(tipoActual);
-  }, [telefonoActual, tipoActual]);
+  }, [lineaActual, tipoActual]);
 
   const telefonoNormalizado =
     telefono.trim() === "" ? null : normalizarMovil(telefono);
   const telefonoInvalido =
     telefono.trim() !== "" && telefonoNormalizado === null;
   const pideNumero = tipo !== "alhabla";
-  const telefonoAEnviar = pideNumero ? telefonoNormalizado : null;
+  // Con Alhabla como principal el teléfono del negocio pasa a ser el
+  // número de Alhabla: es el que la recepcionista dice en voz alta y pone
+  // en los mensajes al cliente, así que no puede quedarse la línea antigua.
+  const telefonoAEnviar = pideNumero
+    ? telefonoNormalizado
+    : numeroDeAlhablaActivo;
+  const cambiaElTelefono =
+    telefonoAEnviar !== null && telefonoAEnviar !== telefonoActual;
+  const faltaNumero = pideNumero && tipo !== null && telefono.trim() === "";
   const hayCambios =
-    tipo !== tipoActual ||
-    (pideNumero &&
-      telefonoAEnviar !== null &&
-      telefonoAEnviar !== telefonoActual);
+    !faltaNumero &&
+    (tipo !== tipoActual || cambiaElTelefono) &&
+    (pideNumero || numeroDeAlhablaActivo !== null);
+  // La tarjeta «quiero usar el de Alhabla» solo cuando hay un número de
+  // Alhabla activo que publicar; si ya está elegida se sigue enseñando.
+  const tiposDisponibles =
+    numeroDeAlhablaActivo !== null || tipoActual === "alhabla"
+      ? undefined
+      : TIPOS_CON_LINEA_PROPIA;
 
   // Un fijo con tipo «móvil» (o al revés) dejaría a la tarjeta de desvío
   // enseñando los códigos equivocados. Al escribir se corrige solo; si la
@@ -257,20 +313,33 @@ function LineaDeClientes({
   };
 
   const guardarMutation = useMutation({
-    mutationFn: () =>
-      updateMyBusiness({
-        ...(pideNumero &&
-        telefonoAEnviar !== null &&
-        telefonoAEnviar !== telefonoActual
-          ? { phone: telefonoAEnviar }
-          : {}),
+    mutationFn: async () => {
+      // «Los avisos van al mismo móvil al que te llaman» deja de ser verdad
+      // si la línea cambia a otro número: se apaga en el mismo PATCH y el
+      // móvil de los avisos se queda como estaba (cambiarlo reiniciaría la
+      // activación sin que nadie lo haya pedido).
+      const apagaMismoMovil =
+        business.ownerPhoneIsCustomerLine === true &&
+        cambiaElTelefono &&
+        telefonoAEnviar !== (business.ownerWhatsappNumber ?? null);
+      const updated = await updateMyBusiness({
+        ...(cambiaElTelefono ? { phone: telefonoAEnviar } : {}),
         ...(tipo !== tipoActual ? { customerLineType: tipo } : {}),
-      }),
-    onSuccess: (updated) => {
+        ...(apagaMismoMovil ? { ownerPhoneIsCustomerLine: false } : {}),
+      });
+      return { updated, apagaMismoMovil };
+    },
+    onSuccess: ({ updated, apagaMismoMovil }) => {
       queryClient.setQueryData(["my-business"], updated);
       // El desvío depende de la línea (y «alhabla» lo da por hecho).
       void queryClient.invalidateQueries({ queryKey: ["onboarding-state"] });
-      setFeedback({ type: "success", message: "Línea de clientes guardada." });
+      setFeedback({
+        type: "success",
+        message:
+          apagaMismoMovil && business.ownerWhatsappNumber
+            ? `Línea de clientes guardada. Los avisos siguen yendo al ${formatPhone(business.ownerWhatsappNumber)}; si quieres que vayan a la nueva línea, márcalo abajo.`
+            : "Línea de clientes guardada.",
+      });
     },
     onError: (error) =>
       setFeedback({
@@ -296,13 +365,20 @@ function LineaDeClientes({
     }
   };
 
-  const numeroDeAlhabla = forwarding?.phoneNumber ?? null;
   const codigos =
     tipoActual === "fijo"
       ? CODIGOS_FIJO
       : tipoActual && ES_MOVIL[tipoActual]
         ? CODIGOS_MOVIL
         : null;
+
+  // Con Alhabla como principal, el número que se está dando a los clientes
+  // se enseña siempre: si por lo que sea sigue siendo la línea antigua
+  // (guardado antes de que el cambio la sustituyera), «Guardar línea» lo
+  // corrige.
+  const numeroPublicado = telefonoActual;
+  const publicadoEsElDeAlhabla =
+    numeroPublicado !== null && numeroPublicado === numeroDeAlhabla;
 
   return (
     <Bloque
@@ -326,6 +402,7 @@ function LineaDeClientes({
               setTipo(nuevo);
               setFeedback(null);
             }}
+            tipos={tiposDisponibles}
             disabled={guardarMutation.isPending}
             aria-labelledby="linea-de-clientes-tipo-title"
           />
@@ -351,21 +428,42 @@ function LineaDeClientes({
             className={`mt-1 block text-xs font-normal leading-5 ${
               telefonoInvalido
                 ? "text-[#c53030]"
-                : avisoDeTipo
+                : avisoDeTipo || (faltaNumero && tipo !== tipoActual)
                   ? "text-[#9f7a15]"
                   : "text-muted"
             }`}
           >
             {telefonoInvalido
               ? ERROR_LINEA_INVALIDA
-              : (avisoDeTipo ??
-                "Con prefijo internacional. Los avisos para ti van a tu móvil, más abajo.")}
+              : faltaNumero && tipo !== tipoActual
+                ? AVISO_FALTA_NUMERO
+                : (avisoDeTipo ??
+                  "Con prefijo internacional. Los avisos para ti van a tu móvil, más abajo.")}
           </span>
         </label>
       ) : (
-        <p className="rounded-2xl bg-[#f3eeff] px-4 py-3 text-sm leading-6 text-[#6d28d9]">
-          {TEXTO_ALHABLA_PRINCIPAL}
-        </p>
+        <div className="rounded-2xl bg-[#f3eeff] px-4 py-3 text-sm leading-6 text-[#6d28d9]">
+          <p>{TEXTO_ALHABLA_PRINCIPAL}</p>
+          {tipoActual === "alhabla" && numeroPublicado ? (
+            <p className="mt-1">
+              Número que tu recepcionista da a tus clientes:{" "}
+              <span className="font-semibold tabular-nums">
+                {formatPhone(numeroPublicado)}
+              </span>
+              {!publicadoEsElDeAlhabla && numeroDeAlhablaActivo
+                ? ". Sigue siendo tu línea antigua: guarda para que sea el de Alhabla."
+                : "."}
+            </p>
+          ) : tipoActual !== "alhabla" && numeroDeAlhablaActivo ? (
+            <p className="mt-1">
+              Al guardar, tu teléfono pasará a ser el{" "}
+              <span className="font-semibold tabular-nums">
+                {formatPhone(numeroDeAlhablaActivo)}
+              </span>
+              .
+            </p>
+          ) : null}
+        </div>
       )}
 
       <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -417,7 +515,10 @@ function LineaDeClientes({
               comprobar el desvío.
             </p>
           ) : (
-            <ComprobarDesvio customerLine={forwarding.customerLine} />
+            <ComprobarDesvio
+              customerLine={forwarding.customerLine}
+              contexto="ajustes"
+            />
           )}
 
           {numeroDeAlhabla && numeroDeAlhablaActivo ? (
@@ -526,31 +627,44 @@ function EstadoDelDesvio({
 /**
  * Bloque 2: el número de Alhabla y su estado (misma fuente que el panel de
  * inicio), el enlace a la recepcionista y «Usar como número principal», que
- * hoy solo marca `customerLineType = "alhabla"`; la pantalla completa es de
- * la fase 4.
+ * marca `customerLineType = "alhabla"` y pone el número de Alhabla como
+ * teléfono del negocio (el que la recepcionista da a los clientes); la
+ * pantalla completa es de la fase 4.
  */
 function TuRecepcionista({
   business,
   estado,
+  numeroDeAlhablaActivo,
   cargando,
 }: {
   business: Business;
   estado: ReturnType<typeof buildOperationalStatus>[number] | null;
+  numeroDeAlhablaActivo: string | null;
   cargando: boolean;
 }) {
   const queryClient = useQueryClient();
   const [feedback, setFeedback] = useState<Feedback>(null);
   const esPrincipal = business.customerLineType === "alhabla";
-  const numeroActivo = estado?.tone === "ok";
+  const numeroActivo = estado?.tone === "ok" && numeroDeAlhablaActivo !== null;
 
   const principalMutation = useMutation({
-    mutationFn: () => updateMyBusiness({ customerLineType: "alhabla" }),
+    mutationFn: (numero: string) =>
+      updateMyBusiness({
+        customerLineType: "alhabla",
+        phone: numero,
+        // Los avisos no pueden ir al número de Alhabla: el móvil del dueño
+        // se queda como está, pero deja de «ser la línea de clientes».
+        ...(business.ownerPhoneIsCustomerLine
+          ? { ownerPhoneIsCustomerLine: false }
+          : {}),
+      }),
     onSuccess: (updated) => {
       queryClient.setQueryData(["my-business"], updated);
       void queryClient.invalidateQueries({ queryKey: ["onboarding-state"] });
       setFeedback({
         type: "success",
-        message: "Tu número de Alhabla ya es tu número principal.",
+        message:
+          "Tu número de Alhabla ya es tu número principal. Puedes quitar el desvío de tu línea antigua cuando lo hayas publicado.",
       });
     },
     onError: (error) =>
@@ -632,7 +746,7 @@ function TuRecepcionista({
             onClick={() => {
               setFeedback(null);
               if (!window.confirm(CONFIRMACION_NUMERO_PRINCIPAL)) return;
-              principalMutation.mutate();
+              principalMutation.mutate(numeroDeAlhablaActivo);
             }}
             disabled={principalMutation.isPending}
             className="btn-purple shrink-0"
@@ -666,15 +780,25 @@ function TuRecepcionista({
 function TuMovil({
   business,
   hasToken,
+  numeroDeAlhabla,
 }: {
   business: Business;
   hasToken: boolean | null;
+  numeroDeAlhabla: string | null;
 }) {
   const queryClient = useQueryClient();
   const [feedback, setFeedback] = useState<Feedback>(null);
   const tipo = business.customerLineType ?? null;
   const lineaEsMovil = tipo !== null && ES_MOVIL[tipo];
-  const linea = telefonoGuardado(business);
+  const linea = lineaPropia(business, numeroDeAlhabla);
+  const movilActual = business.ownerWhatsappNumber ?? null;
+  // La casilla pinta la realidad, no solo el flag: marcada únicamente si
+  // los avisos van de verdad a la línea de clientes. Si el móvil o la línea
+  // cambiaron por otro lado, se ve desmarcada y se puede volver a marcar.
+  const avisosEnLaLinea =
+    business.ownerPhoneIsCustomerLine === true &&
+    linea !== null &&
+    movilActual === linea;
 
   const ajustesMutation = useMutation({
     mutationFn: async (cambio: {
@@ -689,13 +813,17 @@ function TuMovil({
       });
       // Un backend anterior descarta el campo sin error: se avisa en vez de
       // fingir que se guardó.
-      return {
-        updated,
-        cambio,
-        guardado: updated[cambio.campo] === cambio.valor,
-      };
+      const guardado = updated[cambio.campo] === cambio.valor;
+      // Cambiar el móvil reinicia la activación: se pide la plantilla igual
+      // que al guardarlo desde el bloque de abajo o en el alta, para que el
+      // dueño no tenga que descubrir el enlace por su cuenta.
+      const activacion =
+        cambio.movil && guardado && updated.ownerWhatsappNumber === cambio.movil
+          ? await sendOwnerWhatsappActivation().catch(() => null)
+          : null;
+      return { updated, cambio, guardado, activacion };
     },
-    onSuccess: ({ updated, cambio, guardado }) => {
+    onSuccess: ({ updated, cambio, guardado, activacion }) => {
       queryClient.setQueryData(["my-business"], updated);
       if (cambio.movil) {
         void queryClient.invalidateQueries({ queryKey: ["owner-whatsapp"] });
@@ -714,7 +842,9 @@ function TuMovil({
           cambio.campo === "ownerPhoneIsCustomerLine"
             ? cambio.valor
               ? cambio.movil
-                ? `Los avisos irán al ${formatPhone(cambio.movil)}. Actívalos desde ese móvil.`
+                ? activacion?.sent === "template"
+                  ? `Los avisos irán al ${formatPhone(cambio.movil)}. Te hemos enviado un WhatsApp: pulsa «Activar avisos» cuando te llegue.`
+                  : `Los avisos irán al ${formatPhone(cambio.movil)}. Actívalos desde ese móvil con el mensaje de abajo.`
                 : "Los avisos van al mismo móvil al que te llaman tus clientes."
               : "Los avisos van a otro móvil: escríbelo abajo."
             : cambio.valor
@@ -738,15 +868,18 @@ function TuMovil({
       ajustesMutation.mutate({ campo: "ownerPhoneIsCustomerLine", valor });
       return;
     }
-    const movilActual = business.ownerWhatsappNumber ?? null;
-    const lineaEsMovilValido = linea !== null && !esFijoEspanol(linea);
-    const cambiaDeMovil =
-      lineaEsMovilValido && movilActual !== null && movilActual !== linea;
+    // Sin línea guardada la casilla no se enseña; un fijo con tipo «móvil»
+    // (avisado arriba) no tiene WhatsApp al que mandar nada.
+    if (linea === null || esFijoEspanol(linea)) {
+      setFeedback({ type: "error", message: ERROR_LINEA_SIN_WHATSAPP });
+      return;
+    }
+    const cambiaDeMovil = movilActual !== null && movilActual !== linea;
     if (cambiaDeMovil && !window.confirm(CONFIRMACION_CAMBIO_DE_MOVIL)) return;
     ajustesMutation.mutate({
       campo: "ownerPhoneIsCustomerLine",
       valor,
-      ...(lineaEsMovilValido && movilActual !== linea ? { movil: linea } : {}),
+      ...(movilActual !== linea ? { movil: linea } : {}),
     });
   };
 
@@ -759,11 +892,11 @@ function TuMovil({
     >
       {tipo !== "alhabla" ? (
         <div className="space-y-2">
-          {lineaEsMovil ? (
+          {lineaEsMovil && linea !== null ? (
             <label className="flex min-h-11 items-start gap-3 rounded-xl border border-[#e5e5e5] p-3 text-sm text-[#27272a]">
               <input
                 type="checkbox"
-                checked={business.ownerPhoneIsCustomerLine === true}
+                checked={avisosEnLaLinea}
                 disabled={ajustesMutation.isPending}
                 onChange={(event) => marcarMismoMovil(event.target.checked)}
                 aria-describedby="settings-mismo-movil-hint"
@@ -777,9 +910,8 @@ function TuMovil({
                   id="settings-mismo-movil-hint"
                   className="mt-1 block text-xs leading-5 text-muted"
                 >
-                  Los avisos te llegan al móvil al que te llaman tus clientes
-                  {linea ? ` (${formatPhone(linea)})` : ""}. Coincidir con esa
-                  línea no es un error.
+                  Los avisos te llegan al móvil al que te llaman tus clientes (
+                  {formatPhone(linea)}). Coincidir con esa línea no es un error.
                 </span>
               </span>
             </label>

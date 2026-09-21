@@ -220,7 +220,7 @@ export async function preguntarAlGestor(input: {
     return {
       ok: false,
       motivo: "apagado_negocio",
-      mensaje: "El Gestor está desactivado en Ajustes › WhatsApp.",
+      mensaje: "El Gestor está desactivado en Ajustes › Teléfono.",
     };
   }
   const turno = await turnoDelGestor({

@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   AjustesTelefono,
+  AVISO_FALTA_NUMERO,
   AVISO_LINEA_PARECE_MOVIL,
   CONFIRMACION_CAMBIO_DE_MOVIL,
   CONFIRMACION_NUMERO_PRINCIPAL,
@@ -13,6 +14,7 @@ import {
   getOnboardingState,
   getOwnerWhatsapp,
   getPhoneNumberInfo,
+  sendOwnerWhatsappActivation,
   updateMyBusiness,
 } from "@/lib/api";
 import type {
@@ -37,6 +39,7 @@ const mockedOnboarding = vi.mocked(getOnboardingState);
 const mockedPhone = vi.mocked(getPhoneNumberInfo);
 const mockedOwnerWhatsapp = vi.mocked(getOwnerWhatsapp);
 const mockedUpdate = vi.mocked(updateMyBusiness);
+const mockedSendActivation = vi.mocked(sendOwnerWhatsappActivation);
 
 const NUMERO_DE_ALHABLA = "+34930453218";
 
@@ -134,6 +137,10 @@ describe("AjustesTelefono", () => {
       ...negocio(),
       ...(payload as Partial<Business>),
     }));
+    mockedSendActivation.mockResolvedValue({
+      ...ESTADO_WHATSAPP,
+      sent: "template",
+    });
     vi.spyOn(window, "confirm").mockReturnValue(true);
   });
 
@@ -219,11 +226,14 @@ describe("AjustesTelefono", () => {
     it("con tipo sin confirmar no hay tarjeta marcada ni códigos, pero sí se puede comprobar", async () => {
       renderSeccion(negocio({ customerLineType: null }));
 
+      // La cuarta tarjeta aparece en cuanto se sabe que hay número activo.
+      expect(
+        await screen.findByRole("radio", { name: /quiero usar el de Alhabla/ })
+      ).not.toBeChecked();
       for (const nombre of [
         /El fijo del local/,
         /Un móvil de trabajo/,
         /Mi móvil personal/,
-        /quiero usar el de Alhabla/,
       ]) {
         expect(screen.getByRole("radio", { name: nombre })).not.toBeChecked();
       }
@@ -333,13 +343,24 @@ describe("AjustesTelefono", () => {
       ).toBeDisabled();
     });
 
-    it("con Alhabla como principal no pide número ni enseña desvío", async () => {
-      renderSeccion(negocio({ customerLineType: "alhabla" }));
+    it("con Alhabla como principal no pide número ni enseña desvío, y dice qué número se da a los clientes", async () => {
+      renderSeccion(
+        negocio({ customerLineType: "alhabla", phone: NUMERO_DE_ALHABLA })
+      );
 
       expect(screen.getByText(TEXTO_ALHABLA_PRINCIPAL)).toBeInTheDocument();
       expect(
+        screen.getByText(/Número que tu recepcionista da a tus clientes/)
+      ).toHaveTextContent("+34 930 45 32 18");
+      expect(
+        screen.queryByText(/Sigue siendo tu línea antigua/)
+      ).not.toBeInTheDocument();
+      expect(
         screen.queryByLabelText(/Número al que te llaman tus clientes/)
       ).not.toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: "Guardar línea" })
+      ).toBeDisabled();
       expect(
         screen.queryByText("Desvío a tu recepcionista")
       ).not.toBeInTheDocument();
@@ -368,6 +389,131 @@ describe("AjustesTelefono", () => {
         screen.queryByRole("button", { name: "Comprobar desvío" })
       ).not.toBeInTheDocument();
     });
+
+    it("elegir un tipo con línea propia exige el número: sin él no se guarda y se explica", async () => {
+      const user = userEvent.setup();
+      mockedOnboarding.mockResolvedValue(onboarding({ customerLine: null }));
+      renderSeccion(negocio({ phone: "TEMP-neg_1", customerLineType: null }));
+
+      await user.click(
+        screen.getByRole("radio", { name: /Mi móvil personal/ })
+      );
+
+      expect(screen.getByText(AVISO_FALTA_NUMERO)).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: "Guardar línea" })
+      ).toBeDisabled();
+
+      await user.type(
+        screen.getByLabelText(/Número al que te llaman tus clientes/),
+        "600 111 222"
+      );
+      await user.click(screen.getByRole("button", { name: "Guardar línea" }));
+
+      await waitFor(() => expect(mockedUpdate).toHaveBeenCalledTimes(1));
+      expect(mockedUpdate).toHaveBeenCalledWith({
+        phone: "+34600111222",
+        customerLineType: "movil_personal",
+      });
+    });
+
+    it("la tarjeta «quiero usar el de Alhabla» guarda el número de Alhabla como teléfono del negocio", async () => {
+      const user = userEvent.setup();
+      renderSeccion(negocio());
+
+      await user.click(
+        await screen.findByRole("radio", { name: /quiero usar el de Alhabla/ })
+      );
+      expect(
+        screen.getByText(/Al guardar, tu teléfono pasará a ser el/)
+      ).toHaveTextContent("+34 930 45 32 18");
+      await user.click(screen.getByRole("button", { name: "Guardar línea" }));
+
+      await waitFor(() => expect(mockedUpdate).toHaveBeenCalledTimes(1));
+      expect(mockedUpdate).toHaveBeenCalledWith({
+        phone: NUMERO_DE_ALHABLA,
+        customerLineType: "alhabla",
+      });
+    });
+
+    it("sin número de Alhabla activo no ofrece la tarjeta «quiero usar el de Alhabla»", async () => {
+      mockedPhone.mockResolvedValue(
+        telefono({ phoneNumber: null, status: null, sid: null })
+      );
+      mockedOnboarding.mockResolvedValue(
+        onboarding({ status: "waiting_number", phoneNumber: null })
+      );
+      renderSeccion(negocio({ subscriptionStatus: null }));
+
+      await waitFor(() => expect(mockedPhone).toHaveBeenCalled());
+      expect(
+        screen.getByRole("radio", { name: /El fijo del local/ })
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByRole("radio", { name: /quiero usar el de Alhabla/ })
+      ).not.toBeInTheDocument();
+    });
+
+    it("con Alhabla como principal pero la línea antigua aún como teléfono, avisa y «Guardar línea» lo corrige", async () => {
+      const user = userEvent.setup();
+      renderSeccion(negocio({ customerLineType: "alhabla" }));
+
+      expect(
+        await screen.findByText(/Sigue siendo tu línea antigua/)
+      ).toBeInTheDocument();
+      const guardar = screen.getByRole("button", { name: "Guardar línea" });
+      await waitFor(() => expect(guardar).toBeEnabled());
+      await user.click(guardar);
+
+      await waitFor(() => expect(mockedUpdate).toHaveBeenCalledTimes(1));
+      expect(mockedUpdate).toHaveBeenCalledWith({ phone: NUMERO_DE_ALHABLA });
+    });
+
+    it("al dejar Alhabla como principal, el campo del número empieza vacío (el de Alhabla no es una línea que desviar)", async () => {
+      const user = userEvent.setup();
+      renderSeccion(
+        negocio({ customerLineType: "alhabla", phone: NUMERO_DE_ALHABLA })
+      );
+
+      await user.click(
+        await screen.findByRole("radio", { name: /El fijo del local/ })
+      );
+
+      expect(
+        screen.getByLabelText(/Número al que te llaman tus clientes/)
+      ).toHaveValue("");
+      expect(
+        screen.getByRole("button", { name: "Guardar línea" })
+      ).toBeDisabled();
+    });
+
+    it("cambiar la línea con «es el mismo móvil» marcado apaga esa casilla y deja los avisos donde estaban", async () => {
+      const user = userEvent.setup();
+      renderSeccion(
+        negocio({
+          phone: "+34600111222",
+          customerLineType: "movil_personal",
+          ownerPhoneIsCustomerLine: true,
+          ownerWhatsappNumber: "+34600111222",
+        })
+      );
+
+      const campo = screen.getByLabelText(
+        /Número al que te llaman tus clientes/
+      );
+      await user.clear(campo);
+      await user.type(campo, "+34600999888");
+      await user.click(screen.getByRole("button", { name: "Guardar línea" }));
+
+      await waitFor(() => expect(mockedUpdate).toHaveBeenCalledTimes(1));
+      expect(mockedUpdate).toHaveBeenCalledWith({
+        phone: "+34600999888",
+        ownerPhoneIsCustomerLine: false,
+      });
+      expect(
+        await screen.findByText(/Los avisos siguen yendo al \+34 600 11 12 22/)
+      ).toBeInTheDocument();
+    });
   });
 
   describe("Tu recepcionista", () => {
@@ -395,17 +541,43 @@ describe("AjustesTelefono", () => {
         CONFIRMACION_NUMERO_PRINCIPAL
       );
       await waitFor(() => expect(mockedUpdate).toHaveBeenCalledTimes(1));
+      // El teléfono del negocio pasa a ser el de Alhabla: es el que la
+      // recepcionista dice y pone en los mensajes al cliente.
       expect(mockedUpdate).toHaveBeenCalledWith({
         customerLineType: "alhabla",
+        phone: NUMERO_DE_ALHABLA,
       });
       expect(
-        await screen.findByText(
-          "Tu número de Alhabla ya es tu número principal."
-        )
+        await screen.findByText(/ya es tu número principal/)
       ).toBeInTheDocument();
-      expect(
-        (queryClient.getQueryData(["my-business"]) as Business).customerLineType
-      ).toBe("alhabla");
+      const guardado = queryClient.getQueryData(["my-business"]) as Business;
+      expect(guardado.customerLineType).toBe("alhabla");
+      expect(guardado.phone).toBe(NUMERO_DE_ALHABLA);
+    });
+
+    it("si los avisos iban a la línea de clientes, usar Alhabla como principal apaga «es el mismo»", async () => {
+      const user = userEvent.setup();
+      renderSeccion(
+        negocio({
+          phone: "+34600111222",
+          customerLineType: "movil_personal",
+          ownerPhoneIsCustomerLine: true,
+          ownerWhatsappNumber: "+34600111222",
+        })
+      );
+
+      await user.click(
+        await screen.findByRole("button", {
+          name: /Usar como número principal/,
+        })
+      );
+
+      await waitFor(() => expect(mockedUpdate).toHaveBeenCalledTimes(1));
+      expect(mockedUpdate).toHaveBeenCalledWith({
+        customerLineType: "alhabla",
+        phone: NUMERO_DE_ALHABLA,
+        ownerPhoneIsCustomerLine: false,
+      });
     });
 
     it("si el dueño no confirma, no cambia nada", async () => {
@@ -504,11 +676,92 @@ describe("AjustesTelefono", () => {
       });
       // Sin otro móvil guardado no hay nada que confirmar.
       expect(window.confirm).not.toHaveBeenCalled();
+      // Como en el alta y en «Guardar y activar»: se pide la plantilla.
+      await waitFor(() =>
+        expect(mockedSendActivation).toHaveBeenCalledTimes(1)
+      );
       expect(
-        await screen.findByText(/Los avisos irán al \+34 600 11 12 22/)
+        await screen.findByText(
+          /Los avisos irán al \+34 600 11 12 22\. Te hemos enviado un WhatsApp/
+        )
       ).toBeInTheDocument();
       // El bloque de WhatsApp vuelve a pedir su estado: el móvil ha cambiado.
       await waitFor(() => expect(mockedOwnerWhatsapp).toHaveBeenCalledTimes(2));
+    });
+
+    it("si la plantilla no sale, dice cómo activarlo desde el móvil", async () => {
+      const user = userEvent.setup();
+      mockedSendActivation.mockResolvedValue({
+        ...ESTADO_WHATSAPP,
+        sent: "link",
+      });
+      renderSeccion(
+        negocio({ phone: "+34600111222", customerLineType: "movil_personal" })
+      );
+
+      await user.click(
+        screen.getByRole("checkbox", {
+          name: /Es el mismo que la línea de clientes/,
+        })
+      );
+
+      expect(
+        await screen.findByText(
+          /Los avisos irán al \+34 600 11 12 22\. Actívalos desde ese móvil/
+        )
+      ).toBeInTheDocument();
+    });
+
+    it("la casilla pinta la realidad: con el flag encendido pero otro móvil guardado sale desmarcada", async () => {
+      renderSeccion(
+        negocio({
+          phone: "+34600111222",
+          customerLineType: "movil_trabajo",
+          ownerPhoneIsCustomerLine: true,
+          ownerWhatsappNumber: "+34699999999",
+        })
+      );
+
+      expect(
+        screen.getByRole("checkbox", {
+          name: /Es el mismo que la línea de clientes/,
+        })
+      ).not.toBeChecked();
+    });
+
+    it("con el flag encendido y sin móvil guardado sale desmarcada", async () => {
+      renderSeccion(
+        negocio({
+          phone: "+34600111222",
+          customerLineType: "movil_trabajo",
+          ownerPhoneIsCustomerLine: true,
+          ownerWhatsappNumber: null,
+        })
+      );
+
+      expect(
+        screen.getByRole("checkbox", {
+          name: /Es el mismo que la línea de clientes/,
+        })
+      ).not.toBeChecked();
+    });
+
+    it("con tipo móvil pero sin línea guardada no enseña la casilla: no hay a qué móvil mandar los avisos", async () => {
+      mockedOnboarding.mockResolvedValue(onboarding({ customerLine: null }));
+      renderSeccion(
+        negocio({ phone: "TEMP-neg_1", customerLineType: "movil_personal" })
+      );
+
+      expect(
+        screen.queryByRole("checkbox", {
+          name: /Es el mismo que la línea de clientes/,
+        })
+      ).not.toBeInTheDocument();
+      expect(
+        screen.getByRole("checkbox", {
+          name: /No des mi número a los clientes/,
+        })
+      ).toBeInTheDocument();
     });
 
     it("si ya había otro móvil pide confirmación y respeta la negativa", async () => {
