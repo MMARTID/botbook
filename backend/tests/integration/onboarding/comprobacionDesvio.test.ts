@@ -50,7 +50,7 @@ function salienteIniciada(clientState: string) {
   };
 }
 
-function entranteDesviada() {
+function entranteDesviada(from: string = ALHABLA) {
   return {
     data: {
       id: `evt_in_${Math.random()}`,
@@ -58,8 +58,10 @@ function entranteDesviada() {
       payload: {
         call_control_id: "call_ctrl_in",
         direction: "incoming",
-        from: ALHABLA,
+        from,
         to: ALHABLA,
+        // Telnyx manda `client_state: null` en toda llamada sin estado.
+        client_state: null,
       },
     },
   };
@@ -167,6 +169,7 @@ describe("«Comprobar desvío» de punta a punta (integración)", () => {
     const final = await obtenerComprobacionDeDesvio(check.id, businessId);
     expect(final?.resultado).toEqual({ estado: "ok" });
     expect(final?.resueltaAt).toEqual(expect.any(String));
+    expect(final?.callControlId).toBe("call_ctrl_out");
     // Turno libre para otra comprobación, contador de la hora en 1.
     await expect(
       getRedis().get(`desvio:check:negocio:${businessId}`)
@@ -174,6 +177,53 @@ describe("«Comprobar desvío» de punta a punta (integración)", () => {
     await expect(
       getRedis().get(`desvio:check:limite:${businessId}`)
     ).resolves.toBe("1");
+  });
+
+  it("fijo con «si no contesta» a 30 s: el colgado de la saliente (timeout) se procesa ANTES que la entrante desviada y el resultado sigue siendo ok", async () => {
+    const check = await iniciarComprobacionDeDesvio(businessId);
+    const clientState = mockedDialCall.mock.calls[0][0].clientState;
+    await handleCallInitiated(salienteIniciada(clientState));
+
+    // Otra instancia procesa primero el timeout de la saliente…
+    expect(
+      await handleCallHangup(salienteColgada(clientState, "timeout"))
+    ).toEqual({ success: true });
+    expect(
+      (await obtenerComprobacionDeDesvio(check.id, businessId))?.resultado
+    ).toEqual({ estado: "fallo", motivo: "sin_desvio" });
+
+    // …y la entrante desviada llega después: es la prueba definitiva.
+    expect(await handleCallInitiated(entranteDesviada())).toEqual({
+      success: true,
+    });
+    expect(mockedHangupCall).toHaveBeenCalledWith("call_ctrl_in");
+    expect(mockedAnswer).not.toHaveBeenCalled();
+    expect(await prisma.call.count()).toBe(0);
+
+    const final = await obtenerComprobacionDeDesvio(check.id, businessId);
+    expect(final?.resultado).toEqual({ estado: "ok" });
+    expect(
+      (await prisma.onboardingState.findUnique({ where: { businessId } }))
+        ?.forwardingCheckedAt
+    ).toBeInstanceOf(Date);
+  });
+
+  it("si la operadora presenta la propia línea como llamante, la entrante también cuenta aunque la saliente ya haya colgado", async () => {
+    const check = await iniciarComprobacionDeDesvio(businessId);
+    const clientState = mockedDialCall.mock.calls[0][0].clientState;
+    await handleCallInitiated(salienteIniciada(clientState));
+    await handleCallHangup(salienteColgada(clientState, "timeout"));
+
+    expect(await handleCallInitiated(entranteDesviada(LINEA))).toEqual({
+      success: true,
+    });
+
+    expect(mockedHangupCall).toHaveBeenCalledWith("call_ctrl_in");
+    expect(mockedAnswer).not.toHaveBeenCalled();
+    expect(await prisma.call.count()).toBe(0);
+    expect(
+      (await obtenerComprobacionDeDesvio(check.id, businessId))?.resultado
+    ).toEqual({ estado: "ok" });
   });
 
   it("sin desvío: la saliente agota el timeout y la comprobación falla sin tocar el onboarding", async () => {
@@ -240,6 +290,7 @@ describe("«Comprobar desvío» de punta a punta (integración)", () => {
           direction: "incoming",
           from: "+34600000000",
           to: ALHABLA,
+          client_state: null,
         },
       },
     });

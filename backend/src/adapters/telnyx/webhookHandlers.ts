@@ -10,7 +10,7 @@ import { callLabel, errorMessage } from "../../lib/logUtils.js";
 import { selectTelnyxInboundAgent } from "../../modules/phone/telnyxInbound.js";
 import { executeVoiceTool } from "../../modules/voiceTools/service.js";
 import {
-  comprobacionDeDesvioEnCurso,
+  comprobacionDeDesvioReciente,
   leerClientStateDeComprobacion,
   registrarLlamadaDeComprobacionRecibida,
   registrarSalienteColgada,
@@ -37,7 +37,10 @@ const TelnyxCallInitiatedSchema = z.object({
         // `outgoing` en la pata que origina `client.calls.dial()` (hoy solo
         // «Comprobar desvío») — nunca es una llamada de cliente.
         direction: z.string().optional(),
-        client_state: z.string().optional(),
+        // Telnyx manda `client_state: null` (no lo omite) en toda llamada
+        // sin estado, es decir, en TODAS las de clientes: `.nullable()` es
+        // obligatorio o el parse tumba la recepcionista entera.
+        client_state: z.string().nullable().optional(),
       })
       .passthrough(),
   }),
@@ -50,7 +53,7 @@ const TelnyxCallAnsweredSchema = z.object({
     payload: z
       .object({
         call_control_id: z.string(),
-        client_state: z.string().optional(),
+        client_state: z.string().nullable().optional(),
       })
       .passthrough(),
   }),
@@ -64,7 +67,7 @@ const TelnyxCallHangupSchema = z.object({
       .object({
         call_control_id: z.string(),
         hangup_cause: z.string().optional(),
-        client_state: z.string().optional(),
+        client_state: z.string().nullable().optional(),
       })
       .passthrough(),
   }),
@@ -144,7 +147,7 @@ const TelnyxCallCostSchema = z.object({
     payload: z
       .object({
         call_control_id: z.string().optional(),
-        client_state: z.string().optional(),
+        client_state: z.string().nullable().optional(),
         // Sin campo de moneda propio a este nivel (sí lo tiene cada
         // cost_part) — se asume USD, el default habitual de Telnyx, hasta
         // confirmar lo contrario para esta cuenta.
@@ -185,7 +188,8 @@ export function extractTelnyxEventEnvelope(
  * número de Alhabla — ningún cliente llama desde ahí. Por si la operadora
  * de la línea presentase como llamante a la propia línea desviada en vez
  * de al llamante original, también cuenta `from` = línea de clientes, pero
- * solo mientras haya una comprobación en curso (ventana de segundos).
+ * solo si hay una comprobación reciente (ventana de 45 s desde que empezó,
+ * resuelta o no: el colgado de la saliente puede procesarse antes).
  */
 async function esLlamadaDeComprobacionDeDesvio(
   business: { id: string; phone: string; telnyxPhoneNumber: string | null },
@@ -197,10 +201,10 @@ async function esLlamadaDeComprobacionDeDesvio(
   }
   if (from !== business.phone) return false;
   try {
-    return (await comprobacionDeDesvioEnCurso(business.id)) !== null;
+    return (await comprobacionDeDesvioReciente(business.id)) !== null;
   } catch (error) {
     console.error(
-      `[Telnyx] Negocio ${business.id}: no se pudo consultar si hay una comprobación de desvío en curso: ${errorMessage(error)}`
+      `[Telnyx] Negocio ${business.id}: no se pudo consultar si hay una comprobación de desvío reciente: ${errorMessage(error)}`
     );
     return false;
   }
@@ -220,7 +224,7 @@ async function recibirLlamadaDeComprobacion(
   try {
     const check = await registrarLlamadaDeComprobacionRecibida(businessId);
     console.log(
-      `[Telnyx] ${callLabel(callControlId)} es la comprobación de desvío ${check?.id ?? "(sin comprobación en curso)"} del negocio ${businessId}; se cuelga sin arrancar la recepcionista`
+      `[Telnyx] ${callLabel(callControlId)} es la comprobación de desvío ${check?.id ?? "(sin comprobación viva)"} del negocio ${businessId}; se cuelga sin arrancar la recepcionista`
     );
   } catch (error) {
     success = false;

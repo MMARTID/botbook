@@ -17,3 +17,14 @@ export function formatearTelefonoLegible(e164: string): string {
   const match = /^\+34(\d{3})(\d{3})(\d{3})$/.exec(e164);
   return match ? `+34 ${match[1]} ${match[2]} ${match[3]}` : e164;
 }
+
+/**
+ * Fijo geográfico (8xx/9xx con segundo dígito 1-8) o móvil (6xx, 71x-79x)
+ * de España: lo único que un negocio puede desviar a su número de Alhabla y
+ * lo único a lo que «Comprobar desvío» llama pagando Alhabla. Fuera quedan
+ * los 800/900 (gratuitos), 80x/90x (tarificación adicional), 70x (números
+ * personales), 5xx (nómadas) y cualquier destino internacional.
+ */
+export function esLineaDeClientesEspanola(e164: string): boolean {
+  return /^\+34(?:6\d{8}|7[1-9]\d{7}|[89][1-8]\d{7})$/.test(e164);
+}

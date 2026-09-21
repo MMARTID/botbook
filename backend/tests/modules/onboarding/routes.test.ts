@@ -432,6 +432,7 @@ describe("«Comprobar desvío»: POST y GET /business/me/onboarding/forwarding/c
     const casos: Array<[string, number]> = [
       ["sin_numero", 402],
       ["linea_de_clientes_invalida", 409],
+      ["linea_no_admitida", 409],
       ["comprobacion_en_curso", 409],
       ["limite_alcanzado", 429],
       ["telefonia_no_configurada", 503],

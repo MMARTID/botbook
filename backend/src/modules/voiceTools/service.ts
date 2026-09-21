@@ -215,10 +215,11 @@ type BusinessVoiceConfig = FilaDeConexionDeCalendario & {
   // se reutiliza como remitente del SMS en vez de comprar/gestionar un
   // segundo número solo para mensajería.
   telnyxPhoneNumber: string | null;
-  // Privacidad (PLAN-TELEFONIA-UX.md § 3, caso C): con true ningún texto
-  // al cliente (SMS, respuestas de las tools) lleva un número de teléfono;
-  // se ofrece recado y «te llamamos nosotros». Puede faltar en entradas de
-  // caché anteriores a la columna: undefined = false.
+  // Privacidad (PLAN-TELEFONIA-UX.md § 3, caso C): con true las respuestas
+  // de las tools no dicen la línea del dueño (`phone`); se ofrece recado.
+  // El número de Alhabla (recepcionista) se sigue dando, también en el SMS.
+  // Puede faltar en entradas de caché anteriores a la columna:
+  // undefined = false.
   hideOwnerNumberFromClients?: boolean;
   // null = nunca pasó por Stripe (cuentas de prueba/demo creadas a mano) —
   // se trata como "permitido", no como "sin pagar". Solo se bloquea la
@@ -1065,11 +1066,12 @@ async function enviarMensajesAlClientePorSms(
 ): Promise<void> {
   const smsInput = {
     businessName: business.name,
-    // Con hideOwnerNumberFromClients el SMS no lleva ningún número: el
-    // cliente responde al mensaje o el negocio le llama.
-    businessPhone: business.hideOwnerNumberFromClients
-      ? null
-      : (business.telnyxPhoneNumber ?? ""),
+    // Siempre el número de Alhabla, también con hideOwnerNumberFromClients:
+    // lo atiende la recepcionista (no el dueño), igual que en WhatsApp
+    // (`mensajesCliente.telefonoDeContacto`), y el SMS sale con Alphanumeric
+    // Sender ID, al que no se puede responder — sin número el cliente no
+    // tendría forma de cambiar ni cancelar la cita.
+    businessPhone: business.telnyxPhoneNumber ?? "",
     startDateTime: input.startDateTime,
     timezone: business.timezone || "Europe/Madrid",
     serviceNames: input.serviceNames,
@@ -1145,22 +1147,11 @@ function buildBookingSmsText(input: {
   return parts.join(" — ");
 }
 
-/**
- * Cierre del SMS al cliente: con número, «llama al …»; con null (privacidad,
- * PLAN-TELEFONIA-UX.md § 3 caso C) se le pide que responda al mensaje y el
- * negocio le llama. Solo null activa la variante: el resto sigue igual.
- */
-function cierreDeSmsAlCliente(businessPhone: string | null): string {
-  return businessPhone === null
-    ? "Para cambiarla o cancelarla, responde a este mensaje y te llamamos nosotros"
-    : `Para cambiarla o cancelarla, llama al ${businessPhone}`;
-}
-
 /** Confirmación al cliente tras reservar — solo se manda si dio
  * consentimiento (smsConsent) para usar ese número. */
 function buildClientConfirmationSmsText(input: {
   businessName: string;
-  businessPhone: string | null;
+  businessPhone: string;
   startDateTime: string;
   timezone: string;
   serviceNames?: string[] | null;
@@ -1179,7 +1170,7 @@ function buildClientConfirmationSmsText(input: {
     `Cita confirmada en ${input.businessName}`,
     services.length > 0 ? services.join(" + ") : null,
     formattedDateTime,
-    cierreDeSmsAlCliente(input.businessPhone),
+    `Para cambiarla o cancelarla, llama al ${input.businessPhone}`,
   ].filter(Boolean);
 
   return parts.join(" — ");
@@ -1188,7 +1179,7 @@ function buildClientConfirmationSmsText(input: {
 /** Recordatorio programado (REMINDER_LEAD_HOURS antes de la cita). */
 function buildClientReminderSmsText(input: {
   businessName: string;
-  businessPhone: string | null;
+  businessPhone: string;
   startDateTime: string;
   timezone: string;
   serviceNames?: string[] | null;
@@ -1207,7 +1198,7 @@ function buildClientReminderSmsText(input: {
     `Recordatorio: tienes una cita en ${input.businessName}`,
     services.length > 0 ? services.join(" + ") : null,
     formattedDateTime,
-    cierreDeSmsAlCliente(input.businessPhone),
+    `Para cambiarla o cancelarla, llama al ${input.businessPhone}`,
   ].filter(Boolean);
 
   return parts.join(" — ");

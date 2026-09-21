@@ -587,6 +587,7 @@ export type ForwardingCheck = {
 export type ForwardingCheckErrorCode =
   | "sin_numero"
   | "linea_de_clientes_invalida"
+  | "linea_no_admitida"
   | "comprobacion_en_curso"
   | "limite_alcanzado"
   | "telefonia_no_configurada"

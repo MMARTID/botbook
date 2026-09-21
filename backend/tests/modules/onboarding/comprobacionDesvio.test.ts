@@ -8,8 +8,9 @@ import {
   DURACION_MAXIMA_DE_LLAMADA_SEGUNDOS,
   LIMITE_DE_COMPROBACIONES_POR_HORA,
   TIMEOUT_DE_LLAMADA_SEGUNDOS,
+  VENTANA_DE_ATRIBUCION_SEGUNDOS,
   codificarClientState,
-  comprobacionDeDesvioEnCurso,
+  comprobacionDeDesvioReciente,
   iniciarComprobacionDeDesvio,
   leerClientStateDeComprobacion,
   motivoDeFalloPorColgado,
@@ -33,12 +34,23 @@ vi.mock("../../../src/adapters/telnyx/TelnyxAiAdapter.js", () => ({
 }));
 
 /** Redis en memoria con lo justo que usa el módulo (SET EX/NX, GET, DEL,
- * INCR, EXPIRE). Los TTL se guardan para poder afirmarlos, no se aplican. */
+ * INCR, EXPIRE y los hashes HSET/HSETNX/HGETALL). Los TTL se guardan para
+ * poder afirmarlos, no se aplican. */
 function redisEnMemoria() {
   const datos = new Map<string, string>();
+  const hashes = new Map<string, Map<string, string>>();
   const ttls = new Map<string, number>();
+  const hash = (key: string) => {
+    let h = hashes.get(key);
+    if (!h) {
+      h = new Map();
+      hashes.set(key, h);
+    }
+    return h;
+  };
   return {
     datos,
+    hashes,
     ttls,
     set: vi.fn(async (key: string, value: string, ...args: unknown[]) => {
       const nx = args.includes("NX");
@@ -49,7 +61,10 @@ function redisEnMemoria() {
       return "OK";
     }),
     get: vi.fn(async (key: string) => datos.get(key) ?? null),
-    del: vi.fn(async (key: string) => (datos.delete(key) ? 1 : 0)),
+    del: vi.fn(async (key: string) => {
+      const habia = datos.delete(key) || hashes.delete(key);
+      return habia ? 1 : 0;
+    }),
     incr: vi.fn(async (key: string) => {
       const siguiente = Number(datos.get(key) ?? 0) + 1;
       datos.set(key, String(siguiente));
@@ -59,6 +74,28 @@ function redisEnMemoria() {
       ttls.set(key, segundos);
       return 1;
     }),
+    hset: vi.fn(
+      async (key: string, ...args: [Record<string, string>] | string[]) => {
+        const h = hash(key);
+        if (typeof args[0] === "object") {
+          for (const [campo, valor] of Object.entries(args[0])) {
+            h.set(campo, String(valor));
+          }
+          return Object.keys(args[0]).length;
+        }
+        h.set(String(args[0]), String(args[1]));
+        return 1;
+      }
+    ),
+    hsetnx: vi.fn(async (key: string, campo: string, valor: string) => {
+      const h = hash(key);
+      if (h.has(campo)) return 0;
+      h.set(campo, valor);
+      return 1;
+    }),
+    hgetall: vi.fn(async (key: string) =>
+      Object.fromEntries(hashes.get(key) ?? new Map())
+    ),
   };
 }
 
@@ -178,14 +215,59 @@ describe("iniciarComprobacionDeDesvio", () => {
       checkId: check.id,
     });
 
-    // Comprobación con TTL, turno del negocio reservado y contador por hora.
+    // Comprobación con TTL, turno del negocio reservado, puntero a la última
+    // y contador por hora.
     expect(redis.ttls.get(`desvio:check:${check.id}`)).toBe(
       COMPROBACION_TTL_SEGUNDOS
     );
     expect(redis.datos.get("desvio:check:negocio:biz_1")).toBe(check.id);
+    expect(redis.datos.get("desvio:check:ultima:biz_1")).toBe(check.id);
+    expect(redis.ttls.get("desvio:check:ultima:biz_1")).toBe(
+      COMPROBACION_TTL_SEGUNDOS
+    );
     expect(redis.datos.get("desvio:check:limite:biz_1")).toBe("1");
     expect(redis.ttls.get("desvio:check:limite:biz_1")).toBe(3600);
-    await expect(comprobacionDeDesvioEnCurso("biz_1")).resolves.toBe(check.id);
+    await expect(comprobacionDeDesvioReciente("biz_1")).resolves.toBe(check.id);
+  });
+
+  it("guarda la comprobación ANTES de marcar: con desvío «todas» la entrante puede llegar antes de que dial() devuelva", async () => {
+    let comprobacionAlMarcar: unknown = null;
+    mockedDialCall.mockImplementation(async () => {
+      const id = redis.datos.get("desvio:check:ultima:biz_1");
+      comprobacionAlMarcar = id
+        ? await obtenerComprobacionDeDesvio(id, "biz_1")
+        : null;
+      return { callControlId: "call_ctrl_out", callLegId: "leg_out" };
+    });
+
+    const check = await iniciarComprobacionDeDesvio("biz_1");
+
+    expect(comprobacionAlMarcar).toMatchObject({
+      id: check.id,
+      linea: LINEA,
+      callControlId: null,
+      resultado: null,
+    });
+    // Y al volver dial() queda anotado el call_control_id.
+    await expect(
+      obtenerComprobacionDeDesvio(check.id, "biz_1")
+    ).resolves.toMatchObject({ callControlId: "call_ctrl_out" });
+  });
+
+  it("si la entrante llega mientras dial() está en vuelo, el ok no se pierde al anotar el call_control_id", async () => {
+    mockedDialCall.mockImplementation(async () => {
+      await registrarLlamadaDeComprobacionRecibida("biz_1");
+      return { callControlId: "call_ctrl_out", callLegId: "leg_out" };
+    });
+
+    const check = await iniciarComprobacionDeDesvio("biz_1");
+
+    await expect(
+      obtenerComprobacionDeDesvio(check.id, "biz_1")
+    ).resolves.toMatchObject({
+      callControlId: "call_ctrl_out",
+      resultado: { estado: "ok" },
+    });
   });
 
   it("402 sin número de Alhabla activo", async () => {
@@ -223,6 +305,30 @@ describe("iniciarComprobacionDeDesvio", () => {
     error = await iniciarYEsperarError();
     expect(error.codigo).toBe("linea_de_clientes_invalida");
     expect(mockedDialCall).not.toHaveBeenCalled();
+  });
+
+  it("409 linea_no_admitida si la línea no es un fijo ni un móvil español: la llamada la paga Alhabla", async () => {
+    for (const linea of [
+      "+34806123456", // tarificación adicional
+      "+34900123456", // gratuito, no es una línea de clientes
+      "+34700123456", // número personal
+      "+34512345678", // nómada
+      "+447911123456", // internacional
+    ]) {
+      mockedBusinessFindUnique.mockResolvedValue(negocio({ phone: linea }));
+      const error = await iniciarYEsperarError();
+      expect(error.codigo, linea).toBe("linea_no_admitida");
+      expect(error.status).toBe(409);
+    }
+    expect(mockedDialCall).not.toHaveBeenCalled();
+    expect(redis.datos.size).toBe(0);
+
+    // Móvil y fijo geográfico sí.
+    mockedBusinessFindUnique.mockResolvedValue(
+      negocio({ phone: "+34612345678" })
+    );
+    await iniciarComprobacionDeDesvio("biz_1");
+    expect(mockedDialCall).toHaveBeenCalledTimes(1);
   });
 
   it("503 si el número está en failover a Retell: la llamada desviada no volvería por nuestro webhook", async () => {
@@ -294,6 +400,11 @@ describe("iniciarComprobacionDeDesvio", () => {
     expect(error.status).toBe(502);
     expect(redis.datos.has("desvio:check:negocio:biz_1")).toBe(false);
     expect(redis.datos.has("desvio:check:limite:biz_1")).toBe(false);
+    // La comprobación que no llegó a salir no queda en Redis: ninguna
+    // entrante posterior se le atribuiría.
+    expect(redis.datos.has("desvio:check:ultima:biz_1")).toBe(false);
+    expect(redis.hashes.size).toBe(0);
+    await expect(comprobacionDeDesvioReciente("biz_1")).resolves.toBeNull();
     expect(console.error).toHaveBeenCalledWith(
       expect.stringContaining("D38 sin outbound profile")
     );
@@ -330,6 +441,8 @@ describe("resolución por los webhooks", () => {
     expect(resuelta?.resultado).toEqual({ estado: "ok" });
     expect(resuelta?.resueltaAt).toEqual(expect.any(String));
     expect(redis.datos.has("desvio:check:negocio:biz_1")).toBe(false);
+    // El puntero a la última comprobación se queda hasta caducar.
+    expect(redis.datos.get("desvio:check:ultima:biz_1")).toBe(check.id);
     await expect(
       obtenerComprobacionDeDesvio(check.id, "biz_1")
     ).resolves.toMatchObject({ resultado: { estado: "ok" } });
@@ -351,13 +464,13 @@ describe("resolución por los webhooks", () => {
     });
   });
 
-  it("sin comprobación en curso devuelve null pero anota igualmente el desvío como comprobado", async () => {
+  it("sin comprobación viva devuelve null pero anota igualmente el desvío como comprobado", async () => {
     const resuelta = await registrarLlamadaDeComprobacionRecibida("biz_1");
 
     expect(resuelta).toBeNull();
     expect(mockedStateUpsert).toHaveBeenCalledTimes(1);
     expect(console.warn).toHaveBeenCalledWith(
-      expect.stringContaining("sin comprobación en curso")
+      expect.stringContaining("sin comprobación viva")
     );
   });
 
@@ -402,13 +515,71 @@ describe("resolución por los webhooks", () => {
 
   it("un ok tardío sí pisa un fallo previo: la entrada por Alhabla es la prueba definitiva", async () => {
     const check = await iniciarComprobacionDeDesvio("biz_1");
-    // El turno sigue reservado hasta que se resuelve; el colgado llega antes.
-    await registrarSalienteColgada(check.id, "timeout");
-    redis.datos.set("desvio:check:negocio:biz_1", check.id);
+    // El colgado de la saliente (timeout a los 35 s) se procesa antes que
+    // la entrante desviada (otra instancia): el fallo no puede ser la
+    // última palabra.
+    await expect(
+      registrarSalienteColgada(check.id, "timeout")
+    ).resolves.toMatchObject({
+      resultado: { estado: "fallo", motivo: "sin_desvio" },
+    });
+    expect(redis.datos.has("desvio:check:negocio:biz_1")).toBe(false);
 
     const resuelta = await registrarLlamadaDeComprobacionRecibida("biz_1");
 
+    expect(resuelta?.id).toBe(check.id);
     expect(resuelta?.resultado).toEqual({ estado: "ok" });
+    await expect(
+      obtenerComprobacionDeDesvio(check.id, "biz_1")
+    ).resolves.toMatchObject({ resultado: { estado: "ok" } });
+    expect(console.log).toHaveBeenCalledWith(
+      expect.stringContaining("pisa el fallo anterior")
+    );
+  });
+
+  it("si el ok se escribe entre la lectura y la escritura del colgado, el colgado no lo pisa (HSETNX)", async () => {
+    const check = await iniciarComprobacionDeDesvio("biz_1");
+    // El colgado lee la comprobación sin resolver; antes de que escriba,
+    // la entrante la marca ok.
+    const hgetallOriginal = redis.hgetall.getMockImplementation()!;
+    redis.hgetall.mockImplementationOnce(async (key: string) => {
+      const antes = await hgetallOriginal(key);
+      await registrarLlamadaDeComprobacionRecibida("biz_1");
+      return antes;
+    });
+
+    const resuelta = await registrarSalienteColgada(check.id, "timeout");
+
+    expect(resuelta?.resultado).toEqual({ estado: "ok" });
+    await expect(
+      obtenerComprobacionDeDesvio(check.id, "biz_1")
+    ).resolves.toMatchObject({ resultado: { estado: "ok" } });
+    expect(console.log).toHaveBeenCalledWith(
+      expect.stringContaining("ya resuelta por la entrada desviada")
+    );
+  });
+
+  it("comprobacionDeDesvioReciente solo mira la ventana de atribución, resuelta o no", async () => {
+    vi.useFakeTimers();
+    try {
+      const check = await iniciarComprobacionDeDesvio("biz_1");
+      await registrarSalienteColgada(check.id, "timeout");
+
+      // Recién fallida: una entrante presentada por la propia línea sigue
+      // siendo la comprobación.
+      await expect(comprobacionDeDesvioReciente("biz_1")).resolves.toBe(
+        check.id
+      );
+
+      vi.advanceTimersByTime((VENTANA_DE_ATRIBUCION_SEGUNDOS + 1) * 1000);
+      await expect(comprobacionDeDesvioReciente("biz_1")).resolves.toBeNull();
+      // Pero la entrada desde el número de Alhabla no tiene ambigüedad y
+      // vale mientras la comprobación exista.
+      const resuelta = await registrarLlamadaDeComprobacionRecibida("biz_1");
+      expect(resuelta?.resultado).toEqual({ estado: "ok" });
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("los webhooks de una comprobación caducada no rompen nada", async () => {

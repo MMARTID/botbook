@@ -103,6 +103,8 @@ const TEXTO_POR_CODIGO_DE_ERROR: Record<ForwardingCheckErrorCode, string> = {
   sin_numero: "Tu número de Alhabla todavía no está activo. Espera unos minutos y vuelve a probar.",
   linea_de_clientes_invalida:
     "Necesitamos el teléfono al que te llaman tus clientes, distinto del número de Alhabla. Revísalo en Ajustes.",
+  linea_no_admitida:
+    "Solo podemos comprobar el desvío de un fijo o un móvil de España. Revisa el teléfono de tus clientes en Ajustes.",
   comprobacion_en_curso: "Ya hay una comprobación en marcha. Espera un minuto y vuelve a probar.",
   limite_alcanzado: "Has agotado las tres comprobaciones de esta hora. Puedes volver a intentarlo más tarde.",
   telefonia_no_configurada: "No hemos podido llamar a tu línea. Inténtalo en unos minutos.",

@@ -19,7 +19,7 @@ import {
 import { executeVoiceTool } from "../../../src/modules/voiceTools/service.js";
 import {
   codificarClientState,
-  comprobacionDeDesvioEnCurso,
+  comprobacionDeDesvioReciente,
   registrarLlamadaDeComprobacionRecibida,
   registrarSalienteColgada,
   registrarSalienteContestada,
@@ -68,7 +68,7 @@ vi.mock(
     >();
     return {
       ...original,
-      comprobacionDeDesvioEnCurso: vi.fn(),
+      comprobacionDeDesvioReciente: vi.fn(),
       registrarLlamadaDeComprobacionRecibida: vi.fn(),
       registrarSalienteColgada: vi.fn(),
       registrarSalienteContestada: vi.fn(),
@@ -98,7 +98,7 @@ const mockedListRecordingsByCallLegId = vi.mocked(
 const mockedExecuteVoiceTool = vi.mocked(executeVoiceTool);
 const mockedEnqueueRecordingJob = vi.mocked(enqueueRecordingJob);
 const mockedEnqueueUsageReportJob = vi.mocked(enqueueUsageReportJob);
-const mockedComprobacionEnCurso = vi.mocked(comprobacionDeDesvioEnCurso);
+const mockedComprobacionReciente = vi.mocked(comprobacionDeDesvioReciente);
 const mockedRegistrarRecibida = vi.mocked(
   registrarLlamadaDeComprobacionRecibida
 );
@@ -866,7 +866,7 @@ describe("«Comprobar desvío» en los webhooks de Telnyx", () => {
   beforeEach(() => {
     vi.spyOn(console, "log").mockImplementation(() => {});
     vi.spyOn(console, "error").mockImplementation(() => {});
-    mockedComprobacionEnCurso.mockResolvedValue(null);
+    mockedComprobacionReciente.mockResolvedValue(null);
     mockedRegistrarRecibida.mockResolvedValue({
       id: "a".repeat(32),
       resultado: { estado: "ok" },
@@ -875,6 +875,83 @@ describe("«Comprobar desvío» en los webhooks de Telnyx", () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
+  });
+
+  // Telnyx no omite `client_state` en las llamadas sin estado: lo manda como
+  // `null` en cada evento de toda llamada de cliente (payloads reales de
+  // team-telnyx/telnyx-code-examples). Si el esquema lo rechazara, el parse
+  // (fuera del try/catch) tumbaría la recepcionista entera.
+  it("client_state: null (toda llamada de cliente real) pasa el esquema de los cuatro eventos y sigue el camino normal", async () => {
+    mockedBusinessFindUnique.mockResolvedValue(negocioConNumero());
+    mockedCallUpsert.mockResolvedValue({} as any);
+
+    const iniciada = await handleCallInitiated(
+      entrante("+34600000000", { client_state: null })
+    );
+    expect(iniciada).toEqual({ success: true });
+    expect(mockedAnswerCallWithAssistant).toHaveBeenCalledWith(
+      "call_ctrl_in",
+      "assistant_1"
+    );
+    expect(mockedRegistrarRecibida).not.toHaveBeenCalled();
+
+    const contestada = await handleCallAnswered({
+      data: {
+        id: "evt_ans_null",
+        event_type: "call.answered",
+        payload: { call_control_id: "call_ctrl_in", client_state: null },
+      },
+    });
+    expect(contestada).toEqual({ success: true });
+    expect(mockedRegistrarContestada).not.toHaveBeenCalled();
+    expect(mockedHangupCall).not.toHaveBeenCalled();
+
+    mockedCallFindUnique.mockResolvedValue({
+      id: "call_db_in",
+      businessId: "biz1",
+      startedAt: new Date(Date.now() - 10_000),
+      endedAt: null,
+      durationSecs: null,
+    } as any);
+    mockedCallUpdate.mockResolvedValue({} as any);
+    const colgada = await handleCallHangup({
+      data: {
+        id: "evt_hang_null",
+        event_type: "call.hangup",
+        payload: {
+          call_control_id: "call_ctrl_in",
+          hangup_cause: "normal_clearing",
+          client_state: null,
+        },
+      },
+    });
+    expect(colgada).toEqual({ success: true });
+    expect(mockedRegistrarColgada).not.toHaveBeenCalled();
+    expect(mockedCallUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "call_db_in" },
+        data: expect.objectContaining({ status: "COMPLETED" }),
+      })
+    );
+
+    mockedCallUpdate.mockClear();
+    const coste = await handleCallCost({
+      data: {
+        id: "evt_cost_null",
+        event_type: "call.cost",
+        payload: {
+          call_control_id: "call_ctrl_in",
+          total_cost: "0.0123",
+          status: "success",
+          client_state: null,
+        },
+      },
+    });
+    expect(coste).toEqual({ success: true });
+    expect(mockedCallUpdate).toHaveBeenCalledWith({
+      where: { id: "call_db_in" },
+      data: { providerCostCents: 1, providerCostBreakdown: undefined },
+    });
   });
 
   it("la llamada que entra desde el propio número de Alhabla es la comprobación: la marca, cuelga y no crea Call ni arranca la recepcionista", async () => {
@@ -904,21 +981,21 @@ describe("«Comprobar desvío» en los webhooks de Telnyx", () => {
     );
   });
 
-  it("si la operadora presenta la línea desviada como llamante, solo cuenta como comprobación mientras haya una en curso", async () => {
+  it("si la operadora presenta la línea desviada como llamante, solo cuenta como comprobación si hay una reciente", async () => {
     mockedBusinessFindUnique.mockResolvedValue(negocioConNumero());
     mockedCallUpsert.mockResolvedValue({} as any);
 
-    // Sin comprobación en curso: es una llamada normal (el dueño llamando a
+    // Sin comprobación reciente: es una llamada normal (el dueño llamando a
     // su recepcionista desde el local).
     let result = await handleCallInitiated(entrante(LINEA));
     expect(result).toEqual({ success: true });
-    expect(mockedComprobacionEnCurso).toHaveBeenCalledWith("biz1");
+    expect(mockedComprobacionReciente).toHaveBeenCalledWith("biz1");
     expect(mockedRegistrarRecibida).not.toHaveBeenCalled();
     expect(mockedAnswerCallWithAssistant).toHaveBeenCalledTimes(1);
 
     vi.clearAllMocks();
     mockedBusinessFindUnique.mockResolvedValue(negocioConNumero());
-    mockedComprobacionEnCurso.mockResolvedValue("a".repeat(32));
+    mockedComprobacionReciente.mockResolvedValue("a".repeat(32));
     mockedRegistrarRecibida.mockResolvedValue(null);
 
     result = await handleCallInitiated(entrante(LINEA));
@@ -929,10 +1006,10 @@ describe("«Comprobar desvío» en los webhooks de Telnyx", () => {
     expect(mockedCallUpsert).not.toHaveBeenCalled();
   });
 
-  it("un cliente cualquiera sigue llegando a la recepcionista aunque haya una comprobación en curso", async () => {
+  it("un cliente cualquiera sigue llegando a la recepcionista aunque haya una comprobación reciente", async () => {
     mockedBusinessFindUnique.mockResolvedValue(negocioConNumero());
     mockedCallUpsert.mockResolvedValue({} as any);
-    mockedComprobacionEnCurso.mockResolvedValue("a".repeat(32));
+    mockedComprobacionReciente.mockResolvedValue("a".repeat(32));
 
     const result = await handleCallInitiated(entrante("+34600000000"));
 

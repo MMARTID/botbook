@@ -922,8 +922,11 @@ describe("executeVoiceTool book_appointment — consentimiento SMS al cliente", 
   });
 
   // Privacidad (PLAN-TELEFONIA-UX.md § 3, caso C): «no des mi número a los
-  // clientes» — ni el del negocio ni el de Alhabla; se ofrece el recado.
-  it("con hideOwnerNumberFromClients la confirmación y el recordatorio por SMS no llevan ningún número", async () => {
+  // clientes» oculta la línea del dueño, no la de Alhabla: el SMS sigue
+  // diciendo «llama al <número de Alhabla>», que atiende la recepcionista
+  // (como en WhatsApp). El Sender ID alfanumérico no admite respuestas, así
+  // que un SMS sin número dejaría al cliente sin forma de cambiar la cita.
+  it("con hideOwnerNumberFromClients la confirmación y el recordatorio por SMS llevan el número de Alhabla y nunca el del dueño", async () => {
     mockedBusinessFindUnique.mockResolvedValue(
       buildBusiness({ hideOwnerNumberFromClients: true }) as any
     );
@@ -947,12 +950,11 @@ describe("executeVoiceTool book_appointment — consentimiento SMS al cliente", 
     // Confirmación + recordatorio (plan pro, cita a 48 h).
     expect(alCliente).toHaveLength(2);
     for (const job of alCliente) {
-      expect(job.text).not.toContain("+34911222333");
-      expect(job.text).not.toContain("+34600111222");
-      expect(job.text).not.toContain("llama al");
       expect(job.text).toContain(
-        "responde a este mensaje y te llamamos nosotros"
+        "Para cambiarla o cancelarla, llama al +34911222333"
       );
+      expect(job.text).not.toContain("+34600111222");
+      expect(job.text).not.toContain("responde a este mensaje");
     }
   });
 

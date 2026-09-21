@@ -254,6 +254,21 @@ describe("CallForwardingCard · «Comprobar desvío»", () => {
     ).toBeInTheDocument();
   });
 
+  it("si la línea no es un fijo ni un móvil español lo dice y manda a Ajustes", async () => {
+    const user = userEvent.setup();
+    mockedStart.mockRejectedValue(
+      errorHttp(409, { error: "Solo España", code: "linea_no_admitida" })
+    );
+    renderCard();
+
+    await lanzarComprobacion(user);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      /fijo o un móvil de España/i
+    );
+    expect(mockedGet).not.toHaveBeenCalled();
+  });
+
   it("un rechazo sin código conocido tiene un texto genérico", async () => {
     const user = userEvent.setup();
     mockedStart.mockRejectedValue(errorHttp(500, { error: "boom" }));
