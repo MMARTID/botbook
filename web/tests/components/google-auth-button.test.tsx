@@ -3,13 +3,10 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { GoogleAuthButton } from "@/components/google-auth-button";
 import { getGoogleAuthUrl } from "@/lib/api";
-import { isProductionBuild } from "@/lib/env";
 
 vi.mock("@/lib/api", () => ({ getGoogleAuthUrl: vi.fn() }));
-vi.mock("@/lib/env", () => ({ isProductionBuild: vi.fn() }));
 
 const mockedGetGoogleAuthUrl = vi.mocked(getGoogleAuthUrl);
-const mockedIsProductionBuild = vi.mocked(isProductionBuild);
 
 function mockLocationAssign() {
   const assign = vi.fn();
@@ -30,24 +27,9 @@ describe("GoogleAuthButton", () => {
     vi.clearAllMocks();
   });
 
-  it("en producción no navega ni pide la URL de Google — muestra el aviso de 'en desarrollo'", async () => {
-    mockedIsProductionBuild.mockReturnValue(true);
-    const user = userEvent.setup();
-    const onError = vi.fn();
-
-    render(<GoogleAuthButton onError={onError} acceptedTerms />);
-    await user.click(screen.getByRole("button", { name: /continuar con google/i }));
-
-    expect(mockedGetGoogleAuthUrl).not.toHaveBeenCalled();
-    expect(onError).not.toHaveBeenCalled();
-    expect(screen.getByText(/social@alhabla\.ai/)).toBeInTheDocument();
-  });
-
-  // Fuera de producción (npm run dev, puerto 3001) navega de verdad a
-  // Google, para poder probar el flujo completo sin el aviso de "en
-  // desarrollo" de por medio — decisión explícita del usuario 2026-09-14.
-  it("fuera de producción pide la URL de Google y navega", async () => {
-    mockedIsProductionBuild.mockReturnValue(false);
+  // Registro abierto desde 2026-09-21 (antes había un bloqueo «por
+  // invitación» solo en producción): siempre pide la URL y navega.
+  it("pide la URL de Google y navega", async () => {
     mockedGetGoogleAuthUrl.mockResolvedValue("https://accounts.google.com/o/oauth2/auth");
     const location = mockLocationAssign();
     const user = userEvent.setup();
@@ -58,8 +40,23 @@ describe("GoogleAuthButton", () => {
 
     expect(mockedGetGoogleAuthUrl).toHaveBeenCalledWith(true);
     expect(location.assign).toHaveBeenCalledWith("https://accounts.google.com/o/oauth2/auth");
+    expect(onError).toHaveBeenCalledWith("");
     expect(screen.queryByText(/social@alhabla\.ai/)).not.toBeInTheDocument();
 
     location.restore();
+  });
+
+  it("si no se puede obtener la URL, avisa y deja el botón usable", async () => {
+    mockedGetGoogleAuthUrl.mockRejectedValue(new Error("boom"));
+    const user = userEvent.setup();
+    const onError = vi.fn();
+
+    render(<GoogleAuthButton onError={onError} acceptedTerms />);
+    await user.click(screen.getByRole("button", { name: /continuar con google/i }));
+
+    expect(onError).toHaveBeenLastCalledWith(
+      "No se pudo iniciar sesión con Google. Inténtalo de nuevo."
+    );
+    expect(screen.getByRole("button", { name: /continuar con google/i })).toBeEnabled();
   });
 });
