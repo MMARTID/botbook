@@ -9,6 +9,7 @@ import { BrandMark } from "@/components/brand-mark";
 import { ParticleField } from "@/components/particle-field";
 import { ParticleMouseLayer } from "@/components/particle-mouse-layer";
 import { webUrl } from "@/lib/web-url";
+import { destinoTrasLogin } from "@/lib/login-next";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -24,7 +25,7 @@ export default function LoginPage() {
     try {
       const { data } = await api.post<{ token: string }>("/auth/login", { email, password });
       window.localStorage.setItem("alhabla_token", data.token);
-      window.location.href = "/";
+      window.location.href = destinoTrasLogin(window.location.search);
     } catch (error) {
       // Distinguir credenciales de un fallo de red: antes el mismo mensaje
       // cubría los dos casos y el usuario no podía saber si reintentar

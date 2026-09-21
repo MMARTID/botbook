@@ -38,8 +38,16 @@ export default function CheckoutPage({ searchParams }: { searchParams: { plan?: 
       .then((session) => {
         if (!cancelled) setClientSecret(session.clientSecret);
       })
-      .catch(() => {
-        if (!cancelled) setSessionError(true);
+      .catch((error: unknown) => {
+        if (cancelled) return;
+        // Sin sesión (o caducada) el backend responde 401: al login, no al
+        // panel de «no se pudo preparar el pago», que no es lo que pasa.
+        const status = (error as { response?: { status?: number } }).response?.status;
+        if (status === 401) {
+          window.location.replace(`/login?next=${encodeURIComponent(`/checkout?plan=${planId}`)}`);
+          return;
+        }
+        setSessionError(true);
       });
 
     return () => {
