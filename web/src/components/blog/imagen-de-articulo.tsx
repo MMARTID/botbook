@@ -1,4 +1,5 @@
 import Image from "next/image";
+import { Aviso, Cta, Dato, Faq, Pasos } from "@/components/blog/bloques";
 
 /**
  * Imagen dentro de un artículo. En MDX se escribe `<Imagen src="…" alt="…"
@@ -46,6 +47,12 @@ export function ImagenDeArticulo({
 /** Componentes que MDXRemote inyecta en cada artículo. */
 export const componentesDeArticulo = {
   Imagen: ImagenDeArticulo,
+  // Bloques de marca del editor (keystatic.config › bloquesDelEditor).
+  Cta,
+  Dato,
+  Aviso,
+  Pasos,
+  Faq,
   // `![alt](src)` de Markdown llega como <img>; sin `alt` no se pinta la
   // imagen (el README lo exige) para que ningún artículo salga sin texto
   // alternativo.

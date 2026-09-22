@@ -118,21 +118,28 @@ function sinContenido(a: Articulo): ArticuloMeta {
   return meta;
 }
 
-/** Publicados, del más reciente al más antiguo. */
-export function listarArticulos(): ArticuloMeta[] {
+/** En producción los borradores no existen (404); en las previsualizaciones
+ * de Vercel y en desarrollo sí, para poder verlos antes de publicar. */
+const MOSTRAR_BORRADORES = process.env.VERCEL_ENV !== "production";
+
+/** Publicados, del más reciente al más antiguo. Con `incluirBorradores`
+ * también los borradores (solo para generar sus páginas en previsualización;
+ * el listado, el sitemap y el RSS nunca los enseñan). */
+export function listarArticulos(opciones: { incluirBorradores?: boolean } = {}): ArticuloMeta[] {
   if (!fs.existsSync(DIRECTORIO)) return [];
+  const conBorradores = Boolean(opciones.incluirBorradores) && MOSTRAR_BORRADORES;
   return fs
     .readdirSync(DIRECTORIO)
     .filter((f) => f.endsWith(".mdx"))
     .map((f) => leer(f.replace(/\.mdx$/, "")))
-    .filter((a): a is Articulo => a !== null && !a.borrador)
+    .filter((a): a is Articulo => a !== null && (conBorradores || !a.borrador))
     .sort((a, b) => b.fecha.localeCompare(a.fecha))
     .map(sinContenido);
 }
 
 export function leerArticulo(slug: string): Articulo | null {
   const articulo = leer(slug);
-  return articulo && !articulo.borrador ? articulo : null;
+  return articulo && (MOSTRAR_BORRADORES || !articulo.borrador) ? articulo : null;
 }
 
 /**

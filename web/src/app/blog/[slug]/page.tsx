@@ -18,7 +18,8 @@ type Props = { params: { slug: string } };
 export const dynamicParams = false;
 
 export function generateStaticParams() {
-  return listarArticulos().map((a) => ({ slug: a.slug }));
+  // Los borradores solo tienen página en previsualización y desarrollo.
+  return listarArticulos({ incluirBorradores: true }).map((a) => ({ slug: a.slug }));
 }
 
 export function generateMetadata({ params }: Props): Metadata {
@@ -130,7 +131,16 @@ export default function ArticuloPage({ params }: Props) {
               ) : null}
 
               <div className="articulo mt-10">
-                <MDXRemote source={articulo.contenido} components={componentesDeArticulo} />
+                {/* blockJS: los bloques del editor llevan sus datos como
+                    expresiones JSX (`pasos={[…]}`), que next-mdx-remote
+                    elimina por defecto. El contenido es del propio repo (solo
+                    lo escriben colaboradores), así que se permiten; las
+                    llamadas peligrosas (blockDangerousJS) siguen bloqueadas. */}
+                <MDXRemote
+                  source={articulo.contenido}
+                  components={componentesDeArticulo}
+                  options={{ blockJS: false }}
+                />
               </div>
 
               {sector ? (

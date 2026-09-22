@@ -1,4 +1,5 @@
 import { collection, config, fields } from "@keystatic/core";
+import { bloquesDelEditor } from "./src/lib/keystatic/bloques";
 
 /**
  * Editor del blog (Keystatic) en alhabla.ai/keystatic. No hay CMS ni base de
@@ -71,7 +72,8 @@ export default config({
       format: { contentField: "contenido" },
       entryLayout: "content",
       columns: ["fecha", "sector", "borrador"],
-      previewUrl: "/blog/{slug}",
+      // Abre la rama del artículo tal como la construye Vercel (app/preview).
+      previewUrl: "/preview?branch={branch}&to=/blog/{slug}",
       schema: {
         titulo: fields.slug({
           name: {
@@ -162,6 +164,10 @@ export default config({
               transformFilename: nombreDeImagen,
             },
           },
+          // Bloques de marca (tarjeta CTA, dato, aviso, pasos, FAQ): en el
+          // editor salen en el menú «/» y se pintan con los componentes de
+          // la web (components/blog/bloques.tsx).
+          components: bloquesDelEditor,
         }),
       },
     }),
