@@ -17,7 +17,11 @@ function buildPlansHref(niche?: NicheSlug) {
  * funciona" en móvil — el propio menú quedaba inalcanzable. Aquí la cabecera
  * es siempre visible y el menú, siempre disponible.
  */
-export function SiteHeader({ niche }: { niche?: NicheSlug }) {
+/**
+ * `inicio`: en las landings las anclas («Cómo funciona», «Preguntas») son de
+ * la propia página; en el blog y demás páginas apuntan a la portada («/»).
+ */
+export function SiteHeader({ niche, inicio = "" }: { niche?: NicheSlug; inicio?: string }) {
   const plansHref = buildPlansHref(niche);
 
   return (
@@ -35,7 +39,7 @@ export function SiteHeader({ niche }: { niche?: NicheSlug }) {
         <nav className="hidden items-center md:flex" aria-label="Navegación principal">
           <div className="flex items-center gap-6 lg:gap-7">
             <SectorsMenu />
-            <a href="#como-funciona" className="enlace-nav">
+            <a href={`${inicio}#como-funciona`} className="enlace-nav">
               Cómo funciona
             </a>
             <Link href={plansHref} className="enlace-nav">
@@ -44,7 +48,7 @@ export function SiteHeader({ niche }: { niche?: NicheSlug }) {
             <Link href="/blog" className="enlace-nav">
               Blog
             </Link>
-            <a href="#preguntas" className="enlace-nav">
+            <a href={`${inicio}#preguntas`} className="enlace-nav">
               Preguntas
             </a>
           </div>
@@ -58,7 +62,7 @@ export function SiteHeader({ niche }: { niche?: NicheSlug }) {
           </div>
         </nav>
 
-        <MobileNav niche={niche} />
+        <MobileNav niche={niche} inicio={inicio} />
       </div>
     </header>
   );
