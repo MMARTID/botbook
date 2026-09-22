@@ -46,7 +46,7 @@ type CuentaDemo = {
 const CUENTAS: CuentaDemo[] = [
   {
     envVar: "TELNYX_DEMO_PELUQUERIA_ASSISTANT_ID",
-    email: "demo-peluqueria@alhabla.ai",
+    email: "demo-peluqueria-alhambra@alhabla.ai",
     businessType: "peluqueria",
     nombre: "Peluquería Alhambra",
     servicios: [
@@ -116,6 +116,7 @@ const CUENTAS: CuentaDemo[] = [
 
 /** Lunes a viernes de 9 a 14 y de 16 a 20; sábado de 9 a 14; domingo cerrado. */
 const HORARIO = {
+  version: 1,
   week: {
     monday: { enabled: true, intervals: [{ start: "09:00", end: "14:00" }, { start: "16:00", end: "20:00" }] },
     tuesday: { enabled: true, intervals: [{ start: "09:00", end: "14:00" }, { start: "16:00", end: "20:00" }] },
@@ -138,23 +139,40 @@ async function pedir(url: string, init: RequestInit, contexto: string) {
 
 async function crearCuenta(cuenta: CuentaDemo) {
   const password = randomBytes(12).toString("base64url");
-  console.log(`\n### ${cuenta.nombre} (${cuenta.email}) ###`);
+  // La contraseña se imprime ANTES de nada: si el alta se completa y luego
+  // falla el horario o un servicio, la cuenta existe y sin esta línea no habría
+  // forma de volver a entrar en ella (se relanza con DEMO_PASSWORD_<NICHO>).
+  console.log(`\n### ${cuenta.nombre} (${cuenta.email}) — contraseña: ${password} ###`);
 
-  const registro = await pedir(
-    `${PROD_BASE_URL}/auth/register`,
-    {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        email: cuenta.email,
-        password,
-        isEuropeanUnion: true,
-        businessType: cuenta.businessType,
-        acceptedTerms: true,
-      }),
-    },
-    "POST /auth/register"
-  );
+  // Reanudable: si una pasada anterior ya dio de alta este email (el alta va
+  // antes que el horario y los servicios), se entra con la contraseña que se
+  // pase por DEMO_<NICHO>_PASSWORD en vez de hacer fallar toda la ejecución.
+  const passwordExistente = process.env[`DEMO_PASSWORD_${cuenta.businessType.toUpperCase().replace(/-/g, "_")}`];
+  const registro = passwordExistente
+    ? await pedir(
+        `${PROD_BASE_URL}/auth/login`,
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ email: cuenta.email, password: passwordExistente }),
+        },
+        "POST /auth/login"
+      )
+    : await pedir(
+        `${PROD_BASE_URL}/auth/register`,
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            email: cuenta.email,
+            password,
+            isEuropeanUnion: true,
+            businessType: cuenta.businessType,
+            acceptedTerms: true,
+          }),
+        },
+        "POST /auth/register"
+      );
   const { token } = (await registro.json()) as { token: string };
   const { businessId } = JSON.parse(
     Buffer.from(token.split(".")[1], "base64url").toString("utf8")
@@ -208,7 +226,7 @@ async function crearCuenta(cuenta: CuentaDemo) {
     console.warn(`   ⚠️  sin assistant de Telnyx todavía — búscalo a mano por el businessId`);
   }
 
-  return { ...cuenta, businessId, password, assistantId: assistant?.id ?? null };
+  return { ...cuenta, businessId, password: passwordExistente ?? password, assistantId: assistant?.id ?? null };
 }
 
 async function main() {
