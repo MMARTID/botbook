@@ -68,7 +68,7 @@ Each module is a folder containing a `routes.ts` file (and optionally `service.t
 | `phone` | `/phone` | Yes | Telnyx phone number status, manual provisioning retry |
 | `places` | *(none)* | Yes | Google Places autocomplete & details |
 | `onboarding` | *(none)* | Yes | Onboarding state: progress, dismiss, complete, confirm call forwarding |
-| `demo` | `/demo` | No | Public landing voice demo: `POST /demo/web-call` accepts `{ niche? }` and creates a Retell web call against that niche's demo agent, falling back to the generic one (10 req/min). `resolveDemoMaxDurationSeconds()` validates `RETELL_DEMO_MAX_DURATION_SECONDS` (finite, positive number or falls back to 60s) before passing it to `RetellAdapter.createWebCall` — a malformed value used to produce `NaN`, which is falsy in JS, so the duration cap was silently dropped and the demo call ran uncapped |
+| `demo` | `/demo` | No | Public landing voice demo, **on Telnyx since 2026-09-22** (Retell ran out of credit and the demo 502'd in production). `POST /demo/web-call` accepts `{ niche?, placeId? }` and returns `{ assistantId, niche, maxDurationSeconds }`: the browser then places an unauthenticated WebRTC call to that assistant (`anonymous_login`), so no token or credential ever reaches the bundle. With a `placeId` the backend re-reads the Google Places card and the **detected** niche wins over the landing's — searching your barbershop from the main landing gets you the barbershop demo. Each niche points at a real demo account of the platform (`TELNYX_DEMO_<NICHO>_ASSISTANT_ID`), falling back to the generic one; the route reasserts `telephony_settings.supports_unauthenticated_web_calls` once per assistant per process, because re-syncing that account's agent overwrites it. `resolveDemoMaxDurationSeconds()` validates `TELNYX_DEMO_MAX_DURATION_SECONDS` (finite and positive, or 60s) — it is a browser-side cap, Telnyx keeps the account's own `time_limit_secs` |
 
 \* Except OAuth callbacks (`/calendar/auth/*/callback`) and Stripe webhook (`/billing/webhook`).
 
@@ -153,12 +153,16 @@ There is no static OG asset; edit that file to change what WhatsApp and X displa
 - `PlansWithRoi` / `PlansHeadline` — Pricing cards, ROI-aware copy. Reads `?plan=` from the URL to
   flag the card the visitor already chose, and renders the value contrast from
   `calculatePlanValueContrast` only when the visitor's own estimate covers the plan.
-- `DemoVoiceCall` — Real Retell voice demo using `retell-client-js-sdk` with live transcription.
-  The browser asks the backend for a web call via `createDemoWebCall()` (`frontend/src/lib/api.ts`,
-  `POST /demo/web-call`, public, 10 req/min, 15s client timeout), which creates it via Retell
-  `create-web-call` and returns the access token. The landing sends its niche slug (`peluqueria`,
-  `barberia`, …) and the backend picks the matching `RETELL_DEMO_<NICHO>_AGENT_ID`, falling back to
-  the generic `RETELL_DEMO_AGENT_ID`. It is a real dialog: `role="dialog"`, `aria-modal`, focus trap
+- `DemoVoiceCall` — Real voice demo over **Telnyx WebRTC** (`@telnyx/webrtc`, loaded with a dynamic
+  `import()` so it stays out of the landing bundle) with live transcription from the
+  `telnyx.ai.conversation` events. The browser asks the backend which assistant to call via
+  `createDemoWebCall()` (`web/src/lib/api.ts`, `POST /demo/web-call`, public, 10 req/min, 15s client
+  timeout) and then connects with `anonymous_login` — no SIP credential or token in the bundle. The
+  landing sends its niche slug (`peluqueria`, `barberia`, …) and, if the visitor picked their
+  business in Google Places, its `placeId`; the niche detected from the card wins. The visitor talks
+  to the platform's demo account for that niche (a real business with its own schedule, services and
+  test agenda), never to a mock of their own business — so there is no personalisation of names and
+  no business data is retained (the retention consent checkbox went away with it). It is a real dialog: `role="dialog"`, `aria-modal`, focus trap
   on Tab, body scroll lock. All failures go through `describeDemoError`, which maps config/
   permission/network causes to Spanish copy. **Never surface `error.message` from the SDK or an
   env-var name to the user.**
@@ -277,7 +281,7 @@ Copy `.env.example` to `.env` and fill in all required secrets. Key groups:
 | **Database** | `DATABASE_URL` |
 | **Redis** | `REDIS_URL` |
 | **Retell** | `RETELL_API_KEY`, `RETELL_BASE_URL` |
-| **Demo (landing)** | `RETELL_DEMO_AGENT_ID` (genérico), `RETELL_DEMO_<NICHO>_AGENT_ID` (por landing de nicho: `PELUQUERIA`, `CENTRO_ESTETICA`, `SALON_UÑAS`, `BARBERIA`, `FISIOTERAPIA`), `RETELL_DEMO_MAX_DURATION_SECONDS` |
+| **Demo (landing)** | `TELNYX_DEMO_ASSISTANT_ID` (genérico), `TELNYX_DEMO_<NICHO>_ASSISTANT_ID` (por nicho: `PELUQUERIA`, `CENTRO_ESTETICA`, `SALON_UNAS` —sin Ñ, Cloud Run solo admite `[A-Za-z0-9_]`—, `BARBERIA`, `FISIOTERAPIA`), `TELNYX_DEMO_MAX_DURATION_SECONDS` |
 | **JWT** | `JWT_SECRET` — required; server exits if missing |
 | **Stripe** | `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_INICIO`, `STRIPE_PRICE_PRO`, `STRIPE_PRICE_SCALE`, `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` |
 | **Google Calendar OAuth** | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI` |

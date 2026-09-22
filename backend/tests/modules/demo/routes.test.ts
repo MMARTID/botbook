@@ -1,17 +1,19 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { buildDemoBusinessContext, getDemoAgentId, resolveDemoMaxDurationSeconds } from "../../../src/modules/demo/routes.js";
+import {
+  getDemoAssistantId,
+  resolveDemoMaxDurationSeconds,
+} from "../../../src/modules/demo/routes.js";
 
 const DEMO_ENV_VARS = [
-  "RETELL_DEMO_AGENT_ID",
-  "RETELL_DEMO_PELUQUERIA_AGENT_ID",
-  "RETELL_DEMO_CENTRO_ESTETICA_AGENT_ID",
-  "RETELL_DEMO_SALON_UNAS_AGENT_ID",
-  "RETELL_DEMO_SALON_UÑAS_AGENT_ID",
-  "RETELL_DEMO_BARBERIA_AGENT_ID",
-  "RETELL_DEMO_FISIOTERAPIA_AGENT_ID",
+  "TELNYX_DEMO_ASSISTANT_ID",
+  "TELNYX_DEMO_PELUQUERIA_ASSISTANT_ID",
+  "TELNYX_DEMO_CENTRO_ESTETICA_ASSISTANT_ID",
+  "TELNYX_DEMO_SALON_UNAS_ASSISTANT_ID",
+  "TELNYX_DEMO_BARBERIA_ASSISTANT_ID",
+  "TELNYX_DEMO_FISIOTERAPIA_ASSISTANT_ID",
 ] as const;
 
-describe("getDemoAgentId", () => {
+describe("getDemoAssistantId", () => {
   const saved: Record<string, string | undefined> = {};
 
   beforeEach(() => {
@@ -31,55 +33,42 @@ describe("getDemoAgentId", () => {
     }
   });
 
-  it("devuelve el agente del nicho cuando está configurado", () => {
-    process.env.RETELL_DEMO_AGENT_ID = "agent_general";
-    process.env.RETELL_DEMO_PELUQUERIA_AGENT_ID = "agent_peluqueria";
+  it("devuelve el assistant del nicho cuando está configurado", () => {
+    process.env.TELNYX_DEMO_ASSISTANT_ID = "assistant-general";
+    process.env.TELNYX_DEMO_PELUQUERIA_ASSISTANT_ID = "assistant-peluqueria";
 
-    expect(getDemoAgentId("peluqueria")).toBe("agent_peluqueria");
+    expect(getDemoAssistantId("peluqueria")).toBe("assistant-peluqueria");
   });
 
-  it("cae al agente genérico si el nicho no tiene agente propio", () => {
-    process.env.RETELL_DEMO_AGENT_ID = "agent_general";
+  it("cae al genérico si el nicho no tiene cuenta de demo propia", () => {
+    process.env.TELNYX_DEMO_ASSISTANT_ID = "assistant-general";
 
-    expect(getDemoAgentId("barberia")).toBe("agent_general");
+    expect(getDemoAssistantId("barberia")).toBe("assistant-general");
   });
 
-  it("usa el agente genérico cuando no se indica nicho", () => {
-    process.env.RETELL_DEMO_AGENT_ID = "agent_general";
-    process.env.RETELL_DEMO_FISIOTERAPIA_AGENT_ID = "agent_fisio";
+  it("usa el genérico cuando no se indica nicho", () => {
+    process.env.TELNYX_DEMO_ASSISTANT_ID = "assistant-general";
+    process.env.TELNYX_DEMO_FISIOTERAPIA_ASSISTANT_ID = "assistant-fisio";
 
-    expect(getDemoAgentId()).toBe("agent_general");
+    expect(getDemoAssistantId()).toBe("assistant-general");
   });
 
-  // Cloud Run no admite Ñ en el nombre de una variable, así que la del salón
-  // de uñas nunca llegó a producción y la demo usaba el agente genérico.
+  // Cloud Run solo admite [A-Za-z0-9_] en el nombre de una variable, así que
+  // el salón de uñas va sin Ñ (la variante con Ñ nunca llegó a producción).
   it("mapea el salón de uñas a su variable sin Ñ", () => {
-    process.env.RETELL_DEMO_SALON_UNAS_AGENT_ID = "agent_unas";
+    process.env.TELNYX_DEMO_SALON_UNAS_ASSISTANT_ID = "assistant-unas";
 
-    expect(getDemoAgentId("salon-de-unas")).toBe("agent_unas");
+    expect(getDemoAssistantId("salon-de-unas")).toBe("assistant-unas");
   });
 
-  it("sigue aceptando el nombre antiguo con Ñ como respaldo (.env locales)", () => {
-    process.env.RETELL_DEMO_SALON_UÑAS_AGENT_ID = "agent_unas_viejo";
-
-    expect(getDemoAgentId("salon-de-unas")).toBe("agent_unas_viejo");
-  });
-
-  it("el nombre nuevo manda sobre el antiguo si están los dos", () => {
-    process.env.RETELL_DEMO_SALON_UNAS_AGENT_ID = "agent_unas";
-    process.env.RETELL_DEMO_SALON_UÑAS_AGENT_ID = "agent_unas_viejo";
-
-    expect(getDemoAgentId("salon-de-unas")).toBe("agent_unas");
-  });
-
-  it("devuelve null si no hay ningún agente configurado", () => {
-    expect(getDemoAgentId("peluqueria")).toBeNull();
-    expect(getDemoAgentId()).toBeNull();
+  it("devuelve null si no hay ningún assistant configurado", () => {
+    expect(getDemoAssistantId("peluqueria")).toBeNull();
+    expect(getDemoAssistantId()).toBeNull();
   });
 });
 
 describe("resolveDemoMaxDurationSeconds", () => {
-  const ENV_VAR = "RETELL_DEMO_MAX_DURATION_SECONDS";
+  const ENV_VAR = "TELNYX_DEMO_MAX_DURATION_SECONDS";
   let saved: string | undefined;
 
   beforeEach(() => {
@@ -104,46 +93,10 @@ describe("resolveDemoMaxDurationSeconds", () => {
     expect(resolveDemoMaxDurationSeconds()).toBe(90);
   });
 
-  // Regresión: antes se hacía Number(env || 60) y se pasaba directo a
-  // RetellAdapter — con un valor no numérico, Number(...) da NaN, que es
-  // falsy en JS, así que el override de duración se descartaba en silencio
-  // (ver el fix en RetellAdapter.createWebCall) y la llamada de demo quedaba
-  // SIN ningún tope real de duración.
-  it("cae al default si el valor no es numérico", () => {
-    process.env[ENV_VAR] = "no-es-un-numero";
-    expect(resolveDemoMaxDurationSeconds()).toBe(60);
-  });
-
-  it("cae al default si el valor es cero o negativo", () => {
-    process.env[ENV_VAR] = "0";
-    expect(resolveDemoMaxDurationSeconds()).toBe(60);
-
-    process.env[ENV_VAR] = "-30";
-    expect(resolveDemoMaxDurationSeconds()).toBe(60);
-  });
-
-  it("cae al default si el valor es una cadena vacía", () => {
-    process.env[ENV_VAR] = "";
-    expect(resolveDemoMaxDurationSeconds()).toBe(60);
-  });
-});
-
-describe("buildDemoBusinessContext", () => {
-  it("solo expone el contexto mínimo del negocio como variables de Retell", () => {
-    const context = buildDemoBusinessContext({
-      placeId: "place_123",
-      name: "Peluquería Aurora",
-      address: "Calle Mayor 1, Madrid",
-      phone: "+34910000000",
-      schedule: {} as never,
-      types: ["hair_care", "beauty_salon"],
-    });
-
-    expect(context.dynamicVariables).toEqual({
-      nombre_negocio: "Peluquería Aurora",
-      direccion_negocio: "Calle Mayor 1, Madrid",
-      tipo_negocio: "hair_care, beauty_salon",
-    });
-    expect(context.beginMessage).toContain("Peluquería Aurora");
+  it("cae al default si el valor no es numérico, cero, negativo o vacío", () => {
+    for (const valor of ["no-es-un-numero", "0", "-30", ""]) {
+      process.env[ENV_VAR] = valor;
+      expect(resolveDemoMaxDurationSeconds()).toBe(60);
+    }
   });
 });

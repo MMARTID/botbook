@@ -66,18 +66,24 @@ export async function getDemoPlaceDetails(placeId: string) {
   return data;
 }
 
-export async function createDemoWebCall(niche?: string, placeId?: string, allowBusinessDataRetention?: boolean) {
+export type DemoWebCall = {
+  /** Assistant de Telnyx de la cuenta de demostración del nicho. */
+  assistantId: string;
+  niche: string;
+  maxDurationSeconds: number;
+};
+
+export async function createDemoWebCall(niche?: string, placeId?: string) {
   // Timeout explícito: sin uno, un fallo de red silencioso deja al visitante
   // mirando "Conectando demo…" indefinidamente en vez de ver un error
   // accionable. Al expirar, axios lanza un error cuyo mensaje contiene
   // "timeout" — el mismo texto en español que ya usa describeDemoError()
   // para el resto de fallos de red se muestra sin cambios adicionales.
-  const { data } = await api.post<{ callId: string; accessToken: string }>(
+  const { data } = await api.post<DemoWebCall>(
     "/demo/web-call",
     {
       ...(niche ? { niche } : {}),
       ...(placeId ? { placeId } : {}),
-      ...(allowBusinessDataRetention ? { allowBusinessDataRetention: true } : {}),
     },
     { timeout: 15000 },
   );

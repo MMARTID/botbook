@@ -1,5 +1,5 @@
 import { DEFAULT_BUSINESS_SCHEDULE, type BusinessSchedule, type WeekDay } from '../../lib/businessSchedule.js';
-import { detectBusinessTypeFromPlaceTypes, type BusinessType } from '../../lib/businessType.js';
+import { detectBusinessTypeFromPlace, type BusinessType } from '../../lib/businessType.js';
 
 const PLACES_API_BASE_URL = 'https://places.googleapis.com/v1';
 
@@ -79,6 +79,7 @@ type PlacesPlaceDetails = {
   internationalPhoneNumber?: string;
   regularOpeningHours?: PlacesRegularOpeningHours;
   types?: string[];
+  primaryType?: string;
   photos?: Array<{ name?: string }>;
 };
 
@@ -89,6 +90,8 @@ export type PlaceDetails = {
   phone: string | null;
   schedule: BusinessSchedule;
   types: string[];
+  /** Categoría principal de Google. Manda sobre `types` al detectar el nicho. */
+  primaryType: string | null;
 };
 
 export type PlaceSearchLocation = {
@@ -174,6 +177,7 @@ type PlacesTextSearchPlace = {
   displayName?: { text?: string };
   formattedAddress?: string;
   types?: string[];
+  primaryType?: string;
   photos?: Array<{ name?: string }>;
 };
 
@@ -238,7 +242,8 @@ export async function searchPlacesForDemo(query: string): Promise<DemoPlaceSearc
     headers: {
       'Content-Type': 'application/json',
       'X-Goog-Api-Key': getApiKey(),
-      'X-Goog-FieldMask': 'places.id,places.displayName,places.formattedAddress,places.types,places.photos',
+      'X-Goog-FieldMask':
+        'places.id,places.displayName,places.formattedAddress,places.types,places.primaryType,places.photos',
     },
     body: JSON.stringify({ textQuery: query, regionCode: 'ES', languageCode: 'es' }),
     signal: AbortSignal.timeout(PLACES_TIMEOUT_MS),
@@ -263,7 +268,7 @@ export async function searchPlacesForDemo(query: string): Promise<DemoPlaceSearc
         placeId: place.id ?? '',
         name: place.displayName?.text ?? 'Negocio',
         address: place.formattedAddress ?? '',
-        businessType: detectBusinessTypeFromPlaceTypes(place.types),
+        businessType: detectBusinessTypeFromPlace(place),
         photoUrl,
       };
     }),
@@ -278,7 +283,8 @@ export async function getPlaceDetails(placeId: string): Promise<PlaceDetails> {
     method: 'GET',
     headers: {
       'X-Goog-Api-Key': getApiKey(),
-      'X-Goog-FieldMask': 'id,displayName,formattedAddress,nationalPhoneNumber,internationalPhoneNumber,regularOpeningHours,types',
+      'X-Goog-FieldMask':
+        'id,displayName,formattedAddress,nationalPhoneNumber,internationalPhoneNumber,regularOpeningHours,types,primaryType',
     },
     signal: AbortSignal.timeout(PLACES_TIMEOUT_MS),
   });
@@ -297,6 +303,7 @@ export async function getPlaceDetails(placeId: string): Promise<PlaceDetails> {
     phone: data.internationalPhoneNumber ?? data.nationalPhoneNumber ?? null,
     schedule: parsePlacesHoursToBusinessSchedule(data.regularOpeningHours),
     types: data.types ?? [],
+    primaryType: data.primaryType ?? null,
   };
 }
 
