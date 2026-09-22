@@ -150,7 +150,7 @@ export default function NumeroPrincipalPage() {
     onSuccess: (updated) => {
       queryClient.setQueryData(["my-business"], updated);
       void queryClient.invalidateQueries({ queryKey: ["onboarding-state"] });
-      router.push("/ajustes#telefono");
+      router.push("/ajustes/telefono");
     },
     onError: (err) =>
       setError(describeApiError(err, "No se pudo guardar el cambio.")),
@@ -227,7 +227,7 @@ export default function NumeroPrincipalPage() {
         title="Usar Alhabla como número principal"
         description="Publicas el número de Alhabla como teléfono del negocio. Tu recepcionista lo atiende todo, sin desvío, y te pasa las llamadas que haga falta."
       >
-        <Link href="/ajustes#telefono" className="btn-secondary">
+        <Link href="/ajustes/telefono" className="btn-secondary">
           <ArrowLeft className="h-4 w-4" aria-hidden="true" />
           Volver a Ajustes
         </Link>
@@ -433,7 +433,7 @@ export default function NumeroPrincipalPage() {
                 : TEXTO_SIN_MOVIL}
             </span>
             <Link
-              href="/ajustes#whatsapp"
+              href="/ajustes/telefono#whatsapp"
               className="mt-2 inline-block text-sm font-semibold text-[#6d28d9] underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]"
             >
               {motivoSinMovil === "fuera_de_espana"

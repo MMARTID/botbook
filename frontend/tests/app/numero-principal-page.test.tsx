@@ -127,7 +127,7 @@ describe("NumeroPrincipalPage", () => {
     ).toBeInTheDocument();
     expect(
       screen.getByRole("link", { name: /Volver a Ajustes/ })
-    ).toHaveAttribute("href", "/ajustes#telefono");
+    ).toHaveAttribute("href", "/ajustes/telefono");
 
     const queCambia = within(
       screen.getByRole("region", { name: "Qué cambia" })
@@ -210,7 +210,7 @@ describe("NumeroPrincipalPage", () => {
         pasarLlamadas: "siempre",
       },
     });
-    await waitFor(() => expect(push).toHaveBeenCalledWith("/ajustes#telefono"));
+    await waitFor(() => expect(push).toHaveBeenCalledWith("/ajustes/telefono"));
     const guardado = queryClient.getQueryData(["my-business"]) as Business;
     expect(guardado.customerLineType).toBe("alhabla");
     expect(guardado.phone).toBe(NUMERO_DE_ALHABLA);
@@ -319,7 +319,7 @@ describe("NumeroPrincipalPage", () => {
     ).toBeInTheDocument();
     expect(
       screen.getByRole("link", { name: "Cambiar mi móvil" })
-    ).toHaveAttribute("href", "/ajustes#whatsapp");
+    ).toHaveAttribute("href", "/ajustes/telefono#whatsapp");
     expect(
       screen.queryByRole("radiogroup", { name: "Cuándo pasarme llamadas" })
     ).not.toBeInTheDocument();
@@ -333,7 +333,7 @@ describe("NumeroPrincipalPage", () => {
     expect(await screen.findByText(TEXTO_SIN_MOVIL)).toBeInTheDocument();
     expect(
       screen.getByRole("link", { name: "Añadir mi móvil" })
-    ).toHaveAttribute("href", "/ajustes#whatsapp");
+    ).toHaveAttribute("href", "/ajustes/telefono#whatsapp");
     expect(
       screen.queryByRole("radiogroup", { name: "Cuándo pasarme llamadas" })
     ).not.toBeInTheDocument();

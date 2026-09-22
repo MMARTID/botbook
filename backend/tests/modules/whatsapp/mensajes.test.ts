@@ -73,9 +73,9 @@ describe("copy del número de negocios", () => {
   it("la ayuda lleva el enlace al panel y los tres comandos", () => {
     const texto = ayudaDueno({
       negocios: ["Peluquería Ana"],
-      panelUrl: "https://alhabla.ai/ajustes#whatsapp",
+      panelUrl: "https://alhabla.ai/ajustes/telefono#whatsapp",
     });
-    expect(texto).toContain("https://alhabla.ai/ajustes#whatsapp");
+    expect(texto).toContain("https://alhabla.ai/ajustes/telefono#whatsapp");
     expect(texto).toContain("AYUDA:");
     expect(texto).toContain("STOP:");
     expect(texto).toContain("ALTA:");
@@ -301,8 +301,8 @@ describe("panelUrl", () => {
 
   it("usa FRONTEND_URL y cae a alhabla.ai", () => {
     process.env.FRONTEND_URL = "http://localhost:3001";
-    expect(panelUrl()).toBe("http://localhost:3001/ajustes#whatsapp");
+    expect(panelUrl()).toBe("http://localhost:3001/ajustes/telefono#whatsapp");
     delete process.env.FRONTEND_URL;
-    expect(panelUrl()).toBe("https://alhabla.ai/ajustes#whatsapp");
+    expect(panelUrl()).toBe("https://alhabla.ai/ajustes/telefono#whatsapp");
   });
 });

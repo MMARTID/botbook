@@ -194,7 +194,7 @@ export async function preguntarAlGestor(input: {
     return {
       ok: false,
       motivo: "no_disponible",
-      mensaje: "El Gestor no está disponible todavía.",
+      mensaje: "El asistente no está disponible todavía.",
     };
   }
   if (!texto) {
@@ -213,14 +213,15 @@ export async function preguntarAlGestor(input: {
     return {
       ok: false,
       motivo: "negocio_inactivo",
-      mensaje: "El Gestor no puede atender con la suscripción en este estado.",
+      mensaje:
+        "El asistente no puede atender con la suscripción en este estado.",
     };
   }
   if (!business.ownerChatEnabled) {
     return {
       ok: false,
       motivo: "apagado_negocio",
-      mensaje: "El Gestor está desactivado en Ajustes › Teléfono.",
+      mensaje: "El asistente está desactivado en Ajustes › Teléfono.",
     };
   }
   const turno = await turnoDelGestor({
@@ -235,7 +236,7 @@ export async function preguntarAlGestor(input: {
       ok: false,
       motivo: "limite",
       mensaje:
-        "Por hoy hemos llegado al límite de mensajes con el Gestor. Mañana seguimos.",
+        "Por hoy hemos llegado al límite de mensajes con el asistente. Mañana seguimos.",
     };
   }
   if (turno.estado === "ocupado") {
@@ -243,7 +244,7 @@ export async function preguntarAlGestor(input: {
       ok: false,
       motivo: "ocupado",
       mensaje:
-        "El Gestor está atendiendo otro mensaje tuyo. Espera un momento.",
+        "El asistente está atendiendo otro mensaje tuyo. Espera un momento.",
     };
   }
   if (!turno.respuesta || !turno.respuesta.trim()) {
@@ -253,7 +254,8 @@ export async function preguntarAlGestor(input: {
     return {
       ok: false,
       motivo: "sin_respuesta",
-      mensaje: "El Gestor no ha respondido. Inténtalo de nuevo en un momento.",
+      mensaje:
+        "El asistente no ha respondido. Inténtalo de nuevo en un momento.",
     };
   }
   const propuesta = turno.accionId

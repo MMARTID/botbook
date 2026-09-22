@@ -13,6 +13,7 @@ const APP_PATHS = [
   "/llamadas/:path*",
   "/agente",
   "/gestor",
+  "/asistente",
   "/ajustes",
   "/ajustes/:path*",
   "/checkout",

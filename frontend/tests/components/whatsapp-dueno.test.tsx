@@ -885,7 +885,7 @@ describe("WhatsappDueno", () => {
     const queryClient = renderComponent();
 
     const gestor = await screen.findByRole("checkbox", {
-      name: /Tu Gestor por WhatsApp y en el panel/,
+      name: /Tu asistente por WhatsApp y en el panel/,
     });
     const clientes = screen.getByRole("checkbox", {
       name: /La recepcionista atiende a tus clientes por chat/,
@@ -901,7 +901,7 @@ describe("WhatsappDueno", () => {
       })
     );
     expect(
-      await screen.findByText("El Gestor queda desactivado.")
+      await screen.findByText("El asistente queda desactivado.")
     ).toBeInTheDocument();
     expect(queryClient.getQueryData(["my-business"])).toMatchObject({
       ownerChatEnabled: false,

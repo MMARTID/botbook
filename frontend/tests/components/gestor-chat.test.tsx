@@ -55,17 +55,17 @@ describe("GestorChat", () => {
     expect(
       await screen.findByText(/todavía no está disponible/)
     ).toBeInTheDocument();
-    expect(screen.queryByLabelText("Mensaje para el Gestor")).toBeNull();
+    expect(screen.queryByLabelText("Mensaje para tu asistente")).toBeNull();
     unmount();
 
     mockedGet.mockResolvedValueOnce(estado({ activoEnNegocio: false }));
     renderChat();
     expect(
-      await screen.findByText(/Tienes el Gestor desactivado/)
+      await screen.findByText(/Tienes el asistente desactivado/)
     ).toBeInTheDocument();
     expect(
       screen.getByRole("link", { name: /Ajustes › Teléfono/ })
-    ).toHaveAttribute("href", "/ajustes#whatsapp");
+    ).toHaveAttribute("href", "/ajustes/telefono#whatsapp");
   });
 
   it("pinta el historial y la propuesta pendiente con sus botones", async () => {
@@ -122,7 +122,7 @@ describe("GestorChat", () => {
     const queryClient = renderChat();
     const invalidar = vi.spyOn(queryClient, "invalidateQueries");
 
-    const campo = await screen.findByLabelText("Mensaje para el Gestor");
+    const campo = await screen.findByLabelText("Mensaje para tu asistente");
     await user.type(campo, "cierra el viernes{Enter}");
 
     await waitFor(() =>
@@ -152,7 +152,7 @@ describe("GestorChat", () => {
     mockedSend.mockRejectedValue(new Error("caído"));
     renderChat();
     await user.type(
-      await screen.findByLabelText("Mensaje para el Gestor"),
+      await screen.findByLabelText("Mensaje para tu asistente"),
       "hola{Enter}"
     );
     expect(await screen.findByRole("alert")).toHaveTextContent(

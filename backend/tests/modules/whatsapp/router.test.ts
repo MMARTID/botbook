@@ -189,7 +189,7 @@ const NEGOCIOS = "+34930453218";
 const CLIENTES = "+34930454394";
 const AHORA = new Date("2026-09-20T12:00:00Z");
 const EN_UNA_SEMANA = new Date("2026-09-27T12:00:00Z");
-const PANEL = "https://alhabla.ai/ajustes#whatsapp";
+const PANEL = "https://alhabla.ai/ajustes/telefono#whatsapp";
 
 let contador = 0;
 

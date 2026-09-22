@@ -16,7 +16,7 @@ export function listarNegocios(nombres: string[]): string {
 }
 
 /** Enlace al panel; por defecto, Ajustes › Teléfono › Tu móvil (ancla #whatsapp). */
-export function panelUrl(ruta = "/ajustes#whatsapp"): string {
+export function panelUrl(ruta = "/ajustes/telefono#whatsapp"): string {
   return appUrl(ruta, { porDefecto: "https://alhabla.ai" });
 }
 

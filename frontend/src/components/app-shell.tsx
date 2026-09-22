@@ -51,12 +51,19 @@ const AGENT_NAVIGATION: NavItem[] = [
 // la recepcionista; en móvil va en «Más», porque la barra inferior tiene
 // cinco huecos justos.
 const GESTOR_NAVIGATION: NavItem[] = [
-  { href: "/gestor", label: "Gestor", icon: MessageSquareText, exact: true },
+  { href: "/asistente", label: "Asistente", icon: MessageSquareText, exact: true },
 ];
 
 const ACCOUNT_NAVIGATION: NavItem[] = [
-  { href: "/ajustes", label: "Ajustes", icon: Settings, exact: true },
+  { href: "/ajustes", label: "Ajustes", icon: Settings },
   { href: "/ajustes/facturacion", label: "Facturación", icon: CreditCard },
+];
+
+const NAV_ITEMS: NavItem[] = [
+  ...PRIMARY_NAVIGATION,
+  ...AGENT_NAVIGATION,
+  ...GESTOR_NAVIGATION,
+  ...ACCOUNT_NAVIGATION,
 ];
 
 // Pantallas de cuenta sin el armazón del panel (sin sesión o a medio
@@ -77,9 +84,17 @@ const PUBLIC_ROUTES = [
   "/dev/entrar",
 ];
 
-function isActive(pathname: string, item: NavItem) {
+function isActive(pathname: string, item: NavItem, items: NavItem[]) {
   if (item.exact) return pathname === item.href;
-  return pathname === item.href || pathname.startsWith(`${item.href}/`);
+  if (pathname !== item.href && !pathname.startsWith(`${item.href}/`)) return false;
+  // Si otra entrada del menú casa con más precisión (Facturación bajo
+  // /ajustes/), gana esa.
+  return !items.some(
+    (other) =>
+      other !== item &&
+      other.href.length > item.href.length &&
+      (pathname === other.href || pathname.startsWith(`${other.href}/`))
+  );
 }
 
 function NavigationLink({
@@ -94,7 +109,7 @@ function NavigationLink({
   onNavigate?: () => void;
 }) {
   const Icon = item.icon;
-  const active = isActive(pathname, item);
+  const active = isActive(pathname, item, NAV_ITEMS);
 
   return (
     <Link

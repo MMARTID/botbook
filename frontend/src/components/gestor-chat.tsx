@@ -92,7 +92,7 @@ export function GestorChat({ hasToken }: { hasToken: boolean | null }) {
         tipo: "error",
         texto: describeApiError(
           error,
-          "El Gestor no ha podido responder. Inténtalo de nuevo."
+          "El asistente no ha podido responder. Inténtalo de nuevo."
         ),
       }),
     onSettled: () => campoRef.current?.focus(),
@@ -136,29 +136,32 @@ export function GestorChat({ hasToken }: { hasToken: boolean | null }) {
 
   if (estadoQuery.isLoading) {
     return (
-      <div className="p-8 text-center text-muted">Cargando tu Gestor…</div>
+      <div className="p-8 text-center text-muted">Cargando tu asistente…</div>
     );
   }
   if (estadoQuery.isError || !estado) {
     return (
       <div className="panel p-6 text-sm text-[#c53030]">
-        No se pudo cargar el Gestor. Recarga la página en un momento.
+        No se pudo cargar el asistente. Recarga la página en un momento.
       </div>
     );
   }
   if (!estado.disponible) {
     return (
       <div className="panel p-6 text-sm leading-6 text-muted">
-        El Gestor todavía no está disponible en tu cuenta. Te avisaremos cuando
-        lo esté.
+        El asistente todavía no está disponible en tu cuenta. Te avisaremos
+        cuando lo esté.
       </div>
     );
   }
   if (!estado.activoEnNegocio) {
     return (
       <div className="panel p-6 text-sm leading-6 text-muted">
-        Tienes el Gestor desactivado. Puedes volver a activarlo en{" "}
-        <Link href="/ajustes#whatsapp" className="font-semibold text-[#6d28d9]">
+        Tienes el asistente desactivado. Puedes volver a activarlo en{" "}
+        <Link
+          href="/ajustes/telefono#whatsapp"
+          className="font-semibold text-[#6d28d9]"
+        >
           Ajustes › Teléfono
         </Link>
         .
@@ -175,7 +178,7 @@ export function GestorChat({ hasToken }: { hasToken: boolean | null }) {
         className="flex-1 space-y-3 overflow-y-auto px-4 py-5 sm:px-6"
         role="log"
         aria-live="polite"
-        aria-label="Conversación con el Gestor"
+        aria-label="Conversación con tu asistente"
       >
         {burbujas.length === 0 ? (
           <div className="mx-auto max-w-md py-6 text-center">
@@ -231,7 +234,7 @@ export function GestorChat({ hasToken }: { hasToken: boolean | null }) {
                 className="inline h-4 w-4 animate-spin"
                 aria-hidden="true"
               />{" "}
-              El Gestor está pensando…
+              El asistente está pensando…
             </div>
           </div>
         ) : null}
@@ -287,7 +290,7 @@ export function GestorChat({ hasToken }: { hasToken: boolean | null }) {
         className="flex items-end gap-2 border-t border-[#e5e5e5] px-4 py-3 sm:px-6"
       >
         <label htmlFor="gestor-texto" className="sr-only">
-          Mensaje para el Gestor
+          Mensaje para tu asistente
         </label>
         <textarea
           id="gestor-texto"
@@ -302,7 +305,7 @@ export function GestorChat({ hasToken }: { hasToken: boolean | null }) {
           }}
           rows={1}
           maxLength={1000}
-          placeholder="Escribe al Gestor…"
+          placeholder="Escribe a tu asistente…"
           disabled={ocupado}
           className="field min-h-11 flex-1 resize-none"
         />

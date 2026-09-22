@@ -57,7 +57,7 @@ export const AGENT_CONFIGURATION_STEPS: Array<{
     title: "Activa los avisos por WhatsApp",
     description:
       "Un mensaje desde tu móvil y recibirás cada reserva y recado al momento.",
-    href: "/ajustes#whatsapp",
+    href: "/ajustes/telefono#whatsapp",
     icon: MessageCircle,
   },
   {
