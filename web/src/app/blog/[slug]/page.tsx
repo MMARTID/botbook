@@ -30,7 +30,7 @@ export function generateMetadata({ params }: Props): Metadata {
     alternates: { canonical: absoluteUrl(`/blog/${articulo.slug}`) },
     openGraph: {
       type: "article",
-      locale: "es_ES",
+      locale: articulo.idioma === "ca" ? "ca_ES" : "es_ES",
       url: absoluteUrl(`/blog/${articulo.slug}`),
       siteName,
       title: articulo.titulo,
@@ -94,7 +94,7 @@ export default function ArticuloPage({ params }: Props) {
           </nav>
 
           <div className="mt-8 lg:grid lg:grid-cols-[minmax(0,1fr)_20rem] lg:gap-12 xl:gap-16">
-            <article className="min-w-0 max-w-3xl">
+            <article className="min-w-0 max-w-3xl" lang={articulo.idioma}>
               <header>
                 <div className="flex flex-wrap items-center gap-2 text-sm text-muted">
                   {sector ? <PastillaDeSector sector={sector} /> : null}
@@ -229,7 +229,7 @@ export default function ArticuloPage({ params }: Props) {
                   image: imagenes,
                   datePublished: articulo.fecha,
                   dateModified: articulo.actualizado ?? articulo.fecha,
-                  inLanguage: "es-ES",
+                  inLanguage: articulo.idioma === "ca" ? "ca-ES" : "es-ES",
                   wordCount: articulo.minutosDeLectura * 200,
                   author:
                     articulo.autor === AUTOR_POR_DEFECTO

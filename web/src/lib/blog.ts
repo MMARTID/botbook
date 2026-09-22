@@ -28,6 +28,9 @@ export interface ArticuloMeta {
   imagenAlt?: string;
   /** Minutos de lectura estimados (200 palabras por minuto, mínimo 1). */
   minutosDeLectura: number;
+  /** Idioma del texto: castellano por defecto; catalán para las landings de
+   * Cataluña, Valencia y Baleares (va al `lang` del artículo y a Google). */
+  idioma: Idioma;
   /** `true` para dejarlo fuera del listado, el sitemap y el RSS. */
   borrador?: boolean;
 }
@@ -41,6 +44,18 @@ export const AUTOR_POR_DEFECTO = "Equipo de Alhabla";
 const DIRECTORIO = path.join(process.cwd(), "content", "blog");
 const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const FECHA = /^\d{4}-\d{2}-\d{2}$/;
+
+/** El editor (Keystatic) escribe `fecha: 2026-09-21` sin comillas y YAML lo
+ * entrega como Date; a mano suele ir entre comillas. Se aceptan las dos. */
+function comoFecha(valor: unknown): string | undefined {
+  if (valor instanceof Date && !Number.isNaN(valor.getTime())) {
+    return valor.toISOString().slice(0, 10);
+  }
+  return typeof valor === "string" ? valor : undefined;
+}
+
+export const IDIOMAS = ["es", "ca"] as const;
+export type Idioma = (typeof IDIOMAS)[number];
 
 /** 200 palabras por minuto es la media de lectura en pantalla; se ignoran
  * el frontmatter (ya separado) y la sintaxis de Markdown. */
@@ -58,16 +73,21 @@ function leer(slug: string): Articulo | null {
   const fichero = path.join(DIRECTORIO, `${slug}.mdx`);
   if (!fs.existsSync(fichero)) return null;
   const { data, content } = matter(fs.readFileSync(fichero, "utf8"));
-  if (typeof data.titulo !== "string" || typeof data.fecha !== "string") {
+  const fecha = comoFecha(data.fecha);
+  const actualizado = comoFecha(data.actualizado);
+  if (typeof data.titulo !== "string" || !fecha) {
     throw new Error(`content/blog/${slug}.mdx: faltan «titulo» o «fecha» en el frontmatter`);
   }
-  if (!FECHA.test(data.fecha)) {
+  if (!FECHA.test(fecha)) {
     throw new Error(`content/blog/${slug}.mdx: «fecha» debe ser AAAA-MM-DD`);
   }
-  if (data.actualizado !== undefined && (typeof data.actualizado !== "string" || !FECHA.test(data.actualizado))) {
+  if (data.actualizado !== undefined && data.actualizado !== null && (!actualizado || !FECHA.test(actualizado))) {
     throw new Error(`content/blog/${slug}.mdx: «actualizado» debe ser AAAA-MM-DD`);
   }
-  if (data.imagen !== undefined) {
+  if (data.idioma !== undefined && data.idioma !== "es" && data.idioma !== "ca") {
+    throw new Error(`content/blog/${slug}.mdx: «idioma» debe ser «es» o «ca»`);
+  }
+  if (data.imagen !== undefined && data.imagen !== null && data.imagen !== "") {
     if (typeof data.imagen !== "string" || !data.imagen.startsWith("/")) {
       throw new Error(`content/blog/${slug}.mdx: «imagen» debe ser una ruta bajo public/, p. ej. /blog/${slug}/portada.jpg`);
     }
@@ -79,12 +99,13 @@ function leer(slug: string): Articulo | null {
     slug,
     titulo: data.titulo,
     resumen: typeof data.resumen === "string" ? data.resumen : "",
-    fecha: data.fecha,
-    actualizado: typeof data.actualizado === "string" ? data.actualizado : undefined,
+    fecha,
+    actualizado,
     autor: typeof data.autor === "string" && data.autor.trim() ? data.autor : AUTOR_POR_DEFECTO,
-    sector: typeof data.sector === "string" ? data.sector : undefined,
-    imagen: typeof data.imagen === "string" ? data.imagen : undefined,
-    imagenAlt: typeof data.imagenAlt === "string" ? data.imagenAlt : undefined,
+    sector: typeof data.sector === "string" && data.sector ? data.sector : undefined,
+    imagen: typeof data.imagen === "string" && data.imagen ? data.imagen : undefined,
+    imagenAlt: typeof data.imagenAlt === "string" && data.imagenAlt ? data.imagenAlt : undefined,
+    idioma: data.idioma === "ca" ? "ca" : "es",
     minutosDeLectura: minutosDeLectura(content),
     borrador: data.borrador === true,
     contenido: content,
