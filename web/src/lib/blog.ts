@@ -33,6 +33,19 @@ export interface ArticuloMeta {
   idioma: Idioma;
   /** `true` para dejarlo fuera del listado, el sitemap y el RSS. */
   borrador?: boolean;
+  /** De dónde sale el artículo: `content/blog/*.mdx` o el CMS de
+   * BabyLoveGrowth (ver `blog-externo.ts`). Los dos comparten listado,
+   * plantilla, sitemap y RSS; solo cambia de dónde se lee el cuerpo. */
+  origen: Origen;
+}
+
+export const ORIGENES = ["propio", "babylovegrowth"] as const;
+export type Origen = (typeof ORIGENES)[number];
+
+/** Las fotos de BabyLoveGrowth son URLs absolutas de su CDN; las nuestras,
+ * rutas bajo `public/`. Solo las segundas pasan por `next/image`. */
+export function esImagenRemota(src: string): boolean {
+  return /^https?:\/\//.test(src);
 }
 
 export interface Articulo extends ArticuloMeta {
@@ -108,6 +121,7 @@ function leer(slug: string): Articulo | null {
     idioma: data.idioma === "ca" ? "ca" : "es",
     minutosDeLectura: minutosDeLectura(content),
     borrador: data.borrador === true,
+    origen: "propio",
     contenido: content,
   };
 }
@@ -161,5 +175,31 @@ export function fechaLarga(fecha: string): string {
   const [y, m, d] = fecha.split("-").map(Number);
   return new Intl.DateTimeFormat("es-ES", { timeZone: "UTC", day: "numeric", month: "long", year: "numeric" }).format(
     new Date(Date.UTC(y, m - 1, d)),
+  );
+}
+
+/**
+ * El blog completo: los artículos del repositorio y los de BabyLoveGrowth,
+ * mezclados por fecha y sin duplicados. Si un slug existe en los dos sitios
+ * gana el del repositorio (es el que podemos editar y revisar aquí) y se
+ * avisa por consola, porque tener el mismo artículo dos veces en el sitemap
+ * es contenido duplicado.
+ *
+ * Es asíncrona porque los externos llegan por red; el listado, el sitemap, el
+ * RSS y las páginas de artículo la usan en lugar de `listarArticulos()`.
+ */
+export async function listarTodosLosArticulos(): Promise<ArticuloMeta[]> {
+  const { listarArticulosExternos } = await import("./blog-externo");
+  const propios = listarArticulos();
+  const externos = await listarArticulosExternos();
+  const slugsPropios = new Set(propios.map((a) => a.slug));
+  const repetidos = externos.filter((a) => slugsPropios.has(a.slug)).map((a) => a.slug);
+  if (repetidos.length > 0) {
+    console.warn(
+      `[Blog] slugs en el repositorio y en BabyLoveGrowth a la vez (gana el del repositorio): ${repetidos.join(", ")}`,
+    );
+  }
+  return [...propios, ...externos.filter((a) => !slugsPropios.has(a.slug))].sort((a, b) =>
+    b.fecha.localeCompare(a.fecha),
   );
 }

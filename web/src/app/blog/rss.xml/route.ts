@@ -1,14 +1,14 @@
-import { listarArticulos } from "@/lib/blog";
+import { listarTodosLosArticulos } from "@/lib/blog";
 import { absoluteUrl, defaultDescription, siteName } from "@/lib/seo";
 
-export const dynamic = "force-static";
+export const revalidate = 86_400;
 
 function escapar(texto: string): string {
   return texto.replace(/[<>&'"]/g, (c) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", "'": "&apos;", '"': "&quot;" })[c]!);
 }
 
-export function GET() {
-  const items = listarArticulos()
+export async function GET() {
+  const items = (await listarTodosLosArticulos())
     .map(
       (a) => `    <item>
       <title>${escapar(a.titulo)}</title>
