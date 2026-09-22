@@ -536,6 +536,17 @@ export function alertaTelefono(): string {
   return "no hemos podido activar tu número de teléfono. Sin él, tu recepcionista no puede atender llamadas; revísalo en el panel o escríbenos.";
 }
 
+/** Mensaje del día 1, variante negativa: recordatorio único a las 24 h del
+ * alta (PLAN-TELEFONIA-UX.md § 5, fase 5). */
+export function alertaDesvioSinComprobar(): string {
+  return "aún no has comprobado el desvío de llamadas a tu recepcionista. Hasta que lo compruebes no sabremos si las llamadas de tus clientes le llegan; entra en Ajustes › Teléfono y pulsa «Comprobar desvío»: te llamamos y lo verificamos en menos de un minuto.";
+}
+
+/** Mensaje del día 1, variante positiva: el desvío ya está comprobado. */
+export function alertaDesvioComprobado(): string {
+  return "tu desvío de llamadas está comprobado: las llamadas que no cojas las atiende tu recepcionista. Si algún día cambias de línea o de operador, vuelve a comprobarlo en Ajustes › Teléfono.";
+}
+
 export function alertaPruebaTermina(input: { fecha: string }): string {
   return `tu periodo de prueba termina el ${input.fecha}. Para que la recepcionista siga atendiendo, elige un plan antes de esa fecha.`;
 }

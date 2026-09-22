@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   E164_PHONE_REGEX,
   esFijoEspanol,
+  esLineaDeClientesEspanola,
   esMovilEspanol,
   formatearMovil,
   inferirTipoDeLinea,
@@ -77,6 +78,23 @@ describe("esMovilEspanol", () => {
     expect(esMovilEspanol("+34700123456")).toBe(true);
     expect(esMovilEspanol("+34930453218")).toBe(false);
     expect(esMovilEspanol("+33612345678")).toBe(false);
+  });
+});
+
+describe("esLineaDeClientesEspanola", () => {
+  it("acepta fijos geográficos y móviles de España y rechaza el resto, igual que el backend", () => {
+    expect(esLineaDeClientesEspanola("+34600123456")).toBe(true);
+    expect(esLineaDeClientesEspanola("+34712345678")).toBe(true);
+    expect(esLineaDeClientesEspanola("+34930453218")).toBe(true);
+    expect(esLineaDeClientesEspanola("+34886020712")).toBe(true);
+    // 70x personales, 900 gratuitos, 80x de tarificación adicional, 5xx.
+    expect(esLineaDeClientesEspanola("+34701234567")).toBe(false);
+    expect(esLineaDeClientesEspanola("+34900123456")).toBe(false);
+    expect(esLineaDeClientesEspanola("+34803123456")).toBe(false);
+    expect(esLineaDeClientesEspanola("+34512345678")).toBe(false);
+    // Extranjero.
+    expect(esLineaDeClientesEspanola("+447700900123")).toBe(false);
+    expect(esLineaDeClientesEspanola("+33612345678")).toBe(false);
   });
 });
 

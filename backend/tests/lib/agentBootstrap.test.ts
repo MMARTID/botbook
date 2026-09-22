@@ -405,6 +405,44 @@ describe("syncAgentToRetell — voiceGender", () => {
     );
   });
 
+  it("con Alhabla como principal, Retell recibe el prompt SIN «## Pasar la llamada» (no tiene la tool) pero Agent.systemPrompt guarda la copia CON el bloque, la que ejecuta Telnyx", async () => {
+    mockedBusinessFindUnique.mockResolvedValue({
+      name: "Peluquería de prueba",
+      businessDetails: null,
+      businessType: "peluqueria",
+      agentSettings: null,
+      orchestrator: "telnyx",
+      minAdvanceBookingMinutes: null,
+      maxAppointmentDurationMinutes: null,
+      customerLineType: "alhabla",
+      phone: "+34930453218",
+      telnyxPhoneNumber: "+34930453218",
+      ownerWhatsappNumber: "+34600111222",
+      ownerPhoneIsCustomerLine: false,
+    } as any);
+    mockedAgentFindMany.mockResolvedValue([
+      {
+        id: "agent_db_1",
+        retellAgentId: "retell_agent_1",
+        retellLlmId: "retell_llm_1",
+        promptManuallyEdited: false,
+      },
+    ] as any);
+
+    await syncAgentToRetell("biz_principal");
+
+    const retellPrompt = mockedUpdateLlm.mock.calls[0][1].generalPrompt as string;
+    expect(retellPrompt).not.toContain("## Pasar la llamada");
+    const guardado = (mockedAgentUpdate.mock.calls[0][0] as any).data
+      .systemPrompt as string;
+    expect(guardado).toContain("## Pasar la llamada");
+    expect(guardado).toContain("Pásala solo si el cliente pide");
+    // Fuera del bloque, es el mismo prompt.
+    expect(
+      guardado.replace(/## Pasar la llamada[\s\S]*?\n(?=## )/, "")
+    ).toBe(retellPrompt);
+  });
+
   it("SÍ sobrescribe el prompt de un agente gestionado normalmente (promptManuallyEdited: false)", async () => {
     mockedBusinessFindUnique.mockResolvedValue({
       name: "Peluquería de prueba",

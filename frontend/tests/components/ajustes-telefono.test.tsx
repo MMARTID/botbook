@@ -1,5 +1,11 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import {
+  cleanup,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
@@ -7,9 +13,12 @@ import {
   AVISO_FALTA_NUMERO,
   AVISO_LINEA_PARECE_MOVIL,
   CONFIRMACION_CAMBIO_DE_MOVIL,
-  CONFIRMACION_NUMERO_PRINCIPAL,
   TEXTO_ALHABLA_PRINCIPAL,
+  TEXTO_MOVIL_FUERA_DE_ESPANA_PARA_PASAR,
+  TEXTO_SIN_MOVIL_PARA_PASAR,
 } from "@/components/ajustes-telefono";
+import { TEXTO_MOVIL_SIN_DESVIO_EN_AJUSTES } from "@/lib/numero-principal";
+import { DEFAULT_AGENT_SETTINGS } from "@/components/agent-settings-editor";
 import {
   getOnboardingState,
   getOwnerWhatsapp,
@@ -517,9 +526,8 @@ describe("AjustesTelefono", () => {
   });
 
   describe("Tu recepcionista", () => {
-    it("enseña el número de Alhabla activo, el enlace a la recepcionista y permite usarlo como principal", async () => {
-      const user = userEvent.setup();
-      const queryClient = renderSeccion(negocio());
+    it("enseña el número de Alhabla activo, el enlace a la recepcionista y el enlace a la pantalla de número principal", async () => {
+      renderSeccion(negocio());
 
       expect(
         await bloque("Tu recepcionista").findByText("+34 930 45 32 18")
@@ -533,75 +541,143 @@ describe("AjustesTelefono", () => {
         })
       ).toHaveAttribute("href", "/agente");
 
-      await user.click(
-        screen.getByRole("button", { name: /Usar como número principal/ })
-      );
-
-      expect(window.confirm).toHaveBeenCalledWith(
-        CONFIRMACION_NUMERO_PRINCIPAL
-      );
-      await waitFor(() => expect(mockedUpdate).toHaveBeenCalledTimes(1));
-      // El teléfono del negocio pasa a ser el de Alhabla: es el que la
-      // recepcionista dice y pone en los mensajes al cliente.
-      expect(mockedUpdate).toHaveBeenCalledWith({
-        customerLineType: "alhabla",
-        phone: NUMERO_DE_ALHABLA,
-      });
+      // Fase 4: ya no es un window.confirm, es la pantalla que explica qué
+      // cambia y dónde publicar el número.
       expect(
-        await screen.findByText(/ya es tu número principal/)
-      ).toBeInTheDocument();
-      const guardado = queryClient.getQueryData(["my-business"]) as Business;
-      expect(guardado.customerLineType).toBe("alhabla");
-      expect(guardado.phone).toBe(NUMERO_DE_ALHABLA);
+        screen.getByRole("link", { name: /Usar como número principal/ })
+      ).toHaveAttribute("href", "/ajustes/numero-principal");
+      expect(window.confirm).not.toHaveBeenCalled();
+      expect(mockedUpdate).not.toHaveBeenCalled();
+      // Sin Alhabla como principal no se enseña «Cuándo pasarme llamadas».
+      expect(
+        screen.queryByRole("radiogroup", { name: "Cuándo pasarme llamadas" })
+      ).not.toBeInTheDocument();
     });
 
-    it("si los avisos iban a la línea de clientes, usar Alhabla como principal apaga «es el mismo»", async () => {
+    it("con Alhabla como principal y móvil del dueño enseña «Cuándo pasarme llamadas» con «si el cliente lo pide» por defecto y guarda el modo con agentSettings entero", async () => {
       const user = userEvent.setup();
+      const principal = negocio({
+        phone: NUMERO_DE_ALHABLA,
+        customerLineType: "alhabla",
+        ownerWhatsappNumber: "+34600111222",
+        agentSettings: { ...DEFAULT_AGENT_SETTINGS, tone: "direct" },
+      });
+      mockedUpdate.mockImplementation(async (payload) => ({
+        ...principal,
+        ...(payload as Partial<Business>),
+      }));
+      const queryClient = renderSeccion(principal);
+
+      const grupo = within(
+        await screen.findByRole("radiogroup", {
+          name: "Cuándo pasarme llamadas",
+        })
+      );
+      expect(
+        grupo.getByRole("radio", { name: /Si el cliente lo pide/ })
+      ).toBeChecked();
+      expect(
+        bloque("Tu recepcionista").getByText(/a tu móvil \(\+34 600 11 12 22\)/)
+      ).toBeInTheDocument();
+
+      await user.click(
+        grupo.getByRole("radio", { name: /Siempre que sea posible/ })
+      );
+
+      await waitFor(() => expect(mockedUpdate).toHaveBeenCalledTimes(1));
+      expect(mockedUpdate).toHaveBeenCalledWith({
+        agentSettings: {
+          ...DEFAULT_AGENT_SETTINGS,
+          tone: "direct",
+          pasarLlamadas: "siempre",
+        },
+      });
+      expect(
+        await screen.findByText(/dentro de tu horario/)
+      ).toBeInTheDocument();
+      // El radio marcado sale de `business` (prop de la página, que se
+      // re-renderiza con la caché); aquí basta con la caché actualizada.
+      const guardado = queryClient.getQueryData(["my-business"]) as Business;
+      expect(guardado.agentSettings?.pasarLlamadas).toBe("siempre");
+    });
+
+    it("con la transferencia activa avisa de que el móvil no puede tener desvío hacia Alhabla; con «nunca» no hace falta", async () => {
       renderSeccion(
         negocio({
-          phone: "+34600111222",
-          customerLineType: "movil_personal",
-          ownerPhoneIsCustomerLine: true,
+          phone: NUMERO_DE_ALHABLA,
+          customerLineType: "alhabla",
           ownerWhatsappNumber: "+34600111222",
         })
       );
 
-      await user.click(
-        await screen.findByRole("button", {
-          name: /Usar como número principal/,
+      expect(
+        await bloque("Tu recepcionista").findByText(
+          TEXTO_MOVIL_SIN_DESVIO_EN_AJUSTES
+        )
+      ).toBeInTheDocument();
+
+      cleanup();
+      renderSeccion(
+        negocio({
+          phone: NUMERO_DE_ALHABLA,
+          customerLineType: "alhabla",
+          ownerWhatsappNumber: "+34600111222",
+          agentSettings: { ...DEFAULT_AGENT_SETTINGS, pasarLlamadas: "nunca" },
         })
       );
-
-      await waitFor(() => expect(mockedUpdate).toHaveBeenCalledTimes(1));
-      expect(mockedUpdate).toHaveBeenCalledWith({
-        customerLineType: "alhabla",
-        phone: NUMERO_DE_ALHABLA,
-        ownerPhoneIsCustomerLine: false,
+      await screen.findByRole("radiogroup", {
+        name: "Cuándo pasarme llamadas",
       });
+      expect(
+        screen.queryByText(TEXTO_MOVIL_SIN_DESVIO_EN_AJUSTES)
+      ).not.toBeInTheDocument();
     });
 
-    it("si el dueño no confirma, no cambia nada", async () => {
-      const user = userEvent.setup();
-      vi.mocked(window.confirm).mockReturnValue(false);
-      renderSeccion(negocio());
-
-      await user.click(
-        await screen.findByRole("button", {
-          name: /Usar como número principal/,
+    it("con un móvil fuera de España dice que no puede pasarle llamadas y no enseña los modos (el backend no registra la tool)", async () => {
+      renderSeccion(
+        negocio({
+          phone: NUMERO_DE_ALHABLA,
+          customerLineType: "alhabla",
+          ownerWhatsappNumber: "+447700900123",
         })
       );
 
+      expect(
+        await bloque("Tu recepcionista").findByText(
+          TEXTO_MOVIL_FUERA_DE_ESPANA_PARA_PASAR
+        )
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByRole("radiogroup", { name: "Cuándo pasarme llamadas" })
+      ).not.toBeInTheDocument();
+    });
+
+    it("con Alhabla como principal pero sin móvil del dueño pide el móvil y no enseña los modos", async () => {
+      renderSeccion(
+        negocio({
+          phone: NUMERO_DE_ALHABLA,
+          customerLineType: "alhabla",
+          ownerWhatsappNumber: null,
+        })
+      );
+
+      expect(
+        await bloque("Tu recepcionista").findByText(TEXTO_SIN_MOVIL_PARA_PASAR)
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByRole("radiogroup", { name: "Cuándo pasarme llamadas" })
+      ).not.toBeInTheDocument();
       expect(mockedUpdate).not.toHaveBeenCalled();
     });
 
-    it("cuando ya es el principal lo dice y no ofrece el botón", async () => {
+    it("cuando ya es el principal lo dice y no ofrece el enlace", async () => {
       renderSeccion(negocio({ customerLineType: "alhabla" }));
 
       expect(
         await bloque("Tu recepcionista").findByText(/Es tu número principal/)
       ).toBeInTheDocument();
       expect(
-        screen.queryByRole("button", { name: /Usar como número principal/ })
+        screen.queryByRole("link", { name: /Usar como número principal/ })
       ).not.toBeInTheDocument();
     });
 
@@ -621,7 +697,7 @@ describe("AjustesTelefono", () => {
         bloque("Tu recepcionista").getByRole("link", { name: "Elegir plan" })
       ).toHaveAttribute("href", "/ajustes/facturacion");
       expect(
-        screen.queryByRole("button", { name: /Usar como número principal/ })
+        screen.queryByRole("link", { name: /Usar como número principal/ })
       ).not.toBeInTheDocument();
       expect(await screen.findByText(/se está activando/)).toBeInTheDocument();
       expect(

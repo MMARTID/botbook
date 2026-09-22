@@ -10,12 +10,15 @@ import {
 import { getPublicWebhookBaseUrl } from "./serverUrl.js";
 import {
   buildManagedAgentPrompt,
+  buildTransferInstruction,
   parseAgentSettings,
+  TITULO_DEL_BLOQUE_DE_TRANSFERENCIA,
 } from "./managedAgentPrompt.js";
 import { resolveTelnyxEligibility } from "./telnyxEligibility.js";
 import { isBusinessType, type BusinessType } from "./businessType.js";
 import { buildRetellBeginMessage } from "./agentBootstrap.js";
 import { listaDeEsperaDisponible } from "../modules/whatsapp/service.js";
+import { resolverTransferenciaAlDueno } from "./transferenciaAlDueno.js";
 import type { CreateTelnyxAssistantInput } from "../adapters/telnyx/TelnyxAiAdapter.js";
 
 /** Idéntico en forma al hash que usará `syncAgentToRetell` cuando el
@@ -44,6 +47,13 @@ async function loadManagedAssistantConfig(
       minAdvanceBookingMinutes: true,
       maxAppointmentDurationMinutes: true,
       hideOwnerNumberFromClients: true,
+      // Transferencia al dueño (fase 4): de aquí salen el origen (número de
+      // Alhabla), el destino (móvil del dueño) y el modo por defecto.
+      customerLineType: true,
+      phone: true,
+      telnyxPhoneNumber: true,
+      ownerWhatsappNumber: true,
+      ownerPhoneIsCustomerLine: true,
     },
   });
   if (!business) return null;
@@ -52,6 +62,12 @@ async function loadManagedAssistantConfig(
     ? business.businessType
     : "other";
   const agentSettings = parseAgentSettings(business.agentSettings);
+  // La misma resolución decide el bloque del prompt Y la tool: nunca uno
+  // sin el otro.
+  const transferenciaAlDueno = resolverTransferenciaAlDueno(
+    business,
+    agentSettings.pasarLlamadas
+  );
   const systemPrompt = buildManagedAgentPrompt({
     businessName: business.name,
     businessDetails: business.businessDetails,
@@ -62,9 +78,40 @@ async function loadManagedAssistantConfig(
     maxAppointmentDurationMinutes: business.maxAppointmentDurationMinutes,
     listaDeEspera: await listaDeEsperaDisponible(),
     ocultarNumeroDelNegocio: business.hideOwnerNumberFromClients,
+    transferenciaAlDueno,
   });
 
-  return { business, agentSettings, systemPrompt };
+  return {
+    business,
+    agentSettings,
+    systemPrompt,
+    transferenciaAlDueno: transferenciaAlDueno.activa
+      ? { from: transferenciaAlDueno.origen!, to: transferenciaAlDueno.destino! }
+      : null,
+    /** El bloque «## Pasar la llamada» suelto, para los prompts editados a
+     * mano (ver promptManualConSuRegla). null si la tool no se registra. */
+    bloqueDeTransferencia: buildTransferInstruction(transferenciaAlDueno),
+  };
+}
+
+/**
+ * Un prompt editado a mano (PATCH /agents/:id) se manda tal cual, pero la
+ * tool `transfer` se registra según los ajustes del negocio, no según el
+ * prompt: si el bloque no está, se añade al final para no romper la
+ * garantía «nunca la tool sin su regla». Si el dueño ya escribió su propio
+ * «## Pasar la llamada», se respeta.
+ */
+export function promptManualConSuRegla(
+  prompt: string,
+  bloqueDeTransferencia: string | null
+): string {
+  if (
+    !bloqueDeTransferencia ||
+    prompt.includes(TITULO_DEL_BLOQUE_DE_TRANSFERENCIA)
+  ) {
+    return prompt;
+  }
+  return `${prompt.trimEnd()}\n\n${bloqueDeTransferencia}`;
 }
 
 /**
@@ -98,6 +145,7 @@ export async function createTelnyxAssistantForAgent(args: {
       greeting: buildRetellBeginMessage(config.business.name),
       language: resolveTelnyxTranscriptionLanguage(config.agentSettings.languages),
       voice: eligibility.voiceId!,
+      transferenciaAlDueno: config.transferenciaAlDueno,
     });
 
     const assistant = await telnyxAiAdapter.createAssistant(payload);
@@ -211,13 +259,19 @@ export async function syncAgentToTelnyx(
             businessName: config.business.name,
             timezone: config.business.timezone,
             instructions: agent.promptManuallyEdited
-              ? agent.systemPrompt
+              ? promptManualConSuRegla(
+                  agent.systemPrompt,
+                  config.bloqueDeTransferencia
+                )
               : config.systemPrompt,
             greeting: buildRetellBeginMessage(config.business.name),
             language: resolveTelnyxTranscriptionLanguage(config.agentSettings.languages),
             voice: eligibility.voiceId!,
             boostedKeywords,
             tools,
+            // Va aparte de `tools` (que solo lleva tools de webhook): así
+            // también entra cuando calendar/service.ts pasa las suyas.
+            transferenciaAlDueno: config.transferenciaAlDueno,
           });
 
         const configHash = hashConfig(payload);
@@ -233,6 +287,13 @@ export async function syncAgentToTelnyx(
             telnyxConfigHash: configHash,
             telnyxSyncedAt: new Date(),
             telnyxSyncError: null,
+            // La copia del prompt que ve el panel (/agente) es la que
+            // ejecuta Telnyx, el primary: con el bloque de transferencia
+            // cuando la tool está registrada y sin él cuando no. Los
+            // prompts editados a mano no se pisan.
+            ...(agent.promptManuallyEdited
+              ? {}
+              : { systemPrompt: config.systemPrompt }),
           },
         });
       } catch (error) {

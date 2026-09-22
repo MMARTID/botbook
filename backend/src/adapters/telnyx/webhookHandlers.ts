@@ -16,6 +16,7 @@ import {
   registrarSalienteColgada,
   registrarSalienteContestada,
 } from "../../modules/onboarding/comprobacionDesvio.js";
+import { marcarPataSinCall, motivoDePataSinCall } from "./patasSinCall.js";
 
 /**
  * Envoltorio real verificado en vivo el 2026-09-11 y contra los tipos de
@@ -221,11 +222,24 @@ async function recibirLlamadaDeComprobacion(
   callControlId: string
 ): Promise<{ success: boolean }> {
   let success = true;
+  // Su colgado (y su coste, si lo hay) no deben buscar una Call que no existe.
+  await marcarPataSinCall(callControlId, "comprobacion");
   try {
     const check = await registrarLlamadaDeComprobacionRecibida(businessId);
     console.log(
       `[Telnyx] ${callLabel(callControlId)} es la comprobación de desvío ${check?.id ?? "(sin comprobación viva)"} del negocio ${businessId}; se cuelga sin arrancar la recepcionista`
     );
+    // Con la entrada ya confirmada, la pata saliente no tiene nada más que
+    // hacer: si se dejara sonando, el desvío la volvería a meter cada pocos
+    // segundos (tres entradas en la prueba real del 21-09) y cada una se
+    // colgaría y se contaría como otro OK. Se cuelga la saliente también.
+    if (check?.callControlId && check.callControlId !== callControlId) {
+      await telnyxAiAdapter.hangupCall(check.callControlId).catch((error) => {
+        console.warn(
+          `[Telnyx] No se pudo colgar la saliente ${callLabel(check.callControlId!)} tras confirmar el desvío: ${errorMessage(error)}`
+        );
+      });
+    }
   } catch (error) {
     success = false;
     console.error(
@@ -295,10 +309,20 @@ export async function handleCallInitiated(
   // nosotros): no es una llamada de cliente. Sin esta salida, el `to` (la
   // línea del negocio) no casaría con ningún número de Alhabla y se
   // colgaría nuestra propia llamada como «negocio desconocido».
-  if (leerClientStateDeComprobacion(client_state) || direction === "outgoing") {
+  if (leerClientStateDeComprobacion(client_state)) {
     console.log(
-      `[Telnyx] ${callLabel(call_control_id)} es una pata saliente propia; no se trata como llamada de cliente`
+      `[Telnyx] ${callLabel(call_control_id)} es la saliente de «Comprobar desvío»; no se trata como llamada de cliente`
     );
+    return { success: true };
+  }
+  if (direction === "outgoing") {
+    // La pata que abre la tool `transfer` hacia el móvil del dueño (fase
+    // 4): nace sin client_state y no tiene Call. Se apunta para que su
+    // colgado y su coste no se procesen como llamada desconocida.
+    console.log(
+      `[Telnyx] ${callLabel(call_control_id)} es una pata saliente propia (${from ?? "?"} → ${to ?? "?"}), seguramente una transferencia al dueño; no se trata como llamada de cliente`
+    );
+    await marcarPataSinCall(call_control_id, "transferencia");
     return { success: true };
   }
 
@@ -425,6 +449,13 @@ export async function handleCallHangup(
       where: { callId: call_control_id },
     });
     if (!dbCall) {
+      const pataPropia = await motivoDePataSinCall(call_control_id);
+      if (pataPropia) {
+        console.log(
+          `[Telnyx] Colgó la pata propia ${callLabel(call_control_id)} (${pataPropia}) · motivo=${hangup_cause ?? "no indicado"}; no hay Call que actualizar`
+        );
+        return { success: true };
+      }
       console.warn(
         `[Telnyx] ${callLabel(call_control_id)} no existía en la base de datos al colgar`
       );
@@ -816,6 +847,13 @@ export async function handleCallCost(
       where: { callId: call_control_id },
     });
     if (!dbCall) {
+      const pataPropia = await motivoDePataSinCall(call_control_id);
+      if (pataPropia) {
+        console.log(
+          `[Telnyx] Coste de la pata propia ${callLabel(call_control_id)} (${pataPropia}): ${total_cost} (no se guarda: no hay Call)`
+        );
+        return { success: true };
+      }
       console.warn(
         `[Telnyx] ${callLabel(call_control_id)} no existía en la base de datos al recibir el coste`
       );

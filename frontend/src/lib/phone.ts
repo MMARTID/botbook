@@ -46,6 +46,16 @@ export function esMovilEspanol(e164: string): boolean {
 }
 
 /**
+ * Fijo geográfico o móvil de España: lo único a lo que la recepcionista
+ * puede pasar una llamada (y lo único que «Comprobar desvío» llama). Misma
+ * expresión que el backend (`esLineaDeClientesEspanola` en lib/phone.ts):
+ * fuera quedan los 800/900, los 70x personales, los 5xx y el extranjero.
+ */
+export function esLineaDeClientesEspanola(e164: string): boolean {
+  return /^\+34(?:6\d{8}|7[1-9]\d{7}|[89][1-8]\d{7})$/.test(e164);
+}
+
+/**
  * Tipo de línea de clientes que se propone en el alta a partir del teléfono
  * que trae Google Places (PLAN-TELEFONIA-UX.md § 5, fase 1): un fijo español
  * es «el fijo del local» y un móvil español, «un móvil de trabajo». Con

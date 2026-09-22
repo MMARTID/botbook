@@ -24,10 +24,12 @@ import {
   ComprobarDesvio,
   NotaDeLinea,
 } from "@/components/call-forwarding-card";
+import { DEFAULT_AGENT_SETTINGS } from "@/components/agent-settings-editor";
 import {
   OPERATIONAL_TONE,
   buildOperationalStatus,
 } from "@/components/operational-status";
+import { PasarLlamadas } from "@/components/pasar-llamadas";
 import {
   TIPOS_CON_LINEA_PROPIA,
   TarjetasDeLinea,
@@ -42,6 +44,11 @@ import {
 import { describeApiError } from "@/lib/api-errors";
 import { formatDate, formatPhone } from "@/lib/format";
 import {
+  modoDePasarLlamadas,
+  motivoSinMovilParaPasarLlamadas,
+} from "@/lib/pasar-llamadas";
+import { TEXTO_MOVIL_SIN_DESVIO_EN_AJUSTES } from "@/lib/numero-principal";
+import {
   esFijoEspanol,
   esMovilEspanol,
   normalizarMovil,
@@ -50,6 +57,7 @@ import {
 import type {
   Business,
   CustomerLineType,
+  ModoDePasarLlamadas,
   OnboardingForwarding,
 } from "@/lib/types";
 
@@ -63,8 +71,12 @@ export const AVISO_FALTA_NUMERO =
   "Escribe el número al que te llaman tus clientes para guardar el tipo de línea.";
 export const TEXTO_ALHABLA_PRINCIPAL =
   "Tu número de Alhabla es tu teléfono: publícalo en Google y en tu web. No hay nada que desviar.";
-export const CONFIRMACION_NUMERO_PRINCIPAL =
-  "Tu recepcionista atenderá todas las llamadas que entren por tu número de Alhabla, será el número que dé a tus clientes para cambiar o anular una cita, y dejará de hacer falta el desvío. Tendrás que publicar ese número en Google, en tu web y en tus tarjetas. ¿Quieres usarlo como número principal?";
+export const TEXTO_SIN_MOVIL_PARA_PASAR =
+  "Añade tu móvil más abajo para que tu recepcionista pueda pasarte llamadas.";
+/** El backend solo transfiere a fijos y móviles de España (la pata la paga
+ * Alhabla): con un móvil extranjero no hay tool, y hay que decirlo. */
+export const TEXTO_MOVIL_FUERA_DE_ESPANA_PARA_PASAR =
+  "Tu recepcionista solo puede pasar llamadas a un móvil o fijo de España, y el móvil que tienes guardado más abajo no lo es. Hasta que lo cambies, lo atenderá todo ella.";
 export const CONFIRMACION_CAMBIO_DE_MOVIL =
   "Los avisos pasarán a tu línea de clientes y tendrás que activarlos otra vez desde ese móvil. ¿Continuar?";
 export const ERROR_LINEA_SIN_WHATSAPP =
@@ -627,9 +639,9 @@ function EstadoDelDesvio({
 /**
  * Bloque 2: el número de Alhabla y su estado (misma fuente que el panel de
  * inicio), el enlace a la recepcionista y «Usar como número principal», que
- * marca `customerLineType = "alhabla"` y pone el número de Alhabla como
- * teléfono del negocio (el que la recepcionista da a los clientes); la
- * pantalla completa es de la fase 4.
+ * lleva a la pantalla de la fase 4 (/ajustes/numero-principal: qué cambia,
+ * dónde publicarlo, qué hacer con el número antiguo). Con Alhabla como
+ * principal enseña aquí el ajuste «Cuándo pasarme llamadas».
  */
 function TuRecepcionista({
   business,
@@ -646,31 +658,40 @@ function TuRecepcionista({
   const [feedback, setFeedback] = useState<Feedback>(null);
   const esPrincipal = business.customerLineType === "alhabla";
   const numeroActivo = estado?.tone === "ok" && numeroDeAlhablaActivo !== null;
+  const motivoSinMovil = motivoSinMovilParaPasarLlamadas(
+    business,
+    numeroDeAlhablaActivo
+  );
+  const hayMovil = motivoSinMovil === null;
+  const modoActual = modoDePasarLlamadas(business, numeroDeAlhablaActivo);
 
-  const principalMutation = useMutation({
-    mutationFn: (numero: string) =>
+  // Se manda el bloque entero de agentSettings (como hace /agente): el
+  // backend valida el objeto completo y una clave suelta no vale.
+  const pasarMutation = useMutation({
+    mutationFn: (modo: ModoDePasarLlamadas) =>
       updateMyBusiness({
-        customerLineType: "alhabla",
-        phone: numero,
-        // Los avisos no pueden ir al número de Alhabla: el móvil del dueño
-        // se queda como está, pero deja de «ser la línea de clientes».
-        ...(business.ownerPhoneIsCustomerLine
-          ? { ownerPhoneIsCustomerLine: false }
-          : {}),
+        agentSettings: {
+          ...DEFAULT_AGENT_SETTINGS,
+          ...business.agentSettings,
+          pasarLlamadas: modo,
+        },
       }),
-    onSuccess: (updated) => {
+    onSuccess: (updated, modo) => {
       queryClient.setQueryData(["my-business"], updated);
-      void queryClient.invalidateQueries({ queryKey: ["onboarding-state"] });
       setFeedback({
         type: "success",
         message:
-          "Tu número de Alhabla ya es tu número principal. Puedes quitar el desvío de tu línea antigua cuando lo hayas publicado.",
+          modo === "nunca"
+            ? "Tu recepcionista no te pasará llamadas: tomará recado."
+            : modo === "siempre"
+              ? "Te pasará las llamadas que haga falta dentro de tu horario."
+              : "Te pasará la llamada cuando el cliente pida hablar contigo.",
       });
     },
     onError: (error) =>
       setFeedback({
         type: "error",
-        message: describeApiError(error, "No se pudo guardar el cambio."),
+        message: describeApiError(error, "No se pudo guardar el ajuste."),
       }),
   });
 
@@ -741,23 +762,13 @@ function TuRecepcionista({
             que entran por él.
           </p>
         ) : numeroActivo ? (
-          <button
-            type="button"
-            onClick={() => {
-              setFeedback(null);
-              if (!window.confirm(CONFIRMACION_NUMERO_PRINCIPAL)) return;
-              principalMutation.mutate(numeroDeAlhablaActivo);
-            }}
-            disabled={principalMutation.isPending}
+          <Link
+            href="/ajustes/numero-principal"
             className="btn-purple shrink-0"
           >
-            {principalMutation.isPending ? (
-              <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-            ) : (
-              <Headset className="h-4 w-4" aria-hidden="true" />
-            )}
+            <Headset className="h-4 w-4" aria-hidden="true" />
             Usar como número principal
-          </button>
+          </Link>
         ) : null}
       </div>
       {!esPrincipal && numeroActivo ? (
@@ -767,7 +778,48 @@ function TuRecepcionista({
           de siempre puede seguir desviada mientras dure el cambio.
         </p>
       ) : null}
-      <FeedbackMessage value={feedback} />
+
+      {esPrincipal ? (
+        <div className="rounded-2xl border border-[#e5e5e5] bg-[#fafafa] p-4">
+          <p
+            id="ajustes-pasar-llamadas-title"
+            className="text-sm font-semibold text-[#0a0a0a]"
+          >
+            Cuándo pasarme llamadas
+          </p>
+          <p className="mt-1 text-sm leading-6 text-muted">
+            {hayMovil && business.ownerWhatsappNumber
+              ? `Tu recepcionista puede pasar la llamada a tu móvil (${formatPhone(business.ownerWhatsappNumber)}). Si no la coges, retoma ella y toma recado.`
+              : motivoSinMovil === "fuera_de_espana"
+                ? TEXTO_MOVIL_FUERA_DE_ESPANA_PARA_PASAR
+                : TEXTO_SIN_MOVIL_PARA_PASAR}
+          </p>
+          {hayMovil ? (
+            <div className="mt-3">
+              <PasarLlamadas
+                name="ajustes-pasar-llamadas"
+                value={modoActual}
+                onChange={(modo) => {
+                  setFeedback(null);
+                  pasarMutation.mutate(modo);
+                }}
+                disabled={pasarMutation.isPending}
+                aria-labelledby="ajustes-pasar-llamadas-title"
+              />
+              {modoActual !== "nunca" ? (
+                // Con Alhabla como principal ya no sabemos si el móvil
+                // venía de ser la línea de clientes con desvío: se avisa
+                // siempre, porque un desvío al número de Alhabla anula la
+                // transferencia sin ningún otro síntoma.
+                <NotaDeLinea>{TEXTO_MOVIL_SIN_DESVIO_EN_AJUSTES}</NotaDeLinea>
+              ) : null}
+            </div>
+          ) : null}
+          <div className="mt-2">
+            <FeedbackMessage value={feedback} />
+          </div>
+        </div>
+      ) : null}
     </Bloque>
   );
 }

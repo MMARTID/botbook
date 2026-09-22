@@ -1,6 +1,7 @@
 import type {
   CreateTelnyxAssistantInput,
   HangupTool,
+  TelnyxTransferTool,
   TelnyxWebhookTool,
 } from "../adapters/telnyx/TelnyxAiAdapter.js";
 import { resolveManagedPromptTimezone } from "./managedAgentPrompt.js";
@@ -56,6 +57,52 @@ export function toTelnyxWebhookTool(
  */
 export function buildTelnyxHangupTool(description: string): HangupTool {
   return { type: "hangup", hangup: { description } };
+}
+
+/** Nombre del destino que ve el modelo al elegir a quién transferir. */
+export const NOMBRE_DEL_DESTINO_DE_TRANSFERENCIA = "Responsable del negocio";
+
+/**
+ * Tool nativa `transfer` de Telnyx (PLAN-TELEFONIA-UX.md § 5, fase 4):
+ * pasa la llamada en curso al móvil del dueño. Formato tomado del SDK
+ * (`AssistantTool.Transfer`, telnyx 7.21): `from` es el número que marca
+ * (el de Alhabla del negocio), `targets` la lista de destinos entre los que
+ * el modelo elige por `name`. Sin `timeout_secs`: la tool nativa no lo
+ * tiene, así que la pata suena hasta que el operador del dueño se rinde o
+ * salta su buzón.
+ *
+ * - `warm_transfer_instructions`: Telnyx reproduce al dueño, antes de unir
+ *   las llamadas, un mensaje que compone el propio assistant con estas
+ *   instrucciones (transferencia «en caliente»): así sabe que es un cliente
+ *   que le pasa su recepcionista, no una llamada rara desde un número que
+ *   no conoce.
+ * - `voicemail_detection` premium + `stop_transfer`: si el buzón de voz del
+ *   móvil contesta, Telnyx cancela la pata y devuelve la llamada a la
+ *   recepcionista (documentación «Voicemail Detection on Transfer»); sin
+ *   esto el cliente acabaría hablando con el contestador del dueño.
+ * - Sin `warm_transfer_acceptance`: la documentación lo limita a llamadas
+ *   arrancadas con `ai_assistant_start`, y las nuestras se contestan con
+ *   `answer` + `assistant` (answerCallWithAssistant).
+ * - Sin `description`: la genera Telnyx a partir de los destinos; la regla
+ *   de cuándo transferir vive en el prompt («## Pasar la llamada»).
+ */
+export function buildTelnyxTransferTool(input: {
+  from: string;
+  to: string;
+  businessName: string;
+}): TelnyxTransferTool {
+  return {
+    type: "transfer",
+    transfer: {
+      from: input.from,
+      targets: [{ name: NOMBRE_DEL_DESTINO_DE_TRANSFERENCIA, to: input.to }],
+      warm_transfer_instructions: `Habla en español. En una sola frase, di que eres la recepcionista de ${input.businessName} y que le pasas a un cliente: su nombre si lo dijo y qué quiere. No hagas preguntas ni esperes respuesta.`,
+      voicemail_detection: {
+        detection_mode: "premium",
+        on_voicemail_detected: { action: "stop_transfer" },
+      },
+    },
+  };
 }
 
 /**
@@ -433,6 +480,10 @@ export interface BuildTelnyxAssistantPayloadInput {
   insightGroupId?: string;
   tools?: TelnyxWebhookToolInput[];
   includeHangupTool?: boolean;
+  /** Transferencia al dueño (fase 4): con destino se añade la tool nativa
+   * `transfer`; sin él (ajuste «nunca» o sin móvil válido) no se registra.
+   * Lo resuelve `resolverTransferenciaAlDueno` (lib/transferenciaAlDueno.ts). */
+  transferenciaAlDueno?: { from: string; to: string } | null;
   /** Nombres de servicios/profesionales para sesgar la transcripción — mismo
    * propósito que `boostedKeywords` en syncAgentToRetell. */
   boostedKeywords?: string[];
@@ -456,9 +507,19 @@ const DEFAULT_USER_IDLE_REPLY_SECS = 12;
 export function buildTelnyxAssistantPayload(
   input: BuildTelnyxAssistantPayloadInput
 ): CreateTelnyxAssistantInput {
-  const tools: Array<TelnyxWebhookTool | HangupTool> = (
+  const tools: Array<TelnyxWebhookTool | HangupTool | TelnyxTransferTool> = (
     input.tools ?? []
   ).map(toTelnyxWebhookTool);
+
+  if (input.transferenciaAlDueno) {
+    tools.push(
+      buildTelnyxTransferTool({
+        from: input.transferenciaAlDueno.from,
+        to: input.transferenciaAlDueno.to,
+        businessName: input.businessName,
+      })
+    );
+  }
 
   if (input.includeHangupTool ?? true) {
     tools.push(

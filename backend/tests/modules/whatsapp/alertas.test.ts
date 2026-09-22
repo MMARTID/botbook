@@ -4,6 +4,8 @@ import { enqueueEmailJob } from "../../../src/lib/cloudTasks.js";
 import { avisarAlerta } from "../../../src/modules/whatsapp/avisosNegocio.js";
 import {
   alertarCalendarioDesconectado,
+  alertarDesvioComprobado,
+  alertarDesvioSinComprobar,
   alertarMinutos,
   alertarNumeroNoActivo,
   alertarPagoFallido,
@@ -93,6 +95,54 @@ describe("alertas operativas (#5)", () => {
         causa: "telefono",
         recursoId: `telefono:biz_1:${HOY}`,
       })
+    );
+  });
+
+  it("desvío sin comprobar: causa teléfono, recurso por negocio e intento (para poder reintentar) y email de respaldo", async () => {
+    const intento = new Date("2026-09-22T10:00:00.000Z");
+    await alertarDesvioSinComprobar({ businessId: "biz_1", intento });
+    expect(mockedAvisar).toHaveBeenCalledWith(
+      expect.objectContaining({
+        causa: "telefono",
+        recursoId: "desvio:biz_1:2026-09-22T10:00:00.000Z",
+        texto: expect.stringContaining("aún no has comprobado el desvío"),
+        email: expect.any(Function),
+      })
+    );
+    await mockedAvisar.mock.calls[0][0].email!();
+    expect(mockedEmail.mock.calls[0][0].subject).toContain(
+      "Necesita tu atención"
+    );
+    expect(mockedEmail.mock.calls[0][0].html).toContain(
+      "https://alhabla.ai/ajustes/telefono"
+    );
+    // El id de la tarea de email también cambia por intento: Cloud Tasks
+    // rechaza un nombre repetido durante horas.
+    expect(mockedEmail.mock.calls[0][1]).toBe(
+      "alerta-desvio-biz_1-2026-09-22T10-00-00-000Z"
+    );
+  });
+
+  it("desvío comprobado: misma cascada con otro recurso, y el email es la buena noticia, no la alerta", async () => {
+    const intento = new Date("2026-09-22T10:00:00.000Z");
+    await alertarDesvioComprobado({ businessId: "biz_1", intento });
+    expect(mockedAvisar).toHaveBeenCalledWith(
+      expect.objectContaining({
+        causa: "telefono",
+        recursoId: "desvio-ok:biz_1:2026-09-22T10:00:00.000Z",
+        texto: expect.stringContaining("tu desvío de llamadas está comprobado"),
+        email: expect.any(Function),
+      })
+    );
+    await mockedAvisar.mock.calls[0][0].email!();
+    expect(mockedEmail.mock.calls[0][0].subject).toBe(
+      "Tu desvío está comprobado — Peluquería Ana"
+    );
+    expect(mockedEmail.mock.calls[0][0].html).not.toContain(
+      "Necesita tu atención"
+    );
+    expect(mockedEmail.mock.calls[0][0].html).toContain(
+      "https://alhabla.ai/ajustes/telefono"
     );
   });
 

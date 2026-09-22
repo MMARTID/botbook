@@ -8,6 +8,7 @@ import { processSendSmsJob } from "../../jobs/sendSms.js";
 import { processSendWhatsappJob } from "../../jobs/sendWhatsapp.js";
 import { processRecordarRecadoJob } from "../../jobs/recordarRecado.js";
 import { cleanupZombieCallsJob } from "../../jobs/cleanupZombieCalls.js";
+import { recordarDesvioSinComprobarJob } from "../../jobs/recordarDesvioSinComprobar.js";
 import { purgeOldRecordingsJob } from "../../jobs/purgeOldRecordings.js";
 import { telnyxHealthCheckJob } from "../../jobs/telnyxHealthCheck.js";
 import { telnyxReconcilerJob } from "../../jobs/telnyxReconciler.js";
@@ -309,6 +310,35 @@ export const internalJobsRoutes: FastifyPluginAsync = async (fastify) => {
           return reply.send({ received: true, skipped: error.reason });
         }
         fastify.log.error({ err: error }, "cleanup-zombie-calls job failed");
+        return reply.status(500).send({ error: "Job processing failed" });
+      }
+    }
+  );
+
+  // Cada hora (Cloud Scheduler) — PLAN-TELEFONIA-UX.md § 5, fase 5: el
+  // mensaje único del día 1 sobre el desvío («tu desvío está comprobado» o
+  // «aún no has comprobado el desvío») a los negocios que compraron su número
+  // hace entre 24 y 48 h. Idempotente por Business.forwardingReminderSentAt
+  // (ver jobs/recordarDesvioSinComprobar.ts).
+  fastify.post(
+    "/jobs/recordar-desvio-sin-comprobar",
+    opcionesDeJob,
+    async (_request, reply) => {
+      try {
+        const result = await recordarDesvioSinComprobarJob();
+        return reply.send({ received: true, ...result });
+      } catch (error) {
+        if (error instanceof PermanentJobError) {
+          fastify.log.warn(
+            { err: error, reason: error.reason },
+            "recordar-desvio-sin-comprobar job failed descartado por fallo definitivo"
+          );
+          return reply.send({ received: true, skipped: error.reason });
+        }
+        fastify.log.error(
+          { err: error },
+          "recordar-desvio-sin-comprobar job failed"
+        );
         return reply.status(500).send({ error: "Job processing failed" });
       }
     }

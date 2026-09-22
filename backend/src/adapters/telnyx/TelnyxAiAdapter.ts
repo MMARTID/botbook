@@ -2,6 +2,7 @@ import { TelnyxWebhook } from "telnyx/lib/webhooks.js";
 import { getTelnyxClient } from "../../lib/telnyx.js";
 import type {
   AssistantCreateParams,
+  AssistantTool,
   AssistantUpdateParams,
   HangupTool,
   InferenceEmbedding,
@@ -22,6 +23,12 @@ import type { TestStatus } from "telnyx/resources/ai/assistants/tests/runs.js";
  * usa la config inline de `assistant` en Call Control). */
 export type TelnyxWebhookTool = InferenceEmbeddingWebhookToolParams;
 export type { HangupTool };
+/** Tool nativa `transfer` de los AI Assistants (fase 4 del plan de
+ * telefonía): `AssistantTool.Transfer` es la forma completa que acepta
+ * `tools` (con `warm_transfer_instructions` y `voicemail_detection`), no el
+ * `TransferTool` de primer nivel del SDK, que solo declara `from` y
+ * `targets`. */
+export type TelnyxTransferTool = AssistantTool.Transfer;
 
 /** `send_conversation_message_events` es un campo real de la API (aparece
  * en la respuesta y la acepta en escritura) que el SDK no declara en
@@ -62,7 +69,7 @@ export interface CreateTelnyxAssistantInput {
   telephonySettings?: TelephonySettingsInput;
   privacySettings?: PrivacySettings;
   insightGroupId?: string;
-  tools?: Array<TelnyxWebhookTool | HangupTool>;
+  tools?: Array<TelnyxWebhookTool | HangupTool | TelnyxTransferTool>;
   enabledFeatures?: AssistantCreateParams["enabled_features"];
   /** `post_conversation_settings.enabled`: el assistant se invoca de nuevo
    * al terminar la llamada para las tools finales (informar_al_negocio). */
