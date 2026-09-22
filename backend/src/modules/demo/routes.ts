@@ -1,7 +1,8 @@
 import type { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
-import { retellAdapter } from "../../adapters/retell/RetellAdapter.js";
-import { getPlaceDetails, searchPlacesForDemo, type PlaceDetails } from "../places/service.js";
+import { telnyxAiAdapter } from "../../adapters/telnyx/TelnyxAiAdapter.js";
+import { detectBusinessTypeFromPlace } from "../../lib/businessType.js";
+import { getPlaceDetails, searchPlacesForDemo } from "../places/service.js";
 
 const demoRateLimit = {
   max: 10,
@@ -20,11 +21,9 @@ type DemoNiche = (typeof DEMO_NICHES)[number];
 
 const WebCallBodySchema = z.object({
   niche: z.enum(DEMO_NICHES).optional(),
-  // La ficha se vuelve a consultar en el servidor. Así no se introduce texto
-  // arbitrario del navegador en las variables del LLM de la demo.
+  // La ficha se vuelve a consultar en el servidor: del navegador solo llega el
+  // identificador de Google, nunca el nicho ya resuelto ni texto libre.
   placeId: z.string().trim().min(1).max(200).optional(),
-  // Consentimiento opcional, separado de la personalización puntual de la llamada.
-  allowBusinessDataRetention: z.boolean().optional(),
 });
 
 const DemoPlaceSearchQuerySchema = z.object({
@@ -35,47 +34,44 @@ const DemoPlaceIdParamsSchema = z.object({
   placeId: z.string().trim().min(1).max(200),
 });
 
-// Sin Ñ en el nombre de la variable: Cloud Run (y la interpolación de
-// compose) solo admiten [A-Za-z0-9_], así que RETELL_DEMO_SALON_UÑAS_AGENT_ID
-// nunca llegó a producción y la demo de uñas usaba el agente genérico. El
-// nombre antiguo se sigue leyendo como respaldo para los .env locales.
-const DEMO_AGENT_ENV_BY_NICHE: Record<DemoNiche, string[]> = {
-  peluqueria: ["RETELL_DEMO_PELUQUERIA_AGENT_ID"],
-  "centro-de-estetica": ["RETELL_DEMO_CENTRO_ESTETICA_AGENT_ID"],
-  "salon-de-unas": ["RETELL_DEMO_SALON_UNAS_AGENT_ID", "RETELL_DEMO_SALON_UÑAS_AGENT_ID"],
-  barberia: ["RETELL_DEMO_BARBERIA_AGENT_ID"],
-  fisioterapia: ["RETELL_DEMO_FISIOTERAPIA_AGENT_ID"],
+/**
+ * Cuenta de demostración de cada nicho (negocios reales de la plataforma, con
+ * su horario, sus servicios y su agenda de mentira) y el assistant de Telnyx
+ * que la atiende. La demo de la landing es una llamada por el navegador a ese
+ * mismo assistant: lo que oye el visitante es exactamente el producto.
+ *
+ * Sin Ñ en el nombre de la variable: Cloud Run solo admite [A-Za-z0-9_].
+ */
+const DEMO_ASSISTANT_ENV_BY_NICHE: Record<DemoNiche, string> = {
+  peluqueria: "TELNYX_DEMO_PELUQUERIA_ASSISTANT_ID",
+  "centro-de-estetica": "TELNYX_DEMO_CENTRO_ESTETICA_ASSISTANT_ID",
+  "salon-de-unas": "TELNYX_DEMO_SALON_UNAS_ASSISTANT_ID",
+  barberia: "TELNYX_DEMO_BARBERIA_ASSISTANT_ID",
+  fisioterapia: "TELNYX_DEMO_FISIOTERAPIA_ASSISTANT_ID",
 };
 
 /**
- * Agente de demo para un nicho; si el nicho no tiene agente propio configurado,
- * se usa el genérico de la landing principal.
+ * Assistant de demo para un nicho; si ese nicho no tiene cuenta configurada,
+ * se cae al genérico (el de la landing principal).
  */
-export function getDemoAgentId(niche?: DemoNiche): string | null {
+export function getDemoAssistantId(niche?: DemoNiche): string | null {
   if (niche) {
-    for (const variable of DEMO_AGENT_ENV_BY_NICHE[niche]) {
-      const nicheAgentId = process.env[variable];
-      if (nicheAgentId) {
-        return nicheAgentId;
-      }
-    }
+    const nicheAssistantId = process.env[DEMO_ASSISTANT_ENV_BY_NICHE[niche]];
+    if (nicheAssistantId) return nicheAssistantId;
   }
-  return process.env.RETELL_DEMO_AGENT_ID || null;
+  return process.env.TELNYX_DEMO_ASSISTANT_ID || null;
 }
 
 const DEFAULT_DEMO_MAX_DURATION_SECONDS = 60;
 
 /**
- * Duración máxima real de la llamada de demo, con guarda contra una
- * RETELL_DEMO_MAX_DURATION_SECONDS mal configurada (vacía, no numérica,
- * negativa o cero). Si el valor no es un número finito y positivo, Retell
- * recibiría `max_call_duration_ms: NaN` — que `JSON.stringify` convierte en
- * `null`, así que el override de duración se ignoraría en silencio y la
- * llamada de demo quedaría SIN tope real de duración (coste sin límite por
- * llamada). Siempre se cae a un valor seguro en vez de dejarlo sin aplicar.
+ * Duración máxima de la demo. Es un tope del navegador (el componente cuelga
+ * al llegar), no de Telnyx: el assistant de demo es el mismo que atiende las
+ * llamadas reales de esa cuenta y no se le toca `time_limit_secs`. Guarda
+ * contra un valor mal configurado (vacío, no numérico, cero o negativo).
  */
 export function resolveDemoMaxDurationSeconds(): number {
-  const raw = process.env.RETELL_DEMO_MAX_DURATION_SECONDS;
+  const raw = process.env.TELNYX_DEMO_MAX_DURATION_SECONDS;
   if (!raw) {
     return DEFAULT_DEMO_MAX_DURATION_SECONDS;
   }
@@ -83,35 +79,34 @@ export function resolveDemoMaxDurationSeconds(): number {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_DEMO_MAX_DURATION_SECONDS;
 }
 
-function normalizeDemoText(value: string, maximumLength: number, fallback: string) {
-  const normalized = value.replace(/\s+/g, " ").trim().slice(0, maximumLength);
-  return normalized || fallback;
+/**
+ * Los assistants de demo tienen que aceptar llamadas web sin autenticar
+ * (`anonymous_login` del SDK WebRTC). Es un ajuste del assistant, y cualquier
+ * resincronización del agente desde el panel de esa cuenta lo pisa, así que la
+ * demo lo reafirma la primera vez que sirve cada assistant en vez de confiar en
+ * que alguien lo dejó puesto a mano. Una vez por proceso: el resto de llamadas
+ * no pagan ninguna ida y vuelta a Telnyx.
+ */
+const webCallsEnabledAssistants = new Set<string>();
+
+async function ensureUnauthenticatedWebCalls(assistantId: string): Promise<void> {
+  if (webCallsEnabledAssistants.has(assistantId)) return;
+  await telnyxAiAdapter.updateAssistant(assistantId, {
+    telephonySettings: { supports_unauthenticated_web_calls: true },
+  });
+  webCallsEnabledAssistants.add(assistantId);
 }
 
-export function buildDemoBusinessContext(place: PlaceDetails) {
-  const businessName = normalizeDemoText(place.name, 120, "tu negocio");
-  const businessAddress = normalizeDemoText(place.address, 180, "No disponible");
-  const businessTypes = place.types
-    .slice(0, 3)
-    .map((type) => normalizeDemoText(type, 60, ""))
-    .filter(Boolean)
-    .join(", ") || "negocio local";
-
-  return {
-    businessName,
-    dynamicVariables: {
-      nombre_negocio: businessName,
-      direccion_negocio: businessAddress,
-      tipo_negocio: businessTypes,
-    },
-    beginMessage: `Hola, has llamado a ${businessName}. Soy la recepción virtual de Alhabla. ¿En qué te ayudo?`,
-  };
+/** Solo para los tests: olvida la caché de assistants ya reafirmados. */
+export function resetDemoWebCallsCache(): void {
+  webCallsEnabledAssistants.clear();
 }
 
 /**
- * Demo pública de voz de la landing. Crea una llamada web de Retell contra el
- * agente de demo del nicho (o el genérico) y devuelve el access token que
- * necesita el SDK del navegador. Sin autenticación: la usa cualquier visitante.
+ * Demo pública de voz de la landing. Elige la cuenta de demostración que
+ * corresponde al negocio que ha buscado el visitante (peluquería, barbería,
+ * fisioterapia…) y devuelve el assistant de Telnyx al que tiene que llamar el
+ * navegador. Sin autenticación: la usa cualquier visitante.
  */
 export const demoRoutes: FastifyPluginAsync = async (fastify) => {
   // Los endpoints de registro de Places siguen protegidos. La landing recibe
@@ -152,6 +147,7 @@ export const demoRoutes: FastifyPluginAsync = async (fastify) => {
           name: place.name,
           address: place.address,
           types: place.types,
+          businessType: detectBusinessTypeFromPlace(place),
         });
       } catch (error) {
         fastify.log.error({ err: error }, "Google Places demo details failed");
@@ -171,44 +167,32 @@ export const demoRoutes: FastifyPluginAsync = async (fastify) => {
         return reply.status(400).send({ code: "INVALID_NICHE", error: "Unknown demo niche" });
       }
 
-      const niche = parsed.data.niche;
-      const agentId = getDemoAgentId(niche);
-
-      if (!process.env.RETELL_API_KEY || !agentId) {
-        return reply.status(503).send({
-          code: "DEMO_NOT_CONFIGURED",
-          error: "Voice demo is not configured",
-        });
-      }
-
       try {
-        const maxDurationSeconds = resolveDemoMaxDurationSeconds();
-        const business = parsed.data.placeId
-          ? buildDemoBusinessContext(await getPlaceDetails(parsed.data.placeId))
-          : null;
-        const canRetainBusinessData = Boolean(business && parsed.data.allowBusinessDataRetention);
-        const call = await retellAdapter.createWebCall({
-          agentId,
-          maxDurationMs: maxDurationSeconds * 1000,
-          metadata: {
-            source: "landing-demo",
-            niche: niche ?? "general",
-            personalized: Boolean(business),
-            ...(canRetainBusinessData
-              ? {
-                  placeId: parsed.data.placeId,
-                  allowBusinessDataRetention: true,
-                }
-              : {}),
-          },
-          ...(business
-            ? { dynamicVariables: business.dynamicVariables, beginMessage: business.beginMessage }
-            : {}),
-        });
+        // El nicho del negocio buscado manda sobre el de la landing: si alguien
+        // busca su barbería desde la landing principal, oye la barbería.
+        let niche = parsed.data.niche;
+        if (parsed.data.placeId) {
+          const detected = detectBusinessTypeFromPlace(await getPlaceDetails(parsed.data.placeId));
+          if (detected !== "other") niche = detected;
+        }
 
-        return reply.send(call);
+        const assistantId = getDemoAssistantId(niche);
+        if (!process.env.TELNYX_API_KEY || !assistantId) {
+          return reply.status(503).send({
+            code: "DEMO_NOT_CONFIGURED",
+            error: "Voice demo is not configured",
+          });
+        }
+
+        await ensureUnauthenticatedWebCalls(assistantId);
+
+        return reply.send({
+          assistantId,
+          niche: niche ?? "general",
+          maxDurationSeconds: resolveDemoMaxDurationSeconds(),
+        });
       } catch (error) {
-        fastify.log.error(error, "[Demo] No se pudo crear la llamada web de demo");
+        fastify.log.error(error, "[Demo] No se pudo preparar la llamada web de demo");
         return reply.status(502).send({
           code: "DEMO_CALL_FAILED",
           error: "Failed to create the demo call",

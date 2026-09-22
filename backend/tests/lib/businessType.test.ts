@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  detectBusinessTypeFromPlace,
   detectBusinessTypeFromPlaceTypes,
   isBusinessType,
   normalizeBusinessType,
@@ -85,5 +86,43 @@ describe("businessType", () => {
       expect(detectBusinessTypeFromPlaceTypes(null)).toBe("other");
       expect(detectBusinessTypeFromPlaceTypes(undefined)).toBe("other");
     });
+  });
+});
+
+describe("detectBusinessTypeFromPlace", () => {
+  it("manda el primaryType sobre types: una peluquería que también hace uñas es peluquería", () => {
+    // Ficha real de Google ("Peluqueria Madrid - Ananda Ferdi"): con solo
+    // `types` salía «Salón de uñas» y la demo de la landing era la que no era.
+    expect(
+      detectBusinessTypeFromPlace({
+        primaryType: "hair_salon",
+        types: ["hair_salon", "nail_salon", "massage_spa", "spa", "beauty_salon"],
+      })
+    ).toBe("peluqueria");
+  });
+
+  it("una barbería con primaryType barber_shop no se confunde con peluquería", () => {
+    expect(
+      detectBusinessTypeFromPlace({
+        primaryType: "barber_shop",
+        types: ["barber_shop", "hair_salon", "hair_care"],
+      })
+    ).toBe("barberia");
+  });
+
+  it("sin primaryType (o con uno genérico) cae en types", () => {
+    expect(
+      detectBusinessTypeFromPlace({ types: ["nail_salon", "establishment"] })
+    ).toBe("salon-de-unas");
+    expect(
+      detectBusinessTypeFromPlace({
+        primaryType: "establishment",
+        types: ["physiotherapist"],
+      })
+    ).toBe("fisioterapia");
+  });
+
+  it("sin señales devuelve other", () => {
+    expect(detectBusinessTypeFromPlace({ primaryType: null, types: [] })).toBe("other");
   });
 });

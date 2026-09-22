@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import axios from "axios";
-import { RetellWebClient } from "retell-client-js-sdk";
+import type { Call, TelnyxRTC } from "@telnyx/webrtc";
 import {
   Building2,
   Check,
@@ -35,7 +35,8 @@ type DemoVoiceCallProps = {
   open: boolean;
   onClose: () => void;
   onActiveChange?: (active: boolean) => void;
-  /** Nicho de la landing desde la que se abre la demo; decide el agente de Retell. */
+  /** Nicho de la landing desde la que se abre la demo. Si el visitante busca
+   * su negocio, manda el nicho detectado en Google Places sobre este. */
   niche?: string;
 };
 
@@ -46,10 +47,12 @@ type TranscriptItem = {
   text: string;
 };
 
-/** El límite real lo aplica el backend al crear la llamada web. */
+/** Tope por defecto; el backend devuelve el real al preparar la demo. */
 const DEMO_MAX_DURATION_SECONDS = 60;
 const CONTACT_EMAIL = "hola@alhabla.ai";
 const DEMO_NOT_CONFIGURED = "DEMO_NOT_CONFIGURED";
+/** Elemento <audio> donde el SDK de Telnyx engancha el audio del assistant. */
+const REMOTE_AUDIO_ID = "demo-audio-remoto";
 
 function describeDemoError(error: unknown) {
   const name = typeof error === "object" && error !== null && "name" in error ? String((error as { name?: unknown }).name) : "";
@@ -79,9 +82,34 @@ function formatDuration(totalSeconds: number) {
   return `${minutes}:${seconds}`;
 }
 
-type RetellUpdateEvent = {
-  transcript?: Array<{ role?: string; content?: string }>;
+/**
+ * Mensajes de la conversación que Telnyx emite por el canal `telnyx.ai.conversation`
+ * mientras dura la llamada. El SDK los tipa como `{ type: string; ... }`, así que
+ * aquí solo se leen las formas que sabemos interpretar y el resto se ignora:
+ * la demo nunca debe romperse porque llegue un evento nuevo.
+ */
+type ConversationEvent = {
+  params?: {
+    type?: string;
+    delta?: unknown;
+    transcript?: unknown;
+    item?: {
+      type?: string;
+      role?: string;
+      content?: Array<{ text?: unknown; transcript?: unknown }>;
+    };
+  };
 };
+
+function textoDelEvento(params: ConversationEvent["params"]): string {
+  if (typeof params?.transcript === "string") return params.transcript;
+  if (typeof params?.delta === "string") return params.delta;
+  const partes = params?.item?.content ?? [];
+  return partes
+    .map((parte) => (typeof parte.text === "string" ? parte.text : typeof parte.transcript === "string" ? parte.transcript : ""))
+    .join(" ")
+    .trim();
+}
 
 export function DemoVoiceCall({ open, onClose, onActiveChange, niche }: DemoVoiceCallProps) {
   const [state, setState] = useState<DemoCallState>("idle");
@@ -98,9 +126,13 @@ export function DemoVoiceCall({ open, onClose, onActiveChange, niche }: DemoVoic
   const [isSearching, setIsSearching] = useState(false);
   const [isLoadingPlace, setIsLoadingPlace] = useState(false);
   const [selectedBusiness, setSelectedBusiness] = useState<DemoPlaceDetails | null>(null);
-  const [allowBusinessDataRetention, setAllowBusinessDataRetention] = useState(false);
+  /** Nicho que ha elegido el backend para esta demo; da nombre a la llamada. */
+  const [demoNiche, setDemoNiche] = useState<string | null>(null);
+  const [maxDurationSeconds, setMaxDurationSeconds] = useState(DEMO_MAX_DURATION_SECONDS);
 
-  const retellRef = useRef<RetellWebClient | null>(null);
+  const clientRef = useRef<TelnyxRTC | null>(null);
+  const callRef = useRef<Call | null>(null);
+  const stopSpeakingMeterRef = useRef<(() => void) | null>(null);
   const intervalRef = useRef<number | null>(null);
   const closeTimeoutRef = useRef<number | null>(null);
   const closeButtonRef = useRef<HTMLButtonElement | null>(null);
@@ -135,9 +167,11 @@ export function DemoVoiceCall({ open, onClose, onActiveChange, niche }: DemoVoic
     return () => {
       if (intervalRef.current) window.clearInterval(intervalRef.current);
       if (closeTimeoutRef.current) window.clearTimeout(closeTimeoutRef.current);
-      retellRef.current?.stopCall();
-      retellRef.current?.removeAllListeners();
-      retellRef.current = null;
+      stopSpeakingMeterRef.current?.();
+      void callRef.current?.hangup();
+      callRef.current = null;
+      void clientRef.current?.disconnect();
+      clientRef.current = null;
     };
   }, []);
 
@@ -201,54 +235,115 @@ export function DemoVoiceCall({ open, onClose, onActiveChange, niche }: DemoVoic
     setIsSearching(false);
     setIsLoadingPlace(false);
     setSelectedBusiness(null);
-    setAllowBusinessDataRetention(false);
+    setDemoNiche(null);
+    setMaxDurationSeconds(DEMO_MAX_DURATION_SECONDS);
   }, []);
 
-  const teardownRetell = useCallback(() => {
+  const teardownCall = useCallback(() => {
     if (intervalRef.current) {
       window.clearInterval(intervalRef.current);
       intervalRef.current = null;
     }
-    retellRef.current?.removeAllListeners();
-    retellRef.current = null;
+    stopSpeakingMeterRef.current?.();
+    stopSpeakingMeterRef.current = null;
+    callRef.current = null;
+    // Cerrar el socket de Telnyx al salir: sin esto el cliente sigue vivo
+    // (y reconectando) aunque el visitante haya cerrado el modal.
+    void clientRef.current?.disconnect();
+    clientRef.current = null;
   }, []);
 
   const handleClose = useCallback(() => {
     if (isClosing) return;
     setIsClosing(true);
     closeTimeoutRef.current = window.setTimeout(() => {
-      teardownRetell();
+      teardownCall();
       resetState();
       onClose();
     }, 320);
-  }, [isClosing, onClose, resetState, teardownRetell]);
+  }, [isClosing, onClose, resetState, teardownCall]);
 
-  const bindRetellEvents = (client: RetellWebClient) => {
-    client.on("call_started", () => {
-      setState("active");
-      setErrorMessage(null);
-      setElapsedSeconds(0);
-    });
-    client.on("call_ended", () => {
-      setState("ended");
+  /**
+   * Indicador de «está hablando» medido sobre el audio real que llega de
+   * Telnyx. No hay evento de habla en el SDK, y derivarlo de la transcripción
+   * llega tarde y a trompicones; el nivel de la pista remota es inmediato.
+   */
+  const startSpeakingMeter = (stream: MediaStream) => {
+    stopSpeakingMeterRef.current?.();
+    let audioContext: AudioContext;
+    try {
+      audioContext = new AudioContext();
+    } catch {
+      return;
+    }
+    const source = audioContext.createMediaStreamSource(stream);
+    const analyser = audioContext.createAnalyser();
+    analyser.fftSize = 512;
+    source.connect(analyser);
+    const muestras = new Uint8Array(analyser.frequencyBinCount);
+    let frame = 0;
+    const medir = () => {
+      analyser.getByteTimeDomainData(muestras);
+      let suma = 0;
+      for (let i = 0; i < muestras.length; i += 1) suma += (muestras[i] - 128) ** 2;
+      setIsSpeaking(Math.sqrt(suma / muestras.length) > 4);
+      frame = window.requestAnimationFrame(medir);
+    };
+    frame = window.requestAnimationFrame(medir);
+    stopSpeakingMeterRef.current = () => {
+      window.cancelAnimationFrame(frame);
+      source.disconnect();
+      void audioContext.close();
+      stopSpeakingMeterRef.current = null;
       setIsSpeaking(false);
-      setIsMuted(false);
+    };
+  };
+
+  const bindClientEvents = (client: TelnyxRTC) => {
+    client.on("telnyx.notification", (notification: { type?: string; call?: Call }) => {
+      const call = notification?.call;
+      if (notification?.type !== "callUpdate" || !call) return;
+      callRef.current = call;
+      if (call.state === "active") {
+        setState("active");
+        setErrorMessage(null);
+        setElapsedSeconds(0);
+        if (call.remoteStream) startSpeakingMeter(call.remoteStream);
+      }
+      if (call.state === "hangup" || call.state === "destroy") {
+        stopSpeakingMeterRef.current?.();
+        setState((current) => (current === "error" ? current : "ended"));
+        setIsMuted(false);
+        callRef.current = null;
+      }
     });
-    client.on("agent_start_talking", () => setIsSpeaking(true));
-    client.on("agent_stop_talking", () => setIsSpeaking(false));
-    client.on("update", (update: RetellUpdateEvent) => {
-      if (!update?.transcript) return;
-      setTranscript(
-        update.transcript
-          .filter((item) => item.content?.trim())
-          .map((item) => ({ role: item.role === "user" ? "user" : "assistant", text: (item.content ?? "").trim() })),
-      );
+
+    // Transcripción en vivo. Se acumula por turno: el evento trae deltas del
+    // mismo mensaje, y un turno nuevo abre una burbuja nueva.
+    client.on("telnyx.ai.conversation", (evento: ConversationEvent) => {
+      const tipo = evento?.params?.type ?? "";
+      const texto = textoDelEvento(evento?.params);
+      if (!texto) return;
+      const esDelCliente = /input_audio|\.user\b/.test(tipo) || evento?.params?.item?.role === "user";
+      const role = esDelCliente ? "user" : "assistant";
+      const cierraTurno = tipo.endsWith(".done") || tipo.endsWith(".completed") || tipo === "conversation.item.created";
+      setTranscript((actual) => {
+        const ultimo = actual[actual.length - 1];
+        if (ultimo && ultimo.role === role && !cierraTurno) {
+          return [...actual.slice(0, -1), { role, text: `${ultimo.text}${texto}` }];
+        }
+        if (ultimo && ultimo.role === role && cierraTurno) {
+          return [...actual.slice(0, -1), { role, text: texto }];
+        }
+        return [...actual, { role, text: texto }];
+      });
     });
-    client.on("error", (error: unknown) => {
+
+    client.on("telnyx.error", (error: unknown) => {
       setErrorMessage(describeDemoError(error));
       setState("error");
-      setIsSpeaking(false);
-      retellRef.current?.stopCall();
+      stopSpeakingMeterRef.current?.();
+      void callRef.current?.hangup();
     });
   };
 
@@ -257,25 +352,43 @@ export function DemoVoiceCall({ open, onClose, onActiveChange, niche }: DemoVoic
     stream.getTracks().forEach((track) => track.stop());
   };
 
-  const startDemo = async (placeId?: string, allowRetention = false) => {
+  const startDemo = async (placeId?: string) => {
     try {
       setErrorMessage(null);
+      setTranscript([]);
+      // El micrófono se pide antes de nada: si el visitante lo deniega, no
+      // llegamos a molestar ni a Telnyx ni al assistant de la demo.
       setState("requesting-permission");
       await requestMicrophone();
       setState("connecting");
-      let accessToken: string | undefined;
+
+      let demo: { assistantId: string; niche: string; maxDurationSeconds: number };
       try {
-        const data = await createDemoWebCall(niche, placeId, allowRetention);
-        accessToken = data.accessToken;
+        demo = await createDemoWebCall(niche, placeId);
       } catch (error) {
         if (axios.isAxiosError(error) && error.response?.status === 503) throw new Error(DEMO_NOT_CONFIGURED);
         throw error;
       }
-      if (!accessToken) throw new Error(DEMO_NOT_CONFIGURED);
-      const client = new RetellWebClient();
-      retellRef.current = client;
-      bindRetellEvents(client);
-      await client.startCall({ accessToken, sampleRate: 24000 });
+      if (!demo?.assistantId) throw new Error(DEMO_NOT_CONFIGURED);
+      setDemoNiche(demo.niche);
+      setMaxDurationSeconds(demo.maxDurationSeconds || DEMO_MAX_DURATION_SECONDS);
+
+      // El SDK de Telnyx solo existe en el navegador y pesa lo suyo: se carga
+      // cuando alguien empieza la demo, no en el bundle de la landing.
+      const { TelnyxRTC: ClienteTelnyx } = await import("@telnyx/webrtc");
+      const client = new ClienteTelnyx({
+        // Llamada web sin autenticar contra el assistant de la cuenta de demo
+        // (`supports_unauthenticated_web_calls`): no hay credencial SIP ni
+        // token que pueda acabar en el bundle de la web pública.
+        anonymous_login: { target_type: "ai_assistant", target_id: demo.assistantId },
+      });
+      clientRef.current = client;
+      bindClientEvents(client);
+      client.on("telnyx.ready", () => {
+        // Con anonymous_login el destino es el assistant, así que el número va vacío.
+        callRef.current = client.newCall({ destinationNumber: "", remoteElement: REMOTE_AUDIO_ID });
+      });
+      await client.connect();
     } catch (error) {
       setErrorMessage(describeDemoError(error));
       setState("error");
@@ -288,7 +401,6 @@ export function DemoVoiceCall({ open, onClose, onActiveChange, niche }: DemoVoic
     try {
       const details = await getDemoPlaceDetails(place.placeId);
       setSelectedBusiness(details);
-      setAllowBusinessDataRetention(false);
       setSearchQuery(`${details.name}${details.address ? ` · ${details.address}` : ""}`);
       setSearchResults([]);
     } catch {
@@ -299,18 +411,18 @@ export function DemoVoiceCall({ open, onClose, onActiveChange, niche }: DemoVoic
   };
 
   const endCall = useCallback(async () => {
-    if (!retellRef.current) {
+    if (!callRef.current) {
       handleClose();
       return;
     }
     setState("ending");
-    retellRef.current.stopCall();
+    await callRef.current.hangup();
   }, [handleClose]);
 
   useEffect(() => {
-    if (!open || elapsedSeconds < DEMO_MAX_DURATION_SECONDS) return;
+    if (!open || elapsedSeconds < maxDurationSeconds) return;
     void endCall();
-  }, [elapsedSeconds, endCall, open]);
+  }, [elapsedSeconds, endCall, maxDurationSeconds, open]);
 
   // Escape y trampa de Tab. El bloqueo de scroll y la devolución del foco los
   // hace el efecto de apertura, que es quien conoce la animación de cierre.
@@ -327,20 +439,25 @@ export function DemoVoiceCall({ open, onClose, onActiveChange, niche }: DemoVoic
 
   useEffect(() => {
     if (!open) return;
-    const handlePageHide = () => retellRef.current?.stopCall();
+    const handlePageHide = () => void callRef.current?.hangup();
     window.addEventListener("pagehide", handlePageHide);
     return () => window.removeEventListener("pagehide", handlePageHide);
   }, [open]);
 
   const toggleMute = () => {
     const nextValue = !isMuted;
-    if (nextValue) retellRef.current?.mute();
-    else retellRef.current?.unmute();
+    if (nextValue) callRef.current?.muteAudio();
+    else callRef.current?.unmuteAudio();
     setIsMuted(nextValue);
   };
 
   if (!open) return null;
-  const demoLabel = selectedBusiness ? selectedBusiness.name : "Salón ficticio";
+  // El visitante no habla con «su» negocio: habla con la cuenta de demostración
+  // del nicho que le corresponde, con su agenda y sus servicios de prueba.
+  const etiquetaDelNicho = demoNiche && demoNiche in BUSINESS_TYPE_LABELS
+    ? BUSINESS_TYPE_LABELS[demoNiche as keyof typeof BUSINESS_TYPE_LABELS]
+    : null;
+  const demoLabel = etiquetaDelNicho ? `Recepción de ${etiquetaDelNicho.toLowerCase()}` : "Recepción de ejemplo";
 
   return (
     <div className={`demo-call-backdrop fixed inset-0 z-[80] flex items-end bg-[#0a0a0a]/60 backdrop-blur-sm sm:items-center sm:justify-center sm:px-4 sm:py-6 ${isClosing ? "demo-call-backdrop-closing" : ""}`}>
@@ -352,6 +469,8 @@ export function DemoVoiceCall({ open, onClose, onActiveChange, niche }: DemoVoic
         aria-describedby="demo-voz-descripcion"
         className={`demo-call-modal flex h-[100dvh] w-full max-w-2xl flex-col overflow-hidden rounded-t-3xl border border-[#e5e5e5] bg-white shadow-[0_24px_60px_rgba(0,0,0,0.18)] sm:h-auto sm:max-h-[calc(100dvh-3rem)] sm:rounded-3xl ${isClosing ? "demo-call-modal-closing" : ""}`}
       >
+        {/* eslint-disable-next-line jsx-a11y/media-has-caption -- audio en vivo de la llamada; el SDK de Telnyx lo engancha por id. */}
+        <audio id={REMOTE_AUDIO_ID} autoPlay className="hidden" />
         <div className="flex shrink-0 items-start justify-between gap-3 border-b border-[#e5e5e5] px-4 py-4 sm:px-6 sm:py-5">
           <div className="flex min-w-0 items-start gap-3">
             <BrandMark className="mt-0.5 h-9 w-9 shrink-0 sm:h-10 sm:w-10" />
@@ -362,11 +481,13 @@ export function DemoVoiceCall({ open, onClose, onActiveChange, niche }: DemoVoic
               {!isCallView ? (
                 <span className="badge-soft mt-2 gap-1.5">
                   <Sparkles className="h-3 w-3" />
-                  Demo personalizada · máx. {formatDuration(DEMO_MAX_DURATION_SECONDS)}
+                  Demo real · máx. {formatDuration(maxDurationSeconds)}
                 </span>
               ) : null}
               <p id="demo-voz-descripcion" className="mt-1.5 text-sm leading-6 text-[#52525b]">
-                {isCallView ? "Es una simulación: no se crea ninguna reserva real." : "Busca tu negocio y personalizaremos la demo automáticamente."}
+                {isCallView
+                  ? "Hablas con una cuenta de demostración: cualquier reserva se queda en su agenda de prueba."
+                  : "Busca tu negocio y te pasamos con la recepción de un negocio como el tuyo."}
               </p>
             </div>
           </div>
@@ -397,7 +518,6 @@ export function DemoVoiceCall({ open, onClose, onActiveChange, niche }: DemoVoic
                 onChange={(event) => {
                   setSearchQuery(event.target.value);
                   setSelectedBusiness(null);
-                  setAllowBusinessDataRetention(false);
                   setSearchError(null);
                 }}
                 placeholder="Busca tu negocio o dirección"
@@ -450,32 +570,16 @@ export function DemoVoiceCall({ open, onClose, onActiveChange, niche }: DemoVoic
                     {selectedBusiness.address ? <p className="mt-1 flex gap-1.5 text-xs leading-5 text-[#52525b]"><MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0" />{selectedBusiness.address}</p> : null}
                   </div>
                 </div>
-                <button type="button" onClick={() => { setSelectedBusiness(null); setAllowBusinessDataRetention(false); setSearchQuery(""); }} className="inline-flex shrink-0 items-center gap-1.5 rounded-full text-xs font-semibold text-[#5b21b6] underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]/40 focus-visible:ring-offset-2">
+                <button type="button" onClick={() => { setSelectedBusiness(null); setSearchQuery(""); }} className="inline-flex shrink-0 items-center gap-1.5 rounded-full text-xs font-semibold text-[#5b21b6] underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]/40 focus-visible:ring-offset-2">
                   <Pencil className="h-3.5 w-3.5" /> Cambiar
                 </button>
               </div>
             ) : null}
             <div className="mt-auto pt-7">
               {selectedBusiness ? (
-                <>
-                  <label className="flex cursor-pointer items-start gap-3 text-xs leading-5 text-[#52525b]">
-                    <input
-                      type="checkbox"
-                      checked={allowBusinessDataRetention}
-                      onChange={(event) => setAllowBusinessDataRetention(event.target.checked)}
-                      className="mt-0.5 h-4 w-4 shrink-0 rounded border-[#a1a1aa] accent-[#8b5cf6] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]/40 focus-visible:ring-offset-1"
-                    />
-                    <span>
-                      Acepto los{" "}
-                      <Link href="/legal/aviso-legal" className="font-medium text-[#3f3f46] underline underline-offset-2">
-                        términos de la demo
-                      </Link>{" "}
-                      y autorizo a Alhabla a conservar los datos públicos de este negocio para mejorar sus demos y el servicio.
-                      <span className="block text-[#71717a]">Opcional; puedes probar la demo sin marcarla.</span>
-                    </span>
-                  </label>
-                  <button type="button" onClick={() => void startDemo(selectedBusiness.placeId, allowBusinessDataRetention)} className="btn-primary mt-5 w-full px-5 sm:w-auto">Empezar demo personalizada</button>
-                </>
+                <button type="button" onClick={() => void startDemo(selectedBusiness.placeId)} className="btn-primary w-full px-5 sm:w-auto">
+                  Empezar demo
+                </button>
               ) : null}
               <button
                 type="button"
@@ -487,7 +591,7 @@ export function DemoVoiceCall({ open, onClose, onActiveChange, niche }: DemoVoic
               <div className="mt-4 flex gap-2 text-xs leading-5 text-[#71717a]">
                 <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#8b5cf6]" />
                 <p>
-                  El micrófono solo se utiliza durante la demo. No guardamos audio ni transcripción. ·{" "}
+                  El micrófono solo se utiliza durante la demo, y de tu negocio solo usamos su categoría para elegir la recepción que te enseñamos. ·{" "}
                   <Link href="/legal/privacidad" className="font-medium text-[#27272a] underline underline-offset-2">
                     Privacidad
                   </Link>
@@ -525,7 +629,7 @@ export function DemoVoiceCall({ open, onClose, onActiveChange, niche }: DemoVoic
                 <div className="m-auto flex max-w-xs flex-col items-center text-center">
                   <Loader2 className="h-7 w-7 animate-spin text-[#a78bfa]" />
                   <p className="mt-4 text-sm font-semibold">{state === "requesting-permission" ? "Esperando acceso al micrófono" : state === "connecting" ? "Conectando tu demo" : "Cerrando llamada"}</p>
-                  <p className="mt-1 text-sm leading-6 text-white/60">{selectedBusiness ? `Preparando la recepción de ${selectedBusiness.name}.` : "Preparando un ejemplo de recepción."}</p>
+                  <p className="mt-1 text-sm leading-6 text-white/60">{etiquetaDelNicho ? `Preparando la recepción de ${etiquetaDelNicho.toLowerCase()}.` : "Preparando un ejemplo de recepción."}</p>
                 </div>
               ) : state === "error" ? (
                 <div className="m-auto max-w-md text-center"><p className="text-base font-semibold">No hemos podido iniciar la demo</p><p className="mt-2 text-sm leading-6 text-white/65" role="alert">{errorMessage}</p></div>
@@ -548,7 +652,7 @@ export function DemoVoiceCall({ open, onClose, onActiveChange, niche }: DemoVoic
                   <button type="button" onClick={() => void endCall()} className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-[10px] bg-[#c53030] px-5 text-sm font-semibold text-white transition hover:bg-[#a52626] sm:w-auto"><PhoneOff className="h-4 w-4" /> Colgar demo</button>
                 </div>
               ) : null}
-              {state === "error" ? <div className="grid gap-2 sm:flex sm:flex-wrap sm:gap-3"><button type="button" onClick={() => void startDemo(selectedBusiness?.placeId, allowBusinessDataRetention)} className="btn-primary w-full px-5 sm:w-auto">Reintentar demo</button><button type="button" onClick={handleClose} className="btn-secondary w-full px-5 sm:w-auto">Cerrar</button></div> : null}
+              {state === "error" ? <div className="grid gap-2 sm:flex sm:flex-wrap sm:gap-3"><button type="button" onClick={() => void startDemo(selectedBusiness?.placeId)} className="btn-primary w-full px-5 sm:w-auto">Reintentar demo</button><button type="button" onClick={handleClose} className="btn-secondary w-full px-5 sm:w-auto">Cerrar</button></div> : null}
               {state === "ended" ? (
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div className="flex items-center gap-3">
@@ -560,7 +664,7 @@ export function DemoVoiceCall({ open, onClose, onActiveChange, niche }: DemoVoic
                   <Link href="/planes" className="btn-purple justify-center">Ver planes</Link>
                 </div>
               ) : null}
-              <p className="mt-3 text-xs leading-5 text-white/50">Demo simulada · máximo {formatDuration(DEMO_MAX_DURATION_SECONDS)} · no se realiza ninguna reserva.</p>
+              <p className="mt-3 text-xs leading-5 text-white/50">Demo con una cuenta de prueba · máximo {formatDuration(maxDurationSeconds)} · no se reserva nada en tu agenda.</p>
             </div>
           </div>
         )}

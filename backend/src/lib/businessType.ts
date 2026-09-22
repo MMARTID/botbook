@@ -61,6 +61,27 @@ export function normalizeBusinessType(value: unknown): BusinessType {
  * Detecta el tipo de negocio a partir de los `types` devueltos por Google Places API.
  * Solo se fija en si algún type contiene alguna de las palabras clave definidas.
  */
+/**
+ * Detecta el tipo de negocio a partir de la ficha de Google Places.
+ *
+ * `primaryType` es la categoría principal que Google asigna al sitio y es la
+ * única señal fiable: `types` es un saco sin orden garantizado, así que una
+ * peluquería que además hace manicuras («Peluquería X» con
+ * `types: ["hair_salon", "nail_salon", ...]`) caía en «Salón de uñas» y la
+ * landing le enseñaba la demo equivocada. Solo si Google no devuelve
+ * `primaryType` se recurre a `types`.
+ */
+export function detectBusinessTypeFromPlace(place: {
+  primaryType?: string | null;
+  types?: string[] | null;
+}): BusinessType {
+  const fromPrimary = detectBusinessTypeFromPlaceTypes(
+    place.primaryType ? [place.primaryType] : []
+  );
+  if (fromPrimary !== "other") return fromPrimary;
+  return detectBusinessTypeFromPlaceTypes(place.types);
+}
+
 export function detectBusinessTypeFromPlaceTypes(
   placeTypes: string[] | null | undefined
 ): BusinessType {
