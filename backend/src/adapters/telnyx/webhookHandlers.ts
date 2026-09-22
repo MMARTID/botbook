@@ -229,6 +229,17 @@ async function recibirLlamadaDeComprobacion(
     console.log(
       `[Telnyx] ${callLabel(callControlId)} es la comprobación de desvío ${check?.id ?? "(sin comprobación viva)"} del negocio ${businessId}; se cuelga sin arrancar la recepcionista`
     );
+    // Con la entrada ya confirmada, la pata saliente no tiene nada más que
+    // hacer: si se dejara sonando, el desvío la volvería a meter cada pocos
+    // segundos (tres entradas en la prueba real del 21-09) y cada una se
+    // colgaría y se contaría como otro OK. Se cuelga la saliente también.
+    if (check?.callControlId && check.callControlId !== callControlId) {
+      await telnyxAiAdapter.hangupCall(check.callControlId).catch((error) => {
+        console.warn(
+          `[Telnyx] No se pudo colgar la saliente ${callLabel(check.callControlId!)} tras confirmar el desvío: ${errorMessage(error)}`
+        );
+      });
+    }
   } catch (error) {
     success = false;
     console.error(

@@ -983,6 +983,19 @@ describe("«Comprobar desvío» en los webhooks de Telnyx", () => {
     expect(mockedStartNoiseSuppression).not.toHaveBeenCalled();
   });
 
+  it("con la entrada confirmada cuelga también la pata saliente, para que el desvío no la vuelva a meter", async () => {
+    mockedBusinessFindUnique.mockResolvedValue(negocioConNumero());
+    mockedRegistrarRecibida.mockResolvedValue({
+      id: "chk1",
+      callControlId: "call_ctrl_out",
+    } as any);
+
+    await handleCallInitiated(entrante(ALHABLA));
+
+    expect(mockedHangupCall).toHaveBeenCalledWith("call_ctrl_in");
+    expect(mockedHangupCall).toHaveBeenCalledWith("call_ctrl_out");
+  });
+
   it("cuelga igualmente aunque no se pueda registrar el resultado, y lo dice", async () => {
     mockedBusinessFindUnique.mockResolvedValue(negocioConNumero());
     mockedRegistrarRecibida.mockRejectedValue(new Error("Redis caído"));
