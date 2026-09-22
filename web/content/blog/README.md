@@ -65,6 +65,33 @@ Enlaces así: [ver planes](/planes) o [cómo atiende Alhabla una barbería](/bar
 | `imagenAlt` | si hay `imagen` | Qué se ve en la foto, en una frase. |
 | `borrador` | no | `true` para dejarlo escrito sin publicar (no sale en el listado, el sitemap ni el RSS). |
 
+## Bloques de marca
+
+En el editor, escribe `/` en una línea vacía y elige uno; en el fichero quedan como etiquetas y
+también se pueden escribir a mano:
+
+```mdx
+<Dato cifra="1 de cada 3" texto="llamadas perdidas acaba en una cita que se va a otro sitio." fuente="Nombre de la fuente" fuenteUrl="https://…" />
+
+<Aviso tipo="consejo" titulo="Opcional">Texto del aviso. Tipos: consejo, importante, ejemplo.</Aviso>
+
+<Pasos pasos={[{ titulo: "Primer paso", texto: "Explicación" }, { titulo: "Segundo paso" }]} />
+
+<Faq preguntas={[{ pregunta: "¿…?", respuesta: "…" }]} />
+
+<Cta titulo="¿Y si nadie volviera a quedarse sin respuesta?" texto="Opcional" destino="planes" boton="Opcional" />
+```
+
+`destino` de la Cta: `planes`, `demo`, `como_funciona` o el slug de un sector (`barberia`…).
+Una sola Cta por artículo, hacia el final; los datos siempre con fuente.
+
+## Vista previa desde el editor
+
+El botón **Preview** del editor abre el artículo tal como está guardado en su rama, en el
+despliegue de previsualización de Vercel (tarda un par de minutos en construirse tras guardar).
+Los borradores (`borrador: true`) se ven en esas previsualizaciones y en local; en alhabla.ai no
+existen hasta que se desmarca.
+
 ## Imágenes: dónde van y cómo se ponen bien
 
 **Dónde**: en `web/public/blog/<slug>/`, una carpeta por artículo con el mismo nombre que el fichero.
