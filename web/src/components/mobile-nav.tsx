@@ -10,7 +10,7 @@ function buildPlansHref(niche?: NicheSlug) {
   return niche ? `/planes?niche=${encodeURIComponent(niche)}` : "/planes";
 }
 
-export function MobileNav({ niche }: { niche?: NicheSlug }) {
+export function MobileNav({ niche, inicio = "" }: { niche?: NicheSlug; inicio?: string }) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const plansHref = buildPlansHref(niche);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -109,7 +109,7 @@ export function MobileNav({ niche }: { niche?: NicheSlug }) {
 
               <div className="my-1 border-t border-[#e5e5e5]" />
 
-              <a href="#como-funciona" onClick={closeMenu} className={linkClass}>
+              <a href={`${inicio}#como-funciona`} onClick={closeMenu} className={linkClass}>
                 Cómo funciona
               </a>
               <Link href={plansHref} onClick={closeMenu} className={linkClass}>
@@ -118,7 +118,7 @@ export function MobileNav({ niche }: { niche?: NicheSlug }) {
               <Link href="/blog" onClick={closeMenu} className={linkClass}>
                 Blog
               </Link>
-              <a href="#preguntas" onClick={closeMenu} className={linkClass}>
+              <a href={`${inicio}#preguntas`} onClick={closeMenu} className={linkClass}>
                 Preguntas
               </a>
               <a href={appUrl("/login")} onClick={closeMenu} className={linkClass}>
