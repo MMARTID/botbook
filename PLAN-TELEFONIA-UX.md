@@ -1,8 +1,33 @@
 # Plan: teléfono, desvío y WhatsApp sin confusión
 
-Estado: **borrador, 21-09-2026**. Nace de la prueba real en producción (#130): el dueño no
-sabe qué número es cuál ni cómo se separa lo que llaman los clientes de lo que él lleva en el
-bolsillo.
+Estado: **ejecutado en código, 22-09-2026** (redactado el 21-09). Nace de la prueba real
+en producción (#130): el dueño no sabe qué número es cuál ni cómo se separa lo que llaman
+los clientes de lo que él lleva en el bolsillo.
+
+**Dónde está cada fase (22-09):**
+
+| Fase | Estado | Dónde |
+|---|---|---|
+| 0 · Datos y nombres | hecha, en `main` | PR #153 (`feat/telefonia-fase0-3`): columnas `customerLineType`, `ownerPhoneIsCustomerLine`, `hideOwnerNumberFromClients`, `forwardingCheckedAt` |
+| 3 · «Comprobar desvío» | hecha, en `main` | PR #153: `modules/onboarding/comprobacionDesvio.ts`, reconocimiento en `webhookHandlers.ts`, botón en `call-forwarding-card.tsx` |
+| 1 · Pregunta del alta | hecha, en `main` | PR #156 (`feat/telefonia-fase1-2`): paso en `bienvenida/page.tsx`, `components/tarjetas-de-linea.tsx` |
+| 2 · Ajustes › Teléfono | hecha, en `main` | PR #156: `components/ajustes-telefono.tsx` |
+| 4 · Alhabla como número principal | hecha en código, **pendiente de PR y de prueba real** | rama `feat/telefonia-fase4-5`: tool `transferir_al_dueno` (`lib/transferenciaAlDueno.ts`, `telnyxAssistantPayload.ts`, `telnyxAgentSync.ts`), ajuste `agentSettings.pasarLlamadas`, pantalla `app/ajustes/numero-principal/page.tsx`, patas sin `Call` en el webhook (`adapters/telnyx/patasSinCall.ts`) |
+| 5 · Copys y avisos | hecha en código, **pendiente de PR** | misma rama: notas del contestador, job `recordar-desvio-sin-comprobar` (`jobs/recordarDesvioSinComprobar.ts`, columna `forwardingReminderSentAt`), `AGENTS.md` § Telefonía |
+
+**Qué queda fuera del código:**
+
+- Probar en producción con INFINITY (§ 6): pasar a «Alhabla como número principal» desde
+  Ajustes › Teléfono, llamar al número de Alhabla, pedir hablar con el dueño y comprobar que
+  el móvil suena, que si no se coge vuelve la recepcionista («¿te llamo yo o te dejo
+  recado?»), que no queda `Call` fantasma de la pata de transferencia y que
+  `voice_webhook_events` no registra errores; después, el modo «nunca» debe quitar la tool
+  del assistant.
+- Crear el job de Cloud Scheduler `recordar-desvio-sin-comprobar` (cada hora) con el comando
+  de `AGENTS.md` § Background Jobs 8. Hasta entonces el mensaje del día 1 no sale en
+  producción.
+- Portabilidad del número antiguo: fuera del plan (fase 4). «Añadir otra línea» del caso D
+  (`extraCustomerLines`): no se hizo; sigue valiendo un desvío por línea al mismo número.
 
 ## 1. Qué es confuso hoy
 
