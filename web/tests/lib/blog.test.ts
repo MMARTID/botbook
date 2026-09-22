@@ -18,6 +18,7 @@ function meta(
     autor: "Equipo de Alhabla",
     sector,
     minutosDeLectura: 1,
+    idioma: "es",
   };
 }
 

@@ -8,6 +8,21 @@ Al fusionar en `main`, la web se reconstruye sola y el artículo aparece en `/bl
 `sitemap.xml`, en el RSS y con su imagen para compartir generada automáticamente. No hay que tocar
 nada más.
 
+## La forma fácil: el editor en alhabla.ai/keystatic
+
+Entra en **[alhabla.ai/keystatic](https://alhabla.ai/keystatic)** con tu cuenta de GitHub (solo
+pueden entrar los colaboradores del repositorio). Es un editor visual con todos los campos de
+abajo como formulario (con sus límites y sus ayudas), el texto con negritas, listas, enlaces y
+subtítulos, y las fotos se arrastran al artículo (te pide el texto alternativo). Al guardar crea
+una rama `blog/…` y un *pull request* en GitHub: revisas la vista previa que enlaza Vercel y le
+das a **Merge**. No hay base de datos: el resultado son los mismos ficheros de esta carpeta.
+
+En local también funciona: `cd web && npm run dev` y abre `http://localhost:3002/keystatic`; en
+ese caso escribe directamente en tu disco, sin GitHub.
+
+El resto de esta guía explica el formato de los ficheros, útil si prefieres escribirlos a mano o
+con ChatGPT/Claude.
+
 ## Plantilla
 
 ```mdx
@@ -44,6 +59,7 @@ Enlaces así: [ver planes](/planes) o [cómo atiende Alhabla una barbería](/bar
 | `fecha` | sí | `AAAA-MM-DD`. Ordena el listado y sale en el artículo. |
 | `actualizado` | no | `AAAA-MM-DD` de la última revisión de fondo. Sale como «Actualizado el…» y va a Google como `dateModified`. Ponla cuando cambies datos, no por una errata. |
 | `autor` | no | Nombre de quien firma (por defecto «Equipo de Alhabla»). Un nombre real da confianza a lectores y a Google. |
+| `idioma` | no | `es` (por defecto) o `ca`. El artículo se marca en ese idioma para Google y el navegador. Útil para las zonas donde la búsqueda se hace en catalán. |
 | `sector` | no | `peluqueria`, `barberia`, `centro-de-estetica`, `salon-de-unas` o `fisioterapia`. Añade la pastilla del sector, las migas, el bloque final con enlace a su landing y la foto de ese sector en la imagen para compartir. |
 | `imagen` | no | Foto de cabecera: ruta bajo `public/` (ver abajo). Con ella hace falta `imagenAlt`. |
 | `imagenAlt` | si hay `imagen` | Qué se ve en la foto, en una frase. |
