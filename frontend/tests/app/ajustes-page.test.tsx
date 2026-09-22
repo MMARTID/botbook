@@ -2,7 +2,10 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import AccountSettingsPage from "@/app/ajustes/page";
+import AjustesCuentaPage from "@/app/ajustes/page";
+import AjustesNegocioPage from "@/app/ajustes/negocio/page";
+import AjustesTelefonoPage from "@/app/ajustes/telefono/page";
+import AjustesSeguridadPage from "@/app/ajustes/seguridad/page";
 import { useBusiness } from "@/components/providers";
 import {
   getAccountOverview,
@@ -18,8 +21,10 @@ import type {
   PhoneNumberInfo,
 } from "@/lib/types";
 
+const navegacion = { pathname: "/ajustes", replace: vi.fn() };
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ replace: vi.fn(), push: vi.fn() }),
+  useRouter: () => ({ replace: navegacion.replace, push: vi.fn() }),
+  usePathname: () => navegacion.pathname,
 }));
 
 vi.mock("@/components/providers", () => ({
@@ -123,16 +128,29 @@ function estadoDeNegocio(overrides: Partial<ReturnType<typeof useBusiness>>) {
 // Cliente real de React Query (sin reintentos) en vez de un mock de `useQuery`:
 // lo que se quiere comprobar es precisamente cómo se comporta la página con
 // la semántica real de la caché cuando un refresco falla.
-function renderPage(queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })) {
+type Pantalla = "cuenta" | "negocio" | "telefono" | "seguridad";
+const PAGINAS: Record<Pantalla, { ruta: string; Componente: () => JSX.Element }> = {
+  cuenta: { ruta: "/ajustes", Componente: AjustesCuentaPage },
+  negocio: { ruta: "/ajustes/negocio", Componente: AjustesNegocioPage },
+  telefono: { ruta: "/ajustes/telefono", Componente: AjustesTelefonoPage },
+  seguridad: { ruta: "/ajustes/seguridad", Componente: AjustesSeguridadPage },
+};
+
+function renderPage(
+  pantalla: Pantalla = "cuenta",
+  queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+) {
+  const { ruta, Componente } = PAGINAS[pantalla];
+  navegacion.pathname = ruta;
   render(
     <QueryClientProvider client={queryClient}>
-      <AccountSettingsPage />
+      <Componente />
     </QueryClientProvider>
   );
   return queryClient;
 }
 
-describe("AccountSettingsPage", () => {
+describe("Ajustes (cuatro pantallas con el mismo marco)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockedGetOwnerWhatsapp.mockResolvedValue(ESTADO_WHATSAPP);
@@ -160,7 +178,7 @@ describe("AccountSettingsPage", () => {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     queryClient.setQueryData(CLAVE_CUENTA, CUENTA);
 
-    renderPage(queryClient);
+    renderPage("cuenta", queryClient);
 
     // Al montar, la query ya está caducada y vuelve a pedir la cuenta; hay que
     // esperar a que ese refresco falle de verdad para que la prueba signifique algo.
@@ -180,6 +198,38 @@ describe("AccountSettingsPage", () => {
 
     expect(await screen.findByText(CUENTA.email)).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Ajustes" })).toBeInTheDocument();
+    // Las pestañas llevan a las cuatro pantallas; la actual va marcada.
+    const pestanas = within(screen.getByRole("navigation", { name: "Secciones de ajustes" }));
+    expect(pestanas.getByRole("link", { name: "Cuenta" })).toHaveAttribute("aria-current", "page");
+    expect(pestanas.getByRole("link", { name: "Negocio" })).toHaveAttribute("href", "/ajustes/negocio");
+    expect(pestanas.getByRole("link", { name: "Teléfono" })).toHaveAttribute("href", "/ajustes/telefono");
+    expect(pestanas.getByRole("link", { name: "Seguridad" })).toHaveAttribute("href", "/ajustes/seguridad");
+    // La pantalla de Cuenta es corta: ni negocio, ni teléfono, ni contraseña.
+    expect(screen.queryByRole("region", { name: "Datos del negocio" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Teléfono" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Contraseña" })).not.toBeInTheDocument();
+  });
+
+  it("un enlace antiguo a /ajustes#whatsapp reenvía a la pantalla de Teléfono conservando el ancla", async () => {
+    estadoDeNegocio({ business: NEGOCIO });
+    mockedGetAccountOverview.mockResolvedValue(CUENTA);
+    window.location.hash = "#whatsapp";
+
+    renderPage("cuenta");
+
+    await waitFor(() => expect(navegacion.replace).toHaveBeenCalledWith("/ajustes/telefono#whatsapp"));
+    window.location.hash = "";
+  });
+
+  it("Seguridad reúne la contraseña y la eliminación de la cuenta", async () => {
+    estadoDeNegocio({ business: NEGOCIO });
+    mockedGetAccountOverview.mockResolvedValue(CUENTA);
+
+    renderPage("seguridad");
+
+    expect(await screen.findByRole("region", { name: "Contraseña" })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Eliminar la cuenta" })).toBeInTheDocument();
+    expect(screen.queryByText(CUENTA.email)).not.toBeInTheDocument();
   });
 
   it("no pinta nada mientras carga", () => {
@@ -190,26 +240,22 @@ describe("AccountSettingsPage", () => {
     expect(screen.getByText("Cargando ajustes…")).toBeInTheDocument();
   });
 
-  it("coloca la sección «Teléfono» entre «Datos del negocio» y «Seguridad», con «Tu móvil» en el ancla #whatsapp", async () => {
+  it("la pantalla «Teléfono» trae los tres bloques en orden, con «Tu móvil» en el ancla #whatsapp", async () => {
     estadoDeNegocio({ business: NEGOCIO });
     mockedGetAccountOverview.mockResolvedValue(CUENTA);
 
-    renderPage();
+    renderPage("telefono");
 
-    const telefono = await screen.findByRole("region", { name: "Teléfono" });
+    await screen.findByRole("region", { name: "Teléfono" });
     expect(screen.queryByRole("region", { name: "WhatsApp" })).not.toBeInTheDocument();
-    const negocio = screen.getByRole("region", { name: "Datos del negocio" });
-    const seguridad = screen.getByRole("region", { name: "Seguridad" });
-    // compareDocumentPosition: FOLLOWING (4) = el argumento va después del nodo.
-    expect(negocio.compareDocumentPosition(telefono) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(telefono.compareDocumentPosition(seguridad) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.queryByRole("region", { name: "Datos del negocio" })).not.toBeInTheDocument();
     // Los tres bloques del plan (PLAN-TELEFONIA-UX.md § 5, fase 2), en orden.
     const linea = screen.getByRole("group", { name: "Línea de clientes" });
     const recepcionista = screen.getByRole("group", { name: "Tu recepcionista" });
     const movil = screen.getByRole("group", { name: "Tu móvil" });
     expect(linea.compareDocumentPosition(recepcionista) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(recepcionista.compareDocumentPosition(movil) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    // La checklist del panel y el Gestor siguen enlazando a /ajustes#whatsapp.
+    // La checklist del panel y el asistente enlazan a /ajustes/telefono#whatsapp.
     expect(movil).toHaveAttribute("id", "whatsapp");
     expect(await screen.findByLabelText(/Tu móvil con WhatsApp/)).toBeInTheDocument();
     expect(mockedGetOwnerWhatsapp).toHaveBeenCalledTimes(1);
@@ -219,7 +265,7 @@ describe("AccountSettingsPage", () => {
     estadoDeNegocio({ business: NEGOCIO });
     mockedGetAccountOverview.mockResolvedValue(CUENTA);
 
-    renderPage();
+    renderPage("negocio");
 
     expect(await screen.findByLabelText(/Nombre del negocio/)).toHaveAttribute("maxLength", "80");
     expect(screen.queryByLabelText(/Teléfono del negocio/)).not.toBeInTheDocument();
@@ -228,7 +274,16 @@ describe("AccountSettingsPage", () => {
     expect(negocio.getByLabelText(/Dirección/)).toHaveValue("Calle Mayor 12, Madrid");
     expect(negocio.getByLabelText(/Sector/)).toHaveValue("peluqueria");
     expect(negocio.queryByRole("textbox", { name: /Número al que te llaman/ })).not.toBeInTheDocument();
-    const linea = within(screen.getByRole("group", { name: "Línea de clientes" }));
+    expect(screen.queryByRole("group", { name: "Línea de clientes" })).not.toBeInTheDocument();
+  });
+
+  it("la línea de clientes vive en la pantalla «Teléfono»", async () => {
+    estadoDeNegocio({ business: NEGOCIO });
+    mockedGetAccountOverview.mockResolvedValue(CUENTA);
+
+    renderPage("telefono");
+
+    const linea = within(await screen.findByRole("group", { name: "Línea de clientes" }));
     expect(linea.getByLabelText(/Número al que te llaman tus clientes/)).toHaveValue(NEGOCIO!.phone);
   });
 
@@ -238,7 +293,7 @@ describe("AccountSettingsPage", () => {
       estadoDeNegocio({ business: NEGOCIO });
       mockedGetAccountOverview.mockResolvedValue(CUENTA);
       mockedUpdateMyBusiness.mockResolvedValue(NEGOCIO as never);
-      renderPage();
+      renderPage("negocio");
       await screen.findByLabelText(/Nombre del negocio/);
       await cambios(user);
       await user.click(screen.getByRole("button", { name: /Guardar datos/ }));
@@ -282,7 +337,7 @@ describe("AccountSettingsPage", () => {
       });
       mockedGetAccountOverview.mockResolvedValue(CUENTA);
       mockedUpdateMyBusiness.mockResolvedValue({ ...NEGOCIO, ...negocio, phone: telefonoNuevo } as never);
-      renderPage();
+      renderPage("telefono");
 
       const campo = await screen.findByLabelText(/Número al que te llaman tus clientes/);
       await user.clear(campo);

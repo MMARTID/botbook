@@ -579,7 +579,7 @@ export function ComprobarDesvio({
         <p className="mt-1 text-sm leading-6 text-muted">
           Para comprobar el desvío necesitamos el teléfono al que te llaman tus clientes.{" "}
           <Link
-            href="/ajustes"
+            href="/ajustes/telefono"
             className="font-semibold text-[#6d28d9] underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]"
           >
             Añádelo en Ajustes

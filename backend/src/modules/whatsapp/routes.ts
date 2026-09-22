@@ -133,7 +133,7 @@ export async function whatsappRoutes(fastify: FastifyInstance) {
         );
         return reply
           .status(500)
-          .send({ error: "No se pudo cargar el chat con el Gestor" });
+          .send({ error: "No se pudo cargar el chat con el asistente" });
       }
     }
   );
@@ -175,7 +175,7 @@ export async function whatsappRoutes(fastify: FastifyInstance) {
         );
         return reply
           .status(500)
-          .send({ error: "El Gestor no ha podido atender el mensaje" });
+          .send({ error: "El asistente no ha podido atender el mensaje" });
       }
     }
   );

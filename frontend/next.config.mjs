@@ -23,12 +23,12 @@ const nextConfig = {
       { source: "/register", destination: `${webUrl}/register`, permanent: true },
       { source: "/register/business", destination: "/bienvenida", permanent: true },
       { source: "/register/business/:path*", destination: "/bienvenida/:path*", permanent: true },
-      // Destinos del botón «Ir a Ajustes» de las alertas por WhatsApp: la
+      // Destino del botón «Ir a Ajustes» de las alertas por WhatsApp: la
       // plantilla de Meta solo admite un sufijo bajo /ajustes/. El calendario
-      // vive en /agente; el teléfono, desde la fase 2 del plan de telefonía,
-      // en la sección «Teléfono» de Ajustes.
+      // vive en /agente; /ajustes/telefono es ya una pantalla propia.
       { source: "/ajustes/calendario", destination: "/agente", permanent: false },
-      { source: "/ajustes/telefono", destination: "/ajustes#telefono", permanent: false },
+      // «Tu Gestor» pasó a llamarse «Tu asistente» (22-09-2026).
+      { source: "/gestor", destination: "/asistente", permanent: true },
     ];
   },
 };

@@ -690,7 +690,7 @@ const anadirCita: AccionDelGestor<AnadirCita> = {
               endedAt: now,
               durationSecs: 0,
               costCents: 0,
-              summary: "Cita apuntada por el dueño desde el chat del Gestor",
+              summary: "Cita apuntada por el dueño desde el chat del asistente",
             },
             update: {},
             select: { id: true },

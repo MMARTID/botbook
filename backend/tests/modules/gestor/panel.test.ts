@@ -177,7 +177,7 @@ describe("preguntarAlGestor", () => {
       ok: false,
       motivo: "apagado_negocio",
       // El interruptor vive en Ajustes › Teléfono › Tu móvil (fase 2).
-      mensaje: "El Gestor está desactivado en Ajustes › Teléfono.",
+      mensaje: "El asistente está desactivado en Ajustes › Teléfono.",
     });
     mockedBiz.mockResolvedValueOnce({
       ...NEGOCIO,

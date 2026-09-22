@@ -303,7 +303,7 @@ describe("CallForwardingCard · «Comprobar desvío»", () => {
     ).not.toBeInTheDocument();
     expect(
       screen.getByRole("link", { name: /añádelo en ajustes/i })
-    ).toHaveAttribute("href", "/ajustes");
+    ).toHaveAttribute("href", "/ajustes/telefono");
   });
 
   it("con un backend que aún no expone la línea de clientes, el bloque no aparece", () => {

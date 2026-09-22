@@ -197,7 +197,7 @@ describe("OnboardingChecklist", () => {
     renderWithClient();
 
     const whatsapp = await screen.findByRole("link", { name: /Activa los avisos por WhatsApp/ });
-    expect(whatsapp).toHaveAttribute("href", "/ajustes#whatsapp");
+    expect(whatsapp).toHaveAttribute("href", "/ajustes/telefono#whatsapp");
     expect(whatsapp).toHaveTextContent("Activar");
     expect(whatsapp).toHaveTextContent(
       "Un mensaje desde tu móvil y recibirás cada reserva y recado al momento."

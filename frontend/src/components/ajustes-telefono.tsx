@@ -940,7 +940,7 @@ function TuMovil({
       id="whatsapp"
       icon={Smartphone}
       titulo="Tu móvil"
-      descripcion="Donde tu recepcionista te avisa de cada reserva y recado por WhatsApp, y donde te escribe el Gestor."
+      descripcion="Donde tu recepcionista te avisa de cada reserva y recado por WhatsApp, y donde te escribe tu asistente."
     >
       {tipo !== "alhabla" ? (
         <div className="space-y-2">
