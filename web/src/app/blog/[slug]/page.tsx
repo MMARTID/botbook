@@ -171,25 +171,31 @@ export default async function ArticuloPage({ params }: Props) {
                 </figure>
               ) : null}
 
-              <div className="articulo mt-10">
-                {encontrado.propio ? (
-                  /* blockJS: los bloques del editor llevan sus datos como
-                     expresiones JSX (`pasos={[…]}`), que next-mdx-remote
-                     elimina por defecto. El contenido es del propio repo (solo
-                     lo escriben colaboradores), así que se permiten; las
-                     llamadas peligrosas (blockDangerousJS) siguen bloqueadas. */
+              {encontrado.propio ? (
+                <div className="articulo mt-10">
+                  {/* blockJS: los bloques del editor llevan sus datos como
+                      expresiones JSX (`pasos={[…]}`), que next-mdx-remote
+                      elimina por defecto. El contenido es del propio repo (solo
+                      lo escriben colaboradores), así que se permiten; las
+                      llamadas peligrosas (blockDangerousJS) siguen bloqueadas. */}
                   <MDXRemote
                     source={encontrado.propio.contenido}
                     components={componentesDeArticulo}
                     options={{ blockJS: false }}
                   />
-                ) : (
-                  /* BabyLoveGrowth entrega el artículo ya en HTML. Va tal cual
-                     dentro de `.articulo`, así que hereda la misma tipografía
-                     que los del repositorio. */
-                  <div dangerouslySetInnerHTML={{ __html: encontrado.externo.html }} />
-                )}
-              </div>
+                </div>
+              ) : (
+                /* BabyLoveGrowth entrega el artículo ya en HTML. Va directo en
+                   el contenedor `.articulo`, SIN un <div> intermedio: el
+                   espaciado del cuerpo es `.articulo > * + *`, y con un
+                   envoltorio en medio el único hijo directo sería ese div, así
+                   que los párrafos salían pegados unos a otros (Tailwind pone
+                   los márgenes a cero). */
+                <div
+                  className="articulo mt-10"
+                  dangerouslySetInnerHTML={{ __html: encontrado.externo.html }}
+                />
+              )}
 
               {sector ? (
                 <aside className="mt-12 rounded-3xl border border-[#ddd6fe] bg-[#f3eeff] p-6 sm:p-8">
