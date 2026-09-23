@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   articulosRelacionados,
+  esRamaDePrevisualizacion,
   minutosDeLectura,
   type ArticuloMeta,
 } from "@/lib/blog";
@@ -24,6 +25,13 @@ function meta(
 }
 
 describe("blog", () => {
+  it("solo acepta la rama principal o ramas creadas por Keystatic", () => {
+    expect(esRamaDePrevisualizacion("main")).toBe(true);
+    expect(esRamaDePrevisualizacion("blog/agenda-para-spa")).toBe(true);
+    expect(esRamaDePrevisualizacion("feature/otro-cambio")).toBe(false);
+    expect(esRamaDePrevisualizacion("blog/../main")).toBe(false);
+  });
+
   it("estima los minutos de lectura a 200 palabras por minuto, mínimo 1", () => {
     expect(minutosDeLectura("hola")).toBe(1);
     expect(minutosDeLectura(Array(450).fill("palabra").join(" "))).toBe(2);
