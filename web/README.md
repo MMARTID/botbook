@@ -19,6 +19,13 @@ Variables (`.env.local` en dev, proyecto `alhabla-web` en Vercel):
 - `NEXT_PUBLIC_APP_URL` — la app (`https://app.alhabla.ai`): «Entrar» y el salto tras el registro.
 - `NEXT_PUBLIC_GA_MEASUREMENT_ID` — ID público de medición de GA4. Por defecto usa `G-Z3RT28K0ZJ`; defínelo también en los dos proyectos de Vercel para poder cambiarlo por entorno sin editar código.
 
+Analítica: GA4 y Vercel Analytics solo se cargan después de aceptar las cookies; la
+elección se comparte entre la web y la app. La página vista se envía sin parámetros
+de URL. En el flujo de datos de GA4 hay que desactivar «Cambios de página basados en
+eventos del historial del navegador» dentro de la medición mejorada: la navegación
+de Next.js ya se mide desde el código y, si esa opción sigue activa, GA4 puede contar
+dos veces una visita.
+
 - `KEYSTATIC_GITHUB_CLIENT_ID`, `KEYSTATIC_GITHUB_CLIENT_SECRET`, `KEYSTATIC_SECRET`,
   `NEXT_PUBLIC_KEYSTATIC_GITHUB_APP_SLUG` — el editor del blog (`/keystatic`, Keystatic con una
   GitHub App instalada en `MMARTID/botbook`). Sin ellas la web se construye igual y `/api/keystatic`
