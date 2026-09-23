@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { esDestinoInterno, urlDePrevisualizacion } from "@/lib/preview/url";
+import { esRamaDePrevisualizacion } from "@/lib/blog";
+import { esDestinoInterno } from "@/lib/preview/url";
 
 export const dynamic = "force-dynamic";
 
@@ -7,12 +8,10 @@ export function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const rama = searchParams.get("branch") ?? "main";
   const destino = searchParams.get("to") ?? "/blog";
-  if (!esDestinoInterno(destino)) {
+  if (!esDestinoInterno(destino) || !esRamaDePrevisualizacion(rama)) {
     return new NextResponse("Destino no válido", { status: 400 });
   }
-  const url = urlDePrevisualizacion(rama, destino, {
-    enVercel: Boolean(process.env.VERCEL),
-    sitio: process.env.NEXT_PUBLIC_SITE_URL ?? "https://alhabla.ai",
-  });
-  return NextResponse.redirect(new URL(url, request.url), 302);
+  const url = new URL(destino, request.url);
+  url.searchParams.set("branch", rama);
+  return NextResponse.redirect(url, 302);
 }

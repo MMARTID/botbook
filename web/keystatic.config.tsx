@@ -72,8 +72,8 @@ export default config({
       format: { contentField: "contenido" },
       entryLayout: "content",
       columns: ["fecha", "sector", "borrador"],
-      // Abre la rama del artículo tal como la construye Vercel (app/preview).
-      previewUrl: "/preview?branch={branch}&to=/blog/{slug}",
+      // Incluye los borradores y los cambios de la rama, sin publicarlos.
+      previewUrl: "/preview?branch={branch}&to=/vista-previa/{slug}",
       schema: {
         titulo: fields.slug({
           name: {

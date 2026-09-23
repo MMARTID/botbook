@@ -47,6 +47,11 @@ const DIRECTORIO = path.join(process.cwd(), "content", "blog");
 const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const FECHA = /^\d{4}-\d{2}-\d{2}$/;
 
+/** Solo las ramas que crea Keystatic para un artículo o la principal. */
+export function esRamaDePrevisualizacion(rama: string): boolean {
+  return rama === "main" || /^blog\/[a-z0-9]+(?:-[a-z0-9]+)*$/.test(rama);
+}
+
 /** El editor (Keystatic) escribe `fecha: 2026-09-21` sin comillas y YAML lo
  * entrega como Date; a mano suele ir entre comillas. Se aceptan las dos. */
 function comoFecha(valor: unknown): string | undefined {
@@ -70,11 +75,9 @@ export function minutosDeLectura(contenido: string): number {
   return Math.max(1, Math.round(palabras / 200));
 }
 
-function leer(slug: string): Articulo | null {
+function articuloDesdeMdx(slug: string, fuente: string): Articulo | null {
   if (!SLUG.test(slug)) return null;
-  const fichero = path.join(DIRECTORIO, `${slug}.mdx`);
-  if (!fs.existsSync(fichero)) return null;
-  const { data, content } = matter(fs.readFileSync(fichero, "utf8"));
+  const { data, content } = matter(fuente);
   const fecha = comoFecha(data.fecha);
   const actualizado = comoFecha(data.actualizado);
   if (typeof data.titulo !== "string" || !fecha) {
@@ -115,6 +118,13 @@ function leer(slug: string): Articulo | null {
   };
 }
 
+function leer(slug: string): Articulo | null {
+  if (!SLUG.test(slug)) return null;
+  const fichero = path.join(DIRECTORIO, `${slug}.mdx`);
+  if (!fs.existsSync(fichero)) return null;
+  return articuloDesdeMdx(slug, fs.readFileSync(fichero, "utf8"));
+}
+
 function sinContenido(a: Articulo): ArticuloMeta {
   const meta: ArticuloMeta & { contenido?: string } = { ...a };
   delete meta.contenido;
@@ -143,6 +153,43 @@ export function listarArticulos(opciones: { incluirBorradores?: boolean } = {}):
 export function leerArticulo(slug: string): Articulo | null {
   const articulo = leer(slug);
   return articulo && (MOSTRAR_BORRADORES || !articulo.borrador) ? articulo : null;
+}
+
+/**
+ * Lee el artículo exactamente como está guardado en la rama del editor. La
+ * petición se hace con el token temporal de la sesión de Keystatic, por lo
+ * que un borrador no se hace público ni depende de una URL de Vercel.
+ */
+export async function leerArticuloDePrevisualizacion(
+  slug: string,
+  rama: string,
+  tokenDeGitHub: string
+): Promise<Articulo | null> {
+  if (!SLUG.test(slug) || !esRamaDePrevisualizacion(rama) || !tokenDeGitHub) return null;
+  const ruta = `web/content/blog/${slug}.mdx`;
+  const url = new URL(`https://api.github.com/repos/MMARTID/botbook/contents/${ruta}`);
+  url.searchParams.set("ref", rama);
+  const respuesta = await fetch(url, {
+    headers: {
+      Accept: "application/vnd.github+json",
+      Authorization: `Bearer ${tokenDeGitHub}`,
+      "X-GitHub-Api-Version": "2022-11-28",
+    },
+    cache: "no-store",
+  });
+  if (!respuesta.ok) return null;
+  const archivo: unknown = await respuesta.json();
+  if (
+    !archivo ||
+    typeof archivo !== "object" ||
+    !("content" in archivo) ||
+    typeof archivo.content !== "string" ||
+    !("encoding" in archivo) ||
+    archivo.encoding !== "base64"
+  ) {
+    return null;
+  }
+  return articuloDesdeMdx(slug, Buffer.from(archivo.content.replace(/\n/g, ""), "base64").toString("utf8"));
 }
 
 /**
