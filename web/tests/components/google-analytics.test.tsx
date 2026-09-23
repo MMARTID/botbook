@@ -82,13 +82,15 @@ describe("consentimiento de analítica", () => {
     expect(Reflect.get(window, "ga-disable-G-Z3RT28K0ZJ")).toBe(false);
   });
 
-  it("excluye la edición privada aunque se haya aceptado la analítica", async () => {
+  it("no carga nada en las rutas internas, aunque se haya aceptado la analítica", () => {
+    // La visita aceptó la analítica en otra página; el editor del blog es
+    // interno: ni scripts de medición ni aviso de cookies.
+    document.cookie = "alhabla_analitica=aceptada; Path=/";
     estado.ruta = "/keystatic/branch/main";
     render(<GoogleAnalytics />);
-    fireEvent.click(await screen.findByRole("button", { name: "Aceptar analítica" }));
-    await waitFor(() => expect(estado.alCargar).not.toBeNull());
-    act(() => estado.alCargar?.());
-    expect((window.dataLayer ?? []).filter((entrada) => Array.isArray(entrada) && entrada[1] === "page_view")).toHaveLength(0);
-    expect(estado.filtrar?.({ type: "pageview", url: `${window.location.origin}/keystatic/branch/main` })).toBeNull();
+    expect(estado.alCargar).toBeNull();
+    expect(estado.filtrar).toBeNull();
+    expect(screen.queryByRole("button", { name: "Aceptar analítica" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Configurar cookies" })).not.toBeInTheDocument();
   });
 });
