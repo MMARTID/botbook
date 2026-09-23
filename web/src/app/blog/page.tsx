@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { SiteFooter } from "@/components/site-footer";
-import { listarArticulos } from "@/lib/blog";
+import { listarTodosLosArticulos } from "@/lib/blog";
 import { TarjetaDeArticulo } from "@/components/blog/tarjeta-de-articulo";
 import { SiteHeader } from "@/components/site-header";
 import { absoluteUrl, buildBreadcrumbStructuredData, ogImages, organizationId, siteName, websiteId } from "@/lib/seo";
@@ -48,8 +48,12 @@ const blogStructuredData = {
   ],
 };
 
-export default function BlogPage() {
-  const articulos = listarArticulos();
+/** Los artículos de BabyLoveGrowth llegan por red: se revalida una vez al día
+ * para que uno nuevo aparezca en el listado sin volver a desplegar. */
+export const revalidate = 86_400;
+
+export default async function BlogPage() {
+  const articulos = await listarTodosLosArticulos();
   const [destacado, ...resto] = articulos;
   return (
     <>

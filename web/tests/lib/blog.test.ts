@@ -19,6 +19,7 @@ function meta(
     sector,
     minutosDeLectura: 1,
     idioma: "es",
+    origen: "propio",
   };
 }
 

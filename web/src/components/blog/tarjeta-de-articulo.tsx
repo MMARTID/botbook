@@ -1,7 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { Clock3 } from "lucide-react";
-import { fechaLarga, type ArticuloMeta } from "@/lib/blog";
+import { esImagenRemota, fechaLarga, type ArticuloMeta } from "@/lib/blog";
 import { NICHE_ACCENTS } from "@/lib/niche-accents";
 import { nicheLandings, type NicheSlug } from "@/lib/niche-landings";
 
@@ -39,6 +39,10 @@ export function TarjetaDeArticulo({
   const sector = esSector(articulo.sector) ? articulo.sector : null;
   const src = articulo.imagen ?? `/heroes/${sector ?? "general"}.jpg`;
   const alt = articulo.imagen ? (articulo.imagenAlt ?? "") : "";
+  // Las fotos de BabyLoveGrowth viven en su CDN: van con <img> normal para no
+  // tener que declarar su dominio en next.config y que un cambio de host suyo
+  // tumbe el build de la web entera.
+  const remota = esImagenRemota(src);
   return (
     <article className="group h-full overflow-hidden rounded-3xl border border-[#e5e5e5] bg-white transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_14px_36px_rgba(0,0,0,0.07)]">
       <Link
@@ -50,17 +54,27 @@ export function TarjetaDeArticulo({
         <div
           className={`relative w-full overflow-hidden ${destacado ? "aspect-[16/10] lg:aspect-auto lg:h-full lg:min-h-[22rem]" : "aspect-[3/2]"}`}
         >
-          <Image
-            src={src}
-            alt={alt}
-            fill
-            sizes={
-              destacado
-                ? "(min-width: 1024px) 640px, 100vw"
-                : "(min-width: 1024px) 400px, 100vw"
-            }
-            className="object-cover transition duration-300 group-hover:scale-[1.02]"
-          />
+          {remota ? (
+            // eslint-disable-next-line @next/next/no-img-element -- foto remota del CDN de BabyLoveGrowth.
+            <img
+              src={src}
+              alt={alt}
+              loading={destacado ? "eager" : "lazy"}
+              className="absolute inset-0 h-full w-full object-cover transition duration-300 group-hover:scale-[1.02]"
+            />
+          ) : (
+            <Image
+              src={src}
+              alt={alt}
+              fill
+              sizes={
+                destacado
+                  ? "(min-width: 1024px) 640px, 100vw"
+                  : "(min-width: 1024px) 400px, 100vw"
+              }
+              className="object-cover transition duration-300 group-hover:scale-[1.02]"
+            />
+          )}
         </div>
         <div
           className={`flex flex-1 flex-col p-5 sm:p-6 ${destacado ? "lg:justify-center lg:p-10" : ""}`}

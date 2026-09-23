@@ -8,23 +8,54 @@ import { componentesDeArticulo } from "@/components/blog/imagen-de-articulo";
 import { PastillaDeSector, TarjetaDeArticulo, esSector } from "@/components/blog/tarjeta-de-articulo";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
-import { articulosRelacionados, fechaLarga, leerArticulo, listarArticulos } from "@/lib/blog";
+import {
+  articulosRelacionados,
+  esImagenRemota,
+  fechaLarga,
+  leerArticulo,
+  listarArticulos,
+  listarTodosLosArticulos,
+  type Articulo,
+  type ArticuloMeta,
+} from "@/lib/blog";
 import { AUTOR_POR_DEFECTO } from "@/lib/blog";
+import { leerArticuloExterno, type ArticuloExterno } from "@/lib/blog-externo";
 import { nicheLandings } from "@/lib/niche-landings";
 import { absoluteUrl, buildBreadcrumbStructuredData, ogImages, organizationId, siteName, websiteId } from "@/lib/seo";
 
 type Props = { params: { slug: string } };
 
-export const dynamicParams = false;
+/** Los de BabyLoveGrowth se publican solos en su CMS: con `dynamicParams` un
+ * artículo nuevo tiene página en cuanto existe, sin esperar a un despliegue.
+ * Un slug que no existe en ninguno de los dos sitios sigue siendo un 404. */
+export const dynamicParams = true;
+export const revalidate = 86_400;
 
-export function generateStaticParams() {
-  // Los borradores solo tienen página en previsualización y desarrollo.
-  return listarArticulos({ incluirBorradores: true }).map((a) => ({ slug: a.slug }));
+/**
+ * Artículo del repositorio (`.mdx`) o, si ese slug no está, de
+ * BabyLoveGrowth. El repositorio manda: es el que podemos revisar aquí.
+ */
+async function buscarArticulo(
+  slug: string,
+): Promise<{ propio: Articulo; externo: null } | { propio: null; externo: ArticuloExterno } | null> {
+  const propio = leerArticulo(slug);
+  if (propio) return { propio, externo: null };
+  const externo = await leerArticuloExterno(slug);
+  return externo ? { propio: null, externo } : null;
 }
 
-export function generateMetadata({ params }: Props): Metadata {
-  const articulo = leerArticulo(params.slug);
-  if (!articulo) return {};
+export async function generateStaticParams() {
+  // Los borradores solo tienen página en previsualización y desarrollo.
+  const propios = listarArticulos({ incluirBorradores: true }).map((a) => ({ slug: a.slug }));
+  const todos = await listarTodosLosArticulos();
+  const slugs = new Set(propios.map((p) => p.slug));
+  return [...propios, ...todos.filter((a) => !slugs.has(a.slug)).map((a) => ({ slug: a.slug }))];
+}
+
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const encontrado = await buscarArticulo(params.slug);
+  if (!encontrado) return {};
+  const articulo: ArticuloMeta = encontrado.propio ?? encontrado.externo;
   return {
     title: articulo.titulo,
     description: articulo.resumen,
@@ -50,11 +81,12 @@ export function generateMetadata({ params }: Props): Metadata {
   };
 }
 
-export default function ArticuloPage({ params }: Props) {
-  const articulo = leerArticulo(params.slug);
-  if (!articulo) notFound();
+export default async function ArticuloPage({ params }: Props) {
+  const encontrado = await buscarArticulo(params.slug);
+  if (!encontrado) notFound();
+  const articulo: ArticuloMeta = encontrado.propio ?? encontrado.externo;
   const sector = esSector(articulo.sector) ? articulo.sector : null;
-  const relacionados = articulosRelacionados(articulo, listarArticulos());
+  const relacionados = articulosRelacionados(articulo, await listarTodosLosArticulos());
   const url = absoluteUrl(`/blog/${articulo.slug}`);
   // Para Google, la foto real del artículo si la hay; si no, la imagen
   // generada para compartir.
@@ -118,29 +150,45 @@ export default function ArticuloPage({ params }: Props) {
 
               {articulo.imagen ? (
                 <figure className="mt-8">
-                  <Image
-                    src={articulo.imagen}
-                    alt={articulo.imagenAlt ?? ""}
-                    width={1600}
-                    height={1000}
-                    priority
-                    sizes="(min-width: 1024px) 768px, 100vw"
-                    className="h-auto w-full rounded-3xl border border-[#e5e5e5]"
-                  />
+                  {esImagenRemota(articulo.imagen) ? (
+                    // eslint-disable-next-line @next/next/no-img-element -- foto remota del CDN de BabyLoveGrowth.
+                    <img
+                      src={articulo.imagen}
+                      alt={articulo.imagenAlt ?? ""}
+                      className="h-auto w-full rounded-3xl border border-[#e5e5e5]"
+                    />
+                  ) : (
+                    <Image
+                      src={articulo.imagen}
+                      alt={articulo.imagenAlt ?? ""}
+                      width={1600}
+                      height={1000}
+                      priority
+                      sizes="(min-width: 1024px) 768px, 100vw"
+                      className="h-auto w-full rounded-3xl border border-[#e5e5e5]"
+                    />
+                  )}
                 </figure>
               ) : null}
 
               <div className="articulo mt-10">
-                {/* blockJS: los bloques del editor llevan sus datos como
-                    expresiones JSX (`pasos={[…]}`), que next-mdx-remote
-                    elimina por defecto. El contenido es del propio repo (solo
-                    lo escriben colaboradores), así que se permiten; las
-                    llamadas peligrosas (blockDangerousJS) siguen bloqueadas. */}
-                <MDXRemote
-                  source={articulo.contenido}
-                  components={componentesDeArticulo}
-                  options={{ blockJS: false }}
-                />
+                {encontrado.propio ? (
+                  /* blockJS: los bloques del editor llevan sus datos como
+                     expresiones JSX (`pasos={[…]}`), que next-mdx-remote
+                     elimina por defecto. El contenido es del propio repo (solo
+                     lo escriben colaboradores), así que se permiten; las
+                     llamadas peligrosas (blockDangerousJS) siguen bloqueadas. */
+                  <MDXRemote
+                    source={encontrado.propio.contenido}
+                    components={componentesDeArticulo}
+                    options={{ blockJS: false }}
+                  />
+                ) : (
+                  /* BabyLoveGrowth entrega el artículo ya en HTML. Va tal cual
+                     dentro de `.articulo`, así que hereda la misma tipografía
+                     que los del repositorio. */
+                  <div dangerouslySetInnerHTML={{ __html: encontrado.externo.html }} />
+                )}
               </div>
 
               {sector ? (
@@ -255,6 +303,9 @@ export default function ArticuloPage({ params }: Props) {
                 },
                 // La organización se declara aquí también: el artículo se
                 // puede compartir/indexar sin pasar por la portada.
+                ...(encontrado.externo?.jsonLd.filter(
+                  (bloque) => bloque["@type"] === "FAQPage",
+                ) ?? []),
                 {
                   "@type": "Organization",
                   "@id": organizationId(),

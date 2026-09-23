@@ -1,8 +1,10 @@
 import type { MetadataRoute } from "next";
-import { listarArticulos } from "@/lib/blog";
+import { listarTodosLosArticulos } from "@/lib/blog";
 import { absoluteUrl } from "@/lib/seo";
 
-export default function sitemap(): MetadataRoute.Sitemap {
+export const revalidate = 86_400;
+
+export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   // Solo páginas SEO reales: ni /register (noindex) ni nada de la app, que
   // vive en app.alhabla.ai y no se indexa.
   //
@@ -31,7 +33,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
       changeFrequency: "weekly",
       priority: 0.6,
     },
-    ...listarArticulos().map((a) => ({
+    ...(await listarTodosLosArticulos()).map((a) => ({
       url: absoluteUrl(`/blog/${a.slug}`),
       lastModified: new Date(`${a.fecha}T08:00:00Z`),
       changeFrequency: "monthly" as const,
