@@ -13,9 +13,10 @@ nada más.
 Entra en **[alhabla.ai/keystatic](https://alhabla.ai/keystatic)** con tu cuenta de GitHub (solo
 pueden entrar los colaboradores del repositorio). Es un editor visual con todos los campos de
 abajo como formulario (con sus límites y sus ayudas), el texto con negritas, listas, enlaces y
-subtítulos, y las fotos se arrastran al artículo (te pide el texto alternativo). Al guardar crea
-una rama `blog/…` y un *pull request* en GitHub: revisas la vista previa que enlaza Vercel y le
-das a **Merge**. No hay base de datos: el resultado son los mismos ficheros de esta carpeta.
+subtítulos, y las fotos del cuerpo se arrastran al artículo (te pide el texto alternativo). Al
+guardar crea una rama `blog/…` y un *pull request* en GitHub: revisas la vista previa que enlaza
+Vercel y le das a **Merge**. No hay base de datos: el resultado son los mismos ficheros de esta
+carpeta.
 
 En local también funciona: `cd web && npm run dev` y abre `http://localhost:3002/keystatic`; en
 ese caso escribe directamente en tu disco, sin GitHub.
@@ -61,7 +62,7 @@ Enlaces así: [ver planes](/planes) o [cómo atiende Alhabla una barbería](/bar
 | `autor` | no | Nombre de quien firma (por defecto «Equipo de Alhabla»). Un nombre real da confianza a lectores y a Google. |
 | `idioma` | no | `es` (por defecto) o `ca`. El artículo se marca en ese idioma para Google y el navegador. Útil para las zonas donde la búsqueda se hace en catalán. |
 | `sector` | no | `peluqueria`, `barberia`, `centro-de-estetica`, `salon-de-unas` o `fisioterapia`. Añade la pastilla del sector, las migas, el bloque final con enlace a su landing y la foto de ese sector en la imagen para compartir. |
-| `imagen` | no | Foto de cabecera: ruta bajo `public/` (ver abajo). Con ella hace falta `imagenAlt`. |
+| `imagen` | no | Foto de cabecera: ruta bajo `public/` o URL de Unsplash/Pexels (ver abajo). Con ella hace falta `imagenAlt`. Cada artículo debería llevar una portada distinta. |
 | `imagenAlt` | si hay `imagen` | Qué se ve en la foto, en una frase. |
 | `borrador` | no | `true` para dejarlo escrito sin publicar (no sale en el listado, el sitemap ni el RSS). |
 
@@ -96,6 +97,12 @@ existen hasta que se desmarca.
 
 **Dónde**: en `web/public/blog/<slug>/`, una carpeta por artículo con el mismo nombre que el fichero.
 En el texto se referencian desde la raíz: `/blog/<slug>/nombre.jpg`.
+
+**La portada** (`imagen`) admite además URLs de Unsplash/Pexels
+(`https://images.unsplash.com/…`, `https://images.pexels.com/…`, con
+`?auto=format&fit=crop&w=1600&q=80`): en el editor es un campo de texto, pega la ruta o la URL.
+Sin `imagen` se usa la foto del sector — justo lo que no conviene en todos los artículos, porque
+el listado repetiría la misma foto; elige una portada distinta para cada uno.
 
 **Cómo se insertan** (las dos formas son equivalentes):
 
