@@ -60,3 +60,36 @@ describe("blog externo (BabyLoveGrowth)", () => {
     vi.doUnmock("@/lib/blog-externo");
   });
 });
+
+describe("limpiarHtml", () => {
+  const hero = "https://media.babylovegrowth.ai/blog-images/organization-55595/1790119610252_Ilustracion.jpeg";
+
+  it("quita el <h1> y la foto de cabecera repetidos al principio", async () => {
+    const { limpiarHtml } = await import("@/lib/blog-externo");
+    const html = `<h1 id="whatsapp" tabindex="-1">WhatsApp Business para citas</h1>\n<p><img src="${hero}" alt="Ilustración"></p>\n<p>Primer párrafo.</p>`;
+    const limpio = limpiarHtml(html, hero);
+    expect(limpio).not.toContain("<h1");
+    expect(limpio).not.toContain(hero);
+    expect(limpio.startsWith("<p>Primer párrafo.")).toBe(true);
+  });
+
+  it("no toca un <h1> ni la foto si aparecen en medio del artículo", async () => {
+    const { limpiarHtml } = await import("@/lib/blog-externo");
+    const html = `<p>Intro.</p><h1>Un h1 en medio</h1><p><img src="${hero}"></p>`;
+    const limpio = limpiarHtml(html, hero);
+    expect(limpio).toContain("<h1>Un h1 en medio</h1>");
+    expect(limpio).toContain(hero);
+  });
+
+  it("difiere la carga de las imágenes del cuerpo sin pisar las que ya lo declaran", async () => {
+    const { limpiarHtml } = await import("@/lib/blog-externo");
+    const limpio = limpiarHtml('<p><img src="a.jpg"></p><p><img loading="eager" src="b.jpg"></p>');
+    expect(limpio).toContain('<img loading="lazy" src="a.jpg">');
+    expect(limpio).toContain('<img loading="eager" src="b.jpg">');
+  });
+
+  it("aguanta un artículo sin h1 ni foto de cabecera", async () => {
+    const { limpiarHtml } = await import("@/lib/blog-externo");
+    expect(limpiarHtml("<p>Solo texto.</p>")).toBe("<p>Solo texto.</p>");
+  });
+});

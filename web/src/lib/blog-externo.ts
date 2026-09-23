@@ -117,6 +117,39 @@ export async function listarArticulosExternos(): Promise<ArticuloMeta[]> {
   return validos.map((a) => aMeta(a)).sort((a, b) => b.fecha.localeCompare(a.fecha));
 }
 
+/**
+ * El HTML de BabyLoveGrowth empieza repitiendo dos cosas que nuestra
+ * plantilla ya pinta: el título como `<h1>` y la foto de cabecera. Dejarlas
+ * significa dos `<h1>` en la misma página (Google se queda con uno y no
+ * sabes cuál) y la misma foto dos veces seguidas. Se quitan solo si están
+ * justo al principio: en medio del texto son contenido legítimo.
+ *
+ * De paso, las imágenes del cuerpo salen sin `loading`, así que se marcan
+ * como diferidas — son de su CDN y ninguna es la que se ve al entrar.
+ */
+export function limpiarHtml(html: string, heroImageUrl?: string): string {
+  let limpio = html.trimStart();
+
+  // 1. El <h1> de apertura (con o sin atributos).
+  limpio = limpio.replace(/^<h1\b[^>]*>[\s\S]*?<\/h1>\s*/i, "");
+
+  // 2. El párrafo de apertura que solo contiene la foto de cabecera.
+  if (heroImageUrl) {
+    const patron = new RegExp(
+      `^<p>\\s*<img\\b[^>]*src=["']${escaparParaRegExp(heroImageUrl)}["'][^>]*>\\s*</p>\\s*`,
+      "i",
+    );
+    limpio = limpio.replace(patron, "");
+  }
+
+  // 3. Carga diferida en las imágenes que no la declaren.
+  return limpio.replace(/<img\b(?![^>]*\bloading=)/gi, '<img loading="lazy"');
+}
+
+function escaparParaRegExp(valor: string): string {
+  return valor.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 export async function leerArticuloExterno(slug: string): Promise<ArticuloExterno | null> {
   const articulo = await conRed<BlogArticle | null>(
     `leer «${slug}»`,
@@ -125,7 +158,7 @@ export async function leerArticuloExterno(slug: string): Promise<ArticuloExterno
   );
   if (!articulo || !articulo.published) return null;
   if (idiomaDe(articulo.languageCode) === null) return null;
-  const html = articulo.content_html || "";
+  const html = limpiarHtml(articulo.content_html || "", articulo.hero_image_url);
   return {
     ...aMeta(articulo, stripToText(articulo.content_markdown || html)),
     html,
