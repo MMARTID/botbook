@@ -305,8 +305,9 @@ export default function PrivacidadPage() {
           se usan para perfilarte ni para publicidad.
         </p>
         <p>
-          Si incorporamos analítica, publicidad o cookies no técnicas, mostraremos antes un mecanismo de consentimiento
-          que te permita aceptarlas, rechazarlas o configurarlas.
+          Usamos Google Analytics para conocer de forma agregada cómo se navega por la web y la aplicación. Solo se
+          carga si aceptas la analítica en el aviso de cookies; puedes rechazarla sin que afecte al servicio. Tu elección
+          se guarda durante un año y se comparte entre alhabla.ai y app.alhabla.ai.
         </p>
       </LegalSection>
 
