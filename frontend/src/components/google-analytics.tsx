@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { usePathname, useSearchParams } from "next/navigation";
+import { usePathname } from "next/navigation";
 import Script from "next/script";
 
 const ID_MEDICION = process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID ?? "G-Z3RT28K0ZJ";
@@ -27,15 +27,13 @@ function guardarConsentimiento(aceptada: boolean) {
 /** Comparte el consentimiento de alhabla.ai y mide las rutas de la aplicación. */
 export function GoogleAnalytics() {
   const pathname = usePathname();
-  const searchParams = useSearchParams();
   const [consentimiento, setConsentimiento] = useState<boolean | null>(null);
   const [listo, setListo] = useState(false);
-  const ruta = `${pathname}${searchParams.size ? `?${searchParams}` : ""}`;
 
   useEffect(() => setConsentimiento(leerConsentimiento()), []);
   useEffect(() => {
-    if (listo && ID_MEDICION && window.gtag) window.gtag("event", "page_view", { page_path: ruta });
-  }, [listo, ruta]);
+    if (listo && ID_MEDICION && window.gtag) window.gtag("event", "page_view", { page_path: pathname });
+  }, [listo, pathname]);
 
   if (!ID_MEDICION) return null;
   const decidir = (aceptada: boolean) => {
