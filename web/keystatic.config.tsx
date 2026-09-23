@@ -121,13 +121,15 @@ export default config({
           options: SECTORES,
           defaultValue: "",
         }),
-        imagen: fields.image({
-          label: "Foto de cabecera",
+        // Texto y no selector de ficheros: la portada puede ser local
+        // (subida antes desde el editor del cuerpo, que sí adjunta fotos) o
+        // una URL de Unsplash/Pexels; con un selector de ficheros las URLs
+        // remotas no se podrían ni escribir ni conservar al editar.
+        imagen: fields.text({
+          label: "Foto de cabecera (ruta o URL)",
           description:
-            "Opcional. 1600 px de ancho y menos de 300 KB (JPG para fotos, PNG para capturas). Sin foto propia se usa la del sector.",
-          directory: "public/blog",
-          publicPath: "/blog/",
-          transformFilename: nombreDeImagen,
+            "Opcional. Ruta local (p. ej. /blog/mi-articulo/portada.jpg, subida antes desde el editor del cuerpo del artículo) o URL de Unsplash/Pexels (https://images.unsplash.com/… o https://images.pexels.com/…). Sin foto propia se usa la del sector. Que cada artículo lleve una portada distinta: el listado no debería repetir fotos.",
+          validation: { length: { max: 300 } },
         }),
         imagenAlt: fields.text({
           label: "Qué se ve en la foto de cabecera (alt)",
