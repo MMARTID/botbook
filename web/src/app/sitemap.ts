@@ -1,5 +1,5 @@
 import type { MetadataRoute } from "next";
-import { listarArticulos } from "@/lib/blog";
+import { listarArticulos, urlAbsolutaDeImagen } from "@/lib/blog";
 import { absoluteUrl } from "@/lib/seo";
 
 export default function sitemap(): MetadataRoute.Sitemap {
@@ -8,8 +8,9 @@ export default function sitemap(): MetadataRoute.Sitemap {
   //
   // Sin `lastModified` en las páginas fijas: antes iba `new Date()` en cada
   // build, es decir, «todo cambió hoy» en cada deploy; Google deja de fiarse
-  // de un lastmod que siempre es ahora. Solo los artículos llevan su fecha
-  // real.
+  // de un lastmod que siempre es ahora. Los artículos llevan la fecha real de
+  // su última revisión de fondo (`actualizado`; si no, la de publicación) y
+  // su foto de portada, que ayuda a indexarla en Google Imágenes.
   return [
     {
       url: absoluteUrl("/"),
@@ -33,9 +34,10 @@ export default function sitemap(): MetadataRoute.Sitemap {
     },
     ...listarArticulos().map((a) => ({
       url: absoluteUrl(`/blog/${a.slug}`),
-      lastModified: new Date(`${a.fecha}T08:00:00Z`),
+      lastModified: new Date(`${a.actualizado ?? a.fecha}T08:00:00Z`),
       changeFrequency: "monthly" as const,
       priority: 0.5,
+      ...(a.imagen ? { images: [urlAbsolutaDeImagen(a.imagen)] } : {}),
     })),
     ...["/legal/aviso-legal", "/legal/privacidad"].map((path) => ({
       url: absoluteUrl(path),
