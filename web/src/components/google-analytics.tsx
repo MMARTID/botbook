@@ -89,6 +89,8 @@ function detenerGoogle() {
   borrarCookiesDeGoogle();
 }
 
+/** Rutas internas del blog (editor, redirector y vistas previa): no se miden
+ * y, directamente, no cargan nada — ni scripts ni aviso de cookies. */
 function rutaMedible(ruta: string): boolean {
   return !/^\/(?:keystatic|vista-previa|preview|api)(?:\/|$)/.test(ruta);
 }
@@ -108,8 +110,12 @@ export function GoogleAnalytics() {
   const [abierto, setAbierto] = useState(false);
   const [puedeCargar, setPuedeCargar] = useState(false);
   const [listo, setListo] = useState(false);
+  // El editor del blog y las vistas previa son internos: ni medición ni
+  // banner de cookies, aunque la visita hubiera aceptado en otra página.
+  const medible = rutaMedible(pathname);
 
   useEffect(() => {
+    if (!medible) return;
     const sincronizar = () => {
       if (document.visibilityState === "hidden") return;
       setConsentimiento(leerConsentimiento());
@@ -124,10 +130,10 @@ export function GoogleAnalytics() {
       window.removeEventListener("pageshow", sincronizar);
       document.removeEventListener("visibilitychange", sincronizar);
     };
-  }, []);
+  }, [medible]);
 
   useEffect(() => {
-    if (!hidratado || !/^G-[A-Z0-9]+$/.test(ID_MEDICION)) return;
+    if (!medible || !hidratado || !/^G-[A-Z0-9]+$/.test(ID_MEDICION)) return;
     if (consentimiento === true) {
       configurarGoogle();
       setPuedeCargar(true);
@@ -136,7 +142,7 @@ export function GoogleAnalytics() {
       setPuedeCargar(false);
       setListo(false);
     }
-  }, [consentimiento, hidratado]);
+  }, [consentimiento, hidratado, medible]);
 
   useEffect(() => {
     if (!listo || consentimiento !== true || !rutaMedible(pathname)) return;
@@ -149,6 +155,7 @@ export function GoogleAnalytics() {
     });
   }, [listo, consentimiento, pathname]);
 
+  if (!medible) return null;
   if (!/^G-[A-Z0-9]+$/.test(ID_MEDICION)) return null;
 
   const decidir = (aceptada: boolean) => {
