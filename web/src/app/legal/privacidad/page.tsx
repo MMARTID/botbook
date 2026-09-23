@@ -27,7 +27,7 @@ export default function PrivacidadPage() {
     <LegalPage
       title="Política de privacidad"
       description="Aquí te contamos qué datos tratamos, para qué, quién más interviene y qué puedes exigirnos. Sin cláusulas copiadas: solo lo que el producto hace de verdad."
-      updatedAt="2026-09-20"
+      updatedAt="2026-09-23"
     >
       <LegalSection title="Quién es el responsable">
         <p>
@@ -305,9 +305,11 @@ export default function PrivacidadPage() {
           se usan para perfilarte ni para publicidad.
         </p>
         <p>
-          Usamos Google Analytics para conocer de forma agregada cómo se navega por la web y la aplicación. Solo se
-          carga si aceptas la analítica en el aviso de cookies; puedes rechazarla sin que afecte al servicio. Tu elección
-          se guarda durante un año y se comparte entre alhabla.ai y app.alhabla.ai.
+          Usamos Google Analytics y Vercel Analytics para conocer cómo se navega por la web y la aplicación. Solo se
+          cargan si aceptas la analítica en el aviso de cookies; puedes rechazarla sin que afecte al servicio. Tu elección
+          se guarda durante un año y se comparte entre alhabla.ai y app.alhabla.ai. Puedes cambiarla en cualquier momento
+          con el botón «Configurar cookies» de la web o la aplicación. Al rechazarla, dejamos de enviar datos de analítica
+          y eliminamos las cookies de Google Analytics accesibles desde la página.
         </p>
       </LegalSection>
 
