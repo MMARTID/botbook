@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import matter from "gray-matter";
+import { absoluteUrl } from "@/lib/seo";
 
 /**
  * Artículos del blog (PLAN-APP-DOMINIO.md § 4, fase 1): ficheros `.mdx` en
@@ -22,7 +23,9 @@ export interface ArticuloMeta {
   autor: string;
   /** Sector al que se dirige, si alguno (para el enlace a su landing). */
   sector?: string;
-  /** Imagen de cabecera: ruta bajo `public/` (p. ej. `/blog/<slug>/portada.jpg`). */
+  /** Imagen de cabecera: ruta bajo `public/` (p. ej. `/blog/<slug>/portada.jpg`)
+   * o URL de Unsplash/Pexels (los únicos hosts remotos permitidos, declarados
+   * en `images.remotePatterns` de next.config). */
   imagen?: string;
   /** Texto alternativo de la imagen de cabecera (obligatorio si hay imagen). */
   imagenAlt?: string;
@@ -46,6 +49,11 @@ export const AUTOR_POR_DEFECTO = "Equipo de Alhabla";
 const DIRECTORIO = path.join(process.cwd(), "content", "blog");
 const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const FECHA = /^\d{4}-\d{2}-\d{2}$/;
+
+/** Cabeceras remotas permitidas, además de las locales bajo `public/`. Solo
+ * Unsplash y Pexels (licencia libre verificable); cualquier otro host no pasa
+ * la validación, igual que no pasaría por `next/image`. */
+const IMAGEN_REMOTA = /^https:\/\/(images\.unsplash\.com|images\.pexels\.com)\//;
 
 /** Solo las ramas que crea Keystatic para un artículo o la principal. */
 export function esRamaDePrevisualizacion(rama: string): boolean {
@@ -75,6 +83,12 @@ export function minutosDeLectura(contenido: string): number {
   return Math.max(1, Math.round(palabras / 200));
 }
 
+/** URL absoluta de la cabecera para los datos estructurados: las remotas
+ * (Unsplash/Pexels) ya lo son; las locales cuelgan del dominio del sitio. */
+export function urlAbsolutaDeImagen(imagen: string): string {
+  return imagen.startsWith("http") ? imagen : absoluteUrl(imagen);
+}
+
 function articuloDesdeMdx(slug: string, fuente: string): Articulo | null {
   if (!SLUG.test(slug)) return null;
   const { data, content } = matter(fuente);
@@ -93,8 +107,10 @@ function articuloDesdeMdx(slug: string, fuente: string): Articulo | null {
     throw new Error(`content/blog/${slug}.mdx: «idioma» debe ser «es» o «ca»`);
   }
   if (data.imagen !== undefined && data.imagen !== null && data.imagen !== "") {
-    if (typeof data.imagen !== "string" || !data.imagen.startsWith("/")) {
-      throw new Error(`content/blog/${slug}.mdx: «imagen» debe ser una ruta bajo public/, p. ej. /blog/${slug}/portada.jpg`);
+    if (typeof data.imagen !== "string" || !(data.imagen.startsWith("/") || IMAGEN_REMOTA.test(data.imagen))) {
+      throw new Error(
+        `content/blog/${slug}.mdx: «imagen» debe ser una ruta bajo public/ (p. ej. /blog/${slug}/portada.jpg) o una URL de Unsplash/Pexels`,
+      );
     }
     if (typeof data.imagenAlt !== "string" || !data.imagenAlt.trim()) {
       throw new Error(`content/blog/${slug}.mdx: con «imagen» hace falta «imagenAlt» (qué se ve en la foto)`);

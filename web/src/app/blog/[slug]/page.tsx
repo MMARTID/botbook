@@ -13,6 +13,7 @@ import {
   fechaLarga,
   leerArticulo,
   listarArticulos,
+  urlAbsolutaDeImagen,
 } from "@/lib/blog";
 import { AUTOR_POR_DEFECTO } from "@/lib/blog";
 import { nicheLandings } from "@/lib/niche-landings";
@@ -60,9 +61,10 @@ export default async function ArticuloPage({ params }: Props) {
   const relacionados = articulosRelacionados(articulo, listarArticulos());
   const url = absoluteUrl(`/blog/${articulo.slug}`);
   // Para Google, la foto real del artículo si la hay; si no, la imagen
-  // generada para compartir.
+  // generada para compartir. La cabecera puede ser local o remota
+  // (Unsplash/Pexels): `urlAbsolutaDeImagen` resuelve ambas.
   const imagenes = [
-    ...(articulo.imagen ? [absoluteUrl(articulo.imagen)] : []),
+    ...(articulo.imagen ? [urlAbsolutaDeImagen(articulo.imagen)] : []),
     ...ogImages(`/blog/${articulo.slug}`).map((i) => i.url),
   ];
 
