@@ -5,8 +5,8 @@ import { block, wrapper } from "@keystatic/core/content-components";
  * Bloques de marca disponibles en el editor del blog. Cada uno tiene su
  * formulario (schema) y una vista dentro del editor (ContentView) que imita
  * el bloque real; en la web los pinta components/blog/bloques.tsx. Los
- * nombres (Cta, Dato, Aviso, Pasos, Faq) son las etiquetas JSX que quedan
- * en el .mdx.
+ * nombres (Cta, Dato, Aviso, Pasos, Faq, ChatWhatsApp, Checklist) son las
+ * etiquetas JSX que quedan en el .mdx.
  */
 const DESTINOS = [
   { label: "Planes y precios", value: "planes" },
@@ -303,6 +303,153 @@ export const bloquesDelEditor = {
                 {p.respuesta}
               </div>
             ) : null}
+          </div>
+        ))}
+      </div>
+    ),
+  }),
+  ChatWhatsApp: block({
+    label: "Conversación de WhatsApp",
+    description:
+      "Simula un chat con Alhabla o con un cliente. Ideal para enseñar cómo pide el dueño un cambio («Marta está de baja hoy») y qué responde Alhabla.",
+    schema: {
+      titulo: fields.text({
+        label: "Título de la ventana (opcional)",
+        validation: { length: { max: 40 } },
+      }),
+      mensajes: fields.array(
+        fields.object({
+          autor: fields.select({
+            label: "Quién escribe",
+            options: [
+              { label: "El negocio (tú)", value: "negocio" },
+              { label: "Alhabla", value: "alhabla" },
+              { label: "El cliente", value: "cliente" },
+            ],
+            defaultValue: "alhabla",
+          }),
+          texto: fields.text({
+            label: "Mensaje",
+            multiline: true,
+            validation: { isRequired: true, length: { max: 240 } },
+          }),
+        }),
+        {
+          label: "Mensajes",
+          itemLabel: (m) => m.fields.texto.value.slice(0, 40) || "Mensaje",
+        }
+      ),
+    },
+    ContentView: (props) => (
+      <div
+        style={{
+          border: "1px solid #e5e5e5",
+          borderRadius: 20,
+          overflow: "hidden",
+          background: "#fff",
+        }}
+      >
+        <div
+          style={{
+            ...etiqueta,
+            color: "#6d28d9",
+            padding: "10px 16px",
+            borderBottom: "1px solid #e5e5e5",
+            background: "#fafafa",
+          }}
+        >
+          {props.value.titulo || "WhatsApp · Alhabla"}
+        </div>
+        <div style={{ padding: 16, display: "grid", gap: 8 }}>
+          {(props.value.mensajes.length
+            ? props.value.mensajes
+            : [{ autor: "alhabla" as const, texto: "Mensaje" }]
+          ).map((m, i) => {
+            const esNegocio = m.autor === "negocio";
+            return (
+              <div
+                key={i}
+                style={{
+                  display: "flex",
+                  justifyContent: esNegocio ? "flex-end" : "flex-start",
+                }}
+              >
+                <div
+                  style={{
+                    maxWidth: "85%",
+                    borderRadius: 16,
+                    padding: "8px 14px",
+                    fontSize: 13,
+                    background: esNegocio
+                      ? "#0a0a0a"
+                      : m.autor === "alhabla"
+                        ? "#f3eeff"
+                        : "#fff",
+                    color: esNegocio ? "#fff" : "#27272a",
+                    border:
+                      !esNegocio && m.autor === "cliente"
+                        ? "1px solid #e5e5e5"
+                        : "none",
+                  }}
+                >
+                  {m.texto}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    ),
+  }),
+  Checklist: block({
+    label: "Lista de comprobación",
+    description:
+      "Puntos con marca de verificación, para «qué pedir a tu sistema» o «antes de lanzar».",
+    schema: {
+      items: fields.array(
+        fields.object({
+          texto: fields.text({
+            label: "Punto",
+            validation: { isRequired: true, length: { max: 160 } },
+          }),
+        }),
+        { label: "Puntos", itemLabel: (p) => p.fields.texto.value || "Punto" }
+      ),
+    },
+    ContentView: (props) => (
+      <div style={{ display: "grid", gap: 8 }}>
+        {(props.value.items.length
+          ? props.value.items
+          : [{ texto: "Primer punto" }]
+        ).map((p, i) => (
+          <div
+            key={i}
+            style={{
+              border: "1px solid #e5e5e5",
+              background: "#fff",
+              borderRadius: 12,
+              padding: 12,
+              display: "flex",
+              gap: 10,
+              alignItems: "center",
+            }}
+          >
+            <div
+              style={{
+                width: 22,
+                height: 22,
+                borderRadius: 8,
+                background: "#f3eeff",
+                color: "#8b5cf6",
+                display: "grid",
+                placeItems: "center",
+                fontWeight: 700,
+                flexShrink: 0,
+              }}
+            >
+              ✓
+            </div>
+            <div style={{ fontSize: 13 }}>{p.texto}</div>
           </div>
         ))}
       </div>

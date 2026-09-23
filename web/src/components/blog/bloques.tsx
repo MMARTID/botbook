@@ -1,8 +1,10 @@
 import Link from "next/link";
 import {
   ArrowRight,
+  Check,
   Lightbulb,
   AlertTriangle,
+  MessageCircle,
   MessageSquareQuote,
 } from "lucide-react";
 import { nicheLandings, type NicheSlug } from "@/lib/niche-landings";
@@ -205,6 +207,83 @@ export function Faq({
         </details>
       ))}
     </div>
+  );
+}
+
+type AutorMensaje = "negocio" | "alhabla" | "cliente";
+
+const ETIQUETA_AUTOR: Record<AutorMensaje, string> = {
+  negocio: "El negocio",
+  alhabla: "Alhabla",
+  cliente: "El cliente",
+};
+
+/**
+ * Conversación simulada de WhatsApp. Sirve para enseñar el canal del dueño
+ * («Marta está de baja hoy» → propuesta → confirmación) y los mensajes al
+ * cliente (confirmación, recordatorio, hueco libre) con la voz real del
+ * producto. Burbujas del negocio en tinta, las de Alhabla en lavado morado
+ * y las del cliente en blanco con borde.
+ */
+export function ChatWhatsApp({
+  titulo = "WhatsApp · Alhabla",
+  mensajes = [],
+}: {
+  titulo?: string;
+  mensajes?: { autor: AutorMensaje; texto: string }[];
+}) {
+  return (
+    <figure className="not-prose my-8 overflow-hidden rounded-3xl border border-[#e5e5e5] bg-white">
+      <figcaption className="flex items-center gap-2 border-b border-[#e5e5e5] bg-[#fafafa] px-5 py-3">
+        <MessageCircle className="h-4 w-4 text-[#8b5cf6]" aria-hidden="true" />
+        <span className="text-xs font-semibold uppercase tracking-[0.12em] text-[#6d28d9]">
+          {titulo}
+        </span>
+      </figcaption>
+      <ol className="space-y-3 p-5 sm:p-6">
+        {mensajes.map((m, i) => {
+          const esNegocio = m.autor === "negocio";
+          const burbuja = esNegocio
+            ? "bg-[#0a0a0a] text-white"
+            : m.autor === "alhabla"
+              ? "bg-[#f3eeff] text-[#27272a]"
+              : "border border-[#e5e5e5] bg-white text-[#27272a]";
+          return (
+            <li
+              key={i}
+              className={`flex ${esNegocio ? "justify-end" : "justify-start"}`}
+            >
+              <p className={`max-w-[85%] rounded-2xl px-4 py-2.5 text-sm leading-6 ${burbuja}`}>
+                <span className="sr-only">{ETIQUETA_AUTOR[m.autor]}: </span>
+                {m.texto}
+              </p>
+            </li>
+          );
+        })}
+      </ol>
+    </figure>
+  );
+}
+
+/**
+ * Lista de comprobación con marca en azulejo morado. Para «qué pedir a tu
+ * sistema», «antes de lanzar» y resúmenes accionables.
+ */
+export function Checklist({ items = [] }: { items?: { texto: string }[] }) {
+  return (
+    <ul className="not-prose my-8 space-y-2.5">
+      {items.map((item, i) => (
+        <li
+          key={i}
+          className="flex items-start gap-3 rounded-xl border border-[#e5e5e5] bg-white p-4"
+        >
+          <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-[10px] bg-[#f3eeff]">
+            <Check className="h-3.5 w-3.5 text-[#8b5cf6]" aria-hidden="true" />
+          </span>
+          <span className="text-sm leading-6 text-[#27272a]">{item.texto}</span>
+        </li>
+      ))}
+    </ul>
   );
 }
 
