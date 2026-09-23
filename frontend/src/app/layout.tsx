@@ -4,6 +4,7 @@ import { Analytics } from "@vercel/analytics/next";
 import "./globals.css";
 import { Providers } from "@/components/providers";
 import { AppShell } from "@/components/app-shell";
+import { GoogleAnalytics } from "@/components/google-analytics";
 import { defaultDescription, noindexMetadata, siteName, siteUrl } from "@/lib/seo";
 
 const geistSans = localFont({
@@ -68,6 +69,7 @@ export default function RootLayout({
         <Providers>
           <AppShell>{children}</AppShell>
         </Providers>
+        <GoogleAnalytics />
         <Analytics />
       </body>
     </html>

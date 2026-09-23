@@ -456,9 +456,7 @@ body {
 .articulo blockquote {
   @apply border-l-2 border-[#8b5cf6] pl-4 text-muted;
 }
-/* Los artículos que llegan de BabyLoveGrowth traen HTML normal (no los
-   bloques del editor), así que necesitan estas piezas que el MDX propio no
-   usa: separadores, fotos dentro del cuerpo y tablas. */
+/* Elementos Markdown que puede incluir un artículo editado en Keystatic. */
 .articulo hr {
   @apply my-10 border-t border-[#e5e5e5];
 }

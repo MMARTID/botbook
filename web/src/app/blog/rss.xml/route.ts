@@ -1,4 +1,4 @@
-import { listarTodosLosArticulos } from "@/lib/blog";
+import { listarArticulos } from "@/lib/blog";
 import { absoluteUrl, defaultDescription, siteName } from "@/lib/seo";
 
 export const revalidate = 86_400;
@@ -8,7 +8,7 @@ function escapar(texto: string): string {
 }
 
 export async function GET() {
-  const items = (await listarTodosLosArticulos())
+  const items = listarArticulos()
     .map(
       (a) => `    <item>
       <title>${escapar(a.titulo)}</title>

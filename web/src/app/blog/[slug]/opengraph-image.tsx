@@ -1,6 +1,5 @@
 import { imagenOg, OG_CONTENT_TYPE, OG_SIZE } from "@/lib/og/plantilla";
 import { fechaLarga, leerArticulo, listarArticulos, type ArticuloMeta } from "@/lib/blog";
-import { leerArticuloExterno } from "@/lib/blog-externo";
 import { NICHE_ACCENTS } from "@/lib/niche-accents";
 import { nicheLandings, type NicheSlug } from "@/lib/niche-landings";
 
@@ -10,8 +9,6 @@ export const size = OG_SIZE;
 export const contentType = OG_CONTENT_TYPE;
 
 export function generateStaticParams() {
-  // Solo los del repositorio se generan en el build; los de BabyLoveGrowth
-  // llegan por red y se pintan la primera vez que alguien los comparte.
   return listarArticulos().map((a) => ({ slug: a.slug }));
 }
 
@@ -22,8 +19,7 @@ export default async function OpenGraphImage({
 }: {
   params: { slug: string };
 }) {
-  const articulo: ArticuloMeta | null =
-    leerArticulo(params.slug) ?? (await leerArticuloExterno(params.slug));
+  const articulo: ArticuloMeta | null = leerArticulo(params.slug);
   const sector =
     articulo?.sector && articulo.sector in nicheLandings
       ? (articulo.sector as NicheSlug)

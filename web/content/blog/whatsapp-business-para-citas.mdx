@@ -1,0 +1,173 @@
+---
+titulo: "WhatsApp Business para citas: cómo automatizar sin liarla"
+resumen: "Usa WhatsApp Business para gestionar y automatizar citas: elige aplicación o API según tu equipo, sincroniza la agenda y activa saludos y respuestas."
+fecha: "2026-09-23"
+actualizado: "2026-09-23"
+autor: "Equipo de Alhabla"
+idioma: "es"
+borrador: true
+---
+
+Usa la app WhatsApp Business si gestionas pocas citas al día tú solo. Si tienes equipo, varios profesionales o quieres sincronizar agenda de forma automática, la Business Platform (API) o un servicio gestionado como Alhabla te va a ahorrar disgustos. El primer paso, hazlo hoy: completa el perfil de empresa y activa el saludo automático y las respuestas rápidas.
+
+> **En resumen:**
+>
+> - La app de WhatsApp Business es adecuada para gestionar pocas citas diarias con un solo teléfono y volumen limitado de conversaciones.
+> - Para gestionar más de 30 o 40 chats o sincronizar con sistemas de gestión, conviene optar por la API o servicios como Alhabla, que requieren proveedores autorizados y verificación empresarial.
+> - La configuración básica incluye completar el perfil empresarial, activar mensajes de bienvenida, de ausencia, respuestas rápidas y usar etiquetas para organizar cada conversación.
+> - Las plantillas preaprobadas para confirmaciones y recordatorios automatizan la gestión y requieren planificación previa para su aprobación por Meta, con integración posible mediante webhooks y chatbots.
+> - Cuando el volumen de citas y mensajes aumenta, delegar en servicios gestionados ayuda a mejorar tiempos de respuesta y evita errores como reservas duplicadas o citas perdidas.
+
+## Tabla de contenidos
+
+- [WhatsApp Business para citas: app o API, ¿qué necesitas?](#whatsapp-business-para-citas-app-o-api-que-necesitas)
+- [Configuración rápida en la app](#configuracion-rapida-en-la-app-perfil-saludo-y-respuestas-automaticas)
+- [Automatización avanzada](#automatizacion-avanzada-plantillas-chatbots-y-cuando-dar-el-salto-a-la-api)
+- [Flujos listos para copiar](#flujos-listos-para-copiar-reserva-confirmacion-y-recordatorio)
+- [Sincronizar la agenda](#como-sincronizar-la-agenda-con-google-calendar-outlook-e-icloud)
+- [Consentimiento y comunicaciones](#consentimiento-y-comunicaciones-lo-que-exige-la-normativa-espanola)
+- [Reducir las ausencias](#reducir-las-ausencias-cuando-enviar-cada-recordatorio)
+- [Cuándo delegar](#cuando-delegar-la-gestion-de-citas-a-un-servicio-gestionado)
+- [Fuentes](#fuentes)
+- [Preguntas frecuentes](#preguntas-frecuentes)
+
+## WhatsApp Business para citas: app o API, ¿qué necesitas?
+
+La app gratuita de WhatsApp Business está pensada para un negocio con un único teléfono y un volumen manejable de conversaciones. Permite respuestas rápidas, mensajes de ausencia y catálogo, pero solo la usa un dispositivo principal, aunque se pueden vincular hasta cuatro dispositivos adicionales para consultarla desde el ordenador o una tablet.
+
+La Business Platform (la API) cambia de categoría: está pensada para varios agentes trabajando a la vez, plantillas aprobadas por Meta y conexión directa con tu sistema de gestión o CRM. La complejidad sube, y también el coste, porque necesitas un proveedor tecnológico autorizado (un BSP) y pasar una verificación de empresa.
+
+Antes de decidir, responde a tres preguntas:
+
+- ¿Cuántas conversaciones de citas gestionas al día? Por encima de 30 o 40, la app se queda corta.
+- ¿Necesitas que dos o más personas contesten desde el mismo número a la vez?
+- ¿Tu agenda vive en Google Calendar, Outlook o un software de gestión que necesitas sincronizar automáticamente?
+
+Si respondiste que sí a la segunda o la tercera, la API o un servicio gestionado como Alhabla, que se encarga de toda la infraestructura técnica por ti, suele ser el camino lógico. Si no, la app te sirve de sobra para empezar hoy mismo.
+
+## Configuración rápida en la app: perfil, saludo y respuestas automáticas
+
+Antes de tocar ningún mensaje automatizado, rellena el perfil de empresa entero: horario, dirección, categoría y descripción. La aplicación genera [respuestas automáticas basadas en esa información](https://faq.whatsapp.com/1791149784551042/?cms_platform=android), así que cuanto más completo esté, menos trabajo manual tendrás luego.
+
+Con el perfil listo, sigue este orden:
+
+1. **Activa el mensaje de bienvenida.** Se envía en el primer contacto de un cliente o tras 14 días de inactividad, según confirma el centro de ayuda de WhatsApp. Escribe algo como: «¡Hola! Gracias por escribir a [nombre del negocio]. Cuéntanos qué día prefieres y te confirmamos hueco».
+2. **Configura el mensaje de ausencia** para las horas de cierre: «Ahora mismo estamos cerrados. Te contestamos a partir de las 9:00. Si es urgente, indícanos el servicio y la fecha que buscas».
+3. **Crea respuestas rápidas** para lo que más se repite: precios, disponibilidad de la semana, ubicación con enlace a mapa.
+4. **Usa etiquetas** para marcar el estado de cada conversación: «nueva consulta», «cita propuesta», «confirmada», «pendiente de pago». Así nadie se pierde en el móvil aunque haya cien chats abiertos.
+
+El flujo mínimo para pasar de mensaje a cita confirmada es simple: el cliente pregunta, ofreces dos o tres horas disponibles, el cliente elige, confirmas por escrito y etiquetas la conversación como «confirmada».
+
+**Consejo profesional:** *guarda las respuestas rápidas con un atajo tipo «/horario» o «/precios». Escribir la barra y tres letras es mucho más rápido que redactar el mismo mensaje por vigésima vez en un mismo día.*
+
+## Automatización avanzada: plantillas, chatbots y cuándo dar el salto a la API
+
+Una plantilla de mensaje en la Business Platform es un formato preaprobado por Meta, compuesto por cabecera, cuerpo, pie y botones, [según documenta WhatsApp for Business](https://business.whatsapp.com/blog/manage-message-templates-whatsapp-business-api). A diferencia de un mensaje normal, puedes enviarla aunque el cliente no te haya escrito antes, siempre que exista consentimiento previo.
+
+Tres plantillas cubren la mayoría de casos de una agenda de citas:
+
+- **Confirmación:** «Tu cita para [servicio] queda confirmada el [fecha] a las [hora] en [negocio]. Responde CAMBIAR si necesitas otra hora».
+- **Recordatorio:** «Te esperamos mañana a las [hora] para tu cita de [servicio]. Confirma con SÍ o dinos si prefieres reprogramar».
+- **Reprogramación:** «Hemos tenido que mover tu cita del [fecha original]. Estas son las nuevas opciones disponibles: [opción 1] / [opción 2]».
+
+Cada plantilla pasa por un proceso de aprobación de Meta que puede tardar horas o días, así que planifícalas con margen antes de lanzarlas. La arquitectura habitual detrás de una automatización seria combina un webhook que recibe el mensaje entrante, un chatbot que resuelve las preguntas repetitivas (horarios, precios, disponibilidad) y una regla de escalado que deriva a un agente humano en cuanto la conversación se complica o el cliente lo pide explícitamente.
+
+## Flujos listos para copiar: reserva, confirmación y recordatorio
+
+Elige el que encaje con tu volumen actual y cámbialo cuando lo necesites, no antes.
+
+**Flujo A, reserva manual por chat:**
+
+1. El cliente escribe pidiendo cita.
+2. Respondes con una respuesta rápida que ofrece dos o tres huecos.
+3. El cliente elige y etiquetas la conversación como «cita propuesta».
+4. Envías confirmación por escrito y cambias la etiqueta a «confirmada».
+
+**Flujo B, reserva automatizada con chatbot:**
+
+1. El chatbot recibe el mensaje y pregunta el servicio deseado.
+2. Cruza la petición con la disponibilidad real de la agenda.
+3. Envía una plantilla de confirmación con la hora asignada.
+4. Si el cliente no responde en el plazo marcado, escala a un agente humano.
+
+Un error habitual es intentar avisar a toda la cartera de clientes usando una lista de difusión. No funciona así: las listas de difusión solo entregan el mensaje a quien ya tiene tu número guardado en su agenda. Para notificaciones masivas a clientes que no te tienen guardado, necesitas plantillas vía API con consentimiento previo, no una difusión.
+
+**Consejo profesional:** *pide a los clientes que guarden tu número desde el primer mensaje, con una frase simple: «Guárdanos para recibir tus recordatorios de cita». Esa acción sencilla multiplica el alcance de tus futuras difusiones.*
+
+## Cómo sincronizar la agenda con Google Calendar, Outlook e iCloud
+
+Una reserva cerrada por WhatsApp que no llega a la agenda real es una cita fantasma esperando a chocar con otra. Existen tres vías prácticas para evitarlo:
+
+- Integración nativa vía API, conectando el webhook de WhatsApp directamente con Google Calendar u Outlook mediante su propio conector.
+- Herramientas intermedias de automatización que traducen el mensaje confirmado en un evento de calendario sin programación a medida.
+- Un servicio gestionado como Alhabla, que ya sincroniza automáticamente con Google Calendar, Outlook e iCloud y reparte las citas por profesional según especialidad.
+
+Sea cual sea la vía, define reglas de bloqueo claras: una franja se marca como ocupada en el mismo instante en que se propone, no cuando se confirma, para que dos clientes no reciban el mismo hueco a la vez. Antes de abrir el canal al público, haz una prueba completa: reserva ficticia, confirmación, y verificación de que el evento aparece correctamente en el calendario de la persona correcta.
+
+## Consentimiento y comunicaciones: lo que exige la normativa española
+
+No todos los mensajes de WhatsApp se rigen por la misma norma. Un recordatorio de una cita que el propio cliente ha pedido es una comunicación de servicio, distinta de una campaña promocional. La diferencia importa porque, según recuerda la AEPD, las comunicaciones comerciales no solicitadas están prohibidas por la LSSI, mientras que la base jurídica de un simple recordatorio depende de si existe relación contractual previa y del tipo de contenido enviado.
+
+Para no meterte en líos:
+
+- Pide consentimiento explícito antes de enviar cualquier mensaje que no sea respuesta directa a una consulta del cliente.
+- Registra cuándo y cómo se dio ese consentimiento, aunque sea con una simple nota en tu sistema de gestión.
+- Incluye siempre una forma sencilla de oponerse, del tipo «responde BAJA si no quieres recibir más recordatorios».
+- Reserva la promoción comercial para clientes que hayan aceptado expresamente recibir ese tipo de contenido, distinto del recordatorio operativo.
+
+**Dato clave:** la excepción de relación contractual previa que recoge la normativa española solo cubre comunicaciones sobre servicios similares al ya contratado, y siempre con derecho a oposición sencilla, según detalla el [resumen de protección de datos de España](https://www.dlapiperdataprotection.com/?t=law\&c=ES).
+
+## Reducir las ausencias: cuándo enviar cada recordatorio
+
+Los negocios que combinan varios recordatorios bien espaciados ven caer sus ausencias de forma notable, y la secuencia importa tanto como el contenido del mensaje.
+
+- **Inmediato:** confirmación en el momento en que se cierra la cita, sin esperar.
+- **24 a 48 horas antes:** recordatorio con opción de responder CONFIRMAR o REPROGRAMAR directamente en el mismo mensaje.
+- **2 a 4 horas antes:** aviso corto, casi un empujón final, solo con hora y lugar.
+
+Incluye siempre un botón o palabra clave de acción en la plantilla, no solo información. Un mensaje que dice «tu cita es mañana a las 10:00» genera menos respuesta que uno que añade «responde SÍ para confirmar o CAMBIAR si necesitas otra hora».
+
+Mide al menos dos indicadores cada mes: porcentaje de ausencias sobre el total de citas y porcentaje de reprogramaciones gestionadas por el propio cliente sin intervención tuya. Si el segundo número sube y el primero baja, tu sistema de recordatorios está funcionando.
+
+## Cuándo delegar la gestión de citas a un servicio gestionado
+
+La app de WhatsApp Business te lleva lejos, pero tiene un techo. Cuando empiezas a perder llamadas porque estás con las manos ocupadas atendiendo a un cliente, cuando dos personas reservan la misma franja porque nadie bloqueó el hueco a tiempo, o cuando el volumen de mensajes supera lo que una sola persona puede responder con cabeza, es el momento de delegar.
+
+Un servicio gestionado no sustituye tu criterio, se encarga de la parte mecánica: desviar llamadas sin que el cliente note ningún cambio de número, confirmar y reprogramar citas por WhatsApp en tiempo real, y mantener la agenda sincronizada sin que nadie tenga que teclear nada dos veces. Los negocios que ya usan WhatsApp de forma intensiva en momentos de mucha demanda reportan mejoras claras en tiempo de respuesta y conversión frente a la atención telefónica tradicional. Esa misma lógica se aplica a una peluquería con la agenda llena un sábado por la mañana.
+
+La decisión no es técnica, es de tiempo. Si delegar te devuelve horas que hoy pierdes contestando el móvil, compensa.
+
+## Alhabla: la forma de no perder ni una llamada mientras atiendes a un cliente
+
+Alhabla es la alternativa directa para negocios con cita previa que no quieren montar ni mantener la infraestructura técnica de una API. El servicio desvía las llamadas de tu número habitual, así que ningún cliente nota el cambio, y gestiona confirmaciones, cambios y cancelaciones por WhatsApp en tiempo real, con la agenda sincronizada automáticamente con Google Calendar, Outlook e iCloud.
+
+Lo que distingue a Alhabla de montar tú mismo un chatbot es la sencillez operativa: puedes decirle al asistente algo tan simple como «mañana no abrimos» y él mismo propone mover las reservas afectadas y avisar a los clientes, o «Pedro no viene el viernes» y te pide confirmación antes de reasignar sus citas. Nada de paneles complicados ni de programar plantillas a mano.
+
+El servicio está pensado para negocios como peluquerías, centros de estética, salones de uñas o clínicas de fisioterapia, donde cada llamada perdida es una cita que se va a la competencia. Puedes revisar los [planes Inicio, Pro y Scale](/planes) según los minutos y el número de profesionales que gestiones, y ver casos concretos en las páginas de [fisioterapia](/fisioterapia) y [centros de estética](/centro-de-estetica). El siguiente paso es simple: entra en la página de planes y elige el que se ajusta al volumen de tu negocio.
+
+## Fuentes
+
+- [DLA Piper — Data protection: Spain](https://www.dlapiperdataprotection.com/?t=law\&c=ES)
+- [Manage message templates — WhatsApp for Business](https://business.whatsapp.com/blog/manage-message-templates-whatsapp-business-api)
+
+## Preguntas frecuentes
+
+### ¿Cómo se crean citas en WhatsApp Business?
+
+Se crean respondiendo manualmente en la app con respuestas rápidas y etiquetas de estado, o de forma automática mediante plantillas y un chatbot conectado a la Business Platform. Un servicio gestionado como [Alhabla](/) hace ese cruce automáticamente con tu calendario.
+
+### ¿Qué no se debe hacer en WhatsApp Business?
+
+No envíes campañas comerciales a contactos que no han dado consentimiento explícito, porque la LSSI prohíbe las comunicaciones no solicitadas. Tampoco uses listas de difusión para avisar a clientes que no tienen tu número guardado, ya que ese mensaje nunca les llegará.
+
+### ¿Qué requisitos debe cumplir un mensaje de WhatsApp para presentarse como prueba en un juicio?
+
+La validez como prueba depende de acreditar la autenticidad e integridad del mensaje, normalmente mediante un acta notarial o un informe pericial que certifique que no ha sido alterado. Esto excede el ámbito operativo de la gestión de citas y conviene consultarlo con un profesional del derecho.
+
+### ¿Qué significa que un negocio use WhatsApp Business?
+
+Significa que el negocio tiene un perfil verificado con horario, categoría y catálogo, y que usa funciones como respuestas rápidas, etiquetas y plantillas para gestionar clientes de forma más ordenada que con un número personal. Es la base sobre la que se construye cualquier automatización de citas.
+
+### ¿Cuánto cuesta automatizar las citas con un servicio como Alhabla?
+
+Los planes de Alhabla empiezan en 69 € al mes en el plan Inicio, con Pro a 149 € y Scale a 299 €, cada uno con distintos minutos incluidos y número de profesionales gestionados, según la página de planes.
