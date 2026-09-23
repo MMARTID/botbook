@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import localFont from "next/font/local";
 import { GoogleAnalytics } from "@/components/google-analytics";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 import "./globals.css";
 import { absoluteUrl, defaultDescription, defaultTitle, seoKeywords, siteName, siteUrl } from "@/lib/seo";
 
@@ -96,6 +97,7 @@ export default function RootLayout({
         */}
         {children}
         <GoogleAnalytics />
+        <SpeedInsights />
       </body>
     </html>
   );
