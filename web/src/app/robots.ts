@@ -2,11 +2,15 @@ import type { MetadataRoute } from "next";
 import { siteUrl } from "@/lib/seo";
 
 /**
- * Todo lo público se rastrea. Fuera del rastreo (además del `noindex` que
- * ya llevan): el editor del blog, sus rutas internas y el redirector de
- * previsualización — no aportan nada al índice y gastan rastreo. `/register`
- * NO se bloquea: lleva `noindex` y Google necesita poder leerlo para
- * respetarlo. Las previsualizaciones de Vercel ya salen con
+ * Todo lo público se rastrea. Las rutas internas del blog (/keystatic,
+ * /preview, /vista-previa) NO se bloquean aquí a propósito: llevan `noindex`
+ * en sus metadatos, y Google solo puede respetar un `noindex` si rastrea la
+ * página y lo lee. Bloquearlas en robots.txt haría que Google nunca viera la
+ * directiva y podría indexarlas como URL sin contenido si alguien las
+ * enlazara. `/register` sigue el mismo criterio: `noindex` visible.
+ *
+ * Fuera solo `/api/`: no son páginas, no tienen nada que indexar y gastan
+ * rastreo. Las previsualizaciones de Vercel ya salen con
  * `X-Robots-Tag: noindex` por su cuenta.
  */
 export default function robots(): MetadataRoute.Robots {
@@ -17,7 +21,7 @@ export default function robots(): MetadataRoute.Robots {
       {
         userAgent: "*",
         allow: "/",
-        disallow: ["/keystatic", "/api/", "/preview"],
+        disallow: ["/api/"],
       },
     ],
     sitemap: `${host}/sitemap.xml`,

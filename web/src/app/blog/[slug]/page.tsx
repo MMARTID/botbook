@@ -29,6 +29,7 @@ export async function generateStaticParams() {
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const articulo = leerArticulo(params.slug);
   if (!articulo) return {};
+  const sector = esSector(articulo.sector) ? articulo.sector : null;
   return {
     title: articulo.titulo,
     description: articulo.resumen,
@@ -43,6 +44,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       publishedTime: articulo.fecha,
       modifiedTime: articulo.actualizado ?? articulo.fecha,
       authors: [articulo.autor],
+      section: sector ? nicheLandings[sector].name : "Atención al cliente para negocios locales",
       images: ogImages(`/blog/${articulo.slug}`, articulo.titulo),
     },
     twitter: {
@@ -242,6 +244,7 @@ export default async function ArticuloPage({ params }: Props) {
                   dateModified: articulo.actualizado ?? articulo.fecha,
                   inLanguage: articulo.idioma === "ca" ? "ca-ES" : "es-ES",
                   wordCount: articulo.minutosDeLectura * 200,
+                  ...(sector ? { articleSection: nicheLandings[sector].name } : {}),
                   author:
                     articulo.autor === AUTOR_POR_DEFECTO
                       ? { "@id": organizationId() }
