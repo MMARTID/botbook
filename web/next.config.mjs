@@ -39,6 +39,15 @@ const nextConfig = {
       "/**/opengraph-image": OG_ASSETS,
     },
   },
+  images: {
+    // Fotos de banco con licencia libre usadas en el cuerpo de los artículos
+    // del blog (content/blog/README.md: Unsplash y Pexels). La cabecera de
+    // cada artículo sigue siendo un fichero local bajo public/.
+    remotePatterns: [
+      { protocol: "https", hostname: "images.unsplash.com" },
+      { protocol: "https", hostname: "images.pexels.com" },
+    ],
+  },
   async rewrites() {
     return [
       {
