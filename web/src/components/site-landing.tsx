@@ -31,64 +31,7 @@ function buildPlansHref(niche?: string) {
   return niche ? `/planes?niche=${encodeURIComponent(niche)}` : "/planes";
 }
 
-const businessBenefits = [
-  {
-    title: "Peluquerías",
-    description: "Reserva cortes, color y tratamientos incluso mientras todo el equipo está atendiendo.",
-    result: "Menos llamadas perdidas en horas punta",
-  },
-  {
-    title: "Centros de estética",
-    description: "Responde dudas sobre servicios, duración y disponibilidad antes de confirmar la cita.",
-    result: "Atención cuidada desde el primer contacto",
-  },
-  {
-    title: "Barberías, uñas y fisioterapia",
-    description: "Cita con el profesional de siempre, duración real y huecos que cuadran con tu jornada.",
-    result: "La agenda se llena sin soltar las manos",
-  },
-] as const;
-
 const BENEFIT_ICONS = [Scissors, Sparkles, Store] as const;
-
-const frequentlyAskedQuestions = [
-  {
-    question: "¿Mantengo mi número de teléfono de siempre?",
-    answer: "Sí, completamente. Tus clientes seguirán llamando a tu número habitual; Alhabla atiende las llamadas mediante un simple desvío desde tu móvil o fijo. No tienes que publicar un número nuevo ni avisar a nadie.",
-  },
-  {
-    question: "¿Es difícil configurar el desvío de llamadas?",
-    answer: "No. Activas un desvío desde tu teléfono habitual marcando un código rápido; tarda unos 15 segundos. Te damos las instrucciones paso a paso para tu operador, sin cambiar tu número ni tocar ajustes técnicos.",
-  },
-  {
-    question: "¿Puede reservar, cambiar y cancelar citas?",
-    answer: "Sí. Alhabla comprueba tu horario y tu disponibilidad real antes de ofrecer un hueco, y registra, modifica o cancela citas directamente en tu Google Calendar o tu Outlook, respetando los servicios y las reglas que marques.",
-  },
-  {
-    question: "¿Responde dudas sobre precios y servicios?",
-    answer: "Sí. Le das la información real de tu negocio: carta de precios en PDF, servicios, duración, horarios y datos de Google Maps. Así responde con seguridad sin que tengas que dejar a medias un tinte, unas uñas o una sesión.",
-  },
-  {
-    question: "¿La voz suena natural?",
-    answer: "Suena natural y cercana, en español de España. Puedes ajustar cómo habla —más cálida, más profesional o más directa— y si da respuestas breves o algo más explicadas, para que encaje con el trato que das en tu negocio.",
-  },
-  {
-    question: "¿Qué pasa si la llamada necesita atención humana?",
-    answer: "Alhabla recoge el motivo, los datos y el contexto de la llamada para que no se pierda nada importante. Cuando una consulta requiere a tu equipo, deja el aviso preparado para que podáis responder con toda la información.",
-  },
-  {
-    question: "¿Atiende fuera de horario?",
-    answer: "Sí, Alhabla sigue disponible 24/7. Puede resolver dudas y gestionar solicitudes incluso por la noche, en festivos o mientras tienes cerrado, para que no pierdas una posible cita por no contestar.",
-  },
-  {
-    question: "¿Hay permanencia?",
-    answer: "No. Empiezas con el plan que mejor encaje con tu volumen y puedes cambiarlo cuando lo necesites. Sin contratos largos ni compromisos que te aten.",
-  },
-  {
-    question: "¿Qué pasa si supero los minutos incluidos en mi plan?",
-    answer: "No hay sorpresas: cada plan muestra claramente el coste por minuto adicional antes de contratar. Así sabes en todo momento cuánto pagas y puedes elegir el plan que mejor se adapta a tus llamadas.",
-  },
-] as const;
 
 export function SiteLanding({ content }: { content?: NicheLandingContent }) {
   // La portada general tiene que resolver una sola pregunta —qué hace Alhabla
@@ -96,8 +39,8 @@ export function SiteLanding({ content }: { content?: NicheLandingContent }) {
   // donde esa profundidad sí responde a una intención de búsqueda concreta.
   if (!content) return <MainLanding />;
 
-  const visibleBenefits = content?.benefits ?? businessBenefits;
-  const visibleFaqs = content?.faqs ?? frequentlyAskedQuestions;
+  const visibleBenefits = content.benefits;
+  const visibleFaqs = content.faqs;
   const plansHref = buildPlansHref(content?.slug);
 
   return (

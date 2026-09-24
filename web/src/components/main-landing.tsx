@@ -104,7 +104,7 @@ function SectorSceneMedia({
 }
 
 const TARJETA_SECTOR_CLASE =
-  "group flex h-full flex-col rounded-3xl border border-[#e5e5e5] bg-white p-3 transition duration-300 hover:-translate-y-1 hover:border-[#ddd6fe] hover:shadow-[0_18px_35px_-24px_rgba(109,40,217,0.55)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] focus-visible:ring-offset-4";
+  "group flex h-full flex-col rounded-3xl border border-[#e5e5e5] bg-white p-3 transition duration-300 hover:-translate-y-1 hover:border-[#ddd6fe] hover:shadow-[0_18px_35px_-24px_rgba(0,0,0,0.35)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] focus-visible:ring-offset-4";
 
 /** Contenido visual de la tarjeta de sector, compartido entre la carta real
  * (delante, enlaza) y la carta invisible que solo reserva altura. */
@@ -266,7 +266,7 @@ function SectorFeatureCard({ sector, reducedMotion }: { sector: (typeof SECTORES
   return (
     <Link
       href={sector.href}
-      className="group col-span-2 flex overflow-hidden rounded-3xl border border-[#e5e5e5] bg-white transition duration-300 hover:-translate-y-1 hover:border-[#ddd6fe] hover:shadow-[0_18px_35px_-24px_rgba(109,40,217,0.55)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] focus-visible:ring-offset-4"
+      className="group col-span-2 flex overflow-hidden rounded-3xl border border-[#e5e5e5] bg-white transition duration-300 hover:-translate-y-1 hover:border-[#ddd6fe] hover:shadow-[0_18px_35px_-24px_rgba(0,0,0,0.35)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] focus-visible:ring-offset-4"
     >
       <motion.span
         className="relative block shrink-0 overflow-hidden"
@@ -344,7 +344,7 @@ export function MainLanding() {
           </Reveal>
           <Reveal delay={0.18} y={12}>
             <p className="flex flex-wrap justify-center gap-x-5 gap-y-2 text-sm font-medium text-[#3f3f46]">
-              {["Sin cambiar de número", "Google Calendar y Outlook", "Sin permanencia"].map((item) => <span key={item} className="inline-flex items-center gap-1.5"><Check className="h-4 w-4 text-[#8b5cf6]" aria-hidden="true" />{item}</span>)}
+              {["Sin cambiar de número", "Google, Outlook o iCloud", "Sin permanencia"].map((item) => <span key={item} className="inline-flex items-center gap-1.5"><Check className="h-4 w-4 text-[#8b5cf6]" aria-hidden="true" />{item}</span>)}
             </p>
           </Reveal>
         </div>
@@ -496,8 +496,8 @@ export function MainLanding() {
                 <article
                   className={
                     plan.featured
-                      ? "relative flex h-full flex-col rounded-3xl bg-white p-7 ring-2 ring-[#8b5cf6]"
-                      : "flex h-full flex-col rounded-3xl border border-[#e5e5e5] bg-white p-7"
+                      ? "landing-card-hover relative flex h-full flex-col rounded-3xl bg-white p-7 ring-2 ring-[#8b5cf6]"
+                      : "landing-card-hover flex h-full flex-col rounded-3xl border border-[#e5e5e5] bg-white p-7"
                   }
                 >
                   <div className="flex items-center justify-between gap-3">

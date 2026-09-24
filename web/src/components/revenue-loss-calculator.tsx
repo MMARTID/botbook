@@ -172,7 +172,7 @@ export function RevenueLossCalculator({
             </div>
           </div>
 
-          <div className="relative flex min-h-[28rem] flex-col overflow-hidden rounded-[26px] bg-[#0a0a0a] p-6 text-white sm:p-8 lg:p-10">
+          <div className="relative flex min-h-[28rem] flex-col overflow-hidden rounded-3xl bg-[#0a0a0a] p-6 text-white sm:p-8 lg:p-10">
             <div className="relative flex h-full flex-1 flex-col">
               <p className="text-sm font-semibold text-white/60">Pérdida estimada al mes</p>
 

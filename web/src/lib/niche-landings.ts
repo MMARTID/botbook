@@ -111,11 +111,6 @@ export type NicheLandingContent = {
   benefitsTitle: string;
   benefitsDescription: string;
   benefits: [Benefit, Benefit, Benefit];
-  calendarIntegration: {
-    title: string;
-    description: string;
-    examples: [string, string, string];
-  };
   teamRouting: TeamRouting;
   ownerAssistant: OwnerAssistant;
   calculator: {
@@ -209,11 +204,6 @@ export const nicheLandings: Record<NicheSlug, NicheLandingContent> = {
       { title: "Color y mechas", description: "Recoge la necesidad del cliente y deriva valoraciones complejas.", result: "Más contexto antes de atender" },
       { title: "Tratamientos", description: "Informa sobre opciones, precios y preparación previa.", result: "Consultas resueltas al instante" },
     ],
-    calendarIntegration: {
-      title: "Sigue usando los canales que ya te traen reservas.",
-      description: "Alhabla consulta Google Calendar antes de confirmar una cita. Si tus reservas de web, WhatsApp, Instagram o software ya llegan ahí, el agente respeta esos huecos ocupados.",
-      examples: ["Las reservas online bloquean el hueco automáticamente", "Sólo ofrece horarios realmente libres", "Las llamadas se añaden a la misma agenda"],
-    },
     teamRouting: {
       badge: "Incluido en todos los planes",
       title: "Las mechas, con quien tú se las confiarías.",
@@ -248,7 +238,7 @@ export const nicheLandings: Record<NicheSlug, NicheLandingContent> = {
       { question: "¿Qué ocurre si una coloración necesita valoración previa?", answer: "El asistente recoge la información y deja la consulta preparada para que tu equipo confirme el servicio antes de reservarlo." },
       { question: "¿Atiende cuando todos estamos trabajando?", answer: "Sí. Está disponible durante horas punta, fuera de horario y en festivos para que una llamada no interrumpa el servicio." },
       { question: "¿Puede cambiar o cancelar una cita?", answer: "Sí. Consulta la agenda y gestiona cambios o cancelaciones según las reglas que definas." },
-      { question: "¿Tengo que cambiar mi software de reservas actual?", answer: "No necesariamente. Alhabla consulta Google Calendar antes de reservar. Si tu web, WhatsApp o software sincroniza las citas ahí, el agente respeta esos huecos ocupados." },
+      { question: "¿Tengo que cambiar mi software de reservas actual?", answer: "No necesariamente. Alhabla consulta tu Google Calendar, Outlook o iCloud antes de reservar. Si tu web, WhatsApp o software sincroniza las citas ahí, el agente respeta esos huecos ocupados." },
     ],
     closingTitle: "Empieza a no perder citas de peluquería esta semana.",
     sectorData: {
@@ -342,11 +332,6 @@ export const nicheLandings: Record<NicheSlug, NicheLandingContent> = {
       { title: "Corporales", description: "Recoge objetivos y deriva dudas sensibles al equipo.", result: "Mejor cualificación de consultas" },
       { title: "Bonos y seguimiento", description: "Responde dudas habituales y organiza próximas sesiones.", result: "Más continuidad del tratamiento" },
     ],
-    calendarIntegration: {
-      title: "Una sola disponibilidad para todos tus canales.",
-      description: "Alhabla usa Google Calendar como referencia antes de reservar. Así respeta las citas que entren desde tu web, WhatsApp o herramienta de reservas sincronizada.",
-      examples: ["Las citas existentes protegen tus cabinas", "Evita dobles reservas entre canales", "Centraliza nuevas llamadas en la misma agenda"],
-    },
     teamRouting: {
       badge: "Incluido en todos los planes",
       title: "Cada tratamiento, en las manos que tú elegirías.",
@@ -381,7 +366,7 @@ export const nicheLandings: Record<NicheSlug, NicheLandingContent> = {
       { question: "¿Gestiona bonos y sesiones recurrentes?", answer: "Puede informar sobre condiciones y organizar sesiones según las reglas y disponibilidad configuradas." },
       { question: "¿Puede reservar por cabina o profesional?", answer: "Sí. Si el cliente pide a alguien por su nombre, reserva con esa persona; si no, la cita va a tu especialista en ese tratamiento, respetando cabinas y tiempos." },
       { question: "¿Cómo evita respuestas incorrectas?", answer: "Trabaja con la información, límites y documentos que apruebes, y deriva las consultas fuera de alcance." },
-      { question: "¿Tengo que abandonar mi sistema de reservas?", answer: "No. Si tu sistema sincroniza las citas con Google Calendar, Alhabla las respeta antes de ofrecer disponibilidad por teléfono." },
+      { question: "¿Tengo que abandonar mi sistema de reservas?", answer: "No. Si tu sistema sincroniza las citas con Google Calendar, Outlook o iCloud, Alhabla las respeta antes de ofrecer disponibilidad por teléfono." },
     ],
     closingTitle: "Empieza a no perder consultas de estética esta semana.",
     sectorData: {
@@ -476,11 +461,6 @@ export const nicheLandings: Record<NicheSlug, NicheLandingContent> = {
       { title: "Retiradas y retoques", description: "Pregunta por el estado previo y añade tiempo cuando corresponde.", result: "Menos retrasos en cadena" },
       { title: "Nail art", description: "Recoge el nivel de diseño y deja notas para el equipo.", result: "Citas mejor preparadas" },
     ],
-    calendarIntegration: {
-      title: "Tu disponibilidad real, también cuando la reserva llega por otro canal.",
-      description: "Si las citas de mensajes, Instagram o tu sistema de reservas se sincronizan con Google Calendar, Alhabla las ve antes de proponer un horario por teléfono.",
-      examples: ["No ofrece huecos ya ocupados", "Respeta la duración de cada servicio", "Añade las llamadas a tu agenda habitual"],
-    },
     teamRouting: {
       badge: "Incluido en todos los planes",
       title: "El nail art, con la técnica que lo borda.",
@@ -516,7 +496,7 @@ export const nicheLandings: Record<NicheSlug, NicheLandingContent> = {
       { question: "¿Puedo decidir quién hace cada técnica?", answer: "Sí. Marcas por profesional quién es especialista en acrílico, semipermanente o nail art y a quién prefieres reservar solo si lo piden; la recepcionista reparte así las citas." },
       { question: "¿Puede agendar la próxima cita?", answer: "Sí. Consulta disponibilidad y facilita que las clientas mantengan su frecuencia habitual." },
       { question: "¿Responde precios de cada técnica?", answer: "Sí. Usa tu catálogo real y puede aclarar qué extras afectan al precio antes de la visita." },
-      { question: "¿Puedo seguir recibiendo reservas por Instagram o WhatsApp?", answer: "Sí. Si esas citas llegan a Google Calendar, Alhabla las tiene en cuenta y sólo ofrece por teléfono horarios que siguen libres." },
+      { question: "¿Puedo seguir recibiendo reservas por Instagram o WhatsApp?", answer: "Sí. Si esas citas llegan a tu Google Calendar, Outlook o iCloud, Alhabla las tiene en cuenta y sólo ofrece por teléfono horarios que siguen libres." },
     ],
     closingTitle: "Empieza a no perder citas de manicura esta semana.",
     sectorData: {
@@ -608,11 +588,6 @@ export const nicheLandings: Record<NicheSlug, NicheLandingContent> = {
       { title: "Barba y afeitado", description: "Informa sobre opciones y añade el tiempo adecuado.", result: "Agenda sin improvisaciones" },
       { title: "Packs", description: "Combina servicios y confirma el importe orientativo.", result: "Mayor ticket por visita" },
     ],
-    calendarIntegration: {
-      title: "Tus reservas de siempre. Una agenda compartida.",
-      description: "Alhabla consulta Google Calendar antes de confirmar un corte o un pack. Las citas que ya entren desde web, WhatsApp u otra herramienta sincronizada se respetan automáticamente.",
-      examples: ["Sin solapes entre teléfono y reservas online", "Huecos actualizados para cada barbero", "Todas las citas quedan en la misma agenda"],
-    },
     teamRouting: {
       badge: "Incluido en todos los planes",
       title: "Cada corte, con el barbero que tú elegirías.",
@@ -647,7 +622,7 @@ export const nicheLandings: Record<NicheSlug, NicheLandingContent> = {
       { question: "¿Distingue corte, barba y pack?", answer: "Sí. Cada servicio tiene su duración y reglas para bloquear el tiempo correcto." },
       { question: "¿Funciona para citas rápidas del mismo día?", answer: "Sí. Consulta huecos reales y puede ofrecer la primera franja disponible según tus reglas." },
       { question: "¿Atiende fuera del horario de apertura?", answer: "Sí. Tus clientes pueden consultar y reservar aunque la barbería esté cerrada." },
-      { question: "¿Qué pasa con mis reservas de web o WhatsApp?", answer: "Alhabla consulta Google Calendar antes de reservar. Las citas que lleguen desde otros canales sincronizados quedan protegidas." },
+      { question: "¿Qué pasa con mis reservas de web o WhatsApp?", answer: "Alhabla consulta tu Google Calendar, Outlook o iCloud antes de reservar. Las citas que lleguen desde otros canales sincronizados quedan protegidas." },
     ],
     closingTitle: "Empieza a no perder cortes esta semana.",
     sectorData: {
@@ -746,11 +721,6 @@ export const nicheLandings: Record<NicheSlug, NicheLandingContent> = {
       { title: "Sesiones de seguimiento", description: "Reserva con el fisioterapeuta habitual cuando el paciente lo pide por su nombre.", result: "Menos fricción entre sesiones" },
       { title: "Especialidades", description: "Lleva cada primera visita al fisioterapeuta que marques como especialista, sin emitir diagnósticos.", result: "Consultas correctamente derivadas" },
     ],
-    calendarIntegration: {
-      title: "Protege la agenda de tu consulta en todos los canales.",
-      description: "Alhabla consulta Google Calendar antes de ofrecer una cita. Respeta las sesiones que ya entren por recepción, formulario web u otro sistema sincronizado.",
-      examples: ["Evita solapes entre pacientes", "Mantiene visibles las sesiones ya registradas", "Añade llamadas nuevas a tu calendario"],
-    },
     teamRouting: {
       badge: "Incluido en todos los planes",
       title: "Cada paciente, con el fisioterapeuta que tú le asignarías.",
@@ -792,7 +762,7 @@ export const nicheLandings: Record<NicheSlug, NicheLandingContent> = {
       { question: "¿El asistente ofrece diagnósticos o recomendaciones clínicas?", answer: "No. Recoge información general, responde cuestiones administrativas y deriva cualquier valoración clínica al fisioterapeuta." },
       { question: "¿Puede reservar con el fisioterapeuta habitual del paciente?", answer: "Sí. Si el paciente lo pide por su nombre, reserva con él sin más preguntas; si no tiene hueco, ofrece alternativas. Sin preferencia, va al especialista." },
       { question: "¿Atiende mientras estoy en una sesión?", answer: "Sí. Está disponible durante las sesiones, fuera de horario y en festivos para que una llamada no interrumpa el tratamiento." },
-      { question: "¿Puedo mantener mi agenda o sistema actual?", answer: "Sí. Alhabla consulta Google Calendar como referencia de disponibilidad y respeta las sesiones de otros canales que ya estén sincronizadas." },
+      { question: "¿Puedo mantener mi agenda o sistema actual?", answer: "Sí. Alhabla consulta tu Google Calendar, Outlook o iCloud como referencia de disponibilidad y respeta las sesiones de otros canales que ya estén sincronizadas." },
     ],
     closingTitle: "Empieza a no perder pacientes esta semana.",
     sectorData: {

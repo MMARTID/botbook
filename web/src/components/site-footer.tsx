@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { BrandMark } from "@/components/brand-mark";
 import { contactEmail } from "@/lib/seo";
 
 /**
@@ -47,9 +48,12 @@ export function SiteFooter() {
           </nav>
         </div>
         <div className="flex flex-col gap-4 border-t border-white/10 pt-5 md:flex-row md:items-center md:justify-between">
-          <div className="flex flex-col gap-1">
-            <p className="text-sm">© 2026 Alhabla</p>
-            <p className="text-sm">Titular: Miguel Martín Delgado</p>
+          <div className="flex items-center gap-3">
+            <BrandMark className="h-8 w-8 shrink-0" />
+            <div className="flex flex-col gap-1">
+              <p className="text-sm">© 2026 Alhabla</p>
+              <p className="text-sm">Titular: Miguel Martín Delgado</p>
+            </div>
           </div>
           <nav
             aria-label="Enlaces legales"

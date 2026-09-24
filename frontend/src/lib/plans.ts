@@ -21,7 +21,7 @@ export const plans: readonly Plan[] = [
     summary: "3 profesionales · reservas en tu calendario · 100 minutos incluidos",
     features: [
       "Atención telefónica 24/7",
-      "Reservas directas en tu calendario de Google u Outlook",
+      "Reservas directas en tu calendario de Google, Outlook o iCloud",
       "Hasta 3 profesionales en tu agenda",
       "Confirmación de cita por WhatsApp al cliente",
       "100 minutos de llamadas incluidos",
