@@ -174,13 +174,19 @@ export function GoogleAnalytics() {
         </>
       ) : null}
       {hidratado && (consentimiento === null || abierto) ? (
-        <aside className="fixed inset-x-4 bottom-4 z-50 mx-auto max-w-md rounded-2xl border border-[#ddd6fe] bg-white p-4 shadow-[0_16px_40px_rgba(0,0,0,0.16)]" aria-label="Preferencias de cookies">
+        <aside className="fixed inset-x-4 bottom-4 z-50 mx-auto max-w-md rounded-2xl border border-[#ddd6fe] bg-white p-4 shadow-[0_16px_40px_rgba(0,0,0,0.16)]" aria-labelledby="titulo-cookies">
+          {/* Título real, no solo aria-label: un aside con contenido complejo
+              (párrafo + enlace + 2 botones) se orienta mejor con un
+              encabezado que un lector de pantalla puede saltar a buscar. Va
+              sr-only porque el propio párrafo ya deja claro de qué trata —
+              así no añade altura al banner en pantalla. */}
+          <h2 id="titulo-cookies" className="sr-only">Preferencias de cookies</h2>
           <p className="text-sm leading-5 text-[#52525b]">
             Analítica opcional (Google Analytics, Vercel) — solo se activa si aceptas. <a href="/legal/privacidad" className="text-[#0a0a0a] underline underline-offset-2">Más información</a>.
           </p>
           <div className="mt-3 flex flex-wrap gap-2">
-            <button type="button" onClick={() => decidir(true)} className="btn-secondary px-4 py-2 text-sm">Aceptar</button>
-            <button type="button" onClick={() => decidir(false)} className="btn-secondary px-4 py-2 text-sm">Rechazar</button>
+            <button type="button" onClick={() => decidir(true)} className="btn-secondary px-4 py-2 text-sm">Aceptar analítica</button>
+            <button type="button" onClick={() => decidir(false)} className="btn-secondary px-4 py-2 text-sm">Rechazar analítica</button>
           </div>
         </aside>
       ) : hidratado ? (
