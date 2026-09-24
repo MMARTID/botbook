@@ -1,21 +1,31 @@
 
 import Link from "next/link";
-import { ArrowRight, CalendarDays, Check, Clock3, MessageCircleMore, Scissors, Sparkles, Store } from "lucide-react";
+import { ArrowRight, Check, Scissors, Sparkles, Store } from "lucide-react";
 import { LandingHero } from "@/components/landing-hero";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 import { SectorDataSection } from "@/components/sector-data-section";
+import { HowItWorksScrollytelling } from "@/components/how-it-works-scrollytelling";
 import { TeamRoutingSection } from "@/components/team-routing-section";
 import { OwnerAssistantSection } from "@/components/owner-assistant-section";
 import { WhatsAppBenefitsTable } from "@/components/whatsapp-benefits-table";
 import { RevenueLossCalculator } from "@/components/revenue-loss-calculator";
 import { Reveal } from "@/components/scroll-reveal";
-import { CallForwardingFlow } from "@/components/call-forwarding-flow";
 import { formatIncludedMinutes, formatPlanPrice, plans, TRIAL_REASSURANCE } from "@/lib/plans";
-import { type NicheLandingContent } from "@/lib/niche-landings";
-import { SiGooglecalendar } from "@icons-pack/react-simple-icons";
-import { MicrosoftLogo } from "@/components/brand-icons";
+import { type NicheLandingContent, type NicheSlug } from "@/lib/niche-landings";
 import { MainLanding } from "@/components/main-landing";
+
+// Ejemplos de servicio/reserva que muestra el relato de "Cómo funciona" en
+// cada landing de nicho (2026-09-24): antes de esto, las 5 landings
+// mostraban siempre "Corte, color y tratamientos" / "Corte y peinado" —
+// vocabulario de peluquería — sea cual fuera el nicho real de la página.
+const COMO_FUNCIONA_EJEMPLOS: Record<NicheSlug, { servicio: string; reserva: string }> = {
+  peluqueria: { servicio: "Corte, color y tratamientos", reserva: "Corte y peinado" },
+  barberia: { servicio: "Corte, barba y afeitado", reserva: "Corte y barba" },
+  "salon-de-unas": { servicio: "Manicura, gel y nail art", reserva: "Manicura semipermanente" },
+  "centro-de-estetica": { servicio: "Faciales, corporales y bonos", reserva: "Facial con peeling" },
+  fisioterapia: { servicio: "Primera consulta y seguimientos", reserva: "Primera consulta" },
+};
 
 function buildPlansHref(niche?: string) {
   return niche ? `/planes?niche=${encodeURIComponent(niche)}` : "/planes";
@@ -40,21 +50,6 @@ const businessBenefits = [
 ] as const;
 
 const BENEFIT_ICONS = [Scissors, Sparkles, Store] as const;
-
-const threeSteps = [
-  {
-    title: "Suena tu número de siempre",
-    description: "Activas un desvío condicional en 15 segundos. Solo las llamadas que no contestas van al asistente.",
-  },
-  {
-    title: "Responde como si fuera de la casa",
-    description: "Conoce tus servicios, precios y huecos reales. Si no sabe algo, toma un recado en vez de inventarlo.",
-  },
-  {
-    title: "La cita, en tu agenda al colgar",
-    description: "Confirmación automática y ficha con quién llamó y qué reservó. Duración media: menos de 2 minutos.",
-  },
-] as const;
 
 const frequentlyAskedQuestions = [
   {
@@ -137,105 +132,30 @@ export function SiteLanding({ content }: { content?: NicheLandingContent }) {
         visual entre secciones lo dan el espaciado y, donde ya existía, el
         borde — no un tinte de fondo.
       */}
-      <section id="como-funciona" className="scroll-m-20 py-16 sm:py-20">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <Reveal className="mb-10 max-w-2xl">
-            <h2 className="text-3xl font-black leading-tight tracking-tight text-[#0a0a0a] sm:text-4xl">
-              De llamada perdida a cita confirmada, en tres pasos.
-            </h2>
-          </Reveal>
+      {/*
+        Cómo funciona (2026-09-24, propuesta de conversión): antes había un
+        bloque estático propio aquí (CallForwardingFlow + tres tarjetas fijas,
+        siempre en morado de marca) distinto del relato con scroll que ya
+        tenía la landing principal — dos explicaciones para lo mismo, una de
+        ellas sin animación propia. Ahora las 5 landings de nicho montan el
+        mismo componente que la principal, con el acento y los ejemplos de
+        servicio de su propio nicho — un solo relato, coherente en las 6
+        páginas y ya sin el bug de scroll en móvil (ver el propio componente).
 
-          <Reveal delay={0.05} className="mb-5">
-            <CallForwardingFlow accent={content?.accent} />
-          </Reveal>
-
-          <div className="grid gap-5 lg:grid-cols-3">
-            {threeSteps.map((step, index) => (
-              <Reveal key={step.title} delay={index * 0.1}>
-                <article className="panel landing-card-hover h-full p-7 sm:p-8">
-                  {/* El número deja de ser un titular gigante: en la dirección
-                      editorial el peso lo lleva el título del paso, y la cifra
-                      solo ordena. */}
-                  <span
-                    className="text-sm font-extrabold tracking-[0.02em] text-[#8b5cf6]"
-                    // `strong` como texto falla AA en 3 de los 5 acentos de
-                    // nicho (salon-de-unas, barbería, fisioterapia); `deep`
-                    // es la variante pensada para texto sobre blanco.
-                    style={content?.accent ? { color: content.accent.deep } : undefined}
-                  >
-                    {String(index + 1).padStart(2, "0")}
-                  </span>
-                  <h3 className="mt-5 text-xl font-bold text-[#0a0a0a]">{step.title}</h3>
-                  <p className="mt-3 text-sm leading-7 text-[#52525b]">{step.description}</p>
-                </article>
-              </Reveal>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      <section className="py-16 sm:py-20">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <Reveal>
-            <span
-              className={
-                content?.accent
-                  ? "inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold ring-1 ring-inset"
-                  : "badge-soft gap-2"
-              }
-              style={
-                content?.accent
-                  ? ({
-                      backgroundColor: content.accent.soft,
-                      color: content.accent.deep,
-                      "--tw-ring-color": `${content.accent.strong}33`,
-                    } as React.CSSProperties)
-                  : undefined
-              }
-            >
-              <SiGooglecalendar className="h-4 w-4" color="#4285F4" />
-              <MicrosoftLogo className="h-4 w-4" />
-              Google Calendar & Outlook
-            </span>
-          </Reveal>
-          <div className="mt-5 grid gap-8 lg:grid-cols-[0.9fr_1.1fr] lg:items-center lg:gap-12">
-            <Reveal delay={0.05}>
-              <h2 className="text-3xl font-black leading-tight tracking-tight text-[#0a0a0a] sm:text-4xl">
-                {content?.calendarIntegration.title ?? "No cambias cómo recibes tus reservas."}
-              </h2>
-              <p className="mt-4 max-w-xl text-base leading-7 text-[#52525b]">
-                {content?.calendarIntegration.description ?? "Alhabla consulta tu calendario antes de confirmar una cita. Si las reservas de tu web o WhatsApp ya llegan ahí, el agente las respeta antes de ofrecer un horario por teléfono."}
-              </p>
-            </Reveal>
-            <div className="grid gap-3">
-              {(content?.calendarIntegration.examples ?? [
-                "Las citas de otros canales bloquean ese hueco",
-                "Sólo ofrece horarios realmente disponibles",
-                "Las llamadas nuevas llegan a la misma agenda",
-              ]).map((example, index) => {
-                const Icon = index === 0 ? MessageCircleMore : index === 1 ? Clock3 : CalendarDays;
-                return (
-                  <Reveal key={example} delay={index * 0.1} y={14}>
-                    <div className="flex items-center gap-4 rounded-2xl border border-[#e5e5e5] bg-white p-4">
-                      <span
-                        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl"
-                        style={content?.accent ? { backgroundColor: content.accent.soft, color: content.accent.strong } : { backgroundColor: "#f3eeff", color: "#8b5cf6" }}
-                      >
-                        <Icon className="h-6 w-6" strokeWidth={2.25} />
-                      </span>
-                      <p className="text-sm font-semibold leading-5 text-[#27272a]">{example}</p>
-                    </div>
-                  </Reveal>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-      </section>
+        La sección de integración de calendario que vivía justo debajo se
+        quita como bloque propio: "Google Calendar y Outlook" ya es un
+        checkmark del hero (landing-hero.tsx) — la señal de confianza se
+        mantiene sin alargar la página con una sección entera para ella.
+      */}
+      <HowItWorksScrollytelling
+        accent={content.accent}
+        serviceExample={COMO_FUNCIONA_EJEMPLOS[content.slug].servicio}
+        bookingExample={COMO_FUNCIONA_EJEMPLOS[content.slug].reserva}
+      />
 
       {/*
-        Reparto por especialidad justo después del calendario: el visitante
-        acaba de ver que la agenda es real y ahora ve que la cita cae en la
+        Reparto por especialidad justo después de cómo funciona: el visitante
+        acaba de ver la agenda real en marcha y ahora ve que la cita cae en la
         persona que él elegiría. Es el diferenciador del producto y va en
         todos los planes — por eso no vive dentro de precios.
       */}
