@@ -642,6 +642,10 @@ model VoiceWebhookEvent {
   callId      String?
   receivedAt  DateTime  @default(now())
   processedAt DateTime?
+  /// Cuándo empezó el intento en curso. Con `result = "processing"` es el
+  /// lease: pasado LEASE_MS se da por muerto y otro intento puede reclamarlo.
+  claimedAt   DateTime?
+  attempts    Int       @default(0)
   result      String?
   lastError   String?   @db.Text
   call        Call?     @relation(fields: [callId], references: [id], onDelete: SetNull)

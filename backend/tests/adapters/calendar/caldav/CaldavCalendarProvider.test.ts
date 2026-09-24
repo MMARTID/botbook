@@ -1,4 +1,15 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
+
+// El guardián anti-SSRF resuelve el nombre antes de cada petición; los
+// dominios de ejemplo no existen, así que se fija la resolución: pública
+// salvo que el nombre lleve «interno».
+const mockedLookup = vi.hoisted(() => vi.fn());
+vi.mock("node:dns/promises", () => ({ lookup: mockedLookup }));
+mockedLookup.mockImplementation(async (nombre: string) =>
+  nombre.includes("interno")
+    ? [{ address: "10.0.0.5", family: 4 }]
+    : [{ address: "17.253.144.10", family: 4 }]
+);
 import {
   createAccount,
   createCalendarObject,
@@ -9,6 +20,7 @@ import {
 import {
   CaldavCalendarProvider,
   ErrorHttpCaldav,
+  fetchSoloPublico,
   fetchVigilado,
 } from "../../../../src/adapters/calendar/caldav/CaldavCalendarProvider.js";
 import { CalendarBusinessError } from "../../../../src/adapters/calendar/errors.js";
@@ -83,6 +95,76 @@ describe("fetchVigilado", () => {
       const f = fetchVigilado(async () => respuesta(status));
       await expect(f("https://x/")).resolves.toMatchObject({ status });
     }
+  });
+});
+
+describe("fetchSoloPublico", () => {
+  function respuestaConLocation(status: number, location: string) {
+    return {
+      ok: false,
+      status,
+      headers: new Headers({ location }),
+    } as unknown as Response;
+  }
+
+  it("no deja salir una petición hacia la red interna", async () => {
+    const base = vi.fn(async () => respuesta(200));
+    const f = fetchSoloPublico(base as unknown as typeof fetch);
+
+    await expect(f("https://10.0.0.5:6379/")).rejects.toMatchObject({
+      name: "ErrorDestinoNoPermitido",
+    });
+    expect(base).not.toHaveBeenCalled();
+  });
+
+  it("tampoco por http, aunque el destino sea público", async () => {
+    const base = vi.fn(async () => respuesta(200));
+    const f = fetchSoloPublico(base as unknown as typeof fetch);
+
+    await expect(f("http://caldav.icloud.com/")).rejects.toMatchObject({
+      name: "ErrorDestinoNoPermitido",
+    });
+    expect(base).not.toHaveBeenCalled();
+  });
+
+  // iCloud redirige en /.well-known/caldav, así que los redirects se siguen…
+  it("sigue a mano una redirección hacia otro destino público", async () => {
+    const base = vi
+      .fn()
+      .mockResolvedValueOnce(
+        respuestaConLocation(301, "https://p01-caldav.icloud.com/")
+      )
+      .mockResolvedValueOnce(respuesta(207));
+    const f = fetchSoloPublico(base as unknown as typeof fetch);
+
+    await expect(f("https://caldav.icloud.com/.well-known/caldav")).resolves.toMatchObject({
+      status: 207,
+    });
+    expect(base.mock.calls[1]![0]).toBe("https://p01-caldav.icloud.com/");
+    // Nunca se delega el seguimiento de redirects al propio fetch.
+    expect(base.mock.calls[0]![1]).toMatchObject({ redirect: "manual" });
+  });
+
+  // …pero un servidor legítimo que rebote hacia dentro no cuela.
+  it("corta una redirección que apunta a la red interna", async () => {
+    const base = vi
+      .fn()
+      .mockResolvedValueOnce(respuestaConLocation(302, "https://169.254.169.254/"));
+    const f = fetchSoloPublico(base as unknown as typeof fetch);
+
+    await expect(f("https://caldav.ejemplo.com/")).rejects.toMatchObject({
+      name: "ErrorDestinoNoPermitido",
+    });
+    expect(base).toHaveBeenCalledTimes(1);
+  });
+
+  it("corta una cadena de redirecciones interminable", async () => {
+    const base = vi.fn(async () =>
+      respuestaConLocation(302, "https://otro.ejemplo.com/")
+    );
+    const f = fetchSoloPublico(base as unknown as typeof fetch);
+
+    await expect(f("https://caldav.ejemplo.com/")).rejects.toThrow(/redirecciones/);
   });
 });
 

@@ -20,6 +20,7 @@ import {
 } from "../../adapters/calendar/errors.js";
 import { z } from "zod";
 import { appUrl } from "../../lib/urls.js";
+import { ErrorDestinoNoPermitido } from "../../lib/destinoPublico.js";
 
 const UpcomingEventsQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(15).default(15),
@@ -307,6 +308,13 @@ export async function calendarRoutes(fastify: FastifyInstance) {
       } catch (error) {
         if (error instanceof z.ZodError) {
           return reply.status(400).send({ error: error.flatten() });
+        }
+        // Dirección hacia la red interna o sin https: error del usuario, y el
+        // motivo ya viene escrito para enseñárselo tal cual.
+        if (error instanceof ErrorDestinoNoPermitido) {
+          return reply
+            .status(400)
+            .send({ code: "CALDAV_SERVER_URL_NO_PERMITIDA", error: error.message });
         }
         // Credenciales rechazadas por el servidor: error del usuario, no del
         // sistema (400 con mensaje hablable, sin marcar nada como
