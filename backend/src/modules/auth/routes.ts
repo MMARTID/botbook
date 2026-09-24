@@ -46,8 +46,10 @@ const FIRST_USER_BOOTSTRAP_SECRET_ENV = "FIRST_USER_BOOTSTRAP_SECRET";
 // solo carácter— mientras que cambiarla sí exigía todo esto.
 const NewPasswordSchema = z
   .string()
-  .min(8, "La nueva contraseña debe tener al menos 8 caracteres")
-  .max(128, "La nueva contraseña es demasiado larga")
+  // Sin «nueva»: el mismo esquema lo usa el registro, donde no hay ninguna
+  // anterior y «la nueva contraseña» se lee raro.
+  .min(8, "La contraseña debe tener al menos 8 caracteres")
+  .max(128, "La contraseña es demasiado larga")
   .regex(/[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]/, "Añade al menos una letra")
   .regex(/\d/, "Añade al menos un número");
 
