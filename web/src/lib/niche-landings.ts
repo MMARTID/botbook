@@ -218,11 +218,11 @@ export const nicheLandings: Record<NicheSlug, NicheLandingContent> = {
     ownerAssistant: {
       badge: "Incluido en todos los planes",
       title: "Y cuando algo cambia en el salón, se lo dices por WhatsApp.",
-      description: "Alhabla no es solo quien contesta el teléfono: también es con quien hablas tú. Le cuentas por WhatsApp lo que cambia en el día a día del salón y lo aplica en tu agenda real, sin que tengas que abrir el panel.",
+      description: "Alhabla no es solo quien contesta el teléfono: también es con quien hablas tú. Le cambias un precio, el horario o una cita por WhatsApp y lo aplica en tu agenda real, sin que tengas que abrir el panel.",
       examples: [
         { title: "Si una estilista falta", description: "«Marta está de baja hoy» y deja de recibir citas nuevas para ella; si ya tenía mechas o color agendado, te propone a quién moverlo y tú confirmas con un botón." },
         { title: "Si cierras antes o un día entero", description: "«cerramos el sábado por la tarde» o «vacaciones del 1 al 15» — queda bloqueado en tu agenda sin tocar el calendario a mano." },
-        { title: "Si necesitas ver o mover algo rápido", description: "«¿qué tengo mañana?» o «mueve el corte de las 5 al viernes» — te responde al momento, sin entrar al panel." },
+        { title: "Si cambias un precio o el horario", description: "«el corte de caballero pasa a 18€» o «los martes abrimos a las 10» — se actualiza en tu catálogo y tu horario al momento, sin entrar al panel." },
       ],
       chat: {
         ownerMessage: "Marta está de baja hoy",
@@ -346,11 +346,11 @@ export const nicheLandings: Record<NicheSlug, NicheLandingContent> = {
     ownerAssistant: {
       badge: "Incluido en todos los planes",
       title: "Y cuando algo cambia en el centro, se lo dices por WhatsApp.",
-      description: "Alhabla no es solo quien contesta el teléfono: también es con quien hablas tú. Le cuentas por WhatsApp lo que cambia en el día a día y lo aplica en tu agenda real, sin que tengas que abrir el panel.",
+      description: "Alhabla no es solo quien contesta el teléfono: también es con quien hablas tú. Le cambias un precio, el horario o una cita por WhatsApp y lo aplica en tu agenda real, sin que tengas que abrir el panel.",
       examples: [
         { title: "Si una esteticista falta", description: "«Sara está de baja hoy» y deja de recibir citas nuevas para ella; si ya tenía un facial o una sesión de bono agendada, te propone a quién moverla y tú confirmas con un botón." },
         { title: "Si cierras antes o un día entero", description: "«cerramos el sábado por la tarde» o «vacaciones del 1 al 15» — queda bloqueado en tu agenda sin tocar el calendario a mano." },
-        { title: "Si necesitas ver o mover algo rápido", description: "«¿qué tengo esta tarde?» o «mueve la sesión de las 12 al jueves» — te responde al momento, sin entrar al panel." },
+        { title: "Si cambias un precio o el horario", description: "«el facial hidratante pasa a 55€» o «los viernes cerramos a las 19» — se actualiza en tu catálogo y tu horario al momento, sin entrar al panel." },
       ],
       chat: {
         ownerMessage: "Sara está de baja hoy",
@@ -475,11 +475,11 @@ export const nicheLandings: Record<NicheSlug, NicheLandingContent> = {
     ownerAssistant: {
       badge: "Incluido en todos los planes",
       title: "Y cuando algo cambia en el salón, se lo dices por WhatsApp.",
-      description: "Alhabla no es solo quien contesta el teléfono: también es con quien hablas tú. Le cuentas por WhatsApp lo que cambia en el día a día y lo aplica en tu agenda real, sin que tengas que abrir el panel.",
+      description: "Alhabla no es solo quien contesta el teléfono: también es con quien hablas tú. Le cambias un precio, el horario o una cita por WhatsApp y lo aplica en tu agenda real, sin que tengas que abrir el panel.",
       examples: [
         { title: "Si una técnica falta", description: "«Laura está de baja hoy» y deja de recibir citas nuevas para ella; si ya tenía manicuras agendadas, te propone a quién moverlas y tú confirmas con un botón." },
         { title: "Si cierras antes o un día entero", description: "«cerramos el sábado por la tarde» o «vacaciones del 1 al 15» — queda bloqueado en tu agenda sin tocar el calendario a mano." },
-        { title: "Si necesitas ver o mover algo rápido", description: "«¿qué tengo mañana?» o «mueve la manicura de las 11 a mañana» — te responde al momento, sin entrar al panel." },
+        { title: "Si cambias un precio o el horario", description: "«la manicura semipermanente pasa a 25€» o «los lunes abrimos a las 10» — se actualiza en tu catálogo y tu horario al momento, sin entrar al panel." },
       ],
       chat: {
         ownerMessage: "Laura está de baja hoy",
@@ -602,11 +602,11 @@ export const nicheLandings: Record<NicheSlug, NicheLandingContent> = {
     ownerAssistant: {
       badge: "Incluido en todos los planes",
       title: "Y cuando algo cambia en la barbería, se lo dices por WhatsApp.",
-      description: "Alhabla no es solo quien contesta el teléfono: también es con quien hablas tú. Le cuentas por WhatsApp lo que cambia en el día a día y lo aplica en tu agenda real, sin que tengas que abrir el panel.",
+      description: "Alhabla no es solo quien contesta el teléfono: también es con quien hablas tú. Le cambias un precio, el horario o una cita por WhatsApp y lo aplica en tu agenda real, sin que tengas que abrir el panel.",
       examples: [
         { title: "Si un barbero falta", description: "«Luis está de baja hoy» y deja de recibir citas nuevas para él; si ya tenía cortes agendados, te propone a qué otro barbero moverlos y tú confirmas con un botón." },
         { title: "Si cierras antes o un día entero", description: "«cerramos el sábado por la tarde» o «vacaciones del 1 al 15» — queda bloqueado en tu agenda sin tocar el calendario a mano." },
-        { title: "Si necesitas ver o mover algo rápido", description: "«¿qué tengo mañana?» o «mueve el corte de las 6 al sábado» — te responde al momento, sin entrar al panel." },
+        { title: "Si cambias un precio o el horario", description: "«el degradado pasa a 15€» o «los sábados abrimos a las 9» — se actualiza en tu catálogo y tu horario al momento, sin entrar al panel." },
       ],
       chat: {
         ownerMessage: "Luis está de baja hoy",
@@ -735,11 +735,11 @@ export const nicheLandings: Record<NicheSlug, NicheLandingContent> = {
     ownerAssistant: {
       badge: "Incluido en todos los planes",
       title: "Y cuando algo cambia en la consulta, se lo dices por WhatsApp.",
-      description: "Alhabla no es solo quien contesta el teléfono: también es con quien hablas tú. Le cuentas por WhatsApp lo que cambia en el día a día y lo aplica en tu agenda real, sin que tengas que abrir el panel.",
+      description: "Alhabla no es solo quien contesta el teléfono: también es con quien hablas tú. Le cambias un precio, el horario o una cita por WhatsApp y lo aplica en tu agenda real, sin que tengas que abrir el panel.",
       examples: [
         { title: "Si un fisioterapeuta falta", description: "«Pablo está de baja hoy» y deja de recibir citas nuevas para él; si ya tenía sesiones agendadas, te propone a quién moverlas y tú decides con un botón." },
         { title: "Si cierras antes o un día entero", description: "«cerramos el sábado por la tarde» o «vacaciones del 1 al 15» — queda bloqueado en tu agenda sin tocar el calendario a mano." },
-        { title: "Si necesitas ver o mover algo rápido", description: "«¿qué tengo mañana?» o «mueve la sesión de las 5 al viernes» — te responde al momento, sin entrar al panel." },
+        { title: "Si cambias un precio o el horario", description: "«la primera consulta pasa a 40€» o «los jueves abrimos a las 8» — se actualiza en tu catálogo y tu horario al momento, sin entrar al panel." },
       ],
       chat: {
         ownerMessage: "Pablo está de baja hoy",
@@ -947,7 +947,7 @@ export const generalOwnerAssistant: OwnerAssistant = {
   badge: "Incluido en todos los planes",
   title: "Y cuando algo cambia, se lo dices por WhatsApp.",
   description:
-    "Alhabla no es solo quien contesta el teléfono: también es con quien hablas tú. Le cuentas por WhatsApp lo que cambia en tu negocio y lo aplica en tu agenda real, sin que tengas que abrir el panel.",
+    "Alhabla no es solo quien contesta el teléfono: también es con quien hablas tú. Le cambias un precio, el horario o una cita por WhatsApp y lo aplica en tu agenda real, sin que tengas que abrir el panel.",
   examples: [
     {
       title: "Si un profesional falta",
@@ -958,8 +958,8 @@ export const generalOwnerAssistant: OwnerAssistant = {
       description: "«cerramos el sábado por la tarde» o «vacaciones del 1 al 15» — queda bloqueado en tu agenda sin tocar el calendario a mano.",
     },
     {
-      title: "Si necesitas ver o mover algo rápido",
-      description: "«¿qué tengo mañana?» o «mueve la cita de las 5 al viernes» — te responde al momento, sin entrar al panel.",
+      title: "Si cambias un precio o el horario",
+      description: "«el servicio pasa a 30€» o «los lunes abrimos a las 10» — se actualiza en tu catálogo y tu horario al momento, sin entrar al panel.",
     },
   ],
   chat: {
