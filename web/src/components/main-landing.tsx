@@ -83,7 +83,7 @@ function SectorSceneMedia({
     <span className={wrapperClassName}>
       {reducedMotion ? (
         // eslint-disable-next-line @next/next/no-img-element -- fotograma local
-        <img src={poster} alt="" className="absolute inset-0 h-full w-full object-cover" />
+        <img src={poster} alt="" loading="lazy" className="absolute inset-0 h-full w-full object-cover" />
       ) : (
         <video
           ref={videoRef}
@@ -217,7 +217,7 @@ function SectorPeekButton({ sector, direccion, onClick }: { sector: (typeof SECT
       className="group relative block w-20 shrink-0 self-stretch overflow-hidden rounded-2xl border border-[#e5e5e5] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] focus-visible:ring-offset-2"
     >
       {/* eslint-disable-next-line @next/next/no-img-element -- miniatura estática, sin vídeo */}
-      <img src={sector.poster} alt="" className="absolute inset-0 h-full w-full object-cover opacity-55 transition duration-300 group-hover:opacity-85" />
+      <img src={sector.poster} alt="" loading="lazy" className="absolute inset-0 h-full w-full object-cover opacity-55 transition duration-300 group-hover:opacity-85" />
       <span className="absolute inset-0 flex items-center justify-center opacity-0 transition duration-300 group-hover:opacity-100" aria-hidden="true">
         <span className="flex h-8 w-8 items-center justify-center rounded-full bg-white text-[#0a0a0a] shadow-[0_4px_14px_rgba(0,0,0,0.18)]">
           <Icono className="h-4 w-4" aria-hidden="true" />
@@ -374,8 +374,7 @@ export function MainLanding() {
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <Reveal className="flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
             <div className="max-w-3xl">
-              <p className="text-sm font-bold uppercase tracking-[0.14em] text-[#6d28d9]">Hecho para tu ritmo</p>
-              <h2 className="mt-4 text-3xl font-black tracking-tight sm:text-5xl">Cada negocio tiene su forma de llenar la agenda.</h2>
+              <h2 className="text-3xl font-black tracking-tight sm:text-5xl">Cada negocio tiene su forma de llenar la agenda.</h2>
             </div>
             {/* Las flechas solo tienen sentido donde hay una carta "de
                 delante" que cambiar (la pila de tablet/móvil); el bento de
@@ -537,7 +536,7 @@ export function MainLanding() {
         </div>
       </section>
 
-      <section className="bg-[#0a0a0a] text-white"><Reveal className="mx-auto flex max-w-7xl flex-col items-start justify-between gap-7 px-4 py-16 sm:px-6 sm:py-20 lg:flex-row lg:items-center lg:px-8"><div><p className="text-sm font-bold uppercase tracking-[0.14em] text-[#a78bfa]">Tu recepción, siempre disponible</p><h2 className="mt-3 max-w-xl text-3xl font-black tracking-tight sm:text-5xl">Prueba qué pasa cuando nadie deja una llamada sin atender.</h2></div><Link href="/planes" className="btn-purple shrink-0">Empezar ahora <ArrowRight className="h-4 w-4" aria-hidden="true" /></Link></Reveal></section>
+      <section className="bg-[#0a0a0a] text-white"><Reveal className="mx-auto flex max-w-7xl flex-col items-start justify-between gap-7 px-4 py-16 sm:px-6 sm:py-20 lg:flex-row lg:items-center lg:px-8"><div><h2 className="max-w-xl text-3xl font-black tracking-tight sm:text-5xl">Prueba qué pasa cuando nadie deja una llamada sin atender.</h2></div><Link href="/planes" className="btn-purple shrink-0">Empezar ahora <ArrowRight className="h-4 w-4" aria-hidden="true" /></Link></Reveal></section>
       <SiteFooter />
       <DemoVoiceCall open={isDemoOpen} onClose={() => setIsDemoOpen(false)} />
     </main>

@@ -1,6 +1,8 @@
 import { SiWhatsapp } from "@icons-pack/react-simple-icons";
-import type { OwnerAssistantChat } from "@/lib/niche-landings";
+import type { NicheAccent, OwnerAssistantChat } from "@/lib/niche-landings";
 import { Reveal } from "@/components/scroll-reveal";
+
+const FALLBACK_ACCENT: NicheAccent = { strong: "#8b5cf6", soft: "#f3eeff", deep: "#6d28d9" };
 
 /**
  * Mockup de una conversación real por WhatsApp entre el dueño y Alhabla: el
@@ -16,7 +18,8 @@ import { Reveal } from "@/components/scroll-reveal";
  * sí usa `--success`/`--success-surface` (verde de estado, no de marca),
  * porque es justo lo que representa: una acción ya hecha.
  */
-export function OwnerAssistantChatMockup({ data }: { data: OwnerAssistantChat }) {
+export function OwnerAssistantChatMockup({ data, accent }: { data: OwnerAssistantChat; accent?: NicheAccent }) {
+  const a = accent ?? FALLBACK_ACCENT;
   return (
     <div className="overflow-hidden rounded-3xl border border-[#e5e5e5] bg-white">
       <div className="flex items-center gap-3 border-b border-[#e5e5e5] bg-[#fafafa] px-4 py-3 sm:px-5">
@@ -52,7 +55,10 @@ export function OwnerAssistantChatMockup({ data }: { data: OwnerAssistantChat })
             elige el dueño en este ejemplo. */}
         <Reveal delay={0.3} y={10}>
           <div className="flex flex-col gap-1.5 pl-1 pt-0.5 sm:max-w-[85%]">
-            <span className="rounded-full border border-[#8b5cf6] bg-[#f3eeff] px-3.5 py-1.5 text-center text-sm font-semibold text-[#6d28d9]">
+            <span
+              className="rounded-full border px-3.5 py-1.5 text-center text-sm font-semibold"
+              style={{ borderColor: a.strong, backgroundColor: a.soft, color: a.deep }}
+            >
               {data.buttons[0]}
             </span>
             <span className="rounded-full border border-[#e5e5e5] px-3.5 py-1.5 text-center text-sm font-medium text-[#71717a]">

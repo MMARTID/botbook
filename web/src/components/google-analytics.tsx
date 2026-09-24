@@ -174,14 +174,13 @@ export function GoogleAnalytics() {
         </>
       ) : null}
       {hidratado && (consentimiento === null || abierto) ? (
-        <aside className="fixed inset-x-4 bottom-4 z-50 mx-auto max-w-xl rounded-2xl border border-[#ddd6fe] bg-white p-5 shadow-[0_16px_40px_rgba(0,0,0,0.16)]" aria-labelledby="titulo-cookies">
-          <h2 id="titulo-cookies" className="text-sm font-semibold text-[#0a0a0a]">Preferencias de cookies</h2>
-          <p className="mt-1 text-sm leading-6 text-[#52525b]">
-            Google Analytics y Vercel Analytics nos ayudan a entender el uso de la web. Solo se activan si aceptas. Puedes cambiar tu elección cuando quieras. <a href="/legal/privacidad" className="underline underline-offset-2">Más información</a>.
+        <aside className="fixed inset-x-4 bottom-4 z-50 mx-auto max-w-md rounded-2xl border border-[#ddd6fe] bg-white p-4 shadow-[0_16px_40px_rgba(0,0,0,0.16)]" aria-label="Preferencias de cookies">
+          <p className="text-sm leading-5 text-[#52525b]">
+            Analítica opcional (Google Analytics, Vercel) — solo se activa si aceptas. <a href="/legal/privacidad" className="text-[#0a0a0a] underline underline-offset-2">Más información</a>.
           </p>
-          <div className="mt-4 flex flex-wrap gap-3">
-            <button type="button" onClick={() => decidir(true)} className="btn-secondary px-4 py-2 text-sm">Aceptar analítica</button>
-            <button type="button" onClick={() => decidir(false)} className="btn-secondary px-4 py-2 text-sm">Rechazar analítica</button>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button type="button" onClick={() => decidir(true)} className="btn-secondary px-4 py-2 text-sm">Aceptar</button>
+            <button type="button" onClick={() => decidir(false)} className="btn-secondary px-4 py-2 text-sm">Rechazar</button>
           </div>
         </aside>
       ) : hidratado ? (

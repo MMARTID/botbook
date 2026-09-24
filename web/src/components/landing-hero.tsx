@@ -106,6 +106,10 @@ export function LandingHero({ content }: { content?: NicheLandingContent }) {
 
           <Reveal delay={0.12} y={16}>
             <div className="flex flex-col items-center gap-3 sm:flex-row sm:flex-wrap sm:justify-center">
+              <Link href={plansHref} className="btn-primary h-12 w-full px-6 sm:w-auto">
+                Empezar 7 días gratis
+                <ArrowRight className="h-4 w-4" aria-hidden="true" />
+              </Link>
               <button
                 type="button"
                 onClick={() => setIsDemoOpen(true)}
@@ -114,10 +118,6 @@ export function LandingHero({ content }: { content?: NicheLandingContent }) {
                 <Headphones className="h-4 w-4" aria-hidden="true" />
                 Escuchar la demo
               </button>
-              <Link href={plansHref} className="btn-primary h-12 w-full px-6 sm:w-auto">
-                Empezar 7 días gratis
-                <ArrowRight className="h-4 w-4" aria-hidden="true" />
-              </Link>
             </div>
           </Reveal>
           <Reveal delay={0.18} y={12}>
