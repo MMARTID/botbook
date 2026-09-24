@@ -24,24 +24,32 @@ import { useCallback, useEffect, useRef, useState } from "react";
 type StoryMoment = {
   number: string;
   title: string;
+  headline: string;
   description: string;
 };
 
+// Las tres mismas paradas que "De llamada perdida a cita confirmada, en tres
+// pasos" (site-landing.tsx): suena tu número → responde con datos reales →
+// la cita queda en tu agenda. Aquí en versión sin nicho, para la landing
+// general, con el mismo demostrador visual que ya tenía cada escena.
 const MOMENTS: StoryMoment[] = [
   {
     number: "01",
     title: "Conexión",
-    description: "Activa el desvío desde tu número de siempre. Tus clientes no tienen que aprender nada nuevo.",
+    headline: "Tu número sigue sonando igual.",
+    description: "Activas un desvío condicional en segundos. Solo las llamadas que no contestas van a Alhabla.",
   },
   {
     number: "02",
-    title: "En paralelo",
-    description: "Mientras el nuevo número se prepara, dejas definidos tus servicios, horarios y agenda.",
+    title: "Responde con datos reales",
+    headline: "Nunca inventa lo que no sabe.",
+    description: "Conoce tus servicios, horarios y agenda real antes de contestar. Si algo se le escapa, toma un recado en vez de improvisar.",
   },
   {
     number: "03",
-    title: "Libertad operativa",
-    description: "Las llamadas se resuelven en segundo plano y tu equipo vuelve a centrarse en quien tiene delante.",
+    title: "Cita en tu agenda",
+    headline: "Confirmada al colgar, no después.",
+    description: "Reserva, cambia o recoge un recado directamente en tu calendario — tu equipo se entera sin tener que preguntar.",
   },
 ];
 
@@ -66,11 +74,7 @@ function SceneCopy({
     <motion.div aria-hidden="true" style={{ y, visibility }} className="absolute inset-x-0 top-11">
       <p className="text-sm font-bold tabular-nums text-[#6d28d9]">{moment.number} · {moment.title}</p>
       <h3 className="mt-4 max-w-md text-3xl font-black leading-[1.06] tracking-[-0.035em] text-[#0a0a0a] sm:text-5xl">
-        {moment.title === "Conexión"
-          ? "Tu número sigue siendo tu número."
-          : moment.title === "En paralelo"
-            ? "Todo queda listo antes de la primera llamada."
-            : "El teléfono deja de interrumpir tu trabajo."}
+        {moment.headline}
       </h3>
       <p className="mt-5 max-w-md text-base leading-7 text-[#52525b] sm:text-lg sm:leading-8">{moment.description}</p>
     </motion.div>
@@ -223,7 +227,7 @@ function ConnectionScene({ progress, scale, visibility, isStoryActive }: { progr
         </div>
       </motion.div>
 
-      <motion.div style={{ opacity: activationOpacity, x: routeX }} className="absolute -right-3 top-10 hidden items-center gap-2 rounded-full border border-[#ddd6fe] bg-white px-3 py-2 text-xs font-bold text-[#6d28d9] shadow-[0_16px_36px_-26px_rgba(109,40,217,0.65)] sm:flex">
+      <motion.div style={{ opacity: activationOpacity, x: routeX }} className="absolute -right-3 top-10 hidden items-center gap-2 rounded-full border border-[#ddd6fe] bg-white px-3 py-2 text-xs font-bold text-[#6d28d9] shadow-[0_10px_28px_-14px_rgba(0,0,0,0.12)] sm:flex">
         <PhoneCall className="h-3.5 w-3.5" aria-hidden="true" /> Tu llamada sigue su ruta
       </motion.div>
     </motion.div>
@@ -248,7 +252,7 @@ function SettingsRow({
   const x = useTransform(progress, [at, at + 0.05], [-8, 0]);
 
   return (
-    <motion.div style={{ opacity, y, x }} className="flex items-center gap-3 rounded-2xl border border-[#e5e5e5] bg-white p-3.5">
+    <motion.div style={{ opacity, y, x }} className="flex items-center gap-3 border-t border-[#e5e5e5] py-3 first:border-t-0 first:pt-0">
       <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#f3eeff] text-[#8b5cf6]"><Icon className="h-4 w-4" aria-hidden="true" /></span>
       <span className="min-w-0 flex-1"><span className="block text-xs font-medium text-[#52525b]">{label}</span><span className="mt-0.5 block truncate text-sm font-bold text-[#0a0a0a]">{value}</span></span>
       <Check className="h-4 w-4 shrink-0 text-[#2c7334]" aria-label={`${label} configurado`} />
@@ -273,14 +277,14 @@ function ParallelScene({ progress, scale, visibility }: { progress: MotionValue<
               <motion.span style={{ opacity: approvalOpacity }} className="absolute right-0 inline-flex items-center gap-1 rounded-full bg-[#ecf7ec] px-2.5 py-1 text-[11px] font-bold text-[#2c7334] sm:hidden"><CheckCircle2 className="h-3 w-3" aria-hidden="true" /> Lista</motion.span>
             </div>
           </div>
-          <div className="mt-5 space-y-2.5">
+          <div className="mt-5">
             <SettingsRow label="Servicios" value="Corte, color y tratamientos" progress={progress} at={0.4} icon={ClipboardCheck} />
             <SettingsRow label="Horario" value="L–S · 09:30 a 20:00" progress={progress} at={0.47} icon={CalendarCheck2} />
-            <SettingsRow label="Agenda" value="Google Calendar conectado" progress={progress} at={0.54} icon={CalendarCheck2} />
+            <SettingsRow label="Agenda" value="Calendario conectado" progress={progress} at={0.54} icon={CalendarCheck2} />
           </div>
         </div>
 
-        <motion.div style={{ opacity: approvalOpacity, y: approvalY }} className="relative mt-4 hidden overflow-hidden rounded-3xl border border-[#0a0a0a] bg-[#0a0a0a] p-5 text-white shadow-[0_20px_42px_-30px_rgba(0,0,0,0.72)] sm:mt-0 sm:block sm:p-5">
+        <motion.div style={{ opacity: approvalOpacity, y: approvalY }} className="relative mt-4 hidden overflow-hidden rounded-3xl border border-[#0a0a0a] bg-[#0a0a0a] p-5 text-white shadow-[0_12px_32px_-20px_rgba(0,0,0,0.12)] sm:mt-0 sm:block sm:p-5">
           <motion.span style={{ left: shimmer }} className="absolute top-0 h-full w-24 -translate-x-full bg-gradient-to-r from-transparent via-white/10 to-transparent" aria-hidden="true" />
           <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-white text-[#0a0a0a]"><Sparkles className="h-5 w-5" aria-hidden="true" /></span>
           <p className="mt-8 text-xs font-bold uppercase tracking-[0.13em] text-white/60">Número de Alhabla</p>
@@ -314,7 +318,7 @@ function OperationsScene({ progress, scale, visibility }: { progress: MotionValu
           <motion.div style={{ y: cardThreeY, opacity: cardThreeOpacity }} className="flex items-center gap-3 rounded-2xl border border-[#e5e5e5] bg-white p-3.5"><span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#f3eeff] text-[#8b5cf6]"><ClipboardCheck className="h-4 w-4" aria-hidden="true" /></span><span className="min-w-0 flex-1"><span className="block text-sm font-bold text-[#0a0a0a]">Recado preparado</span><span className="block text-xs text-[#52525b]">Consulta que requiere a tu equipo</span></span><ChevronRight className="h-4 w-4 text-[#a1a1aa]" aria-hidden="true" /></motion.div>
         </div>
       </div>
-      <motion.div style={{ opacity: focusOpacity }} className="absolute -bottom-3 left-1/2 hidden -translate-x-1/2 items-center gap-2 whitespace-nowrap rounded-full border border-[#ddd6fe] bg-white px-4 py-2 text-xs font-bold text-[#6d28d9] shadow-[0_16px_36px_-26px_rgba(109,40,217,0.65)] sm:flex"><Check className="h-3.5 w-3.5" aria-hidden="true" /> El equipo recupera el foco</motion.div>
+      <motion.div style={{ opacity: focusOpacity }} className="absolute -bottom-3 left-1/2 hidden -translate-x-1/2 items-center gap-2 whitespace-nowrap rounded-full border border-[#ddd6fe] bg-white px-4 py-2 text-xs font-bold text-[#6d28d9] shadow-[0_10px_28px_-14px_rgba(0,0,0,0.12)] sm:flex"><Check className="h-3.5 w-3.5" aria-hidden="true" /> El equipo recupera el foco</motion.div>
     </motion.div>
   );
 }
@@ -387,6 +391,18 @@ export function HowItWorksScrollytelling({
     });
   }, [reducedMotion]);
 
+  // Hubo, y se quitó, un ajuste automático que escuchaba "scroll" en window,
+  // leía window.scrollY y llamaba a scrollTo para completar la transición
+  // cuando el gesto se paraba cerca de una costura. En escritorio se sentía
+  // bien; en móvil competía con el scroll por inercia que gobierna el hilo
+  // compositor — el mismo antipatrón que ya documentó y corrigió el campo de
+  // partículas (ver DESIGN.md) — y el resultado era la sección tirando de la
+  // página a medio gesto. El scrub ya es continuo con el scroll real
+  // (useScroll + los useTransform de cada escena): no hace falta forzar la
+  // posición para que las tres escenas se vean completas, solo dejar que el
+  // progreso decida. navigateToStage, más arriba, es la única llamada a
+  // scrollTo que queda — un salto explícito al pulsar un paso, no una
+  // reacción al scroll del usuario.
   useEffect(() => {
     const section = sectionRef.current;
     if (!section || reducedMotion) {
@@ -412,81 +428,6 @@ export function HowItWorksScrollytelling({
   }, [isStoryActive, onNarrativeActiveChange, reducedMotion]);
 
   useEffect(() => () => onNarrativeActiveChange?.(false), [onNarrativeActiveChange]);
-
-  useEffect(() => {
-    if (reducedMotion || !sectionRef.current) return;
-
-    const section = sectionRef.current;
-    let timeoutId: number | undefined;
-    let snapLockId: number | undefined;
-    let isSnapping = false;
-    let previousScrollY = window.scrollY;
-    let direction: "forward" | "backward" = "forward";
-
-    const transitionTarget = () => {
-      const rect = section.getBoundingClientRect();
-      if (rect.top > window.innerHeight * 0.65 || rect.bottom < window.innerHeight * 0.35) return null;
-
-      const sectionTop = window.scrollY + rect.top;
-      const scrollRange = section.offsetHeight - window.innerHeight;
-      if (scrollRange <= 0) return null;
-
-      const currentProgress = Math.max(0, Math.min(1, (window.scrollY - sectionTop) / scrollRange));
-      // El ajuste sólo existe en las dos costuras y sólo hacia delante: sirve
-      // para no dejar al usuario a medio camino de una transición cuando
-      // avanza por el relato. Hacia atrás NO se ajusta — un usuario que
-      // scrollea hacia arriba para salir de la sección (p. ej. para volver
-      // a la cabecera) cruza las mismas costuras varias veces si viene de
-      // una etapa avanzada, y cada ajuste hacia atrás lo devolvía al
-      // interior de la historia en vez de dejarlo salir. Dentro de cada
-      // paso, y en todo el sentido "atrás", el scroll es completamente
-      // libre y conserva el scrubbing en directo.
-      if (direction !== "forward") return null;
-      if (currentProgress >= 0.312 && currentProgress <= 0.34) return 0.4;
-      if (currentProgress >= 0.642 && currentProgress <= 0.67) return 0.75;
-      return null;
-    };
-
-    const snapTransition = () => {
-      const targetProgress = transitionTarget();
-      if (targetProgress === null) return;
-
-      const rect = section.getBoundingClientRect();
-      const sectionTop = window.scrollY + rect.top;
-      const scrollRange = section.offsetHeight - window.innerHeight;
-      const target = sectionTop + scrollRange * targetProgress;
-      if (Math.abs(target - window.scrollY) <= 3) return;
-
-      isSnapping = true;
-      window.scrollTo({ top: target, behavior: "smooth" });
-      snapLockId = window.setTimeout(() => {
-        previousScrollY = window.scrollY;
-        isSnapping = false;
-      }, 420);
-    };
-
-    const scheduleTransitionSnap = () => {
-      if (isSnapping) return;
-      if (window.scrollY !== previousScrollY) direction = window.scrollY > previousScrollY ? "forward" : "backward";
-      previousScrollY = window.scrollY;
-      if (timeoutId) window.clearTimeout(timeoutId);
-      timeoutId = window.setTimeout(snapTransition, 220);
-    };
-
-    const snapTransitionAfterGesture = () => {
-      if (timeoutId) window.clearTimeout(timeoutId);
-      if (!isSnapping) snapTransition();
-    };
-
-    window.addEventListener("scroll", scheduleTransitionSnap, { passive: true });
-    if ("onscrollend" in window) window.addEventListener("scrollend", snapTransitionAfterGesture);
-    return () => {
-      window.removeEventListener("scroll", scheduleTransitionSnap);
-      if ("onscrollend" in window) window.removeEventListener("scrollend", snapTransitionAfterGesture);
-      if (timeoutId) window.clearTimeout(timeoutId);
-      if (snapLockId) window.clearTimeout(snapLockId);
-    };
-  }, [reducedMotion]);
 
   if (reducedMotion) return <StaticStory />;
 
