@@ -30,6 +30,7 @@ import type {
   NuevoEventoDeCalendario,
 } from "../CalendarProvider.js";
 import { CalendarBusinessError } from "../errors.js";
+import { asegurarDestinoPublico } from "../../../lib/destinoPublico.js";
 import { CALENDAR_REQUEST_TIMEOUT_MS } from "../eventoDeCalendario.js";
 import {
   construirIcs,
@@ -71,6 +72,37 @@ export function fetchVigilado(base: Fetch): Fetch {
   };
 }
 
+/** Saltos de redirección que se siguen a mano. iCloud usa uno en
+ * `/.well-known/caldav`, así que prohibirlos del todo rompería el alta. */
+const MAXIMOS_REDIRECTS = 3;
+
+/**
+ * Envuelve fetch para que NINGUNA petición salga hacia la red interna, ni
+ * siquiera dando un rodeo: se valida la URL de cada petición y también la de
+ * cada redirección, que se sigue a mano (`redirect: "manual"`). Sin esto, un
+ * `serverUrl` cualquiera —o un servidor legítimo que responda 302 hacia
+ * `http://10.0.0.5:6379`— convertiría al backend en un proxy hacia la VPC,
+ * con la cabecera Basic Auth puesta.
+ */
+export function fetchSoloPublico(base: Fetch): Fetch {
+  return async (entrada, init) => {
+    let url = typeof entrada === "string" ? entrada : entrada.toString();
+    for (let salto = 0; salto <= MAXIMOS_REDIRECTS; salto += 1) {
+      const destino = await asegurarDestinoPublico(url);
+      const respuesta = await base(destino.toString(), { ...init, redirect: "manual" });
+      const esRedireccion = respuesta.status >= 300 && respuesta.status < 400;
+      const siguiente = esRedireccion ? respuesta.headers.get("location") : null;
+      if (!siguiente) return respuesta;
+      // Relativa respecto a la anterior, como haría el navegador.
+      url = new URL(siguiente, destino).toString();
+    }
+    throw new CalendarBusinessError(
+      "BOOK_APPOINTMENT_FAILED",
+      "El servidor de calendario encadena demasiadas redirecciones."
+    );
+  };
+}
+
 /** Ventana por defecto de "próximos eventos" para el panel. */
 const DIAS_DE_PROXIMOS_EVENTOS = 30;
 
@@ -79,7 +111,9 @@ export class CaldavCalendarProvider implements CalendarProvider<"caldav"> {
   private readonly fetch: Fetch;
 
   constructor(opciones: { fetch?: Fetch } = {}) {
-    this.fetch = fetchVigilado(opciones.fetch ?? fetch);
+    // Orden: primero se valida el destino y se siguen los redirects a mano,
+    // y sobre eso se traducen los estados HTTP a errores tipados.
+    this.fetch = fetchVigilado(fetchSoloPublico(opciones.fetch ?? fetch));
   }
 
   /** Cabeceras y opciones comunes: Basic auth y timeout por debajo del de

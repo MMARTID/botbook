@@ -5,7 +5,7 @@ import {
   CalendarBusinessError,
 } from "../../../src/modules/calendar/service.js";
 import { createAccount, fetchCalendars } from "tsdav";
-import { descifrarJson } from "../../../src/lib/cifradoDeCredenciales.js";
+import { cifrarJson, descifrarJson } from "../../../src/lib/cifradoDeCredenciales.js";
 import { prisma } from "../../../src/lib/prisma.js";
 import { retellAdapter } from "../../../src/adapters/retell/RetellAdapter.js";
 import { getPublicWebhookBaseUrl } from "../../../src/lib/serverUrl.js";
@@ -121,6 +121,25 @@ const mockedSyncAgentToTelnyx = vi.mocked(syncAgentToTelnyx);
  * leen mejor los 22 casos de abajo. Por dentro produce filas de
  * calendar_connections tal como las devuelve SELECT_CONEXION_DE_CALENDARIO:
  * sin token no hay fila (negocio que nunca conectó ese proveedor). */
+/** Fila de conexión CalDAV ya conectada (el helper compartido solo cubre
+ * google/outlook, que son los de OAuth). */
+function filaDeConexionCaldav() {
+  return {
+    provider: "caldav" as const,
+    calendarId: null,
+    credentials: cifrarJson({
+      provider: "caldav",
+      username: "pelu@icloud.com",
+      appPassword: "abcd-efgh-ijkl-mnop",
+      serverUrl: "https://caldav.icloud.com",
+    }),
+    connected: false,
+    disconnectedAt: null,
+    lastError: null,
+    accountEmail: "pelu@icloud.com",
+  };
+}
+
 function conexionDePrueba(fila: {
   calendarProvider: "google" | "outlook";
   googleRefreshToken?: string | null;
@@ -1856,12 +1875,55 @@ describe("CalendarService.seleccionarCalendario", () => {
     expect(mockedAgentFindMany).toHaveBeenCalled();
   });
 
+  // Sin esto, cualquiera con sesión podía guardar como «calendario» una URL
+  // arbitraria que el backend visitaría luego con las credenciales del
+  // negocio (SSRF persistente, auditoría del 24-09).
+  it("con proveedor caldav rechaza un calendario que no salga del descubrimiento", async () => {
+    mockedBusinessFindUnique.mockResolvedValue({
+      id: "business_123",
+      calendarProvider: "caldav",
+      calendarConnections: [filaDeConexionCaldav()],
+    } as any);
+    vi.mocked(createAccount).mockResolvedValue({
+      serverUrl: "https://caldav.icloud.com",
+      accountType: "caldav",
+      homeUrl: "https://p01-caldav.icloud.com/123/calendars/",
+    });
+    vi.mocked(fetchCalendars).mockResolvedValue([
+      {
+        url: "https://p01-caldav.icloud.com/123/calendars/abc/",
+        displayName: "Peluquería",
+        components: ["VEVENT"],
+      },
+    ] as any);
+
+    await expect(
+      calendarService.seleccionarCalendario("business_123", "https://169.254.169.254/")
+    ).rejects.toThrow(/no está entre los de tu cuenta/);
+    expect(mockedBusinessUpdate).not.toHaveBeenCalled();
+  });
+
   it("con proveedor caldav guarda el calendario (URL) y resincroniza las tools", async () => {
     mockedBusinessFindUnique.mockResolvedValue({
+      id: "business_123",
       calendarProvider: "caldav",
+      calendarConnections: [filaDeConexionCaldav()],
     } as any);
     mockedAgentFindMany.mockResolvedValue([]);
     mockedGetPublicWebhookBaseUrl.mockReturnValue(null);
+    // El calendario elegido tiene que salir del descubrimiento.
+    vi.mocked(createAccount).mockResolvedValue({
+      serverUrl: "https://caldav.icloud.com",
+      accountType: "caldav",
+      homeUrl: "https://p01-caldav.icloud.com/123/calendars/",
+    });
+    vi.mocked(fetchCalendars).mockResolvedValue([
+      {
+        url: "https://p01-caldav.icloud.com/123/calendars/abc/",
+        displayName: "Peluquería",
+        components: ["VEVENT"],
+      },
+    ] as any);
 
     await calendarService.seleccionarCalendario(
       "business_123",

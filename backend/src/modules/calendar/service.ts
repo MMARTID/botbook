@@ -54,6 +54,8 @@ import {
   conCallbackDeRotacion,
   estadoDeConexion,
   guardarConexionDeCalendario,
+  resolverConexionDeCalendario,
+  SELECT_CONEXION_DE_CALENDARIO,
 } from "./conexion.js";
 
 // Re-exports de compatibilidad: calendar/routes.ts y los tests importan estos
@@ -368,6 +370,25 @@ export class CalendarService {
     }
     if (provider === "outlook") {
       return this.connectMicrosoftCalendar(businessId, calendarId);
+    }
+    // En CalDAV el `calendarId` ES una URL absoluta que luego se visita con
+    // las credenciales del negocio. Guardar la que venga del formulario
+    // permitiría apuntarla a cualquier sitio después de haber conectado un
+    // servidor legítimo, así que solo se acepta si sale del descubrimiento.
+    if (provider === "caldav") {
+      const conexion = resolverConexionDeCalendario(
+        await prisma.business.findUnique({
+          where: { id: businessId },
+          select: SELECT_CONEXION_DE_CALENDARIO,
+        })
+      );
+      const disponibles = await this.listarCalendarios(conexion);
+      if (!disponibles.some((c) => c.id === calendarId)) {
+        throw new CalendarBusinessError(
+          "BOOK_APPOINTMENT_FAILED",
+          "Ese calendario no está entre los de tu cuenta. Vuelve a conectar el calendario y elige uno de la lista."
+        );
+      }
     }
     const actualizado = await guardarConexionDeCalendario(businessId, {
       provider,

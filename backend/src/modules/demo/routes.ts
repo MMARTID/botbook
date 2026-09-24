@@ -35,10 +35,16 @@ const DemoPlaceIdParamsSchema = z.object({
 });
 
 /**
- * Cuenta de demostración de cada nicho (negocios reales de la plataforma, con
- * su horario, sus servicios y su agenda de mentira) y el assistant de Telnyx
- * que la atiende. La demo de la landing es una llamada por el navegador a ese
- * mismo assistant: lo que oye el visitante es exactamente el producto.
+ * Assistant **aislado** de demo de cada nicho (`scripts/crearAssistantsDemoAislados.ts`):
+ * un clon del de la cuenta de demostración, con la misma voz y el mismo
+ * catálogo en el prompt, pero SIN tools y con tope de duración propio en
+ * Telnyx.
+ *
+ * Por qué aislado y no el de la cuenta: la demo va con `anonymous_login`, así
+ * que el ID del assistant llega al navegador por fuerza y con él cualquiera
+ * puede llamar directo a Telnyx, saltándose el límite de esta ruta y el tope
+ * del navegador. Apuntando a la cuenta real, eso permitía además meter
+ * reservas de verdad en su agenda a través de sus tools.
  *
  * Sin Ñ en el nombre de la variable: Cloud Run solo admite [A-Za-z0-9_].
  */
@@ -89,8 +95,23 @@ export function resolveDemoMaxDurationSeconds(): number {
  */
 const webCallsEnabledAssistants = new Set<string>();
 
+/** Solo los assistants aislados de demo se llaman así. */
+const PREFIJO_ASSISTANT_DE_DEMO = "alhabla-demo-";
+
 async function ensureUnauthenticatedWebCalls(assistantId: string): Promise<void> {
   if (webCallsEnabledAssistants.has(assistantId)) return;
+
+  // Antes de abrir nada, comprobar que el assistant es de demo. Sin esto, una
+  // variable mal puesta apuntando al assistant de un negocio real haría que
+  // esta ruta le abriese las llamadas web sin autenticar ella sola — y ese
+  // assistant sí tiene tools que escriben en la agenda.
+  const assistant = await telnyxAiAdapter.getAssistant(assistantId);
+  if (!assistant.name.startsWith(PREFIJO_ASSISTANT_DE_DEMO)) {
+    throw new Error(
+      `El assistant de demo ${assistantId} se llama «${assistant.name}»: no es uno de los aislados (${PREFIJO_ASSISTANT_DE_DEMO}…). Revisa las variables TELNYX_DEMO_*_ASSISTANT_ID.`
+    );
+  }
+
   await telnyxAiAdapter.updateAssistant(assistantId, {
     telephonySettings: { supports_unauthenticated_web_calls: true },
   });
