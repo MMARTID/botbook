@@ -82,7 +82,8 @@ describe("accountService", () => {
     expect(mockedBcryptHash).toHaveBeenCalledWith("NuevaClave123", 12);
     expect(mockedUserUpdate).toHaveBeenCalledWith({
       where: { id: "user_123" },
-      data: { password: "hash_nuevo" },
+      // `tokenVersion` sube con la contraseña: cierra las sesiones abiertas.
+      data: { password: "hash_nuevo", tokenVersion: { increment: 1 } },
     });
     expect(mockedEnqueueEmailJob).toHaveBeenCalledWith(
       expect.objectContaining({

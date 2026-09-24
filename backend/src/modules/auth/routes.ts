@@ -24,6 +24,7 @@ import {
   resetPasswordWithToken,
 } from "./passwordResetService.js";
 import { appUrl } from "../../lib/urls.js";
+import { LimitadorEnMemoria } from "../../lib/limitadorEnMemoria.js";
 import { canjearPase, crearPase, esPaseConFormatoValido } from "./pase.js";
 
 const GOOGLE_AUTH_STATE_TTL_SECONDS = 10 * 60;
@@ -39,8 +40,10 @@ const GOOGLE_SESSION_COOKIE = "alhabla_google_session";
 const GOOGLE_OAUTH_STATE_COOKIE = "alhabla_google_oauth_state";
 const FIRST_USER_BOOTSTRAP_SECRET_ENV = "FIRST_USER_BOOTSTRAP_SECRET";
 
-// Mismas reglas al cambiarla desde Ajustes y al restablecerla por correo:
-// una sola definición para que nunca diverjan.
+// Mismas reglas al registrarse, al cambiarla desde Ajustes y al restablecerla
+// por correo: una sola definición para que nunca diverjan. Hasta la auditoría
+// del 24-09, `/register` no aplicaba ninguna —entraba una contraseña de un
+// solo carácter— mientras que cambiarla sí exigía todo esto.
 const NewPasswordSchema = z
   .string()
   .min(8, "La nueva contraseña debe tener al menos 8 caracteres")
@@ -86,9 +89,19 @@ function sendAccountActionError(reply: FastifyReply, error: unknown) {
   return null;
 }
 
-function createToken(user: { id: string; businessId: string }) {
+/**
+ * `tv` es `User.tokenVersion` en el momento de emitir. `plugins/auth.ts` lo
+ * compara con el valor de la BD, así que cambiar o restablecer la contraseña
+ * —que sube la versión— invalida al instante los tokens anteriores en vez de
+ * dejarlos vivos los 7 días que duran.
+ */
+function createToken(user: {
+  id: string;
+  businessId: string;
+  tokenVersion?: number;
+}) {
   return jwt.sign(
-    { id: user.id, businessId: user.businessId },
+    { id: user.id, businessId: user.businessId, tv: user.tokenVersion ?? 0 },
     process.env.JWT_SECRET!,
     { expiresIn: "7d" }
   );
@@ -218,7 +231,31 @@ const veryStrictRateLimit = {
   timeWindow: "1 minute",
 };
 
+/**
+ * Techo de respaldo para TODO `/auth/*`, en la memoria de la instancia. El
+ * límite de arriba vive en Redis con `skipOnError: true`, así que si Redis se
+ * cae deja pasar todo; aquí eso significaría probar contraseñas sin freno.
+ * 40 peticiones por minuto y IP está muy por encima de cualquier uso normal
+ * (las rutas de arriba permiten 5 o 10 cada una), así que solo muerde cuando
+ * el limitador principal se ha rendido.
+ */
+const LIMITE_DE_RESPALDO = new LimitadorEnMemoria(40, 60_000);
+
 export const authRoutes: FastifyPluginAsync = async (fastify) => {
+  fastify.addHook("onRequest", async (request, reply) => {
+    if (!LIMITE_DE_RESPALDO.permite(request.ip)) {
+      request.log.warn(
+        { ip: request.ip, url: request.url },
+        "[Auth] Techo de respaldo en memoria alcanzado (¿Redis caído?)"
+      );
+      return reply.status(429).send({
+        statusCode: 429,
+        error: "Too Many Requests",
+        message: "Demasiados intentos. Espera un minuto y vuelve a probar.",
+      });
+    }
+  });
+
   fastify.post(
     "/login",
     {
@@ -268,6 +305,13 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
           .send({ error: "El email y la contraseña son obligatorios" });
       }
 
+      const contrasena = NewPasswordSchema.safeParse(password);
+      if (!contrasena.success) {
+        return reply
+          .status(400)
+          .send({ error: contrasena.error.errors[0]?.message ?? "Contraseña no válida" });
+      }
+
       if (typeof isEuropeanUnion !== "boolean") {
         return reply
           .status(400)
@@ -296,7 +340,10 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
       try {
         result = await createUserWithBusiness({
           email: normalizedEmail,
-          password: await bcrypt.hash(password, 10),
+          // Coste 12, el mismo que al cambiarla y restablecerla: no tiene
+          // sentido que la contraseña nazca peor protegida de lo que queda
+          // después de cambiarla.
+          password: await bcrypt.hash(password, 12),
           isEuropeanUnion,
           businessType: normalizedBusinessType,
         });
@@ -341,7 +388,21 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
           .status(401)
           .send({ error: "El pase no es válido o ha caducado", code: "PASE_INVALIDO" });
       }
-      return reply.send({ token: createToken(user) });
+      // El pase solo guarda id y negocio, así que la versión del token se lee
+      // ahora: si la contraseña cambió entre crear el pase y canjearlo, el
+      // token nace ya con la versión buena en vez de nacer inválido.
+      const vigente = await prisma.user.findUnique({
+        where: { id: user.id },
+        select: { tokenVersion: true },
+      });
+      if (!vigente) {
+        return reply
+          .status(401)
+          .send({ error: "El pase no es válido o ha caducado", code: "PASE_INVALIDO" });
+      }
+      return reply.send({
+        token: createToken({ ...user, tokenVersion: vigente.tokenVersion }),
+      });
     }
   );
 
@@ -678,7 +739,7 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
       }
 
       const orchestrator = detectVoiceOrchestrator(isEuropeanUnion);
-      const hashedPassword = await bcrypt.hash(password, 10);
+      const hashedPassword = await bcrypt.hash(password, 12);
       const result = await prisma.$transaction(async (tx) => {
         const business = await tx.business.create({
           data: {

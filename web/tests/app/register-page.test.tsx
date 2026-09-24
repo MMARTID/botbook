@@ -37,7 +37,7 @@ function mockLocation(search = "") {
 
 async function fillRequiredFields(user: ReturnType<typeof userEvent.setup>) {
   await user.type(screen.getByPlaceholderText("tucorreo@dominio.com"), "ana@example.com");
-  await user.type(screen.getByPlaceholderText("Mínimo 8 caracteres"), "password123");
+  await user.type(screen.getByPlaceholderText("Mínimo 8 caracteres, con una letra y un número"), "password123");
   await user.click(screen.getByRole("radio", { name: "Sí" }));
 }
 

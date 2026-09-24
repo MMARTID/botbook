@@ -578,3 +578,22 @@ export function agendaDelDia(input: {
     ...input.lineas,
   ].join("\n");
 }
+
+/**
+ * Un móvil con citas en varios negocios escribe al número de clientes: no se
+ * adivina a cuál, se le pregunta (auditoría del 24-09). Sin el nombre de las
+ * citas ni fechas: en la pregunta todavía no sabemos de cuál habla, así que
+ * no se le enseña nada de ningún negocio más allá de su nombre.
+ */
+export function deQueNegocioHablas(input: { negocios: string[] }): string {
+  return `Tienes citas con ${listarNegocios(input.negocios)}. ¿Con cuál quieres hablar?`;
+}
+
+export function negocioElegido(input: { negocio: string }): string {
+  return `Perfecto, hablamos de tus citas en ${input.negocio}. Cuéntame.`;
+}
+
+/** Más negocios de los que caben en botones (WhatsApp admite 3). */
+export function demasiadosNegocios(): string {
+  return "Tienes citas con varios negocios. Dime el nombre del negocio del que quieres hablar y sigo por ahí.";
+}

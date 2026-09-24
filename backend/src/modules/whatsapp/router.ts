@@ -22,6 +22,11 @@ import {
   type Respuesta,
 } from "./respuestas.js";
 export type { ResultadoEnrutado } from "./respuestas.js";
+import {
+  guardarEleccion,
+  negociosDelCliente,
+  resolverNegocioDelCliente,
+} from "./tenantDelCliente.js";
 import type { ResultadoEnrutado } from "./respuestas.js";
 import {
   activarAvisosDelDueno,
@@ -1649,6 +1654,12 @@ async function enrutarEnClientes(
     }
   }
 
+  // La respuesta a «¿de qué negocio hablas?» se atiende antes que nada: es
+  // la que le pone negocio a la conversación.
+  if (message.kind === "button" && (message.buttonId ?? "").startsWith(PREFIJO_BOTON_NEGOCIO)) {
+    return elegirNegocioDelCliente(message);
+  }
+
   if (message.kind === "button") {
     return botonEnClientes(message);
   }
@@ -1658,6 +1669,79 @@ async function enrutarEnClientes(
   }
 
   return { handler: `ignorado:${message.kind}` };
+}
+
+/** `cliente:negocio:<businessId>` */
+const PREFIJO_BOTON_NEGOCIO = "cliente:negocio:";
+
+/**
+ * El cliente elige con qué negocio habla. El id llega en el botón, así que
+ * NO se cree: solo vale si ese negocio está entre aquellos en los que ese
+ * móvil tiene reservas.
+ */
+async function elegirNegocioDelCliente(
+  message: InboundMessage
+): Promise<ResultadoEnrutado> {
+  const elegido = (message.buttonId ?? "").slice(PREFIJO_BOTON_NEGOCIO.length);
+  const candidatos = await negociosDelCliente(message.fromNumber);
+  const negocio = candidatos.find((c) => c.id === elegido);
+  if (!negocio) {
+    console.warn(
+      `[WhatsApp] ${message.fromNumber} eligió el negocio ${elegido}, en el que no tiene reservas; se ignora`
+    );
+    return { handler: "boton:negocio-no-es-suyo" };
+  }
+
+  await guardarEleccion(message.fromNumber, negocio.id);
+  // La fila del entrante también se queda con el negocio: es lo que lee la
+  // continuidad de conversación del siguiente mensaje.
+  await prisma.inboundMessage.update({
+    where: { id: message.id },
+    data: { businessId: negocio.id },
+  });
+
+  return resultado(
+    "boton:negocio-elegido",
+    await responder(
+      { ...message, businessId: negocio.id },
+      "negocio-elegido",
+      mensajes.negocioElegido({ negocio: negocio.name }),
+      { businessId: negocio.id }
+    )
+  );
+}
+
+/**
+ * Varios negocios posibles y ninguna pista: se pregunta en vez de acertar por
+ * casualidad. WhatsApp admite tres botones; con más, se pide el nombre.
+ */
+async function preguntarDeQueNegocio(
+  message: InboundMessage,
+  candidatos: Array<{ id: string; name: string }>
+): Promise<ResultadoEnrutado> {
+  const nombres = candidatos.map((c) => c.name);
+  if (candidatos.length > 3) {
+    return resultado(
+      "texto:negocio-ambiguo-sin-botones",
+      await responder(message, "negocio-ambiguo", mensajes.demasiadosNegocios(), {
+        unaVezAlDia: true,
+      })
+    );
+  }
+  return resultado(
+    "texto:negocio-ambiguo",
+    await responder(
+      message,
+      "negocio-ambiguo",
+      mensajes.deQueNegocioHablas({ negocios: nombres }),
+      {
+        botones: candidatos.map((c) => ({
+          id: `${PREFIJO_BOTON_NEGOCIO}${c.id}`,
+          title: normalizarTitulo(c.name),
+        })),
+      }
+    )
+  );
 }
 
 async function esDuenoConocido(from: string): Promise<boolean> {
@@ -1690,6 +1774,21 @@ async function textoEnClientes(
   }
 
   if (message.role === "client") {
+    // Sin negocio pero con varios posibles: preguntar antes de contestar
+    // nada. Contestar «a ojo» significa enseñarle la agenda de otro negocio.
+    if (!message.businessId) {
+      const resolucion = await resolverNegocioDelCliente(
+        from,
+        message.contextMessageId
+      );
+      if (resolucion.tipo === "ambiguo") {
+        return preguntarDeQueNegocio(message, resolucion.candidatos);
+      }
+      if (resolucion.tipo === "unico") {
+        message = { ...message, businessId: resolucion.businessId };
+      }
+    }
+
     // Fase 2: la recepcionista por chat. Si no puede atender (interruptor,
     // negocio sin recepcionista en Telnyx, suscripción bloqueada) se cae a
     // la respuesta fija de siempre.

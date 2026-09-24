@@ -57,7 +57,7 @@ Each module is a folder containing a `routes.ts` file (and optionally `service.t
 
 | Module | Prefix | Auth | Purpose |
 |--------|--------|------|---------|
-| `auth` | `/auth` | Mixed | JWT login, Google OAuth callback, registration, authenticated account summary/password change/deletion |
+| `auth` | `/auth` | Mixed | JWT login, Google OAuth callback, registration, authenticated account summary/password change/deletion. Since 2026-09-24 the JWT carries `tv` (`User.tokenVersion`) and `plugins/auth.ts` checks it against the DB (30 s in-process cache), so changing or resetting the password invalidates every token issued before it instead of letting it live out its 7 days — that check fails **closed**. `/register` applies the same password policy as changing and resetting it (8+, a letter and a digit — before, a one-character password got in) and hashes with bcrypt cost 12, not 10. All of `/auth/*` also sits behind an in-memory backstop limiter (`lib/limitadorEnMemoria.ts`, 40/min per IP): the global limiter is Redis-backed with `skipOnError: true`, and failing open there means unthrottled credential stuffing. |
 | `businesses` | *(none)* | Yes | Business CRUD, `me` endpoints, agent prompt rebuild on update, and the dashboard reads: `GET /business/me/stats` (all-time totals plus a rolling 7-day `week` window with the previous 7 days for comparison and an estimated revenue in cents), `GET /business/me/agenda?days&limit` (upcoming `Booking` rows with client phone, professional and resolved service names) and `GET /business/me/pending-bookings` (unresolved `pending_booking` leads — appointments the caller asked for that never reached the calendar) |
 | `agents` | *(none)* | Yes | Agent CRUD, sync to Retell assistants |
 | `calls` | *(none)* | Yes | Call logs, transcripts, outcomes (paginated) |
@@ -791,6 +791,19 @@ el `fetch` equivalente. **Nunca desde un route handler**: todo pasa por
   (issue #122): resuelto el 20-09 traduciendo el patrón de Retell a la variante con zona
   `{{telnyx_current_time_<zona IANA>}}` (`adaptManagedPromptForTelnyx`), verificado por chat en
   dev («cinco y treinta y seis de la tarde» a las 17:36 de Madrid).
+
+**A qué negocio le escribe un cliente (auditoría del 24-09).** El número «Alhabla Reservas» es
+UNO para toda la plataforma, así que el mismo móvil puede tener citas en dos negocios. Antes se
+cogía la reserva más reciente de ese teléfono, sin filtrar por negocio, y el texto libre podía
+acabar en la recepcionista del negocio equivocado (los botones nunca: validan `context.id`
+contra `SentMessage`). `modules/whatsapp/tenantDelCliente.ts` resuelve por orden: el mensaje al
+que responde → lo que el cliente eligió cuando se le preguntó (Redis, 6 h) → la conversación en
+curso (`InboundMessage` de las últimas 6 h) → sus reservas, solo si todas son del mismo negocio.
+Si siguen quedando varios, **no se adivina**: el enrutador pregunta con botones
+(`cliente:negocio:<id>`) y valida la respuesta contra los negocios en los que ESE móvil tiene
+reservas, nunca contra el id que llega en el payload. Con más de tres negocios no caben botones
+y se pide el nombre. Ojo: esto es solo el lado cliente; un **dueño** con varios negocios sigue
+hablando por el que elige `identificarRemitente`.
 
 **Código (fase 2, PR 2 — el Gestor base, 2026-09-20).**
 - **Un assistant de Telnyx para toda la plataforma**, `alhabla-gestor` (§ 8), detrás del número

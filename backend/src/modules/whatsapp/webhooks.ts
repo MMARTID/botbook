@@ -4,6 +4,7 @@ import type { WhatsappAudience } from "../../adapters/whatsapp/WhatsAppAdapter.j
 import { prisma } from "../../lib/prisma.js";
 import { errorMessage } from "../../lib/logUtils.js";
 import { isUniqueConstraintError } from "../../lib/prismaErrors.js";
+import { resolverNegocioDelCliente } from "./tenantDelCliente.js";
 import {
   actualizarEstadoEnvio,
   audienciaDelNumero,
@@ -367,7 +368,9 @@ export function clasificarEntrante(
  */
 export async function identificarRemitente(
   fromNumber: string,
-  audience: WhatsappAudience | null
+  audience: WhatsappAudience | null,
+  /** `context.id` del entrante: es la prueba exacta de a qué negocio responde. */
+  contextMessageId: string | null = null
 ): Promise<{ role: EntranteRole; businessId: string | null }> {
   if (audience === "owner" || audience === null) {
     const business = await prisma.business.findFirst({
@@ -380,13 +383,16 @@ export async function identificarRemitente(
     }
   }
   if (audience === "client" || audience === null) {
-    const booking = await prisma.booking.findFirst({
-      where: { OR: [{ clientPhone: fromNumber }, { call: { fromNumber } }] },
-      select: { call: { select: { businessId: true } } },
-      orderBy: { programedAt: "desc" },
-    });
-    if (booking) {
-      return { role: "client", businessId: booking.call.businessId };
+    // El negocio NO se decide por «la reserva más reciente de este teléfono»:
+    // el número de clientes es uno para toda la plataforma y el mismo móvil
+    // puede tener citas en dos negocios (ver tenantDelCliente.ts). Si queda
+    // duda, se guarda sin negocio y el enrutador se lo pregunta.
+    const resolucion = await resolverNegocioDelCliente(fromNumber, contextMessageId);
+    if (resolucion.tipo === "unico") {
+      return { role: "client", businessId: resolucion.businessId };
+    }
+    if (resolucion.tipo === "ambiguo") {
+      return { role: "client", businessId: null };
     }
   }
   return { role: "unknown", businessId: null };
@@ -459,7 +465,8 @@ export async function handleWhatsappMessages(
     });
     const { role, businessId } = await identificarRemitente(
       entrante.fromNumber,
-      audience
+      audience,
+      entrante.contextMessageId
     );
 
     let row;
