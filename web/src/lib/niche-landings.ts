@@ -135,7 +135,7 @@ export const nicheLandings: Record<NicheSlug, NicheLandingContent> = {
   peluqueria: {
     slug: "peluqueria",
     name: "Peluquerías",
-    eyebrow: "Recepción inteligente para peluquerías",
+    eyebrow: "78% de los clientes contrata al primer negocio que responde",
     title: "Asistente telefónico para peluquerías 24/7",
     description: "Asistente telefónico con IA para peluquerías: responde llamadas y reserva cortes, color y tratamientos en tu agenda, incluso fuera de horario.",
     primaryKeyword: "asistente telefónico para peluquerías",
@@ -268,7 +268,7 @@ export const nicheLandings: Record<NicheSlug, NicheLandingContent> = {
   "centro-de-estetica": {
     slug: "centro-de-estetica",
     name: "Centros de estética",
-    eyebrow: "Recepción inteligente para centros de estética",
+    eyebrow: "57% de los clientes reserva por teléfono — el canal más importante",
     title: "Asistente telefónico para centros de estética",
     description: "Recepcionista virtual con IA para centros de estética: atiende consultas, organiza tratamientos, profesionales y cabinas, y reserva citas 24/7.",
     primaryKeyword: "asistente telefónico para centros de estética",
@@ -402,7 +402,7 @@ export const nicheLandings: Record<NicheSlug, NicheLandingContent> = {
   "salon-de-unas": {
     slug: "salon-de-unas",
     name: "Salones de uñas",
-    eyebrow: "Recepción inteligente para salones de uñas",
+    eyebrow: "85% de quienes no hablan con una persona real no vuelve a llamar",
     title: "Asistente telefónico para salones de uñas 24/7",
     description: "Asistente telefónico para salones de uñas: responde precios y reserva manicuras, pedicuras, retiradas y nail art en tu agenda las 24 horas.",
     primaryKeyword: "asistente telefónico para salones de uñas",
@@ -534,7 +534,7 @@ export const nicheLandings: Record<NicheSlug, NicheLandingContent> = {
   barberia: {
     slug: "barberia",
     name: "Barberías",
-    eyebrow: "Recepción inteligente para barberías",
+    eyebrow: "150€ de pérdida media por cada llamada no atendida",
     title: "Asistente telefónico para barberías 24/7",
     description: "Recepcionista virtual con IA para barberías: atiende llamadas y reserva cortes, barba, afeitado y packs, incluso en horas punta y fuera de horario.",
     primaryKeyword: "asistente telefónico para barberías",
@@ -667,7 +667,7 @@ export const nicheLandings: Record<NicheSlug, NicheLandingContent> = {
   fisioterapia: {
     slug: "fisioterapia",
     name: "Clínicas y consultas de fisioterapia",
-    eyebrow: "Recepción inteligente para fisioterapia",
+    eyebrow: "Un problema que solo entiende quien lo vive",
     title: "Asistente telefónico para clínicas de fisioterapia",
     description: "Recepcionista virtual con IA para clínicas y consultas de fisioterapia: atiende llamadas, organiza primeras visitas y seguimientos, y reserva citas 24/7.",
     primaryKeyword: "asistente telefónico para fisioterapia",

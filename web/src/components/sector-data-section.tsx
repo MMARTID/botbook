@@ -118,7 +118,7 @@ export function SectorDataSection({
                         de pago todavía — esto es comentario de sector, y
                         tiene que quedar claro antes de leer la frase, no
                         después. */}
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#a1a1aa]">
+                    <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[#52525b]">
                       Dato de terceros sobre el sector
                     </p>
                     <blockquote className="mt-2 text-sm font-medium italic leading-6 text-[#27272a]">

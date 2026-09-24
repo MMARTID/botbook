@@ -31,6 +31,24 @@ function clamp(value: number, minimum: number, maximum: number) {
   return Math.min(Math.max(value, minimum), maximum);
 }
 
+/**
+ * `accent.strong` está pensado para texto sobre blanco (ver niche-accents.ts):
+ * sobre el panel casi negro del resultado, el mismo tono se lee más saturado
+ * de lo que es — en fisioterapia (`#0e7f78`, un verde azulado) llega a leerse
+ * como el resplandor cian de una interfaz de IA genérica, justo lo que
+ * PRODUCT.md pide evitar. Mismo patrón que ya usa el sistema para el morado
+ * de marca sin nicho (`#a78bfa` es `#8b5cf6` aclarado): una versión más clara
+ * del acento, solo para texto e iconos sobre este fondo oscuro.
+ */
+function aclararParaFondoOscuro(hex: string, cantidad = 0.35): string {
+  const n = parseInt(hex.slice(1), 16);
+  const mezclar = (canal: number) => Math.round(canal + (255 - canal) * cantidad);
+  const r = mezclar((n >> 16) & 255);
+  const g = mezclar((n >> 8) & 255);
+  const b = mezclar(n & 255);
+  return `#${[r, g, b].map((c) => c.toString(16).padStart(2, "0")).join("")}`;
+}
+
 export function RevenueLossCalculator({
   content,
   activeNiche,
@@ -43,6 +61,7 @@ export function RevenueLossCalculator({
   accent?: NicheAccent;
 }) {
   const router = useRouter();
+  const accentOnDark = accent ? aclararParaFondoOscuro(accent.strong) : "#a78bfa";
   const [averageTicket, setAverageTicket] = useState(content?.initialTicket ?? 35);
   const [missedAppointmentsPerWeek, setMissedAppointmentsPerWeek] = useState(3);
   const hasHydrated = useRef(false);
@@ -160,7 +179,7 @@ export function RevenueLossCalculator({
               <div className="mt-4 border-b border-white/10 pb-8">
                 <p
                   className="tabular-nums text-5xl font-black tracking-[-0.03em] sm:text-6xl lg:text-7xl"
-                  style={{ color: accent?.strong ?? "#a78bfa" }}
+                  style={{ color: accentOnDark }}
                 >
                   <AnimatedCurrency value={monthlyLoss} />
                 </p>
@@ -189,7 +208,7 @@ export function RevenueLossCalculator({
                   <ArrowRight className="h-4 w-4 shrink-0" aria-hidden="true" />
                 </button>
                 <p className="mt-4 flex items-center justify-center gap-2 text-xs font-medium text-white/55">
-                  <Check className="h-3.5 w-3.5" style={{ color: accent?.strong ?? "#a78bfa" }} aria-hidden="true" />
+                  <Check className="h-3.5 w-3.5" style={{ color: accentOnDark }} aria-hidden="true" />
                   Sin permanencia · Configuración guiada
                 </p>
               </div>

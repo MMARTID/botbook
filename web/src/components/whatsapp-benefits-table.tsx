@@ -1,5 +1,8 @@
 import { Check } from "lucide-react";
+import type { NicheAccent } from "@/lib/niche-landings";
 import { Reveal } from "@/components/scroll-reveal";
+
+const FALLBACK_ACCENT: NicheAccent = { strong: "#8b5cf6", soft: "#f3eeff", deep: "#6d28d9" };
 
 // Contenido fijo, igual en la landing principal y en las cinco de nicho: el
 // canal de WhatsApp hace el mismo trabajo sea cual sea el negocio, así que
@@ -18,14 +21,24 @@ const PARA_CLIENTE = [
   "Puede reservar o mover su cita hablando por WhatsApp con la recepcionista",
 ] as const;
 
-function BenefitColumn({ heading, items }: { heading: string; items: readonly string[] }) {
+function BenefitColumn({
+  heading,
+  items,
+  accent,
+}: {
+  heading: string;
+  items: readonly string[];
+  accent: NicheAccent;
+}) {
   return (
     <div className="p-6 sm:p-8">
-      <h3 className="text-sm font-bold uppercase tracking-[0.08em] text-[#6d28d9]">{heading}</h3>
+      <h3 className="text-sm font-bold uppercase tracking-[0.08em]" style={{ color: accent.deep }}>
+        {heading}
+      </h3>
       <ul className="mt-5 grid gap-4">
         {items.map((item) => (
           <li key={item} className="flex items-start gap-2.5 text-sm leading-6 text-[#27272a]">
-            <Check className="mt-0.5 h-4 w-4 shrink-0 text-[#8b5cf6]" aria-hidden="true" />
+            <Check className="mt-0.5 h-4 w-4 shrink-0" style={{ color: accent.strong }} aria-hidden="true" />
             {item}
           </li>
         ))}
@@ -41,7 +54,8 @@ function BenefitColumn({ heading, items }: { heading: string; items: readonly st
  * ningún otro bloque de la landing). Sin esto, alguien que solo ve el
  * Gestor puede pensar que el WhatsApp es solo para el dueño.
  */
-export function WhatsAppBenefitsTable() {
+export function WhatsAppBenefitsTable({ accent }: { accent?: NicheAccent }) {
+  const a = accent ?? FALLBACK_ACCENT;
   return (
     <section className="py-16 sm:py-20">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
@@ -56,9 +70,9 @@ export function WhatsAppBenefitsTable() {
 
         <Reveal delay={0.1} y={16}>
           <div className="mt-10 overflow-hidden rounded-3xl border border-[#e5e5e5] bg-white sm:grid sm:grid-cols-2 sm:divide-x sm:divide-[#e5e5e5]">
-            <BenefitColumn heading="Para tu negocio" items={PARA_NEGOCIO} />
+            <BenefitColumn heading="Para tu negocio" items={PARA_NEGOCIO} accent={a} />
             <div className="border-t border-[#e5e5e5] sm:border-t-0">
-              <BenefitColumn heading="Para tus clientes" items={PARA_CLIENTE} />
+              <BenefitColumn heading="Para tus clientes" items={PARA_CLIENTE} accent={a} />
             </div>
           </div>
         </Reveal>

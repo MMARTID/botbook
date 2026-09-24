@@ -250,7 +250,7 @@ export function SiteLanding({ content }: { content?: NicheLandingContent }) {
       */}
       <OwnerAssistantSection data={content.ownerAssistant} accent={content.accent} />
 
-      <WhatsAppBenefitsTable />
+      <WhatsAppBenefitsTable accent={content.accent} />
 
       <section className="py-16 sm:py-20 lg:py-24">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">

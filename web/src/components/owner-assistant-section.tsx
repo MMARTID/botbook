@@ -6,10 +6,8 @@ import { Reveal } from "@/components/scroll-reveal";
 const FALLBACK_ACCENT: NicheAccent = {
   strong: "#8b5cf6",
   soft: "#f3eeff",
-  deep: "#0a0a0a",
+  deep: "#6d28d9",
 };
-
-const FALLBACK_INK = "#6d28d9";
 
 // Un icono por ejemplo: ausencia de un profesional (UserX), cierre de la
 // agenda (CalendarOff) y consulta o cambio rápido (MessageCircleMore). El
@@ -42,7 +40,7 @@ export function OwnerAssistantSection({
   accent?: NicheAccent;
 }) {
   const a = accent ?? FALLBACK_ACCENT;
-  const badgeInk = accent ? accent.deep : FALLBACK_INK;
+  const badgeInk = a.deep;
 
   return (
     <section className="py-16 sm:py-20">
@@ -105,7 +103,7 @@ export function OwnerAssistantSection({
           </Reveal>
 
           <Reveal delay={0.1} y={16}>
-            <OwnerAssistantChatMockup data={data.chat} />
+            <OwnerAssistantChatMockup data={data.chat} accent={a} />
             <p className="mt-3 px-1 text-xs leading-5 text-[#a1a1aa]">
               {data.examples[0].title}: ejemplo de una conversación real por WhatsApp.
             </p>

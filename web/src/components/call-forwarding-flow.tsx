@@ -192,7 +192,7 @@ export function CallForwardingFlow({ accent }: { accent?: NicheAccent }) {
         </div>
       </div>
 
-      <p className="border-t border-[#e5e5e5] bg-white px-5 py-3 text-xs leading-5 text-[#71717a] sm:px-6">
+      <p className="max-w-2xl border-t border-[#e5e5e5] bg-white px-5 py-3 text-xs leading-5 text-[#71717a] sm:px-6">
         Demostración visual: el código exacto de desvío depende de tu operadora; Alhabla te guía al configurarlo.
       </p>
       <p className="sr-only">
