@@ -85,7 +85,7 @@ export default function PlansPage() {
 
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
               {benefits.map(({ title, description, icon: Icon }) => (
-                <article key={title} className="panel p-5">
+                <article key={title} className="panel landing-card-hover p-5">
                   <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#f3eeff] text-[#8b5cf6]">
                     <Icon className="h-5 w-5" />
                   </div>

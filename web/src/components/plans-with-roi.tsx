@@ -14,7 +14,7 @@ const currencyFormatter = new Intl.NumberFormat("es-ES", {
 });
 
 function cardClassName({ featured, preselected }: { featured: boolean; preselected: boolean }) {
-  const base = "relative flex flex-col rounded-3xl p-6 transition duration-200";
+  const base = "landing-card-hover relative flex flex-col rounded-3xl p-6";
 
   if (featured) {
     return `${base} bg-[#0a0a0a] ${preselected ? "ring-2 ring-[#a78bfa]" : ""}`;

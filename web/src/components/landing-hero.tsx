@@ -130,7 +130,7 @@ export function LandingHero({ content }: { content?: NicheLandingContent }) {
           </Reveal>
           <Reveal delay={0.18} y={12}>
             <div className="flex flex-wrap justify-center gap-x-5 gap-y-2 text-sm font-medium text-[#3f3f46]">
-              {["Mismo número de siempre", "Google Calendar y Outlook", "Sin permanencia"].map((item) => (
+              {["Mismo número de siempre", "Google, Outlook o iCloud", "Sin permanencia"].map((item) => (
                 <span key={item} className="inline-flex items-center gap-1.5">
                   <Check className="h-4 w-4 text-[#8b5cf6]" style={accent ? { color: accent.strong } : undefined} />
                   {item}
