@@ -14,7 +14,6 @@ import { Reveal } from "@/components/scroll-reveal";
 import { SectorDataSection } from "@/components/sector-data-section";
 import { TeamRoutingSection } from "@/components/team-routing-section";
 import { OwnerAssistantSection } from "@/components/owner-assistant-section";
-import { WhatsAppBenefitsTable } from "@/components/whatsapp-benefits-table";
 import { generalOwnerAssistant, generalSectorData, generalTeamRouting } from "@/lib/niche-landings";
 import { HOME_QUICK_FAQS } from "@/lib/home-faqs";
 import { formatIncludedMinutes, formatPlanPrice, plans, TRIAL_REASSURANCE } from "@/lib/plans";
@@ -351,26 +350,17 @@ export function MainLanding() {
         </div>
       </section>
 
-      <HowItWorksScrollytelling />
-
-      <TeamRoutingSection data={generalTeamRouting} />
-
-      <OwnerAssistantSection data={generalOwnerAssistant} />
-
-      <WhatsAppBenefitsTable />
-
-      <SectorDataSection data={generalSectorData} />
-
       {/*
-        Las tarjetas de sector bajan aquí a propósito (2026-09-21): antes
-        subían justo después del hero para enrutar a quien ya sabía su
-        sector, pero eso sacaba a la mitad de las visitantes de la página
-        antes de leer el relato genérico completo (cómo funciona, reparto
-        por especialidad, el Gestor, el coste de no contestar). Ahora ese
-        relato va primero y esto queda como el puente hacia "quiero verlo
-        ya adaptado a mi negocio", justo antes de precios.
+        Las tarjetas de sector suben aquí, justo después del hero
+        (2026-09-24, propuesta de conversión — revierte el orden de
+        2026-09-21, ver historial de este comentario): el trabajo real de la
+        landing principal es enrutar rápido a quien ya sabe su sector — cada
+        landing de nicho lleva ahora su propia profundidad completa (cómo
+        funciona, reparto, El Gestor, datos del sector), así que no hace
+        falta repetirla en genérico antes de ofrecer la salida. Quien no
+        pica aquí sigue leyendo el relato genérico de abajo.
       */}
-      <section id="sectores" className="scroll-m-20 border-t border-[#e5e5e5] py-16 sm:py-24">
+      <section id="sectores" className="scroll-m-20 border-b border-[#e5e5e5] py-16 sm:py-24">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <Reveal className="flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
             <div className="max-w-3xl">
@@ -471,6 +461,21 @@ export function MainLanding() {
           </div>
         </div>
       </section>
+
+      <HowItWorksScrollytelling />
+
+      <TeamRoutingSection data={generalTeamRouting} />
+
+      <OwnerAssistantSection data={generalOwnerAssistant} />
+
+      {/*
+        Datos del sector aquí, justo antes de precios (2026-09-24): sin
+        calculadora de pérdida de ingresos en la landing principal (esa
+        profundidad vive en cada landing de nicho), estas cifras genéricas
+        hacen el mismo trabajo de "recordatorio del coste real" justo antes
+        de enseñar el precio.
+      */}
+      <SectorDataSection data={generalSectorData} />
 
       {/* Precio y FAQ compactos aquí mismo: la visitante que llega convencida
           por el relato anterior no tiene que salir de la página para ver un
