@@ -86,9 +86,11 @@ export async function changeAccountPassword(input: {
   await verifyCurrentPassword(user.password, input.currentPassword);
 
   const password = await bcrypt.hash(input.newPassword, 12);
+  // Cambiar la contraseña cierra las demás sesiones: `tokenVersion` sube y
+  // los JWT emitidos antes dejan de valer (ver plugins/auth.ts).
   await prisma.user.update({
     where: { id: user.id },
-    data: { password },
+    data: { password, tokenVersion: { increment: 1 } },
   });
 
   const email = passwordChangedEmail();

@@ -175,7 +175,7 @@ describe("authRoutes", () => {
       const response = await fastify.inject({
         method: "POST",
         url: "/register",
-        payload: { email: "test@example.com", password: "password", isEuropeanUnion: true, acceptedTerms: true },
+        payload: { email: "test@example.com", password: "password1", isEuropeanUnion: true, acceptedTerms: true },
       });
 
       expect(response.statusCode).toBe(201);
@@ -201,7 +201,7 @@ describe("authRoutes", () => {
       const response = await fastify.inject({
         method: "POST",
         url: "/register",
-        payload: { email: "test@example.com", password: "password", isEuropeanUnion: true, acceptedTerms: true },
+        payload: { email: "test@example.com", password: "password1", isEuropeanUnion: true, acceptedTerms: true },
       });
       expect(response.statusCode).toBe(201);
       const { pase } = response.json();
@@ -217,11 +217,31 @@ describe("authRoutes", () => {
       const sinRedis = await fastify.inject({
         method: "POST",
         url: "/register",
-        payload: { email: "test2@example.com", password: "password", isEuropeanUnion: true, acceptedTerms: true },
+        payload: { email: "test2@example.com", password: "password1", isEuropeanUnion: true, acceptedTerms: true },
       });
       expect(sinRedis.statusCode).toBe(201);
       expect(sinRedis.json().token).toBe("token_123");
       expect(sinRedis.json().pase).toBeUndefined();
+    });
+
+    // La regresión de la auditoría del 24-09: el registro no aplicaba la
+    // política que sí exigían cambiar y restablecer la contraseña, así que
+    // entraba una contraseña de un solo carácter.
+    it("exige la misma contraseña que al cambiarla: 8+, con letra y número", async () => {
+      for (const password of ["a", "corta1", "sinnumeros", "12345678"]) {
+        const response = await fastify.inject({
+          method: "POST",
+          url: "/register",
+          payload: {
+            email: "test@example.com",
+            password,
+            isEuropeanUnion: true,
+            acceptedTerms: true,
+          },
+        });
+        expect(response.statusCode, password).toBe(400);
+      }
+      expect(mockedUserCreate).not.toHaveBeenCalled();
     });
 
     it("rechaza registro si el usuario ya existe", async () => {
@@ -230,7 +250,7 @@ describe("authRoutes", () => {
       const response = await fastify.inject({
         method: "POST",
         url: "/register",
-        payload: { email: "test@example.com", password: "password", isEuropeanUnion: true, acceptedTerms: true },
+        payload: { email: "test@example.com", password: "password1", isEuropeanUnion: true, acceptedTerms: true },
       });
 
       expect(response.statusCode).toBe(400);
@@ -243,7 +263,7 @@ describe("authRoutes", () => {
       const response = await fastify.inject({
         method: "POST",
         url: "/register",
-        payload: { email: "test@example.com", password: "password", isEuropeanUnion: true },
+        payload: { email: "test@example.com", password: "password1", isEuropeanUnion: true },
       });
 
       expect(response.statusCode).toBe(400);
@@ -267,7 +287,7 @@ describe("authRoutes", () => {
         url: "/register",
         payload: {
           email: "test@example.com",
-          password: "password",
+          password: "password1",
           isEuropeanUnion: true,
           acceptedTerms: true,
           businessType: "peluqueria",
@@ -293,13 +313,15 @@ describe("authRoutes", () => {
       };
       mockedGetRedis.mockReturnValue(redisMock as any);
       mockedJwtSign.mockReturnValue("token_9" as any);
+      // El pase solo guarda id y negocio: la versión del token se lee ahora.
+      mockedUserFindUnique.mockResolvedValue({ tokenVersion: 3 } as any);
 
       const response = await fastify.inject({ method: "POST", url: "/pase/canjear", payload: { pase: PASE } });
       expect(response.statusCode).toBe(200);
       expect(response.json()).toEqual({ token: "token_9" });
       expect(redisMock.getdel).toHaveBeenCalledWith(`auth:pase:${PASE}`);
       expect(mockedJwtSign).toHaveBeenCalledWith(
-        { id: "user_9", businessId: "business_9" },
+        { id: "user_9", businessId: "business_9", tv: 3 },
         expect.any(String),
         expect.anything()
       );

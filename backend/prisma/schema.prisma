@@ -398,6 +398,11 @@ model User {
   // Prueba de aceptación de Términos y Condiciones / Política de privacidad
   // en el registro — null en usuarios creados antes de exigirlo.
   termsAcceptedAt DateTime?
+  /// Sube en cada cambio o restablecimiento de contraseña. El JWT lleva el
+  /// valor con el que se emitió y `plugins/auth.ts` lo compara: así una
+  /// sesión robada deja de valer en cuanto la persona cambia la contraseña,
+  /// en vez de aguantar los 7 días que dura el token.
+  tokenVersion    Int       @default(0)
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 

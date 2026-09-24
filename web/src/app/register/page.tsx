@@ -112,10 +112,17 @@ export default function RegisterPage() {
                 minLength={8}
                 autoComplete="new-password"
                 className="field mt-2 w-full"
-                placeholder="Mínimo 8 caracteres"
+                placeholder="Mínimo 8 caracteres, con una letra y un número"
+                aria-describedby="register-password-ayuda"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
               />
+              {/* La misma regla que aplica el backend en /auth/register, al
+                  cambiarla desde Ajustes y al restablecerla por correo: que se
+                  lea antes de enviar y no en forma de error. */}
+              <p id="register-password-ayuda" className="mt-2 text-xs leading-5 text-muted">
+                Al menos 8 caracteres, con una letra y un número.
+              </p>
             </div>
             <fieldset>
               <legend className="text-sm font-medium text-[#27272a]">¿Tus clientes son de la Unión Europea?</legend>

@@ -93,7 +93,7 @@ export async function resetPasswordWithToken(input: {
 
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    select: { id: true, email: true, businessId: true },
+    select: { id: true, email: true, businessId: true, tokenVersion: true },
   });
 
   if (!user) {
@@ -104,9 +104,13 @@ export async function resetPasswordWithToken(input: {
   }
 
   const password = await bcrypt.hash(input.newPassword, 12);
-  await prisma.user.update({
+  // `tokenVersion` sube con la contraseña: quien tuviera una sesión abierta
+  // con la contraseña vieja (el caso por el que se restablece) deja de
+  // tenerla. El token que se devuelve abajo ya lleva la versión nueva.
+  const actualizado = await prisma.user.update({
     where: { id: user.id },
-    data: { password },
+    data: { password, tokenVersion: { increment: 1 } },
+    select: { tokenVersion: true },
   });
 
   try {
@@ -124,5 +128,5 @@ export async function resetPasswordWithToken(input: {
     );
   }
 
-  return user;
+  return { ...user, tokenVersion: actualizado.tokenVersion };
 }

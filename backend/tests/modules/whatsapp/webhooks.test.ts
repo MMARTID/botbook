@@ -20,10 +20,12 @@ import { enrutarEntrante } from "../../../src/modules/whatsapp/router.js";
 vi.mock("../../../src/lib/prisma.js", () => ({
   prisma: {
     business: { findFirst: vi.fn() },
-    booking: { findFirst: vi.fn() },
+    booking: { findFirst: vi.fn(), findMany: vi.fn() },
+    sentMessage: { findUnique: vi.fn() },
     inboundMessage: {
       create: vi.fn(),
       update: vi.fn(),
+      findFirst: vi.fn(),
       findMany: vi.fn(),
       updateMany: vi.fn(),
     },
@@ -43,6 +45,9 @@ vi.mock("../../../src/modules/whatsapp/router.js", () => ({
 
 const mockedBusinessFindFirst = vi.mocked(prisma.business.findFirst);
 const mockedBookingFindFirst = vi.mocked(prisma.booking.findFirst);
+const mockedBookingFindMany = vi.mocked(prisma.booking.findMany);
+const mockedSentMessageFindUnique = vi.mocked(prisma.sentMessage.findUnique);
+const mockedInboundFindFirst = vi.mocked(prisma.inboundMessage.findFirst);
 const mockedInboundCreate = vi.mocked(prisma.inboundMessage.create);
 const mockedInboundUpdate = vi.mocked(prisma.inboundMessage.update);
 const mockedInboundFindMany = vi.mocked(prisma.inboundMessage.findMany);
@@ -335,19 +340,19 @@ describe("identificarRemitente", () => {
         where: { ownerWhatsappNumber: "+34692138456", active: true },
       })
     );
-    expect(mockedBookingFindFirst).not.toHaveBeenCalled();
+    expect(mockedBookingFindMany).not.toHaveBeenCalled();
   });
 
   it("en el número de clientes busca reservas por el teléfono de la cita o de la llamada", async () => {
-    mockedBookingFindFirst.mockResolvedValue({
-      call: { businessId: "biz_2" },
-    } as never);
+    mockedBookingFindMany.mockResolvedValue([
+      { call: { business: { id: "biz_2", name: "Peluquería" } } },
+    ] as never);
 
     expect(await identificarRemitente("+34692138456", "client")).toEqual({
       role: "client",
       businessId: "biz_2",
     });
-    expect(mockedBookingFindFirst).toHaveBeenCalledWith(
+    expect(mockedBookingFindMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: {
           OR: [
@@ -360,8 +365,37 @@ describe("identificarRemitente", () => {
     expect(mockedBusinessFindFirst).not.toHaveBeenCalled();
   });
 
+  // La regresión de la auditoría del 24-09: con citas en dos negocios se
+  // cogía la reserva más reciente, así que el texto libre podía acabar en la
+  // recepcionista del negocio equivocado.
+  it("con citas en varios negocios no elige ninguno: deja que el enrutador pregunte", async () => {
+    mockedBookingFindMany.mockResolvedValue([
+      { call: { business: { id: "biz_2", name: "Peluquería" } } },
+      { call: { business: { id: "biz_3", name: "Barbería" } } },
+    ] as never);
+    mockedInboundFindFirst.mockResolvedValue(null);
+
+    expect(await identificarRemitente("+34692138456", "client")).toEqual({
+      role: "client",
+      businessId: null,
+    });
+  });
+
+  it("aun con varios negocios, el mensaje al que responde manda", async () => {
+    mockedSentMessageFindUnique.mockResolvedValue({
+      businessId: "biz_3",
+      toNumber: "+34692138456",
+    } as never);
+
+    expect(
+      await identificarRemitente("+34692138456", "client", "wamid_original")
+    ).toEqual({ role: "client", businessId: "biz_3" });
+    // Con la prueba exacta no hace falta ni mirar sus reservas.
+    expect(mockedBookingFindMany).not.toHaveBeenCalled();
+  });
+
   it("un dueño que escribe al número de clientes no se confunde con un cliente", async () => {
-    mockedBookingFindFirst.mockResolvedValue(null);
+    mockedBookingFindMany.mockResolvedValue([] as never);
 
     expect(await identificarRemitente("+34692138456", "client")).toEqual({
       role: "unknown",
@@ -374,9 +408,11 @@ describe("handleWhatsappMessages", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockedAudiencia.mockResolvedValue("client");
-    mockedBookingFindFirst.mockResolvedValue({
-      call: { businessId: "biz_2" },
-    } as never);
+    mockedBookingFindMany.mockResolvedValue([
+      { call: { business: { id: "biz_2", name: "Peluquería" } } },
+    ] as never);
+    mockedSentMessageFindUnique.mockResolvedValue(null);
+    mockedInboundFindFirst.mockResolvedValue(null);
     mockedInboundCreate.mockImplementation(
       async ({ data }) => ({ id: "in_1", ...data }) as never
     );
