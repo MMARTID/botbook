@@ -22,7 +22,7 @@ cogerlo. El trabajo que quiere resuelto es que **ninguna llamada se pierda y que
 entren solas en su agenda**, configurándolo una vez y olvidándose.
 
 Una cuenta equivale a un negocio y a una persona: el modelo `User` no tiene roles ni
-multiusuario (`backend/prisma/schema.prisma:103`). Quien se registra es quien administra. No existe hoy
+multiusuario (`backend/prisma/schema.prisma:391`). Quien se registra es quien administra. No existe hoy
 la figura de empleado con acceso limitado al panel.
 
 **Usuario secundario (quien llama):** el cliente final del negocio, que marca el número y habla
@@ -34,8 +34,8 @@ teléfono — pero es quien juzga si el producto funciona.
 
 Alhabla es un SaaS multi-tenant que da a cada negocio uno o más **recepcionistas de voz con IA**
 que atienden las llamadas entrantes, responden preguntas, consultan el horario del negocio,
-comprueban disponibilidad y reservan la cita directamente en el calendario de Google u Outlook
-del negocio.
+comprueban disponibilidad y reservan la cita directamente en el calendario de Google, Outlook o
+Apple/iCloud del negocio.
 
 Existe porque en estos sectores **llamada perdida = cita perdida = ingreso perdido**, y el dueño
 no tiene ni recepcionista ni forma de contestar mientras trabaja.
@@ -54,25 +54,34 @@ Lo que un producto vecino no podría copiar honestamente:
   luego hay que repasar a mano.
 - **Vertical, no constructor genérico de agentes.** Cinco nichos españoles concretos con
   plantillas de servicios, copy, preguntas frecuentes y textos de onboarding propios
-  (`business-type.ts`, `niche-landings.ts`). Una peluquería y una clínica de fisioterapia no leen
-  ni configuran lo mismo.
-- **RGPD por defecto.** Retell.ai, con certificación RGPD, es el único orquestador de voz.
+  (`web/src/lib/business-type.ts`, `web/src/lib/niche-landings.ts`). Una peluquería y una
+  clínica de fisioterapia no leen ni configuran lo mismo.
+- **Reparto por especialidad, no cola ciega.** Cada profesional tiene un nivel por servicio
+  (especialista / lo hace / no sugerir). El agente recomienda al especialista una vez y reserva
+  igualmente si el cliente insiste; nunca dice que alguien «no se le da bien».
+- **El Gestor: la agenda se administra por WhatsApp.** El dueño da de baja a un profesional,
+  cierra el día o mueve una cita hablando con Alhabla por WhatsApp. El Gestor propone la acción y
+  solo la ejecuta tras un «Confirmar» explícito — nunca de forma autónoma.
+- **Proveedor primario con respaldo real, no una promesa sin implementar.** Telnyx orquesta hoy
+  tanto las llamadas reales como la demo pública; Retell.ai, con certificación RGPD, queda
+  sincronizado como respaldo en caliente ante una caída.
 
 ## Operating Context
 
-- **Alta guiada:** Google Places → nicho → servicios → equipo → calendario → checkout de Stripe.
-  Los pasos intermedios se pueden saltar y completar después en `/agente`. El checkout es
-  obligatorio para terminar el registro.
+- **Alta guiada:** el registro empieza en la web pública (`alhabla.ai/register`) y entra en la
+  app con un pase de un solo uso; dentro de la app sigue Google Places → nicho → servicios →
+  equipo → calendario → checkout de Stripe. Los pasos intermedios se pueden saltar y completar
+  después en `/agente`. El checkout es obligatorio para terminar el registro.
 - **Escena de configuración:** a menudo desde el móvil o un portátil, de pie, entre cliente y
   cliente. El tiempo disponible es corto y interrumpible.
 - **Uso diario:** poco y breve. Se entra al panel a mirar llamadas, transcripciones, resultados
   y próximas citas. No es una herramienta de uso continuo ni un puesto de trabajo.
-- **Herramientas que el negocio ya tiene:** Google Calendar u Outlook como agenda real, su
-  número de teléfono actual, y el teléfono como canal principal de reserva.
+- **Herramientas que el negocio ya tiene:** Google Calendar, Outlook o Apple/iCloud como agenda
+  real, su número de teléfono actual, y el teléfono como canal principal de reserva.
 - **Evaluación antes de comprar:** demo de voz pública en el navegador (requiere micrófono y
-  WebRTC, vía Retell) y la calculadora de pérdida de ingresos.
-- **Comercial:** prueba de 7 días y suscripción Stripe. `inicio` 69 €/mes (100 min, 0,60 €/min
-  extra), `pro` 149 €/mes (400 min, 0,45 €/min extra, plan destacado), `scale` 299 €/mes
+  WebRTC, vía Telnyx) y la calculadora de pérdida de ingresos.
+- **Comercial:** prueba de 7 días y suscripción Stripe. `inicio` 69 €/mes (100 min, 0,45 €/min
+  extra), `pro` 149 €/mes (400 min, 0,40 €/min extra, plan destacado), `scale` 299 €/mes
   (1000 min, 0,35 €/min extra).
 
 ## Capabilities and Constraints
@@ -85,23 +94,31 @@ Lo que un producto vecino no podría copiar honestamente:
 - Número de España (Telnyx) aprovisionado automáticamente tras el checkout.
 - Registro de llamadas con transcripción, grabación y clasificación de resultado.
 - Horario de negocio, catálogo de servicios, profesionales y capacidad de reserva.
-- Integración de calendario con Google y Outlook, incluido el aviso de reconexión cuando el
-  refresh token caduca.
+- Integración de calendario con Google, Outlook y Apple/iCloud (CalDAV), incluido el aviso de
+  reconexión cuando el refresh token o la contraseña de aplicación caduca.
+- Reparto de citas por especialidad: cada profesional tiene un nivel por servicio (especialista /
+  lo hace / no sugerir) que el agente usa para recomendar una vez, sin descartar al resto.
+- El Gestor: el dueño administra su agenda por WhatsApp (bajas, cierres, cambios de hueco) con un
+  patrón de proponer y confirmar — nunca ejecuta sin que el dueño pulse «Confirmar».
+- Confirmación y recordatorio de cita por WhatsApp al cliente final, y lista de espera cuando no
+  hay hueco disponible.
+- Número de teléfono principal del negocio configurable desde ajustes.
 - Facturación: checkout embebido, portal de cliente y resumen de suscripción.
 
 **Terminología del producto** (visible al usuario)
 
 «Recepcionista virtual», «agente de voz», «llamadas», «citas», «servicios», «profesionales»,
-«horario», «minutos incluidos». Nunca «LLM», «modelo», «prompt», «orquestador», «webhook»,
-«API» ni «asistente Retell».
+«horario», «minutos incluidos», «el Gestor», «lista de espera». Nunca «LLM», «modelo», «prompt»,
+«orquestador», «webhook», «API» ni «asistente Retell».
 
 **Restricciones duras**
 
 - Idioma del agente `es-ES` y zona horaria `Europe/Madrid` por defecto.
 - Sin roles ni acceso multiusuario por negocio.
-- Duración de servicios 5–480 min; empleados 1–20; capacidad de reserva 1–50.
+- Duración de servicios 5–480 min; capacidad de reserva 1–50 (validación de backend). El alta
+  permite hasta 20 profesionales por interfaz, pero el tope real que aplica el backend es por
+  plan: 3 en inicio, 10 en pro, sin límite en scale.
 - Horario: 7 días, máximo 3 intervalos no solapados por día, formato `HH:mm`.
-- Subida de archivos limitada a 10 MB.
 - La completitud del onboarding se calcula en vivo desde los datos del negocio; solo
   `dismissedAt` y `completedAt` se persisten.
 - La demo de voz necesita navegador moderno con WebRTC y permiso de micrófono; no hay
@@ -137,7 +154,7 @@ Lo que un producto vecino no podría copiar honestamente:
 **Lo que existe y es real**
 
 - Más de quince estadísticas de sector con fuente citada en
-  `frontend/src/lib/niche-landings.ts` — El Confidencial Digital, Estética Magazine, Zenoti,
+  `web/src/lib/niche-landings.ts` — El Confidencial Digital, Estética Magazine, Zenoti,
   STANPA / El Periódico, Doctoralia, safina.ai, heilo.io, entre otras.
 - Citas textuales de profesionales del sector recogidas en prensa: Excelsior Barber Studio
   (Diario de Mallorca), David Aranda de Estetical (Crónica Global), Estetical (Facebook).
