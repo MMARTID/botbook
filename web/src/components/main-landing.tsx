@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { SiteFooter } from "@/components/site-footer";
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { ArrowRight, Check, ChevronLeft, ChevronRight, Headphones } from "lucide-react";
 import { motion, useReducedMotion, type PanInfo } from "framer-motion";
 
@@ -19,86 +19,46 @@ import { HOME_QUICK_FAQS } from "@/lib/home-faqs";
 import { formatIncludedMinutes, formatPlanPrice, plans, TRIAL_REASSURANCE } from "@/lib/plans";
 
 /**
- * Un sector por tarjeta, cada uno con su escena en vídeo (los clips de
- * `public/heroes/`, generados con Seedance bajo la dirección de arte del
- * sistema): la escena real del oficio con las manos ocupadas mientras el
- * teléfono espera. Antes barbería/uñas/fisio compartían tarjeta y solo se
- * enlazaba /barberia — ahora cada landing de nicho tiene su entrada.
+ * Un sector por tarjeta, cada uno con su foto de `public/heroes/`: la escena
+ * real del oficio con las manos ocupadas mientras el teléfono espera. Antes
+ * barbería/uñas/fisio compartían tarjeta y solo se enlazaba /barberia —
+ * ahora cada landing de nicho tiene su entrada.
+ *
+ * Eran clips de vídeo hasta el 2026-09-24: se retiraron por calidad (los
+ * generó Seedance) y se sustituyeron por fotos del banco de imágenes.
  */
 const SECTORES = [
-  { href: "/peluqueria", title: "Peluquerías", description: "Cortes, color y tratamientos sin soltar el secador.", video: "/heroes/peluqueria.mp4", poster: "/heroes/peluqueria.jpg" },
-  { href: "/barberia", title: "Barberías", description: "Degradados y arreglos sin dejar la máquina a medias.", video: "/heroes/barberia.mp4", poster: "/heroes/barberia.jpg" },
-  { href: "/salon-de-unas", title: "Salones de uñas", description: "Manicuras sin interrupciones; la agenda se llena sola.", video: "/heroes/salon-de-unas.mp4", poster: "/heroes/salon-de-unas.jpg" },
-  { href: "/centro-de-estetica", title: "Centros de estética", description: "Reservas y dudas resueltas mientras estás en cabina.", video: "/heroes/centro-de-estetica.mp4", poster: "/heroes/centro-de-estetica.jpg" },
-  { href: "/fisioterapia", title: "Fisioterapia", description: "Las citas entran solas mientras tratas en camilla.", video: "/heroes/fisioterapia.mp4", poster: "/heroes/fisioterapia.jpg" },
+  { href: "/peluqueria", title: "Peluquerías", description: "Cortes, color y tratamientos sin soltar el secador.", imagen: "/heroes/peluqueria.jpg" },
+  { href: "/barberia", title: "Barberías", description: "Degradados y arreglos sin dejar la máquina a medias.", imagen: "/heroes/barberia.jpg" },
+  { href: "/salon-de-unas", title: "Salones de uñas", description: "Manicuras sin interrupciones; la agenda se llena sola.", imagen: "/heroes/salon-de-unas.jpg" },
+  { href: "/centro-de-estetica", title: "Centros de estética", description: "Reservas y dudas resueltas mientras estás en cabina.", imagen: "/heroes/centro-de-estetica.jpg" },
+  { href: "/fisioterapia", title: "Fisioterapia", description: "Las citas entran solas mientras tratas en camilla.", imagen: "/heroes/fisioterapia.jpg" },
 ] as const;
 
-// Tarjeta destacada del bento de escritorio: la única a tamaño ancho y con
-// autoplay propio (el resto solo se reproduce en hover) — elegida a
-// petición directa del usuario, no por ningún criterio de negocio.
+// Tarjeta destacada del bento de escritorio: la única a tamaño ancho —
+// elegida a petición directa del usuario, no por ningún criterio de negocio.
 const SECTOR_DESTACADO = SECTORES[1];
 
-/** Media de la tarjeta de sector: vídeo mudo en bucle, o su fotograma si el
- * visitante prefiere menos movimiento. `preload="metadata"` mantiene ligera
- * la carga inicial (los 5 clips suman ~3MB pero solo se traen al reproducir).
+/** Media de la tarjeta de sector: la foto del oficio.
  *
- * El vídeo va `absolute inset-0` dentro de `wrapperClassName` (que fija su
- * propio tamaño por aspect-ratio o por stretch de flex, nunca por el
- * contenido) — así el elemento de vídeo queda totalmente fuera del flujo y
- * no puede alterar el tamaño del contenedor bajo ningún caso (el bug real:
- * en la tarjeta ancha, el contenedor de vídeo dependía de una altura de
- * flex sin resolver, y el vídeo panorámico "tiraba" de ella al reproducir).
- *
- * `reproducir` controla el play/pause en marcha (no solo al montar) para
- * poder alternar entre autoplay fijo (la tarjeta grande) y solo-en-hover
- * (el resto) con el mismo componente. */
+ * Va `absolute inset-0` dentro de `wrapperClassName` (que fija su propio
+ * tamaño por aspect-ratio o por stretch de flex, nunca por el contenido) —
+ * así queda fuera del flujo y no puede alterar el tamaño del contenedor.
+ * Esto venía de un bug real de la época del vídeo: en la tarjeta ancha el
+ * contenedor dependía de una altura de flex sin resolver y el clip
+ * panorámico "tiraba" de ella al reproducir.
+ */
 function SectorSceneMedia({
-  video,
-  poster,
-  reducedMotion,
-  reproducir = true,
+  imagen,
   wrapperClassName = "relative block aspect-[4/3] w-full overflow-hidden rounded-2xl border border-[#e5e5e5]",
 }: {
-  video: string;
-  poster: string;
-  reducedMotion: boolean;
-  reproducir?: boolean;
+  imagen: string;
   wrapperClassName?: string;
 }) {
-  const videoRef = useRef<HTMLVideoElement>(null);
-
-  useEffect(() => {
-    const el = videoRef.current;
-    if (!el || reducedMotion) return;
-    if (reproducir) {
-      el.play().catch(() => {});
-    } else {
-      el.pause();
-      el.currentTime = 0;
-    }
-  }, [reproducir, reducedMotion]);
-
   return (
     <span className={wrapperClassName}>
-      {reducedMotion ? (
-        // eslint-disable-next-line @next/next/no-img-element -- fotograma local
-        <img src={poster} alt="" loading="lazy" className="absolute inset-0 h-full w-full object-cover" />
-      ) : (
-        <video
-          ref={videoRef}
-          className="absolute inset-0 h-full w-full object-cover"
-          src={video}
-          poster={poster}
-          muted
-          loop
-          playsInline
-          preload="metadata"
-          disablePictureInPicture
-          disableRemotePlayback
-          controlsList="nodownload nofullscreen noremoteplayback"
-          aria-hidden="true"
-        />
-      )}
+      {/* eslint-disable-next-line @next/next/no-img-element -- foto local */}
+      <img src={imagen} alt="" loading="lazy" className="absolute inset-0 h-full w-full object-cover" />
     </span>
   );
 }
@@ -108,18 +68,10 @@ const TARJETA_SECTOR_CLASE =
 
 /** Contenido visual de la tarjeta de sector, compartido entre la carta real
  * (delante, enlaza) y la carta invisible que solo reserva altura. */
-function SectorCardVisual({
-  sector,
-  reducedMotion,
-  reproducir = true,
-}: {
-  sector: (typeof SECTORES)[number];
-  reducedMotion: boolean;
-  reproducir?: boolean;
-}) {
+function SectorCardVisual({ sector }: { sector: (typeof SECTORES)[number] }) {
   return (
     <>
-      <SectorSceneMedia video={sector.video} poster={sector.poster} reducedMotion={reducedMotion} reproducir={reproducir} />
+      <SectorSceneMedia imagen={sector.imagen} />
       <span className="flex min-h-0 flex-1 flex-col px-2 pb-2">
         <h3 className="mt-4 text-lg font-bold">{sector.title}</h3>
         <p className="mt-1.5 text-sm leading-6 text-[#52525b]">{sector.description}</p>
@@ -189,11 +141,11 @@ function SectorStackCard({
     >
       {esFrente ? (
         <Link href={sector.href} className={`${TARJETA_SECTOR_CLASE} cursor-grab active:cursor-grabbing`}>
-          <SectorCardVisual sector={sector} reducedMotion={reducedMotion} reproducir={esFrente} />
+          <SectorCardVisual sector={sector} />
         </Link>
       ) : (
         <div onClick={onTraerAlFrente} className={`${TARJETA_SECTOR_CLASE} cursor-pointer`}>
-          <SectorCardVisual sector={sector} reducedMotion={reducedMotion} reproducir={false} />
+          <SectorCardVisual sector={sector} />
         </div>
       )}
     </motion.div>
@@ -215,8 +167,8 @@ function SectorPeekButton({ sector, direccion, onClick }: { sector: (typeof SECT
       aria-label={`Ver ${sector.title}`}
       className="group relative block w-20 shrink-0 self-stretch overflow-hidden rounded-2xl border border-[#e5e5e5] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] focus-visible:ring-offset-2"
     >
-      {/* eslint-disable-next-line @next/next/no-img-element -- miniatura estática, sin vídeo */}
-      <img src={sector.poster} alt="" loading="lazy" className="absolute inset-0 h-full w-full object-cover opacity-55 transition duration-300 group-hover:opacity-85" />
+      {/* eslint-disable-next-line @next/next/no-img-element -- miniatura local */}
+      <img src={sector.imagen} alt="" loading="lazy" className="absolute inset-0 h-full w-full object-cover opacity-55 transition duration-300 group-hover:opacity-85" />
       <span className="absolute inset-0 flex items-center justify-center opacity-0 transition duration-300 group-hover:opacity-100" aria-hidden="true">
         <span className="flex h-8 w-8 items-center justify-center rounded-full bg-white text-[#0a0a0a] shadow-[0_4px_14px_rgba(0,0,0,0.18)]">
           <Icono className="h-4 w-4" aria-hidden="true" />
@@ -227,23 +179,11 @@ function SectorPeekButton({ sector, direccion, onClick }: { sector: (typeof SECT
 }
 
 /** Tarjeta estándar del bento de escritorio/tablet ancho: foto arriba, texto
- * abajo — mismo contenido visual que la carta de la pila móvil. Solo la
- * tarjeta grande (destacada) se reproduce sola; estas solo al pasar el
- * ratón por encima, y se paran al salir (nunca queda ninguna a medias con
- * el botón nativo del navegador porque, si no está en hover, ni se intenta
- * reproducir). */
-function SectorGridCard({ sector, reducedMotion }: { sector: (typeof SECTORES)[number]; reducedMotion: boolean }) {
-  const [enHover, setEnHover] = useState(false);
+ * abajo — mismo contenido visual que la carta de la pila móvil. */
+function SectorGridCard({ sector }: { sector: (typeof SECTORES)[number] }) {
   return (
-    <Link
-      href={sector.href}
-      className={TARJETA_SECTOR_CLASE}
-      onMouseEnter={() => setEnHover(true)}
-      onMouseLeave={() => setEnHover(false)}
-      onFocus={() => setEnHover(true)}
-      onBlur={() => setEnHover(false)}
-    >
-      <SectorCardVisual sector={sector} reducedMotion={reducedMotion} reproducir={enHover} />
+    <Link href={sector.href} className={TARJETA_SECTOR_CLASE}>
+      <SectorCardVisual sector={sector} />
     </Link>
   );
 }
@@ -279,7 +219,7 @@ function SectorFeatureCard({ sector, reducedMotion }: { sector: (typeof SECTORES
             ancho animado de arriba — el tamaño real nunca lo decide el
             vídeo, lo decide el motion.span, así el vídeo se ve siempre bien
             recortado durante el propio crecimiento, sin deformarse. */}
-        <SectorSceneMedia video={sector.video} poster={sector.poster} reducedMotion={reducedMotion} reproducir wrapperClassName="absolute inset-0" />
+        <SectorSceneMedia imagen={sector.imagen} wrapperClassName="absolute inset-0" />
       </motion.span>
       <span className="flex flex-1 flex-col justify-center gap-3 px-8 py-6">
         <h3 className="text-2xl font-bold">{sector.title}</h3>
@@ -388,7 +328,7 @@ export function MainLanding() {
                 ratón por encima. */}
             <div className="hidden grid-cols-3 gap-5 lg:grid">
               {SECTORES.filter((sector) => sector.href !== SECTOR_DESTACADO.href).map((sector) => (
-                <SectorGridCard key={sector.href} sector={sector} reducedMotion={sectorReducedMotion} />
+                <SectorGridCard key={sector.href} sector={sector} />
               ))}
               <SectorFeatureCard sector={SECTOR_DESTACADO} reducedMotion={sectorReducedMotion} />
             </div>
@@ -407,7 +347,7 @@ export function MainLanding() {
                   pila absoluta de abajo tenga un contenedor con tamaño. */}
               <div aria-hidden="true" className="invisible">
                 <div className={TARJETA_SECTOR_CLASE}>
-                  <SectorCardVisual sector={SECTORES[sectorActivo]} reducedMotion={sectorReducedMotion} reproducir={false} />
+                  <SectorCardVisual sector={SECTORES[sectorActivo]} />
                 </div>
               </div>
               <div className="absolute inset-0">
@@ -439,7 +379,7 @@ export function MainLanding() {
               />
               <div className="min-w-0 flex-1">
                 <Link href={SECTORES[sectorActivo].href} className={TARJETA_SECTOR_CLASE}>
-                  <SectorCardVisual sector={SECTORES[sectorActivo]} reducedMotion={sectorReducedMotion} reproducir />
+                  <SectorCardVisual sector={SECTORES[sectorActivo]} />
                 </Link>
               </div>
               <SectorPeekButton sector={SECTORES[ordenSectores[1]]} direccion="siguiente" onClick={avanzarSector} />
