@@ -1,6 +1,9 @@
 import type { MetadataRoute } from "next";
 import { listarArticulos, urlAbsolutaDeImagen } from "@/lib/blog";
 import { absoluteUrl } from "@/lib/seo";
+import { CITY_SLUGS } from "@/lib/city-landings";
+
+const NICHOS = ["peluqueria", "centro-de-estetica", "salon-de-unas", "barberia", "fisioterapia"] as const;
 
 export default function sitemap(): MetadataRoute.Sitemap {
   // Solo páginas SEO reales: ni /register (noindex) ni nada de la app, que
@@ -17,11 +20,22 @@ export default function sitemap(): MetadataRoute.Sitemap {
       changeFrequency: "weekly",
       priority: 1,
     },
-    ...["/peluqueria", "/centro-de-estetica", "/salon-de-unas", "/barberia", "/fisioterapia"].map((path) => ({
-      url: absoluteUrl(path),
+    ...NICHOS.map((path) => ({
+      url: absoluteUrl(`/${path}`),
       changeFrequency: "weekly" as const,
       priority: 0.85,
     })),
+    // Páginas nicho+ciudad (2026-09-25): profundidad corta, con el dato real
+    // por ciudad como diferenciador — ver `src/lib/city-landings.ts`. Menor
+    // prioridad y menor frecuencia que las landings de nicho: apuntan hacia
+    // ellas, no compiten con ellas.
+    ...NICHOS.flatMap((nicho) =>
+      CITY_SLUGS.map((ciudad) => ({
+        url: absoluteUrl(`/${nicho}/${ciudad}`),
+        changeFrequency: "monthly" as const,
+        priority: 0.5,
+      }))
+    ),
     {
       url: absoluteUrl("/planes"),
       changeFrequency: "weekly",
