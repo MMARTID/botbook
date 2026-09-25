@@ -44,7 +44,7 @@ export interface Articulo extends ArticuloMeta {
   contenido: string;
 }
 
-export const AUTOR_POR_DEFECTO = "Equipo de Alhabla";
+export const AUTOR_POR_DEFECTO = "Miguel Martín Delgado";
 
 const DIRECTORIO = path.join(process.cwd(), "content", "blog");
 const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;

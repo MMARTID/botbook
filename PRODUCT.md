@@ -98,6 +98,9 @@ Lo que un producto vecino no podría copiar honestamente:
 - Agentes de voz por negocio con tono (`warm` / `professional` / `direct`), objetivo
   (`bookings` / `customer_service` / `lead_capture`), estilo de respuesta
   (`concise` / `balanced`) y escalado (`take_message` / `request_callback`) configurables.
+- Idioma del agente: español siempre disponible; catalán, inglés y francés seleccionables desde
+  `/agente` en los planes Pro y Scale (voz ElevenLabs dedicada para catalán). En el plan Inicio el
+  selector queda bloqueado y la API rechaza el cambio con 403.
 - Número de España (Telnyx) aprovisionado automáticamente tras el checkout.
 - Registro de llamadas con transcripción, grabación y clasificación de resultado.
 - Horario de negocio, catálogo de servicios, profesionales y capacidad de reserva.
