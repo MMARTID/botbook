@@ -2,9 +2,8 @@
 
 import Link from "next/link";
 import { SiteFooter } from "@/components/site-footer";
-import { useEffect, useRef, useState } from "react";
-import { ArrowRight, Check, ChevronLeft, ChevronRight, Headphones } from "lucide-react";
-import { motion, useReducedMotion, type PanInfo } from "framer-motion";
+import { useRef, useState } from "react";
+import { ArrowRight, Check, Headphones } from "lucide-react";
 
 import { DemoVoiceCall } from "@/components/demo-voice-call";
 import { HeroHilos } from "@/components/hero-hilos";
@@ -19,296 +18,317 @@ import { HOME_QUICK_FAQS } from "@/lib/home-faqs";
 import { formatIncludedMinutes, formatPlanPrice, plans, TRIAL_REASSURANCE } from "@/lib/plans";
 
 /**
- * Un sector por tarjeta, cada uno con su escena en vídeo (los clips de
- * `public/heroes/`, generados con Seedance bajo la dirección de arte del
- * sistema): la escena real del oficio con las manos ocupadas mientras el
- * teléfono espera. Antes barbería/uñas/fisio compartían tarjeta y solo se
- * enlazaba /barberia — ahora cada landing de nicho tiene su entrada.
+ * Un sector por tarjeta, cada uno con su foto de `public/heroes/`: la escena
+ * real del oficio con las manos ocupadas mientras el teléfono espera. Antes
+ * barbería/uñas/fisio compartían tarjeta y solo se enlazaba /barberia —
+ * ahora cada landing de nicho tiene su entrada.
+ *
+ * Eran clips de vídeo hasta el 2026-09-24: se retiraron por calidad (los
+ * generó Seedance) y se sustituyeron por fotos del banco de imágenes.
  */
 const SECTORES = [
-  { href: "/peluqueria", title: "Peluquerías", description: "Cortes, color y tratamientos sin soltar el secador.", video: "/heroes/peluqueria.mp4", poster: "/heroes/peluqueria.jpg" },
-  { href: "/barberia", title: "Barberías", description: "Degradados y arreglos sin dejar la máquina a medias.", video: "/heroes/barberia.mp4", poster: "/heroes/barberia.jpg" },
-  { href: "/salon-de-unas", title: "Salones de uñas", description: "Manicuras sin interrupciones; la agenda se llena sola.", video: "/heroes/salon-de-unas.mp4", poster: "/heroes/salon-de-unas.jpg" },
-  { href: "/centro-de-estetica", title: "Centros de estética", description: "Reservas y dudas resueltas mientras estás en cabina.", video: "/heroes/centro-de-estetica.mp4", poster: "/heroes/centro-de-estetica.jpg" },
-  { href: "/fisioterapia", title: "Fisioterapia", description: "Las citas entran solas mientras tratas en camilla.", video: "/heroes/fisioterapia.mp4", poster: "/heroes/fisioterapia.jpg" },
+  { href: "/peluqueria", title: "Peluquerías", description: "Cortes, color y tratamientos sin soltar el secador.", imagen: "/heroes/peluqueria.jpg" },
+  { href: "/barberia", title: "Barberías", description: "Degradados y arreglos sin dejar la máquina a medias.", imagen: "/heroes/barberia.jpg" },
+  { href: "/salon-de-unas", title: "Salones de uñas", description: "Manicuras sin interrupciones; la agenda se llena sola.", imagen: "/heroes/salon-de-unas.jpg" },
+  { href: "/centro-de-estetica", title: "Centros de estética", description: "Reservas y dudas resueltas mientras estás en cabina.", imagen: "/heroes/centro-de-estetica.jpg" },
+  { href: "/fisioterapia", title: "Fisioterapia", description: "Las citas entran solas mientras tratas en camilla.", imagen: "/heroes/fisioterapia.jpg" },
 ] as const;
 
-// Tarjeta destacada del bento de escritorio: la única a tamaño ancho y con
-// autoplay propio (el resto solo se reproduce en hover) — elegida a
-// petición directa del usuario, no por ningún criterio de negocio.
-const SECTOR_DESTACADO = SECTORES[1];
-
-/** Media de la tarjeta de sector: vídeo mudo en bucle, o su fotograma si el
- * visitante prefiere menos movimiento. `preload="metadata"` mantiene ligera
- * la carga inicial (los 5 clips suman ~3MB pero solo se traen al reproducir).
+/**
+ * Escritorio: acordeón horizontal. Los cinco sectores comparten una sola
+ * fila de rejilla, y al pasar el ratón (o al enfocar con el teclado) el
+ * activo se lleva la mayor parte del ancho mientras el resto se estrecha.
  *
- * El vídeo va `absolute inset-0` dentro de `wrapperClassName` (que fija su
- * propio tamaño por aspect-ratio o por stretch de flex, nunca por el
- * contenido) — así el elemento de vídeo queda totalmente fuera del flujo y
- * no puede alterar el tamaño del contenedor bajo ningún caso (el bug real:
- * en la tarjeta ancha, el contenedor de vídeo dependía de una altura de
- * flex sin resolver, y el vídeo panorámico "tiraba" de ella al reproducir).
+ * La animación va sobre `grid-template-columns`, no sobre el ancho de cada
+ * panel: la fila reparte SIEMPRE el 100% del espacio, así que al crecer uno
+ * los demás ceden en el mismo fotograma y no puede abrirse ningún hueco —
+ * que es justo lo que pasaba con la tarjeta destacada anterior, que crecía
+ * por su cuenta empujando al resto.
  *
- * `reproducir` controla el play/pause en marcha (no solo al montar) para
- * poder alternar entre autoplay fijo (la tarjeta grande) y solo-en-hover
- * (el resto) con el mismo componente. */
-function SectorSceneMedia({
-  video,
-  poster,
-  reducedMotion,
-  reproducir = true,
-  wrapperClassName = "relative block aspect-[4/3] w-full overflow-hidden rounded-2xl border border-[#e5e5e5]",
-}: {
-  video: string;
-  poster: string;
-  reducedMotion: boolean;
-  reproducir?: boolean;
-  wrapperClassName?: string;
-}) {
-  const videoRef = useRef<HTMLVideoElement>(null);
+ * Las proporciones están calculadas para que el panel abierto enseñe la foto
+ * ENTERA: a la altura de la fila, un 3:2 necesita ~1,5 veces esa altura de
+ * ancho, y con 4,4fr contra 1fr el activo se lleva ese ancho en una fila de
+ * escritorio. Los cerrados quedan en una franja estrecha con el nombre en
+ * vertical, legible sin abrirlos.
+ */
+const ACORDEON_ABIERTO = 4.4;
+const ACORDEON_CERRADO = 1;
 
-  useEffect(() => {
-    const el = videoRef.current;
-    if (!el || reducedMotion) return;
-    if (reproducir) {
-      el.play().catch(() => {});
-    } else {
-      el.pause();
-      el.currentTime = 0;
-    }
-  }, [reproducir, reducedMotion]);
+function SectorAccordion({ sectores }: { sectores: typeof SECTORES }) {
+  const [activo, setActivo] = useState(0);
 
   return (
-    <span className={wrapperClassName}>
-      {reducedMotion ? (
-        // eslint-disable-next-line @next/next/no-img-element -- fotograma local
-        <img src={poster} alt="" loading="lazy" className="absolute inset-0 h-full w-full object-cover" />
-      ) : (
-        <video
-          ref={videoRef}
-          className="absolute inset-0 h-full w-full object-cover"
-          src={video}
-          poster={poster}
-          muted
-          loop
-          playsInline
-          preload="metadata"
-          disablePictureInPicture
-          disableRemotePlayback
-          controlsList="nodownload nofullscreen noremoteplayback"
-          aria-hidden="true"
-        />
-      )}
-    </span>
+    <div
+      className="hidden gap-3 lg:grid lg:h-[27rem]"
+      style={{
+        gridTemplateColumns: sectores
+          .map((_, i) => `${i === activo ? ACORDEON_ABIERTO : ACORDEON_CERRADO}fr`)
+          .join(" "),
+        transition: "grid-template-columns 620ms cubic-bezier(0.22, 1, 0.36, 1)",
+      }}
+    >
+      {sectores.map((sector, i) => {
+        const abierto = i === activo;
+        return (
+          <Link
+            key={sector.href}
+            href={sector.href}
+            onMouseEnter={() => setActivo(i)}
+            onFocus={() => setActivo(i)}
+            aria-label={`${sector.title}: ${sector.description}`}
+            className="group relative block min-w-0 overflow-hidden rounded-3xl border border-[#e5e5e5] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] focus-visible:ring-offset-4"
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element -- foto local */}
+            <img
+              src={sector.imagen}
+              alt=""
+              loading="lazy"
+              className="absolute inset-0 h-full w-full object-cover transition-transform duration-[620ms] ease-[cubic-bezier(0.22,1,0.36,1)]"
+              style={{ transform: abierto ? "scale(1)" : "scale(1.18)" }}
+            />
+            {/* Velo: el cerrado se oscurece para que el nombre en vertical se
+                lea sobre cualquier foto; el abierto solo lleva el degradado
+                de abajo, donde va el texto. */}
+            <span
+              aria-hidden="true"
+              className="absolute inset-0 transition-opacity duration-500"
+              style={{
+                background: abierto
+                  ? "linear-gradient(to top, rgba(10,10,10,0.82) 0%, rgba(10,10,10,0.35) 38%, rgba(10,10,10,0) 68%)"
+                  : "linear-gradient(to top, rgba(10,10,10,0.78) 0%, rgba(10,10,10,0.5) 100%)",
+              }}
+            />
+
+            {/* Cerrado: nombre en vertical, de abajo arriba. */}
+            <span
+              aria-hidden="true"
+              className="absolute inset-x-0 bottom-0 flex justify-center pb-6 transition-opacity duration-300"
+              style={{ opacity: abierto ? 0 : 1 }}
+            >
+              <span className="whitespace-nowrap text-base font-bold tracking-tight text-white [writing-mode:vertical-rl] [transform:rotate(180deg)]">
+                {sector.title}
+              </span>
+            </span>
+
+            {/* Abierto: el contenido completo. */}
+            <span
+              aria-hidden={!abierto}
+              className="absolute inset-x-0 bottom-0 flex flex-col gap-2 p-7 transition-all duration-500"
+              style={{
+                opacity: abierto ? 1 : 0,
+                transform: abierto ? "translateY(0)" : "translateY(12px)",
+              }}
+            >
+              <span className="text-2xl font-bold tracking-tight text-white">{sector.title}</span>
+              <span className="max-w-md text-base leading-7 text-white/85">{sector.description}</span>
+              <span className="mt-1 inline-flex items-center gap-2 text-sm font-semibold text-white">
+                Ver planes y precios
+                <ArrowRight className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-1" aria-hidden="true" />
+              </span>
+            </span>
+          </Link>
+        );
+      })}
+    </div>
   );
 }
 
-const TARJETA_SECTOR_CLASE =
-  "group flex h-full flex-col rounded-3xl border border-[#e5e5e5] bg-white p-3 transition duration-300 hover:-translate-y-1 hover:border-[#ddd6fe] hover:shadow-[0_18px_35px_-24px_rgba(0,0,0,0.35)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] focus-visible:ring-offset-4";
+/**
+ * Tablet: el mismo acordeón, girado.
+ *
+ * En horizontal no cabe: cinco paneles en ~700 px dejan el abierto tan
+ * estrecho que la foto no se ve, que es justo lo que el acordeón viene a
+ * resolver. Girado, el que está abierto se lleva la altura y los demás
+ * quedan en una banda con su nombre en horizontal, que a este ancho se lee
+ * mucho mejor que en vertical.
+ *
+ * Se abre al TOCAR, no al pasar por encima: en una tableta no hay ratón, y
+ * un panel que fuera un enlace entero se navegaría con el primer toque sin
+ * llegar a enseñar nunca la foto. Por eso la fila es un botón que abre y el
+ * enlace de verdad es el «Ver planes y precios» de dentro.
+ */
+const ACORDEON_VERTICAL_ABIERTO = 4.6;
 
-/** Contenido visual de la tarjeta de sector, compartido entre la carta real
- * (delante, enlaza) y la carta invisible que solo reserva altura. */
-function SectorCardVisual({
-  sector,
-  reducedMotion,
-  reproducir = true,
-}: {
-  sector: (typeof SECTORES)[number];
-  reducedMotion: boolean;
-  reproducir?: boolean;
-}) {
+function SectorAccordionVertical({ sectores }: { sectores: typeof SECTORES }) {
+  const [abierto, setAbierto] = useState(0);
+
   return (
-    <>
-      <SectorSceneMedia video={sector.video} poster={sector.poster} reducedMotion={reducedMotion} reproducir={reproducir} />
-      <span className="flex min-h-0 flex-1 flex-col px-2 pb-2">
-        <h3 className="mt-4 text-lg font-bold">{sector.title}</h3>
-        <p className="mt-1.5 text-sm leading-6 text-[#52525b]">{sector.description}</p>
-        <span className="mt-auto inline-flex items-center gap-2 pt-3 text-sm font-semibold text-[#0a0a0a]">
-          Ver planes y precios <ArrowRight className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-1" aria-hidden="true" />
-        </span>
-      </span>
-    </>
+    <div
+      className="hidden gap-3 sm:grid lg:hidden sm:h-[34rem]"
+      style={{
+        gridTemplateRows: sectores
+          .map((_, i) => `${i === abierto ? ACORDEON_VERTICAL_ABIERTO : 1}fr`)
+          .join(" "),
+        transition: "grid-template-rows 560ms cubic-bezier(0.22, 1, 0.36, 1)",
+      }}
+    >
+      {sectores.map((sector, i) => {
+        const esteAbierto = i === abierto;
+        return (
+          <div
+            key={sector.href}
+            className="relative min-h-0 overflow-hidden rounded-3xl border border-[#e5e5e5]"
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element -- foto local */}
+            <img
+              src={sector.imagen}
+              alt=""
+              loading="lazy"
+              className="absolute inset-0 h-full w-full object-cover"
+            />
+            <span
+              aria-hidden="true"
+              className="absolute inset-0 transition-opacity duration-500"
+              style={{
+                background: esteAbierto
+                  ? "linear-gradient(to top, rgba(10,10,10,0.85) 0%, rgba(10,10,10,0.3) 45%, rgba(10,10,10,0) 75%)"
+                  : "linear-gradient(to right, rgba(10,10,10,0.8) 0%, rgba(10,10,10,0.55) 100%)",
+              }}
+            />
+
+            {/* Toda la fila abre; cuando ya está abierta deja de ser botón
+                para que el único destino táctil sea el enlace de abajo. */}
+            <button
+              type="button"
+              onClick={() => setAbierto(i)}
+              aria-expanded={esteAbierto}
+              aria-label={`Ver ${sector.title}`}
+              tabIndex={esteAbierto ? -1 : 0}
+              className="absolute inset-0 flex items-center px-6 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#8b5cf6]"
+              style={{ pointerEvents: esteAbierto ? "none" : "auto" }}
+            >
+              <span
+                className="text-lg font-bold tracking-tight text-white transition-opacity duration-300"
+                style={{ opacity: esteAbierto ? 0 : 1 }}
+              >
+                {sector.title}
+              </span>
+            </button>
+
+            <span
+              className="pointer-events-none absolute inset-x-0 bottom-0 flex flex-col gap-2 p-6 transition-all duration-500"
+              style={{
+                opacity: esteAbierto ? 1 : 0,
+                transform: esteAbierto ? "translateY(0)" : "translateY(10px)",
+              }}
+            >
+              <span className="text-2xl font-bold tracking-tight text-white">{sector.title}</span>
+              <span className="max-w-lg text-base leading-7 text-white/85">{sector.description}</span>
+              <Link
+                href={sector.href}
+                tabIndex={esteAbierto ? 0 : -1}
+                className="pointer-events-auto mt-1 inline-flex w-fit items-center gap-2 rounded-full text-sm font-semibold text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-[#0a0a0a]"
+              >
+                Ver planes y precios <ArrowRight className="h-4 w-4" aria-hidden="true" />
+              </Link>
+            </span>
+          </div>
+        );
+      })}
+    </div>
   );
 }
 
-// Solo se ven 3 cartas a la vez (delante + 2 detrás); a partir de ahí quedan
-// invisibles detrás del mazo. Cada posición se retira un poco más en
-// diagonal y se atenúa — nunca se recorta contenido, solo el canto de la
-// carta (borde/fondo) puede asomar.
-const PILA_VISIBLES = 3;
-const PILA_ESTILOS = [
-  { x: 0, y: 0, scale: 1, opacity: 1 },
-  { x: 20, y: 14, scale: 0.945, opacity: 0.62 },
-  { x: 40, y: 28, scale: 0.89, opacity: 0.32 },
-] as const;
-const PILA_ESTILO_OCULTO = { x: 56, y: 40, scale: 0.85, opacity: 0 } as const;
+/**
+ * Móvil: carrusel de scroll nativo con anclaje.
+ *
+ * Sustituye a la pila de cartas arrastrable (retirada el 2026-09-24 por
+ * petición del usuario: "funciona mal y se ve mal"). Aquellos reimplementaban a mano el gesto de desplazar —con drag de
+ * framer-motion, inercia propia y un contenedor de altura fantasma— y
+ * peleaban contra el scroll del navegador. Esto es el gesto nativo: se mueve
+ * con el dedo como espera cualquiera, cada tarjeta se ancla en su sitio, y
+ * los puntos de abajo siguen la posición real leída del scroll.
+ */
+function SectorCarousel({ sectores }: { sectores: typeof SECTORES }) {
+  const pista = useRef<HTMLDivElement>(null);
+  const [visible, setVisible] = useState(0);
 
-function estiloDePila(slot: number) {
-  return slot < PILA_VISIBLES ? PILA_ESTILOS[slot] : PILA_ESTILO_OCULTO;
-}
+  // La tarjeta visible se deduce del scroll, no al revés: así los puntos
+  // siguen al dedo aunque nadie los toque, y no hay dos fuentes de verdad.
+  //
+  // Se mide la posición REAL de cada tarjeta (`offsetLeft`) en vez de
+  // multiplicar por el ancho del carril: entre tarjeta y tarjeta hay un
+  // hueco, así que «índice × ancho» se va desviando y, con suficientes
+  // tarjetas, acabaría señalando el punto equivocado.
+  const alDesplazar = () => {
+    const el = pista.current;
+    if (!el) return;
+    const tarjetas = Array.from(el.children) as HTMLElement[];
+    if (tarjetas.length === 0) return;
+    let masCerca = 0;
+    let menorDistancia = Infinity;
+    tarjetas.forEach((tarjeta, i) => {
+      const distancia = Math.abs(tarjeta.offsetLeft - el.offsetLeft - el.scrollLeft);
+      if (distancia < menorDistancia) {
+        menorDistancia = distancia;
+        masCerca = i;
+      }
+    });
+    setVisible(masCerca);
+  };
 
-/** Una carta de la pila de sectores. Solo la de delante (slot 0) enlaza y se
- * puede arrastrar; las de detrás son puro fondo, pero tocar su canto visible
- * las trae al frente — como hojear un mazo real. */
-function SectorStackCard({
-  sector,
-  slot,
-  total,
-  reducedMotion,
-  onAvanzar,
-  onRetroceder,
-  onTraerAlFrente,
-}: {
-  sector: (typeof SECTORES)[number];
-  slot: number;
-  total: number;
-  reducedMotion: boolean;
-  onAvanzar: () => void;
-  onRetroceder: () => void;
-  onTraerAlFrente: () => void;
-}) {
-  const esFrente = slot === 0;
-  const estilo = estiloDePila(slot);
-
-  const manejarSoltar = (_event: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
-    if (info.offset.x < -90 || info.velocity.x < -450) onAvanzar();
-    else if (info.offset.x > 90 || info.velocity.x > 450) onRetroceder();
+  const irA = (indice: number) => {
+    const el = pista.current;
+    const tarjeta = el?.children[indice] as HTMLElement | undefined;
+    if (!el || !tarjeta) return;
+    el.scrollTo({ left: tarjeta.offsetLeft - el.offsetLeft, behavior: "smooth" });
   };
 
   return (
-    <motion.div
-      className="absolute inset-0"
-      style={{ zIndex: total - Math.min(slot, total) }}
-      animate={{ x: estilo.x, y: estilo.y, scale: estilo.scale, opacity: estilo.opacity }}
-      transition={reducedMotion ? { duration: 0 } : { type: "spring", stiffness: 320, damping: 34 }}
-      drag={esFrente && !reducedMotion ? "x" : false}
-      dragMomentum={false}
-      whileDrag={{ scale: 1.02, cursor: "grabbing" }}
-      onDragEnd={manejarSoltar}
-      aria-hidden={!esFrente}
-    >
-      {esFrente ? (
-        <Link href={sector.href} className={`${TARJETA_SECTOR_CLASE} cursor-grab active:cursor-grabbing`}>
-          <SectorCardVisual sector={sector} reducedMotion={reducedMotion} reproducir={esFrente} />
-        </Link>
-      ) : (
-        <div onClick={onTraerAlFrente} className={`${TARJETA_SECTOR_CLASE} cursor-pointer`}>
-          <SectorCardVisual sector={sector} reducedMotion={reducedMotion} reproducir={false} />
-        </div>
-      )}
-    </motion.div>
-  );
-}
-
-/** Asomo lateral de la tarjeta anterior/siguiente en el formato tablet: solo
- * la foto (sin texto — a este ancho no cabría legible), atenuada en reposo,
- * con una flechita que aparece en hover para dejar claro que es
- * navegación, no una tarjeta rota. Ancho fijo + `self-stretch`: la imagen va
- * `absolute inset-0`, así que nunca puede alterar el alto de la fila (misma
- * garantía que en el resto de tarjetas). */
-function SectorPeekButton({ sector, direccion, onClick }: { sector: (typeof SECTORES)[number]; direccion: "anterior" | "siguiente"; onClick: () => void }) {
-  const Icono = direccion === "anterior" ? ChevronLeft : ChevronRight;
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-label={`Ver ${sector.title}`}
-      className="group relative block w-20 shrink-0 self-stretch overflow-hidden rounded-2xl border border-[#e5e5e5] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] focus-visible:ring-offset-2"
-    >
-      {/* eslint-disable-next-line @next/next/no-img-element -- miniatura estática, sin vídeo */}
-      <img src={sector.poster} alt="" loading="lazy" className="absolute inset-0 h-full w-full object-cover opacity-55 transition duration-300 group-hover:opacity-85" />
-      <span className="absolute inset-0 flex items-center justify-center opacity-0 transition duration-300 group-hover:opacity-100" aria-hidden="true">
-        <span className="flex h-8 w-8 items-center justify-center rounded-full bg-white text-[#0a0a0a] shadow-[0_4px_14px_rgba(0,0,0,0.18)]">
-          <Icono className="h-4 w-4" aria-hidden="true" />
-        </span>
-      </span>
-    </button>
-  );
-}
-
-/** Tarjeta estándar del bento de escritorio/tablet ancho: foto arriba, texto
- * abajo — mismo contenido visual que la carta de la pila móvil. Solo la
- * tarjeta grande (destacada) se reproduce sola; estas solo al pasar el
- * ratón por encima, y se paran al salir (nunca queda ninguna a medias con
- * el botón nativo del navegador porque, si no está en hover, ni se intenta
- * reproducir). */
-function SectorGridCard({ sector, reducedMotion }: { sector: (typeof SECTORES)[number]; reducedMotion: boolean }) {
-  const [enHover, setEnHover] = useState(false);
-  return (
-    <Link
-      href={sector.href}
-      className={TARJETA_SECTOR_CLASE}
-      onMouseEnter={() => setEnHover(true)}
-      onMouseLeave={() => setEnHover(false)}
-      onFocus={() => setEnHover(true)}
-      onBlur={() => setEnHover(false)}
-    >
-      <SectorCardVisual sector={sector} reducedMotion={reducedMotion} reproducir={enHover} />
-    </Link>
-  );
-}
-
-// Ancho del vídeo en la tarjeta destacada: arranca al 46% y, al entrar en
-// vista, crece hasta el 65% en 3s (marcado a mano por el usuario sobre una
-// captura) — el vídeo panorámico "abre" el encuadre en vez de quedar
-// estático. El texto (flex-1) cede sitio solo porque el vídeo crece; nunca
-// al revés.
-const DESTACADO_ANCHO_INICIAL = "46%";
-const DESTACADO_ANCHO_EXPANDIDO = "65%";
-
-/** Tarjeta de cierre del bento: ocupa dos columnas y pone la foto y el texto
- * en horizontal — rompe la monotonía de la rejilla sin insinuar que un
- * sector "importa más" que otro (los cinco reciben la misma atención, esta
- * solo cierra la fila impar con un tratamiento distinto). Es la única
- * tarjeta del bento que se reproduce sin necesitar hover, y la única cuyo
- * encuadre de vídeo se expande al entrar en vista. */
-function SectorFeatureCard({ sector, reducedMotion }: { sector: (typeof SECTORES)[number]; reducedMotion: boolean }) {
-  return (
-    <Link
-      href={sector.href}
-      className="group col-span-2 flex overflow-hidden rounded-3xl border border-[#e5e5e5] bg-white transition duration-300 hover:-translate-y-1 hover:border-[#ddd6fe] hover:shadow-[0_18px_35px_-24px_rgba(0,0,0,0.35)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] focus-visible:ring-offset-4"
-    >
-      <motion.span
-        className="relative block shrink-0 overflow-hidden"
-        initial={{ width: reducedMotion ? DESTACADO_ANCHO_EXPANDIDO : DESTACADO_ANCHO_INICIAL }}
-        whileInView={reducedMotion ? undefined : { width: DESTACADO_ANCHO_EXPANDIDO }}
-        viewport={{ once: true, amount: "some" }}
-        transition={{ duration: 7, ease: "easeInOut" }}
+    <div className="sm:hidden">
+      <div
+        ref={pista}
+        onScroll={alDesplazar}
+        className="scrollbar-none -mx-4 flex snap-x snap-mandatory gap-4 overflow-x-auto scroll-smooth px-4 sm:-mx-6 sm:px-6"
       >
-        {/* wrapperClassName="absolute inset-0": este span solo rellena el
-            ancho animado de arriba — el tamaño real nunca lo decide el
-            vídeo, lo decide el motion.span, así el vídeo se ve siempre bien
-            recortado durante el propio crecimiento, sin deformarse. */}
-        <SectorSceneMedia video={sector.video} poster={sector.poster} reducedMotion={reducedMotion} reproducir wrapperClassName="absolute inset-0" />
-      </motion.span>
-      <span className="flex flex-1 flex-col justify-center gap-3 px-8 py-6">
-        <h3 className="text-2xl font-bold">{sector.title}</h3>
-        <p className="text-base leading-7 text-[#52525b]">{sector.description}</p>
-        <span className="mt-1 inline-flex items-center gap-2 text-sm font-semibold text-[#0a0a0a]">
-          Ver planes y precios <ArrowRight className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-1" aria-hidden="true" />
-        </span>
-      </span>
-    </Link>
+        {sectores.map((sector) => (
+          <Link
+            key={sector.href}
+            href={sector.href}
+            className="group relative block w-full shrink-0 snap-center overflow-hidden rounded-3xl border border-[#e5e5e5] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] focus-visible:ring-offset-4"
+          >
+            <span className="block aspect-[4/5] w-full">
+              {/* eslint-disable-next-line @next/next/no-img-element -- foto local */}
+              <img src={sector.imagen} alt="" loading="lazy" className="absolute inset-0 h-full w-full object-cover" />
+            </span>
+            <span
+              aria-hidden="true"
+              className="absolute inset-0"
+              style={{
+                background:
+                  "linear-gradient(to top, rgba(10,10,10,0.85) 0%, rgba(10,10,10,0.35) 42%, rgba(10,10,10,0) 70%)",
+              }}
+            />
+            <span className="absolute inset-x-0 bottom-0 flex flex-col gap-2 p-6">
+              <span className="text-2xl font-bold tracking-tight text-white">{sector.title}</span>
+              <span className="text-sm leading-6 text-white/85">{sector.description}</span>
+              <span className="mt-1 inline-flex items-center gap-2 text-sm font-semibold text-white">
+                Ver planes y precios <ArrowRight className="h-4 w-4" aria-hidden="true" />
+              </span>
+            </span>
+          </Link>
+        ))}
+      </div>
+
+      <div className="mt-6 flex items-center justify-center gap-2" role="tablist" aria-label="Sector visible">
+        {sectores.map(({ href, title }, indice) => (
+          <button
+            key={href}
+            type="button"
+            role="tab"
+            aria-selected={indice === visible}
+            aria-label={`Ver ${title}`}
+            onClick={() => irA(indice)}
+            className={`h-1.5 rounded-full transition-all duration-300 ${indice === visible ? "w-5 bg-[#8b5cf6]" : "w-1.5 bg-[#d4d4d8]"}`}
+          />
+        ))}
+      </div>
+    </div>
   );
 }
-
 
 export function MainLanding() {
   const [isDemoOpen, setIsDemoOpen] = useState(false);
-  const sectorReducedMotion = useReducedMotion() === true;
-  // Orden actual del mazo: ordenSectores[0] es la carta de delante. "Siguiente"
-  // manda la de delante al final (como hojear un mazo real); "anterior" trae
-  // la última al frente.
-  const [ordenSectores, setOrdenSectores] = useState<number[]>(() => SECTORES.map((_, i) => i));
-  const avanzarSector = () => setOrdenSectores((orden) => [...orden.slice(1), orden[0]]);
-  const retrocederSector = () => setOrdenSectores((orden) => [orden[orden.length - 1], ...orden.slice(0, -1)]);
-  const irASector = (indice: number) =>
-    setOrdenSectores((orden) => {
-      const posicion = orden.indexOf(indice);
-      if (posicion <= 0) return orden;
-      return [...orden.slice(posicion), ...orden.slice(0, posicion)];
-    });
-  const sectorActivo = ordenSectores[0];
 
   return (
     <main id="main-content" className="min-h-screen bg-white text-[#0a0a0a]" data-landing="alhabla" data-landing-variant="principal">
@@ -362,102 +382,18 @@ export function MainLanding() {
       */}
       <section id="sectores" className="scroll-m-20 border-b border-[#e5e5e5] py-16 sm:py-24">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <Reveal className="flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
-            <div className="max-w-3xl">
-              <h2 className="text-3xl font-black tracking-tight sm:text-5xl">Cada negocio tiene su forma de llenar la agenda.</h2>
-            </div>
-            {/* Las flechas solo tienen sentido donde hay una carta "de
-                delante" que cambiar (la pila de tablet/móvil); el bento de
-                escritorio muestra los cinco sectores a la vez, sin estado
-                que avanzar. */}
-            <div className="hidden shrink-0 items-center gap-2 sm:flex lg:hidden">
-              <button type="button" onClick={retrocederSector} className="calendar-arrow h-11 w-11 rounded-full hover:border-[#ddd6fe] hover:bg-[#f3eeff] hover:text-[#6d28d9]" aria-label="Sector anterior"><ChevronLeft className="h-5 w-5" aria-hidden="true" /></button>
-              <button type="button" onClick={avanzarSector} className="calendar-arrow h-11 w-11 rounded-full hover:border-[#ddd6fe] hover:bg-[#f3eeff] hover:text-[#6d28d9]" aria-label="Siguiente sector"><ChevronRight className="h-5 w-5" aria-hidden="true" /></button>
-            </div>
+          <Reveal>
+            <h2 className="max-w-3xl text-3xl font-black tracking-tight sm:text-5xl">Cada negocio tiene su forma de llenar la agenda.</h2>
           </Reveal>
           <div className="mt-14 sm:mt-16">
-            {/* Escritorio/tablet ancho: bento grid — los cinco sectores
-                visibles a la vez, ninguno recortado ni oculto. Nada de
-                carrusel: no hace falta desplazar, apilar ni arrastrar nada
-                para verlos todos (feedback directo del usuario: tanto el
-                corte en seco como la pila apilada resultaban horribles aquí,
-                aunque la pila sí funciona bien en el hueco más ajustado del
-                móvil — se mantiene solo ahí, ver abajo). Barberías es la
-                tarjeta destacada (dos columnas, foto y texto en horizontal,
-                única con autoplay); el resto solo se reproduce al pasar el
-                ratón por encima. */}
-            <div className="hidden grid-cols-3 gap-5 lg:grid">
-              {SECTORES.filter((sector) => sector.href !== SECTOR_DESTACADO.href).map((sector) => (
-                <SectorGridCard key={sector.href} sector={sector} reducedMotion={sectorReducedMotion} />
-              ))}
-              <SectorFeatureCard sector={SECTOR_DESTACADO} reducedMotion={sectorReducedMotion} />
-            </div>
-
-            {/* Móvil estrecho (<640px): pila de cartas real. La fila con
-                scroll cortaba en seco la tarjeta que asomaba (feedback
-                directo del usuario, con capturas, en dos rondas — ni el
-                corte a plena nitidez ni la versión atenuada convencían).
-                Aquí solo la carta de delante enlaza/se arrastra; las de
-                detrás asoman su propio canto (jamás contenido recortado) y
-                tocarlas las trae al frente. Por debajo de este ancho no hay
-                sitio para un asomo a cada lado sin dejarlos ilegibles. */}
-            <div className="relative mx-auto w-full max-w-md sm:hidden">
-              {/* Carta invisible en flujo normal: solo reserva la altura real
-                  del contenido (varía poco de un sector a otro) para que la
-                  pila absoluta de abajo tenga un contenedor con tamaño. */}
-              <div aria-hidden="true" className="invisible">
-                <div className={TARJETA_SECTOR_CLASE}>
-                  <SectorCardVisual sector={SECTORES[sectorActivo]} reducedMotion={sectorReducedMotion} reproducir={false} />
-                </div>
-              </div>
-              <div className="absolute inset-0">
-                {SECTORES.map((sector, index) => (
-                  <SectorStackCard
-                    key={sector.href}
-                    sector={sector}
-                    slot={ordenSectores.indexOf(index)}
-                    total={SECTORES.length}
-                    reducedMotion={sectorReducedMotion}
-                    onAvanzar={avanzarSector}
-                    onRetroceder={retrocederSector}
-                    onTraerAlFrente={() => irASector(index)}
-                  />
-                ))}
-              </div>
-            </div>
-
-            {/* Tablet (640–1023px): la pila dejaba casi todo el ancho vacío
-                a los lados de la carta central (feedback directo del
-                usuario, con captura marcando ese hueco) — aquí se aprovecha
-                con un asomo real de la anterior y la siguiente, uno a cada
-                lado, en vez de esconderlas casi del todo detrás. */}
-            <div className="mx-auto hidden w-full max-w-2xl items-stretch justify-center gap-4 sm:flex lg:hidden">
-              <SectorPeekButton
-                sector={SECTORES[ordenSectores[ordenSectores.length - 1]]}
-                direccion="anterior"
-                onClick={retrocederSector}
-              />
-              <div className="min-w-0 flex-1">
-                <Link href={SECTORES[sectorActivo].href} className={TARJETA_SECTOR_CLASE}>
-                  <SectorCardVisual sector={SECTORES[sectorActivo]} reducedMotion={sectorReducedMotion} reproducir />
-                </Link>
-              </div>
-              <SectorPeekButton sector={SECTORES[ordenSectores[1]]} direccion="siguiente" onClick={avanzarSector} />
-            </div>
-
-            <div className="mt-6 flex items-center justify-center gap-2 lg:hidden" role="tablist" aria-label="Sector visible">
-              {SECTORES.map(({ href, title }, index) => (
-                <button
-                  key={href}
-                  type="button"
-                  role="tab"
-                  aria-selected={index === sectorActivo}
-                  aria-label={`Ver ${title}`}
-                  onClick={() => irASector(index)}
-                  className={`h-1.5 rounded-full transition-all duration-300 ${index === sectorActivo ? "w-5 bg-[#8b5cf6]" : "w-1.5 bg-[#d4d4d8]"}`}
-                />
-              ))}
-            </div>
+            {/* Una pieza por forma de mirar, que no es la misma en cada
+                sitio: en escritorio el acordeón horizontal (los cinco a la
+                vez, se abre al pasar el ratón), en tableta el mismo
+                acordeón girado y abierto al toque, y en móvil un carrusel
+                de scroll nativo. */}
+            <SectorAccordion sectores={SECTORES} />
+            <SectorAccordionVertical sectores={SECTORES} />
+            <SectorCarousel sectores={SECTORES} />
           </div>
         </div>
       </section>
