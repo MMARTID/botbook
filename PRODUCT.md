@@ -59,9 +59,16 @@ Lo que un producto vecino no podría copiar honestamente:
 - **Reparto por especialidad, no cola ciega.** Cada profesional tiene un nivel por servicio
   (especialista / lo hace / no sugerir). El agente recomienda al especialista una vez y reserva
   igualmente si el cliente insiste; nunca dice que alguien «no se le da bien».
-- **El Gestor: la agenda se administra por WhatsApp.** El dueño da de baja a un profesional,
-  cierra el día o mueve una cita hablando con Alhabla por WhatsApp. El Gestor propone la acción y
-  solo la ejecuta tras un «Confirmar» explícito — nunca de forma autónoma.
+- **El Gestor: el negocio entero se administra por WhatsApp, no solo la agenda.** El dueño
+  cambia un precio, fija el horario semanal, cierra un día, da de alta o de baja a un
+  profesional, o añade/mueve/cancela una cita — hablando con Alhabla por WhatsApp, sin entrar al
+  panel. El Gestor propone la acción y solo la ejecuta tras un «Confirmar» explícito — nunca de
+  forma autónoma. (Reabrir un día ya cerrado todavía exige el panel web, no WhatsApp.)
+- **Voz diseñada para no sonar a robot, no solo "voz de IA".** Selección de voz por idioma y
+  género sobre el catálogo Ultra de Telnyx, matiz emocional automático (`expressive_mode`) y un
+  fondo sutil de oficina para que la llamada no suene artificialmente silenciosa. La detección de
+  turno de palabra corre en Deepgram Flux, pensado para interrumpir y ser interrumpido de forma
+  natural en vez de esperar un silencio largo.
 - **Proveedor primario con respaldo real, no una promesa sin implementar.** Telnyx orquesta hoy
   tanto las llamadas reales como la demo pública; Retell.ai, con certificación RGPD, queda
   sincronizado como respaldo en caliente ante una caída.
@@ -98,8 +105,10 @@ Lo que un producto vecino no podría copiar honestamente:
   reconexión cuando el refresh token o la contraseña de aplicación caduca.
 - Reparto de citas por especialidad: cada profesional tiene un nivel por servicio (especialista /
   lo hace / no sugerir) que el agente usa para recomendar una vez, sin descartar al resto.
-- El Gestor: el dueño administra su agenda por WhatsApp (bajas, cierres, cambios de hueco) con un
-  patrón de proponer y confirmar — nunca ejecuta sin que el dueño pulse «Confirmar».
+- El Gestor: el dueño administra precios, horario semanal, cierres, altas/bajas de profesionales
+  y reservas (añadir, mover, cancelar) por WhatsApp, con un patrón de proponer y confirmar —
+  nunca ejecuta sin que el dueño pulse «Confirmar». Reabrir un día ya cerrado no está aún en
+  WhatsApp (requiere el panel).
 - Confirmación y recordatorio de cita por WhatsApp al cliente final, y lista de espera cuando no
   hay hueco disponible.
 - Número de teléfono principal del negocio configurable desde ajustes.
@@ -146,7 +155,9 @@ Lo que un producto vecino no podría copiar honestamente:
 - **Estética comprometida:** SaaS conservadora y profesional para negocios tradicionales
   españoles; explícitamente no el look genérico de startup ni de app de consumo. El sistema
   visual concreto vive fuera de este archivo.
-- **Voz del agente telefónico:** cálida y eficiente. Mensaje inicial por defecto: «Hola, soy la
+- **Voz del agente telefónico:** cálida y eficiente, con matiz emocional automático
+  (`expressive_mode`) y detección de turno de palabra en Deepgram Flux para interrupciones
+  naturales — no una voz robótica que espera silencio. Mensaje inicial por defecto: «Hola, soy la
   recepcionista virtual. ¿En qué te ayudo?».
 
 ## Evidence on Hand

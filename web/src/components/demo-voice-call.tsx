@@ -487,7 +487,7 @@ export function DemoVoiceCall({ open, onClose, onActiveChange, niche }: DemoVoic
               <p id="demo-voz-descripcion" className="mt-1.5 text-sm leading-6 text-[#52525b]">
                 {isCallView
                   ? "Hablas con una cuenta de demostración: cualquier reserva se queda en su agenda de prueba."
-                  : "Busca tu negocio y te pasamos con la recepción de un negocio como el tuyo."}
+                  : "Busca tu negocio y te pasamos con una voz que suena a persona, no a robot — la recepción de un negocio como el tuyo."}
               </p>
             </div>
           </div>
