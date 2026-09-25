@@ -134,11 +134,106 @@ function SectorAccordion({ sectores }: { sectores: typeof SECTORES }) {
 }
 
 /**
- * Móvil y tablet: carrusel de scroll nativo con anclaje.
+ * Tablet: el mismo acordeón, girado.
  *
- * Sustituye a la pila de cartas arrastrable y al asomo lateral de tablet
- * (retirados el 2026-09-24 por petición del usuario: "funciona mal y se ve
- * mal"). Aquellos reimplementaban a mano el gesto de desplazar —con drag de
+ * En horizontal no cabe: cinco paneles en ~700 px dejan el abierto tan
+ * estrecho que la foto no se ve, que es justo lo que el acordeón viene a
+ * resolver. Girado, el que está abierto se lleva la altura y los demás
+ * quedan en una banda con su nombre en horizontal, que a este ancho se lee
+ * mucho mejor que en vertical.
+ *
+ * Se abre al TOCAR, no al pasar por encima: en una tableta no hay ratón, y
+ * un panel que fuera un enlace entero se navegaría con el primer toque sin
+ * llegar a enseñar nunca la foto. Por eso la fila es un botón que abre y el
+ * enlace de verdad es el «Ver planes y precios» de dentro.
+ */
+const ACORDEON_VERTICAL_ABIERTO = 4.6;
+
+function SectorAccordionVertical({ sectores }: { sectores: typeof SECTORES }) {
+  const [abierto, setAbierto] = useState(0);
+
+  return (
+    <div
+      className="hidden gap-3 sm:grid lg:hidden sm:h-[34rem]"
+      style={{
+        gridTemplateRows: sectores
+          .map((_, i) => `${i === abierto ? ACORDEON_VERTICAL_ABIERTO : 1}fr`)
+          .join(" "),
+        transition: "grid-template-rows 560ms cubic-bezier(0.22, 1, 0.36, 1)",
+      }}
+    >
+      {sectores.map((sector, i) => {
+        const esteAbierto = i === abierto;
+        return (
+          <div
+            key={sector.href}
+            className="relative min-h-0 overflow-hidden rounded-3xl border border-[#e5e5e5]"
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element -- foto local */}
+            <img
+              src={sector.imagen}
+              alt=""
+              loading="lazy"
+              className="absolute inset-0 h-full w-full object-cover"
+            />
+            <span
+              aria-hidden="true"
+              className="absolute inset-0 transition-opacity duration-500"
+              style={{
+                background: esteAbierto
+                  ? "linear-gradient(to top, rgba(10,10,10,0.85) 0%, rgba(10,10,10,0.3) 45%, rgba(10,10,10,0) 75%)"
+                  : "linear-gradient(to right, rgba(10,10,10,0.8) 0%, rgba(10,10,10,0.55) 100%)",
+              }}
+            />
+
+            {/* Toda la fila abre; cuando ya está abierta deja de ser botón
+                para que el único destino táctil sea el enlace de abajo. */}
+            <button
+              type="button"
+              onClick={() => setAbierto(i)}
+              aria-expanded={esteAbierto}
+              aria-label={`Ver ${sector.title}`}
+              tabIndex={esteAbierto ? -1 : 0}
+              className="absolute inset-0 flex items-center px-6 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#8b5cf6]"
+              style={{ pointerEvents: esteAbierto ? "none" : "auto" }}
+            >
+              <span
+                className="text-lg font-bold tracking-tight text-white transition-opacity duration-300"
+                style={{ opacity: esteAbierto ? 0 : 1 }}
+              >
+                {sector.title}
+              </span>
+            </button>
+
+            <span
+              className="pointer-events-none absolute inset-x-0 bottom-0 flex flex-col gap-2 p-6 transition-all duration-500"
+              style={{
+                opacity: esteAbierto ? 1 : 0,
+                transform: esteAbierto ? "translateY(0)" : "translateY(10px)",
+              }}
+            >
+              <span className="text-2xl font-bold tracking-tight text-white">{sector.title}</span>
+              <span className="max-w-lg text-base leading-7 text-white/85">{sector.description}</span>
+              <Link
+                href={sector.href}
+                tabIndex={esteAbierto ? 0 : -1}
+                className="pointer-events-auto mt-1 inline-flex w-fit items-center gap-2 rounded-full text-sm font-semibold text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-[#0a0a0a]"
+              >
+                Ver planes y precios <ArrowRight className="h-4 w-4" aria-hidden="true" />
+              </Link>
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/**
+ * Móvil: carrusel de scroll nativo con anclaje.
+ *
+ * Sustituye a la pila de cartas arrastrable (retirada el 2026-09-24 por
+ * petición del usuario: "funciona mal y se ve mal"). Aquellos reimplementaban a mano el gesto de desplazar —con drag de
  * framer-motion, inercia propia y un contenedor de altura fantasma— y
  * peleaban contra el scroll del navegador. Esto es el gesto nativo: se mueve
  * con el dedo como espera cualquiera, cada tarjeta se ancla en su sitio, y
@@ -180,7 +275,7 @@ function SectorCarousel({ sectores }: { sectores: typeof SECTORES }) {
   };
 
   return (
-    <div className="lg:hidden">
+    <div className="sm:hidden">
       <div
         ref={pista}
         onScroll={alDesplazar}
@@ -192,7 +287,7 @@ function SectorCarousel({ sectores }: { sectores: typeof SECTORES }) {
             href={sector.href}
             className="group relative block w-full shrink-0 snap-center overflow-hidden rounded-3xl border border-[#e5e5e5] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] focus-visible:ring-offset-4"
           >
-            <span className="block aspect-[4/5] w-full sm:aspect-[16/10]">
+            <span className="block aspect-[4/5] w-full">
               {/* eslint-disable-next-line @next/next/no-img-element -- foto local */}
               <img src={sector.imagen} alt="" loading="lazy" className="absolute inset-0 h-full w-full object-cover" />
             </span>
@@ -291,10 +386,13 @@ export function MainLanding() {
             <h2 className="max-w-3xl text-3xl font-black tracking-tight sm:text-5xl">Cada negocio tiene su forma de llenar la agenda.</h2>
           </Reveal>
           <div className="mt-14 sm:mt-16">
-            {/* Dos piezas, una por forma de mirar: en escritorio el acordeón
-                (los cinco a la vez, el que interesa se abre al pasar por
-                encima) y por debajo de lg un carrusel de scroll nativo. */}
+            {/* Una pieza por forma de mirar, que no es la misma en cada
+                sitio: en escritorio el acordeón horizontal (los cinco a la
+                vez, se abre al pasar el ratón), en tableta el mismo
+                acordeón girado y abierto al toque, y en móvil un carrusel
+                de scroll nativo. */}
             <SectorAccordion sectores={SECTORES} />
+            <SectorAccordionVertical sectores={SECTORES} />
             <SectorCarousel sectores={SECTORES} />
           </div>
         </div>
