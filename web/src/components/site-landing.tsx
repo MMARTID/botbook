@@ -76,31 +76,11 @@ export function SiteLanding({ content }: { content?: NicheLandingContent }) {
         borde — no un tinte de fondo.
       */}
       {/*
-        Cómo funciona (2026-09-24, propuesta de conversión): antes había un
-        bloque estático propio aquí (CallForwardingFlow + tres tarjetas fijas,
-        siempre en morado de marca) distinto del relato con scroll que ya
-        tenía la landing principal — dos explicaciones para lo mismo, una de
-        ellas sin animación propia. Ahora las 5 landings de nicho montan el
-        mismo componente que la principal, con el acento y los ejemplos de
-        servicio de su propio nicho — un solo relato, coherente en las 6
-        páginas y ya sin el bug de scroll en móvil (ver el propio componente).
-
-        La sección de integración de calendario que vivía justo debajo se
-        quita como bloque propio: "Google Calendar y Outlook" ya es un
-        checkmark del hero (landing-hero.tsx) — la señal de confianza se
-        mantiene sin alargar la página con una sección entera para ella.
-      */}
-      <HowItWorksScrollytelling
-        accent={content.accent}
-        serviceExample={COMO_FUNCIONA_EJEMPLOS[content.slug].servicio}
-        bookingExample={COMO_FUNCIONA_EJEMPLOS[content.slug].reserva}
-      />
-
-      {/*
-        Reparto por especialidad justo después de cómo funciona: el visitante
-        acaba de ver la agenda real en marcha y ahora ve que la cita cae en la
-        persona que él elegiría. Es el diferenciador del producto y va en
-        todos los planes — por eso no vive dentro de precios.
+        Reparto por especialidad justo después de los datos del sector: el
+        visitante acaba de ver el problema (cifras) y ahora ve el primer
+        diferenciador del producto — la cita cae en la persona que él
+        elegiría. Es el diferenciador del producto y va en todos los planes
+        — por eso no vive dentro de precios.
       */}
       <TeamRoutingSection data={content.teamRouting} accent={content.accent} />
 
@@ -152,13 +132,30 @@ export function SiteLanding({ content }: { content?: NicheLandingContent }) {
       </section>
 
       {/*
+        Cómo funciona, justo antes de la calculadora y precios (2026-09-25,
+        revierte su posición temprana del 2026-09-24): el arco ahora es
+        problema (datos) → confianza (reparto, El Gestor, WhatsApp,
+        beneficios) → mecanismo (cómo funciona) → cuantificación
+        (calculadora) → precio — "cómo funciona" cierra la duda técnica justo
+        antes de enseñar el precio, no antes de haber dado ningún motivo
+        para creerlo. Antes había un bloque estático propio aquí
+        (CallForwardingFlow + tres tarjetas fijas, siempre en morado de
+        marca) distinto del relato con scroll que ya tenía la landing
+        principal — dos explicaciones para lo mismo. Ahora las 5 landings de
+        nicho montan el mismo componente que la principal, con el acento y
+        los ejemplos de servicio de su propio nicho.
+      */}
+      <HowItWorksScrollytelling
+        accent={content.accent}
+        serviceExample={COMO_FUNCIONA_EJEMPLOS[content.slug].servicio}
+        bookingExample={COMO_FUNCIONA_EJEMPLOS[content.slug].reserva}
+      />
+
+      {/*
         Orden decidido (2026-09-16): la calculadora vive justo antes de
-        Precios, no tras los datos del sector. El arco es problema (datos) →
-        solución (cómo funciona) → prueba (calendario) → encaje (beneficios) →
-        cuantificación (calculadora) → precio: la cifra de pérdida queda
-        fresca al ver los 69€, y /planes reutiliza esa estimación
-        (plans-with-roi) — su CTA ya no pide comprar antes de haber visto
-        cómo funciona el producto.
+        Precios. La cifra de pérdida queda fresca al ver los 69€, y /planes
+        reutiliza esa estimación (plans-with-roi) — su CTA ya no pide
+        comprar antes de haber visto cómo funciona el producto.
       */}
       <RevenueLossCalculator content={content?.calculator} activeNiche={content?.slug} accent={content?.accent} />
 

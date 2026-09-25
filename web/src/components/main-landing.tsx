@@ -398,20 +398,26 @@ export function MainLanding() {
         </div>
       </section>
 
-      <HowItWorksScrollytelling />
+      {/*
+        Datos del sector aquí, justo después de las tarjetas de sector
+        (2026-09-25, revierte el "justo antes de precios" del 2026-09-24):
+        prueba el problema con cifras antes de entrar en cómo lo resuelve
+        el producto (reparto, El Gestor, cómo funciona).
+      */}
+      <SectorDataSection data={generalSectorData} />
 
       <TeamRoutingSection data={generalTeamRouting} />
 
       <OwnerAssistantSection data={generalOwnerAssistant} />
 
       {/*
-        Datos del sector aquí, justo antes de precios (2026-09-24): sin
-        calculadora de pérdida de ingresos en la landing principal (esa
-        profundidad vive en cada landing de nicho), estas cifras genéricas
-        hacen el mismo trabajo de "recordatorio del coste real" justo antes
-        de enseñar el precio.
+        Cómo funciona, justo antes de precios (2026-09-25): la visitante ya
+        vio el problema (datos del sector) y la confianza del producto
+        (reparto, El Gestor) — "cómo funciona" cierra la duda técnica justo
+        antes de enseñar el precio, en vez de explicarlo antes de haber
+        dado ningún motivo para creerlo.
       */}
-      <SectorDataSection data={generalSectorData} />
+      <HowItWorksScrollytelling />
 
       {/* Precio y FAQ compactos aquí mismo: la visitante que llega convencida
           por el relato anterior no tiene que salir de la página para ver un
