@@ -67,10 +67,12 @@ export function CallsActivity() {
       {response && response.total > 0 ? (
         <footer className="flex flex-col gap-3 border-t border-[#e5e5e5] p-4 sm:flex-row sm:items-center sm:justify-between sm:p-6">
           <p className="text-sm text-muted">Mostrando <span className="font-semibold tabular-nums text-[#27272a]">{first}–{last}</span> de <span className="font-semibold tabular-nums text-[#27272a]">{response.total}</span> llamadas.</p>
+          {offset > 0 || response.total > PAGE_SIZE ? (
           <div className="flex gap-2">
             <button type="button" disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - PAGE_SIZE))} className="btn-secondary h-11 px-4"><ChevronLeft className="h-4 w-4" aria-hidden="true" />Anterior</button>
             <button type="button" disabled={offset + calls.length >= response.total} onClick={() => setOffset(offset + PAGE_SIZE)} className="btn-primary h-11 px-4">Siguiente<ChevronRight className="h-4 w-4" aria-hidden="true" /></button>
           </div>
+          ) : null}
         </footer>
       ) : null}
       {selectedCallId ? <CallDetailModal callId={selectedCallId} onClose={() => setSelectedCallId(null)} /> : null}

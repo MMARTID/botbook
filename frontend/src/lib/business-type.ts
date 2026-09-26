@@ -90,7 +90,7 @@ export const BUSINESS_TYPE_ONBOARDING_TEXTS: Record<
   peluqueria: {
     services: {
       heading: "¿Qué servicios ofrece tu peluquería?",
-      subheading: "Marca los cortes, tintes y tratamientos que sí ofreces, para que el agente pueda reservarlos por teléfono. Elige al menos 4 para continuar.",
+      subheading: "Marca los cortes, tintes y tratamientos que sí ofreces, para que tu recepcionista pueda reservarlos por teléfono. Elige al menos 4 para continuar.",
       cta: "Continuar con {count} servicio{s}",
     },
     team: {
@@ -101,14 +101,14 @@ export const BUSINESS_TYPE_ONBOARDING_TEXTS: Record<
     },
     calendar: {
       heading: "Conecta el calendario de tu peluquería",
-      subheading: "El asistente consultará disponibilidad y reservará citas directamente en tu agenda. Elige el calendario que usas a diario.",
+      subheading: "Tu recepcionista consultará disponibilidad y reservará citas directamente en tu agenda. Elige el calendario que usas a diario.",
       cta: "Conectar calendario",
     },
   },
   barberia: {
     services: {
       heading: "¿Qué servicios ofrece tu barbería?",
-      subheading: "Marca los cortes, arreglos de barba y packs que sí ofreces, para que el agente pueda reservarlos por teléfono. Elige al menos 4 para continuar.",
+      subheading: "Marca los cortes, arreglos de barba y packs que sí ofreces, para que tu recepcionista pueda reservarlos por teléfono. Elige al menos 4 para continuar.",
       cta: "Continuar con {count} servicio{s}",
     },
     team: {
@@ -119,14 +119,14 @@ export const BUSINESS_TYPE_ONBOARDING_TEXTS: Record<
     },
     calendar: {
       heading: "Conecta el calendario de tu barbería",
-      subheading: "El asistente consultará huecos y reservará cortes y barbas directamente en tu agenda. Elige el calendario que usas a diario.",
+      subheading: "Tu recepcionista consultará huecos y reservará cortes y barbas directamente en tu agenda. Elige el calendario que usas a diario.",
       cta: "Conectar calendario",
     },
   },
   "centro-de-estetica": {
     services: {
       heading: "¿Qué servicios ofrece tu centro de estética?",
-      subheading: "Marca los tratamientos faciales, masajes y depilaciones que sí ofreces, para que el agente pueda reservarlos por teléfono. Elige al menos 4 para continuar.",
+      subheading: "Marca los tratamientos faciales, masajes y depilaciones que sí ofreces, para que tu recepcionista pueda reservarlos por teléfono. Elige al menos 4 para continuar.",
       cta: "Continuar con {count} servicio{s}",
     },
     team: {
@@ -137,14 +137,14 @@ export const BUSINESS_TYPE_ONBOARDING_TEXTS: Record<
     },
     calendar: {
       heading: "Conecta el calendario de tu centro de estética",
-      subheading: "El asistente consultará disponibilidad y reservará tratamientos directamente en tu agenda. Elige el calendario que usas a diario.",
+      subheading: "Tu recepcionista consultará disponibilidad y reservará tratamientos directamente en tu agenda. Elige el calendario que usas a diario.",
       cta: "Conectar calendario",
     },
   },
   "salon-de-unas": {
     services: {
       heading: "¿Qué servicios ofrece tu salón de uñas?",
-      subheading: "Marca las manicuras, pedicuras y nail art que sí ofreces, para que el agente pueda reservarlos por teléfono. Elige al menos 4 para continuar.",
+      subheading: "Marca las manicuras, pedicuras y nail art que sí ofreces, para que tu recepcionista pueda reservarlos por teléfono. Elige al menos 4 para continuar.",
       cta: "Continuar con {count} servicio{s}",
     },
     team: {
@@ -155,14 +155,14 @@ export const BUSINESS_TYPE_ONBOARDING_TEXTS: Record<
     },
     calendar: {
       heading: "Conecta el calendario de tu salón de uñas",
-      subheading: "El asistente consultará huecos y reservará manicuras y pedicuras directamente en tu agenda. Elige el calendario que usas a diario.",
+      subheading: "Tu recepcionista consultará huecos y reservará manicuras y pedicuras directamente en tu agenda. Elige el calendario que usas a diario.",
       cta: "Conectar calendario",
     },
   },
   fisioterapia: {
     services: {
       heading: "¿Qué servicios ofrece tu clínica de fisioterapia?",
-      subheading: "Marca las valoraciones, sesiones y rehabilitaciones que sí ofreces, para que el agente pueda reservarlas por teléfono. Elige al menos 4 para continuar.",
+      subheading: "Marca las valoraciones, sesiones y rehabilitaciones que sí ofreces, para que tu recepcionista pueda reservarlas por teléfono. Elige al menos 4 para continuar.",
       cta: "Continuar con {count} servicio{s}",
     },
     team: {
@@ -173,14 +173,14 @@ export const BUSINESS_TYPE_ONBOARDING_TEXTS: Record<
     },
     calendar: {
       heading: "Conecta el calendario de tu clínica de fisioterapia",
-      subheading: "El asistente consultará huecos y reservará sesiones directamente en tu agenda. Elige el calendario que usas a diario.",
+      subheading: "Tu recepcionista consultará huecos y reservará sesiones directamente en tu agenda. Elige el calendario que usas a diario.",
       cta: "Conectar calendario",
     },
   },
   other: {
     services: {
       heading: "¿Qué servicios ofreces?",
-      subheading: "Marca los servicios que sí ofreces, para que el agente pueda reservarlos por teléfono. Elige al menos 4 para continuar.",
+      subheading: "Marca los servicios que sí ofreces, para que tu recepcionista pueda reservarlos por teléfono. Elige al menos 4 para continuar.",
       cta: "Continuar con {count} servicio{s}",
     },
     team: {
@@ -191,7 +191,7 @@ export const BUSINESS_TYPE_ONBOARDING_TEXTS: Record<
     },
     calendar: {
       heading: "Conecta tu calendario",
-      subheading: "El asistente consultará disponibilidad y reservará citas directamente en tu agenda. Elige el calendario que usas a diario.",
+      subheading: "Tu recepcionista consultará disponibilidad y reservará citas directamente en tu agenda. Elige el calendario que usas a diario.",
       cta: "Conectar calendario",
     },
   },

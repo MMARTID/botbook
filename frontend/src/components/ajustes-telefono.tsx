@@ -11,7 +11,6 @@ import {
   Clock3,
   Headset,
   Loader2,
-  Phone,
   PhoneForwarded,
   Save,
   Smartphone,
@@ -157,21 +156,14 @@ export function AjustesTelefono({ business, hasToken }: AjustesTelefonoProps) {
       className="panel scroll-mt-24 p-4 sm:p-6"
       aria-labelledby="telefono-title"
     >
-      <div className="flex items-start gap-3">
-        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#f3eeff] text-[#8b5cf6]">
-          <Phone className="h-5 w-5" aria-hidden="true" />
-        </span>
-        <div>
-          <h2
-            id="telefono-title"
-            className="text-lg font-semibold text-[#0a0a0a]"
-          >
-            Teléfono
-          </h2>
-        </div>
-      </div>
+      {/* La pestaña activa y la cabecera de Ajustes ya dicen «Teléfono» y
+          explican qué hay aquí: el título queda para el lector de pantalla y
+          el panel empieza directamente por la línea de clientes. */}
+      <h2 id="telefono-title" className="sr-only">
+        Teléfono
+      </h2>
 
-      <div className="mt-5 divide-y divide-[#e5e5e5]">
+      <div className="divide-y divide-[#e5e5e5]">
         <LineaDeClientes
           business={business}
           forwarding={forwarding}

@@ -136,9 +136,11 @@ function DashboardContent() {
         />
       ) : null}
 
-      <OnboardingChecklist />
-
+      {/* Antes que la guía de configuración: estas citas se pierden si el
+          negocio no llama hoy; la guía puede esperar a mañana. */}
       <PendingBookings timeZone={timeZone} />
+
+      <OnboardingChecklist />
 
       {/* Vercel puede publicar esta interfaz unos minutos antes de que Cloud
           Run exponga la ventana `week`. Durante ese despliegue escalonado no

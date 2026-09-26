@@ -205,9 +205,9 @@ export default function RegisterBusinessServicesPage() {
                       ) : (
                         <Plus className="h-3.5 w-3.5 text-[#a1a1aa]" />
                       )}
-                      <span>{service.name}</span>
+                      <span className="text-left">{service.name}</span>
                       <span
-                        className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs ${
+                        className={`inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full px-2 py-0.5 text-xs ${
                           isSelected ? "bg-white/20 text-white" : "bg-[#f3eeff] text-[#6d28d9]"
                         }`}
                       >

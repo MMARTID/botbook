@@ -92,7 +92,9 @@ export function AgendaTimeline({
           {groupedDays.map((day) => (
             <section key={day.key} className="grid gap-3 p-4 sm:grid-cols-[10rem_minmax(0,1fr)] sm:gap-6 sm:p-6" aria-label={day.label}>
               <div className="sm:pt-2">
-                <h3 className="text-base font-semibold capitalize text-[#0a0a0a]">{day.label}</h3>
+                {/* Sin `capitalize`: ponía «28 De Septiembre». La mayúscula inicial ya
+                    la pone formatDayLabel. */}
+                <h3 className="text-base font-semibold text-[#0a0a0a]">{day.label}</h3>
                 <p className="mt-1 text-sm text-muted">{day.bookings.length} {day.bookings.length === 1 ? "cita" : "citas"}</p>
               </div>
               <ol className="relative space-y-2 before:absolute before:bottom-4 before:left-[1.45rem] before:top-4 before:w-px before:bg-[#e5e5e5] sm:before:left-[3.25rem]">
@@ -108,6 +110,8 @@ export function AgendaTimeline({
           <p className="text-sm text-muted">
             Mostrando <span className="font-semibold tabular-nums text-[#27272a]">{first}–{last}</span> de <span className="font-semibold tabular-nums text-[#27272a]">{agenda.total}</span> citas.
           </p>
+          {/* Con todo en una página, dos botones apagados solo estorban. */}
+          {offset > 0 || agenda.hasMore ? (
           <div className="flex gap-2">
             <button type="button" onClick={() => onOffsetChange(Math.max(0, offset - PAGE_SIZE))} disabled={offset === 0} className="btn-secondary h-11 px-4">
               <ChevronLeft className="h-4 w-4" aria-hidden="true" /> Anterior
@@ -116,6 +120,7 @@ export function AgendaTimeline({
               Siguiente <ChevronRight className="h-4 w-4" aria-hidden="true" />
             </button>
           </div>
+          ) : null}
         </footer>
       ) : null}
     </section>

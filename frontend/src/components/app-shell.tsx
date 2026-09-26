@@ -219,20 +219,20 @@ function AccountFooter({ pathname }: { pathname: string }) {
     <div className="border-t border-[#e5e5e5] px-4 py-4">
       <NavGroup label="Cuenta" items={ACCOUNT_NAVIGATION} pathname={pathname} />
       <MinutesWarningCard />
-      <div className={`mt-4 rounded-2xl border p-3 ${hasIssue ? "border-[#f0dfa8] bg-[#fef8e7]" : "border-[#ddd6fe] bg-[#f3eeff]"}`}>
-        <div className="flex items-center gap-2">
-          <Activity className={`h-4 w-4 ${hasIssue ? "text-[#806012]" : "text-[#6d28d9]"}`} aria-hidden="true" />
-          <p className={`text-xs font-semibold ${hasIssue ? "text-[#806012]" : "text-[#6d28d9]"}`}>
-            {hasIssue ? "Requiere atención" : "Plan y servicio"}
-          </p>
+      {/* Solo cuando hay algo que atender: en reposo repetía el enlace
+          «Facturación» que está justo encima. */}
+      {hasIssue ? (
+        <div className="mt-4 rounded-2xl border border-[#f0dfa8] bg-[#fef8e7] p-3" role="status">
+          <div className="flex items-center gap-2">
+            <Activity className="h-4 w-4 text-[#9f7a15]" aria-hidden="true" />
+            <p className="text-xs font-semibold text-[#806012]">Requiere atención</p>
+          </div>
+          <p className="mt-1 text-xs leading-5 text-[#52525b]">Revisa tu facturación para que la recepción siga activa.</p>
+          <Link href="/ajustes/facturacion" className="zona-tactil mt-2 inline-flex text-xs font-semibold text-[#806012] underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]">
+            Ver facturación
+          </Link>
         </div>
-        <p className="mt-1 text-xs leading-5 text-[#52525b]">
-          {hasIssue ? "Revisa tu facturación para que la recepción siga activa." : "Gestiona tu plan y los métodos de pago."}
-        </p>
-        <Link href="/ajustes/facturacion" className="zona-tactil mt-2 inline-flex text-xs font-semibold text-[#6d28d9] underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]">
-          Ver facturación
-        </Link>
-      </div>
+      ) : null}
       <button
         type="button"
         onClick={() => { clearAuthTokens(); window.location.assign("/login"); }}

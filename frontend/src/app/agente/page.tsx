@@ -58,11 +58,11 @@ import {
   ArrowUpRight,
   Bot,
   BookOpenText,
-  CalendarClock,
   CalendarDays,
   Check,
   CheckCircle2,
   ChevronDown,
+  Layers,
   Pencil,
   Save,
   ScissorsLineDashed,
@@ -594,7 +594,7 @@ function AgenteContent() {
 
       <SettingsSection
         id="capacity"
-        icon={CalendarClock}
+        icon={Layers}
         title="Capacidad de reservas"
         summary={`${settingsQuery.data?.bookingCapacity ?? 1} ${(settingsQuery.data?.bookingCapacity ?? 1) === 1 ? "plaza simultánea" : "plazas simultáneas"}`}
         open={isSectionOpen("capacity")}
@@ -1221,7 +1221,9 @@ function SectionGroupHeading({ title, description }: { title: string; descriptio
   return (
     <div className="border-b border-[#e5e5e5] pb-3 pt-4 sm:flex sm:items-end sm:justify-between sm:gap-6">
       <div>
-        <h2 className="text-base font-semibold text-[#0a0a0a] sm:text-lg">{title}</h2>
+        {/* Un escalón por encima del título de cada sección plegable: antes
+            tenían el mismo tamaño y el agrupamiento no se leía. */}
+        <h2 className="text-lg font-bold tracking-[-0.01em] text-[#0a0a0a] sm:text-xl">{title}</h2>
         <p className="mt-1 max-w-3xl text-sm leading-6 text-muted">{description}</p>
       </div>
     </div>

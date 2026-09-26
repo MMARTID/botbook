@@ -44,7 +44,7 @@ export default function LoginPage() {
   };
 
   return (
-    <main className="relative isolate flex min-h-screen items-center justify-center px-4 py-12 sm:px-6 lg:px-8">
+    <main className="relative isolate flex min-h-screen items-center justify-center px-4 pb-12 pt-20 sm:px-6 sm:py-12 lg:px-8">
       <ParticleField />
       <ParticleMouseLayer />
       <a
