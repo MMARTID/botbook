@@ -145,7 +145,6 @@ export default function RegisterBusinessServicesPage() {
   const ctaLabel = texts.services.cta
     .replace("{count}", String(selected.size))
     .replace("{s}", selected.size === 1 ? "" : "s");
-  const missing = Math.max(0, MIN_SERVICES_REQUIRED - selected.size);
   const canContinue = selected.size >= MIN_SERVICES_REQUIRED;
 
   return (
