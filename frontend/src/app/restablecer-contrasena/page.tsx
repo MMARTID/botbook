@@ -105,7 +105,7 @@ function ResetForm({ token }: { token: string }) {
         </p>
 
         <button type="submit" disabled={loading} className="btn-primary w-full justify-center">
-          {loading ? "Guardando..." : "Guardar y entrar"}
+          {loading ? "Guardando…" : "Guardar y entrar"}
         </button>
       </form>
     </>
@@ -129,7 +129,7 @@ function RestablecerContrasenaContent() {
 
 export default function RestablecerContrasenaPage() {
   return (
-    <Suspense fallback={<div className="p-8 text-center text-muted">Cargando...</div>}>
+    <Suspense fallback={<div className="p-8 text-center text-muted">Cargando…</div>}>
       <RestablecerContrasenaContent />
     </Suspense>
   );

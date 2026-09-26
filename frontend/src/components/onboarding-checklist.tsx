@@ -71,7 +71,7 @@ export function OnboardingChecklist() {
           onClick={() => dismissMutation.mutate()}
           disabled={dismissMutation.isPending}
           aria-label="Ocultar la guía de configuración"
-          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-[#6d28d9] transition duration-200 hover:bg-white disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]"
+          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[#6d28d9] transition duration-200 hover:bg-white disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]"
         >
           <X className="h-4 w-4" aria-hidden="true" />
         </button>

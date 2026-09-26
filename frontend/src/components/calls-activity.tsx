@@ -38,8 +38,10 @@ export function CallsActivity() {
   return (
     <section className="panel overflow-hidden" aria-labelledby="calls-activity-title">
       <div className="border-b border-[#e5e5e5] p-4 sm:p-6">
-        <h2 id="calls-activity-title" className="text-lg font-semibold text-[#0a0a0a] sm:text-xl">Actividad telefónica</h2>
-        <p className="mt-1 text-sm leading-6 text-muted">Revisa qué ocurrió en cada conversación y entra al detalle cuando necesites contexto.</p>
+        {/* La cabecera de página ya presenta la vista: aquí solo cabe cómo se
+            usa la lista, no otra descripción de lo mismo. */}
+        <h2 id="calls-activity-title" className="text-lg font-semibold text-[#0a0a0a] sm:text-xl">Historial</h2>
+        <p className="mt-1 text-sm leading-6 text-muted">Toca una conversación para leer la transcripción y escuchar la grabación.</p>
       </div>
       {callsQuery.isLoading ? <CallsLoading /> : null}
       {callsQuery.isError ? (
@@ -103,12 +105,19 @@ function CallActivityRow({ call, onOpen }: { call: Call; onOpen: () => void }) {
             </span>
           ) : (
             <span className="block">
+              {/* Sin reserva, lo que pasó lo cuenta el resumen: el resultado
+                  ya va en la insignia de la derecha y repetirlo aquí dejaba la
+                  misma palabra dos veces en cada fila. */}
               {etiquetaDeReserva(call.booking) === "modificada" ? (
-                <span className="flex items-center gap-1.5 text-sm font-medium text-[#27272a]"><CalendarClock className="h-4 w-4 shrink-0 text-[#52525b]" aria-hidden="true" />Reserva modificada</span>
+                <>
+                  <span className="flex items-center gap-1.5 text-sm font-medium text-[#27272a]"><CalendarClock className="h-4 w-4 shrink-0 text-[#52525b]" aria-hidden="true" />Reserva modificada</span>
+                  {call.summary ? <span className="mt-1 line-clamp-1 block text-xs leading-5 text-muted">{call.summary}</span> : null}
+                </>
+              ) : call.summary ? (
+                <span className="line-clamp-2 block text-sm leading-6 text-[#27272a]">{call.summary}</span>
               ) : (
-                <span className="text-sm font-medium text-[#27272a]">{outcomeLabel(call.outcome)}</span>
+                <span className="text-sm text-muted">Sin resumen de la conversación.</span>
               )}
-              {call.summary ? <span className="mt-1 line-clamp-1 block text-xs leading-5 text-muted">{call.summary}</span> : null}
             </span>
           )}
         </span>
@@ -116,7 +125,7 @@ function CallActivityRow({ call, onOpen }: { call: Call; onOpen: () => void }) {
           {SentimentIcon ? <span title={sentimentLabel(call.sentiment) ?? undefined} className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[#fafafa] text-[#52525b]"><SentimentIcon className="h-4 w-4" aria-hidden="true" /><span className="sr-only">{sentimentLabel(call.sentiment)}</span></span> : null}
           <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${TONE_BADGE_CLASSES[tone]}`}>{outcomeLabel(call.outcome)}</span>
         </span>
-        <ChevronRight className="hidden h-4 w-4 text-[#a1a1aa] sm:block" aria-hidden="true" />
+        <ChevronRight className="hidden h-4 w-4 text-muted sm:block" aria-hidden="true" />
       </button>
     </li>
   );

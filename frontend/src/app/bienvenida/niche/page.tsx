@@ -132,7 +132,7 @@ export default function RegisterBusinessNichePage() {
                 {saving ? (
                   <>
                     <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
-                    Guardando...
+                    Guardando…
                   </>
                 ) : (
                   <>

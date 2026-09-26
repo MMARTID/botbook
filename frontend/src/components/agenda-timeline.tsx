@@ -48,13 +48,20 @@ export function AgendaTimeline({
   const calendarUrl = CALENDAR_PROVIDER_INFO[calendarProvider].webUrl;
   const first = agenda ? agenda.offset + 1 : 0;
   const last = agenda ? agenda.offset + agenda.bookings.length : 0;
+  const periodLabel = days === 1 ? "Hoy" : `Próximos ${days} días`;
+  const providerLabel = CALENDAR_PROVIDER_INFO[calendarProvider].label;
 
   return (
     <section className="panel overflow-hidden" aria-labelledby="agenda-timeline-title">
       <div className="flex flex-col gap-4 border-b border-[#e5e5e5] p-4 sm:p-6 lg:flex-row lg:items-start lg:justify-between">
         <div className="min-w-0">
-          <h2 id="agenda-timeline-title" className="text-lg font-semibold text-[#0a0a0a] sm:text-xl">Citas creadas por Alhabla</h2>
-          <p className="mt-1 text-sm leading-6 text-muted">Reservas verificadas que tu recepcionista ha añadido a la agenda.</p>
+          {/* La cabecera de página ya dice qué es esto; aquí va lo que cambia
+              con el selector (el periodo) y el matiz que evita buscar aquí
+              citas que no reservó la recepcionista. */}
+          <h2 id="agenda-timeline-title" className="text-lg font-semibold text-[#0a0a0a] sm:text-xl">{periodLabel}</h2>
+          <p className="mt-1 text-sm leading-6 text-muted">
+            Solo las citas que ha reservado tu recepcionista.{hasCalendar ? ` El resto de tu agenda sigue en ${providerLabel}.` : ""}
+          </p>
         </div>
         {hasCalendar ? (
           <a href={calendarUrl} target="_blank" rel="noopener noreferrer" className="btn-secondary h-11 shrink-0 px-4">
@@ -128,7 +135,7 @@ function AgendaBookingRow({ booking, timeZone }: { booking: AgendaBooking; timeZ
     <li className="relative grid grid-cols-[3rem_minmax(0,1fr)] gap-3 sm:grid-cols-[6.5rem_minmax(0,1fr)] sm:gap-4">
       <p className="pt-4 text-right text-sm font-semibold tabular-nums text-[#0a0a0a]">{start}</p>
       <span className="absolute left-[1.15rem] top-[1.55rem] h-2.5 w-2.5 rounded-full border-2 border-white bg-[#8b5cf6] shadow-[0_0_0_1px_#ddd6fe] sm:left-[3rem]" aria-hidden="true" />
-      <article className="min-w-0 rounded-2xl border border-[#e5e5e5] bg-white p-4 transition hover:border-[#ddd6fe] hover:bg-[#fafafa]">
+      <article className="min-w-0 rounded-2xl border border-[#e5e5e5] bg-white p-4">
         <div className="flex flex-wrap items-start justify-between gap-2">
           <div className="min-w-0">
             <p className="truncate text-sm font-semibold text-[#0a0a0a]">{serviceNames || "Cita reservada"}</p>
@@ -139,7 +146,7 @@ function AgendaBookingRow({ booking, timeZone }: { booking: AgendaBooking; timeZ
         <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2">
           {phone ? <span className="inline-flex items-center gap-1.5 text-xs font-medium tabular-nums text-[#52525b]"><Phone className="h-3.5 w-3.5 text-[#6d28d9]" aria-hidden="true" />{phone}</span> : <span className="text-xs text-muted">Teléfono no disponible</span>}
           {booking.numberPeople > 1 ? <span className="inline-flex items-center gap-1.5 text-xs font-medium text-[#52525b]"><Users className="h-3.5 w-3.5 text-[#6d28d9]" aria-hidden="true" />{booking.numberPeople} personas</span> : null}
-          {phone ? <a href={`tel:${booking.clientPhone}`} className="ml-auto inline-flex min-h-10 items-center rounded-full px-2 text-xs font-semibold text-[#6d28d9] underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]">Llamar</a> : null}
+          {phone ? <a href={`tel:${booking.clientPhone}`} aria-label={`Llamar al ${phone}`} className="ml-auto inline-flex min-h-11 items-center rounded-full px-2 text-xs font-semibold text-[#6d28d9] underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]">Llamar</a> : null}
         </div>
       </article>
     </li>
@@ -149,7 +156,7 @@ function AgendaBookingRow({ booking, timeZone }: { booking: AgendaBooking; timeZ
 function AgendaLoading() {
   return (
     <div className="space-y-6 p-4 sm:p-6" aria-label="Cargando agenda">
-      {Array.from({ length: 3 }, (_, index) => <div key={index} className="grid gap-3 sm:grid-cols-[10rem_minmax(0,1fr)] sm:gap-6"><div className="h-10 w-28 animate-pulse rounded bg-[#f4f4f5]" /><div className="h-28 animate-pulse rounded-2xl bg-[#f4f4f5]" /></div>)}
+      {Array.from({ length: 3 }, (_, index) => <div key={index} className="grid gap-3 sm:grid-cols-[10rem_minmax(0,1fr)] sm:gap-6"><div className="h-10 w-28 animate-pulse rounded-xl bg-[#f4f4f5]" /><div className="h-28 animate-pulse rounded-2xl bg-[#f4f4f5]" /></div>)}
     </div>
   );
 }

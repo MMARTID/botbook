@@ -11,7 +11,7 @@ import { clearRegistrationNextStep, consumeRegistrationNextStep } from "@/lib/re
 
 export default function SettingsCallbackPage() {
   return (
-    <Suspense fallback={<div className="flex min-h-screen items-center justify-center px-4 py-16">Cargando...</div>}>
+    <Suspense fallback={<div className="flex min-h-screen items-center justify-center px-4 py-16">Cargando…</div>}>
       <SettingsCallbackContent />
     </Suspense>
   );
@@ -130,7 +130,7 @@ function SettingsCallbackContent() {
                 className="rounded-2xl border border-[#e5e5e5] bg-white px-4 py-4 text-left shadow-sm transition hover:border-[#ddd6fe] hover:bg-[#fafafa] disabled:cursor-wait disabled:opacity-60"
               >
                 <p className="text-sm font-semibold text-[#0a0a0a]">
-                  {connectingCalendarId === calendar.id ? "Conectando..." : calendar.name}
+                  {connectingCalendarId === calendar.id ? "Conectando…" : calendar.name}
                 </p>
                 <p className="mt-1 text-xs text-muted">{calendar.primary ? "Calendario principal" : "Calendario secundario"}</p>
               </button>
@@ -176,7 +176,7 @@ function SettingsCallbackContent() {
                 className="rounded-2xl border border-[#e5e5e5] bg-white px-4 py-4 text-left shadow-sm transition hover:border-[#ddd6fe] hover:bg-[#fafafa] disabled:cursor-wait disabled:opacity-60"
               >
                 <p className="text-sm font-semibold text-[#0a0a0a]">
-                  {connectingCalendarId === calendar.id ? "Conectando..." : calendar.name}
+                  {connectingCalendarId === calendar.id ? "Conectando…" : calendar.name}
                 </p>
                 <p className="mt-1 text-xs text-muted">{calendar.ownerEmail ?? "Calendario principal"}</p>
               </button>
@@ -230,7 +230,7 @@ function SettingsCallbackContent() {
             </div>
             <p className="text-center text-sm text-muted">
               {phase === "processing"
-                ? "Estamos cerrando la conexión y devolviéndote al panel..."
+                ? "Estamos cerrando la conexión y devolviéndote al panel…"
                 : isSuccess
                   ? "Todo quedó listo. Te estamos llevando de vuelta al panel."
                   : searchParams.has("outlook_error")

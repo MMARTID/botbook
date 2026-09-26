@@ -196,7 +196,7 @@ function MinutesWarningCard({ onNavigate }: { onNavigate?: () => void }) {
       <Link
         href="/ajustes/facturacion"
         onClick={onNavigate}
-        className="mt-2 inline-flex text-xs font-semibold text-[#9f7a15] underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]"
+        className="zona-tactil mt-2 inline-flex text-xs font-semibold text-[#9f7a15] underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]"
       >
         Ver consumo y planes
       </Link>
@@ -222,7 +222,7 @@ function AccountFooter({ pathname }: { pathname: string }) {
         <p className="mt-1 text-xs leading-5 text-[#52525b]">
           {hasIssue ? "Revisa tu facturación para que la recepción siga activa." : "Gestiona tu plan y los métodos de pago."}
         </p>
-        <Link href="/ajustes/facturacion" className="mt-2 inline-flex text-xs font-semibold text-[#6d28d9] underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]">
+        <Link href="/ajustes/facturacion" className="zona-tactil mt-2 inline-flex text-xs font-semibold text-[#6d28d9] underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]">
           Ver facturación
         </Link>
       </div>

@@ -134,7 +134,7 @@ export default function LoginPage() {
             disabled={loading}
             className="btn-primary w-full justify-center"
           >
-            {loading ? "Entrando..." : "Entrar"}
+            {loading ? "Entrando…" : "Entrar"}
           </button>
 
           <div className="text-center text-sm text-muted">

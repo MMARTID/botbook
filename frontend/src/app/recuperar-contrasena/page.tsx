@@ -99,7 +99,7 @@ export default function RecuperarContrasenaPage() {
               </p>
 
               <button type="submit" disabled={loading} className="btn-primary w-full justify-center">
-                {loading ? "Enviando..." : "Enviarme el enlace"}
+                {loading ? "Enviando…" : "Enviarme el enlace"}
               </button>
 
               <p className="text-center text-sm text-muted">

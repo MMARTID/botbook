@@ -907,7 +907,7 @@ export default function RegisterBusinessPage() {
             disabled={!selected || saving || !formularioValido}
             className="btn-primary w-full justify-center disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {saving ? "Guardando..." : "Confirmar y continuar"}
+            {saving ? "Guardando…" : "Confirmar y continuar"}
           </button>
           <button
             type="button"
