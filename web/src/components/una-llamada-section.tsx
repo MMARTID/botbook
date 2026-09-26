@@ -25,17 +25,22 @@ const PASOS = [
   {
     titulo: "Si no puedes cogerlo, contesta Alhabla",
     texto:
-      "Activas un desvío en tu número de siempre: solo las llamadas que no atiendes van a Alhabla, que resuelve dudas de precios y horarios con tus datos.",
+      "Activas un desvío en tu número de siempre y las llamadas que no atiendes pasan a Alhabla al momento, a cualquier hora y también en festivos. Saluda con el nombre de tu negocio y resuelve dudas de precios, duraciones y horarios con tus datos.",
   },
   {
     titulo: "Busca hueco en tu agenda real",
     texto:
-      "Mira tu horario y tu calendario de Google, Outlook o iCloud antes de ofrecer una hora. Si no hay sitio, propone la más cercana.",
+      "Antes de ofrecer una hora mira tu horario y tu calendario de Google, Outlook o iCloud, cuenta lo que dura el servicio y elige al profesional adecuado. Si no hay sitio, propone el hueco más cercano. Nunca reserva a ciegas.",
   },
   {
-    titulo: "La cita entra y el cliente la recibe",
+    titulo: "El cliente recibe su cita por WhatsApp",
     texto:
-      "Queda apuntada en tu calendario y al cliente le llega la confirmación por WhatsApp, con un botón por si tiene que cancelar.",
+      "La cita queda apuntada en tu calendario y al cliente le llega la confirmación al momento, con un botón por si tiene que cancelar. Si cancela, el hueco vuelve a quedar libre para otro.",
+  },
+  {
+    titulo: "Y tú te enteras sin coger el teléfono",
+    texto:
+      "Te llega un aviso con cada cita nueva y, si alguien dejó un recado, también. En tu panel tienes la grabación y la transcripción de cada llamada, por si quieres saber qué se habló.",
   },
 ] as const;
 
@@ -133,8 +138,10 @@ export function UnaLlamadaSection() {
                   <PantallaLlamada />
                 ) : activo === 1 ? (
                   <PantallaAgenda />
-                ) : (
+                ) : activo === 2 ? (
                   <PantallaWhatsApp />
+                ) : (
+                  <PantallaAviso />
                 )}
               </div>
             </div>
@@ -336,6 +343,52 @@ function PantallaWhatsApp() {
         <span className={`${styles.waBoton} ${styles.escalon}`} style={esc(2)}>
           Cancelar cita
         </span>
+      </div>
+      <div className={styles.waEscribir} aria-hidden="true">
+        <span className={styles.waCaja}>Mensaje</span>
+        <span className={styles.waMicro}>
+          <Mic color="#fff" strokeWidth={2.4} />
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function PantallaAviso() {
+  return (
+    <div
+      className={`${styles.pantalla} ${styles.whatsapp}`}
+      role="img"
+      aria-label="WhatsApp de Alhabla al negocio: aviso de la cita nueva de Laura y un recado de otro cliente que pregunta por la keratina."
+    >
+      <div className={styles.waCabecera}>
+        <span className={styles.waAvatar} aria-hidden="true">
+          A
+        </span>
+        <div>
+          <p className={styles.waNombre}>Alhabla</p>
+          <p className={styles.waSub}>Tu recepción</p>
+        </div>
+      </div>
+      <div className={styles.waChat}>
+        <span className={`${styles.waFecha} ${styles.escalon}`} style={esc(0)}>
+          Hoy
+        </span>
+        <p className={`${styles.waMensaje} ${styles.escalon}`} style={esc(1)}>
+          <strong>Nueva cita</strong>
+          <br />
+          Laura · Corte y color
+          <br />
+          Jueves a las 17:30 con Marta
+          <span className={styles.waHora}>17:03</span>
+        </p>
+        <p className={`${styles.waMensaje} ${styles.escalon}`} style={esc(3)}>
+          <strong>Recado</strong>
+          <br />
+          Pedro quiere saber si hacéis keratina. Le dije que se lo
+          confirmarías tú.
+          <span className={styles.waHora}>17:48</span>
+        </p>
       </div>
       <div className={styles.waEscribir} aria-hidden="true">
         <span className={styles.waCaja}>Mensaje</span>

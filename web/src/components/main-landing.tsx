@@ -9,10 +9,14 @@ import { DemoVoiceCall } from "@/components/demo-voice-call";
 import { HeroHilos } from "@/components/hero-hilos";
 import { SiteHeader } from "@/components/site-header";
 import { Reveal } from "@/components/scroll-reveal";
+import { EnMarchaSection } from "@/components/en-marcha-section";
+import { OwnerAssistantSection } from "@/components/owner-assistant-section";
 import { PuntosFuertesSection } from "@/components/puntos-fuertes-section";
 import { UnaLlamadaSection } from "@/components/una-llamada-section";
+import { WhatsAppClientesSection } from "@/components/whatsapp-clientes-section";
+import { generalOwnerAssistant } from "@/lib/niche-landings";
 import { HOME_QUICK_FAQS } from "@/lib/home-faqs";
-import { formatIncludedMinutes, formatPlanPrice, plans, TRIAL_REASSURANCE } from "@/lib/plans";
+import { formatExtraMinute, formatIncludedMinutes, formatPlanPrice, plans, TRIAL_REASSURANCE } from "@/lib/plans";
 
 /**
  * Un sector por tarjeta, cada uno con su foto de `public/heroes/`: la escena
@@ -396,16 +400,22 @@ export function MainLanding() {
       </section>
 
       {/*
-        Portada en seis bloques (2026-09-26, a petición del usuario: «ahora
-        es engorroso de leer»): hero → sectores → una llamada de principio a
-        fin → tres puntos fuertes → precios → dudas y cierre. Los datos del
-        sector, el reparto, El Gestor y «Cómo funciona» contaban lo mismo en
-        cuatro bloques; ahora lo cuentan los dos de abajo. Los componentes
-        viejos siguen vivos en las landings de nicho.
+        Orden de la portada (2026-09-26, tras «hay muy poco texto»): cómo se
+        atiende una llamada (el mecanismo, con el teléfono) → qué la hace
+        distinta de un contestador (las ventajas de PRODUCT.md) → qué recibe
+        el cliente por WhatsApp → qué hace el dueño por WhatsApp (El Gestor)
+        → cómo se pone en marcha → precio → dudas. Los datos del sector y el
+        reparto largo siguen en las landings de nicho.
       */}
       <UnaLlamadaSection />
 
       <PuntosFuertesSection onEscuchar={() => setIsDemoOpen(true)} />
+
+      <WhatsAppClientesSection />
+
+      <OwnerAssistantSection data={generalOwnerAssistant} />
+
+      <EnMarchaSection />
 
       {/* Precio y FAQ compactos aquí mismo: la visitante que llega convencida
           por el relato anterior no tiene que salir de la página para ver un
@@ -438,9 +448,17 @@ export function MainLanding() {
                     {formatPlanPrice(plan.price)}
                     <span className="text-base font-medium text-[#71717a]">/mes</span>
                   </p>
-                  <p className="mt-3 text-sm font-semibold text-[#27272a]">{formatIncludedMinutes(plan.minutes)} minutos incluidos</p>
-                  <p className="mt-2 text-sm leading-7 text-[#52525b]">{plan.summary}</p>
-                  <Link href={`/planes?plan=${plan.id}`} className={plan.featured ? "btn-primary mt-6" : "btn-secondary mt-6"}>
+                  <p className="mt-3 text-sm font-semibold text-[#27272a]">{formatIncludedMinutes(plan.minutes)} minutos incluidos · {formatExtraMinute(plan.extraPerMinute)}</p>
+                  <p className="mt-2 text-sm leading-6 text-[#52525b]">{plan.description}</p>
+                  <ul className="mb-7 mt-5 space-y-2.5 border-t border-[#e5e5e5] pt-5">
+                    {plan.features.map((feature) => (
+                      <li key={feature} className="flex items-start gap-2.5 text-sm leading-6 text-[#27272a]">
+                        <Check className="mt-1 h-4 w-4 shrink-0 text-[#8b5cf6]" aria-hidden="true" />
+                        {feature}
+                      </li>
+                    ))}
+                  </ul>
+                  <Link href={`/planes?plan=${plan.id}`} className={plan.featured ? "btn-primary mt-auto" : "btn-secondary mt-auto"}>
                     Elegir {plan.name}
                   </Link>
                 </article>
