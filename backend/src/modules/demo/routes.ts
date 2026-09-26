@@ -4,8 +4,22 @@ import { telnyxAiAdapter } from "../../adapters/telnyx/TelnyxAiAdapter.js";
 import { detectBusinessTypeFromPlace } from "../../lib/businessType.js";
 import { getPlaceDetails, searchPlacesForDemo } from "../places/service.js";
 
+/** Empezar una llamada de demo cuesta minutos de Telnyx: este se queda bajo. */
 const demoRateLimit = {
   max: 10,
+  timeWindow: "1 minute",
+};
+
+/**
+ * Buscar en Places es mucho más barato que una llamada, y buscar un negocio
+ * son varias peticiones: cada pausa al escribir dispara una. Con 10 por
+ * minuto, escribir dos veces el nombre de un negocio agotaba el cupo y la
+ * búsqueda dejaba de funcionar durante el resto del minuto (encontrado el
+ * 2026-09-26 probándolo en producción). Sigue siendo un techo: Places se
+ * paga por petición.
+ */
+const demoPlacesRateLimit = {
+  max: 20,
   timeWindow: "1 minute",
 };
 
@@ -135,7 +149,7 @@ export const demoRoutes: FastifyPluginAsync = async (fastify) => {
   // mismo límite estricto que la creación de la llamada.
   fastify.get<{ Querystring: { q?: string } }>(
     "/places/autocomplete",
-    { config: { rateLimit: demoRateLimit } },
+    { config: { rateLimit: demoPlacesRateLimit } },
     async (request, reply) => {
       const parsed = DemoPlaceSearchQuerySchema.safeParse(request.query);
       if (!parsed.success) {
@@ -154,7 +168,7 @@ export const demoRoutes: FastifyPluginAsync = async (fastify) => {
 
   fastify.get<{ Params: { placeId: string } }>(
     "/places/details/:placeId",
-    { config: { rateLimit: demoRateLimit } },
+    { config: { rateLimit: demoPlacesRateLimit } },
     async (request, reply) => {
       const parsed = DemoPlaceIdParamsSchema.safeParse(request.params);
       if (!parsed.success) {

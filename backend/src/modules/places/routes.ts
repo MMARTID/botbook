@@ -2,8 +2,17 @@ import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 import { searchPlaces, getPlaceDetails } from './service.js';
 
+/**
+ * Buscar un negocio son varias peticiones: cada pausa al escribir dispara
+ * una. Con 10 por minuto, escribir dos veces el nombre de un negocio agotaba
+ * el cupo y la búsqueda dejaba de funcionar durante el resto del minuto
+ * (encontrado el 2026-09-26 probándolo en producción). Sigue siendo un
+ * techo: Places se paga por petición, así que el ahorro de verdad está en
+ * pedir menos —mínimo de caracteres y debounce en el panel—, no en subir
+ * esto sin más.
+ */
 const strictRateLimit = {
-  max: 10,
+  max: 20,
   timeWindow: '1 minute',
 };
 
