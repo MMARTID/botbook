@@ -20,7 +20,7 @@ import {
   sendOwnerWhatsappActivation,
   updateMyBusiness,
 } from "@/lib/api";
-import { apiErrorCode, describeApiError } from "@/lib/api-errors";
+import { apiErrorCode, describeApiError, esLimiteDePeticiones } from "@/lib/api-errors";
 import { consumePendingPlan, isPlanId } from "@/lib/billing-navigation";
 import { detectBusinessTypeFromPlaceTypes } from "@/lib/business-type";
 import {
@@ -128,6 +128,10 @@ function useDebounce<T>(value: T, delay = 400) {
   return debouncedValue;
 }
 
+/** Mismo mínimo que la demo de la landing: por debajo, la consulta no
+ * significa nada y solo gasta cupo de Places. */
+const MINIMO_PARA_BUSCAR = 3;
+
 type LocationStatus = "detecting" | "geolocated" | "fallback";
 
 export default function RegisterBusinessPage() {
@@ -160,7 +164,12 @@ export default function RegisterBusinessPage() {
   // del negocio (después de un await, el estado de la clausura estaría viejo).
   const ownerMobileRef = useRef(ownerMobile);
   ownerMobileRef.current = ownerMobile;
-  const debouncedQuery = useDebounce(query, 350);
+  // 600 ms y mínimo tres caracteres (los mismos que la demo de la landing):
+  // cada pausa al escribir es una búsqueda en Places, que se paga por
+  // petición y está limitada por minuto. Buscar desde la primera letra tiraba
+  // tres peticiones —"p", "pe", "pel"— antes de que la consulta significara
+  // nada, y agotaba el cupo a mitad de escribir el nombre del negocio.
+  const debouncedQuery = useDebounce(query, 600);
 
   // Preferimos geolocalizar al negocio en vez de preguntarle el país: menos
   // fricción y más preciso (sesga la búsqueda a su zona, no a todo un país).
@@ -230,7 +239,7 @@ export default function RegisterBusinessPage() {
   }, [router]);
 
   useEffect(() => {
-    if (!debouncedQuery.trim() || locationStatus === "detecting") {
+    if (debouncedQuery.trim().length < MINIMO_PARA_BUSCAR || locationStatus === "detecting") {
       setResults([]);
       return;
     }
@@ -250,9 +259,15 @@ export default function RegisterBusinessPage() {
       .then((places) => {
         if (!cancelled) setResults(places);
       })
-      .catch(() => {
-        if (!cancelled)
-          setError("No se pudieron buscar negocios. Inténtalo de nuevo.");
+      .catch((err) => {
+        if (cancelled) return;
+        // El límite por minuto se dice tal cual: con el mensaje genérico
+        // parecía que la búsqueda estaba rota, no que hubiera que esperar.
+        setError(
+          esLimiteDePeticiones(err)
+            ? "Has hecho muchas búsquedas seguidas. Espera unos segundos y vuelve a probar."
+            : "No se pudieron buscar negocios. Inténtalo de nuevo."
+        );
       })
       .finally(() => {
         if (!cancelled) setLoading(false);

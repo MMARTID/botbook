@@ -19,3 +19,12 @@ export function apiErrorCode(error: unknown): string | null {
   const code = error.response?.data?.code;
   return typeof code === "string" ? code : null;
 }
+
+/**
+ * ¿El backend ha cortado por el límite de peticiones por minuto? Merece un
+ * mensaje propio: decir "no se pudo" cuando lo que pasa es que hay que
+ * esperar unos segundos se lee como una avería.
+ */
+export function esLimiteDePeticiones(error: unknown): boolean {
+  return axios.isAxiosError(error) && error.response?.status === 429;
+}
