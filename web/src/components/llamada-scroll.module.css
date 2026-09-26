@@ -1,220 +1,333 @@
 /*
- * Teléfono fijo de «Una llamada, de principio a fin».
+ * «Cómo funciona» de la portada: escenario fijo con scroll-driven.
  *
- * El marco es un render frontal (public/telefono/frente.webp) y la pantalla
- * es HTML encima, en las coordenadas del hueco del render: así el texto de
- * dentro se lee nítido a cualquier tamaño. Las medidas de la pantalla van en
- * cqw de la propia pantalla para que todo escale con el teléfono.
- *
- * Solo cambia la pantalla, y sin fundido cruzado: la anterior desaparece y
- * la nueva entra sola (nunca hay dos textos a la vez). Curvas y tiempos de
- * la guía de animación de Emil Kowalski (skill `animate`): ease-out fuerte,
- * escalonado de 70 ms, y en movimiento reducido solo opacidad.
+ * La sección mide 340vh y el escenario se queda pegado (100svh) mientras se
+ * recorre. El teléfono es un render frontal (public/telefono/frente.webp)
+ * con la pantalla en HTML encima, en las coordenadas del hueco del render;
+ * las medidas de dentro van en cqw de la pantalla para que todo escale con
+ * el teléfono. Los giros y apariciones los pone framer-motion desde el
+ * progreso del scroll (ver llamada-scroll.tsx).
  */
 
-.escena {
-  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
-  display: flex;
-  flex-direction: column;
-}
-
-/* Ancho del teléfono en móvil: el que deja, bajo la cabecera y el propio
-   teléfono, al menos ~22rem de ventana para leer el paso. */
-.telefono {
+.seccion {
   position: relative;
-  width: clamp(8.5rem, calc((100svh - 22rem) * 0.467), 11rem);
-  aspect-ratio: 1335 / 2859;
+  height: 340vh;
+  border-top: 1px solid #e5e5e5;
+  border-bottom: 1px solid #e5e5e5;
 }
 
-.areaTitulo {
-  margin-bottom: 2rem;
-}
-
-/* Móvil: el teléfono se queda pegado bajo la cabecera con fondo opaco, y
-   los pasos pasan por debajo (nunca por encima del teléfono). El degradado
-   de abajo evita el corte seco del texto al entrar. */
-.areaTelefono {
+.escenario {
   position: sticky;
-  top: 4rem;
-  z-index: 2;
+  top: 0;
   display: flex;
-  justify-content: center;
-  margin: 0 -1rem;
-  padding: 0.75rem 0 1rem;
+  height: 100svh;
+  min-height: 34rem;
+  overflow: hidden;
+  padding: 5rem 0 1rem;
   background: #fafafa;
 }
 
-.areaTelefono::after {
-  content: "";
-  position: absolute;
-  top: 100%;
-  left: 0;
-  right: 0;
-  height: 2rem;
-  background: linear-gradient(#fafafa, rgba(250, 250, 250, 0));
-  pointer-events: none;
-}
-
-.areaPasos {
-  padding-bottom: 12svh;
-}
-
-.paso {
-  display: flex;
-  gap: 1rem;
-  min-height: 38svh;
-  padding: 2rem 0.25rem;
-}
-
-.pasoNumero {
+/* Móvil: texto y barra de pasos arriba, teléfono en el hueco que quede.
+   Escritorio: texto y barra a la izquierda, teléfono a la derecha. */
+.rejilla {
   display: grid;
-  place-items: center;
-  flex-shrink: 0;
-  width: 1.75rem;
-  height: 1.75rem;
-  margin-top: 0.125rem;
-  border-radius: 999px;
-  background: #ececef;
+  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-areas: "texto" "telefono";
+  gap: 1rem;
+  width: 100%;
+  max-width: 72rem;
+  margin: 0 auto;
+  padding: 0 1rem;
+}
+
+.columnaTexto {
+  grid-area: texto;
+}
+
+.antetitulo {
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #6d28d9;
+}
+
+/* Las tres copias apiladas en la misma celda: la caja mide lo que la más
+   alta y ninguna puede salirse y pisar el teléfono. */
+.copias {
+  display: grid;
+  margin-top: 0.75rem;
+}
+
+.copia {
+  grid-area: 1 / 1;
+}
+
+.numero {
+  font-size: 0.8125rem;
+  font-weight: 700;
   color: #71717a;
-  font-size: 0.875rem;
-  font-weight: 700;
   font-variant-numeric: tabular-nums;
-  transition: background-color 300ms ease, color 300ms ease;
 }
 
-.pasoTitulo {
-  font-size: 1.25rem;
-  line-height: 1.75rem;
-  font-weight: 700;
-  letter-spacing: -0.015em;
-  color: #a1a1aa;
-  transition: color 300ms ease;
-}
-
-.pasoTexto {
-  margin-top: 0.5rem;
-  max-width: 32rem;
-  font-size: 1rem;
-  line-height: 1.75rem;
-  color: #a1a1aa;
-  transition: color 300ms ease;
-}
-
-.paso[data-activo] .pasoNumero {
-  background: #8b5cf6;
-  color: #fff;
-}
-
-.paso[data-activo] .pasoTitulo {
+.titulo {
+  margin-top: 0.375rem;
+  font-size: 1.375rem;
+  line-height: 1.2;
+  font-weight: 900;
+  letter-spacing: -0.03em;
   color: #0a0a0a;
 }
 
-.paso[data-activo] .pasoTexto {
+.texto {
+  margin-top: 0.625rem;
+  max-width: 34rem;
+  font-size: 0.9375rem;
+  line-height: 1.55rem;
   color: #52525b;
 }
 
-/* Móvil: solo se ve el paso que se está leyendo. Los demás se apagan del
-   todo (no a medias): así nunca queda texto fantasma asomando bajo el
-   teléfono. */
-@media (max-width: 1023px) {
-  .paso {
-    opacity: 0;
-    transition: opacity 250ms ease;
-  }
+.detalles {
+  display: grid;
+  gap: 0.375rem;
+  margin-top: 0.875rem;
+}
 
-  .paso[data-activo] {
-    opacity: 1;
+.detalle {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+  line-height: 1.35rem;
+  font-weight: 500;
+  color: #27272a;
+}
+
+.detalleIcono {
+  flex-shrink: 0;
+  width: 1rem;
+  height: 1rem;
+  margin-top: 0.2rem;
+  color: #8b5cf6;
+}
+
+/* Móvil: el teléfono va grande (para que su texto se lea) y se corta por
+   abajo con un degradado; la parte que importa de cada pantalla está
+   arriba. */
+.columnaTelefono {
+  grid-area: telefono;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-height: 0;
+  overflow: hidden;
+  padding-top: 0.25rem;
+  -webkit-mask-image: linear-gradient(#000 78%, transparent);
+  mask-image: linear-gradient(#000 78%, transparent);
+}
+
+.rotulo {
+  display: grid;
+  margin-bottom: 0.625rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #71717a;
+}
+
+.rotulo > span {
+  grid-area: 1 / 1;
+  justify-self: center;
+  padding: 0.25rem 0.75rem;
+  border-radius: 99px;
+  background: #fff;
+  box-shadow: 0 0 0 1px #e5e5e5;
+}
+
+.barraPasos {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+.botonPaso {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.4rem;
+  padding: 0.25rem 0;
+  border-radius: 0.75rem;
+  text-align: left;
+}
+
+.botonPaso:focus-visible {
+  outline: 2px solid #8b5cf6;
+  outline-offset: 3px;
+}
+
+.pista {
+  position: relative;
+  width: 100%;
+  height: 0.25rem;
+  overflow: hidden;
+  border-radius: 99px;
+  background: #e5e5e5;
+}
+
+.relleno {
+  position: absolute;
+  inset: 0;
+  border-radius: 99px;
+  background: #8b5cf6;
+  transform-origin: left;
+}
+
+.etiquetaPaso {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #a1a1aa;
+  transition: color 200ms ease;
+}
+
+.etiquetaPaso[data-activo] {
+  color: #6d28d9;
+}
+
+/* Móvil: el párrafo se queda fuera y hablan el título y los detalles, que
+   se van sumando con el scroll; así el teléfono tiene sitio para verse. */
+@media (max-width: 1023px) {
+  .texto {
+    display: none;
   }
 }
 
-/* Escritorio: título y pasos a la izquierda; el teléfono a la derecha,
-   pegado al centro de la ventana mientras se leen los pasos. */
+/* Pantallas bajas (iPhone SE y similares): fuera los detalles, que no hay
+   sitio para ellos y el teléfono. */
+@media (max-height: 740px) and (max-width: 1023px) {
+  .detalles {
+    gap: 0.25rem;
+    margin-top: 0.5rem;
+  }
+
+  .detalle {
+    font-size: 0.8125rem;
+    line-height: 1.2rem;
+  }
+}
+
 @media (min-width: 640px) {
-  .areaTelefono {
-    margin: 0 -1.5rem;
+  .rejilla {
+    padding: 0 1.5rem;
+  }
+
+  .titulo {
+    font-size: 1.75rem;
+  }
+
+  .texto {
+    font-size: 1rem;
+    line-height: 1.7rem;
   }
 }
 
 @media (min-width: 1024px) {
-  .escena {
-    display: grid;
+  .escenario {
+    align-items: center;
+    padding: 5.5rem 0 2rem;
+  }
+
+  .rejilla {
     grid-template-columns: minmax(0, 1fr) auto;
-    grid-template-areas: "titulo telefono" "pasos telefono";
-    column-gap: 6rem;
+    grid-template-rows: minmax(0, 1fr);
+    grid-template-areas: "texto telefono";
+    align-items: center;
+    column-gap: 5rem;
+    height: 100%;
+    padding: 0 2rem;
   }
 
-  .areaTitulo {
-    grid-area: titulo;
-    margin-bottom: 0;
+  .copias {
+    margin-top: 1.25rem;
   }
 
-  .areaTelefono {
-    grid-area: telefono;
-    position: static;
-    display: block;
-    margin: 0;
-    padding: 0;
-    background: none;
+  .titulo {
+    font-size: 2.25rem;
+    line-height: 1.1;
   }
 
-  .areaTelefono::after {
-    content: none;
+  .texto {
+    margin-top: 1rem;
+    font-size: 1.125rem;
+    line-height: 1.85rem;
+  }
+
+  .detalles {
+    gap: 0.625rem;
+    margin-top: 1.5rem;
+  }
+
+  .detalle {
+    font-size: 1rem;
+    line-height: 1.5rem;
+  }
+
+  .barraPasos {
+    margin-top: 2.5rem;
+  }
+
+  .etiquetaPaso {
+    font-size: 0.8125rem;
+  }
+}
+
+/* ── Teléfono ─────────────────────────────────────────────────── */
+
+.telefono {
+  position: relative;
+  flex-shrink: 0;
+  width: min(66vw, 17rem);
+  aspect-ratio: 1335 / 2859;
+}
+
+.sombra {
+  position: absolute;
+  left: 10%;
+  bottom: -1.75rem;
+  z-index: -1;
+  width: 80%;
+  height: 1.5rem;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(10, 10, 10, 0.22), rgba(10, 10, 10, 0));
+  pointer-events: none;
+}
+
+.columnaTelefono::before {
+  content: "";
+  position: absolute;
+  inset: 5% 10%;
+  background: radial-gradient(closest-side, rgba(139, 92, 246, 0.14), rgba(139, 92, 246, 0));
+  pointer-events: none;
+}
+
+@media (min-width: 1024px) {
+  .columnaTelefono {
+    justify-content: center;
+    overflow: visible;
+    padding-top: 0;
+    -webkit-mask-image: none;
+    mask-image: none;
   }
 
   .telefono {
-    position: sticky;
-    top: max(6rem, calc(50vh - 18.2rem));
-    width: 17rem;
+    width: auto;
+    height: min(44rem, calc(100svh - 10rem));
   }
-
-  .areaPasos {
-    grid-area: pasos;
-    padding-bottom: 18vh;
-  }
-
-  .paso {
-    min-height: 52vh;
-    align-items: center;
-    padding: 2rem 0;
-  }
-
-  .paso > .pasoNumero {
-    align-self: center;
-  }
-
-  .pasoTitulo {
-    font-size: 1.5rem;
-    line-height: 2rem;
-  }
-
-  .pasoTexto {
-    font-size: 1.0625rem;
-  }
-}
-
-/* Halo morado muy suave detrás y sombra de apoyo debajo. */
-.telefono::before {
-  content: "";
-  position: absolute;
-  inset: 8% -30% 8% -30%;
-  z-index: -1;
-  background: radial-gradient(closest-side, rgba(139, 92, 246, 0.16), rgba(139, 92, 246, 0));
-}
-
-.telefono::after {
-  content: "";
-  position: absolute;
-  left: 12%;
-  right: 12%;
-  bottom: -3.5%;
-  height: 5%;
-  z-index: -1;
-  border-radius: 50%;
-  background: radial-gradient(closest-side, rgba(10, 10, 10, 0.22), rgba(10, 10, 10, 0));
 }
 
 .marco {
   position: absolute;
+  backface-visibility: hidden;
   inset: 0;
   width: 100%;
   height: 100%;
@@ -224,12 +337,13 @@
 
 .hueco {
   position: absolute;
-  left: 5.09%;
-  top: 4.39%;
-  width: 89.6%;
-  height: 91.31%;
-  overflow: hidden;
+  left: 5.3%;
+  top: 4.5%;
   z-index: 1;
+  width: 89.2%;
+  height: 91.1%;
+  backface-visibility: hidden;
+  overflow: hidden;
   border-radius: 13% / 6%;
   background: #000;
   container-type: inline-size;
@@ -247,6 +361,11 @@
   background: #000;
 }
 
+.capa {
+  position: absolute;
+  inset: 0;
+}
+
 .estado {
   position: absolute;
   top: 3.6cqw;
@@ -261,64 +380,69 @@
   font-variant-numeric: tabular-nums;
 }
 
-.pantallaMarco,
 .pantalla {
   position: absolute;
   inset: 0;
-}
-
-.pantalla {
   display: flex;
   flex-direction: column;
   font-size: 4.4cqw;
   line-height: 1.35;
 }
 
-/* Entrada de pantalla: sube (o baja, si se vuelve atrás) un poco, con un
-   desenfoque ligero que tapa el salto. Explicativa, así que algo más larga
-   que una transición de UI. */
-.pantallaMarco {
-  --desde: 5cqw;
-  animation: entraPantalla 380ms var(--ease-out) both;
+.llamanteDatoCaja {
+  position: relative;
+  height: 5.6cqw;
+  margin-top: 1cqw;
 }
 
-.pantallaMarco[data-direccion="atras"] {
-  --desde: -5cqw;
+.llamanteDatoCaja > .llamanteDato {
+  position: absolute;
+  inset: 0;
+  margin: 0;
 }
 
-@keyframes entraPantalla {
-  from {
-    opacity: 0;
-    transform: translateY(var(--desde));
-    filter: blur(4px);
-  }
+.buscando {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6cqw;
+  padding: 3cqw 3.6cqw;
+  border-radius: 3cqw;
+  background: #f3eeff;
 }
 
-/* Las piezas de cada pantalla llegan en cascada, 70 ms entre una y otra. */
-.escalon {
-  animation: entraPieza 420ms var(--ease-out) both;
-  animation-delay: calc(140ms + var(--i, 0) * 70ms);
+.buscandoEtiqueta {
+  font-size: 3.2cqw;
+  font-weight: 600;
+  color: #6d28d9;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
 }
 
-@keyframes entraPieza {
-  from {
-    opacity: 0;
-    transform: translateY(3cqw);
-  }
+.buscandoServicio {
+  font-size: 4.8cqw;
+  font-weight: 700;
+  color: #0a0a0a;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .pantallaMarco,
-  .escalon {
-    animation: soloOpacidad 200ms ease both;
-    animation-delay: 0ms;
-  }
+.marcador {
+  position: absolute;
+  top: 0;
+  left: 13cqw;
+  right: -1.2cqw;
+  height: 16cqw;
+  border-radius: 3cqw;
+  box-shadow: inset 0 0 0 0.5cqw #8b5cf6;
+  pointer-events: none;
+  z-index: 1;
+}
 
-  @keyframes soloOpacidad {
-    from {
-      opacity: 0;
-    }
-  }
+.celda {
+  position: relative;
+  display: grid;
+}
+
+.celda > * {
+  grid-area: 1 / 1;
 }
 
 /* ── 1 · Llamada ─────────────────────────────────────────────── */
@@ -347,17 +471,17 @@
 }
 
 .transcripcion {
-  margin-top: 8cqw;
+  margin-top: 5cqw;
   display: flex;
   flex-direction: column;
-  gap: 2.6cqw;
+  gap: 2cqw;
 }
 
 .burbuja {
-  max-width: 84%;
-  padding: 2.6cqw 3.6cqw;
+  max-width: 86%;
+  padding: 2.4cqw 3.6cqw;
   border-radius: 4.4cqw;
-  font-size: 4.2cqw;
+  font-size: 4.6cqw;
 }
 
 .burbujaCliente {
@@ -391,8 +515,10 @@
 
 .onda span {
   width: 1.3cqw;
+  height: 100%;
   border-radius: 99px;
   background: #a78bfa;
+  transform-origin: center;
 }
 
 .colgar {
@@ -443,10 +569,10 @@
 }
 
 .franjas {
+  position: relative;
   margin-top: 5cqw;
   display: flex;
   flex-direction: column;
-  gap: 2cqw;
 }
 
 .franja {
@@ -454,6 +580,8 @@
   grid-template-columns: 12cqw 1fr;
   align-items: stretch;
   gap: 2.4cqw;
+  height: 16cqw;
+  padding: 1cqw 0;
 }
 
 .franjaHora {
@@ -492,28 +620,6 @@
   background: #f3eeff;
   color: #6d28d9;
   box-shadow: inset 1cqw 0 0 #8b5cf6;
-}
-
-/* La cita nueva se asienta un instante después de su fila: es la noticia. */
-.citaNueva {
-  animation: asienta 460ms var(--ease-out) both;
-  animation-delay: 520ms;
-}
-
-@keyframes asienta {
-  from {
-    transform: scale(0.94);
-    box-shadow: inset 1cqw 0 0 #8b5cf6, 0 0 0 0 rgba(139, 92, 246, 0);
-  }
-  60% {
-    box-shadow: inset 1cqw 0 0 #8b5cf6, 0 0 0 1.4cqw rgba(139, 92, 246, 0.18);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .citaNueva {
-    animation: none;
-  }
 }
 
 .citaNueva .citaTitulo {
@@ -591,7 +697,7 @@
   flex: 1;
   display: flex;
   flex-direction: column;
-  justify-content: flex-end;
+  justify-content: flex-start;
   gap: 2cqw;
   padding: 6cqw 4cqw 4cqw;
 }
@@ -642,7 +748,7 @@
   border-radius: 3cqw;
   border-top-left-radius: 0.8cqw;
   background: #fff;
-  font-size: 4cqw;
+  font-size: 4.6cqw;
   box-shadow: 0 0.3cqw 0.5cqw rgba(11, 20, 26, 0.08);
 }
 
@@ -665,4 +771,11 @@
   font-weight: 600;
   color: #027eb5;
   box-shadow: 0 0.3cqw 0.5cqw rgba(11, 20, 26, 0.08);
+}
+
+.waMio {
+  align-self: flex-end;
+  background: #d9fdd3;
+  border-top-left-radius: 3cqw;
+  border-top-right-radius: 0.8cqw;
 }

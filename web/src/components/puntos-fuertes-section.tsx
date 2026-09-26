@@ -1,12 +1,13 @@
-import { Clock3, Headphones, MessageSquareText, Store } from "lucide-react";
+import { CalendarX2, Headphones, MessageSquareText, Store } from "lucide-react";
 
 import { Reveal } from "@/components/scroll-reveal";
 
 /**
  * Lo que diferencia a Alhabla de un contestador o de un bot genérico
- * (2026-09-26), sacado del «Positioning» de PRODUCT.md: tres ventajas con
- * dibujo (reserva verificada, voz natural, reparto por especialidad) y tres
- * más en una fila compacta. El Gestor tiene sección propia más abajo.
+ * (2026-09-26), sacado del «Positioning» de PRODUCT.md: dos ventajas con
+ * dibujo (voz natural, reparto por especialidad) y tres más en una fila
+ * compacta. La reserva verificada ya la enseña el teléfono de «Cómo
+ * funciona», justo encima; El Gestor tiene sección propia más abajo.
  */
 
 const OTRAS = [
@@ -23,10 +24,10 @@ const OTRAS = [
       "Cuando le preguntan algo que no está en tus datos, toma un recado con el nombre y el teléfono del cliente y te lo pasa. Nada de respuestas improvisadas.",
   },
   {
-    Icono: Clock3,
-    titulo: "Siempre disponible",
+    Icono: CalendarX2,
+    titulo: "Si tu calendario falla, te avisa",
     texto:
-      "Atiende las 24 horas, también fines de semana y festivos. Y si tu calendario se desconecta, te avisa para que ninguna reserva se quede en el aire.",
+      "Si la conexión con tu calendario caduca, te avisa para que la renueves y ninguna reserva se quede en el aire.",
   },
 ] as const;
 
@@ -39,37 +40,12 @@ export function PuntosFuertesSection({ onEscuchar }: { onEscuchar: () => void })
             No es un contestador. Es tu recepción.
           </h2>
           <p className="mt-4 text-base leading-7 text-[#52525b] sm:text-lg sm:leading-8">
-            Un contestador toma nota y te deja el trabajo a ti. Alhabla resuelve la llamada: informa, reserva y confirma, con las mismas reglas que pondrías tú.
+            Un contestador solo graba un mensaje. Alhabla resuelve la llamada: informa, reserva y confirma, con las mismas reglas que pondrías tú.
           </p>
         </Reveal>
 
-        <div className="mt-10 grid gap-5 sm:mt-12 lg:grid-cols-3">
+        <div className="mt-10 grid gap-5 sm:mt-12 lg:grid-cols-2">
           <Reveal delay={0} className="h-full">
-            <article className="flex h-full flex-col rounded-3xl border border-[#e5e5e5] bg-white p-7">
-              <div className="flex h-36 flex-col justify-center gap-2 rounded-2xl bg-[#fafafa] px-5 text-sm" aria-hidden="true">
-                <div className="flex items-center gap-3">
-                  <span className="w-11 shrink-0 tabular-nums text-xs text-[#a1a1aa]">17:00</span>
-                  <span className="flex-1 rounded-xl bg-[#ececef] px-3 py-1.5 text-[#71717a] line-through decoration-[#a1a1aa]">Ocupado</span>
-                </div>
-                <div className="flex items-center gap-3">
-                  <span className="w-11 shrink-0 tabular-nums text-xs text-[#a1a1aa]">17:30</span>
-                  <span className="flex flex-1 items-center justify-between rounded-xl bg-[#f3eeff] px-3 py-1.5 font-semibold text-[#6d28d9] ring-1 ring-inset ring-[#8b5cf6]/30">
-                    Libre · 90 min <span className="text-xs font-medium">con Marta</span>
-                  </span>
-                </div>
-                <div className="flex items-center gap-3">
-                  <span className="w-11 shrink-0 tabular-nums text-xs text-[#a1a1aa]">19:00</span>
-                  <span className="flex-1 rounded-xl bg-[#ececef] px-3 py-1.5 text-[#71717a] line-through decoration-[#a1a1aa]">Ocupado</span>
-                </div>
-              </div>
-              <h3 className="mt-7 text-xl font-bold tracking-tight text-[#0a0a0a]">Nunca reserva a ciegas</h3>
-              <p className="mt-2 text-base leading-7 text-[#52525b]">
-                Comprueba tu horario y tu calendario antes de ofrecer una hora, y cuenta lo que dura cada servicio. Tu agenda manda: no promete huecos que no existen ni te monta dos citas a la vez.
-              </p>
-            </article>
-          </Reveal>
-
-          <Reveal delay={0.08} className="h-full">
             <article className="flex h-full flex-col rounded-3xl border border-[#e5e5e5] bg-white p-7">
               <div className="flex h-36 items-center justify-center gap-[5px] rounded-2xl bg-[#f3eeff]" aria-hidden="true">
                 {[22, 38, 58, 34, 70, 48, 28, 62, 44, 30, 52, 26, 40].map((alto, i) => (
@@ -88,7 +64,7 @@ export function PuntosFuertesSection({ onEscuchar }: { onEscuchar: () => void })
             </article>
           </Reveal>
 
-          <Reveal delay={0.16} className="h-full">
+          <Reveal delay={0.08} className="h-full">
             <article className="flex h-full flex-col rounded-3xl border border-[#e5e5e5] bg-white p-7">
               <div className="flex h-36 flex-col justify-center gap-2 rounded-2xl bg-[#fafafa] px-5" aria-hidden="true">
                 {[

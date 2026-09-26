@@ -7,14 +7,13 @@ import { TRIAL_REASSURANCE } from "@/lib/plans";
 /**
  * Puesta en marcha (2026-09-26): responde a «¿es difícil?» justo antes del
  * precio, con los tres pasos reales del alta (negocio → calendario →
- * desvío). Sin tiempos totales inventados: el único dato medido es el del
- * desvío, que ya cita la FAQ.
+ * desvío). Sin tiempos inventados.
  */
 const PASOS = [
   {
     titulo: "Das de alta tu negocio",
     texto:
-      "Lo buscas en Google y rellenamos los datos básicos. Eliges tu sector y partes de sus servicios habituales; solo ajustas precios, duraciones y quién hace cada cosa.",
+      "Lo buscas en Google y Alhabla rellena los datos básicos. Eliges tu sector y partes de sus servicios habituales; solo ajustas precios, duraciones y quién hace cada cosa.",
   },
   {
     titulo: "Conectas tu calendario",
@@ -24,7 +23,7 @@ const PASOS = [
   {
     titulo: "Activas el desvío",
     texto:
-      "Marcas un código en tu teléfono: unos 15 segundos, y te guiamos según tu operador. Tu número no cambia y no tienes que avisar a nadie.",
+      "Marcas un código en tu teléfono y te guiamos según tu operador. Tu número no cambia y no tienes que avisar a nadie.",
   },
 ] as const;
 

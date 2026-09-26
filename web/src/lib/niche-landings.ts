@@ -230,7 +230,7 @@ export const nicheLandings: Record<NicheSlug, NicheLandingContent> = {
         buttons: ["Sí, muévelas", "Ya lo hago yo"],
         confirmation: "Hecho ✓ Las mechas de las 11:00 ya están con Laura.",
       },
-      closing: "Todo lo que confirmas por WhatsApp queda en tu agenda real al momento — nunca solo en la conversación.",
+      closing: "Nunca cambia nada sin que pulses «Confirmar».",
     },
     calculator: { badge: "Calcula las citas que se escapan", title: "¿Cuánto pierde tu peluquería por no contestar?", description: "Estima el valor de cortes, coloraciones y tratamientos que pueden terminar en otro salón.", ticketLabel: "Ticket medio por cita", appointmentsLabel: "Citas perdidas cada semana", initialTicket: 45 },
     faqs: [
@@ -358,7 +358,7 @@ export const nicheLandings: Record<NicheSlug, NicheLandingContent> = {
         buttons: ["Sí, muévelo", "Ya lo hago yo"],
         confirmation: "Hecho ✓ El facial de las 12:00 ya está con Elena.",
       },
-      closing: "Todo lo que confirmas por WhatsApp queda en tu agenda real al momento — nunca solo en la conversación.",
+      closing: "Nunca cambia nada sin que pulses «Confirmar».",
     },
     calculator: { badge: "Calcula oportunidades sin atender", title: "¿Cuánto valen las consultas que no puedes responder?", description: "Estima tratamientos y valoraciones que podrías recuperar con recepción continua.", ticketLabel: "Ticket medio por tratamiento", appointmentsLabel: "Consultas perdidas cada semana", initialTicket: 80 },
     faqs: [
@@ -487,7 +487,7 @@ export const nicheLandings: Record<NicheSlug, NicheLandingContent> = {
         buttons: ["Sí, muévela", "Ya lo hago yo"],
         confirmation: "Hecho ✓ La manicura de las 11:00 ya está con Noa.",
       },
-      closing: "Todo lo que confirmas por WhatsApp queda en tu agenda real al momento — nunca solo en la conversación.",
+      closing: "Nunca cambia nada sin que pulses «Confirmar».",
     },
     calculator: { badge: "Calcula citas recurrentes perdidas", title: "¿Cuánto pierde tu salón cuando no responde?", description: "Mide el impacto mensual de manicuras y pedicuras que terminan reservándose en otro sitio.", ticketLabel: "Ticket medio por servicio", appointmentsLabel: "Citas perdidas cada semana", initialTicket: 30 },
     faqs: [
@@ -614,7 +614,7 @@ export const nicheLandings: Record<NicheSlug, NicheLandingContent> = {
         buttons: ["Sí, muévelo", "Ya lo hago yo"],
         confirmation: "Hecho ✓ El corte de las 12:00 ya está con Dani.",
       },
-      closing: "Todo lo que confirmas por WhatsApp queda en tu agenda real al momento — nunca solo en la conversación.",
+      closing: "Nunca cambia nada sin que pulses «Confirmar».",
     },
     calculator: { badge: "Calcula cortes que se escapan", title: "¿Cuánto pierde tu barbería en horas punta?", description: "Estima el valor de cortes y packs que no se reservan cuando nadie puede atender el teléfono.", ticketLabel: "Ticket medio por visita", appointmentsLabel: "Citas perdidas cada semana", initialTicket: 25 },
     faqs: [
@@ -747,7 +747,7 @@ export const nicheLandings: Record<NicheSlug, NicheLandingContent> = {
         buttons: ["Sí, muévela", "Ya lo hago yo"],
         confirmation: "Hecho ✓ La sesión de las 11:00 ya está con Irene.",
       },
-      closing: "Todo lo que confirmas por WhatsApp queda en tu agenda real al momento — nunca solo en la conversación.",
+      closing: "Nunca cambia nada sin que pulses «Confirmar».",
     },
     calculator: {
       badge: "Calcula pacientes que no consiguen cita",
@@ -947,7 +947,7 @@ export const generalOwnerAssistant: OwnerAssistant = {
   badge: "Incluido en todos los planes",
   title: "Y cuando algo cambia, se lo dices por WhatsApp.",
   description:
-    "Alhabla no es solo quien contesta el teléfono: también es con quien hablas tú. Le cambias un precio, el horario o una cita por WhatsApp y lo aplica en tu agenda real, sin que tengas que abrir el panel.",
+    "Alhabla no es solo quien contesta el teléfono: también es con quien hablas tú. Le pides por WhatsApp cambiar un precio, el horario o una cita, te propone el cambio y, cuando pulsas «Confirmar», queda en tu agenda.",
   examples: [
     {
       title: "Si un profesional falta",
@@ -959,7 +959,7 @@ export const generalOwnerAssistant: OwnerAssistant = {
     },
     {
       title: "Si cambias un precio o el horario",
-      description: "«el servicio pasa a 30€» o «los lunes abrimos a las 10» — se actualiza en tu catálogo y tu horario al momento, sin entrar al panel.",
+      description: "«el servicio pasa a 30€» o «los lunes abrimos a las 10» — se actualiza en tu catálogo y tu horario al momento.",
     },
   ],
   chat: {
@@ -968,5 +968,5 @@ export const generalOwnerAssistant: OwnerAssistant = {
     buttons: ["Sí, muévela", "Ya lo hago yo"],
     confirmation: "Hecho ✓ La cita de las 11:00 ya está con Marcos.",
   },
-  closing: "Todo lo que confirmas por WhatsApp queda en tu agenda real al momento — nunca solo en la conversación.",
+  closing: "Nunca cambia nada sin que pulses «Confirmar».",
 };

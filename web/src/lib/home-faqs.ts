@@ -15,7 +15,7 @@ export const HOME_QUICK_FAQS = [
   },
   {
     question: "¿Es difícil de configurar?",
-    answer: "No. Activas el desvío marcando un código rápido en tu teléfono; tarda unos 15 segundos y te guiamos paso a paso para tu operador.",
+    answer: "No. Activas el desvío marcando un código en tu teléfono y te guiamos paso a paso para tu operador.",
   },
   {
     question: "¿Hay permanencia?",
@@ -27,7 +27,7 @@ export const HOME_QUICK_FAQS = [
   },
   {
     question: "¿Puede reservar encima de una cita que ya tengo?",
-    answer: "No. Antes de ofrecer una hora comprueba tu horario y tu calendario real, y cuenta la duración del servicio. Si ese hueco está ocupado, propone el más cercano.",
+    answer: "No. Comprueba tu calendario antes de ofrecer una hora.",
   },
   {
     question: "¿Puedo escuchar lo que ha hablado con mis clientes?",

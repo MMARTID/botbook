@@ -9,7 +9,12 @@ import { DemoVoiceCall } from "@/components/demo-voice-call";
 import { HeroHilos } from "@/components/hero-hilos";
 import { SiteHeader } from "@/components/site-header";
 import { Reveal } from "@/components/scroll-reveal";
-import { RelatoSection } from "@/components/relato-section";
+import { EnMarchaSection } from "@/components/en-marcha-section";
+import { LlamadaScroll } from "@/components/llamada-scroll";
+import { OwnerAssistantSection } from "@/components/owner-assistant-section";
+import { PuntosFuertesSection } from "@/components/puntos-fuertes-section";
+import { WhatsAppClientesSection } from "@/components/whatsapp-clientes-section";
+import { generalOwnerAssistant } from "@/lib/niche-landings";
 import { HOME_QUICK_FAQS } from "@/lib/home-faqs";
 import { formatExtraMinute, formatIncludedMinutes, formatPlanPrice, plans, TRIAL_REASSURANCE } from "@/lib/plans";
 
@@ -118,7 +123,7 @@ function SectorAccordion({ sectores }: { sectores: typeof SECTORES }) {
               <span className="text-2xl font-bold tracking-tight text-white">{sector.title}</span>
               <span className="max-w-md text-base leading-7 text-white/85">{sector.description}</span>
               <span className="mt-1 inline-flex items-center gap-2 text-sm font-semibold text-white">
-                Ver planes y precios
+                Ver cómo atiende en tu sector
                 <ArrowRight className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-1" aria-hidden="true" />
               </span>
             </span>
@@ -141,7 +146,7 @@ function SectorAccordion({ sectores }: { sectores: typeof SECTORES }) {
  * Se abre al TOCAR, no al pasar por encima: en una tableta no hay ratón, y
  * un panel que fuera un enlace entero se navegaría con el primer toque sin
  * llegar a enseñar nunca la foto. Por eso la fila es un botón que abre y el
- * enlace de verdad es el «Ver planes y precios» de dentro.
+ * enlace de verdad es el «Ver cómo atiende en tu sector» de dentro.
  */
 const ACORDEON_VERTICAL_ABIERTO = 4.6;
 
@@ -215,7 +220,7 @@ function SectorAccordionVertical({ sectores }: { sectores: typeof SECTORES }) {
                 tabIndex={esteAbierto ? 0 : -1}
                 className="pointer-events-auto mt-1 inline-flex w-fit items-center gap-2 rounded-full text-sm font-semibold text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-[#0a0a0a]"
               >
-                Ver planes y precios <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                Ver cómo atiende en tu sector <ArrowRight className="h-4 w-4" aria-hidden="true" />
               </Link>
             </span>
           </div>
@@ -299,7 +304,7 @@ function SectorCarousel({ sectores }: { sectores: typeof SECTORES }) {
               <span className="text-2xl font-bold tracking-tight text-white">{sector.title}</span>
               <span className="text-sm leading-6 text-white/85">{sector.description}</span>
               <span className="mt-1 inline-flex items-center gap-2 text-sm font-semibold text-white">
-                Ver planes y precios <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                Ver cómo atiende en tu sector <ArrowRight className="h-4 w-4" aria-hidden="true" />
               </span>
             </span>
           </Link>
@@ -366,15 +371,27 @@ export function MainLanding() {
         </div>
       </section>
 
+
       {/*
-        Las tarjetas de sector suben aquí, justo después del hero
-        (2026-09-24, propuesta de conversión — revierte el orden de
-        2026-09-21, ver historial de este comentario): el trabajo real de la
-        landing principal es enrutar rápido a quien ya sabe su sector — cada
-        landing de nicho lleva ahora su propia profundidad completa (cómo
-        funciona, reparto, El Gestor, datos del sector), así que no hace
-        falta repetirla en genérico antes de ofrecer la salida. Quien no
-        pica aquí sigue leyendo el relato genérico de abajo.
+        Orden (2026-09-26): cómo funciona, scroll-driven y con el teléfono
+        (los tres pasos de una llamada) → qué la hace distinta de un
+        contestador → qué recibe el cliente por WhatsApp → El Gestor → puesta
+        en marcha → sectores → precio → dudas.
+      */}
+      <LlamadaScroll />
+
+      <PuntosFuertesSection onEscuchar={() => setIsDemoOpen(true)} />
+
+      <WhatsAppClientesSection />
+
+      <OwnerAssistantSection data={generalOwnerAssistant} />
+
+      <EnMarchaSection />
+
+      {/*
+        Sectores justo encima del precio (2026-09-26, a petición del
+        usuario; antes iban tras el hero): quien ya ha visto cómo funciona
+        elige su sector o sigue al precio.
       */}
       <section id="sectores" className="scroll-m-20 border-b border-[#e5e5e5] py-16 sm:py-24">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
@@ -393,15 +410,6 @@ export function MainLanding() {
           </div>
         </div>
       </section>
-
-      {/*
-        El relato (2026-09-26, «quiero que toda la secuencia sea
-        storyscroll»): un único teléfono fijo acompaña cinco capítulos —
-        cómo se atiende una llamada, qué la hace distinta de un contestador,
-        qué recibe el cliente por WhatsApp, qué hace el dueño por WhatsApp
-        (El Gestor) y cómo se pone en marcha. Luego, precio y dudas.
-      */}
-      <RelatoSection onEscuchar={() => setIsDemoOpen(true)} />
 
       {/* Precio y FAQ compactos aquí mismo: la visitante que llega convencida
           por el relato anterior no tiene que salir de la página para ver un
