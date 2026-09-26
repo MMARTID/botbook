@@ -9,12 +9,7 @@ import { DemoVoiceCall } from "@/components/demo-voice-call";
 import { HeroHilos } from "@/components/hero-hilos";
 import { SiteHeader } from "@/components/site-header";
 import { Reveal } from "@/components/scroll-reveal";
-import { EnMarchaSection } from "@/components/en-marcha-section";
-import { OwnerAssistantSection } from "@/components/owner-assistant-section";
-import { PuntosFuertesSection } from "@/components/puntos-fuertes-section";
-import { UnaLlamadaSection } from "@/components/una-llamada-section";
-import { WhatsAppClientesSection } from "@/components/whatsapp-clientes-section";
-import { generalOwnerAssistant } from "@/lib/niche-landings";
+import { RelatoSection } from "@/components/relato-section";
 import { HOME_QUICK_FAQS } from "@/lib/home-faqs";
 import { formatExtraMinute, formatIncludedMinutes, formatPlanPrice, plans, TRIAL_REASSURANCE } from "@/lib/plans";
 
@@ -400,22 +395,13 @@ export function MainLanding() {
       </section>
 
       {/*
-        Orden de la portada (2026-09-26, tras «hay muy poco texto»): cómo se
-        atiende una llamada (el mecanismo, con el teléfono) → qué la hace
-        distinta de un contestador (las ventajas de PRODUCT.md) → qué recibe
-        el cliente por WhatsApp → qué hace el dueño por WhatsApp (El Gestor)
-        → cómo se pone en marcha → precio → dudas. Los datos del sector y el
-        reparto largo siguen en las landings de nicho.
+        El relato (2026-09-26, «quiero que toda la secuencia sea
+        storyscroll»): un único teléfono fijo acompaña cinco capítulos —
+        cómo se atiende una llamada, qué la hace distinta de un contestador,
+        qué recibe el cliente por WhatsApp, qué hace el dueño por WhatsApp
+        (El Gestor) y cómo se pone en marcha. Luego, precio y dudas.
       */}
-      <UnaLlamadaSection />
-
-      <PuntosFuertesSection onEscuchar={() => setIsDemoOpen(true)} />
-
-      <WhatsAppClientesSection />
-
-      <OwnerAssistantSection data={generalOwnerAssistant} />
-
-      <EnMarchaSection />
+      <RelatoSection onEscuchar={() => setIsDemoOpen(true)} />
 
       {/* Precio y FAQ compactos aquí mismo: la visitante que llega convencida
           por el relato anterior no tiene que salir de la página para ver un
