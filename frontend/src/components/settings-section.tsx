@@ -43,7 +43,7 @@ export function SettingsSection({
           <span className="block text-base font-semibold text-[#0a0a0a] sm:text-lg">
             {title}
           </span>
-          <span className={`mt-0.5 flex items-center gap-1.5 text-sm ${pending ? "font-medium text-[#9f7a15]" : "text-muted"}`}>
+          <span className={`mt-0.5 flex items-center gap-1.5 text-sm ${pending ? "font-medium text-[#806012]" : "text-muted"}`}>
             {pending ? <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#9f7a15]" aria-hidden="true" /> : null}
             <span className="truncate">{summary}</span>
           </span>

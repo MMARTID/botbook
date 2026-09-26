@@ -92,10 +92,17 @@ export function PendingBookings({ timeZone }: PendingBookingsProps) {
   );
 }
 
+/** «Jueves, 1 de octubre» es un título; a mitad de frase va «el jueves, 1 de
+ * octubre» (y «hoy», «mañana» sin artículo). */
+function diaEnFrase(dia: string) {
+  if (dia === "Hoy" || dia === "Mañana") return dia.toLowerCase();
+  return `el ${dia.charAt(0).toLowerCase()}${dia.slice(1)}`;
+}
+
 function PendingRow({ item, timeZone }: { item: PendingBooking; timeZone: string }) {
   const phone = formatPhone(item.clientPhone);
   const cuando = item.requestedAt
-    ? `${formatDayLabel(item.requestedAt, timeZone)} a las ${formatClock(item.requestedAt, timeZone)}`
+    ? `${diaEnFrase(formatDayLabel(item.requestedAt, timeZone))} a las ${formatClock(item.requestedAt, timeZone)}`
     : null;
 
   return (

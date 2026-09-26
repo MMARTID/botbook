@@ -19,6 +19,7 @@ import {
   X,
 } from "lucide-react";
 import { getCall } from "@/lib/api";
+import { SectionErrorState } from "@/components/section-card";
 import {
   formatCurrency,
   formatDate,
@@ -35,7 +36,7 @@ import type { TranscriptMessage } from "@/lib/types";
 
 const TONE_BADGE_CLASSES = {
   success: "bg-[#ecf7ec] text-[#2c7334] ring-1 ring-inset ring-[#d8efd7]",
-  warning: "bg-[#fef8e7] text-[#9f7a15] ring-1 ring-inset ring-[#f0dfa8]",
+  warning: "bg-[#fef8e7] text-[#806012] ring-1 ring-inset ring-[#f0dfa8]",
   neutral: "bg-[#f4f4f5] text-[#52525b] ring-1 ring-inset ring-[#e5e5e5]",
 } as const;
 
@@ -114,7 +115,7 @@ export function CallDetailModal({
             type="button"
             onClick={onClose}
             aria-label="Cerrar detalle de llamada"
-            className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-[#e5e5e5] bg-white text-[#0a0a0a] transition hover:bg-[#fafafa] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] focus-visible:ring-offset-2"
+            className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[#e5e5e5] bg-white text-[#0a0a0a] transition hover:bg-[#fafafa] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] focus-visible:ring-offset-2"
           >
             <X className="h-4 w-4" />
           </button>
@@ -127,9 +128,10 @@ export function CallDetailModal({
               Cargando llamada…
             </div>
           ) : callQuery.isError || !call ? (
-            <div className="rounded-2xl border border-[#f5d3d3] bg-[#fff1f1] px-4 py-6 text-center text-sm text-[#c53030]">
-              No se pudo cargar el detalle de esta llamada.
-            </div>
+            <SectionErrorState
+              message="No se pudo cargar el detalle de esta llamada."
+              onRetry={() => void callQuery.refetch()}
+            />
           ) : (
             <div className="space-y-4">
               <div className="flex flex-wrap items-center gap-2">
@@ -153,12 +155,12 @@ export function CallDetailModal({
               </div>
 
               {call.summary ? (
-                <div className="rounded-2xl border border-[#e9e0fe] bg-[#f7f4ff] p-4 sm:p-5">
+                <div className="rounded-2xl border border-[#ddd6fe] bg-[#f3eeff] p-4 sm:p-5">
                   <div className="flex items-center gap-2 text-sm font-semibold text-[#0a0a0a]">
                     <Sparkles className="h-4 w-4 text-[#8b5cf6]" />
                     Resumen de la llamada
                   </div>
-                  <p className="mt-2 text-sm leading-6 text-[#3f3a4d]">{call.summary}</p>
+                  <p className="mt-2 text-sm leading-6 text-[#27272a]">{call.summary}</p>
                 </div>
               ) : null}
 
@@ -187,8 +189,8 @@ export function CallDetailModal({
                     </div>
                     <div className="flex justify-between gap-3">
                       <dt className="text-muted">Teléfono</dt>
-                      <dd className="text-right font-medium">
-                        {call.booking.clientPhone ?? call.fromNumber ?? "No proporcionado"}
+                      <dd className="text-right font-medium tabular-nums">
+                        {formatPhone(call.booking.clientPhone ?? call.fromNumber) ?? "No proporcionado"}
                       </dd>
                     </div>
                   </dl>

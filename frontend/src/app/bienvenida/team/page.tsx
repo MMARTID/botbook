@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { CalendarClock, LoaderCircle, Users } from "lucide-react";
+import { PasoDelAlta } from "@/components/paso-del-alta";
+import { ArrowRight, CalendarClock, LoaderCircle, Users } from "lucide-react";
 import { createBookingProfessional, getBookingSettings, updateMyBusiness } from "@/lib/api";
 import { getPlanLimitInfo, planLimitUpgradeMessage } from "@/lib/plan-limit";
 import { BUSINESS_TYPE_ONBOARDING_TEXTS, isBusinessType } from "@/lib/business-type";
@@ -130,15 +131,16 @@ export default function RegisterBusinessTeamPage() {
   const texts = BUSINESS_TYPE_ONBOARDING_TEXTS[businessType];
 
   return (
-    <div className="flex min-h-screen items-center justify-center px-4 py-12 sm:px-6 lg:px-8">
-      <div className="panel w-full max-w-lg p-8">
+    <main className="flex min-h-screen items-center justify-center px-4 py-12 sm:px-6 lg:px-8">
+      <div className="panel w-full max-w-lg p-6 sm:p-8">
+        <PasoDelAlta paso={4} />
         <div className="space-y-4 text-center">
-          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-[#f3eeff] text-[#8b5cf6]">
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-xl bg-[#f3eeff] text-[#8b5cf6]">
             <Users className="h-7 w-7" />
           </div>
-          <h2 className="text-3xl font-black tracking-tight text-[#0a0a0a]">
+          <h1 className="text-3xl font-black tracking-tight text-[#0a0a0a]">
             {texts.team.heading}
-          </h2>
+          </h1>
           <p className="mx-auto max-w-md text-sm leading-6 text-muted">
             {texts.team.subheading}
           </p>
@@ -177,24 +179,24 @@ export default function RegisterBusinessTeamPage() {
           />
         </div>
 
-        {error && <p className="mt-4 text-sm text-[#c53030]">{error}</p>}
+        {error && <p role="alert" className="mt-4 text-sm text-[#c53030]">{error}</p>}
 
         <div className="mt-8 space-y-3">
           <button
             type="button"
             onClick={handleConfirm}
             disabled={saving}
-            className="btn-primary w-full justify-center disabled:cursor-not-allowed disabled:opacity-50"
+            className="btn-primary w-full"
           >
             {saving ? (
               <>
-                <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
-                Guardando...
+                <LoaderCircle className="h-4 w-4 animate-spin" />
+                Guardando…
               </>
             ) : (
               <>
-                <CalendarClock className="mr-2 h-4 w-4" />
                 {texts.team.cta}
+                <ArrowRight className="h-4 w-4" aria-hidden="true" />
               </>
             )}
           </button>
@@ -202,12 +204,12 @@ export default function RegisterBusinessTeamPage() {
             type="button"
             onClick={() => redirectToNextStep()}
             disabled={saving}
-            className="btn-secondary w-full justify-center disabled:cursor-not-allowed disabled:opacity-50"
+            className="btn-secondary w-full"
           >
             Configurar equipo después
           </button>
         </div>
       </div>
-    </div>
+    </main>
   );
 }

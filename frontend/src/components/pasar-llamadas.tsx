@@ -49,7 +49,7 @@ export function PasarLlamadas({
                 className={`mt-1 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border ${
                   value === modo
                     ? "border-[#8b5cf6] bg-[#8b5cf6]"
-                    : "border-[#d4d4d8] bg-white"
+                    : "border-[#a1a1aa] bg-white"
                 }`}
               >
                 {value === modo ? (

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { PasoDelAlta } from "@/components/paso-del-alta";
 import {
   Building2,
   CalendarClock,
@@ -137,7 +138,13 @@ export default function RegisterBusinessPage() {
   const [selected, setSelected] = useState<PlaceDetails | null>(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  // Qué botón se pulsó: «Guardando…» va en ese, no siempre en el primario.
+  const [accion, setAccion] = useState<"confirmar" | "omitir" | null>(null);
   const [error, setError] = useState("");
+  // Los fallos de la búsqueda se enseñan bajo el buscador, no al pie de la
+  // tarjeta (en móvil quedaban dos pantallas más abajo).
+  const [errorBusqueda, setErrorBusqueda] = useState("");
+  const [sinResultados, setSinResultados] = useState(false);
   const [country, setCountry] = useState<string>("ES");
   const [locationStatus, setLocationStatus] = useState<LocationStatus>("detecting");
   const [coords, setCoords] = useState<{ latitude: number; longitude: number } | null>(null);
@@ -232,12 +239,14 @@ export default function RegisterBusinessPage() {
   useEffect(() => {
     if (!debouncedQuery.trim() || locationStatus === "detecting") {
       setResults([]);
+      setSinResultados(false);
       return;
     }
 
     let cancelled = false;
     setLoading(true);
-    setError("");
+    setErrorBusqueda("");
+    setSinResultados(false);
 
     const location =
       locationStatus === "geolocated" && coords
@@ -248,11 +257,14 @@ export default function RegisterBusinessPage() {
 
     searchPlaces(debouncedQuery, location)
       .then((places) => {
-        if (!cancelled) setResults(places);
+        if (!cancelled) {
+          setResults(places);
+          setSinResultados(places.length === 0);
+        }
       })
       .catch(() => {
         if (!cancelled)
-          setError("No se pudieron buscar negocios. Inténtalo de nuevo.");
+          setErrorBusqueda("No se pudieron buscar negocios. Inténtalo de nuevo.");
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -265,7 +277,7 @@ export default function RegisterBusinessPage() {
 
   const handleSelect = async (place: PlaceSearchResult) => {
     setLoading(true);
-    setError("");
+    setErrorBusqueda("");
     setResults([]);
     setQuery(`${place.name}${place.address ? `, ${place.address}` : ""}`);
 
@@ -294,7 +306,7 @@ export default function RegisterBusinessPage() {
         }
       }
     } catch {
-      setError("No se pudieron cargar los detalles del negocio.");
+      setErrorBusqueda("No se pudieron cargar los detalles del negocio. Elígelo otra vez.");
       setSelected(null);
     } finally {
       setLoading(false);
@@ -463,6 +475,7 @@ export default function RegisterBusinessPage() {
     if (!telefonia) return;
 
     setSaving(true);
+    setAccion("confirmar");
     setError("");
 
     try {
@@ -509,6 +522,7 @@ export default function RegisterBusinessPage() {
     // falla, se enseña el error y NO se redirige: la persona lo escribió
     // para algo.
     setSaving(true);
+    setAccion("omitir");
     setError("");
     try {
       const movilGuardado = await saveAndActivate(
@@ -553,16 +567,17 @@ export default function RegisterBusinessPage() {
   const summaryLines = Array.isArray(summary) ? summary : [];
 
   return (
-    <div className="flex min-h-screen items-center justify-center px-4 py-12 sm:px-6 lg:px-8">
-      <div className="panel w-full max-w-lg p-8">
+    <main className="flex min-h-screen items-center justify-center px-4 py-12 sm:px-6 lg:px-8">
+      <div className="panel w-full max-w-lg p-6 sm:p-8">
+        <PasoDelAlta paso={1} />
         <div className="space-y-4 text-center">
           <LottieAnimation
             src="/animations/landing/GoogleMaposIcon.json"
             className="mx-auto h-16 w-16"
           />
-          <h2 className="text-3xl font-black tracking-tight text-[#0a0a0a]">
+          <h1 className="text-3xl font-black tracking-tight text-[#0a0a0a]">
             ¿Cuál es tu negocio?
-          </h2>
+          </h1>
           <p className="mx-auto max-w-md text-sm leading-6 text-muted">
             Busca tu negocio para rellenar automáticamente dirección, teléfono y
             horario. Puedes cambiarlo luego en ajustes.
@@ -619,6 +634,8 @@ export default function RegisterBusinessPage() {
               if (selected) setSelected(null);
             }}
             placeholder="Nombre del negocio o dirección"
+            autoComplete="off"
+            aria-describedby="register-business-search-status"
             className="field w-full pl-10"
           />
           {loading && !selected && (
@@ -663,6 +680,26 @@ export default function RegisterBusinessPage() {
             </ul>
           )}
         </div>
+
+        {/* Siempre montado para que el lector de pantalla anuncie el cambio. */}
+        <p
+          id="register-business-search-status"
+          role={errorBusqueda ? "alert" : "status"}
+          className={
+            errorBusqueda
+              ? "mt-2 text-sm text-[#c53030]"
+              : sinResultados && !loading && !selected
+                ? "mt-2 text-sm leading-6 text-muted"
+                : "sr-only"
+          }
+        >
+          {errorBusqueda ||
+            (sinResultados && !loading && !selected
+              ? "No encontramos ese negocio. Prueba con el nombre y la ciudad, o sigue con «No encontré mi negocio»."
+              : loading
+                ? "Buscando…"
+                : "")}
+        </p>
 
         {selected && (
           <div className="mt-6 space-y-4 rounded-2xl border border-[#e5e5e5] bg-[#fafafa] p-5">
@@ -734,7 +771,7 @@ export default function RegisterBusinessPage() {
             <div className="mt-4">
               <label
                 htmlFor="register-customer-line-number"
-                className="text-sm font-semibold text-[#27272a]"
+                className="text-sm font-medium text-[#27272a]"
               >
                 {ETIQUETA_DE_LINEA[tipoDeLinea].label}
               </label>
@@ -778,7 +815,7 @@ export default function RegisterBusinessPage() {
                   // El error «…o desmarca la casilla» deja de tener sentido.
                   if (lineaError) setLineaError("");
                 }}
-                className="mt-0.5 h-4 w-4 shrink-0 rounded border-[#d4d4d8] text-[#8b5cf6] focus:ring-[#8b5cf6]"
+                className="mt-0.5 h-4 w-4 shrink-0 accent-[#8b5cf6] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] focus-visible:ring-offset-2"
               />
               <span className="text-sm text-[#27272a]">
                 Mándame los avisos a este mismo móvil
@@ -799,7 +836,7 @@ export default function RegisterBusinessPage() {
                   setTelefoniaTocada(true);
                   setOcultarNumero(event.target.checked);
                 }}
-                className="mt-0.5 h-4 w-4 shrink-0 rounded border-[#d4d4d8] text-[#8b5cf6] focus:ring-[#8b5cf6]"
+                className="mt-0.5 h-4 w-4 shrink-0 accent-[#8b5cf6] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] focus-visible:ring-offset-2"
               />
               <span className="text-sm text-[#27272a]">
                 No des mi número a los clientes
@@ -872,7 +909,7 @@ export default function RegisterBusinessPage() {
                 ) : ownerMobileAviso ? (
                   <p
                     id="register-owner-mobile-aviso"
-                    className="mt-1 text-xs leading-5 text-[#9f7a15]"
+                    className="mt-1 text-xs leading-5 text-[#806012]"
                   >
                     {ownerMobileAviso}
                   </p>
@@ -890,7 +927,7 @@ export default function RegisterBusinessPage() {
           id="register-owner-mobile-warning"
           className={
             ownerMobileWarning
-              ? "mt-4 text-sm leading-6 text-[#9f7a15]"
+              ? "mt-4 text-sm leading-6 text-[#806012]"
               : "sr-only"
           }
           aria-live="polite"
@@ -898,27 +935,30 @@ export default function RegisterBusinessPage() {
           {ownerMobileWarning}
         </p>
 
-        {error && <p className="mt-4 text-sm text-[#c53030]">{error}</p>}
+        {error && <p role="alert" className="mt-4 text-sm text-[#c53030]">{error}</p>}
 
         <div className="mt-8 space-y-3">
           <button
             type="button"
             onClick={handleConfirm}
             disabled={!selected || saving || !formularioValido}
-            className="btn-primary w-full justify-center disabled:cursor-not-allowed disabled:opacity-50"
+            className="btn-primary w-full"
           >
-            {saving ? "Guardando..." : "Confirmar y continuar"}
+            {saving && accion === "confirmar" ? "Guardando…" : "Confirmar y continuar"}
           </button>
           <button
             type="button"
             onClick={handleSkip}
             disabled={saving || !formularioValido}
-            className="btn-secondary w-full justify-center disabled:cursor-not-allowed disabled:opacity-50"
+            className="btn-secondary w-full"
           >
+            {saving && accion === "omitir" ? (
+              <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden="true" />
+            ) : null}
             No encontré mi negocio / configurar después
           </button>
         </div>
       </div>
-    </div>
+    </main>
   );
 }

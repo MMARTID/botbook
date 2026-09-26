@@ -14,24 +14,12 @@ import {
 } from "lucide-react";
 import { getCallAnalytics } from "@/lib/api";
 import { getPlanLimitInfo } from "@/lib/plan-limit";
+import { outcomeLabel, sentimentLabel } from "@/lib/format";
+import type { CallOutcome, CallSentiment } from "@/lib/types";
 import { useBusiness } from "@/components/providers";
-import { AppPageHeader } from "@/components/app-page-header";
+import { AppPageHeader, AppPageSkeleton } from "@/components/app-page-header";
 import { BackLink } from "@/components/back-link";
 import { SectionCard, SectionErrorState } from "@/components/section-card";
-
-const OUTCOME_LABELS: Record<string, string> = {
-  RESOLVED: "Resuelta",
-  FRUSTRATED: "Cliente frustrado",
-  NO_ANSWER: "Sin respuesta",
-  ESCALATED: "Derivada al negocio",
-  LEAD_CAPTURED: "Oportunidad captada",
-};
-
-const SENTIMENT_LABELS: Record<string, string> = {
-  POSITIVE: "Positivo",
-  NEUTRAL: "Neutro",
-  NEGATIVE: "Negativo",
-};
 
 const WEEKDAY_LABELS = ["", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
 
@@ -133,7 +121,7 @@ export default function CallAnalyticsPage() {
   });
 
   if (isLoadingBusiness || analyticsQuery.isLoading) {
-    return <div className="p-8 text-center text-muted">Cargando analítica…</div>;
+    return <AppPageSkeleton label="Cargando analítica…" />;
   }
 
   const planLimit = analyticsQuery.error
@@ -216,7 +204,10 @@ export default function CallAnalyticsPage() {
               title="Resultado de las llamadas"
               description="En qué acaba cada conversación."
               rows={data.outcomes.map((row) => ({
-                label: OUTCOME_LABELS[row.outcome] ?? row.outcome,
+                // Mismas etiquetas que el historial y el detalle de llamada:
+                // una llamada no puede ser «Escalada» en una vista y
+                // «Derivada al negocio» en otra.
+                label: outcomeLabel(row.outcome as CallOutcome) ?? row.outcome,
                 count: row.count,
               }))}
             />
@@ -225,7 +216,7 @@ export default function CallAnalyticsPage() {
               title="Sentimiento del cliente"
               description="Cómo se fue el cliente de la llamada."
               rows={data.sentiments.map((row) => ({
-                label: SENTIMENT_LABELS[row.sentiment] ?? row.sentiment,
+                label: sentimentLabel(row.sentiment as CallSentiment) ?? row.sentiment,
                 count: row.count,
               }))}
             />

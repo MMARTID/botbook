@@ -14,7 +14,7 @@ import { SectionErrorState } from "@/components/section-card";
 import { StatusStrip } from "@/components/status-strip";
 import { UpcomingBookings } from "@/components/upcoming-bookings";
 import { WeeklySummary } from "@/components/weekly-summary";
-import { AppPageHeader } from "@/components/app-page-header";
+import { AppPageHeader, AppPageSkeleton } from "@/components/app-page-header";
 import { LayoutDashboard } from "lucide-react";
 
 function DashboardContent() {
@@ -64,7 +64,7 @@ function DashboardContent() {
   });
 
   if (isLoadingBusiness) {
-    return <div className="p-8 text-center text-muted">Cargando tu panel...</div>;
+    return <AppPageSkeleton label="Cargando tu panel…" />;
   }
 
   // El `&& !business` evita tirar abajo el panel ya pintado cuando lo que falla
@@ -82,7 +82,7 @@ function DashboardContent() {
         {/* El detalle técnico solo tiene sentido para quien puede hacer algo
             con él: en producción no se enseña. */}
         {process.env.NODE_ENV === "development" && errorMessage ? (
-          <p className="font-mono text-xs leading-5 text-[#a1a1aa]">{errorMessage}</p>
+          <p className="font-mono text-xs leading-5 text-muted">{errorMessage}</p>
         ) : null}
         <button type="button" onClick={() => window.location.reload()} className="btn-primary mx-auto">
           Reintentar
@@ -136,9 +136,11 @@ function DashboardContent() {
         />
       ) : null}
 
-      <OnboardingChecklist />
-
+      {/* Antes que la guía de configuración: estas citas se pierden si el
+          negocio no llama hoy; la guía puede esperar a mañana. */}
       <PendingBookings timeZone={timeZone} />
+
+      <OnboardingChecklist />
 
       {/* Vercel puede publicar esta interfaz unos minutos antes de que Cloud
           Run exponga la ventana `week`. Durante ese despliegue escalonado no
@@ -155,7 +157,7 @@ function DashboardContent() {
 
 export function PanelInicio() {
   return (
-    <Suspense fallback={<div className="p-8 text-center text-muted">Cargando...</div>}>
+    <Suspense fallback={<AppPageSkeleton label="Cargando tu panel…" />}>
       <DashboardContent />
     </Suspense>
   );
