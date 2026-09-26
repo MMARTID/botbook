@@ -1,0 +1,501 @@
+/*
+ * Teléfono fijo de «Una llamada, de principio a fin».
+ *
+ * El marco es un render frontal (public/telefono/frente.webp) y la pantalla
+ * es HTML encima, en las coordenadas del hueco del render: así el texto de
+ * dentro se lee nítido a cualquier tamaño. Las medidas de la pantalla van en
+ * cqw de la propia pantalla para que todo escale con el teléfono.
+ *
+ * Solo cambia la pantalla, y sin fundido cruzado: la anterior desaparece y
+ * la nueva entra sola (nunca hay dos textos a la vez).
+ */
+
+.telefono {
+  position: relative;
+  width: 14rem;
+  aspect-ratio: 1335 / 2859;
+}
+
+@media (min-width: 1024px) {
+  .telefono {
+    width: 17rem;
+  }
+}
+
+/* Móvil: título, teléfono y pasos, uno debajo de otro. Escritorio: título y
+   pasos a la izquierda, el teléfono a la derecha ocupando las dos filas. */
+.rejilla {
+  display: grid;
+  grid-template-areas: "titulo" "telefono" "pasos";
+  gap: 2.5rem;
+}
+
+@media (min-width: 1024px) {
+  .rejilla {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-rows: auto 1fr;
+    grid-template-areas: "titulo telefono" "pasos telefono";
+    column-gap: 6rem;
+    row-gap: 2.5rem;
+  }
+}
+
+.areaTitulo {
+  grid-area: titulo;
+}
+
+.areaTelefono {
+  grid-area: telefono;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.areaPasos {
+  grid-area: pasos;
+}
+
+/* Halo morado muy suave detrás y sombra de apoyo debajo. */
+.telefono::before {
+  content: "";
+  position: absolute;
+  inset: 8% -30% 8% -30%;
+  z-index: -1;
+  background: radial-gradient(closest-side, rgba(139, 92, 246, 0.16), rgba(139, 92, 246, 0));
+}
+
+.telefono::after {
+  content: "";
+  position: absolute;
+  left: 12%;
+  right: 12%;
+  bottom: -3.5%;
+  height: 5%;
+  z-index: -1;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(10, 10, 10, 0.22), rgba(10, 10, 10, 0));
+}
+
+.marco {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  user-select: none;
+}
+
+.hueco {
+  position: absolute;
+  left: 5.09%;
+  top: 4.39%;
+  width: 89.6%;
+  height: 91.31%;
+  overflow: hidden;
+  z-index: 1;
+  border-radius: 13% / 6%;
+  background: #000;
+  container-type: inline-size;
+}
+
+.isla {
+  position: absolute;
+  left: 50%;
+  top: 2.6cqw;
+  z-index: 5;
+  width: 30cqw;
+  height: 8.4cqw;
+  margin-left: -15cqw;
+  border-radius: 99px;
+  background: #000;
+}
+
+.estado {
+  position: absolute;
+  top: 3.6cqw;
+  left: 0;
+  right: 0;
+  z-index: 4;
+  display: flex;
+  justify-content: space-between;
+  padding: 0 8cqw;
+  font-size: 4.2cqw;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.pantalla {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  font-size: 4.4cqw;
+  line-height: 1.35;
+  animation: entra 280ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+@keyframes entra {
+  from {
+    opacity: 0;
+    transform: translateY(2.5cqw);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pantalla {
+    animation: aparece 200ms ease;
+  }
+
+  @keyframes aparece {
+    from {
+      opacity: 0;
+    }
+  }
+}
+
+/* ── 1 · Llamada ─────────────────────────────────────────────── */
+
+.llamada {
+  background: linear-gradient(180deg, #2e1065 0%, #16082f 55%, #0a0a0a 100%);
+  color: #fff;
+  padding: 17cqw 6cqw 7cqw;
+}
+
+.llamante {
+  text-align: center;
+}
+
+.llamanteNombre {
+  font-size: 7.2cqw;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.llamanteDato {
+  margin-top: 1cqw;
+  font-size: 4cqw;
+  color: rgba(255, 255, 255, 0.62);
+  font-variant-numeric: tabular-nums;
+}
+
+.transcripcion {
+  margin-top: 8cqw;
+  display: flex;
+  flex-direction: column;
+  gap: 2.6cqw;
+}
+
+.burbuja {
+  max-width: 84%;
+  padding: 2.6cqw 3.6cqw;
+  border-radius: 4.4cqw;
+  font-size: 4.2cqw;
+}
+
+.burbujaCliente {
+  align-self: flex-start;
+  background: rgba(255, 255, 255, 0.12);
+  border-bottom-left-radius: 1.2cqw;
+}
+
+.burbujaAlhabla {
+  align-self: flex-end;
+  background: #8b5cf6;
+  border-bottom-right-radius: 1.2cqw;
+}
+
+.quien {
+  display: block;
+  margin-bottom: 0.6cqw;
+  font-size: 3.2cqw;
+  font-weight: 600;
+  opacity: 0.7;
+}
+
+.onda {
+  margin-top: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1.3cqw;
+  height: 9cqw;
+}
+
+.onda span {
+  width: 1.3cqw;
+  border-radius: 99px;
+  background: #a78bfa;
+}
+
+.colgar {
+  margin: 6cqw auto 0;
+  display: grid;
+  place-items: center;
+  width: 16cqw;
+  height: 16cqw;
+  border-radius: 50%;
+  background: #ef4444;
+}
+
+.colgar svg {
+  width: 7cqw;
+  height: 7cqw;
+  transform: rotate(135deg);
+}
+
+/* ── 2 · Agenda ──────────────────────────────────────────────── */
+
+.agenda {
+  background: #fff;
+  color: #0a0a0a;
+  padding: 15cqw 5cqw 6cqw;
+}
+
+.agendaCabecera {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 1cqw;
+}
+
+.agendaDia {
+  font-size: 6.4cqw;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.agendaFecha {
+  font-size: 3.8cqw;
+  color: #71717a;
+}
+
+.agendaIcono {
+  width: 8cqw;
+  height: 8cqw;
+}
+
+.franjas {
+  margin-top: 5cqw;
+  display: flex;
+  flex-direction: column;
+  gap: 2cqw;
+}
+
+.franja {
+  display: grid;
+  grid-template-columns: 12cqw 1fr;
+  align-items: stretch;
+  gap: 2.4cqw;
+}
+
+.franjaHora {
+  padding-top: 1.6cqw;
+  font-size: 3.4cqw;
+  color: #a1a1aa;
+  font-variant-numeric: tabular-nums;
+}
+
+.cita {
+  padding: 2.2cqw 3cqw;
+  border-radius: 2.6cqw;
+  font-size: 3.8cqw;
+  background: #f4f4f5;
+  color: #52525b;
+}
+
+.citaTitulo {
+  display: block;
+  font-weight: 600;
+  color: #27272a;
+}
+
+.libre {
+  padding: 2.2cqw 3cqw;
+  border-radius: 2.6cqw;
+  border: 0.4cqw dashed #e4e4e7;
+  font-size: 3.6cqw;
+  color: #a1a1aa;
+}
+
+.citaNueva {
+  padding: 2.4cqw 3cqw;
+  border-radius: 2.6cqw;
+  font-size: 3.8cqw;
+  background: #f3eeff;
+  color: #6d28d9;
+  box-shadow: inset 1cqw 0 0 #8b5cf6;
+}
+
+.citaNueva .citaTitulo {
+  color: #4c1d95;
+}
+
+.etiquetaNueva {
+  float: right;
+  padding: 0.4cqw 2cqw;
+  border-radius: 99px;
+  background: #8b5cf6;
+  color: #fff;
+  font-size: 3cqw;
+  font-weight: 600;
+}
+
+.calendarios {
+  margin-top: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3cqw;
+  padding-top: 4cqw;
+  border-top: 0.3cqw solid #f4f4f5;
+  font-size: 3.4cqw;
+  color: #71717a;
+}
+
+.calendarios svg {
+  width: 5cqw;
+  height: 5cqw;
+}
+
+/* ── 3 · WhatsApp ────────────────────────────────────────────── */
+
+.whatsapp {
+  background: #efeae2;
+  color: #111b21;
+}
+
+.waCabecera {
+  display: flex;
+  align-items: center;
+  gap: 3cqw;
+  padding: 14cqw 5cqw 3.4cqw;
+  background: #f0f2f5;
+  border-bottom: 0.3cqw solid #e4e4e7;
+}
+
+.waAvatar {
+  display: grid;
+  place-items: center;
+  width: 10cqw;
+  height: 10cqw;
+  border-radius: 50%;
+  background: #8b5cf6;
+  color: #fff;
+  font-size: 4.6cqw;
+  font-weight: 700;
+}
+
+.waNombre {
+  font-size: 4.6cqw;
+  font-weight: 600;
+}
+
+.waSub {
+  font-size: 3.4cqw;
+  color: #667781;
+}
+
+/* Como en WhatsApp de verdad, la conversación se apoya abajo, sobre la
+   barra de escribir. */
+.waChat {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 2cqw;
+  padding: 6cqw 4cqw 4cqw;
+}
+
+.waEscribir {
+  display: flex;
+  align-items: center;
+  gap: 2.4cqw;
+  padding: 2.4cqw 4cqw 8cqw;
+}
+
+.waCaja {
+  flex: 1;
+  padding: 2.6cqw 4cqw;
+  border-radius: 99px;
+  background: #fff;
+  font-size: 3.8cqw;
+  color: #8696a0;
+}
+
+.waMicro {
+  display: grid;
+  place-items: center;
+  width: 10cqw;
+  height: 10cqw;
+  border-radius: 50%;
+  background: #8b5cf6;
+}
+
+.waMicro svg {
+  width: 4.6cqw;
+  height: 4.6cqw;
+}
+
+.waFecha {
+  align-self: center;
+  padding: 1cqw 3cqw;
+  border-radius: 2cqw;
+  background: #fff;
+  font-size: 3.2cqw;
+  color: #54656f;
+}
+
+.waMensaje {
+  align-self: flex-start;
+  max-width: 88%;
+  padding: 2.6cqw 3.2cqw 1.6cqw;
+  border-radius: 3cqw;
+  border-top-left-radius: 0.8cqw;
+  background: #fff;
+  font-size: 4cqw;
+  box-shadow: 0 0.3cqw 0.5cqw rgba(11, 20, 26, 0.08);
+}
+
+.waHora {
+  display: block;
+  margin-top: 1cqw;
+  text-align: right;
+  font-size: 3cqw;
+  color: #667781;
+}
+
+.waBoton {
+  align-self: flex-start;
+  width: 88%;
+  padding: 2.6cqw;
+  border-radius: 3cqw;
+  background: #fff;
+  text-align: center;
+  font-size: 4cqw;
+  font-weight: 600;
+  color: #027eb5;
+  box-shadow: 0 0.3cqw 0.5cqw rgba(11, 20, 26, 0.08);
+}
+
+/* ── Pasos ───────────────────────────────────────────────────── */
+
+.barra {
+  position: absolute;
+  left: 1.5rem;
+  right: 1.5rem;
+  bottom: 0;
+  height: 2px;
+  border-radius: 99px;
+  background: #8b5cf6;
+  transform-origin: left;
+  animation: llena var(--duracion) linear forwards;
+}
+
+@keyframes llena {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}

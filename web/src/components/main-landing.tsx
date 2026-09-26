@@ -7,13 +7,10 @@ import { ArrowRight, Check, Headphones } from "lucide-react";
 
 import { DemoVoiceCall } from "@/components/demo-voice-call";
 import { HeroHilos } from "@/components/hero-hilos";
-import { HowItWorksScrollytelling } from "@/components/how-it-works-scrollytelling";
 import { SiteHeader } from "@/components/site-header";
 import { Reveal } from "@/components/scroll-reveal";
-import { SectorDataSection } from "@/components/sector-data-section";
-import { TeamRoutingSection } from "@/components/team-routing-section";
-import { OwnerAssistantSection } from "@/components/owner-assistant-section";
-import { generalOwnerAssistant, generalSectorData, generalTeamRouting } from "@/lib/niche-landings";
+import { PuntosFuertesSection } from "@/components/puntos-fuertes-section";
+import { UnaLlamadaSection } from "@/components/una-llamada-section";
 import { HOME_QUICK_FAQS } from "@/lib/home-faqs";
 import { formatIncludedMinutes, formatPlanPrice, plans, TRIAL_REASSURANCE } from "@/lib/plans";
 
@@ -399,25 +396,16 @@ export function MainLanding() {
       </section>
 
       {/*
-        Datos del sector aquí, justo después de las tarjetas de sector
-        (2026-09-25, revierte el "justo antes de precios" del 2026-09-24):
-        prueba el problema con cifras antes de entrar en cómo lo resuelve
-        el producto (reparto, El Gestor, cómo funciona).
+        Portada en seis bloques (2026-09-26, a petición del usuario: «ahora
+        es engorroso de leer»): hero → sectores → una llamada de principio a
+        fin → tres puntos fuertes → precios → dudas y cierre. Los datos del
+        sector, el reparto, El Gestor y «Cómo funciona» contaban lo mismo en
+        cuatro bloques; ahora lo cuentan los dos de abajo. Los componentes
+        viejos siguen vivos en las landings de nicho.
       */}
-      <SectorDataSection data={generalSectorData} />
+      <UnaLlamadaSection />
 
-      <TeamRoutingSection data={generalTeamRouting} />
-
-      <OwnerAssistantSection data={generalOwnerAssistant} />
-
-      {/*
-        Cómo funciona, justo antes de precios (2026-09-25): la visitante ya
-        vio el problema (datos del sector) y la confianza del producto
-        (reparto, El Gestor) — "cómo funciona" cierra la duda técnica justo
-        antes de enseñar el precio, en vez de explicarlo antes de haber
-        dado ningún motivo para creerlo.
-      */}
-      <HowItWorksScrollytelling />
+      <PuntosFuertesSection onEscuchar={() => setIsDemoOpen(true)} />
 
       {/* Precio y FAQ compactos aquí mismo: la visitante que llega convencida
           por el relato anterior no tiene que salir de la página para ver un
