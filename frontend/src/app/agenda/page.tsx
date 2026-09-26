@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { CalendarRange } from "lucide-react";
 import { AgendaTimeline, type AgendaRange } from "@/components/agenda-timeline";
 import { useBusiness } from "@/components/providers";
-import { AppPageHeader } from "@/components/app-page-header";
+import { AppPageHeader, AppPageSkeleton } from "@/components/app-page-header";
 
 const RANGES: { value: AgendaRange; label: string }[] = [
   { value: 1, label: "Hoy" },
@@ -24,7 +24,7 @@ export default function AgendaPage() {
     if (hasToken === false) router.replace("/login");
   }, [hasToken, router]);
 
-  if (isLoadingBusiness) return <div className="p-8 text-center text-muted">Cargando agenda…</div>;
+  if (isLoadingBusiness) return <AppPageSkeleton label="Cargando agenda…" />;
 
   // Carga y error son cosas distintas: si /business/me falla, `isLoading` pasa
   // a false y `business` se queda vacío, así que sin esta rama el negocio se
@@ -59,8 +59,11 @@ export default function AgendaPage() {
   return (
     <div className="space-y-6">
       <AppPageHeader icon={CalendarRange} title="Agenda" description="Las citas verificadas que tu recepcionista ha reservado para el negocio.">
-        <div className="flex w-full gap-1 rounded-full border border-[#e5e5e5] bg-[#fafafa] p-1 sm:w-auto" aria-label="Periodo de agenda">
-          {RANGES.map((range) => <button key={range.value} type="button" onClick={() => { setDays(range.value); setOffset(0); }} aria-pressed={days === range.value} className={`min-h-10 flex-1 rounded-full px-3 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] sm:flex-none ${days === range.value ? "bg-white text-[#0a0a0a]" : "text-[#52525b] hover:text-[#0a0a0a]"}`}>{range.label}</button>)}
+        {/* Mismo segmentado que los niveles de servicio de /agente: la opción
+            activa en lavado morado. Antes era blanco sobre #fafafa y apenas se
+            distinguía cuál estaba elegida. */}
+        <div role="group" className="flex w-full gap-1 rounded-full border border-[#e5e5e5] bg-[#fafafa] p-1 sm:w-auto" aria-label="Periodo de agenda">
+          {RANGES.map((range) => <button key={range.value} type="button" onClick={() => { setDays(range.value); setOffset(0); }} aria-pressed={days === range.value} className={`min-h-11 flex-1 rounded-full px-4 text-sm font-semibold transition duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] sm:flex-none ${days === range.value ? "bg-[#f3eeff] text-[#6d28d9] ring-1 ring-inset ring-[#ddd6fe]" : "text-[#52525b] hover:text-[#0a0a0a]"}`}>{range.label}</button>)}
         </div>
       </AppPageHeader>
       <AgendaTimeline days={days} offset={offset} timeZone={business.timezone || "Europe/Madrid"} calendarProvider={calendar.provider} hasCalendar={calendar.connected} onOffsetChange={setOffset} />

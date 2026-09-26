@@ -48,10 +48,10 @@ export function GoogleAuthButton({ onError, beforeStart, disabled, acceptedTerms
         type="button"
         onClick={startGoogleAuth}
         disabled={loading || disabled}
-        className="flex h-12 w-full items-center justify-center gap-3 rounded-[10px] border border-[#e5e5e5] bg-white px-4 text-sm font-semibold text-[#0a0a0a] transition hover:border-[#0a0a0a] hover:bg-[#fafafa] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#8b5cf6]/30 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+        className="flex h-12 w-full items-center justify-center gap-3 rounded-[10px] border border-[#e5e5e5] bg-white px-4 text-sm font-semibold text-[#0a0a0a] transition hover:border-[#0a0a0a] hover:bg-[#fafafa] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
       >
         <GoogleIcon />
-        {loading ? "Conectando con Google..." : "Continuar con Google"}
+        {loading ? "Conectando con Google…" : "Continuar con Google"}
       </button>
     </div>
   );

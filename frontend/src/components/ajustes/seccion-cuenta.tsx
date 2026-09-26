@@ -41,11 +41,13 @@ export function SeccionCuenta() {
         </div>
         <div className="divide-y divide-[#e5e5e5]">
           <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
-            <div>
+            <div className="min-w-0">
               <p className="text-sm font-semibold text-[#27272a]">
                 Correo electrónico
               </p>
-              <p className="mt-1 text-sm text-muted">{account.email}</p>
+              <p className="mt-1 text-sm text-[#0a0a0a] [overflow-wrap:anywhere]">
+                {account.email}
+              </p>
             </div>
             {account.googleConnected ? (
               <span className="inline-flex w-fit items-center gap-1.5 rounded-full bg-[#ecf7ec] px-3 py-1.5 text-xs font-semibold text-[#2c7334] ring-1 ring-inset ring-[#d8efd7]">
@@ -53,7 +55,7 @@ export function SeccionCuenta() {
                 Verificado por Google
               </span>
             ) : (
-              <span className="inline-flex w-fit rounded-full bg-[#fef8e7] px-3 py-1.5 text-xs font-semibold text-[#9f7a15] ring-1 ring-inset ring-[#f0dfa8]">
+              <span className="inline-flex w-fit rounded-full bg-[#fef8e7] px-3 py-1.5 text-xs font-semibold text-[#806012] ring-1 ring-inset ring-[#f0dfa8]">
                 Verificación pendiente
               </span>
             )}
@@ -71,14 +73,11 @@ export function SeccionCuenta() {
                   recuperación de la cuenta.
                 </p>
               </div>
-              <button
-                type="button"
-                disabled
-                className="btn-secondary h-11 shrink-0 px-4"
-                title="Disponible próximamente"
-              >
-                Verificar correo
-              </button>
+              {/* Etiqueta y no botón deshabilitado: un control muerto con un
+                  «title» se lee como roto y el aviso no llega en táctil. */}
+              <span className="inline-flex w-fit shrink-0 rounded-full bg-[#f4f4f5] px-3 py-1.5 text-xs font-semibold text-[#52525b] ring-1 ring-inset ring-[#e5e5e5]">
+                Próximamente
+              </span>
             </div>
           ) : null}
         </div>

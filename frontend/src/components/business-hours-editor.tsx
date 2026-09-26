@@ -198,9 +198,10 @@ export function BusinessHoursEditor({
               key={day.key}
               type="button"
               onClick={() => setSelectedDay(day.key)}
+              aria-pressed={selectedDay === day.key}
               className={`flex w-full items-center gap-3 rounded-xl border px-3 py-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] focus-visible:ring-offset-2 ${selectedDay === day.key ? "border-[#8b5cf6] bg-[#f3eeff]" : "border-[#e5e5e5] bg-white hover:bg-[#fafafa]"}`}
             >
-              <span className={`flex h-8 w-8 items-center justify-center rounded-full text-xs font-semibold ${schedule.week[day.key].enabled ? "bg-[#8b5cf6] text-[#ffffff]" : "bg-[#f4f4f5] text-[#a1a1aa]"}`}>
+              <span className={`flex h-8 w-8 items-center justify-center rounded-full text-xs font-semibold ${schedule.week[day.key].enabled ? "bg-[#8b5cf6] text-[#ffffff]" : "bg-[#f4f4f5] text-[#52525b]"}`}>
                 {day.shortLabel}
               </span>
               <span className="min-w-0">
@@ -217,7 +218,7 @@ export function BusinessHoursEditor({
               <p className="text-lg font-semibold text-[#0a0a0a]">{DAYS.find((day) => day.key === selectedDay)?.label}</p>
               <p className="text-sm text-muted">Activa el día y añade hasta tres tramos.</p>
             </div>
-            <label className="flex cursor-pointer items-center gap-2 rounded-[10px] border border-[#e5e5e5] bg-white px-3 py-2 text-sm font-semibold text-[#27272a]">
+            <label className="flex min-h-11 cursor-pointer items-center gap-2 rounded-[10px] border border-[#e5e5e5] bg-white px-3 text-sm font-semibold text-[#27272a] has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-[#8b5cf6]">
               <input
                 type="checkbox"
                 className="accent-[#8b5cf6]"
@@ -275,7 +276,7 @@ export function BusinessHoursEditor({
                   type="button"
                   disabled={selected.intervals.length >= 3}
                   onClick={() => updateDay((day) => ({ ...day, intervals: [...day.intervals, { start: "16:00", end: "20:00" }] }))}
-                  className="btn-secondary px-4 disabled:opacity-40"
+                  className="btn-secondary px-4"
                 >
                   <Plus className="h-4 w-4" /> Añadir tramo
                 </button>
@@ -326,7 +327,7 @@ export function BusinessHoursEditor({
               type="text"
               value={nuevoMotivo}
               maxLength={60}
-              placeholder="Vacaciones, festivo local..."
+              placeholder="Vacaciones, festivo local…"
               onChange={(event) => setNuevoMotivo(event.target.value)}
               className="field px-3"
             />
@@ -390,7 +391,7 @@ export function BusinessHoursEditor({
           disabled={isSaving}
           className="btn-primary shrink-0 whitespace-nowrap px-5"
         >
-          <Save className="h-4 w-4" /> {isSaving ? "Guardando..." : "Guardar horario"}
+          <Save className="h-4 w-4" /> {isSaving ? "Guardando…" : "Guardar horario"}
         </button>
       </div>
     </SettingsSection>

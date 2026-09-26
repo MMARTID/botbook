@@ -180,7 +180,7 @@ export function ProfessionalServiceLevels({
                         en una sola línea en 360 px: texto de 12 px y relleno
                         corto. A partir de `sm` recupera el tamaño del
                         segmentado de agenda. */}
-                    <span className="flex min-h-11 items-center justify-center rounded-full px-1.5 text-center text-xs font-semibold leading-tight text-[#52525b] transition duration-200 hover:text-[#0a0a0a] peer-checked:bg-[#f3eeff] peer-checked:text-[#6d28d9] peer-focus-visible:ring-2 peer-focus-visible:ring-[#8b5cf6] sm:px-3 sm:text-sm sm:leading-normal">
+                    <span className="flex min-h-11 items-center justify-center rounded-full px-1.5 text-center text-xs font-semibold leading-tight text-muted transition duration-200 hover:text-[#0a0a0a] peer-checked:bg-[#f3eeff] peer-checked:text-[#6d28d9] peer-focus-visible:ring-2 peer-focus-visible:ring-[#8b5cf6] sm:px-3 sm:text-sm sm:leading-normal">
                       {option.label}
                     </span>
                   </label>

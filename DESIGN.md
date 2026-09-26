@@ -25,6 +25,9 @@ colors:
   success-surface: "#ecf7ec"
   success-border: "#d8efd7"
   warning: "#9f7a15"
+  warning-ink: "#806012"
+  warning-surface: "#fef8e7"
+  warning-border: "#f0dfa8"
   error: "#c53030"
   error-surface: "#fff1f1"
   error-border: "#f5d3d3"
@@ -237,7 +240,11 @@ estado del sistema, no marca.
 - **Éxito** (`#2c7334`) sobre **Superficie Éxito** (`#ecf7ec`) con borde **`#d8efd7`**: conexiones
   activas, confirmaciones, checkmarks de estado «hecho». Se mantiene verde a propósito para no
   confundir «completado» con el acento decorativo morado.
-- **Aviso** (`#9f7a15`): advertencias — un ocre, no un amarillo.
+- **Aviso** (`#9f7a15`): advertencias — un ocre, no un amarillo. Sobre **Superficie Aviso**
+  (`#fef8e7`) con borde **`#f0dfa8`**. Como **texto** va en **Tinta de Aviso** (`#806012`, variable
+  `--warning-ink`): `#9f7a15` da 3,99:1 sobre blanco y 3,76:1 sobre `#fef8e7`, por debajo de AA en
+  texto pequeño; `#806012` da 5,8:1 y 5,5:1. El ocre `#9f7a15` se queda para puntos, iconos y
+  bordes (decidido en el pase de pulido del 2026-09-26).
 - **Error** (`#c53030`) sobre **Superficie Error** (`#fff1f1`) con borde **`#f5d3d3`**: fallos de
   validación y errores de sistema.
 
@@ -511,6 +518,23 @@ pequeño. La respuesta física es la firma del sistema; la espectacularidad no. 
   (`ring-[#8b5cf6]`).
 - **Disabled:** 60 % de opacidad, cursor no permitido y sin elevación. Un botón deshabilitado no se
   mueve.
+
+### Avisos de estado y objetivos pequeños
+
+- **Resultado de guardar en una página larga (`AvisoFlotante`, `components/aviso-flotante.tsx`):**
+  flota abajo — encima de la barra inferior en móvil, en la esquina derecha en escritorio — con las
+  tres partes de su familia semántica y sombra negra de elemento flotante. El éxito se va solo a
+  los 5 s; el error se queda hasta cerrarlo. Un aviso pintado arriba del todo no lo ve quien acaba
+  de pulsar «Guardar» al final de la página.
+- **Mensaje junto al botón (`FeedbackMessage`):** siempre montado con `role="status"`; una región
+  `aria-live` que nace ya con texto no la anuncia casi ningún lector de pantalla.
+- **Enlaces de texto pequeños (`.zona-tactil`):** amplía a 44 px la zona que responde al dedo sin
+  mover el diseño. Para «Activarlo ahora», «Ver facturación» y similares; los botones siguen
+  midiendo 44 px de verdad.
+- **Controles segmentados** (periodo de agenda, niveles por servicio): la opción activa en Lavado
+  Morado con anillo `#ddd6fe`, como el enlace activo de la navegación.
+- **Progreso del alta (`PasoDelAlta`):** barra negra con «Paso n de 5» al lado, nunca encima del
+  titular — el morado de esas pantallas ya lo lleva el azulejo del icono.
 
 ### Chips y Badges
 

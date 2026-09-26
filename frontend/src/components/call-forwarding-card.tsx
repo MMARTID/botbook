@@ -367,7 +367,7 @@ export function CallForwardingCard({
           </div>
 
           <details className="group mt-2">
-            <summary className="inline-flex cursor-pointer list-none items-center gap-1.5 rounded-full px-1 py-2 text-sm font-semibold text-[#6d28d9] transition duration-200 hover:text-[#8b5cf6] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]">
+            <summary className="inline-flex min-h-11 cursor-pointer list-none items-center gap-1.5 rounded-[10px] px-1 text-sm font-semibold text-[#6d28d9] underline-offset-2 transition duration-200 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] [&::-webkit-details-marker]:hidden">
               Otras formas de desviar
               <ChevronDown className="h-4 w-4 transition duration-200 group-open:rotate-180" aria-hidden="true" />
             </summary>
@@ -423,7 +423,7 @@ export function CallForwardingCard({
       </div>
 
       {confirmMutation.isError ? (
-        <p className="mt-3 text-sm font-medium text-[#c53030]">
+        <p role="alert" className="mt-3 text-sm font-medium text-[#c53030]">
           No se pudo guardar la confirmación. Inténtalo otra vez en unos segundos.
         </p>
       ) : null}
@@ -434,8 +434,8 @@ export function CallForwardingCard({
 /** Aviso corto bajo los códigos (contestador, buzón de voz). */
 export function NotaDeLinea({ children }: { children: ReactNode }) {
   return (
-    <p className="mt-3 flex items-start gap-2 rounded-2xl bg-white px-4 py-3 text-sm leading-6 text-[#9f7a15]">
-      <TriangleAlert className="mt-1 h-4 w-4 shrink-0" aria-hidden="true" />
+    <p className="mt-3 flex items-start gap-2 rounded-2xl border border-[#f0dfa8] bg-[#fef8e7] px-4 py-3 text-sm leading-6 text-[#806012]">
+      <TriangleAlert className="mt-1 h-4 w-4 shrink-0 text-[#9f7a15]" aria-hidden="true" />
       <span>{children}</span>
     </p>
   );
@@ -459,7 +459,7 @@ function PreguntaTipoDeLinea({ customerLine }: { customerLine: string }) {
   });
 
   return (
-    <div className="mt-4 rounded-2xl bg-white p-4">
+    <div className="mt-4 rounded-2xl border border-[#e5e5e5] bg-white p-4">
       <h3 id="desvio-tipo-de-linea-title" className="text-sm font-semibold text-[#0a0a0a]">
         ¿De qué tipo es esta línea?
       </h3>
@@ -574,7 +574,7 @@ export function ComprobarDesvio({
 
   if (customerLine === null) {
     return (
-      <div className="mt-5 rounded-2xl bg-white p-4">
+      <div className="mt-5 rounded-2xl border border-[#e5e5e5] bg-white p-4">
         <h3 className="text-sm font-semibold text-[#0a0a0a]">Comprueba que funciona</h3>
         <p className="mt-1 text-sm leading-6 text-muted">
           Para comprobar el desvío necesitamos el teléfono al que te llaman tus clientes.{" "}
@@ -593,7 +593,7 @@ export function ComprobarDesvio({
   const lineaLegible = formatPhone(customerLine);
 
   return (
-    <div className="mt-5 rounded-2xl bg-white p-4" aria-live="polite">
+    <div className="mt-5 rounded-2xl border border-[#e5e5e5] bg-white p-4">
       <h3 className="text-sm font-semibold text-[#0a0a0a]">Comprueba que funciona</h3>
 
       {fase === "inactiva" ? (
@@ -602,7 +602,11 @@ export function ComprobarDesvio({
             Te llamamos a tu línea de clientes desde tu número de Alhabla y vemos si la llamada
             vuelve a tu recepcionista. Tarda menos de un minuto.
           </p>
-          <button type="button" onClick={() => setFase("aviso")} className="btn-purple h-11 shrink-0 px-5">
+          <button
+            type="button"
+            onClick={() => setFase("aviso")}
+            className={`${contexto === "ajustes" ? "btn-secondary" : "btn-purple"} h-11 shrink-0 px-5`}
+          >
             <PhoneCall className="h-4 w-4" aria-hidden="true" />
             Comprobar desvío
           </button>
@@ -653,7 +657,7 @@ export function ComprobarDesvio({
       ) : null}
 
       {fase === "en_curso" && !resultado && !sinRespuesta ? (
-        <div className="mt-2 flex items-start gap-3 rounded-2xl border border-[#ddd6fe] bg-[#f3eeff] p-4">
+        <div role="status" className="mt-2 flex items-start gap-3 rounded-2xl border border-[#ddd6fe] bg-[#f3eeff] p-4">
           <Loader2 className="mt-0.5 h-5 w-5 shrink-0 animate-spin text-[#8b5cf6]" aria-hidden="true" />
           <div>
             <p className="text-sm font-semibold text-[#0a0a0a]">Llamando al {lineaLegible}… no lo cojas</p>
@@ -687,7 +691,7 @@ export function ComprobarDesvio({
             <TriangleAlert className="h-5 w-5 shrink-0" aria-hidden="true" />
             {fallo ? textoDeMotivo(fallo.motivo, contexto).titulo : "No hemos recibido respuesta"}
           </p>
-          <p className="mt-1 text-sm leading-6 text-[#7f1d1d]">
+          <p className="mt-1 text-sm leading-6 text-[#c53030]">
             {fallo
               ? textoDeMotivo(fallo.motivo, contexto).detalle
               : "La comprobación no ha terminado a tiempo. Espera un minuto y vuelve a intentarlo."}
@@ -702,7 +706,7 @@ export function ComprobarDesvio({
       {fase === "en_curso" && consultaFallida ? (
         <p role="alert" className="mt-3 text-sm font-medium text-[#c53030]">
           Hemos perdido el hilo de la comprobación. Vuelve a intentarlo en un minuto.{" "}
-          <button type="button" onClick={reiniciar} className="font-semibold underline underline-offset-2">
+          <button type="button" onClick={reiniciar} className="zona-tactil rounded-[10px] font-semibold underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]">
             Volver a comprobar
           </button>
         </p>
@@ -725,7 +729,7 @@ export function CodigoFila({
   const valor = codigo.activar(numero);
 
   return (
-    <div className="rounded-2xl bg-white p-4">
+    <div className="rounded-2xl border border-[#e5e5e5] bg-white p-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
           <p className="flex flex-wrap items-center gap-2 text-sm font-semibold text-[#0a0a0a]">
@@ -737,20 +741,20 @@ export function CodigoFila({
         <button
           type="button"
           onClick={() => onCopiar(valor, codigo.id)}
-          className="inline-flex h-11 shrink-0 items-center gap-2 rounded-[10px] border border-[#e5e5e5] bg-white px-4 font-mono text-sm text-[#0a0a0a] transition duration-200 hover:border-[#8b5cf6] hover:bg-[#f3eeff] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]"
-          aria-label={`Copiar el código ${valor}`}
+          className="inline-flex h-11 shrink-0 items-center gap-2 rounded-[10px] border border-[#e5e5e5] bg-white px-4 font-mono text-sm text-[#0a0a0a] transition duration-200 hover:border-[#0a0a0a] hover:bg-[#fafafa] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]"
+          aria-label={copiado === codigo.id ? "Código copiado" : `Copiar el código ${valor}`}
         >
           {copiado === codigo.id ? (
             <Check className="h-4 w-4 shrink-0 text-[#2c7334]" aria-hidden="true" />
           ) : (
-            <Copy className="h-4 w-4 shrink-0 text-[#52525b]" aria-hidden="true" />
+            <Copy className="h-4 w-4 shrink-0 text-muted" aria-hidden="true" />
           )}
           {valor}
         </button>
       </div>
       <p className="mt-2 text-xs text-muted">
         Para anularlo más adelante, marca{" "}
-        <span className="font-mono text-[#27272a]">{codigo.desactivar}</span>
+        <span className="font-mono text-[#27272a]">{codigo.desactivar}</span>.
       </p>
     </div>
   );

@@ -164,7 +164,10 @@ describe("Ajustes (cuatro pantallas con el mismo marco)", () => {
 
     renderPage();
 
-    expect(await screen.findByText("No se pudieron cargar los ajustes")).toBeInTheDocument();
+    expect(await screen.findByText(/No se pudieron cargar los ajustes/)).toBeInTheDocument();
+    // La cabecera y las pestañas siguen a la vista para no dejar la pantalla sin salida.
+    expect(screen.getByRole("navigation", { name: "Secciones de ajustes" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Reintentar/ })).toBeInTheDocument();
     expect(screen.queryByText(CUENTA.email)).not.toBeInTheDocument();
   });
 

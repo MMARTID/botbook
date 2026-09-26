@@ -43,7 +43,9 @@ export function AgentOperationalSummary({ business, agentActive }: { business: B
           return <li key={item.key} className="flex min-w-0 items-center gap-2 rounded-xl border border-[#e5e5e5] bg-white px-3 py-2.5">
             <span className={`h-2 w-2 shrink-0 rounded-full ${tone.dot}`} aria-hidden="true" />
             <span className="min-w-0 flex-1"><span className="block text-xs text-muted">{item.label}</span><span className={`block truncate text-sm font-semibold ${tone.text}`}>{item.value}</span></span>
-            {item.action && "href" in item.action ? <Link href={item.action.href} className="shrink-0 text-xs font-semibold text-[#6d28d9] underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]">Abrir</Link> : null}
+            {/* La acción dice qué hace («Conectar agenda», «Reconectar»): una
+                lista de «Abrir» repetidos no se entiende con lector de pantalla. */}
+            {item.action && "href" in item.action ? <Link href={item.action.href} className="zona-tactil shrink-0 text-xs font-semibold text-[#6d28d9] underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]">{item.action.label}</Link> : null}
           </li>;
         })}
       </ul>

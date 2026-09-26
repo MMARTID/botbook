@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { PasoDelAlta } from "@/components/paso-del-alta";
 import { Check, Clock, LoaderCircle, Plus, Scissors } from "lucide-react";
 import { createBookingService, getBookingSettings } from "@/lib/api";
 import { getPendingPlan, isPlanId } from "@/lib/billing-navigation";
@@ -144,42 +145,45 @@ export default function RegisterBusinessServicesPage() {
   const ctaLabel = texts.services.cta
     .replace("{count}", String(selected.size))
     .replace("{s}", selected.size === 1 ? "" : "s");
-  const missing = Math.max(0, MIN_SERVICES_REQUIRED - selected.size);
   const canContinue = selected.size >= MIN_SERVICES_REQUIRED;
 
   return (
-    <div className="flex min-h-screen items-center justify-center px-4 py-12 sm:px-6 lg:px-8">
-      <div className="panel w-full max-w-xl p-8">
+    <main className="flex min-h-screen items-center justify-center px-4 py-12 sm:px-6 lg:px-8">
+      <div className="panel w-full max-w-lg p-6 sm:p-8">
+        <PasoDelAlta paso={3} />
         <div className="space-y-4 text-center">
-          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-[#f3eeff] text-[#8b5cf6]">
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-xl bg-[#f3eeff] text-[#8b5cf6]">
             <Scissors className="h-7 w-7" />
           </div>
-          <h2 className="text-3xl font-black tracking-tight text-[#0a0a0a]">
+          <h1 className="text-3xl font-black tracking-tight text-[#0a0a0a]">
             {texts.services.heading}
-          </h2>
+          </h1>
           <p className="mx-auto max-w-md text-sm leading-6 text-muted">
             {texts.services.subheading}
           </p>
         </div>
 
-        <div className="mt-6 flex items-center justify-center gap-2 text-sm font-semibold">
+        <div className="mt-6 flex items-center justify-center text-sm font-semibold">
           <span
-            className={`rounded-full px-3 py-1 ${
-              canContinue ? "bg-[#ecfdf3] text-[#2c7334]" : "bg-[#f3eeff] text-[#6d28d9]"
+            role="status"
+            className={`rounded-full px-3 py-1 text-center ring-1 ring-inset ${
+              canContinue
+                ? "bg-[#ecf7ec] text-[#2c7334] ring-[#d8efd7]"
+                : "bg-[#f3eeff] text-[#6d28d9] ring-[#ddd6fe]"
             }`}
           >
             {canContinue
               ? `${selected.size} servicios seleccionados`
-              : `Selecciona al menos ${MIN_SERVICES_REQUIRED} servicios · llevas ${selected.size} de ${MIN_SERVICES_REQUIRED}`}
+              : `Llevas ${selected.size} de ${MIN_SERVICES_REQUIRED} servicios`}
           </span>
         </div>
 
         <div className="mt-6 max-h-96 space-y-5 overflow-y-auto pr-1">
           {categories.map((category) => (
             <div key={category.category}>
-              <h3 className="mb-2 text-xs font-bold uppercase tracking-wide text-muted">
+              <h2 className="mb-2 text-xs font-semibold uppercase tracking-[0.12em] text-muted">
                 {category.category}
-              </h3>
+              </h2>
               <div className="flex flex-wrap gap-2">
                 {category.services.map((service) => {
                   const isSelected = selected.has(service.name);
@@ -189,7 +193,8 @@ export default function RegisterBusinessServicesPage() {
                       type="button"
                       onClick={() => toggleService(service.name)}
                       disabled={saving}
-                      className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 ${
+                      aria-pressed={isSelected}
+                      className={`inline-flex min-h-11 items-center gap-2 rounded-full border px-4 text-sm font-semibold transition duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 ${
                         isSelected
                           ? "border-[#0a0a0a] bg-[#0a0a0a] text-white"
                           : "border-[#e5e5e5] bg-white text-[#27272a] hover:border-[#8b5cf6] hover:bg-[#fafafa]"
@@ -200,9 +205,9 @@ export default function RegisterBusinessServicesPage() {
                       ) : (
                         <Plus className="h-3.5 w-3.5 text-[#a1a1aa]" />
                       )}
-                      <span>{service.name}</span>
+                      <span className="text-left">{service.name}</span>
                       <span
-                        className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs ${
+                        className={`inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full px-2 py-0.5 text-xs ${
                           isSelected ? "bg-white/20 text-white" : "bg-[#f3eeff] text-[#6d28d9]"
                         }`}
                       >
@@ -219,23 +224,23 @@ export default function RegisterBusinessServicesPage() {
 
         {!canContinue && (
           <p className="mt-4 text-center text-sm text-muted">
-            Marca los servicios que sí ofreces — te faltan {missing}. Podrás añadir o editar el resto más tarde en ajustes.
+            Marca al menos {MIN_SERVICES_REQUIRED} de los que sí ofreces. Podrás añadir o editar el resto más tarde en Ajustes.
           </p>
         )}
 
-        {error && <p className="mt-4 text-sm text-[#c53030]">{error}</p>}
+        {error && <p role="alert" className="mt-4 text-sm text-[#c53030]">{error}</p>}
 
         <div className="mt-8">
           <button
             type="button"
             onClick={handleConfirm}
             disabled={saving || !canContinue}
-            className="btn-primary w-full justify-center disabled:cursor-not-allowed disabled:opacity-50"
+            className="btn-primary w-full"
           >
             {saving ? (
               <>
-                <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
-                Guardando...
+                <LoaderCircle className="h-4 w-4 animate-spin" />
+                Guardando…
               </>
             ) : (
               ctaLabel
@@ -243,6 +248,6 @@ export default function RegisterBusinessServicesPage() {
           </button>
         </div>
       </div>
-    </div>
+    </main>
   );
 }

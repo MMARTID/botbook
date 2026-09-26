@@ -20,7 +20,7 @@ function InvalidLink() {
         correo en unos segundos.
       </p>
       <p className="pt-2">
-        <Link href="/recuperar-contrasena" className="btn-primary w-full justify-center sm:w-auto">
+        <Link href="/recuperar-contrasena" className="btn-primary w-full sm:w-auto">
           Pedir un enlace nuevo
         </Link>
       </p>
@@ -105,7 +105,7 @@ function ResetForm({ token }: { token: string }) {
         </p>
 
         <button type="submit" disabled={loading} className="btn-primary w-full justify-center">
-          {loading ? "Guardando..." : "Guardar y entrar"}
+          {loading ? "Guardando…" : "Guardar y entrar"}
         </button>
       </form>
     </>
@@ -120,7 +120,7 @@ function RestablecerContrasenaContent() {
     <div className="relative isolate flex min-h-screen items-center justify-center px-4 py-12 sm:px-6 lg:px-8">
       <ParticleField />
       <ParticleMouseLayer />
-      <div className="panel w-full max-w-lg p-8">
+      <div className="panel w-full max-w-lg p-6 sm:p-8">
         {token ? <ResetForm token={token} /> : <InvalidLink />}
       </div>
     </div>
@@ -129,7 +129,7 @@ function RestablecerContrasenaContent() {
 
 export default function RestablecerContrasenaPage() {
   return (
-    <Suspense fallback={<div className="p-8 text-center text-muted">Cargando...</div>}>
+    <Suspense fallback={<div className="flex min-h-screen items-center justify-center px-4 text-sm text-muted" role="status">Cargando…</div>}>
       <RestablecerContrasenaContent />
     </Suspense>
   );
