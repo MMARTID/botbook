@@ -38,6 +38,8 @@ export function SeccionSeguridad() {
 
   const passwordConfigured = account.passwordConfigured;
 
+  const noCoinciden =
+    confirmPassword.length > 0 && newPassword !== confirmPassword;
   const passwordIsValid =
     newPassword.length >= 8 &&
     PASSWORD_HAS_LETTER.test(newPassword) &&
@@ -121,7 +123,7 @@ export function SeccionSeguridad() {
           </div>
         </div>
         <form
-          className="mt-5 grid gap-4 lg:grid-cols-3"
+          className={`mt-5 grid gap-4 ${passwordConfigured ? "lg:grid-cols-3" : "lg:grid-cols-2"}`}
           onSubmit={(event) => {
             event.preventDefault();
             setPasswordFeedback(null);
@@ -135,7 +137,10 @@ export function SeccionSeguridad() {
                 type="password"
                 autoComplete="current-password"
                 value={currentPassword}
-                onChange={(event) => setCurrentPassword(event.target.value)}
+                onChange={(event) => {
+                  setPasswordFeedback(null);
+                  setCurrentPassword(event.target.value);
+                }}
                 className="field mt-2 w-full"
               />
             </label>
@@ -146,7 +151,10 @@ export function SeccionSeguridad() {
               type="password"
               autoComplete="new-password"
               value={newPassword}
-              onChange={(event) => setNewPassword(event.target.value)}
+              onChange={(event) => {
+                setPasswordFeedback(null);
+                setNewPassword(event.target.value);
+              }}
               aria-describedby="password-requirements"
               className="field mt-2 w-full"
             />
@@ -157,14 +165,24 @@ export function SeccionSeguridad() {
               type="password"
               autoComplete="new-password"
               value={confirmPassword}
-              onChange={(event) => setConfirmPassword(event.target.value)}
-              aria-invalid={
-                confirmPassword.length > 0 && newPassword !== confirmPassword
-              }
+              onChange={(event) => {
+                setPasswordFeedback(null);
+                setConfirmPassword(event.target.value);
+              }}
+              aria-invalid={noCoinciden}
+              aria-describedby={noCoinciden ? "password-mismatch" : undefined}
               className="field mt-2 w-full"
             />
+            {noCoinciden ? (
+              <span
+                id="password-mismatch"
+                className="mt-1 block text-xs font-normal leading-5 text-[#c53030]"
+              >
+                Las contraseñas no coinciden.
+              </span>
+            ) : null}
           </label>
-          <div className="flex flex-col gap-3 lg:col-span-3 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex flex-col gap-3 lg:col-span-full lg:flex-row lg:items-center lg:justify-between">
             <div>
               <p
                 id="password-requirements"
@@ -221,7 +239,7 @@ export function SeccionSeguridad() {
             desvío de llamadas hacia Alhabla. Si no lo haces, tus clientes
             podrían seguir llamando a un número que ya no atiende.
           </div>
-          <label className="flex min-h-11 items-start gap-3 rounded-xl border border-[#e5e5e5] p-3 text-sm text-[#27272a]">
+          <label className="flex min-h-11 cursor-pointer items-start gap-3 rounded-[10px] border border-[#e5e5e5] p-3 text-sm text-[#27272a] has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-[#8b5cf6]">
             <input
               type="checkbox"
               checked={forwardingCancelled}
@@ -242,6 +260,9 @@ export function SeccionSeguridad() {
                 value={deleteConfirmation}
                 onChange={(event) => setDeleteConfirmation(event.target.value)}
                 autoComplete="off"
+                autoCapitalize="characters"
+                autoCorrect="off"
+                spellCheck={false}
                 className="field mt-2 w-full"
                 placeholder="ELIMINAR"
               />
@@ -271,9 +292,9 @@ export function SeccionSeguridad() {
               className="inline-flex h-12 shrink-0 items-center justify-center gap-2 rounded-[10px] bg-[#c53030] px-6 text-sm font-semibold text-white transition hover:bg-[#9f2424] disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#c53030] focus-visible:ring-offset-2"
             >
               {deleteMutation.isPending ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
+                <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
               ) : (
-                <Trash2 className="h-4 w-4" />
+                <Trash2 className="h-4 w-4" aria-hidden="true" />
               )}
               {deleteMutation.isPending
                 ? "Eliminando cuenta…"

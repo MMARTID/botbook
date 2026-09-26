@@ -6,7 +6,6 @@ import { usePathname, useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import {
   Building2,
-  Loader2,
   Phone,
   Settings,
   ShieldCheck,
@@ -14,6 +13,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { AppPageHeader } from "@/components/app-page-header";
+import { SectionErrorState } from "@/components/section-card";
 import { useBusiness } from "@/components/providers";
 import { getAccountOverview, type AccountOverview } from "@/lib/api";
 import type { Business } from "@/lib/types";
@@ -92,38 +92,72 @@ export function MarcoDeAjustes({
     }
   }, [seccion, router]);
 
-  if (isLoadingBusiness || accountQuery.isLoading) {
+  if (hasToken === false) return null;
+
+  const cargando = isLoadingBusiness || accountQuery.isLoading;
+  const account = accountQuery.data;
+
+  // Cabecera y pestañas no dependen de los datos: se pintan también mientras
+  // carga o si falla, para que la pantalla no salte ni se quede sin salida.
+  const cabecera = (
+    <>
+      <AppPageHeader
+        icon={Settings}
+        title="Ajustes"
+        description={DESCRIPCIONES[seccion]}
+      />
+      {/* p-1/-m-1: el overflow-x recortaba el anillo de foco de las pestañas. */}
+      <nav
+        aria-label="Secciones de ajustes"
+        className="-m-1 flex gap-1 overflow-x-auto p-1"
+      >
+        {SECCIONES_DE_AJUSTES.map((item) => {
+          const activa = (pathname ?? seccion) === item.href;
+          const Icon = item.icon;
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              aria-current={activa ? "page" : undefined}
+              className={`inline-flex h-11 shrink-0 items-center gap-2 rounded-full border px-4 text-sm font-semibold transition duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] ${
+                activa
+                  ? "border-[#0a0a0a] bg-[#0a0a0a] text-white"
+                  : "border-[#e5e5e5] bg-white text-[#27272a] hover:border-[#0a0a0a] hover:bg-[#fafafa]"
+              }`}
+            >
+              <Icon className="h-4 w-4" aria-hidden="true" />
+              {item.label}
+            </Link>
+          );
+        })}
+      </nav>
+    </>
+  );
+
+  if (cargando) {
     return (
-      <div className="flex min-h-64 items-center justify-center text-muted">
-        <Loader2 className="mr-2 h-5 w-5 animate-spin" aria-hidden="true" />
-        Cargando ajustes…
+      <div className="space-y-5 sm:space-y-6">
+        {cabecera}
+        <div role="status" className="space-y-4">
+          <span className="sr-only">Cargando ajustes…</span>
+          <div className="h-56 rounded-3xl border border-[#e5e5e5] bg-[#fafafa] motion-safe:animate-pulse" aria-hidden="true" />
+          <div className="h-40 rounded-3xl border border-[#e5e5e5] bg-[#fafafa] motion-safe:animate-pulse" aria-hidden="true" />
+        </div>
       </div>
     );
   }
-
-  if (hasToken === false) return null;
-
-  const account = accountQuery.data;
 
   // Sin `accountQuery.isError` a propósito: React Query conserva los datos en
   // caché cuando un refresco falla (marca error sin soltar `data`), y esta
   // pantalla solo debe aparecer si no hay nada que pintar.
   if (!business || !account) {
     return (
-      <div className="panel mx-auto max-w-2xl space-y-4 p-6 text-center">
-        <h1 className="text-2xl font-semibold text-[#0a0a0a]">
-          No se pudieron cargar los ajustes
-        </h1>
-        <p className="text-sm leading-6 text-muted">
-          Comprueba tu conexión y vuelve a intentarlo.
-        </p>
-        <button
-          type="button"
-          onClick={() => window.location.reload()}
-          className="btn-primary mx-auto"
-        >
-          Reintentar
-        </button>
+      <div className="space-y-5 sm:space-y-6">
+        {cabecera}
+        <SectionErrorState
+          message="No se pudieron cargar los ajustes. Comprueba tu conexión y vuelve a intentarlo."
+          onRetry={() => window.location.reload()}
+        />
       </div>
     );
   }
@@ -133,35 +167,7 @@ export function MarcoDeAjustes({
       value={{ business, account, hasToken: hasToken === true }}
     >
       <div className="space-y-5 sm:space-y-6">
-        <AppPageHeader
-          icon={Settings}
-          title="Ajustes"
-          description={DESCRIPCIONES[seccion]}
-        />
-        <nav
-          aria-label="Secciones de ajustes"
-          className="-mx-1 flex gap-1 overflow-x-auto px-1 pb-1"
-        >
-          {SECCIONES_DE_AJUSTES.map((item) => {
-            const activa = (pathname ?? seccion) === item.href;
-            const Icon = item.icon;
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                aria-current={activa ? "page" : undefined}
-                className={`inline-flex h-11 shrink-0 items-center gap-2 rounded-full px-4 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] ${
-                  activa
-                    ? "bg-[#0a0a0a] text-white"
-                    : "border border-[#e5e5e5] bg-white text-[#27272a] hover:border-[#0a0a0a] hover:bg-[#fafafa]"
-                }`}
-              >
-                <Icon className="h-4 w-4" aria-hidden="true" />
-                {item.label}
-              </Link>
-            );
-          })}
-        </nav>
+        {cabecera}
         {children}
       </div>
     </Contexto.Provider>
@@ -170,14 +176,22 @@ export function MarcoDeAjustes({
 
 export type Feedback = { type: "success" | "error"; message: string } | null;
 
+/**
+ * Resultado de guardar, junto al botón. Siempre montado: una región
+ * aria-live que aparece ya con texto no la anuncian la mayoría de lectores de
+ * pantalla. Vacío sigue ocupando su hueco en la fila (hace de separador con
+ * `justify-between`).
+ */
 export function FeedbackMessage({ value }: { value: Feedback }) {
-  if (!value) return <span />;
   return (
     <p
+      role="status"
       aria-live="polite"
-      className={`text-sm leading-6 ${value.type === "success" ? "text-[#2c7334]" : "text-[#c53030]"}`}
+      className={`min-w-0 text-sm leading-6 ${
+        value?.type === "success" ? "text-[#2c7334]" : "text-[#c53030]"
+      }`}
     >
-      {value.message}
+      {value?.message ?? ""}
     </p>
   );
 }

@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import {
   AlertTriangle,
@@ -62,8 +63,18 @@ export default function BillingSettingsPage() {
     active: showCancellationNotice,
     onEscape: () => setShowCancellationNotice(false),
   });
-  const { business } = useBusiness();
-  const summary = useQuery({ queryKey: ["billing-summary"], queryFn: getBillingSummary });
+  const router = useRouter();
+  const { business, hasToken } = useBusiness();
+  // Sin sesión se va al login, como el resto de pantallas privadas: antes se
+  // quedaba diciendo «No se pudo consultar tu facturación».
+  useEffect(() => {
+    if (hasToken === false) router.replace("/login");
+  }, [hasToken, router]);
+  const summary = useQuery({
+    queryKey: ["billing-summary"],
+    queryFn: getBillingSummary,
+    enabled: hasToken === true,
+  });
   const portal = useMutation({
     mutationFn: createBillingPortalSession,
     onSuccess: ({ url }) => window.location.assign(url),
@@ -88,11 +99,17 @@ export default function BillingSettingsPage() {
     <section className="space-y-6">
       <AppPageHeader
         icon={CreditCard}
-        title="Plan y pagos"
+        title="Plan y facturación"
         description="Tu suscripción, el consumo de minutos y tus facturas."
       />
 
-      {summary.isLoading ? <div className="panel p-8 text-muted">Cargando facturación…</div> : null}
+      {summary.isLoading ? (
+        <div className="grid gap-5 lg:grid-cols-3" role="status">
+          <span className="sr-only">Cargando facturación…</span>
+          <div className="h-72 rounded-3xl border border-[#e5e5e5] bg-[#fafafa] motion-safe:animate-pulse lg:col-span-2" aria-hidden="true" />
+          <div className="h-72 rounded-3xl border border-[#e5e5e5] bg-[#fafafa] motion-safe:animate-pulse" aria-hidden="true" />
+        </div>
+      ) : null}
       {summary.isError ? (
         <SectionErrorState
           message="No se pudo consultar tu facturación. Vuelve a intentarlo en unos minutos; si sigue igual, escríbenos antes de que afecte al servicio."
@@ -127,9 +144,8 @@ export default function BillingSettingsPage() {
               <>
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <p className="text-sm text-muted">Tu plan</p>
-                    <h2 className="mt-1 text-2xl font-semibold text-[#0a0a0a] sm:text-3xl">
-                      {plan.name}
+                    <h2 className="text-2xl font-semibold text-[#0a0a0a] sm:text-3xl">
+                      Plan {plan.name}
                       <span className="ml-2 text-base font-medium text-muted">{plan.price} €/mes</span>
                     </h2>
                   </div>
@@ -150,7 +166,7 @@ export default function BillingSettingsPage() {
                 ) : null}
 
                 {data.cancelAtPeriodEnd && data.currentPeriodEnd ? (
-                  <p className="mt-3 rounded-xl bg-[#fef8e7] px-4 py-3 text-sm leading-6 text-[#806012]">
+                  <p className="mt-3 rounded-2xl border border-[#f0dfa8] bg-[#fef8e7] px-4 py-3 text-sm leading-6 text-[#806012]">
                     Tu plan termina el {formatFecha(data.currentPeriodEnd)}. Acuérdate de quitar el
                     desvío de tu teléfono antes de esa fecha para que tus clientes no se queden sin
                     respuesta.
@@ -180,6 +196,11 @@ export default function BillingSettingsPage() {
                         aria-valuenow={porcentaje}
                         aria-valuemin={0}
                         aria-valuemax={100}
+                        aria-valuetext={
+                          incluidos !== null
+                            ? `${consumidos} de ${incluidos} minutos`
+                            : `${consumidos} minutos`
+                        }
                       >
                         <div
                           className={`h-full rounded-full transition-all duration-200 ${
@@ -220,7 +241,7 @@ export default function BillingSettingsPage() {
                     de conversación registrados.
                   </p>
                 </div>
-                <Link href="/planes?from=billing" className="btn-primary h-11 px-5">
+                <Link href="/planes?from=billing" className="btn-primary">
                   Ver los planes
                 </Link>
               </div>
@@ -228,19 +249,24 @@ export default function BillingSettingsPage() {
           </article>
 
           <article className="panel flex flex-col p-4 sm:p-6">
-            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#f3eeff] text-[#8b5cf6]">
-              <ReceiptText className="h-5 w-5" aria-hidden="true" />
-            </span>
-            <h2 className="mt-4 text-lg font-semibold text-[#0a0a0a] sm:text-xl">Facturas y pago</h2>
-            <p className="mt-2 flex-1 text-sm leading-6 text-muted">
+            {/* Misma cabecera horizontal que el resto de tarjetas de Ajustes. */}
+            <div className="flex items-start gap-3">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#f3eeff] text-[#8b5cf6]">
+                <ReceiptText className="h-5 w-5" aria-hidden="true" />
+              </span>
+              <h2 className="pt-1.5 text-lg font-semibold text-[#0a0a0a]">Facturas y pago</h2>
+            </div>
+            <p className="mt-3 flex-1 text-sm leading-6 text-muted">
               Descarga tus facturas, cambia la tarjeta o da de baja la suscripción desde el portal
               seguro de Stripe.
             </p>
             {data.customerConfigured ? (
               <button
+                type="button"
+                aria-haspopup="dialog"
                 onClick={() => setShowCancellationNotice(true)}
                 disabled={portal.isPending}
-                className="btn-primary mt-6 h-11 justify-center px-5"
+                className="btn-primary mt-6"
               >
                 {portal.isPending ? (
                   <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
@@ -250,12 +276,12 @@ export default function BillingSettingsPage() {
                 {portal.isPending ? "Abriendo…" : "Gestionar en Stripe"}
               </button>
             ) : (
-              <Link href="/planes?from=billing" className="btn-primary mt-6 h-11 justify-center px-5">
+              <Link href="/planes?from=billing" className="btn-primary mt-6">
                 Elegir plan
               </Link>
             )}
             {portal.isError ? (
-              <p className="mt-3 text-sm text-[#c53030]">
+              <p role="alert" className="mt-3 text-sm text-[#c53030]">
                 No se pudo abrir el portal de Stripe. Inténtalo otra vez en unos segundos.
               </p>
             ) : null}
@@ -270,38 +296,39 @@ export default function BillingSettingsPage() {
             role="dialog"
             aria-modal="true"
             aria-labelledby="cancellation-notice-title"
+            aria-describedby="cancellation-notice-body"
             className="relative w-full max-w-md rounded-3xl border border-[#e5e5e5] bg-white p-6 shadow-[0_24px_60px_rgba(0,0,0,0.18)]"
           >
             <button
               type="button"
               onClick={() => setShowCancellationNotice(false)}
-              className="absolute right-4 top-4 inline-flex h-10 w-10 items-center justify-center rounded-full border border-[#e5e5e5] bg-white text-[#52525b] transition duration-200 hover:bg-[#fafafa] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] focus-visible:ring-offset-2"
+              className="absolute right-4 top-4 inline-flex h-11 w-11 items-center justify-center rounded-full border border-[#e5e5e5] bg-white text-muted transition duration-200 hover:bg-[#fafafa] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] focus-visible:ring-offset-2"
               aria-label="Cerrar aviso"
             >
               <X className="h-5 w-5" aria-hidden="true" />
             </button>
-            <h2 id="cancellation-notice-title" className="pr-8 text-xl font-semibold text-[#0a0a0a]">
-              Antes de cancelar
+            <h2 id="cancellation-notice-title" className="pr-12 text-xl font-semibold text-[#0a0a0a]">
+              Si vas a cancelar el plan
             </h2>
-            <p className="mt-4 text-sm leading-6 text-[#52525b]">
+            <p id="cancellation-notice-body" className="mt-4 text-sm leading-6 text-muted">
               Cuando termine tu suscripción, tu recepcionista dejará de atender llamadas. Antes de esa
               fecha, desactiva el desvío de tu línea habitual para que tus clientes no queden sin
               atención.
             </p>
-            <p className="mt-3 text-sm leading-6 text-[#52525b]">
+            <p className="mt-3 text-sm leading-6 text-muted">
               También te enviaremos estas instrucciones por correo cuando programes la baja.
             </p>
             <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
               <button
                 type="button"
-                className="btn-secondary h-11 justify-center px-5"
+                className="btn-secondary h-11 px-5"
                 onClick={() => setShowCancellationNotice(false)}
               >
                 Volver
               </button>
               <button
                 type="button"
-                className="btn-primary h-11 justify-center px-5"
+                className="btn-primary h-11 px-5"
                 onClick={() => {
                   setShowCancellationNotice(false);
                   portal.mutate();

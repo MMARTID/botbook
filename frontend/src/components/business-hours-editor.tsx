@@ -218,7 +218,7 @@ export function BusinessHoursEditor({
               <p className="text-lg font-semibold text-[#0a0a0a]">{DAYS.find((day) => day.key === selectedDay)?.label}</p>
               <p className="text-sm text-muted">Activa el día y añade hasta tres tramos.</p>
             </div>
-            <label className="flex min-h-11 cursor-pointer items-center gap-2 rounded-[10px] border border-[#e5e5e5] bg-white px-3 text-sm font-semibold text-[#27272a] focus-within:ring-2 focus-within:ring-[#8b5cf6]">
+            <label className="flex min-h-11 cursor-pointer items-center gap-2 rounded-[10px] border border-[#e5e5e5] bg-white px-3 text-sm font-semibold text-[#27272a] has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-[#8b5cf6]">
               <input
                 type="checkbox"
                 className="accent-[#8b5cf6]"

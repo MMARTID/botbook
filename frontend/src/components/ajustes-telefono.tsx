@@ -60,6 +60,7 @@ import type {
   ModoDePasarLlamadas,
   OnboardingForwarding,
 } from "@/lib/types";
+import { FeedbackMessage, type Feedback } from "@/components/ajustes/marco-de-ajustes";
 
 export const ERROR_LINEA_INVALIDA =
   "Añade el prefijo del país y escribe solo números, por ejemplo +34 930 453 218.";
@@ -82,7 +83,6 @@ export const CONFIRMACION_CAMBIO_DE_MOVIL =
 export const ERROR_LINEA_SIN_WHATSAPP =
   "Esa línea es un fijo y no tiene WhatsApp. Escribe abajo el móvil al que quieres los avisos.";
 
-type Feedback = { type: "success" | "error"; message: string } | null;
 
 type AjustesTelefonoProps = {
   business: Business;
@@ -168,10 +168,6 @@ export function AjustesTelefono({ business, hasToken }: AjustesTelefonoProps) {
           >
             Teléfono
           </h2>
-          <p className="mt-1 text-sm leading-6 text-muted">
-            Qué número es cuál: la línea a la que llaman tus clientes, el número
-            de tu recepcionista y tu móvil.
-          </p>
         </div>
       </div>
 
@@ -536,7 +532,7 @@ function LineaDeClientes({
           {numeroDeAlhabla && numeroDeAlhablaActivo ? (
             codigos ? (
               <details className="group mt-3">
-                <summary className="inline-flex cursor-pointer list-none items-center gap-1.5 rounded-full px-1 py-2 text-sm font-semibold text-[#6d28d9] transition duration-200 hover:text-[#8b5cf6] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]">
+                <summary className="inline-flex min-h-11 cursor-pointer list-none items-center gap-1.5 rounded-[10px] px-1 text-sm font-semibold text-[#6d28d9] underline-offset-2 transition duration-200 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] [&::-webkit-details-marker]:hidden">
                   Códigos para activar o quitar el desvío
                   <ChevronDown
                     className="h-4 w-4 transition duration-200 group-open:rotate-180"
@@ -600,7 +596,7 @@ function EstadoDelDesvio({
 }) {
   if (!forwarding && noDisponible) {
     return (
-      <span className="inline-flex w-fit items-center gap-1.5 text-xs text-muted">
+      <span className="inline-flex w-fit items-center gap-1.5 rounded-full bg-[#f4f4f5] px-3 py-1.5 text-xs font-semibold text-[#52525b] ring-1 ring-inset ring-[#e5e5e5]">
         No se ha podido comprobar
       </span>
     );
@@ -621,17 +617,19 @@ function EstadoDelDesvio({
       </span>
     );
   }
+  // El matiz iba en un «title», que no se ve en el móvil ni lo lee casi
+  // ningún lector de pantalla: ahora va escrito debajo.
   return (
-    <span
-      className="inline-flex w-fit items-center gap-1.5 rounded-full bg-[#fef8e7] px-3 py-1.5 text-xs font-semibold text-[#806012] ring-1 ring-inset ring-[#f0dfa8]"
-      title={
-        forwarding.firstCallAt
-          ? "Ya han entrado llamadas desviadas, pero nunca has pulsado «Comprobar desvío»."
-          : undefined
-      }
-    >
-      <Clock3 className="h-3.5 w-3.5" aria-hidden="true" />
-      Sin comprobar
+    <span className="flex flex-col gap-1">
+      <span className="inline-flex w-fit items-center gap-1.5 rounded-full bg-[#fef8e7] px-3 py-1.5 text-xs font-semibold text-[#806012] ring-1 ring-inset ring-[#f0dfa8]">
+        <Clock3 className="h-3.5 w-3.5" aria-hidden="true" />
+        Sin comprobar
+      </span>
+      {forwarding.firstCallAt ? (
+        <span className="text-xs leading-5 text-muted">
+          Ya han entrado llamadas desviadas, pero nunca has pulsado «Comprobar desvío».
+        </span>
+      ) : null}
     </span>
   );
 }
@@ -730,14 +728,14 @@ function TuRecepcionista({
           {estado?.action && "href" in estado.action ? (
             <Link
               href={estado.action.href}
-              className="mt-1 inline-block text-xs font-semibold text-[#6d28d9] underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]"
+              className="zona-tactil mt-1 inline-flex text-xs font-semibold text-[#6d28d9] underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]"
             >
               {estado.action.label}
             </Link>
           ) : estado?.action && "kind" in estado.action ? (
             <Link
               href="/"
-              className="mt-1 inline-block text-xs font-semibold text-[#6d28d9] underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]"
+              className="zona-tactil mt-1 inline-flex text-xs font-semibold text-[#6d28d9] underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]"
             >
               Reintentar desde el panel
             </Link>
@@ -945,7 +943,7 @@ function TuMovil({
       {tipo !== "alhabla" ? (
         <div className="space-y-2">
           {lineaEsMovil && linea !== null ? (
-            <label className="flex min-h-11 items-start gap-3 rounded-xl border border-[#e5e5e5] p-3 text-sm text-[#27272a]">
+            <label className="flex min-h-11 cursor-pointer items-start gap-3 rounded-[10px] border border-[#e5e5e5] p-3 text-sm text-[#27272a] has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-[#8b5cf6] has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-60">
               <input
                 type="checkbox"
                 checked={avisosEnLaLinea}
@@ -968,7 +966,7 @@ function TuMovil({
               </span>
             </label>
           ) : null}
-          <label className="flex min-h-11 items-start gap-3 rounded-xl border border-[#e5e5e5] p-3 text-sm text-[#27272a]">
+          <label className="flex min-h-11 cursor-pointer items-start gap-3 rounded-[10px] border border-[#e5e5e5] p-3 text-sm text-[#27272a] has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-[#8b5cf6] has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-60">
             <input
               type="checkbox"
               checked={business.hideOwnerNumberFromClients === true}
@@ -1002,19 +1000,5 @@ function TuMovil({
 
       <WhatsappDueno business={business} hasToken={hasToken} />
     </Bloque>
-  );
-}
-
-function FeedbackMessage({ value }: { value: Feedback }) {
-  if (!value) return <span />;
-  return (
-    <p
-      aria-live="polite"
-      className={`text-sm leading-6 ${
-        value.type === "success" ? "text-[#2c7334]" : "text-[#c53030]"
-      }`}
-    >
-      {value.message}
-    </p>
   );
 }

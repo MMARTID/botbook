@@ -24,6 +24,7 @@ import type {
   EstadoWhatsappDueno,
   WhatsappOwnerStatus,
 } from "@/lib/types";
+import { FeedbackMessage, type Feedback } from "@/components/ajustes/marco-de-ajustes";
 
 export const AYUDA_MOVIL =
   "Aquí te avisará la recepcionista de cada reserva y recado. Es tu móvil, no el teléfono del local.";
@@ -38,7 +39,6 @@ export const AYUDA_GESTOR =
 export const AYUDA_CHAT_CLIENTES =
   "Cuando un cliente escriba al WhatsApp de reservas, la recepcionista le atenderá por chat con tus mismos servicios, horario y calendario. Si lo desactivas, se le pedirá que llame.";
 
-type Feedback = { type: "success" | "error"; message: string } | null;
 
 type WhatsappDuenoProps = {
   business: Business;
@@ -68,11 +68,11 @@ const BADGES: Record<
   },
   sin_whatsapp: {
     texto: "Sin WhatsApp",
-    clases: "bg-[#fdecec] text-[#c53030] ring-[#f5d3d3]",
+    clases: "bg-[#fff1f1] text-[#c53030] ring-[#f5d3d3]",
   },
   baja: {
     texto: "Avisos desactivados",
-    clases: "bg-[#f4f4f5] text-[#52525b] ring-[#e4e4e7]",
+    clases: "bg-[#f4f4f5] text-[#52525b] ring-[#e5e5e5]",
   },
 };
 
@@ -438,7 +438,7 @@ export function WhatsappDueno({ business, hasToken }: WhatsappDuenoProps) {
 
   if (estadoQuery.isLoading) {
     return (
-      <div className="mt-5 flex items-center gap-2 text-sm text-muted">
+      <div role="status" className="flex items-center gap-2 text-sm text-muted">
         <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
         Cargando estado de WhatsApp…
       </div>
@@ -446,7 +446,7 @@ export function WhatsappDueno({ business, hasToken }: WhatsappDuenoProps) {
   }
 
   return (
-    <div className="mt-5 space-y-5">
+    <div className="space-y-5">
       {badge ? (
         <span
           className={`inline-flex w-fit rounded-full px-3 py-1.5 text-xs font-semibold ring-1 ring-inset ${badge.clases}`}
@@ -494,7 +494,13 @@ export function WhatsappDueno({ business, hasToken }: WhatsappDuenoProps) {
             }}
             onBlur={() => validar(movil)}
             placeholder="600 123 456"
-            aria-describedby={movilError ? `${ayudaId} ${errorId}` : ayudaId}
+            aria-describedby={
+              movilError
+                ? `${ayudaId} ${errorId}`
+                : movilAviso
+                  ? `${ayudaId} settings-owner-whatsapp-aviso`
+                  : ayudaId
+            }
             aria-invalid={Boolean(movilError) || status === "sin_whatsapp"}
             className="field mt-2 w-full"
           />
@@ -515,7 +521,10 @@ export function WhatsappDueno({ business, hasToken }: WhatsappDuenoProps) {
               {movilError}
             </span>
           ) : movilAviso ? (
-            <span className="mt-1 block text-xs font-normal leading-5 text-[#806012]">
+            <span
+              id="settings-owner-whatsapp-aviso"
+              className="mt-1 block text-xs font-normal leading-5 text-[#806012]"
+            >
               {movilAviso}
             </span>
           ) : null}
@@ -542,7 +551,7 @@ export function WhatsappDueno({ business, hasToken }: WhatsappDuenoProps) {
                 reenviarMutation.mutate();
               }}
               disabled={ocupado || cambiosSinGuardar}
-              title={cambiosSinGuardar ? "Guarda primero el móvil" : undefined}
+              aria-describedby={cambiosSinGuardar ? "reenviar-motivo" : undefined}
               className="btn-secondary shrink-0"
             >
               {reenviarMutation.isPending ? (
@@ -583,6 +592,11 @@ export function WhatsappDueno({ business, hasToken }: WhatsappDuenoProps) {
             </button>
           ) : null}
         </div>
+        {puedeReenviar && cambiosSinGuardar ? (
+          <p id="reenviar-motivo" className="text-xs leading-5 text-muted">
+            Guarda primero el móvil para reenviar la activación.
+          </p>
+        ) : null}
         <FeedbackMessage value={feedback} />
       </form>
 
@@ -597,7 +611,7 @@ export function WhatsappDueno({ business, hasToken }: WhatsappDuenoProps) {
 
       {estado && status !== "sin_numero" ? (
         <div className="space-y-2">
-          <label className="flex min-h-11 items-start gap-3 rounded-xl border border-[#e5e5e5] p-3 text-sm text-[#27272a]">
+          <label className="flex min-h-11 cursor-pointer items-start gap-3 rounded-[10px] border border-[#e5e5e5] p-3 text-sm text-[#27272a] has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-[#8b5cf6] has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-60">
             <input
               type="checkbox"
               checked={estado.avisoPorReserva}
@@ -632,7 +646,7 @@ export function WhatsappDueno({ business, hasToken }: WhatsappDuenoProps) {
           </h3>
           <span className="badge-soft">Beta</span>
         </div>
-        <label className="flex min-h-11 items-start gap-3 rounded-xl border border-[#e5e5e5] p-3 text-sm text-[#27272a]">
+        <label className="flex min-h-11 cursor-pointer items-start gap-3 rounded-[10px] border border-[#e5e5e5] p-3 text-sm text-[#27272a] has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-[#8b5cf6] has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-60">
           <input
             type="checkbox"
             checked={business.ownerChatEnabled !== false}
@@ -659,7 +673,7 @@ export function WhatsappDueno({ business, hasToken }: WhatsappDuenoProps) {
             </span>
           </span>
         </label>
-        <label className="flex min-h-11 items-start gap-3 rounded-xl border border-[#e5e5e5] p-3 text-sm text-[#27272a]">
+        <label className="flex min-h-11 cursor-pointer items-start gap-3 rounded-[10px] border border-[#e5e5e5] p-3 text-sm text-[#27272a] has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-[#8b5cf6] has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-60">
           <input
             type="checkbox"
             checked={business.clientChatEnabled !== false}
@@ -797,15 +811,16 @@ function BloqueAlta({
               href={alta.link}
               target="_blank"
               rel="noopener noreferrer"
-              className="btn-primary justify-center"
+              className="btn-primary"
             >
               <ExternalLink className="h-4 w-4" aria-hidden="true" />
               Abrir WhatsApp
+              <span className="sr-only"> (se abre en otra pestaña)</span>
             </a>
             <button
               type="button"
               onClick={onCopiar}
-              className="btn-secondary justify-center"
+              className="btn-secondary"
             >
               {copiado ? (
                 <Check className="h-4 w-4 text-[#2c7334]" aria-hidden="true" />
@@ -837,18 +852,5 @@ function BloqueAlta({
         </div>
       </div>
     </div>
-  );
-}
-
-function FeedbackMessage({ value }: { value: Feedback }) {
-  return (
-    <p
-      aria-live="polite"
-      className={`text-sm leading-6 ${
-        value?.type === "success" ? "text-[#2c7334]" : "text-[#c53030]"
-      }`}
-    >
-      {value?.message ?? ""}
-    </p>
   );
 }

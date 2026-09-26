@@ -11,7 +11,7 @@ import { clearRegistrationNextStep, consumeRegistrationNextStep } from "@/lib/re
 
 export default function SettingsCallbackPage() {
   return (
-    <Suspense fallback={<div className="flex min-h-screen items-center justify-center px-4 py-16">Cargando…</div>}>
+    <Suspense fallback={<div role="status" className="flex min-h-[60vh] items-center justify-center px-4 py-16 text-sm text-muted">Cargando…</div>}>
       <SettingsCallbackContent />
     </Suspense>
   );
@@ -94,11 +94,11 @@ function SettingsCallbackContent() {
 
   if (parsedGoogleCalendars) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-transparent px-4 py-16">
+      <div className="flex min-h-[60vh] items-center justify-center px-4 py-16">
         <div className="panel w-full max-w-xl space-y-5 p-6">
           <div>
-            <p className="text-sm font-semibold uppercase tracking-[0.12em] text-muted">Google Calendar</p>
-            <h1 className="mt-2 text-2xl font-semibold text-[#0a0a0a]">Elige el calendario que quieres usar</h1>
+            <span className="badge-soft">Google Calendar</span>
+            <h1 className="mt-3 text-2xl font-semibold text-[#0a0a0a]">Elige el calendario que quieres usar</h1>
             <p className="mt-2 text-sm leading-6 text-muted">
               Cuenta conectada: {parsedGoogleCalendars.email ?? "Cuenta de Google"}. La recepcionista apuntará las citas
               en el calendario que elijas y respetará lo que ya tengas en él.
@@ -127,7 +127,7 @@ function SettingsCallbackContent() {
                     router.replace("/?calendar_error=true");
                   }
                 }}
-                className="rounded-2xl border border-[#e5e5e5] bg-white px-4 py-4 text-left shadow-sm transition hover:border-[#ddd6fe] hover:bg-[#fafafa] disabled:cursor-wait disabled:opacity-60"
+                className="rounded-2xl border border-[#e5e5e5] bg-white px-4 py-4 text-left transition duration-200 hover:border-[#ddd6fe] hover:bg-[#fafafa] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] focus-visible:ring-offset-2 disabled:cursor-wait disabled:opacity-60"
               >
                 <p className="text-sm font-semibold text-[#0a0a0a]">
                   {connectingCalendarId === calendar.id ? "Conectando…" : calendar.name}
@@ -137,17 +137,17 @@ function SettingsCallbackContent() {
             ))}
           </div>
         </div>
-      </main>
+      </div>
     );
   }
 
   if (parsedOutlookCalendars) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-transparent px-4 py-16">
+      <div className="flex min-h-[60vh] items-center justify-center px-4 py-16">
         <div className="panel w-full max-w-xl space-y-5 p-6">
           <div>
-            <p className="text-sm font-semibold uppercase tracking-[0.12em] text-muted">Outlook Calendar</p>
-            <h1 className="mt-2 text-2xl font-semibold text-[#0a0a0a]">Elige el calendario que quieres usar</h1>
+            <span className="badge-soft">Outlook Calendar</span>
+            <h1 className="mt-3 text-2xl font-semibold text-[#0a0a0a]">Elige el calendario que quieres usar</h1>
             <p className="mt-2 text-sm leading-6 text-muted">Cuenta conectada: {parsedOutlookCalendars.email ?? "Cuenta Microsoft"}</p>
           </div>
           <div className="grid gap-3">
@@ -173,7 +173,7 @@ function SettingsCallbackContent() {
                     router.replace("/?outlook_error=true");
                   }
                 }}
-                className="rounded-2xl border border-[#e5e5e5] bg-white px-4 py-4 text-left shadow-sm transition hover:border-[#ddd6fe] hover:bg-[#fafafa] disabled:cursor-wait disabled:opacity-60"
+                className="rounded-2xl border border-[#e5e5e5] bg-white px-4 py-4 text-left transition duration-200 hover:border-[#ddd6fe] hover:bg-[#fafafa] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] focus-visible:ring-offset-2 disabled:cursor-wait disabled:opacity-60"
               >
                 <p className="text-sm font-semibold text-[#0a0a0a]">
                   {connectingCalendarId === calendar.id ? "Conectando…" : calendar.name}
@@ -183,23 +183,23 @@ function SettingsCallbackContent() {
             ))}
           </div>
         </div>
-      </main>
+      </div>
     );
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-transparent px-4 py-16">
+    <div className="flex min-h-[60vh] items-center justify-center px-4 py-16">
       <div className="panel w-full max-w-md overflow-hidden p-0">
         <div className="bg-[#fafafa] px-6 py-6">
           <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#0a0a0a] text-white">
-              <CalendarCheck2 className="h-5 w-5" />
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#f3eeff] text-[#8b5cf6]">
+              <CalendarCheck2 className="h-5 w-5" aria-hidden="true" />
             </div>
             <div>
-              <p className="text-sm font-semibold uppercase tracking-[0.12em] text-muted">
+              <span className="badge-soft">
                 {searchParams.has("outlook_error") ? "Outlook Calendar" : "Google Calendar"}
-              </p>
-              <h1 className="text-xl font-semibold text-[#0a0a0a]">
+              </span>
+              <h1 className="mt-2 text-xl font-semibold text-[#0a0a0a]">
                 {isSuccess ? "Conexión completada" : isError ? "Hubo un problema" : "Finalizando configuración"}
               </h1>
             </div>
@@ -213,7 +213,7 @@ function SettingsCallbackContent() {
                 isSuccess ? (
                   <CheckCircleAnimation />
                 ) : (
-                  <CircleAlert className="h-10 w-10" />
+                  <CircleAlert className="h-10 w-10" aria-hidden="true" />
                 )
               ) : (
                 <div className="h-8 w-8 animate-spin rounded-full border-4 border-[#e5e5e5] border-t-[#0a0a0a]" />
@@ -222,13 +222,14 @@ function SettingsCallbackContent() {
           </div>
 
           <div className="space-y-3">
-            <div className="h-2 overflow-hidden rounded-full bg-[#e5e5e5]">
+            {/* Barra de tiempo, no de progreso real: decorativa. */}
+            <div className="h-2 overflow-hidden rounded-full bg-[#e5e5e5]" aria-hidden="true">
               <div
                 className="h-full rounded-full bg-gradient-to-r from-[#0a0a0a] via-[#8b5cf6] to-[#a78bfa] transition-all duration-200"
                 style={{ width: `${progress}%` }}
               />
             </div>
-            <p className="text-center text-sm text-muted">
+            <p role="status" className="text-center text-sm text-muted">
               {phase === "processing"
                 ? "Estamos cerrando la conexión y devolviéndote al panel…"
                 : isSuccess
@@ -240,12 +241,12 @@ function SettingsCallbackContent() {
           </div>
 
           <div className="flex items-center justify-center gap-2 text-sm font-medium text-muted">
-            <Sparkles className="h-4 w-4" />
+            <Sparkles className="h-4 w-4" aria-hidden="true" />
             Redirigiendo automáticamente
           </div>
         </div>
       </div>
-    </main>
+    </div>
   );
 }
 

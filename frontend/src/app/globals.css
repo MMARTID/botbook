@@ -175,7 +175,7 @@ body {
   }
 
   .field {
-    @apply h-11 rounded-[10px] border border-[#e5e5e5] bg-white px-4 text-sm outline-none transition duration-200 placeholder:text-[#52525b] focus:border-[#8b5cf6] focus:ring-2 focus:ring-[#8b5cf6]/30 disabled:cursor-not-allowed disabled:bg-[#fafafa];
+    @apply h-11 rounded-[10px] border border-[#e5e5e5] bg-white px-4 text-sm outline-none transition duration-200 placeholder:text-[#52525b] focus:border-[#8b5cf6] focus:ring-2 focus:ring-[#8b5cf6]/30 disabled:cursor-not-allowed disabled:bg-[#fafafa] aria-[invalid=true]:border-[#c53030] aria-[invalid=true]:focus:border-[#c53030] aria-[invalid=true]:focus:ring-[#c53030]/30;
   }
 
   /* Anillo de foco morado en los tres: sin esto, cada botón primario,
