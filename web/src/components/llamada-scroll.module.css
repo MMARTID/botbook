@@ -26,8 +26,12 @@
   aspect-ratio: 1335 / 2859;
 }
 
+.areaTitulo {
+  margin-bottom: 2rem;
+}
+
 /* Móvil: el teléfono se queda pegado bajo la cabecera con fondo opaco, y
-   los textos pasan por debajo (nunca por encima del teléfono). El degradado
+   los pasos pasan por debajo (nunca por encima del teléfono). El degradado
    de abajo evita el corte seco del texto al entrar. */
 .areaTelefono {
   position: sticky;
@@ -51,22 +55,14 @@
   pointer-events: none;
 }
 
-.areaTexto {
-  padding-top: 2.5rem;
-}
-
-.capitulo + .capitulo {
-  margin-top: 4rem;
-}
-
-.pasos {
-  margin-top: 1rem;
+.areaPasos {
+  padding-bottom: 12svh;
 }
 
 .paso {
   display: flex;
   gap: 1rem;
-  min-height: 34svh;
+  min-height: 38svh;
   padding: 2rem 0.25rem;
 }
 
@@ -95,20 +91,6 @@
   transition: color 300ms ease;
 }
 
-.pasoPlan {
-  display: inline-block;
-  margin-left: 0.5rem;
-  padding: 0.125rem 0.5rem;
-  border-radius: 999px;
-  background: #f4f4f5;
-  color: #52525b;
-  font-size: 0.75rem;
-  line-height: 1.25rem;
-  font-weight: 600;
-  letter-spacing: 0;
-  vertical-align: 0.2em;
-}
-
 .pasoTexto {
   margin-top: 0.5rem;
   max-width: 32rem;
@@ -131,61 +113,39 @@
   color: #52525b;
 }
 
-.cierre {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 1rem;
-  margin-top: 1rem;
-  padding: 1.75rem;
-  border: 1px solid #e5e5e5;
-  border-radius: 1.5rem;
-  background: #fff;
-}
-
 /* Móvil: solo se ve el paso que se está leyendo. Los demás se apagan del
    todo (no a medias): así nunca queda texto fantasma asomando bajo el
-   teléfono, ni botones invisibles que se puedan pulsar. */
+   teléfono. */
 @media (max-width: 1023px) {
   .paso {
     opacity: 0;
-    visibility: hidden;
-    transition: opacity 250ms ease, visibility 0s linear 250ms;
+    transition: opacity 250ms ease;
   }
 
   .paso[data-activo] {
     opacity: 1;
-    visibility: visible;
-    transition: opacity 250ms ease, visibility 0s;
   }
 }
 
+/* Escritorio: título y pasos a la izquierda; el teléfono a la derecha,
+   pegado al centro de la ventana mientras se leen los pasos. */
 @media (min-width: 640px) {
   .areaTelefono {
     margin: 0 -1.5rem;
   }
-
-  .cierre {
-    flex-direction: row;
-    align-items: center;
-    justify-content: space-between;
-  }
 }
 
-/* Escritorio: el texto a la izquierda y el teléfono a la derecha, pegado al
-   centro de la ventana durante todo el relato. */
 @media (min-width: 1024px) {
   .escena {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
-    grid-template-areas: "texto telefono";
+    grid-template-areas: "titulo telefono" "pasos telefono";
     column-gap: 6rem;
   }
 
-  .areaTexto {
-    grid-area: texto;
-    padding-top: 0;
-    padding-bottom: 8vh;
+  .areaTitulo {
+    grid-area: titulo;
+    margin-bottom: 0;
   }
 
   .areaTelefono {
@@ -207,18 +167,19 @@
     width: 17rem;
   }
 
-  .capitulo + .capitulo {
-    margin-top: 6rem;
-  }
-
-  .pasos {
-    margin-top: 0;
+  .areaPasos {
+    grid-area: pasos;
+    padding-bottom: 18vh;
   }
 
   .paso {
-    min-height: 40vh;
+    min-height: 52vh;
     align-items: center;
     padding: 2rem 0;
+  }
+
+  .paso > .pasoNumero {
+    align-self: center;
   }
 
   .pasoTitulo {
@@ -693,14 +654,9 @@
   color: #667781;
 }
 
-.waBotones {
-  display: flex;
-  gap: 1.6cqw;
-  width: 88%;
-}
-
 .waBoton {
-  flex: 1;
+  align-self: flex-start;
+  width: 88%;
   padding: 2.6cqw;
   border-radius: 3cqw;
   background: #fff;
@@ -709,289 +665,4 @@
   font-weight: 600;
   color: #027eb5;
   box-shadow: 0 0.3cqw 0.5cqw rgba(11, 20, 26, 0.08);
-}
-
-.waBotonPulsado {
-  background: #e7f3fb;
-}
-
-.waMio {
-  align-self: flex-end;
-  background: #d9fdd3;
-  border-top-left-radius: 3cqw;
-  border-top-right-radius: 0.8cqw;
-}
-
-/* ── Pantallas de agenda y ajustes ───────────────────────────── */
-
-.citaDescartada {
-  opacity: 0.55;
-}
-
-.citaDescartada .citaTitulo {
-  text-decoration: line-through;
-  text-decoration-color: #a1a1aa;
-}
-
-.buscando {
-  display: flex;
-  flex-direction: column;
-  gap: 0.6cqw;
-  padding: 3cqw 3.6cqw;
-  border-radius: 3cqw;
-  background: #f3eeff;
-}
-
-.buscandoEtiqueta {
-  font-size: 3.2cqw;
-  font-weight: 600;
-  color: #6d28d9;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-}
-
-.buscandoServicio {
-  font-size: 4.8cqw;
-  font-weight: 700;
-  color: #0a0a0a;
-}
-
-.equipo {
-  display: flex;
-  flex-direction: column;
-  gap: 2.4cqw;
-  margin-top: 5cqw;
-}
-
-.miembro {
-  display: grid;
-  grid-template-columns: auto 1fr auto;
-  align-items: center;
-  gap: 3cqw;
-  padding: 3cqw;
-  border-radius: 3cqw;
-  background: #f4f4f5;
-}
-
-.miembroElegido {
-  background: #f3eeff;
-  box-shadow: inset 0 0 0 0.4cqw #8b5cf6;
-}
-
-.miembroInicial {
-  display: grid;
-  place-items: center;
-  width: 9cqw;
-  height: 9cqw;
-  border-radius: 50%;
-  background: #fff;
-  font-size: 4cqw;
-  font-weight: 700;
-  color: #52525b;
-}
-
-.miembroElegido .miembroInicial {
-  background: #8b5cf6;
-  color: #fff;
-}
-
-.miembroNombre {
-  font-size: 4.4cqw;
-  font-weight: 600;
-}
-
-.miembroNivel {
-  font-size: 3.4cqw;
-  color: #71717a;
-}
-
-.miembroElegido .miembroNivel {
-  color: #6d28d9;
-  font-weight: 600;
-}
-
-.asignada,
-.desvioOk,
-.conectado {
-  display: inline-flex;
-  align-items: center;
-  gap: 1.4cqw;
-  font-weight: 600;
-  color: #2c7334;
-}
-
-.asignada {
-  margin-top: auto;
-  align-self: center;
-  padding: 2.4cqw 4cqw;
-  border-radius: 99px;
-  background: #eaf5ea;
-  font-size: 4cqw;
-}
-
-.asignada svg,
-.desvioOk svg,
-.conectado svg {
-  width: 4.4cqw;
-  height: 4.4cqw;
-}
-
-.altaTitulo {
-  font-size: 6.4cqw;
-  font-weight: 700;
-  letter-spacing: -0.02em;
-}
-
-.altaSub {
-  margin-top: 6cqw;
-  font-size: 3.6cqw;
-  font-weight: 600;
-  color: #71717a;
-}
-
-.altaNota {
-  margin-top: auto;
-  text-align: center;
-  font-size: 3.6cqw;
-  color: #71717a;
-}
-
-.buscador {
-  display: flex;
-  align-items: center;
-  gap: 2.4cqw;
-  margin-top: 4cqw;
-  padding: 3cqw 3.6cqw;
-  border-radius: 99px;
-  background: #f4f4f5;
-  font-size: 4cqw;
-}
-
-.buscador svg {
-  width: 4.4cqw;
-  height: 4.4cqw;
-  color: #71717a;
-}
-
-.resultado {
-  display: grid;
-  grid-template-columns: auto 1fr auto;
-  align-items: center;
-  gap: 3cqw;
-  margin-top: 3cqw;
-  padding: 3cqw 3.6cqw;
-  border-radius: 3cqw;
-  background: #fff;
-  box-shadow: 0 0 0 0.3cqw #e4e4e7, 0 1.5cqw 4cqw -2cqw rgba(10, 10, 10, 0.15);
-}
-
-.resultado > svg:first-child {
-  width: 5.4cqw;
-  height: 5.4cqw;
-}
-
-.resultadoNombre {
-  font-size: 4.2cqw;
-  font-weight: 600;
-}
-
-.resultadoDato {
-  font-size: 3.4cqw;
-  color: #71717a;
-}
-
-.resultadoOk {
-  width: 5cqw;
-  height: 5cqw;
-  color: #8b5cf6;
-}
-
-.chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 2cqw;
-  margin-top: 2.6cqw;
-}
-
-.chip {
-  padding: 1.6cqw 3.2cqw;
-  border-radius: 99px;
-  background: #f3eeff;
-  color: #6d28d9;
-  font-size: 3.6cqw;
-  font-weight: 600;
-}
-
-.proveedores {
-  display: flex;
-  flex-direction: column;
-  gap: 2.6cqw;
-  margin-top: 5cqw;
-}
-
-.proveedor {
-  display: flex;
-  align-items: center;
-  gap: 3cqw;
-  padding: 3.4cqw 3.6cqw;
-  border-radius: 3cqw;
-  background: #f4f4f5;
-  font-size: 4.2cqw;
-  font-weight: 600;
-}
-
-.proveedor > svg {
-  width: 5.4cqw;
-  height: 5.4cqw;
-}
-
-.proveedorConectado {
-  background: #fff;
-  box-shadow: 0 0 0 0.4cqw #8b5cf6;
-}
-
-.conectado {
-  margin-left: auto;
-  font-size: 3.4cqw;
-}
-
-.codigo {
-  margin-top: 12cqw;
-  text-align: center;
-  font-size: 7cqw;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  font-variant-numeric: tabular-nums;
-}
-
-.codigoNumero {
-  display: inline-block;
-  margin: 0 1cqw;
-  padding: 0.6cqw 2cqw;
-  border-radius: 1.6cqw;
-  background: #f3eeff;
-  color: #6d28d9;
-  font-size: 3.6cqw;
-  vertical-align: 0.6cqw;
-}
-
-.marcar {
-  display: grid;
-  place-items: center;
-  width: 17cqw;
-  height: 17cqw;
-  margin: 10cqw auto 0;
-  border-radius: 50%;
-  background: #22c55e;
-}
-
-.marcar svg {
-  width: 7.4cqw;
-  height: 7.4cqw;
-}
-
-.desvioOk {
-  align-self: center;
-  margin-top: 8cqw;
-  font-size: 4.6cqw;
 }
