@@ -37,7 +37,7 @@ function DevEntrarContent() {
     <div className="flex min-h-screen items-center justify-center bg-white px-4">
       <div className="panel w-full max-w-md p-8 text-center">
         <p className="text-sm leading-6 text-muted">
-          {error || "Entrando..."}
+          {error || "Entrando…"}
         </p>
       </div>
     </div>

@@ -108,14 +108,6 @@ export function RangeSlider({
       {/* Espacio reservado arriba para la burbuja flotante: así no desplaza el
           layout al aparecer en hover/foco/arrastre. */}
       <div ref={trackRef} className="group relative mt-8 h-11 select-none">
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute bottom-full mb-3 -translate-x-1/2 scale-90 whitespace-nowrap rounded-xl bg-[#0a0a0a] px-2.5 py-1 text-xs font-bold text-white opacity-0 shadow-[0_8px_20px_rgba(0,0,0,0.18)] transition-[opacity,transform] duration-150 ease-out group-hover:scale-100 group-hover:opacity-100 group-active:scale-100 group-active:opacity-100 peer-focus-visible:scale-100 peer-focus-visible:opacity-100"
-          style={{ left: `${thumbLeft}px` }}
-        >
-          {displayValue}
-          <span className="absolute left-1/2 top-full h-2 w-2 -translate-x-1/2 -translate-y-1 rotate-45 bg-[#0a0a0a]" />
-        </div>
 
         {/* pista, siempre visible de extremo a extremo */}
         <div className="pointer-events-none absolute inset-x-0 top-1/2 h-2.5 -translate-y-1/2 overflow-hidden rounded-full bg-[#e5e5e5] shadow-[inset_0_1px_2px_rgba(0,0,0,0.08)]">
@@ -149,17 +141,29 @@ export function RangeSlider({
           value={value}
           onChange={(event) => onChange(Number(event.target.value))}
           aria-valuetext={ariaValueText}
+          aria-describedby={hint ? `${id}-hint` : undefined}
           className="peer absolute inset-0 h-full w-full cursor-pointer appearance-none bg-transparent opacity-0 [&::-moz-range-thumb]:h-6 [&::-moz-range-thumb]:w-6 [&::-moz-range-thumb]:appearance-none [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-0 [&::-webkit-slider-thumb]:h-6 [&::-webkit-slider-thumb]:w-6 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:border-0"
         />
+        {/* Burbuja después del <input>: `peer-focus-visible` solo alcanza a los
+            hermanos que vienen detrás, y antes de él nunca se mostraba al
+            llegar con el teclado. */}
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute bottom-full mb-3 -translate-x-1/2 scale-90 whitespace-nowrap rounded-xl bg-[#0a0a0a] px-2.5 py-1 text-xs font-bold text-white opacity-0 shadow-[0_8px_20px_rgba(0,0,0,0.18)] transition-[opacity,transform] duration-150 ease-out group-hover:scale-100 group-hover:opacity-100 group-active:scale-100 group-active:opacity-100 peer-focus-visible:scale-100 peer-focus-visible:opacity-100"
+          style={{ left: `${thumbLeft}px` }}
+        >
+          {displayValue}
+          <span className="absolute left-1/2 top-full h-2 w-2 -translate-x-1/2 -translate-y-1 rotate-45 bg-[#0a0a0a]" />
+        </div>
         {/* thumb visual: usa el mismo `thumbLeft` que el relleno, alineados por construcción */}
         <div
           aria-hidden="true"
-          className="pointer-events-none absolute top-1/2 h-6 w-6 -translate-x-1/2 -translate-y-1/2 rounded-full border-4 border-white shadow-[0_1px_3px_rgba(0,0,0,0.15)] transition-transform duration-150 ease-out group-hover:scale-110 group-active:scale-95 peer-focus-visible:ring-4 peer-focus-visible:ring-offset-2"
+          className="pointer-events-none absolute top-1/2 h-6 w-6 -translate-x-1/2 -translate-y-1/2 rounded-full border-4 border-white shadow-[0_1px_3px_rgba(0,0,0,0.15)] transition-transform duration-150 ease-out group-hover:scale-110 group-active:scale-95 peer-focus-visible:ring-2 peer-focus-visible:ring-offset-2"
           style={{
             left: `${thumbLeft}px`,
             backgroundColor: a.deep,
             boxShadow: `0 2px 10px ${a.deep}73, 0 1px 3px rgba(0,0,0,0.15)`,
-            ["--tw-ring-color" as string]: `${a.strong}4d`,
+            ["--tw-ring-color" as string]: a.strong,
           }}
         />
       </div>
@@ -169,12 +173,12 @@ export function RangeSlider({
         `<output>` — los extremos son solo referencia, no información que
         falte si desaparecen en la pantalla más ajustada.
       */}
-      <div className="mt-2 hidden justify-between text-xs font-medium text-[#a1a1aa] sm:flex" aria-hidden="true">
+      <div className="mt-2 hidden justify-between text-xs font-medium text-muted sm:flex" aria-hidden="true">
         <span>{minLabel}</span>
         <span>{maxLabel}</span>
       </div>
 
-      {hint ? <p className="mt-3 text-xs text-muted">{hint}</p> : null}
+      {hint ? <p id={`${id}-hint`} className="mt-3 text-xs text-muted">{hint}</p> : null}
     </div>
   );
 }

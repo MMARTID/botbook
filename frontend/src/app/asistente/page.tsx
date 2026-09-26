@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { MessageSquareText } from "lucide-react";
-import { AppPageHeader } from "@/components/app-page-header";
+import { AppPageHeader, AppPageSkeleton } from "@/components/app-page-header";
 import { GestorChat } from "@/components/gestor-chat";
 import { useBusiness } from "@/components/providers";
 
@@ -15,8 +15,7 @@ export default function AsistentePage() {
     if (hasToken === false) router.replace("/login");
   }, [hasToken, router]);
 
-  if (isLoadingBusiness)
-    return <div className="p-8 text-center text-muted">Cargando…</div>;
+  if (isLoadingBusiness) return <AppPageSkeleton label="Cargando tu asistente…" />;
 
   return (
     <div className="space-y-6">

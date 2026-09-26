@@ -36,3 +36,32 @@ export function AppPageHeader({
     </header>
   );
 }
+
+/**
+ * Esqueleto de una vista de trabajo mientras llega el negocio: reserva el sitio
+ * de la cabecera y de los primeros paneles para que la pantalla no salte de un
+ * «Cargando…» centrado al contenido real. El texto queda para el lector de
+ * pantalla.
+ */
+export function AppPageSkeleton({ label }: { label: string }) {
+  return (
+    <div className="space-y-5 sm:space-y-8" role="status">
+      <span className="sr-only">{label}</span>
+      <div
+        className="flex items-start gap-3 border-b border-[#e5e5e5] pb-6 sm:gap-4 sm:pb-7"
+        aria-hidden="true"
+      >
+        <div className="h-11 w-11 shrink-0 rounded-xl bg-[#f4f4f5] motion-safe:animate-pulse sm:h-12 sm:w-12" />
+        <div className="min-w-0 flex-1 space-y-3 pt-1">
+          <div className="h-8 w-56 max-w-full rounded-[10px] bg-[#f4f4f5] motion-safe:animate-pulse sm:h-9 sm:w-72" />
+          <div className="h-4 w-full max-w-lg rounded bg-[#f4f4f5] motion-safe:animate-pulse" />
+        </div>
+      </div>
+      <div className="h-36 rounded-3xl border border-[#e5e5e5] bg-[#fafafa] motion-safe:animate-pulse" aria-hidden="true" />
+      <div className="grid gap-4 sm:gap-6 lg:grid-cols-2" aria-hidden="true">
+        <div className="h-72 rounded-3xl border border-[#e5e5e5] bg-[#fafafa] motion-safe:animate-pulse" />
+        <div className="h-72 rounded-3xl border border-[#e5e5e5] bg-[#fafafa] motion-safe:animate-pulse" />
+      </div>
+    </div>
+  );
+}

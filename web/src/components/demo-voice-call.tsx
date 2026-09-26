@@ -192,8 +192,11 @@ export function DemoVoiceCall({ open, onClose, onActiveChange, niche }: DemoVoic
     };
   }, [open, state]);
 
+  // 600 ms, no 300: cada pausa al escribir es una búsqueda en Places, que se
+  // paga por petición y está limitada por minuto. Escribiendo el nombre de un
+  // negocio, esperar un poco más convierte cuatro o cinco peticiones en dos.
   useEffect(() => {
-    const timeout = window.setTimeout(() => setDebouncedSearch(searchQuery.trim()), 300);
+    const timeout = window.setTimeout(() => setDebouncedSearch(searchQuery.trim()), 600);
     return () => window.clearTimeout(timeout);
   }, [searchQuery]);
 
@@ -210,8 +213,16 @@ export function DemoVoiceCall({ open, onClose, onActiveChange, niche }: DemoVoic
       .then((places) => {
         if (!cancelled) setSearchResults(places);
       })
-      .catch(() => {
-        if (!cancelled) setSearchError("No hemos podido buscar negocios ahora mismo. Prueba de nuevo o continúa con la demo genérica.");
+      .catch((error) => {
+        if (cancelled) return;
+        // Decir la verdad cuando el motivo es el límite por minuto: antes
+        // salía el mismo "no hemos podido" que un fallo real, y se leía como
+        // que la búsqueda estaba rota en vez de como "espera un momento".
+        setSearchError(
+          axios.isAxiosError(error) && error.response?.status === 429
+            ? "Has hecho muchas búsquedas seguidas. Espera unos segundos y vuelve a probar."
+            : "No hemos podido buscar negocios ahora mismo. Prueba de nuevo o continúa con la demo genérica.",
+        );
       })
       .finally(() => {
         if (!cancelled) setIsSearching(false);

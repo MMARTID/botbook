@@ -5,10 +5,17 @@ import { usePathname } from "next/navigation";
 import Script from "next/script";
 import { Analytics, type BeforeSendEvent } from "@vercel/analytics/next";
 import { webUrl } from "@/lib/web-url";
+import { esRutaSinArmazon } from "@/components/app-shell";
 
 const ID_MEDICION = process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID ?? "G-Z3RT28K0ZJ";
 const NOMBRE_COOKIE = "alhabla_analitica";
 const UN_ANO = 365 * 24 * 60 * 60;
+const EVENTO_PREFERENCIAS = "alhabla:preferencias-cookies";
+
+/** Reabre el aviso de cookies desde otro sitio (la hoja «Más» del panel). */
+export function abrirPreferenciasDeCookies() {
+  window.dispatchEvent(new Event(EVENTO_PREFERENCIAS));
+}
 
 declare global {
   interface Window {
@@ -127,6 +134,12 @@ export function GoogleAnalytics() {
   }, []);
 
   useEffect(() => {
+    const abrir = () => setAbierto(true);
+    window.addEventListener(EVENTO_PREFERENCIAS, abrir);
+    return () => window.removeEventListener(EVENTO_PREFERENCIAS, abrir);
+  }, []);
+
+  useEffect(() => {
     if (!hidratado || !/^G-[A-Z0-9]+$/.test(ID_MEDICION)) return;
     if (consentimiento === true) {
       configurarGoogle();
@@ -157,6 +170,11 @@ export function GoogleAnalytics() {
     setAbierto(false);
   };
 
+  // Dentro del panel hay barra lateral (escritorio) y barra inferior (móvil):
+  // el botón flotante no puede taparlas. En móvil la opción vive en la hoja
+  // «Más»; en escritorio el botón pasa a la esquina derecha.
+  const enPanel = !esRutaSinArmazon(pathname);
+
   return (
     <>
       {puedeCargar && consentimiento === true ? (
@@ -166,18 +184,18 @@ export function GoogleAnalytics() {
         </>
       ) : null}
       {hidratado && (consentimiento === null || abierto) ? (
-        <aside className="fixed inset-x-4 bottom-4 z-50 mx-auto max-w-xl rounded-2xl border border-[#ddd6fe] bg-white p-5 shadow-[0_16px_40px_rgba(0,0,0,0.16)]" aria-labelledby="titulo-cookies">
+        <aside className={`fixed inset-x-4 z-[65] mx-auto max-w-xl rounded-2xl border border-[#e5e5e5] bg-white p-5 shadow-[0_16px_40px_rgba(0,0,0,0.16)] ${enPanel ? "bottom-[calc(5.5rem_+_env(safe-area-inset-bottom))] lg:bottom-4" : "bottom-4"}`} aria-labelledby="titulo-cookies">
           <h2 id="titulo-cookies" className="text-sm font-semibold text-[#0a0a0a]">Preferencias de cookies</h2>
-          <p className="mt-1 text-sm leading-6 text-[#52525b]">
-            Google Analytics y Vercel Analytics nos ayudan a entender el uso de la aplicación. Solo se activan si aceptas. Puedes cambiar tu elección cuando quieras. <a href={webUrl("/legal/privacidad")} className="underline underline-offset-2">Más información</a>.
+          <p className="mt-1 text-sm leading-6 text-muted">
+            Google Analytics y Vercel Analytics nos ayudan a entender el uso de la aplicación. Solo se activan si aceptas. Puedes cambiar tu elección cuando quieras. <a href={webUrl("/legal/privacidad")} className="rounded font-medium text-[#27272a] underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]">Más información</a>.
           </p>
           <div className="mt-4 flex flex-wrap gap-3">
-            <button type="button" onClick={() => decidir(true)} className="btn-secondary px-4 py-2 text-sm">Aceptar analítica</button>
-            <button type="button" onClick={() => decidir(false)} className="btn-secondary px-4 py-2 text-sm">Rechazar analítica</button>
+            <button type="button" onClick={() => decidir(true)} className="btn-secondary h-11 px-4">Aceptar analítica</button>
+            <button type="button" onClick={() => decidir(false)} className="btn-secondary h-11 px-4">Rechazar analítica</button>
           </div>
         </aside>
       ) : hidratado ? (
-        <button type="button" onClick={() => setAbierto(true)} className="fixed bottom-4 left-4 z-50 rounded-full border border-[#ddd6fe] bg-white px-3 py-2 text-xs font-semibold text-[#3f3f46] shadow-sm transition-opacity duration-200 hover:bg-[#f5f3ff] [html[data-relato]_&]:pointer-events-none [html[data-relato]_&]:opacity-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]">
+        <button type="button" onClick={() => setAbierto(true)} className={`fixed bottom-4 z-40 min-h-11 items-center rounded-full border border-[#e5e5e5] bg-white px-4 text-xs font-semibold text-[#27272a] shadow-[0_8px_24px_rgba(0,0,0,0.08)] transition duration-200 hover:bg-[#fafafa] [html[data-relato]_&]:pointer-events-none [html[data-relato]_&]:opacity-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] ${enPanel ? "right-4 hidden lg:inline-flex" : "left-4 inline-flex"}`}>
           Configurar cookies
         </button>
       ) : null}

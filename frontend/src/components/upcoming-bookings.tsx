@@ -45,7 +45,7 @@ export function UpcomingBookings({ timeZone }: UpcomingBookingsProps) {
         <div className="mt-5 space-y-4" aria-label="Cargando próximas citas">
           {Array.from({ length: 3 }, (_, index) => (
             <div key={index} className="flex gap-4" aria-hidden="true">
-              <div className="h-10 w-14 shrink-0 animate-pulse rounded-lg bg-[#f4f4f5]" />
+              <div className="h-10 w-14 shrink-0 animate-pulse rounded-xl bg-[#f4f4f5]" />
               <div className="flex-1 space-y-2">
                 <div className="h-4 w-2/5 animate-pulse rounded bg-[#f4f4f5]" />
                 <div className="h-3 w-3/5 animate-pulse rounded bg-[#f4f4f5]" />
@@ -154,7 +154,7 @@ function BookingRow({ booking, timeZone }: { booking: AgendaBooking; timeZone: s
       {phone ? (
         <a
           href={`tel:${booking.clientPhone}`}
-          className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-[#e5e5e5] bg-white text-[#52525b] transition duration-200 hover:border-[#ddd6fe] hover:bg-[#f3eeff] hover:text-[#6d28d9] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]"
+          className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[#e5e5e5] bg-white text-[#52525b] transition duration-200 hover:border-[#ddd6fe] hover:bg-[#f3eeff] hover:text-[#6d28d9] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]"
           aria-label={`Llamar al cliente al ${phone}`}
           title={`Llamar al ${phone}`}
         >

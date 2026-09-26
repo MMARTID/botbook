@@ -7,6 +7,7 @@ import { Loader2, Send } from "lucide-react";
 import { decideGestorAction, getGestor, sendGestorMessage } from "@/lib/api";
 import { describeApiError } from "@/lib/api-errors";
 import type { MensajeDelGestor, PropuestaDelGestor } from "@/lib/types";
+import { SectionErrorState } from "@/components/section-card";
 
 export const EJEMPLOS = [
   "¿Qué tengo mañana?",
@@ -135,15 +136,30 @@ export function GestorChat({ hasToken }: { hasToken: boolean | null }) {
   };
 
   if (estadoQuery.isLoading) {
+    // Mismo marco que la conversación: la pantalla no salta al cargar.
     return (
-      <div className="p-8 text-center text-muted">Cargando tu asistente…</div>
+      <div
+        role="status"
+        className="panel flex h-[calc(100dvh-15rem)] min-h-[24rem] flex-col overflow-hidden p-0 lg:h-[calc(100dvh-13rem)]"
+      >
+        <span className="sr-only">Cargando tu asistente…</span>
+        <div className="flex-1 space-y-3 px-4 py-5 sm:px-6" aria-hidden="true">
+          <div className="h-10 w-2/3 rounded-2xl bg-[#f3eeff] motion-safe:animate-pulse sm:w-1/2" />
+          <div className="ml-auto h-10 w-1/2 rounded-2xl bg-[#f4f4f5] motion-safe:animate-pulse sm:w-1/3" />
+          <div className="h-16 w-3/4 rounded-2xl bg-[#f3eeff] motion-safe:animate-pulse sm:w-1/2" />
+        </div>
+        <div className="border-t border-[#e5e5e5] px-4 py-3 sm:px-6" aria-hidden="true">
+          <div className="h-11 rounded-[10px] border border-[#e5e5e5] bg-[#fafafa]" />
+        </div>
+      </div>
     );
   }
   if (estadoQuery.isError || !estado) {
     return (
-      <div className="panel p-6 text-sm text-[#c53030]">
-        No se pudo cargar el asistente. Recarga la página en un momento.
-      </div>
+      <SectionErrorState
+        message="No se pudo cargar el asistente. Puede ser un corte momentáneo de conexión."
+        onRetry={() => void estadoQuery.refetch()}
+      />
     );
   }
   if (!estado.disponible) {
@@ -160,7 +176,7 @@ export function GestorChat({ hasToken }: { hasToken: boolean | null }) {
         Tienes el asistente desactivado. Puedes volver a activarlo en{" "}
         <Link
           href="/ajustes/telefono#whatsapp"
-          className="font-semibold text-[#6d28d9]"
+          className="rounded font-semibold text-[#6d28d9] underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] focus-visible:ring-offset-2"
         >
           Ajustes › Teléfono
         </Link>
@@ -180,7 +196,10 @@ export function GestorChat({ hasToken }: { hasToken: boolean | null }) {
         aria-live="polite"
         aria-label="Conversación con tu asistente"
       >
-        {burbujas.length === 0 ? (
+        {/* También mira el historial que llega del servidor: las burbujas se
+            rellenan en un efecto y, sin esto, el mensaje de bienvenida se
+            asomaba un instante antes de la conversación real. */}
+        {burbujas.length === 0 && estado.mensajes.length === 0 ? (
           <div className="mx-auto max-w-md py-6 text-center">
             <p className="text-sm leading-6 text-muted">
               Pregúntale por la agenda o pídele cambios. Todo lo que cambie te
@@ -195,7 +214,7 @@ export function GestorChat({ hasToken }: { hasToken: boolean | null }) {
                       setTexto(ejemplo);
                       campoRef.current?.focus();
                     }}
-                    className="rounded-full border border-[#e5e5e5] px-3 py-1.5 text-xs font-semibold text-[#27272a] transition hover:bg-[#fafafa]"
+                    className="inline-flex min-h-11 items-center rounded-full border border-[#e5e5e5] bg-white px-4 text-sm text-[#27272a] transition duration-200 hover:bg-[#fafafa] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]"
                   >
                     {ejemplo}
                   </button>
@@ -240,7 +259,7 @@ export function GestorChat({ hasToken }: { hasToken: boolean | null }) {
         ) : null}
         {propuesta ? (
           <div className="flex justify-start">
-            <div className="max-w-[85%] rounded-2xl border border-[#d9ccff] bg-white px-4 py-3 text-sm sm:max-w-[70%]">
+            <div className="max-w-[85%] rounded-2xl border border-[#ddd6fe] bg-white px-4 py-3 text-sm sm:max-w-[70%]">
               <p className="font-semibold text-[#0a0a0a]">
                 {propuesta.resumen}
               </p>
@@ -251,9 +270,10 @@ export function GestorChat({ hasToken }: { hasToken: boolean | null }) {
                   onClick={() =>
                     decidir.mutate({ id: propuesta.id, decision: "confirmar" })
                   }
-                  className="btn-primary px-4"
+                  className="btn-primary h-11 px-4"
                 >
-                  {decidir.isPending ? (
+                  {decidir.isPending &&
+                  decidir.variables?.decision === "confirmar" ? (
                     <Loader2
                       className="h-4 w-4 animate-spin"
                       aria-hidden="true"
@@ -267,8 +287,15 @@ export function GestorChat({ hasToken }: { hasToken: boolean | null }) {
                   onClick={() =>
                     decidir.mutate({ id: propuesta.id, decision: "cancelar" })
                   }
-                  className="btn-secondary px-4"
+                  className="btn-secondary h-11 px-4"
                 >
+                  {decidir.isPending &&
+                  decidir.variables?.decision === "cancelar" ? (
+                    <Loader2
+                      className="h-4 w-4 animate-spin"
+                      aria-hidden="true"
+                    />
+                  ) : null}
                   {propuesta.botones.cancelar}
                 </button>
               </div>
@@ -307,7 +334,7 @@ export function GestorChat({ hasToken }: { hasToken: boolean | null }) {
           maxLength={1000}
           placeholder="Escribe a tu asistente…"
           disabled={ocupado}
-          className="field min-h-11 flex-1 resize-none"
+          className="field min-h-11 flex-1 resize-none py-3 leading-5"
         />
         <button
           type="submit"

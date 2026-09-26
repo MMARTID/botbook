@@ -19,7 +19,8 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { DEFAULT_AGENT_SETTINGS } from "@/components/agent-settings-editor";
-import { AppPageHeader } from "@/components/app-page-header";
+import { AppPageHeader, AppPageSkeleton } from "@/components/app-page-header";
+import { SectionErrorState } from "@/components/section-card";
 import {
   CODIGO_ANULAR_DESVIOS_MOVIL,
   CODIGOS_FIJO,
@@ -95,6 +96,11 @@ export default function NumeroPrincipalPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const { business, hasToken, isLoadingBusiness } = useBusiness();
+  // Sin sesión, al login como el resto de pantallas privadas (antes se quedaba
+  // en blanco).
+  useEffect(() => {
+    if (hasToken === false) router.replace("/login");
+  }, [hasToken, router]);
   const phoneQuery = useQuery({
     queryKey: ["phone-number"],
     queryFn: getPhoneNumberInfo,
@@ -171,33 +177,17 @@ export default function NumeroPrincipalPage() {
   };
 
   if (isLoadingBusiness || phoneQuery.isLoading) {
-    return (
-      <div className="flex min-h-64 items-center justify-center text-muted">
-        <Loader2 className="mr-2 h-5 w-5 animate-spin" aria-hidden="true" />
-        Cargando…
-      </div>
-    );
+    return <AppPageSkeleton label="Cargando…" />;
   }
 
   if (hasToken === false) return null;
 
   if (!business) {
     return (
-      <div className="panel mx-auto max-w-2xl space-y-4 p-6 text-center">
-        <h1 className="text-2xl font-semibold text-[#0a0a0a]">
-          No se pudo cargar tu negocio
-        </h1>
-        <p className="text-sm leading-6 text-muted">
-          Comprueba tu conexión y vuelve a intentarlo.
-        </p>
-        <button
-          type="button"
-          onClick={() => window.location.reload()}
-          className="btn-primary mx-auto"
-        >
-          Reintentar
-        </button>
-      </div>
+      <SectionErrorState
+        message="No se pudo cargar tu negocio. Comprueba tu conexión y vuelve a intentarlo."
+        onRetry={() => window.location.reload()}
+      />
     );
   }
 
@@ -272,8 +262,12 @@ export default function NumeroPrincipalPage() {
             <button
               type="button"
               onClick={() => copiar(numeroDeAlhabla, "numero")}
-              className="btn-secondary shrink-0"
-              aria-label={`Copiar el número ${numeroDeAlhabla}`}
+              className="btn-secondary h-11 shrink-0 px-4"
+              aria-label={
+                copiado === "numero"
+                  ? "Número copiado"
+                  : `Copiar el número ${numeroDeAlhabla}`
+              }
             >
               {copiado === "numero" ? (
                 <Check className="h-4 w-4 text-[#2c7334]" aria-hidden="true" />
@@ -298,7 +292,7 @@ export default function NumeroPrincipalPage() {
               key={titulo}
               className="flex items-start gap-3 rounded-2xl border border-[#e5e5e5] p-3.5"
             >
-              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#f3eeff] text-[#8b5cf6]">
+              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[#f3eeff] text-[#8b5cf6]">
                 <Icon className="h-4 w-4" aria-hidden="true" />
               </span>
               <span className="min-w-0">
@@ -337,20 +331,24 @@ export default function NumeroPrincipalPage() {
               atiende y reserva.
             </li>
           </ul>
-          <div className="rounded-2xl bg-[#fef8e7] p-4">
-            <p className="text-sm leading-6 text-[#9f7a15]">
+          <div className="rounded-2xl border border-[#f0dfa8] bg-[#fef8e7] p-4">
+            <p className="text-sm leading-6 text-[#806012]">
               {TEXTO_QUITAR_DESVIOS}
             </p>
             <button
               type="button"
               onClick={() => copiar(CODIGO_ANULAR_DESVIOS_MOVIL, "anular")}
-              className="mt-3 inline-flex h-11 items-center gap-2 rounded-[10px] border border-[#e5e5e5] bg-white px-4 font-mono text-sm text-[#0a0a0a] transition duration-200 hover:border-[#8b5cf6] hover:bg-[#f3eeff] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]"
-              aria-label={`Copiar el código ${CODIGO_ANULAR_DESVIOS_MOVIL}`}
+              className="mt-3 inline-flex h-11 items-center gap-2 rounded-[10px] border border-[#e5e5e5] bg-white px-4 font-mono text-sm text-[#0a0a0a] transition duration-200 hover:border-[#0a0a0a] hover:bg-[#fafafa] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]"
+              aria-label={
+                copiado === "anular"
+                  ? "Código copiado"
+                  : `Copiar el código ${CODIGO_ANULAR_DESVIOS_MOVIL}`
+              }
             >
               {copiado === "anular" ? (
                 <Check className="h-4 w-4 text-[#2c7334]" aria-hidden="true" />
               ) : (
-                <Copy className="h-4 w-4 text-[#52525b]" aria-hidden="true" />
+                <Copy className="h-4 w-4 text-muted" aria-hidden="true" />
               )}
               {CODIGO_ANULAR_DESVIOS_MOVIL}
             </button>
@@ -411,9 +409,6 @@ export default function NumeroPrincipalPage() {
       >
         {hayMovil ? (
           <>
-            <p id="numero-principal-pasar-title" className="sr-only">
-              Cuándo pasarme llamadas
-            </p>
             <PasarLlamadas
               name="numero-principal-pasar"
               value={modoElegido}
@@ -422,7 +417,7 @@ export default function NumeroPrincipalPage() {
                 setError(null);
               }}
               disabled={confirmarMutation.isPending || yaEsPrincipal}
-              aria-labelledby="numero-principal-pasar-title"
+              aria-labelledby="pasar-llamadas-title"
             />
           </>
         ) : (
@@ -434,7 +429,7 @@ export default function NumeroPrincipalPage() {
             </span>
             <Link
               href="/ajustes/telefono#whatsapp"
-              className="mt-2 inline-block text-sm font-semibold text-[#6d28d9] underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]"
+              className="zona-tactil mt-2 inline-flex text-sm font-semibold text-[#0a0a0a] underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]"
             >
               {motivoSinMovil === "fuera_de_espana"
                 ? "Cambiar mi móvil"
@@ -459,6 +454,9 @@ export default function NumeroPrincipalPage() {
                 confirmarMutation.mutate();
               }}
               disabled={!puedeConfirmar || confirmarMutation.isPending}
+              aria-describedby={
+                !puedeConfirmar && !yaEsPrincipal ? "confirmar-motivo" : undefined
+              }
               className="btn-purple shrink-0"
             >
               {confirmarMutation.isPending ? (
@@ -471,8 +469,17 @@ export default function NumeroPrincipalPage() {
                 : "Usar Alhabla como número principal"}
             </button>
           </div>
+          {/* Un botón apagado sin decir por qué deja al negocio sin saber qué
+              le falta. */}
+          {!puedeConfirmar ? (
+            <p id="confirmar-motivo" className="mt-3 text-xs leading-5 text-muted">
+              {numeroDeAlhabla === null
+                ? "Podrás confirmarlo cuando tu número de Alhabla esté activo."
+                : "Añade tu móvil en «Cuándo pasarme llamadas» para poder confirmarlo."}
+            </p>
+          ) : null}
           {error ? (
-            <p aria-live="polite" className="mt-3 text-sm text-[#c53030]">
+            <p role="alert" className="mt-3 text-sm text-[#c53030]">
               {error}
             </p>
           ) : null}
@@ -526,10 +533,10 @@ function Aviso({
   return (
     <div
       role="status"
-      className={`rounded-2xl px-4 py-3 text-sm leading-6 ${
+      className={`rounded-2xl border px-4 py-3 text-sm leading-6 ${
         tono === "ok"
-          ? "bg-[#ecf7ec] text-[#2c7334]"
-          : "bg-[#fef8e7] text-[#9f7a15]"
+          ? "border-[#d8efd7] bg-[#ecf7ec] text-[#2c7334]"
+          : "border-[#f0dfa8] bg-[#fef8e7] text-[#806012]"
       }`}
     >
       {children}

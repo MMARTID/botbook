@@ -66,7 +66,7 @@ export function AppleCalendarConnect({
           </p>
         </div>
         {account.calendars.length === 0 ? (
-          <p className="text-sm text-[#c53030]">
+          <p className="text-sm leading-6 text-[#27272a]">
             Esta cuenta no tiene ningún calendario. Crea uno en la app
             Calendario del iPhone y vuelve a intentarlo.
           </p>
@@ -78,7 +78,7 @@ export function AppleCalendarConnect({
                 type="button"
                 disabled={selectMutation.isPending}
                 onClick={() => selectMutation.mutate(calendar.id)}
-                className="flex w-full items-center justify-between gap-3 rounded-xl border border-[#e5e5e5] bg-white px-4 py-3 text-left transition duration-200 hover:border-[#ddd6fe] disabled:opacity-60"
+                className="flex min-h-11 w-full items-center justify-between gap-3 rounded-xl border border-[#e5e5e5] bg-white px-4 py-3 text-left transition duration-200 hover:border-[#ddd6fe] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 <span className="block truncate text-sm font-semibold text-[#27272a]">
                   {selectMutation.isPending &&
@@ -86,7 +86,7 @@ export function AppleCalendarConnect({
                     ? "Conectando…"
                     : calendar.name}
                 </span>
-                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#f4f4f5] text-transparent">
+                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#f4f4f5] text-transparent" aria-hidden="true">
                   <Check className="h-3.5 w-3.5" />
                 </span>
               </button>
@@ -137,12 +137,13 @@ export function AppleCalendarConnect({
               href={APPLE_APP_PASSWORDS_URL}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 font-semibold text-[#6d28d9] underline-offset-2 hover:underline"
+              className="inline-flex items-center gap-1 rounded font-semibold text-[#6d28d9] underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] focus-visible:ring-offset-2"
             >
               tu cuenta de Apple
-              <ExternalLink className="h-3.5 w-3.5" />
+              <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+              <span className="sr-only"> (se abre en otra pestaña)</span>
             </a>{" "}
-            → Iniciar sesión y seguridad → Contraseñas de apps.
+            › Iniciar sesión y seguridad › Contraseñas de apps.
           </li>
           <li>Pulsa «Generar contraseña de app» y llámala «Alhabla».</li>
           <li>
@@ -170,7 +171,7 @@ export function AppleCalendarConnect({
               setErrorPrevio(null);
             }}
             placeholder="tu@icloud.com"
-            className="field"
+            className="field w-full"
           />
         </label>
         <label className="block">
@@ -188,7 +189,7 @@ export function AppleCalendarConnect({
               setErrorPrevio(null);
             }}
             placeholder="xxxx-xxxx-xxxx-xxxx"
-            className="field"
+            className="field w-full"
             aria-describedby="apple-app-password-ayuda"
           />
         </label>
@@ -209,19 +210,19 @@ export function AppleCalendarConnect({
         </p>
       ) : null}
 
-      <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
+      <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
         <button
           type="button"
           onClick={onCancel}
           disabled={connectMutation.isPending}
-          className="btn-secondary h-10 px-4"
+          className="btn-secondary h-11 px-4"
         >
           Cancelar
         </button>
         <button
           type="submit"
           disabled={connectMutation.isPending}
-          className="btn-primary h-10 px-4"
+          className="btn-primary h-11 px-4"
         >
           {connectMutation.isPending ? "Comprobando…" : "Conectar"}
         </button>

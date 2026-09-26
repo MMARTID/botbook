@@ -37,7 +37,7 @@ import {
 } from "@/components/agent-settings-editor";
 import { SettingsSection } from "@/components/settings-section";
 import { AgentOperationalSummary } from "@/components/agent-operational-summary";
-import { AppPageHeader } from "@/components/app-page-header";
+import { AppPageHeader, AppPageSkeleton } from "@/components/app-page-header";
 import { LottieAnimation } from "@/components/lottie-animation";
 import {
   describeServiceLevels,
@@ -45,6 +45,7 @@ import {
   type ServiceLevelMap,
 } from "@/components/professional-service-levels";
 import { SectionEmptyState } from "@/components/section-card";
+import { AvisoFlotante } from "@/components/aviso-flotante";
 import type {
   AgentSettings,
   BookingProfessional,
@@ -57,11 +58,11 @@ import {
   ArrowUpRight,
   Bot,
   BookOpenText,
-  CalendarClock,
   CalendarDays,
   Check,
   CheckCircle2,
   ChevronDown,
+  Layers,
   Pencil,
   Save,
   ScissorsLineDashed,
@@ -537,7 +538,7 @@ function AgenteContent() {
   }, [business, settingsQuery.data, searchParams]);
 
   if (isLoadingBusiness || settingsQuery.isLoading) {
-    return <div className="p-8 text-center text-muted">Cargando el agente…</div>;
+    return <AppPageSkeleton label="Cargando el agente…" />;
   }
 
   if (settingsQuery.isError) {
@@ -579,7 +580,7 @@ function AgenteContent() {
       <AppPageHeader icon={Bot} title="Tu agente" description="Configura cómo atiende, qué puede reservar y qué información utiliza al hablar con tus clientes." />
       <AgentOperationalSummary business={business} agentActive={business.agents?.[0]?.active !== false} />
       {banner ? (
-        <StatusBanner type={banner.type} message={banner.message} />
+        <AvisoFlotante aviso={banner} onClose={() => setBanner(null)} />
       ) : null}
       <SectionGroupHeading title="Disponibilidad" description="Define cuándo puede reservar tu recepcionista y cuántas citas puede confirmar a la vez." />
       <BusinessHoursEditor
@@ -593,7 +594,7 @@ function AgenteContent() {
 
       <SettingsSection
         id="capacity"
-        icon={CalendarClock}
+        icon={Layers}
         title="Capacidad de reservas"
         summary={`${settingsQuery.data?.bookingCapacity ?? 1} ${(settingsQuery.data?.bookingCapacity ?? 1) === 1 ? "plaza simultánea" : "plazas simultáneas"}`}
         open={isSectionOpen("capacity")}
@@ -623,7 +624,7 @@ function AgenteContent() {
               className="btn-primary h-11 px-5"
             >
               {capacityMutation.isPending ? (
-                "Guardando..."
+                "Guardando…"
               ) : (
                 <>
                   <Save className="h-4 w-4" />
@@ -718,7 +719,7 @@ function AgenteContent() {
                 }
                 className="btn-primary h-11 w-full px-5 sm:w-auto"
               >
-                {createServiceMutation.isPending ? "Creando..." : "Añadir"}
+                {createServiceMutation.isPending ? "Creando…" : "Añadir"}
               </button>
             </div>
           </details>
@@ -739,19 +740,11 @@ function AgenteContent() {
                     updateBookingService(service.id, payload)
                   }
                   onDelete={() => deleteBookingService(service.id)}
-                  onSuccess={async () => {
-                    await invalidateAll();
-                    setBanner({
-                      type: "success",
-                      message: `Servicio ${service.name} actualizado.`,
-                    });
-                  }}
-                  onError={() =>
-                    setBanner({
-                      type: "error",
-                      message: `No se pudo actualizar ${service.name}.`,
-                    })
-                  }
+                  // Guardar y fallar ya se avisan dentro de la tarjeta, junto
+                  // al botón: repetirlo en el aviso flotante era decirlo dos
+                  // veces. El borrado sí va fuera, porque la tarjeta desaparece.
+                  onSuccess={invalidateAll}
+                  onError={() => undefined}
                   onDeleted={async () => {
                     await invalidateAll();
                     setBanner({
@@ -759,12 +752,7 @@ function AgenteContent() {
                       message: `Servicio ${service.name} eliminado.`,
                     });
                   }}
-                  onDeleteError={() =>
-                    setBanner({
-                      type: "error",
-                      message: `No se pudo eliminar ${service.name}.`,
-                    })
-                  }
+                  onDeleteError={() => undefined}
                 />
               ))
             )}
@@ -842,7 +830,7 @@ function AgenteContent() {
                 className="btn-primary h-11 w-full px-5 sm:w-auto"
               >
                 {createProfessionalMutation.isPending
-                  ? "Guardando..."
+                  ? "Guardando…"
                   : "Añadir profesional"}
               </button>
             </div>
@@ -867,19 +855,10 @@ function AgenteContent() {
                   onDelete={() =>
                     deleteBookingProfessional(professional.id)
                   }
-                  onSuccess={async () => {
-                    await invalidateAll();
-                    setBanner({
-                      type: "success",
-                      message: `Profesional ${professional.name} actualizado.`,
-                    });
-                  }}
-                  onError={() =>
-                    setBanner({
-                      type: "error",
-                      message: `No se pudo actualizar ${professional.name}.`,
-                    })
-                  }
+                  // Mismo reparto que en servicios: guardar y fallar se avisan
+                  // en la tarjeta; el borrado, fuera.
+                  onSuccess={invalidateAll}
+                  onError={() => undefined}
                   onDeleted={async () => {
                     await invalidateAll();
                     setBanner({
@@ -887,12 +866,7 @@ function AgenteContent() {
                       message: `Profesional ${professional.name} eliminado.`,
                     });
                   }}
-                  onDeleteError={() =>
-                    setBanner({
-                      type: "error",
-                      message: `No se pudo eliminar ${professional.name}.`,
-                    })
-                  }
+                  onDeleteError={() => undefined}
                 />
               ))
             )}
@@ -934,7 +908,7 @@ function AgenteContent() {
                     type="button"
                     onClick={() => void startCalendarConnection("google")}
                     disabled={calendarAuthLoading !== null}
-                    className="relative flex flex-col justify-between rounded-xl border border-[#ddd6fe] bg-[#f3eeff] p-4 text-left transition duration-200 hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60"
+                    className="relative flex flex-col justify-between rounded-xl border border-[#ddd6fe] bg-[#f3eeff] p-4 text-left transition duration-200 hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0"
                   >
                     {/* Beta: la app de Google sigue en revisión, solo entran cuentas de prueba. */}
                     <BetaPill />
@@ -950,7 +924,7 @@ function AgenteContent() {
                     </div>
                     <span className="inline-flex items-center gap-1 text-sm font-semibold text-[#6d28d9]">
                       {calendarAuthLoading === "google"
-                        ? "Conectando..."
+                        ? "Conectando…"
                         : "Conectar Google"}
                       <ArrowUpRight className="h-4 w-4" />
                     </span>
@@ -959,7 +933,7 @@ function AgenteContent() {
                     type="button"
                     onClick={() => void startCalendarConnection("outlook")}
                     disabled={calendarAuthLoading !== null}
-                    className="flex flex-col justify-between rounded-xl border border-[#ddd6fe] bg-[#f3eeff] p-4 text-left transition duration-200 hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60"
+                    className="flex flex-col justify-between rounded-xl border border-[#ddd6fe] bg-[#f3eeff] p-4 text-left transition duration-200 hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0"
                   >
                     <div>
                       <p className="flex items-center gap-2 text-sm font-semibold text-[#0a0a0a]">
@@ -973,7 +947,7 @@ function AgenteContent() {
                     </div>
                     <span className="inline-flex items-center gap-1 text-sm font-semibold text-[#6d28d9]">
                       {calendarAuthLoading === "outlook"
-                        ? "Conectando..."
+                        ? "Conectando…"
                         : "Conectar Outlook"}
                       <ArrowUpRight className="h-4 w-4" />
                     </span>
@@ -986,7 +960,7 @@ function AgenteContent() {
                     }}
                     disabled={calendarAuthLoading !== null}
                     aria-expanded={appleFormOpen}
-                    className="relative flex flex-col justify-between rounded-xl border border-[#ddd6fe] bg-[#f3eeff] p-4 text-left transition duration-200 hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60 lg:col-span-2"
+                    className="relative flex flex-col justify-between rounded-xl border border-[#ddd6fe] bg-[#f3eeff] p-4 text-left transition duration-200 hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0 lg:col-span-2"
                   >
                     <BetaPill />
                     <div>
@@ -1056,10 +1030,10 @@ function AgenteContent() {
                         void startCalendarConnection(calendarState.provider as "google" | "outlook")
                       }
                       disabled={calendarAuthLoading !== null}
-                      className="btn-secondary h-10 px-4"
+                      className="btn-secondary h-11 px-4"
                     >
                       {calendarAuthLoading === calendarState.provider
-                        ? "Conectando..."
+                        ? "Conectando…"
                         : "Cambiar de cuenta"}
                     </button>
                   ) : calendarState.provider === "caldav" ? (
@@ -1069,7 +1043,7 @@ function AgenteContent() {
                         setCalendarStatus(null);
                         setAppleFormOpen((current) => !current);
                       }}
-                      className="btn-secondary h-10 px-4"
+                      className="btn-secondary h-11 px-4"
                     >
                       {appleFormOpen ? "Cerrar" : "Cambiar de cuenta"}
                     </button>
@@ -1077,7 +1051,7 @@ function AgenteContent() {
                   <button
                     type="button"
                     onClick={() => setCalendarPickerOpen((current) => !current)}
-                    className="btn-secondary h-10 px-4"
+                    className="btn-secondary h-11 px-4"
                   >
                     {calendarPickerOpen
                       ? "Cerrar selector"
@@ -1132,7 +1106,8 @@ function AgenteContent() {
                             onClick={() =>
                               selectCalendarMutation.mutate(calendar.id)
                             }
-                            className={`flex w-full items-center justify-between gap-3 rounded-xl border px-4 py-3 text-left transition duration-200 disabled:opacity-60 ${isSelected ? "border-[#8b5cf6] bg-[#f3eeff]" : "border-[#e5e5e5] bg-white hover:border-[#ddd6fe]"}`}
+                            aria-pressed={isSelected}
+                            className={`flex w-full items-center justify-between gap-3 rounded-xl border px-4 py-3 text-left transition duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] focus-visible:ring-offset-2 disabled:opacity-60 ${isSelected ? "border-[#8b5cf6] bg-[#f3eeff]" : "border-[#e5e5e5] bg-white hover:border-[#ddd6fe]"}`}
                           >
                             <span className="min-w-0">
                               <span className="block truncate text-sm font-semibold text-[#27272a]">
@@ -1190,10 +1165,10 @@ function AgenteContent() {
             type="button"
             onClick={() => profileMutation.mutate()}
             disabled={profileMutation.isPending}
-            className="btn-secondary px-5"
+            className="btn-primary px-5"
           >
             <Save className="h-4 w-4" />{" "}
-            {profileMutation.isPending ? "Guardando..." : "Guardar información"}
+            {profileMutation.isPending ? "Guardando…" : "Guardar información"}
           </button>
         </div>
       </SettingsSection>
@@ -1246,7 +1221,9 @@ function SectionGroupHeading({ title, description }: { title: string; descriptio
   return (
     <div className="border-b border-[#e5e5e5] pb-3 pt-4 sm:flex sm:items-end sm:justify-between sm:gap-6">
       <div>
-        <h2 className="text-base font-semibold text-[#0a0a0a] sm:text-lg">{title}</h2>
+        {/* Un escalón por encima del título de cada sección plegable: antes
+            tenían el mismo tamaño y el agrupamiento no se leía. */}
+        <h2 className="text-lg font-bold tracking-[-0.01em] text-[#0a0a0a] sm:text-xl">{title}</h2>
         <p className="mt-1 max-w-3xl text-sm leading-6 text-muted">{description}</p>
       </div>
     </div>
@@ -1256,9 +1233,7 @@ function SectionGroupHeading({ title, description }: { title: string; descriptio
 export default function AgentePage() {
   return (
     <Suspense
-      fallback={
-        <div className="p-8 text-center text-muted">Cargando el agente…</div>
-      }
+      fallback={<AppPageSkeleton label="Cargando el agente…" />}
     >
       <AgenteContent />
     </Suspense>
@@ -1391,7 +1366,7 @@ function ServiceEditor({
         </label>
         <label className="text-xs font-semibold text-[#52525b]">
           Estado
-          <span className="mt-2 flex min-h-11 items-center gap-2 rounded-xl border border-[#e5e5e5] bg-white px-3 text-sm font-normal text-[#27272a]">
+          <span className="mt-2 flex h-11 items-center gap-2 rounded-[10px] border border-[#e5e5e5] bg-white px-3 text-sm font-normal text-[#27272a]">
             <input
               type="checkbox"
               className="accent-[#8b5cf6]"
@@ -1414,7 +1389,7 @@ function ServiceEditor({
           disabled={saveMutation.isPending || !name.trim()}
           className="btn-secondary h-11 w-full self-end px-4 md:w-auto"
         >
-          {saveMutation.isPending ? "Guardando..." : "Guardar cambios"}
+          {saveMutation.isPending ? "Guardando…" : "Guardar cambios"}
         </button>
       </div>
       ) : null}
@@ -1426,7 +1401,7 @@ function ServiceEditor({
           onConfirm={() => deleteMutation.mutate()}
           pending={deleteMutation.isPending}
           confirmLabel="Eliminar servicio"
-          pendingLabel="Eliminando..."
+          pendingLabel="Eliminando…"
         />
       ) : null}
     </article>
@@ -1553,7 +1528,7 @@ function ProfessionalEditor({
           </label>
           <label className="text-xs font-semibold text-[#52525b]">
             Estado
-            <span className="mt-2 flex min-h-11 items-center gap-2 rounded-xl border border-[#e5e5e5] bg-white px-3 text-sm font-normal text-[#27272a]">
+            <span className="mt-2 flex h-11 items-center gap-2 rounded-[10px] border border-[#e5e5e5] bg-white px-3 text-sm font-normal text-[#27272a]">
               <input
                 type="checkbox"
                 className="accent-[#8b5cf6]"
@@ -1571,7 +1546,7 @@ function ProfessionalEditor({
             disabled={saveMutation.isPending || !name.trim()}
             className="btn-secondary h-11 w-full self-end px-4 md:w-auto"
           >
-            {saveMutation.isPending ? "Guardando..." : "Guardar cambios"}
+            {saveMutation.isPending ? "Guardando…" : "Guardar cambios"}
           </button>
         </div>
         <fieldset className="min-w-0">
@@ -1597,7 +1572,7 @@ function ProfessionalEditor({
           onConfirm={() => deleteMutation.mutate()}
           pending={deleteMutation.isPending}
           confirmLabel="Eliminar profesional"
-          pendingLabel="Eliminando..."
+          pendingLabel="Eliminando…"
         />
       ) : null}
     </article>

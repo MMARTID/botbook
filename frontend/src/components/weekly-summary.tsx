@@ -77,7 +77,7 @@ export function WeeklySummary({ week }: WeeklySummaryProps) {
               </p>
               <Link
                 href="/agente?section=services"
-                className="mt-2 inline-flex items-center gap-1 text-sm font-semibold text-[#6d28d9] transition duration-200 hover:text-[#8b5cf6] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]"
+                className="zona-tactil mt-2 inline-flex items-center gap-1 text-sm font-semibold text-[#6d28d9] transition duration-200 hover:text-[#8b5cf6] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]"
               >
                 Añadir precios
                 <ArrowRight className="h-4 w-4" aria-hidden="true" />
@@ -122,7 +122,7 @@ function Comparison({
   }
 
   const Icon = delta > 0 ? ArrowUpRight : ArrowDownRight;
-  const tone = delta > 0 ? "text-[#2c7334]" : "text-[#9f7a15]";
+  const tone = delta > 0 ? "text-[#2c7334]" : "text-[#806012]";
   const magnitude = Math.abs(delta);
 
   return (

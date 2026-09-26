@@ -23,14 +23,14 @@ const RECENT_CALLS_LIMIT = 6;
 
 const TONE_BADGE_CLASSES = {
   success: "bg-[#ecf7ec] text-[#2c7334] ring-1 ring-inset ring-[#d8efd7]",
-  warning: "bg-[#fef8e7] text-[#9f7a15] ring-1 ring-inset ring-[#f0dfa8]",
+  warning: "bg-[#fef8e7] text-[#806012] ring-1 ring-inset ring-[#f0dfa8]",
   neutral: "bg-[#f4f4f5] text-[#52525b] ring-1 ring-inset ring-[#e5e5e5]",
 } as const;
 
 const SENTIMENT_ICON = { POSITIVE: Smile, NEUTRAL: Meh, NEGATIVE: Frown } as const;
 const SENTIMENT_ICON_CLASSES = {
   success: "text-[#2c7334]",
-  warning: "text-[#9f7a15]",
+  warning: "text-[#806012]",
   neutral: "text-[#52525b]",
 } as const;
 
@@ -124,7 +124,7 @@ export function RecentCalls() {
                       ) : motivo ? (
                         // Solo cuando no hubo cita: ahí es cuando el motivo
                         // responde a algo que el negocio se está preguntando.
-                        <span className="inline-flex items-center gap-1 rounded-full bg-[#fef8e7] px-2 py-0.5 font-semibold text-[#9f7a15] ring-1 ring-inset ring-[#f0dfa8]">
+                        <span className="inline-flex items-center gap-1 rounded-full bg-[#fef8e7] px-2 py-0.5 font-semibold text-[#806012] ring-1 ring-inset ring-[#f0dfa8]">
                           {motivo}
                         </span>
                       ) : null}

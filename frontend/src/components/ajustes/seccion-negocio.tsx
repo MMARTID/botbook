@@ -39,6 +39,13 @@ export function SeccionNegocio() {
     });
   }, [business]);
 
+  // Guardar solo tiene sentido si algo cambió (igual que en «Teléfono»).
+  const hayCambios =
+    businessProfile.name.trim() !== business.name ||
+    businessProfile.address.trim() !== (business.address ?? "") ||
+    (businessProfile.businessType !== "" &&
+      businessProfile.businessType !== business.businessType);
+
   const profileMutation = useMutation({
     mutationFn: () => {
       // Dirección y sector solo se mandan si cambian: el sector renombra al
@@ -96,12 +103,13 @@ export function SeccionNegocio() {
           Nombre del negocio
           <input
             value={businessProfile.name}
-            onChange={(event) =>
+            onChange={(event) => {
+              setProfileFeedback(null);
               setBusinessProfile((current) => ({
                 ...current,
                 name: event.target.value,
-              }))
-            }
+              }));
+            }}
             autoComplete="organization"
             maxLength={80}
             aria-describedby="settings-business-name-hint"
@@ -111,7 +119,7 @@ export function SeccionNegocio() {
             id="settings-business-name-hint"
             className="mt-1 block text-xs font-normal leading-5 text-muted"
           >
-            Así se presenta el agente al contestar llamadas. Por defecto es el
+            Así se presenta tu recepcionista al contestar llamadas. Por defecto es el
             nombre que trajimos de Google al configurar tu negocio.
           </span>
         </label>
@@ -119,14 +127,15 @@ export function SeccionNegocio() {
           Sector
           <select
             value={businessProfile.businessType}
-            onChange={(event) =>
+            onChange={(event) => {
+              setProfileFeedback(null);
               setBusinessProfile((current) => ({
                 ...current,
                 businessType: isBusinessType(event.target.value)
                   ? event.target.value
                   : "",
-              }))
-            }
+              }));
+            }}
             aria-describedby="settings-business-type-hint"
             className="field mt-2 w-full"
           >
@@ -148,12 +157,13 @@ export function SeccionNegocio() {
           Dirección
           <input
             value={businessProfile.address}
-            onChange={(event) =>
+            onChange={(event) => {
+              setProfileFeedback(null);
               setBusinessProfile((current) => ({
                 ...current,
                 address: event.target.value,
-              }))
-            }
+              }));
+            }}
             autoComplete="street-address"
             maxLength={500}
             aria-describedby="settings-business-address-hint"
@@ -174,7 +184,11 @@ export function SeccionNegocio() {
         <button
           type="button"
           onClick={() => profileMutation.mutate()}
-          disabled={profileMutation.isPending || !businessProfile.name.trim()}
+          disabled={
+            profileMutation.isPending ||
+            !businessProfile.name.trim() ||
+            !hayCambios
+          }
           className="btn-primary shrink-0"
         >
           {profileMutation.isPending ? (

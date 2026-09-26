@@ -952,3 +952,81 @@ describe("RegisterBusinessPage — ¿A qué número te llaman tus clientes?", ()
     expect(location.getHref()).toBe("/bienvenida/niche");
   });
 });
+
+/**
+ * Búsqueda de negocio en Places: cada pausa al escribir es una petición de
+ * pago y limitada por minuto (auditoría del 2026-09-26, reproducida contra
+ * producción: a la décima búsqueda el backend devuelve 429 el resto del
+ * minuto). Estos tests fijan las dos defensas.
+ */
+describe("RegisterBusinessPage — búsqueda en Places", () => {
+  let location: ReturnType<typeof mockLocation>;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    window.localStorage.clear();
+    window.localStorage.setItem("alhabla_token", "token");
+    location = mockLocation();
+  });
+
+  afterEach(() => {
+    location.restore();
+    vi.restoreAllMocks();
+  });
+
+  it("no busca con menos de tres caracteres: antes tiraba una petición por letra", async () => {
+    const user = userEvent.setup();
+    mockedSearchPlaces.mockResolvedValue([]);
+    render(<RegisterBusinessPage />);
+    const campo = screen.getByPlaceholderText("Nombre del negocio o dirección");
+
+    await user.type(campo, "pe");
+    await waitFor(() => {
+      expect(mockedSearchPlaces).not.toHaveBeenCalled();
+    });
+
+    // Y a la tercera sí, para que el test hable del límite y no de que la
+    // búsqueda esté muerta por cualquier otro motivo.
+    await user.type(campo, "l");
+    await waitFor(() => {
+      expect(mockedSearchPlaces).toHaveBeenCalledWith("pel", expect.anything());
+    });
+  });
+
+  it("con el límite por minuto dice que espere, no que haya fallado", async () => {
+    const user = userEvent.setup();
+    mockedSearchPlaces.mockRejectedValue(
+      Object.assign(new Error("Too Many Requests"), {
+        isAxiosError: true,
+        response: { status: 429 },
+      })
+    );
+    render(<RegisterBusinessPage />);
+
+    await user.type(
+      screen.getByPlaceholderText("Nombre del negocio o dirección"),
+      "peluqueria"
+    );
+
+    expect(
+      await screen.findByText(
+        /Has hecho muchas búsquedas seguidas\. Espera unos segundos/
+      )
+    ).toBeInTheDocument();
+  });
+
+  it("cualquier otro fallo mantiene el mensaje de siempre", async () => {
+    const user = userEvent.setup();
+    mockedSearchPlaces.mockRejectedValue(new Error("boom"));
+    render(<RegisterBusinessPage />);
+
+    await user.type(
+      screen.getByPlaceholderText("Nombre del negocio o dirección"),
+      "peluqueria"
+    );
+
+    expect(
+      await screen.findByText(/No se pudieron buscar negocios/)
+    ).toBeInTheDocument();
+  });
+});

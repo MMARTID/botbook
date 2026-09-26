@@ -34,7 +34,7 @@ export function SectionCard({ id, title, description, action, className, childre
           action.kind === "link" ? (
             <Link
               href={action.href}
-              className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-[10px] border border-[#e5e5e5] bg-white px-3 text-sm font-semibold text-[#27272a] transition duration-200 hover:bg-[#fafafa] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]"
+              className="inline-flex h-11 shrink-0 items-center gap-1.5 rounded-[10px] border border-[#e5e5e5] bg-white px-3 text-sm font-semibold text-[#27272a] transition duration-200 hover:bg-[#fafafa] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]"
             >
               {action.label}
               <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
@@ -44,7 +44,7 @@ export function SectionCard({ id, title, description, action, className, childre
               type="button"
               onClick={action.onClick}
               disabled={action.disabled}
-              className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-[10px] border border-[#e5e5e5] bg-white px-3 text-sm font-semibold text-[#27272a] transition duration-200 hover:bg-[#fafafa] disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]"
+              className="inline-flex h-11 shrink-0 items-center gap-1.5 rounded-[10px] border border-[#e5e5e5] bg-white px-3 text-sm font-semibold text-[#27272a] transition duration-200 hover:bg-[#fafafa] disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]"
             >
               {action.label}
             </button>
@@ -96,7 +96,7 @@ export function SectionErrorState({ message, onRetry, className }: SectionErrorS
       <button
         type="button"
         onClick={onRetry}
-        className="inline-flex h-10 items-center gap-2 rounded-[10px] border border-[#f5d3d3] bg-white px-4 text-sm font-semibold text-[#c53030] transition duration-200 hover:bg-[#fff1f1] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]"
+        className="inline-flex h-11 items-center gap-2 rounded-[10px] border border-[#f5d3d3] bg-white px-4 text-sm font-semibold text-[#c53030] transition duration-200 hover:bg-[#fff1f1] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]"
       >
         <RefreshCw className="h-4 w-4" aria-hidden="true" />
         Reintentar

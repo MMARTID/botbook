@@ -6,6 +6,7 @@ import { Loader2 } from "lucide-react";
 import { redeemPass } from "@/lib/api";
 import { isPlanId, savePendingPlan } from "@/lib/billing-navigation";
 import { normalizeBusinessType } from "@/lib/business-type";
+import { BrandMark } from "@/components/brand-mark";
 import { webUrl } from "@/lib/web-url";
 
 const REGISTRATION_NICHE_KEY = "alhabla_registration_niche";
@@ -48,35 +49,37 @@ function EntrarContent() {
 
   if (error) {
     return (
-      <div className="flex min-h-screen items-center justify-center px-4">
-        <div className="panel max-w-md p-8 text-center">
-          <h1 className="text-2xl font-black tracking-tight text-[#0a0a0a]">No hemos podido abrir tu sesión</h1>
+      <main className="flex min-h-screen items-center justify-center px-4">
+        <div role="alert" className="panel w-full max-w-md p-6 text-center sm:p-8">
+          <BrandMark className="mx-auto h-14 w-14" />
+          <h1 className="mt-6 text-2xl font-black tracking-tight text-[#0a0a0a]">No hemos podido abrir tu sesión</h1>
           <p className="mt-3 text-sm leading-6 text-muted">
             {error} Tu cuenta está creada: entra con tu email y contraseña.
           </p>
-          <div className="mt-6 flex flex-wrap justify-center gap-3">
-            <a href="/login" className="btn-primary px-5">
+          <div className="mt-6 grid gap-3">
+            <a href="/login" className="btn-primary w-full">
               Entrar
             </a>
-            <a href={webUrl("/register")} className="btn-secondary px-5">
+            <a href={webUrl("/register")} className="btn-secondary w-full">
               Volver al registro
             </a>
           </div>
         </div>
-      </div>
+      </main>
     );
   }
 
   return (
     <div className="flex min-h-screen items-center justify-center px-4 text-sm text-muted" role="status">
-      <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" /> Abriendo tu cuenta…
+      <Loader2 className="mr-2 h-4 w-4 animate-spin text-[#8b5cf6]" aria-hidden="true" />
+      Abriendo tu cuenta…
     </div>
   );
 }
 
 export default function EntrarPage() {
   return (
-    <Suspense fallback={<div className="p-8 text-center text-muted">Abriendo tu cuenta…</div>}>
+    <Suspense fallback={<div className="flex min-h-screen items-center justify-center px-4 text-sm text-muted" role="status">Abriendo tu cuenta…</div>}>
       <EntrarContent />
     </Suspense>
   );

@@ -222,6 +222,7 @@ export function AgentSettingsEditor({
                     key={option.value}
                     type="button"
                     disabled={voiceLocked}
+                    aria-pressed={selected}
                     onClick={() => onChange({ ...value, voiceGender: option.value })}
                     className={`flex items-center justify-between gap-3 rounded-xl border px-4 py-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] focus-visible:ring-offset-2 ${selected ? "border-[#8b5cf6] bg-[#f3eeff]" : "border-[#e5e5e5] bg-white hover:border-[#ddd6fe]"} ${voiceLocked ? "cursor-not-allowed" : ""} ${voiceLocked && !selected ? "opacity-60" : ""}`}
                   >
@@ -237,7 +238,7 @@ export function AgentSettingsEditor({
               })}
             </div>
             <div>
-              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">
+              <p className="mb-2 text-xs font-semibold uppercase tracking-[0.12em] text-muted">
                 Idioma de la voz
               </p>
               <div className="grid gap-2">
@@ -249,6 +250,7 @@ export function AgentSettingsEditor({
                       key={option.value}
                       type="button"
                       disabled={!available}
+                      aria-pressed={selected}
                       onClick={() => onChange({ ...value, voiceLanguage: option.value })}
                       className={`flex items-center justify-between gap-3 rounded-xl border px-4 py-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] focus-visible:ring-offset-2 ${
                         !available
@@ -283,6 +285,7 @@ export function AgentSettingsEditor({
                   <button
                     key={option.value}
                     type="button"
+                    aria-pressed={selected}
                     onClick={() => onChange({ ...value, [field.key]: option.value })}
                     className={`flex items-center justify-between gap-3 rounded-xl border px-4 py-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] focus-visible:ring-offset-2 ${selected ? "border-[#8b5cf6] bg-[#f3eeff]" : "border-[#e5e5e5] bg-white hover:border-[#ddd6fe]"}`}
                   >
@@ -303,7 +306,7 @@ export function AgentSettingsEditor({
 
       <div className="flex justify-end border-t border-[#e5e5e5] bg-white px-4 py-4 sm:px-6">
         <button type="button" onClick={onSave} disabled={isSaving} className="btn-primary px-5">
-          <Save className="h-4 w-4" /> {isSaving ? "Guardando..." : "Guardar comportamiento"}
+          <Save className="h-4 w-4" /> {isSaving ? "Guardando…" : "Guardar comportamiento"}
         </button>
       </div>
     </SettingsSection>

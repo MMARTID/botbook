@@ -66,7 +66,7 @@ export function StatusStrip({ business, agentActive }: StatusStripProps) {
       : hasError
         ? { Icon: AlertTriangle, iconClass: "", text: "text-[#c53030]", bg: "bg-[#fff1f1]", border: "border-[#f5d3d3]", message: needsAttention.length === 1 ? "Un asunto requiere tu atención" : `${needsAttention.length} asuntos requieren tu atención` }
         : needsAttention.length > 0
-          ? { Icon: AlertTriangle, iconClass: "", text: "text-[#9f7a15]", bg: "bg-[#fef8e7]", border: "border-[#f0dfa8]", message: needsAttention.length === 1 ? "Un asunto conviene revisarlo" : `${needsAttention.length} asuntos conviene revisarlos` }
+          ? { Icon: AlertTriangle, iconClass: "", text: "text-[#806012]", bg: "bg-[#fef8e7]", border: "border-[#f0dfa8]", message: needsAttention.length === 1 ? "Un asunto conviene revisarlo" : `${needsAttention.length} asuntos conviene revisarlos` }
           : { Icon: HelpCircle, iconClass: "", text: "text-[#52525b]", bg: "bg-[#fafafa]", border: "border-[#e5e5e5]", message: "No hemos podido comprobar todo el estado. Recarga la página en un momento." };
 
   return (
@@ -91,10 +91,10 @@ export function StatusStrip({ business, agentActive }: StatusStripProps) {
                 </p>
                 {item.action ? (
                   "href" in item.action ? (
-                    <Link href={item.action.href} className="mt-1.5 inline-flex items-center text-xs font-semibold text-[#6d28d9] underline underline-offset-2 transition hover:text-[#8b5cf6] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]">{item.action.label}</Link>
+                    <Link href={item.action.href} className="zona-tactil mt-1.5 inline-flex items-center text-xs font-semibold text-[#6d28d9] underline underline-offset-2 transition hover:text-[#8b5cf6] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]">{item.action.label}</Link>
                   ) : (
                     <>
-                      <button type="button" onClick={() => provisionMutation.mutate()} disabled={provisionMutation.isPending} className="mt-1.5 inline-flex items-center gap-1 text-xs font-semibold text-[#6d28d9] underline underline-offset-2 transition hover:text-[#8b5cf6] disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]">
+                      <button type="button" onClick={() => provisionMutation.mutate()} disabled={provisionMutation.isPending} className="zona-tactil mt-1.5 inline-flex items-center gap-1 text-xs font-semibold text-[#6d28d9] underline underline-offset-2 transition hover:text-[#8b5cf6] disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]">
                         {provisionMutation.isPending ? <RefreshCw className="h-3 w-3 animate-spin" aria-hidden="true" /> : null}{item.action.label}
                       </button>
                       {/* Sin esto el reintento era mudo: el spinner giraba medio

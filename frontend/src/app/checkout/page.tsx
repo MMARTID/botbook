@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { EmbeddedCheckout, EmbeddedCheckoutProvider } from "@stripe/react-stripe-js";
 import { loadStripe } from "@stripe/stripe-js";
-import { AlertTriangle, ArrowLeft, ShieldCheck } from "lucide-react";
+import { AlertTriangle, ArrowLeft, LoaderCircle, ShieldCheck } from "lucide-react";
 import { createCheckoutSession } from "@/lib/api";
 import type { PlanId } from "@/lib/types";
 import { webUrl } from "@/lib/web-url";
@@ -76,8 +76,14 @@ export default function CheckoutPage({ searchParams }: { searchParams: { plan?: 
   if (!process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY) {
     return (
       <section className="mx-auto max-w-xl py-16 text-center">
-        <h1 className="text-3xl font-semibold text-[#0a0a0a]">Checkout sin configurar</h1>
-        <p className="mt-4 text-muted">Falta la clave publicable de Stripe en el frontend.</p>
+        <h1 className="text-3xl font-semibold text-[#0a0a0a]">El pago no está disponible ahora mismo</h1>
+        <p className="mt-4 text-muted">
+          Escríbenos a{" "}
+          <a href="mailto:hola@alhabla.ai" className="font-semibold text-[#6d28d9] underline underline-offset-2">
+            hola@alhabla.ai
+          </a>{" "}
+          y lo resolvemos.
+        </p>
       </section>
     );
   }
@@ -89,15 +95,15 @@ export default function CheckoutPage({ searchParams }: { searchParams: { plan?: 
           <ArrowLeft className="h-4 w-4" />
           Planes
         </a>
-        <span className="inline-flex items-center gap-2 text-sm font-medium text-muted">
+        <span className="inline-flex items-center gap-2 text-sm text-muted">
           <ShieldCheck className="h-4 w-4 text-[#2c7334]" />
           Pago protegido por Stripe · Cancela cuando quieras
         </span>
       </div>
-      <div className="min-h-[480px] overflow-hidden rounded-2xl border border-[#e5e5e5] bg-white shadow-[0_12px_40px_rgba(0,0,0,0.08)]">
+      <div className="min-h-[480px] overflow-hidden rounded-2xl border border-[#e5e5e5] bg-white">
         {sessionError ? (
-          <div className="flex min-h-[480px] flex-col items-center justify-center gap-4 p-8 text-center">
-            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-[#fef8e7] text-[#9f7a15]">
+          <div role="alert" className="flex min-h-[480px] flex-col items-center justify-center gap-4 p-8 text-center">
+            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-[#fef8e7] text-[#806012]">
               <AlertTriangle className="h-8 w-8" aria-hidden="true" />
             </div>
             <div>
@@ -120,8 +126,9 @@ export default function CheckoutPage({ searchParams }: { searchParams: { plan?: 
             <EmbeddedCheckout />
           </EmbeddedCheckoutProvider>
         ) : (
-          <div className="flex min-h-[480px] items-center justify-center">
-            <p className="text-sm text-muted">Preparando el pago…</p>
+          <div role="status" className="flex min-h-[480px] items-center justify-center gap-2 text-sm text-muted">
+            <LoaderCircle className="h-4 w-4 animate-spin text-[#8b5cf6]" aria-hidden="true" />
+            Preparando el pago…
           </div>
         )}
       </div>
