@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Mic, Phone } from "lucide-react";
-import { useReducedMotion } from "framer-motion";
 import { SiApple, SiGooglecalendar } from "@icons-pack/react-simple-icons";
 
 import { MicrosoftLogo } from "@/components/brand-icons";
@@ -14,10 +13,12 @@ import styles from "./una-llamada.module.css";
  * funciona», al reparto, a El Gestor y a los datos del sector de la portada,
  * que contaban lo mismo en cuatro bloques.
  *
- * Un teléfono FIJO (render) y tres pasos al lado. La pantalla cambia al
- * pulsar un paso, o sola cada pocos segundos mientras la sección está a la
- * vista y nadie ha tocado nada. Nada va ligado al scroll y nunca hay dos
- * textos a la vez: la pantalla anterior se va y la nueva entra.
+ * Un teléfono fijo (sticky) y tres pasos que se leen con el scroll NATIVO:
+ * el texto no se mueve por su cuenta ni se superpone, simplemente pasa. El
+ * paso que cruza la «línea de lectura» decide la pantalla del teléfono — en
+ * escritorio, el centro de la ventana; en móvil, el centro del hueco que
+ * queda bajo el teléfono. La pantalla anterior se va de golpe y la nueva
+ * entra (nunca hay dos textos a la vez), con sus piezas escalonadas.
  */
 
 const PASOS = [
@@ -38,39 +39,62 @@ const PASOS = [
   },
 ] as const;
 
-/** Lo que tarda cada pantalla en pasar sola a la siguiente. */
-const DURACION_MS = 6500;
-
 export function UnaLlamadaSection() {
   const [activo, setActivo] = useState(0);
-  // En cuanto la visitante pulsa un paso, el avance automático se para para
-  // siempre: manda ella.
-  const [manual, setManual] = useState(false);
-  const [enVista, setEnVista] = useState(false);
-  const reducirMovimiento = useReducedMotion();
-  const telefono = useRef<HTMLDivElement>(null);
+  const [direccion, setDireccion] = useState<"adelante" | "atras">("adelante");
+  const zonaTelefono = useRef<HTMLDivElement>(null);
+  const pasos = useRef<(HTMLLIElement | null)[]>([]);
 
   useEffect(() => {
-    const el = telefono.current;
-    if (!el) return;
-    const observador = new IntersectionObserver(
-      ([entrada]) => setEnVista(entrada.isIntersecting),
-      { threshold: 0.5 }
-    );
-    observador.observe(el);
-    return () => observador.disconnect();
-  }, []);
+    const escritorio = window.matchMedia("(min-width: 1024px)");
+    let pendiente = 0;
+    let ultimo = 0;
 
-  const automatico = !manual && !reducirMovimiento;
+    const medir = () => {
+      pendiente = 0;
+      const alto = window.innerHeight;
+      // En móvil el teléfono tapa la parte de arriba: se lee en el hueco
+      // que queda debajo.
+      const bajoTelefono = escritorio.matches
+        ? 0
+        : (zonaTelefono.current?.getBoundingClientRect().bottom ?? 0);
+      // En móvil la línea va en el tercio alto del hueco: el paso se activa
+      // cuando ya cabe entero debajo del teléfono.
+      const arriba = Math.max(bajoTelefono, 0);
+      const linea = arriba + (alto - arriba) * (escritorio.matches ? 0.5 : 0.35);
+
+      let elegido = 0;
+      pasos.current.forEach((el, i) => {
+        if (el && el.getBoundingClientRect().top <= linea) elegido = i;
+      });
+      if (elegido !== ultimo) {
+        setDireccion(elegido > ultimo ? "adelante" : "atras");
+        ultimo = elegido;
+        setActivo(elegido);
+      }
+    };
+    const pedir = () => {
+      if (!pendiente) pendiente = requestAnimationFrame(medir);
+    };
+
+    medir();
+    window.addEventListener("scroll", pedir, { passive: true });
+    window.addEventListener("resize", pedir);
+    return () => {
+      cancelAnimationFrame(pendiente);
+      window.removeEventListener("scroll", pedir);
+      window.removeEventListener("resize", pedir);
+    };
+  }, []);
 
   return (
     <section
       id="como-funciona"
-      className="scroll-m-20 overflow-x-clip border-b border-[#e5e5e5] bg-[#fafafa] py-16 sm:py-24"
+      className="scroll-m-20 border-b border-[#e5e5e5] bg-[#fafafa] py-16 sm:py-24"
       aria-labelledby="una-llamada-titulo"
     >
       <div
-        className={`mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 ${styles.rejilla}`}
+        className={`mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 ${styles.escena}`}
       >
         <Reveal className={`max-w-2xl ${styles.areaTitulo}`}>
           <h2
@@ -95,79 +119,24 @@ export function UnaLlamadaSection() {
           </p>
         </Reveal>
 
-        <ol className={`-mx-2 flex flex-col gap-2 sm:mx-0 ${styles.areaPasos}`}>
-          {PASOS.map((paso, i) => {
-            const esActivo = i === activo;
-            return (
-              <li key={paso.titulo}>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setManual(true);
-                    setActivo(i);
-                  }}
-                  aria-current={esActivo ? "step" : undefined}
-                  className={`relative flex w-full gap-4 rounded-2xl px-6 py-5 text-left transition-[background-color,box-shadow] duration-200 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] active:scale-[0.99] ${
-                    esActivo
-                      ? "bg-white shadow-[0_1px_2px_rgba(10,10,10,0.04),0_8px_24px_-12px_rgba(10,10,10,0.12)] ring-1 ring-[#e5e5e5]"
-                      : "hover:bg-white/60"
-                  }`}
-                >
-                  <span
-                    className={`mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-full text-sm font-bold tabular-nums transition-colors duration-200 ${
-                      esActivo
-                        ? "bg-[#8b5cf6] text-white"
-                        : "bg-[#ececef] text-[#71717a]"
-                    }`}
-                  >
-                    {i + 1}
-                  </span>
-                  <span className="min-w-0">
-                    <span
-                      className={`block text-lg font-bold tracking-tight transition-colors duration-200 ${esActivo ? "text-[#0a0a0a]" : "text-[#52525b]"}`}
-                    >
-                      {paso.titulo}
-                    </span>
-                    {/* La descripción solo se enseña en el paso activo: los
-                          otros quedan en una línea y la lista no pesa. */}
-                    <span
-                      className={`mt-1.5 text-base leading-7 text-[#52525b] ${esActivo ? "block" : "hidden"}`}
-                    >
-                      {paso.texto}
-                    </span>
-                  </span>
-                  {esActivo && automatico ? (
-                    <span
-                      key={activo}
-                      aria-hidden="true"
-                      className={styles.barra}
-                      style={{
-                        ["--duracion" as string]: `${DURACION_MS}ms`,
-                        animationPlayState: enVista ? "running" : "paused",
-                      }}
-                      onAnimationEnd={() =>
-                        setActivo((a) => (a + 1) % PASOS.length)
-                      }
-                    />
-                  ) : null}
-                </button>
-              </li>
-            );
-          })}
-        </ol>
-
-        <div className={styles.areaTelefono}>
-          <div ref={telefono} className={styles.telefono}>
+        <div ref={zonaTelefono} className={styles.areaTelefono}>
+          <div className={styles.telefono}>
             <div className={styles.hueco}>
               <span className={styles.isla} aria-hidden="true" />
               <Estado oscuro={activo === 0} />
-              {activo === 0 ? (
-                <PantallaLlamada key="0" />
-              ) : activo === 1 ? (
-                <PantallaAgenda key="1" />
-              ) : (
-                <PantallaWhatsApp key="2" />
-              )}
+              <div
+                key={activo}
+                className={styles.pantallaMarco}
+                data-direccion={direccion}
+              >
+                {activo === 0 ? (
+                  <PantallaLlamada />
+                ) : activo === 1 ? (
+                  <PantallaAgenda />
+                ) : (
+                  <PantallaWhatsApp />
+                )}
+              </div>
             </div>
             {/* eslint-disable-next-line @next/next/no-img-element -- render local, el marco del teléfono */}
             <img
@@ -179,10 +148,33 @@ export function UnaLlamadaSection() {
             />
           </div>
         </div>
+
+        <ol className={styles.areaPasos}>
+          {PASOS.map((paso, i) => (
+            <li
+              key={paso.titulo}
+              ref={(el) => {
+                pasos.current[i] = el;
+              }}
+              className={styles.paso}
+              data-activo={i === activo ? "" : undefined}
+              aria-current={i === activo ? "step" : undefined}
+            >
+              <span className={styles.pasoNumero}>{i + 1}</span>
+              <div className="min-w-0">
+                <h3 className={styles.pasoTitulo}>{paso.titulo}</h3>
+                <p className={styles.pasoTexto}>{paso.texto}</p>
+              </div>
+            </li>
+          ))}
+        </ol>
       </div>
     </section>
   );
 }
+
+/** Índice de escalonado para las piezas de cada pantalla. */
+const esc = (i: number) => ({ ["--i" as string]: i });
 
 function Estado({ oscuro }: { oscuro: boolean }) {
   return (
@@ -206,20 +198,29 @@ function PantallaLlamada() {
       role="img"
       aria-label="Llamada atendida por Alhabla: la clienta pide cita para mañana y Alhabla le ofrece las 17:30 con Marta."
     >
-      <div className={styles.llamante}>
+      <div className={`${styles.llamante} ${styles.escalon}`} style={esc(0)}>
         <p className={styles.llamanteNombre}>Laura</p>
         <p className={styles.llamanteDato}>Atiende Alhabla · 00:41</p>
       </div>
       <div className={styles.transcripcion}>
-        <p className={`${styles.burbuja} ${styles.burbujaCliente}`}>
+        <p
+          className={`${styles.burbuja} ${styles.burbujaCliente} ${styles.escalon}`}
+          style={esc(1)}
+        >
           <span className={styles.quien}>Laura</span>
           ¿Tenéis hueco mañana para corte y color?
         </p>
-        <p className={`${styles.burbuja} ${styles.burbujaAlhabla}`}>
+        <p
+          className={`${styles.burbuja} ${styles.burbujaAlhabla} ${styles.escalon}`}
+          style={esc(3)}
+        >
           <span className={styles.quien}>Alhabla</span>
           Mañana a las 17:30 con Marta. ¿Te la reservo?
         </p>
-        <p className={`${styles.burbuja} ${styles.burbujaCliente}`}>
+        <p
+          className={`${styles.burbuja} ${styles.burbujaCliente} ${styles.escalon}`}
+          style={esc(5)}
+        >
           <span className={styles.quien}>Laura</span>
           Sí, perfecto.
         </p>
@@ -252,7 +253,10 @@ function PantallaAgenda() {
       role="img"
       aria-label="Agenda de mañana: la cita de Laura, corte y color a las 17:30 con Marta, entra en el único hueco libre."
     >
-      <div className={styles.agendaCabecera}>
+      <div
+        className={`${styles.agendaCabecera} ${styles.escalon}`}
+        style={esc(0)}
+      >
         <div>
           <p className={styles.agendaDia}>Mañana</p>
           <p className={styles.agendaFecha}>Jueves · Marta</p>
@@ -264,8 +268,12 @@ function PantallaAgenda() {
         />
       </div>
       <div className={styles.franjas}>
-        {AGENDA.map((franja) => (
-          <div key={franja.hora} className={styles.franja}>
+        {AGENDA.map((franja, i) => (
+          <div
+            key={franja.hora}
+            className={`${styles.franja} ${styles.escalon}`}
+            style={esc(i + 1)}
+          >
             <span className={styles.franjaHora}>{franja.hora}</span>
             {franja.tipo === "libre" ? (
               <span className={styles.libre}>Libre</span>
@@ -285,7 +293,7 @@ function PantallaAgenda() {
           </div>
         ))}
       </div>
-      <div className={styles.calendarios}>
+      <div className={`${styles.calendarios} ${styles.escalon}`} style={esc(7)}>
         <SiGooglecalendar color="default" aria-hidden="true" />
         <MicrosoftLogo />
         <SiApple color="#0a0a0a" aria-hidden="true" />
@@ -312,8 +320,10 @@ function PantallaWhatsApp() {
         </div>
       </div>
       <div className={styles.waChat}>
-        <span className={styles.waFecha}>Hoy</span>
-        <p className={styles.waMensaje}>
+        <span className={`${styles.waFecha} ${styles.escalon}`} style={esc(0)}>
+          Hoy
+        </span>
+        <p className={`${styles.waMensaje} ${styles.escalon}`} style={esc(1)}>
           Hola, Laura. Tu cita está confirmada:
           <br />
           <strong>Corte y color</strong>
@@ -323,7 +333,9 @@ function PantallaWhatsApp() {
           Peluquería Nuria
           <span className={styles.waHora}>17:03</span>
         </p>
-        <span className={styles.waBoton}>Cancelar cita</span>
+        <span className={`${styles.waBoton} ${styles.escalon}`} style={esc(2)}>
+          Cancelar cita
+        </span>
       </div>
       <div className={styles.waEscribir} aria-hidden="true">
         <span className={styles.waCaja}>Mensaje</span>

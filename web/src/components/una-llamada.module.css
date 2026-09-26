@@ -7,52 +7,189 @@
  * cqw de la propia pantalla para que todo escale con el teléfono.
  *
  * Solo cambia la pantalla, y sin fundido cruzado: la anterior desaparece y
- * la nueva entra sola (nunca hay dos textos a la vez).
+ * la nueva entra sola (nunca hay dos textos a la vez). Curvas y tiempos de
+ * la guía de animación de Emil Kowalski (skill `animate`): ease-out fuerte,
+ * escalonado de 70 ms, y en movimiento reducido solo opacidad.
  */
 
+.escena {
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  display: flex;
+  flex-direction: column;
+}
+
+/* Ancho del teléfono en móvil: el que deja, bajo la cabecera y el propio
+   teléfono, al menos ~22rem de ventana para leer el paso. */
 .telefono {
   position: relative;
-  width: 14rem;
+  width: clamp(8.5rem, calc((100svh - 22rem) * 0.467), 11rem);
   aspect-ratio: 1335 / 2859;
 }
 
-@media (min-width: 1024px) {
-  .telefono {
-    width: 17rem;
-  }
-}
-
-/* Móvil: título, teléfono y pasos, uno debajo de otro. Escritorio: título y
-   pasos a la izquierda, el teléfono a la derecha ocupando las dos filas. */
-.rejilla {
-  display: grid;
-  grid-template-areas: "titulo" "telefono" "pasos";
-  gap: 2.5rem;
-}
-
-@media (min-width: 1024px) {
-  .rejilla {
-    grid-template-columns: minmax(0, 1fr) auto;
-    grid-template-rows: auto 1fr;
-    grid-template-areas: "titulo telefono" "pasos telefono";
-    column-gap: 6rem;
-    row-gap: 2.5rem;
-  }
-}
-
 .areaTitulo {
-  grid-area: titulo;
+  margin-bottom: 2rem;
 }
 
+/* Móvil: el teléfono se queda pegado bajo la cabecera con fondo opaco, y
+   los pasos pasan por debajo (nunca por encima del teléfono). El degradado
+   de abajo evita el corte seco del texto al entrar. */
 .areaTelefono {
-  grid-area: telefono;
+  position: sticky;
+  top: 4rem;
+  z-index: 2;
   display: flex;
   justify-content: center;
-  align-items: center;
+  margin: 0 -1rem;
+  padding: 0.75rem 0 1rem;
+  background: #fafafa;
+}
+
+.areaTelefono::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  height: 2rem;
+  background: linear-gradient(#fafafa, rgba(250, 250, 250, 0));
+  pointer-events: none;
 }
 
 .areaPasos {
-  grid-area: pasos;
+  padding-bottom: 12svh;
+}
+
+.paso {
+  display: flex;
+  gap: 1rem;
+  min-height: 38svh;
+  padding: 2rem 0.25rem;
+}
+
+.pasoNumero {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 1.75rem;
+  height: 1.75rem;
+  margin-top: 0.125rem;
+  border-radius: 999px;
+  background: #ececef;
+  color: #71717a;
+  font-size: 0.875rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  transition: background-color 300ms ease, color 300ms ease;
+}
+
+.pasoTitulo {
+  font-size: 1.25rem;
+  line-height: 1.75rem;
+  font-weight: 700;
+  letter-spacing: -0.015em;
+  color: #a1a1aa;
+  transition: color 300ms ease;
+}
+
+.pasoTexto {
+  margin-top: 0.5rem;
+  max-width: 32rem;
+  font-size: 1rem;
+  line-height: 1.75rem;
+  color: #a1a1aa;
+  transition: color 300ms ease;
+}
+
+.paso[data-activo] .pasoNumero {
+  background: #8b5cf6;
+  color: #fff;
+}
+
+.paso[data-activo] .pasoTitulo {
+  color: #0a0a0a;
+}
+
+.paso[data-activo] .pasoTexto {
+  color: #52525b;
+}
+
+/* Móvil: solo se ve el paso que se está leyendo. Los demás se apagan del
+   todo (no a medias): así nunca queda texto fantasma asomando bajo el
+   teléfono. */
+@media (max-width: 1023px) {
+  .paso {
+    opacity: 0;
+    transition: opacity 250ms ease;
+  }
+
+  .paso[data-activo] {
+    opacity: 1;
+  }
+}
+
+/* Escritorio: título y pasos a la izquierda; el teléfono a la derecha,
+   pegado al centro de la ventana mientras se leen los pasos. */
+@media (min-width: 640px) {
+  .areaTelefono {
+    margin: 0 -1.5rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .escena {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: "titulo telefono" "pasos telefono";
+    column-gap: 6rem;
+  }
+
+  .areaTitulo {
+    grid-area: titulo;
+    margin-bottom: 0;
+  }
+
+  .areaTelefono {
+    grid-area: telefono;
+    position: static;
+    display: block;
+    margin: 0;
+    padding: 0;
+    background: none;
+  }
+
+  .areaTelefono::after {
+    content: none;
+  }
+
+  .telefono {
+    position: sticky;
+    top: max(6rem, calc(50vh - 18.2rem));
+    width: 17rem;
+  }
+
+  .areaPasos {
+    grid-area: pasos;
+    padding-bottom: 18vh;
+  }
+
+  .paso {
+    min-height: 52vh;
+    align-items: center;
+    padding: 2rem 0;
+  }
+
+  .paso > .pasoNumero {
+    align-self: center;
+  }
+
+  .pasoTitulo {
+    font-size: 1.5rem;
+    line-height: 2rem;
+  }
+
+  .pasoTexto {
+    font-size: 1.0625rem;
+  }
 }
 
 /* Halo morado muy suave detrás y sombra de apoyo debajo. */
@@ -124,29 +261,60 @@
   font-variant-numeric: tabular-nums;
 }
 
+.pantallaMarco,
 .pantalla {
   position: absolute;
   inset: 0;
+}
+
+.pantalla {
   display: flex;
   flex-direction: column;
   font-size: 4.4cqw;
   line-height: 1.35;
-  animation: entra 280ms cubic-bezier(0.23, 1, 0.32, 1);
 }
 
-@keyframes entra {
+/* Entrada de pantalla: sube (o baja, si se vuelve atrás) un poco, con un
+   desenfoque ligero que tapa el salto. Explicativa, así que algo más larga
+   que una transición de UI. */
+.pantallaMarco {
+  --desde: 5cqw;
+  animation: entraPantalla 380ms var(--ease-out) both;
+}
+
+.pantallaMarco[data-direccion="atras"] {
+  --desde: -5cqw;
+}
+
+@keyframes entraPantalla {
   from {
     opacity: 0;
-    transform: translateY(2.5cqw);
+    transform: translateY(var(--desde));
+    filter: blur(4px);
+  }
+}
+
+/* Las piezas de cada pantalla llegan en cascada, 70 ms entre una y otra. */
+.escalon {
+  animation: entraPieza 420ms var(--ease-out) both;
+  animation-delay: calc(140ms + var(--i, 0) * 70ms);
+}
+
+@keyframes entraPieza {
+  from {
+    opacity: 0;
+    transform: translateY(3cqw);
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .pantalla {
-    animation: aparece 200ms ease;
+  .pantallaMarco,
+  .escalon {
+    animation: soloOpacidad 200ms ease both;
+    animation-delay: 0ms;
   }
 
-  @keyframes aparece {
+  @keyframes soloOpacidad {
     from {
       opacity: 0;
     }
@@ -326,6 +494,28 @@
   box-shadow: inset 1cqw 0 0 #8b5cf6;
 }
 
+/* La cita nueva se asienta un instante después de su fila: es la noticia. */
+.citaNueva {
+  animation: asienta 460ms var(--ease-out) both;
+  animation-delay: 520ms;
+}
+
+@keyframes asienta {
+  from {
+    transform: scale(0.94);
+    box-shadow: inset 1cqw 0 0 #8b5cf6, 0 0 0 0 rgba(139, 92, 246, 0);
+  }
+  60% {
+    box-shadow: inset 1cqw 0 0 #8b5cf6, 0 0 0 1.4cqw rgba(139, 92, 246, 0.18);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .citaNueva {
+    animation: none;
+  }
+}
+
 .citaNueva .citaTitulo {
   color: #4c1d95;
 }
@@ -475,27 +665,4 @@
   font-weight: 600;
   color: #027eb5;
   box-shadow: 0 0.3cqw 0.5cqw rgba(11, 20, 26, 0.08);
-}
-
-/* ── Pasos ───────────────────────────────────────────────────── */
-
-.barra {
-  position: absolute;
-  left: 1.5rem;
-  right: 1.5rem;
-  bottom: 0;
-  height: 2px;
-  border-radius: 99px;
-  background: #8b5cf6;
-  transform-origin: left;
-  animation: llena var(--duracion) linear forwards;
-}
-
-@keyframes llena {
-  from {
-    transform: scaleX(0);
-  }
-  to {
-    transform: scaleX(1);
-  }
 }
