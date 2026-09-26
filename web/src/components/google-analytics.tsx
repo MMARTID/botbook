@@ -190,7 +190,7 @@ export function GoogleAnalytics() {
           </div>
         </aside>
       ) : hidratado ? (
-        <button type="button" onClick={() => setAbierto(true)} className="fixed bottom-4 left-4 z-50 rounded-full border border-[#ddd6fe] bg-white px-3 py-2 text-xs font-semibold text-[#3f3f46] shadow-sm hover:bg-[#f5f3ff] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]">
+        <button type="button" onClick={() => setAbierto(true)} className="fixed bottom-4 left-4 z-50 rounded-full border border-[#ddd6fe] bg-white px-3 py-2 text-xs font-semibold text-[#3f3f46] shadow-sm transition-opacity duration-200 hover:bg-[#f5f3ff] [html[data-relato]_&]:pointer-events-none [html[data-relato]_&]:opacity-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]">
           Configurar cookies
         </button>
       ) : null}

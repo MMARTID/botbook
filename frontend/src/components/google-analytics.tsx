@@ -195,7 +195,7 @@ export function GoogleAnalytics() {
           </div>
         </aside>
       ) : hidratado ? (
-        <button type="button" onClick={() => setAbierto(true)} className={`fixed bottom-4 z-40 min-h-11 items-center rounded-full border border-[#e5e5e5] bg-white px-4 text-xs font-semibold text-[#27272a] shadow-[0_8px_24px_rgba(0,0,0,0.08)] transition duration-200 hover:bg-[#fafafa] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] ${enPanel ? "right-4 hidden lg:inline-flex" : "left-4 inline-flex"}`}>
+        <button type="button" onClick={() => setAbierto(true)} className={`fixed bottom-4 z-40 min-h-11 items-center rounded-full border border-[#e5e5e5] bg-white px-4 text-xs font-semibold text-[#27272a] shadow-[0_8px_24px_rgba(0,0,0,0.08)] transition duration-200 hover:bg-[#fafafa] [html[data-relato]_&]:pointer-events-none [html[data-relato]_&]:opacity-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] ${enPanel ? "right-4 hidden lg:inline-flex" : "left-4 inline-flex"}`}>
           Configurar cookies
         </button>
       ) : null}

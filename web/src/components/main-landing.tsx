@@ -7,15 +7,16 @@ import { ArrowRight, Check, Headphones } from "lucide-react";
 
 import { DemoVoiceCall } from "@/components/demo-voice-call";
 import { HeroHilos } from "@/components/hero-hilos";
-import { HowItWorksScrollytelling } from "@/components/how-it-works-scrollytelling";
 import { SiteHeader } from "@/components/site-header";
 import { Reveal } from "@/components/scroll-reveal";
-import { SectorDataSection } from "@/components/sector-data-section";
-import { TeamRoutingSection } from "@/components/team-routing-section";
+import { EnMarchaSection } from "@/components/en-marcha-section";
+import { LlamadaScroll } from "@/components/llamada-scroll";
 import { OwnerAssistantSection } from "@/components/owner-assistant-section";
-import { generalOwnerAssistant, generalSectorData, generalTeamRouting } from "@/lib/niche-landings";
+import { PuntosFuertesSection } from "@/components/puntos-fuertes-section";
+import { WhatsAppClientesSection } from "@/components/whatsapp-clientes-section";
+import { generalOwnerAssistant } from "@/lib/niche-landings";
 import { HOME_QUICK_FAQS } from "@/lib/home-faqs";
-import { formatIncludedMinutes, formatPlanPrice, plans, TRIAL_REASSURANCE } from "@/lib/plans";
+import { formatExtraMinute, formatIncludedMinutes, formatPlanPrice, plans, TRIAL_REASSURANCE } from "@/lib/plans";
 
 /**
  * Un sector por tarjeta, cada uno con su foto de `public/heroes/`: la escena
@@ -122,7 +123,7 @@ function SectorAccordion({ sectores }: { sectores: typeof SECTORES }) {
               <span className="text-2xl font-bold tracking-tight text-white">{sector.title}</span>
               <span className="max-w-md text-base leading-7 text-white/85">{sector.description}</span>
               <span className="mt-1 inline-flex items-center gap-2 text-sm font-semibold text-white">
-                Ver planes y precios
+                Ver cómo atiende en tu sector
                 <ArrowRight className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-1" aria-hidden="true" />
               </span>
             </span>
@@ -145,7 +146,7 @@ function SectorAccordion({ sectores }: { sectores: typeof SECTORES }) {
  * Se abre al TOCAR, no al pasar por encima: en una tableta no hay ratón, y
  * un panel que fuera un enlace entero se navegaría con el primer toque sin
  * llegar a enseñar nunca la foto. Por eso la fila es un botón que abre y el
- * enlace de verdad es el «Ver planes y precios» de dentro.
+ * enlace de verdad es el «Ver cómo atiende en tu sector» de dentro.
  */
 const ACORDEON_VERTICAL_ABIERTO = 4.6;
 
@@ -219,7 +220,7 @@ function SectorAccordionVertical({ sectores }: { sectores: typeof SECTORES }) {
                 tabIndex={esteAbierto ? 0 : -1}
                 className="pointer-events-auto mt-1 inline-flex w-fit items-center gap-2 rounded-full text-sm font-semibold text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-[#0a0a0a]"
               >
-                Ver planes y precios <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                Ver cómo atiende en tu sector <ArrowRight className="h-4 w-4" aria-hidden="true" />
               </Link>
             </span>
           </div>
@@ -303,7 +304,7 @@ function SectorCarousel({ sectores }: { sectores: typeof SECTORES }) {
               <span className="text-2xl font-bold tracking-tight text-white">{sector.title}</span>
               <span className="text-sm leading-6 text-white/85">{sector.description}</span>
               <span className="mt-1 inline-flex items-center gap-2 text-sm font-semibold text-white">
-                Ver planes y precios <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                Ver cómo atiende en tu sector <ArrowRight className="h-4 w-4" aria-hidden="true" />
               </span>
             </span>
           </Link>
@@ -370,15 +371,27 @@ export function MainLanding() {
         </div>
       </section>
 
+
       {/*
-        Las tarjetas de sector suben aquí, justo después del hero
-        (2026-09-24, propuesta de conversión — revierte el orden de
-        2026-09-21, ver historial de este comentario): el trabajo real de la
-        landing principal es enrutar rápido a quien ya sabe su sector — cada
-        landing de nicho lleva ahora su propia profundidad completa (cómo
-        funciona, reparto, El Gestor, datos del sector), así que no hace
-        falta repetirla en genérico antes de ofrecer la salida. Quien no
-        pica aquí sigue leyendo el relato genérico de abajo.
+        Orden (2026-09-26): cómo funciona, scroll-driven y con el teléfono
+        (los tres pasos de una llamada) → qué la hace distinta de un
+        contestador → qué recibe el cliente por WhatsApp → El Gestor → puesta
+        en marcha → sectores → precio → dudas.
+      */}
+      <LlamadaScroll />
+
+      <PuntosFuertesSection onEscuchar={() => setIsDemoOpen(true)} />
+
+      <WhatsAppClientesSection />
+
+      <OwnerAssistantSection data={generalOwnerAssistant} />
+
+      <EnMarchaSection />
+
+      {/*
+        Sectores justo encima del precio (2026-09-26, a petición del
+        usuario; antes iban tras el hero): quien ya ha visto cómo funciona
+        elige su sector o sigue al precio.
       */}
       <section id="sectores" className="scroll-m-20 border-b border-[#e5e5e5] py-16 sm:py-24">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
@@ -397,27 +410,6 @@ export function MainLanding() {
           </div>
         </div>
       </section>
-
-      {/*
-        Datos del sector aquí, justo después de las tarjetas de sector
-        (2026-09-25, revierte el "justo antes de precios" del 2026-09-24):
-        prueba el problema con cifras antes de entrar en cómo lo resuelve
-        el producto (reparto, El Gestor, cómo funciona).
-      */}
-      <SectorDataSection data={generalSectorData} />
-
-      <TeamRoutingSection data={generalTeamRouting} />
-
-      <OwnerAssistantSection data={generalOwnerAssistant} />
-
-      {/*
-        Cómo funciona, justo antes de precios (2026-09-25): la visitante ya
-        vio el problema (datos del sector) y la confianza del producto
-        (reparto, El Gestor) — "cómo funciona" cierra la duda técnica justo
-        antes de enseñar el precio, en vez de explicarlo antes de haber
-        dado ningún motivo para creerlo.
-      */}
-      <HowItWorksScrollytelling />
 
       {/* Precio y FAQ compactos aquí mismo: la visitante que llega convencida
           por el relato anterior no tiene que salir de la página para ver un
@@ -450,9 +442,17 @@ export function MainLanding() {
                     {formatPlanPrice(plan.price)}
                     <span className="text-base font-medium text-[#71717a]">/mes</span>
                   </p>
-                  <p className="mt-3 text-sm font-semibold text-[#27272a]">{formatIncludedMinutes(plan.minutes)} minutos incluidos</p>
-                  <p className="mt-2 text-sm leading-7 text-[#52525b]">{plan.summary}</p>
-                  <Link href={`/planes?plan=${plan.id}`} className={plan.featured ? "btn-primary mt-6" : "btn-secondary mt-6"}>
+                  <p className="mt-3 text-sm font-semibold text-[#27272a]">{formatIncludedMinutes(plan.minutes)} minutos incluidos · {formatExtraMinute(plan.extraPerMinute)}</p>
+                  <p className="mt-2 text-sm leading-6 text-[#52525b]">{plan.description}</p>
+                  <ul className="mb-7 mt-5 space-y-2.5 border-t border-[#e5e5e5] pt-5">
+                    {plan.features.map((feature) => (
+                      <li key={feature} className="flex items-start gap-2.5 text-sm leading-6 text-[#27272a]">
+                        <Check className="mt-1 h-4 w-4 shrink-0 text-[#8b5cf6]" aria-hidden="true" />
+                        {feature}
+                      </li>
+                    ))}
+                  </ul>
+                  <Link href={`/planes?plan=${plan.id}`} className={plan.featured ? "btn-primary mt-auto" : "btn-secondary mt-auto"}>
                     Elegir {plan.name}
                   </Link>
                 </article>
