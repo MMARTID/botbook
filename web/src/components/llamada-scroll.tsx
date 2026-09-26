@@ -18,7 +18,8 @@ import { MicrosoftLogo } from "@/components/brand-icons";
 import styles from "./llamada-scroll.module.css";
 
 /**
- * «Cómo funciona» de la portada (2026-09-26): una llamada de principio a fin
+ * «En tu bolsillo» de la portada (2026-09-26; ancla #como-funciona, a la que
+ * apunta el menú): una llamada de principio a fin
  * en tres pasos, con la misma mecánica scroll-driven que
  * `HowItWorksScrollytelling` — sección alta, escenario fijo y TODO lo que se
  * mueve colgado del progreso del scroll: el teléfono se balancea y se
@@ -155,13 +156,13 @@ export function LlamadaScroll() {
   const giroY = useTransform(s, [0, 0.08, COSTURA_1, COSTURA_2, 0.95, 1], [-12, -6, 9, -9, 4, 4].map((v) => v * k), { ease: suave });
   const giroX = useTransform(s, [0, 0.08, 1], [6 * k, 3 * k, 3 * k]);
   const deriva = useTransform(s, [0, COSTURA_1, COSTURA_2, 1], [-18, 14, -14, 0].map((v) => v * k), { ease: suave });
-  const subida = useTransform(s, [0, 0.08, COSTURA_1, COSTURA_2, 1], [40, 0, -10, -2, -12].map((v) => v * k), { ease: suave });
+  const subida = useTransform(s, [0, COSTURA_1, COSTURA_2, 1], [0, -10, -2, -12].map((v) => v * k), { ease: suave });
   const inclina = useTransform(s, [0, COSTURA_1, COSTURA_2, 1], [-1.5, 1.2, -1.2, 0].map((v) => v * k), { ease: suave });
   // Paso 2: se acerca al hueco mientras el buscador recorre la agenda.
   const zoom = useTransform(s, [0.43, 0.48, 0.56, 0.61], [1, movil ? 1.06 : 1.16, movil ? 1.06 : 1.16, 1], { ease: suave });
   // La sombra acompaña: se estrecha al girar y se aclara al subir.
   const sombraX = useTransform(giroY, (v) => 1 - Math.abs(v) / 60);
-  const sombraO = useTransform(subida, [40, 0, -14], [0.35, 1, 0.8]);
+  const sombraO = useTransform(subida, [0, -14], [1, 0.8]);
 
   // Barra de pasos: cada tramo se llena con su parte del progreso.
   const barra1 = useTransform(p, [0, COSTURA_1], [0, 1]);
@@ -204,14 +205,14 @@ export function LlamadaScroll() {
         <div className={styles.rejilla}>
           <div className={styles.columnaTexto}>
             <h2 id="llamada-titulo" className={styles.antetitulo}>
-              Cómo funciona
+              En tu bolsillo
             </h2>
             <div className={styles.copias} aria-hidden="true">
               <Copia paso={PASOS[0]} y={copy1Y} visibility={vis1} p={s} momentos={MOMENTOS[0]} />
               <Copia paso={PASOS[1]} y={copy2Y} visibility={vis2} p={s} momentos={MOMENTOS[1]} />
               <Copia paso={PASOS[2]} y={copy3Y} visibility={vis3} p={s} momentos={MOMENTOS[2]} />
             </div>
-            <nav className={styles.barraPasos} aria-label="Pasos de cómo funciona">
+            <nav className={styles.barraPasos} aria-label="Pasos de la llamada">
               {[barra1, barra2, barra3].map((relleno, i) => (
                 <button
                   key={PASOS[i].numero}
@@ -553,7 +554,7 @@ function VersionQuieta() {
     <section id="como-funciona" className="border-y border-[#e5e5e5] bg-[#fafafa] py-16 sm:py-24" aria-labelledby="llamada-titulo-quieta">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <h2 id="llamada-titulo-quieta" className="max-w-3xl text-3xl font-black tracking-tight text-[#0a0a0a] sm:text-4xl">
-          Cómo funciona: una llamada, de principio a fin.
+          En tu bolsillo: una llamada, de principio a fin.
         </h2>
         <ol className="mt-10 grid gap-5 lg:grid-cols-3">
           {PASOS.map((pc) => (

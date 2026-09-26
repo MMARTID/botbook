@@ -237,7 +237,7 @@
 @media (min-width: 1024px) {
   .escenario {
     align-items: center;
-    padding: 5.5rem 0 2rem;
+    padding: 5rem 0 1.25rem;
   }
 
   .rejilla {
@@ -314,8 +314,11 @@
 }
 
 @media (min-width: 1024px) {
+  /* El teléfono arranca arriba, justo bajo la cabecera: al entrar la
+     sección no queda una franja vacía encima (antes se centraba). */
   .columnaTelefono {
-    justify-content: center;
+    align-self: start;
+    justify-content: flex-start;
     overflow: visible;
     padding-top: 0;
     -webkit-mask-image: none;
@@ -324,7 +327,9 @@
 
   .telefono {
     width: auto;
-    height: min(44rem, calc(100svh - 10rem));
+    /* El teléfono llena el alto del escenario (menos la cabecera, el
+       rótulo y un margen): nada de franjas vacías arriba y abajo. */
+    height: min(52rem, calc(100lvh - 9rem));
   }
 }
 
