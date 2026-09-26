@@ -20,7 +20,10 @@
   position: sticky;
   top: 0;
   display: flex;
-  height: 100svh;
+  /* lvh: en Safari de iOS, con las barras recogidas, el escenario llega al
+     borde de abajo en vez de dejar ver la sección siguiente. */
+  height: 100vh;
+  height: 100lvh;
   min-height: 34rem;
   overflow: hidden;
   padding: 5rem 0 1rem;
@@ -675,10 +678,14 @@
   width: 10cqw;
   height: 10cqw;
   border-radius: 50%;
-  background: #8b5cf6;
-  color: #fff;
-  font-size: 4.6cqw;
-  font-weight: 700;
+  background: #fff;
+  box-shadow: 0 0 0 0.3cqw #e4e4e7;
+}
+
+.waLogo {
+  width: 64%;
+  height: 64%;
+  object-fit: contain;
 }
 
 .waNombre {

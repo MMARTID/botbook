@@ -95,10 +95,10 @@ const COSTURA_2 = 2 / 3;
 const MOMENTOS: [number, number, number][] = [
   [0.04, 0.12, 0.2],
   [0.4, 0.47, 0.54],
-  [0.7, 0.76, 0.82],
+  [0.68, 0.72, 0.76],
 ];
 /** Al pulsar un paso en la barra se cae con todo ya a la vista. */
-const ANCLAS = [0.3, 0.62, 0.92] as const;
+const ANCLAS = [0.3, 0.62, 0.88] as const;
 
 /** Ida y vuelta para movimiento en pantalla (ease-in-out fuerte). */
 const suave = cubicBezier(0.65, 0, 0.35, 1);
@@ -506,7 +506,10 @@ function PantallaWhatsApp({ p }: { p: MotionValue<number> }) {
   return (
     <div className={`${styles.pantalla} ${styles.whatsapp}`}>
       <div className={styles.waCabecera}>
-        <span className={styles.waAvatar}>A</span>
+        <span className={styles.waAvatar}>
+          {/* eslint-disable-next-line @next/next/no-img-element -- isotipo local */}
+          <img src="/brand/alhabla-isotipo.svg" alt="" className={styles.waLogo} />
+        </span>
         <div>
           <p className={styles.waNombre}>Alhabla Reservas</p>
           <p className={styles.waSub}>Cuenta de empresa</p>
@@ -526,10 +529,10 @@ function PantallaWhatsApp({ p }: { p: MotionValue<number> }) {
           Peluquería Nuria
           <span className={styles.waHora}>17:03</span>
         </Aparece>
-        <Aparece p={p} a={0.73} className={styles.waBoton}>
+        <Aparece p={p} a={0.71} className={styles.waBoton}>
           Guardar contacto
         </Aparece>
-        <Aparece p={p} a={0.79} className={`${styles.waMensaje} ${styles.waMio}`}>
+        <Aparece p={p} a={0.75} className={`${styles.waMensaje} ${styles.waMio}`}>
           ¡Genial, gracias!
           <span className={styles.waHora}>17:04 ✓✓</span>
         </Aparece>
