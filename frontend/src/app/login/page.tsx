@@ -44,22 +44,22 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="relative isolate flex min-h-screen items-center justify-center px-4 py-12 sm:px-6 lg:px-8">
+    <main className="relative isolate flex min-h-screen items-center justify-center px-4 py-12 sm:px-6 lg:px-8">
       <ParticleField />
       <ParticleMouseLayer />
       <a
         href={webUrl("/")}
         aria-label="Volver a la web de Alhabla"
-        className="fixed left-4 top-4 z-10 inline-flex h-10 w-10 items-center justify-center rounded-full border border-[#e5e5e5] bg-white text-[#27272a] shadow-[0_8px_24px_rgba(0,0,0,0.08)] transition duration-200 hover:bg-[#fafafa] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] focus-visible:ring-offset-2 sm:left-6 sm:top-6"
+        className="fixed left-4 top-4 z-10 inline-flex h-11 w-11 items-center justify-center rounded-full border border-[#e5e5e5] bg-white text-[#27272a] shadow-[0_8px_24px_rgba(0,0,0,0.08)] transition duration-200 hover:bg-[#fafafa] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] focus-visible:ring-offset-2 sm:left-6 sm:top-6"
       >
         <ArrowLeft className="h-4 w-4" aria-hidden="true" />
       </a>
-      <div className="panel w-full max-w-lg p-8">
+      <div className="panel w-full max-w-lg p-6 sm:p-8">
         <div className="space-y-4 text-center">
           <BrandMark className="mx-auto h-14 w-14" />
-          <h2 className="text-3xl font-black tracking-tight text-[#0a0a0a]">Bienvenido de nuevo</h2>
+          <h1 className="text-3xl font-black tracking-tight text-[#0a0a0a]">Bienvenido de nuevo</h1>
           <p className="mx-auto max-w-md text-sm leading-6 text-muted">
-            Accede para configurar tu asistente y comenzar a mejorar la experiencia de tus clientes.
+            Accede para configurar tu recepcionista y comenzar a mejorar la experiencia de tus clientes.
           </p>
         </div>
 
@@ -78,7 +78,7 @@ export default function LoginPage() {
           </p>
           <div className="my-6 flex items-center gap-4" aria-hidden="true">
             <div className="h-px flex-1 bg-[#e5e5e5]" />
-            <span className="text-xs font-medium uppercase tracking-[0.12em] text-[#71717a]">o con email</span>
+            <span className="text-xs font-medium uppercase tracking-[0.12em] text-muted">o con email</span>
             <div className="h-px flex-1 bg-[#e5e5e5]" />
           </div>
         </div>
@@ -104,7 +104,7 @@ export default function LoginPage() {
                 <label htmlFor="login-password" className="text-sm font-medium text-[#27272a]">Contraseña</label>
                 <Link
                   href="/recuperar-contrasena"
-                  className="rounded text-sm font-medium text-[#7c3aed] transition hover:text-[#6d28d9] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] focus-visible:ring-offset-2"
+                  className="zona-tactil rounded text-sm font-medium text-[#7c3aed] transition hover:text-[#6d28d9] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] focus-visible:ring-offset-2"
                 >
                   ¿La has olvidado?
                 </Link>
@@ -132,19 +132,19 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={loading}
-            className="btn-primary w-full justify-center"
+            className="btn-primary w-full"
           >
             {loading ? "Entrando…" : "Entrar"}
           </button>
 
           <div className="text-center text-sm text-muted">
             ¿No tienes cuenta?{' '}
-            <a href={webUrl("/register")} className="rounded font-semibold text-[#7c3aed] transition hover:text-[#6d28d9] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] focus-visible:ring-offset-2">
+            <a href={webUrl("/register")} className="zona-tactil rounded font-semibold text-[#7c3aed] transition hover:text-[#6d28d9] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] focus-visible:ring-offset-2">
               Regístrate aquí
             </a>
           </div>
         </form>
       </div>
-    </div>
+    </main>
   );
 }

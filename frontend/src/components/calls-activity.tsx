@@ -15,7 +15,7 @@ const PAGE_SIZE = 25;
 // llamada se lee en dos vistas y debe llevar la misma insignia.
 const TONE_BADGE_CLASSES = {
   success: "bg-[#ecf7ec] text-[#2c7334] ring-1 ring-inset ring-[#d8efd7]",
-  warning: "bg-[#fef8e7] text-[#9f7a15] ring-1 ring-inset ring-[#f0dfa8]",
+  warning: "bg-[#fef8e7] text-[#806012] ring-1 ring-inset ring-[#f0dfa8]",
   neutral: "bg-[#f4f4f5] text-[#52525b] ring-1 ring-inset ring-[#e5e5e5]",
 } as const;
 

@@ -216,7 +216,7 @@ export function SeccionSeguridad() {
           </div>
         </div>
         <div className="space-y-4 p-4 sm:p-6">
-          <div className="rounded-xl border border-[#f0dfa8] bg-[#fef8e7] p-4 text-sm leading-6 text-[#9f7a15]">
+          <div className="rounded-xl border border-[#f0dfa8] bg-[#fef8e7] p-4 text-sm leading-6 text-[#806012]">
             <strong>Antes de continuar:</strong> desactiva en tu operador el
             desvío de llamadas hacia Alhabla. Si no lo haces, tus clientes
             podrían seguir llamando a un número que ya no atiende.

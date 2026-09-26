@@ -122,7 +122,7 @@ function Comparison({
   }
 
   const Icon = delta > 0 ? ArrowUpRight : ArrowDownRight;
-  const tone = delta > 0 ? "text-[#2c7334]" : "text-[#9f7a15]";
+  const tone = delta > 0 ? "text-[#2c7334]" : "text-[#806012]";
   const magnitude = Math.abs(delta);
 
   return (

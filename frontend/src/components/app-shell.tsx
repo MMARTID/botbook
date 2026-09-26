@@ -10,6 +10,7 @@ import {
   ChevronRight,
   Clock3,
   CircleUserRound,
+  Cookie,
   CreditCard,
   LayoutDashboard,
   Loader2,
@@ -29,6 +30,7 @@ import { useBusiness } from "@/components/providers";
 import { clearAuthTokens } from "@/lib/billing-navigation";
 import { getBillingSummary } from "@/lib/api";
 import { webUrl } from "@/lib/web-url";
+import { abrirPreferenciasDeCookies } from "@/components/google-analytics";
 
 type NavItem = {
   href: string;
@@ -83,6 +85,11 @@ const PUBLIC_ROUTES = [
   "/elegir-plan",
   "/dev/entrar",
 ];
+
+/** Rutas que se pintan sin barra lateral ni barra inferior. */
+export function esRutaSinArmazon(pathname: string) {
+  return PUBLIC_ROUTES.includes(pathname);
+}
 
 function isActive(pathname: string, item: NavItem, items: NavItem[]) {
   if (item.exact) return pathname === item.href;
@@ -181,8 +188,8 @@ function MinutesWarningCard({ onNavigate }: { onNavigate?: () => void }) {
   return (
     <div className="mt-3 rounded-2xl border border-[#f0dfa8] bg-[#fef8e7] p-3" role="status">
       <div className="flex items-center gap-2">
-        <Clock3 className="h-4 w-4 text-[#9f7a15]" aria-hidden="true" />
-        <p className="text-xs font-semibold text-[#9f7a15]">
+        <Clock3 className="h-4 w-4 text-[#806012]" aria-hidden="true" />
+        <p className="text-xs font-semibold text-[#806012]">
           {warning.exhausted
             ? "Minutos del plan agotados"
             : `Te queda un ${warning.remainingPct}% de tus minutos`}
@@ -196,7 +203,7 @@ function MinutesWarningCard({ onNavigate }: { onNavigate?: () => void }) {
       <Link
         href="/ajustes/facturacion"
         onClick={onNavigate}
-        className="zona-tactil mt-2 inline-flex text-xs font-semibold text-[#9f7a15] underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]"
+        className="zona-tactil mt-2 inline-flex text-xs font-semibold text-[#806012] underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]"
       >
         Ver consumo y planes
       </Link>
@@ -214,8 +221,8 @@ function AccountFooter({ pathname }: { pathname: string }) {
       <MinutesWarningCard />
       <div className={`mt-4 rounded-2xl border p-3 ${hasIssue ? "border-[#f0dfa8] bg-[#fef8e7]" : "border-[#ddd6fe] bg-[#f3eeff]"}`}>
         <div className="flex items-center gap-2">
-          <Activity className={`h-4 w-4 ${hasIssue ? "text-[#9f7a15]" : "text-[#6d28d9]"}`} aria-hidden="true" />
-          <p className={`text-xs font-semibold ${hasIssue ? "text-[#9f7a15]" : "text-[#6d28d9]"}`}>
+          <Activity className={`h-4 w-4 ${hasIssue ? "text-[#806012]" : "text-[#6d28d9]"}`} aria-hidden="true" />
+          <p className={`text-xs font-semibold ${hasIssue ? "text-[#806012]" : "text-[#6d28d9]"}`}>
             {hasIssue ? "Requiere atención" : "Plan y servicio"}
           </p>
         </div>
@@ -268,6 +275,11 @@ function MobileMoreSheet({ pathname, onClose }: { pathname: string; onClose: () 
           <a href={webUrl("/legal/privacidad")} onClick={onClose} className="flex min-h-11 items-center gap-3 rounded-full px-4 text-sm font-semibold text-[#3f3f46] transition hover:bg-[#fafafa] hover:text-[#0a0a0a] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]">
             <ShieldCheck className="h-4 w-4" aria-hidden="true" /> Privacidad y datos
           </a>
+          {/* En móvil el botón flotante de cookies taparía la barra inferior:
+              la opción de cambiar la elección vive aquí. */}
+          <button type="button" onClick={() => { onClose(); abrirPreferenciasDeCookies(); }} className="flex min-h-11 w-full items-center gap-3 rounded-full px-4 text-left text-sm font-semibold text-[#3f3f46] transition hover:bg-[#fafafa] hover:text-[#0a0a0a] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]">
+            <Cookie className="h-4 w-4" aria-hidden="true" /> Preferencias de cookies
+          </button>
           <button type="button" onClick={() => { clearAuthTokens(); window.location.assign("/login"); }} className="flex min-h-11 w-full items-center gap-3 rounded-full px-4 text-left text-sm font-semibold text-[#3f3f46] transition hover:bg-[#fafafa] hover:text-[#0a0a0a] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]">
             <LogOut className="h-4 w-4" aria-hidden="true" /> Cerrar sesión
           </button>

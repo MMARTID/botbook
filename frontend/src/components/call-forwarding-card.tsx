@@ -434,7 +434,7 @@ export function CallForwardingCard({
 /** Aviso corto bajo los códigos (contestador, buzón de voz). */
 export function NotaDeLinea({ children }: { children: ReactNode }) {
   return (
-    <p className="mt-3 flex items-start gap-2 rounded-2xl bg-white px-4 py-3 text-sm leading-6 text-[#9f7a15]">
+    <p className="mt-3 flex items-start gap-2 rounded-2xl bg-white px-4 py-3 text-sm leading-6 text-[#806012]">
       <TriangleAlert className="mt-1 h-4 w-4 shrink-0" aria-hidden="true" />
       <span>{children}</span>
     </p>

@@ -46,7 +46,7 @@ const STATUS_TONE: Record<SubscriptionStatus, "ok" | "warning" | "error"> = {
 
 const TONE_CLASSES = {
   ok: "bg-[#ecf7ec] text-[#2c7334] ring-1 ring-inset ring-[#d8efd7]",
-  warning: "bg-[#fef8e7] text-[#9f7a15] ring-1 ring-inset ring-[#f0dfa8]",
+  warning: "bg-[#fef8e7] text-[#806012] ring-1 ring-inset ring-[#f0dfa8]",
   error: "bg-[#fff1f1] text-[#c53030] ring-1 ring-inset ring-[#f5d3d3]",
 } as const;
 
@@ -150,7 +150,7 @@ export default function BillingSettingsPage() {
                 ) : null}
 
                 {data.cancelAtPeriodEnd && data.currentPeriodEnd ? (
-                  <p className="mt-3 rounded-xl bg-[#fef8e7] px-4 py-3 text-sm leading-6 text-[#9f7a15]">
+                  <p className="mt-3 rounded-xl bg-[#fef8e7] px-4 py-3 text-sm leading-6 text-[#806012]">
                     Tu plan termina el {formatFecha(data.currentPeriodEnd)}. Acuérdate de quitar el
                     desvío de tu teléfono antes de esa fecha para que tus clientes no se queden sin
                     respuesta.

@@ -66,7 +66,7 @@ export function StatusStrip({ business, agentActive }: StatusStripProps) {
       : hasError
         ? { Icon: AlertTriangle, iconClass: "", text: "text-[#c53030]", bg: "bg-[#fff1f1]", border: "border-[#f5d3d3]", message: needsAttention.length === 1 ? "Un asunto requiere tu atención" : `${needsAttention.length} asuntos requieren tu atención` }
         : needsAttention.length > 0
-          ? { Icon: AlertTriangle, iconClass: "", text: "text-[#9f7a15]", bg: "bg-[#fef8e7]", border: "border-[#f0dfa8]", message: needsAttention.length === 1 ? "Un asunto conviene revisarlo" : `${needsAttention.length} asuntos conviene revisarlos` }
+          ? { Icon: AlertTriangle, iconClass: "", text: "text-[#806012]", bg: "bg-[#fef8e7]", border: "border-[#f0dfa8]", message: needsAttention.length === 1 ? "Un asunto conviene revisarlo" : `${needsAttention.length} asuntos conviene revisarlos` }
           : { Icon: HelpCircle, iconClass: "", text: "text-[#52525b]", bg: "bg-[#fafafa]", border: "border-[#e5e5e5]", message: "No hemos podido comprobar todo el estado. Recarga la página en un momento." };
 
   return (

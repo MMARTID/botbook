@@ -441,7 +441,7 @@ function LineaDeClientes({
               telefonoInvalido
                 ? "text-[#c53030]"
                 : avisoDeTipo || (faltaNumero && tipo !== tipoActual)
-                  ? "text-[#9f7a15]"
+                  ? "text-[#806012]"
                   : "text-muted"
             }`}
           >
@@ -623,7 +623,7 @@ function EstadoDelDesvio({
   }
   return (
     <span
-      className="inline-flex w-fit items-center gap-1.5 rounded-full bg-[#fef8e7] px-3 py-1.5 text-xs font-semibold text-[#9f7a15] ring-1 ring-inset ring-[#f0dfa8]"
+      className="inline-flex w-fit items-center gap-1.5 rounded-full bg-[#fef8e7] px-3 py-1.5 text-xs font-semibold text-[#806012] ring-1 ring-inset ring-[#f0dfa8]"
       title={
         forwarding.firstCallAt
           ? "Ya han entrado llamadas desviadas, pero nunca has pulsado «Comprobar desvío»."

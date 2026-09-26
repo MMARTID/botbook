@@ -338,7 +338,7 @@ export default function NumeroPrincipalPage() {
             </li>
           </ul>
           <div className="rounded-2xl bg-[#fef8e7] p-4">
-            <p className="text-sm leading-6 text-[#9f7a15]">
+            <p className="text-sm leading-6 text-[#806012]">
               {TEXTO_QUITAR_DESVIOS}
             </p>
             <button
@@ -529,7 +529,7 @@ function Aviso({
       className={`rounded-2xl px-4 py-3 text-sm leading-6 ${
         tono === "ok"
           ? "bg-[#ecf7ec] text-[#2c7334]"
-          : "bg-[#fef8e7] text-[#9f7a15]"
+          : "bg-[#fef8e7] text-[#806012]"
       }`}
     >
       {children}

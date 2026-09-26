@@ -53,7 +53,7 @@ export function SeccionCuenta() {
                 Verificado por Google
               </span>
             ) : (
-              <span className="inline-flex w-fit rounded-full bg-[#fef8e7] px-3 py-1.5 text-xs font-semibold text-[#9f7a15] ring-1 ring-inset ring-[#f0dfa8]">
+              <span className="inline-flex w-fit rounded-full bg-[#fef8e7] px-3 py-1.5 text-xs font-semibold text-[#806012] ring-1 ring-inset ring-[#f0dfa8]">
                 Verificación pendiente
               </span>
             )}

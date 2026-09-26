@@ -40,10 +40,10 @@ export default function RecuperarContrasenaPage() {
   };
 
   return (
-    <div className="relative isolate flex min-h-screen items-center justify-center px-4 py-12 sm:px-6 lg:px-8">
+    <main className="relative isolate flex min-h-screen items-center justify-center px-4 py-12 sm:px-6 lg:px-8">
       <ParticleField />
       <ParticleMouseLayer />
-      <div className="panel w-full max-w-lg p-8">
+      <div className="panel w-full max-w-lg p-6 sm:p-8">
         {sent ? (
           // Sin distinguir si la cuenta existe: el backend responde igual en
           // ambos casos y aquí tampoco se insinúa nada.
@@ -57,8 +57,8 @@ export default function RecuperarContrasenaPage() {
               hemos enviado un enlace para crear una contraseña nueva. Caduca en 1 hora. Si no lo ves,
               mira en la carpeta de spam.
             </p>
-            <p className="pt-2 text-sm text-muted">
-              <Link href="/login" className={LINK_CLASS}>
+            <p className="pt-2">
+              <Link href="/login" className="btn-secondary w-full sm:w-auto">
                 Volver a iniciar sesión
               </Link>
             </p>
@@ -98,7 +98,7 @@ export default function RecuperarContrasenaPage() {
                 {error}
               </p>
 
-              <button type="submit" disabled={loading} className="btn-primary w-full justify-center">
+              <button type="submit" disabled={loading} className="btn-primary w-full">
                 {loading ? "Enviando…" : "Enviarme el enlace"}
               </button>
 
@@ -112,6 +112,6 @@ export default function RecuperarContrasenaPage() {
           </>
         )}
       </div>
-    </div>
+    </main>
   );
 }

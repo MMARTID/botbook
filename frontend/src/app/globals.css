@@ -21,6 +21,9 @@
   --success: #2c7334;
   --success-surface: #ecf7ec;
   --warning: #9f7a15;
+  /* Texto de aviso: el ocre de arriba da 3,99:1 sobre blanco y no llega a AA
+     en texto pequeño. #9f7a15 se queda para puntos, iconos y bordes. */
+  --warning-ink: #806012;
   --error: #c53030;
 }
 

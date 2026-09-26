@@ -64,7 +64,7 @@ const BADGES: Record<
   },
   pendiente: {
     texto: "Pendiente de activar",
-    clases: "bg-[#fef8e7] text-[#9f7a15] ring-[#f0dfa8]",
+    clases: "bg-[#fef8e7] text-[#806012] ring-[#f0dfa8]",
   },
   sin_whatsapp: {
     texto: "Sin WhatsApp",
@@ -515,7 +515,7 @@ export function WhatsappDueno({ business, hasToken }: WhatsappDuenoProps) {
               {movilError}
             </span>
           ) : movilAviso ? (
-            <span className="mt-1 block text-xs font-normal leading-5 text-[#9f7a15]">
+            <span className="mt-1 block text-xs font-normal leading-5 text-[#806012]">
               {movilAviso}
             </span>
           ) : null}
