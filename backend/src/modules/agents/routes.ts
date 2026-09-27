@@ -76,6 +76,7 @@ export async function agentsRoutes(fastify: FastifyInstance) {
         if (error instanceof z.ZodError) {
           return reply.status(400).send({ error: error.errors });
         }
+        fastify.log.error({ err: error }, "[Agent] Failed to create agent");
         return reply.status(500).send({ error: "Failed to create agent" });
       }
     }
@@ -95,6 +96,7 @@ export async function agentsRoutes(fastify: FastifyInstance) {
         });
         return reply.send(agents);
       } catch (error) {
+        fastify.log.error({ err: error }, "[Agent] Failed to fetch agents");
         return reply.status(500).send({ error: "Failed to fetch agents" });
       }
     }
@@ -123,6 +125,7 @@ export async function agentsRoutes(fastify: FastifyInstance) {
 
         return reply.send(agent);
       } catch (error) {
+        fastify.log.error({ err: error }, "[Agent] Failed to fetch agent");
         return reply.status(500).send({ error: "Failed to fetch agent" });
       }
     }
@@ -319,9 +322,9 @@ export async function agentsRoutes(fastify: FastifyInstance) {
                 updatedRetellAgent
               );
             } catch (retellError) {
-              console.error(
-                "[Agent] Failed to sync update to Retell:",
-                retellError
+              fastify.log.error(
+                { err: retellError },
+                "[Agent] Failed to sync update to Retell"
               );
             }
           }
@@ -332,6 +335,7 @@ export async function agentsRoutes(fastify: FastifyInstance) {
         if (error instanceof z.ZodError) {
           return reply.status(400).send({ error: error.errors });
         }
+        fastify.log.error({ err: error }, "[Agent] Failed to update agent");
         return reply.status(500).send({ error: "Failed to update agent" });
       }
     }
@@ -364,6 +368,7 @@ export async function agentsRoutes(fastify: FastifyInstance) {
 
         return reply.status(204).send();
       } catch (error) {
+        fastify.log.error({ err: error }, "[Agent] Failed to delete agent");
         return reply.status(500).send({ error: "Failed to delete agent" });
       }
     }
