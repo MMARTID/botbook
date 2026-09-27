@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, vi, beforeAll, afterAll } from "vitest";
 import type { InboundMessage } from "@prisma/client";
 import { prisma } from "../../../src/lib/prisma.js";
 import { reclamarEnvio } from "../../../src/lib/messageIdempotency.js";
@@ -188,6 +188,28 @@ const MOVIL = "+34692138456";
 const NEGOCIOS = "+34930453218";
 const CLIENTES = "+34930454394";
 const AHORA = new Date("2026-09-20T12:00:00Z");
+
+/**
+ * El reloj se congela en AHORA.
+ *
+ * Las fechas de los fixtures son fijas (un código que caduca «en una
+ * semana», una cita «de mañana») pero el código bajo prueba comparaba con
+ * la hora real, así que estos tests iban caducando solos: el 2026-09-27,
+ * sin que nadie tocara nada, `main` se puso en rojo porque esa semana ya
+ * había pasado y el código de alta pasó a estar caducado y la cita a ser
+ * «pasada».
+ *
+ * Solo se falsea `Date`: falsear también los temporizadores colgaría las
+ * esperas de las promesas de estos mismos tests.
+ */
+beforeAll(() => {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(AHORA);
+});
+
+afterAll(() => {
+  vi.useRealTimers();
+});
 const EN_UNA_SEMANA = new Date("2026-09-27T12:00:00Z");
 const PANEL = "https://alhabla.ai/ajustes/telefono#whatsapp";
 
