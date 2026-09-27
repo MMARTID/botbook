@@ -1545,7 +1545,7 @@ pending bookings, cancellations, alerts, and two **Beta** conversations
 button). No second number, no WhatsApp number per business, no WhatsApp
 calling, no push, **no outbound calls** (user decisions). Inbound `message.*`
 events on `/webhooks/telnyx` are still ignored until phase 1 of that plan.
-`PLAN-WHATSAPP-LLAMADAS.md` is kept as reference only (discarded).
+`docs/historico/PLAN-WHATSAPP-LLAMADAS.md` is kept as reference only (discarded).
 
 **WhatsApp:** everything about the WABA, numbers, templates, inbound webhooks and
 API quirks lives in § *WhatsApp (Telnyx como BSP de Meta)* under Voice Orchestrators.
@@ -2477,7 +2477,7 @@ partir vacía de `main` como marcador.
 |------|-----------|-------|-------|
 | `step-followups-landing` | `frontend/src/components/call-forwarding-flow.tsx` + tarjetas `threeSteps` en `site-landing.tsx` (sección "Cómo funciona") | [#12](https://github.com/MMARTID/botbook/issues/12) | Pulir y/o rediseñar el recorrido de 3 pasos. |
 | `demo-modal-landing` | Modal/experiencia de "Escuchar una llamada" del hero (`DemoVoiceCall`) | — | Pulir y/o rediseñar la demo de llamada de voz que se abre desde la landing. Sin Issue todavía. |
-| `telnyx-whatsapp-calls` | Llamadas de voz por WhatsApp vía Telnyx — distinto de la mensajería de texto ya existente (`WhatsAppAdapter`, `jobs/sendWhatsapp.ts`, plantillas de confirmación/recordatorio) | — | **Descartado** el 2026-09-19 (ver `PLAN-CANAL-DUENO.md` v3). `PLAN-WHATSAPP-LLAMADAS.md` queda en `main` solo como referencia. Rama sin trabajo; borrar cuando se confirme. |
+| `telnyx-whatsapp-calls` | Llamadas de voz por WhatsApp vía Telnyx — distinto de la mensajería de texto ya existente (`WhatsAppAdapter`, `jobs/sendWhatsapp.ts`, plantillas de confirmación/recordatorio) | — | **Descartado** el 2026-09-19 (ver `PLAN-CANAL-DUENO.md` v3). `docs/historico/PLAN-WHATSAPP-LLAMADAS.md` queda en `main` solo como referencia. Rama sin trabajo; borrar cuando se confirme. |
 
 Al abrir el Issue correspondiente, añade su número en la columna "Issue". Al
 fusionar o descartar una rama, quita su fila de esta tabla.
