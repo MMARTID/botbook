@@ -1,6 +1,5 @@
 import axios from "axios";
 import type {
-  Agent,
   AgendaResponse,
   BusinessStats,
   PendingBooking,
@@ -14,7 +13,6 @@ import type {
   CalendarListResponse,
   Call,
   CallAnalytics,
-  CreateAgentPayload,
   OnboardingState,
   ForwardingCheck,
   Paginated,
@@ -22,7 +20,6 @@ import type {
   PlanId,
   PlaceDetails,
   PlaceSearchResult,
-  DemoPlaceSearchResult,
   CalendarAccountConnected,
   EstadoWhatsappDueno,
   EstadoDelGestor,
@@ -164,16 +161,6 @@ export async function reconcileCheckoutSession(sessionId: string) {
   return data;
 }
 
-export async function getAgents() {
-  const { data } = await api.get<Agent[]>("/business/me/agents");
-  return data;
-}
-
-export async function createAgent(payload: CreateAgentPayload) {
-  const { data } = await api.post<Agent>("/agents", payload);
-  return data;
-}
-
 export async function getCalls(limit = 100, offset = 0) {
   const { data } = await api.get<Paginated<Call>>(`/business/me/calls`, {
     params: { limit, offset },
@@ -255,25 +242,6 @@ export async function searchPlaces(query: string, location?: PlaceSearchLocation
 
 export async function getPlaceDetails(placeId: string) {
   const { data } = await api.get<PlaceDetails>(`/places/details/${encodeURIComponent(placeId)}`);
-  return data;
-}
-
-/** Datos mínimos que la landing pública puede usar para contextualizar una demo. */
-export type DemoPlaceDetails = Pick<PlaceDetails, "placeId" | "name" | "address" | "types">;
-
-/**
- * Google Places para la demo pública. Se mantiene separado de la búsqueda de
- * registro, que requiere sesión y devuelve la ficha completa del negocio.
- */
-export async function searchDemoPlaces(query: string) {
-  const { data } = await api.get<{ results: DemoPlaceSearchResult[] }>("/demo/places/autocomplete", {
-    params: { q: query },
-  });
-  return data.results;
-}
-
-export async function getDemoPlaceDetails(placeId: string) {
-  const { data } = await api.get<DemoPlaceDetails>(`/demo/places/details/${encodeURIComponent(placeId)}`);
   return data;
 }
 
@@ -376,11 +344,6 @@ export async function getForwardingCheck(id: string) {
   const { data } = await api.get<ForwardingCheck>(
     `/business/me/onboarding/forwarding/check/${encodeURIComponent(id)}`
   );
-  return data;
-}
-
-export async function completeOnboarding() {
-  const { data } = await api.post<{ completedAt: string | null }>("/business/me/onboarding/complete");
   return data;
 }
 
