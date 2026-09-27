@@ -129,6 +129,26 @@ export function LlamadaScroll() {
   const seccion = useRef<HTMLElement>(null);
   const [paso, setPaso] = useState(0);
   const { scrollYProgress: p } = useScroll({ target: seccion, offset: ["start start", "end end"] });
+  /**
+   * La salida del escenario.
+   *
+   * `p` llega a 1 justo cuando el escenario deja de estar pegado, y a partir
+   * de ahí queda todavía una pantalla entera de scroll en la que el escenario
+   * se va hacia arriba: es como funciona `position: sticky`, no se puede
+   * quitar. Lo que sí se puede es que no parezca una avería — sin esto se
+   * veía el teléfono cortado por la cabecera, la barra de pasos pegada al
+   * borde y una franja vacía debajo (medido en producción el 2026-09-26:
+   * ~900 px a 1440x900, el 29 % de la sección).
+   *
+   * Con esto, ese tramo es una despedida: el escenario se desvanece y sube un
+   * poco mientras entra la sección siguiente.
+   */
+  const { scrollYProgress: salida } = useScroll({
+    target: seccion,
+    offset: ["end end", "end start"],
+  });
+  const opacidadSalida = useTransform(salida, [0, 0.55], [1, 0]);
+  const ySalida = useTransform(salida, [0, 1], [0, -64]);
   const s = useSpring(p, { stiffness: 220, damping: 32, mass: 0.3, restDelta: 0.001 });
 
   useMotionValueEvent(p, "change", (v) => {
@@ -201,7 +221,7 @@ export function LlamadaScroll() {
 
   return (
     <section ref={seccion} id="como-funciona" className={styles.seccion} aria-labelledby="llamada-titulo">
-      <div className={styles.escenario}>
+      <motion.div className={styles.escenario} style={{ opacity: opacidadSalida, y: ySalida }}>
         <div className={styles.rejilla}>
           <div className={styles.columnaTexto}>
             <h2 id="llamada-titulo" className={styles.antetitulo}>
@@ -273,7 +293,7 @@ export function LlamadaScroll() {
             </motion.div>
           </div>
         </div>
-      </div>
+      </motion.div>
 
       <ol className="sr-only">
         {PASOS.map((pc) => (
