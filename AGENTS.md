@@ -1662,6 +1662,38 @@ ellas), junto con sus 5 agentes de Retell, sus 5 LLM y sus 5 assistants de Telny
 queda con tres negocios reales. **Si se vuelve a ejecutar ese script, hay que revertir lo mismo
 otra vez**; lo que no hay que hacer es dejar las copias vivas apropiándose de los números.
 
+### Tipos de asistente y cómo añadir uno nuevo
+
+El mapa de todos los asistentes vive en `backend/src/lib/tiposDeAsistente.ts`
+(`TIPOS_DE_ASISTENTE`). Hoy hay tres tipos:
+
+| Tipo | Ámbito | Prompt / payload | Tools (canal) | Sincronización | En ejecución |
+|------|--------|------------------|---------------|----------------|--------------|
+| `recepcionista` | un assistant por `Agent` (`alhabla-<negocio>-<agente>`); también atiende el chat de clientes por WhatsApp | `managedAgentPrompt.ts` → `buildTelnyxAssistantPayload` (Telnyx) y `agentBootstrap.ts` (Retell, respaldo caliente) | `buildTelnyxVoiceTools` → `/webhooks/telnyx/tools/:toolName`, negocio por `X-Alhabla-Call-Control-Id` | `telnyxAgentSync.ts` (hash del payload), `syncAgentToRetell` | `adapters/telnyx/webhookHandlers.ts`, `voiceTools/service.ts`, `whatsapp/chatCliente.ts` |
+| `demo` | assistants aislados por nicho (`alhabla-demo-*`, ids en `TELNYX_DEMO_*_ASSISTANT_ID`) | los crea `scripts/crearAssistantsDemoAislados.ts` | las de la recepcionista | a mano; `demo/routes.ts` solo reafirma las llamadas web sin autenticar | `demo/routes.ts` |
+| `gestor` | uno por entorno (`alhabla-gestor`, `TELNYX_GESTOR_ASSISTANT_ID`) | `gestorPayload.ts` | `buildGestorTools` → `/webhooks/telnyx/gestor/:toolName`, negocio por `X-Alhabla-Business` + `X-Alhabla-Role` (metadata de la conversación) | `gestorSync.ts` (compara firma, reconciliador diario) | `whatsapp/chatDueno.ts`, `gestor/tools.ts` |
+
+**Cómo añadir un nuevo tipo de asistente** (p. ej. una llamada saliente de recordatorio):
+
+1. **Identidad en las tools.** Decide cómo sabrá el backend para qué negocio actúa: nunca por lo
+   que diga el LLM, siempre por cabeceras que templa Telnyx (variables de sistema o `metadata`
+   de la conversación). Si encaja con uno existente, reutiliza su `CanalDeTools`
+   (`CANAL_DE_TOOLS_DE_VOZ`, `CANAL_DE_TOOLS_DEL_GESTOR`); si no, declara uno nuevo junto a su
+   builder.
+2. **Payload.** Crea `lib/<tipo>Payload.ts` con el prompt y las tools como
+   `DefinicionDeToolDeWebhook[]` pasadas por `construirToolsDeWebhook(baseUrl, canal, …)`
+   (url, POST, cabeceras y timeout salen del canal). Para un assistant de voz, reutiliza
+   `buildTelnyxAssistantPayload` (voz, transcripción, grabación, hangup) en vez de copiarlo.
+   Añade una instantánea en `tests/lib/payloadsDeAsistentes.snapshot.test.ts`.
+3. **Ruta de tools.** Si el canal es nuevo, añade su ruta en `server.ts` copiando la
+   verificación de firma Ed25519 de `/webhooks/telnyx/gestor/:toolName` **sin modificarla**, y
+   un `handle…ToolInvocation` en su módulo que resuelva el negocio a partir de las cabeceras.
+4. **Sincronización.** Por agente → sigue el patrón de `telnyxAgentSync.ts` (hash en `Agent`);
+   de plataforma → el de `gestorSync.ts` (id en variable de entorno, comparación por firma,
+   reconciliador diario). Solo a través de `TelnyxAiAdapter`/`RetellAdapter`.
+5. **Registro.** Añade la entrada en `TIPOS_DE_ASISTENTE` (el test de
+   `tests/lib/tiposDeAsistente.test.ts` comprueba que sus tools van por su canal).
+
 ### Phone provisioning
 
 `provisionPhoneNumber` (`backend/src/modules/phone/service.ts`) buys a Telnyx number and imports it into Retell via SIP trunk, linking it to the business's active agent. Failures in Telnyx/Retell do not fail the Stripe webhook response.
