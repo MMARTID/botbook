@@ -1,34 +1,23 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import { z } from "zod";
 import { prisma } from "../../lib/prisma.js";
-import { getSignedRecordingUrl } from "../../lib/storage.js";
+import { conUrlDeGrabacionFirmada } from "../../lib/grabacionFirmada.js";
 
 const UpdateRecordingSchema = z.object({
   reviewed: z.boolean().optional(),
   reviewNotes: z.string().optional(),
 });
 
-/**
- * El bucket de R2 es privado — el storageUrl guardado en BD no sirve para
- * reproducir nada (URL de API S3 sin firmar). Antes de responder al
- * frontend, lo sustituimos por una URL firmada temporal generada al vuelo
- * a partir de storageKey. Si falla la firma, no rompemos la respuesta: cae
- * a null, y el frontend ya sabe usar externalUrl como alternativa.
- */
-async function withSignedRecordingUrl<
-  T extends { storageKey: string | null; storageUrl: string | null }
->(recording: T): Promise<T> {
-  if (!recording.storageKey) {
-    return recording;
-  }
-  try {
-    const storageUrl = await getSignedRecordingUrl(recording.storageKey);
-    return { ...recording, storageUrl };
-  } catch (error) {
-    console.error("[Recordings] No se pudo generar la URL firmada:", error);
-    return { ...recording, storageUrl: null };
-  }
-}
+const PaginacionSchema = z.object({
+  limit: z.coerce.number().int().min(1).max(100).default(20),
+  offset: z.coerce.number().int().min(0).default(0),
+});
+
+const firmar = <
+  T extends { storageKey: string | null; storageUrl: string | null },
+>(
+  grabacion: T
+) => conUrlDeGrabacionFirmada(grabacion, "Recordings");
 
 export async function recordingsRoutes(fastify: FastifyInstance) {
   // Get recordings for the authenticated business
@@ -42,8 +31,7 @@ export async function recordingsRoutes(fastify: FastifyInstance) {
       reply
     ) => {
       try {
-        const limit = Math.min(parseInt(request.query.limit || "20"), 100);
-        const offset = parseInt(request.query.offset || "0");
+        const { limit, offset } = PaginacionSchema.parse(request.query);
         const businessId = request.user!.businessId;
 
         const filtroDelNegocio = {
@@ -88,7 +76,7 @@ export async function recordingsRoutes(fastify: FastifyInstance) {
           prisma.recording.count({ where: filtroDelNegocio }),
         ]);
 
-        const data = await Promise.all(recordings.map(withSignedRecordingUrl));
+        const data = await Promise.all(recordings.map((grabacion) => firmar(grabacion)));
 
         return reply.send({
           data,
@@ -97,6 +85,10 @@ export async function recordingsRoutes(fastify: FastifyInstance) {
           offset,
         });
       } catch (error) {
+        if (error instanceof z.ZodError) {
+          return reply.status(400).send({ error: error.errors });
+        }
+        fastify.log.error({ err: error }, "[Recordings] Error al listar");
         return reply.status(500).send({ error: "Failed to fetch recordings" });
       }
     }
@@ -128,8 +120,9 @@ export async function recordingsRoutes(fastify: FastifyInstance) {
           return reply.status(404).send({ error: "Recording not found" });
         }
 
-        return reply.send(await withSignedRecordingUrl(recording));
+        return reply.send(await firmar(recording));
       } catch (error) {
+        fastify.log.error({ err: error }, "[Recordings] Failed to fetch recording");
         return reply.status(500).send({ error: "Failed to fetch recording" });
       }
     }
@@ -161,8 +154,9 @@ export async function recordingsRoutes(fastify: FastifyInstance) {
           return reply.status(404).send({ error: "Recording not found" });
         }
 
-        return reply.send(await withSignedRecordingUrl(recording));
+        return reply.send(await firmar(recording));
       } catch (error) {
+        fastify.log.error({ err: error }, "[Recordings] Failed to fetch recording");
         return reply.status(500).send({ error: "Failed to fetch recording" });
       }
     }
@@ -200,7 +194,7 @@ export async function recordingsRoutes(fastify: FastifyInstance) {
           data,
         });
 
-        return reply.send(await withSignedRecordingUrl(updated));
+        return reply.send(await firmar(updated));
       } catch (error) {
         if (error instanceof z.ZodError) {
           return reply.status(400).send({ error: error.errors });

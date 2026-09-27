@@ -139,6 +139,7 @@ export async function calendarRoutes(fastify: FastifyInstance) {
         );
         return reply.send({ url });
       } catch (error) {
+        fastify.log.error({ err: error }, "[Calendar] Failed to generate Google Auth URL");
         return reply.status(500).send({ error: "Failed to generate Google Auth URL" });
       }
     }
