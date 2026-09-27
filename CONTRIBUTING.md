@@ -17,10 +17,11 @@ La razón es que `main` es, de facto, la rama de producción:
 - [`ci.yml`](.github/workflows/ci.yml) corre lint/typecheck/tests en cada PR y
   en cada push a `main`.
 - [`deploy-backend.yml`](.github/workflows/deploy-backend.yml) se dispara con
-  cada push a `main` y despliega el backend a Cloud Run (repite los tests
-  antes de desplegar).
-- El frontend se despliega a producción desde `main` vía la integración Git de
-  Vercel.
+  cada push a `main` que toque `backend/**` (o el propio workflow) y despliega
+  el backend a Cloud Run (repite los tests antes de desplegar).
+- La app (`frontend/`, proyecto `alhabla-frontend`) y la web pública (`web/`,
+  proyecto `alhabla-web`) se despliegan a producción desde `main` vía la
+  integración Git de Vercel.
 
 ## Flujo estándar por tarea/sesión
 
@@ -50,14 +51,14 @@ La razón es que `main` es, de facto, la rama de producción:
 
 ## Qué pasa después de mergear
 
-Un merge a `main` dispara `deploy-backend.yml`, que despliega el backend a
-Cloud Run. El Environment `production` de GitHub tiene revisores requeridos
+Un merge a `main` que toque `backend/**` dispara `deploy-backend.yml`, que
+despliega el backend a Cloud Run. El Environment `production` de GitHub tiene revisores requeridos
 configurados, así que el job de deploy queda **pausado pidiendo una
 aprobación manual explícita** antes de tocar producción — quien tenga acceso
 de revisor debe aprobarlo desde la pestaña **Actions** del repositorio (el
 job de deploy aparece con un botón "Review deployments").
 
-El frontend se despliega en paralelo vía Vercel en cuanto el push llega a
+La app y la web se despliegan en paralelo vía Vercel en cuanto el push llega a
 `main`, sin paso de aprobación manual.
 
 ## Trabajando con Claude Code

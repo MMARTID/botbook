@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-Alhabla is a multi-tenant SaaS platform that provides AI-powered voice receptionists for small businesses in Spain (hair salons, barbershops, physiotherapy clinics, beauty centers, etc.). Each business gets one or more voice agents built on top of the Retell.ai voice-AI platform, used for its RGPD compliance. The agents handle incoming phone calls, answer questions, check business hours, check availability, and book appointments directly into the business's Google, Outlook or Apple/iCloud (CalDAV) calendar.
+Alhabla is a multi-tenant SaaS platform that provides AI-powered voice receptionists for small businesses in Spain (hair salons, barbershops, physiotherapy clinics, beauty centers, etc.). Each business gets a voice receptionist orchestrated by **Telnyx AI Assistants** (primary — every business is `orchestrator = "telnyx"`), with **Retell.ai** kept as a backup provider (see § Voice Orchestrators). The agents handle incoming phone calls, answer questions, check business hours, check availability, and book appointments directly into the business's Google, Outlook or Apple/iCloud (CalDAV) calendar. Since September 2026 the platform also talks over WhatsApp (Telnyx as Meta BSP) with business owners (alerts and the Gestor assistant) and with their clients.
 
 The codebase is fully in Spanish — UI copy, comments, variable names, and business logic are written in Spanish. Keep everything in Spanish when modifying code or adding user-facing text.
 
@@ -12,13 +12,13 @@ The codebase is fully in Spanish — UI copy, comments, variable names, and busi
 |-------|------------|
 | **Backend runtime** | Node.js 20, TypeScript 5.9, ESM (`"type": "module"`) |
 | **HTTP framework** | Fastify 5 |
-| **Frontend** | Next.js 14 (App Router), React 18, Tailwind CSS v3 |
+| **Frontend** | Two Next.js 14 (App Router) projects, React 18, Tailwind CSS v3: `frontend/` (the app, `app.alhabla.ai`, :3001) and `web/` (public site + MDX blog, `alhabla.ai`, :3002) |
 | **Database** | PostgreSQL 15 + Prisma ORM |
 | **Cache** | Redis 7 |
 | **Background jobs** | Cloud Tasks / Cloud Scheduler (HTTP callbacks to `alhabla-api`, no BullMQ) |
-| **Voice AI** | Retell.ai |
+| **Voice AI** | Telnyx AI Assistants (primary), Retell.ai (backup) |
 | **Object storage** | Cloudflare R2 (S3-compatible) |
-| **Telephony** | Telnyx (phone number purchase for Spain) |
+| **Telephony / WhatsApp** | Telnyx (Spanish numbers, call control, WhatsApp Business Platform) |
 | **Billing** | Stripe (Checkout Sessions, Customer Portal, webhooks) |
 | **Calendar** | Google Calendar API, Microsoft Graph (Outlook), CalDAV vía `tsdav` + `ical.js` (Apple/iCloud) |
 | **Auth** | JWT (custom) + Google OAuth 2.0 |
@@ -32,15 +32,15 @@ The codebase is fully in Spanish — UI copy, comments, variable names, and busi
 ├── backend/                 # Backend source (ESM TypeScript)
 │   ├── src/
 │   │   ├── server.ts           # Fastify entry point
-│   │   ├── plugins/            # Fastify plugins (auth, CORS, rate-limit, multipart)
+│   │   ├── plugins/            # Fastify plugins (auth, internalAuth); CORS and rate-limit are registered in server.ts
 │   │   ├── modules/            # Domain route modules (one folder per domain)
-│   │   ├── adapters/           # External API adapters (Retell, Telnyx)
+│   │   ├── adapters/           # External API adapters (retell, telnyx, whatsapp, calendar)
 │   │   ├── lib/                # Shared utilities (Prisma, Redis, Stripe, Cloud Tasks, storage)
 │   │   ├── jobs/                # Background job logic, no framework (dispatched via Cloud Tasks)
 │   │   └── config/              # Static configuration constants
 │   ├── prisma/              # Prisma schema + migrations
-│   ├── dist/                # Compiled backend output (tsc)
-│   ├── scripts/             # One-off scripts (e.g. E2E tests)
+│   ├── dist/                # Compiled backend output (tsc, not versioned)
+│   ├── scripts/             # One-off/manual scripts (Telnyx assistants, prompts, demo, simulations)
 │   ├── tests/                # Vitest test suite
 │   └── Dockerfile            # Multi-stage build
 ├── frontend/               # Next.js 14 application
@@ -48,12 +48,15 @@ The codebase is fully in Spanish — UI copy, comments, variable names, and busi
 │   ├── src/components/     # React components
 │   ├── src/lib/            # API client, types, helpers, SEO, ROI
 │   └── src/hooks/          # Custom React hooks
+├── web/                    # Next.js 14 public site (alhabla.ai): landing, niches, plans, legal, register, blog
+│   └── content/blog/       # MDX articles
+├── docs/                   # Niche research and closed plans (docs/historico/)
 └── docker-compose.yml      # Postgres + Redis + backend + cloudflared (dev profile)
 ```
 
 ### Backend Module Organization (`backend/src/modules/`)
 
-Each module is a folder containing a `routes.ts` file (and optionally `service.ts`, `schemas.ts`). Routes are registered in `backend/src/server.ts` with a prefix when needed.
+Most modules are a folder containing a `routes.ts` file (and optionally `service.ts`, `schemas.ts`); `gestor`, `voiceTools` and `retellSimulation` have no `routes.ts` — they are called from the webhook handlers in `server.ts` or from `scripts/`. Routes are registered in `backend/src/server.ts` with a prefix when needed.
 
 | Module | Prefix | Auth | Purpose |
 |--------|--------|------|---------|
@@ -70,13 +73,19 @@ Each module is a folder containing a `routes.ts` file (and optionally `service.t
 | `onboarding` | *(none)* | Yes | Onboarding state: progress, dismiss, complete, confirm call forwarding |
 | `demo` | `/demo` | No | Public landing voice demo, **on Telnyx since 2026-09-22** (Retell ran out of credit and the demo 502'd in production). `POST /demo/web-call` accepts `{ niche?, placeId? }` and returns `{ assistantId, niche, maxDurationSeconds }`: the browser then places an unauthenticated WebRTC call to that assistant (`anonymous_login`), so no token or credential ever reaches the bundle. With a `placeId` the backend re-reads the Google Places card and the **detected** niche wins over the landing's — searching your barbershop from the main landing gets you the barbershop demo. Each niche points at an **isolated** demo assistant (`TELNYX_DEMO_<NICHO>_ASSISTANT_ID`), falling back to the generic one. Since 2026-09-24 those are clones of the demo accounts' assistants (`scripts/crearAssistantsDemoAislados.ts`) with **no tools at all** and their own `time_limit_secs` in Telnyx: `anonymous_login` means the assistant id necessarily reaches the browser, so anyone can dial it directly, bypassing this route's rate limit and the browser's cap — pointing that at the real accounts' assistants let an abuser write real bookings into their agendas. The demo accounts' own assistants now have `supports_unauthenticated_web_calls: false`. The route still reasserts that flag once per assistant per process, but only after checking the name starts with `alhabla-demo-`, so a misconfigured env var can never open a real business's assistant. `resolveDemoMaxDurationSeconds()` validates `TELNYX_DEMO_MAX_DURATION_SECONDS` (finite and positive, or 60s) — it is a browser-side cap, Telnyx keeps the account's own `time_limit_secs` |
 
+| `whatsapp` | *(none)* | Mixed | WhatsApp channel (Telnyx as Meta BSP): owner sign-up and preferences (`/business/me/whatsapp`), inbound messages/status/template events routed from `/webhooks/telnyx`, owner and client chats, waiting list, reminders. |
+| `gestor` | *(no routes.ts)* | Mixed | The owner's assistant ("Gestor", shown as «Tu asistente»): tools at `/webhooks/telnyx/gestor/:toolName` (Ed25519) and the panel thread at `/business/me/gestor` (`panel.ts`). It proposes; only the owner's button executes. |
+| `voiceTools` | *(no routes.ts)* | Webhook signature | Tool execution shared by Retell (`/webhooks/retell/tools/:retellAgentId/:toolName`) and Telnyx (`/webhooks/telnyx/tools/:toolName`). |
+| `internal` | `/internal` | OIDC | `/internal/jobs/*`, called by Cloud Tasks / Cloud Scheduler (see § Background Jobs). |
+| `retellSimulation` | *(no routes.ts)* | — | Retell LLM Simulation Testing catalog and runner used by `scripts/retellSimulation.ts` (`npm run sim`). Plan archived in `docs/historico/retell-simulation-testing-plan.md`. |
+
 \* Except OAuth callbacks (`/calendar/auth/*/callback`) and Stripe webhook (`/billing/webhook`).
 
 ### Key Libraries (`backend/src/lib/`)
 
 - `prisma.ts` — Prisma Client singleton with `globalThis` hot-reload guard.
 - `redis.ts` — IORedis connection (caching, OAuth state, rate limiting).
-- `cloudTasks.ts` — Cloud Tasks job dispatch (`enqueueRecordingJob`, `enqueueRetryBookingJob`, `enqueueEmailJob`); inline synchronous fallback outside production. See Background Jobs below.
+- `cloudTasks.ts` — Cloud Tasks job dispatch (`enqueueRecordingJob`, `enqueueRetryBookingJob`, `enqueueUsageReportJob`, `enqueueEmailJob`, `enqueueSmsJob`, `enqueueRecordarRecadoJob`, `enqueueWhatsappJob`); inline synchronous fallback outside production. See Background Jobs below.
 - `storage.ts` — R2/S3 client for file uploads (recordings).
 - `stripe.ts` — Stripe SDK client singleton.
 - `telnyx.ts` — Telnyx SDK singleton (single Bearer API key). Active provider for phone number provisioning.
@@ -94,39 +103,62 @@ Each module is a folder containing a `routes.ts` file (and optionally `service.t
 
 ## Frontend Architecture
 
+Since 2026-09-21 (`PLAN-APP-DOMINIO.md`) there are **two** Next.js projects: `frontend/` is the
+authenticated app (`app.alhabla.ai`) and `web/` is the public site (`alhabla.ai`). Marketing
+components (`SiteLanding`, `LandingHero`, `RevenueLossCalculator`, `PlansWithRoi`, `DemoVoiceCall`,
+`LegalPage`…) and `roi-context.ts` live in `web/src/`; components used by both (`brand-mark`,
+`particle-*`, `google-auth-button`, `range-slider`, `hero-conversation`…) are copied into each.
+The component and lib notes below keep their original wording; check which project holds a file
+before editing it.
+
 ### Framework & Routing
 
-- **Next.js 14** with App Router (`frontend/src/app/`).
-- Port 3001 for dev and production.
-- **Proxy:** `/api/backend/:path*` → `http://localhost:3000/:path*` (next.config.mjs rewrites).
-- **Redirects:** Plurals to singulars (`/peluquerias` → `/peluqueria`).
+- **Next.js 14** with App Router (`frontend/src/app/`, `web/src/app/`).
+- App on port 3001, public site on port 3002 (dev and `next start`).
+- **Proxy (app, dev only):** `/api/backend/:path*` → `http://localhost:3000/:path*` (`frontend/next.config.mjs`). Never rely on it in code — see `DemoVoiceCall` below.
+- **Redirects (app):** marketing paths (`/landing`, niche pages, `/planes`, `/blog`, `/legal/*`, `/register`) go 301 to the public site; `/register/business/*` → `/bienvenida/*`; `/gestor` → `/asistente`. The public site in turn 301s every app route to `app.alhabla.ai`.
 
 ### Pages
 
+**App (`frontend/`, `app.alhabla.ai`):**
+
 | Route | Purpose |
 |-------|---------|
-| `/` | Dashboard (protected) — calls, stats, setup score, file uploads, upcoming events |
-| `/landing` | Generic conversion landing |
-| `/login`, `/register`, `/register/business`, `/register/business/niche`, `/register/business/services`, `/register/business/team`, `/register/business/calendar` | Auth flow |
+| `/` | Dashboard (protected) — calls, stats, onboarding checklist, upcoming bookings |
+| `/login`, `/auth/entrar?pase=`, `/auth/google/callback` | Sign-in; `/auth/entrar` redeems the one-time pass from the public site's registration |
 | `/recuperar-contrasena`, `/restablecer-contrasena?token=` | Password recovery — request the emailed link, then set a new password (signs the user in on success) |
-| `/auth/google/callback` | Google OAuth session consumption |
-| `/barberia`, `/peluqueria`, `/fisioterapia`, `/centro-de-estetica`, `/salon-de-unas` | Niche SEO landings |
-| `/planes` | Pricing page with ROI-aware headline |
+| `/bienvenida`, `/bienvenida/niche`, `/bienvenida/services`, `/bienvenida/team`, `/bienvenida/calendar` | Business setup wizard after registration |
+| `/elegir-plan` | Arrival from «Elegir plan» on the public site: checkout with a session, registration without |
 | `/checkout?plan=` | Stripe Embedded Checkout |
 | `/checkout/resultado` | Post-checkout reconciliation polling |
+| `/agenda` | Today's bookings and pending ones |
+| `/llamadas`, `/llamadas/analitica` | Call log and analytics |
 | `/agente` | Full agent setup (schedule, services, professionals, calendar, knowledge and behavior) |
-| `/ajustes` | Account settings (identity, business contact data, password, session and account deletion) |
+| `/asistente` | The owner's assistant (Gestor) thread, same as on WhatsApp |
+| `/ajustes`, `/ajustes/negocio`, `/ajustes/seguridad` | Account settings (identity, business contact data, password, session and account deletion) |
+| `/ajustes/telefono`, `/ajustes/numero-principal` | Customer line, «Comprobar desvío», «Alhabla como número principal» (§ Telefonía) |
 | `/ajustes/facturacion` | Billing summary & Stripe Customer Portal |
 | `/settings` | Calendar OAuth callback handler (Google/Outlook; Apple/CalDAV has no callback — it is a credentials form in `/agente`) |
+| `/dev/entrar` | Development shortcut: signs in with a JWT carried in the link |
+
+**Public site (`web/`, `alhabla.ai`):**
+
+| Route | Purpose |
+|-------|---------|
+| `/` | Generic conversion landing |
+| `/barberia`, `/peluqueria`, `/fisioterapia`, `/centro-de-estetica`, `/salon-de-unas` (+ `/[ciudad]`) | Niche SEO landings, also per city |
+| `/planes` | Pricing page with ROI-aware headline |
+| `/register` | Account creation (email or Google); jumps to the app with a one-time pass |
+| `/blog`, `/blog/[slug]`, `/blog/rss.xml` | MDX blog (`web/content/blog`) |
+| `/keystatic`, `/vista-previa/[slug]` | Blog editor (Keystatic) and draft preview |
 | `/legal/privacidad` | Privacy policy — covers the voice demo, recorded calls and calendar scopes |
 | `/legal/aviso-legal` | Legal notice — service terms, trial, withdrawal |
 
-`/legal/*` routes must stay listed in `AppShell`'s `publicRoutes`, otherwise they inherit the
-authenticated chrome. Both pages carry `LegalTodo` blocks marking the registration data
+Both legal pages (now in `web/`) carry `LegalTodo` blocks marking the registration data
 (razón social, CIF, domicilio) that a human must supply before launch — do not invent those
 values, and do not delete the markers until they are filled.
 
-`app/opengraph-image.tsx` renders the shared social card with `next/og` using the design tokens.
+`web/src/app/opengraph-image.tsx` renders the shared social card with `next/og` using the design tokens.
 There is no static OG asset; edit that file to change what WhatsApp and X display.
 
 ### State & Data
@@ -198,7 +230,7 @@ There is no static OG asset; edit that file to change what WhatsApp and X displa
 - `format.ts` — Currency, date, duration, call status labels.
 - `billing-navigation.ts` — Pending plan helpers.
 - `business-type.ts` — Business type labels, Places API keyword detection and per-niche onboarding texts (`BUSINESS_TYPE_ONBOARDING_TEXTS`).
-- `service-templates.ts` — Per-niche service templates shown during registration (`/register/business/services`).
+- `service-templates.ts` — Per-niche service templates shown during registration (`/bienvenida/services`).
 
 ## Build & Run Commands
 
@@ -229,12 +261,16 @@ npm run typecheck
 npm run test          # vitest run
 npm run test:watch    # vitest
 npm run test:coverage # vitest run --coverage
+npm run test:integration  # against real Postgres/Redis (backend/.env.test; also runs in CI)
+npm run test:simulations # vitest.simulations.config.ts
+npm run sim -- <sync|run|inspect>  # Retell simulation CLI
+npm run agents:sync-prompts        # scripts/syncManagedAgentPrompts.ts
 ```
 
-### Frontend
+### Frontend (app) and web
 
 ```bash
-cd frontend
+cd frontend   # or: cd web (same scripts, port 3002)
 
 # Development server on port 3001
 npm run dev
@@ -248,8 +284,9 @@ npm start
 # Type-check without emitting (there is no `typecheck` script in frontend/package.json)
 npx tsc --noEmit
 
-# Lint
+# Lint / tests
 npm run lint
+npm run test
 ```
 
 > **Never run `npm run build` while `npm run dev` is running.** Both write to `frontend/.next`, and
@@ -269,8 +306,8 @@ docker compose --profile prod up
 
 - Backend exposed on `localhost:3000`
 - Prisma Studio exposed on `localhost:5555`
-- Frontend exposed on `localhost:3001`
-- Ngrok dashboard on `localhost:4040` (dev profile)
+- The app (`localhost:3001`) and the public site (`localhost:3002`) are not in Compose: run them with `npm run dev`
+- The dev profile adds `cloudflared`, a named Cloudflare tunnel exposing `backend-dev` at `https://dev-api.alhabla.ai` (`CLOUDFLARE_TUNNEL_TOKEN`)
 
 ## Environment Variables
 
@@ -283,15 +320,21 @@ Copy `.env.example` to `.env` and fill in all required secrets. Key groups:
 | **Retell** | `RETELL_API_KEY`, `RETELL_BASE_URL` |
 | **Demo (landing)** | `TELNYX_DEMO_ASSISTANT_ID` (genérico), `TELNYX_DEMO_<NICHO>_ASSISTANT_ID` (por nicho: `PELUQUERIA`, `CENTRO_ESTETICA`, `SALON_UNAS` —sin Ñ, Cloud Run solo admite `[A-Za-z0-9_]`—, `BARBERIA`, `FISIOTERAPIA`), `TELNYX_DEMO_MAX_DURATION_SECONDS` |
 | **JWT** | `JWT_SECRET` — required; server exits if missing |
-| **Stripe** | `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_INICIO`, `STRIPE_PRICE_PRO`, `STRIPE_PRICE_SCALE`, `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` |
+| **Stripe** | `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_INICIO`, `STRIPE_PRICE_PRO`, `STRIPE_PRICE_SCALE`, `STRIPE_PRICE_EXTRA_INICIO`/`_PRO`/`_SCALE` (metered extra minutes), `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` |
 | **Google Calendar OAuth** | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI` |
 | **Outlook Calendar OAuth** | `MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET`, `MICROSOFT_REDIRECT_URI` |
 | **Google Login OAuth** | `GOOGLE_AUTH_CLIENT_ID`, `GOOGLE_AUTH_CLIENT_SECRET`, `GOOGLE_AUTH_REDIRECT_URI` |
 | **Google Places** | `GOOGLE_PLACES_API_KEY` |
 | **R2 / S3** | `R2_ACCESS_KEY`, `R2_SECRET_KEY`, `R2_BUCKET`, `R2_REGION`, `R2_ENDPOINT` |
-| **Telnyx** | `TELNYX_API_KEY`, `TELNYX_SIP_CONNECTION_ID`, `TELNYX_SPAIN_REQUIREMENT_GROUP_ID`, `PHONE_NUMBER_COUNTRY` |
+| **Telnyx** | `TELNYX_API_KEY`, `TELNYX_PUBLIC_KEY` (Ed25519 webhook verification), `TELNYX_SIP_CONNECTION_ID`, `TELNYX_CALL_CONTROL_APP_ID`, `TELNYX_SPAIN_REQUIREMENT_GROUP_ID`, `TELNYX_SPAIN_LOCALITY`, `PHONE_NUMBER_COUNTRY`, `TELNYX_STATUS_COMPONENT_IDS`, `TELNYX_ALERT_EMAIL`, `TELNYX_INSIGHT_*_ID` |
+| **Voice rollout** | `VOICE_TELNYX_ROLLOUT`, `VOICE_FAILOVER_ENABLED` |
+| **SMS / WhatsApp** | `TELNYX_SMS_SENDER_ID`, `TELNYX_MESSAGING_PROFILE_ID`, `WHATSAPP_TELNYX_FROM_NUMBER`, `WHATSAPP_WABA_ID`, `WHATSAPP_TEMPLATE_*`, `TELNYX_CLIENT_CHAT_ENABLED`, `TELNYX_OWNER_CHAT_ENABLED`, `TELNYX_GESTOR_ASSISTANT_ID` |
+| **Email (Zoho)** | `ZOHO_CLIENT_ID`, `ZOHO_CLIENT_SECRET`, `ZOHO_REFRESH_TOKEN`, `ZOHO_ACCOUNT_ID`, `ZOHO_DEV_ALLOWED_RECIPIENTS` |
+| **Cloud Tasks** | `GCP_PROJECT_ID`, `GCP_REGION`, `INTERNAL_JOBS_BASE_URL`, `CLOUD_TASKS_INVOKER_SERVICE_ACCOUNT` (production only; jobs run inline elsewhere) |
+| **Recordings** | `RECORDING_RETENTION_DAYS` |
+| **Bootstrap** | `FIRST_USER_BOOTSTRAP_SECRET` (`POST /auth/register-first-user`) |
 | **Retell SIP trunk** | `RETELL_SIP_TERMINATION_URI`, `RETELL_SIP_TRUNK_AUTH_USERNAME`, `RETELL_SIP_TRUNK_AUTH_PASSWORD` (Telnyx SIP Connection used by `RetellAdapter.importPhoneNumber`) |
-| **Server** | `APP_URL` (la app, app.alhabla.ai), `WEB_URL` (la web de marketing, alhabla.ai), `FRONTEND_URL` (respaldo de las dos), `EXTRA_ALLOWED_ORIGIN`, `PORT`, `NODE_ENV`, `LOG_LEVEL` — ver `lib/urls.ts` |
+| **Server** | `APP_URL` (la app, app.alhabla.ai), `WEB_URL` (la web de marketing, alhabla.ai), `FRONTEND_URL` (respaldo de las dos), `BASE_URL` (URL pública para webhooks), `EXTRA_ALLOWED_ORIGIN`, `PORT`, `HOST`, `NODE_ENV`, `LOG_LEVEL` — ver `lib/urls.ts` |
 | **Calendario** | `CALENDAR_CREDENTIALS_KEY` (obligatoria; cifrado en reposo de `calendar_connections.credentials`) |
 
 ## Authentication & Authorization
@@ -484,7 +527,7 @@ el `fetch` equivalente. **Nunca desde un route handler**: todo pasa por
   antes «Ajustes › WhatsApp»: estado,
   móvil, «Guardar y activar», «Reenviar activación», «Quitar el móvil», enlace `wa.me` con
   `ALTA <código>`, copiar y QR con `qrcode.react`; se refresca cada 10 s mientras esté
-  pendiente), campo opcional «Tu móvil con WhatsApp» en `/register/business` (guarda en el
+  pendiente), campo opcional «Tu móvil con WhatsApp» en `/bienvenida` (guarda en el
   mismo PATCH y pide la activación en silencio; tolera un backend que ignore el campo), paso
   «Activa los avisos por WhatsApp» en `onboarding-checklist.tsx` (la barra y el «n de 6» salen
   del mismo recuento del frontend, no de `progress`), `lib/phone.ts` (`normalizarMovil`:
@@ -1362,7 +1405,8 @@ is now a **Cloud Scheduler** job hitting the same kind of endpoint every
 15 minutes.
 
 - **Enqueueing** (`backend/src/lib/cloudTasks.ts`): `enqueueRecordingJob`,
-  `enqueueRetryBookingJob`, `enqueueEmailJob`. In production
+  `enqueueRetryBookingJob`, `enqueueUsageReportJob`, `enqueueEmailJob`,
+  `enqueueSmsJob`, `enqueueRecordarRecadoJob`, `enqueueWhatsappJob`. In production
   (`NODE_ENV=production`) these create a real Cloud Tasks task via
   `@google-cloud/tasks`, targeting `INTERNAL_JOBS_BASE_URL` with an OIDC
   token for `CLOUD_TASKS_INVOKER_SERVICE_ACCOUNT`. **Outside production
@@ -1888,8 +1932,8 @@ nuevas: el ajuste vive en `Business.agentSettings.pasarLlamadas`.
 
 - Uses **Stripe Checkout Sessions** (embedded UI mode) for subscription sign-ups.
 - Plans are defined in `backend/src/modules/billing/catalog.ts`:
-  - `inicio` — 100 min included, 0.60€/min extra.
-  - `pro` — 400 min included, 0.45€/min extra (featured).
+  - `inicio` — 100 min included, 0.45€/min extra.
+  - `pro` — 400 min included, 0.40€/min extra (featured).
   - `scale` — 1000 min included, 0.35€/min extra.
 - Each plan maps to a `STRIPE_PRICE_*` environment variable.
 - New subscriptions get a 7-day trial (`CHECKOUT_TRIAL_DAYS = 7`).
@@ -1904,7 +1948,7 @@ nuevas: el ajuste vive en `Business.agentSettings.pasarLlamadas`.
 - **Three providers:** Google Calendar, Outlook Calendar and Apple/iCloud (any CalDAV server). **Credentials are never stored on `Business`**: since PR #79 (2026-09-18) the `google*`/`outlook*` columns are dropped and every credential lives encrypted in `calendar_connections.credentials` (one row per business and provider). `Business.calendarProvider` is just a pointer to the active provider. See "Arquitectura por adaptadores" below.
 - **Google Calendar:** OAuth 2.0 offline access (`prompt: consent`, `access_type: offline`). Minimum scopes: `calendar.events` + `calendar.calendarlist.readonly` (never the full `calendar` scope — PR #73). Supports the `primary` calendar or a specific calendar id.
 - **Outlook Calendar:** Microsoft Graph OAuth. After OAuth, the user selects a calendar from a list; then `connectMicrosoftCalendar` saves the choice. Graph rotates the refresh token on every refresh, so the adapter reports it back through `alRotarCredenciales` and `conexion.ts` persists it.
-- **Apple / iCloud (CalDAV):** no OAuth. `POST /calendar/auth/caldav/connect` takes `{ username, appPassword, serverUrl? }` (Apple ID + app-specific password from appleid.apple.com; the server defaults to `SERVIDOR_CALDAV_ICLOUD`) and returns the same `{ calendars, email }` contract as the Microsoft callback. Only reachable from `/agente` — the onboarding step `/register/business/calendar` still offers Google and Outlook only.
+- **Apple / iCloud (CalDAV):** no OAuth. `POST /calendar/auth/caldav/connect` takes `{ username, appPassword, serverUrl? }` (Apple ID + app-specific password from appleid.apple.com; the server defaults to `SERVIDOR_CALDAV_ICLOUD`) and returns the same `{ calendars, email }` contract as the Microsoft callback. Only reachable from `/agente` — the onboarding step `/bienvenida/calendar` still offers Google and Outlook only.
 - **Calendar selection:** Google callback redirects directly to frontend. Microsoft callback returns a JSON payload with calendar list; frontend shows selector and calls `POST /calendar/auth/microsoft/connect`. CalDAV returns its calendar list straight from the connect call and finishes with `POST /calendar/select`.
 - **Switching calendars:** `GET /calendar/calendars` lists the calendars of the connected account (Google `calendarList`, Microsoft Graph or a CalDAV `PROPFIND`) with `{ provider, selectedCalendarId, calendars: [{ id, name, primary }] }`; `POST /calendar/select` with `{ calendarId }` switches the active calendar for any of the three. The `/agente` calendar section uses both for its "Cambiar de calendario" picker.
 - `getUpcomingEvents` normalizes events from all three providers into a common format.
@@ -2174,17 +2218,17 @@ Niche landings pass `?niche=<slug>` to `/planes` and on to `/register`, so the t
 | `centro-de-estetica` | `beauty_salon`, `spa` |
 | `fisioterapia` | `physiotherapist`, `health` |
 
-The inferred type is shown for confirmation on `/register/business/niche` after the Places API step; if no type can be inferred, the user selects it manually from the list.
+The inferred type is shown for confirmation on `/bienvenida/niche` after the Places API step; if no type can be inferred, the user selects it manually from the list.
 
-After confirming the business type, the user is taken to `/register/business/services`, which offers a template of common services for the selected niche (defined in `frontend/src/lib/service-templates.ts`). Services are rendered as selectable pills showing name and duration. Selected services are created via `POST /booking-settings/services`; the user can also skip this step and configure services later in `/agente`.
+After confirming the business type, the user is taken to `/bienvenida/services`, which offers a template of common services for the selected niche (defined in `frontend/src/lib/service-templates.ts`). Services are rendered as selectable pills showing name and duration. Selected services are created via `POST /booking-settings/services`; the user can also skip this step and configure services later in `/agente`.
 
-The next step is `/register/business/team`, where the user sets the number of employees (1–20) and booking capacity (1–50). The backend creates placeholder professionals (`Profesional 1…N`) and updates `Business.bookingCapacity`.
+The next step is `/bienvenida/team`, where the user sets the number of employees (1–20) and booking capacity (1–50). The backend creates placeholder professionals (`Profesional 1…N`) and updates `Business.bookingCapacity`.
 
-The final setup step is `/register/business/calendar`, where the user connects Google or Outlook Calendar (Apple/CalDAV is only offered later, from `/agente`). The frontend stores `registration_next_step` in `localStorage` before starting OAuth so `/settings` can bounce the user back into the registration flow after the provider callback. The flow always ends at `/checkout?plan=` (if a plan is pending) or `/planes?from=register` (to select one).
+The final setup step is `/bienvenida/calendar`, where the user connects Google or Outlook Calendar (Apple/CalDAV is only offered later, from `/agente`). The frontend stores `registration_next_step` in `localStorage` before starting OAuth so `/settings` can bounce the user back into the registration flow after the provider callback. The flow always ends at `/checkout?plan=` (if a plan is pending) or `/planes?from=register` (to select one).
 
 Onboarding texts for headings, subheadings and CTAs are dynamically selected per business type via `BUSINESS_TYPE_ONBOARDING_TEXTS` in `frontend/src/lib/business-type.ts`.
 
-Google Places autocomplete is filtered by the country selected during registration and stored in `localStorage` under `alhabla_registration_country`. The `/register/business` page shows the country as a summary with an optional "Cambiar" link; the selector only appears when no country is saved or when the user explicitly chooses to change it. The country is sent as the `country` query param and passed to `includedRegionCodes` in `backend/src/modules/places/service.ts`.
+Google Places autocomplete is filtered by the country selected during registration and stored in `localStorage` under `alhabla_registration_country`. The `/bienvenida` page shows the country as a summary with an optional "Cambiar" link; the selector only appears when no country is saved or when the user explicitly chooses to change it. The country is sent as the `country` query param and passed to `includedRegionCodes` in `backend/src/modules/places/service.ts`.
 
 ## Onboarding Flow
 
