@@ -288,7 +288,7 @@ Copy `.env.example` to `.env` and fill in all required secrets. Key groups:
 | **Outlook Calendar OAuth** | `MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET`, `MICROSOFT_REDIRECT_URI` |
 | **Google Login OAuth** | `GOOGLE_AUTH_CLIENT_ID`, `GOOGLE_AUTH_CLIENT_SECRET`, `GOOGLE_AUTH_REDIRECT_URI` |
 | **Google Places** | `GOOGLE_PLACES_API_KEY` |
-| **R2 / S3** | `R2_ACCOUNT_ID`, `R2_ACCESS_KEY`, `R2_SECRET_KEY`, `R2_BUCKET`, `R2_REGION`, `R2_ENDPOINT` |
+| **R2 / S3** | `R2_ACCESS_KEY`, `R2_SECRET_KEY`, `R2_BUCKET`, `R2_REGION`, `R2_ENDPOINT` |
 | **Telnyx** | `TELNYX_API_KEY`, `TELNYX_SIP_CONNECTION_ID`, `TELNYX_SPAIN_REQUIREMENT_GROUP_ID`, `PHONE_NUMBER_COUNTRY` |
 | **Retell SIP trunk** | `RETELL_SIP_TERMINATION_URI`, `RETELL_SIP_TRUNK_AUTH_USERNAME`, `RETELL_SIP_TRUNK_AUTH_PASSWORD` (Telnyx SIP Connection used by `RetellAdapter.importPhoneNumber`) |
 | **Server** | `APP_URL` (la app, app.alhabla.ai), `WEB_URL` (la web de marketing, alhabla.ai), `FRONTEND_URL` (respaldo de las dos), `EXTRA_ALLOWED_ORIGIN`, `PORT`, `NODE_ENV`, `LOG_LEVEL` — ver `lib/urls.ts` |
