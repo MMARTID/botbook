@@ -879,38 +879,6 @@ export function getNicheStructuredData(content: NicheLandingContent) {
 export const nicheLinks = (Object.values(nicheLandings) as NicheLandingContent[]).map(({ slug, name }) => ({ href: `/${slug}`, label: name }));
 
 /**
- * Datos de sector para la landing genérica. Sirven para los cinco nichos y todas
- * las cifras llevan fuente externa verificable: Alhabla está en prelanzamiento y
- * no tiene métricas propias ni clientes que citar.
- */
-export const generalSectorData: SectorData = {
-  eyebrow: "El coste de no contestar",
-  title: "La llamada que no coges se la queda otro.",
-  description:
-    "No es una intuición del sector: está medido. En los negocios que trabajan con cita previa, el teléfono sigue siendo el canal principal de reserva y quien no recibe respuesta no vuelve a intentarlo.",
-  stats: [
-    {
-      value: "37%",
-      label: "de las llamadas a salones y spas no reciben respuesta",
-      source: {
-        publisher: "Zenoti · The Check-In",
-        title: "Phone calls were your salon or medspa's biggest blind spot",
-        href: "https://www.zenoti.com/thecheckin/how-track-salon-call-conversion-rate",
-      },
-    },
-    {
-      value: "57%",
-      label: "de los clientes de belleza y bienestar sigue reservando por teléfono",
-      source: {
-        publisher: "Zenoti · The Check-In",
-        title: "Phone calls were your salon or medspa's biggest blind spot",
-        href: "https://www.zenoti.com/thecheckin/how-track-salon-call-conversion-rate",
-      },
-    },
-  ],
-};
-
-/**
  * Reparto por especialidad para la landing genérica: «tu equipo», sin oficio.
  * Las cinco landings de nicho llevan su propia variante en `teamRouting`, con
  * el sustantivo del oficio (barbero, colorista, técnica, esteticista,
