@@ -366,7 +366,8 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
       );
 
       // `pase`: código de un solo uso para entrar en la app desde la web de
-      // marketing sin que el token viaje en la URL (PLAN-APP-DOMINIO.md § 3).
+      // marketing sin que el token viaje en la URL
+      // (docs/historico/PLAN-APP-DOMINIO.md § 3).
       const pase = await crearPase(result.user);
       return reply.status(201).send({
         message: "Usuario registrado con éxito",

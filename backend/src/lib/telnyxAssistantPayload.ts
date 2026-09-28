@@ -117,7 +117,8 @@ export function buildTelnyxHangupTool(description: string): HangupTool {
 export const NOMBRE_DEL_DESTINO_DE_TRANSFERENCIA = "Responsable del negocio";
 
 /**
- * Tool nativa `transfer` de Telnyx (PLAN-TELEFONIA-UX.md § 5, fase 4):
+ * Tool nativa `transfer` de Telnyx (docs/historico/PLAN-TELEFONIA-UX.md § 5,
+ * fase 4):
  * pasa la llamada en curso al móvil del dueño. Formato tomado del SDK
  * (`AssistantTool.Transfer`, telnyx 7.21): `from` es el número que marca
  * (el de Alhabla del negocio), `targets` la lista de destinos entre los que
@@ -164,16 +165,14 @@ export function buildTelnyxTransferTool(input: {
  * cita) — pese al nombre histórico "calendario" en calendar/service.ts, no
  * son específicas de tener un calendario externo conectado: son la única
  * forma que tiene el assistant de consultar el negocio real y reservar.
- * Vive aquí (no en calendar/service.ts) para que `syncAgentToTelnyx` pueda
- * usarla como valor por defecto sin crear un import circular — hallazgo real
- * (2026-09-14): guardar el horario (`PATCH /business/me`) o crear/editar un
- * servicio o profesional llama a `syncAgentToTelnyx` SIN pasar `tools`,  y el
- * reconciliador diario hace lo mismo; sin este valor por defecto, `tools:
- * input.tools ?? []` volcaba el assistant real a solo la tool `hangup`,
- * dejándolo incapaz de reservar nada pese a que su propio prompt seguía
- * instruyéndole a usarlas — confirmado en vivo: los 25/25 escenarios de
- * `telnyxCallBattery.ts` fallaron porque ningún assistant de las 5 cuentas
- * de prueba tenía ya estas tools registradas.
+ * Vive aquí (no en calendar/service.ts) para que `telnyxAgentSync.ts` la
+ * use al crear Y al sincronizar sin un import circular. Ninguna llamada
+ * decide si las pasa — hallazgo real (2026-09-14): cuando guardar el horario,
+ * editar un servicio o el reconciliador diario sincronizaban sin pasarlas,
+ * `tools: input.tools ?? []` volcaba el assistant real a solo la tool
+ * `hangup`, incapaz de reservar pese a que su propio prompt seguía
+ * instruyéndole a usarlas: los 25/25 escenarios de `telnyxCallBattery.ts`
+ * fallaron porque ningún assistant de las 5 cuentas de prueba las tenía.
  */
 export function buildTelnyxVoiceTools(
   baseUrl: string

@@ -111,7 +111,8 @@ model Business {
   // modules/whatsapp/avisosNegocio.ts.
   notificationPrefs   Json?
 
-  // Telefonía sin confusión (PLAN-TELEFONIA-UX.md § 1 y § 5, fase 0). Los
+  // Telefonía sin confusión (docs/historico/PLAN-TELEFONIA-UX.md § 1 y § 5,
+  // fase 0). Los
   // tres números del negocio tienen papeles distintos: `phone` es la LÍNEA
   // DE CLIENTES (a la que llaman y la que se desvía), `telnyxPhoneNumber`
   // es el destino del desvío (el dueño no lo da a nadie) y
@@ -132,7 +133,8 @@ model Business {
   // («te llamamos nosotros»). Lo leen voiceTools, whatsapp/mensajesCliente
   // y el prompt gestionado.
   hideOwnerNumberFromClients Boolean @default(false)
-  // Mensaje único del día 1 sobre el desvío (PLAN-TELEFONIA-UX.md § 5,
+  // Mensaje único del día 1 sobre el desvío
+  // (docs/historico/PLAN-TELEFONIA-UX.md § 5,
   // fase 5), en cualquiera de sus dos variantes: «tu desvío está comprobado»
   // (forwardingCheckedAt puesto) o «aún no has comprobado el desvío»
   // (forwardingCheckedAt a null y ninguna llamada real). Lo manda
@@ -359,7 +361,8 @@ model OnboardingState {
   // primera llamada real; hasta entonces, esto guarda que el usuario dijo
   // haberlo activado.
   forwardingConfirmedAt DateTime?
-  // «Comprobar desvío» (PLAN-TELEFONIA-UX.md § 4): última vez que una
+  // «Comprobar desvío» (docs/historico/PLAN-TELEFONIA-UX.md § 4): última vez
+  // que una
   // llamada de comprobación desde el número de Alhabla entró desviada por
   // la línea de clientes. Comprobado de verdad, a diferencia de
   // forwardingConfirmedAt («el usuario dice»). null = nunca comprobado.

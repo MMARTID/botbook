@@ -1,5 +1,6 @@
 /**
- * URLs públicas de las dos webs (PLAN-APP-DOMINIO.md § 2): la app
+ * URLs públicas de las dos webs (docs/historico/PLAN-APP-DOMINIO.md § 2):
+ * la app
  * (`APP_URL`, app.alhabla.ai) y la web de marketing (`WEB_URL`, alhabla.ai).
  * Hasta el corte las dos apuntan al mismo sitio; `FRONTEND_URL` sigue
  * valiendo como respaldo de las dos para no romper dev ni el deploy actual.

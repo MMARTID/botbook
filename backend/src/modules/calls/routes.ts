@@ -142,11 +142,17 @@ export async function callsRoutes(fastify: FastifyInstance) {
             businessId: businessId, // Ensure call belongs to user's business
           },
           include: {
-            agent: true,
+            // Lo mismo que el listado: del agente, solo lo que se pinta.
+            // `agent: true` mandaba la fila entera (el systemPrompt completo,
+            // sus ids de Retell/Telnyx y la configuración del modelo) en el
+            // detalle de cada llamada, y el panel ni siquiera la usa.
+            agent: { select: { id: true, name: true, voice: true } },
             transcript: true,
             recording: true,
             leads: true,
-            booking: { include: { professional: true } },
+            booking: {
+              include: { professional: { select: { id: true, name: true } } },
+            },
           },
         });
 

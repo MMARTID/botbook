@@ -131,6 +131,65 @@ describe("GET /business/me/calls/:id", () => {
     expect(response.json().recording).toBeNull();
     expect(mockedGetSignedRecordingUrl).not.toHaveBeenCalled();
   });
+  it("devuelve el agente y el profesional sin su fila completa (nada del prompt ni de ids de proveedor)", async () => {
+    const agenteCompleto = {
+      id: "agent_1",
+      name: "Recepcionista",
+      voice: "Octave",
+      systemPrompt: "PROMPT_SECRETO_DEL_NEGOCIO",
+      retellLlmId: "llm_secreto",
+      telnyxAssistantId: "assistant_secreto",
+    };
+    const profesionalCompleto = {
+      id: "pro_1",
+      name: "Lucía",
+      businessId: "biz_1",
+      active: true,
+      deletedAt: null,
+    };
+    // Proyecta como Prisma: `true` trae la fila entera; `select`, solo lo
+    // pedido. Así el test falla si la ruta vuelve a pedir `agent: true`.
+    const proyectar = (arg: any, fila: Record<string, unknown>) =>
+      arg === true
+        ? fila
+        : Object.fromEntries(
+            Object.entries(fila).filter(([clave]) => arg?.select?.[clave])
+          );
+    mockedCallFindUnique.mockImplementation((async (query: any) => ({
+      id: "call_1",
+      businessId: "biz_1",
+      agent: proyectar(query.include.agent, agenteCompleto),
+      booking: {
+        id: "booking_1",
+        serviceIds: [],
+        professional: proyectar(
+          query.include.booking.include.professional,
+          profesionalCompleto
+        ),
+      },
+      recording: null,
+    })) as any);
+
+    const response = await fastify.inject({
+      method: "GET",
+      url: "/business/me/calls/call_1",
+    });
+
+    expect(response.statusCode).toBe(200);
+    const raw = response.body;
+    expect(raw).not.toContain("PROMPT_SECRETO_DEL_NEGOCIO");
+    expect(raw).not.toContain("llm_secreto");
+    expect(raw).not.toContain("assistant_secreto");
+    expect(response.json().agent).toEqual({
+      id: "agent_1",
+      name: "Recepcionista",
+      voice: "Octave",
+    });
+    expect(response.json().booking.professional).toEqual({
+      id: "pro_1",
+      name: "Lucía",
+    });
+  });
 });
 
 describe("GET /business/me/calls", () => {

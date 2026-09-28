@@ -1,6 +1,7 @@
 /**
  * Las landings por sector viven en la web (web/src/lib/niche-landings.ts,
- * PLAN-APP-DOMINIO.md). En la app solo queda el tipo que necesita
+ * docs/historico/PLAN-APP-DOMINIO.md). En la app solo queda el tipo que
+ * necesita
  * `range-slider.tsx`, componente copiado idéntico en las dos webs.
  */
 export type NicheAccent = {

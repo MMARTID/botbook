@@ -2,7 +2,8 @@ import axios from "axios";
 import type { DemoPlaceSearchResult, PlaceDetails } from "./types";
 
 /**
- * Cliente de la API para la web de marketing (PLAN-APP-DOMINIO.md § 4, fase
+ * Cliente de la API para la web de marketing
+ * (docs/historico/PLAN-APP-DOMINIO.md § 4, fase
  * 1): solo lo que la web necesita sin sesión — el registro, el enlace de
  * Google Login y la demo de voz. Todo lo demás vive en la app
  * (`frontend/src/lib/api.ts`). Sin interceptor de token: aquí nunca hay

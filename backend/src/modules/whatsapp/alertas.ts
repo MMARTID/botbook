@@ -161,7 +161,8 @@ export async function alertarNumeroNoActivo(input: {
 }
 
 /**
- * Mensaje del día 1 sobre el desvío (PLAN-TELEFONIA-UX.md § 5, fase 5), en
+ * Mensaje del día 1 sobre el desvío (docs/historico/PLAN-TELEFONIA-UX.md § 5,
+ * fase 5), en
  * su variante negativa: «aún no has comprobado el desvío». Lo manda
  * jobs/recordarDesvioSinComprobar.ts entre 24 y 48 h después de comprar el
  * número. La idempotencia de verdad está en

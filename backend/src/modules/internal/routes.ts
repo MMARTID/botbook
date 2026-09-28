@@ -315,7 +315,8 @@ export const internalJobsRoutes: FastifyPluginAsync = async (fastify) => {
     }
   );
 
-  // Cada hora (Cloud Scheduler) — PLAN-TELEFONIA-UX.md § 5, fase 5: el
+  // Cada hora (Cloud Scheduler) — docs/historico/PLAN-TELEFONIA-UX.md § 5,
+  // fase 5: el
   // mensaje único del día 1 sobre el desvío («tu desvío está comprobado» o
   // «aún no has comprobado el desvío») a los negocios que compraron su número
   // hace entre 24 y 48 h. Idempotente por Business.forwardingReminderSentAt

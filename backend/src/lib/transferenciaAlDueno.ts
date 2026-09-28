@@ -1,7 +1,8 @@
 import { esLineaDeClientesEspanola } from "./phone.js";
 
 /**
- * Transferencia de la llamada al dueño (PLAN-TELEFONIA-UX.md § 5, fase 4):
+ * Transferencia de la llamada al dueño (docs/historico/PLAN-TELEFONIA-UX.md
+ * § 5, fase 4):
  * la pieza que hace real «Alhabla como número principal» (caso E). La
  * recepcionista de Telnyx lleva una tool nativa `transfer` hacia el móvil
  * del dueño y el prompt le dice cuándo usarla según el ajuste «Cuándo

@@ -70,7 +70,7 @@ const NAV_ITEMS: NavItem[] = [
 
 // Pantallas de cuenta sin el armazón del panel (sin sesión o a medio
 // entrar). La landing, los sectores, los planes y las legales viven en la
-// web pública (PLAN-APP-DOMINIO.md), no aquí.
+// web pública (docs/historico/PLAN-APP-DOMINIO.md), no aquí.
 const PUBLIC_ROUTES = [
   "/login",
   "/recuperar-contrasena",
