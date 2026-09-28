@@ -344,8 +344,7 @@ npm run test          # vitest run
 npm run test:watch    # vitest
 npm run test:coverage # vitest run --coverage
 npm run test:integration  # against real Postgres/Redis (backend/.env.test; also runs in CI)
-npm run test:simulations # vitest.simulations.config.ts
-npm run sim -- <sync|run|inspect>  # Retell simulation CLI
+npm run sim -- <sync|run|inspect>  # Retell simulation CLI (real API, costs credits)
 npm run agents:sync-prompts        # scripts/syncManagedAgentPrompts.ts
 ```
 
