@@ -21,9 +21,9 @@ import { listaDeEsperaDisponible } from "../modules/whatsapp/service.js";
 import { resolverTransferenciaAlDueno } from "./transferenciaAlDueno.js";
 import type { CreateTelnyxAssistantInput } from "../adapters/telnyx/TelnyxAiAdapter.js";
 
-/** Idéntico en forma al hash que usará `syncAgentToRetell` cuando el
- * reconciliador de la Fase 2/6 lo necesite — determinista mientras el propio
- * builder del payload no cambie el orden de sus claves. */
+/** Hash del payload enviado a Telnyx: si no cambia, la sincronización no
+ * vuelve a llamar a la API. Determinista mientras el propio builder del
+ * payload no cambie el orden de sus claves. */
 function hashConfig(payload: unknown): string {
   return createHash("sha256").update(JSON.stringify(payload)).digest("hex");
 }

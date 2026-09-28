@@ -409,7 +409,6 @@ export type Agent = {
   voice: string;
   language: string;
   systemPrompt: string;
-  promptVersion: number;
   active: boolean;
   createdAt: string;
   updatedAt: string;
