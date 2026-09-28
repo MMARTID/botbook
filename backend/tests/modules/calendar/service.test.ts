@@ -1308,23 +1308,11 @@ describe("CalendarService.syncCalendarToolsToAgents", () => {
 
     await calendarService.syncCalendarToolsToAgents("business_123");
 
+    // Las tools de voz las pone siempre syncAgentToTelnyx (ver
+    // tests/lib/telnyxAgentSync.test.ts): aquí no se eligen.
     expect(mockedSyncAgentToTelnyx).toHaveBeenCalledWith(
       "business_123",
-      prisma,
-      {
-        tools: expect.arrayContaining([
-          expect.objectContaining({
-            name: "get_catalog",
-            url: "https://example.com/webhooks/telnyx/tools/get_catalog",
-          }),
-          expect.objectContaining({
-            name: "check_availability",
-          }),
-          expect.objectContaining({
-            name: "book_appointment",
-          }),
-        ]),
-      }
+      prisma
     );
   });
 
@@ -1351,8 +1339,7 @@ describe("CalendarService.syncCalendarToolsToAgents", () => {
     expect(mockedRetellUpdateLlm).toHaveBeenCalled();
     expect(mockedSyncAgentToTelnyx).toHaveBeenCalledWith(
       "business_123",
-      prisma,
-      expect.objectContaining({ tools: expect.any(Array) })
+      prisma
     );
   });
 

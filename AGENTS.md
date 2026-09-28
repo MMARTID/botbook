@@ -56,7 +56,7 @@ The codebase is fully in Spanish — UI copy, comments, variable names, and busi
 
 ### Backend Module Organization (`backend/src/modules/`)
 
-Most modules are a folder containing a `routes.ts` file (and optionally `service.ts`, `schemas.ts`); `gestor`, `voiceTools` and `retellSimulation` have no `routes.ts` — they are called from the webhook handlers in `server.ts` or from `scripts/`. Routes are registered in `backend/src/server.ts` with a prefix when needed.
+Most modules are a folder containing a `routes.ts` file (and optionally `service.ts`, `schemas.ts`); `gestor`, `voiceTools` and `retellSimulation` have no `routes.ts` — they are called from the webhook routes (Retell in `server.ts`, Telnyx in `modules/webhooksTelnyx/routes.ts`) or from `scripts/`. Routes are registered in `backend/src/server.ts` with a prefix when needed.
 
 | Module | Prefix | Auth | Purpose |
 |--------|--------|------|---------|
@@ -77,6 +77,7 @@ Most modules are a folder containing a `routes.ts` file (and optionally `service
 | `gestor` | *(no routes.ts)* | Mixed | The owner's assistant ("Gestor", shown as «Tu asistente»): tools at `/webhooks/telnyx/gestor/:toolName` (Ed25519) and the panel thread at `/business/me/gestor` (`panel.ts`). It proposes; only the owner's button executes. |
 | `voiceTools` | *(no routes.ts)* | Webhook signature | Tool execution shared by Retell (`/webhooks/retell/tools/:retellAgentId/:toolName`) and Telnyx (`/webhooks/telnyx/tools/:toolName`). |
 | `internal` | `/internal` | OIDC | `/internal/jobs/*`, called by Cloud Tasks / Cloud Scheduler (see § Background Jobs). |
+| `webhooksTelnyx` | *(none)* | Ed25519 | Every route Telnyx signs: `/webhooks/telnyx` (Call Control App and WhatsApp events), `/webhooks/telnyx/tools/:toolName` and `/webhooks/telnyx/gestor/:toolName`. The signature is checked once, in the plugin's encapsulated `preHandler` (`plugins/firmaTelnyx.ts`), before any handler runs; a new Telnyx-signed route goes here. The unsigned dev-only `/webhooks/telnyx-harness` stays in `server.ts`. |
 | `retellSimulation` | *(no routes.ts)* | — | Retell LLM Simulation Testing catalog and runner used by `scripts/retellSimulation.ts` (`npm run sim`). Plan archived in `docs/historico/retell-simulation-testing-plan.md`. |
 
 \* Except OAuth callbacks (`/calendar/auth/*/callback`) and Stripe webhook (`/billing/webhook`).
@@ -501,8 +502,8 @@ el `fetch` equivalente. **Nunca desde un route handler**: todo pasa por
   (`text | keyword | button | audio | media | other`), y aplica los `statuses[]`),
   `handleMessageStatusEvent` (`message.sent/finalized/read`, con `cost` y `errors`) y
   `handleTemplateStatusEvent` (`whatsapp.template.*`). Los tres cuelgan del `switch` de
-  `/webhooks/telnyx` en `server.ts`, con la misma firma e idempotencia por id de evento que
-  la voz.
+  `/webhooks/telnyx` (`modules/webhooksTelnyx/routes.ts`), con la misma firma e idempotencia
+  por id de evento que la voz.
 - `modules/whatsapp/router.ts`: `enrutarEntrante` — todavía **no responde a nadie**; clasifica
   y deja `handler: pendiente:…` para que los siguientes PRs (alta/STOP, botones de avisos,
   chat Beta) rellenen cada rama.
@@ -949,8 +950,8 @@ hablando por el que elige `identificarRemitente`.
   {{role}}` (verificado en vivo el 20-09 con un túnel a un backend de la rama). Tools inline y
   no *shared tools* por `tool_ids` (con un único assistant no aportan nada y una shared tool
   usada por un assistant borrado no se puede eliminar). Ruta
-  `POST /webhooks/telnyx/gestor/:toolName` (server.ts): misma firma Ed25519 que las tools de
-  voz; `modules/gestor/tools.ts › handleGestorToolInvocation` exige la cabecera del negocio
+  `POST /webhooks/telnyx/gestor/:toolName` (`modules/webhooksTelnyx/routes.ts`): misma firma
+  Ed25519 que las tools de voz; `modules/gestor/tools.ts › handleGestorToolInvocation` exige la cabecera del negocio
   (400 si falta o llega el placeholder sin resolver) y `role === "owner"` (403). Tools:
   `contexto_negocio` (negocio, sector, zona, teléfonos, plan, servicios con precio en euros,
   profesionales, horario, calendario operativo, `faltaPorConfigurar`, citas pendientes y
@@ -1809,12 +1810,18 @@ El mapa de todos los asistentes vive en `backend/src/lib/tiposDeAsistente.ts`
    (url, POST, cabeceras y timeout salen del canal). Para un assistant de voz, reutiliza
    `buildTelnyxAssistantPayload` (voz, transcripción, grabación, hangup) en vez de copiarlo.
    Añade una instantánea en `tests/lib/payloadsDeAsistentes.snapshot.test.ts`.
-3. **Ruta de tools.** Si el canal es nuevo, añade su ruta en `server.ts` copiando la
-   verificación de firma Ed25519 de `/webhooks/telnyx/gestor/:toolName` **sin modificarla**, y
-   un `handle…ToolInvocation` en su módulo que resuelva el negocio a partir de las cabeceras.
+3. **Ruta de tools.** Si el canal es nuevo, añade su ruta en `modules/webhooksTelnyx/routes.ts`
+   (con `rawBody: true`): el `preHandler` de ese plugin (`plugins/firmaTelnyx.ts`) verifica la
+   firma Ed25519 de todas sus rutas antes del handler, así que no la copies ni la saques de
+   ahí. Añade también un `handle…ToolInvocation` en su módulo que resuelva el negocio a partir
+   de las cabeceras. `tests/modules/webhooksTelnyx/routes.test.ts` recorre todas las rutas del
+   plugin y comprueba que ninguna responde sin firma válida.
 4. **Sincronización.** Por agente → sigue el patrón de `telnyxAgentSync.ts` (hash en `Agent`);
    de plataforma → el de `gestorSync.ts` (id en variable de entorno, comparación por firma,
-   reconciliador diario). Solo a través de `TelnyxAiAdapter`/`RetellAdapter`.
+   reconciliador diario). Solo a través de `TelnyxAiAdapter`/`RetellAdapter`. **Crea el
+   assistant con el payload completo** (tools incluidas), con el mismo builder que la
+   sincronización y guardando el mismo hash: nunca «crear vacío y sincronizar después» — la
+   recepcionista lo hacía y, cuando la segunda pasada no llegaba, quedaba sin poder reservar.
 5. **Registro.** Añade la entrada en `TIPOS_DE_ASISTENTE` (el test de
    `tests/lib/tiposDeAsistente.test.ts` comprueba que sus tools van por su canal).
 

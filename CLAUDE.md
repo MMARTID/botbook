@@ -38,9 +38,10 @@ en `AGENTS.md` § Deployment Notes.
   (números) y `TelnyxAiAdapter.ts` (assistants), y WhatsApp por
   `adapters/whatsapp/WhatsAppAdapter.ts`. Jamás llames a esas APIs desde un route handler.
 - **No toques la verificación de firmas de webhooks** (firma de Retell incluida en
-  `/webhooks/retell/tools/:retellAgentId/:toolName`, Ed25519 de Telnyx en `/webhooks/telnyx`,
-  `/webhooks/telnyx/tools/:toolName` y `/webhooks/telnyx/gestor/:toolName`, firma de Stripe
-  con `rawBody: true`).
+  `/webhooks/retell/tools/:retellAgentId/:toolName`; Ed25519 de Telnyx en un único
+  `preHandler`, `backend/src/plugins/firmaTelnyx.ts`, que protege todas las rutas de
+  `modules/webhooksTelnyx/routes.ts` — una ruta firmada nueva de Telnyx va ahí; firma de
+  Stripe con `rawBody: true`).
 - **Nunca commitees `.env`.** En la raíz hay `.env`, `.env.bak` y `.env.google` con
   credenciales reales; están en `.gitignore`. `docker-compose.yml` vive en la raíz y lee
   ese `.env` (build context de `backend`/`backend-dev` es `./backend`).
@@ -108,12 +109,12 @@ docker compose --profile dev up   # backend + postgres + redis + cloudflared (de
 backend/
 ├── src/
 │   ├── server.ts     # entry Fastify: registra rutas + endpoints internos de jobs (Cloud Tasks)
-│   ├── plugins/      # auth (JWT) e internalAuth (OIDC de Cloud Tasks); CORS y rate-limit se
-│   │                 #   registran en server.ts
+│   ├── plugins/      # auth (JWT), internalAuth (OIDC de Cloud Tasks) y firmaTelnyx
+│   │                 #   (Ed25519); CORS y rate-limit se registran en server.ts
 │   ├── modules/      # por dominio (agents, auth, billing, bookings, businesses, calendar,
 │   │                 #   calls, demo, internal, onboarding, phone, places, recordings,
-│   │                 #   whatsapp) con routes.ts; gestor, voiceTools y retellSimulation
-│   │                 #   sin routes.ts (los usan los webhooks de server.ts y los scripts)
+│   │                 #   webhooksTelnyx, whatsapp) con routes.ts; gestor, voiceTools y
+│   │                 #   retellSimulation sin routes.ts (los usan los webhooks y los scripts)
 │   ├── adapters/     # retell, telnyx (voz y números), whatsapp, calendar (Google, Outlook, CalDAV)
 │   ├── lib/          # prisma, redis, cloudTasks, storage, stripe, availability,
 │   │                 #   zohoMail, emailTemplates, businessSchedule, agentBootstrap, managedAgentPrompt
