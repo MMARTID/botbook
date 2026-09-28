@@ -56,6 +56,30 @@ function projectBusiness(query: any): Record<string, unknown> {
   );
 }
 
+const FULL_AGENT_ROW = {
+  id: "agent_1",
+  name: "Recepcionista",
+  systemPrompt: "PROMPT_SECRETO_DEL_NEGOCIO",
+  retellLlmId: "llm_secreto",
+  telnyxAssistantId: "assistant_secreto",
+  llmModel: "openai/gpt-oss-20b",
+};
+
+/** Igual que projectBusiness, para el agente de la llamada. */
+function projectAgent(query: any): Record<string, unknown> {
+  const agentArg = query?.include?.call?.include?.agent;
+  if (agentArg === true) {
+    return FULL_AGENT_ROW;
+  }
+  const select = agentArg?.select;
+  if (!select) {
+    return {};
+  }
+  return Object.fromEntries(
+    Object.entries(FULL_AGENT_ROW).filter(([key]) => select[key])
+  );
+}
+
 function mockRecordingRespectingSelect(businessId = "biz_1") {
   mockedFindFirst.mockImplementation(async (query: any) => {
     // La ruta impone el tenant directamente en la consulta. El doble debe
@@ -71,7 +95,7 @@ function mockRecordingRespectingSelect(businessId = "biz_1") {
       call: {
         id: "call_1",
         businessId,
-        agent: { id: "agent_1" },
+        agent: projectAgent(query),
         business: projectBusiness(query),
       },
     } as any;
@@ -137,6 +161,27 @@ describe("recordingsRoutes", () => {
 
       expect(response.statusCode).toBe(404);
     });
+  });
+
+  describe("detalle de una grabación: el agente sin su fila completa", () => {
+    it.each(["/calls/call_1/recording", "/recordings/rec_1"])(
+      "%s devuelve el agente con id y nombre, sin prompt ni ids de proveedor",
+      async (url) => {
+        mockRecordingRespectingSelect();
+
+        const response = await fastify.inject({ method: "GET", url });
+
+        expect(response.statusCode).toBe(200);
+        const raw = JSON.stringify(response.json());
+        expect(raw).not.toContain("PROMPT_SECRETO_DEL_NEGOCIO");
+        expect(raw).not.toContain("llm_secreto");
+        expect(raw).not.toContain("assistant_secreto");
+        expect(response.json().call.agent).toEqual({
+          id: "agent_1",
+          name: "Recepcionista",
+        });
+      }
+    );
   });
 
   describe("DELETE /recordings/:id", () => {
