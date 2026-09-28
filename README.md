@@ -128,7 +128,7 @@ segundo plano corren vía Cloud Tasks/Cloud Scheduler contra ese mismo servicio,
 worker aparte). Dos proyectos en Vercel: `alhabla-frontend` (la app, `app.alhabla.ai`) y
 `alhabla-web` (la web pública, `alhabla.ai`; `www` y toda ruta de la app redirigen con 301).
 DNS en Cloudflare. Ver `AGENTS.md` § Deployment Notes para la arquitectura completa y los
-comandos de despliegue, y `PLAN-APP-DOMINIO.md` para el reparto entre las dos webs.
+comandos de despliegue, y `docs/historico/PLAN-APP-DOMINIO.md` para el reparto entre las dos webs.
 
 ```mermaid
 graph TD
@@ -200,9 +200,9 @@ graph TD
 ├── docker-compose.yml
 ├── AGENTS.md               # referencia técnica completa
 ├── PLAN-CANAL-DUENO.md     # el canal de WhatsApp (fases 0-2 hechas)
-├── PLAN-APP-DOMINIO.md     # el reparto web / app por dominios (hecho)
-├── PLAN-TELEFONIA-UX.md    # teléfono, desvío y número principal (en código; falta prueba real)
-├── docs/                   # investigación de nichos y planes cerrados (docs/historico/)
+├── docs/                   # investigación de nichos y planes cerrados (docs/historico/), como
+│                           #   docs/historico/PLAN-APP-DOMINIO.md (reparto web / app) y
+│                           #   docs/historico/PLAN-TELEFONIA-UX.md (teléfono y desvío)
 └── .env                    # compartido por docker compose (no se commitea)
 ```
 
@@ -288,9 +288,10 @@ Lo que el asistente deje a medias lo completa el Gestor por WhatsApp («empezamo
 
 - `AGENTS.md` — referencia detallada para agentes de IA y desarrolladores.
 - `PLAN-CANAL-DUENO.md` — el canal de WhatsApp: decisiones, fases y estado.
-- `PLAN-APP-DOMINIO.md` — el reparto entre la web pública y la app.
-- `PLAN-TELEFONIA-UX.md` — teléfono, desvío y número principal.
-- `docs/historico/` — planes cerrados o descartados.
+- `docs/historico/` — planes cerrados o descartados:
+  - `docs/historico/PLAN-APP-DOMINIO.md` — el reparto entre la web pública y la app.
+  - `docs/historico/PLAN-TELEFONIA-UX.md` — teléfono, desvío y número principal (lo que falta
+    en producción está en `AGENTS.md` § Telefonía).
 - `PRODUCT.md` — producto, audiencia y marca.
 - `CONTRIBUTING.md` — flujo de ramas, PR y despliegue.
 - `DESIGN.md` — sistema de diseño.

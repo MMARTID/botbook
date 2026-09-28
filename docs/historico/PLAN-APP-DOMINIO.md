@@ -1,5 +1,7 @@
 # Plan: separar la web (alhabla.ai) de la aplicación (app.alhabla.ai)
 
+> **Histórico** (movido a `docs/historico/` el 2026-09-28): hecho, con el corte del 21-09-2026 (la web pública en `web/` y `alhabla.ai`, la app en `frontend/` y `app.alhabla.ai`); lo que quedaba de la fase 4 (retirar `FRONTEND_URL`, quitar `EXTRA_ALLOWED_ORIGIN` si sobra y `packages/ui` solo si la duplicación molesta) se sigue en `AGENTS.md` § Deployment Notes.
+
 Estado: **hecho, corte ejecutado el 21-09-2026** (PRs #132 fase 0, #133 + #135 fase 1, #134
 fase 2; corte: `app.alhabla.ai` en Cloudflare → `alhabla-frontend`, Cloud Run con
 `APP_URL`/`WEB_URL`, `alhabla.ai` + `www` → `alhabla-web`, redirects 301 comprobados, sitemap

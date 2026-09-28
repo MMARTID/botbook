@@ -537,7 +537,7 @@ export function alertaTelefono(): string {
 }
 
 /** Mensaje del día 1, variante negativa: recordatorio único a las 24 h del
- * alta (PLAN-TELEFONIA-UX.md § 5, fase 5). */
+ * alta (docs/historico/PLAN-TELEFONIA-UX.md § 5, fase 5). */
 export function alertaDesvioSinComprobar(): string {
   return "aún no has comprobado el desvío de llamadas a tu recepcionista. Hasta que lo compruebes no sabremos si las llamadas de tus clientes le llegan; entra en Ajustes › Teléfono y pulsa «Comprobar desvío»: te llamamos y lo verificamos en menos de un minuto.";
 }

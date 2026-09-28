@@ -10,7 +10,8 @@ import {
 import { telnyxAiAdapter } from "../../adapters/telnyx/TelnyxAiAdapter.js";
 
 /**
- * «Comprobar desvío» (PLAN-TELEFONIA-UX.md § 4): el número de Alhabla del
+ * «Comprobar desvío» (docs/historico/PLAN-TELEFONIA-UX.md § 4): el número de
+ * Alhabla del
  * negocio llama a su línea de clientes. Si el desvío está bien marcado, esa
  * llamada vuelve a entrar por el propio número de Alhabla y
  * webhookHandlers.ts la reconoce (`from` = número de Alhabla) antes de

@@ -13,7 +13,8 @@ type Tarjeta = {
 
 /**
  * Las cuatro respuestas a «¿A qué número te llaman tus clientes?»
- * (PLAN-TELEFONIA-UX.md § 3). El alta las enseña todas; la tarjeta de desvío
+ * (docs/historico/PLAN-TELEFONIA-UX.md § 3). El alta las enseña todas; la
+ * tarjeta de desvío
  * de un negocio antiguo solo las tres que tienen una línea que desviar.
  */
 export const TARJETAS_DE_LINEA: readonly Tarjeta[] = [

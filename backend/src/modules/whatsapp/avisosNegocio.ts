@@ -619,7 +619,7 @@ export type CausaDeAlerta =
 /** Sufijo del botón URL de la plantilla (`https://alhabla.ai/ajustes/{{1}}`)
  * y ruta real del panel. El frontend (next.config.mjs) redirige
  * /ajustes/calendario a /agente y /ajustes/telefono a Ajustes › Teléfono
- * (`/ajustes#telefono`, PLAN-TELEFONIA-UX.md § 5, fase 2). */
+ * (`/ajustes#telefono`, docs/historico/PLAN-TELEFONIA-UX.md § 5, fase 2). */
 export const RUTA_DE_ALERTA: Record<CausaDeAlerta, string> = {
   calendario: "calendario",
   telefono: "telefono",

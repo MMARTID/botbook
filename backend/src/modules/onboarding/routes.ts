@@ -58,7 +58,8 @@ export type OnboardingForwarding = {
   phoneNumber: string | null;
   confirmedAt: string | null;
   firstCallAt: string | null;
-  /** Última «Comprobar desvío» que entró de verdad (PLAN-TELEFONIA-UX.md
+  /** Última «Comprobar desvío» que entró de verdad
+   * (docs/historico/PLAN-TELEFONIA-UX.md
    * § 4); null = nunca comprobado. Distinto de `confirmedAt` («el usuario
    * dice»). */
   checkedAt: string | null;
@@ -287,7 +288,8 @@ export async function onboardingRoutes(fastify: FastifyInstance) {
     }
   );
 
-  // «Comprobar desvío» (PLAN-TELEFONIA-UX.md § 4): origina una llamada real
+  // «Comprobar desvío» (docs/historico/PLAN-TELEFONIA-UX.md § 4): origina una
+  // llamada real
   // desde el número de Alhabla a la línea de clientes; el resultado llega
   // por los webhooks de Telnyx y el panel lo consulta con el GET de abajo.
   fastify.post(
