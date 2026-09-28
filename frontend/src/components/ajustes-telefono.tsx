@@ -117,7 +117,8 @@ function lineaPropia(
 }
 
 /**
- * Ajustes › Teléfono (PLAN-TELEFONIA-UX.md § 5, fase 2): los tres números
+ * Ajustes › Teléfono (docs/historico/PLAN-TELEFONIA-UX.md § 5, fase 2): los
+ * tres números
  * del negocio contados en orden — la línea a la que llaman los clientes, el
  * número de la recepcionista y el móvil del dueño — para que cuando algo
  * falle se sepa cuál tocar.

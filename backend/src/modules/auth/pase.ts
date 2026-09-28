@@ -4,7 +4,8 @@ import { errorMessage } from "../../lib/logUtils.js";
 
 /**
  * Pase de un solo uso entre la web de marketing y la app
- * (PLAN-APP-DOMINIO.md § 3). La sesión es un JWT en `localStorage`, que no
+ * (docs/historico/PLAN-APP-DOMINIO.md § 3). La sesión es un JWT en
+ * `localStorage`, que no
  * se comparte entre alhabla.ai y app.alhabla.ai: `POST /auth/register`
  * devuelve, además del token, un código aleatorio que vive 60 s en Redis y
  * muere al canjearse (`POST /auth/pase/canjear`). Así el JWT nunca viaja en

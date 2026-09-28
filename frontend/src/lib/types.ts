@@ -71,7 +71,8 @@ export type BusinessType =
   | "fisioterapia"
   | "other";
 
-/** Tipos de línea de clientes (PLAN-TELEFONIA-UX.md § 3): fijo del local,
+/** Tipos de línea de clientes (docs/historico/PLAN-TELEFONIA-UX.md § 3): fijo
+ * del local,
  * móvil de trabajo, móvil personal o el número de Alhabla como principal. */
 export type CustomerLineType =
   | "fijo"
@@ -142,7 +143,8 @@ export type Business = {
   ownerChatEnabled?: boolean;
   clientChatEnabled?: boolean;
   /**
-   * Telefonía sin confusión (PLAN-TELEFONIA-UX.md § 1): tipo de la línea de
+   * Telefonía sin confusión (docs/historico/PLAN-TELEFONIA-UX.md § 1): tipo de
+   * la línea de
    * clientes (`phone`). null = el dueño aún no lo ha confirmado.
    */
   customerLineType?: CustomerLineType | null;
@@ -480,7 +482,9 @@ export type Call = {
   businessId: string;
   business?: Business;
   agentId: string | null;
-  agent?: Agent | null;
+  /** Solo lo que pinta el panel: el backend nunca manda la fila entera del
+   * agente (ni su prompt) dentro de una llamada. */
+  agent?: Pick<Agent, "id" | "name" | "voice"> | null;
   callId: string;
   fromNumber: string | null;
   status: CallStatus;
@@ -544,7 +548,8 @@ export type OnboardingForwarding = {
   customerLine?: string | null;
 };
 
-/** Por qué no ha funcionado «Comprobar desvío» (PLAN-TELEFONIA-UX.md § 4). */
+/** Por qué no ha funcionado «Comprobar desvío»
+ * (docs/historico/PLAN-TELEFONIA-UX.md § 4). */
 export type ForwardingCheckFailureReason =
   | "la_has_cogido"
   | "comunicando"

@@ -2,7 +2,8 @@
 const appUrl = (process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3001").replace(/\/$/, "");
 
 // Rutas que antes del reparto vivían en alhabla.ai y ahora son de la app
-// (PLAN-APP-DOMINIO.md § 4, fase 3). Un 301 con la misma ruta y query salva
+// (docs/historico/PLAN-APP-DOMINIO.md § 4, fase 3). Un 301 con la misma ruta y
+// query salva
 // marcadores, emails ya enviados y los botones URL de las plantillas de Meta
 // (`alhabla.ai/ajustes/{{1}}`), que llevan el dominio horneado.
 const APP_PATHS = [

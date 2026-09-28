@@ -520,7 +520,8 @@ export class TelnyxAiAdapter {
 
   /**
    * Origina una llamada saliente SIN assistant desde el Call Control App de
-   * plataforma — hoy la usa «Comprobar desvío» (PLAN-TELEFONIA-UX.md § 4):
+   * plataforma — hoy la usa «Comprobar desvío»
+   * (docs/historico/PLAN-TELEFONIA-UX.md § 4):
    * el número de Alhabla del negocio llama a su línea de clientes y, si el
    * desvío está bien, esa misma llamada vuelve a entrar por el número de
    * Alhabla. A diferencia de `dialWithAssistant`, aquí NO se pasa

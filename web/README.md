@@ -2,7 +2,7 @@
 
 Landing, páginas por sector, planes, legal, registro de cuenta y blog. La aplicación
 (panel, agenda, ajustes…) vive en `../frontend` y se sirve en `app.alhabla.ai`; el reparto
-está contado en `../PLAN-APP-DOMINIO.md`.
+está contado en `../docs/historico/PLAN-APP-DOMINIO.md`.
 
 ```bash
 npm install
