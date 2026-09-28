@@ -423,7 +423,6 @@ model Agent {
   voice                String    @default("Octave")
   language             String    @default("es")
   systemPrompt         String
-  promptVersion        Float?    @default(1)
   active               Boolean   @default(true)
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt
@@ -453,11 +452,10 @@ model Agent {
   telnyxConfigHash  String?
   telnyxSyncedAt    DateTime?
   telnyxSyncError   String?   @db.Text
-  // Mismos campos para Retell, antes inexistentes: sin ellos el reconciliador
-  // no puede tratar ambos proveedores de forma simétrica.
-  retellConfigHash  String?
-  retellSyncedAt    DateTime?
-  retellSyncError   String?   @db.Text
+  // promptVersion y retellConfigHash/retellSyncedAt/retellSyncError ya no
+  // existen en el modelo (nunca se leyeron ni escribieron), pero sus columnas
+  // siguen en la tabla hasta la migración que las borra: los cambios
+  // destructivos van en dos deploys (AGENTS.md § Deployment Notes).
 
   business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
   calls    Call[]
@@ -553,7 +551,8 @@ model ProfessionalService {
   // Las filas anteriores a este campo eran la casilla "especialidad" del
   // panel: conservan ese significado con el valor por defecto.
   level          ProfessionalServiceLevel @default(ESPECIALISTA)
-  assignedAt     DateTime                 @default(now())
+  // assignedAt: fuera del modelo (nunca se leyó); la columna se borra en la
+  // siguiente migración, como las de Agent.
   professional   Professional             @relation(fields: [professionalId], references: [id], onDelete: Cascade)
   service        Service                  @relation(fields: [serviceId], references: [id], onDelete: Cascade)
 
@@ -917,10 +916,8 @@ model WhatsappSender {
   status              String
   qualityRating       String?
   messagingLimit      String?
-  /**
-   * Versión del perfil (about, descripción, foto) aplicada por el script.
-   */
-  profileVersion      Int       @default(0)
+  // profileVersion: fuera del modelo (el script de perfil que iba a usarla
+  // nunca existió); la columna se borra en la siguiente migración.
   lastSyncedAt        DateTime?
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
