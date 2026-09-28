@@ -561,8 +561,8 @@ voz.
 - `ClientConversation` (`clientPhone`, `businessId`, `conversationId`, `lastInboundAt`): estado
   del chat del cliente con la recepcionista de ese negocio.
 - `WhatsappSender` (`audience @unique` `client | owner`, `phoneNumber`, `telnyxPhoneNumberId`,
-  `displayName`, `status` `pending | verified | calling_disabled`, `qualityRating`,
-  `profileVersion`): los dos remitentes; el de `owner` es también el respaldo. Sustituye a
+  `displayName`, `status` `pending | verified | calling_disabled`, `qualityRating`): los dos
+  remitentes; el de `owner` es también el respaldo. Sustituye a
   `WHATSAPP_TELNYX_FROM_NUMBER` como fuente de verdad; la variable queda como respaldo.
 - `OwnerChatFeedback` (`businessId`, `question`, `answer`, `createdAt`).
 

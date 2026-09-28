@@ -8,12 +8,18 @@ name: CI
 
 on:
   pull_request:
+    # labeled/unlabeled: poner o quitar la etiqueta `migracion-contract`
+    # vuelve a lanzar el job «diff», que la lee del evento. Relanzar la
+    # ejecución anterior no sirve: reutiliza el evento original, sin la
+    # etiqueta. El resto de jobs no depende de las etiquetas y se salta.
+    types: [opened, synchronize, reopened, labeled, unlabeled]
   push:
     branches: [main]
 
 jobs:
   backend:
     name: Backend — typecheck, lint, test
+    if: github.event.action != 'labeled' && github.event.action != 'unlabeled'
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -34,6 +40,7 @@ jobs:
 
   integration:
     name: Backend — tests de integración
+    if: github.event.action != 'labeled' && github.event.action != 'unlabeled'
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -171,6 +178,7 @@ jobs:
 
   copias-compartidas:
     name: Copias compartidas app/web
+    if: github.event.action != 'labeled' && github.event.action != 'unlabeled'
     runs-on: ubuntu-latest
     # La app y la web son dos proyectos de Vercel con root propio, así que un
     # componente que usan las dos vive copiado en las dos, sin paquete común.
@@ -183,6 +191,7 @@ jobs:
 
   frontend:
     name: Frontend — lint, test, build
+    if: github.event.action != 'labeled' && github.event.action != 'unlabeled'
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -215,6 +224,7 @@ jobs:
 
   web:
     name: Web — lint, test, build
+    if: github.event.action != 'labeled' && github.event.action != 'unlabeled'
     runs-on: ubuntu-latest
     defaults:
       run:

@@ -41,13 +41,11 @@ function givenProfessionals(
           professionalId: p.id,
           serviceId,
           level: "ESPECIALISTA" as const,
-          assignedAt: new Date(),
         })),
         ...(p.noSugerir ?? []).map((serviceId) => ({
           professionalId: p.id,
           serviceId,
           level: "NO_SUGERIR" as const,
-          assignedAt: new Date(),
         })),
       ],
     }))

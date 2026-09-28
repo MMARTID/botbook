@@ -2226,7 +2226,7 @@ El alta de Apple es la tarjeta «Conecta el calendario de Apple» de `/agente`
 
 - `Service` — `name`, `durationMinutes` (5–480), `active`, `deletedAt`.
 - `Professional` — `name`, `active`, `deletedAt`.
-- `ProfessionalService` — many-to-many link with `assignedAt` and, since 2026-09-17,
+- `ProfessionalService` — many-to-many link with, since 2026-09-17,
   `level: ESPECIALISTA | NO_SUGERIR`. **No row = "lo hace" (normal)**, the default for
   any active professional. Rows that predate the column were the old "especialidad"
   checkbox and keep that meaning via the column default. See § Availability for what
