@@ -665,8 +665,7 @@ el `fetch` equivalente. **Nunca desde un route handler**: todo pasa por
   fuera, la plantilla `alerta_operativa_negocio` (`negocio_nombre`, `texto`) con el sufijo del
   botón URL `https://alhabla.ai/ajustes/{{1}}` = `facturacion | calendario | telefono`. El
   frontend (`next.config.mjs`) redirige `/ajustes/calendario` a `/agente` (donde vive el
-  calendario) y `/ajustes/telefono` a `/ajustes#telefono` (Ajustes › Teléfono, desde la fase 2
-  del plan de telefonía). Idempotente por recurso (`pago:<invoiceId>`,
+  calendario); `/ajustes/telefono` es una pantalla propia (Ajustes › Teléfono). Idempotente por recurso (`pago:<invoiceId>`,
   `minutos:<periodId>`, `prueba:<subscriptionId>`, `calendario:<biz>:<proveedor>:<día>`,
   `telefono:<biz>:<día>`, `desvio:<biz>:<intento>` / `desvio-ok:<biz>:<intento>` para el
   mensaje del día 1 sobre el desvío — con el instante del intento, para que el job pueda
@@ -1641,8 +1640,8 @@ is now a **Cloud Scheduler** job hitting the same kind of endpoint every
      - a null pero con llamadas reales → nada.
      Las dos salen por la cascada habitual del canal del dueño (interactivo
      con botón «Ir a Ajustes» → plantilla `alerta_operativa_negocio` →
-     email). El enlace es `/ajustes/telefono`, que `frontend/next.config.mjs`
-     redirige a `/ajustes#telefono` (Ajustes › Teléfono).
+     email). El enlace es `/ajustes/telefono` (Ajustes › Teléfono, pantalla
+     propia).
    - Idempotente: reclama `Business.forwardingReminderSentAt` con un
      `updateMany` condicional **antes** de avisar (Cloud Scheduler entrega al
      menos una vez); si el aviso no sale por ninguna vía (`via: "ninguna"`)
@@ -2487,8 +2486,8 @@ non-optional for a service sold online in the EU. Concretely:
 
 ### Component-Specific Notes
 
-- **`HeroConversation` widget:** uses the purple system (`#8b5cf6`, `#f3eeff`) — never green
-  or orange.
+- **`HeroHilos` (hero canvas, `web/`):** brand purple (`#8b5cf6`) by default; the niche pages
+  pass their niche accent.
 - **Checkout:** container has `min-h-[480px]` to prevent empty-state collapse.
 - **`AppShell` header:** sticky, `bg-[#fafafa]/80` with `backdrop-blur-xl`.
 - **`MobileNav`:** closes on Escape and on outside pointerdown, restores focus to the toggle, and
@@ -2504,7 +2503,7 @@ any user-facing copy:
 - Never fabricate testimonials, customer logos, "X negocios confían" counts, own product metrics,
   awards or press mentions about Alhabla. None exist.
 - Every published figure needs an external, verifiable source rendered on screen, the way
-  `SectorDataSection` does. The stats in `niche-landings.ts` and `generalSectorData` follow this.
+  `SectorDataSection` does. The stats in `web/src/lib/niche-landings.ts` follow this.
 - The quotes in `niche-landings.ts` are business owners interviewed in the press **about the
   problem**, not Alhabla customers. Do not present them as testimonials.
 - Do not promise capabilities that do not ship. As of 2026-09 there **is** a real voice picker —
@@ -2632,10 +2631,15 @@ npx prisma studio
 
 ### Add a new landing page niche
 
-1. Add niche content to `frontend/src/lib/niche-landings.ts`.
-2. Create `frontend/src/app/<niche>/page.tsx` importing `SiteLanding` with the niche content.
-3. Add route to `frontend/src/app/sitemap.ts`.
-4. Add redirect in `frontend/next.config.mjs` if needed.
+The landings live in the public site (`web/`):
+
+1. Add the niche content to `web/src/lib/niche-landings.ts` and its accent to
+   `web/src/lib/niche-accents.ts` (per-city pages: `web/src/lib/city-landings.ts`).
+2. Create `web/src/app/<niche>/page.tsx` rendering `SiteLanding` with that content, and
+   `web/src/app/<niche>/[ciudad]/page.tsx` if it has city pages.
+3. Add it to `NICHOS` in `web/src/app/sitemap.ts`.
+4. Add the path to the list of marketing routes that `frontend/next.config.mjs` sends with a
+   301 to the web, so the old app URL does not 404.
 
 ## Lista de ramas por componente
 
@@ -2647,7 +2651,7 @@ partir vacía de `main` como marcador.
 
 | Rama | Componente | Issue | Notas |
 |------|-----------|-------|-------|
-| `step-followups-landing` | `frontend/src/components/call-forwarding-flow.tsx` + tarjetas `threeSteps` en `site-landing.tsx` (sección "Cómo funciona") | [#12](https://github.com/MMARTID/botbook/issues/12) | Pulir y/o rediseñar el recorrido de 3 pasos. |
+| `step-followups-landing` | Sección "Cómo funciona" de la landing: hoy `HowItWorksScrollytelling` en `web/` (`call-forwarding-flow.tsx` y las tarjetas `threeSteps` ya no existen) | [#12](https://github.com/MMARTID/botbook/issues/12) | Pulir y/o rediseñar el recorrido de 3 pasos. |
 | `demo-modal-landing` | Modal/experiencia de "Escuchar una llamada" del hero (`DemoVoiceCall`) | — | Pulir y/o rediseñar la demo de llamada de voz que se abre desde la landing. Sin Issue todavía. |
 | `telnyx-whatsapp-calls` | Llamadas de voz por WhatsApp vía Telnyx — distinto de la mensajería de texto ya existente (`WhatsAppAdapter`, `jobs/sendWhatsapp.ts`, plantillas de confirmación/recordatorio) | — | **Descartado** el 2026-09-19 (ver `PLAN-CANAL-DUENO.md` v3). `docs/historico/PLAN-WHATSAPP-LLAMADAS.md` queda en `main` solo como referencia. Rama sin trabajo; borrar cuando se confirme. |
 

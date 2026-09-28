@@ -74,7 +74,7 @@ look de startup ni de app de consumo. Rediseño negro/blanco/morado (agosto 2026
 | `--background` / `--surface` | `#ffffff` | Fondo base y de tarjetas/paneles |
 | `--foreground` / `--accent` | `#0a0a0a` | Texto principal, botones primarios |
 | `--muted` | `#52525b` | Texto secundario |
-| `--purple` / `--accent-soft` | `#8b5cf6` / `#a78bfa` | Acento de marca — iconos, focus rings, `HeroConversation` |
+| `--purple` / `--accent-soft` | `#8b5cf6` / `#a78bfa` | Acento de marca — iconos, focus rings, `HeroHilos` |
 | `--purple-wash` / `--purple-ink` | `#f3eeff` / `#6d28d9` | Fondo y texto de badges/contenedores de icono morados |
 | `--success` / `--warning` / `--error` | `#2c7334` / `#9f7a15` / `#c53030` | Estados |
 
