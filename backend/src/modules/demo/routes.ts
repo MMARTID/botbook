@@ -130,11 +130,6 @@ async function ensureUnauthenticatedWebCalls(assistantId: string): Promise<void>
   webCallsEnabledAssistants.add(assistantId);
 }
 
-/** Solo para los tests: olvida la caché de assistants ya reafirmados. */
-export function resetDemoWebCallsCache(): void {
-  webCallsEnabledAssistants.clear();
-}
-
 /**
  * Demo pública de voz de la landing. Elige la cuenta de demostración que
  * corresponde al negocio que ha buscado el visitante (peluquería, barbería,
