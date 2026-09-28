@@ -61,7 +61,10 @@ en `AGENTS.md` § Deployment Notes.
 - Nueva variable de entorno ⇒ añadirla a `.env.example` **y** a `docker-compose.yml`
   (servicios `backend` y `backend-dev`). Sin defaults reales para secretos.
 - Un componente que usan las dos webs (`brand-mark`, `particle-*`, `google-auth-button`,
-  `range-slider`…) vive copiado en las dos: si lo cambias en una, cámbialo en la otra.
+  `range-slider`, `google-analytics`…) vive copiado, idéntico byte a byte, en las dos: si lo
+  cambias en una, copia el fichero a la otra; lo que varía entre app y web va por props. La
+  lista está en `scripts/comprobar-copias-compartidas.sh` y CI (job «Copias compartidas
+  app/web») falla si alguna copia difiere.
 
 ## Diseño (frontend)
 

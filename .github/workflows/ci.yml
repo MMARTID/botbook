@@ -169,6 +169,18 @@ jobs:
             echo "El PR no mezcla frontend y backend."
           fi
 
+  copias-compartidas:
+    name: Copias compartidas app/web
+    runs-on: ubuntu-latest
+    # La app y la web son dos proyectos de Vercel con root propio, así que un
+    # componente que usan las dos vive copiado en las dos, sin paquete común.
+    # google-analytics.tsx acabó con dos versiones distintas porque nada lo
+    # comprobaba. La lista de ficheros vive en el script.
+    steps:
+      - uses: actions/checkout@v4
+
+      - run: bash scripts/comprobar-copias-compartidas.sh
+
   frontend:
     name: Frontend — lint, test, build
     runs-on: ubuntu-latest

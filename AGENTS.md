@@ -250,12 +250,18 @@ There is no static OG asset; edit that file to change what WhatsApp and X displa
 - `GestorChat` — The owner's assistant thread in `/asistente`, the same conversation as on
   WhatsApp.
 
-**Copied into both projects** (change one, change the other): `brand-mark`, `brand-icons`,
-`beta-pill`, `back-link`, `google-auth-button`, `particle-field`, `particle-mouse-layer`,
-`range-slider`, `hooks/use-focus-trap.ts` and `lib/plans.ts` are identical copies.
-`google-analytics.tsx` (GA4 behind the shared `alhabla_analitica` consent cookie), `lib/seo.ts`,
-`lib/types.ts`, `lib/business-type.ts`, `lib/billing-navigation.ts`, `lib/niche-landings.ts` and
-`app/globals.css` share the name but not the content: each project keeps what it needs.
+**Copied into both projects**, byte for byte: `brand-mark`, `brand-icons`, `beta-pill`,
+`back-link`, `google-analytics`, `google-auth-button`, `particle-field`, `particle-mouse-layer`,
+`range-slider`, `hooks/use-focus-trap.ts` and `lib/plans.ts`. Change one, copy the file to the
+other: anything that differs between app and site goes in via props. The list lives in
+`scripts/comprobar-copias-compartidas.sh` and CI (job «Copias compartidas app/web») fails if a
+copy drifts. `google-analytics.tsx` (GA4 and Vercel Analytics behind the shared
+`alhabla_analitica` consent cookie) is mounted by the app through `analitica-de-la-app.tsx`
+(panel placement, no `page_view` on token routes); the site passes `aplazarAvisoHastaScroll`,
+because on a 390px phone the cookie notice covered the hero's trust row and part of its second
+CTA on first load. `lib/seo.ts`, `lib/types.ts`, `lib/business-type.ts`,
+`lib/billing-navigation.ts`, `lib/niche-landings.ts` and `app/globals.css` share the name but not
+the content: each project keeps what it needs.
 
 ### Frontend Lib (`frontend/src/lib/`, `web/src/lib/`)
 
