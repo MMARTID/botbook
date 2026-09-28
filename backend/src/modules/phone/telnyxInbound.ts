@@ -1,7 +1,7 @@
 /**
  * Mismo criterio de suspensión que retellInbound.ts (impago vencido o sin
  * agente operativo), aplicado al assistant Telnyx en vez del agente Retell
- * — ver PLAN-TELNYX-ORQUESTADOR.md § "Enrutamiento de llamadas y tools".
+ * — ver docs/historico/PLAN-TELNYX-ORQUESTADOR.md § "Enrutamiento de llamadas y tools".
  */
 export interface TelnyxInboundBusiness {
   callsSuspendedAt: Date | null;

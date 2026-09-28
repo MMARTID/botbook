@@ -31,7 +31,7 @@ model Business {
   retellPhoneNumber   String? @unique
 
   // Enrutamiento Telnyx AI Assistants / failover a Retell (ver
-  // PLAN-TELNYX-ORQUESTADOR.md). voiceRoutingTarget es la ruta EFECTIVA de la
+  // docs/historico/PLAN-TELNYX-ORQUESTADOR.md). voiceRoutingTarget es la ruta EFECTIVA de la
   // próxima llamada nueva y puede diferir de `orchestrator` durante un
   // failover; una llamada ya iniciada nunca migra de proveedor.
   voiceRoutingTarget      String    @default("retell")
@@ -447,7 +447,7 @@ model Agent {
   deletedAt            DateTime?
 
   // Sincronización Telnyx AI Assistants — fallback caliente de Retell hasta
-  // que el negocio entre en rollout Telnyx (ver PLAN-TELNYX-ORQUESTADOR.md).
+  // que el negocio entre en rollout Telnyx (ver docs/historico/PLAN-TELNYX-ORQUESTADOR.md).
   telnyxAssistantId String?   @unique
   telnyxConfigHash  String?
   telnyxSyncedAt    DateTime?
@@ -580,7 +580,7 @@ model Call {
   // Proveedor real que atendió la llamada y su ID nativo. callId se
   // mantiene poblado en paralelo por compatibilidad (índices, joins ya
   // existentes en el resto del esquema) hasta migrarlo por completo a estos
-  // campos genéricos — ver PLAN-TELNYX-ORQUESTADOR.md § "Cambios de datos".
+  // campos genéricos — ver docs/historico/PLAN-TELNYX-ORQUESTADOR.md § "Cambios de datos".
   voiceProvider          String                @default("retell")
   // Informe que la recepcionista manda con la tool informar_al_negocio al
   // terminar la llamada (post-conversación de Telnyx, PLAN-CANAL-DUENO.md

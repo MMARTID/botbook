@@ -1,5 +1,5 @@
 /**
- * Migración idempotente para cuentas existentes (PLAN-TELNYX-ORQUESTADOR.md
+ * Migración idempotente para cuentas existentes (docs/historico/PLAN-TELNYX-ORQUESTADOR.md
  * Fase 1: "crea los assistants Telnyx faltantes sin tocar la ruta de las
  * llamadas"). Crea el assistant Telnyx de cada agente activo que todavía no
  * tenga uno, SIN cambiar orchestrator/voiceRoutingTarget ni el connection_id

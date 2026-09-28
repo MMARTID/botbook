@@ -11,7 +11,7 @@
  * VOICE_TELNYX_ROLLOUT=all en producción, el assistant de Telnyx y la
  * auto-promoción a orchestrator="telnyx", ver agentBootstrap.ts).
  *
- * Lo único que NO hace (decisión explícita, ver PLAN-TELNYX-ORQUESTADOR.md y
+ * Lo único que NO hace (decisión explícita, ver docs/historico/PLAN-TELNYX-ORQUESTADOR.md y
  * memoria de sesión): comprar 5 números de Telnyx nuevos. Reutiliza los 5
  * números YA existentes de las cuentas de desarrollo reasignando su
  * `connection_id` de Telnyx (llamada directa a la API de Telnyx, misma

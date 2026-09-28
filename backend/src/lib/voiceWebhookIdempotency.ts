@@ -11,7 +11,7 @@ const LEASE_MS = 5 * 60 * 1000;
 
 /**
  * Reclama un evento de webhook de voz para procesarlo — tabla
- * `VoiceWebhookEvent` (PLAN-TELNYX-ORQUESTADOR.md Fase 3).
+ * `VoiceWebhookEvent` (docs/historico/PLAN-TELNYX-ORQUESTADOR.md Fase 3).
  *
  * No es «exactamente una vez», es «una vez con éxito»: un evento solo se
  * ignora si ya terminó BIEN, o si otro intento lo está procesando ahora

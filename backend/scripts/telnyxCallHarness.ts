@@ -1,5 +1,5 @@
 /**
- * Harness de tests inbound por llamada real (PLAN-TELNYX-ORQUESTADOR.md,
+ * Harness de tests inbound por llamada real (docs/historico/PLAN-TELNYX-ORQUESTADOR.md,
  * diseño validado 2026-09-12 tras descartar el tests API nativo: el 422 del
  * issue #18 viene de un modelo interno de Telnyx no disponible en esta
  * cuenta, sin workaround por parámetro). En vez de un test "de mentira",

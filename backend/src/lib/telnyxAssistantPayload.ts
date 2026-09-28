@@ -704,7 +704,7 @@ export function buildTelnyxAssistantPayload(
     // Verificado en vivo el 2026-09-11: Telnyx rechaza recording_settings.
     // enabled=true si data_retention=false ("Cannot enable recording when
     // data retention is disabled"). El diseño original de
-    // PLAN-TELNYX-ORQUESTADOR.md ("memoria bajo control de Alhabla, sin
+    // docs/historico/PLAN-TELNYX-ORQUESTADOR.md ("memoria bajo control de Alhabla, sin
     // recuperación nativa de Telnyx") es incompatible con tener
     // grabación/transcripción a la vez — decisión explícita del usuario
     // 2026-09-11: igual que con Retell (dataStorageRetentionDays=30),

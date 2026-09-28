@@ -1,5 +1,5 @@
 /**
- * Cutover real (PLAN-TELNYX-ORQUESTADOR.md Fase 5, etapa 1: cuentas de
+ * Cutover real (docs/historico/PLAN-TELNYX-ORQUESTADOR.md Fase 5, etapa 1: cuentas de
  * desarrollo). Para cada negocio: exige que ya tenga un assistant Telnyx
  * (backfillTelnyxAssistants.ts) y un número Telnyx propio, cambia su
  * connection_id al Call Control App de plataforma y marca

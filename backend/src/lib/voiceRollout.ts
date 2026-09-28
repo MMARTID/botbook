@@ -1,5 +1,5 @@
 /**
- * Interruptor de todo el rollout Telnyx (ver PLAN-TELNYX-ORQUESTADOR.md
+ * Interruptor de todo el rollout Telnyx (ver docs/historico/PLAN-TELNYX-ORQUESTADOR.md
  * Fase 5). `off` o sin definir deja el comportamiento actual intacto: solo
  * se crea/mantiene el agente Retell. Cualquier otro valor activa el intento
  * de creación dual en `createBusinessAgent()`. La selección fina de
