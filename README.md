@@ -182,11 +182,11 @@ graph TD
 ├── backend/                # Backend ESM TypeScript
 │   ├── src/
 │   │   ├── server.ts       # Fastify entry point: rutas, webhooks y endpoints internos de jobs
-│   │   ├── plugins/        # auth (JWT), internalAuth (OIDC de Cloud Tasks) y firmaTelnyx (Ed25519);
+│   │   ├── plugins/        # auth (JWT), internalAuth (OIDC de Cloud Tasks), firmaRetell y firmaTelnyx;
 │   │   │                   #   CORS y rate-limit en server.ts
 │   │   ├── modules/        # rutas por dominio: agents, auth, billing, bookings, businesses,
 │   │   │                   #   calendar, calls, demo, gestor, internal, onboarding, phone, places,
-│   │   │                   #   recordings, voiceTools, webhooksTelnyx, whatsapp, retellSimulation
+│   │   │                   #   recordings, voiceTools, webhooksRetell, webhooksTelnyx, whatsapp, retellSimulation
 │   │   ├── adapters/       # Retell, Telnyx (voz, WhatsApp), calendarios (Google, Outlook, CalDAV)
 │   │   ├── lib/            # prisma, redis, cloudTasks, availability, urls, gestorPayload…
 │   │   ├── jobs/           # lógica de los jobs en segundo plano (invocados vía Cloud Tasks/Scheduler)
