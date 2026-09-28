@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -18,6 +17,7 @@ import { AppPageHeader } from "@/components/app-page-header";
 import { SectionErrorState } from "@/components/section-card";
 import { useBusiness } from "@/components/providers";
 import { formatPrice } from "@/lib/format";
+import { webUrl } from "@/lib/web-url";
 import { plans } from "@/lib/plans";
 import type { SubscriptionStatus } from "@/lib/types";
 
@@ -241,9 +241,9 @@ export default function BillingSettingsPage() {
                     de conversación registrados.
                   </p>
                 </div>
-                <Link href="/planes?from=billing" className="btn-primary">
+                <a href={webUrl("/planes")} className="btn-primary">
                   Ver los planes
-                </Link>
+                </a>
               </div>
             )}
           </article>
@@ -276,9 +276,9 @@ export default function BillingSettingsPage() {
                 {portal.isPending ? "Abriendo…" : "Gestionar en Stripe"}
               </button>
             ) : (
-              <Link href="/planes?from=billing" className="btn-primary mt-6">
+              <a href={webUrl("/planes")} className="btn-primary mt-6">
                 Elegir plan
-              </Link>
+              </a>
             )}
             {portal.isError ? (
               <p role="alert" className="mt-3 text-sm text-[#c53030]">

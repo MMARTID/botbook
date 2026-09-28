@@ -234,12 +234,6 @@ export type PlaceSearchResult = {
   photoUrl: string | null;
 };
 
-/** Resultado de búsqueda de la demo pública: enriquecido con foto y tipo de negocio detectado. */
-export type DemoPlaceSearchResult = PlaceSearchResult & {
-  businessType: BusinessType;
-  photoUrl: string | null;
-};
-
 export type PlaceDetails = {
   placeId: string;
   name: string;
@@ -517,24 +511,6 @@ export type Paginated<T> = {
   total: number;
   limit: number;
   offset: number;
-};
-
-export type AssistantOverrides = {
-  backgroundSound?: "off" | "office" | string;
-  maxDurationSeconds?: number;
-  artifactPlan?: {
-    recordingEnabled?: boolean;
-    videoRecordingEnabled?: boolean;
-    transcriptPlan?: {
-      enabled?: boolean;
-    };
-    loggingEnabled?: boolean;
-  };
-  variableValues?: Record<string, string | number | boolean>;
-};
-
-export type CreateAgentPayload = {
-  name: string;
 };
 
 export type OnboardingSteps = {
