@@ -110,7 +110,10 @@ components (`SiteLanding`, `LandingHero`, `RevenueLossCalculator`, `PlansWithRoi
 `particle-*`, `google-auth-button`, `range-slider`, `google-analytics`…) are copied, byte for
 byte, into each (anything that differs between app and site goes in via props). The list lives
 in `scripts/comprobar-copias-compartidas.sh` and CI (job «Copias compartidas app/web») fails if
-a copy drifts.
+a copy drifts. `google-analytics.tsx` is one: the app mounts it through
+`analitica-de-la-app.tsx` (panel placement, no `page_view` on token routes); the site passes
+`aplazarAvisoHastaScroll`, because on a 390px phone the cookie notice covered the hero's trust
+row and part of its second CTA on first load.
 The component and lib notes below keep their original wording; check which project holds a file
 before editing it.
 

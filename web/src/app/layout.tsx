@@ -101,6 +101,7 @@ export default function RootLayout({
         <GoogleAnalytics
           enlaceDePrivacidad="/legal/privacidad"
           rutasSinAnalitica={["keystatic", "vista-previa", "preview", "api"]}
+          aplazarAvisoHastaScroll
         />
       </body>
     </html>

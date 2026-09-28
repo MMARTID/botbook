@@ -29,8 +29,17 @@ vi.mock("@vercel/analytics/next", () => ({
   },
 }));
 
-// La misma configuración que monta web/src/app/layout.tsx.
+// La misma configuración que monta web/src/app/layout.tsx, salvo el aviso
+// aplazado hasta el primer scroll, que tiene sus propios tests al final.
 const RUTAS_INTERNAS = ["keystatic", "vista-previa", "preview", "api"];
+
+function desplazar(y: number) {
+  Object.defineProperty(window, "scrollY", {
+    value: y,
+    configurable: true,
+    writable: true,
+  });
+}
 
 function comoEnLaWeb() {
   return (
@@ -61,6 +70,7 @@ beforeEach(() => {
   estado.ruta = "/planes";
   estado.alCargar = null;
   estado.filtrar = null;
+  desplazar(0);
 });
 
 describe("consentimiento de analítica", () => {
@@ -225,5 +235,58 @@ describe("aviso de cookies", () => {
       />
     );
     await waitFor(() => expect(vistas()).toHaveLength(1));
+  });
+});
+
+describe("aviso aplazado hasta el primer scroll (la web)", () => {
+  function conAvisoAplazado() {
+    return (
+      <GoogleAnalytics
+        enlaceDePrivacidad="/legal/privacidad"
+        rutasSinAnalitica={RUTAS_INTERNAS}
+        aplazarAvisoHastaScroll
+      />
+    );
+  }
+
+  it("no tapa la primera pantalla: ni aviso ni botón hasta que hay scroll", async () => {
+    render(conAvisoAplazado());
+    // Deja que el componente lea la cookie (hidratación).
+    await act(async () => {});
+
+    expect(screen.queryByText("Preferencias de cookies")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Configurar cookies" })
+    ).not.toBeInTheDocument();
+
+    desplazar(120);
+    fireEvent.scroll(window);
+
+    expect(
+      await screen.findByText("Preferencias de cookies")
+    ).toBeInTheDocument();
+    // Etiqueta visible corta, nombre accesible completo.
+    const aceptar = screen.getByRole("button", { name: "Aceptar analítica" });
+    expect(aceptar).toHaveTextContent("Aceptar");
+    expect(vistas()).toHaveLength(0);
+  });
+
+  it("una recarga a media página muestra el aviso sin esperar otro scroll", async () => {
+    desplazar(600);
+    render(conAvisoAplazado());
+
+    expect(
+      await screen.findByText("Preferencias de cookies")
+    ).toBeInTheDocument();
+  });
+
+  it("con la elección ya hecha no hay nada que aplazar: sale el botón para cambiarla", async () => {
+    document.cookie = "alhabla_analitica=rechazada; Path=/";
+    render(conAvisoAplazado());
+
+    expect(
+      await screen.findByRole("button", { name: "Configurar cookies" })
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Preferencias de cookies")).not.toBeInTheDocument();
   });
 });

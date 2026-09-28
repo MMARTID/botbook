@@ -142,6 +142,11 @@ type PropiedadesDeAnalitica = {
   /** Hay armazón del panel (barra lateral en escritorio, barra inferior en
    * móvil) y el aviso y el botón no pueden taparlo. */
   dentroDelPanel?: boolean;
+  /** El aviso de la primera visita espera al primer scroll: en la web tapaba
+   * las señales de confianza del hero en el primer viewport (revisión de
+   * diseño del 24-09, P1). Nada se mide mientras tanto: Google y Vercel solo
+   * se cargan tras aceptar. */
+  aplazarAvisoHastaScroll?: boolean;
 };
 
 /** Comparte la elección entre la app y la web, mide solo páginas sin
@@ -151,6 +156,7 @@ export function GoogleAnalytics({
   rutasSinMedicion = SIN_RUTAS,
   rutasSinAnalitica = SIN_RUTAS,
   dentroDelPanel = false,
+  aplazarAvisoHastaScroll = false,
 }: PropiedadesDeAnalitica) {
   const pathname = usePathname();
   const [consentimiento, setConsentimiento] = useState<boolean | null>(null);
@@ -158,6 +164,7 @@ export function GoogleAnalytics({
   const [abierto, setAbierto] = useState(false);
   const [puedeCargar, setPuedeCargar] = useState(false);
   const [listo, setListo] = useState(false);
+  const [huboScroll, setHuboScroll] = useState(false);
   // Las rutas internas (en la web, el editor del blog y las vistas previa):
   // ni medición ni aviso de cookies, aunque la visita hubiera aceptado en
   // otra página.
@@ -200,6 +207,17 @@ export function GoogleAnalytics({
   }, []);
 
   useEffect(() => {
+    if (!aplazarAvisoHastaScroll || huboScroll) return;
+    const alDesplazar = () => {
+      if (window.scrollY > 0) setHuboScroll(true);
+    };
+    // Una recarga a media página ya viene desplazada.
+    alDesplazar();
+    window.addEventListener("scroll", alDesplazar, { passive: true });
+    return () => window.removeEventListener("scroll", alDesplazar);
+  }, [aplazarAvisoHastaScroll, huboScroll]);
+
+  useEffect(() => {
     if (!conAnalitica || !hidratado || !/^G-[A-Z0-9]+$/.test(ID_MEDICION))
       return;
     if (consentimiento === true) {
@@ -233,6 +251,13 @@ export function GoogleAnalytics({
     setAbierto(false);
   };
 
+  const mostrarAviso =
+    hidratado &&
+    (abierto ||
+      (consentimiento === null && (!aplazarAvisoHastaScroll || huboScroll)));
+  // El botón solo cuando ya hay una elección que cambiar.
+  const mostrarBoton = hidratado && !mostrarAviso && consentimiento !== null;
+
   // Dentro del panel hay barra lateral (escritorio) y barra inferior (móvil):
   // el botón flotante no puede taparlas. En móvil la opción vive en la hoja
   // «Más»; en escritorio el botón pasa a la esquina derecha. El aviso, en
@@ -256,24 +281,20 @@ export function GoogleAnalytics({
           <Analytics beforeSend={filtrarEventoDeVercel} />
         </>
       ) : null}
-      {hidratado && (consentimiento === null || abierto) ? (
+      {mostrarAviso ? (
         <aside
-          className={`fixed inset-x-4 z-[65] mx-auto max-w-xl rounded-2xl border border-[#e5e5e5] bg-white p-5 shadow-[0_16px_40px_rgba(0,0,0,0.16)] ${colocacionDelAviso}`}
+          className={`fixed inset-x-4 z-[65] mx-auto max-w-md rounded-2xl border border-[#e5e5e5] bg-white p-4 shadow-[0_16px_40px_rgba(0,0,0,0.16)] ${colocacionDelAviso}`}
           aria-labelledby="titulo-cookies"
         >
-          {/* Título real, no solo aria-label: un aside con contenido complejo
-              (párrafo + enlace + 2 botones) se orienta mejor con un
-              encabezado que un lector de pantalla puede saltar a buscar. */}
-          <h2
-            id="titulo-cookies"
-            className="text-sm font-semibold text-[#0a0a0a]"
-          >
+          {/* Título real para quien usa lector de pantalla (puede saltar a
+              él), pero oculto a la vista: el aviso tiene que ser compacto
+              para no tapar el contenido de la primera pantalla. */}
+          <h2 id="titulo-cookies" className="sr-only">
             Preferencias de cookies
           </h2>
-          <p className="mt-1 text-sm leading-6 text-muted">
-            Google Analytics y Vercel Analytics nos ayudan a entender cómo se
-            usa Alhabla. Solo se activan si aceptas. Puedes cambiar tu elección
-            cuando quieras.{" "}
+          <p className="text-sm leading-5 text-muted">
+            Analítica opcional (Google Analytics y Vercel): solo se activa si
+            aceptas.{" "}
             <a
               href={enlaceDePrivacidad}
               className="rounded font-medium text-[#27272a] underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]"
@@ -282,24 +303,29 @@ export function GoogleAnalytics({
             </a>
             .
           </p>
-          <div className="mt-4 flex flex-wrap gap-3">
+          {/* Etiquetas cortas para que los dos botones quepan en una fila
+              en móvil; el nombre accesible completo empieza por el texto
+              visible (WCAG 2.5.3). */}
+          <div className="mt-3 flex flex-wrap gap-2">
             <button
               type="button"
               onClick={() => decidir(true)}
-              className="btn-secondary h-11 px-4"
+              aria-label="Aceptar analítica"
+              className="btn-secondary h-11 px-5"
             >
-              Aceptar analítica
+              Aceptar
             </button>
             <button
               type="button"
               onClick={() => decidir(false)}
-              className="btn-secondary h-11 px-4"
+              aria-label="Rechazar analítica"
+              className="btn-secondary h-11 px-5"
             >
-              Rechazar analítica
+              Rechazar
             </button>
           </div>
         </aside>
-      ) : hidratado ? (
+      ) : mostrarBoton ? (
         // `data-relato` lo pone en <html> el relato con scroll de la portada
         // de la web (llamada-scroll.tsx): mientras el escenario está fijo el
         // botón se esconde, porque tapaba la barra de pasos en móvil.
