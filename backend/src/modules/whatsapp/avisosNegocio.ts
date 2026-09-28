@@ -617,9 +617,10 @@ export type CausaDeAlerta =
   | "pago";
 
 /** Sufijo del botón URL de la plantilla (`https://alhabla.ai/ajustes/{{1}}`)
- * y ruta real del panel. El frontend (next.config.mjs) redirige
- * /ajustes/calendario a /agente y /ajustes/telefono a Ajustes › Teléfono
- * (`/ajustes#telefono`, docs/historico/PLAN-TELEFONIA-UX.md § 5, fase 2). */
+ * y ruta real del panel. La web manda todo /ajustes a la app con un 301
+ * (web/next.config.mjs); allí /ajustes/telefono y /ajustes/facturacion son
+ * pantallas propias, y /ajustes/calendario redirige a /agente
+ * (frontend/next.config.mjs). */
 export const RUTA_DE_ALERTA: Record<CausaDeAlerta, string> = {
   calendario: "calendario",
   telefono: "telefono",

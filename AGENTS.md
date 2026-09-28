@@ -159,8 +159,13 @@ Both legal pages (now in `web/`) carry `LegalTodo` blocks marking the registrati
 (razón social, CIF, domicilio) that a human must supply before launch — do not invent those
 values, and do not delete the markers until they are filled.
 
-`web/src/app/opengraph-image.tsx` renders the shared social card with `next/og` using the design tokens.
-There is no static OG asset; edit that file to change what WhatsApp and X display.
+Every indexable page of the public site has its own `opengraph-image.tsx` (home, the five niches,
+`/planes`, `/blog`, each article and both legal pages; the city pages reuse their niche's), and all
+of them render the shared template `imagenOg()` from `web/src/lib/og/plantilla.tsx` (`next/og`,
+Geist, the real isotipo; sector photos come from `public/heroes/`). There is no static OG asset:
+a page's texts live in its own file, the layout in the template. `web/next.config.mjs` adds those
+fonts and images to the functions' file tracing, and `ogImages()` (`web/src/lib/seo.ts`) references
+each page's image explicitly from its `openGraph`/`twitter` metadata.
 
 ### State & Data
 
@@ -189,8 +194,6 @@ There is no static OG asset; edit that file to change what WhatsApp and X displa
   whose pulses take the niche accent; the section needs `relative isolate` and no background of
   its own, or the `-z-10` canvas disappears). The primary CTA «Escuchar la demo» opens
   `DemoVoiceCall`; the secondary one goes to `/planes` (with `?niche=`).
-- `hero-conversation.tsx` — No longer rendered anywhere (both heroes use `HeroHilos` now); only
-  its `Conversation` type is still imported by `lib/niche-landings.ts`.
 - `RevenueLossCalculator` — Interactive sliders (ticket, lost calls/week) with ROI math. The CTA
   always calls `activateRoiContext`, touched or not: the button names a figure and `/planes` has
   to receive it.
@@ -307,7 +310,7 @@ the content: each project keeps what it needs.
 - `app-url.ts` — `appUrl()` (`NEXT_PUBLIC_APP_URL`): every link from the web to the app.
 - `register.ts` — `buildAppEntryUrl` (the jump to the app's `/auth/entrar?pase=` with plan and
   sector) and `describeRegisterError`.
-- `niche-landings.ts` — 900+ lines of SEO copy per niche: hero, benefits, FAQ, cited `sectorData`,
+- `niche-landings.ts` — The SEO copy of each niche: hero, benefits, FAQ, cited `sectorData`,
   `teamRouting`, `ownerAssistant`, metadata and JSON-LD, plus `generalTeamRouting` and
   `generalOwnerAssistant` for the generic landing. Accents in `niche-accents.ts`, per-city pages in
   `city-landings.ts`, home FAQ in `home-faqs.ts`.
@@ -2047,7 +2050,7 @@ nuevas: el ajuste vive en `Business.agentSettings.pasarLlamadas`.
   transición o baja, con el código `*21*`/`**21*` según el tipo, salvo que la línea antigua
   sea el móvil del dueño: entonces «no lo desvíes» y `##002#`— y el ajuste; sin móvil del
   dueño (o con uno fuera de España) lo dice, enlaza a Ajustes › Teléfono › Tu móvil y no
-  deja confirmar; al confirmar hace el PATCH y vuelve a `/ajustes#telefono`). El botón «Usar como número principal» de
+  deja confirmar; al confirmar hace el PATCH y vuelve a `/ajustes/telefono`). El botón «Usar como número principal» de
   Ajustes › Teléfono es ahora un enlace a esa pantalla, y el bloque «Tu recepcionista»
   enseña «Cuándo pasarme llamadas» (`components/pasar-llamadas.tsx`, helpers en
   `lib/pasar-llamadas.ts`) cuando `customerLineType` es `alhabla`.
@@ -2501,7 +2504,9 @@ non-optional for a service sold online in the EU. Concretely:
 - **`HeroHilos` (hero canvas, `web/`):** brand purple (`#8b5cf6`) by default; the niche pages
   pass their niche accent.
 - **Checkout:** container has `min-h-[480px]` to prevent empty-state collapse.
-- **`AppShell` header:** sticky, `bg-[#fafafa]/80` with `backdrop-blur-xl`.
+- **`AppShell` bars:** below `lg`, a sticky header and a fixed bottom bar (padded with
+  `env(safe-area-inset-bottom)`), both `bg-white/95` with `backdrop-blur` and a `#e5e5e5`
+  hairline; from `lg` up both give way to a sticky white sidebar with `border-r`.
 - **`MobileNav`:** closes on Escape and on outside pointerdown, restores focus to the toggle, and
   locks body scroll while open.
 - **Skip link:** `SiteLanding`'s "Saltar al contenido" targets `#contenido` (the wrapper around
@@ -2643,15 +2648,40 @@ npx prisma studio
 
 ### Add a new landing page niche
 
-The landings live in the public site (`web/`):
+The landing lives in `web/`; the backend (demo) and the app (redirect) need a small change each.
 
-1. Add the niche content to `web/src/lib/niche-landings.ts` and its accent to
-   `web/src/lib/niche-accents.ts` (per-city pages: `web/src/lib/city-landings.ts`).
-2. Create `web/src/app/<niche>/page.tsx` rendering `SiteLanding` with that content, and
-   `web/src/app/<niche>/[ciudad]/page.tsx` if it has city pages.
-3. Add it to `NICHOS` in `web/src/app/sitemap.ts`.
-4. Add the path to the list of marketing routes that `frontend/next.config.mjs` sends with a
-   301 to the web, so the old app URL does not 404.
+1. **Content:** add the slug to `NicheSlug` and its entry to `nicheLandings` in
+   `web/src/lib/niche-landings.ts` (hero, benefits, FAQ, `teamRouting`, `ownerAssistant`,
+   metadata, and `sectorData` only with a cited source for every figure — see § Content &
+   Evidence Rules), plus its accent in `NICHE_ACCENTS` (`web/src/lib/niche-accents.ts`; `deep`
+   must pass AA as text on `soft`). The sectors menu (`SectorsMenu`), `MobileNav` and the
+   calculator's links read `nicheLinks`, derived from `nicheLandings`, so they need nothing.
+2. **Maps TypeScript enforces:** with the slug in `NicheSlug`, `npx tsc --noEmit` flags the other
+   `Record<NicheSlug, …>` that need an entry: `COMO_FUNCIONA_EJEMPLOS`
+   (`components/site-landing.tsx`), `SINGULAR_POR_NICHO` and `COPY_POR_NICHO`
+   (`components/city-niche-landing.tsx`) and `CITY_NICHE_STATS` (`lib/city-landings.ts`, one
+   sourced figure per city).
+3. **Pages:** copy an existing niche folder — `web/src/app/<niche>/page.tsx` (`SiteLanding` +
+   JSON-LD), `[ciudad]/page.tsx` (`CityNicheLanding`; the sitemap lists every niche × city) and
+   `opengraph-image.tsx` (`imagenOg`) — and add the sector photo `web/public/heroes/<niche>.jpg`,
+   used by the OG image and the home accordion.
+4. **Lists nothing type-checks:** `NICHOS` in `web/src/app/sitemap.ts`; `SECTORES` in
+   `components/main-landing.tsx` (home accordion) and `components/site-footer.tsx`; the blog CTA
+   targets (`DESTINOS` in `components/blog/bloques.tsx` and `lib/keystatic/bloques.tsx`) and
+   article sectors (`SECTORES` in `web/keystatic.config.tsx`). Optionally a plural alias in
+   `web/next.config.mjs` (`/peluquerias` → `/peluqueria`).
+5. **Demo (backend):** add the slug to `DEMO_NICHES` in `backend/src/modules/demo/routes.ts` —
+   `POST /demo/web-call` validates `niche` with a closed `z.enum`, so the new landing's demo
+   answers 400 until it is there — and map it in `DEMO_ASSISTANT_ENV_BY_NICHE` to a
+   `TELNYX_DEMO_<NICHO>_ASSISTANT_ID` for its isolated demo assistant (see the `demo` module
+   above; new variables follow § Add a new environment variable). While that variable is empty,
+   the demo falls back to the generic assistant.
+6. **App:** add `/<niche>` to the marketing paths in `frontend/next.config.mjs`, so the old app
+   URL goes 301 to the public site instead of a 404.
+
+A landing niche is not a business type: an account registered from it arrives as `other`. Making
+it one (registration, Places detection, agent instructions, service templates) is separate work
+across the three projects — see § Business Type (`Business.businessType`).
 
 ## Lista de ramas por componente
 
