@@ -1,6 +1,7 @@
 import type { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
 import { telnyxAiAdapter } from "../../adapters/telnyx/TelnyxAiAdapter.js";
+import { PREFIJO_ASSISTANT_DE_DEMO } from "../../lib/tiposDeAsistente.js";
 import { detectBusinessTypeFromPlace } from "../../lib/businessType.js";
 import { getPlaceDetails, searchPlacesForDemo } from "../places/service.js";
 
@@ -108,9 +109,6 @@ export function resolveDemoMaxDurationSeconds(): number {
  * no pagan ninguna ida y vuelta a Telnyx.
  */
 const webCallsEnabledAssistants = new Set<string>();
-
-/** Solo los assistants aislados de demo se llaman así. */
-const PREFIJO_ASSISTANT_DE_DEMO = "alhabla-demo-";
 
 async function ensureUnauthenticatedWebCalls(assistantId: string): Promise<void> {
   if (webCallsEnabledAssistants.has(assistantId)) return;
