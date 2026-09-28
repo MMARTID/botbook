@@ -93,8 +93,9 @@ export const CODIGOS_MOVIL: CodigoDeDesvio[] = [
 export const CODIGO_ANULAR_DESVIOS_MOVIL = "##002#";
 
 /**
- * En un fijo los códigos son los mismos pero sin el `**` inicial (PLAN-
- * TELEFONIA-UX.md § 2): se marcan desde el propio aparato tras el tono. Solo
+ * En un fijo los códigos son los mismos pero sin el `**` inicial
+ * (docs/historico/PLAN-TELEFONIA-UX.md § 2): se marcan desde el propio
+ * aparato tras el tono. Solo
  * los dos que tienen sentido en un local: «si no contestas» y «todas».
  */
 export const CODIGOS_FIJO: CodigoDeDesvio[] = [
@@ -117,7 +118,8 @@ export const CODIGOS_FIJO: CodigoDeDesvio[] = [
 ];
 
 /**
- * «Comprobar desvío» (PLAN-TELEFONIA-UX.md § 4): el panel pregunta el
+ * «Comprobar desvío» (docs/historico/PLAN-TELEFONIA-UX.md § 4): el panel
+ * pregunta el
  * resultado cada 2 s. La llamada saliente espera hasta 35 s a que salte el
  * desvío y luego llega el webhook, así que 25 consultas (50 s) cubren el
  * caso más lento; pasado eso se da por no recibido y se ofrece repetir.

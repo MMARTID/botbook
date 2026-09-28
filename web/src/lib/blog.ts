@@ -4,7 +4,8 @@ import matter from "gray-matter";
 import { absoluteUrl } from "@/lib/seo";
 
 /**
- * Artículos del blog (PLAN-APP-DOMINIO.md § 4, fase 1): ficheros `.mdx` en
+ * Artículos del blog (docs/historico/PLAN-APP-DOMINIO.md § 4, fase 1): ficheros
+ * `.mdx` en
  * `content/blog`, con frontmatter, leídos en build. Sin CMS: escribir un
  * artículo es abrir un PR con un fichero. El nombre del fichero es el slug
  * (`/blog/<slug>`). Las reglas de redacción e imágenes están en

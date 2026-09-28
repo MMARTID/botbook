@@ -12,7 +12,8 @@ import { webUrl } from "@/lib/web-url";
 const REGISTRATION_NICHE_KEY = "alhabla_registration_niche";
 
 /**
- * Llegada desde la web pública tras crear la cuenta (PLAN-APP-DOMINIO.md
+ * Llegada desde la web pública tras crear la cuenta
+ * (docs/historico/PLAN-APP-DOMINIO.md
  * § 3): canjea el pase de un solo uso por la sesión y sigue con el asistente
  * del negocio. El plan y el sector vienen en la query porque el
  * localStorage de alhabla.ai no se ve desde aquí; se guardan donde

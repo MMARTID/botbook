@@ -95,7 +95,14 @@ export default function RootLayout({
           its provenance.
         */}
         {children}
-        <GoogleAnalytics />
+        {/* Rutas internas del blog (editor, API, redirector y vistas previa):
+            no se miden y, directamente, no cargan nada — ni scripts ni aviso
+            de cookies. */}
+        <GoogleAnalytics
+          enlaceDePrivacidad="/legal/privacidad"
+          rutasSinAnalitica={["keystatic", "vista-previa", "preview", "api"]}
+          aplazarAvisoHastaScroll
+        />
       </body>
     </html>
   );

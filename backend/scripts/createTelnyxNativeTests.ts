@@ -1,9 +1,9 @@
 /**
  * Crea el test nativo de Telnyx AI Assistants (client.ai.assistants.tests,
  * ver TelnyxAiAdapter.createAssistantTest) equivalente al caso de reserva
- * end-to-end que ya corre en Retell (tests/simulations/retell-agent-
- * simulation.test.ts, caso "2: Reserva de <servicio>" de cada nicho) — uno
- * por cada uno de los 5 negocios de desarrollo. No migra ni sustituye las
+ * end-to-end de cada nicho en las simulaciones de Retell (catálogo de
+ * src/modules/retellSimulation/catalog.ts, `npm run sim`) — uno por cada uno
+ * de los 5 negocios de desarrollo. No migra ni sustituye las
  * simulaciones de Retell (siguen siendo la referencia); esto solo añade el
  * mecanismo de test nativo de Telnyx para poder compararlos.
  *

@@ -25,7 +25,8 @@ import {
 import { listaDeEsperaDisponible } from "../whatsapp/service.js";
 import { resolverTransferenciaAlDueno } from "../../lib/transferenciaAlDueno.js";
 
-/** Tipos de línea de clientes (PLAN-TELEFONIA-UX.md § 3): el fijo del
+/** Tipos de línea de clientes (docs/historico/PLAN-TELEFONIA-UX.md § 3): el
+ * fijo del
  * local (A), un móvil de trabajo (B), el móvil personal (C) o el número de
  * Alhabla como principal, sin desvío (E). */
 export const TIPOS_DE_LINEA_DE_CLIENTES = [
@@ -94,7 +95,8 @@ const UpdateBusinessSchema = z.object({
     .nullable()
     .optional(),
   address: z.string().trim().max(500).nullable().optional(),
-  // Telefonía sin confusión (PLAN-TELEFONIA-UX.md § 5, fase 0): tipo de la
+  // Telefonía sin confusión (docs/historico/PLAN-TELEFONIA-UX.md § 5, fase 0):
+  // tipo de la
   // línea de clientes (`phone`), «los avisos van a este mismo móvil» (caso
   // C) y «no des mi número a los clientes» (privacidad, caso C). null en
   // customerLineType = sin confirmar por el dueño.

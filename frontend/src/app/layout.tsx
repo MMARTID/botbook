@@ -3,7 +3,7 @@ import localFont from "next/font/local";
 import "./globals.css";
 import { Providers } from "@/components/providers";
 import { AppShell } from "@/components/app-shell";
-import { GoogleAnalytics } from "@/components/google-analytics";
+import { AnaliticaDeLaApp } from "@/components/analitica-de-la-app";
 import { defaultDescription, noindexMetadata, siteName, siteUrl } from "@/lib/seo";
 
 const geistSans = localFont({
@@ -25,7 +25,8 @@ export const metadata: Metadata = {
   },
   description: defaultDescription,
   applicationName: siteName,
-  // La app no se indexa (PLAN-APP-DOMINIO.md): lo público vive en la web.
+  // La app no se indexa (docs/historico/PLAN-APP-DOMINIO.md): lo público vive
+  // en la web.
   ...noindexMetadata,
   formatDetection: {
     telephone: false,
@@ -68,7 +69,7 @@ export default function RootLayout({
         <Providers>
           <AppShell>{children}</AppShell>
         </Providers>
-        <GoogleAnalytics />
+        <AnaliticaDeLaApp />
       </body>
     </html>
   );

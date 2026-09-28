@@ -70,7 +70,8 @@ export const AgentSettingsSchema = z
     // — decisión explícita del usuario 2026-09-14. Español por defecto para
     // no cambiar el comportamiento de ningún negocio existente.
     voiceLanguage: z.enum(VOICE_LANGUAGES).default("es-ES"),
-    // «Cuándo pasarme llamadas» (PLAN-TELEFONIA-UX.md § 5, fase 4). Sin
+    // «Cuándo pasarme llamadas» (docs/historico/PLAN-TELEFONIA-UX.md § 5,
+    // fase 4). Sin
     // valor = el de por defecto según el negocio (modoDeTransferenciaPorDefecto
     // en lib/transferenciaAlDueno.ts): «si el cliente lo pide» con Alhabla
     // como número principal y móvil del dueño, «nunca» en el resto. Se deja
@@ -254,7 +255,8 @@ export function buildManagedAgentPrompt(input: {
    * recepcionista no promete avisos ni usa notify_when_available. Lo
    * calcula `listaDeEsperaDisponible()` (modules/whatsapp/service.ts). */
   listaDeEspera?: boolean;
-  /** Privacidad (PLAN-TELEFONIA-UX.md § 3, caso C): con `true` la
+  /** Privacidad (docs/historico/PLAN-TELEFONIA-UX.md § 3, caso C): con `true`
+   * la
    * recepcionista nunca dice el número del negocio al cliente; toma recado
    * y el negocio le llama. Es `Business.hideOwnerNumberFromClients`. */
   ocultarNumeroDelNegocio?: boolean;
