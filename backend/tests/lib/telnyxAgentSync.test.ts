@@ -14,7 +14,7 @@ vi.mock("../../src/lib/prisma.js", () => ({
     business: { findUnique: vi.fn() },
     service: { findMany: vi.fn() },
     professional: { findMany: vi.fn() },
-    agent: { findMany: vi.fn(), update: vi.fn() },
+    agent: { findMany: vi.fn(), findUnique: vi.fn(), update: vi.fn() },
   },
 }));
 
@@ -37,6 +37,7 @@ const mockedServiceFindMany = vi.mocked(prisma.service.findMany);
 const mockedProfessionalFindMany = vi.mocked(prisma.professional.findMany);
 const mockedAgentFindMany = vi.mocked(prisma.agent.findMany);
 const mockedAgentUpdate = vi.mocked(prisma.agent.update);
+const mockedAgentFindUnique = vi.mocked(prisma.agent.findUnique);
 const mockedCreateAssistant = vi.mocked(telnyxAiAdapter.createAssistant);
 const mockedUpdateAssistant = vi.mocked(telnyxAiAdapter.updateAssistant);
 const mockedListVoices = vi.mocked(telnyxAiAdapter.listVoices);
@@ -95,8 +96,15 @@ function agenteSincronizable() {
 
 const mockedListaDeEspera = vi.mocked(listaDeEsperaDisponible);
 
+const AGENTE_NUEVO = {
+  id: "agent1",
+  systemPrompt: "prompt guardado",
+  promptManuallyEdited: false,
+};
+
 beforeEach(() => {
   vi.clearAllMocks();
+  mockedAgentFindUnique.mockResolvedValue(AGENTE_NUEVO as any);
   mockedServiceFindMany.mockResolvedValue([]);
   mockedProfessionalFindMany.mockResolvedValue([]);
   mockedListVoices.mockResolvedValue(ELIGIBLE_VOICES);
@@ -223,6 +231,133 @@ describe("createTelnyxAssistantForAgent", () => {
       eligible: false,
       reason: "Negocio no encontrado.",
     });
+  });
+
+  it("crea el assistant con las tools de voz y las palabras clave desde el primer momento", async () => {
+    mockedBusinessFindUnique.mockResolvedValue(BASE_BUSINESS as any);
+    mockedServiceFindMany.mockResolvedValue([{ name: "Corte" }] as any);
+    mockedProfessionalFindMany.mockResolvedValue([{ name: "Montse" }] as any);
+    mockedCreateAssistant.mockResolvedValue({
+      id: "assistant_1",
+      name: "alhabla-biz1-agent1",
+      instructions: "i",
+    });
+
+    await createTelnyxAssistantForAgent({
+      agentId: "agent1",
+      businessId: "biz1",
+    });
+
+    const payload = mockedCreateAssistant.mock.calls[0][0];
+    const nombres = payload.tools!.map((tool) =>
+      tool.type === "webhook" ? tool.webhook.name : tool.type
+    );
+    expect(nombres).toEqual(
+      expect.arrayContaining([
+        "get_catalog",
+        "check_availability",
+        "book_appointment",
+        "find_my_appointment",
+        "cancel_appointment",
+        "hangup",
+      ])
+    );
+    expect(payload.transcription?.settings).toMatchObject({
+      keyterm: "Corte,Montse",
+    });
+  });
+
+  it("guarda el mismo hash que calcula la sincronización: la primera sincronización tras crear no llama a Telnyx", async () => {
+    mockedBusinessFindUnique.mockResolvedValue(BASE_BUSINESS as any);
+    mockedCreateAssistant.mockResolvedValue({
+      id: "assistant_1",
+      name: "alhabla-biz1-agent1",
+      instructions: "i",
+    });
+
+    await createTelnyxAssistantForAgent({
+      agentId: "agent1",
+      businessId: "biz1",
+    });
+    const datos = (mockedAgentUpdate.mock.calls[0][0] as any).data;
+    expect(datos.telnyxConfigHash).toEqual(expect.any(String));
+    // La copia del panel queda igual que la que dejaría la sincronización.
+    expect(datos.systemPrompt).toEqual(expect.any(String));
+    mockedAgentUpdate.mockClear();
+
+    mockedAgentFindMany.mockResolvedValue([
+      {
+        ...AGENTE_NUEVO,
+        telnyxAssistantId: "assistant_1",
+        telnyxConfigHash: datos.telnyxConfigHash,
+      },
+    ] as any);
+    await syncAgentToTelnyx("biz1");
+
+    expect(mockedUpdateAssistant).not.toHaveBeenCalled();
+    expect(mockedAgentUpdate).toHaveBeenCalledTimes(1);
+  });
+
+  it("sin BASE_URL no crea el assistant: una recepcionista sin tools no puede reservar", async () => {
+    const baseUrlOriginal = process.env.BASE_URL;
+    delete process.env.BASE_URL;
+    mockedBusinessFindUnique.mockResolvedValue(BASE_BUSINESS as any);
+
+    try {
+      const result = await createTelnyxAssistantForAgent({
+        agentId: "agent1",
+        businessId: "biz1",
+      });
+
+      expect(result.eligible).toBe(false);
+      expect(result.reason).toMatch(/BASE_URL/);
+      expect(mockedCreateAssistant).not.toHaveBeenCalled();
+      expect(mockedAgentUpdate).not.toHaveBeenCalled();
+    } finally {
+      if (baseUrlOriginal === undefined) delete process.env.BASE_URL;
+      else process.env.BASE_URL = baseUrlOriginal;
+    }
+  });
+
+  it("un agente con el prompt editado a mano nace con su prompt y sin tocar la copia del panel", async () => {
+    mockedBusinessFindUnique.mockResolvedValue(BASE_BUSINESS as any);
+    mockedAgentFindUnique.mockResolvedValue({
+      id: "agent1",
+      systemPrompt: "Eres la recepcionista de Lola. Sé breve.",
+      promptManuallyEdited: true,
+    } as any);
+    mockedCreateAssistant.mockResolvedValue({
+      id: "assistant_1",
+      name: "alhabla-biz1-agent1",
+      instructions: "i",
+    });
+
+    await createTelnyxAssistantForAgent({
+      agentId: "agent1",
+      businessId: "biz1",
+    });
+
+    expect(mockedCreateAssistant.mock.calls[0][0].instructions).toBe(
+      "Eres la recepcionista de Lola. Sé breve."
+    );
+    const datos = (mockedAgentUpdate.mock.calls[0][0] as any).data;
+    expect(datos).not.toHaveProperty("systemPrompt");
+  });
+
+  it("devuelve no elegible si el agente no existe", async () => {
+    mockedBusinessFindUnique.mockResolvedValue(BASE_BUSINESS as any);
+    mockedAgentFindUnique.mockResolvedValue(null);
+
+    const result = await createTelnyxAssistantForAgent({
+      agentId: "agent_missing",
+      businessId: "biz1",
+    });
+
+    expect(result).toEqual({
+      eligible: false,
+      reason: "Agente no encontrado.",
+    });
+    expect(mockedCreateAssistant).not.toHaveBeenCalled();
   });
 });
 
@@ -422,27 +557,17 @@ describe("transferencia al dueño (fase 4)", () => {
     );
   });
 
-  it("también entra cuando calendar/service.ts pasa sus propias tools de webhook", async () => {
+  it("la tool transfer va detrás de las tools de voz y antes de hangup", async () => {
     mockedBusinessFindUnique.mockResolvedValue(BUSINESS_PRINCIPAL as any);
     mockedAgentFindMany.mockResolvedValue(agenteSincronizable());
 
-    await syncAgentToTelnyx("biz1", prisma, {
-      tools: [
-        {
-          name: "get_catalog",
-          description: "d",
-          url: "https://api.example.test/webhooks/telnyx/tools/get_catalog",
-          properties: {},
-        },
-      ],
-    });
+    await syncAgentToTelnyx("biz1");
 
-    const payload = mockedUpdateAssistant.mock.calls[0][1];
-    expect(payload.tools!.map((tool) => tool.type)).toEqual([
-      "webhook",
-      "transfer",
-      "hangup",
-    ]);
+    const tipos = mockedUpdateAssistant.mock.calls[0][1].tools!.map(
+      (tool) => tool.type
+    );
+    expect(tipos.slice(-2)).toEqual(["transfer", "hangup"]);
+    expect(tipos.slice(0, -2).every((tipo) => tipo === "webhook")).toBe(true);
   });
 
   it("al crear el assistant también lleva la tool cuando procede", async () => {
