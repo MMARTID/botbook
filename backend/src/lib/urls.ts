@@ -1,9 +1,9 @@
 /**
- * URLs públicas de las dos webs (docs/historico/PLAN-APP-DOMINIO.md § 2):
- * la app
- * (`APP_URL`, app.alhabla.ai) y la web de marketing (`WEB_URL`, alhabla.ai).
- * Hasta el corte las dos apuntan al mismo sitio; `FRONTEND_URL` sigue
- * valiendo como respaldo de las dos para no romper dev ni el deploy actual.
+ * URLs públicas de las dos webs (docs/historico/PLAN-APP-DOMINIO.md § 2): la
+ * app (`APP_URL`, app.alhabla.ai) y la web de marketing (`WEB_URL`,
+ * alhabla.ai), separadas desde el corte del 21-09-2026. `FRONTEND_URL` queda
+ * como último respaldo de las dos, pendiente de retirar (AGENTS.md
+ * § Deployment Notes).
  * Todo lo que el backend enlaza (emails, WhatsApp, SMS, vueltas de OAuth y de
  * Stripe) es de la app; la web solo origina el registro y la recuperación de
  * contraseña, y para eso basta con admitir su origen en CORS.

@@ -4,7 +4,7 @@ import type { NicheAccent, NicheSlug } from "./niche-landings";
  * Colores de acento por nicho, separados de niche-landings.ts para que un
  * consumidor que solo necesita el color (p. ej. la pastilla de categoría de
  * la demo) no cargue el copy completo de las landings (FAQs, estadísticas,
- * conversaciones de ejemplo). niche-landings.ts reexporta estos mismos
+ * ejemplos del asistente). niche-landings.ts reexporta estos mismos
  * valores para sus landings — una sola fuente de verdad.
  */
 export const NICHE_ACCENTS: Record<NicheSlug, NicheAccent> = {

@@ -11,12 +11,12 @@ const FALLBACK_ACCENT: NicheAccent = { strong: "#8b5cf6", soft: "#f3eeff", deep:
  * sobre una acción pendiente, patrón real del Gestor). No es una ilustración
  * genérica — reproduce el turno a turno de la conversación.
  *
- * Colores de burbuja iguales al resto del sitio (negro/blanco, como
- * `HeroConversation`): el icono y la cabecera ya dejan claro que es
- * WhatsApp, así que no hace falta el verde de marca de WhatsApp para
- * identificarlo — mantiene la Regla del Acento Único. La confirmación final
- * sí usa `--success`/`--success-surface` (verde de estado, no de marca),
- * porque es justo lo que representa: una acción ya hecha.
+ * Colores de burbuja iguales al resto del sitio (negro/blanco): el icono y
+ * la cabecera ya dejan claro que es WhatsApp, así que no hace falta el verde
+ * de marca de WhatsApp para identificarlo — mantiene la Regla del Acento
+ * Único. La confirmación final sí usa `--success`/`--success-surface` (verde
+ * de estado, no de marca), porque es justo lo que representa: una acción ya
+ * hecha.
  */
 export function OwnerAssistantChatMockup({ data, accent }: { data: OwnerAssistantChat; accent?: NicheAccent }) {
   const a = accent ?? FALLBACK_ACCENT;

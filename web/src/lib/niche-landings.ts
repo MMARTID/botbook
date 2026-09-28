@@ -104,7 +104,6 @@ export type NicheLandingContent = {
   heroDescription: string;
   demoTitle: string;
   demoSteps: [string, string, string];
-  conversations?: import("@/components/hero-conversation").Conversation[];
   sectionTitle: string;
   sectionDescription: string;
   highlights: [Benefit, Benefit, Benefit];
@@ -152,44 +151,6 @@ export const nicheLandings: Record<NicheSlug, NicheLandingContent> = {
     heroDescription: "Alhabla atiende llamadas, resuelve dudas sobre cortes y color, y agenda citas 24/7 — incluso cuando todo el equipo está con clientes.",
     demoTitle: "Así reserva un servicio de peluquería",
     demoSteps: ["Configura cortes, color, mechas y tratamientos.", "Conecta horarios, profesionales y calendario.", "Atiende llamadas incluso durante las horas punta."],
-    conversations: [
-      {
-        caller: "Cliente · móvil",
-        context: "Reserva de corte y color",
-        messages: [
-          { sender: "client", text: "¿Tenéis hueco para corte y color mañana?", delay: 0.35 },
-          { sender: "agent", text: "Sí, disponible 16:30 o 18:00. Son 90 minutos.", delay: 2.1 },
-          { sender: "client", text: "16:30 me va bien, gracias.", delay: 3.7 },
-        ],
-        result: "Cita confirmada",
-        resultDetail: "Mañana · 16:30 · Corte + color",
-        duration: 6600,
-      },
-      {
-        caller: "Cliente habitual",
-        context: "Cambio de cita",
-        messages: [
-          { sender: "client", text: "¿Puedo mover mi mechas del jueves?", delay: 0.35 },
-          { sender: "agent", text: "Claro, viernes 11:00 está libre.", delay: 2.1 },
-          { sender: "client", text: "Perfecto, pásala al viernes.", delay: 3.7 },
-        ],
-        result: "Cambio realizado",
-        resultDetail: "Viernes · 11:00 · Mechas",
-        duration: 6600,
-      },
-      {
-        caller: "Cliente · móvil",
-        context: "Consulta de tratamiento",
-        messages: [
-          { sender: "client", text: "¿Cuánto dura el alisado orgánico?", delay: 0.35 },
-          { sender: "agent", text: "Dura 2 h 30 min. Puedo ofrecerte el sábado 10:00.", delay: 2.1 },
-          { sender: "client", text: "Vale, resérvalo.", delay: 3.7 },
-        ],
-        result: "Consulta resuelta",
-        resultDetail: "Sábado · 10:00 · Alisado orgánico",
-        duration: 6600,
-      },
-    ],
     sectionTitle: "Atiende cada llamada. Sin dejar a un cliente a medias.",
     sectionDescription: "El teléfono deja de competir con el trabajo en cabina y se convierte en un canal de reservas siempre disponible.",
     highlights: [
@@ -280,44 +241,6 @@ export const nicheLandings: Record<NicheSlug, NicheLandingContent> = {
     heroDescription: "Alhabla atiende llamadas, informa sobre tratamientos y agenda citas 24/7 — incluso mientras estás en cabina.",
     demoTitle: "Así gestiona una consulta estética",
     demoSteps: ["Carga tratamientos, bonos y preguntas frecuentes.", "Define qué consultas requieren valoración humana.", "Conecta cabinas, profesionales y disponibilidad."],
-    conversations: [
-      {
-        caller: "Cliente · móvil",
-        context: "Reserva de tratamiento facial",
-        messages: [
-          { sender: "client", text: "Quiero un facial hidratante esta semana", delay: 0.35 },
-          { sender: "agent", text: "Tengo hueco miércoles 18:30 o jueves 12:00. Dura 60 minutos.", delay: 2.1 },
-          { sender: "client", text: "Miércoles 18:30, por favor.", delay: 3.7 },
-        ],
-        result: "Cita confirmada",
-        resultDetail: "Miércoles · 18:30 · Facial hidratante",
-        duration: 6600,
-      },
-      {
-        caller: "Cliente",
-        context: "Consulta sobre contraindicaciones",
-        messages: [
-          { sender: "client", text: "¿El peeling químico necesita valoración previa?", delay: 0.35 },
-          { sender: "agent", text: "Sí, derivaré tu caso a un profesional para confirmarlo antes de reservar.", delay: 2.1 },
-          { sender: "client", text: "De acuerdo, espero su confirmación.", delay: 3.7 },
-        ],
-        result: "Derivado al equipo",
-        resultDetail: "Valoración previa pendiente",
-        duration: 6600,
-      },
-      {
-        caller: "Cliente habitual",
-        context: "Bonos y seguimiento",
-        messages: [
-          { sender: "client", text: "Me queda 1 sesión de bono corporal, ¿puedo agendar?", delay: 0.35 },
-          { sender: "agent", text: "Sí, viernes 10:00 o 12:30 con tu especialista.", delay: 2.1 },
-          { sender: "client", text: "10:00 está bien.", delay: 3.7 },
-        ],
-        result: "Seguimiento agendado",
-        resultDetail: "Viernes · 10:00 · Sesión bono corporal",
-        duration: 6600,
-      },
-    ],
     sectionTitle: "Atiende cada consulta. Sin interrumpir el tratamiento.",
     sectionDescription: "Responde con consistencia, filtra consultas y reserva sólo cuando se cumplen las reglas del tratamiento.",
     highlights: [
@@ -409,44 +332,6 @@ export const nicheLandings: Record<NicheSlug, NicheLandingContent> = {
     heroDescription: "Alhabla atiende llamadas, responde precios y agenda citas 24/7 — incluso mientras trabajas en una uña.",
     demoTitle: "Así reserva una cita de uñas",
     demoSteps: ["Configura técnicas, retiradas y extras de nail art.", "Asigna duración y especialista a cada técnica.", "Recupera citas recurrentes incluso fuera de horario."],
-    conversations: [
-      {
-        caller: "Clienta · móvil",
-        context: "Reserva de manicura",
-        messages: [
-          { sender: "client", text: "¿Tenéis manicura semipermanente mañana?", delay: 0.35 },
-          { sender: "agent", text: "Sí, 17:00 o 18:30. Incluye retirada si la necesitas.", delay: 2.1 },
-          { sender: "client", text: "17:00 perfecto, con retirada.", delay: 3.7 },
-        ],
-        result: "Cita confirmada",
-        resultDetail: "Mañana · 17:00 · Semipermanente + retirada",
-        duration: 6600,
-      },
-      {
-        caller: "Clienta",
-        context: "Nail art",
-        messages: [
-          { sender: "client", text: "Quiero nail art sencillo para el viernes", delay: 0.35 },
-          { sender: "agent", text: "Viernes 12:00 disponible. Añadiré 15 minutos para el diseño.", delay: 2.1 },
-          { sender: "client", text: "Reserva, gracias", delay: 3.7 },
-        ],
-        result: "Cita ajustada",
-        resultDetail: "Viernes · 12:00 · Nail art simple",
-        duration: 6600,
-      },
-      {
-        caller: "Clienta habitual",
-        context: "Próxima visita",
-        messages: [
-          { sender: "client", text: "Quiero agendar mi próxima pedicura en 3 semanas", delay: 0.35 },
-          { sender: "agent", text: "Te propongo martes 10:00 o miércoles 17:30.", delay: 2.1 },
-          { sender: "client", text: "Miércoles 17:30 está bien.", delay: 3.7 },
-        ],
-        result: "Recurrencia asegurada",
-        resultDetail: "Miércoles · 17:30 · Pedicura",
-        duration: 6600,
-      },
-    ],
     sectionTitle: "Atiende cada llamada. Sin parar el pincel.",
     sectionDescription: "Atiende consultas rápidas y reserva servicios recurrentes mientras el equipo sigue trabajando.",
     highlights: [
@@ -536,44 +421,6 @@ export const nicheLandings: Record<NicheSlug, NicheLandingContent> = {
     heroDescription: "Alhabla atiende llamadas, resuelve dudas sobre servicios y agenda citas 24/7 — incluso con todas las sillas ocupadas.",
     demoTitle: "Así reserva una cita de barbería",
     demoSteps: ["Configura corte, barba, afeitado y packs.", "Asigna barberos, tiempos y horarios.", "Atiende llamadas rápidas durante las horas punta."],
-    conversations: [
-      {
-        caller: "Cliente · móvil",
-        context: "Corte rápido",
-        messages: [
-          { sender: "client", text: "¿Hay hueco para corte esta tarde?", delay: 0.35 },
-          { sender: "agent", text: "Sí, 18:15 o 18:45 con tu barbero habitual.", delay: 2.1 },
-          { sender: "client", text: "18:15, gracias.", delay: 3.7 },
-        ],
-        result: "Cita confirmada",
-        resultDetail: "Hoy · 18:15 · Corte",
-        duration: 6600,
-      },
-      {
-        caller: "Cliente habitual",
-        context: "Pack corte + barba",
-        messages: [
-          { sender: "client", text: "Quiero corte y barba para mañana", delay: 0.35 },
-          { sender: "agent", text: "Mañana 12:00 o 13:00. Reservo 45 minutos para el pack.", delay: 2.1 },
-          { sender: "client", text: "12:00 está bien.", delay: 3.7 },
-        ],
-        result: "Pack agendado",
-        resultDetail: "Mañana · 12:00 · Corte + barba",
-        duration: 6600,
-      },
-      {
-        caller: "Cliente",
-        context: "Urgencia de última hora",
-        messages: [
-          { sender: "client", text: "¿Puedo pasar ya para un arreglado de barba?", delay: 0.35 },
-          { sender: "agent", text: "Tengo hueco en 25 minutos. ¿Lo reservo?", delay: 2.1 },
-          { sender: "client", text: "Sí, reservalo.", delay: 3.7 },
-        ],
-        result: "Hueco aprovechado",
-        resultDetail: "En 25 min · Arreglo de barba",
-        duration: 6600,
-      },
-    ],
     sectionTitle: "Atiende cada llamada. Sin detener una navaja.",
     sectionDescription: "Convierte consultas rápidas en citas confirmadas sin detener un corte ni perder ritmo en el local.",
     highlights: [
@@ -668,44 +515,6 @@ export const nicheLandings: Record<NicheSlug, NicheLandingContent> = {
       "Configura primeras visitas, seguimientos y especialidades.",
       "Define qué consultas deben derivarse al fisioterapeuta.",
       "Conecta profesionales, duración de sesión y calendario.",
-    ],
-    conversations: [
-      {
-        caller: "Paciente · móvil",
-        context: "Primera visita",
-        messages: [
-          { sender: "client", text: "Necesito primera sesión por dolor lumbar", delay: 0.35 },
-          { sender: "agent", text: "Tengo mañana 10:30 o 12:00. Reservo 60 min para valoración inicial.", delay: 2.1 },
-          { sender: "client", text: "10:30, por favor.", delay: 3.7 },
-        ],
-        result: "Cita inicial",
-        resultDetail: "Mañana · 10:30 · Valoración lumbar",
-        duration: 6600,
-      },
-      {
-        caller: "Paciente habitual",
-        context: "Seguimiento",
-        messages: [
-          { sender: "client", text: "Quiero seguir con la misma fisio la semana que viene", delay: 0.35 },
-          { sender: "agent", text: "Disponible martes 18:00 o jueves 12:30 con tu fisioterapeuta.", delay: 2.1 },
-          { sender: "client", text: "Jueves 12:30 está bien.", delay: 3.7 },
-        ],
-        result: "Continuidad",
-        resultDetail: "Jueves · 12:30 · Seguimiento",
-        duration: 6600,
-      },
-      {
-        caller: "Paciente",
-        context: "Consulta a derivar",
-        messages: [
-          { sender: "client", text: "Tengo una lesión de rodilla, ¿qué me recomendáis?", delay: 0.35 },
-          { sender: "agent", text: "Derivaré tu caso al fisioterapeuta para que confirme el tratamiento antes de reservar.", delay: 2.1 },
-          { sender: "client", text: "De acuerdo, quedo atento.", delay: 3.7 },
-        ],
-        result: "Derivado al profesional",
-        resultDetail: "Valoración previa necesaria",
-        duration: 6600,
-      },
     ],
     sectionTitle: "Atiende cada llamada. Sin interrumpir la sesión.",
     sectionDescription: "El teléfono deja de interrumpir el tratamiento y sigue convirtiendo consultas en citas confirmadas durante todo el día.",
