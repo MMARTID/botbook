@@ -1,0 +1,1090 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`payloads de asistentes (instantáneas) > assistant de la recepcionista, completo con transferencia y palabras clave 1`] = `
+{
+  "fallbackConfig": {
+    "model": "moonshotai/Kimi-K2.6",
+  },
+  "greeting": "Peluquería Ana, dígame.",
+  "insightGroupId": undefined,
+  "instructions": "Hola Peluquería Ana, llama {{telnyx_end_user_target}} a las {{telnyx_current_time_Europe/Madrid}} (Europe/Madrid).",
+  "interruptionSettings": {
+    "interrupt_prediction_threshold": 0.4,
+    "start_speaking_plan": {
+      "wait_seconds": 0.1,
+    },
+  },
+  "model": "openai/gpt-5.6-luna",
+  "name": "alhabla-neg_1-ag_1",
+  "postConversationSettings": {
+    "enabled": true,
+  },
+  "privacySettings": {
+    "data_retention": true,
+  },
+  "telephonySettings": {
+    "noise_suppression": "disabled",
+    "recording_settings": {
+      "channels": "dual",
+      "enabled": true,
+      "format": "wav",
+      "stop_on_conversation_end": true,
+    },
+    "send_conversation_message_events": true,
+    "time_limit_secs": 600,
+    "user_idle_reply_secs": 12,
+    "user_idle_timeout_secs": 30,
+  },
+  "tools": [
+    {
+      "type": "webhook",
+      "webhook": {
+        "body_parameters": {
+          "properties": {},
+          "required": undefined,
+          "type": "object",
+        },
+        "description": "Obtiene los servicios activos con sus IDs y duraciones, los profesionales y el horario del negocio. Úsala cuando el cliente pregunte por ellos o antes de comprobar/reservar si necesitas un ID o duración.",
+        "headers": [
+          {
+            "name": "X-Alhabla-Call-Control-Id",
+            "value": "{{call_control_id}}",
+          },
+        ],
+        "method": "POST",
+        "name": "get_catalog",
+        "timeout_ms": 20000,
+        "url": "https://api.alhabla.test/webhooks/telnyx/tools/get_catalog",
+      },
+    },
+    {
+      "type": "webhook",
+      "webhook": {
+        "body_parameters": {
+          "properties": {
+            "durationMinutes": {
+              "description": "Duración total de la cita en minutos.",
+              "type": "number",
+            },
+            "professionalConfirmed": {
+              "description": "true SOLO si ya propusiste una vez a la persona que recomendó la herramienta y el cliente insistió en la que pidió por su nombre. Nunca lo envíes en la primera comprobación.",
+              "type": "boolean",
+            },
+            "professionalId": {
+              "description": "ID exacto copiado tal cual de get_catalog, solo si el cliente pidió a un profesional concreto por su nombre (opcional). Déjalo vacío si no lo nombró: nunca elijas tú a nadie.",
+              "type": "string",
+            },
+            "serviceIds": {
+              "description": "IDs de los servicios pedidos, copiados exactamente de get_catalog carácter a carácter (opcional; puede ser más de uno si el cliente pide varios servicios en la misma cita, ej. corte y mechas). Se prioriza al profesional que domine todos esos servicios.",
+              "items": {
+                "type": "string",
+              },
+              "type": "array",
+            },
+            "startDateTime": {
+              "description": "Inicio solicitado en formato ISO 8601, en HORA LOCAL del negocio con su offset explícito (ej. 2026-09-18T16:00:00+02:00). Nunca en UTC (+00:00/Z): las cuatro de la tarde son 16:00 con el offset local.",
+              "type": "string",
+            },
+          },
+          "required": [
+            "startDateTime",
+            "durationMinutes",
+          ],
+          "type": "object",
+        },
+        "description": "Comprueba una cita en una fecha y hora concretas: valida horario, restricciones, capacidad, profesionales y calendario real. Úsala antes de book_appointment y conserva el availabilityToken que devuelve. Si el cliente no pide a nadie, no envíes professionalId: el sistema asigna a quien mejor hace el servicio y lo devuelve en assignedProfessional. Si devuelve recommendation, propón UNA vez a esa persona siguiendo sus instructions.",
+        "headers": [
+          {
+            "name": "X-Alhabla-Call-Control-Id",
+            "value": "{{call_control_id}}",
+          },
+        ],
+        "method": "POST",
+        "name": "check_availability",
+        "timeout_ms": 20000,
+        "url": "https://api.alhabla.test/webhooks/telnyx/tools/check_availability",
+      },
+    },
+    {
+      "type": "webhook",
+      "webhook": {
+        "body_parameters": {
+          "properties": {
+            "availabilityToken": {
+              "description": "Token exacto devuelto por check_availability para la opción confirmada.",
+              "type": "string",
+            },
+            "clientEmail": {
+              "description": "El correo electrónico del cliente, si lo proporciona (opcional)",
+              "type": "string",
+            },
+            "clientName": {
+              "description": "El nombre del cliente que hace la reserva",
+              "type": "string",
+            },
+            "clientPhone": {
+              "description": "Teléfono de contacto solo si el cliente eligió uno distinto al detectado automáticamente (opcional).",
+              "type": "string",
+            },
+            "professionalConfirmed": {
+              "description": "true SOLO si check_availability devolvió una recomendación, la propusiste una vez y el cliente insistió en la persona que pidió. Sin esto, la reserva se frena hasta que lo hayas propuesto.",
+              "type": "boolean",
+            },
+            "smsConsent": {
+              "description": "true si el cliente confirmó por voz que puedes enviarle la confirmación (y un recordatorio) por SMS a este número; false si dijo que no o no se le preguntó.",
+              "type": "boolean",
+            },
+          },
+          "required": [
+            "clientName",
+            "availabilityToken",
+          ],
+          "type": "object",
+        },
+        "description": "Agenda una cita en el calendario activo. Úsala solo tras confirmación explícita y con el availabilityToken de check_availability.",
+        "headers": [
+          {
+            "name": "X-Alhabla-Call-Control-Id",
+            "value": "{{call_control_id}}",
+          },
+        ],
+        "method": "POST",
+        "name": "book_appointment",
+        "timeout_ms": 20000,
+        "url": "https://api.alhabla.test/webhooks/telnyx/tools/book_appointment",
+      },
+    },
+    {
+      "type": "webhook",
+      "webhook": {
+        "body_parameters": {
+          "properties": {},
+          "required": undefined,
+          "type": "object",
+        },
+        "description": "Busca la próxima cita del negocio asociada al número desde el que llama, si el cliente dio consentimiento SMS al reservarla. Devuelve también clientName (el nombre con el que se reservó; puede venir vacío en citas antiguas) — úsalo si el cliente quiere recrear la cita al mismo nombre. Úsala solo si quien llama pide cambiar o cancelar una cita existente y no te ha dado datos concretos.",
+        "headers": [
+          {
+            "name": "X-Alhabla-Call-Control-Id",
+            "value": "{{call_control_id}}",
+          },
+        ],
+        "method": "POST",
+        "name": "find_my_appointment",
+        "timeout_ms": 20000,
+        "url": "https://api.alhabla.test/webhooks/telnyx/tools/find_my_appointment",
+      },
+    },
+    {
+      "type": "webhook",
+      "webhook": {
+        "body_parameters": {
+          "properties": {
+            "bookingId": {
+              "description": "El id de la cita devuelto por find_my_appointment.",
+              "type": "string",
+            },
+          },
+          "required": [
+            "bookingId",
+          ],
+          "type": "object",
+        },
+        "description": "Cancela la cita cuyo id devolvió find_my_appointment. Úsala solo tras confirmación explícita del cliente. Para 'modificar' una cita: cancélala con esta tool y reserva la nueva con check_availability + book_appointment.",
+        "headers": [
+          {
+            "name": "X-Alhabla-Call-Control-Id",
+            "value": "{{call_control_id}}",
+          },
+        ],
+        "method": "POST",
+        "name": "cancel_appointment",
+        "timeout_ms": 20000,
+        "url": "https://api.alhabla.test/webhooks/telnyx/tools/cancel_appointment",
+      },
+    },
+    {
+      "type": "webhook",
+      "webhook": {
+        "body_parameters": {
+          "properties": {
+            "clientName": {
+              "description": "Nombre del cliente si ya lo sabes, para reservar a su nombre si se libera la hora.",
+              "type": "string",
+            },
+            "durationMinutes": {
+              "description": "Duración en minutos de la cita que quería.",
+              "type": "number",
+            },
+            "professionalId": {
+              "description": "ID del profesional concreto que pidió, si lo mencionó (opcional).",
+              "type": "string",
+            },
+            "serviceIds": {
+              "description": "IDs de los servicios que pidió, si los mencionó (opcional).",
+              "items": {
+                "type": "string",
+              },
+              "type": "array",
+            },
+            "startDateTime": {
+              "description": "La hora exacta que el cliente quería y no estaba disponible, en formato ISO 8601 en hora local del negocio con su offset explícito (nunca UTC).",
+              "type": "string",
+            },
+          },
+          "required": [
+            "startDateTime",
+            "durationMinutes",
+          ],
+          "type": "object",
+        },
+        "description": "Guarda el aviso de que el cliente quiere que le escribamos por WhatsApp si se libera la hora que pidió y no estaba disponible. Válido tanto si el cliente se va sin reservar nada más como si reserva otra hora igualmente. Úsala solo cuando lo pida explícitamente y haya dado consentimiento para WhatsApp a este número.",
+        "headers": [
+          {
+            "name": "X-Alhabla-Call-Control-Id",
+            "value": "{{call_control_id}}",
+          },
+        ],
+        "method": "POST",
+        "name": "notify_when_available",
+        "timeout_ms": 20000,
+        "url": "https://api.alhabla.test/webhooks/telnyx/tools/notify_when_available",
+      },
+    },
+    {
+      "type": "webhook",
+      "webhook": {
+        "body_parameters": {
+          "properties": {
+            "fallo_de_tool": {
+              "description": "true si alguna herramienta (disponibilidad, reserva, cancelación) falló o devolvió error durante la llamada.",
+              "type": "boolean",
+            },
+            "motivo_escalada": {
+              "description": "Por qué no se resolvió en la llamada. NO_APLICA si se resolvió.",
+              "enum": [
+                "CLIENTE_LO_PIDIO",
+                "FALLO_TECNICO",
+                "FUERA_DE_HORARIO",
+                "CONSULTA_COMPLEJA",
+                "NO_APLICA",
+              ],
+              "type": "string",
+            },
+            "recado": {
+              "description": "Solo si el cliente dejó un recado explícito o pidió que el negocio le llame. Si no, no lo envíes.",
+              "properties": {
+                "motivo": {
+                  "description": "Qué quiere o qué pregunta, en una o dos frases, con sus palabras.",
+                  "type": "string",
+                },
+                "nombre": {
+                  "description": "Nombre que dio el cliente; vacío si no lo dijo.",
+                  "type": "string",
+                },
+                "quiere_que_le_llamen": {
+                  "description": "true si pidió que el negocio le devuelva la llamada.",
+                  "type": "boolean",
+                },
+                "telefono": {
+                  "description": "Teléfono al que quiere que le llamen, SOLO si el cliente lo dictó o confirmó que le llamen al número desde el que llama. Nunca lo rellenes por tu cuenta.",
+                  "type": "string",
+                },
+              },
+              "required": [
+                "motivo",
+              ],
+              "type": "object",
+            },
+            "resultado": {
+              "description": "RESOLVED si el cliente consiguió lo que quería (reservar, consultar, cancelar); FRUSTRATED si se fue molesto o sin solución; NO_ANSWER si nadie habló o colgó enseguida; ESCALATED si hubo que remitirle al negocio; LEAD_CAPTURED si dejó recado o pidió que le llamen.",
+              "enum": [
+                "RESOLVED",
+                "FRUSTRATED",
+                "NO_ANSWER",
+                "ESCALATED",
+                "LEAD_CAPTURED",
+              ],
+              "type": "string",
+            },
+            "servicio_pedido": {
+              "description": "Nombre del servicio que pidió el cliente, tal como aparece en el catálogo; vacío si no pidió ninguno.",
+              "type": "string",
+            },
+          },
+          "required": [
+            "resultado",
+          ],
+          "type": "object",
+        },
+        "description": "Informe final de la llamada para el negocio. Llámala UNA sola vez, solo cuando la llamada ya ha terminado (post-conversación), nunca durante la conversación. Resume cómo acabó y, si el cliente dejó un recado o pidió que le llamen, inclúyelo en recado.",
+        "headers": [
+          {
+            "name": "X-Alhabla-Call-Control-Id",
+            "value": "{{call_control_id}}",
+          },
+        ],
+        "method": "POST",
+        "name": "informar_al_negocio",
+        "timeout_ms": 20000,
+        "url": "https://api.alhabla.test/webhooks/telnyx/tools/informar_al_negocio",
+      },
+    },
+    {
+      "transfer": {
+        "from": "+34910000000",
+        "targets": [
+          {
+            "name": "Responsable del negocio",
+            "to": "+34600000000",
+          },
+        ],
+        "voicemail_detection": {
+          "detection_mode": "premium",
+          "on_voicemail_detected": {
+            "action": "stop_transfer",
+          },
+        },
+        "warm_transfer_instructions": "Habla en español. En una sola frase, di que eres la recepcionista de Peluquería Ana y que le pasas a un cliente: su nombre si lo dijo y qué quiere. No hagas preguntas ni esperes respuesta.",
+      },
+      "type": "transfer",
+    },
+    {
+      "hangup": {
+        "description": "Cuelga la llamada cuando la conversación haya terminado.",
+      },
+      "type": "hangup",
+    },
+  ],
+  "transcription": {
+    "language": "es",
+    "model": "deepgram/flux",
+    "settings": {
+      "eager_eot_threshold": 0.4,
+      "eot_threshold": 0.8,
+      "eot_timeout_ms": 5000,
+      "keyterm": "Corte,Laura",
+      "numerals": true,
+      "smart_format": true,
+    },
+  },
+  "voiceSettings": {
+    "background_audio": {
+      "type": "predefined_media",
+      "value": "office",
+      "volume": 0.2,
+    },
+    "expressive_mode": true,
+    "voice": "Telnyx.Ultra.blanca",
+  },
+}
+`;
+
+exports[`payloads de asistentes (instantáneas) > assistant de la recepcionista, mínimo (sin tools, voz Natural) 1`] = `
+{
+  "fallbackConfig": {
+    "model": "moonshotai/Kimi-K2.6",
+  },
+  "greeting": "",
+  "insightGroupId": undefined,
+  "instructions": "Prompt manual.",
+  "interruptionSettings": {
+    "interrupt_prediction_threshold": 0.4,
+    "start_speaking_plan": {
+      "wait_seconds": 0.1,
+    },
+  },
+  "model": "openai/gpt-5.6-luna",
+  "name": "alhabla-neg_2-ag_2",
+  "postConversationSettings": {
+    "enabled": true,
+  },
+  "privacySettings": {
+    "data_retention": true,
+  },
+  "telephonySettings": {
+    "noise_suppression": "disabled",
+    "recording_settings": {
+      "channels": "dual",
+      "enabled": true,
+      "format": "wav",
+      "stop_on_conversation_end": true,
+    },
+    "send_conversation_message_events": true,
+    "time_limit_secs": 600,
+    "user_idle_reply_secs": 12,
+    "user_idle_timeout_secs": 30,
+  },
+  "tools": [],
+  "transcription": {
+    "language": "multi",
+    "model": "deepgram/flux",
+    "settings": {
+      "eager_eot_threshold": 0.4,
+      "eot_threshold": 0.8,
+      "eot_timeout_ms": 5000,
+      "numerals": true,
+      "smart_format": true,
+    },
+  },
+  "voiceSettings": {
+    "background_audio": {
+      "type": "predefined_media",
+      "value": "office",
+      "volume": 0.2,
+    },
+    "expressive_mode": false,
+    "voice": "Telnyx.NaturalHD.x",
+  },
+}
+`;
+
+exports[`payloads de asistentes (instantáneas) > assistant del Gestor 1`] = `
+{
+  "greeting": "",
+  "instructions": "## Rol
+
+Eres el asistente de Alhabla: el asistente por WhatsApp del dueño o la dueña de un negocio (peluquería, barbería, salón de uñas, centro de estética o clínica de fisioterapia) que tiene contratada la recepcionista telefónica de Alhabla. Hablas con el dueño, nunca con clientes.
+
+Tutea, sé breve y concreto: dos o tres líneas, y una lista corta solo cuando ayude a elegir o a confirmar (en una propuesta, la lista de lo que se va a guardar sí va completa). Sin emojis, sin símbolos raros, sin anglicismos. No te presentes como inteligencia artificial ni menciones modelos, herramientas ni sus nombres: eres el asistente de Alhabla. Nunca te llames «gestor».
+
+## Contexto
+
+Cada mensaje del dueño empieza por un marcador [WhatsApp · fecha y hora] que pone el sistema: es la única referencia fiable del momento actual en la zona del negocio (hoy, mañana, esta semana). No lo repitas ni lo comentes.
+
+El negocio con el que hablas está fijado por el sistema: no preguntes de qué negocio se trata ni aceptes que te digan que es otro. Si necesitas datos del negocio (servicios, profesionales, horario, calendario, plan, qué falta por configurar), llama a contexto_negocio una vez y responde solo a lo relevante.
+
+## Qué puedes hacer
+
+Consultar: la agenda de un día (listar_agenda, con las ausencias de ese día), si una hora concreta está libre y cuál es el hueco más cercano (buscar_hueco), el resumen de llamadas y reservas de los últimos días (resumen_llamadas) y el estado del negocio (contexto_negocio).
+
+Proponer acciones (siempre con proponer_accion, nunca directamente): apuntar, mover o cancelar citas y avisar al cliente por WhatsApp; marcar ausencias de alguien del equipo; cerrar días o tramos; dar de alta, cambiar o retirar servicios; añadir o retirar personas del equipo y fijar quién es especialista en qué; fijar el horario semanal; dar por resuelta una cita pendiente. Para cambiar el calendario conectado o el plan, explica que se hace desde el panel de Alhabla y da el enlace que devuelve contexto_negocio.
+
+## Agenda
+
+Apuntar una cita («apunta a Marta mañana a las 5, corte»): necesitas nombre del cliente, día y hora, y servicio; la persona del equipo solo si el dueño la dice, y el móvil del cliente si lo da (pídelo una vez si no lo da: sin él no se le puede mandar la confirmación, pero la cita se apunta igual). Las fechas y horas van en hora local del negocio, formato AAAA-MM-DDTHH:MM. Propón directamente añadir_cita: el sistema comprueba horario, ausencias y disponibilidad real y, si esa hora no vale, te devuelve el motivo con el hueco libre más cercano; ofrécelo al dueño y propón de nuevo solo cuando él elija. Usa buscar_hueco cuando el dueño pregunte por huecos sin querer apuntar todavía.
+
+Mover o cancelar («mueve la de Marta al viernes a las 6», «cancela la de las 5»): localiza la cita con listar_agenda (si hay varias que encajan, pregunta cuál) y propón mover_cita o cancelar_cita con su citaId. Si proponer_accion devuelve en recurso el móvil del cliente, escríbelo tal cual en tu mensaje («Su móvil, por si prefieres llamarle antes: +34…»): el dueño puede preferir llamarle, y la propuesta le espera 24 horas. Tras confirmar, el sistema mismo le pregunta con botones si avisa al cliente por WhatsApp: no lo preguntes tú ni propongas avisar_cliente salvo que el dueño lo pida después expresamente.
+
+Ausencias y cierres: «Laura no viene el viernes» es marcar_ausencia (días enteros si no dice horas); «cerramos el sábado por la tarde» es bloquear_franja; «el 12 cerramos» o «vacaciones del 1 al 15» es cerrar_dia. Si la comprobación avisa de citas ya reservadas en ese tramo, díselo al dueño y ofrécete a moverlas o cancelarlas una a una.
+
+## Poner en marcha la recepcionista
+
+Si contexto_negocio devuelve algo en faltaPorConfigurar, la recepcionista aún no puede trabajar del todo: ofrécete a dejarla lista ahora, por pasos y en este orden, un paso por mensaje: servicios (qué ofrece, cuánto dura cada uno y, si quiere, el precio), personas del equipo (y en qué es especialista cada una), horario semanal, y calendario (se conecta desde el panel con el enlace de contexto_negocio; no lo puedes conectar tú). Solo pide lo que falte; lo que ya esté hecho, dalo por bueno.
+
+En cada paso, reúne todos los datos de ese paso en una sola propuesta (una lista de servicios o de personas, la semana entera) y llama a proponer_accion una vez: el dueño confirma con un botón. No propongas un paso hasta tener sus datos completos; si falta algo (la duración de un servicio, un día del horario), pregúntalo antes. Cuando el dueño confirme, sigue con el paso siguiente sin repetir los ya hechos.
+
+Con el horario, si el dueño dice «de lunes a viernes de 9:30 a 20:00 y sábados hasta las 14:00», completa la semana entera (domingo cerrado) y propónlo ya: en el mismo mensaje de la propuesta escribe la semana completa tal como la vas a guardar. Las horas van en formato HH:MM de 24 horas. Si el dueño escribe «empezamos» (o algo parecido) tras darse de alta, es la señal para empezar por el primer paso que falte.
+
+El número de teléfono de Alhabla y el calendario no se configuran por aquí: si faltan, di que se hacen desde el panel y da el enlace de contexto_negocio; no son pasos que tú puedas proponer.
+
+## Regla de oro
+
+Nunca ejecutas nada tú. Cuando el dueño quiera hacer algo que puedes proponer, llama a proponer_accion con el tipo, los parámetros exactos y un resumen de una frase de lo que va a pasar. El sistema añade a tu respuesta los botones Confirmar y Cancelar; el dueño decide con el botón. En ese mismo mensaje di solo qué va a pasar si confirma, sin dar nada por hecho y sin pedirle que escriba sí o no.
+
+No propongas una acción que el dueño no ha pedido con claridad. Si falta un dato (qué cita, qué cliente, qué servicio), pregúntalo antes. Si proponer_accion responde que no procede (el recurso no existe, ya está hecho, el plan no admite más profesionales, un nombre está repetido), explícaselo al dueño con tus palabras, sin tecnicismos ni nombres de campos, y no insistas con otra propuesta igual. Si responde que los parámetros no son válidos, corrígelos tú y vuelve a llamarla: eso el dueño no tiene por qué verlo.
+
+Nombra servicios y personas por su nombre exacto tal como aparecen en contexto_negocio (o por su id) y las citas por su citaId. Una sola propuesta a la vez: hasta que el dueño confirme o cancele la anterior, no propongas otra.
+
+## Límites
+
+No inventes citas, clientes, servicios, precios ni horarios: todo sale de las consultas que haces. Si una consulta falla o no devuelve lo que necesitas, di que ahora mismo no puedes comprobarlo y sugiere el panel, sin nombrar la herramienta.
+
+No des datos de otros negocios ni especules sobre ellos. No compartas números de teléfono de clientes salvo que el dueño pregunte por una cita concreta.
+
+Si el dueño pide ayuda o no sabe qué puede hacer, resume en tres líneas lo que puedes consultar y proponer, y recuerda que puede escribir AYUDA.
+
+Si te escriben en catalán, gallego, euskera o inglés, responde en ese idioma; si no, en castellano.",
+  "model": "openai/gpt-5.6-luna",
+  "name": "alhabla-gestor",
+  "tools": [
+    {
+      "type": "webhook",
+      "webhook": {
+        "body_parameters": {
+          "properties": {},
+          "required": undefined,
+          "type": "object",
+        },
+        "description": "Estado del negocio del dueño con el que hablas: nombre, sector, zona horaria, teléfono, servicios activos con duración y precio (con sus ids), profesionales con sus especialidades (con sus ids), horario, calendario conectado, plan, qué falta por configurar (faltaPorConfigurar), enlaces al panel (enlaces.panel, enlaces.calendario para conectar el calendario), más las citas pendientes de resolver y los recados sin atender. Úsala una vez cuando necesites cualquiera de esos datos y otra vez después de una acción confirmada si necesitas los ids nuevos.",
+        "headers": [
+          {
+            "name": "X-Alhabla-Business",
+            "value": "{{business_id}}",
+          },
+          {
+            "name": "X-Alhabla-Role",
+            "value": "{{role}}",
+          },
+        ],
+        "method": "POST",
+        "name": "contexto_negocio",
+        "timeout_ms": 20000,
+        "url": "https://api.alhabla.test/webhooks/telnyx/gestor/contexto_negocio",
+      },
+    },
+    {
+      "type": "webhook",
+      "webhook": {
+        "body_parameters": {
+          "properties": {
+            "dia": {
+              "description": "Día a consultar: "hoy", "manana" (sin tilde) o una fecha exacta en formato AAAA-MM-DD en la zona del negocio.",
+              "type": "string",
+            },
+          },
+          "required": [
+            "dia",
+          ],
+          "type": "object",
+        },
+        "description": "Citas reservadas de un día concreto, en orden. Úsala cuando el dueño pregunte qué tiene hoy, mañana o un día dado.",
+        "headers": [
+          {
+            "name": "X-Alhabla-Business",
+            "value": "{{business_id}}",
+          },
+          {
+            "name": "X-Alhabla-Role",
+            "value": "{{role}}",
+          },
+        ],
+        "method": "POST",
+        "name": "listar_agenda",
+        "timeout_ms": 20000,
+        "url": "https://api.alhabla.test/webhooks/telnyx/gestor/listar_agenda",
+      },
+    },
+    {
+      "type": "webhook",
+      "webhook": {
+        "body_parameters": {
+          "properties": {
+            "duracionMinutos": {
+              "description": "Duración de la cita en minutos (la suma de los servicios pedidos). Si no se sabe, 30.",
+              "type": "number",
+            },
+            "fechaHora": {
+              "description": "Fecha y hora de inicio en la zona del negocio, formato "AAAA-MM-DDTHH:MM".",
+              "type": "string",
+            },
+            "profesionalId": {
+              "description": "Id de la persona del equipo (de contexto_negocio) si el dueño pide a alguien concreto.",
+              "type": "string",
+            },
+            "servicioIds": {
+              "description": "Ids de los servicios pedidos (de contexto_negocio), para priorizar a quien los hace mejor.",
+              "items": {
+                "type": "string",
+              },
+              "type": "array",
+            },
+          },
+          "required": [
+            "fechaHora",
+          ],
+          "type": "object",
+        },
+        "description": "Comprueba si una hora concreta está libre para una cita (horario, citas, calendario conectado y ausencias) y, si no, devuelve el hueco libre más cercano con quién está libre. Solo consulta: para apuntar la cita hay que proponer añadir_cita.",
+        "headers": [
+          {
+            "name": "X-Alhabla-Business",
+            "value": "{{business_id}}",
+          },
+          {
+            "name": "X-Alhabla-Role",
+            "value": "{{role}}",
+          },
+        ],
+        "method": "POST",
+        "name": "buscar_hueco",
+        "timeout_ms": 20000,
+        "url": "https://api.alhabla.test/webhooks/telnyx/gestor/buscar_hueco",
+      },
+    },
+    {
+      "type": "webhook",
+      "webhook": {
+        "body_parameters": {
+          "properties": {
+            "dias": {
+              "description": "Cuántos días hacia atrás contar, entre 1 y 31. Si el dueño no lo dice, 7.",
+              "type": "number",
+            },
+          },
+          "required": undefined,
+          "type": "object",
+        },
+        "description": "Resumen de los últimos días: llamadas atendidas por la recepcionista, cómo acabaron, citas reservadas, citas pendientes de resolver y recados. Úsala cuando el dueño pregunte cómo va la semana, cuántas llamadas ha habido o qué tiene pendiente.",
+        "headers": [
+          {
+            "name": "X-Alhabla-Business",
+            "value": "{{business_id}}",
+          },
+          {
+            "name": "X-Alhabla-Role",
+            "value": "{{role}}",
+          },
+        ],
+        "method": "POST",
+        "name": "resumen_llamadas",
+        "timeout_ms": 20000,
+        "url": "https://api.alhabla.test/webhooks/telnyx/gestor/resumen_llamadas",
+      },
+    },
+    {
+      "type": "webhook",
+      "webhook": {
+        "body_parameters": {
+          "properties": {
+            "parametros": {
+              "description": "Parámetros según el tipo: resolver_pendiente → { pendienteId: string }; crear_servicios → { servicios: [{ nombre: string, duracionMinutos: number, precioEuros?: number }] } (hasta 20; precioEuros con decimales, omítelo si no lo dice); editar_servicio → { servicio: string (id o nombre exacto), nombre?: string, duracionMinutos?: number, precioEuros?: number | null } (null quita el precio); retirar_servicio → { servicio: string (id o nombre exacto) }; crear_profesionales → { profesionales: [{ nombre: string, especialidades?: string[] (ids o nombres exactos de servicios) }] } (hasta 10); retirar_profesional → { profesional: string (id o nombre exacto) }; fijar_especialidad → { profesional: string, servicio: string, nivel: "especialista" | "normal" | "no_sugerir" }; fijar_horario → { semana: { lunes, martes, miercoles, jueves, viernes, sabado, domingo: { abierto: boolean, tramos: [{ inicio: "HH:MM", fin: "HH:MM" }] } } } (los siete días, hasta 3 tramos por día, claves sin tilde); cerrar_dia → { fecha: "AAAA-MM-DD", hastaFecha?: "AAAA-MM-DD", motivo?: string }; bloquear_franja → { fecha: "AAAA-MM-DD", desde: "HH:MM", hasta: "HH:MM", motivo?: string }; marcar_ausencia → { profesional: string (id o nombre exacto), desde: "AAAA-MM-DD", hasta?: "AAAA-MM-DD", horaInicio?: "HH:MM", horaFin?: "HH:MM", motivo?: string }; añadir_cita → { cliente: string, telefono?: "+34…", fechaHora: "AAAA-MM-DDTHH:MM" (hora local), servicios: string[] (ids o nombres exactos), profesional?: string, duracionMinutos?: number }; mover_cita → { cita: string (citaId de listar_agenda), fechaHora: "AAAA-MM-DDTHH:MM", profesional?: string }; cancelar_cita → { cita: string (citaId de listar_agenda) }; avisar_cliente → { cita: string, tipo: "confirmacion" | "cambio" | "cancelacion", telefono?: "+34…" }.",
+              "type": "object",
+            },
+            "resumen": {
+              "description": "Una frase, hablando tú en primera persona, con lo que va a pasar si el dueño confirma. Ejemplo: «Apunto a Marta el jueves a las 17:00 para un corte con Laura».",
+              "type": "string",
+            },
+            "tipo": {
+              "description": "Tipo de acción: "resolver_pendiente" (dar por resuelta una cita pendiente que el dueño ya apuntó o resolvió él mismo); "crear_servicios" (dar de alta uno o varios servicios, en una sola propuesta); "editar_servicio" (cambiar el nombre, la duración o el precio de un servicio); "retirar_servicio" (dejar de ofrecer un servicio); "crear_profesionales" (añadir una o varias personas al equipo, en una sola propuesta); "retirar_profesional" (alguien deja el equipo); "fijar_especialidad" (decir quién es especialista en qué, quién lo hace sin serlo o a quién no asignar un servicio); "fijar_horario" (fijar o cambiar el horario semanal completo); "cerrar_dia" (cerrar un día concreto (festivo, puente) o varios seguidos con hastaFecha (vacaciones, hasta 31 días)); "bloquear_franja" (cerrar solo un tramo de un día (la tarde del sábado, de 12 a 14 el jueves)); "marcar_ausencia" (alguien del equipo no viene un día, unos días o un tramo (sin horas = días enteros); no se le reservará nada ahí); "añadir_cita" (apuntar una cita en nombre de un cliente; la duración sale de los servicios si no se dice); "mover_cita" (cambiar la hora (y si hace falta la persona) de una cita ya reservada); "cancelar_cita" (cancelar una cita ya reservada); "avisar_cliente" (mandar al cliente por WhatsApp la confirmación de una cita, el aviso de su nueva hora o el de su cancelación (solo si el dueño lo pide y no se le ha preguntado ya con botones)).",
+              "type": "string",
+            },
+          },
+          "required": [
+            "tipo",
+            "parametros",
+            "resumen",
+          ],
+          "type": "object",
+        },
+        "description": "Registra una acción para que el dueño la confirme con un botón. Nunca la ejecuta. Llámala solo cuando el dueño haya pedido con claridad algo que puedes proponer y tengas todos sus datos, con nombres e ids exactos tomados de contexto_negocio, listar_agenda o resumen_llamadas. Una sola propuesta a la vez.",
+        "headers": [
+          {
+            "name": "X-Alhabla-Business",
+            "value": "{{business_id}}",
+          },
+          {
+            "name": "X-Alhabla-Role",
+            "value": "{{role}}",
+          },
+        ],
+        "method": "POST",
+        "name": "proponer_accion",
+        "timeout_ms": 20000,
+        "url": "https://api.alhabla.test/webhooks/telnyx/gestor/proponer_accion",
+      },
+    },
+  ],
+}
+`;
+
+exports[`payloads de asistentes (instantáneas) > el JSON enviado es idéntico byte a byte (hash) 1`] = `
+{
+  "gestor": "d6d743a526a89cee8e0d200f345ca96a482912587fe379e7dfc86d2e7f7ca5d9",
+  "recepcionista": "b262379fd5c9d35c01ded20d32e741e29b673eb87d3a9aad9059a1bf32a69b27",
+}
+`;
+
+exports[`payloads de asistentes (instantáneas) > tools de voz de la recepcionista 1`] = `
+[
+  {
+    "description": "Obtiene los servicios activos con sus IDs y duraciones, los profesionales y el horario del negocio. Úsala cuando el cliente pregunte por ellos o antes de comprobar/reservar si necesitas un ID o duración.",
+    "headers": [
+      {
+        "name": "X-Alhabla-Call-Control-Id",
+        "value": "{{call_control_id}}",
+      },
+    ],
+    "method": "POST",
+    "name": "get_catalog",
+    "properties": {},
+    "timeoutMs": 20000,
+    "url": "https://api.alhabla.test/webhooks/telnyx/tools/get_catalog",
+  },
+  {
+    "description": "Comprueba una cita en una fecha y hora concretas: valida horario, restricciones, capacidad, profesionales y calendario real. Úsala antes de book_appointment y conserva el availabilityToken que devuelve. Si el cliente no pide a nadie, no envíes professionalId: el sistema asigna a quien mejor hace el servicio y lo devuelve en assignedProfessional. Si devuelve recommendation, propón UNA vez a esa persona siguiendo sus instructions.",
+    "headers": [
+      {
+        "name": "X-Alhabla-Call-Control-Id",
+        "value": "{{call_control_id}}",
+      },
+    ],
+    "method": "POST",
+    "name": "check_availability",
+    "properties": {
+      "durationMinutes": {
+        "description": "Duración total de la cita en minutos.",
+        "type": "number",
+      },
+      "professionalConfirmed": {
+        "description": "true SOLO si ya propusiste una vez a la persona que recomendó la herramienta y el cliente insistió en la que pidió por su nombre. Nunca lo envíes en la primera comprobación.",
+        "type": "boolean",
+      },
+      "professionalId": {
+        "description": "ID exacto copiado tal cual de get_catalog, solo si el cliente pidió a un profesional concreto por su nombre (opcional). Déjalo vacío si no lo nombró: nunca elijas tú a nadie.",
+        "type": "string",
+      },
+      "serviceIds": {
+        "description": "IDs de los servicios pedidos, copiados exactamente de get_catalog carácter a carácter (opcional; puede ser más de uno si el cliente pide varios servicios en la misma cita, ej. corte y mechas). Se prioriza al profesional que domine todos esos servicios.",
+        "items": {
+          "type": "string",
+        },
+        "type": "array",
+      },
+      "startDateTime": {
+        "description": "Inicio solicitado en formato ISO 8601, en HORA LOCAL del negocio con su offset explícito (ej. 2026-09-18T16:00:00+02:00). Nunca en UTC (+00:00/Z): las cuatro de la tarde son 16:00 con el offset local.",
+        "type": "string",
+      },
+    },
+    "required": [
+      "startDateTime",
+      "durationMinutes",
+    ],
+    "timeoutMs": 20000,
+    "url": "https://api.alhabla.test/webhooks/telnyx/tools/check_availability",
+  },
+  {
+    "description": "Agenda una cita en el calendario activo. Úsala solo tras confirmación explícita y con el availabilityToken de check_availability.",
+    "headers": [
+      {
+        "name": "X-Alhabla-Call-Control-Id",
+        "value": "{{call_control_id}}",
+      },
+    ],
+    "method": "POST",
+    "name": "book_appointment",
+    "properties": {
+      "availabilityToken": {
+        "description": "Token exacto devuelto por check_availability para la opción confirmada.",
+        "type": "string",
+      },
+      "clientEmail": {
+        "description": "El correo electrónico del cliente, si lo proporciona (opcional)",
+        "type": "string",
+      },
+      "clientName": {
+        "description": "El nombre del cliente que hace la reserva",
+        "type": "string",
+      },
+      "clientPhone": {
+        "description": "Teléfono de contacto solo si el cliente eligió uno distinto al detectado automáticamente (opcional).",
+        "type": "string",
+      },
+      "professionalConfirmed": {
+        "description": "true SOLO si check_availability devolvió una recomendación, la propusiste una vez y el cliente insistió en la persona que pidió. Sin esto, la reserva se frena hasta que lo hayas propuesto.",
+        "type": "boolean",
+      },
+      "smsConsent": {
+        "description": "true si el cliente confirmó por voz que puedes enviarle la confirmación (y un recordatorio) por SMS a este número; false si dijo que no o no se le preguntó.",
+        "type": "boolean",
+      },
+    },
+    "required": [
+      "clientName",
+      "availabilityToken",
+    ],
+    "timeoutMs": 20000,
+    "url": "https://api.alhabla.test/webhooks/telnyx/tools/book_appointment",
+  },
+  {
+    "description": "Busca la próxima cita del negocio asociada al número desde el que llama, si el cliente dio consentimiento SMS al reservarla. Devuelve también clientName (el nombre con el que se reservó; puede venir vacío en citas antiguas) — úsalo si el cliente quiere recrear la cita al mismo nombre. Úsala solo si quien llama pide cambiar o cancelar una cita existente y no te ha dado datos concretos.",
+    "headers": [
+      {
+        "name": "X-Alhabla-Call-Control-Id",
+        "value": "{{call_control_id}}",
+      },
+    ],
+    "method": "POST",
+    "name": "find_my_appointment",
+    "properties": {},
+    "timeoutMs": 20000,
+    "url": "https://api.alhabla.test/webhooks/telnyx/tools/find_my_appointment",
+  },
+  {
+    "description": "Cancela la cita cuyo id devolvió find_my_appointment. Úsala solo tras confirmación explícita del cliente. Para 'modificar' una cita: cancélala con esta tool y reserva la nueva con check_availability + book_appointment.",
+    "headers": [
+      {
+        "name": "X-Alhabla-Call-Control-Id",
+        "value": "{{call_control_id}}",
+      },
+    ],
+    "method": "POST",
+    "name": "cancel_appointment",
+    "properties": {
+      "bookingId": {
+        "description": "El id de la cita devuelto por find_my_appointment.",
+        "type": "string",
+      },
+    },
+    "required": [
+      "bookingId",
+    ],
+    "timeoutMs": 20000,
+    "url": "https://api.alhabla.test/webhooks/telnyx/tools/cancel_appointment",
+  },
+  {
+    "description": "Guarda el aviso de que el cliente quiere que le escribamos por WhatsApp si se libera la hora que pidió y no estaba disponible. Válido tanto si el cliente se va sin reservar nada más como si reserva otra hora igualmente. Úsala solo cuando lo pida explícitamente y haya dado consentimiento para WhatsApp a este número.",
+    "headers": [
+      {
+        "name": "X-Alhabla-Call-Control-Id",
+        "value": "{{call_control_id}}",
+      },
+    ],
+    "method": "POST",
+    "name": "notify_when_available",
+    "properties": {
+      "clientName": {
+        "description": "Nombre del cliente si ya lo sabes, para reservar a su nombre si se libera la hora.",
+        "type": "string",
+      },
+      "durationMinutes": {
+        "description": "Duración en minutos de la cita que quería.",
+        "type": "number",
+      },
+      "professionalId": {
+        "description": "ID del profesional concreto que pidió, si lo mencionó (opcional).",
+        "type": "string",
+      },
+      "serviceIds": {
+        "description": "IDs de los servicios que pidió, si los mencionó (opcional).",
+        "items": {
+          "type": "string",
+        },
+        "type": "array",
+      },
+      "startDateTime": {
+        "description": "La hora exacta que el cliente quería y no estaba disponible, en formato ISO 8601 en hora local del negocio con su offset explícito (nunca UTC).",
+        "type": "string",
+      },
+    },
+    "required": [
+      "startDateTime",
+      "durationMinutes",
+    ],
+    "timeoutMs": 20000,
+    "url": "https://api.alhabla.test/webhooks/telnyx/tools/notify_when_available",
+  },
+  {
+    "description": "Informe final de la llamada para el negocio. Llámala UNA sola vez, solo cuando la llamada ya ha terminado (post-conversación), nunca durante la conversación. Resume cómo acabó y, si el cliente dejó un recado o pidió que le llamen, inclúyelo en recado.",
+    "headers": [
+      {
+        "name": "X-Alhabla-Call-Control-Id",
+        "value": "{{call_control_id}}",
+      },
+    ],
+    "method": "POST",
+    "name": "informar_al_negocio",
+    "properties": {
+      "fallo_de_tool": {
+        "description": "true si alguna herramienta (disponibilidad, reserva, cancelación) falló o devolvió error durante la llamada.",
+        "type": "boolean",
+      },
+      "motivo_escalada": {
+        "description": "Por qué no se resolvió en la llamada. NO_APLICA si se resolvió.",
+        "enum": [
+          "CLIENTE_LO_PIDIO",
+          "FALLO_TECNICO",
+          "FUERA_DE_HORARIO",
+          "CONSULTA_COMPLEJA",
+          "NO_APLICA",
+        ],
+        "type": "string",
+      },
+      "recado": {
+        "description": "Solo si el cliente dejó un recado explícito o pidió que el negocio le llame. Si no, no lo envíes.",
+        "properties": {
+          "motivo": {
+            "description": "Qué quiere o qué pregunta, en una o dos frases, con sus palabras.",
+            "type": "string",
+          },
+          "nombre": {
+            "description": "Nombre que dio el cliente; vacío si no lo dijo.",
+            "type": "string",
+          },
+          "quiere_que_le_llamen": {
+            "description": "true si pidió que el negocio le devuelva la llamada.",
+            "type": "boolean",
+          },
+          "telefono": {
+            "description": "Teléfono al que quiere que le llamen, SOLO si el cliente lo dictó o confirmó que le llamen al número desde el que llama. Nunca lo rellenes por tu cuenta.",
+            "type": "string",
+          },
+        },
+        "required": [
+          "motivo",
+        ],
+        "type": "object",
+      },
+      "resultado": {
+        "description": "RESOLVED si el cliente consiguió lo que quería (reservar, consultar, cancelar); FRUSTRATED si se fue molesto o sin solución; NO_ANSWER si nadie habló o colgó enseguida; ESCALATED si hubo que remitirle al negocio; LEAD_CAPTURED si dejó recado o pidió que le llamen.",
+        "enum": [
+          "RESOLVED",
+          "FRUSTRATED",
+          "NO_ANSWER",
+          "ESCALATED",
+          "LEAD_CAPTURED",
+        ],
+        "type": "string",
+      },
+      "servicio_pedido": {
+        "description": "Nombre del servicio que pidió el cliente, tal como aparece en el catálogo; vacío si no pidió ninguno.",
+        "type": "string",
+      },
+    },
+    "required": [
+      "resultado",
+    ],
+    "timeoutMs": 20000,
+    "url": "https://api.alhabla.test/webhooks/telnyx/tools/informar_al_negocio",
+  },
+]
+`;
+
+exports[`payloads de asistentes (instantáneas) > tools del Gestor 1`] = `
+[
+  {
+    "description": "Estado del negocio del dueño con el que hablas: nombre, sector, zona horaria, teléfono, servicios activos con duración y precio (con sus ids), profesionales con sus especialidades (con sus ids), horario, calendario conectado, plan, qué falta por configurar (faltaPorConfigurar), enlaces al panel (enlaces.panel, enlaces.calendario para conectar el calendario), más las citas pendientes de resolver y los recados sin atender. Úsala una vez cuando necesites cualquiera de esos datos y otra vez después de una acción confirmada si necesitas los ids nuevos.",
+    "headers": [
+      {
+        "name": "X-Alhabla-Business",
+        "value": "{{business_id}}",
+      },
+      {
+        "name": "X-Alhabla-Role",
+        "value": "{{role}}",
+      },
+    ],
+    "method": "POST",
+    "name": "contexto_negocio",
+    "properties": {},
+    "timeoutMs": 20000,
+    "url": "https://api.alhabla.test/webhooks/telnyx/gestor/contexto_negocio",
+  },
+  {
+    "description": "Citas reservadas de un día concreto, en orden. Úsala cuando el dueño pregunte qué tiene hoy, mañana o un día dado.",
+    "headers": [
+      {
+        "name": "X-Alhabla-Business",
+        "value": "{{business_id}}",
+      },
+      {
+        "name": "X-Alhabla-Role",
+        "value": "{{role}}",
+      },
+    ],
+    "method": "POST",
+    "name": "listar_agenda",
+    "properties": {
+      "dia": {
+        "description": "Día a consultar: "hoy", "manana" (sin tilde) o una fecha exacta en formato AAAA-MM-DD en la zona del negocio.",
+        "type": "string",
+      },
+    },
+    "required": [
+      "dia",
+    ],
+    "timeoutMs": 20000,
+    "url": "https://api.alhabla.test/webhooks/telnyx/gestor/listar_agenda",
+  },
+  {
+    "description": "Comprueba si una hora concreta está libre para una cita (horario, citas, calendario conectado y ausencias) y, si no, devuelve el hueco libre más cercano con quién está libre. Solo consulta: para apuntar la cita hay que proponer añadir_cita.",
+    "headers": [
+      {
+        "name": "X-Alhabla-Business",
+        "value": "{{business_id}}",
+      },
+      {
+        "name": "X-Alhabla-Role",
+        "value": "{{role}}",
+      },
+    ],
+    "method": "POST",
+    "name": "buscar_hueco",
+    "properties": {
+      "duracionMinutos": {
+        "description": "Duración de la cita en minutos (la suma de los servicios pedidos). Si no se sabe, 30.",
+        "type": "number",
+      },
+      "fechaHora": {
+        "description": "Fecha y hora de inicio en la zona del negocio, formato "AAAA-MM-DDTHH:MM".",
+        "type": "string",
+      },
+      "profesionalId": {
+        "description": "Id de la persona del equipo (de contexto_negocio) si el dueño pide a alguien concreto.",
+        "type": "string",
+      },
+      "servicioIds": {
+        "description": "Ids de los servicios pedidos (de contexto_negocio), para priorizar a quien los hace mejor.",
+        "items": {
+          "type": "string",
+        },
+        "type": "array",
+      },
+    },
+    "required": [
+      "fechaHora",
+    ],
+    "timeoutMs": 20000,
+    "url": "https://api.alhabla.test/webhooks/telnyx/gestor/buscar_hueco",
+  },
+  {
+    "description": "Resumen de los últimos días: llamadas atendidas por la recepcionista, cómo acabaron, citas reservadas, citas pendientes de resolver y recados. Úsala cuando el dueño pregunte cómo va la semana, cuántas llamadas ha habido o qué tiene pendiente.",
+    "headers": [
+      {
+        "name": "X-Alhabla-Business",
+        "value": "{{business_id}}",
+      },
+      {
+        "name": "X-Alhabla-Role",
+        "value": "{{role}}",
+      },
+    ],
+    "method": "POST",
+    "name": "resumen_llamadas",
+    "properties": {
+      "dias": {
+        "description": "Cuántos días hacia atrás contar, entre 1 y 31. Si el dueño no lo dice, 7.",
+        "type": "number",
+      },
+    },
+    "timeoutMs": 20000,
+    "url": "https://api.alhabla.test/webhooks/telnyx/gestor/resumen_llamadas",
+  },
+  {
+    "description": "Registra una acción para que el dueño la confirme con un botón. Nunca la ejecuta. Llámala solo cuando el dueño haya pedido con claridad algo que puedes proponer y tengas todos sus datos, con nombres e ids exactos tomados de contexto_negocio, listar_agenda o resumen_llamadas. Una sola propuesta a la vez.",
+    "headers": [
+      {
+        "name": "X-Alhabla-Business",
+        "value": "{{business_id}}",
+      },
+      {
+        "name": "X-Alhabla-Role",
+        "value": "{{role}}",
+      },
+    ],
+    "method": "POST",
+    "name": "proponer_accion",
+    "properties": {
+      "parametros": {
+        "description": "Parámetros según el tipo: resolver_pendiente → { pendienteId: string }; crear_servicios → { servicios: [{ nombre: string, duracionMinutos: number, precioEuros?: number }] } (hasta 20; precioEuros con decimales, omítelo si no lo dice); editar_servicio → { servicio: string (id o nombre exacto), nombre?: string, duracionMinutos?: number, precioEuros?: number | null } (null quita el precio); retirar_servicio → { servicio: string (id o nombre exacto) }; crear_profesionales → { profesionales: [{ nombre: string, especialidades?: string[] (ids o nombres exactos de servicios) }] } (hasta 10); retirar_profesional → { profesional: string (id o nombre exacto) }; fijar_especialidad → { profesional: string, servicio: string, nivel: "especialista" | "normal" | "no_sugerir" }; fijar_horario → { semana: { lunes, martes, miercoles, jueves, viernes, sabado, domingo: { abierto: boolean, tramos: [{ inicio: "HH:MM", fin: "HH:MM" }] } } } (los siete días, hasta 3 tramos por día, claves sin tilde); cerrar_dia → { fecha: "AAAA-MM-DD", hastaFecha?: "AAAA-MM-DD", motivo?: string }; bloquear_franja → { fecha: "AAAA-MM-DD", desde: "HH:MM", hasta: "HH:MM", motivo?: string }; marcar_ausencia → { profesional: string (id o nombre exacto), desde: "AAAA-MM-DD", hasta?: "AAAA-MM-DD", horaInicio?: "HH:MM", horaFin?: "HH:MM", motivo?: string }; añadir_cita → { cliente: string, telefono?: "+34…", fechaHora: "AAAA-MM-DDTHH:MM" (hora local), servicios: string[] (ids o nombres exactos), profesional?: string, duracionMinutos?: number }; mover_cita → { cita: string (citaId de listar_agenda), fechaHora: "AAAA-MM-DDTHH:MM", profesional?: string }; cancelar_cita → { cita: string (citaId de listar_agenda) }; avisar_cliente → { cita: string, tipo: "confirmacion" | "cambio" | "cancelacion", telefono?: "+34…" }.",
+        "type": "object",
+      },
+      "resumen": {
+        "description": "Una frase, hablando tú en primera persona, con lo que va a pasar si el dueño confirma. Ejemplo: «Apunto a Marta el jueves a las 17:00 para un corte con Laura».",
+        "type": "string",
+      },
+      "tipo": {
+        "description": "Tipo de acción: "resolver_pendiente" (dar por resuelta una cita pendiente que el dueño ya apuntó o resolvió él mismo); "crear_servicios" (dar de alta uno o varios servicios, en una sola propuesta); "editar_servicio" (cambiar el nombre, la duración o el precio de un servicio); "retirar_servicio" (dejar de ofrecer un servicio); "crear_profesionales" (añadir una o varias personas al equipo, en una sola propuesta); "retirar_profesional" (alguien deja el equipo); "fijar_especialidad" (decir quién es especialista en qué, quién lo hace sin serlo o a quién no asignar un servicio); "fijar_horario" (fijar o cambiar el horario semanal completo); "cerrar_dia" (cerrar un día concreto (festivo, puente) o varios seguidos con hastaFecha (vacaciones, hasta 31 días)); "bloquear_franja" (cerrar solo un tramo de un día (la tarde del sábado, de 12 a 14 el jueves)); "marcar_ausencia" (alguien del equipo no viene un día, unos días o un tramo (sin horas = días enteros); no se le reservará nada ahí); "añadir_cita" (apuntar una cita en nombre de un cliente; la duración sale de los servicios si no se dice); "mover_cita" (cambiar la hora (y si hace falta la persona) de una cita ya reservada); "cancelar_cita" (cancelar una cita ya reservada); "avisar_cliente" (mandar al cliente por WhatsApp la confirmación de una cita, el aviso de su nueva hora o el de su cancelación (solo si el dueño lo pide y no se le ha preguntado ya con botones)).",
+        "type": "string",
+      },
+    },
+    "required": [
+      "tipo",
+      "parametros",
+      "resumen",
+    ],
+    "timeoutMs": 20000,
+    "url": "https://api.alhabla.test/webhooks/telnyx/gestor/proponer_accion",
+  },
+]
+`;

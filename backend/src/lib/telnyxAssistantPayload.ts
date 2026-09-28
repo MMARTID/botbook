@@ -50,6 +50,60 @@ export function toTelnyxWebhookTool(
 }
 
 /**
+ * Canal por el que un tipo de asistente recibe sus tools de webhook: la ruta
+ * del backend (cada ruta tiene su handler en server.ts, con la misma firma
+ * Ed25519 de Telnyx) y las cabeceras con las que Telnyx le dice al backend
+ * QUIÉN llama — nunca el LLM. Un tipo de asistente nuevo con tools propias
+ * declara su canal aquí (ver lib/tiposDeAsistente.ts).
+ */
+export interface CanalDeTools {
+  /** Ruta bajo BASE_URL, sin barra final; la tool va en `<ruta>/<nombre>`. */
+  ruta: string;
+  /** Cabeceras templadas por Telnyx con variables de sistema o metadata. */
+  cabeceras: Array<{ name: string; value: string }>;
+  timeoutMs: number;
+}
+
+/** Recepcionista (voz y chat de clientes por WhatsApp): el negocio sale de
+ * la Call que identifica `{{call_control_id}}` (voiceTools/service.ts). */
+export const CANAL_DE_TOOLS_DE_VOZ: CanalDeTools = {
+  ruta: "/webhooks/telnyx/tools",
+  cabeceras: [
+    { name: "X-Alhabla-Call-Control-Id", value: "{{call_control_id}}" },
+  ],
+  timeoutMs: 20000,
+};
+
+/** Lo que cambia de una tool de webhook a otra: el canal pone el resto. */
+export type DefinicionDeToolDeWebhook = Pick<
+  TelnyxWebhookToolInput,
+  "name" | "description" | "properties" | "required"
+>;
+
+/**
+ * Convierte las definiciones de un tipo de asistente en tools de webhook de
+ * su canal: url `<BASE_URL><ruta>/<name>`, POST, cabeceras y timeout del
+ * canal. Antes cada builder repetía estos cuatro campos en cada tool.
+ */
+export function construirToolsDeWebhook(
+  baseUrl: string,
+  canal: CanalDeTools,
+  definiciones: DefinicionDeToolDeWebhook[]
+): TelnyxWebhookToolInput[] {
+  const base = `${baseUrl.replace(/\/$/, "")}${canal.ruta}`;
+  return definiciones.map((definicion) => ({
+    name: definicion.name,
+    description: definicion.description,
+    url: `${base}/${definicion.name}`,
+    method: "POST",
+    properties: definicion.properties,
+    ...(definicion.required ? { required: definicion.required } : {}),
+    headers: canal.cabeceras.map((cabecera) => ({ ...cabecera })),
+    timeoutMs: canal.timeoutMs,
+  }));
+}
+
+/**
  * Única forma de que el assistant pueda colgar por su cuenta — mismo motivo
  * que la tool `end_call` de Retell (ver agentBootstrap.ts): sin ella la
  * llamada sigue abierta hasta que cuelga el cliente o se agota el límite de
@@ -121,30 +175,20 @@ export function buildTelnyxTransferTool(input: {
  * `telnyxCallBattery.ts` fallaron porque ningún assistant de las 5 cuentas
  * de prueba tenía ya estas tools registradas.
  */
-export function buildTelnyxVoiceTools(baseUrl: string): TelnyxWebhookToolInput[] {
-  const toolBaseUrl = `${baseUrl.replace(/\/$/, "")}/webhooks/telnyx/tools`;
-  const callControlHeader = {
-    name: "X-Alhabla-Call-Control-Id",
-    value: "{{call_control_id}}",
-  };
-
-  return [
+export function buildTelnyxVoiceTools(
+  baseUrl: string
+): TelnyxWebhookToolInput[] {
+  return construirToolsDeWebhook(baseUrl, CANAL_DE_TOOLS_DE_VOZ, [
     {
       name: "get_catalog",
       description:
         "Obtiene los servicios activos con sus IDs y duraciones, los profesionales y el horario del negocio. Úsala cuando el cliente pregunte por ellos o antes de comprobar/reservar si necesitas un ID o duración.",
-      url: `${toolBaseUrl}/get_catalog`,
-      method: "POST",
       properties: {},
-      headers: [callControlHeader],
-      timeoutMs: 20000,
     },
     {
       name: "check_availability",
       description:
         "Comprueba una cita en una fecha y hora concretas: valida horario, restricciones, capacidad, profesionales y calendario real. Úsala antes de book_appointment y conserva el availabilityToken que devuelve. Si el cliente no pide a nadie, no envíes professionalId: el sistema asigna a quien mejor hace el servicio y lo devuelve en assignedProfessional. Si devuelve recommendation, propón UNA vez a esa persona siguiendo sus instructions.",
-      url: `${toolBaseUrl}/check_availability`,
-      method: "POST",
       properties: {
         startDateTime: {
           type: "string",
@@ -173,15 +217,11 @@ export function buildTelnyxVoiceTools(baseUrl: string): TelnyxWebhookToolInput[]
         },
       },
       required: ["startDateTime", "durationMinutes"],
-      headers: [callControlHeader],
-      timeoutMs: 20000,
     },
     {
       name: "book_appointment",
       description:
         "Agenda una cita en el calendario activo. Úsala solo tras confirmación explícita y con el availabilityToken de check_availability.",
-      url: `${toolBaseUrl}/book_appointment`,
-      method: "POST",
       properties: {
         clientName: {
           type: "string",
@@ -214,25 +254,17 @@ export function buildTelnyxVoiceTools(baseUrl: string): TelnyxWebhookToolInput[]
         },
       },
       required: ["clientName", "availabilityToken"],
-      headers: [callControlHeader],
-      timeoutMs: 20000,
     },
     {
       name: "find_my_appointment",
       description:
         "Busca la próxima cita del negocio asociada al número desde el que llama, si el cliente dio consentimiento SMS al reservarla. Devuelve también clientName (el nombre con el que se reservó; puede venir vacío en citas antiguas) — úsalo si el cliente quiere recrear la cita al mismo nombre. Úsala solo si quien llama pide cambiar o cancelar una cita existente y no te ha dado datos concretos.",
-      url: `${toolBaseUrl}/find_my_appointment`,
-      method: "POST",
       properties: {},
-      headers: [callControlHeader],
-      timeoutMs: 20000,
     },
     {
       name: "cancel_appointment",
       description:
         "Cancela la cita cuyo id devolvió find_my_appointment. Úsala solo tras confirmación explícita del cliente. Para 'modificar' una cita: cancélala con esta tool y reserva la nueva con check_availability + book_appointment.",
-      url: `${toolBaseUrl}/cancel_appointment`,
-      method: "POST",
       properties: {
         bookingId: {
           type: "string",
@@ -240,15 +272,11 @@ export function buildTelnyxVoiceTools(baseUrl: string): TelnyxWebhookToolInput[]
         },
       },
       required: ["bookingId"],
-      headers: [callControlHeader],
-      timeoutMs: 20000,
     },
     {
       name: "notify_when_available",
       description:
         "Guarda el aviso de que el cliente quiere que le escribamos por WhatsApp si se libera la hora que pidió y no estaba disponible. Válido tanto si el cliente se va sin reservar nada más como si reserva otra hora igualmente. Úsala solo cuando lo pida explícitamente y haya dado consentimiento para WhatsApp a este número.",
-      url: `${toolBaseUrl}/notify_when_available`,
-      method: "POST",
       properties: {
         startDateTime: {
           type: "string",
@@ -262,11 +290,13 @@ export function buildTelnyxVoiceTools(baseUrl: string): TelnyxWebhookToolInput[]
         serviceIds: {
           type: "array",
           items: { type: "string" },
-          description: "IDs de los servicios que pidió, si los mencionó (opcional).",
+          description:
+            "IDs de los servicios que pidió, si los mencionó (opcional).",
         },
         professionalId: {
           type: "string",
-          description: "ID del profesional concreto que pidió, si lo mencionó (opcional).",
+          description:
+            "ID del profesional concreto que pidió, si lo mencionó (opcional).",
         },
         clientName: {
           type: "string",
@@ -275,11 +305,9 @@ export function buildTelnyxVoiceTools(baseUrl: string): TelnyxWebhookToolInput[]
         },
       },
       required: ["startDateTime", "durationMinutes"],
-      headers: [callControlHeader],
-      timeoutMs: 20000,
     },
-    buildInformarAlNegocioTool(toolBaseUrl, callControlHeader),
-  ];
+    buildInformarAlNegocioTool(),
+  ]);
 }
 
 /**
@@ -292,20 +320,21 @@ export function buildTelnyxVoiceTools(baseUrl: string): TelnyxWebhookToolInput[]
  * recados.ts). El recado (nombre, teléfono, motivo) se convierte en un
  * `Lead` tipo `message` y en el aviso #2 al dueño.
  */
-export function buildInformarAlNegocioTool(
-  toolBaseUrl: string,
-  callControlHeader: { name: string; value: string }
-): TelnyxWebhookToolInput {
+export function buildInformarAlNegocioTool(): DefinicionDeToolDeWebhook {
   return {
     name: "informar_al_negocio",
     description:
       "Informe final de la llamada para el negocio. Llámala UNA sola vez, solo cuando la llamada ya ha terminado (post-conversación), nunca durante la conversación. Resume cómo acabó y, si el cliente dejó un recado o pidió que le llamen, inclúyelo en recado.",
-    url: `${toolBaseUrl}/informar_al_negocio`,
-    method: "POST",
     properties: {
       resultado: {
         type: "string",
-        enum: ["RESOLVED", "FRUSTRATED", "NO_ANSWER", "ESCALATED", "LEAD_CAPTURED"],
+        enum: [
+          "RESOLVED",
+          "FRUSTRATED",
+          "NO_ANSWER",
+          "ESCALATED",
+          "LEAD_CAPTURED",
+        ],
         description:
           "RESOLVED si el cliente consiguió lo que quería (reservar, consultar, cancelar); FRUSTRATED si se fue molesto o sin solución; NO_ANSWER si nadie habló o colgó enseguida; ESCALATED si hubo que remitirle al negocio; LEAD_CAPTURED si dejó recado o pidió que le llamen.",
       },
@@ -359,8 +388,6 @@ export function buildInformarAlNegocioTool(
       },
     },
     required: ["resultado"],
-    headers: [callControlHeader],
-    timeoutMs: 20000,
   };
 }
 
@@ -577,8 +604,13 @@ export function buildTelnyxAssistantPayload(
     voiceSettings: {
       voice: input.voice,
       expressive_mode:
-        input.voice.startsWith("Telnyx.Ultra.") || input.voice.startsWith("XAI."),
-      background_audio: { type: "predefined_media", value: "office", volume: 0.2 },
+        input.voice.startsWith("Telnyx.Ultra.") ||
+        input.voice.startsWith("XAI."),
+      background_audio: {
+        type: "predefined_media",
+        value: "office",
+        volume: 0.2,
+      },
     },
     // deepgram/flux — decisión explícita del usuario 2026-09-12: mejor
     // detección de turno de palabra (end-of-turn/eager end-of-turn) que
@@ -656,7 +688,8 @@ export function buildTelnyxAssistantPayload(
         input.userIdleTimeoutSecs ?? DEFAULT_USER_IDLE_TIMEOUT_SECS,
       user_idle_reply_secs:
         input.userIdleReplySecs ?? DEFAULT_USER_IDLE_REPLY_SECS,
-      time_limit_secs: input.maxCallDurationSecs ?? DEFAULT_MAX_CALL_DURATION_SECS,
+      time_limit_secs:
+        input.maxCallDurationSecs ?? DEFAULT_MAX_CALL_DURATION_SECS,
       // Desactivado a propósito (antes "krisp"): el audio entrante ya se
       // limpia por llamada vía Call Control con el motor AiCoustics/quail,
       // específico para Voice AI/STT (ver TelnyxAiAdapter.startNoiseSuppression,
