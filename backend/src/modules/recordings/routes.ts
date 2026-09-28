@@ -1,4 +1,5 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
+import type { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "../../lib/prisma.js";
 import { conUrlDeGrabacionFirmada } from "../../lib/grabacionFirmada.js";
@@ -12,6 +13,21 @@ const PaginacionSchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(20),
   offset: z.coerce.number().int().min(0).default(0),
 });
+
+/**
+ * Lo que traen los dos detalles de grabación de su llamada: del agente, solo
+ * id y nombre — `agent: true` mandaba la fila entera (el systemPrompt
+ * completo del negocio, sus ids de Retell/Telnyx y la configuración del
+ * modelo) —, y del negocio, id y nombre, nunca sus tokens.
+ */
+const INCLUDE_DEL_DETALLE = {
+  call: {
+    include: {
+      agent: { select: { id: true, name: true } },
+      business: { select: { id: true, name: true } },
+    },
+  },
+} satisfies Prisma.RecordingInclude;
 
 const firmar = <
   T extends { storageKey: string | null; storageUrl: string | null },
@@ -106,14 +122,7 @@ export async function recordingsRoutes(fastify: FastifyInstance) {
             deletedAt: null,
             call: { businessId: request.user!.businessId },
           },
-          include: {
-            call: {
-              include: {
-                agent: true,
-                business: { select: { id: true, name: true } },
-              },
-            },
-          },
+          include: INCLUDE_DEL_DETALLE,
         });
 
         if (!recording) {
@@ -140,14 +149,7 @@ export async function recordingsRoutes(fastify: FastifyInstance) {
             deletedAt: null,
             call: { businessId: request.user!.businessId },
           },
-          include: {
-            call: {
-              include: {
-                agent: true,
-                business: { select: { id: true, name: true } },
-              },
-            },
-          },
+          include: INCLUDE_DEL_DETALLE,
         });
 
         if (!recording) {
