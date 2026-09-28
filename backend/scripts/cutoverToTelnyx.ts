@@ -100,13 +100,12 @@ async function main() {
     }
 
     try {
-      // Gate obligatorio: createTelnyxAssistantForAgent (backfill) crea el
-      // assistant SIN tools de calendario — solo se registran cuando se
-      // guarda el horario o se conecta un calendario (mismo patrón que
-      // Retell, ver retell-tools-only-registered-on-schedule-or-calendar).
-      // Sin este paso, el cutover deja tráfico real en un assistant que
-      // cuelga en cuanto intenta comprobar disponibilidad (incidente real
-      // 2026-09-12 en las 5 cuentas de test).
+      // Gate obligatorio antes de mover tráfico real: sincroniza en modo
+      // estricto y aborta si Telnyx devolvió error. El backfill ya crea el
+      // assistant con sus tools (createTelnyxAssistantForAgent), pero un
+      // assistant creado antes de eso, o desincronizado desde entonces,
+      // colgaría en cuanto intentara comprobar disponibilidad (incidente
+      // real 2026-09-12 en las 5 cuentas de test).
       await calendarService.syncCalendarToolsToAgents(business.id, {
         strict: true,
       });

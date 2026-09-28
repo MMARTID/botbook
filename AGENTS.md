@@ -1734,7 +1734,10 @@ El mapa de todos los asistentes vive en `backend/src/lib/tiposDeAsistente.ts`
    un `handle…ToolInvocation` en su módulo que resuelva el negocio a partir de las cabeceras.
 4. **Sincronización.** Por agente → sigue el patrón de `telnyxAgentSync.ts` (hash en `Agent`);
    de plataforma → el de `gestorSync.ts` (id en variable de entorno, comparación por firma,
-   reconciliador diario). Solo a través de `TelnyxAiAdapter`/`RetellAdapter`.
+   reconciliador diario). Solo a través de `TelnyxAiAdapter`/`RetellAdapter`. **Crea el
+   assistant con el payload completo** (tools incluidas), con el mismo builder que la
+   sincronización y guardando el mismo hash: nunca «crear vacío y sincronizar después» — la
+   recepcionista lo hacía y, cuando la segunda pasada no llegaba, quedaba sin poder reservar.
 5. **Registro.** Añade la entrada en `TIPOS_DE_ASISTENTE` (el test de
    `tests/lib/tiposDeAsistente.test.ts` comprueba que sus tools van por su canal).
 
