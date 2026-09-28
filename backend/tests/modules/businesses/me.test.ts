@@ -258,7 +258,7 @@ describe("PATCH /business/me (móvil del dueño para WhatsApp)", () => {
     expect(malo.statusCode).toBe(400);
   });
 
-  // Telefonía sin confusión, fase 0 (PLAN-TELEFONIA-UX.md § 5).
+  // Telefonía sin confusión, fase 0 (docs/historico/PLAN-TELEFONIA-UX.md § 5).
   it("guarda customerLineType (solo los cuatro valores), ownerPhoneIsCustomerLine y hideOwnerNumberFromClients", async () => {
     const response = await patch({
       customerLineType: "movil_personal",

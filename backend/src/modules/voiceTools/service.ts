@@ -215,7 +215,8 @@ type BusinessVoiceConfig = FilaDeConexionDeCalendario & {
   // se reutiliza como remitente del SMS en vez de comprar/gestionar un
   // segundo número solo para mensajería.
   telnyxPhoneNumber: string | null;
-  // Privacidad (PLAN-TELEFONIA-UX.md § 3, caso C): con true las respuestas
+  // Privacidad (docs/historico/PLAN-TELEFONIA-UX.md § 3, caso C): con true las
+  // respuestas
   // de las tools no dicen la línea del dueño (`phone`); se ofrece recado.
   // El número de Alhabla (recepcionista) se sigue dando, también en el SMS.
   // Puede faltar en entradas de caché anteriores a la columna:

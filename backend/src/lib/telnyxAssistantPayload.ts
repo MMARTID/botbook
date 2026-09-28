@@ -117,7 +117,8 @@ export function buildTelnyxHangupTool(description: string): HangupTool {
 export const NOMBRE_DEL_DESTINO_DE_TRANSFERENCIA = "Responsable del negocio";
 
 /**
- * Tool nativa `transfer` de Telnyx (PLAN-TELEFONIA-UX.md § 5, fase 4):
+ * Tool nativa `transfer` de Telnyx (docs/historico/PLAN-TELEFONIA-UX.md § 5,
+ * fase 4):
  * pasa la llamada en curso al móvil del dueño. Formato tomado del SDK
  * (`AssistantTool.Transfer`, telnyx 7.21): `from` es el número que marca
  * (el de Alhabla del negocio), `targets` la lista de destinos entre los que

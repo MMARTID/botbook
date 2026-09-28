@@ -18,7 +18,7 @@ import {
 import type { BusinessType } from "@/lib/types";
 
 /** Ajustes › Negocio: nombre, dirección y sector. Los teléfonos van en
- * Ajustes › Teléfono (PLAN-TELEFONIA-UX.md § 5, fase 2). */
+ * Ajustes › Teléfono (docs/historico/PLAN-TELEFONIA-UX.md § 5, fase 2). */
 export function SeccionNegocio() {
   const { business } = useAjustes();
   const queryClient = useQueryClient();

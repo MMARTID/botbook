@@ -7,7 +7,7 @@ en el calendario de Google, Outlook o Apple/iCloud del negocio. Desde septiembre
 también por WhatsApp con el dueño (avisos y el Gestor) y con sus clientes.
 
 Backend Fastify 5 + Prisma/PostgreSQL + Redis. Dos webs Next.js 14 App Router con Tailwind 3
-(desde el 2026-09-21, `PLAN-APP-DOMINIO.md`): **la app** en `frontend/` (puerto 3001,
+(desde el 2026-09-21, `docs/historico/PLAN-APP-DOMINIO.md`): **la app** en `frontend/` (puerto 3001,
 `app.alhabla.ai`, TanStack Query, sesión JWT en `localStorage`) y **la web pública** en `web/`
 (puerto 3002, `alhabla.ai`: landing, sectores, planes, legal, registro de cuenta y blog en MDX,
 sin sesión). El registro crea la cuenta en la web y entra en la app con un pase de un solo uso
@@ -75,7 +75,7 @@ look de startup ni de app de consumo. Rediseño negro/blanco/morado (agosto 2026
 | `--background` / `--surface` | `#ffffff` | Fondo base y de tarjetas/paneles |
 | `--foreground` / `--accent` | `#0a0a0a` | Texto principal, botones primarios |
 | `--muted` | `#52525b` | Texto secundario |
-| `--purple` / `--accent-soft` | `#8b5cf6` / `#a78bfa` | Acento de marca — iconos, focus rings, `HeroConversation` |
+| `--purple` / `--accent-soft` | `#8b5cf6` / `#a78bfa` | Acento de marca — iconos, focus rings, `HeroHilos` |
 | `--purple-wash` / `--purple-ink` | `#f3eeff` / `#6d28d9` | Fondo y texto de badges/contenedores de icono morados |
 | `--success` / `--warning` / `--error` | `#2c7334` / `#9f7a15` / `#c53030` | Estados |
 
@@ -145,5 +145,6 @@ y `WEB_URL` (`backend/src/lib/urls.ts`). Nada de rutas de la otra web escritas a
   UI/UX conocidos.
 - `PRODUCT.md` (producto y marca), `DESIGN.md` (sistema de diseño), `CONTRIBUTING.md`
   (flujo de ramas y PR).
-- `PLAN-*.md` — planes en la raíz; los cerrados y sin referencias en el código viven en
-  `docs/historico/`.
+- `PLAN-*.md` — planes activos en la raíz; los cerrados viven en `docs/historico/` y el código
+  los cita con esa ruta completa. Nunca edites un `migration.sql` ya aplicado para actualizar
+  una referencia (Prisma guarda su checksum).

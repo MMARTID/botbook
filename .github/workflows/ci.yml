@@ -219,7 +219,8 @@ jobs:
       - run: npm ci
       - run: npm run lint
       - run: npm run test
-      # La web de marketing (PLAN-APP-DOMINIO.md): mismas reglas que el
+      # La web de marketing (docs/historico/PLAN-APP-DOMINIO.md): mismas reglas
+      # que el
       # frontend. NEXT_PUBLIC_APP_URL es a dónde enlaza «Entrar» y a dónde
       # salta el registro con el pase.
       - run: npm run build

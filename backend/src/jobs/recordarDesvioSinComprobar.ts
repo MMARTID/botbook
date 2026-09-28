@@ -31,7 +31,8 @@ export interface ResultadoDelRecordatorio {
 }
 
 /**
- * Mensaje del día 1 sobre el desvío (PLAN-TELEFONIA-UX.md § 5, fase 5), en
+ * Mensaje del día 1 sobre el desvío (docs/historico/PLAN-TELEFONIA-UX.md § 5,
+ * fase 5), en
  * sus dos variantes. Cloud Scheduler lo invoca cada hora vía
  * POST /internal/jobs/recordar-desvio-sin-comprobar y barre los negocios que
  * compraron su número de Alhabla hace entre 24 y 48 h:

@@ -57,7 +57,8 @@ export function esLineaDeClientesEspanola(e164: string): boolean {
 
 /**
  * Tipo de línea de clientes que se propone en el alta a partir del teléfono
- * que trae Google Places (PLAN-TELEFONIA-UX.md § 5, fase 1): un fijo español
+ * que trae Google Places (docs/historico/PLAN-TELEFONIA-UX.md § 5, fase 1): un
+ * fijo español
  * es «el fijo del local» y un móvil español, «un móvil de trabajo». Con
  * cualquier otra cosa (sin teléfono, extranjero) no se propone nada y el
  * dueño elige.

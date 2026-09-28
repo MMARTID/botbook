@@ -16,7 +16,8 @@ import {
 } from "../../../src/modules/onboarding/comprobacionDesvio.js";
 
 // Contra Postgres y Redis reales: lo que se prueba es el flujo completo de
-// «Comprobar desvío» (PLAN-TELEFONIA-UX.md § 4) con los webhooks de Telnyx
+// «Comprobar desvío» (docs/historico/PLAN-TELEFONIA-UX.md § 4) con los webhooks
+// de Telnyx
 // simulados. Solo se sustituye la API de Telnyx (originar y colgar).
 vi.mock("../../../src/adapters/telnyx/TelnyxAiAdapter.js", () => ({
   telnyxAiAdapter: {

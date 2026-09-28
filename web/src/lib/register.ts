@@ -3,7 +3,8 @@ import { isPlanId } from "./billing-navigation";
 import { normalizeBusinessType } from "./business-type";
 
 /**
- * Lo que la web pasa a la app tras crear la cuenta (PLAN-APP-DOMINIO.md § 3):
+ * Lo que la web pasa a la app tras crear la cuenta
+ * (docs/historico/PLAN-APP-DOMINIO.md § 3):
  * el pase de un solo uso y lo que el visitante eligió antes (plan, sector).
  * Va en la query porque el localStorage de alhabla.ai no se ve desde
  * app.alhabla.ai.
