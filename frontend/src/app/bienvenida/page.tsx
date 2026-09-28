@@ -156,7 +156,8 @@ export default function RegisterBusinessPage() {
   const [ownerMobileError, setOwnerMobileError] = useState("");
   const [ownerMobileAviso, setOwnerMobileAviso] = useState("");
   const [ownerMobileWarning, setOwnerMobileWarning] = useState("");
-  // «¿A qué número te llaman tus clientes?» (PLAN-TELEFONIA-UX.md § 5,
+  // «¿A qué número te llaman tus clientes?»
+  // (docs/historico/PLAN-TELEFONIA-UX.md § 5,
   // fase 1): el tipo de la línea, la línea misma (Business.phone) y las dos
   // decisiones que cuelgan de un móvil: avisos al mismo número y privacidad.
   const [tipoDeLinea, setTipoDeLinea] = useState<CustomerLineType | null>(null);
@@ -330,7 +331,8 @@ export default function RegisterBusinessPage() {
 
   // Cambiar de tarjeta repone los valores por defecto de esa tarjeta: en los
   // dos móviles los avisos van al mismo número salvo que se diga lo contrario
-  // (PLAN-TELEFONIA-UX.md § 5, fase 1), y la privacidad solo tiene sentido
+  // (docs/historico/PLAN-TELEFONIA-UX.md § 5, fase 1), y la privacidad solo
+  // tiene sentido
   // en el personal.
   const elegirTipoDeLinea = (tipo: CustomerLineType | null) => {
     setTipoDeLinea(tipo);

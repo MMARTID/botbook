@@ -366,7 +366,7 @@ describe("buildManagedAgentPrompt — recados y post-conversación (PR 5)", () =
   });
 });
 
-describe("buildManagedAgentPrompt — privacidad del número (PLAN-TELEFONIA-UX.md § 3, caso C)", () => {
+describe("buildManagedAgentPrompt — privacidad del número (docs/historico/PLAN-TELEFONIA-UX.md § 3, caso C)", () => {
   it("sin la opción, deja dar el teléfono del negocio y no añade la sección de privacidad", () => {
     const prompt = buildManagedAgentPrompt({
       businessName: "Fisio a domicilio",

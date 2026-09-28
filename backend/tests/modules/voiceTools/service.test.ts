@@ -405,7 +405,8 @@ describe("executeVoiceTool book_appointment — vinculación a la llamada correc
     );
   });
 
-  // Privacidad (PLAN-TELEFONIA-UX.md § 3, caso C): si el lead no se ha
+  // Privacidad (docs/historico/PLAN-TELEFONIA-UX.md § 3, caso C): si el lead no
+  // se ha
   // podido guardar, la recepcionista da el teléfono del negocio como último
   // recurso… salvo que el dueño haya pedido no darlo.
   it("si no puede guardar el lead, dice el teléfono del negocio (sin la opción de privacidad)", async () => {
@@ -921,7 +922,8 @@ describe("executeVoiceTool book_appointment — consentimiento SMS al cliente", 
     );
   });
 
-  // Privacidad (PLAN-TELEFONIA-UX.md § 3, caso C): «no des mi número a los
+  // Privacidad (docs/historico/PLAN-TELEFONIA-UX.md § 3, caso C): «no des mi
+  // número a los
   // clientes» oculta la línea del dueño, no la de Alhabla: el SMS sigue
   // diciendo «llama al <número de Alhabla>», que atiende la recepcionista
   // (como en WhatsApp). El Sender ID alfanumérico no admite respuestas, así

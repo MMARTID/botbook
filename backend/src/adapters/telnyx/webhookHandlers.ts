@@ -183,7 +183,8 @@ export function extractTelnyxEventEnvelope(
 }
 
 /**
- * «Comprobar desvío» (PLAN-TELEFONIA-UX.md § 4): el número de Alhabla del
+ * «Comprobar desvío» (docs/historico/PLAN-TELEFONIA-UX.md § 4): el número de
+ * Alhabla del
  * negocio llama a su línea de clientes y, si el desvío funciona, la llamada
  * vuelve a entrar por ese mismo número de Alhabla con `from` = el propio
  * número de Alhabla — ningún cliente llama desde ahí. Por si la operadora

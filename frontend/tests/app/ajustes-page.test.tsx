@@ -252,7 +252,8 @@ describe("Ajustes (cuatro pantallas con el mismo marco)", () => {
     await screen.findByRole("region", { name: "Teléfono" });
     expect(screen.queryByRole("region", { name: "WhatsApp" })).not.toBeInTheDocument();
     expect(screen.queryByRole("region", { name: "Datos del negocio" })).not.toBeInTheDocument();
-    // Los tres bloques del plan (PLAN-TELEFONIA-UX.md § 5, fase 2), en orden.
+    // Los tres bloques del plan (docs/historico/PLAN-TELEFONIA-UX.md § 5,
+    // fase 2), en orden.
     const linea = screen.getByRole("group", { name: "Línea de clientes" });
     const recepcionista = screen.getByRole("group", { name: "Tu recepcionista" });
     const movil = screen.getByRole("group", { name: "Tu móvil" });

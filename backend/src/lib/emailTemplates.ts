@@ -217,7 +217,8 @@ export function operationalAlertEmail(input: {
   return { subject, html };
 }
 
-/** Mensaje del día 1 en positivo (PLAN-TELEFONIA-UX.md § 5, fase 5): el
+/** Mensaje del día 1 en positivo (docs/historico/PLAN-TELEFONIA-UX.md § 5,
+ * fase 5): el
  * desvío ya está comprobado. Respaldo por email de `alertarDesvioComprobado`
  * cuando el dueño no tiene WhatsApp activo; no es una alerta, así que no
  * lleva el «Necesita tu atención» de `operationalAlertEmail`. */

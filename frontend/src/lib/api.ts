@@ -90,7 +90,8 @@ export async function resetPassword(input: { token: string; password: string }) 
 }
 
 /** Canjea el pase de un solo uso con el que la web pública manda a la app
- * tras crear la cuenta (PLAN-APP-DOMINIO.md § 3). Devuelve el JWT. */
+ * tras crear la cuenta (docs/historico/PLAN-APP-DOMINIO.md § 3). Devuelve el
+ * JWT. */
 export async function redeemPass(pase: string) {
   const { data } = await api.post<{ token: string }>("/auth/pase/canjear", { pase });
   return data.token;
@@ -401,23 +402,5 @@ export async function provisionPhoneNumber() {
     status: string;
     error?: string;
   }>("/phone/business/me/phone/provision");
-  return data;
-}
-
-export async function createDemoWebCall(niche?: string, placeId?: string, allowBusinessDataRetention?: boolean) {
-  // Timeout explícito: sin uno, un fallo de red silencioso deja al visitante
-  // mirando "Conectando demo…" indefinidamente en vez de ver un error
-  // accionable. Al expirar, axios lanza un error cuyo mensaje contiene
-  // "timeout" — el mismo texto en español que ya usa describeDemoError()
-  // para el resto de fallos de red se muestra sin cambios adicionales.
-  const { data } = await api.post<{ callId: string; accessToken: string }>(
-    "/demo/web-call",
-    {
-      ...(niche ? { niche } : {}),
-      ...(placeId ? { placeId } : {}),
-      ...(allowBusinessDataRetention ? { allowBusinessDataRetention: true } : {}),
-    },
-    { timeout: 15000 },
-  );
   return data;
 }

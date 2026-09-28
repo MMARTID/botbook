@@ -2,7 +2,8 @@ import { esLineaDeClientesEspanola } from "@/lib/phone";
 import type { Business, ModoDePasarLlamadas } from "@/lib/types";
 
 /**
- * «Cuándo pasarme llamadas» (PLAN-TELEFONIA-UX.md § 5, fase 4): con Alhabla
+ * «Cuándo pasarme llamadas» (docs/historico/PLAN-TELEFONIA-UX.md § 5, fase 4):
+ * con Alhabla
  * como número principal la recepcionista puede pasar la llamada al móvil
  * del dueño. Espejo del backend (lib/transferenciaAlDueno.ts): el modo
  * guardado en `agentSettings.pasarLlamadas` o, si no hay, «si el cliente lo

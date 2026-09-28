@@ -86,7 +86,8 @@ function lineaPropia(business: Business, numeroDeAlhabla: string | null) {
 }
 
 /**
- * «Usar Alhabla como número principal» (PLAN-TELEFONIA-UX.md § 5, fase 4):
+ * «Usar Alhabla como número principal» (docs/historico/PLAN-TELEFONIA-UX.md
+ * § 5, fase 4):
  * qué cambia, dónde publicar el número, qué hacer con el antiguo y cuándo
  * pasar llamadas al móvil del dueño. Al confirmar hace lo mismo que hacía el
  * botón de Ajustes › Teléfono (customerLineType = "alhabla" y phone = número

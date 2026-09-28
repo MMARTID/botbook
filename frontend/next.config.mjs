@@ -12,7 +12,8 @@ const nextConfig = {
   },
   async redirects() {
     return [
-      // Lo público vive en la web (PLAN-APP-DOMINIO.md): quien llegue a la
+      // Lo público vive en la web (docs/historico/PLAN-APP-DOMINIO.md): quien
+      // llegue a la
       // app con una ruta de marketing va allí. El registro de cuenta también;
       // el asistente del negocio de después ya es /bienvenida, aquí.
       ...["/landing", "/peluqueria", "/barberia", "/centro-de-estetica", "/salon-de-unas", "/fisioterapia", "/planes", "/blog"].map(

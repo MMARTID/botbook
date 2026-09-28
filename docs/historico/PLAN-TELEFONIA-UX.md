@@ -1,5 +1,7 @@
 # Plan: teléfono, desvío y WhatsApp sin confusión
 
+> **Histórico** (movido a `docs/historico/` el 2026-09-28): las fases 0-5 están en código y en `main` desde el 22-09-2026 (PRs #153, #156 y #157); lo pendiente (la prueba real en producción de la fase 4 y crear el job de Cloud Scheduler `recordar-desvio-sin-comprobar`) se sigue en `AGENTS.md` § Telefonía › Pendiente en producción.
+
 Estado: **ejecutado en código y en `main`** (revisado el 27-09-2026; solo falta la prueba real en producción de la fase 4, ver abajo) (redactado el 21-09). Nace de la prueba real
 en producción (#130): el dueño no sabe qué número es cuál ni cómo se separa lo que llaman
 los clientes de lo que él lleva en el bolsillo.

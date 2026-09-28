@@ -220,7 +220,8 @@ describe("helpers puros", () => {
     ).toBeNull();
   });
 
-  // Privacidad (PLAN-TELEFONIA-UX.md § 3, caso C): «no des mi número a los
+  // Privacidad (docs/historico/PLAN-TELEFONIA-UX.md § 3, caso C): «no des mi
+  // número a los
   // clientes» oculta la línea del dueño (phone), nunca el número de Alhabla,
   // que atiende la recepcionista: sin él ninguna plantilla de confirmación,
   // cambio o cancelación podría salir.

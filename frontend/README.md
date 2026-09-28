@@ -3,7 +3,7 @@
 Panel del negocio: inicio, agenda, llamadas, recepcionista (`/agente`), tu asistente
 (`/asistente`), ajustes, asistente de alta (`/bienvenida`) y checkout. La web pública
 (landing, sectores, planes, legal, registro y blog) vive en `../web` y se sirve en
-`alhabla.ai`; el reparto está contado en `../PLAN-APP-DOMINIO.md`.
+`alhabla.ai`; el reparto está contado en `../docs/historico/PLAN-APP-DOMINIO.md`.
 
 ```bash
 npm install

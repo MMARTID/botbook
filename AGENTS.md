@@ -56,7 +56,7 @@ The codebase is fully in Spanish — UI copy, comments, variable names, and busi
 
 ### Backend Module Organization (`backend/src/modules/`)
 
-Most modules are a folder containing a `routes.ts` file (and optionally `service.ts`, `schemas.ts`); `gestor`, `voiceTools` and `retellSimulation` have no `routes.ts` — they are called from the webhook handlers in `server.ts` or from `scripts/`. Routes are registered in `backend/src/server.ts` with a prefix when needed.
+Most modules are a folder containing a `routes.ts` file (and optionally `service.ts`, `schemas.ts`); `gestor`, `voiceTools` and `retellSimulation` have no `routes.ts` — they are called from the webhook routes (Retell in `server.ts`, Telnyx in `modules/webhooksTelnyx/routes.ts`) or from `scripts/`. Routes are registered in `backend/src/server.ts` with a prefix when needed.
 
 | Module | Prefix | Auth | Purpose |
 |--------|--------|------|---------|
@@ -77,6 +77,7 @@ Most modules are a folder containing a `routes.ts` file (and optionally `service
 | `gestor` | *(no routes.ts)* | Mixed | The owner's assistant ("Gestor", shown as «Tu asistente»): tools at `/webhooks/telnyx/gestor/:toolName` (Ed25519) and the panel thread at `/business/me/gestor` (`panel.ts`). It proposes; only the owner's button executes. |
 | `voiceTools` | *(no routes.ts)* | Webhook signature | Tool execution shared by Retell (`/webhooks/retell/tools/:retellAgentId/:toolName`) and Telnyx (`/webhooks/telnyx/tools/:toolName`). |
 | `internal` | `/internal` | OIDC | `/internal/jobs/*`, called by Cloud Tasks / Cloud Scheduler (see § Background Jobs). |
+| `webhooksTelnyx` | *(none)* | Ed25519 | Every route Telnyx signs: `/webhooks/telnyx` (Call Control App and WhatsApp events), `/webhooks/telnyx/tools/:toolName` and `/webhooks/telnyx/gestor/:toolName`. The signature is checked once, in the plugin's encapsulated `preHandler` (`plugins/firmaTelnyx.ts`), before any handler runs; a new Telnyx-signed route goes here. The unsigned dev-only `/webhooks/telnyx-harness` stays in `server.ts`. |
 | `retellSimulation` | *(no routes.ts)* | — | Retell LLM Simulation Testing catalog and runner used by `scripts/retellSimulation.ts` (`npm run sim`). Plan archived in `docs/historico/retell-simulation-testing-plan.md`. |
 
 \* Except OAuth callbacks (`/calendar/auth/*/callback`) and Stripe webhook (`/billing/webhook`).
@@ -103,25 +104,19 @@ Most modules are a folder containing a `routes.ts` file (and optionally `service
 
 ## Frontend Architecture
 
-Since 2026-09-21 (`PLAN-APP-DOMINIO.md`) there are **two** Next.js projects: `frontend/` is the
-authenticated app (`app.alhabla.ai`) and `web/` is the public site (`alhabla.ai`). Marketing
-components (`SiteLanding`, `LandingHero`, `RevenueLossCalculator`, `PlansWithRoi`, `DemoVoiceCall`,
-`LegalPage`…) and `roi-context.ts` live in `web/src/`; files used by both (`brand-mark`,
-`particle-*`, `google-auth-button`, `range-slider`, `google-analytics`…) are copied, byte for
-byte, into each (anything that differs between app and site goes in via props). The list lives
-in `scripts/comprobar-copias-compartidas.sh` and CI (job «Copias compartidas app/web») fails if
-a copy drifts. `google-analytics.tsx` is one: the app mounts it through
-`analitica-de-la-app.tsx` (panel placement, no `page_view` on token routes); the site passes
-`aplazarAvisoHastaScroll`, because on a 390px phone the cookie notice covered the hero's trust
-row and part of its second CTA on first load.
-The component and lib notes below keep their original wording; check which project holds a file
-before editing it.
+Since 2026-09-21 (`docs/historico/PLAN-APP-DOMINIO.md`) there are **two** Next.js projects:
+`frontend/` is the authenticated app (`app.alhabla.ai`) and `web/` is the public site
+(`alhabla.ai`: landing, niche pages, plans, legal, registration and blog). Marketing components
+(`SiteLanding`, `LandingHero`, `RevenueLossCalculator`, `PlansWithRoi`, `DemoVoiceCall`,
+`LegalPage`…) and `roi-context.ts` live only in `web/src/`; the few files used by both are copied
+into each (list under Key Components). The component and lib notes below say which project holds
+each file.
 
 ### Framework & Routing
 
 - **Next.js 14** with App Router (`frontend/src/app/`, `web/src/app/`).
 - App on port 3001, public site on port 3002 (dev and `next start`).
-- **Proxy (app, dev only):** `/api/backend/:path*` → `http://localhost:3000/:path*` (`frontend/next.config.mjs`). Never rely on it in code — see `DemoVoiceCall` below.
+- **Proxy (both projects, dev only):** `/api/backend/:path*` → `http://localhost:3000/:path*` (`frontend/next.config.mjs`, `web/next.config.mjs`). Never rely on it in code — see `DemoVoiceCall` below.
 - **Redirects (app):** marketing paths (`/landing`, niche pages, `/planes`, `/blog`, `/legal/*`, `/register`) go 301 to the public site; `/register/business/*` → `/bienvenida/*`; `/gestor` → `/asistente`. The public site in turn 301s every app route to `app.alhabla.ai`.
 
 ### Pages
@@ -177,20 +172,33 @@ There is no static OG asset; edit that file to change what WhatsApp and X displa
 
 ### Key Components
 
-- `SiteLanding` — Reusable landing page with niche content injection. Renders `SectorDataSection`
-  unconditionally: niche pages pass their own `sectorData`, the generic landing falls back to
-  `generalSectorData`. Every published figure needs an external cited source (see Evidence rules).
-- `LandingHero` — Hero with CTA and `HeroConversation` widget. The hero only claims full viewport
-  height from `lg` up; on mobile the proof panel must stay above the fold.
-- `HeroConversation` — Silent, non-audio demo of a call. Doubles as the accessible alternative to
-  the microphone demo: its `sr-only` description is generated from the scene currently on screen,
-  so it must stay in sync if the scenes change. Minimum type size is 14px.
+**Public site (`web/src/components/`):**
+
+- `SiteLanding` — Shell of the five niche landings (`/peluqueria`, `/barberia`…): `LandingHero`,
+  `SectorDataSection` (only when the niche has `sectorData`), `TeamRoutingSection`,
+  `OwnerAssistantSection`, `WhatsAppBenefitsTable`, benefits, `HowItWorksScrollytelling`,
+  `RevenueLossCalculator`, plans and FAQ. Without `content` (the generic `/`) it returns
+  `MainLanding`, a shorter home page with its own hero over `HeroHilos` plus `LlamadaScroll`,
+  `PuntosFuertesSection`, `WhatsAppClientesSection`, `OwnerAssistantSection`, `EnMarchaSection`,
+  the sector accordion, plans and FAQ. The per-city pages (`/<niche>/[ciudad]`) use
+  `CityNicheLanding`.
+- `SectorDataSection` — Third-party figures about the niche, each rendered with its source
+  (`Citation`: «Dato de terceros», publisher, link). Every published figure needs an external
+  cited source (see Evidence rules).
+- `LandingHero` — Single-column hero: centred headline over `HeroHilos` (canvas of voice "threads"
+  whose pulses take the niche accent; the section needs `relative isolate` and no background of
+  its own, or the `-z-10` canvas disappears). The primary CTA «Escuchar la demo» opens
+  `DemoVoiceCall`; the secondary one goes to `/planes` (with `?niche=`).
+- `hero-conversation.tsx` — No longer rendered anywhere (both heroes use `HeroHilos` now); only
+  its `Conversation` type is still imported by `lib/niche-landings.ts`.
 - `RevenueLossCalculator` — Interactive sliders (ticket, lost calls/week) with ROI math. The CTA
   always calls `activateRoiContext`, touched or not: the button names a figure and `/planes` has
   to receive it.
 - `PlansWithRoi` / `PlansHeadline` — Pricing cards, ROI-aware copy. Reads `?plan=` from the URL to
   flag the card the visitor already chose, and renders the value contrast from
-  `calculatePlanValueContrast` only when the visitor's own estimate covers the plan.
+  `calculatePlanValueContrast` only when the visitor's own estimate covers the plan. Each card's
+  button (`PlanSelectionLink`) jumps to the app's `/elegir-plan?plan=&niche=`: the web cannot see
+  the session, so the app decides between checkout and registration.
 - `DemoVoiceCall` — Real voice demo over **Telnyx WebRTC** (`@telnyx/webrtc`, loaded with a dynamic
   `import()` so it stays out of the landing bundle) with live transcription from the
   `telnyx.ai.conversation` events. The browser asks the backend which assistant to call via
@@ -206,9 +214,9 @@ There is no static OG asset; edit that file to change what WhatsApp and X displa
   env-var name to the user.**
   **Always call the backend through the shared `api` client (`@/lib/api`), never a raw
   `fetch("/api/backend/...")`.** The component used to call `fetch("/api/backend/demo/web-call")`
-  directly — that literal path only resolves via the `next.config.mjs` rewrite, which is hardcoded
-  to `http://localhost:3000/:path*` and only works in local dev. In production (Vercel) that
-  rewrite tries to hit `localhost` from the edge and fails outright
+  directly — that literal path only resolves via the `next.config.mjs` rewrite (both projects have
+  it), which is hardcoded to `http://localhost:3000/:path*` and only works in local dev. In
+  production (Vercel) that rewrite tries to hit `localhost` from the edge and fails outright
   (`DNS_HOSTNAME_RESOLVED_PRIVATE`), so the public demo was silently broken on `alhabla.ai` while
   working fine locally. Fixed 2026-09-04 by routing through `createDemoWebCall()`, which uses the
   `api` axios instance (`baseURL: NEXT_PUBLIC_API_BASE_URL`) like every other endpoint wrapper in
@@ -216,27 +224,101 @@ There is no static OG asset; edit that file to change what WhatsApp and X displa
   component. If a future component needs to call the backend directly, add a wrapper to `api.ts`
   instead of a raw `fetch`/hardcoded path.
 - `LegalPage` / `LegalSection` / `LegalTodo` — Read-mode shell for the `/legal/*` pages.
-- `BusinessHoursEditor` — Weekly schedule editor (up to 3 intervals per day).
-- `AgentSettingsEditor` — Tone, goal, response style, escalation strategy.
-- `UpcomingCalendarEvents` — Horizontal carousel of upcoming calendar events, refreshes every 5 min.
-- `AppShell` — Protected layout with nav (Panel, Ajustes, Facturacion), logout, mobile back button.
+- `SiteHeader` / `MobileNav` / `SectorsMenu` / `SiteFooter` — Header and footer of the landings
+  and the blog (`/planes` only has the footer; legal and `/register` have their own chrome).
+  «Entrar» goes to `appUrl("/login")`.
+- `blog/` — Article card and image, the MDX blocks (`bloques.tsx`) and the Keystatic editor
+  mounted at `/keystatic` (`EditorDelBlog`).
 
-### Frontend Lib (`frontend/src/lib/`)
+**App (`frontend/src/components/`):**
 
-- `api.ts` — Axios client with Bearer token interceptor. All backend endpoint wrappers.
-- `types.ts` — Domain types: `Business`, `Agent`, `Call`, `BillingSummary`, `CalendarEvent`, etc.
+- `AppShell` — Protected layout: sidebar from `lg` (Panel, Agenda, Llamadas, Agente, Asistente,
+  Ajustes, Facturación); on mobile a sticky header and a bottom bar whose «Más» sheet holds the
+  rest, the privacy link to the web (`webUrl()`), cookie preferences and logout. Account screens
+  (`/login`, `/bienvenida/*`, `/auth/*`, `/elegir-plan`, `/dev/entrar`…) render without it
+  (`esRutaSinArmazon`).
+- `PanelInicio` — Dashboard at `/`: `StatusStrip`, `CallForwardingCard`, `PendingBookings`,
+  `OnboardingChecklist`, `WeeklySummary`, `UpcomingBookings` (the next 7 days of `Booking`s, not
+  raw calendar events; refreshes every 5 min) and `RecentCalls`.
+- `BusinessHoursEditor` — Weekly schedule editor (up to 3 intervals per day), in `/agente`.
+- `AgentSettingsEditor` — Tone, goal, response style, escalation strategy, voice gender and
+  languages, in `/agente`.
+- `CallForwardingCard`, `TarjetasDeLinea`, `AjustesTelefono`, `PasarLlamadas`, `WhatsappDueno` —
+  Customer line, forwarding, main number and the owner's mobile (see § Telefonía).
+- `ajustes/` — `MarcoDeAjustes` (header, tabs and shared data) and one `seccion-*` per tab:
+  Cuenta, Negocio, Seguridad; Teléfono is `AjustesTelefono`. Facturación is a page of its own.
+- `GestorChat` — The owner's assistant thread in `/asistente`, the same conversation as on
+  WhatsApp.
+
+**Copied into both projects**, byte for byte: `brand-mark`, `brand-icons`, `beta-pill`,
+`back-link`, `google-analytics`, `google-auth-button`, `particle-field`, `particle-mouse-layer`,
+`range-slider`, `hooks/use-focus-trap.ts` and `lib/plans.ts`. Change one, copy the file to the
+other: anything that differs between app and site goes in via props. The list lives in
+`scripts/comprobar-copias-compartidas.sh` and CI (job «Copias compartidas app/web») fails if a
+copy drifts. `google-analytics.tsx` (GA4 and Vercel Analytics behind the shared
+`alhabla_analitica` consent cookie) is mounted by the app through `analitica-de-la-app.tsx`
+(panel placement, no `page_view` on token routes); the site passes `aplazarAvisoHastaScroll`,
+because on a 390px phone the cookie notice covered the hero's trust row and part of its second
+CTA on first load. `lib/seo.ts`, `lib/types.ts`, `lib/business-type.ts`,
+`lib/billing-navigation.ts`, `lib/niche-landings.ts` and `app/globals.css` share the name but not
+the content: each project keeps what it needs.
+
+### Frontend Lib (`frontend/src/lib/`, `web/src/lib/`)
+
+**App (`frontend/src/lib/`):**
+
+- `api.ts` — Axios client with Bearer token interceptor. All backend endpoint wrappers. The
+  production build fails without `NEXT_PUBLIC_API_BASE_URL` (the `/api/backend` fallback is the
+  dev-only rewrite; see `DemoVoiceCall`).
+- `api-errors.ts` — `describeApiError`, `apiErrorCode`, `esLimiteDePeticiones`: backend errors to
+  Spanish copy.
+- `types.ts` — Domain types: `Business`, `AgentSettings`, `Agent`, `Call`, `BillingSummary`,
+  `BookingSettings`, `OnboardingState`, `ForwardingCheck`, the Gestor types, etc.
 - `plans.ts` — Static plan definitions: Inicio (69€/100min), Pro (149€/400min), Scale (299€/1000min).
-  Also exports `TRIAL_DAYS` and `TRIAL_REASSURANCE`; `TRIAL_DAYS` must match `CHECKOUT_TRIAL_DAYS`
-  in `backend/src/modules/billing/service.ts`, which is what Stripe actually applies. Never hardcode a
-  plan name in copy — derive it from `starterPlan.name` or the `plan` object.
-- `niche-landings.ts` — 600+ lines of SEO copy, hero text, conversations, benefits, FAQ per niche,
-  plus `generalSectorData` (the cross-niche proof block used by the generic landing).
-- `roi-context.ts` — ROI calculation and plan value contrast.
-- `seo.ts` — Site metadata, structured data (JSON-LD), absolute URL builder.
-- `format.ts` — Currency, date, duration, call status labels.
-- `billing-navigation.ts` — Pending plan helpers.
-- `business-type.ts` — Business type labels, Places API keyword detection and per-niche onboarding texts (`BUSINESS_TYPE_ONBOARDING_TEXTS`).
+  Identical copy of `web/src/lib/plans.ts`, which renders the pricing; the app uses it in
+  `/ajustes/facturacion`. Also exports `TRIAL_DAYS` and `TRIAL_REASSURANCE`; `TRIAL_DAYS` must match
+  `CHECKOUT_TRIAL_DAYS` in `backend/src/modules/billing/service.ts`, which is what Stripe actually
+  applies. Never hardcode a plan name in copy — derive it from `starterPlan.name` or the `plan`
+  object.
+- `format.ts` — Currency, date, duration, call status/outcome/sentiment labels.
+- `billing-navigation.ts` — Pending plan helpers (`alhabla_pending_plan`) and auth token helpers
+  (`hasAuthToken`, `clearAuthTokens`).
+- `business-type.ts` — Business type labels, Places API keyword detection and per-niche onboarding
+  texts (`BUSINESS_TYPE_ONBOARDING_TEXTS`, used by `/bienvenida/services`, `/team` and `/calendar`).
 - `service-templates.ts` — Per-niche service templates shown during registration (`/bienvenida/services`).
+- `phone.ts`, `pasar-llamadas.ts`, `numero-principal.ts` — Line types, «Cuándo pasarme llamadas»
+  and the main-number screen (§ Telefonía).
+- `calendar-state.ts`, `calendar-callback.ts`, `apple-app-password.ts` — Active calendar provider
+  (§ Calendar Integration), OAuth callback parsing in `/settings`, iCloud app-password checks.
+- `web-url.ts` — `webUrl()` (`NEXT_PUBLIC_WEB_URL`): every link from the app to the public site.
+- `seo.ts` — Only `siteName`, `defaultDescription`, `siteUrl` and `noindexMetadata`: the whole app
+  is `noindex`.
+- `niche-landings.ts` — Only the `NicheAccent` type, for the copied `range-slider.tsx`; the niche
+  content lives in `web/src/lib/niche-landings.ts`.
+- Smaller helpers: `agent-configuration.ts` (`/agente` setup steps), `plan-limit.ts`,
+  `eleccion-de-plan.ts` (`/elegir-plan`), `registration-next-step.ts`, `login-next.ts`.
+
+**Public site (`web/src/lib/`):**
+
+- `api.ts` — Axios client **without** a token interceptor (the web never has a session):
+  `registerAccount` (returns the one-time `pase`), `getGoogleAuthUrl` and the demo wrappers
+  (`createDemoWebCall`, `searchDemoPlaces`, `getDemoPlaceDetails`). Same build-time guard on
+  `NEXT_PUBLIC_API_BASE_URL`.
+- `app-url.ts` — `appUrl()` (`NEXT_PUBLIC_APP_URL`): every link from the web to the app.
+- `register.ts` — `buildAppEntryUrl` (the jump to the app's `/auth/entrar?pase=` with plan and
+  sector) and `describeRegisterError`.
+- `niche-landings.ts` — 900+ lines of SEO copy per niche: hero, benefits, FAQ, cited `sectorData`,
+  `teamRouting`, `ownerAssistant`, metadata and JSON-LD, plus `generalTeamRouting` and
+  `generalOwnerAssistant` for the generic landing. Accents in `niche-accents.ts`, per-city pages in
+  `city-landings.ts`, home FAQ in `home-faqs.ts`.
+- `roi-context.ts` — ROI calculation, plan value contrast and the calculator → `/planes` hand-off
+  (`activateRoiContext` / `getActiveRoiContext`).
+- `seo.ts` — Site metadata, structured data (JSON-LD), absolute URL builder, OG image list.
+- `blog.ts` — MDX articles in `web/content/blog`, read at build time. Next to it: `keystatic/`
+  (editor blocks), `preview/` (draft preview redirects) and `og/plantilla.tsx` (the Open Graph
+  image template every `opengraph-image.tsx` uses).
+- `plans.ts` (identical copy), `business-type.ts` (labels and Places detection, no onboarding
+  texts), `billing-navigation.ts` (`isPlanId` only), `types.ts` (plan and Places types).
 
 ## Build & Run Commands
 
@@ -379,7 +461,7 @@ All business-scoped data is filtered by `businessId` from the token. Never trust
 
 - **Validation:** Use `zod` schemas for route bodies and params. Return `400` with `error.errors` on `ZodError`.
 - **Global error handler** (`server.ts`): Normalizes all errors to `{ statusCode, error, message }`. Handles both `Error` instances and plain error objects (e.g. rate-limit errors from `@fastify/rate-limit`). Logs full error details with Pino. Returns generic "Internal server error" for 5xx to avoid leaking internals.
-- **Rate limiting:** Default 100 req/min per IP, counter in Redis (global across Cloud Run instances since 2026-09-17). Retell webhook endpoints override to 300 req/min. Auth endpoints have stricter limits: 10/min (`/login`, `/register`) and 5/min (`/register-first-user`, `/pase/canjear`). **Pase de un solo uso** (PLAN-APP-DOMINIO.md § 3, fase 0, 2026-09-21): `POST /auth/register` devuelve además `pase` (64 hex, `auth:pase:<código>` en Redis, 60 s, best-effort) y `POST /auth/pase/canjear { pase }` lo cambia por el JWT una sola vez (`getdel`; 401 `PASE_INVALIDO` si no existe o ya se usó, 400 si el formato no es el esperado). Es el puente entre el registro en la web de marketing y la sesión en la app (`lib/urls.ts`, `modules/auth/pase.ts`). Places endpoints use 10/min. **`/internal/jobs/*` are exempt** (`config.rateLimit: false` on every route): Cloud Tasks/Scheduler call from a handful of Google IPs and are already OIDC-authenticated — with the limit made real, draining a queue produced 293 × 429 in three minutes, and a burst of weekly-summary emails would have exhausted Cloud Tasks retries on legitimate sends.
+- **Rate limiting:** Default 100 req/min per IP, counter in Redis (global across Cloud Run instances since 2026-09-17). Retell webhook endpoints override to 300 req/min. Auth endpoints have stricter limits: 10/min (`/login`, `/register`) and 5/min (`/register-first-user`, `/pase/canjear`). **Pase de un solo uso** (docs/historico/PLAN-APP-DOMINIO.md § 3, fase 0, 2026-09-21): `POST /auth/register` devuelve además `pase` (64 hex, `auth:pase:<código>` en Redis, 60 s, best-effort) y `POST /auth/pase/canjear { pase }` lo cambia por el JWT una sola vez (`getdel`; 401 `PASE_INVALIDO` si no existe o ya se usó, 400 si el formato no es el esperado). Es el puente entre el registro en la web de marketing y la sesión en la app (`lib/urls.ts`, `modules/auth/pase.ts`). Places endpoints use 10/min. **`/internal/jobs/*` are exempt** (`config.rateLimit: false` on every route): Cloud Tasks/Scheduler call from a handful of Google IPs and are already OIDC-authenticated — with the limit made real, draining a queue produced 293 × 429 in three minutes, and a burst of weekly-summary emails would have exhausted Cloud Tasks retries on legitimate sends.
 
 ## Database (Prisma)
 
@@ -426,8 +508,8 @@ el `fetch` equivalente. **Nunca desde un route handler**: todo pasa por
   (`text | keyword | button | audio | media | other`), y aplica los `statuses[]`),
   `handleMessageStatusEvent` (`message.sent/finalized/read`, con `cost` y `errors`) y
   `handleTemplateStatusEvent` (`whatsapp.template.*`). Los tres cuelgan del `switch` de
-  `/webhooks/telnyx` en `server.ts`, con la misma firma e idempotencia por id de evento que
-  la voz.
+  `/webhooks/telnyx` (`modules/webhooksTelnyx/routes.ts`), con la misma firma e idempotencia
+  por id de evento que la voz.
 - `modules/whatsapp/router.ts`: `enrutarEntrante` — todavía **no responde a nadie**; clasifica
   y deja `handler: pendiente:…` para que los siguientes PRs (alta/STOP, botones de avisos,
   chat Beta) rellenen cada rama.
@@ -590,8 +672,7 @@ el `fetch` equivalente. **Nunca desde un route handler**: todo pasa por
   fuera, la plantilla `alerta_operativa_negocio` (`negocio_nombre`, `texto`) con el sufijo del
   botón URL `https://alhabla.ai/ajustes/{{1}}` = `facturacion | calendario | telefono`. El
   frontend (`next.config.mjs`) redirige `/ajustes/calendario` a `/agente` (donde vive el
-  calendario) y `/ajustes/telefono` a `/ajustes#telefono` (Ajustes › Teléfono, desde la fase 2
-  del plan de telefonía). Idempotente por recurso (`pago:<invoiceId>`,
+  calendario); `/ajustes/telefono` es una pantalla propia (Ajustes › Teléfono). Idempotente por recurso (`pago:<invoiceId>`,
   `minutos:<periodId>`, `prueba:<subscriptionId>`, `calendario:<biz>:<proveedor>:<día>`,
   `telefono:<biz>:<día>`, `desvio:<biz>:<intento>` / `desvio-ok:<biz>:<intento>` para el
   mensaje del día 1 sobre el desvío — con el instante del intento, para que el job pueda
@@ -875,8 +956,8 @@ hablando por el que elige `identificarRemitente`.
   {{role}}` (verificado en vivo el 20-09 con un túnel a un backend de la rama). Tools inline y
   no *shared tools* por `tool_ids` (con un único assistant no aportan nada y una shared tool
   usada por un assistant borrado no se puede eliminar). Ruta
-  `POST /webhooks/telnyx/gestor/:toolName` (server.ts): misma firma Ed25519 que las tools de
-  voz; `modules/gestor/tools.ts › handleGestorToolInvocation` exige la cabecera del negocio
+  `POST /webhooks/telnyx/gestor/:toolName` (`modules/webhooksTelnyx/routes.ts`): misma firma
+  Ed25519 que las tools de voz; `modules/gestor/tools.ts › handleGestorToolInvocation` exige la cabecera del negocio
   (400 si falta o llega el placeholder sin resolver) y `role === "owner"` (403). Tools:
   `contexto_negocio` (negocio, sector, zona, teléfonos, plan, servicios con precio en euros,
   profesionales, horario, calendario operativo, `faltaPorConfigurar`, citas pendientes y
@@ -1532,7 +1613,7 @@ is now a **Cloud Scheduler** job hitting the same kind of endpoint every
 8. **Mensaje del día 1 sobre el desvío** («tu desvío está comprobado» o
    «aún no has comprobado el desvío»;
    `backend/src/jobs/recordarDesvioSinComprobar.ts`) — added 2026-09-22,
-   PLAN-TELEFONIA-UX.md § 5, fase 5.
+   docs/historico/PLAN-TELEFONIA-UX.md § 5, fase 5.
    - `POST /internal/jobs/recordar-desvio-sin-comprobar`, pensado para
      ejecutarse **cada hora**. **Needs a Cloud Scheduler job to be created**
      (same OIDC config as `cleanup-zombie-calls`):
@@ -1566,8 +1647,8 @@ is now a **Cloud Scheduler** job hitting the same kind of endpoint every
      - a null pero con llamadas reales → nada.
      Las dos salen por la cascada habitual del canal del dueño (interactivo
      con botón «Ir a Ajustes» → plantilla `alerta_operativa_negocio` →
-     email). El enlace es `/ajustes/telefono`, que `frontend/next.config.mjs`
-     redirige a `/ajustes#telefono` (Ajustes › Teléfono).
+     email). El enlace es `/ajustes/telefono` (Ajustes › Teléfono, pantalla
+     propia).
    - Idempotente: reclama `Business.forwardingReminderSentAt` con un
      `updateMany` condicional **antes** de avisar (Cloud Scheduler entrega al
      menos una vez); si el aviso no sale por ninguna vía (`via: "ninguna"`)
@@ -1735,12 +1816,18 @@ El mapa de todos los asistentes vive en `backend/src/lib/tiposDeAsistente.ts`
    (url, POST, cabeceras y timeout salen del canal). Para un assistant de voz, reutiliza
    `buildTelnyxAssistantPayload` (voz, transcripción, grabación, hangup) en vez de copiarlo.
    Añade una instantánea en `tests/lib/payloadsDeAsistentes.snapshot.test.ts`.
-3. **Ruta de tools.** Si el canal es nuevo, añade su ruta en `server.ts` copiando la
-   verificación de firma Ed25519 de `/webhooks/telnyx/gestor/:toolName` **sin modificarla**, y
-   un `handle…ToolInvocation` en su módulo que resuelva el negocio a partir de las cabeceras.
+3. **Ruta de tools.** Si el canal es nuevo, añade su ruta en `modules/webhooksTelnyx/routes.ts`
+   (con `rawBody: true`): el `preHandler` de ese plugin (`plugins/firmaTelnyx.ts`) verifica la
+   firma Ed25519 de todas sus rutas antes del handler, así que no la copies ni la saques de
+   ahí. Añade también un `handle…ToolInvocation` en su módulo que resuelva el negocio a partir
+   de las cabeceras. `tests/modules/webhooksTelnyx/routes.test.ts` recorre todas las rutas del
+   plugin y comprueba que ninguna responde sin firma válida.
 4. **Sincronización.** Por agente → sigue el patrón de `telnyxAgentSync.ts` (hash en `Agent`);
    de plataforma → el de `gestorSync.ts` (id en variable de entorno, comparación por firma,
-   reconciliador diario). Solo a través de `TelnyxAiAdapter`/`RetellAdapter`.
+   reconciliador diario). Solo a través de `TelnyxAiAdapter`/`RetellAdapter`. **Crea el
+   assistant con el payload completo** (tools incluidas), con el mismo builder que la
+   sincronización y guardando el mismo hash: nunca «crear vacío y sincronizar después» — la
+   recepcionista lo hacía y, cuando la segunda pasada no llegaba, quedaba sin poder reservar.
 5. **Registro.** Añade la entrada en `TIPOS_DE_ASISTENTE` (el test de
    `tests/lib/tiposDeAsistente.test.ts` comprueba que sus tools van por su canal).
 
@@ -1756,11 +1843,11 @@ Once the order succeeds, the number is imported into Retell via `retellAdapter.i
 
 ## Telefonía
 
-Plan completo en `PLAN-TELEFONIA-UX.md` (fases 0-3 y 5 en main desde 2026-09-22; la
-fase 4, «Alhabla como número principal» con transferencia al dueño, en código desde el
-2026-09-22 y **pendiente de la prueba real** de la transferencia con un negocio de
-producción). Nace de la prueba real de producción (#130): el dueño no sabía qué número era
-cuál.
+Plan completo en `docs/historico/PLAN-TELEFONIA-UX.md` (fases 0-3 y 5 en main desde
+2026-09-22; la fase 4, «Alhabla como número principal» con transferencia al dueño, en código
+desde el 2026-09-22 y **pendiente de la prueba real** de la transferencia con un negocio de
+producción: ver «Pendiente en producción» al final de esta sección). Nace de la prueba real
+de producción (#130): el dueño no sabía qué número era cuál.
 
 ### Los tres papeles del número
 
@@ -1965,6 +2052,21 @@ nuevas: el ajuste vive en `Business.agentSettings.pasarLlamadas`.
   Ajustes › Teléfono es ahora un enlace a esa pantalla, y el bloque «Tu recepcionista»
   enseña «Cuándo pasarme llamadas» (`components/pasar-llamadas.tsx`, helpers en
   `lib/pasar-llamadas.ts`) cuando `customerLineType` es `alhabla`.
+
+### Pendiente en producción
+
+Lo que el plan dejó fuera del código (rescatado al archivarlo en `docs/historico/`):
+
+- **Prueba real de la fase 4** con INFINITY (INFINITY Hair Salon, cuenta de producción; antes
+  necesita número de Alhabla activo y un móvil del dueño español): pasar a «Alhabla como
+  número principal» desde Ajustes › Teléfono, llamar al número de Alhabla, pedir hablar con el
+  dueño y comprobar que el móvil suena; que si no lo coge vuelve la recepcionista («¿te llamo
+  yo o te dejo recado?»); que no queda `Call` fantasma de la pata de transferencia y que
+  `voice_webhook_events` no registra errores. Después, el modo «nunca» debe quitar la tool
+  `transfer` del assistant.
+- **Crear el job de Cloud Scheduler `recordar-desvio-sin-comprobar`** (cada hora) con el
+  comando de § Background Jobs 8. Hasta entonces el mensaje del día 1 sobre el desvío no sale
+  en producción.
 
 ## Stripe Billing
 
@@ -2397,8 +2499,8 @@ non-optional for a service sold online in the EU. Concretely:
 
 ### Component-Specific Notes
 
-- **`HeroConversation` widget:** uses the purple system (`#8b5cf6`, `#f3eeff`) — never green
-  or orange.
+- **`HeroHilos` (hero canvas, `web/`):** brand purple (`#8b5cf6`) by default; the niche pages
+  pass their niche accent.
 - **Checkout:** container has `min-h-[480px]` to prevent empty-state collapse.
 - **`AppShell` header:** sticky, `bg-[#fafafa]/80` with `backdrop-blur-xl`.
 - **`MobileNav`:** closes on Escape and on outside pointerdown, restores focus to the toggle, and
@@ -2414,7 +2516,7 @@ any user-facing copy:
 - Never fabricate testimonials, customer logos, "X negocios confían" counts, own product metrics,
   awards or press mentions about Alhabla. None exist.
 - Every published figure needs an external, verifiable source rendered on screen, the way
-  `SectorDataSection` does. The stats in `niche-landings.ts` and `generalSectorData` follow this.
+  `SectorDataSection` does. The stats in `web/src/lib/niche-landings.ts` follow this.
 - The quotes in `niche-landings.ts` are business owners interviewed in the press **about the
   problem**, not Alhabla customers. Do not present them as testimonials.
 - Do not promise capabilities that do not ship. As of 2026-09 there **is** a real voice picker —
@@ -2542,10 +2644,15 @@ npx prisma studio
 
 ### Add a new landing page niche
 
-1. Add niche content to `frontend/src/lib/niche-landings.ts`.
-2. Create `frontend/src/app/<niche>/page.tsx` importing `SiteLanding` with the niche content.
-3. Add route to `frontend/src/app/sitemap.ts`.
-4. Add redirect in `frontend/next.config.mjs` if needed.
+The landings live in the public site (`web/`):
+
+1. Add the niche content to `web/src/lib/niche-landings.ts` and its accent to
+   `web/src/lib/niche-accents.ts` (per-city pages: `web/src/lib/city-landings.ts`).
+2. Create `web/src/app/<niche>/page.tsx` rendering `SiteLanding` with that content, and
+   `web/src/app/<niche>/[ciudad]/page.tsx` if it has city pages.
+3. Add it to `NICHOS` in `web/src/app/sitemap.ts`.
+4. Add the path to the list of marketing routes that `frontend/next.config.mjs` sends with a
+   301 to the web, so the old app URL does not 404.
 
 ## Lista de ramas por componente
 
@@ -2557,7 +2664,7 @@ partir vacía de `main` como marcador.
 
 | Rama | Componente | Issue | Notas |
 |------|-----------|-------|-------|
-| `step-followups-landing` | `frontend/src/components/call-forwarding-flow.tsx` + tarjetas `threeSteps` en `site-landing.tsx` (sección "Cómo funciona") | [#12](https://github.com/MMARTID/botbook/issues/12) | Pulir y/o rediseñar el recorrido de 3 pasos. |
+| `step-followups-landing` | Sección "Cómo funciona" de la landing: hoy `HowItWorksScrollytelling` en `web/` (`call-forwarding-flow.tsx` y las tarjetas `threeSteps` ya no existen) | [#12](https://github.com/MMARTID/botbook/issues/12) | Pulir y/o rediseñar el recorrido de 3 pasos. |
 | `demo-modal-landing` | Modal/experiencia de "Escuchar una llamada" del hero (`DemoVoiceCall`) | — | Pulir y/o rediseñar la demo de llamada de voz que se abre desde la landing. Sin Issue todavía. |
 | `telnyx-whatsapp-calls` | Llamadas de voz por WhatsApp vía Telnyx — distinto de la mensajería de texto ya existente (`WhatsAppAdapter`, `jobs/sendWhatsapp.ts`, plantillas de confirmación/recordatorio) | — | **Descartado** el 2026-09-19 (ver `PLAN-CANAL-DUENO.md` v3). `docs/historico/PLAN-WHATSAPP-LLAMADAS.md` queda en `main` solo como referencia. Rama sin trabajo; borrar cuando se confirme. |
 
@@ -2628,7 +2735,7 @@ fusionar o descartar una rama, quita su fila de esta tabla.
   **Neither web is deployed by this workflow** — Vercel's own Git integration handles both
   projects: `alhabla-frontend` (Root Directory `frontend`, domain `app.alhabla.ai`) and
   `alhabla-web` (Root Directory `web`, domains `alhabla.ai` + `www` → 308 to `alhabla.ai`),
-  split on 2026-09-21 (`PLAN-APP-DOMINIO.md`). DNS lives in Cloudflare (proxied CNAMEs to the
+  split on 2026-09-21 (`docs/historico/PLAN-APP-DOMINIO.md`). DNS lives in Cloudflare (proxied CNAMEs to the
   project's `*.vercel-dns-017.com` target). `alhabla.ai` answers every app route with a 301 to
   `app.alhabla.ai` (`web/next.config.mjs`), which is what keeps the Meta template URL buttons
   (`alhabla.ai/ajustes/{{1}}`) and old emails working. Backend URLs: `APP_URL`
@@ -2640,6 +2747,13 @@ fusionar o descartar una rama, quita su fila de esta tabla.
   API with its token can. The web project rejected `next-mdx-remote` 5 as vulnerable (Vercel's
   build-time check): keep it on 6. Rollback of the cut: move `alhabla.ai` back to
   `alhabla-frontend` in Vercel and set `APP_URL`/`FRONTEND_URL` back to `https://alhabla.ai`.
+  - **Left over from the split** (phase 4 of `docs/historico/PLAN-APP-DOMINIO.md`, no date):
+    retire `FRONTEND_URL` once nothing reads it — in code it is only the last fallback of
+    `appUrl()`/`webUrl()` in `backend/src/lib/urls.ts`, besides `.env.example`,
+    `docker-compose.yml`, Cloud Run and the tests that set it; drop `EXTRA_ALLOWED_ORIGIN` if it
+    turns out to be unused; and extract a `packages/ui` package (tokens, `brand-mark`) only if
+    the copies between `web/` and `frontend/` start to hurt — two `globals.css` are cheaper than
+    an npm workspace.
   - **Preview deployments point at the dev backend, not production** (fixed 2026-09-19).
     `NEXT_PUBLIC_API_BASE_URL` used to be a single Vercel entry targeting `production` **and**
     `preview`, so every PR preview talked to `https://api.alhabla.ai` — clicking through a

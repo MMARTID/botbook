@@ -25,7 +25,8 @@ export const metadata: Metadata = {
   },
   description: defaultDescription,
   applicationName: siteName,
-  // La app no se indexa (PLAN-APP-DOMINIO.md): lo público vive en la web.
+  // La app no se indexa (docs/historico/PLAN-APP-DOMINIO.md): lo público vive
+  // en la web.
   ...noindexMetadata,
   formatDetection: {
     telephone: false,
