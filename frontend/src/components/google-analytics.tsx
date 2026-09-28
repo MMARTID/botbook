@@ -1,16 +1,24 @@
 "use client";
 
-import { useEffect, useState } from "react";
+// Copia compartida: este fichero es idéntico, byte a byte, en
+// frontend/src/components/ (la app) y web/src/components/ (la web), y CI lo
+// comprueba con scripts/comprobar-copias-compartidas.sh. Lo que cambia entre
+// las dos llega por props (la web lo monta en su layout.tsx; la app, a través
+// de analitica-de-la-app.tsx), así que un cambio aquí se copia tal cual a la
+// otra.
+
+import { useEffect, useMemo, useState } from "react";
 import { usePathname } from "next/navigation";
 import Script from "next/script";
 import { Analytics, type BeforeSendEvent } from "@vercel/analytics/next";
-import { webUrl } from "@/lib/web-url";
-import { esRutaSinArmazon } from "@/components/app-shell";
 
 const ID_MEDICION = process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID ?? "G-Z3RT28K0ZJ";
 const NOMBRE_COOKIE = "alhabla_analitica";
 const UN_ANO = 365 * 24 * 60 * 60;
 const EVENTO_PREFERENCIAS = "alhabla:preferencias-cookies";
+// Valor por defecto fuera del componente: un `[]` en la firma sería un array
+// nuevo en cada render y los useMemo de abajo se recalcularían siempre.
+const SIN_RUTAS: readonly string[] = [];
 
 /** Reabre el aviso de cookies desde otro sitio (la hoja «Más» del panel). */
 export function abrirPreferenciasDeCookies() {
@@ -36,7 +44,9 @@ function leerConsentimiento(): boolean | null {
 
 function dominioCompartido(): string {
   const host = window.location.hostname;
-  return host === "alhabla.ai" || host.endsWith(".alhabla.ai") ? "; Domain=.alhabla.ai" : "";
+  return host === "alhabla.ai" || host.endsWith(".alhabla.ai")
+    ? "; Domain=.alhabla.ai"
+    : "";
 }
 
 function guardarConsentimiento(aceptada: boolean) {
@@ -71,9 +81,12 @@ function configurarGoogle() {
   window.dataLayer ??= [];
   window.gtag ??= (...args: unknown[]) => window.dataLayer?.push(args);
   if (!window.alhablaGtagConfigurado) {
+    // Consentimiento básico: la etiqueta se carga únicamente tras aceptar.
     window.gtag("consent", "default", {
-      analytics_storage: "denied", ad_storage: "denied",
-      ad_user_data: "denied", ad_personalization: "denied",
+      analytics_storage: "denied",
+      ad_storage: "denied",
+      ad_user_data: "denied",
+      ad_personalization: "denied",
     });
     window.gtag("consent", "update", { analytics_storage: "granted" });
     window.gtag("js", new Date());
@@ -96,27 +109,74 @@ function detenerGoogle() {
   borrarCookiesDeGoogle();
 }
 
-function rutaMedible(ruta: string): boolean {
-  return !/^\/(?:auth|dev|restablecer-contrasena|settings)(?:\/|$)/.test(ruta);
+/** Primer segmento de la ruta: «/auth/entrar» → «auth»; «/» → «». */
+function primerSegmento(ruta: string): string {
+  return ruta.split("/")[1] ?? "";
 }
 
-function filtrarEventoDeVercel(evento: BeforeSendEvent): BeforeSendEvent | null {
-  if (leerConsentimiento() !== true) return null;
-  const url = new URL(evento.url, window.location.origin);
-  if (!rutaMedible(url.pathname)) return null;
-  return { ...evento, url: `${url.origin}${url.pathname}` };
+function rutaMedible(ruta: string, rutasSinMedir: readonly string[]): boolean {
+  return !rutasSinMedir.includes(primerSegmento(ruta));
 }
 
-/** Comparte la elección con la web y mide solo rutas sin parámetros privados. */
-export function GoogleAnalytics() {
+function crearFiltroDeVercel(rutasSinMedir: readonly string[]) {
+  return (evento: BeforeSendEvent): BeforeSendEvent | null => {
+    if (leerConsentimiento() !== true) return null;
+    const url = new URL(evento.url, window.location.origin);
+    if (!rutaMedible(url.pathname, rutasSinMedir)) return null;
+    return { ...evento, url: `${url.origin}${url.pathname}` };
+  };
+}
+
+// Solo props serializables: la web lo monta directamente en su layout.tsx, que
+// es un Server Component y no puede pasarle funciones.
+type PropiedadesDeAnalitica = {
+  /** Destino de «Más información»: la política de privacidad vive en la web. */
+  enlaceDePrivacidad: string;
+  /** Primer segmento de ruta, sin barra («auth» cubre /auth y /auth/…), donde
+   * no se envía `page_view` ni evento de Vercel (la URL lleva tokens), aunque
+   * el aviso de cookies sí puede salir. */
+  rutasSinMedicion?: readonly string[];
+  /** Primer segmento de ruta, sin barra, donde no se carga nada: ni scripts
+   * ni aviso. */
+  rutasSinAnalitica?: readonly string[];
+  /** Hay armazón del panel (barra lateral en escritorio, barra inferior en
+   * móvil) y el aviso y el botón no pueden taparlo. */
+  dentroDelPanel?: boolean;
+};
+
+/** Comparte la elección entre la app y la web, mide solo páginas sin
+ * parámetros y permite cambiar la elección en cualquier momento. */
+export function GoogleAnalytics({
+  enlaceDePrivacidad,
+  rutasSinMedicion = SIN_RUTAS,
+  rutasSinAnalitica = SIN_RUTAS,
+  dentroDelPanel = false,
+}: PropiedadesDeAnalitica) {
   const pathname = usePathname();
   const [consentimiento, setConsentimiento] = useState<boolean | null>(null);
   const [hidratado, setHidratado] = useState(false);
   const [abierto, setAbierto] = useState(false);
   const [puedeCargar, setPuedeCargar] = useState(false);
   const [listo, setListo] = useState(false);
+  // Las rutas internas (en la web, el editor del blog y las vistas previa):
+  // ni medición ni aviso de cookies, aunque la visita hubiera aceptado en
+  // otra página.
+  const conAnalitica = !rutasSinAnalitica.includes(primerSegmento(pathname));
+  // Donde no hay analítica tampoco se mide, ni en Google ni en Vercel.
+  const rutasSinMedir = useMemo(
+    () => [...rutasSinMedicion, ...rutasSinAnalitica],
+    [rutasSinMedicion, rutasSinAnalitica]
+  );
+  const medible = rutaMedible(pathname, rutasSinMedir);
+  // Misma referencia mientras no cambien las listas: `<Analytics>` vuelve a
+  // registrar `beforeSend` cada vez que cambia.
+  const filtrarEventoDeVercel = useMemo(
+    () => crearFiltroDeVercel(rutasSinMedir),
+    [rutasSinMedir]
+  );
 
   useEffect(() => {
+    if (!conAnalitica) return;
     const sincronizar = () => {
       if (document.visibilityState === "hidden") return;
       setConsentimiento(leerConsentimiento());
@@ -131,7 +191,7 @@ export function GoogleAnalytics() {
       window.removeEventListener("pageshow", sincronizar);
       document.removeEventListener("visibilitychange", sincronizar);
     };
-  }, []);
+  }, [conAnalitica]);
 
   useEffect(() => {
     const abrir = () => setAbierto(true);
@@ -140,7 +200,8 @@ export function GoogleAnalytics() {
   }, []);
 
   useEffect(() => {
-    if (!hidratado || !/^G-[A-Z0-9]+$/.test(ID_MEDICION)) return;
+    if (!conAnalitica || !hidratado || !/^G-[A-Z0-9]+$/.test(ID_MEDICION))
+      return;
     if (consentimiento === true) {
       configurarGoogle();
       setPuedeCargar(true);
@@ -149,18 +210,20 @@ export function GoogleAnalytics() {
       setPuedeCargar(false);
       setListo(false);
     }
-  }, [consentimiento, hidratado]);
+  }, [consentimiento, hidratado, conAnalitica]);
 
   useEffect(() => {
-    if (!listo || consentimiento !== true || !rutaMedible(pathname)) return;
+    if (!listo || consentimiento !== true || !medible) return;
+    // Nunca se envían query strings: contienen tokens de registro o campañas.
     window.gtag?.("event", "page_view", {
       page_path: pathname,
       page_location: `${window.location.origin}${pathname}`,
       page_referrer: referenteSeguro(),
       page_title: document.title,
     });
-  }, [listo, consentimiento, pathname]);
+  }, [listo, consentimiento, pathname, medible]);
 
+  if (!conAnalitica) return null;
   if (!/^G-[A-Z0-9]+$/.test(ID_MEDICION)) return null;
 
   const decidir = (aceptada: boolean) => {
@@ -172,30 +235,79 @@ export function GoogleAnalytics() {
 
   // Dentro del panel hay barra lateral (escritorio) y barra inferior (móvil):
   // el botón flotante no puede taparlas. En móvil la opción vive en la hoja
-  // «Más»; en escritorio el botón pasa a la esquina derecha.
-  const enPanel = !esRutaSinArmazon(pathname);
+  // «Más»; en escritorio el botón pasa a la esquina derecha. El aviso, en
+  // móvil, se apoya encima de la barra inferior.
+  const colocacionDelAviso = dentroDelPanel
+    ? "bottom-[calc(5.5rem_+_env(safe-area-inset-bottom))] lg:bottom-4"
+    : "bottom-4";
+  const colocacionDelBoton = dentroDelPanel
+    ? "right-4 hidden lg:inline-flex"
+    : "left-4 inline-flex";
 
   return (
     <>
       {puedeCargar && consentimiento === true ? (
         <>
-          <Script src={`https://www.googletagmanager.com/gtag/js?id=${ID_MEDICION}`} strategy="afterInteractive" onReady={() => setListo(true)} />
+          <Script
+            src={`https://www.googletagmanager.com/gtag/js?id=${ID_MEDICION}`}
+            strategy="afterInteractive"
+            onReady={() => setListo(true)}
+          />
           <Analytics beforeSend={filtrarEventoDeVercel} />
         </>
       ) : null}
       {hidratado && (consentimiento === null || abierto) ? (
-        <aside className={`fixed inset-x-4 z-[65] mx-auto max-w-xl rounded-2xl border border-[#e5e5e5] bg-white p-5 shadow-[0_16px_40px_rgba(0,0,0,0.16)] ${enPanel ? "bottom-[calc(5.5rem_+_env(safe-area-inset-bottom))] lg:bottom-4" : "bottom-4"}`} aria-labelledby="titulo-cookies">
-          <h2 id="titulo-cookies" className="text-sm font-semibold text-[#0a0a0a]">Preferencias de cookies</h2>
+        <aside
+          className={`fixed inset-x-4 z-[65] mx-auto max-w-xl rounded-2xl border border-[#e5e5e5] bg-white p-5 shadow-[0_16px_40px_rgba(0,0,0,0.16)] ${colocacionDelAviso}`}
+          aria-labelledby="titulo-cookies"
+        >
+          {/* Título real, no solo aria-label: un aside con contenido complejo
+              (párrafo + enlace + 2 botones) se orienta mejor con un
+              encabezado que un lector de pantalla puede saltar a buscar. */}
+          <h2
+            id="titulo-cookies"
+            className="text-sm font-semibold text-[#0a0a0a]"
+          >
+            Preferencias de cookies
+          </h2>
           <p className="mt-1 text-sm leading-6 text-muted">
-            Google Analytics y Vercel Analytics nos ayudan a entender el uso de la aplicación. Solo se activan si aceptas. Puedes cambiar tu elección cuando quieras. <a href={webUrl("/legal/privacidad")} className="rounded font-medium text-[#27272a] underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]">Más información</a>.
+            Google Analytics y Vercel Analytics nos ayudan a entender cómo se
+            usa Alhabla. Solo se activan si aceptas. Puedes cambiar tu elección
+            cuando quieras.{" "}
+            <a
+              href={enlaceDePrivacidad}
+              className="rounded font-medium text-[#27272a] underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]"
+            >
+              Más información
+            </a>
+            .
           </p>
           <div className="mt-4 flex flex-wrap gap-3">
-            <button type="button" onClick={() => decidir(true)} className="btn-secondary h-11 px-4">Aceptar analítica</button>
-            <button type="button" onClick={() => decidir(false)} className="btn-secondary h-11 px-4">Rechazar analítica</button>
+            <button
+              type="button"
+              onClick={() => decidir(true)}
+              className="btn-secondary h-11 px-4"
+            >
+              Aceptar analítica
+            </button>
+            <button
+              type="button"
+              onClick={() => decidir(false)}
+              className="btn-secondary h-11 px-4"
+            >
+              Rechazar analítica
+            </button>
           </div>
         </aside>
       ) : hidratado ? (
-        <button type="button" onClick={() => setAbierto(true)} className={`fixed bottom-4 z-40 min-h-11 items-center rounded-full border border-[#e5e5e5] bg-white px-4 text-xs font-semibold text-[#27272a] shadow-[0_8px_24px_rgba(0,0,0,0.08)] transition duration-200 hover:bg-[#fafafa] [html[data-relato]_&]:pointer-events-none [html[data-relato]_&]:opacity-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] ${enPanel ? "right-4 hidden lg:inline-flex" : "left-4 inline-flex"}`}>
+        // `data-relato` lo pone en <html> el relato con scroll de la portada
+        // de la web (llamada-scroll.tsx): mientras el escenario está fijo el
+        // botón se esconde, porque tapaba la barra de pasos en móvil.
+        <button
+          type="button"
+          onClick={() => setAbierto(true)}
+          className={`fixed bottom-4 z-40 min-h-11 items-center rounded-full border border-[#e5e5e5] bg-white px-4 text-xs font-semibold text-[#27272a] shadow-[0_8px_24px_rgba(0,0,0,0.08)] transition duration-200 hover:bg-[#fafafa] [html[data-relato]_&]:pointer-events-none [html[data-relato]_&]:opacity-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] ${colocacionDelBoton}`}
+        >
           Configurar cookies
         </button>
       ) : null}

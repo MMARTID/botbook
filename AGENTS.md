@@ -106,8 +106,11 @@ Most modules are a folder containing a `routes.ts` file (and optionally `service
 Since 2026-09-21 (`PLAN-APP-DOMINIO.md`) there are **two** Next.js projects: `frontend/` is the
 authenticated app (`app.alhabla.ai`) and `web/` is the public site (`alhabla.ai`). Marketing
 components (`SiteLanding`, `LandingHero`, `RevenueLossCalculator`, `PlansWithRoi`, `DemoVoiceCall`,
-`LegalPage`…) and `roi-context.ts` live in `web/src/`; components used by both (`brand-mark`,
-`particle-*`, `google-auth-button`, `range-slider`, `hero-conversation`…) are copied into each.
+`LegalPage`…) and `roi-context.ts` live in `web/src/`; files used by both (`brand-mark`,
+`particle-*`, `google-auth-button`, `range-slider`, `google-analytics`…) are copied, byte for
+byte, into each (anything that differs between app and site goes in via props). The list lives
+in `scripts/comprobar-copias-compartidas.sh` and CI (job «Copias compartidas app/web») fails if
+a copy drifts.
 The component and lib notes below keep their original wording; check which project holds a file
 before editing it.
 
