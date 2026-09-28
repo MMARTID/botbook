@@ -114,11 +114,119 @@ export function promptManualConSuRegla(
   return `${prompt.trimEnd()}\n\n${bloqueDeTransferencia}`;
 }
 
+/** Motivo que queda guardado cuando falta la URL pública del backend. */
+const SIN_BASE_URL =
+  "Falta BASE_URL; no se pueden registrar las tools de Telnyx";
+
+type ConfiguracionGestionada = NonNullable<
+  Awaited<ReturnType<typeof loadManagedAssistantConfig>>
+>;
+
+type AgenteDeRecepcionista = {
+  id: string;
+  systemPrompt: string;
+  promptManuallyEdited: boolean;
+};
+
 /**
- * Crea el assistant Telnyx de un `Agent` recién creado, si el negocio es
- * elegible (idioma/voz). Nunca lanza: un fallo aquí no debe impedir que
- * `createBusinessAgent()` devuelva el agente ya creado en Retell. Se llama
- * solo desde ahí — para negocios existentes usa `syncAgentToTelnyx`.
+ * Nombres de los servicios y profesionales activos: sesgan la transcripción
+ * (`keyterm` de deepgram/flux) hacia lo que de verdad se nombra en las
+ * llamadas del negocio.
+ */
+async function cargarPalabrasClave(
+  businessId: string,
+  prismaClient: typeof prisma
+): Promise<string[]> {
+  const [services, professionals] = await Promise.all([
+    prismaClient.service.findMany({
+      where: { businessId, active: true, deletedAt: null },
+      select: { name: true },
+      orderBy: { name: "asc" },
+    }),
+    prismaClient.professional.findMany({
+      where: { businessId, active: true, deletedAt: null },
+      select: { name: true },
+      orderBy: { name: "asc" },
+    }),
+  ]);
+  return [
+    ...services.map((service) => service.name),
+    ...professionals.map((professional) => professional.name),
+  ];
+}
+
+/**
+ * El payload COMPLETO de la recepcionista de un agente: prompt (el
+ * gestionado, o el manual con su regla de transferencia), las tools de voz,
+ * las palabras clave y la tool `transfer` cuando procede. Lo usan la
+ * creación y la sincronización, así que las dos mandan exactamente lo mismo
+ * y guardan el mismo hash: la primera sincronización tras crear el
+ * assistant no tiene nada que cambiar.
+ */
+function construirPayloadDeRecepcionista(args: {
+  businessId: string;
+  agent: AgenteDeRecepcionista;
+  config: ConfiguracionGestionada;
+  voz: string;
+  tools: TelnyxWebhookToolInput[];
+  palabrasClave: string[];
+}): CreateTelnyxAssistantInput {
+  const { config } = args;
+  return buildTelnyxAssistantPayload({
+    businessId: args.businessId,
+    agentId: args.agent.id,
+    businessName: config.business.name,
+    timezone: config.business.timezone,
+    instructions: args.agent.promptManuallyEdited
+      ? promptManualConSuRegla(
+          args.agent.systemPrompt,
+          config.bloqueDeTransferencia
+        )
+      : config.systemPrompt,
+    greeting: buildRetellBeginMessage(config.business.name),
+    language: resolveTelnyxTranscriptionLanguage(
+      config.agentSettings.languages
+    ),
+    voice: args.voz,
+    boostedKeywords: args.palabrasClave,
+    tools: args.tools,
+    // Va aparte de `tools` (que solo lleva tools de webhook).
+    transferenciaAlDueno: config.transferenciaAlDueno,
+  });
+}
+
+/** Lo que se guarda en el `Agent` tras mandar su payload a Telnyx. */
+function datosDeSincronizacion(
+  payload: CreateTelnyxAssistantInput,
+  agent: AgenteDeRecepcionista,
+  config: ConfiguracionGestionada
+) {
+  return {
+    telnyxConfigHash: hashConfig(payload),
+    telnyxSyncedAt: new Date(),
+    telnyxSyncError: null,
+    // La copia del prompt que ve el panel (/agente) es la que ejecuta
+    // Telnyx, el primary: con el bloque de transferencia cuando la tool
+    // está registrada y sin él cuando no. Los prompts editados a mano no
+    // se pisan.
+    ...(agent.promptManuallyEdited
+      ? {}
+      : { systemPrompt: config.systemPrompt }),
+  };
+}
+
+/**
+ * Crea el assistant Telnyx de un `Agent`, si el negocio es elegible
+ * (idioma/voz), con el payload completo desde el primer momento: tools de
+ * voz, palabras clave y transferencia. Antes nacía solo con `hangup` y
+ * dependía de una segunda sincronización para poder consultar horario o
+ * reservar; si esa segunda llamada fallaba, el negocio quedaba en Telnyx
+ * con una recepcionista incapaz de reservar (incidente real 2026-09-14).
+ *
+ * Nunca lanza: un fallo aquí no debe impedir que `createBusinessAgent()`
+ * devuelva el agente ya creado en Retell. Lo llaman `createBusinessAgent()`
+ * y el backfill (`scripts/backfillTelnyxAssistants.ts`); para agentes que
+ * ya tienen assistant usa `syncAgentToTelnyx`.
  */
 export async function createTelnyxAssistantForAgent(args: {
   agentId: string;
@@ -136,16 +244,25 @@ export async function createTelnyxAssistantForAgent(args: {
       return { eligible: false, reason: eligibility.reason };
     }
 
-    const payload = buildTelnyxAssistantPayload({
+    // Sin URL pública las tools no tendrían adónde llamar: mejor no crear
+    // el assistant (el negocio sigue en Retell y el motivo queda guardado)
+    // que crear uno que contesta pero no puede consultar ni reservar nada.
+    const baseUrl = getPublicWebhookBaseUrl();
+    if (!baseUrl) return { eligible: false, reason: SIN_BASE_URL };
+
+    const agent = await client.agent.findUnique({
+      where: { id: args.agentId },
+      select: { id: true, systemPrompt: true, promptManuallyEdited: true },
+    });
+    if (!agent) return { eligible: false, reason: "Agente no encontrado." };
+
+    const payload = construirPayloadDeRecepcionista({
       businessId: args.businessId,
-      agentId: args.agentId,
-      businessName: config.business.name,
-      timezone: config.business.timezone,
-      instructions: config.systemPrompt,
-      greeting: buildRetellBeginMessage(config.business.name),
-      language: resolveTelnyxTranscriptionLanguage(config.agentSettings.languages),
-      voice: eligibility.voiceId!,
-      transferenciaAlDueno: config.transferenciaAlDueno,
+      agent,
+      config,
+      voz: eligibility.voiceId!,
+      tools: buildTelnyxVoiceTools(baseUrl),
+      palabrasClave: await cargarPalabrasClave(args.businessId, client),
     });
 
     const assistant = await telnyxAiAdapter.createAssistant(payload);
@@ -153,9 +270,7 @@ export async function createTelnyxAssistantForAgent(args: {
       where: { id: args.agentId },
       data: {
         telnyxAssistantId: assistant.id,
-        telnyxConfigHash: hashConfig(payload),
-        telnyxSyncedAt: new Date(),
-        telnyxSyncError: null,
+        ...datosDeSincronizacion(payload, agent, config),
       },
     });
     return { eligible: true, reason: null };
@@ -173,10 +288,10 @@ export async function createTelnyxAssistantForAgent(args: {
 /**
  * Reconstruye la configuración gestionada de Telnyx y la sincroniza con los
  * agentes que ya tienen `telnyxAssistantId` — espejo de `syncAgentToRetell`,
- * pero SIN lanzar nunca: Telnyx todavía no es primary para ningún negocio
- * real y un fallo aquí no debe tumbar el flujo (reservas, ajustes) que
- * dispara esta sincronización. El estado queda en `telnyxSyncError` para
- * que el panel lo muestre (plan §6).
+ * pero SIN lanzar nunca: un fallo aquí no debe tumbar el flujo (reservas,
+ * ajustes) que dispara esta sincronización. El estado queda en
+ * `telnyxSyncError` para que el panel lo muestre. Solo llama a Telnyx si el
+ * hash del payload cambió.
  */
 export async function syncAgentToTelnyx(
   businessId: string,
@@ -184,7 +299,6 @@ export async function syncAgentToTelnyx(
   options?: {
     onlyManagedPrompts?: boolean;
     onlyActive?: boolean;
-    tools?: TelnyxWebhookToolInput[];
   }
 ): Promise<void> {
   try {
@@ -201,40 +315,25 @@ export async function syncAgentToTelnyx(
     });
     if (agents.length === 0) return;
 
-    const services = await prismaClient.service.findMany({
-      where: { businessId, active: true, deletedAt: null },
-      select: { name: true },
-      orderBy: { name: "asc" },
-    });
-    const professionals = await prismaClient.professional.findMany({
-      where: { businessId, active: true, deletedAt: null },
-      select: { name: true },
-      orderBy: { name: "asc" },
-    });
-    const boostedKeywords = [
-      ...services.map((service) => service.name),
-      ...professionals.map((professional) => professional.name),
-    ];
+    const [palabrasClave, eligibility] = await Promise.all([
+      cargarPalabrasClave(businessId, prismaClient),
+      resolveTelnyxEligibility(config.agentSettings),
+    ]);
 
-    const eligibility = await resolveTelnyxEligibility(config.agentSettings);
-
-    // Sin este valor por defecto, cualquier llamada a syncAgentToTelnyx que
-    // no pase `tools` explícitamente (guardar horario, crear/editar un
-    // servicio o profesional, el reconciliador diario) sobrescribía el
-    // assistant real con `tools: []` — dejándolo sin get_catalog/
-    // check_availability/book_appointment/find_my_appointment/
-    // cancel_appointment pese a que el prompt seguía instruyéndole a
-    // usarlas. Hallazgo real 2026-09-14: los 5 assistants de las cuentas de
-    // prueba lo sufrieron (probablemente el reconciliador diario) y las 25
-    // llamadas reales de telnyxCallBattery.ts fallaron en el 100% de los
-    // casos. buildTelnyxCalendarTools (calendar/service.ts) sigue siendo la
-    // única llamada que puede pasar `tools` explícito.
+    // Las tools de voz van SIEMPRE, las pida quien las pida: guardar el
+    // horario, crear/editar un servicio o profesional, conectar el
+    // calendario o el reconciliador diario. Cuando cada llamada decidía si
+    // pasaba `tools`, las que no las pasaban sobrescribían el assistant real
+    // con `tools: []` — dejándolo sin get_catalog/check_availability/
+    // book_appointment/find_my_appointment/cancel_appointment pese a que el
+    // prompt seguía instruyéndole a usarlas. Hallazgo real 2026-09-14: los 5
+    // assistants de las cuentas de prueba lo sufrieron (probablemente el
+    // reconciliador diario) y las 25 llamadas reales de
+    // telnyxCallBattery.ts fallaron en el 100% de los casos.
     const baseUrl = getPublicWebhookBaseUrl();
-    const tools = options?.tools ?? (baseUrl ? buildTelnyxVoiceTools(baseUrl) : undefined);
+    const tools = baseUrl ? buildTelnyxVoiceTools(baseUrl) : undefined;
     if (!tools) {
-      console.error(
-        `[Agent] Falta BASE_URL; no se pueden sincronizar tools de Telnyx para ${businessId}`
-      );
+      console.error(`[Agent] ${SIN_BASE_URL} para ${businessId}`);
     }
 
     for (const agent of agents) {
@@ -246,36 +345,18 @@ export async function syncAgentToTelnyx(
             eligibility.reason ?? "Negocio no elegible para Telnyx."
           );
         }
-        if (!tools) {
-          throw new Error(
-            "Falta BASE_URL; no se pueden sincronizar tools de Telnyx"
-          );
-        }
+        if (!tools) throw new Error(SIN_BASE_URL);
 
-        const payload: CreateTelnyxAssistantInput =
-          buildTelnyxAssistantPayload({
-            businessId,
-            agentId: agent.id,
-            businessName: config.business.name,
-            timezone: config.business.timezone,
-            instructions: agent.promptManuallyEdited
-              ? promptManualConSuRegla(
-                  agent.systemPrompt,
-                  config.bloqueDeTransferencia
-                )
-              : config.systemPrompt,
-            greeting: buildRetellBeginMessage(config.business.name),
-            language: resolveTelnyxTranscriptionLanguage(config.agentSettings.languages),
-            voice: eligibility.voiceId!,
-            boostedKeywords,
-            tools,
-            // Va aparte de `tools` (que solo lleva tools de webhook): así
-            // también entra cuando calendar/service.ts pasa las suyas.
-            transferenciaAlDueno: config.transferenciaAlDueno,
-          });
-
-        const configHash = hashConfig(payload);
-        if (agent.telnyxConfigHash !== configHash) {
+        const payload = construirPayloadDeRecepcionista({
+          businessId,
+          agent,
+          config,
+          voz: eligibility.voiceId!,
+          tools,
+          palabrasClave,
+        });
+        const datos = datosDeSincronizacion(payload, agent, config);
+        if (agent.telnyxConfigHash !== datos.telnyxConfigHash) {
           await telnyxAiAdapter.updateAssistant(
             agent.telnyxAssistantId!,
             payload
@@ -283,18 +364,7 @@ export async function syncAgentToTelnyx(
         }
         await prismaClient.agent.update({
           where: { id: agent.id },
-          data: {
-            telnyxConfigHash: configHash,
-            telnyxSyncedAt: new Date(),
-            telnyxSyncError: null,
-            // La copia del prompt que ve el panel (/agente) es la que
-            // ejecuta Telnyx, el primary: con el bloque de transferencia
-            // cuando la tool está registrada y sin él cuando no. Los
-            // prompts editados a mano no se pisan.
-            ...(agent.promptManuallyEdited
-              ? {}
-              : { systemPrompt: config.systemPrompt }),
-          },
+          data: datos,
         });
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);

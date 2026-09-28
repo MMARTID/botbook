@@ -717,35 +717,12 @@ export async function createBusinessAgent(args: {
           prismaClient: client,
         });
 
-        // createTelnyxAssistantForAgent crea el assistant sin tools (solo
-        // añade `hangup` por defecto, ver telnyxAssistantPayload.ts) — la
-        // llamada a syncCalendarToolsToAgents de la línea 666 se ejecutó
-        // ANTES de que este assistant existiera, así que su filtro por
-        // telnyxAssistantId no encontró nada que sincronizar. Sin este
-        // segundo paso, el negocio queda con un assistant Telnyx que nunca
-        // puede consultar horario, comprobar disponibilidad ni reservar —
-        // encontrado 2026-09-14 con una llamada real: el agente decía "voy a
-        // comprobar la disponibilidad" y la llamada terminaba ahí (Telnyx
-        // marcaba tool_failure_detected porque check_availability no existía
-        // como tool en el assistant).
-        if (telnyxResult.eligible) {
-          try {
-            await calendarService.syncCalendarToolsToAgents(args.businessId);
-          } catch (toolsError) {
-            console.error(
-              "[Agent] No se pudieron sincronizar las herramientas de calendario en el assistant Telnyx recién creado:",
-              {
-                agentId: agent.id,
-                businessId: args.businessId,
-                message:
-                  toolsError instanceof Error
-                    ? toolsError.message
-                    : String(toolsError),
-              }
-            );
-          }
-        }
-
+        // El assistant ya nace con sus tools de voz (mismo payload que
+        // syncAgentToTelnyx). Antes se creaba solo con `hangup` y hacía falta
+        // una segunda sincronización aquí, porque la de más arriba corre ANTES
+        // de que el assistant exista: sin ella la recepcionista decía «voy a
+        // comprobar la disponibilidad» y la llamada acababa ahí (incidente
+        // real 2026-09-14).
         await client.business
           .update({
             where: { id: args.businessId },

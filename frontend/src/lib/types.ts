@@ -479,7 +479,9 @@ export type Call = {
   businessId: string;
   business?: Business;
   agentId: string | null;
-  agent?: Agent | null;
+  /** Solo lo que pinta el panel: el backend nunca manda la fila entera del
+   * agente (ni su prompt) dentro de una llamada. */
+  agent?: Pick<Agent, "id" | "name" | "voice"> | null;
   callId: string;
   fromNumber: string | null;
   status: CallStatus;

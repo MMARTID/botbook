@@ -14,7 +14,6 @@ import {
 } from "../../adapters/retell/RetellAdapter.js";
 import { getPublicWebhookBaseUrl } from "../../lib/serverUrl.js";
 import { syncAgentToTelnyx } from "../../lib/telnyxAgentSync.js";
-import { buildTelnyxVoiceTools } from "../../lib/telnyxAssistantPayload.js";
 import {
   exchangeMicrosoftCode,
   getMicrosoftAuthUrl,
@@ -767,12 +766,12 @@ export class CalendarService {
         console.error(message);
         recordError(message);
       } else {
-        const telnyxTools = buildTelnyxVoiceTools(baseUrl);
-        // syncAgentToTelnyx nunca lanza (un fallo de Telnyx no debe poder
-        // bloquear este flujo) — en modo strict se comprueba
+        // syncAgentToTelnyx registra siempre las tools de voz
+        // (buildTelnyxVoiceTools) y nunca lanza (un fallo de Telnyx no debe
+        // poder bloquear este flujo) — en modo strict se comprueba
         // telnyxSyncError después para no dar por buena una sincronización
         // que en realidad falló en silencio.
-        await syncAgentToTelnyx(businessId, prisma, { tools: telnyxTools });
+        await syncAgentToTelnyx(businessId, prisma);
         console.log(
           `[Calendar] Tools de calendario sincronizadas en Telnyx para el negocio ${businessId}`
         );
