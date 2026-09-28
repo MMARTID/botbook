@@ -1,6 +1,6 @@
 /**
  * Batería de test reales sobre las 5 cuentas de desarrollo Telnyx
- * (PLAN-TELNYX-ORQUESTADOR.md). Pedido original: "crea 100 test" para cazar
+ * (docs/historico/PLAN-TELNYX-ORQUESTADOR.md). Pedido original: "crea 100 test" para cazar
  * tres tipos de problema (preguntas excesivas, calidad por nicho,
  * identificar/cancelar cita por número de quien llama con consentimiento);
  * acotado con el usuario a un lote representativo de ~20 llamadas reales en

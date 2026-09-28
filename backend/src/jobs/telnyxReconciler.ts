@@ -8,7 +8,7 @@ import { refrescarPlantillasConClave } from "../modules/whatsapp/service.js";
 import { sincronizarGestor } from "../lib/gestorSync.js";
 
 /**
- * Reconciliador diario Telnyx (PLAN-TELNYX-ORQUESTADOR.md Fase 6:
+ * Reconciliador diario Telnyx (docs/historico/PLAN-TELNYX-ORQUESTADOR.md Fase 6:
  * "Reconciliador diario de assistants, números y rutas"). Invocado una vez
  * al día por Cloud Scheduler vía POST /internal/jobs/telnyx-reconciler.
  *

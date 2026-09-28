@@ -40,7 +40,7 @@ export async function webhooksTelnyxRoutes(fastify: FastifyInstance) {
   fastify.addHook("preHandler", verificarFirmaDeTelnyx);
 
   // Telnyx AI Assistants — Call Control App de plataforma (compartido por
-  // todos los negocios en rollout Telnyx, ver PLAN-TELNYX-ORQUESTADOR.md
+  // todos los negocios en rollout Telnyx, ver docs/historico/PLAN-TELNYX-ORQUESTADOR.md
   // §4). Idempotente por `data.id` vía VoiceWebhookEvent: un reintento del
   // proveedor del mismo evento se ignora sin reprocesar nada.
   fastify.post("/webhooks/telnyx", {

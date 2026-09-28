@@ -6,7 +6,7 @@
  * "all"), createBusinessAgent lo auto-promociona a "telnyx" en cuanto su
  * assistant existe de verdad (agentBootstrap.ts, "Auto-promoción a
  * Telnyx-primary", 2026-09-13). El cutover manual
- * (scripts/cutoverToTelnyx.ts, PLAN-TELNYX-ORQUESTADOR.md) solo cubre los
+ * (scripts/cutoverToTelnyx.ts, docs/historico/PLAN-TELNYX-ORQUESTADOR.md) solo cubre los
  * negocios anteriores a eso. Hoy Telnyx es el primary de todos: Retell se
  * mantiene sincronizado como fallback caliente, no como orquestador real.
  */

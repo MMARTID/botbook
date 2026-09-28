@@ -130,7 +130,7 @@ Todo con `curl -H "Authorization: Bearer $TELNYX_API_KEY"` contra `https://api.t
    cómo se identifica el canal, formato de `from`, si llega `client_state`/cabeceras, calidad de
    audio, si `call.cost` desglosa el 0,0025 $/min, y si `startNoiseSuppression` funciona.
    Recordar el gotcha del **único Call Control App** compartido dev/producción
-   (PLAN-TELNYX-ORQUESTADOR.md § Límites): devolver el webhook a producción al terminar.
+   (docs/historico/PLAN-TELNYX-ORQUESTADOR.md § Límites): devolver el webhook a producción al terminar.
 5. **Verificación por voz de un número español.** Registrar un segundo número Telnyx de pruebas en
    el WABA con `POST /whatsapp/business_accounts/{waba}/phone_numbers {"verification_method":
    "voice", "language": "es_ES", …}` y observar cómo llega la llamada del código (¿qué `from`?,
