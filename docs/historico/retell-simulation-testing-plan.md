@@ -1,5 +1,7 @@
 # Plan de Simulation Testing de Retell por nicho
 
+> **Histórico** (movido a `docs/historico/` el 2026-09-27): implementado en `backend/src/modules/retellSimulation/`, `backend/scripts/retellSimulation.ts` (`npm run sim`) y `npm run test:simulations`. Retell es hoy solo el respaldo de voz; el primario es Telnyx AI Assistants.
+
 ## Objetivo y verificación de la API
 
 Crear una batería de regresión de LLM Simulation Testing para los cinco LLM de desarrollo de Retell. La simulación enfrenta el LLM del agente con un LLM que actúa como cliente; no inicia una llamada telefónica ni usa el número Telnyx. Los mocks evitan llamadas a Google Calendar y Outlook.

@@ -1,36 +1,28 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# frontend — la app de Alhabla (app.alhabla.ai)
 
-## Getting Started
-
-First, run the development server:
+Panel del negocio: inicio, agenda, llamadas, recepcionista (`/agente`), tu asistente
+(`/asistente`), ajustes, asistente de alta (`/bienvenida`) y checkout. La web pública
+(landing, sectores, planes, legal, registro y blog) vive en `../web` y se sirve en
+`alhabla.ai`; el reparto está contado en `../PLAN-APP-DOMINIO.md`.
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+npm run dev     # http://localhost:3001 (la web corre en :3002, el backend en :3000)
+npm run test    # vitest
+npm run lint
+npm run build   # tipa como parte de la compilación (no hay script typecheck)
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+No ejecutes `npm run build` con `npm run dev` levantado: los dos escriben en `.next` y el
+servidor de desarrollo se queda sin estilos (ver `../AGENTS.md`).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Variables (`.env.local` en dev, proyecto `alhabla-frontend` en Vercel):
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- `NEXT_PUBLIC_API_BASE_URL` — el backend (`https://api.alhabla.ai`). Obligatoria en build.
+- `NEXT_PUBLIC_WEB_URL` — la web pública (`https://alhabla.ai`), para enlazarla y para los
+  redirects 301 de rutas de marketing (`lib/web-url.ts`, `next.config.mjs`).
+- `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` — clave pública de Stripe para el checkout embebido.
+- `NEXT_PUBLIC_GA_MEASUREMENT_ID` — ID público de medición de GA4 (opcional).
 
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Referencia completa (páginas, componentes, estado, sistema de diseño) en `../AGENTS.md` y
+`../DESIGN.md`.

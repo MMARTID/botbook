@@ -1,17 +1,17 @@
 name: Deploy backend
 
-# Solo backend: el frontend se despliega solo vía la integración Git de
-# Vercel (Root Directory ya corregido a "frontend", ver Second-Brain
-# "Producción e infraestructura" § Vercel) — añadir aquí un deploy de
-# frontend competiría con esa vía.
+# Solo backend: la app y la web se despliegan solas vía la integración Git de
+# Vercel (proyectos alhabla-frontend, Root Directory "frontend", y
+# alhabla-web, Root Directory "web"; ver AGENTS.md § Deployment Notes) —
+# añadir aquí un deploy de cualquiera de las dos competiría con esa vía.
 #
 # Autenticación sin claves de larga duración: Workload Identity Federation.
 # La service account github-actions-ci solo puede ser asumida por workflows
 # de este repo exacto (MMARTID/botbook) — ver el binding
 # roles/iam.workloadIdentityUser con condición de repositorio. Detalle
 # completo del pool/provider y de qué permisos tiene esa SA y por qué, en la
-# memoria de Claude Code "ci-cd-pipeline-setup" y en Second-Brain "Runbook de
-# despliegue a producción".
+# memoria de Claude Code "ci-cd-pipeline-setup" y en el runbook de despliegue
+# (notas personales fuera del repo; Second-Brain/ está en .gitignore).
 
 on:
   push:

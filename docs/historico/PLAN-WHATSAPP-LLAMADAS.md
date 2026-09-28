@@ -1,5 +1,7 @@
 # Plan: llamadas de WhatsApp atendidas por la recepcionista (Telnyx WhatsApp Business Calling)
 
+> **Histórico** (movido a `docs/historico/` el 2026-09-27): descartado el 2026-09-19, sin implementar. Se conserva como referencia de lo verificado con Telnyx y Meta.
+
 Rama: `telnyx-whatsapp-calls` · Fecha del plan: 2026-09-18 · Estado: **sin implementar**, pendiente de
 Fase 0 (validaciones con la cuenta real de Telnyx y Meta).
 

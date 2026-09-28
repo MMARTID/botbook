@@ -1,6 +1,6 @@
 # Plan: teléfono, desvío y WhatsApp sin confusión
 
-Estado: **ejecutado en código, 22-09-2026** (redactado el 21-09). Nace de la prueba real
+Estado: **ejecutado en código y en `main`** (revisado el 27-09-2026; solo falta la prueba real en producción de la fase 4, ver abajo) (redactado el 21-09). Nace de la prueba real
 en producción (#130): el dueño no sabe qué número es cuál ni cómo se separa lo que llaman
 los clientes de lo que él lleva en el bolsillo.
 
@@ -12,8 +12,8 @@ los clientes de lo que él lleva en el bolsillo.
 | 3 · «Comprobar desvío» | hecha, en `main` | PR #153: `modules/onboarding/comprobacionDesvio.ts`, reconocimiento en `webhookHandlers.ts`, botón en `call-forwarding-card.tsx` |
 | 1 · Pregunta del alta | hecha, en `main` | PR #156 (`feat/telefonia-fase1-2`): paso en `bienvenida/page.tsx`, `components/tarjetas-de-linea.tsx` |
 | 2 · Ajustes › Teléfono | hecha, en `main` | PR #156: `components/ajustes-telefono.tsx` |
-| 4 · Alhabla como número principal | hecha en código, **pendiente de PR y de prueba real** | rama `feat/telefonia-fase4-5`: tool `transferir_al_dueno` (`lib/transferenciaAlDueno.ts`, `telnyxAssistantPayload.ts`, `telnyxAgentSync.ts`), ajuste `agentSettings.pasarLlamadas`, pantalla `app/ajustes/numero-principal/page.tsx`, patas sin `Call` en el webhook (`adapters/telnyx/patasSinCall.ts`) |
-| 5 · Copys y avisos | hecha en código, **pendiente de PR** | misma rama: notas del contestador, job `recordar-desvio-sin-comprobar` (`jobs/recordarDesvioSinComprobar.ts`, columna `forwardingReminderSentAt`), `AGENTS.md` § Telefonía |
+| 4 · Alhabla como número principal | hecha, en `main`; **pendiente de prueba real** | antes rama `feat/telefonia-fase4-5`: tool `transferir_al_dueno` (`lib/transferenciaAlDueno.ts`, `telnyxAssistantPayload.ts`, `telnyxAgentSync.ts`), ajuste `agentSettings.pasarLlamadas`, pantalla `app/ajustes/numero-principal/page.tsx`, patas sin `Call` en el webhook (`adapters/telnyx/patasSinCall.ts`) |
+| 5 · Copys y avisos | hecha, en `main` | misma rama: notas del contestador, job `recordar-desvio-sin-comprobar` (`jobs/recordarDesvioSinComprobar.ts`, columna `forwardingReminderSentAt`), `AGENTS.md` § Telefonía |
 
 **Qué queda fuera del código:**
 
