@@ -117,3 +117,13 @@ alhabla-landing-video/
 .continue/skills/seam-craft
 .continue/skills/slideshow
 .continue/skills/talking-head-recut
+
+# Capturas que genera la crítica de Impeccable: se versiona el informe (.md),
+# no las imágenes.
+.impeccable/critique/*.png
+
+# Salidas de tests y builds que no deben acabar en el repo.
+coverage/
+playwright-report/
+test-results/
+*.tsbuildinfo

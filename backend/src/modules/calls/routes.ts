@@ -1,7 +1,7 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import { prisma } from "../../lib/prisma.js";
 import { z } from "zod";
-import { getSignedRecordingUrl } from "../../lib/storage.js";
+import { conUrlDeGrabacionFirmada } from "../../lib/grabacionFirmada.js";
 import { planAllows, resolvePlanId } from "../../lib/planFeatures.js";
 import { getCallAnalytics } from "./analytics.js";
 
@@ -13,35 +13,6 @@ const PaginationSchema = z.object({
 const AnalyticsQuerySchema = z.object({
   days: z.coerce.number().int().min(7).max(90).default(30),
 });
-
-/**
- * El bucket de R2 es privado — storageUrl guardado en BD es una URL de API
- * S3 sin firmar, no reproducible. CallDetailModal (frontend) prioriza este
- * storageUrl sobre el de Retell, así que sin firmar aquí el audio dejaba de
- * reproducirse en cuanto la grabación ya estaba copiada a R2 (hallazgo #15
- * de la auditoría) — mismo patrón que recordings/routes.ts. Si falla la
- * firma, cae a null en vez de romper la respuesta: el frontend ya sabe usar
- * externalUrl como alternativa.
- */
-async function withSignedRecordingUrl<
-  T extends {
-    recording: { storageKey: string | null; storageUrl: string | null } | null;
-  },
->(call: T): Promise<T> {
-  if (!call.recording?.storageKey) {
-    return call;
-  }
-  try {
-    const storageUrl = await getSignedRecordingUrl(call.recording.storageKey);
-    return { ...call, recording: { ...call.recording, storageUrl } };
-  } catch (error) {
-    console.error(
-      "[Calls] No se pudo generar la URL firmada de la grabación:",
-      error
-    );
-    return { ...call, recording: { ...call.recording, storageUrl: null } };
-  }
-}
 
 export async function callsRoutes(fastify: FastifyInstance) {
   // Get all calls for the authenticated user's business
@@ -109,6 +80,7 @@ export async function callsRoutes(fastify: FastifyInstance) {
         if (error instanceof z.ZodError) {
           return reply.status(400).send({ error: error.errors });
         }
+        fastify.log.error({ err: error }, "[Calls] Failed to fetch calls");
         return reply.status(500).send({ error: "Failed to fetch calls" });
       }
     }
@@ -199,7 +171,15 @@ export async function callsRoutes(fastify: FastifyInstance) {
         const callWithVisibleRecording = call.recording?.deletedAt
           ? { ...call, recording: null }
           : call;
-        const signedCall = await withSignedRecordingUrl(callWithVisibleRecording);
+        const signedCall = callWithVisibleRecording.recording
+          ? {
+              ...callWithVisibleRecording,
+              recording: await conUrlDeGrabacionFirmada(
+                callWithVisibleRecording.recording,
+                "Calls"
+              ),
+            }
+          : callWithVisibleRecording;
 
         return reply.send({
           ...signedCall,
@@ -208,6 +188,7 @@ export async function callsRoutes(fastify: FastifyInstance) {
             : signedCall.booking,
         });
       } catch (error) {
+        fastify.log.error({ err: error }, "[Calls] Failed to fetch call");
         return reply.status(500).send({ error: "Failed to fetch call" });
       }
     }

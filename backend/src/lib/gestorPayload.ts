@@ -1,6 +1,8 @@
 import type { CreateTelnyxAssistantInput } from "../adapters/telnyx/TelnyxAiAdapter.js";
 import {
+  construirToolsDeWebhook,
   toTelnyxWebhookTool,
+  type CanalDeTools,
   type TelnyxWebhookToolInput,
 } from "./telnyxAssistantPayload.js";
 
@@ -173,33 +175,32 @@ export function buildGestorPrompt(): string {
   ].join("\n\n");
 }
 
-export function buildGestorTools(baseUrl: string): TelnyxWebhookToolInput[] {
-  const toolBaseUrl = `${baseUrl.replace(/\/$/, "")}/webhooks/telnyx/gestor`;
-  // Las claves de los metadata de la conversación resuelven como variables
-  // dinámicas en las cabeceras (fase 0.4). `role` viaja para que el backend
-  // rechace una conversación que no sea del dueño.
-  const headers = [
+/**
+ * Las claves de los metadata de la conversación resuelven como variables
+ * dinámicas en las cabeceras (fase 0.4). `role` viaja para que el backend
+ * rechace una conversación que no sea del dueño.
+ */
+export const CANAL_DE_TOOLS_DEL_GESTOR: CanalDeTools = {
+  ruta: "/webhooks/telnyx/gestor",
+  cabeceras: [
     { name: "X-Alhabla-Business", value: "{{business_id}}" },
     { name: "X-Alhabla-Role", value: "{{role}}" },
-  ];
+  ],
+  timeoutMs: 20000,
+};
 
-  return [
+export function buildGestorTools(baseUrl: string): TelnyxWebhookToolInput[] {
+  return construirToolsDeWebhook(baseUrl, CANAL_DE_TOOLS_DEL_GESTOR, [
     {
       name: "contexto_negocio",
       description:
         "Estado del negocio del dueño con el que hablas: nombre, sector, zona horaria, teléfono, servicios activos con duración y precio (con sus ids), profesionales con sus especialidades (con sus ids), horario, calendario conectado, plan, qué falta por configurar (faltaPorConfigurar), enlaces al panel (enlaces.panel, enlaces.calendario para conectar el calendario), más las citas pendientes de resolver y los recados sin atender. Úsala una vez cuando necesites cualquiera de esos datos y otra vez después de una acción confirmada si necesitas los ids nuevos.",
-      url: `${toolBaseUrl}/contexto_negocio`,
-      method: "POST",
       properties: {},
-      headers,
-      timeoutMs: 20000,
     },
     {
       name: "listar_agenda",
       description:
         "Citas reservadas de un día concreto, en orden. Úsala cuando el dueño pregunte qué tiene hoy, mañana o un día dado.",
-      url: `${toolBaseUrl}/listar_agenda`,
-      method: "POST",
       properties: {
         dia: {
           type: "string",
@@ -208,15 +209,11 @@ export function buildGestorTools(baseUrl: string): TelnyxWebhookToolInput[] {
         },
       },
       required: ["dia"],
-      headers,
-      timeoutMs: 20000,
     },
     {
       name: "buscar_hueco",
       description:
         "Comprueba si una hora concreta está libre para una cita (horario, citas, calendario conectado y ausencias) y, si no, devuelve el hueco libre más cercano con quién está libre. Solo consulta: para apuntar la cita hay que proponer añadir_cita.",
-      url: `${toolBaseUrl}/buscar_hueco`,
-      method: "POST",
       properties: {
         fechaHora: {
           type: "string",
@@ -241,15 +238,11 @@ export function buildGestorTools(baseUrl: string): TelnyxWebhookToolInput[] {
         },
       },
       required: ["fechaHora"],
-      headers,
-      timeoutMs: 20000,
     },
     {
       name: "resumen_llamadas",
       description:
         "Resumen de los últimos días: llamadas atendidas por la recepcionista, cómo acabaron, citas reservadas, citas pendientes de resolver y recados. Úsala cuando el dueño pregunte cómo va la semana, cuántas llamadas ha habido o qué tiene pendiente.",
-      url: `${toolBaseUrl}/resumen_llamadas`,
-      method: "POST",
       properties: {
         dias: {
           type: "number",
@@ -257,15 +250,11 @@ export function buildGestorTools(baseUrl: string): TelnyxWebhookToolInput[] {
             "Cuántos días hacia atrás contar, entre 1 y 31. Si el dueño no lo dice, 7.",
         },
       },
-      headers,
-      timeoutMs: 20000,
     },
     {
       name: "proponer_accion",
       description:
         "Registra una acción para que el dueño la confirme con un botón. Nunca la ejecuta. Llámala solo cuando el dueño haya pedido con claridad algo que puedes proponer y tengas todos sus datos, con nombres e ids exactos tomados de contexto_negocio, listar_agenda o resumen_llamadas. Una sola propuesta a la vez.",
-      url: `${toolBaseUrl}/proponer_accion`,
-      method: "POST",
       properties: {
         tipo: {
           type: "string",
@@ -282,10 +271,8 @@ export function buildGestorTools(baseUrl: string): TelnyxWebhookToolInput[] {
         },
       },
       required: ["tipo", "parametros", "resumen"],
-      headers,
-      timeoutMs: 20000,
     },
-  ];
+  ]);
 }
 
 export function buildGestorAssistantPayload(

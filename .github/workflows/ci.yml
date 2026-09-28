@@ -1,10 +1,10 @@
 name: CI
 
-# Gate de calidad: corre en cada PR y en cada push a main, para backend y
-# frontend por separado. No despliega nada — eso lo hace deploy-backend.yml
-# (solo backend; el frontend se despliega solo vía la integración Git de
-# Vercel). Ver Second-Brain "Runbook de despliegue a producción" y
-# "Producción e infraestructura" para el resto del pipeline.
+# Gate de calidad: corre en cada PR y en cada push a main, para backend,
+# frontend (la app) y web (la web pública) por separado. No despliega nada —
+# eso lo hace deploy-backend.yml (solo backend; la app y la web se despliegan
+# solas vía la integración Git de Vercel). Ver AGENTS.md § Deployment Notes
+# para el resto del pipeline.
 
 on:
   pull_request:
@@ -154,16 +154,17 @@ jobs:
           exit 1
 
       # No bloquea: el riesgo real es bajo y ocasional, pero conviene recordar
-      # el orden. Vercel publica el frontend en cuanto se fusiona, mientras que
-      # el backend pasa por build, migraciones y despliegue de revisión.
-      - name: Aviso si el PR toca frontend y backend a la vez
+      # el orden. Vercel publica la app (frontend/) y la web (web/) en cuanto
+      # se fusiona, mientras que el backend pasa por build, migraciones y
+      # despliegue de revisión.
+      - name: Aviso si el PR toca frontend/web y backend a la vez
         run: |
           BASE="origin/${{ github.base_ref }}"
           CAMBIOS=$(git diff --name-only "$BASE"...HEAD)
-          TOCA_FRONT=$(echo "$CAMBIOS" | grep -c '^frontend/' || true)
+          TOCA_FRONT=$(echo "$CAMBIOS" | grep -cE '^(frontend|web)/' || true)
           TOCA_BACK=$(echo "$CAMBIOS" | grep -c '^backend/' || true)
           if [ "$TOCA_FRONT" -gt 0 ] && [ "$TOCA_BACK" -gt 0 ]; then
-            echo "::warning::Este PR toca frontend ($TOCA_FRONT ficheros) y backend ($TOCA_BACK). Vercel publica el frontend en cuanto se fusiona y el backend tarda varios minutos: si el frontend depende de algo nuevo del backend, habrá una ventana en la que falle. Si es el caso, fusiona antes el backend."
+            echo "::warning::Este PR toca frontend/web ($TOCA_FRONT ficheros) y backend ($TOCA_BACK). Vercel publica la app y la web en cuanto se fusiona y el backend tarda varios minutos: si el frontend depende de algo nuevo del backend, habrá una ventana en la que falle. Si es el caso, fusiona antes el backend."
           else
             echo "El PR no mezcla frontend y backend."
           fi

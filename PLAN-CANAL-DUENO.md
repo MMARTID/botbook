@@ -56,7 +56,7 @@ Dos tipos de assistant, y solo uno de ellos por negocio:
 |---|---|
 | Número de WhatsApp por negocio (el número de Alhabla del negocio registrado en el WABA) | Nombre visible revisado por Meta uno a uno, verificación por llamada de voz de cada número, tope de números por WABA. El negocio no tiene por qué existir en Meta. Descartado el 2026-09-19 (tarde). Lo que sí se hace es **un número por audiencia** (dos, de Alhabla): el mismo trámite, dos veces en total. |
 | Un assistant de chat para clientes | Redundante: la recepcionista del negocio ya sabe ver, cambiar y cancelar la cita del cliente por su número. Descartado el 2026-09-19. |
-| Llamadas de WhatsApp (clientes o prueba del onboarding) | Exigen el punto anterior más el límite 2.000 de la cartera. Descartado el mismo día. `PLAN-WHATSAPP-LLAMADAS.md` queda como documento aparte, sin fase. |
+| Llamadas de WhatsApp (clientes o prueba del onboarding) | Exigen el punto anterior más el límite 2.000 de la cartera. Descartado el mismo día. `docs/historico/PLAN-WHATSAPP-LLAMADAS.md` queda como documento aparte, sin fase. |
 | Segundo número Telnyx para el dueño | La numeración española es *voice-only* (error 40323): no podría mensajear. |
 | Web Push desde el panel | Frágil para este público (permisos, instalación). Capa opcional futura. |
 | Esperar al Alphanumeric Sender ID de SMS | Pendiente de la CNMC y unidireccional. *Fallback* para el dueño sin WhatsApp. |

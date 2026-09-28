@@ -3,14 +3,17 @@
 SaaS multi-tenant de recepcionistas de voz con IA para pequeños negocios en España
 (peluquerías, barberías, salones de uñas, centros de estética, clínicas de fisioterapia).
 Los agentes de voz atienden llamadas, consultan horario y disponibilidad, y reservan citas
-en el calendario de Google, Outlook o Apple/iCloud del negocio.
+en el calendario de Google, Outlook o Apple/iCloud del negocio. Desde septiembre de 2026 hablan
+también por WhatsApp con el dueño (avisos y el Gestor) y con sus clientes.
 
 Backend Fastify 5 + Prisma/PostgreSQL + Redis. Dos webs Next.js 14 App Router con Tailwind 3
 (desde el 2026-09-21, `PLAN-APP-DOMINIO.md`): **la app** en `frontend/` (puerto 3001,
 `app.alhabla.ai`, TanStack Query, sesión JWT en `localStorage`) y **la web pública** en `web/`
 (puerto 3002, `alhabla.ai`: landing, sectores, planes, legal, registro de cuenta y blog en MDX,
 sin sesión). El registro crea la cuenta en la web y entra en la app con un pase de un solo uso
-(`POST /auth/pase/canjear`). Voz vía Retell.ai, telefonía Telnyx, pagos Stripe.
+(`POST /auth/pase/canjear`). Voz vía **Telnyx AI Assistants** (primario; todos los negocios son
+`orchestrator = "telnyx"`) con **Retell.ai** de respaldo; telefonía y WhatsApp por Telnyx, pagos
+Stripe.
 
 **Producción** (desde 2026-09-01): backend en Google Cloud Run, **un solo servicio**,
 `alhabla-api` (`https://api.alhabla.ai`, tráfico público). Los jobs en segundo plano (antes
@@ -31,10 +34,13 @@ en `AGENTS.md` § Deployment Notes.
   `request.user.businessId` del token JWT. Nunca aceptes un `businessId` del body para
   lecturas ni escrituras.
 - **Los adaptadores son la única vía a las APIs de voz.** Retell pasa por
-  `backend/src/adapters/retell/RetellAdapter.ts`. Jamás llames a esa API desde un route
-  handler.
+  `backend/src/adapters/retell/RetellAdapter.ts`; Telnyx por `adapters/telnyx/TelnyxAdapter.ts`
+  (números) y `TelnyxAiAdapter.ts` (assistants), y WhatsApp por
+  `adapters/whatsapp/WhatsAppAdapter.ts`. Jamás llames a esas APIs desde un route handler.
 - **No toques la verificación de firmas de webhooks** (firma de Retell incluida en
-  `/webhooks/retell/tools/:toolName`, firma de Stripe con `rawBody: true`).
+  `/webhooks/retell/tools/:retellAgentId/:toolName`, Ed25519 de Telnyx en `/webhooks/telnyx`,
+  `/webhooks/telnyx/tools/:toolName` y `/webhooks/telnyx/gestor/:toolName`, firma de Stripe
+  con `rawBody: true`).
 - **Nunca commitees `.env`.** En la raíz hay `.env`, `.env.bak` y `.env.google` con
   credenciales reales; están en `.gitignore`. `docker-compose.yml` vive en la raíz y lee
   ese `.env` (build context de `backend`/`backend-dev` es `./backend`).
@@ -43,7 +49,7 @@ en `AGENTS.md` § Deployment Notes.
 
 - Prettier: `semi: true`, `trailingComma: "es5"`, `singleQuote: false`, `printWidth: 80`,
   `tabWidth: 2`.
-- Alias: backend `"@/*"` → `"./*"` (relativo a `backend/src/`); frontend `"@/*"` → `"./src/*"`.
+- Alias: backend `"@/*"` → `"./src/*"` (es decir, `backend/src/`); frontend `"@/*"` → `"./src/*"`.
 - Validación con Zod en bodies y params; `400` con `error.errors` en `ZodError`.
 - Logs prefijados con el módulo entre corchetes: `[Agent]`, `[Calendar]`, `[Job]`.
   `fastify.log` dentro de rutas, `console.log`/`console.error` en arranque y workers.
@@ -84,7 +90,8 @@ cd backend
 npm run dev            # backend, tsx watch (:3000)
 npm run build          # tsc
 npm run test           # vitest run
-npm run lint           # eslint src --ext .ts
+npm run test:integration # contra Postgres/Redis reales (backend/.env.test)
+npm run lint           # eslint src
 npm run typecheck      # tsc --noEmit
 npm run prisma:migrate # migraciones en dev
 npm run prisma:studio  # :5555
@@ -101,17 +108,22 @@ docker compose --profile dev up   # backend + postgres + redis + cloudflared (de
 backend/
 ├── src/
 │   ├── server.ts     # entry Fastify: registra rutas + endpoints internos de jobs (Cloud Tasks)
-│   ├── plugins/      # auth, CORS, rate-limit, multipart, internalAuth (OIDC de Cloud Tasks)
-│   ├── modules/      # rutas por dominio (agents, auth, billing, bookings, businesses,
-│   │                 #   calendar, calls, demo, internal, onboarding, phone, places,
-│   │                 #   recordings, voiceTools) — cada uno con routes.ts
-│   ├── adapters/     # Retell, Telnyx
+│   ├── plugins/      # auth (JWT) e internalAuth (OIDC de Cloud Tasks); CORS y rate-limit se
+│   │                 #   registran en server.ts
+│   ├── modules/      # por dominio (agents, auth, billing, bookings, businesses, calendar,
+│   │                 #   calls, demo, internal, onboarding, phone, places, recordings,
+│   │                 #   whatsapp) con routes.ts; gestor, voiceTools y retellSimulation
+│   │                 #   sin routes.ts (los usan los webhooks de server.ts y los scripts)
+│   ├── adapters/     # retell, telnyx (voz y números), whatsapp, calendar (Google, Outlook, CalDAV)
 │   ├── lib/          # prisma, redis, cloudTasks, storage, stripe, availability,
 │   │                 #   zohoMail, emailTemplates, businessSchedule, agentBootstrap, managedAgentPrompt
+│   ├── config/       # voiceAgent.ts (catálogo de voces/LLM/STT)
 │   └── jobs/         # lógica de los jobs (sin framework): processRecording, retryFailedBooking,
-│                     #   sendEmail, cleanupZombieCalls — invocados vía Cloud Tasks/Scheduler en
-│                     #   producción, en línea en dev (ver AGENTS.md § Background Jobs)
+│                     #   sendEmail, sendSms, sendWhatsapp, cleanupZombieCalls, telnyxReconciler,
+│                     #   sendWeeklySummary… — invocados vía Cloud Tasks/Scheduler en producción,
+│                     #   en línea en dev (ver AGENTS.md § Background Jobs)
 ├── prisma/schema.prisma
+├── scripts/          # scripts manuales (sincronizar assistants/prompts, demo, simulaciones)
 ├── tests/            # Vitest (tests/integration/ aparte, contra Postgres/Redis reales)
 └── Dockerfile
 frontend/src/{app,components,lib,hooks}/   # la app (app.alhabla.ai)
@@ -124,8 +136,13 @@ y `WEB_URL` (`backend/src/lib/urls.ts`). Nada de rutas de la otra web escritas a
 
 ## Documentación
 
-- `AGENTS.md` — referencia técnica completa (43 KB): modelos Prisma, flujos de webhooks,
-  facturación Stripe, integración de calendarios, catálogo de configuración de Retell.
+- `AGENTS.md` — referencia técnica completa (~240 KB, en inglés con secciones en español):
+  modelos Prisma, flujos de webhooks, WhatsApp, telefonía, facturación Stripe, calendarios,
+  orquestadores de voz (Telnyx y Retell), despliegue.
   Consúltalo cuando trabajes sobre un subsistema concreto.
 - `.claude-context.md` — resumen de producto, audiencia, tono de marca y problemas
   UI/UX conocidos.
+- `PRODUCT.md` (producto y marca), `DESIGN.md` (sistema de diseño), `CONTRIBUTING.md`
+  (flujo de ramas y PR).
+- `PLAN-*.md` — planes en la raíz; los cerrados y sin referencias en el código viven en
+  `docs/historico/`.

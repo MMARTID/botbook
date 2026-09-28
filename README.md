@@ -182,17 +182,17 @@ graph TD
 ├── backend/                # Backend ESM TypeScript
 │   ├── src/
 │   │   ├── server.ts       # Fastify entry point: rutas, webhooks y endpoints internos de jobs
-│   │   ├── plugins/        # auth, CORS, rate-limit, multipart, internalAuth (OIDC de Cloud Tasks)
+│   │   ├── plugins/        # auth (JWT) e internalAuth (OIDC de Cloud Tasks); CORS y rate-limit en server.ts
 │   │   ├── modules/        # rutas por dominio: agents, auth, billing, bookings, businesses,
 │   │   │                   #   calendar, calls, demo, gestor, internal, onboarding, phone, places,
-│   │   │                   #   recordings, voiceTools, whatsapp
+│   │   │                   #   recordings, voiceTools, whatsapp, retellSimulation
 │   │   ├── adapters/       # Retell, Telnyx (voz, WhatsApp), calendarios (Google, Outlook, CalDAV)
 │   │   ├── lib/            # prisma, redis, cloudTasks, availability, urls, gestorPayload…
 │   │   ├── jobs/           # lógica de los jobs en segundo plano (invocados vía Cloud Tasks/Scheduler)
 │   │   └── config/         # constantes
 │   ├── prisma/             # schema y migraciones
 │   ├── tests/              # Vitest (tests/integration/ contra Postgres/Redis reales)
-│   ├── scripts/            # scripts manuales (sincronizar Gestor, plantillas de WhatsApp, tools)
+│   ├── scripts/            # scripts manuales (assistants de Telnyx, prompts, Gestor, WhatsApp, demo)
 │   └── Dockerfile
 ├── frontend/               # la app (app.alhabla.ai): panel, agenda, llamadas, agente, Gestor, ajustes
 ├── web/                    # la web pública (alhabla.ai): landing, sectores, planes, legal, registro, blog
@@ -201,6 +201,8 @@ graph TD
 ├── AGENTS.md               # referencia técnica completa
 ├── PLAN-CANAL-DUENO.md     # el canal de WhatsApp (fases 0-2 hechas)
 ├── PLAN-APP-DOMINIO.md     # el reparto web / app por dominios (hecho)
+├── PLAN-TELEFONIA-UX.md    # teléfono, desvío y número principal (en código; falta prueba real)
+├── docs/                   # investigación de nichos y planes cerrados (docs/historico/)
 └── .env                    # compartido por docker compose (no se commitea)
 ```
 
@@ -213,7 +215,9 @@ graph TD
 | `/` | Landing |
 | `/peluqueria`, `/barberia`, `/centro-de-estetica`, `/salon-de-unas`, `/fisioterapia` | Landings por sector |
 | `/planes` | Planes y calculadora de ROI |
+| `/peluqueria/[ciudad]`, `/barberia/[ciudad]`, … | Landings por sector y ciudad |
 | `/blog`, `/blog/[slug]`, `/blog/rss.xml` | Artículos (MDX en `web/content/blog`) |
+| `/keystatic`, `/vista-previa/[slug]` | Editor del blog (Keystatic) y vista previa de un borrador |
 | `/legal/aviso-legal`, `/legal/privacidad` | Legales |
 | `/register` | Crea la cuenta (email o Google) y salta a la app con un pase de un solo uso |
 | `/login`, `/agenda`, `/ajustes/*`, … | 301 a `app.alhabla.ai` (marcadores, emails y botones de WhatsApp antiguos) |
@@ -227,12 +231,14 @@ graph TD
 | `/auth/entrar?pase=…` | Llegada desde el registro de la web: canjea el pase por la sesión |
 | `/auth/google/callback` | Vuelta de Google Login |
 | `/bienvenida`, `/bienvenida/niche`, `/bienvenida/services`, `/bienvenida/team`, `/bienvenida/calendar` | Asistente del negocio tras el registro |
+| `/elegir-plan` | Llegada desde «Elegir plan» de la web: checkout con sesión, registro sin ella |
 | `/checkout`, `/checkout/resultado` | Stripe |
 | `/agenda` | Citas del día y pendientes |
 | `/llamadas`, `/llamadas/analitica` | Llamadas atendidas y analítica |
 | `/agente` | Recepcionista: servicios, equipo, horario, calendario, teléfono |
-| `/gestor` | Tu Gestor (Beta): el mismo hilo que por WhatsApp, con botones de propuesta |
-| `/ajustes`, `/ajustes/facturacion` | Ajustes (incluye WhatsApp del dueño y los interruptores de las conversaciones) |
+| `/asistente` | Tu asistente (antes «Tu Gestor», `/gestor` redirige aquí; Beta): el mismo hilo que por WhatsApp, con botones de propuesta |
+| `/ajustes`, `/ajustes/negocio`, `/ajustes/seguridad`, `/ajustes/facturacion` | Ajustes (incluye WhatsApp del dueño y los interruptores de las conversaciones) |
+| `/ajustes/telefono`, `/ajustes/numero-principal` | Línea de clientes, desvío y «Alhabla como número principal» |
 | `/settings` | Vuelta del OAuth de calendarios |
 
 ### API (`api.alhabla.ai`)
@@ -247,7 +253,7 @@ graph TD
 | `/phone/*` | Números de Telnyx |
 | `/agents/*`, `/calls/*`, `/recordings/*` | Recepcionista, llamadas, grabaciones |
 | `/demo/*` | Demo pública de voz y Places |
-| `/webhooks/retell`, `/webhooks/retell/inbound`, `/webhooks/retell/tools/:agentId/:toolName` | Retell (firmados) |
+| `/webhooks/retell`, `/webhooks/retell/inbound`, `/webhooks/retell/tools/:retellAgentId/:toolName` | Retell (firmados) |
 | `/webhooks/telnyx` | Telnyx: llamadas y **WhatsApp** (mensajes, estados, plantillas), Ed25519 |
 | `/webhooks/telnyx/tools/:toolName` | Tools de la recepcionista (voz y chat) |
 | `/webhooks/telnyx/gestor/:toolName` | Tools del Gestor (negocio por cabecera desde los metadata) |
@@ -283,6 +289,10 @@ Lo que el asistente deje a medias lo completa el Gestor por WhatsApp («empezamo
 - `AGENTS.md` — referencia detallada para agentes de IA y desarrolladores.
 - `PLAN-CANAL-DUENO.md` — el canal de WhatsApp: decisiones, fases y estado.
 - `PLAN-APP-DOMINIO.md` — el reparto entre la web pública y la app.
+- `PLAN-TELEFONIA-UX.md` — teléfono, desvío y número principal.
+- `docs/historico/` — planes cerrados o descartados.
+- `PRODUCT.md` — producto, audiencia y marca.
+- `CONTRIBUTING.md` — flujo de ramas, PR y despliegue.
 - `DESIGN.md` — sistema de diseño.
 - `web/src/lib/niche-landings.ts` — copy SEO por nicho.
 
