@@ -1,6 +1,6 @@
 # Plan de Simulation Testing de Retell por nicho
 
-> **Histórico** (movido a `docs/historico/` el 2026-09-27): implementado en `backend/src/modules/retellSimulation/`, `backend/scripts/retellSimulation.ts` (`npm run sim`) y `npm run test:simulations`. Retell es hoy solo el respaldo de voz; el primario es Telnyx AI Assistants.
+> **Histórico** (movido a `docs/historico/` el 2026-09-27): implementado en `backend/src/modules/retellSimulation/`, `backend/scripts/retellSimulation.ts` (`npm run sim`). La suite heredada `npm run test:simulations` (`tests/simulations/`) se borró el 2026-09-28: pasaba en verde aunque no se creara ningún caso y duplicaba el catálogo con ids de LLM fijos. Retell es hoy solo el respaldo de voz; el primario es Telnyx AI Assistants.
 
 ## Objetivo y verificación de la API
 
