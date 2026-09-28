@@ -27,6 +27,7 @@ vi.mock("../../src/lib/prisma.js", () => ({
     },
     agent: {
       findMany: vi.fn(),
+      findUnique: vi.fn(),
       update: vi.fn(),
       create: vi.fn(),
     },
@@ -71,6 +72,7 @@ const mockedProfessionalFindMany = vi.mocked(prisma.professional.findMany);
 const mockedAgentFindMany = vi.mocked(prisma.agent.findMany);
 const mockedAgentUpdate = vi.mocked(prisma.agent.update);
 const mockedAgentCreate = vi.mocked(prisma.agent.create);
+const mockedAgentFindUnique = vi.mocked(prisma.agent.findUnique);
 const mockedUpdateLlm = vi.mocked(retellAdapter.updateLlm);
 const mockedUpdateAgent = vi.mocked(retellAdapter.updateAgent);
 const mockedCreateAgentVersion = vi.mocked(retellAdapter.createAgentVersion);
@@ -536,6 +538,11 @@ describe("createBusinessAgent — creación dual Telnyx (Fase 2 del plan Telnyx-
     mockedServiceFindMany.mockResolvedValue([]);
     mockedProfessionalFindMany.mockResolvedValue([]);
     mockedAgentCreate.mockResolvedValue({ id: "agent_db_1" } as any);
+    mockedAgentFindUnique.mockResolvedValue({
+      id: "agent_db_1",
+      systemPrompt: "prompt gestionado",
+      promptManuallyEdited: false,
+    } as any);
     mockedCreateLlm.mockResolvedValue({ llm_id: "retell_llm_1" } as any);
     mockedCreateAgent.mockResolvedValue({ agent_id: "retell_agent_1", version: 0, is_published: false } as any);
     mockedPublishAgent.mockResolvedValue(undefined);
@@ -622,37 +629,26 @@ describe("createBusinessAgent — creación dual Telnyx (Fase 2 del plan Telnyx-
   });
 
   // Regresión (encontrado 2026-09-14 con una llamada real a Barbería El
-  // Corte Clásico): la primera llamada a syncCalendarToolsToAgents (hallazgo
-  // #25, más arriba en createBusinessAgent) se ejecuta ANTES de que el
-  // assistant Telnyx exista, así que su filtro por telnyxAssistantId no
-  // encuentra nada — el assistant recién creado se quedaba sin
-  // check_availability/book_appointment/etc., solo con la tool `hangup`.
-  it("vuelve a sincronizar las tools de calendario tras crear el assistant Telnyx, para que no se quede solo con hangup", async () => {
+  // Corte Clásico): la sincronización de tools de createBusinessAgent corre
+  // ANTES de que exista el assistant Telnyx, así que no lo encuentra. Antes
+  // hacía falta una segunda pasada; ahora el assistant nace con sus tools.
+  it("crea el assistant Telnyx ya con las tools de voz, sin segunda sincronización", async () => {
     process.env.VOICE_TELNYX_ROLLOUT = "development";
 
     await createBusinessAgent({ businessId: "biz_new", name: "Nuevo negocio" });
 
-    expect(mockedSyncCalendarToolsToAgents).toHaveBeenCalledTimes(2);
-    expect(mockedSyncCalendarToolsToAgents).toHaveBeenNthCalledWith(2, "biz_new");
-  });
-
-  it("no vuelve a sincronizar tools una segunda vez si el negocio no queda elegible para Telnyx", async () => {
-    process.env.VOICE_TELNYX_ROLLOUT = "all";
-    mockedTelnyxListVoices.mockResolvedValue([]);
-
-    await createBusinessAgent({ businessId: "biz_new", name: "Nuevo negocio" });
-
+    const payload = mockedTelnyxCreateAssistant.mock.calls[0][0];
+    const nombres = payload.tools!.map((tool) =>
+      tool.type === "webhook" ? tool.webhook.name : tool.type
+    );
+    expect(nombres).toEqual(
+      expect.arrayContaining([
+        "get_catalog",
+        "check_availability",
+        "book_appointment",
+        "hangup",
+      ])
+    );
     expect(mockedSyncCalendarToolsToAgents).toHaveBeenCalledTimes(1);
-  });
-
-  it("no rompe la creación si la segunda sincronización de tools falla", async () => {
-    process.env.VOICE_TELNYX_ROLLOUT = "development";
-    mockedSyncCalendarToolsToAgents
-      .mockResolvedValueOnce(undefined)
-      .mockRejectedValueOnce(new Error("Telnyx down"));
-
-    const result = await createBusinessAgent({ businessId: "biz_new", name: "Nuevo negocio" });
-
-    expect(result).toEqual(expect.objectContaining({ id: "agent_db_1" }));
   });
 });
