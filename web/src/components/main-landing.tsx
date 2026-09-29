@@ -10,6 +10,7 @@ import { HeroHilos } from "@/components/hero-hilos";
 import { SiteHeader } from "@/components/site-header";
 import { Reveal } from "@/components/scroll-reveal";
 import { EnMarchaSection } from "@/components/en-marcha-section";
+import { EnTuNegocioScroll } from "@/components/en-tu-negocio";
 import { LlamadaScroll } from "@/components/llamada-scroll";
 import { OwnerAssistantSection } from "@/components/owner-assistant-section";
 import { PuntosFuertesSection } from "@/components/puntos-fuertes-section";
@@ -373,12 +374,15 @@ export function MainLanding() {
 
 
       {/*
-        Orden (2026-09-26): cómo funciona, scroll-driven y con el teléfono
-        (los tres pasos de una llamada) → qué la hace distinta de un
-        contestador → qué recibe el cliente por WhatsApp → El Gestor → puesta
-        en marcha → sectores → precio → dudas.
+        Orden (2026-09-29): cómo funciona, scroll-driven y con el teléfono
+        (los tres pasos de una llamada) → lo que ve el dueño en su panel, con
+        el portátil en 3D → qué la hace distinta de un contestador → qué
+        recibe el cliente por WhatsApp → El Gestor → puesta en marcha →
+        sectores → precio → dudas.
       */}
       <LlamadaScroll />
+
+      <EnTuNegocioScroll />
 
       <PuntosFuertesSection onEscuchar={() => setIsDemoOpen(true)} />
 

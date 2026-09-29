@@ -15,6 +15,7 @@ import { SiApple, SiGooglecalendar } from "@icons-pack/react-simple-icons";
 
 import { MicrosoftLogo } from "@/components/brand-icons";
 import { useMovimientoReducido } from "@/hooks/use-movimiento-reducido";
+import { marcarRelato } from "@/lib/relato-fijo";
 import styles from "./llamada-scroll.module.css";
 
 /**
@@ -192,20 +193,11 @@ export function LlamadaScroll() {
   const barra3 = useTransform(p, [COSTURA_2, 1], [0, 1]);
 
   // Mientras el escenario está fijo, el botón de «Configurar cookies» se
-  // esconde (tapaba la barra de pasos en móvil). Ver google-analytics.tsx.
+  // esconde (tapaba la barra de pasos en móvil). Ver lib/relato-fijo.ts.
   useEffect(() => {
     const el = seccion.current;
     if (!el) return;
-    const raiz = document.documentElement;
-    const observador = new IntersectionObserver(([entrada]) => {
-      if (entrada.isIntersecting) raiz.setAttribute("data-relato", "");
-      else raiz.removeAttribute("data-relato");
-    });
-    observador.observe(el);
-    return () => {
-      observador.disconnect();
-      raiz.removeAttribute("data-relato");
-    };
+    return marcarRelato(el);
   }, [reducir]);
 
   const irA = useCallback(

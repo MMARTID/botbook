@@ -63,7 +63,8 @@ si el barrel no compila, en lugar de dejar la tarjeta vacía.
 
 - Las composiciones a nivel de página (`MainLanding`, `SiteLanding`,
   `CityNicheLanding`, `SiteHeader`, `SiteFooter`, `PlansWithRoi`, `LegalPage`)
-  y las secciones de una sola landing (`HeroHilos`, `LlamadaScroll`, las
+  y las secciones de una sola landing (`HeroHilos`, `LlamadaScroll`,
+  `EnTuNegocioScroll`, las
   `*-section` salvo `SectorDataSection`): sólo se sincronizan las piezas reutilizables del sistema.
 - Ninguna tarjeta tipográfica: desde el 2026-09-29 los 17 componentes tienen
   preview. `DemoVoiceCall` (viewport 900x760, primer paso de la demo, sin red
