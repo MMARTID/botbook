@@ -63,7 +63,7 @@ const INSIGHTS = [
   {
     name: "tool_failure_detected",
     instructions:
-      "true si alguna herramienta (check_business_hours, check_availability, book_appointment, find_my_appointment o cancel_appointment) falló, dio error o no pudo completarse durante la llamada, aunque la llamada terminara bien igualmente. false en cualquier otro caso.",
+      "true si alguna herramienta (check_availability, book_appointment, find_my_appointment o cancel_appointment) falló, dio error o no pudo completarse durante la llamada, aunque la llamada terminara bien igualmente. false en cualquier otro caso.",
     jsonSchema: {
       type: "object",
       additionalProperties: false,

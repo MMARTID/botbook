@@ -89,19 +89,6 @@ export interface SimulationCase {
 // executeVoiceTool, no el envoltorio {success, result}).
 // ---------------------------------------------------------------------------
 
-const horarioAbierto = (): RetellToolMock => ({
-  // Conservado para los escenarios heredados: el agente nuevo no invoca
-  // esta tool, porque check_availability valida el horario internamente.
-  toolName: "legacy_check_business_hours",
-  output: {
-    success: true,
-    isOpen: true,
-    code: "WITHIN_BUSINESS_HOURS",
-    timeZone: "Europe/Madrid",
-    message: "La cita está completamente dentro del horario del negocio.",
-  },
-});
-
 const horarioCerrado = (): RetellToolMock => ({
   toolName: "check_availability",
   output: {
@@ -300,7 +287,6 @@ const PELUQUERIA: SimulationCase[] = [
     ].join(" "),
     metrics: [M_SECUENCIA, M_CONFIRMA, M_NO_ANUNCIA_EXITO, M_CONVERSACION],
     toolMocks: [
-      horarioAbierto(),
       disponible("pro-lucia", "Lucía"),
       reservaCreada("pro-lucia"),
     ],
@@ -335,7 +321,7 @@ const PELUQUERIA: SimulationCase[] = [
       "persona, di que prefieres esperar a que Lucía tenga hueco.",
     ].join(" "),
     metrics: [M_NO_RESERVA_SIN_BASE, M_ESCALA, M_NO_INVENTA],
-    toolMocks: [horarioAbierto(), profesionalOcupado("pro-lucia")],
+    toolMocks: [profesionalOcupado("pro-lucia")],
     expected: ESCALA_COMPLEJA,
   },
   {
@@ -368,7 +354,6 @@ const PELUQUERIA: SimulationCase[] = [
     ].join(" "),
     metrics: [M_RETOMA, M_CONFIRMA, M_SECUENCIA, M_CONVERSACION],
     toolMocks: [
-      horarioAbierto(),
       disponible("pro-lucia", "Lucía"),
       reservaCreada("pro-lucia"),
     ],
@@ -387,7 +372,6 @@ const PELUQUERIA: SimulationCase[] = [
     ].join(" "),
     metrics: [M_NO_ANUNCIA_EXITO, M_ESCALA, M_NO_INVENTA],
     toolMocks: [
-      horarioAbierto(),
       disponible("pro-lucia", "Lucía"),
       reservaFalla(),
     ],
@@ -425,7 +409,6 @@ const BARBERIA: SimulationCase[] = [
     ].join(" "),
     metrics: [M_SECUENCIA, M_CONFIRMA, M_NO_ANUNCIA_EXITO, M_CONVERSACION],
     toolMocks: [
-      horarioAbierto(),
       disponible("pro-marcos", "Marcos"),
       reservaCreada("pro-marcos"),
     ],
@@ -460,7 +443,6 @@ const BARBERIA: SimulationCase[] = [
     ].join(" "),
     metrics: [M_SECUENCIA, M_CONFIRMA, M_NO_INVENTA],
     toolMocks: [
-      horarioAbierto(),
       disponible("pro-marcos", "Marcos"),
       reservaCreada("pro-marcos"),
     ],
@@ -479,7 +461,7 @@ const BARBERIA: SimulationCase[] = [
       "repitan que no, di 'vale, ya llamaré otro día' y no hables más.",
     ].join(" "),
     metrics: [M_NO_RESERVA_SIN_BASE, M_NO_INVENTA, M_ESCALA],
-    toolMocks: [horarioAbierto(), sinPlazas()],
+    toolMocks: [sinPlazas()],
     expected: ESCALA_COMPLEJA,
   },
   {
@@ -519,7 +501,6 @@ const SALON_UNAS: SimulationCase[] = [
     ].join(" "),
     metrics: [M_SECUENCIA, M_CONFIRMA, M_NO_ANUNCIA_EXITO, M_CONVERSACION],
     toolMocks: [
-      horarioAbierto(),
       disponible("pro-nuria", "Nuria"),
       reservaCreada("pro-nuria"),
     ],
@@ -553,7 +534,7 @@ const SALON_UNAS: SimulationCase[] = [
       "pueden apretar un poco la agenda para meterte.",
     ].join(" "),
     metrics: [M_NO_RESERVA_SIN_BASE, M_NO_INVENTA, M_ESCALA],
-    toolMocks: [horarioAbierto(), sinPlazas()],
+    toolMocks: [sinPlazas()],
     expected: ESCALA_COMPLEJA,
   },
   {
@@ -569,7 +550,6 @@ const SALON_UNAS: SimulationCase[] = [
     ].join(" "),
     metrics: [M_SECUENCIA, M_CONFIRMA, M_NO_INVENTA],
     toolMocks: [
-      horarioAbierto(),
       disponible("pro-nuria", "Nuria"),
       reservaCreada("pro-nuria"),
     ],
@@ -606,7 +586,6 @@ const ESTETICA: SimulationCase[] = [
     ].join(" "),
     metrics: [M_SECUENCIA, M_CONFIRMA, M_NO_ANUNCIA_EXITO, M_CONVERSACION],
     toolMocks: [
-      horarioAbierto(),
       disponible("pro-eva", "Eva"),
       reservaCreada("pro-eva"),
     ],
@@ -640,7 +619,6 @@ const ESTETICA: SimulationCase[] = [
     ].join(" "),
     metrics: [M_SECUENCIA, M_CONFIRMA, M_NO_INVENTA],
     toolMocks: [
-      horarioAbierto(),
       disponible("pro-eva", "Eva"),
       reservaCreada("pro-eva"),
     ],
@@ -657,7 +635,7 @@ const ESTETICA: SimulationCase[] = [
       "Desarrollo: pide esa hora. Si no hay hueco, pregunta qué opciones hay.",
     ].join(" "),
     metrics: [M_NO_RESERVA_SIN_BASE, M_NO_INVENTA, M_CONVERSACION],
-    toolMocks: [horarioAbierto(), sinPlazas()],
+    toolMocks: [sinPlazas()],
     expected: ESCALA_COMPLEJA,
   },
   {
@@ -703,7 +681,6 @@ const FISIOTERAPIA: SimulationCase[] = [
       M_PRIVACIDAD_FISIO,
     ],
     toolMocks: [
-      horarioAbierto(),
       disponible("pro-ana", "Ana"),
       reservaCreada("pro-ana"),
     ],
@@ -746,7 +723,7 @@ const FISIOTERAPIA: SimulationCase[] = [
       "prefieres esperar.",
     ].join(" "),
     metrics: [M_NO_RESERVA_SIN_BASE, M_ESCALA, M_PRIVACIDAD_FISIO],
-    toolMocks: [horarioAbierto(), profesionalOcupado("pro-ana")],
+    toolMocks: [profesionalOcupado("pro-ana")],
     expected: ESCALA_COMPLEJA,
   },
   {
@@ -777,7 +754,6 @@ const FISIOTERAPIA: SimulationCase[] = [
     ].join(" "),
     metrics: [M_NO_ANUNCIA_EXITO, M_ESCALA, M_NO_INVENTA],
     toolMocks: [
-      horarioAbierto(),
       disponible("pro-ana", "Ana"),
       reservaFalla(),
     ],
