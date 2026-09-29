@@ -3,7 +3,10 @@ import { filaDeConexion } from "../../helpers/conexionDeCalendario.js";
 import { executeVoiceTool } from "../../../src/modules/voiceTools/service.js";
 import { prisma } from "../../../src/lib/prisma.js";
 import { getRedis } from "../../../src/lib/redis.js";
-import { checkBusinessHours } from "../../../src/lib/businessSchedule.js";
+import {
+  checkBookingRestrictions,
+  checkBusinessHours,
+} from "../../../src/lib/businessSchedule.js";
 import { checkAvailability } from "../../../src/lib/availability.js";
 import { calendarService } from "../../../src/modules/calendar/service.js";
 import {
@@ -127,6 +130,7 @@ const mockedProfessionalFindFirst = vi.mocked(prisma.professional.findFirst);
 const mockedProfessionalFindMany = vi.mocked(prisma.professional.findMany);
 const mockedServiceFindMany = vi.mocked(prisma.service.findMany);
 const mockedCheckBusinessHours = vi.mocked(checkBusinessHours);
+const mockedCheckBookingRestrictions = vi.mocked(checkBookingRestrictions);
 const mockedCheckAvailability = vi.mocked(checkAvailability);
 const mockedBookAppointment = vi.mocked(calendarService.bookAppointment);
 const mockedGetBusyIntervals = vi.mocked(calendarService.getBusyIntervals);
@@ -641,6 +645,214 @@ describe("executeVoiceTool — catálogo y token de disponibilidad", () => {
     expect(result.result.professionals).toContain(
       "[professional_456] Luis (no está el 9 de octubre de 09:00 a 14:00)"
     );
+  });
+});
+
+describe("executeVoiceTool check_availability — restricciones de reserva del negocio", () => {
+  // Antes solo las comprobaba book_appointment: el agente ofrecía y hacía
+  // confirmar al cliente un hueco con menos antelación de la exigida, o a
+  // más de 120 días, que la reserva rechazaba después. Aquí se usa el
+  // checkBookingRestrictions real con el reloj fijado, para probar lo que
+  // de verdad oye el agente.
+  const AHORA = new Date("2026-08-25T14:00:00Z"); // 16:00 en Madrid
+  const redisStore = new Map<string, string>();
+  const redisMock = {
+    get: vi.fn(async (key: string) => redisStore.get(key) ?? null),
+    set: vi.fn(async (key: string, value: string) => {
+      redisStore.set(key, value);
+      return "OK";
+    }),
+    del: vi.fn(),
+    eval: vi.fn().mockResolvedValue(1),
+  };
+  const fabricaOriginal = vi.mocked(getRedis).getMockImplementation();
+
+  function draftsGuardados() {
+    return [...redisStore.keys()].filter((key) =>
+      key.startsWith("availability_draft:")
+    );
+  }
+
+  function comprobar(params: Record<string, unknown>) {
+    return executeVoiceTool({
+      businessId: "business_123",
+      toolName: "check_availability",
+      callId: "call_123",
+      params: { durationMinutes: 30, ...params },
+    });
+  }
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(AHORA);
+    redisStore.clear();
+    vi.mocked(getRedis).mockImplementation(() => redisMock as any);
+    const real = await vi.importActual<
+      typeof import("../../../src/lib/businessSchedule.js")
+    >("../../../src/lib/businessSchedule.js");
+    mockedCheckBookingRestrictions.mockImplementation(
+      real.checkBookingRestrictions
+    );
+    mockedBusinessFindUnique.mockResolvedValue(
+      buildBusiness({
+        minAdvanceBookingMinutes: 120,
+        maxAppointmentDurationMinutes: 60,
+      }) as any
+    );
+    mockedGetBusyIntervals.mockResolvedValue({
+      intervals: [],
+      calendarAvailabilityKnown: true,
+    } as any);
+    mockedCheckAvailability.mockResolvedValue({
+      available: true,
+      message: "Hay disponibilidad.",
+      capacityUsed: 0,
+      capacityTotal: 1,
+      availableProfessionals: [{ id: "professional_123", name: "Ana" }],
+    } as any);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    mockedCheckBookingRestrictions.mockImplementation(() => ({
+      success: true,
+    }));
+    if (fabricaOriginal)
+      vi.mocked(getRedis).mockImplementation(fabricaOriginal);
+  });
+
+  it.each([
+    {
+      caso: "con menos antelación de la mínima",
+      params: { startDateTime: "2026-08-25T17:00:00+02:00" },
+      code: "MIN_ADVANCE_NOT_MET",
+      message:
+        "Este negocio necesita al menos 2 horas de antelación para reservar una cita.",
+    },
+    {
+      caso: "a más de 120 días (el modelo se equivoca de año)",
+      params: { startDateTime: "2027-01-15T11:00:00+01:00" },
+      code: "TOO_FAR_IN_ADVANCE",
+      message:
+        "Solo puedo reservar citas hasta 120 días vista. ¿Te va bien una fecha más cercana?",
+    },
+    {
+      caso: "más larga que la duración máxima del negocio",
+      params: { startDateTime: "2026-08-27T17:00:00+02:00", durationMinutes: 90 },
+      code: "MAX_DURATION_EXCEEDED",
+      message:
+        "La duración máxima permitida por cita en este negocio es de 60 minutos.",
+    },
+    {
+      caso: "en una hora que ya ha pasado",
+      params: { startDateTime: "2026-08-24T17:00:00+02:00" },
+      code: "APPOINTMENT_IN_PAST",
+      message: "Esa fecha y hora ya han pasado.",
+    },
+    {
+      caso: "con una fecha que no se entiende",
+      params: { startDateTime: "el martes por la tarde" },
+      code: "INVALID_DATE_TIME",
+      message: "La fecha y hora no son válidas.",
+    },
+  ])(
+    "rechaza un hueco $caso sin token y sin consultar agenda ni calendario",
+    async ({ params, code, message }) => {
+      mockedServiceFindMany.mockResolvedValue([{ id: "service_123" }] as any);
+
+      const result = await comprobar({ ...params, serviceIds: ["service_123"] });
+
+      expect(result).toEqual({
+        success: true,
+        result: { available: false, code, message },
+      });
+      expect(draftsGuardados()).toHaveLength(0);
+      expect(mockedServiceFindMany).not.toHaveBeenCalled();
+      expect(mockedGetBusyIntervals).not.toHaveBeenCalled();
+      expect(mockedCheckAvailability).not.toHaveBeenCalled();
+    }
+  );
+
+  it("valida la hora ya normalizada a la zona del negocio, no la que mandó el LLM", async () => {
+    // «A las cinco y media» marcado como UTC por el LLM: leído tal cual
+    // serían las 19:30 en Madrid (3 h y media de antelación, pasaría); la
+    // hora que se reservaría son las 17:30, a hora y media, y no llega.
+    const result = await comprobar({
+      startDateTime: "2026-08-25T17:30:00+00:00",
+    });
+
+    expect(result.result).toMatchObject({
+      available: false,
+      code: "MIN_ADVANCE_NOT_MET",
+    });
+    expect(mockedCheckBookingRestrictions).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: "business_123",
+        minAdvanceBookingMinutes: 120,
+        maxAppointmentDurationMinutes: 60,
+      }),
+      "2026-08-25T17:30:00+02:00",
+      30
+    );
+  });
+
+  it("deja pasar un hueco dentro de las restricciones y emite su token", async () => {
+    const result = await comprobar({
+      startDateTime: "2026-08-27T17:00:00+02:00",
+    });
+
+    expect(result.result.available).toBe(true);
+    expect(result.result.availabilityToken).toEqual(expect.any(String));
+    expect(mockedCheckAvailability).toHaveBeenCalledTimes(1);
+    expect(draftsGuardados()).toHaveLength(1);
+  });
+
+  it("no ofrece una alternativa que cae fuera del horizonte de 120 días", async () => {
+    // Pedida a 119 días en una hora cerrada: la siguiente hora libre que
+    // encuentra checkAvailability (hasta 3 días después) ya pasa del límite.
+    mockedCheckAvailability.mockResolvedValue({
+      available: false,
+      code: "OUTSIDE_BUSINESS_HOURS",
+      message: "La cita queda fuera del horario configurado del negocio.",
+      suggestedNextSlot: {
+        startDateTime: "2026-12-24T10:00:00+01:00",
+        availableProfessionals: [{ id: "professional_123", name: "Ana" }],
+      },
+    } as any);
+
+    const result = await comprobar({
+      startDateTime: "2026-12-22T20:00:00+01:00",
+    });
+
+    expect(result.result).toMatchObject({
+      available: false,
+      code: "OUTSIDE_BUSINESS_HOURS",
+      suggestedNextSlot: null,
+    });
+    expect(draftsGuardados()).toHaveLength(0);
+  });
+
+  it("sigue ofreciendo con su token una alternativa dentro del horizonte", async () => {
+    mockedCheckAvailability.mockResolvedValue({
+      available: false,
+      code: "OUTSIDE_BUSINESS_HOURS",
+      message: "La cita queda fuera del horario configurado del negocio.",
+      suggestedNextSlot: {
+        startDateTime: "2026-08-28T10:00:00+02:00",
+        availableProfessionals: [{ id: "professional_123", name: "Ana" }],
+      },
+    } as any);
+
+    const result = await comprobar({
+      startDateTime: "2026-08-27T20:00:00+02:00",
+    });
+
+    expect(result.result.suggestedNextSlot).toMatchObject({
+      startDateTime: "2026-08-28T10:00:00+02:00",
+      availabilityToken: expect.any(String),
+    });
+    expect(draftsGuardados()).toHaveLength(1);
   });
 });
 
