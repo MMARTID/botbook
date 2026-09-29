@@ -95,3 +95,9 @@ si el barrel no compila, en lugar de dejar la tarjeta vacía.
 - Las previews de `LandingHero`, `SectorDataSection` y `RevenueLossCalculator`
   leen `nicheLandings.peluqueria`: si cambia la forma de `NicheLandingContent`,
   la tarjeta cambia con ella (es lo buscado) o se rompe en el render check.
+- La preview de `PlanSelectionLink` copia a mano precios y tarjetas de
+  `lib/plans.ts` y `PlansWithRoi`: si cambian, actualízala.
+- Los docs de `docs/*.md` describen comportamiento y nada los comprueba: al
+  cambiar un componente, revisa su doc. El 2026-09-29 la mayoría contradecía
+  el código (el hero de dos columnas, la demo con Retell, el botón de Google
+  «que ignoraba sus props») y se corrigieron todos contra la fuente.

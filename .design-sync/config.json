@@ -32,7 +32,7 @@
   "overrides": {
     "ParticleField": {
       "cardMode": "single",
-      "primaryStory": "SobreFondoOscuro"
+      "primaryStory": "SobreBlanco"
     }
   },
   "dtsPropsFor": {

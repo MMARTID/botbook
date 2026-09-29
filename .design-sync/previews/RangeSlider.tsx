@@ -73,7 +73,7 @@ export function EncadenadoBare() {
   );
 }
 
-/** `hint` explica la unidad y `showTicks` dibuja las marcas de cada paso. */
+/** `hint` explica la unidad; las marcas de cada paso (`showTicks`) vienen por defecto. */
 export function ConAyudaYMarcas() {
   const [plazas, setPlazas] = React.useState(3);
   return (

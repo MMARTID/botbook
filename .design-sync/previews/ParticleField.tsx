@@ -3,25 +3,24 @@ import * as React from "react";
 import { ParticleField } from "alhabla-ui";
 
 /**
- * `campo-particulas` se posiciona a pantalla completa, no dentro del flujo:
- * no se puede meter en una caja. Por eso la tarjeta se compone como una
- * página — fondo oscuro a sangre, las partículas encima y el contenido sobre
- * ellas — que es exactamente cómo se usa en la landing.
+ * `.campo-particulas` es una capa fija a pantalla completa en `-z-10`, no algo
+ * que se meta en una caja: la tarjeta se compone como una página pública —
+ * contenedor `relative isolate` sin fondo propio, las partículas detrás y el
+ * contenido encima—, que es como la montan entrar, el alta y el registro.
  */
-export function SobreFondoOscuro() {
+export function SobreBlanco() {
   return (
-    <>
-      <div className="fixed inset-0 -z-20 bg-[#0a0a0a]" />
+    <main className="relative isolate flex min-h-[420px] items-center justify-center px-6 py-16">
       <ParticleField />
-      <div className="relative z-10 px-10 py-16">
-        <p className="max-w-xl text-3xl font-black leading-tight tracking-tight text-white">
-          Cada llamada sin contestar es un cliente que ya reservó en otro sitio.
+      <div className="panel w-full max-w-sm p-6">
+        <p className="text-2xl font-black tracking-tight text-[#0a0a0a]">
+          Entra en tu panel
         </p>
-        <p className="mt-3 max-w-lg text-sm leading-6 text-white/60">
+        <p className="mt-2 text-sm leading-6 text-muted">
           El campo de partículas es decorativo: va por detrás de todo y nunca
-          debe competir con el texto.
+          debe competir con el contenido.
         </p>
       </div>
-    </>
+    </main>
   );
 }

@@ -3,7 +3,7 @@ import * as React from "react";
 import { LegalTodo } from "alhabla-web-ui";
 
 /**
- * El componente ya pone el rótulo «Pendiente de completar antes de publicar:»,
+ * El componente ya pone el rótulo «Pendiente antes de publicar:»,
  * así que los `children` son sólo lo que falta — no repitas la etiqueta.
  */
 export function Pendiente() {

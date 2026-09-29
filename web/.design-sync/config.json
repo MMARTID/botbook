@@ -46,7 +46,7 @@
     },
     "ParticleField": {
       "cardMode": "single",
-      "primaryStory": "SobreFondoOscuro"
+      "primaryStory": "SobreBlanco"
     },
     "RevenueLossCalculator": {
       "cardMode": "single",
@@ -55,7 +55,7 @@
     }
   },
   "dtsPropsFor": {
-    "PlansHeadline": "  /** No recibe props: el copy del titular es fijo. */"
+    "PlansHeadline": "  /** No recibe props: el titular sale de la estimación de la calculadora, si la hay. */"
   },
   "readmeHeader": ".design-sync/conventions.md"
 }

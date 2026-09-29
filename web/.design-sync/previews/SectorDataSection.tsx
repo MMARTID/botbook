@@ -2,11 +2,16 @@ import "./_sin-movimiento";
 import * as React from "react";
 import { SectorDataSection, nicheLandings } from "alhabla-web-ui";
 
-const datosPeluqueria = nicheLandings.peluqueria.sectorData;
+const peluqueria = nicheLandings.peluqueria;
 
-/** Datos sectoriales reales del nicho de peluquerías. */
+/** Datos sectoriales reales de peluquerías, con su acento como en la landing. */
 export function Peluqueria() {
-  return datosPeluqueria ? <SectorDataSection data={datosPeluqueria} /> : null;
+  return peluqueria.sectorData ? (
+    <SectorDataSection
+      data={peluqueria.sectorData}
+      accent={peluqueria.accent}
+    />
+  ) : null;
 }
 
 /** Bloque mínimo: sólo cifras, sin citas ni punto de dolor. */

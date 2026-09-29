@@ -3,15 +3,22 @@ import * as React from "react";
 import { GoogleAuthButton } from "alhabla-ui";
 
 /**
- * Único estado posible hoy. El registro público está desactivado a propósito:
- * el componente IGNORA todas sus props (`disabled`, `acceptedTerms`,
- * `onError`, `beforeStart`) y al pulsarlo abre la burbuja de «próximamente»,
- * no el flujo OAuth. Por eso no hay variante deshabilitada que enseñar.
+ * Estado normal. Al pulsarlo redirige al OAuth de Google de verdad (con la
+ * pastilla Beta encima mientras la app de Google sigue en revisión).
  */
 export function Predeterminado() {
   return (
-    <div className="w-full max-w-sm">
+    <div className="w-full max-w-sm pt-3">
       <GoogleAuthButton onError={() => {}} />
+    </div>
+  );
+}
+
+/** `disabled`: p. ej. en el registro, hasta aceptar los términos. */
+export function Deshabilitado() {
+  return (
+    <div className="w-full max-w-sm pt-3">
+      <GoogleAuthButton onError={() => {}} disabled />
     </div>
   );
 }

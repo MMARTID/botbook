@@ -19,13 +19,13 @@ export function Abierto() {
   );
 }
 
-/** Opciones no predeterminadas: voz masculina, tono directo, deriva a llamada. */
+/** Opciones no predeterminadas: voz masculina, tono ágil y pedir devolución. */
 export function ConfiguracionAlternativa() {
   const [valor, setValor] = React.useState({
     ...DEFAULT_AGENT_SETTINGS,
     voiceGender: "masculina",
     tone: "direct",
-    escalation: "transfer",
+    escalation: "request_callback",
   });
   return (
     <div className="w-full max-w-2xl">

@@ -9,9 +9,7 @@ import { MobileNav } from "alhabla-web-ui";
 export function Cerrado() {
   return (
     <header className="flex w-full items-center justify-between border-b border-[#e5e5e5] px-4 py-3">
-      <span className="text-lg font-black tracking-tight text-[#0a0a0a]">
-        Alhabla
-      </span>
+      <span className="text-base font-bold text-[#0a0a0a]">Alhabla</span>
       <MobileNav />
     </header>
   );

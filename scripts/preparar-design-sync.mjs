@@ -242,14 +242,15 @@ export {};
   }
   // tsc emite declaraciones aunque haya errores de tipos, así que un error en
   // el código de la web no para el paquete. Uno en .ds-src/ sí: es un import
-  // roto del barrel (componente movido o borrado, exportación renombrada) y
-  // el paquete saldría con la tarjeta vacía.
+  // roto del barrel (componente movido o borrado, exportación renombrada), con
+  // el que el paquete saldría con la tarjeta vacía, o una semilla de los
+  // providers que ya no encaja con los tipos de la app.
   const errores = salidaTsc
     .split("\n")
     .filter((linea) => /error TS\d+/.test(linea));
   const delBarrel = errores.filter((linea) => linea.startsWith(".ds-src/"));
   if (delBarrel.length) {
-    fallar(`el barrel de ${relProyecto}/.ds-src no compila:`, delBarrel);
+    fallar(`lo generado en ${relProyecto}/.ds-src no compila:`, delBarrel);
   }
   if (errores.length) {
     console.error(

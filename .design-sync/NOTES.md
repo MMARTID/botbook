@@ -58,6 +58,7 @@ Escribe en `frontend/.ds-src/` (gitignorado) y en `frontend/dist/types/`
 3. `preview-providers.tsx` — `PreviewProviders`: `QueryClientProvider` con la
    caché sembrada + `AppRouterContext` inerte. Se siembra la caché **en vez de
    mockear `@/lib/api`**, así el bundle sigue llevando el módulo de API real.
+   Las semillas van tipadas con los tipos de la app (ver Riesgos).
 4. `alhabla.css` — `globals.css` compilado con Tailwind (es `@tailwind`/`@apply`
    sin compilar, inservible tal cual) precedido de los `@font-face` de Geist.
 5. `next-env.d.ts` — las referencias de tipos de Next. El de verdad está
@@ -142,10 +143,15 @@ threshold», por debajo de su umbral.
   cambien (`["recent-calls"]`, `["onboarding-state"]`, `["call-detail", id]`).
   Si alguien renombra una clave, la tarjeta pasa a estado de carga o de error
   sin que nada falle ruidosamente: hay que resembrarla en `prepare.mjs`.
-- Los datos sembrados (llamadas, onboarding) están **inlineados** en
-  `prepare.mjs`. Si cambian los tipos de `frontend/src/lib/types.ts`, esos
-  objetos se quedan desfasados en silencio — TypeScript no los comprueba porque
-  se generan como texto.
+- Los datos sembrados (llamadas, onboarding) están inlineados en
+  `prepare.mjs`, pero **tipados** con `Call`, `Paginated` y `OnboardingState`
+  de `frontend/src/lib/types.ts`: si esos tipos cambian, el prepare aborta con
+  el error de `tsc` y hay que resembrar. Antes se generaban como texto sin
+  comprobar y se quedaron con desenlaces que ya no existían (`BOOKED`, `INFO`,
+  `NO_HELP`): la tarjeta de `RecentCalls` salía sin etiquetas.
+- Los docs de `docs/*.md` describen comportamiento y nada los comprueba: al
+  cambiar un componente, revisa su doc. El 2026-09-29, 16 de los 24
+  contradecían el código (se corrigieron todos contra la fuente).
 - El convertidor corre con Playwright + Chrome Headless Shell; el árbol de
   `.d.ts` lo emite el `tsc` del repo (TypeScript 5), ignorando errores de tipos
   fuera de `.ds-src/` siempre que llegue a escribir `dist/types/src/components`.

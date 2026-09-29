@@ -26,6 +26,11 @@ import * as React from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AppRouterContext } from "next/dist/shared/lib/app-router-context.shared-runtime";
 
+// Solo tipos (se borran al compilar): con ellos, tsc comprueba las semillas
+// contra lib/types.ts y el prepare aborta si se desfasan, en vez de sembrar
+// en silencio campos que la app ya no lee.
+import type { Call, OnboardingState, Paginated } from "../src/lib/types";
+
 /** Identificadores fijos que las previews deben usar para acertar la queryKey. */
 export const PREVIEW_BUSINESS_ID = "biz-demo";
 export const PREVIEW_CALL_ID = "call-demo-1";
@@ -34,25 +39,46 @@ const AHORA = new Date("2026-09-05T10:30:00.000Z");
 const desplazar = (minutos: number) =>
   new Date(AHORA.getTime() + minutos * 60_000).toISOString();
 
-const LLAMADAS = [
-  {
-    id: PREVIEW_CALL_ID,
+/** Una conversación ya terminada; \`hace\` son los minutos desde que empezó. */
+function conversacion(
+  datos: Pick<Call, "id" | "fromNumber" | "outcome" | "sentiment" | "summary"> &
+    Partial<Call> & { hace: number }
+): Call {
+  const { hace, ...resto } = datos;
+  const inicio = desplazar(-hace);
+  const fin = desplazar(-hace + Math.max(1, Math.ceil((datos.durationSecs ?? 60) / 60)));
+  return {
     businessId: PREVIEW_BUSINESS_ID,
     agentId: "agent-demo",
-    vapiCallId: "retell-demo-1",
-    fromNumber: "+34 655 21 44 09",
-    status: "completed",
-    outcome: "BOOKED",
+    callId: \`demo-\${datos.id}\`,
+    status: "COMPLETED",
+    successful: datos.outcome === "RESOLVED",
+    escalationReason: null,
+    toolFailureDetected: false,
+    requestedService: null,
+    durationSecs: null,
+    costCents: null,
+    voiceProvider: "telnyx",
+    startedAt: inicio,
+    endedAt: fin,
+    createdAt: inicio,
+    updatedAt: fin,
+    ...resto,
+  };
+}
+
+const LLAMADAS: Call[] = [
+  conversacion({
+    id: PREVIEW_CALL_ID,
+    hace: 38,
+    fromNumber: "+34655214409",
+    outcome: "RESOLVED",
     sentiment: "POSITIVE",
     summary:
       "Carmen pide hora para corte y color el jueves por la tarde. Se confirma a las 17:30 con Lucía.",
-    successful: true,
+    requestedService: "Corte y color",
     durationSecs: 96,
     costCents: 11,
-    startedAt: desplazar(-38),
-    endedAt: desplazar(-36),
-    createdAt: desplazar(-38),
-    updatedAt: desplazar(-36),
     transcript: {
       id: "tr-1",
       callId: PREVIEW_CALL_ID,
@@ -63,7 +89,7 @@ const LLAMADAS = [
         { role: "user", content: "Hola, quería pedir hora para corte y color." },
         { role: "agent", content: "Claro. ¿Te viene bien el jueves a las 17:30 con Lucía?" },
         { role: "user", content: "Perfecto, el jueves a las 17:30." },
-        { role: "agent", content: "Reservado. Te llega la confirmación por SMS. ¡Hasta el jueves!" },
+        { role: "agent", content: "Reservado. Te llega la confirmación por WhatsApp. ¡Hasta el jueves!" },
       ],
     },
     booking: {
@@ -71,135 +97,145 @@ const LLAMADAS = [
       programedAt: desplazar(4290),
       durationMinutes: 90,
       numberPeople: 1,
+      isCancelled: false,
+      clientPhone: "+34655214409",
+      serviceIds: ["svc-corte-color"],
+      professional: { id: "pro-lucia", name: "Lucía" },
+      services: [
+        { id: "svc-corte-color", name: "Corte y color", durationMinutes: 90, priceCents: 6500 },
+      ],
     },
-  },
-  {
+  }),
+  conversacion({
     id: "call-demo-2",
-    businessId: PREVIEW_BUSINESS_ID,
-    agentId: "agent-demo",
-    vapiCallId: "retell-demo-2",
-    fromNumber: "+34 611 07 82 30",
-    status: "completed",
-    outcome: "INFO",
+    hace: 124,
+    fromNumber: "+34611078230",
+    outcome: "LEAD_CAPTURED",
     sentiment: "NEUTRAL",
     summary: "Consulta por el precio de las mechas balayage y el horario del sábado.",
-    successful: true,
+    requestedService: "Mechas balayage",
     durationSecs: 51,
     costCents: 6,
-    startedAt: desplazar(-124),
-    endedAt: desplazar(-123),
-    createdAt: desplazar(-124),
-    updatedAt: desplazar(-123),
-  },
-  {
+  }),
+  conversacion({
     id: "call-demo-3",
-    businessId: PREVIEW_BUSINESS_ID,
-    agentId: "agent-demo",
-    vapiCallId: "retell-demo-3",
-    fromNumber: "+34 699 43 15 88",
-    status: "completed",
-    outcome: "BOOKED",
+    hace: 260,
+    fromNumber: "+34699431588",
+    outcome: "RESOLVED",
     sentiment: "POSITIVE",
-    summary: "Manicura semipermanente el martes a las 11:00 con Noelia.",
-    successful: true,
-    durationSecs: 73,
-    costCents: 8,
-    startedAt: desplazar(-260),
-    endedAt: desplazar(-259),
-    createdAt: desplazar(-260),
-    updatedAt: desplazar(-259),
-  },
-  {
+    summary: "Pide por WhatsApp manicura semipermanente el martes a las 11:00 con Noelia.",
+    voiceProvider: "whatsapp",
+    booking: {
+      id: "bk-3",
+      programedAt: desplazar(5790),
+      durationMinutes: 45,
+      numberPeople: 1,
+      isCancelled: false,
+      clientPhone: "+34699431588",
+      serviceIds: ["svc-manicura"],
+      professional: { id: "pro-noelia", name: "Noelia" },
+    },
+  }),
+  conversacion({
     id: "call-demo-4",
-    businessId: PREVIEW_BUSINESS_ID,
-    agentId: "agent-demo",
-    vapiCallId: "retell-demo-4",
-    fromNumber: "+34 622 90 51 17",
-    status: "completed",
-    outcome: "NO_HELP",
+    hace: 410,
+    fromNumber: "+34622905117",
+    outcome: "ESCALATED",
     sentiment: "NEGATIVE",
-    summary: "Pregunta por microblading de cejas, un servicio que el salón no ofrece.",
-    successful: false,
+    summary:
+      "Pregunta por microblading de cejas, un servicio que el salón no ofrece, y pide hablar con la dueña.",
+    escalationReason: "CLIENTE_LO_PIDIO",
+    requestedService: "Microblading",
     durationSecs: 34,
     costCents: 4,
-    startedAt: desplazar(-410),
-    endedAt: desplazar(-409),
-    createdAt: desplazar(-410),
-    updatedAt: desplazar(-409),
-  },
-  {
+  }),
+  conversacion({
     id: "call-demo-5",
-    businessId: PREVIEW_BUSINESS_ID,
-    agentId: "agent-demo",
-    vapiCallId: "retell-demo-5",
-    fromNumber: "+34 638 12 76 45",
-    status: "completed",
-    outcome: "BOOKED",
+    hace: 540,
+    fromNumber: "+34638127645",
+    outcome: "RESOLVED",
     sentiment: "POSITIVE",
     summary: "Cambia su cita del viernes al lunes a las 10:00.",
-    successful: true,
     durationSecs: 62,
     costCents: 7,
-    startedAt: desplazar(-540),
-    endedAt: desplazar(-539),
-    createdAt: desplazar(-540),
-    updatedAt: desplazar(-539),
-  },
-  {
+    booking: {
+      id: "bk-5",
+      programedAt: desplazar(1650),
+      durationMinutes: 30,
+      numberPeople: 1,
+      isCancelled: true,
+      rescheduledToId: "bk-5b",
+      clientPhone: "+34638127645",
+      serviceIds: ["svc-corte"],
+    },
+  }),
+  conversacion({
     id: "call-demo-6",
-    businessId: PREVIEW_BUSINESS_ID,
-    agentId: "agent-demo",
-    vapiCallId: "retell-demo-6",
-    fromNumber: "+34 677 33 02 91",
-    status: "completed",
-    outcome: "INFO",
+    hace: 720,
+    fromNumber: "+34677330291",
+    outcome: "RESOLVED",
     sentiment: "NEUTRAL",
     summary: "Quiere saber si hay aparcamiento cerca y si aceptan pago con tarjeta.",
-    successful: true,
     durationSecs: 40,
     costCents: 5,
-    startedAt: desplazar(-720),
-    endedAt: desplazar(-719),
-    createdAt: desplazar(-720),
-    updatedAt: desplazar(-719),
-  },
+  }),
 ];
+
+const RECIENTES: Paginated<Call> = {
+  data: LLAMADAS,
+  total: LLAMADAS.length,
+  limit: 6,
+  offset: 0,
+};
+
+// Llamada corta a propósito para la tarjeta de CallDetailModal: el modal
+// acota su cuerpo a la altura de la ventana y lo hace scrollable, así que con
+// la llamada larga la captura sale desplazada y sin cabecera.
+const LLAMADA_CORTA: Call = {
+  ...LLAMADAS[1],
+  id: "call-demo-corta",
+  transcript: {
+    id: "tr-corta",
+    callId: "call-demo-corta",
+    fullText: "",
+    createdAt: desplazar(-123),
+    messages: [
+      { role: "agent", content: "Peluquería Aurora, ¿en qué puedo ayudarte?" },
+      { role: "user", content: "¿Cuánto cuestan las mechas balayage?" },
+      { role: "agent", content: "Entre 90 y 120 €, según el largo. ¿Te reservo hora?" },
+    ],
+  },
+};
+
+// A mitad del alta: horario y servicios hechos, el resto pendiente.
+const ONBOARDING: OnboardingState = {
+  steps: {
+    schedule: true,
+    services: true,
+    professionals: false,
+    calendar: false,
+    whatsapp: false,
+    forwarding: false,
+  },
+  progress: 33,
+  dismissedAt: null,
+  completedAt: null,
+  isActive: true,
+  forwarding: {
+    status: "ready",
+    phoneNumber: null,
+    confirmedAt: null,
+    firstCallAt: null,
+  },
+  whatsapp: { status: "sin_numero", ownerWhatsappNumber: null },
+};
 
 /** queryKey -> datos. Las claves replican exactamente las de los componentes. */
 const SEMILLAS: Array<[readonly unknown[], unknown]> = [
-  [["recent-calls"], { data: LLAMADAS, total: LLAMADAS.length, limit: 6, offset: 0 }],
+  [["recent-calls"], RECIENTES],
   [["call-detail", PREVIEW_CALL_ID], LLAMADAS[0]],
-  // Llamada corta a propósito para la tarjeta de CallDetailModal: el modal
-  // acota su cuerpo a la altura de la ventana y lo hace scrollable, así que
-  // con la llamada larga la captura sale desplazada y sin cabecera.
-  [
-    ["call-detail", "call-demo-corta"],
-    {
-      ...LLAMADAS[1],
-      id: "call-demo-corta",
-      transcript: {
-        id: "tr-corta",
-        callId: "call-demo-corta",
-        fullText: "",
-        createdAt: desplazar(-123),
-        messages: [
-          { role: "agent", content: "Peluquería Aurora, ¿en qué puedo ayudarte?" },
-          { role: "user", content: "¿Cuánto cuestan las mechas balayage?" },
-          { role: "agent", content: "Entre 90 y 120 €, según el largo. ¿Te reservo hora?" },
-        ],
-      },
-    },
-  ],
-  [
-    ["onboarding-state"],
-    {
-      steps: { schedule: true, services: true, professionals: false, calendar: false },
-      progress: 50,
-      dismissedAt: null,
-      completedAt: null,
-      isActive: true,
-    },
-  ],
+  [["call-detail", LLAMADA_CORTA.id], LLAMADA_CORTA],
+  [["onboarding-state"], ONBOARDING],
 ];
 
 function crearCliente() {
