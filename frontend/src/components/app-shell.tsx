@@ -53,7 +53,7 @@ const AGENT_NAVIGATION: NavItem[] = [
 // la recepcionista; en móvil va en «Más», porque la barra inferior tiene
 // cinco huecos justos.
 const GESTOR_NAVIGATION: NavItem[] = [
-  { href: "/asistente", label: "Asistente", icon: MessageSquareText, exact: true },
+  { href: "/asistente", label: "Gestor", icon: MessageSquareText, exact: true },
 ];
 
 const ACCOUNT_NAVIGATION: NavItem[] = [

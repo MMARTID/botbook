@@ -55,13 +55,13 @@ describe("GestorChat", () => {
     expect(
       await screen.findByText(/todavía no está disponible/)
     ).toBeInTheDocument();
-    expect(screen.queryByLabelText("Mensaje para tu asistente")).toBeNull();
+    expect(screen.queryByLabelText("Mensaje para tu gestor")).toBeNull();
     unmount();
 
     mockedGet.mockResolvedValueOnce(estado({ activoEnNegocio: false }));
     renderChat();
     expect(
-      await screen.findByText(/Tienes el asistente desactivado/)
+      await screen.findByText(/Tienes el gestor desactivado/)
     ).toBeInTheDocument();
     expect(
       screen.getByRole("link", { name: /Ajustes › Teléfono/ })
@@ -97,6 +97,36 @@ describe("GestorChat", () => {
     expect(
       screen.getByRole("button", { name: "Le llamo yo" })
     ).toBeInTheDocument();
+    expect(
+      screen.getByText("Pendiente de tu confirmación")
+    ).toBeInTheDocument();
+    expect(screen.getByText(/Caduca a las/)).toBeInTheDocument();
+    // WhatsApp activo: la cabecera dice que la conversación es la misma.
+    expect(screen.getByText(/Misma conversación que en/)).toBeInTheDocument();
+    // Sin conversación no hay estado vacío.
+    expect(screen.queryByText("¿En qué te ayudo?")).toBeNull();
+  });
+
+  it("sin conversación enseña el estado vacío; un ejemplo rellena el cuadro, y sin WhatsApp invita a conectarlo", async () => {
+    const user = userEvent.setup();
+    mockedGet.mockResolvedValue(estado({ whatsapp: "sin_numero" }));
+    renderChat();
+    expect(
+      await screen.findByRole("heading", { name: "¿En qué te ayudo?" })
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Tu gestor" })
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: /Conecta tu WhatsApp/ })
+    ).toHaveAttribute("href", "/ajustes/telefono#whatsapp");
+
+    await user.click(
+      screen.getByRole("button", { name: "Laura no viene el viernes" })
+    );
+    expect(screen.getByLabelText("Mensaje para tu gestor")).toHaveValue(
+      "Laura no viene el viernes"
+    );
   });
 
   it("enviar un mensaje añade la burbuja, muestra la respuesta y la propuesta; el botón la decide y añade el seguimiento", async () => {
@@ -122,7 +152,7 @@ describe("GestorChat", () => {
     const queryClient = renderChat();
     const invalidar = vi.spyOn(queryClient, "invalidateQueries");
 
-    const campo = await screen.findByLabelText("Mensaje para tu asistente");
+    const campo = await screen.findByLabelText("Mensaje para tu gestor");
     await user.type(campo, "cierra el viernes{Enter}");
 
     await waitFor(() =>
@@ -142,6 +172,8 @@ describe("GestorChat", () => {
       await screen.findByText("Hecho: el viernes queda cerrado.")
     ).toBeInTheDocument();
     expect(screen.getByText("¿Algo más?")).toBeInTheDocument();
+    // El mensaje de la decisión lleva su estado.
+    expect(screen.getByText("Hecho")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Confirmar" })).toBeNull();
     expect(invalidar).toHaveBeenCalledWith({ queryKey: ["my-business"] });
   });
@@ -152,7 +184,7 @@ describe("GestorChat", () => {
     mockedSend.mockRejectedValue(new Error("caído"));
     renderChat();
     await user.type(
-      await screen.findByLabelText("Mensaje para tu asistente"),
+      await screen.findByLabelText("Mensaje para tu gestor"),
       "hola{Enter}"
     );
     expect(await screen.findByRole("alert")).toHaveTextContent(
