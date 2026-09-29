@@ -688,34 +688,6 @@ export function getNicheStructuredData(content: NicheLandingContent) {
 export const nicheLinks = (Object.values(nicheLandings) as NicheLandingContent[]).map(({ slug, name }) => ({ href: `/${slug}`, label: name }));
 
 /**
- * Reparto por especialidad para la landing genérica: «tu equipo», sin oficio.
- * Las cinco landings de nicho llevan su propia variante en `teamRouting`, con
- * el sustantivo del oficio (barbero, colorista, técnica, esteticista,
- * fisioterapeuta) y servicios reales de cada sector.
- */
-export const generalTeamRouting: TeamRouting = {
-  badge: "Incluido en todos los planes",
-  title: "Cada cita, con la persona que tú elegirías.",
-  description:
-    "Marca, por profesional y servicio, quién es especialista, quién lo hace y a quién prefieres reservar solo si lo piden. Con eso, la recepcionista reparte las citas como lo harías tú: sin preguntar de más al cliente y sin dejar la agenda al azar.",
-  rules: [
-    {
-      title: "Si no piden a nadie, va al especialista",
-      description: "El servicio cae en quien tú hayas marcado como el mejor en ese servicio y tenga hueco.",
-    },
-    {
-      title: "Si piden a alguien por su nombre, con esa persona",
-      description: "Un cliente de siempre pide a Marta y se reserva con Marta, sin más preguntas.",
-    },
-    {
-      title: "Y si prefieres que a alguien solo le reserven si lo piden",
-      description: "La recepcionista sugiere una vez al más indicado con hueco; si el cliente insiste, reserva con quien pidió.",
-    },
-  ],
-  tieBreak: "Entre dos igual de preparados, la cita va a quien tenga el día más despejado.",
-};
-
-/**
  * El Gestor para la landing genérica: «un profesional», sin oficio. Las
  * cinco landings de nicho llevan su propia variante en `ownerAssistant`, con
  * el sustantivo del oficio y ejemplos con servicios reales de cada sector.

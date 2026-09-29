@@ -83,8 +83,9 @@ look de startup ni de app de consumo. Rediseño negro/blanco/morado (agosto 2026
 | `--success` / `--warning` / `--error` | `#2c7334` / `#9f7a15` / `#c53030` | Estados |
 
 Clases base (`.panel`, `.field`, `.btn-primary`, `.btn-secondary`, `.btn-purple`,
-`.badge-soft`) usan `rounded-full` en botones/inputs/badges y `rounded-3xl` en paneles —
-lo contrario de la escala 8/12/16px de antes. Iconos Lucide React en contenedores
+`.badge-soft`): `rounded-[10px]` en botones e inputs (desde el 2026-09-17, commit `e6d3b52`),
+`rounded-full` solo en badges, navegación en pastilla y círculos, y `rounded-3xl` en
+paneles. Sin radio de 8 px (`rounded-lg`). Iconos Lucide React en contenedores
 `rounded-xl` con `bg-[#f3eeff]` y `text-[#8b5cf6]`. Detalle completo en `DESIGN.md`.
 
 ## Comandos

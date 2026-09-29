@@ -18,7 +18,7 @@ const EXAMPLE_ICONS = [UserX, CalendarOff, MessageCircleMore] as const;
  * El Gestor: el negocio le habla a Alhabla por WhatsApp para cambiar su
  * propia agenda, no solo para que sus clientes reserven por teléfono. Mismo
  * bloque en la landing principal (copy genérico, `generalOwnerAssistant`) y
- * en las cinco de nicho (`content.ownerAssistant`), como `TeamRoutingSection`.
+ * en las cinco de nicho (`content.ownerAssistant`).
  *
  * A diferencia de `TeamRoutingSection` (cartas a la izquierda, texto a la
  * derecha en escritorio), aquí el texto va a la izquierda y el mockup a la

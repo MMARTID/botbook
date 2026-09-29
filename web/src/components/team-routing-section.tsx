@@ -18,9 +18,9 @@ const FALLBACK_INK = "#6d28d9";
 const RULE_ICONS = [Award, UserCheck, Users] as const;
 
 /**
- * Reparto de citas por especialidad. Es el mismo bloque en la landing
- * principal (copy genérico, `generalTeamRouting`) y en las cinco de nicho
- * (`content.teamRouting`), como ya hace `SectorDataSection`.
+ * Reparto de citas por especialidad, en las cinco landings de nicho
+ * (`content.teamRouting`). La portada genérica ya no lo lleva: desde la
+ * portada en seis bloques lo cuenta `PuntosFuertesSection`.
  *
  * Espejo del bloque de calendario de `site-landing.tsx`: allí el texto va a
  * la izquierda y las filas a la derecha; aquí las filas ocupan la columna
