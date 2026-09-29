@@ -1,6 +1,6 @@
 import "./_sin-movimiento";
 import * as React from "react";
-import { AnimatedCurrency } from "alhabla-ui";
+import { AnimatedCurrency } from "alhabla-web-ui";
 
 /** Cómo aparece en la calculadora: cifra grande sobre la tarjeta oscura. */
 export function CifraDestacada() {

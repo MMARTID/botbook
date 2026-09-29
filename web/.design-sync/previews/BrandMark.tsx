@@ -1,6 +1,6 @@
 import "./_sin-movimiento";
 import * as React from "react";
-import { BrandMark } from "alhabla-ui";
+import { BrandMark } from "alhabla-web-ui";
 
 /** Junto al wordmark, como en la cabecera de la web y la barra de la app. */
 export function EnCabecera() {
