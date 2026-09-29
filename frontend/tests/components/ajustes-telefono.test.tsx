@@ -8,6 +8,7 @@ import {
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { AxiosError, type AxiosResponse } from "axios";
 import {
   AjustesTelefono,
   AVISO_FALTA_NUMERO,
@@ -130,6 +131,22 @@ function renderSeccion(business: Business) {
     </QueryClientProvider>
   );
   return queryClient;
+}
+
+function errorHttp(status: number, data: Record<string, unknown>) {
+  return new AxiosError(
+    "Request failed",
+    "ERR_BAD_RESPONSE",
+    undefined,
+    undefined,
+    {
+      status,
+      data,
+      statusText: "",
+      headers: {},
+      config: {},
+    } as unknown as AxiosResponse
+  );
 }
 
 function bloque(nombre: string) {
@@ -276,6 +293,26 @@ describe("AjustesTelefono", () => {
       expect(
         (queryClient.getQueryData(["my-business"]) as Business).customerLineType
       ).toBe("fijo");
+    });
+
+    it("si el backend falla con un 500 en inglés, enseña el aviso en español", async () => {
+      const user = userEvent.setup();
+      mockedUpdate.mockRejectedValue(
+        errorHttp(500, { error: "Failed to update business" })
+      );
+      renderSeccion(negocio({ customerLineType: null }));
+
+      await user.click(
+        screen.getByRole("radio", { name: /El fijo del local/ })
+      );
+      await user.click(screen.getByRole("button", { name: "Guardar línea" }));
+
+      expect(
+        await screen.findByText("No se pudo guardar la línea de clientes.")
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByText("Failed to update business")
+      ).not.toBeInTheDocument();
     });
 
     it("al escribir un móvil sobre un fijo deja el tipo sin confirmar y lo manda como null", async () => {
