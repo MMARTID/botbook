@@ -2,12 +2,13 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { MessageSquareText } from "lucide-react";
-import { AppPageHeader, AppPageSkeleton } from "@/components/app-page-header";
+import { AppPageSkeleton } from "@/components/app-page-header";
 import { GestorChat } from "@/components/gestor-chat";
 import { useBusiness } from "@/components/providers";
 
-export default function AsistentePage() {
+// La cabecera («Tu gestor», Beta y si comparte conversación con el WhatsApp)
+// va dentro del propio chat: el chat ocupa la pantalla entera.
+export default function GestorPage() {
   const router = useRouter();
   const { hasToken, isLoadingBusiness } = useBusiness();
 
@@ -15,18 +16,7 @@ export default function AsistentePage() {
     if (hasToken === false) router.replace("/login");
   }, [hasToken, router]);
 
-  if (isLoadingBusiness) return <AppPageSkeleton label="Cargando tu asistente…" />;
+  if (isLoadingBusiness) return <AppPageSkeleton label="Cargando tu gestor…" />;
 
-  return (
-    <div className="space-y-6">
-      <AppPageHeader
-        icon={MessageSquareText}
-        title="Tu asistente"
-        description="Pregúntale por la agenda y pídele cambios: servicios, equipo, horario, citas. Es el mismo asistente que te atiende por WhatsApp y comparte la conversación."
-      >
-        <span className="badge-soft">Beta</span>
-      </AppPageHeader>
-      <GestorChat hasToken={hasToken} />
-    </div>
-  );
+  return <GestorChat hasToken={hasToken} />;
 }
