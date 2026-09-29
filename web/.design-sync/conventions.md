@@ -1,34 +1,28 @@
-## Cómo se construye con Alhabla
+## Cómo se construye con Alhabla (web pública)
 
 SaaS de recepcionistas de voz con IA para negocios tradicionales españoles
 (peluquerías, barberías, centros de estética, fisioterapia). Estética editorial
 de alto contraste: **blanco, tinta casi negra y un único acento morado**. Nada
 de look de startup. Todo el copy va en **español**.
 
-Este sistema es el de **la app** (`app.alhabla.ai`: panel, ajustes, alta). La
-web pública (landing, sectores, planes, legal) es otro proyecto de diseño con
-su propio bundle, `window.AlhablaWeb`; sus piezas de marketing no están aquí.
+Este sistema es el de **la web pública** (`alhabla.ai`: portada, landings por
+sector, planes, legal y registro). El panel del negocio es otro proyecto de
+diseño con su propio bundle, `window.Alhabla`; sus piezas no están aquí.
 
 ### Envolver: `PreviewProviders`
 
-Los componentes del grupo `panel` (`RecentCalls`, `OnboardingChecklist`,
-`CallDetailModal`) leen sus datos con TanStack Query, y los enlaces usan el
-router de Next. Sin contexto **renderizan vacío o lanzan**. Envuelve la raíz
-una sola vez:
+La web no tiene sesión ni caché de datos: lo único que falta fuera de Next es
+el router. `RevenueLossCalculator` lo pide con `useRouter()` y sin él
+**lanza** (`next/link` también lo lee, para el prefetch). Envuelve la raíz una
+sola vez:
 
 ```jsx
-const { PreviewProviders, RecentCalls } = window.Alhabla;
+const { PreviewProviders, LandingHero, nicheLandings } = window.AlhablaWeb;
 
 <PreviewProviders>
-  <RecentCalls />
+  <LandingHero content={nicheLandings.peluqueria} />
 </PreviewProviders>
 ```
-
-`PreviewProviders` trae la caché ya sembrada con datos realistas de una
-peluquería. Las claves que resuelven sin red son fijas: `RecentCalls` y
-`OnboardingChecklist` no reciben props, y `CallDetailModal` **exige**
-`callId="call-demo-1"` — con cualquier otro sale a la red y acaba en su
-estado de error.
 
 ### El idioma visual: Tailwind + clases del sistema
 
@@ -54,7 +48,7 @@ Los colores viven en tokens CSS, no en hexadecimales sueltos: `--background`,
 `--surface`, `--surface-soft`, `--border`, `--foreground`, `--muted`,
 `--accent`, `--accent-strong`, `--purple`, `--purple-strong`, `--purple-wash`,
 `--purple-ink`, `--purple-ring`, `--accent-soft`, `--success`,
-`--success-surface`, `--warning`, `--warning-ink`, `--error`.
+`--success-surface`, `--warning`, `--error`.
 
 El morado es **acento, no fondo**: iconos, badges, focus rings, cifras clave y
 CTA secundario. El CTA principal es negro. Los iconos son Lucide dentro de un
@@ -65,9 +59,15 @@ código y los números de teléfono). Titulares en `font-black tracking-tight`.
 
 ### Componer con datos reales
 
-El bundle exporta los valores de partida reales de los editores:
-`DEFAULT_AGENT_SETTINGS`, `DEFAULT_BUSINESS_SCHEDULE` y `getScheduleSummary`.
-Úsalos en vez de inventar configuraciones de relleno.
+El bundle exporta `nicheLandings`: el copy completo de cada landing de sector
+(`peluqueria`, `barberia`, `centro-de-estetica`, `salon-de-unas`,
+`fisioterapia`) — titular, descripción, bloque de la calculadora
+(`calculator`), datos del sector (`sectorData`, opcional) y su `accent`
+propio. Úsalo en vez de inventar copy de relleno.
+
+`SectorDataSection` y `RevenueLossCalculator` aceptan un `accent` de nicho
+(`nicheLandings.<nicho>.accent`) que los retinta enteros; sin él usan el morado
+de marca. `LandingHero` lo toma del propio `content`.
 
 ### Dónde está la verdad
 
@@ -80,26 +80,25 @@ El bundle exporta los valores de partida reales de los editores:
 ### Ejemplo idiomático
 
 ```jsx
-const { PreviewProviders, SettingsSection, RangeSlider } = window.Alhabla;
+const { PreviewProviders, Reveal, SectorDataSection, nicheLandings } =
+  window.AlhablaWeb;
+const peluqueria = nicheLandings.peluqueria;
 
 <PreviewProviders>
-  <div className="mx-auto max-w-2xl space-y-4 p-6">
-    <span className="badge-soft">Configuración</span>
-    <h1 className="text-3xl font-black tracking-tight text-[#0a0a0a]">
-      Ajustes del negocio
-    </h1>
-    <p className="text-sm leading-6 text-muted">
-      El agente comprueba estos datos antes de confirmar cualquier cita.
-    </p>
-    <SettingsSection
-      id="capacity" icon={CalendarClock}
-      title="Capacidad de reservas" summary="2 plazas simultáneas"
-      open onToggle={() => {}}
-    >
-      <div className="p-5">
-        <button type="button" className="btn-primary">Guardar</button>
-      </div>
-    </SettingsSection>
-  </div>
+  <main className="mx-auto max-w-5xl space-y-12 px-6 py-16">
+    <Reveal>
+      <span className="badge-soft">Peluquerías</span>
+      <h2 className="mt-4 text-4xl font-black tracking-tight text-[#0a0a0a]">
+        Cada llamada sin contestar es una clienta que reserva en otro sitio
+      </h2>
+      <p className="mt-3 max-w-2xl text-base leading-7 text-muted">
+        El agente contesta, consulta tu agenda y reserva mientras trabajas.
+      </p>
+      <a href="#planes" className="btn-primary mt-6">
+        Empezar 7 días gratis
+      </a>
+    </Reveal>
+    <SectorDataSection data={peluqueria.sectorData} accent={peluqueria.accent} />
+  </main>
 </PreviewProviders>
 ```

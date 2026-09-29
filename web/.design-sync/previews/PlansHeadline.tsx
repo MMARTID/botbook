@@ -1,6 +1,6 @@
 import "./_sin-movimiento";
 import * as React from "react";
-import { PlansHeadline } from "alhabla-ui";
+import { PlansHeadline } from "alhabla-web-ui";
 
 /** Titular de la sección de precios. No recibe props: el copy es fijo. */
 export function Titular() {

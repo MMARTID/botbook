@@ -1,6 +1,6 @@
 import "./_sin-movimiento";
 import * as React from "react";
-import { MobileNav } from "alhabla-ui";
+import { MobileNav } from "alhabla-web-ui";
 
 /**
  * Sólo existe por debajo de `md` (el contenedor lleva `md:hidden`), por eso la

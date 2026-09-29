@@ -1,6 +1,6 @@
 import "./_sin-movimiento";
 import * as React from "react";
-import { LegalSection } from "alhabla-ui";
+import { LegalSection } from "alhabla-web-ui";
 
 /** Uso canónico: un apartado de /legal/privacidad, con su prosa real. */
 export function Apartado() {

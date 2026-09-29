@@ -1,33 +1,80 @@
-# Notas de /design-sync — Alhabla
+# Notas de /design-sync — Alhabla (paquete de la app)
 
-## Qué es este repo para el convertidor
+## Dos paquetes: la app aquí, la web en `web/.design-sync/`
 
-No es una librería publicada: es la app Next.js de `frontend/`. No hay `dist/`,
-ni `.storybook/`, ni ficheros `*.stories.*`. La forma es `package` y el
-convertidor se alimenta de entradas **generadas** por `.design-sync/prepare.mjs`
-(que es `cfg.buildCmd`, así que se ejecuta solo antes de cada build).
+Desde la separación de las dos webs (2026-09-21,
+`docs/historico/PLAN-APP-DOMINIO.md`) la app (`frontend/`, `app.alhabla.ai`) y
+la web pública (`web/`, `alhabla.ai`) son dos proyectos Next con su propio
+`tsconfig`, su Tailwind y su `globals.css`. design-sync tiene un paquete por
+cada una:
 
-`prepare.mjs` escribe en `frontend/.ds-src/` (gitignorado) y en
-`frontend/dist/types/` (gitignorado):
+|                                     | App (este)                        | Web                                  |
+| ----------------------------------- | --------------------------------- | ------------------------------------ |
+| Desde dónde se lanza `/design-sync` | la raíz del repo                  | `web/`                               |
+| Config                              | `.design-sync/config.json`        | `web/.design-sync/config.json`       |
+| Bundle                              | `window.Alhabla` (`alhabla-ui`)   | `window.AlhablaWeb` (`alhabla-web-ui`) |
+| Proyecto en claude.ai/design        | «Alhabla UI» (`projectId`)        | ninguno aún: lo crea su primera sync |
+| Componentes                         | 12 (7 del panel + 5 compartidos)  | 17 (12 de marketing + 5 compartidos) |
 
-1. `entry.ts` — barrel con los componentes de `cfg.componentSrcMap` más las
-   exportaciones de datos reales (`nicheLandings`, `DEFAULT_AGENT_SETTINGS`,
-   `DEFAULT_BUSINESS_SCHEDULE`, `getScheduleSummary`) y `PreviewProviders`.
+El convertidor busca `.design-sync/` (previews, overrides, caché) en el
+directorio desde el que se lanza, así que cada paquete tiene su «hogar».
+
+**No se juntan en un solo bundle a propósito.** El convertidor aplica UN alias
+`@/*` —el del `tsconfig` del paquete— a todos los ficheros del bundle
+(`tsconfigPathsPlugin` en `lib/bundle.mjs`): un componente de `web/` que
+importa `@/lib/niche-landings` resolvería en silencio contra `frontend/src/lib/`.
+Un solo paquete exigiría un fork de `bundle.mjs` en `overrides/`, más dos `tsc`
+y dos Tailwind fusionados. Decisión del usuario del 2026-09-29.
+
+Los cinco **componentes compartidos** (`BrandMark`, `RangeSlider`,
+`GoogleAuthButton`, `ParticleField`, `ParticleMouseLayer`) son copias idénticas
+en las dos webs (`scripts/comprobar-copias-compartidas.sh`) y van en los dos
+paquetes, con su preview y su doc copiados. **Si cambias la preview o el doc de
+uno de ellos, cópialo al otro paquete.**
+
+## Qué es este paquete para el convertidor
+
+No es una librería publicada: no hay `dist/`, ni `.storybook/`, ni `*.stories.*`.
+La forma es `package` y el convertidor se alimenta de entradas **generadas** por
+`.design-sync/prepare.mjs` (que es `cfg.buildCmd`, así que se ejecuta solo antes
+de cada build). El trabajo común de los dos paquetes vive en
+`scripts/preparar-design-sync.mjs`; este `prepare.mjs` solo aporta lo propio de
+la app (providers con la caché sembrada y los valores por defecto de los
+editores).
+
+Escribe en `frontend/.ds-src/` (gitignorado) y en `frontend/dist/types/`
+(gitignorado):
+
+1. `entry.ts` — barrel con los componentes de `cfg.componentSrcMap` más los
+   datos reales (`DEFAULT_AGENT_SETTINGS`, `DEFAULT_BUSINESS_SCHEDULE`,
+   `getScheduleSummary`) y `PreviewProviders`.
 2. `process-shim.ts` — **imprescindible y debe ir primero en el barrel**. El
-   código de la app lee `process.env` (`lib/api.ts`, `lib/seo.ts`) porque Next
-   lo sustituye al compilar; en el navegador no existe y sin el shim el IIFE
-   entero revienta al cargar y `window.Alhabla` queda vacío (se manifiesta como
-   `[BUNDLE_EXPORT] 26/26 not a component`).
+   código lee `process.env` (`lib/api.ts`, `lib/seo.ts`) porque Next lo
+   sustituye al compilar; en el navegador no existe y sin el shim el IIFE entero
+   revienta al cargar y `window.Alhabla` queda vacío (se manifiesta como
+   `[BUNDLE_EXPORT] N/N not a component`). Su `NODE_ENV` es `development`, como
+   el `define` del convertidor: con `production` y sin
+   `NEXT_PUBLIC_API_BASE_URL`, `lib/api.ts` lanza al cargar.
 3. `preview-providers.tsx` — `PreviewProviders`: `QueryClientProvider` con la
    caché sembrada + `AppRouterContext` inerte. Se siembra la caché **en vez de
    mockear `@/lib/api`**, así el bundle sigue llevando el módulo de API real.
 4. `alhabla.css` — `globals.css` compilado con Tailwind (es `@tailwind`/`@apply`
    sin compilar, inservible tal cual) precedido de los `@font-face` de Geist.
-5. `dist/types/**` + un `package.json` con `types` — el árbol de `.d.ts`.
+5. `next-env.d.ts` — las referencias de tipos de Next. El de verdad está
+   gitignorado y no existe en un checkout limpio; sin él, los imports de
+   `*.module.css` o de imágenes dan errores falsos en `tsc`.
+6. `dist/types/**` + un `package.json` con `types` — el árbol de `.d.ts`.
+
+**`prepare.mjs` aborta (código 1)** si `componentSrcMap` o los datos extra
+apuntan a un fichero que no existe, o si `tsc` da un error dentro de `.ds-src/`
+(import roto, exportación renombrada). Antes solo enseñaba los cinco primeros
+errores de `tsc` y salía con «✓ listo»: así pasó desapercibido que la
+separación de las webs dejó 14 de los 26 módulos del barrel apuntando a
+ficheros que ya no estaban en `frontend/` (y `nicheLandings` sin exportar).
 
 ## Trampas que ya costaron una vuelta
 
-- **Sin `frontend/dist/types/package.json` los 26 contratos de props salen como
+- **Sin `frontend/dist/types/package.json` los contratos de props salen como
   `[key: string]: unknown`.** El extractor busca el `types` del `package.json`
   más cercano al árbol de `.d.ts`; sin ese marcador cae en un `index.d.ts` que
   no existe y sólo resuelve los componentes con un tipo `<Name>Props` con
@@ -36,30 +83,33 @@ convertidor se alimenta de entradas **generadas** por `.design-sync/prepare.mjs`
   usa una utilidad que la app no usa en ningún sitio, sin eso no se genera.
   Por eso hay que reejecutar `prepare.mjs` (o sea `buildCmd`) **después** de
   escribir previews nuevas y antes del build final.
-- **`.design-sync/previews/_sin-movimiento.ts` fuerza `prefers-reduced-motion`
-  en todas las previews menos `LottieAnimation`.** Las tarjetas son capturas
-  estáticas: sin él, todo lo que anima con framer-motion se fotografía a mitad
-  de camino y la tarjeta **miente** — `SectorDataSection` mostraba 57% donde
-  los datos ponen 62%, y `CountUp` salía a cero porque su `useInView` con
-  margen `-80px` nunca se dispara arriba del todo. `LottieAnimation` es la
-  excepción: con reduced-motion pasa `autoplay={false}` y no pinta nada.
-- **Los `.woff` de Geist los inyecta `next/font` en la app.** Fuera de Next no
-  existen `--font-geist-sans`/`--font-geist-mono`, así que `prepare.mjs` los
-  declara contra `frontend/src/app/fonts/*.woff`. Sin eso todas las tarjetas
-  renderizan en la fuente de respaldo del navegador.
+- **`previews/_sin-movimiento.ts` fuerza `prefers-reduced-motion`** en todas las
+  previews menos `LottieAnimation`. Las tarjetas son capturas estáticas: lo que
+  anima al montar se fotografía a mitad de camino y la tarjeta **miente**.
+  `LottieAnimation` es la excepción: con reduced-motion no arranca y no pinta
+  nada. Pesa sobre todo en la web (`CountUp`, `SectorDataSection`); aquí se
+  mantiene por el siguiente componente animado que entre.
+- **Los `.woff` de Geist los inyecta `next/font`.** Fuera de Next no existen
+  `--font-geist-sans`/`--font-geist-mono`, así que el prepare los declara
+  contra `frontend/src/app/fonts/*.woff`. Sin eso todas las tarjetas salen en
+  la fuente de respaldo del navegador.
 - `mv` está aliasado a interactivo en esta máquina: los scripts que reescriben
   ficheros en sitio deben usar Python o `mv -f`, o el comando se queda colgado
   esperando una confirmación.
 
 ## Avisos de render conocidos (legítimos)
 
-Ninguno pendiente: `package-validate.mjs` sale limpio, sin warns.
+Ninguno pendiente. Verificado el 2026-09-29 con el convertidor montado en
+`.ds-sync/` del checkout principal: `package-build.mjs` 12/12 componentes y
+12/12 docs, `package-validate.mjs` limpio con render check 12/12 (dos tarjetas
+tipográficas, abajo). El validador informa de «tokens: 1 missing, below
+threshold», por debajo de su umbral.
 
 ## Cosas que se quedaron fuera a propósito
 
-- Las composiciones a nivel de página (`SiteLanding`, `AppShell`, `LegalPage`,
-  `PlansWithRoi`, `Providers`) siguen fuera del ámbito por decisión del
-  usuario: sólo se sincronizan las piezas reutilizables del sistema.
+- Las composiciones a nivel de página (`AppShell`, `Providers`, las páginas de
+  `app/`) siguen fuera del ámbito por decisión del usuario: sólo se sincronizan
+  las piezas reutilizables del sistema.
 - **`CallDetailModal` va con tarjeta tipográfica (floor card) a propósito.** Es
   un overlay `position: fixed` a pantalla completa con scroll interno: se probó
   con `cardMode: single` a 900x760, 900x1500, 820x900 y 900x1250, con una
@@ -67,52 +117,35 @@ Ninguno pendiente: `package-validate.mjs` sale limpio, sin warns.
   contenedor de los `fixed`) y en todos los casos la captura recorta la
   cabecera o sale en blanco. Se prefirió la tarjeta honesta a una que enseña el
   componente descabezado. **Funciona perfectamente al importarlo**; sólo no se
-  deja fotografiar. Su `.prompt.md` lo explica.
-- **`DemoVoiceCall` se añadió el 2026-09-07 (a petición del usuario, un solo
-  componente) y también va con floor card.** Mismo patrón exacto que
-  `CallDetailModal` (`fixed inset-0 flex items-end sm:items-center`, con SDK de
-  Retell + red en vivo de por medio: `createDemoWebCall`, `searchDemoPlaces`,
-  `getDemoPlaceDetails`, `RetellWebClient`). Se probó una preview con el
-  estado inicial (búsqueda de negocio, sin disparar red) a `cardMode: single`
-  480x720 — recorta la cabecera igual que las cuatro pruebas de
-  `CallDetailModal`; no merece la pena repetir más tamaños, es el mismo
-  problema ya agotado. No repetir el intento en un futuro re-sync sin una
-  técnica nueva para el containing block de `fixed` bajo el ancestro
-  transformado del harness.
-- **`ParticleMouseLayer` también va con floor card.** Sólo pinta en respuesta al
-  movimiento del ratón (`fixed inset-0 -z-10`): no existe render estático suyo.
+  deja fotografiar. No repetir el intento sin una técnica nueva para el bloque
+  contenedor de `fixed` bajo el ancestro transformado del harness.
+- **`ParticleMouseLayer` también va con floor card.** Es una capa global
+  `fixed inset-0 -z-10` (mismo problema que `CallDetailModal`) que además se
+  apaga sin puntero fino o con `prefers-reduced-motion`, que es justo lo que
+  fuerza `_sin-movimiento.ts`.
 
 ## Hallazgos sobre el propio código (no tocados)
 
-- **`GoogleAuthButton` ignora todas sus props** (`onError`, `beforeStart`,
-  `disabled`, `acceptedTerms`): el registro público está bloqueado a propósito y
-  el botón sólo abre la burbuja de «próximamente». El `.d.ts` sigue anunciando
-  esos props, así que el contrato miente respecto al comportamiento. Está
-  documentado en su `.prompt.md`; si se reactiva el registro, revisar ese doc.
-- **Las páginas de `/legal/` conservan hexadecimales de la paleta verde
-  anterior** (`#344038`, `#1e2b22`) pese a que `DESIGN.md` dice que no queda
-  ningún token verde. No se ha tocado nada de la app en esta sincronización.
+- **`BrandMark` sale como imagen rota en las tarjetas.** Hoy es un
+  `<img src="/brand/alhabla-isotipo.svg">` con ruta absoluta: en la web real la
+  sirve `public/`, pero en claude.ai/design esa ruta no existe y el bundle no
+  lleva el SVG. Arreglarlo es tocar el componente (copia compartida en las dos
+  webs), fuera del alcance de la sincronización.
 
 ## Riesgos de cara a la próxima sincronización
 
-- `prepare.mjs` **duplica** el `content` de `frontend/tailwind.config.ts` sólo
-  en la medida en que lo reexporta (`import base from "../tailwind.config.ts"`),
-  así que los cambios de tema se propagan solos. Lo que **no** se propaga es la
-  lista de componentes: vive en `cfg.componentSrcMap` y hay que ampliarla a mano
-  cuando se añada un componente nuevo a `frontend/src/components/`.
-- Las previews de `panel` dependen de que las **queryKey** de los componentes no
-  cambien (`["recent-calls"]`, `["onboarding-state"]`,
-  `["calendar-events", businessId, 15]`, `["call-detail", id]`). Si alguien
-  renombra una clave, la tarjeta pasa a estado de carga o de error sin que nada
-  falle ruidosamente: hay que resembrarla en `prepare.mjs`.
-- Los datos sembrados (llamadas, eventos, onboarding) están **inlineados** en
+- La lista de componentes **no** se propaga sola: vive en
+  `cfg.componentSrcMap` y hay que ampliarla a mano cuando se añada un
+  componente a `frontend/src/components/`. Si uno se mueve o se borra, el
+  prepare ya falla en vez de callarse.
+- Las previews del panel dependen de que las **queryKey** de los componentes no
+  cambien (`["recent-calls"]`, `["onboarding-state"]`, `["call-detail", id]`).
+  Si alguien renombra una clave, la tarjeta pasa a estado de carga o de error
+  sin que nada falle ruidosamente: hay que resembrarla en `prepare.mjs`.
+- Los datos sembrados (llamadas, onboarding) están **inlineados** en
   `prepare.mjs`. Si cambian los tipos de `frontend/src/lib/types.ts`, esos
   objetos se quedan desfasados en silencio — TypeScript no los comprueba porque
   se generan como texto.
-- Verificado con Playwright 1.63.0 + Chrome Headless Shell 153. El árbol de
+- El convertidor corre con Playwright + Chrome Headless Shell; el árbol de
   `.d.ts` lo emite el `tsc` del repo (TypeScript 5), ignorando errores de tipos
-  siempre que llegue a escribir `dist/types/src/components`.
-- **La subida quedó pendiente**: esta sesión no pudo autorizar `DesignSync`
-  (`/design-login` requiere una sesión interactiva). No hay proyecto en
-  claude.ai/design todavía, así que **no hay `projectId` en la config** y la
-  próxima ejecución creará uno nuevo y subirá todo desde cero.
+  fuera de `.ds-src/` siempre que llegue a escribir `dist/types/src/components`.

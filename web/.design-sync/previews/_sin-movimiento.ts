@@ -1,9 +1,8 @@
 // Las tarjetas son capturas ESTÁTICAS, así que el estado correcto es el final,
-// no un fotograma intermedio. Sin esto, todo lo que cuenta o aparece al
-// montar se fotografía a mitad de animación y la tarjeta muestra cifras que no
-// son las de los datos (en la web, SectorDataSection enseñaba 57% donde pone
-// 62%). Hoy ningún componente de la app anima así; se mantiene para el
-// siguiente que entre. Copia gemela en web/.design-sync/previews/.
+// no un fotograma intermedio. Sin esto, todo lo que cuenta o aparece con
+// framer-motion (CountUp, AnimatedCurrency, Reveal, y los componentes que los
+// embeben como SectorDataSection) se fotografía a mitad de animación y la
+// tarjeta muestra cifras que no son las de los datos — 57% donde pone 62%.
 //
 // Forzamos `prefers-reduced-motion: reduce`, que es un modo real y soportado
 // de estos componentes: pintan directamente el valor definitivo.

@@ -1,6 +1,6 @@
 import "./_sin-movimiento";
 import * as React from "react";
-import { SectorDataSection, nicheLandings } from "alhabla-ui";
+import { SectorDataSection, nicheLandings } from "alhabla-web-ui";
 
 const datosPeluqueria = nicheLandings.peluqueria.sectorData;
 

@@ -1,6 +1,6 @@
 import "./_sin-movimiento";
 import * as React from "react";
-import { PlanSelectionLink } from "alhabla-ui";
+import { PlanSelectionLink } from "alhabla-web-ui";
 
 /** Plan normal: enlace secundario dentro de su tarjeta de precio. */
 export function Estandar() {

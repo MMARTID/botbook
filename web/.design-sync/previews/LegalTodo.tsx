@@ -1,6 +1,6 @@
 import "./_sin-movimiento";
 import * as React from "react";
-import { LegalTodo } from "alhabla-ui";
+import { LegalTodo } from "alhabla-web-ui";
 
 /**
  * El componente ya pone el rótulo «Pendiente de completar antes de publicar:»,
