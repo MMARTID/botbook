@@ -23,7 +23,7 @@ The codebase is fully in Spanish — UI copy, comments, variable names, and busi
 | **Calendar** | Google Calendar API, Microsoft Graph (Outlook), CalDAV vía `tsdav` + `ical.js` (Apple/iCloud) |
 | **Auth** | JWT (custom) + Google OAuth 2.0 |
 | **Containerization** | Docker + Docker Compose |
-| **Testing** | Vitest (backend), MSW (mocking), @testcontainers/postgresql |
+| **Testing** | Vitest (backend, `frontend/` and `web/`; Testing Library + jsdom in the two webs). Integration tests against the real Postgres/Redis of docker-compose (`alhabla_test`), no containers of their own |
 
 ## Monorepo Layout
 
@@ -156,9 +156,9 @@ each file.
 | `/legal/privacidad` | Privacy policy — covers the voice demo, recorded calls and calendar scopes |
 | `/legal/aviso-legal` | Legal notice — service terms, trial, withdrawal |
 
-Both legal pages (now in `web/`) carry `LegalTodo` blocks marking the registration data
-(razón social, CIF, domicilio) that a human must supply before launch — do not invent those
-values, and do not delete the markers until they are filled.
+Both legal pages (now in `web/`) identify the owner with real data (filled in `048270b` and
+`97038ed`); no `LegalTodo` marker is left. If a legal page ever needs data that only a human can
+supply, mark it with `LegalTodo` instead of inventing it.
 
 Every indexable page of the public site has its own `opengraph-image.tsx` (home, the five niches,
 `/planes`, `/blog`, each article and both legal pages; the city pages reuse their niche's), and all
@@ -228,6 +228,7 @@ each page's image explicitly from its `openGraph`/`twitter` metadata.
   component. If a future component needs to call the backend directly, add a wrapper to `api.ts`
   instead of a raw `fetch`/hardcoded path.
 - `LegalPage` / `LegalSection` / `LegalTodo` — Read-mode shell for the `/legal/*` pages.
+  `LegalTodo` (the visible «Pendiente antes de publicar» note) is currently unused.
 - `SiteHeader` / `MobileNav` / `SectorsMenu` / `SiteFooter` — Header and footer of the landings
   and the blog (`/planes` only has the footer; legal and `/register` have their own chrome).
   «Entrar» goes to `appUrl("/login")`.
@@ -312,8 +313,8 @@ the content: each project keeps what it needs.
 - `register.ts` — `buildAppEntryUrl` (the jump to the app's `/auth/entrar?pase=` with plan and
   sector) and `describeRegisterError`.
 - `niche-landings.ts` — The SEO copy of each niche: hero, benefits, FAQ, cited `sectorData`,
-  `teamRouting`, `ownerAssistant`, metadata and JSON-LD, plus `generalTeamRouting` and
-  `generalOwnerAssistant` for the generic landing. Accents in `niche-accents.ts`, per-city pages in
+  `teamRouting`, `ownerAssistant`, metadata and JSON-LD, plus `generalOwnerAssistant` for the
+  generic landing (it has no team-routing block since the six-block home page, `9d4abef`). Accents in `niche-accents.ts`, per-city pages in
   `city-landings.ts`, home FAQ in `home-faqs.ts`.
 - `roi-context.ts` — ROI calculation, plan value contrast and the calculator → `/planes` hand-off
   (`activateRoiContext` / `getActiveRoiContext`).
@@ -464,13 +465,13 @@ All business-scoped data is filtered by `businessId` from the token. Never trust
 
 - **Validation:** Use `zod` schemas for route bodies and params. Return `400` with `error.errors` on `ZodError`.
 - **Global error handler** (`server.ts`): Normalizes all errors to `{ statusCode, error, message }`. Handles both `Error` instances and plain error objects (e.g. rate-limit errors from `@fastify/rate-limit`). Logs full error details with Pino. Returns generic "Internal server error" for 5xx to avoid leaking internals.
-- **Rate limiting:** Default 100 req/min per IP, counter in Redis (global across Cloud Run instances since 2026-09-17). Retell webhook endpoints override to 300 req/min. Auth endpoints have stricter limits: 10/min (`/login`, `/register`) and 5/min (`/register-first-user`, `/pase/canjear`). **Pase de un solo uso** (docs/historico/PLAN-APP-DOMINIO.md § 3, fase 0, 2026-09-21): `POST /auth/register` devuelve además `pase` (64 hex, `auth:pase:<código>` en Redis, 60 s, best-effort) y `POST /auth/pase/canjear { pase }` lo cambia por el JWT una sola vez (`getdel`; 401 `PASE_INVALIDO` si no existe o ya se usó, 400 si el formato no es el esperado). Es el puente entre el registro en la web de marketing y la sesión en la app (`lib/urls.ts`, `modules/auth/pase.ts`). Places endpoints use 10/min. **`/internal/jobs/*` are exempt** (`config.rateLimit: false` on every route): Cloud Tasks/Scheduler call from a handful of Google IPs and are already OIDC-authenticated — with the limit made real, draining a queue produced 293 × 429 in three minutes, and a burst of weekly-summary emails would have exhausted Cloud Tasks retries on legitimate sends.
+- **Rate limiting:** Default 100 req/min per IP, counter in Redis (global across Cloud Run instances since 2026-09-17). Retell and Telnyx webhook endpoints override to 300 req/min. Auth endpoints have stricter limits (`backend/src/modules/auth/routes.ts`): 10/min (`strictRateLimit`: `/login`, the three `/google*` routes and `GET /account`) and 5/min (`veryStrictRateLimit`: `/register`, `/pase/canjear`, `/forgot-password`, `/reset-password`, `/change-password`, `DELETE /account`, `/register-first-user`). **Pase de un solo uso** (docs/historico/PLAN-APP-DOMINIO.md § 3, fase 0, 2026-09-21): `POST /auth/register` devuelve además `pase` (64 hex, `auth:pase:<código>` en Redis, 60 s, best-effort) y `POST /auth/pase/canjear { pase }` lo cambia por el JWT una sola vez (`getdel`; 401 `PASE_INVALIDO` si no existe o ya se usó, 400 si el formato no es el esperado). Es el puente entre el registro en la web de marketing y la sesión en la app (`lib/urls.ts`, `modules/auth/pase.ts`). Places endpoints use 20/min. **`/internal/jobs/*` are exempt** (`config.rateLimit: false` on every route): Cloud Tasks/Scheduler call from a handful of Google IPs and are already OIDC-authenticated — with the limit made real, draining a queue produced 293 × 429 in three minutes, and a burst of weekly-summary emails would have exhausted Cloud Tasks retries on legitimate sends.
 
 ## Database (Prisma)
 
 The schema lives in `backend/prisma/schema.prisma`. Key models:
 
-- `Business` — tenant root; holds Stripe billing state, calendar tokens (encrypted), schedule JSON, agent settings, booking capacity, and optional booking restrictions `minAdvanceBookingMinutes` / `maxAppointmentDurationMinutes` (both nullable = no restriction; enforced in `check_business_hours` and `book_appointment`, see Agent Configuration).
+- `Business` — tenant root; holds Stripe billing state, calendar tokens (encrypted), schedule JSON, agent settings, booking capacity, and optional booking restrictions `minAdvanceBookingMinutes` / `maxAppointmentDurationMinutes` (both nullable = no restriction; stated in the prompt and enforced by `book_appointment`, see Business Schedule and Agent Configuration).
 - `User` — belongs to a Business; supports password (bcrypt) + Google OAuth login (`googleId`).
 - `Agent` — voice agent config; `retellAgentId`/`retellLlmId` link to Retell, `telnyxAssistantId` to Telnyx. Includes voice/LLM/STT provider configs, integrations.
 - `Call` — a phone call handled by Retell or Telnyx. Status enum: `INITIATED`, `IN_PROGRESS`, `COMPLETED`, `FAILED`, `TIMED_OUT`. Outcome enum: `RESOLVED`, `FRUSTRATED`, `NO_ANSWER`, `ESCALATED`, `LEAD_CAPTURED` — set from Retell's `call_outcome` post_call_analysis_data field. Since 2026-09-11 the three remaining analysis fields are persisted too: `escalationReason` (enum `CallEscalationReason`), `toolFailureDetected` and `requestedService` (see Retell Configuration).
@@ -1701,7 +1702,7 @@ The backend supports two voice-AI orchestrators. `Business.orchestrator` decides
 - **Endpoints used:** `POST /create-retell-llm`, `POST /create-agent`, `PATCH /update-agent/{id}`, `GET /get-agent/{id}`, `DELETE /delete-agent/{id}`, `GET /list-phone-numbers`, `POST /import-phone-number`, `DELETE /delete-phone-number/{id}`, `GET /get-call/{id}`, `POST /v2/create-web-call` (public landing demo). `RetellAdapter.createPhoneNumber` (`POST /create-phone-number`) also exists but is unused dead code today — it makes Retell buy a NEW number from its own Twilio/Telnyx inventory (US/CA only), not link a number you already own. `RetellAdapter.importPhoneNumber` (`POST /import-phone-number`) is the one `phone/service.ts` actually calls, since we always own the number ourselves (bought via Telnyx) — it requires a SIP trunk `termination_uri` (see Phone provisioning below).
 - Webhooks from Retell hit `POST /webhooks/retell`. The endpoint verifies the `x-retell-signature` using `retellAdapter.validateWebhookSignature` (timing-safe comparison with the Retell API key).
 - Supported Retell webhook events: `call_started`, `call_ended`, `call_analyzed`. Other events are acknowledged (`200`) but ignored.
-- Retell custom tools are exposed under `POST /webhooks/retell/tools/:retellAgentId/:toolName`. The `retellAgentId` path segment is required because Retell never includes an agent identifier in the tool-call body, so it's embedded in the URL itself (done in `buildRetellCalendarTools`, `backend/src/modules/calendar/service.ts`). Our tools are registered with `args_at_root: false` (see `RetellAdapter.createLlm`/`updateLlm`), so Retell sends `{name, call, args}` — `call.call_id` is threaded through as `callId` to `executeVoiceTool` so `book_appointment` can link the booking to the exact call instead of guessing "the most recent call for this business". The route still tolerates a flat args-only body (no `call_id`) for businesses not yet resynced with this config. The endpoint validates the `x-retell-signature` before executing any tool. Execution is delegated to `executeVoiceTool` in `backend/src/modules/voiceTools/service.ts`, which implements `check_business_hours`, `check_availability` and `book_appointment` (Google, Outlook and Apple/CalDAV supported). `check_availability` also accepts an optional `professionalId` (copied from `get_catalog`; the prompt only sends it when the caller named someone) to check that specific professional instead of "anyone free".
+- Retell custom tools are exposed under `POST /webhooks/retell/tools/:retellAgentId/:toolName`. The `retellAgentId` path segment is required because Retell never includes an agent identifier in the tool-call body, so it's embedded in the URL itself (done in `buildRetellCalendarTools`, `backend/src/modules/calendar/service.ts`). Our tools are registered with `args_at_root: false` (see `RetellAdapter.createLlm`/`updateLlm`), so Retell sends `{name, call, args}` — `call.call_id` is threaded through as `callId` to `executeVoiceTool` so `book_appointment` can link the booking to the exact call instead of guessing "the most recent call for this business". The route still tolerates a flat args-only body (no `call_id`) for businesses not yet resynced with this config. The endpoint validates the `x-retell-signature` before executing any tool. Execution is delegated to `executeVoiceTool` in `backend/src/modules/voiceTools/service.ts`, which implements `get_catalog`, `check_availability`, `book_appointment`, `find_my_appointment`, `cancel_appointment` and `notify_when_available` (Google, Outlook and Apple/CalDAV supported). It still answers the legacy `check_business_hours`, but no agent registers that tool any more: `check_availability` checks the opening hours itself. `check_availability` also accepts an optional `professionalId` (copied from `get_catalog`; the prompt only sends it when the caller named someone) to check that specific professional instead of "anyone free".
 - **Professional levels in the tool contract (2026-09-17).** `check_availability` translates the ranking into things the agent may say, never the internal tiers: without `professionalId` the success result carries `assignedProfessional: { id, name, isSpecialist }` (= `availableProfessionals[0]`); when the named professional is marked "no sugerir" for the requested services and someone better is free at that time, the result (success or `ALL_PROFESSIONALS_BUSY`) carries `recommendation: { professional, isSpecialist, availabilityToken, instructions }` — its own token so "vale, con Laura" books without another round-trip — and the draft of the *requested* person is flagged `recommendationOffered`. Both tools accept `professionalConfirmed: boolean`: `check_availability` with it skips the recommendation; `book_appointment` **without it on a flagged draft returns `PROFESSIONAL_CONFIRMATION_REQUIRED`** (with the recommendation) instead of booking — the safety net for manually-edited prompts, which receive new tools but not the new prompt text. Booking results now include `professionalName`. Internal fields (`specialistIds`, `recommendedProfessional`) never reach the LLM.
 - **Tool errors never return HTTP 500 to Retell.** All three tools always resolve to `{success: true, result: {success: false, code, message}}` on failure — a Spanish, LLM-speakable message the agent can relay, never a raw exception. `book_appointment`'s calendar-related failures are classified into `*_RECONNECT_REQUIRED` (Google/Outlook/CalDAV credentials revoked — needs manual reconnect), `CALENDAR_TIMEOUT` / `CALENDAR_RATE_LIMITED` (the provider request took over `CALENDAR_REQUEST_TIMEOUT_MS`/`GRAPH_REQUEST_TIMEOUT_MS`, both 8s — a margin under Retell's own 20s tool timeout so the backend cuts the request itself instead of leaving it dangling) or `BOOK_APPOINTMENT_FAILED`/`BOOK_APPOINTMENT_UNEXPECTED_ERROR` (anything else). Every failure except `*_RECONNECT_REQUIRED` also enqueues `retry-failed-booking` (see Background Jobs) after saving a `Lead` with the attempted booking.
 - **`serviceIds`/`professionalId` supplied by the LLM to `book_appointment` are verified against `businessId` before use** (`prisma.service.findFirst`/`prisma.professional.findFirst` scoped by `businessId`). An ID that doesn't belong to the business is treated as if it had never been given (falls back to auto-resolution) rather than failing the booking or silently trusting a cross-tenant ID.
@@ -2267,7 +2268,7 @@ operativos o de auditoría creados por sus flujos específicos.
 - Default: L–V 09:00–18:00, S–D closed, no exceptions.
 - `checkBusinessHours(schedule, timezone, startDateTime, durationMinutes)` converts to local time, applies the date exception if there is one, and validates against intervals.
 - Returns codes: `WITHIN_BUSINESS_HOURS`, `OUTSIDE_BUSINESS_HOURS`, `CLOSED_ON_DATE`, `BUSINESS_HOURS_NOT_CONFIGURED`, `INVALID_DATE_TIME`.
-- `checkBookingRestrictions(business, startDateTime, durationMinutes)` — separate from business hours: validates `Business.minAdvanceBookingMinutes`/`maxAppointmentDurationMinutes` (both optional, `null` = no restriction). Returns codes `MIN_ADVANCE_NOT_MET`, `MAX_DURATION_EXCEEDED`, `TOO_FAR_IN_ADVANCE` (booking horizon, `MAX_ADVANCE_BOOKING_DAYS` = 120 — the counterpart of the minimum notice, without which a model that got the year wrong could confirm an appointment two years out), `INVALID_DATE_TIME`. Called both by the `check_business_hours` tool (so the agent finds out before offering a slot) and by `book_appointment` itself (never trusts a prior tool call in the same conversation).
+- `checkBookingRestrictions(business, startDateTime, durationMinutes)` — separate from business hours: validates `Business.minAdvanceBookingMinutes`/`maxAppointmentDurationMinutes` (both optional, `null` = no restriction). Returns codes `MIN_ADVANCE_NOT_MET`, `MAX_DURATION_EXCEEDED`, `TOO_FAR_IN_ADVANCE` (booking horizon, `MAX_ADVANCE_BOOKING_DAYS` = 120 — the counterpart of the minimum notice, without which a model that got the year wrong could confirm an appointment two years out), `INVALID_DATE_TIME`. Called by `book_appointment` itself (never trusts a prior tool call in the same conversation). `check_availability` does **not** call it, so a slot that breaks these limits is only rejected at `book_appointment` (the prompt states the business's minimum notice and maximum duration, not the 120-day horizon); the legacy `check_business_hours` handler still calls it, but no agent registers that tool any more.
 
 ### Availability (`backend/src/lib/availability.ts`)
 
@@ -2298,7 +2299,7 @@ operativos o de auditoría creados por sus flujos específicos.
 The prompt includes:
 - Business identity and verified info block (`INFORMACION_VERIFICADA_DEL_NEGOCIO`, free text from `Business.businessDetails`)
 - Booking restrictions, in Spanish, only if set (`minAdvanceBookingMinutes`/`maxAppointmentDurationMinutes` — see Business Type / Booking & Availability)
-- Instructions to NEVER invent data, always use `check_business_hours`, verify data before `book_appointment`
+- Instructions to NEVER invent data: `get_catalog` for services, professionals and hours; `check_availability` for a concrete slot (it validates opening hours, capacity and the calendar, and returns the `availabilityToken`); `book_appointment` only after explicit confirmation and with that token (a required parameter). `check_business_hours` is no longer registered on any agent
 - Three **Retell dynamic variable placeholders** — `{{servicios_disponibles}}`, `{{empleados}}`, `{{horario_semanal}}` — literal `{{...}}` text, not baked-in data. See "Retell Dynamic Variables" below for how they get filled in per call.
 
 Since 2026-09-04 the prompt text itself no longer contains the business's services, professionals or schedule — only the static per-axis instructions above. That data used to be interpolated directly into the string and re-sent to Retell (`updateLlm`) on every services/professionals/schedule edit; it's now delivered fresh on every call via the inbound-call webhook instead (see below), so the synced prompt template stays constant-size regardless of how large a business's catalog grows.
@@ -2470,17 +2471,19 @@ non-optional for a service sold online in the EU. Concretely:
 | Class | Purpose | Key properties |
 |-------|---------|----------------|
 | `.panel` | Card/container | `rounded-3xl`, `bg-white`, border `#e5e5e5`, `shadow-none` |
-| `.field` | Text inputs | `rounded-full`, `h-11`, border `#e5e5e5`, focus `border/ring #8b5cf6` |
-| `.btn-primary` | Primary action | `rounded-full`, `h-12`, `bg-[#0a0a0a]`, white text, hover lift |
-| `.btn-secondary` | Secondary action | `rounded-full`, `h-12`, white bg, `border-[#0a0a0a]` |
-| `.btn-purple` | Brand accent action | `rounded-full`, `h-12`, `bg-[#8b5cf6]`, hover `#7c3aed` |
+| `.field` | Text inputs | `rounded-[10px]`, `h-11`, border `#e5e5e5`, focus `border/ring #8b5cf6` |
+| `.btn-primary` | Primary action | `rounded-[10px]`, `h-12`, `bg-[#0a0a0a]`, white text, hover lift |
+| `.btn-secondary` | Secondary action | `rounded-[10px]`, `h-12`, white bg, `border-[#0a0a0a]` |
+| `.btn-purple` | Brand accent action | `rounded-[10px]`, `h-12`, `bg-[#8b5cf6]`, hover `#7c3aed` |
 | `.badge-soft` | Status badges | `rounded-full`, `bg-[#f3eeff]`, text `#6d28d9`, ring `#ddd6fe` |
 
 ### Styling Rules
 
-- **Border radius:** `rounded-3xl` for panels, `rounded-xl` for cards and icon tiles,
-  `rounded-lg` for small square controls, `rounded-full` for buttons, fields, badges
-  and nav pills.
+- **Border radius:** `rounded-3xl` (24px) for panels, `rounded-2xl` (16px) for large cards,
+  `rounded-xl` (12px) for cards and icon tiles, `rounded-[10px]` for buttons and fields (since
+  2026-09-17, commit `e6d3b52`), and `rounded-full` only for badges, nav pills, segmented
+  controls, progress bars and genuinely circular icon buttons. No 8px radius (`rounded-lg`) —
+  see `DESIGN.md` § Shapes.
 - **Shadows:** minimal — `.panel` is `shadow-none` with a hairline border; the ambient
   purple-tinted glow (`0 8px 24px rgba(0,0,0,0.06)` + purple halo, see `globals.css`) is
   reserved for specific highlighted elements. Don't add heavy drop shadows.
@@ -2554,7 +2557,7 @@ The project uses **Vitest** for backend testing.
 
 - **Config:** `backend/vitest.config.ts` — Node environment, includes `backend/tests/**/*.{test,spec}.ts` (excludes `backend/tests/integration/**`), setup file `backend/tests/setup.ts` (loads `backend/.env.test`).
 - **Coverage:** V8 provider, reports text/html/lcov. Excludes `node_modules/`, `dist/`, `frontend/`, `backend/tests/`.
-- **Mocking:** `backend/tests/helpers/prismaMock.ts` provides a `createPrismaMock()` factory. MSW is available for HTTP mocking.
+- **Mocking:** `backend/tests/helpers/prismaMock.ts` provides a `createPrismaMock()` factory. There is no HTTP-mocking library (MSW was removed in `9d3656e`): mock the adapter or module with `vi.mock`.
 
 ### Integration tests (`backend/tests/integration/`)
 
@@ -2565,7 +2568,7 @@ Separate suite (`npm run test:integration`, config `backend/vitest.integration.c
 - `backend/.env.test` (gitignored) holds both connection strings. On this project's dev machine, Postgres is reachable at `localhost:5433`, not 5432 — a native Homebrew Postgres occupies 5432 on the host.
 - `backend/tests/integration/helpers/db.ts` exposes `resetDb()` (deletes in FK-safe order + `redis.flushdb()`) — call it in `beforeEach`.
 - Requires `docker compose --profile dev up -d` running; does not start Postgres/Redis itself.
-- Pattern for external APIs (Retell/Telnyx/Stripe/Google/Microsoft): mock the adapter module boundary (e.g. `vi.mock("../../../src/modules/calendar/service.js", ...)`) rather than intercepting HTTP with MSW, when the external API isn't what the test is actually verifying.
+- Pattern for external APIs (Retell/Telnyx/Stripe/Google/Microsoft): mock the adapter module boundary (e.g. `vi.mock("../../../src/modules/calendar/service.js", ...)`) rather than intercepting HTTP, when the external API isn't what the test is actually verifying.
 
 ### Test Files
 
@@ -2593,7 +2596,7 @@ Separate suite (`npm run test:integration`, config `backend/vitest.integration.c
 
 - **JWT_SECRET** is mandatory — the server refuses to start without it.
 - CORS is restricted to the exact `APP_URL`, `WEB_URL` and `EXTRA_ALLOWED_ORIGIN` origins (`lib/urls.ts › origenesPermitidos`).
-- Rate limiting is active globally (100 req/min per IP, Redis-backed) and raised for Retell webhooks (300 req/min). Places endpoints use 10/min. Internal job routes (`/internal/jobs/*`) are exempt.
+- Rate limiting is active globally (100 req/min per IP, Redis-backed) and raised for Retell and Telnyx webhooks (300 req/min). `/auth/register` and the other credential routes use 5/min, `/login` 10/min; Places endpoints use 20/min. Internal job routes (`/internal/jobs/*`) are exempt.
 - Retell webhook signatures are verified via `retellAdapter.validateWebhookSignature` using the Retell API key. This also applies to the Retell custom tool endpoints (`/webhooks/retell/tools/:retellAgentId/:toolName`).
 - Stripe webhook signatures are verified in the route handler before calling `handleStripeEvent` (route uses `rawBody: true`).
 - Raw body parsing is enabled only on the Retell and Telnyx webhook routes to avoid memory overhead on regular routes.

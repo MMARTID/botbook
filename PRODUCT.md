@@ -49,9 +49,10 @@ conversaciones mantenidas. De ahí que el producto lleve calculadora de pérdida
 Lo que un producto vecino no podría copiar honestamente:
 
 - **Reserva verificada, no conversación simpática.** El agente tiene prohibido inventar datos: el
-  prompt le obliga a pasar por `check_business_hours` y `check_availability` antes de
-  `book_appointment`. La agenda real del negocio es la fuente de verdad, no una promesa que
-  luego hay que repasar a mano.
+  prompt le obliga a consultar `get_catalog` y a comprobar el hueco con `check_availability`
+  (horario, capacidad y calendario), que devuelve el `availabilityToken` sin el que
+  `book_appointment` no reserva. La agenda real del negocio es la fuente de verdad, no una
+  promesa que luego hay que repasar a mano.
 - **Vertical, no constructor genérico de agentes.** Cinco nichos españoles concretos con
   plantillas de servicios, copy, preguntas frecuentes y textos de onboarding propios
   (`web/src/lib/business-type.ts`, `web/src/lib/niche-landings.ts`). Una peluquería y una
