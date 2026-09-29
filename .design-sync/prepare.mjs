@@ -35,7 +35,9 @@ import type { Call, OnboardingState, Paginated } from "../src/lib/types";
 export const PREVIEW_BUSINESS_ID = "biz-demo";
 export const PREVIEW_CALL_ID = "call-demo-1";
 
-const AHORA = new Date("2026-09-05T10:30:00.000Z");
+// 19:30 en Madrid: con las llamadas hasta 12 h antes, la tanda cae entre las
+// 7:30 y las 18:52, no de madrugada.
+const AHORA = new Date("2026-09-05T17:30:00.000Z");
 const desplazar = (minutos: number) =>
   new Date(AHORA.getTime() + minutos * 60_000).toISOString();
 

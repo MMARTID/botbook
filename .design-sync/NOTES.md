@@ -13,7 +13,7 @@ cada una:
 | Desde dónde se lanza `/design-sync` | la raíz del repo                  | `web/`                               |
 | Config                              | `.design-sync/config.json`        | `web/.design-sync/config.json`       |
 | Bundle                              | `window.Alhabla` (`alhabla-ui`)   | `window.AlhablaWeb` (`alhabla-web-ui`) |
-| Proyecto en claude.ai/design        | «Alhabla UI» (`projectId`)        | ninguno aún: lo crea su primera sync |
+| Proyecto en claude.ai/design        | «Alhabla App» (`projectId`)       | «Alhabla Web» (`projectId`)          |
 | Componentes                         | 12 (7 del panel + 5 compartidos)  | 17 (12 de marketing + 5 compartidos) |
 
 El convertidor busca `.design-sync/` (previews, overrides, caché) en el
@@ -31,6 +31,19 @@ Los cinco **componentes compartidos** (`BrandMark`, `RangeSlider`,
 en las dos webs (`scripts/comprobar-copias-compartidas.sh`) y van en los dos
 paquetes, con su preview y su doc copiados. **Si cambias la preview o el doc de
 uno de ellos, cópialo al otro paquete.**
+
+**Primera subida real: 2026-09-29**, a dos proyectos nuevos creados ese día
+(«Alhabla App» `b0d14166…` y «Alhabla Web» `bfd840b2…`). El `projectId`
+anterior de la app (`f9904448…`, «Alhabla UI») daba 404 y la cuenta no tenía
+ningún proyecto: la subida de septiembre nunca llegó a hacerse. Desde aquí
+cada re-sync trae su ancla (`_ds_sync.json`) del proyecto y solo reverifica lo
+que cambie.
+
+El convertidor se monta en `.ds-sync/` de la raíz (con `playwright@1.63.0`,
+que es la versión que casa con el `chromium-1243` de la caché de esta máquina);
+`web/.ds-sync/` es otra copia de los scripts con `node_modules` enlazado al de
+la raíz. `--node-modules` es `frontend/node_modules` aquí y `node_modules`
+desde `web/`.
 
 ## Qué es este paquete para el convertidor
 
@@ -127,13 +140,20 @@ threshold», por debajo de su umbral.
 
 ## Hallazgos sobre el propio código (no tocados)
 
-- **`BrandMark` sale como imagen rota en las tarjetas.** Hoy es un
-  `<img src="/brand/alhabla-isotipo.svg">` con ruta absoluta: en la web real la
-  sirve `public/`, pero en claude.ai/design esa ruta no existe y el bundle no
-  lleva el SVG. Arreglarlo es tocar el componente (copia compartida en las dos
-  webs), fuera del alcance de la sincronización.
+- Ninguno pendiente. **`BrandMark` salía como imagen rota** (un
+  `<img src="/brand/alhabla-isotipo.svg">` que fuera de Next no existe): desde
+  el 2026-09-29 lleva el SVG dentro, optimizado con svgo, como data URI (ver
+  Riesgos).
 
 ## Riesgos de cara a la próxima sincronización
+
+- **`BrandMark` lleva una copia del isotipo dentro** (`brand-mark.tsx`, SVG de
+  `public/brand/alhabla-isotipo.svg` pasado por `svgo --multipass`). Si cambia
+  el logo, hay que regenerar esa copia en las dos webs; si alguien vuelve a una
+  ruta `/brand/...`, la tarjeta sale rota otra vez sin que falle nada.
+- La hora de las llamadas sembradas sale de `AHORA` en `prepare.mjs` (19:30 en
+  Madrid): con las llamadas hasta 12 h antes, moverla hacia la mañana las lleva
+  a la madrugada y la tarjeta deja de ser verosímil.
 
 - La lista de componentes **no** se propaga sola: vive en
   `cfg.componentSrcMap` y hay que ampliarla a mano cuando se añada un

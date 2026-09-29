@@ -14,21 +14,15 @@ export function Peluqueria() {
   ) : null;
 }
 
-/** Bloque mínimo: sólo cifras, sin citas ni punto de dolor. */
+const estetica = nicheLandings["centro-de-estetica"];
+
+/**
+ * Bloque mínimo: sólo cifras (cada una con su fuente), sin citas ni punto de
+ * dolor, en el morado de marca. Datos reales de centros de estética: una cifra
+ * sin fuente externa no se publica (PRODUCT.md § Evidence on Hand).
+ */
 export function SoloCifras() {
-  return (
-    <SectorDataSection
-      data={{
-        eyebrow: "El sector en cifras",
-        title: "La recepción se ha convertido en el cuello de botella",
-        description:
-          "Los datos del sector coinciden en lo mismo: la mayoría de las llamadas que se pierden llegan cuando no hay nadie libre para cogerlas.",
-        stats: [
-          { value: "62%", label: "de las llamadas entran fuera de horario" },
-          { value: "1 de cada 3", label: "clientes no vuelve a llamar" },
-          { value: "45-65€", label: "ticket medio de una cita perdida" },
-        ],
-      }}
-    />
-  );
+  if (!estetica.sectorData) return null;
+  const { quotes: _citas, painPoint: _dolor, ...soloCifras } = estetica.sectorData;
+  return <SectorDataSection data={soloCifras} />;
 }
