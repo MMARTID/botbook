@@ -49,6 +49,7 @@ import type {
   ResultadoDeComprobacion,
   ResultadoDeEjecucion,
 } from "./acciones.js";
+import { normalizar } from "./normalizar.js";
 
 /**
  * Acciones de agenda del Gestor (PLAN-CANAL-DUENO.md § 8, «Gestión de la
@@ -164,15 +165,6 @@ function fechaLarga(fecha: string): string {
     day: "numeric",
     month: "long",
   }).format(new Date(Date.UTC(y, m - 1, d)));
-}
-
-function normalizar(texto: string): string {
-  return texto
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
-    .toLowerCase()
-    .replace(/\s+/g, " ")
-    .trim();
 }
 
 function listar(items: string[]): string {
@@ -489,8 +481,12 @@ async function comprobarHueco(input: {
   return { ok: false, motivo: `${disponibilidad.message}${alternativa}` };
 }
 
+/** Prefijo del `callId` de las Call sintéticas de `añadir_cita`: las apunta
+ * el dueño, no son un contacto del cliente (`buscar_cliente` las salta). */
+export const PREFIJO_DE_CALL_DEL_GESTOR = "whatsapp:gestor:";
+
 function callIdSintetico(accionId: string): string {
-  return `whatsapp:gestor:${accionId}`;
+  return `${PREFIJO_DE_CALL_DEL_GESTOR}${accionId}`;
 }
 
 // ---------------------------------------------------------------------------

@@ -254,16 +254,20 @@ function formatMinutesForHumans(minutes: number): string {
   return `${minutes} minutos`;
 }
 
-/**
- * Restricciones de reserva del negocio (antelación mínima, duración máxima),
- * independientes del horario de apertura. Se comprueban tanto al ofrecer un
- * hueco (check_business_hours) como al confirmar la reserva (book_appointment),
- * sin fiarse de una comprobación anterior en la misma llamada.
- */
 /** Horizonte máximo de reserva. Una peluquería no coge citas a dos años
  * vista; el número redondo cubre de sobra la temporada alta. */
 export const MAX_ADVANCE_BOOKING_DAYS = 120;
 
+/**
+ * Restricciones de reserva del negocio (antelación mínima, duración máxima,
+ * horizonte de MAX_ADVANCE_BOOKING_DAYS), independientes del horario de
+ * apertura. Se comprueban tanto al ofrecer un hueco (check_availability,
+ * antes de consultar el calendario, también para su suggestedNextSlot) como
+ * al confirmar la reserva (book_appointment), sin fiarse de una comprobación
+ * anterior en la misma llamada. También las aplican el reintento de reservas
+ * (jobs/retryFailedBooking.ts), las citas del Gestor
+ * (gestor/accionesAgenda.ts) y la lista de espera (whatsapp/listaDeEspera.ts).
+ */
 export function checkBookingRestrictions(
   business: { minAdvanceBookingMinutes?: number | null; maxAppointmentDurationMinutes?: number | null },
   startDateTime: string,

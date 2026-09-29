@@ -20,7 +20,7 @@ model Business {
   agentSettings   Json?
   bookingCapacity Int     @default(1)
 
-  // Restricciones de reserva aplicadas por check_business_hours y
+  // Restricciones de reserva aplicadas por check_availability y
   // book_appointment (voiceTools/service.ts). null = sin restricción.
   minAdvanceBookingMinutes      Int?
   maxAppointmentDurationMinutes Int?
