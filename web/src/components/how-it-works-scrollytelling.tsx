@@ -12,7 +12,6 @@ import {
 } from "lucide-react";
 import {
   motion,
-  useReducedMotion,
   useScroll,
   useSpring,
   useMotionValueEvent,
@@ -20,6 +19,7 @@ import {
   type MotionValue,
 } from "framer-motion";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useMovimientoReducido } from "@/hooks/use-movimiento-reducido";
 import type { NicheAccent } from "@/lib/niche-landings";
 
 // Morado de marca: el mismo fallback que ya usan TeamRoutingSection,
@@ -371,7 +371,8 @@ export function HowItWorksScrollytelling({
   bookingExample?: string;
 }) {
   const a = accent ?? FALLBACK_ACCENT;
-  const reducedMotion = useReducedMotion() === true;
+  // La versión estática llega tras montar (ver useMovimientoReducido).
+  const reducedMotion = useMovimientoReducido();
   const sectionRef = useRef<HTMLElement | null>(null);
   const activeStageRef = useRef(0);
   const [isStoryActive, setIsStoryActive] = useState(false);

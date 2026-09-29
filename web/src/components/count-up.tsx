@@ -1,7 +1,9 @@
 "use client";
 
-import { animate, useInView, useReducedMotion } from "framer-motion";
+import { animate, useInView } from "framer-motion";
 import { useEffect, useRef, useState } from "react";
+
+import { useMovimientoReducido } from "@/hooks/use-movimiento-reducido";
 
 /**
  * Aísla el primer número de una cifra (`78%`, `600M€`, `26.000`, `45-65€`…) en
@@ -36,15 +38,26 @@ export function CountUp({
 }) {
   const ref = useRef<HTMLSpanElement | null>(null);
   const isInView = useInView(ref, { once: true, margin: "-80px" });
-  const reducedMotion = useReducedMotion() === true;
+  // El servidor pinta la cifra a cero; con movimiento reducido, la entera
+  // llega al montar (ver useMovimientoReducido).
+  const reducedMotion = useMovimientoReducido();
   const parsed = parseCountable(value);
 
   const [display, setDisplay] = useState(
-    reducedMotion || !parsed ? value : `${parsed.prefix}0${parsed.suffix}`
+    parsed ? `${parsed.prefix}0${parsed.suffix}` : value
   );
 
   useEffect(() => {
-    if (!parsed || reducedMotion || !isInView) {
+    if (!parsed) {
+      return;
+    }
+
+    if (reducedMotion) {
+      setDisplay(value);
+      return;
+    }
+
+    if (!isInView) {
       return;
     }
 

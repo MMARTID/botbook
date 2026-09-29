@@ -5,7 +5,6 @@ import {
   cubicBezier,
   motion,
   useMotionValueEvent,
-  useReducedMotion,
   useScroll,
   useSpring,
   useTransform,
@@ -15,6 +14,7 @@ import { Check, Mic, Phone } from "lucide-react";
 import { SiApple, SiGooglecalendar } from "@icons-pack/react-simple-icons";
 
 import { MicrosoftLogo } from "@/components/brand-icons";
+import { useMovimientoReducido } from "@/hooks/use-movimiento-reducido";
 import styles from "./llamada-scroll.module.css";
 
 /**
@@ -124,7 +124,9 @@ function useEsMovil() {
 }
 
 export function LlamadaScroll() {
-  const reducir = useReducedMotion() === true;
+  // Con movimiento reducido, la versión quieta llega tras montar: el servidor
+  // no sabe la preferencia y pinta el escenario (ver useMovimientoReducido).
+  const reducir = useMovimientoReducido();
   const movil = useEsMovil();
   const seccion = useRef<HTMLElement>(null);
   const [paso, setPaso] = useState(0);
