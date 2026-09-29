@@ -1,6 +1,6 @@
 import "./_sin-movimiento";
 import * as React from "react";
-import { GoogleAuthButton } from "alhabla-ui";
+import { GoogleAuthButton } from "alhabla-web-ui";
 
 /**
  * Estado normal. Al pulsarlo redirige al OAuth de Google de verdad (con la

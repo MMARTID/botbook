@@ -1,6 +1,6 @@
 import "./_sin-movimiento";
 import * as React from "react";
-import { CountUp } from "alhabla-ui";
+import { CountUp } from "alhabla-web-ui";
 
 /**
  * Fila de métricas como la de la landing. La tarjeta es estática, así que

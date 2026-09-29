@@ -37,6 +37,11 @@ ds-bundle/
 .design-sync/learnings/
 .design-sync/node_modules
 frontend/.ds-src/
+# El paquete de la web pública se sincroniza desde web/ (web/.design-sync/).
+web/.design-sync/.cache/
+web/.design-sync/learnings/
+web/.design-sync/node_modules
+web/.ds-src/
 
 # Lienzo de Claude Design: las fuentes (.dc.html + canvas.json) sí se versionan;
 # el archivo publicado son ~2,5 MB de payload del editor, regenerable con seed-canvas.

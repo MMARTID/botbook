@@ -1,6 +1,6 @@
 import "./_sin-movimiento";
 import * as React from "react";
-import { ParticleField } from "alhabla-ui";
+import { ParticleField } from "alhabla-web-ui";
 
 /**
  * `.campo-particulas` es una capa fija a pantalla completa en `-z-10`, no algo
