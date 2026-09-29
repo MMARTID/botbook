@@ -87,16 +87,21 @@ const BARRAS_ONDA = 52;
 const DURACION_GRABACION = 134;
 
 /**
- * Cámara: grúa cenital → frontal al abrir; órbita lateral baja y
- * acercamiento en la llamada; contraplano alto hacia el chat; plano general
- * al final. Fotogramas clave sobre el progreso suavizado: azimut y elevación
- * en grados, distancia relativa y altura del punto de mira (en altos de
- * pantalla).
+ * Cámara: frontal y baja desde el principio, un poco de lado, y se acerca y
+ * se centra mientras se abre la tapa; órbita lateral baja y acercamiento en
+ * la llamada; contraplano alto hacia el chat; plano general al final.
+ * Fotogramas clave sobre el progreso suavizado: azimut y elevación en grados,
+ * distancia relativa y altura del punto de mira (en altos de pantalla).
+ *
+ * Sin plano cenital al empezar (2026-09-29): con la tapa cerrada, desde
+ * arriba lo que se ve es la cara exterior de la tapa, y la marca del
+ * portátil no tiene que ser la protagonista. Desde un plano bajo esa cara
+ * queda casi de canto.
  */
 const CAMARA_T = [0, 0.22, 0.33, 0.45, 0.62, 0.7, 0.84, 0.93, 1];
-const CAMARA_AZIMUT = [-28, 0, 0, 30, 22, -20, -14, 0, 0];
-const CAMARA_ELEVACION = [80, 10, 9, 5, 6, 22, 20, 10, 10];
-const CAMARA_DISTANCIA = [1.18, 1, 0.97, 0.9, 0.92, 0.9, 0.88, 1, 1];
+const CAMARA_AZIMUT = [-18, 0, 0, 30, 22, -20, -14, 0, 0];
+const CAMARA_ELEVACION = [14, 10, 9, 5, 6, 22, 20, 10, 10];
+const CAMARA_DISTANCIA = [1.12, 1, 0.97, 0.9, 0.92, 0.9, 0.88, 1, 1];
 const CAMARA_MIRA = [0, 0, 0, -0.02, -0.02, -0.2, -0.2, 0, 0];
 
 const acotar = (v: number, min = 0, max = 1) => Math.min(max, Math.max(min, v));
