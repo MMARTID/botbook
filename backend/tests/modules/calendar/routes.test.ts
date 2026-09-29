@@ -206,7 +206,7 @@ describe("GET /calendars", () => {
     expect(response.statusCode).toBe(409);
     expect(response.json()).toEqual({
       code: "GOOGLE_CALENDAR_RECONNECT_REQUIRED",
-      error: "Google Calendar is not connected",
+      error: "El calendario de Google no está conectado.",
     });
     expect(mockedListarCalendarios).not.toHaveBeenCalled();
   });

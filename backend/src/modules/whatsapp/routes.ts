@@ -30,7 +30,7 @@ export async function whatsappRoutes(fastify: FastifyInstance) {
       try {
         const estado = await resumenWhatsappDelDueno(request.user!.businessId);
         if (!estado) {
-          return reply.status(404).send({ error: "Business not found" });
+          return reply.status(404).send({ error: "Negocio no encontrado" });
         }
         return reply.send(estado);
       } catch (error) {
@@ -60,7 +60,7 @@ export async function whatsappRoutes(fastify: FastifyInstance) {
         const resultado = await iniciarActivacionDelDueno(businessId);
         switch (resultado.outcome) {
           case "sin_negocio":
-            return reply.status(404).send({ error: "Business not found" });
+            return reply.status(404).send({ error: "Negocio no encontrado" });
           case "sin_numero":
             return reply.status(409).send({
               error: "Añade primero tu móvil con WhatsApp.",
@@ -96,7 +96,7 @@ export async function whatsappRoutes(fastify: FastifyInstance) {
           default: {
             const estado = await resumenWhatsappDelDueno(businessId);
             if (!estado) {
-              return reply.status(404).send({ error: "Business not found" });
+              return reply.status(404).send({ error: "Negocio no encontrado" });
             }
             return reply.send({ ...estado, sent: resultado.sent });
           }
@@ -123,7 +123,7 @@ export async function whatsappRoutes(fastify: FastifyInstance) {
       try {
         const estado = await historialDelGestor(request.user!.businessId);
         if (!estado) {
-          return reply.status(404).send({ error: "Business not found" });
+          return reply.status(404).send({ error: "Negocio no encontrado" });
         }
         return reply.send(estado);
       } catch (error) {

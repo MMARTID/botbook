@@ -133,7 +133,7 @@ export async function onboardingRoutes(fastify: FastifyInstance) {
         });
 
         if (!business) {
-          return reply.status(404).send({ error: "Business not found" });
+          return reply.status(404).send({ error: "Negocio no encontrado" });
         }
 
         const onboardingState = await getOrCreateOnboardingState(businessId);
@@ -330,7 +330,7 @@ export async function onboardingRoutes(fastify: FastifyInstance) {
         if (!check) {
           return reply
             .status(404)
-            .send({ error: "Forwarding check not found" });
+            .send({ error: "Comprobación del desvío no encontrada" });
         }
         return reply.send(serializarComprobacion(check));
       } catch (error) {

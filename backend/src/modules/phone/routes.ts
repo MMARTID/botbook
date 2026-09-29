@@ -10,7 +10,7 @@ export const phoneRoutes: FastifyPluginAsync = async (fastify) => {
       try {
         const status = await getPhoneNumberStatus(request.user!.businessId);
         if (!status) {
-          return reply.status(404).send({ error: "Business not found" });
+          return reply.status(404).send({ error: "Negocio no encontrado" });
         }
         return reply.send(status);
       } catch (error) {

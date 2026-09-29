@@ -89,11 +89,12 @@ async function cargarConexion(businessId: string): Promise<ConexionResuelta> {
 }
 
 /** 409 del panel cuando el proveedor activo no está confirmado como
- * conectado (flag && token). Mismo texto en inglés que siempre. */
+ * conectado (flag && token). El panel decide por `code`; el texto es para
+ * la persona. */
 function respuestaNoConectado(reply: FastifyReply, conexion: ConexionResuelta) {
   return reply.status(409).send({
     code: codigoDeReconexion(conexion.provider),
-    error: `${DESCRIPTORES_DE_PROVEEDOR[conexion.provider].nombreCorto} Calendar is not connected`,
+    error: `El calendario de ${DESCRIPTORES_DE_PROVEEDOR[conexion.provider].nombreCorto} no está conectado.`,
   });
 }
 
@@ -364,7 +365,12 @@ export async function calendarRoutes(fastify: FastifyInstance) {
         }
 
         if (!code || !state) {
-          return reply.status(400).send({ error: "Missing code or state" });
+          return reply
+            .status(400)
+            .send({
+              error:
+                "Google no ha devuelto los datos de la conexión. Vuelve a conectar el calendario.",
+            });
         }
 
         // Procesar la conexión — handleCallback verifica el `state` contra
