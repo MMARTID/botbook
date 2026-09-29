@@ -145,7 +145,9 @@ describe("authRoutes", () => {
       });
 
       expect(response.statusCode).toBe(401);
-      expect(response.json()).toEqual({ error: "Invalid credentials" });
+      expect(response.json()).toEqual({
+        error: "Email o contraseña incorrectos.",
+      });
     });
 
     it("rechaza petición sin email o contraseña", async () => {

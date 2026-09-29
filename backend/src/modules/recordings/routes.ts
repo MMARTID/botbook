@@ -126,7 +126,7 @@ export async function recordingsRoutes(fastify: FastifyInstance) {
         });
 
         if (!recording) {
-          return reply.status(404).send({ error: "Recording not found" });
+          return reply.status(404).send({ error: "Grabación no encontrada" });
         }
 
         return reply.send(await firmar(recording));
@@ -153,7 +153,7 @@ export async function recordingsRoutes(fastify: FastifyInstance) {
         });
 
         if (!recording) {
-          return reply.status(404).send({ error: "Recording not found" });
+          return reply.status(404).send({ error: "Grabación no encontrada" });
         }
 
         return reply.send(await firmar(recording));
@@ -188,7 +188,7 @@ export async function recordingsRoutes(fastify: FastifyInstance) {
         });
 
         if (!recording) {
-          return reply.status(404).send({ error: "Recording not found" });
+          return reply.status(404).send({ error: "Grabación no encontrada" });
         }
 
         const updated = await prisma.recording.update({
@@ -226,7 +226,7 @@ export async function recordingsRoutes(fastify: FastifyInstance) {
         });
 
         if (!recording) {
-          return reply.status(404).send({ error: "Recording not found" });
+          return reply.status(404).send({ error: "Grabación no encontrada" });
         }
 
         await prisma.recording.update({

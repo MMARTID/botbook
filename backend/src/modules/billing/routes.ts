@@ -27,7 +27,7 @@ export const billingRoutes: FastifyPluginAsync = async (fastify) => {
     async (request, reply) => {
       const summary = await getBillingSummary(request.user!.businessId);
       if (!summary) {
-        return reply.status(404).send({ error: "Business not found" });
+        return reply.status(404).send({ error: "Negocio no encontrado" });
       }
       return reply.send(summary);
     },
@@ -78,7 +78,9 @@ export const billingRoutes: FastifyPluginAsync = async (fastify) => {
     async (request, reply) => {
       const { sessionId } = request.params as { sessionId?: string };
       if (!sessionId?.startsWith("cs_")) {
-        return reply.status(400).send({ error: "Invalid Checkout Session" });
+        return reply
+          .status(400)
+          .send({ error: "La sesión de pago no es válida." });
       }
 
       try {
@@ -89,7 +91,9 @@ export const billingRoutes: FastifyPluginAsync = async (fastify) => {
         return reply.send(summary);
       } catch (error) {
         fastify.log.error({ err: error }, "Unable to reconcile Stripe Checkout Session");
-        return reply.status(403).send({ error: "Checkout Session could not be reconciled" });
+        return reply
+          .status(403)
+          .send({ error: "No hemos podido confirmar el pago." });
       }
     },
   );

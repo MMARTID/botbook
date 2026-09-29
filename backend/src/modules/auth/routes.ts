@@ -272,14 +272,16 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
       if (!email || !password) {
         return reply
           .status(400)
-          .send({ error: "Email and password are required" });
+          .send({ error: "El email y la contraseña son obligatorios" });
       }
 
       const user = await prisma.user.findUnique({
         where: { email: email.toLowerCase() },
       });
       if (!user?.password || !(await bcrypt.compare(password, user.password))) {
-        return reply.status(401).send({ error: "Invalid credentials" });
+        return reply
+          .status(401)
+          .send({ error: "Email o contraseña incorrectos." });
       }
 
       return { token: createToken(user) };
@@ -621,14 +623,20 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
       if (!sessionId) {
         return reply
           .status(401)
-          .send({ error: "Google session is missing or expired" });
+          .send({
+            error:
+              "La sesión de Google ha caducado. Vuelve a entrar con Google.",
+          });
       }
 
       const token = await getRedis().getdel(`auth:google:session:${sessionId}`);
       if (!token) {
         return reply
           .status(401)
-          .send({ error: "Google session is missing or expired" });
+          .send({
+            error:
+              "La sesión de Google ha caducado. Vuelve a entrar con Google.",
+          });
       }
 
       return reply.send({ token });

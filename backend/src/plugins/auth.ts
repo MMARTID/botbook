@@ -51,7 +51,7 @@ const authPlugin: FastifyPluginAsync = async (fastify) => {
       if (!authHeader || !authHeader.startsWith("Bearer ")) {
         return reply
           .status(401)
-          .send({ error: "Unauthorized: Missing or invalid token" });
+          .send({ error: "Inicia sesión para continuar." });
       }
 
       let decoded: { id: string; businessId: string; tv?: number };
@@ -64,7 +64,7 @@ const authPlugin: FastifyPluginAsync = async (fastify) => {
       } catch {
         return reply
           .status(401)
-          .send({ error: "Unauthorized: Token expired or invalid" });
+          .send({ error: "Tu sesión ha caducado. Vuelve a iniciar sesión." });
       }
 
       // Cambiar o restablecer la contraseña sube `tokenVersion`, así que un
@@ -76,18 +76,22 @@ const authPlugin: FastifyPluginAsync = async (fastify) => {
         version = await versionDelUsuario(decoded.id);
       } catch (error) {
         request.log.error({ err: error }, "[Auth] No se pudo comprobar la versión del token");
-        return reply.status(401).send({ error: "Unauthorized: Token expired or invalid" });
+        return reply
+          .status(401)
+          .send({ error: "Tu sesión ha caducado. Vuelve a iniciar sesión." });
       }
       if (version === null) {
         // El usuario ya no existe.
-        return reply.status(401).send({ error: "Unauthorized: Token expired or invalid" });
+        return reply
+          .status(401)
+          .send({ error: "Tu sesión ha caducado. Vuelve a iniciar sesión." });
       }
       // `tv` ausente = token emitido antes de que existiera la versión. Vale
       // mientras la contraseña no se haya cambiado desde entonces (version 0).
       if ((decoded.tv ?? 0) !== version) {
         return reply
           .status(401)
-          .send({ error: "Unauthorized: Token expired or invalid" });
+          .send({ error: "Tu sesión ha caducado. Vuelve a iniciar sesión." });
       }
 
       request.user = { id: decoded.id, businessId: decoded.businessId };

@@ -63,7 +63,7 @@ export async function agentsRoutes(fastify: FastifyInstance) {
         });
 
         if (!business) {
-          return reply.status(404).send({ error: "Business not found" });
+          return reply.status(404).send({ error: "Negocio no encontrado" });
         }
 
         const agent = await createBusinessAgent({
@@ -120,7 +120,9 @@ export async function agentsRoutes(fastify: FastifyInstance) {
         });
 
         if (!agent) {
-          return reply.status(404).send({ error: "Agent not found" });
+          return reply
+            .status(404)
+            .send({ error: "Recepcionista no encontrada" });
         }
 
         return reply.send(agent);
@@ -156,7 +158,9 @@ export async function agentsRoutes(fastify: FastifyInstance) {
         });
 
         if (!agent) {
-          return reply.status(404).send({ error: "Agent not found" });
+          return reply
+            .status(404)
+            .send({ error: "Recepcionista no encontrada" });
         }
 
         const business = await prisma.business.findUnique({
@@ -358,7 +362,9 @@ export async function agentsRoutes(fastify: FastifyInstance) {
         });
 
         if (!agent) {
-          return reply.status(404).send({ error: "Agent not found" });
+          return reply
+            .status(404)
+            .send({ error: "Recepcionista no encontrada" });
         }
 
         await prisma.agent.update({

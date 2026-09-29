@@ -157,7 +157,7 @@ export async function callsRoutes(fastify: FastifyInstance) {
         });
 
         if (!call) {
-          return reply.status(404).send({ error: "Call not found" });
+          return reply.status(404).send({ error: "Llamada no encontrada" });
         }
 
         // Booking.serviceIds es un array nativo de Postgres, sin relación de

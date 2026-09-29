@@ -146,7 +146,7 @@ export const demoRoutes: FastifyPluginAsync = async (fastify) => {
     async (request, reply) => {
       const parsed = DemoPlaceSearchQuerySchema.safeParse(request.query);
       if (!parsed.success) {
-        return reply.status(400).send({ error: "Invalid query" });
+        return reply.status(400).send({ error: "Búsqueda no válida" });
       }
 
       try {
@@ -165,7 +165,7 @@ export const demoRoutes: FastifyPluginAsync = async (fastify) => {
     async (request, reply) => {
       const parsed = DemoPlaceIdParamsSchema.safeParse(request.params);
       if (!parsed.success) {
-        return reply.status(400).send({ error: "Invalid place id" });
+        return reply.status(400).send({ error: "Lugar no válido" });
       }
 
       try {
@@ -192,7 +192,12 @@ export const demoRoutes: FastifyPluginAsync = async (fastify) => {
     async (request, reply) => {
       const parsed = WebCallBodySchema.safeParse(request.body ?? {});
       if (!parsed.success) {
-        return reply.status(400).send({ code: "INVALID_NICHE", error: "Unknown demo niche" });
+        return reply
+          .status(400)
+          .send({
+            code: "INVALID_NICHE",
+            error: "Sector de la demo no válido",
+          });
       }
 
       try {

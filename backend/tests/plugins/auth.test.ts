@@ -126,7 +126,7 @@ describe("authPlugin", () => {
     });
 
     expect(response.statusCode).toBe(401);
-    expect(response.json()).toEqual({ error: "Unauthorized: Missing or invalid token" });
+    expect(response.json()).toEqual({ error: "Inicia sesión para continuar." });
   });
 
   it("rechaza cabecera que no empieza por Bearer", async () => {
@@ -151,6 +151,8 @@ describe("authPlugin", () => {
     });
 
     expect(response.statusCode).toBe(401);
-    expect(response.json()).toEqual({ error: "Unauthorized: Token expired or invalid" });
+    expect(response.json()).toEqual({
+      error: "Tu sesión ha caducado. Vuelve a iniciar sesión.",
+    });
   });
 });
