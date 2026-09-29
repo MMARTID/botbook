@@ -185,7 +185,8 @@ each page's image explicitly from its `openGraph`/`twitter` metadata.
   `OwnerAssistantSection`, `WhatsAppBenefitsTable`, benefits, `HowItWorksScrollytelling`,
   `RevenueLossCalculator`, plans and FAQ. Without `content` (the generic `/`) it returns
   `MainLanding`, a shorter home page with its own hero over `HeroHilos` plus `LlamadaScroll`,
-  `PuntosFuertesSection`, `WhatsAppClientesSection`, `OwnerAssistantSection`, `EnMarchaSection`,
+  `EnTuNegocioScroll` (the owner's panel on a three.js laptop; three is imported lazily when the
+  section approaches), `PuntosFuertesSection`, `WhatsAppClientesSection`, `OwnerAssistantSection`, `EnMarchaSection`,
   the sector accordion, plans and FAQ. The per-city pages (`/<niche>/[ciudad]`) use
   `CityNicheLanding`.
 - `SectorDataSection` — Third-party figures about the niche, each rendered with its source
