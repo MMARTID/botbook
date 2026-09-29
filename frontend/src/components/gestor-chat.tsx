@@ -1,12 +1,30 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Loader2, Send } from "lucide-react";
+import {
+  AlertCircle,
+  CalendarDays,
+  Check,
+  Clock,
+  Loader2,
+  MessageSquareText,
+  Send,
+  UserPlus,
+  UserX,
+  X,
+  type LucideIcon,
+} from "lucide-react";
 import { decideGestorAction, getGestor, sendGestorMessage } from "@/lib/api";
 import { describeApiError } from "@/lib/api-errors";
-import type { MensajeDelGestor, PropuestaDelGestor } from "@/lib/types";
+import type {
+  DecisionDelGestor,
+  EstadoDelGestor,
+  MensajeDelGestor,
+  PropuestaDelGestor,
+} from "@/lib/types";
+import { BrandMark } from "@/components/brand-mark";
 import { SectionErrorState } from "@/components/section-card";
 
 export const EJEMPLOS = [
@@ -16,23 +34,131 @@ export const EJEMPLOS = [
   "Cierra el sábado por la tarde",
 ];
 
-type Burbuja = MensajeDelGestor & { clave: string };
+const ICONOS_DE_EJEMPLO: LucideIcon[] = [CalendarDays, UserPlus, UserX, Clock];
+
+type EstadoDeDecision = DecisionDelGestor["estado"];
+type Burbuja = MensajeDelGestor & { clave: string; estado?: EstadoDeDecision };
 type Aviso = { tipo: "info" | "error"; texto: string } | null;
 
-function hora(iso: string | null) {
+const ETIQUETA_DE_ESTADO: Record<
+  EstadoDeDecision,
+  { icono: LucideIcon; texto: string; clase: string }
+> = {
+  ejecutada: {
+    icono: Check,
+    texto: "Hecho",
+    clase: "bg-[#ecf7ec] text-[#2c7334]",
+  },
+  fallida: {
+    icono: AlertCircle,
+    texto: "No se pudo hacer",
+    clase: "bg-[#fdecec] text-[#c53030]",
+  },
+  rechazada: {
+    icono: X,
+    texto: "Descartado",
+    clase: "bg-[#fafafa] text-muted ring-1 ring-inset ring-[#e5e5e5]",
+  },
+};
+
+// Altura acotada a la ventana: con una conversación larga hace scroll la
+// lista de mensajes, no la página, y la cabecera y el cuadro de texto se
+// quedan siempre a la vista. En móvil descuenta la barra superior y la
+// navegación inferior del panel.
+const MARCO =
+  "panel flex h-[calc(100dvh-12.5rem)] min-h-[26rem] flex-col overflow-hidden p-0 lg:h-[calc(100dvh-5rem)]";
+
+function aFecha(iso: string | null) {
   if (!iso) return null;
   const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return null;
-  return date.toLocaleString("es-ES", {
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function hora(date: Date | null) {
+  return date
+    ? date.toLocaleTimeString("es-ES", { hour: "numeric", minute: "2-digit" })
+    : null;
+}
+
+function diaDe(date: Date) {
+  return date.toDateString();
+}
+
+function etiquetaDeDia(date: Date) {
+  const hoy = new Date();
+  const ayer = new Date(hoy);
+  ayer.setDate(hoy.getDate() - 1);
+  if (diaDe(date) === diaDe(hoy)) return "Hoy";
+  if (diaDe(date) === diaDe(ayer)) return "Ayer";
+  return date.toLocaleDateString("es-ES", {
+    weekday: "long",
     day: "numeric",
-    month: "short",
-    hour: "2-digit",
-    minute: "2-digit",
+    month: "long",
   });
 }
 
+function Avatar({ grande = false }: { grande?: boolean }) {
+  return (
+    <span
+      aria-hidden="true"
+      className={`flex shrink-0 items-center justify-center rounded-full bg-[#f3eeff] ${
+        grande
+          ? "h-[52px] w-[52px]"
+          : "h-[26px] w-[26px] sm:h-[30px] sm:w-[30px]"
+      }`}
+    >
+      <BrandMark className={grande ? "h-[26px] w-[26px]" : "h-4 w-4"} />
+    </span>
+  );
+}
+
+function Cabecera({ whatsapp }: { whatsapp?: EstadoDelGestor["whatsapp"] }) {
+  return (
+    <header className="flex flex-wrap items-center gap-2.5 border-b border-[#e5e5e5] px-4 py-3.5 sm:flex-nowrap sm:gap-3 sm:px-8 sm:py-5">
+      <span
+        aria-hidden="true"
+        className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-[10px] bg-[#f3eeff] text-[#8b5cf6] sm:h-10 sm:w-10 sm:rounded-xl"
+      >
+        <MessageSquareText className="h-[18px] w-[18px]" />
+      </span>
+      <h1 className="text-[19px] font-black tracking-[-0.025em] text-[#0a0a0a] sm:text-[22px]">
+        Tu gestor
+      </h1>
+      <span className="badge-soft">Beta</span>
+      {whatsapp ? (
+        whatsapp === "activo" ? (
+          <span className="flex w-full items-center gap-2 text-xs text-muted sm:ml-auto sm:w-auto sm:text-[13px]">
+            <span
+              aria-hidden="true"
+              className="h-2 w-2 shrink-0 rounded-full bg-[#2c7334] shadow-[0_0_0_3px_#ecf7ec]"
+            />
+            <span>
+              Misma conversación que en{" "}
+              <b className="font-semibold text-[#0a0a0a]">WhatsApp</b>
+            </span>
+          </span>
+        ) : (
+          <Link
+            href="/ajustes/telefono#whatsapp"
+            className="flex w-full items-center gap-2 rounded text-xs text-muted hover:text-[#0a0a0a] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] sm:ml-auto sm:w-auto sm:text-[13px]"
+          >
+            <span
+              aria-hidden="true"
+              className="h-2 w-2 shrink-0 rounded-full bg-[#d4d4d8]"
+            />
+            <span>
+              Conecta tu <b className="font-semibold">WhatsApp</b> para
+              escribirle también desde el móvil
+            </span>
+          </Link>
+        )
+      ) : null}
+    </header>
+  );
+}
+
 /**
- * «Tu Gestor» (Beta): el mismo Gestor que atiende al dueño por WhatsApp, con
+ * «Tu gestor» (Beta): el mismo gestor que atiende al dueño por WhatsApp, con
  * la misma conversación, desde el panel. Cada propuesta llega con sus dos
  * botones y el botón ejecuta; el texto nunca ejecuta nada.
  */
@@ -62,11 +188,11 @@ export function GestorChat({ hasToken }: { hasToken: boolean | null }) {
     setPropuesta(estado.propuesta);
   }, [estado]);
 
-  useEffect(() => {
-    finRef.current?.scrollIntoView({ block: "end" });
-  }, [burbujas, propuesta]);
-
-  const anadir = (de: MensajeDelGestor["de"], textoNuevo: string) =>
+  const anadir = (
+    de: MensajeDelGestor["de"],
+    textoNuevo: string,
+    estadoDeDecision?: EstadoDeDecision
+  ) =>
     setBurbujas((previas) => [
       ...previas,
       {
@@ -74,6 +200,7 @@ export function GestorChat({ hasToken }: { hasToken: boolean | null }) {
         texto: textoNuevo,
         en: new Date().toISOString(),
         clave: `${de}-${Date.now()}-${previas.length}`,
+        estado: estadoDeDecision,
       },
     ]);
 
@@ -93,7 +220,7 @@ export function GestorChat({ hasToken }: { hasToken: boolean | null }) {
         tipo: "error",
         texto: describeApiError(
           error,
-          "El asistente no ha podido responder. Inténtalo de nuevo."
+          "El gestor no ha podido responder. Inténtalo de nuevo."
         ),
       }),
     onSettled: () => campoRef.current?.focus(),
@@ -105,10 +232,10 @@ export function GestorChat({ hasToken }: { hasToken: boolean | null }) {
     onMutate: () => setAviso(null),
     onSuccess: (r) => {
       setPropuesta(null);
-      anadir("gestor", r.mensaje);
+      anadir("gestor", r.mensaje, r.estado);
       if (r.seguimiento) anadir("gestor", r.seguimiento);
       if (r.propuesta) setPropuesta(r.propuesta);
-      // Lo que cambia el Gestor (servicios, horario, citas) lo ven las demás
+      // Lo que cambia el gestor (servicios, horario, citas) lo ven las demás
       // vistas al volver a pedirlo.
       void queryClient.invalidateQueries({ queryKey: ["my-business"] });
       void queryClient.invalidateQueries({ queryKey: ["booking-settings"] });
@@ -126,6 +253,10 @@ export function GestorChat({ hasToken }: { hasToken: boolean | null }) {
     },
   });
 
+  useEffect(() => {
+    finRef.current?.scrollIntoView({ block: "end" });
+  }, [burbujas, propuesta, enviar.isPending]);
+
   const ocupado = enviar.isPending || decidir.isPending;
 
   const submit = (event: React.FormEvent) => {
@@ -135,215 +266,315 @@ export function GestorChat({ hasToken }: { hasToken: boolean | null }) {
     enviar.mutate(limpio);
   };
 
+  const usarEjemplo = (ejemplo: string) => {
+    setTexto(ejemplo);
+    campoRef.current?.focus();
+  };
+
   if (estadoQuery.isLoading) {
     // Mismo marco que la conversación: la pantalla no salta al cargar.
     return (
-      <div
-        role="status"
-        className="panel flex h-[calc(100dvh-15rem)] min-h-[24rem] flex-col overflow-hidden p-0 lg:h-[calc(100dvh-13rem)]"
-      >
-        <span className="sr-only">Cargando tu asistente…</span>
-        <div className="flex-1 space-y-3 px-4 py-5 sm:px-6" aria-hidden="true">
+      <div role="status" className={MARCO}>
+        <Cabecera />
+        <span className="sr-only">Cargando tu gestor…</span>
+        <div
+          className="mx-auto w-full max-w-[720px] flex-1 space-y-4 px-4 py-6 sm:px-8"
+          aria-hidden="true"
+        >
           <div className="h-10 w-2/3 rounded-2xl bg-[#f3eeff] motion-safe:animate-pulse sm:w-1/2" />
           <div className="ml-auto h-10 w-1/2 rounded-2xl bg-[#f4f4f5] motion-safe:animate-pulse sm:w-1/3" />
           <div className="h-16 w-3/4 rounded-2xl bg-[#f3eeff] motion-safe:animate-pulse sm:w-1/2" />
         </div>
-        <div className="border-t border-[#e5e5e5] px-4 py-3 sm:px-6" aria-hidden="true">
-          <div className="h-11 rounded-[10px] border border-[#e5e5e5] bg-[#fafafa]" />
+        <div
+          className="border-t border-[#e5e5e5] px-4 py-3 sm:px-8"
+          aria-hidden="true"
+        >
+          <div className="mx-auto h-[52px] max-w-[720px] rounded-[10px] border border-[#e5e5e5] bg-[#fafafa]" />
         </div>
       </div>
     );
   }
   if (estadoQuery.isError || !estado) {
     return (
-      <SectionErrorState
-        message="No se pudo cargar el asistente. Puede ser un corte momentáneo de conexión."
-        onRetry={() => void estadoQuery.refetch()}
-      />
+      <>
+        <h1 className="sr-only">Tu gestor</h1>
+        <SectionErrorState
+          message="No se pudo cargar el gestor. Puede ser un corte momentáneo de conexión."
+          onRetry={() => void estadoQuery.refetch()}
+        />
+      </>
     );
   }
-  if (!estado.disponible) {
+  if (!estado.disponible || !estado.activoEnNegocio) {
     return (
-      <div className="panel p-6 text-sm leading-6 text-muted">
-        El asistente todavía no está disponible en tu cuenta. Te avisaremos
-        cuando lo esté.
-      </div>
-    );
-  }
-  if (!estado.activoEnNegocio) {
-    return (
-      <div className="panel p-6 text-sm leading-6 text-muted">
-        Tienes el asistente desactivado. Puedes volver a activarlo en{" "}
-        <Link
-          href="/ajustes/telefono#whatsapp"
-          className="rounded font-semibold text-[#6d28d9] underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] focus-visible:ring-offset-2"
-        >
-          Ajustes › Teléfono
-        </Link>
-        .
+      <div className="panel overflow-hidden p-0">
+        <Cabecera />
+        <div className="p-6 text-sm leading-6 text-muted sm:px-8">
+          {!estado.disponible ? (
+            <>
+              El gestor todavía no está disponible en tu cuenta. Te avisaremos
+              cuando lo esté.
+            </>
+          ) : (
+            <>
+              Tienes el gestor desactivado. Puedes volver a activarlo en{" "}
+              <Link
+                href="/ajustes/telefono#whatsapp"
+                className="rounded font-semibold text-[#6d28d9] underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] focus-visible:ring-offset-2"
+              >
+                Ajustes › Teléfono
+              </Link>
+              .
+            </>
+          )}
+        </div>
       </div>
     );
   }
 
+  // También mira el historial que llega del servidor: las burbujas se
+  // rellenan en un efecto y, sin esto, el estado vacío se asomaba un
+  // instante antes de la conversación real.
+  const vacio =
+    burbujas.length === 0 &&
+    estado.mensajes.length === 0 &&
+    !propuesta &&
+    !enviar.isPending;
+
+  let diaAnterior: string | null = null;
+
   return (
-    // Altura acotada a la ventana: con una conversación larga hace scroll la
-    // lista de mensajes, no la página, y la cabecera «Tu Gestor» y el cuadro
-    // de texto se quedan siempre a la vista.
-    <div className="panel flex h-[calc(100dvh-15rem)] min-h-[24rem] flex-col overflow-hidden p-0 lg:h-[calc(100dvh-13rem)]">
+    <div className={MARCO}>
+      <Cabecera whatsapp={estado.whatsapp} />
       <div
-        className="flex-1 space-y-3 overflow-y-auto px-4 py-5 sm:px-6"
+        className="relative min-h-0 flex-1 overflow-y-auto"
         role="log"
         aria-live="polite"
-        aria-label="Conversación con tu asistente"
+        aria-label="Conversación con tu gestor"
       >
-        {/* También mira el historial que llega del servidor: las burbujas se
-            rellenan en un efecto y, sin esto, el mensaje de bienvenida se
-            asomaba un instante antes de la conversación real. */}
-        {burbujas.length === 0 && estado.mensajes.length === 0 ? (
-          <div className="mx-auto max-w-md py-6 text-center">
-            <p className="text-sm leading-6 text-muted">
+        {vacio ? (
+          <div className="mx-auto flex max-w-[560px] flex-col items-center px-4 pb-6 pt-12 text-center sm:px-8 sm:pt-16">
+            <Avatar grande />
+            <h2 className="mt-5 text-2xl font-black tracking-[-0.025em] text-[#0a0a0a] sm:text-[28px]">
+              ¿En qué te ayudo?
+            </h2>
+            <p className="mt-2 max-w-[400px] text-pretty text-sm leading-6 text-muted">
               Pregúntale por la agenda o pídele cambios. Todo lo que cambie te
               lo propondrá antes con un botón.
             </p>
-            <ul className="mt-4 flex flex-wrap justify-center gap-2">
+            <ul className="mt-7 grid w-full gap-2.5 sm:grid-cols-2">
+              {EJEMPLOS.map((ejemplo, i) => {
+                const Icono = ICONOS_DE_EJEMPLO[i];
+                return (
+                  <li key={ejemplo}>
+                    <button
+                      type="button"
+                      onClick={() => usarEjemplo(ejemplo)}
+                      className="flex min-h-11 w-full items-center gap-3 rounded-2xl border border-[#e5e5e5] bg-white p-3.5 text-left text-sm font-semibold leading-snug text-[#0a0a0a] transition duration-200 hover:bg-[#fafafa] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]"
+                    >
+                      <span
+                        aria-hidden="true"
+                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#f3eeff] text-[#8b5cf6]"
+                      >
+                        <Icono className="h-[17px] w-[17px]" />
+                      </span>
+                      {ejemplo}
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        ) : (
+          <div className="mx-auto flex max-w-[720px] flex-col gap-1.5 px-4 pb-3 pt-5 sm:px-8 sm:pb-4 sm:pt-7">
+            {burbujas.map((m) => {
+              const fecha = aFecha(m.en);
+              const dia = fecha ? diaDe(fecha) : diaAnterior;
+              const separador =
+                fecha && dia !== diaAnterior ? etiquetaDeDia(fecha) : null;
+              const primero = diaAnterior === null;
+              diaAnterior = dia;
+              const delDueno = m.de === "dueno";
+              const etiqueta = m.estado ? ETIQUETA_DE_ESTADO[m.estado] : null;
+              return (
+                <Fragment key={m.clave}>
+                  {separador ? (
+                    <div
+                      className={`flex items-center gap-3 text-xs font-semibold text-muted before:h-px before:flex-1 before:bg-[#e5e5e5] after:h-px after:flex-1 after:bg-[#e5e5e5] ${primero ? "mb-2.5" : "mb-2.5 mt-[18px]"}`}
+                    >
+                      {separador}
+                    </div>
+                  ) : null}
+                  <div
+                    className={`mt-2.5 flex gap-2 sm:gap-3 ${delDueno ? "justify-end" : ""}`}
+                  >
+                    {delDueno ? null : <Avatar />}
+                    <div
+                      className={`flex min-w-0 flex-col gap-1 ${
+                        delDueno
+                          ? "max-w-[86%] items-end sm:max-w-[78%]"
+                          : "max-w-[600px]"
+                      }`}
+                    >
+                      {etiqueta ? (
+                        <span
+                          className={`mt-[3px] inline-flex items-center gap-1.5 self-start rounded-full py-[3px] pl-2 pr-2.5 text-xs font-semibold ${etiqueta.clase}`}
+                        >
+                          <etiqueta.icono
+                            className="h-[13px] w-[13px]"
+                            aria-hidden="true"
+                          />
+                          {etiqueta.texto}
+                        </span>
+                      ) : null}
+                      <p
+                        className={
+                          delDueno
+                            ? "whitespace-pre-wrap rounded-[18px] rounded-br-md bg-[#7c3aed] px-4 py-2.5 text-[15px] leading-normal text-white"
+                            : "whitespace-pre-wrap text-pretty pt-[3px] text-[15px] leading-relaxed text-[#0a0a0a]"
+                        }
+                      >
+                        {m.texto}
+                      </p>
+                      {hora(fecha) ? (
+                        <span className="mt-0.5 text-[11px] text-muted">
+                          {hora(fecha)}
+                        </span>
+                      ) : null}
+                    </div>
+                  </div>
+                </Fragment>
+              );
+            })}
+            {propuesta ? (
+              <div className="mt-2.5 flex gap-2 sm:gap-3">
+                <span
+                  aria-hidden="true"
+                  className="w-[26px] shrink-0 sm:w-[30px]"
+                />
+                <div className="w-full max-w-[520px] rounded-[20px] border border-[#ddd6fe] bg-white p-3.5 sm:px-[18px] sm:pb-[18px] sm:pt-4">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <span className="badge-soft">
+                      Pendiente de tu confirmación
+                    </span>
+                    {hora(aFecha(propuesta.expiresAt)) ? (
+                      <span className="inline-flex items-center gap-1.5 text-xs text-muted">
+                        <Clock
+                          className="h-[13px] w-[13px]"
+                          aria-hidden="true"
+                        />
+                        Caduca a las {hora(aFecha(propuesta.expiresAt))}
+                      </span>
+                    ) : null}
+                  </div>
+                  <p className="mb-4 mt-3 text-pretty text-[15px] font-semibold leading-normal text-[#0a0a0a]">
+                    {propuesta.resumen}
+                  </p>
+                  <div className="grid gap-2 sm:flex sm:flex-wrap">
+                    {(["confirmar", "cancelar"] as const).map((decision) => (
+                      <button
+                        key={decision}
+                        type="button"
+                        disabled={decidir.isPending}
+                        onClick={() =>
+                          decidir.mutate({ id: propuesta.id, decision })
+                        }
+                        className={`${decision === "confirmar" ? "btn-primary" : "btn-secondary"} h-11 px-4 sm:h-10`}
+                      >
+                        {decidir.isPending &&
+                        decidir.variables?.decision === decision ? (
+                          <Loader2
+                            className="h-4 w-4 animate-spin"
+                            aria-hidden="true"
+                          />
+                        ) : null}
+                        {propuesta.botones[decision]}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            ) : null}
+            {enviar.isPending ? (
+              <div className="mt-2.5 flex gap-2 sm:gap-3">
+                <Avatar />
+                <div className="relative inline-flex gap-1 pb-2 pt-3">
+                  <span className="sr-only">El gestor está pensando…</span>
+                  {[0, 150, 300].map((retraso) => (
+                    <i
+                      key={retraso}
+                      aria-hidden="true"
+                      style={{ animationDelay: `${retraso}ms` }}
+                      className="h-1.5 w-1.5 rounded-full bg-[#8b5cf6] opacity-40 motion-safe:animate-pulse"
+                    />
+                  ))}
+                </div>
+              </div>
+            ) : null}
+            {aviso ? (
+              <p
+                role="alert"
+                className={`mt-2.5 text-sm ${aviso.tipo === "error" ? "text-[#c53030]" : "text-muted"}`}
+              >
+                {aviso.texto}
+              </p>
+            ) : null}
+            <div ref={finRef} />
+          </div>
+        )}
+      </div>
+      <form onSubmit={submit} className="border-t border-[#e5e5e5] bg-white">
+        <div className="mx-auto flex max-w-[720px] flex-col gap-2.5 px-3 pb-3.5 pt-2.5 sm:px-8 sm:pt-3">
+          {vacio ? null : (
+            <ul className="-mx-0.5 flex gap-2 overflow-x-auto px-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               {EJEMPLOS.map((ejemplo) => (
-                <li key={ejemplo}>
+                <li key={ejemplo} className="shrink-0">
                   <button
                     type="button"
-                    onClick={() => {
-                      setTexto(ejemplo);
-                      campoRef.current?.focus();
-                    }}
-                    className="inline-flex min-h-11 items-center rounded-full border border-[#e5e5e5] bg-white px-4 text-sm text-[#27272a] transition duration-200 hover:bg-[#fafafa] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]"
+                    onClick={() => usarEjemplo(ejemplo)}
+                    className="whitespace-nowrap rounded-full border border-[#e5e5e5] bg-white px-3 py-1.5 text-xs font-semibold text-[#27272a] transition duration-200 hover:border-[#d4d4d8] hover:bg-[#fafafa] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]"
                   >
                     {ejemplo}
                   </button>
                 </li>
               ))}
             </ul>
-          </div>
-        ) : null}
-        {burbujas.map((m) => (
-          <div
-            key={m.clave}
-            className={`flex ${m.de === "dueno" ? "justify-end" : "justify-start"}`}
-          >
-            <div
-              className={`max-w-[85%] rounded-2xl px-4 py-2.5 text-sm leading-6 sm:max-w-[70%] ${
-                m.de === "dueno"
-                  ? "bg-[#0a0a0a] text-white"
-                  : "bg-[#f3eeff] text-[#0a0a0a]"
-              }`}
+          )}
+          <div className="flex items-end gap-2 rounded-[10px] border border-[#e5e5e5] bg-white py-1.5 pl-4 pr-1.5 transition duration-200 focus-within:border-[#8b5cf6] focus-within:ring-[3px] focus-within:ring-[#8b5cf6]/20">
+            <label htmlFor="gestor-texto" className="sr-only">
+              Mensaje para tu gestor
+            </label>
+            <textarea
+              id="gestor-texto"
+              ref={campoRef}
+              value={texto}
+              onChange={(event) => setTexto(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" && !event.shiftKey) {
+                  event.preventDefault();
+                  submit(event);
+                }
+              }}
+              rows={1}
+              maxLength={1000}
+              placeholder="Escribe a tu gestor…"
+              disabled={ocupado}
+              className="max-h-32 min-h-9 flex-1 resize-none border-0 bg-transparent py-[7px] text-[15px] leading-normal text-[#0a0a0a] outline-none [field-sizing:content] placeholder:text-muted disabled:cursor-not-allowed"
+            />
+            <button
+              type="submit"
+              disabled={ocupado || texto.trim() === ""}
+              aria-label="Enviar"
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] bg-[#0a0a0a] text-white transition duration-200 hover:bg-[#262626] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:bg-[#0a0a0a]"
             >
-              <p className="whitespace-pre-wrap">{m.texto}</p>
-              {hora(m.en) ? (
-                <p
-                  className={`mt-1 text-[11px] ${m.de === "dueno" ? "text-white/60" : "text-muted"}`}
-                >
-                  {hora(m.en)}
-                </p>
-              ) : null}
-            </div>
+              <Send className="h-[17px] w-[17px]" aria-hidden="true" />
+            </button>
           </div>
-        ))}
-        {enviar.isPending ? (
-          <div className="flex justify-start">
-            <div className="rounded-2xl bg-[#f3eeff] px-4 py-2.5 text-sm text-muted">
-              <Loader2
-                className="inline h-4 w-4 animate-spin"
-                aria-hidden="true"
-              />{" "}
-              El asistente está pensando…
-            </div>
+          <div className="hidden justify-between gap-3 text-[11px] text-muted sm:flex">
+            <span>Nada cambia hasta que pulses el botón de la propuesta.</span>
+            <span>Enter para enviar · Mayús + Enter, nueva línea</span>
           </div>
-        ) : null}
-        {propuesta ? (
-          <div className="flex justify-start">
-            <div className="max-w-[85%] rounded-2xl border border-[#ddd6fe] bg-white px-4 py-3 text-sm sm:max-w-[70%]">
-              <p className="font-semibold text-[#0a0a0a]">
-                {propuesta.resumen}
-              </p>
-              <div className="mt-3 flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  disabled={decidir.isPending}
-                  onClick={() =>
-                    decidir.mutate({ id: propuesta.id, decision: "confirmar" })
-                  }
-                  className="btn-primary h-11 px-4"
-                >
-                  {decidir.isPending &&
-                  decidir.variables?.decision === "confirmar" ? (
-                    <Loader2
-                      className="h-4 w-4 animate-spin"
-                      aria-hidden="true"
-                    />
-                  ) : null}
-                  {propuesta.botones.confirmar}
-                </button>
-                <button
-                  type="button"
-                  disabled={decidir.isPending}
-                  onClick={() =>
-                    decidir.mutate({ id: propuesta.id, decision: "cancelar" })
-                  }
-                  className="btn-secondary h-11 px-4"
-                >
-                  {decidir.isPending &&
-                  decidir.variables?.decision === "cancelar" ? (
-                    <Loader2
-                      className="h-4 w-4 animate-spin"
-                      aria-hidden="true"
-                    />
-                  ) : null}
-                  {propuesta.botones.cancelar}
-                </button>
-              </div>
-            </div>
-          </div>
-        ) : null}
-        {aviso ? (
-          <p
-            role="alert"
-            className={`text-sm ${aviso.tipo === "error" ? "text-[#c53030]" : "text-muted"}`}
-          >
-            {aviso.texto}
-          </p>
-        ) : null}
-        <div ref={finRef} />
-      </div>
-      <form
-        onSubmit={submit}
-        className="flex items-end gap-2 border-t border-[#e5e5e5] px-4 py-3 sm:px-6"
-      >
-        <label htmlFor="gestor-texto" className="sr-only">
-          Mensaje para tu asistente
-        </label>
-        <textarea
-          id="gestor-texto"
-          ref={campoRef}
-          value={texto}
-          onChange={(event) => setTexto(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === "Enter" && !event.shiftKey) {
-              event.preventDefault();
-              submit(event);
-            }
-          }}
-          rows={1}
-          maxLength={1000}
-          placeholder="Escribe a tu asistente…"
-          disabled={ocupado}
-          className="field min-h-11 flex-1 resize-none py-3 leading-5"
-        />
-        <button
-          type="submit"
-          disabled={ocupado || texto.trim() === ""}
-          className="btn-primary h-11 px-4"
-          aria-label="Enviar"
-        >
-          <Send className="h-4 w-4" aria-hidden="true" />
-        </button>
+        </div>
       </form>
     </div>
   );

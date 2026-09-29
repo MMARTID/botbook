@@ -327,8 +327,8 @@ export function WhatsappDueno({ business, hasToken }: WhatsappDuenoProps) {
               message:
                 cambio.campo === "ownerChatEnabled"
                   ? cambio.valor
-                    ? "El asistente queda activado."
-                    : "El asistente queda desactivado."
+                    ? "El gestor queda activado."
+                    : "El gestor queda desactivado."
                   : cambio.valor
                     ? "La recepcionista atenderá a los clientes por chat."
                     : "Los clientes que escriban recibirán un aviso para llamar.",
@@ -663,7 +663,7 @@ export function WhatsappDueno({ business, hasToken }: WhatsappDuenoProps) {
           />
           <span>
             <span className="font-semibold">
-              Tu asistente por WhatsApp y en el panel
+              Tu gestor por WhatsApp y en el panel
             </span>
             <span
               id="settings-gestor-hint"

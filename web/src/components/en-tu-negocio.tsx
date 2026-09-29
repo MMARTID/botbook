@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState, type CSSProperties } from "react";
-import { useReducedMotion } from "framer-motion";
 import { Check } from "lucide-react";
 
+import { useMovimientoReducido } from "@/hooks/use-movimiento-reducido";
 import { marcarRelato } from "@/lib/relato-fijo";
 import "./en-tu-negocio.css";
 
@@ -86,21 +86,16 @@ const ANCLAS = [0.3, 0.6, 0.9] as const;
 const MARGEN_DE_CARGA = "100% 0px";
 
 export function EnTuNegocioScroll() {
-  const reducir = useReducedMotion() === true;
+  // Con movimiento reducido, la versión quieta llega tras montar: el servidor
+  // no sabe la preferencia y pinta el escenario (ver useMovimientoReducido).
+  const reducir = useMovimientoReducido();
   const [sinEscena, setSinEscena] = useState(false);
-  // `useReducedMotion` vale null en el servidor y true/false en el cliente:
-  // si la versión quieta se eligiera antes de montar, el primer render del
-  // cliente no casaría con el HTML del servidor y React rehidrataría la
-  // página entera.
-  const [montado, setMontado] = useState(false);
-  const quieta = montado && (reducir || sinEscena);
+  const quieta = reducir || sinEscena;
   const seccion = useRef<HTMLElement>(null);
-
-  useEffect(() => setMontado(true), []);
 
   useEffect(() => {
     const el = seccion.current;
-    if (!montado || quieta || !el) return;
+    if (quieta || !el) return;
     // Mientras el escenario está fijo se esconde «Configurar cookies», igual
     // que en «En tu bolsillo». Ver lib/relato-fijo.ts.
     const desmarcar = marcarRelato(el);
@@ -129,7 +124,7 @@ export function EnTuNegocioScroll() {
       desmontar?.();
       desmarcar();
     };
-  }, [montado, quieta]);
+  }, [quieta]);
 
   const irA = (i: number) => {
     const el = seccion.current;
