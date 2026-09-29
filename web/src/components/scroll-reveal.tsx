@@ -1,7 +1,9 @@
 "use client";
 
-import { motion, useReducedMotion } from "framer-motion";
+import { motion } from "framer-motion";
 import type { ReactNode } from "react";
+
+import { useMovimientoReducido } from "@/hooks/use-movimiento-reducido";
 
 export function Reveal({
   children,
@@ -16,16 +18,24 @@ export function Reveal({
   className?: string;
   id?: string;
 }) {
-  const reducedMotion = useReducedMotion();
+  // El HTML del servidor sale siempre oculto y desplazado; con movimiento
+  // reducido se enseña de golpe al montar, sin esperar a entrar en pantalla.
+  // `initial` solo cuenta al montar: cambiarlo después no haría nada.
+  const reducir = useMovimientoReducido();
 
   return (
     <motion.div
       id={id}
       className={className}
-      initial={reducedMotion ? undefined : { opacity: 0, y }}
-      whileInView={{ opacity: 1, y: 0 }}
+      initial={{ opacity: 0, y }}
+      animate={reducir ? { opacity: 1, y: 0 } : undefined}
+      whileInView={reducir ? undefined : { opacity: 1, y: 0 }}
       viewport={{ once: true, margin: "-80px" }}
-      transition={{ duration: 0.6, delay, ease: [0.22, 1, 0.36, 1] }}
+      transition={
+        reducir
+          ? { duration: 0 }
+          : { duration: 0.6, delay, ease: [0.22, 1, 0.36, 1] }
+      }
     >
       {children}
     </motion.div>
