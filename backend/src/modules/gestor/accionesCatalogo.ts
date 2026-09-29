@@ -31,6 +31,7 @@ import type {
   ContextoDeAccion,
   ResultadoDeEjecucion,
 } from "./acciones.js";
+import { normalizar } from "./normalizar.js";
 
 /**
  * Acciones de catálogo y horario del Gestor (PLAN-CANAL-DUENO.md § 8,
@@ -93,15 +94,6 @@ const DIA_EN_ESPANOL: Record<WeekDay, string> = {
   saturday: "sábado",
   sunday: "domingo",
 };
-
-function normalizar(texto: string): string {
-  return texto
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
-    .toLowerCase()
-    .replace(/\s+/g, " ")
-    .trim();
-}
 
 function euros(priceCents: number | null): string {
   if (priceCents === null) return "sin precio";

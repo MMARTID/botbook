@@ -66,13 +66,15 @@ describe("ACCIONES_PROPONIBLES", () => {
 });
 
 describe("buildGestorTools", () => {
-  it("las cinco tools apuntan a /webhooks/telnyx/gestor y llevan el negocio y el rol por cabecera desde los metadata", () => {
+  it("las siete tools apuntan a /webhooks/telnyx/gestor y llevan el negocio y el rol por cabecera desde los metadata", () => {
     const tools = buildGestorTools("https://api.alhabla.ai/");
     expect(tools.map((t) => t.name)).toEqual([
       "contexto_negocio",
       "listar_agenda",
       "buscar_hueco",
       "resumen_llamadas",
+      "buscar_cliente",
+      "dudas_sin_respuesta",
       "proponer_accion",
     ]);
     for (const tool of tools) {
@@ -86,9 +88,17 @@ describe("buildGestorTools", () => {
       // Ninguna tool declara businessId en el body: el negocio nunca lo decide el LLM.
       expect(Object.keys(tool.properties)).not.toContain("businessId");
     }
-    expect(tools[1].required).toEqual(["dia"]);
-    expect(tools[2].required).toEqual(["fechaHora"]);
-    expect(tools[4].required).toEqual(["tipo", "parametros", "resumen"]);
+    const requeridos = (nombre: string) =>
+      tools.find((t) => t.name === nombre)?.required;
+    expect(requeridos("listar_agenda")).toEqual(["dia"]);
+    expect(requeridos("buscar_hueco")).toEqual(["fechaHora"]);
+    expect(requeridos("buscar_cliente")).toEqual(["cliente"]);
+    expect(requeridos("dudas_sin_respuesta")).toBeUndefined();
+    expect(requeridos("proponer_accion")).toEqual([
+      "tipo",
+      "parametros",
+      "resumen",
+    ]);
   });
 });
 
@@ -99,7 +109,7 @@ describe("buildGestorAssistantPayload", () => {
     expect(payload.model).toBe(GESTOR_MODEL);
     expect(payload.greeting).toBe("");
     expect(payload.instructions).toBe(buildGestorPrompt());
-    expect(payload.tools).toHaveLength(5);
+    expect(payload.tools).toHaveLength(7);
     expect(payload.tools!.every((t) => t.type === "webhook")).toBe(true);
     expect(payload.fallbackConfig).toBeUndefined();
   });
