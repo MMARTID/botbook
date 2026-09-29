@@ -87,8 +87,10 @@ describe("buildManagedAgentPrompt", () => {
       settings: DEFAULT_AGENT_SETTINGS,
     });
 
-    expect(conDetalles).toContain("Solo trabaja con cita previa.");
-    expect(sinDetalles).not.toContain("Información del negocio:");
+    expect(conDetalles).toContain(
+      "## Información del negocio\nSolo trabaja con cita previa."
+    );
+    expect(sinDetalles).not.toContain("## Información del negocio");
   });
 
   it("incluye las restricciones de reserva cuando están configuradas", () => {
@@ -363,6 +365,8 @@ describe("buildManagedAgentPrompt — recados y post-conversación (PR 5)", () =
     expect(prompt).toContain("## Al terminar la llamada");
     expect(prompt).toContain("llama UNA sola vez a informar_al_negocio");
     expect(prompt).toContain("No la uses durante la conversación");
+    // Lo que no supo responder vuelve al dueño por el Gestor.
+    expect(prompt).toContain("apúntalo en dudas_sin_respuesta");
   });
 });
 

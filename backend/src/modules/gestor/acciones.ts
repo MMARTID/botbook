@@ -10,6 +10,7 @@ import {
 } from "../whatsapp/avisosNegocio.js";
 import { ACCIONES_DE_CATALOGO } from "./accionesCatalogo.js";
 import { ACCIONES_DE_AGENDA } from "./accionesAgenda.js";
+import { ACCIONES_DE_INFORMACION } from "./accionesInformacion.js";
 
 /**
  * Acciones que el Gestor puede PROPONER y que solo el botón «Confirmar» del
@@ -17,8 +18,9 @@ import { ACCIONES_DE_AGENDA } from "./accionesAgenda.js";
  * su esquema de parámetros, cómo se comprueba contra el negocio al proponer
  * (que el recurso exista y sea suyo) y cómo se ejecuta al confirmar.
  * Aquí vive `resolver_pendiente`; el catálogo y el horario en
- * accionesCatalogo.ts (PR 3) y la agenda (citas, avisos al cliente,
- * ausencias, bloqueos) en accionesAgenda.ts (PR 4).
+ * accionesCatalogo.ts (PR 3), la agenda (citas, avisos al cliente,
+ * ausencias, bloqueos) en accionesAgenda.ts (PR 4) y la información del
+ * negocio que usa la recepcionista en accionesInformacion.ts.
  */
 
 export const ACCION_CADUCA_MS = 24 * 60 * 60 * 1000;
@@ -167,6 +169,7 @@ export const ACCIONES_DEL_GESTOR: Record<string, AccionDelGestor<unknown>> = {
   resolver_pendiente: resolverPendiente as AccionDelGestor<unknown>,
   ...ACCIONES_DE_CATALOGO,
   ...ACCIONES_DE_AGENDA,
+  ...ACCIONES_DE_INFORMACION,
 };
 
 export function accionConocida(tipo: string): boolean {

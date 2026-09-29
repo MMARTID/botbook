@@ -1194,6 +1194,45 @@ hablando por el que elige `identificarRemitente`.
   «¿tiene hueco Laura el viernes a las 10?» → «no; el más cercano es el lunes 28 a las 09:30»
   (sábado cerrado); el interruptor del Gestor en Ajustes apaga la página con enlace de vuelta.
 
+**Código (fase 2 — enseñar a la recepcionista y ficha del cliente, 2026-09-29).**
+- Recepcionista: `informar_al_negocio` gana `dudas_sin_respuesta` (lista opcional con las
+  preguntas que no pudo responder por no tener esa información) y «## Al terminar la llamada»
+  pide apuntarlas. `recados.ts › normalizarDudas` las limpia (una por línea si llega una cadena,
+  sin vacías ni repetidas, 5 × 200 caracteres) y van a `Call.postCallReport.dudas_sin_respuesta`;
+  un segundo informe las añade si el primero no traía ninguna, igual que el recado. Es la única
+  fuente de qué preguntó el cliente: Telnyx no deja resumen (`Call.summary` solo lo rellena
+  Retell). La «Información del negocio» (`businessDetails`) pasa a su propia sección del prompt,
+  «## Información del negocio» (antes iba suelta bajo «Referencia temporal»).
+- Gestor, lecturas. `dudas_sin_respuesta({ dias 1-31, 14 por defecto })`
+  (`modules/gestor/dudasSinRespuesta.ts`): dudas agrupadas sin distinguir acentos ni signos, las
+  más repetidas primero, y las llamadas FRUSTRATED/ESCALATED con motivo, servicio pedido, recado
+  y resumen si lo hay (10 como mucho, más el total). `buscar_cliente({ cliente })`
+  (`modules/gestor/buscarCliente.ts`): por móvil (9 últimos dígitos, en la cita o en la llamada
+  desde la que reservó) o por nombre (cada palabra tiene que empezar una del nombre, sin acentos;
+  últimos 24 meses). Una ficha por móvil; las citas sin móvil se unen a la ficha de su mismo
+  nombre si solo hay una. Devuelve próximas citas con `citaId`, últimas, total, canceladas,
+  recados sin atender y último contacto; hasta 5 fichas y `masCoincidencias`; `alcance` recuerda
+  que lo apuntado a mano en el calendario no está en `bookings`. `contexto_negocio` devuelve
+  además `informacion` (`businessDetails`).
+- Gestor, acción `actualizar_informacion({ anterior?, nuevo? })`
+  (`modules/gestor/accionesInformacion.ts`): solo `nuevo` añade al final, solo `anterior` quita
+  ese fragmento y los dos lo sustituyen. El fragmento se busca sin distinguir mayúsculas ni
+  espaciado y tiene que aparecer una vez; tope de 4.000 caracteres (recortar siempre se deja).
+  No se propone si todas las recepcionistas tienen el prompt escrito a mano: no le llegaría. Al
+  confirmar se aplica sobre el texto de ese momento, y `modules/businesses/informacion.ts ›
+  guardarInformacionDelNegocio` guarda con escritura optimista (`updateMany` con el texto leído:
+  si el panel lo cambió entretanto, no pisa nada) y propaga como el PATCH del panel: caché de
+  voz, Telnyx y Retell (best-effort con log ruidoso; lo repara el reconciliador). El prompt del
+  Gestor separa lo que va aquí (cómo llegar, pagos, políticas) de lo que tiene su propia acción
+  (catálogo, equipo, horario, cierres).
+- `normalizar` (sin acentos ni mayúsculas) vive en `modules/gestor/normalizar.ts`, compartido por
+  las acciones de agenda y catálogo y por la ficha.
+- Tests unitarios de las tres piezas y de `guardarInformacionDelNegocio`, e integración
+  (`tests/integration/gestor/informacionYClientes.test.ts`): informe final → `dudas_sin_respuesta`
+  sin mezclar negocios ni periodos, proponer y confirmar `actualizar_informacion` (y no pisar un
+  cambio hecho en el panel entre la propuesta y el botón), y `buscar_cliente` por nombre y por
+  móvil sin salirse del negocio.
+
 **Cuenta.** Un solo WABA, «Alhabla»: id Telnyx `804230d2-c5e0-45dd-af65-95819468378a`, id Meta
 `1628104425601770`, conectado por Embedded Signup el 13-09. `messaging_limit_tier: TIER_250`
 (250 destinatarios únicos/24 h para **toda** la cartera), `business_verification_status:

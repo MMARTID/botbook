@@ -18,6 +18,8 @@ import { limitesDelDia, mapaDeServicios } from "../whatsapp/avisosNegocio.js";
 import { panelUrl } from "../whatsapp/mensajes.js";
 import { registrarPropuesta } from "./acciones.js";
 import { buscarHueco } from "./buscarHueco.js";
+import { buscarCliente } from "./buscarCliente.js";
+import { dudasSinRespuesta } from "./dudasSinRespuesta.js";
 
 /**
  * Tools del Gestor (PLAN-CANAL-DUENO.md § 8): `POST
@@ -81,6 +83,7 @@ const SELECT_NEGOCIO_DEL_GESTOR = {
   telnyxPhoneNumber: true,
   phoneNumberStatus: true,
   address: true,
+  businessDetails: true,
   schedule: true,
   plan: true,
   stripePriceId: true,
@@ -300,6 +303,10 @@ async function contextoNegocio(businessId: string) {
         };
       }),
       horario: formatScheduleForPrompt(business.schedule),
+      // Lo que la recepcionista sabe además del catálogo y el horario (cómo
+      // llegar, pagos, políticas): lo que cambia `actualizar_informacion`,
+      // que necesita citar fragmentos literales de aquí.
+      informacion: business.businessDetails?.trim() || null,
       calendario,
       faltaPorConfigurar,
       // El calendario se conecta desde el panel (OAuth con cookie de estado
@@ -612,6 +619,10 @@ export async function handleGestorToolInvocation(input: {
         return await resumenLlamadas(businessId, params);
       case "buscar_hueco":
         return await buscarHueco(businessId, params);
+      case "buscar_cliente":
+        return await buscarCliente(businessId, params);
+      case "dudas_sin_respuesta":
+        return await dudasSinRespuesta(businessId, params);
       case "proponer_accion":
         return await proponerAccion(businessId, params);
       default:
