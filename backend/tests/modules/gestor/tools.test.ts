@@ -3,6 +3,8 @@ import { prisma } from "../../../src/lib/prisma.js";
 import { DEFAULT_BUSINESS_SCHEDULE } from "../../../src/lib/businessSchedule.js";
 import { getRedis } from "../../../src/lib/redis.js";
 import { registrarPropuesta } from "../../../src/modules/gestor/acciones.js";
+import { buscarCliente } from "../../../src/modules/gestor/buscarCliente.js";
+import { dudasSinRespuesta } from "../../../src/modules/gestor/dudasSinRespuesta.js";
 import {
   claveDePropuesta,
   claveDelTurno,
@@ -26,6 +28,12 @@ vi.mock("../../../src/lib/redis.js", () => {
 });
 vi.mock("../../../src/modules/gestor/acciones.js", () => ({
   registrarPropuesta: vi.fn(),
+}));
+vi.mock("../../../src/modules/gestor/buscarCliente.js", () => ({
+  buscarCliente: vi.fn(async () => ({ status: 200, body: { clientes: [] } })),
+}));
+vi.mock("../../../src/modules/gestor/dudasSinRespuesta.js", () => ({
+  dudasSinRespuesta: vi.fn(async () => ({ status: 200, body: { dudas: [] } })),
 }));
 
 const mockedBizFindUnique = vi.mocked(prisma.business.findUnique);
@@ -51,6 +59,7 @@ const NEGOCIO = {
   telnyxPhoneNumber: "+34930111222",
   phoneNumberStatus: "active",
   address: "Calle Mayor 1, Madrid",
+  businessDetails: "  Se puede pagar con tarjeta.\nNo hacemos keratina.  ",
   schedule: DEFAULT_BUSINESS_SCHEDULE,
   plan: null,
   stripePriceId: null,
@@ -179,6 +188,38 @@ describe("handleGestorToolInvocation — autorización por cabeceras", () => {
   });
 });
 
+describe("buscar_cliente y dudas_sin_respuesta", () => {
+  it("llegan a su módulo con el negocio de la cabecera y los parámetros del LLM", async () => {
+    expect(
+      await handleGestorToolInvocation({
+        ...CABECERAS,
+        toolName: "buscar_cliente",
+        params: { cliente: "Marta" },
+      })
+    ).toEqual({ status: 200, body: { clientes: [] } });
+    expect(buscarCliente).toHaveBeenCalledWith("biz_1", { cliente: "Marta" });
+
+    expect(
+      await handleGestorToolInvocation({
+        ...CABECERAS,
+        toolName: "dudas_sin_respuesta",
+        params: { dias: 7 },
+      })
+    ).toEqual({ status: 200, body: { dudas: [] } });
+    expect(dudasSinRespuesta).toHaveBeenCalledWith("biz_1", { dias: 7 });
+  });
+
+  it("con otro rol no llegan a leer nada", async () => {
+    await handleGestorToolInvocation({
+      businessId: "biz_1",
+      role: "client",
+      toolName: "buscar_cliente",
+      params: { cliente: "Marta" },
+    });
+    expect(buscarCliente).not.toHaveBeenCalled();
+  });
+});
+
 describe("contexto_negocio", () => {
   it("devuelve el negocio, el catálogo con precios en euros, el calendario y lo que falta por configurar", async () => {
     mockedLeadFindMany
@@ -267,6 +308,9 @@ describe("contexto_negocio", () => {
       estado: "conectado",
     });
     expect(body.faltaPorConfigurar).toEqual([]);
+    expect(body.informacion).toBe(
+      "Se puede pagar con tarjeta.\nNo hacemos keratina."
+    );
     expect(body.enlaces).toEqual({
       panel: "https://alhabla.ai/",
       calendario: "https://alhabla.ai/agente",

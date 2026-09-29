@@ -69,7 +69,6 @@ import { appUrl } from "../../lib/urls.js";
 
 export type VoiceToolName =
   | "get_catalog"
-  | "check_business_hours"
   | "check_availability"
   | "book_appointment"
   | "find_my_appointment"
@@ -337,62 +336,6 @@ async function getVoiceConfig(
   return business;
 }
 
-async function executeCheckBusinessHours(
-  business: BusinessVoiceConfig,
-  params: Record<string, unknown>,
-  callLabel: string
-): Promise<{ success: boolean; result?: any }> {
-  try {
-    const startDateTime =
-      typeof params?.startDateTime === "string"
-        ? normalizeVoiceToolDateTime(params.startDateTime, business.timezone || "Europe/Madrid")
-        : "";
-    const durationMinutes =
-      typeof params?.durationMinutes === "number" ? params.durationMinutes : 0;
-    const hoursResult = checkBusinessHours(
-      business.schedule,
-      business.timezone,
-      startDateTime,
-      durationMinutes
-    );
-
-    if (hoursResult.success && hoursResult.isOpen) {
-      const restrictions = checkBookingRestrictions(
-        business,
-        startDateTime,
-        durationMinutes
-      );
-      if (!restrictions.success) {
-        return {
-          success: true,
-          result: {
-            ...hoursResult,
-            isOpen: false,
-            code: restrictions.code,
-            message: restrictions.message,
-          },
-        };
-      }
-    }
-
-    return { success: true, result: hoursResult };
-  } catch (error) {
-    console.error(
-      `[VoiceTools] ${callLabel} no pudo comprobar el horario: ${errorMessage(
-        error
-      )}`
-    );
-    return {
-      success: true,
-      result: {
-        success: false,
-        code: "BUSINESS_HOURS_CHECK_FAILED",
-        message: "No pude comprobar el horario del negocio.",
-      },
-    };
-  }
-}
-
 /** Bloques ocupados del calendario REAL conectado (Google/Outlook) para el
  * negocio, no solo lo guardado en Postgres — ver hallazgo #5 de la
  * auditoría: antes checkAvailability solo consultaba Booking, así que una
@@ -451,6 +394,30 @@ async function executeCheckAvailability(
     if (!isValidAppointmentDuration(durationMinutes)) {
       return invalidDurationResult();
     }
+
+    // Antelación mínima, duración máxima y horizonte de 120 días: las mismas
+    // reglas que book_appointment vuelve a comprobar. Antes solo las miraba
+    // book_appointment, y como el prompt dice que check_availability ya
+    // valida las restricciones, el agente ofrecía y hacía confirmar al
+    // cliente un hueco que la reserva rechazaba después. Van antes de tocar
+    // la BD y el calendario, y sin availabilityToken: lo que book_appointment
+    // va a rechazar no se ofrece.
+    const restrictions = checkBookingRestrictions(
+      business,
+      startDateTime,
+      durationMinutes
+    );
+    if (!restrictions.success) {
+      return {
+        success: true,
+        result: {
+          available: false,
+          code: restrictions.code,
+          message: restrictions.message,
+        },
+      };
+    }
+
     const serviceIds = Array.isArray(params?.serviceIds)
       ? params.serviceIds.filter((id): id is string => typeof id === "string")
       : undefined;
@@ -611,15 +578,32 @@ async function executeCheckAvailability(
       };
     }
 
-    if (availability.suggestedNextSlot) {
+    const alternativa = availability.suggestedNextSlot;
+    if (alternativa) {
+      // La alternativa puede caer hasta tres días después de la hora pedida
+      // (findNextAvailableSlot): pedida a 119 días, la sugerencia pasaba del
+      // horizonte y book_appointment la rechazaba igual. Si no se puede
+      // reservar, no se ofrece.
+      if (
+        !checkBookingRestrictions(
+          business,
+          alternativa.startDateTime,
+          durationMinutes
+        ).success
+      ) {
+        return {
+          success: true,
+          result: { ...paraElAgente, suggestedNextSlot: null, ...conRecomendacion },
+        };
+      }
       const suggestedToken = await createAvailabilityDraft({
         businessId: business.id,
         callId,
-        startDateTime: availability.suggestedNextSlot.startDateTime,
+        startDateTime: alternativa.startDateTime,
         durationMinutes,
         serviceIds: serviceIds ?? [],
         professionalId:
-          professionalId ?? availability.suggestedNextSlot.availableProfessionals[0]?.id,
+          professionalId ?? alternativa.availableProfessionals[0]?.id,
         professionalRequested: Boolean(professionalId),
       });
       return {
@@ -627,7 +611,7 @@ async function executeCheckAvailability(
         result: {
           ...paraElAgente,
           suggestedNextSlot: {
-            ...availability.suggestedNextSlot,
+            ...alternativa,
             availabilityToken: suggestedToken,
           },
           ...conRecomendacion,
@@ -2343,8 +2327,6 @@ export async function executeVoiceTool(
   switch (toolName) {
     case "get_catalog":
       return executeGetCatalog(business, callLabel);
-    case "check_business_hours":
-      return executeCheckBusinessHours(business, params, callLabel);
     case "check_availability":
       return executeCheckAvailability(business, params, callLabel, callId);
     case "book_appointment":

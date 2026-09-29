@@ -334,7 +334,7 @@ export async function businessesRoutes(fastify: FastifyInstance) {
         });
 
         if (!business) {
-          return reply.status(404).send({ error: "Business not found" });
+          return reply.status(404).send({ error: "Negocio no encontrado" });
         }
 
         const { professionals, ...resto } = business;

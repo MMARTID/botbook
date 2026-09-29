@@ -39,7 +39,12 @@ export const placesRoutes: FastifyPluginAsync = async (fastify) => {
     async (request, reply) => {
       const parseResult = SearchQuerySchema.safeParse(request.query);
       if (!parseResult.success) {
-        return reply.status(400).send({ error: 'Invalid query', details: parseResult.error.errors });
+        return reply
+          .status(400)
+          .send({
+            error: 'Búsqueda no válida',
+            details: parseResult.error.errors,
+          });
       }
 
       try {
@@ -67,7 +72,12 @@ export const placesRoutes: FastifyPluginAsync = async (fastify) => {
     async (request, reply) => {
       const parseResult = PlaceIdParamsSchema.safeParse(request.params);
       if (!parseResult.success) {
-        return reply.status(400).send({ error: 'Invalid place id', details: parseResult.error.errors });
+        return reply
+          .status(400)
+          .send({
+            error: 'Lugar no válido',
+            details: parseResult.error.errors,
+          });
       }
 
       try {

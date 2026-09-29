@@ -498,6 +498,10 @@ describe("buildTelnyxVoiceTools — informar_al_negocio (PR 5, post-conversació
     expect(tool!.headers).toEqual([
       { name: "X-Alhabla-Call-Control-Id", value: "{{call_control_id}}" },
     ]);
+    // Opcional: solo cuando hubo preguntas que no supo responder.
+    expect(tool!.properties.dudas_sin_respuesta).toEqual(
+      expect.objectContaining({ type: "array", items: { type: "string" } })
+    );
   });
 
   it("el payload del assistant activa la post-conversación", () => {

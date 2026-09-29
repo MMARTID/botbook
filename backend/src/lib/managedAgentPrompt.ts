@@ -348,7 +348,7 @@ export function buildManagedAgentPrompt(input: {
       : null,
     buildTransferInstruction(input.transferenciaAlDueno),
     "## Al terminar la llamada",
-    "Cuando la llamada ya haya terminado, llama UNA sola vez a informar_al_negocio con el resultado (RESOLVED, FRUSTRATED, NO_ANSWER, ESCALATED o LEAD_CAPTURED), el motivo de escalada si lo hubo, si alguna herramienta falló, el servicio pedido y, solo si dejó recado o pidió que le llamen, el recado con nombre, teléfono confirmado y motivo. No la uses durante la conversación ni la menciones al cliente.",
+    "Cuando la llamada ya haya terminado, llama UNA sola vez a informar_al_negocio con el resultado (RESOLVED, FRUSTRATED, NO_ANSWER, ESCALATED o LEAD_CAPTURED), el motivo de escalada si lo hubo, si alguna herramienta falló, el servicio pedido y, solo si dejó recado o pidió que le llamen, el recado con nombre, teléfono confirmado y motivo. Si el cliente preguntó algo que no pudiste responder porque no tenías esa información, apúntalo en dudas_sin_respuesta: así el negocio te lo cuenta para la próxima. No la uses durante la conversación ni la menciones al cliente.",
     "## Chat por WhatsApp",
     // Fase 2 del plan de WhatsApp (§ 7): el mismo assistant atiende por chat.
     // El backend antepone a cada mensaje del cliente un marcador con el
@@ -364,8 +364,12 @@ export function buildManagedAgentPrompt(input: {
         ? "toma recado y dile que el negocio le llamará; no le des ningún teléfono"
         : "dale el teléfono del negocio"
     }.`,
+    // Sección propia (antes iba suelta bajo «Referencia temporal»): desde que
+    // el dueño la amplía por WhatsApp (`actualizar_informacion` del Gestor)
+    // es lo que la recepcionista consulta para dudas de pagos, cómo llegar
+    // o políticas.
+    businessDetails ? `## Información del negocio\n${businessDetails}` : null,
     "## Referencia temporal",
-    businessDetails ? `Información del negocio: ${businessDetails}` : null,
     // La zona va escrita literalmente, no como {{zona_horaria}} anidada
     // dentro de {{current_time_...}}: no está documentado en ningún sitio que
     // Retell resuelva una variable dentro de otra, y si no la resuelve el

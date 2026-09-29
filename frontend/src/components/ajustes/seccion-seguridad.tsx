@@ -86,12 +86,15 @@ export function SeccionSeguridad() {
       clearAuthTokens();
       window.location.replace(webUrl("/"));
     },
+    // Un 5xx puede llegar con la suscripción o el número ya retirados (el
+    // backend los quita antes de borrar el negocio): la cuenta sigue, pero no
+    // se puede prometer que no se haya borrado nada.
     onError: (error) =>
       setDeleteFeedback({
         type: "error",
         message: describeApiError(
           error,
-          "No se pudo eliminar la cuenta. No se ha borrado nada; inténtalo de nuevo."
+          "No se pudo eliminar la cuenta. Tu cuenta sigue abierta; inténtalo de nuevo."
         ),
       }),
   });

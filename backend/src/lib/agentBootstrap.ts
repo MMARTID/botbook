@@ -75,8 +75,9 @@ export const TOOL_FAILURE_FIELD: RetellBooleanAnalysisField = {
   name: "tool_failure_detected",
   type: "boolean",
   description:
-    "true si alguna herramienta (check_business_hours, check_availability o book_appointment) falló, dio " +
-    "error o no pudo completarse durante la llamada, aunque la llamada terminara bien igualmente.",
+    "true si alguna herramienta (check_availability, book_appointment, find_my_appointment o " +
+    "cancel_appointment) falló, dio error o no pudo completarse durante la llamada, aunque la " +
+    "llamada terminara bien igualmente.",
 };
 
 /**
