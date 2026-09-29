@@ -12,7 +12,7 @@ export function CifraDestacada() {
       <p className="mt-2 text-4xl font-black text-[#a78bfa]">
         <AnimatedCurrency value={420} />
       </p>
-      <p className="mt-1 text-xs text-white/50">4.680 € al año</p>
+      <p className="mt-1 text-xs text-white/50">5.040 € al año</p>
     </div>
   );
 }

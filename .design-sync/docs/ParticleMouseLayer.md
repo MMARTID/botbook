@@ -9,5 +9,6 @@ Solo se activa con puntero fino (ratón) y sin `prefers-reduced-motion`: en
 táctil o con movimiento reducido no pinta nada, así que nunca la uses para
 transmitir información. `color` la retinta (por defecto, el morado de marca).
 
-Su tarjeta es la tipográfica: las capturas de este sistema fuerzan
-`prefers-reduced-motion`, y con él el canvas queda vacío.
+Es un canvas `fixed inset-0 -z-10` del tamaño de la ventana: móntalo suelto
+en la página, detrás del contenido, no dentro de una caja. Su tarjeta simula
+el cursor en el centro para que se vea cómo se apartan los puntos.

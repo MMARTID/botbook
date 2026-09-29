@@ -3,16 +3,19 @@ import * as React from "react";
 import { CountUp } from "alhabla-web-ui";
 
 /**
- * Fila de métricas como la de la landing. La tarjeta es estática, así que
- * muestra el valor ya asentado: la animación de conteo sólo se ve en vivo.
+ * Fila de métricas con las cifras reales de salones de uñas de
+ * `niche-landings.ts` (STANPA / El Periódico y safina.ai): toda cifra
+ * publicada lleva fuente externa y Alhabla no tiene métricas propias
+ * (PRODUCT.md § Evidence on Hand). La tarjeta es estática, así que muestra el
+ * valor ya asentado: la animación de conteo sólo se ve en vivo.
  */
 export function FilaDeMetricas() {
   return (
     <div className="flex flex-wrap gap-8">
       {[
-        { cifra: "78%", pie: "de llamadas fuera de horario" },
-        { cifra: "26.000", pie: "citas reservadas por agentes" },
-        { cifra: "45-65€", pie: "ticket medio recuperado" },
+        { cifra: "26.000", pie: "centros en España ofrecen servicios de uñas" },
+        { cifra: "600M€", pie: "de facturación anual del sector" },
+        { cifra: "85%", pie: "de quienes no hablan con una persona no vuelve a llamar" },
       ].map((metrica) => (
         <div key={metrica.cifra}>
           <p className="text-3xl font-black tracking-tight text-[#0a0a0a]">

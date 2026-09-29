@@ -10,11 +10,8 @@ tabla completa de los dos, en `../../.design-sync/NOTES.md`.
 
 - Bundle: `window.AlhablaWeb` (`cfg.pkg` = `alhabla-web-ui`, que es también el
   especificador que importan las previews).
-- **Aún no hay proyecto en claude.ai/design**: no hay `projectId` en el config,
-  así que la primera sincronización crea uno nuevo y sube todo desde cero.
-  Hasta el 2026-09-29 los componentes de marketing formaban parte del paquete
-  de la app (proyecto «Alhabla UI»); su siguiente sincronización los deja
-  fuera.
+- Proyecto en claude.ai/design: **«Alhabla Web»** (`projectId` en el config),
+  creado y subido por primera vez el 2026-09-29. La app va en «Alhabla App».
 - 17 componentes: 12 de marketing y los 5 compartidos con la app (`BrandMark`,
   `RangeSlider`, `GoogleAuthButton`, `ParticleField`, `ParticleMouseLayer`),
   copias idénticas en las dos webs. **Si cambias la preview o el doc de uno de
@@ -68,27 +65,30 @@ si el barrel no compila, en lugar de dejar la tarjeta vacía.
   `CityNicheLanding`, `SiteHeader`, `SiteFooter`, `PlansWithRoi`, `LegalPage`)
   y las secciones de una sola landing (`HeroHilos`, `LlamadaScroll`, las
   `*-section` salvo `SectorDataSection`): sólo se sincronizan las piezas reutilizables del sistema.
-- **`DemoVoiceCall` va con tarjeta tipográfica (floor card).** Es un overlay
-  `fixed inset-0` como `CallDetailModal` en la app, con red y micrófono de por
-  medio (`createDemoWebCall`, `searchDemoPlaces`, `getDemoPlaceDetails` y el SDK
-  `@telnyx/webrtc`). Una preview del estado inicial a `cardMode: single`
-  480x720 recortaba la cabecera igual que las cuatro pruebas de
-  `CallDetailModal`; no repetir sin una técnica nueva para el bloque contenedor
-  de `fixed` bajo el ancestro transformado del harness.
-- **`ParticleMouseLayer` también va con floor card**: capa global
-  `fixed inset-0 -z-10` que se apaga sin puntero fino o con
-  `prefers-reduced-motion`.
+- Ninguna tarjeta tipográfica: desde el 2026-09-29 los 17 componentes tienen
+  preview. `DemoVoiceCall` (viewport 900x760, primer paso de la demo, sin red
+  ni micrófono) y `ParticleMouseLayer` (900x480, copia de la preview de la app
+  salvo el import) usan la técnica de los overlays `fixed` descrita en las
+  notas de la app: caja propia con alto explícito y `transform`.
 
 ## Hallazgos sobre el propio código (no tocados)
 
-- **`BrandMark` sale como imagen rota en las tarjetas**: es un
-  `<img src="/brand/alhabla-isotipo.svg">` con ruta absoluta que fuera de Next
-  no existe (ver las notas de la app).
-- **Las páginas `/legal/privacidad` y `/legal/aviso-legal` conservan
-  hexadecimales de la paleta verde anterior** (`#344038`, `#1e2b22`) pese a que
-  `DESIGN.md` dice que no queda ningún token verde.
+- **`BrandMark` ya no sale roto**: desde el 2026-09-29 lleva el SVG dentro como
+  data URI (ver las notas de la app).
+- Ninguno pendiente. Las negritas y un enlace de `/legal/privacidad` y
+  `/legal/aviso-legal` usaban hexadecimales de la paleta verde anterior
+  (`#1e2b22`, `#344038`); desde el 2026-09-29 son `#0a0a0a` y `#6d28d9`.
 
 ## Riesgos de cara a la próxima sincronización
+
+- **Las previews no pueden inventar cifras.** El agente de diseño imita lo que
+  ve en ellas, y PRODUCT.md § Evidence on Hand prohíbe métricas propias y
+  cifras sin fuente externa. El 2026-09-29 `CountUp` presentaba «26.000» (los
+  centros de uñas de STANPA) como «citas reservadas por agentes» y
+  `SectorDataSection` enseñaba tres cifras sin fuente; ahora salen de
+  `nicheLandings` con su etiqueta y su fuente reales. Al tocar una preview con
+  números, cópialos de `niche-landings.ts` y revisa la cuenta (la tarjeta de
+  `AnimatedCurrency` decía 420 € al mes = 4.680 € al año).
 
 - La lista de componentes vive en `cfg.componentSrcMap` y hay que ampliarla a
   mano cuando se añada un componente reutilizable a `web/src/components/`.

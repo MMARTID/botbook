@@ -18,6 +18,6 @@ una tarjeta: no lo metas en una rejilla. Depende de red real
 (`createDemoWebCall`, `searchDemoPlaces`, `getDemoPlaceDetails` en
 `@/lib/api`) y del micrófono.
 
-Va con tarjeta tipográfica (floor card): el patrón `fixed inset-0` no se deja
-fotografiar en la rejilla. **Funciona al importarlo**; solo no se deja capturar
-en estático.
+Su tarjeta enseña el primer paso (buscar el negocio), que no toca la red. En
+una página se monta tal cual con `open` y cubre la ventana; la caja con
+`transform` de la tarjeta solo existe para que el overlay quepa en ella.

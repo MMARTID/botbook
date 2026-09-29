@@ -1,5 +1,6 @@
 {
   "shape": "package",
+  "projectId": "bfd840b2-83e7-4ad0-82cc-9a8013888fa0",
   "entry": ".ds-src/entry.ts",
   "pkg": "alhabla-web-ui",
   "globalName": "AlhablaWeb",
@@ -52,6 +53,14 @@
       "cardMode": "single",
       "primaryStory": "Generica",
       "viewport": "1000x1500"
+    },
+    "ParticleMouseLayer": {
+      "cardMode": "single",
+      "viewport": "900x480"
+    },
+    "DemoVoiceCall": {
+      "cardMode": "single",
+      "viewport": "900x760"
     }
   },
   "dtsPropsFor": {

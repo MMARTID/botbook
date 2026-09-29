@@ -35,7 +35,9 @@ import type { Call, OnboardingState, Paginated } from "../src/lib/types";
 export const PREVIEW_BUSINESS_ID = "biz-demo";
 export const PREVIEW_CALL_ID = "call-demo-1";
 
-const AHORA = new Date("2026-09-05T10:30:00.000Z");
+// 19:30 en Madrid: con las llamadas hasta 12 h antes, la tanda cae entre las
+// 7:30 y las 18:52, no de madrugada.
+const AHORA = new Date("2026-09-05T17:30:00.000Z");
 const desplazar = (minutos: number) =>
   new Date(AHORA.getTime() + minutos * 60_000).toISOString();
 
@@ -94,7 +96,9 @@ const LLAMADAS: Call[] = [
     },
     booking: {
       id: "bk-1",
-      programedAt: desplazar(4290),
+      // El jueves siguiente a las 17:30 en Madrid, como dicen el resumen y la
+      // transcripción (fijo: no depende de AHORA).
+      programedAt: "2026-09-10T15:30:00.000Z",
       durationMinutes: 90,
       numberPeople: 1,
       isCancelled: false,
@@ -127,7 +131,7 @@ const LLAMADAS: Call[] = [
     voiceProvider: "whatsapp",
     booking: {
       id: "bk-3",
-      programedAt: desplazar(5790),
+      programedAt: "2026-09-08T09:00:00.000Z", // martes 11:00 en Madrid
       durationMinutes: 45,
       numberPeople: 1,
       isCancelled: false,
@@ -160,7 +164,7 @@ const LLAMADAS: Call[] = [
     costCents: 7,
     booking: {
       id: "bk-5",
-      programedAt: desplazar(1650),
+      programedAt: "2026-09-07T08:00:00.000Z", // lunes 10:00 en Madrid
       durationMinutes: 30,
       numberPeople: 1,
       isCancelled: true,

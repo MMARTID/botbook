@@ -13,7 +13,7 @@ cada una:
 | Desde dónde se lanza `/design-sync` | la raíz del repo                  | `web/`                               |
 | Config                              | `.design-sync/config.json`        | `web/.design-sync/config.json`       |
 | Bundle                              | `window.Alhabla` (`alhabla-ui`)   | `window.AlhablaWeb` (`alhabla-web-ui`) |
-| Proyecto en claude.ai/design        | «Alhabla UI» (`projectId`)        | ninguno aún: lo crea su primera sync |
+| Proyecto en claude.ai/design        | «Alhabla App» (`projectId`)       | «Alhabla Web» (`projectId`)          |
 | Componentes                         | 12 (7 del panel + 5 compartidos)  | 17 (12 de marketing + 5 compartidos) |
 
 El convertidor busca `.design-sync/` (previews, overrides, caché) en el
@@ -31,6 +31,19 @@ Los cinco **componentes compartidos** (`BrandMark`, `RangeSlider`,
 en las dos webs (`scripts/comprobar-copias-compartidas.sh`) y van en los dos
 paquetes, con su preview y su doc copiados. **Si cambias la preview o el doc de
 uno de ellos, cópialo al otro paquete.**
+
+**Primera subida real: 2026-09-29**, a dos proyectos nuevos creados ese día
+(«Alhabla App» `b0d14166…` y «Alhabla Web» `bfd840b2…`). El `projectId`
+anterior de la app (`f9904448…`, «Alhabla UI») daba 404 y la cuenta no tenía
+ningún proyecto: la subida de septiembre nunca llegó a hacerse. Desde aquí
+cada re-sync trae su ancla (`_ds_sync.json`) del proyecto y solo reverifica lo
+que cambie.
+
+El convertidor se monta en `.ds-sync/` de la raíz (con `playwright@1.63.0`,
+que es la versión que casa con el `chromium-1243` de la caché de esta máquina);
+`web/.ds-sync/` es otra copia de los scripts con `node_modules` enlazado al de
+la raíz. `--node-modules` es `frontend/node_modules` aquí y `node_modules`
+desde `web/`.
 
 ## Qué es este paquete para el convertidor
 
@@ -111,34 +124,48 @@ threshold», por debajo de su umbral.
 - Las composiciones a nivel de página (`AppShell`, `Providers`, las páginas de
   `app/`) siguen fuera del ámbito por decisión del usuario: sólo se sincronizan
   las piezas reutilizables del sistema.
-- **`CallDetailModal` va con tarjeta tipográfica (floor card) a propósito.** Es
-  un overlay `position: fixed` a pantalla completa con scroll interno: se probó
-  con `cardMode: single` a 900x760, 900x1500, 820x900 y 900x1250, con una
-  llamada corta sembrada y con un ancestro transformado (que sí cambia el bloque
-  contenedor de los `fixed`) y en todos los casos la captura recorta la
-  cabecera o sale en blanco. Se prefirió la tarjeta honesta a una que enseña el
-  componente descabezado. **Funciona perfectamente al importarlo**; sólo no se
-  deja fotografiar. No repetir el intento sin una técnica nueva para el bloque
-  contenedor de `fixed` bajo el ancestro transformado del harness.
-- **`ParticleMouseLayer` también va con floor card.** Es una capa global
-  `fixed inset-0 -z-10` (mismo problema que `CallDetailModal`) que además se
-  apaga sin puntero fino o con `prefers-reduced-motion`, que es justo lo que
-  fuerza `_sin-movimiento.ts`.
+- Ninguna tarjeta tipográfica: desde el 2026-09-29 los 12 componentes tienen
+  preview. `CallDetailModal` (viewport 900x800) y `ParticleMouseLayer`
+  (900x480) usan la técnica de abajo.
+
+**Overlays `fixed` en una tarjeta (técnica del 2026-09-29).** La tarjeta
+envuelve cada historia en un `div` con `transform`, que pasa a ser el bloque
+contenedor de los `fixed`; pero ese `div` mide 0 de alto porque el overlay está
+fuera del flujo, así que `inset-0` colapsaba y la captura salía en blanco o sin
+cabecera (así fallaron las cuatro pruebas de antes con `CallDetailModal`). La
+preview mete el componente en una caja propia con alto explícito igual al
+viewport del override y su propio `transform`: el overlay la llena entero.
+
+`ParticleMouseLayer` además **no** importa `_sin-movimiento.ts` (con
+`prefers-reduced-motion` no arranca) y simula un `mousemove` en el centro para
+que se vea la repulsión; sus puntos se siembran al azar, así que la captura
+cambia en cada build aunque la calificación se mantiene.
 
 ## Hallazgos sobre el propio código (no tocados)
 
-- **`BrandMark` sale como imagen rota en las tarjetas.** Hoy es un
-  `<img src="/brand/alhabla-isotipo.svg">` con ruta absoluta: en la web real la
-  sirve `public/`, pero en claude.ai/design esa ruta no existe y el bundle no
-  lleva el SVG. Arreglarlo es tocar el componente (copia compartida en las dos
-  webs), fuera del alcance de la sincronización.
+- Ninguno pendiente. **`BrandMark` salía como imagen rota** (un
+  `<img src="/brand/alhabla-isotipo.svg">` que fuera de Next no existe): desde
+  el 2026-09-29 lleva el SVG dentro, optimizado con svgo, como data URI (ver
+  Riesgos).
 
 ## Riesgos de cara a la próxima sincronización
+
+- **`BrandMark` lleva una copia del isotipo dentro** (`brand-mark.tsx`, SVG de
+  `public/brand/alhabla-isotipo.svg` pasado por `svgo --multipass`). Si cambia
+  el logo, hay que regenerar esa copia en las dos webs; si alguien vuelve a una
+  ruta `/brand/...`, la tarjeta sale rota otra vez sin que falle nada.
+- La hora de las llamadas sembradas sale de `AHORA` en `prepare.mjs` (19:30 en
+  Madrid): con las llamadas hasta 12 h antes, moverla hacia la mañana las lleva
+  a la madrugada y la tarjeta deja de ser verosímil.
 
 - La lista de componentes **no** se propaga sola: vive en
   `cfg.componentSrcMap` y hay que ampliarla a mano cuando se añada un
   componente a `frontend/src/components/`. Si uno se mueve o se borra, el
   prepare ya falla en vez de callarse.
+- Las reservas sembradas llevan fecha fija (jueves 10, martes 8 y lunes 7 de
+  septiembre de 2026, como dicen sus resúmenes); las llamadas son relativas a
+  `AHORA`. Si cambias una de las dos cosas, revisa que resumen, transcripción y
+  «Reserva vinculada» de `CallDetailModal` sigan diciendo lo mismo.
 - Las previews del panel dependen de que las **queryKey** de los componentes no
   cambien (`["recent-calls"]`, `["onboarding-state"]`, `["call-detail", id]`).
   Si alguien renombra una clave, la tarjeta pasa a estado de carga o de error

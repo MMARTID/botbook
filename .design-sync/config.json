@@ -1,6 +1,6 @@
 {
   "shape": "package",
-  "projectId": "f9904448-967b-4727-8bc1-b51df49ca786",
+  "projectId": "b0d14166-6e00-4920-a8c4-644a53373e25",
   "entry": "frontend/.ds-src/entry.ts",
   "pkg": "alhabla-ui",
   "globalName": "Alhabla",
@@ -33,6 +33,15 @@
     "ParticleField": {
       "cardMode": "single",
       "primaryStory": "SobreBlanco"
+    },
+    "CallDetailModal": {
+      "cardMode": "single",
+      "primaryStory": "Consulta",
+      "viewport": "900x800"
+    },
+    "ParticleMouseLayer": {
+      "cardMode": "single",
+      "viewport": "900x480"
     }
   },
   "dtsPropsFor": {

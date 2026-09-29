@@ -31,8 +31,8 @@ export default function PrivacidadPage() {
     >
       <LegalSection title="Quién es el responsable">
         <p>
-          Esta política se aplica específicamente a <strong className="font-semibold text-[#1e2b22]">Alhabla</strong>.
-          El responsable del tratamiento es <strong className="font-semibold text-[#1e2b22]">Miguel Martín
+          Esta política se aplica específicamente a <strong className="font-semibold text-[#0a0a0a]">Alhabla</strong>.
+          El responsable del tratamiento es <strong className="font-semibold text-[#0a0a0a]">Miguel Martín
           Delgado</strong>, profesional autónomo con NIF 49456776Z y domicilio fiscal en Carrer Sot De Bacs 175,
           08470 Sant Celoni, Barcelona. Para cualquier cuestión sobre privacidad puedes escribir a{" "}
           <a href="mailto:privacidad@alhabla.ai" className="font-medium text-[#6d28d9] underline underline-offset-2">
@@ -79,7 +79,7 @@ export default function PrivacidadPage() {
           cualquier momento desde tu navegador.
         </p>
         <p>
-          La demo está configurada para <strong className="font-semibold text-[#1e2b22]">no grabar audio, no guardar
+          La demo está configurada para <strong className="font-semibold text-[#0a0a0a]">no grabar audio, no guardar
           la transcripción y no registrar la conversación</strong>. El texto que ves en pantalla durante la llamada se
           construye en tu propio navegador y desaparece al cerrar la ventana. La demo no crea ninguna cita real ni
           queda asociada a ninguna cuenta.
@@ -116,7 +116,7 @@ export default function PrivacidadPage() {
         <p>
           Esto es importante y conviene que lo sepas antes de contratar, porque afecta a las personas que llaman a tu
           negocio: las llamadas que atiende tu recepcionista virtual{" "}
-          <strong className="font-semibold text-[#1e2b22]">se graban, se transcriben y se clasifican</strong> para que
+          <strong className="font-semibold text-[#0a0a0a]">se graban, se transcriben y se clasifican</strong> para que
           puedas consultarlas en tu panel, saber qué pidió cada cliente y comprobar que la cita se registró bien.
         </p>
         <p>
@@ -199,7 +199,7 @@ export default function PrivacidadPage() {
         </p>
         <ul className="list-disc space-y-2 pl-5">
           <li>
-            <strong className="font-semibold text-[#1e2b22]">Retell.</strong> Procesa la conversación de voz y las
+            <strong className="font-semibold text-[#0a0a0a]">Retell.</strong> Procesa la conversación de voz y las
             transcripciones para atender llamadas y elaborar sus resultados. Consulta su{" "}
             <a
               href="https://www.retellai.com/legal/privacy-policy"
@@ -212,7 +212,7 @@ export default function PrivacidadPage() {
             .
           </li>
           <li>
-            <strong className="font-semibold text-[#1e2b22]">Telnyx.</strong> Proporciona telefonía, mensajería y
+            <strong className="font-semibold text-[#0a0a0a]">Telnyx.</strong> Proporciona telefonía, mensajería y
             WhatsApp para cursar llamadas y comunicaciones del servicio. Puedes consultar su{" "}
             <a
               href="https://telnyx.com/privacy-policy"
@@ -234,15 +234,15 @@ export default function PrivacidadPage() {
             .
           </li>
           <li>
-            <strong className="font-semibold text-[#1e2b22]">Stripe.</strong> Gestiona la suscripción y los pagos.
+            <strong className="font-semibold text-[#0a0a0a]">Stripe.</strong> Gestiona la suscripción y los pagos.
             Alhabla no almacena los datos completos de tu tarjeta.
           </li>
           <li>
-            <strong className="font-semibold text-[#1e2b22]">Google y Microsoft.</strong> Prestan los servicios de
+            <strong className="font-semibold text-[#0a0a0a]">Google y Microsoft.</strong> Prestan los servicios de
             calendario que conectas voluntariamente.
           </li>
           <li>
-            <strong className="font-semibold text-[#1e2b22]">Cloudflare R2, Vercel y Zoho Mail.</strong> Permiten,
+            <strong className="font-semibold text-[#0a0a0a]">Cloudflare R2, Vercel y Zoho Mail.</strong> Permiten,
             respectivamente, almacenar grabaciones cifradas, servir la aplicación y entregar correos transaccionales.
           </li>
         </ul>
