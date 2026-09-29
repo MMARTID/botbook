@@ -3,9 +3,10 @@ import * as React from "react";
 import { RecentCalls } from "alhabla-ui";
 
 /**
- * No recibe props: lee `["recent-calls"]` de React Query. Las seis llamadas
- * sembradas cubren los tres desenlaces (reservada, informativa y fuera de
- * alcance) y los tres sentimientos, que es lo que hace legible el listado.
+ * No recibe props: lee `["recent-calls"]` de React Query. Las seis
+ * conversaciones sembradas cubren reserva creada y modificada, un chat de
+ * WhatsApp, un escalado con su motivo, los desenlaces más comunes y los tres
+ * sentimientos, que es lo que hace legible el listado.
  */
 export function ConLlamadas() {
   return (

@@ -1,6 +1,6 @@
 import "./_sin-movimiento";
 import * as React from "react";
-import { RangeSlider } from "alhabla-ui";
+import { RangeSlider } from "alhabla-web-ui";
 import { CalendarX, Tag } from "lucide-react";
 
 const euros = new Intl.NumberFormat("es-ES", {

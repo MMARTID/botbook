@@ -1,0 +1,61 @@
+{
+  "shape": "package",
+  "entry": ".ds-src/entry.ts",
+  "pkg": "alhabla-web-ui",
+  "globalName": "AlhablaWeb",
+  "buildCmd": "node .design-sync/prepare.mjs",
+  "srcDir": "src/components",
+  "tsconfig": "tsconfig.json",
+  "cssEntry": ".ds-src/alhabla-web.css",
+  "docsDir": ".design-sync/docs",
+  "guidelinesGlob": [
+    "../DESIGN.md"
+  ],
+  "provider": {
+    "component": "PreviewProviders"
+  },
+  "componentSrcMap": {
+    "BrandMark": "src/components/brand-mark.tsx",
+    "RangeSlider": "src/components/range-slider.tsx",
+    "GoogleAuthButton": "src/components/google-auth-button.tsx",
+    "PlanSelectionLink": "src/components/plan-selection-link.tsx",
+    "MobileNav": "src/components/mobile-nav.tsx",
+    "LegalSection": "src/components/legal-page.tsx",
+    "LegalTodo": "src/components/legal-page.tsx",
+    "CountUp": "src/components/count-up.tsx",
+    "AnimatedCurrency": "src/components/animated-currency.tsx",
+    "LandingHero": "src/components/landing-hero.tsx",
+    "PlansHeadline": "src/components/plans-headline.tsx",
+    "SectorDataSection": "src/components/sector-data-section.tsx",
+    "RevenueLossCalculator": "src/components/revenue-loss-calculator.tsx",
+    "Reveal": "src/components/scroll-reveal.tsx",
+    "ParticleField": "src/components/particle-field.tsx",
+    "ParticleMouseLayer": "src/components/particle-mouse-layer.tsx",
+    "DemoVoiceCall": "src/components/demo-voice-call.tsx"
+  },
+  "overrides": {
+    "MobileNav": {
+      "cardMode": "single",
+      "viewport": "390x420"
+    },
+    "LandingHero": {
+      "cardMode": "column"
+    },
+    "SectorDataSection": {
+      "cardMode": "column"
+    },
+    "ParticleField": {
+      "cardMode": "single",
+      "primaryStory": "SobreBlanco"
+    },
+    "RevenueLossCalculator": {
+      "cardMode": "single",
+      "primaryStory": "Generica",
+      "viewport": "1000x1500"
+    }
+  },
+  "dtsPropsFor": {
+    "PlansHeadline": "  /** No recibe props: el titular sale de la estimación de la calculadora, si la hay. */"
+  },
+  "readmeHeader": ".design-sync/conventions.md"
+}

@@ -1,6 +1,6 @@
 import "./_sin-movimiento";
 import * as React from "react";
-import { Reveal } from "alhabla-ui";
+import { Reveal } from "alhabla-web-ui";
 
 /**
  * Envoltorio de aparición al entrar en pantalla. En la tarjeta el contenido
