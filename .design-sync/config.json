@@ -33,6 +33,15 @@
     "ParticleField": {
       "cardMode": "single",
       "primaryStory": "SobreBlanco"
+    },
+    "CallDetailModal": {
+      "cardMode": "single",
+      "primaryStory": "Consulta",
+      "viewport": "900x800"
+    },
+    "ParticleMouseLayer": {
+      "cardMode": "single",
+      "viewport": "900x480"
     }
   },
   "dtsPropsFor": {

@@ -3,15 +3,14 @@ import * as React from "react";
 import { LegalTodo } from "alhabla-web-ui";
 
 /**
- * El componente ya pone el rótulo «Pendiente antes de publicar:»,
- * así que los `children` son sólo lo que falta — no repitas la etiqueta.
+ * El componente ya pone el rótulo «Pendiente antes de publicar:», así que los
+ * `children` son sólo lo que falta — no repitas la etiqueta. Los textos son de
+ * ejemplo: las páginas legales publicadas no tienen ningún hueco pendiente.
  */
 export function Pendiente() {
   return (
     <div className="w-full max-w-2xl">
-      <LegalTodo>
-        Falta el nombre fiscal, el NIF y el domicilio social del titular.
-      </LegalTodo>
+      <LegalTodo>Fecha de entrada en vigor de esta versión.</LegalTodo>
     </div>
   );
 }
@@ -21,11 +20,11 @@ export function EntreParrafos() {
   return (
     <div className="w-full max-w-2xl">
       <p className="text-sm leading-6 text-muted">
-        Los datos identificativos del responsable del sitio se recogen en este
-        apartado conforme a la LSSI-CE.
+        Estas condiciones se aplican desde la fecha indicada y sustituyen a
+        cualquier versión anterior.
       </p>
       <div className="mt-3">
-        <LegalTodo>Datos fiscales del titular.</LegalTodo>
+        <LegalTodo>Fecha de entrada en vigor de esta versión.</LegalTodo>
       </div>
     </div>
   );

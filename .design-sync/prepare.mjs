@@ -96,7 +96,9 @@ const LLAMADAS: Call[] = [
     },
     booking: {
       id: "bk-1",
-      programedAt: desplazar(4290),
+      // El jueves siguiente a las 17:30 en Madrid, como dicen el resumen y la
+      // transcripción (fijo: no depende de AHORA).
+      programedAt: "2026-09-10T15:30:00.000Z",
       durationMinutes: 90,
       numberPeople: 1,
       isCancelled: false,
@@ -129,7 +131,7 @@ const LLAMADAS: Call[] = [
     voiceProvider: "whatsapp",
     booking: {
       id: "bk-3",
-      programedAt: desplazar(5790),
+      programedAt: "2026-09-08T09:00:00.000Z", // martes 11:00 en Madrid
       durationMinutes: 45,
       numberPeople: 1,
       isCancelled: false,
@@ -162,7 +164,7 @@ const LLAMADAS: Call[] = [
     costCents: 7,
     booking: {
       id: "bk-5",
-      programedAt: desplazar(1650),
+      programedAt: "2026-09-07T08:00:00.000Z", // lunes 10:00 en Madrid
       durationMinutes: 30,
       numberPeople: 1,
       isCancelled: true,

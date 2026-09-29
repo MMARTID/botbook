@@ -53,6 +53,14 @@
       "cardMode": "single",
       "primaryStory": "Generica",
       "viewport": "1000x1500"
+    },
+    "ParticleMouseLayer": {
+      "cardMode": "single",
+      "viewport": "900x480"
+    },
+    "DemoVoiceCall": {
+      "cardMode": "single",
+      "viewport": "900x760"
     }
   },
   "dtsPropsFor": {

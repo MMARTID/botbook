@@ -124,19 +124,22 @@ threshold», por debajo de su umbral.
 - Las composiciones a nivel de página (`AppShell`, `Providers`, las páginas de
   `app/`) siguen fuera del ámbito por decisión del usuario: sólo se sincronizan
   las piezas reutilizables del sistema.
-- **`CallDetailModal` va con tarjeta tipográfica (floor card) a propósito.** Es
-  un overlay `position: fixed` a pantalla completa con scroll interno: se probó
-  con `cardMode: single` a 900x760, 900x1500, 820x900 y 900x1250, con una
-  llamada corta sembrada y con un ancestro transformado (que sí cambia el bloque
-  contenedor de los `fixed`) y en todos los casos la captura recorta la
-  cabecera o sale en blanco. Se prefirió la tarjeta honesta a una que enseña el
-  componente descabezado. **Funciona perfectamente al importarlo**; sólo no se
-  deja fotografiar. No repetir el intento sin una técnica nueva para el bloque
-  contenedor de `fixed` bajo el ancestro transformado del harness.
-- **`ParticleMouseLayer` también va con floor card.** Es una capa global
-  `fixed inset-0 -z-10` (mismo problema que `CallDetailModal`) que además se
-  apaga sin puntero fino o con `prefers-reduced-motion`, que es justo lo que
-  fuerza `_sin-movimiento.ts`.
+- Ninguna tarjeta tipográfica: desde el 2026-09-29 los 12 componentes tienen
+  preview. `CallDetailModal` (viewport 900x800) y `ParticleMouseLayer`
+  (900x480) usan la técnica de abajo.
+
+**Overlays `fixed` en una tarjeta (técnica del 2026-09-29).** La tarjeta
+envuelve cada historia en un `div` con `transform`, que pasa a ser el bloque
+contenedor de los `fixed`; pero ese `div` mide 0 de alto porque el overlay está
+fuera del flujo, así que `inset-0` colapsaba y la captura salía en blanco o sin
+cabecera (así fallaron las cuatro pruebas de antes con `CallDetailModal`). La
+preview mete el componente en una caja propia con alto explícito igual al
+viewport del override y su propio `transform`: el overlay la llena entero.
+
+`ParticleMouseLayer` además **no** importa `_sin-movimiento.ts` (con
+`prefers-reduced-motion` no arranca) y simula un `mousemove` en el centro para
+que se vea la repulsión; sus puntos se siembran al azar, así que la captura
+cambia en cada build aunque la calificación se mantiene.
 
 ## Hallazgos sobre el propio código (no tocados)
 
@@ -159,6 +162,10 @@ threshold», por debajo de su umbral.
   `cfg.componentSrcMap` y hay que ampliarla a mano cuando se añada un
   componente a `frontend/src/components/`. Si uno se mueve o se borra, el
   prepare ya falla en vez de callarse.
+- Las reservas sembradas llevan fecha fija (jueves 10, martes 8 y lunes 7 de
+  septiembre de 2026, como dicen sus resúmenes); las llamadas son relativas a
+  `AHORA`. Si cambias una de las dos cosas, revisa que resumen, transcripción y
+  «Reserva vinculada» de `CallDetailModal` sigan diciendo lo mismo.
 - Las previews del panel dependen de que las **queryKey** de los componentes no
   cambien (`["recent-calls"]`, `["onboarding-state"]`, `["call-detail", id]`).
   Si alguien renombra una clave, la tarjeta pasa a estado de carga o de error
