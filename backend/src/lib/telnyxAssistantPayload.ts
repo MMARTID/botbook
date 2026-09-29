@@ -385,6 +385,12 @@ export function buildInformarAlNegocioTool(): DefinicionDeToolDeWebhook {
         },
         required: ["motivo"],
       },
+      dudas_sin_respuesta: {
+        type: "array",
+        items: { type: "string" },
+        description:
+          "Preguntas del cliente que no pudiste responder porque no tenías esa información (formas de pago, aparcamiento, si hacéis algo…), una por elemento y con sus palabras. No incluyas lo que sí respondiste ni lo que era para el negocio (recados, quejas). Si respondiste a todo, no lo envíes.",
+      },
     },
     required: ["resultado"],
   };

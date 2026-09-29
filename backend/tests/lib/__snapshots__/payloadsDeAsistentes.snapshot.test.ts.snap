@@ -256,6 +256,13 @@ exports[`payloads de asistentes (instantáneas) > assistant de la recepcionista,
       "webhook": {
         "body_parameters": {
           "properties": {
+            "dudas_sin_respuesta": {
+              "description": "Preguntas del cliente que no pudiste responder porque no tenías esa información (formas de pago, aparcamiento, si hacéis algo…), una por elemento y con sus palabras. No incluyas lo que sí respondiste ni lo que era para el negocio (recados, quejas). Si respondiste a todo, no lo envíes.",
+              "items": {
+                "type": "string",
+              },
+              "type": "array",
+            },
             "fallo_de_tool": {
               "description": "true si alguna herramienta (disponibilidad, reserva, cancelación) falló o devolvió error durante la llamada.",
               "type": "boolean",
@@ -456,17 +463,29 @@ El negocio con el que hablas está fijado por el sistema: no preguntes de qué n
 
 ## Qué puedes hacer
 
-Consultar: la agenda de un día (listar_agenda, con las ausencias de ese día), si una hora concreta está libre y cuál es el hueco más cercano (buscar_hueco), el resumen de llamadas y reservas de los últimos días (resumen_llamadas) y el estado del negocio (contexto_negocio).
+Consultar: la agenda de un día (listar_agenda, con las ausencias de ese día), si una hora concreta está libre y cuál es el hueco más cercano (buscar_hueco), la ficha de un cliente (buscar_cliente), el resumen de llamadas y reservas de los últimos días (resumen_llamadas), lo que la recepcionista no supo responder (dudas_sin_respuesta) y el estado del negocio (contexto_negocio).
 
-Proponer acciones (siempre con proponer_accion, nunca directamente): apuntar, mover o cancelar citas y avisar al cliente por WhatsApp; marcar ausencias de alguien del equipo; cerrar días o tramos; dar de alta, cambiar o retirar servicios; añadir o retirar personas del equipo y fijar quién es especialista en qué; fijar el horario semanal; dar por resuelta una cita pendiente. Para cambiar el calendario conectado o el plan, explica que se hace desde el panel de Alhabla y da el enlace que devuelve contexto_negocio.
+Proponer acciones (siempre con proponer_accion, nunca directamente): apuntar, mover o cancelar citas y avisar al cliente por WhatsApp; marcar ausencias de alguien del equipo; cerrar días o tramos; dar de alta, cambiar o retirar servicios; añadir o retirar personas del equipo y fijar quién es especialista en qué; fijar el horario semanal; enseñar a la recepcionista lo que debe saber del negocio; dar por resuelta una cita pendiente. Para cambiar el calendario conectado o el plan, explica que se hace desde el panel de Alhabla y da el enlace que devuelve contexto_negocio.
 
 ## Agenda
 
 Apuntar una cita («apunta a Marta mañana a las 5, corte»): necesitas nombre del cliente, día y hora, y servicio; la persona del equipo solo si el dueño la dice, y el móvil del cliente si lo da (pídelo una vez si no lo da: sin él no se le puede mandar la confirmación, pero la cita se apunta igual). Las fechas y horas van en hora local del negocio, formato AAAA-MM-DDTHH:MM. Propón directamente añadir_cita: el sistema comprueba horario, ausencias y disponibilidad real y, si esa hora no vale, te devuelve el motivo con el hueco libre más cercano; ofrécelo al dueño y propón de nuevo solo cuando él elija. Usa buscar_hueco cuando el dueño pregunte por huecos sin querer apuntar todavía.
 
-Mover o cancelar («mueve la de Marta al viernes a las 6», «cancela la de las 5»): localiza la cita con listar_agenda (si hay varias que encajan, pregunta cuál) y propón mover_cita o cancelar_cita con su citaId. Si proponer_accion devuelve en recurso el móvil del cliente, escríbelo tal cual en tu mensaje («Su móvil, por si prefieres llamarle antes: +34…»): el dueño puede preferir llamarle, y la propuesta le espera 24 horas. Tras confirmar, el sistema mismo le pregunta con botones si avisa al cliente por WhatsApp: no lo preguntes tú ni propongas avisar_cliente salvo que el dueño lo pida después expresamente.
+Mover o cancelar («mueve la de Marta al viernes a las 6», «cancela la de las 5»): localiza la cita con listar_agenda, o con buscar_cliente si el dueño da el nombre y no el día (si hay varias que encajan, pregunta cuál) y propón mover_cita o cancelar_cita con su citaId. Si proponer_accion devuelve en recurso el móvil del cliente, escríbelo tal cual en tu mensaje («Su móvil, por si prefieres llamarle antes: +34…»): el dueño puede preferir llamarle, y la propuesta le espera 24 horas. Tras confirmar, el sistema mismo le pregunta con botones si avisa al cliente por WhatsApp: no lo preguntes tú ni propongas avisar_cliente salvo que el dueño lo pida después expresamente.
 
 Ausencias y cierres: «Laura no viene el viernes» es marcar_ausencia (días enteros si no dice horas); «cerramos el sábado por la tarde» es bloquear_franja; «el 12 cerramos» o «vacaciones del 1 al 15» es cerrar_dia. Si la comprobación avisa de citas ya reservadas en ese tramo, díselo al dueño y ofrécete a moverlas o cancelarlas una a una.
+
+## Clientes
+
+Para lo que pregunte de un cliente («¿cuándo vino Marta?», «¿tiene cita Pepe?», «¿qué se hizo Laura la última vez?»), usa buscar_cliente con su nombre o su móvil; si salen varios, pregunta cuál. Solo ve las citas que pasaron por Alhabla: si una cita no aparece, di que no la ves aquí, no que no exista. Con el citaId de sus próximas citas puedes proponer moverlas o cancelarlas.
+
+## Lo que sabe la recepcionista
+
+La recepcionista responde con el catálogo, el equipo, el horario y la información del negocio (informacion en contexto_negocio: cómo llegar, aparcamiento, formas de pago, política de cancelación, lo que no hacéis). Cuando el dueño te cuente algo que ella debería saber («dile que aceptamos Bizum», «ya no hacemos keratina»), propón actualizar_informacion con nuevo: una frase corta y clara sobre el negocio («Se puede pagar con Bizum.»), no sobre esta conversación. Para cambiar o quitar algo que ya está, copia en anterior el fragmento exacto de informacion.
+
+Servicios, precios, duraciones, equipo, horario, cierres y ausencias no van en la información del negocio: tienen sus propias acciones, y la recepcionista reserva con ellos, no con un texto.
+
+Si el dueño pregunta qué no supo responder la recepcionista o qué preguntan los clientes, usa dudas_sin_respuesta: resume las dudas, las más repetidas primero, y ofrécete a enseñarle la respuesta de las que el dueño sepa, una propuesta cada vez. Las llamadas que quedaron sin resolver por un fallo técnico o por ser fuera de horario no se arreglan enseñándole nada: cuéntalas sin más.
 
 ## Poner en marcha la recepcionista
 
@@ -490,7 +509,7 @@ Nombra servicios y personas por su nombre exacto tal como aparecen en contexto_n
 
 No inventes citas, clientes, servicios, precios ni horarios: todo sale de las consultas que haces. Si una consulta falla o no devuelve lo que necesitas, di que ahora mismo no puedes comprobarlo y sugiere el panel, sin nombrar la herramienta.
 
-No des datos de otros negocios ni especules sobre ellos. No compartas números de teléfono de clientes salvo que el dueño pregunte por una cita concreta.
+No des datos de otros negocios ni especules sobre ellos. No compartas números de teléfono de clientes salvo que el dueño pregunte por una cita o por un cliente concreto.
 
 Si el dueño pide ayuda o no sabe qué puede hacer, resume en tres líneas lo que puedes consultar y proponer, y recuerda que puede escribir AYUDA.
 
@@ -506,7 +525,7 @@ Si te escriben en catalán, gallego, euskera o inglés, responde en ese idioma; 
           "required": undefined,
           "type": "object",
         },
-        "description": "Estado del negocio del dueño con el que hablas: nombre, sector, zona horaria, teléfono, servicios activos con duración y precio (con sus ids), profesionales con sus especialidades (con sus ids), horario, calendario conectado, plan, qué falta por configurar (faltaPorConfigurar), enlaces al panel (enlaces.panel, enlaces.calendario para conectar el calendario), más las citas pendientes de resolver y los recados sin atender. Úsala una vez cuando necesites cualquiera de esos datos y otra vez después de una acción confirmada si necesitas los ids nuevos.",
+        "description": "Estado del negocio del dueño con el que hablas: nombre, sector, zona horaria, teléfono, servicios activos con duración y precio (con sus ids), profesionales con sus especialidades (con sus ids), horario, la información del negocio que usa la recepcionista (informacion), calendario conectado, plan, qué falta por configurar (faltaPorConfigurar), enlaces al panel (enlaces.panel, enlaces.calendario para conectar el calendario), más las citas pendientes de resolver y los recados sin atender. Úsala una vez cuando necesites cualquiera de esos datos y otra vez después de una acción confirmada si necesitas los ids nuevos.",
         "headers": [
           {
             "name": "X-Alhabla-Business",
@@ -637,8 +656,70 @@ Si te escriben en catalán, gallego, euskera o inglés, responde en ese idioma; 
       "webhook": {
         "body_parameters": {
           "properties": {
+            "cliente": {
+              "description": "Nombre (basta el nombre de pila) o móvil del cliente, tal como lo diga el dueño.",
+              "type": "string",
+            },
+          },
+          "required": [
+            "cliente",
+          ],
+          "type": "object",
+        },
+        "description": "Ficha de un cliente por nombre o por móvil: próximas citas (con su citaId), las últimas con servicio y profesional, cuántas lleva y cuántas se cancelaron, recados sin atender y su último contacto. Solo incluye lo que pasó por Alhabla, no lo que el negocio apuntó directamente en su calendario. Si coinciden varios clientes, los devuelve todos (hasta 5).",
+        "headers": [
+          {
+            "name": "X-Alhabla-Business",
+            "value": "{{business_id}}",
+          },
+          {
+            "name": "X-Alhabla-Role",
+            "value": "{{role}}",
+          },
+        ],
+        "method": "POST",
+        "name": "buscar_cliente",
+        "timeout_ms": 20000,
+        "url": "https://api.alhabla.test/webhooks/telnyx/gestor/buscar_cliente",
+      },
+    },
+    {
+      "type": "webhook",
+      "webhook": {
+        "body_parameters": {
+          "properties": {
+            "dias": {
+              "description": "Cuántos días hacia atrás mirar, entre 1 y 31. Si el dueño no lo dice, 14.",
+              "type": "number",
+            },
+          },
+          "required": undefined,
+          "type": "object",
+        },
+        "description": "Lo que la recepcionista no supo responder en los últimos días: las preguntas de los clientes que ella misma apuntó al colgar (agrupadas, con cuántas veces se repitieron) y las llamadas que acabaron sin resolver, con el motivo. Úsala cuando el dueño pregunte qué no supo responder o qué preguntan los clientes, antes de ofrecerle enseñarle las respuestas.",
+        "headers": [
+          {
+            "name": "X-Alhabla-Business",
+            "value": "{{business_id}}",
+          },
+          {
+            "name": "X-Alhabla-Role",
+            "value": "{{role}}",
+          },
+        ],
+        "method": "POST",
+        "name": "dudas_sin_respuesta",
+        "timeout_ms": 20000,
+        "url": "https://api.alhabla.test/webhooks/telnyx/gestor/dudas_sin_respuesta",
+      },
+    },
+    {
+      "type": "webhook",
+      "webhook": {
+        "body_parameters": {
+          "properties": {
             "parametros": {
-              "description": "Parámetros según el tipo: resolver_pendiente → { pendienteId: string }; crear_servicios → { servicios: [{ nombre: string, duracionMinutos: number, precioEuros?: number }] } (hasta 20; precioEuros con decimales, omítelo si no lo dice); editar_servicio → { servicio: string (id o nombre exacto), nombre?: string, duracionMinutos?: number, precioEuros?: number | null } (null quita el precio); retirar_servicio → { servicio: string (id o nombre exacto) }; crear_profesionales → { profesionales: [{ nombre: string, especialidades?: string[] (ids o nombres exactos de servicios) }] } (hasta 10); retirar_profesional → { profesional: string (id o nombre exacto) }; fijar_especialidad → { profesional: string, servicio: string, nivel: "especialista" | "normal" | "no_sugerir" }; fijar_horario → { semana: { lunes, martes, miercoles, jueves, viernes, sabado, domingo: { abierto: boolean, tramos: [{ inicio: "HH:MM", fin: "HH:MM" }] } } } (los siete días, hasta 3 tramos por día, claves sin tilde); cerrar_dia → { fecha: "AAAA-MM-DD", hastaFecha?: "AAAA-MM-DD", motivo?: string }; bloquear_franja → { fecha: "AAAA-MM-DD", desde: "HH:MM", hasta: "HH:MM", motivo?: string }; marcar_ausencia → { profesional: string (id o nombre exacto), desde: "AAAA-MM-DD", hasta?: "AAAA-MM-DD", horaInicio?: "HH:MM", horaFin?: "HH:MM", motivo?: string }; añadir_cita → { cliente: string, telefono?: "+34…", fechaHora: "AAAA-MM-DDTHH:MM" (hora local), servicios: string[] (ids o nombres exactos), profesional?: string, duracionMinutos?: number }; mover_cita → { cita: string (citaId de listar_agenda), fechaHora: "AAAA-MM-DDTHH:MM", profesional?: string }; cancelar_cita → { cita: string (citaId de listar_agenda) }; avisar_cliente → { cita: string, tipo: "confirmacion" | "cambio" | "cancelacion", telefono?: "+34…" }.",
+              "description": "Parámetros según el tipo: resolver_pendiente → { pendienteId: string }; crear_servicios → { servicios: [{ nombre: string, duracionMinutos: number, precioEuros?: number }] } (hasta 20; precioEuros con decimales, omítelo si no lo dice); editar_servicio → { servicio: string (id o nombre exacto), nombre?: string, duracionMinutos?: number, precioEuros?: number | null } (null quita el precio); retirar_servicio → { servicio: string (id o nombre exacto) }; crear_profesionales → { profesionales: [{ nombre: string, especialidades?: string[] (ids o nombres exactos de servicios) }] } (hasta 10); retirar_profesional → { profesional: string (id o nombre exacto) }; fijar_especialidad → { profesional: string, servicio: string, nivel: "especialista" | "normal" | "no_sugerir" }; fijar_horario → { semana: { lunes, martes, miercoles, jueves, viernes, sabado, domingo: { abierto: boolean, tramos: [{ inicio: "HH:MM", fin: "HH:MM" }] } } } (los siete días, hasta 3 tramos por día, claves sin tilde); cerrar_dia → { fecha: "AAAA-MM-DD", hastaFecha?: "AAAA-MM-DD", motivo?: string }; bloquear_franja → { fecha: "AAAA-MM-DD", desde: "HH:MM", hasta: "HH:MM", motivo?: string }; marcar_ausencia → { profesional: string (id o nombre exacto), desde: "AAAA-MM-DD", hasta?: "AAAA-MM-DD", horaInicio?: "HH:MM", horaFin?: "HH:MM", motivo?: string }; añadir_cita → { cliente: string, telefono?: "+34…", fechaHora: "AAAA-MM-DDTHH:MM" (hora local), servicios: string[] (ids o nombres exactos), profesional?: string, duracionMinutos?: number }; mover_cita → { cita: string (citaId de listar_agenda o buscar_cliente), fechaHora: "AAAA-MM-DDTHH:MM", profesional?: string }; cancelar_cita → { cita: string (citaId de listar_agenda o buscar_cliente) }; avisar_cliente → { cita: string, tipo: "confirmacion" | "cambio" | "cancelacion", telefono?: "+34…" }; actualizar_informacion → { anterior?: string (fragmento literal de informacion en contexto_negocio), nuevo?: string (una o dos frases) } (solo nuevo = añadir al final; solo anterior = quitar ese fragmento; los dos = cambiarlo).",
               "type": "object",
             },
             "resumen": {
@@ -646,7 +727,7 @@ Si te escriben en catalán, gallego, euskera o inglés, responde en ese idioma; 
               "type": "string",
             },
             "tipo": {
-              "description": "Tipo de acción: "resolver_pendiente" (dar por resuelta una cita pendiente que el dueño ya apuntó o resolvió él mismo); "crear_servicios" (dar de alta uno o varios servicios, en una sola propuesta); "editar_servicio" (cambiar el nombre, la duración o el precio de un servicio); "retirar_servicio" (dejar de ofrecer un servicio); "crear_profesionales" (añadir una o varias personas al equipo, en una sola propuesta); "retirar_profesional" (alguien deja el equipo); "fijar_especialidad" (decir quién es especialista en qué, quién lo hace sin serlo o a quién no asignar un servicio); "fijar_horario" (fijar o cambiar el horario semanal completo); "cerrar_dia" (cerrar un día concreto (festivo, puente) o varios seguidos con hastaFecha (vacaciones, hasta 31 días)); "bloquear_franja" (cerrar solo un tramo de un día (la tarde del sábado, de 12 a 14 el jueves)); "marcar_ausencia" (alguien del equipo no viene un día, unos días o un tramo (sin horas = días enteros); no se le reservará nada ahí); "añadir_cita" (apuntar una cita en nombre de un cliente; la duración sale de los servicios si no se dice); "mover_cita" (cambiar la hora (y si hace falta la persona) de una cita ya reservada); "cancelar_cita" (cancelar una cita ya reservada); "avisar_cliente" (mandar al cliente por WhatsApp la confirmación de una cita, el aviso de su nueva hora o el de su cancelación (solo si el dueño lo pide y no se le ha preguntado ya con botones)).",
+              "description": "Tipo de acción: "resolver_pendiente" (dar por resuelta una cita pendiente que el dueño ya apuntó o resolvió él mismo); "crear_servicios" (dar de alta uno o varios servicios, en una sola propuesta); "editar_servicio" (cambiar el nombre, la duración o el precio de un servicio); "retirar_servicio" (dejar de ofrecer un servicio); "crear_profesionales" (añadir una o varias personas al equipo, en una sola propuesta); "retirar_profesional" (alguien deja el equipo); "fijar_especialidad" (decir quién es especialista en qué, quién lo hace sin serlo o a quién no asignar un servicio); "fijar_horario" (fijar o cambiar el horario semanal completo); "cerrar_dia" (cerrar un día concreto (festivo, puente) o varios seguidos con hastaFecha (vacaciones, hasta 31 días)); "bloquear_franja" (cerrar solo un tramo de un día (la tarde del sábado, de 12 a 14 el jueves)); "marcar_ausencia" (alguien del equipo no viene un día, unos días o un tramo (sin horas = días enteros); no se le reservará nada ahí); "añadir_cita" (apuntar una cita en nombre de un cliente; la duración sale de los servicios si no se dice); "mover_cita" (cambiar la hora (y si hace falta la persona) de una cita ya reservada); "cancelar_cita" (cancelar una cita ya reservada); "avisar_cliente" (mandar al cliente por WhatsApp la confirmación de una cita, el aviso de su nueva hora o el de su cancelación (solo si el dueño lo pide y no se le ha preguntado ya con botones)); "actualizar_informacion" (enseñar a la recepcionista algo del negocio que no sea catálogo, equipo, horario ni cierres (cómo llegar, aparcamiento, formas de pago, política de cancelación, lo que no hacéis), o corregirlo o quitarlo).",
               "type": "string",
             },
           },
@@ -657,7 +738,7 @@ Si te escriben en catalán, gallego, euskera o inglés, responde en ese idioma; 
           ],
           "type": "object",
         },
-        "description": "Registra una acción para que el dueño la confirme con un botón. Nunca la ejecuta. Llámala solo cuando el dueño haya pedido con claridad algo que puedes proponer y tengas todos sus datos, con nombres e ids exactos tomados de contexto_negocio, listar_agenda o resumen_llamadas. Una sola propuesta a la vez.",
+        "description": "Registra una acción para que el dueño la confirme con un botón. Nunca la ejecuta. Llámala solo cuando el dueño haya pedido con claridad algo que puedes proponer y tengas todos sus datos, con nombres e ids exactos tomados de contexto_negocio, listar_agenda, buscar_cliente o resumen_llamadas. Una sola propuesta a la vez.",
         "headers": [
           {
             "name": "X-Alhabla-Business",
@@ -680,8 +761,8 @@ Si te escriben en catalán, gallego, euskera o inglés, responde en ese idioma; 
 
 exports[`payloads de asistentes (instantáneas) > el JSON enviado es idéntico byte a byte (hash) 1`] = `
 {
-  "gestor": "d6d743a526a89cee8e0d200f345ca96a482912587fe379e7dfc86d2e7f7ca5d9",
-  "recepcionista": "b262379fd5c9d35c01ded20d32e741e29b673eb87d3a9aad9059a1bf32a69b27",
+  "gestor": "707b26eaf988c5f10658b0e4631b50ba1259b748ab282822035c0543d839b520",
+  "recepcionista": "3ba24b4506bb3ac1ed545d07d66a05dc74960f769e84a13252d83e82ac112ad5",
 }
 `;
 
@@ -875,6 +956,13 @@ exports[`payloads de asistentes (instantáneas) > tools de voz de la recepcionis
     "method": "POST",
     "name": "informar_al_negocio",
     "properties": {
+      "dudas_sin_respuesta": {
+        "description": "Preguntas del cliente que no pudiste responder porque no tenías esa información (formas de pago, aparcamiento, si hacéis algo…), una por elemento y con sus palabras. No incluyas lo que sí respondiste ni lo que era para el negocio (recados, quejas). Si respondiste a todo, no lo envíes.",
+        "items": {
+          "type": "string",
+        },
+        "type": "array",
+      },
       "fallo_de_tool": {
         "description": "true si alguna herramienta (disponibilidad, reserva, cancelación) falló o devolvió error durante la llamada.",
         "type": "boolean",
@@ -943,7 +1031,7 @@ exports[`payloads de asistentes (instantáneas) > tools de voz de la recepcionis
 exports[`payloads de asistentes (instantáneas) > tools del Gestor 1`] = `
 [
   {
-    "description": "Estado del negocio del dueño con el que hablas: nombre, sector, zona horaria, teléfono, servicios activos con duración y precio (con sus ids), profesionales con sus especialidades (con sus ids), horario, calendario conectado, plan, qué falta por configurar (faltaPorConfigurar), enlaces al panel (enlaces.panel, enlaces.calendario para conectar el calendario), más las citas pendientes de resolver y los recados sin atender. Úsala una vez cuando necesites cualquiera de esos datos y otra vez después de una acción confirmada si necesitas los ids nuevos.",
+    "description": "Estado del negocio del dueño con el que hablas: nombre, sector, zona horaria, teléfono, servicios activos con duración y precio (con sus ids), profesionales con sus especialidades (con sus ids), horario, la información del negocio que usa la recepcionista (informacion), calendario conectado, plan, qué falta por configurar (faltaPorConfigurar), enlaces al panel (enlaces.panel, enlaces.calendario para conectar el calendario), más las citas pendientes de resolver y los recados sin atender. Úsala una vez cuando necesites cualquiera de esos datos y otra vez después de una acción confirmada si necesitas los ids nuevos.",
     "headers": [
       {
         "name": "X-Alhabla-Business",
@@ -1051,7 +1139,56 @@ exports[`payloads de asistentes (instantáneas) > tools del Gestor 1`] = `
     "url": "https://api.alhabla.test/webhooks/telnyx/gestor/resumen_llamadas",
   },
   {
-    "description": "Registra una acción para que el dueño la confirme con un botón. Nunca la ejecuta. Llámala solo cuando el dueño haya pedido con claridad algo que puedes proponer y tengas todos sus datos, con nombres e ids exactos tomados de contexto_negocio, listar_agenda o resumen_llamadas. Una sola propuesta a la vez.",
+    "description": "Ficha de un cliente por nombre o por móvil: próximas citas (con su citaId), las últimas con servicio y profesional, cuántas lleva y cuántas se cancelaron, recados sin atender y su último contacto. Solo incluye lo que pasó por Alhabla, no lo que el negocio apuntó directamente en su calendario. Si coinciden varios clientes, los devuelve todos (hasta 5).",
+    "headers": [
+      {
+        "name": "X-Alhabla-Business",
+        "value": "{{business_id}}",
+      },
+      {
+        "name": "X-Alhabla-Role",
+        "value": "{{role}}",
+      },
+    ],
+    "method": "POST",
+    "name": "buscar_cliente",
+    "properties": {
+      "cliente": {
+        "description": "Nombre (basta el nombre de pila) o móvil del cliente, tal como lo diga el dueño.",
+        "type": "string",
+      },
+    },
+    "required": [
+      "cliente",
+    ],
+    "timeoutMs": 20000,
+    "url": "https://api.alhabla.test/webhooks/telnyx/gestor/buscar_cliente",
+  },
+  {
+    "description": "Lo que la recepcionista no supo responder en los últimos días: las preguntas de los clientes que ella misma apuntó al colgar (agrupadas, con cuántas veces se repitieron) y las llamadas que acabaron sin resolver, con el motivo. Úsala cuando el dueño pregunte qué no supo responder o qué preguntan los clientes, antes de ofrecerle enseñarle las respuestas.",
+    "headers": [
+      {
+        "name": "X-Alhabla-Business",
+        "value": "{{business_id}}",
+      },
+      {
+        "name": "X-Alhabla-Role",
+        "value": "{{role}}",
+      },
+    ],
+    "method": "POST",
+    "name": "dudas_sin_respuesta",
+    "properties": {
+      "dias": {
+        "description": "Cuántos días hacia atrás mirar, entre 1 y 31. Si el dueño no lo dice, 14.",
+        "type": "number",
+      },
+    },
+    "timeoutMs": 20000,
+    "url": "https://api.alhabla.test/webhooks/telnyx/gestor/dudas_sin_respuesta",
+  },
+  {
+    "description": "Registra una acción para que el dueño la confirme con un botón. Nunca la ejecuta. Llámala solo cuando el dueño haya pedido con claridad algo que puedes proponer y tengas todos sus datos, con nombres e ids exactos tomados de contexto_negocio, listar_agenda, buscar_cliente o resumen_llamadas. Una sola propuesta a la vez.",
     "headers": [
       {
         "name": "X-Alhabla-Business",
@@ -1066,7 +1203,7 @@ exports[`payloads de asistentes (instantáneas) > tools del Gestor 1`] = `
     "name": "proponer_accion",
     "properties": {
       "parametros": {
-        "description": "Parámetros según el tipo: resolver_pendiente → { pendienteId: string }; crear_servicios → { servicios: [{ nombre: string, duracionMinutos: number, precioEuros?: number }] } (hasta 20; precioEuros con decimales, omítelo si no lo dice); editar_servicio → { servicio: string (id o nombre exacto), nombre?: string, duracionMinutos?: number, precioEuros?: number | null } (null quita el precio); retirar_servicio → { servicio: string (id o nombre exacto) }; crear_profesionales → { profesionales: [{ nombre: string, especialidades?: string[] (ids o nombres exactos de servicios) }] } (hasta 10); retirar_profesional → { profesional: string (id o nombre exacto) }; fijar_especialidad → { profesional: string, servicio: string, nivel: "especialista" | "normal" | "no_sugerir" }; fijar_horario → { semana: { lunes, martes, miercoles, jueves, viernes, sabado, domingo: { abierto: boolean, tramos: [{ inicio: "HH:MM", fin: "HH:MM" }] } } } (los siete días, hasta 3 tramos por día, claves sin tilde); cerrar_dia → { fecha: "AAAA-MM-DD", hastaFecha?: "AAAA-MM-DD", motivo?: string }; bloquear_franja → { fecha: "AAAA-MM-DD", desde: "HH:MM", hasta: "HH:MM", motivo?: string }; marcar_ausencia → { profesional: string (id o nombre exacto), desde: "AAAA-MM-DD", hasta?: "AAAA-MM-DD", horaInicio?: "HH:MM", horaFin?: "HH:MM", motivo?: string }; añadir_cita → { cliente: string, telefono?: "+34…", fechaHora: "AAAA-MM-DDTHH:MM" (hora local), servicios: string[] (ids o nombres exactos), profesional?: string, duracionMinutos?: number }; mover_cita → { cita: string (citaId de listar_agenda), fechaHora: "AAAA-MM-DDTHH:MM", profesional?: string }; cancelar_cita → { cita: string (citaId de listar_agenda) }; avisar_cliente → { cita: string, tipo: "confirmacion" | "cambio" | "cancelacion", telefono?: "+34…" }.",
+        "description": "Parámetros según el tipo: resolver_pendiente → { pendienteId: string }; crear_servicios → { servicios: [{ nombre: string, duracionMinutos: number, precioEuros?: number }] } (hasta 20; precioEuros con decimales, omítelo si no lo dice); editar_servicio → { servicio: string (id o nombre exacto), nombre?: string, duracionMinutos?: number, precioEuros?: number | null } (null quita el precio); retirar_servicio → { servicio: string (id o nombre exacto) }; crear_profesionales → { profesionales: [{ nombre: string, especialidades?: string[] (ids o nombres exactos de servicios) }] } (hasta 10); retirar_profesional → { profesional: string (id o nombre exacto) }; fijar_especialidad → { profesional: string, servicio: string, nivel: "especialista" | "normal" | "no_sugerir" }; fijar_horario → { semana: { lunes, martes, miercoles, jueves, viernes, sabado, domingo: { abierto: boolean, tramos: [{ inicio: "HH:MM", fin: "HH:MM" }] } } } (los siete días, hasta 3 tramos por día, claves sin tilde); cerrar_dia → { fecha: "AAAA-MM-DD", hastaFecha?: "AAAA-MM-DD", motivo?: string }; bloquear_franja → { fecha: "AAAA-MM-DD", desde: "HH:MM", hasta: "HH:MM", motivo?: string }; marcar_ausencia → { profesional: string (id o nombre exacto), desde: "AAAA-MM-DD", hasta?: "AAAA-MM-DD", horaInicio?: "HH:MM", horaFin?: "HH:MM", motivo?: string }; añadir_cita → { cliente: string, telefono?: "+34…", fechaHora: "AAAA-MM-DDTHH:MM" (hora local), servicios: string[] (ids o nombres exactos), profesional?: string, duracionMinutos?: number }; mover_cita → { cita: string (citaId de listar_agenda o buscar_cliente), fechaHora: "AAAA-MM-DDTHH:MM", profesional?: string }; cancelar_cita → { cita: string (citaId de listar_agenda o buscar_cliente) }; avisar_cliente → { cita: string, tipo: "confirmacion" | "cambio" | "cancelacion", telefono?: "+34…" }; actualizar_informacion → { anterior?: string (fragmento literal de informacion en contexto_negocio), nuevo?: string (una o dos frases) } (solo nuevo = añadir al final; solo anterior = quitar ese fragmento; los dos = cambiarlo).",
         "type": "object",
       },
       "resumen": {
@@ -1074,7 +1211,7 @@ exports[`payloads de asistentes (instantáneas) > tools del Gestor 1`] = `
         "type": "string",
       },
       "tipo": {
-        "description": "Tipo de acción: "resolver_pendiente" (dar por resuelta una cita pendiente que el dueño ya apuntó o resolvió él mismo); "crear_servicios" (dar de alta uno o varios servicios, en una sola propuesta); "editar_servicio" (cambiar el nombre, la duración o el precio de un servicio); "retirar_servicio" (dejar de ofrecer un servicio); "crear_profesionales" (añadir una o varias personas al equipo, en una sola propuesta); "retirar_profesional" (alguien deja el equipo); "fijar_especialidad" (decir quién es especialista en qué, quién lo hace sin serlo o a quién no asignar un servicio); "fijar_horario" (fijar o cambiar el horario semanal completo); "cerrar_dia" (cerrar un día concreto (festivo, puente) o varios seguidos con hastaFecha (vacaciones, hasta 31 días)); "bloquear_franja" (cerrar solo un tramo de un día (la tarde del sábado, de 12 a 14 el jueves)); "marcar_ausencia" (alguien del equipo no viene un día, unos días o un tramo (sin horas = días enteros); no se le reservará nada ahí); "añadir_cita" (apuntar una cita en nombre de un cliente; la duración sale de los servicios si no se dice); "mover_cita" (cambiar la hora (y si hace falta la persona) de una cita ya reservada); "cancelar_cita" (cancelar una cita ya reservada); "avisar_cliente" (mandar al cliente por WhatsApp la confirmación de una cita, el aviso de su nueva hora o el de su cancelación (solo si el dueño lo pide y no se le ha preguntado ya con botones)).",
+        "description": "Tipo de acción: "resolver_pendiente" (dar por resuelta una cita pendiente que el dueño ya apuntó o resolvió él mismo); "crear_servicios" (dar de alta uno o varios servicios, en una sola propuesta); "editar_servicio" (cambiar el nombre, la duración o el precio de un servicio); "retirar_servicio" (dejar de ofrecer un servicio); "crear_profesionales" (añadir una o varias personas al equipo, en una sola propuesta); "retirar_profesional" (alguien deja el equipo); "fijar_especialidad" (decir quién es especialista en qué, quién lo hace sin serlo o a quién no asignar un servicio); "fijar_horario" (fijar o cambiar el horario semanal completo); "cerrar_dia" (cerrar un día concreto (festivo, puente) o varios seguidos con hastaFecha (vacaciones, hasta 31 días)); "bloquear_franja" (cerrar solo un tramo de un día (la tarde del sábado, de 12 a 14 el jueves)); "marcar_ausencia" (alguien del equipo no viene un día, unos días o un tramo (sin horas = días enteros); no se le reservará nada ahí); "añadir_cita" (apuntar una cita en nombre de un cliente; la duración sale de los servicios si no se dice); "mover_cita" (cambiar la hora (y si hace falta la persona) de una cita ya reservada); "cancelar_cita" (cancelar una cita ya reservada); "avisar_cliente" (mandar al cliente por WhatsApp la confirmación de una cita, el aviso de su nueva hora o el de su cancelación (solo si el dueño lo pide y no se le ha preguntado ya con botones)); "actualizar_informacion" (enseñar a la recepcionista algo del negocio que no sea catálogo, equipo, horario ni cierres (cómo llegar, aparcamiento, formas de pago, política de cancelación, lo que no hacéis), o corregirlo o quitarlo).",
         "type": "string",
       },
     },

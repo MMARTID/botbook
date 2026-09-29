@@ -121,8 +121,9 @@ beforeEach(() => {
 });
 
 describe("registro", () => {
-  it("expone las acciones de catálogo, horario y agenda", () => {
+  it("expone las acciones de catálogo, horario, agenda e información del negocio", () => {
     expect(Object.keys(ACCIONES_DEL_GESTOR).sort()).toEqual([
+      "actualizar_informacion",
       "anadir_cita",
       "avisar_cliente",
       "añadir_cita",
