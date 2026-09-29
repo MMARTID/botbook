@@ -16,8 +16,8 @@ import * as mensajes from "./mensajes.js";
  *
  * 1. Guarda el PRIMER informe en `Call.postCallReport` (reclamo atómico por
  *    `call_control_id`: Telnyx lo manda dos veces, a veces con contenido
- *    distinto — fase 0.5). Si el segundo trae recado y el primero no, el
- *    recado se añade; nada más se sobrescribe.
+ *    distinto — fase 0.5). Si el segundo trae recado (o dudas sin respuesta)
+ *    y el primero no, se añade; nada más se sobrescribe.
  * 2. Doble escritura con los insights: rellena `Call.outcome`,
  *    `escalationReason`, `toolFailureDetected` y `requestedService` SOLO si
  *    siguen a null (los insights nativos mandan mientras convivan) y deja en
@@ -71,6 +71,13 @@ export const InformeFinalSchema = z
       .transform((value) =>
         value && "motivo" in value && value.motivo ? value : null
       ),
+    // Preguntas que la recepcionista no supo responder por no tener esa
+    // información: el Gestor se las enseña al dueño (`dudas_sin_respuesta`)
+    // para que se la cuente. A veces llega una sola cadena en vez de lista.
+    dudas_sin_respuesta: z
+      .union([z.array(z.unknown()), z.string(), z.null()])
+      .optional()
+      .transform((value) => normalizarDudas(value)),
   })
   .passthrough();
 
@@ -89,6 +96,27 @@ function limpiarTexto(
 ): string | null {
   const limpio = (value ?? "").replace(/\s+/g, " ").trim();
   return limpio ? limpio.slice(0, max) : null;
+}
+
+const MAX_DUDAS_POR_LLAMADA = 5;
+const MAX_LARGO_DE_DUDA = 200;
+
+/** Dudas del informe: una por línea si llega como cadena, sin vacías ni
+ * repetidas, hasta 5 de 200 caracteres. */
+export function normalizarDudas(value: unknown): string[] {
+  const brutas = Array.isArray(value)
+    ? value
+    : typeof value === "string"
+      ? value.split("\n")
+      : [];
+  const dudas: string[] = [];
+  for (const bruta of brutas) {
+    const duda =
+      typeof bruta === "string" ? limpiarTexto(bruta, MAX_LARGO_DE_DUDA) : null;
+    if (duda && !dudas.includes(duda)) dudas.push(duda);
+    if (dudas.length === MAX_DUDAS_POR_LLAMADA) break;
+  }
+  return dudas;
 }
 
 /** Teléfono del recado en E.164 o null si no es utilizable. */
@@ -181,6 +209,7 @@ async function procesarInformeFinalOLanzar(
           quiere_que_le_llamen: recado.quiereQueLeLlamen,
         }
       : null,
+    dudas_sin_respuesta: informe.dudas_sin_respuesta,
   } satisfies Prisma.InputJsonObject;
 
   // 1) Primer informe gana (reclamo atómico).
@@ -206,28 +235,45 @@ async function procesarInformeFinalOLanzar(
       );
       return { outcome: "duplicado", leadId: null };
     }
-    const previo = existente.postCallReport as { recado?: unknown } | null;
-    if (!recado || (previo && previo.recado)) {
+    const previo = existente.postCallReport as {
+      recado?: unknown;
+      dudas_sin_respuesta?: unknown;
+    } | null;
+    const recadoNuevo = recado && !(previo && previo.recado) ? recado : null;
+    // Las dudas, igual que el recado: solo si el primero no traía ninguna.
+    const dudasNuevas =
+      informeJson.dudas_sin_respuesta.length > 0 &&
+      normalizarDudas(previo?.dudas_sin_respuesta).length === 0;
+    if (!recadoNuevo && !dudasNuevas) {
       console.log(
         `[WhatsApp] ${etiqueta}: segundo informe sin novedades, se ignora`
       );
       return { outcome: "duplicado", leadId: null };
     }
-    // Segundo informe con recado que el primero no traía: se añade.
+    // Segundo informe con recado o dudas que el primero no traía: se añaden.
     await prisma.call.update({
       where: { id: existente.id },
       data: {
         postCallReport: {
           ...(previo ?? {}),
-          recado: informeJson.recado,
+          ...(recadoNuevo ? { recado: informeJson.recado } : {}),
+          ...(dudasNuevas
+            ? { dudas_sin_respuesta: informeJson.dudas_sin_respuesta }
+            : {}),
         } as Prisma.InputJsonObject,
       },
     });
+    if (!recadoNuevo) {
+      console.log(
+        `[WhatsApp] ${etiqueta}: el segundo informe añade dudas sin respuesta`
+      );
+      return { outcome: "duplicado", leadId: null };
+    }
     const leadId = await crearLeadYAvisar({
       business,
       callRowId: existente.id,
       callControlId,
-      recado,
+      recado: recadoNuevo,
     });
     return { outcome: "duplicado-con-recado", leadId };
   }

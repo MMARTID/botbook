@@ -76,9 +76,9 @@ describe("RetellAdapter", () => {
         beginMessage: "Hola",
         tools: [
           {
-            name: "check_business_hours",
+            name: "check_availability",
             description: "Comprueba horario",
-            url: "https://example.com/webhooks/retell/tools/check_business_hours",
+            url: "https://example.com/webhooks/retell/tools/check_availability",
             parameters: {
               type: "object",
               properties: {},
@@ -96,8 +96,8 @@ describe("RetellAdapter", () => {
           general_tools: expect.arrayContaining([
             expect.objectContaining({
               type: "custom",
-              name: "check_business_hours",
-              url: "https://example.com/webhooks/retell/tools/check_business_hours",
+              name: "check_availability",
+              url: "https://example.com/webhooks/retell/tools/check_availability",
               args_at_root: true,
             }),
           ]),
@@ -141,9 +141,9 @@ describe("RetellAdapter", () => {
       await adapter.updateLlm("llm_123", {
         tools: [
           {
-            name: "check_business_hours",
+            name: "check_availability",
             description: "Comprueba horario",
-            url: "https://example.com/webhooks/retell/tools/agent_123/check_business_hours",
+            url: "https://example.com/webhooks/retell/tools/agent_123/check_availability",
             args_at_root: false,
             parameters: { type: "object", properties: {}, required: [] },
           },
@@ -154,7 +154,7 @@ describe("RetellAdapter", () => {
         "llm_123",
         expect.objectContaining({
           general_tools: expect.arrayContaining([
-            expect.objectContaining({ name: "check_business_hours", args_at_root: false }),
+            expect.objectContaining({ name: "check_availability", args_at_root: false }),
           ]),
         })
       );

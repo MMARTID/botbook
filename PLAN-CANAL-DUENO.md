@@ -408,6 +408,8 @@ panel, límites de plan incluidos):
 | Estado | `contexto_negocio` |
 | Catálogo (onboarding y cambios) | `crear_servicio`, `editar_servicio`, `retirar_servicio`, `crear_profesional`, `retirar_profesional`, `fijar_especialidad` (los tres niveles), `fijar_horario`, `cerrar_dia`, `conectar_calendario` (devuelve el enlace) |
 | Agenda | `listar_agenda`, `resumen_llamadas`, `añadir_cita`, `mover_cita`, `cancelar_cita`, `marcar_ausencia`, `bloquear_franja`, `resolver_pendiente` |
+| Clientes (29-09) | `buscar_cliente` (ficha por nombre o móvil: próximas y últimas citas, recados, último contacto) |
+| Lo que sabe la recepcionista (29-09) | `dudas_sin_respuesta` (lo que apuntó al colgar que no supo responder), `actualizar_informacion` (la «Información del negocio» del prompt) |
 | Control | `proponer_accion` (la única vía de ejecutar algo: el backend añade el botón) |
 
 **Onboarding por chat.** Tras *Activar avisos*, el Gestor lee `contexto_negocio` y guía lo que

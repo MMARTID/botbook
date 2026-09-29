@@ -4,6 +4,7 @@ import { enqueueEmailJob } from "../../../src/lib/cloudTasks.js";
 import { avisarRecado } from "../../../src/modules/whatsapp/avisosNegocio.js";
 import {
   InformeFinalSchema,
+  normalizarDudas,
   normalizarTelefonoDeRecado,
   procesarInformeFinal,
 } from "../../../src/modules/whatsapp/recados.js";
@@ -84,6 +85,27 @@ describe("normalización", () => {
         recado: { motivo: "quiere balayage", nombre: "María" },
       }).recado
     ).toEqual({ motivo: "quiere balayage", nombre: "María" });
+  });
+
+  it("las dudas sin respuesta llegan limpias: lista o cadena, sin vacías ni repetidas y hasta 5", () => {
+    expect(
+      InformeFinalSchema.parse({ resultado: "RESOLVED" }).dudas_sin_respuesta
+    ).toEqual([]);
+    expect(
+      InformeFinalSchema.parse({
+        resultado: "RESOLVED",
+        dudas_sin_respuesta: null,
+      }).dudas_sin_respuesta
+    ).toEqual([]);
+    expect(
+      normalizarDudas([" ¿Aceptáis  Bizum? ", "", 7, "¿Aceptáis Bizum?"])
+    ).toEqual(["¿Aceptáis Bizum?"]);
+    expect(normalizarDudas("¿Hay parking?\n¿Hacéis keratina?")).toEqual([
+      "¿Hay parking?",
+      "¿Hacéis keratina?",
+    ]);
+    expect(normalizarDudas(["a", "b", "c", "d", "e", "f"])).toHaveLength(5);
+    expect(normalizarDudas(["x".repeat(300)])[0]).toHaveLength(200);
   });
 });
 
@@ -243,6 +265,79 @@ describe("procesarInformeFinal", () => {
       })
     ).toEqual({ outcome: "duplicado", leadId: null });
     expect(mockedAvisar).toHaveBeenCalledTimes(1);
+  });
+
+  it("guarda las dudas sin respuesta del informe junto al resto", async () => {
+    await procesarInformeFinal({
+      business: NEGOCIO,
+      callControlId: "v3:abc",
+      params: {
+        resultado: "ESCALATED",
+        motivo_escalada: "CONSULTA_COMPLEJA",
+        dudas_sin_respuesta: ["¿Aceptáis Bizum?", "¿Hay parking cerca?"],
+      },
+    });
+
+    expect(mockedUpdateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          postCallReport: expect.objectContaining({
+            dudas_sin_respuesta: ["¿Aceptáis Bizum?", "¿Hay parking cerca?"],
+          }),
+        }),
+      })
+    );
+    expect(mockedLeadCreate).not.toHaveBeenCalled();
+  });
+
+  it("un segundo informe añade las dudas si el primero no traía ninguna, sin recado ni aviso", async () => {
+    mockedUpdateMany.mockResolvedValue({ count: 0 });
+    mockedCallFindUnique.mockResolvedValue({
+      id: "call_row",
+      businessId: "biz_1",
+      postCallReport: {
+        resultado: "RESOLVED",
+        recado: null,
+        dudas_sin_respuesta: [],
+      },
+    } as never);
+
+    expect(
+      await procesarInformeFinal({
+        business: NEGOCIO,
+        callControlId: "v3:abc",
+        params: {
+          resultado: "RESOLVED",
+          dudas_sin_respuesta: ["¿Aceptáis Bizum?"],
+        },
+      })
+    ).toEqual({ outcome: "duplicado", leadId: null });
+    expect(mockedCallUpdate).toHaveBeenCalledWith({
+      where: { id: "call_row" },
+      data: {
+        postCallReport: {
+          resultado: "RESOLVED",
+          recado: null,
+          dudas_sin_respuesta: ["¿Aceptáis Bizum?"],
+        },
+      },
+    });
+    expect(mockedLeadCreate).not.toHaveBeenCalled();
+    expect(mockedAvisar).not.toHaveBeenCalled();
+
+    // Si el primero ya traía dudas, las del segundo no se mezclan.
+    mockedCallUpdate.mockClear();
+    mockedCallFindUnique.mockResolvedValue({
+      id: "call_row",
+      businessId: "biz_1",
+      postCallReport: { resultado: "RESOLVED", dudas_sin_respuesta: ["¿A?"] },
+    } as never);
+    await procesarInformeFinal({
+      business: NEGOCIO,
+      callControlId: "v3:abc",
+      params: { resultado: "RESOLVED", dudas_sin_respuesta: ["¿B?"] },
+    });
+    expect(mockedCallUpdate).not.toHaveBeenCalled();
   });
 
   it("un informe de una llamada de otro negocio no toca nada", async () => {
