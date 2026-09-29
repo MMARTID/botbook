@@ -9,6 +9,7 @@ import {
   Group,
   HemisphereLight,
   InstancedMesh,
+  LinearSRGBColorSpace,
   MathUtils,
   Mesh,
   MeshBasicMaterial,
@@ -87,22 +88,27 @@ const BARRAS_ONDA = 52;
 const DURACION_GRABACION = 134;
 
 /**
- * Cámara: frontal y baja desde el principio, un poco de lado, y se acerca y
- * se centra mientras se abre la tapa; órbita lateral baja y acercamiento en
- * la llamada; contraplano alto hacia el chat; plano general al final.
+ * Cámara (la del diseño, «En tu negocio.html» en Claude Design): grúa
+ * cenital → frontal al abrir; órbita lateral baja y acercamiento en la
+ * llamada; contraplano alto hacia el chat; plano general al final.
  * Fotogramas clave sobre el progreso suavizado: azimut y elevación en grados,
  * distancia relativa y altura del punto de mira (en altos de pantalla).
- *
- * Sin plano cenital al empezar (2026-09-29): con la tapa cerrada, desde
- * arriba lo que se ve es la cara exterior de la tapa, y la marca del
- * portátil no tiene que ser la protagonista. Desde un plano bajo esa cara
- * queda casi de canto.
  */
 const CAMARA_T = [0, 0.22, 0.33, 0.45, 0.62, 0.7, 0.84, 0.93, 1];
-const CAMARA_AZIMUT = [-18, 0, 0, 30, 22, -20, -14, 0, 0];
-const CAMARA_ELEVACION = [14, 10, 9, 5, 6, 22, 20, 10, 10];
-const CAMARA_DISTANCIA = [1.12, 1, 0.97, 0.9, 0.92, 0.9, 0.88, 1, 1];
+const CAMARA_AZIMUT = [-28, 0, 0, 30, 22, -20, -14, 0, 0];
+const CAMARA_ELEVACION = [80, 10, 9, 5, 6, 22, 20, 10, 10];
+const CAMARA_DISTANCIA = [1.18, 1, 0.97, 0.9, 0.92, 0.9, 0.88, 1, 1];
 const CAMARA_MIRA = [0, 0, 0, -0.02, -0.02, -0.2, -0.2, 0, 0];
+
+/**
+ * El diseño se hizo con three.js 0.149, que leía los colores hexadecimales
+ * como lineales y usaba intensidades de luz «legacy». Con la gestión de color
+ * actual el mismo portátil salía casi negro en vez de gris espacial: para que
+ * se vea como en Claude Design, los colores se leen como lineales y las luces
+ * se multiplican por π (la equivalencia que da three desde r155).
+ */
+const lineal = (hex: number) => new Color().setHex(hex, LinearSRGBColorSpace);
+const LUZ_LEGACY = Math.PI;
 
 const acotar = (v: number, min = 0, max = 1) => Math.min(max, Math.max(min, v));
 /** Posición de `v` dentro del tramo [a, b], acotada a [0, 1]. */
@@ -300,7 +306,7 @@ export function montarEscena(raiz: HTMLElement): () => void {
   const camara = new PerspectiveCamera(28, 1, 1, 800);
   const pmrem = new PMREMGenerator(renderer);
   const estudio = new Scene();
-  estudio.background = new Color(0x6b6b70);
+  estudio.background = lineal(0x6b6b70);
   const panelDeLuz = (
     w: number,
     h: number,
@@ -310,7 +316,7 @@ export function montarEscena(raiz: HTMLElement): () => void {
   ) => {
     const m = new Mesh(
       new PlaneGeometry(w, h),
-      new MeshBasicMaterial({ color, side: DoubleSide })
+      new MeshBasicMaterial({ color: lineal(color), side: DoubleSide })
     );
     m.position.set(...posicion);
     m.rotation.set(...giro);
@@ -322,14 +328,14 @@ export function montarEscena(raiz: HTMLElement): () => void {
   panelDeLuz(80, 20, 0x3a3a3f, [0, -10, 0], [-Math.PI / 2, 0, 0]);
   const entorno = pmrem.fromScene(estudio, 0.04);
   escena.environment = entorno.texture;
-  escena.add(new HemisphereLight(0xffffff, 0x444444, 0.5));
-  const sol = new DirectionalLight(0xffffff, 1.1);
+  escena.add(new HemisphereLight(0xffffff, lineal(0x444444), 0.5 * LUZ_LEGACY));
+  const sol = new DirectionalLight(0xffffff, 1.1 * LUZ_LEGACY);
   sol.position.set(10, 30, 20);
   escena.add(sol);
 
   /* ── El portátil ── */
   const aluminio = new MeshStandardMaterial({
-    color: 0x1e1f22,
+    color: lineal(0x1e1f22),
     metalness: 0.7,
     roughness: 0.4,
     envMapIntensity: 0.55,
@@ -349,7 +355,7 @@ export function montarEscena(raiz: HTMLElement): () => void {
   const cubierta = GROSOR_BASE;
   const pozo = new Mesh(
     new PlaneGeometry(30.4, 11.6),
-    new MeshStandardMaterial({ color: 0x0e0e10, roughness: 0.8 })
+    new MeshStandardMaterial({ color: lineal(0x0e0e10), roughness: 0.8 })
   );
   pozo.rotation.x = -Math.PI / 2;
   pozo.position.set(0, cubierta + 0.005, -4.6);
@@ -359,7 +365,7 @@ export function montarEscena(raiz: HTMLElement): () => void {
   const teclas = new InstancedMesh(
     new BoxGeometry(1, 0.14, 1),
     new MeshStandardMaterial({
-      color: 0x121214,
+      color: lineal(0x121214),
       roughness: 0.55,
       metalness: 0.1,
     }),
@@ -395,7 +401,7 @@ export function montarEscena(raiz: HTMLElement): () => void {
   const trackpad = new Mesh(
     trackpadGeo,
     new MeshStandardMaterial({
-      color: 0x36373a,
+      color: lineal(0x36373a),
       metalness: 0.55,
       roughness: 0.28,
     })
@@ -418,7 +424,11 @@ export function montarEscena(raiz: HTMLElement): () => void {
       rectanguloRedondeado(ANCHO - 0.5, ALTO_TAPA - 0.5, 1),
       16
     ),
-    new MeshStandardMaterial({ color: 0x050505, roughness: 0.25, metalness: 0 })
+    new MeshStandardMaterial({
+      color: lineal(0x050505),
+      roughness: 0.25,
+      metalness: 0,
+    })
   );
   marco.position.set(0, ALTO_TAPA / 2, 0.02);
   bisagra.add(marco);
