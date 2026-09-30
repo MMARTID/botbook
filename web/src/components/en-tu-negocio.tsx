@@ -26,6 +26,11 @@ import "./en-tu-negocio.css";
  * El CSS (`en-tu-negocio.css`) es global pero va todo colgado de
  * `.ng-seccion`, para que sus clases cortas (`.mx-*`, `.ok`…) no se salgan de
  * la sección.
+ *
+ * Los teléfonos del panel son ficticios: empiezan por 79, un rango sin
+ * atribuir en el Plan Nacional de Numeración (la CNMC lo guarda para móviles
+ * futuros), así que no son de nadie. Nada de números reales, ni de clientes ni
+ * de Alhabla.
  */
 
 type PasoCopy = {
@@ -348,7 +353,7 @@ export function EnTuNegocioScroll() {
                       </span>
                       <div>
                         <small>Tu número</small>
-                        <b>+34 930 45 32 19</b>
+                        <b>+34 790 45 32 19</b>
                       </div>
                     </div>
                     <div className="mx-celda">
@@ -549,7 +554,7 @@ export function EnTuNegocioScroll() {
                           </svg>
                         </span>
                         <div>
-                          <b>+34 697 80 30 74</b>
+                          <b>+34 797 80 30 74</b>
                           <small>Hoy, 13:41 · 1m 02s</small>
                         </div>
                         <span className="mx-chip">Consulta de precios</span>
@@ -573,7 +578,7 @@ export function EnTuNegocioScroll() {
                           </svg>
                         </span>
                         <div>
-                          <b>+34 685 08 98 37</b>
+                          <b>+34 795 08 98 37</b>
                           <small>Mar, 21:12 · 1m 31s</small>
                         </div>
                         <span className="mx-chip ok">Cita reservada</span>
@@ -618,7 +623,7 @@ export function EnTuNegocioScroll() {
                       </svg>
                     </span>
                     <div>
-                      <b>+34 697 80 30 74</b>
+                      <b>+34 797 80 30 74</b>
                       <small>Hoy, 13:41 · 1m 02s</small>
                     </div>
                     <span className="mx-chip">Consulta de precios</span>
@@ -642,7 +647,7 @@ export function EnTuNegocioScroll() {
                       </svg>
                     </span>
                     <div>
-                      <b>+34 685 08 98 37</b>
+                      <b>+34 795 08 98 37</b>
                       <small>Mar, 21:12 · 1m 31s</small>
                     </div>
                     <span className="mx-chip ok">Cita reservada</span>
@@ -666,7 +671,7 @@ export function EnTuNegocioScroll() {
                       </svg>
                     </span>
                     <div>
-                      <b>+34 696 21 88 17</b>
+                      <b>+34 796 21 88 17</b>
                       <small>Mar, 14:39 · 0m 35s</small>
                     </div>
                     <span className="mx-chip">Horario</span>
@@ -694,7 +699,7 @@ export function EnTuNegocioScroll() {
                         <svg>
                           <use href="#ng-i-tel" />
                         </svg>
-                        +34 691 32 55 57
+                        +34 791 32 55 57
                       </p>
                     </div>
                     <span className="mx-cerrar">
