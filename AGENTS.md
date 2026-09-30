@@ -189,7 +189,13 @@ each page's image explicitly from its `openGraph`/`twitter` metadata.
   `web/public/modelos/macbook.glb` load lazily when the section approaches. The model is
   «macbook pro M3 16 inch 2024» by jackbaeten, CC BY 4.0: the credit line under the scene is
   required by the license, don't remove it. Rebuild it with `web/scripts/preparar-macbook.mjs`,
-  which strips the lid logo), `PuntosFuertesSection`, `WhatsAppClientesSection`, `OwnerAssistantSection`, `EnMarchaSection`,
+  which strips the lid logo), `PuntosFuertesSection`, `WhatsAppClientesSection`,
+  `GestorSimulacionSection` (the Gestor in action, replacing `OwnerAssistantSection` on the
+  home only: the owner's WhatsApp on the iPhone render plus the panel on the same 3D laptop,
+  reacting to each change; a timed simulation, not scroll-driven, that cycles through three
+  real Gestor actions — `marcar_ausencia` + `mover_cita` + `avisar_cliente`, `cerrar_dia`,
+  `editar_servicio`. The laptop helpers shared by both scenes live in
+  `web/src/lib/portatil-3d.ts`; on phones only the iPhone is shown), `EnMarchaSection`,
   the sector accordion, plans and FAQ. The per-city pages (`/<niche>/[ciudad]`) use
   `CityNicheLanding`.
 - `SectorDataSection` — Third-party figures about the niche, each rendered with its source

@@ -1,0 +1,1253 @@
+/*
+ * «Y cuando algo cambia, se lo dices por WhatsApp»: la simulación del Gestor
+ * (gestor-simulacion.tsx). El WhatsApp del dueño en el iPhone (render
+ * frontal de public/telefono/frente.webp con la pantalla en HTML, como en
+ * «En tu bolsillo») y su panel en el portátil 3D (el mismo modelo de «En tu
+ * negocio», con la pantalla HTML proyectada sobre la tapa). Dentro del
+ * teléfono las medidas van en cqw de la pantalla para que escalen con él.
+ */
+
+.seccion {
+  padding: 4rem 0;
+  border-bottom: 1px solid #e5e5e5;
+}
+
+.cabecera {
+  display: grid;
+  gap: 2rem;
+}
+
+.titulo {
+  margin-top: 1.25rem;
+  font-size: 1.875rem;
+  line-height: 1.15;
+  font-weight: 900;
+  letter-spacing: -0.03em;
+  color: #0a0a0a;
+  text-wrap: balance;
+}
+
+.descripcion {
+  margin-top: 1rem;
+  max-width: 36rem;
+  font-size: 1rem;
+  line-height: 1.75rem;
+  color: #52525b;
+  text-wrap: pretty;
+}
+
+/* ── Situaciones: tres botones apilados, el activo con su explicación y su
+   barra de progreso ─────────────────────────────────────────────── */
+
+.situaciones {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.situacion {
+  position: relative;
+  display: block;
+  width: 100%;
+  padding: 0.875rem 1rem 1rem;
+  overflow: hidden;
+  text-align: left;
+  border-radius: 1rem;
+  border: 1px solid #e5e5e5;
+  background: #fff;
+  transition:
+    border-color 200ms ease,
+    background-color 200ms ease;
+}
+
+.situacion:hover {
+  border-color: #d4d4d8;
+}
+
+.situacion:focus-visible {
+  outline: 2px solid #8b5cf6;
+  outline-offset: 3px;
+}
+
+.situacion[aria-pressed="true"] {
+  border-color: #c4b5fd;
+  background: #fafafa;
+}
+
+.situacionNumero {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #a1a1aa;
+  font-variant-numeric: tabular-nums;
+  transition: color 200ms ease;
+}
+
+.situacion[aria-pressed="true"] .situacionNumero {
+  color: #6d28d9;
+}
+
+.situacionTitulo {
+  display: block;
+  margin-top: 0.125rem;
+  font-size: 0.9375rem;
+  font-weight: 700;
+  color: #0a0a0a;
+}
+
+/* La explicación se despliega con la altura de la rejilla (0fr → 1fr):
+   sin medir nada y sin saltos. */
+.situacionTexto {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 380ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.situacion[aria-pressed="true"] .situacionTexto {
+  grid-template-rows: 1fr;
+}
+
+.situacionTexto > span {
+  display: block;
+  overflow: hidden;
+  font-size: 0.875rem;
+  line-height: 1.4rem;
+  color: #52525b;
+}
+
+/* Tres líneas reservadas siempre: al cambiar de situación (sola o a mano)
+   la cabecera no cambia de alto y el escenario no salta. */
+.situacion[aria-pressed="true"] .situacionTexto > span {
+  min-height: 4.575rem;
+  padding-top: 0.375rem;
+}
+
+.progreso {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 3px;
+  background: #ede9fe;
+  opacity: 0;
+  transition: opacity 200ms ease;
+}
+
+.situacion[aria-pressed="true"] .progreso {
+  opacity: 1;
+}
+
+.progreso > span {
+  display: block;
+  height: 100%;
+  background: #8b5cf6;
+  transform-origin: left;
+  transform: scaleX(var(--p, 0));
+  transition: transform 450ms linear;
+}
+
+/* ── Escenario: el portátil detrás, el teléfono delante ─────────── */
+
+.escenario {
+  position: relative;
+  margin-top: 2.5rem;
+}
+
+/* Móvil: solo el teléfono, centrado; el portátil no cabe. */
+.mac {
+  display: none;
+}
+
+.telefono {
+  position: relative;
+  margin: 0 auto;
+  width: min(72vw, 17rem);
+  aspect-ratio: 1335 / 2859;
+}
+
+.lienzo {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.lienzo canvas {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+}
+
+.sombraTelefono {
+  position: absolute;
+  left: 10%;
+  bottom: -1.5rem;
+  z-index: -1;
+  width: 80%;
+  height: 1.5rem;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(10, 10, 10, 0.22), rgba(10, 10, 10, 0));
+  pointer-events: none;
+}
+
+.marco {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  user-select: none;
+  backface-visibility: hidden;
+}
+
+.hueco {
+  position: absolute;
+  left: 5.3%;
+  top: 4.5%;
+  z-index: 1;
+  width: 89.2%;
+  height: 91.1%;
+  overflow: hidden;
+  border-radius: 13% / 6%;
+  background: #efeae2;
+  container-type: inline-size;
+  backface-visibility: hidden;
+}
+
+.isla {
+  position: absolute;
+  left: 50%;
+  top: 2.6cqw;
+  z-index: 5;
+  width: 30cqw;
+  height: 8.4cqw;
+  margin-left: -15cqw;
+  border-radius: 99px;
+  background: #000;
+}
+
+.estado {
+  position: absolute;
+  top: 3.6cqw;
+  left: 0;
+  right: 0;
+  z-index: 4;
+  display: flex;
+  justify-content: space-between;
+  padding: 0 8cqw;
+  font-size: 4.2cqw;
+  font-weight: 600;
+  color: #0a0a0a;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Los hechos del panel, para móvil (donde no se ve el portátil). */
+.hechos {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.5rem;
+  min-height: 2rem;
+  margin-top: 2rem;
+}
+
+.hecho {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.375rem 0.75rem;
+  border-radius: 99px;
+  background: #ecf7ec;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: #2c7334;
+  animation: entra 350ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.hecho svg {
+  width: 0.875rem;
+  height: 0.875rem;
+}
+
+.cierre {
+  margin-top: 2rem;
+  font-size: 0.9375rem;
+  line-height: 1.5rem;
+  color: #52525b;
+}
+
+/* Crédito que exige la licencia CC BY 4.0 del modelo: solo donde se ve. */
+.credito {
+  display: none;
+  margin-top: 0.5rem;
+  font-size: 0.6875rem;
+  line-height: 1rem;
+  color: #a1a1aa;
+}
+
+.credito a {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.credito a:hover {
+  color: #52525b;
+}
+
+@media (min-width: 640px) {
+  .seccion {
+    padding: 6rem 0;
+  }
+
+  .titulo {
+    font-size: 2.25rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .cabecera {
+    grid-template-columns: minmax(0, 1fr) 23rem;
+    column-gap: 4rem;
+    align-items: start;
+  }
+
+  .escenario {
+    height: 40rem;
+    margin-top: 3rem;
+  }
+
+  .mac {
+    display: block;
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 82%;
+    height: 100%;
+  }
+
+  .telefono {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    z-index: 2;
+    width: 18rem;
+    margin: 0;
+  }
+
+  .hechos {
+    display: none;
+  }
+
+  .credito {
+    display: block;
+  }
+}
+
+/* ── El WhatsApp del dueño (pantalla del teléfono) ──────────────── */
+
+.wa {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  color: #111b21;
+  font-size: 4.6cqw;
+  line-height: 1.35;
+}
+
+.waCabecera {
+  display: flex;
+  align-items: center;
+  gap: 3cqw;
+  padding: 14cqw 5cqw 3.4cqw;
+  background: #f0f2f5;
+  border-bottom: 0.3cqw solid #e4e4e7;
+}
+
+.waAvatar {
+  display: grid;
+  place-items: center;
+  width: 10cqw;
+  height: 10cqw;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 0 0 0.3cqw #e4e4e7;
+}
+
+.waLogo {
+  width: 64%;
+  height: 64%;
+  object-fit: contain;
+}
+
+.waNombre {
+  font-size: 4.6cqw;
+  font-weight: 600;
+}
+
+.waSub {
+  font-size: 3.4cqw;
+  color: #667781;
+}
+
+/* Como en WhatsApp de verdad, la conversación se apoya abajo: lo último
+   siempre a la vista, lo más antiguo se pierde por arriba. */
+.waChat {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 2cqw;
+  padding: 4cqw 4cqw 3cqw;
+  overflow: hidden;
+}
+
+.waFecha {
+  flex-shrink: 0;
+  align-self: center;
+  padding: 1cqw 3cqw;
+  border-radius: 2cqw;
+  background: #fff;
+  font-size: 3.2cqw;
+  color: #54656f;
+}
+
+.burbuja {
+  flex-shrink: 0;
+  max-width: 88%;
+  padding: 2.6cqw 3.2cqw 1.6cqw;
+  border-radius: 3cqw;
+  background: #fff;
+  box-shadow: 0 0.3cqw 0.5cqw rgba(11, 20, 26, 0.08);
+  animation: entra 320ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.burbujaGestor {
+  align-self: flex-start;
+  border-top-left-radius: 0.8cqw;
+}
+
+.burbujaDueno {
+  align-self: flex-end;
+  background: #d9fdd3;
+  border-top-right-radius: 0.8cqw;
+}
+
+.hora {
+  display: block;
+  margin-top: 1cqw;
+  text-align: right;
+  font-size: 3cqw;
+  color: #667781;
+}
+
+/* Botones de respuesta rápida, como los pinta WhatsApp: cajas blancas bajo
+   el mensaje, texto azul. El pulsado se queda marcado con el acento. */
+.botones {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1cqw;
+  align-self: flex-start;
+  width: 88%;
+  animation: entra 320ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.boton {
+  padding: 2.4cqw;
+  border-radius: 3cqw;
+  background: #fff;
+  text-align: center;
+  font-size: 4.1cqw;
+  font-weight: 600;
+  color: #027eb5;
+  box-shadow: 0 0.3cqw 0.5cqw rgba(11, 20, 26, 0.08);
+  transition:
+    background-color 250ms ease,
+    color 250ms ease,
+    opacity 250ms ease;
+}
+
+.boton[data-pulsado] {
+  background: #f3eeff;
+  color: #6d28d9;
+}
+
+.boton[data-descartado] {
+  color: #8696a0;
+  opacity: 0.7;
+}
+
+.escribiendo {
+  flex-shrink: 0;
+  align-self: flex-start;
+  display: flex;
+  gap: 1.2cqw;
+  padding: 3cqw 3.6cqw;
+  border-radius: 3cqw;
+  border-top-left-radius: 0.8cqw;
+  background: #fff;
+  box-shadow: 0 0.3cqw 0.5cqw rgba(11, 20, 26, 0.08);
+  animation: entra 320ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.escribiendo i {
+  width: 1.8cqw;
+  height: 1.8cqw;
+  border-radius: 50%;
+  background: #8696a0;
+  animation: punto 1s ease-in-out infinite;
+}
+
+.escribiendo i:nth-child(2) {
+  animation-delay: 150ms;
+}
+
+.escribiendo i:nth-child(3) {
+  animation-delay: 300ms;
+}
+
+.waEscribir {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 2.4cqw;
+  padding: 2.4cqw 4cqw 8cqw;
+}
+
+.waCaja {
+  flex: 1;
+  padding: 2.6cqw 4cqw;
+  border-radius: 99px;
+  background: #fff;
+  font-size: 3.8cqw;
+  color: #8696a0;
+}
+
+.waMicro {
+  display: grid;
+  place-items: center;
+  width: 10cqw;
+  height: 10cqw;
+  border-radius: 50%;
+  background: #8b5cf6;
+}
+
+.waMicro svg {
+  width: 4.6cqw;
+  height: 4.6cqw;
+}
+
+/* ── El panel (pantalla del portátil, proyectada sobre la tapa) ──── */
+
+.pantalla {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 1;
+  display: none;
+  width: 1200px;
+  height: 776px;
+  overflow: hidden;
+  transform-origin: 0 0;
+  border-radius: 18px 18px 12px 12px;
+  background: #fff;
+  color: #0a0a0a;
+  font-size: 15px;
+  line-height: 1.4;
+  pointer-events: none;
+  backface-visibility: hidden;
+}
+
+.pantalla::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  background: linear-gradient(118deg, rgba(255, 255, 255, 0.16) 0%, rgba(255, 255, 255, 0) 34%);
+  pointer-events: none;
+}
+
+/* Sin WebGL o sin modelo: la misma pantalla, plana y a escala. */
+.mac[data-plana] .pantalla {
+  display: block;
+  left: calc(50% - 600px * var(--k, 0.5));
+  top: calc(50% - 388px * var(--k, 0.5));
+  transform: scale(var(--k, 0.5));
+  border-radius: 18px;
+  box-shadow: 0 30px 60px -24px rgba(10, 10, 10, 0.35), 0 0 0 1px #e5e5e5;
+}
+
+.menu {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  height: 26px;
+  padding: 0 18px;
+  background: #ececf0;
+  border-bottom: 1px solid #e0e0e4;
+  font-size: 12px;
+  color: #27272a;
+}
+
+.menu b {
+  font-weight: 700;
+}
+
+.notch {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  width: 170px;
+  height: 26px;
+  margin-left: -85px;
+  border-radius: 0 0 12px 12px;
+  background: #000;
+}
+
+.menuHora {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+}
+
+.app {
+  display: grid;
+  grid-template-columns: 210px 1fr;
+  height: 750px;
+}
+
+.lateral {
+  display: flex;
+  flex-direction: column;
+  padding: 18px 12px 14px;
+  border-right: 1px solid #e5e5e5;
+}
+
+.marca {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 6px 18px;
+}
+
+.marca img {
+  width: 28px;
+  height: 28px;
+}
+
+.marca b {
+  display: block;
+  font-size: 14px;
+}
+
+.marca small {
+  display: block;
+  font-size: 11.5px;
+  color: #52525b;
+}
+
+.grupo {
+  margin: 12px 8px 6px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  color: #52525b;
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 34px;
+  padding: 0 10px;
+  border-radius: 10px;
+  font-weight: 500;
+  color: #27272a;
+}
+
+.item svg {
+  width: 15px;
+  height: 15px;
+  color: #52525b;
+}
+
+.item[data-activo] {
+  background: #f3eeff;
+  color: #6d28d9;
+  box-shadow: inset 0 0 0 1px #e4d8fd;
+}
+
+.item[data-activo] svg {
+  color: #8b5cf6;
+}
+
+.pie {
+  margin-top: auto;
+  padding-top: 6px;
+  border-top: 1px solid #e5e5e5;
+}
+
+.principal {
+  position: relative;
+  padding: 24px 30px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.cab {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid #e5e5e5;
+}
+
+.ico {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background: #f3eeff;
+  color: #8b5cf6;
+}
+
+.ico svg {
+  width: 18px;
+  height: 18px;
+}
+
+.h1 {
+  font-size: 28px;
+  font-weight: 900;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+}
+
+.cab p {
+  margin-top: 4px;
+  max-width: 560px;
+  font-size: 13.5px;
+  color: #52525b;
+}
+
+.botonPanel {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  margin-left: auto;
+  padding: 0 14px;
+  border-radius: 10px;
+  border: 1px solid #0a0a0a;
+  font-size: 12.5px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.tarjeta {
+  border: 1px solid #e5e5e5;
+  border-radius: 22px;
+  background: #fff;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 24px;
+  padding: 0 10px;
+  border-radius: 99px;
+  background: #f4f4f5;
+  font-size: 12px;
+  font-weight: 600;
+  color: #3f3f46;
+  white-space: nowrap;
+}
+
+.chipOk {
+  background: #ecf7ee;
+  color: #23733a;
+}
+
+.chipMorado {
+  background: #f3eeff;
+  color: #6d28d9;
+}
+
+.chipActivo {
+  background: #0a0a0a;
+  color: #fff;
+}
+
+/* Aviso del panel: el cambio que acaba de entrar desde WhatsApp. */
+.aviso {
+  position: absolute;
+  right: 30px;
+  top: 22px;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px 10px 12px;
+  border-radius: 14px;
+  background: #0a0a0a;
+  color: #fff;
+  box-shadow: 0 18px 40px -16px rgba(10, 10, 10, 0.5);
+  animation: avisoEntra 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.aviso svg {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+
+.aviso b {
+  display: block;
+  font-size: 13.5px;
+  font-weight: 600;
+}
+
+.aviso small {
+  display: block;
+  font-size: 12px;
+  color: #a1a1aa;
+}
+
+/* 1 · Agenda del día por profesional */
+
+.barra {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 16px;
+}
+
+.diaActual {
+  margin-left: auto;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.agenda {
+  margin-top: 14px;
+}
+
+.columnas {
+  display: grid;
+  grid-template-columns: 56px repeat(3, minmax(0, 1fr));
+  column-gap: 10px;
+}
+
+.columnaCab {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 38px;
+  padding: 6px 12px;
+  border-radius: 12px;
+  background: #fafafa;
+  font-size: 14.5px;
+  font-weight: 700;
+  transition: background-color 300ms ease;
+}
+
+.columnaCab[data-ausente] {
+  background: #f4f4f5;
+  color: #71717a;
+}
+
+.rejilla {
+  position: relative;
+  display: grid;
+  grid-template-columns: 56px repeat(3, minmax(0, 1fr));
+  grid-auto-rows: 46px;
+  column-gap: 10px;
+  margin-top: 8px;
+}
+
+.horaEtiqueta {
+  grid-column: 1;
+  padding-right: 8px;
+  font-size: 12.5px;
+  color: #a1a1aa;
+  text-align: right;
+  transform: translateY(-8px);
+  font-variant-numeric: tabular-nums;
+}
+
+.celda {
+  border-top: 1px solid #ececee;
+  transition: background-color 400ms ease;
+}
+
+.celda[data-media] {
+  border-top-style: dashed;
+}
+
+.celda[data-ausente] {
+  background: repeating-linear-gradient(135deg, #f4f4f5 0 5px, #fff 5px 11px);
+}
+
+.cita {
+  position: relative;
+  z-index: 1;
+  margin: 3px 0;
+  padding: 7px 10px;
+  border-radius: 10px;
+  background: #f3eeff;
+  color: #4c1d95;
+  box-shadow: inset 3px 0 0 #8b5cf6;
+  font-size: 13.5px;
+  line-height: 1.3;
+  transition:
+    opacity 350ms ease,
+    transform 350ms ease,
+    background-color 350ms ease,
+    box-shadow 350ms ease;
+}
+
+.cita b {
+  display: block;
+  font-weight: 700;
+  color: #0a0a0a;
+}
+
+.cita small {
+  display: block;
+  font-size: 12.5px;
+  color: #6d28d9;
+}
+
+.citaGris {
+  background: #f4f4f5;
+  color: #52525b;
+  box-shadow: inset 3px 0 0 #d4d4d8;
+}
+
+.citaGris small {
+  color: #52525b;
+}
+
+/* La cita de la profesional ausente, mientras no se mueve: sin quien la
+   atienda. */
+.cita[data-huerfana] {
+  background: #fff;
+  box-shadow: inset 3px 0 0 #9f7a15, 0 0 0 1px #e5e5e5;
+}
+
+.cita[data-huerfana] small {
+  color: #9f7a15;
+}
+
+.cita[data-sale] {
+  opacity: 0;
+  transform: translateX(14px);
+}
+
+.cita[data-entra] {
+  animation: entraCita 480ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.etiquetaWa {
+  position: absolute;
+  right: 7px;
+  top: 7px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px;
+  border-radius: 99px;
+  background: #e7f8ee;
+  font-size: 10px;
+  font-weight: 700;
+  color: #1f7a3a;
+  animation: entraCita 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.etiquetaWa svg {
+  width: 10px;
+  height: 10px;
+}
+
+/* 2 y 3 · «Tu agente»: disponibilidad y catálogo */
+
+.seccionPanel {
+  margin-top: 18px;
+}
+
+.h2 {
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.seccionPanel > p,
+.tarjetaCab p {
+  margin-top: 2px;
+  font-size: 13px;
+  color: #52525b;
+}
+
+.dosTarjetas {
+  display: grid;
+  grid-template-columns: 1.1fr 1fr;
+  gap: 16px;
+  margin-top: 14px;
+}
+
+.tarjetaCuerpo {
+  padding: 16px 20px 18px;
+}
+
+.tarjetaCab {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.semana {
+  margin-top: 10px;
+}
+
+.diaFila {
+  display: grid;
+  grid-template-columns: 92px 1fr;
+  gap: 8px;
+  padding: 8px 0;
+  border-top: 1px solid #f0f0f1;
+  font-size: 14px;
+}
+
+.diaFila:first-child {
+  border-top: 0;
+}
+
+.diaFila b {
+  font-weight: 600;
+}
+
+.diaFila span {
+  font-variant-numeric: tabular-nums;
+}
+
+.diaCerrado {
+  color: #a1a1aa;
+}
+
+.especiales {
+  margin-top: 10px;
+}
+
+.especial {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 8px;
+  padding: 9px 12px;
+  border-radius: 12px;
+  border: 1px solid #e5e5e5;
+  font-size: 14px;
+}
+
+.especial[data-nuevo] {
+  border-color: #c4b5fd;
+  background: #faf7ff;
+  animation: entraCita 480ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.especial b {
+  display: block;
+  font-weight: 600;
+}
+
+.especial small {
+  display: block;
+  font-size: 11.5px;
+  color: #52525b;
+}
+
+.especial .chip {
+  margin-left: auto;
+}
+
+.fecha {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 42px;
+  height: 42px;
+  border-radius: 10px;
+  background: #f3eeff;
+  color: #6d28d9;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.1;
+  text-align: center;
+}
+
+.fecha b {
+  display: block;
+  font-size: 16px;
+}
+
+.anadir {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+  padding: 7px 12px;
+  border-radius: 10px;
+  border: 1px dashed #d4d4d8;
+  font-size: 12px;
+  font-weight: 600;
+  color: #52525b;
+}
+
+.anadir svg {
+  width: 13px;
+  height: 13px;
+}
+
+.servicios {
+  margin-top: 10px;
+}
+
+.servicioFila {
+  display: grid;
+  grid-template-columns: 1fr 100px 110px 90px;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 8px;
+  border-top: 1px solid #f0f0f1;
+  border-radius: 10px;
+  font-size: 14.5px;
+  transition: background-color 400ms ease;
+}
+
+.servicioFila:first-child {
+  border-top: 0;
+}
+
+.servicioFila[data-cambiado] {
+  background: #faf7ff;
+}
+
+.servicioFila b {
+  font-weight: 600;
+}
+
+.servicioFila small {
+  display: block;
+  font-size: 11.5px;
+  color: #52525b;
+}
+
+.duracion {
+  font-size: 12.5px;
+  color: #52525b;
+  font-variant-numeric: tabular-nums;
+}
+
+.precio {
+  text-align: right;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.precioViejo {
+  margin-right: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #a1a1aa;
+}
+
+.precioNuevo {
+  display: inline-block;
+  padding: 2px 9px;
+  border-radius: 99px;
+  background: #f3eeff;
+  color: #6d28d9;
+  animation: entraCita 480ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.servicioFila .chip {
+  justify-self: end;
+}
+
+/* ── Animaciones ────────────────────────────────────────────────── */
+
+@keyframes entra {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes entraCita {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes avisoEntra {
+  from {
+    opacity: 0;
+    transform: translateY(-10px) scale(0.97);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes punto {
+  0%,
+  60%,
+  100% {
+    opacity: 0.45;
+    transform: translateY(0);
+  }
+
+  30% {
+    opacity: 1;
+    transform: translateY(-40%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .burbuja,
+  .botones,
+  .escribiendo,
+  .escribiendo i,
+  .hecho,
+  .aviso,
+  .cita[data-entra],
+  .etiquetaWa,
+  .especial[data-nuevo],
+  .precioNuevo {
+    animation: none;
+  }
+
+  .situacionTexto,
+  .progreso > span,
+  .cita {
+    transition: none;
+  }
+}

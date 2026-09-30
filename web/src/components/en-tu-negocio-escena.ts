@@ -1,30 +1,28 @@
 import {
   ACESFilmicToneMapping,
-  Box3,
-  CanvasTexture,
-  Color,
-  DirectionalLight,
-  DoubleSide,
   Group,
-  HemisphereLight,
-  LinearSRGBColorSpace,
   MathUtils,
-  Mesh,
-  MeshBasicMaterial,
   Object3D,
   PerspectiveCamera,
-  PlaneGeometry,
-  PMREMGenerator,
   Quaternion,
   Scene,
   SRGBColorSpace,
-  Texture,
   Vector3,
   WebGLRenderer,
-  type Material,
 } from "three";
-import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
-import { MeshoptDecoder } from "three/addons/libs/meshopt_decoder.module.js";
+
+import {
+  acotar,
+  cargarPortatil,
+  claves,
+  crearSombra,
+  esquinasHtml,
+  homografia,
+  iluminar,
+  liberar,
+  suave,
+  tramo,
+} from "@/lib/portatil-3d";
 
 /**
  * Motor de «En tu negocio» (`en-tu-negocio.tsx`). Recibe la <section> ya
@@ -32,13 +30,12 @@ import { MeshoptDecoder } from "three/addons/libs/meshopt_decoder.module.js";
  * portátil, mueve la cámara, cambia la pantalla y va enseñando los textos.
  * Devuelve la limpieza.
  *
- * El portátil es un modelo 3D (`public/modelos/macbook.glb`, «macbook pro M3
- * 16 inch 2024» de jackbaeten, CC BY 4.0: el crédito de la sección es
- * obligatorio), preparado con `scripts/preparar-macbook.mjs`: sin logo, con la
- * tapa vertical y el pivote en la bisagra. Lo que se ve en su pantalla es
- * HTML normal (el `.mx` de la sección), proyectado sobre la tapa con una
- * homografía (`matrix3d`) que lleva sus cuatro esquinas a las de la pantalla
- * 3D. Así el texto sigue nítido y la pantalla es la de la app de verdad.
+ * El portátil es un modelo 3D (ver `lib/portatil-3d.ts`: el modelo, su
+ * crédito obligatorio, la luz de estudio y la homografía son comunes con la
+ * simulación del Gestor). Lo que se ve en su pantalla es HTML normal (el
+ * `.mx` de la sección), proyectado sobre la tapa con una homografía
+ * (`matrix3d`) que lleva sus cuatro esquinas a las de la pantalla 3D. Así el
+ * texto sigue nítido y la pantalla es la de la app de verdad.
  *
  * Mismas reglas que «En tu bolsillo» (`llamada-scroll.tsx`): la presencia de
  * cada paso cambia de golpe en las costuras (1/3 y 2/3) sobre el progreso
@@ -63,19 +60,7 @@ const MOMENTOS = [
 /** Tamaño de la pantalla HTML (`.mx`, en px CSS) antes de proyectarla. */
 const PANTALLA_W = 1200;
 const PANTALLA_H = 776;
-const ESQUINAS_HTML = [
-  0,
-  0,
-  PANTALLA_W,
-  0,
-  0,
-  PANTALLA_H,
-  PANTALLA_W,
-  PANTALLA_H,
-];
-
-/** El portátil, preparado con scripts/preparar-macbook.mjs (medidas en cm). */
-const RUTA_MODELO = "/modelos/macbook.glb";
+const ESQUINAS_HTML = esquinasHtml(PANTALLA_W, PANTALLA_H);
 
 /** Alturas relativas de la onda de la grabación (se repite). */
 const ONDA = [0.3, 0.5, 0.8, 0.45, 0.9, 0.6, 0.35, 0.7, 0.5, 0.25, 0.65, 0.4];
@@ -103,103 +88,7 @@ const CAMARA_MIRA = [0, 0, 0, -0.02, -0.02, -0.2, -0.2, 0, 0];
  */
 const CAMARA_FOV = 15;
 
-/**
- * El diseño se hizo con three.js 0.149, que leía los colores hexadecimales
- * como lineales y usaba intensidades de luz «legacy». Con la gestión de color
- * actual el mismo portátil salía casi negro en vez de gris espacial: para que
- * se vea como en Claude Design, los colores se leen como lineales y las luces
- * se multiplican por π (la equivalencia que da three desde r155).
- */
-const lineal = (hex: number) => new Color().setHex(hex, LinearSRGBColorSpace);
-const LUZ_LEGACY = Math.PI;
-
-const acotar = (v: number, min = 0, max = 1) => Math.min(max, Math.max(min, v));
-/** Posición de `v` dentro del tramo [a, b], acotada a [0, 1]. */
-const tramo = (v: number, a: number, b: number) => acotar((v - a) / (b - a));
-/** Ease-in-out cúbico. */
-const suave = (t: number) =>
-  t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
-/** Interpola entre fotogramas clave con `suave` en cada tramo. */
-function claves(v: number, xs: readonly number[], ys: readonly number[]) {
-  if (v <= xs[0]) return ys[0];
-  for (let i = 1; i < xs.length; i++) {
-    if (v <= xs[i]) {
-      const t = suave((v - xs[i - 1]) / (xs[i] - xs[i - 1]));
-      return ys[i - 1] + (ys[i] - ys[i - 1]) * t;
-    }
-  }
-  return ys[ys.length - 1];
-}
 const miles = (n: number) => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ".");
-
-/* ── Homografía: la pantalla HTML sobre las 4 esquinas proyectadas ──
-   Matrices 3x3 en filas, como arrays de 9. */
-type Matriz = number[];
-
-function adjunta(m: Matriz): Matriz {
-  return [
-    m[4] * m[8] - m[5] * m[7],
-    m[2] * m[7] - m[1] * m[8],
-    m[1] * m[5] - m[2] * m[4],
-    m[5] * m[6] - m[3] * m[8],
-    m[0] * m[8] - m[2] * m[6],
-    m[2] * m[3] - m[0] * m[5],
-    m[3] * m[7] - m[4] * m[6],
-    m[1] * m[6] - m[0] * m[7],
-    m[0] * m[4] - m[1] * m[3],
-  ];
-}
-
-function multiplica(a: Matriz, b: Matriz): Matriz {
-  const c: Matriz = [];
-  for (let i = 0; i < 3; i++) {
-    for (let j = 0; j < 3; j++) {
-      let s = 0;
-      for (let k = 0; k < 3; k++) s += a[3 * i + k] * b[3 * k + j];
-      c[3 * i + j] = s;
-    }
-  }
-  return c;
-}
-
-function aplica(m: Matriz, v: number[]) {
-  return [
-    m[0] * v[0] + m[1] * v[1] + m[2] * v[2],
-    m[3] * v[0] + m[4] * v[1] + m[5] * v[2],
-    m[6] * v[0] + m[7] * v[1] + m[8] * v[2],
-  ];
-}
-
-/** Matriz que lleva la base canónica a los 4 puntos `p` (x0,y0,…,x3,y3). */
-function baseAPuntos(p: number[]): Matriz {
-  const m = [p[0], p[2], p[4], p[1], p[3], p[5], 1, 1, 1];
-  const v = aplica(adjunta(m), [p[6], p[7], 1]);
-  return multiplica(m, [v[0], 0, 0, 0, v[1], 0, 0, 0, v[2]]);
-}
-
-/** `matrix3d` CSS que lleva las esquinas `origen` a `destino`. */
-function homografia(origen: number[], destino: number[]) {
-  const t = multiplica(baseAPuntos(destino), adjunta(baseAPuntos(origen)));
-  for (let i = 0; i < 9; i++) t[i] /= t[8];
-  return `matrix3d(${t[0]},${t[3]},0,${t[6]},${t[1]},${t[4]},0,${t[7]},0,0,1,0,${t[2]},${t[5]},0,${t[8]})`;
-}
-
-/** Libera geometrías, materiales y texturas de una escena. */
-function liberar(escena: Object3D) {
-  escena.traverse((objeto) => {
-    if (!(objeto instanceof Mesh)) return;
-    objeto.geometry.dispose();
-    const materiales: Material[] = Array.isArray(objeto.material)
-      ? objeto.material
-      : [objeto.material];
-    for (const material of materiales) {
-      for (const valor of Object.values(material)) {
-        if (valor instanceof Texture) valor.dispose();
-      }
-      material.dispose();
-    }
-  });
-}
 
 function pieza<T extends Element>(raiz: Element, selector: string): T {
   const el = raiz.querySelector<T>(selector);
@@ -272,34 +161,7 @@ export function montarEscena(
   /* ── Escena, luz y entorno ── */
   const escena = new Scene();
   const camara = new PerspectiveCamera(CAMARA_FOV, 1, 1, 2000);
-  const pmrem = new PMREMGenerator(renderer);
-  const estudio = new Scene();
-  estudio.background = lineal(0x6b6b70);
-  const panelDeLuz = (
-    w: number,
-    h: number,
-    color: number,
-    posicion: [number, number, number],
-    giro: [number, number, number]
-  ) => {
-    const m = new Mesh(
-      new PlaneGeometry(w, h),
-      new MeshBasicMaterial({ color: lineal(color), side: DoubleSide })
-    );
-    m.position.set(...posicion);
-    m.rotation.set(...giro);
-    estudio.add(m);
-  };
-  panelDeLuz(60, 60, 0xffffff, [0, 40, 0], [Math.PI / 2, 0, 0]);
-  panelDeLuz(30, 50, 0xd8d8ff, [-45, 10, 10], [0, Math.PI / 2, 0]);
-  panelDeLuz(30, 50, 0xffffff, [45, 15, -10], [0, -Math.PI / 2, 0]);
-  panelDeLuz(80, 20, 0x3a3a3f, [0, -10, 0], [-Math.PI / 2, 0, 0]);
-  const entorno = pmrem.fromScene(estudio, 0.04);
-  escena.environment = entorno.texture;
-  escena.add(new HemisphereLight(0xffffff, lineal(0x444444), 0.5 * LUZ_LEGACY));
-  const sol = new DirectionalLight(0xffffff, 1.1 * LUZ_LEGACY);
-  sol.position.set(10, 30, 20);
-  escena.add(sol);
+  const apagarLuces = iluminar(renderer, escena);
 
   /* ── El portátil: el modelo 3D, que llega por red ── */
   const mac = new Group();
@@ -313,42 +175,14 @@ export function montarEscena(
   let altoPantalla = 0;
   let desmontado = false;
   let listo = false;
-  new GLTFLoader()
-    .setMeshoptDecoder(MeshoptDecoder)
-    .loadAsync(RUTA_MODELO)
-    .then((gltf) => {
-      if (desmontado) return liberar(gltf.scene);
-      const tapa = gltf.scene.getObjectByName("Tapa");
-      const cristal = gltf.scene.getObjectByName("Pantalla");
-      if (!tapa || !cristal) {
-        throw new Error("[EnTuNegocio] Al modelo le faltan Tapa y Pantalla");
-      }
-      // La tapa llega vertical y sin girar: la caja del cristal en el mundo,
-      // pasada al espacio de la tapa, es el rectángulo de la pantalla. Caja
-      // precisa (vértice a vértice): la geometría del cristal viene inclinada
-      // en su propio espacio, y la caja rápida la engordaba varios cm.
-      gltf.scene.updateMatrixWorld(true);
-      const caja = new Box3().setFromObject(cristal, true);
-      tapa.worldToLocal(caja.min);
-      tapa.worldToLocal(caja.max);
-      const ancho = caja.max.x - caja.min.x;
-      altoPantalla = (ancho * PANTALLA_H) / PANTALLA_W;
-      esquinas = [
-        [-ancho / 2, altoPantalla / 2],
-        [ancho / 2, altoPantalla / 2],
-        [-ancho / 2, -altoPantalla / 2],
-        [ancho / 2, -altoPantalla / 2],
-      ];
-      const plano = new Object3D();
-      plano.position.set(
-        (caja.min.x + caja.max.x) / 2,
-        (caja.min.y + caja.max.y) / 2,
-        caja.max.z + 0.02
-      );
-      tapa.add(plano);
-      bisagra = tapa;
-      pantalla = plano;
-      mac.add(gltf.scene);
+  cargarPortatil(PANTALLA_W, PANTALLA_H)
+    .then((portatil) => {
+      if (desmontado) return liberar(portatil.modelo);
+      bisagra = portatil.tapa;
+      pantalla = portatil.pantalla;
+      esquinas = portatil.esquinas;
+      altoPantalla = portatil.altoPantalla;
+      mac.add(portatil.modelo);
       sombra.visible = true;
       listo = true;
       quizaArrancar();
@@ -357,31 +191,7 @@ export function montarEscena(
       if (!desmontado) alFallar(error);
     });
 
-  // Sombra de contacto: un degradado radial pintado en canvas.
-  const lienzoSombra = document.createElement("canvas");
-  lienzoSombra.width = 256;
-  lienzoSombra.height = 256;
-  const ctx = lienzoSombra.getContext("2d");
-  if (ctx) {
-    const g = ctx.createRadialGradient(128, 128, 0, 128, 128, 128);
-    g.addColorStop(0, "rgba(10,10,10,.34)");
-    g.addColorStop(0.55, "rgba(10,10,10,.12)");
-    g.addColorStop(1, "rgba(10,10,10,0)");
-    ctx.fillStyle = g;
-    ctx.fillRect(0, 0, 256, 256);
-  }
-  const sombra = new Mesh(
-    new PlaneGeometry(1, 1),
-    new MeshBasicMaterial({
-      map: new CanvasTexture(lienzoSombra),
-      transparent: true,
-      depthWrite: false,
-    })
-  );
-  sombra.rotation.x = -Math.PI / 2;
-  sombra.position.y = -0.05;
-  sombra.scale.set(58, 40, 1);
-  sombra.visible = false;
+  const sombra = crearSombra();
   mac.add(sombra);
 
   /* ── Encuadre: el portátil se centra en el hueco de la rejilla ── */
@@ -608,9 +418,7 @@ export function montarEscena(
     window.removeEventListener("scroll", leerProgreso);
     window.removeEventListener("resize", leerProgreso);
     liberar(escena);
-    liberar(estudio);
-    entorno.dispose();
-    pmrem.dispose();
+    apagarLuces();
     renderer.dispose();
     renderer.domElement.remove();
   };
