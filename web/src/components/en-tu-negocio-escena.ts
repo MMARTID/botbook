@@ -95,6 +95,13 @@ const CAMARA_AZIMUT = [-28, 0, 0, 30, 22, -20, -14, 0, 0];
 const CAMARA_ELEVACION = [80, 10, 9, 5, 6, 22, 20, 10, 10];
 const CAMARA_DISTANCIA = [1.18, 1, 0.97, 0.9, 0.92, 0.9, 0.88, 1, 1];
 const CAMARA_MIRA = [0, 0, 0, -0.02, -0.02, -0.2, -0.2, 0, 0];
+/**
+ * Ángulo vertical de la cámara, en grados. El diseño usaba 28°, pero con el
+ * modelo real la cámara quedaba tan cerca que la base, más próxima, se veía
+ * mucho más ancha que la tapa. Con un teleobjetivo la cámara se aleja (el
+ * encuadre se calcula con este mismo ángulo) y tapa y base se ven iguales.
+ */
+const CAMARA_FOV = 15;
 
 /**
  * El diseño se hizo con three.js 0.149, que leía los colores hexadecimales
@@ -264,7 +271,7 @@ export function montarEscena(
 
   /* ── Escena, luz y entorno ── */
   const escena = new Scene();
-  const camara = new PerspectiveCamera(28, 1, 1, 800);
+  const camara = new PerspectiveCamera(CAMARA_FOV, 1, 1, 2000);
   const pmrem = new PMREMGenerator(renderer);
   const estudio = new Scene();
   estudio.background = lineal(0x6b6b70);
@@ -435,7 +442,7 @@ export function montarEscena(
   const giro = new Quaternion();
   const reposo = new Vector3(0, 1, 0);
   const grados = MathUtils.degToRad;
-  const tangente = Math.tan(grados(14));
+  const tangente = Math.tan(grados(CAMARA_FOV / 2));
 
   function cambiarDePaso(paso: number) {
     copias.forEach(
