@@ -12,7 +12,7 @@ import { Reveal } from "@/components/scroll-reveal";
 import { EnMarchaSection } from "@/components/en-marcha-section";
 import { EnTuNegocioScroll } from "@/components/en-tu-negocio";
 import { LlamadaScroll } from "@/components/llamada-scroll";
-import { OwnerAssistantSection } from "@/components/owner-assistant-section";
+import { GestorSimulacionSection } from "@/components/gestor-simulacion";
 import { PuntosFuertesSection } from "@/components/puntos-fuertes-section";
 import { WhatsAppClientesSection } from "@/components/whatsapp-clientes-section";
 import { generalOwnerAssistant } from "@/lib/niche-landings";
@@ -388,7 +388,10 @@ export function MainLanding() {
 
       <WhatsAppClientesSection />
 
-      <OwnerAssistantSection data={generalOwnerAssistant} />
+      {/* El Gestor en acción (2026-09-30): el WhatsApp del dueño en el
+          teléfono y su panel en el portátil, reaccionando a cada cambio.
+          Las landings de nicho siguen con `OwnerAssistantSection`. */}
+      <GestorSimulacionSection data={generalOwnerAssistant} />
 
       <EnMarchaSection />
 

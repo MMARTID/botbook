@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { Check } from "lucide-react";
 
 import { useMovimientoReducido } from "@/hooks/use-movimiento-reducido";
+import { MODELO } from "@/lib/portatil-3d";
 import { marcarRelato } from "@/lib/relato-fijo";
 import {
   ALTO_NEGOCIO_VH,
@@ -101,15 +102,6 @@ const PASOS: [PasoCopy, PasoCopy, PasoCopy] = [
 const ANCLAS = [0.3, 0.6, 0.9] as const;
 /** Los tres pasos empiezan cuando acaba el zoom out. */
 const INICIO_PASOS = NEGOCIO_P.finZoom;
-
-/** El portátil 3D (public/modelos/macbook.glb) y su licencia, para el crédito. */
-const MODELO = {
-  titulo: "macbook pro M3 16 inch 2024",
-  origen:
-    "https://sketchfab.com/3d-models/macbook-pro-m3-16-inch-2024-8e34fc2b303144f78490007d91ff57c4",
-  autor: "https://sketchfab.com/jackbaeten",
-  licencia: "https://creativecommons.org/licenses/by/4.0/",
-} as const;
 
 /**
  * A qué distancia de la pantalla se empieza a descargar three.js y el modelo:
