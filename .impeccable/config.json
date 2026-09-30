@@ -310,6 +310,15 @@
         ],
         "createdAt": "2026-09-07T08:04:35.134Z",
         "reason": "Las 4 píldoras-eyebrow del archivo (hero '60%...', 'El coste de no contestar' antes de #por-que, 'Calcula tu pérdida real' antes de la calculadora, 'Google Calendar & Outlook' antes de la sección de calendario) son elementos reales de site-landing.tsx/sector-data-section.tsx/revenue-loss-calculator.tsx (badge-soft con icono, campo data.eyebrow), no antetítulos decorativos inventados. La Regla del Titular Solo de DESIGN.md prohíbe el antetítulo puramente decorativo pero permite el badge que aporta información que el titular no da — razonamiento ya documentado en la anotación del canvas (2026-09-07). El usuario pidió maqueta 100x100 fiel a producción ese mismo día; quitarlas rompería esa fidelidad."
+      },
+      {
+        "rule": "side-tab",
+        "value": "*",
+        "files": [
+          "web/src/components/gestor-simulacion.module.css"
+        ],
+        "createdAt": "2026-09-30T15:32:58.634Z",
+        "reason": "Claude: borde izquierdo de evento de calendario en la agenda simulada del panel (misma convención que .citaNueva en llamada-scroll.module.css:630, ya en producción); no es una tarjeta con pestaña lateral"
       }
     ]
   }

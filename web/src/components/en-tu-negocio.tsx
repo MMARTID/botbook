@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { Check } from "lucide-react";
 
 import { useMovimientoReducido } from "@/hooks/use-movimiento-reducido";
+import { MODELO } from "@/lib/portatil-3d";
 import { marcarRelato } from "@/lib/relato-fijo";
 import "./en-tu-negocio.css";
 
@@ -86,15 +87,6 @@ const PASOS: [PasoCopy, PasoCopy, PasoCopy] = [
 
 /** Al pulsar un paso en la barra se cae con todo ya a la vista. */
 const ANCLAS = [0.3, 0.6, 0.9] as const;
-
-/** El portátil 3D (public/modelos/macbook.glb) y su licencia, para el crédito. */
-const MODELO = {
-  titulo: "macbook pro M3 16 inch 2024",
-  origen:
-    "https://sketchfab.com/3d-models/macbook-pro-m3-16-inch-2024-8e34fc2b303144f78490007d91ff57c4",
-  autor: "https://sketchfab.com/jackbaeten",
-  licencia: "https://creativecommons.org/licenses/by/4.0/",
-} as const;
 
 /** A qué distancia de la pantalla se empieza a descargar three.js. */
 const MARGEN_DE_CARGA = "100% 0px";
