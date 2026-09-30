@@ -137,6 +137,14 @@ describe("EnTuNegocioScroll", () => {
     );
   });
 
+  it("solo enseña teléfonos ficticios (rango 79, sin atribuir)", () => {
+    render(<EnTuNegocioScroll />);
+
+    const telefonos = seccion().textContent?.match(/\+34[\d ]{9,}/g) ?? [];
+    expect(telefonos.length).toBeGreaterThan(0);
+    for (const telefono of telefonos) expect(telefono).toMatch(/^\+34 79/);
+  });
+
   it("sin WebGL (la escena lanza) pasa a la versión quieta", async () => {
     montarEscena.mockImplementation(() => {
       throw new Error("Error creating WebGL context.");
