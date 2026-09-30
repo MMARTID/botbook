@@ -40,10 +40,16 @@ cada re-sync trae su ancla (`_ds_sync.json`) del proyecto y solo reverifica lo
 que cambie.
 
 El convertidor se monta en `.ds-sync/` de la raíz (con `playwright@1.63.0`,
-que es la versión que casa con el `chromium-1243` de la caché de esta máquina);
-`web/.ds-sync/` es otra copia de los scripts con `node_modules` enlazado al de
-la raíz. `--node-modules` es `frontend/node_modules` aquí y `node_modules`
+que es la versión que casa con el `chromium-1243` de la caché de esta máquina).
+Desde `web/` no hace falta otra copia: el driver localiza sus scripts por su
+propia ruta, así que basta `node ../.ds-sync/resync.mjs` (verificado el
+2026-09-30). `--node-modules` es `frontend/node_modules` aquí y `node_modules`
 desde `web/`.
+
+«Alhabla App» tiene en la raíz un `support.js` que no produce este build (ni
+`_ds_manifest.json`/`_adherence.oxlintrc.json`, que regenera la propia app).
+El diff no lo toca y la re-sync del 2026-09-30 lo dejó donde estaba; no
+borrarlo sin saber de dónde sale.
 
 ## Qué es este paquete para el convertidor
 
