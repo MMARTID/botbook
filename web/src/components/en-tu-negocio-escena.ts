@@ -26,6 +26,14 @@ import {
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { MeshoptDecoder } from "three/addons/libs/meshopt_decoder.module.js";
 
+import {
+  ESQUINA,
+  NEGOCIO_P,
+  RADIO_TAPA_CM,
+  leerEsquinaTelefono,
+  marcarNegocioEnEscena,
+} from "@/lib/transicion-bolsillo-negocio";
+
 /**
  * Motor de «En tu negocio» (`en-tu-negocio.tsx`). Recibe la <section> ya
  * pintada por React y le da vida: el progreso del scroll abre la tapa del
@@ -44,6 +52,14 @@ import { MeshoptDecoder } from "three/addons/libs/meshopt_decoder.module.js";
  * cada paso cambia de golpe en las costuras (1/3 y 2/3) sobre el progreso
  * crudo, y todo lo demás va sobre un progreso suavizado.
  *
+ * Delante de los tres pasos va la transición desde «En tu bolsillo»
+ * (`lib/transicion-bolsillo-negocio.ts`): en el cruce el lienzo se enciende
+ * con la tapa cerrada vista desde arriba, su esquina trasera izquierda justo
+ * sobre la del teléfono volcado y con el mismo radio; en el zoom out la
+ * cámara se aleja de esa esquina hasta el encuadre del paso 1; y al llegar
+ * entra el título. Los pasos van sobre el progreso que queda (FIN_ZOOM→1),
+ * estirado a 0→1: sus pistas son las de siempre.
+ *
  * El componente importa este módulo de forma dinámica, cuando la sección se
  * acerca, para que three.js no pese en la carga de la portada; y el bucle
  * solo corre con la sección en pantalla y el modelo ya descargado. Si no hay
@@ -53,6 +69,17 @@ import { MeshoptDecoder } from "three/addons/libs/meshopt_decoder.module.js";
 
 const COSTURA_1 = 1 / 3;
 const COSTURA_2 = 2 / 3;
+const {
+  finCruce: FIN_CRUCE,
+  finZoom: FIN_ZOOM,
+  finTitulo: FIN_TITULO,
+} = NEGOCIO_P;
+/**
+ * Elevación de la cámara en la vista cenital de la esquina (casi vertical:
+ * a 90° justos `lookAt` no sabe dónde está arriba). Con azimut 0, arriba en
+ * pantalla es la bisagra (−z) e izquierda es −x.
+ */
+const ELEVACION_CENITAL = 89.5;
 /** Momento en que aparece cada detalle del texto, paso a paso. */
 const MOMENTOS = [
   [0.2, 0.25, 0.3],
@@ -214,6 +241,9 @@ export function montarEscena(
   const escenario = pieza<HTMLElement>(raiz, ".ng-escenario");
   const lienzo = pieza<HTMLElement>(raiz, ".ng-lienzo");
   const hueco = pieza<HTMLElement>(raiz, ".ng-hueco");
+  const texto = pieza<HTMLElement>(raiz, ".ng-texto");
+  const rotulo = pieza<HTMLElement>(raiz, ".ng-rotulo");
+  const credito = raiz.querySelector<HTMLElement>(".ng-credito");
   const pantallaHtml = pieza<HTMLElement>(raiz, ".mx");
   const ondaEl = pieza<HTMLElement>(raiz, ".mx-onda");
   const tiempo = pieza<HTMLElement>(raiz, ".mx-tiempo");
@@ -311,6 +341,9 @@ export function montarEscena(
   let pantalla: Object3D | null = null;
   let esquinas: [number, number][] = [];
   let altoPantalla = 0;
+  // La esquina trasera izquierda de la tapa cerrada (arriba a la izquierda
+  // vista desde arriba), en cm del mundo: sobre ella cae la del teléfono.
+  const esquinaTapa = new Vector3();
   let desmontado = false;
   let listo = false;
   new GLTFLoader()
@@ -346,11 +379,21 @@ export function montarEscena(
         caja.max.z + 0.02
       );
       tapa.add(plano);
+      // Con la tapa cerrada (girada 90° sobre la bisagra), su caja en el
+      // mundo da la esquina: x mínima, cara de arriba, z mínima.
+      tapa.rotation.x = Math.PI / 2;
+      gltf.scene.updateMatrixWorld(true);
+      const cerrada = new Box3().setFromObject(tapa, true);
+      esquinaTapa.set(cerrada.min.x, cerrada.max.y, cerrada.min.z);
+      tapa.rotation.x = 0;
       bisagra = tapa;
       pantalla = plano;
       mac.add(gltf.scene);
       sombra.visible = true;
       listo = true;
+      // Con el portátil ya aquí, «En tu bolsillo» apaga el teléfono en el
+      // cruce y deja que la tapa lo releve. Antes no: se apagaría sobre nada.
+      marcarNegocioEnEscena(true);
       quizaArrancar();
     })
     .catch((error: unknown) => {
@@ -370,14 +413,12 @@ export function montarEscena(
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, 256, 256);
   }
-  const sombra = new Mesh(
-    new PlaneGeometry(1, 1),
-    new MeshBasicMaterial({
-      map: new CanvasTexture(lienzoSombra),
-      transparent: true,
-      depthWrite: false,
-    })
-  );
+  const sombraMaterial = new MeshBasicMaterial({
+    map: new CanvasTexture(lienzoSombra),
+    transparent: true,
+    depthWrite: false,
+  });
+  const sombra = new Mesh(new PlaneGeometry(1, 1), sombraMaterial);
   sombra.rotation.x = -Math.PI / 2;
   sombra.position.y = -0.05;
   sombra.scale.set(58, 40, 1);
@@ -389,6 +430,9 @@ export function montarEscena(
   let altoEscenario = 1;
   let fraccionW = 1;
   let fraccionH = 1;
+  // El centro del hueco, en px del escenario: ahí cae el punto de mira.
+  let centroX = 0;
+  let centroY = 0;
   function medir() {
     const r = escenario.getBoundingClientRect();
     const h = hueco.getBoundingClientRect();
@@ -396,8 +440,8 @@ export function montarEscena(
     altoEscenario = r.height;
     renderer.setSize(anchoEscenario, altoEscenario, false);
     camara.aspect = anchoEscenario / Math.max(1, altoEscenario);
-    const centroX = h.left - r.left + h.width / 2;
-    const centroY = h.top - r.top + h.height / 2;
+    centroX = h.left - r.left + h.width / 2;
+    centroY = h.top - r.top + h.height / 2;
     fraccionW = Math.max(0.2, h.width / anchoEscenario);
     fraccionH = Math.max(0.2, h.height / altoEscenario);
     camara.setViewOffset(
@@ -437,6 +481,7 @@ export function montarEscena(
 
   /* ── Fotograma ── */
   const mira = new Vector3();
+  const miraEsquina = new Vector3();
   const v = new Vector3();
   const normal = new Vector3();
   const giro = new Quaternion();
@@ -466,7 +511,7 @@ export function montarEscena(
     );
   }
 
-  function pintarTextos(p: number) {
+  function pintarTextos(p: number, pCrudo: number) {
     const desplazamientos = [
       claves(p, [0.3, COSTURA_1], [0, -20]),
       claves(p, [COSTURA_1, 0.36, 0.64, COSTURA_2], [20, 0, 0, -20]),
@@ -483,9 +528,28 @@ export function montarEscena(
         d.style.transform = `translateY(${8 * (1 - t)}px)`;
       })
     );
-    rellenos[0].style.transform = `scaleX(${tramo(crudo, 0, COSTURA_1)})`;
-    rellenos[1].style.transform = `scaleX(${tramo(crudo, COSTURA_1, COSTURA_2)})`;
-    rellenos[2].style.transform = `scaleX(${tramo(crudo, COSTURA_2, 1)})`;
+    rellenos[0].style.transform = `scaleX(${tramo(pCrudo, 0, COSTURA_1)})`;
+    rellenos[1].style.transform = `scaleX(${tramo(pCrudo, COSTURA_1, COSTURA_2)})`;
+    rellenos[2].style.transform = `scaleX(${tramo(pCrudo, COSTURA_2, 1)})`;
+  }
+
+  /**
+   * La transición desde «En tu bolsillo»: en el cruce se encienden el lienzo,
+   * el fondo del escenario (hasta ahí, transparente sobre el teléfono) y el
+   * crédito, sobre el progreso crudo, igual que se apaga el teléfono; el
+   * texto y el rótulo entran (fade y 16 px) cuando acaba el zoom out.
+   */
+  function pintarTransicion(pCrudo: number, p: number) {
+    const encendido = tramo(pCrudo, 0, FIN_CRUCE);
+    lienzo.style.opacity = String(encendido);
+    escenario.style.backgroundColor = `rgba(250, 250, 250, ${encendido})`;
+    if (credito) credito.style.opacity = String(encendido);
+    const entrada = tramo(p, FIN_ZOOM, FIN_TITULO);
+    for (const el of [texto, rotulo]) {
+      el.style.opacity = String(entrada);
+      el.style.transform = `translateY(${16 * (1 - entrada)}px)`;
+      el.style.visibility = entrada > 0 ? "visible" : "hidden";
+    }
   }
 
   function pintarPantalla(p: number) {
@@ -515,7 +579,11 @@ export function montarEscena(
     tiempo.textContent = `0${Math.floor(segundos / 60)}:${String(segundos % 60).padStart(2, "0")}`;
   }
 
-  function pintarPortatil(p: number) {
+  /**
+   * `p` es el progreso de los pasos (el de siempre) y `pSeccion` el de toda
+   * la sección, del que cuelga el zoom out de delante.
+   */
+  function pintarPortatil(p: number, pSeccion: number) {
     if (!bisagra || !pantalla) return;
     const abierto = suave(tramo(p, 0.02, 0.2));
     bisagra.rotation.x = grados(90 - 108 * abierto);
@@ -525,13 +593,46 @@ export function montarEscena(
     v.set(0, altoPantalla * claves(p, CAMARA_T, CAMARA_MIRA), 0);
     pantalla.localToWorld(v);
     mira.copy(reposo).lerp(v, abierto);
-    const azimut = grados(claves(p, CAMARA_T, CAMARA_AZIMUT));
-    const elevacion = grados(claves(p, CAMARA_T, CAMARA_ELEVACION));
-    const distancia =
+    let azimut = grados(claves(p, CAMARA_T, CAMARA_AZIMUT));
+    let elevacion = grados(claves(p, CAMARA_T, CAMARA_ELEVACION));
+    let distancia =
       Math.max(
         40 / (fraccionW * camara.aspect * 2 * tangente),
         30 / (fraccionH * 2 * tangente)
       ) * claves(p, CAMARA_T, CAMARA_DISTANCIA);
+
+    // Zoom out: de la vista cenital de la esquina de la tapa (la del teléfono
+    // volcado de «En tu bolsillo», con su radio) al encuadre del paso 1. La
+    // distancia va en logaritmo, para que el alejamiento sea parejo.
+    const alejado = suave(tramo(pSeccion, FIN_CRUCE, FIN_ZOOM));
+    if (alejado < 1) {
+      const esquina = leerEsquinaTelefono() ?? {
+        x: ESQUINA.x * anchoEscenario,
+        y: ESQUINA.y * altoEscenario,
+        radio: 0.15 * altoEscenario,
+      };
+      // Aumento (px por cm) que iguala los radios, y altura de la cámara
+      // sobre la tapa que lo da con este objetivo.
+      const aumento = esquina.radio / RADIO_TAPA_CM;
+      const altura = altoEscenario / (2 * aumento * tangente);
+      // El punto de mira cae en el centro del hueco; la esquina tiene que
+      // caer en `esquina`: el punto de mira queda desplazado de la esquina
+      // lo contrario (en pantalla, x a la derecha y z hacia abajo).
+      miraEsquina.set(
+        esquinaTapa.x - (esquina.x - centroX) / aumento,
+        esquinaTapa.y,
+        esquinaTapa.z - (esquina.y - centroY) / aumento
+      );
+      azimut *= alejado;
+      elevacion = MathUtils.lerp(grados(ELEVACION_CENITAL), elevacion, alejado);
+      distancia = Math.exp(
+        MathUtils.lerp(Math.log(altura), Math.log(distancia), alejado)
+      );
+      mira.lerpVectors(miraEsquina, mira, alejado);
+    }
+    // La sombra de contacto se va con el zoom: de tan cerca sería un velo.
+    sombraMaterial.opacity = alejado;
+
     camara.position.set(
       mira.x + distancia * Math.cos(elevacion) * Math.sin(azimut),
       mira.y + distancia * Math.sin(elevacion),
@@ -572,14 +673,18 @@ export function montarEscena(
   function fotograma() {
     suavizado += (crudo - suavizado) * 0.12;
     if (Math.abs(crudo - suavizado) < 1e-4) suavizado = crudo;
-    const paso = crudo >= COSTURA_2 ? 2 : crudo >= COSTURA_1 ? 1 : 0;
+    // Los pasos van sobre lo que queda tras el zoom out, estirado a 0→1.
+    const pasosCrudo = tramo(crudo, FIN_ZOOM, 1);
+    const pasos = tramo(suavizado, FIN_ZOOM, 1);
+    const paso = pasosCrudo >= COSTURA_2 ? 2 : pasosCrudo >= COSTURA_1 ? 1 : 0;
     if (paso !== pasoActual) {
       pasoActual = paso;
       cambiarDePaso(paso);
     }
-    pintarTextos(suavizado);
-    pintarPantalla(suavizado);
-    pintarPortatil(suavizado);
+    pintarTransicion(crudo, suavizado);
+    pintarTextos(pasos, pasosCrudo);
+    pintarPantalla(pasos);
+    pintarPortatil(pasos, suavizado);
     raf = requestAnimationFrame(fotograma);
   }
 
@@ -601,6 +706,7 @@ export function montarEscena(
 
   return () => {
     desmontado = true;
+    marcarNegocioEnEscena(false);
     cancelAnimationFrame(raf);
     raf = 0;
     enPantalla.disconnect();

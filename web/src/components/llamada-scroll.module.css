@@ -1,19 +1,20 @@
 /*
- * «Cómo funciona» de la portada: escenario fijo con scroll-driven.
+ * «En tu bolsillo» de la portada: escenario fijo con scroll-driven.
  *
- * La sección mide 340vh y el escenario se queda pegado (100svh) mientras se
- * recorre. El teléfono es un render frontal (public/telefono/frente.webp)
- * con la pantalla en HTML encima, en las coordenadas del hueco del render;
- * las medidas de dentro van en cqw de la pantalla para que todo escale con
- * el teléfono. Los giros y apariciones los pone framer-motion desde el
- * progreso del scroll (ver llamada-scroll.tsx).
+ * La sección es alta (su alto lo pone llamada-scroll.tsx desde
+ * lib/transicion-bolsillo-negocio.ts) y el escenario se queda pegado
+ * (100lvh) mientras se recorre. El teléfono es un render frontal
+ * (public/telefono/frente.webp) con la pantalla en HTML encima, en las
+ * coordenadas del hueco del render; las medidas de dentro van en cqw de la
+ * pantalla para que todo escale con el teléfono. Los giros y apariciones los
+ * pone framer-motion desde el progreso del scroll (ver llamada-scroll.tsx).
+ *
+ * «En tu negocio» solapa el final de esta sección: no lleva borde de abajo.
  */
 
 .seccion {
   position: relative;
-  height: 340vh;
   border-top: 1px solid #e5e5e5;
-  border-bottom: 1px solid #e5e5e5;
 }
 
 .escenario {
@@ -115,8 +116,10 @@
 }
 
 /* Móvil: el teléfono va grande (para que su texto se lea) y se corta por
-   abajo con un degradado; la parte que importa de cada pantalla está
-   arriba. */
+   abajo con un degradado (.velo, del color del escenario, que se apaga al
+   volcarse el teléfono); la parte que importa de cada pantalla está arriba.
+   Lo que sobresale lo recorta el escenario, no la columna: al volcarse, el
+   teléfono se sale de ella. */
 .columnaTelefono {
   grid-area: telefono;
   position: relative;
@@ -124,10 +127,18 @@
   flex-direction: column;
   align-items: center;
   min-height: 0;
-  overflow: hidden;
   padding-top: 0.25rem;
-  -webkit-mask-image: linear-gradient(#000 78%, transparent);
-  mask-image: linear-gradient(#000 78%, transparent);
+}
+
+.velo {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 78%;
+  bottom: -1rem;
+  z-index: 2;
+  background: linear-gradient(rgba(250, 250, 250, 0), #fafafa calc(100% - 1rem));
+  pointer-events: none;
 }
 
 .rotulo {
@@ -305,8 +316,8 @@
   pointer-events: none;
 }
 
-.columnaTelefono::before {
-  content: "";
+/* Brillo morado tras el teléfono; se apaga con el texto al volcarse. */
+.brillo {
   position: absolute;
   inset: 5% 10%;
   background: radial-gradient(closest-side, rgba(139, 92, 246, 0.14), rgba(139, 92, 246, 0));
@@ -319,10 +330,11 @@
   .columnaTelefono {
     align-self: start;
     justify-content: flex-start;
-    overflow: visible;
     padding-top: 0;
-    -webkit-mask-image: none;
-    mask-image: none;
+  }
+
+  .velo {
+    display: none;
   }
 
   .telefono {

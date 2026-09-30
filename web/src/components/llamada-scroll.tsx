@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
 import {
   cubicBezier,
   motion,
+  useMotionValue,
   useMotionValueEvent,
   useScroll,
   useSpring,
@@ -16,6 +17,13 @@ import { SiApple, SiGooglecalendar } from "@icons-pack/react-simple-icons";
 import { MicrosoftLogo } from "@/components/brand-icons";
 import { useMovimientoReducido } from "@/hooks/use-movimiento-reducido";
 import { marcarRelato } from "@/lib/relato-fijo";
+import {
+  ALTO_BOLSILLO_VH,
+  BOLSILLO_P,
+  ESQUINA,
+  hayNegocioEnEscena,
+  publicarEsquinaTelefono,
+} from "@/lib/transicion-bolsillo-negocio";
 import styles from "./llamada-scroll.module.css";
 
 /**
@@ -38,6 +46,11 @@ import styles from "./llamada-scroll.module.css";
  * - Un render plano aguanta ~12° de giro en Y sin delatarse: el resto del
  *   movimiento es deriva lateral, subida y una leve inclinación.
  * - Nada fuerza la posición del scroll salvo el clic en la barra de pasos.
+ *
+ * Desde el 2026-09-30 la sección no termina: al acabar el tercer paso el
+ * teléfono se vuelca (fase «Vuelco») y se funde con el portátil de «En tu
+ * negocio», que solapa a esta sección. El reparto de los tramos y la esquina
+ * en la que se encuentran están en `lib/transicion-bolsillo-negocio.ts`.
  */
 
 type PasoCopy = {
@@ -102,8 +115,33 @@ const MOMENTOS: [number, number, number][] = [
 /** Al pulsar un paso en la barra se cae con todo ya a la vista. */
 const ANCLAS = [0.3, 0.62, 0.88] as const;
 
+/**
+ * Los tres pasos ocupan el progreso 0→FIN_PASOS de la sección; de ahí a
+ * INICIO_CRUCE va el vuelco, y el resto es el cruce con «En tu negocio».
+ * Todo lo de arriba (costuras, momentos, anclas) va sobre el progreso de los
+ * pasos, que es el de antes estirado a 0→1.
+ */
+const { finPasos: FIN_PASOS, inicioCruce: INICIO_CRUCE } = BOLSILLO_P;
+/** El teléfono se apaga en la primera parte del cruce, con el escenario aún fijo. */
+const FIN_FUNDIDO = INICIO_CRUCE + (1 - INICIO_CRUCE) * 0.6;
+/** A cuánto crece el teléfono al volcarse (en móvil, menos: no cabe). */
+const ESCALA_VUELCO = 2.6;
+const ESCALA_VUELCO_MOVIL = 1.8;
+/**
+ * El marco (public/telefono/frente.webp) no llena su imagen: margen
+ * transparente a la derecha y arriba, y radio de sus esquinas, como fracción
+ * del ancho y del alto del elemento. Medidos sobre el render.
+ */
+const MARCO = { derecha: 17 / 1335, arriba: 78 / 2859, radio: 230 / 1335 } as const;
+
 /** Ida y vuelta para movimiento en pantalla (ease-in-out fuerte). */
 const suave = cubicBezier(0.65, 0, 0.35, 1);
+/** Ease-in-out cúbico, el del vuelco. */
+const cubico = (t: number) =>
+  t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+const acotar = (v: number, min = 0, max = 1) => Math.min(max, Math.max(min, v));
+/** Posición de `v` dentro del tramo [a, b], acotada a [0, 1]. */
+const tramo = (v: number, a: number, b: number) => acotar((v - a) / (b - a));
 
 /** Aparece en [a, a + d] subiendo un poco: opacidad y desplazamiento. */
 function useAparece(p: MotionValue<number>, a: number, d = 0.03, desde = 10) {
@@ -130,67 +168,145 @@ export function LlamadaScroll() {
   const reducir = useMovimientoReducido();
   const movil = useEsMovil();
   const seccion = useRef<HTMLElement>(null);
+  const escenario = useRef<HTMLDivElement>(null);
+  const columnaTelefono = useRef<HTMLDivElement>(null);
+  const telefono = useRef<HTMLDivElement>(null);
   const [paso, setPaso] = useState(0);
   const { scrollYProgress: p } = useScroll({ target: seccion, offset: ["start start", "end end"] });
+  const s = useSpring(p, { stiffness: 220, damping: 32, mass: 0.3, restDelta: 0.001 });
+  // El progreso de los tres pasos (0→FIN_PASOS estirado a 0→1), crudo y
+  // suavizado: es lo que ven las costuras, las pantallas y los textos.
+  const pp = useTransform(p, (v) => Math.min(1, v / FIN_PASOS));
+  const sp = useTransform(s, (v) => Math.min(1, v / FIN_PASOS));
   /**
-   * La salida del escenario.
+   * La salida del escenario, solo cuando «En tu negocio» no lo releva (sin
+   * WebGL o sin modelo, esa sección va quieta y no solapa a esta).
    *
    * `p` llega a 1 justo cuando el escenario deja de estar pegado, y a partir
    * de ahí queda todavía una pantalla entera de scroll en la que el escenario
    * se va hacia arriba: es como funciona `position: sticky`, no se puede
-   * quitar. Lo que sí se puede es que no parezca una avería — sin esto se
-   * veía el teléfono cortado por la cabecera, la barra de pasos pegada al
-   * borde y una franja vacía debajo (medido en producción el 2026-09-26:
-   * ~900 px a 1440x900, el 29 % de la sección).
-   *
-   * Con esto, ese tramo es una despedida: el escenario se desvanece y sube un
-   * poco mientras entra la sección siguiente.
+   * quitar. Para que no parezca una avería, ese tramo es una despedida: el
+   * escenario se desvanece y sube un poco mientras entra la sección
+   * siguiente. Con la escena 3D delante no hace falta: el cruce acaba con el
+   * escenario aún fijo y el de «En tu negocio» encima.
    */
   const { scrollYProgress: salida } = useScroll({
     target: seccion,
     offset: ["end end", "end start"],
   });
-  const opacidadSalida = useTransform(salida, [0, 0.55], [1, 0]);
-  const ySalida = useTransform(salida, [0, 1], [0, -64]);
-  const s = useSpring(p, { stiffness: 220, damping: 32, mass: 0.3, restDelta: 0.001 });
+  const opacidadSalida = useTransform(salida, (v) => (hayNegocioEnEscena() ? 1 : 1 - tramo(v, 0, 0.55)));
+  const ySalida = useTransform(salida, (v) => (hayNegocioEnEscena() ? 0 : -64 * v));
 
-  useMotionValueEvent(p, "change", (v) => {
+  useMotionValueEvent(pp, "change", (v) => {
     const siguiente = v >= COSTURA_2 ? 2 : v >= COSTURA_1 ? 1 : 0;
     setPaso((actual) => (actual === siguiente ? actual : siguiente));
   });
 
   // Presencia discreta en las costuras, sobre el progreso crudo.
-  const vis1 = useTransform(p, [0, COSTURA_1 - 0.001, COSTURA_1, 1], ["visible", "visible", "hidden", "hidden"]);
+  const vis1 = useTransform(pp, [0, COSTURA_1 - 0.001, COSTURA_1, 1], ["visible", "visible", "hidden", "hidden"]);
   const vis2 = useTransform(
-    p,
+    pp,
     [0, COSTURA_1 - 0.001, COSTURA_1, COSTURA_2 - 0.001, COSTURA_2, 1],
     ["hidden", "hidden", "visible", "visible", "hidden", "hidden"]
   );
-  const vis3 = useTransform(p, [0, COSTURA_2 - 0.001, COSTURA_2, 1], ["hidden", "hidden", "visible", "visible"]);
+  const vis3 = useTransform(pp, [0, COSTURA_2 - 0.001, COSTURA_2, 1], ["hidden", "hidden", "visible", "visible"]);
 
   // El texto de cada paso sale hacia arriba y el siguiente entra desde abajo.
-  const copy1Y = useTransform(s, [0.3, COSTURA_1], [0, -20]);
-  const copy2Y = useTransform(s, [COSTURA_1, 0.36, 0.64, COSTURA_2], [20, 0, 0, -20]);
-  const copy3Y = useTransform(s, [COSTURA_2, 0.69], [20, 0]);
+  const copy1Y = useTransform(sp, [0.3, COSTURA_1], [0, -20]);
+  const copy2Y = useTransform(sp, [COSTURA_1, 0.36, 0.64, COSTURA_2], [20, 0, 0, -20]);
+  const copy3Y = useTransform(sp, [COSTURA_2, 0.69], [20, 0]);
 
   // El teléfono se balancea durante todo el recorrido. En móvil, con menos
   // amplitud: allí el teléfono llena su hueco y no puede irse lejos.
   const k = movil ? 0.45 : 1;
-  const giroY = useTransform(s, [0, 0.08, COSTURA_1, COSTURA_2, 0.95, 1], [-12, -6, 9, -9, 4, 4].map((v) => v * k), { ease: suave });
-  const giroX = useTransform(s, [0, 0.08, 1], [6 * k, 3 * k, 3 * k]);
-  const deriva = useTransform(s, [0, COSTURA_1, COSTURA_2, 1], [-18, 14, -14, 0].map((v) => v * k), { ease: suave });
-  const subida = useTransform(s, [0, COSTURA_1, COSTURA_2, 1], [0, -10, -2, -12].map((v) => v * k), { ease: suave });
-  const inclina = useTransform(s, [0, COSTURA_1, COSTURA_2, 1], [-1.5, 1.2, -1.2, 0].map((v) => v * k), { ease: suave });
+  const giroY = useTransform(sp, [0, 0.08, COSTURA_1, COSTURA_2, 0.95, 1], [-12, -6, 9, -9, 4, 4].map((v) => v * k), { ease: suave });
+  const giroX = useTransform(sp, [0, 0.08, 1], [6 * k, 3 * k, 3 * k]);
+  const deriva = useTransform(sp, [0, COSTURA_1, COSTURA_2, 1], [-18, 14, -14, 0].map((v) => v * k), { ease: suave });
+  const subida = useTransform(sp, [0, COSTURA_1, COSTURA_2, 1], [0, -10, -2, -12].map((v) => v * k), { ease: suave });
+  const inclina = useTransform(sp, [0, COSTURA_1, COSTURA_2, 1], [-1.5, 1.2, -1.2, 0].map((v) => v * k), { ease: suave });
   // Paso 2: se acerca al hueco mientras el buscador recorre la agenda.
-  const zoom = useTransform(s, [0.43, 0.48, 0.56, 0.61], [1, movil ? 1.06 : 1.16, movil ? 1.06 : 1.16, 1], { ease: suave });
+  const zoom = useTransform(sp, [0.43, 0.48, 0.56, 0.61], [1, movil ? 1.06 : 1.16, movil ? 1.06 : 1.16, 1], { ease: suave });
+
+  /**
+   * Vuelco (FIN_PASOS→INICIO_CRUCE): el teléfono se tumba a −90°, crece y se
+   * va hacia la esquina inferior derecha hasta que solo se ve su esquina
+   * superior izquierda (la de arriba a la derecha del marco de pie), que es
+   * donde «En tu negocio» pondrá la esquina de la tapa del portátil. Los
+   * giros en 3D se apagan, con un balanceo en Y a mitad de camino, y el zoom
+   * pasa por un pico extra del 10 %. Todo con easing cúbico, sobre el muelle.
+   */
+  const tVuelco = useTransform(s, [FIN_PASOS, INICIO_CRUCE], [0, 1]);
+  const tv = useTransform(tVuelco, cubico);
+  // A dónde tiene que ir el centro del teléfono para que la esquina caiga en
+  // su sitio: depende del layout, se mide (ver `medir`).
+  const xFinal = useMotionValue(0);
+  const yFinal = useMotionValue(0);
+  const rotateY = useTransform([giroY, tv], ([g, t]: number[]) => g * (1 - t) - 12 * Math.sin(Math.PI * t));
+  const rotateX = useTransform([giroX, tv], ([g, t]: number[]) => g * (1 - t));
+  const rotate = useTransform([inclina, tv], ([r, t]: number[]) => r - 90 * t);
+  const escalaVuelco = movil ? ESCALA_VUELCO_MOVIL : ESCALA_VUELCO;
+  const scale = useTransform(
+    [zoom, tv],
+    ([z, t]: number[]) => z * (1 + (escalaVuelco - 1) * t) * (1 + 0.1 * Math.sin(Math.PI * t))
+  );
+  const x = useTransform([deriva, tv, xFinal], ([d, t, xf]: number[]) => d + xf * t);
+  const y = useTransform([subida, tv, yFinal], ([sb, t, yf]: number[]) => sb * (1 - t) + yf * t);
+  const originY = useTransform(tVuelco, [0, 0.25], [0.36, 0.5]);
+  // El texto, el rótulo y la barra de pasos se van en el primer cuarto del
+  // vuelco; la sombra del teléfono también.
+  const opacidadTexto = useTransform(tVuelco, [0, 0.25], [1, 0]);
+  const yTexto = useTransform(tVuelco, [0, 0.25], [0, -24]);
+  const visTexto = useTransform(tVuelco, (t) => (t >= 0.25 ? "hidden" : "visible"));
   // La sombra acompaña: se estrecha al girar y se aclara al subir.
   const sombraX = useTransform(giroY, (v) => 1 - Math.abs(v) / 60);
-  const sombraO = useTransform(subida, [0, -14], [1, 0.8]);
+  const sombraO = useTransform([subida, tVuelco], ([sb, t]: number[]) => (1 - 0.2 * tramo(sb, 0, -14)) * (1 - tramo(t, 0, 0.25)));
+  // En el cruce, el teléfono se apaga bajo el lienzo 3D de «En tu negocio»
+  // (sobre el progreso crudo, como el lienzo). Sin escena, se queda.
+  const opacidadTelefono = useTransform(p, (v) => (hayNegocioEnEscena() ? 1 - tramo(v, INICIO_CRUCE, FIN_FUNDIDO) : 1));
 
   // Barra de pasos: cada tramo se llena con su parte del progreso.
-  const barra1 = useTransform(p, [0, COSTURA_1], [0, 1]);
-  const barra2 = useTransform(p, [COSTURA_1, COSTURA_2], [0, 1]);
-  const barra3 = useTransform(p, [COSTURA_2, 1], [0, 1]);
+  const barra1 = useTransform(pp, [0, COSTURA_1], [0, 1]);
+  const barra2 = useTransform(pp, [COSTURA_1, COSTURA_2], [0, 1]);
+  const barra3 = useTransform(pp, [COSTURA_2, 1], [0, 1]);
+
+  /**
+   * Mide dónde descansa el teléfono dentro del escenario (que, pegado, ocupa
+   * la pantalla) y calcula el desplazamiento que lo deja, tumbado y a escala,
+   * con su esquina en ESQUINA. Publica esa esquina y su radio para la escena
+   * de «En tu negocio». Se repite al cambiar el tamaño de algo.
+   */
+  useEffect(() => {
+    const esc = escenario.current;
+    const col = columnaTelefono.current;
+    const tel = telefono.current;
+    if (!esc || !col || !tel) return;
+    const medir = () => {
+      const ancho = esc.clientWidth;
+      const alto = esc.clientHeight;
+      const w = tel.offsetWidth;
+      const h = tel.offsetHeight;
+      const centroX = col.offsetLeft + tel.offsetLeft + w / 2;
+      const centroY = col.offsetTop + tel.offsetTop + h / 2;
+      const e = window.innerWidth < 1024 ? ESCALA_VUELCO_MOVIL : ESCALA_VUELCO;
+      const esquinaX = ESQUINA.x * ancho;
+      const esquinaY = ESQUINA.y * alto;
+      // La esquina de arriba a la derecha del marco, tras girar −90° y
+      // escalar sobre el centro, queda a (−(½ − arriba)·h, −(½ − derecha)·w)·e
+      // del centro: arriba a la izquierda del teléfono tumbado.
+      xFinal.set(esquinaX - centroX + e * (0.5 - MARCO.arriba) * h);
+      yFinal.set(esquinaY - centroY + e * (0.5 - MARCO.derecha) * w);
+      publicarEsquinaTelefono({ x: esquinaX, y: esquinaY, radio: MARCO.radio * w * e });
+    };
+    const observador = new ResizeObserver(medir);
+    observador.observe(esc);
+    observador.observe(col);
+    observador.observe(tel);
+    medir();
+    return () => {
+      observador.disconnect();
+      publicarEsquinaTelefono(null);
+    };
+  }, [reducir, xFinal, yFinal]);
 
   // Mientras el escenario está fijo, el botón de «Configurar cookies» se
   // esconde (tapaba la barra de pasos en móvil). Ver lib/relato-fijo.ts.
@@ -205,7 +321,7 @@ export function LlamadaScroll() {
       const el = seccion.current;
       if (!el) return;
       const recorrido = el.offsetHeight - window.innerHeight;
-      const top = window.scrollY + el.getBoundingClientRect().top + recorrido * ANCLAS[i];
+      const top = window.scrollY + el.getBoundingClientRect().top + recorrido * ANCLAS[i] * FIN_PASOS;
       window.scrollTo({ top, behavior: reducir ? "auto" : "smooth" });
     },
     [reducir]
@@ -214,17 +330,23 @@ export function LlamadaScroll() {
   if (reducir) return <VersionQuieta />;
 
   return (
-    <section ref={seccion} id="como-funciona" className={styles.seccion} aria-labelledby="llamada-titulo">
-      <motion.div className={styles.escenario} style={{ opacity: opacidadSalida, y: ySalida }}>
+    <section
+      ref={seccion}
+      id="como-funciona"
+      className={styles.seccion}
+      style={{ height: `${ALTO_BOLSILLO_VH}vh` }}
+      aria-labelledby="llamada-titulo"
+    >
+      <motion.div ref={escenario} className={styles.escenario} style={{ opacity: opacidadSalida, y: ySalida }}>
         <div className={styles.rejilla}>
-          <div className={styles.columnaTexto}>
+          <motion.div className={styles.columnaTexto} style={{ opacity: opacidadTexto, y: yTexto, visibility: visTexto }}>
             <h2 id="llamada-titulo" className={styles.antetitulo}>
               En tu bolsillo
             </h2>
             <div className={styles.copias} aria-hidden="true">
-              <Copia paso={PASOS[0]} y={copy1Y} visibility={vis1} p={s} momentos={MOMENTOS[0]} />
-              <Copia paso={PASOS[1]} y={copy2Y} visibility={vis2} p={s} momentos={MOMENTOS[1]} />
-              <Copia paso={PASOS[2]} y={copy3Y} visibility={vis3} p={s} momentos={MOMENTOS[2]} />
+              <Copia paso={PASOS[0]} y={copy1Y} visibility={vis1} p={sp} momentos={MOMENTOS[0]} />
+              <Copia paso={PASOS[1]} y={copy2Y} visibility={vis2} p={sp} momentos={MOMENTOS[1]} />
+              <Copia paso={PASOS[2]} y={copy3Y} visibility={vis3} p={sp} momentos={MOMENTOS[2]} />
             </div>
             <nav className={styles.barraPasos} aria-label="Pasos de la llamada">
               {[barra1, barra2, barra3].map((relleno, i) => (
@@ -245,24 +367,27 @@ export function LlamadaScroll() {
                 </button>
               ))}
             </nav>
-          </div>
+          </motion.div>
 
-          <div className={styles.columnaTelefono} aria-hidden="true">
-            <p className={styles.rotulo}>
+          <div ref={columnaTelefono} className={styles.columnaTelefono} aria-hidden="true">
+            <motion.span className={styles.brillo} style={{ opacity: opacidadTexto }} />
+            <motion.p className={styles.rotulo} style={{ opacity: opacidadTexto, y: yTexto }}>
               <motion.span style={{ visibility: vis1 }}>{PASOS[0].pantalla}</motion.span>
               <motion.span style={{ visibility: vis2 }}>{PASOS[1].pantalla}</motion.span>
               <motion.span style={{ visibility: vis3 }}>{PASOS[2].pantalla}</motion.span>
-            </p>
+            </motion.p>
             <motion.div
+              ref={telefono}
               className={styles.telefono}
               style={{
-                x: deriva,
-                y: subida,
-                rotateY: giroY,
-                rotateX: giroX,
-                rotate: inclina,
-                scale: zoom,
-                originY: 0.36,
+                x,
+                y,
+                rotateY,
+                rotateX,
+                rotate,
+                scale,
+                originY,
+                opacity: opacidadTelefono,
                 transformPerspective: 1400,
               }}
             >
@@ -271,20 +396,23 @@ export function LlamadaScroll() {
                 <span className={styles.isla} />
                 <motion.div className={styles.capa} style={{ visibility: vis1 }}>
                   <Estado oscuro />
-                  <PantallaLlamada p={s} />
+                  <PantallaLlamada p={sp} />
                 </motion.div>
                 <motion.div className={styles.capa} style={{ visibility: vis2 }}>
                   <Estado oscuro={false} />
-                  <PantallaAgenda p={s} />
+                  <PantallaAgenda p={sp} />
                 </motion.div>
                 <motion.div className={styles.capa} style={{ visibility: vis3 }}>
                   <Estado oscuro={false} />
-                  <PantallaWhatsApp p={s} />
+                  <PantallaWhatsApp p={sp} />
                 </motion.div>
               </div>
               {/* eslint-disable-next-line @next/next/no-img-element -- render local, el marco del teléfono */}
               <img src="/telefono/frente.webp" alt="" className={styles.marco} width={1335} height={2859} />
             </motion.div>
+            {/* Móvil: el teléfono se corta por abajo con un degradado, que se
+                va con el texto al empezar el vuelco. */}
+            <motion.div className={styles.velo} style={{ opacity: opacidadTexto }} />
           </div>
         </div>
       </motion.div>

@@ -20,6 +20,10 @@ vi.mock("framer-motion", async (original) => ({
 }));
 
 import { EnTuNegocioScroll } from "@/components/en-tu-negocio";
+import {
+  ALTO_NEGOCIO_VH,
+  SOLAPE_NEGOCIO_VH,
+} from "@/lib/transicion-bolsillo-negocio";
 
 const avisos: { el: Element; aviso: IntersectionObserverCallback }[] = [];
 
@@ -116,6 +120,26 @@ describe("EnTuNegocioScroll", () => {
         name: "En tu negocio: todo lo que pasa, en tu panel.",
       })
     ).toBeInTheDocument();
+  });
+
+  it("solapa el final de «En tu bolsillo» solo cuando va con escena", async () => {
+    render(<EnTuNegocioScroll />);
+    const animada = seccion();
+    // La sección sube sobre la anterior una pantalla más el cruce, y su
+    // texto, rótulo y crédito empiezan apagados (los enciende la escena).
+    expect(animada.style.marginTop).toBe(`-${SOLAPE_NEGOCIO_VH}vh`);
+    expect(animada.style.height).toBe(`${ALTO_NEGOCIO_VH}vh`);
+    expect(SOLAPE_NEGOCIO_VH).toBeGreaterThan(100);
+
+    montarEscena.mockImplementation(() => {
+      throw new Error("Error creating WebGL context.");
+    });
+    acercar(animada);
+    await screen.findByRole("heading", {
+      level: 2,
+      name: "En tu negocio: todo lo que pasa, en tu panel.",
+    });
+    expect(seccion().style.marginTop).toBe("");
   });
 
   it("acredita el modelo 3D con autor, origen y licencia (CC BY 4.0)", () => {

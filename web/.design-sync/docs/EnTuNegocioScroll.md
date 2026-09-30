@@ -3,10 +3,14 @@ category: Marketing
 ---
 «En tu negocio», la sección de la portada que va justo después de «En tu
 bolsillo» y enseña el otro lado: lo que ve el dueño. Misma mecánica: la sección
-mide 360vh con el escenario pegado (sticky) y el scroll recorre tres pasos
-—«Tu panel», «Llamadas» y «Asistente»—. El protagonista es un portátil en 3D
-(three.js) que se abre con el scroll; en su pantalla, en HTML proyectado sobre
-la tapa, pasan el panel, el detalle de una llamada y el asistente.
+es alta (440vh, `lib/transicion-bolsillo-negocio.ts`) con el escenario pegado
+(sticky) y el scroll recorre tres pasos —«Tu panel», «Llamadas» y «Asistente»—.
+El protagonista es un portátil en 3D (three.js) que se abre con el scroll; en
+su pantalla, en HTML proyectado sobre la tapa, pasan el panel, el detalle de
+una llamada y el asistente. La sección solapa el final de «En tu bolsillo»
+(116vh de margen negativo): empieza con la tapa cerrada vista desde arriba, su
+esquina fundida con la del teléfono volcado, y la cámara se aleja hasta el
+encuadre del paso 1 antes de que entre el título.
 
 No recibe props y es ancho completo: va directamente en la página. three.js y
 el modelo (`public/modelos/macbook.glb`) se cargan al acercarse la sección.
