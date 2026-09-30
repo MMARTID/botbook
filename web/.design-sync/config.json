@@ -32,7 +32,9 @@
     "Reveal": "src/components/scroll-reveal.tsx",
     "ParticleField": "src/components/particle-field.tsx",
     "ParticleMouseLayer": "src/components/particle-mouse-layer.tsx",
-    "DemoVoiceCall": "src/components/demo-voice-call.tsx"
+    "DemoVoiceCall": "src/components/demo-voice-call.tsx",
+    "LlamadaScroll": "src/components/llamada-scroll.tsx",
+    "EnTuNegocioScroll": "src/components/en-tu-negocio.tsx"
   },
   "overrides": {
     "MobileNav": {
@@ -61,6 +63,14 @@
     "DemoVoiceCall": {
       "cardMode": "single",
       "viewport": "900x760"
+    },
+    "LlamadaScroll": {
+      "cardMode": "single",
+      "viewport": "1280x800"
+    },
+    "EnTuNegocioScroll": {
+      "cardMode": "single",
+      "viewport": "1280x800"
     }
   },
   "dtsPropsFor": {

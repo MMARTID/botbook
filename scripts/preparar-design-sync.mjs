@@ -14,8 +14,9 @@
 //
 //   1. entry.ts               — barrel con los componentes de componentSrcMap
 //   2. process-shim.ts        — `process` para el bundle del navegador
-//   3. preview-providers.tsx  — el contexto que necesitan las tarjetas
-//   4. cfg.cssEntry           — Tailwind compilado + @font-face de Geist
+//   3. recursos-publicos.ts   — (si hace falta) ficheros de public/ embebidos
+//   4. preview-providers.tsx  — el contexto que necesitan las tarjetas
+//   5. cfg.cssEntry           — Tailwind compilado + @font-face de Geist
 //
 // y en <proyecto>/dist/types/ (gitignorado) el árbol de .d.ts. El único origen
 // de verdad es el config.json de cada paquete y el propio código.
@@ -29,7 +30,7 @@ import {
   statSync,
   writeFileSync,
 } from "node:fs";
-import { dirname, join, relative, resolve } from "node:path";
+import { dirname, extname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const RAIZ = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -44,6 +45,14 @@ function esFichero(ruta) {
   return existsSync(ruta) && statSync(ruta).isFile();
 }
 
+const TIPOS_MIME = {
+  ".glb": "model/gltf-binary",
+  ".jpg": "image/jpeg",
+  ".png": "image/png",
+  ".svg": "image/svg+xml",
+  ".webp": "image/webp",
+};
+
 /** Resuelve un especificador relativo sin extensión, como el bundler. */
 function existeModulo(base) {
   return ["", ".ts", ".tsx"].some((ext) => esFichero(base + ext));
@@ -56,12 +65,16 @@ function existeModulo(base) {
  * @param {Array<[string, string[]]>} [opciones.datosExtra]  Exportaciones que
  *   no son componentes (datos reales para componer). Especificadores
  *   relativos a .ds-src/, como los del barrel.
+ * @param {string[]} [opciones.recursosPublicos]  Rutas de public/ que los
+ *   componentes cargan con ruta absoluta (`<img src="/telefono/frente.webp">`)
+ *   y que fuera de Next no existen. Van embebidas en el bundle.
  * @param {string} opciones.providers Contenido de preview-providers.tsx.
  */
 export function prepararPaquete({
   proyecto,
   config,
   datosExtra = [],
+  recursosPublicos = [],
   providers,
 }) {
   const cfg = JSON.parse(readFileSync(config, "utf8"));
@@ -96,6 +109,12 @@ export function prepararPaquete({
       .map(
         ([especificador, nombres]) => `${nombres.join(", ")} → ${especificador}`
       ),
+    ...recursosPublicos
+      .filter((ruta) => !esFichero(join(proyecto, "public", ruta)))
+      .map((ruta) => `recurso público → ${relProyecto}/public${ruta}`),
+    ...recursosPublicos
+      .filter((ruta) => !(extname(ruta) in TIPOS_MIME))
+      .map((ruta) => `recurso público sin tipo MIME conocido → ${ruta}`),
   ];
   if (inexistentes.length) {
     fallar("el ámbito apunta a ficheros que no existen:", inexistentes);
@@ -133,6 +152,7 @@ export function prepararPaquete({
       "// Debe ir primero: en ESM las dependencias se evalúan en orden de import,",
       "// y el shim tiene que existir antes de que se cargue lib/api.ts.",
       'import "./process-shim";',
+      ...(recursosPublicos.length ? ['import "./recursos-publicos";'] : []),
       "",
       ...lineas,
       "",
@@ -175,6 +195,79 @@ if (typeof globalThis.global === "undefined") globalThis.global = globalThis;
 export {};
 `
   );
+
+  // --- 1 ter. recursos de public/ -----------------------------------------
+  // Algunos componentes cargan ficheros de public/ con ruta absoluta. En la web
+  // los sirve Next; en las tarjetas y en los diseños de claude.ai/design esas
+  // rutas no existen y la imagen salía rota (como le pasó a BrandMark). En vez
+  // de tocar el código de producción, el bundle los lleva como data URI y este
+  // shim los sustituye al vuelo: en `src` (atributo o propiedad) y en fetch.
+  rmSync(join(destino, "recursos-publicos.ts"), { force: true });
+  if (recursosPublicos.length) {
+    const recursos = Object.fromEntries(
+      recursosPublicos.map((ruta) => [
+        ruta,
+        `data:${TIPOS_MIME[extname(ruta)]};base64,` +
+          readFileSync(join(proyecto, "public", ruta)).toString("base64"),
+      ])
+    );
+    writeFileSync(
+      join(destino, "recursos-publicos.ts"),
+      `// GENERADO por scripts/preparar-design-sync.mjs — no editar a mano.
+// Ficheros de public/ que los componentes cargan con ruta absoluta, dentro del
+// bundle como data URI: ${recursosPublicos.join(", ")}.
+const RECURSOS: Record<string, string> = ${JSON.stringify(recursos)};
+
+const embebido = (ruta: string) =>
+  Object.prototype.hasOwnProperty.call(RECURSOS, ruta)
+    ? RECURSOS[ruta]
+    : undefined;
+
+/** La ruta de una URL ya resuelta; en un iframe srcdoc no hay base válida. */
+function rutaDe(url: string) {
+  try {
+    return new URL(url, window.location.href).pathname;
+  } catch {
+    return url;
+  }
+}
+
+if (typeof window !== "undefined") {
+  const setAttribute = Element.prototype.setAttribute;
+  Element.prototype.setAttribute = function (nombre: string, valor: string) {
+    const dato = nombre === "src" ? embebido(String(valor)) : undefined;
+    return setAttribute.call(this, nombre, dato ?? valor);
+  };
+
+  const src = Object.getOwnPropertyDescriptor(HTMLImageElement.prototype, "src");
+  if (src?.set) {
+    const asignar = src.set;
+    Object.defineProperty(HTMLImageElement.prototype, "src", {
+      ...src,
+      set(valor: string) {
+        asignar.call(this, embebido(String(valor)) ?? valor);
+      },
+    });
+  }
+
+  const fetchOriginal = window.fetch.bind(window);
+  window.fetch = (entrada: RequestInfo | URL, init?: RequestInit) => {
+    const url =
+      typeof entrada === "string"
+        ? entrada
+        : entrada instanceof URL
+          ? entrada.href
+          : entrada.url;
+    const dato =
+      embebido(url) ?? embebido(rutaDe(url));
+    return fetchOriginal(dato ?? entrada, dato ? undefined : init);
+  };
+}
+
+export {};
+`
+    );
+  }
 
   // --- 2. providers de preview ---------------------------------------------
   writeFileSync(join(destino, "preview-providers.tsx"), providers);

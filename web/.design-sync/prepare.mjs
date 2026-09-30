@@ -49,5 +49,15 @@ prepararPaquete({
   // agente de diseño) compongan con él en vez de inventar relleno. No genera
   // tarjeta.
   datosExtra: [["../src/lib/niche-landings", ["nicheLandings"]]],
+  // Rutas de public/ que cargan las secciones de la portada: el teléfono y el
+  // logo del chat de «En tu bolsillo» (<img>) y el portátil 3D de «En tu
+  // negocio» (fetch del GLTFLoader). Fuera de Next no existen: sin ellos el
+  // teléfono sale roto y «En tu negocio» cae a su versión quieta. El modelo
+  // pesa 1,3 MB y es lo que más engorda el bundle (ver NOTES.md).
+  recursosPublicos: [
+    "/telefono/frente.webp",
+    "/brand/alhabla-isotipo.svg",
+    "/modelos/macbook.glb",
+  ],
   providers: PROVIDERS,
 });
