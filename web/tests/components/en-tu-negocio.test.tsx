@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 
 /**
  * «En tu negocio» pinta todo su marcado con React (los textos tienen que estar
@@ -91,9 +91,50 @@ describe("EnTuNegocioScroll", () => {
 
     acercar(seccion());
 
-    await waitFor(() => expect(montarEscena).toHaveBeenCalledWith(seccion()));
+    await waitFor(() =>
+      expect(montarEscena).toHaveBeenCalledWith(seccion(), expect.any(Function))
+    );
     unmount();
     expect(desmontar).toHaveBeenCalledTimes(1);
+  });
+
+  it("si el modelo 3D no llega (la escena avisa después) pasa a la versión quieta", async () => {
+    let alFallar: (error: unknown) => void = () => {};
+    montarEscena.mockImplementation((_raiz, aviso) => {
+      alFallar = aviso;
+      return () => {};
+    });
+    render(<EnTuNegocioScroll />);
+    acercar(seccion());
+    await waitFor(() => expect(montarEscena).toHaveBeenCalled());
+
+    act(() => alFallar(new Error("404 /modelos/macbook.glb")));
+
+    expect(
+      await screen.findByRole("heading", {
+        level: 2,
+        name: "En tu negocio: todo lo que pasa, en tu panel.",
+      })
+    ).toBeInTheDocument();
+  });
+
+  it("acredita el modelo 3D con autor, origen y licencia (CC BY 4.0)", () => {
+    render(<EnTuNegocioScroll />);
+
+    expect(screen.getByRole("link", { name: "jackbaeten" })).toHaveAttribute(
+      "href",
+      "https://sketchfab.com/jackbaeten"
+    );
+    expect(screen.getByRole("link", { name: "CC BY 4.0" })).toHaveAttribute(
+      "href",
+      "https://creativecommons.org/licenses/by/4.0/"
+    );
+    expect(
+      screen.getByRole("link", { name: "«macbook pro M3 16 inch 2024»" })
+    ).toHaveAttribute(
+      "href",
+      expect.stringContaining("sketchfab.com/3d-models")
+    );
   });
 
   it("sin WebGL (la escena lanza) pasa a la versión quieta", async () => {

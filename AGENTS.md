@@ -185,8 +185,11 @@ each page's image explicitly from its `openGraph`/`twitter` metadata.
   `OwnerAssistantSection`, `WhatsAppBenefitsTable`, benefits, `HowItWorksScrollytelling`,
   `RevenueLossCalculator`, plans and FAQ. Without `content` (the generic `/`) it returns
   `MainLanding`, a shorter home page with its own hero over `HeroHilos` plus `LlamadaScroll`,
-  `EnTuNegocioScroll` (the owner's panel on a three.js laptop; three is imported lazily when the
-  section approaches), `PuntosFuertesSection`, `WhatsAppClientesSection`, `OwnerAssistantSection`, `EnMarchaSection`,
+  `EnTuNegocioScroll` (the owner's panel on a three.js laptop; three and the glTF model
+  `web/public/modelos/macbook.glb` load lazily when the section approaches. The model is
+  «macbook pro M3 16 inch 2024» by jackbaeten, CC BY 4.0: the credit line under the scene is
+  required by the license, don't remove it. Rebuild it with `web/scripts/preparar-macbook.mjs`,
+  which strips the lid logo), `PuntosFuertesSection`, `WhatsAppClientesSection`, `OwnerAssistantSection`, `EnMarchaSection`,
   the sector accordion, plans and FAQ. The per-city pages (`/<niche>/[ciudad]`) use
   `CityNicheLanding`.
 - `SectorDataSection` — Third-party figures about the niche, each rendered with its source

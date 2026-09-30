@@ -82,6 +82,15 @@ const PASOS: [PasoCopy, PasoCopy, PasoCopy] = [
 /** Al pulsar un paso en la barra se cae con todo ya a la vista. */
 const ANCLAS = [0.3, 0.6, 0.9] as const;
 
+/** El portátil 3D (public/modelos/macbook.glb) y su licencia, para el crédito. */
+const MODELO = {
+  titulo: "macbook pro M3 16 inch 2024",
+  origen:
+    "https://sketchfab.com/3d-models/macbook-pro-m3-16-inch-2024-8e34fc2b303144f78490007d91ff57c4",
+  autor: "https://sketchfab.com/jackbaeten",
+  licencia: "https://creativecommons.org/licenses/by/4.0/",
+} as const;
+
 /** A qué distancia de la pantalla se empieza a descargar three.js. */
 const MARGEN_DE_CARGA = "100% 0px";
 
@@ -108,8 +117,11 @@ export function EnTuNegocioScroll() {
         import("./en-tu-negocio-escena")
           .then(({ montarEscena }) => {
             if (cancelado) return;
-            // Sin WebGL, `montarEscena` lanza: versión quieta.
-            desmontar = montarEscena(el);
+            // Sin WebGL, `montarEscena` lanza; si el modelo 3D no llega,
+            // avisa después. En los dos casos, versión quieta.
+            desmontar = montarEscena(el, () => {
+              if (!cancelado) setSinEscena(true);
+            });
           })
           .catch(() => {
             if (!cancelado) setSinEscena(true);
@@ -953,6 +965,22 @@ export function EnTuNegocioScroll() {
             <div className="ng-hueco" />
           </div>
         </div>
+        {/* Crédito que exige la licencia CC BY 4.0 del modelo: no quitar. */}
+        <p className="ng-credito">
+          Modelo 3D{" "}
+          <a href={MODELO.origen} target="_blank" rel="noopener noreferrer">
+            «{MODELO.titulo}»
+          </a>
+          , de{" "}
+          <a href={MODELO.autor} target="_blank" rel="noopener noreferrer">
+            jackbaeten
+          </a>{" "}
+          (
+          <a href={MODELO.licencia} target="_blank" rel="noopener noreferrer">
+            CC BY 4.0
+          </a>
+          ), sin el logo y con la pantalla de Alhabla.
+        </p>
       </div>
       <ol className="sr-only">
         {PASOS.map((paso) => (
