@@ -77,9 +77,10 @@ si el barrel no compila, en lugar de dejar la tarjeta vacía.
 - **El bundle pesa ~4,5 MB** (antes ~1,1 MB): three.js va dentro porque
   `EnTuNegocioScroll` lo importa de forma dinámica y el IIFE del convertidor no
   parte en chunks (~1,7 MB), y el modelo 3D embebido suma otros ~1,7 MB en
-  base64. Si la subida a claude.ai/design lo rechazara por tamaño, quitar
-  `/modelos/macbook.glb` de `recursosPublicos`: la sección sigue funcionando en
-  su versión quieta.
+  base64. **Subido sin problemas el 2026-09-30** (el `_ds_bundle.js` de 4,5 MB
+  va en su propio `write_files`). Si algún día la subida lo rechazara por
+  tamaño, quitar `/modelos/macbook.glb` de `recursosPublicos`: la sección sigue
+  funcionando en su versión quieta.
 
 ## Cosas que se quedaron fuera a propósito
 
