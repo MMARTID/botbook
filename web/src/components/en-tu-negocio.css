@@ -179,6 +179,26 @@
   width: 100%;
   min-height: 0;
 }
+/* Crédito del modelo 3D (lo exige su licencia CC BY 4.0). */
+.ng-seccion .ng-credito {
+  position: absolute;
+  right: 1rem;
+  bottom: 0.75rem;
+  z-index: 3;
+  max-width: calc(100% - 2rem);
+  font-size: 0.6875rem;
+  line-height: 1rem;
+  color: #a1a1aa;
+  text-align: right;
+}
+.ng-seccion .ng-credito a {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.ng-seccion .ng-credito a:hover {
+  color: #52525b;
+}
 @media (max-width: 1023px) {
   .ng-seccion .ng-parrafo {
     display: none;

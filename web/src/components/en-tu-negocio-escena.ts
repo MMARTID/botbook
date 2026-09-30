@@ -1,32 +1,30 @@
 import {
   ACESFilmicToneMapping,
-  BoxGeometry,
+  Box3,
   CanvasTexture,
   Color,
   DirectionalLight,
   DoubleSide,
-  ExtrudeGeometry,
   Group,
   HemisphereLight,
-  InstancedMesh,
   LinearSRGBColorSpace,
   MathUtils,
   Mesh,
   MeshBasicMaterial,
-  MeshStandardMaterial,
   Object3D,
   PerspectiveCamera,
   PlaneGeometry,
   PMREMGenerator,
   Quaternion,
   Scene,
-  Shape,
-  ShapeGeometry,
   SRGBColorSpace,
+  Texture,
   Vector3,
   WebGLRenderer,
   type Material,
 } from "three";
+import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+import { MeshoptDecoder } from "three/addons/libs/meshopt_decoder.module.js";
 
 /**
  * Motor de «En tu negocio» (`en-tu-negocio.tsx`). Recibe la <section> ya
@@ -34,10 +32,13 @@ import {
  * portátil, mueve la cámara, cambia la pantalla y va enseñando los textos.
  * Devuelve la limpieza.
  *
- * El portátil es three.js; lo que se ve en su pantalla es HTML normal (el
- * `.mx` de la sección), proyectado sobre la tapa con una homografía
- * (`matrix3d`) que lleva sus cuatro esquinas a las de la pantalla 3D. Así el
- * texto sigue nítido y la pantalla es la de la app de verdad.
+ * El portátil es un modelo 3D (`public/modelos/macbook.glb`, «macbook pro M3
+ * 16 inch 2024» de jackbaeten, CC BY 4.0: el crédito de la sección es
+ * obligatorio), preparado con `scripts/preparar-macbook.mjs`: sin logo, con la
+ * tapa vertical y el pivote en la bisagra. Lo que se ve en su pantalla es
+ * HTML normal (el `.mx` de la sección), proyectado sobre la tapa con una
+ * homografía (`matrix3d`) que lleva sus cuatro esquinas a las de la pantalla
+ * 3D. Así el texto sigue nítido y la pantalla es la de la app de verdad.
  *
  * Mismas reglas que «En tu bolsillo» (`llamada-scroll.tsx`): la presencia de
  * cada paso cambia de golpe en las costuras (1/3 y 2/3) sobre el progreso
@@ -45,8 +46,9 @@ import {
  *
  * El componente importa este módulo de forma dinámica, cuando la sección se
  * acerca, para que three.js no pese en la carga de la portada; y el bucle
- * solo corre con la sección en pantalla. Si no hay WebGL, `WebGLRenderer`
- * lanza y el componente pasa a su versión quieta.
+ * solo corre con la sección en pantalla y el modelo ya descargado. Si no hay
+ * WebGL, `WebGLRenderer` lanza; si el modelo no llega, se avisa con
+ * `alFallar`. En los dos casos el componente pasa a su versión quieta.
  */
 
 const COSTURA_1 = 1 / 3;
@@ -72,14 +74,8 @@ const ESQUINAS_HTML = [
   PANTALLA_H,
 ];
 
-/** Medidas del portátil, en cm. */
-const ANCHO = 35.6;
-const FONDO = 24.8;
-const GROSOR_BASE = 0.9;
-const GROSOR_TAPA = 0.5;
-const ALTO_TAPA = 24.4;
-const ANCHO_PANTALLA = 34.2;
-const ALTO_PANTALLA = (ANCHO_PANTALLA * PANTALLA_H) / PANTALLA_W;
+/** El portátil, preparado con scripts/preparar-macbook.mjs (medidas en cm). */
+const RUTA_MODELO = "/modelos/macbook.glb";
 
 /** Alturas relativas de la onda de la grabación (se repite). */
 const ONDA = [0.3, 0.5, 0.8, 0.45, 0.9, 0.6, 0.35, 0.7, 0.5, 0.25, 0.65, 0.4];
@@ -181,46 +177,8 @@ function homografia(origen: number[], destino: number[]) {
   return `matrix3d(${t[0]},${t[3]},0,${t[6]},${t[1]},${t[4]},0,${t[7]},0,0,1,0,${t[2]},${t[5]},0,${t[8]})`;
 }
 
-/* ── Piezas del portátil ── */
-
-function rectanguloRedondeado(w: number, h: number, r: number) {
-  const s = new Shape();
-  const x = -w / 2;
-  const y = -h / 2;
-  s.moveTo(x + r, y);
-  s.lineTo(x + w - r, y);
-  s.quadraticCurveTo(x + w, y, x + w, y + r);
-  s.lineTo(x + w, y + h - r);
-  s.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
-  s.lineTo(x + r, y + h);
-  s.quadraticCurveTo(x, y + h, x, y + h - r);
-  s.lineTo(x, y + r);
-  s.quadraticCurveTo(x, y, x + r, y);
-  return s;
-}
-
-const extruye = (s: Shape, profundidad: number, bisel: number) =>
-  new ExtrudeGeometry(s, {
-    depth: profundidad,
-    bevelEnabled: true,
-    bevelThickness: bisel,
-    bevelSize: bisel,
-    bevelSegments: 5,
-    curveSegments: 24,
-  });
-
-/** Filas del teclado: ancho relativo de cada tecla y fondo de la fila. */
-const FILAS_TECLADO = [
-  { anchos: new Array<number>(16).fill(1), fondo: 0.9 },
-  { anchos: [...new Array<number>(13).fill(1), 1.6], fondo: 1.55 },
-  { anchos: [1.5, ...new Array<number>(12).fill(1), 1.1], fondo: 1.55 },
-  { anchos: [1.8, ...new Array<number>(11).fill(1), 1.8], fondo: 1.55 },
-  { anchos: [2.3, ...new Array<number>(10).fill(1), 2.3], fondo: 1.55 },
-  { anchos: [1, 1, 1, 1.3, 5.6, 1.3, 1, 1, 1], fondo: 1.55 },
-];
-
 /** Libera geometrías, materiales y texturas de una escena. */
-function liberar(escena: Scene) {
+function liberar(escena: Object3D) {
   escena.traverse((objeto) => {
     if (!(objeto instanceof Mesh)) return;
     objeto.geometry.dispose();
@@ -228,8 +186,8 @@ function liberar(escena: Scene) {
       ? objeto.material
       : [objeto.material];
     for (const material of materiales) {
-      if ("map" in material && material.map instanceof CanvasTexture) {
-        material.map.dispose();
+      for (const valor of Object.values(material)) {
+        if (valor instanceof Texture) valor.dispose();
       }
       material.dispose();
     }
@@ -242,7 +200,10 @@ function pieza<T extends Element>(raiz: Element, selector: string): T {
   return el;
 }
 
-export function montarEscena(raiz: HTMLElement): () => void {
+export function montarEscena(
+  raiz: HTMLElement,
+  alFallar: (error: unknown) => void = () => {}
+): () => void {
   const escenario = pieza<HTMLElement>(raiz, ".ng-escenario");
   const lienzo = pieza<HTMLElement>(raiz, ".ng-lienzo");
   const hueco = pieza<HTMLElement>(raiz, ".ng-hueco");
@@ -333,110 +294,61 @@ export function montarEscena(raiz: HTMLElement): () => void {
   sol.position.set(10, 30, 20);
   escena.add(sol);
 
-  /* ── El portátil ── */
-  const aluminio = new MeshStandardMaterial({
-    color: lineal(0x1e1f22),
-    metalness: 0.7,
-    roughness: 0.4,
-    envMapIntensity: 0.55,
-  });
+  /* ── El portátil: el modelo 3D, que llega por red ── */
   const mac = new Group();
   escena.add(mac);
-
-  const baseGeo = extruye(
-    rectanguloRedondeado(ANCHO - 0.4, FONDO - 0.4, 1.2),
-    GROSOR_BASE - 0.4,
-    0.2
-  );
-  baseGeo.rotateX(-Math.PI / 2);
-  baseGeo.translate(0, 0.2, 0);
-  mac.add(new Mesh(baseGeo, aluminio));
-
-  const cubierta = GROSOR_BASE;
-  const pozo = new Mesh(
-    new PlaneGeometry(30.4, 11.6),
-    new MeshStandardMaterial({ color: lineal(0x0e0e10), roughness: 0.8 })
-  );
-  pozo.rotation.x = -Math.PI / 2;
-  pozo.position.set(0, cubierta + 0.005, -4.6);
-  mac.add(pozo);
-
-  const totalTeclas = FILAS_TECLADO.reduce((a, f) => a + f.anchos.length, 0);
-  const teclas = new InstancedMesh(
-    new BoxGeometry(1, 0.14, 1),
-    new MeshStandardMaterial({
-      color: lineal(0x121214),
-      roughness: 0.55,
-      metalness: 0.1,
-    }),
-    totalTeclas
-  );
-  const molde = new Object3D();
-  let tecla = 0;
-  let z = -9.9;
-  for (const fila of FILAS_TECLADO) {
-    const suma = fila.anchos.reduce((a, b) => a + b, 0);
-    const unidad = 29.6 / suma;
-    let x = -14.8;
-    for (const ancho of fila.anchos) {
-      molde.position.set(
-        x + (ancho * unidad) / 2,
-        cubierta + 0.07,
-        z + fila.fondo / 2
+  // La tapa (con el pivote en la bisagra) y un punto en el centro de su
+  // pantalla, sobre el que se proyecta el HTML. Hasta que llega el modelo no
+  // se pinta nada.
+  let bisagra: Object3D | null = null;
+  let pantalla: Object3D | null = null;
+  let esquinas: [number, number][] = [];
+  let altoPantalla = 0;
+  let desmontado = false;
+  let listo = false;
+  new GLTFLoader()
+    .setMeshoptDecoder(MeshoptDecoder)
+    .loadAsync(RUTA_MODELO)
+    .then((gltf) => {
+      if (desmontado) return liberar(gltf.scene);
+      const tapa = gltf.scene.getObjectByName("Tapa");
+      const cristal = gltf.scene.getObjectByName("Pantalla");
+      if (!tapa || !cristal) {
+        throw new Error("[EnTuNegocio] Al modelo le faltan Tapa y Pantalla");
+      }
+      // La tapa llega vertical y sin girar: la caja del cristal en el mundo,
+      // pasada al espacio de la tapa, es el rectángulo de la pantalla. Caja
+      // precisa (vértice a vértice): la geometría del cristal viene inclinada
+      // en su propio espacio, y la caja rápida la engordaba varios cm.
+      gltf.scene.updateMatrixWorld(true);
+      const caja = new Box3().setFromObject(cristal, true);
+      tapa.worldToLocal(caja.min);
+      tapa.worldToLocal(caja.max);
+      const ancho = caja.max.x - caja.min.x;
+      altoPantalla = (ancho * PANTALLA_H) / PANTALLA_W;
+      esquinas = [
+        [-ancho / 2, altoPantalla / 2],
+        [ancho / 2, altoPantalla / 2],
+        [-ancho / 2, -altoPantalla / 2],
+        [ancho / 2, -altoPantalla / 2],
+      ];
+      const plano = new Object3D();
+      plano.position.set(
+        (caja.min.x + caja.max.x) / 2,
+        (caja.min.y + caja.max.y) / 2,
+        caja.max.z + 0.02
       );
-      molde.scale.set(ancho * unidad - 0.32, 1, fila.fondo - 0.3);
-      molde.updateMatrix();
-      teclas.setMatrixAt(tecla++, molde.matrix);
-      x += ancho * unidad;
-    }
-    z += fila.fondo + 0.05;
-  }
-  mac.add(teclas);
-
-  const trackpadGeo = new ShapeGeometry(
-    rectanguloRedondeado(15.6, 9.6, 0.7),
-    16
-  );
-  trackpadGeo.rotateX(-Math.PI / 2);
-  const trackpad = new Mesh(
-    trackpadGeo,
-    new MeshStandardMaterial({
-      color: lineal(0x36373a),
-      metalness: 0.55,
-      roughness: 0.28,
+      tapa.add(plano);
+      bisagra = tapa;
+      pantalla = plano;
+      mac.add(gltf.scene);
+      sombra.visible = true;
+      listo = true;
+      quizaArrancar();
     })
-  );
-  trackpad.position.set(0, cubierta + 0.006, 6.9);
-  mac.add(trackpad);
-
-  const bisagra = new Group();
-  bisagra.position.set(0, cubierta + 0.05, -FONDO / 2 + 0.35);
-  mac.add(bisagra);
-  const tapaGeo = extruye(
-    rectanguloRedondeado(ANCHO - 0.4, ALTO_TAPA - 0.4, 1.1),
-    GROSOR_TAPA - 0.3,
-    0.15
-  );
-  tapaGeo.translate(0, ALTO_TAPA / 2, -GROSOR_TAPA + 0.15);
-  bisagra.add(new Mesh(tapaGeo, aluminio));
-  const marco = new Mesh(
-    new ShapeGeometry(
-      rectanguloRedondeado(ANCHO - 0.5, ALTO_TAPA - 0.5, 1),
-      16
-    ),
-    new MeshStandardMaterial({
-      color: lineal(0x050505),
-      roughness: 0.25,
-      metalness: 0,
-    })
-  );
-  marco.position.set(0, ALTO_TAPA / 2, 0.02);
-  bisagra.add(marco);
-
-  // Punto de referencia de la pantalla: sobre él se proyecta el HTML.
-  const pantalla = new Object3D();
-  pantalla.position.set(0, ALTO_TAPA - 0.55 - ALTO_PANTALLA / 2, 0.04);
-  bisagra.add(pantalla);
+    .catch((error: unknown) => {
+      if (!desmontado) alFallar(error);
+    });
 
   // Sombra de contacto: un degradado radial pintado en canvas.
   const lienzoSombra = document.createElement("canvas");
@@ -462,6 +374,7 @@ export function montarEscena(raiz: HTMLElement): () => void {
   sombra.rotation.x = -Math.PI / 2;
   sombra.position.y = -0.05;
   sombra.scale.set(58, 40, 1);
+  sombra.visible = false;
   mac.add(sombra);
 
   /* ── Encuadre: el portátil se centra en el hueco de la rejilla ── */
@@ -521,12 +434,6 @@ export function montarEscena(raiz: HTMLElement): () => void {
   const normal = new Vector3();
   const giro = new Quaternion();
   const reposo = new Vector3(0, 1, 0);
-  const esquinas = [
-    [-ANCHO_PANTALLA / 2, ALTO_PANTALLA / 2],
-    [ANCHO_PANTALLA / 2, ALTO_PANTALLA / 2],
-    [-ANCHO_PANTALLA / 2, -ALTO_PANTALLA / 2],
-    [ANCHO_PANTALLA / 2, -ALTO_PANTALLA / 2],
-  ];
   const grados = MathUtils.degToRad;
   const tangente = Math.tan(grados(14));
 
@@ -602,12 +509,13 @@ export function montarEscena(raiz: HTMLElement): () => void {
   }
 
   function pintarPortatil(p: number) {
+    if (!bisagra || !pantalla) return;
     const abierto = suave(tramo(p, 0.02, 0.2));
     bisagra.rotation.x = grados(90 - 108 * abierto);
     mac.updateMatrixWorld(true);
 
     // Con la tapa cerrada se mira al portátil; al abrirse, a la pantalla.
-    v.set(0, ALTO_PANTALLA * claves(p, CAMARA_T, CAMARA_MIRA), 0);
+    v.set(0, altoPantalla * claves(p, CAMARA_T, CAMARA_MIRA), 0);
     pantalla.localToWorld(v);
     mira.copy(reposo).lerp(v, abierto);
     const azimut = grados(claves(p, CAMARA_T, CAMARA_AZIMUT));
@@ -668,10 +576,15 @@ export function montarEscena(raiz: HTMLElement): () => void {
     raf = requestAnimationFrame(fotograma);
   }
 
-  // El bucle solo corre con la sección en pantalla.
+  // El bucle solo corre con la sección en pantalla y el modelo ya cargado.
+  let aLaVista = false;
+  function quizaArrancar() {
+    if (listo && aLaVista && !raf) raf = requestAnimationFrame(fotograma);
+  }
   const enPantalla = new IntersectionObserver(([entrada]) => {
-    if (entrada.isIntersecting) {
-      if (!raf) raf = requestAnimationFrame(fotograma);
+    aLaVista = entrada.isIntersecting;
+    if (aLaVista) {
+      quizaArrancar();
     } else {
       cancelAnimationFrame(raf);
       raf = 0;
@@ -680,6 +593,7 @@ export function montarEscena(raiz: HTMLElement): () => void {
   enPantalla.observe(raiz);
 
   return () => {
+    desmontado = true;
     cancelAnimationFrame(raf);
     raf = 0;
     enPantalla.disconnect();
