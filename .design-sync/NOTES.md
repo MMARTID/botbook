@@ -14,7 +14,7 @@ cada una:
 | Config                              | `.design-sync/config.json`        | `web/.design-sync/config.json`       |
 | Bundle                              | `window.Alhabla` (`alhabla-ui`)   | `window.AlhablaWeb` (`alhabla-web-ui`) |
 | Proyecto en claude.ai/design        | «Alhabla App» (`projectId`)       | «Alhabla Web» (`projectId`)          |
-| Componentes                         | 12 (7 del panel + 5 compartidos)  | 17 (12 de marketing + 5 compartidos) |
+| Componentes                         | 12 (7 del panel + 5 compartidos)  | 19 (14 de marketing + 5 compartidos) |
 
 El convertidor busca `.design-sync/` (previews, overrides, caché) en el
 directorio desde el que se lanza, así que cada paquete tiene su «hogar».

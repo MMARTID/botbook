@@ -12,7 +12,9 @@ tabla completa de los dos, en `../../.design-sync/NOTES.md`.
   especificador que importan las previews).
 - Proyecto en claude.ai/design: **«Alhabla Web»** (`projectId` en el config),
   creado y subido por primera vez el 2026-09-29. La app va en «Alhabla App».
-- 17 componentes: 12 de marketing y los 5 compartidos con la app (`BrandMark`,
+- 19 componentes: 14 de marketing —entre ellos las dos secciones animadas de
+  la portada, «En tu bolsillo» (`LlamadaScroll`) y «En tu negocio»
+  (`EnTuNegocioScroll`), desde el 2026-09-30— y los 5 compartidos con la app (`BrandMark`,
   `RangeSlider`, `GoogleAuthButton`, `ParticleField`, `ParticleMouseLayer`),
   copias idénticas en las dos webs. **Si cambias la preview o el doc de uno de
   los compartidos, cópialo al paquete de la app.**
@@ -42,6 +44,19 @@ de cada pieza y sus trampas está en las notas de la app; lo propio de la web:
   todo.
 - El purge de Tailwind incluye `web/.design-sync/previews/**`: reejecuta el
   prepare después de escribir previews nuevas y antes del build final.
+- **Recursos de `public/` embebidos** (`recursosPublicos` en `prepare.mjs`): las
+  dos secciones de la portada cargan ficheros con ruta absoluta que fuera de
+  Next no existen —el teléfono (`/telefono/frente.webp`) y el logo del chat de
+  «En tu bolsillo» (`<img>`), y el portátil 3D de «En tu negocio»
+  (`/modelos/macbook.glb`, que pide el `GLTFLoader` con `fetch`)—. El prepare
+  los mete en `.ds-src/recursos-publicos.ts` como data URI y un shim los
+  sustituye al vuelo en `src` y en `fetch`, sin tocar el código de producción.
+  Sin el modelo, «En tu negocio» caería a su versión quieta (tres tarjetas de
+  texto), que no es lo que ve un visitante.
+- **Las previews de las dos secciones no importan `_sin-movimiento`**: con
+  movimiento reducido cambian a su versión quieta. Enseñan el escenario al
+  llegar a la sección (paso 1) dentro de una caja de 800 px con overflow oculto,
+  que recorta los 340/360vh de recorrido.
 
 El prepare **aborta** si `componentSrcMap` apunta a un fichero que no existe o
 si el barrel no compila, en lugar de dejar la tarjeta vacía.
@@ -53,20 +68,28 @@ si el barrel no compila, en lugar de dejar la tarjeta vacía.
   tipos inferidos que apuntan al `@types/react` anidado de `@keystar/ui`). Son
   de emisión de declaraciones, fuera del ámbito del barrel, y no afectan a
   ningún contrato: el prepare los enseña como aviso y sigue.
-- Verificado el 2026-09-29 con el convertidor montado en `.ds-sync/` del
-  checkout principal: `package-build.mjs` 17/17 componentes y 17/17 docs,
-  `package-validate.mjs` limpio con render check 17/17 (dos tarjetas
-  tipográficas, abajo). «tokens: 1 missing, below threshold», por debajo de su
-  umbral.
+- Verificado el 2026-09-30 con el convertidor montado en `.ds-sync/` del
+  checkout principal: `package-build.mjs` 19/19 componentes y 19/19 docs,
+  `package-validate.mjs` limpio con render check 19/19. «tokens: 1 missing,
+  below threshold», por debajo de su umbral. La captura de «En tu negocio» se
+  comparó con la portada real en el mismo Chromium headless y 1280x800: sale
+  la misma escena.
+- **El bundle pesa ~4,5 MB** (antes ~1,1 MB): three.js va dentro porque
+  `EnTuNegocioScroll` lo importa de forma dinámica y el IIFE del convertidor no
+  parte en chunks (~1,7 MB), y el modelo 3D embebido suma otros ~1,7 MB en
+  base64. Si la subida a claude.ai/design lo rechazara por tamaño, quitar
+  `/modelos/macbook.glb` de `recursosPublicos`: la sección sigue funcionando en
+  su versión quieta.
 
 ## Cosas que se quedaron fuera a propósito
 
 - Las composiciones a nivel de página (`MainLanding`, `SiteLanding`,
   `CityNicheLanding`, `SiteHeader`, `SiteFooter`, `PlansWithRoi`, `LegalPage`)
-  y las secciones de una sola landing (`HeroHilos`, `LlamadaScroll`,
-  `EnTuNegocioScroll`, las
-  `*-section` salvo `SectorDataSection`): sólo se sincronizan las piezas reutilizables del sistema.
-- Ninguna tarjeta tipográfica: desde el 2026-09-29 los 17 componentes tienen
+  y las secciones de una sola landing (`HeroHilos` y las `*-section` salvo
+  `SectorDataSection`): sólo se sincronizan las piezas reutilizables del
+  sistema. Excepción: «En tu bolsillo» y «En tu negocio», a petición del
+  usuario el 2026-09-30.
+- Ninguna tarjeta tipográfica: desde el 2026-09-29 todos los componentes tienen
   preview. `DemoVoiceCall` (viewport 900x760, primer paso de la demo, sin red
   ni micrófono) y `ParticleMouseLayer` (900x480, copia de la preview de la app
   salvo el import) usan la técnica de los overlays `fixed` descrita en las
