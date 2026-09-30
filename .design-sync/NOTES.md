@@ -143,17 +143,16 @@ cambia en cada build aunque la calificación se mantiene.
 
 ## Hallazgos sobre el propio código (no tocados)
 
-- Ninguno pendiente. **`BrandMark` salía como imagen rota** (un
-  `<img src="/brand/alhabla-isotipo.svg">` que fuera de Next no existe): desde
-  el 2026-09-29 lleva el SVG dentro, optimizado con svgo, como data URI (ver
-  Riesgos).
+- Ninguno pendiente.
 
 ## Riesgos de cara a la próxima sincronización
 
 - **`BrandMark` lleva una copia del isotipo dentro** (`brand-mark.tsx`, SVG de
-  `public/brand/alhabla-isotipo.svg` pasado por `svgo --multipass`). Si cambia
-  el logo, hay que regenerar esa copia en las dos webs; si alguien vuelve a una
-  ruta `/brand/...`, la tarjeta sale rota otra vez sin que falle nada.
+  `public/brand/alhabla-isotipo.svg` pasado por `svgo --multipass`, como data
+  URI de un `<img>`). Si cambia el logo, hay que regenerar esa copia en las dos
+  webs. Volver a una ruta `/brand/...` —que fuera de Next no existe— la dejaría
+  otra vez como imagen rota; `tests/components/brand-mark.test.tsx` (en las dos
+  webs) lo impide.
 - La hora de las llamadas sembradas sale de `AHORA` en `prepare.mjs` (19:30 en
   Madrid): con las llamadas hasta 12 h antes, moverla hacia la mañana las lleva
   a la madrugada y la tarjeta deja de ser verosímil.
