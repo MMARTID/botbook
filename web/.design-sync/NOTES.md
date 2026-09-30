@@ -97,8 +97,6 @@ si el barrel no compila, en lugar de dejar la tarjeta vacía.
 
 ## Hallazgos sobre el propio código (no tocados)
 
-- **`BrandMark` ya no sale roto**: desde el 2026-09-29 lleva el SVG dentro como
-  data URI (ver las notas de la app).
 - Ninguno pendiente. Las negritas y un enlace de `/legal/privacidad` y
   `/legal/aviso-legal` usaban hexadecimales de la paleta verde anterior
   (`#1e2b22`, `#344038`); desde el 2026-09-29 son `#0a0a0a` y `#6d28d9`.
