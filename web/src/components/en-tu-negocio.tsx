@@ -6,6 +6,11 @@ import { Check } from "lucide-react";
 import { useMovimientoReducido } from "@/hooks/use-movimiento-reducido";
 import { MODELO } from "@/lib/portatil-3d";
 import { marcarRelato } from "@/lib/relato-fijo";
+import {
+  ALTO_NEGOCIO_VH,
+  NEGOCIO_P,
+  SOLAPE_NEGOCIO_VH,
+} from "@/lib/transicion-bolsillo-negocio";
 import "./en-tu-negocio.css";
 
 /**
@@ -23,6 +28,14 @@ import "./en-tu-negocio.css";
  * importa de forma dinámica cuando la sección se acerca para que three.js no
  * pese en la carga de la portada. Con `prefers-reduced-motion`, o si el
  * navegador no tiene WebGL, se pinta una versión quieta con los tres pasos.
+ *
+ * Desde el 2026-09-30 la sección solapa el final de «En tu bolsillo» (margen
+ * negativo, ver `lib/transicion-bolsillo-negocio.ts`): su escenario fijo se
+ * pone encima del teléfono volcado, transparente, y la escena enciende el
+ * lienzo con la esquina de la tapa cerrada sobre la del teléfono, se aleja
+ * hasta el encuadre del paso 1 y entonces entra el título. Por eso el texto,
+ * el rótulo y el crédito empiezan invisibles (CSS) y los enciende la escena.
+ * La versión quieta no solapa nada.
  *
  * El CSS (`en-tu-negocio.css`) es global pero va todo colgado de
  * `.ng-seccion`, para que sus clases cortas (`.mx-*`, `.ok`…) no se salgan de
@@ -87,9 +100,15 @@ const PASOS: [PasoCopy, PasoCopy, PasoCopy] = [
 
 /** Al pulsar un paso en la barra se cae con todo ya a la vista. */
 const ANCLAS = [0.3, 0.6, 0.9] as const;
+/** Los tres pasos empiezan cuando acaba el zoom out. */
+const INICIO_PASOS = NEGOCIO_P.finZoom;
 
-/** A qué distancia de la pantalla se empieza a descargar three.js. */
-const MARGEN_DE_CARGA = "100% 0px";
+/**
+ * A qué distancia de la pantalla se empieza a descargar three.js y el modelo:
+ * dos pantallas y media, para que estén listos cuando «En tu bolsillo», que
+ * va justo antes, llegue al cruce.
+ */
+const MARGEN_DE_CARGA = "250% 0px";
 
 export function EnTuNegocioScroll() {
   // Con movimiento reducido, la versión quieta llega tras montar: el servidor
@@ -140,7 +159,9 @@ export function EnTuNegocioScroll() {
     if (!el) return;
     const recorrido = el.offsetHeight - window.innerHeight;
     const top =
-      window.scrollY + el.getBoundingClientRect().top + recorrido * ANCLAS[i];
+      window.scrollY +
+      el.getBoundingClientRect().top +
+      recorrido * (INICIO_PASOS + ANCLAS[i] * (1 - INICIO_PASOS));
     window.scrollTo({ top, behavior: "smooth" });
   };
 
@@ -152,6 +173,10 @@ export function EnTuNegocioScroll() {
       ref={seccion}
       id="en-tu-negocio"
       className="ng-seccion"
+      style={{
+        height: `${ALTO_NEGOCIO_VH}vh`,
+        marginTop: `-${SOLAPE_NEGOCIO_VH}vh`,
+      }}
       aria-labelledby="negocio-titulo"
     >
       <svg

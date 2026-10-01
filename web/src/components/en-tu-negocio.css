@@ -3,9 +3,11 @@
    cortas de la pantalla (.mx-*, .ok, .pu…) no se salgan de la sección. */
 .ng-seccion {
   position: relative;
-  height: 360vh;
+  /* El alto y el solape con «En tu bolsillo» los pone en-tu-negocio.tsx. */
   border-bottom: 1px solid #e5e5e5;
 }
+/* El escenario empieza transparente, encima del teléfono de «En tu bolsillo»;
+   la escena le pone el fondo (#fafafa) mientras enciende el lienzo. */
 .ng-seccion .ng-escenario {
   position: sticky;
   top: 0;
@@ -15,7 +17,7 @@
   min-height: 34rem;
   overflow: hidden;
   padding: 5rem 0 1rem;
-  background: #fafafa;
+  background: transparent;
 }
 .ng-seccion .ng-lienzo {
   position: absolute;
@@ -43,9 +45,12 @@
   padding: 0 1rem;
   pointer-events: none;
 }
+/* El texto, el rótulo y el crédito los enciende la escena: el texto cuando
+   acaba el zoom out, el crédito con el lienzo. */
 .ng-seccion .ng-texto {
   grid-area: texto;
   pointer-events: auto;
+  opacity: 0;
 }
 .ng-seccion .ng-antetitulo {
   font-size: 0.75rem;
@@ -161,6 +166,7 @@
 .ng-seccion .ng-rotulo {
   display: grid;
   margin-bottom: 0.625rem;
+  opacity: 0;
   font-size: 0.75rem;
   font-weight: 600;
   color: #71717a;
@@ -185,6 +191,7 @@
   right: 1rem;
   bottom: 0.75rem;
   z-index: 3;
+  opacity: 0;
   max-width: calc(100% - 2rem);
   font-size: 0.6875rem;
   line-height: 1rem;
