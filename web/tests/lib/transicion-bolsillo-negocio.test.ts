@@ -8,10 +8,13 @@ import {
   NEGOCIO_P,
   NEGOCIO_VH,
   SOLAPE_NEGOCIO_VH,
+  HOLGURA_PANTALLA,
+  PANTALLA_HTML,
   hayNegocioEnEscena,
-  leerEsquinaTelefono,
+  leerTelefono,
   marcarNegocioEnEscena,
-  publicarEsquinaTelefono,
+  pantallaDelPortatil,
+  publicarTelefono,
 } from "@/lib/transicion-bolsillo-negocio";
 
 /**
@@ -45,24 +48,57 @@ describe("transicion-bolsillo-negocio", () => {
     expect(recorridoNegocio * (1 - NEGOCIO_P.finZoom)).toBeCloseTo(
       NEGOCIO_VH.pasos
     );
-    expect(BOLSILLO_P.finPasos).toBeLessThan(BOLSILLO_P.inicioCruce);
+    expect(BOLSILLO_P.finPasos).toBeLessThan(BOLSILLO_P.finVuelco);
+    expect(BOLSILLO_P.finVuelco).toBeLessThan(BOLSILLO_P.inicioCruce);
     expect(NEGOCIO_P.finCruce).toBeLessThan(NEGOCIO_P.finZoom);
-    expect(NEGOCIO_P.finZoom).toBeLessThan(NEGOCIO_P.finTitulo);
-    expect(NEGOCIO_P.finTitulo).toBeLessThan(1);
+    // El texto de «En tu negocio» entra durante el zoom out, no después.
+    expect(NEGOCIO_P.finCruce).toBeLessThan(NEGOCIO_P.inicioTitulo);
+    expect(NEGOCIO_P.inicioTitulo).toBeLessThan(NEGOCIO_P.finTitulo);
+    expect(NEGOCIO_P.finTitulo).toBeLessThanOrEqual(NEGOCIO_P.finZoom);
   });
 
-  it("guarda la esquina del teléfono y si «En tu negocio» va con escena", () => {
-    expect(leerEsquinaTelefono()).toBeNull();
+  it("cada tramo del relevo dura más de una muesca de rueda (~13 vh)", () => {
+    for (const vh of [
+      BOLSILLO_VH.vuelco,
+      BOLSILLO_VH.estirado,
+      BOLSILLO_VH.cruce,
+      NEGOCIO_VH.zoom,
+    ]) {
+      expect(vh).toBeGreaterThanOrEqual(26);
+    }
+  });
+
+  it("la pantalla del portátil envuelve al teléfono tumbado, centrada en él", () => {
+    const telefono = { x: 880, y: 420, ancho: 600, alto: 286, radio: 49 };
+    const pantalla = pantallaDelPortatil(telefono);
+    expect(pantalla.x).toBe(880);
+    expect(pantalla.y).toBe(420);
+    expect(pantalla.ancho).toBeCloseTo(600 * HOLGURA_PANTALLA);
+    expect(pantalla.alto / pantalla.ancho).toBeCloseTo(
+      PANTALLA_HTML.alto / PANTALLA_HTML.ancho
+    );
+    expect(pantalla.ancho).toBeGreaterThan(telefono.ancho);
+    expect(pantalla.alto).toBeGreaterThan(telefono.alto);
+  });
+
+  it("guarda dónde queda el teléfono tumbado y si «En tu negocio» va con escena", () => {
+    expect(leerTelefono()).toBeNull();
     expect(hayNegocioEnEscena()).toBe(false);
 
-    publicarEsquinaTelefono({ x: 460, y: 630, radio: 150 });
+    publicarTelefono({ x: 880, y: 420, ancho: 540, alto: 258, radio: 44 });
     marcarNegocioEnEscena(true);
-    expect(leerEsquinaTelefono()).toEqual({ x: 460, y: 630, radio: 150 });
+    expect(leerTelefono()).toEqual({
+      x: 880,
+      y: 420,
+      ancho: 540,
+      alto: 258,
+      radio: 44,
+    });
     expect(hayNegocioEnEscena()).toBe(true);
 
-    publicarEsquinaTelefono(null);
+    publicarTelefono(null);
     marcarNegocioEnEscena(false);
-    expect(leerEsquinaTelefono()).toBeNull();
+    expect(leerTelefono()).toBeNull();
     expect(hayNegocioEnEscena()).toBe(false);
   });
 });

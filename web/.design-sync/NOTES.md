@@ -46,7 +46,7 @@ de cada pieza y sus trampas está en las notas de la app; lo propio de la web:
   prepare después de escribir previews nuevas y antes del build final.
 - **Recursos de `public/` embebidos** (`recursosPublicos` en `prepare.mjs`): las
   dos secciones de la portada cargan ficheros con ruta absoluta que fuera de
-  Next no existen —el teléfono (`/telefono/frente.webp`) y el logo del chat de
+  Next no existen —el teléfono (`/telefono/frente.svg`) y el logo del chat de
   «En tu bolsillo» (`<img>`), y el portátil 3D de «En tu negocio»
   (`/modelos/macbook.glb`, que pide el `GLTFLoader` con `fetch`)—. El prepare
   los mete en `.ds-src/recursos-publicos.ts` como data URI y un shim los

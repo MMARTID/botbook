@@ -3,8 +3,8 @@
  *
  * La sección es alta (su alto lo pone llamada-scroll.tsx desde
  * lib/transicion-bolsillo-negocio.ts) y el escenario se queda pegado
- * (100lvh) mientras se recorre. El teléfono es un render frontal
- * (public/telefono/frente.webp) con la pantalla en HTML encima, en las
+ * (100lvh) mientras se recorre. El teléfono es un marco vectorial frontal
+ * (public/telefono/frente.svg) con la pantalla en HTML encima, en las
  * coordenadas del hueco del render; las medidas de dentro van en cqw de la
  * pantalla para que todo escale con el teléfono. Los giros y apariciones los
  * pone framer-motion desde el progreso del scroll (ver llamada-scroll.tsx).
@@ -44,8 +44,11 @@
   padding: 0 1rem;
 }
 
+/* El texto deja sitio a su izquierda para el riel de pasos. */
 .columnaTexto {
+  position: relative;
   grid-area: texto;
+  padding-left: 1.5rem;
 }
 
 .antetitulo {
@@ -158,35 +161,47 @@
   box-shadow: 0 0 0 1px #e5e5e5;
 }
 
+/* Riel de pasos: vertical, a lo alto del texto y pegado a su izquierda.
+   Cada tramo es un botón (salta a su paso) con una pista fina que se llena
+   de arriba abajo; el número y el nombre del paso ya los dice el texto, así
+   que el riel no lleva etiquetas (las lleva su aria-label). El área de
+   clic es más ancha que la pista. */
 .barraPasos {
+  position: absolute;
+  top: 0.125rem;
+  bottom: 0.125rem;
+  left: -0.375rem;
   display: flex;
-  gap: 0.5rem;
-  margin-top: 1rem;
+  flex-direction: column;
+  gap: 0.375rem;
+  width: 1.5rem;
 }
 
 .botonPaso {
   display: flex;
   flex: 1;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 0.4rem;
-  padding: 0.25rem 0;
-  border-radius: 0.75rem;
-  text-align: left;
+  justify-content: center;
+  min-height: 1.5rem;
+  border-radius: 99px;
 }
 
 .botonPaso:focus-visible {
   outline: 2px solid #8b5cf6;
-  outline-offset: 3px;
+  outline-offset: 1px;
 }
 
 .pista {
   position: relative;
-  width: 100%;
-  height: 0.25rem;
+  width: 0.1875rem;
+  height: 100%;
   overflow: hidden;
   border-radius: 99px;
   background: #e5e5e5;
+  transition: background-color 200ms ease;
+}
+
+.botonPaso:hover .pista {
+  background: #d4d4d8;
 }
 
 .relleno {
@@ -194,18 +209,7 @@
   inset: 0;
   border-radius: 99px;
   background: #8b5cf6;
-  transform-origin: left;
-}
-
-.etiquetaPaso {
-  font-size: 0.75rem;
-  font-weight: 700;
-  color: #a1a1aa;
-  transition: color 200ms ease;
-}
-
-.etiquetaPaso[data-activo] {
-  color: #6d28d9;
+  transform-origin: top;
 }
 
 /* Móvil: el párrafo se queda fuera y hablan el título y los detalles, que
@@ -286,12 +290,8 @@
     line-height: 1.5rem;
   }
 
-  .barraPasos {
-    margin-top: 2.5rem;
-  }
-
-  .etiquetaPaso {
-    font-size: 0.8125rem;
+  .columnaTexto {
+    padding-left: 2rem;
   }
 }
 
@@ -384,6 +384,29 @@
 .capa {
   position: absolute;
   inset: 0;
+}
+
+/* El relevo: un rectángulo negro que nace sobre la silueta del teléfono
+   tumbado y se estira hasta la pantalla del portátil de «En tu negocio».
+   Posición, tamaño y esquinas los pone llamada-scroll.tsx. */
+.relevo {
+  position: absolute;
+  z-index: 2;
+  display: none;
+  background: #000;
+  pointer-events: none;
+}
+
+/* La pantalla apagada: se funde a negro al tumbarse el teléfono, antes de
+   que lo releve la pantalla (también apagada) del portátil de «En tu
+   negocio». Por encima de todo, isla incluida. */
+.apagada {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  background: #000;
+  opacity: 0;
+  pointer-events: none;
 }
 
 .estado {

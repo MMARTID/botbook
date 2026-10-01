@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1335 2859" width="1335" height="2859">
+  <!--
+    Marco del iPhone de la portada, en titanio negro (2026-10-01). Vectorial y
+    con la misma geometría que el render en webp al que sustituye: cuerpo de
+    x 21–1311 e y 78–2782, radio 222, botones a los lados. La pantalla no está
+    aquí: la pinta en HTML quien lo usa, encima, en su `.hueco`.
+  -->
+  <defs>
+    <linearGradient id="canto" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#5f5f64" />
+      <stop offset="0.18" stop-color="#3a3a3e" />
+      <stop offset="0.42" stop-color="#4a4a4f" />
+      <stop offset="0.6" stop-color="#2f2f33" />
+      <stop offset="0.82" stop-color="#4c4c51" />
+      <stop offset="1" stop-color="#626267" />
+    </linearGradient>
+    <linearGradient id="boton" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#1c1c1f" />
+      <stop offset="0.25" stop-color="#7a7a80" />
+      <stop offset="0.5" stop-color="#46464b" />
+      <stop offset="1" stop-color="#1a1a1d" />
+    </linearGradient>
+    <linearGradient id="botonDerecho" x1="1" y1="0" x2="0" y2="0">
+      <stop offset="0" stop-color="#1c1c1f" />
+      <stop offset="0.25" stop-color="#6a6a70" />
+      <stop offset="0.5" stop-color="#3e3e43" />
+      <stop offset="1" stop-color="#1a1a1d" />
+    </linearGradient>
+    <linearGradient id="bisel" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2a2a2d" />
+      <stop offset="0.5" stop-color="#18181a" />
+      <stop offset="1" stop-color="#252528" />
+    </linearGradient>
+  </defs>
+
+  <!-- Botones: acción y volumen a la izquierda, lateral a la derecha. -->
+  <rect x="13.5" y="592" width="14" height="113" rx="3.5" fill="url(#boton)" />
+  <rect x="13.5" y="790" width="14" height="184" rx="3.5" fill="url(#boton)" />
+  <rect x="13.5" y="1024" width="14" height="184" rx="3.5" fill="url(#boton)" />
+  <rect x="1304.5" y="851" width="14" height="292" rx="3.5" fill="url(#botonDerecho)" />
+
+  <!-- Cuerpo, con un filo exterior oscuro. -->
+  <rect x="21" y="78" width="1290" height="2704" rx="222" fill="#0c0c0d" />
+  <!-- Canto de titanio: la banda que coge la luz. -->
+  <rect x="29.5" y="86.5" width="1273" height="2687" rx="213.5" fill="none" stroke="url(#canto)" stroke-width="7" />
+  <rect x="33" y="90" width="1266" height="2680" rx="210" fill="none" stroke="#a1a1a6" stroke-opacity="0.28" stroke-width="1.6" />
+  <!-- Bandas de antena, cortando el canto. -->
+  <g fill="#141416">
+    <rect x="21" y="330" width="16" height="9" />
+    <rect x="1295" y="330" width="16" height="9" />
+    <rect x="21" y="2521" width="16" height="9" />
+    <rect x="1295" y="2521" width="16" height="9" />
+    <rect x="420" y="2766" width="9" height="16" />
+  </g>
+  <!-- Labio interior y cristal: bisel que brilla apenas y marco negro. -->
+  <rect x="38" y="95" width="1256" height="2670" rx="205" fill="url(#bisel)" />
+  <rect x="44" y="101" width="1244" height="2658" rx="199" fill="#050506" />
+</svg>

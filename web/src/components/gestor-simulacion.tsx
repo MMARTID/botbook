@@ -399,7 +399,7 @@ export function GestorSimulacionSection({ data }: { data: OwnerAssistant }) {
               <PantallaWhatsApp escenario={actual} beat={beat} />
             </div>
             {/* eslint-disable-next-line @next/next/no-img-element -- render local, el marco del teléfono */}
-            <img src="/telefono/frente.webp" alt="" className={styles.marco} width={1335} height={2859} />
+            <img src="/telefono/frente.svg" alt="" className={styles.marco} width={1335} height={2859} />
           </div>
         </div>
 

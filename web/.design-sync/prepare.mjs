@@ -55,7 +55,7 @@ prepararPaquete({
   // teléfono sale roto y «En tu negocio» cae a su versión quieta. El modelo
   // pesa 1,3 MB y es lo que más engorda el bundle (ver NOTES.md).
   recursosPublicos: [
-    "/telefono/frente.webp",
+    "/telefono/frente.svg",
     "/brand/alhabla-isotipo.svg",
     "/modelos/macbook.glb",
   ],

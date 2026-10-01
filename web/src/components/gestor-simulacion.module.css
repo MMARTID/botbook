@@ -1,7 +1,7 @@
 /*
  * «Y cuando algo cambia, se lo dices por WhatsApp»: la simulación del Gestor
  * (gestor-simulacion.tsx). El WhatsApp del dueño en el iPhone (render
- * frontal de public/telefono/frente.webp con la pantalla en HTML, como en
+ * frontal de public/telefono/frente.svg con la pantalla en HTML, como en
  * «En tu bolsillo») y su panel en el portátil 3D (el mismo modelo de «En tu
  * negocio», con la pantalla HTML proyectada sobre la tapa). Dentro del
  * teléfono las medidas van en cqw de la pantalla para que escalen con él.
