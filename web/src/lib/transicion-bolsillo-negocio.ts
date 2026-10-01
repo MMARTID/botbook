@@ -10,13 +10,17 @@
  *   su pantalla se apaga: queda una pieza negra apaisada.
  * - Estirado: sobre la silueta del teléfono nace un rectángulo negro con sus
  *   mismas esquinas, que se estira hasta la forma y el sitio de la pantalla
- *   del portátil (`pantallaDelPortatil`). Lo pinta «En tu bolsillo», con el
- *   mismo muelle que mueve el teléfono: por eso nunca se despegan.
+ *   del portátil (`pantallaDelPortatil`). Lo pinta «En tu bolsillo», sobre el
+ *   mismo scroll suave que mueve el teléfono: por eso nunca se despegan.
+ *   Ese negro es la pantalla de bloqueo del portátil
+ *   (`components/pantalla-bloqueo.tsx`): la hora y, una a una, las tres
+ *   notificaciones de lo que acaba de pasar en el teléfono (la llamada, la
+ *   cita, el WhatsApp), que siguen apareciendo durante el cruce.
  * - Cruce: «En tu negocio» solapa a «En tu bolsillo» (margen negativo) y su
  *   escenario fijo se pone encima, con su pantalla negra justo donde acabó el
  *   rectángulo y la cámara quieta. Alrededor aparece, poco a poco, el
  *   portátil 3D ya abierto.
- * - Zoom out: la pantalla del portátil se enciende con el panel y la cámara
+ * - Zoom out: la pantalla se desbloquea y deja ver el panel, y la cámara
  *   se aleja hasta el encuadre del paso 1; a la vez entra el texto de «En tu
  *   negocio», para que el escenario no se quede sin texto.
  *
@@ -38,8 +42,8 @@ export const BOLSILLO_VH = {
   /** Los tres pasos de la llamada (antes, toda la sección: 340 − 100). */
   pasos: 256,
   vuelco: 60,
-  estirado: 32,
-  cruce: 36,
+  estirado: 40,
+  cruce: 48,
 } as const;
 
 /** Scroll, en vh, de cada tramo de «En tu negocio» que se añade delante. */
@@ -84,6 +88,39 @@ export const NEGOCIO_P = {
   inicioTitulo:
     (BOLSILLO_VH.cruce + NEGOCIO_VH.zoom * 0.35) / RECORRIDO_NEGOCIO,
   finTitulo: (BOLSILLO_VH.cruce + NEGOCIO_VH.zoom * 0.85) / RECORRIDO_NEGOCIO,
+} as const;
+
+/**
+ * El reloj común de la pantalla de bloqueo: vh de scroll desde que empieza
+ * el estirado. Cada sección lo saca de su propio progreso (del mismo scroll
+ * suave), así que las dos copias de la pantalla de bloqueo —la del
+ * rectángulo negro de «En tu bolsillo» y la de la pantalla del portátil—
+ * van siempre a la par.
+ */
+export function vhRelevoDesdeBolsillo(p: number): number {
+  return (p - BOLSILLO_P.finVuelco) * RECORRIDO_BOLSILLO;
+}
+export function vhRelevoDesdeNegocio(p: number): number {
+  return BOLSILLO_VH.estirado + p * RECORRIDO_NEGOCIO;
+}
+
+/**
+ * Cuándo aparece cada cosa de la pantalla de bloqueo, en vh del relevo
+ * (`[empieza, acaba]`): la hora mientras el negro se estira, las tres
+ * notificaciones espaciadas entre el estirado y el cruce, y el desbloqueo en
+ * la primera mitad del zoom out.
+ */
+export const BLOQUEO_VH = {
+  reloj: [4, 16],
+  avisos: [
+    [20, 30],
+    [38, 48],
+    [56, 66],
+  ],
+  desbloqueo: [
+    BOLSILLO_VH.estirado + BOLSILLO_VH.cruce,
+    BOLSILLO_VH.estirado + BOLSILLO_VH.cruce + NEGOCIO_VH.zoom * 0.45,
+  ],
 } as const;
 
 /**

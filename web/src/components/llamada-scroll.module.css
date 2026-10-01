@@ -56,7 +56,7 @@
   font-weight: 800;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: #6d28d9;
+  color: var(--acento-tinta, #6d28d9);
 }
 
 /* Las tres copias apiladas en la misma celda: la caja mide lo que la más
@@ -115,7 +115,7 @@
   width: 1rem;
   height: 1rem;
   margin-top: 0.2rem;
-  color: #8b5cf6;
+  color: var(--acento, #8b5cf6);
 }
 
 /* Móvil: el teléfono va grande (para que su texto se lea) y se corta por
@@ -186,7 +186,7 @@
 }
 
 .botonPaso:focus-visible {
-  outline: 2px solid #8b5cf6;
+  outline: 2px solid var(--acento, #8b5cf6);
   outline-offset: 1px;
 }
 
@@ -208,7 +208,7 @@
   position: absolute;
   inset: 0;
   border-radius: 99px;
-  background: #8b5cf6;
+  background: var(--acento, #8b5cf6);
   transform-origin: top;
 }
 
@@ -320,7 +320,7 @@
 .brillo {
   position: absolute;
   inset: 5% 10%;
-  background: radial-gradient(closest-side, rgba(139, 92, 246, 0.14), rgba(139, 92, 246, 0));
+  background: radial-gradient(closest-side, color-mix(in srgb, var(--acento, #8b5cf6) 14%, transparent), transparent);
   pointer-events: none;
 }
 

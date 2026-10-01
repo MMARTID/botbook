@@ -5,27 +5,17 @@ import { LandingHero } from "@/components/landing-hero";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 import { SectorDataSection } from "@/components/sector-data-section";
-import { HowItWorksScrollytelling } from "@/components/how-it-works-scrollytelling";
+import { EnTuNegocioScroll } from "@/components/en-tu-negocio";
+import { LlamadaScroll } from "@/components/llamada-scroll";
 import { TeamRoutingSection } from "@/components/team-routing-section";
 import { OwnerAssistantSection } from "@/components/owner-assistant-section";
 import { WhatsAppBenefitsTable } from "@/components/whatsapp-benefits-table";
 import { RevenueLossCalculator } from "@/components/revenue-loss-calculator";
 import { Reveal } from "@/components/scroll-reveal";
 import { formatIncludedMinutes, formatPlanPrice, plans, TRIAL_REASSURANCE } from "@/lib/plans";
-import { type NicheLandingContent, type NicheSlug } from "@/lib/niche-landings";
+import { type NicheLandingContent } from "@/lib/niche-landings";
+import { GUIONES_SECTOR } from "@/lib/relato-guiones";
 import { MainLanding } from "@/components/main-landing";
-
-// Ejemplos de servicio/reserva que muestra el relato de "Cómo funciona" en
-// cada landing de nicho (2026-09-24): antes de esto, las 5 landings
-// mostraban siempre "Corte, color y tratamientos" / "Corte y peinado" —
-// vocabulario de peluquería — sea cual fuera el nicho real de la página.
-const COMO_FUNCIONA_EJEMPLOS: Record<NicheSlug, { servicio: string; reserva: string }> = {
-  peluqueria: { servicio: "Corte, color y tratamientos", reserva: "Corte y peinado" },
-  barberia: { servicio: "Corte, barba y afeitado", reserva: "Corte y barba" },
-  "salon-de-unas": { servicio: "Manicura, gel y nail art", reserva: "Manicura semipermanente" },
-  "centro-de-estetica": { servicio: "Faciales, corporales y bonos", reserva: "Facial con peeling" },
-  fisioterapia: { servicio: "Primera consulta y seguimientos", reserva: "Primera consulta" },
-};
 
 function buildPlansHref(niche?: string) {
   return niche ? `/planes?niche=${encodeURIComponent(niche)}` : "/planes";
@@ -132,24 +122,18 @@ export function SiteLanding({ content }: { content?: NicheLandingContent }) {
       </section>
 
       {/*
-        Cómo funciona, justo antes de la calculadora y precios (2026-09-25,
-        revierte su posición temprana del 2026-09-24): el arco ahora es
-        problema (datos) → confianza (reparto, El Gestor, WhatsApp,
-        beneficios) → mecanismo (cómo funciona) → cuantificación
-        (calculadora) → precio — "cómo funciona" cierra la duda técnica justo
-        antes de enseñar el precio, no antes de haber dado ningún motivo
-        para creerlo. Antes había un bloque estático propio aquí
-        (CallForwardingFlow + tres tarjetas fijas, siempre en morado de
-        marca) distinto del relato con scroll que ya tenía la landing
-        principal — dos explicaciones para lo mismo. Ahora las 5 landings de
-        nicho montan el mismo componente que la principal, con el acento y
-        los ejemplos de servicio de su propio nicho.
+        Cómo funciona, justo antes de la calculadora y precios (2026-09-25):
+        el arco es problema (datos) → confianza (reparto, El Gestor,
+        WhatsApp, beneficios) → mecanismo (cómo funciona) → cuantificación
+        (calculadora) → precio. Desde el 2026-10-02 el mecanismo es el mismo
+        relato que la portada —la llamada en el iPhone («En tu bolsillo»), el
+        relevo con la pantalla de bloqueo y el panel en el portátil («En tu
+        negocio»)— con el guion del sector (sus servicios, su equipo, su
+        vocabulario, ver lib/relato-guiones.ts) y su color. Sustituye al
+        antiguo HowItWorksScrollytelling.
       */}
-      <HowItWorksScrollytelling
-        accent={content.accent}
-        serviceExample={COMO_FUNCIONA_EJEMPLOS[content.slug].servicio}
-        bookingExample={COMO_FUNCIONA_EJEMPLOS[content.slug].reserva}
-      />
+      <LlamadaScroll guion={GUIONES_SECTOR[content.slug]} acento={content.accent} />
+      <EnTuNegocioScroll guion={GUIONES_SECTOR[content.slug]} acento={content.accent} />
 
       {/*
         Orden decidido (2026-09-16): la calculadora vive justo antes de

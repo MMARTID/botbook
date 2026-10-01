@@ -59,7 +59,7 @@
   font-weight: 800;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: #6d28d9;
+  color: var(--acento-tinta, #6d28d9);
 }
 .ng-seccion .ng-copias {
   display: grid;
@@ -111,7 +111,7 @@
   width: 1rem;
   height: 1rem;
   margin-top: 0.2rem;
-  color: #8b5cf6;
+  color: var(--acento, #8b5cf6);
 }
 /* Riel de pasos, igual que el de «En tu bolsillo» (llamada-scroll.module.css):
    vertical, a lo alto del texto y pegado a su izquierda, sin etiquetas. */
@@ -133,7 +133,7 @@
   border-radius: 99px;
 }
 .ng-seccion .ng-paso:focus-visible {
-  outline: 2px solid #8b5cf6;
+  outline: 2px solid var(--acento, #8b5cf6);
   outline-offset: 1px;
 }
 .ng-seccion .ng-pista {
@@ -152,7 +152,7 @@
   position: absolute;
   inset: 0;
   border-radius: 99px;
-  background: #8b5cf6;
+  background: var(--acento, #8b5cf6);
   transform-origin: top;
   transform: scaleY(0);
 }
@@ -266,6 +266,13 @@
   }
 }
 /* ── Pantalla del portátil (HTML proyectado sobre la tapa) ── */
+/* La pantalla de bloqueo del relevo, por encima del panel: la escena la
+   desvanece al desbloquear. En la pantalla HTML, --u es 1px. */
+.ng-seccion .mx-bloqueo {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+}
 .ng-seccion .mx {
   position: absolute;
   left: 0;

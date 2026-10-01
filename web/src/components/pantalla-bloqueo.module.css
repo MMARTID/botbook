@@ -1,0 +1,126 @@
+/*
+ * Pantalla de bloqueo del portátil (pantalla-bloqueo.tsx). Dos unidades:
+ *
+ * - `--u`: 1/1200 del ancho de la pantalla en la que se pinta. La pone quien
+ *   la contiene: en el rectángulo negro de «En tu bolsillo», su ancho/1200;
+ *   en la pantalla HTML del portátil no se pone y vale 1px (esa pantalla
+ *   mide 1200px y la escala la proyección).
+ * - `--min`: 1px de la pantalla real, para los mínimos legibles. En el
+ *   portátil, la escena pone `--escala` (lo que mide la pantalla proyectada
+ *   / 1200), así que `1px / escala` vuelve a ser 1px en pantalla.
+ *
+ * Cada medida es `max(mínimo legible, tamaño proporcional)`: en escritorio
+ * manda la proporción (la pantalla de un Mac a escala) y en móvil, el mínimo.
+ * Las dos copias resuelven lo mismo, así que coinciden al píxel en el relevo.
+ */
+
+.bloqueo {
+  --min: calc(1px / var(--escala, 1));
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background: #000;
+  color: #fff;
+  pointer-events: none;
+}
+
+/* Centrado en la pantalla: mientras el negro se estira (y cambia de alto)
+   el bloque sigue en medio, y al final coincide con el del portátil. */
+.contenido {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: min(92%, max(calc(var(--min) * 300), calc(var(--u, 1px) * 720)));
+  transform: translate(-50%, -50%);
+}
+
+.reloj {
+  opacity: 0;
+  text-align: center;
+}
+
+.fecha {
+  font-size: max(calc(var(--min) * 11), calc(var(--u, 1px) * 24));
+  font-weight: 600;
+  line-height: 1.2;
+  color: rgba(255, 255, 255, 0.82);
+}
+
+.hora {
+  margin-top: calc(var(--u, 1px) * 2);
+  font-size: max(calc(var(--min) * 30), calc(var(--u, 1px) * 150));
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.03em;
+  color: rgba(255, 255, 255, 0.94);
+  font-variant-numeric: tabular-nums;
+}
+
+.avisos {
+  display: grid;
+  gap: max(calc(var(--min) * 6), calc(var(--u, 1px) * 12));
+  width: 100%;
+  margin-top: max(calc(var(--min) * 10), calc(var(--u, 1px) * 40));
+}
+
+.aviso {
+  display: flex;
+  align-items: flex-start;
+  gap: max(calc(var(--min) * 8), calc(var(--u, 1px) * 16));
+  padding: max(calc(var(--min) * 8), calc(var(--u, 1px) * 18)) max(calc(var(--min) * 10), calc(var(--u, 1px) * 20));
+  border-radius: max(calc(var(--min) * 12), calc(var(--u, 1px) * 24));
+  background: rgb(46, 46, 52);
+  box-shadow: inset 0 0 0 max(calc(var(--min) * 0.5), calc(var(--u, 1px) * 1)) rgba(255, 255, 255, 0.07);
+  opacity: 0;
+  transform-origin: 50% 0;
+}
+
+/* En pantallas estrechas no caben tres avisos en lista: se apilan como en
+   un iPhone, el nuevo encima y los anteriores asomando detrás (lo decide
+   pintarBloqueo con `data-pila`, igual en las dos copias). */
+:global([data-pila]) .aviso {
+  grid-area: 1 / 1;
+}
+
+.icono {
+  flex-shrink: 0;
+  width: max(calc(var(--min) * 22), calc(var(--u, 1px) * 44));
+  height: max(calc(var(--min) * 22), calc(var(--u, 1px) * 44));
+  padding: max(calc(var(--min) * 4), calc(var(--u, 1px) * 8));
+  border-radius: max(calc(var(--min) * 6), calc(var(--u, 1px) * 11));
+  background: #fff;
+}
+
+.cuerpo {
+  min-width: 0;
+  flex: 1;
+}
+
+.cabecera {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: calc(var(--u, 1px) * 10);
+  font-size: max(calc(var(--min) * 11.5), calc(var(--u, 1px) * 20));
+  line-height: 1.3;
+}
+
+.cabecera b {
+  font-weight: 700;
+}
+
+.cabecera span {
+  flex-shrink: 0;
+  font-size: max(calc(var(--min) * 10), calc(var(--u, 1px) * 16));
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.texto {
+  margin-top: calc(var(--u, 1px) * 3);
+  font-size: max(calc(var(--min) * 11), calc(var(--u, 1px) * 19));
+  line-height: 1.38;
+  color: rgba(255, 255, 255, 0.82);
+}
