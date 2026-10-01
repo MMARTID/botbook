@@ -20,8 +20,11 @@ import { marcarRelato } from "@/lib/relato-fijo";
 import {
   ALTO_BOLSILLO_VH,
   BOLSILLO_P,
+  PANTALLA_HTML,
   hayNegocioEnEscena,
+  pantallaDelPortatil,
   publicarTelefono,
+  type TelefonoTumbado,
 } from "@/lib/transicion-bolsillo-negocio";
 import styles from "./llamada-scroll.module.css";
 
@@ -117,13 +120,11 @@ const ANCLAS = [0.3, 0.62, 0.88] as const;
 
 /**
  * Los tres pasos ocupan el progreso 0→FIN_PASOS de la sección; de ahí a
- * INICIO_CRUCE va el vuelco, y el resto es el cruce con «En tu negocio».
- * Todo lo de arriba (costuras, momentos, anclas) va sobre el progreso de los
- * pasos, que es el de antes estirado a 0→1.
+ * FIN_VUELCO va el vuelco, hasta INICIO_CRUCE el estirado y el resto es el
+ * cruce con «En tu negocio». Todo lo de arriba (costuras, momentos, anclas)
+ * va sobre el progreso de los pasos, que es el de antes estirado a 0→1.
  */
-const { finPasos: FIN_PASOS, inicioCruce: INICIO_CRUCE } = BOLSILLO_P;
-/** El teléfono se funde en la mayor parte del cruce, con el escenario aún fijo. */
-const FIN_FUNDIDO = INICIO_CRUCE + (1 - INICIO_CRUCE) * 0.8;
+const { finPasos: FIN_PASOS, finVuelco: FIN_VUELCO, inicioCruce: INICIO_CRUCE } = BOLSILLO_P;
 /**
  * El cuerpo del teléfono dentro de su imagen (public/telefono/frente.svg),
  * sin los botones ni el margen transparente: alto como fracción del alto del
@@ -235,14 +236,14 @@ export function LlamadaScroll() {
   const zoom = useTransform(sp, [0.43, 0.48, 0.56, 0.61], [1, movil ? 1.06 : 1.16, movil ? 1.06 : 1.16, 1], { ease: suave });
 
   /**
-   * Vuelco (FIN_PASOS→INICIO_CRUCE): el teléfono se tumba a −90° casi en su
+   * Vuelco (FIN_PASOS→FIN_VUELCO): el teléfono se tumba a −90° casi en su
    * sitio, crece un poco y queda apaisado (ver `medir`), que es donde «En tu
    * negocio» pondrá la pantalla del portátil.
    * Los giros en 3D se apagan, con un balanceo leve en Y a mitad de camino.
-   * A mitad del giro su pantalla se apaga: negra, como la del portátil que lo
-   * releva. Todo con easing cúbico, sobre el muelle.
+   * En la segunda mitad del giro su pantalla se apaga: negra, como la del
+   * portátil que lo releva. Todo con easing cúbico, sobre el muelle.
    */
-  const tVuelco = useTransform(s, [FIN_PASOS, INICIO_CRUCE], [0, 1]);
+  const tVuelco = useTransform(s, [FIN_PASOS, FIN_VUELCO], [0, 1]);
   const tv = useTransform(tVuelco, cubico);
   // Dónde y a qué escala acaba el teléfono tumbado: depende del layout, se
   // mide (ver `medir`).
@@ -266,13 +267,50 @@ export function LlamadaScroll() {
   const opacidadTexto = useTransform(tVuelco, [0.05, 0.4], [1, 0]);
   const yTexto = useTransform(tVuelco, [0.05, 0.4], [0, -24]);
   const visTexto = useTransform(tVuelco, (t) => (t >= 0.4 ? "hidden" : "visible"));
-  const pantallaApagada = useTransform(tVuelco, [0.45, 0.85], [0, 1]);
+  const pantallaApagada = useTransform(tVuelco, [0.4, 0.95], [0, 1]);
   // La sombra acompaña: se estrecha al girar y se aclara al subir.
   const sombraX = useTransform(giroY, (v) => 1 - Math.abs(v) / 60);
   const sombraO = useTransform([subida, tVuelco], ([sb, t]: number[]) => (1 - 0.2 * tramo(sb, 0, -14)) * (1 - tramo(t, 0, 0.3)));
-  // En el cruce, el teléfono se funde bajo el lienzo 3D de «En tu negocio»
-  // (sobre el progreso crudo, como el lienzo). Sin escena, se queda.
-  const opacidadTelefono = useTransform(p, (v) => (hayNegocioEnEscena() ? 1 - tramo(v, INICIO_CRUCE, FIN_FUNDIDO) : 1));
+  /**
+   * Estirado (FIN_VUELCO→INICIO_CRUCE): sobre la silueta del teléfono tumbado
+   * nace un rectángulo negro con sus mismas esquinas, que se estira hasta la
+   * pantalla del portátil (`pantallaDelPortatil`), donde «En tu negocio» la
+   * releva en el cruce. Va sobre el mismo muelle que el teléfono, así que no
+   * se despegan aunque el scroll vaya a saltos; el teléfono se apaga debajo
+   * al empezar. Sin escena 3D no hay relevo: el teléfono se queda.
+   */
+  const tEstirado = useTransform(s, [FIN_VUELCO, INICIO_CRUCE], [0, 1]);
+  const te = useTransform(tEstirado, cubico);
+  // Cada medida nueva (ver `medir`) cambia esto, para que el rectángulo se
+  // recoloque aunque el scroll no se mueva.
+  const tumbado = useRef<TelefonoTumbado | null>(null);
+  const medida = useMotionValue(0);
+  const relevo = useTransform([te, medida], ([t]: number[]) => {
+    const tel = tumbado.current;
+    if (!tel || !hayNegocioEnEscena()) return null;
+    const pc = pantallaDelPortatil(tel);
+    const mezcla = (a: number, b: number) => a + (b - a) * t;
+    const ancho = mezcla(tel.ancho, pc.ancho);
+    const alto = mezcla(tel.alto, pc.alto);
+    const escalaPc = pc.ancho / PANTALLA_HTML.ancho;
+    return {
+      left: mezcla(tel.x, pc.x) - ancho / 2,
+      top: mezcla(tel.y, pc.y) - alto / 2,
+      width: ancho,
+      height: alto,
+      arriba: mezcla(tel.radio, PANTALLA_HTML.radioArriba * escalaPc),
+      abajo: mezcla(tel.radio, PANTALLA_HTML.radioAbajo * escalaPc),
+    };
+  });
+  const relevoDisplay = useTransform(relevo, (r) => (r && tEstirado.get() > 0 ? "block" : "none"));
+  const relevoLeft = useTransform(relevo, (r) => r?.left ?? 0);
+  const relevoTop = useTransform(relevo, (r) => r?.top ?? 0);
+  const relevoWidth = useTransform(relevo, (r) => r?.width ?? 0);
+  const relevoHeight = useTransform(relevo, (r) => r?.height ?? 0);
+  const relevoRadio = useTransform(relevo, (r) =>
+    r ? `${r.arriba}px ${r.arriba}px ${r.abajo}px ${r.abajo}px` : "0px"
+  );
+  const opacidadTelefono = useTransform(tEstirado, (t) => (hayNegocioEnEscena() ? 1 - tramo(t, 0, 0.2) : 1));
 
   // Barra de pasos: cada tramo se llena con su parte del progreso.
   const barra1 = useTransform(pp, [0, COSTURA_1], [0, 1]);
@@ -307,13 +345,15 @@ export function LlamadaScroll() {
       xFinal.set(x - centroX);
       yFinal.set(0);
       escalaFinal.set(e);
-      publicarTelefono({
+      tumbado.current = {
         x,
         y: centroY,
         ancho: silueta,
         alto: CUERPO.ancho * silueta,
         radio: CUERPO.radio * silueta,
-      });
+      };
+      publicarTelefono(tumbado.current);
+      medida.set(medida.get() + 1);
     };
     const observador = new ResizeObserver(medir);
     observador.observe(esc);
@@ -324,7 +364,7 @@ export function LlamadaScroll() {
       observador.disconnect();
       publicarTelefono(null);
     };
-  }, [reducir, xFinal, yFinal, escalaFinal]);
+  }, [reducir, xFinal, yFinal, escalaFinal, medida]);
 
   // Mientras el escenario está fijo, el botón de «Configurar cookies» se
   // esconde (tapaba la barra de pasos en móvil). Ver lib/relato-fijo.ts.
@@ -434,6 +474,18 @@ export function LlamadaScroll() {
             <motion.div className={styles.velo} style={{ opacity: opacidadTexto }} />
           </div>
         </div>
+        <motion.div
+          className={styles.relevo}
+          aria-hidden="true"
+          style={{
+            display: relevoDisplay,
+            left: relevoLeft,
+            top: relevoTop,
+            width: relevoWidth,
+            height: relevoHeight,
+            borderRadius: relevoRadio,
+          }}
+        />
       </motion.div>
 
       <ol className="sr-only">

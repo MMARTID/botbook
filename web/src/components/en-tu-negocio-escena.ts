@@ -26,8 +26,10 @@ import {
 } from "@/lib/portatil-3d";
 import {
   NEGOCIO_P,
+  PANTALLA_HTML,
   leerTelefono,
   marcarNegocioEnEscena,
+  pantallaDelPortatil,
 } from "@/lib/transicion-bolsillo-negocio";
 
 /**
@@ -73,19 +75,15 @@ const {
 /** Apertura de la tapa, en grados desde cerrada: siempre abierta. */
 const APERTURA = 108;
 /**
- * Al empezar el cruce, la pantalla del portátil es así de más ancha que la
- * silueta del teléfono tumbado: lo envuelve con un poco de negro alrededor.
+ * En el cruce, la pantalla negra aparece (sobre el rectángulo negro de «En
+ * tu bolsillo», que ya está ahí) en su primera parte.
  */
-const HOLGURA_PANTALLA = 1.06;
+const FIN_PANTALLA_NEGRA = FIN_CRUCE * 0.3;
 /**
- * En el cruce, la pantalla negra nace sobre la silueta del teléfono y se
- * estira hasta la del portátil en la primera parte; el portátil se enciende
- * alrededor en la segunda.
+ * La pantalla se enciende, a ritmo constante (con una curva, el tramo del
+ * medio iba de golpe), en el primer 65 % del zoom out.
  */
-const FIN_ESTIRADO = FIN_CRUCE * 0.55;
-const INICIO_PORTATIL = FIN_CRUCE * 0.3;
-/** La pantalla se enciende en la primera parte del zoom out. */
-const FIN_ENCENDIDO = FIN_CRUCE + (FIN_ZOOM - FIN_CRUCE) * 0.45;
+const FIN_ENCENDIDO = FIN_CRUCE + (FIN_ZOOM - FIN_CRUCE) * 0.65;
 /** Momento en que aparece cada detalle del texto, paso a paso. */
 const MOMENTOS = [
   [0.2, 0.25, 0.3],
@@ -94,8 +92,7 @@ const MOMENTOS = [
 ] as const;
 
 /** Tamaño de la pantalla HTML (`.mx`, en px CSS) antes de proyectarla. */
-const PANTALLA_W = 1200;
-const PANTALLA_H = 776;
+const { ancho: PANTALLA_W, alto: PANTALLA_H } = PANTALLA_HTML;
 const ESQUINAS_HTML = esquinasHtml(PANTALLA_W, PANTALLA_H);
 
 /** Alturas relativas de la onda de la grabación (se repite). */
@@ -125,9 +122,6 @@ const CAMARA_MIRA = [0, 0, 0, -0.02, -0.02, -0.2, -0.2, 0, 0];
  * encuadre se calcula con este mismo ángulo) y tapa y base se ven iguales.
  */
 const CAMARA_FOV = 15;
-
-/** Ease-out cúbico: arranca rápido y se posa. */
-const salida = (t: number) => 1 - Math.pow(1 - t, 3);
 
 const miles = (n: number) => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ".");
 
@@ -359,11 +353,12 @@ export function montarEscena(
   /**
    * La transición desde «En tu bolsillo»: en el cruce se encienden el lienzo,
    * el fondo del escenario (hasta ahí, transparente sobre el teléfono) y el
-   * crédito, sobre el progreso crudo, igual que se funde el teléfono; el
-   * texto y el rótulo entran (fade y 16 px) durante el zoom out.
+   * crédito, sobre el progreso suavizado, para que el portátil aparezca poco
+   * a poco aunque el scroll vaya a saltos; el texto y el rótulo entran (fade
+   * y 16 px) durante el zoom out.
    */
-  function pintarTransicion(pCrudo: number, p: number) {
-    const encendido = tramo(pCrudo, INICIO_PORTATIL, FIN_CRUCE);
+  function pintarTransicion(p: number) {
+    const encendido = suave(tramo(p, 0, FIN_CRUCE));
     lienzo.style.opacity = String(encendido);
     escenario.style.backgroundColor = `rgba(250, 250, 250, ${encendido})`;
     if (credito) credito.style.opacity = String(encendido);
@@ -421,11 +416,11 @@ export function montarEscena(
       ) * claves(p, CAMARA_T, CAMARA_DISTANCIA);
 
     // Zoom out: de la pantalla vista de frente, envolviendo al teléfono
-    // tumbado de «En tu bolsillo», al encuadre del paso 1. Arranca rápido y
-    // frena (un travelling hacia atrás que se posa), para dejar sitio pronto
-    // al texto que entra a la izquierda. La distancia va en logaritmo, para
-    // que el alejamiento sea parejo.
-    const alejado = salida(tramo(pSeccion, FIN_CRUCE, FIN_ZOOM));
+    // tumbado de «En tu bolsillo», al encuadre del paso 1, con arranque y
+    // llegada suaves. Durante el cruce la cámara está quieta: debajo, el
+    // rectángulo negro de «En tu bolsillo» tiene que seguir encajando. La
+    // distancia va en logaritmo, para que el alejamiento sea parejo.
+    const alejado = suave(tramo(pSeccion, FIN_CRUCE, FIN_ZOOM));
     if (alejado < 1) {
       const telefono = leerTelefono() ?? {
         x: centroX,
@@ -434,9 +429,10 @@ export function montarEscena(
         alto: 0,
         radio: 0,
       };
-      // Aumento (px por cm) que da a la pantalla el ancho del teléfono más
-      // la holgura, y distancia de la cámara que lo da con este objetivo.
-      const aumento = (telefono.ancho * HOLGURA_PANTALLA) / anchoPantalla;
+      // Aumento (px por cm) que da a la pantalla el ancho que le toca (el
+      // del teléfono más la holgura), y distancia de la cámara que lo da con
+      // este objetivo.
+      const aumento = pantallaDelPortatil(telefono).ancho / anchoPantalla;
       const cerca = altoEscenario / (2 * aumento * tangente);
       // La cámara mira la pantalla de frente, por su normal. El punto de
       // mira cae en el centro del hueco y el de la pantalla tiene que caer en
@@ -489,37 +485,14 @@ export function montarEscena(
         ((1 - v.y) / 2) * altoEscenario
       );
     }
-    // En el cruce, la pantalla (negra) nace sobre la silueta del teléfono
-    // tumbado, con sus esquinas redondas, y se estira hasta su sitio. Antes
-    // del cruce el escenario aún no está fijo: no se pinta.
-    const telefono = leerTelefono();
-    const estirado = suave(tramo(crudo, 0, FIN_ESTIRADO));
-    let radio = 0;
-    if (telefono && estirado < 1) {
-      const { x, y, ancho, alto } = telefono;
-      const desde = [
-        x - ancho / 2,
-        y - alto / 2,
-        x + ancho / 2,
-        y - alto / 2,
-        x - ancho / 2,
-        y + alto / 2,
-        x + ancho / 2,
-        y + alto / 2,
-      ];
-      for (let i = 0; i < 8; i++)
-        destino[i] = MathUtils.lerp(desde[i], destino[i], estirado);
-      radio = telefono.radio * (1 - estirado);
-    }
-    const encendido = suave(tramo(pSeccion, FIN_CRUCE, FIN_ENCENDIDO));
+    // En el cruce, la pantalla llega apagada (negra) justo encima del
+    // rectángulo negro de «En tu bolsillo» y se enciende con el zoom out.
+    // Antes del cruce el escenario aún no está fijo: no se pinta.
+    const negra = tramo(pSeccion, 0, FIN_PANTALLA_NEGRA);
+    const encendido = tramo(pSeccion, FIN_CRUCE, FIN_ENCENDIDO);
     pantallaHtml.style.display = crudo > 0 ? "block" : "none";
-    pantallaHtml.style.opacity = String(luz);
+    pantallaHtml.style.opacity = String(luz * negra);
     pantallaHtml.style.filter = encendido < 1 ? `brightness(${encendido})` : "";
-    // El radio, en px de la pantalla HTML antes de proyectarla.
-    pantallaHtml.style.borderRadius =
-      radio > 0
-        ? `${(radio * PANTALLA_W) / Math.hypot(destino[2] - destino[0], destino[3] - destino[1])}px / ${(radio * PANTALLA_H) / Math.hypot(destino[4] - destino[0], destino[5] - destino[1])}px`
-        : "";
     pantallaHtml.style.transform = homografia(ESQUINAS_HTML, destino);
   }
 
@@ -535,7 +508,7 @@ export function montarEscena(
       pasoActual = paso;
       cambiarDePaso(paso);
     }
-    pintarTransicion(crudo, suavizado);
+    pintarTransicion(suavizado);
     pintarTextos(pasos, pasosCrudo);
     pintarPantalla(pasos);
     pintarPortatil(pasos, suavizado);

@@ -386,6 +386,17 @@
   inset: 0;
 }
 
+/* El relevo: un rectángulo negro que nace sobre la silueta del teléfono
+   tumbado y se estira hasta la pantalla del portátil de «En tu negocio».
+   Posición, tamaño y esquinas los pone llamada-scroll.tsx. */
+.relevo {
+  position: absolute;
+  z-index: 2;
+  display: none;
+  background: #000;
+  pointer-events: none;
+}
+
 /* La pantalla apagada: se funde a negro al tumbarse el teléfono, antes de
    que lo releve la pantalla (también apagada) del portátil de «En tu
    negocio». Por encima de todo, isla incluida. */
