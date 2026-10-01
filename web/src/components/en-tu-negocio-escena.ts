@@ -1,6 +1,5 @@
 import {
   ACESFilmicToneMapping,
-  Box3,
   Group,
   MathUtils,
   Object3D,
@@ -26,10 +25,8 @@ import {
   tramo,
 } from "@/lib/portatil-3d";
 import {
-  ESQUINA,
   NEGOCIO_P,
-  RADIO_TAPA_CM,
-  leerEsquinaTelefono,
+  leerTelefono,
   marcarNegocioEnEscena,
 } from "@/lib/transicion-bolsillo-negocio";
 
@@ -52,11 +49,11 @@ import {
  *
  * Delante de los tres pasos va la transición desde «En tu bolsillo»
  * (`lib/transicion-bolsillo-negocio.ts`): en el cruce el lienzo se enciende
- * con la tapa cerrada vista desde arriba, su esquina trasera izquierda justo
- * sobre la del teléfono volcado y con el mismo radio; en el zoom out la
- * cámara se aleja de esa esquina hasta el encuadre del paso 1; y al llegar
- * entra el título. Los pasos van sobre el progreso que queda (FIN_ZOOM→1),
- * estirado a 0→1: sus pistas son las de siempre.
+ * con el portátil abierto, visto de frente y tan cerca que su pantalla,
+ * apagada, envuelve al teléfono tumbado (negro sobre negro); en el zoom out
+ * la pantalla se enciende con el panel, la cámara se aleja hasta el encuadre
+ * del paso 1 y entra el texto. Los pasos van sobre el progreso que queda
+ * (FIN_ZOOM→1), estirado a 0→1.
  *
  * El componente importa este módulo de forma dinámica, cuando la sección se
  * acerca, para que three.js no pese en la carga de la portada; y el bucle
@@ -70,14 +67,25 @@ const COSTURA_2 = 2 / 3;
 const {
   finCruce: FIN_CRUCE,
   finZoom: FIN_ZOOM,
+  inicioTitulo: INICIO_TITULO,
   finTitulo: FIN_TITULO,
 } = NEGOCIO_P;
+/** Apertura de la tapa, en grados desde cerrada: siempre abierta. */
+const APERTURA = 108;
 /**
- * Elevación de la cámara en la vista cenital de la esquina (casi vertical:
- * a 90° justos `lookAt` no sabe dónde está arriba). Con azimut 0, arriba en
- * pantalla es la bisagra (−z) e izquierda es −x.
+ * Al empezar el cruce, la pantalla del portátil es así de más ancha que la
+ * silueta del teléfono tumbado: lo envuelve con un poco de negro alrededor.
  */
-const ELEVACION_CENITAL = 89.5;
+const HOLGURA_PANTALLA = 1.06;
+/**
+ * En el cruce, la pantalla negra nace sobre la silueta del teléfono y se
+ * estira hasta la del portátil en la primera parte; el portátil se enciende
+ * alrededor en la segunda.
+ */
+const FIN_ESTIRADO = FIN_CRUCE * 0.55;
+const INICIO_PORTATIL = FIN_CRUCE * 0.3;
+/** La pantalla se enciende en la primera parte del zoom out. */
+const FIN_ENCENDIDO = FIN_CRUCE + (FIN_ZOOM - FIN_CRUCE) * 0.45;
 /** Momento en que aparece cada detalle del texto, paso a paso. */
 const MOMENTOS = [
   [0.2, 0.25, 0.3],
@@ -97,16 +105,18 @@ const BARRAS_ONDA = 52;
 const DURACION_GRABACION = 134;
 
 /**
- * Cámara (la del diseño, «En tu negocio.html» en Claude Design): grúa
- * cenital → frontal al abrir; órbita lateral baja y acercamiento en la
- * llamada; contraplano alto hacia el chat; plano general al final.
- * Fotogramas clave sobre el progreso suavizado: azimut y elevación en grados,
- * distancia relativa y altura del punto de mira (en altos de pantalla).
+ * Cámara (la del diseño, «En tu negocio.html» en Claude Design): frontal en
+ * el panel, que remata el zoom out con un leve giro; órbita lateral baja y
+ * acercamiento en la llamada; contraplano alto hacia el chat; plano general
+ * al final. (Hasta el 2026-10-01 el paso 1 era una grúa cenital mientras se
+ * abría la tapa; ahora la tapa llega abierta desde el cruce.) Fotogramas
+ * clave sobre el progreso suavizado: azimut y elevación en grados, distancia
+ * relativa y altura del punto de mira (en altos de pantalla).
  */
 const CAMARA_T = [0, 0.22, 0.33, 0.45, 0.62, 0.7, 0.84, 0.93, 1];
-const CAMARA_AZIMUT = [-28, 0, 0, 30, 22, -20, -14, 0, 0];
-const CAMARA_ELEVACION = [80, 10, 9, 5, 6, 22, 20, 10, 10];
-const CAMARA_DISTANCIA = [1.18, 1, 0.97, 0.9, 0.92, 0.9, 0.88, 1, 1];
+const CAMARA_AZIMUT = [-7, 0, 0, 30, 22, -20, -14, 0, 0];
+const CAMARA_ELEVACION = [13, 10, 9, 5, 6, 22, 20, 10, 10];
+const CAMARA_DISTANCIA = [1.04, 1, 0.97, 0.9, 0.92, 0.9, 0.88, 1, 1];
 const CAMARA_MIRA = [0, 0, 0, -0.02, -0.02, -0.2, -0.2, 0, 0];
 /**
  * Ángulo vertical de la cámara, en grados. El diseño usaba 28°, pero con el
@@ -115,6 +125,9 @@ const CAMARA_MIRA = [0, 0, 0, -0.02, -0.02, -0.2, -0.2, 0, 0];
  * encuadre se calcula con este mismo ángulo) y tapa y base se ven iguales.
  */
 const CAMARA_FOV = 15;
+
+/** Ease-out cúbico: arranca rápido y se posa. */
+const salida = (t: number) => 1 - Math.pow(1 - t, 3);
 
 const miles = (n: number) => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ".");
 
@@ -204,9 +217,7 @@ export function montarEscena(
   let pantalla: Object3D | null = null;
   let esquinas: [number, number][] = [];
   let altoPantalla = 0;
-  // La esquina trasera izquierda de la tapa cerrada (arriba a la izquierda
-  // vista desde arriba), en cm del mundo: sobre ella cae la del teléfono.
-  const esquinaTapa = new Vector3();
+  let anchoPantalla = 1;
   let desmontado = false;
   let listo = false;
   cargarPortatil(PANTALLA_W, PANTALLA_H)
@@ -216,13 +227,8 @@ export function montarEscena(
       pantalla = portatil.pantalla;
       esquinas = portatil.esquinas;
       altoPantalla = portatil.altoPantalla;
-      // Con la tapa cerrada (girada 90° sobre la bisagra), su caja en el
-      // mundo da la esquina: x mínima, cara de arriba, z mínima.
-      portatil.tapa.rotation.x = Math.PI / 2;
-      portatil.modelo.updateMatrixWorld(true);
-      const cerrada = new Box3().setFromObject(portatil.tapa, true);
-      esquinaTapa.set(cerrada.min.x, cerrada.max.y, cerrada.min.z);
-      portatil.tapa.rotation.x = 0;
+      anchoPantalla = esquinas[1][0] - esquinas[0][0];
+      portatil.tapa.rotation.x = MathUtils.degToRad(90 - APERTURA);
       mac.add(portatil.modelo);
       sombra.visible = true;
       listo = true;
@@ -237,6 +243,9 @@ export function montarEscena(
 
   const sombra = crearSombra();
   const sombraMaterial = sombra.material as Material;
+  // Bajo el portátil abierto: algo más honda y retrasada que bajo la base.
+  sombra.scale.set(58, 50, 1);
+  sombra.position.z = -4;
   mac.add(sombra);
 
   /* ── Encuadre: el portátil se centra en el hueco de la rejilla ── */
@@ -295,11 +304,11 @@ export function montarEscena(
 
   /* ── Fotograma ── */
   const mira = new Vector3();
-  const miraEsquina = new Vector3();
+  const miraFrente = new Vector3();
   const v = new Vector3();
+  const eje = new Vector3();
   const normal = new Vector3();
   const giro = new Quaternion();
-  const reposo = new Vector3(0, 1, 0);
   const grados = MathUtils.degToRad;
   const tangente = Math.tan(grados(CAMARA_FOV / 2));
 
@@ -350,15 +359,15 @@ export function montarEscena(
   /**
    * La transición desde «En tu bolsillo»: en el cruce se encienden el lienzo,
    * el fondo del escenario (hasta ahí, transparente sobre el teléfono) y el
-   * crédito, sobre el progreso crudo, igual que se apaga el teléfono; el
-   * texto y el rótulo entran (fade y 16 px) cuando acaba el zoom out.
+   * crédito, sobre el progreso crudo, igual que se funde el teléfono; el
+   * texto y el rótulo entran (fade y 16 px) durante el zoom out.
    */
   function pintarTransicion(pCrudo: number, p: number) {
-    const encendido = tramo(pCrudo, 0, FIN_CRUCE);
+    const encendido = tramo(pCrudo, INICIO_PORTATIL, FIN_CRUCE);
     lienzo.style.opacity = String(encendido);
     escenario.style.backgroundColor = `rgba(250, 250, 250, ${encendido})`;
     if (credito) credito.style.opacity = String(encendido);
-    const entrada = tramo(p, FIN_ZOOM, FIN_TITULO);
+    const entrada = tramo(p, INICIO_TITULO, FIN_TITULO);
     for (const el of [texto, rotulo]) {
       el.style.opacity = String(entrada);
       el.style.transform = `translateY(${16 * (1 - entrada)}px)`;
@@ -395,18 +404,14 @@ export function montarEscena(
 
   /**
    * `p` es el progreso de los pasos (el de siempre) y `pSeccion` el de toda
-   * la sección, del que cuelga el zoom out de delante.
+   * la sección, del que cuelgan el zoom out y el encendido de la pantalla.
    */
   function pintarPortatil(p: number, pSeccion: number) {
     if (!bisagra || !pantalla) return;
-    const abierto = suave(tramo(p, 0.02, 0.2));
-    bisagra.rotation.x = grados(90 - 108 * abierto);
     mac.updateMatrixWorld(true);
 
-    // Con la tapa cerrada se mira al portátil; al abrirse, a la pantalla.
     v.set(0, altoPantalla * claves(p, CAMARA_T, CAMARA_MIRA), 0);
-    pantalla.localToWorld(v);
-    mira.copy(reposo).lerp(v, abierto);
+    pantalla.localToWorld(mira.copy(v));
     let azimut = grados(claves(p, CAMARA_T, CAMARA_AZIMUT));
     let elevacion = grados(claves(p, CAMARA_T, CAMARA_ELEVACION));
     let distancia =
@@ -415,34 +420,41 @@ export function montarEscena(
         30 / (fraccionH * 2 * tangente)
       ) * claves(p, CAMARA_T, CAMARA_DISTANCIA);
 
-    // Zoom out: de la vista cenital de la esquina de la tapa (la del teléfono
-    // volcado de «En tu bolsillo», con su radio) al encuadre del paso 1. La
-    // distancia va en logaritmo, para que el alejamiento sea parejo.
-    const alejado = suave(tramo(pSeccion, FIN_CRUCE, FIN_ZOOM));
+    // Zoom out: de la pantalla vista de frente, envolviendo al teléfono
+    // tumbado de «En tu bolsillo», al encuadre del paso 1. Arranca rápido y
+    // frena (un travelling hacia atrás que se posa), para dejar sitio pronto
+    // al texto que entra a la izquierda. La distancia va en logaritmo, para
+    // que el alejamiento sea parejo.
+    const alejado = salida(tramo(pSeccion, FIN_CRUCE, FIN_ZOOM));
     if (alejado < 1) {
-      const esquina = leerEsquinaTelefono() ?? {
-        x: ESQUINA.x * anchoEscenario,
-        y: ESQUINA.y * altoEscenario,
-        radio: 0.15 * altoEscenario,
+      const telefono = leerTelefono() ?? {
+        x: centroX,
+        y: centroY,
+        ancho: 0.8 * fraccionW * anchoEscenario,
+        alto: 0,
+        radio: 0,
       };
-      // Aumento (px por cm) que iguala los radios, y altura de la cámara
-      // sobre la tapa que lo da con este objetivo.
-      const aumento = esquina.radio / RADIO_TAPA_CM;
-      const altura = altoEscenario / (2 * aumento * tangente);
-      // El punto de mira cae en el centro del hueco; la esquina tiene que
-      // caer en `esquina`: el punto de mira queda desplazado de la esquina
-      // lo contrario (en pantalla, x a la derecha y z hacia abajo).
-      miraEsquina.set(
-        esquinaTapa.x - (esquina.x - centroX) / aumento,
-        esquinaTapa.y,
-        esquinaTapa.z - (esquina.y - centroY) / aumento
-      );
-      azimut *= alejado;
-      elevacion = MathUtils.lerp(grados(ELEVACION_CENITAL), elevacion, alejado);
+      // Aumento (px por cm) que da a la pantalla el ancho del teléfono más
+      // la holgura, y distancia de la cámara que lo da con este objetivo.
+      const aumento = (telefono.ancho * HOLGURA_PANTALLA) / anchoPantalla;
+      const cerca = altoEscenario / (2 * aumento * tangente);
+      // La cámara mira la pantalla de frente, por su normal. El punto de
+      // mira cae en el centro del hueco y el de la pantalla tiene que caer en
+      // el del teléfono: el punto de mira se desplaza lo contrario, en los
+      // ejes de la pantalla (x a la derecha, y hacia arriba).
+      pantalla.getWorldQuaternion(giro);
+      pantalla.getWorldPosition(miraFrente);
+      eje.set(1, 0, 0).applyQuaternion(giro);
+      miraFrente.addScaledVector(eje, -(telefono.x - centroX) / aumento);
+      eje.set(0, 1, 0).applyQuaternion(giro);
+      miraFrente.addScaledVector(eje, (telefono.y - centroY) / aumento);
+      normal.set(0, 0, 1).applyQuaternion(giro);
+      azimut = MathUtils.lerp(Math.atan2(normal.x, normal.z), azimut, alejado);
+      elevacion = MathUtils.lerp(Math.asin(normal.y), elevacion, alejado);
       distancia = Math.exp(
-        MathUtils.lerp(Math.log(altura), Math.log(distancia), alejado)
+        MathUtils.lerp(Math.log(cerca), Math.log(distancia), alejado)
       );
-      mira.lerpVectors(miraEsquina, mira, alejado);
+      mira.lerpVectors(miraFrente, mira, alejado);
     }
     // La sombra de contacto se va con el zoom: de tan cerca sería un velo.
     sombraMaterial.opacity = alejado;
@@ -454,16 +466,15 @@ export function montarEscena(
     );
     camara.lookAt(mira);
     camara.updateMatrixWorld();
-    sombra.scale.set(58, 40 + 10 * abierto, 1);
-    sombra.position.z = -4 * abierto;
     renderer.render(escena, camara);
 
-    // La pantalla HTML se enciende al abrir y solo se ve de frente.
+    // La pantalla HTML solo se ve de frente. Llega apagada (negra, como el
+    // teléfono que releva) y se enciende al empezar el zoom out.
     pantalla.getWorldQuaternion(giro);
     normal.set(0, 0, 1).applyQuaternion(giro);
     pantalla.getWorldPosition(v);
     const deFrente = normal.dot(v.sub(camara.position).negate().normalize());
-    const luz = tramo(abierto, 0.45, 0.9) * acotar(deFrente * 4);
+    const luz = acotar(deFrente * 4);
     if (luz <= 0) {
       pantallaHtml.style.display = "none";
       return;
@@ -478,8 +489,37 @@ export function montarEscena(
         ((1 - v.y) / 2) * altoEscenario
       );
     }
-    pantallaHtml.style.display = "block";
+    // En el cruce, la pantalla (negra) nace sobre la silueta del teléfono
+    // tumbado, con sus esquinas redondas, y se estira hasta su sitio. Antes
+    // del cruce el escenario aún no está fijo: no se pinta.
+    const telefono = leerTelefono();
+    const estirado = suave(tramo(crudo, 0, FIN_ESTIRADO));
+    let radio = 0;
+    if (telefono && estirado < 1) {
+      const { x, y, ancho, alto } = telefono;
+      const desde = [
+        x - ancho / 2,
+        y - alto / 2,
+        x + ancho / 2,
+        y - alto / 2,
+        x - ancho / 2,
+        y + alto / 2,
+        x + ancho / 2,
+        y + alto / 2,
+      ];
+      for (let i = 0; i < 8; i++)
+        destino[i] = MathUtils.lerp(desde[i], destino[i], estirado);
+      radio = telefono.radio * (1 - estirado);
+    }
+    const encendido = suave(tramo(pSeccion, FIN_CRUCE, FIN_ENCENDIDO));
+    pantallaHtml.style.display = crudo > 0 ? "block" : "none";
     pantallaHtml.style.opacity = String(luz);
+    pantallaHtml.style.filter = encendido < 1 ? `brightness(${encendido})` : "";
+    // El radio, en px de la pantalla HTML antes de proyectarla.
+    pantallaHtml.style.borderRadius =
+      radio > 0
+        ? `${(radio * PANTALLA_W) / Math.hypot(destino[2] - destino[0], destino[3] - destino[1])}px / ${(radio * PANTALLA_H) / Math.hypot(destino[4] - destino[0], destino[5] - destino[1])}px`
+        : "";
     pantallaHtml.style.transform = homografia(ESQUINAS_HTML, destino);
   }
 

@@ -45,8 +45,8 @@
   padding: 0 1rem;
   pointer-events: none;
 }
-/* El texto, el rótulo y el crédito los enciende la escena: el texto cuando
-   acaba el zoom out, el crédito con el lienzo. */
+/* El texto, el rótulo y el crédito los enciende la escena: el texto mientras
+   va el zoom out, el crédito con el lienzo. */
 .ng-seccion .ng-texto {
   grid-area: texto;
   pointer-events: auto;

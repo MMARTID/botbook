@@ -9,9 +9,9 @@ import {
   NEGOCIO_VH,
   SOLAPE_NEGOCIO_VH,
   hayNegocioEnEscena,
-  leerEsquinaTelefono,
+  leerTelefono,
   marcarNegocioEnEscena,
-  publicarEsquinaTelefono,
+  publicarTelefono,
 } from "@/lib/transicion-bolsillo-negocio";
 
 /**
@@ -47,22 +47,30 @@ describe("transicion-bolsillo-negocio", () => {
     );
     expect(BOLSILLO_P.finPasos).toBeLessThan(BOLSILLO_P.inicioCruce);
     expect(NEGOCIO_P.finCruce).toBeLessThan(NEGOCIO_P.finZoom);
-    expect(NEGOCIO_P.finZoom).toBeLessThan(NEGOCIO_P.finTitulo);
-    expect(NEGOCIO_P.finTitulo).toBeLessThan(1);
+    // El texto de «En tu negocio» entra durante el zoom out, no después.
+    expect(NEGOCIO_P.finCruce).toBeLessThan(NEGOCIO_P.inicioTitulo);
+    expect(NEGOCIO_P.inicioTitulo).toBeLessThan(NEGOCIO_P.finTitulo);
+    expect(NEGOCIO_P.finTitulo).toBeLessThanOrEqual(NEGOCIO_P.finZoom);
   });
 
-  it("guarda la esquina del teléfono y si «En tu negocio» va con escena", () => {
-    expect(leerEsquinaTelefono()).toBeNull();
+  it("guarda dónde queda el teléfono tumbado y si «En tu negocio» va con escena", () => {
+    expect(leerTelefono()).toBeNull();
     expect(hayNegocioEnEscena()).toBe(false);
 
-    publicarEsquinaTelefono({ x: 460, y: 630, radio: 150 });
+    publicarTelefono({ x: 880, y: 420, ancho: 540, alto: 258, radio: 44 });
     marcarNegocioEnEscena(true);
-    expect(leerEsquinaTelefono()).toEqual({ x: 460, y: 630, radio: 150 });
+    expect(leerTelefono()).toEqual({
+      x: 880,
+      y: 420,
+      ancho: 540,
+      alto: 258,
+      radio: 44,
+    });
     expect(hayNegocioEnEscena()).toBe(true);
 
-    publicarEsquinaTelefono(null);
+    publicarTelefono(null);
     marcarNegocioEnEscena(false);
-    expect(leerEsquinaTelefono()).toBeNull();
+    expect(leerTelefono()).toBeNull();
     expect(hayNegocioEnEscena()).toBe(false);
   });
 });

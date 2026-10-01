@@ -3,8 +3,8 @@
  *
  * La sección es alta (su alto lo pone llamada-scroll.tsx desde
  * lib/transicion-bolsillo-negocio.ts) y el escenario se queda pegado
- * (100lvh) mientras se recorre. El teléfono es un render frontal
- * (public/telefono/frente.webp) con la pantalla en HTML encima, en las
+ * (100lvh) mientras se recorre. El teléfono es un marco vectorial frontal
+ * (public/telefono/frente.svg) con la pantalla en HTML encima, en las
  * coordenadas del hueco del render; las medidas de dentro van en cqw de la
  * pantalla para que todo escale con el teléfono. Los giros y apariciones los
  * pone framer-motion desde el progreso del scroll (ver llamada-scroll.tsx).
@@ -384,6 +384,18 @@
 .capa {
   position: absolute;
   inset: 0;
+}
+
+/* La pantalla apagada: se funde a negro al tumbarse el teléfono, antes de
+   que lo releve la pantalla (también apagada) del portátil de «En tu
+   negocio». Por encima de todo, isla incluida. */
+.apagada {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  background: #000;
+  opacity: 0;
+  pointer-events: none;
 }
 
 .estado {

@@ -31,10 +31,11 @@ import "./en-tu-negocio.css";
  *
  * Desde el 2026-09-30 la sección solapa el final de «En tu bolsillo» (margen
  * negativo, ver `lib/transicion-bolsillo-negocio.ts`): su escenario fijo se
- * pone encima del teléfono volcado, transparente, y la escena enciende el
- * lienzo con la esquina de la tapa cerrada sobre la del teléfono, se aleja
- * hasta el encuadre del paso 1 y entonces entra el título. Por eso el texto,
- * el rótulo y el crédito empiezan invisibles (CSS) y los enciende la escena.
+ * pone encima del teléfono tumbado, transparente; la pantalla apagada del
+ * portátil nace sobre la silueta del teléfono y se estira hasta su sitio, el
+ * portátil (ya abierto) se enciende alrededor, y la cámara se aleja hasta el
+ * encuadre del paso 1 mientras entra el título. Por eso el texto, el rótulo y
+ * el crédito empiezan invisibles (CSS) y los enciende la escena.
  * La versión quieta no solapa nada.
  *
  * El CSS (`en-tu-negocio.css`) es global pero va todo colgado de

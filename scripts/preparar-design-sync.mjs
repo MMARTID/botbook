@@ -66,7 +66,7 @@ function existeModulo(base) {
  *   no son componentes (datos reales para componer). Especificadores
  *   relativos a .ds-src/, como los del barrel.
  * @param {string[]} [opciones.recursosPublicos]  Rutas de public/ que los
- *   componentes cargan con ruta absoluta (`<img src="/telefono/frente.webp">`)
+ *   componentes cargan con ruta absoluta (`<img src="/telefono/frente.svg">`)
  *   y que fuera de Next no existen. Van embebidas en el bundle.
  * @param {string} opciones.providers Contenido de preview-providers.tsx.
  */

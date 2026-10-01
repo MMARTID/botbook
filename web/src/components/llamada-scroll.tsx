@@ -20,9 +20,8 @@ import { marcarRelato } from "@/lib/relato-fijo";
 import {
   ALTO_BOLSILLO_VH,
   BOLSILLO_P,
-  ESQUINA,
   hayNegocioEnEscena,
-  publicarEsquinaTelefono,
+  publicarTelefono,
 } from "@/lib/transicion-bolsillo-negocio";
 import styles from "./llamada-scroll.module.css";
 
@@ -48,9 +47,10 @@ import styles from "./llamada-scroll.module.css";
  * - Nada fuerza la posición del scroll salvo el clic en la barra de pasos.
  *
  * Desde el 2026-09-30 la sección no termina: al acabar el tercer paso el
- * teléfono se vuelca (fase «Vuelco») y se funde con el portátil de «En tu
- * negocio», que solapa a esta sección. El reparto de los tramos y la esquina
- * en la que se encuentran están en `lib/transicion-bolsillo-negocio.ts`.
+ * teléfono se tumba en su sitio, se le apaga la pantalla (fase «Vuelco») y se
+ * funde con la pantalla, también apagada, del portátil de «En tu negocio»,
+ * que solapa a esta sección. El reparto de los tramos y cómo se encuentran
+ * están en `lib/transicion-bolsillo-negocio.ts`.
  */
 
 type PasoCopy = {
@@ -122,17 +122,24 @@ const ANCLAS = [0.3, 0.62, 0.88] as const;
  * pasos, que es el de antes estirado a 0→1.
  */
 const { finPasos: FIN_PASOS, inicioCruce: INICIO_CRUCE } = BOLSILLO_P;
-/** El teléfono se apaga en la primera parte del cruce, con el escenario aún fijo. */
-const FIN_FUNDIDO = INICIO_CRUCE + (1 - INICIO_CRUCE) * 0.6;
-/** A cuánto crece el teléfono al volcarse (en móvil, menos: no cabe). */
-const ESCALA_VUELCO = 2.6;
-const ESCALA_VUELCO_MOVIL = 1.8;
+/** El teléfono se funde en la mayor parte del cruce, con el escenario aún fijo. */
+const FIN_FUNDIDO = INICIO_CRUCE + (1 - INICIO_CRUCE) * 0.8;
 /**
- * El marco (public/telefono/frente.webp) no llena su imagen: margen
- * transparente a la derecha y arriba, y radio de sus esquinas, como fracción
- * del ancho y del alto del elemento. Medidos sobre el render.
+ * El cuerpo del teléfono dentro de su imagen (public/telefono/frente.svg),
+ * sin los botones ni el margen transparente: alto como fracción del alto del
+ * elemento (tumbado, es el ancho de la silueta), y su ancho y el radio de sus
+ * esquinas como fracción de ese alto.
  */
-const MARCO = { derecha: 17 / 1335, arriba: 78 / 2859, radio: 230 / 1335 } as const;
+const CUERPO_ALTO = 2704 / 2859;
+const CUERPO = { ancho: 1290 / 2704, radio: 222 / 2704 } as const;
+/**
+ * Tumbado, la silueta del teléfono mide esto por el alto que tenía de pie:
+ * crece un poco, para que la cámara de «En tu negocio» tenga de dónde
+ * alejarse. En móvil, todo el ancho de la pantalla menos el margen.
+ */
+const CRECE_TUMBADO = 1.2;
+/** Margen mínimo, en px, entre el teléfono tumbado y el borde del escenario. */
+const MARGEN_TUMBADO = 32;
 
 /** Ida y vuelta para movimiento en pantalla (ease-in-out fuerte). */
 const suave = cubicBezier(0.65, 0, 0.35, 1);
@@ -228,39 +235,42 @@ export function LlamadaScroll() {
   const zoom = useTransform(sp, [0.43, 0.48, 0.56, 0.61], [1, movil ? 1.06 : 1.16, movil ? 1.06 : 1.16, 1], { ease: suave });
 
   /**
-   * Vuelco (FIN_PASOS→INICIO_CRUCE): el teléfono se tumba a −90°, crece y se
-   * va hacia la esquina inferior derecha hasta que solo se ve su esquina
-   * superior izquierda (la de arriba a la derecha del marco de pie), que es
-   * donde «En tu negocio» pondrá la esquina de la tapa del portátil. Los
-   * giros en 3D se apagan, con un balanceo en Y a mitad de camino, y el zoom
-   * pasa por un pico extra del 10 %. Todo con easing cúbico, sobre el muelle.
+   * Vuelco (FIN_PASOS→INICIO_CRUCE): el teléfono se tumba a −90° casi en su
+   * sitio, crece un poco y queda apaisado (ver `medir`), que es donde «En tu
+   * negocio» pondrá la pantalla del portátil.
+   * Los giros en 3D se apagan, con un balanceo leve en Y a mitad de camino.
+   * A mitad del giro su pantalla se apaga: negra, como la del portátil que lo
+   * releva. Todo con easing cúbico, sobre el muelle.
    */
   const tVuelco = useTransform(s, [FIN_PASOS, INICIO_CRUCE], [0, 1]);
   const tv = useTransform(tVuelco, cubico);
-  // A dónde tiene que ir el centro del teléfono para que la esquina caiga en
-  // su sitio: depende del layout, se mide (ver `medir`).
+  // Dónde y a qué escala acaba el teléfono tumbado: depende del layout, se
+  // mide (ver `medir`).
   const xFinal = useMotionValue(0);
   const yFinal = useMotionValue(0);
-  const rotateY = useTransform([giroY, tv], ([g, t]: number[]) => g * (1 - t) - 12 * Math.sin(Math.PI * t));
+  const escalaFinal = useMotionValue(1);
+  const rotateY = useTransform([giroY, tv], ([g, t]: number[]) => g * (1 - t) - 8 * Math.sin(Math.PI * t));
   const rotateX = useTransform([giroX, tv], ([g, t]: number[]) => g * (1 - t));
   const rotate = useTransform([inclina, tv], ([r, t]: number[]) => r - 90 * t);
-  const escalaVuelco = movil ? ESCALA_VUELCO_MOVIL : ESCALA_VUELCO;
+  // A mitad del giro el teléfono encoge un poco: en diagonal es más ancho y
+  // así no se mete en la columna del texto mientras este se va.
   const scale = useTransform(
-    [zoom, tv],
-    ([z, t]: number[]) => z * (1 + (escalaVuelco - 1) * t) * (1 + 0.1 * Math.sin(Math.PI * t))
+    [zoom, tv, escalaFinal],
+    ([z, t, ef]: number[]) => z * (1 + (ef - 1) * t) * (1 - 0.08 * Math.sin(Math.PI * t))
   );
-  const x = useTransform([deriva, tv, xFinal], ([d, t, xf]: number[]) => d + xf * t);
+  const x = useTransform([deriva, tv, xFinal], ([d, t, xf]: number[]) => d * (1 - t) + xf * t);
   const y = useTransform([subida, tv, yFinal], ([sb, t, yf]: number[]) => sb * (1 - t) + yf * t);
   const originY = useTransform(tVuelco, [0, 0.25], [0.36, 0.5]);
-  // El texto, el rótulo y la barra de pasos se van en el primer cuarto del
-  // vuelco; la sombra del teléfono también.
-  const opacidadTexto = useTransform(tVuelco, [0, 0.25], [1, 0]);
-  const yTexto = useTransform(tVuelco, [0, 0.25], [0, -24]);
-  const visTexto = useTransform(tVuelco, (t) => (t >= 0.25 ? "hidden" : "visible"));
+  // El texto, el rótulo y la barra de pasos se van mientras el teléfono
+  // empieza a girar; la sombra del teléfono también.
+  const opacidadTexto = useTransform(tVuelco, [0.05, 0.4], [1, 0]);
+  const yTexto = useTransform(tVuelco, [0.05, 0.4], [0, -24]);
+  const visTexto = useTransform(tVuelco, (t) => (t >= 0.4 ? "hidden" : "visible"));
+  const pantallaApagada = useTransform(tVuelco, [0.45, 0.85], [0, 1]);
   // La sombra acompaña: se estrecha al girar y se aclara al subir.
   const sombraX = useTransform(giroY, (v) => 1 - Math.abs(v) / 60);
-  const sombraO = useTransform([subida, tVuelco], ([sb, t]: number[]) => (1 - 0.2 * tramo(sb, 0, -14)) * (1 - tramo(t, 0, 0.25)));
-  // En el cruce, el teléfono se apaga bajo el lienzo 3D de «En tu negocio»
+  const sombraO = useTransform([subida, tVuelco], ([sb, t]: number[]) => (1 - 0.2 * tramo(sb, 0, -14)) * (1 - tramo(t, 0, 0.3)));
+  // En el cruce, el teléfono se funde bajo el lienzo 3D de «En tu negocio»
   // (sobre el progreso crudo, como el lienzo). Sin escena, se queda.
   const opacidadTelefono = useTransform(p, (v) => (hayNegocioEnEscena() ? 1 - tramo(v, INICIO_CRUCE, FIN_FUNDIDO) : 1));
 
@@ -271,9 +281,11 @@ export function LlamadaScroll() {
 
   /**
    * Mide dónde descansa el teléfono dentro del escenario (que, pegado, ocupa
-   * la pantalla) y calcula el desplazamiento que lo deja, tumbado y a escala,
-   * con su esquina en ESQUINA. Publica esa esquina y su radio para la escena
-   * de «En tu negocio». Se repite al cambiar el tamaño de algo.
+   * la pantalla) y calcula dónde y a qué escala queda tumbado: a la altura a
+   * la que estaba, con su silueta apaisada CRECE_TUMBADO veces su alto de
+   * pie y tan centrado en su columna como quepa sin salirse del escenario.
+   * Lo publica para la escena de «En tu negocio». Se repite al cambiar el
+   * tamaño de algo.
    */
   useEffect(() => {
     const esc = escenario.current;
@@ -282,20 +294,26 @@ export function LlamadaScroll() {
     if (!esc || !col || !tel) return;
     const medir = () => {
       const ancho = esc.clientWidth;
-      const alto = esc.clientHeight;
-      const w = tel.offsetWidth;
       const h = tel.offsetHeight;
-      const centroX = col.offsetLeft + tel.offsetLeft + w / 2;
+      const centroX = col.offsetLeft + tel.offsetLeft + tel.offsetWidth / 2;
       const centroY = col.offsetTop + tel.offsetTop + h / 2;
-      const e = window.innerWidth < 1024 ? ESCALA_VUELCO_MOVIL : ESCALA_VUELCO;
-      const esquinaX = ESQUINA.x * ancho;
-      const esquinaY = ESQUINA.y * alto;
-      // La esquina de arriba a la derecha del marco, tras girar −90° y
-      // escalar sobre el centro, queda a (−(½ − arriba)·h, −(½ − derecha)·w)·e
-      // del centro: arriba a la izquierda del teléfono tumbado.
-      xFinal.set(esquinaX - centroX + e * (0.5 - MARCO.arriba) * h);
-      yFinal.set(esquinaY - centroY + e * (0.5 - MARCO.derecha) * w);
-      publicarEsquinaTelefono({ x: esquinaX, y: esquinaY, radio: MARCO.radio * w * e });
+      const cabe = Math.max(0, ancho - 2 * MARGEN_TUMBADO);
+      const silueta = window.innerWidth < 1024 ? cabe : Math.min(cabe, CRECE_TUMBADO * CUERPO_ALTO * h);
+      const e = h > 0 ? silueta / (CUERPO_ALTO * h) : 1;
+      const x = Math.max(
+        MARGEN_TUMBADO + silueta / 2,
+        Math.min(centroX, ancho - MARGEN_TUMBADO - silueta / 2)
+      );
+      xFinal.set(x - centroX);
+      yFinal.set(0);
+      escalaFinal.set(e);
+      publicarTelefono({
+        x,
+        y: centroY,
+        ancho: silueta,
+        alto: CUERPO.ancho * silueta,
+        radio: CUERPO.radio * silueta,
+      });
     };
     const observador = new ResizeObserver(medir);
     observador.observe(esc);
@@ -304,9 +322,9 @@ export function LlamadaScroll() {
     medir();
     return () => {
       observador.disconnect();
-      publicarEsquinaTelefono(null);
+      publicarTelefono(null);
     };
-  }, [reducir, xFinal, yFinal]);
+  }, [reducir, xFinal, yFinal, escalaFinal]);
 
   // Mientras el escenario está fijo, el botón de «Configurar cookies» se
   // esconde (tapaba la barra de pasos en móvil). Ver lib/relato-fijo.ts.
@@ -406,9 +424,10 @@ export function LlamadaScroll() {
                   <Estado oscuro={false} />
                   <PantallaWhatsApp p={sp} />
                 </motion.div>
+                <motion.div className={styles.apagada} style={{ opacity: pantallaApagada }} />
               </div>
               {/* eslint-disable-next-line @next/next/no-img-element -- render local, el marco del teléfono */}
-              <img src="/telefono/frente.webp" alt="" className={styles.marco} width={1335} height={2859} />
+              <img src="/telefono/frente.svg" alt="" className={styles.marco} width={1335} height={2859} />
             </motion.div>
             {/* Móvil: el teléfono se corta por abajo con un degradado, que se
                 va con el texto al empezar el vuelco. */}
