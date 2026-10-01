@@ -7,7 +7,6 @@ import {
   useMotionValue,
   useMotionValueEvent,
   useScroll,
-  useSpring,
   useTransform,
   type MotionValue,
 } from "framer-motion";
@@ -17,6 +16,7 @@ import { SiApple, SiGooglecalendar } from "@icons-pack/react-simple-icons";
 import { MicrosoftLogo } from "@/components/brand-icons";
 import { useMovimientoReducido } from "@/hooks/use-movimiento-reducido";
 import { marcarRelato } from "@/lib/relato-fijo";
+import { escucharScrollSuave, progresoDe } from "@/lib/scroll-suave";
 import {
   ALTO_BOLSILLO_VH,
   BOLSILLO_P,
@@ -181,7 +181,15 @@ export function LlamadaScroll() {
   const telefono = useRef<HTMLDivElement>(null);
   const [paso, setPaso] = useState(0);
   const { scrollYProgress: p } = useScroll({ target: seccion, offset: ["start start", "end end"] });
-  const s = useSpring(p, { stiffness: 220, damping: 32, mass: 0.3, restDelta: 0.001 });
+  // El progreso suavizado: el del scroll suave compartido con «En tu
+  // negocio» (ver lib/scroll-suave.ts), para que en el relevo las dos
+  // secciones se muevan como una sola pieza.
+  const s = useMotionValue(0);
+  useEffect(() => {
+    const el = seccion.current;
+    if (!el) return;
+    return escucharScrollSuave((y) => s.set(progresoDe(el, y)));
+  }, [reducir, s]);
   // El progreso de los tres pasos (0→FIN_PASOS estirado a 0→1), crudo y
   // suavizado: es lo que ven las costuras, las pantallas y los textos.
   const pp = useTransform(p, (v) => Math.min(1, v / FIN_PASOS));
@@ -312,18 +320,21 @@ export function LlamadaScroll() {
   );
   const opacidadTelefono = useTransform(tEstirado, (t) => (hayNegocioEnEscena() ? 1 - tramo(t, 0, 0.2) : 1));
 
-  // Barra de pasos: cada tramo se llena con su parte del progreso.
-  const barra1 = useTransform(pp, [0, COSTURA_1], [0, 1]);
-  const barra2 = useTransform(pp, [COSTURA_1, COSTURA_2], [0, 1]);
-  const barra3 = useTransform(pp, [COSTURA_2, 1], [0, 1]);
+  // Riel de pasos (vertical, a la izquierda del texto): cada tramo se llena
+  // con su parte del progreso suavizado.
+  const barra1 = useTransform(sp, [0, COSTURA_1], [0, 1]);
+  const barra2 = useTransform(sp, [COSTURA_1, COSTURA_2], [0, 1]);
+  const barra3 = useTransform(sp, [COSTURA_2, 1], [0, 1]);
 
   /**
    * Mide dónde descansa el teléfono dentro del escenario (que, pegado, ocupa
-   * la pantalla) y calcula dónde y a qué escala queda tumbado: a la altura a
-   * la que estaba, con su silueta apaisada CRECE_TUMBADO veces su alto de
-   * pie y tan centrado en su columna como quepa sin salirse del escenario.
-   * Lo publica para la escena de «En tu negocio». Se repite al cambiar el
-   * tamaño de algo.
+   * la pantalla) y calcula dónde y a qué escala queda tumbado: centrado en
+   * alto en el escenario (bajo la cabecera), con su silueta apaisada
+   * CRECE_TUMBADO veces su alto de pie y, en escritorio, tan centrado en su
+   * columna como quepa sin salirse; en móvil y tableta, en el centro (allí el
+   * teléfono de pie va abajo, bajo el texto, y tumbado ahí dejaba media
+   * pantalla vacía). Lo publica para la escena de «En tu negocio». Se repite
+   * al cambiar el tamaño de algo.
    */
   useEffect(() => {
     const esc = escenario.current;
@@ -332,22 +343,27 @@ export function LlamadaScroll() {
     if (!esc || !col || !tel) return;
     const medir = () => {
       const ancho = esc.clientWidth;
+      const alto = esc.clientHeight;
       const h = tel.offsetHeight;
       const centroX = col.offsetLeft + tel.offsetLeft + tel.offsetWidth / 2;
       const centroY = col.offsetTop + tel.offsetTop + h / 2;
+      const escritorio = window.innerWidth >= 1024;
       const cabe = Math.max(0, ancho - 2 * MARGEN_TUMBADO);
-      const silueta = window.innerWidth < 1024 ? cabe : Math.min(cabe, CRECE_TUMBADO * CUERPO_ALTO * h);
+      const silueta = escritorio ? Math.min(cabe, CRECE_TUMBADO * CUERPO_ALTO * h) : cabe;
       const e = h > 0 ? silueta / (CUERPO_ALTO * h) : 1;
-      const x = Math.max(
-        MARGEN_TUMBADO + silueta / 2,
-        Math.min(centroX, ancho - MARGEN_TUMBADO - silueta / 2)
-      );
+      const x = escritorio
+        ? Math.max(MARGEN_TUMBADO + silueta / 2, Math.min(centroX, ancho - MARGEN_TUMBADO - silueta / 2))
+        : ancho / 2;
+      // El centro del hueco que deja la cabecera (el padding de arriba del
+      // escenario) y el margen de abajo.
+      const estilo = getComputedStyle(esc);
+      const yCentro = (parseFloat(estilo.paddingTop) + alto - parseFloat(estilo.paddingBottom)) / 2;
       xFinal.set(x - centroX);
-      yFinal.set(0);
+      yFinal.set(yCentro - centroY);
       escalaFinal.set(e);
       tumbado.current = {
         x,
-        y: centroY,
+        y: yCentro,
         ancho: silueta,
         alto: CUERPO.ancho * silueta,
         radio: CUERPO.radio * silueta,
@@ -417,10 +433,7 @@ export function LlamadaScroll() {
                   className={styles.botonPaso}
                 >
                   <span className={styles.pista}>
-                    <motion.span className={styles.relleno} style={{ scaleX: relleno }} />
-                  </span>
-                  <span className={styles.etiquetaPaso} data-activo={paso === i ? "" : undefined}>
-                    {PASOS[i].numero} · {PASOS[i].etiqueta}
+                    <motion.span className={styles.relleno} style={{ scaleY: relleno }} />
                   </span>
                 </button>
               ))}

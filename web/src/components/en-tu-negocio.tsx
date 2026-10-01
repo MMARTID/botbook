@@ -964,12 +964,6 @@ export function EnTuNegocioScroll() {
                   <span className="ng-pista">
                     <span className="ng-relleno" />
                   </span>
-                  <span
-                    className="ng-etiqueta"
-                    data-activo={i === 0 ? "" : undefined}
-                  >
-                    {paso.numero} · {paso.etiqueta}
-                  </span>
                 </button>
               ))}
             </nav>

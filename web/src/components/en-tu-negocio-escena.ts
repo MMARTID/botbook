@@ -24,6 +24,7 @@ import {
   suave,
   tramo,
 } from "@/lib/portatil-3d";
+import { escucharScrollSuave, progresoDe } from "@/lib/scroll-suave";
 import {
   NEGOCIO_P,
   PANTALLA_HTML,
@@ -159,7 +160,6 @@ export function montarEscena(
   const rotulos = todos<HTMLElement>(".ng-rotulo > span");
   const pasos = todos<HTMLElement>(".ng-paso");
   const rellenos = todos<HTMLElement>(".ng-relleno");
-  const etiquetas = todos<HTMLElement>(".ng-etiqueta");
   const detalles = copias.map((c) => todos<HTMLElement>(".ng-detalle", c));
   const vistas = todos<HTMLElement>(".mx-vista", pantallaHtml);
   const navs = todos<HTMLElement>("[data-nav]", pantallaHtml);
@@ -294,7 +294,12 @@ export function montarEscena(
   window.addEventListener("scroll", leerProgreso, { passive: true });
   window.addEventListener("resize", leerProgreso);
   leerProgreso();
-  suavizado = crudo;
+  // El progreso suavizado sale del scroll suave compartido con «En tu
+  // bolsillo» (ver lib/scroll-suave.ts): mismo valor, mismo instante, así
+  // que en el relevo las dos secciones no se despegan.
+  const dejarDeEscuchar = escucharScrollSuave((y) => {
+    suavizado = progresoDe(raiz, y);
+  });
 
   /* ── Fotograma ── */
   const mira = new Vector3();
@@ -313,7 +318,6 @@ export function montarEscena(
     rotulos.forEach(
       (r, i) => (r.style.visibility = i === paso ? "visible" : "hidden")
     );
-    etiquetas.forEach((e, i) => e.toggleAttribute("data-activo", i === paso));
     pasos.forEach((b, i) => {
       if (i === paso) b.setAttribute("aria-current", "step");
       else b.removeAttribute("aria-current");
@@ -328,7 +332,7 @@ export function montarEscena(
     );
   }
 
-  function pintarTextos(p: number, pCrudo: number) {
+  function pintarTextos(p: number) {
     const desplazamientos = [
       claves(p, [0.3, COSTURA_1], [0, -20]),
       claves(p, [COSTURA_1, 0.36, 0.64, COSTURA_2], [20, 0, 0, -20]),
@@ -345,9 +349,10 @@ export function montarEscena(
         d.style.transform = `translateY(${8 * (1 - t)}px)`;
       })
     );
-    rellenos[0].style.transform = `scaleX(${tramo(pCrudo, 0, COSTURA_1)})`;
-    rellenos[1].style.transform = `scaleX(${tramo(pCrudo, COSTURA_1, COSTURA_2)})`;
-    rellenos[2].style.transform = `scaleX(${tramo(pCrudo, COSTURA_2, 1)})`;
+    // El riel de pasos (vertical) se llena con el progreso suavizado.
+    rellenos[0].style.transform = `scaleY(${tramo(p, 0, COSTURA_1)})`;
+    rellenos[1].style.transform = `scaleY(${tramo(p, COSTURA_1, COSTURA_2)})`;
+    rellenos[2].style.transform = `scaleY(${tramo(p, COSTURA_2, 1)})`;
   }
 
   /**
@@ -359,7 +364,10 @@ export function montarEscena(
    */
   function pintarTransicion(p: number) {
     const encendido = suave(tramo(p, 0, FIN_CRUCE));
-    lienzo.style.opacity = String(encendido);
+    // Nunca 0 del todo: con opacidad 0 el navegador no compone el lienzo y
+    // la primera vez que aparece se para un instante (medido: ~200 ms) justo
+    // en mitad del cruce. A 0,001 no se ve y ya está compuesto.
+    lienzo.style.opacity = String(Math.max(0.001, encendido));
     escenario.style.backgroundColor = `rgba(250, 250, 250, ${encendido})`;
     if (credito) credito.style.opacity = String(encendido);
     const entrada = tramo(p, INICIO_TITULO, FIN_TITULO);
@@ -498,8 +506,6 @@ export function montarEscena(
 
   let raf = 0;
   function fotograma() {
-    suavizado += (crudo - suavizado) * 0.12;
-    if (Math.abs(crudo - suavizado) < 1e-4) suavizado = crudo;
     // Los pasos van sobre lo que queda tras el zoom out, estirado a 0→1.
     const pasosCrudo = tramo(crudo, FIN_ZOOM, 1);
     const pasos = tramo(suavizado, FIN_ZOOM, 1);
@@ -509,7 +515,7 @@ export function montarEscena(
       cambiarDePaso(paso);
     }
     pintarTransicion(suavizado);
-    pintarTextos(pasos, pasosCrudo);
+    pintarTextos(pasos);
     pintarPantalla(pasos);
     pintarPortatil(pasos, suavizado);
     raf = requestAnimationFrame(fotograma);
@@ -540,6 +546,7 @@ export function montarEscena(
     alCambiarTamano.disconnect();
     window.removeEventListener("scroll", leerProgreso);
     window.removeEventListener("resize", leerProgreso);
+    dejarDeEscuchar();
     liberar(escena);
     apagarLuces();
     renderer.dispose();
