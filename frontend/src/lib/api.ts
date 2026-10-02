@@ -66,9 +66,15 @@ export async function getMyBusiness() {
   return data;
 }
 
-export async function getGoogleAuthUrl(acceptedTerms?: boolean) {
+export async function getGoogleAuthUrl(
+  acceptedTerms?: boolean,
+  intent: "login" | "register" = "login"
+) {
   const { data } = await api.get<{ url: string }>("/auth/google", {
-    params: acceptedTerms ? { acceptedTerms: "true" } : undefined,
+    params: {
+      intent,
+      ...(acceptedTerms ? { acceptedTerms: "true" } : {}),
+    },
   });
   return data.url;
 }
@@ -99,6 +105,26 @@ export async function redeemPass(pase: string) {
 
 export async function consumeGoogleSession() {
   const { data } = await api.post<{ token: string }>("/auth/google/session", undefined, {
+    withCredentials: true,
+  });
+  return data.token;
+}
+
+export async function getFacebookAuthUrl(
+  acceptedTerms?: boolean,
+  intent: "login" | "register" = "login"
+) {
+  const { data } = await api.get<{ url: string }>("/auth/facebook", {
+    params: {
+      intent,
+      ...(acceptedTerms ? { acceptedTerms: "true" } : {}),
+    },
+  });
+  return data.url;
+}
+
+export async function consumeFacebookSession() {
+  const { data } = await api.post<{ token: string }>("/auth/facebook/session", undefined, {
     withCredentials: true,
   });
   return data.token;

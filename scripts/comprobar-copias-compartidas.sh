@@ -23,6 +23,7 @@ COPIAS_COMPARTIDAS=(
   components/beta-pill.tsx
   components/brand-icons.tsx
   components/brand-mark.tsx
+  components/facebook-auth-button.tsx
   components/google-analytics.tsx
   components/google-auth-button.tsx
   components/particle-field.tsx

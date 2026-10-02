@@ -9,6 +9,7 @@ type GoogleAuthButtonProps = {
   beforeStart?: () => void;
   disabled?: boolean;
   acceptedTerms?: boolean;
+  intent?: "login" | "register";
 };
 
 function GoogleIcon() {
@@ -24,7 +25,7 @@ function GoogleIcon() {
 
 // Registro abierto (el bloqueo «por invitación» de producción se retiró el
 // 2026-09-21, cuando el producto quedó listo para la prueba real).
-export function GoogleAuthButton({ onError, beforeStart, disabled, acceptedTerms }: GoogleAuthButtonProps) {
+export function GoogleAuthButton({ onError, beforeStart, disabled, acceptedTerms, intent = "login" }: GoogleAuthButtonProps) {
   const [loading, setLoading] = useState(false);
   const startGoogleAuth = async () => {
     setLoading(true);
@@ -32,7 +33,7 @@ export function GoogleAuthButton({ onError, beforeStart, disabled, acceptedTerms
 
     try {
       beforeStart?.();
-      window.location.assign(await getGoogleAuthUrl(acceptedTerms));
+      window.location.assign(await getGoogleAuthUrl(acceptedTerms, intent));
     } catch {
       setLoading(false);
       onError("No se pudo iniciar sesión con Google. Inténtalo de nuevo.");
