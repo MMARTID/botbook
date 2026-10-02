@@ -103,9 +103,9 @@ describe("authRoutes", () => {
     process.env.GOOGLE_AUTH_CLIENT_ID = "google_client_id";
     process.env.GOOGLE_AUTH_CLIENT_SECRET = "google_client_secret";
     process.env.GOOGLE_AUTH_REDIRECT_URI = "http://localhost:3000/auth/google/callback";
-    process.env.FACEBOOK_APP_ID = "facebook_app_id";
-    process.env.FACEBOOK_APP_SECRET = "facebook_app_secret";
-    process.env.FACEBOOK_AUTH_REDIRECT_URI = "http://localhost:3000/auth/facebook/callback";
+    process.env.FACEBOOK_LOGIN_APP_ID = "facebook_login_app_id";
+    process.env.FACEBOOK_LOGIN_APP_SECRET = "facebook_login_app_secret";
+    process.env.FACEBOOK_LOGIN_REDIRECT_URI = "http://localhost:3000/auth/facebook/callback";
 
     fastify = Fastify();
     fastify.decorate("authenticate", async (request: any) => {
