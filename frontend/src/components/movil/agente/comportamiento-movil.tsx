@@ -90,23 +90,23 @@ function Opcion({
       aria-checked={elegida}
       disabled={disabled}
       onClick={onClick}
-      className={`flex min-h-[60px] w-full items-center gap-3 rounded-2xl border px-3.5 py-2.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] disabled:cursor-not-allowed disabled:opacity-60 ${
-        elegida ? "border-[#8b5cf6] bg-[#f3eeff]" : "border-[#e5e5e5] bg-white"
+      className={`flex min-h-[60px] w-full items-center gap-3 rounded-2xl border px-3.5 py-2.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-morado disabled:cursor-not-allowed disabled:opacity-60 ${
+        elegida ? "border-morado bg-lavado" : "border-linea bg-superficie"
       }`}
     >
       <span className="min-w-0 flex-1">
-        <span className="block text-[15px] font-bold text-[#0a0a0a]">{titulo}</span>
+        <span className="block text-[15px] font-bold text-tinta">{titulo}</span>
         {detalle ? <span className="mt-px block text-[13px] text-muted">{detalle}</span> : null}
       </span>
       {forma === "radio" ? (
         <span
           aria-hidden="true"
-          className={`h-[22px] w-[22px] shrink-0 rounded-full border-2 ${elegida ? "border-[#8b5cf6] bg-[#8b5cf6] shadow-[inset_0_0_0_4px_#fff]" : "border-[#d4d4d8] bg-white"}`}
+          className={`h-[22px] w-[22px] shrink-0 rounded-full border-2 ${elegida ? "border-morado bg-morado shadow-[inset_0_0_0_4px_rgb(var(--superficie))]" : "border-linea-fuerte bg-superficie"}`}
         />
       ) : (
         <span
           aria-hidden="true"
-          className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full ${elegida ? "bg-[#8b5cf6] text-white" : "bg-[#f4f4f5] text-transparent"}`}
+          className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full ${elegida ? "bg-morado text-white" : "bg-relleno-fuerte text-transparent"}`}
         >
           <Check className="h-3.5 w-3.5" />
         </span>
@@ -159,7 +159,7 @@ export function ComportamientoMovil({ business }: { business: Business }) {
       <div className="flex flex-col gap-[22px]">
         {CAMPOS.map((campo) => (
           <fieldset key={campo.clave} className="min-w-0">
-            <legend className="text-base font-bold text-[#0a0a0a]">{campo.titulo}</legend>
+            <legend className="text-base font-bold text-tinta">{campo.titulo}</legend>
             <p className="mb-2.5 mt-0.5 text-sm text-muted">{campo.texto}</p>
             <div role="radiogroup" aria-label={campo.titulo} className="flex flex-col gap-2">
               {campo.opciones.map(([valor, titulo, detalle]) => (
@@ -176,12 +176,12 @@ export function ComportamientoMovil({ business }: { business: Business }) {
         ))}
 
         <fieldset className="min-w-0">
-          <legend className="text-base font-bold text-[#0a0a0a]">Idioma y voz</legend>
+          <legend className="text-base font-bold text-tinta">Idioma y voz</legend>
           <p className="mb-2.5 mt-0.5 text-sm text-muted">
             Empieza en español y sigue en el idioma de quien llama.
           </p>
           {bloqueado ? (
-            <div className="mb-3 flex items-start gap-2.5 rounded-[14px] border border-[#ddd6fe] bg-[#f3eeff] px-3.5 py-3 text-[#6d28d9]">
+            <div className="mb-3 flex items-start gap-2.5 rounded-[14px] border border-lavado-borde bg-lavado px-3.5 py-3 text-morado-tinta">
               <Lock className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
               <p className="text-[13px] leading-[1.55]">
                 Elegir la voz y los idiomas está disponible en los planes Pro y Scale.{" "}
@@ -203,7 +203,7 @@ export function ComportamientoMovil({ business }: { business: Business }) {
                     <span
                       key={idioma.valor}
                       className={`inline-flex min-h-11 items-center rounded-full border px-3.5 text-sm font-semibold ${
-                        activo ? "border-[#ddd6fe] bg-[#f3eeff] text-[#6d28d9]" : "border-[#e5e5e5] bg-[#fafafa] text-[#52525b] opacity-80"
+                        activo ? "border-lavado-borde bg-lavado text-morado-tinta" : "border-linea bg-relleno text-apagado opacity-80"
                       }`}
                     >
                       {idioma.nombre}

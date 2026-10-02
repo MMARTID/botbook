@@ -100,20 +100,20 @@ export function TarjetasDeLinea({
             />
             <label
               htmlFor={id}
-              className="flex h-full cursor-pointer items-start gap-3 rounded-2xl border border-[#e5e5e5] bg-white p-3.5 transition duration-200 hover:border-[#a78bfa] peer-checked:border-[#8b5cf6] peer-checked:bg-[#f3eeff] peer-focus-visible:ring-2 peer-focus-visible:ring-[#8b5cf6] peer-focus-visible:ring-offset-2 peer-disabled:cursor-not-allowed peer-disabled:opacity-60"
+              className="flex h-full cursor-pointer items-start gap-3 rounded-2xl border border-linea bg-superficie p-3.5 transition duration-200 hover:border-morado-claro peer-checked:border-morado peer-checked:bg-lavado peer-focus-visible:ring-2 peer-focus-visible:ring-morado peer-focus-visible:ring-offset-2 peer-disabled:cursor-not-allowed peer-disabled:opacity-60"
             >
               {/* Elegida, la tarjeta ya es lavado morado: el azulejo pasa a
                   blanco para no desaparecer (La Regla del Azulejo No
                   Anidado). */}
               <span
-                className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl text-[#8b5cf6] ${
-                  value === tipo ? "bg-white" : "bg-[#f3eeff]"
+                className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl text-morado ${
+                  value === tipo ? "bg-superficie" : "bg-lavado"
                 }`}
               >
                 <Icono className="h-4 w-4" aria-hidden="true" />
               </span>
               <span className="min-w-0 flex-1">
-                <span className="block text-sm font-semibold text-[#0a0a0a]">
+                <span className="block text-sm font-semibold text-tinta">
                   {titulo}
                 </span>
                 <span className="mt-0.5 block text-xs leading-5 text-muted">
@@ -122,7 +122,7 @@ export function TarjetasDeLinea({
               </span>
               {/* La elección no puede ir solo por color. */}
               {value === tipo ? (
-                <Check className="mt-0.5 h-4 w-4 shrink-0 text-[#6d28d9]" aria-hidden="true" />
+                <Check className="mt-0.5 h-4 w-4 shrink-0 text-morado-tinta" aria-hidden="true" />
               ) : null}
             </label>
           </div>

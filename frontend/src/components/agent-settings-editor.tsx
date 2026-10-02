@@ -38,7 +38,7 @@ const voiceLanguageOptions: Array<{ value: VoiceLanguage; label: string }> = [
 
 function VoiceUpgradeNotice() {
   return (
-    <p className="mb-3 flex items-start gap-2 rounded-xl border border-[#ddd6fe] bg-[#f3eeff] px-3 py-2 text-xs leading-5 text-[#6d28d9]">
+    <p className="mb-3 flex items-start gap-2 rounded-xl border border-lavado-borde bg-lavado px-3 py-2 text-xs leading-5 text-morado-tinta">
       <Lock className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
       <span>
         Elegir la voz y los idiomas está disponible en los planes Pro y Scale.{" "}
@@ -159,9 +159,9 @@ export function AgentSettingsEditor({
       </p>
 
       <div className="grid gap-5 p-4 sm:p-6 xl:grid-cols-2">
-        <fieldset className="rounded-xl border border-[#e5e5e5] bg-[#fafafa] p-4 sm:col-span-2 sm:p-5">
-          <legend className="flex items-center gap-2 px-1 text-sm font-semibold text-[#0a0a0a]">
-            <Languages className="h-4 w-4 text-[#8b5cf6]" />
+        <fieldset className="rounded-xl border border-linea bg-relleno p-4 sm:col-span-2 sm:p-5">
+          <legend className="flex items-center gap-2 px-1 text-sm font-semibold text-tinta">
+            <Languages className="h-4 w-4 text-morado" />
             Idiomas de atención
           </legend>
           <p className="mb-3 mt-1 text-sm text-muted">
@@ -175,7 +175,7 @@ export function AgentSettingsEditor({
               return (
                 <label
                   key={option.value}
-                  className={`relative flex cursor-pointer items-center justify-between gap-3 rounded-xl border px-4 py-3 transition ${selected ? "border-[#8b5cf6] bg-[#f3eeff]" : "border-[#e5e5e5] bg-white hover:border-[#ddd6fe]"} ${disabled ? "cursor-not-allowed" : ""} ${voiceLocked && !selected ? "opacity-60" : ""}`}
+                  className={`relative flex cursor-pointer items-center justify-between gap-3 rounded-xl border px-4 py-3 transition ${selected ? "border-morado bg-lavado" : "border-linea bg-superficie hover:border-lavado-borde"} ${disabled ? "cursor-not-allowed" : ""} ${voiceLocked && !selected ? "opacity-60" : ""}`}
                 >
                   <input
                     type="checkbox"
@@ -185,10 +185,10 @@ export function AgentSettingsEditor({
                     className="peer sr-only"
                   />
                   <span>
-                    <span className="block text-sm font-semibold text-[#27272a]">{option.label}</span>
+                    <span className="block text-sm font-semibold text-tinta-2">{option.label}</span>
                     <span className="mt-0.5 block text-xs text-muted">{option.detail}</span>
                   </span>
-                  <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full peer-focus-visible:ring-2 peer-focus-visible:ring-[#8b5cf6] peer-focus-visible:ring-offset-2 ${selected ? "bg-[#8b5cf6] text-[#ffffff]" : "bg-[#f4f4f5] text-transparent"}`}>
+                  <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full peer-focus-visible:ring-2 peer-focus-visible:ring-morado peer-focus-visible:ring-offset-2 ${selected ? "bg-morado text-white" : "bg-relleno-fuerte text-transparent"}`}>
                     <Check className="h-3.5 w-3.5" />
                   </span>
                 </label>
@@ -196,14 +196,14 @@ export function AgentSettingsEditor({
             })}
           </div>
           {value.languages.length > 1 ? (
-            <p className="mt-3 rounded-xl border border-[#ddd6fe] bg-white px-3 py-2 text-xs leading-5 text-muted">
+            <p className="mt-3 rounded-xl border border-lavado-borde bg-superficie px-3 py-2 text-xs leading-5 text-muted">
               Activa solo los idiomas que atiendes habitualmente: cuantos menos haya activos, más precisa será la detección.
             </p>
           ) : null}
         </fieldset>
-        <fieldset className="rounded-xl border border-[#e5e5e5] bg-[#fafafa] p-4 sm:col-span-2 sm:p-5">
-          <legend className="flex items-center gap-2 px-1 text-sm font-semibold text-[#0a0a0a]">
-            <Mic className="h-4 w-4 text-[#8b5cf6]" />
+        <fieldset className="rounded-xl border border-linea bg-relleno p-4 sm:col-span-2 sm:p-5">
+          <legend className="flex items-center gap-2 px-1 text-sm font-semibold text-tinta">
+            <Mic className="h-4 w-4 text-morado" />
             Voz del agente
           </legend>
           <p className="mb-3 mt-1 text-sm text-muted">
@@ -224,13 +224,13 @@ export function AgentSettingsEditor({
                     disabled={voiceLocked}
                     aria-pressed={selected}
                     onClick={() => onChange({ ...value, voiceGender: option.value })}
-                    className={`flex items-center justify-between gap-3 rounded-xl border px-4 py-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] focus-visible:ring-offset-2 ${selected ? "border-[#8b5cf6] bg-[#f3eeff]" : "border-[#e5e5e5] bg-white hover:border-[#ddd6fe]"} ${voiceLocked ? "cursor-not-allowed" : ""} ${voiceLocked && !selected ? "opacity-60" : ""}`}
+                    className={`flex items-center justify-between gap-3 rounded-xl border px-4 py-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-morado focus-visible:ring-offset-2 ${selected ? "border-morado bg-lavado" : "border-linea bg-superficie hover:border-lavado-borde"} ${voiceLocked ? "cursor-not-allowed" : ""} ${voiceLocked && !selected ? "opacity-60" : ""}`}
                   >
                     <span>
-                      <span className="block text-sm font-semibold text-[#27272a]">{option.label}</span>
+                      <span className="block text-sm font-semibold text-tinta-2">{option.label}</span>
                       <span className="mt-0.5 block text-xs text-muted">{option.detail}</span>
                     </span>
-                    <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full ${selected ? "bg-[#8b5cf6] text-[#ffffff]" : "bg-[#f4f4f5] text-transparent"}`}>
+                    <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full ${selected ? "bg-morado text-white" : "bg-relleno-fuerte text-transparent"}`}>
                       <Check className="h-3.5 w-3.5" />
                     </span>
                   </button>
@@ -252,16 +252,16 @@ export function AgentSettingsEditor({
                       disabled={!available}
                       aria-pressed={selected}
                       onClick={() => onChange({ ...value, voiceLanguage: option.value })}
-                      className={`flex items-center justify-between gap-3 rounded-xl border px-4 py-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] focus-visible:ring-offset-2 ${
+                      className={`flex items-center justify-between gap-3 rounded-xl border px-4 py-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-morado focus-visible:ring-offset-2 ${
                         !available
-                          ? "cursor-not-allowed border-[#e5e5e5] bg-[#f4f4f5] opacity-60"
+                          ? "cursor-not-allowed border-linea bg-relleno-fuerte opacity-60"
                           : selected
-                          ? "border-[#8b5cf6] bg-[#f3eeff]"
-                          : "border-[#e5e5e5] bg-white hover:border-[#ddd6fe]"
+                          ? "border-morado bg-lavado"
+                          : "border-linea bg-superficie hover:border-lavado-borde"
                       }`}
                     >
-                      <span className="text-sm font-semibold text-[#27272a]">{option.label}</span>
-                      <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full ${selected ? "bg-[#8b5cf6] text-[#ffffff]" : "bg-[#f4f4f5] text-transparent"}`}>
+                      <span className="text-sm font-semibold text-tinta-2">{option.label}</span>
+                      <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full ${selected ? "bg-morado text-white" : "bg-relleno-fuerte text-transparent"}`}>
                         <Check className="h-3.5 w-3.5" />
                       </span>
                     </button>
@@ -275,8 +275,8 @@ export function AgentSettingsEditor({
           </div>
         </fieldset>
         {fields.map((field) => (
-          <fieldset key={field.key} className="rounded-xl border border-[#e5e5e5] bg-[#fafafa] p-4 sm:p-5">
-            <legend className="px-1 text-sm font-semibold text-[#0a0a0a]">{field.label}</legend>
+          <fieldset key={field.key} className="rounded-xl border border-linea bg-relleno p-4 sm:p-5">
+            <legend className="px-1 text-sm font-semibold text-tinta">{field.label}</legend>
             <p className="mb-3 mt-1 text-sm text-muted">{field.description}</p>
             <div className="grid gap-2">
               {field.options.map((option) => {
@@ -287,13 +287,13 @@ export function AgentSettingsEditor({
                     type="button"
                     aria-pressed={selected}
                     onClick={() => onChange({ ...value, [field.key]: option.value })}
-                    className={`flex items-center justify-between gap-3 rounded-xl border px-4 py-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] focus-visible:ring-offset-2 ${selected ? "border-[#8b5cf6] bg-[#f3eeff]" : "border-[#e5e5e5] bg-white hover:border-[#ddd6fe]"}`}
+                    className={`flex items-center justify-between gap-3 rounded-xl border px-4 py-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-morado focus-visible:ring-offset-2 ${selected ? "border-morado bg-lavado" : "border-linea bg-superficie hover:border-lavado-borde"}`}
                   >
                     <span>
-                      <span className="block text-sm font-semibold text-[#27272a]">{option.label}</span>
+                      <span className="block text-sm font-semibold text-tinta-2">{option.label}</span>
                       <span className="mt-0.5 block text-xs text-muted">{option.detail}</span>
                     </span>
-                    <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full ${selected ? "bg-[#8b5cf6] text-[#ffffff]" : "bg-[#f4f4f5] text-transparent"}`}>
+                    <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full ${selected ? "bg-morado text-white" : "bg-relleno-fuerte text-transparent"}`}>
                       <Check className="h-3.5 w-3.5" />
                     </span>
                   </button>
@@ -304,7 +304,7 @@ export function AgentSettingsEditor({
         ))}
       </div>
 
-      <div className="flex justify-end border-t border-[#e5e5e5] bg-white px-4 py-4 sm:px-6">
+      <div className="flex justify-end border-t border-linea bg-superficie px-4 py-4 sm:px-6">
         <button type="button" onClick={onSave} disabled={isSaving} className="btn-primary px-5">
           <Save className="h-4 w-4" /> {isSaving ? "Guardando…" : "Guardar comportamiento"}
         </button>

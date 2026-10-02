@@ -56,7 +56,7 @@ export function ServiciosMovil() {
       }
     >
       {ajustes.isLoading ? (
-        <div className="h-48 rounded-3xl bg-[#f4f4f5] motion-safe:animate-pulse" aria-hidden="true" />
+        <div className="h-48 rounded-3xl bg-relleno-fuerte motion-safe:animate-pulse" aria-hidden="true" />
       ) : ajustes.isError ? (
         <SectionErrorState message="No se pudieron cargar los servicios." onRetry={() => void ajustes.refetch()} />
       ) : servicios.length === 0 ? (
@@ -66,20 +66,20 @@ export function ServiciosMovil() {
       ) : (
         <ul className="panel overflow-hidden">
           {servicios.map((servicio, indice) => (
-            <li key={servicio.id} className={indice > 0 ? "border-t border-[#f4f4f5]" : ""}>
+            <li key={servicio.id} className={indice > 0 ? "border-t border-linea-suave" : ""}>
               <button
                 type="button"
                 onClick={() => abrir(servicio)}
-                className="flex min-h-16 w-full items-center gap-3 px-4 py-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#8b5cf6]"
+                className="flex min-h-16 w-full items-center gap-3 px-4 py-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-morado"
               >
                 <span className="min-w-0 flex-1">
-                  <span className="block text-base font-semibold leading-snug text-[#0a0a0a]">{servicio.name}</span>
+                  <span className="block text-base font-semibold leading-snug text-tinta">{servicio.name}</span>
                   <span className="mt-0.5 block text-sm tabular-nums text-muted">
                     {servicio.durationMinutes} min · {formatPrice(servicio.priceCents) ?? "Sin precio"}
                     {servicio.active ? "" : " · Inactivo"}
                   </span>
                 </span>
-                <ChevronRight className="h-[18px] w-[18px] shrink-0 text-[#a1a1aa]" aria-hidden="true" />
+                <ChevronRight className="h-[18px] w-[18px] shrink-0 text-tenue" aria-hidden="true" />
               </button>
             </li>
           ))}
@@ -160,7 +160,7 @@ function HojaServicio({
       titulo={visible.id ? "Editar servicio" : "Nuevo servicio"}
     >
       <CuerpoDeHoja className="flex flex-col gap-4">
-        <label className="block text-sm font-semibold text-[#27272a]">
+        <label className="block text-sm font-semibold text-tinta-2">
           Nombre del servicio
           <input
             value={visible.nombre}
@@ -170,7 +170,7 @@ function HojaServicio({
           />
         </label>
         <div>
-          <label className="block text-sm font-semibold text-[#27272a]">
+          <label className="block text-sm font-semibold text-tinta-2">
             Duración (minutos)
             <input
               inputMode="numeric"
@@ -189,8 +189,8 @@ function HojaServicio({
                   type="button"
                   aria-pressed={elegido}
                   onClick={() => cambiar({ duracion: String(minutos) })}
-                  className={`inline-flex min-h-11 shrink-0 items-center rounded-full border px-4 text-sm font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] ${
-                    elegido ? "border-[#ddd6fe] bg-[#f3eeff] text-[#6d28d9]" : "border-[#e5e5e5] bg-white text-[#27272a]"
+                  className={`inline-flex min-h-11 shrink-0 items-center rounded-full border px-4 text-sm font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-morado ${
+                    elegido ? "border-lavado-borde bg-lavado text-morado-tinta" : "border-linea bg-superficie text-tinta-2"
                   }`}
                 >
                   {minutos} min
@@ -199,7 +199,7 @@ function HojaServicio({
             })}
           </div>
         </div>
-        <label className="block text-sm font-semibold text-[#27272a]">
+        <label className="block text-sm font-semibold text-tinta-2">
           Precio en euros (opcional)
           <input
             inputMode="decimal"
@@ -212,7 +212,7 @@ function HojaServicio({
         {visible.id ? (
           <div className="flex items-center justify-between gap-3">
             <span>
-              <span className="block text-sm font-semibold text-[#27272a]">Activo</span>
+              <span className="block text-sm font-semibold text-tinta-2">Activo</span>
               <span className="block text-[13px] text-muted">Si lo desactivas, el agente deja de ofrecerlo.</span>
             </span>
             <Interruptor activo={visible.activo} etiqueta="Servicio activo" onCambiar={(activo) => cambiar({ activo })} />
@@ -220,8 +220,8 @@ function HojaServicio({
         ) : null}
 
         {confirmandoBorrado && visible.id ? (
-          <div className="rounded-[14px] border border-[#f5d3d3] bg-[#fff1f1] p-3">
-            <p className="mb-2.5 text-sm font-semibold leading-6 text-[#c53030]">
+          <div className="rounded-[14px] border border-linea bg-relleno p-3">
+            <p className="mb-2.5 text-sm font-semibold leading-6 text-tinta-2">
               Se retirará de las nuevas reservas y de todos los profesionales. Las citas ya reservadas no se tocan.
             </p>
             <div className="flex gap-2">
@@ -232,7 +232,7 @@ function HojaServicio({
                 type="button"
                 onClick={() => borrar.mutate(visible.id!)}
                 disabled={borrar.isPending}
-                className="inline-flex h-11 flex-1 items-center justify-center rounded-[10px] bg-[#c53030] text-sm font-bold text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#c53030] focus-visible:ring-offset-2 disabled:opacity-60"
+                className="inline-flex h-11 flex-1 items-center justify-center rounded-[10px] bg-peligro text-sm font-bold text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-error focus-visible:ring-offset-2 disabled:opacity-60"
               >
                 {borrar.isPending ? "Eliminando…" : "Eliminar"}
               </button>
@@ -245,7 +245,7 @@ function HojaServicio({
                 type="button"
                 onClick={() => setConfirmandoBorrado(true)}
                 aria-label="Eliminar servicio"
-                className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-[10px] border border-[#f5d3d3] bg-white text-[#c53030] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#c53030]"
+                className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-[10px] border border-error-borde bg-superficie text-error focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-error"
               >
                 <Trash2 className="h-[18px] w-[18px]" aria-hidden="true" />
               </button>

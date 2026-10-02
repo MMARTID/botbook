@@ -152,10 +152,10 @@ export default function RegisterBusinessServicesPage() {
       <div className="panel w-full max-w-lg p-6 sm:p-8">
         <PasoDelAlta paso={3} />
         <div className="space-y-4 text-center">
-          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-xl bg-[#f3eeff] text-[#8b5cf6]">
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-xl bg-lavado text-morado">
             <Scissors className="h-7 w-7" />
           </div>
-          <h1 className="text-3xl font-black tracking-tight text-[#0a0a0a]">
+          <h1 className="text-3xl font-black tracking-tight text-tinta">
             {texts.services.heading}
           </h1>
           <p className="mx-auto max-w-md text-sm leading-6 text-muted">
@@ -168,8 +168,8 @@ export default function RegisterBusinessServicesPage() {
             role="status"
             className={`rounded-full px-3 py-1 text-center ring-1 ring-inset ${
               canContinue
-                ? "bg-[#ecf7ec] text-[#2c7334] ring-[#d8efd7]"
-                : "bg-[#f3eeff] text-[#6d28d9] ring-[#ddd6fe]"
+                ? "bg-exito-fondo text-exito ring-exito-borde"
+                : "bg-lavado text-morado-tinta ring-lavado-borde"
             }`}
           >
             {canContinue
@@ -194,21 +194,21 @@ export default function RegisterBusinessServicesPage() {
                       onClick={() => toggleService(service.name)}
                       disabled={saving}
                       aria-pressed={isSelected}
-                      className={`inline-flex min-h-11 items-center gap-2 rounded-full border px-4 text-sm font-semibold transition duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 ${
+                      className={`inline-flex min-h-11 items-center gap-2 rounded-full border px-4 text-sm font-semibold transition duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-morado focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 ${
                         isSelected
-                          ? "border-[#0a0a0a] bg-[#0a0a0a] text-white"
-                          : "border-[#e5e5e5] bg-white text-[#27272a] hover:border-[#8b5cf6] hover:bg-[#fafafa]"
+                          ? "border-tinta bg-tinta text-sobre-tinta"
+                          : "border-linea bg-superficie text-tinta-2 hover:border-morado hover:bg-relleno"
                       }`}
                     >
                       {isSelected ? (
                         <Check className="h-3.5 w-3.5" />
                       ) : (
-                        <Plus className="h-3.5 w-3.5 text-[#a1a1aa]" />
+                        <Plus className="h-3.5 w-3.5 text-tenue" />
                       )}
                       <span className="text-left">{service.name}</span>
                       <span
                         className={`inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full px-2 py-0.5 text-xs ${
-                          isSelected ? "bg-white/20 text-white" : "bg-[#f3eeff] text-[#6d28d9]"
+                          isSelected ? "bg-sobre-tinta/20 text-sobre-tinta" : "bg-lavado text-morado-tinta"
                         }`}
                       >
                         <Clock className="h-3 w-3" />
@@ -228,7 +228,7 @@ export default function RegisterBusinessServicesPage() {
           </p>
         )}
 
-        {error && <p role="alert" className="mt-4 text-sm text-[#c53030]">{error}</p>}
+        {error && <p role="alert" className="mt-4 text-sm text-error">{error}</p>}
 
         <div className="mt-8">
           <button

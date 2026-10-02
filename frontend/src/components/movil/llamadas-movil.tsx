@@ -84,15 +84,15 @@ export function LlamadasMovil() {
                   setFiltro(opcion.clave);
                   setConAccion(null);
                 }}
-                className={`inline-flex min-h-11 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-4 text-sm font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] ${
-                  activo ? "border-[#ddd6fe] bg-[#f3eeff] text-[#6d28d9]" : "border-[#e5e5e5] bg-white text-[#27272a]"
+                className={`inline-flex min-h-11 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-4 text-sm font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-morado ${
+                  activo ? "border-lavado-borde bg-lavado text-morado-tinta" : "border-linea bg-superficie text-tinta-2"
                 }`}
               >
                 {opcion.etiqueta}
                 {numero !== undefined ? (
                   <span
                     className={`inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-xs font-bold ${
-                      activo ? "bg-white text-[#6d28d9]" : "bg-[#f4f4f5] text-[#52525b]"
+                      activo ? "bg-superficie text-morado-tinta" : "bg-relleno-fuerte text-apagado"
                     }`}
                   >
                     {numero}
@@ -107,7 +107,7 @@ export function LlamadasMovil() {
       {consulta.isLoading ? (
         <div className="space-y-2 pt-2" aria-label="Cargando llamadas">
           {[0, 1, 2, 3, 4].map((indice) => (
-            <div key={indice} className="h-[72px] rounded-2xl bg-[#f4f4f5] motion-safe:animate-pulse" aria-hidden="true" />
+            <div key={indice} className="h-[72px] rounded-2xl bg-relleno-fuerte motion-safe:animate-pulse" aria-hidden="true" />
           ))}
         </div>
       ) : consulta.isError ? (
@@ -133,7 +133,7 @@ export function LlamadasMovil() {
                       {etiquetaDeDia(dia, hoy)}
                     </h2>
                   ) : null}
-                  <div className="border-t border-[#e5e5e5]">
+                  <div className="border-t border-linea">
                     <FilaLlamada
                       call={call}
                       momento={`${horaDelNegocio(call.startedAt, timeZone)} · ${formatCanalYDuracion(call)}`}
@@ -147,7 +147,7 @@ export function LlamadasMovil() {
               );
             })}
           </ul>
-          <div className="-mx-4 flex flex-col gap-3 border-t border-[#e5e5e5] px-4 pt-4">
+          <div className="-mx-4 flex flex-col gap-3 border-t border-linea px-4 pt-4">
             <p className="text-center text-[13px] text-muted">
               Mostrando {llamadas.length} de {total} {total === 1 ? "llamada" : "llamadas"}
             </p>

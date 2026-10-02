@@ -27,7 +27,7 @@ export function InformacionMovil({ business }: { business: Business }) {
 
   return (
     <PantallaDeAjuste titulo="Información para responder" subtitulo="Datos que el agente puede usar al responder a tus clientes.">
-      <label className="block text-sm font-semibold text-[#27272a]">
+      <label className="block text-sm font-semibold text-tinta-2">
         Dirección, contacto y políticas útiles
         <textarea
           rows={9}

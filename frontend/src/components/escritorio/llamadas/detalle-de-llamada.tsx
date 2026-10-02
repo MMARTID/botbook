@@ -95,14 +95,14 @@ export function DetalleDeLlamada({
             type="button"
             onClick={() => recado.mutate(true)}
             disabled={recado.isPending}
-            className="flex h-10 w-full items-center justify-center gap-2 rounded-[10px] border border-[#f0dfa8] bg-[#fef8e7] text-sm font-bold text-[#806012] transition hover:bg-[#fdf2d3] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] disabled:opacity-60"
+            className="flex h-10 w-full items-center justify-center gap-2 rounded-[10px] border border-aviso-borde bg-aviso-fondo text-sm font-bold text-aviso transition hover:bg-aviso-fondo-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-morado disabled:opacity-60"
           >
             <Check className="h-4 w-4" aria-hidden="true" />
             {recado.isPending ? "Guardando…" : "Marcar como devuelta"}
           </button>
         ) : null}
         {devuelta ? (
-          <div className="flex h-10 items-center justify-between gap-2 rounded-[10px] bg-[#ecf7ec] px-3.5 text-sm font-bold text-[#2c7334] ring-1 ring-inset ring-[#d8efd7]">
+          <div className="flex h-10 items-center justify-between gap-2 rounded-[10px] bg-exito-fondo px-3.5 text-sm font-bold text-exito ring-1 ring-inset ring-exito-borde">
             <span className="flex items-center gap-2">
               <Check className="h-4 w-4" aria-hidden="true" />
               Llamada devuelta
@@ -111,7 +111,7 @@ export function DetalleDeLlamada({
               type="button"
               onClick={() => recado.mutate(false)}
               disabled={recado.isPending}
-              className="px-1 text-[13px] font-semibold underline underline-offset-[3px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] disabled:opacity-60"
+              className="px-1 text-[13px] font-semibold underline underline-offset-[3px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-morado disabled:opacity-60"
             >
               Deshacer
             </button>
@@ -119,7 +119,7 @@ export function DetalleDeLlamada({
         ) : null}
       </div>
 
-      <div className="mt-4 rounded-2xl border border-[#e5e5e5] bg-[#fafafa] px-3 py-2.5">
+      <div className="mt-4 rounded-2xl border border-linea bg-relleno px-3 py-2.5">
         {grabacion && !esChatDeWhatsapp(call) ? (
           <Reproductor key={call.id} src={grabacion} duracion={call.durationSecs ?? 0} semilla={call.id} activo />
         ) : (

@@ -78,26 +78,26 @@ export function HojaInferior({
       <div
         aria-hidden="true"
         onClick={onCerrar}
-        className={`fixed inset-0 z-[70] bg-[#0a0a0a]/45 transition-opacity duration-300 motion-reduce:transition-none ${dentro ? "opacity-100" : "opacity-0"}`}
+        className={`fixed inset-0 z-[70] bg-black/45 transition-opacity duration-300 motion-reduce:transition-none ${dentro ? "opacity-100" : "opacity-0"}`}
       />
       <div
         ref={hojaRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby={tituloId}
-        className={`fixed inset-x-0 bottom-0 z-[71] flex flex-col overflow-hidden rounded-t-3xl bg-white shadow-[0_-18px_48px_rgba(0,0,0,0.18)] transition-transform duration-300 ease-[cubic-bezier(.32,.72,0,1)] motion-reduce:transition-none ${
+        className={`fixed inset-x-0 bottom-0 z-[71] flex flex-col overflow-hidden rounded-t-3xl bg-superficie shadow-[0_-18px_48px_rgba(0,0,0,0.18)] transition-transform duration-300 ease-[cubic-bezier(.32,.72,0,1)] motion-reduce:transition-none ${
           alta ? "top-[max(3.5rem,calc(env(safe-area-inset-top)+2.5rem))]" : "max-h-[calc(100dvh-4rem)]"
         } ${dentro ? "translate-y-0" : "translate-y-[105%]"}`}
       >
         <div className="flex shrink-0 justify-center pt-2" aria-hidden="true">
-          <span className="h-[5px] w-10 rounded-full bg-[#d4d4d8]" />
+          <span className="h-[5px] w-10 rounded-full bg-linea-fuerte" />
         </div>
         <div className="flex shrink-0 items-start justify-between gap-3 px-4 pb-2 pt-2">
           <div className="min-w-0">
             {antetitulo ? <p className="text-[13px] font-semibold text-muted">{antetitulo}</p> : null}
             <h2
               id={tituloId}
-              className="mt-0.5 text-[22px] font-extrabold leading-tight tracking-[-0.02em] text-[#0a0a0a] [overflow-wrap:anywhere]"
+              className="mt-0.5 text-[22px] font-extrabold leading-tight tracking-[-0.02em] text-tinta [overflow-wrap:anywhere]"
             >
               {titulo}
             </h2>
@@ -108,7 +108,7 @@ export function HojaInferior({
             type="button"
             onClick={onCerrar}
             aria-label={etiquetaCerrar}
-            className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[#e5e5e5] bg-white text-[#0a0a0a] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]"
+            className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-linea bg-superficie text-tinta focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-morado"
           >
             <X className="h-[18px] w-[18px]" aria-hidden="true" />
           </button>
@@ -117,7 +117,7 @@ export function HojaInferior({
           {children}
         </div>
         {pie ? (
-          <div className="shrink-0 border-t border-[#e5e5e5] bg-white px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-2.5">
+          <div className="shrink-0 border-t border-linea bg-superficie px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-2.5">
             {pie}
           </div>
         ) : null}

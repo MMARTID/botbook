@@ -102,10 +102,10 @@ export default function RegisterBusinessCalendarPage() {
       <div className="panel w-full max-w-lg p-6 sm:p-8">
         <PasoDelAlta paso={5} />
         <div className="space-y-4 text-center">
-          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-xl bg-[#f3eeff] text-[#8b5cf6]">
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-xl bg-lavado text-morado">
             <CalendarDays className="h-7 w-7" />
           </div>
-          <h1 className="text-3xl font-black tracking-tight text-[#0a0a0a]">
+          <h1 className="text-3xl font-black tracking-tight text-tinta">
             {texts.calendar.heading}
           </h1>
           <p className="mx-auto max-w-md text-sm leading-6 text-muted">
@@ -114,7 +114,7 @@ export default function RegisterBusinessCalendarPage() {
         </div>
 
         {redirigiendo ? (
-          <p role="status" className="mt-8 flex items-center justify-center gap-2 rounded-2xl border border-[#d8efd7] bg-[#ecf7ec] px-4 py-4 text-sm font-medium text-[#2c7334]">
+          <p role="status" className="mt-8 flex items-center justify-center gap-2 rounded-2xl border border-exito-borde bg-exito-fondo px-4 py-4 text-sm font-medium text-exito">
             <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden="true" />
             Calendario conectado. Te llevamos al siguiente paso…
           </p>
@@ -125,14 +125,14 @@ export default function RegisterBusinessCalendarPage() {
             type="button"
             onClick={() => startOAuth("google")}
             disabled={loading !== null}
-            className="relative flex w-full items-center gap-4 rounded-2xl border border-[#e5e5e5] bg-white p-5 text-left transition duration-200 hover:border-[#8b5cf6] hover:bg-[#fafafa] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+            className="relative flex w-full items-center gap-4 rounded-2xl border border-linea bg-superficie p-5 text-left transition duration-200 hover:border-morado hover:bg-relleno focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-morado focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
           >
             <BetaPill />
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-[#e5e5e5] bg-white">
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-linea bg-superficie">
               <SiGooglecalendar className="h-6 w-6" color="#4285F4" />
             </div>
             <div className="flex-1">
-              <p className="font-semibold text-[#0a0a0a]">Google Calendar</p>
+              <p className="font-semibold text-tinta">Google Calendar</p>
               <p className="text-sm text-muted">Conecta tu agenda de Google para reservar citas.</p>
             </div>
             {loading === "google" ? (
@@ -146,13 +146,13 @@ export default function RegisterBusinessCalendarPage() {
             type="button"
             onClick={() => startOAuth("outlook")}
             disabled={loading !== null}
-            className="flex w-full items-center gap-4 rounded-2xl border border-[#e5e5e5] bg-white p-5 text-left transition duration-200 hover:border-[#8b5cf6] hover:bg-[#fafafa] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+            className="flex w-full items-center gap-4 rounded-2xl border border-linea bg-superficie p-5 text-left transition duration-200 hover:border-morado hover:bg-relleno focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-morado focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-[#e5e5e5] bg-white">
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-linea bg-superficie">
               <MicrosoftLogo className="h-6 w-6" />
             </div>
             <div className="flex-1">
-              <p className="font-semibold text-[#0a0a0a]">Outlook / Microsoft 365</p>
+              <p className="font-semibold text-tinta">Outlook / Microsoft 365</p>
               <p className="text-sm text-muted">Conecta tu agenda de Microsoft para reservar citas.</p>
             </div>
             {loading === "outlook" ? (
@@ -163,7 +163,7 @@ export default function RegisterBusinessCalendarPage() {
           </button>
         </div>
 
-        {error && <p role="alert" className="mt-4 text-sm text-[#c53030]">{error}</p>}
+        {error && <p role="alert" className="mt-4 text-sm text-error">{error}</p>}
 
         <div className="mt-8 space-y-3">
           <button

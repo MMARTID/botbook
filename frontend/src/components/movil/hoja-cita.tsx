@@ -69,10 +69,10 @@ export function HojaCita({
           {filas.map(([termino, valor, numerico], indice) => (
             <div
               key={termino}
-              className={`flex justify-between gap-3 border-t border-[#e5e5e5] py-3 ${indice === filas.length - 1 ? "border-b" : ""}`}
+              className={`flex justify-between gap-3 border-t border-linea py-3 ${indice === filas.length - 1 ? "border-b" : ""}`}
             >
               <dt className="text-muted">{termino}</dt>
-              <dd className={`text-right font-semibold text-[#0a0a0a] ${numerico ? "tabular-nums" : ""}`}>{valor}</dd>
+              <dd className={`text-right font-semibold text-tinta ${numerico ? "tabular-nums" : ""}`}>{valor}</dd>
             </div>
           ))}
         </dl>
@@ -97,7 +97,7 @@ export function HojaCita({
             href={calendario.webUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="mt-1 flex min-h-12 w-full items-center justify-center gap-1.5 text-sm font-bold text-[#6d28d9] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]"
+            className="mt-1 flex min-h-12 w-full items-center justify-center gap-1.5 text-sm font-bold text-morado-tinta focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-morado"
           >
             Abrir {calendario.label}
             <ExternalLink className="h-4 w-4" aria-hidden="true" />

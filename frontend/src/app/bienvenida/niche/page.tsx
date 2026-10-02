@@ -100,10 +100,10 @@ export default function RegisterBusinessNichePage() {
       <div className="panel w-full max-w-lg p-6 sm:p-8">
         <PasoDelAlta paso={2} />
         <div className="space-y-4 text-center">
-          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-xl bg-[#f3eeff] text-[#8b5cf6]">
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-xl bg-lavado text-morado">
             <Store className="h-7 w-7" />
           </div>
-          <h1 className="text-3xl font-black tracking-tight text-[#0a0a0a]">
+          <h1 className="text-3xl font-black tracking-tight text-tinta">
             ¿Qué tipo de negocio tienes?
           </h1>
           <p className="mx-auto max-w-md text-sm leading-6 text-muted">
@@ -113,13 +113,13 @@ export default function RegisterBusinessNichePage() {
 
         {isConfirmationMode ? (
           <div className="mt-8 space-y-6">
-            <div className="rounded-2xl border border-[#e5e5e5] bg-[#fafafa] p-6 text-center">
+            <div className="rounded-2xl border border-linea bg-relleno p-6 text-center">
               <p className="text-sm text-muted">
                 {selectionSource === "places"
                   ? "Por su ficha de Google, tu negocio es:"
                   : "Vas a configurar tu recepcionista para:"}
               </p>
-              <p className="mt-2 text-2xl font-black text-[#0a0a0a]">
+              <p className="mt-2 text-2xl font-black text-tinta">
                 {BUSINESS_TYPE_LABELS[selectedType]}
               </p>
               {selectionSource === "places" ? (
@@ -166,13 +166,13 @@ export default function RegisterBusinessNichePage() {
                 type="button"
                 onClick={() => handleConfirm(type)}
                 disabled={saving}
-                className="flex min-h-14 w-full items-center justify-between rounded-2xl border border-[#e5e5e5] bg-white px-5 py-4 text-left transition duration-200 hover:border-[#8b5cf6] hover:bg-[#fafafa] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+                className="flex min-h-14 w-full items-center justify-between rounded-2xl border border-linea bg-superficie px-5 py-4 text-left transition duration-200 hover:border-morado hover:bg-relleno focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-morado focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                <span className="font-semibold text-[#27272a]">
+                <span className="font-semibold text-tinta-2">
                   {BUSINESS_TYPE_LABELS[type]}
                 </span>
                 {guardandoTipo === type ? (
-                  <LoaderCircle className="h-4 w-4 animate-spin text-[#8b5cf6]" aria-label="Guardando" />
+                  <LoaderCircle className="h-4 w-4 animate-spin text-morado" aria-label="Guardando" />
                 ) : (
                   <ChevronRight className="h-4 w-4 text-muted" aria-hidden="true" />
                 )}
@@ -181,7 +181,7 @@ export default function RegisterBusinessNichePage() {
           </div>
         )}
 
-        {error && <p role="alert" className="mt-4 text-sm text-[#c53030]">{error}</p>}
+        {error && <p role="alert" className="mt-4 text-sm text-error">{error}</p>}
       </div>
     </main>
   );

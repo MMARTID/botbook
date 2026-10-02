@@ -96,8 +96,8 @@ function StatusBanner({
 }) {
   const tone =
     type === "success"
-      ? "border-[#d8efd7] bg-[#ecf7ec] text-[#2c7334]"
-      : "border-[#f5d3d3] bg-[#fff1f1] text-[#c53030]";
+      ? "border-exito-borde bg-exito-fondo text-exito"
+      : "border-error-borde bg-error-fondo text-error";
   const shape =
     variant === "standalone"
       ? "rounded-xl border px-4 py-3 text-sm font-medium"
@@ -125,7 +125,7 @@ function CardActionButtons({
         type="button"
         onClick={onToggleEdit}
         aria-expanded={editing}
-        className="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-[10px] border border-[#e5e5e5] px-4 text-sm font-semibold text-[#27272a] transition hover:bg-[#fafafa] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] sm:flex-none"
+        className="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-[10px] border border-linea px-4 text-sm font-semibold text-tinta-2 transition hover:bg-relleno focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-morado sm:flex-none"
       >
         {editing ? <X className="h-4 w-4" /> : <Pencil className="h-4 w-4" />}
         {editing ? "Cerrar" : "Editar"}
@@ -133,7 +133,7 @@ function CardActionButtons({
       <button
         type="button"
         onClick={onRequestDelete}
-        className="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-[10px] border border-[#f5d3d3] px-4 text-sm font-semibold text-[#c53030] transition hover:bg-[#fff1f1] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#c53030] sm:flex-none"
+        className="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-[10px] border border-error-borde px-4 text-sm font-semibold text-error transition hover:bg-error-fondo focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-error sm:flex-none"
       >
         <Trash2 className="h-4 w-4" /> Eliminar
       </button>
@@ -158,8 +158,8 @@ function DeleteConfirmBar({
   pendingLabel: string;
 }) {
   return (
-    <div className="flex flex-col gap-3 border-t border-[#f5d3d3] bg-[#fff1f1] p-4 sm:flex-row sm:items-center sm:justify-between">
-      <p className="text-sm leading-6 text-[#c53030]">{message}</p>
+    <div className="flex flex-col gap-3 border-t border-linea bg-relleno p-4 sm:flex-row sm:items-center sm:justify-between">
+      <p className="text-sm leading-6 text-tinta-2">{message}</p>
       <div className="flex shrink-0 gap-2">
         <button
           type="button"
@@ -173,7 +173,7 @@ function DeleteConfirmBar({
           type="button"
           onClick={onConfirm}
           disabled={pending}
-          className="inline-flex h-11 items-center justify-center gap-2 rounded-[10px] bg-[#c53030] px-4 text-sm font-semibold text-white transition hover:bg-[#9f2424] disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#c53030] focus-visible:ring-offset-2"
+          className="inline-flex h-11 items-center justify-center gap-2 rounded-[10px] bg-peligro px-4 text-sm font-semibold text-white transition hover:bg-peligro-hondo disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-error focus-visible:ring-offset-2"
         >
           <Trash2 className="h-4 w-4" />
           {pending ? pendingLabel : confirmLabel}
@@ -608,7 +608,7 @@ function AgenteContent() {
             su horario. Es independiente del número de profesionales.
           </p>
           <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-end">
-            <label className="max-w-xs flex-1 text-sm font-semibold text-[#27272a]">
+            <label className="max-w-xs flex-1 text-sm font-semibold text-tinta-2">
               Máximo de citas simultáneas
               <input
                 type="number"
@@ -658,12 +658,12 @@ function AgenteContent() {
             panel puede decirte cuánto valen las citas que entran solas.
           </p>
 
-          <details className="group rounded-xl border border-[#e5e5e5] bg-[#fafafa]">
-            <summary className="flex cursor-pointer list-none items-center justify-between gap-3 rounded-t-xl px-4 py-3 text-sm font-semibold text-[#27272a] transition duration-200 hover:bg-[#f4f4f5] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#8b5cf6]">
+          <details className="group rounded-xl border border-linea bg-relleno">
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-3 rounded-t-xl px-4 py-3 text-sm font-semibold text-tinta-2 transition duration-200 hover:bg-relleno-fuerte focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-morado">
               Añadir servicio
               <ChevronDown className="h-4 w-4 transition group-open:rotate-180" />
             </summary>
-            <div className="grid gap-3 border-t border-[#e5e5e5] p-4 md:grid-cols-[minmax(0,1fr)_7rem_7rem_auto]">
+            <div className="grid gap-3 border-t border-linea p-4 md:grid-cols-[minmax(0,1fr)_7rem_7rem_auto]">
               <input
                 value={serviceDraft.name}
                 onChange={(event) =>
@@ -782,12 +782,12 @@ function AgenteContent() {
             por su nombre, reserva con esa persona.
           </p>
 
-          <details className="group rounded-xl border border-[#e5e5e5] bg-[#fafafa]">
-            <summary className="flex cursor-pointer list-none items-center justify-between gap-3 rounded-t-xl px-4 py-3 text-sm font-semibold text-[#27272a] transition duration-200 hover:bg-[#f4f4f5] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#8b5cf6]">
+          <details className="group rounded-xl border border-linea bg-relleno">
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-3 rounded-t-xl px-4 py-3 text-sm font-semibold text-tinta-2 transition duration-200 hover:bg-relleno-fuerte focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-morado">
               Añadir profesional
               <ChevronDown className="h-4 w-4 transition group-open:rotate-180" />
             </summary>
-            <div className="space-y-3 border-t border-[#e5e5e5] p-4">
+            <div className="space-y-3 border-t border-linea p-4">
               <input
                 value={professionalDraft.name}
                 onChange={(event) =>
@@ -803,7 +803,7 @@ function AgenteContent() {
               {/* `min-w-0`: el navegador da a <fieldset> min-width: min-content
                   y en móvil el segmentado desbordaría la tarjeta. */}
               <fieldset className="min-w-0">
-                <legend className="text-sm font-medium text-[#27272a]">
+                <legend className="text-sm font-medium text-tinta-2">
                   Servicios que hace
                 </legend>
                 <div className="mt-2">
@@ -910,12 +910,12 @@ function AgenteContent() {
                     type="button"
                     onClick={() => void startCalendarConnection("google")}
                     disabled={calendarAuthLoading !== null}
-                    className="relative flex flex-col justify-between rounded-xl border border-[#ddd6fe] bg-[#f3eeff] p-4 text-left transition duration-200 hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0"
+                    className="relative flex flex-col justify-between rounded-xl border border-lavado-borde bg-lavado p-4 text-left transition duration-200 hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-morado focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0"
                   >
                     {/* Beta: la app de Google sigue en revisión, solo entran cuentas de prueba. */}
                     <BetaPill />
                     <div>
-                      <p className="flex items-center gap-2 text-sm font-semibold text-[#0a0a0a]">
+                      <p className="flex items-center gap-2 text-sm font-semibold text-tinta">
                         <SiGooglecalendar className="h-4 w-4 shrink-0" color="#4285F4" />
                         Conecta Google Calendar
                       </p>
@@ -924,7 +924,7 @@ function AgenteContent() {
                         agenda en el panel.
                       </p>
                     </div>
-                    <span className="inline-flex items-center gap-1 text-sm font-semibold text-[#6d28d9]">
+                    <span className="inline-flex items-center gap-1 text-sm font-semibold text-morado-tinta">
                       {calendarAuthLoading === "google"
                         ? "Conectando…"
                         : "Conectar Google"}
@@ -935,10 +935,10 @@ function AgenteContent() {
                     type="button"
                     onClick={() => void startCalendarConnection("outlook")}
                     disabled={calendarAuthLoading !== null}
-                    className="flex flex-col justify-between rounded-xl border border-[#ddd6fe] bg-[#f3eeff] p-4 text-left transition duration-200 hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0"
+                    className="flex flex-col justify-between rounded-xl border border-lavado-borde bg-lavado p-4 text-left transition duration-200 hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-morado focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0"
                   >
                     <div>
-                      <p className="flex items-center gap-2 text-sm font-semibold text-[#0a0a0a]">
+                      <p className="flex items-center gap-2 text-sm font-semibold text-tinta">
                         <MicrosoftLogo className="h-4 w-4 shrink-0" />
                         Conecta Outlook
                       </p>
@@ -947,7 +947,7 @@ function AgenteContent() {
                         sincronizar tu agenda del negocio.
                       </p>
                     </div>
-                    <span className="inline-flex items-center gap-1 text-sm font-semibold text-[#6d28d9]">
+                    <span className="inline-flex items-center gap-1 text-sm font-semibold text-morado-tinta">
                       {calendarAuthLoading === "outlook"
                         ? "Conectando…"
                         : "Conectar Outlook"}
@@ -962,12 +962,12 @@ function AgenteContent() {
                     }}
                     disabled={calendarAuthLoading !== null}
                     aria-expanded={appleFormOpen}
-                    className="relative flex flex-col justify-between rounded-xl border border-[#ddd6fe] bg-[#f3eeff] p-4 text-left transition duration-200 hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0 lg:col-span-2"
+                    className="relative flex flex-col justify-between rounded-xl border border-lavado-borde bg-lavado p-4 text-left transition duration-200 hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-morado focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0 lg:col-span-2"
                   >
                     <BetaPill />
                     <div>
-                      <p className="flex items-center gap-2 text-sm font-semibold text-[#0a0a0a]">
-                        <SiApple className="h-4 w-4 shrink-0" color="#0a0a0a" />
+                      <p className="flex items-center gap-2 text-sm font-semibold text-tinta">
+                        <SiApple className="h-4 w-4 shrink-0 text-tinta" color="currentColor" />
                         Conecta el calendario de Apple
                       </p>
                       <p className="mt-1 text-sm leading-6 text-muted">
@@ -975,7 +975,7 @@ function AgenteContent() {
                         con tu Apple ID y una contraseña de aplicación.
                       </p>
                     </div>
-                    <span className="inline-flex items-center gap-1 text-sm font-semibold text-[#6d28d9]">
+                    <span className="inline-flex items-center gap-1 text-sm font-semibold text-morado-tinta">
                       {appleFormOpen ? "Cerrar" : "Conectar Apple"}
                       <ArrowUpRight className="h-4 w-4" />
                     </span>
@@ -1007,14 +1007,14 @@ function AgenteContent() {
             </div>
           ) : (
             <>
-              <div className="flex flex-col gap-3 rounded-xl border border-[#d8efd7] bg-[#ecf7ec] px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex flex-col gap-3 rounded-xl border border-exito-borde bg-exito-fondo px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex min-w-0 items-center gap-3">
-                  <CheckCircle2 className="h-5 w-5 shrink-0 text-[#2c7334]" />
+                  <CheckCircle2 className="h-5 w-5 shrink-0 text-exito" />
                   <div className="min-w-0">
-                    <p className="text-sm font-semibold text-[#2c7334]">
+                    <p className="text-sm font-semibold text-exito">
                       {calendarState.label} conectado
                     </p>
-                    <p className="truncate text-xs text-[#2c7334]/70">
+                    <p className="truncate text-xs text-exito/70">
                       {calendarState.accountEmail ??
                         `Cuenta de ${calendarState.shortLabel}`}
                     </p>
@@ -1087,7 +1087,7 @@ function AgenteContent() {
                     </p>
                   ) : null}
                   {calendarsQuery.isError ? (
-                    <p className="px-1 text-sm text-[#c53030]">
+                    <p className="px-1 text-sm text-error">
                       No se pudo obtener la lista de calendarios. Inténtalo de
                       nuevo en unos segundos.
                     </p>
@@ -1109,10 +1109,10 @@ function AgenteContent() {
                               selectCalendarMutation.mutate(calendar.id)
                             }
                             aria-pressed={isSelected}
-                            className={`flex w-full items-center justify-between gap-3 rounded-xl border px-4 py-3 text-left transition duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] focus-visible:ring-offset-2 disabled:opacity-60 ${isSelected ? "border-[#8b5cf6] bg-[#f3eeff]" : "border-[#e5e5e5] bg-white hover:border-[#ddd6fe]"}`}
+                            className={`flex w-full items-center justify-between gap-3 rounded-xl border px-4 py-3 text-left transition duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-morado focus-visible:ring-offset-2 disabled:opacity-60 ${isSelected ? "border-morado bg-lavado" : "border-linea bg-superficie hover:border-lavado-borde"}`}
                           >
                             <span className="min-w-0">
-                              <span className="block truncate text-sm font-semibold text-[#27272a]">
+                              <span className="block truncate text-sm font-semibold text-tinta-2">
                                 {calendar.name}
                               </span>
                               {calendar.primary ? (
@@ -1122,7 +1122,7 @@ function AgenteContent() {
                               ) : null}
                             </span>
                             <span
-                              className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full ${isSelected ? "bg-[#8b5cf6] text-[#ffffff]" : "bg-[#f4f4f5] text-transparent"}`}
+                              className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full ${isSelected ? "bg-morado text-white" : "bg-relleno-fuerte text-transparent"}`}
                             >
                               <Check className="h-3.5 w-3.5" />
                             </span>
@@ -1151,7 +1151,7 @@ function AgenteContent() {
           horarios y profesionales se configuran en sus apartados específicos.
         </p>
         <div className="p-4 sm:p-6">
-          <label className="text-sm font-semibold text-[#27272a]">
+          <label className="text-sm font-semibold text-tinta-2">
             Dirección, contacto y políticas útiles
             <textarea
               rows={4}
@@ -1162,7 +1162,7 @@ function AgenteContent() {
             />
           </label>
         </div>
-        <div className="flex justify-end border-t border-[#e5e5e5] px-4 py-4 sm:px-6">
+        <div className="flex justify-end border-t border-linea px-4 py-4 sm:px-6">
           <button
             type="button"
             onClick={() => profileMutation.mutate()}
@@ -1205,7 +1205,7 @@ function FullPageError({
 }) {
   return (
     <div className="panel mx-auto max-w-2xl space-y-4 p-6 text-center">
-      <h1 className="text-2xl font-semibold text-[#0a0a0a]">{title}</h1>
+      <h1 className="text-2xl font-semibold text-tinta">{title}</h1>
       <p className="text-sm leading-6 text-muted">{message}</p>
       {/* El detalle técnico solo tiene sentido para quien puede hacer algo
           con él: en producción no se enseña. */}
@@ -1221,11 +1221,11 @@ function FullPageError({
 
 function SectionGroupHeading({ title, description }: { title: string; description: string }) {
   return (
-    <div className="border-b border-[#e5e5e5] pb-3 pt-4 sm:flex sm:items-end sm:justify-between sm:gap-6">
+    <div className="border-b border-linea pb-3 pt-4 sm:flex sm:items-end sm:justify-between sm:gap-6">
       <div>
         {/* Un escalón por encima del título de cada sección plegable: antes
             tenían el mismo tamaño y el agrupamiento no se leía. */}
-        <h2 className="text-lg font-bold tracking-[-0.01em] text-[#0a0a0a] sm:text-xl">{title}</h2>
+        <h2 className="text-lg font-bold tracking-[-0.01em] text-tinta sm:text-xl">{title}</h2>
         <p className="mt-1 max-w-3xl text-sm leading-6 text-muted">{description}</p>
       </div>
     </div>
@@ -1332,10 +1332,10 @@ function ServiceEditor({
   const precioActual = formatPrice(service.priceCents);
 
   return (
-    <article className="rounded-xl border border-[#e5e5e5] bg-white">
+    <article className="rounded-xl border border-linea bg-superficie">
       <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0">
-          <span className="block truncate text-sm font-semibold text-[#27272a]">
+          <span className="block truncate text-sm font-semibold text-tinta-2">
             {service.name}
           </span>
           <span className="mt-0.5 block text-xs text-muted">
@@ -1365,16 +1365,16 @@ function ServiceEditor({
       ) : null}
 
       {editing ? (
-      <div className="grid gap-3 border-t border-[#e5e5e5] bg-[#fafafa] p-4 md:grid-cols-[minmax(0,1fr)_8rem_8rem_8rem_auto]">
-        <label className="text-xs font-semibold text-[#52525b]">
+      <div className="grid gap-3 border-t border-linea bg-relleno p-4 md:grid-cols-[minmax(0,1fr)_8rem_8rem_8rem_auto]">
+        <label className="text-xs font-semibold text-apagado">
           Nombre
           <input
             value={name}
             onChange={(event) => setName(event.target.value)}
-            className="field mt-2 w-full text-sm font-normal text-[#27272a]"
+            className="field mt-2 w-full text-sm font-normal text-tinta-2"
           />
         </label>
-        <label className="text-xs font-semibold text-[#52525b]">
+        <label className="text-xs font-semibold text-apagado">
           Duración (min)
           <input
             type="number"
@@ -1382,10 +1382,10 @@ function ServiceEditor({
             step={5}
             value={durationMinutes}
             onChange={(event) => setDurationMinutes(event.target.value)}
-            className="field mt-2 w-full text-sm font-normal text-[#27272a]"
+            className="field mt-2 w-full text-sm font-normal text-tinta-2"
           />
         </label>
-        <label className="text-xs font-semibold text-[#52525b]">
+        <label className="text-xs font-semibold text-apagado">
           Precio (€)
           <input
             type="number"
@@ -1394,15 +1394,15 @@ function ServiceEditor({
             inputMode="decimal"
             value={price}
             onChange={(event) => setPrice(event.target.value)}
-            className="field mt-2 w-full text-sm font-normal text-[#27272a]"
+            className="field mt-2 w-full text-sm font-normal text-tinta-2"
           />
         </label>
-        <label className="text-xs font-semibold text-[#52525b]">
+        <label className="text-xs font-semibold text-apagado">
           Estado
-          <span className="mt-2 flex h-11 items-center gap-2 rounded-[10px] border border-[#e5e5e5] bg-white px-3 text-sm font-normal text-[#27272a]">
+          <span className="mt-2 flex h-11 items-center gap-2 rounded-[10px] border border-linea bg-superficie px-3 text-sm font-normal text-tinta-2">
             <input
               type="checkbox"
-              className="accent-[#8b5cf6]"
+              className="accent-morado"
               checked={active}
               onChange={() => setActive((current) => !current)}
             />
@@ -1502,10 +1502,10 @@ function ProfessionalEditor({
   });
 
   return (
-    <article className="rounded-xl border border-[#e5e5e5] bg-white">
+    <article className="rounded-xl border border-linea bg-superficie">
       <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0">
-          <span className="block truncate text-sm font-semibold text-[#27272a]">
+          <span className="block truncate text-sm font-semibold text-tinta-2">
             {professional.name}
           </span>
           <span className="mt-0.5 block truncate text-xs text-muted">
@@ -1535,22 +1535,22 @@ function ProfessionalEditor({
       ) : null}
 
       {editing ? (
-      <div className="flex flex-col gap-3 border-t border-[#e5e5e5] bg-[#fafafa] p-4">
+      <div className="flex flex-col gap-3 border-t border-linea bg-relleno p-4">
         <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_8rem_auto]">
-          <label className="text-xs font-semibold text-[#52525b]">
+          <label className="text-xs font-semibold text-apagado">
             Nombre
             <input
               value={name}
               onChange={(event) => setName(event.target.value)}
-              className="field mt-2 w-full text-sm font-normal text-[#27272a]"
+              className="field mt-2 w-full text-sm font-normal text-tinta-2"
             />
           </label>
-          <label className="text-xs font-semibold text-[#52525b]">
+          <label className="text-xs font-semibold text-apagado">
             Estado
-            <span className="mt-2 flex h-11 items-center gap-2 rounded-[10px] border border-[#e5e5e5] bg-white px-3 text-sm font-normal text-[#27272a]">
+            <span className="mt-2 flex h-11 items-center gap-2 rounded-[10px] border border-linea bg-superficie px-3 text-sm font-normal text-tinta-2">
               <input
                 type="checkbox"
-                className="accent-[#8b5cf6]"
+                className="accent-morado"
                 checked={active}
                 onChange={() => setActive((current) => !current)}
               />
@@ -1569,7 +1569,7 @@ function ProfessionalEditor({
           </button>
         </div>
         <fieldset className="min-w-0">
-          <legend className="text-xs font-semibold text-[#52525b]">
+          <legend className="text-xs font-semibold text-apagado">
             Servicios que hace
           </legend>
           <div className="mt-2">

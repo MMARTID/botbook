@@ -34,7 +34,7 @@ function DevEntrarContent() {
   }, [searchParams]);
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-white px-4">
+    <div className="flex min-h-screen items-center justify-center bg-superficie px-4">
       <div className="panel w-full max-w-md p-8 text-center">
         <p className="text-sm leading-6 text-muted">
           {error || "Entrando…"}

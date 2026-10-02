@@ -82,13 +82,13 @@ export function SeccionNegocio() {
   return (
     <section className="panel p-4 sm:p-6" aria-labelledby="business-title">
       <div className="flex items-start gap-3">
-        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#f3eeff] text-[#8b5cf6]">
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-lavado text-morado">
           <Building2 className="h-5 w-5" aria-hidden="true" />
         </span>
         <div>
           <h2
             id="business-title"
-            className="text-lg font-semibold text-[#0a0a0a]"
+            className="text-lg font-semibold text-tinta"
           >
             Datos del negocio
           </h2>
@@ -99,7 +99,7 @@ export function SeccionNegocio() {
         </div>
       </div>
       <div className="mt-5 grid gap-4 lg:grid-cols-2">
-        <label className="text-sm font-semibold text-[#27272a]">
+        <label className="text-sm font-semibold text-tinta-2">
           Nombre del negocio
           <input
             value={businessProfile.name}
@@ -123,7 +123,7 @@ export function SeccionNegocio() {
             nombre que trajimos de Google al configurar tu negocio.
           </span>
         </label>
-        <label className="text-sm font-semibold text-[#27272a]">
+        <label className="text-sm font-semibold text-tinta-2">
           Sector
           <select
             value={businessProfile.businessType}
@@ -153,7 +153,7 @@ export function SeccionNegocio() {
             Ajusta cómo se presenta la recepcionista y qué servicios propone.
           </span>
         </label>
-        <label className="text-sm font-semibold text-[#27272a] lg:col-span-2">
+        <label className="text-sm font-semibold text-tinta-2 lg:col-span-2">
           Dirección
           <input
             value={businessProfile.address}
@@ -179,7 +179,7 @@ export function SeccionNegocio() {
           </span>
         </label>
       </div>
-      <div className="mt-5 flex flex-col-reverse gap-3 border-t border-[#e5e5e5] pt-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="mt-5 flex flex-col-reverse gap-3 border-t border-linea pt-4 sm:flex-row sm:items-center sm:justify-between">
         <FeedbackMessage value={profileFeedback} />
         <button
           type="button"

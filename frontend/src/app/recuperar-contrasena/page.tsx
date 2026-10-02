@@ -9,7 +9,7 @@ import { ParticleField } from "@/components/particle-field";
 import { ParticleMouseLayer } from "@/components/particle-mouse-layer";
 
 const LINK_CLASS =
-  "rounded font-semibold text-[#7c3aed] transition hover:text-[#6d28d9] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] focus-visible:ring-offset-2";
+  "rounded font-semibold text-morado-tinta transition hover:text-morado-tinta focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-morado focus-visible:ring-offset-2";
 
 export default function RecuperarContrasenaPage() {
   const [email, setEmail] = useState("");
@@ -48,12 +48,12 @@ export default function RecuperarContrasenaPage() {
           // Sin distinguir si la cuenta existe: el backend responde igual en
           // ambos casos y aquí tampoco se insinúa nada.
           <div className="space-y-4 text-center" role="status">
-            <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-xl bg-[#f3eeff] text-[#8b5cf6]">
+            <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-xl bg-lavado text-morado">
               <MailCheck className="h-7 w-7" aria-hidden="true" />
             </span>
-            <h1 className="text-3xl font-black tracking-tight text-[#0a0a0a]">Revisa tu correo</h1>
+            <h1 className="text-3xl font-black tracking-tight text-tinta">Revisa tu correo</h1>
             <p className="mx-auto max-w-md text-sm leading-6 text-muted">
-              Si existe una cuenta con <strong className="font-semibold text-[#27272a]">{email}</strong>, te
+              Si existe una cuenta con <strong className="font-semibold text-tinta-2">{email}</strong>, te
               hemos enviado un enlace para crear una contraseña nueva. Caduca en 1 hora. Si no lo ves,
               mira en la carpeta de spam.
             </p>
@@ -67,7 +67,7 @@ export default function RecuperarContrasenaPage() {
           <>
             <div className="space-y-4 text-center">
               <BrandMark className="mx-auto h-14 w-14" />
-              <h1 className="text-3xl font-black tracking-tight text-[#0a0a0a]">Recupera el acceso</h1>
+              <h1 className="text-3xl font-black tracking-tight text-tinta">Recupera el acceso</h1>
               <p className="mx-auto max-w-md text-sm leading-6 text-muted">
                 Escribe el email de tu cuenta y te enviamos un enlace para crear una contraseña nueva.
               </p>
@@ -75,7 +75,7 @@ export default function RecuperarContrasenaPage() {
 
             <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
               <div>
-                <label htmlFor="recovery-email" className="text-sm font-medium text-[#27272a]">
+                <label htmlFor="recovery-email" className="text-sm font-medium text-tinta-2">
                   Email
                 </label>
                 <input
@@ -94,7 +94,7 @@ export default function RecuperarContrasenaPage() {
 
               {/* Alto reservado aunque no haya error, igual que en /login: el
                   botón no se mueve justo cuando el usuario reintenta. */}
-              <p className="min-h-5 text-sm text-[#c53030]" role="alert">
+              <p className="min-h-5 text-sm text-error" role="alert">
                 {error}
               </p>
 

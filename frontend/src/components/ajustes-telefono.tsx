@@ -164,7 +164,7 @@ export function AjustesTelefono({ business, hasToken }: AjustesTelefonoProps) {
         Teléfono
       </h2>
 
-      <div className="divide-y divide-[#e5e5e5]">
+      <div className="divide-y divide-linea">
         <LineaDeClientes
           business={business}
           forwarding={forwarding}
@@ -210,13 +210,13 @@ function Bloque({
       className="scroll-mt-24 py-5 first:pt-0 last:pb-0"
     >
       <div className="flex items-start gap-3">
-        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[#f3eeff] text-[#8b5cf6]">
+        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-lavado text-morado">
           <Icon className="h-4 w-4" aria-hidden="true" />
         </span>
         <div className="min-w-0">
           <h3
             id={`${id}-title`}
-            className="text-base font-semibold text-[#0a0a0a]"
+            className="text-base font-semibold text-tinta"
           >
             {titulo}
           </h3>
@@ -391,7 +391,7 @@ function LineaDeClientes({
       <div>
         <p
           id="linea-de-clientes-tipo-title"
-          className="text-sm font-semibold text-[#27272a]"
+          className="text-sm font-semibold text-tinta-2"
         >
           ¿Qué tipo de línea es?
         </p>
@@ -411,7 +411,7 @@ function LineaDeClientes({
       </div>
 
       {pideNumero ? (
-        <label className="block text-sm font-semibold text-[#27272a]">
+        <label className="block text-sm font-semibold text-tinta-2">
           Número al que te llaman tus clientes
           <input
             type="tel"
@@ -428,9 +428,9 @@ function LineaDeClientes({
             id="linea-de-clientes-hint"
             className={`mt-1 block text-xs font-normal leading-5 ${
               telefonoInvalido
-                ? "text-[#c53030]"
+                ? "text-error"
                 : avisoDeTipo || (faltaNumero && tipo !== tipoActual)
-                  ? "text-[#806012]"
+                  ? "text-aviso"
                   : "text-muted"
             }`}
           >
@@ -443,7 +443,7 @@ function LineaDeClientes({
           </span>
         </label>
       ) : (
-        <div className="rounded-2xl bg-[#f3eeff] px-4 py-3 text-sm leading-6 text-[#6d28d9]">
+        <div className="rounded-2xl bg-lavado px-4 py-3 text-sm leading-6 text-morado-tinta">
           <p>{TEXTO_ALHABLA_PRINCIPAL}</p>
           {tipoActual === "alhabla" && numeroPublicado ? (
             <p className="mt-1">
@@ -487,9 +487,9 @@ function LineaDeClientes({
       </div>
 
       {tipoActual !== "alhabla" ? (
-        <div className="rounded-2xl border border-[#e5e5e5] bg-[#fafafa] p-4">
+        <div className="rounded-2xl border border-linea bg-relleno p-4">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-sm font-semibold text-[#0a0a0a]">
+            <p className="text-sm font-semibold text-tinta">
               Desvío a tu recepcionista
             </p>
             <EstadoDelDesvio
@@ -525,7 +525,7 @@ function LineaDeClientes({
           {numeroDeAlhabla && numeroDeAlhablaActivo ? (
             codigos ? (
               <details className="group mt-3">
-                <summary className="inline-flex min-h-11 cursor-pointer list-none items-center gap-1.5 rounded-[10px] px-1 text-sm font-semibold text-[#6d28d9] underline-offset-2 transition duration-200 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] [&::-webkit-details-marker]:hidden">
+                <summary className="inline-flex min-h-11 cursor-pointer list-none items-center gap-1.5 rounded-[10px] px-1 text-sm font-semibold text-morado-tinta underline-offset-2 transition duration-200 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-morado [&::-webkit-details-marker]:hidden">
                   Códigos para activar o quitar el desvío
                   <ChevronDown
                     className="h-4 w-4 transition duration-200 group-open:rotate-180"
@@ -553,7 +553,7 @@ function LineaDeClientes({
                   <NotaDeLinea>
                     Si tu fijo tiene contestador, desactívalo o se quedará él
                     las llamadas. En Movistar se quita marcando{" "}
-                    <span className="font-mono text-[#27272a]">#10#</span>.
+                    <span className="font-mono text-tinta-2">#10#</span>.
                   </NotaDeLinea>
                 ) : (
                   <NotaDeLinea>
@@ -589,7 +589,7 @@ function EstadoDelDesvio({
 }) {
   if (!forwarding && noDisponible) {
     return (
-      <span className="inline-flex w-fit items-center gap-1.5 rounded-full bg-[#f4f4f5] px-3 py-1.5 text-xs font-semibold text-[#52525b] ring-1 ring-inset ring-[#e5e5e5]">
+      <span className="inline-flex w-fit items-center gap-1.5 rounded-full bg-relleno-fuerte px-3 py-1.5 text-xs font-semibold text-apagado ring-1 ring-inset ring-linea">
         No se ha podido comprobar
       </span>
     );
@@ -604,7 +604,7 @@ function EstadoDelDesvio({
   }
   if (forwarding.checkedAt) {
     return (
-      <span className="inline-flex w-fit items-center gap-1.5 rounded-full bg-[#ecf7ec] px-3 py-1.5 text-xs font-semibold text-[#2c7334] ring-1 ring-inset ring-[#d8efd7]">
+      <span className="inline-flex w-fit items-center gap-1.5 rounded-full bg-exito-fondo px-3 py-1.5 text-xs font-semibold text-exito ring-1 ring-inset ring-exito-borde">
         <CircleCheck className="h-3.5 w-3.5" aria-hidden="true" />
         Comprobado el {formatDate(forwarding.checkedAt)}
       </span>
@@ -614,7 +614,7 @@ function EstadoDelDesvio({
   // ningún lector de pantalla: ahora va escrito debajo.
   return (
     <span className="flex flex-col gap-1">
-      <span className="inline-flex w-fit items-center gap-1.5 rounded-full bg-[#fef8e7] px-3 py-1.5 text-xs font-semibold text-[#806012] ring-1 ring-inset ring-[#f0dfa8]">
+      <span className="inline-flex w-fit items-center gap-1.5 rounded-full bg-aviso-fondo px-3 py-1.5 text-xs font-semibold text-aviso ring-1 ring-inset ring-aviso-borde">
         <Clock3 className="h-3.5 w-3.5" aria-hidden="true" />
         Sin comprobar
       </span>
@@ -696,7 +696,7 @@ function TuRecepcionista({
       titulo="Tu recepcionista"
       descripcion="El número de Alhabla al que llega el desvío. No hace falta dárselo a nadie, salvo que lo uses como número principal."
     >
-      <div className="flex flex-col gap-3 rounded-2xl border border-[#e5e5e5] bg-[#fafafa] p-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-3 rounded-2xl border border-linea bg-relleno p-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0">
           <p className="text-xs text-muted">Tu número de Alhabla</p>
           {cargando && !estado ? (
@@ -705,7 +705,7 @@ function TuRecepcionista({
               Consultando…
             </p>
           ) : numeroActivo ? (
-            <p className="mt-1 text-xl font-semibold tabular-nums tracking-tight text-[#0a0a0a]">
+            <p className="mt-1 text-xl font-semibold tabular-nums tracking-tight text-tinta">
               {estado?.value}
             </p>
           ) : (
@@ -721,21 +721,21 @@ function TuRecepcionista({
           {estado?.action && "href" in estado.action ? (
             <Link
               href={estado.action.href}
-              className="zona-tactil mt-1 inline-flex text-xs font-semibold text-[#6d28d9] underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]"
+              className="zona-tactil mt-1 inline-flex text-xs font-semibold text-morado-tinta underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-morado"
             >
               {estado.action.label}
             </Link>
           ) : estado?.action && "kind" in estado.action ? (
             <Link
               href="/"
-              className="zona-tactil mt-1 inline-flex text-xs font-semibold text-[#6d28d9] underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]"
+              className="zona-tactil mt-1 inline-flex text-xs font-semibold text-morado-tinta underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-morado"
             >
               Reintentar desde el panel
             </Link>
           ) : null}
         </div>
         {numeroActivo ? (
-          <span className="inline-flex w-fit items-center gap-1.5 rounded-full bg-[#ecf7ec] px-3 py-1.5 text-xs font-semibold text-[#2c7334] ring-1 ring-inset ring-[#d8efd7]">
+          <span className="inline-flex w-fit items-center gap-1.5 rounded-full bg-exito-fondo px-3 py-1.5 text-xs font-semibold text-exito ring-1 ring-inset ring-exito-borde">
             <Check className="h-3.5 w-3.5" aria-hidden="true" />
             Activo
           </span>
@@ -771,10 +771,10 @@ function TuRecepcionista({
       ) : null}
 
       {esPrincipal ? (
-        <div className="rounded-2xl border border-[#e5e5e5] bg-[#fafafa] p-4">
+        <div className="rounded-2xl border border-linea bg-relleno p-4">
           <p
             id="ajustes-pasar-llamadas-title"
-            className="text-sm font-semibold text-[#0a0a0a]"
+            className="text-sm font-semibold text-tinta"
           >
             Cuándo pasarme llamadas
           </p>
@@ -936,14 +936,14 @@ function TuMovil({
       {tipo !== "alhabla" ? (
         <div className="space-y-2">
           {lineaEsMovil && linea !== null ? (
-            <label className="flex min-h-11 cursor-pointer items-start gap-3 rounded-[10px] border border-[#e5e5e5] p-3 text-sm text-[#27272a] has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-[#8b5cf6] has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-60">
+            <label className="flex min-h-11 cursor-pointer items-start gap-3 rounded-[10px] border border-linea p-3 text-sm text-tinta-2 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-morado has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-60">
               <input
                 type="checkbox"
                 checked={avisosEnLaLinea}
                 disabled={ajustesMutation.isPending}
                 onChange={(event) => marcarMismoMovil(event.target.checked)}
                 aria-describedby="settings-mismo-movil-hint"
-                className="mt-1 accent-[#8b5cf6]"
+                className="mt-1 accent-morado"
               />
               <span>
                 <span className="font-semibold">
@@ -959,7 +959,7 @@ function TuMovil({
               </span>
             </label>
           ) : null}
-          <label className="flex min-h-11 cursor-pointer items-start gap-3 rounded-[10px] border border-[#e5e5e5] p-3 text-sm text-[#27272a] has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-[#8b5cf6] has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-60">
+          <label className="flex min-h-11 cursor-pointer items-start gap-3 rounded-[10px] border border-linea p-3 text-sm text-tinta-2 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-morado has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-60">
             <input
               type="checkbox"
               checked={business.hideOwnerNumberFromClients === true}
@@ -972,7 +972,7 @@ function TuMovil({
                 });
               }}
               aria-describedby="settings-ocultar-numero-hint"
-              className="mt-1 accent-[#8b5cf6]"
+              className="mt-1 accent-morado"
             />
             <span>
               <span className="font-semibold">

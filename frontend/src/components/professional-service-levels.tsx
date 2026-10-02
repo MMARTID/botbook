@@ -144,7 +144,7 @@ export function ProfessionalServiceLevels({
 
   return (
     <div className="space-y-3">
-      <div className="divide-y divide-[#e5e5e5] rounded-xl border border-[#e5e5e5] bg-white">
+      <div className="divide-y divide-linea rounded-xl border border-linea bg-superficie">
         {services.map((service) => {
           const current = resolveServiceLevel(value, service.id);
           const groupName = `${idPrefix}-nivel-${service.id}`;
@@ -153,13 +153,13 @@ export function ProfessionalServiceLevels({
               key={service.id}
               className="flex flex-col gap-2 px-2 py-2 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:px-3"
             >
-              <span className="min-w-0 truncate text-sm font-medium text-[#27272a]">
+              <span className="min-w-0 truncate text-sm font-medium text-tinta-2">
                 {service.name}
               </span>
               <div
                 role="radiogroup"
                 aria-label={`Nivel de ${service.name}`}
-                className="flex w-full shrink-0 gap-1 rounded-full border border-[#e5e5e5] bg-[#fafafa] p-1 sm:w-auto"
+                className="flex w-full shrink-0 gap-1 rounded-full border border-linea bg-relleno p-1 sm:w-auto"
               >
                 {SERVICE_LEVEL_OPTIONS.map((option) => (
                   <label
@@ -180,7 +180,7 @@ export function ProfessionalServiceLevels({
                         en una sola línea en 360 px: texto de 12 px y relleno
                         corto. A partir de `sm` recupera el tamaño del
                         segmentado de agenda. */}
-                    <span className="flex min-h-11 items-center justify-center rounded-full px-1.5 text-center text-xs font-semibold leading-tight text-muted transition duration-200 hover:text-[#0a0a0a] peer-checked:bg-[#f3eeff] peer-checked:text-[#6d28d9] peer-focus-visible:ring-2 peer-focus-visible:ring-[#8b5cf6] sm:px-3 sm:text-sm sm:leading-normal">
+                    <span className="flex min-h-11 items-center justify-center rounded-full px-1.5 text-center text-xs font-semibold leading-tight text-muted transition duration-200 hover:text-tinta peer-checked:bg-lavado peer-checked:text-morado-tinta peer-focus-visible:ring-2 peer-focus-visible:ring-morado sm:px-3 sm:text-sm sm:leading-normal">
                       {option.label}
                     </span>
                   </label>
@@ -193,7 +193,7 @@ export function ProfessionalServiceLevels({
       <p className="text-xs leading-5 text-muted">
         {SERVICE_LEVEL_OPTIONS.map((option) => (
           <span key={option.value}>
-            <strong className="font-semibold text-[#27272a]">
+            <strong className="font-semibold text-tinta-2">
               {option.label}
             </strong>
             : {option.detail}{" "}

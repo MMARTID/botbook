@@ -51,14 +51,14 @@ export function CabeceraMovil({
   // un envoltorio) porque `sticky` solo se pega dentro de su padre.
   return (
     <>
-      <div className={`sticky top-0 z-40 !-mx-4 !-mt-5 bg-white/95 px-4 pb-1.5 pt-[max(0.5rem,env(safe-area-inset-top))] backdrop-blur-[14px] ${ocultar}`}>
+      <div className={`sticky top-0 z-40 !-mx-4 !-mt-5 bg-superficie/95 px-4 pb-1.5 pt-[max(0.5rem,env(safe-area-inset-top))] backdrop-blur-[14px] ${ocultar}`}>
         <div className="relative flex h-11 items-center gap-2.5">
           {marca ?? null}
           {volver ? <BotonVolver destino={volver} /> : null}
           {marca ? null : (
             <span
               aria-hidden="true"
-              className={`pointer-events-none absolute ${volver ? "inset-x-24" : "inset-x-16"} truncate text-center text-base font-bold text-[#0a0a0a] transition-opacity duration-150 ${desplazado ? "opacity-100" : "opacity-0"}`}
+              className={`pointer-events-none absolute ${volver ? "inset-x-24" : "inset-x-16"} truncate text-center text-base font-bold text-tinta transition-opacity duration-150 ${desplazado ? "opacity-100" : "opacity-0"}`}
             >
               {titulo}
             </span>
@@ -68,12 +68,12 @@ export function CabeceraMovil({
         </div>
         <div
           aria-hidden="true"
-          className={`absolute inset-x-0 bottom-0 h-px bg-[#e5e5e5] transition-opacity duration-150 ${desplazado ? "opacity-100" : "opacity-0"}`}
+          className={`absolute inset-x-0 bottom-0 h-px bg-linea transition-opacity duration-150 ${desplazado ? "opacity-100" : "opacity-0"}`}
         />
       </div>
       <div className={`!mt-0 pb-3.5 pt-1.5 ${ocultar}`}>
         <h1
-          className={`text-balance font-extrabold leading-[1.1] text-[#0a0a0a] ${volver ? "text-[30px] tracking-[-0.03em]" : "text-[32px] tracking-[-0.03em]"}`}
+          className={`text-balance font-extrabold leading-[1.1] text-tinta ${volver ? "text-[30px] tracking-[-0.03em]" : "text-[32px] tracking-[-0.03em]"}`}
         >
           {titulo}
         </h1>
@@ -88,7 +88,7 @@ function BotonVolver({ destino }: { destino: DestinoDeVuelta }) {
   return (
     <Link
       href={destino.href}
-      className="-ml-3 flex min-h-11 items-center gap-0.5 rounded-full pl-1 pr-3 text-base font-semibold text-[#0a0a0a] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]"
+      className="-ml-3 flex min-h-11 items-center gap-0.5 rounded-full pl-1 pr-3 text-base font-semibold text-tinta focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-morado"
     >
       <ChevronLeft className="h-6 w-6" aria-hidden="true" />
       {destino.etiqueta}
@@ -98,4 +98,4 @@ function BotonVolver({ destino }: { destino: DestinoDeVuelta }) {
 
 /** Botón redondo de 44 px para la derecha de la barra. */
 export const CLASES_BOTON_REDONDO =
-  "inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[#e5e5e5] bg-white text-[#27272a] transition duration-200 hover:bg-[#fafafa] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] disabled:opacity-35";
+  "inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-linea bg-superficie text-tinta-2 transition duration-200 hover:bg-relleno focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-morado disabled:opacity-35";

@@ -109,30 +109,30 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const ancha = esPantallaAncha(pathname);
 
   if (pathname === "/") {
-    if (hasToken === null) return <div className="flex min-h-screen items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-[#6d28d9]" /></div>;
+    if (hasToken === null) return <div className="flex min-h-screen items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-morado-tinta" /></div>;
     if (hasToken === false) return <>{children}</>;
   }
   if (PUBLIC_ROUTES.includes(pathname)) return <>{children}</>;
 
   return (
-    <div className="min-h-screen bg-white lg:flex">
-      <a href="#main-content" className="sr-only z-[80] rounded-[10px] bg-[#0a0a0a] px-4 py-3 text-sm font-semibold text-white focus:not-sr-only focus:fixed focus:left-4 focus:top-4">Saltar a contenido</a>
+    <div className="min-h-screen bg-superficie lg:flex">
+      <a href="#main-content" className="sr-only z-[80] rounded-[10px] bg-tinta px-4 py-3 text-sm font-semibold text-sobre-tinta focus:not-sr-only focus:fixed focus:left-4 focus:top-4">Saltar a contenido</a>
       <BarraLateral pathname={pathname} plegada={plegada} onAlternar={alternar} onBuscar={abrirBuscador} porDevolver={porDevolver} />
       <div className="min-w-0 flex-1">
         {/* En móvil cada pantalla trae su cabecera (título grande, «‹ Volver»).
             Solo el chat del Gestor y las rutas sueltas usan una del armazón. */}
         {pathname === "/asistente" ? (
-          <header className="sticky top-0 z-50 border-b border-[#e5e5e5] bg-white/95 px-2 pb-1.5 pt-[max(0.5rem,env(safe-area-inset-top))] backdrop-blur lg:hidden">
-            <Link href="/ajustes" className="flex min-h-11 w-fit items-center gap-0.5 rounded-full pl-1 pr-3 text-base font-semibold text-[#0a0a0a] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]">
+          <header className="sticky top-0 z-50 border-b border-linea bg-superficie/95 px-2 pb-1.5 pt-[max(0.5rem,env(safe-area-inset-top))] backdrop-blur lg:hidden">
+            <Link href="/ajustes" className="flex min-h-11 w-fit items-center gap-0.5 rounded-full pl-1 pr-3 text-base font-semibold text-tinta focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-morado">
               <ChevronLeft className="h-6 w-6" aria-hidden="true" />
               Cuenta
             </Link>
           </header>
         ) : !tieneCabeceraPropia(pathname) ? (
-          <header className="sticky top-0 z-50 border-b border-[#e5e5e5] bg-white/95 px-4 py-3 backdrop-blur lg:hidden">
-            <Link href="/" aria-label="Ir al panel de Alhabla" className="flex min-w-0 items-center gap-2.5 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]">
+          <header className="sticky top-0 z-50 border-b border-linea bg-superficie/95 px-4 py-3 backdrop-blur lg:hidden">
+            <Link href="/" aria-label="Ir al panel de Alhabla" className="flex min-w-0 items-center gap-2.5 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-morado">
               <BrandMark className="h-9 w-9 shrink-0" />
-              <span className="min-w-0"><span className="block text-sm font-bold leading-4 text-[#0a0a0a]">Alhabla</span><span className="block truncate text-xs leading-4 text-muted">{business?.name ?? "Mi negocio"}</span></span>
+              <span className="min-w-0"><span className="block text-sm font-bold leading-4 text-tinta">Alhabla</span><span className="block truncate text-xs leading-4 text-muted">{business?.name ?? "Mi negocio"}</span></span>
             </Link>
           </header>
         ) : null}

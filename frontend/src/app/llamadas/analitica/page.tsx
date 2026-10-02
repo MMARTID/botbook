@@ -36,11 +36,11 @@ function StatCard({
 }) {
   return (
     <article className="panel p-5">
-      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#f3eeff] text-[#8b5cf6]">
+      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-lavado text-morado">
         <Icon className="h-5 w-5" aria-hidden="true" />
       </div>
-      <p className="mt-4 text-3xl font-black tabular-nums tracking-tight text-[#0a0a0a]">{value}</p>
-      <p className="mt-1 text-sm font-semibold text-[#27272a]">{label}</p>
+      <p className="mt-4 text-3xl font-black tabular-nums tracking-tight text-tinta">{value}</p>
+      <p className="mt-1 text-sm font-semibold text-tinta-2">{label}</p>
       {detail ? <p className="mt-1 text-xs leading-5 text-muted">{detail}</p> : null}
     </article>
   );
@@ -67,12 +67,12 @@ function BarList({
           {rows.map((row) => (
             <li key={row.label}>
               <div className="flex items-baseline justify-between gap-3 text-sm">
-                <span className="font-semibold text-[#27272a]">{row.label}</span>
+                <span className="font-semibold text-tinta-2">{row.label}</span>
                 <span className="tabular-nums text-muted">{row.count}</span>
               </div>
-              <div className="mt-1 h-2 overflow-hidden rounded-full bg-[#f4f4f5]">
+              <div className="mt-1 h-2 overflow-hidden rounded-full bg-relleno-fuerte">
                 <div
-                  className="h-full rounded-full bg-[#8b5cf6]"
+                  className="h-full rounded-full bg-morado"
                   style={{ width: `${Math.max(4, Math.round((row.count / max) * 100))}%` }}
                 />
               </div>
@@ -87,10 +87,10 @@ function BarList({
 function UpgradePanel() {
   return (
     <section className="panel mx-auto max-w-xl p-8 text-center">
-      <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-[#f3eeff] text-[#8b5cf6]">
+      <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-lavado text-morado">
         <Lock className="h-7 w-7" aria-hidden="true" />
       </div>
-      <h2 className="mt-4 text-2xl font-black tracking-tight text-[#0a0a0a]">
+      <h2 className="mt-4 text-2xl font-black tracking-tight text-tinta">
         Analítica avanzada, con el plan Scale
       </h2>
       <p className="mx-auto mt-3 max-w-md text-sm leading-6 text-muted">

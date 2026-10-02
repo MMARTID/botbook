@@ -78,11 +78,11 @@ export default function CheckoutResultPage({
   return (
     <section className="mx-auto max-w-2xl py-16 text-center">
       <div className="panel p-8 sm:p-12">
-        <div className={`mx-auto flex h-16 w-16 items-center justify-center rounded-full ${confirmed ? "bg-[#ecf7ec] text-[#2c7334]" : sinRespuesta ? "bg-[#fff1f1] text-[#c53030]" : "bg-[#fef8e7] text-[#806012]"}`}>
+        <div className={`mx-auto flex h-16 w-16 items-center justify-center rounded-full ${confirmed ? "bg-exito-fondo text-exito" : sinRespuesta ? "bg-error-fondo text-error" : "bg-aviso-fondo text-aviso"}`}>
           {confirmed ? <CheckCircle2 className="h-8 w-8" /> : sinRespuesta ? <CircleAlert className="h-8 w-8" /> : <Clock3 className="h-8 w-8" />}
         </div>
         <div role="status">
-        <h1 className="mt-6 text-3xl font-semibold tracking-tight text-[#0a0a0a]">
+        <h1 className="mt-6 text-3xl font-semibold tracking-tight text-tinta">
           {confirmed
             ? "Suscripción confirmada"
             : sinRespuesta
@@ -98,7 +98,7 @@ export default function CheckoutResultPage({
         </p>
         </div>
         {!confirmed && isTakingLong ? (
-          <p className="mt-3 text-sm leading-6 text-[#806012]">
+          <p className="mt-3 text-sm leading-6 text-aviso">
             Esto está tardando más de lo normal. Si no se confirma en unos minutos, escríbenos a{" "}
             <a href="mailto:hola@alhabla.ai" className="font-semibold underline underline-offset-2">
               hola@alhabla.ai

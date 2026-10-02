@@ -113,7 +113,7 @@ export function InicioMovil({
           <>
             <BrandMark className="h-9 w-9 shrink-0" />
             <div className="min-w-0 flex-1 leading-tight">
-              <p className="truncate text-[15px] font-bold text-[#0a0a0a]">{business.name}</p>
+              <p className="truncate text-[15px] font-bold text-tinta">{business.name}</p>
               <p className="mt-px text-xs text-muted">Alhabla</p>
             </div>
           </>
@@ -127,8 +127,8 @@ export function InicioMovil({
             role="status"
             className={`rounded-[20px] border px-4 py-3 text-sm font-semibold ${
               avisoDeCalendario.type === "success"
-                ? "border-[#d8efd7] bg-[#ecf7ec] text-[#2c7334]"
-                : "border-[#f5d3d3] bg-[#fff1f1] text-[#c53030]"
+                ? "border-exito-borde bg-exito-fondo text-exito"
+                : "border-error-borde bg-error-fondo text-error"
             }`}
           >
             {avisoDeCalendario.message}
@@ -181,7 +181,7 @@ export function InicioMovil({
         ) : null}
 
         {agendaQuery.isLoading ? (
-          <div className="h-[212px] rounded-3xl bg-[#f4f4f5] motion-safe:animate-pulse" aria-hidden="true" />
+          <div className="h-[212px] rounded-3xl bg-relleno-fuerte motion-safe:animate-pulse" aria-hidden="true" />
         ) : agendaQuery.isError ? (
           <SectionErrorState message="No se pudieron cargar tus próximas citas." onRetry={() => void agendaQuery.refetch()} />
         ) : proxima ? (
@@ -202,17 +202,17 @@ export function InicioMovil({
           </TituloDeSeccion>
           <ul>
             {masTarde.map((cita) => (
-              <li key={cita.id} className="flex items-center gap-1 border-t border-[#e5e5e5]">
+              <li key={cita.id} className="flex items-center gap-1 border-t border-linea">
                 <button
                   type="button"
                   onClick={() => setCitaAbierta(cita)}
-                  className="flex min-h-16 min-w-0 flex-1 items-center gap-3.5 py-2.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#8b5cf6]"
+                  className="flex min-h-16 min-w-0 flex-1 items-center gap-3.5 py-2.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-morado"
                 >
-                  <span className="w-12 shrink-0 text-base font-bold tabular-nums text-[#0a0a0a]">
+                  <span className="w-12 shrink-0 text-base font-bold tabular-nums text-tinta">
                     {horaDelNegocio(cita.programedAt, timeZone)}
                   </span>
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-[15px] font-semibold text-[#0a0a0a]">{nombreDeCita(cita)}</span>
+                    <span className="block truncate text-[15px] font-semibold text-tinta">{nombreDeCita(cita)}</span>
                     <span className="mt-0.5 block truncate text-[13px] text-muted">
                       {[cita.professional?.name, `${cita.durationMinutes} min`].filter(Boolean).join(" · ")}
                     </span>
@@ -222,7 +222,7 @@ export function InicioMovil({
                   <a
                     href={enlaceTel(cita.clientPhone)}
                     aria-label={`Llamar al cliente al ${formatPhoneLocal(cita.clientPhone)}`}
-                    className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[#e5e5e5] bg-white text-[#52525b] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]"
+                    className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-linea bg-superficie text-apagado focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-morado"
                   >
                     <Phone className="h-[18px] w-[18px]" aria-hidden="true" />
                   </a>
@@ -240,7 +240,7 @@ export function InicioMovil({
         {llamadasQuery.isLoading ? (
           <div className="space-y-2 pt-2" aria-label="Cargando llamadas recientes">
             {[0, 1, 2].map((indice) => (
-              <div key={indice} className="h-16 rounded-2xl bg-[#f4f4f5] motion-safe:animate-pulse" aria-hidden="true" />
+              <div key={indice} className="h-16 rounded-2xl bg-relleno-fuerte motion-safe:animate-pulse" aria-hidden="true" />
             ))}
           </div>
         ) : llamadasQuery.isError ? (
@@ -252,7 +252,7 @@ export function InicioMovil({
         ) : (
           <ul>
             {llamadas.map((call) => (
-              <li key={call.id} className="border-t border-[#e5e5e5]">
+              <li key={call.id} className="border-t border-linea">
                 <FilaLlamada
                   call={call}
                   momento={momentoCorto(call.startedAt, timeZone, hoy)}
@@ -288,16 +288,16 @@ export function TarjetaDeAviso({
   return (
     <Link
       href={href}
-      className="flex min-h-16 items-center gap-3 rounded-[20px] border border-[#f0dfa8] bg-[#fef8e7] py-3.5 pl-4 pr-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]"
+      className="flex min-h-16 items-center gap-3 rounded-[20px] border border-aviso-borde bg-aviso-fondo py-3.5 pl-4 pr-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-morado"
     >
-      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-[#9f7a15]" aria-hidden="true">
+      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-superficie text-aviso-icono" aria-hidden="true">
         <Icono className="h-5 w-5" />
       </span>
       <span className="min-w-0 flex-1">
-        <span className="block text-[15px] font-bold text-[#806012]">{titulo}</span>
-        <span className="mt-0.5 block text-[13px] leading-[1.45] text-[#52525b]">{texto}</span>
+        <span className="block text-[15px] font-bold text-aviso">{titulo}</span>
+        <span className="mt-0.5 block text-[13px] leading-[1.45] text-apagado">{texto}</span>
       </span>
-      <ChevronRight className="h-[18px] w-[18px] shrink-0 text-[#806012]" aria-hidden="true" />
+      <ChevronRight className="h-[18px] w-[18px] shrink-0 text-aviso" aria-hidden="true" />
     </Link>
   );
 }
@@ -342,17 +342,19 @@ export function CitasSinReservar({
   const varias = pendientes.length > 1;
 
   return (
-    <section className="rounded-[20px] border border-[#f5d3d3] bg-[#fff1f1] p-4" aria-labelledby="citas-sin-reservar">
+    // Blanca y con el rojo solo en el icono: va la primera y ya se ve; en
+    // rojo entero gritaba más que lo que pide (una llamada).
+    <section className="rounded-[20px] border border-linea bg-superficie p-4" aria-labelledby="citas-sin-reservar">
       <div className="flex items-start gap-3">
-        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-[#c53030]" aria-hidden="true">
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-urgente-fondo text-urgente" aria-hidden="true">
           <TriangleAlert className="h-5 w-5" />
         </span>
         <div className="min-w-0">
-          <h2 id="citas-sin-reservar" className="text-base font-bold leading-snug text-[#0a0a0a]">
+          <h2 id="citas-sin-reservar" className="text-base font-bold leading-snug text-tinta">
             {varias ? `${pendientes.length} citas se quedaron sin reservar` : "Una cita se quedó sin reservar"}
           </h2>
           {varias ? (
-            <p className="mt-1 text-sm leading-6 text-[#c53030]">Llama a cada cliente para confirmarla: todavía estás a tiempo.</p>
+            <p className="mt-1 text-sm leading-6 text-apagado">Llama a cada cliente para confirmarla: todavía estás a tiempo.</p>
           ) : (
             <TextoDeCitaPendiente cita={pendientes[0]} timeZone={timeZone} />
           )}
@@ -360,7 +362,7 @@ export function CitasSinReservar({
       </div>
       <ul className={varias ? "mt-3 space-y-2" : ""}>
         {pendientes.map((cita) => (
-          <li key={cita.id} className={varias ? "rounded-2xl bg-white p-3" : ""}>
+          <li key={cita.id} className={varias ? "rounded-2xl bg-relleno p-3" : ""}>
             {varias ? <TextoDeCitaPendiente cita={cita} timeZone={timeZone} /> : null}
             {cita.clientPhone ? (
               <a href={enlaceTel(cita.clientPhone)} className="btn-primary mt-3.5 w-full px-4">
@@ -374,7 +376,7 @@ export function CitasSinReservar({
               type="button"
               onClick={() => resolver.mutate(cita.id)}
               disabled={resolver.isPending}
-              className="mt-0.5 min-h-11 w-full text-sm font-semibold text-[#c53030] underline underline-offset-[3px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] disabled:opacity-60"
+              className="mt-0.5 min-h-11 w-full text-sm font-semibold text-apagado underline underline-offset-[3px] hover:text-tinta focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-morado disabled:opacity-60"
             >
               {resolver.isPending && resolver.variables === cita.id ? "Guardando…" : "Ya la he confirmado"}
             </button>
@@ -388,8 +390,8 @@ export function CitasSinReservar({
 function TextoDeCitaPendiente({ cita, timeZone }: { cita: PendingBooking; timeZone: string }) {
   const cuando = cuandoPedia(cita, timeZone);
   return (
-    <p className="mt-1 text-sm leading-6 text-[#c53030]">
-      <strong>{cita.clientName ?? "Un cliente"}</strong>
+    <p className="mt-1 text-sm leading-6 text-apagado">
+      <strong className="font-semibold text-tinta">{cita.clientName ?? "Un cliente"}</strong>
       {cuando ? ` pedía ${cuando}.` : " pedía una cita."} {motivoDeCitaPendiente(cita.failureCode)}
     </p>
   );
@@ -420,7 +422,7 @@ function ProximaCita({
   const detalle = [cita.professional?.name, `${cita.durationMinutes} min`, formatPhoneLocal(cita.clientPhone)].filter(Boolean).join(" · ");
 
   return (
-    <section className="rounded-3xl bg-[#0a0a0a] p-[18px] text-white" aria-label="Próxima cita">
+    <section className="rounded-3xl bg-oscuro p-[18px] text-white" aria-label="Próxima cita">
       <div className="flex items-center justify-between gap-2">
         <span className="text-[13px] font-semibold text-white/70">Próxima cita</span>
         <span className="rounded-full bg-white/15 px-3 py-1 text-xs font-bold">{cuando}</span>
@@ -437,7 +439,7 @@ function ProximaCita({
         {cita.clientPhone ? (
           <a
             href={enlaceTel(cita.clientPhone)}
-            className="inline-flex min-h-12 flex-1 items-center justify-center gap-2 rounded-[10px] bg-white text-[15px] font-bold text-[#0a0a0a] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#a78bfa] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0a0a0a]"
+            className="inline-flex min-h-12 flex-1 items-center justify-center gap-2 rounded-[10px] bg-white text-[15px] font-bold text-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-morado-claro focus-visible:ring-offset-2 focus-visible:ring-offset-oscuro"
           >
             <Phone className="h-[18px] w-[18px]" aria-hidden="true" />
             Llamar
@@ -446,7 +448,7 @@ function ProximaCita({
         <button
           type="button"
           onClick={onAbrir}
-          className="inline-flex min-h-12 flex-1 items-center justify-center rounded-[10px] border border-white/35 text-[15px] font-bold text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#a78bfa] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0a0a0a]"
+          className="inline-flex min-h-12 flex-1 items-center justify-center rounded-[10px] border border-white/35 text-[15px] font-bold text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-morado-claro focus-visible:ring-offset-2 focus-visible:ring-offset-oscuro"
         >
           Ver cita
         </button>
@@ -482,34 +484,34 @@ export function GuiaDeConfiguracion({ estado }: { estado: OnboardingState }) {
     clave === "whatsapp" && movilSinWhatsapp ? "El móvil que pusiste no tiene WhatsApp. Cambia el número en Teléfono." : texto;
 
   return (
-    <section className="overflow-hidden rounded-[20px] border border-[#ddd6fe] bg-[#f3eeff]">
+    <section className="overflow-hidden rounded-[20px] border border-lavado-borde bg-lavado">
       <button
         type="button"
         onClick={() => setAbierta((actual) => !actual)}
         aria-expanded={abierta}
-        className="flex min-h-[72px] w-full items-center gap-3 py-3.5 pl-4 pr-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#8b5cf6]"
+        className="flex min-h-[72px] w-full items-center gap-3 py-3.5 pl-4 pr-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-morado"
       >
         <svg width="44" height="44" viewBox="0 0 44 44" className="shrink-0 -rotate-90" aria-hidden="true">
-          <circle cx="22" cy="22" r="18" fill="#fff" stroke="#ddd6fe" strokeWidth="4" />
+          <circle cx="22" cy="22" r="18" className="fill-superficie stroke-lavado-borde" strokeWidth="4" />
           <circle
             cx="22"
             cy="22"
             r="18"
             fill="none"
-            stroke="#8b5cf6"
+            className="stroke-morado"
             strokeWidth="4"
             strokeLinecap="round"
             strokeDasharray={`${((circunferencia * hechos.length) / pasos.length).toFixed(1)} ${circunferencia.toFixed(1)}`}
           />
         </svg>
         <span className="min-w-0 flex-1">
-          <span className="block text-[15px] font-bold leading-snug text-[#0a0a0a]">Termina de configurar tu recepcionista</span>
+          <span className="block text-[15px] font-bold leading-snug text-tinta">Termina de configurar tu recepcionista</span>
           <span className="mt-0.5 block text-[13px] text-muted">
             {hechos.length} de {pasos.length} pasos hechos
           </span>
         </span>
         <ChevronDown
-          className={`h-5 w-5 shrink-0 text-[#6d28d9] transition-transform duration-200 ${abierta ? "rotate-180" : ""}`}
+          className={`h-5 w-5 shrink-0 text-morado-tinta transition-transform duration-200 ${abierta ? "rotate-180" : ""}`}
           aria-hidden="true"
         />
       </button>
@@ -522,11 +524,11 @@ export function GuiaDeConfiguracion({ estado }: { estado: OnboardingState }) {
         ) : (
           <Link
             href={siguiente.hrefMovil}
-            className="mx-3 mb-3 flex min-h-14 items-center gap-3 rounded-[14px] border border-[#ddd6fe] bg-white px-3 py-2.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]"
+            className="mx-3 mb-3 flex min-h-14 items-center gap-3 rounded-[14px] border border-lavado-borde bg-superficie px-3 py-2.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-morado"
           >
             <AzulejoIcono icono={siguiente.icon} tamaño="sm" />
-            <span className="min-w-0 flex-1 text-sm font-bold leading-snug text-[#0a0a0a]">{siguiente.title}</span>
-            <span className="inline-flex shrink-0 items-center gap-1 text-sm font-bold text-[#6d28d9]">
+            <span className="min-w-0 flex-1 text-sm font-bold leading-snug text-tinta">{siguiente.title}</span>
+            <span className="inline-flex shrink-0 items-center gap-1 text-sm font-bold text-morado-tinta">
               {siguiente.key === "forwarding" || siguiente.key === "whatsapp" ? "Activar" : "Configurar"}
               <ArrowRight className="h-4 w-4" aria-hidden="true" />
             </span>
@@ -538,10 +540,10 @@ export function GuiaDeConfiguracion({ estado }: { estado: OnboardingState }) {
         <div className="flex flex-col gap-2 px-3 pb-3">
           {pendientes.map((paso) =>
             bloqueado(paso.key) ? (
-              <div key={paso.key} className="flex min-h-[60px] items-center gap-3 rounded-[14px] border border-[#ddd6fe] bg-white/60 px-3 py-2.5">
+              <div key={paso.key} className="flex min-h-[60px] items-center gap-3 rounded-[14px] border border-lavado-borde bg-superficie/60 px-3 py-2.5">
                 <AzulejoIcono icono={paso.icon} tamaño="sm" />
                 <span className="min-w-0 flex-1">
-                  <span className="block text-sm font-bold text-[#0a0a0a]">{paso.title}</span>
+                  <span className="block text-sm font-bold text-tinta">{paso.title}</span>
                   <span className="block text-xs leading-[1.45] text-muted">Disponible en cuanto tu número esté activo.</span>
                 </span>
               </div>
@@ -549,29 +551,29 @@ export function GuiaDeConfiguracion({ estado }: { estado: OnboardingState }) {
               <Link
                 key={paso.key}
                 href={paso.hrefMovil}
-                className="flex min-h-[60px] items-center gap-3 rounded-[14px] border border-[#ddd6fe] bg-white px-3 py-2.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]"
+                className="flex min-h-[60px] items-center gap-3 rounded-[14px] border border-lavado-borde bg-superficie px-3 py-2.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-morado"
               >
                 <AzulejoIcono icono={paso.icon} tamaño="sm" />
                 <span className="min-w-0 flex-1">
-                  <span className="block text-sm font-bold text-[#0a0a0a]">{paso.title}</span>
+                  <span className="block text-sm font-bold text-tinta">{paso.title}</span>
                   <span className="mt-px block text-xs leading-[1.45] text-muted">{descripcion(paso.key, paso.description)}</span>
                 </span>
-                <ChevronRight className="h-4 w-4 shrink-0 text-[#6d28d9]" aria-hidden="true" />
+                <ChevronRight className="h-4 w-4 shrink-0 text-morado-tinta" aria-hidden="true" />
               </Link>
             )
           )}
           {hechos.length > 0 ? (
             <ul className="mt-0.5 flex flex-wrap gap-1.5">
               {hechos.map((paso) => (
-                <li key={paso.key} className="inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-[5px] text-xs font-semibold text-[#52525b]">
-                  <Check className="h-3.5 w-3.5 text-[#2c7334]" aria-hidden="true" />
+                <li key={paso.key} className="inline-flex items-center gap-1.5 rounded-full bg-superficie px-3 py-[5px] text-xs font-semibold text-apagado">
+                  <Check className="h-3.5 w-3.5 text-exito" aria-hidden="true" />
                   {paso.title}
                 </li>
               ))}
             </ul>
           ) : null}
           {ocultar.isError ? (
-            <p className="text-sm text-[#c53030]" role="alert">
+            <p className="text-sm text-error" role="alert">
               No hemos podido ocultar la guía. Inténtalo de nuevo.
             </p>
           ) : null}
@@ -579,7 +581,7 @@ export function GuiaDeConfiguracion({ estado }: { estado: OnboardingState }) {
             type="button"
             onClick={() => ocultar.mutate()}
             disabled={ocultar.isPending}
-            className="min-h-11 text-sm font-semibold text-[#6d28d9] underline underline-offset-[3px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] disabled:opacity-60"
+            className="min-h-11 text-sm font-semibold text-morado-tinta underline underline-offset-[3px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-morado disabled:opacity-60"
           >
             Ocultar la guía
           </button>
@@ -604,7 +606,7 @@ export function UltimosSieteDias({ semana, className = "mt-7" }: { semana: Weekl
           ? { texto: "Igual que la semana pasada.", tono: "text-muted", icono: null }
           : {
               texto: `${Math.abs(delta)} ${Math.abs(delta) === 1 ? "cita" : "citas"} ${delta > 0 ? "más" : "menos"} que la semana pasada`,
-              tono: delta > 0 ? "font-semibold text-[#2c7334]" : "font-semibold text-[#806012]",
+              tono: delta > 0 ? "font-semibold text-exito" : "font-semibold text-aviso",
               icono: delta > 0 ? ArrowUpRight : ArrowDownRight,
             };
   const detalleConversaciones = [
@@ -616,18 +618,18 @@ export function UltimosSieteDias({ semana, className = "mt-7" }: { semana: Weekl
 
   return (
     <section className={className}>
-      <h2 className="mb-2 text-lg font-bold tracking-[-0.01em] text-[#0a0a0a]">Últimos 7 días</h2>
+      <h2 className="mb-2 text-lg font-bold tracking-[-0.01em] text-tinta">Últimos 7 días</h2>
       <div className="panel px-4 py-[18px]">
-        <p className="text-5xl font-extrabold leading-none tracking-[-0.035em] tabular-nums text-[#0a0a0a]">{semana.bookings}</p>
-        <p className="mt-1 text-[15px] font-semibold text-[#0a0a0a]">{semana.bookings === 1 ? "cita reservada" : "citas reservadas"}</p>
+        <p className="text-5xl font-extrabold leading-none tracking-[-0.035em] tabular-nums text-tinta">{semana.bookings}</p>
+        <p className="mt-1 text-[15px] font-semibold text-tinta">{semana.bookings === 1 ? "cita reservada" : "citas reservadas"}</p>
         <p className={`mt-2 flex items-center gap-1 text-sm ${comparacion.tono}`}>
           {comparacion.icono ? <comparacion.icono className="h-4 w-4 shrink-0" aria-hidden="true" /> : null}
           {comparacion.texto}
         </p>
-        <div className="mt-4 grid grid-cols-2 border-t border-[#e5e5e5]">
-          <div className="border-r border-[#e5e5e5] pr-3 pt-3.5">
-            <p className="text-[28px] font-bold tracking-[-0.02em] tabular-nums text-[#0a0a0a]">{conversaciones}</p>
-            <p className="mt-0.5 text-sm font-semibold text-[#0a0a0a]">{conversaciones === 1 ? "conversación" : "conversaciones"}</p>
+        <div className="mt-4 grid grid-cols-2 border-t border-linea">
+          <div className="border-r border-linea pr-3 pt-3.5">
+            <p className="text-[28px] font-bold tracking-[-0.02em] tabular-nums text-tinta">{conversaciones}</p>
+            <p className="mt-0.5 text-sm font-semibold text-tinta">{conversaciones === 1 ? "conversación" : "conversaciones"}</p>
             <p className="mt-1.5 text-[13px] leading-[1.5] text-muted">
               {conversion !== null ? `${detalleConversaciones} · ${conversion} % terminaron en cita.` : "Aún no ha entrado ninguna llamada."}
             </p>
@@ -635,19 +637,19 @@ export function UltimosSieteDias({ semana, className = "mt-7" }: { semana: Weekl
           <div className="pl-4 pt-3.5">
             {semana.revenueCents !== null ? (
               <>
-                <p className="text-[28px] font-bold tracking-[-0.02em] tabular-nums text-[#0a0a0a]">{formatPrice(semana.revenueCents)}</p>
-                <p className="mt-0.5 text-sm font-semibold text-[#0a0a0a]">en citas reservadas</p>
+                <p className="text-[28px] font-bold tracking-[-0.02em] tabular-nums text-tinta">{formatPrice(semana.revenueCents)}</p>
+                <p className="mt-0.5 text-sm font-semibold text-tinta">en citas reservadas</p>
                 <p className="mt-1.5 text-[13px] leading-[1.5] text-muted">
                   {semana.revenueIsPartial ? "Estimación a la baja: solo suma los servicios con precio." : "Según el precio de los servicios."}
                 </p>
               </>
             ) : (
               <>
-                <p className="text-sm font-semibold text-[#0a0a0a]">¿Cuánto has recuperado?</p>
+                <p className="text-sm font-semibold text-tinta">¿Cuánto has recuperado?</p>
                 <p className="mt-1.5 text-[13px] leading-[1.5] text-muted">Pon precio a tus servicios y lo verás aquí.</p>
                 <Link
                   href="/agente/servicios"
-                  className="mt-1 inline-flex min-h-11 items-center gap-1 text-sm font-semibold text-[#6d28d9] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]"
+                  className="mt-1 inline-flex min-h-11 items-center gap-1 text-sm font-semibold text-morado-tinta focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-morado"
                 >
                   Añadir precios
                   <ArrowRight className="h-4 w-4" aria-hidden="true" />

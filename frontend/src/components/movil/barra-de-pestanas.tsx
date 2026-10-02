@@ -50,7 +50,7 @@ export function BarraDePestañas({
   return (
     <nav
       aria-label="Navegación principal"
-      className="fixed inset-x-0 bottom-0 z-50 border-t border-[#e5e5e5] bg-white/95 px-1.5 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-1.5 backdrop-blur-[14px] lg:hidden"
+      className="fixed inset-x-0 bottom-0 z-50 border-t border-linea bg-superficie/95 px-1.5 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-1.5 backdrop-blur-[14px] lg:hidden"
     >
       <div className="mx-auto grid max-w-xl grid-cols-5 gap-0.5">
         {PESTAÑAS.map((pestaña) => {
@@ -63,24 +63,24 @@ export function BarraDePestañas({
               key={pestaña.href}
               href={pestaña.href}
               aria-current={activa ? "page" : undefined}
-              className={`flex min-h-[49px] flex-col items-center gap-[3px] rounded-2xl pt-1 text-[11px] font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] ${
-                activa ? "text-[#6d28d9]" : "text-[#52525b]"
+              className={`flex min-h-[49px] flex-col items-center gap-[3px] rounded-2xl pt-1 text-[11px] font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-morado ${
+                activa ? "text-morado-tinta" : "text-apagado"
               }`}
             >
               <span
                 className={`relative flex h-[30px] w-14 items-center justify-center rounded-full transition-colors duration-200 ${
-                  activa ? "bg-[#f3eeff] ring-1 ring-inset ring-[#ddd6fe]" : ""
+                  activa ? "bg-lavado ring-1 ring-inset ring-lavado-borde" : ""
                 }`}
               >
                 <Icono className="h-[22px] w-[22px]" aria-hidden="true" />
                 {insignia ? (
-                  <span className="absolute -top-[3px] right-1.5 h-[18px] min-w-[18px] rounded-full bg-[#0a0a0a] px-[5px] text-center text-[11px] font-bold leading-[18px] text-white shadow-[0_0_0_2px_#fff]">
+                  <span className="absolute -top-[3px] right-1.5 h-[18px] min-w-[18px] rounded-full bg-tinta px-[5px] text-center text-[11px] font-bold leading-[18px] text-sobre-tinta shadow-[0_0_0_2px_rgb(var(--superficie))]">
                     {insignia > 99 ? "99+" : insignia}
                     <span className="sr-only"> por devolver</span>
                   </span>
                 ) : null}
                 {punto ? (
-                  <span className="absolute right-[11px] top-px h-2.5 w-2.5 rounded-full bg-[#9f7a15] shadow-[0_0_0_2px_#fff]">
+                  <span className="absolute right-[11px] top-px h-2.5 w-2.5 rounded-full bg-aviso-icono shadow-[0_0_0_2px_rgb(var(--superficie))]">
                     <span className="sr-only">Quedan pocos minutos del plan</span>
                   </span>
                 ) : null}

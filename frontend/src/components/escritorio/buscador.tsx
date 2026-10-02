@@ -180,17 +180,17 @@ export function Buscador({
 
   return createPortal(
     <div className="fixed inset-0 z-[80] flex justify-center px-6 pt-[12vh]">
-      <div aria-hidden="true" onClick={onCerrar} className="absolute inset-0 bg-[#0a0a0a]/40" />
+      <div aria-hidden="true" onClick={onCerrar} className="absolute inset-0 bg-black/40" />
       <div
         ref={ref}
         role="dialog"
         aria-modal="true"
         aria-label="Buscar en Alhabla"
-        className="relative flex max-h-[70vh] w-full max-w-[40rem] flex-col self-start overflow-hidden rounded-3xl border border-[#e5e5e5] bg-white shadow-[0_24px_64px_rgba(0,0,0,0.25)]"
+        className="relative flex max-h-[70vh] w-full max-w-[40rem] flex-col self-start overflow-hidden rounded-3xl border border-linea bg-superficie shadow-[0_24px_64px_rgba(0,0,0,0.25)]"
       >
-        <div className="flex items-center gap-3 border-b border-[#e5e5e5] px-5">
+        <div className="flex items-center gap-3 border-b border-linea px-5">
           {buscando ? (
-            <LoaderCircle className="h-5 w-5 shrink-0 animate-spin text-[#8b5cf6]" aria-hidden="true" />
+            <LoaderCircle className="h-5 w-5 shrink-0 animate-spin text-morado" aria-hidden="true" />
           ) : (
             <Search className="h-5 w-5 shrink-0 text-muted" aria-hidden="true" />
           )}
@@ -216,7 +216,7 @@ export function Buscador({
             aria-activedescendant={opciones[activa] ? `${listaId}-${activa}` : undefined}
             aria-autocomplete="list"
             placeholder="Buscar citas, llamadas o pantallas… o preguntar al gestor"
-            className="h-14 min-w-0 flex-1 bg-transparent text-base text-[#0a0a0a] outline-none placeholder:text-[#a1a1aa]"
+            className="h-14 min-w-0 flex-1 bg-transparent text-base text-tinta outline-none placeholder:text-tenue"
           />
           <Tecla>esc</Tecla>
         </div>
@@ -237,16 +237,16 @@ export function Buscador({
                   aria-selected={indice === activa}
                   onMouseMove={() => setActiva(indice)}
                   onClick={opcion.ejecutar}
-                  className={`flex min-h-11 cursor-pointer items-center gap-3 rounded-xl px-3 py-2 ${indice === activa ? "bg-[#f3eeff]" : ""}`}
+                  className={`flex min-h-11 cursor-pointer items-center gap-3 rounded-xl px-3 py-2 ${indice === activa ? "bg-lavado" : ""}`}
                 >
                   <span
-                    className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${indice === activa ? "bg-white text-[#6d28d9]" : "bg-[#f4f4f5] text-[#52525b]"}`}
+                    className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${indice === activa ? "bg-superficie text-morado-tinta" : "bg-relleno-fuerte text-apagado"}`}
                     aria-hidden="true"
                   >
                     <Icono className="h-4 w-4" />
                   </span>
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-semibold text-[#0a0a0a]">{opcion.titulo}</span>
+                    <span className="block truncate text-sm font-semibold text-tinta">{opcion.titulo}</span>
                     {opcion.detalle ? <span className="block truncate text-xs text-muted">{opcion.detalle}</span> : null}
                   </span>
                   {opcion.pista ? <span className="shrink-0">{opcion.pista}</span> : null}
@@ -258,12 +258,12 @@ export function Buscador({
             <li className="px-3 py-3 text-sm text-muted">No hay citas ni llamadas con «{consulta}».</li>
           ) : null}
           {busqueda.isError ? (
-            <li className="px-3 py-3 text-sm text-[#c53030]" role="alert">
+            <li className="px-3 py-3 text-sm text-error" role="alert">
               No se ha podido buscar ahora mismo. Inténtalo de nuevo.
             </li>
           ) : null}
         </ul>
-        <div className="flex shrink-0 flex-wrap items-center gap-x-4 gap-y-1 border-t border-[#e5e5e5] bg-[#fafafa] px-5 py-2.5 text-xs text-muted">
+        <div className="flex shrink-0 flex-wrap items-center gap-x-4 gap-y-1 border-t border-linea bg-relleno px-5 py-2.5 text-xs text-muted">
           <span className="flex items-center gap-1">
             <Tecla>↑</Tecla>
             <Tecla>↓</Tecla> moverse

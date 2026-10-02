@@ -130,8 +130,8 @@ export function PanelEscritorio({
             role="status"
             className={`rounded-2xl border px-4 py-3 text-sm font-semibold ${
               avisoDeCalendario.type === "success"
-                ? "border-[#d8efd7] bg-[#ecf7ec] text-[#2c7334]"
-                : "border-[#f5d3d3] bg-[#fff1f1] text-[#c53030]"
+                ? "border-exito-borde bg-exito-fondo text-exito"
+                : "border-error-borde bg-error-fondo text-error"
             }`}
           >
             {avisoDeCalendario.message}
@@ -158,22 +158,22 @@ export function PanelEscritorio({
                   id="desvio"
                   type="button"
                   onClick={() => setDesvioAbierto(true)}
-                  className="flex min-h-16 w-full items-center gap-3 rounded-[20px] border border-[#f0dfa8] bg-[#fef8e7] py-3.5 pl-4 pr-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]"
+                  className="flex min-h-16 w-full items-center gap-3 rounded-[20px] border border-aviso-borde bg-aviso-fondo py-3.5 pl-4 pr-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-morado"
                 >
-                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-[#9f7a15]" aria-hidden="true">
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-superficie text-aviso-icono" aria-hidden="true">
                     <PhoneForwarded className="h-5 w-5" />
                   </span>
                   <span className="min-w-0 flex-1">
-                    <span className="block text-[15px] font-bold text-[#806012]">
+                    <span className="block text-[15px] font-bold text-aviso">
                       {forwarding.status === "waiting_number" ? "Estamos activando tu número" : "Falta desviar tu teléfono"}
                     </span>
-                    <span className="mt-0.5 block text-[13px] leading-[1.45] text-[#52525b]">
+                    <span className="mt-0.5 block text-[13px] leading-[1.45] text-apagado">
                       {forwarding.status === "waiting_number"
                         ? "En unos minutos podrás desviar tus llamadas."
                         : "Sin desvío no entra ninguna llamada a tu recepcionista."}
                     </span>
                   </span>
-                  <span className="shrink-0 text-sm font-bold text-[#806012]">
+                  <span className="shrink-0 text-sm font-bold text-aviso">
                     {forwarding.status === "waiting_number" ? "Ver" : "Activarlo"}
                   </span>
                 </button>
@@ -195,8 +195,8 @@ export function PanelEscritorio({
           ) : null}
 
           <section className="panel overflow-hidden xl:col-start-1 xl:row-span-2 xl:row-start-1" aria-labelledby="titulo-del-dia">
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-[#e5e5e5] px-5 py-3.5">
-              <h2 id="titulo-del-dia" className="text-lg font-bold tracking-[-0.01em] text-[#0a0a0a]">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-linea px-5 py-3.5">
+              <h2 id="titulo-del-dia" className="text-lg font-bold tracking-[-0.01em] text-tinta">
                 {vista === "hoy" ? "Hoy" : vista === "manana" ? "Mañana" : "Próximos 7 días"}
               </h2>
               {agendaQuery.data ? (
@@ -215,7 +215,7 @@ export function PanelEscritorio({
             </div>
 
             {agendaQuery.isLoading ? (
-              <div className="m-5 h-[420px] rounded-2xl bg-[#f4f4f5] motion-safe:animate-pulse" aria-label="Cargando agenda" />
+              <div className="m-5 h-[420px] rounded-2xl bg-relleno-fuerte motion-safe:animate-pulse" aria-label="Cargando agenda" />
             ) : agendaQuery.isError ? (
               <SectionErrorState className="m-5" message="No se pudieron cargar las citas." onRetry={() => void agendaQuery.refetch()} />
             ) : vista === "semana" ? (
@@ -235,18 +235,18 @@ export function PanelEscritorio({
                     cerradoTodoElDia={tramos !== null && tramos.length === 0}
                   />
                   {delDia.length === 0 ? (
-                    <p className="pointer-events-none absolute left-1/2 top-16 -translate-x-1/2 rounded-full border border-[#e5e5e5] bg-white px-4 py-2 text-sm font-semibold text-muted shadow-sm">
+                    <p className="pointer-events-none absolute left-1/2 top-16 -translate-x-1/2 rounded-full border border-linea bg-superficie px-4 py-2 text-sm font-semibold text-muted shadow-sm">
                       {tramos !== null && tramos.length === 0
                         ? "Cerrado: no hay citas."
                         : `Sin citas reservadas para ${vista === "hoy" ? "hoy" : "mañana"}.`}
                     </p>
                   ) : null}
                 </div>
-                <div className="flex items-center gap-3 border-t border-[#e5e5e5] bg-[#fafafa] px-5 py-3 text-sm">
+                <div className="flex items-center gap-3 border-t border-linea bg-relleno px-5 py-3 text-sm">
                   {vista === "hoy" ? (
                     <>
                       <span className="text-muted">
-                        <strong className="font-semibold text-[#27272a]">Mañana:</strong>{" "}
+                        <strong className="font-semibold text-tinta-2">Mañana:</strong>{" "}
                         {deManana.length === 0
                           ? "sin citas"
                           : `${citasEnTexto(deManana.length)}, la primera a las ${horaDelNegocio(deManana[0].programedAt, timeZone)}`}
@@ -258,7 +258,7 @@ export function PanelEscritorio({
                   )}
                   <Link
                     href={`/agenda?dia=${diaVisto}`}
-                    className="inline-flex min-h-9 items-center gap-1 font-semibold text-[#6d28d9] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]"
+                    className="inline-flex min-h-9 items-center gap-1 font-semibold text-morado-tinta focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-morado"
                   >
                     Ver en la agenda
                     <ArrowRight className="h-4 w-4" aria-hidden="true" />
@@ -277,7 +277,7 @@ export function PanelEscritorio({
               {llamadasQuery.isLoading ? (
                 <div className="space-y-2 pt-2" aria-label="Cargando llamadas recientes">
                   {[0, 1, 2].map((indice) => (
-                    <div key={indice} className="h-16 rounded-2xl bg-[#f4f4f5] motion-safe:animate-pulse" aria-hidden="true" />
+                    <div key={indice} className="h-16 rounded-2xl bg-relleno-fuerte motion-safe:animate-pulse" aria-hidden="true" />
                   ))}
                 </div>
               ) : llamadasQuery.isError ? (
@@ -289,7 +289,7 @@ export function PanelEscritorio({
               ) : (
                 <ul>
                   {llamadas.map((call) => (
-                    <li key={call.id} className="border-t border-[#e5e5e5]">
+                    <li key={call.id} className="border-t border-linea">
                       <FilaLlamada
                         call={call}
                         momento={momentoCorto(call.startedAt, timeZone, hoy)}
@@ -349,7 +349,7 @@ function ListaDeLaSemana({
         const importe = importeDeCitas(delDia);
         return (
           <section key={dia}>
-            <h3 className="sticky top-0 z-10 flex items-baseline gap-2 border-y border-[#ede9fe] bg-[#faf8ff] px-5 py-2 text-sm font-bold text-[#0a0a0a]">
+            <h3 className="sticky top-0 z-10 flex items-baseline gap-2 border-y border-lavado-2 bg-lavado-3 px-5 py-2 text-sm font-bold text-tinta">
               {dia === hoy ? "Hoy" : dia === sumarDias(hoy, 1) ? "Mañana" : diaLargo(dia)}
               <span className="font-semibold text-muted">
                 {citasEnTexto(delDia.length)}
@@ -360,21 +360,21 @@ function ListaDeLaSemana({
               {delDia.map((cita) => {
                 const precio = importeDeCita(cita);
                 return (
-                  <li key={cita.id} className="border-b border-[#f4f4f5] last:border-b-0">
+                  <li key={cita.id} className="border-b border-linea-suave last:border-b-0">
                     <button
                       type="button"
                       onClick={() => onAbrir(cita)}
-                      className="grid min-h-12 w-full grid-cols-[56px_minmax(0,1fr)_minmax(0,140px)_72px] items-center gap-3 px-5 py-2 text-left text-sm transition hover:bg-[#fafafa] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#8b5cf6]"
+                      className="grid min-h-12 w-full grid-cols-[56px_minmax(0,1fr)_minmax(0,140px)_72px] items-center gap-3 px-5 py-2 text-left text-sm transition hover:bg-relleno focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-morado"
                     >
-                      <span className="font-bold tabular-nums text-[#0a0a0a]">{horaDelNegocio(cita.programedAt, timeZone)}</span>
+                      <span className="font-bold tabular-nums text-tinta">{horaDelNegocio(cita.programedAt, timeZone)}</span>
                       <span className="min-w-0">
-                        <span className="block truncate font-semibold text-[#0a0a0a]">{nombreDeCita(cita)}</span>
+                        <span className="block truncate font-semibold text-tinta">{nombreDeCita(cita)}</span>
                         <span className="block truncate text-xs text-muted">
                           {cita.clientName ?? formatPhoneLocal(cita.clientPhone) ?? "Cliente sin nombre"}
                         </span>
                       </span>
                       <span className="truncate text-muted">{cita.professional?.name ?? "Sin asignar"}</span>
-                      <span className="text-right font-semibold tabular-nums text-[#0a0a0a]">{precio != null ? formatPrice(precio) : "—"}</span>
+                      <span className="text-right font-semibold tabular-nums text-tinta">{precio != null ? formatPrice(precio) : "—"}</span>
                     </button>
                   </li>
                 );

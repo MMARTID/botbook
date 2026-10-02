@@ -135,10 +135,10 @@ export default function RegisterBusinessTeamPage() {
       <div className="panel w-full max-w-lg p-6 sm:p-8">
         <PasoDelAlta paso={4} />
         <div className="space-y-4 text-center">
-          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-xl bg-[#f3eeff] text-[#8b5cf6]">
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-xl bg-lavado text-morado">
             <Users className="h-7 w-7" />
           </div>
-          <h1 className="text-3xl font-black tracking-tight text-[#0a0a0a]">
+          <h1 className="text-3xl font-black tracking-tight text-tinta">
             {texts.team.heading}
           </h1>
           <p className="mx-auto max-w-md text-sm leading-6 text-muted">
@@ -179,7 +179,7 @@ export default function RegisterBusinessTeamPage() {
           />
         </div>
 
-        {error && <p role="alert" className="mt-4 text-sm text-[#c53030]">{error}</p>}
+        {error && <p role="alert" className="mt-4 text-sm text-error">{error}</p>}
 
         <div className="mt-8 space-y-3">
           <button

@@ -2,36 +2,138 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ---------------------------------------------------------------------------
+   Tema: cada color del sistema es una variable con su valor claro y su valor
+   oscuro, en canales RGB para que Tailwind pueda aplicarle opacidad
+   (`bg-superficie/95`). Las clases (`bg-lavado`, `text-tinta`…) vienen de
+   tailwind.config.ts. El tema lo fija `data-tema` en <html> antes de pintar
+   (lib/tema.ts y el script de app/layout.tsx): «sistema» por defecto.
+   --------------------------------------------------------------------------- */
 :root {
-  --background: #ffffff;
-  --foreground: #0a0a0a;
-  --surface: #ffffff;
-  --surface-soft: #fafafa;
-  --border: #e5e5e5;
+  color-scheme: light;
+
+  /* Superficies: la página, los paneles y lo que flota encima. */
+  --lienzo: 255 255 255;
+  --superficie: 255 255 255;
+  --elevada: 255 255 255;
+  --relleno: 250 250 250;
+  --relleno-fuerte: 244 244 245;
+  /* La próxima cita y la transcripción: oscuras en los dos temas. */
+  --oscuro: 10 10 10;
+
+  /* Líneas */
+  --linea-suave: 240 240 240;
+  --linea: 229 229 229;
+  --linea-fuerte: 212 212 216;
+
+  /* Texto. «Tinta» se invierte en oscuro, y con ella el texto que va encima
+     (`sobre-tinta`): el botón primario negro pasa a ser claro. */
+  --tinta: 10 10 10;
+  --tinta-2: 39 39 42;
+  --tinta-3: 63 63 70;
+  --tinta-hover: 38 38 38;
+  --sobre-tinta: 255 255 255;
   /* Gris neutro sobre blanco puro: 7.5:1, muy por encima de WCAG AA (4.5:1). */
-  --muted: #52525b;
-  --accent: #0a0a0a;
-  --accent-strong: #262626;
-  --accent-soft: #a78bfa;
-  --purple: #8b5cf6;
-  --purple-strong: #7c3aed;
-  --purple-wash: #f3eeff;
-  --purple-ink: #6d28d9;
-  --purple-ring: #ddd6fe;
-  --success: #2c7334;
-  --success-surface: #ecf7ec;
-  --warning: #9f7a15;
-  /* Texto de aviso: el ocre de arriba da 3,99:1 sobre blanco y no llega a AA
-     en texto pequeño. #9f7a15 se queda para puntos, iconos y bordes. */
-  --warning-ink: #806012;
-  --error: #c53030;
+  --apagado: 82 82 91;
+  --apagado-2: 113 113 122;
+  --tenue: 161 161 170;
+
+  /* Morado */
+  --morado: 139 92 246;
+  --morado-claro: 167 139 250;
+  --morado-hondo: 124 58 237;
+  --morado-tinta: 109 40 217;
+  --lavado: 243 238 255;
+  --lavado-2: 237 233 254;
+  --lavado-3: 250 248 255;
+  --lavado-borde: 221 214 254;
+
+  /* Estados */
+  --exito: 44 115 52;
+  --exito-fondo: 236 247 236;
+  --exito-borde: 216 239 215;
+  /* Texto de aviso: el ocre del icono da 3,99:1 sobre blanco y no llega a AA
+     en texto pequeño. `aviso-icono` se queda para puntos, iconos y bordes. */
+  --aviso: 128 96 18;
+  --aviso-icono: 159 122 21;
+  --aviso-fondo: 254 248 231;
+  --aviso-fondo-2: 253 242 211;
+  --aviso-borde: 240 223 168;
+  --error: 197 48 48;
+  --error-hondo: 168 40 40;
+  --error-fondo: 255 241 241;
+  --error-fondo-2: 253 236 236;
+  --error-borde: 245 211 211;
+  /* Botones de borrar: rojo sólido con texto blanco en los dos temas. */
+  --peligro: 197 48 48;
+  --peligro-hondo: 168 40 40;
+  /* Lo urgente (una cita que se cayó): un rojo más sobrio, solo en el icono
+     y en detalles, sobre una tarjeta blanca. */
+  --urgente: 180 35 24;
+  --urgente-fondo: 254 243 242;
+
+  /* Nombres antiguos que aún usan algunas clases. */
+  --background: rgb(var(--lienzo));
+  --foreground: rgb(var(--tinta));
+  --muted: rgb(var(--apagado));
+}
+
+:root[data-tema="oscuro"] {
+  color-scheme: dark;
+
+  --lienzo: 11 11 14;
+  --superficie: 20 20 24;
+  --elevada: 28 28 33;
+  --relleno: 25 25 30;
+  --relleno-fuerte: 36 36 42;
+  --oscuro: 30 30 36;
+
+  --linea-suave: 34 34 40;
+  --linea: 46 46 54;
+  --linea-fuerte: 63 63 72;
+
+  --tinta: 244 244 245;
+  --tinta-2: 228 228 231;
+  --tinta-3: 212 212 216;
+  --tinta-hover: 255 255 255;
+  --sobre-tinta: 10 10 10;
+  --apagado: 161 161 170;
+  --apagado-2: 142 142 152;
+  --tenue: 105 105 115;
+
+  --morado: 139 92 246;
+  --morado-claro: 196 181 253;
+  --morado-hondo: 124 58 237;
+  --morado-tinta: 196 181 253;
+  --lavado: 35 27 56;
+  --lavado-2: 43 34 70;
+  --lavado-3: 22 18 31;
+  --lavado-borde: 61 49 99;
+
+  --exito: 110 207 122;
+  --exito-fondo: 16 36 24;
+  --exito-borde: 30 61 39;
+  --aviso: 227 189 87;
+  --aviso-icono: 217 169 46;
+  --aviso-fondo: 38 31 13;
+  --aviso-fondo-2: 48 39 15;
+  --aviso-borde: 74 60 23;
+  --error: 244 112 103;
+  --error-hondo: 255 138 128;
+  --error-fondo: 42 20 22;
+  --error-fondo-2: 52 24 26;
+  --error-borde: 74 34 37;
+  --peligro: 200 58 58;
+  --peligro-hondo: 220 74 74;
+  --urgente: 249 112 102;
+  --urgente-fondo: 45 21 21;
 }
 
 body {
   min-height: 100vh;
   margin: 0;
-  color: var(--foreground);
-  background: var(--background);
+  color: rgb(var(--tinta));
+  background: rgb(var(--lienzo));
   font-family: var(--font-geist-sans), sans-serif;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -85,7 +187,7 @@ body {
   }
 
   .text-muted {
-    color: var(--muted);
+    color: rgb(var(--apagado));
   }
 
   /* Amplía hasta 44 px la zona que responde al dedo en enlaces de texto
@@ -108,11 +210,11 @@ body {
 
 @layer components {
   .panel {
-    @apply rounded-3xl border border-[#e5e5e5] bg-white shadow-none;
+    @apply rounded-3xl border border-linea bg-superficie shadow-none;
   }
 
   .field {
-    @apply h-11 rounded-[10px] border border-[#e5e5e5] bg-white px-4 text-sm outline-none transition duration-200 placeholder:text-[#52525b] focus:border-[#8b5cf6] focus:ring-2 focus:ring-[#8b5cf6]/30 disabled:cursor-not-allowed disabled:bg-[#fafafa] aria-[invalid=true]:border-[#c53030] aria-[invalid=true]:focus:border-[#c53030] aria-[invalid=true]:focus:ring-[#c53030]/30;
+    @apply h-11 rounded-[10px] border border-linea bg-superficie px-4 text-sm text-tinta outline-none transition duration-200 placeholder:text-apagado focus:border-morado focus:ring-2 focus:ring-morado/30 disabled:cursor-not-allowed disabled:bg-relleno aria-[invalid=true]:border-error aria-[invalid=true]:focus:border-error aria-[invalid=true]:focus:ring-error/30;
   }
 
   /* Anillo de foco morado en los tres: sin esto, cada botón primario,
@@ -121,19 +223,19 @@ body {
      WCAG 2.1 AA, no una preferencia visual. Un solo punto de arreglo aquí
      cubre cada instancia de estas clases en toda la aplicación. */
   .btn-primary {
-    @apply inline-flex h-12 items-center justify-center gap-2 rounded-[10px] bg-[#0a0a0a] px-6 text-sm font-semibold text-white transition duration-200 hover:-translate-y-0.5 hover:bg-[#262626] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0;
+    @apply inline-flex h-12 items-center justify-center gap-2 rounded-[10px] bg-tinta px-6 text-sm font-semibold text-sobre-tinta transition duration-200 hover:-translate-y-0.5 hover:bg-tinta-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-morado focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0;
   }
 
   .btn-secondary {
-    @apply inline-flex h-12 items-center justify-center gap-2 rounded-[10px] border border-[#0a0a0a] bg-white px-6 text-sm font-semibold text-[#0a0a0a] transition duration-200 hover:-translate-y-0.5 hover:bg-[#fafafa] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0;
+    @apply inline-flex h-12 items-center justify-center gap-2 rounded-[10px] border border-tinta bg-superficie px-6 text-sm font-semibold text-tinta transition duration-200 hover:-translate-y-0.5 hover:bg-relleno focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-morado focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0;
   }
 
   .btn-purple {
-    @apply inline-flex h-12 items-center justify-center gap-2 rounded-[10px] bg-[#8b5cf6] px-6 text-sm font-semibold text-white transition duration-200 hover:-translate-y-0.5 hover:bg-[#7c3aed] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0;
+    @apply inline-flex h-12 items-center justify-center gap-2 rounded-[10px] bg-morado px-6 text-sm font-semibold text-white transition duration-200 hover:-translate-y-0.5 hover:bg-morado-hondo focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-morado focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0;
   }
 
   .badge-soft {
-    @apply inline-flex items-center rounded-full bg-[#f3eeff] px-3 py-1 text-xs font-semibold text-[#6d28d9] ring-1 ring-inset ring-[#ddd6fe];
+    @apply inline-flex items-center rounded-full bg-lavado px-3 py-1 text-xs font-semibold text-morado-tinta ring-1 ring-inset ring-lavado-borde;
   }
 
   @media (hover: hover) and (prefers-reduced-motion: no-preference) {
@@ -156,7 +258,7 @@ body {
   /* Barra de scroll fina y neutra, coherente con el sistema blanco/negro/morado. */
   html {
     scrollbar-width: thin;
-    scrollbar-color: #d4d4d8 transparent;
+    scrollbar-color: rgb(var(--linea-fuerte)) transparent;
   }
 
   ::-webkit-scrollbar {
@@ -169,14 +271,14 @@ body {
   }
 
   ::-webkit-scrollbar-thumb {
-    background-color: #d4d4d8;
+    background-color: rgb(var(--linea-fuerte));
     border-radius: 9999px;
-    border: 2.5px solid #ffffff;
+    border: 2.5px solid rgb(var(--superficie));
     background-clip: padding-box;
   }
 
   ::-webkit-scrollbar-thumb:hover {
-    background-color: #a1a1aa;
+    background-color: rgb(var(--tenue));
   }
 
   ::-webkit-scrollbar-corner {
@@ -192,7 +294,7 @@ body {
 
   .scrollbar-dark::-webkit-scrollbar-thumb {
     background-color: rgba(255, 255, 255, 0.3);
-    border-color: #0a0a0a;
+    border-color: rgb(var(--oscuro));
   }
 
   .scrollbar-dark::-webkit-scrollbar-thumb:hover {

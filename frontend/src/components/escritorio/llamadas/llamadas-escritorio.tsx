@@ -224,13 +224,13 @@ export function LlamadasEscritorio({ business }: { business: Business }) {
   return (
     <div className="flex h-screen flex-col">
       <TiraDePagina icono={PhoneCall} titulo="Llamadas">
-        <nav aria-label="Secciones de llamadas" className="inline-flex shrink-0 gap-0.5 rounded-full border border-[#e5e5e5] bg-[#fafafa] p-[3px]">
-          <span aria-current="page" className="flex min-h-9 items-center rounded-full bg-[#f3eeff] px-3.5 text-sm font-semibold text-[#6d28d9] ring-1 ring-inset ring-[#ddd6fe]">
+        <nav aria-label="Secciones de llamadas" className="inline-flex shrink-0 gap-0.5 rounded-full border border-linea bg-relleno p-[3px]">
+          <span aria-current="page" className="flex min-h-9 items-center rounded-full bg-lavado px-3.5 text-sm font-semibold text-morado-tinta ring-1 ring-inset ring-lavado-borde">
             Historial
           </span>
           <Link
             href="/llamadas/analitica"
-            className="flex min-h-9 items-center rounded-full px-3.5 text-sm font-semibold text-[#52525b] transition hover:text-[#0a0a0a] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]"
+            className="flex min-h-9 items-center rounded-full px-3.5 text-sm font-semibold text-apagado transition hover:text-tinta focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-morado"
           >
             Analítica avanzada
           </Link>
@@ -246,7 +246,7 @@ export function LlamadasEscritorio({ business }: { business: Business }) {
               <button
                 type="button"
                 onClick={() => actualizar({ filtro: "por_devolver" })}
-                className="rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]"
+                className="rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-morado"
               >
                 <Insignia tono="aviso">{porDevolver === 1 ? "1 recado por devolver" : `${porDevolver} recados por devolver`}</Insignia>
               </button>
@@ -257,7 +257,7 @@ export function LlamadasEscritorio({ business }: { business: Business }) {
 
       <div className="flex min-h-0 flex-1">
         <div className="flex min-w-0 flex-1 flex-col">
-          <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-[#e5e5e5] px-8 py-3">
+          <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-linea px-8 py-3">
             <label className="relative flex h-10 w-72 items-center">
               <Search className="pointer-events-none absolute left-3 h-4 w-4 text-muted" aria-hidden="true" />
               <span className="sr-only">Buscar en el historial</span>
@@ -280,7 +280,7 @@ export function LlamadasEscritorio({ business }: { business: Business }) {
                   setBusqueda("");
                   router.replace(seleccionada ? `${pathname}?llamada=${seleccionada}` : pathname, { scroll: false });
                 }}
-                className="inline-flex h-10 items-center gap-1 rounded-full px-3 text-sm font-semibold text-[#6d28d9] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]"
+                className="inline-flex h-10 items-center gap-1 rounded-full px-3 text-sm font-semibold text-morado-tinta focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-morado"
               >
                 <X className="h-4 w-4" aria-hidden="true" />
                 Quitar filtros
@@ -297,14 +297,14 @@ export function LlamadasEscritorio({ business }: { business: Business }) {
             {pedido.isLoading ? (
               <div className="space-y-px p-8" aria-label="Cargando llamadas">
                 {Array.from({ length: 8 }, (_, indice) => (
-                  <div key={indice} className="h-14 rounded-xl bg-[#f4f4f5] motion-safe:animate-pulse" aria-hidden="true" />
+                  <div key={indice} className="h-14 rounded-xl bg-relleno-fuerte motion-safe:animate-pulse" aria-hidden="true" />
                 ))}
               </div>
             ) : pedido.isError ? (
               <SectionErrorState className="m-8" message="No se pudieron cargar las llamadas." onRetry={() => void pedido.refetch()} />
             ) : llamadas.length === 0 ? (
               <div className="flex justify-center p-12">
-                <p className="max-w-md rounded-2xl border border-dashed border-[#e5e5e5] bg-[#fafafa] px-6 py-5 text-center text-sm leading-6 text-muted">
+                <p className="max-w-md rounded-2xl border border-dashed border-linea bg-relleno px-6 py-5 text-center text-sm leading-6 text-muted">
                   {hayFiltros
                     ? "Ninguna conversación cumple estos filtros. Prueba con otro periodo o quita la búsqueda."
                     : "Todavía no hay llamadas. La actividad aparecerá aquí cuando la recepcionista atienda a un cliente."}
@@ -326,12 +326,12 @@ export function LlamadasEscritorio({ business }: { business: Business }) {
 
           {total > 0 ? (
             // pr-20: el botón flotante de las cookies vive en esa esquina.
-            <div className="flex shrink-0 items-center gap-3 border-t border-[#e5e5e5] py-2.5 pl-8 pr-20 text-sm text-muted">
+            <div className="flex shrink-0 items-center gap-3 border-t border-linea py-2.5 pl-8 pr-20 text-sm text-muted">
               <span>
-                <strong className="font-semibold tabular-nums text-[#27272a]">
+                <strong className="font-semibold tabular-nums text-tinta-2">
                   {pagina * porPagina + 1}–{pagina * porPagina + llamadas.length}
                 </strong>{" "}
-                de <strong className="font-semibold tabular-nums text-[#27272a]">{total}</strong>
+                de <strong className="font-semibold tabular-nums text-tinta-2">{total}</strong>
               </span>
               <span className="flex-1" />
               <label className="flex items-center gap-2">
@@ -339,7 +339,7 @@ export function LlamadasEscritorio({ business }: { business: Business }) {
                 <select
                   value={porPagina}
                   onChange={(evento) => actualizar({ por: evento.target.value === "50" ? null : evento.target.value })}
-                  className="field h-9 px-2 text-sm text-[#0a0a0a]"
+                  className="field h-9 px-2 text-sm text-tinta"
                 >
                   {TAMAÑOS.map((tamaño) => (
                     <option key={tamaño} value={tamaño}>
@@ -353,7 +353,7 @@ export function LlamadasEscritorio({ business }: { business: Business }) {
                 onClick={() => actualizar({ pagina: pagina - 1 > 0 ? String(pagina - 1) : null })}
                 disabled={pagina === 0}
                 aria-label="Página anterior"
-                className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[#e5e5e5] bg-white text-[#27272a] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] disabled:opacity-40"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-linea bg-superficie text-tinta-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-morado disabled:opacity-40"
               >
                 <ChevronLeft className="h-4 w-4" aria-hidden="true" />
               </button>
@@ -362,7 +362,7 @@ export function LlamadasEscritorio({ business }: { business: Business }) {
                 onClick={() => actualizar({ pagina: String(pagina + 1) })}
                 disabled={(pagina + 1) * porPagina >= total}
                 aria-label="Página siguiente"
-                className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[#e5e5e5] bg-white text-[#27272a] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] disabled:opacity-40"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-linea bg-superficie text-tinta-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-morado disabled:opacity-40"
               >
                 <ChevronRight className="h-4 w-4" aria-hidden="true" />
               </button>
@@ -406,8 +406,8 @@ function Selector<T extends string>({
       <select
         value={valor}
         onChange={(evento) => onCambiar(evento.target.value as T)}
-        className={`h-10 appearance-none rounded-full border bg-white pl-3.5 pr-8 text-sm font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] ${
-          activo ? "border-[#ddd6fe] bg-[#f3eeff] text-[#6d28d9]" : "border-[#e5e5e5] text-[#27272a]"
+        className={`h-10 appearance-none rounded-full border bg-superficie pl-3.5 pr-8 text-sm font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-morado ${
+          activo ? "border-lavado-borde bg-lavado text-morado-tinta" : "border-linea text-tinta-2"
         }`}
       >
         {opciones.map((opcion) => (
@@ -437,7 +437,7 @@ function CabeceraOrdenable({
     <button
       type="button"
       onClick={onClick}
-      className={`inline-flex items-center gap-1 uppercase tracking-[0.1em] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] ${activo ? "text-[#6d28d9]" : "hover:text-[#0a0a0a]"}`}
+      className={`inline-flex items-center gap-1 uppercase tracking-[0.1em] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-morado ${activo ? "text-morado-tinta" : "hover:text-tinta"}`}
     >
       {texto}
       {activo ? <Flecha className="h-3 w-3" aria-hidden="true" /> : null}
@@ -469,7 +469,7 @@ function TablaDeLlamadas({
     "grid grid-cols-[minmax(132px,1fr)_92px_96px_56px_minmax(118px,0.7fr)_minmax(160px,2fr)_40px] items-center gap-3";
   return (
     <div role="table" aria-label="Historial de llamadas" aria-busy={actualizando} className={actualizando ? "opacity-70 transition-opacity" : ""}>
-      <div role="row" className={`${columnas} sticky top-0 z-10 border-b border-[#e5e5e5] bg-[#fafafa] px-8 py-2.5 text-[11px] font-semibold uppercase tracking-[0.1em] text-muted`}>
+      <div role="row" className={`${columnas} sticky top-0 z-10 border-b border-linea bg-relleno px-8 py-2.5 text-[11px] font-semibold uppercase tracking-[0.1em] text-muted`}>
         <span role="columnheader">Cliente</span>
         <span role="columnheader" aria-sort={orden === "reciente" ? "descending" : orden === "antigua" ? "ascending" : "none"}>
           <CabeceraOrdenable texto="Fecha" activo={orden === "reciente" || orden === "antigua"} ascendente={orden === "antigua"} onClick={() => onOrdenar("fecha")} />
@@ -530,20 +530,20 @@ function FilaDeLlamada({
       role="row"
       aria-selected={elegida}
       onClick={onAbrir}
-      className={`${columnas} w-full border-b border-[#f4f4f5] px-8 py-2.5 text-left text-sm transition focus-visible:relative focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#8b5cf6] ${
-        elegida ? "bg-[#f3eeff] shadow-[inset_3px_0_0_#8b5cf6]" : "hover:bg-[#fafafa]"
+      className={`${columnas} w-full border-b border-linea-suave px-8 py-2.5 text-left text-sm transition focus-visible:relative focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-morado ${
+        elegida ? "bg-lavado shadow-[inset_3px_0_0_rgb(var(--morado))]" : "hover:bg-relleno"
       }`}
     >
       <span role="cell" className="min-w-0">
-        <span className="block truncate font-semibold tabular-nums text-[#0a0a0a]">{formatPhoneLocal(llamada.fromNumber) ?? "Número oculto"}</span>
+        <span className="block truncate font-semibold tabular-nums text-tinta">{formatPhoneLocal(llamada.fromNumber) ?? "Número oculto"}</span>
         {nombre ? <span className="block truncate text-xs text-muted">{nombre}</span> : null}
       </span>
-      <span role="cell" className="tabular-nums text-[#52525b]">{momentoCorto(llamada.startedAt, timeZone, hoy)}</span>
-      <span role="cell" className="flex items-center gap-1.5 text-[#52525b]">
-        {chat ? <MessageCircle className="h-4 w-4 text-[#8b5cf6]" aria-hidden="true" /> : <PhoneCall className="h-4 w-4 text-[#8b5cf6]" aria-hidden="true" />}
+      <span role="cell" className="tabular-nums text-apagado">{momentoCorto(llamada.startedAt, timeZone, hoy)}</span>
+      <span role="cell" className="flex items-center gap-1.5 text-apagado">
+        {chat ? <MessageCircle className="h-4 w-4 text-morado" aria-hidden="true" /> : <PhoneCall className="h-4 w-4 text-morado" aria-hidden="true" />}
         {chat ? "WhatsApp" : "Voz"}
       </span>
-      <span role="cell" className="tabular-nums text-[#52525b]">{chat ? "—" : mmss(llamada.durationSecs)}</span>
+      <span role="cell" className="tabular-nums text-apagado">{chat ? "—" : mmss(llamada.durationSecs)}</span>
       <span role="cell">
         <Insignia tono={TONO_DE_RESULTADO[resultado.tono]} icono={resultado.icono}>
           {resultado.texto}
@@ -551,19 +551,19 @@ function FilaDeLlamada({
       </span>
       <span role="cell" className="min-w-0">
         {reserva ? (
-          <span className="flex items-center gap-1.5 truncate text-[#27272a]">
-            <CalendarCheck className="h-4 w-4 shrink-0 text-[#6d28d9]" aria-hidden="true" />
+          <span className="flex items-center gap-1.5 truncate text-tinta-2">
+            <CalendarCheck className="h-4 w-4 shrink-0 text-morado-tinta" aria-hidden="true" />
             <span className="truncate">
               {[servicios || "Reserva creada", reserva.professional?.name, importe != null ? formatPrice(importe) : null].filter(Boolean).join(" · ")}
             </span>
           </span>
         ) : (
-          <span className={`line-clamp-2 ${llamada.summary ? "text-[#52525b]" : "text-muted"}`}>
+          <span className={`line-clamp-2 ${llamada.summary ? "text-apagado" : "text-muted"}`}>
             {llamada.summary ?? "Sin resumen de la conversación."}
           </span>
         )}
       </span>
-      <span role="cell" className="flex justify-center text-[#52525b]" title={sentimentLabel(llamada.sentiment) ?? undefined}>
+      <span role="cell" className="flex justify-center text-apagado" title={sentimentLabel(llamada.sentiment) ?? undefined}>
         {Animo ? <Animo className="h-[18px] w-[18px]" aria-label={sentimentLabel(llamada.sentiment) ?? undefined} /> : <span aria-label="Sin dato">—</span>}
       </span>
     </button>
