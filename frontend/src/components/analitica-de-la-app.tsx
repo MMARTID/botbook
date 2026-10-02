@@ -28,6 +28,7 @@ export function AnaliticaDeLaApp() {
       enlaceDePrivacidad={webUrl("/legal/privacidad")}
       rutasSinMedicion={RUTAS_SIN_MEDICION}
       dentroDelPanel={!esRutaSinArmazon(pathname)}
+      grupoDeContenido="app"
     />
   );
 }

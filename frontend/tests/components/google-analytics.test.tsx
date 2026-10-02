@@ -66,20 +66,21 @@ describe("analítica de la app", () => {
     ).toBeInTheDocument();
     expect(estado.alCargar).toBeNull();
 
-    fireEvent.click(screen.getByRole("button", { name: "Aceptar analítica" }));
+    fireEvent.click(screen.getByRole("button", { name: "Aceptar cookies" }));
     await waitFor(() => expect(estado.alCargar).not.toBeNull());
     act(() => estado.alCargar?.());
 
     expect(vistas()).toHaveLength(1);
     expect(vistas()[0][2]).toMatchObject({
       page_location: `${window.location.origin}/agenda`,
+      content_group: "app",
     });
     expect(estado.filtrar?.(evento("/agenda?cliente=secreto"))).toMatchObject({
       url: `${window.location.origin}/agenda`,
     });
 
     fireEvent.click(screen.getByRole("button", { name: "Configurar cookies" }));
-    fireEvent.click(screen.getByRole("button", { name: "Rechazar analítica" }));
+    fireEvent.click(screen.getByRole("button", { name: "Rechazar cookies" }));
     expect(estado.filtrar?.(evento("/agenda"))).toBeNull();
   });
 
@@ -89,7 +90,7 @@ describe("analítica de la app", () => {
     const { rerender } = render(<AnaliticaDeLaApp />);
 
     fireEvent.click(
-      await screen.findByRole("button", { name: "Aceptar analítica" })
+      await screen.findByRole("button", { name: "Aceptar cookies" })
     );
     await waitFor(() => expect(estado.alCargar).not.toBeNull());
     act(() => estado.alCargar?.());
@@ -128,7 +129,7 @@ describe("analítica de la app", () => {
     );
     expect(aviso).toHaveClass(CLASE_SOBRE_BARRA_INFERIOR, "lg:bottom-4");
 
-    fireEvent.click(screen.getByRole("button", { name: "Rechazar analítica" }));
+    fireEvent.click(screen.getByRole("button", { name: "Rechazar cookies" }));
     expect(
       screen.getByRole("button", { name: "Configurar cookies" })
     ).toHaveClass("right-4", "hidden", "lg:inline-flex");
@@ -143,7 +144,7 @@ describe("analítica de la app", () => {
     expect(aviso).toHaveClass("bottom-4");
     expect(aviso).not.toHaveClass(CLASE_SOBRE_BARRA_INFERIOR);
 
-    fireEvent.click(screen.getByRole("button", { name: "Rechazar analítica" }));
+    fireEvent.click(screen.getByRole("button", { name: "Rechazar cookies" }));
     const boton = screen.getByRole("button", { name: "Configurar cookies" });
     expect(boton).toHaveClass("left-4", "inline-flex");
     expect(boton).not.toHaveClass("hidden");
@@ -152,15 +153,15 @@ describe("analítica de la app", () => {
   it("abrirPreferenciasDeCookies() reabre el aviso (la hoja «Más» del móvil)", async () => {
     render(<AnaliticaDeLaApp />);
     fireEvent.click(
-      await screen.findByRole("button", { name: "Rechazar analítica" })
+      await screen.findByRole("button", { name: "Rechazar cookies" })
     );
     expect(
-      screen.queryByRole("button", { name: "Aceptar analítica" })
+      screen.queryByRole("button", { name: "Aceptar cookies" })
     ).not.toBeInTheDocument();
 
     act(() => abrirPreferenciasDeCookies());
     expect(
-      screen.getByRole("button", { name: "Aceptar analítica" })
+      screen.getByRole("button", { name: "Aceptar cookies" })
     ).toBeInTheDocument();
   });
 });

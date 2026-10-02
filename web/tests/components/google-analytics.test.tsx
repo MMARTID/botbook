@@ -46,6 +46,7 @@ function comoEnLaWeb() {
     <GoogleAnalytics
       enlaceDePrivacidad="/legal/privacidad"
       rutasSinAnalitica={RUTAS_INTERNAS}
+      grupoDeContenido="web"
     />
   );
 }
@@ -82,7 +83,7 @@ describe("consentimiento de analítica", () => {
     expect(estado.alCargar).toBeNull();
     expect(estado.filtrar).toBeNull();
 
-    fireEvent.click(screen.getByRole("button", { name: "Rechazar analítica" }));
+    fireEvent.click(screen.getByRole("button", { name: "Rechazar cookies" }));
     expect(document.cookie).toContain("alhabla_analitica=rechazada");
     expect(estado.alCargar).toBeNull();
     expect(
@@ -93,7 +94,7 @@ describe("consentimiento de analítica", () => {
   it("mide una URL sin parámetros y detiene ambos proveedores al revocar", async () => {
     render(comoEnLaWeb());
     fireEvent.click(
-      await screen.findByRole("button", { name: "Aceptar analítica" })
+      await screen.findByRole("button", { name: "Aceptar cookies" })
     );
     await waitFor(() => expect(estado.alCargar).not.toBeNull());
 
@@ -105,10 +106,12 @@ describe("consentimiento de analítica", () => {
     expect(configuracion[2]).toMatchObject({
       page_location: `${window.location.origin}/planes`,
       send_page_view: false,
+      content_group: "web",
     });
     expect(vistas()[0][2]).toMatchObject({
       page_path: "/planes",
       page_location: `${window.location.origin}/planes`,
+      content_group: "web",
     });
     expect(estado.filtrar?.(evento("/planes?token=secreto"))).toMatchObject({
       url: `${window.location.origin}/planes`,
@@ -116,7 +119,7 @@ describe("consentimiento de analítica", () => {
 
     document.cookie = "_ga=identificador; Path=/";
     fireEvent.click(screen.getByRole("button", { name: "Configurar cookies" }));
-    fireEvent.click(screen.getByRole("button", { name: "Rechazar analítica" }));
+    fireEvent.click(screen.getByRole("button", { name: "Rechazar cookies" }));
 
     expect(document.cookie).not.toContain("_ga=identificador");
     expect(Reflect.get(window, "ga-disable-G-Z3RT28K0ZJ")).toBe(true);
@@ -124,7 +127,7 @@ describe("consentimiento de analítica", () => {
     expect(vistas()).toHaveLength(1);
 
     fireEvent.click(screen.getByRole("button", { name: "Configurar cookies" }));
-    fireEvent.click(screen.getByRole("button", { name: "Aceptar analítica" }));
+    fireEvent.click(screen.getByRole("button", { name: "Aceptar cookies" }));
     act(() => estado.alCargar?.());
     await waitFor(() => expect(vistas()).toHaveLength(2));
     expect(Reflect.get(window, "ga-disable-G-Z3RT28K0ZJ")).toBe(false);
@@ -147,7 +150,7 @@ describe("consentimiento de analítica", () => {
       expect(estado.alCargar).toBeNull();
       expect(estado.filtrar).toBeNull();
       expect(
-        screen.queryByRole("button", { name: "Aceptar analítica" })
+        screen.queryByRole("button", { name: "Aceptar cookies" })
       ).not.toBeInTheDocument();
       expect(
         screen.queryByRole("button", { name: "Configurar cookies" })
@@ -158,7 +161,7 @@ describe("consentimiento de analítica", () => {
   it("el filtro de Vercel descarta las rutas internas aunque se haya aceptado", async () => {
     render(comoEnLaWeb());
     fireEvent.click(
-      await screen.findByRole("button", { name: "Aceptar analítica" })
+      await screen.findByRole("button", { name: "Aceptar cookies" })
     );
     await waitFor(() => expect(estado.filtrar).not.toBeNull());
 
@@ -187,7 +190,7 @@ describe("aviso de cookies", () => {
     expect(aviso).toHaveClass("bottom-4");
     expect(aviso).not.toHaveClass("lg:bottom-4");
 
-    fireEvent.click(screen.getByRole("button", { name: "Rechazar analítica" }));
+    fireEvent.click(screen.getByRole("button", { name: "Rechazar cookies" }));
     const boton = screen.getByRole("button", { name: "Configurar cookies" });
     expect(boton).toHaveClass("left-4", "inline-flex");
     expect(boton).not.toHaveClass("hidden");
@@ -205,7 +208,7 @@ describe("aviso de cookies", () => {
       "lg:bottom-4"
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Rechazar analítica" }));
+    fireEvent.click(screen.getByRole("button", { name: "Rechazar cookies" }));
     expect(
       screen.getByRole("button", { name: "Configurar cookies" })
     ).toHaveClass("right-4", "hidden", "lg:inline-flex");
@@ -220,7 +223,7 @@ describe("aviso de cookies", () => {
       />
     );
     fireEvent.click(
-      await screen.findByRole("button", { name: "Aceptar analítica" })
+      await screen.findByRole("button", { name: "Aceptar cookies" })
     );
     await waitFor(() => expect(estado.alCargar).not.toBeNull());
     act(() => estado.alCargar?.());
@@ -266,7 +269,7 @@ describe("aviso aplazado hasta el primer scroll (la web)", () => {
       await screen.findByText("Preferencias de cookies")
     ).toBeInTheDocument();
     // Etiqueta visible corta, nombre accesible completo.
-    const aceptar = screen.getByRole("button", { name: "Aceptar analítica" });
+    const aceptar = screen.getByRole("button", { name: "Aceptar cookies" });
     expect(aceptar).toHaveTextContent("Aceptar");
     expect(vistas()).toHaveLength(0);
   });
