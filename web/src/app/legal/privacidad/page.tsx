@@ -307,10 +307,11 @@ export default function PrivacidadPage() {
         </p>
         <p>
           Usamos Google Analytics y Vercel Analytics para conocer cómo se navega por la web y la aplicación. Solo se
-          cargan si aceptas la analítica en el aviso de cookies; puedes rechazarla sin que afecte al servicio. Tu elección
-          se guarda durante un año y se comparte entre alhabla.ai y app.alhabla.ai. Puedes cambiarla en cualquier momento
-          con el botón «Configurar cookies» de la web o la aplicación. Al rechazarla, dejamos de enviar datos de analítica
-          y eliminamos las cookies de Google Analytics accesibles desde la página.
+          cargan si aceptas las cookies de medición en el aviso de cookies; puedes rechazarlas sin que afecte al
+          servicio. Tu elección se guarda durante un año y se comparte entre alhabla.ai y app.alhabla.ai. Puedes
+          cambiarla en cualquier momento con el botón de la galleta («Configurar cookies») de la web o la aplicación.
+          Al rechazarlas, dejamos de enviar datos de analítica y eliminamos las cookies de Google Analytics accesibles
+          desde la página.
         </p>
       </LegalSection>
 

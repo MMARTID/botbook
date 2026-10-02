@@ -102,6 +102,7 @@ export default function RootLayout({
           enlaceDePrivacidad="/legal/privacidad"
           rutasSinAnalitica={["keystatic", "vista-previa", "preview", "api"]}
           aplazarAvisoHastaScroll
+          grupoDeContenido="web"
         />
       </body>
     </html>

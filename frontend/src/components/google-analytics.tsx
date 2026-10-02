@@ -10,6 +10,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { usePathname } from "next/navigation";
 import Script from "next/script";
+import { Cookie } from "lucide-react";
 import { Analytics, type BeforeSendEvent } from "@vercel/analytics/next";
 
 const ID_MEDICION = process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID ?? "G-Z3RT28K0ZJ";
@@ -76,7 +77,7 @@ function borrarCookiesDeGoogle() {
   }
 }
 
-function configurarGoogle() {
+function configurarGoogle(grupoDeContenido: string | undefined) {
   Reflect.set(window, `ga-disable-${ID_MEDICION}`, false);
   window.dataLayer ??= [];
   window.gtag ??= (...args: unknown[]) => window.dataLayer?.push(args);
@@ -96,6 +97,9 @@ function configurarGoogle() {
       page_referrer: referenteSeguro(),
       allow_google_signals: false,
       allow_ad_personalization_signals: false,
+      // Va en la configuración para que también lo lleven los eventos
+      // automáticos de Google, no solo el `page_view` que se envía a mano.
+      ...(grupoDeContenido ? { content_group: grupoDeContenido } : {}),
     });
     window.alhablaGtagConfigurado = true;
   } else {
@@ -147,6 +151,12 @@ type PropiedadesDeAnalitica = {
    * diseño del 24-09, P1). Nada se mide mientras tanto: Google y Vercel solo
    * se cargan tras aceptar. */
   aplazarAvisoHastaScroll?: boolean;
+  /** «web» o «app»: viaja como `content_group` en cada evento de Google para
+   * que las visitas de captación y el uso del panel se puedan ver por
+   * separado aunque compartan ID de medición. La separación completa (un
+   * flujo de datos por dominio) se hace con NEXT_PUBLIC_GA_MEASUREMENT_ID
+   * en cada proyecto de Vercel. */
+  grupoDeContenido?: string;
 };
 
 /** Comparte la elección entre la app y la web, mide solo páginas sin
@@ -157,6 +167,7 @@ export function GoogleAnalytics({
   rutasSinAnalitica = SIN_RUTAS,
   dentroDelPanel = false,
   aplazarAvisoHastaScroll = false,
+  grupoDeContenido,
 }: PropiedadesDeAnalitica) {
   const pathname = usePathname();
   const [consentimiento, setConsentimiento] = useState<boolean | null>(null);
@@ -221,14 +232,14 @@ export function GoogleAnalytics({
     if (!conAnalitica || !hidratado || !/^G-[A-Z0-9]+$/.test(ID_MEDICION))
       return;
     if (consentimiento === true) {
-      configurarGoogle();
+      configurarGoogle(grupoDeContenido);
       setPuedeCargar(true);
     } else {
       detenerGoogle();
       setPuedeCargar(false);
       setListo(false);
     }
-  }, [consentimiento, hidratado, conAnalitica]);
+  }, [consentimiento, hidratado, conAnalitica, grupoDeContenido]);
 
   useEffect(() => {
     if (!listo || consentimiento !== true || !medible) return;
@@ -238,8 +249,9 @@ export function GoogleAnalytics({
       page_location: `${window.location.origin}${pathname}`,
       page_referrer: referenteSeguro(),
       page_title: document.title,
+      ...(grupoDeContenido ? { content_group: grupoDeContenido } : {}),
     });
-  }, [listo, consentimiento, pathname, medible]);
+  }, [listo, consentimiento, pathname, medible, grupoDeContenido]);
 
   if (!conAnalitica) return null;
   if (!/^G-[A-Z0-9]+$/.test(ID_MEDICION)) return null;
@@ -293,8 +305,8 @@ export function GoogleAnalytics({
             Preferencias de cookies
           </h2>
           <p className="text-sm leading-5 text-muted">
-            Analítica opcional (Google Analytics y Vercel): solo se activa si
-            aceptas.{" "}
+            Cookies opcionales de medición (Google Analytics y Vercel): solo
+            se activan si aceptas.{" "}
             <a
               href={enlaceDePrivacidad}
               className="rounded font-medium text-[#27272a] underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]"
@@ -310,7 +322,7 @@ export function GoogleAnalytics({
             <button
               type="button"
               onClick={() => decidir(true)}
-              aria-label="Aceptar analítica"
+              aria-label="Aceptar cookies"
               className="btn-secondary h-11 px-5"
             >
               Aceptar
@@ -318,7 +330,7 @@ export function GoogleAnalytics({
             <button
               type="button"
               onClick={() => decidir(false)}
-              aria-label="Rechazar analítica"
+              aria-label="Rechazar cookies"
               className="btn-secondary h-11 px-5"
             >
               Rechazar
@@ -329,12 +341,16 @@ export function GoogleAnalytics({
         // `data-relato` lo pone en <html> el relato con scroll de la portada
         // de la web (llamada-scroll.tsx): mientras el escenario está fijo el
         // botón se esconde, porque tapaba la barra de pasos en móvil.
+        // Solo el icono: una pastilla con texto ocupaba media esquina en
+        // móvil. El nombre accesible y el `title` dicen lo que hace.
         <button
           type="button"
           onClick={() => setAbierto(true)}
-          className={`fixed bottom-4 z-40 min-h-11 items-center rounded-full border border-[#e5e5e5] bg-white px-4 text-xs font-semibold text-[#27272a] shadow-[0_8px_24px_rgba(0,0,0,0.08)] transition duration-200 hover:bg-[#fafafa] [html[data-relato]_&]:pointer-events-none [html[data-relato]_&]:opacity-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] ${colocacionDelBoton}`}
+          aria-label="Configurar cookies"
+          title="Configurar cookies"
+          className={`fixed bottom-4 z-40 h-11 w-11 items-center justify-center rounded-full border border-[#e5e5e5] bg-white text-[#27272a] shadow-[0_8px_24px_rgba(0,0,0,0.08)] transition duration-200 hover:bg-[#fafafa] hover:text-[#8b5cf6] [html[data-relato]_&]:pointer-events-none [html[data-relato]_&]:opacity-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] ${colocacionDelBoton}`}
         >
-          Configurar cookies
+          <Cookie className="h-5 w-5" aria-hidden="true" />
         </button>
       ) : null}
     </>
