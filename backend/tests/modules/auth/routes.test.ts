@@ -103,6 +103,9 @@ describe("authRoutes", () => {
     process.env.GOOGLE_AUTH_CLIENT_ID = "google_client_id";
     process.env.GOOGLE_AUTH_CLIENT_SECRET = "google_client_secret";
     process.env.GOOGLE_AUTH_REDIRECT_URI = "http://localhost:3000/auth/google/callback";
+    process.env.FACEBOOK_APP_ID = "facebook_app_id";
+    process.env.FACEBOOK_APP_SECRET = "facebook_app_secret";
+    process.env.FACEBOOK_AUTH_REDIRECT_URI = "http://localhost:3000/auth/facebook/callback";
 
     fastify = Fastify();
     fastify.decorate("authenticate", async (request: any) => {
@@ -511,7 +514,9 @@ describe("authRoutes", () => {
 
     it("no crea la cuenta si el state no llevaba los términos aceptados", async () => {
       mockedGetRedis.mockReturnValue({
-        getdel: vi.fn().mockResolvedValue(JSON.stringify({ termsAccepted: false })),
+        getdel: vi
+          .fn()
+          .mockResolvedValue(JSON.stringify({ termsAccepted: false, intent: "register" })),
         set: vi.fn().mockResolvedValue("OK"),
       } as any);
 
@@ -528,7 +533,9 @@ describe("authRoutes", () => {
 
     it("crea la cuenta y registra termsAcceptedAt si el state llevaba los términos aceptados", async () => {
       mockedGetRedis.mockReturnValue({
-        getdel: vi.fn().mockResolvedValue(JSON.stringify({ termsAccepted: true })),
+        getdel: vi
+          .fn()
+          .mockResolvedValue(JSON.stringify({ termsAccepted: true, intent: "register" })),
         set: vi.fn().mockResolvedValue("OK"),
       } as any);
       mockedTransaction.mockImplementation(async (callback: any) => {
@@ -550,6 +557,25 @@ describe("authRoutes", () => {
       expect(mockedUserCreate).toHaveBeenCalledWith(
         expect.objectContaining({ data: expect.objectContaining({ termsAcceptedAt: expect.any(Date) }) })
       );
+    });
+
+    it("no crea cuenta si el intent es login (bug corregido: /login ya no registra en silencio)", async () => {
+      mockedGetRedis.mockReturnValue({
+        getdel: vi
+          .fn()
+          .mockResolvedValue(JSON.stringify({ termsAccepted: true, intent: "login" })),
+        set: vi.fn().mockResolvedValue("OK"),
+      } as any);
+
+      const response = await fastify.inject({
+        method: "GET",
+        url: "/google/callback?code=auth_code&state=abc",
+        headers: { cookie: "alhabla_google_oauth_state=abc" },
+      });
+
+      expect(response.statusCode).toBe(302);
+      expect(response.headers.location).toContain("error=account_not_found");
+      expect(mockedTransaction).not.toHaveBeenCalled();
     });
 
     it("rechaza el callback si no llega la cookie del navegador que inició el flujo (login CSRF)", async () => {
@@ -580,6 +606,164 @@ describe("authRoutes", () => {
         method: "GET",
         url: "/google/callback?code=auth_code&state=abc",
         headers: { cookie: "alhabla_google_oauth_state=otro-state-distinto" },
+      });
+
+      expect(response.statusCode).toBe(302);
+      expect(response.headers.location).toContain("error=invalid_state");
+      expect(mockedTransaction).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("GET /facebook", () => {
+    it("genera URL de autenticación de Facebook", async () => {
+      const redisMock = { set: vi.fn().mockResolvedValue("OK") };
+      mockedGetRedis.mockReturnValue(redisMock as any);
+
+      const response = await fastify.inject({
+        method: "GET",
+        url: "/facebook",
+      });
+
+      expect(response.statusCode).toBe(200);
+      expect(response.json().url).toContain("facebook.com");
+    });
+  });
+
+  describe("GET /facebook/callback", () => {
+    let fetchMock: ReturnType<typeof vi.fn>;
+
+    beforeEach(() => {
+      fetchMock = vi.fn().mockImplementation((url: string) => {
+        if (url.includes("/oauth/access_token")) {
+          return Promise.resolve({
+            ok: true,
+            json: async () => ({ access_token: "fb_access_token" }),
+          });
+        }
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({ id: "facebook_123", email: "new@example.com" }),
+        });
+      });
+      vi.stubGlobal("fetch", fetchMock);
+      // Sin cuenta previa por facebookId ni por email: el callback intentará crear una.
+      mockedUserFindUnique.mockResolvedValue(null);
+    });
+
+    it("no crea la cuenta si el intent es login y no existe cuenta previa", async () => {
+      mockedGetRedis.mockReturnValue({
+        getdel: vi
+          .fn()
+          .mockResolvedValue(JSON.stringify({ termsAccepted: true, intent: "login" })),
+        set: vi.fn().mockResolvedValue("OK"),
+      } as any);
+
+      const response = await fastify.inject({
+        method: "GET",
+        url: "/facebook/callback?code=auth_code&state=abc",
+        headers: { cookie: "alhabla_facebook_oauth_state=abc" },
+      });
+
+      expect(response.statusCode).toBe(302);
+      expect(response.headers.location).toContain("error=account_not_found");
+      expect(mockedTransaction).not.toHaveBeenCalled();
+    });
+
+    it("no crea la cuenta si el state no llevaba los términos aceptados", async () => {
+      mockedGetRedis.mockReturnValue({
+        getdel: vi
+          .fn()
+          .mockResolvedValue(JSON.stringify({ termsAccepted: false, intent: "register" })),
+        set: vi.fn().mockResolvedValue("OK"),
+      } as any);
+
+      const response = await fastify.inject({
+        method: "GET",
+        url: "/facebook/callback?code=auth_code&state=abc",
+        headers: { cookie: "alhabla_facebook_oauth_state=abc" },
+      });
+
+      expect(response.statusCode).toBe(302);
+      expect(response.headers.location).toContain("error=terms_required");
+      expect(mockedTransaction).not.toHaveBeenCalled();
+    });
+
+    it("crea la cuenta y registra termsAcceptedAt si intent es register y los términos están aceptados", async () => {
+      mockedGetRedis.mockReturnValue({
+        getdel: vi
+          .fn()
+          .mockResolvedValue(JSON.stringify({ termsAccepted: true, intent: "register" })),
+        set: vi.fn().mockResolvedValue("OK"),
+      } as any);
+      mockedTransaction.mockImplementation(async (callback: any) => {
+        const business = { id: "business_123", name: "Negocio de new@example.com" };
+        const user = { id: "user_123", email: "new@example.com", businessId: business.id };
+        mockedBusinessCreate.mockResolvedValue(business as any);
+        mockedUserCreate.mockResolvedValue(user as any);
+        return callback({ business: { create: mockedBusinessCreate }, user: { create: mockedUserCreate } });
+      });
+
+      const response = await fastify.inject({
+        method: "GET",
+        url: "/facebook/callback?code=auth_code&state=abc",
+        headers: { cookie: "alhabla_facebook_oauth_state=abc" },
+      });
+
+      expect(response.statusCode).toBe(302);
+      expect(response.headers.location).not.toContain("error=");
+      expect(mockedUserCreate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            facebookId: "facebook_123",
+            termsAcceptedAt: expect.any(Date),
+          }),
+        })
+      );
+    });
+
+    it("redirige con no_email si Facebook no devuelve un email", async () => {
+      fetchMock.mockImplementation((url: string) => {
+        if (url.includes("/oauth/access_token")) {
+          return Promise.resolve({
+            ok: true,
+            json: async () => ({ access_token: "fb_access_token" }),
+          });
+        }
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({ id: "facebook_123" }),
+        });
+      });
+      mockedGetRedis.mockReturnValue({
+        getdel: vi
+          .fn()
+          .mockResolvedValue(JSON.stringify({ termsAccepted: true, intent: "register" })),
+        set: vi.fn().mockResolvedValue("OK"),
+      } as any);
+
+      const response = await fastify.inject({
+        method: "GET",
+        url: "/facebook/callback?code=auth_code&state=abc",
+        headers: { cookie: "alhabla_facebook_oauth_state=abc" },
+      });
+
+      expect(response.statusCode).toBe(302);
+      expect(response.headers.location).toContain("error=no_email");
+      expect(mockedTransaction).not.toHaveBeenCalled();
+    });
+
+    it("rechaza el callback si la cookie no coincide con el state recibido", async () => {
+      mockedGetRedis.mockReturnValue({
+        getdel: vi
+          .fn()
+          .mockResolvedValue(JSON.stringify({ termsAccepted: true, intent: "register" })),
+        set: vi.fn().mockResolvedValue("OK"),
+      } as any);
+
+      const response = await fastify.inject({
+        method: "GET",
+        url: "/facebook/callback?code=auth_code&state=abc",
+        headers: { cookie: "alhabla_facebook_oauth_state=otro-state-distinto" },
       });
 
       expect(response.statusCode).toBe(302);

@@ -5,6 +5,7 @@ import { api } from "@/lib/api";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { GoogleAuthButton } from "@/components/google-auth-button";
+import { FacebookAuthButton } from "@/components/facebook-auth-button";
 import { BrandMark } from "@/components/brand-mark";
 import { ParticleField } from "@/components/particle-field";
 import { ParticleMouseLayer } from "@/components/particle-mouse-layer";
@@ -64,18 +65,10 @@ export default function LoginPage() {
         </div>
 
         <div className="mt-8">
-          <GoogleAuthButton onError={setError} acceptedTerms />
-          <p className="mt-3 text-center text-xs leading-5 text-muted">
-            Si es tu primera vez, al continuar aceptas los{" "}
-            <a href={webUrl("/legal/aviso-legal")} target="_blank" rel="noopener" className="rounded font-medium text-[#7c3aed] underline underline-offset-2 hover:text-[#6d28d9] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] focus-visible:ring-offset-2">
-              Términos y Condiciones
-            </a>{" "}
-            y la{" "}
-            <a href={webUrl("/legal/privacidad")} target="_blank" rel="noopener" className="rounded font-medium text-[#7c3aed] underline underline-offset-2 hover:text-[#6d28d9] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] focus-visible:ring-offset-2">
-              Política de privacidad
-            </a>
-            .
-          </p>
+          <div className="space-y-3">
+            <GoogleAuthButton onError={setError} intent="login" />
+            <FacebookAuthButton onError={setError} intent="login" />
+          </div>
           <div className="my-6 flex items-center gap-4" aria-hidden="true">
             <div className="h-px flex-1 bg-[#e5e5e5]" />
             <span className="text-xs font-medium uppercase tracking-[0.12em] text-muted">o con email</span>
