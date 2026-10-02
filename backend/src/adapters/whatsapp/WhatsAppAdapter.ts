@@ -300,6 +300,31 @@ export class WhatsAppAdapter {
     );
   }
 
+  /**
+   * Marca un mensaje entrante como leído y activa el indicador
+   * "escribiendo…" de Meta — dura hasta ~25s o hasta la respuesta real, lo
+   * que llegue antes. El SDK no tipa `status`/`message_id`/`typing_indicator`
+   * aunque la API los acepta (probado a mano el 2026-10-02, igual que con
+   * la descarga de medios), de ahí el cast. `from` tiene que ser el número
+   * de Alhabla que RECIBIÓ el mensaje (el de la audiencia correcta) — nunca
+   * el valor por defecto de `send()`, o Meta lo rechaza.
+   */
+  async marcarLeidoYEscribiendo(
+    from: string,
+    to: string,
+    messageId: string
+  ): Promise<void> {
+    await this.send(
+      { from, to },
+      {
+        status: "read",
+        message_id: messageId,
+        typing_indicator: { type: "text" },
+      } as unknown as Telnyx.Messages.WhatsappMessageContent,
+      "leído + escribiendo"
+    );
+  }
+
   /** Mensaje interactivo con botones de respuesta rápida (máximo tres). */
   async sendInteractiveButtons(
     message: WhatsAppButtonsMessage

@@ -22,6 +22,7 @@ vi.mock("../../../src/adapters/whatsapp/WhatsAppAdapter.js", () => ({
   whatsappAdapter: {
     descargarAudio: vi.fn(),
     transcribirAudio: vi.fn(),
+    marcarLeidoYEscribiendo: vi.fn(),
   },
 }));
 
@@ -67,6 +68,9 @@ const mockedAudiencia = vi.mocked(audienciaDelNumero);
 const mockedEnrutar = vi.mocked(enrutarEntrante);
 const mockedDescargarAudio = vi.mocked(whatsappAdapter.descargarAudio);
 const mockedTranscribirAudio = vi.mocked(whatsappAdapter.transcribirAudio);
+const mockedMarcarLeidoYEscribiendo = vi.mocked(
+  whatsappAdapter.marcarLeidoYEscribiendo
+);
 
 /** Evento `whatsapp.messages` tal como lo entrega el webhook del WABA
  * (capturado en la fase 0.1, 2026-09-19). */
@@ -439,12 +443,18 @@ describe("handleWhatsappMessages", () => {
     mockedInboundFindMany.mockResolvedValue([]);
     mockedInboundUpdateMany.mockResolvedValue({ count: 1 });
     mockedEnrutar.mockResolvedValue({ handler: "pendiente:texto:client" });
+    mockedMarcarLeidoYEscribiendo.mockResolvedValue(undefined);
   });
 
   it("guarda el entrante clasificado, con audiencia y negocio, y lo enruta", async () => {
     const result = await handleWhatsappMessages(eventoMensajes([TEXTO]));
 
     expect(result).toEqual({ success: true });
+    expect(mockedMarcarLeidoYEscribiendo).toHaveBeenCalledWith(
+      "+34930454394",
+      "+34692138456",
+      TEXTO.id
+    );
     expect(mockedAudiencia).toHaveBeenCalledWith("+34930454394");
     expect(mockedInboundCreate).toHaveBeenCalledWith({
       data: expect.objectContaining({
@@ -490,6 +500,21 @@ describe("handleWhatsappMessages", () => {
         error: "Telnyx caído",
       },
     });
+  });
+
+  it("si falla marcar como leído/escribiendo, el mensaje se procesa igual (best-effort con log)", async () => {
+    mockedMarcarLeidoYEscribiendo.mockRejectedValue(new Error("Telnyx caído"));
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+
+    const result = await handleWhatsappMessages(eventoMensajes([TEXTO]));
+
+    expect(result).toEqual({ success: true });
+    expect(mockedInboundCreate).toHaveBeenCalled();
+    expect(mockedEnrutar).toHaveBeenCalled();
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining("No se pudo marcar como leído/escribiendo")
+    );
+    warnSpy.mockRestore();
   });
 
   it("un reintento del mismo mensaje no se procesa dos veces", async () => {

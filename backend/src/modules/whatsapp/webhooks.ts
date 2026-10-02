@@ -473,6 +473,25 @@ export async function handleWhatsappMessages(
       occurredAt: data.occurred_at,
     });
 
+    // Lo primero de todo: marcar como leído y activar "escribiendo…" en
+    // WhatsApp — cubre tanto la descarga/transcripción del audio (si lo
+    // hay) como lo que tarde el Gestor/chat de cliente en responder.
+    // Best-effort: si Meta/Telnyx fallan aquí no debe tumbar el resto del
+    // procesamiento del mensaje, solo se pierde el indicador visual.
+    if (toNumber) {
+      try {
+        await whatsappAdapter.marcarLeidoYEscribiendo(
+          toNumber,
+          entrante.fromNumber,
+          entrante.providerMessageId
+        );
+      } catch (error) {
+        console.warn(
+          `[WhatsApp] No se pudo marcar como leído/escribiendo el entrante ${entrante.providerMessageId}: ${errorMessage(error)}`
+        );
+      }
+    }
+
     // Nota de voz: se descarga y transcribe con Telnyx Inference, y si sale
     // texto de verdad, el mensaje se re-clasifica como "text" ANTES de
     // guardarlo — así el resto del pipeline (Gestor, chat de cliente,
