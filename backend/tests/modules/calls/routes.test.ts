@@ -44,6 +44,10 @@ const mockedCallFindFirst = vi.mocked(prisma.call.findFirst);
 const mockedLeadFindMany = vi.mocked(prisma.lead.findMany);
 const mockedLeadUpdateMany = vi.mocked(prisma.lead.updateMany);
 
+// Las citas que apunta el dueño con el Gestor cuelgan de una Call sintética
+// que no es una conversación: nunca sale en el historial.
+const SIN_GESTOR = { NOT: { callId: { startsWith: "whatsapp:gestor:" } } };
+
 describe("GET /business/me/calls/:id", () => {
   let fastify: ReturnType<typeof Fastify>;
 
@@ -362,7 +366,10 @@ describe("GET /business/me/calls — recados y filtros del panel móvil", () => 
       expect.objectContaining({
         where: {
           businessId: "biz_1",
-          leads: { some: { type: "message", resolvedAt: null } },
+          AND: [
+            SIN_GESTOR,
+            { leads: { some: { type: "message", resolvedAt: null } } },
+          ],
         },
       })
     );
@@ -384,7 +391,10 @@ describe("GET /business/me/calls — recados y filtros del panel móvil", () => 
 
     expect(mockedCallFindMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { businessId: "biz_1", booking: { is: { isCancelled: false } } },
+        where: {
+          businessId: "biz_1",
+          AND: [SIN_GESTOR, { booking: { is: { isCancelled: false } } }],
+        },
       })
     );
   });
@@ -572,5 +582,186 @@ describe("PATCH /business/me/calls/:id/recado", () => {
 
     expect(response.statusCode).toBe(400);
     expect(mockedCallFindFirst).not.toHaveBeenCalled();
+  });
+});
+
+describe("GET /business/me/calls — filtros del historial de escritorio", () => {
+  let fastify: ReturnType<typeof Fastify>;
+  const mockedCallAggregate = vi.mocked(prisma.call.aggregate);
+  const mockedBusinessFindUnique = vi.mocked(prisma.business.findUnique);
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    fastify = Fastify();
+    fastify.decorate("authenticate", async (request: any) => {
+      request.user = { businessId: "biz_1" };
+    });
+    await fastify.register(callsRoutes);
+    mockedCallFindMany.mockResolvedValue([] as any);
+    mockedCallCount.mockResolvedValue(0 as any);
+  });
+
+  it("combina resultado, canal, sentimiento, fechas y búsqueda en una sola condición", async () => {
+    mockedServiceFindMany.mockResolvedValueOnce([{ id: "srv_corte" }] as any);
+    const desde = "2026-09-01T00:00:00.000Z";
+    const hasta = "2026-10-01T00:00:00.000Z";
+
+    const response = await fastify.inject({
+      method: "GET",
+      url: `/business/me/calls?filtro=sin_cita&canal=voz&sentimiento=NEGATIVE&desde=${desde}&hasta=${hasta}&q=${encodeURIComponent("612 34")}`,
+    });
+
+    expect(response.statusCode).toBe(200);
+    const where = (mockedCallFindMany.mock.calls[0][0] as any).where;
+    expect(where.businessId).toBe("biz_1");
+    expect(where.AND).toEqual([
+      SIN_GESTOR,
+      { OR: [{ booking: { is: null } }, { booking: { is: { isCancelled: true } } }] },
+      { voiceProvider: { not: "whatsapp" } },
+      { sentiment: "NEGATIVE" },
+      { startedAt: { gte: new Date(desde), lt: new Date(hasta) } },
+      {
+        OR: expect.arrayContaining([
+          { summary: { contains: "612 34", mode: "insensitive" } },
+          { fromNumber: { contains: "61234" } },
+          { booking: { is: { clientPhone: { contains: "61234" } } } },
+          { booking: { is: { serviceIds: { hasSome: ["srv_corte"] } } } },
+        ]),
+      },
+    ]);
+    // El total sigue el filtro; los recuentos de las pestañas, no.
+    expect((mockedCallCount.mock.calls[0][0] as any).where).toBe(where);
+    expect((mockedCallCount.mock.calls[1][0] as any).where).toEqual({
+      businessId: "biz_1",
+      AND: [SIN_GESTOR],
+    });
+  });
+
+  it("no busca por dígitos con menos de 3 ni por texto con menos de 2 caracteres", async () => {
+    await fastify.inject({ method: "GET", url: "/business/me/calls?q=a" });
+    expect((mockedCallFindMany.mock.calls[0][0] as any).where.AND).toEqual([
+      SIN_GESTOR,
+    ]);
+    expect(mockedServiceFindMany).not.toHaveBeenCalled();
+
+    mockedServiceFindMany.mockResolvedValueOnce([] as any);
+    await fastify.inject({ method: "GET", url: "/business/me/calls?q=Marta" });
+    const busqueda = (mockedCallFindMany.mock.calls[1][0] as any).where.AND[1];
+    expect(busqueda.OR).toHaveLength(3);
+    expect(JSON.stringify(busqueda)).not.toContain("fromNumber");
+  });
+
+  it("ordena por duración con las llamadas sin duración al final y desempata por id", async () => {
+    await fastify.inject({ method: "GET", url: "/business/me/calls?orden=mas_larga" });
+    expect((mockedCallFindMany.mock.calls[0][0] as any).orderBy).toEqual([
+      { durationSecs: { sort: "desc", nulls: "last" } },
+      { createdAt: "desc" },
+      { id: "desc" },
+    ]);
+  });
+
+  it("con resumen=hoy cuenta desde la medianoche del negocio, sin chats en la duración media", async () => {
+    mockedBusinessFindUnique.mockResolvedValue({ timezone: "Europe/Madrid" } as any);
+    mockedCallCount
+      .mockResolvedValueOnce(0 as any) // total
+      .mockResolvedValueOnce(0 as any) // todas
+      .mockResolvedValueOnce(0 as any) // con cita
+      .mockResolvedValueOnce(0 as any) // por devolver
+      .mockResolvedValueOnce(14 as any) // hoy
+      .mockResolvedValueOnce(9 as any); // hoy con cita
+    mockedCallAggregate.mockResolvedValue({ _avg: { durationSecs: 127.6 } } as any);
+
+    const response = await fastify.inject({
+      method: "GET",
+      url: "/business/me/calls?resumen=hoy",
+    });
+
+    expect(response.json().hoy).toMatchObject({
+      llamadas: 14,
+      conCita: 9,
+      duracionMediaSecs: 128,
+    });
+    const media = (mockedCallAggregate.mock.calls[0][0] as any).where;
+    expect(media.voiceProvider).toEqual({ not: "whatsapp" });
+    expect(media.AND).toEqual([SIN_GESTOR]);
+    // Medianoche en Madrid es 22:00 o 23:00 UTC del día anterior.
+    expect(["22:00:00", "23:00:00"]).toContain(
+      media.startedAt.gte.toISOString().slice(11, 19)
+    );
+  });
+
+  it("sin resumen=hoy no hace ninguna consulta de más", async () => {
+    const response = await fastify.inject({ method: "GET", url: "/business/me/calls" });
+    expect(response.json().hoy).toBeUndefined();
+    expect(mockedCallAggregate).not.toHaveBeenCalled();
+  });
+
+  it("rechaza un canal o un orden desconocidos con 400", async () => {
+    expect(
+      (await fastify.inject({ method: "GET", url: "/business/me/calls?canal=fax" })).statusCode
+    ).toBe(400);
+    expect(
+      (await fastify.inject({ method: "GET", url: "/business/me/calls?orden=azar" })).statusCode
+    ).toBe(400);
+  });
+});
+
+describe("GET /business/me/calls/export.csv", () => {
+  let fastify: ReturnType<typeof Fastify>;
+  const mockedBusinessFindUnique = vi.mocked(prisma.business.findUnique);
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    fastify = Fastify();
+    fastify.decorate("authenticate", async (request: any) => {
+      request.user = { businessId: "biz_1" };
+    });
+    await fastify.register(callsRoutes);
+    mockedBusinessFindUnique.mockResolvedValue({ timezone: "Europe/Madrid" } as any);
+    mockedServiceFindMany.mockResolvedValue([
+      { id: "srv_1", name: "Corte", durationMinutes: 30, priceCents: 1600 },
+    ] as any);
+  });
+
+  it("exporta lo filtrado con la zona del negocio y avisa de lo que se queda fuera", async () => {
+    mockedCallFindMany.mockResolvedValue([
+      {
+        id: "call_1",
+        startedAt: new Date("2026-10-02T07:41:00Z"),
+        voiceProvider: "telnyx",
+        fromNumber: "+34612345678",
+        durationSecs: 134,
+        sentiment: "POSITIVE",
+        summary: "Pide corte el jueves.",
+        leads: [],
+        booking: {
+          isCancelled: false,
+          rescheduledToId: null,
+          programedAt: new Date("2026-10-02T15:00:00Z"),
+          clientName: "Marta",
+          serviceIds: ["srv_1"],
+          professional: { id: "pro_1", name: "Laura" },
+        },
+      },
+    ] as any);
+    mockedCallCount.mockResolvedValue(5001 as any);
+
+    const response = await fastify.inject({
+      method: "GET",
+      url: "/business/me/calls/export.csv?filtro=con_cita",
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.headers["content-type"]).toBe("text/csv; charset=utf-8");
+    expect(response.headers["content-disposition"]).toMatch(
+      /^attachment; filename="llamadas-\d{4}-\d{2}-\d{2}\.csv"$/
+    );
+    expect(response.headers["x-filas-omitidas"]).toBe("5000");
+    expect((mockedCallFindMany.mock.calls[0][0] as any).take).toBe(5000);
+    const [cabecera, fila] = response.body.replace(/^﻿/, "").split("\r\n");
+    expect(cabecera.split(";")[0]).toBe("Fecha");
+    expect(fila).toBe(
+      "02/10/2026;09:41;Voz;612 345 678;134;Reserva;Marta;Corte;Laura;16,00;02/10/2026 17:00;Satisfecho;Pide corte el jueves."
+    );
   });
 });

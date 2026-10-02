@@ -1,4 +1,5 @@
 import { prisma } from "../../lib/prisma.js";
+import { SIN_CALLS_DEL_GESTOR } from "../../lib/citasDelDueno.js";
 
 export type CallAnalytics = {
   days: number;
@@ -36,6 +37,8 @@ export async function getCallAnalytics(
     businessId,
     status: { not: "IN_PROGRESS" as const },
     startedAt: { gte: since },
+    // Las citas que apunta el dueño con el Gestor no son llamadas.
+    ...SIN_CALLS_DEL_GESTOR,
   };
 
   const business = await prisma.business.findUnique({
@@ -83,14 +86,14 @@ export async function getCallAnalytics(
     }),
     prisma.booking.count({
       where: {
-        call: { businessId },
+        call: { businessId, ...SIN_CALLS_DEL_GESTOR },
         createdAt: { gte: since },
         isCancelled: false,
       },
     }),
     prisma.booking.count({
       where: {
-        call: { businessId },
+        call: { businessId, ...SIN_CALLS_DEL_GESTOR },
         createdAt: { gte: since },
         isCancelled: true,
       },

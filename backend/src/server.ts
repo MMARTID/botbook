@@ -10,6 +10,8 @@ import internalAuthPlugin from "./plugins/internalAuth.js";
 import { internalJobsRoutes } from "./modules/internal/routes.js";
 import { authRoutes } from "./modules/auth/routes.js";
 import { businessesRoutes } from "./modules/businesses/routes.js";
+import { citasDelPanelRoutes } from "./modules/bookings/citasDelPanel.js";
+import { busquedaRoutes } from "./modules/busqueda/routes.js";
 import { placesRoutes } from "./modules/places/routes.js";
 import { agentsRoutes } from "./modules/agents/routes.js";
 import { callsRoutes } from "./modules/calls/routes.js";
@@ -233,6 +235,8 @@ async function start() {
     console.log("[Server] Registering routes...");
     fastify.register(authRoutes, { prefix: '/auth' });
     fastify.register(businessesRoutes);
+    fastify.register(citasDelPanelRoutes);
+    fastify.register(busquedaRoutes);
     fastify.register(placesRoutes);
     fastify.register(agentsRoutes);
     fastify.register(callsRoutes);

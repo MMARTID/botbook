@@ -75,6 +75,26 @@ function wallTimeToInstant(
     : utcGuess - secondOffset * 60_000;
 }
 
+/** Medianoche de hoy (o del día de `ahora`) en la zona del negocio, como
+ * instante real: el «Hoy» de los resúmenes del panel. */
+export function inicioDelDiaEnZona(timeZone: string, ahora = new Date()): Date {
+  const [year, month, day] = new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  })
+    .format(ahora)
+    .split("-")
+    .map(Number);
+  return new Date(
+    wallTimeToInstant(
+      { year, month, day, hour: 0, minute: 0, second: 0 },
+      timeZone
+    )
+  );
+}
+
 /**
  * Devuelve el `startDateTime` con la hora de pared reinterpretada en la zona
  * del negocio cuando llega sin offset o con offset cero sospechoso (ver

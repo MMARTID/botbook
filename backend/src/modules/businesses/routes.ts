@@ -24,6 +24,10 @@ import {
 } from "../whatsapp/altaDueno.js";
 import { listaDeEsperaDisponible } from "../whatsapp/service.js";
 import { resolverTransferenciaAlDueno } from "../../lib/transferenciaAlDueno.js";
+import {
+  SIN_CALLS_DEL_GESTOR,
+  esCallDelGestor,
+} from "../../lib/citasDelDueno.js";
 
 /** Tipos de línea de clientes (docs/historico/PLAN-TELEFONIA-UX.md § 3): el
  * fijo del
@@ -110,7 +114,9 @@ const UpdateBusinessSchema = z.object({
 
 const AgendaQuerySchema = z.object({
   days: z.coerce.number().int().min(1).max(30).default(7),
-  limit: z.coerce.number().int().min(1).max(50).default(20),
+  // Hasta 200: la semana en cuadrícula del escritorio se pinta de una vez, y
+  // un salón con tres profesionales llena más de 50 huecos en una semana.
+  limit: z.coerce.number().int().min(1).max(200).default(20),
   // La agenda se consume por páginas desde la aplicación. Antes `take` cortaba
   // la respuesta en 50 reservas sin comunicarlo: un negocio con agenda llena
   // parecía tener huecos que no existían en la interfaz.
@@ -125,6 +131,8 @@ const AgendaQuerySchema = z.object({
       message: "desde no puede ser de hace más de 60 días",
     })
     .optional(),
+  // Solo las citas de un profesional (los filtros de la agenda de escritorio).
+  profesionalId: z.string().trim().min(1).max(80).optional(),
 });
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -194,7 +202,13 @@ async function buildWindowStats(
   to: Date,
   hasAnyPrice: boolean
 ): Promise<WindowStats> {
-  const ventana = { businessId, startedAt: { gte: from, lt: to } };
+  // Lo que ha hecho la recepcionista: las citas que apunta el dueño con el
+  // Gestor no son ni conversaciones ni reservas suyas (lib/citasDelDueno.ts).
+  const ventana = {
+    businessId,
+    startedAt: { gte: from, lt: to },
+    ...SIN_CALLS_DEL_GESTOR,
+  };
   const [calls, chats, conversationsWithBooking, bookings] = await Promise.all([
     prisma.call.count({
       where: { ...ventana, voiceProvider: { not: CANAL_WHATSAPP } },
@@ -212,7 +226,7 @@ async function buildWindowStats(
       where: {
         isCancelled: false,
         createdAt: { gte: from, lt: to },
-        call: { businessId },
+        call: { businessId, ...SIN_CALLS_DEL_GESTOR },
       },
       select: { serviceIds: true },
     }),
@@ -649,7 +663,7 @@ export async function businessesRoutes(fastify: FastifyInstance) {
         // encadenadas: el panel de inicio pide esto en cada carga.
         const [resumenLlamadas, leads, bookings, week] = await Promise.all([
           prisma.call.aggregate({
-            where: { businessId },
+            where: { businessId, ...SIN_CALLS_DEL_GESTOR },
             _count: { _all: true },
             _sum: { durationSecs: true },
           }),
@@ -664,9 +678,7 @@ export async function businessesRoutes(fastify: FastifyInstance) {
           prisma.booking.count({
             where: {
               isCancelled: false,
-              call: {
-                businessId,
-              },
+              call: { businessId, ...SIN_CALLS_DEL_GESTOR },
             },
           }),
           buildWeeklyStats(businessId),
@@ -696,9 +708,8 @@ export async function businessesRoutes(fastify: FastifyInstance) {
       reply
     ) => {
       try {
-        const { days, limit, offset, desde } = AgendaQuerySchema.parse(
-          request.query
-        );
+        const { days, limit, offset, desde, profesionalId } =
+          AgendaQuerySchema.parse(request.query);
         const businessId = request.user!.businessId;
 
         const from = desde ?? new Date();
@@ -708,6 +719,7 @@ export async function businessesRoutes(fastify: FastifyInstance) {
           isCancelled: false,
           programedAt: { gte: from, lte: until },
           call: { businessId },
+          ...(profesionalId ? { professionalId: profesionalId } : {}),
         };
 
         const [bookings, total] = await Promise.all([
@@ -715,7 +727,16 @@ export async function businessesRoutes(fastify: FastifyInstance) {
             where,
             include: {
               professional: { select: { id: true, name: true } },
-              call: { select: { id: true, fromNumber: true } },
+              call: {
+                select: {
+                  id: true,
+                  callId: true,
+                  fromNumber: true,
+                  startedAt: true,
+                  durationSecs: true,
+                  voiceProvider: true,
+                },
+              },
             },
             orderBy: { programedAt: "asc" },
             take: limit,
@@ -745,6 +766,22 @@ export async function businessesRoutes(fastify: FastifyInstance) {
             // El teléfono propio de la reserva solo existe si el cliente pidió
             // otro distinto al de la llamada; si no, el útil es el de origen.
             clientPhone: booking.clientPhone ?? booking.call.fromNumber,
+            clientName: booking.clientName,
+            createdAt: booking.createdAt.toISOString(),
+            // null en las anteriores a la columna = voz.
+            createdVia: booking.createdVia,
+            // La conversación en la que se reservó, para «Ver llamada». Las
+            // que apunta el dueño con el Gestor no tienen conversación que ver.
+            origen: esCallDelGestor(booking.call.callId)
+              ? null
+              : {
+                  canal:
+                    booking.call.voiceProvider === CANAL_WHATSAPP
+                      ? ("whatsapp" as const)
+                      : ("voz" as const),
+                  startedAt: booking.call.startedAt.toISOString(),
+                  durationSecs: booking.call.durationSecs,
+                },
             professional: booking.professional,
             services: booking.serviceIds
               .map((id) => services.get(id))

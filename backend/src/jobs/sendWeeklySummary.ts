@@ -3,6 +3,7 @@ import { enqueueEmailJob } from "../lib/cloudTasks.js";
 import { weeklySummaryEmail } from "../lib/emailTemplates.js";
 import { planAllows, resolvePlanId } from "../lib/planFeatures.js";
 import { appUrl } from "../lib/urls.js";
+import { SIN_CALLS_DEL_GESTOR } from "../lib/citasDelDueno.js";
 
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 const PAGE_SIZE = 100;
@@ -204,13 +205,15 @@ async function enviarResumenDeNegocio(
             businessId: business.id,
             status: { not: "IN_PROGRESS" },
             startedAt: { gte: weekStart, lt: weekEnd },
+            // Las citas que apunta el dueño con el Gestor no son llamadas.
+            ...SIN_CALLS_DEL_GESTOR,
           },
           _count: { _all: true },
           _sum: { durationSecs: true },
         }),
         prisma.booking.count({
           where: {
-            call: { businessId: business.id },
+            call: { businessId: business.id, ...SIN_CALLS_DEL_GESTOR },
             createdAt: { gte: weekStart, lt: weekEnd },
             isCancelled: false,
           },

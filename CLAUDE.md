@@ -115,7 +115,7 @@ backend/
 │   ├── server.ts     # entry Fastify: registra rutas + endpoints internos de jobs (Cloud Tasks)
 │   ├── plugins/      # auth (JWT), internalAuth (OIDC de Cloud Tasks), firmaRetell y
 │   │                 #   firmaTelnyx (Ed25519); CORS y rate-limit se registran en server.ts
-│   ├── modules/      # por dominio (agents, auth, billing, bookings, businesses, calendar,
+│   ├── modules/      # por dominio (agents, auth, billing, bookings, businesses, busqueda, calendar,
 │   │                 #   calls, demo, internal, onboarding, phone, places, recordings,
 │   │                 #   webhooksRetell, webhooksTelnyx, whatsapp) con routes.ts; gestor, voiceTools y
 │   │                 #   retellSimulation sin routes.ts (los usan los webhooks y los scripts)

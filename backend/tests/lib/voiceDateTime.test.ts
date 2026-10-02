@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  inicioDelDiaEnZona,
   normalizeVoiceToolDateTime,
   timezoneOffsetMinutes,
 } from "../../src/lib/voiceDateTime.js";
@@ -80,5 +81,24 @@ describe("normalizeVoiceToolDateTime", () => {
     expect(
       normalizeVoiceToolDateTime("2026-09-18T16:00:00Z", "Zona/Inexistente")
     ).toBe("2026-09-18T16:00:00Z");
+  });
+});
+
+describe("inicioDelDiaEnZona", () => {
+  it("da la medianoche del negocio, no la de UTC", () => {
+    // 23:30 UTC del 1 de octubre ya es día 2 en Madrid (UTC+2).
+    expect(
+      inicioDelDiaEnZona("Europe/Madrid", new Date("2026-10-01T23:30:00Z")).toISOString()
+    ).toBe("2026-10-01T22:00:00.000Z");
+    expect(
+      inicioDelDiaEnZona("Atlantic/Canary", new Date("2026-12-15T10:00:00Z")).toISOString()
+    ).toBe("2026-12-15T00:00:00.000Z");
+  });
+
+  it("acierta el día del cambio de hora", () => {
+    // 25 de octubre de 2026: a medianoche Madrid aún está en UTC+2.
+    expect(
+      inicioDelDiaEnZona("Europe/Madrid", new Date("2026-10-25T12:00:00Z")).toISOString()
+    ).toBe("2026-10-24T22:00:00.000Z");
   });
 });
