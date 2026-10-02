@@ -440,7 +440,7 @@ Copy `.env.example` to `.env` and fill in all required secrets. Key groups:
 | **SMS / WhatsApp** | `TELNYX_SMS_SENDER_ID`, `TELNYX_MESSAGING_PROFILE_ID`, `WHATSAPP_TELNYX_FROM_NUMBER`, `WHATSAPP_WABA_ID`, `WHATSAPP_TEMPLATE_*`, `TELNYX_CLIENT_CHAT_ENABLED`, `TELNYX_OWNER_CHAT_ENABLED`, `TELNYX_GESTOR_ASSISTANT_ID` |
 | **Email (Zoho)** | `ZOHO_CLIENT_ID`, `ZOHO_CLIENT_SECRET`, `ZOHO_REFRESH_TOKEN`, `ZOHO_ACCOUNT_ID`, `ZOHO_DEV_ALLOWED_RECIPIENTS` |
 | **Cloud Tasks** | `GCP_PROJECT_ID`, `GCP_REGION`, `INTERNAL_JOBS_BASE_URL`, `CLOUD_TASKS_INVOKER_SERVICE_ACCOUNT` (production only; jobs run inline elsewhere) |
-| **Recordings** | `RECORDING_RETENTION_DAYS` |
+| **Recordings** | `RECORDING_RETENTION_DAYS`, `CALL_TEXT_RETENTION_DAYS` |
 | **Bootstrap** | `FIRST_USER_BOOTSTRAP_SECRET` (`POST /auth/register-first-user`) |
 | **Retell SIP trunk** | `RETELL_SIP_TERMINATION_URI`, `RETELL_SIP_TRUNK_AUTH_USERNAME`, `RETELL_SIP_TRUNK_AUTH_PASSWORD` (Telnyx SIP Connection used by `RetellAdapter.importPhoneNumber`) |
 | **Server** | `APP_URL` (la app, app.alhabla.ai), `WEB_URL` (la web de marketing, alhabla.ai), `FRONTEND_URL` (respaldo de las dos), `BASE_URL` (URL pública para webhooks), `EXTRA_ALLOWED_ORIGIN`, `PORT`, `HOST`, `NODE_ENV`, `LOG_LEVEL` — ver `lib/urls.ts` |
@@ -1669,6 +1669,19 @@ is now a **Cloud Scheduler** job hitting the same kind of endpoint every
    - Before this, `DELETE /recordings/:id` only set `deletedAt`: the audio and
      the transcript stayed forever and a GDPR erasure request could not be
      honoured.
+   - **Call text purge** (`backend/src/jobs/purgarTextoDeLlamadas.ts`) — added
+     2026-10-02, runs in the same endpoint right after the audio purge, so it
+     needs no Cloud Scheduler job of its own. Once a call is older than
+     `CALL_TEXT_RETENTION_DAYS` (default 90, the figure the privacy policy
+     publishes) it deletes the `Transcript` row, nulls `Call.summary` and
+     `Call.postCallReport`, and deletes `InboundMessage` rows (received
+     WhatsApp, clients and owners). `Call.fromNumber` is nulled only when the
+     call has no `Booking` and no `Lead`: there it is the fallback contact of
+     the appointment or the message (`booking.clientPhone ?? call.fromNumber`),
+     which is the business's agenda, not the call log. The `Call` row survives
+     with date, duration, cost, outcome, sentiment and requested service.
+     Before this the audio went at 30 days but the full text of the
+     conversation and the caller's number stayed in Postgres forever.
 
 8. **Mensaje del día 1 sobre el desvío** («tu desvío está comprobado» o
    «aún no has comprobado el desvío»;
