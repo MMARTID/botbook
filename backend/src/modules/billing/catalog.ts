@@ -23,7 +23,7 @@ export const BILLING_PLANS: Record<PlanId, BillingPlan> = {
   inicio: {
     id: "inicio",
     databasePlan: "basic",
-    includedMinutes: 100,
+    includedMinutes: 150,
     extraMinuteCents: 45,
     priceEnvironmentVariable: "STRIPE_PRICE_INICIO",
     legacyPriceEnvironmentVariables: ["STRIPE_PRICE_INICIO_FOUNDER"],
@@ -32,7 +32,7 @@ export const BILLING_PLANS: Record<PlanId, BillingPlan> = {
   pro: {
     id: "pro",
     databasePlan: "pro",
-    includedMinutes: 400,
+    includedMinutes: 500,
     extraMinuteCents: 40,
     priceEnvironmentVariable: "STRIPE_PRICE_PRO",
     legacyPriceEnvironmentVariables: ["STRIPE_PRICE_PRO_FOUNDER"],
@@ -41,7 +41,7 @@ export const BILLING_PLANS: Record<PlanId, BillingPlan> = {
   scale: {
     id: "scale",
     databasePlan: "enterprise",
-    includedMinutes: 1000,
+    includedMinutes: 1100,
     extraMinuteCents: 35,
     priceEnvironmentVariable: "STRIPE_PRICE_SCALE",
     legacyPriceEnvironmentVariables: ["STRIPE_PRICE_SCALE_FOUNDER"],
@@ -71,6 +71,19 @@ export function getUsagePriceId(planId: PlanId) {
     throw new Error(`${plan.usagePriceEnvironmentVariable} is not configured`);
   }
   return priceId;
+}
+
+/** El precio de fundador de este plan, si hay uno configurado. */
+export function getFounderPriceId(planId: PlanId) {
+  const envVar = getBillingPlan(planId).legacyPriceEnvironmentVariables[0];
+  return envVar ? process.env[envVar] : undefined;
+}
+
+/** Todos los precios de fundador configurados, de cualquier plan. */
+export function getAllFounderPriceIds(): string[] {
+  return Object.values(BILLING_PLANS)
+    .map((plan) => getFounderPriceId(plan.id))
+    .filter((value): value is string => Boolean(value));
 }
 
 export function getPlanByPriceId(priceId: string) {
