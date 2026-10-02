@@ -14,10 +14,13 @@ import type {
   Call,
   CallAnalytics,
   CallRecado,
+  ConsultaDeLlamadas,
   FiltroDeLlamadas,
   OnboardingState,
   ForwardingCheck,
   PaginaDeLlamadas,
+  ResultadoDeCita,
+  ResultadosDeBusqueda,
   PhoneNumberInfo,
   PlanId,
   PlaceDetails,
@@ -144,9 +147,58 @@ export async function getStats() {
 
 /** Próximas citas reservadas por el agente, con cliente y servicios resueltos.
  * Con `desde` (un instante), la ventana de `days` empieza ahí y no ahora. */
-export async function getAgenda(days = 7, limit = 20, offset = 0, desde?: string) {
+export async function getAgenda(
+  days = 7,
+  limit = 20,
+  offset = 0,
+  desde?: string,
+  profesionalId?: string
+) {
   const { data } = await api.get<AgendaResponse>("/business/me/agenda", {
-    params: desde ? { days, limit, offset, desde } : { days, limit, offset },
+    params: {
+      days,
+      limit,
+      offset,
+      ...(desde ? { desde } : {}),
+      ...(profesionalId ? { profesionalId } : {}),
+    },
+  });
+  return data;
+}
+
+/** Mover una cita (o solo comprobar si cabe, con `soloComprobar`): la misma
+ * operación que «mover_cita» del Gestor. `fechaHora` en hora del negocio. */
+export async function moverCita(
+  id: string,
+  cuerpo: { fechaHora: string; profesionalId?: string; soloComprobar?: boolean }
+) {
+  const { data } = await api.post<ResultadoDeCita | { ok: true }>(
+    `/business/me/bookings/${encodeURIComponent(id)}/mover`,
+    cuerpo
+  );
+  return data;
+}
+
+export async function cancelarCita(id: string) {
+  const { data } = await api.post<ResultadoDeCita>(
+    `/business/me/bookings/${encodeURIComponent(id)}/cancelar`
+  );
+  return data;
+}
+
+/** «Avisar por WhatsApp» del cambio o la cancelación de una cita. */
+export async function avisarClienteDeCita(id: string, tipo: "cambio" | "cancelacion") {
+  const { data } = await api.post<{ ok: true; mensaje: string }>(
+    `/business/me/bookings/${encodeURIComponent(id)}/avisar`,
+    { tipo }
+  );
+  return data;
+}
+
+/** Buscador del panel (⌘K): citas y conversaciones. */
+export async function buscarEnElNegocio(q: string) {
+  const { data } = await api.get<ResultadosDeBusqueda>("/business/me/buscar", {
+    params: { q },
   });
   return data;
 }
@@ -208,6 +260,36 @@ export async function getCalls(
     params: filtro ? { limit, offset, filtro } : { limit, offset },
   });
   return data;
+}
+
+/** Sin los valores vacíos: la URL de la petición queda limpia. */
+function parametrosDeConsulta(consulta: ConsultaDeLlamadas) {
+  return Object.fromEntries(
+    Object.entries(consulta).filter(([, valor]) => valor !== undefined && valor !== "")
+  );
+}
+
+/** El historial de escritorio: filtros combinables y el resumen de hoy. */
+export async function getLlamadas(
+  consulta: ConsultaDeLlamadas & { limit: number; offset: number; resumen?: "hoy" }
+) {
+  const { data } = await api.get<PaginaDeLlamadas>(`/business/me/calls`, {
+    params: parametrosDeConsulta(consulta),
+  });
+  return data;
+}
+
+/** El historial filtrado en CSV. Va por axios (lleva el token), no por un
+ * enlace: el fichero se descarga desde un blob. */
+export async function exportarLlamadasCsv(consulta: ConsultaDeLlamadas) {
+  const respuesta = await api.get<Blob>(`/business/me/calls/export.csv`, {
+    params: parametrosDeConsulta(consulta),
+    responseType: "blob",
+  });
+  const disposicion = String(respuesta.headers["content-disposition"] ?? "");
+  const nombre = disposicion.match(/filename="([^"]+)"/)?.[1] ?? "llamadas.csv";
+  const omitidas = Number(respuesta.headers["x-filas-omitidas"] ?? 0);
+  return { blob: respuesta.data, nombre, omitidas };
 }
 
 /** «Marcar como devuelta» (y deshacer): cierra o reabre el recado de una

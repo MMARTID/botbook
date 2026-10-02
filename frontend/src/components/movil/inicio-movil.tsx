@@ -21,13 +21,12 @@ import { AGENT_CONFIGURATION_STEPS } from "@/lib/agent-configuration";
 import { getCalendarState } from "@/lib/calendar-state";
 import { formatPhoneLocal, formatPrice } from "@/lib/format";
 import { claveDeDia, diaDeLaSemana, diaLargo, horaDelNegocio, instanteAntesDelDia, numeroDelDia } from "@/lib/fechas-negocio";
-import { enlaceTel, momentoCorto } from "@/lib/llamadas";
+import { enlaceTel, momentoCorto, motivoDeCitaPendiente } from "@/lib/llamadas";
 import type { AgendaBooking, Business, OnboardingState, PendingBooking, WeeklyStats } from "@/lib/types";
 import { useAhora } from "@/hooks/use-es-movil";
 import { AvisoFlotante, useAviso } from "@/components/aviso-flotante";
 import { BrandMark } from "@/components/brand-mark";
 import { CallForwardingCard } from "@/components/call-forwarding-card";
-import { motivo as motivoDeCitaPendiente } from "@/components/pending-bookings";
 import { SectionErrorState } from "@/components/section-card";
 import { CabeceraMovil } from "@/components/movil/cabecera-movil";
 import { usePorDevolver } from "@/components/movil/barra-de-pestanas";
@@ -275,7 +274,7 @@ export function InicioMovil({
   );
 }
 
-function TarjetaDeAviso({
+export function TarjetaDeAviso({
   href,
   icono: Icono,
   titulo,
@@ -308,7 +307,7 @@ function TarjetaDeAviso({
  * Inicio que pide descolgar el teléfono, así que va primero y en rojo; «Ya
  * la he confirmado» la cierra igual que «La apunté yo» en WhatsApp.
  */
-function CitasSinReservar({
+export function CitasSinReservar({
   pendientes,
   error,
   onReintentar,
@@ -461,7 +460,7 @@ function ProximaCita({
  * los pendientes y lo hecho. Comparte datos y criterio con la de
  * escritorio (onboarding-checklist.tsx).
  */
-function GuiaDeConfiguracion({ estado }: { estado: OnboardingState }) {
+export function GuiaDeConfiguracion({ estado }: { estado: OnboardingState }) {
   const queryClient = useQueryClient();
   const [abierta, setAbierta] = useState(false);
   const ocultar = useMutation({
@@ -592,7 +591,7 @@ function GuiaDeConfiguracion({ estado }: { estado: OnboardingState }) {
 
 /** Los mismos datos y el mismo criterio que el resumen de escritorio
  * (weekly-summary.tsx): diferencia absoluta, nunca porcentaje. */
-function UltimosSieteDias({ semana }: { semana: WeeklyStats }) {
+export function UltimosSieteDias({ semana, className = "mt-7" }: { semana: WeeklyStats; className?: string }) {
   const conversaciones = semana.calls + semana.chats;
   const conversion = conversaciones > 0 ? Math.round((semana.conversationsWithBooking / conversaciones) * 100) : null;
   const delta = semana.bookings - semana.previous.bookings;
@@ -616,7 +615,7 @@ function UltimosSieteDias({ semana }: { semana: WeeklyStats }) {
     .join(" y ");
 
   return (
-    <section className="mt-7">
+    <section className={className}>
       <h2 className="mb-2 text-lg font-bold tracking-[-0.01em] text-[#0a0a0a]">Últimos 7 días</h2>
       <div className="panel px-4 py-[18px]">
         <p className="text-5xl font-extrabold leading-none tracking-[-0.035em] tabular-nums text-[#0a0a0a]">{semana.bookings}</p>

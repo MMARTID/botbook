@@ -457,6 +457,8 @@ export type Lead = {
 
 export type CallBooking = {
   id: string;
+  /** Opcional: un backend anterior al escritorio de octubre no lo manda. */
+  clientName?: string | null;
   programedAt: string;
   durationMinutes: number;
   numberPeople: number;
@@ -489,7 +491,22 @@ export type CallRecado = {
   atendidoAt: string | null;
 };
 
-export type FiltroDeLlamadas = "todas" | "con_cita" | "por_devolver";
+export type FiltroDeLlamadas = "todas" | "con_cita" | "por_devolver" | "sin_cita";
+
+export type CanalDeLlamada = "voz" | "whatsapp";
+export type OrdenDeLlamadas = "reciente" | "antigua" | "mas_larga" | "mas_corta";
+
+/** Los filtros del historial de escritorio; la exportación a CSV usa los
+ * mismos, para que el fichero sea exactamente lo que se ve en la tabla. */
+export type ConsultaDeLlamadas = {
+  filtro?: FiltroDeLlamadas;
+  canal?: CanalDeLlamada;
+  sentimiento?: CallSentiment;
+  desde?: string;
+  hasta?: string;
+  q?: string;
+  orden?: OrdenDeLlamadas;
+};
 
 export type Call = {
   id: string;
@@ -538,6 +555,8 @@ export type Paginated<T> = {
 export type PaginaDeLlamadas = Paginated<Call> & {
   filtro?: FiltroDeLlamadas;
   conteos?: { todas: number; conCita: number; porDevolver: number };
+  /** Solo con `resumen=hoy`: lo del día en la zona del negocio. */
+  hoy?: { desde: string; llamadas: number; conCita: number; duracionMediaSecs: number | null };
 };
 
 export type OnboardingSteps = {
@@ -634,6 +653,45 @@ export type AgendaBooking = {
   services: AgendaService[];
   externalEventId: string | null;
   externalCalendarProvider: string | null;
+  /** Opcionales: un backend anterior al escritorio de octubre no los manda. */
+  clientName?: string | null;
+  createdAt?: string;
+  /** "voice" (o null) | "client_chat" | "owner_chat" | "whatsapp_lista_espera". */
+  createdVia?: string | null;
+  /** La conversación en la que se reservó; null si la apuntó el dueño. */
+  origen?: { canal: CanalDeLlamada; startedAt: string; durationSecs: number | null } | null;
+};
+
+/** Lo que vuelve al mover o cancelar una cita desde la agenda. */
+export type ResultadoDeCita = {
+  ok: true;
+  mensaje: string;
+  /** Solo si se le puede escribir por WhatsApp (móvil, número y sin baja). */
+  avisoAlCliente: { telefono: string; cliente: string | null } | null;
+  yaCancelada?: boolean;
+  cita?: { id: string; programedAt: string; professional: { id: string; name: string } | null };
+};
+
+/** Resultados del buscador del panel (⌘K). */
+export type ResultadosDeBusqueda = {
+  citas: Array<{
+    id: string;
+    programedAt: string;
+    durationMinutes: number;
+    clientName: string | null;
+    clientPhone: string | null;
+    servicios: string[];
+    profesional: string | null;
+  }>;
+  llamadas: Array<{
+    id: string;
+    startedAt: string;
+    fromNumber: string | null;
+    canal: CanalDeLlamada;
+    durationSecs: number | null;
+    resumen: string | null;
+    conCita: boolean;
+  }>;
 };
 
 export type AgendaResponse = {

@@ -2,13 +2,14 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { CallDetailModal } from "@/components/call-detail-modal";
-import { getCall } from "@/lib/api";
+import { DetalleDeLlamada } from "@/components/escritorio/llamadas/detalle-de-llamada";
+import { getCall, marcarRecado } from "@/lib/api";
 import type { Call } from "@/lib/types";
 
-vi.mock("@/lib/api", () => ({ getCall: vi.fn() }));
+vi.mock("@/lib/api", () => ({ getCall: vi.fn(), marcarRecado: vi.fn() }));
 
 const mockedGetCall = vi.mocked(getCall);
+const mockedMarcarRecado = vi.mocked(marcarRecado);
 
 function buildCall(overrides: Partial<Call> = {}): Call {
   return {
@@ -36,20 +37,22 @@ function buildCall(overrides: Partial<Call> = {}): Call {
   };
 }
 
+// El detalle de la llamada a la derecha del historial de escritorio. Antes
+// era un modal (call-detail-modal.tsx); estas pruebas vienen de él.
 function renderModal(onClose = vi.fn()) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const avisar = vi.fn();
   const { unmount } = render(
     <QueryClientProvider client={queryClient}>
-      <CallDetailModal callId="call_1" onClose={onClose} />
+      <DetalleDeLlamada callId="call_1" timeZone="Europe/Madrid" onCerrar={onClose} avisar={avisar} />
     </QueryClientProvider>
   );
-  return { onClose, unmount };
+  return { onClose, unmount, avisar };
 }
 
-describe("CallDetailModal", () => {
+describe("DetalleDeLlamada", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    document.body.style.overflow = "";
   });
 
   it("muestra un estado de carga mientras llega el detalle", () => {
@@ -235,32 +238,53 @@ describe("CallDetailModal", () => {
     );
 
     renderModal();
-    await screen.findByText("Grabación");
 
-    const audio = document.querySelector("audio");
-    expect(audio).toHaveAttribute("src", "https://r2.example/rec.mp3");
+    await waitFor(() => expect(document.querySelector("audio")).toHaveAttribute("src", "https://r2.example/rec.mp3"));
   });
 
-  it("cierra al pulsar Escape y al pulsar el botón de cerrar", async () => {
+  it("un chat de WhatsApp no tiene grabación y lo dice", async () => {
+    mockedGetCall.mockResolvedValue(buildCall({ voiceProvider: "whatsapp", durationSecs: null }));
+
+    renderModal();
+
+    expect(await screen.findByText("Chat de WhatsApp: no hay grabación.")).toBeInTheDocument();
+    expect(document.querySelector("audio")).toBeNull();
+  });
+
+  it("cierra con el botón de cerrar (Escape lo gestiona el historial)", async () => {
     mockedGetCall.mockResolvedValue(buildCall());
     const user = userEvent.setup();
     const { onClose } = renderModal();
     await screen.findByText("Reserva vinculada");
 
-    await user.keyboard("{Escape}");
+    await user.click(screen.getByRole("button", { name: "Cerrar detalle" }));
     expect(onClose).toHaveBeenCalledTimes(1);
-
-    await user.click(screen.getByRole("button", { name: "Cerrar detalle de llamada" }));
-    expect(onClose).toHaveBeenCalledTimes(2);
   });
 
-  it("bloquea el scroll del body mientras está abierto y lo restaura al desmontar", async () => {
-    mockedGetCall.mockResolvedValue(buildCall());
-    const { unmount } = renderModal();
+  it("con un recado pendiente, ofrece llamar al número que dejó y marcarlo como devuelto", async () => {
+    mockedGetCall.mockResolvedValue(
+      buildCall({
+        fromNumber: "+34611222333",
+        recado: { id: "l1", nombre: "Pilar", telefono: "622905117", motivo: "Quiere hablar con la dueña.", atendidoAt: null },
+      })
+    );
+    mockedMarcarRecado.mockResolvedValue({
+      id: "l1",
+      nombre: "Pilar",
+      telefono: "622905117",
+      motivo: "Quiere hablar con la dueña.",
+      atendidoAt: "2026-10-02T10:00:00Z",
+    });
+    const user = userEvent.setup();
+    const { avisar } = renderModal();
 
-    await waitFor(() => expect(document.body.style.overflow).toBe("hidden"));
+    expect(await screen.findByText("Por devolver")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Llamar/ })).toHaveAttribute("href", "tel:+34622905117");
 
-    unmount();
-    expect(document.body.style.overflow).toBe("");
+    await user.click(screen.getByRole("button", { name: "Marcar como devuelta" }));
+
+    expect(mockedMarcarRecado).toHaveBeenCalledWith("call_1", true);
+    expect(await screen.findByText("Llamada devuelta")).toBeInTheDocument();
+    expect(avisar).toHaveBeenCalledWith("Marcada como devuelta.");
   });
 });

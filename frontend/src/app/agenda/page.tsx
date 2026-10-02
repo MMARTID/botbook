@@ -1,33 +1,26 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
-import { getCalendarState } from "@/lib/calendar-state";
+import { Suspense, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { CalendarRange } from "lucide-react";
-import { AgendaTimeline, type AgendaRange } from "@/components/agenda-timeline";
 import { useBusiness } from "@/components/providers";
-import { AppPageHeader, AppPageSkeleton } from "@/components/app-page-header";
+import { AppPageSkeleton } from "@/components/app-page-header";
 import { AgendaMovil } from "@/components/movil/agenda-movil";
+import { AgendaEscritorio } from "@/components/escritorio/agenda/agenda-escritorio";
 import { useEsMovil } from "@/hooks/use-es-movil";
 
-const RANGES: { value: AgendaRange; label: string }[] = [
-  { value: 1, label: "Hoy" },
-  { value: 7, label: "7 días" },
-  { value: 30, label: "30 días" },
-];
+// Pantalla de borde a borde en escritorio: <main> no le pone margen.
+const ESQUELETO_ANCHO = "lg:px-8 lg:py-6";
 
 export default function AgendaPage() {
   const router = useRouter();
   const { business, hasToken, isLoadingBusiness, isError: isBusinessError, errorMessage } = useBusiness();
   const esMovil = useEsMovil();
-  const [days, setDays] = useState<AgendaRange>(7);
-  const [offset, setOffset] = useState(0);
 
   useEffect(() => {
     if (hasToken === false) router.replace("/login");
   }, [hasToken, router]);
 
-  if (isLoadingBusiness || esMovil === null) return <AppPageSkeleton label="Cargando agenda…" />;
+  if (isLoadingBusiness || esMovil === null) return <AppPageSkeleton label="Cargando agenda…" className={ESQUELETO_ANCHO} />;
 
   // Carga y error son cosas distintas: si /business/me falla, `isLoading` pasa
   // a false y `business` se queda vacío, así que sin esta rama el negocio se
@@ -39,7 +32,7 @@ export default function AgendaPage() {
   // la agenda que el usuario estaba mirando y la cambiaba por esta pantalla.
   if (isBusinessError && !business) {
     return (
-      <div className="panel mx-auto max-w-2xl space-y-4 p-6 text-center">
+      <div className="panel mx-auto max-w-2xl space-y-4 p-6 text-center lg:mt-10">
         <h1 className="text-2xl font-semibold text-[#0a0a0a]">No se pudo cargar tu agenda</h1>
         <p className="text-sm leading-6 text-muted">
           Puede haber sido un corte momentáneo de conexión. Vuelve a intentarlo; si sigue sin cargar,
@@ -57,27 +50,9 @@ export default function AgendaPage() {
 
   if (!business) return null; // Sin sesión: el efecto de arriba redirige a /login.
 
-  if (esMovil) {
-    return (
-      <Suspense fallback={<AppPageSkeleton label="Cargando agenda…" />}>
-        <AgendaMovil business={business} />
-      </Suspense>
-    );
-  }
-
-  const calendar = getCalendarState(business);
-
   return (
-    <div className="space-y-6">
-      <AppPageHeader icon={CalendarRange} title="Agenda" description="Las citas verificadas que tu recepcionista ha reservado para el negocio.">
-        {/* Mismo segmentado que los niveles de servicio de /agente: la opción
-            activa en lavado morado. Antes era blanco sobre #fafafa y apenas se
-            distinguía cuál estaba elegida. */}
-        <div role="group" className="flex w-full gap-1 rounded-full border border-[#e5e5e5] bg-[#fafafa] p-1 sm:w-auto" aria-label="Periodo de agenda">
-          {RANGES.map((range) => <button key={range.value} type="button" onClick={() => { setDays(range.value); setOffset(0); }} aria-pressed={days === range.value} className={`min-h-11 flex-1 rounded-full px-4 text-sm font-semibold transition duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] sm:flex-none ${days === range.value ? "bg-[#f3eeff] text-[#6d28d9] ring-1 ring-inset ring-[#ddd6fe]" : "text-[#52525b] hover:text-[#0a0a0a]"}`}>{range.label}</button>)}
-        </div>
-      </AppPageHeader>
-      <AgendaTimeline days={days} offset={offset} timeZone={business.timezone || "Europe/Madrid"} calendarProvider={calendar.provider} hasCalendar={calendar.connected} onOffsetChange={setOffset} />
-    </div>
+    <Suspense fallback={<AppPageSkeleton label="Cargando agenda…" className={ESQUELETO_ANCHO} />}>
+      {esMovil ? <AgendaMovil business={business} /> : <AgendaEscritorio business={business} />}
+    </Suspense>
   );
 }

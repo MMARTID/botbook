@@ -565,10 +565,10 @@ pequeño. La respuesta física es la firma del sistema; la espectacularidad no. 
 
 ### Navigation
 
-Cabecera `sticky` sobre `#fafafa` al 80 % con `backdrop-blur-xl` y borde inferior `white/60`. A la
-izquierda, el logotipo `BrandMark` (squircle morado con mordisco circular blanco) de 40–44 px, el
-nombre del producto en semibold negro y el nombre del negocio debajo en tinta apagada. A la
-derecha, badge de estado morado y cierre de sesión, que en móvil se reduce a icono.
+En escritorio, la barra lateral plegable (ver «Escritorio»): arriba el logotipo `BrandMark`
+(squircle morado con mordisco circular blanco) de 36 px, el nombre del producto en negrita y el del
+negocio debajo en tinta apagada; luego el chip de estado del servicio y el buscador; abajo los
+minutos, Ajustes, Facturación y cerrar sesión.
 
 Los enlaces son pastillas con icono Lucide de 16 px: activo en Lavado Morado, inactivo en blanco
 con hover templado (`#fafafa`). Por debajo de `lg` no hay cabecera global: cada pantalla trae la
@@ -600,6 +600,35 @@ prototipo «Alhabla Movil» de Claude Design). El escritorio no cambia.
 - **Teléfonos sin +34** (`formatPhoneLocal`) y llamar siempre a un toque: botón redondo de 44 px
   en filas, deslizar a la izquierda en el historial, botón primario en hojas.
 - La próxima cita de Inicio es la única superficie negra de la app: es lo primero que se mira.
+
+### Escritorio (desde `lg`)
+
+Rediseño de octubre de 2026 a partir de los wireframes «Alhabla Escritorio Wireframes» de Claude
+Design (sistema A: barra lateral y paneles de detalle). Fase 1: navegación, Panel, Agenda y
+Llamadas; Agente, Gestor, Ajustes, Facturación, número principal, login, alta y checkout siguen
+con el diseño anterior hasta sus fases.
+
+- **Barra lateral plegable** (`components/escritorio/barra-lateral.tsx`): 240 px desplegada, franja
+  de iconos de 64 px plegada, con bocadillos negros al pasar por encima. Se pliega sola en Agenda,
+  Llamadas y Gestor; lo que el dueño elija se recuerda por tipo de pantalla. Arriba, siempre a la
+  vista, el chip de estado del servicio (abre un diálogo con las mismas señales que la hoja del
+  móvil) y el buscador.
+- **Buscador ⌘K** (`buscador.tsx`): pantallas, citas y conversaciones del negocio, «Preguntar al
+  gestor…» y copiar el número de Alhabla. «G» + letra salta a una pantalla (P, A, L, R, G, J).
+- **Pantallas de trabajo de borde a borde**: Panel, Agenda y Llamadas no llevan el margen de
+  90 rem; empiezan con una franja de título (`TiraDePagina`) y ocupan el alto de la ventana con su
+  propio scroll.
+- **Detalle a la derecha, no en modal** (`PanelDeDetalle`): la cita en la Agenda, la conversación en
+  Llamadas. La lista sigue a la vista y se sigue eligiendo (↑ ↓ en Llamadas, Escape cierra). La
+  selección y los filtros viven en la URL, para que el buscador y «Ver en la agenda» abran
+  directamente una cita o una llamada.
+- **La agenda en horas**: una columna por día (o por profesional en «Día»), lo cerrado sombreado
+  en rayas, hoy en lavado morado y la línea de «ahora» en morado. Las citas que se solapan se
+  reparten el ancho. Arrastrar una cita la mueve: se comprueba el hueco real y se pide «sí».
+- **Diálogos centrados** (`Dialogo`) solo para confirmar algo que cambia fuera del panel (mover o
+  cancelar una cita, avisar al cliente) o para contenido largo que no tiene pantalla (el desvío).
+- Las piezas de la columna derecha del Panel (citas sin reservar, guía de configuración, últimos
+  7 días, llamadas recientes) son las mismas que las de Inicio en el móvil.
 
 ### Icon Tiles
 

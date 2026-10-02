@@ -1,23 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import { useCallback, useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
-import {
-  Activity,
-  Bot,
-  CalendarDays,
-  ChevronLeft,
-  ChevronRight,
-  Clock3,
-  CreditCard,
-  LayoutDashboard,
-  Loader2,
-  LogOut,
-  MessageSquareText,
-  PhoneCall,
-  Settings,
-  type LucideIcon,
-} from "lucide-react";
+import { ChevronLeft, Loader2 } from "lucide-react";
 import { BrandMark } from "@/components/brand-mark";
 import { useBusiness } from "@/components/providers";
 import { useEsMovil } from "@/hooks/use-es-movil";
@@ -27,43 +13,10 @@ import {
   esRutaDePestaña,
   usePorDevolver,
 } from "@/components/movil/barra-de-pestanas";
-import { clearAuthTokens } from "@/lib/billing-navigation";
-
-type NavItem = {
-  href: string;
-  label: string;
-  icon: LucideIcon;
-  exact?: boolean;
-};
-
-const PRIMARY_NAVIGATION: NavItem[] = [
-  { href: "/", label: "Panel", icon: LayoutDashboard, exact: true },
-  { href: "/agenda", label: "Agenda", icon: CalendarDays },
-  { href: "/llamadas", label: "Llamadas", icon: PhoneCall },
-];
-
-const AGENT_NAVIGATION: NavItem[] = [
-  { href: "/agente", label: "Agente", icon: Bot, exact: true },
-];
-
-// «Tu Gestor» (fase 2 del canal de WhatsApp, Beta): en la barra lateral con
-// la recepcionista; en móvil se abre desde la pestaña Cuenta, porque la
-// barra inferior tiene cinco huecos justos.
-const GESTOR_NAVIGATION: NavItem[] = [
-  { href: "/asistente", label: "Gestor", icon: MessageSquareText, exact: true },
-];
-
-const ACCOUNT_NAVIGATION: NavItem[] = [
-  { href: "/ajustes", label: "Ajustes", icon: Settings },
-  { href: "/ajustes/facturacion", label: "Facturación", icon: CreditCard },
-];
-
-const NAV_ITEMS: NavItem[] = [
-  ...PRIMARY_NAVIGATION,
-  ...AGENT_NAVIGATION,
-  ...GESTOR_NAVIGATION,
-  ...ACCOUNT_NAVIGATION,
-];
+import { AvisoFlotante, useAviso } from "@/components/aviso-flotante";
+import { BarraLateral } from "@/components/escritorio/barra-lateral";
+import { Buscador, useAtajosDelEscritorio } from "@/components/escritorio/buscador";
+import { esPantallaAncha, esPantallaDeTrabajo } from "@/components/escritorio/navegacion";
 
 // Pantallas de cuenta sin el armazón del panel (sin sesión o a medio
 // entrar). La landing, los sectores, los planes y las legales viven en la
@@ -88,126 +41,39 @@ export function esRutaSinArmazon(pathname: string) {
   return PUBLIC_ROUTES.includes(pathname);
 }
 
-function isActive(pathname: string, item: NavItem, items: NavItem[]) {
-  if (item.exact) return pathname === item.href;
-  if (pathname !== item.href && !pathname.startsWith(`${item.href}/`)) return false;
-  // Si otra entrada del menú casa con más precisión (Facturación bajo
-  // /ajustes/), gana esa.
-  return !items.some(
-    (other) =>
-      other !== item &&
-      other.href.length > item.href.length &&
-      (pathname === other.href || pathname.startsWith(`${other.href}/`))
-  );
+const CLAVE_BARRA_PLEGADA = "alhabla:barra-plegada";
+type PreferenciaDeBarra = { trabajo?: boolean; resto?: boolean };
+
+function leerPreferencia(): PreferenciaDeBarra {
+  try {
+    return JSON.parse(window.localStorage.getItem(CLAVE_BARRA_PLEGADA) ?? "{}") as PreferenciaDeBarra;
+  } catch {
+    return {};
+  }
 }
 
-function NavigationLink({
-  item,
-  pathname,
-  compact = false,
-  onNavigate,
-}: {
-  item: NavItem;
-  pathname: string;
-  compact?: boolean;
-  onNavigate?: () => void;
-}) {
-  const Icon = item.icon;
-  const active = isActive(pathname, item, NAV_ITEMS);
-
-  return (
-    <Link
-      href={item.href}
-      onClick={onNavigate}
-      aria-current={active ? "page" : undefined}
-      className={`group flex min-h-11 items-center gap-3 rounded-full border text-sm font-semibold transition duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] focus-visible:ring-offset-2 ${
-        compact ? "flex-col justify-center gap-0.5 px-2 text-[11px]" : "px-4"
-      } ${
-        active
-          ? "border-[#ddd6fe] bg-[#f3eeff] text-[#6d28d9]"
-          : "border-transparent text-[#3f3f46] hover:border-[#e5e5e5] hover:bg-[#fafafa] hover:text-[#0a0a0a]"
-      }`}
-    >
-      <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
-      {!compact ? <span className="min-w-0 flex-1">{item.label}</span> : <span>{item.label}</span>}
-      {!compact && active ? <ChevronRight className="h-4 w-4 shrink-0" aria-hidden="true" /> : null}
-    </Link>
-  );
-}
-
-function NavGroup({ label, items, pathname }: { label: string; items: NavItem[]; pathname: string }) {
-  return (
-    <div>
-      <p className="mb-2 px-4 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">{label}</p>
-      <div className="space-y-1">
-        {items.map((item) => <NavigationLink key={item.href} item={item} pathname={pathname} />)}
-      </div>
-    </div>
-  );
-}
-
-function MinutesWarningCard({ onNavigate }: { onNavigate?: () => void }) {
-  const warning = useMinutesWarning();
-  if (!warning) return null;
-
-  return (
-    <div className="mt-3 rounded-2xl border border-[#f0dfa8] bg-[#fef8e7] p-3" role="status">
-      <div className="flex items-center gap-2">
-        <Clock3 className="h-4 w-4 text-[#806012]" aria-hidden="true" />
-        <p className="text-xs font-semibold text-[#806012]">
-          {warning.exhausted
-            ? "Minutos del plan agotados"
-            : `Te queda un ${warning.remainingPct}% de tus minutos`}
-        </p>
-      </div>
-      <p className="mt-1 text-xs leading-5 text-[#52525b]">
-        {warning.exhausted
-          ? `Las llamadas siguen atendiéndose${warning.extraPrice ? ` y se facturan a ${warning.extraPrice}` : " como minutos extra"}.`
-          : `Al agotarlos, las llamadas se seguirán atendiendo${warning.extraPrice ? ` a ${warning.extraPrice}` : " como minutos extra"}.`}
-      </p>
-      <Link
-        href="/ajustes/facturacion"
-        onClick={onNavigate}
-        className="zona-tactil mt-2 inline-flex text-xs font-semibold text-[#806012] underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]"
-      >
-        Ver consumo y planes
-      </Link>
-    </div>
-  );
-}
-
-function AccountFooter({ pathname }: { pathname: string }) {
-  const { business } = useBusiness();
-  const hasIssue = business?.callsSuspendedAt || business?.subscriptionStatus === "PAST_DUE" || business?.subscriptionStatus === "UNPAID";
-
-  return (
-    <div className="border-t border-[#e5e5e5] px-4 py-4">
-      <NavGroup label="Cuenta" items={ACCOUNT_NAVIGATION} pathname={pathname} />
-      <MinutesWarningCard />
-      {/* Solo cuando hay algo que atender: en reposo repetía el enlace
-          «Facturación» que está justo encima. */}
-      {hasIssue ? (
-        <div className="mt-4 rounded-2xl border border-[#f0dfa8] bg-[#fef8e7] p-3" role="status">
-          <div className="flex items-center gap-2">
-            <Activity className="h-4 w-4 text-[#9f7a15]" aria-hidden="true" />
-            <p className="text-xs font-semibold text-[#806012]">Requiere atención</p>
-          </div>
-          <p className="mt-1 text-xs leading-5 text-[#52525b]">Revisa tu facturación para que la recepción siga activa.</p>
-          <Link href="/ajustes/facturacion" className="zona-tactil mt-2 inline-flex text-xs font-semibold text-[#806012] underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]">
-            Ver facturación
-          </Link>
-        </div>
-      ) : null}
-      <button
-        type="button"
-        onClick={() => { clearAuthTokens(); window.location.assign("/login"); }}
-        className="mt-3 flex min-h-11 w-full items-center gap-3 rounded-full px-4 text-left text-sm font-semibold text-[#52525b] transition hover:bg-[#fafafa] hover:text-[#0a0a0a] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]"
-      >
-        <LogOut className="h-4 w-4" aria-hidden="true" />
-        Cerrar sesión
-      </button>
-    </div>
-  );
+/**
+ * Barra lateral plegada o no: por defecto, plegada en las pantallas de
+ * trabajo y abierta en el resto. Lo que el dueño elija con el botón se
+ * recuerda para ese tipo de pantalla en este navegador.
+ */
+function useBarraPlegada(pathname: string) {
+  const tipo = esPantallaDeTrabajo(pathname) ? "trabajo" : "resto";
+  const [preferencia, setPreferencia] = useState<PreferenciaDeBarra>({});
+  useEffect(() => setPreferencia(leerPreferencia()), []);
+  const plegada = preferencia[tipo] ?? tipo === "trabajo";
+  const alternar = useCallback(() => {
+    setPreferencia((actual) => {
+      const siguiente = { ...actual, [tipo]: !(actual[tipo] ?? tipo === "trabajo") };
+      try {
+        window.localStorage.setItem(CLAVE_BARRA_PLEGADA, JSON.stringify(siguiente));
+      } catch {
+        // Sin almacenamiento (navegación privada) vale para esta visita.
+      }
+      return siguiente;
+    });
+  }, [tipo]);
+  return { plegada, alternar };
 }
 
 /**
@@ -231,8 +97,16 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const minutesWarning = useMinutesWarning();
   const conPestañas = esRutaDePestaña(pathname);
   const esMovil = useEsMovil();
-  // La insignia solo existe en la barra de pestañas del móvil.
-  const porDevolver = usePorDevolver(hasToken === true && esMovil === true && !PUBLIC_ROUTES.includes(pathname));
+  const conArmazon = !PUBLIC_ROUTES.includes(pathname) && !(pathname === "/" && hasToken !== true);
+  // La insignia de «por devolver»: en la pestaña Llamadas del móvil y junto a
+  // Llamadas en la barra lateral del escritorio.
+  const porDevolver = usePorDevolver(hasToken === true && esMovil !== null && conArmazon);
+  const { plegada, alternar } = useBarraPlegada(pathname);
+  const [buscadorAbierto, setBuscadorAbierto] = useState(false);
+  const abrirBuscador = useCallback(() => setBuscadorAbierto(true), []);
+  const { aviso, avisar, cerrar } = useAviso();
+  useAtajosDelEscritorio({ activo: esMovil === false && hasToken === true && conArmazon, onBuscar: abrirBuscador });
+  const ancha = esPantallaAncha(pathname);
 
   if (pathname === "/") {
     if (hasToken === null) return <div className="flex min-h-screen items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-[#6d28d9]" /></div>;
@@ -243,19 +117,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen bg-white lg:flex">
       <a href="#main-content" className="sr-only z-[80] rounded-[10px] bg-[#0a0a0a] px-4 py-3 text-sm font-semibold text-white focus:not-sr-only focus:fixed focus:left-4 focus:top-4">Saltar a contenido</a>
-      <aside className="hidden h-screen w-72 shrink-0 flex-col border-r border-[#e5e5e5] bg-white lg:sticky lg:top-0 lg:flex">
-        <div className="px-5 pb-6 pt-6">
-          <Link href="/" aria-label="Ir al panel de Alhabla" className="flex items-center gap-3 rounded-2xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]">
-            <BrandMark className="h-11 w-11 shrink-0" />
-            <span className="min-w-0"><span className="block text-base font-bold text-[#0a0a0a]">Alhabla</span><span className="block truncate text-sm text-muted">{business?.name ?? "Mi negocio"}</span></span>
-          </Link>
-        </div>
-        <nav className="flex-1 space-y-7 overflow-y-auto px-4 pb-6" aria-label="Navegación principal">
-          <NavGroup label="Operación" items={PRIMARY_NAVIGATION} pathname={pathname} />
-          <NavGroup label="Recepcionista" items={[...AGENT_NAVIGATION, ...GESTOR_NAVIGATION]} pathname={pathname} />
-        </nav>
-        <AccountFooter pathname={pathname} />
-      </aside>
+      <BarraLateral pathname={pathname} plegada={plegada} onAlternar={alternar} onBuscar={abrirBuscador} porDevolver={porDevolver} />
       <div className="min-w-0 flex-1">
         {/* En móvil cada pantalla trae su cabecera (título grande, «‹ Volver»).
             Solo el chat del Gestor y las rutas sueltas usan una del armazón. */}
@@ -279,7 +141,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             puedan llegar de borde a borde con márgenes negativos. */}
         <main
           id="main-content"
-          className={`mx-auto w-full max-w-2xl px-4 py-5 lg:max-w-[90rem] lg:px-10 lg:py-10 lg:pb-10 ${
+          className={`mx-auto w-full max-w-2xl px-4 py-5 ${ancha ? "lg:max-w-none lg:p-0" : "lg:max-w-[90rem] lg:px-10 lg:py-10 lg:pb-10"} ${
             conPestañas ? "pb-[calc(6.5rem+env(safe-area-inset-bottom))]" : "pb-[calc(2rem+env(safe-area-inset-bottom))]"
           }`}
         >
@@ -289,6 +151,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       {conPestañas ? (
         <BarraDePestañas pathname={pathname} porDevolver={porDevolver} avisoDeMinutos={minutesWarning !== null} />
       ) : null}
+      {esMovil === false ? (
+        <Buscador
+          abierto={buscadorAbierto}
+          onCerrar={() => setBuscadorAbierto(false)}
+          timeZone={business?.timezone || "Europe/Madrid"}
+          avisar={avisar}
+        />
+      ) : null}
+      {aviso ? <AvisoFlotante aviso={aviso} onClose={cerrar} /> : null}
     </div>
   );
 }

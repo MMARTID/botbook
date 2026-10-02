@@ -30,9 +30,8 @@ import {
   statusLabel,
 } from "@/lib/format";
 import { claveDeDia, diaLargo, etiquetaDeDia, horaDelNegocio } from "@/lib/fechas-negocio";
-import { enlaceTel, telefonoParaDevolver } from "@/lib/llamadas";
+import { enlaceTel, parseTranscriptMessages, telefonoParaDevolver } from "@/lib/llamadas";
 import type { Call } from "@/lib/types";
-import { parseTranscriptMessages } from "@/components/call-detail-modal";
 import { SectionErrorState } from "@/components/section-card";
 import { CuerpoDeHoja, HojaInferior } from "@/components/movil/hoja-inferior";
 import { Insignia, type Tono } from "@/components/movil/piezas";
@@ -68,6 +67,26 @@ export function copiarAlPortapapeles(
   );
 }
 
+/** «Marcar como devuelta» y deshacer, en la hoja del móvil y en el panel
+ * de detalle del escritorio. */
+export function useMarcarRecado(
+  id: string | null,
+  avisar: (mensaje: string, tipo?: "success" | "error") => void
+) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (atendido: boolean) => marcarRecado(id!, atendido),
+    onSuccess: async (recado, atendido) => {
+      queryClient.setQueryData<Call | undefined>(["call-detail", id], (actual) =>
+        actual ? { ...actual, recado } : actual
+      );
+      await invalidarLlamadas(queryClient);
+      if (atendido) avisar("Marcada como devuelta.");
+    },
+    onError: () => avisar("No se pudo guardar. Inténtalo otra vez.", "error"),
+  });
+}
+
 /**
  * Detalle de una llamada en el móvil: acciones arriba (llamar, copiar,
  * marcar el recado como devuelto), dos pestañas sin scroll dentro del scroll
@@ -96,25 +115,13 @@ export function HojaLlamada({
     if (callId) setPestaña("resumen");
   }, [callId]);
 
-  const queryClient = useQueryClient();
   const callQuery = useQuery({
     queryKey: ["call-detail", id],
     queryFn: () => getCall(id!),
     enabled: Boolean(id),
   });
   const call = callQuery.data;
-
-  const recadoMutation = useMutation({
-    mutationFn: (atendido: boolean) => marcarRecado(id!, atendido),
-    onSuccess: async (recado, atendido) => {
-      queryClient.setQueryData<Call | undefined>(["call-detail", id], (actual) =>
-        actual ? { ...actual, recado } : actual
-      );
-      await invalidarLlamadas(queryClient);
-      if (atendido) avisar("Marcada como devuelta.");
-    },
-    onError: () => avisar("No se pudo guardar. Inténtalo otra vez.", "error"),
-  });
+  const recadoMutation = useMarcarRecado(id, avisar);
 
   const hoy = claveDeDia(new Date(), timeZone);
   const telefono = call ? telefonoParaDevolver(call) : null;
@@ -238,7 +245,7 @@ export function HojaLlamada({
   );
 }
 
-function Resumen({ call, timeZone, onCerrar }: { call: Call; timeZone: string; onCerrar: () => void }) {
+export function Resumen({ call, timeZone, onCerrar }: { call: Call; timeZone: string; onCerrar: () => void }) {
   const tono = TONO_DE_RESULTADO[outcomeTone(call.outcome)];
   const reserva = call.booking && !call.booking.isCancelled ? call.booking : null;
   const motivo = escalationReasonLabel(call.escalationReason);
@@ -300,7 +307,7 @@ function Resumen({ call, timeZone, onCerrar }: { call: Call; timeZone: string; o
               />
             </dl>
             <Link
-              href={`/agenda?dia=${claveDeDia(reserva.programedAt, timeZone)}`}
+              href={`/agenda?dia=${claveDeDia(reserva.programedAt, timeZone)}&cita=${encodeURIComponent(reserva.id)}`}
               onClick={onCerrar}
               className="mt-1.5 inline-flex min-h-11 items-center gap-1 text-sm font-bold text-[#6d28d9] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]"
             >
@@ -344,7 +351,7 @@ function Dato({ termino, valor, numerico = false }: { termino: string; valor: st
   );
 }
 
-function Transcripcion({ call, timeZone }: { call: Call; timeZone: string }) {
+export function Transcripcion({ call, timeZone }: { call: Call; timeZone: string }) {
   const mensajes = call.transcript ? parseTranscriptMessages(call.transcript.messages) : null;
   const visibles = (mensajes ?? []).filter((mensaje) => {
     const texto = mensaje.content ?? mensaje.text ?? "";
@@ -411,7 +418,7 @@ function alturas(semilla: string) {
  * que se toca para saltar y la velocidad (1×, 1,5×, 2×). Se para al cerrar
  * la hoja.
  */
-function Reproductor({
+export function Reproductor({
   src,
   duracion,
   semilla,
