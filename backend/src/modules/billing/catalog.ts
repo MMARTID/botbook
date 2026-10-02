@@ -7,7 +7,15 @@ type BillingPlan = {
   databasePlan: string;
   includedMinutes: number;
   extraMinuteCents: number;
+  /** El precio con el que se abre un checkout NUEVO. */
   priceEnvironmentVariable: string;
+  /**
+   * Precios "de fundador": ya no se ofrecen a nadie nuevo, pero los negocios
+   * que los contrataron los conservan mientras sigan suscritos. Sin esto,
+   * `getPlanByPriceId` dejaría de reconocerlos en cuanto se suba el precio
+   * (plan/minutos/features a null) — ver subida de precios 2026-10.
+   */
+  legacyPriceEnvironmentVariables: readonly string[];
   usagePriceEnvironmentVariable: string;
 };
 
@@ -18,6 +26,7 @@ export const BILLING_PLANS: Record<PlanId, BillingPlan> = {
     includedMinutes: 100,
     extraMinuteCents: 45,
     priceEnvironmentVariable: "STRIPE_PRICE_INICIO",
+    legacyPriceEnvironmentVariables: ["STRIPE_PRICE_INICIO_FOUNDER"],
     usagePriceEnvironmentVariable: "STRIPE_PRICE_EXTRA_INICIO",
   },
   pro: {
@@ -26,6 +35,7 @@ export const BILLING_PLANS: Record<PlanId, BillingPlan> = {
     includedMinutes: 400,
     extraMinuteCents: 40,
     priceEnvironmentVariable: "STRIPE_PRICE_PRO",
+    legacyPriceEnvironmentVariables: ["STRIPE_PRICE_PRO_FOUNDER"],
     usagePriceEnvironmentVariable: "STRIPE_PRICE_EXTRA_PRO",
   },
   scale: {
@@ -34,6 +44,7 @@ export const BILLING_PLANS: Record<PlanId, BillingPlan> = {
     includedMinutes: 1000,
     extraMinuteCents: 35,
     priceEnvironmentVariable: "STRIPE_PRICE_SCALE",
+    legacyPriceEnvironmentVariables: ["STRIPE_PRICE_SCALE_FOUNDER"],
     usagePriceEnvironmentVariable: "STRIPE_PRICE_EXTRA_SCALE",
   },
 };
@@ -63,7 +74,10 @@ export function getUsagePriceId(planId: PlanId) {
 }
 
 export function getPlanByPriceId(priceId: string) {
-  return Object.values(BILLING_PLANS).find(
-    (plan) => process.env[plan.priceEnvironmentVariable] === priceId,
-  );
+  return Object.values(BILLING_PLANS).find((plan) => {
+    if (process.env[plan.priceEnvironmentVariable] === priceId) return true;
+    return plan.legacyPriceEnvironmentVariables.some(
+      (envVar) => process.env[envVar] === priceId,
+    );
+  });
 }

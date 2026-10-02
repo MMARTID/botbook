@@ -14,7 +14,7 @@ export const plans: readonly Plan[] = [
   {
     id: "inicio",
     name: "Inicio",
-    price: 69,
+    price: 79,
     minutes: 100,
     extraPerMinute: 0.45,
     description: "Para negocios que quieren empezar a no perder llamadas importantes.",
@@ -31,7 +31,7 @@ export const plans: readonly Plan[] = [
   {
     id: "pro",
     name: "Pro",
-    price: 149,
+    price: 179,
     minutes: 400,
     extraPerMinute: 0.4,
     description: "La opción recomendada: además de atender, te llena la agenda y reduce las ausencias.",
@@ -49,7 +49,7 @@ export const plans: readonly Plan[] = [
   {
     id: "scale",
     name: "Scale",
-    price: 299,
+    price: 349,
     minutes: 1000,
     extraPerMinute: 0.35,
     description: "Para negocios con varias sedes o alto volumen que quieren datos para decidir.",
