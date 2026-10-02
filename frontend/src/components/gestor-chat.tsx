@@ -112,6 +112,42 @@ function Avatar({ grande = false }: { grande?: boolean }) {
   );
 }
 
+/** «Misma conversación que en WhatsApp», o la invitación a conectarlo. */
+export function IndicadorDeWhatsapp({
+  whatsapp,
+  className = "",
+}: {
+  whatsapp: EstadoDelGestor["whatsapp"];
+  className?: string;
+}) {
+  return whatsapp === "activo" ? (
+    <span className={`flex items-center gap-2 text-muted ${className}`}>
+      <span
+        aria-hidden="true"
+        className="h-2 w-2 shrink-0 rounded-full bg-exito shadow-[0_0_0_3px_rgb(var(--exito-fondo))]"
+      />
+      <span>
+        Misma conversación que en{" "}
+        <b className="font-semibold text-tinta">WhatsApp</b>
+      </span>
+    </span>
+  ) : (
+    <Link
+      href="/ajustes/telefono#whatsapp"
+      className={`flex items-center gap-2 rounded text-muted hover:text-tinta focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-morado ${className}`}
+    >
+      <span
+        aria-hidden="true"
+        className="h-2 w-2 shrink-0 rounded-full bg-linea-fuerte"
+      />
+      <span>
+        Conecta tu <b className="font-semibold">WhatsApp</b> para escribirle
+        también desde el móvil
+      </span>
+    </Link>
+  );
+}
+
 function Cabecera({ whatsapp }: { whatsapp?: EstadoDelGestor["whatsapp"] }) {
   return (
     <header className="flex flex-wrap items-center gap-2.5 border-b border-linea px-4 py-3.5 sm:flex-nowrap sm:gap-3 sm:px-8 sm:py-5">
@@ -126,43 +162,32 @@ function Cabecera({ whatsapp }: { whatsapp?: EstadoDelGestor["whatsapp"] }) {
       </h1>
       <span className="badge-soft">Beta</span>
       {whatsapp ? (
-        whatsapp === "activo" ? (
-          <span className="flex w-full items-center gap-2 text-xs text-muted sm:ml-auto sm:w-auto sm:text-[13px]">
-            <span
-              aria-hidden="true"
-              className="h-2 w-2 shrink-0 rounded-full bg-exito shadow-[0_0_0_3px_rgb(var(--exito-fondo))]"
-            />
-            <span>
-              Misma conversación que en{" "}
-              <b className="font-semibold text-tinta">WhatsApp</b>
-            </span>
-          </span>
-        ) : (
-          <Link
-            href="/ajustes/telefono#whatsapp"
-            className="flex w-full items-center gap-2 rounded text-xs text-muted hover:text-tinta focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-morado sm:ml-auto sm:w-auto sm:text-[13px]"
-          >
-            <span
-              aria-hidden="true"
-              className="h-2 w-2 shrink-0 rounded-full bg-linea-fuerte"
-            />
-            <span>
-              Conecta tu <b className="font-semibold">WhatsApp</b> para
-              escribirle también desde el móvil
-            </span>
-          </Link>
-        )
+        <IndicadorDeWhatsapp
+          whatsapp={whatsapp}
+          className="w-full text-xs sm:ml-auto sm:w-auto sm:text-[13px]"
+        />
       ) : null}
     </header>
   );
 }
+
+// En escritorio el chat ocupa la columna de la pantalla, sin marco: la
+// cabecera la pone la franja de título y el contexto va a la derecha.
+const MARCO_ESCRITORIO = "flex h-full min-h-0 flex-col";
 
 /**
  * «Tu gestor» (Beta): el mismo gestor que atiende al dueño por WhatsApp, con
  * la misma conversación, desde el panel. Cada propuesta llega con sus dos
  * botones y el botón ejecuta; el texto nunca ejecuta nada.
  */
-export function GestorChat({ hasToken }: { hasToken: boolean | null }) {
+export function GestorChat({
+  hasToken,
+  enEscritorio = false,
+}: {
+  hasToken: boolean | null;
+  /** Sin marco ni cabecera propia: los pone la pantalla de escritorio. */
+  enEscritorio?: boolean;
+}) {
   const queryClient = useQueryClient();
   const [texto, setTexto] = useState("");
   const [burbujas, setBurbujas] = useState<Burbuja[]>([]);
@@ -226,6 +251,10 @@ export function GestorChat({ hasToken }: { hasToken: boolean | null }) {
     onSuccess: (r) => {
       anadir("gestor", r.respuesta);
       setPropuesta(r.propuesta);
+      // Una propuesta nueva sale en «Cambios del gestor» del escritorio.
+      if (r.propuesta) {
+        void queryClient.invalidateQueries({ queryKey: ["gestor-cambios"] });
+      }
     },
     onError: (error) =>
       setAviso({
@@ -252,6 +281,8 @@ export function GestorChat({ hasToken }: { hasToken: boolean | null }) {
       void queryClient.invalidateQueries({ queryKey: ["my-business"] });
       void queryClient.invalidateQueries({ queryKey: ["booking-settings"] });
       void queryClient.invalidateQueries({ queryKey: ["agenda"] });
+      void queryClient.invalidateQueries({ queryKey: ["agenda-panel"] });
+      void queryClient.invalidateQueries({ queryKey: ["gestor-cambios"] });
     },
     onError: (error) => {
       setPropuesta(null);
@@ -286,8 +317,8 @@ export function GestorChat({ hasToken }: { hasToken: boolean | null }) {
   if (estadoQuery.isLoading) {
     // Mismo marco que la conversación: la pantalla no salta al cargar.
     return (
-      <div role="status" className={MARCO}>
-        <Cabecera />
+      <div role="status" className={enEscritorio ? MARCO_ESCRITORIO : MARCO}>
+        {enEscritorio ? null : <Cabecera />}
         <span className="sr-only">Cargando tu gestor…</span>
         <div
           className="mx-auto w-full max-w-[720px] flex-1 space-y-4 px-4 py-6 sm:px-8"
@@ -319,8 +350,8 @@ export function GestorChat({ hasToken }: { hasToken: boolean | null }) {
   }
   if (!estado.disponible || !estado.activoEnNegocio) {
     return (
-      <div className="panel overflow-hidden p-0">
-        <Cabecera />
+      <div className={enEscritorio ? "" : "panel overflow-hidden p-0"}>
+        {enEscritorio ? null : <Cabecera />}
         <div className="p-6 text-sm leading-6 text-muted sm:px-8">
           {!estado.disponible ? (
             <>
@@ -356,8 +387,8 @@ export function GestorChat({ hasToken }: { hasToken: boolean | null }) {
   let diaAnterior: string | null = null;
 
   return (
-    <div className={MARCO}>
-      <Cabecera whatsapp={estado.whatsapp} />
+    <div className={enEscritorio ? MARCO_ESCRITORIO : MARCO}>
+      {enEscritorio ? null : <Cabecera whatsapp={estado.whatsapp} />}
       <div
         className="relative min-h-0 flex-1 overflow-y-auto"
         role="log"

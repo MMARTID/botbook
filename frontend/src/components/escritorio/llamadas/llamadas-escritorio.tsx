@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
@@ -32,6 +31,7 @@ import { SectionErrorState } from "@/components/section-card";
 import { Insignia } from "@/components/movil/piezas";
 import { TiraDePagina } from "@/components/escritorio/piezas";
 import { DetalleDeLlamada } from "@/components/escritorio/llamadas/detalle-de-llamada";
+import { SeccionesDeLlamadas } from "@/components/escritorio/llamadas/secciones-de-llamadas";
 
 const TAMAÑOS = [25, 50, 100];
 const ICONO_DE_ANIMO = { POSITIVE: Smile, NEUTRAL: Meh, NEGATIVE: Frown } as const;
@@ -143,17 +143,7 @@ export function LlamadasEscritorio({ business }: { business: Business }) {
   return (
     <div className="flex h-screen flex-col">
       <TiraDePagina icono={PhoneCall} titulo="Llamadas">
-        <nav aria-label="Secciones de llamadas" className="inline-flex shrink-0 gap-0.5 rounded-full border border-linea bg-relleno p-[3px]">
-          <span aria-current="page" className="flex min-h-9 items-center rounded-full bg-lavado px-3.5 text-sm font-semibold text-morado-tinta ring-1 ring-inset ring-lavado-borde">
-            Historial
-          </span>
-          <Link
-            href="/llamadas/analitica"
-            className="flex min-h-9 items-center rounded-full px-3.5 text-sm font-semibold text-apagado transition hover:text-tinta focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-morado"
-          >
-            Analítica avanzada
-          </Link>
-        </nav>
+        <SeccionesDeLlamadas actual="historial" />
         <span className="flex-1" />
         {hoyResumen ? (
           <div className="flex flex-wrap items-center gap-1.5 text-sm" aria-label="Resumen de hoy">

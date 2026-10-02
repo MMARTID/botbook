@@ -27,6 +27,7 @@ import type {
   PlaceSearchResult,
   CalendarAccountConnected,
   EstadoWhatsappDueno,
+  CambioDelGestor,
   EstadoDelGestor,
   RespuestaDelGestor,
   DecisionDelGestor,
@@ -502,6 +503,13 @@ export async function sendOwnerWhatsappActivation() {
 export async function getGestor() {
   const { data } = await api.get<EstadoDelGestor>("/business/me/gestor");
   return data;
+}
+
+export async function getCambiosDelGestor() {
+  const { data } = await api.get<{ cambios: CambioDelGestor[] }>(
+    "/business/me/gestor/cambios"
+  );
+  return data.cambios;
 }
 
 export async function sendGestorMessage(texto: string) {

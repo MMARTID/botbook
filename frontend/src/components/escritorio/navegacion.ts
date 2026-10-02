@@ -57,7 +57,7 @@ export function esPantallaDeTrabajo(pathname: string) {
 
 /** Pantallas de escritorio que pintan su propia franja de borde a borde. */
 export function esPantallaAncha(pathname: string) {
-  return pathname === "/" || pathname === "/agenda" || pathname === "/llamadas";
+  return ["/", "/agenda", "/llamadas", "/llamadas/analitica", "/agente", "/asistente"].includes(pathname);
 }
 
 /** «Lucía» y «lucia» son lo mismo para el buscador. */
