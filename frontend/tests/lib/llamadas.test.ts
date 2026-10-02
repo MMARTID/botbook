@@ -1,5 +1,12 @@
 import { describe, it, expect } from "vitest";
-import { enlaceTel, etiquetaDeLlamada, momentoCorto, telefonoParaDevolver } from "@/lib/llamadas";
+import {
+  enlaceTel,
+  etiquetaDeLlamada,
+  momentoCorto,
+  parseTranscriptMessages,
+  resultadoDeLlamada,
+  telefonoParaDevolver,
+} from "@/lib/llamadas";
 import { formatPhoneLocal } from "@/lib/format";
 import type { CallBooking, CallRecado } from "@/lib/types";
 
@@ -74,5 +81,29 @@ describe("momentoCorto", () => {
     expect(momentoCorto("2026-10-02T07:03:00Z", "Europe/Madrid", "2026-10-02")).toBe("09:03");
     expect(momentoCorto("2026-10-01T18:12:00Z", "Europe/Madrid", "2026-10-02")).toBe("Ayer 20:12");
     expect(momentoCorto("2026-09-29T09:30:00Z", "Europe/Madrid", "2026-10-02")).toBe("29 sept 11:30");
+  });
+});
+
+describe("resultadoDeLlamada", () => {
+  const sin = { booking: null, escalationReason: null, recado: null };
+
+  it("usa la etiqueta del móvil cuando la hay", () => {
+    expect(resultadoDeLlamada({ ...sin, booking: reserva(), outcome: "RESOLVED" }).texto).toBe("Reserva creada");
+    expect(resultadoDeLlamada({ ...sin, recado: recado(), outcome: "LEAD_CAPTURED" }).texto).toBe("Por devolver");
+  });
+
+  it("sin etiqueta, dice cómo acabó; «Consulta» solo si se resolvió sin cita", () => {
+    expect(resultadoDeLlamada({ ...sin, outcome: "RESOLVED" })).toEqual({ texto: "Consulta", tono: "neutro" });
+    expect(resultadoDeLlamada({ ...sin, outcome: null }).texto).toBe("Consulta");
+    expect(resultadoDeLlamada({ ...sin, outcome: "NO_ANSWER" }).texto).toBe("Sin respuesta");
+    expect(resultadoDeLlamada({ ...sin, outcome: "FRUSTRATED" })).toEqual({ texto: "Sin resolver", tono: "aviso" });
+    expect(resultadoDeLlamada({ ...sin, outcome: "ESCALATED" }).tono).toBe("aviso");
+  });
+});
+
+describe("parseTranscriptMessages", () => {
+  it("se queda con los objetos de una lista y devuelve null si no es una lista", () => {
+    expect(parseTranscriptMessages([{ role: "user", content: "Hola" }, "ruido", null])).toEqual([{ role: "user", content: "Hola" }]);
+    expect(parseTranscriptMessages("texto")).toBeNull();
   });
 });

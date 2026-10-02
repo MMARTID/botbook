@@ -178,6 +178,18 @@ export function GestorChat({ hasToken }: { hasToken: boolean | null }) {
   });
   const estado = estadoQuery.data;
 
+  // «Preguntar al gestor…» del buscador del escritorio llega como
+  // ?mensaje=: se deja escrito, sin enviarlo, y se limpia de la URL.
+  useEffect(() => {
+    const parametros = new URLSearchParams(window.location.search);
+    const mensaje = parametros.get("mensaje");
+    if (!mensaje) return;
+    setTexto(mensaje.slice(0, 1000));
+    parametros.delete("mensaje");
+    const resto = parametros.toString();
+    window.history.replaceState(null, "", `${window.location.pathname}${resto ? `?${resto}` : ""}`);
+  }, []);
+
   // El historial viene de la conversación de Telnyx (compartida con el
   // WhatsApp): al cargar, sustituye lo local; después solo se añade.
   useEffect(() => {

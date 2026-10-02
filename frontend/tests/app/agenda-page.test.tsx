@@ -13,8 +13,8 @@ vi.mock("@/components/providers", () => ({
 
 // La agenda de verdad pide datos por su cuenta; aquí solo interesa si la
 // página llega a pintarla o la sustituye por la pantalla de error.
-vi.mock("@/components/agenda-timeline", () => ({
-  AgendaTimeline: () => <div data-testid="agenda-timeline">citas</div>,
+vi.mock("@/components/escritorio/agenda/agenda-escritorio", () => ({
+  AgendaEscritorio: () => <div data-testid="agenda-timeline">citas</div>,
 }));
 
 const mockedUseBusiness = vi.mocked(useBusiness);

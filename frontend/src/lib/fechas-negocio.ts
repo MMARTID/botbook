@@ -109,3 +109,21 @@ export function rangoDeSemana(lunes: string) {
 export function instanteAntesDelDia(clave: string) {
   return new Date(mediodia(clave).getTime() - 26 * 60 * 60 * 1000).toISOString();
 }
+
+function desfaseEnMinutos(instante: number, timeZone: string) {
+  const texto =
+    new Intl.DateTimeFormat("en-US", { timeZone, timeZoneName: "longOffset" })
+      .formatToParts(new Date(instante))
+      .find((parte) => parte.type === "timeZoneName")?.value ?? "GMT";
+  const partes = texto.match(/GMT([+-])(\d{2}):(\d{2})/);
+  return partes ? (partes[1] === "-" ? -1 : 1) * (Number(partes[2]) * 60 + Number(partes[3])) : 0;
+}
+
+/** La medianoche de un día en la zona del negocio, como instante ISO: el
+ * «desde» exacto de los filtros por fecha (dos pasadas por el cambio de hora). */
+export function inicioDelDia(clave: string, timeZone: string) {
+  const [año, mes, dia] = clave.split("-").map(Number);
+  const supuesto = Date.UTC(año, mes - 1, dia);
+  const primero = supuesto - desfaseEnMinutos(supuesto, timeZone) * 60_000;
+  return new Date(supuesto - desfaseEnMinutos(primero, timeZone) * 60_000).toISOString();
+}

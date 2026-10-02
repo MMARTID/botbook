@@ -5,6 +5,7 @@ import {
   diaLargo,
   etiquetaDeDia,
   horaDelNegocio,
+  inicioDelDia,
   instanteAntesDelDia,
   lunesDe,
   minutosDelDia,
@@ -51,5 +52,19 @@ describe("fechas en la zona del negocio", () => {
     // Medianoche del lunes en UTC+14 = domingo 10:00 UTC.
     expect(instante.toISOString()).toBe("2026-09-27T10:00:00.000Z");
     expect(claveDeDia(instante, "Europe/Madrid") <= "2026-09-28").toBe(true);
+  });
+});
+
+describe("inicioDelDia", () => {
+  it("es la medianoche del negocio, en verano y en invierno", () => {
+    expect(inicioDelDia("2026-10-02", "Europe/Madrid")).toBe("2026-10-01T22:00:00.000Z");
+    expect(inicioDelDia("2026-12-15", "Europe/Madrid")).toBe("2026-12-14T23:00:00.000Z");
+    expect(inicioDelDia("2026-12-15", "Atlantic/Canary")).toBe("2026-12-15T00:00:00.000Z");
+  });
+
+  it("el día que cambia la hora, la medianoche sigue siendo la de antes del cambio", () => {
+    // 25 de octubre de 2026: el reloj vuelve a las 3:00 → 2:00, después de medianoche.
+    expect(inicioDelDia("2026-10-25", "Europe/Madrid")).toBe("2026-10-24T22:00:00.000Z");
+    expect(inicioDelDia("2026-10-26", "Europe/Madrid")).toBe("2026-10-25T23:00:00.000Z");
   });
 });

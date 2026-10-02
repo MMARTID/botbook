@@ -57,18 +57,18 @@ export function useEstadoDelServicio(business: Business | undefined) {
   };
 }
 
-type Estado = ReturnType<typeof useEstadoDelServicio>;
+export type EstadoDelServicio = ReturnType<typeof useEstadoDelServicio>;
+type Estado = EstadoDelServicio;
 
-function tonoDelEstado(estado: Estado): Tono {
+export function tonoDelEstado(estado: Estado): Tono {
   if (estado.cargando) return "neutro";
   if (estado.avisos > 0) return estado.rojo ? "error" : "aviso";
   return estado.sinComprobar ? "neutro" : "exito";
 }
 
-/** Chip de 44 px de la cabecera de Inicio; abre la hoja del estado. */
-export function ChipDeEstado({ estado, onAbrir }: { estado: Estado; onAbrir: () => void }) {
-  const tono = TONOS[tonoDelEstado(estado)];
-  const texto = estado.cargando
+/** «Todo en marcha», «2 avisos»…: el texto del chip, en móvil y escritorio. */
+export function textoDelEstado(estado: Estado) {
+  return estado.cargando
     ? "Comprobando…"
     : estado.avisos > 0
       ? estado.avisos === 1
@@ -77,6 +77,12 @@ export function ChipDeEstado({ estado, onAbrir }: { estado: Estado; onAbrir: () 
       : estado.sinComprobar
         ? "Sin comprobar"
         : "Todo en marcha";
+}
+
+/** Chip de 44 px de la cabecera de Inicio; abre la hoja del estado. */
+export function ChipDeEstado({ estado, onAbrir }: { estado: Estado; onAbrir: () => void }) {
+  const tono = TONOS[tonoDelEstado(estado)];
+  const texto = textoDelEstado(estado);
 
   return (
     <button
@@ -123,6 +129,30 @@ export function HojaEstado({
   estado: Estado;
   timeZone: string;
 }) {
+  return (
+    <HojaInferior abierta={abierta} onCerrar={onCerrar} titulo="Estado del servicio">
+      <CuerpoDeHoja>
+        <ContenidoDelEstado estado={estado} timeZone={timeZone} onCerrar={onCerrar} />
+      </CuerpoDeHoja>
+    </HojaInferior>
+  );
+}
+
+/** El titular y las señales con su acción: lo mismo en la hoja del móvil y
+ * en el diálogo del escritorio. */
+export function ContenidoDelEstado({
+  estado,
+  timeZone,
+  onCerrar,
+  enlacesDeEscritorio = false,
+}: {
+  estado: Estado;
+  timeZone: string;
+  onCerrar: () => void;
+  /** En escritorio los ajustes del agente son secciones de /agente, no
+   * pantallas propias: los enlaces se quedan como vienen. */
+  enlacesDeEscritorio?: boolean;
+}) {
   const queryClient = useQueryClient();
   const reintento = useMutation({
     mutationFn: async () => {
@@ -152,64 +182,62 @@ export function HojaEstado({
   const primeraPendiente = estado.pendientes[0];
 
   return (
-    <HojaInferior abierta={abierta} onCerrar={onCerrar} titulo="Estado del servicio">
-      <CuerpoDeHoja>
-        <p
-          className={`flex items-center gap-2 rounded-[14px] px-3.5 py-3 text-sm font-bold ring-1 ring-inset ${TONOS[tono].fondo} ${TONOS[tono].texto} ${TONOS[tono].anillo}`}
-          role="status"
-        >
-          <IconoTitular className={`h-[18px] w-[18px] shrink-0 ${estado.cargando ? "animate-spin" : ""}`} aria-hidden="true" />
-          {titular}
-        </p>
-        <ul className="mt-3 overflow-hidden rounded-[20px] border border-[#e5e5e5]">
-          {primeraPendiente ? (
-            <FilaDeSeñal
-              icono={TriangleAlert}
-              etiqueta={estado.pendientes.length === 1 ? "Cita sin reservar" : `${estado.pendientes.length} citas sin reservar`}
-              valor={`${primeraPendiente.clientName ?? "Un cliente"} pedía ${cuandoPedia(primeraPendiente, timeZone) ?? "una cita"}`}
-              tono="error"
-              accion={
-                primeraPendiente.clientPhone ? (
-                  <a href={enlaceTel(primeraPendiente.clientPhone)} className={CLASES_ACCION}>
-                    Llamar
-                  </a>
-                ) : null
-              }
-            />
-          ) : null}
-          {estado.minutos ? (
-            <FilaDeSeñal
-              icono={Clock3}
-              etiqueta="Minutos del plan"
-              valor={estado.minutos.exhausted ? "Agotados" : `Te queda un ${estado.minutos.remainingPct} %`}
-              tono={estado.minutos.exhausted ? "error" : "warning"}
-              accion={
-                <Link href="/ajustes/facturacion" onClick={onCerrar} className={CLASES_ACCION}>
-                  Ver consumo
-                </Link>
-              }
-            />
-          ) : null}
-          {señales.map((señal) => (
-            <FilaDeSeñal
-              key={señal.key}
-              icono={señal.icon}
-              etiqueta={señal.label}
-              valor={señal.value}
-              tono={señal.tone}
-              accion={<AccionDeSeñal señal={señal} onCerrar={onCerrar} reintento={reintento} />}
-            />
-          ))}
-        </ul>
-        {reintento.isError ? (
-          <p className="mt-3 text-sm leading-6 text-[#c53030]" role="alert">
-            {(reintento.error as { response?: { status?: number } })?.response?.status === 402
-              ? "Tu plan todavía no está activo y sin él no podemos asignarte un número."
-              : "No hemos podido asignarte el número. Inténtalo otra vez en unos minutos; si sigue fallando, escríbenos a hola@alhabla.ai."}
-          </p>
+    <>
+      <p
+        className={`flex items-center gap-2 rounded-[14px] px-3.5 py-3 text-sm font-bold ring-1 ring-inset ${TONOS[tono].fondo} ${TONOS[tono].texto} ${TONOS[tono].anillo}`}
+        role="status"
+      >
+        <IconoTitular className={`h-[18px] w-[18px] shrink-0 ${estado.cargando ? "animate-spin" : ""}`} aria-hidden="true" />
+        {titular}
+      </p>
+      <ul className="mt-3 overflow-hidden rounded-[20px] border border-[#e5e5e5]">
+        {primeraPendiente ? (
+          <FilaDeSeñal
+            icono={TriangleAlert}
+            etiqueta={estado.pendientes.length === 1 ? "Cita sin reservar" : `${estado.pendientes.length} citas sin reservar`}
+            valor={`${primeraPendiente.clientName ?? "Un cliente"} pedía ${cuandoPedia(primeraPendiente, timeZone) ?? "una cita"}`}
+            tono="error"
+            accion={
+              primeraPendiente.clientPhone ? (
+                <a href={enlaceTel(primeraPendiente.clientPhone)} className={CLASES_ACCION}>
+                  Llamar
+                </a>
+              ) : null
+            }
+          />
         ) : null}
-      </CuerpoDeHoja>
-    </HojaInferior>
+        {estado.minutos ? (
+          <FilaDeSeñal
+            icono={Clock3}
+            etiqueta="Minutos del plan"
+            valor={estado.minutos.exhausted ? "Agotados" : `Te queda un ${estado.minutos.remainingPct} %`}
+            tono={estado.minutos.exhausted ? "error" : "warning"}
+            accion={
+              <Link href="/ajustes/facturacion" onClick={onCerrar} className={CLASES_ACCION}>
+                Ver consumo
+              </Link>
+            }
+          />
+        ) : null}
+        {señales.map((señal) => (
+          <FilaDeSeñal
+            key={señal.key}
+            icono={señal.icon}
+            etiqueta={señal.label}
+            valor={señal.value}
+            tono={señal.tone}
+            accion={<AccionDeSeñal señal={señal} onCerrar={onCerrar} reintento={reintento} enlacesDeEscritorio={enlacesDeEscritorio} />}
+          />
+        ))}
+      </ul>
+      {reintento.isError ? (
+        <p className="mt-3 text-sm leading-6 text-[#c53030]" role="alert">
+          {(reintento.error as { response?: { status?: number } })?.response?.status === 402
+            ? "Tu plan todavía no está activo y sin él no podemos asignarte un número."
+            : "No hemos podido asignarte el número. Inténtalo otra vez en unos minutos; si sigue fallando, escríbenos a hola@alhabla.ai."}
+        </p>
+      ) : null}
+    </>
   );
 }
 
@@ -229,15 +257,17 @@ function AccionDeSeñal({
   señal,
   onCerrar,
   reintento,
+  enlacesDeEscritorio,
 }: {
   señal: OperationalStatusItem;
   onCerrar: () => void;
   reintento: { mutate: () => void; isPending: boolean };
+  enlacesDeEscritorio: boolean;
 }) {
   if (!señal.action) return null;
   if ("href" in señal.action) {
     return (
-      <Link href={hrefMovil(señal.action.href)} onClick={onCerrar} className={CLASES_ACCION}>
+      <Link href={enlacesDeEscritorio ? señal.action.href : hrefMovil(señal.action.href)} onClick={onCerrar} className={CLASES_ACCION}>
         {señal.action.label}
       </Link>
     );

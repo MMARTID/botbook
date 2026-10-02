@@ -65,9 +65,9 @@ export function AppPageHeader({
  * «Cargando…» centrado al contenido real. El texto queda para el lector de
  * pantalla.
  */
-export function AppPageSkeleton({ label }: { label: string }) {
+export function AppPageSkeleton({ label, className = "" }: { label: string; className?: string }) {
   return (
-    <div className="space-y-5 sm:space-y-8" role="status">
+    <div className={`space-y-5 sm:space-y-8 ${className}`} role="status">
       <span className="sr-only">{label}</span>
       <div
         className="flex items-start gap-3 border-b border-[#e5e5e5] pb-6 sm:gap-4 sm:pb-7"
