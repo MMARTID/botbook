@@ -250,8 +250,13 @@ each page's image explicitly from its `openGraph`/`twitter` metadata.
 **App (`frontend/src/components/`):**
 
 - `AppShell` — Protected layout: sidebar from `lg` (Panel, Agenda, Llamadas, Agente, Asistente,
-  Ajustes, Facturación); on mobile a sticky header and a bottom bar whose «Más» sheet holds the
-  rest, the privacy link to the web (`webUrl()`), cookie preferences and logout. Account screens
+  Ajustes, Facturación). Below `lg` it is the mobile app (since 2026-10-02): no global header,
+  a five-tab bottom bar (Inicio, Agenda, Llamadas, Agente, Cuenta — `components/movil/`) shown
+  only on those five routes; the Cuenta tab (`/ajustes` on mobile) holds the Gestor, settings,
+  billing, the privacy link to the web (`webUrl()`), cookie preferences and logout. Each screen
+  brings its own `CabeceraMovil`; agent settings are routes (`/agente/[ajuste]`, redirected back
+  to `/agente?section=` on desktop). Mobile vs desktop trees are chosen with `useEsMovil()`
+  (`hooks/use-es-movil.ts`, `null` until hydrated). Account screens
   (`/login`, `/bienvenida/*`, `/auth/*`, `/elegir-plan`, `/dev/entrar`…) render without it
   (`esRutaSinArmazon`).
 - `PanelInicio` — Dashboard at `/`: `StatusStrip`, `CallForwardingCard`, `PendingBookings`,
@@ -1186,7 +1191,7 @@ hablando por el que elige `identificarRemitente`.
   `sin_respuesta` 502, resto 403; propuestas `no_encontrada` 404, caducada/decidida 409).
 - `PATCH /business/me` acepta `ownerChatEnabled` y `clientChatEnabled` (booleanos).
 - Panel: página `/gestor` («Tu Gestor», badge Beta, entrada «Gestor» bajo Recepcionista en la
-  barra lateral y en «Más» en móvil: la barra inferior tiene cinco huecos justos) con
+  barra lateral y, en móvil, en la pestaña Cuenta: la barra inferior tiene cinco huecos justos) con
   `components/gestor-chat.tsx` (historial, burbujas, propuesta con sus dos botones, ejemplos
   para empezar, Enter envía, invalida `my-business`/`booking-settings`/`agenda` tras un botón);
   Ajustes › Teléfono › Tu móvil gana el bloque «Conversaciones · Beta» con los dos interruptores

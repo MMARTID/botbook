@@ -433,8 +433,8 @@ tres desde `sm`. El carril de próximas citas es el caso especial: muestra 3 tar
 desplazamiento por ajuste en móvil, 5 desde `sm` y 6 desde `xl`, con las flechas ocultas cuando
 no hay desbordamiento.
 
-En ajustes, la navegación por secciones se reemplaza en móvil por un botón de vuelta flotante
-arriba a la izquierda; la cabecera completa se oculta por debajo de `sm`.
+Por debajo de `lg`, ajustes y agente se reparten en pantallas propias con su «‹ Volver» en la
+barra de arriba (ver «App móvil» en Components).
 
 La arquitectura de configuración se divide en dos destinos hermanos y visibles en la navegación:
 `/agente` reúne las secciones operativas que determinan cómo trabaja la recepcionista; `/ajustes`
@@ -571,8 +571,35 @@ nombre del producto en semibold negro y el nombre del negocio debajo en tinta ap
 derecha, badge de estado morado y cierre de sesión, que en móvil se reduce a icono.
 
 Los enlaces son pastillas con icono Lucide de 16 px: activo en Lavado Morado, inactivo en blanco
-con hover templado (`#fafafa`). En las páginas de ajustes la cabecera se oculta en móvil y la
-sustituye un botón circular de vuelta de 40 px con sombra negra, fijo arriba a la izquierda.
+con hover templado (`#fafafa`). Por debajo de `lg` no hay cabecera global: cada pantalla trae la
+suya y la navegación es la barra de pestañas (ver «App móvil»).
+
+### App móvil (por debajo de `lg`)
+
+Por debajo de 1024 px la app es una app móvil, no el panel encogido (rediseño de octubre de 2026,
+prototipo «Alhabla Movil» de Claude Design). El escritorio no cambia.
+
+- **Barra de pestañas** fija abajo con cinco destinos: Inicio, Agenda, Llamadas, Agente y Cuenta
+  (`components/movil/barra-de-pestanas.tsx`). Sin «Más»: cuenta, facturación, Gestor y ayuda viven
+  en la pestaña Cuenta (`/ajustes` en móvil). Llamadas lleva una insignia negra con las llamadas
+  por devolver; Cuenta, un punto ocre cuando quedan pocos minutos. Solo las cinco pestañas la
+  llevan: las pantallas de detalle la ocultan.
+- **Cabecera de pantalla** (`CabeceraMovil`): barra fija de 44 px y debajo el título grande (32 px,
+  30 en detalle, `font-extrabold`) con una frase. Al desplazar aparece el título pequeño centrado
+  y la línea inferior. Las pantallas de detalle llevan «‹ Agente», «‹ Cuenta»… a la izquierda;
+  Inicio lleva la marca, el negocio y el chip de estado. `AppPageHeader` pinta las dos cabeceras y
+  el CSS decide cuál se ve.
+- **Detalle en pantalla propia**: cada ajuste del agente es una ruta (`/agente/horario`…, mapa en
+  `AJUSTES_DEL_AGENTE`); los `?section=` de siempre redirigen a ella y, en escritorio, la ruta
+  vuelve al bloque plegable. Entran desde la derecha (`.entrada-detalle`).
+- **Hojas inferiores** (`HojaInferior`) para lo que se consulta sin salir de la lista: detalle de
+  llamada (con la grabación fija al pie), de cita, estado del servicio y editores de servicio y
+  profesional. `rounded-t-3xl`, asa de 40×5, velo al 45 %, Escape y trampa de foco.
+- **Guardar solo con cambios**: los editores largos no llevan botón al final; una barra
+  «Descartar / Guardar» sube desde abajo cuando hay algo sin guardar (`BarraGuardar`).
+- **Teléfonos sin +34** (`formatPhoneLocal`) y llamar siempre a un toque: botón redondo de 44 px
+  en filas, deslizar a la izquierda en el historial, botón primario en hojas.
+- La próxima cita de Inicio es la única superficie negra de la app: es lo primero que se mira.
 
 ### Icon Tiles
 

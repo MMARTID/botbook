@@ -13,9 +13,11 @@ import type {
   CalendarListResponse,
   Call,
   CallAnalytics,
+  CallRecado,
+  FiltroDeLlamadas,
   OnboardingState,
   ForwardingCheck,
-  Paginated,
+  PaginaDeLlamadas,
   PhoneNumberInfo,
   PlanId,
   PlaceDetails,
@@ -140,10 +142,11 @@ export async function getStats() {
   return data;
 }
 
-/** Próximas citas reservadas por el agente, con cliente y servicios resueltos. */
-export async function getAgenda(days = 7, limit = 20, offset = 0) {
+/** Próximas citas reservadas por el agente, con cliente y servicios resueltos.
+ * Con `desde` (un instante), la ventana de `days` empieza ahí y no ahora. */
+export async function getAgenda(days = 7, limit = 20, offset = 0, desde?: string) {
   const { data } = await api.get<AgendaResponse>("/business/me/agenda", {
-    params: { days, limit, offset },
+    params: desde ? { days, limit, offset, desde } : { days, limit, offset },
   });
   return data;
 }
@@ -154,6 +157,14 @@ export async function getPendingBookings() {
     "/business/me/pending-bookings"
   );
   return data.pendingBookings;
+}
+
+/** «Ya la he confirmado»: el dueño apuntó a mano la cita que se cayó. */
+export async function resolverCitaPendiente(id: string) {
+  const { data } = await api.post<{ ok: true; yaResuelta: boolean }>(
+    `/business/me/pending-bookings/${encodeURIComponent(id)}/resolver`
+  );
+  return data;
 }
 
 export async function getBillingSummary() {
@@ -188,11 +199,25 @@ export async function reconcileCheckoutSession(sessionId: string) {
   return data;
 }
 
-export async function getCalls(limit = 100, offset = 0) {
-  const { data } = await api.get<Paginated<Call>>(`/business/me/calls`, {
-    params: { limit, offset },
+export async function getCalls(
+  limit = 100,
+  offset = 0,
+  filtro?: FiltroDeLlamadas
+) {
+  const { data } = await api.get<PaginaDeLlamadas>(`/business/me/calls`, {
+    params: filtro ? { limit, offset, filtro } : { limit, offset },
   });
   return data;
+}
+
+/** «Marcar como devuelta» (y deshacer): cierra o reabre el recado de una
+ * llamada, como el botón «Atendido» del aviso de WhatsApp. */
+export async function marcarRecado(callId: string, atendido: boolean) {
+  const { data } = await api.patch<{ recado: CallRecado }>(
+    `/business/me/calls/${encodeURIComponent(callId)}/recado`,
+    { atendido }
+  );
+  return data.recado;
 }
 
 export async function getCall(id: string) {

@@ -20,7 +20,7 @@ import {
   updateBookingService,
   updateMyBusiness,
 } from "@/lib/api";
-import { formatPrice } from "@/lib/format";
+import { centsToEuroInput, euroInputToCents, formatPrice } from "@/lib/format";
 import { SiApple, SiGooglecalendar } from "@icons-pack/react-simple-icons";
 import { MicrosoftLogo } from "@/components/brand-icons";
 import { AppleCalendarConnect } from "@/components/apple-calendar-connect";
@@ -46,6 +46,8 @@ import {
 } from "@/components/professional-service-levels";
 import { SectionEmptyState } from "@/components/section-card";
 import { AvisoFlotante } from "@/components/aviso-flotante";
+import { AgenteMovil } from "@/components/movil/agente-movil";
+import { useEsMovil } from "@/hooks/use-es-movil";
 import type {
   AgentSettings,
   BookingProfessional,
@@ -1231,13 +1233,44 @@ function SectionGroupHeading({ title, description }: { title: string; descriptio
 }
 
 export default function AgentePage() {
+  const esMovil = useEsMovil();
   return (
     <Suspense
       fallback={<AppPageSkeleton label="Cargando el agente…" />}
     >
-      <AgenteContent />
+      {esMovil === null ? (
+        <AppPageSkeleton label="Cargando el agente…" />
+      ) : esMovil ? (
+        <AgenteMovilConNegocio />
+      ) : (
+        <AgenteContent />
+      )}
     </Suspense>
   );
+}
+
+/** El índice móvil, con la misma espera y redirección que la página. */
+function AgenteMovilConNegocio() {
+  const router = useRouter();
+  const { business, hasToken, isLoadingBusiness, isError, errorMessage } = useBusiness();
+
+  useEffect(() => {
+    if (hasToken === false) router.replace("/login");
+  }, [hasToken, router]);
+
+  if (isLoadingBusiness) return <AppPageSkeleton label="Cargando el agente…" />;
+  if (isError && !business) {
+    return (
+      <FullPageError
+        title="No se pudo cargar la configuración de tu negocio"
+        message="Puede haber sido un corte momentáneo de conexión. Vuelve a intentarlo; si sigue sin cargar, escríbenos y lo miramos."
+        detail={errorMessage}
+        onRetry={() => window.location.reload()}
+      />
+    );
+  }
+  if (!business) return null;
+  return <AgenteMovil business={business} />;
 }
 
 function ServiceEditor({
@@ -1406,20 +1439,6 @@ function ServiceEditor({
       ) : null}
     </article>
   );
-}
-
-/** Vaciar el campo borra el precio; el backend acepta `null` para eso. */
-function euroInputToCents(value: string): number | null {
-  const normalized = value.trim().replace(",", ".");
-  if (normalized === "") return null;
-  const euros = Number(normalized);
-  if (!Number.isFinite(euros) || euros < 0) return null;
-  return Math.round(euros * 100);
-}
-
-function centsToEuroInput(cents: number | null): string {
-  if (cents == null) return "";
-  return cents % 100 === 0 ? String(cents / 100) : (cents / 100).toFixed(2);
 }
 
 function ProfessionalEditor({

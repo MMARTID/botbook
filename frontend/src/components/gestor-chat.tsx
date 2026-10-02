@@ -63,10 +63,10 @@ const ETIQUETA_DE_ESTADO: Record<
 
 // Altura acotada a la ventana: con una conversación larga hace scroll la
 // lista de mensajes, no la página, y la cabecera y el cuadro de texto se
-// quedan siempre a la vista. En móvil descuenta la barra superior y la
-// navegación inferior del panel.
+// quedan siempre a la vista. En móvil descuenta la barra «‹ Cuenta» y los
+// márgenes de la pantalla (el chat ya no lleva la barra de pestañas debajo).
 const MARCO =
-  "panel flex h-[calc(100dvh-12.5rem)] min-h-[26rem] flex-col overflow-hidden p-0 lg:h-[calc(100dvh-5rem)]";
+  "panel flex h-[calc(100dvh-7.5rem-env(safe-area-inset-bottom))] min-h-[26rem] flex-col overflow-hidden p-0 lg:h-[calc(100dvh-5rem)]";
 
 function aFecha(iso: string | null) {
   if (!iso) return null;

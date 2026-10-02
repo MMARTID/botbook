@@ -217,6 +217,8 @@ export default function NumeroPrincipalPage() {
         icon={Headset}
         title="Usar Alhabla como número principal"
         description="Publicas el número de Alhabla como teléfono del negocio. Tu recepcionista lo atiende todo, sin desvío, y te pasa las llamadas que haga falta."
+        volver={{ href: "/ajustes/telefono", etiqueta: "Teléfono" }}
+        accionesEnMovil={false}
       >
         <Link href="/ajustes/telefono" className="btn-secondary">
           <ArrowLeft className="h-4 w-4" aria-hidden="true" />

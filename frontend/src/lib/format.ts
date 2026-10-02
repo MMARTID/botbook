@@ -34,6 +34,20 @@ export function formatPrice(cents?: number | null) {
   }).format(cents / 100);
 }
 
+/** Vaciar el campo borra el precio; el backend acepta `null` para eso. */
+export function euroInputToCents(value: string): number | null {
+  const normalized = value.trim().replace(",", ".");
+  if (normalized === "") return null;
+  const euros = Number(normalized);
+  if (!Number.isFinite(euros) || euros < 0) return null;
+  return Math.round(euros * 100);
+}
+
+export function centsToEuroInput(cents: number | null): string {
+  if (cents == null) return "";
+  return cents % 100 === 0 ? String(cents / 100) : (cents / 100).toFixed(2);
+}
+
 /** Agrupa un número español como se lee en voz alta: 692 13 84 56. */
 export function formatPhone(value?: string | null) {
   if (!value) return null;
@@ -43,6 +57,11 @@ export function formatPhone(value?: string | null) {
   const [, prefix, digits] = match;
   const grouped = `${digits.slice(0, 3)} ${digits.slice(3, 5)} ${digits.slice(5, 7)} ${digits.slice(7, 9)}`;
   return prefix ? `${prefix} ${grouped}` : grouped;
+}
+
+/** En la app móvil sobra el +34 de los números españoles: «655 21 44 09». */
+export function formatPhoneLocal(value?: string | null) {
+  return formatPhone(value)?.replace(/^\+34 /, "") ?? null;
 }
 
 /** Hora de un día concreto en la zona del negocio: «17:00». */

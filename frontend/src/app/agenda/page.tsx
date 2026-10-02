@@ -1,12 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { getCalendarState } from "@/lib/calendar-state";
 import { useRouter } from "next/navigation";
 import { CalendarRange } from "lucide-react";
 import { AgendaTimeline, type AgendaRange } from "@/components/agenda-timeline";
 import { useBusiness } from "@/components/providers";
 import { AppPageHeader, AppPageSkeleton } from "@/components/app-page-header";
+import { AgendaMovil } from "@/components/movil/agenda-movil";
+import { useEsMovil } from "@/hooks/use-es-movil";
 
 const RANGES: { value: AgendaRange; label: string }[] = [
   { value: 1, label: "Hoy" },
@@ -17,6 +19,7 @@ const RANGES: { value: AgendaRange; label: string }[] = [
 export default function AgendaPage() {
   const router = useRouter();
   const { business, hasToken, isLoadingBusiness, isError: isBusinessError, errorMessage } = useBusiness();
+  const esMovil = useEsMovil();
   const [days, setDays] = useState<AgendaRange>(7);
   const [offset, setOffset] = useState(0);
 
@@ -24,7 +27,7 @@ export default function AgendaPage() {
     if (hasToken === false) router.replace("/login");
   }, [hasToken, router]);
 
-  if (isLoadingBusiness) return <AppPageSkeleton label="Cargando agenda…" />;
+  if (isLoadingBusiness || esMovil === null) return <AppPageSkeleton label="Cargando agenda…" />;
 
   // Carga y error son cosas distintas: si /business/me falla, `isLoading` pasa
   // a false y `business` se queda vacío, así que sin esta rama el negocio se
@@ -53,6 +56,14 @@ export default function AgendaPage() {
   }
 
   if (!business) return null; // Sin sesión: el efecto de arriba redirige a /login.
+
+  if (esMovil) {
+    return (
+      <Suspense fallback={<AppPageSkeleton label="Cargando agenda…" />}>
+        <AgendaMovil business={business} />
+      </Suspense>
+    );
+  }
 
   const calendar = getCalendarState(business);
 

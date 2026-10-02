@@ -42,7 +42,7 @@ const TONE_BADGE_CLASSES = {
 
 const SENTIMENT_ICON = { POSITIVE: Smile, NEUTRAL: Meh, NEGATIVE: Frown } as const;
 
-function parseTranscriptMessages(value: unknown): TranscriptMessage[] | null {
+export function parseTranscriptMessages(value: unknown): TranscriptMessage[] | null {
   if (!Array.isArray(value)) return null;
   return value.filter(
     (item): item is TranscriptMessage =>

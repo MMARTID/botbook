@@ -139,6 +139,7 @@ export default function CallAnalyticsPage() {
         icon={BarChart3}
         title="Analítica avanzada"
         description={`Los últimos ${data?.days ?? 30} días de tu recepción, en datos accionables.`}
+        volver={{ href: "/llamadas", etiqueta: "Llamadas" }}
       />
 
       {planLimit ? (
