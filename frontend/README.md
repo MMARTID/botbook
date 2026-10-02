@@ -22,10 +22,7 @@ Variables (`.env.local` en dev, proyecto `alhabla-frontend` en Vercel):
 - `NEXT_PUBLIC_WEB_URL` — la web pública (`https://alhabla.ai`), para enlazarla y para los
   redirects 301 de rutas de marketing (`lib/web-url.ts`, `next.config.mjs`).
 - `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` — clave pública de Stripe para el checkout embebido.
-- `NEXT_PUBLIC_GA_MEASUREMENT_ID` — ID público de medición de GA4 (opcional). Si no se define, la app usa el
-  mismo ID que la web y las visitas al panel se mezclan con las de captación. Para separarlas, crea en la
-  propiedad de GA4 un segundo flujo de datos web para `app.alhabla.ai` y pon su ID (`G-…`) en esta variable del
-  proyecto `alhabla-frontend` de Vercel; el de la web se queda con el suyo en `alhabla-web`.
+- `NEXT_PUBLIC_GA_MEASUREMENT_ID` — ID público de medición de GA4 (opcional).
 
 Referencia completa (páginas, componentes, estado, sistema de diseño) en `../AGENTS.md` y
 `../DESIGN.md`.
