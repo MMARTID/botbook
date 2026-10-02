@@ -19,6 +19,7 @@ vi.mock("../../../src/lib/prisma.js", () => ({
       findFirst: vi.fn(),
       update: vi.fn(),
       updateMany: vi.fn(),
+      count: vi.fn(),
     },
     call: {
       aggregate: vi.fn(),
@@ -62,6 +63,7 @@ const mockedBusinessFindUnique = vi.mocked(prisma.business.findUnique);
 const mockedBusinessFindFirst = vi.mocked(prisma.business.findFirst);
 const mockedBusinessUpdate = vi.mocked(prisma.business.update);
 const mockedBusinessUpdateMany = vi.mocked(prisma.business.updateMany);
+const mockedBusinessCount = vi.mocked(prisma.business.count);
 const mockedCallAggregate = vi.mocked(prisma.call.aggregate);
 const mockedStripeWebhookEventFindUnique = vi.mocked(prisma.stripeWebhookEvent.findUnique);
 const mockedStripeWebhookEventUpsert = vi.mocked(prisma.stripeWebhookEvent.upsert);
@@ -480,7 +482,7 @@ describe("getBillingSummary", () => {
 
     expect(result).not.toBeNull();
     expect(result?.consumedMinutes).toBe(3); // 125s → ceil(125/60) = 3
-    expect(result?.includedMinutes).toBe(100);
+    expect(result?.includedMinutes).toBe(150);
   });
 });
 
@@ -490,7 +492,11 @@ describe("createCheckoutSession", () => {
     mockedAcquireLock.mockResolvedValue("checkout-lock");
     mockedReleaseLock.mockResolvedValue(undefined);
     process.env.STRIPE_PRICE_INICIO = priceId;
+    process.env.STRIPE_PRICE_INICIO_FOUNDER = "price_test_founder_inicio";
     process.env.FRONTEND_URL = "http://localhost:3001";
+    // Cupo ya agotado por defecto: los tests existentes de esta describe no
+    // son sobre el precio de fundador y esperan el precio vigente.
+    mockedBusinessCount.mockResolvedValue(15);
   });
 
   it("rechaza negocios con suscripción activa", async () => {
@@ -602,6 +608,52 @@ describe("createCheckoutSession", () => {
     expect(expire).toHaveBeenCalledWith("cs_inicio");
     expect(sessionsCreate).toHaveBeenCalledWith(
       expect.objectContaining({ metadata: expect.objectContaining({ planId: "pro" }) })
+    );
+  });
+
+  it("usa el precio de fundador mientras queden plazas (cupo de 15)", async () => {
+    mockedBusinessFindUnique.mockResolvedValue(
+      buildBusiness({ subscriptionStatus: null, stripeCustomerId: null }) as any
+    );
+    mockedBusinessCount.mockResolvedValue(14);
+    const sessionsCreate = vi.fn().mockResolvedValue({ client_secret: "secret_founder" });
+    mockedGetStripeClient.mockReturnValue({
+      customers: { create: vi.fn().mockResolvedValue({ id: customerId }) },
+      checkout: {
+        sessions: { create: sessionsCreate, list: vi.fn().mockResolvedValue({ data: [] }), expire: vi.fn() },
+      },
+    } as any);
+
+    await createCheckoutSession({ businessId, userId: "user_123", planId: "inicio" });
+
+    expect(sessionsCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        line_items: expect.arrayContaining([{ price: "price_test_founder_inicio", quantity: 1 }]),
+        metadata: expect.objectContaining({ founderPrice: "true" }),
+      })
+    );
+  });
+
+  it("usa el precio vigente en cuanto se agota el cupo de fundador", async () => {
+    mockedBusinessFindUnique.mockResolvedValue(
+      buildBusiness({ subscriptionStatus: null, stripeCustomerId: null }) as any
+    );
+    mockedBusinessCount.mockResolvedValue(15);
+    const sessionsCreate = vi.fn().mockResolvedValue({ client_secret: "secret_full_price" });
+    mockedGetStripeClient.mockReturnValue({
+      customers: { create: vi.fn().mockResolvedValue({ id: customerId }) },
+      checkout: {
+        sessions: { create: sessionsCreate, list: vi.fn().mockResolvedValue({ data: [] }), expire: vi.fn() },
+      },
+    } as any);
+
+    await createCheckoutSession({ businessId, userId: "user_123", planId: "inicio" });
+
+    expect(sessionsCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        line_items: expect.arrayContaining([{ price: priceId, quantity: 1 }]),
+        metadata: expect.objectContaining({ founderPrice: "false" }),
+      })
     );
   });
 });

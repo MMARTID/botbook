@@ -92,10 +92,10 @@ describe("processUsageReportJob", () => {
       name: "Peluquería Test",
       users: [{ email: "dueno@example.com" }],
     } as any);
-    // 100 minutos incluidos en Inicio: 85 consumidos pasan del 80 %.
-    mockedAggregate.mockResolvedValue({ _sum: { durationSecs: 85 * 60 } } as any);
+    // 150 minutos incluidos en Inicio: 130 consumidos pasan del 80 %.
+    mockedAggregate.mockResolvedValue({ _sum: { durationSecs: 130 * 60 } } as any);
     mockedFindPeriod.mockReset();
-    mockedFindPeriod.mockResolvedValue({ reportedMinutes: 85 } as any);
+    mockedFindPeriod.mockResolvedValue({ reportedMinutes: 130 } as any);
 
     await processUsageReportJob({ businessId: "business_123" });
 
@@ -105,8 +105,8 @@ describe("processUsageReportJob", () => {
     expect(alertarMinutos).toHaveBeenCalledWith({
       businessId: "business_123",
       periodId: "period_123",
-      consumidos: 85,
-      incluidos: 100,
+      consumidos: 130,
+      incluidos: 150,
       extraMinuteCents: expect.any(Number),
     });
   });

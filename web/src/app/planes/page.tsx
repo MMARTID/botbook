@@ -10,7 +10,7 @@ import { absoluteUrl, buildBreadcrumbStructuredData, ogImages, siteName, website
 // Título con la palabra clave: «Planes y precios» a secas no dice de qué.
 const planesTitle = "Planes y precios del asistente telefónico con IA";
 const planesDescription =
-  "Planes de Alhabla desde 69€/mes: recepcionista telefónica con IA que atiende 24/7 y reserva citas en tu calendario. 7 días de prueba, sin permanencia.";
+  "Planes de Alhabla desde 79€/mes: recepcionista telefónica con IA que atiende 24/7 y reserva citas en tu calendario. 7 días de prueba, sin permanencia.";
 
 // Canónica propia: sin ella, esta página heredaba la canónica global del
 // root layout (la home) y Google la trataba como duplicada.

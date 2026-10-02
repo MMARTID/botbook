@@ -8,6 +8,8 @@ import {
 import { getStripeClient } from "../../lib/stripe.js";
 import { provisionPhoneNumber } from "../phone/service.js";
 import {
+  getAllFounderPriceIds,
+  getFounderPriceId,
   getPlanByPriceId,
   getPriceId,
   getUsagePriceId,
@@ -24,6 +26,14 @@ import { getPlanLimits, resolvePlanId } from "../../lib/planFeatures.js";
 import { appUrl } from "../../lib/urls.js";
 
 const CHECKOUT_TRIAL_DAYS = 7;
+/**
+ * Precio de fundador (subida de precios 2026-10): los primeros
+ * FOUNDER_SLOTS_TOTAL negocios en contratar CUALQUIER plan —no por plan—
+ * pagan el precio anterior a la subida, de por vida. Cuenta negocios que
+ * alguna vez tuvieron un precio de fundador y no baja si cancelan: es "los
+ * primeros en llegar", no "mantener siempre 15 activos".
+ */
+const FOUNDER_SLOTS_TOTAL = 15;
 const PAYMENT_FAILURE_SUSPENSION_DAYS = 7;
 const CHECKOUT_LOCK_TTL_MS = 120_000;
 const CHECKOUT_LOCK_ACQUIRE_BUDGET_MS = 5_000;
@@ -219,6 +229,16 @@ async function getOrCreateCustomer(businessId: string, userId: string) {
   return customer.id;
 }
 
+async function founderSlotsAvailable(): Promise<boolean> {
+  const founderPriceIds = getAllFounderPriceIds();
+  if (founderPriceIds.length === 0) return false;
+
+  const claimed = await prisma.business.count({
+    where: { stripePriceId: { in: founderPriceIds } },
+  });
+  return claimed < FOUNDER_SLOTS_TOTAL;
+}
+
 export async function createCheckoutSession(input: {
   businessId: string;
   userId: string;
@@ -281,7 +301,19 @@ export async function createCheckoutSession(input: {
     )
   );
 
-  const priceId = getPriceId(input.planId);
+  let priceId = getPriceId(input.planId);
+  let usedFounderPrice = false;
+  const founderPriceId = getFounderPriceId(input.planId);
+  if (founderPriceId && (await founderSlotsAvailable())) {
+    priceId = founderPriceId;
+    usedFounderPrice = true;
+  }
+  console.log(
+    `[Billing] Checkout de ${input.businessId} para plan ${input.planId}: ${
+      usedFounderPrice ? "precio de fundador" : "precio vigente"
+    } (${priceId})`
+  );
+
   const usagePriceId = getUsagePriceId(input.planId);
   const frontendUrl = appUrl();
   const integrationIdentifier = `alhabla-subscription-${randomBytes(4).toString("hex")}`;
@@ -301,12 +333,14 @@ export async function createCheckoutSession(input: {
     metadata: {
       businessId: input.businessId,
       planId: input.planId,
+      founderPrice: String(usedFounderPrice),
     },
     subscription_data: {
       trial_period_days: CHECKOUT_TRIAL_DAYS,
       metadata: {
         businessId: input.businessId,
         planId: input.planId,
+        founderPrice: String(usedFounderPrice),
       },
     },
   });
