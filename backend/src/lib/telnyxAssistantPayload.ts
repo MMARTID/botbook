@@ -28,11 +28,19 @@ export interface TelnyxWebhookToolInput {
   timeoutMs?: number;
 }
 
+/**
+ * El timeout va al nivel de la tool, hermano de `type`: Telnyx guarda un
+ * `webhook.timeout_ms` pero no lo aplica, y la tool corre con su valor por
+ * defecto (5000 ms). Así estuvieron todas las tools hasta el SDK 7.24, que lo
+ * documenta — verificado en vivo el 2026-10-02 (GET de un assistant de dev:
+ * `timeout_ms: 5000` en la tool y `webhook.timeout_ms: 20000` sin efecto).
+ */
 export function toTelnyxWebhookTool(
   input: TelnyxWebhookToolInput
 ): TelnyxWebhookTool {
   return {
     type: "webhook",
+    timeout_ms: input.timeoutMs,
     webhook: {
       name: input.name,
       description: input.description,
@@ -44,7 +52,6 @@ export function toTelnyxWebhookTool(
         required: input.required,
       },
       headers: input.headers,
-      timeout_ms: input.timeoutMs,
     },
   };
 }

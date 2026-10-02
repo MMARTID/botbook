@@ -9,9 +9,14 @@ import { buildGestorAssistantPayload } from "./gestorPayload.js";
  * deploy lo fuerza cuando cambia el payload) y el script
  * scripts/manual/sincronizarGestor.mts (`--crear` la primera vez por
  * entorno). Compara lo que importa — instrucciones, modelo y la firma de las
- * tools (nombre, url, cabeceras, descripción, parámetros) — y no el JSON
- * entero que devuelve Telnyx, que trae valores por defecto que no enviamos.
+ * tools (nombre, url, cabeceras, descripción, parámetros, timeout) — y no el
+ * JSON entero que devuelve Telnyx, que trae valores por defecto que no
+ * enviamos.
  */
+
+/** Timeout que aplica Telnyx a una tool que no lo declara al nivel de la
+ * tool (lo devuelve así el GET del assistant). */
+const TIMEOUT_DE_TOOL_POR_DEFECTO_MS = 5000;
 
 export type EstadoDelGestor =
   | { estado: "sin_id" }
@@ -28,6 +33,7 @@ interface FirmaDeTool {
   headers: Array<{ name: string; value: string }>;
   required: string[];
   properties: string[];
+  timeoutMs: number;
 }
 
 function firmaDeTools(tools: unknown[] | undefined): FirmaDeTool[] {
@@ -35,6 +41,7 @@ function firmaDeTools(tools: unknown[] | undefined): FirmaDeTool[] {
     .map((tool) => {
       const t = tool as {
         type?: string;
+        timeout_ms?: number;
         webhook?: {
           name?: string;
           url?: string;
@@ -58,6 +65,7 @@ function firmaDeTools(tools: unknown[] | undefined): FirmaDeTool[] {
         properties: Object.keys(
           t.webhook.body_parameters?.properties ?? {}
         ).sort(),
+        timeoutMs: t.timeout_ms ?? TIMEOUT_DE_TOOL_POR_DEFECTO_MS,
       };
     })
     .filter((x): x is FirmaDeTool => x !== null)
