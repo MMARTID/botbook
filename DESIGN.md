@@ -637,8 +637,8 @@ prototipo «Alhabla Movil» de Claude Design). El escritorio no cambia.
 
 Rediseño de octubre de 2026 a partir de los wireframes «Alhabla Escritorio Wireframes» de Claude
 Design (sistema A: barra lateral y paneles de detalle). Fase 1: navegación, Panel, Agenda y
-Llamadas; Agente, Gestor, Ajustes, Facturación, número principal, login, alta y checkout siguen
-con el diseño anterior hasta sus fases.
+Llamadas. Fase 2: Analítica, Agente y Gestor. Ajustes, Facturación, número principal, login, alta
+y checkout siguen con el diseño anterior hasta sus fases.
 
 - **Barra lateral plegable** (`components/escritorio/barra-lateral.tsx`): 240 px desplegada, franja
   de iconos de 64 px plegada, con bocadillos negros al pasar por encima. Se pliega sola en Agenda,
@@ -661,6 +661,23 @@ con el diseño anterior hasta sus fases.
   cancelar una cita, avisar al cliente) o para contenido largo que no tiene pantalla (el desvío).
 - Las piezas de la columna derecha del Panel (citas sin reservar, guía de configuración, últimos
   7 días, llamadas recientes) son las mismas que las de Inicio en el móvil.
+- **Analítica** (`escritorio/analitica/`): «Historial · Analítica avanzada» como dos caras de
+  Llamadas, periodo 7/30/90 días en la URL (`?dias=`), cuatro cifras, mapa de calor día × hora
+  (las horas del horario; la madrugada se cuenta aparte, no estira el mapa), barras de resultado,
+  servicios y sentimiento, y una «Lectura rápida» en frases sacadas de las cifras
+  (`lib/analitica.ts`, sin IA). Sin el plan Scale se ve la misma pantalla difuminada con la
+  invitación encima, nunca una página casi vacía.
+- **Agente** (`escritorio/agente/`): índice de ajustes a la izquierda con un punto por estado
+  (verde hecho, ámbar pendiente, gris sin rellenar), el ajuste abierto en el centro (`?ajuste=`;
+  los `?section=` de siempre siguen valiendo) y el estado de la recepción a la derecha. Horario,
+  capacidad, calendario, información y comportamiento son las pantallas del móvil dentro del
+  marco de escritorio (`marco-de-ajuste.tsx`); servicios es una tabla que se edita en la fila
+  con una columna de nivel por profesional, y profesionales una lista con su matriz de niveles al
+  abrir cada persona. Se guarda desde una barra al pie de la columna («2 cambios sin guardar ·
+  Descartar · Guardar cambios») y cambiar de ajuste con cambios pendientes pregunta antes.
+- **Gestor** (`escritorio/gestor/`): el chat ocupa la columna y, a la derecha, la propuesta que
+  espera respuesta con su caducidad, la agenda de hoy y «Cambios del gestor» (todo, pendientes,
+  hechos), leído de las propuestas guardadas.
 
 ### Icon Tiles
 

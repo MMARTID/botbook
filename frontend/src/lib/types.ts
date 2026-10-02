@@ -219,6 +219,17 @@ export type RespuestaDelGestor = {
   propuesta: PropuestaDelGestor | null;
 };
 
+/** Una propuesta del Gestor y qué pasó con ella («Cambios del gestor»). */
+export type CambioDelGestor = {
+  id: string;
+  resumen: string;
+  estado: "pendiente" | "en_curso" | "hecho" | "fallido" | "descartado" | "sustituido" | "caducado";
+  /** Cuándo pasó a ese estado; en «pendiente», cuándo se propuso. */
+  en: string;
+  /** Solo en «pendiente»: hasta cuándo vale el botón. */
+  caduca: string | null;
+};
+
 export type DecisionDelGestor = {
   ok: true;
   estado: "ejecutada" | "fallida" | "rechazada";
@@ -292,6 +303,9 @@ export type CallAnalytics = {
   byHour: Array<{ hour: number; count: number }>;
   /** 1 = lunes … 7 = domingo, en la zona horaria del negocio. */
   byWeekday: Array<{ weekday: number; count: number }>;
+  /** Día × hora local, solo celdas con llamadas. Opcional: un backend
+   * anterior no lo manda y el mapa de calor sale vacío. */
+  byWeekdayHour?: Array<{ weekday: number; hour: number; count: number }>;
   topServices: Array<{ service: string; count: number }>;
 };
 

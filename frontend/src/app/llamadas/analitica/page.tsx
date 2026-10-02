@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { Suspense, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
@@ -18,8 +18,9 @@ import { outcomeLabel, sentimentLabel } from "@/lib/format";
 import type { CallOutcome, CallSentiment } from "@/lib/types";
 import { useBusiness } from "@/components/providers";
 import { AppPageHeader, AppPageSkeleton } from "@/components/app-page-header";
-import { BackLink } from "@/components/back-link";
 import { SectionCard, SectionErrorState } from "@/components/section-card";
+import { AnaliticaEscritorio } from "@/components/escritorio/analitica/analitica-escritorio";
+import { useEsMovil } from "@/hooks/use-es-movil";
 
 const WEEKDAY_LABELS = ["", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
 
@@ -105,13 +106,31 @@ function UpgradePanel() {
   );
 }
 
+// Pantalla de borde a borde en escritorio: <main> no le pone margen.
+const ESQUELETO_ANCHO = "lg:px-8 lg:py-6";
+
 export default function CallAnalyticsPage() {
   const router = useRouter();
-  const { hasToken, isLoadingBusiness } = useBusiness();
+  const { business, hasToken, isLoadingBusiness } = useBusiness();
+  const esMovil = useEsMovil();
 
   useEffect(() => {
     if (hasToken === false) router.replace("/login");
   }, [hasToken, router]);
+
+  if (isLoadingBusiness || esMovil === null) return <AppPageSkeleton label="Cargando analítica…" className={ESQUELETO_ANCHO} />;
+  if (esMovil) return <AnaliticaMovil />;
+  if (!business) return null;
+  return (
+    <Suspense fallback={<AppPageSkeleton label="Cargando analítica…" className={ESQUELETO_ANCHO} />}>
+      <AnaliticaEscritorio business={business} />
+    </Suspense>
+  );
+}
+
+/** La analítica en el móvil: una columna con las cifras y las listas de barras. */
+function AnaliticaMovil() {
+  const { hasToken, isLoadingBusiness } = useBusiness();
 
   const analyticsQuery = useQuery({
     queryKey: ["call-analytics", 30],
@@ -132,9 +151,6 @@ export default function CallAnalyticsPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <BackLink fallbackHref="/llamadas" />
-      </div>
       <AppPageHeader
         icon={BarChart3}
         title="Analítica avanzada"
@@ -169,7 +185,7 @@ export default function CallAnalyticsPage() {
               value={String(data.totals.bookings)}
               detail={
                 data.totals.cancelledBookings > 0
-                  ? `${data.totals.cancelledBookings} canceladas`
+                  ? `${data.totals.cancelledBookings} ${data.totals.cancelledBookings === 1 ? "cancelada" : "canceladas"}`
                   : undefined
               }
             />

@@ -1,8 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { Children, Fragment } from "react";
+import { Children, Fragment, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { ArrowRight, ChevronRight, type LucideIcon } from "lucide-react";
+import { useMarcoDeAjuste } from "@/components/marco-de-ajuste";
 
 /**
  * Piezas pequeñas que comparten las pantallas de la app móvil. Siguen
@@ -246,6 +248,8 @@ export function BarraGuardar({
   etiqueta,
   guardando = false,
   deshabilitado = false,
+  resumen = "Cambios sin guardar",
+  detalle,
   onGuardar,
   onDescartar,
 }: {
@@ -253,9 +257,42 @@ export function BarraGuardar({
   etiqueta: string;
   guardando?: boolean;
   deshabilitado?: boolean;
+  /** Solo en escritorio, a la izquierda de los botones: «2 cambios sin guardar». */
+  resumen?: string;
+  /** Solo en escritorio, tras el resumen: «1 servicio sin precio». */
+  detalle?: string;
   onGuardar: () => void;
   onDescartar: () => void;
 }) {
+  const marco = useMarcoDeAjuste();
+  const alCambiarPendientes = marco.tipo === "escritorio" ? marco.alCambiarPendientes : null;
+  useEffect(() => {
+    if (!alCambiarPendientes) return;
+    alCambiarPendientes(visible);
+    return () => alCambiarPendientes(false);
+  }, [alCambiarPendientes, visible]);
+
+  if (marco.tipo === "escritorio") {
+    if (!visible || !marco.destinoDeLaBarra) return null;
+    return createPortal(
+      <div role="region" aria-label="Cambios sin guardar" className="flex items-center gap-3 border-t border-linea bg-superficie py-3 pl-8 pr-24 shadow-[0_-8px_24px_rgba(0,0,0,0.06)]">
+        <span className="h-2 w-2 shrink-0 rounded-full bg-aviso-icono" aria-hidden="true" />
+        <p className="min-w-0 truncate text-sm">
+          <span className="font-semibold text-tinta">{resumen}</span>
+          {detalle ? <span className="text-muted"> · {detalle}</span> : null}
+        </p>
+        <span className="flex-1" />
+        <button type="button" onClick={onDescartar} disabled={guardando} className="btn-secondary h-10 px-4">
+          Descartar
+        </button>
+        <button type="button" onClick={onGuardar} disabled={guardando || deshabilitado} className="btn-primary h-10 px-5">
+          {guardando ? "Guardando…" : etiqueta}
+        </button>
+      </div>,
+      marco.destinoDeLaBarra
+    );
+  }
+
   return (
     <div
       aria-hidden={!visible}

@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { AJUSTES_DEL_AGENTE, esAjusteDelAgente, type AjusteDelAgente } from "@/lib/agent-configuration";
+import { esAjusteDelAgente, type AjusteDelAgente } from "@/lib/agent-configuration";
 import type { Business } from "@/lib/types";
 import { useEsMovil } from "@/hooks/use-es-movil";
 import { useBusiness } from "@/components/providers";
@@ -28,7 +28,7 @@ const PANTALLAS: Record<AjusteDelAgente, (props: { business: Business }) => Reac
 
 /**
  * Un ajuste del agente en su propia pantalla (app móvil). En escritorio no
- * hay pantallas sueltas: se vuelve a `/agente` con ese bloque abierto.
+ * hay pantallas sueltas: se vuelve a `/agente` con ese ajuste abierto.
  */
 export default function AjusteDelAgentePage({ params }: { params: { ajuste: string } }) {
   const router = useRouter();
@@ -39,7 +39,7 @@ export default function AjusteDelAgentePage({ params }: { params: { ajuste: stri
   useEffect(() => {
     if (hasToken === false) router.replace("/login");
     else if (!ajuste) router.replace("/agente");
-    else if (esMovil === false) router.replace(`/agente?section=${AJUSTES_DEL_AGENTE[ajuste]}`);
+    else if (esMovil === false) router.replace(`/agente?ajuste=${ajuste}`);
   }, [ajuste, esMovil, hasToken, router]);
 
   if (!ajuste || esMovil !== true || isLoadingBusiness) return <AppPageSkeleton label="Cargando el ajuste…" />;
