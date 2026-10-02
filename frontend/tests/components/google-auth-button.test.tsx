@@ -38,7 +38,7 @@ describe("GoogleAuthButton", () => {
     render(<GoogleAuthButton onError={onError} acceptedTerms />);
     await user.click(screen.getByRole("button", { name: /continuar con google/i }));
 
-    expect(mockedGetGoogleAuthUrl).toHaveBeenCalledWith(true);
+    expect(mockedGetGoogleAuthUrl).toHaveBeenCalledWith(true, "login");
     expect(location.assign).toHaveBeenCalledWith("https://accounts.google.com/o/oauth2/auth");
     expect(onError).toHaveBeenCalledWith("");
     expect(screen.queryByText(/social@alhabla\.ai/)).not.toBeInTheDocument();

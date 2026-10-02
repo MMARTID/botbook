@@ -16,21 +16,23 @@ describe("getGoogleAuthUrl", () => {
     vi.restoreAllMocks();
   });
 
-  it("no manda el parámetro acceptedTerms cuando no se indica", async () => {
+  it("no manda acceptedTerms cuando no se indica, e intent cae en login", async () => {
     const getSpy = vi.spyOn(api, "get").mockResolvedValue({ data: { url: "https://accounts.google.com/oauth" } });
 
     const url = await getGoogleAuthUrl();
 
     expect(url).toBe("https://accounts.google.com/oauth");
-    expect(getSpy).toHaveBeenCalledWith("/auth/google", { params: undefined });
+    expect(getSpy).toHaveBeenCalledWith("/auth/google", { params: { intent: "login" } });
   });
 
   it("manda acceptedTerms=true cuando se aceptaron los términos", async () => {
     const getSpy = vi.spyOn(api, "get").mockResolvedValue({ data: { url: "https://accounts.google.com/oauth" } });
 
-    await getGoogleAuthUrl(true);
+    await getGoogleAuthUrl(true, "register");
 
-    expect(getSpy).toHaveBeenCalledWith("/auth/google", { params: { acceptedTerms: "true" } });
+    expect(getSpy).toHaveBeenCalledWith("/auth/google", {
+      params: { intent: "register", acceptedTerms: "true" },
+    });
   });
 
   it("no manda el parámetro cuando acceptedTerms es false", async () => {
@@ -38,7 +40,15 @@ describe("getGoogleAuthUrl", () => {
 
     await getGoogleAuthUrl(false);
 
-    expect(getSpy).toHaveBeenCalledWith("/auth/google", { params: undefined });
+    expect(getSpy).toHaveBeenCalledWith("/auth/google", { params: { intent: "login" } });
+  });
+
+  it("manda intent=register explícito", async () => {
+    const getSpy = vi.spyOn(api, "get").mockResolvedValue({ data: { url: "https://accounts.google.com/oauth" } });
+
+    await getGoogleAuthUrl(undefined, "register");
+
+    expect(getSpy).toHaveBeenCalledWith("/auth/google", { params: { intent: "register" } });
   });
 });
 

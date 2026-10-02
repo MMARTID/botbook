@@ -6,6 +6,7 @@ import Link from "next/link";
 import { registerAccount } from "@/lib/api";
 import { appUrl } from "@/lib/app-url";
 import { GoogleAuthButton } from "@/components/google-auth-button";
+import { FacebookAuthButton } from "@/components/facebook-auth-button";
 import { BrandMark } from "@/components/brand-mark";
 import { ParticleField } from "@/components/particle-field";
 import { ParticleMouseLayer } from "@/components/particle-mouse-layer";
@@ -78,7 +79,10 @@ export default function RegisterPage() {
         </div>
 
         <div className="mt-8">
-          <GoogleAuthButton onError={setError} disabled={!acceptedTerms} acceptedTerms={acceptedTerms} />
+          <div className="space-y-3">
+            <GoogleAuthButton onError={setError} disabled={!acceptedTerms} acceptedTerms={acceptedTerms} intent="register" />
+            <FacebookAuthButton onError={setError} disabled={!acceptedTerms} acceptedTerms={acceptedTerms} intent="register" />
+          </div>
           <div className="my-6 flex items-center gap-4" aria-hidden="true">
             <div className="h-px flex-1 bg-[#e5e5e5]" />
             <span className="text-xs font-medium uppercase tracking-[0.12em] text-[#71717a]">o con email</span>

@@ -38,6 +38,16 @@ const GOOGLE_SESSION_COOKIE = "alhabla_google_session";
 // víctima en la cuenta del atacante (login CSRF) — cualquier dato que la
 // víctima introduzca después queda en la cuenta del atacante, no en la suya.
 const GOOGLE_OAUTH_STATE_COOKIE = "alhabla_google_oauth_state";
+
+const FACEBOOK_AUTH_STATE_TTL_SECONDS = 10 * 60;
+const FACEBOOK_SESSION_TTL_SECONDS = 60;
+const FACEBOOK_SESSION_COOKIE = "alhabla_facebook_session";
+// Mismo motivo que GOOGLE_OAUTH_STATE_COOKIE: liga el `state` al navegador
+// que inició el flujo para evitar login CSRF.
+const FACEBOOK_OAUTH_STATE_COOKIE = "alhabla_facebook_oauth_state";
+const FACEBOOK_GRAPH_VERSION = "v21.0";
+const FACEBOOK_REQUEST_TIMEOUT_MS = 10_000;
+
 const FIRST_USER_BOOTSTRAP_SECRET_ENV = "FIRST_USER_BOOTSTRAP_SECRET";
 
 // Mismas reglas al registrarse, al cambiarla desde Ajustes y al restablecerla
@@ -160,10 +170,31 @@ function setGoogleSessionCookie(
   setCookie(reply, GOOGLE_SESSION_COOKIE, value, maxAge);
 }
 
+function getFacebookAuthConfig() {
+  const appId = process.env.FACEBOOK_APP_ID;
+  const appSecret = process.env.FACEBOOK_APP_SECRET;
+  const redirectUri = process.env.FACEBOOK_AUTH_REDIRECT_URI;
+
+  if (!appId || !appSecret || !redirectUri) {
+    throw new Error("Facebook authentication is not configured");
+  }
+
+  return { appId, appSecret, redirectUri };
+}
+
+function setFacebookSessionCookie(
+  reply: FastifyReply,
+  value: string,
+  maxAge: number
+) {
+  setCookie(reply, FACEBOOK_SESSION_COOKIE, value, maxAge);
+}
+
 async function createUserWithBusiness(input: {
   email: string;
   password: string | null;
   googleId?: string;
+  facebookId?: string;
   isEuropeanUnion?: boolean;
   businessType?: BusinessType;
 }) {
@@ -185,6 +216,7 @@ async function createUserWithBusiness(input: {
         email: input.email,
         password: input.password,
         googleId: input.googleId,
+        facebookId: input.facebookId,
         businessId: business.id,
         termsAcceptedAt: new Date(),
       },
@@ -461,7 +493,7 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
     }
   );
 
-  fastify.get<{ Querystring: { acceptedTerms?: string } }>(
+  fastify.get<{ Querystring: { acceptedTerms?: string; intent?: string } }>(
     "/google",
     {
       config: { rateLimit: strictRateLimit },
@@ -469,11 +501,14 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
     async (request, reply) => {
       try {
         const state = randomBytes(32).toString("base64url");
-        // Se guarda junto al state para saber, en el callback, si el usuario aceptó
-        // los Términos y la Política de privacidad antes de iniciar el flujo — solo
-        // se exige si el callback termina creando una cuenta nueva.
+        // `intent` distingue si el botón que llamó aquí era el de /login o el de
+        // /register: el callback NUNCA crea una cuenta nueva si intent !== "register",
+        // por mucho que termsAccepted venga en true. `termsAccepted` solo se exige
+        // cuando intent es "register" y toca crear la cuenta.
+        const intent = request.query.intent === "register" ? "register" : "login";
         const stateValue = JSON.stringify({
           termsAccepted: request.query.acceptedTerms === "true",
+          intent,
         });
         await getRedis().set(
           `auth:google:state:${state}`,
@@ -543,8 +578,9 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
         if (!validState) {
           return reply.redirect(`${callbackUrl}?error=invalid_state`);
         }
-        const { termsAccepted } = JSON.parse(validState) as {
+        const { termsAccepted, intent } = JSON.parse(validState) as {
           termsAccepted: boolean;
+          intent: "login" | "register";
         };
 
         const authClient = getGoogleAuthClient();
@@ -576,6 +612,9 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
               data: { googleId },
             });
           } else {
+            if (intent !== "register") {
+              return reply.redirect(`${callbackUrl}?error=account_not_found`);
+            }
             if (!termsAccepted) {
               return reply.redirect(`${callbackUrl}?error=terms_required`);
             }
@@ -637,6 +676,216 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
             error:
               "La sesión de Google ha caducado. Vuelve a entrar con Google.",
           });
+      }
+
+      return reply.send({ token });
+    }
+  );
+
+  fastify.get<{ Querystring: { acceptedTerms?: string; intent?: string } }>(
+    "/facebook",
+    {
+      config: { rateLimit: strictRateLimit },
+    },
+    async (request, reply) => {
+      try {
+        const { appId, redirectUri } = getFacebookAuthConfig();
+        const state = randomBytes(32).toString("base64url");
+        const intent = request.query.intent === "register" ? "register" : "login";
+        const stateValue = JSON.stringify({
+          termsAccepted: request.query.acceptedTerms === "true",
+          intent,
+        });
+        await getRedis().set(
+          `auth:facebook:state:${state}`,
+          stateValue,
+          "EX",
+          FACEBOOK_AUTH_STATE_TTL_SECONDS
+        );
+        setCookie(
+          reply,
+          FACEBOOK_OAUTH_STATE_COOKIE,
+          state,
+          FACEBOOK_AUTH_STATE_TTL_SECONDS
+        );
+
+        const params = new URLSearchParams({
+          client_id: appId,
+          redirect_uri: redirectUri,
+          state,
+          scope: "email,public_profile",
+          response_type: "code",
+        });
+        const url = `https://www.facebook.com/${FACEBOOK_GRAPH_VERSION}/dialog/oauth?${params.toString()}`;
+
+        return reply.send({ url });
+      } catch (error) {
+        fastify.log.error(
+          { err: error },
+          "Unable to start Facebook authentication"
+        );
+        return reply
+          .status(503)
+          .send({ error: "Facebook authentication is unavailable" });
+      }
+    }
+  );
+
+  fastify.get<{
+    Querystring: { code?: string; state?: string; error?: string };
+  }>(
+    "/facebook/callback",
+    {
+      config: { rateLimit: strictRateLimit },
+    },
+    async (request, reply) => {
+      const callbackUrl = `${getFrontendUrl()}/auth/facebook/callback`;
+      const { code, state, error } = request.query;
+
+      if (error || !code || !state) {
+        return reply.redirect(`${callbackUrl}?error=access_denied`);
+      }
+
+      try {
+        const cookieState = readCookie(
+          request.headers.cookie,
+          FACEBOOK_OAUTH_STATE_COOKIE
+        );
+        setCookie(reply, FACEBOOK_OAUTH_STATE_COOKIE, "", 0);
+        if (!cookieState || cookieState !== state) {
+          return reply.redirect(`${callbackUrl}?error=invalid_state`);
+        }
+
+        const validState = await getRedis().getdel(
+          `auth:facebook:state:${state}`
+        );
+        if (!validState) {
+          return reply.redirect(`${callbackUrl}?error=invalid_state`);
+        }
+        const { termsAccepted, intent } = JSON.parse(validState) as {
+          termsAccepted: boolean;
+          intent: "login" | "register";
+        };
+
+        const { appId, appSecret, redirectUri } = getFacebookAuthConfig();
+        const tokenParams = new URLSearchParams({
+          client_id: appId,
+          client_secret: appSecret,
+          redirect_uri: redirectUri,
+          code,
+        });
+        const tokenResponse = await fetch(
+          `https://graph.facebook.com/${FACEBOOK_GRAPH_VERSION}/oauth/access_token?${tokenParams.toString()}`,
+          { signal: AbortSignal.timeout(FACEBOOK_REQUEST_TIMEOUT_MS) }
+        );
+        if (!tokenResponse.ok) {
+          throw new Error(
+            `Facebook token exchange failed with status ${tokenResponse.status}`
+          );
+        }
+        const { access_token: accessToken } =
+          (await tokenResponse.json()) as { access_token?: string };
+        if (!accessToken) {
+          throw new Error("Facebook did not return an access token");
+        }
+
+        const profileResponse = await fetch(
+          `https://graph.facebook.com/${FACEBOOK_GRAPH_VERSION}/me?fields=id,email&access_token=${accessToken}`,
+          { signal: AbortSignal.timeout(FACEBOOK_REQUEST_TIMEOUT_MS) }
+        );
+        if (!profileResponse.ok) {
+          throw new Error(
+            `Facebook profile lookup failed with status ${profileResponse.status}`
+          );
+        }
+        const profile = (await profileResponse.json()) as {
+          id?: string;
+          email?: string;
+        };
+        const facebookId = profile.id;
+        const email = profile.email?.trim().toLowerCase();
+
+        if (!facebookId) {
+          return reply.redirect(`${callbackUrl}?error=authentication_failed`);
+        }
+        // Facebook no garantiza el email (puede faltar si la cuenta no tiene
+        // uno confirmado, o el usuario denegó el permiso `email` en el
+        // diálogo) — sin él no hay forma de buscar/crear la cuenta de Alhabla.
+        if (!email) {
+          return reply.redirect(`${callbackUrl}?error=no_email`);
+        }
+
+        let user = await prisma.user.findUnique({ where: { facebookId } });
+        if (!user) {
+          const userByEmail = await prisma.user.findUnique({
+            where: { email },
+          });
+          if (userByEmail) {
+            user = await prisma.user.update({
+              where: { id: userByEmail.id },
+              data: { facebookId },
+            });
+          } else {
+            if (intent !== "register") {
+              return reply.redirect(`${callbackUrl}?error=account_not_found`);
+            }
+            if (!termsAccepted) {
+              return reply.redirect(`${callbackUrl}?error=terms_required`);
+            }
+            const result = await createUserWithBusiness({
+              email,
+              password: null,
+              facebookId,
+            });
+            user = result.user;
+            await bootstrapBusinessAgent(result.business.id, email);
+          }
+        }
+
+        const sessionId = randomBytes(32).toString("base64url");
+        await getRedis().set(
+          `auth:facebook:session:${sessionId}`,
+          createToken(user),
+          "EX",
+          FACEBOOK_SESSION_TTL_SECONDS
+        );
+        setFacebookSessionCookie(reply, sessionId, FACEBOOK_SESSION_TTL_SECONDS);
+        return reply.redirect(callbackUrl);
+      } catch (callbackError) {
+        fastify.log.error(
+          { err: callbackError },
+          "Facebook authentication callback failed"
+        );
+        return reply.redirect(`${callbackUrl}?error=authentication_failed`);
+      }
+    }
+  );
+
+  fastify.post(
+    "/facebook/session",
+    {
+      config: { rateLimit: strictRateLimit },
+    },
+    async (request, reply) => {
+      const sessionId = readCookie(
+        request.headers.cookie,
+        FACEBOOK_SESSION_COOKIE
+      );
+      setFacebookSessionCookie(reply, "", 0);
+
+      if (!sessionId) {
+        return reply
+          .status(401)
+          .send({ error: "Facebook session is missing or expired" });
+      }
+
+      const token = await getRedis().getdel(
+        `auth:facebook:session:${sessionId}`
+      );
+      if (!token) {
+        return reply
+          .status(401)
+          .send({ error: "Facebook session is missing or expired" });
       }
 
       return reply.send({ token });

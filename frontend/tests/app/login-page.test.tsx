@@ -35,16 +35,12 @@ describe("LoginPage", () => {
     mockLocationHref();
   });
 
-  it("pasa acceptedTerms al botón de Google (aviso pasivo, sin checkbox)", () => {
+  it("pasa intent=login al botón de Google, sin forzar acceptedTerms (bug corregido: /login ya no registra)", () => {
     render(<LoginPage />);
 
-    expect(GoogleAuthButton).toHaveBeenCalledWith(
-      expect.objectContaining({ acceptedTerms: true }),
-      expect.anything()
-    );
-    expect(
-      screen.getByText(/si es tu primera vez, al continuar aceptas los/i)
-    ).toBeInTheDocument();
+    const [props] = vi.mocked(GoogleAuthButton).mock.calls[0];
+    expect(props).toMatchObject({ intent: "login" });
+    expect(props).not.toHaveProperty("acceptedTerms");
   });
 
   it("inicia sesión y redirige al panel", async () => {
