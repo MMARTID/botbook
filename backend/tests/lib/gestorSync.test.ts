@@ -28,9 +28,10 @@ function remotoIgual() {
       LOCAL.tools as Array<{ type: string; webhook: Record<string, unknown> }>
     ).map((t) => ({
       type: t.type,
+      timeout_ms: 20000,
+      shared: false,
       webhook: {
         ...t.webhook,
-        timeout_ms: 20000,
         async: false,
         method: "POST",
       },
@@ -69,6 +70,23 @@ describe("gestorAlDia", () => {
     const menos = remotoIgual();
     menos.tools = menos.tools.slice(1);
     expect(gestorAlDia(menos, LOCAL)).toBe(false);
+  });
+
+  it("detecta el timeout sin aplicar: 20 s dentro de webhook y el de Telnyx en la tool", () => {
+    // Así quedaba el Gestor antes de llevar el timeout al nivel de la tool.
+    const antiguo = remotoIgual();
+    antiguo.tools = antiguo.tools.map((t) => ({
+      ...t,
+      timeout_ms: 5000,
+      webhook: { ...t.webhook, timeout_ms: 20000 },
+    }));
+    expect(gestorAlDia(antiguo, LOCAL)).toBe(false);
+
+    const sinTimeout = remotoIgual();
+    sinTimeout.tools = sinTimeout.tools.map(
+      ({ timeout_ms: _timeout, ...t }) => t
+    ) as typeof sinTimeout.tools;
+    expect(gestorAlDia(sinTimeout, LOCAL)).toBe(false);
   });
 });
 

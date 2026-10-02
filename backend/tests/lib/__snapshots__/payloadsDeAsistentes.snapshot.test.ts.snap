@@ -37,6 +37,7 @@ exports[`payloads de asistentes (instantáneas) > assistant de la recepcionista,
   },
   "tools": [
     {
+      "timeout_ms": 20000,
       "type": "webhook",
       "webhook": {
         "body_parameters": {
@@ -53,11 +54,11 @@ exports[`payloads de asistentes (instantáneas) > assistant de la recepcionista,
         ],
         "method": "POST",
         "name": "get_catalog",
-        "timeout_ms": 20000,
         "url": "https://api.alhabla.test/webhooks/telnyx/tools/get_catalog",
       },
     },
     {
+      "timeout_ms": 20000,
       "type": "webhook",
       "webhook": {
         "body_parameters": {
@@ -101,11 +102,11 @@ exports[`payloads de asistentes (instantáneas) > assistant de la recepcionista,
         ],
         "method": "POST",
         "name": "check_availability",
-        "timeout_ms": 20000,
         "url": "https://api.alhabla.test/webhooks/telnyx/tools/check_availability",
       },
     },
     {
+      "timeout_ms": 20000,
       "type": "webhook",
       "webhook": {
         "body_parameters": {
@@ -150,11 +151,11 @@ exports[`payloads de asistentes (instantáneas) > assistant de la recepcionista,
         ],
         "method": "POST",
         "name": "book_appointment",
-        "timeout_ms": 20000,
         "url": "https://api.alhabla.test/webhooks/telnyx/tools/book_appointment",
       },
     },
     {
+      "timeout_ms": 20000,
       "type": "webhook",
       "webhook": {
         "body_parameters": {
@@ -171,11 +172,11 @@ exports[`payloads de asistentes (instantáneas) > assistant de la recepcionista,
         ],
         "method": "POST",
         "name": "find_my_appointment",
-        "timeout_ms": 20000,
         "url": "https://api.alhabla.test/webhooks/telnyx/tools/find_my_appointment",
       },
     },
     {
+      "timeout_ms": 20000,
       "type": "webhook",
       "webhook": {
         "body_parameters": {
@@ -199,11 +200,11 @@ exports[`payloads de asistentes (instantáneas) > assistant de la recepcionista,
         ],
         "method": "POST",
         "name": "cancel_appointment",
-        "timeout_ms": 20000,
         "url": "https://api.alhabla.test/webhooks/telnyx/tools/cancel_appointment",
       },
     },
     {
+      "timeout_ms": 20000,
       "type": "webhook",
       "webhook": {
         "body_parameters": {
@@ -247,11 +248,11 @@ exports[`payloads de asistentes (instantáneas) > assistant de la recepcionista,
         ],
         "method": "POST",
         "name": "notify_when_available",
-        "timeout_ms": 20000,
         "url": "https://api.alhabla.test/webhooks/telnyx/tools/notify_when_available",
       },
     },
     {
+      "timeout_ms": 20000,
       "type": "webhook",
       "webhook": {
         "body_parameters": {
@@ -333,7 +334,6 @@ exports[`payloads de asistentes (instantáneas) > assistant de la recepcionista,
         ],
         "method": "POST",
         "name": "informar_al_negocio",
-        "timeout_ms": 20000,
         "url": "https://api.alhabla.test/webhooks/telnyx/tools/informar_al_negocio",
       },
     },
@@ -518,6 +518,7 @@ Si te escriben en catalán, gallego, euskera o inglés, responde en ese idioma; 
   "name": "alhabla-gestor",
   "tools": [
     {
+      "timeout_ms": 20000,
       "type": "webhook",
       "webhook": {
         "body_parameters": {
@@ -538,11 +539,11 @@ Si te escriben en catalán, gallego, euskera o inglés, responde en ese idioma; 
         ],
         "method": "POST",
         "name": "contexto_negocio",
-        "timeout_ms": 20000,
         "url": "https://api.alhabla.test/webhooks/telnyx/gestor/contexto_negocio",
       },
     },
     {
+      "timeout_ms": 20000,
       "type": "webhook",
       "webhook": {
         "body_parameters": {
@@ -570,11 +571,11 @@ Si te escriben en catalán, gallego, euskera o inglés, responde en ese idioma; 
         ],
         "method": "POST",
         "name": "listar_agenda",
-        "timeout_ms": 20000,
         "url": "https://api.alhabla.test/webhooks/telnyx/gestor/listar_agenda",
       },
     },
     {
+      "timeout_ms": 20000,
       "type": "webhook",
       "webhook": {
         "body_parameters": {
@@ -617,11 +618,11 @@ Si te escriben en catalán, gallego, euskera o inglés, responde en ese idioma; 
         ],
         "method": "POST",
         "name": "buscar_hueco",
-        "timeout_ms": 20000,
         "url": "https://api.alhabla.test/webhooks/telnyx/gestor/buscar_hueco",
       },
     },
     {
+      "timeout_ms": 20000,
       "type": "webhook",
       "webhook": {
         "body_parameters": {
@@ -647,11 +648,11 @@ Si te escriben en catalán, gallego, euskera o inglés, responde en ese idioma; 
         ],
         "method": "POST",
         "name": "resumen_llamadas",
-        "timeout_ms": 20000,
         "url": "https://api.alhabla.test/webhooks/telnyx/gestor/resumen_llamadas",
       },
     },
     {
+      "timeout_ms": 20000,
       "type": "webhook",
       "webhook": {
         "body_parameters": {
@@ -679,11 +680,11 @@ Si te escriben en catalán, gallego, euskera o inglés, responde en ese idioma; 
         ],
         "method": "POST",
         "name": "buscar_cliente",
-        "timeout_ms": 20000,
         "url": "https://api.alhabla.test/webhooks/telnyx/gestor/buscar_cliente",
       },
     },
     {
+      "timeout_ms": 20000,
       "type": "webhook",
       "webhook": {
         "body_parameters": {
@@ -709,11 +710,11 @@ Si te escriben en catalán, gallego, euskera o inglés, responde en ese idioma; 
         ],
         "method": "POST",
         "name": "dudas_sin_respuesta",
-        "timeout_ms": 20000,
         "url": "https://api.alhabla.test/webhooks/telnyx/gestor/dudas_sin_respuesta",
       },
     },
     {
+      "timeout_ms": 20000,
       "type": "webhook",
       "webhook": {
         "body_parameters": {
@@ -751,7 +752,6 @@ Si te escriben en catalán, gallego, euskera o inglés, responde en ese idioma; 
         ],
         "method": "POST",
         "name": "proponer_accion",
-        "timeout_ms": 20000,
         "url": "https://api.alhabla.test/webhooks/telnyx/gestor/proponer_accion",
       },
     },
@@ -761,8 +761,8 @@ Si te escriben en catalán, gallego, euskera o inglés, responde en ese idioma; 
 
 exports[`payloads de asistentes (instantáneas) > el JSON enviado es idéntico byte a byte (hash) 1`] = `
 {
-  "gestor": "707b26eaf988c5f10658b0e4631b50ba1259b748ab282822035c0543d839b520",
-  "recepcionista": "3ba24b4506bb3ac1ed545d07d66a05dc74960f769e84a13252d83e82ac112ad5",
+  "gestor": "d42493dfb458dbe1ef8fa7fab6dbf284ec727a79d37293a97bff584963af6abf",
+  "recepcionista": "a934f9aca0e4f64f5ccc97d7c3735607abd195a99fa531bb748d70522bbb12d1",
 }
 `;
 

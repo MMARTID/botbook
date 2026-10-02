@@ -97,6 +97,7 @@ describe("toTelnyxWebhookTool", () => {
 
     expect(tool).toEqual({
       type: "webhook",
+      timeout_ms: undefined,
       webhook: {
         name: "check_availability",
         description: "Consulta huecos libres",
@@ -108,7 +109,6 @@ describe("toTelnyxWebhookTool", () => {
           required: ["fecha"],
         },
         headers: undefined,
-        timeout_ms: undefined,
       },
     });
   });
@@ -126,7 +126,19 @@ describe("toTelnyxWebhookTool", () => {
 
     expect(tool.webhook.method).toBe("GET");
     expect(tool.webhook.headers).toEqual([{ name: "X-Internal", value: "1" }]);
-    expect(tool.webhook.timeout_ms).toBe(5000);
+  });
+
+  it("pone el timeout al nivel de la tool, que es donde Telnyx lo aplica", () => {
+    const tool = toTelnyxWebhookTool({
+      name: "get_catalog",
+      description: "Obtiene el catálogo",
+      url: "https://api.alhabla.ai/webhooks/telnyx/tools/get_catalog",
+      properties: {},
+      timeoutMs: 20000,
+    });
+
+    expect(tool.timeout_ms).toBe(20000);
+    expect(tool.webhook).not.toHaveProperty("timeout_ms");
   });
 });
 
