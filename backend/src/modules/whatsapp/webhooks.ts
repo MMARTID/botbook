@@ -13,6 +13,7 @@ import {
 } from "./service.js";
 import { enrutarEntrante } from "./router.js";
 import { normalizarCodigoAlta } from "./altaDueno.js";
+import { whatsappAdapter } from "../../adapters/whatsapp/WhatsAppAdapter.js";
 
 /**
  * Webhooks de WhatsApp que llegan a `/webhooks/telnyx` (PLAN-CANAL-DUENO.md
@@ -61,6 +62,9 @@ const InboundMessageSchema = z
     // capturado todavía en la fase 0, solo interactivos).
     button: z
       .object({ payload: z.string().optional(), text: z.string().optional() })
+      .optional(),
+    audio: z
+      .object({ id: z.string(), mime_type: z.string().optional() })
       .optional(),
     context: z
       .object({ from: z.string().optional(), id: z.string().optional() })
@@ -288,6 +292,8 @@ export interface EntranteClasificado {
   contactName: string | null;
   receivedAt: Date;
   payload: Prisma.InputJsonValue;
+  /** `media_id` de Meta si `kind` es "audio" — para descargar y transcribir. */
+  audioMediaId: string | null;
 }
 
 type InboundMessagePayload = z.infer<typeof InboundMessageSchema>;
@@ -307,6 +313,7 @@ export function clasificarEntrante(
   let text: string | null = null;
   let buttonId: string | null = null;
   let buttonTitle: string | null = null;
+  let audioMediaId: string | null = null;
 
   switch (message.type) {
     case "text": {
@@ -332,6 +339,7 @@ export function clasificarEntrante(
     }
     case "audio":
       kind = "audio";
+      audioMediaId = message.audio?.id ?? null;
       break;
     case "image":
     case "video":
@@ -358,6 +366,7 @@ export function clasificarEntrante(
     contactName: input.contactName,
     receivedAt: Number.isNaN(receivedAt.getTime()) ? new Date() : receivedAt,
     payload: message as Prisma.InputJsonValue,
+    audioMediaId,
   };
 }
 
@@ -463,6 +472,43 @@ export async function handleWhatsappMessages(
       contactName: contactNames.get(aE164(message.from)) ?? null,
       occurredAt: data.occurred_at,
     });
+
+    // Nota de voz: se descarga y transcribe con Telnyx Inference, y si sale
+    // texto de verdad, el mensaje se re-clasifica como "text" ANTES de
+    // guardarlo — así el resto del pipeline (Gestor, chat de cliente,
+    // palabras clave) lo trata exactamente igual que si lo hubieran
+    // escrito, sin duplicar ninguna rama del enrutador. Si falla o Telnyx
+    // no reconoce voz, se deja como "audio" (mismo comportamiento de hoy:
+    // no se enruta a ningún sitio) — best-effort con log, nunca en
+    // silencio.
+    if (entrante.kind === "audio" && entrante.audioMediaId) {
+      try {
+        const { buffer, mimeType } = await whatsappAdapter.descargarAudio(
+          entrante.toNumber,
+          entrante.audioMediaId
+        );
+        const transcription = await whatsappAdapter.transcribirAudio(
+          buffer,
+          mimeType
+        );
+        if (transcription) {
+          entrante.text = transcription;
+          entrante.kind = "text";
+          console.log(
+            `[WhatsApp] Audio ${entrante.providerMessageId} de ${entrante.fromNumber} transcrito (${transcription.length} caracteres)`
+          );
+        } else {
+          console.warn(
+            `[WhatsApp] Audio ${entrante.providerMessageId} de ${entrante.fromNumber}: Telnyx no reconoció voz, se deja sin texto`
+          );
+        }
+      } catch (error) {
+        console.error(
+          `[WhatsApp] No se pudo transcribir el audio ${entrante.providerMessageId} de ${entrante.fromNumber}: ${errorMessage(error)}`
+        );
+      }
+    }
+
     const { role, businessId } = await identificarRemitente(
       entrante.fromNumber,
       audience,
