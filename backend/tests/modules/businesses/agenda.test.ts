@@ -122,6 +122,34 @@ describe("GET /business/me/agenda", () => {
     expect(dias).toBe(3);
   });
 
+  it("con «desde» cuenta los días a partir de esa fecha, también hacia atrás", async () => {
+    mockedBookingFindMany.mockResolvedValue([] as any);
+    mockedBookingCount.mockResolvedValue(0 as any);
+    const lunes = new Date(Date.now() - 3 * 86_400_000);
+
+    const response = await fastify.inject({
+      method: "GET",
+      url: `/business/me/agenda?days=8&desde=${encodeURIComponent(lunes.toISOString())}`,
+    });
+
+    expect(response.statusCode).toBe(200);
+    const where = mockedBookingFindMany.mock.calls[0][0]?.where as any;
+    expect(where.programedAt.gte.toISOString()).toBe(lunes.toISOString());
+    expect(where.programedAt.lte.getTime() - lunes.getTime()).toBe(8 * 86_400_000);
+  });
+
+  it("no deja pedir más de 60 días hacia atrás", async () => {
+    const hace90 = new Date(Date.now() - 90 * 86_400_000).toISOString();
+
+    const response = await fastify.inject({
+      method: "GET",
+      url: `/business/me/agenda?desde=${encodeURIComponent(hace90)}`,
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(mockedBookingFindMany).not.toHaveBeenCalled();
+  });
+
   it("pagina la agenda sin ocultar las citas que quedan después del límite", async () => {
     mockedBookingFindMany.mockResolvedValue([
       {

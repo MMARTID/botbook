@@ -115,6 +115,16 @@ const AgendaQuerySchema = z.object({
   // la respuesta en 50 reservas sin comunicarlo: un negocio con agenda llena
   // parecía tener huecos que no existían en la interfaz.
   offset: z.coerce.number().int().min(0).default(0),
+  // Desde cuándo contar los `days`. Sin él, desde ahora: es lo que quiere el
+  // Panel. La semana de la agenda móvil también enseña los días ya pasados
+  // (y las citas de hoy que ya empezaron), así que pide desde el lunes. Hasta
+  // 60 días atrás: más allá ya no es la agenda, es el historial de llamadas.
+  desde: z.coerce
+    .date()
+    .refine((fecha) => fecha.getTime() >= Date.now() - 60 * DAY_MS, {
+      message: "desde no puede ser de hace más de 60 días",
+    })
+    .optional(),
 });
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -686,10 +696,12 @@ export async function businessesRoutes(fastify: FastifyInstance) {
       reply
     ) => {
       try {
-        const { days, limit, offset } = AgendaQuerySchema.parse(request.query);
+        const { days, limit, offset, desde } = AgendaQuerySchema.parse(
+          request.query
+        );
         const businessId = request.user!.businessId;
 
-        const from = new Date();
+        const from = desde ?? new Date();
         const until = new Date(from.getTime() + days * DAY_MS);
 
         const where = {
