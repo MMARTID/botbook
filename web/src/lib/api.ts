@@ -109,3 +109,11 @@ export async function createDemoWebCall(niche?: string, placeId?: string) {
   );
   return data;
 }
+
+export type CupoDeFundador = { total: number; restantes: number; disponible: boolean };
+
+/** Plazas de precio de fundador que quedan (ruta pública, sin sesión). */
+export async function getCupoDeFundador() {
+  const { data } = await api.get<CupoDeFundador>("/billing/fundadores");
+  return data;
+}

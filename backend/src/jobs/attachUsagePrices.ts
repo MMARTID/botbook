@@ -59,8 +59,14 @@ export async function attachUsagePricesJob(): Promise<number> {
       const periodEndsAt = new Date(
         Math.max(...subscription.items.data.map((item) => item.current_period_end)) * 1000
       );
+      // Cualquier precio medido cuenta como «ya tiene minutos extra», no solo
+      // el vigente: al cambiar los tramos (2026-10) el ID del precio cambió,
+      // y buscar solo el nuevo añadiría un segundo item sobre el mismo
+      // medidor y cobraría el consumo dos veces.
       const usageItem = subscription.items.data.find(
-        (item) => item.price?.id === usagePriceId
+        (item) =>
+          item.price?.id === usagePriceId ||
+          item.price?.recurring?.usage_type === "metered"
       );
 
       if (!usageItem) {

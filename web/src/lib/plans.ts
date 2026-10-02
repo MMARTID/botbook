@@ -2,6 +2,12 @@ export type Plan = {
   id: "inicio" | "pro" | "scale";
   name: string;
   price: number;
+  /**
+   * Precio de fundador: lo que pagan los 15 primeros negocios en contratar
+   * cualquier plan (cupo compartido, backend/src/modules/billing/service.ts).
+   * Solo se enseña mientras `GET /billing/fundadores` diga que quedan plazas.
+   */
+  founderPrice: number;
   minutes: number;
   extraPerMinute: number;
   description: string;
@@ -15,6 +21,7 @@ export const plans: readonly Plan[] = [
     id: "inicio",
     name: "Inicio",
     price: 79,
+    founderPrice: 69,
     minutes: 150,
     extraPerMinute: 0.45,
     description: "Para negocios que quieren empezar a no perder llamadas importantes.",
@@ -32,6 +39,7 @@ export const plans: readonly Plan[] = [
     id: "pro",
     name: "Pro",
     price: 179,
+    founderPrice: 149,
     minutes: 500,
     extraPerMinute: 0.4,
     description: "La opción recomendada: además de atender, te llena la agenda y reduce las ausencias.",
@@ -50,6 +58,7 @@ export const plans: readonly Plan[] = [
     id: "scale",
     name: "Scale",
     price: 349,
+    founderPrice: 299,
     minutes: 1100,
     extraPerMinute: 0.35,
     description: "Para negocios con varias sedes o alto volumen que quieren datos para decidir.",

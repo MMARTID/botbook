@@ -67,6 +67,37 @@ describe("attachUsagePricesJob", () => {
     );
   });
 
+  it("no añade un segundo precio medido si la suscripción ya tiene uno anterior (cobraría doble)", async () => {
+    const create = vi.fn();
+    mockedFindMany.mockResolvedValue([
+      { id: businessId, stripeSubscriptionId: subscriptionId, stripePriceId: basePriceId },
+    ] as any);
+    mockedUpdateMany.mockResolvedValue({ count: 0 } as any);
+    mockedGetStripeClient.mockReturnValue({
+      subscriptions: {
+        retrieve: vi.fn().mockResolvedValue({
+          id: subscriptionId,
+          status: "active",
+          cancel_at_period_end: false,
+          items: {
+            data: [
+              { price: { id: basePriceId }, current_period_end: 1_789_171_200 },
+              {
+                price: { id: "price_extra_inicio_100_minutos", recurring: { usage_type: "metered" } },
+                current_period_end: 1_789_171_200,
+                metadata: {},
+              },
+            ],
+          },
+        }),
+      },
+      subscriptionItems: { create },
+    } as any);
+
+    await expect(attachUsagePricesJob()).resolves.toBe(0);
+    expect(create).not.toHaveBeenCalled();
+  });
+
   it("no retrasa una suscripción nueva que ya trae su precio medido", async () => {
     mockedFindMany.mockResolvedValue([
       { id: businessId, stripeSubscriptionId: subscriptionId, stripePriceId: basePriceId },

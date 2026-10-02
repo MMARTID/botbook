@@ -4,7 +4,8 @@ import { useEffect, useState } from "react";
 import { BadgeCheck, CheckCircle2 } from "lucide-react";
 import { SiWhatsapp } from "@icons-pack/react-simple-icons";
 import { PlanSelectionLink } from "@/components/plan-selection-link";
-import { formatExtraMinute, formatIncludedMinutes, formatPlanPrice, plans, TRIAL_REASSURANCE, type Plan } from "@/lib/plans";
+import { formatExtraMinute, formatIncludedMinutes, plans, TRIAL_REASSURANCE, type Plan } from "@/lib/plans";
+import { AvisoDeFundador, PrecioDePlan } from "@/components/precio-de-plan";
 import { calculatePlanValueContrast, getActiveRoiContext, type RoiEstimate } from "@/lib/roi-context";
 
 const currencyFormatter = new Intl.NumberFormat("es-ES", {
@@ -65,10 +66,7 @@ function PlanCard({
       <p className={`mt-3 text-sm leading-6 ${isDark ? "text-white/65" : "text-[#52525b]"}`}>{plan.description}</p>
 
       <div className="mt-8">
-        <p className={`text-5xl font-black tracking-tight ${isDark ? "text-white" : "text-[#0a0a0a]"}`}>
-          {formatPlanPrice(plan.price)}
-          <span className={`text-base font-medium ${isDark ? "text-white/60" : "text-[#71717a]"}`}>/mes</span>
-        </p>
+        <PrecioDePlan plan={plan} tamaño="lg" oscuro={isDark} />
         <p className={`mt-3 text-sm font-semibold ${isDark ? "text-white/90" : "text-[#27272a]"}`}>
           {formatIncludedMinutes(plan.minutes)} minutos incluidos
         </p>
@@ -127,6 +125,7 @@ export function PlansWithRoi() {
 
   return (
     <div>
+      <AvisoDeFundador className="mx-auto mb-6 max-w-2xl text-center" />
       <div className="grid gap-5 lg:grid-cols-3">
         {plans.map((plan) => (
           <PlanCard

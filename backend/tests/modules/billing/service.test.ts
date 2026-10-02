@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 import {
   getBillingSummary,
   createCheckoutSession,
+  estadoDelCupoDeFundador,
   reconcileCheckoutSession,
   handleStripeEvent,
 } from "../../../src/modules/billing/service.js";
@@ -655,6 +656,36 @@ describe("createCheckoutSession", () => {
         metadata: expect.objectContaining({ founderPrice: "false" }),
       })
     );
+  });
+});
+
+describe("estadoDelCupoDeFundador", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    process.env.STRIPE_PRICE_INICIO_FOUNDER = "price_test_founder_inicio";
+    process.env.STRIPE_PRICE_PRO_FOUNDER = "price_test_founder_pro";
+    delete process.env.STRIPE_PRICE_SCALE_FOUNDER;
+  });
+
+  it("cuenta las plazas que quedan con los precios de fundador de cualquier plan", async () => {
+    mockedBusinessCount.mockResolvedValue(1);
+
+    await expect(estadoDelCupoDeFundador()).resolves.toEqual({ total: 15, restantes: 14, disponible: true });
+    expect(mockedBusinessCount).toHaveBeenCalledWith({
+      where: { stripePriceId: { in: ["price_test_founder_inicio", "price_test_founder_pro"] } },
+    });
+  });
+
+  it("agotado no baja de cero ni ofrece nada", async () => {
+    mockedBusinessCount.mockResolvedValue(17);
+    await expect(estadoDelCupoDeFundador()).resolves.toEqual({ total: 15, restantes: 0, disponible: false });
+  });
+
+  it("sin precios de fundador configurados no hay oferta", async () => {
+    delete process.env.STRIPE_PRICE_INICIO_FOUNDER;
+    delete process.env.STRIPE_PRICE_PRO_FOUNDER;
+    await expect(estadoDelCupoDeFundador()).resolves.toEqual({ total: 15, restantes: 0, disponible: false });
+    expect(mockedBusinessCount).not.toHaveBeenCalled();
   });
 });
 

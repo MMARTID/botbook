@@ -17,7 +17,8 @@ import { PuntosFuertesSection } from "@/components/puntos-fuertes-section";
 import { WhatsAppClientesSection } from "@/components/whatsapp-clientes-section";
 import { generalOwnerAssistant } from "@/lib/niche-landings";
 import { HOME_QUICK_FAQS } from "@/lib/home-faqs";
-import { formatExtraMinute, formatIncludedMinutes, formatPlanPrice, plans, TRIAL_REASSURANCE } from "@/lib/plans";
+import { formatExtraMinute, formatIncludedMinutes, plans, TRIAL_REASSURANCE } from "@/lib/plans";
+import { AvisoDeFundador, PrecioDePlan } from "@/components/precio-de-plan";
 
 /**
  * Un sector por tarjeta, cada uno con su foto de `public/heroes/`: la escena
@@ -429,6 +430,7 @@ export function MainLanding() {
               <Check className="h-5 w-5 shrink-0 text-[#8b5cf6]" aria-hidden="true" />
               {TRIAL_REASSURANCE}
             </p>
+            <AvisoDeFundador className="mt-2" />
           </Reveal>
 
           <div className="mt-8 grid gap-5 lg:grid-cols-3">
@@ -445,10 +447,9 @@ export function MainLanding() {
                     <h3 className="text-lg font-bold text-[#0a0a0a]">{plan.name}</h3>
                     {plan.featured ? <span className="badge-soft">Recomendado</span> : null}
                   </div>
-                  <p className="mt-6 text-4xl font-black tracking-tight text-[#0a0a0a]">
-                    {formatPlanPrice(plan.price)}
-                    <span className="text-base font-medium text-[#71717a]">/mes</span>
-                  </p>
+                  <div className="mt-6">
+                    <PrecioDePlan plan={plan} />
+                  </div>
                   <p className="mt-3 text-sm font-semibold text-[#27272a]">{formatIncludedMinutes(plan.minutes)} minutos incluidos · {formatExtraMinute(plan.extraPerMinute)}</p>
                   <p className="mt-2 text-sm leading-6 text-[#52525b]">{plan.description}</p>
                   <ul className="mb-7 mt-5 space-y-2.5 border-t border-[#e5e5e5] pt-5">

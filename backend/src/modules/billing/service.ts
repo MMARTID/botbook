@@ -229,14 +229,30 @@ async function getOrCreateCustomer(businessId: string, userId: string) {
   return customer.id;
 }
 
-async function founderSlotsAvailable(): Promise<boolean> {
+/**
+ * Cuántas plazas de fundador quedan. Lo usan el checkout (para elegir el
+ * precio) y la web pública (para enseñar el descuento solo mientras exista):
+ * las dos cosas salen del mismo recuento y no pueden contradecirse.
+ */
+export async function estadoDelCupoDeFundador(): Promise<{
+  total: number;
+  restantes: number;
+  disponible: boolean;
+}> {
   const founderPriceIds = getAllFounderPriceIds();
-  if (founderPriceIds.length === 0) return false;
+  if (founderPriceIds.length === 0) {
+    return { total: FOUNDER_SLOTS_TOTAL, restantes: 0, disponible: false };
+  }
 
   const claimed = await prisma.business.count({
     where: { stripePriceId: { in: founderPriceIds } },
   });
-  return claimed < FOUNDER_SLOTS_TOTAL;
+  const restantes = Math.max(0, FOUNDER_SLOTS_TOTAL - claimed);
+  return { total: FOUNDER_SLOTS_TOTAL, restantes, disponible: restantes > 0 };
+}
+
+async function founderSlotsAvailable(): Promise<boolean> {
+  return (await estadoDelCupoDeFundador()).disponible;
 }
 
 export async function createCheckoutSession(input: {
