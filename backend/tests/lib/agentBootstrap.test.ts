@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import {
   buildInboundCallDynamicVariables,
+  buildRetellBeginMessage,
   syncAgentToRetell,
   createBusinessAgent,
   RETELL_VOICE_ID_BY_GENDER,
@@ -650,5 +651,25 @@ describe("createBusinessAgent — creación dual Telnyx (Fase 2 del plan Telnyx-
       ])
     );
     expect(mockedSyncCalendarToolsToAgents).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("buildRetellBeginMessage", () => {
+  it("saluda en español salvo con catalán, euskera o gallego como principal", () => {
+    expect(buildRetellBeginMessage("Peluquería Ana")).toBe(
+      "Hola, gracias por llamar a Peluquería Ana. ¿En qué te puedo ayudar?"
+    );
+    expect(buildRetellBeginMessage("Peluquería Ana", "en-GB")).toBe(
+      "Hola, gracias por llamar a Peluquería Ana. ¿En qué te puedo ayudar?"
+    );
+    expect(buildRetellBeginMessage("Perruqueria Anna", "ca-ES")).toBe(
+      "Hola, gràcies per trucar a Perruqueria Anna. En què et puc ajudar?"
+    );
+    expect(buildRetellBeginMessage("Ana ile-apaindegia", "eu-ES")).toBe(
+      "Kaixo, Ana ile-apaindegia. Zertan lagun zaitzaket?"
+    );
+    expect(buildRetellBeginMessage("Perruquería Ana", "gl-ES")).toBe(
+      "Ola, grazas por chamar a Perruquería Ana. En que te podo axudar?"
+    );
   });
 });

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Bot, Check, Languages, Lock, Mic, Save } from "lucide-react";
 import { SettingsSection } from "@/components/settings-section";
 import type { AgentLanguage, AgentSettings, VoiceLanguage } from "@/lib/types";
+import { avisoDeIdiomas } from "@/lib/idiomas-de-atencion";
 
 export const DEFAULT_AGENT_SETTINGS: AgentSettings = {
   version: 1,
@@ -30,18 +31,17 @@ const languageOptions: Array<{
   { value: "gl-ES", label: "Gallego", detail: "Gallego" },
 ];
 
-// Solo estos tres tienen voz Telnyx Ultra curada (telnyxEligibility.ts):
-// catalán, euskera y gallego los habla una voz de Soniox con acento español,
-// que arranca en el idioma elegido aquí.
+// Idioma principal: con español, inglés o francés, la voz Ultra curada de
+// ese idioma (telnyxEligibility.ts); con catalán, euskera o gallego, una voz
+// de Soniox que habla todos los idiomas y saluda en el principal.
 const voiceLanguageOptions: Array<{ value: VoiceLanguage; label: string }> = [
   { value: "es-ES", label: "Español" },
   { value: "en-GB", label: "Inglés" },
   { value: "fr-FR", label: "Francés" },
+  { value: "ca-ES", label: "Catalán" },
+  { value: "eu-ES", label: "Euskera" },
+  { value: "gl-ES", label: "Gallego" },
 ];
-
-// Con cualquiera de estos activos atiende la voz de Soniox, distinta de la
-// voz Ultra de siempre: el dueño tiene que saber que la voz cambia.
-const vozMultilingueLanguages: AgentLanguage[] = ["ca-ES", "eu-ES", "gl-ES"];
 
 function VoiceUpgradeNotice() {
   return (
@@ -127,9 +127,7 @@ export function AgentSettingsEditor({
     .filter(Boolean)
     .join(" · ");
   const voiceGenderLabel = value.voiceGender === "masculina" ? "Masculina" : "Femenina";
-  const vozMultilingue = value.languages.some((language) =>
-    vozMultilingueLanguages.includes(language)
-  );
+  const aviso = avisoDeIdiomas(value);
   const voiceLanguageLabel = voiceLanguageOptions.find(
     (option) => option.value === value.voiceLanguage
   )?.label;
@@ -218,9 +216,7 @@ export function AgentSettingsEditor({
           </legend>
           <p className="mb-3 mt-1 text-sm text-muted">
             Con qué voz atiende las llamadas.
-            {vozMultilingue
-              ? " Con catalán, euskera o gallego activos atiende una voz que habla todos tus idiomas."
-              : null}
+            {aviso ? ` ${aviso}` : null}
           </p>
           {voiceLocked ? <VoiceUpgradeNotice /> : null}
           <div className="grid gap-4 md:grid-cols-2">
@@ -252,7 +248,7 @@ export function AgentSettingsEditor({
             </div>
             <div>
               <p className="mb-2 text-xs font-semibold uppercase tracking-[0.12em] text-muted">
-                Idioma de la voz
+                Idioma principal
               </p>
               <div className="grid gap-2">
                 {voiceLanguageOptions.map((option) => {

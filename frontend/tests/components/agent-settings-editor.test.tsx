@@ -36,9 +36,21 @@ describe("AgentSettingsEditor — idiomas", () => {
     );
   });
 
-  it("avisa de que la voz cambia solo con catalán, euskera o gallego", () => {
-    const aviso = /atiende una voz que habla todos tus idiomas/;
+  it("ofrece catalán, euskera y gallego como idioma principal si están activos", () => {
+    const { onChange } = renderizar({
+      ...DEFAULT_AGENT_SETTINGS,
+      languages: ["es-ES", "gl-ES"],
+    });
 
+    expect(screen.getByText("Idioma principal")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Euskera" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Gallego" }));
+    expect(onChange).toHaveBeenCalledWith(
+      expect.objectContaining({ voiceLanguage: "gl-ES" })
+    );
+  });
+
+  it("avisa de qué pasa con catalán, euskera o gallego según el idioma principal", () => {
     const { unmount } = render(
       <AgentSettingsEditor
         value={{ ...DEFAULT_AGENT_SETTINGS, languages: ["es-ES", "en-GB"] }}
@@ -49,10 +61,12 @@ describe("AgentSettingsEditor — idiomas", () => {
         onToggle={vi.fn()}
       />
     );
-    expect(screen.queryByText(aviso)).toBeNull();
+    expect(screen.queryByText(/contesta en español/)).toBeNull();
     unmount();
 
-    renderizar({ ...DEFAULT_AGENT_SETTINGS, languages: ["es-ES", "gl-ES"] });
-    expect(screen.getByText(aviso)).toBeInTheDocument();
+    renderizar({ ...DEFAULT_AGENT_SETTINGS, languages: ["es-ES", "ca-ES"] });
+    expect(
+      screen.getByText(/Entiende catalán, pero contesta en español/)
+    ).toBeInTheDocument();
   });
 });

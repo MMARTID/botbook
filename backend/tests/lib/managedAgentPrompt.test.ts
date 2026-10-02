@@ -1,8 +1,9 @@
 import { describe, it, expect } from "vitest";
 import {
   buildManagedAgentPrompt,
-  necesitaSoniox,
+  hablaConSoniox,
   parseAgentSettings,
+  transcribeConSoniox,
   toRetellLanguageSetting,
   DEFAULT_AGENT_SETTINGS,
 } from "../../src/lib/managedAgentPrompt.js";
@@ -301,7 +302,18 @@ describe("buildManagedAgentPrompt — idiomas", () => {
     expect(prompt).toContain("Habla siempre en español de España");
   });
 
-  it("indica saludo español y cambio automático para inglés, francés y catalán", () => {
+  it("sin catalán, euskera ni gallego la instrucción no cambia", () => {
+    const prompt = buildManagedAgentPrompt({
+      businessName: "Peluquería Ejemplo",
+      settings: { ...DEFAULT_AGENT_SETTINGS, languages: ["es-ES", "en-GB"] },
+    });
+
+    expect(prompt).toContain(
+      "Empieza siempre con el saludo en español de España. Tras la primera intervención de quien llama, responde y continúa exclusivamente en el idioma que use si es uno de estos: español de España, inglés. Si cambia entre esos idiomas, acompaña el cambio sin pedirle que elija uno. No menciones que eres una IA salvo que te lo pregunten."
+    );
+  });
+
+  it("con voz Ultra habla inglés y francés, y el catalán lo entiende pero contesta en español", () => {
     const prompt = buildManagedAgentPrompt({
       businessName: "Peluquería Ejemplo",
       settings: {
@@ -313,12 +325,14 @@ describe("buildManagedAgentPrompt — idiomas", () => {
     expect(prompt).toContain(
       "Empieza siempre con el saludo en español de España"
     );
-    expect(prompt).toContain("inglés, francés, catalán");
+    expect(prompt).toContain("si es uno de estos: español de España, inglés, francés.");
     expect(prompt).toContain("acompaña el cambio sin pedirle que elija uno");
-    expect(prompt).not.toContain("Habla siempre en español de España");
+    expect(prompt).toContain(
+      "Si te habla en catalán, entiéndelo y contesta en español de España con naturalidad, sin comentar el idioma."
+    );
   });
 
-  it("nombra el euskera y el gallego entre los idiomas activados", () => {
+  it("con español principal y solo idiomas que no habla, habla siempre en español", () => {
     const prompt = buildManagedAgentPrompt({
       businessName: "Peluquería Ejemplo",
       settings: {
@@ -327,7 +341,25 @@ describe("buildManagedAgentPrompt — idiomas", () => {
       },
     });
 
-    expect(prompt).toContain("español de España, euskera, gallego");
+    expect(prompt).toContain(
+      "Habla siempre en español de España. Si te habla en euskera o gallego, entiéndelo y contesta en español de España con naturalidad, sin comentar el idioma."
+    );
+    expect(prompt).not.toContain("Empieza siempre con el saludo");
+  });
+
+  it("con gallego principal saluda en gallego y habla todos sus idiomas", () => {
+    const prompt = buildManagedAgentPrompt({
+      businessName: "Peluquería Ejemplo",
+      settings: {
+        ...DEFAULT_AGENT_SETTINGS,
+        languages: ["es-ES", "eu-ES", "gl-ES"],
+        voiceLanguage: "gl-ES",
+      },
+    });
+
+    expect(prompt).toContain("Empieza siempre con el saludo en gallego.");
+    expect(prompt).toContain("si es uno de estos: español de España, euskera, gallego.");
+    expect(prompt).not.toContain("contesta en español de España");
   });
 });
 
@@ -341,11 +373,36 @@ describe("idiomas de Soniox y de Retell", () => {
     expect(parsed.languages).toEqual(["es-ES", "eu-ES", "gl-ES"]);
   });
 
-  it("solo catalán, euskera o gallego piden Soniox", () => {
-    expect(necesitaSoniox(["es-ES", "en-GB", "fr-FR"])).toBe(false);
-    expect(necesitaSoniox(["es-ES", "ca-ES"])).toBe(true);
-    expect(necesitaSoniox(["es-ES", "eu-ES"])).toBe(true);
-    expect(necesitaSoniox(["es-ES", "gl-ES"])).toBe(true);
+  it("catalán, euskera o gallego activos los transcribe Soniox", () => {
+    expect(transcribeConSoniox(["es-ES", "en-GB", "fr-FR"])).toBe(false);
+    expect(transcribeConSoniox(["es-ES", "ca-ES"])).toBe(true);
+    expect(transcribeConSoniox(["es-ES", "eu-ES"])).toBe(true);
+    expect(transcribeConSoniox(["es-ES", "gl-ES"])).toBe(true);
+  });
+
+  it("solo con catalán, euskera o gallego como principal habla la voz de Soniox", () => {
+    expect(hablaConSoniox("es-ES")).toBe(false);
+    expect(hablaConSoniox("en-GB")).toBe(false);
+    expect(hablaConSoniox("ca-ES")).toBe(true);
+    expect(hablaConSoniox("eu-ES")).toBe(true);
+    expect(hablaConSoniox("gl-ES")).toBe(true);
+  });
+
+  it("acepta catalán, euskera o gallego como idioma principal si están activos", () => {
+    const parsed = parseAgentSettings({
+      ...DEFAULT_AGENT_SETTINGS,
+      languages: ["es-ES", "eu-ES"],
+      voiceLanguage: "eu-ES",
+    });
+    expect(parsed.voiceLanguage).toBe("eu-ES");
+
+    expect(
+      parseAgentSettings({
+        ...DEFAULT_AGENT_SETTINGS,
+        languages: ["es-ES"],
+        voiceLanguage: "ca-ES",
+      })
+    ).toEqual(DEFAULT_AGENT_SETTINGS);
   });
 
   it("a Retell no le llega el euskera, que rechazaría el agente", () => {

@@ -66,10 +66,11 @@ export type AgentLanguage =
   | "eu-ES"
   | "gl-ES";
 
-/** Acento de la voz. Catalán, euskera y gallego no tienen voz propia: con
- * cualquiera de ellos activo atiende una voz de Soniox que habla todos los
- * idiomas del negocio (backend/src/lib/telnyxEligibility.ts). */
-export type VoiceLanguage = "es-ES" | "en-GB" | "fr-FR";
+/** Idioma principal (antes «idioma de la voz»): decide la voz. Español,
+ * inglés y francés tienen voz Ultra propia; con catalán, euskera o gallego
+ * atiende una voz de Soniox que habla todos los idiomas del negocio y saluda
+ * en el principal (backend/src/lib/managedAgentPrompt.ts). */
+export type VoiceLanguage = AgentLanguage;
 
 export type BusinessType =
   | "peluqueria"

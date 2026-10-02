@@ -22,15 +22,31 @@ export const AGENT_LANGUAGES = [
 export type AgentLanguage = (typeof AGENT_LANGUAGES)[number];
 
 /**
- * Idiomas que en Telnyx solo cubre Soniox (voz y transcripción): ni las
- * voces Ultra ni deepgram/flux hablan catalán, euskera o gallego. Con uno
- * de ellos activo, el assistant entero pasa a Soniox, también para el
- * español (ver telnyxAssistantPayload.ts y telnyxEligibility.ts).
+ * Idiomas que en Telnyx solo cubre Soniox: deepgram/flux no los entiende y
+ * las voces Ultra no los hablan. Decisión del usuario (2026-10-02), por
+ * idioma principal (`voiceLanguage`):
+ * - Principal español, inglés o francés: voz Ultra, con su modo expresivo.
+ *   Si además hay catalán, euskera o gallego, Soniox los transcribe y la
+ *   recepcionista contesta en español (buildLanguageInstruction).
+ * - Principal catalán, euskera o gallego: voz y transcripción de Soniox, y
+ *   el saludo en ese idioma.
+ * Ver telnyxAssistantPayload.ts y telnyxEligibility.ts.
  */
 const IDIOMAS_DE_SONIOX: readonly AgentLanguage[] = ["ca-ES", "eu-ES", "gl-ES"];
 
-export function necesitaSoniox(languages: readonly AgentLanguage[]): boolean {
+/** Con catalán, euskera o gallego activos, transcribe Soniox. */
+export function transcribeConSoniox(
+  languages: readonly AgentLanguage[]
+): boolean {
   return languages.some((language) => IDIOMAS_DE_SONIOX.includes(language));
+}
+
+/** Con catalán, euskera o gallego como idioma principal, habla una voz de
+ * Soniox: ninguna voz Ultra los pronuncia bien. */
+export function hablaConSoniox(
+  voiceLanguage: AgentLanguage
+): voiceLanguage is Exclude<AgentLanguage, UltraVoiceLanguage> {
+  return IDIOMAS_DE_SONIOX.includes(voiceLanguage);
 }
 
 /** Retell no tiene euskera: un negocio con eu-ES lo atiende Telnyx, y en
@@ -42,14 +58,20 @@ const RETELL_AGENT_LANGUAGES = AGENT_LANGUAGES.filter(
 );
 
 /**
- * Acento de la voz: el de la voz Telnyx Ultra curada de cada idioma (ver
- * TELNYX_VOICE_CATALOG en telnyxEligibility.ts). Catalán, euskera y gallego
- * no tienen voz propia: los habla la voz de Soniox, que es la misma para
- * todos los idiomas y arranca en este.
+ * Idioma principal (en el panel, «Idioma principal»; antes «Idioma de la
+ * voz»): decide la voz — la Ultra curada de español, inglés o francés (ver
+ * TELNYX_VOICE_CATALOG en telnyxEligibility.ts) o la de Soniox para
+ * catalán, euskera y gallego, que además saludan en su idioma.
  */
-export const VOICE_LANGUAGES = ["es-ES", "en-GB", "fr-FR"] as const;
+export const VOICE_LANGUAGES = AGENT_LANGUAGES;
 
-export type VoiceLanguage = (typeof VOICE_LANGUAGES)[number];
+export type VoiceLanguage = AgentLanguage;
+
+/** Idiomas principales con voz Ultra propia. */
+export type UltraVoiceLanguage = Exclude<
+  VoiceLanguage,
+  "ca-ES" | "eu-ES" | "gl-ES"
+>;
 
 const AgentLanguagesSchema = z
   .array(z.enum(AGENT_LANGUAGES))
@@ -204,22 +226,49 @@ function buildRestrictionsFragment(input: {
   return parts.length > 0 ? parts.join(" ") : null;
 }
 
+const NOMBRE_DE_IDIOMA: Record<AgentLanguage, string> = {
+  "es-ES": "español de España",
+  "en-GB": "inglés",
+  "fr-FR": "francés",
+  "ca-ES": "catalán",
+  "eu-ES": "euskera",
+  "gl-ES": "gallego",
+};
+
+/** «catalán», «catalán o gallego», «catalán, euskera o gallego». */
+function enumerarConO(nombres: string[]): string {
+  if (nombres.length === 1) return nombres[0];
+  return `${nombres.slice(0, -1).join(", ")} o ${nombres[nombres.length - 1]}`;
+}
+
 function buildLanguageInstruction(settings: AgentSettings): string {
   if (settings.languages.length === 1) {
     return "Habla siempre en español de España; no menciones que eres una IA salvo que te lo pregunten.";
   }
 
-  const labels: Record<AgentLanguage, string> = {
-    "es-ES": "español de España",
-    "en-GB": "inglés",
-    "fr-FR": "francés",
-    "ca-ES": "catalán",
-    "eu-ES": "euskera",
-    "gl-ES": "gallego",
-  };
-  const enabledLanguages = settings.languages.map((language) => labels[language]).join(", ");
+  // Con voz Ultra (idioma principal español, inglés o francés), el catalán,
+  // el euskera y el gallego se entienden pero se contesta en español: esa
+  // voz no los pronuncia bien. Con voz de Soniox se hablan todos y el saludo
+  // va en el idioma principal. Decisión del usuario 2026-10-02.
+  const vozDeSoniox = hablaConSoniox(settings.voiceLanguage);
+  const hablados = vozDeSoniox
+    ? settings.languages
+    : settings.languages.filter((language) => !IDIOMAS_DE_SONIOX.includes(language));
+  const soloEntendidos = settings.languages.filter((language) => !hablados.includes(language));
+  const contestaEnEspanol =
+    soloEntendidos.length > 0
+      ? ` Si te habla en ${enumerarConO(soloEntendidos.map((language) => NOMBRE_DE_IDIOMA[language]))}, entiéndelo y contesta en español de España con naturalidad, sin comentar el idioma.`
+      : "";
+  const sinMencionarIa = " No menciones que eres una IA salvo que te lo pregunten.";
 
-  return `Empieza siempre con el saludo en español de España. Tras la primera intervención de quien llama, responde y continúa exclusivamente en el idioma que use si es uno de estos: ${enabledLanguages}. Si cambia entre esos idiomas, acompaña el cambio sin pedirle que elija uno. No menciones que eres una IA salvo que te lo pregunten.`;
+  if (hablados.length === 1) {
+    return `Habla siempre en español de España.${contestaEnEspanol}${sinMencionarIa}`;
+  }
+
+  const saludo = NOMBRE_DE_IDIOMA[vozDeSoniox ? settings.voiceLanguage : "es-ES"];
+  const enabledLanguages = hablados.map((language) => NOMBRE_DE_IDIOMA[language]).join(", ");
+
+  return `Empieza siempre con el saludo en ${saludo}. Tras la primera intervención de quien llama, responde y continúa exclusivamente en el idioma que use si es uno de estos: ${enabledLanguages}. Si cambia entre esos idiomas, acompaña el cambio sin pedirle que elija uno.${contestaEnEspanol}${sinMencionarIa}`;
 }
 
 /** Cabecera del bloque de transferencia; sirve para saber si un prompt

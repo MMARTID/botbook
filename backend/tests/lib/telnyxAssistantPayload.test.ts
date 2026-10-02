@@ -412,7 +412,7 @@ describe("buildTelnyxAssistantPayload", () => {
           language_hints: ["es", "ca", "eu"],
           context: "corte,Laura",
           enable_endpoint_detection: true,
-          max_endpoint_delay_ms: 1200,
+          max_endpoint_delay_ms: 700,
         },
       });
     });
@@ -423,26 +423,38 @@ describe("buildTelnyxAssistantPayload", () => {
       expect(payload.transcription?.settings).not.toHaveProperty("keyterm");
       expect(payload.transcription?.settings).not.toHaveProperty("eot_threshold");
       expect(payload.interruptionSettings).toEqual({
-        start_speaking_plan: { wait_seconds: 0.4 },
+        start_speaking_plan: {
+          wait_seconds: 0.1,
+          transcription_endpointing_plan: {
+            on_punctuation_seconds: 0.1,
+            on_no_punctuation_seconds: 0.8,
+            on_number_seconds: 0.5,
+          },
+        },
       });
     });
 
-    it("la voz de Soniox arranca en el idioma de la voz, sin expressive_mode", () => {
+    it("la voz de Soniox arranca en el idioma principal, sin expressive_mode", () => {
       const payload = buildTelnyxAssistantPayload({
         ...sonioxInput,
-        voiceLanguage: "en-GB",
+        voiceLanguage: "eu-ES",
       });
 
       expect(payload.voiceSettings).toMatchObject({
         voice: "Soniox.tts-rt-v2.Marta",
-        language: "en",
+        language: "eu",
         expressive_mode: false,
       });
     });
 
-    it("las voces Ultra no llevan idioma", () => {
-      const payload = buildTelnyxAssistantPayload(baseInput);
+    it("con voz Ultra transcribe Soniox y la voz conserva su modo expresivo, sin idioma", () => {
+      const payload = buildTelnyxAssistantPayload({
+        ...sonioxInput,
+        voice: "Telnyx.Ultra.Isabel",
+      });
 
+      expect(payload.transcription?.model).toBe("soniox/stt-rt-v5");
+      expect(payload.voiceSettings).toMatchObject({ expressive_mode: true });
       expect(payload.voiceSettings).not.toHaveProperty("language");
     });
   });

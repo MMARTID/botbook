@@ -2408,23 +2408,31 @@ property of the Retell **Agent** object, not the LLM — unrelated to `updateLlm
 #### Idiomas de atención y voz en Telnyx (desde 2026-10-02)
 
 `languages` (`AGENT_LANGUAGES` en `managedAgentPrompt.ts`): `es-ES` (siempre activo), `en-GB`,
-`fr-FR`, `ca-ES`, `eu-ES` y `gl-ES`. `voiceLanguage` (`VOICE_LANGUAGES`) sigue siendo es/en/fr:
-es el acento de la voz Ultra curada (`TELNYX_VOICE_CATALOG` en `telnyxEligibility.ts`).
+`fr-FR`, `ca-ES`, `eu-ES` y `gl-ES`. `voiceLanguage` es el **idioma principal** (en el panel,
+«Idioma principal»; antes «Idioma de la voz») y admite los mismos seis, siempre que esté activo.
+Decisión del usuario: la voz la decide el idioma principal y la transcripción, los idiomas activos.
 
-- **Solo es/en/fr:** voz Telnyx Ultra del idioma y género, y transcripción `deepgram/flux` con
-  sus ajustes de turno (`eot_*`, `interrupt_prediction_threshold`). Sin cambios respecto a antes.
-- **Con catalán, euskera o gallego** (`necesitaSoniox`): el assistant entero pasa a Soniox, también
-  para el español, porque ni las voces Ultra ni flux hablan esos idiomas. Voz
+- **Voz** (`resolveTelnyxEligibility`, `hablaConSoniox`): con principal es/en/fr, la Ultra curada
+  de ese idioma y género (`TELNYX_VOICE_CATALOG`), con `expressive_mode`. Con principal ca/eu/gl,
   `Soniox.tts-rt-v2.Marta` / `Sergio` (`SONIOX_VOICE_CATALOG`, elegidas por el usuario escuchando
-  muestras; cada voz habla los 63 idiomas de Soniox) con `voice_settings.language` = ISO de
-  `voiceLanguage`; transcripción `soniox/stt-rt-v5` con `language_hints` = los idiomas del negocio,
-  `context` = palabras clave, y `enable_endpoint_detection` + `max_endpoint_delay_ms: 1200` (el
-  ejemplo de Telnyx; ajustar con llamadas reales). `wait_seconds: 0.4`, sin predicción de
-  interrupciones (es de flux). Las voces se validan con `listVoices("soniox")`; el catálogo de
-  Telnyx no da su acento (todas salen como `en`, «Multilingual»).
+  muestras; cada voz habla los 63 idiomas de Soniox) con `voice_settings.language` = ISO del
+  principal. Ultra no admite esos idiomas: Telnyx devuelve 400 a `language_boost: "Catalan"`. Las
+  voces de Soniox no tienen modo expresivo en Telnyx (solo Ultra y Grok) y suenan más planas.
+- **Transcripción** (`transcribeConSoniox`): sin ca/eu/gl, `deepgram/flux` con sus ajustes de turno
+  (`eot_*`, `interrupt_prediction_threshold`), sin cambios. Con cualquiera de ellos activo,
+  `soniox/stt-rt-v5` con `language_hints` (los idiomas del negocio), `context` (palabras clave) y
+  `enable_endpoint_detection` + `max_endpoint_delay_ms: 700`, más `wait_seconds: 0.1` y un
+  `transcription_endpointing_plan` con 0.8 s sin puntuación (el default de Telnyx, 1.5 s, y los
+  1200 ms de su ejemplo se notaban lentos frente a flux en la prueba del 2026-10-02). Flux
+  responde antes de que el cliente acabe (`eager_eot`); Soniox no tiene equivalente en Telnyx.
+- **Prompt y saludo** (`buildLanguageInstruction`, `buildRetellBeginMessage`): con principal
+  es/en/fr, ca/eu/gl se entienden pero se contesta en español («Si te habla en catalán,
+  entiéndelo y contesta en español…»). Con principal ca/eu/gl se hablan todos y el saludo va en
+  ese idioma (en euskera sin «llamar a», para no declinar el nombre). Sin ca/eu/gl, el texto es
+  el de siempre y el payload sale idéntico byte a byte.
 - Antes de esto, el catalán dejaba el negocio fuera de Telnyx («matriz de idiomas de la Fase 0»,
-  `docs/historico/PLAN-TELNYX-ORQUESTADOR.md`). Esa matriz (cada idioma solo y mezclado con
-  español, con catálogo, disponibilidad y reserva) sigue pendiente de llamadas reales.
+  `docs/historico/PLAN-TELNYX-ORQUESTADOR.md`). La matriz con reserva por teléfono sigue
+  pendiente; la prueba en el navegador (2026-10-02) confirmó que Soniox entiende los cuatro idiomas.
 - **Retell no tiene euskera:** `toRetellLanguageSetting` lo quita, así que un negocio con `eu-ES`
   en Retell (el respaldo) atiende con el resto de sus idiomas. El gallego sí existe en Retell.
 - Nada cambia de orquestador al activar un idioma: los negocios con catalán que ya están en

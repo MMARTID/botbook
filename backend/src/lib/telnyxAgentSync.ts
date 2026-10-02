@@ -182,7 +182,10 @@ function construirPayloadDeRecepcionista(args: {
           config.bloqueDeTransferencia
         )
       : config.systemPrompt,
-    greeting: buildRetellBeginMessage(config.business.name),
+    greeting: buildRetellBeginMessage(
+      config.business.name,
+      config.agentSettings.voiceLanguage
+    ),
     languages: config.agentSettings.languages,
     voice: args.voz,
     voiceLanguage: config.agentSettings.voiceLanguage,
