@@ -171,9 +171,13 @@ function setGoogleSessionCookie(
 }
 
 function getFacebookAuthConfig() {
-  const appId = process.env.FACEBOOK_APP_ID;
-  const appSecret = process.env.FACEBOOK_APP_SECRET;
-  const redirectUri = process.env.FACEBOOK_AUTH_REDIRECT_URI;
+  // App de Meta dedicada solo a "Autenticar y solicitar datos de los
+  // usuarios con el inicio de sesión de Facebook" — separada a propósito de
+  // la app de WhatsApp Business: Meta no permite combinar el caso de uso de
+  // Login con los de negocio (WhatsApp/Ads/Threads) en una misma app.
+  const appId = process.env.FACEBOOK_LOGIN_APP_ID;
+  const appSecret = process.env.FACEBOOK_LOGIN_APP_SECRET;
+  const redirectUri = process.env.FACEBOOK_LOGIN_REDIRECT_URI;
 
   if (!appId || !appSecret || !redirectUri) {
     throw new Error("Facebook authentication is not configured");
