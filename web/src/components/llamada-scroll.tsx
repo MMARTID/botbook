@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import {
   cubicBezier,
   motion,
@@ -14,6 +14,10 @@ import { Check, Mic, Phone } from "lucide-react";
 import { SiApple, SiGooglecalendar } from "@icons-pack/react-simple-icons";
 
 import { MicrosoftLogo } from "@/components/brand-icons";
+import { PantallaBloqueo } from "@/components/pantalla-bloqueo";
+import type { NicheAccent } from "@/lib/niche-landings";
+import { pintarBloqueo } from "@/lib/pantalla-bloqueo";
+import { GUION_GENERAL, relato, type GuionRelato, type Relato } from "@/lib/relato-guiones";
 import { useMovimientoReducido } from "@/hooks/use-movimiento-reducido";
 import { marcarRelato } from "@/lib/relato-fijo";
 import { escucharScrollSuave, progresoDe } from "@/lib/scroll-suave";
@@ -24,6 +28,7 @@ import {
   hayNegocioEnEscena,
   pantallaDelPortatil,
   publicarTelefono,
+  vhRelevoDesdeBolsillo,
   type TelefonoTumbado,
 } from "@/lib/transicion-bolsillo-negocio";
 import styles from "./llamada-scroll.module.css";
@@ -32,7 +37,7 @@ import styles from "./llamada-scroll.module.css";
  * «En tu bolsillo» de la portada (2026-09-26; ancla #como-funciona, a la que
  * apunta el menú): una llamada de principio a fin
  * en tres pasos, con la misma mecánica scroll-driven que
- * `HowItWorksScrollytelling` — sección alta, escenario fijo y TODO lo que se
+ * el antiguo «Cómo funciona» — sección alta, escenario fijo y TODO lo que se
  * mueve colgado del progreso del scroll: el teléfono se balancea y se
  * acerca, la conversación y la agenda se van rellenando, y el texto de cada
  * paso suma sus detalles a la vez que la pantalla los enseña.
@@ -65,47 +70,51 @@ type PasoCopy = {
   detalles: [string, string, string];
 };
 
-const PASOS: [PasoCopy, PasoCopy, PasoCopy] = [
-  {
-    numero: "01",
-    etiqueta: "Contesta",
-    pantalla: "Lo que oye tu clienta",
-    titulo: "Si no puedes cogerlo, contesta Alhabla.",
-    texto:
-      "Cuando no puedes coger el teléfono, la llamada salta a Alhabla tras unos tonos. Saluda con el nombre de tu negocio y atiende como lo haría tu recepción.",
-    detalles: [
-      "Tus clientes marcan el número de siempre",
-      "A cualquier hora, también en festivos",
-      "Resuelve precios, duraciones y horarios con tus datos",
-    ],
-  },
-  {
-    numero: "02",
-    etiqueta: "Busca hueco",
-    pantalla: "Tu agenda",
-    titulo: "Busca hueco en tu agenda real.",
-    texto:
-      "Antes de ofrecer una hora mira tu horario y tu calendario de Google, Outlook o iCloud. Nunca reserva a ciegas ni te monta dos citas a la vez.",
-    detalles: [
-      "Cuenta lo que dura el servicio y descarta lo ocupado y los huecos cortos",
-      "Elige al profesional adecuado; si no hay sitio, propone el hueco más cercano",
-      "Ofrece la hora y solo reserva cuando el cliente dice que sí",
-    ],
-  },
-  {
-    numero: "03",
-    etiqueta: "Confirma",
-    pantalla: "El WhatsApp de tu clienta",
-    titulo: "La cita entra y todos se enteran.",
-    texto:
-      "Queda apuntada en tu calendario sin que hayas tenido que soltar lo que estabas haciendo.",
-    detalles: [
-      "Al cliente le llega la confirmación por WhatsApp al momento",
-      "A ti te llega el aviso de la cita nueva",
-      "En tu panel tienes la grabación y la transcripción de la llamada",
-    ],
-  },
-];
+/** El copy de los tres pasos, con el vocabulario del sector del guion. */
+function pasosDe(g: GuionRelato): [PasoCopy, PasoCopy, PasoCopy] {
+  const { tuCliente, tusClientes, elCliente } = g.palabras;
+  return [
+    {
+      numero: "01",
+      etiqueta: "Contesta",
+      pantalla: `Lo que oye ${tuCliente}`,
+      titulo: "Si no puedes cogerlo, contesta Alhabla.",
+      texto:
+        "Cuando no puedes coger el teléfono, la llamada salta a Alhabla tras unos tonos. Saluda con el nombre de tu negocio y atiende como lo haría tu recepción.",
+      detalles: [
+        `${tusClientes} marcan el número de siempre`,
+        "A cualquier hora, también en festivos",
+        "Resuelve dudas de servicios, duraciones y horarios con tus datos",
+      ],
+    },
+    {
+      numero: "02",
+      etiqueta: "Busca hueco",
+      pantalla: "Tu agenda",
+      titulo: "Busca hueco en tu agenda real.",
+      texto:
+        "Antes de ofrecer una hora mira tu horario y tu calendario de Google, Outlook o iCloud. Nunca reserva a ciegas ni te monta dos citas a la vez.",
+      detalles: [
+        "Cuenta lo que dura el servicio y descarta lo ocupado y los huecos cortos",
+        "Elige al profesional adecuado; si la hora está ocupada, propone el siguiente hueco libre",
+        `Ofrece la hora y solo reserva cuando ${elCliente} dice que sí`,
+      ],
+    },
+    {
+      numero: "03",
+      etiqueta: "Confirma",
+      pantalla: `El WhatsApp de ${tuCliente}`,
+      titulo: "La cita entra y todos se enteran.",
+      texto:
+        "Queda apuntada en tu calendario sin que hayas tenido que soltar lo que estabas haciendo.",
+      detalles: [
+        `Si ${elCliente} acepta, le llega la confirmación por WhatsApp`,
+        "Si conectas tu WhatsApp, a ti te avisa de la cita nueva",
+        "En tu panel tienes la grabación y la transcripción de la llamada",
+      ],
+    },
+  ];
+}
 
 const COSTURA_1 = 1 / 3;
 const COSTURA_2 = 2 / 3;
@@ -170,7 +179,19 @@ function useEsMovil() {
   return movil;
 }
 
-export function LlamadaScroll() {
+/**
+ * Color del sector en la sección (antetítulo, riel de pasos, iconos, brillo):
+ * el de su landing, o el morado de marca en la portada. Las pantallas del
+ * teléfono son las de Alhabla y no cambian de color.
+ */
+function estiloAcento(acento?: NicheAccent): CSSProperties | undefined {
+  if (!acento) return undefined;
+  return { "--acento": acento.strong, "--acento-tinta": acento.deep } as CSSProperties;
+}
+
+export function LlamadaScroll({ guion = GUION_GENERAL, acento }: { guion?: GuionRelato; acento?: NicheAccent }) {
+  const pasos = useMemo(() => pasosDe(guion), [guion]);
+  const r = useMemo(() => relato(guion), [guion]);
   // Con movimiento reducido, la versión quieta llega tras montar: el servidor
   // no sabe la preferencia y pinta el escenario (ver useMovimientoReducido).
   const reducir = useMovimientoReducido();
@@ -318,6 +339,13 @@ export function LlamadaScroll() {
   const relevoRadio = useTransform(relevo, (r) =>
     r ? `${r.arriba}px ${r.arriba}px ${r.abajo}px ${r.abajo}px` : "0px"
   );
+  // La pantalla de bloqueo del relevo se mide en 1/1200 del ancho del negro,
+  // como la del portátil (ver components/pantalla-bloqueo.tsx).
+  const relevoU = useTransform(relevo, (r) => `${(r?.width ?? 0) / PANTALLA_HTML.ancho}px`);
+  const bloqueo = useRef<HTMLDivElement>(null);
+  useMotionValueEvent(s, "change", (v) => {
+    if (bloqueo.current) pintarBloqueo(bloqueo.current, vhRelevoDesdeBolsillo(v));
+  });
   const opacidadTelefono = useTransform(tEstirado, (t) => (hayNegocioEnEscena() ? 1 - tramo(t, 0, 0.2) : 1));
 
   // Riel de pasos (vertical, a la izquierda del texto): cada tramo se llena
@@ -401,14 +429,14 @@ export function LlamadaScroll() {
     [reducir]
   );
 
-  if (reducir) return <VersionQuieta />;
+  if (reducir) return <VersionQuieta pasos={pasos} acento={acento} />;
 
   return (
     <section
       ref={seccion}
       id="como-funciona"
       className={styles.seccion}
-      style={{ height: `${ALTO_BOLSILLO_VH}vh` }}
+      style={{ height: `${ALTO_BOLSILLO_VH}vh`, ...estiloAcento(acento) }}
       aria-labelledby="llamada-titulo"
     >
       <motion.div ref={escenario} className={styles.escenario} style={{ opacity: opacidadSalida, y: ySalida }}>
@@ -418,18 +446,18 @@ export function LlamadaScroll() {
               En tu bolsillo
             </h2>
             <div className={styles.copias} aria-hidden="true">
-              <Copia paso={PASOS[0]} y={copy1Y} visibility={vis1} p={sp} momentos={MOMENTOS[0]} />
-              <Copia paso={PASOS[1]} y={copy2Y} visibility={vis2} p={sp} momentos={MOMENTOS[1]} />
-              <Copia paso={PASOS[2]} y={copy3Y} visibility={vis3} p={sp} momentos={MOMENTOS[2]} />
+              <Copia paso={pasos[0]} y={copy1Y} visibility={vis1} p={sp} momentos={MOMENTOS[0]} />
+              <Copia paso={pasos[1]} y={copy2Y} visibility={vis2} p={sp} momentos={MOMENTOS[1]} />
+              <Copia paso={pasos[2]} y={copy3Y} visibility={vis3} p={sp} momentos={MOMENTOS[2]} />
             </div>
             <nav className={styles.barraPasos} aria-label="Pasos de la llamada">
               {[barra1, barra2, barra3].map((relleno, i) => (
                 <button
-                  key={PASOS[i].numero}
+                  key={pasos[i].numero}
                   type="button"
                   onClick={() => irA(i)}
                   aria-current={paso === i ? "step" : undefined}
-                  aria-label={`Ir al paso ${PASOS[i].numero}: ${PASOS[i].etiqueta}`}
+                  aria-label={`Ir al paso ${pasos[i].numero}: ${pasos[i].etiqueta}`}
                   className={styles.botonPaso}
                 >
                   <span className={styles.pista}>
@@ -443,9 +471,9 @@ export function LlamadaScroll() {
           <div ref={columnaTelefono} className={styles.columnaTelefono} aria-hidden="true">
             <motion.span className={styles.brillo} style={{ opacity: opacidadTexto }} />
             <motion.p className={styles.rotulo} style={{ opacity: opacidadTexto, y: yTexto }}>
-              <motion.span style={{ visibility: vis1 }}>{PASOS[0].pantalla}</motion.span>
-              <motion.span style={{ visibility: vis2 }}>{PASOS[1].pantalla}</motion.span>
-              <motion.span style={{ visibility: vis3 }}>{PASOS[2].pantalla}</motion.span>
+              <motion.span style={{ visibility: vis1 }}>{pasos[0].pantalla}</motion.span>
+              <motion.span style={{ visibility: vis2 }}>{pasos[1].pantalla}</motion.span>
+              <motion.span style={{ visibility: vis3 }}>{pasos[2].pantalla}</motion.span>
             </motion.p>
             <motion.div
               ref={telefono}
@@ -467,15 +495,15 @@ export function LlamadaScroll() {
                 <span className={styles.isla} />
                 <motion.div className={styles.capa} style={{ visibility: vis1 }}>
                   <Estado oscuro />
-                  <PantallaLlamada p={sp} />
+                  <PantallaLlamada p={sp} r={r} cliente={guion.cliente.nombre} />
                 </motion.div>
                 <motion.div className={styles.capa} style={{ visibility: vis2 }}>
                   <Estado oscuro={false} />
-                  <PantallaAgenda p={sp} />
+                  <PantallaAgenda p={sp} r={r} guion={guion} />
                 </motion.div>
                 <motion.div className={styles.capa} style={{ visibility: vis3 }}>
                   <Estado oscuro={false} />
-                  <PantallaWhatsApp p={sp} />
+                  <PantallaWhatsApp p={sp} r={r} guion={guion} />
                 </motion.div>
                 <motion.div className={styles.apagada} style={{ opacity: pantallaApagada }} />
               </div>
@@ -488,21 +516,27 @@ export function LlamadaScroll() {
           </div>
         </div>
         <motion.div
+          ref={bloqueo}
           className={styles.relevo}
           aria-hidden="true"
-          style={{
-            display: relevoDisplay,
-            left: relevoLeft,
-            top: relevoTop,
-            width: relevoWidth,
-            height: relevoHeight,
-            borderRadius: relevoRadio,
-          }}
-        />
+          style={
+            {
+              display: relevoDisplay,
+              left: relevoLeft,
+              top: relevoTop,
+              width: relevoWidth,
+              height: relevoHeight,
+              borderRadius: relevoRadio,
+              "--u": relevoU,
+            } as unknown as CSSProperties
+          }
+        >
+          <PantallaBloqueo guion={guion} />
+        </motion.div>
       </motion.div>
 
       <ol className="sr-only">
-        {PASOS.map((pc) => (
+        {pasos.map((pc) => (
           <li key={pc.numero}>
             <strong>{pc.titulo}</strong> {pc.texto} {pc.detalles.join(". ")}.
           </li>
@@ -593,7 +627,7 @@ function BarraOnda({ p, i, base }: { p: MotionValue<number>; i: number; base: nu
   return <motion.span style={{ scaleY: escala }} />;
 }
 
-function PantallaLlamada({ p }: { p: MotionValue<number> }) {
+function PantallaLlamada({ p, r, cliente }: { p: MotionValue<number>; r: Relato; cliente: string }) {
   // Antes de descolgar: «Llamada entrante». Después, el contador corre con
   // el scroll.
   const entrante = useTransform(p, [0, 0.025, 0.03], [1, 1, 0]);
@@ -604,7 +638,7 @@ function PantallaLlamada({ p }: { p: MotionValue<number> }) {
   return (
     <div className={`${styles.pantalla} ${styles.llamada}`}>
       <div className={styles.llamante}>
-        <p className={styles.llamanteNombre}>Laura</p>
+        <p className={styles.llamanteNombre}>{cliente}</p>
         <div className={styles.llamanteDatoCaja}>
           <motion.p className={styles.llamanteDato} style={{ opacity: entrante }}>
             Llamada entrante…
@@ -617,23 +651,19 @@ function PantallaLlamada({ p }: { p: MotionValue<number> }) {
       <div className={styles.transcripcion}>
         <Aparece p={p} a={0.05} className={`${styles.burbuja} ${styles.burbujaAlhabla}`}>
           <span className={styles.quien}>Alhabla</span>
-          Hola, gracias por llamar a Peluquería Nuria. ¿En qué te ayudo?
+          {r.saludo}
         </Aparece>
         <Aparece p={p} a={0.1} className={`${styles.burbuja} ${styles.burbujaCliente}`}>
-          <span className={styles.quien}>Laura</span>
-          ¿Tenéis hueco mañana para corte y color?
+          <span className={styles.quien}>{cliente}</span>
+          {r.pide}
         </Aparece>
-        <Aparece p={p} a={0.16} className={`${styles.burbuja} ${styles.burbujaAlhabla}`}>
+        <Aparece p={p} a={0.17} className={`${styles.burbuja} ${styles.burbujaAlhabla}`}>
           <span className={styles.quien}>Alhabla</span>
-          Claro, son unos 90 minutos. ¿A qué hora te viene mejor?
+          {r.ofrece}
         </Aparece>
-        <Aparece p={p} a={0.22} className={`${styles.burbuja} ${styles.burbujaCliente}`}>
-          <span className={styles.quien}>Laura</span>
-          Por la tarde, si puede ser.
-        </Aparece>
-        <Aparece p={p} a={0.27} className={`${styles.burbuja} ${styles.burbujaAlhabla}`}>
-          <span className={styles.quien}>Alhabla</span>
-          Un momento, que te lo miro.
+        <Aparece p={p} a={0.24} className={`${styles.burbuja} ${styles.burbujaCliente}`}>
+          <span className={styles.quien}>{cliente}</span>
+          {r.franja}
         </Aparece>
       </div>
       <div className={styles.onda}>
@@ -648,20 +678,12 @@ function PantallaLlamada({ p }: { p: MotionValue<number> }) {
   );
 }
 
-const FILAS = [
-  { hora: "15:00", titulo: "Ocupado", detalle: "Alisado · Rosa" },
-  { hora: "16:00", titulo: "Ocupado", detalle: "Mechas · Carmen" },
-  { hora: "17:00", titulo: "Hueco corto", detalle: "30 min libres: no cabe" },
-  { hora: "17:30", titulo: "Libre", detalle: "90 min · con Marta" },
-  { hora: "19:00", titulo: "Ocupado", detalle: "Peinado · Elena" },
-  { hora: "20:00", titulo: "Cerrado", detalle: "Fin de la jornada" },
-] as const;
 
 /** La fila que sirve y el momento en que el buscador pasa por cada una. */
 const LIBRE = 3;
 const REVISA = [0.43, 0.455, 0.48, 0.505] as const;
 
-function PantallaAgenda({ p }: { p: MotionValue<number> }) {
+function PantallaAgenda({ p, r, guion }: { p: MotionValue<number>; r: Relato; guion: GuionRelato }) {
   // El marcador baja fila a fila; las que no valen se apagan al pasar.
   const marcadorY = useTransform(p, [0.41, ...REVISA], ["0%", "0%", "100%", "200%", "300%"]);
   const marcador = useTransform(p, [0.41, 0.43, 0.5, 0.515], [0, 1, 1, 0]);
@@ -674,11 +696,13 @@ function PantallaAgenda({ p }: { p: MotionValue<number> }) {
     <div className={`${styles.pantalla} ${styles.agenda}`}>
       <Aparece p={p} a={0.336} className={styles.buscando}>
         <span className={styles.buscandoEtiqueta}>Buscando hueco · mañana</span>
-        <span className={styles.buscandoServicio}>Corte y color · 90 min</span>
+        <span className={styles.buscandoServicio}>
+          {guion.servicio.nombre} · {guion.servicio.minutos} min
+        </span>
       </Aparece>
       <div className={styles.franjas}>
         <motion.span className={styles.marcador} style={{ y: marcadorY, opacity: marcador }} />
-        {FILAS.map((fila, i) => (
+        {r.agenda.map((fila, i) => (
           <Fila key={fila.hora} p={p} i={i}>
             <span className={styles.franjaHora}>{fila.hora}</span>
             {i === LIBRE ? (
@@ -689,8 +713,8 @@ function PantallaAgenda({ p }: { p: MotionValue<number> }) {
                 </motion.span>
                 <motion.span className={styles.citaNueva} style={{ opacity: reservada, scale: reservadaEscala }}>
                   <span className={styles.etiquetaNueva}>Nueva</span>
-                  <span className={styles.citaTitulo}>Corte y color</span>
-                  Laura · con Marta
+                  <span className={styles.citaTitulo}>{guion.servicio.nombre}</span>
+                  {guion.cliente.nombre} · con {guion.profesional}
                 </motion.span>
               </span>
             ) : (
@@ -729,7 +753,7 @@ function Fila({ p, i, children }: { p: MotionValue<number>; i: number; children:
   );
 }
 
-function PantallaWhatsApp({ p }: { p: MotionValue<number> }) {
+function PantallaWhatsApp({ p, r, guion }: { p: MotionValue<number>; r: Relato; guion: GuionRelato }) {
   return (
     <div className={`${styles.pantalla} ${styles.whatsapp}`}>
       <div className={styles.waCabecera}>
@@ -747,17 +771,14 @@ function PantallaWhatsApp({ p }: { p: MotionValue<number> }) {
           Hoy
         </Aparece>
         <Aparece p={p} a={0.672} className={styles.waMensaje}>
-          Hola, Laura. Tu cita está confirmada:
+          Hola, {guion.cliente.nombre}. Tu cita está confirmada:
           <br />
-          <strong>Corte y color</strong>
+          <strong>{guion.servicio.nombre}</strong>
           <br />
-          Jueves a las 17:30 con Marta
+          {r.cita}
           <br />
-          Peluquería Nuria
+          {guion.negocio}
           <span className={styles.waHora}>17:03</span>
-        </Aparece>
-        <Aparece p={p} a={0.71} className={styles.waBoton}>
-          Guardar contacto
         </Aparece>
         <Aparece p={p} a={0.75} className={`${styles.waMensaje} ${styles.waMio}`}>
           ¡Genial, gracias!
@@ -775,17 +796,22 @@ function PantallaWhatsApp({ p }: { p: MotionValue<number> }) {
 }
 
 /** Movimiento reducido: los tres pasos a la vista, sin escenario fijo. */
-function VersionQuieta() {
+function VersionQuieta({ pasos, acento }: { pasos: PasoCopy[]; acento?: NicheAccent }) {
   return (
-    <section id="como-funciona" className="border-y border-[#e5e5e5] bg-[#fafafa] py-16 sm:py-24" aria-labelledby="llamada-titulo-quieta">
+    <section
+      id="como-funciona"
+      className="border-y border-[#e5e5e5] bg-[#fafafa] py-16 sm:py-24"
+      style={estiloAcento(acento)}
+      aria-labelledby="llamada-titulo-quieta"
+    >
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <h2 id="llamada-titulo-quieta" className="max-w-3xl text-3xl font-black tracking-tight text-[#0a0a0a] sm:text-4xl">
           En tu bolsillo: una llamada, de principio a fin.
         </h2>
         <ol className="mt-10 grid gap-5 lg:grid-cols-3">
-          {PASOS.map((pc) => (
+          {pasos.map((pc) => (
             <li key={pc.numero} className="rounded-3xl border border-[#e5e5e5] bg-white p-7">
-              <p className="text-sm font-bold text-[#6d28d9]">
+              <p className="text-sm font-bold text-[var(--acento-tinta,#6d28d9)]">
                 {pc.numero} · {pc.etiqueta}
               </p>
               <h3 className="mt-4 text-xl font-bold tracking-tight text-[#0a0a0a]">{pc.titulo}</h3>
@@ -793,7 +819,7 @@ function VersionQuieta() {
               <ul className="mt-4 space-y-2">
                 {pc.detalles.map((d) => (
                   <li key={d} className="flex items-start gap-2 text-sm leading-6 text-[#27272a]">
-                    <Check className="mt-1 h-4 w-4 shrink-0 text-[#8b5cf6]" aria-hidden="true" />
+                    <Check className="mt-1 h-4 w-4 shrink-0 text-[var(--acento,#8b5cf6)]" aria-hidden="true" />
                     {d}
                   </li>
                 ))}

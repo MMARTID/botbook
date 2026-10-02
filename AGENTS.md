@@ -182,8 +182,10 @@ each page's image explicitly from its `openGraph`/`twitter` metadata.
 
 - `SiteLanding` — Shell of the five niche landings (`/peluqueria`, `/barberia`…): `LandingHero`,
   `SectorDataSection` (only when the niche has `sectorData`), `TeamRoutingSection`,
-  `OwnerAssistantSection`, `WhatsAppBenefitsTable`, benefits, `HowItWorksScrollytelling`,
-  `RevenueLossCalculator`, plans and FAQ. Without `content` (the generic `/`) it returns
+  `OwnerAssistantSection`, `WhatsAppBenefitsTable`, benefits, `LlamadaScroll` +
+  `EnTuNegocioScroll` (the same iPhone → laptop story as the home page, with the niche's
+  script from `web/src/lib/relato-guiones.ts` and its accent; replaced
+  `HowItWorksScrollytelling` on 2026-10-02), `RevenueLossCalculator`, plans and FAQ. Without `content` (the generic `/`) it returns
   `MainLanding`, a shorter home page with its own hero over `HeroHilos` plus `LlamadaScroll`,
   `EnTuNegocioScroll` (the owner's panel on a three.js laptop; three and the glTF model
   `web/public/modelos/macbook.glb` load lazily when the section approaches. The model is
@@ -2746,7 +2748,7 @@ partir vacía de `main` como marcador.
 
 | Rama | Componente | Issue | Notas |
 |------|-----------|-------|-------|
-| `step-followups-landing` | Sección "Cómo funciona" de la landing: hoy `HowItWorksScrollytelling` en `web/` (`call-forwarding-flow.tsx` y las tarjetas `threeSteps` ya no existen) | [#12](https://github.com/MMARTID/botbook/issues/12) | Pulir y/o rediseñar el recorrido de 3 pasos. |
+| `step-followups-landing` | Sección "Cómo funciona" de la landing: desde el 2026-10-02, `LlamadaScroll` + `EnTuNegocioScroll` en todas las landings (`HowItWorksScrollytelling` ya no existe) | [#12](https://github.com/MMARTID/botbook/issues/12) | Pulir y/o rediseñar el recorrido de 3 pasos. |
 | `demo-modal-landing` | Modal/experiencia de "Escuchar una llamada" del hero (`DemoVoiceCall`) | — | Pulir y/o rediseñar la demo de llamada de voz que se abre desde la landing. Sin Issue todavía. |
 | `telnyx-whatsapp-calls` | Llamadas de voz por WhatsApp vía Telnyx — distinto de la mensajería de texto ya existente (`WhatsAppAdapter`, `jobs/sendWhatsapp.ts`, plantillas de confirmación/recordatorio) | — | **Descartado** el 2026-09-19 (ver `PLAN-CANAL-DUENO.md` v3). `docs/historico/PLAN-WHATSAPP-LLAMADAS.md` queda en `main` solo como referencia. Rama sin trabajo; borrar cuando se confirme. |
 

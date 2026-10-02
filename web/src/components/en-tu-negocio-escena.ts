@@ -24,6 +24,7 @@ import {
   suave,
   tramo,
 } from "@/lib/portatil-3d";
+import { desbloqueo, pintarBloqueo } from "@/lib/pantalla-bloqueo";
 import { escucharScrollSuave, progresoDe } from "@/lib/scroll-suave";
 import {
   NEGOCIO_P,
@@ -31,6 +32,7 @@ import {
   leerTelefono,
   marcarNegocioEnEscena,
   pantallaDelPortatil,
+  vhRelevoDesdeNegocio,
 } from "@/lib/transicion-bolsillo-negocio";
 
 /**
@@ -80,11 +82,6 @@ const APERTURA = 108;
  * tu bolsillo», que ya está ahí) en su primera parte.
  */
 const FIN_PANTALLA_NEGRA = FIN_CRUCE * 0.3;
-/**
- * La pantalla se enciende, a ritmo constante (con una curva, el tramo del
- * medio iba de golpe), en el primer 65 % del zoom out.
- */
-const FIN_ENCENDIDO = FIN_CRUCE + (FIN_ZOOM - FIN_CRUCE) * 0.65;
 /** Momento en que aparece cada detalle del texto, paso a paso. */
 const MOMENTOS = [
   [0.2, 0.25, 0.3],
@@ -143,6 +140,7 @@ export function montarEscena(
   const rotulo = pieza<HTMLElement>(raiz, ".ng-rotulo");
   const credito = raiz.querySelector<HTMLElement>(".ng-credito");
   const pantallaHtml = pieza<HTMLElement>(raiz, ".mx");
+  const bloqueo = pieza<HTMLElement>(raiz, ".mx-bloqueo");
   const ondaEl = pieza<HTMLElement>(raiz, ".mx-onda");
   const tiempo = pieza<HTMLElement>(raiz, ".mx-tiempo");
 
@@ -168,6 +166,9 @@ export function montarEscena(
       el,
       a: Number(el.dataset.a),
       hasta: el.dataset.hasta ? Number(el.dataset.hasta) : null,
+      // `data-pliega`: no ocupa sitio hasta que aparece (los turnos de la
+      // transcripción, que van como un chat: el último abajo).
+      pliega: el.hasAttribute("data-pliega"),
     })
   );
   const cifras = todos<HTMLElement>("[data-n]", pantallaHtml).map((el) => ({
@@ -175,10 +176,6 @@ export function montarEscena(
     n: Number(el.dataset.n),
     sufijo: el.dataset.s ?? "",
     a: Number(el.dataset.a),
-  }));
-  const barras = todos<HTMLElement>("[data-b]", pantallaHtml).map((el) => ({
-    el,
-    a: Number(el.dataset.b),
   }));
   const velos = todos<HTMLElement>("[data-o]", pantallaHtml).map((el) => ({
     el,
@@ -385,14 +382,13 @@ export function montarEscena(
       o.el.style.opacity = String(t);
       o.el.style.transform = `translateY(${12 * (1 - t)}px)`;
       o.el.style.display =
-        o.hasta !== null && t === 0 && p > o.hasta ? "none" : "";
+        (o.hasta !== null && t === 0 && p > o.hasta) || (o.pliega && t === 0)
+          ? "none"
+          : "";
     }
     for (const o of cifras) {
       const t = suave(tramo(p, o.a, o.a + 0.07));
       o.el.textContent = miles(Math.round(o.n * t)) + o.sufijo;
-    }
-    for (const o of barras) {
-      o.el.style.transform = `scaleY(${suave(tramo(p, o.a, o.a + 0.03))})`;
     }
     for (const o of velos)
       o.el.style.opacity = String(tramo(p, o.a, o.a + 0.02));
@@ -407,7 +403,7 @@ export function montarEscena(
 
   /**
    * `p` es el progreso de los pasos (el de siempre) y `pSeccion` el de toda
-   * la sección, del que cuelgan el zoom out y el encendido de la pantalla.
+   * la sección, del que cuelgan el zoom out y el desbloqueo de la pantalla.
    */
   function pintarPortatil(p: number, pSeccion: number) {
     if (!bisagra || !pantalla) return;
@@ -493,14 +489,26 @@ export function montarEscena(
         ((1 - v.y) / 2) * altoEscenario
       );
     }
-    // En el cruce, la pantalla llega apagada (negra) justo encima del
-    // rectángulo negro de «En tu bolsillo» y se enciende con el zoom out.
-    // Antes del cruce el escenario aún no está fijo: no se pinta.
+    // En el cruce, la pantalla llega bloqueada (la misma pantalla de bloqueo
+    // que el rectángulo negro de «En tu bolsillo», justo encima) y se
+    // desbloquea con el zoom out, dejando ver el panel. Antes del cruce el
+    // escenario aún no está fijo: no se pinta.
     const negra = tramo(pSeccion, 0, FIN_PANTALLA_NEGRA);
-    const encendido = tramo(pSeccion, FIN_CRUCE, FIN_ENCENDIDO);
+    const vh = vhRelevoDesdeNegocio(pSeccion);
+    const bloqueada = 1 - desbloqueo(vh);
     pantallaHtml.style.display = crudo > 0 ? "block" : "none";
     pantallaHtml.style.opacity = String(luz * negra);
-    pantallaHtml.style.filter = encendido < 1 ? `brightness(${encendido})` : "";
+    bloqueo.style.display = bloqueada > 0 ? "block" : "none";
+    if (bloqueada > 0) {
+      bloqueo.style.opacity = String(bloqueada);
+      // Lo que mide la pantalla proyectada por cada px de la pantalla HTML:
+      // con eso la pantalla de bloqueo saca sus mínimos legibles en px reales.
+      const escala =
+        Math.hypot(destino[2] - destino[0], destino[3] - destino[1]) /
+        PANTALLA_W;
+      bloqueo.style.setProperty("--escala", escala.toFixed(4));
+      pintarBloqueo(bloqueo, vh);
+    }
     pantallaHtml.style.transform = homografia(ESQUINAS_HTML, destino);
   }
 

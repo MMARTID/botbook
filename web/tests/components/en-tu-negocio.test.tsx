@@ -76,7 +76,7 @@ describe("EnTuNegocioScroll", () => {
     expect(pasos.map((b) => b.getAttribute("aria-label"))).toEqual([
       "Ir al paso 01: Tu panel",
       "Ir al paso 02: Llamadas",
-      "Ir al paso 03: Asistente",
+      "Ir al paso 03: Gestor",
     ]);
     expect(pasos[0]).toHaveAttribute("aria-current", "step");
     expect(pasos[1]).not.toHaveAttribute("aria-current");

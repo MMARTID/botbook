@@ -7,7 +7,6 @@ import { act, render, waitFor } from "@testing-library/react";
 import { useMovimientoReducido } from "@/hooks/use-movimiento-reducido";
 import { Reveal } from "@/components/scroll-reveal";
 import { LlamadaScroll } from "@/components/llamada-scroll";
-import { HowItWorksScrollytelling } from "@/components/how-it-works-scrollytelling";
 import { CountUp } from "@/components/count-up";
 
 /**
@@ -141,15 +140,6 @@ describe("hidratación con movimiento reducido", () => {
       "En tu bolsillo: una llamada, de principio a fin."
     );
     expect(document.documentElement.hasAttribute("data-relato")).toBe(false);
-  });
-
-  it("HowItWorksScrollytelling hidrata sin errores y pasa a la versión quieta", async () => {
-    const { contenedor, errores } = await hidratar(
-      <HowItWorksScrollytelling />,
-      { reducir: true }
-    );
-    expect(errores).toEqual([]);
-    expect(contenedor.querySelector(".sticky")).toBeNull();
   });
 
   it("CountUp hidrata sin errores y enseña la cifra entera", async () => {
