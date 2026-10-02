@@ -115,6 +115,16 @@ const AgendaQuerySchema = z.object({
   // la respuesta en 50 reservas sin comunicarlo: un negocio con agenda llena
   // parecía tener huecos que no existían en la interfaz.
   offset: z.coerce.number().int().min(0).default(0),
+  // Desde cuándo contar los `days`. Sin él, desde ahora: es lo que quiere el
+  // Panel. La semana de la agenda móvil también enseña los días ya pasados
+  // (y las citas de hoy que ya empezaron), así que pide desde el lunes. Hasta
+  // 60 días atrás: más allá ya no es la agenda, es el historial de llamadas.
+  desde: z.coerce
+    .date()
+    .refine((fecha) => fecha.getTime() >= Date.now() - 60 * DAY_MS, {
+      message: "desde no puede ser de hace más de 60 días",
+    })
+    .optional(),
 });
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -686,10 +696,12 @@ export async function businessesRoutes(fastify: FastifyInstance) {
       reply
     ) => {
       try {
-        const { days, limit, offset } = AgendaQuerySchema.parse(request.query);
+        const { days, limit, offset, desde } = AgendaQuerySchema.parse(
+          request.query
+        );
         const businessId = request.user!.businessId;
 
-        const from = new Date();
+        const from = desde ?? new Date();
         const until = new Date(from.getTime() + days * DAY_MS);
 
         const where = {
@@ -797,6 +809,59 @@ export async function businessesRoutes(fastify: FastifyInstance) {
         return reply
           .status(500)
           .send({ error: "Failed to fetch pending bookings" });
+      }
+    }
+  );
+
+  // «Ya la he confirmado» del panel: el dueño llamó al cliente y apuntó la
+  // cita a mano. Mismo cierre que «La apunté yo» del aviso de WhatsApp
+  // (whatsapp/router.ts) y que el Gestor (gestor/acciones.ts), con su propia
+  // firma en `resolvedBy` para distinguirlo en las métricas.
+  fastify.post<{ Params: { id: string } }>(
+    "/business/me/pending-bookings/:id/resolver",
+    { preValidation: [fastify.authenticate] },
+    async (request, reply) => {
+      try {
+        const businessId = request.user!.businessId;
+        const lead = await prisma.lead.findFirst({
+          where: {
+            id: request.params.id,
+            type: PENDING_BOOKING_LEAD_TYPE,
+            call: { businessId },
+          },
+          select: { id: true, resolvedAt: true, data: true },
+        });
+        if (!lead) {
+          return reply
+            .status(404)
+            .send({ error: "No existe esa cita pendiente en tu negocio" });
+        }
+        if (lead.resolvedAt) {
+          return reply.send({ ok: true, yaResuelta: true });
+        }
+
+        const cerrada = await prisma.lead.updateMany({
+          where: { id: lead.id, resolvedAt: null },
+          data: {
+            resolvedAt: new Date(),
+            data: {
+              ...((lead.data as Record<string, unknown> | null) ?? {}),
+              resolvedBy: "owner_panel",
+            },
+          },
+        });
+        fastify.log.info(
+          `[Business] Cita pendiente ${lead.id} del negocio ${businessId} resuelta a mano desde el panel`
+        );
+        return reply.send({ ok: true, yaResuelta: cerrada.count === 0 });
+      } catch (error) {
+        fastify.log.error(
+          { err: error },
+          "[Business] No se pudo resolver la cita pendiente"
+        );
+        return reply
+          .status(500)
+          .send({ error: "No se pudo marcar la cita como confirmada" });
       }
     }
   );

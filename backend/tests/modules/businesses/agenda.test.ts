@@ -9,7 +9,7 @@ vi.mock("../../../src/lib/prisma.js", () => ({
     booking: { findMany: vi.fn(), count: vi.fn() },
     service: { findMany: vi.fn(), count: vi.fn() },
     call: { count: vi.fn(), findMany: vi.fn(), aggregate: vi.fn() },
-    lead: { count: vi.fn(), findMany: vi.fn() },
+    lead: { count: vi.fn(), findMany: vi.fn(), findFirst: vi.fn(), updateMany: vi.fn() },
   },
 }));
 
@@ -30,6 +30,8 @@ const mockedCallFindMany = vi.mocked(prisma.call.findMany);
 const mockedCallAggregate = vi.mocked(prisma.call.aggregate);
 const mockedLeadCount = vi.mocked(prisma.lead.count);
 const mockedLeadFindMany = vi.mocked(prisma.lead.findMany);
+const mockedLeadFindFirst = vi.mocked(prisma.lead.findFirst);
+const mockedLeadUpdateMany = vi.mocked(prisma.lead.updateMany);
 
 async function buildServer() {
   const fastify = Fastify();
@@ -118,6 +120,34 @@ describe("GET /business/me/agenda", () => {
       (where.programedAt.lte.getTime() - where.programedAt.gte.getTime()) / 86_400_000
     );
     expect(dias).toBe(3);
+  });
+
+  it("con «desde» cuenta los días a partir de esa fecha, también hacia atrás", async () => {
+    mockedBookingFindMany.mockResolvedValue([] as any);
+    mockedBookingCount.mockResolvedValue(0 as any);
+    const lunes = new Date(Date.now() - 3 * 86_400_000);
+
+    const response = await fastify.inject({
+      method: "GET",
+      url: `/business/me/agenda?days=8&desde=${encodeURIComponent(lunes.toISOString())}`,
+    });
+
+    expect(response.statusCode).toBe(200);
+    const where = mockedBookingFindMany.mock.calls[0][0]?.where as any;
+    expect(where.programedAt.gte.toISOString()).toBe(lunes.toISOString());
+    expect(where.programedAt.lte.getTime() - lunes.getTime()).toBe(8 * 86_400_000);
+  });
+
+  it("no deja pedir más de 60 días hacia atrás", async () => {
+    const hace90 = new Date(Date.now() - 90 * 86_400_000).toISOString();
+
+    const response = await fastify.inject({
+      method: "GET",
+      url: `/business/me/agenda?desde=${encodeURIComponent(hace90)}`,
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(mockedBookingFindMany).not.toHaveBeenCalled();
   });
 
   it("pagina la agenda sin ocultar las citas que quedan después del límite", async () => {
@@ -329,5 +359,79 @@ describe("GET /business/me/pending-bookings", () => {
       resolvedAt: null,
       call: { businessId: "biz_1" },
     });
+  });
+});
+
+describe("POST /business/me/pending-bookings/:id/resolver", () => {
+  let fastify: Awaited<ReturnType<typeof buildServer>>;
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    fastify = await buildServer();
+  });
+
+  it("cierra la cita pendiente del negocio y firma que fue desde el panel", async () => {
+    mockedLeadFindFirst.mockResolvedValue({
+      id: "lead_1",
+      resolvedAt: null,
+      data: { clientName: "Rosa", failureCode: "BOOKING_LOCK_TIMEOUT" },
+    } as any);
+    mockedLeadUpdateMany.mockResolvedValue({ count: 1 } as any);
+
+    const response = await fastify.inject({
+      method: "POST",
+      url: "/business/me/pending-bookings/lead_1/resolver",
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({ ok: true, yaResuelta: false });
+    expect(mockedLeadFindFirst).toHaveBeenCalledWith({
+      where: {
+        id: "lead_1",
+        type: "pending_booking",
+        call: { businessId: "biz_1" },
+      },
+      select: { id: true, resolvedAt: true, data: true },
+    });
+    expect(mockedLeadUpdateMany).toHaveBeenCalledWith({
+      where: { id: "lead_1", resolvedAt: null },
+      data: {
+        resolvedAt: expect.any(Date),
+        data: {
+          clientName: "Rosa",
+          failureCode: "BOOKING_LOCK_TIMEOUT",
+          resolvedBy: "owner_panel",
+        },
+      },
+    });
+  });
+
+  it("es idempotente si ya estaba resuelta", async () => {
+    mockedLeadFindFirst.mockResolvedValue({
+      id: "lead_1",
+      resolvedAt: new Date(),
+      data: {},
+    } as any);
+
+    const response = await fastify.inject({
+      method: "POST",
+      url: "/business/me/pending-bookings/lead_1/resolver",
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({ ok: true, yaResuelta: true });
+    expect(mockedLeadUpdateMany).not.toHaveBeenCalled();
+  });
+
+  it("devuelve 404 si la cita es de otro negocio", async () => {
+    mockedLeadFindFirst.mockResolvedValue(null);
+
+    const response = await fastify.inject({
+      method: "POST",
+      url: "/business/me/pending-bookings/lead_ajeno/resolver",
+    });
+
+    expect(response.statusCode).toBe(404);
+    expect(mockedLeadUpdateMany).not.toHaveBeenCalled();
   });
 });
