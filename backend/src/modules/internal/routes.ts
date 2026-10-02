@@ -10,6 +10,7 @@ import { processRecordarRecadoJob } from "../../jobs/recordarRecado.js";
 import { cleanupZombieCallsJob } from "../../jobs/cleanupZombieCalls.js";
 import { recordarDesvioSinComprobarJob } from "../../jobs/recordarDesvioSinComprobar.js";
 import { purgeOldRecordingsJob } from "../../jobs/purgeOldRecordings.js";
+import { purgarTextoDeLlamadasJob } from "../../jobs/purgarTextoDeLlamadas.js";
 import { telnyxHealthCheckJob } from "../../jobs/telnyxHealthCheck.js";
 import { telnyxReconcilerJob } from "../../jobs/telnyxReconciler.js";
 import { retryStuckRecordingsJob } from "../../jobs/retryStuckRecordings.js";
@@ -285,8 +286,12 @@ export const internalJobsRoutes: FastifyPluginAsync = async (fastify) => {
     opcionesDeJob,
     async (_request, reply) => {
       try {
+        // Un solo job programado para las dos purgas: el audio (30 días) y
+        // el texto de la llamada (90). Así el plazo del texto no depende de
+        // que alguien se acuerde de crear otro job en Cloud Scheduler.
         const result = await purgeOldRecordingsJob();
-        return reply.send({ received: true, ...result });
+        const texto = await purgarTextoDeLlamadasJob();
+        return reply.send({ received: true, ...result, texto });
       } catch (error) {
         fastify.log.error({ err: error }, "purge-old-recordings job failed");
         return reply.status(500).send({ error: "Job processing failed" });

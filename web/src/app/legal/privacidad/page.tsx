@@ -263,7 +263,8 @@ export default function PrivacidadPage() {
 
       <LegalSection title="Cuánto tiempo conservamos los datos">
         <p>
-          Las grabaciones y transcripciones se conservan durante 90 días y después se eliminan. Los datos de la cuenta,
+          Las grabaciones se conservan durante 30 días. Las transcripciones, los resúmenes de las llamadas y los
+          mensajes de WhatsApp recibidos se conservan durante 90 días. Después se eliminan. Los datos de la cuenta,
           negocio, configuración y reservas se conservan mientras la suscripción esté activa y durante tres meses tras
           la baja, salvo que debamos conservarlos bloqueados para atender responsabilidades legales. Las credenciales de
           calendario se eliminan cuando revocas el acceso. Al terminar cada plazo, los datos se eliminan o se anonimizan,
