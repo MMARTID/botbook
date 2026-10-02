@@ -5,14 +5,81 @@ import { conUrlDeGrabacionFirmada } from "../../lib/grabacionFirmada.js";
 import { planAllows, resolvePlanId } from "../../lib/planFeatures.js";
 import { getCallAnalytics } from "./analytics.js";
 
+const FILTROS_DE_LLAMADAS = ["todas", "con_cita", "por_devolver"] as const;
+type FiltroDeLlamadas = (typeof FILTROS_DE_LLAMADAS)[number];
+
 const PaginationSchema = z.object({
   limit: z.coerce.number().min(1).max(100).default(50),
   offset: z.coerce.number().min(0).default(0),
+  filtro: z.enum(FILTROS_DE_LLAMADAS).default("todas"),
 });
 
 const AnalyticsQuerySchema = z.object({
   days: z.coerce.number().int().min(7).max(90).default(30),
 });
+
+const RecadoBodySchema = z.object({ atendido: z.boolean() });
+
+/** Un recado es el `Lead` tipo `message` que deja la recepcionista cuando
+ * no puede resolver algo (modules/whatsapp/recados.ts). El dueño lo cierra
+ * con «Atendido» en el aviso de WhatsApp o desde el panel. */
+const TIPO_RECADO = "message";
+
+/** Lo que el panel necesita de los leads de una llamada para el recado. */
+const SELECT_RECADO = {
+  where: { type: TIPO_RECADO },
+  select: { id: true, resolvedAt: true, data: true },
+  orderBy: { createdAt: "desc" as const },
+};
+
+type LeadDeRecado = { id: string; resolvedAt: Date | null; data: unknown };
+
+function textoOpcional(value: unknown): string | null {
+  return typeof value === "string" && value.trim() !== "" ? value : null;
+}
+
+/**
+ * El recado de una llamada, tal y como lo pinta el panel. Si una llamada
+ * acabara con más de uno, sigue pendiente mientras quede alguno sin atender:
+ * dar por devuelta la llamada por cerrar solo uno escondería el otro.
+ */
+export function describirRecado(leads: LeadDeRecado[] | null | undefined) {
+  if (!leads || leads.length === 0) return null;
+  const masReciente = leads[0];
+  const data = (masReciente.data ?? {}) as Record<string, unknown>;
+  const pendiente = leads.some((lead) => lead.resolvedAt === null);
+  const atendidoAt = pendiente
+    ? null
+    : leads.reduce<Date | null>(
+        (ultima, lead) =>
+          lead.resolvedAt && (!ultima || lead.resolvedAt > ultima)
+            ? lead.resolvedAt
+            : ultima,
+        null
+      );
+  return {
+    id: masReciente.id,
+    nombre: textoOpcional(data.clientName),
+    telefono: textoOpcional(data.clientPhone),
+    motivo: textoOpcional(data.motivo),
+    atendidoAt: atendidoAt?.toISOString() ?? null,
+  };
+}
+
+function filtroDeLlamadas(businessId: string, filtro: FiltroDeLlamadas) {
+  if (filtro === "con_cita") {
+    // «Reserva creada» en el panel: la cita sigue viva. Una cambiada por el
+    // cliente cuelga de la conversación en la que la cambió.
+    return { businessId, booking: { is: { isCancelled: false } } };
+  }
+  if (filtro === "por_devolver") {
+    return {
+      businessId,
+      leads: { some: { type: TIPO_RECADO, resolvedAt: null } },
+    };
+  }
+  return { businessId };
+}
 
 export async function callsRoutes(fastify: FastifyInstance) {
   // Get all calls for the authenticated user's business
@@ -26,24 +93,36 @@ export async function callsRoutes(fastify: FastifyInstance) {
       reply
     ) => {
       try {
-        const { limit, offset } = PaginationSchema.parse(request.query);
+        const { limit, offset, filtro } = PaginationSchema.parse(
+          request.query
+        );
         const businessId = request.user!.businessId;
 
-        const [calls, total] = await Promise.all([
+        // Los tres recuentos van siempre: son los números de los filtros del
+        // panel móvil y el de «por devolver» es la insignia de la pestaña.
+        const [calls, total, todas, conCita, porDevolver] = await Promise.all([
           prisma.call.findMany({
-            where: { businessId },
+            where: filtroDeLlamadas(businessId, filtro),
             include: {
               // select explícito en el agente: `agent: true` arrastraba el
               // systemPrompt completo (varios KB del prompt gestionado) en
               // cada una de las filas de la página, siempre el mismo texto.
               agent: { select: { id: true, name: true, voice: true } },
               booking: { include: { professional: { select: { id: true, name: true } } } },
+              leads: SELECT_RECADO,
             },
             take: limit,
             skip: offset,
             orderBy: { createdAt: "desc" },
           }),
-          prisma.call.count({ where: { businessId } }),
+          prisma.call.count({ where: filtroDeLlamadas(businessId, filtro) }),
+          prisma.call.count({ where: filtroDeLlamadas(businessId, "todas") }),
+          prisma.call.count({
+            where: filtroDeLlamadas(businessId, "con_cita"),
+          }),
+          prisma.call.count({
+            where: filtroDeLlamadas(businessId, "por_devolver"),
+          }),
         ]);
 
         // Booking.serviceIds es un array de IDs, no una relación de Prisma.
@@ -61,8 +140,9 @@ export async function callsRoutes(fastify: FastifyInstance) {
         const servicesById = new Map(services.map((service) => [service.id, service]));
 
         return reply.send({
-          data: calls.map((call) => ({
+          data: calls.map(({ leads, ...call }) => ({
             ...call,
+            recado: describirRecado(leads),
             booking: call.booking
               ? {
                   ...call.booking,
@@ -75,6 +155,8 @@ export async function callsRoutes(fastify: FastifyInstance) {
           total,
           limit,
           offset,
+          filtro,
+          conteos: { todas, conCita, porDevolver },
         });
       } catch (error) {
         if (error instanceof z.ZodError) {
@@ -187,8 +269,13 @@ export async function callsRoutes(fastify: FastifyInstance) {
             }
           : callWithVisibleRecording;
 
+        const recados = (call.leads ?? [])
+          .filter((lead) => lead.type === TIPO_RECADO)
+          .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+
         return reply.send({
           ...signedCall,
+          recado: describirRecado(recados),
           booking: signedCall.booking
             ? { ...signedCall.booking, services }
             : signedCall.booking,
@@ -196,6 +283,65 @@ export async function callsRoutes(fastify: FastifyInstance) {
       } catch (error) {
         fastify.log.error({ err: error }, "[Calls] Failed to fetch call");
         return reply.status(500).send({ error: "Failed to fetch call" });
+      }
+    }
+  );
+
+  // «Marcar como devuelta» del panel: el mismo cierre que el botón
+  // «Atendido» del aviso de WhatsApp (whatsapp/router.ts, botonDeRecado), y
+  // su vuelta atrás. Reabrir no reprograma el recordatorio del día
+  // siguiente: lo vuelve a contar como pendiente en el panel y en el Gestor.
+  fastify.patch<{ Params: { id: string }; Body: z.infer<typeof RecadoBodySchema> }>(
+    "/business/me/calls/:id/recado",
+    { preValidation: [fastify.authenticate] },
+    async (request, reply) => {
+      try {
+        const { atendido } = RecadoBodySchema.parse(request.body);
+        const businessId = request.user!.businessId;
+        const callId = request.params.id;
+
+        const call = await prisma.call.findFirst({
+          where: { id: callId, businessId },
+          select: { id: true },
+        });
+        if (!call) {
+          return reply.status(404).send({ error: "Llamada no encontrada" });
+        }
+
+        const cambiados = await prisma.lead.updateMany({
+          where: {
+            callId: call.id,
+            type: TIPO_RECADO,
+            resolvedAt: atendido ? null : { not: null },
+          },
+          data: atendido
+            ? { resolvedAt: new Date(), snoozedUntil: null }
+            : { resolvedAt: null },
+        });
+
+        const recados = await prisma.lead.findMany({
+          where: { callId: call.id, ...SELECT_RECADO.where },
+          select: SELECT_RECADO.select,
+          orderBy: SELECT_RECADO.orderBy,
+        });
+        if (recados.length === 0) {
+          return reply
+            .status(404)
+            .send({ error: "Esta llamada no tiene ningún recado" });
+        }
+
+        fastify.log.info(
+          `[Calls] Recado de la llamada ${call.id} (negocio ${businessId}) ${atendido ? "atendido" : "reabierto"} desde el panel (${cambiados.count} cambiados)`
+        );
+        return reply.send({ recado: describirRecado(recados) });
+      } catch (error) {
+        if (error instanceof z.ZodError) {
+          return reply.status(400).send({ error: error.errors });
+        }
+        fastify.log.error({ err: error }, "[Calls] No se pudo actualizar el recado");
+        return reply
+          .status(500)
+          .send({ error: "No se pudo actualizar el recado" });
       }
     }
   );

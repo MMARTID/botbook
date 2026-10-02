@@ -10,6 +10,7 @@ vi.mock("../../../src/lib/prisma.js", () => ({
       findMany: vi.fn(),
       count: vi.fn(),
       findUnique: vi.fn(),
+      findFirst: vi.fn(),
       aggregate: vi.fn(),
       groupBy: vi.fn(),
     },
@@ -24,6 +25,8 @@ vi.mock("../../../src/lib/prisma.js", () => ({
     },
     lead: {
       count: vi.fn(),
+      findMany: vi.fn(),
+      updateMany: vi.fn(),
     },
   },
 }));
@@ -37,6 +40,9 @@ const mockedCallFindMany = vi.mocked(prisma.call.findMany);
 const mockedCallCount = vi.mocked(prisma.call.count);
 const mockedServiceFindMany = vi.mocked(prisma.service.findMany);
 const mockedGetSignedRecordingUrl = vi.mocked(getSignedRecordingUrl);
+const mockedCallFindFirst = vi.mocked(prisma.call.findFirst);
+const mockedLeadFindMany = vi.mocked(prisma.lead.findMany);
+const mockedLeadUpdateMany = vi.mocked(prisma.lead.updateMany);
 
 describe("GET /business/me/calls/:id", () => {
   let fastify: ReturnType<typeof Fastify>;
@@ -322,5 +328,249 @@ describe("GET /business/me/calls/analytics — gating por plan Scale", () => {
     expect(body.byHour).toEqual([{ hour: 18, count: 2 }]);
     expect(body.byWeekday).toEqual([{ weekday: 4, count: 2 }]); // jueves
     expect(body.topServices).toEqual([{ service: "Corte", count: 2 }]);
+  });
+});
+
+describe("GET /business/me/calls — recados y filtros del panel móvil", () => {
+  let fastify: ReturnType<typeof Fastify>;
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    fastify = Fastify();
+    fastify.decorate("authenticate", async (request: any) => {
+      request.user = { businessId: "biz_1" };
+    });
+    await fastify.register(callsRoutes);
+    mockedServiceFindMany.mockResolvedValue([] as any);
+  });
+
+  it("filtra «por devolver» por recados sin atender y devuelve los tres recuentos", async () => {
+    mockedCallFindMany.mockResolvedValue([] as any);
+    mockedCallCount
+      .mockResolvedValueOnce(2 as any) // total del filtro
+      .mockResolvedValueOnce(10 as any) // todas
+      .mockResolvedValueOnce(3 as any) // con cita
+      .mockResolvedValueOnce(2 as any); // por devolver
+
+    const response = await fastify.inject({
+      method: "GET",
+      url: "/business/me/calls?filtro=por_devolver",
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(mockedCallFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          businessId: "biz_1",
+          leads: { some: { type: "message", resolvedAt: null } },
+        },
+      })
+    );
+    expect(response.json()).toMatchObject({
+      total: 2,
+      filtro: "por_devolver",
+      conteos: { todas: 10, conCita: 3, porDevolver: 2 },
+    });
+  });
+
+  it("filtra «con cita» por reservas que siguen vivas", async () => {
+    mockedCallFindMany.mockResolvedValue([] as any);
+    mockedCallCount.mockResolvedValue(0 as any);
+
+    await fastify.inject({
+      method: "GET",
+      url: "/business/me/calls?filtro=con_cita",
+    });
+
+    expect(mockedCallFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { businessId: "biz_1", booking: { is: { isCancelled: false } } },
+      })
+    );
+  });
+
+  it("rechaza un filtro desconocido con 400", async () => {
+    const response = await fastify.inject({
+      method: "GET",
+      url: "/business/me/calls?filtro=todo",
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(mockedCallFindMany).not.toHaveBeenCalled();
+  });
+
+  it("describe el recado de cada llamada sin mandar los leads crudos", async () => {
+    mockedCallFindMany.mockResolvedValue([
+      {
+        id: "call_1",
+        businessId: "biz_1",
+        booking: null,
+        leads: [
+          {
+            id: "lead_1",
+            resolvedAt: null,
+            data: { clientName: "Laura", clientPhone: "645778120", motivo: "Keratina" },
+          },
+        ],
+      },
+      {
+        id: "call_2",
+        businessId: "biz_1",
+        booking: null,
+        leads: [
+          {
+            id: "lead_2",
+            resolvedAt: new Date("2026-10-01T10:00:00Z"),
+            data: { clientName: "", motivo: 42 },
+          },
+        ],
+      },
+      { id: "call_3", businessId: "biz_1", booking: null, leads: [] },
+    ] as any);
+    mockedCallCount.mockResolvedValue(3 as any);
+
+    const response = await fastify.inject({
+      method: "GET",
+      url: "/business/me/calls",
+    });
+
+    const [pendiente, atendido, sinRecado] = response.json().data;
+    expect(pendiente.leads).toBeUndefined();
+    expect(pendiente.recado).toEqual({
+      id: "lead_1",
+      nombre: "Laura",
+      telefono: "645778120",
+      motivo: "Keratina",
+      atendidoAt: null,
+    });
+    // Un campo vacío o que no es texto no se cuela como dato.
+    expect(atendido.recado).toEqual({
+      id: "lead_2",
+      nombre: null,
+      telefono: null,
+      motivo: null,
+      atendidoAt: "2026-10-01T10:00:00.000Z",
+    });
+    expect(sinRecado.recado).toBeNull();
+  });
+
+  it("una llamada con un recado atendido y otro no sigue pendiente", async () => {
+    mockedCallFindMany.mockResolvedValue([
+      {
+        id: "call_1",
+        businessId: "biz_1",
+        booking: null,
+        leads: [
+          { id: "lead_nuevo", resolvedAt: new Date("2026-10-01T10:00:00Z"), data: {} },
+          { id: "lead_viejo", resolvedAt: null, data: {} },
+        ],
+      },
+    ] as any);
+    mockedCallCount.mockResolvedValue(1 as any);
+
+    const response = await fastify.inject({ method: "GET", url: "/business/me/calls" });
+
+    expect(response.json().data[0].recado.atendidoAt).toBeNull();
+  });
+});
+
+describe("PATCH /business/me/calls/:id/recado", () => {
+  let fastify: ReturnType<typeof Fastify>;
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    fastify = Fastify();
+    fastify.decorate("authenticate", async (request: any) => {
+      request.user = { businessId: "biz_1" };
+    });
+    await fastify.register(callsRoutes);
+  });
+
+  it("marca atendido solo lo pendiente de una llamada del negocio", async () => {
+    mockedCallFindFirst.mockResolvedValue({ id: "call_1" } as any);
+    mockedLeadUpdateMany.mockResolvedValue({ count: 1 } as any);
+    mockedLeadFindMany.mockResolvedValue([
+      { id: "lead_1", resolvedAt: new Date("2026-10-02T09:00:00Z"), data: { clientName: "Laura" } },
+    ] as any);
+
+    const response = await fastify.inject({
+      method: "PATCH",
+      url: "/business/me/calls/call_1/recado",
+      payload: { atendido: true },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(mockedCallFindFirst).toHaveBeenCalledWith({
+      where: { id: "call_1", businessId: "biz_1" },
+      select: { id: true },
+    });
+    expect(mockedLeadUpdateMany).toHaveBeenCalledWith({
+      where: { callId: "call_1", type: "message", resolvedAt: null },
+      data: { resolvedAt: expect.any(Date), snoozedUntil: null },
+    });
+    expect(response.json().recado).toMatchObject({
+      id: "lead_1",
+      nombre: "Laura",
+      atendidoAt: "2026-10-02T09:00:00.000Z",
+    });
+  });
+
+  it("deshacer reabre lo que estaba atendido", async () => {
+    mockedCallFindFirst.mockResolvedValue({ id: "call_1" } as any);
+    mockedLeadUpdateMany.mockResolvedValue({ count: 1 } as any);
+    mockedLeadFindMany.mockResolvedValue([
+      { id: "lead_1", resolvedAt: null, data: {} },
+    ] as any);
+
+    const response = await fastify.inject({
+      method: "PATCH",
+      url: "/business/me/calls/call_1/recado",
+      payload: { atendido: false },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(mockedLeadUpdateMany).toHaveBeenCalledWith({
+      where: { callId: "call_1", type: "message", resolvedAt: { not: null } },
+      data: { resolvedAt: null },
+    });
+    expect(response.json().recado.atendidoAt).toBeNull();
+  });
+
+  it("devuelve 404 si la llamada es de otro negocio, sin tocar ningún lead", async () => {
+    mockedCallFindFirst.mockResolvedValue(null);
+
+    const response = await fastify.inject({
+      method: "PATCH",
+      url: "/business/me/calls/call_ajena/recado",
+      payload: { atendido: true },
+    });
+
+    expect(response.statusCode).toBe(404);
+    expect(mockedLeadUpdateMany).not.toHaveBeenCalled();
+  });
+
+  it("devuelve 404 si la llamada no tiene recado", async () => {
+    mockedCallFindFirst.mockResolvedValue({ id: "call_1" } as any);
+    mockedLeadUpdateMany.mockResolvedValue({ count: 0 } as any);
+    mockedLeadFindMany.mockResolvedValue([] as any);
+
+    const response = await fastify.inject({
+      method: "PATCH",
+      url: "/business/me/calls/call_1/recado",
+      payload: { atendido: true },
+    });
+
+    expect(response.statusCode).toBe(404);
+  });
+
+  it("valida el body con 400", async () => {
+    const response = await fastify.inject({
+      method: "PATCH",
+      url: "/business/me/calls/call_1/recado",
+      payload: { atendido: "sí" },
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(mockedCallFindFirst).not.toHaveBeenCalled();
   });
 });

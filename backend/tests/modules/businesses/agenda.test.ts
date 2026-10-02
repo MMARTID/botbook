@@ -9,7 +9,7 @@ vi.mock("../../../src/lib/prisma.js", () => ({
     booking: { findMany: vi.fn(), count: vi.fn() },
     service: { findMany: vi.fn(), count: vi.fn() },
     call: { count: vi.fn(), findMany: vi.fn(), aggregate: vi.fn() },
-    lead: { count: vi.fn(), findMany: vi.fn() },
+    lead: { count: vi.fn(), findMany: vi.fn(), findFirst: vi.fn(), updateMany: vi.fn() },
   },
 }));
 
@@ -30,6 +30,8 @@ const mockedCallFindMany = vi.mocked(prisma.call.findMany);
 const mockedCallAggregate = vi.mocked(prisma.call.aggregate);
 const mockedLeadCount = vi.mocked(prisma.lead.count);
 const mockedLeadFindMany = vi.mocked(prisma.lead.findMany);
+const mockedLeadFindFirst = vi.mocked(prisma.lead.findFirst);
+const mockedLeadUpdateMany = vi.mocked(prisma.lead.updateMany);
 
 async function buildServer() {
   const fastify = Fastify();
@@ -329,5 +331,79 @@ describe("GET /business/me/pending-bookings", () => {
       resolvedAt: null,
       call: { businessId: "biz_1" },
     });
+  });
+});
+
+describe("POST /business/me/pending-bookings/:id/resolver", () => {
+  let fastify: Awaited<ReturnType<typeof buildServer>>;
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    fastify = await buildServer();
+  });
+
+  it("cierra la cita pendiente del negocio y firma que fue desde el panel", async () => {
+    mockedLeadFindFirst.mockResolvedValue({
+      id: "lead_1",
+      resolvedAt: null,
+      data: { clientName: "Rosa", failureCode: "BOOKING_LOCK_TIMEOUT" },
+    } as any);
+    mockedLeadUpdateMany.mockResolvedValue({ count: 1 } as any);
+
+    const response = await fastify.inject({
+      method: "POST",
+      url: "/business/me/pending-bookings/lead_1/resolver",
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({ ok: true, yaResuelta: false });
+    expect(mockedLeadFindFirst).toHaveBeenCalledWith({
+      where: {
+        id: "lead_1",
+        type: "pending_booking",
+        call: { businessId: "biz_1" },
+      },
+      select: { id: true, resolvedAt: true, data: true },
+    });
+    expect(mockedLeadUpdateMany).toHaveBeenCalledWith({
+      where: { id: "lead_1", resolvedAt: null },
+      data: {
+        resolvedAt: expect.any(Date),
+        data: {
+          clientName: "Rosa",
+          failureCode: "BOOKING_LOCK_TIMEOUT",
+          resolvedBy: "owner_panel",
+        },
+      },
+    });
+  });
+
+  it("es idempotente si ya estaba resuelta", async () => {
+    mockedLeadFindFirst.mockResolvedValue({
+      id: "lead_1",
+      resolvedAt: new Date(),
+      data: {},
+    } as any);
+
+    const response = await fastify.inject({
+      method: "POST",
+      url: "/business/me/pending-bookings/lead_1/resolver",
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({ ok: true, yaResuelta: true });
+    expect(mockedLeadUpdateMany).not.toHaveBeenCalled();
+  });
+
+  it("devuelve 404 si la cita es de otro negocio", async () => {
+    mockedLeadFindFirst.mockResolvedValue(null);
+
+    const response = await fastify.inject({
+      method: "POST",
+      url: "/business/me/pending-bookings/lead_ajeno/resolver",
+    });
+
+    expect(response.statusCode).toBe(404);
+    expect(mockedLeadUpdateMany).not.toHaveBeenCalled();
   });
 });

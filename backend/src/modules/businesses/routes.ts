@@ -800,4 +800,57 @@ export async function businessesRoutes(fastify: FastifyInstance) {
       }
     }
   );
+
+  // «Ya la he confirmado» del panel: el dueño llamó al cliente y apuntó la
+  // cita a mano. Mismo cierre que «La apunté yo» del aviso de WhatsApp
+  // (whatsapp/router.ts) y que el Gestor (gestor/acciones.ts), con su propia
+  // firma en `resolvedBy` para distinguirlo en las métricas.
+  fastify.post<{ Params: { id: string } }>(
+    "/business/me/pending-bookings/:id/resolver",
+    { preValidation: [fastify.authenticate] },
+    async (request, reply) => {
+      try {
+        const businessId = request.user!.businessId;
+        const lead = await prisma.lead.findFirst({
+          where: {
+            id: request.params.id,
+            type: PENDING_BOOKING_LEAD_TYPE,
+            call: { businessId },
+          },
+          select: { id: true, resolvedAt: true, data: true },
+        });
+        if (!lead) {
+          return reply
+            .status(404)
+            .send({ error: "No existe esa cita pendiente en tu negocio" });
+        }
+        if (lead.resolvedAt) {
+          return reply.send({ ok: true, yaResuelta: true });
+        }
+
+        const cerrada = await prisma.lead.updateMany({
+          where: { id: lead.id, resolvedAt: null },
+          data: {
+            resolvedAt: new Date(),
+            data: {
+              ...((lead.data as Record<string, unknown> | null) ?? {}),
+              resolvedBy: "owner_panel",
+            },
+          },
+        });
+        fastify.log.info(
+          `[Business] Cita pendiente ${lead.id} del negocio ${businessId} resuelta a mano desde el panel`
+        );
+        return reply.send({ ok: true, yaResuelta: cerrada.count === 0 });
+      } catch (error) {
+        fastify.log.error(
+          { err: error },
+          "[Business] No se pudo resolver la cita pendiente"
+        );
+        return reply
+          .status(500)
+          .send({ error: "No se pudo marcar la cita como confirmada" });
+      }
+    }
+  );
 }
