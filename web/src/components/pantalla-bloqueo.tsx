@@ -5,10 +5,10 @@ import styles from "./pantalla-bloqueo.module.css";
  * La pantalla de bloqueo del portátil, en el relevo de «En tu bolsillo» a
  * «En tu negocio» (ver `lib/transicion-bolsillo-negocio.ts`): mientras el
  * teléfono se convierte en la pantalla del portátil, en ese negro aparecen
- * la hora (la del teléfono, dos minutos después) y, una a una, las
- * notificaciones de lo que acaba de pasar en la llamada: atendida y
- * grabada, la cita apuntada, el WhatsApp enviado. Luego la pantalla se
- * desbloquea y en el panel están esas mismas tres cosas.
+ * la hora (la del teléfono, dos minutos después) y lo que de verdad le
+ * llega al dueño de la cita nueva: el aviso de WhatsApp de Alhabla, con su
+ * texto real y sus dos botones (`relato().avisos`). Luego la pantalla se
+ * desbloquea y en el panel está esa cita.
  *
  * Se pinta dos veces con el mismo marcado: dentro del rectángulo negro de
  * «En tu bolsillo» y dentro de la pantalla HTML del portátil (`.mx`). Todo se
@@ -40,11 +40,19 @@ export function PantallaBloqueo({ guion }: { guion: GuionRelato }) {
                 className={styles.icono}
               />
               <div className={styles.cuerpo}>
-                <p className={styles.cabecera}>
-                  <b>{aviso.titulo}</b>
+                <p className={styles.app}>
+                  <span>{aviso.app}</span>
                   <span>{aviso.hace}</span>
                 </p>
+                <p className={styles.cabecera}>
+                  <b>{aviso.titulo}</b>
+                </p>
                 <p className={styles.texto}>{aviso.texto}</p>
+                <div className={styles.botones}>
+                  {aviso.botones.map((boton) => (
+                    <span key={boton}>{boton}</span>
+                  ))}
+                </div>
               </div>
             </li>
           ))}

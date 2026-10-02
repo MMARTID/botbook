@@ -37,7 +37,16 @@ describe("relato-guiones", () => {
   ])("el guion %s cuenta la historia completa con sus nombres", (_, guion) => {
     const r = relato(guion);
     expect(r.saludo).toContain(guion.negocio);
-    expect(r.propone).toContain(guion.profesional);
+    // Como la recepcionista real: la duración solo si pasa de 80 minutos,
+    // y siempre pide el WhatsApp antes del resumen final.
+    expect(r.ofrece.includes("minutos")).toBe(guion.servicio.minutos > 80);
+    const textos = r.turnos.map((t) => t.texto);
+    const whatsapp = textos.findIndex((t) => t.includes("por WhatsApp"));
+    const resumen = textos.findIndex((t) => t.includes("¿Te la reservo?"));
+    expect(whatsapp).toBeGreaterThan(0);
+    expect(resumen).toBeGreaterThan(whatsapp);
+    expect(textos[resumen]).toContain(guion.profesional);
+    expect(textos.some((t) => t.includes("Un momento"))).toBe(false);
     // La agenda: la cuarta fila es el hueco libre, con su duración.
     expect(r.agenda).toHaveLength(6);
     expect(r.agenda[3].hora).toBe(HORA_CITA);
@@ -45,10 +54,11 @@ describe("relato-guiones", () => {
     // Un hueco de 30 minutos no cabe: el servicio dura más.
     expect(guion.servicio.minutos).toBeGreaterThan(30);
     // Las tres notificaciones de la pantalla de bloqueo.
-    expect(r.avisos).toHaveLength(3);
-    expect(r.avisos[0].texto).toContain(guion.cliente.nombre);
-    expect(r.avisos[1].texto).toContain(guion.servicio.nombre);
-    expect(r.avisos[2].texto).toContain(guion.cliente.nombre);
+    // El aviso al dueño, con el formato de avisoNuevaReserva.
+    expect(r.avisos).toHaveLength(1);
+    expect(r.avisos[0].texto).toBe(
+      `${guion.negocio}: nueva cita. ${guion.cliente.nombre}, jueves ${HORA_CITA}, ${guion.servicio.nombre}, con ${guion.profesional}. Ya está en tu agenda.`
+    );
     // El asistente reparte las citas de quien falta a su compañera.
     expect(r.asistente.baja).toContain(guion.profesional);
     expect(r.asistente.orden).toContain(guion.companera);

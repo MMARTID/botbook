@@ -96,15 +96,15 @@ function pasosDe(g: GuionRelato): [PasoCopy, PasoCopy, PasoCopy] {
     },
     {
       numero: "03",
-      etiqueta: "Asistente",
-      pantalla: "Tu asistente",
+      etiqueta: "Gestor",
+      pantalla: "Tu gestor",
       titulo: "Cambia tu agenda escribiendo, como a una persona.",
       texto:
-        "Pregúntale por la agenda y pídele cambios. Es el mismo asistente que te atiende por WhatsApp.",
+        "Pregúntale por la agenda y pídele cambios. Es el mismo gestor que te atiende por WhatsApp.",
       detalles: [
         "Te resume el día y los huecos que quedan",
         "Marca una ausencia y reparte sus citas",
-        `Avisa a ${g.palabras.tusClientes.toLowerCase()} por WhatsApp sin que escribas tú`,
+        `Avisa a ${g.palabras.tusClientes.toLowerCase()} por WhatsApp; nada cambia sin tu «Confirmar»`,
       ],
     },
   ];
@@ -339,7 +339,7 @@ export function EnTuNegocioScroll({
                 <svg>
                   <use href="#ng-i-msg" />
                 </svg>
-                Asistente
+                Gestor
               </div>
               <div className="mx-pie">
                 <p className="mx-grupo">CUENTA</p>
@@ -447,7 +447,8 @@ export function EnTuNegocioScroll({
                         <svg>
                           <use href="#ng-i-trend" />
                         </svg>
-                        {guion.semana.masQueAntes} más que la semana pasada
+                        {guion.semana.masQueAntes} citas más que la semana
+                        pasada
                       </em>
                     </div>
                     <div className="mx-metrica">
@@ -457,17 +458,11 @@ export function EnTuNegocioScroll({
                       ></strong>
                       <span>llamadas atendidas</span>
                       <em>
-                        El{" "}
                         {Math.round(
                           (100 * guion.semana.citas) / guion.semana.llamadas
-                        )}{" "}
-                        % terminó en cita
+                        )}
+                        % terminaron en cita
                       </em>
-                    </div>
-                    <div className="mx-metrica">
-                      <strong data-n="0" data-a=".2"></strong>
-                      <span>llamadas perdidas</span>
-                      <em>También fuera de horario</em>
                     </div>
                     <div className="mx-metrica">
                       <strong
@@ -476,50 +471,7 @@ export function EnTuNegocioScroll({
                         data-a=".2"
                       ></strong>
                       <span>en citas reservadas</span>
-                      <em>Por precio de servicio</em>
-                    </div>
-                    <div className="mx-grafico">
-                      <small>Llamadas por día</small>
-                      <div className="mx-barras">
-                        <i
-                          style={{ "--h": ".78" } as CSSProperties}
-                          data-b=".21"
-                        ></i>
-                        <i
-                          style={{ "--h": "1" } as CSSProperties}
-                          data-b=".215"
-                        ></i>
-                        <i
-                          style={{ "--h": ".89" } as CSSProperties}
-                          data-b=".22"
-                        ></i>
-                        <i
-                          style={{ "--h": ".04" } as CSSProperties}
-                          data-b=".225"
-                        ></i>
-                        <i
-                          style={{ "--h": ".56" } as CSSProperties}
-                          data-b=".23"
-                        ></i>
-                        <i
-                          style={{ "--h": ".67" } as CSSProperties}
-                          data-b=".235"
-                        ></i>
-                        <i
-                          className="hoy"
-                          style={{ "--h": ".67" } as CSSProperties}
-                          data-b=".24"
-                        ></i>
-                      </div>
-                      <div className="mx-dias">
-                        <span>J</span>
-                        <span>V</span>
-                        <span>S</span>
-                        <span>D</span>
-                        <span>L</span>
-                        <span>M</span>
-                        <span>Hoy</span>
-                      </div>
+                      <em>Según el precio de los servicios</em>
                     </div>
                   </div>
                 </div>
@@ -600,7 +552,10 @@ export function EnTuNegocioScroll({
                     <div className="mx-fila-cab">
                       <div>
                         <p className="mx-h2">Llamadas recientes</p>
-                        <p>Toca una para leerla y escucharla.</p>
+                        <p>
+                          Toca una llamada para leer la conversación y escuchar
+                          la grabación.
+                        </p>
                       </div>
                       <span className="mx-link">
                         Ver historial
@@ -610,54 +565,16 @@ export function EnTuNegocioScroll({
                       </span>
                     </div>
                     <div className="mx-lista">
-                      <div className="mx-fila">
-                        <span className="mx-ico s">
-                          <svg>
-                            <use href="#ng-i-tel" />
-                          </svg>
-                        </span>
-                        <div>
-                          <b>{nombreCliente}</b>
-                          <small>Hoy, 17:02 · 2m 14s</small>
-                        </div>
-                        <span className="mx-chip ok">Cita reservada</span>
-                      </div>
-                      <div className="mx-fila">
-                        <span className="mx-ico s">
-                          <svg>
-                            <use href="#ng-i-tel" />
-                          </svg>
-                        </span>
-                        <div>
-                          <b>+34 797 80 30 74</b>
-                          <small>Hoy, 13:41 · 1m 02s</small>
-                        </div>
-                        <span className="mx-chip">Consulta de precios</span>
-                      </div>
-                      <div className="mx-fila">
-                        <span className="mx-ico s">
-                          <svg>
-                            <use href="#ng-i-tel" />
-                          </svg>
-                        </span>
-                        <div>
-                          <b>{r.llamadas[1].quien}</b>
-                          <small>Hoy, 11:20 · 1m 48s</small>
-                        </div>
-                        <span className="mx-chip ok">Cita movida</span>
-                      </div>
-                      <div className="mx-fila">
-                        <span className="mx-ico s">
-                          <svg>
-                            <use href="#ng-i-tel" />
-                          </svg>
-                        </span>
-                        <div>
-                          <b>+34 795 08 98 37</b>
-                          <small>Mar, 21:12 · 1m 31s</small>
-                        </div>
-                        <span className="mx-chip ok">Cita reservada</span>
-                      </div>
+                      {[
+                        {
+                          quien: cliente.telefono,
+                          cuando: "Hoy, 17:02 · 2m 14s",
+                          chip: "Reserva creada",
+                        },
+                        ...r.llamadas.slice(0, 3),
+                      ].map((llamada) => (
+                        <FilaLlamada key={llamada.quien} {...llamada} />
+                      ))}
                     </div>
                   </div>
                 </div>
@@ -679,96 +596,22 @@ export function EnTuNegocioScroll({
                   <span className="mx-btn">Analítica</span>
                 </header>
                 <div className="mx-lista">
-                  <div className="mx-fila">
-                    <span className="mx-ico s">
-                      <svg>
-                        <use href="#ng-i-tel" />
-                      </svg>
-                    </span>
-                    <div>
-                      <b>{nombreCliente}</b>
-                      <small>Hoy, 17:02 · 2m 14s</small>
-                    </div>
-                    <span className="mx-chip ok">Cita reservada</span>
-                  </div>
-                  <div className="mx-fila">
-                    <span className="mx-ico s">
-                      <svg>
-                        <use href="#ng-i-tel" />
-                      </svg>
-                    </span>
-                    <div>
-                      <b>+34 797 80 30 74</b>
-                      <small>Hoy, 13:41 · 1m 02s</small>
-                    </div>
-                    <span className="mx-chip">Consulta de precios</span>
-                  </div>
-                  <div className="mx-fila">
-                    <span className="mx-ico s">
-                      <svg>
-                        <use href="#ng-i-tel" />
-                      </svg>
-                    </span>
-                    <div>
-                      <b>{r.llamadas[1].quien}</b>
-                      <small>Hoy, 11:20 · 1m 48s</small>
-                    </div>
-                    <span className="mx-chip ok">Cita movida</span>
-                  </div>
-                  <div className="mx-fila">
-                    <span className="mx-ico s">
-                      <svg>
-                        <use href="#ng-i-tel" />
-                      </svg>
-                    </span>
-                    <div>
-                      <b>+34 795 08 98 37</b>
-                      <small>Mar, 21:12 · 1m 31s</small>
-                    </div>
-                    <span className="mx-chip ok">Cita reservada</span>
-                  </div>
-                  <div className="mx-fila">
-                    <span className="mx-ico s">
-                      <svg>
-                        <use href="#ng-i-tel" />
-                      </svg>
-                    </span>
-                    <div>
-                      <b>{r.llamadas[3].quien}</b>
-                      <small>Mar, 19:27 · 0m 58s</small>
-                    </div>
-                    <span className="mx-chip ok">Cita reservada</span>
-                  </div>
-                  <div className="mx-fila">
-                    <span className="mx-ico s">
-                      <svg>
-                        <use href="#ng-i-tel" />
-                      </svg>
-                    </span>
-                    <div>
-                      <b>+34 796 21 88 17</b>
-                      <small>Mar, 14:39 · 0m 35s</small>
-                    </div>
-                    <span className="mx-chip">Horario</span>
-                  </div>
-                  <div className="mx-fila">
-                    <span className="mx-ico s">
-                      <svg>
-                        <use href="#ng-i-tel" />
-                      </svg>
-                    </span>
-                    <div>
-                      <b>{r.llamadas[5].quien}</b>
-                      <small>Lun, 10:05 · 1m 12s</small>
-                    </div>
-                    <span className="mx-chip ok">Cita reservada</span>
-                  </div>
+                  {[
+                    {
+                      quien: cliente.telefono,
+                      cuando: "Hoy, 17:02 · 2m 14s",
+                      chip: "Reserva creada",
+                    },
+                    ...r.llamadas.slice(0, 6),
+                  ].map((llamada) => (
+                    <FilaLlamada key={llamada.quien} {...llamada} />
+                  ))}
                 </div>
                 <div className="mx-velo" data-o=".345"></div>
                 <div className="mx-modal" data-a=".35">
                   <div className="mx-modal-cab">
                     <div>
-                      <p className="mx-h2">Hoy, 17:02 · {nombreCliente}</p>
+                      <p className="mx-h2">Hoy, 17:02</p>
                       <p>
                         2m 14s · Completada ·{" "}
                         <svg>
@@ -786,7 +629,7 @@ export function EnTuNegocioScroll({
                   <div className="mx-modal-cuerpo">
                     <div className="mx-col">
                       <div>
-                        <span className="mx-chip ok">Cita reservada</span>
+                        <span className="mx-chip ok">Resuelta</span>
                       </div>
                       <div className="mx-bloque" data-a=".52">
                         <p className="mx-h3">
@@ -805,18 +648,10 @@ export function EnTuNegocioScroll({
                               17:30 – {r.finCita} · con {profesional}
                             </small>
                           </div>
-                          <span className="precio">{servicio.precio} €</span>
                         </div>
-                        <p>Confirmación enviada por WhatsApp a las 17:03.</p>
-                      </div>
-                      <div className="mx-bloque" data-a=".38">
-                        <p className="mx-h3">
-                          <svg>
-                            <use href="#ng-i-msg" />
-                          </svg>
-                          Resumen
+                        <p>
+                          {nombreCliente} · {cliente.telefono}
                         </p>
-                        <p>{r.resumen}</p>
                       </div>
                       <div className="mx-bloque" data-a=".4">
                         <p className="mx-h3">
@@ -841,33 +676,25 @@ export function EnTuNegocioScroll({
                         <svg>
                           <use href="#ng-i-user" />
                         </svg>
-                        Transcripción<span>6 turnos</span>
+                        Transcripción
+                        <span>{r.turnos.length} turnos</span>
                       </p>
                       <div className="mx-turnos">
-                        <div className="mx-turno ag" data-a=".4">
-                          <small>AGENTE</small>
-                          {r.saludo}
-                        </div>
-                        <div className="mx-turno cl" data-a=".43">
-                          <small>CLIENTE</small>
-                          {r.pide}
-                        </div>
-                        <div className="mx-turno ag" data-a=".46">
-                          <small>AGENTE</small>
-                          {r.ofrece}
-                        </div>
-                        <div className="mx-turno cl" data-a=".49">
-                          <small>CLIENTE</small>
-                          {r.franja}
-                        </div>
-                        <div className="mx-turno ag" data-a=".53">
-                          <small>AGENTE</small>
-                          {r.propone}
-                        </div>
-                        <div className="mx-turno cl" data-a=".56">
-                          <small>CLIENTE</small>
-                          {r.acepta}
-                        </div>
+                        {r.turnos.map((turno, i) => (
+                          <div
+                            key={i}
+                            className={`mx-turno ${turno.agente ? "ag" : "cl"}`}
+                            data-pliega=""
+                            // Van apareciendo mientras se lee la llamada.
+                            data-a={(
+                              0.39 +
+                              (0.18 * i) / r.turnos.length
+                            ).toFixed(3)}
+                          >
+                            <small>{turno.agente ? "AGENTE" : "CLIENTE"}</small>
+                            {turno.texto}
+                          </div>
+                        ))}
                       </div>
                     </div>
                   </div>
@@ -881,11 +708,11 @@ export function EnTuNegocioScroll({
                     </svg>
                   </span>
                   <div>
-                    <p className="mx-h1">Tu asistente</p>
+                    <p className="mx-h1">Tu gestor</p>
                     <p>
                       Pregúntale por la agenda y pídele cambios: servicios,
-                      equipo, horario, citas. Es el mismo asistente que te
-                      atiende por WhatsApp.
+                      equipo, horario, citas. Misma conversación que en
+                      WhatsApp.
                     </p>
                   </div>
                   <span className="mx-chip pu mx-beta">Beta</span>
@@ -923,20 +750,32 @@ export function EnTuNegocioScroll({
                       </div>
                       <time>17:05</time>
                     </div>
-                    <div className="mx-msg yo" data-a=".78">
+                    <div className="mx-msg yo" data-a=".77">
                       {r.asistente.orden}
                       <time>17:06</time>
                     </div>
                     <div
                       className="mx-escribiendo"
-                      data-a=".8"
-                      data-hasta=".815"
+                      data-a=".785"
+                      data-hasta=".795"
                     >
                       <i></i>
                       <i></i>
                       <i></i>
                     </div>
-                    <div className="mx-msg bot" data-a=".82">
+                    <div className="mx-msg bot" data-a=".8">
+                      {r.asistente.propuesta}
+                      <div className="mx-botones">
+                        <span>Confirmar</span>
+                        <span>Cancelar</span>
+                      </div>
+                      <time>17:06</time>
+                    </div>
+                    <div className="mx-msg yo" data-a=".83">
+                      Confirmar
+                      <time>17:06</time>
+                    </div>
+                    <div className="mx-msg bot" data-a=".85">
                       {r.asistente.cierre}
                       <div className="mx-hecho">
                         <span>
@@ -962,7 +801,7 @@ export function EnTuNegocioScroll({
                     </div>
                   </div>
                   <div className="mx-escribir">
-                    <span className="mx-campo">Escribe a tu asistente…</span>
+                    <span className="mx-campo">Escribe a tu gestor…</span>
                     <span className="mx-enviar">
                       <svg>
                         <use href="#ng-i-send" />
@@ -1063,6 +902,40 @@ export function EnTuNegocioScroll({
         ))}
       </ol>
     </section>
+  );
+}
+
+/**
+ * Una fila de llamada del panel, como en el panel real
+ * (frontend/src/components/recent-calls.tsx): el número, cuándo y cuánto
+ * duró, y una etiqueta solo si creó o cambió una cita.
+ */
+function FilaLlamada({
+  quien,
+  cuando,
+  chip,
+}: {
+  quien: string;
+  cuando: string;
+  chip: string | null;
+}) {
+  return (
+    <div className="mx-fila">
+      <span className="mx-ico s">
+        <svg>
+          <use href="#ng-i-tel" />
+        </svg>
+      </span>
+      <div>
+        <b>{quien}</b>
+        <small>{cuando}</small>
+      </div>
+      {chip ? (
+        <span className={`mx-chip${chip === "Reserva creada" ? " pu" : ""}`}>
+          {chip}
+        </span>
+      ) : null}
+    </div>
   );
 }
 

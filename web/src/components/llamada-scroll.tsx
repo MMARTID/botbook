@@ -72,7 +72,7 @@ type PasoCopy = {
 
 /** El copy de los tres pasos, con el vocabulario del sector del guion. */
 function pasosDe(g: GuionRelato): [PasoCopy, PasoCopy, PasoCopy] {
-  const { tuCliente, tusClientes, elCliente, alCliente } = g.palabras;
+  const { tuCliente, tusClientes, elCliente } = g.palabras;
   return [
     {
       numero: "01",
@@ -84,7 +84,7 @@ function pasosDe(g: GuionRelato): [PasoCopy, PasoCopy, PasoCopy] {
       detalles: [
         `${tusClientes} marcan el número de siempre`,
         "A cualquier hora, también en festivos",
-        "Resuelve precios, duraciones y horarios con tus datos",
+        "Resuelve dudas de servicios, duraciones y horarios con tus datos",
       ],
     },
     {
@@ -96,7 +96,7 @@ function pasosDe(g: GuionRelato): [PasoCopy, PasoCopy, PasoCopy] {
         "Antes de ofrecer una hora mira tu horario y tu calendario de Google, Outlook o iCloud. Nunca reserva a ciegas ni te monta dos citas a la vez.",
       detalles: [
         "Cuenta lo que dura el servicio y descarta lo ocupado y los huecos cortos",
-        "Elige al profesional adecuado; si no hay sitio, propone el hueco más cercano",
+        "Elige al profesional adecuado; si la hora está ocupada, propone el siguiente hueco libre",
         `Ofrece la hora y solo reserva cuando ${elCliente} dice que sí`,
       ],
     },
@@ -108,8 +108,8 @@ function pasosDe(g: GuionRelato): [PasoCopy, PasoCopy, PasoCopy] {
       texto:
         "Queda apuntada en tu calendario sin que hayas tenido que soltar lo que estabas haciendo.",
       detalles: [
-        `${alCliente} le llega la confirmación por WhatsApp al momento`,
-        "A ti te llega el aviso de la cita nueva",
+        `Si ${elCliente} acepta, le llega la confirmación por WhatsApp`,
+        "Si conectas tu WhatsApp, a ti te avisa de la cita nueva",
         "En tu panel tienes la grabación y la transcripción de la llamada",
       ],
     },
@@ -657,17 +657,13 @@ function PantallaLlamada({ p, r, cliente }: { p: MotionValue<number>; r: Relato;
           <span className={styles.quien}>{cliente}</span>
           {r.pide}
         </Aparece>
-        <Aparece p={p} a={0.16} className={`${styles.burbuja} ${styles.burbujaAlhabla}`}>
+        <Aparece p={p} a={0.17} className={`${styles.burbuja} ${styles.burbujaAlhabla}`}>
           <span className={styles.quien}>Alhabla</span>
           {r.ofrece}
         </Aparece>
-        <Aparece p={p} a={0.22} className={`${styles.burbuja} ${styles.burbujaCliente}`}>
+        <Aparece p={p} a={0.24} className={`${styles.burbuja} ${styles.burbujaCliente}`}>
           <span className={styles.quien}>{cliente}</span>
           {r.franja}
-        </Aparece>
-        <Aparece p={p} a={0.27} className={`${styles.burbuja} ${styles.burbujaAlhabla}`}>
-          <span className={styles.quien}>Alhabla</span>
-          {r.espera}
         </Aparece>
       </div>
       <div className={styles.onda}>
@@ -783,9 +779,6 @@ function PantallaWhatsApp({ p, r, guion }: { p: MotionValue<number>; r: Relato; 
           <br />
           {guion.negocio}
           <span className={styles.waHora}>17:03</span>
-        </Aparece>
-        <Aparece p={p} a={0.71} className={styles.waBoton}>
-          Guardar contacto
         </Aparece>
         <Aparece p={p} a={0.75} className={`${styles.waMensaje} ${styles.waMio}`}>
           ¡Genial, gracias!

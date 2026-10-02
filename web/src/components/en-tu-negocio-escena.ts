@@ -166,6 +166,9 @@ export function montarEscena(
       el,
       a: Number(el.dataset.a),
       hasta: el.dataset.hasta ? Number(el.dataset.hasta) : null,
+      // `data-pliega`: no ocupa sitio hasta que aparece (los turnos de la
+      // transcripción, que van como un chat: el último abajo).
+      pliega: el.hasAttribute("data-pliega"),
     })
   );
   const cifras = todos<HTMLElement>("[data-n]", pantallaHtml).map((el) => ({
@@ -173,10 +176,6 @@ export function montarEscena(
     n: Number(el.dataset.n),
     sufijo: el.dataset.s ?? "",
     a: Number(el.dataset.a),
-  }));
-  const barras = todos<HTMLElement>("[data-b]", pantallaHtml).map((el) => ({
-    el,
-    a: Number(el.dataset.b),
   }));
   const velos = todos<HTMLElement>("[data-o]", pantallaHtml).map((el) => ({
     el,
@@ -383,14 +382,13 @@ export function montarEscena(
       o.el.style.opacity = String(t);
       o.el.style.transform = `translateY(${12 * (1 - t)}px)`;
       o.el.style.display =
-        o.hasta !== null && t === 0 && p > o.hasta ? "none" : "";
+        (o.hasta !== null && t === 0 && p > o.hasta) || (o.pliega && t === 0)
+          ? "none"
+          : "";
     }
     for (const o of cifras) {
       const t = suave(tramo(p, o.a, o.a + 0.07));
       o.el.textContent = miles(Math.round(o.n * t)) + o.sufijo;
-    }
-    for (const o of barras) {
-      o.el.style.transform = `scaleY(${suave(tramo(p, o.a, o.a + 0.03))})`;
     }
     for (const o of velos)
       o.el.style.opacity = String(tramo(p, o.a, o.a + 0.02));

@@ -557,7 +557,7 @@
 }
 .ng-seccion .mx-metricas {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr)) 1.35fr;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   margin-top: 12px;
 }
 .ng-seccion .mx-metrica {
@@ -597,45 +597,6 @@
 .ng-seccion .mx-metrica em svg {
   width: 13px;
   height: 13px;
-}
-.ng-seccion .mx-grafico {
-  padding-left: 18px;
-  border-left: 1px solid #e5e5e5;
-  display: flex;
-  flex-direction: column;
-}
-.ng-seccion .mx-grafico small {
-  font-size: 11px;
-  color: #52525b;
-  font-weight: 600;
-}
-.ng-seccion .mx-barras {
-  flex: 1;
-  display: grid;
-  grid-template-columns: repeat(7, 1fr);
-  gap: 7px;
-  align-items: end;
-  margin-top: 8px;
-  min-height: 70px;
-}
-.ng-seccion .mx-barras i {
-  display: block;
-  height: calc(var(--h) * 100%);
-  border-radius: 5px 5px 2px 2px;
-  background: #ddd0fb;
-  transform-origin: bottom;
-}
-.ng-seccion .mx-barras i.hoy {
-  background: #8b5cf6;
-}
-.ng-seccion .mx-dias {
-  display: grid;
-  grid-template-columns: repeat(7, 1fr);
-  gap: 7px;
-  margin-top: 5px;
-  font-size: 10px;
-  color: #71717a;
-  text-align: center;
 }
 .ng-seccion .mx-dos {
   display: grid;
@@ -917,11 +878,17 @@
   color: #a1a1aa;
   font-size: 11px;
 }
+/* Como un chat: los turnos que aparecen se ponen abajo y los primeros
+   suben y se salen por arriba (la llamada entera no cabe). */
 .ng-seccion .mx-turnos {
+  flex: 1;
   display: flex;
   flex-direction: column;
+  justify-content: flex-end;
   gap: 7px;
+  min-height: 0;
   margin-top: 10px;
+  overflow: hidden;
 }
 .ng-seccion .mx-turno {
   max-width: 86%;
@@ -1020,6 +987,23 @@
 .ng-seccion .mx-tabla .mx-chip {
   height: 19px;
   font-size: 10px;
+}
+/* Los botones del Gestor: propone y no cambia nada hasta «Confirmar». */
+.ng-seccion .mx-botones {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+}
+.ng-seccion .mx-botones span {
+  flex: 1;
+  padding: 5px 8px;
+  border-radius: 9px;
+  background: #fff;
+  text-align: center;
+  font-size: 11px;
+  font-weight: 700;
+  color: #6d28d9;
+  box-shadow: inset 0 0 0 1px #e4d8fd;
 }
 .ng-seccion .mx-hecho {
   display: flex;

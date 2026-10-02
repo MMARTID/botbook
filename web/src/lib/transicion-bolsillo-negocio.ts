@@ -13,9 +13,9 @@
  *   del portátil (`pantallaDelPortatil`). Lo pinta «En tu bolsillo», sobre el
  *   mismo scroll suave que mueve el teléfono: por eso nunca se despegan.
  *   Ese negro es la pantalla de bloqueo del portátil
- *   (`components/pantalla-bloqueo.tsx`): la hora y, una a una, las tres
- *   notificaciones de lo que acaba de pasar en el teléfono (la llamada, la
- *   cita, el WhatsApp), que siguen apareciendo durante el cruce.
+ *   (`components/pantalla-bloqueo.tsx`): la hora y el aviso de WhatsApp de
+ *   la cita nueva que acaba de reservarse por teléfono, el que de verdad le
+ *   llega al dueño.
  * - Cruce: «En tu negocio» solapa a «En tu bolsillo» (margen negativo) y su
  *   escenario fijo se pone encima, con su pantalla negra justo donde acabó el
  *   rectángulo y la cámara quieta. Alrededor aparece, poco a poco, el
@@ -106,17 +106,13 @@ export function vhRelevoDesdeNegocio(p: number): number {
 
 /**
  * Cuándo aparece cada cosa de la pantalla de bloqueo, en vh del relevo
- * (`[empieza, acaba]`): la hora mientras el negro se estira, las tres
- * notificaciones espaciadas entre el estirado y el cruce, y el desbloqueo en
- * la primera mitad del zoom out.
+ * (`[empieza, acaba]`): la hora mientras el negro se estira, el aviso de
+ * WhatsApp de la cita nueva cuando ya tiene la forma de la pantalla del
+ * portátil, y el desbloqueo en la primera mitad del zoom out.
  */
 export const BLOQUEO_VH = {
   reloj: [4, 16],
-  avisos: [
-    [20, 30],
-    [38, 48],
-    [56, 66],
-  ],
+  avisos: [[22, 40]],
   desbloqueo: [
     BOLSILLO_VH.estirado + BOLSILLO_VH.cruce,
     BOLSILLO_VH.estirado + BOLSILLO_VH.cruce + NEGOCIO_VH.zoom * 0.45,
