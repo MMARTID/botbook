@@ -256,7 +256,11 @@ async function enrutarEnNegocios(
     return textoDesconocidoEnNegocios(message);
   }
 
-  // audio / media / other sin subtipo ignorado
+  if (message.kind === "audio") {
+    return audioSinTranscribir(message);
+  }
+
+  // media / other sin subtipo ignorado
   if (message.role === "owner") {
     return resultado(
       `pendiente:${message.kind}`,
@@ -264,6 +268,25 @@ async function enrutarEnNegocios(
     );
   }
   return { handler: `ignorado:${message.kind}` };
+}
+
+/**
+ * Nota de voz que Telnyx no pudo transcribir (si hubiera salido texto,
+ * clasificarEntrante ya la habría convertido en "text" antes de llegar
+ * aquí) — mismo mensaje para dueño y cliente, es lo único que se puede
+ * hacer en los dos lados fuera de texto. Compartida entre los dos
+ * enrutadores (negocios y clientes) para que un futuro cambio de copy no
+ * se quede a medias en uno de los dos.
+ */
+async function audioSinTranscribir(
+  message: InboundMessage
+): Promise<ResultadoEnrutado> {
+  return resultado(
+    "pendiente:audio:sin-transcribir",
+    await responder(message, "audio-no-entendido", mensajes.audioNoEntendido(), {
+      unaVezAlDia: true,
+    })
+  );
 }
 
 async function todaviaNoChateo(message: InboundMessage): Promise<Respuesta> {
@@ -1666,6 +1689,10 @@ async function enrutarEnClientes(
 
   if (message.kind === "text" || message.kind === "keyword") {
     return textoEnClientes(message);
+  }
+
+  if (message.kind === "audio") {
+    return audioSinTranscribir(message);
   }
 
   return { handler: `ignorado:${message.kind}` };

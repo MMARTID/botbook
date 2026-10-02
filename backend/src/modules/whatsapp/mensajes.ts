@@ -105,6 +105,14 @@ export function ayudaDueno(input: {
   ].join("\n");
 }
 
+/** Nota de voz que Telnyx no pudo transcribir (formato raro, caída, sin
+ * voz reconocible). Vale para dueño y cliente: ninguno de los dos "chatea"
+ * todavía fuera de texto, así que pedir que lo escriba es lo único que se
+ * puede hacer en los dos lados. */
+export function audioNoEntendido(): string {
+  return "No he podido entender tu nota de voz. ¿Me lo escribes, por favor?";
+}
+
 export function todaviaNoChateo(input: { panelUrl: string }): string {
   return [
     `Por ahora solo puedo mandarte avisos por aquí; todavía no sé responder a lo que me escribas. Para ver tu agenda o cambiar algo, entra en tu panel: ${input.panelUrl}`,
