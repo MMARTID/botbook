@@ -1,10 +1,10 @@
 "use client";
 
-import { Fragment, useState } from "react";
+import { Fragment } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { CalendarDays, ChevronLeft, ChevronRight, ExternalLink, Phone, Users } from "lucide-react";
-import { getAgenda } from "@/lib/api";
+import { getAgenda, getBookingSettings } from "@/lib/api";
 import { getCalendarState } from "@/lib/calendar-state";
 import { formatPhoneLocal, formatPrice } from "@/lib/format";
 import {
@@ -27,6 +27,7 @@ import { SectionErrorState } from "@/components/section-card";
 import { CabeceraMovil, CLASES_BOTON_REDONDO } from "@/components/movil/cabecera-movil";
 import { HojaCita, finDeCita, importeDeCita, nombreDeCita } from "@/components/movil/hoja-cita";
 import { VacioMovil } from "@/components/movil/piezas";
+import { BotonDeBuscar } from "@/components/movil/buscador-movil";
 
 const POR_PAGINA = 50;
 // El backend no deja pedir más de 60 días atrás: siete semanas caben con
@@ -64,7 +65,6 @@ export function AgendaMovil({ business }: { business: Business }) {
   const ahora = useAhora();
   const hoy = claveDeDia(ahora, timeZone);
   const { aviso, avisar, cerrar } = useAviso();
-  const [citaAbierta, setCitaAbierta] = useState<AgendaBooking | null>(null);
 
   // El día elegido vive en la URL (?dia=): «Ver en la agenda» desde una
   // llamada abre directamente ese día, y atrás vuelve al anterior.
@@ -74,9 +74,20 @@ export function AgendaMovil({ business }: { business: Business }) {
   const maximo = sumarDias(lunesDeHoy, 7 * SEMANAS_ADELANTE + 6);
   const elegido = esClaveValida(pedido) && pedido >= minimo && pedido <= maximo ? pedido : hoy;
   const lunes = lunesDe(elegido);
-  const elegir = (dia: string) => {
-    router.replace(dia === hoy ? pathname : `${pathname}?dia=${dia}`, { scroll: false });
+  const citaId = parametros.get("cita");
+  const profesionalId = parametros.get("pro");
+  // Día, cita abierta y profesional viven en la URL, como en el escritorio:
+  // el buscador y «Ver en la agenda» abren directamente una cita.
+  const actualizar = (cambios: Record<string, string | null>) => {
+    const siguiente = new URLSearchParams(parametros.toString());
+    for (const [clave, valor] of Object.entries(cambios)) {
+      if (valor === null) siguiente.delete(clave);
+      else siguiente.set(clave, valor);
+    }
+    const texto = siguiente.toString();
+    router.replace(texto ? `${pathname}?${texto}` : pathname, { scroll: false });
   };
+  const elegir = (dia: string) => actualizar({ dia: dia === hoy ? null : dia, cita: null });
 
   const consulta = useQuery({
     queryKey: ["agenda-semana", lunes],
@@ -85,8 +96,13 @@ export function AgendaMovil({ business }: { business: Business }) {
     refetchOnWindowFocus: true,
   });
 
+  const ajustes = useQuery({ queryKey: ["booking-settings"], queryFn: getBookingSettings });
+  const profesionales = (ajustes.data?.professionals ?? []).filter((profesional) => profesional.active);
+  const todas = consulta.data ?? [];
+  const citaAbierta = todas.find((cita) => cita.id === citaId) ?? null;
+  const visibles = profesionalId ? todas.filter((cita) => cita.professional?.id === profesionalId) : todas;
   const porDia = new Map<string, AgendaBooking[]>();
-  for (const cita of consulta.data ?? []) {
+  for (const cita of visibles) {
     const clave = claveDeDia(cita.programedAt, timeZone);
     porDia.set(clave, [...(porDia.get(clave) ?? []), cita]);
   }
@@ -102,17 +118,20 @@ export function AgendaMovil({ business }: { business: Business }) {
         titulo="Agenda"
         subtitulo="Las citas que ha reservado tu recepcionista."
         accion={
-          calendario.connected ? (
-            <a
-              href={calendario.webUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              aria-label={`Abrir ${calendario.label}`}
-              className={CLASES_BOTON_REDONDO}
-            >
-              <ExternalLink className="h-[18px] w-[18px]" aria-hidden="true" />
-            </a>
-          ) : null
+          <>
+            <BotonDeBuscar />
+            {calendario.connected ? (
+              <a
+                href={calendario.webUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label={`Abrir ${calendario.label}`}
+                className={CLASES_BOTON_REDONDO}
+              >
+                <ExternalLink className="h-[18px] w-[18px]" aria-hidden="true" />
+              </a>
+            ) : null}
+          </>
         }
       />
 
@@ -181,6 +200,28 @@ export function AgendaMovil({ business }: { business: Business }) {
         })}
       </div>
 
+      {profesionales.length > 1 ? (
+        <div role="radiogroup" aria-label="Profesional" className="-mx-4 mt-3 flex gap-2 overflow-x-auto px-4 [scrollbar-width:none]">
+          {[{ id: null, name: "Todos" }, ...profesionales].map((profesional) => {
+            const elegidoPro = (profesional.id ?? null) === (profesionalId ?? null);
+            return (
+              <button
+                key={profesional.id ?? "todos"}
+                type="button"
+                role="radio"
+                aria-checked={elegidoPro}
+                onClick={() => actualizar({ pro: profesional.id, cita: null })}
+                className={`min-h-11 shrink-0 rounded-full border px-4 text-sm font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-morado ${
+                  elegidoPro ? "border-lavado-borde bg-lavado text-morado-tinta" : "border-linea bg-superficie text-tinta-2"
+                }`}
+              >
+                {profesional.name}
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
+
       <h2 className="mt-[18px] border-t border-linea pb-2 pt-4 text-lg font-bold tracking-[-0.01em] text-tinta">
         {etiquetaDeDia(elegido, hoy)}
         {delDia.length > 0 ? ` · ${delDia.length === 1 ? "1 cita" : `${delDia.length} citas`}` : ""}
@@ -202,7 +243,7 @@ export function AgendaMovil({ business }: { business: Business }) {
             {delDia.map((cita, indice) => (
               <Fragment key={cita.id}>
                 {indice === indiceAhora ? <MarcaAhora hora={horaDelNegocio(ahora, timeZone)} /> : null}
-                <FilaDeCita cita={cita} timeZone={timeZone} pasada={finDeCita(cita) <= ahora} onAbrir={() => setCitaAbierta(cita)} />
+                <FilaDeCita cita={cita} timeZone={timeZone} pasada={finDeCita(cita) <= ahora} onAbrir={() => actualizar({ cita: cita.id })} />
               </Fragment>
             ))}
             {indiceAhora === -1 ? <MarcaAhora hora={horaDelNegocio(ahora, timeZone)} /> : null}
@@ -214,7 +255,13 @@ export function AgendaMovil({ business }: { business: Business }) {
         </>
       )}
 
-      <HojaCita cita={citaAbierta} timeZone={timeZone} calendario={calendario} onCerrar={() => setCitaAbierta(null)} avisar={avisar} />
+      <HojaCita
+        cita={citaAbierta}
+        business={business}
+        onCerrar={() => actualizar({ cita: null })}
+        avisar={avisar}
+        onMovida={(dia) => actualizar({ dia: dia === hoy ? null : dia, cita: null })}
+      />
       {aviso ? <AvisoFlotante aviso={aviso} onClose={cerrar} /> : null}
     </div>
   );
@@ -267,6 +314,7 @@ function FilaDeCita({
             {cita.professional ? ` · ${cita.professional.name}` : ""}
           </span>
           <span className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] font-medium tabular-nums text-apagado">
+            {cita.clientName ? <span className="font-semibold text-tinta-2">{cita.clientName}</span> : null}
             {telefono ? (
               <span className="inline-flex items-center gap-1.5">
                 <Phone className="h-3.5 w-3.5 text-morado-tinta" aria-hidden="true" />

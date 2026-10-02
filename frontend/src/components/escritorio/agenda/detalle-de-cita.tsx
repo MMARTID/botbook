@@ -235,7 +235,10 @@ function horasPosibles(horario: BusinessSchedule | null, dia: string, duracion: 
   return horas;
 }
 
-function FormularioDeMover({
+/** Día, hora (en pasos de 15 min dentro del horario) y profesional, con el
+ * hueco comprobado contra el servidor antes de dejar mover. Lo usan el
+ * detalle de la agenda de escritorio y la hoja de la cita del móvil. */
+export function FormularioDeMover({
   cita,
   timeZone,
   ahora,
@@ -244,6 +247,7 @@ function FormularioDeMover({
   moviendo,
   onMover,
   onCancelar,
+  conTitulo = true,
 }: {
   cita: AgendaBooking;
   timeZone: string;
@@ -253,6 +257,8 @@ function FormularioDeMover({
   moviendo: boolean;
   onMover: (datos: { fechaHora: string; profesionalId?: string }) => void;
   onCancelar: () => void;
+  /** En la hoja del móvil el título ya lo pone la hoja. */
+  conTitulo?: boolean;
 }) {
   const hoy = claveDeDia(ahora, timeZone);
   const [dia, setDia] = useState(() => claveDeDia(cita.programedAt, timeZone));
@@ -281,7 +287,7 @@ function FormularioDeMover({
       className="space-y-3"
       aria-label="Mover la cita"
     >
-      <p className="text-sm font-bold text-tinta">Mover la cita</p>
+      {conTitulo ? <p className="text-sm font-bold text-tinta">Mover la cita</p> : null}
       <div className="grid grid-cols-[1fr_96px] gap-2">
         <label className="text-xs font-semibold text-muted">
           Día
@@ -290,7 +296,7 @@ function FormularioDeMover({
             value={dia}
             min={hoy}
             onChange={(evento) => evento.target.value && setDia(evento.target.value)}
-            className="field mt-1 h-10 w-full px-3 text-sm text-tinta"
+            className="field mt-1 h-11 w-full px-3 text-sm text-tinta"
           />
         </label>
         <label className="text-xs font-semibold text-muted">
@@ -298,7 +304,7 @@ function FormularioDeMover({
           <select
             value={horaValida ?? ""}
             onChange={(evento) => setHora(evento.target.value)}
-            className="field mt-1 h-10 w-full px-2 text-sm tabular-nums text-tinta"
+            className="field mt-1 h-11 w-full px-2 text-sm tabular-nums text-tinta"
             disabled={horas.length === 0}
           >
             {horaValida ? null : <option value="">—</option>}
@@ -316,7 +322,7 @@ function FormularioDeMover({
           <select
             value={profesionalId}
             onChange={(evento) => setProfesionalId(evento.target.value)}
-            className="field mt-1 h-10 w-full px-2 text-sm text-tinta"
+            className="field mt-1 h-11 w-full px-2 text-sm text-tinta"
           >
             <option value="">{cita.professional ? `${cita.professional.name} (la misma)` : "Quien esté libre"}</option>
             {profesionales
@@ -354,10 +360,10 @@ function FormularioDeMover({
       </p>
 
       <div className="flex gap-2">
-        <button type="button" onClick={onCancelar} className="btn-secondary h-10 flex-none px-4">
+        <button type="button" onClick={onCancelar} className="btn-secondary h-11 flex-none px-4">
           Volver
         </button>
-        <button type="submit" disabled={!hueco.isSuccess || igual || moviendo || hueco.isFetching} className="btn-primary h-10 flex-1 px-4">
+        <button type="submit" disabled={!hueco.isSuccess || igual || moviendo || hueco.isFetching} className="btn-primary h-11 flex-1 px-4">
           {moviendo ? "Moviendo…" : horaValida ? `Mover a las ${horaValida}` : "Mover"}
         </button>
       </div>

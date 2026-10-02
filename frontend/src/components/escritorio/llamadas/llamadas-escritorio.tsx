@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import {
@@ -20,55 +20,19 @@ import {
   Smile,
   X,
 } from "lucide-react";
-import { exportarLlamadasCsv, getLlamadas } from "@/lib/api";
+import { getLlamadas } from "@/lib/api";
+import { CANALES, PERIODOS, RESULTADOS, SENTIMIENTOS, consultaDeFiltros, descargarCsv, leerFiltros } from "@/lib/filtros-de-llamadas";
+import { useBusquedaConRetraso } from "@/hooks/use-busqueda-con-retraso";
 import { esChatDeWhatsapp, formatPhoneLocal, formatPrice, sentimentLabel } from "@/lib/format";
-import { claveDeDia, inicioDelDia, sumarDias } from "@/lib/fechas-negocio";
+import { claveDeDia } from "@/lib/fechas-negocio";
 import { momentoCorto, resultadoDeLlamada } from "@/lib/llamadas";
-import type {
-  Business,
-  Call,
-  CallSentiment,
-  CanalDeLlamada,
-  ConsultaDeLlamadas,
-  FiltroDeLlamadas,
-  OrdenDeLlamadas,
-} from "@/lib/types";
+import type { Business, Call, OrdenDeLlamadas } from "@/lib/types";
 import { AvisoFlotante, useAviso } from "@/components/aviso-flotante";
 import { SectionErrorState } from "@/components/section-card";
 import { Insignia } from "@/components/movil/piezas";
 import { TiraDePagina } from "@/components/escritorio/piezas";
 import { DetalleDeLlamada } from "@/components/escritorio/llamadas/detalle-de-llamada";
 
-const RESULTADOS: Array<{ valor: FiltroDeLlamadas; texto: string }> = [
-  { valor: "todas", texto: "Todos los resultados" },
-  { valor: "con_cita", texto: "Con cita" },
-  { valor: "por_devolver", texto: "Recados por devolver" },
-  { valor: "sin_cita", texto: "Sin cita" },
-];
-const CANALES: Array<{ valor: CanalDeLlamada | ""; texto: string }> = [
-  { valor: "", texto: "Voz y WhatsApp" },
-  { valor: "voz", texto: "Solo llamadas" },
-  { valor: "whatsapp", texto: "Solo WhatsApp" },
-];
-const SENTIMIENTOS: Array<{ valor: CallSentiment | ""; texto: string }> = [
-  { valor: "", texto: "Cualquier ánimo" },
-  { valor: "POSITIVE", texto: "Satisfecho" },
-  { valor: "NEUTRAL", texto: "Neutral" },
-  { valor: "NEGATIVE", texto: "Insatisfecho" },
-];
-const PERIODOS = [
-  { valor: "hoy", texto: "Hoy", dias: 1 },
-  { valor: "7", texto: "Últimos 7 días", dias: 7 },
-  { valor: "30", texto: "Últimos 30 días", dias: 30 },
-  { valor: "90", texto: "Últimos 90 días", dias: 90 },
-  { valor: "todo", texto: "Desde el principio", dias: null },
-] as const;
-const ORDENES: ReadonlyArray<{ valor: OrdenDeLlamadas }> = [
-  { valor: "reciente" },
-  { valor: "antigua" },
-  { valor: "mas_larga" },
-  { valor: "mas_corta" },
-];
 const TAMAÑOS = [25, 50, 100];
 const ICONO_DE_ANIMO = { POSITIVE: Smile, NEUTRAL: Meh, NEGATIVE: Frown } as const;
 const TONO_DE_RESULTADO = { morado: "morado", aviso: "aviso", exito: "exito", neutro: "neutro" } as const;
@@ -76,26 +40,6 @@ const TONO_DE_RESULTADO = { morado: "morado", aviso: "aviso", exito: "exito", ne
 function mmss(segundos: number | null) {
   if (segundos == null) return "—";
   return `${Math.floor(segundos / 60)}:${String(segundos % 60).padStart(2, "0")}`;
-}
-
-/** El valor de un parámetro de la URL si es uno de los permitidos. */
-function uno<T extends string>(valor: string | null, opciones: ReadonlyArray<{ valor: T }>, porDefecto: T): T {
-  return opciones.find((opcion) => opcion.valor === valor)?.valor ?? porDefecto;
-}
-
-/** El texto de búsqueda con un respiro antes de ir a la URL (y al servidor). */
-function useBusquedaConRetraso(inicial: string, alCambiar: (valor: string) => void) {
-  const [texto, setTexto] = useState(inicial);
-  const ultimo = useRef(inicial);
-  useEffect(() => {
-    if (texto.trim() === ultimo.current) return;
-    const temporizador = window.setTimeout(() => {
-      ultimo.current = texto.trim();
-      alCambiar(texto.trim());
-    }, 300);
-    return () => window.clearTimeout(temporizador);
-  }, [texto, alCambiar]);
-  return [texto, setTexto] as const;
 }
 
 /**
@@ -113,12 +57,8 @@ export function LlamadasEscritorio({ business }: { business: Business }) {
   const hoy = claveDeDia(new Date(), timeZone);
   const { aviso, avisar, cerrar } = useAviso();
 
-  const filtro = uno(parametros.get("filtro"), RESULTADOS, "todas");
-  const canal = uno(parametros.get("canal"), CANALES, "");
-  const sentimiento = uno(parametros.get("animo"), SENTIMIENTOS, "");
-  const periodo = uno(parametros.get("periodo"), PERIODOS, "30");
-  const orden = uno(parametros.get("orden"), ORDENES, "reciente");
-  const q = parametros.get("q") ?? "";
+  const filtros = leerFiltros(parametros, "30");
+  const { filtro, canal, sentimiento, periodo, orden, q } = filtros;
   const porPagina = TAMAÑOS.includes(Number(parametros.get("por"))) ? Number(parametros.get("por")) : 50;
   const pagina = Math.max(0, Number.parseInt(parametros.get("pagina") ?? "0", 10) || 0);
   const seleccionada = parametros.get("llamada");
@@ -142,18 +82,8 @@ export function LlamadasEscritorio({ business }: { business: Business }) {
     useCallback((valor: string) => actualizar({ q: valor || null }), [actualizar])
   );
 
-  const desde = useMemo(() => {
-    const elegido = PERIODOS.find((p) => p.valor === periodo);
-    return elegido?.dias ? inicioDelDia(sumarDias(hoy, -(elegido.dias - 1)), timeZone) : undefined;
-  }, [periodo, hoy, timeZone]);
-  const consulta: ConsultaDeLlamadas = {
-    filtro,
-    canal: canal || undefined,
-    sentimiento: sentimiento || undefined,
-    desde,
-    q: q.length >= 2 ? q : undefined,
-    orden,
-  };
+  // React Query compara la clave por contenido: no hace falta memorizarla.
+  const consulta = consultaDeFiltros(filtros, hoy, timeZone);
 
   const pedido = useQuery({
     queryKey: ["llamadas-escritorio", consulta, pagina, porPagina],
@@ -193,18 +123,7 @@ export function LlamadasEscritorio({ business }: { business: Business }) {
   const exportar = async () => {
     setExportando(true);
     try {
-      const { blob, nombre, omitidas } = await exportarLlamadasCsv(consulta);
-      const url = URL.createObjectURL(blob);
-      const enlace = document.createElement("a");
-      enlace.href = url;
-      enlace.download = nombre;
-      enlace.click();
-      window.setTimeout(() => URL.revokeObjectURL(url), 1_000);
-      avisar(
-        omitidas > 0
-          ? `Descargadas las 5.000 más recientes; quedan ${omitidas.toLocaleString("es-ES")} fuera. Acota las fechas para el resto.`
-          : "Historial descargado."
-      );
+      avisar(await descargarCsv(consulta));
     } catch {
       avisar("No se pudo exportar el historial. Inténtalo de nuevo.", "error");
     } finally {

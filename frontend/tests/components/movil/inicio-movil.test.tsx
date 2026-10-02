@@ -28,6 +28,10 @@ vi.mock("@/lib/api", () => ({
   marcarRecado: vi.fn(),
   provisionPhoneNumber: vi.fn(),
   resolverCitaPendiente: vi.fn(),
+  getBookingSettings: vi.fn().mockResolvedValue({ professionals: [], services: [] }),
+  moverCita: vi.fn(),
+  cancelarCita: vi.fn(),
+  avisarClienteDeCita: vi.fn(),
 }));
 vi.mock("@/components/providers", () => ({ useBusiness: () => ({ hasToken: true }) }));
 

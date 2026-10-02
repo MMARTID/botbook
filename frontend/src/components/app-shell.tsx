@@ -16,6 +16,7 @@ import {
 import { AvisoFlotante, useAviso } from "@/components/aviso-flotante";
 import { BarraLateral } from "@/components/escritorio/barra-lateral";
 import { Buscador, useAtajosDelEscritorio } from "@/components/escritorio/buscador";
+import { BuscadorMovil, useAlPedirBuscador } from "@/components/movil/buscador-movil";
 import { esPantallaAncha, esPantallaDeTrabajo } from "@/components/escritorio/navegacion";
 
 // Pantallas de cuenta sin el armazón del panel (sin sesión o a medio
@@ -106,6 +107,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const abrirBuscador = useCallback(() => setBuscadorAbierto(true), []);
   const { aviso, avisar, cerrar } = useAviso();
   useAtajosDelEscritorio({ activo: esMovil === false && hasToken === true && conArmazon, onBuscar: abrirBuscador });
+  // La lupa de las cabeceras del móvil.
+  useAlPedirBuscador(abrirBuscador);
   const ancha = esPantallaAncha(pathname);
 
   if (pathname === "/") {
@@ -153,6 +156,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       ) : null}
       {esMovil === false ? (
         <Buscador
+          abierto={buscadorAbierto}
+          onCerrar={() => setBuscadorAbierto(false)}
+          timeZone={business?.timezone || "Europe/Madrid"}
+          avisar={avisar}
+        />
+      ) : esMovil === true && conArmazon ? (
+        <BuscadorMovil
           abierto={buscadorAbierto}
           onCerrar={() => setBuscadorAbierto(false)}
           timeZone={business?.timezone || "Europe/Madrid"}
