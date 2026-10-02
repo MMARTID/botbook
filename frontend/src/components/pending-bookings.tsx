@@ -11,7 +11,7 @@ import type { PendingBooking } from "@/lib/types";
  * Traduce el código técnico del fallo a lo que el negocio necesita saber: si
  * fue culpa de algo que puede arreglar (el calendario) o de un tropiezo puntual.
  */
-function motivo(failureCode: string | null): string {
+export function motivo(failureCode: string | null): string {
   if (!failureCode) return "No se pudo guardar en la agenda durante la llamada.";
   if (failureCode.includes("RECONNECT_REQUIRED")) {
     return "La conexión con tu agenda estaba caducada en ese momento.";

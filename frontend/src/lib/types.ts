@@ -476,6 +476,21 @@ export type CallBooking = {
   }[];
 };
 
+/**
+ * Recado que dejó la recepcionista en una llamada (Lead tipo `message`):
+ * el cliente espera que le devuelvan la llamada. `atendidoAt` null = por
+ * devolver. Opcional en `Call` porque un backend anterior no lo devuelve.
+ */
+export type CallRecado = {
+  id: string;
+  nombre: string | null;
+  telefono: string | null;
+  motivo: string | null;
+  atendidoAt: string | null;
+};
+
+export type FiltroDeLlamadas = "todas" | "con_cita" | "por_devolver";
+
 export type Call = {
   id: string;
   businessId: string;
@@ -507,6 +522,7 @@ export type Call = {
   recording?: Recording | null;
   leads?: Lead[];
   booking?: CallBooking | null;
+  recado?: CallRecado | null;
 };
 
 export type Paginated<T> = {
@@ -514,6 +530,14 @@ export type Paginated<T> = {
   total: number;
   limit: number;
   offset: number;
+};
+
+/** Página del historial de llamadas. `filtro` y `conteos` solo llegan de un
+ * backend que ya sabe de recados (2026-10): sin ellos, la app móvil no
+ * enseña los filtros ni la insignia de «por devolver». */
+export type PaginaDeLlamadas = Paginated<Call> & {
+  filtro?: FiltroDeLlamadas;
+  conteos?: { todas: number; conCita: number; porDevolver: number };
 };
 
 export type OnboardingSteps = {

@@ -101,15 +101,19 @@ export function MarcoDeAjustes({
   // carga o si falla, para que la pantalla no salte ni se quede sin salida.
   const cabecera = (
     <>
+      {/* En la app móvil cada sección es una pantalla de la pestaña Cuenta,
+          con su «‹ Cuenta» en vez de las pestañas de Ajustes. */}
       <AppPageHeader
         icon={Settings}
         title="Ajustes"
         description={DESCRIPCIONES[seccion]}
+        tituloMovil={SECCIONES_DE_AJUSTES.find((item) => item.href === seccion)?.label}
+        volver={seccion === "/ajustes" ? undefined : { href: "/ajustes", etiqueta: "Cuenta" }}
       />
       {/* p-1/-m-1: el overflow-x recortaba el anillo de foco de las pestañas. */}
       <nav
         aria-label="Secciones de ajustes"
-        className="-m-1 flex gap-1 overflow-x-auto p-1"
+        className="-m-1 hidden gap-1 overflow-x-auto p-1 lg:flex"
       >
         {SECCIONES_DE_AJUSTES.map((item) => {
           const activa = (pathname ?? seccion) === item.href;

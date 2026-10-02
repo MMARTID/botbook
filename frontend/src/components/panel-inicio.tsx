@@ -15,12 +15,15 @@ import { StatusStrip } from "@/components/status-strip";
 import { UpcomingBookings } from "@/components/upcoming-bookings";
 import { WeeklySummary } from "@/components/weekly-summary";
 import { AppPageHeader, AppPageSkeleton } from "@/components/app-page-header";
+import { InicioMovil } from "@/components/movil/inicio-movil";
+import { useEsMovil } from "@/hooks/use-es-movil";
 import { LayoutDashboard } from "lucide-react";
 
 function DashboardContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { business, isLoadingBusiness, hasToken, isError: isBusinessError, errorMessage } = useBusiness();
+  const esMovil = useEsMovil();
 
   const [calendarStatus, setCalendarStatus] = useState<{ type: "success" | "error"; message: string } | null>(null);
 
@@ -63,7 +66,7 @@ function DashboardContent() {
     enabled: !!business,
   });
 
-  if (isLoadingBusiness) {
+  if (isLoadingBusiness || esMovil === null) {
     return <AppPageSkeleton label="Cargando tu panel…" />;
   }
 
@@ -93,6 +96,10 @@ function DashboardContent() {
 
   if (!business) {
     return null; // Will redirect to login via useEffect
+  }
+
+  if (esMovil) {
+    return <InicioMovil business={business} avisoDeCalendario={calendarStatus} />;
   }
 
   const agent = business.agents?.[0];

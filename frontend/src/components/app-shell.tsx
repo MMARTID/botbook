@@ -1,36 +1,33 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import {
   Activity,
   Bot,
   CalendarDays,
+  ChevronLeft,
   ChevronRight,
   Clock3,
-  CircleUserRound,
-  Cookie,
   CreditCard,
   LayoutDashboard,
   Loader2,
   LogOut,
-  Menu,
   MessageSquareText,
   PhoneCall,
   Settings,
-  ShieldCheck,
-  X,
   type LucideIcon,
 } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
-import { useFocusTrap } from "@/hooks/use-focus-trap";
 import { BrandMark } from "@/components/brand-mark";
 import { useBusiness } from "@/components/providers";
+import { useEsMovil } from "@/hooks/use-es-movil";
+import { useMinutesWarning } from "@/hooks/use-aviso-de-minutos";
+import {
+  BarraDePestañas,
+  esRutaDePestaña,
+  usePorDevolver,
+} from "@/components/movil/barra-de-pestanas";
 import { clearAuthTokens } from "@/lib/billing-navigation";
-import { getBillingSummary } from "@/lib/api";
-import { webUrl } from "@/lib/web-url";
-import { abrirPreferenciasDeCookies } from "@/components/google-analytics";
 
 type NavItem = {
   href: string;
@@ -50,8 +47,8 @@ const AGENT_NAVIGATION: NavItem[] = [
 ];
 
 // «Tu Gestor» (fase 2 del canal de WhatsApp, Beta): en la barra lateral con
-// la recepcionista; en móvil va en «Más», porque la barra inferior tiene
-// cinco huecos justos.
+// la recepcionista; en móvil se abre desde la pestaña Cuenta, porque la
+// barra inferior tiene cinco huecos justos.
 const GESTOR_NAVIGATION: NavItem[] = [
   { href: "/asistente", label: "Gestor", icon: MessageSquareText, exact: true },
 ];
@@ -149,38 +146,6 @@ function NavGroup({ label, items, pathname }: { label: string; items: NavItem[];
   );
 }
 
-/**
- * Aviso de consumo: cuando queda un 25% o menos de los minutos del plan,
- * el menú enseña un globo advirtiendo de que el excedente se factura como
- * minutos extra. Devuelve null mientras no haya motivo de aviso.
- */
-function useMinutesWarning() {
-  const { hasToken } = useBusiness();
-  const summary = useQuery({
-    queryKey: ["billing-summary"],
-    queryFn: getBillingSummary,
-    enabled: hasToken === true,
-  });
-
-  const data = summary.data;
-  if (!data?.includedMinutes || data.includedMinutes <= 0) return null;
-
-  const remaining = data.includedMinutes - data.consumedMinutes;
-  const remainingPct = Math.max(0, Math.round((remaining / data.includedMinutes) * 100));
-  if (remainingPct > 25) return null;
-
-  const extraPrice = data.extraMinuteCents != null
-    ? `${(data.extraMinuteCents / 100).toFixed(2).replace(".", ",")}€/min`
-    : null;
-
-  return {
-    exhausted: remaining <= 0,
-    remainingPct,
-    remainingMinutes: Math.max(0, remaining),
-    extraPrice,
-  };
-}
-
 function MinutesWarningCard({ onNavigate }: { onNavigate?: () => void }) {
   const warning = useMinutesWarning();
   if (!warning) return null;
@@ -245,47 +210,18 @@ function AccountFooter({ pathname }: { pathname: string }) {
   );
 }
 
-function MobileMoreSheet({ pathname, onClose }: { pathname: string; onClose: () => void }) {
-  const closeRef = useRef<HTMLButtonElement>(null);
-  // Quien devuelve el foco al botón que abrió la hoja es AppShell, que es el
-  // que sobrevive al cierre.
-  const dialogRef = useFocusTrap<HTMLDivElement>({
-    onEscape: onClose,
-    initialFocusRef: closeRef,
-    restoreFocus: false,
-  });
-
+/**
+ * Pantallas de la app móvil que pintan su propia cabecera (CabeceraMovil,
+ * con su «‹ Volver»). El resto de rutas del armazón sin pestañas (pago,
+ * vuelta de OAuth) llevan la cabecera con la marca.
+ */
+function tieneCabeceraPropia(pathname: string) {
   return (
-    <div className="fixed inset-0 z-[70] lg:hidden">
-      <button type="button" aria-label="Cerrar menú" className="absolute inset-0 cursor-default bg-black/30" onClick={onClose} />
-      <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="more-menu-title" className="absolute inset-x-0 bottom-0 max-h-[min(38rem,calc(100dvh-1rem))] overflow-y-auto rounded-t-[2rem] border-t border-[#e5e5e5] bg-white px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-4 shadow-[0_-18px_48px_rgba(0,0,0,0.16)]">
-        <div className="mx-auto h-1.5 w-12 rounded-full bg-[#e5e5e5]" aria-hidden="true" />
-        <div className="mt-4 flex items-center justify-between gap-3">
-          <div>
-            <p id="more-menu-title" className="text-lg font-semibold text-[#0a0a0a]">Cuenta y ayuda</p>
-            <p className="mt-1 text-sm text-muted">Gestiona la cuenta sin salir de la operación diaria.</p>
-          </div>
-          <button ref={closeRef} type="button" onClick={onClose} className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-[#e5e5e5] text-[#27272a] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]" aria-label="Cerrar menú">
-            <X className="h-5 w-5" aria-hidden="true" />
-          </button>
-        </div>
-        <MinutesWarningCard onNavigate={onClose} />
-        <nav className="mt-5 space-y-1" aria-label="Cuenta">
-          {[...GESTOR_NAVIGATION, ...ACCOUNT_NAVIGATION].map((item) => <NavigationLink key={item.href} item={item} pathname={pathname} onNavigate={onClose} />)}
-          <a href={webUrl("/legal/privacidad")} onClick={onClose} className="flex min-h-11 items-center gap-3 rounded-full px-4 text-sm font-semibold text-[#3f3f46] transition hover:bg-[#fafafa] hover:text-[#0a0a0a] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]">
-            <ShieldCheck className="h-4 w-4" aria-hidden="true" /> Privacidad y datos
-          </a>
-          {/* En móvil el botón flotante de cookies taparía la barra inferior:
-              la opción de cambiar la elección vive aquí. */}
-          <button type="button" onClick={() => { onClose(); abrirPreferenciasDeCookies(); }} className="flex min-h-11 w-full items-center gap-3 rounded-full px-4 text-left text-sm font-semibold text-[#3f3f46] transition hover:bg-[#fafafa] hover:text-[#0a0a0a] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]">
-            <Cookie className="h-4 w-4" aria-hidden="true" /> Preferencias de cookies
-          </button>
-          <button type="button" onClick={() => { clearAuthTokens(); window.location.assign("/login"); }} className="flex min-h-11 w-full items-center gap-3 rounded-full px-4 text-left text-sm font-semibold text-[#3f3f46] transition hover:bg-[#fafafa] hover:text-[#0a0a0a] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]">
-            <LogOut className="h-4 w-4" aria-hidden="true" /> Cerrar sesión
-          </button>
-        </nav>
-      </div>
-    </div>
+    esRutaDePestaña(pathname) ||
+    pathname.startsWith("/agente/") ||
+    pathname.startsWith("/ajustes/") ||
+    pathname.startsWith("/llamadas/") ||
+    pathname === "/asistente"
   );
 }
 
@@ -293,14 +229,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const { business, hasToken } = useBusiness();
   const pathname = usePathname();
   const minutesWarning = useMinutesWarning();
-  const [moreOpen, setMoreOpen] = useState(false);
-  const moreTriggerRef = useRef<HTMLButtonElement>(null);
-  const wasMoreOpenRef = useRef(false);
-
-  useEffect(() => {
-    if (wasMoreOpenRef.current && !moreOpen) moreTriggerRef.current?.focus();
-    wasMoreOpenRef.current = moreOpen;
-  }, [moreOpen]);
+  const conPestañas = esRutaDePestaña(pathname);
+  const esMovil = useEsMovil();
+  // La insignia solo existe en la barra de pestañas del móvil.
+  const porDevolver = usePorDevolver(hasToken === true && esMovil === true && !PUBLIC_ROUTES.includes(pathname));
 
   if (pathname === "/") {
     if (hasToken === null) return <div className="flex min-h-screen items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-[#6d28d9]" /></div>;
@@ -325,30 +257,38 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <AccountFooter pathname={pathname} />
       </aside>
       <div className="min-w-0 flex-1">
-        <header className="sticky top-0 z-50 border-b border-[#e5e5e5] bg-white/95 px-4 py-3 backdrop-blur lg:hidden">
-          <div className="flex items-center justify-between gap-3">
+        {/* En móvil cada pantalla trae su cabecera (título grande, «‹ Volver»).
+            Solo el chat del Gestor y las rutas sueltas usan una del armazón. */}
+        {pathname === "/asistente" ? (
+          <header className="sticky top-0 z-50 border-b border-[#e5e5e5] bg-white/95 px-2 pb-1.5 pt-[max(0.5rem,env(safe-area-inset-top))] backdrop-blur lg:hidden">
+            <Link href="/ajustes" className="flex min-h-11 w-fit items-center gap-0.5 rounded-full pl-1 pr-3 text-base font-semibold text-[#0a0a0a] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]">
+              <ChevronLeft className="h-6 w-6" aria-hidden="true" />
+              Cuenta
+            </Link>
+          </header>
+        ) : !tieneCabeceraPropia(pathname) ? (
+          <header className="sticky top-0 z-50 border-b border-[#e5e5e5] bg-white/95 px-4 py-3 backdrop-blur lg:hidden">
             <Link href="/" aria-label="Ir al panel de Alhabla" className="flex min-w-0 items-center gap-2.5 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]">
               <BrandMark className="h-9 w-9 shrink-0" />
               <span className="min-w-0"><span className="block text-sm font-bold leading-4 text-[#0a0a0a]">Alhabla</span><span className="block truncate text-xs leading-4 text-muted">{business?.name ?? "Mi negocio"}</span></span>
             </Link>
-            <button type="button" onClick={() => setMoreOpen(true)} className="relative inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[#e5e5e5] bg-white text-[#27272a] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]" aria-label="Abrir cuenta y ayuda" aria-expanded={moreOpen}>
-              <CircleUserRound className="h-5 w-5" aria-hidden="true" />
-              {minutesWarning ? <span className="absolute right-1.5 top-1.5 h-2.5 w-2.5 rounded-full border-2 border-white bg-[#9f7a15]" aria-hidden="true" /> : null}
-            </button>
-          </div>
-        </header>
-        <main id="main-content" className="mx-auto w-full max-w-[90rem] px-4 py-5 pb-28 sm:px-6 sm:py-8 lg:px-10 lg:py-10 lg:pb-10">{children}</main>
+          </header>
+        ) : null}
+        {/* Por debajo de lg es la app móvil: una columna de 16 px de margen
+            (también en tableta, centrada) para que las cabeceras de pantalla
+            puedan llegar de borde a borde con márgenes negativos. */}
+        <main
+          id="main-content"
+          className={`mx-auto w-full max-w-2xl px-4 py-5 lg:max-w-[90rem] lg:px-10 lg:py-10 lg:pb-10 ${
+            conPestañas ? "pb-[calc(6.5rem+env(safe-area-inset-bottom))]" : "pb-[calc(2rem+env(safe-area-inset-bottom))]"
+          }`}
+        >
+          {children}
+        </main>
       </div>
-      <nav className="fixed inset-x-0 bottom-0 z-50 border-t border-[#e5e5e5] bg-white/95 px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 backdrop-blur lg:hidden" aria-label="Navegación principal">
-        <div className="mx-auto grid max-w-xl grid-cols-5 gap-1">
-          {[...PRIMARY_NAVIGATION, ...AGENT_NAVIGATION].map((item) => <NavigationLink key={item.href} item={item} pathname={pathname} compact />)}
-          <button ref={moreTriggerRef} type="button" onClick={() => setMoreOpen(true)} aria-expanded={moreOpen} className="relative flex min-h-11 flex-col items-center justify-center gap-0.5 rounded-full border border-transparent px-2 text-[11px] font-semibold text-[#3f3f46] transition hover:bg-[#fafafa] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]">
-            <Menu className="h-4 w-4" aria-hidden="true" /> Más
-            {minutesWarning ? <span className="absolute right-2 top-1 h-2 w-2 rounded-full bg-[#9f7a15]" aria-hidden="true" /> : null}
-          </button>
-        </div>
-      </nav>
-      {moreOpen ? <MobileMoreSheet pathname={pathname} onClose={() => setMoreOpen(false)} /> : null}
+      {conPestañas ? (
+        <BarraDePestañas pathname={pathname} porDevolver={porDevolver} avisoDeMinutos={minutesWarning !== null} />
+      ) : null}
     </div>
   );
 }

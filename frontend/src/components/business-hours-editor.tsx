@@ -33,7 +33,7 @@ export const DEFAULT_BUSINESS_SCHEDULE: BusinessSchedule = {
   },
 };
 
-function isBusinessSchedule(value: unknown): value is BusinessSchedule {
+export function isBusinessSchedule(value: unknown): value is BusinessSchedule {
   if (!value || typeof value !== "object") return false;
   const candidate = value as Partial<BusinessSchedule>;
   return candidate.version === 1 && Boolean(candidate.week) && DAYS.every(({ key }) => Boolean(candidate.week?.[key]));
@@ -71,21 +71,21 @@ export function getScheduleSummary(schedule: BusinessSchedule): string {
 
 /** Excepciones de hoy en adelante, ordenadas. Las pasadas se conservan en el
  * horario guardado pero no se enseñan: solo serían ruido. */
-function upcomingExceptions(schedule: BusinessSchedule): ScheduleException[] {
+export function upcomingExceptions(schedule: BusinessSchedule): ScheduleException[] {
   const hoy = localDateString(new Date());
   return (schedule.exceptions ?? [])
     .filter((exception) => exception.date >= hoy)
     .sort((izquierda, derecha) => izquierda.date.localeCompare(derecha.date));
 }
 
-function localDateString(date: Date): string {
+export function localDateString(date: Date): string {
   // La fecha local del usuario, no la UTC: a las 23:30 en Madrid, toISOString
   // ya devuelve el día siguiente y el festivo de hoy desaparecería de la lista.
   const desfase = date.getTimezoneOffset() * 60_000;
   return new Date(date.getTime() - desfase).toISOString().slice(0, 10);
 }
 
-function formatExceptionDate(date: string): string {
+export function formatExceptionDate(date: string): string {
   const [year, month, day] = date.split("-").map(Number);
   return new Intl.DateTimeFormat("es-ES", {
     weekday: "long",

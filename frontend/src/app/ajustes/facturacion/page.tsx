@@ -101,6 +101,7 @@ export default function BillingSettingsPage() {
         icon={CreditCard}
         title="Plan y facturación"
         description="Tu suscripción, el consumo de minutos y tus facturas."
+        volver={{ href: "/ajustes", etiqueta: "Cuenta" }}
       />
 
       {summary.isLoading ? (

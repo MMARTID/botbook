@@ -7,16 +7,20 @@ import { BarChart3, PhoneCall } from "lucide-react";
 import { CallsActivity } from "@/components/calls-activity";
 import { useBusiness } from "@/components/providers";
 import { AppPageHeader, AppPageSkeleton } from "@/components/app-page-header";
+import { LlamadasMovil } from "@/components/movil/llamadas-movil";
+import { useEsMovil } from "@/hooks/use-es-movil";
 
 export default function CallsPage() {
   const router = useRouter();
   const { hasToken, isLoadingBusiness } = useBusiness();
+  const esMovil = useEsMovil();
 
   useEffect(() => {
     if (hasToken === false) router.replace("/login");
   }, [hasToken, router]);
 
-  if (isLoadingBusiness) return <AppPageSkeleton label="Cargando llamadas…" />;
+  if (isLoadingBusiness || esMovil === null) return <AppPageSkeleton label="Cargando llamadas…" />;
+  if (esMovil) return <LlamadasMovil />;
 
   return (
     <div className="space-y-6">

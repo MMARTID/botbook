@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { AlertTriangle, CheckCircle2, X } from "lucide-react";
 
 export type Aviso = { type: "success" | "error"; message: string };
@@ -56,4 +56,15 @@ export function AvisoFlotante({ aviso, onClose }: { aviso: Aviso; onClose: () =>
       </div>
     </div>
   );
+}
+
+/** Estado de un aviso flotante: `avisar` lo enseña, `cerrar` lo quita. */
+export function useAviso() {
+  const [aviso, setAviso] = useState<Aviso | null>(null);
+  const avisar = useCallback(
+    (message: string, type: Aviso["type"] = "success") => setAviso({ type, message }),
+    []
+  );
+  const cerrar = useCallback(() => setAviso(null), []);
+  return { aviso, avisar, cerrar };
 }
