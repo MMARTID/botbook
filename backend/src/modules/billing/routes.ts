@@ -5,6 +5,7 @@ import { CreateCheckoutSessionSchema } from "./schemas.js";
 import {
   createCheckoutSession,
   createCustomerPortalSession,
+  estadoDelCupoDeFundador,
   getBillingSummary,
   handleStripeEvent,
   reconcileCheckoutSession,
@@ -21,6 +22,23 @@ const standardRateLimit = {
 };
 
 export const billingRoutes: FastifyPluginAsync = async (fastify) => {
+  // Pública y sin sesión: la web enseña el precio de fundador tachando el
+  // vigente, y solo mientras quedan plazas. Devuelve únicamente el recuento.
+  fastify.get(
+    "/fundadores",
+    { config: { rateLimit: standardRateLimit } },
+    async (_request, reply) => {
+      try {
+        const cupo = await estadoDelCupoDeFundador();
+        reply.header("Cache-Control", "public, max-age=60");
+        return reply.send(cupo);
+      } catch (error) {
+        fastify.log.error({ err: error }, "[Billing] No se pudo contar el cupo de fundadores");
+        return reply.status(500).send({ error: "No se pudo consultar el cupo de fundadores" });
+      }
+    },
+  );
+
   fastify.get(
     "/summary",
     { preValidation: [fastify.authenticate], config: { rateLimit: standardRateLimit } },
