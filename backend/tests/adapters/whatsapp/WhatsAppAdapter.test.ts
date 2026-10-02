@@ -280,6 +280,28 @@ describe("WhatsAppAdapter", () => {
     expect(params.language).toBeUndefined();
   });
 
+  // Regresión real de producción (2026-10-02): Telnyx valida el formato por
+  // la EXTENSIÓN del nombre de archivo, no por el Content-Type — un
+  // filename sin extensión devolvía 400 "Invalid file format" pese a traer
+  // un `type` perfectamente válido. Verificado a mano contra la API real
+  // antes de este fix.
+  it.each([
+    ["audio/ogg; codecs=opus", "audio.ogg"], // nota de voz estándar de WhatsApp
+    ["audio/aac", "audio.m4a"], // WhatsApp en algunos Android
+    ["audio/mpeg", "audio.mpeg"],
+  ])(
+    "le da al archivo un nombre CON la extensión correcta para %s, no solo el Content-Type",
+    async (mimeType, expectedFilename) => {
+      mockedTranscribe.mockResolvedValue({ text: "ok" });
+
+      await adapter.transcribirAudio(Buffer.from("audio-fake"), mimeType);
+
+      const [params] = mockedTranscribe.mock.calls.at(-1)!;
+      expect(params.file.name).toBe(expectedFilename);
+      expect(params.file.type).toBe(mimeType);
+    }
+  );
+
   it("devuelve cadena vacía (no null) si Telnyx no reconoce voz en el audio", async () => {
     mockedTranscribe.mockResolvedValue({ text: undefined });
 
