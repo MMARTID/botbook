@@ -1066,19 +1066,20 @@ describe("texto libre, audio y medios en el número de negocios", () => {
         entrante({ kind: "audio", text: null, role: "owner" })
       )
     ).toEqual({
-      handler: "pendiente:audio:silenciado",
+      handler: "pendiente:audio:sin-transcribir:silenciado",
     });
   });
 
-  it("desconocido: presentación una vez; audio de desconocido se ignora", async () => {
+  it("audio sin transcribir: mismo aviso para dueño o desconocido, no se ignora (mejora 2026-10-02)", async () => {
     expect(await enrutarEntrante(texto("hola"))).toEqual({
       handler: "texto:desconocido",
     });
     expect(enviado()?.body).toBe(mensajes.desconocidoEnNegocios());
     expect(
       await enrutarEntrante(entrante({ kind: "audio", text: null }))
-    ).toEqual({ handler: "ignorado:audio" });
-    expect(mockedEnviarTexto).toHaveBeenCalledTimes(1);
+    ).toEqual({ handler: "pendiente:audio:sin-transcribir" });
+    expect(enviado(1)?.body).toBe(mensajes.audioNoEntendido());
+    expect(mockedEnviarTexto).toHaveBeenCalledTimes(2);
   });
 });
 
@@ -1168,6 +1169,13 @@ describe("número de clientes", () => {
       handler: "texto:desconocido",
     });
     expect(enviado(1)?.body).toBe(mensajes.desconocidoEnClientes());
+  });
+
+  it("audio sin transcribir de un cliente ya no se ignora: recibe el mismo aviso que el dueño (mejora 2026-10-02)", async () => {
+    expect(
+      await enrutarEntrante(enClientes({ kind: "audio", text: null }))
+    ).toEqual({ handler: "pendiente:audio:sin-transcribir" });
+    expect(enviado()?.body).toBe(mensajes.audioNoEntendido());
   });
 
   it("el texto de un cliente conocido pasa por la recepcionista por chat y, si atiende, ahí acaba", async () => {
