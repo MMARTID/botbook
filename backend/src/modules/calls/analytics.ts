@@ -17,6 +17,9 @@ export type CallAnalytics = {
   byHour: Array<{ hour: number; count: number }>;
   /** Llamadas por día de la semana local (1 = lunes … 7 = domingo). */
   byWeekday: Array<{ weekday: number; count: number }>;
+  /** El cruce de los dos anteriores, para el mapa de calor del escritorio.
+   * Solo celdas con actividad. */
+  byWeekdayHour: Array<{ weekday: number; hour: number; count: number }>;
   topServices: Array<{ service: string; count: number }>;
 };
 
@@ -128,12 +131,16 @@ export async function getCallAnalytics(
 
   const hourCounts = new Map<number, number>();
   const weekdayCounts = new Map<number, number>();
+  // Clave `día * 100 + hora`: 523 = viernes a las 23.
+  const cellCounts = new Map<number, number>();
   for (const { startedAt } of callTimes) {
     const hour = Number.parseInt(hourFormatter.format(startedAt), 10) % 24;
     hourCounts.set(hour, (hourCounts.get(hour) ?? 0) + 1);
     const weekday = WEEKDAY_INDEX[weekdayFormatter.format(startedAt)];
     if (weekday) {
       weekdayCounts.set(weekday, (weekdayCounts.get(weekday) ?? 0) + 1);
+      const cell = weekday * 100 + hour;
+      cellCounts.set(cell, (cellCounts.get(cell) ?? 0) + 1);
     }
   }
 
@@ -165,6 +172,13 @@ export async function getCallAnalytics(
     byWeekday: [...weekdayCounts.entries()]
       .map(([weekday, count]) => ({ weekday, count }))
       .sort((a, b) => a.weekday - b.weekday),
+    byWeekdayHour: [...cellCounts.entries()]
+      .sort(([a], [b]) => a - b)
+      .map(([cell, count]) => ({
+        weekday: Math.floor(cell / 100),
+        hour: cell % 100,
+        count,
+      })),
     topServices: serviceGroups
       .map((group) => ({
         service: group.requestedService as string,

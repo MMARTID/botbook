@@ -309,9 +309,11 @@ describe("GET /business/me/calls/analytics — gating por plan Scale", () => {
         { requestedService: "Corte", _count: { _all: 2 } },
       ] as any);
     // 16:00Z en septiembre = 18:00 en Madrid.
+    // 07:30Z del sábado 12 = 09:30 en Madrid.
     mockedCallFindMany.mockResolvedValue([
       { startedAt: new Date("2026-09-10T16:00:00Z") },
       { startedAt: new Date("2026-09-10T16:30:00Z") },
+      { startedAt: new Date("2026-09-12T07:30:00Z") },
     ] as any);
     mockedBookingCount.mockResolvedValueOnce(1).mockResolvedValueOnce(0);
     mockedLeadCount.mockResolvedValue(3);
@@ -329,8 +331,18 @@ describe("GET /business/me/calls/analytics — gating por plan Scale", () => {
       bookings: 1,
       waitlistLeads: 3,
     });
-    expect(body.byHour).toEqual([{ hour: 18, count: 2 }]);
-    expect(body.byWeekday).toEqual([{ weekday: 4, count: 2 }]); // jueves
+    expect(body.byHour).toEqual([
+      { hour: 9, count: 1 },
+      { hour: 18, count: 2 },
+    ]);
+    expect(body.byWeekday).toEqual([
+      { weekday: 4, count: 2 }, // jueves
+      { weekday: 6, count: 1 }, // sábado
+    ]);
+    expect(body.byWeekdayHour).toEqual([
+      { weekday: 4, hour: 18, count: 2 },
+      { weekday: 6, hour: 9, count: 1 },
+    ]);
     expect(body.topServices).toEqual([{ service: "Corte", count: 2 }]);
   });
 });

@@ -24,6 +24,8 @@ import { ACCIONES_DE_INFORMACION } from "./accionesInformacion.js";
  */
 
 export const ACCION_CADUCA_MS = 24 * 60 * 60 * 1000;
+/** `error` de una propuesta que se cerró porque llegó otra después. */
+export const MOTIVO_SUSTITUIDA = "sustituida por otra propuesta";
 const LOCK_ACCION_TTL_MS = 120_000;
 const LOCK_ACCION_ESPERA_MS = 20_000;
 
@@ -241,7 +243,7 @@ export async function registrarPropuesta(input: {
         confirmedAt: null,
         rejectedAt: null,
       },
-      data: { rejectedAt: new Date(), error: "sustituida por otra propuesta" },
+      data: { rejectedAt: new Date(), error: MOTIVO_SUSTITUIDA },
     });
     if (sustituidas.count > 0) {
       console.log(

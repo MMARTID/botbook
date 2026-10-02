@@ -5,6 +5,7 @@ import {
   resumenWhatsappDelDueno,
 } from "./altaDueno.js";
 import {
+  cambiosDelGestor,
   decidirEnElPanel,
   historialDelGestor,
   preguntarAlGestor,
@@ -134,6 +135,27 @@ export async function whatsappRoutes(fastify: FastifyInstance) {
         return reply
           .status(500)
           .send({ error: "No se pudo cargar el chat con el asistente" });
+      }
+    }
+  );
+
+  // «Cambios del gestor» del escritorio: qué propuso y qué pasó con cada
+  // propuesta en los últimos 30 días.
+  fastify.get(
+    "/business/me/gestor/cambios",
+    { preValidation: [fastify.authenticate] },
+    async (request: FastifyRequest, reply) => {
+      try {
+        const cambios = await cambiosDelGestor(request.user!.businessId);
+        return reply.send({ cambios });
+      } catch (error) {
+        fastify.log.error(
+          { err: error },
+          "[Gestor] No se pudo cargar el registro de cambios"
+        );
+        return reply
+          .status(500)
+          .send({ error: "No se pudo cargar el registro de cambios" });
       }
     }
   );
