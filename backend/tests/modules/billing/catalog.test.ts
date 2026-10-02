@@ -1,5 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { BILLING_PLANS, getPlanByPriceId } from "../../../src/modules/billing/catalog.js";
+import {
+  BILLING_PLANS,
+  getAllFounderPriceIds,
+  getFounderPriceId,
+  getPlanByPriceId,
+} from "../../../src/modules/billing/catalog.js";
 
 describe("BILLING_PLANS", () => {
   it("mantiene los precios de minutos extra aprobados", () => {
@@ -35,5 +40,26 @@ describe("getPlanByPriceId con precio de fundador", () => {
 
   it("no reconoce un precio que no es de ningún plan", () => {
     expect(getPlanByPriceId("price_de_otra_cosa")).toBeUndefined();
+  });
+});
+
+describe("precio de fundador", () => {
+  const ORIGINAL_ENV = { ...process.env };
+
+  afterEach(() => {
+    process.env = { ...ORIGINAL_ENV };
+  });
+
+  it("getFounderPriceId devuelve undefined si no hay precio de fundador configurado", () => {
+    delete process.env.STRIPE_PRICE_INICIO_FOUNDER;
+    expect(getFounderPriceId("inicio")).toBeUndefined();
+  });
+
+  it("getAllFounderPriceIds solo incluye los planes con precio de fundador configurado", () => {
+    process.env.STRIPE_PRICE_INICIO_FOUNDER = "price_fundador_inicio";
+    delete process.env.STRIPE_PRICE_PRO_FOUNDER;
+    delete process.env.STRIPE_PRICE_SCALE_FOUNDER;
+
+    expect(getAllFounderPriceIds()).toEqual(["price_fundador_inicio"]);
   });
 });
