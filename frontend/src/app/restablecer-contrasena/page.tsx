@@ -14,7 +14,7 @@ function InvalidLink() {
   return (
     <div className="space-y-4 text-center">
       <BrandMark className="mx-auto h-14 w-14" />
-      <h1 className="text-3xl font-black tracking-tight text-[#0a0a0a]">Este enlace ya no sirve</h1>
+      <h1 className="text-3xl font-black tracking-tight text-tinta">Este enlace ya no sirve</h1>
       <p className="mx-auto max-w-md text-sm leading-6 text-muted">
         Los enlaces caducan en 1 hora y solo se pueden usar una vez. Pide uno nuevo y lo tendrás en tu
         correo en unos segundos.
@@ -70,7 +70,7 @@ function ResetForm({ token }: { token: string }) {
     <>
       <div className="space-y-4 text-center">
         <BrandMark className="mx-auto h-14 w-14" />
-        <h1 className="text-3xl font-black tracking-tight text-[#0a0a0a]">Crea una contraseña nueva</h1>
+        <h1 className="text-3xl font-black tracking-tight text-tinta">Crea una contraseña nueva</h1>
         <p className="mx-auto max-w-md text-sm leading-6 text-muted">
           Al guardarla entrarás directamente en tu panel.
         </p>
@@ -78,7 +78,7 @@ function ResetForm({ token }: { token: string }) {
 
       <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
         <div>
-          <label htmlFor="reset-password" className="text-sm font-medium text-[#27272a]">
+          <label htmlFor="reset-password" className="text-sm font-medium text-tinta-2">
             Contraseña nueva
           </label>
           <input
@@ -100,7 +100,7 @@ function ResetForm({ token }: { token: string }) {
           </p>
         </div>
 
-        <p className="min-h-5 text-sm text-[#c53030]" role="alert">
+        <p className="min-h-5 text-sm text-error" role="alert">
           {error}
         </p>
 

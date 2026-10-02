@@ -43,14 +43,14 @@ export function FilaLlamada({
   const contenido = (
     <span className="flex min-h-[72px] items-start gap-3 py-3">
       <span
-        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#f3eeff] text-[#8b5cf6]"
+        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-lavado text-morado"
         aria-hidden="true"
       >
         {esChatDeWhatsapp(call) ? <MessageCircle className="h-[18px] w-[18px]" /> : <PhoneCall className="h-[18px] w-[18px]" />}
       </span>
       <span className="min-w-0 flex-1">
         <span className="flex items-baseline justify-between gap-2">
-          <span className="truncate text-[15px] font-bold tabular-nums text-[#0a0a0a]">
+          <span className="truncate text-[15px] font-bold tabular-nums text-tinta">
             {formatPhoneLocal(call.fromNumber) ?? "Número oculto"}
           </span>
           <span className="shrink-0 text-xs text-muted">{momento}</span>
@@ -75,7 +75,7 @@ export function FilaLlamada({
       <button
         type="button"
         onClick={onAbrir}
-        className={`w-full text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#8b5cf6] ${deslizable ? "px-4" : ""}`}
+        className={`w-full text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-morado ${deslizable ? "px-4" : ""}`}
       >
         {contenido}
       </button>
@@ -89,7 +89,7 @@ export function FilaLlamada({
         aria-hidden={!accionVisible}
         tabIndex={accionVisible ? undefined : -1}
         onClick={() => onAccionVisible?.(false)}
-        className="absolute inset-y-0 right-0 flex flex-col items-center justify-center gap-1 bg-[#0a0a0a] text-sm font-bold text-white"
+        className="absolute inset-y-0 right-0 flex flex-col items-center justify-center gap-1 bg-tinta text-sm font-bold text-sobre-tinta"
         style={{ width: ANCHO_ACCION }}
       >
         <Phone className="h-5 w-5" aria-hidden="true" />
@@ -134,7 +134,7 @@ export function FilaLlamada({
           }
           onAbrir();
         }}
-        className="relative block w-full touch-pan-y bg-white px-4 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#8b5cf6]"
+        className="relative block w-full touch-pan-y bg-superficie px-4 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-morado"
         style={{
           transform: `translateX(${desplazamiento}px)`,
           transition: arrastre === null ? "transform 220ms cubic-bezier(.32,.72,0,1)" : "none",

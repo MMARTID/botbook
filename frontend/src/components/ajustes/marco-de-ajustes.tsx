@@ -123,10 +123,10 @@ export function MarcoDeAjustes({
               key={item.href}
               href={item.href}
               aria-current={activa ? "page" : undefined}
-              className={`inline-flex h-11 shrink-0 items-center gap-2 rounded-full border px-4 text-sm font-semibold transition duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] ${
+              className={`inline-flex h-11 shrink-0 items-center gap-2 rounded-full border px-4 text-sm font-semibold transition duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-morado ${
                 activa
-                  ? "border-[#0a0a0a] bg-[#0a0a0a] text-white"
-                  : "border-[#e5e5e5] bg-white text-[#27272a] hover:border-[#0a0a0a] hover:bg-[#fafafa]"
+                  ? "border-tinta bg-tinta text-sobre-tinta"
+                  : "border-linea bg-superficie text-tinta-2 hover:border-tinta hover:bg-relleno"
               }`}
             >
               <Icon className="h-4 w-4" aria-hidden="true" />
@@ -144,8 +144,8 @@ export function MarcoDeAjustes({
         {cabecera}
         <div role="status" className="space-y-4">
           <span className="sr-only">Cargando ajustes…</span>
-          <div className="h-56 rounded-3xl border border-[#e5e5e5] bg-[#fafafa] motion-safe:animate-pulse" aria-hidden="true" />
-          <div className="h-40 rounded-3xl border border-[#e5e5e5] bg-[#fafafa] motion-safe:animate-pulse" aria-hidden="true" />
+          <div className="h-56 rounded-3xl border border-linea bg-relleno motion-safe:animate-pulse" aria-hidden="true" />
+          <div className="h-40 rounded-3xl border border-linea bg-relleno motion-safe:animate-pulse" aria-hidden="true" />
         </div>
       </div>
     );
@@ -192,7 +192,7 @@ export function FeedbackMessage({ value }: { value: Feedback }) {
       role="status"
       aria-live="polite"
       className={`min-w-0 text-sm leading-6 ${
-        value?.type === "success" ? "text-[#2c7334]" : "text-[#c53030]"
+        value?.type === "success" ? "text-exito" : "text-error"
       }`}
     >
       {value?.message ?? ""}

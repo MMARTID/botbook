@@ -25,7 +25,7 @@ function ElegirPlanContent() {
       className="flex min-h-screen items-center justify-center px-4 text-sm text-muted"
       role="status"
     >
-      <Loader2 className="mr-2 h-4 w-4 animate-spin text-[#8b5cf6]" aria-hidden="true" />
+      <Loader2 className="mr-2 h-4 w-4 animate-spin text-morado" aria-hidden="true" />
       Preparando tu plan…
     </div>
   );

@@ -46,12 +46,12 @@ export default function GoogleCallbackPage() {
   }, []);
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-white px-4">
+    <div className="flex min-h-screen items-center justify-center bg-superficie px-4">
       <div className="panel w-full max-w-md p-6 text-center sm:p-8">
         <BrandMark className="mx-auto h-14 w-14" />
         {error ? (
           <>
-            <h1 className="mt-6 text-2xl font-black tracking-tight text-[#0a0a0a]">No pudimos iniciar sesión</h1>
+            <h1 className="mt-6 text-2xl font-black tracking-tight text-tinta">No pudimos iniciar sesión</h1>
             <p className="mt-3 text-sm leading-6 text-muted">{error}</p>
             {accountNotFound ? (
               <a href={webUrl("/register")} className="btn-primary mt-6 w-full">
@@ -65,8 +65,8 @@ export default function GoogleCallbackPage() {
           </>
         ) : (
           <div role="status">
-            <LoaderCircle className="mx-auto mt-7 h-7 w-7 animate-spin text-[#8b5cf6]" aria-hidden="true" />
-            <h1 className="mt-4 text-2xl font-black tracking-tight text-[#0a0a0a]">Completando el acceso</h1>
+            <LoaderCircle className="mx-auto mt-7 h-7 w-7 animate-spin text-morado" aria-hidden="true" />
+            <h1 className="mt-4 text-2xl font-black tracking-tight text-tinta">Completando el acceso</h1>
             <p className="mt-3 text-sm text-muted">Estamos preparando tu cuenta de Alhabla.</p>
           </div>
         )}

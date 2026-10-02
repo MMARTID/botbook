@@ -93,14 +93,14 @@ export function DetalleDeCita({
       onCerrar={onCerrar}
       ancho={360}
     >
-      <p className="text-[15px] font-bold text-[#0a0a0a]">
+      <p className="text-[15px] font-bold text-tinta">
         {diaLargo(dia)} · {horaDelNegocio(cita.programedAt, timeZone)} – {horaDelNegocio(finDeCita(cita), timeZone)}
       </p>
       <p className="mt-0.5 text-sm text-muted">
         {cita.durationMinutes} min{importe != null ? ` · ${formatPrice(importe)}` : ""}
       </p>
 
-      <dl className="mt-3 divide-y divide-[#f4f4f5] rounded-2xl border border-[#e5e5e5] bg-[#fafafa] px-3.5">
+      <dl className="mt-3 divide-y divide-linea-suave rounded-2xl border border-linea bg-relleno px-3.5">
         <DatoDeDetalle termino="Profesional">{cita.professional?.name ?? "Cualquiera disponible"}</DatoDeDetalle>
         <DatoDeDetalle termino="Cliente">{cita.clientName ?? "Sin nombre"}</DatoDeDetalle>
         <DatoDeDetalle termino="Teléfono" numerico>
@@ -126,12 +126,12 @@ export function DetalleDeCita({
         </div>
       ) : null}
 
-      <div className="mt-4 rounded-2xl border border-dashed border-[#e5e5e5] px-3.5 py-3 text-sm leading-6 text-muted">
+      <div className="mt-4 rounded-2xl border border-dashed border-linea px-3.5 py-3 text-sm leading-6 text-muted">
         {origenDeLaCita(cita, timeZone)}
         {cita.origen ? (
           <Link
             href={`/llamadas?llamada=${encodeURIComponent(cita.callId)}`}
-            className="mt-1 flex min-h-9 items-center gap-1 font-semibold text-[#6d28d9] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]"
+            className="mt-1 flex min-h-9 items-center gap-1 font-semibold text-morado-tinta focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-morado"
           >
             {cita.origen.canal === "whatsapp" ? "Ver el chat" : "Ver la llamada"}
             <ArrowRight className="h-4 w-4" aria-hidden="true" />
@@ -140,7 +140,7 @@ export function DetalleDeCita({
       </div>
 
       {!pasada ? (
-        <div className="mt-5 border-t border-[#e5e5e5] pt-4">
+        <div className="mt-5 border-t border-linea pt-4">
           {moviendoFormulario ? (
             <FormularioDeMover
               cita={cita}
@@ -166,7 +166,7 @@ export function DetalleDeCita({
               <button
                 type="button"
                 onClick={() => setConfirmarCancelacion(true)}
-                className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-[10px] border border-[#f5d3d3] bg-white px-3 text-sm font-semibold text-[#c53030] transition hover:bg-[#fff1f1] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]"
+                className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-[10px] border border-error-borde bg-superficie px-3 text-sm font-semibold text-error transition hover:bg-error-fondo focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-morado"
               >
                 <X className="h-4 w-4" aria-hidden="true" />
                 Cancelar cita
@@ -184,7 +184,7 @@ export function DetalleDeCita({
           href={calendario.webUrl}
           target="_blank"
           rel="noopener noreferrer"
-          className="mt-4 flex min-h-10 items-center gap-1.5 text-sm font-semibold text-[#6d28d9] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]"
+          className="mt-4 flex min-h-10 items-center gap-1.5 text-sm font-semibold text-morado-tinta focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-morado"
         >
           Abrir {calendario.label}
           <ExternalLink className="h-4 w-4" aria-hidden="true" />
@@ -208,7 +208,7 @@ export function DetalleDeCita({
                 setConfirmarCancelacion(false);
               }}
               disabled={cancelando}
-              className="inline-flex h-10 items-center justify-center gap-2 rounded-[10px] bg-[#c53030] px-4 text-sm font-semibold text-white transition hover:bg-[#a82828] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] focus-visible:ring-offset-2 disabled:opacity-60"
+              className="inline-flex h-10 items-center justify-center gap-2 rounded-[10px] bg-peligro px-4 text-sm font-semibold text-white transition hover:bg-peligro-hondo focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-morado focus-visible:ring-offset-2 disabled:opacity-60"
             >
               {cancelando ? "Cancelando…" : "Sí, cancelar la cita"}
             </button>
@@ -281,7 +281,7 @@ function FormularioDeMover({
       className="space-y-3"
       aria-label="Mover la cita"
     >
-      <p className="text-sm font-bold text-[#0a0a0a]">Mover la cita</p>
+      <p className="text-sm font-bold text-tinta">Mover la cita</p>
       <div className="grid grid-cols-[1fr_96px] gap-2">
         <label className="text-xs font-semibold text-muted">
           Día
@@ -290,7 +290,7 @@ function FormularioDeMover({
             value={dia}
             min={hoy}
             onChange={(evento) => evento.target.value && setDia(evento.target.value)}
-            className="field mt-1 h-10 w-full px-3 text-sm text-[#0a0a0a]"
+            className="field mt-1 h-10 w-full px-3 text-sm text-tinta"
           />
         </label>
         <label className="text-xs font-semibold text-muted">
@@ -298,7 +298,7 @@ function FormularioDeMover({
           <select
             value={horaValida ?? ""}
             onChange={(evento) => setHora(evento.target.value)}
-            className="field mt-1 h-10 w-full px-2 text-sm tabular-nums text-[#0a0a0a]"
+            className="field mt-1 h-10 w-full px-2 text-sm tabular-nums text-tinta"
             disabled={horas.length === 0}
           >
             {horaValida ? null : <option value="">—</option>}
@@ -316,7 +316,7 @@ function FormularioDeMover({
           <select
             value={profesionalId}
             onChange={(evento) => setProfesionalId(evento.target.value)}
-            className="field mt-1 h-10 w-full px-2 text-sm text-[#0a0a0a]"
+            className="field mt-1 h-10 w-full px-2 text-sm text-tinta"
           >
             <option value="">{cita.professional ? `${cita.professional.name} (la misma)` : "Quien esté libre"}</option>
             {profesionales
@@ -332,23 +332,23 @@ function FormularioDeMover({
 
       <p className="flex min-h-6 items-start gap-1.5 text-sm leading-6" role="status">
         {horas.length === 0 ? (
-          <span className="text-[#806012]">Ese día el negocio está cerrado.</span>
+          <span className="text-aviso">Ese día el negocio está cerrado.</span>
         ) : igual ? (
           <span className="text-muted">Elige otro día u otra hora.</span>
         ) : hueco.isFetching ? (
           <>
-            <LoaderCircle className="mt-1 h-4 w-4 shrink-0 animate-spin text-[#8b5cf6]" aria-hidden="true" />
+            <LoaderCircle className="mt-1 h-4 w-4 shrink-0 animate-spin text-morado" aria-hidden="true" />
             <span className="text-muted">Comprobando el hueco…</span>
           </>
         ) : hueco.isError ? (
           <>
-            <TriangleAlert className="mt-1 h-4 w-4 shrink-0 text-[#c53030]" aria-hidden="true" />
-            <span className="text-[#c53030]">{mensajeDeLaRespuesta(hueco.error, "No se ha podido comprobar ese hueco.")}</span>
+            <TriangleAlert className="mt-1 h-4 w-4 shrink-0 text-error" aria-hidden="true" />
+            <span className="text-error">{mensajeDeLaRespuesta(hueco.error, "No se ha podido comprobar ese hueco.")}</span>
           </>
         ) : hueco.isSuccess ? (
           <>
-            <Check className="mt-1 h-4 w-4 shrink-0 text-[#2c7334]" aria-hidden="true" />
-            <span className="font-semibold text-[#2c7334]">Hueco libre</span>
+            <Check className="mt-1 h-4 w-4 shrink-0 text-exito" aria-hidden="true" />
+            <span className="font-semibold text-exito">Hueco libre</span>
           </>
         ) : null}
       </p>

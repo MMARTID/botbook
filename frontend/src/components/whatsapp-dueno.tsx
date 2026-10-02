@@ -60,19 +60,19 @@ const BADGES: Record<
 > = {
   activo: {
     texto: "Activo",
-    clases: "bg-[#ecf7ec] text-[#2c7334] ring-[#d8efd7]",
+    clases: "bg-exito-fondo text-exito ring-exito-borde",
   },
   pendiente: {
     texto: "Pendiente de activar",
-    clases: "bg-[#fef8e7] text-[#806012] ring-[#f0dfa8]",
+    clases: "bg-aviso-fondo text-aviso ring-aviso-borde",
   },
   sin_whatsapp: {
     texto: "Sin WhatsApp",
-    clases: "bg-[#fff1f1] text-[#c53030] ring-[#f5d3d3]",
+    clases: "bg-error-fondo text-error ring-error-borde",
   },
   baja: {
     texto: "Avisos desactivados",
-    clases: "bg-[#f4f4f5] text-[#52525b] ring-[#e5e5e5]",
+    clases: "bg-relleno-fuerte text-apagado ring-linea",
   },
 };
 
@@ -459,7 +459,7 @@ export function WhatsappDueno({ business, hasToken }: WhatsappDuenoProps) {
         <TextoDeEstado estado={estado} numero={numeroFormateado} />
       ) : (
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-sm leading-6 text-[#c53030]">
+          <p className="text-sm leading-6 text-error">
             No se pudo comprobar el estado de WhatsApp.
           </p>
           <button
@@ -479,7 +479,7 @@ export function WhatsappDueno({ business, hasToken }: WhatsappDuenoProps) {
           guardar(movil);
         }}
       >
-        <label className="block text-sm font-semibold text-[#27272a]">
+        <label className="block text-sm font-semibold text-tinta-2">
           Tu móvil con WhatsApp
           <input
             ref={campoRef}
@@ -516,14 +516,14 @@ export function WhatsappDueno({ business, hasToken }: WhatsappDuenoProps) {
           {movilError ? (
             <span
               id={errorId}
-              className="mt-1 block text-xs font-normal leading-5 text-[#c53030]"
+              className="mt-1 block text-xs font-normal leading-5 text-error"
             >
               {movilError}
             </span>
           ) : movilAviso ? (
             <span
               id="settings-owner-whatsapp-aviso"
-              className="mt-1 block text-xs font-normal leading-5 text-[#806012]"
+              className="mt-1 block text-xs font-normal leading-5 text-aviso"
             >
               {movilAviso}
             </span>
@@ -585,7 +585,7 @@ export function WhatsappDueno({ business, hasToken }: WhatsappDuenoProps) {
                 guardarMutation.mutate(null);
               }}
               disabled={ocupado}
-              className="inline-flex h-12 items-center justify-center gap-2 rounded-[10px] px-4 text-sm font-semibold text-[#52525b] transition duration-200 hover:bg-[#fafafa] hover:text-[#c53030] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] disabled:cursor-not-allowed disabled:opacity-60"
+              className="inline-flex h-12 items-center justify-center gap-2 rounded-[10px] px-4 text-sm font-semibold text-apagado transition duration-200 hover:bg-relleno hover:text-error focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-morado disabled:cursor-not-allowed disabled:opacity-60"
             >
               <Trash2 className="h-4 w-4" aria-hidden="true" />
               Quitar el móvil
@@ -611,7 +611,7 @@ export function WhatsappDueno({ business, hasToken }: WhatsappDuenoProps) {
 
       {estado && status !== "sin_numero" ? (
         <div className="space-y-2">
-          <label className="flex min-h-11 cursor-pointer items-start gap-3 rounded-[10px] border border-[#e5e5e5] p-3 text-sm text-[#27272a] has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-[#8b5cf6] has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-60">
+          <label className="flex min-h-11 cursor-pointer items-start gap-3 rounded-[10px] border border-linea p-3 text-sm text-tinta-2 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-morado has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-60">
             <input
               type="checkbox"
               checked={estado.avisoPorReserva}
@@ -621,7 +621,7 @@ export function WhatsappDueno({ business, hasToken }: WhatsappDuenoProps) {
                 avisoMutation.mutate(event.target.checked);
               }}
               aria-describedby="settings-owner-whatsapp-aviso-hint"
-              className="mt-1 accent-[#8b5cf6]"
+              className="mt-1 accent-morado"
             />
             <span>
               <span className="font-semibold">
@@ -641,12 +641,12 @@ export function WhatsappDueno({ business, hasToken }: WhatsappDuenoProps) {
 
       <div className="space-y-2" id="conversaciones">
         <div className="flex items-center gap-2">
-          <h3 className="text-sm font-semibold text-[#0a0a0a]">
+          <h3 className="text-sm font-semibold text-tinta">
             Conversaciones
           </h3>
           <span className="badge-soft">Beta</span>
         </div>
-        <label className="flex min-h-11 cursor-pointer items-start gap-3 rounded-[10px] border border-[#e5e5e5] p-3 text-sm text-[#27272a] has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-[#8b5cf6] has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-60">
+        <label className="flex min-h-11 cursor-pointer items-start gap-3 rounded-[10px] border border-linea p-3 text-sm text-tinta-2 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-morado has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-60">
           <input
             type="checkbox"
             checked={business.ownerChatEnabled !== false}
@@ -659,7 +659,7 @@ export function WhatsappDueno({ business, hasToken }: WhatsappDuenoProps) {
               });
             }}
             aria-describedby="settings-gestor-hint"
-            className="mt-1 accent-[#8b5cf6]"
+            className="mt-1 accent-morado"
           />
           <span>
             <span className="font-semibold">
@@ -673,7 +673,7 @@ export function WhatsappDueno({ business, hasToken }: WhatsappDuenoProps) {
             </span>
           </span>
         </label>
-        <label className="flex min-h-11 cursor-pointer items-start gap-3 rounded-[10px] border border-[#e5e5e5] p-3 text-sm text-[#27272a] has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-[#8b5cf6] has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-60">
+        <label className="flex min-h-11 cursor-pointer items-start gap-3 rounded-[10px] border border-linea p-3 text-sm text-tinta-2 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-morado has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-60">
           <input
             type="checkbox"
             checked={business.clientChatEnabled !== false}
@@ -686,7 +686,7 @@ export function WhatsappDueno({ business, hasToken }: WhatsappDuenoProps) {
               });
             }}
             aria-describedby="settings-chat-clientes-hint"
-            className="mt-1 accent-[#8b5cf6]"
+            className="mt-1 accent-morado"
           />
           <span>
             <span className="font-semibold">
@@ -739,7 +739,7 @@ function TextoDeEstado({
         <div className="space-y-1 text-sm leading-6 text-muted">
           <p>
             Recibes los avisos en{" "}
-            <span className="font-semibold text-[#27272a]">{numero}</span>.
+            <span className="font-semibold text-tinta-2">{numero}</span>.
             {desde ? ` Activado el ${desde}.` : ""}
           </p>
           <p className="text-xs leading-5">
@@ -755,7 +755,7 @@ function TextoDeEstado({
         ? fechaLarga(estado.unreachableAt, false)
         : null;
       return (
-        <p className="text-sm leading-6 text-[#c53030]">
+        <p className="text-sm leading-6 text-error">
           No hemos podido entregar el mensaje en {numero}
           {cuando ? ` (el ${cuando})` : ""}: parece que no tiene WhatsApp.
           Revisa el número o escribe otro móvil.
@@ -792,8 +792,8 @@ function BloqueAlta({
 }) {
   const caduca = fechaLarga(alta.expiresAt, false);
   return (
-    <div className="rounded-2xl border border-[#e5e5e5] bg-[#fafafa] p-4 sm:p-5">
-      <h3 className="text-sm font-semibold text-[#0a0a0a]">
+    <div className="rounded-2xl border border-linea bg-relleno p-4 sm:p-5">
+      <h3 className="text-sm font-semibold text-tinta">
         Actívalo desde tu móvil
       </h3>
       <p className="mt-1 text-sm leading-6 text-muted">
@@ -803,7 +803,7 @@ function BloqueAlta({
       </p>
       <div className="mt-3 flex flex-col gap-4 sm:flex-row sm:items-start">
         <div className="min-w-0 flex-1 space-y-3">
-          <p className="rounded-[10px] border border-[#e5e5e5] bg-white px-4 py-3 font-mono text-base font-semibold tracking-wide text-[#0a0a0a]">
+          <p className="rounded-[10px] border border-linea bg-superficie px-4 py-3 font-mono text-base font-semibold tracking-wide text-tinta">
             {alta.text}
           </p>
           <div className="flex flex-col gap-2 sm:flex-row">
@@ -823,7 +823,7 @@ function BloqueAlta({
               className="btn-secondary"
             >
               {copiado ? (
-                <Check className="h-4 w-4 text-[#2c7334]" aria-hidden="true" />
+                <Check className="h-4 w-4 text-exito" aria-hidden="true" />
               ) : (
                 <Copy className="h-4 w-4" aria-hidden="true" />
               )}
@@ -837,7 +837,8 @@ function BloqueAlta({
           ) : null}
         </div>
         <div className="hidden shrink-0 sm:block">
-          <div className="rounded-xl border border-[#e5e5e5] bg-white p-3">
+          {/* Blanco también en oscuro: un QR necesita fondo claro para leerse. */}
+          <div className="rounded-xl border border-linea bg-white p-3">
             <QRCodeSVG
               value={alta.link}
               size={160}

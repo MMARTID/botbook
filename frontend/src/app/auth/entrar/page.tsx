@@ -53,7 +53,7 @@ function EntrarContent() {
       <main className="flex min-h-screen items-center justify-center px-4">
         <div role="alert" className="panel w-full max-w-md p-6 text-center sm:p-8">
           <BrandMark className="mx-auto h-14 w-14" />
-          <h1 className="mt-6 text-2xl font-black tracking-tight text-[#0a0a0a]">No hemos podido abrir tu sesión</h1>
+          <h1 className="mt-6 text-2xl font-black tracking-tight text-tinta">No hemos podido abrir tu sesión</h1>
           <p className="mt-3 text-sm leading-6 text-muted">
             {error} Tu cuenta está creada: entra con tu email y contraseña.
           </p>
@@ -72,7 +72,7 @@ function EntrarContent() {
 
   return (
     <div className="flex min-h-screen items-center justify-center px-4 text-sm text-muted" role="status">
-      <Loader2 className="mr-2 h-4 w-4 animate-spin text-[#8b5cf6]" aria-hidden="true" />
+      <Loader2 className="mr-2 h-4 w-4 animate-spin text-morado" aria-hidden="true" />
       Abriendo tu cuenta…
     </div>
   );

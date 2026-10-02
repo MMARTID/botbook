@@ -37,8 +37,8 @@ export function AvisoFlotante({ aviso, onClose }: { aviso: Aviso; onClose: () =>
         role={exito ? "status" : "alert"}
         className={`aviso-entrada pointer-events-auto flex w-full max-w-md items-center gap-3 rounded-2xl border py-1.5 pl-4 pr-1.5 shadow-[0_12px_32px_rgba(0,0,0,0.12)] ${
           exito
-            ? "border-[#d8efd7] bg-[#ecf7ec] text-[#2c7334]"
-            : "border-[#f5d3d3] bg-[#fff1f1] text-[#c53030]"
+            ? "border-exito-borde bg-exito-fondo text-exito"
+            : "border-error-borde bg-error-fondo text-error"
         }`}
       >
         <Icono className="h-5 w-5 shrink-0" aria-hidden="true" />
@@ -47,8 +47,8 @@ export function AvisoFlotante({ aviso, onClose }: { aviso: Aviso; onClose: () =>
           type="button"
           onClick={onClose}
           aria-label="Cerrar aviso"
-          className={`inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full transition duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] ${
-            exito ? "hover:bg-[#d8efd7]" : "hover:bg-[#f5d3d3]"
+          className={`inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full transition duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-morado ${
+            exito ? "hover:bg-exito-borde" : "hover:bg-error-borde"
           }`}
         >
           <X className="h-4 w-4" aria-hidden="true" />

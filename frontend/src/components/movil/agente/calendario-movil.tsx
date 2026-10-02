@@ -102,7 +102,7 @@ export function CalendarioMovil({ business }: { business: Business }) {
           <p
             role="status"
             className={`rounded-[14px] border px-4 py-3 text-sm font-medium ${
-              mensaje.type === "success" ? "border-[#d8efd7] bg-[#ecf7ec] text-[#2c7334]" : "border-[#f5d3d3] bg-[#fff1f1] text-[#c53030]"
+              mensaje.type === "success" ? "border-exito-borde bg-exito-fondo text-exito" : "border-error-borde bg-error-fondo text-error"
             }`}
           >
             {mensaje.message}
@@ -111,11 +111,11 @@ export function CalendarioMovil({ business }: { business: Business }) {
 
         {conectado ? (
           <>
-            <div className="flex items-center gap-3 rounded-[20px] border border-[#d8efd7] bg-[#ecf7ec] px-4 py-3.5">
-              <CircleCheckBig className="h-6 w-6 shrink-0 text-[#2c7334]" aria-hidden="true" />
+            <div className="flex items-center gap-3 rounded-[20px] border border-exito-borde bg-exito-fondo px-4 py-3.5">
+              <CircleCheckBig className="h-6 w-6 shrink-0 text-exito" aria-hidden="true" />
               <div className="min-w-0">
-                <p className="text-[15px] font-bold text-[#2c7334]">{estado.label} conectado</p>
-                <p className="truncate text-[13px] text-[#2c7334]">{estado.accountEmail ?? `Cuenta de ${estado.shortLabel}`}</p>
+                <p className="text-[15px] font-bold text-exito">{estado.label} conectado</p>
+                <p className="truncate text-[13px] text-exito">{estado.accountEmail ?? `Cuenta de ${estado.shortLabel}`}</p>
               </div>
             </div>
             {estado.provider === "caldav" ? (
@@ -145,7 +145,7 @@ export function CalendarioMovil({ business }: { business: Business }) {
               <div className="flex flex-col gap-2">
                 {calendarios.isLoading ? <p className="px-1 text-sm text-muted">Cargando calendarios…</p> : null}
                 {calendarios.isError && !reconectar ? (
-                  <p className="px-1 text-sm text-[#c53030]">No se pudo obtener la lista de calendarios. Inténtalo de nuevo en unos segundos.</p>
+                  <p className="px-1 text-sm text-error">No se pudo obtener la lista de calendarios. Inténtalo de nuevo en unos segundos.</p>
                 ) : null}
                 {calendarios.data?.calendars.length === 0 ? (
                   <p className="px-1 text-sm text-muted">No hay calendarios disponibles en esta cuenta.</p>
@@ -159,16 +159,16 @@ export function CalendarioMovil({ business }: { business: Business }) {
                       aria-pressed={elegido}
                       disabled={elegir.isPending}
                       onClick={() => elegir.mutate(calendario.id)}
-                      className={`flex min-h-14 w-full items-center justify-between gap-3 rounded-2xl border px-3.5 py-2.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] disabled:opacity-60 ${
-                        elegido ? "border-[#8b5cf6] bg-[#f3eeff]" : "border-[#e5e5e5] bg-white"
+                      className={`flex min-h-14 w-full items-center justify-between gap-3 rounded-2xl border px-3.5 py-2.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-morado disabled:opacity-60 ${
+                        elegido ? "border-morado bg-lavado" : "border-linea bg-superficie"
                       }`}
                     >
                       <span className="min-w-0">
-                        <span className="block truncate text-[15px] font-semibold text-[#0a0a0a]">{calendario.name}</span>
+                        <span className="block truncate text-[15px] font-semibold text-tinta">{calendario.name}</span>
                         {calendario.primary ? <span className="block text-[13px] text-muted">Calendario principal</span> : null}
                       </span>
                       <span
-                        className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full ${elegido ? "bg-[#8b5cf6] text-white" : "bg-[#f4f4f5] text-transparent"}`}
+                        className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full ${elegido ? "bg-morado text-white" : "bg-relleno-fuerte text-transparent"}`}
                         aria-hidden="true"
                       >
                         <Check className="h-3.5 w-3.5" />
@@ -199,7 +199,7 @@ export function CalendarioMovil({ business }: { business: Business }) {
               onClick={() => void autorizar("outlook")}
             />
             <TarjetaDeProveedor
-              icono={<SiApple className="h-[18px] w-[18px] shrink-0" color="#0a0a0a" />}
+              icono={<SiApple className="h-[18px] w-[18px] shrink-0 text-tinta" color="currentColor" />}
               titulo="Conecta el calendario de Apple"
               texto="Si llevas la agenda en el iPhone o en iCloud, conéctala con tu Apple ID y una contraseña de aplicación."
               accion={formularioApple ? "Cerrar" : "Conectar"}
@@ -245,16 +245,16 @@ function TarjetaDeProveedor({
       onClick={onClick}
       disabled={disabled}
       aria-expanded={expandida}
-      className="relative mt-1.5 flex min-h-24 w-full flex-col gap-1.5 rounded-2xl border border-[#ddd6fe] bg-[#f3eeff] p-4 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] focus-visible:ring-offset-2 disabled:opacity-60"
+      className="relative mt-1.5 flex min-h-24 w-full flex-col gap-1.5 rounded-2xl border border-lavado-borde bg-lavado p-4 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-morado focus-visible:ring-offset-2 disabled:opacity-60"
     >
       {/* Beta: la app de Google sigue en revisión y Apple es nuevo. */}
       {beta ? <BetaPill /> : null}
-      <span className="flex items-center gap-2 text-base font-bold text-[#0a0a0a]">
+      <span className="flex items-center gap-2 text-base font-bold text-tinta">
         {icono}
         {titulo}
       </span>
       <span className="text-sm leading-6 text-muted">{texto}</span>
-      <span className="inline-flex items-center gap-1 text-sm font-bold text-[#6d28d9]">
+      <span className="inline-flex items-center gap-1 text-sm font-bold text-morado-tinta">
         {accion}
         <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
       </span>

@@ -592,7 +592,7 @@ export default function RegisterBusinessPage() {
             src="/animations/landing/GoogleMaposIcon.json"
             className="mx-auto h-16 w-16"
           />
-          <h1 className="text-3xl font-black tracking-tight text-[#0a0a0a]">
+          <h1 className="text-3xl font-black tracking-tight text-tinta">
             ¿Cuál es tu negocio?
           </h1>
           <p className="mx-auto max-w-md text-sm leading-6 text-muted">
@@ -602,13 +602,13 @@ export default function RegisterBusinessPage() {
         </div>
 
         {locationStatus === "detecting" ? (
-          <div className="mt-8 flex items-center justify-center gap-2 rounded-2xl border border-[#e5e5e5] bg-[#fafafa] px-4 py-3 text-sm text-muted">
-            <LoaderCircle className="h-4 w-4 animate-spin text-[#8b5cf6]" />
+          <div className="mt-8 flex items-center justify-center gap-2 rounded-2xl border border-linea bg-relleno px-4 py-3 text-sm text-muted">
+            <LoaderCircle className="h-4 w-4 animate-spin text-morado" />
             Detectando tu ubicación para buscar cerca de ti…
           </div>
         ) : locationStatus === "fallback" ? (
           <div className="mt-8">
-            <label htmlFor="register-business-country" className="text-sm font-medium text-[#27272a]">
+            <label htmlFor="register-business-country" className="text-sm font-medium text-tinta-2">
               País del negocio
             </label>
             <select
@@ -634,7 +634,7 @@ export default function RegisterBusinessPage() {
 
         <div className="relative mt-4">
           <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
-            <Search className="h-5 w-5 text-[#a1a1aa]" />
+            <Search className="h-5 w-5 text-tenue" />
           </div>
           {/* El placeholder desaparece al escribir y no lo anuncia ningún
               lector de pantalla: la etiqueta va aparte, oculta a la vista
@@ -657,18 +657,18 @@ export default function RegisterBusinessPage() {
           />
           {loading && !selected && (
             <div className="absolute inset-y-0 right-0 flex items-center pr-3">
-              <LoaderCircle className="h-5 w-5 animate-spin text-[#8b5cf6]" />
+              <LoaderCircle className="h-5 w-5 animate-spin text-morado" />
             </div>
           )}
 
           {results.length > 0 && !selected && (
-            <ul className="absolute z-10 mt-2 max-h-72 w-full overflow-auto rounded-2xl border border-[#e5e5e5] bg-white shadow-lg">
+            <ul className="absolute z-10 mt-2 max-h-72 w-full overflow-auto rounded-2xl border border-linea bg-superficie shadow-lg">
               {results.map((place) => (
                 <li key={place.placeId}>
                   <button
                     type="button"
                     onClick={() => handleSelect(place)}
-                    className="flex w-full items-center gap-3 px-3 py-2.5 text-left transition hover:bg-[#fafafa] focus-visible:bg-[#fafafa] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#8b5cf6]"
+                    className="flex w-full items-center gap-3 px-3 py-2.5 text-left transition hover:bg-relleno focus-visible:bg-relleno focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-morado"
                   >
                     {place.photoUrl ? (
                       // eslint-disable-next-line @next/next/no-img-element -- imagen remota de Google Places, tamaño dinámico por resultado.
@@ -679,12 +679,12 @@ export default function RegisterBusinessPage() {
                         className="h-14 w-14 shrink-0 rounded-xl object-cover"
                       />
                     ) : (
-                      <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-[#f3eeff] text-[#8b5cf6]">
+                      <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-lavado text-morado">
                         <Building2 className="h-5 w-5" />
                       </span>
                     )}
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-semibold text-[#27272a]">
+                      <p className="truncate text-sm font-semibold text-tinta-2">
                         {place.name}
                       </p>
                       {place.address && (
@@ -704,7 +704,7 @@ export default function RegisterBusinessPage() {
           role={errorBusqueda ? "alert" : "status"}
           className={
             errorBusqueda
-              ? "mt-2 text-sm text-[#c53030]"
+              ? "mt-2 text-sm text-error"
               : sinResultados && !loading && !selected
                 ? "mt-2 text-sm leading-6 text-muted"
                 : "sr-only"
@@ -719,11 +719,11 @@ export default function RegisterBusinessPage() {
         </p>
 
         {selected && (
-          <div className="mt-6 space-y-4 rounded-2xl border border-[#e5e5e5] bg-[#fafafa] p-5">
+          <div className="mt-6 space-y-4 rounded-2xl border border-linea bg-relleno p-5">
             <div className="flex items-start gap-3">
-              <Building2 className="mt-0.5 h-5 w-5 text-[#8b5cf6]" />
+              <Building2 className="mt-0.5 h-5 w-5 text-morado" />
               <div>
-                <p className="text-sm font-semibold text-[#27272a]">
+                <p className="text-sm font-semibold text-tinta-2">
                   {selected.name}
                 </p>
                 {selected.address && (
@@ -741,7 +741,7 @@ export default function RegisterBusinessPage() {
               </div>
             </div>
             <div className="flex items-start gap-3">
-              <CalendarClock className="mt-0.5 h-5 w-5 text-[#8b5cf6]" />
+              <CalendarClock className="mt-0.5 h-5 w-5 text-morado" />
               <div className="text-sm text-muted">
                 {summaryLines.length > 0 ? (
                   <ul className="space-y-0.5">
@@ -757,15 +757,15 @@ export default function RegisterBusinessPage() {
           </div>
         )}
 
-        <div className="mt-6 rounded-2xl border border-[#e5e5e5] p-5">
+        <div className="mt-6 rounded-2xl border border-linea p-5">
           <div className="flex items-start gap-3">
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#f3eeff] text-[#8b5cf6]">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-lavado text-morado">
               <PhoneForwarded className="h-5 w-5" aria-hidden="true" />
             </span>
             <div className="min-w-0 flex-1">
               <h3
                 id="register-customer-line-title"
-                className="text-sm font-semibold text-[#27272a]"
+                className="text-sm font-semibold text-tinta-2"
               >
                 ¿A qué número te llaman tus clientes?
               </h3>
@@ -788,7 +788,7 @@ export default function RegisterBusinessPage() {
             <div className="mt-4">
               <label
                 htmlFor="register-customer-line-number"
-                className="text-sm font-medium text-[#27272a]"
+                className="text-sm font-medium text-tinta-2"
               >
                 {ETIQUETA_DE_LINEA[tipoDeLinea].label}
               </label>
@@ -813,7 +813,7 @@ export default function RegisterBusinessPage() {
               {lineaErrorVisible ? (
                 <p
                   id="register-customer-line-error"
-                  className="mt-1 text-xs leading-5 text-[#c53030]"
+                  className="mt-1 text-xs leading-5 text-error"
                 >
                   {lineaErrorVisible}
                 </p>
@@ -832,9 +832,9 @@ export default function RegisterBusinessPage() {
                   // El error «…o desmarca la casilla» deja de tener sentido.
                   if (lineaError) setLineaError("");
                 }}
-                className="mt-0.5 h-4 w-4 shrink-0 accent-[#8b5cf6] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] focus-visible:ring-offset-2"
+                className="mt-0.5 h-4 w-4 shrink-0 accent-morado focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-morado focus-visible:ring-offset-2"
               />
-              <span className="text-sm text-[#27272a]">
+              <span className="text-sm text-tinta-2">
                 Mándame los avisos a este mismo móvil
                 <span className="mt-0.5 block text-xs leading-5 text-muted">
                   Cada reserva y cada recado te llegarán por WhatsApp a ese
@@ -853,9 +853,9 @@ export default function RegisterBusinessPage() {
                   setTelefoniaTocada(true);
                   setOcultarNumero(event.target.checked);
                 }}
-                className="mt-0.5 h-4 w-4 shrink-0 accent-[#8b5cf6] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] focus-visible:ring-offset-2"
+                className="mt-0.5 h-4 w-4 shrink-0 accent-morado focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-morado focus-visible:ring-offset-2"
               />
-              <span className="text-sm text-[#27272a]">
+              <span className="text-sm text-tinta-2">
                 No des mi número a los clientes
                 <span className="mt-0.5 block text-xs leading-5 text-muted">
                   Tu recepcionista no lo dirá: que dejen recado y les llamas
@@ -866,7 +866,7 @@ export default function RegisterBusinessPage() {
           ) : null}
 
           {tipoDeLinea === "alhabla" ? (
-            <p className="mt-4 rounded-2xl bg-[#f3eeff] px-4 py-3 text-xs leading-5 text-[#6d28d9]">
+            <p className="mt-4 rounded-2xl bg-lavado px-4 py-3 text-xs leading-5 text-morado-tinta">
               Al elegir tu plan te damos un número español. Publícalo como el
               teléfono de tu negocio y tu recepcionista atenderá todas las
               llamadas: no hay nada que desviar.
@@ -875,15 +875,15 @@ export default function RegisterBusinessPage() {
         </div>
 
         {avisosAlMismoMovil ? null : (
-          <div className="mt-6 rounded-2xl border border-[#e5e5e5] p-5">
+          <div className="mt-6 rounded-2xl border border-linea p-5">
             <div className="flex items-start gap-3">
-              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#f3eeff] text-[#8b5cf6]">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-lavado text-morado">
                 <Smartphone className="h-5 w-5" aria-hidden="true" />
               </span>
               <div className="min-w-0 flex-1">
                 <label
                   htmlFor="register-owner-mobile"
-                  className="text-sm font-semibold text-[#27272a]"
+                  className="text-sm font-semibold text-tinta-2"
                 >
                   Tu móvil con WhatsApp (opcional)
                 </label>
@@ -919,14 +919,14 @@ export default function RegisterBusinessPage() {
                 {ownerMobileError ? (
                   <p
                     id="register-owner-mobile-error"
-                    className="mt-1 text-xs leading-5 text-[#c53030]"
+                    className="mt-1 text-xs leading-5 text-error"
                   >
                     {ownerMobileError}
                   </p>
                 ) : ownerMobileAviso ? (
                   <p
                     id="register-owner-mobile-aviso"
-                    className="mt-1 text-xs leading-5 text-[#806012]"
+                    className="mt-1 text-xs leading-5 text-aviso"
                   >
                     {ownerMobileAviso}
                   </p>
@@ -944,7 +944,7 @@ export default function RegisterBusinessPage() {
           id="register-owner-mobile-warning"
           className={
             ownerMobileWarning
-              ? "mt-4 text-sm leading-6 text-[#806012]"
+              ? "mt-4 text-sm leading-6 text-aviso"
               : "sr-only"
           }
           aria-live="polite"
@@ -952,7 +952,7 @@ export default function RegisterBusinessPage() {
           {ownerMobileWarning}
         </p>
 
-        {error && <p role="alert" className="mt-4 text-sm text-[#c53030]">{error}</p>}
+        {error && <p role="alert" className="mt-4 text-sm text-error">{error}</p>}
 
         <div className="mt-8 space-y-3">
           <button

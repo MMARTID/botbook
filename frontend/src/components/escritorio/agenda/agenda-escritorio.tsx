@@ -168,11 +168,11 @@ export function AgendaEscritorio({ business }: { business: Business }) {
             onClick={() => ir(anterior < minimo ? minimo : anterior)}
             disabled={lunesDe(dia) <= minimo && vista !== "dia"}
             aria-label={vista === "dia" ? "Día anterior" : "Semana anterior"}
-            className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[#e5e5e5] bg-white text-[#27272a] transition hover:bg-[#fafafa] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] disabled:opacity-40"
+            className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-linea bg-superficie text-tinta-2 transition hover:bg-relleno focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-morado disabled:opacity-40"
           >
             <ChevronLeft className="h-4 w-4" aria-hidden="true" />
           </button>
-          <span className="min-w-[10.5rem] text-center text-[15px] font-bold tabular-nums text-[#0a0a0a]" aria-live="polite">
+          <span className="min-w-[10.5rem] text-center text-[15px] font-bold tabular-nums text-tinta" aria-live="polite">
             {vista === "dia" ? diaLargo(dia) : rangoDeSemana(lunes)}
           </span>
           <button
@@ -180,7 +180,7 @@ export function AgendaEscritorio({ business }: { business: Business }) {
             onClick={() => ir(siguiente > maximo ? maximo : siguiente)}
             disabled={siguiente > maximo}
             aria-label={vista === "dia" ? "Día siguiente" : "Semana siguiente"}
-            className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[#e5e5e5] bg-white text-[#27272a] transition hover:bg-[#fafafa] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] disabled:opacity-40"
+            className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-linea bg-superficie text-tinta-2 transition hover:bg-relleno focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-morado disabled:opacity-40"
           >
             <ChevronRight className="h-4 w-4" aria-hidden="true" />
           </button>
@@ -188,7 +188,7 @@ export function AgendaEscritorio({ business }: { business: Business }) {
             <button
               type="button"
               onClick={() => ir(hoy)}
-              className="ml-1 h-9 rounded-full border border-[#e5e5e5] bg-white px-3.5 text-sm font-semibold text-[#27272a] transition hover:bg-[#fafafa] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]"
+              className="ml-1 h-9 rounded-full border border-linea bg-superficie px-3.5 text-sm font-semibold text-tinta-2 transition hover:bg-relleno focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-morado"
             >
               Hoy
             </button>
@@ -212,8 +212,8 @@ export function AgendaEscritorio({ business }: { business: Business }) {
                   role="radio"
                   aria-checked={elegido}
                   onClick={() => actualizar({ pro: profesional.id })}
-                  className={`h-8 rounded-full border px-3 text-[13px] font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] ${
-                    elegido ? "border-[#ddd6fe] bg-[#f3eeff] text-[#6d28d9]" : "border-[#e5e5e5] bg-white text-[#52525b] hover:text-[#0a0a0a]"
+                  className={`h-8 rounded-full border px-3 text-[13px] font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-morado ${
+                    elegido ? "border-lavado-borde bg-lavado text-morado-tinta" : "border-linea bg-superficie text-apagado hover:text-tinta"
                   }`}
                 >
                   {profesional.name}
@@ -237,13 +237,13 @@ export function AgendaEscritorio({ business }: { business: Business }) {
 
       <div className="flex min-h-0 flex-1">
         <div className="flex min-w-0 flex-1 flex-col">
-          <div className="flex shrink-0 items-center gap-2 border-b border-[#f0f0f0] px-8 py-2 text-sm text-muted">
+          <div className="flex shrink-0 items-center gap-2 border-b border-linea-suave px-8 py-2 text-sm text-muted">
             {consulta.isLoading ? (
               "Cargando…"
             ) : (
               <>
                 <span>
-                  <strong className="font-semibold text-[#27272a]">{citasEnTexto(enPantalla.length)}</strong>
+                  <strong className="font-semibold text-tinta-2">{citasEnTexto(enPantalla.length)}</strong>
                   {importe != null ? ` · ${formatPrice(importe)} según el precio de los servicios` : ""}
                 </span>
                 <span className="flex-1" />
@@ -254,7 +254,7 @@ export function AgendaEscritorio({ business }: { business: Business }) {
             )}
           </div>
           {consulta.isLoading ? (
-            <div className="m-8 flex-1 rounded-3xl bg-[#f4f4f5] motion-safe:animate-pulse" aria-label="Cargando agenda" />
+            <div className="m-8 flex-1 rounded-3xl bg-relleno-fuerte motion-safe:animate-pulse" aria-label="Cargando agenda" />
           ) : consulta.isError ? (
             <SectionErrorState className="m-8" message="No se pudieron cargar las citas." onRetry={() => void consulta.refetch()} />
           ) : vista === "semana" ? (
@@ -414,31 +414,31 @@ function ConfirmarMovimiento({
         </>
       }
     >
-      <dl className="space-y-1.5 rounded-2xl border border-[#e5e5e5] bg-[#fafafa] px-4 py-3 text-sm">
+      <dl className="space-y-1.5 rounded-2xl border border-linea bg-relleno px-4 py-3 text-sm">
         <div className="flex justify-between gap-3">
           <dt className="text-muted">Ahora</dt>
-          <dd className="font-semibold text-[#71717a] line-through decoration-1">{antes}</dd>
+          <dd className="font-semibold text-apagado-2 line-through decoration-1">{antes}</dd>
         </div>
         <div className="flex justify-between gap-3">
           <dt className="text-muted">Pasa a</dt>
-          <dd className="font-bold text-[#0a0a0a]">{despues}</dd>
+          <dd className="font-bold text-tinta">{despues}</dd>
         </div>
       </dl>
       <p className="mt-3 flex items-start gap-1.5 text-sm leading-6" role="status">
         {hueco.isFetching ? (
           <>
-            <LoaderCircle className="mt-1 h-4 w-4 shrink-0 animate-spin text-[#8b5cf6]" aria-hidden="true" />
+            <LoaderCircle className="mt-1 h-4 w-4 shrink-0 animate-spin text-morado" aria-hidden="true" />
             <span className="text-muted">Comprobando el hueco en tu calendario…</span>
           </>
         ) : hueco.isError ? (
           <>
-            <TriangleAlert className="mt-1 h-4 w-4 shrink-0 text-[#c53030]" aria-hidden="true" />
-            <span className="text-[#c53030]">{mensajeDeLaRespuesta(hueco.error, "No se ha podido comprobar ese hueco.")}</span>
+            <TriangleAlert className="mt-1 h-4 w-4 shrink-0 text-error" aria-hidden="true" />
+            <span className="text-error">{mensajeDeLaRespuesta(hueco.error, "No se ha podido comprobar ese hueco.")}</span>
           </>
         ) : (
           <>
-            <Check className="mt-1 h-4 w-4 shrink-0 text-[#2c7334]" aria-hidden="true" />
-            <span className="font-semibold text-[#2c7334]">Hueco libre. Se cambia también en tu calendario.</span>
+            <Check className="mt-1 h-4 w-4 shrink-0 text-exito" aria-hidden="true" />
+            <span className="font-semibold text-exito">Hueco libre. Se cambia también en tu calendario.</span>
           </>
         )}
       </p>
@@ -484,10 +484,10 @@ function VistaDelDia({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="flex shrink-0 border-b border-[#e5e5e5]">
+      <div className="flex shrink-0 border-b border-linea">
         <div className="w-14 shrink-0" />
         {columnas.map((columna) => (
-          <div key={columna.id} className="min-w-0 flex-1 border-l border-[#f0f0f0] py-2.5 text-center text-sm font-semibold text-[#27272a]">
+          <div key={columna.id} className="min-w-0 flex-1 border-l border-linea-suave py-2.5 text-center text-sm font-semibold text-tinta-2">
             {columna.nombre}
             <span className="ml-1.5 text-xs text-muted">· {columna.citas.length}</span>
           </div>
@@ -497,7 +497,7 @@ function VistaDelDia({
         <div className="flex pb-6 pt-3">
           <RegletaDeHoras rango={rango} />
           {columnas.map((columna) => (
-            <div key={columna.id} className={`flex min-w-0 flex-1 border-l border-[#f0f0f0] ${dia === hoy ? "bg-[#faf8ff]" : ""}`}>
+            <div key={columna.id} className={`flex min-w-0 flex-1 border-l border-linea-suave ${dia === hoy ? "bg-lavado-3" : ""}`}>
               <ColumnaDelDia
                 citas={columna.citas}
                 rango={rango}
@@ -514,7 +514,7 @@ function VistaDelDia({
           ))}
         </div>
         {citas.length === 0 ? (
-          <p className="pointer-events-none absolute left-1/2 top-16 -translate-x-1/2 rounded-full border border-[#e5e5e5] bg-white px-4 py-2 text-sm font-semibold text-muted shadow-sm">
+          <p className="pointer-events-none absolute left-1/2 top-16 -translate-x-1/2 rounded-full border border-linea bg-superficie px-4 py-2 text-sm font-semibold text-muted shadow-sm">
             {cerrado ? "Ese día el negocio está cerrado." : "No hay citas reservadas este día."}
           </p>
         ) : null}
@@ -544,8 +544,8 @@ function VistaDeLista({
   if (conCitas.length === 0) {
     return (
       <div className="flex flex-1 items-start justify-center p-10">
-        <p className="flex items-center gap-2 rounded-2xl border border-dashed border-[#e5e5e5] bg-[#fafafa] px-5 py-4 text-sm text-muted">
-          <CalendarDays className="h-4 w-4 text-[#8b5cf6]" aria-hidden="true" />
+        <p className="flex items-center gap-2 rounded-2xl border border-dashed border-linea bg-relleno px-5 py-4 text-sm text-muted">
+          <CalendarDays className="h-4 w-4 text-morado" aria-hidden="true" />
           No hay citas reservadas esta semana.
         </p>
       </div>
@@ -554,7 +554,7 @@ function VistaDeLista({
   const columnas = "grid grid-cols-[64px_minmax(0,1.4fr)_minmax(0,0.9fr)_minmax(0,1.2fr)_76px_76px_44px] items-center gap-4";
   return (
     <div className="min-h-0 flex-1 overflow-y-auto" role="table" aria-label="Citas de la semana">
-      <div role="row" className={`${columnas} sticky top-0 z-20 border-b border-[#e5e5e5] bg-[#fafafa] px-8 py-2 text-[11px] font-semibold uppercase tracking-[0.1em] text-muted`}>
+      <div role="row" className={`${columnas} sticky top-0 z-20 border-b border-linea bg-relleno px-8 py-2 text-[11px] font-semibold uppercase tracking-[0.1em] text-muted`}>
         <span role="columnheader">Hora</span>
         <span role="columnheader">Servicio</span>
         <span role="columnheader">Profesional</span>
@@ -568,7 +568,7 @@ function VistaDeLista({
         const importe = importeDeCitas(citas);
         return (
           <div key={dia} role="rowgroup">
-            <div role="row" className="sticky top-[33px] z-10 border-b border-[#ede9fe] bg-[#faf8ff] px-8 py-2 text-sm font-bold text-[#0a0a0a]">
+            <div role="row" className="sticky top-[33px] z-10 border-b border-lavado-2 bg-lavado-3 px-8 py-2 text-sm font-bold text-tinta">
               <span role="cell">
                 {dia === hoy ? "Hoy" : dia === sumarDias(hoy, 1) ? "Mañana" : diaLargo(dia)}
                 <span className="ml-2 font-semibold text-muted">
@@ -585,29 +585,29 @@ function VistaDeLista({
                   key={cita.id}
                   role="row"
                   aria-selected={elegida}
-                  className={`${columnas} border-b border-[#f4f4f5] px-8 text-sm ${elegida ? "bg-[#f3eeff] shadow-[inset_3px_0_0_#8b5cf6]" : "hover:bg-[#fafafa]"}`}
+                  className={`${columnas} border-b border-linea-suave px-8 text-sm ${elegida ? "bg-lavado shadow-[inset_3px_0_0_rgb(var(--morado))]" : "hover:bg-relleno"}`}
                 >
                   <button
                     type="button"
                     onClick={() => onAbrir(cita)}
-                    className="col-span-6 grid min-h-12 grid-cols-subgrid items-center py-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#8b5cf6]"
+                    className="col-span-6 grid min-h-12 grid-cols-subgrid items-center py-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-morado"
                   >
-                    <span role="cell" className="font-bold tabular-nums text-[#0a0a0a]">{horaDelNegocio(cita.programedAt, timeZone)}</span>
-                    <span role="cell" className="truncate font-semibold text-[#0a0a0a]">{nombreDeCita(cita)}</span>
-                    <span role="cell" className="truncate text-[#52525b]">{cita.professional?.name ?? "Sin asignar"}</span>
+                    <span role="cell" className="font-bold tabular-nums text-tinta">{horaDelNegocio(cita.programedAt, timeZone)}</span>
+                    <span role="cell" className="truncate font-semibold text-tinta">{nombreDeCita(cita)}</span>
+                    <span role="cell" className="truncate text-apagado">{cita.professional?.name ?? "Sin asignar"}</span>
                     <span role="cell" className="min-w-0">
-                      <span className="block truncate text-[#27272a]">{cita.clientName ?? "Sin nombre"}</span>
+                      <span className="block truncate text-tinta-2">{cita.clientName ?? "Sin nombre"}</span>
                       <span className="block truncate text-xs tabular-nums text-muted">{formatPhoneLocal(cita.clientPhone) ?? "Sin teléfono"}</span>
                     </span>
-                    <span role="cell" className="tabular-nums text-[#52525b]">{cita.durationMinutes} min</span>
-                    <span role="cell" className="text-right font-semibold tabular-nums text-[#0a0a0a]">{precio != null ? formatPrice(precio) : "—"}</span>
+                    <span role="cell" className="tabular-nums text-apagado">{cita.durationMinutes} min</span>
+                    <span role="cell" className="text-right font-semibold tabular-nums text-tinta">{precio != null ? formatPrice(precio) : "—"}</span>
                   </button>
                   <span role="cell" className="flex justify-end">
                     {cita.clientPhone ? (
                       <a
                         href={enlaceTel(cita.clientPhone)}
                         aria-label={`Llamar a ${cita.clientName ?? formatPhoneLocal(cita.clientPhone)}`}
-                        className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[#e5e5e5] bg-white text-[#52525b] transition hover:text-[#0a0a0a] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]"
+                        className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-linea bg-superficie text-apagado transition hover:text-tinta focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-morado"
                       >
                         <Phone className="h-4 w-4" aria-hidden="true" />
                       </a>

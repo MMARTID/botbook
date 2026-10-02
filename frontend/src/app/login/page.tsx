@@ -51,14 +51,14 @@ export default function LoginPage() {
       <a
         href={webUrl("/")}
         aria-label="Volver a la web de Alhabla"
-        className="fixed left-4 top-4 z-10 inline-flex h-11 w-11 items-center justify-center rounded-full border border-[#e5e5e5] bg-white text-[#27272a] shadow-[0_8px_24px_rgba(0,0,0,0.08)] transition duration-200 hover:bg-[#fafafa] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] focus-visible:ring-offset-2 sm:left-6 sm:top-6"
+        className="fixed left-4 top-4 z-10 inline-flex h-11 w-11 items-center justify-center rounded-full border border-linea bg-superficie text-tinta-2 shadow-[0_8px_24px_rgba(0,0,0,0.08)] transition duration-200 hover:bg-relleno focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-morado focus-visible:ring-offset-2 sm:left-6 sm:top-6"
       >
         <ArrowLeft className="h-4 w-4" aria-hidden="true" />
       </a>
       <div className="panel w-full max-w-lg p-6 sm:p-8">
         <div className="space-y-4 text-center">
           <BrandMark className="mx-auto h-14 w-14" />
-          <h1 className="text-3xl font-black tracking-tight text-[#0a0a0a]">Bienvenido de nuevo</h1>
+          <h1 className="text-3xl font-black tracking-tight text-tinta">Bienvenido de nuevo</h1>
           <p className="mx-auto max-w-md text-sm leading-6 text-muted">
             Accede para configurar tu recepcionista y comenzar a mejorar la experiencia de tus clientes.
           </p>
@@ -70,16 +70,16 @@ export default function LoginPage() {
             <FacebookAuthButton onError={setError} intent="login" />
           </div>
           <div className="my-6 flex items-center gap-4" aria-hidden="true">
-            <div className="h-px flex-1 bg-[#e5e5e5]" />
+            <div className="h-px flex-1 bg-linea" />
             <span className="text-xs font-medium uppercase tracking-[0.12em] text-muted">o con email</span>
-            <div className="h-px flex-1 bg-[#e5e5e5]" />
+            <div className="h-px flex-1 bg-linea" />
           </div>
         </div>
 
         <form className="space-y-6" onSubmit={handleSubmit}>
           <div className="space-y-4">
             <div>
-              <label htmlFor="login-email" className="text-sm font-medium text-[#27272a]">Email</label>
+              <label htmlFor="login-email" className="text-sm font-medium text-tinta-2">Email</label>
               <input
                 id="login-email"
                 name="email"
@@ -94,10 +94,10 @@ export default function LoginPage() {
             </div>
             <div>
               <div className="flex items-center justify-between gap-4">
-                <label htmlFor="login-password" className="text-sm font-medium text-[#27272a]">Contraseña</label>
+                <label htmlFor="login-password" className="text-sm font-medium text-tinta-2">Contraseña</label>
                 <Link
                   href="/recuperar-contrasena"
-                  className="zona-tactil rounded text-sm font-medium text-[#7c3aed] transition hover:text-[#6d28d9] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] focus-visible:ring-offset-2"
+                  className="zona-tactil rounded text-sm font-medium text-morado-tinta transition hover:text-morado-tinta focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-morado focus-visible:ring-offset-2"
                 >
                   ¿La has olvidado?
                 </Link>
@@ -120,7 +120,7 @@ export default function LoginPage() {
           {/* Alto reservado aunque no haya error: así el botón no se
               desplaza justo cuando el usuario reintenta con el pulgar ya
               puesto encima. */}
-          <p className="min-h-5 text-sm text-[#c53030]" role="alert">{error}</p>
+          <p className="min-h-5 text-sm text-error" role="alert">{error}</p>
 
           <button
             type="submit"
@@ -132,7 +132,7 @@ export default function LoginPage() {
 
           <div className="text-center text-sm text-muted">
             ¿No tienes cuenta?{' '}
-            <a href={webUrl("/register")} className="zona-tactil rounded font-semibold text-[#7c3aed] transition hover:text-[#6d28d9] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] focus-visible:ring-offset-2">
+            <a href={webUrl("/register")} className="zona-tactil rounded font-semibold text-morado-tinta transition hover:text-morado-tinta focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-morado focus-visible:ring-offset-2">
               Regístrate aquí
             </a>
           </div>

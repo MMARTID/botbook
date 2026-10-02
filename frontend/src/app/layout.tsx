@@ -1,10 +1,12 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
 import "./globals.css";
 import { Providers } from "@/components/providers";
 import { AppShell } from "@/components/app-shell";
 import { AnaliticaDeLaApp } from "@/components/analitica-de-la-app";
 import { defaultDescription, noindexMetadata, siteName, siteUrl } from "@/lib/seo";
+import { SCRIPT_DE_TEMA } from "@/lib/tema-inicial";
+import { SeguidorDelTema } from "@/lib/tema";
 
 const geistSans = localFont({
   src: "./fonts/GeistVF.woff",
@@ -35,13 +37,27 @@ export const metadata: Metadata = {
   },
 };
 
+// La barra del navegador en el móvil sigue al tema del sistema.
+export const viewport: Viewport = {
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#ffffff" },
+    { media: "(prefers-color-scheme: dark)", color: "#0b0b0e" },
+  ],
+};
+
 export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="es">
+    // `data-tema` lo pone el script antes de hidratar: React no debe quejarse.
+    <html lang="es" suppressHydrationWarning>
+      <head>
+        {/* Antes del primer pintado: sin él, el modo oscuro arrancaría con
+            un destello blanco. */}
+        <script dangerouslySetInnerHTML={{ __html: SCRIPT_DE_TEMA }} />
+      </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
@@ -66,6 +82,7 @@ export default function RootLayout({
           finish review, the verdict, DESIGN.md, and every shipping raster carrying
           its provenance.
         */}
+        <SeguidorDelTema />
         <Providers>
           <AppShell>{children}</AppShell>
         </Providers>

@@ -117,13 +117,13 @@ export function AgendaMovil({ business }: { business: Business }) {
       />
 
       <div className="flex min-h-11 items-center justify-between">
-        <span className="text-[15px] font-bold text-[#0a0a0a]">{rangoDeSemana(lunes)}</span>
+        <span className="text-[15px] font-bold text-tinta">{rangoDeSemana(lunes)}</span>
         <div className="flex items-center gap-1.5">
           {elegido !== hoy ? (
             <button
               type="button"
               onClick={() => elegir(hoy)}
-              className="min-h-11 rounded-full border border-[#e5e5e5] bg-white px-4 text-sm font-semibold text-[#27272a] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]"
+              className="min-h-11 rounded-full border border-linea bg-superficie px-4 text-sm font-semibold text-tinta-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-morado"
             >
               Hoy
             </button>
@@ -161,11 +161,11 @@ export function AgendaMovil({ business }: { business: Business }) {
               onClick={() => elegir(dia)}
               aria-pressed={seleccionado}
               aria-label={`${diaLargo(dia)}, ${numero === 1 ? "1 cita" : `${numero} citas`}`}
-              className={`flex min-h-[76px] min-w-0 flex-1 flex-col items-center justify-center gap-[5px] rounded-2xl border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] ${
-                seleccionado ? "border-[#ddd6fe] bg-[#f3eeff] text-[#6d28d9]" : "border-transparent text-[#0a0a0a]"
+              className={`flex min-h-[76px] min-w-0 flex-1 flex-col items-center justify-center gap-[5px] rounded-2xl border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-morado ${
+                seleccionado ? "border-lavado-borde bg-lavado text-morado-tinta" : "border-transparent text-tinta"
               } ${pasado && !seleccionado ? "opacity-55" : ""}`}
             >
-              <span className={`text-xs font-semibold ${seleccionado ? "text-[#6d28d9]" : "text-muted"}`}>
+              <span className={`text-xs font-semibold ${seleccionado ? "text-morado-tinta" : "text-muted"}`}>
                 {INICIALES_DE_DIA[indice]}
               </span>
               <span className={`text-xl font-bold leading-none tabular-nums ${dia === hoy ? "underline underline-offset-4" : ""}`}>
@@ -173,7 +173,7 @@ export function AgendaMovil({ business }: { business: Business }) {
               </span>
               <span className="flex h-[5px] gap-[3px]" aria-hidden="true">
                 {Array.from({ length: Math.min(numero, 3) }, (_, punto) => (
-                  <span key={punto} className={`h-[5px] w-[5px] rounded-full ${seleccionado ? "bg-[#8b5cf6]" : "bg-[#a1a1aa]"}`} />
+                  <span key={punto} className={`h-[5px] w-[5px] rounded-full ${seleccionado ? "bg-morado" : "bg-tenue"}`} />
                 ))}
               </span>
             </button>
@@ -181,7 +181,7 @@ export function AgendaMovil({ business }: { business: Business }) {
         })}
       </div>
 
-      <h2 className="mt-[18px] border-t border-[#e5e5e5] pb-2 pt-4 text-lg font-bold tracking-[-0.01em] text-[#0a0a0a]">
+      <h2 className="mt-[18px] border-t border-linea pb-2 pt-4 text-lg font-bold tracking-[-0.01em] text-tinta">
         {etiquetaDeDia(elegido, hoy)}
         {delDia.length > 0 ? ` · ${delDia.length === 1 ? "1 cita" : `${delDia.length} citas`}` : ""}
       </h2>
@@ -189,7 +189,7 @@ export function AgendaMovil({ business }: { business: Business }) {
       {consulta.isLoading ? (
         <div className="space-y-2.5" aria-label="Cargando agenda">
           {[0, 1, 2].map((indice) => (
-            <div key={indice} className="ml-[58px] h-[88px] rounded-2xl bg-[#f4f4f5] motion-safe:animate-pulse" aria-hidden="true" />
+            <div key={indice} className="ml-[58px] h-[88px] rounded-2xl bg-relleno-fuerte motion-safe:animate-pulse" aria-hidden="true" />
           ))}
         </div>
       ) : consulta.isError ? (
@@ -223,10 +223,10 @@ export function AgendaMovil({ business }: { business: Business }) {
 function MarcaAhora({ hora }: { hora: string }) {
   return (
     <li className="flex min-h-5 items-center gap-2.5" aria-label={`Ahora, ${hora}`}>
-      <span className="w-12 shrink-0 text-right text-xs font-bold tabular-nums text-[#6d28d9]">{hora.replace(/^0/, "")}</span>
-      <span className="h-[9px] w-[9px] shrink-0 rounded-full bg-[#8b5cf6]" aria-hidden="true" />
-      <span className="h-0.5 flex-1 rounded-sm bg-[#8b5cf6]" aria-hidden="true" />
-      <span className="shrink-0 text-xs font-bold text-[#6d28d9]">Ahora</span>
+      <span className="w-12 shrink-0 text-right text-xs font-bold tabular-nums text-morado-tinta">{hora.replace(/^0/, "")}</span>
+      <span className="h-[9px] w-[9px] shrink-0 rounded-full bg-morado" aria-hidden="true" />
+      <span className="h-0.5 flex-1 rounded-sm bg-morado" aria-hidden="true" />
+      <span className="shrink-0 text-xs font-bold text-morado-tinta">Ahora</span>
     </li>
   );
 }
@@ -247,29 +247,29 @@ function FilaDeCita({
 
   return (
     <li className="flex items-start gap-2.5">
-      <span className={`w-12 shrink-0 pt-4 text-right text-[15px] font-bold tabular-nums ${pasada ? "text-muted" : "text-[#0a0a0a]"}`}>
+      <span className={`w-12 shrink-0 pt-4 text-right text-[15px] font-bold tabular-nums ${pasada ? "text-muted" : "text-tinta"}`}>
         {horaDelNegocio(cita.programedAt, timeZone)}
       </span>
       <div
-        className={`flex min-w-0 flex-1 items-center gap-1 rounded-2xl border border-[#e5e5e5] pr-1.5 ${pasada ? "bg-[#fafafa] opacity-70" : "bg-white"}`}
+        className={`flex min-w-0 flex-1 items-center gap-1 rounded-2xl border border-linea pr-1.5 ${pasada ? "bg-relleno opacity-70" : "bg-superficie"}`}
       >
         <button
           type="button"
           onClick={onAbrir}
-          className="min-h-[72px] min-w-0 flex-1 rounded-2xl py-3 pl-3.5 pr-1 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]"
+          className="min-h-[72px] min-w-0 flex-1 rounded-2xl py-3 pl-3.5 pr-1 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-morado"
         >
           <span className="flex items-start justify-between gap-2">
-            <span className="text-[15px] font-bold leading-snug text-[#0a0a0a]">{nombreDeCita(cita)}</span>
-            {importe != null ? <span className="shrink-0 text-sm font-bold tabular-nums text-[#0a0a0a]">{formatPrice(importe)}</span> : null}
+            <span className="text-[15px] font-bold leading-snug text-tinta">{nombreDeCita(cita)}</span>
+            {importe != null ? <span className="shrink-0 text-sm font-bold tabular-nums text-tinta">{formatPrice(importe)}</span> : null}
           </span>
           <span className="mt-[3px] block text-[13px] leading-[1.45] text-muted">
             {cita.durationMinutes} min · hasta las {horaDelNegocio(finDeCita(cita), timeZone)}
             {cita.professional ? ` · ${cita.professional.name}` : ""}
           </span>
-          <span className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] font-medium tabular-nums text-[#52525b]">
+          <span className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] font-medium tabular-nums text-apagado">
             {telefono ? (
               <span className="inline-flex items-center gap-1.5">
-                <Phone className="h-3.5 w-3.5 text-[#6d28d9]" aria-hidden="true" />
+                <Phone className="h-3.5 w-3.5 text-morado-tinta" aria-hidden="true" />
                 {telefono}
               </span>
             ) : (
@@ -277,7 +277,7 @@ function FilaDeCita({
             )}
             {cita.numberPeople > 1 ? (
               <span className="inline-flex items-center gap-1.5">
-                <Users className="h-3.5 w-3.5 text-[#6d28d9]" aria-hidden="true" />
+                <Users className="h-3.5 w-3.5 text-morado-tinta" aria-hidden="true" />
                 {cita.numberPeople} personas
               </span>
             ) : null}
@@ -287,7 +287,7 @@ function FilaDeCita({
           <a
             href={enlaceTel(cita.clientPhone)}
             aria-label={`Llamar al cliente al ${telefono}`}
-            className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[#e5e5e5] bg-white text-[#52525b] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]"
+            className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-linea bg-superficie text-apagado focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-morado"
           >
             <Phone className="h-[18px] w-[18px]" aria-hidden="true" />
           </a>

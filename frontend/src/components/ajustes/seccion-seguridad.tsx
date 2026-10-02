@@ -108,13 +108,13 @@ export function SeccionSeguridad() {
     <>
       <section className="panel p-4 sm:p-6" aria-labelledby="security-title">
         <div className="flex items-start gap-3">
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#f3eeff] text-[#8b5cf6]">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-lavado text-morado">
             <ShieldCheck className="h-5 w-5" aria-hidden="true" />
           </span>
           <div>
             <h2
               id="security-title"
-              className="text-lg font-semibold text-[#0a0a0a]"
+              className="text-lg font-semibold text-tinta"
             >
               Contraseña
             </h2>
@@ -134,7 +134,7 @@ export function SeccionSeguridad() {
           }}
         >
           {passwordConfigured ? (
-            <label className="text-sm font-semibold text-[#27272a]">
+            <label className="text-sm font-semibold text-tinta-2">
               Contraseña actual
               <input
                 type="password"
@@ -148,7 +148,7 @@ export function SeccionSeguridad() {
               />
             </label>
           ) : null}
-          <label className="text-sm font-semibold text-[#27272a]">
+          <label className="text-sm font-semibold text-tinta-2">
             Nueva contraseña
             <input
               type="password"
@@ -162,7 +162,7 @@ export function SeccionSeguridad() {
               className="field mt-2 w-full"
             />
           </label>
-          <label className="text-sm font-semibold text-[#27272a]">
+          <label className="text-sm font-semibold text-tinta-2">
             Repite la contraseña
             <input
               type="password"
@@ -179,7 +179,7 @@ export function SeccionSeguridad() {
             {noCoinciden ? (
               <span
                 id="password-mismatch"
-                className="mt-1 block text-xs font-normal leading-5 text-[#c53030]"
+                className="mt-1 block text-xs font-normal leading-5 text-error"
               >
                 Las contraseñas no coinciden.
               </span>
@@ -216,38 +216,38 @@ export function SeccionSeguridad() {
       </section>
 
       <section
-        className="overflow-hidden rounded-3xl border border-[#f5d3d3] bg-white"
+        className="overflow-hidden rounded-3xl border border-linea bg-superficie"
         aria-labelledby="danger-title"
       >
-        <div className="flex items-start gap-3 border-b border-[#f5d3d3] bg-[#fff1f1] p-4 sm:p-6">
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-[#c53030]">
+        <div className="flex items-start gap-3 border-b border-linea p-4 sm:p-6">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-urgente-fondo text-urgente">
             <AlertTriangle className="h-5 w-5" aria-hidden="true" />
           </span>
           <div>
             <h2
               id="danger-title"
-              className="text-lg font-semibold text-[#0a0a0a]"
+              className="text-lg font-semibold text-tinta"
             >
               Eliminar la cuenta
             </h2>
-            <p className="mt-1 max-w-3xl text-sm leading-6 text-[#c53030]">
+            <p className="mt-1 max-w-3xl text-sm leading-6 text-error">
               Esta acción cancela la suscripción, retira el número de Alhabla y
               elimina los datos del negocio. No se puede deshacer.
             </p>
           </div>
         </div>
         <div className="space-y-4 p-4 sm:p-6">
-          <div className="rounded-xl border border-[#f0dfa8] bg-[#fef8e7] p-4 text-sm leading-6 text-[#806012]">
+          <div className="rounded-xl border border-aviso-borde bg-aviso-fondo p-4 text-sm leading-6 text-aviso">
             <strong>Antes de continuar:</strong> desactiva en tu operador el
             desvío de llamadas hacia Alhabla. Si no lo haces, tus clientes
             podrían seguir llamando a un número que ya no atiende.
           </div>
-          <label className="flex min-h-11 cursor-pointer items-start gap-3 rounded-[10px] border border-[#e5e5e5] p-3 text-sm text-[#27272a] has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-[#8b5cf6]">
+          <label className="flex min-h-11 cursor-pointer items-start gap-3 rounded-[10px] border border-linea p-3 text-sm text-tinta-2 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-morado">
             <input
               type="checkbox"
               checked={forwardingCancelled}
               onChange={(event) => setForwardingCancelled(event.target.checked)}
-              className="mt-1 accent-[#c53030]"
+              className="mt-1 accent-error"
             />
             <span>
               Confirmo que ya he quitado el desvío de llamadas de mi línea
@@ -257,7 +257,7 @@ export function SeccionSeguridad() {
           <div
             className={`grid gap-4 ${passwordConfigured ? "lg:grid-cols-2" : ""}`}
           >
-            <label className="text-sm font-semibold text-[#27272a]">
+            <label className="text-sm font-semibold text-tinta-2">
               Escribe ELIMINAR para confirmar
               <input
                 value={deleteConfirmation}
@@ -271,7 +271,7 @@ export function SeccionSeguridad() {
               />
             </label>
             {passwordConfigured ? (
-              <label className="text-sm font-semibold text-[#27272a]">
+              <label className="text-sm font-semibold text-tinta-2">
                 Contraseña actual
                 <input
                   type="password"
@@ -283,7 +283,7 @@ export function SeccionSeguridad() {
               </label>
             ) : null}
           </div>
-          <div className="flex flex-col-reverse gap-3 border-t border-[#f5d3d3] pt-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-col-reverse gap-3 border-t border-error-borde pt-4 sm:flex-row sm:items-center sm:justify-between">
             <FeedbackMessage value={deleteFeedback} />
             <button
               type="button"
@@ -292,7 +292,7 @@ export function SeccionSeguridad() {
                 if (canDelete) deleteMutation.mutate();
               }}
               disabled={!canDelete || deleteMutation.isPending}
-              className="inline-flex h-12 shrink-0 items-center justify-center gap-2 rounded-[10px] bg-[#c53030] px-6 text-sm font-semibold text-white transition hover:bg-[#9f2424] disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#c53030] focus-visible:ring-offset-2"
+              className="inline-flex h-12 shrink-0 items-center justify-center gap-2 rounded-[10px] bg-peligro px-6 text-sm font-semibold text-white transition hover:bg-peligro-hondo disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-error focus-visible:ring-offset-2"
             >
               {deleteMutation.isPending ? (
                 <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />

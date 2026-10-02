@@ -132,7 +132,7 @@ export function SemanaEnCuadricula({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="flex shrink-0 border-b border-[#e5e5e5] bg-white">
+      <div className="flex shrink-0 border-b border-linea bg-superficie">
         <div className="w-14 shrink-0" />
         {dias.map((dia, indice) => {
           const numero = citasPorDia.get(dia)?.length ?? 0;
@@ -143,13 +143,13 @@ export function SemanaEnCuadricula({
               type="button"
               onClick={() => onElegirDia(dia)}
               aria-label={`Ver el ${diaLargo(dia).toLowerCase()}, ${numero === 1 ? "1 cita" : `${numero} citas`}`}
-              className={`flex min-w-0 flex-1 items-baseline justify-center gap-1.5 border-l border-[#f0f0f0] py-2.5 text-sm transition hover:bg-[#fafafa] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#8b5cf6] ${
-                esHoy ? "font-bold text-[#6d28d9]" : dia < hoy ? "text-[#a1a1aa]" : "font-semibold text-[#27272a]"
+              className={`flex min-w-0 flex-1 items-baseline justify-center gap-1.5 border-l border-linea-suave py-2.5 text-sm transition hover:bg-relleno focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-morado ${
+                esHoy ? "font-bold text-morado-tinta" : dia < hoy ? "text-tenue" : "font-semibold text-tinta-2"
               }`}
             >
               <span>{NOMBRES_CORTOS[indice] ?? INICIALES_DE_DIA[indice]}</span>
               <span
-                className={`tabular-nums ${esHoy ? "inline-flex h-7 w-7 items-center justify-center rounded-full bg-[#8b5cf6] text-white" : ""}`}
+                className={`tabular-nums ${esHoy ? "inline-flex h-7 w-7 items-center justify-center rounded-full bg-morado text-white" : ""}`}
               >
                 {numeroDelDia(dia)}
               </span>
@@ -165,7 +165,7 @@ export function SemanaEnCuadricula({
             {dias.map((dia) => {
               const tramos = tramosDelDia(horario, dia);
               return (
-                <div key={dia} className={`flex min-w-0 flex-1 border-l border-[#f0f0f0] ${dia === hoy ? "bg-[#faf8ff]" : ""}`}>
+                <div key={dia} className={`flex min-w-0 flex-1 border-l border-linea-suave ${dia === hoy ? "bg-lavado-3" : ""}`}>
                   <ColumnaDelDia
                     citas={citasPorDia.get(dia) ?? []}
                     rango={rango}
@@ -184,7 +184,7 @@ export function SemanaEnCuadricula({
             })}
             {fantasma ? (
               <div
-                className="pointer-events-none absolute z-40 rounded-lg border-2 border-dashed border-[#6d28d9] bg-[#ede9fe]/90 px-2 py-1 text-xs font-bold text-[#6d28d9] shadow-lg"
+                className="pointer-events-none absolute z-40 rounded-lg border-2 border-dashed border-morado-tinta bg-lavado-2/90 px-2 py-1 text-xs font-bold text-morado-tinta shadow-lg"
                 style={{
                   left: `calc(${(fantasma.columna / dias.length) * 100}% + 3px)`,
                   width: `calc(${100 / dias.length}% - 6px)`,

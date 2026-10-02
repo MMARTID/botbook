@@ -29,23 +29,23 @@ export function AgentOperationalSummary({ business, agentActive }: { business: B
         : "La recepción está preparada para atender llamadas.";
 
   return (
-    <section className="rounded-3xl border border-[#e5e5e5] bg-[#fafafa] p-4 sm:p-5" aria-labelledby="agent-status-title">
+    <section className="rounded-3xl border border-linea bg-relleno p-4 sm:p-5" aria-labelledby="agent-status-title">
       <div className="flex items-start gap-3">
-        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#f3eeff] text-[#8b5cf6]"><Activity className="h-5 w-5" aria-hidden="true" /></span>
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-lavado text-morado"><Activity className="h-5 w-5" aria-hidden="true" /></span>
         <div className="min-w-0 flex-1">
-          <h2 id="agent-status-title" className="text-base font-semibold text-[#0a0a0a]">Estado de la recepción</h2>
+          <h2 id="agent-status-title" className="text-base font-semibold text-tinta">Estado de la recepción</h2>
           <p className="mt-1 text-sm leading-6 text-muted">{titular}</p>
         </div>
       </div>
       <ul className="mt-4 grid gap-2 sm:grid-cols-2">
         {ordered.map((item) => {
           const tone = OPERATIONAL_TONE[item.tone];
-          return <li key={item.key} className="flex min-w-0 items-center gap-2 rounded-xl border border-[#e5e5e5] bg-white px-3 py-2.5">
+          return <li key={item.key} className="flex min-w-0 items-center gap-2 rounded-xl border border-linea bg-superficie px-3 py-2.5">
             <span className={`h-2 w-2 shrink-0 rounded-full ${tone.dot}`} aria-hidden="true" />
             <span className="min-w-0 flex-1"><span className="block text-xs text-muted">{item.label}</span><span className={`block truncate text-sm font-semibold ${tone.text}`}>{item.value}</span></span>
             {/* La acción dice qué hace («Conectar agenda», «Reconectar»): una
                 lista de «Abrir» repetidos no se entiende con lector de pantalla. */}
-            {item.action && "href" in item.action ? <Link href={item.action.href} className="zona-tactil shrink-0 text-xs font-semibold text-[#6d28d9] underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]">{item.action.label}</Link> : null}
+            {item.action && "href" in item.action ? <Link href={item.action.href} className="zona-tactil shrink-0 text-xs font-semibold text-morado-tinta underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-morado">{item.action.label}</Link> : null}
           </li>;
         })}
       </ul>

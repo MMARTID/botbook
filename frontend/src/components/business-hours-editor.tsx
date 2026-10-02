@@ -199,29 +199,29 @@ export function BusinessHoursEditor({
               type="button"
               onClick={() => setSelectedDay(day.key)}
               aria-pressed={selectedDay === day.key}
-              className={`flex w-full items-center gap-3 rounded-xl border px-3 py-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] focus-visible:ring-offset-2 ${selectedDay === day.key ? "border-[#8b5cf6] bg-[#f3eeff]" : "border-[#e5e5e5] bg-white hover:bg-[#fafafa]"}`}
+              className={`flex w-full items-center gap-3 rounded-xl border px-3 py-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-morado focus-visible:ring-offset-2 ${selectedDay === day.key ? "border-morado bg-lavado" : "border-linea bg-superficie hover:bg-relleno"}`}
             >
-              <span className={`flex h-8 w-8 items-center justify-center rounded-full text-xs font-semibold ${schedule.week[day.key].enabled ? "bg-[#8b5cf6] text-[#ffffff]" : "bg-[#f4f4f5] text-[#52525b]"}`}>
+              <span className={`flex h-8 w-8 items-center justify-center rounded-full text-xs font-semibold ${schedule.week[day.key].enabled ? "bg-morado text-white" : "bg-relleno-fuerte text-apagado"}`}>
                 {day.shortLabel}
               </span>
               <span className="min-w-0">
-                <span className="block text-sm font-semibold text-[#27272a]">{day.label}</span>
+                <span className="block text-sm font-semibold text-tinta-2">{day.label}</span>
                 <span className="block truncate text-xs text-muted">{scheduleSummary(schedule.week[day.key])}</span>
               </span>
             </button>
           ))}
         </div>
 
-        <div className="rounded-xl border border-[#e5e5e5] bg-[#fafafa] p-4 sm:p-5">
+        <div className="rounded-xl border border-linea bg-relleno p-4 sm:p-5">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <p className="text-lg font-semibold text-[#0a0a0a]">{DAYS.find((day) => day.key === selectedDay)?.label}</p>
+              <p className="text-lg font-semibold text-tinta">{DAYS.find((day) => day.key === selectedDay)?.label}</p>
               <p className="text-sm text-muted">Activa el día y añade hasta tres tramos.</p>
             </div>
-            <label className="flex min-h-11 cursor-pointer items-center gap-2 rounded-[10px] border border-[#e5e5e5] bg-white px-3 text-sm font-semibold text-[#27272a] has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-[#8b5cf6]">
+            <label className="flex min-h-11 cursor-pointer items-center gap-2 rounded-[10px] border border-linea bg-superficie px-3 text-sm font-semibold text-tinta-2 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-morado">
               <input
                 type="checkbox"
-                className="accent-[#8b5cf6]"
+                className="accent-morado"
                 checked={selected.enabled}
                 onChange={(event) => updateDay((day) => ({
                   enabled: event.target.checked,
@@ -239,7 +239,7 @@ export function BusinessHoursEditor({
                   formato del usuario, y en 12 horas («06:00 PM» más el icono de
                   reloj) no cabía en media fila de móvil: recortaba la hora. */}
               {selected.intervals.map((interval, index) => (
-                <div key={`${selectedDay}-${index}`} className="flex flex-wrap items-center gap-2 rounded-xl border border-[#e5e5e5] bg-white p-3">
+                <div key={`${selectedDay}-${index}`} className="flex flex-wrap items-center gap-2 rounded-xl border border-linea bg-superficie p-3">
                   <input
                     type="time"
                     value={interval.start}
@@ -262,7 +262,7 @@ export function BusinessHoursEditor({
                     <button
                       type="button"
                       onClick={() => updateDay((day) => ({ ...day, intervals: day.intervals.filter((_, itemIndex) => itemIndex !== index) }))}
-                      className="ml-auto inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[#c53030] transition duration-200 hover:bg-[#fff1f1] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]"
+                      className="ml-auto inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-error transition duration-200 hover:bg-error-fondo focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-morado"
                       aria-label="Eliminar tramo"
                     >
                       <Trash2 className="h-4 w-4" aria-hidden="true" />
@@ -286,7 +286,7 @@ export function BusinessHoursEditor({
               </div>
             </div>
           ) : (
-            <div className="mt-5 rounded-xl border border-dashed border-[#e5e5e5] bg-white px-4 py-8 text-center text-sm text-muted">
+            <div className="mt-5 rounded-xl border border-dashed border-linea bg-superficie px-4 py-8 text-center text-sm text-muted">
               Este día figura como cerrado.
             </div>
           )}
@@ -296,13 +296,13 @@ export function BusinessHoursEditor({
       {/* Días sueltos que no siguen el horario semanal. Sin esto, el agente
           daba por abierto un festivo por ser "jueves" y confirmaba citas para
           un día con la persiana bajada. */}
-      <div className="border-t border-[#e5e5e5] p-4 sm:p-6">
+      <div className="border-t border-linea p-4 sm:p-6">
         <div className="flex items-start gap-3">
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#f3eeff] text-[#8b5cf6]">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-lavado text-morado">
             <CalendarX2 className="h-5 w-5" aria-hidden="true" />
           </span>
           <div className="min-w-0">
-            <p className="text-lg font-semibold text-[#0a0a0a]">Festivos y días cerrados</p>
+            <p className="text-lg font-semibold text-tinta">Festivos y días cerrados</p>
             <p className="text-sm leading-6 text-muted">
               Marca los días que cierras aunque toquen en un día que normalmente abres.
               El agente no ofrecerá ni confirmará citas en esas fechas.
@@ -311,7 +311,7 @@ export function BusinessHoursEditor({
         </div>
 
         <div className="mt-4 flex flex-wrap items-end gap-2">
-          <label className="flex min-w-[10rem] flex-1 flex-col gap-1 text-sm font-medium text-[#27272a]">
+          <label className="flex min-w-[10rem] flex-1 flex-col gap-1 text-sm font-medium text-tinta-2">
             Fecha
             <input
               type="date"
@@ -321,7 +321,7 @@ export function BusinessHoursEditor({
               className="field px-3"
             />
           </label>
-          <label className="flex min-w-[12rem] flex-[2] flex-col gap-1 text-sm font-medium text-[#27272a]">
+          <label className="flex min-w-[12rem] flex-[2] flex-col gap-1 text-sm font-medium text-tinta-2">
             Motivo (opcional)
             <input
               type="text"
@@ -337,7 +337,7 @@ export function BusinessHoursEditor({
           </button>
         </div>
 
-        <p className="min-h-5 pt-1 text-sm text-[#c53030]" role="alert">
+        <p className="min-h-5 pt-1 text-sm text-error" role="alert">
           {errorExcepcion}
         </p>
 
@@ -346,10 +346,10 @@ export function BusinessHoursEditor({
             {excepciones.map((exception) => (
               <li
                 key={exception.date}
-                className="flex flex-wrap items-center gap-3 rounded-xl border border-[#e5e5e5] bg-white p-3"
+                className="flex flex-wrap items-center gap-3 rounded-xl border border-linea bg-superficie p-3"
               >
                 <span className="min-w-0 flex-1">
-                  <span className="block text-sm font-semibold text-[#27272a]">
+                  <span className="block text-sm font-semibold text-tinta-2">
                     {formatExceptionDate(exception.date)}
                   </span>
                   <span className="block text-xs text-muted">
@@ -363,7 +363,7 @@ export function BusinessHoursEditor({
                 <button
                   type="button"
                   onClick={() => quitarExcepcion(exception.date)}
-                  className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[#c53030] transition duration-200 hover:bg-[#fff1f1] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]"
+                  className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-error transition duration-200 hover:bg-error-fondo focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-morado"
                   aria-label={`Quitar el día cerrado del ${formatExceptionDate(exception.date)}`}
                 >
                   <Trash2 className="h-4 w-4" aria-hidden="true" />
@@ -372,7 +372,7 @@ export function BusinessHoursEditor({
             ))}
           </ul>
         ) : (
-          <p className="mt-2 rounded-xl border border-dashed border-[#e5e5e5] bg-[#fafafa] px-4 py-6 text-center text-sm text-muted">
+          <p className="mt-2 rounded-xl border border-dashed border-linea bg-relleno px-4 py-6 text-center text-sm text-muted">
             No hay ningún día especial guardado. El agente seguirá el horario semanal.
           </p>
         )}
@@ -381,7 +381,7 @@ export function BusinessHoursEditor({
       {/* Un único Guardar para toda la sección: la semana y los días especiales
           viajan en el mismo objeto y se guardan de una vez. Con un botón por
           bloque salían dos primarios idénticos en el mismo panel. */}
-      <div className="flex flex-wrap items-center justify-end gap-3 border-t border-[#e5e5e5] p-4 sm:p-6">
+      <div className="flex flex-wrap items-center justify-end gap-3 border-t border-linea p-4 sm:p-6">
         <p className="mr-auto text-sm text-muted">
           Se guardan a la vez el horario semanal y los días especiales.
         </p>

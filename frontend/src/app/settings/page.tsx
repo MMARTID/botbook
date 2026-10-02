@@ -98,7 +98,7 @@ function SettingsCallbackContent() {
         <div className="panel w-full max-w-xl space-y-5 p-6">
           <div>
             <span className="badge-soft">Google Calendar</span>
-            <h1 className="mt-3 text-2xl font-semibold text-[#0a0a0a]">Elige el calendario que quieres usar</h1>
+            <h1 className="mt-3 text-2xl font-semibold text-tinta">Elige el calendario que quieres usar</h1>
             <p className="mt-2 text-sm leading-6 text-muted">
               Cuenta conectada: {parsedGoogleCalendars.email ?? "Cuenta de Google"}. La recepcionista apuntará las citas
               en el calendario que elijas y respetará lo que ya tengas en él.
@@ -127,9 +127,9 @@ function SettingsCallbackContent() {
                     router.replace("/?calendar_error=true");
                   }
                 }}
-                className="rounded-2xl border border-[#e5e5e5] bg-white px-4 py-4 text-left transition duration-200 hover:border-[#ddd6fe] hover:bg-[#fafafa] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] focus-visible:ring-offset-2 disabled:cursor-wait disabled:opacity-60"
+                className="rounded-2xl border border-linea bg-superficie px-4 py-4 text-left transition duration-200 hover:border-lavado-borde hover:bg-relleno focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-morado focus-visible:ring-offset-2 disabled:cursor-wait disabled:opacity-60"
               >
-                <p className="text-sm font-semibold text-[#0a0a0a]">
+                <p className="text-sm font-semibold text-tinta">
                   {connectingCalendarId === calendar.id ? "Conectando…" : calendar.name}
                 </p>
                 <p className="mt-1 text-xs text-muted">{calendar.primary ? "Calendario principal" : "Calendario secundario"}</p>
@@ -147,7 +147,7 @@ function SettingsCallbackContent() {
         <div className="panel w-full max-w-xl space-y-5 p-6">
           <div>
             <span className="badge-soft">Outlook Calendar</span>
-            <h1 className="mt-3 text-2xl font-semibold text-[#0a0a0a]">Elige el calendario que quieres usar</h1>
+            <h1 className="mt-3 text-2xl font-semibold text-tinta">Elige el calendario que quieres usar</h1>
             <p className="mt-2 text-sm leading-6 text-muted">Cuenta conectada: {parsedOutlookCalendars.email ?? "Cuenta Microsoft"}</p>
           </div>
           <div className="grid gap-3">
@@ -173,9 +173,9 @@ function SettingsCallbackContent() {
                     router.replace("/?outlook_error=true");
                   }
                 }}
-                className="rounded-2xl border border-[#e5e5e5] bg-white px-4 py-4 text-left transition duration-200 hover:border-[#ddd6fe] hover:bg-[#fafafa] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] focus-visible:ring-offset-2 disabled:cursor-wait disabled:opacity-60"
+                className="rounded-2xl border border-linea bg-superficie px-4 py-4 text-left transition duration-200 hover:border-lavado-borde hover:bg-relleno focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-morado focus-visible:ring-offset-2 disabled:cursor-wait disabled:opacity-60"
               >
-                <p className="text-sm font-semibold text-[#0a0a0a]">
+                <p className="text-sm font-semibold text-tinta">
                   {connectingCalendarId === calendar.id ? "Conectando…" : calendar.name}
                 </p>
                 <p className="mt-1 text-xs text-muted">{calendar.ownerEmail ?? "Calendario principal"}</p>
@@ -190,16 +190,16 @@ function SettingsCallbackContent() {
   return (
     <div className="flex min-h-[60vh] items-center justify-center px-4 py-16">
       <div className="panel w-full max-w-md overflow-hidden p-0">
-        <div className="bg-[#fafafa] px-6 py-6">
+        <div className="bg-relleno px-6 py-6">
           <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#f3eeff] text-[#8b5cf6]">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-lavado text-morado">
               <CalendarCheck2 className="h-5 w-5" aria-hidden="true" />
             </div>
             <div>
               <span className="badge-soft">
                 {searchParams.has("outlook_error") ? "Outlook Calendar" : "Google Calendar"}
               </span>
-              <h1 className="mt-2 text-xl font-semibold text-[#0a0a0a]">
+              <h1 className="mt-2 text-xl font-semibold text-tinta">
                 {isSuccess ? "Conexión completada" : isError ? "Hubo un problema" : "Finalizando configuración"}
               </h1>
             </div>
@@ -208,7 +208,7 @@ function SettingsCallbackContent() {
 
         <div className="space-y-6 px-6 py-8">
           <div className="flex justify-center">
-            <div className={`relative flex h-20 w-20 items-center justify-center rounded-full ${phase === "complete" ? "bg-[#ecf7ec] text-[#2c7334]" : "bg-[#fafafa] text-[#52525b]"}`}>
+            <div className={`relative flex h-20 w-20 items-center justify-center rounded-full ${phase === "complete" ? "bg-exito-fondo text-exito" : "bg-relleno text-apagado"}`}>
               {phase === "complete" ? (
                 isSuccess ? (
                   <CheckCircleAnimation />
@@ -216,16 +216,16 @@ function SettingsCallbackContent() {
                   <CircleAlert className="h-10 w-10" aria-hidden="true" />
                 )
               ) : (
-                <div className="h-8 w-8 animate-spin rounded-full border-4 border-[#e5e5e5] border-t-[#0a0a0a]" />
+                <div className="h-8 w-8 animate-spin rounded-full border-4 border-linea border-t-tinta" />
               )}
             </div>
           </div>
 
           <div className="space-y-3">
             {/* Barra de tiempo, no de progreso real: decorativa. */}
-            <div className="h-2 overflow-hidden rounded-full bg-[#e5e5e5]" aria-hidden="true">
+            <div className="h-2 overflow-hidden rounded-full bg-linea" aria-hidden="true">
               <div
-                className="h-full rounded-full bg-gradient-to-r from-[#0a0a0a] via-[#8b5cf6] to-[#a78bfa] transition-all duration-200"
+                className="h-full rounded-full bg-gradient-to-r from-tinta via-morado to-morado-claro transition-all duration-200"
                 style={{ width: `${progress}%` }}
               />
             </div>
@@ -253,9 +253,9 @@ function SettingsCallbackContent() {
 function CheckCircleAnimation() {
   return (
     <div className="relative flex h-12 w-12 items-center justify-center">
-      <div className="absolute inset-0 animate-ping rounded-full bg-[#d8efd7]" />
-      <div className="absolute inset-1 rounded-full bg-[#ecf7ec]" />
-      <svg viewBox="0 0 24 24" className="relative h-8 w-8 text-[#2c7334]" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+      <div className="absolute inset-0 animate-ping rounded-full bg-exito-borde" />
+      <div className="absolute inset-1 rounded-full bg-exito-fondo" />
+      <svg viewBox="0 0 24 24" className="relative h-8 w-8 text-exito" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
         <path d="M20 6 9 17l-5-5" />
       </svg>
     </div>

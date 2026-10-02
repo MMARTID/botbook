@@ -191,6 +191,25 @@ Negro y blanco como base absoluta, morado como único acento decorativo, y tres 
 heredados (éxito, aviso, error) que se mantienen fuera de la familia morada a propósito: son
 estado del sistema, no marca.
 
+### Tokens y modo oscuro
+
+Desde octubre de 2026 la app (no la web pública) tiene modo oscuro. Por defecto sigue al sistema;
+en Cuenta hay «Sistema · Claro · Oscuro» y la elección se queda en el dispositivo (`lib/tema.ts`).
+Un script en el `<head>` pone `data-tema` en `<html>` antes del primer pintado, sin destello.
+
+Cada color de esta sección es un **token** con valor claro y oscuro (variables en canales RGB en
+`globals.css`, clases del mismo nombre en `tailwind.config.ts`): `bg-superficie`, `text-tinta`,
+`bg-lavado`, `text-morado`, `border-linea`… Un hex escrito en una clase no cambia en oscuro, así
+que no se escribe ninguno. En oscuro:
+
+- Las superficies se oscurecen por capas: lienzo `#0b0b0e`, paneles `#141418`, lo que flota
+  `#1c1c21`; los bordes, `#2e2e36`.
+- **Tinta se invierte**: el texto pasa a casi blanco y el botón primario negro pasa a claro con
+  texto oscuro (`sobre-tinta`). El morado del acento no cambia; su texto (`morado-tinta`) se aclara.
+- **Lo que es oscuro a propósito sigue oscuro** (`oscuro`): la tarjeta de la próxima cita y la
+  transcripción. Encima, el texto va en `text-white`.
+- Velos de diálogos y hojas: siempre negros (`bg-black/40`). Un QR, siempre sobre blanco.
+
 ### Primary
 
 - **Negro Tinta** (`#0a0a0a`): botones primarios, titulares y todo énfasis estructural. Es la
@@ -246,7 +265,11 @@ estado del sistema, no marca.
   texto pequeño; `#806012` da 5,8:1 y 5,5:1. El ocre `#9f7a15` se queda para puntos, iconos y
   bordes (decidido en el pase de pulido del 2026-09-26).
 - **Error** (`#c53030`) sobre **Superficie Error** (`#fff1f1`) con borde **`#f5d3d3`**: fallos de
-  validación y errores de sistema.
+  validación, insignias y avisos flotantes de error.
+- **Urgente** (`#b42318`, token `urgente`): lo que pide actuar ya (una cita que se cayó, un error
+  al cargar, el servicio suspendido). Desde octubre de 2026 esas tarjetas son **blancas, con el
+  rojo solo en el azulejo del icono** y el texto en gris: el rosa entero gritaba más de lo que
+  pedía. Su sitio (la primera de la columna) ya marca la urgencia.
 
 ### Named Rules
 

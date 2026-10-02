@@ -245,13 +245,13 @@ export function CallForwardingCard({
 
   if (forwarding.status === "waiting_number") {
     return (
-      <section id="desvio" className="panel scroll-mt-32 border-[#e5e5e5] bg-[#fafafa] p-4 sm:p-5">
+      <section id="desvio" className="panel scroll-mt-32 border-linea bg-relleno p-4 sm:p-5">
         <div className="flex items-start gap-3">
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-[#8b5cf6]">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-superficie text-morado">
             <Clock3 className="h-5 w-5" aria-hidden="true" />
           </span>
           <div className="min-w-0">
-            <h2 className="text-base font-semibold text-[#0a0a0a] sm:text-lg">
+            <h2 className="text-base font-semibold text-tinta sm:text-lg">
               Estamos activando tu número
             </h2>
             <p className="mt-1 max-w-2xl text-sm leading-6 text-muted">
@@ -277,15 +277,15 @@ export function CallForwardingCard({
   return (
     <section
       id="desvio"
-      className="panel scroll-mt-32 border-[#ddd6fe] bg-[#f3eeff] p-4 sm:p-5"
+      className="panel scroll-mt-32 border-lavado-borde bg-lavado p-4 sm:p-5"
       aria-labelledby="desvio-title"
     >
       <div className="flex items-start gap-3">
-        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-[#8b5cf6]">
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-superficie text-morado">
           <PhoneForwarded className="h-5 w-5" aria-hidden="true" />
         </span>
         <div className="min-w-0">
-          <h2 id="desvio-title" className="text-base font-semibold text-[#0a0a0a] sm:text-lg">
+          <h2 id="desvio-title" className="text-base font-semibold text-tinta sm:text-lg">
             Activa el desvío para empezar a recibir llamadas
           </h2>
           <p className="mt-1 max-w-2xl text-sm leading-6 text-muted">
@@ -296,10 +296,10 @@ export function CallForwardingCard({
         </div>
       </div>
 
-      <div className="mt-4 flex flex-col gap-3 rounded-2xl bg-white p-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="mt-4 flex flex-col gap-3 rounded-2xl bg-superficie p-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0">
           <p className="text-xs text-muted">Tu número de Alhabla</p>
-          <p className="mt-1 text-xl font-semibold tabular-nums tracking-tight text-[#0a0a0a]">
+          <p className="mt-1 text-xl font-semibold tabular-nums tracking-tight text-tinta">
             {formatPhone(numero)}
           </p>
         </div>
@@ -328,7 +328,7 @@ export function CallForwardingCard({
 
       {esFijo ? (
         <>
-          <h3 className="mt-5 text-sm font-semibold text-[#0a0a0a]">Desde el fijo del local</h3>
+          <h3 className="mt-5 text-sm font-semibold text-tinta">Desde el fijo del local</h3>
           <p className="mt-1 text-sm leading-6 text-muted">
             Descuelga el teléfono del local y marca el código tras el tono, como si fuera una llamada.
             Es el mismo en todas las compañías.
@@ -342,14 +342,14 @@ export function CallForwardingCard({
           </ul>
           <NotaDeLinea>
             Si tu fijo tiene contestador, desactívalo o se quedará él las llamadas. En Movistar se
-            quita marcando <span className="font-mono text-[#27272a]">#10#</span>.
+            quita marcando <span className="font-mono text-tinta-2">#10#</span>.
           </NotaDeLinea>
         </>
       ) : null}
 
       {esMovil || tipoDeLinea === null ? (
         <>
-          <h3 className="mt-5 text-sm font-semibold text-[#0a0a0a]">
+          <h3 className="mt-5 text-sm font-semibold text-tinta">
             {esMovil ? "Desde tu móvil" : "Desde un móvil"}
           </h3>
           <p className="mt-1 text-sm leading-6 text-muted">
@@ -369,7 +369,7 @@ export function CallForwardingCard({
           </div>
 
           <details className="group mt-2">
-            <summary className="inline-flex min-h-11 cursor-pointer list-none items-center gap-1.5 rounded-[10px] px-1 text-sm font-semibold text-[#6d28d9] underline-offset-2 transition duration-200 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] [&::-webkit-details-marker]:hidden">
+            <summary className="inline-flex min-h-11 cursor-pointer list-none items-center gap-1.5 rounded-[10px] px-1 text-sm font-semibold text-morado-tinta underline-offset-2 transition duration-200 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-morado [&::-webkit-details-marker]:hidden">
               Otras formas de desviar
               <ChevronDown className="h-4 w-4 transition duration-200 group-open:rotate-180" aria-hidden="true" />
             </summary>
@@ -393,11 +393,11 @@ export function CallForwardingCard({
 
       {tipoDeLinea === null ? (
         <>
-          <h3 className="mt-5 text-sm font-semibold text-[#0a0a0a]">Desde un fijo</h3>
+          <h3 className="mt-5 text-sm font-semibold text-tinta">Desde un fijo</h3>
           <p className="mt-1 max-w-2xl text-sm leading-6 text-muted">
-            Descuelga y marca <span className="font-mono text-[#27272a]">*61*{numero}#</span> tras el
+            Descuelga y marca <span className="font-mono text-tinta-2">*61*{numero}#</span> tras el
             tono para desviar las llamadas que no contestas, o{" "}
-            <span className="font-mono text-[#27272a]">*21*{numero}#</span> para desviarlas todas. Si el
+            <span className="font-mono text-tinta-2">*21*{numero}#</span> para desviarlas todas. Si el
             fijo tiene contestador, desactívalo o se quedará él las llamadas.
           </p>
         </>
@@ -405,7 +405,7 @@ export function CallForwardingCard({
 
       <ComprobarDesvio customerLine={forwarding.customerLine} />
 
-      <div className="mt-5 flex flex-col gap-3 border-t border-[#ddd6fe] pt-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="mt-5 flex flex-col gap-3 border-t border-lavado-borde pt-4 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-sm text-muted">
           Si prefieres no comprobarlo, en cuanto entre la primera llamada lo damos por hecho automáticamente.
         </p>
@@ -425,7 +425,7 @@ export function CallForwardingCard({
       </div>
 
       {confirmMutation.isError ? (
-        <p role="alert" className="mt-3 text-sm font-medium text-[#c53030]">
+        <p role="alert" className="mt-3 text-sm font-medium text-error">
           No se pudo guardar la confirmación. Inténtalo otra vez en unos segundos.
         </p>
       ) : null}
@@ -436,8 +436,8 @@ export function CallForwardingCard({
 /** Aviso corto bajo los códigos (contestador, buzón de voz). */
 export function NotaDeLinea({ children }: { children: ReactNode }) {
   return (
-    <p className="mt-3 flex items-start gap-2 rounded-2xl border border-[#f0dfa8] bg-[#fef8e7] px-4 py-3 text-sm leading-6 text-[#806012]">
-      <TriangleAlert className="mt-1 h-4 w-4 shrink-0 text-[#9f7a15]" aria-hidden="true" />
+    <p className="mt-3 flex items-start gap-2 rounded-2xl border border-aviso-borde bg-aviso-fondo px-4 py-3 text-sm leading-6 text-aviso">
+      <TriangleAlert className="mt-1 h-4 w-4 shrink-0 text-aviso-icono" aria-hidden="true" />
       <span>{children}</span>
     </p>
   );
@@ -461,8 +461,8 @@ function PreguntaTipoDeLinea({ customerLine }: { customerLine: string }) {
   });
 
   return (
-    <div className="mt-4 rounded-2xl border border-[#e5e5e5] bg-white p-4">
-      <h3 id="desvio-tipo-de-linea-title" className="text-sm font-semibold text-[#0a0a0a]">
+    <div className="mt-4 rounded-2xl border border-linea bg-superficie p-4">
+      <h3 id="desvio-tipo-de-linea-title" className="text-sm font-semibold text-tinta">
         ¿De qué tipo es esta línea?
       </h3>
       <p className="mt-1 text-sm leading-6 text-muted">
@@ -482,7 +482,7 @@ function PreguntaTipoDeLinea({ customerLine }: { customerLine: string }) {
         />
       </div>
       {guardarMutation.isError ? (
-        <p role="alert" className="mt-3 text-sm font-medium text-[#c53030]">
+        <p role="alert" className="mt-3 text-sm font-medium text-error">
           No se pudo guardar el tipo de línea. Inténtalo otra vez en unos segundos.
         </p>
       ) : null}
@@ -576,13 +576,13 @@ export function ComprobarDesvio({
 
   if (customerLine === null) {
     return (
-      <div className="mt-5 rounded-2xl border border-[#e5e5e5] bg-white p-4">
-        <h3 className="text-sm font-semibold text-[#0a0a0a]">Comprueba que funciona</h3>
+      <div className="mt-5 rounded-2xl border border-linea bg-superficie p-4">
+        <h3 className="text-sm font-semibold text-tinta">Comprueba que funciona</h3>
         <p className="mt-1 text-sm leading-6 text-muted">
           Para comprobar el desvío necesitamos el teléfono al que te llaman tus clientes.{" "}
           <Link
             href="/ajustes/telefono"
-            className="font-semibold text-[#6d28d9] underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]"
+            className="font-semibold text-morado-tinta underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-morado"
           >
             Añádelo en Ajustes
           </Link>{" "}
@@ -595,8 +595,8 @@ export function ComprobarDesvio({
   const lineaLegible = formatPhone(customerLine);
 
   return (
-    <div className="mt-5 rounded-2xl border border-[#e5e5e5] bg-white p-4">
-      <h3 className="text-sm font-semibold text-[#0a0a0a]">Comprueba que funciona</h3>
+    <div className="mt-5 rounded-2xl border border-linea bg-superficie p-4">
+      <h3 className="text-sm font-semibold text-tinta">Comprueba que funciona</h3>
 
       {fase === "inactiva" ? (
         <div className="mt-1 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -616,8 +616,8 @@ export function ComprobarDesvio({
       ) : null}
 
       {fase === "aviso" ? (
-        <div className="mt-2 rounded-2xl border border-[#ddd6fe] bg-[#f3eeff] p-4">
-          <p className="text-sm font-semibold text-[#0a0a0a]">
+        <div className="mt-2 rounded-2xl border border-lavado-borde bg-lavado p-4">
+          <p className="text-sm font-semibold text-tinta">
             Vamos a llamar al {lineaLegible}. No lo cojas.
           </p>
           <p className="mt-1 text-sm leading-6 text-muted">
@@ -651,7 +651,7 @@ export function ComprobarDesvio({
             </button>
           </div>
           {startMutation.isError ? (
-            <p role="alert" className="mt-3 text-sm font-medium text-[#c53030]">
+            <p role="alert" className="mt-3 text-sm font-medium text-error">
               {textoDeErrorAlComprobar(startMutation.error, contexto)}
             </p>
           ) : null}
@@ -659,10 +659,10 @@ export function ComprobarDesvio({
       ) : null}
 
       {fase === "en_curso" && !resultado && !sinRespuesta ? (
-        <div role="status" className="mt-2 flex items-start gap-3 rounded-2xl border border-[#ddd6fe] bg-[#f3eeff] p-4">
-          <Loader2 className="mt-0.5 h-5 w-5 shrink-0 animate-spin text-[#8b5cf6]" aria-hidden="true" />
+        <div role="status" className="mt-2 flex items-start gap-3 rounded-2xl border border-lavado-borde bg-lavado p-4">
+          <Loader2 className="mt-0.5 h-5 w-5 shrink-0 animate-spin text-morado" aria-hidden="true" />
           <div>
-            <p className="text-sm font-semibold text-[#0a0a0a]">Llamando al {lineaLegible}… no lo cojas</p>
+            <p className="text-sm font-semibold text-tinta">Llamando al {lineaLegible}… no lo cojas</p>
             <p className="mt-1 text-sm leading-6 text-muted">
               Estamos esperando a que la llamada llegue a tu recepcionista. Puede tardar hasta un minuto.
             </p>
@@ -671,12 +671,12 @@ export function ComprobarDesvio({
       ) : null}
 
       {resultado?.estado === "ok" ? (
-        <div className="mt-2 rounded-2xl border border-[#d8efd7] bg-[#ecf7ec] p-4" role="status">
-          <p className="flex items-center gap-2 text-sm font-semibold text-[#2c7334]">
+        <div className="mt-2 rounded-2xl border border-exito-borde bg-exito-fondo p-4" role="status">
+          <p className="flex items-center gap-2 text-sm font-semibold text-exito">
             <CircleCheck className="h-5 w-5 shrink-0" aria-hidden="true" />
             Desvío funcionando
           </p>
-          <p className="mt-1 text-sm leading-6 text-[#2c7334]">
+          <p className="mt-1 text-sm leading-6 text-exito">
             La llamada al {lineaLegible} ha llegado a tu recepcionista. Tus clientes ya pueden reservar
             aunque no cojas el teléfono.
           </p>
@@ -688,12 +688,12 @@ export function ComprobarDesvio({
       ) : null}
 
       {fallo || sinRespuesta ? (
-        <div className="mt-2 rounded-2xl border border-[#f5d3d3] bg-[#fff1f1] p-4" role="alert">
-          <p className="flex items-center gap-2 text-sm font-semibold text-[#c53030]">
-            <TriangleAlert className="h-5 w-5 shrink-0" aria-hidden="true" />
+        <div className="mt-2 rounded-2xl border border-linea bg-superficie p-4" role="alert">
+          <p className="flex items-center gap-2 text-sm font-semibold text-tinta">
+            <TriangleAlert className="h-5 w-5 shrink-0 text-urgente" aria-hidden="true" />
             {fallo ? textoDeMotivo(fallo.motivo, contexto).titulo : "No hemos recibido respuesta"}
           </p>
-          <p className="mt-1 text-sm leading-6 text-[#c53030]">
+          <p className="mt-1 text-sm leading-6 text-apagado">
             {fallo
               ? textoDeMotivo(fallo.motivo, contexto).detalle
               : "La comprobación no ha terminado a tiempo. Espera un minuto y vuelve a intentarlo."}
@@ -706,9 +706,9 @@ export function ComprobarDesvio({
       ) : null}
 
       {fase === "en_curso" && consultaFallida ? (
-        <p role="alert" className="mt-3 text-sm font-medium text-[#c53030]">
+        <p role="alert" className="mt-3 text-sm font-medium text-error">
           Hemos perdido el hilo de la comprobación. Vuelve a intentarlo en un minuto.{" "}
-          <button type="button" onClick={reiniciar} className="zona-tactil rounded-[10px] font-semibold underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]">
+          <button type="button" onClick={reiniciar} className="zona-tactil rounded-[10px] font-semibold underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-morado">
             Volver a comprobar
           </button>
         </p>
@@ -731,10 +731,10 @@ export function CodigoFila({
   const valor = codigo.activar(numero);
 
   return (
-    <div className="rounded-2xl border border-[#e5e5e5] bg-white p-4">
+    <div className="rounded-2xl border border-linea bg-superficie p-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
-          <p className="flex flex-wrap items-center gap-2 text-sm font-semibold text-[#0a0a0a]">
+          <p className="flex flex-wrap items-center gap-2 text-sm font-semibold text-tinta">
             {codigo.titulo}
             {codigo.recomendado ? <span className="badge-soft">Recomendado</span> : null}
           </p>
@@ -743,11 +743,11 @@ export function CodigoFila({
         <button
           type="button"
           onClick={() => onCopiar(valor, codigo.id)}
-          className="inline-flex h-11 shrink-0 items-center gap-2 rounded-[10px] border border-[#e5e5e5] bg-white px-4 font-mono text-sm text-[#0a0a0a] transition duration-200 hover:border-[#0a0a0a] hover:bg-[#fafafa] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]"
+          className="inline-flex h-11 shrink-0 items-center gap-2 rounded-[10px] border border-linea bg-superficie px-4 font-mono text-sm text-tinta transition duration-200 hover:border-tinta hover:bg-relleno focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-morado"
           aria-label={copiado === codigo.id ? "Código copiado" : `Copiar el código ${valor}`}
         >
           {copiado === codigo.id ? (
-            <Check className="h-4 w-4 shrink-0 text-[#2c7334]" aria-hidden="true" />
+            <Check className="h-4 w-4 shrink-0 text-exito" aria-hidden="true" />
           ) : (
             <Copy className="h-4 w-4 shrink-0 text-muted" aria-hidden="true" />
           )}
@@ -756,7 +756,7 @@ export function CodigoFila({
       </div>
       <p className="mt-2 text-xs text-muted">
         Para anularlo más adelante, marca{" "}
-        <span className="font-mono text-[#27272a]">{codigo.desactivar}</span>.
+        <span className="font-mono text-tinta-2">{codigo.desactivar}</span>.
       </p>
     </div>
   );

@@ -16,10 +16,10 @@ export function PasoDelAlta({ paso }: { paso: 1 | 2 | 3 | 4 | 5 }) {
         aria-valuemax={TOTAL_PASOS}
         aria-valuenow={paso}
         aria-valuetext={`Paso ${paso} de ${TOTAL_PASOS}`}
-        className="h-1.5 flex-1 overflow-hidden rounded-full bg-[#e5e5e5]"
+        className="h-1.5 flex-1 overflow-hidden rounded-full bg-linea"
       >
         <div
-          className="h-full rounded-full bg-[#0a0a0a]"
+          className="h-full rounded-full bg-tinta"
           style={{ width: `${(paso / TOTAL_PASOS) * 100}%` }}
         />
       </div>

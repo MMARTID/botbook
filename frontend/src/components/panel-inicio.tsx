@@ -57,7 +57,7 @@ function DashboardContent() {
   if (isBusinessError && !business) {
     return (
       <div className="panel mx-auto max-w-2xl space-y-4 p-6 text-center lg:mt-10">
-        <h1 className="text-2xl font-semibold text-[#0a0a0a]">No se pudo cargar tu panel</h1>
+        <h1 className="text-2xl font-semibold text-tinta">No se pudo cargar tu panel</h1>
         <p className="text-sm leading-6 text-muted">
           Puede haber sido un corte momentáneo de conexión. Vuelve a intentarlo; si sigue sin cargar,
           escríbenos y lo miramos.

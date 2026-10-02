@@ -46,9 +46,9 @@ const STATUS_TONE: Record<SubscriptionStatus, "ok" | "warning" | "error"> = {
 };
 
 const TONE_CLASSES = {
-  ok: "bg-[#ecf7ec] text-[#2c7334] ring-1 ring-inset ring-[#d8efd7]",
-  warning: "bg-[#fef8e7] text-[#806012] ring-1 ring-inset ring-[#f0dfa8]",
-  error: "bg-[#fff1f1] text-[#c53030] ring-1 ring-inset ring-[#f5d3d3]",
+  ok: "bg-exito-fondo text-exito ring-1 ring-inset ring-exito-borde",
+  warning: "bg-aviso-fondo text-aviso ring-1 ring-inset ring-aviso-borde",
+  error: "bg-error-fondo text-error ring-1 ring-inset ring-error-borde",
 } as const;
 
 function formatFecha(value: string) {
@@ -107,8 +107,8 @@ export default function BillingSettingsPage() {
       {summary.isLoading ? (
         <div className="grid gap-5 lg:grid-cols-3" role="status">
           <span className="sr-only">Cargando facturación…</span>
-          <div className="h-72 rounded-3xl border border-[#e5e5e5] bg-[#fafafa] motion-safe:animate-pulse lg:col-span-2" aria-hidden="true" />
-          <div className="h-72 rounded-3xl border border-[#e5e5e5] bg-[#fafafa] motion-safe:animate-pulse" aria-hidden="true" />
+          <div className="h-72 rounded-3xl border border-linea bg-relleno motion-safe:animate-pulse lg:col-span-2" aria-hidden="true" />
+          <div className="h-72 rounded-3xl border border-linea bg-relleno motion-safe:animate-pulse" aria-hidden="true" />
         </div>
       ) : null}
       {summary.isError ? (
@@ -120,16 +120,16 @@ export default function BillingSettingsPage() {
 
       {/* Lo más grave primero: sin llamadas, el producto no existe. */}
       {suspendido ? (
-        <div className="rounded-2xl border border-[#f5d3d3] bg-[#fff1f1] p-4 sm:p-5">
+        <div className="rounded-2xl border border-linea bg-superficie p-4 sm:p-5">
           <div className="flex items-start gap-3">
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-[#c53030]">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-urgente-fondo text-urgente">
               <AlertTriangle className="h-5 w-5" aria-hidden="true" />
             </span>
             <div className="min-w-0">
-              <h2 className="text-base font-semibold text-[#0a0a0a] sm:text-lg">
+              <h2 className="text-base font-semibold text-tinta sm:text-lg">
                 Tu recepcionista no está atendiendo llamadas
               </h2>
-              <p className="mt-1 max-w-2xl text-sm leading-6 text-[#c53030]">
+              <p className="mt-1 max-w-2xl text-sm leading-6 text-apagado">
                 Hemos suspendido el servicio por un pago pendiente. En cuanto lo regularices en
                 Stripe, vuelve a atender sola: no hay que reconfigurar nada.
               </p>
@@ -145,7 +145,7 @@ export default function BillingSettingsPage() {
               <>
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <h2 className="text-2xl font-semibold text-[#0a0a0a] sm:text-3xl">
+                    <h2 className="text-2xl font-semibold text-tinta sm:text-3xl">
                       Plan {plan.name}
                       <span className="ml-2 text-base font-medium text-muted">{plan.price} €/mes</span>
                     </h2>
@@ -167,7 +167,7 @@ export default function BillingSettingsPage() {
                 ) : null}
 
                 {data.cancelAtPeriodEnd && data.currentPeriodEnd ? (
-                  <p className="mt-3 rounded-2xl border border-[#f0dfa8] bg-[#fef8e7] px-4 py-3 text-sm leading-6 text-[#806012]">
+                  <p className="mt-3 rounded-2xl border border-aviso-borde bg-aviso-fondo px-4 py-3 text-sm leading-6 text-aviso">
                     Tu plan termina el {formatFecha(data.currentPeriodEnd)}. Acuérdate de quitar el
                     desvío de tu teléfono antes de esa fecha para que tus clientes no se queden sin
                     respuesta.
@@ -178,9 +178,9 @@ export default function BillingSettingsPage() {
                   </p>
                 ) : null}
 
-                <div className="mt-6 border-t border-[#e5e5e5] pt-5">
+                <div className="mt-6 border-t border-linea pt-5">
                   <div className="flex flex-wrap items-baseline justify-between gap-2">
-                    <h3 className="text-sm font-semibold text-[#0a0a0a]">Minutos de este periodo</h3>
+                    <h3 className="text-sm font-semibold text-tinta">Minutos de este periodo</h3>
                     <p className="text-sm tabular-nums text-muted">
                       {incluidos !== null
                         ? `${consumidos} de ${incluidos} min`
@@ -191,7 +191,7 @@ export default function BillingSettingsPage() {
                   {incluidos !== null ? (
                     <>
                       <div
-                        className="mt-3 h-2 overflow-hidden rounded-full bg-[#f4f4f5]"
+                        className="mt-3 h-2 overflow-hidden rounded-full bg-relleno-fuerte"
                         role="progressbar"
                         aria-label="Minutos consumidos del plan"
                         aria-valuenow={porcentaje}
@@ -205,14 +205,14 @@ export default function BillingSettingsPage() {
                       >
                         <div
                           className={`h-full rounded-full transition-all duration-200 ${
-                            excedente > 0 ? "bg-[#c53030]" : "bg-[#8b5cf6]"
+                            excedente > 0 ? "bg-error" : "bg-morado"
                           }`}
                           style={{ width: `${Math.max(porcentaje, 2)}%` }}
                         />
                       </div>
                       <p className="mt-2 text-sm leading-6 text-muted">
                         {excedente > 0 ? (
-                          <span className="font-medium text-[#c53030]">
+                          <span className="font-medium text-error">
                             Llevas {excedente} min de más
                             {costeExtra ? ` (${formatPrice(costeExtra)} extra)` : ""}.
                           </span>
@@ -233,12 +233,12 @@ export default function BillingSettingsPage() {
             ) : (
               <div className="flex flex-col items-start gap-4">
                 <div>
-                  <h2 className="text-xl font-semibold text-[#0a0a0a] sm:text-2xl">
+                  <h2 className="text-xl font-semibold text-tinta sm:text-2xl">
                     Todavía no tienes plan
                   </h2>
                   <p className="mt-2 max-w-xl text-sm leading-6 text-muted">
                     Sin plan activo no podemos asignarte un número ni atender llamadas. Llevas{" "}
-                    <span className="font-medium tabular-nums text-[#27272a]">{consumidos} min</span>{" "}
+                    <span className="font-medium tabular-nums text-tinta-2">{consumidos} min</span>{" "}
                     de conversación registrados.
                   </p>
                 </div>
@@ -252,10 +252,10 @@ export default function BillingSettingsPage() {
           <article className="panel flex flex-col p-4 sm:p-6">
             {/* Misma cabecera horizontal que el resto de tarjetas de Ajustes. */}
             <div className="flex items-start gap-3">
-              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#f3eeff] text-[#8b5cf6]">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-lavado text-morado">
                 <ReceiptText className="h-5 w-5" aria-hidden="true" />
               </span>
-              <h2 className="pt-1.5 text-lg font-semibold text-[#0a0a0a]">Facturas y pago</h2>
+              <h2 className="pt-1.5 text-lg font-semibold text-tinta">Facturas y pago</h2>
             </div>
             <p className="mt-3 flex-1 text-sm leading-6 text-muted">
               Descarga tus facturas, cambia la tarjeta o da de baja la suscripción desde el portal
@@ -282,7 +282,7 @@ export default function BillingSettingsPage() {
               </a>
             )}
             {portal.isError ? (
-              <p role="alert" className="mt-3 text-sm text-[#c53030]">
+              <p role="alert" className="mt-3 text-sm text-error">
                 No se pudo abrir el portal de Stripe. Inténtalo otra vez en unos segundos.
               </p>
             ) : null}
@@ -291,24 +291,24 @@ export default function BillingSettingsPage() {
       ) : null}
 
       {showCancellationNotice ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0a0a0a]/60 p-4 backdrop-blur-sm">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
           <div
             ref={cancellationDialogRef}
             role="dialog"
             aria-modal="true"
             aria-labelledby="cancellation-notice-title"
             aria-describedby="cancellation-notice-body"
-            className="relative w-full max-w-md rounded-3xl border border-[#e5e5e5] bg-white p-6 shadow-[0_24px_60px_rgba(0,0,0,0.18)]"
+            className="relative w-full max-w-md rounded-3xl border border-linea bg-superficie p-6 shadow-[0_24px_60px_rgba(0,0,0,0.18)]"
           >
             <button
               type="button"
               onClick={() => setShowCancellationNotice(false)}
-              className="absolute right-4 top-4 inline-flex h-11 w-11 items-center justify-center rounded-full border border-[#e5e5e5] bg-white text-muted transition duration-200 hover:bg-[#fafafa] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] focus-visible:ring-offset-2"
+              className="absolute right-4 top-4 inline-flex h-11 w-11 items-center justify-center rounded-full border border-linea bg-superficie text-muted transition duration-200 hover:bg-relleno focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-morado focus-visible:ring-offset-2"
               aria-label="Cerrar aviso"
             >
               <X className="h-5 w-5" aria-hidden="true" />
             </button>
-            <h2 id="cancellation-notice-title" className="pr-12 text-xl font-semibold text-[#0a0a0a]">
+            <h2 id="cancellation-notice-title" className="pr-12 text-xl font-semibold text-tinta">
               Si vas a cancelar el plan
             </h2>
             <p id="cancellation-notice-body" className="mt-4 text-sm leading-6 text-muted">

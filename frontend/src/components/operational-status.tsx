@@ -34,11 +34,11 @@ export type OperationalStatusItem = {
 };
 
 export const OPERATIONAL_TONE: Record<OperationalTone, { icon: LucideIcon; text: string; dot: string }> = {
-  ok: { icon: Check, text: "text-[#2c7334]", dot: "bg-[#2c7334]" },
-  warning: { icon: AlertTriangle, text: "text-[#806012]", dot: "bg-[#9f7a15]" },
-  error: { icon: AlertTriangle, text: "text-[#c53030]", dot: "bg-[#c53030]" },
-  waiting: { icon: Clock3, text: "text-[#52525b]", dot: "bg-[#a1a1aa]" },
-  unknown: { icon: HelpCircle, text: "text-[#52525b]", dot: "bg-[#a1a1aa]" },
+  ok: { icon: Check, text: "text-exito", dot: "bg-exito" },
+  warning: { icon: AlertTriangle, text: "text-aviso", dot: "bg-aviso-icono" },
+  error: { icon: AlertTriangle, text: "text-error", dot: "bg-error" },
+  waiting: { icon: Clock3, text: "text-apagado", dot: "bg-tenue" },
+  unknown: { icon: HelpCircle, text: "text-apagado", dot: "bg-tenue" },
 };
 
 const NO_COMPROBADO = "No se ha podido comprobar";

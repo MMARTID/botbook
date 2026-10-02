@@ -80,11 +80,11 @@ export function ColumnaDelDia({
   return (
     <div className="relative min-w-0 flex-1" style={{ height: altoTotal }}>
       {lineas.map((minuto) => (
-        <div key={minuto} className="absolute inset-x-0 border-t border-[#f0f0f0]" style={{ top: aPx(minuto) }} aria-hidden="true" />
+        <div key={minuto} className="absolute inset-x-0 border-t border-linea-suave" style={{ top: aPx(minuto) }} aria-hidden="true" />
       ))}
       {cerradoTodoElDia ? (
         <div
-          className="absolute inset-0 bg-[repeating-linear-gradient(135deg,#fafafa_0,#fafafa_7px,#f1f1f2_7px,#f1f1f2_14px)]"
+          className="absolute inset-0 bg-[repeating-linear-gradient(135deg,rgb(var(--relleno))_0,rgb(var(--relleno))_7px,rgb(var(--relleno-fuerte))_7px,rgb(var(--relleno-fuerte))_14px)]"
           aria-hidden="true"
         >
           <span className="absolute left-2 top-2 text-xs font-semibold text-muted">Cerrado</span>
@@ -93,7 +93,7 @@ export function ColumnaDelDia({
         tramosCerrados(tramos, rango).map((tramo) => (
           <div
             key={tramo.desde}
-            className="absolute inset-x-0 bg-[repeating-linear-gradient(135deg,#fcfcfc_0,#fcfcfc_7px,#f4f4f5_7px,#f4f4f5_14px)]"
+            className="absolute inset-x-0 bg-[repeating-linear-gradient(135deg,rgb(var(--superficie))_0,rgb(var(--superficie))_7px,rgb(var(--relleno-fuerte))_7px,rgb(var(--relleno-fuerte))_14px)]"
             style={{ top: aPx(tramo.desde), height: aPx(tramo.hasta) - aPx(tramo.desde) }}
             aria-hidden="true"
           />
@@ -114,12 +114,12 @@ export function ColumnaDelDia({
             onPointerDown={arrastrable && !pasada ? (evento) => arrastrable.onEmpezar(cita, evento) : undefined}
             aria-pressed={elegida}
             aria-label={`${horaDelNegocio(cita.programedAt, timeZone)}, ${nombreDeCita(cita)}${detalle ? `, ${detalle}` : ""}`}
-            className={`absolute overflow-hidden rounded-lg border text-left transition-shadow focus-visible:z-20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] focus-visible:ring-offset-1 ${
+            className={`absolute overflow-hidden rounded-lg border text-left transition-shadow focus-visible:z-20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-morado focus-visible:ring-offset-1 ${
               elegida
-                ? "z-10 border-[#6d28d9] bg-[#8b5cf6] text-white shadow-[0_6px_16px_rgba(109,40,217,0.3)]"
+                ? "z-10 border-morado-tinta bg-morado text-white shadow-[0_6px_16px_rgba(109,40,217,0.3)]"
                 : pasada
-                  ? "border-[#e5e5e5] bg-[#fafafa] text-[#71717a]"
-                  : "border-[#ddd6fe] bg-[#f3eeff] text-[#27272a] hover:shadow-[0_4px_12px_rgba(109,40,217,0.15)]"
+                  ? "border-linea bg-relleno text-apagado-2"
+                  : "border-lavado-borde bg-lavado text-tinta-2 hover:shadow-[0_4px_12px_rgba(109,40,217,0.15)]"
             } ${arrastrable?.arrastrando === cita.id ? "opacity-40" : ""} ${arrastrable && !pasada ? "cursor-grab active:cursor-grabbing" : ""}`}
             style={{
               top: aPx(inicio) + 1,
@@ -130,7 +130,7 @@ export function ColumnaDelDia({
           >
             <span className={`block px-2 ${corto ? "py-0.5" : "py-1.5"}`}>
               <span className={`flex items-baseline gap-1.5 text-xs leading-4 ${corto ? "truncate" : ""}`}>
-                <span className={`shrink-0 font-bold tabular-nums ${elegida ? "text-white" : pasada ? "" : "text-[#6d28d9]"}`}>
+                <span className={`shrink-0 font-bold tabular-nums ${elegida ? "text-white" : pasada ? "" : "text-morado-tinta"}`}>
                   {horaDelNegocio(cita.programedAt, timeZone)}
                 </span>
                 <span className="truncate font-bold">{nombreDeCita(cita)}</span>
@@ -147,8 +147,8 @@ export function ColumnaDelDia({
       })}
       {esHoy && minutoAhora >= rango.desde && minutoAhora <= rango.hasta ? (
         <div className="pointer-events-none absolute inset-x-0 z-30" style={{ top: aPx(minutoAhora) }} aria-label={`Ahora, ${horaDeMinutos(minutoAhora)}`}>
-          <span className="absolute -left-1 -top-[4.5px] h-[9px] w-[9px] rounded-full bg-[#8b5cf6]" aria-hidden="true" />
-          <span className="block h-0.5 bg-[#8b5cf6]" aria-hidden="true" />
+          <span className="absolute -left-1 -top-[4.5px] h-[9px] w-[9px] rounded-full bg-morado" aria-hidden="true" />
+          <span className="block h-0.5 bg-morado" aria-hidden="true" />
         </div>
       ) : null}
     </div>

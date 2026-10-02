@@ -111,7 +111,7 @@ export function HorarioMovil({ business }: { business: Business }) {
             <section key={key} className="panel py-0.5 pl-4 pr-3" aria-label={nombre}>
               <div className="flex min-h-[60px] items-center gap-3">
                 <div className="min-w-0 flex-1">
-                  <p className="text-base font-bold text-[#0a0a0a]">{nombre}</p>
+                  <p className="text-base font-bold text-tinta">{nombre}</p>
                   <p className="mt-px text-sm tabular-nums text-muted">{resumenDelDia(dia)}</p>
                 </div>
                 <Interruptor
@@ -161,7 +161,7 @@ export function HorarioMovil({ business }: { business: Business }) {
                           type="button"
                           onClick={() => cambiarDia(key, (actual) => ({ ...actual, intervals: actual.intervals.filter((_, i) => i !== indice) }))}
                           aria-label={`Quitar el tramo ${indice + 1} del ${nombre.toLowerCase()}`}
-                          className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[#52525b] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]"
+                          className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-apagado focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-morado"
                         >
                           <X className="h-[18px] w-[18px]" aria-hidden="true" />
                         </button>
@@ -169,7 +169,7 @@ export function HorarioMovil({ business }: { business: Business }) {
                     </div>
                   ))}
                   {error ? (
-                    <p role="alert" className="text-[13px] leading-[1.45] text-[#c53030]">
+                    <p role="alert" className="text-[13px] leading-[1.45] text-error">
                       {error}
                     </p>
                   ) : null}
@@ -186,7 +186,7 @@ export function HorarioMovil({ business }: { business: Business }) {
                           return { ...actual, intervals: [...actual.intervals, { start: inicio, end: finTexto }] };
                         })
                       }
-                      className="flex min-h-11 items-center gap-1.5 self-start text-sm font-semibold text-[#6d28d9] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]"
+                      className="flex min-h-11 items-center gap-1.5 self-start text-sm font-semibold text-morado-tinta focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-morado"
                     >
                       <Plus className="h-4 w-4" aria-hidden="true" />
                       Añadir tramo
@@ -205,14 +205,14 @@ export function HorarioMovil({ business }: { business: Business }) {
         <div className="flex items-start gap-3">
           <AzulejoIcono icono={CalendarX2} />
           <div className="min-w-0">
-            <h2 id="dias-cerrados" className="text-base font-bold text-[#0a0a0a]">
+            <h2 id="dias-cerrados" className="text-base font-bold text-tinta">
               Festivos y días cerrados
             </h2>
             <p className="mt-0.5 text-sm leading-6 text-muted">El agente no ofrecerá ni confirmará citas en esas fechas.</p>
           </div>
         </div>
         <div className="mt-3 flex flex-col gap-2.5">
-          <label className="text-sm font-semibold text-[#27272a]">
+          <label className="text-sm font-semibold text-tinta-2">
             Fecha
             <input
               type="date"
@@ -222,7 +222,7 @@ export function HorarioMovil({ business }: { business: Business }) {
               className="field mt-2 block w-full text-base font-normal"
             />
           </label>
-          <label className="text-sm font-semibold text-[#27272a]">
+          <label className="text-sm font-semibold text-tinta-2">
             Motivo (opcional)
             <input
               type="text"
@@ -234,7 +234,7 @@ export function HorarioMovil({ business }: { business: Business }) {
             />
           </label>
           {errorExcepcion ? (
-            <p role="alert" className="text-sm text-[#c53030]">
+            <p role="alert" className="text-sm text-error">
               {errorExcepcion}
             </p>
           ) : null}
@@ -246,9 +246,9 @@ export function HorarioMovil({ business }: { business: Business }) {
         {excepciones.length > 0 ? (
           <ul className="mt-3 flex flex-col gap-2">
             {excepciones.map((excepcion) => (
-              <li key={excepcion.date} className="flex items-center gap-3 rounded-2xl border border-[#e5e5e5] bg-white py-2 pl-4 pr-1.5">
+              <li key={excepcion.date} className="flex items-center gap-3 rounded-2xl border border-linea bg-superficie py-2 pl-4 pr-1.5">
                 <span className="min-w-0 flex-1">
-                  <span className="block text-sm font-semibold text-[#27272a]">{formatExceptionDate(excepcion.date)}</span>
+                  <span className="block text-sm font-semibold text-tinta-2">{formatExceptionDate(excepcion.date)}</span>
                   <span className="block text-xs text-muted">
                     {excepcion.closed
                       ? excepcion.label || "Cerrado todo el día"
@@ -264,7 +264,7 @@ export function HorarioMovil({ business }: { business: Business }) {
                     }))
                   }
                   aria-label={`Quitar el día cerrado del ${formatExceptionDate(excepcion.date)}`}
-                  className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[#c53030] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]"
+                  className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-error focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-morado"
                 >
                   <Trash2 className="h-4 w-4" aria-hidden="true" />
                 </button>

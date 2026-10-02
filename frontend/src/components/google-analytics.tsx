@@ -295,7 +295,7 @@ export function GoogleAnalytics({
       ) : null}
       {mostrarAviso ? (
         <aside
-          className={`fixed inset-x-4 z-[65] mx-auto max-w-md rounded-2xl border border-[#e5e5e5] bg-white p-4 shadow-[0_16px_40px_rgba(0,0,0,0.16)] ${colocacionDelAviso}`}
+          className={`fixed inset-x-4 z-[65] mx-auto max-w-md rounded-2xl border border-linea bg-superficie p-4 shadow-[0_16px_40px_rgba(0,0,0,0.16)] ${colocacionDelAviso}`}
           aria-labelledby="titulo-cookies"
         >
           {/* Título real para quien usa lector de pantalla (puede saltar a
@@ -309,7 +309,7 @@ export function GoogleAnalytics({
             se activan si aceptas.{" "}
             <a
               href={enlaceDePrivacidad}
-              className="rounded font-medium text-[#27272a] underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]"
+              className="rounded font-medium text-tinta-2 underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-morado"
             >
               Más información
             </a>
@@ -348,7 +348,7 @@ export function GoogleAnalytics({
           onClick={() => setAbierto(true)}
           aria-label="Configurar cookies"
           title="Configurar cookies"
-          className={`fixed bottom-4 z-40 h-11 w-11 items-center justify-center rounded-full border border-[#e5e5e5] bg-white text-[#27272a] shadow-[0_8px_24px_rgba(0,0,0,0.08)] transition duration-200 hover:bg-[#fafafa] hover:text-[#8b5cf6] [html[data-relato]_&]:pointer-events-none [html[data-relato]_&]:opacity-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] ${colocacionDelBoton}`}
+          className={`fixed bottom-4 z-40 h-11 w-11 items-center justify-center rounded-full border border-linea bg-superficie text-tinta-2 shadow-[0_8px_24px_rgba(0,0,0,0.08)] transition duration-200 hover:bg-relleno hover:text-morado [html[data-relato]_&]:pointer-events-none [html[data-relato]_&]:opacity-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-morado ${colocacionDelBoton}`}
         >
           <Cookie className="h-5 w-5" aria-hidden="true" />
         </button>

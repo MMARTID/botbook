@@ -238,7 +238,7 @@ export default function NumeroPrincipalPage() {
         titulo="Qué cambia"
         descripcion="Lo que hace tu recepcionista cuando el de Alhabla es tu número."
       >
-        <ul className="list-disc space-y-2 pl-5 text-sm leading-6 text-[#27272a]">
+        <ul className="list-disc space-y-2 pl-5 text-sm leading-6 text-tinta-2">
           <li>
             Atiende todas las llamadas que entren por el número de Alhabla, a
             cualquier hora. No hay desvío que activar ni contestador que se
@@ -255,10 +255,10 @@ export default function NumeroPrincipalPage() {
           </li>
         </ul>
         {numeroDeAlhabla ? (
-          <div className="flex flex-col gap-3 rounded-2xl border border-[#e5e5e5] bg-[#fafafa] p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-col gap-3 rounded-2xl border border-linea bg-relleno p-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="text-xs text-muted">Tu número de Alhabla</p>
-              <p className="mt-1 text-xl font-semibold tabular-nums tracking-tight text-[#0a0a0a]">
+              <p className="mt-1 text-xl font-semibold tabular-nums tracking-tight text-tinta">
                 {formatPhone(numeroDeAlhabla)}
               </p>
             </div>
@@ -273,7 +273,7 @@ export default function NumeroPrincipalPage() {
               }
             >
               {copiado === "numero" ? (
-                <Check className="h-4 w-4 text-[#2c7334]" aria-hidden="true" />
+                <Check className="h-4 w-4 text-exito" aria-hidden="true" />
               ) : (
                 <Copy className="h-4 w-4" aria-hidden="true" />
               )}
@@ -293,13 +293,13 @@ export default function NumeroPrincipalPage() {
           {SITIOS_DONDE_PUBLICAR.map(({ icon: Icon, titulo, descripcion }) => (
             <li
               key={titulo}
-              className="flex items-start gap-3 rounded-2xl border border-[#e5e5e5] p-3.5"
+              className="flex items-start gap-3 rounded-2xl border border-linea p-3.5"
             >
-              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[#f3eeff] text-[#8b5cf6]">
+              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-lavado text-morado">
                 <Icon className="h-4 w-4" aria-hidden="true" />
               </span>
               <span className="min-w-0">
-                <span className="block text-sm font-semibold text-[#0a0a0a]">
+                <span className="block text-sm font-semibold text-tinta">
                   {titulo}
                 </span>
                 <span className="mt-0.5 block text-xs leading-5 text-muted">
@@ -323,7 +323,7 @@ export default function NumeroPrincipalPage() {
           titulo="Qué hacer con tu número de siempre"
           descripcion={`Tus clientes seguirán llamando a tu móvil (${formatPhone(lineaAntigua)}) una temporada.`}
         >
-          <ul className="list-disc space-y-2 pl-5 text-sm leading-6 text-[#27272a]">
+          <ul className="list-disc space-y-2 pl-5 text-sm leading-6 text-tinta-2">
             <li>
               <span className="font-semibold">No lo desvíes a Alhabla.</span>{" "}
               {TEXTO_MOVIL_SIN_DESVIO}
@@ -334,14 +334,14 @@ export default function NumeroPrincipalPage() {
               atiende y reserva.
             </li>
           </ul>
-          <div className="rounded-2xl border border-[#f0dfa8] bg-[#fef8e7] p-4">
-            <p className="text-sm leading-6 text-[#806012]">
+          <div className="rounded-2xl border border-aviso-borde bg-aviso-fondo p-4">
+            <p className="text-sm leading-6 text-aviso">
               {TEXTO_QUITAR_DESVIOS}
             </p>
             <button
               type="button"
               onClick={() => copiar(CODIGO_ANULAR_DESVIOS_MOVIL, "anular")}
-              className="mt-3 inline-flex h-11 items-center gap-2 rounded-[10px] border border-[#e5e5e5] bg-white px-4 font-mono text-sm text-[#0a0a0a] transition duration-200 hover:border-[#0a0a0a] hover:bg-[#fafafa] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]"
+              className="mt-3 inline-flex h-11 items-center gap-2 rounded-[10px] border border-linea bg-superficie px-4 font-mono text-sm text-tinta transition duration-200 hover:border-tinta hover:bg-relleno focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-morado"
               aria-label={
                 copiado === "anular"
                   ? "Código copiado"
@@ -349,7 +349,7 @@ export default function NumeroPrincipalPage() {
               }
             >
               {copiado === "anular" ? (
-                <Check className="h-4 w-4 text-[#2c7334]" aria-hidden="true" />
+                <Check className="h-4 w-4 text-exito" aria-hidden="true" />
               ) : (
                 <Copy className="h-4 w-4 text-muted" aria-hidden="true" />
               )}
@@ -361,7 +361,7 @@ export default function NumeroPrincipalPage() {
               {CODIGOS_MOVIL.map((codigo, indice) => (
                 <span key={codigo.id}>
                   {indice > 0 ? ", " : ""}
-                  <span className="font-mono text-[#27272a]">
+                  <span className="font-mono text-tinta-2">
                     {codigo.desactivar}
                   </span>
                 </span>
@@ -377,7 +377,7 @@ export default function NumeroPrincipalPage() {
           titulo="Qué hacer con tu número de siempre"
           descripcion={`Tus clientes seguirán llamando al ${formatPhone(lineaAntigua)} una temporada.`}
         >
-          <ul className="list-disc space-y-2 pl-5 text-sm leading-6 text-[#27272a]">
+          <ul className="list-disc space-y-2 pl-5 text-sm leading-6 text-tinta-2">
             <li>
               <span className="font-semibold">Mantenlo con desvío «todas»</span>{" "}
               mientras dure el cambio: cada llamada al número antiguo entra
@@ -432,7 +432,7 @@ export default function NumeroPrincipalPage() {
             </span>
             <Link
               href="/ajustes/telefono#whatsapp"
-              className="zona-tactil mt-2 inline-flex text-sm font-semibold text-[#0a0a0a] underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]"
+              className="zona-tactil mt-2 inline-flex text-sm font-semibold text-tinta underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-morado"
             >
               {motivoSinMovil === "fuera_de_espana"
                 ? "Cambiar mi móvil"
@@ -482,7 +482,7 @@ export default function NumeroPrincipalPage() {
             </p>
           ) : null}
           {error ? (
-            <p role="alert" className="mt-3 text-sm text-[#c53030]">
+            <p role="alert" className="mt-3 text-sm text-error">
               {error}
             </p>
           ) : null}
@@ -508,13 +508,13 @@ function Panel({
   return (
     <section className="panel p-4 sm:p-6" aria-labelledby={`${id}-title`}>
       <div className="flex items-start gap-3">
-        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#f3eeff] text-[#8b5cf6]">
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-lavado text-morado">
           <Icon className="h-5 w-5" aria-hidden="true" />
         </span>
         <div className="min-w-0">
           <h2
             id={`${id}-title`}
-            className="text-lg font-semibold text-[#0a0a0a]"
+            className="text-lg font-semibold text-tinta"
           >
             {titulo}
           </h2>
@@ -538,8 +538,8 @@ function Aviso({
       role="status"
       className={`rounded-2xl border px-4 py-3 text-sm leading-6 ${
         tono === "ok"
-          ? "border-[#d8efd7] bg-[#ecf7ec] text-[#2c7334]"
-          : "border-[#f0dfa8] bg-[#fef8e7] text-[#806012]"
+          ? "border-exito-borde bg-exito-fondo text-exito"
+          : "border-aviso-borde bg-aviso-fondo text-aviso"
       }`}
     >
       {children}

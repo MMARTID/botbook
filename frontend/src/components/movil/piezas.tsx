@@ -7,15 +7,15 @@ import { ArrowRight, ChevronRight, type LucideIcon } from "lucide-react";
 /**
  * Piezas pequeñas que comparten las pantallas de la app móvil. Siguen
  * DESIGN.md: objetivos de al menos 44 px, iconos en azulejo morado
- * (`rounded-xl`, #f3eeff / #8b5cf6) y paneles `rounded-3xl`.
+ * (`rounded-xl`, `bg-lavado` / `text-morado`) y paneles `rounded-3xl`.
  */
 
 export const TONOS = {
-  exito: { fondo: "bg-[#ecf7ec]", texto: "text-[#2c7334]", anillo: "ring-[#d8efd7]", borde: "border-[#d8efd7]", punto: "bg-[#2c7334]" },
-  aviso: { fondo: "bg-[#fef8e7]", texto: "text-[#806012]", anillo: "ring-[#f0dfa8]", borde: "border-[#f0dfa8]", punto: "bg-[#9f7a15]" },
-  error: { fondo: "bg-[#fff1f1]", texto: "text-[#c53030]", anillo: "ring-[#f5d3d3]", borde: "border-[#f5d3d3]", punto: "bg-[#c53030]" },
-  neutro: { fondo: "bg-[#f4f4f5]", texto: "text-[#52525b]", anillo: "ring-[#e5e5e5]", borde: "border-[#e5e5e5]", punto: "bg-[#a1a1aa]" },
-  morado: { fondo: "bg-[#f3eeff]", texto: "text-[#6d28d9]", anillo: "ring-[#ddd6fe]", borde: "border-[#ddd6fe]", punto: "bg-[#8b5cf6]" },
+  exito: { fondo: "bg-exito-fondo", texto: "text-exito", anillo: "ring-exito-borde", borde: "border-exito-borde", punto: "bg-exito" },
+  aviso: { fondo: "bg-aviso-fondo", texto: "text-aviso", anillo: "ring-aviso-borde", borde: "border-aviso-borde", punto: "bg-aviso-icono" },
+  error: { fondo: "bg-error-fondo", texto: "text-error", anillo: "ring-error-borde", borde: "border-error-borde", punto: "bg-error" },
+  neutro: { fondo: "bg-relleno-fuerte", texto: "text-apagado", anillo: "ring-linea", borde: "border-linea", punto: "bg-tenue" },
+  morado: { fondo: "bg-lavado", texto: "text-morado-tinta", anillo: "ring-lavado-borde", borde: "border-lavado-borde", punto: "bg-morado" },
 } as const;
 
 export type Tono = keyof typeof TONOS;
@@ -53,7 +53,7 @@ export function AzulejoIcono({
 }) {
   return (
     <span
-      className={`flex shrink-0 items-center justify-center rounded-xl bg-[#f3eeff] text-[#8b5cf6] ${tamaño === "sm" ? "h-9 w-9" : "h-10 w-10"} ${className}`}
+      className={`flex shrink-0 items-center justify-center rounded-xl bg-lavado text-morado ${tamaño === "sm" ? "h-9 w-9" : "h-10 w-10"} ${className}`}
       aria-hidden="true"
     >
       <Icono className={tamaño === "sm" ? "h-[18px] w-[18px]" : "h-5 w-5"} />
@@ -82,11 +82,11 @@ export function TituloDeSeccion({
 }) {
   return (
     <div className={`flex min-h-7 items-center justify-between ${className}`}>
-      <h2 className="text-lg font-bold tracking-[-0.01em] text-[#0a0a0a]">{children}</h2>
+      <h2 className="text-lg font-bold tracking-[-0.01em] text-tinta">{children}</h2>
       {enlace ? (
         <Link
           href={enlace.href}
-          className="-my-2 -mr-2 flex min-h-11 items-center gap-1 rounded-full px-2 text-sm font-semibold text-[#6d28d9] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]"
+          className="-my-2 -mr-2 flex min-h-11 items-center gap-1 rounded-full px-2 text-sm font-semibold text-morado-tinta focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-morado"
         >
           {enlace.etiqueta}
           <ArrowRight className="h-4 w-4" aria-hidden="true" />
@@ -103,7 +103,7 @@ export function GrupoDeFilas({ children, className = "" }: { children: React.Rea
     <div className={`panel overflow-hidden ${className}`}>
       {filas.map((fila, indice) => (
         <Fragment key={indice}>
-          {indice > 0 ? <div className="ml-[66px] h-px bg-[#e5e5e5]" aria-hidden="true" /> : null}
+          {indice > 0 ? <div className="ml-[66px] h-px bg-linea" aria-hidden="true" /> : null}
           {fila}
         </Fragment>
       ))}
@@ -138,24 +138,24 @@ export function FilaDeAjuste({
     <>
       <AzulejoIcono icono={icono} />
       <span className="min-w-0 flex-1">
-        <span className="flex items-center gap-2 text-base font-semibold leading-tight text-[#0a0a0a]">
+        <span className="flex items-center gap-2 text-base font-semibold leading-tight text-tinta">
           {titulo}
           {insignia}
         </span>
         {resumen ? (
           <span
-            className={`mt-0.5 flex min-w-0 items-center gap-1.5 text-sm ${pendiente ? "font-semibold text-[#806012]" : "text-muted"}`}
+            className={`mt-0.5 flex min-w-0 items-center gap-1.5 text-sm ${pendiente ? "font-semibold text-aviso" : "text-muted"}`}
           >
-            {pendiente ? <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#9f7a15]" aria-hidden="true" /> : null}
+            {pendiente ? <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-aviso-icono" aria-hidden="true" /> : null}
             <span className="truncate">{resumen}</span>
           </span>
         ) : null}
       </span>
-      <ChevronRight className="h-[18px] w-[18px] shrink-0 text-[#a1a1aa]" aria-hidden="true" />
+      <ChevronRight className="h-[18px] w-[18px] shrink-0 text-tenue" aria-hidden="true" />
     </>
   );
   const clases =
-    "flex min-h-[68px] w-full items-center gap-3 px-3.5 py-3 text-left transition duration-200 hover:bg-[#fafafa] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#8b5cf6]";
+    "flex min-h-[68px] w-full items-center gap-3 px-3.5 py-3 text-left transition duration-200 hover:bg-relleno focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-morado";
 
   if (destino.onClick) {
     return (
@@ -192,11 +192,11 @@ export function VacioMovil({
 }) {
   return (
     <div
-      className={`flex items-center gap-3 rounded-[20px] border border-dashed border-[#e5e5e5] bg-[#fafafa] px-4 py-[18px] ${className}`}
+      className={`flex items-center gap-3 rounded-[20px] border border-dashed border-linea bg-relleno px-4 py-[18px] ${className}`}
     >
       <AzulejoIcono icono={icono} />
       <div className="min-w-0">
-        {titulo ? <p className="text-[15px] font-bold text-[#27272a]">{titulo}</p> : null}
+        {titulo ? <p className="text-[15px] font-bold text-tinta-2">{titulo}</p> : null}
         <p className={`text-sm leading-6 text-muted ${titulo ? "mt-0.5" : ""}`}>{children}</p>
       </div>
     </div>
@@ -226,10 +226,10 @@ export function Interruptor({
       className="group flex h-11 w-[52px] shrink-0 items-center justify-end focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-60"
     >
       <span
-        className={`relative h-8 w-[52px] rounded-full transition-colors duration-200 group-focus-visible:ring-2 group-focus-visible:ring-[#8b5cf6] group-focus-visible:ring-offset-2 ${activo ? "bg-[#0a0a0a]" : "bg-[#d4d4d8]"}`}
+        className={`relative h-8 w-[52px] rounded-full transition-colors duration-200 group-focus-visible:ring-2 group-focus-visible:ring-morado group-focus-visible:ring-offset-2 ${activo ? "bg-tinta" : "bg-linea-fuerte"}`}
       >
         <span
-          className={`absolute top-[3px] h-[26px] w-[26px] rounded-full bg-white shadow-[0_1px_3px_rgba(0,0,0,0.25)] transition-[left] duration-200 ${activo ? "left-[23px]" : "left-[3px]"}`}
+          className={`absolute top-[3px] h-[26px] w-[26px] rounded-full bg-superficie shadow-[0_1px_3px_rgba(0,0,0,0.25)] transition-[left] duration-200 ${activo ? "left-[23px]" : "left-[3px]"}`}
         />
       </span>
     </button>
@@ -259,7 +259,7 @@ export function BarraGuardar({
   return (
     <div
       aria-hidden={!visible}
-      className={`fixed inset-x-0 bottom-0 z-50 flex gap-2.5 border-t border-[#e5e5e5] bg-white/95 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3 shadow-[0_-10px_28px_rgba(0,0,0,0.08)] backdrop-blur transition-transform duration-[260ms] ease-[cubic-bezier(.32,.72,0,1)] motion-reduce:transition-none lg:hidden ${
+      className={`fixed inset-x-0 bottom-0 z-50 flex gap-2.5 border-t border-linea bg-superficie/95 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3 shadow-[0_-10px_28px_rgba(0,0,0,0.08)] backdrop-blur transition-transform duration-[260ms] ease-[cubic-bezier(.32,.72,0,1)] motion-reduce:transition-none lg:hidden ${
         visible ? "translate-y-0" : "pointer-events-none translate-y-[105%]"
       }`}
     >

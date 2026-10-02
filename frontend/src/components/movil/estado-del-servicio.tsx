@@ -89,7 +89,7 @@ export function ChipDeEstado({ estado, onAbrir }: { estado: Estado; onAbrir: () 
       type="button"
       onClick={onAbrir}
       aria-label={`Estado del servicio: ${texto}`}
-      className={`inline-flex min-h-11 shrink-0 items-center gap-2 rounded-full border px-3.5 text-[13px] font-bold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] ${tono.fondo} ${tono.texto} ${tono.borde}`}
+      className={`inline-flex min-h-11 shrink-0 items-center gap-2 rounded-full border px-3.5 text-[13px] font-bold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-morado ${tono.fondo} ${tono.texto} ${tono.borde}`}
     >
       {estado.cargando ? (
         <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
@@ -102,11 +102,11 @@ export function ChipDeEstado({ estado, onAbrir }: { estado: Estado; onAbrir: () 
 }
 
 const TONO_DE_SEÑAL: Record<OperationalTone, { texto: string; punto: string }> = {
-  ok: { texto: "text-[#2c7334]", punto: "bg-[#2c7334]" },
-  warning: { texto: "text-[#806012]", punto: "bg-[#9f7a15]" },
-  error: { texto: "text-[#c53030]", punto: "bg-[#c53030]" },
-  waiting: { texto: "text-[#52525b]", punto: "bg-[#a1a1aa]" },
-  unknown: { texto: "text-[#52525b]", punto: "bg-[#a1a1aa]" },
+  ok: { texto: "text-exito", punto: "bg-exito" },
+  warning: { texto: "text-aviso", punto: "bg-aviso-icono" },
+  error: { texto: "text-error", punto: "bg-error" },
+  waiting: { texto: "text-apagado", punto: "bg-tenue" },
+  unknown: { texto: "text-apagado", punto: "bg-tenue" },
 };
 
 // Los problemas primero: el negocio necesita ver lo que falla antes que lo
@@ -190,7 +190,7 @@ export function ContenidoDelEstado({
         <IconoTitular className={`h-[18px] w-[18px] shrink-0 ${estado.cargando ? "animate-spin" : ""}`} aria-hidden="true" />
         {titular}
       </p>
-      <ul className="mt-3 overflow-hidden rounded-[20px] border border-[#e5e5e5]">
+      <ul className="mt-3 overflow-hidden rounded-[20px] border border-linea">
         {primeraPendiente ? (
           <FilaDeSeñal
             icono={TriangleAlert}
@@ -231,7 +231,7 @@ export function ContenidoDelEstado({
         ))}
       </ul>
       {reintento.isError ? (
-        <p className="mt-3 text-sm leading-6 text-[#c53030]" role="alert">
+        <p className="mt-3 text-sm leading-6 text-error" role="alert">
           {(reintento.error as { response?: { status?: number } })?.response?.status === 402
             ? "Tu plan todavía no está activo y sin él no podemos asignarte un número."
             : "No hemos podido asignarte el número. Inténtalo otra vez en unos minutos; si sigue fallando, escríbenos a hola@alhabla.ai."}
@@ -242,7 +242,7 @@ export function ContenidoDelEstado({
 }
 
 const CLASES_ACCION =
-  "inline-flex min-h-11 shrink-0 items-center px-1 text-sm font-bold text-[#6d28d9] underline underline-offset-[3px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] disabled:opacity-60";
+  "inline-flex min-h-11 shrink-0 items-center px-1 text-sm font-bold text-morado-tinta underline underline-offset-[3px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-morado disabled:opacity-60";
 
 /** Los enlaces de las señales apuntan a la versión de escritorio; en el
  * móvil cada ajuste del agente tiene su pantalla. */
@@ -295,7 +295,7 @@ function FilaDeSeñal({
 }) {
   const t = TONO_DE_SEÑAL[tono];
   return (
-    <li className="flex min-h-[68px] items-center gap-3 border-b border-[#f4f4f5] px-3.5 py-3 last:border-b-0">
+    <li className="flex min-h-[68px] items-center gap-3 border-b border-linea-suave px-3.5 py-3 last:border-b-0">
       <AzulejoIcono icono={icono} tamaño="sm" />
       <div className="min-w-0 flex-1">
         <p className="text-xs text-muted">{etiqueta}</p>

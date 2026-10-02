@@ -85,7 +85,7 @@ export function RangeSlider({
   const thumbLeft = SLIDER_THUMB_PX / 2 + percent * usableWidth;
 
   return (
-    <div className={bare ? "" : "rounded-2xl border border-[#e5e5e5] bg-[#fafafa] p-5 sm:p-6"}>
+    <div className={bare ? "" : "rounded-2xl border border-linea bg-relleno p-5 sm:p-6"}>
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
         <div className="flex items-center gap-3">
           {Icon ? (
@@ -96,11 +96,11 @@ export function RangeSlider({
               <Icon className="h-5 w-5" aria-hidden="true" />
             </span>
           ) : null}
-          <label htmlFor={id} className="max-w-[13rem] text-sm font-semibold leading-5 text-[#27272a]">
+          <label htmlFor={id} className="max-w-[13rem] text-sm font-semibold leading-5 text-tinta-2">
             {label}
           </label>
         </div>
-        <output htmlFor={id} className="shrink-0 text-2xl font-black tracking-tight text-[#0a0a0a]">
+        <output htmlFor={id} className="shrink-0 text-2xl font-black tracking-tight text-tinta">
           {displayValue}
         </output>
       </div>
@@ -110,7 +110,7 @@ export function RangeSlider({
       <div ref={trackRef} className="group relative mt-8 h-11 select-none">
 
         {/* pista, siempre visible de extremo a extremo */}
-        <div className="pointer-events-none absolute inset-x-0 top-1/2 h-2.5 -translate-y-1/2 overflow-hidden rounded-full bg-[#e5e5e5] shadow-[inset_0_1px_2px_rgba(0,0,0,0.08)]">
+        <div className="pointer-events-none absolute inset-x-0 top-1/2 h-2.5 -translate-y-1/2 overflow-hidden rounded-full bg-linea shadow-[inset_0_1px_2px_rgba(0,0,0,0.08)]">
           {showTicks
             ? SLIDER_TICKS.map((tick) => (
                 <span
@@ -149,16 +149,16 @@ export function RangeSlider({
             llegar con el teclado. */}
         <div
           aria-hidden="true"
-          className="pointer-events-none absolute bottom-full mb-3 -translate-x-1/2 scale-90 whitespace-nowrap rounded-xl bg-[#0a0a0a] px-2.5 py-1 text-xs font-bold text-white opacity-0 shadow-[0_8px_20px_rgba(0,0,0,0.18)] transition-[opacity,transform] duration-150 ease-out group-hover:scale-100 group-hover:opacity-100 group-active:scale-100 group-active:opacity-100 peer-focus-visible:scale-100 peer-focus-visible:opacity-100"
+          className="pointer-events-none absolute bottom-full mb-3 -translate-x-1/2 scale-90 whitespace-nowrap rounded-xl bg-tinta px-2.5 py-1 text-xs font-bold text-sobre-tinta opacity-0 shadow-[0_8px_20px_rgba(0,0,0,0.18)] transition-[opacity,transform] duration-150 ease-out group-hover:scale-100 group-hover:opacity-100 group-active:scale-100 group-active:opacity-100 peer-focus-visible:scale-100 peer-focus-visible:opacity-100"
           style={{ left: `${thumbLeft}px` }}
         >
           {displayValue}
-          <span className="absolute left-1/2 top-full h-2 w-2 -translate-x-1/2 -translate-y-1 rotate-45 bg-[#0a0a0a]" />
+          <span className="absolute left-1/2 top-full h-2 w-2 -translate-x-1/2 -translate-y-1 rotate-45 bg-tinta" />
         </div>
         {/* thumb visual: usa el mismo `thumbLeft` que el relleno, alineados por construcción */}
         <div
           aria-hidden="true"
-          className="pointer-events-none absolute top-1/2 h-6 w-6 -translate-x-1/2 -translate-y-1/2 rounded-full border-4 border-white shadow-[0_1px_3px_rgba(0,0,0,0.15)] transition-transform duration-150 ease-out group-hover:scale-110 group-active:scale-95 peer-focus-visible:ring-2 peer-focus-visible:ring-offset-2"
+          className="pointer-events-none absolute top-1/2 h-6 w-6 -translate-x-1/2 -translate-y-1/2 rounded-full border-4 border-superficie shadow-[0_1px_3px_rgba(0,0,0,0.15)] transition-transform duration-150 ease-out group-hover:scale-110 group-active:scale-95 peer-focus-visible:ring-2 peer-focus-visible:ring-offset-2"
           style={{
             left: `${thumbLeft}px`,
             backgroundColor: a.deep,

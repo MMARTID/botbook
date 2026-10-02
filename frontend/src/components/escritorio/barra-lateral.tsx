@@ -24,7 +24,7 @@ function Bocadillo({ children }: { children: React.ReactNode }) {
   return (
     <span
       role="presentation"
-      className="pointer-events-none absolute left-full top-1/2 z-[60] ml-3 -translate-y-1/2 whitespace-nowrap rounded-lg bg-[#0a0a0a] px-2.5 py-1.5 text-xs font-semibold text-white opacity-0 shadow-lg transition-opacity duration-150 group-hover:opacity-100 group-focus-visible:opacity-100"
+      className="pointer-events-none absolute left-full top-1/2 z-[60] ml-3 -translate-y-1/2 whitespace-nowrap rounded-lg bg-tinta px-2.5 py-1.5 text-xs font-semibold text-sobre-tinta opacity-0 shadow-lg transition-opacity duration-150 group-hover:opacity-100 group-focus-visible:opacity-100"
     >
       {children}
     </span>
@@ -53,19 +53,19 @@ function Enlace({
       href={destino.href}
       aria-current={activo ? "page" : undefined}
       aria-label={plegada ? destino.etiqueta : undefined}
-      className={`group relative flex min-h-10 items-center rounded-full border text-sm font-semibold transition duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] ${
+      className={`group relative flex min-h-10 items-center rounded-full border text-sm font-semibold transition duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-morado ${
         plegada ? "mx-auto w-10 justify-center" : "gap-2.5 px-3"
       } ${
         activo
-          ? "border-[#ddd6fe] bg-[#f3eeff] text-[#6d28d9]"
-          : "border-transparent text-[#3f3f46] hover:bg-[#fafafa] hover:text-[#0a0a0a]"
+          ? "border-lavado-borde bg-lavado text-morado-tinta"
+          : "border-transparent text-tinta-3 hover:bg-relleno hover:text-tinta"
       }`}
     >
       <Icono className="h-4 w-4 shrink-0" aria-hidden="true" />
       {plegada ? (
         <>
           <Bocadillo>{destino.etiqueta}</Bocadillo>
-          {punto ? <span className="absolute right-0.5 top-0.5 h-2 w-2 rounded-full bg-[#9f7a15]" aria-hidden="true" /> : null}
+          {punto ? <span className="absolute right-0.5 top-0.5 h-2 w-2 rounded-full bg-aviso-icono" aria-hidden="true" /> : null}
         </>
       ) : (
         <>
@@ -87,7 +87,7 @@ function Grupo({ titulo, plegada, children }: { titulo: string; plegada: boolean
   return (
     <div className="space-y-1">
       {plegada ? (
-        <div className="mx-auto my-2 h-px w-6 bg-[#e5e5e5]" aria-hidden="true" />
+        <div className="mx-auto my-2 h-px w-6 bg-linea" aria-hidden="true" />
       ) : (
         <p className="px-3 pb-1 pt-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">{titulo}</p>
       )}
@@ -129,7 +129,7 @@ export function BarraLateral({
 
   return (
     <aside
-      className={`sticky top-0 hidden h-screen shrink-0 flex-col border-r border-[#e5e5e5] bg-white transition-[width] duration-200 ease-out motion-reduce:transition-none lg:flex ${
+      className={`sticky top-0 hidden h-screen shrink-0 flex-col border-r border-linea bg-superficie transition-[width] duration-200 ease-out motion-reduce:transition-none lg:flex ${
         plegada ? "w-16" : "w-60"
       }`}
     >
@@ -137,12 +137,12 @@ export function BarraLateral({
         <Link
           href="/"
           aria-label="Ir al panel de Alhabla"
-          className="flex min-w-0 flex-1 items-center gap-2.5 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]"
+          className="flex min-w-0 flex-1 items-center gap-2.5 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-morado"
         >
           <BrandMark className="h-9 w-9 shrink-0" />
           {plegada ? null : (
             <span className="min-w-0">
-              <span className="block text-[15px] font-bold leading-5 text-[#0a0a0a]">Alhabla</span>
+              <span className="block text-[15px] font-bold leading-5 text-tinta">Alhabla</span>
               <span className="block truncate text-[13px] leading-4 text-muted">{business?.name ?? "Mi negocio"}</span>
             </span>
           )}
@@ -152,7 +152,7 @@ export function BarraLateral({
           onClick={onAlternar}
           aria-label={plegada ? "Desplegar la barra lateral" : "Plegar la barra lateral"}
           aria-expanded={!plegada}
-          className="group relative inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[#71717a] transition hover:bg-[#f4f4f5] hover:text-[#0a0a0a] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]"
+          className="group relative inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-apagado-2 transition hover:bg-relleno-fuerte hover:text-tinta focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-morado"
         >
           {plegada ? <ChevronsRight className="h-4 w-4" aria-hidden="true" /> : <ChevronsLeft className="h-4 w-4" aria-hidden="true" />}
           {plegada ? <Bocadillo>Desplegar</Bocadillo> : null}
@@ -164,7 +164,7 @@ export function BarraLateral({
           type="button"
           onClick={() => setEstadoAbierto(true)}
           aria-label={`Estado del servicio: ${textoEstado}`}
-          className={`group relative flex min-h-9 w-full items-center gap-2 rounded-full border text-[13px] font-bold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] ${
+          className={`group relative flex min-h-9 w-full items-center gap-2 rounded-full border text-[13px] font-bold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-morado ${
             plegada ? "mx-auto h-9 w-9 justify-center" : "px-3"
           } ${tono.fondo} ${tono.texto} ${tono.borde}`}
         >
@@ -179,7 +179,7 @@ export function BarraLateral({
           type="button"
           onClick={onBuscar}
           aria-label="Buscar (⌘K)"
-          className={`group relative flex min-h-9 w-full items-center gap-2 rounded-[10px] border border-[#e5e5e5] bg-[#fafafa] text-sm text-muted transition hover:border-[#d4d4d8] hover:text-[#0a0a0a] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] ${
+          className={`group relative flex min-h-9 w-full items-center gap-2 rounded-[10px] border border-linea bg-relleno text-sm text-muted transition hover:border-linea-fuerte hover:text-tinta focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-morado ${
             plegada ? "mx-auto h-9 w-9 justify-center" : "px-3"
           }`}
         >
@@ -212,7 +212,7 @@ export function BarraLateral({
               extra={
                 destino.href === "/llamadas" && porDevolver > 0 ? (
                   <span
-                    className="rounded-full bg-[#fef8e7] px-2 text-xs font-bold tabular-nums text-[#806012] ring-1 ring-inset ring-[#f0dfa8]"
+                    className="rounded-full bg-aviso-fondo px-2 text-xs font-bold tabular-nums text-aviso ring-1 ring-inset ring-aviso-borde"
                     aria-label={`${porDevolver} por devolver`}
                   >
                     {porDevolver}
@@ -235,13 +235,13 @@ export function BarraLateral({
         </Grupo>
       </nav>
 
-      <div className={`border-t border-[#e5e5e5] pb-3 ${plegada ? "px-2" : "px-3"}`}>
+      <div className={`border-t border-linea pb-3 ${plegada ? "px-2" : "px-3"}`}>
         {minutos ? (
           plegada ? (
             <Link
               href="/ajustes/facturacion"
               aria-label={minutos.exhausted ? "Minutos del plan agotados" : `Te queda un ${minutos.remainingPct}% de tus minutos`}
-              className="group relative mx-auto mt-3 flex h-9 w-9 items-center justify-center rounded-full border border-[#f0dfa8] bg-[#fef8e7] text-[#806012] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]"
+              className="group relative mx-auto mt-3 flex h-9 w-9 items-center justify-center rounded-full border border-aviso-borde bg-aviso-fondo text-aviso focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-morado"
             >
               <Clock3 className="h-4 w-4" aria-hidden="true" />
               <Bocadillo>{minutos.exhausted ? "Minutos agotados" : `Queda un ${minutos.remainingPct}%`}</Bocadillo>
@@ -249,16 +249,16 @@ export function BarraLateral({
           ) : (
             <Link
               href="/ajustes/facturacion"
-              className="mt-3 block rounded-2xl border border-[#f0dfa8] bg-[#fef8e7] p-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]"
+              className="mt-3 block rounded-2xl border border-aviso-borde bg-aviso-fondo p-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-morado"
             >
-              <span className="flex items-center gap-2 text-xs font-bold text-[#806012]">
+              <span className="flex items-center gap-2 text-xs font-bold text-aviso">
                 <Clock3 className="h-4 w-4 shrink-0" aria-hidden="true" />
                 {minutos.exhausted ? "Minutos del plan agotados" : `Te queda un ${minutos.remainingPct}% de tus minutos`}
               </span>
-              <span className="mt-2 block h-1.5 overflow-hidden rounded-full bg-[#f0dfa8]/60" aria-hidden="true">
-                <span className="block h-full rounded-full bg-[#9f7a15]" style={{ width: `${100 - (minutos.remainingPct ?? 0)}%` }} />
+              <span className="mt-2 block h-1.5 overflow-hidden rounded-full bg-aviso-borde/60" aria-hidden="true">
+                <span className="block h-full rounded-full bg-aviso-icono" style={{ width: `${100 - (minutos.remainingPct ?? 0)}%` }} />
               </span>
-              <span className="mt-1.5 block text-xs leading-5 text-[#52525b]">
+              <span className="mt-1.5 block text-xs leading-5 text-apagado">
                 {minutos.exhausted
                   ? `Se siguen atendiendo${minutos.extraPrice ? ` a ${minutos.extraPrice}` : " como minutos extra"}.`
                   : "Ver consumo y planes"}
@@ -270,7 +270,7 @@ export function BarraLateral({
           <Link
             href="/ajustes/facturacion"
             aria-label={plegada ? "Requiere atención: revisa tu facturación" : undefined}
-            className={`group relative mt-3 flex items-center gap-2 rounded-2xl border border-[#f0dfa8] bg-[#fef8e7] text-xs font-bold text-[#806012] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] ${
+            className={`group relative mt-3 flex items-center gap-2 rounded-2xl border border-aviso-borde bg-aviso-fondo text-xs font-bold text-aviso focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-morado ${
               plegada ? "mx-auto h-9 w-9 justify-center rounded-full" : "p-3"
             }`}
           >
@@ -289,7 +289,7 @@ export function BarraLateral({
               window.location.assign("/login");
             }}
             aria-label={plegada ? "Cerrar sesión" : undefined}
-            className={`group relative flex min-h-10 items-center rounded-full text-sm font-semibold text-[#71717a] transition hover:bg-[#fafafa] hover:text-[#0a0a0a] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] ${
+            className={`group relative flex min-h-10 items-center rounded-full text-sm font-semibold text-apagado-2 transition hover:bg-relleno hover:text-tinta focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-morado ${
               plegada ? "mx-auto w-10 justify-center" : "w-full gap-2.5 px-3"
             }`}
           >

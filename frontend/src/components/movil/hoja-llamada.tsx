@@ -188,14 +188,14 @@ export function HojaLlamada({
                 type="button"
                 onClick={() => recadoMutation.mutate(true)}
                 disabled={recadoMutation.isPending}
-                className="flex min-h-12 w-full items-center justify-center gap-2 rounded-[10px] border border-[#f0dfa8] bg-[#fef8e7] text-sm font-bold text-[#806012] transition duration-200 hover:bg-[#fdf2d3] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] disabled:opacity-60"
+                className="flex min-h-12 w-full items-center justify-center gap-2 rounded-[10px] border border-aviso-borde bg-aviso-fondo text-sm font-bold text-aviso transition duration-200 hover:bg-aviso-fondo-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-morado disabled:opacity-60"
               >
                 <Check className="h-[18px] w-[18px]" aria-hidden="true" />
                 {recadoMutation.isPending ? "Guardando…" : "Marcar como devuelta"}
               </button>
             ) : null}
             {recadoAtendido ? (
-              <div className="flex min-h-12 items-center justify-between gap-2 rounded-[10px] bg-[#ecf7ec] px-3.5 text-sm font-bold text-[#2c7334] ring-1 ring-inset ring-[#d8efd7]">
+              <div className="flex min-h-12 items-center justify-between gap-2 rounded-[10px] bg-exito-fondo px-3.5 text-sm font-bold text-exito ring-1 ring-inset ring-exito-borde">
                 <span className="flex items-center gap-2">
                   <Check className="h-[18px] w-[18px]" aria-hidden="true" />
                   Llamada devuelta
@@ -204,7 +204,7 @@ export function HojaLlamada({
                   type="button"
                   onClick={() => recadoMutation.mutate(false)}
                   disabled={recadoMutation.isPending}
-                  className="min-h-11 px-1 text-[13px] font-semibold underline underline-offset-[3px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] disabled:opacity-60"
+                  className="min-h-11 px-1 text-[13px] font-semibold underline underline-offset-[3px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-morado disabled:opacity-60"
                 >
                   Deshacer
                 </button>
@@ -213,7 +213,7 @@ export function HojaLlamada({
           </div>
 
           <div className="shrink-0 px-4 pb-2">
-            <div role="tablist" aria-label="Detalle de la llamada" className="flex gap-1 rounded-full border border-[#e5e5e5] bg-[#fafafa] p-1">
+            <div role="tablist" aria-label="Detalle de la llamada" className="flex gap-1 rounded-full border border-linea bg-relleno p-1">
               {(
                 [
                   ["resumen", "Resumen"],
@@ -226,8 +226,8 @@ export function HojaLlamada({
                   role="tab"
                   aria-selected={pestaña === clave}
                   onClick={() => setPestaña(clave)}
-                  className={`min-h-10 flex-1 rounded-full text-sm font-semibold transition duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] ${
-                    pestaña === clave ? "bg-[#f3eeff] text-[#6d28d9] ring-1 ring-inset ring-[#ddd6fe]" : "text-[#52525b]"
+                  className={`min-h-10 flex-1 rounded-full text-sm font-semibold transition duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-morado ${
+                    pestaña === clave ? "bg-lavado text-morado-tinta ring-1 ring-inset ring-lavado-borde" : "text-apagado"
                   }`}
                 >
                   {etiqueta}
@@ -260,32 +260,32 @@ export function Resumen({ call, timeZone, onCerrar }: { call: Call; timeZone: st
       </div>
 
       {call.summary ? (
-        <section className="rounded-2xl border border-[#ddd6fe] bg-[#f3eeff] p-4">
-          <h3 className="flex items-center gap-2 text-sm font-bold text-[#0a0a0a]">
-            <Sparkles className="h-4 w-4 text-[#8b5cf6]" aria-hidden="true" />
+        <section className="rounded-2xl border border-lavado-borde bg-lavado p-4">
+          <h3 className="flex items-center gap-2 text-sm font-bold text-tinta">
+            <Sparkles className="h-4 w-4 text-morado" aria-hidden="true" />
             Resumen de la llamada
           </h3>
-          <p className="mt-2 text-[15px] leading-[1.6] text-[#27272a]">{call.summary}</p>
+          <p className="mt-2 text-[15px] leading-[1.6] text-tinta-2">{call.summary}</p>
         </section>
       ) : null}
 
       {recado ? (
-        <section className="rounded-2xl border border-[#e5e5e5] bg-white p-4">
-          <h3 className="flex items-center gap-2 text-sm font-bold text-[#0a0a0a]">
-            <MessageSquareText className="h-4 w-4 text-[#8b5cf6]" aria-hidden="true" />
+        <section className="rounded-2xl border border-linea bg-superficie p-4">
+          <h3 className="flex items-center gap-2 text-sm font-bold text-tinta">
+            <MessageSquareText className="h-4 w-4 text-morado" aria-hidden="true" />
             Recado
           </h3>
           <dl className="mt-2.5 space-y-1.5 text-sm leading-6">
             {recado.nombre ? <Dato termino="De" valor={recado.nombre} /> : null}
             {recado.telefono ? <Dato termino="Teléfono" valor={formatPhoneLocal(recado.telefono) ?? recado.telefono} numerico /> : null}
           </dl>
-          {recado.motivo ? <p className="mt-2 text-sm leading-6 text-[#27272a]">{recado.motivo}</p> : null}
+          {recado.motivo ? <p className="mt-2 text-sm leading-6 text-tinta-2">{recado.motivo}</p> : null}
         </section>
       ) : null}
 
-      <section className="rounded-2xl border border-[#e5e5e5] bg-[#fafafa] p-4">
-        <h3 className="flex items-center gap-2 text-sm font-bold text-[#0a0a0a]">
-          <CalendarCheck className="h-4 w-4 text-[#8b5cf6]" aria-hidden="true" />
+      <section className="rounded-2xl border border-linea bg-relleno p-4">
+        <h3 className="flex items-center gap-2 text-sm font-bold text-tinta">
+          <CalendarCheck className="h-4 w-4 text-morado" aria-hidden="true" />
           Reserva vinculada
         </h3>
         {reserva ? (
@@ -309,7 +309,7 @@ export function Resumen({ call, timeZone, onCerrar }: { call: Call; timeZone: st
             <Link
               href={`/agenda?dia=${claveDeDia(reserva.programedAt, timeZone)}&cita=${encodeURIComponent(reserva.id)}`}
               onClick={onCerrar}
-              className="mt-1.5 inline-flex min-h-11 items-center gap-1 text-sm font-bold text-[#6d28d9] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]"
+              className="mt-1.5 inline-flex min-h-11 items-center gap-1 text-sm font-bold text-morado-tinta focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-morado"
             >
               Ver en la agenda
               <ArrowRight className="h-4 w-4" aria-hidden="true" />
@@ -325,14 +325,14 @@ export function Resumen({ call, timeZone, onCerrar }: { call: Call; timeZone: st
                 : "Esta llamada no generó ninguna reserva."}
             </p>
             {motivo ? (
-              <p className="flex items-start gap-2 text-[#27272a]">
-                <Info className="mt-1 h-3.5 w-3.5 shrink-0 text-[#8b5cf6]" aria-hidden="true" />
+              <p className="flex items-start gap-2 text-tinta-2">
+                <Info className="mt-1 h-3.5 w-3.5 shrink-0 text-morado" aria-hidden="true" />
                 {motivo}
               </p>
             ) : null}
             {call.requestedService ? (
               <p className="text-muted">
-                El cliente preguntaba por <strong className="font-semibold text-[#27272a]">{call.requestedService}</strong>.
+                El cliente preguntaba por <strong className="font-semibold text-tinta-2">{call.requestedService}</strong>.
               </p>
             ) : null}
           </div>
@@ -346,7 +346,7 @@ function Dato({ termino, valor, numerico = false }: { termino: string; valor: st
   return (
     <div className="flex justify-between gap-3">
       <dt className="text-muted">{termino}</dt>
-      <dd className={`text-right font-semibold text-[#0a0a0a] ${numerico ? "tabular-nums" : ""}`}>{valor}</dd>
+      <dd className={`text-right font-semibold text-tinta ${numerico ? "tabular-nums" : ""}`}>{valor}</dd>
     </div>
   );
 }
@@ -359,10 +359,10 @@ export function Transcripcion({ call, timeZone }: { call: Call; timeZone: string
   });
 
   return (
-    <section className="rounded-3xl bg-[#0a0a0a] p-4 text-white" aria-label="Transcripción">
+    <section className="rounded-3xl bg-oscuro p-4 text-white" aria-label="Transcripción">
       <div className="flex items-center justify-between border-b border-white/10 pb-3">
         <span className="flex items-center gap-2 text-sm font-bold">
-          <User className="h-4 w-4 text-[#a78bfa]" aria-hidden="true" />
+          <User className="h-4 w-4 text-morado-claro" aria-hidden="true" />
           Transcripción
         </span>
         <span className="text-xs text-white/70">{horaDelNegocio(call.startedAt, timeZone)}</span>
@@ -376,7 +376,7 @@ export function Transcripcion({ call, timeZone }: { call: Call; timeZone: string
             return (
               <div key={indice} className={`flex ${cliente ? "justify-end" : "justify-start"}`}>
                 <div
-                  className={`max-w-[88%] rounded-2xl px-3 py-2 text-sm leading-6 ${cliente ? "rounded-br-[4px] bg-[#8b5cf6]" : "rounded-bl-[4px] bg-white/10"}`}
+                  className={`max-w-[88%] rounded-2xl px-3 py-2 text-sm leading-6 ${cliente ? "rounded-br-[4px] bg-morado" : "rounded-bl-[4px] bg-white/10"}`}
                 >
                   <span className="mb-0.5 block text-[11px] font-bold uppercase tracking-[0.12em] opacity-75">
                     {cliente ? "Cliente" : "Agente"}
@@ -486,7 +486,7 @@ export function Reproductor({
           else audio.current.pause();
         }}
         aria-label={sonando ? "Pausar" : "Reproducir"}
-        className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[#0a0a0a] text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] focus-visible:ring-offset-2"
+        className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-tinta text-sobre-tinta focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-morado focus-visible:ring-offset-2"
       >
         {sonando ? (
           <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
@@ -516,13 +516,13 @@ export function Reproductor({
             if (event.key === "ArrowRight") saltar(posicion + 5);
             if (event.key === "ArrowLeft") saltar(posicion - 5);
           }}
-          className="flex h-10 cursor-pointer items-center gap-[2px] rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]"
+          className="flex h-10 cursor-pointer items-center gap-[2px] rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-morado"
         >
           {barras.map((alto, indice) => (
             <span
               key={indice}
               aria-hidden="true"
-              className={`flex-1 rounded-sm ${indice / BARRAS < progreso ? "bg-[#8b5cf6]" : "bg-[#d4d4d8]"}`}
+              className={`flex-1 rounded-sm ${indice / BARRAS < progreso ? "bg-morado" : "bg-linea-fuerte"}`}
               style={{ height: alto }}
             />
           ))}
@@ -536,7 +536,7 @@ export function Reproductor({
         type="button"
         onClick={() => setVelocidad(VELOCIDADES[(VELOCIDADES.indexOf(velocidad) + 1) % VELOCIDADES.length])}
         aria-label={`Velocidad de reproducción: ${String(velocidad).replace(".", ",")}×`}
-        className="h-11 min-w-12 shrink-0 rounded-full border border-[#e5e5e5] bg-white px-2 text-[13px] font-bold tabular-nums text-[#27272a] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]"
+        className="h-11 min-w-12 shrink-0 rounded-full border border-linea bg-superficie px-2 text-[13px] font-bold tabular-nums text-tinta-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-morado"
       >
         {String(velocidad).replace(".", ",")}×
       </button>

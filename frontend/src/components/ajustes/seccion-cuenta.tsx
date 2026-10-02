@@ -8,7 +8,9 @@ import {
   LockKeyhole,
   LogOut,
   MailCheck,
+  Palette,
 } from "lucide-react";
+import { SelectorDeTema } from "@/components/selector-de-tema";
 import { useAjustes } from "@/components/ajustes/marco-de-ajustes";
 import { clearAuthTokens } from "@/lib/billing-navigation";
 import { webUrl } from "@/lib/web-url";
@@ -23,14 +25,14 @@ export function SeccionCuenta() {
         className="panel overflow-hidden"
         aria-labelledby="account-title"
       >
-        <div className="flex items-start gap-3 border-b border-[#e5e5e5] p-4 sm:p-6">
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#f3eeff] text-[#8b5cf6]">
+        <div className="flex items-start gap-3 border-b border-linea p-4 sm:p-6">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-lavado text-morado">
             <MailCheck className="h-5 w-5" aria-hidden="true" />
           </span>
           <div>
             <h2
               id="account-title"
-              className="text-lg font-semibold text-[#0a0a0a]"
+              className="text-lg font-semibold text-tinta"
             >
               Cuenta
             </h2>
@@ -39,23 +41,23 @@ export function SeccionCuenta() {
             </p>
           </div>
         </div>
-        <div className="divide-y divide-[#e5e5e5]">
+        <div className="divide-y divide-linea">
           <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
             <div className="min-w-0">
-              <p className="text-sm font-semibold text-[#27272a]">
+              <p className="text-sm font-semibold text-tinta-2">
                 Correo electrónico
               </p>
-              <p className="mt-1 text-sm text-[#0a0a0a] [overflow-wrap:anywhere]">
+              <p className="mt-1 text-sm text-tinta [overflow-wrap:anywhere]">
                 {account.email}
               </p>
             </div>
             {account.googleConnected ? (
-              <span className="inline-flex w-fit items-center gap-1.5 rounded-full bg-[#ecf7ec] px-3 py-1.5 text-xs font-semibold text-[#2c7334] ring-1 ring-inset ring-[#d8efd7]">
+              <span className="inline-flex w-fit items-center gap-1.5 rounded-full bg-exito-fondo px-3 py-1.5 text-xs font-semibold text-exito ring-1 ring-inset ring-exito-borde">
                 <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />{" "}
                 Verificado por Google
               </span>
             ) : (
-              <span className="inline-flex w-fit rounded-full bg-[#fef8e7] px-3 py-1.5 text-xs font-semibold text-[#806012] ring-1 ring-inset ring-[#f0dfa8]">
+              <span className="inline-flex w-fit rounded-full bg-aviso-fondo px-3 py-1.5 text-xs font-semibold text-aviso ring-1 ring-inset ring-aviso-borde">
                 Verificación pendiente
               </span>
             )}
@@ -65,7 +67,7 @@ export function SeccionCuenta() {
           {!account.googleConnected ? (
             <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
               <div className="max-w-2xl">
-                <p className="text-sm font-semibold text-[#27272a]">
+                <p className="text-sm font-semibold text-tinta-2">
                   Verificación del correo
                 </p>
                 <p className="mt-1 text-sm leading-6 text-muted">
@@ -75,7 +77,7 @@ export function SeccionCuenta() {
               </div>
               {/* Etiqueta y no botón deshabilitado: un control muerto con un
                   «title» se lee como roto y el aviso no llega en táctil. */}
-              <span className="inline-flex w-fit shrink-0 rounded-full bg-[#f4f4f5] px-3 py-1.5 text-xs font-semibold text-[#52525b] ring-1 ring-inset ring-[#e5e5e5]">
+              <span className="inline-flex w-fit shrink-0 rounded-full bg-relleno-fuerte px-3 py-1.5 text-xs font-semibold text-apagado ring-1 ring-inset ring-linea">
                 Próximamente
               </span>
             </div>
@@ -83,15 +85,34 @@ export function SeccionCuenta() {
         </div>
       </section>
 
+      <section className="panel overflow-hidden" aria-labelledby="apariencia-title">
+        <div className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-6">
+          <div className="flex items-start gap-3">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-lavado text-morado">
+              <Palette className="h-5 w-5" aria-hidden="true" />
+            </span>
+            <div>
+              <h2 id="apariencia-title" className="text-lg font-semibold text-tinta">
+                Apariencia
+              </h2>
+              <p className="mt-1 text-sm leading-6 text-muted">
+                Con «Sistema», el panel se pone en oscuro cuando tu ordenador lo está.
+              </p>
+            </div>
+          </div>
+          <SelectorDeTema className="w-full sm:w-auto sm:min-w-[22rem]" />
+        </div>
+      </section>
+
       <section className="panel overflow-hidden" aria-labelledby="access-title">
-        <div className="flex items-start gap-3 border-b border-[#e5e5e5] p-4 sm:p-6">
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#f3eeff] text-[#8b5cf6]">
+        <div className="flex items-start gap-3 border-b border-linea p-4 sm:p-6">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-lavado text-morado">
             <LockKeyhole className="h-5 w-5" aria-hidden="true" />
           </span>
           <div>
             <h2
               id="access-title"
-              className="text-lg font-semibold text-[#0a0a0a]"
+              className="text-lg font-semibold text-tinta"
             >
               Acceso y ayuda
             </h2>
@@ -100,7 +121,7 @@ export function SeccionCuenta() {
             </p>
           </div>
         </div>
-        <div className="divide-y divide-[#e5e5e5]">
+        <div className="divide-y divide-linea">
           <SettingsLink
             href="/ajustes/facturacion"
             icon={CreditCard}
@@ -119,13 +140,13 @@ export function SeccionCuenta() {
               clearAuthTokens();
               window.location.href = "/login";
             }}
-            className="flex min-h-16 w-full items-center gap-3 px-4 py-3 text-left transition hover:bg-[#fafafa] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#8b5cf6] sm:px-6"
+            className="flex min-h-16 w-full items-center gap-3 px-4 py-3 text-left transition hover:bg-relleno focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-morado sm:px-6"
           >
-            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[#f3eeff] text-[#8b5cf6]">
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-lavado text-morado">
               <LogOut className="h-4 w-4" aria-hidden="true" />
             </span>
             <span>
-              <span className="block text-sm font-semibold text-[#27272a]">
+              <span className="block text-sm font-semibold text-tinta-2">
                 Cerrar sesión en este dispositivo
               </span>
               <span className="mt-0.5 block text-xs leading-5 text-muted">
@@ -153,13 +174,13 @@ function SettingsLink({
   return (
     <Link
       href={href}
-      className="flex min-h-16 items-center gap-3 px-4 py-3 transition hover:bg-[#fafafa] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#8b5cf6] sm:px-6"
+      className="flex min-h-16 items-center gap-3 px-4 py-3 transition hover:bg-relleno focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-morado sm:px-6"
     >
-      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[#f3eeff] text-[#8b5cf6]">
+      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-lavado text-morado">
         <Icon className="h-4 w-4" aria-hidden="true" />
       </span>
       <span>
-        <span className="block text-sm font-semibold text-[#27272a]">
+        <span className="block text-sm font-semibold text-tinta-2">
           {title}
         </span>
         <span className="mt-0.5 block text-xs leading-5 text-muted">

@@ -70,23 +70,32 @@ en `AGENTS.md` § Deployment Notes.
 
 Estética SaaS conservadora y profesional para negocios tradicionales españoles. Nada de
 look de startup ni de app de consumo. Rediseño negro/blanco/morado (agosto 2026, commit
-`eeab7f4`) — no queda ni un token de la paleta verde anterior. Tokens reales en
-`frontend/src/app/globals.css`:
+`eeab7f4`). **Desde octubre de 2026 la app tiene modo oscuro** (por defecto el del sistema, con
+selector en Cuenta): cada color es un token con su valor claro y su valor oscuro en
+`frontend/src/app/globals.css` (canales RGB en `:root` y `:root[data-tema="oscuro"]`) y una
+clase de Tailwind con el mismo nombre (`tailwind.config.ts`). **Nada de hex en las clases**
+(`bg-[#f3eeff]`): se usa el token (`bg-lavado`), o no cambiará en oscuro.
 
-| Token | Hex | Uso |
-|-------|-----|-----|
-| `--background` / `--surface` | `#ffffff` | Fondo base y de tarjetas/paneles |
-| `--foreground` / `--accent` | `#0a0a0a` | Texto principal, botones primarios |
-| `--muted` | `#52525b` | Texto secundario |
-| `--purple` / `--accent-soft` | `#8b5cf6` / `#a78bfa` | Acento de marca — iconos, focus rings, `HeroHilos` |
-| `--purple-wash` / `--purple-ink` | `#f3eeff` / `#6d28d9` | Fondo y texto de badges/contenedores de icono morados |
-| `--success` / `--warning` / `--error` | `#2c7334` / `#9f7a15` / `#c53030` | Estados |
+| Token (clase) | Claro | Uso |
+|---------------|-------|-----|
+| `lienzo` / `superficie` / `elevada` | `#ffffff` | Fondo de página, paneles, lo que flota |
+| `relleno` / `relleno-fuerte` | `#fafafa` / `#f4f4f5` | Rellenos suaves, esqueletos |
+| `linea` / `linea-suave` / `linea-fuerte` | `#e5e5e5` / `#f0f0f0` / `#d4d4d8` | Bordes |
+| `tinta` (+ `sobre-tinta`) | `#0a0a0a` | Texto principal y botón primario; se invierte en oscuro, y el texto encima con él |
+| `apagado` / `tenue` | `#52525b` / `#a1a1aa` | Texto secundario (`.text-muted`) |
+| `morado` / `morado-tinta` / `lavado` / `lavado-borde` | `#8b5cf6` / `#6d28d9` / `#f3eeff` / `#ddd6fe` | Acento: iconos, focus, badges |
+| `exito` / `aviso` / `error` (+ `-fondo`, `-borde`) | `#2c7334` / `#806012` / `#c53030` | Estados |
+| `urgente` (+ `-fondo`) | `#b42318` | Lo que pide actuar (cita que se cayó): rojo sobrio solo en el icono, tarjeta blanca |
+| `peligro` | `#c53030` | Botones de borrar (texto blanco en los dos temas) |
+| `oscuro` | `#0a0a0a` | Superficies oscuras en los dos temas (próxima cita, transcripción) |
 
 Clases base (`.panel`, `.field`, `.btn-primary`, `.btn-secondary`, `.btn-purple`,
 `.badge-soft`): `rounded-[10px]` en botones e inputs (desde el 2026-09-17, commit `e6d3b52`),
 `rounded-full` solo en badges, navegación en pastilla y círculos, y `rounded-3xl` en
 paneles. Sin radio de 8 px (`rounded-lg`). Iconos Lucide React en contenedores
-`rounded-xl` con `bg-[#f3eeff]` y `text-[#8b5cf6]`. Detalle completo en `DESIGN.md`.
+`rounded-xl` con `bg-lavado` y `text-morado`. La web pública (`web/`) define los mismos
+tokens, solo en claro, para que las copias compartidas usen las mismas clases. Detalle completo
+en `DESIGN.md`.
 
 ## Comandos
 

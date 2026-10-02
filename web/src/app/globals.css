@@ -2,6 +2,74 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Tokens de color del sistema, los mismos nombres que en la app (frontend/
+   src/app/globals.css) para que los componentes compartidos usen las mismas
+   clases. La web solo tiene tema claro. */
+:root {
+  color-scheme: light;
+
+  /* Superficies: la página, los paneles y lo que flota encima. */
+  --lienzo: 255 255 255;
+  --superficie: 255 255 255;
+  --elevada: 255 255 255;
+  --relleno: 250 250 250;
+  --relleno-fuerte: 244 244 245;
+  /* La próxima cita y la transcripción: oscuras en los dos temas. */
+  --oscuro: 10 10 10;
+
+  /* Líneas */
+  --linea-suave: 240 240 240;
+  --linea: 229 229 229;
+  --linea-fuerte: 212 212 216;
+
+  /* Texto. «Tinta» se invierte en oscuro, y con ella el texto que va encima
+     (`sobre-tinta`): el botón primario negro pasa a ser claro. */
+  --tinta: 10 10 10;
+  --tinta-2: 39 39 42;
+  --tinta-3: 63 63 70;
+  --tinta-hover: 38 38 38;
+  --sobre-tinta: 255 255 255;
+  /* Gris neutro sobre blanco puro: 7.5:1, muy por encima de WCAG AA (4.5:1). */
+  --apagado: 82 82 91;
+  --apagado-2: 113 113 122;
+  --tenue: 161 161 170;
+
+  /* Morado */
+  --morado: 139 92 246;
+  --morado-claro: 167 139 250;
+  --morado-hondo: 124 58 237;
+  --morado-tinta: 109 40 217;
+  --lavado: 243 238 255;
+  --lavado-2: 237 233 254;
+  --lavado-3: 250 248 255;
+  --lavado-borde: 221 214 254;
+
+  /* Estados */
+  --exito: 44 115 52;
+  --exito-fondo: 236 247 236;
+  --exito-borde: 216 239 215;
+  /* Texto de aviso: el ocre del icono da 3,99:1 sobre blanco y no llega a AA
+     en texto pequeño. `aviso-icono` se queda para puntos, iconos y bordes. */
+  --aviso: 128 96 18;
+  --aviso-icono: 159 122 21;
+  --aviso-fondo: 254 248 231;
+  --aviso-fondo-2: 253 242 211;
+  --aviso-borde: 240 223 168;
+  --error: 197 48 48;
+  --error-hondo: 168 40 40;
+  --error-fondo: 255 241 241;
+  --error-fondo-2: 253 236 236;
+  --error-borde: 245 211 211;
+  /* Botones de borrar: rojo sólido con texto blanco en los dos temas. */
+  --peligro: 197 48 48;
+  --peligro-hondo: 168 40 40;
+  /* Lo urgente (una cita que se cayó): un rojo más sobrio, solo en el icono
+     y en detalles, sobre una tarjeta blanca. */
+  --urgente: 180 35 24;
+  --urgente-fondo: 254 243 242;
+
+}
+
 :root {
   --background: #ffffff;
   --foreground: #0a0a0a;

@@ -47,17 +47,17 @@ const ETIQUETA_DE_ESTADO: Record<
   ejecutada: {
     icono: Check,
     texto: "Hecho",
-    clase: "bg-[#ecf7ec] text-[#2c7334]",
+    clase: "bg-exito-fondo text-exito",
   },
   fallida: {
     icono: AlertCircle,
     texto: "No se pudo hacer",
-    clase: "bg-[#fdecec] text-[#c53030]",
+    clase: "bg-error-fondo-2 text-error",
   },
   rechazada: {
     icono: X,
     texto: "Descartado",
-    clase: "bg-[#fafafa] text-muted ring-1 ring-inset ring-[#e5e5e5]",
+    clase: "bg-relleno text-muted ring-1 ring-inset ring-linea",
   },
 };
 
@@ -101,7 +101,7 @@ function Avatar({ grande = false }: { grande?: boolean }) {
   return (
     <span
       aria-hidden="true"
-      className={`flex shrink-0 items-center justify-center rounded-full bg-[#f3eeff] ${
+      className={`flex shrink-0 items-center justify-center rounded-full bg-lavado ${
         grande
           ? "h-[52px] w-[52px]"
           : "h-[26px] w-[26px] sm:h-[30px] sm:w-[30px]"
@@ -114,14 +114,14 @@ function Avatar({ grande = false }: { grande?: boolean }) {
 
 function Cabecera({ whatsapp }: { whatsapp?: EstadoDelGestor["whatsapp"] }) {
   return (
-    <header className="flex flex-wrap items-center gap-2.5 border-b border-[#e5e5e5] px-4 py-3.5 sm:flex-nowrap sm:gap-3 sm:px-8 sm:py-5">
+    <header className="flex flex-wrap items-center gap-2.5 border-b border-linea px-4 py-3.5 sm:flex-nowrap sm:gap-3 sm:px-8 sm:py-5">
       <span
         aria-hidden="true"
-        className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-[10px] bg-[#f3eeff] text-[#8b5cf6] sm:h-10 sm:w-10 sm:rounded-xl"
+        className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-[10px] bg-lavado text-morado sm:h-10 sm:w-10 sm:rounded-xl"
       >
         <MessageSquareText className="h-[18px] w-[18px]" />
       </span>
-      <h1 className="text-[19px] font-black tracking-[-0.025em] text-[#0a0a0a] sm:text-[22px]">
+      <h1 className="text-[19px] font-black tracking-[-0.025em] text-tinta sm:text-[22px]">
         Tu gestor
       </h1>
       <span className="badge-soft">Beta</span>
@@ -130,21 +130,21 @@ function Cabecera({ whatsapp }: { whatsapp?: EstadoDelGestor["whatsapp"] }) {
           <span className="flex w-full items-center gap-2 text-xs text-muted sm:ml-auto sm:w-auto sm:text-[13px]">
             <span
               aria-hidden="true"
-              className="h-2 w-2 shrink-0 rounded-full bg-[#2c7334] shadow-[0_0_0_3px_#ecf7ec]"
+              className="h-2 w-2 shrink-0 rounded-full bg-exito shadow-[0_0_0_3px_rgb(var(--exito-fondo))]"
             />
             <span>
               Misma conversación que en{" "}
-              <b className="font-semibold text-[#0a0a0a]">WhatsApp</b>
+              <b className="font-semibold text-tinta">WhatsApp</b>
             </span>
           </span>
         ) : (
           <Link
             href="/ajustes/telefono#whatsapp"
-            className="flex w-full items-center gap-2 rounded text-xs text-muted hover:text-[#0a0a0a] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] sm:ml-auto sm:w-auto sm:text-[13px]"
+            className="flex w-full items-center gap-2 rounded text-xs text-muted hover:text-tinta focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-morado sm:ml-auto sm:w-auto sm:text-[13px]"
           >
             <span
               aria-hidden="true"
-              className="h-2 w-2 shrink-0 rounded-full bg-[#d4d4d8]"
+              className="h-2 w-2 shrink-0 rounded-full bg-linea-fuerte"
             />
             <span>
               Conecta tu <b className="font-semibold">WhatsApp</b> para
@@ -293,15 +293,15 @@ export function GestorChat({ hasToken }: { hasToken: boolean | null }) {
           className="mx-auto w-full max-w-[720px] flex-1 space-y-4 px-4 py-6 sm:px-8"
           aria-hidden="true"
         >
-          <div className="h-10 w-2/3 rounded-2xl bg-[#f3eeff] motion-safe:animate-pulse sm:w-1/2" />
-          <div className="ml-auto h-10 w-1/2 rounded-2xl bg-[#f4f4f5] motion-safe:animate-pulse sm:w-1/3" />
-          <div className="h-16 w-3/4 rounded-2xl bg-[#f3eeff] motion-safe:animate-pulse sm:w-1/2" />
+          <div className="h-10 w-2/3 rounded-2xl bg-lavado motion-safe:animate-pulse sm:w-1/2" />
+          <div className="ml-auto h-10 w-1/2 rounded-2xl bg-relleno-fuerte motion-safe:animate-pulse sm:w-1/3" />
+          <div className="h-16 w-3/4 rounded-2xl bg-lavado motion-safe:animate-pulse sm:w-1/2" />
         </div>
         <div
-          className="border-t border-[#e5e5e5] px-4 py-3 sm:px-8"
+          className="border-t border-linea px-4 py-3 sm:px-8"
           aria-hidden="true"
         >
-          <div className="mx-auto h-[52px] max-w-[720px] rounded-[10px] border border-[#e5e5e5] bg-[#fafafa]" />
+          <div className="mx-auto h-[52px] max-w-[720px] rounded-[10px] border border-linea bg-relleno" />
         </div>
       </div>
     );
@@ -332,7 +332,7 @@ export function GestorChat({ hasToken }: { hasToken: boolean | null }) {
               Tienes el gestor desactivado. Puedes volver a activarlo en{" "}
               <Link
                 href="/ajustes/telefono#whatsapp"
-                className="rounded font-semibold text-[#6d28d9] underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] focus-visible:ring-offset-2"
+                className="rounded font-semibold text-morado-tinta underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-morado focus-visible:ring-offset-2"
               >
                 Ajustes › Teléfono
               </Link>
@@ -367,7 +367,7 @@ export function GestorChat({ hasToken }: { hasToken: boolean | null }) {
         {vacio ? (
           <div className="mx-auto flex max-w-[560px] flex-col items-center px-4 pb-6 pt-12 text-center sm:px-8 sm:pt-16">
             <Avatar grande />
-            <h2 className="mt-5 text-2xl font-black tracking-[-0.025em] text-[#0a0a0a] sm:text-[28px]">
+            <h2 className="mt-5 text-2xl font-black tracking-[-0.025em] text-tinta sm:text-[28px]">
               ¿En qué te ayudo?
             </h2>
             <p className="mt-2 max-w-[400px] text-pretty text-sm leading-6 text-muted">
@@ -382,11 +382,11 @@ export function GestorChat({ hasToken }: { hasToken: boolean | null }) {
                     <button
                       type="button"
                       onClick={() => usarEjemplo(ejemplo)}
-                      className="flex min-h-11 w-full items-center gap-3 rounded-2xl border border-[#e5e5e5] bg-white p-3.5 text-left text-sm font-semibold leading-snug text-[#0a0a0a] transition duration-200 hover:bg-[#fafafa] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]"
+                      className="flex min-h-11 w-full items-center gap-3 rounded-2xl border border-linea bg-superficie p-3.5 text-left text-sm font-semibold leading-snug text-tinta transition duration-200 hover:bg-relleno focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-morado"
                     >
                       <span
                         aria-hidden="true"
-                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#f3eeff] text-[#8b5cf6]"
+                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-lavado text-morado"
                       >
                         <Icono className="h-[17px] w-[17px]" />
                       </span>
@@ -412,7 +412,7 @@ export function GestorChat({ hasToken }: { hasToken: boolean | null }) {
                 <Fragment key={m.clave}>
                   {separador ? (
                     <div
-                      className={`flex items-center gap-3 text-xs font-semibold text-muted before:h-px before:flex-1 before:bg-[#e5e5e5] after:h-px after:flex-1 after:bg-[#e5e5e5] ${primero ? "mb-2.5" : "mb-2.5 mt-[18px]"}`}
+                      className={`flex items-center gap-3 text-xs font-semibold text-muted before:h-px before:flex-1 before:bg-linea after:h-px after:flex-1 after:bg-linea ${primero ? "mb-2.5" : "mb-2.5 mt-[18px]"}`}
                     >
                       {separador}
                     </div>
@@ -442,8 +442,8 @@ export function GestorChat({ hasToken }: { hasToken: boolean | null }) {
                       <p
                         className={
                           delDueno
-                            ? "whitespace-pre-wrap rounded-[18px] rounded-br-md bg-[#7c3aed] px-4 py-2.5 text-[15px] leading-normal text-white"
-                            : "whitespace-pre-wrap text-pretty pt-[3px] text-[15px] leading-relaxed text-[#0a0a0a]"
+                            ? "whitespace-pre-wrap rounded-[18px] rounded-br-md bg-morado-hondo px-4 py-2.5 text-[15px] leading-normal text-white"
+                            : "whitespace-pre-wrap text-pretty pt-[3px] text-[15px] leading-relaxed text-tinta"
                         }
                       >
                         {m.texto}
@@ -464,7 +464,7 @@ export function GestorChat({ hasToken }: { hasToken: boolean | null }) {
                   aria-hidden="true"
                   className="w-[26px] shrink-0 sm:w-[30px]"
                 />
-                <div className="w-full max-w-[520px] rounded-[20px] border border-[#ddd6fe] bg-white p-3.5 sm:px-[18px] sm:pb-[18px] sm:pt-4">
+                <div className="w-full max-w-[520px] rounded-[20px] border border-lavado-borde bg-superficie p-3.5 sm:px-[18px] sm:pb-[18px] sm:pt-4">
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <span className="badge-soft">
                       Pendiente de tu confirmación
@@ -479,7 +479,7 @@ export function GestorChat({ hasToken }: { hasToken: boolean | null }) {
                       </span>
                     ) : null}
                   </div>
-                  <p className="mb-4 mt-3 text-pretty text-[15px] font-semibold leading-normal text-[#0a0a0a]">
+                  <p className="mb-4 mt-3 text-pretty text-[15px] font-semibold leading-normal text-tinta">
                     {propuesta.resumen}
                   </p>
                   <div className="grid gap-2 sm:flex sm:flex-wrap">
@@ -517,7 +517,7 @@ export function GestorChat({ hasToken }: { hasToken: boolean | null }) {
                       key={retraso}
                       aria-hidden="true"
                       style={{ animationDelay: `${retraso}ms` }}
-                      className="h-1.5 w-1.5 rounded-full bg-[#8b5cf6] opacity-40 motion-safe:animate-pulse"
+                      className="h-1.5 w-1.5 rounded-full bg-morado opacity-40 motion-safe:animate-pulse"
                     />
                   ))}
                 </div>
@@ -526,7 +526,7 @@ export function GestorChat({ hasToken }: { hasToken: boolean | null }) {
             {aviso ? (
               <p
                 role="alert"
-                className={`mt-2.5 text-sm ${aviso.tipo === "error" ? "text-[#c53030]" : "text-muted"}`}
+                className={`mt-2.5 text-sm ${aviso.tipo === "error" ? "text-error" : "text-muted"}`}
               >
                 {aviso.texto}
               </p>
@@ -535,7 +535,7 @@ export function GestorChat({ hasToken }: { hasToken: boolean | null }) {
           </div>
         )}
       </div>
-      <form onSubmit={submit} className="border-t border-[#e5e5e5] bg-white">
+      <form onSubmit={submit} className="border-t border-linea bg-superficie">
         <div className="mx-auto flex max-w-[720px] flex-col gap-2.5 px-3 pb-3.5 pt-2.5 sm:px-8 sm:pt-3">
           {vacio ? null : (
             <ul className="-mx-0.5 flex gap-2 overflow-x-auto px-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
@@ -544,7 +544,7 @@ export function GestorChat({ hasToken }: { hasToken: boolean | null }) {
                   <button
                     type="button"
                     onClick={() => usarEjemplo(ejemplo)}
-                    className="whitespace-nowrap rounded-full border border-[#e5e5e5] bg-white px-3 py-1.5 text-xs font-semibold text-[#27272a] transition duration-200 hover:border-[#d4d4d8] hover:bg-[#fafafa] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]"
+                    className="whitespace-nowrap rounded-full border border-linea bg-superficie px-3 py-1.5 text-xs font-semibold text-tinta-2 transition duration-200 hover:border-linea-fuerte hover:bg-relleno focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-morado"
                   >
                     {ejemplo}
                   </button>
@@ -552,7 +552,7 @@ export function GestorChat({ hasToken }: { hasToken: boolean | null }) {
               ))}
             </ul>
           )}
-          <div className="flex items-end gap-2 rounded-[10px] border border-[#e5e5e5] bg-white py-1.5 pl-4 pr-1.5 transition duration-200 focus-within:border-[#8b5cf6] focus-within:ring-[3px] focus-within:ring-[#8b5cf6]/20">
+          <div className="flex items-end gap-2 rounded-[10px] border border-linea bg-superficie py-1.5 pl-4 pr-1.5 transition duration-200 focus-within:border-morado focus-within:ring-[3px] focus-within:ring-morado/20">
             <label htmlFor="gestor-texto" className="sr-only">
               Mensaje para tu gestor
             </label>
@@ -571,13 +571,13 @@ export function GestorChat({ hasToken }: { hasToken: boolean | null }) {
               maxLength={1000}
               placeholder="Escribe a tu gestor…"
               disabled={ocupado}
-              className="max-h-32 min-h-9 flex-1 resize-none border-0 bg-transparent py-[7px] text-[15px] leading-normal text-[#0a0a0a] outline-none [field-sizing:content] placeholder:text-muted disabled:cursor-not-allowed"
+              className="max-h-32 min-h-9 flex-1 resize-none border-0 bg-transparent py-[7px] text-[15px] leading-normal text-tinta outline-none [field-sizing:content] placeholder:text-muted disabled:cursor-not-allowed"
             />
             <button
               type="submit"
               disabled={ocupado || texto.trim() === ""}
               aria-label="Enviar"
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] bg-[#0a0a0a] text-white transition duration-200 hover:bg-[#262626] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:bg-[#0a0a0a]"
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] bg-tinta text-sobre-tinta transition duration-200 hover:bg-tinta-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-morado focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:bg-tinta"
             >
               <Send className="h-[17px] w-[17px]" aria-hidden="true" />
             </button>

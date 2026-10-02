@@ -55,7 +55,7 @@ export function ProfesionalesMovil() {
       }
     >
       {ajustes.isLoading ? (
-        <div className="h-48 rounded-3xl bg-[#f4f4f5] motion-safe:animate-pulse" aria-hidden="true" />
+        <div className="h-48 rounded-3xl bg-relleno-fuerte motion-safe:animate-pulse" aria-hidden="true" />
       ) : ajustes.isError ? (
         <SectionErrorState message="No se pudo cargar el equipo." onRetry={() => void ajustes.refetch()} />
       ) : profesionales.length === 0 ? (
@@ -65,27 +65,27 @@ export function ProfesionalesMovil() {
       ) : (
         <ul className="panel overflow-hidden">
           {profesionales.map((profesional, indice) => (
-            <li key={profesional.id} className={indice > 0 ? "border-t border-[#f4f4f5]" : ""}>
+            <li key={profesional.id} className={indice > 0 ? "border-t border-linea-suave" : ""}>
               <button
                 type="button"
                 onClick={() => abrir(profesional)}
-                className="flex min-h-[68px] w-full items-center gap-3 px-4 py-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#8b5cf6]"
+                className="flex min-h-[68px] w-full items-center gap-3 px-4 py-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-morado"
               >
                 <span
-                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#f3eeff] text-base font-bold text-[#6d28d9]"
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-lavado text-base font-bold text-morado-tinta"
                   aria-hidden="true"
                 >
                   {profesional.name.trim().charAt(0).toUpperCase()}
                 </span>
                 <span className="min-w-0 flex-1">
-                  <span className="block text-base font-semibold leading-snug text-[#0a0a0a]">{profesional.name}</span>
+                  <span className="block text-base font-semibold leading-snug text-tinta">{profesional.name}</span>
                   <span className="mt-0.5 block truncate text-sm leading-snug text-muted">
                     {[profesional.active ? null : "Inactivo", describeServiceLevels(profesional.serviceLevels ?? {}, servicios)]
                       .filter(Boolean)
                       .join(" · ") || "Sin servicios todavía"}
                   </span>
                 </span>
-                <ChevronRight className="h-[18px] w-[18px] shrink-0 text-[#a1a1aa]" aria-hidden="true" />
+                <ChevronRight className="h-[18px] w-[18px] shrink-0 text-tenue" aria-hidden="true" />
               </button>
             </li>
           ))}
@@ -176,7 +176,7 @@ function HojaProfesional({
       titulo={visible.id ? "Editar profesional" : "Nuevo profesional"}
     >
       <CuerpoDeHoja className="flex flex-col gap-4">
-        <label className="block text-sm font-semibold text-[#27272a]">
+        <label className="block text-sm font-semibold text-tinta-2">
           Nombre del profesional
           <input
             value={visible.nombre}
@@ -188,7 +188,7 @@ function HojaProfesional({
         {visible.id ? (
           <div className="flex items-center justify-between gap-3">
             <span>
-              <span className="block text-sm font-semibold text-[#27272a]">Activo</span>
+              <span className="block text-sm font-semibold text-tinta-2">Activo</span>
               <span className="block text-[13px] text-muted">Si lo desactivas, no recibe citas nuevas.</span>
             </span>
             <Interruptor activo={visible.activo} etiqueta="Profesional activo" onCambiar={(activo) => cambiar({ activo })} />
@@ -197,7 +197,7 @@ function HojaProfesional({
         {/* `min-w-0`: el navegador da a <fieldset> min-width: min-content y el
             segmentado desbordaría la hoja. */}
         <fieldset className="min-w-0">
-          <legend className="mb-2 text-sm font-semibold text-[#27272a]">Servicios que hace</legend>
+          <legend className="mb-2 text-sm font-semibold text-tinta-2">Servicios que hace</legend>
           <ProfessionalServiceLevels
             services={servicios}
             value={visible.niveles}
@@ -207,8 +207,8 @@ function HojaProfesional({
         </fieldset>
 
         {confirmandoBorrado && visible.id ? (
-          <div className="rounded-[14px] border border-[#f5d3d3] bg-[#fff1f1] p-3">
-            <p className="mb-2.5 text-sm font-semibold leading-6 text-[#c53030]">
+          <div className="rounded-[14px] border border-linea bg-relleno p-3">
+            <p className="mb-2.5 text-sm font-semibold leading-6 text-tinta-2">
               Ya no recibirá nuevas citas. Sus citas anteriores seguirán en el historial.
             </p>
             <div className="flex gap-2">
@@ -219,7 +219,7 @@ function HojaProfesional({
                 type="button"
                 onClick={() => borrar.mutate(visible.id!)}
                 disabled={borrar.isPending}
-                className="inline-flex h-11 flex-1 items-center justify-center rounded-[10px] bg-[#c53030] text-sm font-bold text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#c53030] focus-visible:ring-offset-2 disabled:opacity-60"
+                className="inline-flex h-11 flex-1 items-center justify-center rounded-[10px] bg-peligro text-sm font-bold text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-error focus-visible:ring-offset-2 disabled:opacity-60"
               >
                 {borrar.isPending ? "Eliminando…" : "Eliminar"}
               </button>
@@ -232,7 +232,7 @@ function HojaProfesional({
                 type="button"
                 onClick={() => setConfirmandoBorrado(true)}
                 aria-label="Eliminar profesional"
-                className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-[10px] border border-[#f5d3d3] bg-white text-[#c53030] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#c53030]"
+                className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-[10px] border border-error-borde bg-superficie text-error focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-error"
               >
                 <Trash2 className="h-[18px] w-[18px]" aria-hidden="true" />
               </button>
