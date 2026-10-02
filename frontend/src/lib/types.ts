@@ -58,10 +58,19 @@ export type AgentSettings = {
 
 export type ModoDePasarLlamadas = "nunca" | "si_lo_pide" | "siempre";
 
-export type AgentLanguage = "es-ES" | "en-GB" | "fr-FR" | "ca-ES";
+export type AgentLanguage =
+  | "es-ES"
+  | "en-GB"
+  | "fr-FR"
+  | "ca-ES"
+  | "eu-ES"
+  | "gl-ES";
 
-/** Catalán queda fuera: sin voz Telnyx Ultra curada para ese idioma. */
-export type VoiceLanguage = "es-ES" | "en-GB" | "fr-FR";
+/** Idioma principal (antes «idioma de la voz»): decide la voz. Español,
+ * inglés y francés tienen voz Ultra propia; con catalán, euskera o gallego
+ * atiende una voz de Soniox que habla todos los idiomas del negocio y saluda
+ * en el principal (backend/src/lib/managedAgentPrompt.ts). */
+export type VoiceLanguage = AgentLanguage;
 
 export type BusinessType =
   | "peluqueria"

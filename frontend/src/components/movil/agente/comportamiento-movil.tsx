@@ -8,6 +8,7 @@ import { getBillingSummary, updateMyBusiness } from "@/lib/api";
 import type { AgentLanguage, AgentSettings, Business, VoiceLanguage } from "@/lib/types";
 import { AvisoFlotante, useAviso } from "@/components/aviso-flotante";
 import { DEFAULT_AGENT_SETTINGS } from "@/components/agent-settings-editor";
+import { avisoDeIdiomas } from "@/lib/idiomas-de-atencion";
 import { BarraGuardar } from "@/components/movil/piezas";
 import { PantallaDeAjuste } from "@/components/movil/agente/pantalla-de-ajuste";
 
@@ -59,13 +60,18 @@ const IDIOMAS: Array<{ valor: AgentLanguage; nombre: string }> = [
   { valor: "en-GB", nombre: "Inglés" },
   { valor: "fr-FR", nombre: "Francés" },
   { valor: "ca-ES", nombre: "Catalán" },
+  { valor: "eu-ES", nombre: "Euskera" },
+  { valor: "gl-ES", nombre: "Gallego" },
 ];
-// Catalán no: no tiene voz curada (telnyxEligibility.ts), aunque sí pueda
-// atenderse en catalán.
+// Idioma principal: con catalán, euskera o gallego atiende una voz de
+// Soniox que habla todos los idiomas (telnyxEligibility.ts).
 const IDIOMAS_DE_VOZ: Array<{ valor: VoiceLanguage; nombre: string }> = [
   { valor: "es-ES", nombre: "Español" },
   { valor: "en-GB", nombre: "Inglés" },
   { valor: "fr-FR", nombre: "Francés" },
+  { valor: "ca-ES", nombre: "Catalán" },
+  { valor: "eu-ES", nombre: "Euskera" },
+  { valor: "gl-ES", nombre: "Gallego" },
 ];
 
 function Opcion({
@@ -132,6 +138,7 @@ export function ComportamientoMovil({ business }: { business: Business }) {
   const guardado = useMemo(() => JSON.parse(firmaGuardada) as AgentSettings, [firmaGuardada]);
   const [ajustes, setAjustes] = useState(guardado);
   useEffect(() => setAjustes(guardado), [guardado]);
+  const avisoDeIdioma = avisoDeIdiomas(ajustes);
 
   const guardar = useMutation({
     mutationFn: () => updateMyBusiness({ agentSettings: ajustes }),
@@ -247,8 +254,8 @@ export function ComportamientoMovil({ business }: { business: Business }) {
                   />
                 ))}
               </div>
-              <p className="mb-2 mt-4 text-xs font-semibold uppercase tracking-[0.12em] text-muted">Idioma de la voz</p>
-              <div role="radiogroup" aria-label="Idioma de la voz" className="flex flex-col gap-2">
+              <p className="mb-2 mt-4 text-xs font-semibold uppercase tracking-[0.12em] text-muted">Idioma principal</p>
+              <div role="radiogroup" aria-label="Idioma principal" className="flex flex-col gap-2">
                 {IDIOMAS_DE_VOZ.map((idioma) => (
                   <Opcion
                     key={idioma.valor}
@@ -259,7 +266,10 @@ export function ComportamientoMovil({ business }: { business: Business }) {
                   />
                 ))}
               </div>
-              <p className="mt-2 text-xs leading-5 text-muted">Solo puedes elegir un idioma que esté activo arriba.</p>
+              <p className="mt-2 text-xs leading-5 text-muted">
+                Solo puedes elegir un idioma que esté activo arriba.
+                {avisoDeIdioma ? ` ${avisoDeIdioma}` : null}
+              </p>
             </>
           )}
         </fieldset>

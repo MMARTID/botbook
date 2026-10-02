@@ -19,6 +19,7 @@ import {
   DEFAULT_AGENT_SETTINGS,
   toRetellLanguageSetting,
   type AgentSettings,
+  type VoiceLanguage,
 } from "./managedAgentPrompt.js";
 import { calendarService } from "../modules/calendar/service.js";
 import { createTelnyxAssistantForAgent } from "./telnyxAgentSync.js";
@@ -166,8 +167,26 @@ function resolvePromptTimezone(timezone: string | null | undefined): string {
   }
 }
 
-export function buildRetellBeginMessage(businessName: string): string {
-  return `Hola, gracias por llamar a ${businessName}. ¿En qué te puedo ayudar?`;
+/**
+ * Saludo al descolgar: en español salvo que el idioma principal sea
+ * catalán, euskera o gallego (decisión del usuario 2026-10-02). Inglés y
+ * francés como principal siguen saludando en español, como siempre. En
+ * euskera el nombre va solo, sin «llamar a», para no declinarlo.
+ */
+export function buildRetellBeginMessage(
+  businessName: string,
+  idiomaPrincipal: VoiceLanguage = "es-ES"
+): string {
+  switch (idiomaPrincipal) {
+    case "ca-ES":
+      return `Hola, gràcies per trucar a ${businessName}. En què et puc ajudar?`;
+    case "eu-ES":
+      return `Kaixo, ${businessName}. Zertan lagun zaitzaket?`;
+    case "gl-ES":
+      return `Ola, grazas por chamar a ${businessName}. En que te podo axudar?`;
+    default:
+      return `Hola, gracias por llamar a ${businessName}. ¿En qué te puedo ayudar?`;
+  }
 }
 
 export type AgentTemplateConfig = {
@@ -961,7 +980,10 @@ export async function syncAgentToRetell(
       if (!agent.promptManuallyEdited) {
         await retellAdapter.updateLlm(retellDraft.llmId, {
           generalPrompt: systemPrompt,
-          beginMessage: buildRetellBeginMessage(business.name),
+          beginMessage: buildRetellBeginMessage(
+            business.name,
+            agentSettings.voiceLanguage
+          ),
           version: retellDraft.llmVersion,
         });
       }

@@ -4,7 +4,13 @@ import type {
   TelnyxTransferTool,
   TelnyxWebhookTool,
 } from "../adapters/telnyx/TelnyxAiAdapter.js";
-import { resolveManagedPromptTimezone } from "./managedAgentPrompt.js";
+import type { TranscriptionSettings } from "telnyx/resources/ai/assistants/assistants.js";
+import {
+  resolveManagedPromptTimezone,
+  transcribeConSoniox,
+  type AgentLanguage,
+  type VoiceLanguage,
+} from "./managedAgentPrompt.js";
 
 /**
  * Nombre estable y determinista del assistant Telnyx de un agente — permite
@@ -479,8 +485,8 @@ const TELNYX_TRANSCRIPTION_LANGUAGE_HINTS: Record<string, string> = {
  * de la misma llamada) — antes esta función no existía y el idioma venía
  * fijo a "es" en telnyxAgentSync.ts sin mirar los idiomas activados, así que
  * un negocio con inglés o francés activados igualmente transcribía en
- * español. Catalán queda fuera porque resolveTelnyxEligibility ya bloquea
- * Telnyx por completo si está activo.
+ * español. Con catalán, euskera o gallego no se usa: transcribe Soniox (ver
+ * transcripcionDeSoniox).
  */
 export function resolveTelnyxTranscriptionLanguage(
   languages: readonly string[]
@@ -493,6 +499,50 @@ export function resolveTelnyxTranscriptionLanguage(
     return TELNYX_TRANSCRIPTION_LANGUAGE_HINTS[supported[0]];
   }
   return "multi";
+}
+
+/** Código ISO 639-1 de cada idioma de atención: lo que piden la voz de
+ * Soniox (`voice_settings.language`) y sus `language_hints`. */
+const CODIGO_ISO_DE_IDIOMA: Record<AgentLanguage, string> = {
+  "es-ES": "es",
+  "en-GB": "en",
+  "fr-FR": "fr",
+  "ca-ES": "ca",
+  "eu-ES": "eu",
+  "gl-ES": "gl",
+};
+
+/**
+ * Transcripción con Soniox para los negocios con catalán, euskera o gallego,
+ * que deepgram/flux no reconoce. `language_hints` fija los idiomas del
+ * negocio (todos, español incluido) y `language: "auto"` deja que Soniox
+ * siga los cambios de idioma dentro de la llamada.
+ *
+ * Soniox no trae turn-taking propio como flux: el fin de turno lo marca su
+ * endpoint detection, apagado por defecto en Telnyx. 700 ms, dentro de los
+ * 500-800 que Telnyx recomienda para un turno ágil: con los 1200 ms de su
+ * ejemplo el usuario notó la espera frente a los agentes con flux (prueba
+ * en el navegador, 2026-10-02). `smart_format`/`numerals`/`keyterm` son de
+ * Deepgram: las palabras clave van en `context`, su equivalente en Soniox.
+ */
+function transcripcionDeSoniox(
+  languages: readonly AgentLanguage[],
+  boostedKeywords: readonly string[] | undefined
+): TranscriptionSettings {
+  return {
+    model: "soniox/stt-rt-v5",
+    language: "auto",
+    settings: {
+      language_hints: languages.map(
+        (language) => CODIGO_ISO_DE_IDIOMA[language]
+      ),
+      ...(boostedKeywords?.length
+        ? { context: boostedKeywords.join(",") }
+        : {}),
+      enable_endpoint_detection: true,
+      max_endpoint_delay_ms: 700,
+    },
+  };
 }
 
 export interface BuildTelnyxAssistantPayloadInput {
@@ -510,12 +560,17 @@ export interface BuildTelnyxAssistantPayloadInput {
   instructions: string;
   /** Cadena vacía para que el assistant espere a que hable el cliente. */
   greeting: string;
-  /** `TranscriptionSettings.language` — "es", "en", "fr" o "auto"/"multi"
-   * según el modelo. Catalán queda fuera hasta pasar la matriz de Fase 0. */
-  language: string;
-  /** Identificador Telnyx (`Telnyx.<modelo>.<voz>`) o de ElevenLabs vía
-   * `api_key_ref` — resuelto contra la API de voces de la cuenta, no fijo. */
+  /** Idiomas de atención activados (AgentSettings.languages): deciden el
+   * modelo de transcripción — deepgram/flux, o Soniox si hay catalán,
+   * euskera o gallego, sea cual sea la voz — y su pista de idioma. */
+  languages: readonly AgentLanguage[];
+  /** Identificador Telnyx (`Telnyx.<modelo>.<voz>`), de Soniox
+   * (`Soniox.tts-rt-v2.<voz>`) o de ElevenLabs vía `api_key_ref` — resuelto
+   * contra la API de voces de la cuenta, no fijo. */
   voice: string;
+  /** Idioma en que arranca una voz de Soniox (AgentSettings.voiceLanguage);
+   * las voces Ultra ya tienen el suyo y lo ignoran. */
+  voiceLanguage?: VoiceLanguage;
   insightGroupId?: string;
   tools?: TelnyxWebhookToolInput[];
   includeHangupTool?: boolean;
@@ -568,6 +623,8 @@ export function buildTelnyxAssistantPayload(
     );
   }
 
+  const soniox = transcribeConSoniox(input.languages);
+
   return {
     name: buildTelnyxAssistantName(input.businessId, input.agentId),
     instructions: adaptManagedPromptForTelnyx(
@@ -615,6 +672,9 @@ export function buildTelnyxAssistantPayload(
     // artificial en una llamada real.
     voiceSettings: {
       voice: input.voice,
+      ...(input.voice.startsWith("Soniox.")
+        ? { language: CODIGO_ISO_DE_IDIOMA[input.voiceLanguage ?? "es-ES"] }
+        : {}),
       expressive_mode:
         input.voice.startsWith("Telnyx.Ultra.") ||
         input.voice.startsWith("XAI."),
@@ -646,26 +706,28 @@ export function buildTelnyxAssistantPayload(
     // especulativo del LLM — el agente responde más rápido en cuanto detecta
     // fin de turno sin bajar el umbral de confianza real, así que no aumenta
     // el riesgo de interrumpir, solo reduce la latencia percibida.
-    transcription: {
-      model: "deepgram/flux",
-      language: input.language,
-      settings: {
-        ...(input.boostedKeywords?.length
-          ? { keyterm: input.boostedKeywords.join(",") }
-          : {}),
-        eot_threshold: 0.8,
-        eot_timeout_ms: 5000,
-        eager_eot_threshold: 0.4,
-        // smart_format/numerals (Deepgram, aplican a flux): formatea fechas,
-        // horas, teléfonos y números como se escriben, no como se dictan
-        // ("quince de marzo a las tres" → "15 de marzo a las 3") — ayuda
-        // tanto a la transcripción legible para el negocio como a que el
-        // propio modelo interprete bien lo que acaba de transcribir antes
-        // de llamar a check_availability/book_appointment.
-        smart_format: true,
-        numerals: true,
-      },
-    },
+    transcription: soniox
+      ? transcripcionDeSoniox(input.languages, input.boostedKeywords)
+      : {
+          model: "deepgram/flux",
+          language: resolveTelnyxTranscriptionLanguage(input.languages),
+          settings: {
+            ...(input.boostedKeywords?.length
+              ? { keyterm: input.boostedKeywords.join(",") }
+              : {}),
+            eot_threshold: 0.8,
+            eot_timeout_ms: 5000,
+            eager_eot_threshold: 0.4,
+            // smart_format/numerals (Deepgram, aplican a flux): formatea fechas,
+            // horas, teléfonos y números como se escriben, no como se dictan
+            // ("quince de marzo a las tres" → "15 de marzo a las 3") — ayuda
+            // tanto a la transcripción legible para el negocio como a que el
+            // propio modelo interprete bien lo que acaba de transcribir antes
+            // de llamar a check_availability/book_appointment.
+            smart_format: true,
+            numerals: true,
+          },
+        },
     // wait_seconds=0.1: recomendación explícita de Telnyx para flux ("Flux
     // works best with low start speaking delays, such as 0.1 seconds for
     // wait time") — es solo un suelo mínimo antes de que el agente pueda
@@ -685,10 +747,29 @@ export function buildTelnyxAssistantPayload(
     // desactivado (0.0); 0.4 es el punto de partida que la propia Telnyx
     // recomienda, subir para exigir más confianza (menos interrupciones
     // falsas) o bajar para un barge-in más permisivo.
-    interruptionSettings: {
-      start_speaking_plan: { wait_seconds: 0.1 },
-      interrupt_prediction_threshold: 0.4,
-    },
+    //
+    // Con Soniox la predicción de interrupciones no existe (es de flux) y
+    // el fin de turno lo marcan su endpoint detection y el
+    // transcription_endpointing_plan de Telnyx, que solo aplica a modelos sin
+    // turn-taking. Sus defaults (0.4 s de espera y 1.5 s si la frase acaba
+    // sin puntuación) se notaban lentos frente a flux en la prueba del
+    // 2026-10-02: se baja la espera a la de flux y el margen sin puntuación
+    // a 0.8 s; con puntuación y con número, los defaults de Telnyx.
+    interruptionSettings: soniox
+      ? {
+          start_speaking_plan: {
+            wait_seconds: 0.1,
+            transcription_endpointing_plan: {
+              on_punctuation_seconds: 0.1,
+              on_no_punctuation_seconds: 0.8,
+              on_number_seconds: 0.5,
+            },
+          },
+        }
+      : {
+          start_speaking_plan: { wait_seconds: 0.1 },
+          interrupt_prediction_threshold: 0.4,
+        },
     telephonySettings: {
       recording_settings: {
         enabled: true,

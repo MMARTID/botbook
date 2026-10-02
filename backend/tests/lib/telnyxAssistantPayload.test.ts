@@ -56,7 +56,7 @@ describe("buildTelnyxTransferTool", () => {
       businessName: "Peluquería Ejemplo",
       instructions: "i",
       greeting: "",
-      language: "es",
+      languages: ["es-ES"],
       voice: "Telnyx.Ultra.isabel",
       tools: [
         {
@@ -267,7 +267,7 @@ describe("buildTelnyxAssistantPayload", () => {
     businessName: "Peluquería Ejemplo",
     instructions: "Eres la recepcionista de Peluquería Ejemplo.",
     greeting: "Hola, gracias por llamar. ¿En qué te puedo ayudar?",
-    language: "es",
+    languages: ["es-ES"],
     voice: "Telnyx.Ultra.Isabel",
   };
 
@@ -347,7 +347,7 @@ describe("buildTelnyxAssistantPayload", () => {
   it("fija el modelo de transcripción y el idioma, y sesga con boostedKeywords", () => {
     const payload = buildTelnyxAssistantPayload({
       ...baseInput,
-      language: "en",
+      languages: ["en-GB"],
       boostedKeywords: ["corte", "manicura"],
     });
 
@@ -389,6 +389,74 @@ describe("buildTelnyxAssistantPayload", () => {
     const payload = buildTelnyxAssistantPayload(baseInput);
 
     expect(payload.interruptionSettings?.interrupt_prediction_threshold).toBe(0.4);
+  });
+
+  describe("con catalán, euskera o gallego (Soniox)", () => {
+    const sonioxInput = {
+      ...baseInput,
+      languages: ["es-ES", "ca-ES", "eu-ES"],
+      voice: "Soniox.tts-rt-v2.Marta",
+      voiceLanguage: "es-ES",
+    };
+
+    it("transcribe con Soniox fijando los idiomas del negocio y sus palabras clave", () => {
+      const payload = buildTelnyxAssistantPayload({
+        ...sonioxInput,
+        boostedKeywords: ["corte", "Laura"],
+      });
+
+      expect(payload.transcription).toEqual({
+        model: "soniox/stt-rt-v5",
+        language: "auto",
+        settings: {
+          language_hints: ["es", "ca", "eu"],
+          context: "corte,Laura",
+          enable_endpoint_detection: true,
+          max_endpoint_delay_ms: 700,
+        },
+      });
+    });
+
+    it("no manda los ajustes de turno de flux, que Soniox no tiene", () => {
+      const payload = buildTelnyxAssistantPayload(sonioxInput);
+
+      expect(payload.transcription?.settings).not.toHaveProperty("keyterm");
+      expect(payload.transcription?.settings).not.toHaveProperty("eot_threshold");
+      expect(payload.interruptionSettings).toEqual({
+        start_speaking_plan: {
+          wait_seconds: 0.1,
+          transcription_endpointing_plan: {
+            on_punctuation_seconds: 0.1,
+            on_no_punctuation_seconds: 0.8,
+            on_number_seconds: 0.5,
+          },
+        },
+      });
+    });
+
+    it("la voz de Soniox arranca en el idioma principal, sin expressive_mode", () => {
+      const payload = buildTelnyxAssistantPayload({
+        ...sonioxInput,
+        voiceLanguage: "eu-ES",
+      });
+
+      expect(payload.voiceSettings).toMatchObject({
+        voice: "Soniox.tts-rt-v2.Marta",
+        language: "eu",
+        expressive_mode: false,
+      });
+    });
+
+    it("con voz Ultra transcribe Soniox y la voz conserva su modo expresivo, sin idioma", () => {
+      const payload = buildTelnyxAssistantPayload({
+        ...sonioxInput,
+        voice: "Telnyx.Ultra.Isabel",
+      });
+
+      expect(payload.transcription?.model).toBe("soniox/stt-rt-v5");
+      expect(payload.voiceSettings).toMatchObject({ expressive_mode: true });
+      expect(payload.voiceSettings).not.toHaveProperty("language");
+    });
   });
 
   it("activa grabación dual y aplica los límites por defecto de silencio/duración", () => {
@@ -524,7 +592,7 @@ describe("buildTelnyxVoiceTools — informar_al_negocio (PR 5, post-conversació
       instructions: "x",
       timezone: "Europe/Madrid",
       greeting: "",
-      language: "es",
+      languages: ["es-ES"],
       voice: "Telnyx.KokoroTTS.af",
     });
     expect(payload.postConversationSettings).toEqual({ enabled: true });

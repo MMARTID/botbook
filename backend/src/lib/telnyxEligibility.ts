@@ -1,5 +1,9 @@
 import { telnyxAiAdapter } from "../adapters/telnyx/TelnyxAiAdapter.js";
-import type { AgentSettings, VoiceLanguage } from "./managedAgentPrompt.js";
+import {
+  hablaConSoniox,
+  type AgentSettings,
+  type UltraVoiceLanguage,
+} from "./managedAgentPrompt.js";
 
 export interface TelnyxEligibility {
   eligible: boolean;
@@ -25,7 +29,7 @@ const TELNYX_VOICE_GENDER: Record<AgentSettings["voiceGender"], string> = {
  * disponible, cae al primer match por idioma/género como red de seguridad.
  */
 const TELNYX_VOICE_CATALOG: Record<
-  VoiceLanguage,
+  UltraVoiceLanguage,
   Record<AgentSettings["voiceGender"], string>
 > = {
   "es-ES": {
@@ -43,13 +47,43 @@ const TELNYX_VOICE_CATALOG: Record<
 };
 
 /**
+ * Voces de Soniox para los negocios con catalán, euskera o gallego como
+ * idioma principal: cada una habla los 63 idiomas de Soniox, así que hay una
+ * por género y no por idioma. Marta y Sergio, con acento español, elegidas
+ * por el usuario el 2026-10-02 escuchando muestras en los cuatro idiomas.
+ */
+const SONIOX_VOICE_CATALOG: Record<AgentSettings["voiceGender"], string> = {
+  femenina: "Soniox.tts-rt-v2.Marta",
+  masculina: "Soniox.tts-rt-v2.Sergio",
+};
+
+/**
+ * Voz de Soniox del género pedido: la elegida a mano si sigue en el
+ * catálogo, si no la primera del mismo género, o `null` si no hay ninguna.
+ */
+export async function resolveSonioxVoiceId(
+  voiceGender: AgentSettings["voiceGender"]
+): Promise<string | null> {
+  const voices = await telnyxAiAdapter.listVoices("soniox");
+  const preferredId = SONIOX_VOICE_CATALOG[voiceGender];
+  if (voices.some((voice) => voice.id === preferredId)) {
+    return preferredId;
+  }
+  const match = voices.find(
+    (voice) =>
+      (voice.gender ?? "").toLowerCase() === TELNYX_VOICE_GENDER[voiceGender]
+  );
+  return match?.id ?? null;
+}
+
+/**
  * Voz Telnyx-hosted para el idioma/género pedidos: la elegida a mano si
  * sigue disponible en la cuenta, si no la primera que coincida, o `null` si
  * no hay ninguna — plan §3: "si no hay voz compatible, el negocio no entra
  * en Telnyx".
  */
 export async function resolveTelnyxVoiceId(
-  voiceLanguage: VoiceLanguage,
+  voiceLanguage: UltraVoiceLanguage,
   voiceGender: AgentSettings["voiceGender"]
 ): Promise<string | null> {
   const voices = await telnyxAiAdapter.listVoices();
@@ -76,28 +110,25 @@ export async function resolveTelnyxVoiceId(
 export async function resolveTelnyxEligibility(
   settings: AgentSettings
 ): Promise<TelnyxEligibility> {
-  // Catalán: sin matriz de idiomas superada (plan Fase 0), el negocio se
-  // queda en Retell sin excepciones — nunca se degrada a castellano.
-  if (settings.languages.includes("ca-ES")) {
-    return {
-      eligible: false,
-      status: "ineligible",
-      reason:
-        "Catalán habilitado: Telnyx no es elegible hasta pasar la matriz de idiomas de la Fase 0.",
-      voiceId: null,
-    };
-  }
+  // Idioma principal catalán, euskera o gallego: voz de Soniox, la única
+  // que los habla (ver hablaConSoniox). Con español, inglés o francés como
+  // principal, la Ultra de siempre aunque haya catalán, euskera o gallego
+  // activos: esos se entienden y se contesta en español. Antes el catalán
+  // dejaba el negocio en Retell.
+  const idiomaPrincipal = settings.voiceLanguage;
+  const soniox = hablaConSoniox(idiomaPrincipal);
 
   try {
-    const voiceId = await resolveTelnyxVoiceId(
-      settings.voiceLanguage,
-      settings.voiceGender
-    );
+    const voiceId = hablaConSoniox(idiomaPrincipal)
+      ? await resolveSonioxVoiceId(settings.voiceGender)
+      : await resolveTelnyxVoiceId(idiomaPrincipal, settings.voiceGender);
     if (!voiceId) {
       return {
         eligible: false,
         status: "ineligible",
-        reason: `Sin voz Telnyx compatible con ${settings.voiceLanguage}/${settings.voiceGender} en la cuenta.`,
+        reason: soniox
+          ? `Sin voz Soniox ${settings.voiceGender} en la cuenta.`
+          : `Sin voz Telnyx compatible con ${settings.voiceLanguage}/${settings.voiceGender} en la cuenta.`,
         voiceId: null,
       };
     }
