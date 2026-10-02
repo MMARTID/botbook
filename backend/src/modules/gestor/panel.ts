@@ -15,6 +15,7 @@ import { estadoWhatsappDelDueno } from "../whatsapp/altaDueno.js";
 import { estaDadoDeBaja } from "../whatsapp/bajas.js";
 import * as mensajes from "../whatsapp/mensajes.js";
 import {
+  MOTIVO_SUSTITUIDA,
   decidirPropuesta,
   registrarPropuesta,
   type PropuestaSiguiente,
@@ -110,6 +111,100 @@ async function propuestaPendiente(
         ? { confirmar: "Sí, avísale", cancelar: "No" }
         : BOTONES_POR_DEFECTO,
   };
+}
+
+export type EstadoDelCambio =
+  | "pendiente"
+  | "en_curso"
+  | "hecho"
+  | "fallido"
+  | "descartado"
+  | "sustituido"
+  | "caducado";
+
+export interface CambioDelGestor {
+  id: string;
+  resumen: string;
+  estado: EstadoDelCambio;
+  /** Cuándo pasó a ese estado (ISO); en «pendiente», cuándo se propuso. */
+  en: string;
+  /** Solo en «pendiente»: hasta cuándo vale el botón. */
+  caduca: string | null;
+}
+
+const DIAS_DE_CAMBIOS = 30;
+const MAX_CAMBIOS = 40;
+
+interface FilaDePropuesta {
+  id: string;
+  resumen: string;
+  expiresAt: Date;
+  confirmedAt: Date | null;
+  rejectedAt: Date | null;
+  executedAt: Date | null;
+  error: string | null;
+  createdAt: Date;
+}
+
+/** El estado de una propuesta a partir de sus marcas de tiempo. */
+export function estadoDelCambio(
+  fila: FilaDePropuesta,
+  ahora = new Date()
+): { estado: EstadoDelCambio; en: Date } {
+  if (fila.rejectedAt) {
+    return {
+      estado: fila.error === MOTIVO_SUSTITUIDA ? "sustituido" : "descartado",
+      en: fila.rejectedAt,
+    };
+  }
+  if (fila.confirmedAt) {
+    if (fila.error) {
+      return { estado: "fallido", en: fila.executedAt ?? fila.confirmedAt };
+    }
+    return fila.executedAt
+      ? { estado: "hecho", en: fila.executedAt }
+      : { estado: "en_curso", en: fila.confirmedAt };
+  }
+  return fila.expiresAt.getTime() > ahora.getTime()
+    ? { estado: "pendiente", en: fila.createdAt }
+    : { estado: "caducado", en: fila.expiresAt };
+}
+
+/**
+ * Registro de lo que el Gestor ha propuesto y qué pasó con cada propuesta
+ * (escritorio: «Cambios del gestor»). Sale de `owner_pending_actions`, que
+ * ya guarda cada propuesta con sus marcas; no hay registro nuevo.
+ */
+export async function cambiosDelGestor(
+  businessId: string
+): Promise<CambioDelGestor[]> {
+  const desde = new Date(Date.now() - DIAS_DE_CAMBIOS * 24 * 60 * 60 * 1000);
+  const filas = await prisma.ownerPendingAction.findMany({
+    where: { businessId, createdAt: { gte: desde } },
+    orderBy: { createdAt: "desc" },
+    take: MAX_CAMBIOS,
+    select: {
+      id: true,
+      resumen: true,
+      expiresAt: true,
+      confirmedAt: true,
+      rejectedAt: true,
+      executedAt: true,
+      error: true,
+      createdAt: true,
+    },
+  });
+  const ahora = new Date();
+  return filas.map((fila) => {
+    const { estado, en } = estadoDelCambio(fila, ahora);
+    return {
+      id: fila.id,
+      resumen: fila.resumen,
+      estado,
+      en: en.toISOString(),
+      caduca: estado === "pendiente" ? fila.expiresAt.toISOString() : null,
+    };
+  });
 }
 
 export async function historialDelGestor(

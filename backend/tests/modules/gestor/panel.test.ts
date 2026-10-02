@@ -10,7 +10,9 @@ import {
   registrarPropuesta,
 } from "../../../src/modules/gestor/acciones.js";
 import {
+  cambiosDelGestor,
   decidirEnElPanel,
+  estadoDelCambio,
   historialDelGestor,
   preguntarAlGestor,
 } from "../../../src/modules/gestor/panel.js";
@@ -19,7 +21,7 @@ import * as mensajes from "../../../src/modules/whatsapp/mensajes.js";
 vi.mock("../../../src/lib/prisma.js", () => ({
   prisma: {
     business: { findUnique: vi.fn() },
-    ownerPendingAction: { findFirst: vi.fn() },
+    ownerPendingAction: { findFirst: vi.fn(), findMany: vi.fn() },
   },
 }));
 vi.mock("../../../src/adapters/telnyx/TelnyxAiAdapter.js", () => ({
@@ -37,6 +39,7 @@ vi.mock("../../../src/modules/whatsapp/chatDueno.js", async (importActual) => {
   };
 });
 vi.mock("../../../src/modules/gestor/acciones.js", () => ({
+  MOTIVO_SUSTITUIDA: "sustituida por otra propuesta",
   decidirPropuesta: vi.fn(),
   registrarPropuesta: vi.fn(),
 }));
@@ -381,5 +384,94 @@ describe("decidirEnElPanel", () => {
       ok: false,
       motivo: "no_encontrada",
     });
+  });
+});
+
+describe("cambiosDelGestor", () => {
+  const AHORA = new Date("2026-10-02T12:00:00Z");
+  const base = {
+    resumen: "Apuntar a Marta el jueves a las 17:00",
+    expiresAt: new Date("2026-10-03T10:00:00Z"),
+    confirmedAt: null,
+    rejectedAt: null,
+    executedAt: null,
+    error: null,
+    createdAt: new Date("2026-10-02T10:00:00Z"),
+  };
+
+  it("deduce el estado de cada propuesta de sus marcas de tiempo", () => {
+    const hace = (h: number) => new Date(AHORA.getTime() - h * 3_600_000);
+    expect(estadoDelCambio({ id: "a", ...base }, AHORA).estado).toBe(
+      "pendiente"
+    );
+    expect(
+      estadoDelCambio({ id: "b", ...base, expiresAt: hace(1) }, AHORA)
+    ).toEqual({ estado: "caducado", en: hace(1) });
+    expect(
+      estadoDelCambio(
+        { id: "c", ...base, confirmedAt: hace(2), executedAt: hace(2) },
+        AHORA
+      ).estado
+    ).toBe("hecho");
+    expect(
+      estadoDelCambio(
+        { id: "d", ...base, confirmedAt: hace(2), error: "sin lock" },
+        AHORA
+      ).estado
+    ).toBe("fallido");
+    expect(
+      estadoDelCambio({ id: "e", ...base, confirmedAt: hace(2) }, AHORA).estado
+    ).toBe("en_curso");
+    expect(
+      estadoDelCambio({ id: "f", ...base, rejectedAt: hace(3) }, AHORA).estado
+    ).toBe("descartado");
+    expect(
+      estadoDelCambio(
+        {
+          id: "g",
+          ...base,
+          rejectedAt: hace(3),
+          error: "sustituida por otra propuesta",
+        },
+        AHORA
+      ).estado
+    ).toBe("sustituido");
+  });
+
+  it("lee solo las propuestas del negocio de los últimos 30 días y solo da caducidad a las pendientes", async () => {
+    vi.mocked(prisma.ownerPendingAction.findMany).mockResolvedValue([
+      { id: "p1", ...base, expiresAt: new Date(Date.now() + 3_600_000) },
+      {
+        id: "p2",
+        ...base,
+        confirmedAt: new Date("2026-10-01T09:00:00Z"),
+        executedAt: new Date("2026-10-01T09:00:02Z"),
+      },
+    ] as never);
+
+    const cambios = await cambiosDelGestor("biz_1");
+
+    const consulta = vi.mocked(prisma.ownerPendingAction.findMany).mock
+      .calls[0][0] as {
+      where: { businessId: string; createdAt: { gte: Date } };
+    };
+    expect(consulta.where.businessId).toBe("biz_1");
+    expect(Date.now() - consulta.where.createdAt.gte.getTime()).toBeGreaterThan(
+      29 * 24 * 3_600_000
+    );
+    expect(cambios).toEqual([
+      expect.objectContaining({
+        id: "p1",
+        estado: "pendiente",
+        caduca: expect.any(String),
+      }),
+      {
+        id: "p2",
+        resumen: base.resumen,
+        estado: "hecho",
+        en: "2026-10-01T09:00:02.000Z",
+        caduca: null,
+      },
+    ]);
   });
 });
