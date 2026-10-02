@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { getFacebookAuthUrl } from "@/lib/api";
+import { BetaPill } from "@/components/beta-pill";
 
 type FacebookAuthButtonProps = {
   onError: (message: string) => void;
@@ -43,15 +44,21 @@ export function FacebookAuthButton({
     }
   };
 
+  // Beta: la app de Facebook sigue pendiente de verificación/publicación y
+  // solo entran cuentas de prueba; la pastilla avisa, el botón sigue
+  // funcionando (mismo patrón que GoogleAuthButton).
   return (
-    <button
-      type="button"
-      onClick={startFacebookAuth}
-      disabled={loading || disabled}
-      className="flex h-12 w-full items-center justify-center gap-3 rounded-[10px] border border-[#e5e5e5] bg-white px-4 text-sm font-semibold text-[#0a0a0a] transition hover:border-[#0a0a0a] hover:bg-[#fafafa] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#8b5cf6]/30 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
-    >
-      <FacebookIcon />
-      {loading ? "Conectando con Facebook..." : "Continuar con Facebook"}
-    </button>
+    <div className="relative">
+      <BetaPill />
+      <button
+        type="button"
+        onClick={startFacebookAuth}
+        disabled={loading || disabled}
+        className="flex h-12 w-full items-center justify-center gap-3 rounded-[10px] border border-[#e5e5e5] bg-white px-4 text-sm font-semibold text-[#0a0a0a] transition hover:border-[#0a0a0a] hover:bg-[#fafafa] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#8b5cf6]/30 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+      >
+        <FacebookIcon />
+        {loading ? "Conectando con Facebook..." : "Continuar con Facebook"}
+      </button>
+    </div>
   );
 }
