@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowRight, CalendarDays, LayoutDashboard, PhoneCall, PhoneForwarded } from "lucide-react";
+import { ArrowRight, CalendarDays, LayoutDashboard, PhoneCall } from "lucide-react";
 import { getAgenda, getCalls, getStats } from "@/lib/api";
 import { formatPhoneLocal, formatPrice } from "@/lib/format";
 import { claveDeDia, diaLargo, horaDelNegocio, instanteAntesDelDia, sumarDias } from "@/lib/fechas-negocio";
@@ -15,6 +15,7 @@ import type { AgendaBooking, Business } from "@/lib/types";
 import { useAhora } from "@/hooks/use-es-movil";
 import { AvisoFlotante, useAviso } from "@/components/aviso-flotante";
 import { CallForwardingCard } from "@/components/call-forwarding-card";
+import { TarjetaDeDesvio } from "@/components/tarjeta-de-desvio";
 import { SectionErrorState } from "@/components/section-card";
 import { useEstadoDelServicio } from "@/components/movil/estado-del-servicio";
 import { FilaLlamada } from "@/components/movil/fila-llamada";
@@ -154,29 +155,7 @@ export function PanelEscritorio({
                   onRetry={() => void estado.onboardingQuery.refetch()}
                 />
               ) : desvioPendiente && forwarding ? (
-                <button
-                  id="desvio"
-                  type="button"
-                  onClick={() => setDesvioAbierto(true)}
-                  className="flex min-h-16 w-full items-center gap-3 rounded-[20px] border border-aviso-borde bg-aviso-fondo py-3.5 pl-4 pr-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-morado"
-                >
-                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-superficie text-aviso-icono" aria-hidden="true">
-                    <PhoneForwarded className="h-5 w-5" />
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block text-[15px] font-bold text-aviso">
-                      {forwarding.status === "waiting_number" ? "Estamos activando tu número" : "Falta desviar tu teléfono"}
-                    </span>
-                    <span className="mt-0.5 block text-[13px] leading-[1.45] text-apagado">
-                      {forwarding.status === "waiting_number"
-                        ? "En unos minutos podrás desviar tus llamadas."
-                        : "Sin desvío no entra ninguna llamada a tu recepcionista."}
-                    </span>
-                  </span>
-                  <span className="shrink-0 text-sm font-bold text-aviso">
-                    {forwarding.status === "waiting_number" ? "Ver" : "Activarlo"}
-                  </span>
-                </button>
+                <TarjetaDeDesvio forwarding={forwarding} onAbrir={() => setDesvioAbierto(true)} />
               ) : null}
               {!calendario.connected ? (
                 <TarjetaDeAviso

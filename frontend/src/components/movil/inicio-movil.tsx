@@ -27,6 +27,9 @@ import { useAhora } from "@/hooks/use-es-movil";
 import { AvisoFlotante, useAviso } from "@/components/aviso-flotante";
 import { BrandMark } from "@/components/brand-mark";
 import { CallForwardingCard } from "@/components/call-forwarding-card";
+import { TarjetaDeDesvio } from "@/components/tarjeta-de-desvio";
+import { CuerpoDeHoja, HojaInferior } from "@/components/movil/hoja-inferior";
+import { BotonDeBuscar } from "@/components/movil/buscador-movil";
 import { SectionErrorState } from "@/components/section-card";
 import { CabeceraMovil } from "@/components/movil/cabecera-movil";
 import { usePorDevolver } from "@/components/movil/barra-de-pestanas";
@@ -69,6 +72,7 @@ export function InicioMovil({
   const { aviso, avisar, cerrar } = useAviso();
 
   const [estadoAbierto, setEstadoAbierto] = useState(false);
+  const [desvioAbierto, setDesvioAbierto] = useState(false);
   const [citaAbierta, setCitaAbierta] = useState<AgendaBooking | null>(null);
   const [llamadaAbierta, setLlamadaAbierta] = useState<string | null>(null);
 
@@ -118,7 +122,12 @@ export function InicioMovil({
             </div>
           </>
         }
-        accion={<ChipDeEstado estado={estado} onAbrir={() => setEstadoAbierto(true)} />}
+        accion={
+          <>
+            <BotonDeBuscar />
+            <ChipDeEstado estado={estado} onAbrir={() => setEstadoAbierto(true)} />
+          </>
+        }
       />
 
       <div className="space-y-3">
@@ -151,7 +160,7 @@ export function InicioMovil({
             onRetry={() => void estado.onboardingQuery.refetch()}
           />
         ) : forwarding && forwarding.status !== "done" ? (
-          <CallForwardingCard forwarding={forwarding} customerLineType={business.customerLineType ?? null} />
+          <TarjetaDeDesvio forwarding={forwarding} onAbrir={() => setDesvioAbierto(true)} />
         ) : null}
 
         {estado.minutos ? (
@@ -266,8 +275,21 @@ export function InicioMovil({
 
       {statsQuery.data?.week ? <UltimosSieteDias semana={statsQuery.data.week} /> : null}
 
+      {forwarding ? (
+        <HojaInferior
+          abierta={desvioAbierto}
+          onCerrar={() => setDesvioAbierto(false)}
+          titulo="Desvía tu teléfono"
+          subtitulo="Es lo último para que tus clientes lleguen a tu recepcionista."
+          alta
+        >
+          <CuerpoDeHoja className="pb-6">
+            <CallForwardingCard forwarding={forwarding} customerLineType={business.customerLineType ?? null} />
+          </CuerpoDeHoja>
+        </HojaInferior>
+      ) : null}
       <HojaEstado abierta={estadoAbierto} onCerrar={() => setEstadoAbierto(false)} estado={estado} timeZone={timeZone} />
-      <HojaCita cita={citaAbierta} timeZone={timeZone} calendario={calendario} onCerrar={() => setCitaAbierta(null)} avisar={avisar} />
+      <HojaCita cita={citaAbierta} business={business} onCerrar={() => setCitaAbierta(null)} avisar={avisar} />
       <HojaLlamada callId={llamadaAbierta} timeZone={timeZone} onCerrar={() => setLlamadaAbierta(null)} avisar={avisar} />
       {aviso ? <AvisoFlotante aviso={aviso} onClose={cerrar} /> : null}
     </div>

@@ -44,33 +44,27 @@ function useConRetraso(valor: string, ms = 220) {
 }
 
 /**
- * Buscador del escritorio (⌘K): saltar a una pantalla, encontrar una cita o
- * una llamada por nombre, teléfono o servicio, preguntarle algo al gestor o
- * copiar el número de Alhabla. Todo con el teclado: ↑ ↓ para moverse, ↵
- * para abrir, Esc para cerrar.
+ * Lo que ofrece el buscador para un texto: pantallas, citas y conversaciones
+ * del negocio, preguntar al gestor y copiar el número. Lo comparten el
+ * diálogo del escritorio (⌘K) y la hoja del móvil; `conAtajos` añade la
+ * pista «G + letra», que en el móvil no tiene sentido.
  */
-export function Buscador({
+export function useOpcionesDelBuscador({
   abierto,
-  onCerrar,
+  texto,
   timeZone,
+  onCerrar,
   avisar,
+  conAtajos,
 }: {
   abierto: boolean;
-  onCerrar: () => void;
+  texto: string;
   timeZone: string;
+  onCerrar: () => void;
   avisar: (mensaje: string, tipo?: "success" | "error") => void;
+  conAtajos: boolean;
 }) {
   const router = useRouter();
-  const [texto, setTexto] = useState("");
-  const [activa, setActiva] = useState(0);
-  const campoRef = useRef<HTMLInputElement>(null);
-  const listaId = useId();
-  const ref = useFocusTrap<HTMLDivElement>({ active: abierto, onEscape: onCerrar, initialFocusRef: campoRef });
-
-  useEffect(() => {
-    if (abierto) setTexto("");
-  }, [abierto]);
-
   const consulta = useConRetraso(texto.trim());
   const busqueda = useQuery({
     queryKey: ["buscar", consulta],
@@ -80,7 +74,6 @@ export function Buscador({
   });
   const telefono = useQuery({ queryKey: ["phone-number"], queryFn: getPhoneNumberInfo, enabled: abierto });
   const numero = telefono.data?.phoneNumber ?? null;
-
   const opciones = useMemo<Opcion[]>(() => {
     const ir = (href: string) => () => {
       onCerrar();
@@ -98,7 +91,7 @@ export function Buscador({
         grupo: "Ir a",
         icono: destino.icono,
         titulo: destino.etiqueta,
-        pista: destino.tecla ? (
+        pista: conAtajos && destino.tecla ? (
           <span className="flex gap-1">
             <Tecla>G</Tecla>
             <Tecla>{destino.tecla}</Tecla>
@@ -168,15 +161,54 @@ export function Buscador({
       });
     }
     return lista;
-  }, [texto, consulta, busqueda.data, timeZone, numero, onCerrar, router, avisar]);
+  }, [texto, consulta, busqueda.data, timeZone, numero, onCerrar, router, avisar, conAtajos]);
 
-  useEffect(() => setActiva(0), [texto, busqueda.data]);
-
-  if (!abierto || typeof document === "undefined") return null;
 
   const buscando = consulta.length >= 2 && (busqueda.isFetching || consulta !== texto.trim());
   const sinResultados =
-    consulta.length >= 2 && !buscando && busqueda.data && busqueda.data.citas.length === 0 && busqueda.data.llamadas.length === 0;
+    consulta.length >= 2 && !buscando && Boolean(busqueda.data) && busqueda.data!.citas.length === 0 && busqueda.data!.llamadas.length === 0;
+  return { opciones, consulta, buscando, sinResultados, error: busqueda.isError, datos: busqueda.data };
+}
+
+/**
+ * Buscador del escritorio (⌘K): saltar a una pantalla, encontrar una cita o
+ * una llamada por nombre, teléfono o servicio, preguntarle algo al gestor o
+ * copiar el número de Alhabla. Todo con el teclado: ↑ ↓ para moverse, ↵
+ * para abrir, Esc para cerrar.
+ */
+export function Buscador({
+  abierto,
+  onCerrar,
+  timeZone,
+  avisar,
+}: {
+  abierto: boolean;
+  onCerrar: () => void;
+  timeZone: string;
+  avisar: (mensaje: string, tipo?: "success" | "error") => void;
+}) {
+  const [texto, setTexto] = useState("");
+  const [activa, setActiva] = useState(0);
+  const campoRef = useRef<HTMLInputElement>(null);
+  const listaId = useId();
+  const ref = useFocusTrap<HTMLDivElement>({ active: abierto, onEscape: onCerrar, initialFocusRef: campoRef });
+
+  useEffect(() => {
+    if (abierto) setTexto("");
+  }, [abierto]);
+
+  const { opciones, consulta, buscando, sinResultados, error, datos } = useOpcionesDelBuscador({
+    abierto,
+    texto,
+    timeZone,
+    onCerrar,
+    avisar,
+    conAtajos: true,
+  });
+
+  useEffect(() => setActiva(0), [texto, datos]);
+
+  if (!abierto || typeof document === "undefined") return null;
 
   return createPortal(
     <div className="fixed inset-0 z-[80] flex justify-center px-6 pt-[12vh]">
@@ -257,7 +289,7 @@ export function Buscador({
           {sinResultados ? (
             <li className="px-3 py-3 text-sm text-muted">No hay citas ni llamadas con «{consulta}».</li>
           ) : null}
-          {busqueda.isError ? (
+          {error ? (
             <li className="px-3 py-3 text-sm text-error" role="alert">
               No se ha podido buscar ahora mismo. Inténtalo de nuevo.
             </li>

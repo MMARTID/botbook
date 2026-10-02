@@ -623,6 +623,15 @@ prototipo «Alhabla Movil» de Claude Design). El escritorio no cambia.
 - **Teléfonos sin +34** (`formatPhoneLocal`) y llamar siempre a un toque: botón redondo de 44 px
   en filas, deslizar a la izquierda en el historial, botón primario en hojas.
 - La próxima cita de Inicio es la única superficie negra de la app: es lo primero que se mira.
+- **Lo mismo que en escritorio, adaptado** (octubre de 2026): la lupa redonda de las cabeceras de
+  Inicio, Agenda y Llamadas abre el buscador en una hoja alta (`buscador-movil.tsx`, mismas
+  opciones que el ⌘K, sin atajos de teclado). Llamadas filtra igual que en escritorio: búsqueda,
+  pastillas de resultado con recuento y una hoja «Filtros» con canal, ánimo, fechas y «Exportar a
+  CSV» (`lib/filtros-de-llamadas.ts`, compartido). La hoja de una cita futura deja moverla (hueco
+  comprobado, el mismo formulario que el escritorio) o cancelarla con confirmación, y después
+  pregunta si avisar al cliente por WhatsApp. La Agenda filtra por profesional. Filtros, cita y
+  llamada abiertas viven en la URL, como en escritorio. El desvío de Inicio es la misma tarjeta
+  compacta del Panel (`tarjeta-de-desvio.tsx`) y abre los pasos en una hoja.
 
 ### Escritorio (desde `lg`)
 

@@ -21,7 +21,13 @@ export default function CallsPage() {
   }, [hasToken, router]);
 
   if (isLoadingBusiness || esMovil === null) return <AppPageSkeleton label="Cargando llamadas…" className={ESQUELETO_ANCHO} />;
-  if (esMovil) return <LlamadasMovil />;
+  if (esMovil) {
+    return (
+      <Suspense fallback={<AppPageSkeleton label="Cargando llamadas…" />}>
+        <LlamadasMovil />
+      </Suspense>
+    );
+  }
   if (!business) return null;
 
   return (
