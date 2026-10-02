@@ -1,5 +1,10 @@
-import Telnyx from "telnyx";
+import Telnyx, { toFile } from "telnyx";
 import { getTelnyxClient, getTelnyxWhatsappClient } from "../../lib/telnyx.js";
+
+/** Modelo multilingüe (catalán incluido) de Telnyx Inference — sin pasar
+ * `language` a propósito: forzarlo a "es" degradaría la transcripción de
+ * los negocios que hablan catalán con sus clientes. */
+const TELNYX_TRANSCRIPTION_MODEL = "openai/whisper-large-v3-turbo";
 
 /** A quién le habla Alhabla: cada audiencia tiene su propio número. */
 export type WhatsappAudience = "client" | "owner";
@@ -479,6 +484,59 @@ export class WhatsAppAdapter {
       return templates;
     } catch (error) {
       throw toWhatsAppApiError(error, "al listar las plantillas del WABA");
+    }
+  }
+
+  /**
+   * Descarga un audio entrante (nota de voz) por su `media_id` de Meta. El
+   * SDK no modela este recurso (verificado: no hay `whatsapp.media.*` en
+   * telnyx@7.21), así que va por fetch directo — mismo patrón que
+   * microsoftGraph.ts/zohoMail.ts para lo que el SDK no cubre. Ruta
+   * verificada a mano el 2026-10-02 contra la API real (`GET
+   * /v2/whatsapp/media/{phone_number}/{id}`, sin el bug de doble /v2 que
+   * tiene `client.whatsapp.*` — ver el comentario de getTelnyxWhatsappClient).
+   */
+  async descargarAudio(
+    toNumber: string,
+    mediaId: string
+  ): Promise<{ buffer: Buffer; mimeType: string }> {
+    const config = this.requireConfig();
+    try {
+      const response = await fetch(
+        `https://api.telnyx.com/v2/whatsapp/media/${encodeURIComponent(toNumber)}/${encodeURIComponent(mediaId)}`,
+        { headers: { Authorization: `Bearer ${config.apiKey}` } }
+      );
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${await response.text()}`);
+      }
+      const mimeType =
+        response.headers.get("content-type") ?? "audio/ogg";
+      const buffer = Buffer.from(await response.arrayBuffer());
+      return { buffer, mimeType };
+    } catch (error) {
+      throw toWhatsAppApiError(
+        error,
+        `al descargar el audio ${mediaId} de ${toNumber}`
+      );
+    }
+  }
+
+  /**
+   * Transcribe un audio con Telnyx Inference (Whisper alojado por Telnyx,
+   * no un proveedor externo). Devuelve "" si Telnyx no encontró voz
+   * reconocible — nunca null/undefined, para que el llamador no tenga que
+   * distinguir "falló" de "silencio".
+   */
+  async transcribirAudio(buffer: Buffer, mimeType: string): Promise<string> {
+    try {
+      const file = await toFile(buffer, "audio", { type: mimeType });
+      const response = await getTelnyxClient().ai.audio.transcribe({
+        model: TELNYX_TRANSCRIPTION_MODEL,
+        file,
+      });
+      return response.text?.trim() ?? "";
+    } catch (error) {
+      throw toWhatsAppApiError(error, "al transcribir un audio de WhatsApp");
     }
   }
 }

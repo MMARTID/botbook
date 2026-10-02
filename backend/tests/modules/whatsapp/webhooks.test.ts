@@ -16,6 +16,14 @@ import {
   avisarCambioDeListaDeEspera,
 } from "../../../src/modules/whatsapp/service.js";
 import { enrutarEntrante } from "../../../src/modules/whatsapp/router.js";
+import { whatsappAdapter } from "../../../src/adapters/whatsapp/WhatsAppAdapter.js";
+
+vi.mock("../../../src/adapters/whatsapp/WhatsAppAdapter.js", () => ({
+  whatsappAdapter: {
+    descargarAudio: vi.fn(),
+    transcribirAudio: vi.fn(),
+  },
+}));
 
 vi.mock("../../../src/lib/prisma.js", () => ({
   prisma: {
@@ -57,6 +65,8 @@ const mockedTemplateFindFirst = vi.mocked(prisma.whatsappTemplate.findFirst);
 const mockedActualizarEstado = vi.mocked(actualizarEstadoEnvio);
 const mockedAudiencia = vi.mocked(audienciaDelNumero);
 const mockedEnrutar = vi.mocked(enrutarEntrante);
+const mockedDescargarAudio = vi.mocked(whatsappAdapter.descargarAudio);
+const mockedTranscribirAudio = vi.mocked(whatsappAdapter.transcribirAudio);
 
 /** Evento `whatsapp.messages` tal como lo entrega el webhook del WABA
  * (capturado en la fase 0.1, 2026-09-19). */
@@ -90,6 +100,15 @@ const TEXTO = {
   text: { body: "Hola caracola" },
   timestamp: "1789845237",
   type: "text",
+};
+
+const AUDIO = {
+  foreign_id: "wamid.HBg…audio",
+  from: "+34692138456",
+  id: "7c1a8b2d-3e4f-4a5b-9c6d-7e8f9a0b1c2d",
+  audio: { id: "media-abc123", mime_type: "audio/ogg; codecs=opus" },
+  timestamp: "1789845300",
+  type: "audio",
 };
 
 const BOTON = {
@@ -297,17 +316,17 @@ describe("clasificarEntrante", () => {
   });
 
   it("audio y medios", () => {
-    expect(
-      clasificarEntrante(
-        {
-          ...TEXTO,
-          text: undefined,
-          type: "audio",
-          audio: { url: "https://…" },
-        } as never,
-        contexto
-      ).kind
-    ).toBe("audio");
+    const audio = clasificarEntrante(
+      {
+        ...TEXTO,
+        text: undefined,
+        type: "audio",
+        audio: { id: "media-123", mime_type: "audio/ogg; codecs=opus" },
+      } as never,
+      contexto
+    );
+    expect(audio.kind).toBe("audio");
+    expect(audio.audioMediaId).toBe("media-123");
     expect(
       clasificarEntrante(
         { ...TEXTO, text: undefined, type: "image" } as never,
@@ -529,6 +548,65 @@ describe("handleWhatsappMessages", () => {
       to: "+34692138456",
     });
     expect(mockedInboundCreate).not.toHaveBeenCalled();
+  });
+
+  it("una nota de voz transcrita se guarda y enruta como texto normal", async () => {
+    mockedDescargarAudio.mockResolvedValue({
+      buffer: Buffer.from("audio-fake"),
+      mimeType: "audio/ogg",
+    });
+    mockedTranscribirAudio.mockResolvedValue("¿Tenéis hueco mañana a las 10?");
+
+    await handleWhatsappMessages(eventoMensajes([AUDIO]));
+
+    expect(mockedDescargarAudio).toHaveBeenCalledWith(
+      "+34930454394",
+      "media-abc123"
+    );
+    expect(mockedInboundCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        kind: "text",
+        text: "¿Tenéis hueco mañana a las 10?",
+      }),
+    });
+    expect(mockedEnrutar).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: "text" })
+    );
+  });
+
+  it("si Telnyx no reconoce voz en el audio, se guarda como audio sin texto y no se enruta a ningún sitio especial", async () => {
+    mockedDescargarAudio.mockResolvedValue({
+      buffer: Buffer.from("audio-fake"),
+      mimeType: "audio/ogg",
+    });
+    mockedTranscribirAudio.mockResolvedValue("");
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+
+    await handleWhatsappMessages(eventoMensajes([AUDIO]));
+
+    expect(mockedInboundCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({ kind: "audio", text: null }),
+    });
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining("Telnyx no reconoció voz")
+    );
+    warnSpy.mockRestore();
+  });
+
+  it("si falla la descarga o transcripción, el audio se guarda igual (sin texto) y queda loggeado en voz alta", async () => {
+    mockedDescargarAudio.mockRejectedValue(new Error("Telnyx caído"));
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+    const result = await handleWhatsappMessages(eventoMensajes([AUDIO]));
+
+    expect(result).toEqual({ success: true });
+    expect(mockedInboundCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({ kind: "audio", text: null }),
+    });
+    expect(errorSpy).toHaveBeenCalledWith(
+      expect.stringContaining("No se pudo transcribir el audio")
+    );
+    errorSpy.mockRestore();
   });
 
   describe("barrido de filas sin enrutar", () => {

@@ -15,6 +15,7 @@ vi.mock("../../../src/lib/telnyx.js", () => ({
 
 const mockedWhatsappSend = vi.fn();
 const mockedConversationWindow = vi.fn();
+const mockedTranscribe = vi.fn();
 
 describe("WhatsAppAdapter", () => {
   const adapter = new WhatsAppAdapter();
@@ -32,6 +33,7 @@ describe("WhatsAppAdapter", () => {
     });
     vi.mocked(getTelnyxClient).mockReturnValue({
       messages: { whatsapp: mockedWhatsappSend },
+      ai: { audio: { transcribe: mockedTranscribe } },
     } as never);
     vi.mocked(getTelnyxWhatsappClient).mockReturnValue({
       whatsapp: {
@@ -222,6 +224,80 @@ describe("WhatsAppAdapter", () => {
     expect(error).toBeInstanceOf(WhatsAppApiError);
     expect((error as Error).message).toContain(
       "al enviar un texto por WhatsApp desde +34930453218"
+    );
+  });
+
+  it("descarga un audio entrante por media_id contra la API real de Telnyx (sin el bug de doble /v2 de client.whatsapp.*)", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      headers: new Map([["content-type", "audio/ogg"]]),
+      arrayBuffer: async () => new TextEncoder().encode("contenido-audio").buffer,
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { buffer, mimeType } = await adapter.descargarAudio(
+      "+34930454394",
+      "media-abc123"
+    );
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://api.telnyx.com/v2/whatsapp/media/%2B34930454394/media-abc123",
+      { headers: { Authorization: "Bearer KEY" } }
+    );
+    expect(mimeType).toBe("audio/ogg");
+    expect(buffer.toString()).toBe("contenido-audio");
+    vi.unstubAllGlobals();
+  });
+
+  it("envuelve el fallo de descarga de audio con WhatsAppApiError", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({ ok: false, status: 404, text: async () => "Media not found" })
+    );
+
+    const error = await adapter
+      .descargarAudio("+34930454394", "media-x")
+      .catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(WhatsAppApiError);
+    expect((error as Error).message).toContain(
+      "al descargar el audio media-x de +34930454394"
+    );
+    vi.unstubAllGlobals();
+  });
+
+  it("transcribe un audio con Telnyx Inference, sin forzar idioma (para no degradar el catalán)", async () => {
+    mockedTranscribe.mockResolvedValue({ text: "  Hola, ¿tenéis hueco?  " });
+
+    const text = await adapter.transcribirAudio(
+      Buffer.from("audio-fake"),
+      "audio/ogg"
+    );
+
+    expect(text).toBe("Hola, ¿tenéis hueco?");
+    const [params] = mockedTranscribe.mock.calls.at(-1)!;
+    expect(params.model).toBe("openai/whisper-large-v3-turbo");
+    expect(params.language).toBeUndefined();
+  });
+
+  it("devuelve cadena vacía (no null) si Telnyx no reconoce voz en el audio", async () => {
+    mockedTranscribe.mockResolvedValue({ text: undefined });
+
+    const text = await adapter.transcribirAudio(Buffer.from("x"), "audio/ogg");
+
+    expect(text).toBe("");
+  });
+
+  it("envuelve el fallo de transcripción con WhatsAppApiError", async () => {
+    mockedTranscribe.mockRejectedValue(new Error("503 Service Unavailable"));
+
+    const error = await adapter
+      .transcribirAudio(Buffer.from("x"), "audio/ogg")
+      .catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(WhatsAppApiError);
+    expect((error as Error).message).toContain(
+      "al transcribir un audio de WhatsApp"
     );
   });
 });
