@@ -1,17 +1,25 @@
-import { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
+import { FastifyInstance, FastifyRequest } from "fastify";
 import { prisma } from "../../lib/prisma.js";
 import { z } from "zod";
 import { conUrlDeGrabacionFirmada } from "../../lib/grabacionFirmada.js";
 import { planAllows, resolvePlanId } from "../../lib/planFeatures.js";
 import { getCallAnalytics } from "./analytics.js";
+import {
+  FiltrosDeLlamadasSchema,
+  TIPO_RECADO,
+  condicionesDelListado,
+  filtroDeLlamadas,
+  ordenDelListado,
+  resumenDeHoy,
+} from "./listado.js";
+import { MAX_FILAS_CSV, generarCsv } from "./exportarCsv.js";
 
-const FILTROS_DE_LLAMADAS = ["todas", "con_cita", "por_devolver"] as const;
-type FiltroDeLlamadas = (typeof FILTROS_DE_LLAMADAS)[number];
-
-const PaginationSchema = z.object({
+const PaginationSchema = FiltrosDeLlamadasSchema.extend({
   limit: z.coerce.number().min(1).max(100).default(50),
   offset: z.coerce.number().min(0).default(0),
-  filtro: z.enum(FILTROS_DE_LLAMADAS).default("todas"),
+  // «hoy»: añade el resumen del día que pinta la cabecera del historial de
+  // escritorio. Opcional porque el móvil pide páginas seguidas y no lo usa.
+  resumen: z.enum(["hoy"]).optional(),
 });
 
 const AnalyticsQuerySchema = z.object({
@@ -19,11 +27,6 @@ const AnalyticsQuerySchema = z.object({
 });
 
 const RecadoBodySchema = z.object({ atendido: z.boolean() });
-
-/** Un recado es el `Lead` tipo `message` que deja la recepcionista cuando
- * no puede resolver algo (modules/whatsapp/recados.ts). El dueño lo cierra
- * con «Atendido» en el aviso de WhatsApp o desde el panel. */
-const TIPO_RECADO = "message";
 
 /** Lo que el panel necesita de los leads de una llamada para el recado. */
 const SELECT_RECADO = {
@@ -66,23 +69,62 @@ export function describirRecado(leads: LeadDeRecado[] | null | undefined) {
   };
 }
 
-function filtroDeLlamadas(businessId: string, filtro: FiltroDeLlamadas) {
-  if (filtro === "con_cita") {
-    // «Reserva creada» en el panel: la cita sigue viva. Una cambiada por el
-    // cliente cuelga de la conversación en la que la cambió.
-    return { businessId, booking: { is: { isCancelled: false } } };
-  }
-  if (filtro === "por_devolver") {
-    return {
-      businessId,
-      leads: { some: { type: TIPO_RECADO, resolvedAt: null } },
-    };
-  }
-  return { businessId };
+/** Lo que el listado y el CSV traen de cada llamada. */
+const INCLUDE_DEL_LISTADO = {
+  // select explícito en el agente: `agent: true` arrastraba el systemPrompt
+  // completo (varios KB del prompt gestionado) en cada una de las filas de
+  // la página, siempre el mismo texto.
+  agent: { select: { id: true, name: true, voice: true } },
+  booking: { include: { professional: { select: { id: true, name: true } } } },
+  leads: SELECT_RECADO,
+} as const;
+
+/**
+ * Booking.serviceIds es un array de IDs, no una relación de Prisma. Se
+ * resuelve de una vez para toda la página: consultar por cada fila degradaría
+ * el historial exactamente cuando más actividad tiene el negocio.
+ */
+async function conServiciosYRecado<
+  T extends {
+    leads: LeadDeRecado[];
+    booking: { serviceIds: string[] } | null;
+  },
+>(businessId: string, calls: T[]) {
+  const serviceIds = [
+    ...new Set(calls.flatMap((call) => call.booking?.serviceIds ?? [])),
+  ];
+  const services = serviceIds.length
+    ? await prisma.service.findMany({
+        where: { businessId, id: { in: serviceIds } },
+        select: {
+          id: true,
+          name: true,
+          durationMinutes: true,
+          priceCents: true,
+        },
+      })
+    : [];
+  const servicesById = new Map(
+    services.map((service) => [service.id, service])
+  );
+
+  return calls.map(({ leads, ...call }) => ({
+    ...call,
+    recado: describirRecado(leads),
+    booking: call.booking
+      ? {
+          ...call.booking,
+          services: call.booking.serviceIds
+            .map((serviceId) => servicesById.get(serviceId))
+            .filter((service) => service !== undefined),
+        }
+      : null,
+  }));
 }
 
 export async function callsRoutes(fastify: FastifyInstance) {
-  // Get all calls for the authenticated user's business
+  // El historial del panel: página, filtros combinables y los recuentos de
+  // las pestañas del móvil, que no cambian al buscar ni al filtrar.
   fastify.get<{ Querystring: z.infer<typeof PaginationSchema> }>(
     "/business/me/calls",
     { preValidation: [fastify.authenticate] },
@@ -93,70 +135,40 @@ export async function callsRoutes(fastify: FastifyInstance) {
       reply
     ) => {
       try {
-        const { limit, offset, filtro } = PaginationSchema.parse(
+        const { limit, offset, resumen, ...filtros } = PaginationSchema.parse(
           request.query
         );
         const businessId = request.user!.businessId;
+        const where = await condicionesDelListado(businessId, filtros);
 
-        // Los tres recuentos van siempre: son los números de los filtros del
-        // panel móvil y el de «por devolver» es la insignia de la pestaña.
-        const [calls, total, todas, conCita, porDevolver] = await Promise.all([
-          prisma.call.findMany({
-            where: filtroDeLlamadas(businessId, filtro),
-            include: {
-              // select explícito en el agente: `agent: true` arrastraba el
-              // systemPrompt completo (varios KB del prompt gestionado) en
-              // cada una de las filas de la página, siempre el mismo texto.
-              agent: { select: { id: true, name: true, voice: true } },
-              booking: { include: { professional: { select: { id: true, name: true } } } },
-              leads: SELECT_RECADO,
-            },
-            take: limit,
-            skip: offset,
-            orderBy: { createdAt: "desc" },
-          }),
-          prisma.call.count({ where: filtroDeLlamadas(businessId, filtro) }),
-          prisma.call.count({ where: filtroDeLlamadas(businessId, "todas") }),
-          prisma.call.count({
-            where: filtroDeLlamadas(businessId, "con_cita"),
-          }),
-          prisma.call.count({
-            where: filtroDeLlamadas(businessId, "por_devolver"),
-          }),
-        ]);
-
-        // Booking.serviceIds es un array de IDs, no una relación de Prisma.
-        // Se resuelve de una vez para toda la página: consultar por cada fila
-        // degradaría el historial exactamente cuando más actividad tiene el negocio.
-        const serviceIds = [
-          ...new Set(calls.flatMap((call) => call.booking?.serviceIds ?? [])),
-        ];
-        const services = serviceIds.length
-          ? await prisma.service.findMany({
-              where: { businessId, id: { in: serviceIds } },
-              select: { id: true, name: true, durationMinutes: true, priceCents: true },
-            })
-          : [];
-        const servicesById = new Map(services.map((service) => [service.id, service]));
+        const [calls, total, todas, conCita, porDevolver, hoy] =
+          await Promise.all([
+            prisma.call.findMany({
+              where,
+              include: INCLUDE_DEL_LISTADO,
+              take: limit,
+              skip: offset,
+              orderBy: ordenDelListado(filtros.orden),
+            }),
+            prisma.call.count({ where }),
+            prisma.call.count({ where: filtroDeLlamadas(businessId, "todas") }),
+            prisma.call.count({
+              where: filtroDeLlamadas(businessId, "con_cita"),
+            }),
+            prisma.call.count({
+              where: filtroDeLlamadas(businessId, "por_devolver"),
+            }),
+            resumen === "hoy" ? resumenDeHoy(businessId) : null,
+          ]);
 
         return reply.send({
-          data: calls.map(({ leads, ...call }) => ({
-            ...call,
-            recado: describirRecado(leads),
-            booking: call.booking
-              ? {
-                  ...call.booking,
-                  services: call.booking.serviceIds
-                    .map((serviceId) => servicesById.get(serviceId))
-                    .filter((service) => service !== undefined),
-                }
-              : null,
-          })),
+          data: await conServiciosYRecado(businessId, calls),
           total,
           limit,
           offset,
-          filtro,
+          filtro: filtros.filtro,
           conteos: { todas, conCita, porDevolver },
+          ...(hoy ? { hoy } : {}),
         });
       } catch (error) {
         if (error instanceof z.ZodError) {
@@ -164,6 +176,59 @@ export async function callsRoutes(fastify: FastifyInstance) {
         }
         fastify.log.error({ err: error }, "[Calls] Failed to fetch calls");
         return reply.status(500).send({ error: "Failed to fetch calls" });
+      }
+    }
+  );
+
+  // El historial filtrado en CSV, con los mismos filtros que la tabla. Sin
+  // paginar hasta MAX_FILAS_CSV: más allá ya no es una exportación del
+  // panel, y la cabecera X-Filas-Omitidas avisa de lo que se quedó fuera.
+  fastify.get<{ Querystring: z.infer<typeof FiltrosDeLlamadasSchema> }>(
+    "/business/me/calls/export.csv",
+    { preValidation: [fastify.authenticate] },
+    async (request, reply) => {
+      try {
+        const filtros = FiltrosDeLlamadasSchema.parse(request.query);
+        const businessId = request.user!.businessId;
+        const where = await condicionesDelListado(businessId, filtros);
+        const [calls, total, negocio] = await Promise.all([
+          prisma.call.findMany({
+            where,
+            include: INCLUDE_DEL_LISTADO,
+            take: MAX_FILAS_CSV,
+            orderBy: ordenDelListado(filtros.orden),
+          }),
+          prisma.call.count({ where }),
+          prisma.business.findUnique({
+            where: { id: businessId },
+            select: { timezone: true },
+          }),
+        ]);
+        const csv = generarCsv(
+          await conServiciosYRecado(businessId, calls),
+          negocio?.timezone || "Europe/Madrid"
+        );
+        const hoy = new Date().toISOString().slice(0, 10);
+        fastify.log.info(
+          `[Calls] Exportación CSV del negocio ${businessId}: ${calls.length} de ${total} llamadas`
+        );
+        return reply
+          .header("Content-Type", "text/csv; charset=utf-8")
+          .header(
+            "Content-Disposition",
+            `attachment; filename="llamadas-${hoy}.csv"`
+          )
+          .header("X-Filas-Omitidas", String(Math.max(0, total - calls.length)))
+          .header("Cache-Control", "no-store")
+          .send(csv);
+      } catch (error) {
+        if (error instanceof z.ZodError) {
+          return reply.status(400).send({ error: error.errors });
+        }
+        fastify.log.error({ err: error }, "[Calls] Falló la exportación CSV");
+        return reply
+          .status(500)
+          .send({ error: "No se pudo exportar el historial" });
       }
     }
   );
@@ -189,8 +254,7 @@ export async function callsRoutes(fastify: FastifyInstance) {
         const planId = resolvePlanId(business);
         if (!planAllows(planId, "analitica_avanzada")) {
           return reply.status(403).send({
-            error:
-              "La analítica avanzada está disponible en el plan Scale.",
+            error: "La analítica avanzada está disponible en el plan Scale.",
             code: "PLAN_LIMIT_ANALYTICS",
             planId,
             limit: null,
@@ -245,12 +309,21 @@ export async function callsRoutes(fastify: FastifyInstance) {
         // Booking.serviceIds es un array nativo de Postgres, sin relación de
         // Prisma a Service (ver comentario en schema.prisma) — hay que
         // resolver los nombres aparte para que el frontend no reciba solo IDs.
-        let services: { id: string; name: string; durationMinutes: number }[] =
-          [];
+        let services: {
+          id: string;
+          name: string;
+          durationMinutes: number;
+          priceCents: number | null;
+        }[] = [];
         if (call.booking?.serviceIds?.length) {
           services = await prisma.service.findMany({
             where: { id: { in: call.booking.serviceIds }, businessId },
-            select: { id: true, name: true, durationMinutes: true },
+            select: {
+              id: true,
+              name: true,
+              durationMinutes: true,
+              priceCents: true,
+            },
           });
         }
 
@@ -291,7 +364,10 @@ export async function callsRoutes(fastify: FastifyInstance) {
   // «Atendido» del aviso de WhatsApp (whatsapp/router.ts, botonDeRecado), y
   // su vuelta atrás. Reabrir no reprograma el recordatorio del día
   // siguiente: lo vuelve a contar como pendiente en el panel y en el Gestor.
-  fastify.patch<{ Params: { id: string }; Body: z.infer<typeof RecadoBodySchema> }>(
+  fastify.patch<{
+    Params: { id: string };
+    Body: z.infer<typeof RecadoBodySchema>;
+  }>(
     "/business/me/calls/:id/recado",
     { preValidation: [fastify.authenticate] },
     async (request, reply) => {
@@ -338,7 +414,10 @@ export async function callsRoutes(fastify: FastifyInstance) {
         if (error instanceof z.ZodError) {
           return reply.status(400).send({ error: error.errors });
         }
-        fastify.log.error({ err: error }, "[Calls] No se pudo actualizar el recado");
+        fastify.log.error(
+          { err: error },
+          "[Calls] No se pudo actualizar el recado"
+        );
         return reply
           .status(500)
           .send({ error: "No se pudo actualizar el recado" });

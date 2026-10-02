@@ -702,7 +702,8 @@ model Booking {
   // find_my_appointment/cancel_appointment en voiceTools/service.ts.
   smsConsent               Boolean       @default(false)
   // Quién y cuándo canceló (`client_voice`, `client_button`, `owner_chat`,
-  // `system`); las cancelaciones anteriores a estas columnas no lo tienen.
+  // `owner_panel`, `system`); las cancelaciones anteriores a estas columnas no
+  // lo tienen.
   cancelledAt              DateTime?
   cancelledBy              String?
   // Botón «Confirmo» del recordatorio por WhatsApp; se escribe una sola vez

@@ -174,4 +174,19 @@ describe("cancelarReserva", () => {
     expect(mockedUpdateMany).not.toHaveBeenCalled();
     expect(mockedAvisar).not.toHaveBeenCalled();
   });
+
+  it("cancelada desde el panel: queda como owner_panel, sin aviso #4 al propio dueño y la lista de espera se avisa como cancelación del dueño", async () => {
+    await cancelarReserva({ ...ENTRADA, cancelledBy: "owner_panel", etiqueta: "panel" });
+
+    expect(mockedUpdateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ cancelledBy: "owner_panel" }),
+      })
+    );
+    expect(mockedAvisar).not.toHaveBeenCalled();
+    expect(mockedCancelEvent).toHaveBeenCalled();
+    expect(mockedListaDeEspera).toHaveBeenCalledWith(
+      expect.objectContaining({ origen: "cancelacion_dueno" })
+    );
+  });
 });

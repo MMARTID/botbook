@@ -50,6 +50,7 @@ import type {
   ResultadoDeEjecucion,
 } from "./acciones.js";
 import { normalizar } from "./normalizar.js";
+import { PREFIJO_DE_CALL_DEL_GESTOR } from "../../lib/citasDelDueno.js";
 
 /**
  * Acciones de agenda del Gestor (PLAN-CANAL-DUENO.md § 8, «Gestión de la
@@ -329,6 +330,13 @@ async function describirCita(cita: Cita, timezone: string): Promise<string> {
 // Negocio, calendario y disponibilidad (misma receta que la lista de espera)
 // ---------------------------------------------------------------------------
 
+// Dos motivos escritos para el Gestor (le dicen al modelo qué hacer); la
+// agenda del panel los reconoce por identidad y pone los suyos.
+export const MOTIVO_SIN_CALENDARIO =
+  "El calendario no está conectado (o hay que volver a conectarlo): sin él no puedo apuntar citas. Se conecta desde el panel, con el enlace de contexto_negocio.";
+export const MOTIVO_CALENDARIO_ILEGIBLE =
+  "Ahora mismo no puedo leer el calendario del negocio; sin verlo no apunto nada. Inténtalo en un rato.";
+
 const SELECT_NEGOCIO_AGENDA = {
   name: true,
   schedule: true,
@@ -374,8 +382,7 @@ async function negocioParaReservar(
     // operativo, la cita se hace desde el panel cuando esté conectado.
     return {
       ok: false,
-      motivo:
-        "El calendario no está conectado (o hay que volver a conectarlo): sin él no puedo apuntar citas. Se conecta desde el panel, con el enlace de contexto_negocio.",
+      motivo: MOTIVO_SIN_CALENDARIO,
     };
   }
   return { ok: true, business, conexion };
@@ -449,8 +456,7 @@ async function comprobarHueco(input: {
   if (usaCalendarioExterno(conexion) && !externo.calendarAvailabilityKnown) {
     return {
       ok: false,
-      motivo:
-        "Ahora mismo no puedo leer el calendario del negocio; sin verlo no apunto nada. Inténtalo en un rato.",
+      motivo: MOTIVO_CALENDARIO_ILEGIBLE,
     };
   }
   const disponibilidad = await checkAvailability({
@@ -482,8 +488,9 @@ async function comprobarHueco(input: {
 }
 
 /** Prefijo del `callId` de las Call sintéticas de `añadir_cita`: las apunta
- * el dueño, no son un contacto del cliente (`buscar_cliente` las salta). */
-export const PREFIJO_DE_CALL_DEL_GESTOR = "whatsapp:gestor:";
+ * el dueño, no son un contacto del cliente (`buscar_cliente` las salta). Vive
+ * en lib/citasDelDueno.ts porque también lo filtran el panel y los informes. */
+export { PREFIJO_DE_CALL_DEL_GESTOR };
 
 function callIdSintetico(accionId: string): string {
   return `${PREFIJO_DE_CALL_DEL_GESTOR}${accionId}`;
@@ -839,194 +846,270 @@ const moverCita: AccionDelGestor<MoverCita> = {
   },
   async ejecutar(ctx, params, meta): Promise<ResultadoDeEjecucion> {
     const etiqueta = `mover_cita ${meta.accionId}`;
-    const cita = await citaDelNegocio(ctx.businessId, params.cita);
-    if (!cita) return { ok: false, mensaje: "Esa cita ya no existe." };
-    if (cita.isCancelled)
-      return { ok: false, mensaje: "Esa cita está cancelada." };
-    const negocio = await negocioParaReservar(ctx.businessId);
-    if (!negocio.ok) return { ok: false, mensaje: negocio.motivo };
-    const { business, conexion } = negocio;
-    let profesional: { id: string; name: string } | null = null;
-    if (params.profesional) {
-      const r = await resolverProfesional(ctx.businessId, params.profesional);
-      if (!r.ok) return { ok: false, mensaje: r.motivo };
-      profesional = r.profesional;
-    }
-    const start = inicioDe(params, ctx.timezone);
-    if (start.getTime() < Date.now()) {
-      return { ok: false, mensaje: "Esa hora ya ha pasado." };
-    }
-    const descripcionAntes = await describirCita(cita, ctx.timezone);
-
-    const lockToken = await acquireBookingLock(business.id);
-    if (!lockToken) {
-      return {
-        ok: false,
-        mensaje:
+    const r = await moverReserva({
+      businessId: ctx.businessId,
+      timezone: ctx.timezone,
+      citaId: params.cita,
+      start: inicioDe(params, ctx.timezone),
+      profesional: params.profesional ?? null,
+      etiqueta,
+      prefijoDeLog: "[Gestor]",
+      idempotencia: {
+        callId: callIdSintetico(meta.accionId),
+        distintivo: meta.inboundMessageId,
+      },
+    });
+    if (!r.ok) {
+      const mensajes: Record<
+        Exclude<
+          FalloAlMover["motivo"],
+          "negocio" | "profesional" | "sin_hueco"
+        >,
+        string
+      > = {
+        no_existe: "Esa cita ya no existe.",
+        cancelada: "Esa cita está cancelada.",
+        pasada: "Esa hora ya ha pasado.",
+        agenda_ocupada:
           "La agenda está ocupada ahora mismo con otra reserva. Espera un momento y vuelve a pedírmelo.",
+        calendario_desconectado:
+          "El calendario ha dejado de responder y hay que volver a conectarlo desde el panel; la cita sigue como estaba.",
+        calendario_rechaza:
+          "El calendario no ha aceptado la nueva hora; la cita sigue como estaba. Inténtalo en un rato.",
+        cancelada_entre_medias:
+          "Esa cita se canceló mientras la movía; no he hecho nada.",
+        error_interno:
+          "No he podido mover la cita: ha fallado algo por nuestra parte. Inténtalo en un rato o hazlo desde el panel.",
       };
+      if (r.motivo === "sin_hueco") {
+        return { ok: false, mensaje: `No he podido moverla: ${r.detalle}` };
+      }
+      if (r.motivo === "negocio" || r.motivo === "profesional") {
+        return { ok: false, mensaje: r.detalle };
+      }
+      return { ok: false, mensaje: mensajes[r.motivo] };
     }
-    let eventoNuevo: string | undefined;
-    try {
-      const hueco = await comprobarHueco({
-        business,
-        conexion,
-        start,
-        durationMinutes: cita.durationMinutes,
-        serviceIds: cita.serviceIds,
-        professionalId: profesional?.id ?? cita.professionalId,
-        excluir: { bookingId: cita.id, externalEventId: cita.externalEventId },
-      });
-      if (!hueco.ok) {
-        return { ok: false, mensaje: `No he podido moverla: ${hueco.motivo}` };
-      }
-      const asignado =
-        profesional ??
-        cita.professional ??
-        hueco.disponibilidad.availableProfessionals[0] ??
-        null;
-      const serviceNames = await nombreDeServicios(cita.serviceIds);
-      const clientName = cita.clientName?.trim() || "Cliente";
 
-      // Evento nuevo primero, reserva después, evento viejo al final: si
-      // algo falla a medias, el calendario tiene una cita de más (visible)
-      // y nunca una de menos.
-      try {
-        const evento = (await calendarService.bookAppointment({
-          conexion,
-          clientName,
-          startDateTime: start.toISOString(),
-          durationMinutes: cita.durationMinutes,
-          clientPhone: telefonoDeLaCita(cita),
-          serviceNames,
-          professionalName: asignado?.name,
-          timezone: ctx.timezone,
-          idempotencyKey: buildCalendarIdempotencyKey({
-            callId: callIdSintetico(meta.accionId),
-            startDateTime: start.toISOString(),
-            durationMinutes: cita.durationMinutes,
-            distintivo: meta.inboundMessageId,
-          }),
-        })) as { id?: string } | undefined;
-        eventoNuevo = evento?.id;
-      } catch (error) {
-        const proveedorRoto = proveedorDesdeErrorDeReconexion(error);
-        if (proveedorRoto) {
-          await marcarCalendarioDesconectado(
-            business.id,
-            proveedorRoto,
-            { modo: "revocar" },
-            { prefijo: "[Gestor]" }
-          );
-          return {
-            ok: false,
-            mensaje:
-              "El calendario ha dejado de responder y hay que volver a conectarlo desde el panel; la cita sigue como estaba.",
-          };
-        }
-        console.error(
-          `[Gestor] ${etiqueta}: el calendario ${conexion.provider} del negocio ${business.id} no aceptó la nueva hora de ${cita.id}: ${errorMessage(error)}`
-        );
-        return {
-          ok: false,
-          mensaje:
-            "El calendario no ha aceptado la nueva hora; la cita sigue como estaba. Inténtalo en un rato.",
-        };
-      }
-
-      const movida = await prisma.booking
-        .updateMany({
-          where: { id: cita.id, isCancelled: false },
-          data: {
-            programedAt: start,
-            professionalId: asignado?.id ?? null,
-            externalEventId: eventoNuevo ?? null,
-            externalCalendarProvider: conexion.provider,
-            externalCalendarId: conexion.calendarId,
-            // El cliente aún no ha visto la hora nueva.
-            confirmedByClientAt: null,
-          },
-        })
-        .catch((error: unknown) => {
-          console.error(
-            `[Gestor] ${etiqueta}: no se pudo guardar la nueva hora de ${cita.id} (negocio ${business.id}): ${errorMessage(error)}`
-          );
-          return null;
-        });
-      if (!movida || movida.count === 0) {
-        if (eventoNuevo) {
-          try {
-            await calendarService.cancelAppointment({
-              conexion,
-              eventId: eventoNuevo,
-            });
-          } catch (errorAlBorrar) {
-            console.error(
-              `[Gestor] ${etiqueta}: no se pudo deshacer el evento nuevo ${eventoNuevo}: ${errorMessage(errorAlBorrar)}`
-            );
+    const { cita, asignado, descripcionAntes } = r;
+    const cuando = formatearCita(r.start, ctx.timezone);
+    const telefono = telefonoDeLaCita(cita);
+    const clientName = cita.clientName?.trim() || "Cliente";
+    const con = asignado ? ` con ${asignado.name}` : "";
+    return {
+      ok: true,
+      mensaje: `Hecho: ${descripcionAntes} pasa al ${cuando}${con}. El calendario ya está al día.`,
+      nota: `Cita ${cita.id} movida al ${cuando}${con}${telefono ? `, móvil ${telefono}` : ", sin móvil"}.`,
+      siguiente: telefono
+        ? {
+            tipo: "avisar_cliente",
+            parametros: { cita: cita.id, tipo: "cambio" },
+            resumen: `Le aviso a ${clientName} por WhatsApp de que su cita pasa al ${cuando}.`,
+            pregunta: `¿Le aviso a ${clientName} por WhatsApp de la nueva hora? Si prefieres llamarle tú: ${telefono}.`,
+            botones: { confirmar: "Sí, avísale", cancelar: "Le llamo yo" },
           }
-        }
-        return {
-          ok: false,
-          mensaje: movida
-            ? "Esa cita se canceló mientras la movía; no he hecho nada."
-            : "No he podido mover la cita: ha fallado algo por nuestra parte. Inténtalo en un rato o hazlo desde el panel.",
-        };
-      }
-
-      // Evento viejo: best-effort contra el calendario con el que se creó.
-      if (cita.externalEventId && cita.externalCalendarProvider) {
-        try {
-          await calendarService.cancelAppointment({
-            conexion: resolverConexionDeCalendario(business, {
-              provider: normalizarProveedorDeCalendario(
-                cita.externalCalendarProvider
-              ),
-              calendarId: cita.externalCalendarId,
-            }),
-            eventId: cita.externalEventId,
-          });
-        } catch (error) {
-          console.error(
-            `[Gestor] ${etiqueta}: la cita ${cita.id} ya está movida pero no se pudo borrar el evento antiguo ${cita.externalEventId} de ${cita.externalCalendarProvider}: ${errorMessage(error)}`
-          );
-        }
-      }
-
-      // El recordatorio de la hora vieja se descarta solo (HORA_CAMBIADA);
-      // este programa el de la nueva, si el plan lo admite y hay
-      // consentimiento.
-      await programarMensajesAlCliente({
-        bookingId: cita.id,
-        etiqueta,
-        confirmacion: false,
-      });
-
-      console.log(
-        `[Gestor] ${etiqueta}: cita ${cita.id} del negocio ${business.id} movida por el dueño al ${formatearCita(start, ctx.timezone)}`
-      );
-      const cuando = formatearCita(start, ctx.timezone);
-      const telefono = telefonoDeLaCita(cita);
-      const con = asignado ? ` con ${asignado.name}` : "";
-      return {
-        ok: true,
-        mensaje: `Hecho: ${descripcionAntes} pasa al ${cuando}${con}. El calendario ya está al día.`,
-        nota: `Cita ${cita.id} movida al ${cuando}${con}${telefono ? `, móvil ${telefono}` : ", sin móvil"}.`,
-        siguiente: telefono
-          ? {
-              tipo: "avisar_cliente",
-              parametros: { cita: cita.id, tipo: "cambio" },
-              resumen: `Le aviso a ${clientName} por WhatsApp de que su cita pasa al ${cuando}.`,
-              pregunta: `¿Le aviso a ${clientName} por WhatsApp de la nueva hora? Si prefieres llamarle tú: ${telefono}.`,
-              botones: { confirmar: "Sí, avísale", cancelar: "Le llamo yo" },
-            }
-          : undefined,
-      };
-    } finally {
-      await releaseBookingLock(business.id, lockToken);
-    }
+        : undefined,
+    };
   },
 };
+
+export type FalloAlMover = {
+  ok: false;
+  motivo:
+    | "no_existe"
+    | "cancelada"
+    | "negocio"
+    | "profesional"
+    | "pasada"
+    | "agenda_ocupada"
+    | "sin_hueco"
+    | "calendario_desconectado"
+    | "calendario_rechaza"
+    | "cancelada_entre_medias"
+    | "error_interno";
+  /** El motivo en palabras del dueño cuando depende del caso (horario,
+   * restricciones, hueco ocupado con su alternativa). */
+  detalle: string;
+};
+
+/**
+ * Mover una cita a otra hora (y, si se pide, a otro profesional) con todo lo
+ * que eso implica fuera de la BD: hueco real bajo el candado de la agenda,
+ * evento nuevo en el calendario, evento viejo borrado y recordatorio
+ * reprogramado. Lo usan el Gestor (`mover_cita`) y la agenda del panel, cada
+ * uno con sus propias palabras para el resultado.
+ */
+export async function moverReserva(input: {
+  businessId: string;
+  timezone: string;
+  citaId: string;
+  start: Date;
+  /** Id (o nombre, en el Gestor) del profesional; null = el que tenía. */
+  profesional: string | null;
+  etiqueta: string;
+  prefijoDeLog: string;
+  idempotencia: { callId: string; distintivo: string };
+}): Promise<
+  | {
+      ok: true;
+      cita: Cita;
+      start: Date;
+      asignado: { id: string; name: string } | null;
+      descripcionAntes: string;
+    }
+  | FalloAlMover
+> {
+  const { etiqueta, prefijoDeLog, start } = input;
+  const fallo = (
+    motivo: FalloAlMover["motivo"],
+    detalle = ""
+  ): FalloAlMover => ({ ok: false, motivo, detalle });
+
+  const cita = await citaDelNegocio(input.businessId, input.citaId);
+  if (!cita) return fallo("no_existe");
+  if (cita.isCancelled) return fallo("cancelada");
+  const negocio = await negocioParaReservar(input.businessId);
+  if (!negocio.ok) return fallo("negocio", negocio.motivo);
+  const { business, conexion } = negocio;
+  let profesional: { id: string; name: string } | null = null;
+  if (input.profesional) {
+    const r = await resolverProfesional(input.businessId, input.profesional);
+    if (!r.ok) return fallo("profesional", r.motivo);
+    profesional = r.profesional;
+  }
+  if (start.getTime() < Date.now()) return fallo("pasada");
+  const descripcionAntes = await describirCita(cita, input.timezone);
+
+  const lockToken = await acquireBookingLock(business.id);
+  if (!lockToken) return fallo("agenda_ocupada");
+  let eventoNuevo: string | undefined;
+  try {
+    const hueco = await comprobarHueco({
+      business,
+      conexion,
+      start,
+      durationMinutes: cita.durationMinutes,
+      serviceIds: cita.serviceIds,
+      professionalId: profesional?.id ?? cita.professionalId,
+      excluir: { bookingId: cita.id, externalEventId: cita.externalEventId },
+    });
+    if (!hueco.ok) return fallo("sin_hueco", hueco.motivo);
+    const asignado =
+      profesional ??
+      cita.professional ??
+      hueco.disponibilidad.availableProfessionals[0] ??
+      null;
+    const serviceNames = await nombreDeServicios(cita.serviceIds);
+    const clientName = cita.clientName?.trim() || "Cliente";
+
+    // Evento nuevo primero, reserva después, evento viejo al final: si
+    // algo falla a medias, el calendario tiene una cita de más (visible)
+    // y nunca una de menos.
+    try {
+      const evento = (await calendarService.bookAppointment({
+        conexion,
+        clientName,
+        startDateTime: start.toISOString(),
+        durationMinutes: cita.durationMinutes,
+        clientPhone: telefonoDeLaCita(cita),
+        serviceNames,
+        professionalName: asignado?.name,
+        timezone: input.timezone,
+        idempotencyKey: buildCalendarIdempotencyKey({
+          callId: input.idempotencia.callId,
+          startDateTime: start.toISOString(),
+          durationMinutes: cita.durationMinutes,
+          distintivo: input.idempotencia.distintivo,
+        }),
+      })) as { id?: string } | undefined;
+      eventoNuevo = evento?.id;
+    } catch (error) {
+      const proveedorRoto = proveedorDesdeErrorDeReconexion(error);
+      if (proveedorRoto) {
+        await marcarCalendarioDesconectado(
+          business.id,
+          proveedorRoto,
+          { modo: "revocar" },
+          { prefijo: prefijoDeLog }
+        );
+        return fallo("calendario_desconectado");
+      }
+      console.error(
+        `${prefijoDeLog} ${etiqueta}: el calendario ${conexion.provider} del negocio ${business.id} no aceptó la nueva hora de ${cita.id}: ${errorMessage(error)}`
+      );
+      return fallo("calendario_rechaza");
+    }
+
+    const movida = await prisma.booking
+      .updateMany({
+        where: { id: cita.id, isCancelled: false },
+        data: {
+          programedAt: start,
+          professionalId: asignado?.id ?? null,
+          externalEventId: eventoNuevo ?? null,
+          externalCalendarProvider: conexion.provider,
+          externalCalendarId: conexion.calendarId,
+          // El cliente aún no ha visto la hora nueva.
+          confirmedByClientAt: null,
+        },
+      })
+      .catch((error: unknown) => {
+        console.error(
+          `${prefijoDeLog} ${etiqueta}: no se pudo guardar la nueva hora de ${cita.id} (negocio ${business.id}): ${errorMessage(error)}`
+        );
+        return null;
+      });
+    if (!movida || movida.count === 0) {
+      if (eventoNuevo) {
+        try {
+          await calendarService.cancelAppointment({
+            conexion,
+            eventId: eventoNuevo,
+          });
+        } catch (errorAlBorrar) {
+          console.error(
+            `${prefijoDeLog} ${etiqueta}: no se pudo deshacer el evento nuevo ${eventoNuevo}: ${errorMessage(errorAlBorrar)}`
+          );
+        }
+      }
+      return fallo(movida ? "cancelada_entre_medias" : "error_interno");
+    }
+
+    // Evento viejo: best-effort contra el calendario con el que se creó.
+    if (cita.externalEventId && cita.externalCalendarProvider) {
+      try {
+        await calendarService.cancelAppointment({
+          conexion: resolverConexionDeCalendario(business, {
+            provider: normalizarProveedorDeCalendario(
+              cita.externalCalendarProvider
+            ),
+            calendarId: cita.externalCalendarId,
+          }),
+          eventId: cita.externalEventId,
+        });
+      } catch (error) {
+        console.error(
+          `${prefijoDeLog} ${etiqueta}: la cita ${cita.id} ya está movida pero no se pudo borrar el evento antiguo ${cita.externalEventId} de ${cita.externalCalendarProvider}: ${errorMessage(error)}`
+        );
+      }
+    }
+
+    // El recordatorio de la hora vieja se descarta solo (HORA_CAMBIADA);
+    // este programa el de la nueva, si el plan lo admite y hay
+    // consentimiento.
+    await programarMensajesAlCliente({
+      bookingId: cita.id,
+      etiqueta,
+      confirmacion: false,
+    });
+
+    console.log(
+      `${prefijoDeLog} ${etiqueta}: cita ${cita.id} del negocio ${business.id} movida por el dueño al ${formatearCita(start, input.timezone)}`
+    );
+    return { ok: true, cita, start, asignado, descripcionAntes };
+  } finally {
+    await releaseBookingLock(business.id, lockToken);
+  }
+}
 
 // ---------------------------------------------------------------------------
 // cancelar_cita

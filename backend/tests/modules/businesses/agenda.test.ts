@@ -63,7 +63,17 @@ describe("GET /business/me/agenda", () => {
         serviceIds: ["srv_1", "srv_2"],
         externalEventId: "evt_1",
         externalCalendarProvider: "google",
-        call: { id: "call_1", fromNumber: "+34692138456" },
+        createdAt: new Date("2026-09-10T09:00:00Z"),
+        clientName: null,
+        createdVia: null,
+        call: {
+          id: "call_1",
+          callId: "telnyx:call_1",
+          fromNumber: "+34692138456",
+          startedAt: new Date("2026-09-10T08:58:00Z"),
+          durationSecs: 134,
+          voiceProvider: "telnyx",
+        },
       },
     ] as any);
     mockedServiceFindMany.mockResolvedValue([
@@ -96,7 +106,17 @@ describe("GET /business/me/agenda", () => {
         serviceIds: [],
         externalEventId: null,
         externalCalendarProvider: null,
-        call: { id: "call_1", fromNumber: "+34692138456" },
+        createdAt: new Date("2026-09-10T09:00:00Z"),
+        clientName: null,
+        createdVia: null,
+        call: {
+          id: "call_1",
+          callId: "telnyx:call_1",
+          fromNumber: "+34692138456",
+          startedAt: new Date("2026-09-10T08:58:00Z"),
+          durationSecs: 134,
+          voiceProvider: "telnyx",
+        },
       },
     ] as any);
     mockedServiceFindMany.mockResolvedValue([] as any);
@@ -163,7 +183,17 @@ describe("GET /business/me/agenda", () => {
         serviceIds: [],
         externalEventId: null,
         externalCalendarProvider: null,
-        call: { id: "call_51", fromNumber: "+34692138456" },
+        createdAt: new Date("2026-09-10T09:00:00Z"),
+        clientName: null,
+        createdVia: null,
+        call: {
+          id: "call_51",
+          callId: "telnyx:call_51",
+          fromNumber: "+34692138456",
+          startedAt: new Date("2026-09-10T08:58:00Z"),
+          durationSecs: 134,
+          voiceProvider: "telnyx",
+        },
       },
     ] as any);
     mockedBookingCount.mockResolvedValue(51 as any);
@@ -177,6 +207,80 @@ describe("GET /business/me/agenda", () => {
     expect(response.statusCode).toBe(200);
     expect(mockedBookingFindMany).toHaveBeenCalledWith(expect.objectContaining({ take: 50, skip: 50 }));
     expect(response.json()).toMatchObject({ total: 51, limit: 50, offset: 50, hasMore: false });
+  });
+
+  it("filtra por profesional y deja pedir una semana entera de una vez", async () => {
+    mockedBookingFindMany.mockResolvedValue([] as any);
+    mockedBookingCount.mockResolvedValue(0 as any);
+
+    const response = await fastify.inject({
+      method: "GET",
+      url: "/business/me/agenda?days=7&limit=200&profesionalId=pro_1",
+    });
+
+    expect(response.statusCode).toBe(200);
+    const args = mockedBookingFindMany.mock.calls[0][0] as any;
+    expect(args.where.professionalId).toBe("pro_1");
+    expect(args.where.call).toEqual({ businessId: "biz_1" });
+    expect(args.take).toBe(200);
+  });
+
+  it("devuelve el nombre del cliente y la conversación de origen, salvo en las citas que apuntó el dueño", async () => {
+    const base = {
+      programedAt: new Date("2026-09-12T15:00:00Z"),
+      durationMinutes: 30,
+      numberPeople: 1,
+      clientPhone: null,
+      professional: null,
+      serviceIds: [],
+      externalEventId: null,
+      externalCalendarProvider: null,
+      createdAt: new Date("2026-09-10T09:00:00Z"),
+    };
+    mockedBookingFindMany.mockResolvedValue([
+      {
+        ...base,
+        id: "bk_voz",
+        callId: "call_voz",
+        clientName: "Marta",
+        createdVia: null,
+        call: {
+          id: "call_voz",
+          callId: "telnyx:abc",
+          fromNumber: "+34692138456",
+          startedAt: new Date("2026-09-10T08:58:00Z"),
+          durationSecs: 134,
+          voiceProvider: "telnyx",
+        },
+      },
+      {
+        ...base,
+        id: "bk_dueno",
+        callId: "call_dueno",
+        clientName: "Pepe",
+        createdVia: "owner_chat",
+        call: {
+          id: "call_dueno",
+          callId: "whatsapp:gestor:acc_1",
+          fromNumber: null,
+          startedAt: new Date("2026-09-10T09:00:00Z"),
+          durationSecs: 0,
+          voiceProvider: "whatsapp",
+        },
+      },
+    ] as any);
+    mockedServiceFindMany.mockResolvedValue([] as any);
+
+    const response = await fastify.inject({ method: "GET", url: "/business/me/agenda" });
+
+    const [voz, dueno] = response.json().bookings;
+    expect(voz).toMatchObject({
+      clientName: "Marta",
+      createdVia: null,
+      createdAt: "2026-09-10T09:00:00.000Z",
+      origen: { canal: "voz", startedAt: "2026-09-10T08:58:00.000Z", durationSecs: 134 },
+    });
+    expect(dueno).toMatchObject({ clientName: "Pepe", createdVia: "owner_chat", origen: null });
   });
 
   it("rechaza un rango de días fuera de lo permitido", async () => {
@@ -240,6 +344,24 @@ describe("GET /business/me/stats (ventana semanal)", () => {
     expect(week.chats).toBe(1);
     expect(week.conversationsWithBooking).toBe(2);
     expect(week.bookings).toBe(1);
+  });
+
+  it("deja fuera las citas que el dueño apunta con el Gestor: ni son llamadas ni reservas de la recepcionista", async () => {
+    mockedServiceCount.mockResolvedValue(0 as any);
+    mockedCallCount.mockResolvedValue(0 as any);
+    mockedBookingFindMany.mockResolvedValue([] as any);
+    mockedLeadCount.mockResolvedValue(0 as any);
+
+    await fastify.inject({ method: "GET", url: "/business/me/stats" });
+
+    const sinGestor = { NOT: { callId: { startsWith: "whatsapp:gestor:" } } };
+    for (const [args] of mockedCallCount.mock.calls) {
+      expect((args as any).where).toMatchObject(sinGestor);
+    }
+    for (const [args] of mockedBookingFindMany.mock.calls) {
+      expect((args as any).where.call).toMatchObject(sinGestor);
+    }
+    expect((mockedCallAggregate.mock.calls[0][0] as any).where).toMatchObject(sinGestor);
   });
 
   it("suma solo los servicios con precio y avisa de que la estimación es parcial", async () => {
