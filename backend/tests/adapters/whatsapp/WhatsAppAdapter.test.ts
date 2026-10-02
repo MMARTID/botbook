@@ -227,6 +227,26 @@ describe("WhatsAppAdapter", () => {
     );
   });
 
+  it("marca un entrante como leído y activa el indicador de escribiendo, con el número que lo recibió de verdad (no el por defecto)", async () => {
+    await adapter.marcarLeidoYEscribiendo(
+      "+34930454394", // número de owner, no el WHATSAPP_TELNYX_FROM_NUMBER (client) por defecto
+      "+34600111222",
+      "wamid.abc123"
+    );
+
+    expect(mockedWhatsappSend).toHaveBeenCalledWith({
+      from: "+34930454394",
+      to: "+34600111222",
+      type: "WHATSAPP",
+      messaging_profile_id: "perfil-1",
+      whatsapp_message: {
+        status: "read",
+        message_id: "wamid.abc123",
+        typing_indicator: { type: "text" },
+      },
+    });
+  });
+
   it("descarga un audio entrante por media_id contra la API real de Telnyx (sin el bug de doble /v2 de client.whatsapp.*)", async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
