@@ -18,6 +18,13 @@ const SPANISH_VOICES = [
   { id: "Telnyx.Ultra.female-mx", language: "es-MX", gender: "Female" },
 ];
 
+// Así devuelve Telnyx las voces de Soniox: todas «en», sin acento.
+const SONIOX_VOICES = [
+  { id: "Soniox.tts-rt-v2.Nina", language: "en", gender: "female" },
+  { id: "Soniox.tts-rt-v2.Marta", language: "en", gender: "female" },
+  { id: "Soniox.tts-rt-v2.Sergio", language: "en", gender: "male" },
+];
+
 beforeEach(() => {
   vi.clearAllMocks();
 });
@@ -136,15 +143,53 @@ describe("resolveTelnyxEligibility", () => {
     });
   });
 
-  it("nunca es elegible con catalán habilitado, sin consultar la API de voces", async () => {
+  it("con catalán es elegible con la voz de Soniox del género pedido", async () => {
+    mockedListVoices.mockResolvedValue(SONIOX_VOICES);
+
     const result = await resolveTelnyxEligibility({
       ...DEFAULT_AGENT_SETTINGS,
       languages: ["es-ES", "ca-ES"],
     });
 
-    expect(result.eligible).toBe(false);
-    expect(result.reason).toMatch(/catal/i);
-    expect(mockedListVoices).not.toHaveBeenCalled();
+    expect(result).toEqual({
+      eligible: true,
+      status: "eligible",
+      reason: null,
+      voiceId: "Soniox.tts-rt-v2.Marta",
+    });
+    expect(mockedListVoices).toHaveBeenCalledWith("soniox");
+  });
+
+  it("con euskera o gallego y voz masculina usa Sergio", async () => {
+    mockedListVoices.mockResolvedValue(SONIOX_VOICES);
+
+    for (const idioma of ["eu-ES", "gl-ES"] as const) {
+      const result = await resolveTelnyxEligibility({
+        ...DEFAULT_AGENT_SETTINGS,
+        voiceGender: "masculina",
+        languages: ["es-ES", idioma],
+      });
+      expect(result.voiceId).toBe("Soniox.tts-rt-v2.Sergio");
+    }
+  });
+
+  it("sin la voz de Soniox elegida cae a otra del mismo género, y sin ninguna no es elegible", async () => {
+    mockedListVoices.mockResolvedValue([
+      { id: "Soniox.tts-rt-v2.Nina", language: "en", gender: "female" },
+    ]);
+    const conOtra = await resolveTelnyxEligibility({
+      ...DEFAULT_AGENT_SETTINGS,
+      languages: ["es-ES", "ca-ES"],
+    });
+    expect(conOtra.voiceId).toBe("Soniox.tts-rt-v2.Nina");
+
+    mockedListVoices.mockResolvedValue([]);
+    const sinVoz = await resolveTelnyxEligibility({
+      ...DEFAULT_AGENT_SETTINGS,
+      languages: ["es-ES", "ca-ES"],
+    });
+    expect(sinVoz.eligible).toBe(false);
+    expect(sinVoz.reason).toMatch(/voz Soniox/);
   });
 
   it("no es elegible si la cuenta no tiene voz compatible", async () => {

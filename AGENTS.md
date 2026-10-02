@@ -2405,6 +2405,32 @@ historical default voice), `masculina` to `13ff5deb-2591-42ad-a356-63a04e524411`
 (Prisma) is kept in sync as the denormalized copy, same as `Agent.systemPrompt`. Voice is a
 property of the Retell **Agent** object, not the LLM — unrelated to `updateLlm`/`general_prompt`.
 
+#### Idiomas de atención y voz en Telnyx (desde 2026-10-02)
+
+`languages` (`AGENT_LANGUAGES` en `managedAgentPrompt.ts`): `es-ES` (siempre activo), `en-GB`,
+`fr-FR`, `ca-ES`, `eu-ES` y `gl-ES`. `voiceLanguage` (`VOICE_LANGUAGES`) sigue siendo es/en/fr:
+es el acento de la voz Ultra curada (`TELNYX_VOICE_CATALOG` en `telnyxEligibility.ts`).
+
+- **Solo es/en/fr:** voz Telnyx Ultra del idioma y género, y transcripción `deepgram/flux` con
+  sus ajustes de turno (`eot_*`, `interrupt_prediction_threshold`). Sin cambios respecto a antes.
+- **Con catalán, euskera o gallego** (`necesitaSoniox`): el assistant entero pasa a Soniox, también
+  para el español, porque ni las voces Ultra ni flux hablan esos idiomas. Voz
+  `Soniox.tts-rt-v2.Marta` / `Sergio` (`SONIOX_VOICE_CATALOG`, elegidas por el usuario escuchando
+  muestras; cada voz habla los 63 idiomas de Soniox) con `voice_settings.language` = ISO de
+  `voiceLanguage`; transcripción `soniox/stt-rt-v5` con `language_hints` = los idiomas del negocio,
+  `context` = palabras clave, y `enable_endpoint_detection` + `max_endpoint_delay_ms: 1200` (el
+  ejemplo de Telnyx; ajustar con llamadas reales). `wait_seconds: 0.4`, sin predicción de
+  interrupciones (es de flux). Las voces se validan con `listVoices("soniox")`; el catálogo de
+  Telnyx no da su acento (todas salen como `en`, «Multilingual»).
+- Antes de esto, el catalán dejaba el negocio fuera de Telnyx («matriz de idiomas de la Fase 0»,
+  `docs/historico/PLAN-TELNYX-ORQUESTADOR.md`). Esa matriz (cada idioma solo y mezclado con
+  español, con catálogo, disponibilidad y reserva) sigue pendiente de llamadas reales.
+- **Retell no tiene euskera:** `toRetellLanguageSetting` lo quita, así que un negocio con `eu-ES`
+  en Retell (el respaldo) atiende con el resto de sus idiomas. El gallego sí existe en Retell.
+- Nada cambia de orquestador al activar un idioma: los negocios con catalán que ya están en
+  Retell siguen allí hasta pasarlos con `scripts/backfillTelnyxAssistants.ts` y
+  `scripts/cutoverToTelnyx.ts`.
+
 ### Agent Defaults (`backend/src/lib/agentBootstrap.ts`)
 
 - `firstMessage`: "Hola, soy la recepcionista virtual. ¿En qué te ayudo?"

@@ -58,9 +58,17 @@ export type AgentSettings = {
 
 export type ModoDePasarLlamadas = "nunca" | "si_lo_pide" | "siempre";
 
-export type AgentLanguage = "es-ES" | "en-GB" | "fr-FR" | "ca-ES";
+export type AgentLanguage =
+  | "es-ES"
+  | "en-GB"
+  | "fr-FR"
+  | "ca-ES"
+  | "eu-ES"
+  | "gl-ES";
 
-/** Catalán queda fuera: sin voz Telnyx Ultra curada para ese idioma. */
+/** Acento de la voz. Catalán, euskera y gallego no tienen voz propia: con
+ * cualquiera de ellos activo atiende una voz de Soniox que habla todos los
+ * idiomas del negocio (backend/src/lib/telnyxEligibility.ts). */
 export type VoiceLanguage = "es-ES" | "en-GB" | "fr-FR";
 
 export type BusinessType =

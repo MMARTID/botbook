@@ -1,7 +1,9 @@
 import { describe, it, expect } from "vitest";
 import {
   buildManagedAgentPrompt,
+  necesitaSoniox,
   parseAgentSettings,
+  toRetellLanguageSetting,
   DEFAULT_AGENT_SETTINGS,
 } from "../../src/lib/managedAgentPrompt.js";
 
@@ -314,6 +316,44 @@ describe("buildManagedAgentPrompt — idiomas", () => {
     expect(prompt).toContain("inglés, francés, catalán");
     expect(prompt).toContain("acompaña el cambio sin pedirle que elija uno");
     expect(prompt).not.toContain("Habla siempre en español de España");
+  });
+
+  it("nombra el euskera y el gallego entre los idiomas activados", () => {
+    const prompt = buildManagedAgentPrompt({
+      businessName: "Peluquería Ejemplo",
+      settings: {
+        ...DEFAULT_AGENT_SETTINGS,
+        languages: ["es-ES", "eu-ES", "gl-ES"],
+      },
+    });
+
+    expect(prompt).toContain("español de España, euskera, gallego");
+  });
+});
+
+describe("idiomas de Soniox y de Retell", () => {
+  it("acepta euskera y gallego y los ordena como la lista de idiomas", () => {
+    const parsed = parseAgentSettings({
+      ...DEFAULT_AGENT_SETTINGS,
+      languages: ["gl-ES", "es-ES", "eu-ES"],
+    });
+
+    expect(parsed.languages).toEqual(["es-ES", "eu-ES", "gl-ES"]);
+  });
+
+  it("solo catalán, euskera o gallego piden Soniox", () => {
+    expect(necesitaSoniox(["es-ES", "en-GB", "fr-FR"])).toBe(false);
+    expect(necesitaSoniox(["es-ES", "ca-ES"])).toBe(true);
+    expect(necesitaSoniox(["es-ES", "eu-ES"])).toBe(true);
+    expect(necesitaSoniox(["es-ES", "gl-ES"])).toBe(true);
+  });
+
+  it("a Retell no le llega el euskera, que rechazaría el agente", () => {
+    expect(toRetellLanguageSetting(["es-ES", "eu-ES"])).toBe("es-ES");
+    expect(toRetellLanguageSetting(["es-ES", "eu-ES", "gl-ES"])).toEqual([
+      "es-ES",
+      "gl-ES",
+    ]);
   });
 });
 

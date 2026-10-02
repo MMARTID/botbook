@@ -32,7 +32,7 @@ describe("payloads de asistentes (instantáneas)", () => {
         instructions:
           "Hola {{nombre_negocio}}, llama {{user_number}} a las {{current_time_{{zona_horaria}}}} ({{zona_horaria}}).",
         greeting: "Peluquería Ana, dígame.",
-        language: "es",
+        languages: ["es-ES"],
         voice: "Telnyx.Ultra.blanca",
         tools: buildTelnyxVoiceTools(BASE_URL),
         transferenciaAlDueno: { from: "+34910000000", to: "+34600000000" },
@@ -49,7 +49,7 @@ describe("payloads de asistentes (instantáneas)", () => {
         businessName: "Barbería",
         instructions: "Prompt manual.",
         greeting: "",
-        language: "multi",
+        languages: ["es-ES", "en-GB"],
         voice: "Telnyx.NaturalHD.x",
         includeHangupTool: false,
       })
@@ -79,7 +79,7 @@ describe("payloads de asistentes (instantáneas)", () => {
           timezone: "Europe/Madrid",
           instructions: "Prompt {{nombre_negocio}}",
           greeting: "Hola",
-          language: "es",
+          languages: ["es-ES"],
           voice: "Telnyx.Ultra.blanca",
           tools: buildTelnyxVoiceTools(BASE_URL),
           transferenciaAlDueno: { from: "+34910000000", to: "+34600000000" },

@@ -26,15 +26,22 @@ const languageOptions: Array<{
   { value: "en-GB", label: "Inglés", detail: "Inglés británico" },
   { value: "fr-FR", label: "Francés", detail: "Francés de Francia" },
   { value: "ca-ES", label: "Catalán", detail: "Catalán" },
+  { value: "eu-ES", label: "Euskera", detail: "Euskera" },
+  { value: "gl-ES", label: "Gallego", detail: "Gallego" },
 ];
 
-// Solo estos tres tienen voz Telnyx Ultra curada (telnyxEligibility.ts) —
-// catalán no entra aquí aunque sí pueda activarse como idioma de atención.
+// Solo estos tres tienen voz Telnyx Ultra curada (telnyxEligibility.ts):
+// catalán, euskera y gallego los habla una voz de Soniox con acento español,
+// que arranca en el idioma elegido aquí.
 const voiceLanguageOptions: Array<{ value: VoiceLanguage; label: string }> = [
   { value: "es-ES", label: "Español" },
   { value: "en-GB", label: "Inglés" },
   { value: "fr-FR", label: "Francés" },
 ];
+
+// Con cualquiera de estos activos atiende la voz de Soniox, distinta de la
+// voz Ultra de siempre: el dueño tiene que saber que la voz cambia.
+const vozMultilingueLanguages: AgentLanguage[] = ["ca-ES", "eu-ES", "gl-ES"];
 
 function VoiceUpgradeNotice() {
   return (
@@ -120,6 +127,9 @@ export function AgentSettingsEditor({
     .filter(Boolean)
     .join(" · ");
   const voiceGenderLabel = value.voiceGender === "masculina" ? "Masculina" : "Femenina";
+  const vozMultilingue = value.languages.some((language) =>
+    vozMultilingueLanguages.includes(language)
+  );
   const voiceLanguageLabel = voiceLanguageOptions.find(
     (option) => option.value === value.voiceLanguage
   )?.label;
@@ -168,7 +178,7 @@ export function AgentSettingsEditor({
             La recepcionista empieza en español y continúa en el idioma de quien llama.
           </p>
           {voiceLocked ? <VoiceUpgradeNotice /> : null}
-          <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-4">
+          <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
             {languageOptions.map((option) => {
               const selected = value.languages.includes(option.value);
               const disabled = option.required || voiceLocked;
@@ -208,6 +218,9 @@ export function AgentSettingsEditor({
           </legend>
           <p className="mb-3 mt-1 text-sm text-muted">
             Con qué voz atiende las llamadas.
+            {vozMultilingue
+              ? " Con catalán, euskera o gallego activos atiende una voz que habla todos tus idiomas."
+              : null}
           </p>
           {voiceLocked ? <VoiceUpgradeNotice /> : null}
           <div className="grid gap-4 md:grid-cols-2">

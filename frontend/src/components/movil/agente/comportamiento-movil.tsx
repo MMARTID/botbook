@@ -59,9 +59,12 @@ const IDIOMAS: Array<{ valor: AgentLanguage; nombre: string }> = [
   { valor: "en-GB", nombre: "Inglés" },
   { valor: "fr-FR", nombre: "Francés" },
   { valor: "ca-ES", nombre: "Catalán" },
+  { valor: "eu-ES", nombre: "Euskera" },
+  { valor: "gl-ES", nombre: "Gallego" },
 ];
-// Catalán no: no tiene voz curada (telnyxEligibility.ts), aunque sí pueda
-// atenderse en catalán.
+// Catalán, euskera y gallego no tienen voz curada (telnyxEligibility.ts):
+// con ellos atiende una voz de Soniox que habla todos los idiomas.
+const IDIOMAS_DE_VOZ_MULTILINGUE: AgentLanguage[] = ["ca-ES", "eu-ES", "gl-ES"];
 const IDIOMAS_DE_VOZ: Array<{ valor: VoiceLanguage; nombre: string }> = [
   { valor: "es-ES", nombre: "Español" },
   { valor: "en-GB", nombre: "Inglés" },
@@ -259,7 +262,12 @@ export function ComportamientoMovil({ business }: { business: Business }) {
                   />
                 ))}
               </div>
-              <p className="mt-2 text-xs leading-5 text-muted">Solo puedes elegir un idioma que esté activo arriba.</p>
+              <p className="mt-2 text-xs leading-5 text-muted">
+                Solo puedes elegir un idioma que esté activo arriba.
+                {ajustes.languages.some((idioma) => IDIOMAS_DE_VOZ_MULTILINGUE.includes(idioma))
+                  ? " Con catalán, euskera o gallego activos atiende una voz que habla todos tus idiomas."
+                  : null}
+              </p>
             </>
           )}
         </fieldset>

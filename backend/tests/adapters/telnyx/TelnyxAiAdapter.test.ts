@@ -764,6 +764,25 @@ describe("TelnyxAiAdapter", () => {
 
       expect(result).toEqual([]);
     });
+
+    it("pide las voces de Soniox con su proveedor", async () => {
+      mockListVoices.mockResolvedValue({
+        voices: [
+          {
+            id: "Soniox.tts-rt-v2.Marta",
+            name: "Marta",
+            language: "en",
+            gender: "female",
+            provider: "soniox",
+          },
+        ],
+      });
+
+      const result = await adapter.listVoices("soniox");
+
+      expect(result[0].id).toBe("Soniox.tts-rt-v2.Marta");
+      expect(mockListVoices).toHaveBeenCalledWith({ provider: "soniox" });
+    });
   });
 
   describe("createAssistantTest", () => {

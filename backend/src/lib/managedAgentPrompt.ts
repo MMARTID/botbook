@@ -6,32 +6,55 @@ import {
 } from "./transferenciaAlDueno.js";
 
 /**
- * Idiomas que Alhabla permite configurar hoy. Se usan como locales concretos
- * de Retell, nunca como el valor legado `multi`, para que el reconocimiento
+ * Idiomas que Alhabla permite configurar hoy. Se usan como locales concretos,
+ * nunca como el valor legado `multi` de Retell, para que el reconocimiento
  * no abra idiomas que el negocio no atiende.
  */
-export const RETELL_AGENT_LANGUAGES = [
+export const AGENT_LANGUAGES = [
   "es-ES",
   "en-GB",
   "fr-FR",
   "ca-ES",
+  "eu-ES",
+  "gl-ES",
 ] as const;
 
-export type RetellAgentLanguage = (typeof RETELL_AGENT_LANGUAGES)[number];
+export type AgentLanguage = (typeof AGENT_LANGUAGES)[number];
 
 /**
- * Idiomas con voz Telnyx Ultra curada (ver TELNYX_VOICE_CATALOG en
- * telnyxEligibility.ts). Catalán queda fuera: Telnyx no es elegible con
- * catalán activo (matriz de idiomas de la Fase 0, sin pasar todavía).
+ * Idiomas que en Telnyx solo cubre Soniox (voz y transcripción): ni las
+ * voces Ultra ni deepgram/flux hablan catalán, euskera o gallego. Con uno
+ * de ellos activo, el assistant entero pasa a Soniox, también para el
+ * español (ver telnyxAssistantPayload.ts y telnyxEligibility.ts).
+ */
+const IDIOMAS_DE_SONIOX: readonly AgentLanguage[] = ["ca-ES", "eu-ES", "gl-ES"];
+
+export function necesitaSoniox(languages: readonly AgentLanguage[]): boolean {
+  return languages.some((language) => IDIOMAS_DE_SONIOX.includes(language));
+}
+
+/** Retell no tiene euskera: un negocio con eu-ES lo atiende Telnyx, y en
+ * Retell (el respaldo) se queda con el resto de sus idiomas. */
+export type RetellAgentLanguage = Exclude<AgentLanguage, "eu-ES">;
+
+const RETELL_AGENT_LANGUAGES = AGENT_LANGUAGES.filter(
+  (language): language is RetellAgentLanguage => language !== "eu-ES"
+);
+
+/**
+ * Acento de la voz: el de la voz Telnyx Ultra curada de cada idioma (ver
+ * TELNYX_VOICE_CATALOG en telnyxEligibility.ts). Catalán, euskera y gallego
+ * no tienen voz propia: los habla la voz de Soniox, que es la misma para
+ * todos los idiomas y arranca en este.
  */
 export const VOICE_LANGUAGES = ["es-ES", "en-GB", "fr-FR"] as const;
 
 export type VoiceLanguage = (typeof VOICE_LANGUAGES)[number];
 
 const AgentLanguagesSchema = z
-  .array(z.enum(RETELL_AGENT_LANGUAGES))
+  .array(z.enum(AGENT_LANGUAGES))
   .min(1)
-  .max(RETELL_AGENT_LANGUAGES.length)
+  .max(AGENT_LANGUAGES.length)
   .superRefine((languages, context) => {
     if (!languages.includes("es-ES")) {
       context.addIssue({
@@ -47,7 +70,7 @@ const AgentLanguagesSchema = z
     }
   })
   .transform((languages) =>
-    RETELL_AGENT_LANGUAGES.filter((language) => languages.includes(language))
+    AGENT_LANGUAGES.filter((language) => languages.includes(language))
   );
 
 export const AgentSettingsSchema = z
@@ -104,9 +127,10 @@ export const DEFAULT_AGENT_SETTINGS: AgentSettings = {
 };
 
 /** Retell normaliza un array de un solo idioma a un escalar. Enviarlo así
- * conserva su ruta monolingüe, que es la de mayor precisión. */
+ * conserva su ruta monolingüe, que es la de mayor precisión. El euskera se
+ * queda fuera: Retell rechazaría el agente entero. */
 export function toRetellLanguageSetting(
-  languages: readonly RetellAgentLanguage[]
+  languages: readonly AgentLanguage[]
 ): RetellAgentLanguage | RetellAgentLanguage[] {
   const normalized = RETELL_AGENT_LANGUAGES.filter((language) =>
     languages.includes(language)
@@ -185,11 +209,13 @@ function buildLanguageInstruction(settings: AgentSettings): string {
     return "Habla siempre en español de España; no menciones que eres una IA salvo que te lo pregunten.";
   }
 
-  const labels: Record<RetellAgentLanguage, string> = {
+  const labels: Record<AgentLanguage, string> = {
     "es-ES": "español de España",
     "en-GB": "inglés",
     "fr-FR": "francés",
     "ca-ES": "catalán",
+    "eu-ES": "euskera",
+    "gl-ES": "gallego",
   };
   const enabledLanguages = settings.languages.map((language) => labels[language]).join(", ");
 

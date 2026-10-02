@@ -21,7 +21,14 @@ const OBJETIVOS: Record<AgentSettings["primaryGoal"], string> = {
   customer_service: "Atender consultas",
   lead_capture: "Captar oportunidades",
 };
-const IDIOMAS: Record<string, string> = { "es-ES": "Español", "en-GB": "Inglés", "fr-FR": "Francés", "ca-ES": "Catalán" };
+const IDIOMAS: Record<string, string> = {
+  "es-ES": "Español",
+  "en-GB": "Inglés",
+  "fr-FR": "Francés",
+  "ca-ES": "Catalán",
+  "eu-ES": "Euskera",
+  "gl-ES": "Gallego",
+};
 
 export function plural(n: number, uno: string, varios: string) {
   return `${n} ${n === 1 ? uno : varios}`;

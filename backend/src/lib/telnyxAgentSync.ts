@@ -4,7 +4,6 @@ import { telnyxAiAdapter } from "../adapters/telnyx/TelnyxAiAdapter.js";
 import {
   buildTelnyxAssistantPayload,
   buildTelnyxVoiceTools,
-  resolveTelnyxTranscriptionLanguage,
   type TelnyxWebhookToolInput,
 } from "./telnyxAssistantPayload.js";
 import { getPublicWebhookBaseUrl } from "./serverUrl.js";
@@ -184,10 +183,9 @@ function construirPayloadDeRecepcionista(args: {
         )
       : config.systemPrompt,
     greeting: buildRetellBeginMessage(config.business.name),
-    language: resolveTelnyxTranscriptionLanguage(
-      config.agentSettings.languages
-    ),
+    languages: config.agentSettings.languages,
     voice: args.voz,
+    voiceLanguage: config.agentSettings.voiceLanguage,
     boostedKeywords: args.palabrasClave,
     tools: args.tools,
     // Va aparte de `tools` (que solo lleva tools de webhook).

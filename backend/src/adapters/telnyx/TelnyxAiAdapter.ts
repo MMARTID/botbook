@@ -38,6 +38,12 @@ type TelephonySettingsInput = TelephonySettings & {
   send_conversation_message_events?: boolean;
 };
 
+/** `language` (ISO 639-1) es el idioma en que arranca una voz de Soniox
+ * (`Soniox.tts-rt-v2.*`), que habla todos los idiomas; documentado por
+ * Telnyx para los assistants pero ausente de `VoiceSettings` en el SDK
+ * 7.24. */
+type VoiceSettingsInput = VoiceSettings & { language?: string };
+
 /** `interrupt_prediction_threshold` es real (confirmado contra la API en
  * vivo el 2026-09-14, un assistant ya lo devuelve) pero el SDK instalado
  * (7.17.0) todavía no lo declara en `InferenceEmbeddingInterruptionSettings`
@@ -59,7 +65,7 @@ export interface CreateTelnyxAssistantInput {
    * (`model`) no está disponible — ver `fallbackConfig` en
    * telnyxAssistantPayload.ts para la elección real y el porqué. */
   fallbackConfig?: { model?: string };
-  voiceSettings?: VoiceSettings;
+  voiceSettings?: VoiceSettingsInput;
   transcription?: TranscriptionSettings;
   /** Con deepgram/flux (modelo con turn-taking propio) solo importa
    * `start_speaking_plan.wait_seconds` de aquí — el resto de detección de
@@ -696,13 +702,14 @@ export class TelnyxAiAdapter {
   // Voces — fuente de verdad para qué voz usar por negocio (ver plan §3):
   // la sincronización elige la primera voz Telnyx-hosted disponible para el
   // idioma/género pedidos; si no hay ninguna, el negocio no es elegible.
+  // Las de Soniox (catalán, euskera, gallego) van con `provider: "soniox"`.
   // ---------------------------------------------------------------------
 
-  async listVoices(): Promise<TelnyxVoice[]> {
+  async listVoices(
+    provider: "telnyx" | "soniox" = "telnyx"
+  ): Promise<TelnyxVoice[]> {
     const client = getTelnyxClient();
-    const response = await client.textToSpeech.listVoices({
-      provider: "telnyx",
-    });
+    const response = await client.textToSpeech.listVoices({ provider });
     // La respuesta real trae más campos (`id` en vez de `voice_id`, `label`,
     // `accent`, `model_id`) de los que declara el SDK — se accede sin el
     // tipo del SDK para no ocultar el campo que de verdad importa (`id`).
