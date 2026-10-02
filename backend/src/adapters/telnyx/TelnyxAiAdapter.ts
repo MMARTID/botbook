@@ -190,8 +190,17 @@ export class TelnyxAiAdapter {
     if (input.model !== undefined) payload.model = input.model;
     if (input.fallbackConfig !== undefined)
       payload.fallback_config = input.fallbackConfig;
-    if (input.voiceSettings !== undefined)
-      payload.voice_settings = input.voiceSettings;
+    if (input.voiceSettings !== undefined) {
+      // Telnyx rechaza (400/10015) dejar una voz de Soniox por otra si el
+      // assistant conserva `voice_settings.language`: hay que borrarlo con
+      // null. Pasa cuando un negocio cambia su idioma principal de catalán,
+      // euskera o gallego a español, inglés o francés (verificado en vivo el
+      // 2026-10-03). Se hace aquí y no en el payload para no cambiar el hash
+      // de los assistants que nunca tuvieron voz de Soniox.
+      payload.voice_settings = input.voiceSettings.voice.startsWith("Soniox.")
+        ? input.voiceSettings
+        : { ...input.voiceSettings, language: null };
+    }
     if (input.transcription !== undefined)
       payload.transcription = input.transcription;
     if (input.interruptionSettings !== undefined)

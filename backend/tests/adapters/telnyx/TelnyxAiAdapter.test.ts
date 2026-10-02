@@ -178,6 +178,32 @@ describe("TelnyxAiAdapter", () => {
       });
     });
 
+    it("al dejar una voz de Soniox borra su idioma, o Telnyx rechaza el cambio", async () => {
+      mockAssistantsUpdate.mockResolvedValue({
+        id: "assistant_123",
+        name: "n",
+        instructions: "i",
+      });
+
+      await adapter.updateAssistant("assistant_123", {
+        voiceSettings: { voice: "Telnyx.Ultra.blanca", expressive_mode: true },
+      });
+      expect(mockAssistantsUpdate).toHaveBeenLastCalledWith("assistant_123", {
+        voice_settings: {
+          voice: "Telnyx.Ultra.blanca",
+          expressive_mode: true,
+          language: null,
+        },
+      });
+
+      await adapter.updateAssistant("assistant_123", {
+        voiceSettings: { voice: "Soniox.tts-rt-v2.Marta", language: "ca" },
+      });
+      expect(mockAssistantsUpdate).toHaveBeenLastCalledWith("assistant_123", {
+        voice_settings: { voice: "Soniox.tts-rt-v2.Marta", language: "ca" },
+      });
+    });
+
     it("traduce insightGroupId a insight_settings", async () => {
       mockAssistantsUpdate.mockResolvedValue({
         id: "assistant_123",
