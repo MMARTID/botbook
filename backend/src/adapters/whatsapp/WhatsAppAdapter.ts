@@ -6,6 +6,25 @@ import { getTelnyxClient, getTelnyxWhatsappClient } from "../../lib/telnyx.js";
  * los negocios que hablan catalán con sus clientes. */
 const TELNYX_TRANSCRIPTION_MODEL = "openai/whisper-large-v3-turbo";
 
+/**
+ * Telnyx valida el formato del audio por la EXTENSIÓN del nombre de
+ * archivo, no por el `Content-Type` del multipart (comprobado a mano
+ * 2026-10-02 tras un 400 "Invalid file format" en producción: el mismo
+ * archivo con filename "audio" fallaba y con "audio.ogg" funcionaba,
+ * incluso con idéntico `type: "audio/ogg; codecs=opus"` en los dos casos).
+ * Subtipos como "ogg"/"mpeg"/"mp4"/"webm"/"wav"/"flac" ya coinciden con las
+ * extensiones que acepta Telnyx tal cual; solo aac/x-m4a (WhatsApp en
+ * algunos Android) necesita mapeo explícito.
+ */
+function extensionFromMimeType(mimeType: string): string {
+  const subtype =
+    mimeType.split(";")[0]?.trim().split("/")[1]?.toLowerCase() ?? "";
+  if (subtype === "aac" || subtype === "x-m4a") return "m4a";
+  if (subtype === "3gpp") return "mp4";
+  // "ogg" (nota de voz estándar de WhatsApp) si Meta no manda mime_type.
+  return subtype || "ogg";
+}
+
 /** A quién le habla Alhabla: cada audiencia tiene su propio número. */
 export type WhatsappAudience = "client" | "owner";
 
@@ -529,7 +548,11 @@ export class WhatsAppAdapter {
    */
   async transcribirAudio(buffer: Buffer, mimeType: string): Promise<string> {
     try {
-      const file = await toFile(buffer, "audio", { type: mimeType });
+      const file = await toFile(
+        buffer,
+        `audio.${extensionFromMimeType(mimeType)}`,
+        { type: mimeType }
+      );
       const response = await getTelnyxClient().ai.audio.transcribe({
         model: TELNYX_TRANSCRIPTION_MODEL,
         file,
