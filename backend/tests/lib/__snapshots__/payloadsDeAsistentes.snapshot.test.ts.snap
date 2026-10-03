@@ -6,7 +6,7 @@ exports[`payloads de asistentes (instantáneas) > assistant de la recepcionista 
   "interruptionSettings": {
     "start_speaking_plan": {
       "transcription_endpointing_plan": {
-        "on_no_punctuation_seconds": 0.8,
+        "on_no_punctuation_seconds": 0.5,
         "on_number_seconds": 0.5,
         "on_punctuation_seconds": 0.1,
       },
@@ -24,7 +24,7 @@ exports[`payloads de asistentes (instantáneas) > assistant de la recepcionista 
         "en",
         "ca",
       ],
-      "max_endpoint_delay_ms": 700,
+      "max_endpoint_delay_ms": 500,
     },
   },
   "voiceSettings": {
@@ -46,7 +46,7 @@ exports[`payloads de asistentes (instantáneas) > assistant de la recepcionista 
   "interruptionSettings": {
     "start_speaking_plan": {
       "transcription_endpointing_plan": {
-        "on_no_punctuation_seconds": 0.8,
+        "on_no_punctuation_seconds": 0.5,
         "on_number_seconds": 0.5,
         "on_punctuation_seconds": 0.1,
       },
@@ -63,7 +63,7 @@ exports[`payloads de asistentes (instantáneas) > assistant de la recepcionista 
         "es",
         "eu",
       ],
-      "max_endpoint_delay_ms": 700,
+      "max_endpoint_delay_ms": 500,
     },
   },
   "voiceSettings": {
@@ -85,7 +85,7 @@ exports[`payloads de asistentes (instantáneas) > assistant de la recepcionista 
   "interruptionSettings": {
     "start_speaking_plan": {
       "transcription_endpointing_plan": {
-        "on_no_punctuation_seconds": 0.8,
+        "on_no_punctuation_seconds": 0.5,
         "on_number_seconds": 0.5,
         "on_punctuation_seconds": 0.1,
       },
@@ -103,7 +103,7 @@ exports[`payloads de asistentes (instantáneas) > assistant de la recepcionista 
         "fr",
         "gl",
       ],
-      "max_endpoint_delay_ms": 700,
+      "max_endpoint_delay_ms": 500,
     },
   },
   "voiceSettings": {

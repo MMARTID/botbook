@@ -178,7 +178,7 @@ describe("TelnyxAiAdapter", () => {
       });
     });
 
-    it("al dejar una voz de Soniox borra su idioma, o Telnyx rechaza el cambio", async () => {
+    it("al dejar una voz de Soniox o de MiniMax borra su idioma, o Telnyx rechaza el cambio", async () => {
       mockAssistantsUpdate.mockResolvedValue({
         id: "assistant_123",
         name: "n",
@@ -193,6 +193,7 @@ describe("TelnyxAiAdapter", () => {
           voice: "Telnyx.Ultra.blanca",
           expressive_mode: true,
           language: null,
+          language_boost: null,
         },
       });
 
@@ -200,7 +201,25 @@ describe("TelnyxAiAdapter", () => {
         voiceSettings: { voice: "Soniox.tts-rt-v2.Marta", language: "ca" },
       });
       expect(mockAssistantsUpdate).toHaveBeenLastCalledWith("assistant_123", {
-        voice_settings: { voice: "Soniox.tts-rt-v2.Marta", language: "ca" },
+        voice_settings: {
+          voice: "Soniox.tts-rt-v2.Marta",
+          language: "ca",
+          language_boost: null,
+        },
+      });
+
+      await adapter.updateAssistant("assistant_123", {
+        voiceSettings: {
+          voice: "Minimax.speech-2.8-turbo.Spanish_SereneWoman",
+          language_boost: "Catalan",
+        },
+      });
+      expect(mockAssistantsUpdate).toHaveBeenLastCalledWith("assistant_123", {
+        voice_settings: {
+          voice: "Minimax.speech-2.8-turbo.Spanish_SereneWoman",
+          language_boost: "Catalan",
+          language: null,
+        },
       });
     });
 
@@ -220,19 +239,52 @@ describe("TelnyxAiAdapter", () => {
       });
     });
 
-    it("traduce interruptionSettings a interruption_settings", async () => {
+    it("traduce interruptionSettings a interruption_settings y borra lo que no trae (Telnyx fusiona)", async () => {
       mockAssistantsUpdate.mockResolvedValue({
         id: "assistant_123",
         name: "n",
         instructions: "i",
       });
 
+      // De Soniox a flux: el plan de fin de turno de Soniox se borra.
       await adapter.updateAssistant("assistant_123", {
-        interruptionSettings: { start_speaking_plan: { wait_seconds: 0.1 } },
+        interruptionSettings: {
+          start_speaking_plan: { wait_seconds: 0.1 },
+          interrupt_prediction_threshold: 0.4,
+        },
+      });
+      expect(mockAssistantsUpdate).toHaveBeenLastCalledWith("assistant_123", {
+        interruption_settings: {
+          start_speaking_plan: {
+            wait_seconds: 0.1,
+            transcription_endpointing_plan: null,
+          },
+          interrupt_prediction_threshold: 0.4,
+        },
       });
 
-      expect(mockAssistantsUpdate).toHaveBeenCalledWith("assistant_123", {
-        interruption_settings: { start_speaking_plan: { wait_seconds: 0.1 } },
+      // De flux a Soniox: el umbral de flux se borra.
+      const planDeSoniox = {
+        on_punctuation_seconds: 0.1,
+        on_no_punctuation_seconds: 0.5,
+        on_number_seconds: 0.5,
+      };
+      await adapter.updateAssistant("assistant_123", {
+        interruptionSettings: {
+          start_speaking_plan: {
+            wait_seconds: 0.1,
+            transcription_endpointing_plan: planDeSoniox,
+          },
+        },
+      });
+      expect(mockAssistantsUpdate).toHaveBeenLastCalledWith("assistant_123", {
+        interruption_settings: {
+          interrupt_prediction_threshold: null,
+          start_speaking_plan: {
+            wait_seconds: 0.1,
+            transcription_endpointing_plan: planDeSoniox,
+          },
+        },
       });
     });
   });

@@ -209,16 +209,42 @@ export class TelnyxAiAdapter {
       // assistant conserva `voice_settings.language`: hay que borrarlo con
       // null. Pasa cuando un negocio cambia su idioma principal de catalán,
       // euskera o gallego a español, inglés o francés (verificado en vivo el
-      // 2026-10-03). Se hace aquí y no en el payload para no cambiar el hash
-      // de los assistants que nunca tuvieron voz de Soniox.
-      payload.voice_settings = input.voiceSettings.voice.startsWith("Soniox.")
-        ? input.voiceSettings
-        : { ...input.voiceSettings, language: null };
+      // 2026-10-03). Lo mismo con el `language_boost` de MiniMax, que una
+      // Ultra rechaza. Se hace aquí y no en el payload para no cambiar el
+      // hash de los assistants que nunca tuvieron esas voces.
+      const voz = input.voiceSettings.voice;
+      payload.voice_settings = {
+        ...input.voiceSettings,
+        ...(voz.startsWith("Soniox.") ? {} : { language: null }),
+        ...(voz.startsWith("Minimax.") ? {} : { language_boost: null }),
+      };
     }
     if (input.transcription !== undefined)
       payload.transcription = input.transcription;
-    if (input.interruptionSettings !== undefined)
-      payload.interruption_settings = input.interruptionSettings;
+    if (input.interruptionSettings !== undefined) {
+      // Telnyx también fusiona `interruption_settings`: al pasar de Soniox
+      // a flux (de catalán a español) se quedaba el plan de fin de turno de
+      // Soniox, con hasta 0,8 s de espera sin puntuación; y al revés, el
+      // umbral de predicción de interrupciones de flux. Lo que el payload
+      // no trae se borra (verificado en vivo el 2026-10-03,
+      // scripts/verificarIdiomas.ts).
+      const ajustes = input.interruptionSettings as Record<string, unknown>;
+      const plan = ajustes.start_speaking_plan as
+        | Record<string, unknown>
+        | undefined;
+      payload.interruption_settings = {
+        interrupt_prediction_threshold: null,
+        ...ajustes,
+        ...(plan
+          ? {
+              start_speaking_plan: {
+                transcription_endpointing_plan: null,
+                ...plan,
+              },
+            }
+          : {}),
+      };
+    }
     if (input.telephonySettings !== undefined)
       payload.telephony_settings = input.telephonySettings;
     if (input.privacySettings !== undefined)

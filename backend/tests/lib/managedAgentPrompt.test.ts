@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  AgentSettingsSchema,
   buildManagedAgentPrompt,
   parseAgentSettings,
   DEFAULT_AGENT_SETTINGS,
@@ -228,6 +229,70 @@ describe("parseAgentSettings — voiceLanguage", () => {
     });
 
     expect(parsed).toEqual(DEFAULT_AGENT_SETTINGS);
+  });
+});
+
+describe("AgentSettings — la voz elegida", () => {
+  const CATALAN = {
+    ...DEFAULT_AGENT_SETTINGS,
+    languages: ["es-ES", "ca-ES"],
+    voiceLanguage: "ca-ES",
+  };
+
+  it("se guarda si atiende, con el género de la voz", () => {
+    const guardado = AgentSettingsSchema.parse({
+      ...CATALAN,
+      voiceGender: "femenina",
+      voz: "Azure.ca-ES-EnricNeural",
+    });
+
+    expect(guardado.voz).toBe("Azure.ca-ES-EnricNeural");
+    expect(guardado.voiceGender).toBe("masculina");
+  });
+
+  it("se olvida si no atiende: de otro idioma o sin hablar uno activo", () => {
+    expect(
+      AgentSettingsSchema.parse({
+        ...DEFAULT_AGENT_SETTINGS,
+        voz: "Azure.ca-ES-JoanaNeural",
+      })
+    ).not.toHaveProperty("voz");
+    expect(
+      AgentSettingsSchema.parse({
+        ...CATALAN,
+        languages: ["es-ES", "ca-ES", "en-GB"],
+        voz: "Azure.ca-ES-JoanaNeural",
+      })
+    ).not.toHaveProperty("voz");
+  });
+
+  it("rechaza una voz que no es del catálogo", () => {
+    expect(
+      AgentSettingsSchema.safeParse({
+        ...DEFAULT_AGENT_SETTINGS,
+        voz: "Telnyx.Ultra.inventada",
+      }).success
+    ).toBe(false);
+  });
+
+  it("parseAgentSettings la conserva y descarta una desconocida sin tocar el resto", () => {
+    expect(
+      parseAgentSettings({ ...CATALAN, voz: "Soniox.tts-rt-v2.Sergio" })
+    ).toMatchObject({
+      voz: "Soniox.tts-rt-v2.Sergio",
+      voiceGender: "masculina",
+    });
+
+    const conDesconocida = parseAgentSettings({
+      ...CATALAN,
+      tone: "direct",
+      voz: "Telnyx.Ultra.inventada",
+    });
+    expect(conDesconocida).not.toHaveProperty("voz");
+    expect(conDesconocida).toMatchObject({
+      tone: "direct",
+      voiceLanguage: "ca-ES",
+    });
   });
 });
 

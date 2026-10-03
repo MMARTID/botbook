@@ -1,9 +1,13 @@
-import { telnyxAiAdapter } from "../adapters/telnyx/TelnyxAiAdapter.js";
+import {
+  telnyxAiAdapter,
+  type TelnyxVoice,
+} from "../adapters/telnyx/TelnyxAiAdapter.js";
 import type { AgentSettings } from "./managedAgentPrompt.js";
 import {
   IDIOMAS,
   type CodigoDeIdioma,
   type GeneroDeVoz,
+  type ProveedorDeVoz,
   type VozDelCatalogo,
 } from "./idiomas/catalogo.js";
 import { resolverIdiomas } from "./idiomas/resolver.js";
@@ -22,25 +26,39 @@ const GENERO_EN_TELNYX: Record<GeneroDeVoz, string> = {
 };
 
 /**
- * La voz del catálogo (lib/idiomas/catalogo.ts) si sigue en la cuenta; si
- * no, otra del mismo proveedor y género como red de seguridad —de su mismo
- * idioma si es Ultra; cualquiera de Soniox, que hablan todos, pero nunca
- * una Ultra, que no habla catalán ni euskera ni gallego— o `null`: plan §3,
- * "si no hay voz compatible, el negocio no entra en Telnyx".
+ * La primera de `voces` (del catálogo, lib/idiomas/catalogo.ts, en orden de
+ * preferencia) que siga en la cuenta. Si no queda ninguna, como red de
+ * seguridad, otra de la cuenta del mismo género y del proveedor de la
+ * primera Ultra o Soniox de la lista —de su mismo idioma si es Ultra;
+ * cualquiera de Soniox, que hablan todos, pero nunca una Ultra, que no
+ * habla catalán ni euskera ni gallego; ninguna de MiniMax ni de Azure, que
+ * solo hablan el idioma que se les configura— o `null`: plan §3, "si no hay
+ * voz compatible, el negocio no entra en Telnyx".
  */
 async function resolverVozEnLaCuenta(
-  voz: VozDelCatalogo,
+  voces: readonly VozDelCatalogo[],
   idioma: CodigoDeIdioma,
   genero: GeneroDeVoz
 ): Promise<string | null> {
-  const voces = await telnyxAiAdapter.listVoices(voz.proveedor);
-  if (voces.some((candidata) => candidata.id === voz.id)) {
-    return voz.id;
+  const listas = new Map<ProveedorDeVoz, Promise<TelnyxVoice[]>>();
+  const deLaCuenta = (proveedor: ProveedorDeVoz) => {
+    if (!listas.has(proveedor)) {
+      listas.set(proveedor, telnyxAiAdapter.listVoices(proveedor));
+    }
+    return listas.get(proveedor)!;
+  };
+  for (const voz of voces) {
+    const cuenta = await deLaCuenta(voz.proveedor);
+    if (cuenta.some((candidata) => candidata.id === voz.id)) return voz.id;
   }
-  const reserva = voces.find(
+  const base = voces.find(
+    (voz) => voz.proveedor === "telnyx" || voz.proveedor === "soniox"
+  );
+  if (!base) return null;
+  const reserva = (await deLaCuenta(base.proveedor)).find(
     (candidata) =>
       (candidata.gender ?? "").toLowerCase() === GENERO_EN_TELNYX[genero] &&
-      (voz.proveedor === "soniox"
+      (base.proveedor === "soniox"
         ? candidata.id.startsWith("Soniox.")
         : (candidata.language ?? "").toLowerCase() === idioma.toLowerCase())
   );
@@ -53,7 +71,13 @@ export async function resolveTelnyxVoiceId(
   genero: GeneroDeVoz
 ): Promise<string | null> {
   const voces = IDIOMAS[idioma].voces;
-  return voces ? resolverVozEnLaCuenta(voces[genero], idioma, genero) : null;
+  return voces
+    ? resolverVozEnLaCuenta(
+        voces.filter((voz) => voz.genero === genero),
+        idioma,
+        genero
+      )
+    : null;
 }
 
 /**
@@ -70,7 +94,7 @@ export async function resolveTelnyxEligibility(
 
   try {
     const voiceId = await resolverVozEnLaCuenta(
-      perfil.voz,
+      [perfil.voz, ...perfil.alternativas],
       perfil.principal,
       perfil.genero
     );

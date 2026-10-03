@@ -6,9 +6,10 @@ import {
   saludoDelNegocio,
   usaVozMultilingueEnRetell,
 } from "../../../src/lib/idiomas/resolver.js";
-import type {
-  CodigoDeIdioma,
-  GeneroDeVoz,
+import {
+  CODIGOS_DE_IDIOMA,
+  type CodigoDeIdioma,
+  type GeneroDeVoz,
 } from "../../../src/lib/idiomas/catalogo.js";
 
 const resolver = (
@@ -65,10 +66,38 @@ describe("resolverIdiomas — normalización", () => {
     expect(perfil.cambios).toEqual([]);
   });
 
-  it("un idioma que la voz del principal aún no habla se quita, con aviso", () => {
-    const perfil = resolver(["es-ES", "de-DE"]);
-    expect(perfil.idiomas).toEqual(["es-ES"]);
-    expect(perfil.cambios).toEqual([{ tipo: "quitado", idioma: "de-DE" }]);
+  it("el alemán, el italiano, el portugués y el neerlandés los habla la voz Ultra y los entiende flux", () => {
+    const perfil = resolver(["es-ES", "de-DE", "it-IT", "pt-PT", "nl-NL"]);
+    expect(perfil.idiomas).toEqual([
+      "es-ES",
+      "de-DE",
+      "it-IT",
+      "pt-PT",
+      "nl-NL",
+    ]);
+    expect(perfil.voz.nombre).toBe("Blanca");
+    expect(perfil.transcripcion).toEqual({ motor: "flux", idioma: "multi" });
+    expect(perfil.cambios).toEqual([]);
+  });
+
+  it("con el catálogo actual ningún idioma activo se queda sin voz, sea cual sea la combinación", () => {
+    const resto = CODIGOS_DE_IDIOMA.filter((codigo) => codigo !== "es-ES");
+    for (let mascara = 0; mascara < 2 ** resto.length; mascara++) {
+      const activos: CodigoDeIdioma[] = [
+        "es-ES",
+        ...resto.filter((_, indice) => mascara & (2 ** indice)),
+      ];
+      for (const principal of activos) {
+        for (const genero of ["femenina", "masculina"] as const) {
+          const perfil = resolver(activos, principal, genero);
+          expect(
+            perfil.cambios.filter((cambio) => cambio.tipo === "quitado"),
+            `${activos.join("+")} con ${principal}`
+          ).toEqual([]);
+          expect(perfil.genero, `${activos.join("+")}/${genero}`).toBe(genero);
+        }
+      }
+    }
   });
 
   it("con la voz de Soniox el alemán sí se queda: Soniox habla todos", () => {
@@ -77,6 +106,58 @@ describe("resolverIdiomas — normalización", () => {
       "ca-ES",
       "de-DE",
     ]);
+  });
+});
+
+describe("resolverIdiomas — la voz que elige el dueño", () => {
+  const elegir = (
+    languages: CodigoDeIdioma[],
+    voiceLanguage: CodigoDeIdioma,
+    voz: string,
+    voiceGender: GeneroDeVoz = "femenina"
+  ) => resolverIdiomas({ languages, voiceLanguage, voiceGender, voz });
+  const JOANA = "Azure.ca-ES-JoanaNeural";
+  const SERENA = "Minimax.speech-2.8-turbo.Spanish_SereneWoman";
+
+  it("atiende la elegida si es de su idioma principal y habla sus idiomas; su género manda", () => {
+    const perfil = elegir(
+      ["es-ES", "ca-ES"],
+      "ca-ES",
+      "Azure.ca-ES-EnricNeural",
+      "femenina"
+    );
+    expect(perfil.voz.nombre).toBe("Enric");
+    expect(perfil.genero).toBe("masculina");
+    expect(perfil.cambios).toEqual([]);
+  });
+
+  it("si la elegida no habla un idioma activo, atiende la primera de su género que los habla, con aviso", () => {
+    const perfil = elegir(["es-ES", "ca-ES", "en-GB"], "ca-ES", JOANA);
+    expect(perfil.voz.nombre).toBe("Marta");
+    expect(perfil.cambios).toEqual([
+      expect.objectContaining({ tipo: "voz", noHabla: "en-GB" }),
+    ]);
+  });
+
+  it("una elegida de otro idioma (cambió de principal) se ignora sin aviso", () => {
+    const perfil = elegir(["es-ES"], "es-ES", JOANA);
+    expect(perfil.voz.nombre).toBe("Blanca");
+    expect(perfil.cambios).toEqual([]);
+  });
+
+  it("las alternativas son las demás del mismo género que hablan sus idiomas", () => {
+    expect(
+      elegir(["es-ES", "ca-ES"], "ca-ES", SERENA).alternativas.map(
+        (voz) => voz.nombre
+      )
+    ).toEqual(["Marta", "Joana", "Alba", "Clara"]);
+  });
+
+  it("MiniMax recibe el refuerzo del catalán", () => {
+    expect(elegir(["es-ES", "ca-ES"], "ca-ES", SERENA).refuerzoDeMiniMax).toBe(
+      "Catalan"
+    );
+    expect(resolver(["es-ES"]).refuerzoDeMiniMax).toBeNull();
   });
 });
 
