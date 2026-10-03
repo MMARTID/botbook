@@ -23,27 +23,25 @@ export type AgentLanguage = (typeof AGENT_LANGUAGES)[number];
 
 /**
  * Idiomas que en Telnyx solo cubre Soniox: deepgram/flux no los entiende y
- * las voces Ultra no los hablan. Decisión del usuario (2026-10-02), por
- * idioma principal (`voiceLanguage`):
- * - Principal español, inglés o francés: voz Ultra, con su modo expresivo.
- *   Si además hay catalán, euskera o gallego, Soniox los transcribe y la
- *   recepcionista contesta en español (buildLanguageInstruction).
- * - Principal catalán, euskera o gallego: voz y transcripción de Soniox, y
- *   el saludo en ese idioma.
+ * las voces Ultra no los hablan. Decisión del usuario (2026-10-02/03):
+ * activar uno es hablarlo, no solo entenderlo. Con catalán, euskera o
+ * gallego activos, el assistant entero pasa a Soniox (voz y transcripción),
+ * habla todos los idiomas del negocio y el idioma principal —el del
+ * saludo— es uno de ellos (normalizarIdiomaPrincipal). Sin ellos, la voz
+ * Ultra con su modo expresivo y deepgram/flux, como siempre. Se descartó
+ * «entiende el catalán pero contesta en español»: ralentizaba el turno de
+ * palabra de todas las llamadas, también las de español.
  * Ver telnyxAssistantPayload.ts y telnyxEligibility.ts.
  */
 const IDIOMAS_DE_SONIOX: readonly AgentLanguage[] = ["ca-ES", "eu-ES", "gl-ES"];
 
-/** Con catalán, euskera o gallego activos, transcribe Soniox. */
-export function transcribeConSoniox(
-  languages: readonly AgentLanguage[]
-): boolean {
+/** Con catalán, euskera o gallego activos, voz y transcripción de Soniox. */
+export function usaSoniox(languages: readonly AgentLanguage[]): boolean {
   return languages.some((language) => IDIOMAS_DE_SONIOX.includes(language));
 }
 
-/** Con catalán, euskera o gallego como idioma principal, habla una voz de
- * Soniox: ninguna voz Ultra los pronuncia bien. */
-export function hablaConSoniox(
+/** Catalán, euskera o gallego: idiomas que ninguna voz Ultra pronuncia. */
+export function esIdiomaDeSoniox(
   voiceLanguage: AgentLanguage
 ): voiceLanguage is Exclude<AgentLanguage, UltraVoiceLanguage> {
   return IDIOMAS_DE_SONIOX.includes(voiceLanguage);
@@ -133,7 +131,26 @@ export const AgentSettingsSchema = z
         path: ["voiceLanguage"],
       });
     }
-  });
+  })
+  .transform(normalizarIdiomaPrincipal);
+
+/**
+ * Con catalán, euskera o gallego activos, el idioma principal es uno de
+ * ellos: la voz es la de Soniox y saluda en ese idioma (ver
+ * IDIOMAS_DE_SONIOX). Se corrige en vez de rechazarse porque los ajustes
+ * guardados antes de esta regla (catalán activo con español como
+ * principal) no deben caer al DEFAULT_AGENT_SETTINGS entero, que borraría
+ * también tono, objetivo y el resto.
+ */
+function normalizarIdiomaPrincipal<
+  T extends { languages: AgentLanguage[]; voiceLanguage: AgentLanguage },
+>(settings: T): T {
+  if (!usaSoniox(settings.languages) || esIdiomaDeSoniox(settings.voiceLanguage)) {
+    return settings;
+  }
+  const principal = settings.languages.find(esIdiomaDeSoniox)!;
+  return { ...settings, voiceLanguage: principal };
+}
 
 export type AgentSettings = z.infer<typeof AgentSettingsSchema>;
 
@@ -235,40 +252,19 @@ const NOMBRE_DE_IDIOMA: Record<AgentLanguage, string> = {
   "gl-ES": "gallego",
 };
 
-/** «catalán», «catalán o gallego», «catalán, euskera o gallego». */
-function enumerarConO(nombres: string[]): string {
-  if (nombres.length === 1) return nombres[0];
-  return `${nombres.slice(0, -1).join(", ")} o ${nombres[nombres.length - 1]}`;
-}
-
 function buildLanguageInstruction(settings: AgentSettings): string {
   if (settings.languages.length === 1) {
     return "Habla siempre en español de España; no menciones que eres una IA salvo que te lo pregunten.";
   }
 
-  // Con voz Ultra (idioma principal español, inglés o francés), el catalán,
-  // el euskera y el gallego se entienden pero se contesta en español: esa
-  // voz no los pronuncia bien. Con voz de Soniox se hablan todos y el saludo
-  // va en el idioma principal. Decisión del usuario 2026-10-02.
-  const vozDeSoniox = hablaConSoniox(settings.voiceLanguage);
-  const hablados = vozDeSoniox
-    ? settings.languages
-    : settings.languages.filter((language) => !IDIOMAS_DE_SONIOX.includes(language));
-  const soloEntendidos = settings.languages.filter((language) => !hablados.includes(language));
-  const contestaEnEspanol =
-    soloEntendidos.length > 0
-      ? ` Si te habla en ${enumerarConO(soloEntendidos.map((language) => NOMBRE_DE_IDIOMA[language]))}, entiéndelo y contesta en español de España con naturalidad, sin comentar el idioma.`
-      : "";
-  const sinMencionarIa = " No menciones que eres una IA salvo que te lo pregunten.";
+  // Saluda en el idioma principal —también en inglés o francés, decisión del
+  // usuario 2026-10-03— y sigue en el de quien llama. Con catalán, euskera o
+  // gallego activos el principal es uno de ellos y la voz de Soniox los habla
+  // todos (normalizarIdiomaPrincipal); con español, el texto es el de siempre.
+  const saludo = NOMBRE_DE_IDIOMA[settings.voiceLanguage];
+  const enabledLanguages = settings.languages.map((language) => NOMBRE_DE_IDIOMA[language]).join(", ");
 
-  if (hablados.length === 1) {
-    return `Habla siempre en español de España.${contestaEnEspanol}${sinMencionarIa}`;
-  }
-
-  const saludo = NOMBRE_DE_IDIOMA[vozDeSoniox ? settings.voiceLanguage : "es-ES"];
-  const enabledLanguages = hablados.map((language) => NOMBRE_DE_IDIOMA[language]).join(", ");
-
-  return `Empieza siempre con el saludo en ${saludo}. Tras la primera intervención de quien llama, responde y continúa exclusivamente en el idioma que use si es uno de estos: ${enabledLanguages}. Si cambia entre esos idiomas, acompaña el cambio sin pedirle que elija uno.${contestaEnEspanol}${sinMencionarIa}`;
+  return `Empieza siempre con el saludo en ${saludo}. Tras la primera intervención de quien llama, responde y continúa exclusivamente en el idioma que use si es uno de estos: ${enabledLanguages}. Si cambia entre esos idiomas, acompaña el cambio sin pedirle que elija uno. No menciones que eres una IA salvo que te lo pregunten.`;
 }
 
 /** Cabecera del bloque de transferencia; sirve para saber si un prompt

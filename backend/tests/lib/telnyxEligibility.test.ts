@@ -196,16 +196,27 @@ describe("resolveTelnyxEligibility", () => {
     expect(sinVoz.reason).toMatch(/voz Soniox/);
   });
 
-  it("con español principal y catalán activo sigue con la voz Ultra", async () => {
+  it("la voz de Soniox de reserva nunca es una Ultra del mismo género", async () => {
     mockedListVoices.mockResolvedValue(SPANISH_VOICES);
+
+    const result = await resolveTelnyxEligibility({
+      ...DEFAULT_AGENT_SETTINGS,
+      languages: ["es-ES", "ca-ES"],
+      voiceLanguage: "ca-ES",
+    });
+
+    expect(result.eligible).toBe(false);
+  });
+
+  it("con catalán activo usa la voz de Soniox aunque el principal guardado sea español", async () => {
+    mockedListVoices.mockResolvedValue(SONIOX_VOICES);
 
     const result = await resolveTelnyxEligibility({
       ...DEFAULT_AGENT_SETTINGS,
       languages: ["es-ES", "ca-ES"],
     });
 
-    expect(result.voiceId).toBe("Telnyx.Ultra.female-1");
-    expect(mockedListVoices).not.toHaveBeenCalledWith("soniox");
+    expect(result.voiceId).toBe("Soniox.tts-rt-v2.Marta");
   });
 
   it("no es elegible si la cuenta no tiene voz compatible", async () => {

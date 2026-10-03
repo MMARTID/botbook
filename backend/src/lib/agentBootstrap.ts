@@ -168,10 +168,10 @@ function resolvePromptTimezone(timezone: string | null | undefined): string {
 }
 
 /**
- * Saludo al descolgar: en español salvo que el idioma principal sea
- * catalán, euskera o gallego (decisión del usuario 2026-10-02). Inglés y
- * francés como principal siguen saludando en español, como siempre. En
- * euskera el nombre va solo, sin «llamar a», para no declinarlo.
+ * Saludo al descolgar, en el idioma principal del negocio (decisión del
+ * usuario 2026-10-03: los seis idiomas; antes inglés y francés saludaban en
+ * español con acento extranjero). En euskera el nombre va solo, sin
+ * «llamar a», para no declinarlo.
  */
 export function buildRetellBeginMessage(
   businessName: string,
@@ -184,6 +184,10 @@ export function buildRetellBeginMessage(
       return `Kaixo, ${businessName}. Zertan lagun zaitzaket?`;
     case "gl-ES":
       return `Ola, grazas por chamar a ${businessName}. En que te podo axudar?`;
+    case "en-GB":
+      return `Hello, thank you for calling ${businessName}. How can I help you?`;
+    case "fr-FR":
+      return `Bonjour, merci d'avoir appelé ${businessName}. Comment puis-je vous aider ?`;
     default:
       return `Hola, gracias por llamar a ${businessName}. ¿En qué te puedo ayudar?`;
   }

@@ -9,7 +9,7 @@ import {
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import NumeroPrincipalPage from "@/app/ajustes/numero-principal/page";
-import { DEFAULT_AGENT_SETTINGS } from "@/components/agent-settings-editor";
+import { DEFAULT_AGENT_SETTINGS } from "@/lib/agent-settings";
 import { useBusiness } from "@/components/providers";
 import { getPhoneNumberInfo, updateMyBusiness } from "@/lib/api";
 import {

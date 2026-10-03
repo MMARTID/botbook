@@ -19,7 +19,7 @@ import {
   TEXTO_SIN_MOVIL_PARA_PASAR,
 } from "@/components/ajustes-telefono";
 import { TEXTO_MOVIL_SIN_DESVIO_EN_AJUSTES } from "@/lib/numero-principal";
-import { DEFAULT_AGENT_SETTINGS } from "@/components/agent-settings-editor";
+import { DEFAULT_AGENT_SETTINGS } from "@/lib/agent-settings";
 import {
   getOnboardingState,
   getOwnerWhatsapp,

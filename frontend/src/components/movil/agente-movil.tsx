@@ -9,7 +9,8 @@ import { ajustePorSeccion } from "@/lib/agent-configuration";
 import { getCalendarState } from "@/lib/calendar-state";
 import { resumenDeHorario } from "@/lib/horario";
 import type { AgentSettings, Business } from "@/lib/types";
-import { DEFAULT_AGENT_SETTINGS } from "@/components/agent-settings-editor";
+import { DEFAULT_AGENT_SETTINGS } from "@/lib/agent-settings";
+import { nombreDeIdioma } from "@/lib/idiomas-de-atencion";
 import { isBusinessSchedule } from "@/components/business-hours-editor";
 import { SectionErrorState } from "@/components/section-card";
 import { CabeceraMovil } from "@/components/movil/cabecera-movil";
@@ -20,14 +21,6 @@ const OBJETIVOS: Record<AgentSettings["primaryGoal"], string> = {
   bookings: "Conseguir reservas",
   customer_service: "Atender consultas",
   lead_capture: "Captar oportunidades",
-};
-const IDIOMAS: Record<string, string> = {
-  "es-ES": "Español",
-  "en-GB": "Inglés",
-  "fr-FR": "Francés",
-  "ca-ES": "Catalán",
-  "eu-ES": "Euskera",
-  "gl-ES": "Gallego",
 };
 
 export function plural(n: number, uno: string, varios: string) {
@@ -135,7 +128,7 @@ export function AgenteMovil({ business }: { business: Business }) {
           icono={Bot}
           titulo="Cómo atiende"
           resumen={[
-            comportamiento.languages.map((idioma) => IDIOMAS[idioma]).filter(Boolean).join(", "),
+            comportamiento.languages.map(nombreDeIdioma).join(", "),
             TONOS[comportamiento.tone],
             OBJETIVOS[comportamiento.primaryGoal],
           ]

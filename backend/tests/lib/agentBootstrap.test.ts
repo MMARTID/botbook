@@ -655,12 +655,15 @@ describe("createBusinessAgent — creación dual Telnyx (Fase 2 del plan Telnyx-
 });
 
 describe("buildRetellBeginMessage", () => {
-  it("saluda en español salvo con catalán, euskera o gallego como principal", () => {
+  it("saluda en el idioma principal", () => {
     expect(buildRetellBeginMessage("Peluquería Ana")).toBe(
       "Hola, gracias por llamar a Peluquería Ana. ¿En qué te puedo ayudar?"
     );
-    expect(buildRetellBeginMessage("Peluquería Ana", "en-GB")).toBe(
-      "Hola, gracias por llamar a Peluquería Ana. ¿En qué te puedo ayudar?"
+    expect(buildRetellBeginMessage("Ana's Salon", "en-GB")).toBe(
+      "Hello, thank you for calling Ana's Salon. How can I help you?"
+    );
+    expect(buildRetellBeginMessage("Salon Anne", "fr-FR")).toBe(
+      "Bonjour, merci d'avoir appelé Salon Anne. Comment puis-je vous aider ?"
     );
     expect(buildRetellBeginMessage("Perruqueria Anna", "ca-ES")).toBe(
       "Hola, gràcies per trucar a Perruqueria Anna. En què et puc ajudar?"

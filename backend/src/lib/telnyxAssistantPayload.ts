@@ -7,7 +7,7 @@ import type {
 import type { TranscriptionSettings } from "telnyx/resources/ai/assistants/assistants.js";
 import {
   resolveManagedPromptTimezone,
-  transcribeConSoniox,
+  usaSoniox,
   type AgentLanguage,
   type VoiceLanguage,
 } from "./managedAgentPrompt.js";
@@ -623,7 +623,7 @@ export function buildTelnyxAssistantPayload(
     );
   }
 
-  const soniox = transcribeConSoniox(input.languages);
+  const soniox = usaSoniox(input.languages);
 
   return {
     name: buildTelnyxAssistantName(input.businessId, input.agentId),
