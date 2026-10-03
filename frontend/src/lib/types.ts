@@ -47,9 +47,10 @@ export type AgentSettings = {
   responseStyle: "concise" | "balanced";
   escalation: "take_message" | "request_callback";
   voiceGender: "femenina" | "masculina";
+  /** Idiomas de atención activos (códigos del catálogo del backend). */
   languages: AgentLanguage[];
-  /** Idioma real de la voz (TTS) — independiente de `languages` (qué
-   * entiende el agente). Debe ser uno de los activados en `languages`. */
+  /** Idioma principal: el del saludo y el que decide la voz. Uno de los
+   * activos. */
   voiceLanguage: VoiceLanguage;
   /** «Cuándo pasarme llamadas» (fase 4 del plan de telefonía). Sin valor,
    * el backend aplica el de por defecto (ver lib/pasar-llamadas.ts). */
@@ -58,19 +59,40 @@ export type AgentSettings = {
 
 export type ModoDePasarLlamadas = "nunca" | "si_lo_pide" | "siempre";
 
-export type AgentLanguage =
-  | "es-ES"
-  | "en-GB"
-  | "fr-FR"
-  | "ca-ES"
-  | "eu-ES"
-  | "gl-ES";
+/** Código BCP-47 de un idioma de atención («es-ES», «ca-ES»…). Los define
+ * el catálogo del backend (backend/src/lib/idiomas/catalogo.ts); el panel
+ * los recibe de GET /business/me/idiomas en vez de repetirlos aquí. */
+export type AgentLanguage = string;
 
-/** Idioma principal (antes «idioma de la voz»): decide la voz. Español,
- * inglés y francés tienen voz Ultra propia; con catalán, euskera o gallego
- * atiende una voz de Soniox que habla todos los idiomas del negocio y saluda
- * en el principal (backend/src/lib/managedAgentPrompt.ts). */
+/** Idioma principal (antes «idioma de la voz»): el del saludo y el que
+ * decide la voz (Ultra para español; Soniox para catalán, euskera y
+ * gallego). */
 export type VoiceLanguage = AgentLanguage;
+
+/** GET /business/me/idiomas: lo que se ofrece en el panel. */
+export type CatalogoDeIdiomas = {
+  obligatorio: { codigo: AgentLanguage; etiqueta: string };
+  principales: Array<{
+    codigo: AgentLanguage;
+    etiqueta: string;
+    /** Otros idiomas que su voz puede hablar. */
+    secundariosCompatibles: AgentLanguage[];
+    /** Voz de Soniox: otra voz, algo menos expresiva. */
+    vozMultilingue: boolean;
+  }>;
+  secundarios: Array<{ codigo: AgentLanguage; etiqueta: string }>;
+  /** Etiquetas de todos los idiomas, también los que ya no se ofrecen. */
+  etiquetas: Record<AgentLanguage, string>;
+};
+
+/** POST /business/me/idiomas/previsualizar: qué hará la recepcionista. */
+export type VistaPreviaDeIdiomas = {
+  languages: AgentLanguage[];
+  voiceLanguage: VoiceLanguage;
+  entradilla: string;
+  saludo: string;
+  avisos: string[];
+};
 
 export type BusinessType =
   | "peluqueria"

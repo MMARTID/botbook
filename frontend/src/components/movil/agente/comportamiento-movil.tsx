@@ -2,21 +2,12 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Check, Lock } from "lucide-react";
-import { getBillingSummary, updateMyBusiness } from "@/lib/api";
+import { getBillingSummary, getCatalogoDeIdiomas, previsualizarIdiomas, updateMyBusiness } from "@/lib/api";
 import type { AgentLanguage, AgentSettings, Business } from "@/lib/types";
 import { AvisoFlotante, useAviso } from "@/components/aviso-flotante";
 import { DEFAULT_AGENT_SETTINGS } from "@/lib/agent-settings";
-import {
-  IDIOMAS_DE_ATENCION,
-  avisoDeIdiomas,
-  entradillaDeIdiomas,
-  esIdiomaDeSoniox,
-  nombreDeIdioma,
-  normalizarIdiomas,
-  usaSoniox,
-} from "@/lib/idiomas-de-atencion";
 import { BarraGuardar } from "@/components/movil/piezas";
 import { PantallaDeAjuste } from "@/components/movil/agente/pantalla-de-ajuste";
 
@@ -111,6 +102,186 @@ function Opcion({
 }
 
 /**
+ * Idioma y voz, guiado por el catálogo del backend (GET /business/me/idiomas)
+ * y su vista previa (POST …/previsualizar): el panel no repite las reglas.
+ * Dos preguntas de negocio en vez del modelo de datos: en qué idioma saluda
+ * (español o una lengua cooficial, que decide la voz) y qué otros idiomas
+ * habla (solo los que esa voz puede hablar).
+ */
+function IdiomaYVoz({
+  ajustes,
+  setAjustes,
+  bloqueado,
+}: {
+  ajustes: AgentSettings;
+  setAjustes: (ajustes: AgentSettings) => void;
+  bloqueado: boolean;
+}) {
+  const catalogo = useQuery({
+    queryKey: ["idiomas-catalogo"],
+    queryFn: getCatalogoDeIdiomas,
+    staleTime: Infinity,
+  });
+  const seleccion = {
+    languages: ajustes.languages,
+    voiceLanguage: ajustes.voiceLanguage,
+    voiceGender: ajustes.voiceGender,
+  };
+  const vista = useQuery({
+    queryKey: ["idiomas-vista-previa", seleccion],
+    queryFn: () => previsualizarIdiomas(seleccion),
+    placeholderData: keepPreviousData,
+  });
+
+  const datos = catalogo.data;
+  const etiqueta = (codigo: AgentLanguage) => datos?.etiquetas[codigo] ?? codigo;
+  const obligatorio = datos?.obligatorio.codigo ?? "es-ES";
+  const principal = ajustes.voiceLanguage;
+  const ofrecido = datos?.principales.find((opcion) => opcion.codigo === principal);
+  // Un principal guardado que ya no se ofrece (inglés o francés de antes)
+  // sigue a la vista para no cambiarlo sin que el dueño lo elija.
+  const principales = datos
+    ? ofrecido
+      ? datos.principales
+      : [...datos.principales, { codigo: principal, etiqueta: etiqueta(principal), secundariosCompatibles: [], vozMultilingue: false }]
+    : [];
+  const compatibles = ofrecido?.secundariosCompatibles ?? [];
+  // El orden de las etiquetas es el canónico del catálogo: guardar en ese
+  // orden evita que la barra de guardar salga sin cambios reales.
+  const ordenar = (idiomas: AgentLanguage[]) =>
+    Object.keys(datos?.etiquetas ?? {}).filter((codigo) => idiomas.includes(codigo));
+
+  const elegirPrincipal = (codigo: AgentLanguage) => {
+    const opcion = datos?.principales.find((candidato) => candidato.codigo === codigo);
+    const otros = ajustes.languages.filter(
+      (idioma) => idioma !== obligatorio && idioma !== principal && opcion?.secundariosCompatibles.includes(idioma)
+    );
+    setAjustes({ ...ajustes, voiceLanguage: codigo, languages: ordenar([obligatorio, codigo, ...otros]) });
+  };
+  const alternarSecundario = (codigo: AgentLanguage) => {
+    const activos = ajustes.languages.includes(codigo)
+      ? ajustes.languages.filter((idioma) => idioma !== codigo)
+      : [...ajustes.languages, codigo];
+    setAjustes({ ...ajustes, languages: ordenar(activos) });
+  };
+
+  const entradilla =
+    vista.data?.entradilla ??
+    (ajustes.languages.length === 1 ? "Atiende siempre en español." : "Sigue en el idioma de quien llama.");
+
+  return (
+    <fieldset className="min-w-0">
+      <legend className="text-base font-bold text-tinta">Idioma y voz</legend>
+      <p className="mb-2.5 mt-0.5 text-sm text-muted">{entradilla}</p>
+      {bloqueado ? (
+        <>
+          <div className="mb-3 flex items-start gap-2.5 rounded-[14px] border border-lavado-borde bg-lavado px-3.5 py-3 text-morado-tinta">
+            <Lock className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+            <p className="text-[13px] leading-[1.55]">
+              Elegir la voz y los idiomas está disponible en los planes Pro y Scale.{" "}
+              <Link href="/ajustes/facturacion" className="font-bold underline underline-offset-[3px]">
+                Ampliar plan
+              </Link>
+            </p>
+          </div>
+          {/* Sin la función en el plan no hay nada que elegir: lo activo en
+              pastillas y la voz en una línea, en vez de controles apagados. */}
+          <div className="flex flex-wrap gap-2">
+            {ajustes.languages.map((idioma) => (
+              <span
+                key={idioma}
+                className="inline-flex min-h-11 items-center rounded-full border border-lavado-borde bg-lavado px-3.5 text-sm font-semibold text-morado-tinta"
+              >
+                {etiqueta(idioma)}
+              </span>
+            ))}
+          </div>
+          <p className="mt-3 text-sm text-muted">
+            Voz {ajustes.voiceGender === "masculina" ? "masculina" : "femenina"} · saluda en{" "}
+            {etiqueta(principal).toLowerCase()}
+          </p>
+        </>
+      ) : (
+        <>
+          <p id="pregunta-saludo" className="mb-2 mt-1 text-sm font-semibold text-tinta">
+            ¿En qué idioma saluda?
+          </p>
+          <div role="radiogroup" aria-labelledby="pregunta-saludo" className="flex flex-col gap-2">
+            {principales.map((opcion) => (
+              <Opcion
+                key={opcion.codigo}
+                elegida={principal === opcion.codigo}
+                titulo={opcion.etiqueta}
+                detalle={opcion.vozMultilingue ? "Con otra voz, que habla todos tus idiomas" : undefined}
+                onClick={() => elegirPrincipal(opcion.codigo)}
+              />
+            ))}
+          </div>
+
+          <p id="pregunta-otros" className="mb-2 mt-5 text-sm font-semibold text-tinta">
+            ¿Qué otros idiomas habla?
+          </p>
+          <div role="group" aria-labelledby="pregunta-otros" className="flex flex-col gap-2">
+            {principal !== obligatorio ? (
+              <Opcion forma="check" elegida titulo={etiqueta(obligatorio)} detalle="Siempre" disabled onClick={() => undefined} />
+            ) : null}
+            {compatibles.map((codigo) => (
+              <Opcion
+                key={codigo}
+                forma="check"
+                elegida={ajustes.languages.includes(codigo)}
+                titulo={etiqueta(codigo)}
+                onClick={() => alternarSecundario(codigo)}
+              />
+            ))}
+          </div>
+          <p className="mt-2 text-sm leading-5 text-muted">
+            Activa solo los que atiendes a menudo: cuantos menos haya, mejor entiende a quien llama.
+          </p>
+
+          {/* Siempre montado: un lector de pantalla solo anuncia los cambios
+              de una región viva que ya estaba en la página. */}
+          <div role="status" aria-live="polite">
+            {vista.data?.avisos.length ? (
+              <ul className="mt-3 flex flex-col gap-1.5 rounded-[14px] border border-lavado-borde bg-lavado px-3.5 py-3 text-sm leading-[1.55] text-morado-tinta">
+                {vista.data.avisos.map((avisoDeIdioma) => (
+                  <li key={avisoDeIdioma}>{avisoDeIdioma}</li>
+                ))}
+              </ul>
+            ) : null}
+          </div>
+
+          <p id="pregunta-voz" className="mb-2 mt-5 text-sm font-semibold text-tinta">
+            Voz
+          </p>
+          <div role="radiogroup" aria-labelledby="pregunta-voz" className="grid grid-cols-2 gap-2">
+            {(
+              [
+                ["femenina", "Femenina"],
+                ["masculina", "Masculina"],
+              ] as const
+            ).map(([valor, titulo]) => (
+              <Opcion
+                key={valor}
+                elegida={ajustes.voiceGender === valor}
+                titulo={titulo}
+                onClick={() => setAjustes({ ...ajustes, voiceGender: valor })}
+              />
+            ))}
+          </div>
+
+          {vista.data ? (
+            <p className="mt-4 rounded-[14px] border border-linea bg-relleno px-3.5 py-3 text-sm leading-[1.55] text-apagado">
+              Saluda así: <span className="text-tinta">«{vista.data.saludo}»</span>
+            </p>
+          ) : null}
+        </>
+      )}
+    </fieldset>
+  );
+}
+
+/**
  * Cómo atiende: cada opción es una fila que se elige con un toque y lleva
  * su explicación. El idioma y la voz se bloquean, con su aviso, en los
  * planes que no los incluyen (lo valida también el backend).
@@ -127,7 +298,6 @@ export function ComportamientoMovil({ business }: { business: Business }) {
   const guardado = useMemo(() => JSON.parse(firmaGuardada) as AgentSettings, [firmaGuardada]);
   const [ajustes, setAjustes] = useState(guardado);
   useEffect(() => setAjustes(guardado), [guardado]);
-  const avisoDeIdioma = avisoDeIdiomas(ajustes);
 
   const guardar = useMutation({
     mutationFn: () => updateMyBusiness({ agentSettings: ajustes }),
@@ -137,25 +307,6 @@ export function ComportamientoMovil({ business }: { business: Business }) {
     },
     onError: () => avisar("No se pudo guardar el comportamiento del agente.", "error"),
   });
-
-  const alternarIdioma = (idioma: AgentLanguage) => {
-    if (idioma === "es-ES") return;
-    const activos = ajustes.languages.includes(idioma)
-      ? ajustes.languages.filter((actual) => actual !== idioma)
-      : [...ajustes.languages, idioma];
-    // Mismas reglas que el backend: el principal siempre activo y, con
-    // catalán, euskera o gallego activos, uno de ellos.
-    const siguiente = normalizarIdiomas(activos, ajustes.voiceLanguage);
-    // Quitar el idioma del saludo cambia el principal más abajo, a menudo
-    // fuera de pantalla: se dice en vez de cambiarlo en silencio.
-    if (!siguiente.languages.includes(ajustes.voiceLanguage)) {
-      avisar(
-        `Has quitado el ${nombreDeIdioma(ajustes.voiceLanguage).toLowerCase()}: ahora saluda en ${nombreDeIdioma(siguiente.voiceLanguage).toLowerCase()}.`
-      );
-    }
-    setAjustes({ ...ajustes, ...siguiente });
-  };
-  const conIdiomasDeSoniox = usaSoniox(ajustes.languages);
 
   return (
     <PantallaDeAjuste titulo="Cómo atiende" subtitulo="El tono, el objetivo y el modo en que gestiona cada conversación.">
@@ -178,108 +329,7 @@ export function ComportamientoMovil({ business }: { business: Business }) {
           </fieldset>
         ))}
 
-        <fieldset className="min-w-0">
-          <legend className="text-base font-bold text-tinta">Idioma y voz</legend>
-          <p className="mb-2.5 mt-0.5 text-sm text-muted">{entradillaDeIdiomas(ajustes)}</p>
-          {bloqueado ? (
-            <div className="mb-3 flex items-start gap-2.5 rounded-[14px] border border-lavado-borde bg-lavado px-3.5 py-3 text-morado-tinta">
-              <Lock className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-              <p className="text-[13px] leading-[1.55]">
-                Elegir la voz y los idiomas está disponible en los planes Pro y Scale.{" "}
-                <Link href="/ajustes/facturacion" className="font-bold underline underline-offset-[3px]">
-                  Ampliar plan
-                </Link>
-              </p>
-            </div>
-          ) : null}
-          {bloqueado ? (
-            // Sin la función en el plan no hay nada que elegir: lo activo en
-            // pastillas y la voz en una línea, en vez de once controles
-            // apagados.
-            <>
-              <div className="flex flex-wrap gap-2">
-                {IDIOMAS_DE_ATENCION.map((idioma) => {
-                  const activo = ajustes.languages.includes(idioma.valor);
-                  return (
-                    <span
-                      key={idioma.valor}
-                      className={`inline-flex min-h-11 items-center rounded-full border px-3.5 text-sm font-semibold ${
-                        activo ? "border-lavado-borde bg-lavado text-morado-tinta" : "border-linea bg-relleno text-apagado opacity-80"
-                      }`}
-                    >
-                      {idioma.nombre}
-                    </span>
-                  );
-                })}
-              </div>
-              <p className="mt-3 text-sm text-muted">
-                Voz {ajustes.voiceGender === "masculina" ? "masculina" : "femenina"} · saluda en{" "}
-                {nombreDeIdioma(ajustes.voiceLanguage).toLowerCase()}
-              </p>
-            </>
-          ) : (
-            <>
-              <div className="flex flex-col gap-2">
-                {IDIOMAS_DE_ATENCION.map((idioma) => (
-                  <Opcion
-                    key={idioma.valor}
-                    forma="check"
-                    elegida={ajustes.languages.includes(idioma.valor)}
-                    titulo={idioma.nombre}
-                    detalle={idioma.valor === "es-ES" ? "Siempre activo" : undefined}
-                    disabled={idioma.valor === "es-ES"}
-                    onClick={() => alternarIdioma(idioma.valor)}
-                  />
-                ))}
-              </div>
-              {/* Siempre montado: un lector de pantalla solo anuncia los
-                  cambios de una región viva que ya estaba en la página. */}
-              <div role="status" aria-live="polite">
-                {avisoDeIdioma ? (
-                  <p className="mt-3 rounded-[14px] border border-lavado-borde bg-lavado px-3.5 py-3 text-sm leading-[1.55] text-morado-tinta">
-                    {avisoDeIdioma}
-                  </p>
-                ) : null}
-              </div>
-              <p className="mb-2 mt-4 text-xs font-semibold uppercase tracking-[0.12em] text-muted">Voz</p>
-              <div role="radiogroup" aria-label="Voz del agente" className="grid grid-cols-2 gap-2">
-                {(
-                  [
-                    ["femenina", "Femenina"],
-                    ["masculina", "Masculina"],
-                  ] as const
-                ).map(([valor, titulo]) => (
-                  <Opcion
-                    key={valor}
-                    elegida={ajustes.voiceGender === valor}
-                    titulo={titulo}
-                    onClick={() => setAjustes({ ...ajustes, voiceGender: valor })}
-                  />
-                ))}
-              </div>
-              <p className="mb-2 mt-4 text-xs font-semibold uppercase tracking-[0.12em] text-muted">Idioma principal</p>
-              <div role="radiogroup" aria-label="Idioma principal" className="flex flex-col gap-2">
-                {IDIOMAS_DE_ATENCION.map((idioma) => (
-                  <Opcion
-                    key={idioma.valor}
-                    elegida={ajustes.voiceLanguage === idioma.valor}
-                    titulo={idioma.nombre}
-                    disabled={
-                      !ajustes.languages.includes(idioma.valor) ||
-                      (conIdiomasDeSoniox && !esIdiomaDeSoniox(idioma.valor))
-                    }
-                    onClick={() => setAjustes({ ...ajustes, voiceLanguage: idioma.valor })}
-                  />
-                ))}
-              </div>
-              <p className="mt-2 text-sm leading-5 text-muted">
-                {conIdiomasDeSoniox
-                  ? "Con catalán, euskera o gallego activos, saluda en uno de ellos."
-                  : "Saluda en este idioma. Solo puedes elegir uno que esté activo arriba."}
-              </p>
-            </>
-          )}
-        </fieldset>
+        <IdiomaYVoz ajustes={ajustes} setAjustes={setAjustes} bloqueado={bloqueado} />
       </div>
       <BarraGuardar
         visible={JSON.stringify(ajustes) !== firmaGuardada}
