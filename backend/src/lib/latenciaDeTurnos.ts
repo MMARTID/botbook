@@ -184,8 +184,10 @@ export interface TurnoAnotado extends TurnoMedido {
 
 /**
  * Empareja por orden las respuestas del audio (turnos y largas) con las de
- * la transcripción. Si no cuadran (solapes, una frase partida en dos), no
- * anota nada: mejor sin anotar que mal anotado.
+ * la transcripción. Los solapes no cuentan como respuesta: si uno lo fuera
+ * de verdad, el número de respuestas ya no cuadraría. Si no cuadran (una
+ * frase partida en dos, un solape que era respuesta), no anota nada: mejor
+ * sin anotar que mal anotado.
  */
 export function anotarHerramientas(
   medida: LatenciaDeLaLlamada,
@@ -194,9 +196,7 @@ export function anotarHerramientas(
   const respuestas = [...medida.turnos, ...medida.largas].sort(
     (a, b) => a.inicioDeLaRecepcionista - b.inicioDeLaRecepcionista
   );
-  if (medida.solapes > 0 || respuestas.length !== conHerramienta.length) {
-    return null;
-  }
+  if (respuestas.length !== conHerramienta.length) return null;
   return respuestas.flatMap((respuesta, indice) =>
     medida.turnos.includes(respuesta)
       ? [{ ...respuesta, conHerramienta: conHerramienta[indice] }]

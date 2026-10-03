@@ -127,7 +127,12 @@ describe("anotarHerramientas", () => {
     const medida = { turnos: [turno(5, 0.8)], largas: [], solapes: 0 };
 
     expect(anotarHerramientas(medida, [false, true])).toBeNull();
-    expect(anotarHerramientas({ ...medida, solapes: 1 }, [false])).toBeNull();
+  });
+
+  it("un solape que no era respuesta (un chasquido al colgar) no impide anotar", () => {
+    const medida = { turnos: [turno(5, 0.8)], largas: [], solapes: 1 };
+
+    expect(anotarHerramientas(medida, [true])?.[0].conHerramienta).toBe(true);
   });
 });
 
