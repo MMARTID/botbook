@@ -2466,6 +2466,22 @@ no tira el resto de ajustes al `DEFAULT_AGENT_SETTINGS`.
 - **Retell no tiene euskera.** Su cadena ElevenLabs solo se usa con catalán; el gallego con
   Cartesia está sin verificar.
 
+**Herramientas (scripts del backend, con `TELNYX_API_KEY` del entorno):**
+
+- `laboratorioDeVoces.ts`: muestras y tiempos de síntesis de las voces candidatas (Soniox, MiniMax
+  con `language_boost: "Catalan"`, Azure nativas de ca/eu/gl y Ultra de español con de/it/pt/nl),
+  con una página de escucha a ciegas. Cada voz regional dice también las frases en castellano.
+  Medido el 03-10: Ultra 72–96 ms, MiniMax 191–414 ms, Azure 224–391 ms y Soniox 318–409 ms de
+  síntesis.
+- `verificarIdiomas.ts`: por cada nivel del catálogo y cada voz candidata crea un assistant
+  temporal con el builder real, comprueba lo que Telnyx guardó y la vuelta a Ultra, y lo borra
+  todo. El 03-10 pasaron los 9 casos: Telnyx acepta en assistants las voces de MiniMax y de Azure.
+- `medirLatenciaDeTurnos.ts`: espera entre el cliente y la recepcionista (p50/p95 y solapes) a
+  partir de las grabaciones de doble canal de un negocio (`lib/latenciaDeTurnos.ts`, puro).
+- **Trampa:** Telnyx crea una app TeXML por assistant, «ai-<id del assistant>», y no la borra con
+  él; la API ignora `filter[friendly_name]`. `TelnyxAiAdapter.deleteTexmlAppOfAssistant` la
+  borra comparando el nombre.
+
 **Añadir un idioma:** su código al final de `CODIGOS_DE_IDIOMA`, su entrada en `IDIOMAS` y
 ofrecerlo en un mercado. Los tests de `tests/lib/idiomas/catalogo.test.ts` exigen que esté
 completo y sea compatible con cada principal del mercado. `scripts/inventarioDeIdiomas.ts` (solo
