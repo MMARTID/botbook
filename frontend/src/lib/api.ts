@@ -1,6 +1,9 @@
 import axios from "axios";
 import type {
+  AgentSettings,
   AgendaResponse,
+  CatalogoDeIdiomas,
+  VistaPreviaDeIdiomas,
   BusinessStats,
   PendingBooking,
   BookingProfessional,
@@ -216,6 +219,23 @@ export async function getPendingBookings() {
 export async function resolverCitaPendiente(id: string) {
   const { data } = await api.post<{ ok: true; yaResuelta: boolean }>(
     `/business/me/pending-bookings/${encodeURIComponent(id)}/resolver`
+  );
+  return data;
+}
+
+/** Idiomas que ofrece el panel (catálogo del backend). */
+export async function getCatalogoDeIdiomas() {
+  const { data } = await api.get<CatalogoDeIdiomas>("/business/me/idiomas");
+  return data;
+}
+
+/** Qué hará la recepcionista con una selección de idiomas, sin guardarla. */
+export async function previsualizarIdiomas(
+  ajustes: Pick<AgentSettings, "languages" | "voiceLanguage" | "voiceGender">
+) {
+  const { data } = await api.post<VistaPreviaDeIdiomas>(
+    "/business/me/idiomas/previsualizar",
+    ajustes
   );
   return data;
 }
