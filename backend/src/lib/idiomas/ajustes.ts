@@ -1,12 +1,16 @@
 import { z } from "zod";
 import {
   CODIGOS_DE_IDIOMA,
+  IDIOMAS,
   MERCADOS,
   MERCADO_POR_DEFECTO,
   esCodigoDeIdioma,
+  esVozDelCatalogo,
+  hablaIdioma,
   puedeSerPrincipal,
-  vozHabla,
+  vocesQueHablan,
   type CodigoDeIdioma,
+  type VozDelCatalogo,
 } from "./catalogo.js";
 
 /** El idioma que siempre está activo (español en el mercado de España). */
@@ -49,9 +53,22 @@ export const EsquemaDeIdiomaPrincipal = z
     message: "Ese idioma no puede ser el idioma principal.",
   });
 
+/** `voz`, la voz que eligió el dueño: una del catálogo. Si no es de su
+ * idioma principal o no habla sus idiomas, la sustituye resolverIdiomas. */
+export const EsquemaDeVoz = z.string().refine(esVozDelCatalogo, {
+  message: "Esa voz no está en el catálogo.",
+});
+
 export type CambioDeIdiomas =
   | { tipo: "principal"; de: CodigoDeIdioma; a: CodigoDeIdioma }
-  | { tipo: "quitado"; idioma: CodigoDeIdioma };
+  | { tipo: "quitado"; idioma: CodigoDeIdioma }
+  /** La voz elegida no habla `noHabla`, que está activo: atiende `a`. */
+  | {
+      tipo: "voz";
+      de: VozDelCatalogo;
+      a: VozDelCatalogo;
+      noHabla: CodigoDeIdioma;
+    };
 
 export interface IdiomasNormalizados {
   languages: CodigoDeIdioma[];
@@ -67,13 +84,14 @@ export interface IdiomasNormalizados {
  *
  * - El obligatorio, siempre activo; el orden, el canónico.
  * - El principal, activo y con voces propias; si no, el obligatorio.
- * - La voz del principal tiene que hablar todos los activos. Si no (p. ej.
- *   catalán activo con español principal: ninguna Ultra lo habla), pasa a
- *   principal el primer activo cuya voz los hable todos (la de Soniox del
- *   catalán, euskera o gallego). Así catalán, euskera y gallego solo se
- *   atienden como idioma principal (decisión del usuario 2026-10-03).
- * - Si ninguna voz los habla todos, se quitan los que la del principal no
- *   habla (p. ej. alemán antes de verificar cómo lo pronuncia Ultra).
+ * - Alguna voz del principal tiene que hablar todos los activos. Si no
+ *   (p. ej. catalán activo con español principal: ninguna Ultra lo habla),
+ *   pasa a principal el primer activo con una voz que los hable todos (las
+ *   de Soniox del catalán, euskera o gallego). Así catalán, euskera y
+ *   gallego solo se atienden como idioma principal (decisión del usuario
+ *   2026-10-03).
+ * - Si ninguna voz los habla todos, se quitan los que no habla la voz del
+ *   principal que más habla (p. ej. un idioma que ya no tenga voz).
  */
 export function normalizarIdiomas(entrada: {
   languages: readonly CodigoDeIdioma[];
@@ -88,7 +106,7 @@ export function normalizarIdiomas(entrada: {
       : IDIOMA_OBLIGATORIO;
 
   const hablaTodos = (candidato: CodigoDeIdioma) =>
-    languages.every((idioma) => vozHabla(candidato, idioma));
+    vocesQueHablan(candidato, languages).length > 0;
 
   if (!hablaTodos(principal)) {
     const otro = languages.find(
@@ -97,8 +115,14 @@ export function normalizarIdiomas(entrada: {
     if (otro) {
       principal = otro;
     } else {
+      const cuantos = (voz: VozDelCatalogo) =>
+        languages.filter((idioma) => hablaIdioma(voz, idioma)).length;
+      // puedeSerPrincipal garantiza voces; la primera que más habla.
+      const masCapaz = IDIOMAS[principal].voces!.reduce((mejor, voz) =>
+        cuantos(voz) > cuantos(mejor) ? voz : mejor
+      );
       const atendidos = languages.filter((idioma) =>
-        vozHabla(principal, idioma)
+        hablaIdioma(masCapaz, idioma)
       );
       for (const idioma of languages) {
         if (!atendidos.includes(idioma)) {

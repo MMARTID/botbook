@@ -3,8 +3,11 @@
  * del catálogo de idiomas (lib/idiomas) y cada voz candidata del
  * laboratorio, crea un assistant temporal con el builder real, comprueba
  * lo que Telnyx guardó, prueba volver a la voz Ultra (Telnyx exige borrar
- * los campos del proveedor anterior) y lo borra todo al terminar, también
- * la app TeXML que Telnyx crea por assistant y no borra con él.
+ * los campos del proveedor anterior y fusiona los que no se borran) y lo
+ * borra todo al terminar, también la app TeXML que Telnyx crea por
+ * assistant y no borra con él. El caso «de catalán a español» manda el
+ * payload completo de español sobre un assistant de catalán, como al
+ * cambiar de idioma principal, y compara con un assistant nuevo.
  *
  * Uso (con TELNYX_API_KEY en el entorno):
  *   npx tsx scripts/verificarIdiomas.ts
@@ -23,6 +26,8 @@ interface Caso {
   voiceLanguage: CodigoDeIdioma;
   /** Voz candidata del laboratorio en lugar de la del catálogo. */
   vozCandidata?: { id: string; ajustes?: Record<string, unknown> };
+  /** Tras crearlo, pasarlo a estos idiomas con el payload completo. */
+  cambiarA?: { languages: CodigoDeIdioma[]; voiceLanguage: CodigoDeIdioma };
 }
 
 const CASOS: Caso[] = [
@@ -74,9 +79,72 @@ const CASOS: Caso[] = [
     voiceLanguage: "gl-ES",
     vozCandidata: { id: "Azure.gl-ES-SabelaNeural" },
   },
+  {
+    nombre: "De catalán con MiniMax a español",
+    languages: ["es-ES", "ca-ES"],
+    voiceLanguage: "ca-ES",
+    vozCandidata: {
+      id: "Minimax.speech-2.8-turbo.Spanish_SereneWoman",
+      ajustes: { language_boost: "Catalan" },
+    },
+    cambiarA: { languages: ["es-ES"], voiceLanguage: "es-ES" },
+  },
+  {
+    nombre: "De español a catalán",
+    languages: ["es-ES"],
+    voiceLanguage: "es-ES",
+    cambiarA: { languages: ["es-ES", "ca-ES"], voiceLanguage: "ca-ES" },
+  },
 ];
 
-const VOZ_ULTRA = IDIOMAS["es-ES"].voces!.femenina.id;
+const VOZ_ULTRA = IDIOMAS["es-ES"].voces![0].id;
+
+/** Lo que quede de Soniox o de MiniMax en un assistant que ya no los usa. */
+function restos(guardado: {
+  voiceSettings: Record<string, unknown>;
+  transcription: Record<string, unknown>;
+  interruptionSettings: Record<string, unknown>;
+}): string[] {
+  const ajustes = (guardado.transcription.settings ?? {}) as Record<
+    string,
+    unknown
+  >;
+  const plan = (guardado.interruptionSettings.start_speaking_plan ??
+    {}) as Record<string, unknown>;
+  return [
+    ["voice_settings.language", guardado.voiceSettings.language],
+    ["voice_settings.language_boost", guardado.voiceSettings.language_boost],
+    ["transcription.settings.language_hints", ajustes.language_hints],
+    [
+      "transcription.settings.enable_endpoint_detection",
+      ajustes.enable_endpoint_detection,
+    ],
+    [
+      "transcription.settings.max_endpoint_delay_ms",
+      ajustes.max_endpoint_delay_ms,
+    ],
+    [
+      "interruption_settings.start_speaking_plan.transcription_endpointing_plan",
+      plan.transcription_endpointing_plan,
+    ],
+  ]
+    .filter(([, valor]) => valor !== null && valor !== undefined)
+    .map(([campo, valor]) => `queda ${campo}=${JSON.stringify(valor)}`);
+}
+
+function payloadBase(
+  idiomas: ReturnType<typeof resolverIdiomas>,
+  marca: string
+) {
+  return {
+    businessId: "verificacion-idiomas",
+    agentId: marca,
+    businessName: "Verificación de idiomas",
+    instructions: "Assistant temporal de verificación de idiomas. Borrar.",
+    greeting: saludoDelNegocio(idiomas, "Verificación de idiomas"),
+    idiomas,
+  };
+}
 
 function mensajeDeError(error: unknown): string {
   const detalle = (error as { error?: unknown })?.error;
@@ -92,12 +160,7 @@ async function verificar(caso: Caso, marca: string): Promise<string[]> {
   const idiomas = resolverIdiomas({ ...caso, voiceGender: "femenina" });
   const voz = caso.vozCandidata?.id ?? idiomas.voz.id;
   const payload = buildTelnyxAssistantPayload({
-    businessId: "verificacion-idiomas",
-    agentId: marca,
-    businessName: "Verificación de idiomas",
-    instructions: "Assistant temporal de verificación de idiomas. Borrar.",
-    greeting: saludoDelNegocio(idiomas, "Verificación de idiomas"),
-    idiomas,
+    ...payloadBase(idiomas, marca),
     voice: voz,
   });
   if (caso.vozCandidata?.ajustes) {
@@ -128,18 +191,61 @@ async function verificar(caso: Caso, marca: string): Promise<string[]> {
       }
     }
 
-    // Volver a la voz Ultra: el adaptador borra `language`; si la voz era
-    // de MiniMax, Telnyx puede exigir borrar también `language_boost`.
-    try {
-      await telnyxAiAdapter.updateAssistant(id, {
-        voiceSettings: { voice: VOZ_ULTRA, expressive_mode: true },
+    if (caso.cambiarA) {
+      // Como al cambiar de idioma principal: el payload completo del nuevo.
+      const nuevo = resolverIdiomas({
+        ...caso.cambiarA,
+        voiceGender: "femenina",
       });
-      const despues = await telnyxAiAdapter.getAssistantVoiceConfig(id);
-      if (despues.voiceSettings.voice !== VOZ_ULTRA) {
-        problemas.push("no volvió a la voz Ultra");
+      const destino = buildTelnyxAssistantPayload({
+        ...payloadBase(nuevo, marca),
+        voice: nuevo.voz.id,
+      });
+      try {
+        await telnyxAiAdapter.updateAssistant(id, {
+          greeting: destino.greeting,
+          voiceSettings: destino.voiceSettings,
+          transcription: destino.transcription,
+          interruptionSettings: destino.interruptionSettings,
+        });
+        const despues = await telnyxAiAdapter.getAssistantVoiceConfig(id);
+        if (despues.voiceSettings.voice !== nuevo.voz.id) {
+          problemas.push("no cambió de voz");
+        }
+        if (despues.transcription.model !== destino.transcription?.model) {
+          problemas.push(
+            `transcripción tras el cambio ${String(despues.transcription.model)}`
+          );
+        }
+        const umbral = (despues.interruptionSettings as Record<string, unknown>)
+          .interrupt_prediction_threshold;
+        problemas.push(
+          ...(destino.transcription?.model === "deepgram/flux"
+            ? restos(despues)
+            : umbral !== null && umbral !== undefined
+              ? [`queda interrupt_prediction_threshold=${String(umbral)}`]
+              : [])
+        );
+      } catch (error) {
+        problemas.push(`cambiar de idioma: ${mensajeDeError(error)}`);
       }
-    } catch (error) {
-      problemas.push(`volver a Ultra: ${mensajeDeError(error)}`);
+    } else {
+      // Volver a la voz Ultra: el adaptador borra `language` y
+      // `language_boost` (Telnyx los conserva si no se borran).
+      try {
+        await telnyxAiAdapter.updateAssistant(id, {
+          voiceSettings: { voice: VOZ_ULTRA, expressive_mode: true },
+        });
+        const despues = await telnyxAiAdapter.getAssistantVoiceConfig(id);
+        if (despues.voiceSettings.voice !== VOZ_ULTRA) {
+          problemas.push("no volvió a la voz Ultra");
+        }
+        problemas.push(
+          ...restos(despues).filter((resto) => resto.includes("voice_settings"))
+        );
+      } catch (error) {
+        problemas.push(`volver a Ultra: ${mensajeDeError(error)}`);
+      }
     }
   } catch (error) {
     problemas.push(`crear: ${mensajeDeError(error)}`);

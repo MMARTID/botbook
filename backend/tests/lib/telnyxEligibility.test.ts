@@ -219,6 +219,42 @@ describe("resolveTelnyxEligibility", () => {
     expect(result.voiceId).toBe("Soniox.tts-rt-v2.Marta");
   });
 
+  describe("con una voz elegida por el dueño", () => {
+    const SERENA = "Minimax.speech-2.8-turbo.Spanish_SereneWoman";
+    const catalanConSerena = {
+      ...DEFAULT_AGENT_SETTINGS,
+      languages: ["es-ES" as const, "ca-ES" as const],
+      voiceLanguage: "ca-ES" as const,
+      voz: SERENA,
+    };
+
+    it("atiende ella si sigue en la cuenta", async () => {
+      mockedListVoices.mockImplementation(async (proveedor) =>
+        proveedor === "minimax"
+          ? [{ id: SERENA, language: "es-ES", gender: "female" }]
+          : []
+      );
+
+      const result = await resolveTelnyxEligibility(catalanConSerena);
+
+      expect(result.voiceId).toBe(SERENA);
+      expect(mockedListVoices).toHaveBeenCalledWith("minimax");
+    });
+
+    it("si ya no está, prueba las demás de su género del catálogo antes que la red de seguridad", async () => {
+      mockedListVoices.mockImplementation(async (proveedor) =>
+        proveedor === "soniox" ? SONIOX_VOICES : []
+      );
+
+      const result = await resolveTelnyxEligibility(catalanConSerena);
+
+      expect(result.voiceId).toBe("Soniox.tts-rt-v2.Marta");
+      // MiniMax (Serena) y Soniox (Marta, la siguiente): una consulta por
+      // proveedor, no una por voz, y sin llegar a Azure.
+      expect(mockedListVoices).toHaveBeenCalledTimes(2);
+    });
+  });
+
   it("no es elegible si la cuenta no tiene voz compatible", async () => {
     mockedListVoices.mockResolvedValue([]);
 

@@ -11,8 +11,9 @@
  *
  * Datos de partida (AGENTS.md § «Idiomas de atención y voz en Telnyx»):
  * ninguna voz Ultra ni deepgram/flux cubre catalán, euskera ni gallego;
- * Soniox sí (63 idiomas por voz), con unos 300 ms más de síntesis por
- * respuesta que Ultra (medido el 2026-10-03).
+ * Soniox sí (63 idiomas por voz). Con llamadas reales (2026-10-03), la voz
+ * apenas cambia la espera: Soniox y MiniMax contestan igual en catalán; lo
+ * que la alarga es la transcripción sin flux.
  */
 
 /**
@@ -54,15 +55,26 @@ export type IdiomaDeRetell =
   | "pt-PT"
   | "nl-NL";
 
+/** Los valores de `language_boost` de MiniMax que usa el catálogo (el SDK
+ * de Telnyx tipa la lista completa: «Catalan» está). */
+export type RefuerzoDeMiniMax = "Catalan";
+
+/** Proveedores de las voces del catálogo, como los nombra Telnyx al
+ * listarlas (`listVoices`). */
+export type ProveedorDeVoz = "telnyx" | "soniox" | "minimax" | "azure";
+
 export interface VozDelCatalogo {
-  /** Identificador de Telnyx: `Telnyx.Ultra.<uuid>` o
-   * `Soniox.tts-rt-v2.<Nombre>`. */
+  /** Identificador de Telnyx: `Telnyx.Ultra.<uuid>`,
+   * `Soniox.tts-rt-v2.<Nombre>`, `Minimax.<modelo>.<voz>` o
+   * `Azure.<locale>-<Nombre>Neural`. */
   id: string;
-  proveedor: "telnyx" | "soniox";
+  proveedor: ProveedorDeVoz;
   nombre: string;
-  /** Idiomas que pronuncia bien. Las de Soniox hablan cualquiera y
-   * arrancan en el de `voice_settings.language`; una Ultra, los suyos.
-   * Un idioma solo puede estar activo si la voz del principal lo habla. */
+  genero: GeneroDeVoz;
+  /** Idiomas que pronuncia bien (escuchados en el laboratorio de voces).
+   * Las de Soniox hablan cualquiera y arrancan en el de
+   * `voice_settings.language`; el resto, los suyos. Un idioma solo puede
+   * estar activo si la voz que atiende lo habla. */
   habla: "todos" | readonly CodigoDeIdioma[];
 }
 
@@ -83,9 +95,14 @@ export interface IdiomaDelCatalogo {
   /** Locale de Retell (el respaldo), o null si no lo tiene; y si exige la
    * cadena de voces multilingüe (Retell rechaza ca-ES con Cartesia). */
   retell: { locale: IdiomaDeRetell | null; vozMultilingue: boolean };
-  /** Voces por género si puede ser idioma principal; sin ellas, solo
-   * puede acompañar a un principal cuya voz lo hable. */
-  voces: Record<GeneroDeVoz, VozDelCatalogo> | null;
+  /** Voces que puede elegir el negocio con este idioma como principal, en
+   * orden de preferencia: sin elección, atiende la primera de su género
+   * que hable todos sus idiomas. Sin voces, el idioma solo puede acompañar
+   * a un principal cuya voz lo hable. */
+  voces: readonly VozDelCatalogo[] | null;
+  /** `language_boost` de las voces de MiniMax para que hablen este idioma
+   * (sin él, leen el catalán como castellano). */
+  refuerzoDeMiniMax?: RefuerzoDeMiniMax;
   /** Frase extra del prompt mientras el idioma está activo. */
   notaParaElPrompt?: string;
 }
@@ -93,39 +110,69 @@ export interface IdiomaDelCatalogo {
 /**
  * Voces Ultra curadas por idioma y género (decisión del usuario
  * 2026-09-14): tono profesional y cercano, coherente entre idiomas. «Blanca
- * - Graceful Host» se usa desde el 2026-09-12. Hablan su idioma y los otros
- * dos de la tríada que ya atendían en producción; alemán, italiano,
- * portugués y neerlandés se añadirán tras escuchar cómo los pronuncian.
+ * - Graceful Host» se usa desde el 2026-09-12. Hablan su idioma y los
+ * extranjeros que se ofrecen: alemán, italiano, portugués y neerlandés,
+ * aprobados de oído por el usuario el 2026-10-03 (laboratorio de voces).
  */
-const ULTRA_HABLA = ["es-ES", "en-GB", "fr-FR"] as const;
+const ULTRA_HABLA = [
+  "es-ES",
+  "en-GB",
+  "fr-FR",
+  "de-DE",
+  "it-IT",
+  "pt-PT",
+  "nl-NL",
+] as const;
 
-const ultra = (uuid: string, nombre: string): VozDelCatalogo => ({
+const ultra = (
+  uuid: string,
+  nombre: string,
+  genero: GeneroDeVoz
+): VozDelCatalogo => ({
   id: `Telnyx.Ultra.${uuid}`,
   proveedor: "telnyx",
   nombre,
+  genero,
   habla: ULTRA_HABLA,
 });
 
 /**
- * Voces de Soniox para catalán, euskera y gallego como idioma principal:
- * cada una habla los 63 idiomas de Soniox, así que hay una por género y no
- * por idioma. Marta y Sergio, con acento español, elegidas por el usuario
- * el 2026-10-02 escuchando muestras en los cuatro idiomas.
+ * Voces de Soniox: cada una habla los 63 idiomas de Soniox, así que son las
+ * de por defecto de catalán, euskera y gallego (atienden también el inglés
+ * o el alemán que active el negocio). Marta y Sergio, con acento español,
+ * elegidas por el usuario el 2026-10-02 escuchando muestras.
  */
-const VOCES_DE_SONIOX: Record<GeneroDeVoz, VozDelCatalogo> = {
-  femenina: {
-    id: "Soniox.tts-rt-v2.Marta",
-    proveedor: "soniox",
-    nombre: "Marta",
-    habla: "todos",
-  },
-  masculina: {
-    id: "Soniox.tts-rt-v2.Sergio",
-    proveedor: "soniox",
-    nombre: "Sergio",
-    habla: "todos",
-  },
+const MARTA: VozDelCatalogo = {
+  id: "Soniox.tts-rt-v2.Marta",
+  proveedor: "soniox",
+  nombre: "Marta",
+  genero: "femenina",
+  habla: "todos",
 };
+const SERGIO: VozDelCatalogo = {
+  id: "Soniox.tts-rt-v2.Sergio",
+  proveedor: "soniox",
+  nombre: "Sergio",
+  genero: "masculina",
+  habla: "todos",
+};
+
+/** Voces nativas de Azure y de MiniMax para un idioma regional: hablan
+ * ese idioma y el castellano (escuchadas en los dos el 2026-10-03), no el
+ * resto. */
+const regional = (
+  proveedor: "azure" | "minimax",
+  id: string,
+  nombre: string,
+  genero: GeneroDeVoz,
+  idioma: CodigoDeIdioma
+): VozDelCatalogo => ({
+  id,
+  proveedor,
+  nombre,
+  genero,
+  habla: [idioma, "es-ES"],
+});
 
 export const IDIOMAS: Record<CodigoDeIdioma, IdiomaDelCatalogo> = {
   "es-ES": {
@@ -135,10 +182,10 @@ export const IDIOMAS: Record<CodigoDeIdioma, IdiomaDelCatalogo> = {
     saludo: "Hola, gracias por llamar a {negocio}. ¿En qué te puedo ayudar?",
     transcripcion: { flux: "es", soniox: "es" },
     retell: { locale: "es-ES", vozMultilingue: false },
-    voces: {
-      femenina: ultra("538a8872-3799-4df5-b373-b78493b766c6", "Blanca"),
-      masculina: ultra("13ff5deb-2591-42ad-a356-63a04e524411", "Marcos"),
-    },
+    voces: [
+      ultra("538a8872-3799-4df5-b373-b78493b766c6", "Blanca", "femenina"),
+      ultra("13ff5deb-2591-42ad-a356-63a04e524411", "Marcos", "masculina"),
+    ],
   },
   "en-GB": {
     iso: "en",
@@ -147,10 +194,10 @@ export const IDIOMAS: Record<CodigoDeIdioma, IdiomaDelCatalogo> = {
     saludo: "Hello, thank you for calling {negocio}. How can I help you?",
     transcripcion: { flux: "en", soniox: "en" },
     retell: { locale: "en-GB", vozMultilingue: false },
-    voces: {
-      femenina: ultra("2f251ac3-89a9-4a77-a452-704b474ccd01", "Lucy"),
-      masculina: ultra("4bc3cb8c-adb9-4bb8-b5d5-cbbef950b991", "George"),
-    },
+    voces: [
+      ultra("2f251ac3-89a9-4a77-a452-704b474ccd01", "Lucy", "femenina"),
+      ultra("4bc3cb8c-adb9-4bb8-b5d5-cbbef950b991", "George", "masculina"),
+    ],
   },
   "fr-FR": {
     iso: "fr",
@@ -160,10 +207,10 @@ export const IDIOMAS: Record<CodigoDeIdioma, IdiomaDelCatalogo> = {
       "Bonjour, merci d'avoir appelé {negocio}. Comment puis-je vous aider ?",
     transcripcion: { flux: "fr", soniox: "fr" },
     retell: { locale: "fr-FR", vozMultilingue: false },
-    voces: {
-      femenina: ultra("c96a7d7d-3457-4979-8665-522f7b3e36fb", "Léa"),
-      masculina: ultra("7345dfa5-ee04-44d2-abf4-29262b880ab4", "Laurent"),
-    },
+    voces: [
+      ultra("c96a7d7d-3457-4979-8665-522f7b3e36fb", "Léa", "femenina"),
+      ultra("7345dfa5-ee04-44d2-abf4-29262b880ab4", "Laurent", "masculina"),
+    ],
   },
   "ca-ES": {
     iso: "ca",
@@ -172,7 +219,58 @@ export const IDIOMAS: Record<CodigoDeIdioma, IdiomaDelCatalogo> = {
     saludo: "Hola, gràcies per trucar a {negocio}. En què et puc ajudar?",
     transcripcion: { flux: null, soniox: "ca" },
     retell: { locale: "ca-ES", vozMultilingue: true },
-    voces: VOCES_DE_SONIOX,
+    // Todas aprobadas de oído el 2026-10-03. Con llamadas reales, MiniMax y
+    // Soniox contestan igual de rápido; Soniox va primero porque habla
+    // también los idiomas extranjeros. Las de MiniMax se llaman en su
+    // catálogo por cómo suenan («Serene Woman»): aquí, con nombre propio.
+    voces: [
+      MARTA,
+      SERGIO,
+      regional(
+        "azure",
+        "Azure.ca-ES-JoanaNeural",
+        "Joana",
+        "femenina",
+        "ca-ES"
+      ),
+      regional("azure", "Azure.ca-ES-AlbaNeural", "Alba", "femenina", "ca-ES"),
+      regional(
+        "azure",
+        "Azure.ca-ES-EnricNeural",
+        "Enric",
+        "masculina",
+        "ca-ES"
+      ),
+      regional(
+        "minimax",
+        "Minimax.speech-2.8-turbo.Spanish_SereneWoman",
+        "Serena",
+        "femenina",
+        "ca-ES"
+      ),
+      regional(
+        "minimax",
+        "Minimax.speech-2.8-turbo.Spanish_Kind-heartedGirl",
+        "Clara",
+        "femenina",
+        "ca-ES"
+      ),
+      regional(
+        "minimax",
+        "Minimax.speech-2.8-turbo.Spanish_ThoughtfulMan",
+        "Tomàs",
+        "masculina",
+        "ca-ES"
+      ),
+      regional(
+        "minimax",
+        "Minimax.speech-2.8-turbo.Spanish_RationalMan",
+        "Ramon",
+        "masculina",
+        "ca-ES"
+      ),
+    ],
+    refuerzoDeMiniMax: "Catalan",
     // Valenciano y balear son el mismo idioma (un solo modelo «ca»); el
     // cliente debe sentir que se le atiende en su variedad.
     notaParaElPrompt:
@@ -186,7 +284,24 @@ export const IDIOMAS: Record<CodigoDeIdioma, IdiomaDelCatalogo> = {
     saludo: "Kaixo, {negocio}. Zertan lagun zaitzaket?",
     transcripcion: { flux: null, soniox: "eu" },
     retell: { locale: null, vozMultilingue: false },
-    voces: VOCES_DE_SONIOX,
+    voces: [
+      MARTA,
+      SERGIO,
+      regional(
+        "azure",
+        "Azure.eu-ES-AinhoaNeural",
+        "Ainhoa",
+        "femenina",
+        "eu-ES"
+      ),
+      regional(
+        "azure",
+        "Azure.eu-ES-AnderNeural",
+        "Ander",
+        "masculina",
+        "eu-ES"
+      ),
+    ],
   },
   "gl-ES": {
     iso: "gl",
@@ -197,7 +312,18 @@ export const IDIOMAS: Record<CodigoDeIdioma, IdiomaDelCatalogo> = {
     // Retell admite gl-ES; su voz Cartesia está sin verificar en gallego
     // (verificarIdiomas.ts, PR de medición).
     retell: { locale: "gl-ES", vozMultilingue: false },
-    voces: VOCES_DE_SONIOX,
+    voces: [
+      MARTA,
+      SERGIO,
+      regional(
+        "azure",
+        "Azure.gl-ES-SabelaNeural",
+        "Sabela",
+        "femenina",
+        "gl-ES"
+      ),
+      regional("azure", "Azure.gl-ES-RoiNeural", "Roi", "masculina", "gl-ES"),
+    ],
   },
   "de-DE": {
     iso: "de",
@@ -249,8 +375,9 @@ export const IDIOMAS: Record<CodigoDeIdioma, IdiomaDelCatalogo> = {
  * las encuestas lingüísticas): español con todos sus acentos siempre;
  * catalán, euskera y gallego solo como idioma principal (en Cataluña es
  * obligatorio poder atender en catalán: Codi de consum, art. 128-1); e
- * inglés y francés como otros idiomas. Alemán, italiano, portugués y
- * neerlandés entrarán tras escuchar cómo los pronuncia la voz Ultra.
+ * inglés, francés, alemán, italiano, portugués y neerlandés como otros
+ * idiomas (los cuatro últimos desde el 2026-10-03, tras escuchar cómo los
+ * pronuncia la voz Ultra).
  */
 export interface Mercado {
   /** Siempre activo: la voz de cualquier principal debe hablarlo. */
@@ -263,7 +390,7 @@ export const MERCADOS = {
   ES: {
     obligatorio: "es-ES",
     principales: ["es-ES", "ca-ES", "eu-ES", "gl-ES"],
-    secundarios: ["en-GB", "fr-FR"],
+    secundarios: ["en-GB", "fr-FR", "de-DE", "it-IT", "pt-PT", "nl-NL"],
   },
 } as const satisfies Record<string, Mercado>;
 
@@ -280,15 +407,37 @@ export function puedeSerPrincipal(codigo: CodigoDeIdioma): boolean {
   return IDIOMAS[codigo].voces !== null;
 }
 
-/** ¿La voz de este idioma principal habla también `otro`? */
+export function hablaIdioma(
+  voz: VozDelCatalogo,
+  idioma: CodigoDeIdioma
+): boolean {
+  return voz.habla === "todos" || voz.habla.includes(idioma);
+}
+
+/** Las voces de un idioma principal que hablan todos `idiomas`, en el
+ * orden del catálogo. */
+export function vocesQueHablan(
+  principal: CodigoDeIdioma,
+  idiomas: readonly CodigoDeIdioma[]
+): VozDelCatalogo[] {
+  return (IDIOMAS[principal].voces ?? []).filter((voz) =>
+    idiomas.every((idioma) => hablaIdioma(voz, idioma))
+  );
+}
+
+/** ¿Alguna voz de este idioma principal habla también `otro`? */
 export function vozHabla(
   principal: CodigoDeIdioma,
   otro: CodigoDeIdioma
 ): boolean {
-  const voces = IDIOMAS[principal].voces;
-  if (!voces) return false;
-  const habla = voces.femenina.habla;
-  return habla === "todos" || habla.includes(otro);
+  return vocesQueHablan(principal, [otro]).length > 0;
+}
+
+/** ¿Es el identificador de una voz del catálogo (de cualquier idioma)? */
+export function esVozDelCatalogo(id: unknown): id is string {
+  return Object.values(IDIOMAS).some((idioma) =>
+    idioma.voces?.some((voz) => voz.id === id)
+  );
 }
 
 export function componerSaludo(

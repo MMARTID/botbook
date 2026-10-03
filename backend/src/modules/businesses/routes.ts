@@ -53,6 +53,8 @@ const VistaPreviaDeIdiomasSchema = z.object({
   languages: z.array(z.string()).max(CODIGOS_DE_IDIOMA.length * 2),
   voiceLanguage: z.string(),
   voiceGender: z.enum(GENEROS_DE_VOZ).default("femenina"),
+  // Una voz que no es del catálogo se ignora: atiende la de su género.
+  voz: z.string().max(200).optional(),
 });
 
 const UpdateBusinessSchema = z.object({
@@ -421,6 +423,7 @@ export async function businessesRoutes(fastify: FastifyInstance) {
                 ? data.voiceLanguage
                 : IDIOMA_OBLIGATORIO,
               voiceGender: data.voiceGender,
+              voz: data.voz,
             },
             business.name
           )
@@ -476,6 +479,7 @@ export async function businessesRoutes(fastify: FastifyInstance) {
               const next = data.agentSettings;
               const voiceChanged =
                 next.voiceGender !== saved.voiceGender ||
+                next.voz !== saved.voz ||
                 next.voiceLanguage !== saved.voiceLanguage ||
                 next.languages.join(",") !== saved.languages.join(",");
               if (voiceChanged) {

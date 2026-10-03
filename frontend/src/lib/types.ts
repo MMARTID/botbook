@@ -52,6 +52,9 @@ export type AgentSettings = {
   /** Idioma principal: el del saludo y el que decide la voz. Uno de los
    * activos. */
   voiceLanguage: VoiceLanguage;
+  /** La voz elegida entre las de su idioma principal (id del catálogo del
+   * backend). Sin valor, atiende la primera de su género. */
+  voz?: string;
   /** «Cuándo pasarme llamadas» (fase 4 del plan de telefonía). Sin valor,
    * el backend aplica el de por defecto (ver lib/pasar-llamadas.ts). */
   pasarLlamadas?: ModoDePasarLlamadas;
@@ -65,9 +68,22 @@ export type ModoDePasarLlamadas = "nunca" | "si_lo_pide" | "siempre";
 export type AgentLanguage = string;
 
 /** Idioma principal (antes «idioma de la voz»): el del saludo y el que
- * decide la voz (Ultra para español; Soniox para catalán, euskera y
- * gallego). */
+ * decide qué voces se pueden elegir (Ultra en español; Soniox, Azure o
+ * MiniMax en catalán, euskera y gallego). */
 export type VoiceLanguage = AgentLanguage;
+
+/** Una voz que se puede elegir con un idioma principal. */
+export type VozDelPanel = {
+  id: string;
+  nombre: string;
+  genero: AgentSettings["voiceGender"];
+  /** Los idiomas que habla («todos» si los habla todos). */
+  habla: "todos" | AgentLanguage[];
+  /** Las Ultra: las más expresivas y las que antes contestan. */
+  expresiva: boolean;
+  /** Ruta de su muestra en la app (public/voces). */
+  muestra: string;
+};
 
 /** GET /business/me/idiomas: lo que se ofrece en el panel. */
 export type CatalogoDeIdiomas = {
@@ -75,10 +91,11 @@ export type CatalogoDeIdiomas = {
   principales: Array<{
     codigo: AgentLanguage;
     etiqueta: string;
-    /** Otros idiomas que su voz puede hablar. */
+    /** Otros idiomas que alguna de sus voces habla. */
     secundariosCompatibles: AgentLanguage[];
-    /** Voz de Soniox: otra voz, algo menos expresiva. */
-    vozMultilingue: boolean;
+    /** Las voces que se pueden elegir, la de por defecto de cada género
+     * primero. */
+    voces: VozDelPanel[];
   }>;
   secundarios: Array<{ codigo: AgentLanguage; etiqueta: string }>;
   /** Etiquetas de todos los idiomas, también los que ya no se ofrecen. */
@@ -89,6 +106,9 @@ export type CatalogoDeIdiomas = {
 export type VistaPreviaDeIdiomas = {
   languages: AgentLanguage[];
   voiceLanguage: VoiceLanguage;
+  /** La voz que atenderá y su género. */
+  voz: string;
+  voiceGender: AgentSettings["voiceGender"];
   entradilla: string;
   saludo: string;
   avisos: string[];

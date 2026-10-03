@@ -230,6 +230,25 @@ describe("PATCH /business/me (móvil del dueño para WhatsApp)", () => {
     expect(mockedCambiarMovil).toHaveBeenCalledWith("biz_1", null);
   });
 
+  it("en un plan sin voz e idiomas, elegir una voz es un 403 aunque no cambie nada más", async () => {
+    mockedBusinessFindUnique.mockResolvedValueOnce({
+      agentSettings: DEFAULT_AGENT_SETTINGS,
+      plan: null,
+      stripePriceId: null,
+    } as never);
+
+    const response = await patch({
+      agentSettings: {
+        ...DEFAULT_AGENT_SETTINGS,
+        voz: "Telnyx.Ultra.538a8872-3799-4df5-b373-b78493b766c6",
+      },
+    });
+
+    expect(response.statusCode).toBe(403);
+    expect(response.json().code).toBe("PLAN_LIMIT_VOICE");
+    expect(mockedBusinessUpdate).not.toHaveBeenCalled();
+  });
+
   it("notificationPrefs se fusiona con lo guardado y rechaza claves desconocidas", async () => {
     mockedBusinessFindUnique.mockResolvedValueOnce({
       notificationPrefs: { otraClave: true },
@@ -555,6 +574,27 @@ describe("idiomas de la recepcionista en el panel", () => {
       languages: ["es-ES", "gl-ES"],
       voiceLanguage: "gl-ES",
       saludo: "Ola, grazas por chamar a Perruquería Ana. En que te podo axudar?",
+    });
+  });
+
+  it("POST /business/me/idiomas/previsualizar devuelve la voz elegida con su género", async () => {
+    mockedBusinessFindUnique.mockResolvedValue({ name: "Perruquería Ana" } as any);
+    const fastify = await buildServer();
+
+    const response = await fastify.inject({
+      method: "POST",
+      url: "/business/me/idiomas/previsualizar",
+      payload: {
+        languages: ["es-ES", "gl-ES"],
+        voiceLanguage: "gl-ES",
+        voiceGender: "femenina",
+        voz: "Azure.gl-ES-RoiNeural",
+      },
+    });
+
+    expect(response.json()).toMatchObject({
+      voz: "Azure.gl-ES-RoiNeural",
+      voiceGender: "masculina",
     });
   });
 });

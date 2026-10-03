@@ -474,11 +474,13 @@ export function adaptManagedPromptForTelnyx(
  * siga los cambios de idioma dentro de la llamada.
  *
  * Soniox no trae turn-taking propio como flux: el fin de turno lo marca su
- * endpoint detection, apagado por defecto en Telnyx. 700 ms, dentro de los
- * 500-800 que Telnyx recomienda para un turno ágil: con los 1200 ms de su
- * ejemplo el usuario notó la espera frente a los agentes con flux (prueba
- * en el navegador, 2026-10-02). `smart_format`/`numerals`/`keyterm` son de
- * Deepgram: las palabras clave van en `context`, su equivalente en Soniox.
+ * endpoint detection, apagado por defecto en Telnyx. 500 ms, el mínimo:
+ * con llamadas reales (2026-10-03, scripts/medirLatenciaDeTurnos.ts), pasar
+ * de 700 a 500 ms y el margen sin puntuación de 0.8 a 0.5 s (abajo) bajó la
+ * espera con clientes que hablan catalán de 2100 a 1434 ms (p50), sin más
+ * solapes. Aun así queda entre medio segundo y un segundo por encima de
+ * flux. `smart_format`/`numerals`/`keyterm` son de Deepgram: las palabras
+ * clave van en `context`, su equivalente en Soniox.
  */
 function transcripcionDeSoniox(
   pistas: readonly string[],
@@ -493,7 +495,7 @@ function transcripcionDeSoniox(
         ? { context: boostedKeywords.join(",") }
         : {}),
       enable_endpoint_detection: true,
-      max_endpoint_delay_ms: 700,
+      max_endpoint_delay_ms: 500,
     },
   };
 }
@@ -516,7 +518,10 @@ export interface BuildTelnyxAssistantPayloadInput {
   /** Lo que el idioma decide del payload (resolverIdiomas, en
    * lib/idiomas/resolver.ts): el motor de transcripción con sus pistas y el
    * idioma en que arranca una voz de Soniox. */
-  idiomas: Pick<PerfilDeIdiomas, "transcripcion" | "isoDelPrincipal">;
+  idiomas: Pick<
+    PerfilDeIdiomas,
+    "transcripcion" | "isoDelPrincipal" | "refuerzoDeMiniMax"
+  >;
   /** Identificador Telnyx (`Telnyx.<modelo>.<voz>`), de Soniox
    * (`Soniox.tts-rt-v2.<voz>`) o de ElevenLabs vía `api_key_ref` — resuelto
    * contra la API de voces de la cuenta, no fijo. */
@@ -624,9 +629,14 @@ export function buildTelnyxAssistantPayload(
     voiceSettings: {
       voice: input.voice,
       // Las voces de Soniox hablan todos los idiomas: arrancan en el
-      // principal. Las Ultra tienen el suyo.
+      // principal. Las de MiniMax necesitan el refuerzo del idioma (sin él
+      // leen el catalán como castellano). Las Ultra y las de Azure tienen
+      // el suyo.
       ...(input.voice.startsWith("Soniox.")
         ? { language: input.idiomas.isoDelPrincipal }
+        : {}),
+      ...(input.voice.startsWith("Minimax.") && input.idiomas.refuerzoDeMiniMax
+        ? { language_boost: input.idiomas.refuerzoDeMiniMax }
         : {}),
       expressive_mode:
         input.voice.startsWith("Telnyx.Ultra.") ||
@@ -706,15 +716,16 @@ export function buildTelnyxAssistantPayload(
     // transcription_endpointing_plan de Telnyx, que solo aplica a modelos sin
     // turn-taking. Sus defaults (0.4 s de espera y 1.5 s si la frase acaba
     // sin puntuación) se notaban lentos frente a flux en la prueba del
-    // 2026-10-02: se baja la espera a la de flux y el margen sin puntuación
-    // a 0.8 s; con puntuación y con número, los defaults de Telnyx.
+    // 2026-10-02: la espera, la de flux; sin puntuación, 0.5 s (medido con
+    // llamadas reales el 2026-10-03, ver transcripcionDeSoniox); con
+    // puntuación y con número, los defaults de Telnyx.
     interruptionSettings: soniox
       ? {
           start_speaking_plan: {
             wait_seconds: 0.1,
             transcription_endpointing_plan: {
               on_punctuation_seconds: 0.1,
-              on_no_punctuation_seconds: 0.8,
+              on_no_punctuation_seconds: 0.5,
               on_number_seconds: 0.5,
             },
           },

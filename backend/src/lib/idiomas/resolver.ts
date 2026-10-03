@@ -1,9 +1,12 @@
 import {
   IDIOMAS,
   componerSaludo,
+  hablaIdioma,
+  vocesQueHablan,
   type CodigoDeIdioma,
   type GeneroDeVoz,
   type IdiomaDeRetell,
+  type RefuerzoDeMiniMax,
   type VozDelCatalogo,
 } from "./catalogo.js";
 import {
@@ -17,6 +20,8 @@ export interface AjustesDeIdioma {
   languages: readonly CodigoDeIdioma[];
   voiceLanguage: CodigoDeIdioma;
   voiceGender: GeneroDeVoz;
+  /** La voz que eligió el dueño; sin ella, la de su género. */
+  voz?: string;
 }
 
 export type TranscripcionResuelta =
@@ -30,12 +35,18 @@ export interface PerfilDeIdiomas {
   idiomas: CodigoDeIdioma[];
   /** El del saludo y el que decide la voz. */
   principal: CodigoDeIdioma;
+  /** El de la voz que atiende. */
   genero: GeneroDeVoz;
-  /** La voz preferida del catálogo; la de la cuenta se comprueba en
+  /** La voz que atiende, del catálogo; que siga en la cuenta lo comprueba
    * telnyxEligibility.ts. */
   voz: VozDelCatalogo;
+  /** Las otras voces del principal y del mismo género que hablan todos
+   * sus idiomas: la reserva si `voz` ya no está en la cuenta. */
+  alternativas: VozDelCatalogo[];
   /** ISO del principal: `voice_settings.language` de una voz de Soniox. */
   isoDelPrincipal: string;
+  /** `voice_settings.language_boost` de una voz de MiniMax. */
+  refuerzoDeMiniMax: RefuerzoDeMiniMax | null;
   transcripcion: TranscripcionResuelta;
   instruccionDelPrompt: string;
   cambios: CambioDeIdiomas[];
@@ -89,22 +100,74 @@ function construirInstruccionDelPrompt(
   return `Empieza siempre con el saludo en ${IDIOMAS[principal].nombreEnPrompt}. Tras la primera intervención de quien llama, responde y continúa exclusivamente en el idioma que use si es uno de estos: ${lista}. Si cambia entre esos idiomas, acompaña el cambio sin pedirle que elija uno.${notas} No menciones que eres una IA salvo que te lo pregunten.`;
 }
 
+/**
+ * La voz que atiende: la elegida si es del principal y habla todos los
+ * idiomas activos; si no, la primera de su género (o del pedido) que los
+ * hable. Sustituir una elegida que no los habla se anota para avisar al
+ * dueño; una de otro idioma (cambió de principal) se ignora sin más.
+ */
+function elegirVoz(
+  principal: CodigoDeIdioma,
+  idiomas: readonly CodigoDeIdioma[],
+  genero: GeneroDeVoz,
+  elegida: string | undefined
+): {
+  voz: VozDelCatalogo;
+  alternativas: VozDelCatalogo[];
+  cambio: CambioDeIdiomas | null;
+} {
+  // normalizarIdiomas garantiza que alguna voz del principal los habla.
+  const candidatas = vocesQueHablan(principal, idiomas);
+  const delPrincipal = IDIOMAS[principal].voces!.find(
+    (voz) => voz.id === elegida
+  );
+  const valida = delPrincipal && candidatas.includes(delPrincipal);
+  const generoBuscado = delPrincipal?.genero ?? genero;
+  const voz = valida
+    ? delPrincipal
+    : (candidatas.find((candidata) => candidata.genero === generoBuscado) ??
+      candidatas[0]);
+  return {
+    voz,
+    alternativas: candidatas.filter(
+      (candidata) => candidata !== voz && candidata.genero === voz.genero
+    ),
+    cambio:
+      delPrincipal && !valida
+        ? {
+            tipo: "voz",
+            de: delPrincipal,
+            a: voz,
+            noHabla: idiomas.find(
+              (idioma) => !hablaIdioma(delPrincipal, idioma)
+            )!,
+          }
+        : null,
+  };
+}
+
 export function resolverIdiomas(ajustes: AjustesDeIdioma): PerfilDeIdiomas {
   const { languages, voiceLanguage, cambios } = normalizarIdiomas(ajustes);
-  // normalizarIdiomas garantiza un principal con voces propias.
-  const voz = IDIOMAS[voiceLanguage].voces![ajustes.voiceGender];
+  const { voz, alternativas, cambio } = elegirVoz(
+    voiceLanguage,
+    languages,
+    ajustes.voiceGender,
+    ajustes.voz
+  );
   return {
     idiomas: languages,
     principal: voiceLanguage,
-    genero: ajustes.voiceGender,
+    genero: voz.genero,
     voz,
+    alternativas,
     isoDelPrincipal: IDIOMAS[voiceLanguage].iso,
+    refuerzoDeMiniMax: IDIOMAS[voiceLanguage].refuerzoDeMiniMax ?? null,
     transcripcion: resolverTranscripcion(languages),
     instruccionDelPrompt: construirInstruccionDelPrompt(
       languages,
       voiceLanguage
     ),
-    cambios,
+    cambios: cambio ? [...cambios, cambio] : cambios,
   };
 }
 

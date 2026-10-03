@@ -4,10 +4,15 @@ import {
   MODOS_DE_TRANSFERENCIA,
   type TransferenciaAlDueno,
 } from "./transferenciaAlDueno.js";
-import { GENEROS_DE_VOZ } from "./idiomas/catalogo.js";
+import {
+  GENEROS_DE_VOZ,
+  type CodigoDeIdioma,
+  type GeneroDeVoz,
+} from "./idiomas/catalogo.js";
 import {
   EsquemaDeIdiomaPrincipal,
   EsquemaDeIdiomas,
+  EsquemaDeVoz,
   idiomasConocidos,
   normalizarIdiomas,
 } from "./idiomas/ajustes.js";
@@ -32,6 +37,10 @@ const CAMPOS_DE_AJUSTES = {
   // español, Soniox para catalán, euskera y gallego). El campo conserva su
   // nombre histórico (antes «idioma de la voz») para no migrar el JSON.
   voiceLanguage: EsquemaDeIdiomaPrincipal.default("es-ES"),
+  // La voz que eligió el dueño entre las de su idioma principal (desde el
+  // 2026-10-03). Sin valor, la primera de su género: así un negocio que no
+  // elige sigue con la de siempre y recibe las mejoras del catálogo.
+  voz: EsquemaDeVoz.optional(),
   // «Cuándo pasarme llamadas» (docs/historico/PLAN-TELEFONIA-UX.md § 5,
   // fase 4). Sin
   // valor = el de por defecto según el negocio (modoDeTransferenciaPorDefecto
@@ -58,8 +67,31 @@ export const AgentSettingsSchema = z
   // activo con español principal: ver normalizarIdiomas.
   .transform((settings) => {
     const { languages, voiceLanguage } = normalizarIdiomas(settings);
-    return { ...settings, languages, voiceLanguage };
+    return conVozValida({ ...settings, languages, voiceLanguage });
   });
+
+/**
+ * La voz elegida se guarda solo si atiende de verdad: de su idioma
+ * principal y hablando todos sus idiomas (si no, la vista previa ya avisó
+ * de cuál atenderá y se olvida la elección). El género, el de la voz.
+ */
+function conVozValida<
+  T extends {
+    languages: CodigoDeIdioma[];
+    voiceLanguage: CodigoDeIdioma;
+    voiceGender: GeneroDeVoz;
+    voz?: string;
+  },
+>(ajustes: T): T {
+  if (ajustes.voz === undefined) return ajustes;
+  const perfil = resolverIdiomas(ajustes);
+  if (perfil.voz.id !== ajustes.voz) {
+    const sinVoz = { ...ajustes };
+    delete sinVoz.voz;
+    return sinVoz;
+  }
+  return { ...ajustes, voiceGender: perfil.voz.genero };
+}
 
 export type AgentSettings = z.infer<typeof AgentSettingsSchema>;
 
@@ -143,7 +175,8 @@ export function parseAgentSettings(value: unknown): AgentSettings {
     bruto.pasarLlamadas,
     undefined
   );
-  return {
+  const voz = campo(CAMPOS_DE_AJUSTES.voz, bruto.voz, undefined);
+  return conVozValida({
     version: 1,
     tone: campo(CAMPOS_DE_AJUSTES.tone, bruto.tone, porDefecto.tone),
     primaryGoal: campo(
@@ -169,7 +202,8 @@ export function parseAgentSettings(value: unknown): AgentSettings {
     languages,
     voiceLanguage,
     ...(pasarLlamadas ? { pasarLlamadas } : {}),
-  };
+    ...(voz ? { voz } : {}),
+  });
 }
 
 function formatMinutesForHumans(minutes: number): string {

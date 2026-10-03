@@ -231,7 +231,10 @@ export async function getCatalogoDeIdiomas() {
 
 /** Qué hará la recepcionista con una selección de idiomas, sin guardarla. */
 export async function previsualizarIdiomas(
-  ajustes: Pick<AgentSettings, "languages" | "voiceLanguage" | "voiceGender">
+  ajustes: Pick<
+    AgentSettings,
+    "languages" | "voiceLanguage" | "voiceGender" | "voz"
+  >
 ) {
   const { data } = await api.post<VistaPreviaDeIdiomas>(
     "/business/me/idiomas/previsualizar",
