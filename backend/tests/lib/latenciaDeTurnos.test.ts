@@ -1,9 +1,9 @@
 import { describe, it, expect } from "vitest";
 import {
   anotarHerramientas,
+  conVozFuerte,
   medirTurnos,
   percentil,
-  respuestasConHerramienta,
   segmentosDeVoz,
 } from "../../src/lib/latenciaDeTurnos.js";
 
@@ -78,23 +78,15 @@ describe("medirTurnos", () => {
   });
 });
 
-describe("respuestasConHerramienta", () => {
-  it("marca las respuestas que llegaron tras una herramienta, en orden", () => {
-    expect(
-      respuestasConHerramienta([
-        { role: "assistant", text: "Hola, ¿en qué te ayudo?" }, // saludo
-        { role: "user", text: "¿Tenéis hueco el jueves?" },
-        { role: "assistant", text: "" }, // llamada a la herramienta
-        { role: "tool", text: '{"huecos":[]}' },
-        { role: "assistant", text: "El jueves está completo." },
-        { role: "user", text: "Vale." },
-        { role: "user", text: "¿Y el viernes?" }, // dos frases, una respuesta
-        { role: "assistant", text: "El viernes sí." },
-        { role: "user", text: "Adiós." },
-        { role: "assistant", text: "" },
-        { role: "tool", text: '{"result":"ok"}' }, // colgar: sin respuesta
-      ])
-    ).toEqual([true, false]);
+describe("conVozFuerte", () => {
+  it("se queda con los tramos suaves que tienen voz de verdad", () => {
+    const suaves = [
+      { inicio: 0.5, fin: 3 }, // frase: arranque suave y parte fuerte
+      { inicio: 8.4, fin: 8.6 }, // clic del fondo: no pasa del fuerte
+    ];
+    const fuertes = [{ inicio: 0.7, fin: 2.8 }];
+
+    expect(conVozFuerte(suaves, fuertes)).toEqual([{ inicio: 0.5, fin: 3 }]);
   });
 });
 
@@ -104,35 +96,37 @@ describe("anotarHerramientas", () => {
     inicioDeLaRecepcionista: inicio,
     latencia,
   });
+  // El saludo empieza en el segundo 1 de la grabación, a las 10:00:00.
+  const hora = (segundo: number) =>
+    new Date(
+      Date.UTC(2026, 9, 3, 10, 0, 0) + (segundo - 1) * 1000
+    ).toISOString();
+  const medida = {
+    turnos: [turno(8, 0.9), turno(20, 2.8)],
+    largas: [],
+    solapes: 0,
+  };
 
-  it("empareja por orden, contando las respuestas largas", () => {
-    const medida = {
-      turnos: [turno(5, 0.8), turno(20, 1.2)],
-      largas: [turno(12, 6)],
-      solapes: 0,
-    };
+  it("marca los turnos con un mensaje tool entre el cliente y la respuesta", () => {
+    const mensajes = [
+      { role: "assistant", text: "Hola, ¿en qué te ayudo?", sentAt: hora(1) },
+      { role: "user", text: "¿Tenéis hueco?", sentAt: hora(6) },
+      { role: "assistant", text: "Claro.", sentAt: hora(9) },
+      { role: "user", text: "El jueves.", sentAt: hora(17) },
+      { role: "assistant", text: "", sentAt: hora(17.6) },
+      { role: "tool", text: '{"huecos":[]}', sentAt: hora(18.4) },
+      { role: "assistant", text: "Está completo.", sentAt: hora(24) },
+    ];
 
     expect(
-      anotarHerramientas(medida, [false, true, true])?.map((t) => [
-        t.latencia,
-        t.conHerramienta,
-      ])
-    ).toEqual([
-      [0.8, false],
-      [1.2, true],
-    ]);
+      anotarHerramientas(medida, mensajes, 1)?.map((t) => t.conHerramienta)
+    ).toEqual([false, true]);
   });
 
-  it("no anota si el audio y la transcripción no cuadran", () => {
-    const medida = { turnos: [turno(5, 0.8)], largas: [], solapes: 0 };
-
-    expect(anotarHerramientas(medida, [false, true])).toBeNull();
-  });
-
-  it("un solape que no era respuesta (un chasquido al colgar) no impide anotar", () => {
-    const medida = { turnos: [turno(5, 0.8)], largas: [], solapes: 1 };
-
-    expect(anotarHerramientas(medida, [true])?.[0].conHerramienta).toBe(true);
+  it("sin saludo con hora no anota", () => {
+    expect(
+      anotarHerramientas(medida, [{ role: "user", text: "Hola" }], 1)
+    ).toBeNull();
   });
 });
 

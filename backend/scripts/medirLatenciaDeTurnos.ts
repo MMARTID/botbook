@@ -4,15 +4,17 @@
  * y en conjunto. Sirve para comparar configuraciones de idioma y voz con
  * datos (p. ej. Ultra + flux frente a Soniox) antes y después de un ajuste.
  * Separa las respuestas que esperaron a una herramienta (disponibilidad,
- * recados), emparejándolas con la transcripción: esas miden la herramienta,
- * no la voz ni la transcripción. Solo lectura: descarga los audios a un
- * directorio temporal y los borra al terminar.
+ * recados) por la hora de los mensajes `tool` de la transcripción: esas
+ * miden la herramienta, no la voz ni la transcripción. Solo lectura:
+ * descarga los audios a un directorio temporal y los borra al terminar.
  *
  * Uso (con DATABASE_URL y las credenciales de R2 del entorno):
  *   npx tsx scripts/medirLatenciaDeTurnos.ts --business <id> \
  *     [--desde 2026-10-03T00:00] [--hasta …] [--max 20] \
- *     [--umbral -38] [--canal-recepcionista 0|1]
- * Sin --canal-recepcionista, es el canal que habla primero (el saludo).
+ *     [--umbral -38] [--umbral-fuerte -30] [--canal-recepcionista 0|1]
+ * La voz es lo que pasa de --umbral con alguna parte por encima de
+ * --umbral-fuerte (conVozFuerte). Sin --canal-recepcionista, es el canal
+ * que habla primero (el saludo).
  * Requiere ffmpeg y ffprobe.
  */
 import { execFileSync, spawnSync } from "node:child_process";
@@ -23,9 +25,9 @@ import { prisma } from "../src/lib/prisma.js";
 import { getSignedRecordingUrl, initStorage } from "../src/lib/storage.js";
 import {
   anotarHerramientas,
+  conVozFuerte,
   medirTurnos,
   percentil,
-  respuestasConHerramienta,
   segmentosDeVoz,
   type MensajeDeLaTranscripcion,
   type Segmento,
@@ -52,7 +54,7 @@ function duracionDe(fichero: string): number {
   );
 }
 
-function vozDelCanal(
+function tramosAlUmbral(
   fichero: string,
   canal: number,
   umbral: number,
@@ -77,6 +79,18 @@ function vozDelCanal(
   return segmentosDeVoz(salida, duracion);
 }
 
+function vozDelCanal(
+  fichero: string,
+  canal: number,
+  umbrales: { suave: number; fuerte: number },
+  duracion: number
+): Segmento[] {
+  return conVozFuerte(
+    tramosAlUmbral(fichero, canal, umbrales.suave, duracion),
+    tramosAlUmbral(fichero, canal, umbrales.fuerte, duracion)
+  );
+}
+
 const ms = (segundos: number | null) =>
   segundos === null ? "—" : `${Math.round(segundos * 1000)} ms`;
 
@@ -92,7 +106,10 @@ async function main() {
   }
   const desde = argumento("--desde");
   const hasta = argumento("--hasta");
-  const umbral = Number(argumento("--umbral") ?? -38);
+  const umbrales = {
+    suave: Number(argumento("--umbral") ?? -38),
+    fuerte: Number(argumento("--umbral-fuerte") ?? -30),
+  };
   const canalFijo = argumento("--canal-recepcionista");
 
   const llamadas = await prisma.call.findMany({
@@ -134,7 +151,7 @@ async function main() {
       writeFileSync(fichero, Buffer.from(await respuesta.arrayBuffer()));
       const duracion = duracionDe(fichero);
       const canales = [0, 1].map((canal) =>
-        vozDelCanal(fichero, canal, umbral, duracion)
+        vozDelCanal(fichero, canal, umbrales, duracion)
       );
       const recepcionista =
         canalFijo !== undefined
@@ -152,7 +169,8 @@ async function main() {
         []) as unknown as MensajeDeLaTranscripcion[];
       const anotados = anotarHerramientas(
         medida,
-        respuestasConHerramienta(mensajes)
+        mensajes,
+        canales[recepcionista][0]?.inicio ?? 0
       );
       if (anotados) {
         for (const turno of anotados) {

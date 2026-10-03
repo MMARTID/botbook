@@ -5,9 +5,9 @@
  * «espera», sume lo que sume cada pieza (fin de turno, modelo y voz), y
  * sirve igual con flux que con Soniox o cualquier voz.
  *
- * Puro: recibe la salida de `ffmpeg -af silencedetect` de cada canal. El
- * script que descarga y analiza las grabaciones es
- * scripts/medirLatenciaDeTurnos.ts.
+ * Puro: recibe la salida de `ffmpeg -af silencedetect` de cada canal, a
+ * dos umbrales (ver conVozFuerte). El script que descarga y analiza las
+ * grabaciones es scripts/medirLatenciaDeTurnos.ts.
  */
 
 export interface Segmento {
@@ -79,6 +79,26 @@ export function segmentosDeVoz(
   );
 }
 
+/**
+ * Histéresis: los tramos al umbral suave (p. ej. -38 dB, que capta el
+ * arranque y la cola de la voz) que tienen alguna parte por encima del
+ * fuerte (p. ej. -30 dB). El fondo de oficina de la recepcionista suelta
+ * clics que pasan del suave en un instante pero se quedan en -47 dB de RMS:
+ * con un solo umbral salían respuestas de 58 ms y solapes que no existían
+ * (visto el 2026-10-03); con solo el fuerte, el arranque suave de una frase
+ * se detectaba hasta 200 ms tarde.
+ */
+export function conVozFuerte(
+  suaves: Segmento[],
+  fuertes: Segmento[]
+): Segmento[] {
+  return suaves.filter((suave) =>
+    fuertes.some(
+      (fuerte) => fuerte.inicio < suave.fin && fuerte.fin > suave.inicio
+    )
+  );
+}
+
 export interface TurnoMedido {
   finDelCliente: number;
   inicioDeLaRecepcionista: number;
@@ -141,41 +161,12 @@ export function medirTurnos(
   return { turnos, largas, solapes };
 }
 
-/** Un mensaje de `Transcript.messages` (rol y texto). */
+/** Un mensaje de `Transcript.messages`. */
 export interface MensajeDeLaTranscripcion {
   role: string;
   text?: string | null;
-}
-
-/**
- * Por cada respuesta hablada del agente a una intervención del cliente, en
- * orden, si hubo una herramienta por medio. Una respuesta tras consultar
- * disponibilidad o guardar un recado tarda por la herramienta, no por la
- * voz ni la transcripción: mezclarlas esconde lo que se quiere comparar.
- */
-export function respuestasConHerramienta(
-  mensajes: MensajeDeLaTranscripcion[]
-): boolean[] {
-  const respuestas: boolean[] = [];
-  let pendiente = false;
-  let herramienta = false;
-  for (const mensaje of mensajes) {
-    if (mensaje.role === "user") {
-      if (!pendiente) herramienta = false;
-      pendiente = true;
-    } else if (pendiente && mensaje.role === "tool") {
-      herramienta = true;
-    } else if (
-      pendiente &&
-      mensaje.role === "assistant" &&
-      mensaje.text?.trim()
-    ) {
-      respuestas.push(herramienta);
-      pendiente = false;
-      herramienta = false;
-    }
-  }
-  return respuestas;
+  /** Hora del reloj (ISO) a la que Telnyx registró el mensaje. */
+  sentAt?: string | null;
 }
 
 export interface TurnoAnotado extends TurnoMedido {
@@ -183,25 +174,39 @@ export interface TurnoAnotado extends TurnoMedido {
 }
 
 /**
- * Empareja por orden las respuestas del audio (turnos y largas) con las de
- * la transcripción. Los solapes no cuentan como respuesta: si uno lo fuera
- * de verdad, el número de respuestas ya no cuadraría. Si no cuadran (una
- * frase partida en dos, un solape que era respuesta), no anota nada: mejor
- * sin anotar que mal anotado.
+ * Marca cada turno con si esperó a una herramienta (disponibilidad, un
+ * recado): esa espera mide la herramienta, no la voz ni la transcripción.
+ * Va por tiempo: el saludo del agente fija qué hora del reloj es el
+ * segundo `inicioDelSaludo` de la grabación, y un turno esperó a una
+ * herramienta si algún mensaje `tool` cae entre el fin del cliente y el
+ * inicio de la respuesta, con `margen` segundos a cada lado. La hora de
+ * los mensajes `tool` cuadra con el audio; la de los del agente no (unas
+ * veces es el inicio de la frase y otras el final), y emparejar por orden
+ * se descuadraba con cualquier ruido. Sin saludo con hora, devuelve null.
  */
 export function anotarHerramientas(
   medida: LatenciaDeLaLlamada,
-  conHerramienta: boolean[]
+  mensajes: MensajeDeLaTranscripcion[],
+  inicioDelSaludo: number,
+  margen = 0.5
 ): TurnoAnotado[] | null {
-  const respuestas = [...medida.turnos, ...medida.largas].sort(
-    (a, b) => a.inicioDeLaRecepcionista - b.inicioDeLaRecepcionista
+  const saludo = mensajes.find(
+    (mensaje) =>
+      mensaje.role === "assistant" && mensaje.text?.trim() && mensaje.sentAt
   );
-  if (respuestas.length !== conHerramienta.length) return null;
-  return respuestas.flatMap((respuesta, indice) =>
-    medida.turnos.includes(respuesta)
-      ? [{ ...respuesta, conHerramienta: conHerramienta[indice] }]
-      : []
-  );
+  if (!saludo?.sentAt) return null;
+  const origen = Date.parse(saludo.sentAt) / 1000 - inicioDelSaludo;
+  const herramientas = mensajes
+    .filter((mensaje) => mensaje.role === "tool" && mensaje.sentAt)
+    .map((mensaje) => Date.parse(mensaje.sentAt!) / 1000 - origen);
+  return medida.turnos.map((turno) => ({
+    ...turno,
+    conHerramienta: herramientas.some(
+      (momento) =>
+        momento >= turno.finDelCliente - margen &&
+        momento <= turno.inicioDeLaRecepcionista + margen
+    ),
+  }));
 }
 
 /** Percentil `p` (0–100) por el método del rango más cercano. */
