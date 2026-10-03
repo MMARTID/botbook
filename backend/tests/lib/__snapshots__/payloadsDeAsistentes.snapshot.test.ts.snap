@@ -1,5 +1,124 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
+exports[`payloads de asistentes (instantáneas) > assistant de la recepcionista con ca-ES como idioma principal 1`] = `
+{
+  "greeting": "Hola, gràcies per trucar a Perruqueria Anna. En què et puc ajudar?",
+  "interruptionSettings": {
+    "start_speaking_plan": {
+      "transcription_endpointing_plan": {
+        "on_no_punctuation_seconds": 0.8,
+        "on_number_seconds": 0.5,
+        "on_punctuation_seconds": 0.1,
+      },
+      "wait_seconds": 0.1,
+    },
+  },
+  "transcription": {
+    "language": "auto",
+    "model": "soniox/stt-rt-v5",
+    "settings": {
+      "context": "Tall,Laura",
+      "enable_endpoint_detection": true,
+      "language_hints": [
+        "es",
+        "en",
+        "ca",
+      ],
+      "max_endpoint_delay_ms": 700,
+    },
+  },
+  "voiceSettings": {
+    "background_audio": {
+      "type": "predefined_media",
+      "value": "office",
+      "volume": 0.2,
+    },
+    "expressive_mode": false,
+    "language": "ca",
+    "voice": "Soniox.tts-rt-v2.Marta",
+  },
+}
+`;
+
+exports[`payloads de asistentes (instantáneas) > assistant de la recepcionista con eu-ES como idioma principal 1`] = `
+{
+  "greeting": "Kaixo, Perruqueria Anna. Zertan lagun zaitzaket?",
+  "interruptionSettings": {
+    "start_speaking_plan": {
+      "transcription_endpointing_plan": {
+        "on_no_punctuation_seconds": 0.8,
+        "on_number_seconds": 0.5,
+        "on_punctuation_seconds": 0.1,
+      },
+      "wait_seconds": 0.1,
+    },
+  },
+  "transcription": {
+    "language": "auto",
+    "model": "soniox/stt-rt-v5",
+    "settings": {
+      "context": "Tall,Laura",
+      "enable_endpoint_detection": true,
+      "language_hints": [
+        "es",
+        "eu",
+      ],
+      "max_endpoint_delay_ms": 700,
+    },
+  },
+  "voiceSettings": {
+    "background_audio": {
+      "type": "predefined_media",
+      "value": "office",
+      "volume": 0.2,
+    },
+    "expressive_mode": false,
+    "language": "eu",
+    "voice": "Soniox.tts-rt-v2.Marta",
+  },
+}
+`;
+
+exports[`payloads de asistentes (instantáneas) > assistant de la recepcionista con gl-ES como idioma principal 1`] = `
+{
+  "greeting": "Ola, grazas por chamar a Perruqueria Anna. En que te podo axudar?",
+  "interruptionSettings": {
+    "start_speaking_plan": {
+      "transcription_endpointing_plan": {
+        "on_no_punctuation_seconds": 0.8,
+        "on_number_seconds": 0.5,
+        "on_punctuation_seconds": 0.1,
+      },
+      "wait_seconds": 0.1,
+    },
+  },
+  "transcription": {
+    "language": "auto",
+    "model": "soniox/stt-rt-v5",
+    "settings": {
+      "context": "Tall,Laura",
+      "enable_endpoint_detection": true,
+      "language_hints": [
+        "es",
+        "fr",
+        "gl",
+      ],
+      "max_endpoint_delay_ms": 700,
+    },
+  },
+  "voiceSettings": {
+    "background_audio": {
+      "type": "predefined_media",
+      "value": "office",
+      "volume": 0.2,
+    },
+    "expressive_mode": false,
+    "language": "gl",
+    "voice": "Soniox.tts-rt-v2.Marta",
+  },
+}
+`;
+
 exports[`payloads de asistentes (instantáneas) > assistant de la recepcionista, completo con transferencia y palabras clave 1`] = `
 {
   "fallbackConfig": {

@@ -17,10 +17,14 @@ import {
   buildManagedAgentPrompt,
   parseAgentSettings,
   DEFAULT_AGENT_SETTINGS,
-  toRetellLanguageSetting,
   type AgentSettings,
-  type VoiceLanguage,
 } from "./managedAgentPrompt.js";
+import { componerSaludo } from "./idiomas/catalogo.js";
+import {
+  ajustesParaRetell,
+  idiomaDeRetell,
+  usaVozMultilingueEnRetell,
+} from "./idiomas/resolver.js";
 import { calendarService } from "../modules/calendar/service.js";
 import { createTelnyxAssistantForAgent } from "./telnyxAgentSync.js";
 import { listaDeEsperaDisponible } from "../modules/whatsapp/service.js";
@@ -164,32 +168,6 @@ function resolvePromptTimezone(timezone: string | null | undefined): string {
     return candidate;
   } catch {
     return "Europe/Madrid";
-  }
-}
-
-/**
- * Saludo al descolgar, en el idioma principal del negocio (decisión del
- * usuario 2026-10-03: los seis idiomas; antes inglés y francés saludaban en
- * español con acento extranjero). En euskera el nombre va solo, sin
- * «llamar a», para no declinarlo.
- */
-export function buildRetellBeginMessage(
-  businessName: string,
-  idiomaPrincipal: VoiceLanguage = "es-ES"
-): string {
-  switch (idiomaPrincipal) {
-    case "ca-ES":
-      return `Hola, gràcies per trucar a ${businessName}. En què et puc ajudar?`;
-    case "eu-ES":
-      return `Kaixo, ${businessName}. Zertan lagun zaitzaket?`;
-    case "gl-ES":
-      return `Ola, grazas por chamar a ${businessName}. En que te podo axudar?`;
-    case "en-GB":
-      return `Hello, thank you for calling ${businessName}. How can I help you?`;
-    case "fr-FR":
-      return `Bonjour, merci d'avoir appelé ${businessName}. Comment puis-je vous aider ?`;
-    default:
-      return `Hola, gracias por llamar a ${businessName}. ¿En qué te puedo ayudar?`;
   }
 }
 
@@ -354,13 +332,14 @@ export async function getRetellEditableDraft(
 
 /**
  * Cadenas fijas ya validadas contra la API de Retell. Cartesia ofrece la
- * voz española principal para es/en/fr y, si el negocio activa catalán,
- * se cambia a ElevenLabs porque Retell rechaza ca-ES con Cartesia. MiniMax
+ * voz española principal para es/en/fr y, si un idioma activo la exige
+ * (`retell.vozMultilingue` en lib/idiomas/catalogo.ts; hoy el catalán), se
+ * cambia a ElevenLabs porque Retell rechaza ca-ES con Cartesia. MiniMax
  * queda como último proveedor distinto y compatible con los cuatro idiomas.
  */
 const RETELL_VOICE_PROFILES: Record<
   AgentSettings["voiceGender"],
-  { default: RetellVoiceProfile; catalan: RetellVoiceProfile }
+  { default: RetellVoiceProfile; multilingue: RetellVoiceProfile }
 > = {
   femenina: {
     default: {
@@ -372,7 +351,7 @@ const RETELL_VOICE_PROFILES: Record<
       ],
       voiceProvider: "cartesia",
     },
-    catalan: {
+    multilingue: {
       voiceId: "11labs-Hailey-Latin-America-Spanish-localized",
       voiceModel: "eleven_v3",
       fallbackVoiceIds: ["minimax-Camille"],
@@ -386,7 +365,7 @@ const RETELL_VOICE_PROFILES: Record<
       fallbackVoiceIds: ["11labs-Santiago", "minimax-Louis"],
       voiceProvider: "cartesia",
     },
-    catalan: {
+    multilingue: {
       voiceId: "11labs-Santiago",
       voiceModel: "eleven_v3",
       fallbackVoiceIds: ["minimax-Louis"],
@@ -402,8 +381,8 @@ const RETELL_VOICE_PROFILES: Record<
 // telnyxEligibility.ts, que sí es la ruta principal.
 export function resolveRetellVoiceProfile(settings: unknown): RetellVoiceProfile {
   const parsed = parseAgentSettings(settings);
-  return parsed.languages.includes("ca-ES")
-    ? RETELL_VOICE_PROFILES[parsed.voiceGender].catalan
+  return usaVozMultilingueEnRetell(parsed.languages)
+    ? RETELL_VOICE_PROFILES[parsed.voiceGender].multilingue
     : RETELL_VOICE_PROFILES[parsed.voiceGender].default;
 }
 
@@ -438,7 +417,7 @@ export function getAgentTemplateForBusinessType(
 ): AgentTemplateConfig {
   return getDefaultAgentConfig({
     name: baseName,
-    firstMessage: buildRetellBeginMessage(businessName),
+    firstMessage: componerSaludo(DEFAULT_AGENT_SETTINGS.voiceLanguage, businessName),
     systemPrompt: buildManagedAgentPrompt({
       businessName,
       businessType,
@@ -561,9 +540,7 @@ export function buildRetellAgentPayload(input: {
     name: buildSafeAssistantName(input.name),
     voiceId: input.voiceId ?? DEFAULT_RETELL_AGENT_CONFIG.voiceId,
     llmId: input.llmId,
-    language: toRetellLanguageSetting(
-      input.languages ?? DEFAULT_AGENT_SETTINGS.languages
-    ),
+    language: idiomaDeRetell(input.languages ?? DEFAULT_AGENT_SETTINGS.languages),
     // No enviar undefined como una actualización vacía: PATCH /agents/:id
     // puede editar solo el saludo de una voz elegida manualmente y Retell debe
     // conservar su modelo y sus fallbacks ya configurados.
@@ -941,7 +918,13 @@ export async function syncAgentToRetell(
   // Lo que ejecuta Retell: sin el bloque «## Pasar la llamada», porque el
   // agente de Retell no tiene la tool `transfer` y el prompt nunca debe
   // mandar usar una herramienta que no existe.
-  const systemPrompt = buildManagedAgentPrompt(promptBase);
+  // Y solo con los idiomas que Retell tiene: sin euskera y, si el principal
+  // es el euskera, saludando en español (ajustesParaRetell).
+  const ajustesDeRetell = ajustesParaRetell(agentSettings);
+  const systemPrompt = buildManagedAgentPrompt({
+    ...promptBase,
+    settings: ajustesDeRetell,
+  });
   // Lo que guarda Agent.systemPrompt (la copia que enseña /agente): el
   // prompt del primary, Telnyx, con el bloque de transferencia cuando la
   // tool está registrada. Antes esta función lo pisaba con la versión sin
@@ -984,10 +967,7 @@ export async function syncAgentToRetell(
       if (!agent.promptManuallyEdited) {
         await retellAdapter.updateLlm(retellDraft.llmId, {
           generalPrompt: systemPrompt,
-          beginMessage: buildRetellBeginMessage(
-            business.name,
-            agentSettings.voiceLanguage
-          ),
+          beginMessage: componerSaludo(ajustesDeRetell.voiceLanguage, business.name),
           version: retellDraft.llmVersion,
         });
       }
@@ -998,7 +978,7 @@ export async function syncAgentToRetell(
         voiceId,
         voiceModel: voiceProfile.voiceModel,
         fallbackVoiceIds: voiceProfile.fallbackVoiceIds,
-        language: toRetellLanguageSetting(agentSettings.languages),
+        language: idiomaDeRetell(agentSettings.languages),
         // Estos tres viajaban SOLO en la creación del agente, así que los
         // agentes creados antes de que existieran (commit 3be1e12) se
         // quedaban sin tope de duración ni corte por silencio para siempre:

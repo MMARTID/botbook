@@ -18,6 +18,7 @@ import {
   resolveRetellVoiceProfile,
 } from "../../lib/agentBootstrap.js";
 import { parseAgentSettings } from "../../lib/managedAgentPrompt.js";
+import { usaVozMultilingueEnRetell } from "../../lib/idiomas/resolver.js";
 import { retellAdapter } from "../../adapters/retell/RetellAdapter.js";
 import { getPublicWebhookBaseUrl } from "../../lib/serverUrl.js";
 
@@ -171,12 +172,13 @@ export async function agentsRoutes(fastify: FastifyInstance) {
         const orchestrator = business?.orchestrator || "retell";
         // En Retell la voz y los idiomas se gestionan desde Ajustes del
         // negocio. Así un PATCH individual no puede volver a poner una voz
-        // Cartesia incompatible cuando el negocio ha activado catalán.
+        // Cartesia incompatible con un idioma que la exige (el catálogo de
+        // lib/idiomas lo marca con `retell.vozMultilingue`; hoy, el catalán).
         const retellVoiceProfile = resolveRetellVoiceProfile(
           parseAgentSettings(business?.agentSettings)
         );
         const agentLanguages = parseAgentSettings(business?.agentSettings).languages;
-        const catalanEnabled = agentLanguages.includes("ca-ES");
+        const necesitaVozMultilingue = usaVozMultilingueEnRetell(agentLanguages);
 
         const agentWithConfig = agent as typeof agent & {
           voiceId?: string | null;
@@ -198,11 +200,11 @@ export async function agentsRoutes(fastify: FastifyInstance) {
           agentWithConfig.voice ||
           "538a8872-3799-4df5-b373-b78493b766c6") as VoiceId;
         const persistedVoiceId =
-          orchestrator === "retell" && catalanEnabled
+          orchestrator === "retell" && necesitaVozMultilingue
             ? retellVoiceProfile.voiceId
             : voiceId;
         const persistedVoiceProvider =
-          orchestrator === "retell" && catalanEnabled
+          orchestrator === "retell" && necesitaVozMultilingue
             ? retellVoiceProfile.voiceProvider
             : data.voiceProvider;
         const agentUpdateData = {
@@ -212,7 +214,7 @@ export async function agentsRoutes(fastify: FastifyInstance) {
             : {}),
           ...(data.voiceProvider !== undefined ||
           (orchestrator === "retell" &&
-            catalanEnabled &&
+            necesitaVozMultilingue &&
             (data.voiceId !== undefined || data.voice !== undefined))
             ? { voiceProvider: persistedVoiceProvider }
             : {}),
@@ -305,12 +307,12 @@ export async function agentsRoutes(fastify: FastifyInstance) {
                   llmId: retellDraft.llmId,
                   webhookUrl,
                   postCallAnalysisData,
-                  // Catalán exige una voz compatible: no dejamos que una
-                  // edición individual vuelva a enviar Cartesia, que Retell
-                  // rechaza para ca-ES. Sin catalán se respeta la voz manual
-                  // y se conservan sus fallbacks remotos.
-                  voiceId: catalanEnabled ? retellVoiceProfile.voiceId : voiceId,
-                  ...(catalanEnabled
+                  // Un idioma que exige la voz multilingüe (hoy el catalán)
+                  // no deja que una edición individual vuelva a enviar
+                  // Cartesia, que Retell rechaza para ca-ES. Sin él se
+                  // respeta la voz manual y se conservan sus fallbacks.
+                  voiceId: necesitaVozMultilingue ? retellVoiceProfile.voiceId : voiceId,
+                  ...(necesitaVozMultilingue
                     ? {
                         voiceModel: retellVoiceProfile.voiceModel,
                         fallbackVoiceIds: retellVoiceProfile.fallbackVoiceIds,

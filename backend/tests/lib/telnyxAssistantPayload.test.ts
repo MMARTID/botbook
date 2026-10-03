@@ -6,9 +6,16 @@ import {
   buildTelnyxHangupTool,
   buildTelnyxTransferTool,
   buildTelnyxVoiceTools,
-  resolveTelnyxTranscriptionLanguage,
   toTelnyxWebhookTool,
 } from "../../src/lib/telnyxAssistantPayload.js";
+import { resolverIdiomas } from "../../src/lib/idiomas/resolver.js";
+import type { CodigoDeIdioma } from "../../src/lib/idiomas/catalogo.js";
+
+/** El perfil de idiomas que el sync le pasa al builder. */
+const idiomas = (
+  languages: CodigoDeIdioma[],
+  voiceLanguage: CodigoDeIdioma = "es-ES"
+) => resolverIdiomas({ languages, voiceLanguage, voiceGender: "femenina" });
 
 describe("buildTelnyxAssistantName", () => {
   it("genera un nombre estable y determinista por negocio y agente", () => {
@@ -56,7 +63,7 @@ describe("buildTelnyxTransferTool", () => {
       businessName: "Peluquería Ejemplo",
       instructions: "i",
       greeting: "",
-      languages: ["es-ES"],
+      idiomas: idiomas(["es-ES"]),
       voice: "Telnyx.Ultra.isabel",
       tools: [
         {
@@ -240,26 +247,6 @@ describe("adaptManagedPromptForTelnyx", () => {
   });
 });
 
-describe("resolveTelnyxTranscriptionLanguage", () => {
-  it("usa la pista concreta cuando solo hay un idioma activado", () => {
-    expect(resolveTelnyxTranscriptionLanguage(["es-ES"])).toBe("es");
-    expect(resolveTelnyxTranscriptionLanguage(["en-GB"])).toBe("en");
-    expect(resolveTelnyxTranscriptionLanguage(["fr-FR"])).toBe("fr");
-  });
-
-  it("usa \"multi\" (sin pista fija) cuando hay más de un idioma activado", () => {
-    expect(resolveTelnyxTranscriptionLanguage(["es-ES", "en-GB"])).toBe("multi");
-    expect(resolveTelnyxTranscriptionLanguage(["es-ES", "en-GB", "fr-FR"])).toBe(
-      "multi"
-    );
-  });
-
-  it("cae a \"es\" si la lista está vacía o no reconoce ningún idioma", () => {
-    expect(resolveTelnyxTranscriptionLanguage([])).toBe("es");
-    expect(resolveTelnyxTranscriptionLanguage(["ca-ES"])).toBe("es");
-  });
-});
-
 describe("buildTelnyxAssistantPayload", () => {
   const baseInput = {
     businessId: "biz1",
@@ -267,7 +254,7 @@ describe("buildTelnyxAssistantPayload", () => {
     businessName: "Peluquería Ejemplo",
     instructions: "Eres la recepcionista de Peluquería Ejemplo.",
     greeting: "Hola, gracias por llamar. ¿En qué te puedo ayudar?",
-    languages: ["es-ES"],
+    idiomas: idiomas(["es-ES"]),
     voice: "Telnyx.Ultra.Isabel",
   };
 
@@ -347,13 +334,13 @@ describe("buildTelnyxAssistantPayload", () => {
   it("fija el modelo de transcripción y el idioma, y sesga con boostedKeywords", () => {
     const payload = buildTelnyxAssistantPayload({
       ...baseInput,
-      languages: ["en-GB"],
+      idiomas: idiomas(["es-ES"]),
       boostedKeywords: ["corte", "manicura"],
     });
 
     expect(payload.transcription).toEqual({
       model: "deepgram/flux",
-      language: "en",
+      language: "es",
       settings: {
         keyterm: "corte,manicura",
         eot_threshold: 0.8,
@@ -394,9 +381,8 @@ describe("buildTelnyxAssistantPayload", () => {
   describe("con catalán, euskera o gallego (Soniox)", () => {
     const sonioxInput = {
       ...baseInput,
-      languages: ["es-ES", "ca-ES", "eu-ES"],
+      idiomas: idiomas(["es-ES", "ca-ES", "eu-ES"], "ca-ES"),
       voice: "Soniox.tts-rt-v2.Marta",
-      voiceLanguage: "es-ES",
     };
 
     it("transcribe con Soniox fijando los idiomas del negocio y sus palabras clave", () => {
@@ -437,7 +423,7 @@ describe("buildTelnyxAssistantPayload", () => {
     it("la voz de Soniox arranca en el idioma principal, sin expressive_mode", () => {
       const payload = buildTelnyxAssistantPayload({
         ...sonioxInput,
-        voiceLanguage: "eu-ES",
+        idiomas: idiomas(["es-ES", "ca-ES", "eu-ES"], "eu-ES"),
       });
 
       expect(payload.voiceSettings).toMatchObject({
@@ -447,7 +433,7 @@ describe("buildTelnyxAssistantPayload", () => {
       });
     });
 
-    it("con voz Ultra transcribe Soniox y la voz conserva su modo expresivo, sin idioma", () => {
+    it("si la cuenta da una voz Ultra de reserva, conserva su modo expresivo y no lleva idioma", () => {
       const payload = buildTelnyxAssistantPayload({
         ...sonioxInput,
         voice: "Telnyx.Ultra.Isabel",
@@ -592,7 +578,7 @@ describe("buildTelnyxVoiceTools — informar_al_negocio (PR 5, post-conversació
       instructions: "x",
       timezone: "Europe/Madrid",
       greeting: "",
-      languages: ["es-ES"],
+      idiomas: idiomas(["es-ES"]),
       voice: "Telnyx.KokoroTTS.af",
     });
     expect(payload.postConversationSettings).toEqual({ enabled: true });

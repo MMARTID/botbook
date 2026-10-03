@@ -1,10 +1,12 @@
 import { telnyxAiAdapter } from "../adapters/telnyx/TelnyxAiAdapter.js";
+import type { AgentSettings } from "./managedAgentPrompt.js";
 import {
-  esIdiomaDeSoniox,
-  usaSoniox,
-  type AgentSettings,
-  type UltraVoiceLanguage,
-} from "./managedAgentPrompt.js";
+  IDIOMAS,
+  type CodigoDeIdioma,
+  type GeneroDeVoz,
+  type VozDelCatalogo,
+} from "./idiomas/catalogo.js";
+import { resolverIdiomas } from "./idiomas/resolver.js";
 
 export interface TelnyxEligibility {
   eligible: boolean;
@@ -14,125 +16,72 @@ export interface TelnyxEligibility {
   voiceId: string | null;
 }
 
-const TELNYX_VOICE_GENDER: Record<AgentSettings["voiceGender"], string> = {
+const GENERO_EN_TELNYX: Record<GeneroDeVoz, string> = {
   femenina: "female",
   masculina: "male",
 };
 
 /**
- * Voces Telnyx Ultra elegidas a mano por idioma/género (decisión explícita
- * del usuario 2026-09-14: "todas la voz ultra de telnyx" para es/en/fr) en
- * vez de dejar que se resuelva la primera disponible por orden de API —
- * "Blanca - Graceful Host" (es-ES/femenina) ya estaba en uso desde
- * 2026-09-12, el resto son nuevas. Nombres elegidos por tono profesional y
- * cercano, coherente entre los tres idiomas. Se sigue verificando contra
- * `listVoices()` antes de usarlas — si la cuenta deja de tener alguna
- * disponible, cae al primer match por idioma/género como red de seguridad.
+ * La voz del catálogo (lib/idiomas/catalogo.ts) si sigue en la cuenta; si
+ * no, otra del mismo proveedor y género como red de seguridad —de su mismo
+ * idioma si es Ultra; cualquiera de Soniox, que hablan todos, pero nunca
+ * una Ultra, que no habla catalán ni euskera ni gallego— o `null`: plan §3,
+ * "si no hay voz compatible, el negocio no entra en Telnyx".
  */
-const TELNYX_VOICE_CATALOG: Record<
-  UltraVoiceLanguage,
-  Record<AgentSettings["voiceGender"], string>
-> = {
-  "es-ES": {
-    femenina: "Telnyx.Ultra.538a8872-3799-4df5-b373-b78493b766c6", // Blanca - Graceful Host
-    masculina: "Telnyx.Ultra.13ff5deb-2591-42ad-a356-63a04e524411", // Marcos - Steady Advisor
-  },
-  "en-GB": {
-    femenina: "Telnyx.Ultra.2f251ac3-89a9-4a77-a452-704b474ccd01", // Lucy - Capable Coordinator
-    masculina: "Telnyx.Ultra.4bc3cb8c-adb9-4bb8-b5d5-cbbef950b991", // George - Composed Consultant
-  },
-  "fr-FR": {
-    femenina: "Telnyx.Ultra.c96a7d7d-3457-4979-8665-522f7b3e36fb", // Léa - Logical Liaison
-    masculina: "Telnyx.Ultra.7345dfa5-ee04-44d2-abf4-29262b880ab4", // Laurent - Dependable Anchor
-  },
-};
-
-/**
- * Voces de Soniox para los negocios con catalán, euskera o gallego como
- * idioma principal: cada una habla los 63 idiomas de Soniox, así que hay una
- * por género y no por idioma. Marta y Sergio, con acento español, elegidas
- * por el usuario el 2026-10-02 escuchando muestras en los cuatro idiomas.
- */
-const SONIOX_VOICE_CATALOG: Record<AgentSettings["voiceGender"], string> = {
-  femenina: "Soniox.tts-rt-v2.Marta",
-  masculina: "Soniox.tts-rt-v2.Sergio",
-};
-
-/**
- * Voz de Soniox del género pedido: la elegida a mano si sigue en el
- * catálogo, si no la primera del mismo género, o `null` si no hay ninguna.
- */
-export async function resolveSonioxVoiceId(
-  voiceGender: AgentSettings["voiceGender"]
+async function resolverVozEnLaCuenta(
+  voz: VozDelCatalogo,
+  idioma: CodigoDeIdioma,
+  genero: GeneroDeVoz
 ): Promise<string | null> {
-  const voices = await telnyxAiAdapter.listVoices("soniox");
-  const preferredId = SONIOX_VOICE_CATALOG[voiceGender];
-  if (voices.some((voice) => voice.id === preferredId)) {
-    return preferredId;
+  const voces = await telnyxAiAdapter.listVoices(voz.proveedor);
+  if (voces.some((candidata) => candidata.id === voz.id)) {
+    return voz.id;
   }
-  // Solo voces de Soniox: una Ultra del mismo género no habla catalán,
-  // euskera ni gallego.
-  const match = voices.find(
-    (voice) =>
-      voice.id.startsWith("Soniox.") &&
-      (voice.gender ?? "").toLowerCase() === TELNYX_VOICE_GENDER[voiceGender]
+  const reserva = voces.find(
+    (candidata) =>
+      (candidata.gender ?? "").toLowerCase() === GENERO_EN_TELNYX[genero] &&
+      (voz.proveedor === "soniox"
+        ? candidata.id.startsWith("Soniox.")
+        : (candidata.language ?? "").toLowerCase() === idioma.toLowerCase())
   );
-  return match?.id ?? null;
+  return reserva?.id ?? null;
 }
 
-/**
- * Voz Telnyx-hosted para el idioma/género pedidos: la elegida a mano si
- * sigue disponible en la cuenta, si no la primera que coincida, o `null` si
- * no hay ninguna — plan §3: "si no hay voz compatible, el negocio no entra
- * en Telnyx".
- */
+/** Voz de la cuenta para un idioma principal y género, o `null`. */
 export async function resolveTelnyxVoiceId(
-  voiceLanguage: UltraVoiceLanguage,
-  voiceGender: AgentSettings["voiceGender"]
+  idioma: CodigoDeIdioma,
+  genero: GeneroDeVoz
 ): Promise<string | null> {
-  const voices = await telnyxAiAdapter.listVoices();
-  const targetGender = TELNYX_VOICE_GENDER[voiceGender];
-
-  const preferredId = TELNYX_VOICE_CATALOG[voiceLanguage][voiceGender];
-  if (voices.some((voice) => voice.id === preferredId)) {
-    return preferredId;
-  }
-
-  const match = voices.find(
-    (voice) =>
-      (voice.language ?? "").toLowerCase() === voiceLanguage.toLowerCase() &&
-      (voice.gender ?? "").toLowerCase() === targetGender
-  );
-  return match?.id ?? null;
+  const voces = IDIOMAS[idioma].voces;
+  return voces ? resolverVozEnLaCuenta(voces[genero], idioma, genero) : null;
 }
 
 /**
  * Precondición para intentar crear/mantener el assistant Telnyx de un
  * negocio. No decide nada sobre `voiceRoutingTarget` (Fase 5): solo si
- * conviene intentarlo en absoluto ahora mismo.
+ * conviene intentarlo en absoluto ahora mismo. La voz la decide el idioma
+ * principal (resolverIdiomas): Ultra para español, Soniox para catalán,
+ * euskera y gallego. Antes el catalán dejaba el negocio en Retell.
  */
 export async function resolveTelnyxEligibility(
   settings: AgentSettings
 ): Promise<TelnyxEligibility> {
-  // Con catalán, euskera o gallego activos, voz de Soniox, la única que los
-  // habla (ver usaSoniox). Antes el catalán dejaba el negocio en Retell. El
-  // principal ya llega normalizado a uno de ellos; esIdiomaDeSoniox cubre
-  // unos ajustes que no hayan pasado por el esquema.
-  const idiomaPrincipal = settings.voiceLanguage;
-  const soniox =
-    usaSoniox(settings.languages) || esIdiomaDeSoniox(idiomaPrincipal);
+  const perfil = resolverIdiomas(settings);
 
   try {
-    const voiceId = soniox
-      ? await resolveSonioxVoiceId(settings.voiceGender)
-      : await resolveTelnyxVoiceId(idiomaPrincipal, settings.voiceGender);
+    const voiceId = await resolverVozEnLaCuenta(
+      perfil.voz,
+      perfil.principal,
+      perfil.genero
+    );
     if (!voiceId) {
       return {
         eligible: false,
         status: "ineligible",
-        reason: soniox
-          ? `Sin voz Soniox ${settings.voiceGender} en la cuenta.`
-          : `Sin voz Telnyx compatible con ${settings.voiceLanguage}/${settings.voiceGender} en la cuenta.`,
+        reason:
+          perfil.voz.proveedor === "soniox"
+            ? `Sin voz Soniox ${perfil.genero} en la cuenta.`
+            : `Sin voz Telnyx compatible con ${perfil.principal}/${perfil.genero} en la cuenta.`,
         voiceId: null,
       };
     }

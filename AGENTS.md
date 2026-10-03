@@ -2407,39 +2407,69 @@ property of the Retell **Agent** object, not the LLM — unrelated to `updateLlm
 
 #### Idiomas de atención y voz en Telnyx (desde 2026-10-02)
 
-`languages` (`AGENT_LANGUAGES` en `managedAgentPrompt.ts`): `es-ES` (siempre activo), `en-GB`,
-`fr-FR`, `ca-ES`, `eu-ES` y `gl-ES`. `voiceLanguage` es el **idioma principal** («Idioma
-principal» en el panel; antes «Idioma de la voz»): el del saludo, siempre uno activo.
-Decisiones del usuario (02 y 03-10, tras probarlo en el navegador y pasar la crítica de Impeccable):
+**Una sola fuente: `backend/src/lib/idiomas/`** (módulo puro, sin E/S). Ningún otro módulo guarda
+listas de idiomas ni decide por su cuenta:
 
-- **Sin catalán, euskera ni gallego:** voz Ultra curada del idioma principal y género
-  (`TELNYX_VOICE_CATALOG`) con `expressive_mode`, y `deepgram/flux` con sus ajustes de turno. El
-  saludo va en el idioma principal (`buildRetellBeginMessage`): español como siempre, y desde el
-  03-10 también inglés y francés (antes saludaban en español con acento extranjero).
-- **Con catalán, euskera o gallego activos (`usaSoniox`), activarlos es hablarlos:** el assistant
-  entero pasa a Soniox y el principal es uno de ellos. `normalizarIdiomaPrincipal` (un
-  `.transform` del esquema) lo corrige en vez de rechazarlo, para no tirar al
-  `DEFAULT_AGENT_SETTINGS` los ajustes guardados antes. Voz `Soniox.tts-rt-v2.Marta` / `Sergio`
-  (`SONIOX_VOICE_CATALOG`, elegidas escuchando muestras; cada voz habla los 63 idiomas de Soniox)
-  con `voice_settings.language` = ISO del principal. Transcripción `soniox/stt-rt-v5` con
-  `language_hints` (los idiomas del negocio), `context` (palabras clave),
-  `enable_endpoint_detection` + `max_endpoint_delay_ms: 700`, `wait_seconds: 0.1` y 0.8 s sin
-  puntuación en el `transcription_endpointing_plan`.
-- **Descartado:** «entiende el catalán pero contesta en español» con la voz Ultra. Pasaba todas las
-  llamadas, también las de español, al turno de Soniox, más lento que flux.
-- **Por qué no Ultra en catalán:** Telnyx devuelve 400 a `language_boost: "Catalan"`. Las voces de
-  Soniox no tienen modo expresivo en Telnyx (solo Ultra y Grok) y suenan más planas; el panel lo
-  avisa (`frontend/src/lib/idiomas-de-atencion.ts`, que replica estas reglas).
-- **Trampa de Telnyx:** pasar un assistant de voz Soniox a Ultra exige `voice_settings.language:
-  null` (400/10015). `TelnyxAiAdapter.updateAssistant` lo manda solo, sin tocar el payload.
-- Antes de esto, el catalán dejaba el negocio fuera de Telnyx («matriz de idiomas de la Fase 0»,
-  `docs/historico/PLAN-TELNYX-ORQUESTADOR.md`). La matriz con reserva por teléfono sigue
-  pendiente; en el navegador, Soniox entendió los cuatro idiomas.
-- **Retell no tiene euskera:** `toRetellLanguageSetting` lo quita, así que un negocio con `eu-ES`
-  en Retell (el respaldo) atiende con el resto de sus idiomas. El gallego sí existe en Retell.
-- Nada cambia de orquestador al activar un idioma: los negocios con catalán que ya están en
-  Retell siguen allí hasta pasarlos con `scripts/backfillTelnyxAssistants.ts` y
-  `scripts/cutoverToTelnyx.ts`.
+- `catalogo.ts`:
+  - **Por cada idioma (BCP-47):** ISO, nombre en el prompt, etiqueta del panel, saludo con
+    `{negocio}`, pistas de transcripción (`flux` o `null`, `soniox`), locale de Retell (o `null`) y
+    si exige su voz multilingüe, voces por género (o `null` si solo puede acompañar a otro
+    principal) y una nota opcional para el prompt (p. ej. valenciano y balear).
+  - **`MERCADOS`:** qué se ofrece. Mercado `ES`: obligatorio `es-ES`; principales `es-ES`, `ca-ES`,
+    `eu-ES` y `gl-ES`; secundarios `en-GB` y `fr-FR`. `de-DE`, `it-IT`, `pt-PT` y `nl-NL` ya están
+    en el catálogo y se ofrecerán tras escuchar cómo los pronuncia la voz Ultra.
+- `ajustes.ts`:
+  - los esquemas de `languages`/`voiceLanguage` (el JSON guardado no cambia);
+  - `normalizarIdiomas`, que corrige en vez de rechazar: la voz del principal debe hablar todos
+    los activos. Si no, pasa a principal el primero cuya voz los hable todos (catalán, euskera y
+    gallego solo se atienden como principal); si ninguna los habla, se quitan los que no habla.
+- `resolver.ts`:
+  - **`resolverIdiomas(ajustes)` → `PerfilDeIdiomas`:** idiomas normalizados, principal, voz del
+    catálogo, ISO del principal, transcripción e instrucción del prompt, más los cambios hechos.
+  - **Transcripción:** flux (pista o `multi`) si flux entiende todos los activos; si no,
+    `soniox/stt-rt-v5` con pistas.
+  - **Para Retell:** `ajustesParaRetell` quita los idiomas sin locale y, si el principal es uno de
+    ellos (euskera), saluda en español; también `idiomaDeRetell` y `usaVozMultilingueEnRetell`.
+
+Lo consumen `telnyxEligibility.ts` (voz de la cuenta, con reserva del mismo proveedor y género),
+`telnyxAssistantPayload.ts` (recibe el perfil), `telnyxAgentSync.ts`, `managedAgentPrompt.ts`
+(instrucción del prompt y `parseAgentSettings`), `agentBootstrap.ts` y
+`modules/agents/routes.ts` (Retell). `parseAgentSettings` lee campo a campo: un valor inválido ya
+no tira el resto de ajustes al `DEFAULT_AGENT_SETTINGS`.
+
+**Reglas (decisiones del usuario del 02 y 03-10):**
+
+- **Principal español:** voz Ultra Blanca/Marcos con `expressive_mode` y `deepgram/flux`, con sus
+  ajustes de turno. Inglés y francés como principal se conservan como legado (voz Ultra de su
+  idioma, saludo en su idioma), pero no se ofrecen.
+- **Principal catalán, euskera o gallego:**
+  - Voz `Soniox.tts-rt-v2.Marta` / `Sergio`, con `voice_settings.language` = ISO del principal.
+    La elegirá definitivamente una escucha a ciegas frente a MiniMax (catalán) y Azure nativas.
+  - Transcripción con Soniox: `language_hints`, `context`, endpoint a 700 ms, `wait_seconds: 0.1`
+    y 0.8 s sin puntuación.
+  - Saludo en su idioma; con catalán, el prompt pide adaptarse al valenciano y al balear.
+- **Los cooficiales solo como principal.** Se descartó «entiende pero contesta en español», que
+  pasaba todas las llamadas al turno de Soniox. Se investiga el traspaso a mitad de llamada
+  (`handoff` con `voice_mode: "distinct"`) para negocios con español principal.
+
+**Datos medidos (03-10) y trampas:**
+
+- **Tiempo interno de síntesis:** Ultra 77 ms, MiniMax 221 ms, Soniox ~400 ms. Soniox añade unos
+  300 ms por respuesta.
+- **Turno de palabra:** flux es el único con fin de turno anticipado; no entiende ca/eu/gl.
+- **Ultra no admite catalán:** Telnyx devuelve 400 a `language_boost: "Catalan"`.
+- **Modo expresivo:** solo Ultra y Grok.
+- **De voz Soniox a Ultra:** pasar un assistant exige `voice_settings.language: null` (400/10015).
+  Lo manda `TelnyxAiAdapter.updateAssistant`, sin tocar el payload.
+- **Hash:** el orden canónico de los seis primeros códigos y sus textos no se tocan. Las
+  instantáneas de `payloadsDeAsistentes.snapshot.test.ts`, con el hash de solo español, lo vigilan.
+- **Retell no tiene euskera.** Su cadena ElevenLabs solo se usa con catalán; el gallego con
+  Cartesia está sin verificar.
+
+**Añadir un idioma:** su código al final de `CODIGOS_DE_IDIOMA`, su entrada en `IDIOMAS` y
+ofrecerlo en un mercado. Los tests de `tests/lib/idiomas/catalogo.test.ts` exigen que esté
+completo y sea compatible con cada principal del mercado. `scripts/inventarioDeIdiomas.ts` (solo
+lectura) dice qué negocios cambiarían con unas reglas nuevas.
 
 ### Agent Defaults (`backend/src/lib/agentBootstrap.ts`)
 

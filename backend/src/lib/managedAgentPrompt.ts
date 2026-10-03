@@ -4,124 +4,46 @@ import {
   MODOS_DE_TRANSFERENCIA,
   type TransferenciaAlDueno,
 } from "./transferenciaAlDueno.js";
+import { GENEROS_DE_VOZ } from "./idiomas/catalogo.js";
+import {
+  EsquemaDeIdiomaPrincipal,
+  EsquemaDeIdiomas,
+  idiomasConocidos,
+  normalizarIdiomas,
+} from "./idiomas/ajustes.js";
+import { resolverIdiomas } from "./idiomas/resolver.js";
 
-/**
- * Idiomas que Alhabla permite configurar hoy. Se usan como locales concretos,
- * nunca como el valor legado `multi` de Retell, para que el reconocimiento
- * no abra idiomas que el negocio no atiende.
- */
-export const AGENT_LANGUAGES = [
-  "es-ES",
-  "en-GB",
-  "fr-FR",
-  "ca-ES",
-  "eu-ES",
-  "gl-ES",
-] as const;
-
-export type AgentLanguage = (typeof AGENT_LANGUAGES)[number];
-
-/**
- * Idiomas que en Telnyx solo cubre Soniox: deepgram/flux no los entiende y
- * las voces Ultra no los hablan. Decisión del usuario (2026-10-02/03):
- * activar uno es hablarlo, no solo entenderlo. Con catalán, euskera o
- * gallego activos, el assistant entero pasa a Soniox (voz y transcripción),
- * habla todos los idiomas del negocio y el idioma principal —el del
- * saludo— es uno de ellos (normalizarIdiomaPrincipal). Sin ellos, la voz
- * Ultra con su modo expresivo y deepgram/flux, como siempre. Se descartó
- * «entiende el catalán pero contesta en español»: ralentizaba el turno de
- * palabra de todas las llamadas, también las de español.
- * Ver telnyxAssistantPayload.ts y telnyxEligibility.ts.
- */
-const IDIOMAS_DE_SONIOX: readonly AgentLanguage[] = ["ca-ES", "eu-ES", "gl-ES"];
-
-/** Con catalán, euskera o gallego activos, voz y transcripción de Soniox. */
-export function usaSoniox(languages: readonly AgentLanguage[]): boolean {
-  return languages.some((language) => IDIOMAS_DE_SONIOX.includes(language));
-}
-
-/** Catalán, euskera o gallego: idiomas que ninguna voz Ultra pronuncia. */
-export function esIdiomaDeSoniox(
-  voiceLanguage: AgentLanguage
-): voiceLanguage is Exclude<AgentLanguage, UltraVoiceLanguage> {
-  return IDIOMAS_DE_SONIOX.includes(voiceLanguage);
-}
-
-/** Retell no tiene euskera: un negocio con eu-ES lo atiende Telnyx, y en
- * Retell (el respaldo) se queda con el resto de sus idiomas. */
-export type RetellAgentLanguage = Exclude<AgentLanguage, "eu-ES">;
-
-const RETELL_AGENT_LANGUAGES = AGENT_LANGUAGES.filter(
-  (language): language is RetellAgentLanguage => language !== "eu-ES"
-);
-
-/**
- * Idioma principal (en el panel, «Idioma principal»; antes «Idioma de la
- * voz»): decide la voz — la Ultra curada de español, inglés o francés (ver
- * TELNYX_VOICE_CATALOG en telnyxEligibility.ts) o la de Soniox para
- * catalán, euskera y gallego, que además saludan en su idioma.
- */
-export const VOICE_LANGUAGES = AGENT_LANGUAGES;
-
-export type VoiceLanguage = AgentLanguage;
-
-/** Idiomas principales con voz Ultra propia. */
-export type UltraVoiceLanguage = Exclude<
-  VoiceLanguage,
-  "ca-ES" | "eu-ES" | "gl-ES"
->;
-
-const AgentLanguagesSchema = z
-  .array(z.enum(AGENT_LANGUAGES))
-  .min(1)
-  .max(AGENT_LANGUAGES.length)
-  .superRefine((languages, context) => {
-    if (!languages.includes("es-ES")) {
-      context.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "El español de España debe estar siempre activo.",
-      });
-    }
-    if (new Set(languages).size !== languages.length) {
-      context.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "No se puede seleccionar un idioma más de una vez.",
-      });
-    }
-  })
-  .transform((languages) =>
-    AGENT_LANGUAGES.filter((language) => languages.includes(language))
-  );
+/** Los campos de AgentSettings por separado: parseAgentSettings los lee
+ * uno a uno para que un valor inválido no se lleve por delante el resto. */
+const CAMPOS_DE_AJUSTES = {
+  version: z.literal(1),
+  tone: z.enum(["warm", "professional", "direct"]),
+  primaryGoal: z.enum(["bookings", "customer_service", "lead_capture"]),
+  responseStyle: z.enum(["concise", "balanced"]),
+  escalation: z.enum(["take_message", "request_callback"]),
+  // .default() para que los agentSettings ya guardados de negocios existentes
+  // (sin este campo) sigan validando y no caigan al fallback completo de
+  // DEFAULT_AGENT_SETTINGS, que resetearía también tono/objetivo/etc.
+  voiceGender: z.enum(GENEROS_DE_VOZ).default("femenina"),
+  // Idiomas de atención (catálogo en lib/idiomas/catalogo.ts). Los negocios
+  // anteriores a esta mejora no tienen languages: español, como siempre.
+  languages: EsquemaDeIdiomas.default(["es-ES"]),
+  // Idioma principal: el del saludo y el que decide la voz (Ultra para
+  // español, Soniox para catalán, euskera y gallego). El campo conserva su
+  // nombre histórico (antes «idioma de la voz») para no migrar el JSON.
+  voiceLanguage: EsquemaDeIdiomaPrincipal.default("es-ES"),
+  // «Cuándo pasarme llamadas» (docs/historico/PLAN-TELEFONIA-UX.md § 5,
+  // fase 4). Sin
+  // valor = el de por defecto según el negocio (modoDeTransferenciaPorDefecto
+  // en lib/transferenciaAlDueno.ts): «si el cliente lo pide» con Alhabla
+  // como número principal y móvil del dueño, «nunca» en el resto. Se deja
+  // opcional a propósito, sin .default(): así pasar a «Alhabla como
+  // principal» activa la transferencia sin tener que reescribir el ajuste.
+  pasarLlamadas: z.enum(MODOS_DE_TRANSFERENCIA).optional(),
+};
 
 export const AgentSettingsSchema = z
-  .object({
-    version: z.literal(1),
-    tone: z.enum(["warm", "professional", "direct"]),
-    primaryGoal: z.enum(["bookings", "customer_service", "lead_capture"]),
-    responseStyle: z.enum(["concise", "balanced"]),
-    escalation: z.enum(["take_message", "request_callback"]),
-    // .default() para que los agentSettings ya guardados de negocios existentes
-    // (sin este campo) sigan validando y no caigan al fallback completo de
-    // DEFAULT_AGENT_SETTINGS, que resetearía también tono/objetivo/etc.
-    voiceGender: z.enum(["femenina", "masculina"]).default("femenina"),
-    // Igual que voiceGender, los negocios anteriores a esta mejora no tienen
-    // languages. El default conserva el comportamiento histórico: español.
-    languages: AgentLanguagesSchema.default(["es-ES"]),
-    // Idioma real de la voz (TTS), independiente de `languages` (qué entiende
-    // el agente): el asistente solo puede tener UNA voz, así que hace falta
-    // un campo separado en vez de derivarlo de la lista de idiomas activados
-    // — decisión explícita del usuario 2026-09-14. Español por defecto para
-    // no cambiar el comportamiento de ningún negocio existente.
-    voiceLanguage: z.enum(VOICE_LANGUAGES).default("es-ES"),
-    // «Cuándo pasarme llamadas» (docs/historico/PLAN-TELEFONIA-UX.md § 5,
-    // fase 4). Sin
-    // valor = el de por defecto según el negocio (modoDeTransferenciaPorDefecto
-    // en lib/transferenciaAlDueno.ts): «si el cliente lo pide» con Alhabla
-    // como número principal y móvil del dueño, «nunca» en el resto. Se deja
-    // opcional a propósito, sin .default(): así pasar a «Alhabla como
-    // principal» activa la transferencia sin tener que reescribir el ajuste.
-    pasarLlamadas: z.enum(MODOS_DE_TRANSFERENCIA).optional(),
-  })
+  .object(CAMPOS_DE_AJUSTES)
   .superRefine((settings, ctx) => {
     if (!settings.languages.includes(settings.voiceLanguage)) {
       ctx.addIssue({
@@ -132,25 +54,12 @@ export const AgentSettingsSchema = z
       });
     }
   })
-  .transform(normalizarIdiomaPrincipal);
-
-/**
- * Con catalán, euskera o gallego activos, el idioma principal es uno de
- * ellos: la voz es la de Soniox y saluda en ese idioma (ver
- * IDIOMAS_DE_SONIOX). Se corrige en vez de rechazarse porque los ajustes
- * guardados antes de esta regla (catalán activo con español como
- * principal) no deben caer al DEFAULT_AGENT_SETTINGS entero, que borraría
- * también tono, objetivo y el resto.
- */
-function normalizarIdiomaPrincipal<
-  T extends { languages: AgentLanguage[]; voiceLanguage: AgentLanguage },
->(settings: T): T {
-  if (!usaSoniox(settings.languages) || esIdiomaDeSoniox(settings.voiceLanguage)) {
-    return settings;
-  }
-  const principal = settings.languages.find(esIdiomaDeSoniox)!;
-  return { ...settings, voiceLanguage: principal };
-}
+  // Corrige (no rechaza) lo que la voz no puede atender, p. ej. catalán
+  // activo con español principal: ver normalizarIdiomas.
+  .transform((settings) => {
+    const { languages, voiceLanguage } = normalizarIdiomas(settings);
+    return { ...settings, languages, voiceLanguage };
+  });
 
 export type AgentSettings = z.infer<typeof AgentSettingsSchema>;
 
@@ -164,18 +73,6 @@ export const DEFAULT_AGENT_SETTINGS: AgentSettings = {
   languages: ["es-ES"],
   voiceLanguage: "es-ES",
 };
-
-/** Retell normaliza un array de un solo idioma a un escalar. Enviarlo así
- * conserva su ruta monolingüe, que es la de mayor precisión. El euskera se
- * queda fuera: Retell rechazaría el agente entero. */
-export function toRetellLanguageSetting(
-  languages: readonly AgentLanguage[]
-): RetellAgentLanguage | RetellAgentLanguage[] {
-  const normalized = RETELL_AGENT_LANGUAGES.filter((language) =>
-    languages.includes(language)
-  );
-  return normalized.length === 1 ? normalized[0] : normalized;
-}
 
 const TONE_INSTRUCTIONS: Record<AgentSettings["tone"], string> = {
   warm: "Habla con cercanía, empatía y naturalidad, manteniendo un tono profesional.",
@@ -215,10 +112,64 @@ const NICHE_INSTRUCTIONS: Record<BusinessType, string> = {
     "Aclara con una pregunta breve qué necesita antes de hablar de una cita. Si no existe un servicio verificable que encaje, no lo inventes: toma un recado o propone que el equipo le contacte.",
 };
 
+/**
+ * AgentSettings guardados → válidos. Si todo valida, tal cual (normalizado).
+ * Si no, campo a campo: cada campo inválido toma su valor por defecto y los
+ * idiomas se quedan con los códigos conocidos. Antes un solo valor inválido
+ * (p. ej. un idioma retirado) devolvía DEFAULT_AGENT_SETTINGS entero y
+ * borraba también tono, objetivo y el resto.
+ */
 export function parseAgentSettings(value: unknown): AgentSettings {
-  return AgentSettingsSchema.safeParse(value).success
-    ? AgentSettingsSchema.parse(value)
-    : DEFAULT_AGENT_SETTINGS;
+  const completo = AgentSettingsSchema.safeParse(value);
+  if (completo.success) return completo.data;
+
+  const bruto =
+    value && typeof value === "object" ? (value as Record<string, unknown>) : {};
+  const campo = <T>(esquema: z.ZodType<T>, valor: unknown, porDefecto: T): T => {
+    const leido = esquema.safeParse(valor);
+    return leido.success ? leido.data : porDefecto;
+  };
+  const porDefecto = DEFAULT_AGENT_SETTINGS;
+  const { languages, voiceLanguage } = normalizarIdiomas({
+    languages: idiomasConocidos(bruto.languages),
+    voiceLanguage: campo(
+      EsquemaDeIdiomaPrincipal,
+      bruto.voiceLanguage,
+      porDefecto.voiceLanguage
+    ),
+  });
+  const pasarLlamadas = campo(
+    CAMPOS_DE_AJUSTES.pasarLlamadas,
+    bruto.pasarLlamadas,
+    undefined
+  );
+  return {
+    version: 1,
+    tone: campo(CAMPOS_DE_AJUSTES.tone, bruto.tone, porDefecto.tone),
+    primaryGoal: campo(
+      CAMPOS_DE_AJUSTES.primaryGoal,
+      bruto.primaryGoal,
+      porDefecto.primaryGoal
+    ),
+    responseStyle: campo(
+      CAMPOS_DE_AJUSTES.responseStyle,
+      bruto.responseStyle,
+      porDefecto.responseStyle
+    ),
+    escalation: campo(
+      CAMPOS_DE_AJUSTES.escalation,
+      bruto.escalation,
+      porDefecto.escalation
+    ),
+    voiceGender: campo(
+      z.enum(GENEROS_DE_VOZ),
+      bruto.voiceGender,
+      porDefecto.voiceGender
+    ),
+    languages,
+    voiceLanguage,
+    ...(pasarLlamadas ? { pasarLlamadas } : {}),
+  };
 }
 
 function formatMinutesForHumans(minutes: number): string {
@@ -241,30 +192,6 @@ function buildRestrictionsFragment(input: {
     parts.push(`Ninguna cita puede durar más de ${input.maxAppointmentDurationMinutes} minutos.`);
   }
   return parts.length > 0 ? parts.join(" ") : null;
-}
-
-const NOMBRE_DE_IDIOMA: Record<AgentLanguage, string> = {
-  "es-ES": "español de España",
-  "en-GB": "inglés",
-  "fr-FR": "francés",
-  "ca-ES": "catalán",
-  "eu-ES": "euskera",
-  "gl-ES": "gallego",
-};
-
-function buildLanguageInstruction(settings: AgentSettings): string {
-  if (settings.languages.length === 1) {
-    return "Habla siempre en español de España; no menciones que eres una IA salvo que te lo pregunten.";
-  }
-
-  // Saluda en el idioma principal —también en inglés o francés, decisión del
-  // usuario 2026-10-03— y sigue en el de quien llama. Con catalán, euskera o
-  // gallego activos el principal es uno de ellos y la voz de Soniox los habla
-  // todos (normalizarIdiomaPrincipal); con español, el texto es el de siempre.
-  const saludo = NOMBRE_DE_IDIOMA[settings.voiceLanguage];
-  const enabledLanguages = settings.languages.map((language) => NOMBRE_DE_IDIOMA[language]).join(", ");
-
-  return `Empieza siempre con el saludo en ${saludo}. Tras la primera intervención de quien llama, responde y continúa exclusivamente en el idioma que use si es uno de estos: ${enabledLanguages}. Si cambia entre esos idiomas, acompaña el cambio sin pedirle que elija uno. No menciones que eres una IA salvo que te lo pregunten.`;
 }
 
 /** Cabecera del bloque de transferencia; sirve para saber si un prompt
@@ -347,7 +274,7 @@ export function buildManagedAgentPrompt(input: {
   return [
     "## Rol",
     "Eres la recepcionista virtual de {{nombre_negocio}}.",
-    buildLanguageInstruction(settings),
+    resolverIdiomas(settings).instruccionDelPrompt,
     TONE_INSTRUCTIONS[settings.tone],
     GOAL_INSTRUCTIONS[settings.primaryGoal],
     responseInstruction,

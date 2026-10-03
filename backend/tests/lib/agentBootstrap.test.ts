@@ -1,7 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import {
   buildInboundCallDynamicVariables,
-  buildRetellBeginMessage,
   syncAgentToRetell,
   createBusinessAgent,
   RETELL_VOICE_ID_BY_GENDER,
@@ -12,6 +11,7 @@ import { retellAdapter } from "../../src/adapters/retell/RetellAdapter.js";
 import { calendarService } from "../../src/modules/calendar/service.js";
 import { DEFAULT_BUSINESS_SCHEDULE } from "../../src/lib/businessSchedule.js";
 import { DEFAULT_AGENT_SETTINGS } from "../../src/lib/managedAgentPrompt.js";
+import { componerSaludo } from "../../src/lib/idiomas/catalogo.js";
 import { telnyxAiAdapter } from "../../src/adapters/telnyx/TelnyxAiAdapter.js";
 
 vi.mock("../../src/lib/prisma.js", () => ({
@@ -654,24 +654,24 @@ describe("createBusinessAgent — creación dual Telnyx (Fase 2 del plan Telnyx-
   });
 });
 
-describe("buildRetellBeginMessage", () => {
+describe("componerSaludo", () => {
   it("saluda en el idioma principal", () => {
-    expect(buildRetellBeginMessage("Peluquería Ana")).toBe(
+    expect(componerSaludo("es-ES", "Peluquería Ana")).toBe(
       "Hola, gracias por llamar a Peluquería Ana. ¿En qué te puedo ayudar?"
     );
-    expect(buildRetellBeginMessage("Ana's Salon", "en-GB")).toBe(
+    expect(componerSaludo("en-GB", "Ana's Salon")).toBe(
       "Hello, thank you for calling Ana's Salon. How can I help you?"
     );
-    expect(buildRetellBeginMessage("Salon Anne", "fr-FR")).toBe(
+    expect(componerSaludo("fr-FR", "Salon Anne")).toBe(
       "Bonjour, merci d'avoir appelé Salon Anne. Comment puis-je vous aider ?"
     );
-    expect(buildRetellBeginMessage("Perruqueria Anna", "ca-ES")).toBe(
+    expect(componerSaludo("ca-ES", "Perruqueria Anna")).toBe(
       "Hola, gràcies per trucar a Perruqueria Anna. En què et puc ajudar?"
     );
-    expect(buildRetellBeginMessage("Ana ile-apaindegia", "eu-ES")).toBe(
+    expect(componerSaludo("eu-ES", "Ana ile-apaindegia")).toBe(
       "Kaixo, Ana ile-apaindegia. Zertan lagun zaitzaket?"
     );
-    expect(buildRetellBeginMessage("Perruquería Ana", "gl-ES")).toBe(
+    expect(componerSaludo("gl-ES", "Perruquería Ana")).toBe(
       "Ola, grazas por chamar a Perruquería Ana. En que te podo axudar?"
     );
   });
