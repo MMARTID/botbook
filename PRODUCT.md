@@ -66,10 +66,11 @@ Lo que un producto vecino no podría copiar honestamente:
   panel. El Gestor propone la acción y solo la ejecuta tras un «Confirmar» explícito — nunca de
   forma autónoma. (Reabrir un día ya cerrado todavía exige el panel web, no WhatsApp.)
 - **Voz diseñada para no sonar a robot, no solo "voz de IA".** Selección de voz por idioma y
-  género sobre el catálogo Ultra de Telnyx, matiz emocional automático (`expressive_mode`) y un
-  fondo sutil de oficina para que la llamada no suene artificialmente silenciosa. La detección de
-  turno de palabra corre en Deepgram Flux, pensado para interrumpir y ser interrumpido de forma
-  natural en vez de esperar un silencio largo.
+  género sobre el catálogo Ultra de Telnyx (Soniox para catalán, euskera y gallego), matiz
+  emocional automático (`expressive_mode`, solo en Ultra) y un fondo sutil de oficina para que
+  la llamada no suene artificialmente silenciosa. La detección de turno de palabra corre en
+  Deepgram Flux (Soniox con catalán, euskera o gallego), pensado para interrumpir y ser
+  interrumpido de forma natural en vez de esperar un silencio largo.
 - **Proveedor primario con respaldo real, no una promesa sin implementar.** Telnyx orquesta hoy
   tanto las llamadas reales como la demo pública; Retell.ai, con certificación RGPD, queda
   sincronizado como respaldo en caliente ante una caída.
@@ -99,9 +100,11 @@ Lo que un producto vecino no podría copiar honestamente:
 - Agentes de voz por negocio con tono (`warm` / `professional` / `direct`), objetivo
   (`bookings` / `customer_service` / `lead_capture`), estilo de respuesta
   (`concise` / `balanced`) y escalado (`take_message` / `request_callback`) configurables.
-- Idioma del agente: español siempre disponible; catalán, inglés y francés seleccionables desde
-  `/agente` en los planes Pro y Scale (voz ElevenLabs dedicada para catalán). En el plan Inicio el
-  selector queda bloqueado y la API rechaza el cambio con 403.
+- Idioma del agente: español siempre disponible; inglés, francés, catalán, euskera y gallego
+  seleccionables desde `/agente` en los planes Pro y Scale, con un idioma principal en el que
+  saluda. Con catalán, euskera o gallego activos atiende una voz de Soniox que habla todos los
+  idiomas del negocio, algo menos expresiva que la Ultra. En el plan Inicio el selector queda
+  bloqueado y la API rechaza el cambio con 403.
 - Número de España (Telnyx) aprovisionado automáticamente tras el checkout.
 - Registro de llamadas con transcripción, grabación y clasificación de resultado.
 - Horario de negocio, catálogo de servicios, profesionales y capacidad de reserva.

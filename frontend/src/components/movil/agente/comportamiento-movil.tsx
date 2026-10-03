@@ -5,10 +5,18 @@ import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Check, Lock } from "lucide-react";
 import { getBillingSummary, updateMyBusiness } from "@/lib/api";
-import type { AgentLanguage, AgentSettings, Business, VoiceLanguage } from "@/lib/types";
+import type { AgentLanguage, AgentSettings, Business } from "@/lib/types";
 import { AvisoFlotante, useAviso } from "@/components/aviso-flotante";
-import { DEFAULT_AGENT_SETTINGS } from "@/components/agent-settings-editor";
-import { avisoDeIdiomas } from "@/lib/idiomas-de-atencion";
+import { DEFAULT_AGENT_SETTINGS } from "@/lib/agent-settings";
+import {
+  IDIOMAS_DE_ATENCION,
+  avisoDeIdiomas,
+  entradillaDeIdiomas,
+  esIdiomaDeSoniox,
+  nombreDeIdioma,
+  normalizarIdiomas,
+  usaSoniox,
+} from "@/lib/idiomas-de-atencion";
 import { BarraGuardar } from "@/components/movil/piezas";
 import { PantallaDeAjuste } from "@/components/movil/agente/pantalla-de-ajuste";
 
@@ -53,25 +61,6 @@ const CAMPOS: Array<{ clave: CampoDeOpciones; titulo: string; texto: string; opc
       ["request_callback", "Solicitar devolución", "Pedir datos para llamar después"],
     ],
   },
-];
-
-const IDIOMAS: Array<{ valor: AgentLanguage; nombre: string }> = [
-  { valor: "es-ES", nombre: "Español" },
-  { valor: "en-GB", nombre: "Inglés" },
-  { valor: "fr-FR", nombre: "Francés" },
-  { valor: "ca-ES", nombre: "Catalán" },
-  { valor: "eu-ES", nombre: "Euskera" },
-  { valor: "gl-ES", nombre: "Gallego" },
-];
-// Idioma principal: con catalán, euskera o gallego atiende una voz de
-// Soniox que habla todos los idiomas (telnyxEligibility.ts).
-const IDIOMAS_DE_VOZ: Array<{ valor: VoiceLanguage; nombre: string }> = [
-  { valor: "es-ES", nombre: "Español" },
-  { valor: "en-GB", nombre: "Inglés" },
-  { valor: "fr-FR", nombre: "Francés" },
-  { valor: "ca-ES", nombre: "Catalán" },
-  { valor: "eu-ES", nombre: "Euskera" },
-  { valor: "gl-ES", nombre: "Gallego" },
 ];
 
 function Opcion({
@@ -154,12 +143,19 @@ export function ComportamientoMovil({ business }: { business: Business }) {
     const activos = ajustes.languages.includes(idioma)
       ? ajustes.languages.filter((actual) => actual !== idioma)
       : [...ajustes.languages, idioma];
-    const ordenados = IDIOMAS.map((opcion) => opcion.valor).filter((valor) => activos.includes(valor));
-    // Si se quita el idioma de la voz, vuelve a español: nunca puede quedar
-    // apuntando a un idioma que ya no se atiende.
-    const voz = ordenados.includes(ajustes.voiceLanguage) ? ajustes.voiceLanguage : "es-ES";
-    setAjustes({ ...ajustes, languages: ordenados, voiceLanguage: voz });
+    // Mismas reglas que el backend: el principal siempre activo y, con
+    // catalán, euskera o gallego activos, uno de ellos.
+    const siguiente = normalizarIdiomas(activos, ajustes.voiceLanguage);
+    // Quitar el idioma del saludo cambia el principal más abajo, a menudo
+    // fuera de pantalla: se dice en vez de cambiarlo en silencio.
+    if (!siguiente.languages.includes(ajustes.voiceLanguage)) {
+      avisar(
+        `Has quitado el ${nombreDeIdioma(ajustes.voiceLanguage).toLowerCase()}: ahora saluda en ${nombreDeIdioma(siguiente.voiceLanguage).toLowerCase()}.`
+      );
+    }
+    setAjustes({ ...ajustes, ...siguiente });
   };
+  const conIdiomasDeSoniox = usaSoniox(ajustes.languages);
 
   return (
     <PantallaDeAjuste titulo="Cómo atiende" subtitulo="El tono, el objetivo y el modo en que gestiona cada conversación.">
@@ -184,9 +180,7 @@ export function ComportamientoMovil({ business }: { business: Business }) {
 
         <fieldset className="min-w-0">
           <legend className="text-base font-bold text-tinta">Idioma y voz</legend>
-          <p className="mb-2.5 mt-0.5 text-sm text-muted">
-            Empieza en español y sigue en el idioma de quien llama.
-          </p>
+          <p className="mb-2.5 mt-0.5 text-sm text-muted">{entradillaDeIdiomas(ajustes)}</p>
           {bloqueado ? (
             <div className="mb-3 flex items-start gap-2.5 rounded-[14px] border border-lavado-borde bg-lavado px-3.5 py-3 text-morado-tinta">
               <Lock className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
@@ -204,7 +198,7 @@ export function ComportamientoMovil({ business }: { business: Business }) {
             // apagados.
             <>
               <div className="flex flex-wrap gap-2">
-                {IDIOMAS.map((idioma) => {
+                {IDIOMAS_DE_ATENCION.map((idioma) => {
                   const activo = ajustes.languages.includes(idioma.valor);
                   return (
                     <span
@@ -219,14 +213,14 @@ export function ComportamientoMovil({ business }: { business: Business }) {
                 })}
               </div>
               <p className="mt-3 text-sm text-muted">
-                Voz {ajustes.voiceGender === "masculina" ? "masculina" : "femenina"} ·{" "}
-                {IDIOMAS_DE_VOZ.find((idioma) => idioma.valor === ajustes.voiceLanguage)?.nombre ?? "Español"}
+                Voz {ajustes.voiceGender === "masculina" ? "masculina" : "femenina"} · saluda en{" "}
+                {nombreDeIdioma(ajustes.voiceLanguage).toLowerCase()}
               </p>
             </>
           ) : (
             <>
               <div className="flex flex-col gap-2">
-                {IDIOMAS.map((idioma) => (
+                {IDIOMAS_DE_ATENCION.map((idioma) => (
                   <Opcion
                     key={idioma.valor}
                     forma="check"
@@ -237,6 +231,15 @@ export function ComportamientoMovil({ business }: { business: Business }) {
                     onClick={() => alternarIdioma(idioma.valor)}
                   />
                 ))}
+              </div>
+              {/* Siempre montado: un lector de pantalla solo anuncia los
+                  cambios de una región viva que ya estaba en la página. */}
+              <div role="status" aria-live="polite">
+                {avisoDeIdioma ? (
+                  <p className="mt-3 rounded-[14px] border border-lavado-borde bg-lavado px-3.5 py-3 text-sm leading-[1.55] text-morado-tinta">
+                    {avisoDeIdioma}
+                  </p>
+                ) : null}
               </div>
               <p className="mb-2 mt-4 text-xs font-semibold uppercase tracking-[0.12em] text-muted">Voz</p>
               <div role="radiogroup" aria-label="Voz del agente" className="grid grid-cols-2 gap-2">
@@ -256,19 +259,23 @@ export function ComportamientoMovil({ business }: { business: Business }) {
               </div>
               <p className="mb-2 mt-4 text-xs font-semibold uppercase tracking-[0.12em] text-muted">Idioma principal</p>
               <div role="radiogroup" aria-label="Idioma principal" className="flex flex-col gap-2">
-                {IDIOMAS_DE_VOZ.map((idioma) => (
+                {IDIOMAS_DE_ATENCION.map((idioma) => (
                   <Opcion
                     key={idioma.valor}
                     elegida={ajustes.voiceLanguage === idioma.valor}
                     titulo={idioma.nombre}
-                    disabled={!ajustes.languages.includes(idioma.valor)}
+                    disabled={
+                      !ajustes.languages.includes(idioma.valor) ||
+                      (conIdiomasDeSoniox && !esIdiomaDeSoniox(idioma.valor))
+                    }
                     onClick={() => setAjustes({ ...ajustes, voiceLanguage: idioma.valor })}
                   />
                 ))}
               </div>
-              <p className="mt-2 text-xs leading-5 text-muted">
-                Solo puedes elegir un idioma que esté activo arriba.
-                {avisoDeIdioma ? ` ${avisoDeIdioma}` : null}
+              <p className="mt-2 text-sm leading-5 text-muted">
+                {conIdiomasDeSoniox
+                  ? "Con catalán, euskera o gallego activos, saluda en uno de ellos."
+                  : "Saluda en este idioma. Solo puedes elegir uno que esté activo arriba."}
               </p>
             </>
           )}

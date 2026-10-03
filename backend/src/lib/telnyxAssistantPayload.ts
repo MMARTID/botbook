@@ -5,12 +5,8 @@ import type {
   TelnyxWebhookTool,
 } from "../adapters/telnyx/TelnyxAiAdapter.js";
 import type { TranscriptionSettings } from "telnyx/resources/ai/assistants/assistants.js";
-import {
-  resolveManagedPromptTimezone,
-  transcribeConSoniox,
-  type AgentLanguage,
-  type VoiceLanguage,
-} from "./managedAgentPrompt.js";
+import { resolveManagedPromptTimezone } from "./managedAgentPrompt.js";
+import type { PerfilDeIdiomas } from "./idiomas/resolver.js";
 
 /**
  * Nombre estable y determinista del assistant Telnyx de un agente — permite
@@ -471,47 +467,6 @@ export function adaptManagedPromptForTelnyx(
     .join(zona);
 }
 
-const TELNYX_TRANSCRIPTION_LANGUAGE_HINTS: Record<string, string> = {
-  "es-ES": "es",
-  "en-GB": "en",
-  "fr-FR": "fr",
-};
-
-/**
- * `transcription.language` (deepgram/flux) a partir de los idiomas de
- * atención activados en AgentSettings.languages: un solo idioma soportado
- * usa su pista concreta (mejor precisión de transcripción); más de uno usa
- * "multi" (sin pista fija, deepgram/flux detecta y cambia de idioma dentro
- * de la misma llamada) — antes esta función no existía y el idioma venía
- * fijo a "es" en telnyxAgentSync.ts sin mirar los idiomas activados, así que
- * un negocio con inglés o francés activados igualmente transcribía en
- * español. Con catalán, euskera o gallego no se usa: transcribe Soniox (ver
- * transcripcionDeSoniox).
- */
-export function resolveTelnyxTranscriptionLanguage(
-  languages: readonly string[]
-): string {
-  const supported = languages.filter(
-    (language) => language in TELNYX_TRANSCRIPTION_LANGUAGE_HINTS
-  );
-  if (supported.length === 0) return "es";
-  if (supported.length === 1) {
-    return TELNYX_TRANSCRIPTION_LANGUAGE_HINTS[supported[0]];
-  }
-  return "multi";
-}
-
-/** Código ISO 639-1 de cada idioma de atención: lo que piden la voz de
- * Soniox (`voice_settings.language`) y sus `language_hints`. */
-const CODIGO_ISO_DE_IDIOMA: Record<AgentLanguage, string> = {
-  "es-ES": "es",
-  "en-GB": "en",
-  "fr-FR": "fr",
-  "ca-ES": "ca",
-  "eu-ES": "eu",
-  "gl-ES": "gl",
-};
-
 /**
  * Transcripción con Soniox para los negocios con catalán, euskera o gallego,
  * que deepgram/flux no reconoce. `language_hints` fija los idiomas del
@@ -526,16 +481,14 @@ const CODIGO_ISO_DE_IDIOMA: Record<AgentLanguage, string> = {
  * Deepgram: las palabras clave van en `context`, su equivalente en Soniox.
  */
 function transcripcionDeSoniox(
-  languages: readonly AgentLanguage[],
+  pistas: readonly string[],
   boostedKeywords: readonly string[] | undefined
 ): TranscriptionSettings {
   return {
     model: "soniox/stt-rt-v5",
     language: "auto",
     settings: {
-      language_hints: languages.map(
-        (language) => CODIGO_ISO_DE_IDIOMA[language]
-      ),
+      language_hints: [...pistas],
       ...(boostedKeywords?.length
         ? { context: boostedKeywords.join(",") }
         : {}),
@@ -560,17 +513,14 @@ export interface BuildTelnyxAssistantPayloadInput {
   instructions: string;
   /** Cadena vacía para que el assistant espere a que hable el cliente. */
   greeting: string;
-  /** Idiomas de atención activados (AgentSettings.languages): deciden el
-   * modelo de transcripción — deepgram/flux, o Soniox si hay catalán,
-   * euskera o gallego, sea cual sea la voz — y su pista de idioma. */
-  languages: readonly AgentLanguage[];
+  /** Lo que el idioma decide del payload (resolverIdiomas, en
+   * lib/idiomas/resolver.ts): el motor de transcripción con sus pistas y el
+   * idioma en que arranca una voz de Soniox. */
+  idiomas: Pick<PerfilDeIdiomas, "transcripcion" | "isoDelPrincipal">;
   /** Identificador Telnyx (`Telnyx.<modelo>.<voz>`), de Soniox
    * (`Soniox.tts-rt-v2.<voz>`) o de ElevenLabs vía `api_key_ref` — resuelto
    * contra la API de voces de la cuenta, no fijo. */
   voice: string;
-  /** Idioma en que arranca una voz de Soniox (AgentSettings.voiceLanguage);
-   * las voces Ultra ya tienen el suyo y lo ignoran. */
-  voiceLanguage?: VoiceLanguage;
   insightGroupId?: string;
   tools?: TelnyxWebhookToolInput[];
   includeHangupTool?: boolean;
@@ -623,7 +573,8 @@ export function buildTelnyxAssistantPayload(
     );
   }
 
-  const soniox = transcribeConSoniox(input.languages);
+  const transcripcion = input.idiomas.transcripcion;
+  const soniox = transcripcion.motor === "soniox";
 
   return {
     name: buildTelnyxAssistantName(input.businessId, input.agentId),
@@ -672,8 +623,10 @@ export function buildTelnyxAssistantPayload(
     // artificial en una llamada real.
     voiceSettings: {
       voice: input.voice,
+      // Las voces de Soniox hablan todos los idiomas: arrancan en el
+      // principal. Las Ultra tienen el suyo.
       ...(input.voice.startsWith("Soniox.")
-        ? { language: CODIGO_ISO_DE_IDIOMA[input.voiceLanguage ?? "es-ES"] }
+        ? { language: input.idiomas.isoDelPrincipal }
         : {}),
       expressive_mode:
         input.voice.startsWith("Telnyx.Ultra.") ||
@@ -707,10 +660,10 @@ export function buildTelnyxAssistantPayload(
     // fin de turno sin bajar el umbral de confianza real, así que no aumenta
     // el riesgo de interrumpir, solo reduce la latencia percibida.
     transcription: soniox
-      ? transcripcionDeSoniox(input.languages, input.boostedKeywords)
+      ? transcripcionDeSoniox(transcripcion.pistas, input.boostedKeywords)
       : {
           model: "deepgram/flux",
-          language: resolveTelnyxTranscriptionLanguage(input.languages),
+          language: transcripcion.idioma,
           settings: {
             ...(input.boostedKeywords?.length
               ? { keyterm: input.boostedKeywords.join(",") }

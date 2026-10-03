@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { DEFAULT_AGENT_SETTINGS } from "@/components/agent-settings-editor";
+import { DEFAULT_AGENT_SETTINGS } from "@/lib/agent-settings";
 import {
   hayMovilParaPasarLlamadas,
   lineaAntiguaEsElMovilDelDueno,

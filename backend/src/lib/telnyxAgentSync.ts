@@ -15,7 +15,7 @@ import {
 } from "./managedAgentPrompt.js";
 import { resolveTelnyxEligibility } from "./telnyxEligibility.js";
 import { isBusinessType, type BusinessType } from "./businessType.js";
-import { buildRetellBeginMessage } from "./agentBootstrap.js";
+import { resolverIdiomas, saludoDelNegocio } from "./idiomas/resolver.js";
 import { listaDeEsperaDisponible } from "../modules/whatsapp/service.js";
 import { resolverTransferenciaAlDueno } from "./transferenciaAlDueno.js";
 import type { CreateTelnyxAssistantInput } from "../adapters/telnyx/TelnyxAiAdapter.js";
@@ -171,6 +171,7 @@ function construirPayloadDeRecepcionista(args: {
   palabrasClave: string[];
 }): CreateTelnyxAssistantInput {
   const { config } = args;
+  const idiomas = resolverIdiomas(config.agentSettings);
   return buildTelnyxAssistantPayload({
     businessId: args.businessId,
     agentId: args.agent.id,
@@ -182,13 +183,9 @@ function construirPayloadDeRecepcionista(args: {
           config.bloqueDeTransferencia
         )
       : config.systemPrompt,
-    greeting: buildRetellBeginMessage(
-      config.business.name,
-      config.agentSettings.voiceLanguage
-    ),
-    languages: config.agentSettings.languages,
+    greeting: saludoDelNegocio(idiomas, config.business.name),
+    idiomas,
     voice: args.voz,
-    voiceLanguage: config.agentSettings.voiceLanguage,
     boostedKeywords: args.palabrasClave,
     tools: args.tools,
     // Va aparte de `tools` (que solo lleva tools de webhook).

@@ -18,7 +18,7 @@ import {
   Smartphone,
   type LucideIcon,
 } from "lucide-react";
-import { DEFAULT_AGENT_SETTINGS } from "@/components/agent-settings-editor";
+import { DEFAULT_AGENT_SETTINGS } from "@/lib/agent-settings";
 import { AppPageHeader, AppPageSkeleton } from "@/components/app-page-header";
 import { SectionErrorState } from "@/components/section-card";
 import {

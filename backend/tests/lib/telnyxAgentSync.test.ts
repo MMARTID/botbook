@@ -213,7 +213,7 @@ describe("createTelnyxAssistantForAgent", () => {
     });
   });
 
-  it("con español principal y catalán activo: voz Ultra, transcripción de Soniox y saludo en español", async () => {
+  it("con catalán activo y español guardado como principal, el principal pasa a catalán", async () => {
     mockedBusinessFindUnique.mockResolvedValue({
       ...BASE_BUSINESS,
       agentSettings: {
@@ -221,6 +221,9 @@ describe("createTelnyxAssistantForAgent", () => {
         languages: ["es-ES", "ca-ES"],
       },
     } as any);
+    mockedListVoices.mockResolvedValue([
+      { id: "Soniox.tts-rt-v2.Marta", language: "en", gender: "female" },
+    ]);
     mockedCreateAssistant.mockResolvedValue({
       id: "assistant_1",
       name: "alhabla-biz1-agent1",
@@ -234,13 +237,12 @@ describe("createTelnyxAssistantForAgent", () => {
 
     const payload = mockedCreateAssistant.mock.calls[0][0];
     expect(payload.greeting).toBe(
-      "Hola, gracias por llamar a Peluquería Ejemplo. ¿En qué te puedo ayudar?"
+      "Hola, gràcies per trucar a Peluquería Ejemplo. En què et puc ajudar?"
     );
     expect(payload.voiceSettings).toMatchObject({
-      voice: "Telnyx.Ultra.isabel",
-      expressive_mode: true,
+      voice: "Soniox.tts-rt-v2.Marta",
+      language: "ca",
     });
-    expect(payload.voiceSettings).not.toHaveProperty("language");
     expect(payload.transcription?.model).toBe("soniox/stt-rt-v5");
   });
 

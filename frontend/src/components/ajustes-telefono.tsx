@@ -23,7 +23,7 @@ import {
   ComprobarDesvio,
   NotaDeLinea,
 } from "@/components/call-forwarding-card";
-import { DEFAULT_AGENT_SETTINGS } from "@/components/agent-settings-editor";
+import { DEFAULT_AGENT_SETTINGS } from "@/lib/agent-settings";
 import {
   OPERATIONAL_TONE,
   buildOperationalStatus,

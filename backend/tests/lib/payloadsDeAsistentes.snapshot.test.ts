@@ -8,6 +8,10 @@ import {
   buildGestorAssistantPayload,
   buildGestorTools,
 } from "../../src/lib/gestorPayload.js";
+import {
+  resolverIdiomas,
+  saludoDelNegocio,
+} from "../../src/lib/idiomas/resolver.js";
 
 /**
  * Instantáneas de los payloads que llegan a la API de Telnyx. Sirven de red
@@ -32,7 +36,11 @@ describe("payloads de asistentes (instantáneas)", () => {
         instructions:
           "Hola {{nombre_negocio}}, llama {{user_number}} a las {{current_time_{{zona_horaria}}}} ({{zona_horaria}}).",
         greeting: "Peluquería Ana, dígame.",
-        languages: ["es-ES"],
+        idiomas: resolverIdiomas({
+          languages: ["es-ES"],
+          voiceLanguage: "es-ES",
+          voiceGender: "femenina",
+        }),
         voice: "Telnyx.Ultra.blanca",
         tools: buildTelnyxVoiceTools(BASE_URL),
         transferenciaAlDueno: { from: "+34910000000", to: "+34600000000" },
@@ -49,12 +57,49 @@ describe("payloads de asistentes (instantáneas)", () => {
         businessName: "Barbería",
         instructions: "Prompt manual.",
         greeting: "",
-        languages: ["es-ES", "en-GB"],
+        idiomas: resolverIdiomas({
+          languages: ["es-ES", "en-GB"],
+          voiceLanguage: "es-ES",
+          voiceGender: "femenina",
+        }),
         voice: "Telnyx.NaturalHD.x",
         includeHangupTool: false,
       })
     ).toMatchSnapshot();
   });
+
+  // Un nivel por idioma principal regional: voz de Soniox, Soniox para
+  // entender y el saludo en su idioma (catálogo en lib/idiomas). Solo lo que
+  // depende del idioma, para que la instantánea diga qué cambió.
+  for (const [principal, otros] of [
+    ["ca-ES", ["es-ES", "en-GB"]],
+    ["eu-ES", ["es-ES"]],
+    ["gl-ES", ["es-ES", "fr-FR"]],
+  ] as const) {
+    it(`assistant de la recepcionista con ${principal} como idioma principal`, () => {
+      const idiomas = resolverIdiomas({
+        languages: [...otros, principal],
+        voiceLanguage: principal,
+        voiceGender: "femenina",
+      });
+      const payload = buildTelnyxAssistantPayload({
+        businessId: "neg_1",
+        agentId: "ag_1",
+        businessName: "Perruqueria Anna",
+        instructions: "Ets la recepcionista de {{nombre_negocio}}.",
+        greeting: saludoDelNegocio(idiomas, "Perruqueria Anna"),
+        idiomas,
+        voice: idiomas.voz.id,
+        boostedKeywords: ["Tall", "Laura"],
+      });
+      expect({
+        greeting: payload.greeting,
+        voiceSettings: payload.voiceSettings,
+        transcription: payload.transcription,
+        interruptionSettings: payload.interruptionSettings,
+      }).toMatchSnapshot();
+    });
+  }
 
   it("tools del Gestor", () => {
     expect(buildGestorTools(BASE_URL)).toMatchSnapshot();
@@ -79,7 +124,11 @@ describe("payloads de asistentes (instantáneas)", () => {
           timezone: "Europe/Madrid",
           instructions: "Prompt {{nombre_negocio}}",
           greeting: "Hola",
-          languages: ["es-ES"],
+          idiomas: resolverIdiomas({
+            languages: ["es-ES"],
+            voiceLanguage: "es-ES",
+            voiceGender: "femenina",
+          }),
           voice: "Telnyx.Ultra.blanca",
           tools: buildTelnyxVoiceTools(BASE_URL),
           transferenciaAlDueno: { from: "+34910000000", to: "+34600000000" },

@@ -1,0 +1,154 @@
+import {
+  IDIOMAS,
+  componerSaludo,
+  type CodigoDeIdioma,
+  type GeneroDeVoz,
+  type IdiomaDeRetell,
+  type VozDelCatalogo,
+} from "./catalogo.js";
+import {
+  IDIOMA_OBLIGATORIO,
+  normalizarIdiomas,
+  type CambioDeIdiomas,
+} from "./ajustes.js";
+
+/** Lo que importa de AgentSettings para el idioma. */
+export interface AjustesDeIdioma {
+  languages: readonly CodigoDeIdioma[];
+  voiceLanguage: CodigoDeIdioma;
+  voiceGender: GeneroDeVoz;
+}
+
+export type TranscripcionResuelta =
+  { motor: "flux"; idioma: string } | { motor: "soniox"; pistas: string[] };
+
+/** Todo lo que depende del idioma de un negocio, decidido en un solo
+ * sitio. Lo consumen la elegibilidad, el payload de Telnyx, el prompt,
+ * Retell y el panel. */
+export interface PerfilDeIdiomas {
+  /** Activos, normalizados y en orden canónico. */
+  idiomas: CodigoDeIdioma[];
+  /** El del saludo y el que decide la voz. */
+  principal: CodigoDeIdioma;
+  genero: GeneroDeVoz;
+  /** La voz preferida del catálogo; la de la cuenta se comprueba en
+   * telnyxEligibility.ts. */
+  voz: VozDelCatalogo;
+  /** ISO del principal: `voice_settings.language` de una voz de Soniox. */
+  isoDelPrincipal: string;
+  transcripcion: TranscripcionResuelta;
+  instruccionDelPrompt: string;
+  cambios: CambioDeIdiomas[];
+}
+
+/**
+ * Transcripción más rápida que entiende todos los idiomas activos:
+ * deepgram/flux (fin de turno nativo y anticipado) si los entiende todos, con
+ * su pista si es uno o `multi` si son varios; si no, Soniox con las pistas de
+ * todos, en orden canónico.
+ */
+function resolverTranscripcion(
+  idiomas: readonly CodigoDeIdioma[]
+): TranscripcionResuelta {
+  const pistasDeFlux = idiomas.map(
+    (idioma) => IDIOMAS[idioma].transcripcion.flux
+  );
+  if (pistasDeFlux.every((pista): pista is string => pista !== null)) {
+    return {
+      motor: "flux",
+      idioma: pistasDeFlux.length === 1 ? pistasDeFlux[0] : "multi",
+    };
+  }
+  return {
+    motor: "soniox",
+    pistas: idiomas.map((idioma) => IDIOMAS[idioma].transcripcion.soniox),
+  };
+}
+
+/**
+ * Instrucción de idioma del prompt. Con solo español, la de siempre; con
+ * varios, saluda en el principal y sigue en el de quien llama. Los textos de
+ * los idiomas de siempre son los mismos byte a byte: cambiarlos cambiaría el
+ * hash del payload de Telnyx de esos negocios.
+ */
+function construirInstruccionDelPrompt(
+  idiomas: readonly CodigoDeIdioma[],
+  principal: CodigoDeIdioma
+): string {
+  if (idiomas.length === 1) {
+    return `Habla siempre en ${IDIOMAS[idiomas[0]].nombreEnPrompt}; no menciones que eres una IA salvo que te lo pregunten.`;
+  }
+  const lista = idiomas
+    .map((idioma) => IDIOMAS[idioma].nombreEnPrompt)
+    .join(", ");
+  const notas = idiomas
+    .map((idioma) => IDIOMAS[idioma].notaParaElPrompt)
+    .filter((nota): nota is string => Boolean(nota))
+    .map((nota) => ` ${nota}`)
+    .join("");
+  return `Empieza siempre con el saludo en ${IDIOMAS[principal].nombreEnPrompt}. Tras la primera intervención de quien llama, responde y continúa exclusivamente en el idioma que use si es uno de estos: ${lista}. Si cambia entre esos idiomas, acompaña el cambio sin pedirle que elija uno.${notas} No menciones que eres una IA salvo que te lo pregunten.`;
+}
+
+export function resolverIdiomas(ajustes: AjustesDeIdioma): PerfilDeIdiomas {
+  const { languages, voiceLanguage, cambios } = normalizarIdiomas(ajustes);
+  // normalizarIdiomas garantiza un principal con voces propias.
+  const voz = IDIOMAS[voiceLanguage].voces![ajustes.voiceGender];
+  return {
+    idiomas: languages,
+    principal: voiceLanguage,
+    genero: ajustes.voiceGender,
+    voz,
+    isoDelPrincipal: IDIOMAS[voiceLanguage].iso,
+    transcripcion: resolverTranscripcion(languages),
+    instruccionDelPrompt: construirInstruccionDelPrompt(
+      languages,
+      voiceLanguage
+    ),
+    cambios,
+  };
+}
+
+export function saludoDelNegocio(
+  perfil: Pick<PerfilDeIdiomas, "principal">,
+  negocio: string
+): string {
+  return componerSaludo(perfil.principal, negocio);
+}
+
+// ---------------------------------------------------------------------
+// Retell, el respaldo: solo tiene los idiomas con `retell.locale` (no el
+// euskera) y rechaza ca-ES con su voz Cartesia por defecto.
+// ---------------------------------------------------------------------
+
+/**
+ * Los ajustes tal como los atiende Retell: sin los idiomas que no tiene y,
+ * si el principal es uno de ellos (euskera), con el obligatorio de
+ * principal; si no, el agente saludaría en un idioma que Retell no entiende.
+ */
+export function ajustesParaRetell<T extends AjustesDeIdioma>(ajustes: T): T {
+  const languages = ajustes.languages.filter(
+    (idioma) => IDIOMAS[idioma].retell.locale !== null
+  );
+  const voiceLanguage = languages.includes(ajustes.voiceLanguage)
+    ? ajustes.voiceLanguage
+    : IDIOMA_OBLIGATORIO;
+  return { ...ajustes, languages, voiceLanguage };
+}
+
+/** El campo `language` de Retell: un escalar con un solo idioma (su ruta
+ * monolingüe, la más precisa) o el array con varios. */
+export function idiomaDeRetell(
+  idiomas: readonly CodigoDeIdioma[]
+): IdiomaDeRetell | IdiomaDeRetell[] {
+  const locales = idiomas
+    .map((idioma) => IDIOMAS[idioma].retell.locale)
+    .filter((locale): locale is IdiomaDeRetell => locale !== null);
+  return locales.length === 1 ? locales[0] : locales;
+}
+
+/** ¿Hace falta la cadena de voces multilingüe de Retell (ElevenLabs)? */
+export function usaVozMultilingueEnRetell(
+  idiomas: readonly CodigoDeIdioma[]
+): boolean {
+  return idiomas.some((idioma) => IDIOMAS[idioma].retell.vozMultilingue);
+}
