@@ -19,6 +19,13 @@ export interface Segmento {
  * (respiraciones y pausas entre palabras). */
 const PAUSA_DENTRO_DE_UNA_FRASE_S = 0.3;
 
+/** Lo que dura menos que esto no es voz: chasquidos, el eco de la otra
+ * parte o un pico del fondo entre dos silencios (silencedetect los deja
+ * como tramos de duración casi cero). Contarlos inventa solapes y turnos
+ * (visto el 2026-10-03 en la primera grabación medida). Una sílaba ya dura
+ * más. */
+const DURACION_MINIMA_DE_VOZ_S = 0.15;
+
 function unirTramos(tramos: Segmento[], pausa: number): Segmento[] {
   const unidos: Segmento[] = [];
   for (const tramo of tramos) {
@@ -67,7 +74,9 @@ export function segmentosDeVoz(
     cursor = Math.max(cursor, silencio.fin);
   }
   if (cursor < duracion) voz.push({ inicio: cursor, fin: duracion });
-  return unirTramos(voz, pausa);
+  return unirTramos(voz, pausa).filter(
+    (tramo) => tramo.fin - tramo.inicio >= DURACION_MINIMA_DE_VOZ_S
+  );
 }
 
 export interface TurnoMedido {
@@ -79,6 +88,9 @@ export interface TurnoMedido {
 
 export interface LatenciaDeLaLlamada {
   turnos: TurnoMedido[];
+  /** Respuestas de más de `maximo` segundos: no cuentan como espera, pero
+   * hacen falta para emparejar el audio con la transcripción. */
+  largas: TurnoMedido[];
   /** Veces que la recepcionista empezó con el cliente aún hablando. */
   solapes: number;
 }
@@ -97,6 +109,7 @@ export function medirTurnos(
   maximo = 4
 ): LatenciaDeLaLlamada {
   const turnos: TurnoMedido[] = [];
+  const largas: TurnoMedido[] = [];
   let solapes = 0;
   for (const tramo of recepcionista) {
     const clienteHablando = cliente.some(
@@ -119,15 +132,76 @@ export function medirTurnos(
     );
     if (yaRespondio) continue;
     const latencia = tramo.inicio - ultima.fin;
-    if (latencia <= maximo) {
-      turnos.push({
-        finDelCliente: ultima.fin,
-        inicioDeLaRecepcionista: tramo.inicio,
-        latencia,
-      });
+    (latencia <= maximo ? turnos : largas).push({
+      finDelCliente: ultima.fin,
+      inicioDeLaRecepcionista: tramo.inicio,
+      latencia,
+    });
+  }
+  return { turnos, largas, solapes };
+}
+
+/** Un mensaje de `Transcript.messages` (rol y texto). */
+export interface MensajeDeLaTranscripcion {
+  role: string;
+  text?: string | null;
+}
+
+/**
+ * Por cada respuesta hablada del agente a una intervención del cliente, en
+ * orden, si hubo una herramienta por medio. Una respuesta tras consultar
+ * disponibilidad o guardar un recado tarda por la herramienta, no por la
+ * voz ni la transcripción: mezclarlas esconde lo que se quiere comparar.
+ */
+export function respuestasConHerramienta(
+  mensajes: MensajeDeLaTranscripcion[]
+): boolean[] {
+  const respuestas: boolean[] = [];
+  let pendiente = false;
+  let herramienta = false;
+  for (const mensaje of mensajes) {
+    if (mensaje.role === "user") {
+      if (!pendiente) herramienta = false;
+      pendiente = true;
+    } else if (pendiente && mensaje.role === "tool") {
+      herramienta = true;
+    } else if (
+      pendiente &&
+      mensaje.role === "assistant" &&
+      mensaje.text?.trim()
+    ) {
+      respuestas.push(herramienta);
+      pendiente = false;
+      herramienta = false;
     }
   }
-  return { turnos, solapes };
+  return respuestas;
+}
+
+export interface TurnoAnotado extends TurnoMedido {
+  conHerramienta: boolean;
+}
+
+/**
+ * Empareja por orden las respuestas del audio (turnos y largas) con las de
+ * la transcripción. Si no cuadran (solapes, una frase partida en dos), no
+ * anota nada: mejor sin anotar que mal anotado.
+ */
+export function anotarHerramientas(
+  medida: LatenciaDeLaLlamada,
+  conHerramienta: boolean[]
+): TurnoAnotado[] | null {
+  const respuestas = [...medida.turnos, ...medida.largas].sort(
+    (a, b) => a.inicioDeLaRecepcionista - b.inicioDeLaRecepcionista
+  );
+  if (medida.solapes > 0 || respuestas.length !== conHerramienta.length) {
+    return null;
+  }
+  return respuestas.flatMap((respuesta, indice) =>
+    medida.turnos.includes(respuesta)
+      ? [{ ...respuesta, conHerramienta: conHerramienta[indice] }]
+      : []
+  );
 }
 
 /** Percentil `p` (0–100) por el método del rango más cercano. */

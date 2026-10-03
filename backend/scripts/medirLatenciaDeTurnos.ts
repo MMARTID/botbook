@@ -3,8 +3,10 @@
  * doble canal de un negocio (lib/latenciaDeTurnos.ts): p50/p95 por llamada
  * y en conjunto. Sirve para comparar configuraciones de idioma y voz con
  * datos (p. ej. Ultra + flux frente a Soniox) antes y después de un ajuste.
- * Solo lectura: descarga los audios a un directorio temporal y los borra al
- * terminar.
+ * Separa las respuestas que esperaron a una herramienta (disponibilidad,
+ * recados), emparejándolas con la transcripción: esas miden la herramienta,
+ * no la voz ni la transcripción. Solo lectura: descarga los audios a un
+ * directorio temporal y los borra al terminar.
  *
  * Uso (con DATABASE_URL y las credenciales de R2 del entorno):
  *   npx tsx scripts/medirLatenciaDeTurnos.ts --business <id> \
@@ -18,11 +20,14 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { prisma } from "../src/lib/prisma.js";
-import { getSignedRecordingUrl } from "../src/lib/storage.js";
+import { getSignedRecordingUrl, initStorage } from "../src/lib/storage.js";
 import {
+  anotarHerramientas,
   medirTurnos,
   percentil,
+  respuestasConHerramienta,
   segmentosDeVoz,
+  type MensajeDeLaTranscripcion,
   type Segmento,
 } from "../src/lib/latenciaDeTurnos.js";
 
@@ -75,6 +80,9 @@ function vozDelCanal(
 const ms = (segundos: number | null) =>
   segundos === null ? "—" : `${Math.round(segundos * 1000)} ms`;
 
+const resumen = (esperas: number[]) =>
+  `${esperas.length} · p50 ${ms(percentil(esperas, 50))} · p95 ${ms(percentil(esperas, 95))}`;
+
 async function main() {
   const negocio = argumento("--business");
   if (!negocio) {
@@ -100,13 +108,16 @@ async function main() {
         : {}),
       recording: { is: { storageKey: { not: null }, deletedAt: null } },
     },
-    include: { recording: true },
+    include: { recording: true, transcript: true },
     orderBy: { startedAt: "desc" },
     take: Number(argumento("--max") ?? 20),
   });
 
+  initStorage();
   const directorio = mkdtempSync(join(tmpdir(), "latencia-"));
-  const todas: number[] = [];
+  const conversacion: number[] = [];
+  const conHerramienta: number[] = [];
+  const sinAnotar: number[] = [];
   let solapes = 0;
   try {
     for (const llamada of llamadas) {
@@ -132,24 +143,45 @@ async function main() {
               (canales[1][0]?.inicio ?? Infinity)
             ? 0
             : 1;
-      const { turnos, solapes: deLaLlamada } = medirTurnos(
+      const medida = medirTurnos(
         canales[1 - recepcionista],
         canales[recepcionista]
       );
-      const esperas = turnos.map((turno) => turno.latencia);
-      todas.push(...esperas);
-      solapes += deLaLlamada;
+      solapes += medida.solapes;
+      const mensajes = (llamada.transcript?.messages ??
+        []) as unknown as MensajeDeLaTranscripcion[];
+      const anotados = anotarHerramientas(
+        medida,
+        respuestasConHerramienta(mensajes)
+      );
+      if (anotados) {
+        for (const turno of anotados) {
+          (turno.conHerramienta ? conHerramienta : conversacion).push(
+            turno.latencia
+          );
+        }
+      } else {
+        sinAnotar.push(...medida.turnos.map((turno) => turno.latencia));
+      }
+      const detalle = anotados
+        ? anotados
+            .map((t) => `${ms(t.latencia)}${t.conHerramienta ? " (h)" : ""}`)
+            .join(", ")
+        : `sin anotar: ${medida.turnos.map((t) => ms(t.latencia)).join(", ")}`;
       console.log(
-        `${llamada.startedAt.toISOString()} ${llamada.id}: ${esperas.length} turnos · p50 ${ms(percentil(esperas, 50))} · p95 ${ms(percentil(esperas, 95))} · ${deLaLlamada} solapes`
+        `${llamada.startedAt.toISOString()} ${llamada.id}: ${detalle} · ${medida.solapes} solapes`
       );
     }
   } finally {
     rmSync(directorio, { recursive: true, force: true });
   }
 
-  console.log(
-    `\nEn conjunto (${llamadas.length} llamadas, ${todas.length} turnos): p50 ${ms(percentil(todas, 50))} · p95 ${ms(percentil(todas, 95))} · ${solapes} solapes`
-  );
+  console.log(`\n${llamadas.length} llamadas · ${solapes} solapes`);
+  console.log(`Conversación:      ${resumen(conversacion)}`);
+  console.log(`Con herramienta:   ${resumen(conHerramienta)}`);
+  if (sinAnotar.length > 0) {
+    console.log(`Sin anotar:        ${resumen(sinAnotar)}`);
+  }
 }
 
 main()
