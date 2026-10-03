@@ -494,3 +494,67 @@ describe("PATCH /business/me (móvil del dueño para WhatsApp)", () => {
     expect(response.json().code).toBe("OWNER_WHATSAPP_IS_ALHABLA");
   });
 });
+
+describe("idiomas de la recepcionista en el panel", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("GET /business/me devuelve los idiomas tal como los aplica la recepcionista", async () => {
+    mockedBusinessFindUnique.mockResolvedValue(
+      negocioDePrisma({
+        agentSettings: {
+          ...DEFAULT_AGENT_SETTINGS,
+          languages: ["es-ES", "ca-ES"],
+          voiceLanguage: "es-ES",
+        },
+      }) as any
+    );
+    const fastify = await buildServer();
+
+    const response = await fastify.inject({ method: "GET", url: "/business/me" });
+
+    expect(response.json().agentSettings).toMatchObject({
+      languages: ["es-ES", "ca-ES"],
+      voiceLanguage: "ca-ES",
+    });
+  });
+
+  it("GET /business/me/idiomas devuelve lo que se ofrece", async () => {
+    const fastify = await buildServer();
+
+    const response = await fastify.inject({
+      method: "GET",
+      url: "/business/me/idiomas",
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(
+      response.json().principales.map((principal: { codigo: string }) => principal.codigo)
+    ).toEqual(["es-ES", "ca-ES", "eu-ES", "gl-ES"]);
+  });
+
+  it("POST /business/me/idiomas/previsualizar usa el nombre del negocio del token y descarta códigos desconocidos", async () => {
+    mockedBusinessFindUnique.mockResolvedValue({ name: "Perruquería Ana" } as any);
+    const fastify = await buildServer();
+
+    const response = await fastify.inject({
+      method: "POST",
+      url: "/business/me/idiomas/previsualizar",
+      payload: {
+        languages: ["es-ES", "gl-ES", "xx-XX"],
+        voiceLanguage: "gl-ES",
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(mockedBusinessFindUnique).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: "biz_1" } })
+    );
+    expect(response.json()).toMatchObject({
+      languages: ["es-ES", "gl-ES"],
+      voiceLanguage: "gl-ES",
+      saludo: "Ola, grazas por chamar a Perruquería Ana. En que te podo axudar?",
+    });
+  });
+});

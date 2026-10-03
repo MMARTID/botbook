@@ -5,6 +5,7 @@ import { BarraDePestañas, esRutaDePestaña } from "@/components/movil/barra-de-
 import { AgenteMovil } from "@/components/movil/agente-movil";
 import { getBookingSettings } from "@/lib/api";
 import type { Business } from "@/lib/types";
+import { CATALOGO_DE_IDIOMAS } from "../../fixtures/catalogo-de-idiomas";
 
 const replace = vi.fn();
 let parametros = new URLSearchParams();
@@ -12,7 +13,11 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace, push: vi.fn() }),
   useSearchParams: () => parametros,
 }));
-vi.mock("@/lib/api", () => ({ getBookingSettings: vi.fn(), getCalls: vi.fn() }));
+vi.mock("@/lib/api", () => ({
+  getBookingSettings: vi.fn(),
+  getCalls: vi.fn(),
+  getCatalogoDeIdiomas: vi.fn(async () => CATALOGO_DE_IDIOMAS),
+}));
 
 describe("BarraDePestañas", () => {
   it("son las cinco pestañas, sin «Más», y marca la actual", () => {

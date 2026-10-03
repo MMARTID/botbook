@@ -44,6 +44,20 @@ type TelephonySettingsInput = TelephonySettings & {
  * 7.24. */
 type VoiceSettingsInput = VoiceSettings & { language?: string };
 
+/** Proveedores de voz que se consultan: los del catálogo de idiomas
+ * (telnyx, soniox) y los candidatos del laboratorio de voces. */
+export type ProveedorDeVoces = "telnyx" | "soniox" | "minimax" | "azure";
+
+export interface VozSintetizada {
+  audio: Buffer;
+  /** Desde la petición hasta las cabeceras de la respuesta. */
+  primerByteMs: number;
+  /** Lo que tardó el servicio (cabecera `x-envoy-upstream-service-time`):
+   * la mejor aproximación a lo que tarda el proveedor dentro de una
+   * llamada, sin el salto de red desde quien mide. */
+  servidorMs: number | null;
+}
+
 /** `interrupt_prediction_threshold` es real (confirmado contra la API en
  * vivo el 2026-09-14, un assistant ya lo devuelve) pero el SDK instalado
  * (7.17.0) todavía no lo declara en `InferenceEmbeddingInterruptionSettings`
@@ -234,6 +248,45 @@ export class TelnyxAiAdapter {
   async deleteAssistant(assistantId: string): Promise<void> {
     const client = getTelnyxClient();
     await client.ai.assistants.delete(assistantId);
+  }
+
+  /** Voz, transcripción y turno tal como los guardó Telnyx, sin el mapeo
+   * de toTelnyxAssistant (scripts/verificarIdiomas.ts). */
+  async getAssistantVoiceConfig(assistantId: string): Promise<{
+    voiceSettings: Record<string, unknown>;
+    transcription: Record<string, unknown>;
+    interruptionSettings: Record<string, unknown>;
+  }> {
+    const client = getTelnyxClient();
+    const response = (await client.ai.assistants.retrieve(
+      assistantId
+    )) as unknown as Record<string, Record<string, unknown> | undefined>;
+    return {
+      voiceSettings: response.voice_settings ?? {},
+      transcription: response.transcription ?? {},
+      interruptionSettings: response.interruption_settings ?? {},
+    };
+  }
+
+  /**
+   * Telnyx crea una app TeXML por assistant («ai-<id del assistant>», p. ej.
+   * «ai-assistant-4c96…») y no la borra con él (visto el 2026-10-03: una
+   * por cada assistant temporal de prueba). La API ignora el filtro por
+   * nombre, así que se compara aquí. Devuelve cuántas borró.
+   */
+  async deleteTexmlAppOfAssistant(assistantId: string): Promise<number> {
+    const client = getTelnyxClient();
+    const nombre = `ai-${assistantId}`;
+    let borradas = 0;
+    for await (const app of client.texmlApplications.list({
+      filter: { friendly_name: nombre },
+    })) {
+      if (app.friendly_name === nombre && app.id) {
+        await client.texmlApplications.delete(app.id);
+        borradas++;
+      }
+    }
+    return borradas;
   }
 
   // ---------------------------------------------------------------------
@@ -715,7 +768,7 @@ export class TelnyxAiAdapter {
   // ---------------------------------------------------------------------
 
   async listVoices(
-    provider: "telnyx" | "soniox" = "telnyx"
+    provider: ProveedorDeVoces = "telnyx"
   ): Promise<TelnyxVoice[]> {
     const client = getTelnyxClient();
     const response = await client.textToSpeech.listVoices({ provider });
@@ -740,6 +793,36 @@ export class TelnyxAiAdapter {
         gender: voice.gender,
         provider: voice.provider,
       }));
+  }
+
+  /**
+   * Síntesis por la API REST de Telnyx, sin caché, para comparar voces y
+   * medir lo que tardan (scripts/laboratorioDeVoces.ts). `ajustes` va tal
+   * cual en `voice_settings` (p. ej. `language` de Soniox o
+   * `language_boost` de MiniMax).
+   */
+  async sintetizarVoz(input: {
+    texto: string;
+    voz: string;
+    ajustes?: Record<string, unknown>;
+  }): Promise<VozSintetizada> {
+    const client = getTelnyxClient();
+    const inicio = performance.now();
+    const respuesta = await client.textToSpeech
+      .generateSpeech({
+        text: input.texto,
+        voice: input.voz,
+        disable_cache: true,
+        ...(input.ajustes ? { voice_settings: input.ajustes } : {}),
+      } as Parameters<typeof client.textToSpeech.generateSpeech>[0])
+      .asResponse();
+    const primerByteMs = performance.now() - inicio;
+    const servidor = respuesta.headers.get("x-envoy-upstream-service-time");
+    return {
+      audio: Buffer.from(await respuesta.arrayBuffer()),
+      primerByteMs,
+      servidorMs: servidor ? Number(servidor) : null,
+    };
   }
 
   // ---------------------------------------------------------------------

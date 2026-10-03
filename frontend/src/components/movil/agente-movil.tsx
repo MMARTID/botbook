@@ -4,13 +4,12 @@ import { useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { BookOpenText, Bot, CalendarClock, CalendarDays, Layers, ScissorsLineDashed, UserRoundCheck } from "lucide-react";
-import { getBookingSettings } from "@/lib/api";
+import { getBookingSettings, getCatalogoDeIdiomas } from "@/lib/api";
 import { ajustePorSeccion } from "@/lib/agent-configuration";
 import { getCalendarState } from "@/lib/calendar-state";
 import { resumenDeHorario } from "@/lib/horario";
 import type { AgentSettings, Business } from "@/lib/types";
 import { DEFAULT_AGENT_SETTINGS } from "@/lib/agent-settings";
-import { nombreDeIdioma } from "@/lib/idiomas-de-atencion";
 import { isBusinessSchedule } from "@/components/business-hours-editor";
 import { SectionErrorState } from "@/components/section-card";
 import { CabeceraMovil } from "@/components/movil/cabecera-movil";
@@ -36,6 +35,9 @@ export function AgenteMovil({ business }: { business: Business }) {
   const router = useRouter();
   const parametros = useSearchParams();
   const ajustes = useQuery({ queryKey: ["booking-settings"], queryFn: getBookingSettings });
+  // Etiquetas de los idiomas del catálogo del backend (las mismas que la
+  // pantalla de Cómo atiende): el panel no guarda su propia lista.
+  const idiomas = useQuery({ queryKey: ["idiomas-catalogo"], queryFn: getCatalogoDeIdiomas, staleTime: Infinity });
 
   // Los enlaces de siempre (`/agente?section=services`) abren la pantalla
   // de ese ajuste.
@@ -128,7 +130,7 @@ export function AgenteMovil({ business }: { business: Business }) {
           icono={Bot}
           titulo="Cómo atiende"
           resumen={[
-            comportamiento.languages.map(nombreDeIdioma).join(", "),
+            comportamiento.languages.map((idioma) => idiomas.data?.etiquetas[idioma] ?? idioma).join(", "),
             TONOS[comportamiento.tone],
             OBJETIVOS[comportamiento.primaryGoal],
           ]

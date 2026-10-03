@@ -11,6 +11,13 @@ import { PROVEEDORES_DE_CALENDARIO } from "../../adapters/calendar/CalendarProvi
 import { BusinessScheduleSchema } from "../../lib/businessSchedule.js";
 import { calendarService } from "../calendar/service.js";
 import { AgentSettingsSchema, buildManagedAgentPrompt, parseAgentSettings } from "../../lib/managedAgentPrompt.js";
+import {
+  CODIGOS_DE_IDIOMA,
+  GENEROS_DE_VOZ,
+  esCodigoDeIdioma,
+} from "../../lib/idiomas/catalogo.js";
+import { IDIOMA_OBLIGATORIO, idiomasConocidos } from "../../lib/idiomas/ajustes.js";
+import { catalogoParaElPanel, vistaPreviaDeIdiomas } from "../../lib/idiomas/panel.js";
 import { planAllows, resolvePlanId } from "../../lib/planFeatures.js";
 import { isBusinessType } from "../../lib/businessType.js";
 import { syncAgentNameWithBusinessType, syncAgentToRetell } from "../../lib/agentBootstrap.js";
@@ -39,6 +46,14 @@ export const TIPOS_DE_LINEA_DE_CLIENTES = [
   "movil_personal",
   "alhabla",
 ] as const;
+
+/** Vista previa de idiomas: códigos sin validar a fondo (el catálogo
+ * normaliza y descarta los desconocidos), con un tope por seguridad. */
+const VistaPreviaDeIdiomasSchema = z.object({
+  languages: z.array(z.string()).max(CODIGOS_DE_IDIOMA.length * 2),
+  voiceLanguage: z.string(),
+  voiceGender: z.enum(GENEROS_DE_VOZ).default("femenina"),
+});
 
 const UpdateBusinessSchema = z.object({
   // Sin máximo: los nombres de Google Places pueden pasar de 80 caracteres y
@@ -364,11 +379,58 @@ export async function businessesRoutes(fastify: FastifyInstance) {
         const { professionals, ...resto } = business;
         return reply.send({
           ...serializarBusiness(resto),
+          // Tal como los aplica la recepcionista (normalizados con el
+          // catálogo de idiomas), no el JSON guardado tal cual.
+          agentSettings: parseAgentSettings(resto.agentSettings),
           professionals: professionals.map(serializeProfessional),
         });
       } catch (error) {
         fastify.log.error({ err: error }, "[Business] Failed to fetch /business/me");
         return reply.status(500).send({ error: "Failed to fetch business" });
+      }
+    }
+  );
+
+  // Idiomas de la recepcionista para el panel (lib/idiomas/panel.ts): qué
+  // se ofrece y qué hará con una selección, para que el frontend no repita
+  // las reglas del catálogo.
+  fastify.get(
+    "/business/me/idiomas",
+    { preValidation: [fastify.authenticate] },
+    async (_request, reply) => reply.send(catalogoParaElPanel())
+  );
+
+  fastify.post(
+    "/business/me/idiomas/previsualizar",
+    { preValidation: [fastify.authenticate] },
+    async (request: FastifyRequest, reply) => {
+      try {
+        const data = VistaPreviaDeIdiomasSchema.parse(request.body);
+        const business = await prisma.business.findUnique({
+          where: { id: request.user!.businessId },
+          select: { name: true },
+        });
+        if (!business) {
+          return reply.status(404).send({ error: "Negocio no encontrado" });
+        }
+        return reply.send(
+          vistaPreviaDeIdiomas(
+            {
+              languages: idiomasConocidos(data.languages),
+              voiceLanguage: esCodigoDeIdioma(data.voiceLanguage)
+                ? data.voiceLanguage
+                : IDIOMA_OBLIGATORIO,
+              voiceGender: data.voiceGender,
+            },
+            business.name
+          )
+        );
+      } catch (error) {
+        if (error instanceof z.ZodError) {
+          return reply.status(400).send({ error: error.errors });
+        }
+        fastify.log.error({ err: error }, "[Business] Failed to preview languages");
+        return reply.status(500).send({ error: "Failed to preview languages" });
       }
     }
   );
