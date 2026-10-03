@@ -2477,7 +2477,11 @@ no tira el resto de ajustes al `DEFAULT_AGENT_SETTINGS`.
   temporal con el builder real, comprueba lo que Telnyx guardó y la vuelta a Ultra, y lo borra
   todo. El 03-10 pasaron los 9 casos: Telnyx acepta en assistants las voces de MiniMax y de Azure.
 - `medirLatenciaDeTurnos.ts`: espera entre el cliente y la recepcionista (p50/p95 y solapes) a
-  partir de las grabaciones de doble canal de un negocio (`lib/latenciaDeTurnos.ts`, puro).
+  partir de las grabaciones de doble canal de un negocio (`lib/latenciaDeTurnos.ts`, puro). Separa
+  las respuestas que esperaron a una herramienta emparejándolas con `Transcript.messages`: miden la
+  herramienta, no la voz ni la transcripción. Las llamadas de prueba salen de
+  `scripts/telnyxCallHarness.ts` hacia el número del negocio de pruebas de dev (+34930453236 desde el
+  03-10).
 - **Trampa:** Telnyx crea una app TeXML por assistant, «ai-<id del assistant>», y no la borra con
   él; la API ignora `filter[friendly_name]`. `TelnyxAiAdapter.deleteTexmlAppOfAssistant` la
   borra comparando el nombre.

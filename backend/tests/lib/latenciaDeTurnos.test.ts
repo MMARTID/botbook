@@ -1,7 +1,9 @@
 import { describe, it, expect } from "vitest";
 import {
+  anotarHerramientas,
   medirTurnos,
   percentil,
+  respuestasConHerramienta,
   segmentosDeVoz,
 } from "../../src/lib/latenciaDeTurnos.js";
 
@@ -33,6 +35,16 @@ describe("segmentosDeVoz", () => {
       { inicio: 6, fin: 8 },
     ]);
   });
+
+  it("descarta los picos de duración casi cero entre dos silencios", () => {
+    const salida = silencedetect([
+      [0, 1],
+      [3, 9.4], // voz de 1 a 3
+      [9.41, 12], // chasquido de 10 ms: no es voz
+    ]);
+
+    expect(segmentosDeVoz(salida, 12)).toEqual([{ inicio: 1, fin: 3 }]);
+  });
 });
 
 describe("medirTurnos", () => {
@@ -60,6 +72,62 @@ describe("medirTurnos", () => {
     expect(
       medirTurnos(cliente, recepcionista, 10).turnos.map((t) => t.latencia)
     ).toEqual([expect.closeTo(0.8), 6]);
+    expect(
+      medirTurnos(cliente, recepcionista).largas.map((t) => t.latencia)
+    ).toEqual([6]);
+  });
+});
+
+describe("respuestasConHerramienta", () => {
+  it("marca las respuestas que llegaron tras una herramienta, en orden", () => {
+    expect(
+      respuestasConHerramienta([
+        { role: "assistant", text: "Hola, ¿en qué te ayudo?" }, // saludo
+        { role: "user", text: "¿Tenéis hueco el jueves?" },
+        { role: "assistant", text: "" }, // llamada a la herramienta
+        { role: "tool", text: '{"huecos":[]}' },
+        { role: "assistant", text: "El jueves está completo." },
+        { role: "user", text: "Vale." },
+        { role: "user", text: "¿Y el viernes?" }, // dos frases, una respuesta
+        { role: "assistant", text: "El viernes sí." },
+        { role: "user", text: "Adiós." },
+        { role: "assistant", text: "" },
+        { role: "tool", text: '{"result":"ok"}' }, // colgar: sin respuesta
+      ])
+    ).toEqual([true, false]);
+  });
+});
+
+describe("anotarHerramientas", () => {
+  const turno = (inicio: number, latencia: number) => ({
+    finDelCliente: inicio - latencia,
+    inicioDeLaRecepcionista: inicio,
+    latencia,
+  });
+
+  it("empareja por orden, contando las respuestas largas", () => {
+    const medida = {
+      turnos: [turno(5, 0.8), turno(20, 1.2)],
+      largas: [turno(12, 6)],
+      solapes: 0,
+    };
+
+    expect(
+      anotarHerramientas(medida, [false, true, true])?.map((t) => [
+        t.latencia,
+        t.conHerramienta,
+      ])
+    ).toEqual([
+      [0.8, false],
+      [1.2, true],
+    ]);
+  });
+
+  it("no anota si el audio y la transcripción no cuadran", () => {
+    const medida = { turnos: [turno(5, 0.8)], largas: [], solapes: 0 };
+
+    expect(anotarHerramientas(medida, [false, true])).toBeNull();
+    expect(anotarHerramientas({ ...medida, solapes: 1 }, [false])).toBeNull();
   });
 });
 
