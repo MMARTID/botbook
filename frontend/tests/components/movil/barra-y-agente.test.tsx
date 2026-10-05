@@ -93,6 +93,16 @@ describe("AgenteMovil", () => {
     expect(screen.getByText("Español, Inglés · Profesional · Atender consultas")).toBeInTheDocument();
   });
 
+  it("el resumen de cómo atiende empieza por el idioma en que saluda", async () => {
+    const enCatalan = {
+      ...negocio,
+      agentSettings: { ...negocio.agentSettings, languages: ["es-ES", "en-GB", "ca-ES"], voiceLanguage: "ca-ES" },
+    } as Business;
+    conCliente(<AgenteMovil business={enCatalan} />);
+
+    expect(await screen.findByText("Catalán, Español, Inglés · Profesional · Atender consultas")).toBeInTheDocument();
+  });
+
   it("los enlaces de siempre (?section=) abren la pantalla del ajuste", async () => {
     parametros = new URLSearchParams("section=services");
     conCliente(<AgenteMovil business={negocio} />);

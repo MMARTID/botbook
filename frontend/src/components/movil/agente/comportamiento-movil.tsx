@@ -1,14 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Check, Lock, Pause, Play } from "lucide-react";
+import { Check, ChevronDown, Lock, Pause, Play } from "lucide-react";
 import { getBillingSummary, getCatalogoDeIdiomas, previsualizarIdiomas, updateMyBusiness } from "@/lib/api";
-import type { AgentLanguage, AgentSettings, Business, VozDelPanel } from "@/lib/types";
+import type { AgentLanguage, AgentSettings, Business, FamiliaDeVoces, PrincipalDelCatalogo, VozDelPanel } from "@/lib/types";
 import { AvisoFlotante, useAviso } from "@/components/aviso-flotante";
 import { DEFAULT_AGENT_SETTINGS } from "@/lib/agent-settings";
-import { BarraGuardar } from "@/components/movil/piezas";
+import { BarraGuardar, Insignia } from "@/components/movil/piezas";
 import { PantallaDeAjuste } from "@/components/movil/agente/pantalla-de-ajuste";
 
 type CampoDeOpciones = "tone" | "primaryGoal" | "responseStyle" | "escalation";
@@ -101,11 +101,18 @@ function Opcion({
   );
 }
 
-/** Una sola muestra de voz sonando a la vez. */
+/** Una sola muestra de voz sonando a la vez. `parar` la corta (p. ej.
+ * cuando su tarjeta deja de verse). */
 function useMuestraDeVoz() {
   const audio = useRef<HTMLAudioElement | null>(null);
   const [sonando, setSonando] = useState<string | null>(null);
   useEffect(() => () => audio.current?.pause(), []);
+
+  const parar = useCallback(() => {
+    audio.current?.pause();
+    audio.current = null;
+    setSonando(null);
+  }, []);
 
   const alternar = (voz: VozDelPanel) => {
     audio.current?.pause();
@@ -125,25 +132,24 @@ function useMuestraDeVoz() {
       .then(() => nueva.play())
       .catch(terminar);
   };
-  return { sonando, alternar };
+  return { sonando, alternar, parar };
 }
 
 /** Una voz: se escucha con el círculo y se elige con el resto de la fila
  * (dos botones hermanos: un botón no puede ir dentro de otro). */
 function OpcionDeVoz({
   voz,
-  detalle,
   elegida,
-  disabled,
   sonando,
+  conPorDefecto,
   onElegir,
   onEscuchar,
 }: {
   voz: VozDelPanel;
-  detalle: string;
   elegida: boolean;
-  disabled: boolean;
   sonando: boolean;
+  /** Si lleva la insignia «Por defecto» cuando lo es. */
+  conPorDefecto: boolean;
   onElegir: () => void;
   onEscuchar: () => void;
 }) {
@@ -167,13 +173,15 @@ function OpcionDeVoz({
         type="button"
         role="radio"
         aria-checked={elegida}
-        disabled={disabled}
         onClick={onElegir}
-        className="flex min-h-[52px] min-w-0 flex-1 items-center gap-3 rounded-xl text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-morado disabled:cursor-not-allowed disabled:opacity-60"
+        className="flex min-h-[52px] min-w-0 flex-1 items-center gap-3 rounded-xl text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-morado"
       >
         <span className="min-w-0 flex-1">
-          <span className="block text-[15px] font-bold text-tinta">{voz.nombre}</span>
-          <span className="mt-px block text-[13px] text-muted">{detalle}</span>
+          <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+            <span className="text-[15px] font-bold text-tinta">{voz.nombre}</span>
+            {conPorDefecto && voz.porDefecto ? <Insignia tono="neutro">Por defecto</Insignia> : null}
+          </span>
+          <span className="mt-px block text-[13px] text-muted">{voz.descripcion}</span>
         </span>
         <span
           aria-hidden="true"
@@ -184,19 +192,146 @@ function OpcionDeVoz({
   );
 }
 
+const GENEROS: ReadonlyArray<[AgentSettings["voiceGender"], string]> = [
+  ["femenina", "Mujer"],
+  ["masculina", "Hombre"],
+];
+
+/**
+ * «¿Con qué voz atiende?» con las voces que da el backend para la selección
+ * actual. Las Ultra (las nativas del idioma del saludo): Mujer u Hombre, las
+ * recomendadas de ese género y el resto tras «Ver todas las voces». Las de
+ * Soniox (con una lengua cooficial activa): Marta y Sergio, las dos, sin
+ * «Por defecto» (sin selector de género, las dos lo serían).
+ */
+function SelectorDeVoz({
+  voces,
+  familia,
+  vozQueAtiende,
+  genero,
+  cooficial,
+  sonando,
+  onEscuchar,
+  onParar,
+  onElegir,
+  onGenero,
+}: {
+  voces: VozDelPanel[];
+  familia: FamiliaDeVoces;
+  vozQueAtiende: string | undefined;
+  genero: AgentSettings["voiceGender"];
+  /** La lengua cooficial activa, en minúsculas («catalán»). */
+  cooficial: string | null;
+  sonando: string | null;
+  onEscuchar: (voz: VozDelPanel) => void;
+  /** Corta la muestra que suena. */
+  onParar: () => void;
+  onElegir: (voz: VozDelPanel) => void;
+  onGenero: (genero: AgentSettings["voiceGender"]) => void;
+}) {
+  const [todas, setTodas] = useState(false);
+  const porGenero = familia === "ultra";
+  const delGenero = porGenero ? voces.filter((voz) => voz.genero === genero) : voces;
+  // Plegadas, las recomendadas y la que atiende (aunque no lo sea), para
+  // que la elegida siempre esté a la vista.
+  const aLaVista = porGenero && !todas ? delGenero.filter((voz) => voz.recomendada || voz.id === vozQueAtiende) : delGenero;
+  const hayMas = porGenero && (todas || aLaVista.length < delGenero.length);
+  // El otro género vuelve a enseñar solo sus recomendadas; el mismo no
+  // cambia nada.
+  const cambiarGenero = (valor: AgentSettings["voiceGender"]) => {
+    if (valor === genero) return;
+    setTodas(false);
+    onGenero(valor);
+  };
+
+  // Una muestra no sigue sonando sin su tarjeta a la vista (al plegar,
+  // cambiar de género o de lista): no quedaría botón para pararla.
+  const idsALaVista = aLaVista.map((voz) => voz.id).join(" ");
+  useEffect(() => {
+    if (sonando !== null && !idsALaVista.split(" ").includes(sonando)) onParar();
+  }, [sonando, idsALaVista, onParar]);
+  useEffect(() => onParar, [onParar]);
+
+  return (
+    <>
+      {familia === "soniox" && cooficial ? (
+        <p className="-mt-1 mb-2 text-sm text-muted">Son las voces que hablan {cooficial}.</p>
+      ) : null}
+      {porGenero ? (
+        <div
+          role="radiogroup"
+          aria-label="Voz de mujer o de hombre"
+          className="mb-3 flex w-full gap-1 rounded-full border border-linea bg-relleno p-1 sm:inline-flex sm:w-auto"
+        >
+          {GENEROS.map(([valor, texto]) => {
+            const elegido = genero === valor;
+            return (
+              <button
+                key={valor}
+                type="button"
+                role="radio"
+                aria-checked={elegido}
+                onClick={() => cambiarGenero(valor)}
+                className={`min-h-11 flex-1 rounded-full px-6 text-sm font-semibold transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-morado sm:flex-none ${
+                  elegido ? "bg-lavado text-morado-tinta ring-1 ring-inset ring-lavado-borde" : "text-apagado hover:text-tinta"
+                }`}
+              >
+                {texto}
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
+      <div id="lista-de-voces" role="radiogroup" aria-labelledby="pregunta-voz" className="grid gap-2 sm:grid-cols-2">
+        {aLaVista.map((voz) => (
+          <OpcionDeVoz
+            key={voz.id}
+            voz={voz}
+            elegida={vozQueAtiende === voz.id}
+            sonando={sonando === voz.id}
+            conPorDefecto={porGenero}
+            onElegir={() => onElegir(voz)}
+            onEscuchar={() => onEscuchar(voz)}
+          />
+        ))}
+      </div>
+      {hayMas ? (
+        <button
+          type="button"
+          aria-expanded={todas}
+          aria-controls="lista-de-voces"
+          onClick={() => setTodas(!todas)}
+          className="mt-2 inline-flex min-h-11 w-full items-center justify-center gap-1.5 rounded-[10px] border border-linea bg-superficie px-4 text-sm font-semibold text-tinta transition-colors duration-200 hover:bg-relleno focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-morado sm:w-auto"
+        >
+          {todas ? "Ver solo las recomendadas" : `Ver todas las voces (${delGenero.length})`}
+          <ChevronDown
+            className={`h-4 w-4 shrink-0 transition-transform duration-200 motion-reduce:transition-none ${todas ? "rotate-180" : ""}`}
+            aria-hidden="true"
+          />
+        </button>
+      ) : null}
+    </>
+  );
+}
+
 /**
  * Idioma y voz, guiado por el catálogo del backend (GET /business/me/idiomas)
  * y su vista previa (POST …/previsualizar): el panel no repite las reglas.
  * Tres preguntas de negocio en vez del modelo de datos: en qué idioma saluda
- * (español o una lengua cooficial, que decide qué voces hay), qué otros
- * idiomas habla y con qué voz, escuchándolas antes de elegir.
+ * (español o una lengua cooficial a la vista; los extranjeros bajo «Otro
+ * idioma»), qué otros idiomas habla (con saludo en español, como mucho una
+ * lengua cooficial) y con qué voz, escuchándolas antes de elegir.
  */
 function IdiomaYVoz({
   ajustes,
+  guardado,
   setAjustes,
   bloqueado,
 }: {
   ajustes: AgentSettings;
+  /** Lo guardado: para avisar de la lengua cooficial que se dejaría de
+   * atender al guardar. */
+  guardado: AgentSettings;
   setAjustes: (ajustes: AgentSettings) => void;
   bloqueado: boolean;
 }) {
@@ -216,67 +351,142 @@ function IdiomaYVoz({
     queryFn: () => previsualizarIdiomas(seleccion),
     placeholderData: keepPreviousData,
   });
+  const [otroAbierto, setOtroAbierto] = useState<boolean | null>(null);
+  const { sonando, alternar, parar } = useMuestraDeVoz();
+  // La última voz elegida de cada género, para recuperarla al volver a él:
+  // mirar las voces de hombre no debe borrar la de mujer que se tenía.
+  const vozPorGenero = useRef<Partial<Record<AgentSettings["voiceGender"], string>>>({});
+  useEffect(() => {
+    if (ajustes.voz) vozPorGenero.current[ajustes.voiceGender] = ajustes.voz;
+  }, [ajustes.voz, ajustes.voiceGender]);
 
   const datos = catalogo.data;
   const etiqueta = (codigo: AgentLanguage) => datos?.etiquetas[codigo] ?? codigo;
   const obligatorio = datos?.obligatorio.codigo ?? "es-ES";
-  const principal = ajustes.voiceLanguage;
-  const ofrecido = datos?.principales.find((opcion) => opcion.codigo === principal);
-  // Un principal guardado que ya no se ofrece (inglés o francés de antes)
-  // sigue a la vista para no cambiarlo sin que el dueño lo elija.
-  const principales = datos
-    ? ofrecido
+  const saludo = ajustes.voiceLanguage;
+  // Un saludo guardado que ya no se ofrece sigue a la vista, bajo «Otro
+  // idioma», para no cambiarlo sin que el dueño lo elija.
+  const principales: PrincipalDelCatalogo[] = datos
+    ? datos.principales.some((opcion) => opcion.codigo === saludo)
       ? datos.principales
-      : [...datos.principales, { codigo: principal, etiqueta: etiqueta(principal), secundariosCompatibles: [], voces: [] }]
+      : [
+          ...datos.principales,
+          { codigo: saludo, etiqueta: etiqueta(saludo), tipo: "extranjero", otrosIdiomas: [], familia: "ultra", voces: [] },
+        ]
     : [];
-  const compatibles = ofrecido?.secundariosCompatibles ?? [];
-  const voces = ofrecido?.voces ?? [];
-  const { sonando, alternar } = useMuestraDeVoz();
+  const ofrecido = principales.find((opcion) => opcion.codigo === saludo);
+  const aLaVista = principales.filter((opcion) => opcion.tipo !== "extranjero");
+  const extranjeros = principales.filter((opcion) => opcion.tipo === "extranjero");
+  const saludaEnOtro = ofrecido?.tipo === "extranjero";
+  const otroVisible = otroAbierto ?? saludaEnOtro;
 
-  // Qué idiomas activos no habla una voz (las regionales de Azure y MiniMax
-  // solo hablan el suyo y el castellano).
-  const noHabla = (voz: VozDelPanel) =>
-    voz.habla === "todos" ? [] : ajustes.languages.filter((idioma) => !voz.habla.includes(idioma));
-  const lista = (idiomas: AgentLanguage[]) => {
-    const nombres = idiomas.map((idioma) => etiqueta(idioma).toLowerCase());
-    return nombres.length > 1 ? `${nombres.slice(0, -1).join(", ")} y ${nombres[nombres.length - 1]}` : nombres[0];
+  // `??` en los campos nuevos del catálogo (cooficiales, otrosIdiomas):
+  // Vercel publica la app antes de que Cloud Run sirva el backend que los
+  // envía, y en ese rato el catálogo llega con la forma anterior.
+  const cooficiales = (datos?.cooficiales ?? []).map((opcion) => opcion.codigo);
+  const cooficialDe = (idiomas: AgentLanguage[]) => idiomas.find((idioma) => cooficiales.includes(idioma)) ?? null;
+  const cooficial = cooficialDe(ajustes.languages);
+  const otros = ofrecido?.otrosIdiomas ?? [];
+  const otrasCooficiales = otros.filter((codigo) => cooficiales.includes(codigo));
+  const otrosExtranjeros = otros.filter((codigo) => !cooficiales.includes(codigo));
+
+  // Las voces las da la vista previa de la selección actual; mientras
+  // llega (o si falla), las del catálogo: las de la cooficial activa o, sin
+  // ella, las del saludo (el contrato de GET /business/me/idiomas).
+  const vistaAlDia = vista.isPlaceholderData ? undefined : vista.data;
+  const delCatalogo = principales.find((opcion) => opcion.codigo === (cooficial ?? saludo));
+  const voces = vistaAlDia?.voces ?? delCatalogo?.voces ?? [];
+  const familia = vistaAlDia?.familia ?? delCatalogo?.familia ?? "ultra";
+  const vozQueAtiende =
+    voces.find((voz) => voz.id === ajustes.voz)?.id ??
+    vistaAlDia?.voz ??
+    voces.find((voz) => voz.porDefecto && voz.genero === ajustes.voiceGender)?.id;
+  const genero = voces.find((voz) => voz.id === vozQueAtiende)?.genero ?? ajustes.voiceGender;
+  const nombreDeLaVoz = voces.find((voz) => voz.id === vozQueAtiende)?.nombre;
+
+  const lista = (codigos: AgentLanguage[], conjuncion: string) => {
+    const nombres = codigos.map((codigo, indice) => (indice === 0 ? etiqueta(codigo) : etiqueta(codigo).toLowerCase()));
+    return nombres.length > 1 ? `${nombres.slice(0, -1).join(", ")} ${conjuncion} ${nombres[nombres.length - 1]}` : nombres[0];
   };
-  const todasIguales = voces.every((voz) => JSON.stringify(voz.habla) === JSON.stringify(voces[0]?.habla));
-  const detalleDeVoz = (voz: VozDelPanel) => {
-    const genero = voz.genero === "masculina" ? "Masculina" : "Femenina";
-    const sinHablar = noHabla(voz);
-    if (sinHablar.length) return `${genero} · no habla ${lista(sinHablar)}`;
-    if (todasIguales) return genero;
-    return voz.habla === "todos" ? `${genero} · habla todos los idiomas` : `${genero} · solo ${lista(voz.habla)}`;
-  };
-  // La elegida si puede atender; si no (o sin elección), la que dice la
-  // vista previa que atenderá.
-  const elegidaValida = voces.find((voz) => voz.id === ajustes.voz && noHabla(voz).length === 0);
-  const vozQueAtiende = elegidaValida?.id ?? vista.data?.voz;
-  const nombreDeLaVoz = voces.find((voz) => voz.id === vista.data?.voz)?.nombre;
   // El orden de las etiquetas es el canónico del catálogo: guardar en ese
   // orden evita que la barra de guardar salga sin cambios reales.
   const ordenar = (idiomas: AgentLanguage[]) =>
     Object.keys(datos?.etiquetas ?? {}).filter((codigo) => idiomas.includes(codigo));
 
-  const elegirPrincipal = (codigo: AgentLanguage) => {
-    const opcion = datos?.principales.find((candidato) => candidato.codigo === codigo);
-    const otros = ajustes.languages.filter(
-      (idioma) => idioma !== obligatorio && idioma !== principal && opcion?.secundariosCompatibles.includes(idioma)
+  // Los otros idiomas activos (no el obligatorio ni el saludo actual) que
+  // un saludo no admite (su `otrosIdiomas`, del catálogo): elegirlo los
+  // quitaría sin que el dueño lo pida (con el catalán activo, saludar en
+  // inglés o en euskera), así que esa opción se desactiva y dice qué quitar
+  // antes. El saludo actual sí puede dejar de estar activo al cambiarlo (de
+  // catalán a inglés): lo dice el aviso de lo que se deja de atender. Sin
+  // `otrosIdiomas` (catálogo anterior) no se bloquea nada.
+  const quitaria = (opcion: PrincipalDelCatalogo) => {
+    const admitidos = opcion.otrosIdiomas as AgentLanguage[] | undefined;
+    if (!admitidos) return [];
+    return ajustes.languages.filter(
+      (idioma) => idioma !== obligatorio && idioma !== saludo && idioma !== opcion.codigo && !admitidos.includes(idioma)
     );
-    // Las voces son de cada idioma: al cambiarlo, atiende la de su género.
-    setAjustes({ ...ajustes, voiceLanguage: codigo, voz: undefined, languages: ordenar([obligatorio, codigo, ...otros]) });
   };
-  const alternarSecundario = (codigo: AgentLanguage) => {
+  const detalleDeSaludo = (opcion: PrincipalDelCatalogo) => {
+    const antes = quitaria(opcion);
+    return antes.length ? `Quita antes el ${lista(antes, "y").toLowerCase()}` : undefined;
+  };
+
+  const elegirSaludo = (codigo: AgentLanguage) => {
+    if (codigo === saludo) return;
+    const admitidos = principales.find((candidato) => candidato.codigo === codigo)?.otrosIdiomas as AgentLanguage[] | undefined;
+    // Siguen los activos que admite el saludo nuevo: de catalán a español,
+    // el catalán sigue activo y saluda en castellano. La voz elegida se
+    // conserva: si no es de las del saludo nuevo, la vista previa enseña la
+    // que atiende y el backend la descarta al guardar; si se vuelve, vuelve.
+    const siguen = ajustes.languages.filter(
+      (idioma) => idioma !== obligatorio && idioma !== codigo && (!admitidos || admitidos.includes(idioma))
+    );
+    setAjustes({ ...ajustes, voiceLanguage: codigo, languages: ordenar([obligatorio, codigo, ...siguen]) });
+  };
+  const alternarIdioma = (codigo: AgentLanguage) => {
+    const esCooficial = cooficiales.includes(codigo);
     const activos = ajustes.languages.includes(codigo)
       ? ajustes.languages.filter((idioma) => idioma !== codigo)
-      : [...ajustes.languages, codigo];
+      : // Como mucho una lengua cooficial: marcar una desmarca la otra.
+        [...ajustes.languages.filter((idioma) => !(esCooficial && cooficiales.includes(idioma))), codigo];
+    // La voz elegida se conserva también aquí: con la cooficial atienden
+    // Marta o Sergio (la vista previa lo enseña) y, al quitarla, vuelve.
     setAjustes({ ...ajustes, languages: ordenar(activos) });
   };
+  const elegirGenero = (valor: AgentSettings["voiceGender"]) => {
+    if (valor === genero) return;
+    // La que se eligió de ese género, si está entre las de ahora; si no,
+    // la de por defecto.
+    const recordada = vozPorGenero.current[valor];
+    const vuelve = voces.find((candidata) => candidata.id === recordada && candidata.genero === valor)?.id;
+    setAjustes({ ...ajustes, voiceGender: valor, voz: vuelve });
+  };
+
+  // La lengua cooficial que se dejaría de atender al guardar (quitada a
+  // mano o al pasar el saludo de esa lengua a otra): en Cataluña, atender
+  // en catalán es una obligación.
+  const dejaDeAtender = guardado.languages.filter(
+    (idioma) => cooficiales.includes(idioma) && !ajustes.languages.includes(idioma)
+  );
+  const avisos = [
+    ...(dejaDeAtender.length ? [`Al guardar, dejará de atender en ${lista(dejaDeAtender, "y").toLowerCase()}.`] : []),
+    ...(vista.data?.avisos ?? []),
+  ];
 
   const entradilla =
     vista.data?.entradilla ??
     (ajustes.languages.length === 1 ? "Atiende siempre en español." : "Sigue en el idioma de quien llama.");
+
+  const casilla = (codigo: AgentLanguage) => (
+    <Opcion
+      key={codigo}
+      forma="check"
+      elegida={ajustes.languages.includes(codigo)}
+      titulo={etiqueta(codigo)}
+      onClick={() => alternarIdioma(codigo)}
+    />
+  );
 
   return (
     <fieldset className="min-w-0">
@@ -307,7 +517,7 @@ function IdiomaYVoz({
           </div>
           <p className="mt-3 text-sm text-muted">
             {nombreDeLaVoz ? `Voz de ${nombreDeLaVoz}` : `Voz ${ajustes.voiceGender === "masculina" ? "masculina" : "femenina"}`} ·
-            saluda en {etiqueta(principal).toLowerCase()}
+            saluda en {etiqueta(saludo).toLowerCase()}
           </p>
         </>
       ) : (
@@ -316,32 +526,76 @@ function IdiomaYVoz({
             ¿En qué idioma saluda?
           </p>
           <div role="radiogroup" aria-labelledby="pregunta-saludo" className="flex flex-col gap-2">
-            {principales.map((opcion) => (
+            {aLaVista.map((opcion) => (
               <Opcion
                 key={opcion.codigo}
-                elegida={principal === opcion.codigo}
+                elegida={saludo === opcion.codigo}
                 titulo={opcion.etiqueta}
-                onClick={() => elegirPrincipal(opcion.codigo)}
+                detalle={detalleDeSaludo(opcion)}
+                disabled={quitaria(opcion).length > 0}
+                onClick={() => elegirSaludo(opcion.codigo)}
               />
             ))}
           </div>
+          {extranjeros.length ? (
+            <>
+              <button
+                type="button"
+                aria-expanded={otroVisible}
+                aria-controls="saludo-en-otro-idioma"
+                onClick={() => setOtroAbierto(!otroVisible)}
+                className={`mt-2 flex min-h-[60px] w-full items-center gap-3 rounded-2xl border px-3.5 py-2.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-morado ${
+                  saludaEnOtro ? "border-morado bg-lavado" : "border-linea bg-superficie"
+                }`}
+              >
+                <span className="min-w-0 flex-1">
+                  <span id="titulo-otro-idioma" className="block text-[15px] font-bold text-tinta">
+                    Otro idioma
+                  </span>
+                  <span className="mt-px block text-[13px] text-muted">
+                    {saludaEnOtro ? `Saluda en ${etiqueta(saludo).toLowerCase()}` : lista(extranjeros.map((opcion) => opcion.codigo), "o")}
+                  </span>
+                </span>
+                <ChevronDown
+                  className={`h-5 w-5 shrink-0 text-apagado transition-transform duration-200 motion-reduce:transition-none ${otroVisible ? "rotate-180" : ""}`}
+                  aria-hidden="true"
+                />
+              </button>
+              {/* Montado siempre: es el destino de aria-controls. */}
+              <div id="saludo-en-otro-idioma">
+                {otroVisible ? (
+                  <div role="radiogroup" aria-labelledby="titulo-otro-idioma" className="mt-2 grid gap-2 sm:grid-cols-2">
+                    {extranjeros.map((opcion) => (
+                      <Opcion
+                        key={opcion.codigo}
+                        elegida={saludo === opcion.codigo}
+                        titulo={opcion.etiqueta}
+                        detalle={detalleDeSaludo(opcion)}
+                        disabled={quitaria(opcion).length > 0}
+                        onClick={() => elegirSaludo(opcion.codigo)}
+                      />
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+            </>
+          ) : null}
 
           <p id="pregunta-otros" className="mb-2 mt-5 text-sm font-semibold text-tinta">
             ¿Qué otros idiomas habla?
           </p>
           <div role="group" aria-labelledby="pregunta-otros" className="flex flex-col gap-2">
-            {principal !== obligatorio ? (
+            {saludo !== obligatorio ? (
               <Opcion forma="check" elegida titulo={etiqueta(obligatorio)} detalle="Siempre" disabled onClick={() => undefined} />
             ) : null}
-            {compatibles.map((codigo) => (
-              <Opcion
-                key={codigo}
-                forma="check"
-                elegida={ajustes.languages.includes(codigo)}
-                titulo={etiqueta(codigo)}
-                onClick={() => alternarSecundario(codigo)}
-              />
-            ))}
+            {otrasCooficiales.length ? (
+              <>
+                <p className="mt-1 text-[13px] font-semibold text-apagado">Lengua cooficial · solo una a la vez</p>
+                {otrasCooficiales.map(casilla)}
+                <p className="mt-2 text-[13px] font-semibold text-apagado">Para clientes extranjeros</p>
+              </>
+            ) : null}
+            {otrosExtranjeros.map(casilla)}
           </div>
           <p className="mt-2 text-sm leading-5 text-muted">
             Activa solo los que atiendes a menudo: cuantos menos haya, mejor entiende a quien llama.
@@ -350,9 +604,9 @@ function IdiomaYVoz({
           {/* Siempre montado: un lector de pantalla solo anuncia los cambios
               de una región viva que ya estaba en la página. */}
           <div role="status" aria-live="polite">
-            {vista.data?.avisos.length ? (
+            {avisos.length ? (
               <ul className="mt-3 flex flex-col gap-1.5 rounded-[14px] border border-lavado-borde bg-lavado px-3.5 py-3 text-sm leading-[1.55] text-morado-tinta">
-                {vista.data.avisos.map((avisoDeIdioma) => (
+                {avisos.map((avisoDeIdioma) => (
                   <li key={avisoDeIdioma}>{avisoDeIdioma}</li>
                 ))}
               </ul>
@@ -363,30 +617,27 @@ function IdiomaYVoz({
             ¿Con qué voz atiende?
           </p>
           {voces.length ? (
-            <div role="radiogroup" aria-labelledby="pregunta-voz" className="grid gap-2 sm:grid-cols-2">
-              {voces.map((voz) => (
-                <OpcionDeVoz
-                  key={voz.id}
-                  voz={voz}
-                  detalle={detalleDeVoz(voz)}
-                  elegida={vozQueAtiende === voz.id}
-                  disabled={noHabla(voz).length > 0}
-                  sonando={sonando === voz.id}
-                  onElegir={() => setAjustes({ ...ajustes, voz: voz.id, voiceGender: voz.genero })}
-                  onEscuchar={() => alternar(voz)}
-                />
-              ))}
-            </div>
+            <SelectorDeVoz
+              // Otra lista (otro saludo o la cooficial) vuelve a enseñar
+              // solo las recomendadas. Sin el género en la clave: al
+              // cambiarlo, el foco sigue en su botón.
+              key={`${familia}-${cooficial ?? saludo}`}
+              voces={voces}
+              familia={familia}
+              vozQueAtiende={vozQueAtiende}
+              genero={genero}
+              cooficial={cooficial ? etiqueta(cooficial).toLowerCase() : null}
+              sonando={sonando}
+              onEscuchar={alternar}
+              onParar={parar}
+              onElegir={(voz) => setAjustes({ ...ajustes, voz: voz.id, voiceGender: voz.genero })}
+              onGenero={elegirGenero}
+            />
           ) : (
-            // Un principal que ya no se ofrece (inglés o francés de antes)
-            // no tiene voces que elegir: sigue el género.
+            // Un saludo que ya no se ofrece no tiene voces que elegir: sigue
+            // el género.
             <div role="radiogroup" aria-labelledby="pregunta-voz" className="grid grid-cols-2 gap-2">
-              {(
-                [
-                  ["femenina", "Femenina"],
-                  ["masculina", "Masculina"],
-                ] as const
-              ).map(([valor, titulo]) => (
+              {GENEROS.map(([valor, titulo]) => (
                 <Opcion
                   key={valor}
                   elegida={ajustes.voiceGender === valor}
@@ -456,7 +707,7 @@ export function ComportamientoMovil({ business }: { business: Business }) {
           </fieldset>
         ))}
 
-        <IdiomaYVoz ajustes={ajustes} setAjustes={setAjustes} bloqueado={bloqueado} />
+        <IdiomaYVoz ajustes={ajustes} guardado={guardado} setAjustes={setAjustes} bloqueado={bloqueado} />
       </div>
       <BarraGuardar
         visible={JSON.stringify(ajustes) !== firmaGuardada}

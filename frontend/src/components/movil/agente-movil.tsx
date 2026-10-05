@@ -52,6 +52,12 @@ export function AgenteMovil({ business }: { business: Business }) {
   const profesionales = ajustes.data?.professionals.length ?? 0;
   const capacidad = ajustes.data?.bookingCapacity ?? business.bookingCapacity ?? 1;
   const cargando = ajustes.isLoading;
+  // El idioma en que saluda primero: con catalán activo puede saludar en
+  // catalán o en castellano, y la lista lo dice.
+  const idiomasDelResumen = [
+    comportamiento.voiceLanguage,
+    ...comportamiento.languages.filter((idioma) => idioma !== comportamiento.voiceLanguage),
+  ];
 
   return (
     <div>
@@ -130,7 +136,7 @@ export function AgenteMovil({ business }: { business: Business }) {
           icono={Bot}
           titulo="Cómo atiende"
           resumen={[
-            comportamiento.languages.map((idioma) => idiomas.data?.etiquetas[idioma] ?? idioma).join(", "),
+            idiomasDelResumen.map((idioma) => idiomas.data?.etiquetas[idioma] ?? idioma).join(", "),
             TONOS[comportamiento.tone],
             OBJETIVOS[comportamiento.primaryGoal],
           ]
