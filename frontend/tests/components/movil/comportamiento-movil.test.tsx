@@ -220,7 +220,6 @@ describe("ComportamientoMovil — idioma y voz", () => {
     await waitFor(() => expect(within(voces()).getAllByRole("radio")).toHaveLength(2));
     expect(voz("Marta")).toHaveAttribute("aria-checked", "true");
     expect(voz("Sergio")).toHaveAttribute("aria-checked", "false");
-    expect(screen.getByText("Son las voces que hablan catalán.")).toBeInTheDocument();
     expect(await screen.findByText(AVISO_DE_COOFICIAL)).toBeInTheDocument();
     // Con Marta y Sergio no se elige género ni hay más voces.
     expect(screen.queryByRole("radiogroup", { name: "Voz de mujer o de hombre" })).toBeNull();
@@ -249,20 +248,17 @@ describe("ComportamientoMovil — idioma y voz", () => {
     );
   });
 
-  it("saludar en otro idioma: se elige bajo «Otro idioma», antes hay que quitar la cooficial y atiende una voz de ese idioma", async () => {
+  it("saludar en otro idioma: se elige bajo «Otro idioma», quita la cooficial avisándolo y atiende una voz de ese idioma", async () => {
     const user = userEvent.setup();
     renderizar({ languages: ["es-ES", "fr-FR", "ca-ES"] });
 
     await user.click(await waitFor(() => otroIdioma()));
     expect(otroIdioma()).toHaveAttribute("aria-expanded", "true");
-    // Con el catalán activo no puede saludar en alemán: elegirlo quitaría
-    // el catalán sin que el dueño lo pida.
-    expect(extranjero("Alemán")).toBeDisabled();
-    expect(extranjero("Alemán")).toHaveTextContent("Quita antes el catalán");
-    await user.click(within(otros()).getByRole("checkbox", { name: "Catalán" }));
-    expect(await screen.findByText("Al guardar, dejará de atender en catalán.")).toBeInTheDocument();
+    // Con el catalán activo se puede saludar en alemán: el catalán, que no
+    // va con un saludo extranjero, deja de estar activo y se avisa.
     expect(extranjero("Alemán")).toBeEnabled();
     await user.click(extranjero("Alemán"));
+    expect(await screen.findByText("Al guardar, dejará de atender en catalán.")).toBeInTheDocument();
 
     expect(extranjero("Alemán")).toHaveAttribute("aria-checked", "true");
     expect(within(saludo()).getAllByRole("radio").every((opcion) => opcion.getAttribute("aria-checked") === "false")).toBe(true);
@@ -291,16 +287,22 @@ describe("ComportamientoMovil — idioma y voz", () => {
 
   // Revisión del 2026-10-05: elegir un saludo quitaba en silencio la lengua
   // cooficial activa (y el backend, con ella activa, habría saludado en
-  // ella). Ahora esos saludos se desactivan y dicen qué quitar antes.
-  it("con el catalán activo y saludo en español, no deja saludar en otra cooficial ni en un idioma extranjero", async () => {
+  // ella). Ahora la quita igual que desde cualquier otro saludo, y avisa si
+  // estaba guardada: una sola regla, sin opciones desactivadas.
+  it("con el catalán activo y saludo en español, saludar en euskera cambia la cooficial y lo avisa", async () => {
+    const user = userEvent.setup();
     renderizar({ languages: ["es-ES", "ca-ES"] });
 
-    await waitFor(() => expect(principal("Euskera")).toBeDisabled());
-    expect(principal("Euskera")).toHaveTextContent("Quita antes el catalán");
-    expect(principal("Gallego")).toBeDisabled();
-    expect(principal("Catalán")).toBeEnabled();
-    expect(principal("Catalán")).not.toHaveTextContent("Quita antes");
-    expect(principal("Español")).toBeEnabled();
+    await waitFor(() => expect(principal("Euskera")).toBeEnabled());
+    expect(principal("Gallego")).toBeEnabled();
+    expect(principal("Euskera")).not.toHaveTextContent("Quita antes");
+    await user.click(principal("Euskera"));
+
+    expect(principal("Euskera")).toHaveAttribute("aria-checked", "true");
+    expect(previsualizarIdiomas).toHaveBeenLastCalledWith(
+      expect.objectContaining({ languages: ["es-ES", "eu-ES"], voiceLanguage: "eu-ES" })
+    );
+    expect(await screen.findByText("Al guardar, dejará de atender en catalán.")).toBeInTheDocument();
   });
 
   it("de saludo en catalán a inglés: el catalán deja de estar activo y lo avisa", async () => {
@@ -440,7 +442,6 @@ describe("ComportamientoMovil — la voz", () => {
     expect(voz("Sergio")).toBeEnabled();
     expect(voz("Sergio")).toHaveTextContent("Sergio");
     expect(screen.queryByText(/habla todos los idiomas|no habla/)).toBeNull();
-    expect(screen.getByText("Son las voces que hablan catalán.")).toBeInTheDocument();
   });
 
   it("cambiar el saludo conserva la voz elegida: atiende la de su género y, al volver, vuelve la elegida", async () => {

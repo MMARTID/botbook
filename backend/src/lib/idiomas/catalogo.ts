@@ -279,7 +279,9 @@ export const IDIOMAS: Record<CodigoDeIdioma, IdiomaDelCatalogo> = {
     iso: "pt",
     nombreEnPrompt: "portugués",
     etiqueta: "Portugués",
-    saludo: "Olá, obrigado por ligar para {negocio}. Em que posso ajudar?",
+    // «Obrigado/a» concuerda con quien habla, y la voz puede ser de mujer o
+    // de hombre: un saludo sin él vale para las dos.
+    saludo: "Olá, está a falar com {negocio}. Em que posso ajudar?",
     transcripcion: { flux: "pt", soniox: "pt" },
     retell: { locale: "pt-PT", vozMultilingue: false },
     cooficial: false,

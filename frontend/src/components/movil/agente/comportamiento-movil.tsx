@@ -174,7 +174,7 @@ function OpcionDeVoz({
         role="radio"
         aria-checked={elegida}
         onClick={onElegir}
-        className="flex min-h-[52px] min-w-0 flex-1 items-center gap-3 rounded-xl text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-morado"
+        className="flex min-h-[52px] min-w-0 flex-1 items-center gap-3 rounded-xl text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-morado focus-visible:ring-offset-2"
       >
         <span className="min-w-0 flex-1">
           <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
@@ -209,7 +209,6 @@ function SelectorDeVoz({
   familia,
   vozQueAtiende,
   genero,
-  cooficial,
   sonando,
   onEscuchar,
   onParar,
@@ -220,8 +219,6 @@ function SelectorDeVoz({
   familia: FamiliaDeVoces;
   vozQueAtiende: string | undefined;
   genero: AgentSettings["voiceGender"];
-  /** La lengua cooficial activa, en minúsculas («catalán»). */
-  cooficial: string | null;
   sonando: string | null;
   onEscuchar: (voz: VozDelPanel) => void;
   /** Corta la muestra que suena. */
@@ -254,9 +251,6 @@ function SelectorDeVoz({
 
   return (
     <>
-      {familia === "soniox" && cooficial ? (
-        <p className="-mt-1 mb-2 text-sm text-muted">Son las voces que hablan {cooficial}.</p>
-      ) : null}
       {porGenero ? (
         <div
           role="radiogroup"
@@ -413,30 +407,14 @@ function IdiomaYVoz({
   const ordenar = (idiomas: AgentLanguage[]) =>
     Object.keys(datos?.etiquetas ?? {}).filter((codigo) => idiomas.includes(codigo));
 
-  // Los otros idiomas activos (no el obligatorio ni el saludo actual) que
-  // un saludo no admite (su `otrosIdiomas`, del catálogo): elegirlo los
-  // quitaría sin que el dueño lo pida (con el catalán activo, saludar en
-  // inglés o en euskera), así que esa opción se desactiva y dice qué quitar
-  // antes. El saludo actual sí puede dejar de estar activo al cambiarlo (de
-  // catalán a inglés): lo dice el aviso de lo que se deja de atender. Sin
-  // `otrosIdiomas` (catálogo anterior) no se bloquea nada.
-  const quitaria = (opcion: PrincipalDelCatalogo) => {
-    const admitidos = opcion.otrosIdiomas as AgentLanguage[] | undefined;
-    if (!admitidos) return [];
-    return ajustes.languages.filter(
-      (idioma) => idioma !== obligatorio && idioma !== saludo && idioma !== opcion.codigo && !admitidos.includes(idioma)
-    );
-  };
-  const detalleDeSaludo = (opcion: PrincipalDelCatalogo) => {
-    const antes = quitaria(opcion);
-    return antes.length ? `Quita antes el ${lista(antes, "y").toLowerCase()}` : undefined;
-  };
-
   const elegirSaludo = (codigo: AgentLanguage) => {
     if (codigo === saludo) return;
     const admitidos = principales.find((candidato) => candidato.codigo === codigo)?.otrosIdiomas as AgentLanguage[] | undefined;
-    // Siguen los activos que admite el saludo nuevo: de catalán a español,
-    // el catalán sigue activo y saluda en castellano. La voz elegida se
+    // Siguen los activos que admite el saludo nuevo (su `otrosIdiomas`, del
+    // catálogo): de catalán a español, el catalán sigue activo y saluda en
+    // castellano; con el catalán activo, saludar en inglés o en euskera lo
+    // quita, y si estaba guardado lo dice el aviso de lo que se deja de
+    // atender. Es la misma regla venga de donde venga. La voz elegida se
     // conserva: si no es de las del saludo nuevo, la vista previa enseña la
     // que atiende y el backend la descarta al guardar; si se vuelve, vuelve.
     const siguen = ajustes.languages.filter(
@@ -464,7 +442,7 @@ function IdiomaYVoz({
   };
 
   // La lengua cooficial que se dejaría de atender al guardar (quitada a
-  // mano o al pasar el saludo de esa lengua a otra): en Cataluña, atender
+  // mano o al elegir un saludo que no la admite): en Cataluña, atender
   // en catalán es una obligación.
   const dejaDeAtender = guardado.languages.filter(
     (idioma) => cooficiales.includes(idioma) && !ajustes.languages.includes(idioma)
@@ -531,8 +509,6 @@ function IdiomaYVoz({
                 key={opcion.codigo}
                 elegida={saludo === opcion.codigo}
                 titulo={opcion.etiqueta}
-                detalle={detalleDeSaludo(opcion)}
-                disabled={quitaria(opcion).length > 0}
                 onClick={() => elegirSaludo(opcion.codigo)}
               />
             ))}
@@ -570,8 +546,6 @@ function IdiomaYVoz({
                         key={opcion.codigo}
                         elegida={saludo === opcion.codigo}
                         titulo={opcion.etiqueta}
-                        detalle={detalleDeSaludo(opcion)}
-                        disabled={quitaria(opcion).length > 0}
                         onClick={() => elegirSaludo(opcion.codigo)}
                       />
                     ))}
@@ -626,7 +600,6 @@ function IdiomaYVoz({
               familia={familia}
               vozQueAtiende={vozQueAtiende}
               genero={genero}
-              cooficial={cooficial ? etiqueta(cooficial).toLowerCase() : null}
               sonando={sonando}
               onEscuchar={alternar}
               onParar={parar}
