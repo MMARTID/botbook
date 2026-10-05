@@ -2526,7 +2526,10 @@ herramienta):**
   desde el 03-10).
 - **Trampa:** Telnyx crea una app TeXML por assistant, «ai-<id del assistant>», y no la borra con
   él; la API ignora `filter[friendly_name]`. `TelnyxAiAdapter.deleteTexmlAppOfAssistant` la
-  borra comparando el nombre.
+  borra comparando el nombre, y todo lo que borra un assistant la llama después: el borrado de
+  cuenta (`modules/auth/accountService.ts`, best-effort: si falla, la cuenta se elimina igual y
+  queda `[Account] FALLO AL BORRAR LA APP TeXML` en el log con negocio y assistant, para borrarla
+  a mano) y `verificarIdiomas.ts`.
 
 **Añadir un idioma:** su código al final de `CODIGOS_DE_IDIOMA`, su entrada en `IDIOMAS` y
 ofrecerlo en un mercado. Los tests de `tests/lib/idiomas/catalogo.test.ts` exigen que esté
