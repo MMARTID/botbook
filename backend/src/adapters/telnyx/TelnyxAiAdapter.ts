@@ -1,3 +1,4 @@
+import { toFile } from "telnyx";
 import { TelnyxWebhook } from "telnyx/lib/webhooks.js";
 import { getTelnyxClient } from "../../lib/telnyx.js";
 import type {
@@ -47,6 +48,19 @@ type VoiceSettingsInput = VoiceSettings & { language?: string };
 /** Proveedores de voz que se consultan: los del catálogo de idiomas
  * (telnyx, soniox) y los candidatos del laboratorio de voces. */
 export type ProveedorDeVoces = "telnyx" | "soniox" | "minimax" | "azure";
+
+/** Entrada de un diccionario de pronunciación de Telnyx: un alias (texto
+ * que se lee en su lugar) o fonemas IPA, que según Telnyx solo respetan las
+ * voces Ultra, MiniMax e Inworld. */
+export type EntradaDeDiccionario =
+  | { texto: string; alias: string }
+  | { texto: string; ipa: string };
+
+export interface DiccionarioDePronunciacion {
+  id: string;
+  nombre: string;
+  version: number | null;
+}
 
 export interface VozSintetizada {
   audio: Buffer;
@@ -825,12 +839,15 @@ export class TelnyxAiAdapter {
    * Síntesis por la API REST de Telnyx, sin caché, para comparar voces y
    * medir lo que tardan (scripts/laboratorioDeVoces.ts). `ajustes` va tal
    * cual en `voice_settings` (p. ej. `language` de Soniox o
-   * `language_boost` de MiniMax).
+   * `language_boost` de MiniMax). `diccionario` es el id de un diccionario
+   * de pronunciación: en REST va en el primer nivel (docs de Telnyx), y el
+   * SDK 7.24 aún no lo tipa.
    */
   async sintetizarVoz(input: {
     texto: string;
     voz: string;
     ajustes?: Record<string, unknown>;
+    diccionario?: string;
   }): Promise<VozSintetizada> {
     const client = getTelnyxClient();
     const inicio = performance.now();
@@ -840,6 +857,9 @@ export class TelnyxAiAdapter {
         voice: input.voz,
         disable_cache: true,
         ...(input.ajustes ? { voice_settings: input.ajustes } : {}),
+        ...(input.diccionario
+          ? { pronunciation_dict_id: input.diccionario }
+          : {}),
       } as Parameters<typeof client.textToSpeech.generateSpeech>[0])
       .asResponse();
     const primerByteMs = performance.now() - inicio;
@@ -849,6 +869,79 @@ export class TelnyxAiAdapter {
       primerByteMs,
       servidorMs: servidor ? Number(servidor) : null,
     };
+  }
+
+  /** Transcribe un audio con Whisper en Telnyx (p. ej. para comprobar qué
+   * dijo de verdad una voz). */
+  async transcribirAudio(input: {
+    audio: Buffer;
+    nombre: string;
+    idioma?: string;
+  }): Promise<string> {
+    const client = getTelnyxClient();
+    const respuesta = await client.ai.audio.transcribe({
+      model: "openai/whisper-large-v3-turbo",
+      file: await toFile(input.audio, input.nombre),
+      ...(input.idioma ? { language: input.idioma } : {}),
+    });
+    return respuesta.text ?? "";
+  }
+
+  // ---------------------------------------------------------------------
+  // Diccionarios de pronunciación (`/v2/pronunciation_dicts`): sustituyen
+  // palabras del texto antes de sintetizar. Hasta 100 entradas por
+  // diccionario y 50 por cuenta, que es la misma en dev y en producción.
+  // ---------------------------------------------------------------------
+
+  async crearDiccionario(
+    nombre: string,
+    entradas: EntradaDeDiccionario[]
+  ): Promise<DiccionarioDePronunciacion> {
+    const client = getTelnyxClient();
+    const respuesta = await client.pronunciationDicts.create({
+      name: nombre,
+      items: entradas.map((entrada) =>
+        "alias" in entrada
+          ? {
+              type: "alias" as const,
+              text: entrada.texto,
+              alias: entrada.alias,
+            }
+          : {
+              type: "phoneme" as const,
+              text: entrada.texto,
+              phoneme: entrada.ipa,
+              alphabet: "ipa" as const,
+            }
+      ),
+    });
+    if (!respuesta.data?.id) {
+      throw new Error(`Telnyx no devolvió el id del diccionario ${nombre}`);
+    }
+    return {
+      id: respuesta.data.id,
+      nombre: respuesta.data.name ?? nombre,
+      version: respuesta.data.version ?? null,
+    };
+  }
+
+  async listarDiccionarios(): Promise<DiccionarioDePronunciacion[]> {
+    const client = getTelnyxClient();
+    const diccionarios: DiccionarioDePronunciacion[] = [];
+    for await (const diccionario of client.pronunciationDicts.list()) {
+      if (!diccionario.id) continue;
+      diccionarios.push({
+        id: diccionario.id,
+        nombre: diccionario.name ?? "",
+        version: diccionario.version ?? null,
+      });
+    }
+    return diccionarios;
+  }
+
+  async borrarDiccionario(id: string): Promise<void> {
+    const client = getTelnyxClient();
+    await client.pronunciationDicts.delete(id);
   }
 
   // ---------------------------------------------------------------------
