@@ -16,10 +16,11 @@
  * Solo la síntesis de la Ultra va incluida en el precio del assistant: las
  * demás se cobran por carácter (facturación del 2026-10-03).
  *
- * El idioma del saludo (`voiceLanguage`) y la familia de voces van por
- * separado (decisión del usuario del 2026-10-05): con una lengua cooficial
- * activa atienden las voces de Soniox de esa lengua, salude en ella o en
- * español; sin cooficial, las Ultra nativas del idioma del saludo
+ * El dueño solo elige el idioma principal (`voiceLanguage`) y la voz
+ * (decisión del usuario del 2026-10-05, «nos hemos complicado»): en él
+ * saluda y de él salen la voz y los idiomas que habla (idiomasQueHabla).
+ * Con un principal cooficial (catalán, euskera, gallego) atienden las voces
+ * de Soniox de esa lengua; con cualquier otro, sus Ultra nativas
  * (familiaDeVoces).
  */
 import { VOCES_ULTRA } from "./vocesUltra.js";
@@ -85,8 +86,9 @@ export interface VozDelCatalogo {
   recomendada: boolean;
   /** Idiomas que pronuncia bien (escuchados en el laboratorio de voces).
    * Las de Soniox hablan cualquiera y arrancan en el de
-   * `voice_settings.language`; las Ultra, los de ULTRA_HABLA. Un idioma
-   * solo puede estar activo si la voz que atiende lo habla. */
+   * `voice_settings.language`; las Ultra, los de ULTRA_HABLA. La voz que
+   * atiende tiene que hablar todos los que habla su principal
+   * (idiomasQueHabla). */
   habla: "todos" | readonly CodigoDeIdioma[];
 }
 
@@ -108,18 +110,16 @@ export interface IdiomaDelCatalogo {
    * cadena de voces multilingüe (Retell rechaza ca-ES con Cartesia). */
   retell: { locale: IdiomaDeRetell | null; vozMultilingue: boolean };
   /** Lengua cooficial (catalán, euskera, gallego): ninguna Ultra la habla,
-   * así que con ella activa atienden sus voces (las de Soniox), salude en
-   * ella o en español. Como mucho una activa: la voz de Soniox arranca en
-   * una sola (`voice_settings.language`). */
+   * así que solo es principal, con sus voces de Soniox (que arrancan en
+   * ella: `voice_settings.language`), y solo así la habla la
+   * recepcionista. */
   cooficial: boolean;
   /** Voces de este idioma, en orden de preferencia: por género, la de por
-   * defecto primero (sin elección, atiende la primera de su género que
-   * hable todos los activos), luego las recomendadas y luego el resto. Las
-   * de un idioma no cooficial atienden cuando saluda en él; las de una
-   * cooficial, siempre que esté activa. Sin voces, el idioma no puede ser
-   * el del saludo. */
+   * defecto primero (sin elección, atiende la primera de su género), luego
+   * las recomendadas y luego el resto. Atienden cuando es el principal. Sin
+   * voces, el idioma no puede ser principal. */
   voces: readonly VozDelCatalogo[] | null;
-  /** Frase extra del prompt mientras el idioma está activo. */
+  /** Frase extra del prompt mientras la recepcionista lo habla. */
   notaParaElPrompt?: string;
 }
 
@@ -127,7 +127,8 @@ export interface IdiomaDelCatalogo {
  * Lo que habla cualquier voz Ultra: su idioma y los extranjeros que se
  * ofrecen (alemán, italiano, portugués y neerlandés, aprobados de oído por
  * el usuario el 2026-10-03 en el laboratorio de voces). Ni catalán, ni
- * euskera, ni gallego.
+ * euskera, ni gallego. Desde el 2026-10-05 la recepcionista los habla
+ * todos, sea cual sea el principal (idiomasQueHabla).
  */
 export const ULTRA_HABLA = [
   "es-ES",
@@ -156,9 +157,9 @@ const ultra = (idioma: IdiomaConVocesUltra): VozDelCatalogo[] =>
 
 /**
  * Voces de Soniox: cada una habla los 63 idiomas de Soniox, así que son las
- * de por defecto de catalán, euskera y gallego (atienden también el inglés
- * o el alemán que active el negocio). Marta y Sergio, con acento español,
- * elegidas por el usuario el 2026-10-02 escuchando muestras.
+ * de catalán, euskera y gallego (atienden también el español, el inglés o
+ * el alemán de quien llama). Marta y Sergio, con acento español, elegidas
+ * por el usuario el 2026-10-02 escuchando muestras.
  */
 const MARTA: VozDelCatalogo = {
   id: "Soniox.tts-rt-v2.Marta",
@@ -247,8 +248,8 @@ export const IDIOMAS: Record<CodigoDeIdioma, IdiomaDelCatalogo> = {
     saludo: "Ola, grazas por chamar a {negocio}. En que te podo axudar?",
     transcripcion: { flux: null, soniox: "gl" },
     // Retell admite gl-ES. Su voz Cartesia estaba sin verificar en gallego;
-    // desde el 2026-10-05, con una cooficial activa va la cadena
-    // multilingüe (usaVozMultilingueEnRetell en resolver.ts).
+    // desde el 2026-10-05, con una cooficial va la cadena multilingüe
+    // (usaVozMultilingueEnRetell en resolver.ts).
     retell: { locale: "gl-ES", vozMultilingue: false },
     cooficial: true,
     voces: [MARTA, SERGIO],
@@ -306,23 +307,18 @@ export const IDIOMAS: Record<CodigoDeIdioma, IdiomaDelCatalogo> = {
  * funcionando.
  *
  * España (decisiones del usuario del 2026-10-03 y del 2026-10-05, con
- * datos del INE, Frontur y las encuestas lingüísticas): español con todos
- * sus acentos siempre; saludo en español, catalán, euskera, gallego (en
- * Cataluña es obligatorio poder atender en catalán: Codi de consum, art.
- * 128-1) o, para negocios de clientela extranjera, inglés, francés, alemán,
- * italiano, portugués o neerlandés; y esos seis como otros idiomas (los
- * cuatro últimos desde el 2026-10-03, tras escuchar cómo los pronuncia la
- * voz Ultra). Las cooficiales también se activan con saludo en español,
- * como mucho una (otrosIdiomasConSaludo).
+ * datos del INE, Frontur y las encuestas lingüísticas): de principal,
+ * español, catalán, euskera, gallego (en Cataluña es obligatorio poder
+ * atender en catalán: Codi de consum, art. 128-1) o, para negocios de
+ * clientela extranjera, inglés, francés, alemán, italiano, portugués o
+ * neerlandés. Con cualquiera habla además los siete de ULTRA_HABLA
+ * (idiomasQueHabla).
  */
 export interface Mercado {
-  /** Siempre activo: la voz de cualquier saludo debe hablarlo. */
+  /** Lo habla siempre, sea cual sea el principal. */
   obligatorio: CodigoDeIdioma;
-  /** Idiomas en que puede saludar, en el orden del panel. */
+  /** Los que pueden ser el principal, en el orden del panel. */
   principales: readonly CodigoDeIdioma[];
-  /** Otros idiomas que se pueden activar con cualquier saludo (salvo el
-   * suyo). */
-  secundarios: readonly CodigoDeIdioma[];
 }
 
 export const MERCADOS = {
@@ -340,7 +336,6 @@ export const MERCADOS = {
       "pt-PT",
       "nl-NL",
     ],
-    secundarios: ["en-GB", "fr-FR", "de-DE", "it-IT", "pt-PT", "nl-NL"],
   },
 } as const satisfies Record<string, Mercado>;
 
@@ -352,7 +347,7 @@ export function esCodigoDeIdioma(valor: unknown): valor is CodigoDeIdioma {
   return (CODIGOS_DE_IDIOMA as readonly unknown[]).includes(valor);
 }
 
-/** Puede ser el idioma del saludo: tiene voces propias. */
+/** Puede ser el principal: tiene voces propias. */
 export function puedeSerPrincipal(codigo: CodigoDeIdioma): boolean {
   return IDIOMAS[codigo].voces !== null;
 }
@@ -361,33 +356,20 @@ export function esCooficial(codigo: CodigoDeIdioma): boolean {
   return IDIOMAS[codigo].cooficial;
 }
 
-/** La lengua cooficial activa (la primera en orden canónico; tras
- * normalizarIdiomas hay como mucho una), o null. */
-export function cooficialActiva(
-  idiomas: readonly CodigoDeIdioma[]
-): CodigoDeIdioma | null {
-  return idiomas.find(esCooficial) ?? null;
-}
-
 /**
- * Los idiomas que se pueden activar, además del obligatorio, con un saludo
- * en `saludo`: con el obligatorio, las cooficiales del mercado (como mucho
- * una a la vez) y los secundarios; con una cooficial, los secundarios; con
- * un idioma extranjero, los demás secundarios (sin cooficiales: con una
- * activa saludaría en ella o en español).
+ * Los idiomas que habla la recepcionista con `principal`, en orden
+ * canónico (decisión del usuario del 2026-10-05): el dueño ya no los elige.
+ * Los siete de ULTRA_HABLA con cualquier principal y, si es una lengua
+ * cooficial, también ella (con sus voces de Soniox, que hablan todos). Se
+ * guardan así en `languages`, para que lo que lo lee siga igual, y
+ * alimentan la transcripción, la lista del prompt y Retell.
  */
-export function otrosIdiomasConSaludo(
-  mercado: Mercado,
-  saludo: CodigoDeIdioma
-): CodigoDeIdioma[] {
-  const cooficiales =
-    saludo === mercado.obligatorio
-      ? mercado.principales.filter(esCooficial)
-      : [];
-  return [
-    ...cooficiales,
-    ...mercado.secundarios.filter((secundario) => secundario !== saludo),
-  ];
+export function idiomasQueHabla(principal: CodigoDeIdioma): CodigoDeIdioma[] {
+  return CODIGOS_DE_IDIOMA.filter(
+    (codigo) =>
+      codigo === principal ||
+      (ULTRA_HABLA as readonly CodigoDeIdioma[]).includes(codigo)
+  );
 }
 
 export function hablaIdioma(
@@ -407,36 +389,26 @@ export function vocesQueHablan(
   );
 }
 
-/** «ultra»: las Ultra nativas del idioma del saludo; «soniox»: las de una
- * lengua cooficial activa (Marta y Sergio). */
+/** «ultra»: las Ultra nativas del principal; «soniox»: las de un principal
+ * cooficial (Marta y Sergio). */
 export type FamiliaDeVoces = "ultra" | "soniox";
 
 export interface VocesDeLaFamilia {
   familia: FamiliaDeVoces;
-  /** El idioma cuyas `voces` atienden: la cooficial activa o, sin ella, el
-   * del saludo. En él arranca una voz de Soniox y en él están las
-   * muestras del panel. */
-  idioma: CodigoDeIdioma;
+  /** Las voces que pueden atender, en el orden del catálogo. */
   voces: readonly VozDelCatalogo[];
 }
 
 /**
- * Qué voces pueden atender a un negocio que saluda en `saludo` con
- * `idiomas` activos: con una lengua cooficial activa, las de esa lengua
- * (Soniox, que habla todos los idiomas), salude en ella o en español; sin
- * cooficial, las Ultra nativas del idioma del saludo (español → las 29 de
- * España; inglés → las británicas; etc.).
+ * Qué voces pueden atender con `principal`: las suyas. Las de una lengua
+ * cooficial son de Soniox (hablan todos los idiomas); las de cualquier otro,
+ * sus Ultra nativas (español → las 29 de España; inglés → las británicas;
+ * etc.).
  */
-export function familiaDeVoces(
-  saludo: CodigoDeIdioma,
-  idiomas: readonly CodigoDeIdioma[]
-): VocesDeLaFamilia {
-  const cooficial = cooficialActiva(idiomas);
-  const idioma = cooficial ?? saludo;
+export function familiaDeVoces(principal: CodigoDeIdioma): VocesDeLaFamilia {
   return {
-    familia: cooficial ? "soniox" : "ultra",
-    idioma,
-    voces: IDIOMAS[idioma].voces ?? [],
+    familia: esCooficial(principal) ? "soniox" : "ultra",
+    voces: IDIOMAS[principal].voces ?? [],
   };
 }
 

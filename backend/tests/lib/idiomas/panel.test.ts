@@ -5,24 +5,37 @@ import {
   avisoDeCambio,
   catalogoConCamposDelPanelAnterior,
   catalogoParaElPanel,
+  entradillaDeIdiomas,
   rutaDeMuestra,
   vistaPreviaDeIdiomas,
 } from "../../../src/lib/idiomas/panel.js";
-import type { VozDelCatalogo } from "../../../src/lib/idiomas/catalogo.js";
+import {
+  idiomasQueHabla,
+  type CodigoDeIdioma,
+  type VozDelCatalogo,
+} from "../../../src/lib/idiomas/catalogo.js";
 
 const PUBLICO_DE_LA_APP = fileURLToPath(
   new URL("../../../../frontend/public", import.meta.url)
 );
 const AVISO_ESPERA_CATALAN =
-  "Con el catalán activo, la recepcionista tarda algo más en contestar: hacia segundo y medio en vez de un segundo, también cuando le hablan en castellano.";
+  "Con el catalán como idioma principal, la recepcionista tarda algo más en contestar: entre 1,4 y 2 segundos por respuesta, frente a unos 0,9 con el español, también cuando le hablan en castellano.";
 const AVISO_VOCES_CATALAN =
   "Atiende con Marta o Sergio, las voces que hablan catalán.";
+// Con un principal de voces Ultra (revisión del 2026-10-05: flux no
+// entiende las cooficiales y la voz no cambia a mitad de llamada).
+const AVISO_SIN_COOFICIALES =
+  "No entiende el catalán, el euskera ni el gallego: para atender en una de esas lenguas, elígela como idioma principal (planes Pro y Scale).";
 const EXTRANJEROS = ["en-GB", "fr-FR", "de-DE", "it-IT", "pt-PT", "nl-NL"];
+const HABLA_EN_ESPANOL =
+  "Habla en 7 idiomas: español, inglés, francés, alemán, italiano, portugués y neerlandés. Saluda en español y sigue en el idioma de quien llama.";
+const HABLA_EN_CATALAN =
+  "Habla en 8 idiomas: catalán, español, inglés, francés, alemán, italiano, portugués y neerlandés. Saluda en catalán y sigue en el idioma de quien llama.";
 
 describe("catalogoParaElPanel", () => {
-  // Desde el 2026-10-05 saluda también en los seis extranjeros, y las
-  // cooficiales se activan con saludo en español.
-  it("España: saluda en español, catalán, euskera, gallego o en otro idioma (inglés, francés, alemán, italiano, portugués y neerlandés)", () => {
+  // Desde el 2026-10-05 el dueño solo elige el principal: español, catalán,
+  // euskera, gallego o uno de los seis extranjeros.
+  it("España: de principal, español, catalán, euskera, gallego o en otro idioma (inglés, francés, alemán, italiano, portugués y neerlandés)", () => {
     const catalogo = catalogoParaElPanel();
 
     expect(catalogo.obligatorio).toEqual({
@@ -46,15 +59,37 @@ describe("catalogoParaElPanel", () => {
       ["pt-PT", "extranjero"],
       ["nl-NL", "extranjero"],
     ]);
-    expect(catalogo.secundarios.map((secundario) => secundario.codigo)).toEqual(
-      EXTRANJEROS
-    );
-    expect(catalogo.cooficiales.map((cooficial) => cooficial.codigo)).toEqual([
-      "ca-ES",
-      "eu-ES",
-      "gl-ES",
+    expect(Object.keys(catalogo).sort()).toEqual([
+      "etiquetas",
+      "obligatorio",
+      "principales",
     ]);
     expect(catalogo.etiquetas["de-DE"]).toBe("Alemán");
+  });
+
+  it("cada principal dice en cuántos idiomas habla y cuáles se guardan al elegirlo", () => {
+    const de = (codigo: string) =>
+      catalogoParaElPanel().principales.find(
+        (principal) => principal.codigo === codigo
+      )!;
+
+    expect(de("es-ES").idiomas).toEqual(idiomasQueHabla("es-ES"));
+    expect(de("es-ES").entradilla).toBe(HABLA_EN_ESPANOL);
+    expect(de("ca-ES").idiomas).toEqual(idiomasQueHabla("ca-ES"));
+    expect(de("ca-ES").entradilla).toBe(HABLA_EN_CATALAN);
+    expect(de("de-DE").entradilla).toBe(
+      "Habla en 7 idiomas: alemán, español, inglés, francés, italiano, portugués y neerlandés. Saluda en alemán y sigue en el idioma de quien llama."
+    );
+  });
+
+  it("catalán, euskera y gallego exigen las lenguas locales (Pro y Scale); los demás, ningún plan", () => {
+    for (const principal of catalogoParaElPanel().principales) {
+      expect(principal.requiere, principal.codigo).toEqual(
+        principal.tipo === "cooficial"
+          ? { funcion: "lenguas_locales", texto: "Disponible en Pro y Scale" }
+          : null
+      );
+    }
   });
 
   it("da las voces de cada saludo con su descripción, si son recomendadas, la de por defecto y su muestra", () => {
@@ -64,12 +99,6 @@ describe("catalogoParaElPanel", () => {
     const espanol = de("es-ES");
     const catalan = de("ca-ES");
 
-    expect(espanol.otrosIdiomas).toEqual([
-      "ca-ES",
-      "eu-ES",
-      "gl-ES",
-      ...EXTRANJEROS,
-    ]);
     expect(espanol.familia).toBe("ultra");
     expect(espanol.voces).toHaveLength(29);
     expect(espanol.voces[0]).toEqual({
@@ -84,7 +113,6 @@ describe("catalogoParaElPanel", () => {
     expect(
       espanol.voces.filter((voz) => voz.porDefecto).map((voz) => voz.nombre)
     ).toEqual(["Blanca", "Marcos"]);
-    expect(catalan.otrosIdiomas).toEqual(EXTRANJEROS);
     expect(catalan.familia).toBe("soniox");
     expect(catalan.voces.map((voz) => voz.nombre)).toEqual(["Marta", "Sergio"]);
     expect(catalan.voces[0]).toMatchObject({
@@ -93,9 +121,6 @@ describe("catalogoParaElPanel", () => {
       muestra: "/voces/ca/marta.mp3",
     });
     expect(catalan.voces[1].muestra).toBe("/voces/ca/sergio.mp3");
-    expect(de("de-DE").otrosIdiomas).toEqual(
-      EXTRANJEROS.filter((codigo) => codigo !== "de-DE")
-    );
     expect(de("de-DE").voces[0]).toMatchObject({
       nombre: "Alina",
       porDefecto: true,
@@ -171,50 +196,69 @@ describe("catalogoConCamposDelPanelAnterior", () => {
 });
 
 describe("vistaPreviaDeIdiomas", () => {
-  it("solo español: atiende en español y saluda con el nombre del negocio", () => {
+  it("principal español: habla los siete, lo dice y saluda con el nombre del negocio", () => {
     expect(
       vistaPreviaDeIdiomas(
         {
-          languages: ["es-ES"],
           voiceLanguage: "es-ES",
           voiceGender: "femenina",
         },
         "Peluquería Ana"
       )
     ).toEqual({
-      languages: ["es-ES"],
+      languages: idiomasQueHabla("es-ES"),
       voiceLanguage: "es-ES",
       voz: "Telnyx.Ultra.538a8872-3799-4df5-b373-b78493b766c6",
       voiceGender: "femenina",
       familia: "ultra",
       voces: expect.any(Array),
-      entradilla: "Atiende siempre en español.",
+      entradilla: HABLA_EN_ESPANOL,
       saludo:
         "Hola, gracias por llamar a Peluquería Ana. ¿En qué te puedo ayudar?",
-      avisos: [],
+      avisos: [AVISO_SIN_COOFICIALES],
     });
   });
 
-  // Hasta el 2026-10-05 el catalán pasaba a ser el principal; ahora el
-  // dueño elige si saluda en catalán o en castellano.
-  it("catalán activo con saludo en español: saluda en español, atienden Marta o Sergio y avisa de la espera", () => {
+  it("con cualquier principal de voces Ultra avisa de que no entiende las cooficiales; con una cooficial, no", () => {
+    for (const voiceLanguage of ["es-ES", ...EXTRANJEROS]) {
+      expect(
+        vistaPreviaDeIdiomas(
+          {
+            voiceLanguage: voiceLanguage as CodigoDeIdioma,
+            voiceGender: "femenina",
+          },
+          "Peluquería Ana"
+        ).avisos
+      ).toContain(AVISO_SIN_COOFICIALES);
+    }
+    for (const voiceLanguage of ["ca-ES", "eu-ES", "gl-ES"] as const) {
+      expect(
+        vistaPreviaDeIdiomas(
+          { voiceLanguage, voiceGender: "femenina" },
+          "Peluquería Ana"
+        ).avisos
+      ).not.toContain(AVISO_SIN_COOFICIALES);
+    }
+  });
+
+  it("catalán de principal: saluda en catalán, habla ocho, atienden Marta o Sergio y avisa de la espera", () => {
     const vista = vistaPreviaDeIdiomas(
       {
-        languages: ["es-ES", "ca-ES"],
-        voiceLanguage: "es-ES",
+        languages: ["es-ES"],
+        voiceLanguage: "ca-ES",
         voiceGender: "femenina",
       },
       "Perruqueria Anna"
     );
 
     expect(vista).toMatchObject({
-      languages: ["es-ES", "ca-ES"],
-      voiceLanguage: "es-ES",
+      languages: idiomasQueHabla("ca-ES"),
+      voiceLanguage: "ca-ES",
       voz: "Soniox.tts-rt-v2.Marta",
       familia: "soniox",
-      entradilla: "Saluda en español y sigue en el idioma de quien llama.",
+      entradilla: HABLA_EN_CATALAN,
       saludo:
-        "Hola, gracias por llamar a Perruqueria Anna. ¿En qué te puedo ayudar?",
+        "Hola, gràcies per trucar a Perruqueria Anna. En què et puc ajudar?",
     });
     expect(vista.voces.map((voz) => voz.nombre)).toEqual(["Marta", "Sergio"]);
     expect(vista.voces[0].muestra).toBe("/voces/ca/marta.mp3");
@@ -237,6 +281,7 @@ describe("vistaPreviaDeIdiomas", () => {
     expect(vista.voces).toHaveLength(40);
     expect(vista.avisos).toEqual([
       "También saluda en inglés a los clientes de aquí; si le contestan en español, sigue en español.",
+      AVISO_SIN_COOFICIALES,
     ]);
   });
 });
@@ -268,8 +313,10 @@ describe("avisoDeCambio", () => {
   });
 });
 
-describe("vistaPreviaDeIdiomas — saludo, cooficial y voces (2026-10-05)", () => {
-  it("dos cooficiales: se queda la primera y avisa en palabras del dueño", () => {
+describe("vistaPreviaDeIdiomas — principal, cooficial y voces (2026-10-05)", () => {
+  // Ajustes guardados con las reglas anteriores (saludo en castellano con
+  // una cooficial activa): atiende en la cooficial y lo dice.
+  it("ajustes anteriores con dos cooficiales y principal español: atiende en la primera y avisa de que saludará en ella", () => {
     const vista = vistaPreviaDeIdiomas(
       {
         languages: ["es-ES", "ca-ES", "gl-ES"],
@@ -279,14 +326,13 @@ describe("vistaPreviaDeIdiomas — saludo, cooficial y voces (2026-10-05)", () =
       "Perruquería Ana"
     );
 
-    expect(vista.languages).toEqual(["es-ES", "ca-ES"]);
+    expect(vista.voiceLanguage).toBe("ca-ES");
+    expect(vista.languages).toEqual(idiomasQueHabla("ca-ES"));
     expect(vista.voz).toBe("Soniox.tts-rt-v2.Sergio");
-    expect(vista.avisos[0]).toBe(
-      "Solo puede hablar una de estas lenguas a la vez: catalán, euskera o gallego. Se quita el gallego."
-    );
+    expect(vista.avisos[0]).toBe("Saludará en catalán.");
   });
 
-  it("saludo en inglés con catalán activo: saludará en catalán, y lo dice", () => {
+  it("ajustes anteriores con catalán y principal inglés: saludará en catalán, y lo dice", () => {
     const vista = vistaPreviaDeIdiomas(
       {
         languages: ["es-ES", "en-GB", "ca-ES"],
@@ -298,10 +344,20 @@ describe("vistaPreviaDeIdiomas — saludo, cooficial y voces (2026-10-05)", () =
 
     expect(vista.voiceLanguage).toBe("ca-ES");
     expect(vista.avisos).toEqual([
-      "Con el catalán activo, la recepcionista saluda en catalán o en español: saludará en catalán.",
+      "Saludará en catalán.",
       AVISO_ESPERA_CATALAN,
       AVISO_VOCES_CATALAN,
     ]);
+  });
+
+  it("la entradilla lista los idiomas que habla empezando por el principal", () => {
+    expect(entradillaDeIdiomas("es-ES")).toBe(HABLA_EN_ESPANOL);
+    expect(entradillaDeIdiomas("gl-ES")).toBe(
+      "Habla en 8 idiomas: gallego, español, inglés, francés, alemán, italiano, portugués y neerlandés. Saluda en gallego y sigue en el idioma de quien llama."
+    );
+    expect(entradillaDeIdiomas("es-ES", ["es-ES"])).toBe(
+      "Atiende siempre en español."
+    );
   });
 
   it("las voces de la vista previa son las que se pueden elegir y entre ellas está la que atiende", () => {

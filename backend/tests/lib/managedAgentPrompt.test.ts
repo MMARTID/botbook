@@ -5,6 +5,7 @@ import {
   parseAgentSettings,
   DEFAULT_AGENT_SETTINGS,
 } from "../../src/lib/managedAgentPrompt.js";
+import { idiomasQueHabla } from "../../src/lib/idiomas/catalogo.js";
 
 describe("buildManagedAgentPrompt", () => {
   it("incluye los placeholders de las variables dinámicas de Retell, no el dato horneado", () => {
@@ -152,7 +153,9 @@ describe("parseAgentSettings — voiceGender", () => {
     expect(parsed.voiceGender).toBe("masculina");
   });
 
-  it("añade español a configuraciones guardadas antes de los idiomas sin perder ajustes", () => {
+  // Desde el 2026-10-05, con los idiomas del principal (antes, solo
+  // español).
+  it("a configuraciones guardadas antes de los idiomas les da los del español sin perder ajustes", () => {
     const parsed = parseAgentSettings({
       version: 1,
       tone: "professional",
@@ -162,7 +165,7 @@ describe("parseAgentSettings — voiceGender", () => {
       voiceGender: "masculina",
     });
 
-    expect(parsed.languages).toEqual(["es-ES"]);
+    expect(parsed.languages).toEqual(idiomasQueHabla("es-ES"));
     expect(parsed.voiceGender).toBe("masculina");
     expect(parsed.tone).toBe("professional");
   });
@@ -177,9 +180,10 @@ describe("parseAgentSettings — voiceGender", () => {
     ).toEqual({
       ...DEFAULT_AGENT_SETTINGS,
       tone: "direct",
-      languages: ["es-ES", "ca-ES"],
-      // Desde el 2026-10-05 el catalán activo ya no cambia el saludo.
-      voiceLanguage: "es-ES",
+      // Una cooficial guardada con principal español (reglas anteriores):
+      // atiende en ella, como hacía.
+      languages: idiomasQueHabla("ca-ES"),
+      voiceLanguage: "ca-ES",
     });
     expect(
       parseAgentSettings({
@@ -191,7 +195,7 @@ describe("parseAgentSettings — voiceGender", () => {
     ).toEqual({
       ...DEFAULT_AGENT_SETTINGS,
       escalation: "request_callback",
-      languages: ["es-ES", "en-GB"],
+      languages: idiomasQueHabla("en-GB"),
       voiceLanguage: "en-GB",
     });
   });
@@ -222,14 +226,22 @@ describe("parseAgentSettings — voiceLanguage", () => {
     expect(parsed.voiceLanguage).toBe("en-GB");
   });
 
-  it("rechaza voiceLanguage fuera de los idiomas activados y cae al fallback completo", () => {
+  // Hasta el 2026-10-05 se rechazaba y caía al fallback completo; ahora el
+  // principal manda y los idiomas salen de él.
+  it("un voiceLanguage que no está entre los languages guardados manda", () => {
     const parsed = parseAgentSettings({
       ...DEFAULT_AGENT_SETTINGS,
+      tone: "direct",
       languages: ["es-ES"],
       voiceLanguage: "fr-FR",
     });
 
-    expect(parsed).toEqual(DEFAULT_AGENT_SETTINGS);
+    expect(parsed).toEqual({
+      ...DEFAULT_AGENT_SETTINGS,
+      tone: "direct",
+      languages: idiomasQueHabla("fr-FR"),
+      voiceLanguage: "fr-FR",
+    });
   });
 });
 
@@ -305,19 +317,19 @@ describe("AgentSettings — la voz elegida entre las de la familia (2026-10-05)"
     expect(guardado.voiceGender).toBe("femenina");
   });
 
-  it("la olvida al activar el catalán (atienden Marta o Sergio) sin tocar el resto", () => {
+  it("la olvida al pasar al catalán de principal (atienden Marta o Sergio) sin tocar el resto", () => {
     const guardado = AgentSettingsSchema.parse({
       ...DEFAULT_AGENT_SETTINGS,
       tone: "direct",
-      languages: ["es-ES", "ca-ES"],
+      voiceLanguage: "ca-ES",
       voz: LARA,
     });
 
     expect(guardado).not.toHaveProperty("voz");
     expect(guardado).toMatchObject({
       tone: "direct",
-      languages: ["es-ES", "ca-ES"],
-      voiceLanguage: "es-ES",
+      languages: idiomasQueHabla("ca-ES"),
+      voiceLanguage: "ca-ES",
     });
   });
 
@@ -405,24 +417,75 @@ describe("buildManagedAgentPrompt — WhatsApp al cliente y lista de espera (PR 
   });
 });
 
+// Desde el 2026-10-05 habla siempre los siete de ULTRA_HABLA y, con un
+// principal cooficial, también él (antes, solo los que activaba el dueño).
 describe("buildManagedAgentPrompt — idiomas", () => {
-  it("conserva la instrucción monolingüe de español por defecto", () => {
+  it("por defecto saluda en español y sigue en cualquiera de los siete", () => {
     const prompt = buildManagedAgentPrompt({
       businessName: "Peluquería Ejemplo",
       settings: DEFAULT_AGENT_SETTINGS,
     });
 
-    expect(prompt).toContain("Habla siempre en español de España");
+    expect(prompt).toContain(
+      "Empieza siempre con el saludo en español de España. Tras la primera intervención de quien llama, responde y continúa exclusivamente en el idioma que use si es uno de estos: español de España, inglés, francés, alemán, italiano, portugués, neerlandés. Si cambia entre esos idiomas, acompaña el cambio sin pedirle que elija uno. Las frases que estas instrucciones ponen entre comillas para decírselas a quien llama están en castellano: dilas traducidas al idioma de la conversación. No menciones que eres una IA salvo que te lo pregunten."
+    );
+    expect(prompt).not.toContain("Habla siempre en español de España");
   });
 
-  it("sin catalán, euskera ni gallego la instrucción no cambia", () => {
+  // Tanda «A2 inglés» del laboratorio (2026-10-05): con la regla solo en
+  // «## Rol», contestó en castellano a clientes que hablaban inglés en 5 de
+  // 19 respuestas. El recordatorio va al final del prompt.
+  it("cierra el prompt recordando el idioma, también en el resumen, el WhatsApp y la despedida", () => {
+    const prompt = buildManagedAgentPrompt({
+      businessName: "Peluquería Ejemplo",
+      settings: DEFAULT_AGENT_SETTINGS,
+    });
+
+    expect(prompt.endsWith(
+      "## Idioma\nContesta cada turno en el idioma en que te habla quien llama si es uno de estos: español de España, inglés, francés, alemán, italiano, portugués, neerlandés; también el resumen de la reserva, la pregunta del WhatsApp y la despedida. No cambies de idioma por tu cuenta mientras siga hablando en el suyo."
+    )).toBe(true);
+  });
+
+  it("con los idiomas de Retell (solo español) dice «Habla siempre en…» y no cierra con el recordatorio", () => {
+    const prompt = buildManagedAgentPrompt({
+      businessName: "Peluquería Ejemplo",
+      settings: DEFAULT_AGENT_SETTINGS,
+      idiomas: ["es-ES"],
+    });
+
+    expect(prompt).toContain(
+      "Habla siempre en español de España; no menciones que eres una IA salvo que te lo pregunten."
+    );
+    expect(prompt).not.toContain("## Idioma");
+    expect(prompt).not.toContain("Empieza siempre con el saludo");
+  });
+
+  it("con los idiomas de Retell de un principal catalán (catalán y español) los lista a los dos", () => {
+    const prompt = buildManagedAgentPrompt({
+      businessName: "Perruqueria Anna",
+      settings: { ...DEFAULT_AGENT_SETTINGS, voiceLanguage: "ca-ES" },
+      idiomas: ["es-ES", "ca-ES"],
+    });
+
+    expect(prompt).toContain(
+      "Empieza siempre con el saludo en catalán. Tras la primera intervención de quien llama, responde y continúa exclusivamente en el idioma que use si es uno de estos: español de España, catalán."
+    );
+    expect(prompt).toContain(
+      "si es uno de estos: español de España, catalán; también el resumen"
+    );
+  });
+
+  it("los languages guardados no cambian la instrucción: manda el principal", () => {
     const prompt = buildManagedAgentPrompt({
       businessName: "Peluquería Ejemplo",
       settings: { ...DEFAULT_AGENT_SETTINGS, languages: ["es-ES", "en-GB"] },
     });
 
-    expect(prompt).toContain(
-      "Empieza siempre con el saludo en español de España. Tras la primera intervención de quien llama, responde y continúa exclusivamente en el idioma que use si es uno de estos: español de España, inglés. Si cambia entre esos idiomas, acompaña el cambio sin pedirle que elija uno. No menciones que eres una IA salvo que te lo pregunten."
+    expect(prompt).toBe(
+      buildManagedAgentPrompt({
+        businessName: "Peluquería Ejemplo",
+        settings: DEFAULT_AGENT_SETTINGS,
+      })
     );
   });
 
@@ -437,11 +500,9 @@ describe("buildManagedAgentPrompt — idiomas", () => {
     });
 
     expect(prompt).toContain("Empieza siempre con el saludo en inglés.");
-    expect(prompt).toContain("si es uno de estos: español de España, inglés, francés.");
+    expect(prompt).toContain("si es uno de estos: español de España, inglés, francés, alemán, italiano, portugués, neerlandés.");
   });
 
-  // Desde el 2026-10-05 solo cabe una cooficial: el euskera de antes se
-  // cambia por el inglés para seguir probando la lista de idiomas.
   it("con gallego principal saluda en gallego y habla todos sus idiomas", () => {
     const prompt = buildManagedAgentPrompt({
       businessName: "Peluquería Ejemplo",
@@ -453,22 +514,23 @@ describe("buildManagedAgentPrompt — idiomas", () => {
     });
 
     expect(prompt).toContain("Empieza siempre con el saludo en gallego.");
-    expect(prompt).toContain("si es uno de estos: español de España, inglés, gallego.");
+    expect(prompt).toContain(
+      "si es uno de estos: español de España, inglés, francés, gallego, alemán, italiano, portugués, neerlandés."
+    );
     expect(prompt).not.toContain("contesta en español de España");
   });
 
-  it("con catalán activo y saludo en español saluda en español y lista el catalán con su nota", () => {
+  it("con catalán de principal saluda en catalán y lista los ocho con su nota", () => {
     const prompt = buildManagedAgentPrompt({
       businessName: "Perruqueria Anna",
       settings: {
         ...DEFAULT_AGENT_SETTINGS,
-        languages: ["es-ES", "ca-ES"],
-        voiceLanguage: "es-ES",
+        voiceLanguage: "ca-ES",
       },
     });
 
     expect(prompt).toContain(
-      "Empieza siempre con el saludo en español de España. Tras la primera intervención de quien llama, responde y continúa exclusivamente en el idioma que use si es uno de estos: español de España, catalán."
+      "Empieza siempre con el saludo en catalán. Tras la primera intervención de quien llama, responde y continúa exclusivamente en el idioma que use si es uno de estos: español de España, inglés, francés, catalán, alemán, italiano, portugués, neerlandés."
     );
     expect(prompt).toContain(
       "Si quien llama usa formas valencianas o baleares del catalán, adáptate a ellas."
@@ -486,28 +548,29 @@ describe("buildManagedAgentPrompt — idiomas", () => {
     });
 
     expect(prompt).toContain("Empieza siempre con el saludo en alemán.");
-    expect(prompt).toContain("si es uno de estos: español de España, alemán.");
+    expect(prompt).toContain("si es uno de estos: español de España, inglés, francés, alemán, italiano, portugués, neerlandés.");
   });
 });
 
 describe("idiomas de Soniox y de Retell", () => {
-  // Hasta el 2026-10-05 cabían varias; ahora solo una cooficial (la voz de
-  // Soniox arranca en una sola): la del saludo o la primera.
-  it("con euskera y gallego a la vez se queda una: la del saludo o, si no, la primera en el orden de la lista", () => {
+  // Ajustes guardados con reglas anteriores: el principal es la cooficial
+  // guardada como principal o, si no, la primera en orden canónico, y habla
+  // solo esa.
+  it("con euskera y gallego guardados a la vez habla una: la del principal o, si no, la primera en el orden de la lista", () => {
     const parsed = parseAgentSettings({
       ...DEFAULT_AGENT_SETTINGS,
       languages: ["gl-ES", "es-ES", "eu-ES"],
     });
 
-    expect(parsed.languages).toEqual(["es-ES", "eu-ES"]);
-    expect(parsed.voiceLanguage).toBe("es-ES");
+    expect(parsed.languages).toEqual(idiomasQueHabla("eu-ES"));
+    expect(parsed.voiceLanguage).toBe("eu-ES");
     expect(
       parseAgentSettings({
         ...DEFAULT_AGENT_SETTINGS,
         languages: ["gl-ES", "es-ES", "eu-ES"],
         voiceLanguage: "gl-ES",
       }).languages
-    ).toEqual(["es-ES", "gl-ES"]);
+    ).toEqual(idiomasQueHabla("gl-ES"));
   });
 
   it("con catalán, euskera o gallego activos el principal pasa a uno de ellos, sin perder el resto", () => {
@@ -522,7 +585,9 @@ describe("idiomas de Soniox y de Retell", () => {
     expect(parsed.tone).toBe("direct");
   });
 
-  it("acepta catalán, euskera o gallego como idioma principal si están activos", () => {
+  // Hasta el 2026-10-05 un principal cooficial que no estaba activo caía
+  // al fallback completo; ahora el principal manda.
+  it("acepta catalán, euskera o gallego como idioma principal, también sin estar en los languages guardados", () => {
     const parsed = parseAgentSettings({
       ...DEFAULT_AGENT_SETTINGS,
       languages: ["es-ES", "eu-ES"],
@@ -536,7 +601,11 @@ describe("idiomas de Soniox y de Retell", () => {
         languages: ["es-ES"],
         voiceLanguage: "ca-ES",
       })
-    ).toEqual(DEFAULT_AGENT_SETTINGS);
+    ).toEqual({
+      ...DEFAULT_AGENT_SETTINGS,
+      languages: idiomasQueHabla("ca-ES"),
+      voiceLanguage: "ca-ES",
+    });
   });
 });
 

@@ -16,10 +16,8 @@ export const CATALOGO_DE_IDIOMAS: CatalogoDeIdiomas = {
       codigo: "es-ES",
       etiqueta: "Español",
       tipo: "obligatorio",
-      otrosIdiomas: [
-        "ca-ES",
-        "eu-ES",
-        "gl-ES",
+      idiomas: [
+        "es-ES",
         "en-GB",
         "fr-FR",
         "de-DE",
@@ -27,6 +25,8 @@ export const CATALOGO_DE_IDIOMAS: CatalogoDeIdiomas = {
         "pt-PT",
         "nl-NL",
       ],
+      entradilla: "Habla en 7 idiomas: español, inglés, francés, alemán, italiano, portugués y neerlandés. Saluda en español y sigue en el idioma de quien llama.",
+      requiere: null,
       familia: "ultra",
       voces: [
         {
@@ -296,14 +296,21 @@ export const CATALOGO_DE_IDIOMAS: CatalogoDeIdiomas = {
       codigo: "ca-ES",
       etiqueta: "Catalán",
       tipo: "cooficial",
-      otrosIdiomas: [
+      idiomas: [
+        "es-ES",
         "en-GB",
         "fr-FR",
+        "ca-ES",
         "de-DE",
         "it-IT",
         "pt-PT",
         "nl-NL",
       ],
+      entradilla: "Habla en 8 idiomas: catalán, español, inglés, francés, alemán, italiano, portugués y neerlandés. Saluda en catalán y sigue en el idioma de quien llama.",
+      requiere: {
+        funcion: "lenguas_locales",
+        texto: "Disponible en Pro y Scale",
+      },
       familia: "soniox",
       voces: [
         {
@@ -330,14 +337,21 @@ export const CATALOGO_DE_IDIOMAS: CatalogoDeIdiomas = {
       codigo: "eu-ES",
       etiqueta: "Euskera",
       tipo: "cooficial",
-      otrosIdiomas: [
+      idiomas: [
+        "es-ES",
         "en-GB",
         "fr-FR",
+        "eu-ES",
         "de-DE",
         "it-IT",
         "pt-PT",
         "nl-NL",
       ],
+      entradilla: "Habla en 8 idiomas: euskera, español, inglés, francés, alemán, italiano, portugués y neerlandés. Saluda en euskera y sigue en el idioma de quien llama.",
+      requiere: {
+        funcion: "lenguas_locales",
+        texto: "Disponible en Pro y Scale",
+      },
       familia: "soniox",
       voces: [
         {
@@ -364,14 +378,21 @@ export const CATALOGO_DE_IDIOMAS: CatalogoDeIdiomas = {
       codigo: "gl-ES",
       etiqueta: "Gallego",
       tipo: "cooficial",
-      otrosIdiomas: [
+      idiomas: [
+        "es-ES",
         "en-GB",
         "fr-FR",
+        "gl-ES",
         "de-DE",
         "it-IT",
         "pt-PT",
         "nl-NL",
       ],
+      entradilla: "Habla en 8 idiomas: gallego, español, inglés, francés, alemán, italiano, portugués y neerlandés. Saluda en gallego y sigue en el idioma de quien llama.",
+      requiere: {
+        funcion: "lenguas_locales",
+        texto: "Disponible en Pro y Scale",
+      },
       familia: "soniox",
       voces: [
         {
@@ -398,13 +419,17 @@ export const CATALOGO_DE_IDIOMAS: CatalogoDeIdiomas = {
       codigo: "en-GB",
       etiqueta: "Inglés",
       tipo: "extranjero",
-      otrosIdiomas: [
+      idiomas: [
+        "es-ES",
+        "en-GB",
         "fr-FR",
         "de-DE",
         "it-IT",
         "pt-PT",
         "nl-NL",
       ],
+      entradilla: "Habla en 7 idiomas: inglés, español, francés, alemán, italiano, portugués y neerlandés. Saluda en inglés y sigue en el idioma de quien llama.",
+      requiere: null,
       familia: "ultra",
       voces: [
         {
@@ -773,13 +798,17 @@ export const CATALOGO_DE_IDIOMAS: CatalogoDeIdiomas = {
       codigo: "fr-FR",
       etiqueta: "Francés",
       tipo: "extranjero",
-      otrosIdiomas: [
+      idiomas: [
+        "es-ES",
         "en-GB",
+        "fr-FR",
         "de-DE",
         "it-IT",
         "pt-PT",
         "nl-NL",
       ],
+      entradilla: "Habla en 7 idiomas: francés, español, inglés, alemán, italiano, portugués y neerlandés. Saluda en francés y sigue en el idioma de quien llama.",
+      requiere: null,
       familia: "ultra",
       voces: [
         {
@@ -1085,13 +1114,17 @@ export const CATALOGO_DE_IDIOMAS: CatalogoDeIdiomas = {
       codigo: "de-DE",
       etiqueta: "Alemán",
       tipo: "extranjero",
-      otrosIdiomas: [
+      idiomas: [
+        "es-ES",
         "en-GB",
         "fr-FR",
+        "de-DE",
         "it-IT",
         "pt-PT",
         "nl-NL",
       ],
+      entradilla: "Habla en 7 idiomas: alemán, español, inglés, francés, italiano, portugués y neerlandés. Saluda en alemán y sigue en el idioma de quien llama.",
+      requiere: null,
       familia: "ultra",
       voces: [
         {
@@ -1397,13 +1430,17 @@ export const CATALOGO_DE_IDIOMAS: CatalogoDeIdiomas = {
       codigo: "it-IT",
       etiqueta: "Italiano",
       tipo: "extranjero",
-      otrosIdiomas: [
+      idiomas: [
+        "es-ES",
         "en-GB",
         "fr-FR",
         "de-DE",
+        "it-IT",
         "pt-PT",
         "nl-NL",
       ],
+      entradilla: "Habla en 7 idiomas: italiano, español, inglés, francés, alemán, portugués y neerlandés. Saluda en italiano y sigue en el idioma de quien llama.",
+      requiere: null,
       familia: "ultra",
       voces: [
         {
@@ -1529,13 +1566,17 @@ export const CATALOGO_DE_IDIOMAS: CatalogoDeIdiomas = {
       codigo: "pt-PT",
       etiqueta: "Portugués",
       tipo: "extranjero",
-      otrosIdiomas: [
+      idiomas: [
+        "es-ES",
         "en-GB",
         "fr-FR",
         "de-DE",
         "it-IT",
+        "pt-PT",
         "nl-NL",
       ],
+      entradilla: "Habla en 7 idiomas: portugués, español, inglés, francés, alemán, italiano y neerlandés. Saluda en portugués y sigue en el idioma de quien llama.",
+      requiere: null,
       familia: "ultra",
       voces: [
         {
@@ -1607,13 +1648,17 @@ export const CATALOGO_DE_IDIOMAS: CatalogoDeIdiomas = {
       codigo: "nl-NL",
       etiqueta: "Neerlandés",
       tipo: "extranjero",
-      otrosIdiomas: [
+      idiomas: [
+        "es-ES",
         "en-GB",
         "fr-FR",
         "de-DE",
         "it-IT",
         "pt-PT",
+        "nl-NL",
       ],
+      entradilla: "Habla en 7 idiomas: neerlandés, español, inglés, francés, alemán, italiano y portugués. Saluda en neerlandés y sigue en el idioma de quien llama.",
+      requiere: null,
       familia: "ultra",
       voces: [
         {
@@ -1716,46 +1761,6 @@ export const CATALOGO_DE_IDIOMAS: CatalogoDeIdiomas = {
           muestra: "/voces/nl/af482421-80f4-4379-b00c-a118def29cde.mp3",
         },
       ],
-    },
-  ],
-  secundarios: [
-    {
-      codigo: "en-GB",
-      etiqueta: "Inglés",
-    },
-    {
-      codigo: "fr-FR",
-      etiqueta: "Francés",
-    },
-    {
-      codigo: "de-DE",
-      etiqueta: "Alemán",
-    },
-    {
-      codigo: "it-IT",
-      etiqueta: "Italiano",
-    },
-    {
-      codigo: "pt-PT",
-      etiqueta: "Portugués",
-    },
-    {
-      codigo: "nl-NL",
-      etiqueta: "Neerlandés",
-    },
-  ],
-  cooficiales: [
-    {
-      codigo: "ca-ES",
-      etiqueta: "Catalán",
-    },
-    {
-      codigo: "eu-ES",
-      etiqueta: "Euskera",
-    },
-    {
-      codigo: "gl-ES",
-      etiqueta: "Gallego",
     },
   ],
   etiquetas: {

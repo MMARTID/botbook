@@ -206,16 +206,21 @@ describe("createTelnyxAssistantForAgent", () => {
       greeting:
         "Hola, gràcies per trucar a Peluquería Ejemplo. En què et puc ajudar?",
       voiceSettings: { voice: "Soniox.tts-rt-v2.Marta", language: "ca" },
+      // Desde el 2026-10-05 con catalán habla ocho idiomas; Soniox lleva
+      // las pistas del catalán y del español (con las ocho iba peor).
       transcription: {
         model: "soniox/stt-rt-v5",
-        settings: { language_hints: ["es", "ca"] },
+        settings: {
+          language_hints: ["es", "ca"],
+        },
       },
     });
   });
 
-  // Hasta el 2026-10-05 el principal pasaba a catalán; ahora el dueño
-  // elige el saludo y la voz y la transcripción siguen siendo de Soniox.
-  it("con catalán activo y saludo en español, saluda en español con Marta en catalán y Soniox", async () => {
+  // Ajustes guardados con reglas anteriores (catalán en `languages` y
+  // saludo en español): la cooficial guardada pasa a ser el principal, así
+  // que saluda en catalán, como hacía en producción.
+  it("con ajustes anteriores de catalán activo y saludo en español, saluda en catalán con Marta y Soniox", async () => {
     mockedBusinessFindUnique.mockResolvedValue({
       ...BASE_BUSINESS,
       agentSettings: {
@@ -239,7 +244,7 @@ describe("createTelnyxAssistantForAgent", () => {
 
     const payload = mockedCreateAssistant.mock.calls[0][0];
     expect(payload.greeting).toBe(
-      "Hola, gracias por llamar a Peluquería Ejemplo. ¿En qué te puedo ayudar?"
+      "Hola, gràcies per trucar a Peluquería Ejemplo. En què et puc ajudar?"
     );
     expect(payload.voiceSettings).toMatchObject({
       voice: "Soniox.tts-rt-v2.Marta",

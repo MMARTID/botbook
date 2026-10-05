@@ -8,19 +8,12 @@ import { getBookingSettings, getCatalogoDeIdiomas } from "@/lib/api";
 import { ajustePorSeccion } from "@/lib/agent-configuration";
 import { getCalendarState } from "@/lib/calendar-state";
 import { resumenDeHorario } from "@/lib/horario";
-import type { AgentSettings, Business } from "@/lib/types";
+import type { Business } from "@/lib/types";
 import { DEFAULT_AGENT_SETTINGS } from "@/lib/agent-settings";
 import { isBusinessSchedule } from "@/components/business-hours-editor";
 import { SectionErrorState } from "@/components/section-card";
 import { CabeceraMovil } from "@/components/movil/cabecera-movil";
 import { FilaDeAjuste, GrupoDeFilas, RotuloDeGrupo } from "@/components/movil/piezas";
-
-const TONOS: Record<AgentSettings["tone"], string> = { warm: "Cercano", professional: "Profesional", direct: "Ágil" };
-const OBJETIVOS: Record<AgentSettings["primaryGoal"], string> = {
-  bookings: "Conseguir reservas",
-  customer_service: "Atender consultas",
-  lead_capture: "Captar oportunidades",
-};
 
 export function plural(n: number, uno: string, varios: string) {
   return `${n} ${n === 1 ? uno : varios}`;
@@ -52,12 +45,23 @@ export function AgenteMovil({ business }: { business: Business }) {
   const profesionales = ajustes.data?.professionals.length ?? 0;
   const capacidad = ajustes.data?.bookingCapacity ?? business.bookingCapacity ?? 1;
   const cargando = ajustes.isLoading;
-  // El idioma en que saluda primero: con catalán activo puede saludar en
-  // catalán o en castellano, y la lista lo dice.
-  const idiomasDelResumen = [
-    comportamiento.voiceLanguage,
-    ...comportamiento.languages.filter((idioma) => idioma !== comportamiento.voiceLanguage),
-  ];
+  // «Español · habla 7 idiomas · Blanca»: el principal, cuántos idiomas
+  // habla con él (los del catálogo; sin él, los `languages` del negocio,
+  // que pueden ser de antes si la caché viene de una respuesta sin
+  // normalizar) y la voz que atiende, la elegida o, sin ella, la primera de
+  // su género, que es la de por defecto.
+  const principal = idiomas.data?.principales.find((opcion) => opcion.codigo === comportamiento.voiceLanguage);
+  const cuantosHabla = principal?.idiomas?.length ?? comportamiento.languages.length;
+  const vozDelResumen =
+    principal?.voces.find((voz) => voz.id === comportamiento.voz) ??
+    principal?.voces.find((voz) => voz.genero === comportamiento.voiceGender);
+  const resumenDeIdiomaYVoz = [
+    idiomas.data?.etiquetas[comportamiento.voiceLanguage] ?? comportamiento.voiceLanguage,
+    `habla ${plural(cuantosHabla, "idioma", "idiomas")}`,
+    vozDelResumen?.nombre,
+  ]
+    .filter(Boolean)
+    .join(" · ");
 
   return (
     <div>
@@ -135,13 +139,7 @@ export function AgenteMovil({ business }: { business: Business }) {
           href="/agente/comportamiento"
           icono={Bot}
           titulo="Cómo atiende"
-          resumen={[
-            idiomasDelResumen.map((idioma) => idiomas.data?.etiquetas[idioma] ?? idioma).join(", "),
-            TONOS[comportamiento.tone],
-            OBJETIVOS[comportamiento.primaryGoal],
-          ]
-            .filter(Boolean)
-            .join(" · ")}
+          resumen={resumenDeIdiomaYVoz}
         />
       </GrupoDeFilas>
     </div>

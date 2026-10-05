@@ -16,12 +16,20 @@ import {
   GENEROS_DE_VOZ,
   esCodigoDeIdioma,
 } from "../../lib/idiomas/catalogo.js";
-import { IDIOMA_OBLIGATORIO, idiomasConocidos } from "../../lib/idiomas/ajustes.js";
+import {
+  IDIOMA_OBLIGATORIO,
+  funcionQueExige,
+  idiomasConocidos,
+} from "../../lib/idiomas/ajustes.js";
 import {
   catalogoConCamposDelPanelAnterior,
   vistaPreviaDeIdiomas,
 } from "../../lib/idiomas/panel.js";
-import { planAllows, resolvePlanId } from "../../lib/planFeatures.js";
+import {
+  planAllows,
+  planesQueIncluyen,
+  resolvePlanId,
+} from "../../lib/planFeatures.js";
 import { isBusinessType } from "../../lib/businessType.js";
 import { syncAgentNameWithBusinessType, syncAgentToRetell } from "../../lib/agentBootstrap.js";
 import { syncAgentToTelnyx } from "../../lib/telnyxAgentSync.js";
@@ -51,9 +59,14 @@ export const TIPOS_DE_LINEA_DE_CLIENTES = [
 ] as const;
 
 /** Vista previa de idiomas: códigos sin validar a fondo (el catálogo
- * normaliza y descarta los desconocidos), con un tope por seguridad. */
+ * normaliza y descarta los desconocidos), con un tope por seguridad. Manda
+ * `voiceLanguage`; `languages` es opcional y solo cuenta para leer ajustes
+ * anteriores (normalizarIdiomas). */
 const VistaPreviaDeIdiomasSchema = z.object({
-  languages: z.array(z.string()).max(CODIGOS_DE_IDIOMA.length * 2),
+  languages: z
+    .array(z.string())
+    .max(CODIGOS_DE_IDIOMA.length * 2)
+    .default([]),
   voiceLanguage: z.string(),
   voiceGender: z.enum(GENEROS_DE_VOZ).default("femenina"),
   // Una voz que no es del catálogo se ignora: atiende la de su género.
@@ -397,9 +410,10 @@ export async function businessesRoutes(fastify: FastifyInstance) {
   );
 
   // Idiomas de la recepcionista para el panel (lib/idiomas/panel.ts): qué
-  // se ofrece y qué hará con una selección, para que el frontend no repita
-  // las reglas del catálogo. Con los campos del panel anterior durante un
-  // despliegue (catalogoConCamposDelPanelAnterior).
+  // principales se ofrecen, cuántos idiomas habla con cada uno, sus voces y
+  // qué hará con una selección, para que el frontend no repita las reglas
+  // del catálogo. Con los campos del panel anterior durante un despliegue
+  // (catalogoConCamposDelPanelAnterior).
   fastify.get(
     "/business/me/idiomas",
     { preValidation: [fastify.authenticate] },
@@ -469,29 +483,30 @@ export async function businessesRoutes(fastify: FastifyInstance) {
           });
         }
 
-        // Cambiar la voz o los idiomas del agente es feature de Pro/Scale.
-        // Solo bloquea si esos campos CAMBIAN respecto a lo guardado: un
-        // negocio Inicio puede seguir editando tono/objetivo sin tocar la voz.
+        // Catalán, euskera o gallego como idioma principal son de Pro y
+        // Scale (funcionQueExige, decisión del usuario del 2026-10-05); la
+        // voz y un principal con voces Ultra, de todos los planes. Solo
+        // bloquea si el principal CAMBIA a uno que el plan no incluye: un
+        // negocio que ya atiende en catalán y baja a Inicio lo conserva y
+        // puede seguir editando el resto.
         if (data.agentSettings !== undefined) {
-          const current = await prisma.business.findUnique({
-            where: { id: request.user!.businessId },
-            select: { agentSettings: true, plan: true, stripePriceId: true },
-          });
-          if (current) {
-            const planId = resolvePlanId(current);
-            if (!planAllows(planId, "voz_idioma")) {
-              const saved = parseAgentSettings(current.agentSettings);
-              const next = data.agentSettings;
-              const voiceChanged =
-                next.voiceGender !== saved.voiceGender ||
-                next.voz !== saved.voz ||
-                next.voiceLanguage !== saved.voiceLanguage ||
-                next.languages.join(",") !== saved.languages.join(",");
-              if (voiceChanged) {
+          const principal = data.agentSettings.voiceLanguage;
+          const funcion = funcionQueExige(principal);
+          if (funcion) {
+            const current = await prisma.business.findUnique({
+              where: { id: request.user!.businessId },
+              select: { agentSettings: true, plan: true, stripePriceId: true },
+            });
+            if (current) {
+              const planId = resolvePlanId(current);
+              const guardado = parseAgentSettings(current.agentSettings);
+              if (
+                !planAllows(planId, funcion) &&
+                guardado.voiceLanguage !== principal
+              ) {
                 return reply.status(403).send({
-                  error:
-                    "Elegir la voz y los idiomas de tu recepcionista está disponible en los planes Pro y Scale.",
-                  code: "PLAN_LIMIT_VOICE",
+                  error: `Atender en catalán, euskera o gallego está disponible en los planes ${planesQueIncluyen(funcion)}.`,
+                  code: "PLAN_LIMIT_LENGUAS_LOCALES",
                   planId,
                   limit: null,
                 });
@@ -699,7 +714,14 @@ export async function businessesRoutes(fastify: FastifyInstance) {
           where: { id: request.user!.businessId },
           include: INCLUDE_CONEXIONES,
         });
-        return reply.send(serializarBusiness(business));
+        return reply.send({
+          ...serializarBusiness(business),
+          // Como GET /business/me: tal como los aplica la recepcionista. El
+          // panel guarda esta respuesta en su caché del negocio, y un JSON
+          // anterior (p. ej. `languages` de cuando se elegían) contaría mal
+          // los idiomas en el resumen del Agente.
+          agentSettings: parseAgentSettings(business.agentSettings),
+        });
       } catch (error) {
         if (error instanceof z.ZodError) {
           return reply.status(400).send({ error: error.errors });

@@ -9,8 +9,10 @@
  * payload completo de español sobre un assistant de catalán, como al
  * cambiar de idioma principal, y compara con un assistant nuevo. Los casos
  * con `espera` comprueban además, antes de crear nada, que el resolver
- * elige la voz, el idioma de Soniox y la transcripción acordados (saludo
- * en castellano con catalán activo, saludo en alemán, una voz elegida).
+ * elige la voz, el idioma de Soniox y la transcripción acordados: desde el
+ * 2026-10-05 el dueño solo elige el principal, y con él habla los siete de
+ * ULTRA_HABLA (flux en `multi`) o, con una cooficial, ocho (Soniox con dos
+ * pistas: la suya y la del español).
  *
  * Uso (con TELNYX_API_KEY en el entorno):
  *   npx tsx scripts/verificarIdiomas.ts
@@ -25,97 +27,95 @@ import { IDIOMAS, type CodigoDeIdioma } from "../src/lib/idiomas/catalogo.js";
 
 interface Caso {
   nombre: string;
-  languages: CodigoDeIdioma[];
+  /** El idioma principal: de él salen los idiomas que habla. */
   voiceLanguage: CodigoDeIdioma;
   /** La voz que eligió el dueño (AgentSettings.voz). */
   voz?: string;
   /** Voz candidata del laboratorio en lugar de la del catálogo. */
   vozCandidata?: { id: string; ajustes?: Record<string, unknown> };
-  /** Tras crearlo, pasarlo a estos idiomas con el payload completo. */
-  cambiarA?: { languages: CodigoDeIdioma[]; voiceLanguage: CodigoDeIdioma };
+  /** Tras crearlo, pasarlo a este principal con el payload completo. */
+  cambiarA?: { voiceLanguage: CodigoDeIdioma };
   /** Lo que tiene que salir del resolver (decisiones del 2026-10-05). */
   espera?: {
     voz: string;
     /** `voice_settings.language` (solo las de Soniox lo llevan). */
     idiomaDeLaVoz?: string;
     transcripcion: string;
+    /** `transcription.language`: «multi» en flux, «auto» en Soniox. */
+    idiomaDeTranscripcion?: string;
+    /** `transcription.settings.language_hints` de Soniox. */
+    pistas?: string[];
     saludo: string;
   };
 }
 
+const PISTAS_CON_CATALAN = ["es", "ca"];
+
 const CASOS: Caso[] = [
-  { nombre: "Solo español", languages: ["es-ES"], voiceLanguage: "es-ES" },
   {
-    nombre: "Español, inglés y francés",
-    languages: ["es-ES", "en-GB", "fr-FR"],
-    voiceLanguage: "es-ES",
-  },
-  {
-    nombre: "Catalán principal",
-    languages: ["es-ES", "ca-ES"],
-    voiceLanguage: "ca-ES",
-  },
-  {
-    nombre: "Euskera principal",
-    languages: ["es-ES", "eu-ES"],
-    voiceLanguage: "eu-ES",
-  },
-  {
-    nombre: "Gallego principal",
-    languages: ["es-ES", "gl-ES"],
-    voiceLanguage: "gl-ES",
-  },
-  // Las voces de MiniMax ya no están en el catálogo (2026-10-05), pero este
-  // caso vigila que el adaptador borre su `language_boost` al volver a la
-  // Ultra: Telnyx lo conservaba sin dar error.
-  {
-    nombre: "De catalán con MiniMax a español",
-    languages: ["es-ES", "ca-ES"],
-    voiceLanguage: "ca-ES",
-    vozCandidata: {
-      id: "Minimax.speech-2.8-turbo.Spanish_SereneWoman",
-      ajustes: { language_boost: "Catalan" },
-    },
-    cambiarA: { languages: ["es-ES"], voiceLanguage: "es-ES" },
-  },
-  {
-    nombre: "De español a catalán",
-    languages: ["es-ES"],
-    voiceLanguage: "es-ES",
-    cambiarA: { languages: ["es-ES", "ca-ES"], voiceLanguage: "ca-ES" },
-  },
-  // Idiomas y voces del 2026-10-05: saludo y familia de voces por separado.
-  {
-    nombre: "Saludo en castellano con catalán activo",
-    languages: ["es-ES", "ca-ES"],
+    nombre: "Principal español, habla siete: flux en multi",
     voiceLanguage: "es-ES",
     espera: {
-      voz: "Soniox.tts-rt-v2.Marta",
-      idiomaDeLaVoz: "ca",
-      transcripcion: "soniox/stt-rt-v5",
+      voz: "Telnyx.Ultra.538a8872-3799-4df5-b373-b78493b766c6", // Blanca
+      transcripcion: "deepgram/flux",
+      idiomaDeTranscripcion: "multi",
       saludo:
         "Hola, gracias por llamar a Verificación de idiomas. ¿En qué te puedo ayudar?",
     },
   },
   {
-    nombre: "Saludo en alemán",
-    languages: ["es-ES", "de-DE"],
+    nombre: "Principal catalán, habla ocho: Soniox con las pistas del catalán y el español",
+    voiceLanguage: "ca-ES",
+    espera: {
+      voz: "Soniox.tts-rt-v2.Marta",
+      idiomaDeLaVoz: "ca",
+      transcripcion: "soniox/stt-rt-v5",
+      idiomaDeTranscripcion: "auto",
+      pistas: PISTAS_CON_CATALAN,
+      saludo:
+        "Hola, gràcies per trucar a Verificación de idiomas. En què et puc ajudar?",
+    },
+  },
+  { nombre: "Euskera principal", voiceLanguage: "eu-ES" },
+  { nombre: "Gallego principal", voiceLanguage: "gl-ES" },
+  // Las voces de MiniMax ya no están en el catálogo (2026-10-05), pero este
+  // caso vigila que el adaptador borre su `language_boost` al volver a la
+  // Ultra: Telnyx lo conservaba sin dar error.
+  {
+    nombre: "De catalán con MiniMax a español",
+    voiceLanguage: "ca-ES",
+    vozCandidata: {
+      id: "Minimax.speech-2.8-turbo.Spanish_SereneWoman",
+      ajustes: { language_boost: "Catalan" },
+    },
+    cambiarA: { voiceLanguage: "es-ES" },
+  },
+  {
+    nombre: "De español a catalán",
+    voiceLanguage: "es-ES",
+    cambiarA: { voiceLanguage: "ca-ES" },
+  },
+  // El caso «saludo en castellano con catalán activo» se quitó con la
+  // simplificación del 2026-10-05: ya no se puede elegir.
+  {
+    nombre: "Principal alemán",
     voiceLanguage: "de-DE",
     espera: {
       voz: "Telnyx.Ultra.38aabb6a-f52b-4fb0-a3d1-988518f4dc06", // Alina
       transcripcion: "deepgram/flux",
+      idiomaDeTranscripcion: "multi",
       saludo:
         "Hallo, vielen Dank für Ihren Anruf bei Verificación de idiomas. Wie kann ich Ihnen helfen?",
     },
   },
   {
     nombre: "Español con una voz que no es la de por defecto (Lara)",
-    languages: ["es-ES"],
     voiceLanguage: "es-ES",
     voz: "Telnyx.Ultra.85b356c1-c638-404d-b986-f54a53d957d6",
     espera: {
       voz: "Telnyx.Ultra.85b356c1-c638-404d-b986-f54a53d957d6",
       transcripcion: "deepgram/flux",
+      idiomaDeTranscripcion: "multi",
       saludo:
         "Hola, gracias por llamar a Verificación de idiomas. ¿En qué te puedo ayudar?",
     },
@@ -199,11 +199,14 @@ async function verificar(caso: Caso, marca: string): Promise<string[]> {
       voz,
       idiomaDeLaVoz: payload.voiceSettings?.language,
       transcripcion: payload.transcription?.model,
+      idiomaDeTranscripcion: payload.transcription?.language,
+      pistas: (payload.transcription?.settings as Record<string, unknown>)
+        ?.language_hints,
       saludo: payload.greeting,
     };
     for (const [campo, esperado] of Object.entries(caso.espera)) {
       const valor = obtenido[campo as keyof typeof obtenido];
-      if (valor !== esperado) {
+      if (JSON.stringify(valor) !== JSON.stringify(esperado)) {
         problemas.push(
           `el resolver da ${campo}=${JSON.stringify(valor)} (se esperaba ${JSON.stringify(esperado)})`
         );
@@ -229,6 +232,24 @@ async function verificar(caso: Caso, marca: string): Promise<string[]> {
     }
     if (guardado.transcription.model !== payload.transcription?.model) {
       problemas.push(`transcripción ${String(guardado.transcription.model)}`);
+    }
+    // El idioma de flux («multi» con varios) y las pistas de Soniox (los
+    // siete u ocho idiomas que habla): Telnyx debe guardarlos tal cual.
+    if (guardado.transcription.language !== payload.transcription?.language) {
+      problemas.push(
+        `transcription.language guardado ${String(guardado.transcription.language)}`
+      );
+    }
+    const pistas = (
+      payload.transcription?.settings as Record<string, unknown> | undefined
+    )?.language_hints;
+    const pistasGuardadas = (
+      guardado.transcription.settings as Record<string, unknown> | undefined
+    )?.language_hints;
+    if (pistas && JSON.stringify(pistasGuardadas) !== JSON.stringify(pistas)) {
+      problemas.push(
+        `language_hints guardadas ${JSON.stringify(pistasGuardadas)}`
+      );
     }
     for (const [clave, valor] of Object.entries(payload.voiceSettings ?? {})) {
       if (

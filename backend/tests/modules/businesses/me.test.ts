@@ -10,6 +10,7 @@ import {
 import { syncAgentNameWithBusinessType } from "../../../src/lib/agentBootstrap.js";
 import { syncAgentToTelnyx } from "../../../src/lib/telnyxAgentSync.js";
 import { DEFAULT_AGENT_SETTINGS } from "../../../src/lib/managedAgentPrompt.js";
+import { idiomasQueHabla } from "../../../src/lib/idiomas/catalogo.js";
 
 vi.mock("../../../src/lib/prisma.js", () => ({
   prisma: {
@@ -230,23 +231,108 @@ describe("PATCH /business/me (móvil del dueño para WhatsApp)", () => {
     expect(mockedCambiarMovil).toHaveBeenCalledWith("biz_1", null);
   });
 
-  it("en un plan sin voz e idiomas, elegir una voz es un 403 aunque no cambie nada más", async () => {
-    mockedBusinessFindUnique.mockResolvedValueOnce({
-      agentSettings: DEFAULT_AGENT_SETTINGS,
-      plan: null,
-      stripePriceId: null,
-    } as never);
-
+  // Desde el 2026-10-05 la voz y un principal con voces Ultra son de todos
+  // los planes; catalán, euskera y gallego (lenguas locales), de Pro y Scale.
+  it("en Inicio se puede elegir la voz y un principal con voces Ultra", async () => {
     const response = await patch({
       agentSettings: {
         ...DEFAULT_AGENT_SETTINGS,
-        voz: "Telnyx.Ultra.538a8872-3799-4df5-b373-b78493b766c6",
+        voiceLanguage: "de-DE",
+        voz: "Telnyx.Ultra.38aabb6a-f52b-4fb0-a3d1-988518f4dc06",
       },
     });
 
-    expect(response.statusCode).toBe(403);
-    expect(response.json().code).toBe("PLAN_LIMIT_VOICE");
+    expect(response.statusCode).toBe(200);
+    const updateData = mockedBusinessUpdate.mock.calls[0][0].data as Record<
+      string,
+      unknown
+    >;
+    expect(updateData.agentSettings).toMatchObject({
+      voiceLanguage: "de-DE",
+      languages: idiomasQueHabla("de-DE"),
+      voz: "Telnyx.Ultra.38aabb6a-f52b-4fb0-a3d1-988518f4dc06",
+    });
+  });
+
+  it("en Inicio, pasar a catalán, euskera o gallego de principal es un 403 de lenguas locales", async () => {
+    for (const principal of ["ca-ES", "eu-ES", "gl-ES"] as const) {
+      mockedBusinessFindUnique.mockResolvedValueOnce({
+        agentSettings: DEFAULT_AGENT_SETTINGS,
+        plan: null,
+        stripePriceId: null,
+      } as never);
+
+      const response = await patch({
+        agentSettings: { ...DEFAULT_AGENT_SETTINGS, voiceLanguage: principal },
+      });
+
+      expect(response.statusCode, principal).toBe(403);
+      expect(response.json()).toMatchObject({
+        code: "PLAN_LIMIT_LENGUAS_LOCALES",
+        planId: "inicio",
+        error:
+          "Atender en catalán, euskera o gallego está disponible en los planes Pro y Scale.",
+      });
+    }
     expect(mockedBusinessUpdate).not.toHaveBeenCalled();
+  });
+
+  it("en Pro se puede pasar a catalán de principal", async () => {
+    mockedBusinessFindUnique.mockResolvedValue({
+      name: "Perruqueria Test",
+      businessDetails: null,
+      agentSettings: DEFAULT_AGENT_SETTINGS,
+      timezone: "Europe/Madrid",
+      plan: "pro",
+      stripePriceId: null,
+    } as any);
+
+    const response = await patch({
+      agentSettings: { ...DEFAULT_AGENT_SETTINGS, voiceLanguage: "ca-ES" },
+    });
+
+    expect(response.statusCode).toBe(200);
+    const updateData = mockedBusinessUpdate.mock.calls[0][0].data as Record<
+      string,
+      unknown
+    >;
+    expect(updateData.agentSettings).toMatchObject({
+      voiceLanguage: "ca-ES",
+      languages: idiomasQueHabla("ca-ES"),
+    });
+  });
+
+  // El plan se mira al escribir: quien ya atiende en catalán y baja a
+  // Inicio lo conserva y puede seguir guardando el resto.
+  it("en Inicio, un negocio que ya atiende en catalán sigue guardando sin cambiarlo", async () => {
+    const enCatalan = { ...DEFAULT_AGENT_SETTINGS, voiceLanguage: "ca-ES" };
+    mockedBusinessFindUnique.mockResolvedValue({
+      name: "Perruqueria Test",
+      businessDetails: null,
+      agentSettings: enCatalan,
+      timezone: "Europe/Madrid",
+      plan: null,
+      stripePriceId: null,
+    } as any);
+
+    const response = await patch({
+      agentSettings: {
+        ...enCatalan,
+        tone: "direct",
+        voz: "Soniox.tts-rt-v2.Sergio",
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+    const updateData = mockedBusinessUpdate.mock.calls[0][0].data as Record<
+      string,
+      unknown
+    >;
+    expect(updateData.agentSettings).toMatchObject({
+      tone: "direct",
+      voiceLanguage: "ca-ES",
+      voz: "Soniox.tts-rt-v2.Sergio",
+    });
   });
 
   it("notificationPrefs se fusiona con lo guardado y rechaza claves desconocidas", async () => {
@@ -519,8 +605,8 @@ describe("idiomas de la recepcionista en el panel", () => {
     vi.clearAllMocks();
   });
 
-  // Desde el 2026-10-05 el catalán activo con saludo en español es válido:
-  // lo que se corrige ahora es un saludo extranjero con una cooficial.
+  // Ajustes guardados con reglas anteriores (una cooficial activa y saludo
+  // extranjero): la cooficial es el principal y habla lo que va con ella.
   it("GET /business/me devuelve los idiomas tal como los aplica la recepcionista", async () => {
     mockedBusinessFindUnique.mockResolvedValue(
       negocioDePrisma({
@@ -536,9 +622,44 @@ describe("idiomas de la recepcionista en el panel", () => {
     const response = await fastify.inject({ method: "GET", url: "/business/me" });
 
     expect(response.json().agentSettings).toMatchObject({
-      languages: ["es-ES", "en-GB", "ca-ES"],
+      languages: idiomasQueHabla("ca-ES"),
       voiceLanguage: "ca-ES",
     });
+  });
+
+  // El panel guarda la respuesta del PATCH en su caché del negocio
+  // (setQueryData): con el JSON guardado tal cual, unos `languages` de
+  // cuando se elegían contaban mal los idiomas en el resumen del Agente.
+  it("PATCH /business/me también los devuelve como los aplica la recepcionista", async () => {
+    mockedEsNumeroDeAlhabla.mockResolvedValue(false);
+    mockedBusinessFindUnique.mockResolvedValue({
+      name: "Peluquería Test",
+      businessDetails: null,
+      agentSettings: null,
+      timezone: "Europe/Madrid",
+    } as any);
+    mockedBusinessUpdate.mockResolvedValue({} as any);
+    mockedAgentFindMany.mockResolvedValue([] as any);
+    mockedBusinessFindUniqueOrThrow.mockResolvedValue(
+      negocioDePrisma({
+        businessDetails: "Abrimos los sábados",
+        agentSettings: { ...DEFAULT_AGENT_SETTINGS, languages: ["es-ES"] },
+      }) as any
+    );
+    const fastify = await buildServer();
+
+    const response = await fastify.inject({
+      method: "PATCH",
+      url: "/business/me",
+      payload: { businessDetails: "Abrimos los sábados" },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json().agentSettings).toMatchObject({
+      languages: idiomasQueHabla("es-ES"),
+      voiceLanguage: "es-ES",
+    });
+    expect(response.json()).not.toHaveProperty("calendarConnections");
   });
 
   it("GET /business/me/idiomas devuelve lo que se ofrece", async () => {
@@ -594,7 +715,8 @@ describe("idiomas de la recepcionista en el panel", () => {
     expect(catalan.voces[0]).toMatchObject({ nombre: "Marta", habla: "todos" });
   });
 
-  it("POST /business/me/idiomas/previsualizar con catalán y saludo en español: saluda en español con las voces de Soniox", async () => {
+  // Desde el 2026-10-05 basta con el principal: `languages` es opcional.
+  it("POST /business/me/idiomas/previsualizar con catalán de principal: saluda en catalán, habla ocho y con las voces de Soniox", async () => {
     mockedBusinessFindUnique.mockResolvedValue({ name: "Perruqueria Anna" } as any);
     const fastify = await buildServer();
 
@@ -602,19 +724,20 @@ describe("idiomas de la recepcionista en el panel", () => {
       method: "POST",
       url: "/business/me/idiomas/previsualizar",
       payload: {
-        languages: ["es-ES", "ca-ES"],
-        voiceLanguage: "es-ES",
+        voiceLanguage: "ca-ES",
         voiceGender: "masculina",
       },
     });
 
     expect(response.statusCode).toBe(200);
     expect(response.json()).toMatchObject({
-      languages: ["es-ES", "ca-ES"],
-      voiceLanguage: "es-ES",
+      languages: idiomasQueHabla("ca-ES"),
+      voiceLanguage: "ca-ES",
       voz: "Soniox.tts-rt-v2.Sergio",
       familia: "soniox",
-      saludo: "Hola, gracias por llamar a Perruqueria Anna. ¿En qué te puedo ayudar?",
+      saludo: "Hola, gràcies per trucar a Perruqueria Anna. En què et puc ajudar?",
+      entradilla:
+        "Habla en 8 idiomas: catalán, español, inglés, francés, alemán, italiano, portugués y neerlandés. Saluda en catalán y sigue en el idioma de quien llama.",
     });
     expect(
       response.json().voces.map((voz: { nombre: string }) => voz.nombre)
@@ -639,7 +762,7 @@ describe("idiomas de la recepcionista en el panel", () => {
       expect.objectContaining({ where: { id: "biz_1" } })
     );
     expect(response.json()).toMatchObject({
-      languages: ["es-ES", "gl-ES"],
+      languages: idiomasQueHabla("gl-ES"),
       voiceLanguage: "gl-ES",
       saludo: "Ola, grazas por chamar a Perruquería Ana. En que te podo axudar?",
     });

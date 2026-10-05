@@ -21,7 +21,6 @@ exports[`payloads de asistentes (instantáneas) > assistant de la recepcionista 
       "enable_endpoint_detection": true,
       "language_hints": [
         "es",
-        "en",
         "ca",
       ],
       "max_endpoint_delay_ms": 500,
@@ -50,7 +49,7 @@ exports[`payloads de asistentes (instantáneas) > assistant de la recepcionista 
     },
   },
   "transcription": {
-    "language": "es",
+    "language": "multi",
     "model": "deepgram/flux",
     "settings": {
       "eager_eot_threshold": 0.4,
@@ -133,7 +132,6 @@ exports[`payloads de asistentes (instantáneas) > assistant de la recepcionista 
       "enable_endpoint_detection": true,
       "language_hints": [
         "es",
-        "fr",
         "gl",
       ],
       "max_endpoint_delay_ms": 500,
@@ -181,45 +179,6 @@ exports[`payloads de asistentes (instantáneas) > assistant de la recepcionista 
     },
     "expressive_mode": true,
     "voice": "Telnyx.Ultra.38aabb6a-f52b-4fb0-a3d1-988518f4dc06",
-  },
-}
-`;
-
-exports[`payloads de asistentes (instantáneas) > assistant de la recepcionista con saludo en español con catalán activo (Marta, Soniox en catalán) 1`] = `
-{
-  "greeting": "Hola, gracias por llamar a Perruqueria Anna. ¿En qué te puedo ayudar?",
-  "interruptionSettings": {
-    "start_speaking_plan": {
-      "transcription_endpointing_plan": {
-        "on_no_punctuation_seconds": 0.5,
-        "on_number_seconds": 0.5,
-        "on_punctuation_seconds": 0.1,
-      },
-      "wait_seconds": 0.1,
-    },
-  },
-  "transcription": {
-    "language": "auto",
-    "model": "soniox/stt-rt-v5",
-    "settings": {
-      "context": "Tall,Laura",
-      "enable_endpoint_detection": true,
-      "language_hints": [
-        "es",
-        "ca",
-      ],
-      "max_endpoint_delay_ms": 500,
-    },
-  },
-  "voiceSettings": {
-    "background_audio": {
-      "type": "predefined_media",
-      "value": "office",
-      "volume": 0.2,
-    },
-    "expressive_mode": false,
-    "language": "ca",
-    "voice": "Soniox.tts-rt-v2.Marta",
   },
 }
 `;
@@ -588,7 +547,7 @@ exports[`payloads de asistentes (instantáneas) > assistant de la recepcionista,
     },
   ],
   "transcription": {
-    "language": "es",
+    "language": "multi",
     "model": "deepgram/flux",
     "settings": {
       "eager_eot_threshold": 0.4,
@@ -986,7 +945,7 @@ Si te escriben en catalán, gallego, euskera o inglés, responde en ese idioma; 
 exports[`payloads de asistentes (instantáneas) > el JSON enviado es idéntico byte a byte (hash) 1`] = `
 {
   "gestor": "d42493dfb458dbe1ef8fa7fab6dbf284ec727a79d37293a97bff584963af6abf",
-  "recepcionista": "a934f9aca0e4f64f5ccc97d7c3735607abd195a99fa531bb748d70522bbb12d1",
+  "recepcionista": "10e734b7e0179d2a861fccc190d49ae5ab699084342057a064efa98853322229",
 }
 `;
 

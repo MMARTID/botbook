@@ -67,10 +67,10 @@ Lo que un producto vecino no podría copiar honestamente:
   forma autónoma. (Reabrir un día ya cerrado todavía exige el panel web, no WhatsApp.)
 - **Voz diseñada para no sonar a robot, no solo "voz de IA".** El dueño elige la voz
   escuchándola: en español, entre las 29 voces Ultra de Telnyx con acento de España, cada una con
-  una descripción de cómo suena y las de atención al cliente a la vista; si saluda en inglés,
-  francés, alemán, italiano, portugués o neerlandés, entre las Ultra nativas de ese idioma; y con
-  catalán, euskera o gallego activo, entre Marta y Sergio de Soniox, las voces que hablan esas
-  lenguas. Matiz emocional automático (`expressive_mode`, solo en Ultra) y un fondo sutil de
+  una descripción de cómo suena y las de atención al cliente a la vista; si su idioma principal es
+  inglés, francés, alemán, italiano, portugués o neerlandés, entre las Ultra nativas de ese
+  idioma; y con catalán, euskera o gallego de principal, entre Marta y Sergio de Soniox, las voces
+  que hablan esas lenguas. Matiz emocional automático (`expressive_mode`, solo en Ultra) y un fondo sutil de
   oficina para que la llamada no suene artificialmente silenciosa. La detección de turno de
   palabra corre en Deepgram Flux (Soniox con catalán, euskera o gallego, ajustado con llamadas
   reales), pensado para interrumpir y ser interrumpido de forma natural en vez de esperar un
@@ -104,16 +104,17 @@ Lo que un producto vecino no podría copiar honestamente:
 - Agentes de voz por negocio con tono (`warm` / `professional` / `direct`), objetivo
   (`bookings` / `customer_service` / `lead_capture`), estilo de respuesta
   (`concise` / `balanced`) y escalado (`take_message` / `request_callback`) configurables.
-- Idioma y voz del agente, seleccionables desde `/agente` en los planes Pro y Scale. Siempre
-  saluda en el idioma del negocio: español, catalán, euskera, gallego u otro (inglés, francés,
-  alemán, italiano, portugués o neerlandés, para negocios de clientela extranjera), y después
-  sigue en el idioma de quien llama si es uno de los activos. El español está siempre activo;
-  se pueden añadir los seis extranjeros y, con saludo en español, una lengua cooficial (catalán,
-  euskera o gallego, como mucho una). Con una cooficial activa, el dueño elige si descuelga en
-  ella o en castellano; atienden Marta o Sergio, contesta hacia el segundo y medio en vez del
-  segundo (medido con llamadas reales, también con clientes que hablan castellano) y el panel lo
-  avisa. La voz se elige escuchando una muestra de cada una. En el plan Inicio el selector queda
-  bloqueado y la API rechaza el cambio con 403.
+- Idioma principal y voz del agente, seleccionables desde `/agente`. El dueño solo elige el
+  idioma principal (desde el 05-10-2026): en él saluda y de él salen la voz y los idiomas que
+  habla, sin casillas. Con español o uno extranjero (inglés, francés, alemán, italiano, portugués
+  o neerlandés, para negocios de clientela extranjera) habla esos siete; con catalán, euskera o
+  gallego, también esa lengua (ocho). Después del saludo sigue en el idioma de quien llama, y el
+  panel lo dice: «Habla en 7 idiomas: … Saluda en español y sigue en el idioma de quien llama.»
+  Con una lengua cooficial de principal atienden Marta o Sergio y contesta entre 1,4 y 2 segundos
+  en vez de ~0,9 (medido con llamadas reales, también con clientes que hablan castellano), y el
+  panel lo avisa. La voz se elige escuchando una muestra de cada una, en todos los planes. Catalán,
+  euskera y gallego de principal son de Pro y Scale: en Inicio se ven con candado y la API rechaza
+  el cambio con 403; un negocio que ya los tenía los conserva si baja de plan.
 - Número de España (Telnyx) aprovisionado automáticamente tras el checkout.
 - Registro de llamadas con transcripción, grabación y clasificación de resultado.
 - Horario de negocio, catálogo de servicios, profesionales y capacidad de reserva.

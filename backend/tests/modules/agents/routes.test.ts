@@ -193,12 +193,15 @@ describe("PATCH /agents/:id — conserva la voz elegida (hallazgo #26 de la audi
         voiceId: "11labs-Hailey-Latin-America-Spanish-localized",
         voiceModel: "eleven_v3",
         fallbackVoiceIds: ["minimax-Camille"],
+        // Desde el 2026-10-05 la cooficial guardada es el principal. Retell,
+        // el respaldo, atiende solo el principal y el español
+        // (ajustesParaRetell), no los ocho que habla en Telnyx.
         language: ["es-ES", "ca-ES"],
       })
     );
   });
 
-  it("con saludo en alemán también fuerza la cadena multilingüe al editar una voz", async () => {
+  it("con principal alemán también fuerza la cadena multilingüe al editar una voz", async () => {
     mockedBusinessFindUnique.mockResolvedValue({
       orchestrator: "retell",
       agentSettings: {

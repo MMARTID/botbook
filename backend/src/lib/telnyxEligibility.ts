@@ -118,8 +118,8 @@ export async function resolveTelnyxVoiceId(
  * Precondición para intentar crear/mantener el assistant Telnyx de un
  * negocio. No decide nada sobre `voiceRoutingTarget` (Fase 5): solo si
  * conviene intentarlo en absoluto ahora mismo. La voz la decide
- * resolverIdiomas: Soniox con una lengua cooficial activa (catalán, euskera
- * o gallego); si no, las Ultra nativas del idioma del saludo. Antes el
+ * resolverIdiomas: Soniox con un principal cooficial (catalán, euskera o
+ * gallego); si no, las Ultra nativas del principal. Antes el
  * catalán dejaba el negocio en Retell.
  */
 export async function resolveTelnyxEligibility(
@@ -128,8 +128,8 @@ export async function resolveTelnyxEligibility(
   const perfil = resolverIdiomas(settings);
 
   try {
-    // Sin cooficial, las voces son las Ultra del idioma del saludo: ese es
-    // el idioma de la reserva (con Soniox no se mira).
+    // Con un principal que no es cooficial, las voces son sus Ultra: ese
+    // es el idioma de la reserva (con Soniox no se mira).
     const voiceId = await resolverVozEnLaCuenta(
       [perfil.voz, ...perfil.alternativas],
       perfil.principal,

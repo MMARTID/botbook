@@ -1,21 +1,19 @@
 import { z } from "zod";
+import type { PlanFeature } from "../planFeatures.js";
 import {
   CODIGOS_DE_IDIOMA,
   MERCADOS,
   MERCADO_POR_DEFECTO,
-  cooficialActiva,
   esCodigoDeIdioma,
   esCooficial,
   esVozDelCatalogo,
-  familiaDeVoces,
-  hablaIdioma,
+  idiomasQueHabla,
   puedeSerPrincipal,
-  vocesQueHablan,
   type CodigoDeIdioma,
   type VozDelCatalogo,
 } from "./catalogo.js";
 
-/** El idioma que siempre está activo (español en el mercado de España). */
+/** El idioma que habla siempre (español en el mercado de España). */
 export const IDIOMA_OBLIGATORIO: CodigoDeIdioma =
   MERCADOS[MERCADO_POR_DEFECTO].obligatorio;
 
@@ -27,7 +25,9 @@ export function ordenarIdiomas(
 }
 
 /** `languages` al escribir: el obligatorio activo, sin repetidos y en el
- * orden canónico (el que alimenta el hash del payload de Telnyx). */
+ * orden canónico. Desde el 2026-10-05 se guardan los que habla con su
+ * principal (normalizarIdiomas), digan lo que digan: solo cuentan para leer
+ * ajustes anteriores (una cooficial en ellos pasa a ser el principal). */
 export const EsquemaDeIdiomas = z
   .array(z.enum(CODIGOS_DE_IDIOMA))
   .min(1)
@@ -48,7 +48,7 @@ export const EsquemaDeIdiomas = z
   })
   .transform(ordenarIdiomas);
 
-/** `voiceLanguage`, el idioma en que saluda (el nombre del campo es el de
+/** `voiceLanguage`, el idioma principal (el nombre del campo es el de
  * siempre): solo uno con voces propias. */
 export const EsquemaDeIdiomaPrincipal = z
   .enum(CODIGOS_DE_IDIOMA)
@@ -56,24 +56,32 @@ export const EsquemaDeIdiomaPrincipal = z
     message: "La recepcionista no puede saludar en ese idioma.",
   });
 
-/** `voz`, la voz que eligió el dueño: una del catálogo. Si no es de la
- * familia que atiende (familiaDeVoces) o no habla sus idiomas, la sustituye
- * resolverIdiomas. */
+/** `voz`, la voz que eligió el dueño: una del catálogo. Si no es de las
+ * de su principal (familiaDeVoces), la sustituye resolverIdiomas. */
 export const EsquemaDeVoz = z.string().refine(esVozDelCatalogo, {
   message: "Esa voz no está en el catálogo.",
 });
 
+/**
+ * La función del plan que hace falta para elegir `principal`, o null si
+ * vale cualquier plan (decisión del usuario del 2026-10-05): catalán,
+ * euskera y gallego, las «lenguas locales», en Pro y Scale; los idiomas de
+ * las voces Ultra, en todos. Se mira al escribir (PATCH /business/me) y la
+ * enseña el panel; un negocio que ya atiende en una cooficial la conserva
+ * aunque baje de plan (no se le cambia nada al leer).
+ */
+export function funcionQueExige(
+  principal: CodigoDeIdioma
+): Extract<PlanFeature, "lenguas_locales"> | null {
+  return esCooficial(principal) ? "lenguas_locales" : null;
+}
+
 export type CambioDeIdiomas =
   /** Saludará en `a` en vez de en `de`. */
   | { tipo: "principal"; de: CodigoDeIdioma; a: CodigoDeIdioma }
-  /** `idioma` deja de estar activo: era otra lengua cooficial (solo cabe
-   * una) o ninguna voz de la familia lo habla. */
-  | {
-      tipo: "quitado";
-      idioma: CodigoDeIdioma;
-      motivo: "otraCooficial" | "sinVoz";
-    }
-  /** La voz elegida no habla `noHabla`, que está activo: atiende `a`. */
+  /** La voz elegida no habla `noHabla`, que habla su principal: atiende
+   * `a`. Con el catálogo actual no pasa (todas las de cada principal
+   * hablan todos sus idiomas). */
   | {
       tipo: "voz";
       de: VozDelCatalogo;
@@ -82,90 +90,51 @@ export type CambioDeIdiomas =
     };
 
 export interface IdiomasNormalizados {
+  /** Los que habla con su principal (idiomasQueHabla), en orden canónico. */
   languages: CodigoDeIdioma[];
-  /** El idioma en que saluda. */
+  /** El idioma principal: en él saluda y de él sale la voz. */
   voiceLanguage: CodigoDeIdioma;
   /** Lo que se ha corregido, para avisar al dueño en el panel. */
   cambios: CambioDeIdiomas[];
 }
 
 /**
- * Deja los idiomas en un estado que la voz puede atender, corrigiendo en
- * vez de rechazar: unos ajustes guardados con reglas anteriores no deben
- * romper la sincronización ni perderse (decisiones del usuario del
- * 2026-10-05).
+ * El principal manda (decisión del usuario del 2026-10-05, «nos hemos
+ * complicado»): el dueño solo elige el idioma principal y la recepcionista
+ * habla los que van con él (idiomasQueHabla). Corrige en vez de rechazar:
+ * unos ajustes guardados con reglas anteriores no deben romper la
+ * sincronización ni perderse.
  *
- * - El obligatorio, siempre activo; el orden, el canónico.
- * - Como mucho una lengua cooficial (catalán, euskera o gallego): la voz de
- *   Soniox arranca en una sola. Si hay varias, se queda la del saludo o, si
- *   no, la primera en orden canónico.
- * - El saludo, activo y con voces propias; si no, el obligatorio. Con una
- *   cooficial activa solo puede saludar en ella o en el obligatorio (el
- *   dueño elige): un saludo extranjero pasa a la cooficial.
- * - Alguna voz de la familia que atiende (familiaDeVoces) tiene que hablar
- *   todos los activos. Con el catálogo actual siempre la hay (un test
- *   recorre todas las combinaciones); si no, se quitan los que no habla la
- *   que más habla.
+ * - Un principal sin voces propias pasa al obligatorio.
+ * - `languages` no se elige: se ignora, salvo para leer ajustes anteriores.
+ *   Con una lengua cooficial en ellos y un principal que no lo es (las
+ *   reglas anteriores dejaban saludar en castellano con catalán activo), el
+ *   principal pasa a ser esa cooficial (la primera en orden canónico), la
+ *   lengua que el negocio atendía. La migración
+ *   20261005150000_saludo_en_la_cooficial ya lo hace en la base de datos;
+ *   esto cubre lo que quede.
  */
 export function normalizarIdiomas(entrada: {
-  languages: readonly CodigoDeIdioma[];
+  languages?: readonly CodigoDeIdioma[];
   voiceLanguage: CodigoDeIdioma;
 }): IdiomasNormalizados {
-  const cambios: CambioDeIdiomas[] = [];
-  let languages = ordenarIdiomas([IDIOMA_OBLIGATORIO, ...entrada.languages]);
-
-  const cooficiales = languages.filter(esCooficial);
-  if (cooficiales.length > 1) {
-    const queda = cooficiales.includes(entrada.voiceLanguage)
-      ? entrada.voiceLanguage
-      : cooficiales[0];
-    for (const idioma of cooficiales) {
-      if (idioma !== queda) {
-        cambios.push({ tipo: "quitado", idioma, motivo: "otraCooficial" });
-      }
-    }
-    languages = languages.filter(
-      (idioma) => !esCooficial(idioma) || idioma === queda
-    );
+  let principal = puedeSerPrincipal(entrada.voiceLanguage)
+    ? entrada.voiceLanguage
+    : IDIOMA_OBLIGATORIO;
+  const cooficialGuardada = ordenarIdiomas(entrada.languages ?? []).find(
+    esCooficial
+  );
+  if (!esCooficial(principal) && cooficialGuardada) {
+    principal = cooficialGuardada;
   }
-  const cooficial = cooficialActiva(languages);
-
-  let saludo =
-    languages.includes(entrada.voiceLanguage) &&
-    puedeSerPrincipal(entrada.voiceLanguage)
-      ? entrada.voiceLanguage
-      : IDIOMA_OBLIGATORIO;
-  if (cooficial && saludo !== cooficial && saludo !== IDIOMA_OBLIGATORIO) {
-    saludo = cooficial;
-  }
-
-  const { voces } = familiaDeVoces(saludo, languages);
-  if (voces.length > 0 && vocesQueHablan(voces, languages).length === 0) {
-    const cuantos = (voz: VozDelCatalogo) =>
-      languages.filter((idioma) => hablaIdioma(voz, idioma)).length;
-    // La primera que más habla.
-    const masCapaz = voces.reduce((mejor, voz) =>
-      cuantos(voz) > cuantos(mejor) ? voz : mejor
-    );
-    const atendidos = languages.filter((idioma) =>
-      hablaIdioma(masCapaz, idioma)
-    );
-    for (const idioma of languages) {
-      if (!atendidos.includes(idioma)) {
-        cambios.push({ tipo: "quitado", idioma, motivo: "sinVoz" });
-      }
-    }
-    languages = atendidos;
-  }
-
-  if (saludo !== entrada.voiceLanguage) {
-    cambios.unshift({
-      tipo: "principal",
-      de: entrada.voiceLanguage,
-      a: saludo,
-    });
-  }
-  return { languages, voiceLanguage: saludo, cambios };
+  return {
+    languages: idiomasQueHabla(principal),
+    voiceLanguage: principal,
+    cambios:
+      principal === entrada.voiceLanguage
+        ? []
+        : [{ tipo: "principal", de: entrada.voiceLanguage, a: principal }],
+  };
 }
 
 /** Lo legible de unos `languages` sin validar (p. ej. JSON guardado con un

@@ -69,16 +69,12 @@ describe("payloads de asistentes (instantáneas)", () => {
   });
 
   // Un nivel por idioma principal regional: voz de Soniox, Soniox para
-  // entender y el saludo en su idioma (catálogo en lib/idiomas). Solo lo que
+  // entender (desde el 2026-10-05, con las pistas de los ocho idiomas que
+  // habla) y el saludo en su idioma (catálogo en lib/idiomas). Solo lo que
   // depende del idioma, para que la instantánea diga qué cambió.
-  for (const [principal, otros] of [
-    ["ca-ES", ["es-ES", "en-GB"]],
-    ["eu-ES", ["es-ES"]],
-    ["gl-ES", ["es-ES", "fr-FR"]],
-  ] as const) {
+  for (const principal of ["ca-ES", "eu-ES", "gl-ES"] as const) {
     it(`assistant de la recepcionista con ${principal} como idioma principal`, () => {
       const idiomas = resolverIdiomas({
-        languages: [...otros, principal],
         voiceLanguage: principal,
         voiceGender: "femenina",
       });
@@ -101,21 +97,15 @@ describe("payloads de asistentes (instantáneas)", () => {
     });
   }
 
-  // Idiomas y voces del 2026-10-05: el saludo y la familia de voces van por
-  // separado. Casos nuevos; los de arriba no cambian.
+  // Idiomas y voces del 2026-10-05: el principal manda (saludo, familia de
+  // voces e idiomas que habla). El caso «saludo en español con catalán
+  // activo» se quitó con la simplificación de ese día: ya no se puede
+  // elegir.
   for (const [caso, ajustes] of [
-    [
-      "saludo en español con catalán activo (Marta, Soniox en catalán)",
-      { languages: ["es-ES", "ca-ES"], voiceLanguage: "es-ES" },
-    ],
-    [
-      "saludo en alemán (su Ultra nativa y flux)",
-      { languages: ["es-ES", "de-DE"], voiceLanguage: "de-DE" },
-    ],
+    ["saludo en alemán (su Ultra nativa y flux)", { voiceLanguage: "de-DE" }],
     [
       "español con una voz elegida que no es la de por defecto (Lara)",
       {
-        languages: ["es-ES"],
         voiceLanguage: "es-ES",
         voz: "Telnyx.Ultra.85b356c1-c638-404d-b986-f54a53d957d6",
       },

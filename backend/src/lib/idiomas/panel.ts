@@ -3,24 +3,27 @@
  * reglas: qué se ofrece (catalogoParaElPanel) y qué hará la recepcionista
  * con una selección (vistaPreviaDeIdiomas), con textos en español listos
  * para mostrar a un dueño que no tiene por qué saber de voces ni de
- * transcripción. Puro: el nombre del negocio llega como parámetro.
+ * transcripción. Desde el 2026-10-05 el dueño solo elige el idioma
+ * principal y la voz, y el panel dice cuántos idiomas habla. Puro: el
+ * nombre del negocio llega como parámetro.
  */
 import {
-  CODIGOS_DE_IDIOMA,
   IDIOMAS,
   MERCADOS,
   MERCADO_POR_DEFECTO,
   componerSaludo,
   esCooficial,
-  otrosIdiomasConSaludo,
+  familiaDeVoces,
+  idiomasQueHabla,
   type CodigoDeIdioma,
   type CodigoDeMercado,
   type FamiliaDeVoces,
   type GeneroDeVoz,
   type VozDelCatalogo,
 } from "./catalogo.js";
-import type { CambioDeIdiomas } from "./ajustes.js";
+import { funcionQueExige, type CambioDeIdiomas } from "./ajustes.js";
 import { resolverIdiomas, type AjustesDeIdioma } from "./resolver.js";
+import { planesQueIncluyen, type PlanFeature } from "../planFeatures.js";
 
 export interface IdiomaDelPanel {
   codigo: CodigoDeIdioma;
@@ -42,35 +45,33 @@ export interface VozDelPanel {
   muestra: string;
 }
 
-/** Cómo agrupa el panel los idiomas del saludo: el obligatorio y las
+/** Cómo agrupa el panel los idiomas principales: el obligatorio y las
  * cooficiales a la vista; los extranjeros bajo «Otro idioma». */
 export type TipoDeIdiomaDelPanel = "obligatorio" | "cooficial" | "extranjero";
 
 export interface PrincipalDelPanel extends IdiomaDelPanel {
   tipo: TipoDeIdiomaDelPanel;
-  /** Los idiomas que se pueden activar con este saludo, además del
-   * obligatorio, en el orden del panel (otrosIdiomasConSaludo). Las
-   * cooficiales, como mucho una a la vez. */
-  otrosIdiomas: CodigoDeIdioma[];
+  /** Los que habla con este principal, en orden canónico: lo que se guarda
+   * en `languages` al elegirlo (idiomasQueHabla). */
+  idiomas: CodigoDeIdioma[];
+  /** «Habla en 7 idiomas: español, inglés, … Saluda en español y sigue en
+   * el idioma de quien llama.» */
+  entradilla: string;
+  /** Si elegirlo exige una función del plan: la clave que el panel busca
+   * en `planFeatures` (GET /billing/summary) y el texto del candado
+   * («Disponible en Pro y Scale»). null si vale cualquier plan. */
+  requiere: { funcion: PlanFeature; texto: string } | null;
   /** De qué familia son sus `voces`: «ultra» (las nativas de este idioma)
    * o «soniox» (las de esta cooficial). */
   familia: FamiliaDeVoces;
-  /** Las voces que atienden con este saludo y sin cooficial activa o, si
-   * es una cooficial, siempre que esté activa (también con saludo en el
-   * obligatorio). Por género, la de por defecto primero, luego las
-   * recomendadas y luego el resto. */
+  /** Las voces que atienden con este principal. Por género, la de por
+   * defecto primero, luego las recomendadas y luego el resto. */
   voces: VozDelPanel[];
 }
 
 export interface CatalogoDelPanel {
   obligatorio: IdiomaDelPanel;
   principales: PrincipalDelPanel[];
-  /** Los otros idiomas que se ofrecen con cualquier saludo (salvo el
-   * suyo). */
-  secundarios: IdiomaDelPanel[];
-  /** Las lenguas cooficiales que se ofrecen: con saludo en el obligatorio
-   * también como otro idioma, como mucho una a la vez. */
-  cooficiales: IdiomaDelPanel[];
   /** Etiquetas de todos los idiomas, también los que ya no se ofrecen. */
   etiquetas: Record<CodigoDeIdioma, string>;
 }
@@ -92,8 +93,7 @@ const PREFIJO_ULTRA = "Telnyx.Ultra.";
 
 /**
  * Dónde sirve la app (frontend/public) la muestra de una voz diciendo una
- * frase de recepcionista en `idioma`, el de su lista de voces (el del
- * saludo para las Ultra, la cooficial para las de Soniox):
+ * frase de recepcionista en `idioma`, el principal de su lista de voces:
  * `/voces/<iso>/<slug>.mp3`, con el uuid de las Ultra (sus nombres se
  * repiten entre idiomas y cambian con la curación) y el nombre en
  * minúsculas de las de Soniox (`/voces/ca/marta.mp3`). Las genera
@@ -126,6 +126,46 @@ function vocesEnPanel(
   }));
 }
 
+const enMinusculas = (codigo: CodigoDeIdioma) =>
+  IDIOMAS[codigo].etiqueta.toLowerCase();
+
+/** «catalán, euskera o gallego». */
+function enumerar(palabras: readonly string[], conjuncion: string): string {
+  return palabras.length < 2
+    ? palabras.join("")
+    : `${palabras.slice(0, -1).join(", ")} ${conjuncion} ${palabras[palabras.length - 1]}`;
+}
+
+/**
+ * Lo que dice el panel de los idiomas que habla con `principal`: «Habla en
+ * 7 idiomas: español, inglés, francés, alemán, italiano, portugués y
+ * neerlandés. Saluda en español y sigue en el idioma de quien llama.» La
+ * lista empieza por el principal (con una cooficial, «Habla en 8 idiomas:
+ * catalán, español…»).
+ */
+export function entradillaDeIdiomas(
+  principal: CodigoDeIdioma,
+  idiomas: readonly CodigoDeIdioma[] = idiomasQueHabla(principal)
+): string {
+  if (idiomas.length < 2) {
+    return `Atiende siempre en ${enMinusculas(principal)}.`;
+  }
+  const lista = [
+    principal,
+    ...idiomas.filter((idioma) => idioma !== principal),
+  ].map(enMinusculas);
+  return `Habla en ${lista.length} idiomas: ${enumerar(lista, "y")}. Saluda en ${enMinusculas(principal)} y sigue en el idioma de quien llama.`;
+}
+
+function requisitoDelPlan(
+  principal: CodigoDeIdioma
+): PrincipalDelPanel["requiere"] {
+  const funcion = funcionQueExige(principal);
+  return funcion
+    ? { funcion, texto: `Disponible en ${planesQueIncluyen(funcion)}` }
+    : null;
+}
+
 export function catalogoParaElPanel(
   mercado: CodigoDeMercado = MERCADO_POR_DEFECTO
 ): CatalogoDelPanel {
@@ -140,12 +180,12 @@ export function catalogoParaElPanel(
           : esCooficial(codigo)
             ? "cooficial"
             : "extranjero",
-      otrosIdiomas: otrosIdiomasConSaludo(oferta, codigo),
-      familia: esCooficial(codigo) ? "soniox" : "ultra",
+      idiomas: idiomasQueHabla(codigo),
+      entradilla: entradillaDeIdiomas(codigo),
+      requiere: requisitoDelPlan(codigo),
+      familia: familiaDeVoces(codigo).familia,
       voces: vocesEnPanel(codigo, IDIOMAS[codigo].voces ?? []),
     })),
-    secundarios: oferta.secundarios.map(enPanel),
-    cooficiales: oferta.principales.filter(esCooficial).map(enPanel),
     etiquetas: Object.fromEntries(
       Object.entries(IDIOMAS).map(([codigo, idioma]) => [
         codigo,
@@ -156,12 +196,13 @@ export function catalogoParaElPanel(
 }
 
 /**
- * Lo que leía de cada voz y de cada saludo el panel anterior al 2026-10-05
- * (`habla`, `expresiva`, `secundariosCompatibles`). Vercel publica la app
- * antes de que Cloud Run sirva este backend, y una pestaña abierta con la
- * app anterior sigue pidiendo el catálogo después: sin estos campos, «Cómo
- * atiende» lanzaba al pintar (`voz.habla.includes`). QUITAR en la PR
- * siguiente, cuando ninguna app los pida.
+ * Lo que leía de cada voz y de cada principal el panel anterior al
+ * 2026-10-05, el de producción (`habla`, `expresiva`,
+ * `secundariosCompatibles`). Vercel publica la app antes de que Cloud Run
+ * sirva este backend, y una pestaña abierta con la app anterior sigue
+ * pidiendo el catálogo después: sin estos campos, «Cómo atiende» lanzaba al
+ * pintar (`voz.habla.includes`). QUITAR en la PR siguiente, cuando ninguna
+ * app los pida.
  */
 export interface VozDelPanelAnterior extends VozDelPanel {
   habla: "todos" | CodigoDeIdioma[];
@@ -170,8 +211,10 @@ export interface VozDelPanelAnterior extends VozDelPanel {
 }
 
 export interface PrincipalDelPanelAnterior extends PrincipalDelPanel {
-  /** Los idiomas extranjeros que se pueden activar con este saludo (sin
-   * cooficiales: el panel anterior solo las ofrecía como saludo). */
+  /** Las casillas de «¿Qué otros idiomas habla?» del panel anterior: los
+   * que habla con este principal salvo el obligatorio y él mismo. Salen
+   * marcadas (los `languages` guardados son todos) y desmarcarlas no cambia
+   * nada al guardar. */
   secundariosCompatibles: CodigoDeIdioma[];
   voces: VozDelPanelAnterior[];
 }
@@ -196,8 +239,8 @@ export function catalogoConCamposDelPanelAnterior(
     ...catalogo,
     principales: catalogo.principales.map((principal) => ({
       ...principal,
-      secundariosCompatibles: oferta.secundarios.filter(
-        (secundario) => secundario !== principal.codigo
+      secundariosCompatibles: principal.idiomas.filter(
+        (idioma) => idioma !== oferta.obligatorio && idioma !== principal.codigo
       ),
       voces: principal.voces.map((voz) => {
         const original = delCatalogo.get(voz.id)!;
@@ -212,34 +255,25 @@ export function catalogoConCamposDelPanelAnterior(
 }
 
 export interface VistaPreviaDeIdiomas {
-  /** La selección tal como se guardará (normalizada). */
+  /** Los que habla con el principal, tal como se guardarán. */
   languages: CodigoDeIdioma[];
-  /** El idioma en que saluda. */
+  /** El idioma principal. */
   voiceLanguage: CodigoDeIdioma;
   /** La voz que atenderá y su género. */
   voz: string;
   voiceGender: GeneroDeVoz;
-  /** De qué familia son `voces`: «soniox» con una cooficial activa. */
+  /** De qué familia son `voces`: «soniox» con un principal cooficial. */
   familia: FamiliaDeVoces;
-  /** Las voces que se pueden elegir con esta selección (entre ellas está
+  /** Las voces que se pueden elegir con este principal (entre ellas está
    * `voz`), con su muestra. */
   voces: VozDelPanel[];
-  /** «Saluda en catalán y sigue en el idioma de quien llama.» */
+  /** «Habla en 7 idiomas: … Saluda en español y sigue en el idioma de
+   * quien llama.» (entradillaDeIdiomas). */
   entradilla: string;
   /** El saludo real, con el nombre del negocio. */
   saludo: string;
   /** Lo que el dueño debe saber antes de guardar, en orden de importancia. */
   avisos: string[];
-}
-
-const enMinusculas = (codigo: CodigoDeIdioma) =>
-  IDIOMAS[codigo].etiqueta.toLowerCase();
-
-/** «catalán, euskera o gallego». */
-function enumerar(palabras: readonly string[], conjuncion: string): string {
-  return palabras.length < 2
-    ? palabras.join("")
-    : `${palabras.slice(0, -1).join(", ")} ${conjuncion} ${palabras[palabras.length - 1]}`;
 }
 
 /** Lo que el dueño debe saber de una corrección de su selección, o null si
@@ -250,16 +284,9 @@ export function avisoDeCambio(
 ): string | null {
   switch (cambio.tipo) {
     case "principal":
-      if (cambio.a === obligatorio) return null;
-      return esCooficial(cambio.a)
-        ? `Con el ${enMinusculas(cambio.a)} activo, la recepcionista saluda en ${enMinusculas(cambio.a)} o en ${enMinusculas(obligatorio)}: saludará en ${enMinusculas(cambio.a)}.`
+      return cambio.a === obligatorio
+        ? null
         : `Saludará en ${enMinusculas(cambio.a)}.`;
-    case "quitado":
-      if (cambio.motivo === "otraCooficial") {
-        const cooficiales = CODIGOS_DE_IDIOMA.filter(esCooficial);
-        return `Solo puede hablar una de estas lenguas a la vez: ${enumerar(cooficiales.map(enMinusculas), "o")}. Se quita el ${enMinusculas(cambio.idioma)}.`;
-      }
-      return `Se quita el ${enMinusculas(cambio.idioma)}: la voz que atiende todavía no lo habla.`;
     case "voz":
       return `${cambio.de.nombre} no habla ${enMinusculas(cambio.noHabla)}: atenderá ${cambio.a.nombre}.`;
   }
@@ -280,12 +307,13 @@ export function vistaPreviaDeIdiomas(
   }
   if (perfil.cooficial) {
     const cooficial = enMinusculas(perfil.cooficial);
-    // Medido con llamadas reales el 2026-10-03: sin flux, el fin de turno
-    // lo marca Soniox, que entiende todos los idiomas activos, y cada
-    // respuesta llega hacia el segundo y medio en vez del segundo, también
-    // a quien habla castellano.
+    // Medido con llamadas reales el 2026-10-03 (AGENTS.md § «Idiomas de
+    // atención y voz en Telnyx»): sin flux, el fin de turno lo marca
+    // Soniox, y cada respuesta llega entre 1,4 y 2 segundos (p50 con
+    // clientes en catalán y en castellano) frente a los 0,9 del español con
+    // flux.
     avisos.push(
-      `Con el ${cooficial} activo, la recepcionista tarda algo más en contestar: hacia segundo y medio en vez de un segundo, también cuando le hablan en castellano.`
+      `Con el ${cooficial} como idioma principal, la recepcionista tarda algo más en contestar: entre 1,4 y 2 segundos por respuesta, frente a unos 0,9 con el ${enMinusculas(oferta.obligatorio)}, también cuando le hablan en castellano.`
     );
     const nombres = (["femenina", "masculina"] as const)
       .map((genero) => perfil.voces.find((voz) => voz.genero === genero))
@@ -299,6 +327,24 @@ export function vistaPreviaDeIdiomas(
       `También saluda en ${enMinusculas(perfil.principal)} a los clientes de aquí; si le contestan en ${enMinusculas(oferta.obligatorio)}, sigue en ${enMinusculas(oferta.obligatorio)}.`
     );
   }
+  // Con un principal de voces Ultra, flux no entiende las lenguas
+  // cooficiales (47 % de error de palabra con un cliente en catalán, tanda
+  // «B piloto» del laboratorio, 2026-10-05) y la voz no cambia a mitad de
+  // llamada: un assistant de Telnyx tiene una sola. Que el dueño no lo
+  // deduzca de «Habla en 7 idiomas». Revisar si se adopta el
+  // conversation_flow que salta a Marta al oír catalán.
+  const cooficiales = oferta.principales.filter(esCooficial);
+  if (!perfil.cooficial && cooficiales.length > 0) {
+    const funcion = funcionQueExige(cooficiales[0]);
+    avisos.push(
+      `No entiende ${enumerar(
+        cooficiales.map((cooficial) => `el ${enMinusculas(cooficial)}`),
+        "ni"
+      )}: para atender en una de esas lenguas, elígela como idioma principal${
+        funcion ? ` (planes ${planesQueIncluyen(funcion)})` : ""
+      }.`
+    );
+  }
   if (
     !(oferta.principales as readonly CodigoDeIdioma[]).includes(
       perfil.principal
@@ -309,18 +355,14 @@ export function vistaPreviaDeIdiomas(
     );
   }
 
-  const idiomaDeLasVoces = perfil.cooficial ?? perfil.principal;
   return {
     languages: perfil.idiomas,
     voiceLanguage: perfil.principal,
     voz: perfil.voz.id,
     voiceGender: perfil.genero,
     familia: perfil.familia,
-    voces: vocesEnPanel(idiomaDeLasVoces, perfil.voces),
-    entradilla:
-      perfil.idiomas.length === 1
-        ? `Atiende siempre en ${enMinusculas(perfil.principal)}.`
-        : `Saluda en ${enMinusculas(perfil.principal)} y sigue en el idioma de quien llama.`,
+    voces: vocesEnPanel(perfil.principal, perfil.voces),
+    entradilla: entradillaDeIdiomas(perfil.principal, perfil.idiomas),
     saludo: componerSaludo(perfil.principal, negocio),
     avisos,
   };

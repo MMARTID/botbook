@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { ComportamientoMovil } from "@/components/movil/agente/comportamiento-movil";
+import { ComportamientoMovil, CONFIRMACION_IR_A_LOS_PLANES } from "@/components/movil/agente/comportamiento-movil";
 import {
   getBillingSummary,
   getCatalogoDeIdiomas,
@@ -20,49 +20,51 @@ vi.mock("@/lib/api", () => ({
   updateMyBusiness: vi.fn(),
 }));
 
-const AVISO_DE_COOFICIAL = "Con el catalán activo, la recepcionista tarda algo más en contestar.";
+const AVISO_DE_COOFICIAL = "Con el catalán como idioma principal, la recepcionista tarda algo más en contestar.";
 const AVISO_DE_EXTRANJERO = "También saluda en alemán a los clientes de aquí.";
 const MARCOS = "Telnyx.Ultra.13ff5deb-2591-42ad-a356-63a04e524411";
-const COOFICIALES = CATALOGO_DE_IDIOMAS.cooficiales.map((idioma) => idioma.codigo);
+
+/** El principal del catálogo por su código. */
+function principalDelCatalogo(codigo: string) {
+  const principal = CATALOGO_DE_IDIOMAS.principales.find((opcion) => opcion.codigo === codigo);
+  if (!principal) throw new Error(`No hay ${codigo} en el catálogo`);
+  return principal;
+}
 
 /** El id de una voz del catálogo por su nombre. */
 function idDe(idioma: string, nombre: string) {
-  const voz = CATALOGO_DE_IDIOMAS.principales
-    .find((opcion) => opcion.codigo === idioma)
-    ?.voces.find((candidata) => candidata.nombre === nombre);
+  const voz = principalDelCatalogo(idioma).voces.find((candidata) => candidata.nombre === nombre);
   if (!voz) throw new Error(`No hay ${nombre} en ${idioma}`);
   return voz.id;
 }
 
-/** Como el backend: las voces de la cooficial activa o, sin ella, las del
- * saludo; la elegida si está entre ellas y, si no, la de por defecto de su
- * género. */
+/** Como el backend: el principal manda; sus voces, la elegida si está entre
+ * ellas y, si no, la de por defecto de su género. */
 function vistaPrevia(
   seleccion: Pick<AgentSettings, "languages" | "voiceLanguage" | "voiceGender" | "voz">,
   conTextos = true
 ): VistaPreviaDeIdiomas {
-  const cooficial = seleccion.languages.find((idioma) => COOFICIALES.includes(idioma));
-  const deLasVoces = CATALOGO_DE_IDIOMAS.principales.find((opcion) => opcion.codigo === (cooficial ?? seleccion.voiceLanguage));
-  const voces = deLasVoces?.voces ?? [];
+  const principal = CATALOGO_DE_IDIOMAS.principales.find((opcion) => opcion.codigo === seleccion.voiceLanguage);
+  const voces = principal?.voces ?? [];
   const voz =
     voces.find((candidata) => candidata.id === seleccion.voz) ??
     voces.find((candidata) => candidata.porDefecto && candidata.genero === seleccion.voiceGender) ??
     voces[0];
   const avisos = !conTextos
     ? []
-    : cooficial === "ca-ES"
+    : seleccion.voiceLanguage === "ca-ES"
       ? [AVISO_DE_COOFICIAL]
       : seleccion.voiceLanguage === "de-DE"
         ? [AVISO_DE_EXTRANJERO]
         : [];
   return {
-    languages: seleccion.languages,
+    languages: principal?.idiomas ?? seleccion.languages,
     voiceLanguage: seleccion.voiceLanguage,
     voz: voz?.id ?? "",
     voiceGender: voz?.genero ?? seleccion.voiceGender,
-    familia: deLasVoces?.familia ?? "ultra",
+    familia: principal?.familia ?? "ultra",
     voces,
-    entradilla: conTextos ? `Saluda en ${seleccion.voiceLanguage}.` : "",
+    entradilla: conTextos ? (principal?.entradilla ?? "") : "",
     saludo: conTextos ? `Saludo en ${seleccion.voiceLanguage}` : "",
     avisos,
   };
@@ -81,32 +83,37 @@ function renderizar(agentSettings: Partial<AgentSettings> = {}) {
   );
 }
 
-const saludo = () => screen.getByRole("radiogroup", { name: "¿En qué idioma saluda?" });
-const principal = (nombre: string) => within(saludo()).getByRole("radio", { name: new RegExp(`^${nombre}`) });
+const IDIOMAS_CON_CATALAN = principalDelCatalogo("ca-ES").idiomas!;
+const HABLA_SIETE =
+  "Habla en 7 idiomas: español, inglés, francés, alemán, italiano, portugués y neerlandés. Saluda en español y sigue en el idioma de quien llama.";
+
+const principales = () => screen.getByRole("radiogroup", { name: "Idioma principal" });
+const principal = (nombre: string) => within(principales()).getByRole("radio", { name: new RegExp(`^${nombre}`) });
 const otroIdioma = () => screen.getByRole("button", { name: /^Otro idioma/ });
 const extranjero = (nombre: string) =>
   within(screen.getByRole("radiogroup", { name: "Otro idioma" })).getByRole("radio", { name: new RegExp(`^${nombre}`) });
-const otros = () => screen.getByRole("group", { name: "¿Qué otros idiomas habla?" });
-const casillas = () => within(otros()).getAllByRole("checkbox").map((opcion) => opcion.textContent);
+const conCandado = (nombre: string) => screen.getByRole("link", { name: new RegExp(`^${nombre}`) });
 const voces = () => screen.getByRole("radiogroup", { name: "¿Con qué voz atiende?" });
 const voz = (nombre: string) => within(voces()).getByRole("radio", { name: new RegExp(`^${nombre}`) });
 const genero = (nombre: "Mujer" | "Hombre") =>
   within(screen.getByRole("radiogroup", { name: "Voz de mujer o de hombre" })).getByRole("radio", { name: nombre });
 
+// Desde el 2026-10-05 el dueño solo elige el idioma principal y la voz: los
+// idiomas que habla los da el principal, sin casillas.
 describe("ComportamientoMovil — idioma y voz", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(getBillingSummary).mockResolvedValue({ planFeatures: ["voz_idioma"] } as never);
+    vi.mocked(getBillingSummary).mockResolvedValue({ planFeatures: ["lenguas_locales"] } as never);
     vi.mocked(getCatalogoDeIdiomas).mockResolvedValue(CATALOGO_DE_IDIOMAS);
     // La vista previa la calcula el backend; aquí basta con lo que pinta.
     vi.mocked(previsualizarIdiomas).mockImplementation(async (seleccion) => vistaPrevia(seleccion));
   });
 
-  it("pregunta en qué idioma saluda: español o una lengua cooficial", async () => {
+  it("pregunta el idioma principal: español o una lengua cooficial, y los extranjeros bajo «Otro idioma», sin casillas de idiomas", async () => {
     renderizar();
 
-    await waitFor(() => expect(within(saludo()).getAllByRole("radio")).toHaveLength(4));
-    expect(within(saludo()).getAllByRole("radio").map((opcion) => opcion.textContent)).toEqual([
+    await waitFor(() => expect(within(principales()).getAllByRole("radio")).toHaveLength(4));
+    expect(within(principales()).getAllByRole("radio").map((opcion) => opcion.textContent)).toEqual([
       "Español",
       "Catalán",
       "Euskera",
@@ -117,67 +124,53 @@ describe("ComportamientoMovil — idioma y voz", () => {
     expect(otroIdioma()).toHaveAttribute("aria-expanded", "false");
     expect(otroIdioma()).toHaveTextContent("Inglés, francés, alemán, italiano, portugués o neerlandés");
     expect(screen.queryByRole("radiogroup", { name: "Otro idioma" })).toBeNull();
-    // Con saludo en español: las tres cooficiales y los seis extranjeros.
-    expect(casillas()).toEqual([
-      "Catalán",
-      "Euskera",
-      "Gallego",
-      "Inglés",
-      "Francés",
-      "Alemán",
-      "Italiano",
-      "Portugués",
-      "Neerlandés",
-    ]);
+    // Nada de «¿Qué otros idiomas habla?» ni de casillas.
+    expect(screen.queryAllByRole("checkbox")).toHaveLength(0);
+    expect(screen.queryByText(/otros idiomas habla/)).toBeNull();
   });
 
-  it("elegir el catalán lo hace principal, deja el español fijo y muestra lo que avisa el backend", async () => {
+  it("dice en cuántos idiomas habla con el principal, con el texto del backend", async () => {
+    const user = userEvent.setup();
+    renderizar();
+
+    expect(await screen.findByText(HABLA_SIETE)).toBeInTheDocument();
+    await user.click(principal("Catalán"));
+
+    expect(await screen.findByText(principalDelCatalogo("ca-ES").entradilla!)).toBeInTheDocument();
+    expect(screen.queryByText(HABLA_SIETE)).toBeNull();
+  });
+
+  it("elegir el catalán lo hace principal con los idiomas que habla con él y muestra lo que avisa el backend", async () => {
     const user = userEvent.setup();
     renderizar();
 
     await user.click(await waitFor(() => principal("Catalán")));
 
     expect(principal("Catalán")).toHaveAttribute("aria-checked", "true");
-    const espanol = within(otros()).getByRole("checkbox", { name: /^Español/ });
-    expect(espanol).toBeDisabled();
-    expect(espanol).toHaveAttribute("aria-checked", "true");
-    // Con saludo en catalán no se ofrecen las otras cooficiales.
-    expect(casillas()).toEqual(["EspañolSiempre", "Inglés", "Francés", "Alemán", "Italiano", "Portugués", "Neerlandés"]);
     expect(previsualizarIdiomas).toHaveBeenLastCalledWith({
-      languages: ["es-ES", "ca-ES"],
+      languages: IDIOMAS_CON_CATALAN,
       voiceLanguage: "ca-ES",
       voiceGender: "femenina",
     });
     expect(await screen.findByText(AVISO_DE_COOFICIAL)).toBeInTheDocument();
     expect(screen.getByText("«Saludo en ca-ES»")).toBeInTheDocument();
+    await waitFor(() => expect(within(voces()).getAllByRole("radio")).toHaveLength(2));
+    expect(voz("Marta")).toHaveAttribute("aria-checked", "true");
   });
 
-  it("volver de catalán a español deja el catalán activo (saluda en castellano) y conserva el inglés", async () => {
+  it("al volver del catalán al español guarda los idiomas del español, sin el catalán", async () => {
     const user = userEvent.setup();
     vi.mocked(updateMyBusiness).mockResolvedValue({ id: "biz_1" } as never);
-    renderizar({ languages: ["es-ES", "en-GB", "ca-ES"], voiceLanguage: "ca-ES" });
+    renderizar({ languages: IDIOMAS_CON_CATALAN, voiceLanguage: "ca-ES" });
 
     await user.click(await waitFor(() => principal("Español")));
-
-    expect(within(otros()).getByRole("checkbox", { name: "Catalán" })).toHaveAttribute("aria-checked", "true");
-    expect(within(otros()).getByRole("checkbox", { name: "Inglés" })).toHaveAttribute("aria-checked", "true");
     await user.click(screen.getByRole("button", { name: /Guardar/ }));
 
     expect(updateMyBusiness).toHaveBeenCalledWith({
-      agentSettings: expect.objectContaining({ languages: ["es-ES", "en-GB", "ca-ES"], voiceLanguage: "es-ES" }),
-    });
-  });
-
-  it("activar el inglés lo añade en el orden del catálogo", async () => {
-    const user = userEvent.setup();
-    vi.mocked(updateMyBusiness).mockResolvedValue({ id: "biz_1" } as never);
-    renderizar({ languages: ["es-ES", "fr-FR"] });
-
-    await user.click(await waitFor(() => within(otros()).getByRole("checkbox", { name: "Inglés" })));
-    await user.click(screen.getByRole("button", { name: /Guardar/ }));
-
-    expect(updateMyBusiness).toHaveBeenCalledWith({
-      agentSettings: expect.objectContaining({ languages: ["es-ES", "en-GB", "fr-FR"] }),
+      agentSettings: expect.objectContaining({
+        languages: DEFAULT_AGENT_SETTINGS.languages,
+        voiceLanguage: "es-ES",
+      }),
     });
   });
 
@@ -185,88 +178,62 @@ describe("ComportamientoMovil — idioma y voz", () => {
     const sinIngles = structuredClone(CATALOGO_DE_IDIOMAS);
     sinIngles.principales = sinIngles.principales.filter((opcion) => opcion.codigo !== "en-GB");
     vi.mocked(getCatalogoDeIdiomas).mockResolvedValue(sinIngles);
-    renderizar({ languages: ["es-ES", "en-GB"], voiceLanguage: "en-GB" });
+    renderizar({ voiceLanguage: "en-GB" });
 
     await waitFor(() => expect(extranjero("Inglés")).toHaveAttribute("aria-checked", "true"));
     expect(otroIdioma()).toHaveAttribute("aria-expanded", "true");
   });
 
-  it("sin la función en el plan enseña lo activo y en qué idioma saluda", async () => {
+  it("en Inicio, catalán, euskera y gallego se ven con candado y enlace a facturación; el resto se elige, también la voz", async () => {
+    const user = userEvent.setup();
     vi.mocked(getBillingSummary).mockResolvedValue({ planFeatures: [] } as never);
-    renderizar({ languages: ["es-ES", "gl-ES"], voiceLanguage: "gl-ES" });
+    renderizar();
 
-    expect(await screen.findByText(/Voz de Marta · saluda en\s+gallego/)).toBeInTheDocument();
-    expect(screen.getByText("Gallego")).toBeInTheDocument();
-    expect(screen.queryByRole("radiogroup", { name: "¿En qué idioma saluda?" })).toBeNull();
+    await waitFor(() => expect(conCandado("Catalán")).toHaveAttribute("href", "/ajustes/facturacion"));
+    for (const nombre of ["Catalán", "Euskera", "Gallego"]) {
+      expect(conCandado(nombre)).toHaveTextContent("Disponible en Pro y Scale");
+      expect(within(principales()).queryByRole("radio", { name: new RegExp(`^${nombre}`) })).toBeNull();
+    }
+    expect(within(principales()).getAllByRole("radio").map((opcion) => opcion.textContent)).toEqual(["Español"]);
+
+    await user.click(otroIdioma());
+    expect(within(screen.getByRole("radiogroup", { name: "Otro idioma" })).getAllByRole("radio")).toHaveLength(6);
+    await user.click(extranjero("Alemán"));
+    await waitFor(() => expect(voz("Alina")).toHaveAttribute("aria-checked", "true"));
+    expect(screen.queryByText(/disponible en los planes/)).toBeNull();
   });
 
-  it("con saludo en español, activar el catalán atiende con Marta o Sergio y sigue saludando en castellano", async () => {
-    const user = userEvent.setup();
-    vi.mocked(updateMyBusiness).mockResolvedValue({ id: "biz_1" } as never);
-    renderizar({ voz: idDe("es-ES", "Lara") });
+  it("en Inicio, un negocio que ya atiende en gallego lo conserva elegido y ve con candado las otras", async () => {
+    vi.mocked(getBillingSummary).mockResolvedValue({ planFeatures: [] } as never);
+    renderizar({ languages: principalDelCatalogo("gl-ES").idiomas, voiceLanguage: "gl-ES" });
 
-    await waitFor(() => expect(voz("Lara")).toHaveAttribute("aria-checked", "true"));
-    await user.click(within(otros()).getByRole("checkbox", { name: "Catalán" }));
-
-    expect(principal("Español")).toHaveAttribute("aria-checked", "true");
-    // Lara no habla catalán: atiende la de su género, pero la elección se
-    // conserva (al quitar el catalán vuelve).
-    expect(previsualizarIdiomas).toHaveBeenLastCalledWith({
-      languages: ["es-ES", "ca-ES"],
-      voiceLanguage: "es-ES",
-      voiceGender: "femenina",
-      voz: idDe("es-ES", "Lara"),
-    });
-    await waitFor(() => expect(within(voces()).getAllByRole("radio")).toHaveLength(2));
-    expect(voz("Marta")).toHaveAttribute("aria-checked", "true");
-    expect(voz("Sergio")).toHaveAttribute("aria-checked", "false");
-    expect(await screen.findByText(AVISO_DE_COOFICIAL)).toBeInTheDocument();
-    // Con Marta y Sergio no se elige género ni hay más voces.
-    expect(screen.queryByRole("radiogroup", { name: "Voz de mujer o de hombre" })).toBeNull();
-    expect(screen.queryByRole("button", { name: /Ver todas las voces/ })).toBeNull();
-
-    await user.click(screen.getByRole("button", { name: /Guardar/ }));
-    expect(updateMyBusiness).toHaveBeenCalledWith({
-      agentSettings: expect.objectContaining({ languages: ["es-ES", "ca-ES"], voiceLanguage: "es-ES" }),
-    });
-    // Va Lara, que no atiende con el catalán: el backend no la guarda
-    // (conVozValida) y atiende Marta, la que enseñaba la vista previa.
-    expect(vi.mocked(updateMyBusiness).mock.calls[0][0].agentSettings?.voz).toBe(idDe("es-ES", "Lara"));
+    await waitFor(() => expect(principal("Gallego")).toHaveAttribute("aria-checked", "true"));
+    expect(conCandado("Catalán")).toBeInTheDocument();
+    expect(conCandado("Euskera")).toBeInTheDocument();
+    await waitFor(() => expect(voz("Marta")).toHaveAttribute("aria-checked", "true"));
   });
 
-  it("como mucho una lengua cooficial: marcar el euskera desmarca el catalán", async () => {
-    const user = userEvent.setup();
-    renderizar({ languages: ["es-ES", "en-GB", "ca-ES"] });
+  it("con la clave de antes (voz_idioma) del backend anterior, las lenguas locales no se bloquean", async () => {
+    vi.mocked(getBillingSummary).mockResolvedValue({ planFeatures: ["voz_idioma"] } as never);
+    renderizar();
 
-    await user.click(await waitFor(() => within(otros()).getByRole("checkbox", { name: "Euskera" })));
-
-    expect(within(otros()).getByRole("checkbox", { name: "Euskera" })).toHaveAttribute("aria-checked", "true");
-    expect(within(otros()).getByRole("checkbox", { name: "Catalán" })).toHaveAttribute("aria-checked", "false");
-    expect(within(otros()).getByRole("checkbox", { name: "Inglés" })).toHaveAttribute("aria-checked", "true");
-    expect(previsualizarIdiomas).toHaveBeenLastCalledWith(
-      expect.objectContaining({ languages: ["es-ES", "en-GB", "eu-ES"], voiceLanguage: "es-ES" })
-    );
+    await waitFor(() => expect(principal("Catalán")).toBeInTheDocument());
+    expect(screen.queryByRole("link", { name: /^Catalán/ })).toBeNull();
   });
 
-  it("saludar en otro idioma: se elige bajo «Otro idioma», quita la cooficial avisándolo y atiende una voz de ese idioma", async () => {
+  it("saludar en otro idioma: se elige bajo «Otro idioma» y atiende una voz de ese idioma", async () => {
     const user = userEvent.setup();
-    renderizar({ languages: ["es-ES", "fr-FR", "ca-ES"] });
+    renderizar();
 
     await user.click(await waitFor(() => otroIdioma()));
     expect(otroIdioma()).toHaveAttribute("aria-expanded", "true");
-    // Con el catalán activo se puede saludar en alemán: el catalán, que no
-    // va con un saludo extranjero, deja de estar activo y se avisa.
-    expect(extranjero("Alemán")).toBeEnabled();
     await user.click(extranjero("Alemán"));
-    expect(await screen.findByText("Al guardar, dejará de atender en catalán.")).toBeInTheDocument();
 
     expect(extranjero("Alemán")).toHaveAttribute("aria-checked", "true");
-    expect(within(saludo()).getAllByRole("radio").every((opcion) => opcion.getAttribute("aria-checked") === "false")).toBe(true);
-    // Con saludo extranjero no hay cooficiales; el francés sigue.
+    expect(within(principales()).getAllByRole("radio").every((opcion) => opcion.getAttribute("aria-checked") === "false")).toBe(true);
     expect(previsualizarIdiomas).toHaveBeenLastCalledWith(
-      expect.objectContaining({ languages: ["es-ES", "fr-FR", "de-DE"], voiceLanguage: "de-DE", voz: undefined })
+      expect.objectContaining({ languages: principalDelCatalogo("de-DE").idiomas, voiceLanguage: "de-DE", voz: undefined })
     );
-    expect(casillas()).toEqual(["EspañolSiempre", "Inglés", "Francés", "Italiano", "Portugués", "Neerlandés"]);
     await waitFor(() => expect(voz("Alina")).toHaveAttribute("aria-checked", "true"));
     expect(await screen.findByText(AVISO_DE_EXTRANJERO)).toBeInTheDocument();
 
@@ -276,8 +243,8 @@ describe("ComportamientoMovil — idioma y voz", () => {
     expect(otroIdioma()).toHaveTextContent("Saluda en alemán");
   });
 
-  it("un saludo en otro idioma ya guardado abre «Otro idioma» con ese idioma elegido", async () => {
-    renderizar({ languages: ["es-ES", "en-GB"], voiceLanguage: "en-GB" });
+  it("un principal en otro idioma ya guardado abre «Otro idioma» con ese idioma elegido", async () => {
+    renderizar({ voiceLanguage: "en-GB" });
 
     await waitFor(() => expect(extranjero("Inglés")).toHaveAttribute("aria-checked", "true"));
     expect(otroIdioma()).toHaveAttribute("aria-expanded", "true");
@@ -285,49 +252,122 @@ describe("ComportamientoMovil — idioma y voz", () => {
     await waitFor(() => expect(voz("Lucy")).toHaveAttribute("aria-checked", "true"));
   });
 
-  // Revisión del 2026-10-05: elegir un saludo quitaba en silencio la lengua
-  // cooficial activa (y el backend, con ella activa, habría saludado en
-  // ella). Ahora la quita igual que desde cualquier otro saludo, y avisa si
-  // estaba guardada: una sola regla, sin opciones desactivadas.
-  it("con el catalán activo y saludo en español, saludar en euskera cambia la cooficial y lo avisa", async () => {
+  // Revisión del 2026-10-05: lo que veía el dueño cuando el candado no
+  // salía (plan sin cargar, catálogo del backend anterior en caché) era un
+  // «No se pudo guardar» sin motivo.
+  it("si el backend rechaza el guardado, enseña su motivo", async () => {
     const user = userEvent.setup();
-    renderizar({ languages: ["es-ES", "ca-ES"] });
+    const motivo = "Atender en catalán, euskera o gallego está disponible en los planes Pro y Scale.";
+    vi.mocked(getBillingSummary).mockRejectedValue(new Error("Sin conexión"));
+    vi.mocked(updateMyBusiness).mockRejectedValue({
+      isAxiosError: true,
+      response: { status: 403, data: { error: motivo, code: "PLAN_LIMIT_LENGUAS_LOCALES" } },
+    });
+    renderizar();
 
-    await waitFor(() => expect(principal("Euskera")).toBeEnabled());
-    expect(principal("Gallego")).toBeEnabled();
-    expect(principal("Euskera")).not.toHaveTextContent("Quita antes");
-    await user.click(principal("Euskera"));
+    // Sin el plan cargado no hay candados: lo valida el backend.
+    await user.click(await waitFor(() => principal("Catalán")));
+    await user.click(screen.getByRole("button", { name: /Guardar/ }));
 
-    expect(principal("Euskera")).toHaveAttribute("aria-checked", "true");
-    expect(previsualizarIdiomas).toHaveBeenLastCalledWith(
-      expect.objectContaining({ languages: ["es-ES", "eu-ES"], voiceLanguage: "eu-ES" })
-    );
-    expect(await screen.findByText("Al guardar, dejará de atender en catalán.")).toBeInTheDocument();
+    expect(await screen.findByText(motivo)).toBeInTheDocument();
+    expect(screen.queryByText("No se pudo guardar el comportamiento del agente.")).toBeNull();
   });
 
-  it("de saludo en catalán a inglés: el catalán deja de estar activo y lo avisa", async () => {
+  it("en Inicio, cambiar la lengua local que conserva avisa de que no podrá volver a ella sin cambiar de plan", async () => {
     const user = userEvent.setup();
-    vi.mocked(updateMyBusiness).mockResolvedValue({ id: "biz_1" } as never);
-    renderizar({ languages: ["es-ES", "ca-ES"], voiceLanguage: "ca-ES" });
+    const aviso = "Tu plan ya no incluye el gallego: si guardas este cambio, no podrás volver a elegirlo sin cambiar de plan.";
+    vi.mocked(getBillingSummary).mockResolvedValue({ planFeatures: [] } as never);
+    renderizar({ languages: principalDelCatalogo("gl-ES").idiomas, voiceLanguage: "gl-ES" });
 
-    await user.click(await waitFor(() => otroIdioma()));
-    expect(extranjero("Inglés")).toBeEnabled();
-    await user.click(extranjero("Inglés"));
+    await waitFor(() => expect(principal("Gallego")).toHaveAttribute("aria-checked", "true"));
+    expect(screen.queryByText(aviso)).toBeNull();
+    await user.click(principal("Español"));
+    expect(await screen.findByText(aviso)).toBeInTheDocument();
+    await user.click(principal("Gallego"));
+    expect(screen.queryByText(aviso)).toBeNull();
+  });
 
-    expect(await screen.findByText("Al guardar, dejará de atender en catalán.")).toBeInTheDocument();
-    expect(previsualizarIdiomas).toHaveBeenLastCalledWith(
-      expect.objectContaining({ languages: ["es-ES", "en-GB"], voiceLanguage: "en-GB" })
+  it("en Pro, cambiar de lengua local no lleva ese aviso", async () => {
+    const user = userEvent.setup();
+    renderizar({ languages: principalDelCatalogo("gl-ES").idiomas, voiceLanguage: "gl-ES" });
+
+    await user.click(await waitFor(() => principal("Español")));
+    expect(await screen.findByText(HABLA_SIETE)).toBeInTheDocument();
+    expect(screen.queryByText(/Tu plan ya no incluye/)).toBeNull();
+  });
+
+  it("con cambios sin guardar, el candado pregunta antes de ir a los planes", async () => {
+    const user = userEvent.setup();
+    vi.mocked(getBillingSummary).mockResolvedValue({ planFeatures: [] } as never);
+    const confirmar = vi.spyOn(window, "confirm").mockReturnValue(false);
+    renderizar();
+
+    await waitFor(() => expect(conCandado("Catalán")).toBeInTheDocument());
+    await user.click(within(screen.getByRole("radiogroup", { name: "Tono de voz" })).getByRole("radio", { name: /^Ágil/ }));
+    // fireEvent devuelve false si el clic se canceló (no navega).
+    expect(fireEvent.click(conCandado("Catalán"))).toBe(false);
+    expect(confirmar).toHaveBeenCalledWith(CONFIRMACION_IR_A_LOS_PLANES);
+    expect(screen.getByRole("button", { name: /Guardar/ })).toBeInTheDocument();
+
+    confirmar.mockReturnValue(true);
+    expect(fireEvent.click(conCandado("Catalán"))).toBe(true);
+    confirmar.mockRestore();
+  });
+
+  it("sin cambios, el candado va a los planes sin preguntar", async () => {
+    vi.mocked(getBillingSummary).mockResolvedValue({ planFeatures: [] } as never);
+    const confirmar = vi.spyOn(window, "confirm");
+    renderizar();
+
+    await waitFor(() => expect(conCandado("Catalán")).toBeInTheDocument());
+    // Sin router de Next en el test, el clic no navega pero tampoco se cancela.
+    conCandado("Catalán").addEventListener("click", (evento) => evento.preventDefault(), { once: true });
+    fireEvent.click(conCandado("Catalán"));
+    expect(confirmar).not.toHaveBeenCalled();
+    confirmar.mockRestore();
+  });
+
+  it("al cambiar el principal no enseña los avisos ni el saludo del anterior mientras llega su vista previa", async () => {
+    const user = userEvent.setup();
+    renderizar({ languages: IDIOMAS_CON_CATALAN, voiceLanguage: "ca-ES" });
+
+    expect(await screen.findByText(AVISO_DE_COOFICIAL)).toBeInTheDocument();
+    expect(screen.getByText("«Saludo en ca-ES»")).toBeInTheDocument();
+    let llegar = () => {};
+    vi.mocked(previsualizarIdiomas).mockImplementation(
+      (seleccion) =>
+        new Promise((resolve) => {
+          llegar = () => resolve(vistaPrevia(seleccion));
+        })
     );
-    // Volver a saludar en catalán lo recupera y el aviso se va.
-    await user.click(principal("Catalán"));
-    expect(screen.queryByText("Al guardar, dejará de atender en catalán.")).toBeNull();
+    await user.click(principal("Español"));
+
+    // La entradilla del catálogo, al momento; nada del catalán.
+    expect(screen.getByText(HABLA_SIETE)).toBeInTheDocument();
+    expect(screen.queryByText(AVISO_DE_COOFICIAL)).toBeNull();
+    expect(screen.queryByText("«Saludo en ca-ES»")).toBeNull();
+    llegar();
+    expect(await screen.findByText("«Saludo en es-ES»")).toBeInTheDocument();
+  });
+
+  it("con languages guardados de antes, ir a otro principal y volver no deja nada que guardar", async () => {
+    const user = userEvent.setup();
+    renderizar({ languages: ["es-ES"] });
+
+    await user.click(await waitFor(() => principal("Catalán")));
+    expect(screen.getByRole("button", { name: /Guardar/ })).toBeInTheDocument();
+    await user.click(principal("Español"));
+
+    expect(screen.queryByRole("button", { name: /Guardar/ })).toBeNull();
   });
 
   // Vercel publica la app antes de que Cloud Run sirva el backend nuevo: en
-  // ese rato el catálogo y la vista previa llegan con la forma anterior
-  // (sin cooficiales, otrosIdiomas, tipo, familia ni voces en la vista).
-  it("con el catálogo del backend anterior pinta sin romperse y deja cambiar el saludo", async () => {
+  // ese rato el catálogo, la vista previa y el plan llegan con la forma
+  // anterior (sin idiomas, entradilla, requiere, tipo ni familia; con
+  // «voz_idioma»).
+  it("con el catálogo del backend anterior pinta sin romperse y deja cambiar el principal", async () => {
     const user = userEvent.setup();
+    vi.mocked(getBillingSummary).mockResolvedValue({ planFeatures: ["voz_idioma"] } as never);
     const vozAnterior = (id: string, nombre: string, genero: string, habla: string[] | "todos") => ({
       id,
       nombre,
@@ -369,7 +409,7 @@ describe("ComportamientoMovil — idioma y voz", () => {
           voiceLanguage: seleccion.voiceLanguage,
           voz: seleccion.voiceLanguage === "ca-ES" ? "Soniox.tts-rt-v2.Marta" : "Telnyx.Ultra.538a8872-3799-4df5-b373-b78493b766c6",
           voiceGender: "femenina",
-          entradilla: "",
+          entradilla: "Saluda en español y sigue en el idioma de quien llama.",
           saludo: "",
           avisos: [],
         }) as never
@@ -377,12 +417,15 @@ describe("ComportamientoMovil — idioma y voz", () => {
     renderizar({ languages: ["es-ES", "en-GB"] });
 
     await waitFor(() => expect(voz("Blanca")).toHaveAttribute("aria-checked", "true"));
+    // Sin la entradilla del catálogo, la de la vista previa.
+    expect(screen.getByText("Saluda en español y sigue en el idioma de quien llama.")).toBeInTheDocument();
     await user.click(principal("Catalán"));
 
     expect(principal("Catalán")).toHaveAttribute("aria-checked", "true");
-    // Sin `otrosIdiomas` no quita nada: lo corrige el backend.
+    // Sin `idiomas` en el catálogo: el obligatorio y el principal, que el
+    // backend anterior acepta.
     expect(previsualizarIdiomas).toHaveBeenLastCalledWith(
-      expect.objectContaining({ languages: ["es-ES", "en-GB", "ca-ES"], voiceLanguage: "ca-ES" })
+      expect.objectContaining({ languages: ["es-ES", "ca-ES"], voiceLanguage: "ca-ES" })
     );
     await waitFor(() => expect(voz("Marta")).toHaveAttribute("aria-checked", "true"));
   });
@@ -391,7 +434,7 @@ describe("ComportamientoMovil — idioma y voz", () => {
 describe("ComportamientoMovil — la voz", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(getBillingSummary).mockResolvedValue({ planFeatures: ["voz_idioma"] } as never);
+    vi.mocked(getBillingSummary).mockResolvedValue({ planFeatures: ["lenguas_locales"] } as never);
     vi.mocked(getCatalogoDeIdiomas).mockResolvedValue(CATALOGO_DE_IDIOMAS);
     vi.mocked(previsualizarIdiomas).mockImplementation(async (seleccion) => vistaPrevia(seleccion, false));
   });
@@ -433,8 +476,8 @@ describe("ComportamientoMovil — la voz", () => {
     });
   });
 
-  it("con una lengua cooficial activa atienden Marta y Sergio, sin voces desactivadas", async () => {
-    renderizar({ languages: ["es-ES", "ca-ES", "en-GB"], voiceLanguage: "ca-ES" });
+  it("con un principal cooficial atienden Marta y Sergio, sin voces desactivadas", async () => {
+    renderizar({ languages: IDIOMAS_CON_CATALAN, voiceLanguage: "ca-ES" });
 
     await waitFor(() => expect(voz("Marta")).toHaveAttribute("aria-checked", "true"));
     expect(within(voces()).getAllByRole("radio")).toHaveLength(2);
@@ -444,7 +487,7 @@ describe("ComportamientoMovil — la voz", () => {
     expect(screen.queryByText(/habla todos los idiomas|no habla/)).toBeNull();
   });
 
-  it("cambiar el saludo conserva la voz elegida: atiende la de su género y, al volver, vuelve la elegida", async () => {
+  it("cambiar el principal conserva la voz elegida: atiende la de su género y, al volver, vuelve la elegida", async () => {
     const user = userEvent.setup();
     renderizar({ voz: MARCOS, voiceGender: "masculina" });
 
@@ -455,10 +498,8 @@ describe("ComportamientoMovil — la voz", () => {
     );
     await waitFor(() => expect(voz("Sergio")).toHaveAttribute("aria-checked", "true"));
 
-    // De vuelta al español (el catalán sigue activo: Sergio) y sin catalán:
-    // Marcos otra vez, y nada que guardar.
+    // De vuelta al español: Marcos otra vez, y nada que guardar.
     await user.click(principal("Español"));
-    await user.click(within(otros()).getByRole("checkbox", { name: "Catalán" }));
     await waitFor(() => expect(voz("Marcos")).toHaveAttribute("aria-checked", "true"));
     expect(screen.queryByRole("button", { name: /Guardar/ })).toBeNull();
   });
@@ -556,8 +597,8 @@ describe("ComportamientoMovil — la voz", () => {
     await waitFor(() => expect(voz("Lara")).toHaveAttribute("aria-checked", "true"));
   });
 
-  it("con Marta y Sergio (cooficial activa) ninguna lleva «Por defecto»", async () => {
-    renderizar({ languages: ["es-ES", "ca-ES"] });
+  it("con Marta y Sergio (principal cooficial) ninguna lleva «Por defecto»", async () => {
+    renderizar({ languages: IDIOMAS_CON_CATALAN, voiceLanguage: "ca-ES" });
 
     await waitFor(() => expect(within(voces()).getAllByRole("radio")).toHaveLength(2));
     expect(within(voces()).queryByText("Por defecto")).toBeNull();

@@ -10,9 +10,8 @@ import {
   esVozDelCatalogo,
   familiaDeVoces,
   hablaIdioma,
-  otrosIdiomasConSaludo,
+  idiomasQueHabla,
   puedeSerPrincipal,
-  type CodigoDeIdioma,
   type ProveedorDeVoz,
 } from "../../../src/lib/idiomas/catalogo.js";
 import {
@@ -74,49 +73,32 @@ describe("catálogo de idiomas", () => {
     expect(esVozDelCatalogo("Telnyx.Ultra.inventada")).toBe(false);
   });
 
-  // Desde el 2026-10-05 la voz la decide la familia (familiaDeVoces): con
-  // una cooficial activa, las suyas; si no, las del saludo.
-  it("en cada mercado, toda voz habla el obligatorio y, con cada saludo y lo que se puede activar con él, la familia que atiende tiene de cada género una voz que lo habla todo", () => {
+  // Desde el 2026-10-05 el principal manda: de él salen la familia de
+  // voces (familiaDeVoces) y los idiomas que habla (idiomasQueHabla).
+  it("en cada mercado, con cada principal habla el obligatorio y todas las voces de su familia hablan todos sus idiomas", () => {
     for (const [nombre, mercado] of Object.entries(MERCADOS)) {
       expect(mercado.principales, nombre).toContain(mercado.obligatorio);
       for (const principal of mercado.principales) {
         expect(puedeSerPrincipal(principal), `${nombre}/${principal}`).toBe(
           true
         );
-        // El obligatorio está siempre activo: una voz que no lo hable no
-        // podría atender nunca.
-        for (const voz of IDIOMAS[principal].voces!) {
+        const idiomas = idiomasQueHabla(principal);
+        expect(idiomas, `${nombre}/${principal}`).toContain(
+          mercado.obligatorio
+        );
+        expect(idiomas, `${nombre}/${principal}`).toContain(principal);
+        const { voces } = familiaDeVoces(principal);
+        for (const genero of GENEROS_DE_VOZ) {
           expect(
-            hablaIdioma(voz, mercado.obligatorio),
-            `${nombre}/${principal}: ${voz.nombre}`
+            voces.some((voz) => voz.genero === genero),
+            `${nombre}/${principal}/${genero}`
           ).toBe(true);
         }
-        // Active lo que active el dueño (como mucho una cooficial), hay voz
-        // de su género.
-        const otros = otrosIdiomasConSaludo(mercado, principal);
-        const extranjeros = otros.filter((otro) => !esCooficial(otro));
-        const conCooficial: (CodigoDeIdioma | null)[] = [
-          null,
-          ...otros.filter(esCooficial),
-        ];
-        for (const cooficial of conCooficial) {
-          const activos = [
-            mercado.obligatorio,
-            principal,
-            ...extranjeros,
-            ...(cooficial ? [cooficial] : []),
-          ];
-          const { voces } = familiaDeVoces(principal, activos);
-          for (const genero of GENEROS_DE_VOZ) {
-            expect(
-              voces.some(
-                (voz) =>
-                  voz.genero === genero &&
-                  activos.every((idioma) => hablaIdioma(voz, idioma))
-              ),
-              `${nombre}: ${principal}+${cooficial ?? "sin cooficial"}/${genero}`
-            ).toBe(true);
-          }
+        for (const voz of voces) {
+          expect(
+            idiomas.every((idioma) => hablaIdioma(voz, idioma)),
+            `${nombre}/${principal}: ${voz.nombre}`
+          ).toBe(true);
         }
       }
     }
@@ -133,14 +115,6 @@ describe("catálogo de idiomas", () => {
       ).toEqual(["Soniox.tts-rt-v2.Marta", "Soniox.tts-rt-v2.Sergio"]);
       expect(IDIOMAS[codigo].transcripcion.flux, codigo).toBeNull();
     }
-    expect(MERCADOS.ES.secundarios).toEqual([
-      "en-GB",
-      "fr-FR",
-      "de-DE",
-      "it-IT",
-      "pt-PT",
-      "nl-NL",
-    ]);
   });
 
   it("los saludos y los nombres de los idiomas de siempre siguen byte a byte", () => {
@@ -260,7 +234,7 @@ describe("catálogo de idiomas — voces Ultra y mercado de España", () => {
     );
   });
 
-  it("España: saluda en los diez idiomas; las cooficiales con Marta y Sergio", () => {
+  it("España: el principal puede ser cualquiera de los diez idiomas; las cooficiales con Marta y Sergio", () => {
     expect(MERCADOS.ES.principales).toEqual([
       "es-ES",
       "ca-ES",
@@ -284,31 +258,35 @@ describe("catálogo de idiomas — voces Ultra y mercado de España", () => {
     expect(esVozDelCatalogo("Azure.ca-ES-JoanaNeural")).toBe(false);
   });
 
-  it("lo que se activa con cada saludo: con español, las cooficiales y los extranjeros; con una cooficial, los extranjeros; con uno extranjero, los demás", () => {
-    const EXTRANJEROS = ["en-GB", "fr-FR", "de-DE", "it-IT", "pt-PT", "nl-NL"];
-    expect(otrosIdiomasConSaludo(MERCADOS.ES, "es-ES")).toEqual([
+  // Decisión del usuario del 2026-10-05 («nos hemos complicado»): el dueño
+  // solo elige el principal.
+  it("lo que habla con cada principal: los siete de ULTRA_HABLA y, con una cooficial, también ella, en orden canónico", () => {
+    for (const principal of ULTRA_HABLA) {
+      expect(idiomasQueHabla(principal), principal).toEqual([...ULTRA_HABLA]);
+    }
+    expect(idiomasQueHabla("ca-ES")).toEqual([
+      "es-ES",
+      "en-GB",
+      "fr-FR",
       "ca-ES",
-      "eu-ES",
-      "gl-ES",
-      ...EXTRANJEROS,
+      "de-DE",
+      "it-IT",
+      "pt-PT",
+      "nl-NL",
     ]);
-    expect(otrosIdiomasConSaludo(MERCADOS.ES, "gl-ES")).toEqual(EXTRANJEROS);
-    expect(otrosIdiomasConSaludo(MERCADOS.ES, "de-DE")).toEqual(
-      EXTRANJEROS.filter((codigo) => codigo !== "de-DE")
-    );
+    for (const principal of ["eu-ES", "gl-ES"] as const) {
+      const idiomas = idiomasQueHabla(principal);
+      expect(idiomas, principal).toHaveLength(8);
+      expect(idiomas.filter(esCooficial), principal).toEqual([principal]);
+    }
   });
 
-  it("la familia: con una cooficial activa, sus voces de Soniox; si no, las del saludo", () => {
-    expect(familiaDeVoces("es-ES", ["es-ES", "ca-ES"])).toMatchObject({
+  it("la familia: con un principal cooficial, sus voces de Soniox; si no, sus Ultra", () => {
+    expect(familiaDeVoces("ca-ES")).toEqual({
       familia: "soniox",
-      idioma: "ca-ES",
+      voces: IDIOMAS["ca-ES"].voces,
     });
-    expect(familiaDeVoces("es-ES", ["es-ES", "en-GB"])).toMatchObject({
-      familia: "ultra",
-      idioma: "es-ES",
-    });
-    expect(familiaDeVoces("en-GB", ["es-ES", "en-GB"]).voces).toBe(
-      IDIOMAS["en-GB"].voces
-    );
+    expect(familiaDeVoces("es-ES").familia).toBe("ultra");
+    expect(familiaDeVoces("en-GB").voces).toBe(IDIOMAS["en-GB"].voces);
   });
 });

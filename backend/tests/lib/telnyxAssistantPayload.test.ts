@@ -331,6 +331,8 @@ describe("buildTelnyxAssistantPayload", () => {
     );
   });
 
+  // Desde el 2026-10-05 con principal español habla los siete de
+  // ULTRA_HABLA: flux en modo multi (antes «es», solo español).
   it("fija el modelo de transcripción y el idioma, y sesga con boostedKeywords", () => {
     const payload = buildTelnyxAssistantPayload({
       ...baseInput,
@@ -340,7 +342,7 @@ describe("buildTelnyxAssistantPayload", () => {
 
     expect(payload.transcription).toEqual({
       model: "deepgram/flux",
-      language: "es",
+      language: "multi",
       settings: {
         keyterm: "corte,manicura",
         eot_threshold: 0.8,
@@ -379,8 +381,8 @@ describe("buildTelnyxAssistantPayload", () => {
   });
 
   describe("con catalán, euskera o gallego (Soniox)", () => {
-    // Desde el 2026-10-05 solo cabe una cooficial: el euskera de antes se
-    // cambia por el inglés para seguir probando varias pistas.
+    // Desde el 2026-10-05 el principal manda: con catalán habla ocho
+    // idiomas (los `languages` que se pasan aquí no cuentan).
     const sonioxInput = {
       ...baseInput,
       idiomas: idiomas(["es-ES", "en-GB", "ca-ES"], "ca-ES"),
@@ -397,7 +399,7 @@ describe("buildTelnyxAssistantPayload", () => {
         model: "soniox/stt-rt-v5",
         language: "auto",
         settings: {
-          language_hints: ["es", "en", "ca"],
+          language_hints: ["es", "ca"],
           context: "corte,Laura",
           enable_endpoint_detection: true,
           max_endpoint_delay_ms: 500,
@@ -435,7 +437,9 @@ describe("buildTelnyxAssistantPayload", () => {
       });
     });
 
-    it("con saludo en castellano y catalán activo, la voz de Soniox arranca en catalán (no en el idioma del saludo)", () => {
+    // Ajustes guardados con las reglas anteriores (saludo en castellano
+    // con catalán activo): atiende en catalán, como hacía.
+    it("con ajustes anteriores de saludo en castellano y catalán activo, atiende en catalán con Soniox", () => {
       const payload = buildTelnyxAssistantPayload({
         ...sonioxInput,
         idiomas: idiomas(["es-ES", "ca-ES"], "es-ES"),
@@ -448,7 +452,9 @@ describe("buildTelnyxAssistantPayload", () => {
       });
       expect(payload.transcription).toMatchObject({
         model: "soniox/stt-rt-v5",
-        settings: { language_hints: ["es", "ca"] },
+        settings: {
+          language_hints: ["es", "ca"],
+        },
       });
     });
 

@@ -517,7 +517,8 @@ export interface BuildTelnyxAssistantPayloadInput {
   greeting: string;
   /** Lo que el idioma decide del payload (resolverIdiomas, en
    * lib/idiomas/resolver.ts): el motor de transcripción con sus pistas y el
-   * idioma en que arranca una voz de Soniox (el de la cooficial activa). */
+   * idioma en que arranca una voz de Soniox (el del principal, la
+   * cooficial). */
   idiomas: Pick<PerfilDeIdiomas, "transcripcion" | "isoDeLaVoz">;
   /** Identificador Telnyx (`Telnyx.<modelo>.<voz>`), de Soniox
    * (`Soniox.tts-rt-v2.<voz>`) o de ElevenLabs vía `api_key_ref` — resuelto
@@ -625,9 +626,8 @@ export function buildTelnyxAssistantPayload(
     // artificial en una llamada real.
     voiceSettings: {
       voice: input.voice,
-      // Las voces de Soniox hablan todos los idiomas: arrancan en el de la
-      // cooficial activa, salude en ella o en castellano. Las Ultra tienen
-      // el suyo.
+      // Las voces de Soniox hablan todos los idiomas: arrancan en el
+      // principal, la cooficial. Las Ultra tienen el suyo.
       ...(input.voice.startsWith("Soniox.")
         ? { language: input.idiomas.isoDeLaVoz }
         : {}),

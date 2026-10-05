@@ -333,10 +333,10 @@ export async function getRetellEditableDraft(
 /**
  * Cadenas fijas ya validadas contra la API de Retell. Cartesia ofrece la
  * voz española principal para es/en/fr y se cambia a ElevenLabs
- * (usaVozMultilingueEnRetell en lib/idiomas/resolver.ts) si saluda en otro
- * idioma que el español, si hay una lengua cooficial activa o si un idioma
- * activo la exige (`retell.vozMultilingue`; hoy el catalán, porque Retell
- * rechaza ca-ES con Cartesia). MiniMax queda como último proveedor distinto.
+ * (usaVozMultilingueEnRetell en lib/idiomas/resolver.ts) si el principal
+ * no es el español, si habla una lengua cooficial o si uno de sus idiomas
+ * la exige (`retell.vozMultilingue`; hoy el catalán, porque Retell rechaza
+ * ca-ES con Cartesia). MiniMax queda como último proveedor distinto.
  */
 const RETELL_VOICE_PROFILES: Record<
   AgentSettings["voiceGender"],
@@ -376,11 +376,10 @@ const RETELL_VOICE_PROFILES: Record<
 };
 
 // Retell es solo el fallback de Telnyx: no usa la voz elegida
-// (AgentSettings.voz), solo su género. Con un saludo en otro idioma
-// (inglés, alemán…) o una lengua cooficial activa (también con saludo en
-// castellano) va la cadena multilingüe de ElevenLabs
-// (usaVozMultilingueEnRetell), con los ajustes tal como los atiende Retell
-// (sin euskera).
+// (AgentSettings.voz), solo su género. Con un principal en otro idioma
+// (inglés, alemán…) o una lengua cooficial va la cadena multilingüe de
+// ElevenLabs (usaVozMultilingueEnRetell), con los ajustes tal como los
+// atiende Retell (sin euskera).
 export function resolveRetellVoiceProfile(settings: unknown): RetellVoiceProfile {
   const parsed = parseAgentSettings(settings);
   const ajustes = ajustesParaRetell(parsed);
@@ -656,7 +655,7 @@ export async function createBusinessAgent(args: {
           voiceId: voiceProfile.voiceId,
           voiceModel: voiceProfile.voiceModel,
           fallbackVoiceIds: voiceProfile.fallbackVoiceIds,
-          languages: agentSettings.languages,
+          languages: ajustesParaRetell(agentSettings).languages,
           timezone: business?.timezone,
         })
       );
@@ -921,12 +920,14 @@ export async function syncAgentToRetell(
   // Lo que ejecuta Retell: sin el bloque «## Pasar la llamada», porque el
   // agente de Retell no tiene la tool `transfer` y el prompt nunca debe
   // mandar usar una herramienta que no existe.
-  // Y solo con los idiomas que Retell tiene: sin euskera y, si el principal
-  // es el euskera, saludando en español (ajustesParaRetell).
+  // Y solo con los idiomas que atiende Retell: el principal y el español
+  // (sin euskera: si el principal es el euskera, saluda en español), con el
+  // prompt diciendo esos mismos (ajustesParaRetell).
   const ajustesDeRetell = ajustesParaRetell(agentSettings);
   const systemPrompt = buildManagedAgentPrompt({
     ...promptBase,
     settings: ajustesDeRetell,
+    idiomas: ajustesDeRetell.languages,
   });
   // Lo que guarda Agent.systemPrompt (la copia que enseña /agente): el
   // prompt del primary, Telnyx, con el bloque de transferencia cuando la
@@ -981,7 +982,7 @@ export async function syncAgentToRetell(
         voiceId,
         voiceModel: voiceProfile.voiceModel,
         fallbackVoiceIds: voiceProfile.fallbackVoiceIds,
-        language: idiomaDeRetell(agentSettings.languages),
+        language: idiomaDeRetell(ajustesDeRetell.languages),
         // Estos tres viajaban SOLO en la creación del agente, así que los
         // agentes creados antes de que existieran (commit 3be1e12) se
         // quedaban sin tope de duración ni corte por silencio para siempre:

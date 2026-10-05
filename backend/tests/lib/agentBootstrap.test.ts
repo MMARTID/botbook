@@ -352,10 +352,14 @@ describe("syncAgentToRetell — voiceGender", () => {
 
     await syncAgentToRetell("biz_catalan");
 
+    // Desde el 2026-10-05 la cooficial guardada es el principal. En
+    // Telnyx habla los ocho idiomas que van con ella; Retell, el respaldo,
+    // atiende solo el principal y el español (ajustesParaRetell), lo ya
+    // validado contra su API.
     expect(mockedUpdateAgent).toHaveBeenCalledWith(
       "retell_agent_1",
       expect.objectContaining({
-        language: ["es-ES", "en-GB", "fr-FR", "ca-ES"],
+        language: ["es-ES", "ca-ES"],
         voiceId: "11labs-Hailey-Latin-America-Spanish-localized",
         voiceModel: "eleven_v3",
         fallbackVoiceIds: ["minimax-Camille"],
@@ -363,7 +367,7 @@ describe("syncAgentToRetell — voiceGender", () => {
     );
   });
 
-  it("con saludo en alemán, Retell saluda en alemán, atiende español y alemán y usa la cadena multilingüe", async () => {
+  it("con principal alemán, Retell saluda en alemán, atiende alemán y español y usa la cadena multilingüe", async () => {
     mockedBusinessFindUnique.mockResolvedValue({
       name: "Salon Anna",
       businessDetails: null,
@@ -399,9 +403,55 @@ describe("syncAgentToRetell — voiceGender", () => {
         voiceModel: "eleven_v3",
       })
     );
+    // Y su prompt dice esos dos, no los siete de Telnyx.
+    const { generalPrompt } = mockedUpdateLlm.mock.calls[0][1] as {
+      generalPrompt: string;
+    };
+    expect(generalPrompt).toContain(
+      "si es uno de estos: español de España, alemán."
+    );
   });
 
-  it("con catalán activo y saludo en español, Retell saluda en español con la cadena multilingüe", async () => {
+  it("con principal español, Retell atiende solo español (su ruta monolingüe, el escalar es-ES) con la voz Cartesia", async () => {
+    mockedBusinessFindUnique.mockResolvedValue({
+      name: "Peluquería Ana",
+      businessDetails: null,
+      businessType: "peluqueria",
+      agentSettings: {
+        version: 1,
+        tone: "warm",
+        primaryGoal: "bookings",
+        responseStyle: "concise",
+        escalation: "take_message",
+        voiceGender: "femenina",
+        languages: ["es-ES", "en-GB", "fr-FR", "de-DE", "it-IT", "pt-PT", "nl-NL"],
+        voiceLanguage: "es-ES",
+      },
+      orchestrator: "telnyx",
+      minAdvanceBookingMinutes: null,
+      maxAppointmentDurationMinutes: null,
+    } as any);
+
+    await syncAgentToRetell("biz_es");
+
+    expect(mockedUpdateAgent).toHaveBeenCalledWith(
+      "retell_agent_1",
+      expect.objectContaining({
+        language: "es-ES",
+        voiceId: "cartesia-Isabel",
+        voiceModel: "sonic-3.5",
+      })
+    );
+    const { generalPrompt } = mockedUpdateLlm.mock.calls[0][1] as {
+      generalPrompt: string;
+    };
+    expect(generalPrompt).toContain("Habla siempre en español de España;");
+    expect(generalPrompt).not.toContain("## Idioma");
+  });
+
+  // Ajustes guardados con reglas anteriores: la cooficial pasa a ser el
+  // principal (normalizarIdiomas).
+  it("con ajustes anteriores de catalán activo y saludo en español, Retell saluda en catalán con la cadena multilingüe", async () => {
     mockedBusinessFindUnique.mockResolvedValue({
       name: "Perruqueria Anna",
       businessDetails: null,
@@ -427,7 +477,7 @@ describe("syncAgentToRetell — voiceGender", () => {
       "retell_llm_1",
       expect.objectContaining({
         beginMessage:
-          "Hola, gracias por llamar a Perruqueria Anna. ¿En qué te puedo ayudar?",
+          "Hola, gràcies per trucar a Perruqueria Anna. En què et puc ajudar?",
       })
     );
     expect(mockedUpdateAgent).toHaveBeenCalledWith(
@@ -516,10 +566,18 @@ describe("syncAgentToRetell — voiceGender", () => {
       .systemPrompt as string;
     expect(guardado).toContain("## Pasar la llamada");
     expect(guardado).toContain("Pásala solo si el cliente pide");
-    // Fuera del bloque, es el mismo prompt.
+    // Retell atiende solo el principal y el español (ajustesParaRetell):
+    // con principal español, «Habla siempre en…» y sin el «## Idioma» del
+    // final. Fuera del bloque y del idioma, es el mismo prompt.
+    expect(retellPrompt).toContain("Habla siempre en español de España;");
+    expect(guardado).toContain("## Idioma");
+    const sinIdioma = (prompt: string) =>
+      prompt
+        .replace(/^(Empieza siempre|Habla siempre).*$/m, "<idioma>")
+        .replace(/\n\n## Idioma\n[^\n]*$/, "");
     expect(
-      guardado.replace(/## Pasar la llamada[\s\S]*?\n(?=## )/, "")
-    ).toBe(retellPrompt);
+      sinIdioma(guardado.replace(/## Pasar la llamada[\s\S]*?\n(?=## )/, ""))
+    ).toBe(sinIdioma(retellPrompt));
   });
 
   it("SÍ sobrescribe el prompt de un agente gestionado normalmente (promptManuallyEdited: false)", async () => {

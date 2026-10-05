@@ -1,7 +1,6 @@
 import {
   IDIOMAS,
   componerSaludo,
-  cooficialActiva,
   esCooficial,
   familiaDeVoces,
   hablaIdioma,
@@ -15,13 +14,16 @@ import {
 import {
   IDIOMA_OBLIGATORIO,
   normalizarIdiomas,
+  ordenarIdiomas,
   type CambioDeIdiomas,
 } from "./ajustes.js";
 
 /** Lo que importa de AgentSettings para el idioma. */
 export interface AjustesDeIdioma {
-  languages: readonly CodigoDeIdioma[];
-  /** El idioma en que saluda (el nombre del campo es el de siempre). */
+  /** Los que habla. Desde el 2026-10-05 salen del principal: solo cuentan
+   * para leer ajustes anteriores (normalizarIdiomas). */
+  languages?: readonly CodigoDeIdioma[];
+  /** El idioma principal (el nombre del campo es el de siempre). */
   voiceLanguage: CodigoDeIdioma;
   voiceGender: GeneroDeVoz;
   /** La voz que eligió el dueño; sin ella, la de su género. */
@@ -35,46 +37,53 @@ export type TranscripcionResuelta =
  * sitio. Lo consumen la elegibilidad, el payload de Telnyx, el prompt,
  * Retell y el panel. */
 export interface PerfilDeIdiomas {
-  /** Activos, normalizados y en orden canónico. */
+  /** Los que habla con su principal (idiomasQueHabla), en orden canónico. */
   idiomas: CodigoDeIdioma[];
-  /** El idioma en que saluda. */
+  /** El idioma principal: en él saluda y de él sale la voz. */
   principal: CodigoDeIdioma;
-  /** La lengua cooficial activa (como mucho una), o null. */
+  /** El principal si es una lengua cooficial, o null. */
   cooficial: CodigoDeIdioma | null;
-  /** De dónde sale la voz: las de Soniox de la cooficial activa o, sin
-   * ella, las Ultra nativas del idioma del saludo (familiaDeVoces). */
+  /** De dónde sale la voz: las de Soniox de un principal cooficial o, si
+   * no, las Ultra nativas del principal (familiaDeVoces). */
   familia: FamiliaDeVoces;
   /** El de la voz que atiende. */
   genero: GeneroDeVoz;
   /** La voz que atiende, del catálogo; que siga en la cuenta lo comprueba
    * telnyxEligibility.ts. */
   voz: VozDelCatalogo;
-  /** Las voces que se pueden elegir con estos idiomas: las de la familia
-   * que los hablan todos, en el orden del catálogo. */
+  /** Las voces que se pueden elegir: las de la familia que hablan todos
+   * sus idiomas, en el orden del catálogo. */
   voces: VozDelCatalogo[];
   /** Las otras voces de la familia y del mismo género que hablan todos sus
    * idiomas: la reserva si `voz` ya no está en la cuenta. */
   alternativas: VozDelCatalogo[];
-  /** `voice_settings.language` de una voz de Soniox: el ISO de la
-   * cooficial activa, no el del saludo. Así un negocio que saluda en
-   * castellano con catalán activo sigue leyendo bien el catalán (las
-   * respuestas en castellano con `language: "ca"` funcionaron en las 37
-   * llamadas reales del 2026-10-03). Sin cooficial, el del saludo (las
-   * Ultra no lo usan). */
+  /** `voice_settings.language` de una voz de Soniox: el ISO del principal,
+   * la cooficial (las respuestas en castellano con `language: "ca"`
+   * funcionaron en las 37 llamadas reales del 2026-10-03). Las Ultra no lo
+   * usan. */
   isoDeLaVoz: string;
   transcripcion: TranscripcionResuelta;
   instruccionDelPrompt: string;
+  /** El bloque «## Idioma» que cierra el prompt (instruccionesDeIdioma), o
+   * null si habla un solo idioma. */
+  recordatorioDelPrompt: string | null;
   cambios: CambioDeIdiomas[];
 }
 
 /**
- * Transcripción más rápida que entiende todos los idiomas activos:
+ * Transcripción más rápida que entiende todos los idiomas que habla:
  * deepgram/flux (fin de turno nativo y anticipado) si los entiende todos, con
- * su pista si es uno o `multi` si son varios; si no, Soniox con las pistas de
- * todos, en orden canónico.
+ * su pista si es uno o `multi` si son varios (con un principal Ultra, los
+ * siete de ULTRA_HABLA). Si no (un principal cooficial), Soniox con dos
+ * pistas, la del principal y la del obligatorio, en orden canónico: con las
+ * de los ocho que habla, el error de palabra se duplicó (9,5 % frente a
+ * 4,7 %, tandas A3 y A4 del laboratorio, 2026-10-05) sin contestar antes, y
+ * arrastraba palabras a otros idiomas («metxes» → «metges», «tints» →
+ * «teen»). Que con dos entienda el inglés u otros idiomas no está medido.
  */
 function resolverTranscripcion(
-  idiomas: readonly CodigoDeIdioma[]
+  idiomas: readonly CodigoDeIdioma[],
+  principal: CodigoDeIdioma
 ): TranscripcionResuelta {
   const pistasDeFlux = idiomas.map(
     (idioma) => IDIOMAS[idioma].transcripcion.flux
@@ -87,24 +96,35 @@ function resolverTranscripcion(
   }
   return {
     motor: "soniox",
-    pistas: idiomas.map((idioma) => IDIOMAS[idioma].transcripcion.soniox),
+    pistas: ordenarIdiomas([IDIOMA_OBLIGATORIO, principal]).map(
+      (idioma) => IDIOMAS[idioma].transcripcion.soniox
+    ),
   };
 }
 
 /**
- * Instrucción de idioma del prompt. Con solo español, la de siempre; con
- * varios, saluda en el del saludo y sigue en el de quien llama (también con
- * saludo en español y una cooficial activa: «Empieza siempre con el saludo
- * en español de España…»). Los textos de los idiomas de siempre son los
- * mismos byte a byte: cambiarlos cambiaría el hash del payload de Telnyx de
- * esos negocios.
+ * Lo que dice el prompt del idioma: la instrucción de «## Rol» (saluda en el
+ * principal y sigue en el de quien llama si es uno de los que habla; desde
+ * el 2026-10-05, siempre varios: los siete de ULTRA_HABLA más la cooficial
+ * que sea principal) y un recordatorio que cierra el prompt. Con uno solo,
+ * la de antes («Habla siempre en…») y sin recordatorio: es lo que recibe
+ * Retell con solo español (ajustesParaRetell).
+ *
+ * El recordatorio y la frase de las comillas vienen de la medición del
+ * 2026-10-05 (tanda «A2 inglés» del laboratorio): con la regla sola, la
+ * recepcionista contestó en castellano a clientes que hablaban inglés en 5
+ * de 19 respuestas, sobre todo en las frases que el prompt le da literales
+ * en castellano (la pregunta del WhatsApp). Sin medir de nuevo con él.
  */
-function construirInstruccionDelPrompt(
+export function instruccionesDeIdioma(
   idiomas: readonly CodigoDeIdioma[],
   principal: CodigoDeIdioma
-): string {
+): { instruccion: string; recordatorio: string | null } {
   if (idiomas.length === 1) {
-    return `Habla siempre en ${IDIOMAS[idiomas[0]].nombreEnPrompt}; no menciones que eres una IA salvo que te lo pregunten.`;
+    return {
+      instruccion: `Habla siempre en ${IDIOMAS[idiomas[0]].nombreEnPrompt}; no menciones que eres una IA salvo que te lo pregunten.`,
+      recordatorio: null,
+    };
   }
   const lista = idiomas
     .map((idioma) => IDIOMAS[idioma].nombreEnPrompt)
@@ -114,17 +134,20 @@ function construirInstruccionDelPrompt(
     .filter((nota): nota is string => Boolean(nota))
     .map((nota) => ` ${nota}`)
     .join("");
-  return `Empieza siempre con el saludo en ${IDIOMAS[principal].nombreEnPrompt}. Tras la primera intervención de quien llama, responde y continúa exclusivamente en el idioma que use si es uno de estos: ${lista}. Si cambia entre esos idiomas, acompaña el cambio sin pedirle que elija uno.${notas} No menciones que eres una IA salvo que te lo pregunten.`;
+  return {
+    instruccion: `Empieza siempre con el saludo en ${IDIOMAS[principal].nombreEnPrompt}. Tras la primera intervención de quien llama, responde y continúa exclusivamente en el idioma que use si es uno de estos: ${lista}. Si cambia entre esos idiomas, acompaña el cambio sin pedirle que elija uno. Las frases que estas instrucciones ponen entre comillas para decírselas a quien llama están en castellano: dilas traducidas al idioma de la conversación.${notas} No menciones que eres una IA salvo que te lo pregunten.`,
+    recordatorio: `## Idioma\nContesta cada turno en el idioma en que te habla quien llama si es uno de estos: ${lista}; también el resumen de la reserva, la pregunta del WhatsApp y la despedida. No cambies de idioma por tu cuenta mientras siga hablando en el suyo.`,
+  };
 }
 
 /**
- * La voz que atiende, entre `voces` (las de la familia que atiende): la
- * elegida si está entre ellas y habla todos los idiomas activos; si no, la
- * primera de su género (o del pedido) que los hable. Sustituir una elegida
- * que no los habla se anota para avisar al dueño; una de otra familia
- * (cambió el saludo o la cooficial) se ignora sin más: el panel ya enseña
- * las voces que atienden. Pura y con la lista como parámetro para poder
- * probarla con voces que el catálogo aún no tiene.
+ * La voz que atiende, entre `voces` (las de su principal): la elegida si
+ * está entre ellas y habla todos sus idiomas; si no, la primera de su
+ * género (o del pedido) que los hable. Sustituir una elegida que no los
+ * habla se anota para avisar al dueño; una de otra familia (cambió el
+ * principal) se ignora sin más: el panel ya enseña las voces que atienden.
+ * Pura y con la lista como parámetro para poder probarla con voces que el
+ * catálogo aún no tiene.
  */
 export function elegirVoz(
   voces: readonly VozDelCatalogo[],
@@ -136,8 +159,11 @@ export function elegirVoz(
   alternativas: VozDelCatalogo[];
   cambio: CambioDeIdiomas | null;
 } {
-  // normalizarIdiomas garantiza que alguna voz de la familia los habla.
-  const candidatas = vocesQueHablan(voces, idiomas);
+  // Con el catálogo actual alguna voz de cada principal habla todos sus
+  // idiomas (lo vigila tests/lib/idiomas/catalogo.test.ts); si no, atiende
+  // igual la primera de la familia.
+  const habladoras = vocesQueHablan(voces, idiomas);
+  const candidatas = habladoras.length > 0 ? habladoras : [...voces];
   const deLaFamilia = voces.find((voz) => voz.id === elegida);
   const valida = deLaFamilia && candidatas.includes(deLaFamilia);
   const generoBuscado = deLaFamilia?.genero ?? genero;
@@ -166,28 +192,27 @@ export function elegirVoz(
 
 export function resolverIdiomas(ajustes: AjustesDeIdioma): PerfilDeIdiomas {
   const { languages, voiceLanguage, cambios } = normalizarIdiomas(ajustes);
-  const familia = familiaDeVoces(voiceLanguage, languages);
+  const familia = familiaDeVoces(voiceLanguage);
   const { voz, alternativas, cambio } = elegirVoz(
     familia.voces,
     languages,
     ajustes.voiceGender,
     ajustes.voz
   );
+  const instrucciones = instruccionesDeIdioma(languages, voiceLanguage);
   return {
     idiomas: languages,
     principal: voiceLanguage,
-    cooficial: cooficialActiva(languages),
+    cooficial: esCooficial(voiceLanguage) ? voiceLanguage : null,
     familia: familia.familia,
     genero: voz.genero,
     voz,
     voces: vocesQueHablan(familia.voces, languages),
     alternativas,
-    isoDeLaVoz: IDIOMAS[familia.idioma].iso,
-    transcripcion: resolverTranscripcion(languages),
-    instruccionDelPrompt: construirInstruccionDelPrompt(
-      languages,
-      voiceLanguage
-    ),
+    isoDeLaVoz: IDIOMAS[voiceLanguage].iso,
+    transcripcion: resolverTranscripcion(languages, voiceLanguage),
+    instruccionDelPrompt: instrucciones.instruccion,
+    recordatorioDelPrompt: instrucciones.recordatorio,
     cambios: cambio ? [...cambios, cambio] : cambios,
   };
 }
@@ -205,19 +230,31 @@ export function saludoDelNegocio(
 // ---------------------------------------------------------------------
 
 /**
- * Los ajustes tal como los atiende Retell: sin los idiomas que no tiene y,
- * si saluda en uno de ellos (euskera), saludando en el obligatorio; si no,
- * el agente saludaría en un idioma que Retell no entiende. Un saludo en
- * castellano con catalán activo o uno extranjero se quedan como están.
+ * Los ajustes tal como los atiende Retell: el principal y el obligatorio, no
+ * los siete u ocho que habla en Telnyx, y sin los idiomas que Retell no
+ * tiene; si el principal es uno de ellos (euskera), el obligatorio de
+ * principal, o el agente saludaría en un idioma que Retell no entiende.
+ *
+ * Así recibe lo que ya tenía antes del 2026-10-05: `es-ES` solo (su ruta
+ * monolingüe, la más precisa, con la voz Cartesia) con principal español, y
+ * español con la cooficial (cadena ElevenLabs). Mandarle los siete locales
+ * con Cartesia no se ha probado contra Retell, y si rechazara el
+ * `updateAgent`, `syncAgentToRetell` lanzaría y PATCH /business/me
+ * devolvería 500 a todos los negocios (revisión del 2026-10-05). El prompt
+ * de Retell lista estos mismos idiomas (`idiomas` de
+ * buildManagedAgentPrompt).
  */
-export function ajustesParaRetell<T extends AjustesDeIdioma>(ajustes: T): T {
-  const languages = ajustes.languages.filter(
-    (idioma) => IDIOMAS[idioma].retell.locale !== null
-  );
-  const voiceLanguage = languages.includes(ajustes.voiceLanguage)
-    ? ajustes.voiceLanguage
-    : IDIOMA_OBLIGATORIO;
-  return { ...ajustes, languages, voiceLanguage };
+export function ajustesParaRetell<T extends AjustesDeIdioma>(
+  ajustes: T
+): T & { languages: CodigoDeIdioma[]; voiceLanguage: CodigoDeIdioma } {
+  const { voiceLanguage: principal } = normalizarIdiomas(ajustes);
+  const voiceLanguage =
+    IDIOMAS[principal].retell.locale !== null ? principal : IDIOMA_OBLIGATORIO;
+  return {
+    ...ajustes,
+    languages: ordenarIdiomas([IDIOMA_OBLIGATORIO, voiceLanguage]),
+    voiceLanguage,
+  };
 }
 
 /** El campo `language` de Retell: un escalar con un solo idioma (su ruta
@@ -233,10 +270,10 @@ export function idiomaDeRetell(
 
 /**
  * ¿Hace falta la cadena de voces multilingüe de Retell (ElevenLabs)? Sí si
- * saluda en un idioma que no es el obligatorio (las voces Cartesia por
- * defecto son españolas), si hay una lengua cooficial activa o si algún
- * idioma la exige (Retell rechaza ca-ES con Cartesia). Recibe los ajustes
- * de ajustesParaRetell: el euskera ya no está.
+ * el principal no es el obligatorio (las voces Cartesia por defecto son
+ * españolas), si habla una lengua cooficial o si algún idioma la exige
+ * (Retell rechaza ca-ES con Cartesia). Recibe los ajustes de
+ * ajustesParaRetell: el euskera ya no está.
  */
 export function usaVozMultilingueEnRetell(
   idiomas: readonly CodigoDeIdioma[],
