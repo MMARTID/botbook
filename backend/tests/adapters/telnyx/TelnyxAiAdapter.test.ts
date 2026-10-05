@@ -35,6 +35,8 @@ const mockConversationsUpdate = vi.fn();
 const mockConversationsAddMessage = vi.fn();
 const mockAssistantsChat = vi.fn();
 const mockDial = vi.fn();
+const mockTexmlAppsList = vi.fn();
+const mockTexmlAppsDelete = vi.fn();
 
 const mockTelnyxClient = {
   callControlApplications: {
@@ -88,6 +90,7 @@ const mockTelnyxClient = {
   phoneNumbers: { update: mockPhoneNumbersUpdate },
   recordings: { retrieve: mockRecordingsRetrieve, list: mockRecordingsList },
   textToSpeech: { listVoices: mockListVoices },
+  texmlApplications: { list: mockTexmlAppsList, delete: mockTexmlAppsDelete },
 };
 
 vi.mock("../../../src/lib/telnyx.js", () => ({
@@ -309,6 +312,50 @@ describe("TelnyxAiAdapter", () => {
       await adapter.deleteAssistant("assistant_123");
 
       expect(mockAssistantsDelete).toHaveBeenCalledWith("assistant_123");
+    });
+  });
+
+  describe("deleteTexmlAppOfAssistant", () => {
+    it("borra solo la app cuyo nombre es exactamente ai-<assistant>, aunque la API devuelva todas", async () => {
+      // La API ignora filter[friendly_name] (verificado el 2026-10-03): el
+      // listado trae todas las apps de la cuenta, de dev y de producción.
+      mockTexmlAppsList.mockReturnValue(
+        asyncIterableOf([
+          { id: "app_otro", friendly_name: "ai-assistant-xyz" },
+          { id: "app_suya", friendly_name: "ai-assistant-abc" },
+          { id: "app_prefijo", friendly_name: "ai-assistant-abcd" },
+          { id: "app_ajena", friendly_name: "alhabla-platform" },
+        ])
+      );
+      mockTexmlAppsDelete.mockResolvedValue({});
+
+      const borradas = await adapter.deleteTexmlAppOfAssistant("assistant-abc");
+
+      expect(borradas).toBe(1);
+      expect(mockTexmlAppsDelete).toHaveBeenCalledTimes(1);
+      expect(mockTexmlAppsDelete).toHaveBeenCalledWith("app_suya");
+    });
+
+    it("devuelve 0 sin borrar nada si el assistant no tiene app", async () => {
+      mockTexmlAppsList.mockReturnValue(
+        asyncIterableOf([{ id: "app_otro", friendly_name: "ai-assistant-xyz" }])
+      );
+
+      const borradas = await adapter.deleteTexmlAppOfAssistant("assistant-abc");
+
+      expect(borradas).toBe(0);
+      expect(mockTexmlAppsDelete).not.toHaveBeenCalled();
+    });
+
+    it("propaga el error si Telnyx no deja borrarla", async () => {
+      mockTexmlAppsList.mockReturnValue(
+        asyncIterableOf([{ id: "app_suya", friendly_name: "ai-assistant-abc" }])
+      );
+      mockTexmlAppsDelete.mockRejectedValue(new Error("Service Unavailable"));
+
+      await expect(
+        adapter.deleteTexmlAppOfAssistant("assistant-abc")
+      ).rejects.toThrow("Service Unavailable");
     });
   });
 

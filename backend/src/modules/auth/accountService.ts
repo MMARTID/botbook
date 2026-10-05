@@ -124,6 +124,30 @@ async function removeExternalResource(label: string, action: () => Promise<void>
   }
 }
 
+/**
+ * Telnyx crea una app TeXML por assistant («ai-<id del assistant>») y no la
+ * borra con él. Best-effort: sin su assistant la app ya no atiende nada, así
+ * que un fallo aquí no debe dejar la cuenta a medio eliminar; pero se loguea
+ * con todo lo necesario para borrarla a mano, nunca en silencio.
+ */
+async function removeTexmlAppOfAssistant(businessId: string, assistantId: string) {
+  const app = `ai-${assistantId}`;
+  try {
+    const borradas = await telnyxAiAdapter.deleteTexmlAppOfAssistant(assistantId);
+    if (borradas === 0) {
+      console.warn(
+        `[Account] No había app TeXML «${app}» que borrar (negocio=${businessId}, assistant=${assistantId}): o se retiró en un intento anterior o Telnyx ha cambiado el nombre.`,
+      );
+    }
+  } catch (error) {
+    const status = getHttpStatus(error) ?? "sin status";
+    const mensaje = error instanceof Error ? error.message : String(error);
+    console.error(
+      `[Account] FALLO AL BORRAR LA APP TeXML «${app}» de Telnyx: queda huérfana y hay que borrarla a mano (negocio=${businessId}, assistant=${assistantId}, motivo=eliminación de la cuenta, status=${status}, error=${mensaje})`,
+    );
+  }
+}
+
 export async function deleteAccount(input: {
   userId: string;
   businessId: string;
@@ -192,6 +216,9 @@ export async function deleteAccount(input: {
       await removeExternalResource("el agente de Telnyx", () =>
         telnyxAiAdapter.deleteAssistant(agent.telnyxAssistantId!),
       );
+      // También cuando el assistant ya daba 404: un intento anterior pudo
+      // borrarlo y fallar antes de retirar su app.
+      await removeTexmlAppOfAssistant(business.id, agent.telnyxAssistantId);
     }
     if (agent.retellAgentId) {
       await removeExternalResource("el agente de Retell", () =>

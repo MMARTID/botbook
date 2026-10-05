@@ -1,8 +1,9 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import bcrypt from "bcryptjs";
 import { prisma } from "../../../src/lib/prisma.js";
 import { enqueueEmailJob } from "../../../src/lib/cloudTasks.js";
 import { getStripeClient } from "../../../src/lib/stripe.js";
+import { telnyxAiAdapter } from "../../../src/adapters/telnyx/TelnyxAiAdapter.js";
 import {
   AccountActionError,
   changeAccountPassword,
@@ -27,7 +28,10 @@ vi.mock("../../../src/adapters/telnyx/TelnyxAdapter.js", () => ({
   telnyxAdapter: { releaseNumber: vi.fn() },
 }));
 vi.mock("../../../src/adapters/telnyx/TelnyxAiAdapter.js", () => ({
-  telnyxAiAdapter: { deleteAssistant: vi.fn() },
+  telnyxAiAdapter: {
+    deleteAssistant: vi.fn(),
+    deleteTexmlAppOfAssistant: vi.fn(),
+  },
 }));
 vi.mock("bcryptjs", () => ({
   default: { compare: vi.fn(), hash: vi.fn() },
@@ -43,6 +47,8 @@ const mockedBcryptCompare = vi.mocked(bcrypt.compare);
 const mockedBcryptHash = vi.mocked(bcrypt.hash);
 const mockedEnqueueEmailJob = vi.mocked(enqueueEmailJob);
 const mockedGetStripeClient = vi.mocked(getStripeClient);
+const mockedDeleteAssistant = vi.mocked(telnyxAiAdapter.deleteAssistant);
+const mockedDeleteTexmlApp = vi.mocked(telnyxAiAdapter.deleteTexmlAppOfAssistant);
 
 const user = {
   id: "user_123",
@@ -137,5 +143,106 @@ describe("accountService", () => {
         subject: "Cuenta eliminada — Peluquería Norte",
       }),
     );
+  });
+
+  describe("app TeXML del assistant de Telnyx", () => {
+    const borrarCuenta = () =>
+      deleteAccount({
+        userId: "user_123",
+        businessId: "business_123",
+        currentPassword: "Anterior123",
+      });
+    let consoleError: ReturnType<typeof vi.spyOn>;
+    let consoleWarn: ReturnType<typeof vi.spyOn>;
+
+    beforeEach(() => {
+      mockedBusinessFindUnique.mockResolvedValue({
+        id: "business_123",
+        name: "Peluquería Norte",
+        stripeSubscriptionId: null,
+        telnyxPhoneNumberId: null,
+        retellPhoneNumberId: null,
+        agents: [
+          {
+            telnyxAssistantId: "assistant-abc",
+            retellAgentId: null,
+            retellLlmId: null,
+          },
+        ],
+        calls: [],
+      } as any);
+      mockedDeleteAssistant.mockResolvedValue(undefined);
+      mockedDeleteTexmlApp.mockResolvedValue(1);
+      consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+      consoleWarn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    });
+
+    afterEach(() => {
+      consoleError.mockRestore();
+      consoleWarn.mockRestore();
+    });
+
+    it("la borra después del assistant", async () => {
+      await borrarCuenta();
+
+      expect(mockedDeleteAssistant).toHaveBeenCalledWith("assistant-abc");
+      expect(mockedDeleteTexmlApp).toHaveBeenCalledWith("assistant-abc");
+      expect(mockedDeleteTexmlApp.mock.invocationCallOrder[0]).toBeGreaterThan(
+        mockedDeleteAssistant.mock.invocationCallOrder[0],
+      );
+      expect(mockedBusinessDelete).toHaveBeenCalledWith({ where: { id: "business_123" } });
+      expect(consoleError).not.toHaveBeenCalled();
+      expect(consoleWarn).not.toHaveBeenCalled();
+    });
+
+    it("si falla, elimina la cuenta igualmente y lo loguea con negocio, assistant, motivo y error", async () => {
+      mockedDeleteTexmlApp.mockRejectedValue(
+        Object.assign(new Error("Service Unavailable"), { status: 503 }),
+      );
+
+      await borrarCuenta();
+
+      expect(mockedBusinessDelete).toHaveBeenCalledWith({ where: { id: "business_123" } });
+      expect(consoleError).toHaveBeenCalledTimes(1);
+      const [mensaje] = consoleError.mock.calls[0] as [string];
+      expect(mensaje).toContain("[Account]");
+      expect(mensaje).toContain("«ai-assistant-abc»");
+      expect(mensaje).toContain("negocio=business_123");
+      expect(mensaje).toContain("assistant=assistant-abc");
+      expect(mensaje).toContain("motivo=eliminación de la cuenta");
+      expect(mensaje).toContain("status=503");
+      expect(mensaje).toContain("error=Service Unavailable");
+    });
+
+    it("la retira aunque el assistant ya no existiera (404 de un intento anterior)", async () => {
+      mockedDeleteAssistant.mockRejectedValue({ status: 404 });
+
+      await borrarCuenta();
+
+      expect(mockedDeleteTexmlApp).toHaveBeenCalledWith("assistant-abc");
+      expect(mockedBusinessDelete).toHaveBeenCalled();
+    });
+
+    it("no la toca si no se pudo borrar el assistant", async () => {
+      mockedDeleteAssistant.mockRejectedValue({ status: 500 });
+
+      await expect(borrarCuenta()).rejects.toEqual(
+        expect.objectContaining<AccountActionError>({ statusCode: 502 }),
+      );
+      expect(mockedDeleteTexmlApp).not.toHaveBeenCalled();
+      expect(mockedBusinessDelete).not.toHaveBeenCalled();
+    });
+
+    it("avisa si no encuentra ninguna app con el nombre del assistant", async () => {
+      mockedDeleteTexmlApp.mockResolvedValue(0);
+
+      await borrarCuenta();
+
+      expect(consoleWarn).toHaveBeenCalledWith(
+        expect.stringContaining("«ai-assistant-abc»"),
+      );
+      expect(consoleError).not.toHaveBeenCalled();
+      expect(mockedBusinessDelete).toHaveBeenCalled();
+    });
   });
 });
