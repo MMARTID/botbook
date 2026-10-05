@@ -1,9 +1,9 @@
 /**
  * Muestras de las voces que el panel deja elegir: cada voz de cada idioma
  * principal del mercado diciendo una frase de recepcionista en ese idioma,
- * con los mismos ajustes que tendría el assistant (el idioma de Soniox, el
- * refuerzo de MiniMax). Se guardan en frontend/public, donde las sirve la
- * app (rutaDeMuestra en lib/idiomas/panel.ts), en mp3 mono ligero.
+ * con los mismos ajustes que tendría el assistant (el idioma de Soniox). Se
+ * guardan en frontend/public, donde las sirve la app (rutaDeMuestra en
+ * lib/idiomas/panel.ts), en mp3 mono ligero.
  *
  * Uso (con TELNYX_API_KEY en el entorno):
  *   npx tsx scripts/muestrasDeVoces.ts [--todas]
@@ -52,10 +52,6 @@ function ajustesDeIdioma(
   voz: VozDelCatalogo
 ): Record<string, string> | undefined {
   if (voz.proveedor === "soniox") return { language: IDIOMAS[principal].iso };
-  const refuerzo = IDIOMAS[principal].refuerzoDeMiniMax;
-  if (voz.proveedor === "minimax" && refuerzo) {
-    return { language_boost: refuerzo };
-  }
   return undefined;
 }
 

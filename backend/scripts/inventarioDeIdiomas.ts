@@ -2,10 +2,11 @@
  * Inventario de idiomas de los negocios, solo lectura. Dice cuántos negocios
  * hay por idioma principal e idiomas activos, y cuáles cambiarían al leer
  * sus ajustes con las reglas del catálogo (lib/idiomas): un cooficial activo
- * con español principal pasa a ser el principal (otra voz y otro saludo), o
- * un idioma que la voz del principal no habla se quita. Sirve para avisar a
- * esos dueños antes de desplegar y para saber cuántos assistants de Telnyx
- * se resincronizarán.
+ * con español principal pasa a ser el principal (otra voz y otro saludo), un
+ * idioma que la voz del principal no habla se quita, o la voz que eligió el
+ * dueño deja de estar en el catálogo y atiende la de su género. Sirve para
+ * avisar a esos dueños antes de desplegar y para saber cuántos assistants de
+ * Telnyx se resincronizarán.
  *
  * Uso (con la DATABASE_URL del entorno que toque):
  *   npx tsx scripts/inventarioDeIdiomas.ts
@@ -40,7 +41,8 @@ async function main() {
     const bruto = (negocio.agentSettings ?? {}) as Record<string, unknown>;
     const ajustes = parseAgentSettings(negocio.agentSettings);
     const perfil = resolverIdiomas(ajustes);
-    const configuracion = `principal ${perfil.principal} · activos ${perfil.idiomas.join("+")} · voz ${perfil.voz.proveedor} · ${perfil.transcripcion.motor} · ${negocio.orchestrator}`;
+    const elegida = typeof bruto.voz === "string" ? bruto.voz : null;
+    const configuracion = `principal ${perfil.principal} · activos ${perfil.idiomas.join("+")} · voz ${perfil.voz.proveedor} ${perfil.voz.nombre}${elegida ? " (elegida)" : ""} · ${perfil.transcripcion.motor} · ${negocio.orchestrator}`;
     porConfiguracion.set(
       configuracion,
       (porConfiguracion.get(configuracion) ?? 0) + 1
@@ -48,15 +50,17 @@ async function main() {
 
     const guardadoPrincipal = bruto.voiceLanguage ?? "es-ES";
     const guardadosIdiomas = bruto.languages ?? ["es-ES"];
+    const pierdeLaVoz = elegida !== null && ajustes.voz !== elegida;
     if (
       clave(guardadoPrincipal) !== clave(perfil.principal) ||
-      clave(guardadosIdiomas) !== clave(perfil.idiomas)
+      clave(guardadosIdiomas) !== clave(perfil.idiomas) ||
+      pierdeLaVoz
     ) {
       const assistants = negocio.agents.filter(
         (agente) => agente.telnyxAssistantId
       ).length;
       cambian.push(
-        `- ${negocio.id} «${negocio.name}» (${negocio.orchestrator}, ${assistants} assistant(s) Telnyx): guardado ${clave(guardadosIdiomas)} / ${clave(guardadoPrincipal)} → ${clave(perfil.idiomas)} / ${perfil.principal}`
+        `- ${negocio.id} «${negocio.name}» (${negocio.orchestrator}, ${assistants} assistant(s) Telnyx): guardado ${clave(guardadosIdiomas)} / ${clave(guardadoPrincipal)} → ${clave(perfil.idiomas)} / ${perfil.principal}${pierdeLaVoz ? ` · la voz elegida ${elegida} se olvida, atiende ${perfil.voz.nombre}` : ""}`
       );
     }
   }

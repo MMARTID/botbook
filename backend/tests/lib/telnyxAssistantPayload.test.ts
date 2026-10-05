@@ -433,30 +433,6 @@ describe("buildTelnyxAssistantPayload", () => {
       });
     });
 
-    it("una voz de MiniMax lleva el refuerzo del catalán, no el idioma de Soniox", () => {
-      const payload = buildTelnyxAssistantPayload({
-        ...sonioxInput,
-        voice: "Minimax.speech-2.8-turbo.Spanish_SereneWoman",
-      });
-
-      expect(payload.voiceSettings).toMatchObject({
-        voice: "Minimax.speech-2.8-turbo.Spanish_SereneWoman",
-        language_boost: "Catalan",
-        expressive_mode: false,
-      });
-      expect(payload.voiceSettings).not.toHaveProperty("language");
-    });
-
-    it("una voz nativa de Azure no lleva ni idioma ni refuerzo", () => {
-      const payload = buildTelnyxAssistantPayload({
-        ...sonioxInput,
-        voice: "Azure.ca-ES-JoanaNeural",
-      });
-
-      expect(payload.voiceSettings).not.toHaveProperty("language");
-      expect(payload.voiceSettings).not.toHaveProperty("language_boost");
-    });
-
     it("si la cuenta da una voz Ultra de reserva, conserva su modo expresivo y no lleva idioma", () => {
       const payload = buildTelnyxAssistantPayload({
         ...sonioxInput,

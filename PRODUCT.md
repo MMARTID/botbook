@@ -66,8 +66,8 @@ Lo que un producto vecino no podría copiar honestamente:
   panel. El Gestor propone la acción y solo la ejecuta tras un «Confirmar» explícito — nunca de
   forma autónoma. (Reabrir un día ya cerrado todavía exige el panel web, no WhatsApp.)
 - **Voz diseñada para no sonar a robot, no solo "voz de IA".** El dueño elige la voz
-  escuchándola entre las de su idioma principal: Ultra de Telnyx en español; Soniox, Azure y
-  MiniMax en catalán, euskera y gallego. Matiz emocional automático (`expressive_mode`, solo en
+  escuchándola entre las de su idioma principal: Ultra de Telnyx en español y Soniox en
+  catalán, euskera y gallego. Matiz emocional automático (`expressive_mode`, solo en
   Ultra) y un fondo sutil de oficina para que la llamada no suene artificialmente silenciosa. La
   detección de turno de palabra corre en Deepgram Flux (Soniox con catalán, euskera o gallego,
   ajustado con llamadas reales), pensado para interrumpir y ser interrumpido de forma natural en

@@ -2414,8 +2414,7 @@ listas de idiomas ni decide por su cuenta:
   - **Por cada idioma (BCP-47):** ISO, nombre en el prompt, etiqueta del panel, saludo con
     `{negocio}`, pistas de transcripción (`flux` o `null`, `soniox`), locale de Retell (o `null`) y
     si exige su voz multilingüe, una nota opcional para el prompt (p. ej. valenciano y balear) y
-    sus **voces a elegir** (o `null` si solo puede acompañar a otro principal), más el
-    `refuerzoDeMiniMax` (`language_boost`) si tiene voces de MiniMax.
+    sus **voces a elegir** (o `null` si solo puede acompañar a otro principal).
   - **Cada voz:** id de Telnyx, proveedor (`telnyx` = Ultra, `soniox`, `azure`, `minimax`), nombre,
     género y qué idiomas habla (`habla`, «todos» en Soniox). La primera de cada género es la de
     por defecto.
@@ -2430,8 +2429,9 @@ listas de idiomas ni decide por su cuenta:
     la hay (un test recorre todas las combinaciones).
 - `resolver.ts`:
   - **`resolverIdiomas(ajustes)` → `PerfilDeIdiomas`:** idiomas normalizados, principal, la voz
-    que atiende y sus alternativas, ISO del principal, refuerzo de MiniMax, transcripción e
-    instrucción del prompt, más los cambios hechos.
+    que atiende y sus alternativas, ISO del principal, transcripción e instrucción del prompt,
+    más los cambios hechos. La elección de voz es `elegirVoz(voces, …)`, pura y con la lista como
+    parámetro (se prueba con voces que el catálogo aún no tiene).
   - **La voz:** la elegida (`AgentSettings.voz`) si es del principal y habla todos sus idiomas;
     si no, la primera de su género que los hable (y se avisa en el panel). Las alternativas, las
     demás del mismo género: la reserva si la voz ya no está en la cuenta.
@@ -2459,11 +2459,15 @@ al guardar.
   principal se conservan como legado (voz Ultra de su idioma, saludo en su idioma), pero no se
   ofrecen.
 - **Principal catalán, euskera o gallego:**
-  - Voces a elegir: Marta y Sergio de Soniox (por defecto: hablan todos los idiomas, con
-    `voice_settings.language` = ISO del principal), las nativas de Azure y, en catalán, las de
-    MiniMax con `language_boost: "Catalan"`. Las de Azure y MiniMax solo hablan su idioma y el
-    castellano: con inglés activo salen desactivadas en el panel. Todas aprobadas de oído el
-    03-10.
+  - Voces: Marta y Sergio de Soniox (hablan todos los idiomas, con `voice_settings.language` =
+    ISO del principal).
+  - Del 03 al 05-10 se ofrecieron también las nativas de Azure y cuatro de MiniMax (catalán con
+    `language_boost: "Catalan"`). Se retiraron por decisión del usuario: se cobran aparte por
+    carácter (ver «Coste por voz») y no mejoraban la espera. El inventario de producción del
+    05-10 confirmó que ningún negocio las había elegido; sus muestras de `frontend/public/voces`
+    se borran en una PR posterior, cuando el backend ya desplegado deje de ofrecerlas.
+  - En estudio: la voz Ultra hablando catalán con un diccionario de pronunciación de Telnyx
+    (plan del 05-10).
   - Transcripción con Soniox: `language_hints`, `context`, endpoint a 500 ms (el mínimo),
     `wait_seconds: 0.1` y 0.5 s sin puntuación (medido, ver abajo).
   - Saludo en su idioma; con catalán, el prompt pide adaptarse al valenciano y al balear.
@@ -2484,6 +2488,10 @@ herramienta):**
 | Catalán, voz MiniMax, Soniox a 500 ms / 0.5 s | castellano | 2135 ms (5 turnos) |
 | Catalán, voz MiniMax, Soniox a 700 ms / 0.8 s | castellano | 1928 ms |
 
+- **Coste por voz** (`/v2/usage_reports`, facturación del 03-10): el assistant cuesta 0,05 $ por
+  minuto empezado con cualquier voz y transcripción, y la síntesis de la Ultra va incluida. Las
+  demás se cobran aparte por carácter: Azure 0,006 $, Soniox 0,0145 $ y MiniMax 0,024 $ por cada
+  1.000 caracteres, de +0,002 a +0,014 $/min.
 - **La voz no cambia la espera:** Soniox y MiniMax contestan igual. Lo que la alarga es el fin de
   turno sin flux: el ajuste de 500 ms / 0.5 s quitó unos 670 ms con clientes en catalán sin más
   solapes. Aun así, el catalán queda entre medio segundo y un segundo por encima del español, y el
@@ -2515,7 +2523,8 @@ herramienta):**
   todas con `--todas`).
 - `verificarIdiomas.ts`: por cada nivel del catálogo y cada voz candidata crea un assistant
   temporal con el builder real, comprueba lo que Telnyx guardó y los cambios de voz e idioma
-  (de catalán a español y al revés, con el payload completo), y lo borra todo. 11/11 el 03-10.
+  (de catalán a español y al revés, con el payload completo), y lo borra todo. Desde el 05-10
+  tiene 7 casos: el de MiniMax se queda para vigilar que el adaptador borre su `language_boost`.
 - `medirLatenciaDeTurnos.ts`: espera entre el cliente y la recepcionista (p50/p95 y solapes) a
   partir de las grabaciones de doble canal de un negocio (`lib/latenciaDeTurnos.ts`, puro). La
   voz es lo que pasa de -38 dB con alguna parte por encima de -30 dB: el fondo de oficina suelta

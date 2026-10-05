@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   ajustesParaRetell,
+  elegirVoz,
   idiomaDeRetell,
   resolverIdiomas,
   saludoDelNegocio,
@@ -10,6 +11,7 @@ import {
   CODIGOS_DE_IDIOMA,
   type CodigoDeIdioma,
   type GeneroDeVoz,
+  type VozDelCatalogo,
 } from "../../../src/lib/idiomas/catalogo.js";
 
 const resolver = (
@@ -116,48 +118,74 @@ describe("resolverIdiomas — la voz que elige el dueño", () => {
     voz: string,
     voiceGender: GeneroDeVoz = "femenina"
   ) => resolverIdiomas({ languages, voiceLanguage, voiceGender, voz });
-  const JOANA = "Azure.ca-ES-JoanaNeural";
-  const SERENA = "Minimax.speech-2.8-turbo.Spanish_SereneWoman";
 
   it("atiende la elegida si es de su idioma principal y habla sus idiomas; su género manda", () => {
     const perfil = elegir(
-      ["es-ES", "ca-ES"],
+      ["es-ES", "ca-ES", "en-GB"],
       "ca-ES",
-      "Azure.ca-ES-EnricNeural",
+      "Soniox.tts-rt-v2.Sergio",
       "femenina"
     );
-    expect(perfil.voz.nombre).toBe("Enric");
+    expect(perfil.voz.nombre).toBe("Sergio");
     expect(perfil.genero).toBe("masculina");
     expect(perfil.cambios).toEqual([]);
   });
 
+  it("una elegida de otro idioma (cambió de principal) o retirada del catálogo se ignora sin aviso", () => {
+    for (const voz of ["Soniox.tts-rt-v2.Sergio", "Azure.ca-ES-JoanaNeural"]) {
+      const perfil = elegir(["es-ES"], "es-ES", voz);
+      expect(perfil.voz.nombre).toBe("Blanca");
+      expect(perfil.cambios).toEqual([]);
+    }
+  });
+});
+
+describe("elegirVoz, con voces que el catálogo aún no tiene", () => {
+  const voz = (
+    nombre: string,
+    genero: GeneroDeVoz,
+    habla: VozDelCatalogo["habla"]
+  ): VozDelCatalogo => ({
+    id: `Telnyx.Ultra.${nombre}`,
+    proveedor: "telnyx",
+    nombre,
+    genero,
+    habla,
+  });
+  // Como serán la Ultra en catalán (solo catalán y castellano) y Marta.
+  const SOLO_CA = voz("Restringida", "femenina", ["ca-ES", "es-ES"]);
+  const TODAS = voz("Todoterreno", "femenina", "todos");
+  const OTRA = voz("Otra", "femenina", "todos");
+  const EL = voz("Masculina", "masculina", "todos");
+  const VOCES = [TODAS, SOLO_CA, OTRA, EL];
+
   it("si la elegida no habla un idioma activo, atiende la primera de su género que los habla, con aviso", () => {
-    const perfil = elegir(["es-ES", "ca-ES", "en-GB"], "ca-ES", JOANA);
-    expect(perfil.voz.nombre).toBe("Marta");
-    expect(perfil.cambios).toEqual([
-      expect.objectContaining({ tipo: "voz", noHabla: "en-GB" }),
-    ]);
+    const { voz: atiende, cambio } = elegirVoz(
+      VOCES,
+      ["es-ES", "ca-ES", "en-GB"],
+      "masculina",
+      SOLO_CA.id
+    );
+    expect(atiende).toBe(TODAS);
+    expect(cambio).toEqual({
+      tipo: "voz",
+      de: SOLO_CA,
+      a: TODAS,
+      noHabla: "en-GB",
+    });
   });
 
-  it("una elegida de otro idioma (cambió de principal) se ignora sin aviso", () => {
-    const perfil = elegir(["es-ES"], "es-ES", JOANA);
-    expect(perfil.voz.nombre).toBe("Blanca");
-    expect(perfil.cambios).toEqual([]);
+  it("si la habla, atiende ella sin aviso", () => {
+    expect(
+      elegirVoz(VOCES, ["es-ES", "ca-ES"], "masculina", SOLO_CA.id)
+    ).toMatchObject({ voz: SOLO_CA, cambio: null });
   });
 
   it("las alternativas son las demás del mismo género que hablan sus idiomas", () => {
     expect(
-      elegir(["es-ES", "ca-ES"], "ca-ES", SERENA).alternativas.map(
-        (voz) => voz.nombre
-      )
-    ).toEqual(["Marta", "Joana", "Alba", "Clara"]);
-  });
-
-  it("MiniMax recibe el refuerzo del catalán", () => {
-    expect(elegir(["es-ES", "ca-ES"], "ca-ES", SERENA).refuerzoDeMiniMax).toBe(
-      "Catalan"
-    );
-    expect(resolver(["es-ES"]).refuerzoDeMiniMax).toBeNull();
+      elegirVoz(VOCES, ["es-ES", "ca-ES", "en-GB"], "femenina", OTRA.id)
+        .alternativas
+    ).toEqual([TODAS]);
   });
 });
 

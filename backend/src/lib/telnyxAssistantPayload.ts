@@ -518,10 +518,7 @@ export interface BuildTelnyxAssistantPayloadInput {
   /** Lo que el idioma decide del payload (resolverIdiomas, en
    * lib/idiomas/resolver.ts): el motor de transcripción con sus pistas y el
    * idioma en que arranca una voz de Soniox. */
-  idiomas: Pick<
-    PerfilDeIdiomas,
-    "transcripcion" | "isoDelPrincipal" | "refuerzoDeMiniMax"
-  >;
+  idiomas: Pick<PerfilDeIdiomas, "transcripcion" | "isoDelPrincipal">;
   /** Identificador Telnyx (`Telnyx.<modelo>.<voz>`), de Soniox
    * (`Soniox.tts-rt-v2.<voz>`) o de ElevenLabs vía `api_key_ref` — resuelto
    * contra la API de voces de la cuenta, no fijo. */
@@ -629,14 +626,9 @@ export function buildTelnyxAssistantPayload(
     voiceSettings: {
       voice: input.voice,
       // Las voces de Soniox hablan todos los idiomas: arrancan en el
-      // principal. Las de MiniMax necesitan el refuerzo del idioma (sin él
-      // leen el catalán como castellano). Las Ultra y las de Azure tienen
-      // el suyo.
+      // principal. Las Ultra tienen el suyo.
       ...(input.voice.startsWith("Soniox.")
         ? { language: input.idiomas.isoDelPrincipal }
-        : {}),
-      ...(input.voice.startsWith("Minimax.") && input.idiomas.refuerzoDeMiniMax
-        ? { language_boost: input.idiomas.refuerzoDeMiniMax }
         : {}),
       expressive_mode:
         input.voice.startsWith("Telnyx.Ultra.") ||

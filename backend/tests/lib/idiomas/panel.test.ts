@@ -2,9 +2,11 @@ import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, it, expect } from "vitest";
 import {
+  avisoDeCambio,
   catalogoParaElPanel,
   vistaPreviaDeIdiomas,
 } from "../../../src/lib/idiomas/panel.js";
+import type { VozDelCatalogo } from "../../../src/lib/idiomas/catalogo.js";
 
 const PUBLICO_DE_LA_APP = fileURLToPath(
   new URL("../../../../frontend/public", import.meta.url)
@@ -46,23 +48,13 @@ describe("catalogoParaElPanel", () => {
       muestra: "/voces/es/blanca.mp3",
     });
     expect(catalan.secundariosCompatibles).toEqual(TODOS);
-    expect(catalan.voces.map((voz) => voz.nombre)).toEqual([
-      "Marta",
-      "Sergio",
-      "Joana",
-      "Alba",
-      "Enric",
-      "Serena",
-      "Clara",
-      "Tomàs",
-      "Ramon",
-    ]);
+    expect(catalan.voces.map((voz) => voz.nombre)).toEqual(["Marta", "Sergio"]);
     expect(catalan.voces[0]).toMatchObject({
       habla: "todos",
       expresiva: false,
       muestra: "/voces/ca/marta.mp3",
     });
-    expect(catalan.voces[7].muestra).toBe("/voces/ca/tomas.mp3");
+    expect(catalan.voces[1].muestra).toBe("/voces/ca/sergio.mp3");
   });
 
   it("cada voz que se ofrece tiene su muestra en la app, sin compartir fichero", () => {
@@ -122,25 +114,6 @@ describe("vistaPreviaDeIdiomas", () => {
     ]);
   });
 
-  it("una voz elegida que no habla un idioma activo: avisa de cuál atenderá", () => {
-    const vista = vistaPreviaDeIdiomas(
-      {
-        languages: ["es-ES", "ca-ES", "en-GB"],
-        voiceLanguage: "ca-ES",
-        voiceGender: "masculina",
-        voz: "Azure.ca-ES-EnricNeural",
-      },
-      "Perruqueria Anna"
-    );
-
-    expect(vista.voz).toBe("Soniox.tts-rt-v2.Sergio");
-    expect(vista.voiceGender).toBe("masculina");
-    expect(vista.avisos).toEqual([
-      "Enric no habla inglés: atenderá Sergio.",
-      AVISO_SIN_FLUX,
-    ]);
-  });
-
   it("inglés como principal (legado): se mantiene y avisa de que ya no se ofrece", () => {
     const vista = vistaPreviaDeIdiomas(
       {
@@ -155,5 +128,30 @@ describe("vistaPreviaDeIdiomas", () => {
     expect(vista.avisos).toEqual([
       "El inglés como idioma principal ya no se ofrece: lo mantenemos, pero si lo cambias no podrás volver a elegirlo.",
     ]);
+  });
+});
+
+describe("avisoDeCambio", () => {
+  const voz = (nombre: string): VozDelCatalogo => ({
+    id: `Telnyx.Ultra.${nombre}`,
+    proveedor: "telnyx",
+    nombre,
+    genero: "femenina",
+    habla: ["ca-ES", "es-ES"],
+  });
+
+  it("una voz elegida que no habla un idioma activo: avisa de cuál atenderá", () => {
+    expect(
+      avisoDeCambio(
+        { tipo: "voz", de: voz("Blanca"), a: voz("Marta"), noHabla: "en-GB" },
+        "es-ES"
+      )
+    ).toBe("Blanca no habla inglés: atenderá Marta.");
+  });
+
+  it("volver al obligatorio como principal no necesita aviso", () => {
+    expect(
+      avisoDeCambio({ tipo: "principal", de: "en-GB", a: "es-ES" }, "es-ES")
+    ).toBeNull();
   });
 });

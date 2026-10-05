@@ -52,33 +52,9 @@ const CASOS: Caso[] = [
     languages: ["es-ES", "gl-ES"],
     voiceLanguage: "gl-ES",
   },
-  {
-    nombre: "Catalán con MiniMax",
-    languages: ["es-ES", "ca-ES"],
-    voiceLanguage: "ca-ES",
-    vozCandidata: {
-      id: "Minimax.speech-2.8-turbo.Spanish_SereneWoman",
-      ajustes: { language_boost: "Catalan" },
-    },
-  },
-  {
-    nombre: "Catalán con Azure",
-    languages: ["es-ES", "ca-ES"],
-    voiceLanguage: "ca-ES",
-    vozCandidata: { id: "Azure.ca-ES-JoanaNeural" },
-  },
-  {
-    nombre: "Euskera con Azure",
-    languages: ["es-ES", "eu-ES"],
-    voiceLanguage: "eu-ES",
-    vozCandidata: { id: "Azure.eu-ES-AinhoaNeural" },
-  },
-  {
-    nombre: "Gallego con Azure",
-    languages: ["es-ES", "gl-ES"],
-    voiceLanguage: "gl-ES",
-    vozCandidata: { id: "Azure.gl-ES-SabelaNeural" },
-  },
+  // Las voces de MiniMax ya no están en el catálogo (2026-10-05), pero este
+  // caso vigila que el adaptador borre su `language_boost` al volver a la
+  // Ultra: Telnyx lo conservaba sin dar error.
   {
     nombre: "De catalán con MiniMax a español",
     languages: ["es-ES", "ca-ES"],
