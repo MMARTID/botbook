@@ -174,6 +174,16 @@ export interface TelnyxVoice {
   language?: string;
   gender?: string;
   provider?: string;
+  /** Descripción en inglés de Telnyx («Warm, welcoming Spanish female…»).
+   * El SDK 7.24 no la declara; la API real la trae (comprobado el
+   * 2026-10-05). */
+  label?: string;
+  /** Acento («Castilian», «British», «Parisian»…); no todas lo traen y el
+   * SDK 7.24 no lo declara. */
+  accent?: string;
+  /** Voz que Telnyx va a retirar. La API solo envía el campo cuando vale
+   * `true` (130 de 1.259 voces el 2026-10-05); el SDK 7.24 no lo declara. */
+  deprecated?: boolean;
 }
 
 export class TelnyxAiAdapter {
@@ -799,14 +809,18 @@ export class TelnyxAiAdapter {
     const client = getTelnyxClient();
     const response = await client.textToSpeech.listVoices({ provider });
     // La respuesta real trae más campos (`id` en vez de `voice_id`, `label`,
-    // `accent`, `model_id`) de los que declara el SDK — se accede sin el
-    // tipo del SDK para no ocultar el campo que de verdad importa (`id`).
+    // `accent`, `deprecated`, `model_id`) de los que declara el SDK 7.24 —
+    // se accede sin el tipo del SDK para no ocultar el campo que de verdad
+    // importa (`id`) ni los que usa scripts/generarVocesUltra.ts.
     const voices = (response.voices ?? []) as unknown as Array<{
       id?: string;
       name?: string;
       language?: string;
       gender?: string;
       provider?: string;
+      label?: string;
+      accent?: string;
+      deprecated?: boolean;
     }>;
     return voices
       .filter((voice): voice is { id: string } & typeof voice =>
@@ -818,6 +832,9 @@ export class TelnyxAiAdapter {
         language: voice.language,
         gender: voice.gender,
         provider: voice.provider,
+        label: voice.label,
+        accent: voice.accent,
+        deprecated: voice.deprecated,
       }));
   }
 
