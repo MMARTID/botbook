@@ -39,11 +39,14 @@ describe("resolveTelnyxVoiceId", () => {
   });
 
   it("es insensible a mayúsculas en el idioma que devuelve la API (no en el parámetro, que ya es un enum tipado)", async () => {
+    // La reserva solo da Ultra (revisión del 2026-10-05): antes «v1».
     mockedListVoices.mockResolvedValue([
-      { id: "v1", language: "ES-es", gender: "female" },
+      { id: "Telnyx.Ultra.v1", language: "ES-es", gender: "female" },
     ]);
 
-    expect(await resolveTelnyxVoiceId("es-ES", "femenina")).toBe("v1");
+    expect(await resolveTelnyxVoiceId("es-ES", "femenina")).toBe(
+      "Telnyx.Ultra.v1"
+    );
   });
 
   it("devuelve null si no hay ninguna voz compatible", async () => {
@@ -266,5 +269,150 @@ describe("resolveTelnyxEligibility", () => {
 
     expect(result.eligible).toBe(false);
     expect(result.reason).toContain("Telnyx down");
+  });
+});
+
+// La API lista las nativas de alemán, italiano y neerlandés sin región
+// («de», «it», «nl»): antes la reserva las comparaba con «de-DE» y nunca
+// las encontraba (2026-10-05).
+describe("resolveTelnyxVoiceId — reserva con los locales de Telnyx", () => {
+  it("reconoce las nativas sin región como de su idioma", async () => {
+    mockedListVoices.mockResolvedValue([
+      { id: "Telnyx.Ultra.de-1", language: "de", gender: "Female" },
+      { id: "Telnyx.Ultra.it-1", language: "it", gender: "Male" },
+      { id: "Telnyx.Ultra.nl-1", language: "nl", gender: "Female" },
+    ]);
+
+    expect(await resolveTelnyxVoiceId("de-DE", "femenina")).toBe(
+      "Telnyx.Ultra.de-1"
+    );
+    expect(await resolveTelnyxVoiceId("it-IT", "masculina")).toBe(
+      "Telnyx.Ultra.it-1"
+    );
+    expect(await resolveTelnyxVoiceId("nl-NL", "femenina")).toBe(
+      "Telnyx.Ultra.nl-1"
+    );
+  });
+
+  it("no da de reserva una voz deprecada ni, en español, una de otro acento", async () => {
+    mockedListVoices.mockResolvedValue([
+      {
+        id: "Telnyx.Ultra.deprecada",
+        language: "es-ES",
+        gender: "Female",
+        deprecated: true,
+      },
+      {
+        id: "Telnyx.Ultra.mexicana",
+        language: "es-ES",
+        gender: "Female",
+        accent: "Mexican",
+      },
+      {
+        id: "Telnyx.Ultra.castellana",
+        language: "es-ES",
+        gender: "Female",
+        accent: "Castilian",
+      },
+    ]);
+
+    expect(await resolveTelnyxVoiceId("es-ES", "femenina")).toBe(
+      "Telnyx.Ultra.castellana"
+    );
+  });
+
+  // Revisión del 2026-10-05: con el volcado real de la API sin las voces
+  // del catálogo, la reserva daba Telnyx.KokoroTTS.ef_dora (es-ES, sin
+  // acento), una voz monolingüe que no habla el inglés activo.
+  it("de reserva solo da una Ultra, nunca de otro modelo ni de las que la curación excluye", async () => {
+    mockedListVoices.mockResolvedValue([
+      { id: "Telnyx.KokoroTTS.ef_dora", language: "es-ES", gender: "Female" },
+      {
+        id: "Telnyx.Ultra.latina",
+        language: "es-ES",
+        gender: "Female",
+        accent: "Latin American",
+      },
+      {
+        id: "Telnyx.Ultra.castellana",
+        language: "es-ES",
+        gender: "Female",
+        accent: "Castilian",
+      },
+      { id: "Telnyx.KokoroTTS.bm_george", language: "en-GB", gender: "Male" },
+      // Caspian - Oracle: excluida (efecto de eco).
+      {
+        id: "Telnyx.Ultra.d7862948-75c3-4c7c-ae28-2959fe166f49",
+        language: "en-GB",
+        gender: "Male",
+      },
+      { id: "Telnyx.Ultra.britanico", language: "en-GB", gender: "Male" },
+    ]);
+
+    expect(await resolveTelnyxVoiceId("es-ES", "femenina")).toBe(
+      "Telnyx.Ultra.castellana"
+    );
+    expect(await resolveTelnyxVoiceId("en-GB", "masculina")).toBe(
+      "Telnyx.Ultra.britanico"
+    );
+    const conIngles = await resolveTelnyxEligibility({
+      ...DEFAULT_AGENT_SETTINGS,
+      languages: ["es-ES", "en-GB"],
+    });
+    expect(conIngles.voiceId).toBe("Telnyx.Ultra.castellana");
+  });
+
+  it("sin ninguna Ultra de su idioma en la cuenta no es elegible, aunque haya voces de otros modelos", async () => {
+    mockedListVoices.mockResolvedValue([
+      { id: "Telnyx.KokoroTTS.ff_siwis", language: "fr-FR", gender: "Female" },
+    ]);
+
+    const result = await resolveTelnyxEligibility({
+      ...DEFAULT_AGENT_SETTINGS,
+      languages: ["es-ES", "fr-FR"],
+      voiceLanguage: "fr-FR",
+    });
+
+    expect(result.eligible).toBe(false);
+    expect(result.voiceId).toBeNull();
+  });
+
+  it("un negocio que saluda en alemán es elegible con la voz alemana del catálogo", async () => {
+    mockedListVoices.mockResolvedValue([
+      {
+        id: "Telnyx.Ultra.e00dd3df-19e7-4cd4-827a-7ff6687b6954",
+        language: "de",
+        gender: "Male",
+      },
+    ]);
+
+    const result = await resolveTelnyxEligibility({
+      ...DEFAULT_AGENT_SETTINGS,
+      voiceGender: "masculina",
+      languages: ["es-ES", "de-DE"],
+      voiceLanguage: "de-DE",
+    });
+
+    expect(result).toEqual({
+      eligible: true,
+      status: "eligible",
+      reason: null,
+      voiceId: "Telnyx.Ultra.e00dd3df-19e7-4cd4-827a-7ff6687b6954",
+    });
+    expect(mockedListVoices).toHaveBeenCalledWith("telnyx");
+  });
+
+  it("con catalán activo y saludo en español usa la voz de Soniox", async () => {
+    mockedListVoices.mockResolvedValue(SONIOX_VOICES);
+
+    const result = await resolveTelnyxEligibility({
+      ...DEFAULT_AGENT_SETTINGS,
+      voiceGender: "masculina",
+      languages: ["es-ES", "ca-ES"],
+      voiceLanguage: "es-ES",
+    });
+
+    expect(result.voiceId).toBe("Soniox.tts-rt-v2.Sergio");
+    expect(mockedListVoices).toHaveBeenCalledWith("soniox");
   });
 });

@@ -363,6 +363,82 @@ describe("syncAgentToRetell — voiceGender", () => {
     );
   });
 
+  it("con saludo en alemán, Retell saluda en alemán, atiende español y alemán y usa la cadena multilingüe", async () => {
+    mockedBusinessFindUnique.mockResolvedValue({
+      name: "Salon Anna",
+      businessDetails: null,
+      businessType: "peluqueria",
+      agentSettings: {
+        version: 1,
+        tone: "warm",
+        primaryGoal: "bookings",
+        responseStyle: "concise",
+        escalation: "take_message",
+        voiceGender: "femenina",
+        languages: ["es-ES", "de-DE"],
+        voiceLanguage: "de-DE",
+      },
+      orchestrator: "retell",
+      minAdvanceBookingMinutes: null,
+      maxAppointmentDurationMinutes: null,
+    } as any);
+
+    await syncAgentToRetell("biz_aleman");
+
+    expect(mockedUpdateLlm).toHaveBeenCalledWith(
+      "retell_llm_1",
+      expect.objectContaining({
+        beginMessage:
+          "Hallo, vielen Dank für Ihren Anruf bei Salon Anna. Wie kann ich Ihnen helfen?",
+      })
+    );
+    expect(mockedUpdateAgent).toHaveBeenCalledWith(
+      "retell_agent_1",
+      expect.objectContaining({
+        language: ["es-ES", "de-DE"],
+        voiceModel: "eleven_v3",
+      })
+    );
+  });
+
+  it("con catalán activo y saludo en español, Retell saluda en español con la cadena multilingüe", async () => {
+    mockedBusinessFindUnique.mockResolvedValue({
+      name: "Perruqueria Anna",
+      businessDetails: null,
+      businessType: "peluqueria",
+      agentSettings: {
+        version: 1,
+        tone: "warm",
+        primaryGoal: "bookings",
+        responseStyle: "concise",
+        escalation: "take_message",
+        voiceGender: "femenina",
+        languages: ["es-ES", "ca-ES"],
+        voiceLanguage: "es-ES",
+      },
+      orchestrator: "retell",
+      minAdvanceBookingMinutes: null,
+      maxAppointmentDurationMinutes: null,
+    } as any);
+
+    await syncAgentToRetell("biz_catalan_es");
+
+    expect(mockedUpdateLlm).toHaveBeenCalledWith(
+      "retell_llm_1",
+      expect.objectContaining({
+        beginMessage:
+          "Hola, gracias por llamar a Perruqueria Anna. ¿En qué te puedo ayudar?",
+      })
+    );
+    expect(mockedUpdateAgent).toHaveBeenCalledWith(
+      "retell_agent_1",
+      expect.objectContaining({
+        language: ["es-ES", "ca-ES"],
+        voiceModel: "eleven_v3",
+      })
+    );
+  });
+
   it("no revienta si el negocio no existe", async () => {
     mockedBusinessFindUnique.mockResolvedValue(null as any);
 
@@ -491,6 +567,46 @@ describe("resolveRetellVoiceProfile", () => {
       fallbackVoiceIds: ["minimax-Camille"],
       voiceProvider: "elevenlabs",
     });
+  });
+});
+
+// Saludo y cooficial separados (2026-10-05): con un saludo que no es
+// español o una cooficial activa, Retell necesita la cadena multilingüe.
+describe("resolveRetellVoiceProfile — saludo extranjero y cooficial con saludo en español", () => {
+  it("usa la cadena multilingüe si saluda en inglés o en alemán", () => {
+    for (const voiceLanguage of ["en-GB", "de-DE"] as const) {
+      expect(
+        resolveRetellVoiceProfile({
+          ...DEFAULT_AGENT_SETTINGS,
+          voiceGender: "masculina",
+          languages: ["es-ES", voiceLanguage],
+          voiceLanguage,
+        }),
+        voiceLanguage
+      ).toEqual({
+        voiceId: "11labs-Santiago",
+        voiceModel: "eleven_v3",
+        fallbackVoiceIds: ["minimax-Louis"],
+        voiceProvider: "elevenlabs",
+      });
+    }
+  });
+
+  it("usa la cadena multilingüe con catalán activo y saludo en español, y Cartesia con euskera (que Retell no tiene)", () => {
+    expect(
+      resolveRetellVoiceProfile({
+        ...DEFAULT_AGENT_SETTINGS,
+        languages: ["es-ES", "ca-ES"],
+        voiceLanguage: "es-ES",
+      }).voiceProvider
+    ).toBe("elevenlabs");
+    expect(
+      resolveRetellVoiceProfile({
+        ...DEFAULT_AGENT_SETTINGS,
+        languages: ["es-ES", "eu-ES"],
+        voiceLanguage: "eu-ES",
+      }).voiceProvider
+    ).toBe("cartesia");
   });
 });
 

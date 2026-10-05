@@ -178,7 +178,8 @@ describe("parseAgentSettings — voiceGender", () => {
       ...DEFAULT_AGENT_SETTINGS,
       tone: "direct",
       languages: ["es-ES", "ca-ES"],
-      voiceLanguage: "ca-ES",
+      // Desde el 2026-10-05 el catalán activo ya no cambia el saludo.
+      voiceLanguage: "es-ES",
     });
     expect(
       parseAgentSettings({
@@ -287,6 +288,46 @@ describe("AgentSettings — la voz elegida", () => {
       tone: "direct",
       voiceLanguage: "ca-ES",
     });
+  });
+});
+
+describe("AgentSettings — la voz elegida entre las de la familia (2026-10-05)", () => {
+  const LARA = "Telnyx.Ultra.85b356c1-c638-404d-b986-f54a53d957d6";
+
+  it("guarda una Ultra de España que no es la de por defecto, con su género", () => {
+    const guardado = AgentSettingsSchema.parse({
+      ...DEFAULT_AGENT_SETTINGS,
+      voiceGender: "masculina",
+      voz: LARA,
+    });
+
+    expect(guardado.voz).toBe(LARA);
+    expect(guardado.voiceGender).toBe("femenina");
+  });
+
+  it("la olvida al activar el catalán (atienden Marta o Sergio) sin tocar el resto", () => {
+    const guardado = AgentSettingsSchema.parse({
+      ...DEFAULT_AGENT_SETTINGS,
+      tone: "direct",
+      languages: ["es-ES", "ca-ES"],
+      voz: LARA,
+    });
+
+    expect(guardado).not.toHaveProperty("voz");
+    expect(guardado).toMatchObject({
+      tone: "direct",
+      languages: ["es-ES", "ca-ES"],
+      voiceLanguage: "es-ES",
+    });
+  });
+
+  it("rechaza una id Ultra que no está en el catálogo", () => {
+    expect(
+      AgentSettingsSchema.safeParse({
+        ...DEFAULT_AGENT_SETTINGS,
+        voz: "Telnyx.Ultra.00000000-0000-0000-0000-000000000000",
+      }).success
+    ).toBe(false);
   });
 });
 
@@ -399,30 +440,74 @@ describe("buildManagedAgentPrompt — idiomas", () => {
     expect(prompt).toContain("si es uno de estos: español de España, inglés, francés.");
   });
 
+  // Desde el 2026-10-05 solo cabe una cooficial: el euskera de antes se
+  // cambia por el inglés para seguir probando la lista de idiomas.
   it("con gallego principal saluda en gallego y habla todos sus idiomas", () => {
     const prompt = buildManagedAgentPrompt({
       businessName: "Peluquería Ejemplo",
       settings: {
         ...DEFAULT_AGENT_SETTINGS,
-        languages: ["es-ES", "eu-ES", "gl-ES"],
+        languages: ["es-ES", "en-GB", "gl-ES"],
         voiceLanguage: "gl-ES",
       },
     });
 
     expect(prompt).toContain("Empieza siempre con el saludo en gallego.");
-    expect(prompt).toContain("si es uno de estos: español de España, euskera, gallego.");
+    expect(prompt).toContain("si es uno de estos: español de España, inglés, gallego.");
     expect(prompt).not.toContain("contesta en español de España");
+  });
+
+  it("con catalán activo y saludo en español saluda en español y lista el catalán con su nota", () => {
+    const prompt = buildManagedAgentPrompt({
+      businessName: "Perruqueria Anna",
+      settings: {
+        ...DEFAULT_AGENT_SETTINGS,
+        languages: ["es-ES", "ca-ES"],
+        voiceLanguage: "es-ES",
+      },
+    });
+
+    expect(prompt).toContain(
+      "Empieza siempre con el saludo en español de España. Tras la primera intervención de quien llama, responde y continúa exclusivamente en el idioma que use si es uno de estos: español de España, catalán."
+    );
+    expect(prompt).toContain(
+      "Si quien llama usa formas valencianas o baleares del catalán, adáptate a ellas."
+    );
+  });
+
+  it("con saludo en alemán saluda en alemán", () => {
+    const prompt = buildManagedAgentPrompt({
+      businessName: "Salon Anna",
+      settings: {
+        ...DEFAULT_AGENT_SETTINGS,
+        languages: ["es-ES", "de-DE"],
+        voiceLanguage: "de-DE",
+      },
+    });
+
+    expect(prompt).toContain("Empieza siempre con el saludo en alemán.");
+    expect(prompt).toContain("si es uno de estos: español de España, alemán.");
   });
 });
 
 describe("idiomas de Soniox y de Retell", () => {
-  it("acepta euskera y gallego y los ordena como la lista de idiomas", () => {
+  // Hasta el 2026-10-05 cabían varias; ahora solo una cooficial (la voz de
+  // Soniox arranca en una sola): la del saludo o la primera.
+  it("con euskera y gallego a la vez se queda una: la del saludo o, si no, la primera en el orden de la lista", () => {
     const parsed = parseAgentSettings({
       ...DEFAULT_AGENT_SETTINGS,
       languages: ["gl-ES", "es-ES", "eu-ES"],
     });
 
-    expect(parsed.languages).toEqual(["es-ES", "eu-ES", "gl-ES"]);
+    expect(parsed.languages).toEqual(["es-ES", "eu-ES"]);
+    expect(parsed.voiceLanguage).toBe("es-ES");
+    expect(
+      parseAgentSettings({
+        ...DEFAULT_AGENT_SETTINGS,
+        languages: ["gl-ES", "es-ES", "eu-ES"],
+        voiceLanguage: "gl-ES",
+      }).languages
+    ).toEqual(["es-ES", "gl-ES"]);
   });
 
   it("con catalán, euskera o gallego activos el principal pasa a uno de ellos, sin perder el resto", () => {

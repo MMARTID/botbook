@@ -17,7 +17,10 @@ import {
   esCodigoDeIdioma,
 } from "../../lib/idiomas/catalogo.js";
 import { IDIOMA_OBLIGATORIO, idiomasConocidos } from "../../lib/idiomas/ajustes.js";
-import { catalogoParaElPanel, vistaPreviaDeIdiomas } from "../../lib/idiomas/panel.js";
+import {
+  catalogoConCamposDelPanelAnterior,
+  vistaPreviaDeIdiomas,
+} from "../../lib/idiomas/panel.js";
 import { planAllows, resolvePlanId } from "../../lib/planFeatures.js";
 import { isBusinessType } from "../../lib/businessType.js";
 import { syncAgentNameWithBusinessType, syncAgentToRetell } from "../../lib/agentBootstrap.js";
@@ -395,11 +398,13 @@ export async function businessesRoutes(fastify: FastifyInstance) {
 
   // Idiomas de la recepcionista para el panel (lib/idiomas/panel.ts): qué
   // se ofrece y qué hará con una selección, para que el frontend no repita
-  // las reglas del catálogo.
+  // las reglas del catálogo. Con los campos del panel anterior durante un
+  // despliegue (catalogoConCamposDelPanelAnterior).
   fastify.get(
     "/business/me/idiomas",
     { preValidation: [fastify.authenticate] },
-    async (_request, reply) => reply.send(catalogoParaElPanel())
+    async (_request, reply) =>
+      reply.send(catalogoConCamposDelPanelAnterior())
   );
 
   fastify.post(

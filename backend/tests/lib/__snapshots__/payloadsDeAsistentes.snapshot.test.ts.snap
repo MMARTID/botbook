@@ -40,6 +40,39 @@ exports[`payloads de asistentes (instantáneas) > assistant de la recepcionista 
 }
 `;
 
+exports[`payloads de asistentes (instantáneas) > assistant de la recepcionista con español con una voz elegida que no es la de por defecto (Lara) 1`] = `
+{
+  "greeting": "Hola, gracias por llamar a Perruqueria Anna. ¿En qué te puedo ayudar?",
+  "interruptionSettings": {
+    "interrupt_prediction_threshold": 0.4,
+    "start_speaking_plan": {
+      "wait_seconds": 0.1,
+    },
+  },
+  "transcription": {
+    "language": "es",
+    "model": "deepgram/flux",
+    "settings": {
+      "eager_eot_threshold": 0.4,
+      "eot_threshold": 0.8,
+      "eot_timeout_ms": 5000,
+      "keyterm": "Tall,Laura",
+      "numerals": true,
+      "smart_format": true,
+    },
+  },
+  "voiceSettings": {
+    "background_audio": {
+      "type": "predefined_media",
+      "value": "office",
+      "volume": 0.2,
+    },
+    "expressive_mode": true,
+    "voice": "Telnyx.Ultra.85b356c1-c638-404d-b986-f54a53d957d6",
+  },
+}
+`;
+
 exports[`payloads de asistentes (instantáneas) > assistant de la recepcionista con eu-ES como idioma principal 1`] = `
 {
   "greeting": "Kaixo, Perruqueria Anna. Zertan lagun zaitzaket?",
@@ -114,6 +147,78 @@ exports[`payloads de asistentes (instantáneas) > assistant de la recepcionista 
     },
     "expressive_mode": false,
     "language": "gl",
+    "voice": "Soniox.tts-rt-v2.Marta",
+  },
+}
+`;
+
+exports[`payloads de asistentes (instantáneas) > assistant de la recepcionista con saludo en alemán (su Ultra nativa y flux) 1`] = `
+{
+  "greeting": "Hallo, vielen Dank für Ihren Anruf bei Perruqueria Anna. Wie kann ich Ihnen helfen?",
+  "interruptionSettings": {
+    "interrupt_prediction_threshold": 0.4,
+    "start_speaking_plan": {
+      "wait_seconds": 0.1,
+    },
+  },
+  "transcription": {
+    "language": "multi",
+    "model": "deepgram/flux",
+    "settings": {
+      "eager_eot_threshold": 0.4,
+      "eot_threshold": 0.8,
+      "eot_timeout_ms": 5000,
+      "keyterm": "Tall,Laura",
+      "numerals": true,
+      "smart_format": true,
+    },
+  },
+  "voiceSettings": {
+    "background_audio": {
+      "type": "predefined_media",
+      "value": "office",
+      "volume": 0.2,
+    },
+    "expressive_mode": true,
+    "voice": "Telnyx.Ultra.38aabb6a-f52b-4fb0-a3d1-988518f4dc06",
+  },
+}
+`;
+
+exports[`payloads de asistentes (instantáneas) > assistant de la recepcionista con saludo en español con catalán activo (Marta, Soniox en catalán) 1`] = `
+{
+  "greeting": "Hola, gracias por llamar a Perruqueria Anna. ¿En qué te puedo ayudar?",
+  "interruptionSettings": {
+    "start_speaking_plan": {
+      "transcription_endpointing_plan": {
+        "on_no_punctuation_seconds": 0.5,
+        "on_number_seconds": 0.5,
+        "on_punctuation_seconds": 0.1,
+      },
+      "wait_seconds": 0.1,
+    },
+  },
+  "transcription": {
+    "language": "auto",
+    "model": "soniox/stt-rt-v5",
+    "settings": {
+      "context": "Tall,Laura",
+      "enable_endpoint_detection": true,
+      "language_hints": [
+        "es",
+        "ca",
+      ],
+      "max_endpoint_delay_ms": 500,
+    },
+  },
+  "voiceSettings": {
+    "background_audio": {
+      "type": "predefined_media",
+      "value": "office",
+      "volume": 0.2,
+    },
+    "expressive_mode": false,
+    "language": "ca",
     "voice": "Soniox.tts-rt-v2.Marta",
   },
 }

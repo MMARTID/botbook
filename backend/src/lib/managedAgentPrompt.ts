@@ -33,13 +33,16 @@ const CAMPOS_DE_AJUSTES = {
   // Idiomas de atención (catálogo en lib/idiomas/catalogo.ts). Los negocios
   // anteriores a esta mejora no tienen languages: español, como siempre.
   languages: EsquemaDeIdiomas.default(["es-ES"]),
-  // Idioma principal: el del saludo y el que decide la voz (Ultra para
-  // español, Soniox para catalán, euskera y gallego). El campo conserva su
-  // nombre histórico (antes «idioma de la voz») para no migrar el JSON.
+  // El idioma en que saluda (desde el 2026-10-05 ya no decide solo la voz:
+  // con una cooficial activa atienden las de Soniox, salude en ella o en
+  // español; ver familiaDeVoces en lib/idiomas/catalogo.ts). El campo
+  // conserva su nombre histórico (antes «idioma de la voz») para no migrar
+  // el JSON.
   voiceLanguage: EsquemaDeIdiomaPrincipal.default("es-ES"),
-  // La voz que eligió el dueño entre las de su idioma principal (desde el
-  // 2026-10-03). Sin valor, la primera de su género: así un negocio que no
-  // elige sigue con la de siempre y recibe las mejoras del catálogo.
+  // La voz que eligió el dueño entre las que atienden con sus idiomas
+  // (desde el 2026-10-03). Sin valor, la primera de su género: así un
+  // negocio que no elige sigue con la de siempre y recibe las mejoras del
+  // catálogo.
   voz: EsquemaDeVoz.optional(),
   // «Cuándo pasarme llamadas» (docs/historico/PLAN-TELEFONIA-UX.md § 5,
   // fase 4). Sin
@@ -58,22 +61,23 @@ export const AgentSettingsSchema = z
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         message:
-          "El idioma de la voz debe estar entre los idiomas de atención activados.",
+          "El idioma del saludo debe estar entre los idiomas de atención activados.",
         path: ["voiceLanguage"],
       });
     }
   })
-  // Corrige (no rechaza) lo que la voz no puede atender, p. ej. catalán
-  // activo con español principal: ver normalizarIdiomas.
+  // Corrige (no rechaza) lo que la voz no puede atender, p. ej. dos lenguas
+  // cooficiales a la vez o un saludo en inglés con catalán activo: ver
+  // normalizarIdiomas.
   .transform((settings) => {
     const { languages, voiceLanguage } = normalizarIdiomas(settings);
     return conVozValida({ ...settings, languages, voiceLanguage });
   });
 
 /**
- * La voz elegida se guarda solo si atiende de verdad: de su idioma
- * principal y hablando todos sus idiomas (si no, la vista previa ya avisó
- * de cuál atenderá y se olvida la elección). El género, el de la voz.
+ * La voz elegida se guarda solo si atiende de verdad: de la familia que
+ * atiende con esos idiomas y hablándolos todos (si no, la vista previa ya
+ * enseñó cuál atenderá y se olvida la elección). El género, el de la voz.
  */
 function conVozValida<
   T extends {

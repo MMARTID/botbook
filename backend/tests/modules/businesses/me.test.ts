@@ -519,13 +519,15 @@ describe("idiomas de la recepcionista en el panel", () => {
     vi.clearAllMocks();
   });
 
+  // Desde el 2026-10-05 el catalán activo con saludo en español es válido:
+  // lo que se corrige ahora es un saludo extranjero con una cooficial.
   it("GET /business/me devuelve los idiomas tal como los aplica la recepcionista", async () => {
     mockedBusinessFindUnique.mockResolvedValue(
       negocioDePrisma({
         agentSettings: {
           ...DEFAULT_AGENT_SETTINGS,
-          languages: ["es-ES", "ca-ES"],
-          voiceLanguage: "es-ES",
+          languages: ["es-ES", "en-GB", "ca-ES"],
+          voiceLanguage: "en-GB",
         },
       }) as any
     );
@@ -534,7 +536,7 @@ describe("idiomas de la recepcionista en el panel", () => {
     const response = await fastify.inject({ method: "GET", url: "/business/me" });
 
     expect(response.json().agentSettings).toMatchObject({
-      languages: ["es-ES", "ca-ES"],
+      languages: ["es-ES", "en-GB", "ca-ES"],
       voiceLanguage: "ca-ES",
     });
   });
@@ -550,7 +552,73 @@ describe("idiomas de la recepcionista en el panel", () => {
     expect(response.statusCode).toBe(200);
     expect(
       response.json().principales.map((principal: { codigo: string }) => principal.codigo)
-    ).toEqual(["es-ES", "ca-ES", "eu-ES", "gl-ES"]);
+    ).toEqual([
+      "es-ES",
+      "ca-ES",
+      "eu-ES",
+      "gl-ES",
+      "en-GB",
+      "fr-FR",
+      "de-DE",
+      "it-IT",
+      "pt-PT",
+      "nl-NL",
+    ]);
+  });
+
+  // Vercel publica la app antes que Cloud Run el backend: una pestaña con
+  // la app anterior lee `habla` de cada voz y `secundariosCompatibles` de
+  // cada saludo, y sin ellos «Cómo atiende» lanzaba al pintar.
+  it("GET /business/me/idiomas lleva los campos que leía el panel anterior", async () => {
+    const fastify = await buildServer();
+
+    const response = await fastify.inject({
+      method: "GET",
+      url: "/business/me/idiomas",
+    });
+
+    const [espanol, catalan] = response.json().principales;
+    expect(espanol.secundariosCompatibles).toEqual([
+      "en-GB",
+      "fr-FR",
+      "de-DE",
+      "it-IT",
+      "pt-PT",
+      "nl-NL",
+    ]);
+    expect(espanol.voces[0]).toMatchObject({
+      nombre: "Blanca",
+      expresiva: true,
+    });
+    expect(espanol.voces[0].habla).toContain("es-ES");
+    expect(catalan.voces[0]).toMatchObject({ nombre: "Marta", habla: "todos" });
+  });
+
+  it("POST /business/me/idiomas/previsualizar con catalán y saludo en español: saluda en español con las voces de Soniox", async () => {
+    mockedBusinessFindUnique.mockResolvedValue({ name: "Perruqueria Anna" } as any);
+    const fastify = await buildServer();
+
+    const response = await fastify.inject({
+      method: "POST",
+      url: "/business/me/idiomas/previsualizar",
+      payload: {
+        languages: ["es-ES", "ca-ES"],
+        voiceLanguage: "es-ES",
+        voiceGender: "masculina",
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({
+      languages: ["es-ES", "ca-ES"],
+      voiceLanguage: "es-ES",
+      voz: "Soniox.tts-rt-v2.Sergio",
+      familia: "soniox",
+      saludo: "Hola, gracias por llamar a Perruqueria Anna. ¿En qué te puedo ayudar?",
+    });
+    expect(
+      response.json().voces.map((voz: { nombre: string }) => voz.nombre)
+    ).toEqual(["Marta", "Sergio"]);
   });
 
   it("POST /business/me/idiomas/previsualizar usa el nombre del negocio del token y descarta códigos desconocidos", async () => {

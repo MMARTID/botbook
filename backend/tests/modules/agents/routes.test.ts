@@ -198,6 +198,48 @@ describe("PATCH /agents/:id — conserva la voz elegida (hallazgo #26 de la audi
     );
   });
 
+  it("con saludo en alemán también fuerza la cadena multilingüe al editar una voz", async () => {
+    mockedBusinessFindUnique.mockResolvedValue({
+      orchestrator: "retell",
+      agentSettings: {
+        version: 1,
+        tone: "warm",
+        primaryGoal: "bookings",
+        responseStyle: "concise",
+        escalation: "take_message",
+        voiceGender: "femenina",
+        languages: ["es-ES", "de-DE"],
+        voiceLanguage: "de-DE",
+      },
+    } as any);
+    mockedAgentFindFirst.mockResolvedValue({
+      id: "agent_1",
+      businessId: "biz_1",
+      name: "Asistente",
+      systemPrompt: "prompt actual",
+      voiceId: "cartesia-Isabel",
+      retellAgentId: "retell_agent_1",
+      retellLlmId: "retell_llm_1",
+    } as any);
+    mockedAgentUpdate.mockResolvedValue({ id: "agent_1" } as any);
+
+    const response = await fastify.inject({
+      method: "PATCH",
+      url: "/agents/agent_1",
+      payload: { voiceId: "cartesia-Isabel" },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(mockedUpdateAgent).toHaveBeenCalledWith(
+      "retell_agent_1",
+      expect.objectContaining({
+        voiceId: "11labs-Hailey-Latin-America-Spanish-localized",
+        voiceModel: "eleven_v3",
+        language: ["es-ES", "de-DE"],
+      })
+    );
+  });
+
   it("retira un agente de forma lógica y conserva su configuración remota", async () => {
     mockedAgentFindFirst.mockResolvedValue({
       id: "agent_1",

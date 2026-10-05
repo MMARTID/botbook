@@ -213,7 +213,9 @@ describe("createTelnyxAssistantForAgent", () => {
     });
   });
 
-  it("con catalán activo y español guardado como principal, el principal pasa a catalán", async () => {
+  // Hasta el 2026-10-05 el principal pasaba a catalán; ahora el dueño
+  // elige el saludo y la voz y la transcripción siguen siendo de Soniox.
+  it("con catalán activo y saludo en español, saluda en español con Marta en catalán y Soniox", async () => {
     mockedBusinessFindUnique.mockResolvedValue({
       ...BASE_BUSINESS,
       agentSettings: {
@@ -237,13 +239,56 @@ describe("createTelnyxAssistantForAgent", () => {
 
     const payload = mockedCreateAssistant.mock.calls[0][0];
     expect(payload.greeting).toBe(
-      "Hola, gràcies per trucar a Peluquería Ejemplo. En què et puc ajudar?"
+      "Hola, gracias por llamar a Peluquería Ejemplo. ¿En qué te puedo ayudar?"
     );
     expect(payload.voiceSettings).toMatchObject({
       voice: "Soniox.tts-rt-v2.Marta",
       language: "ca",
     });
     expect(payload.transcription?.model).toBe("soniox/stt-rt-v5");
+  });
+
+  it("con saludo en alemán crea el assistant con la voz alemana de la cuenta, flux y saludo en alemán", async () => {
+    mockedBusinessFindUnique.mockResolvedValue({
+      ...BASE_BUSINESS,
+      agentSettings: {
+        ...DEFAULT_AGENT_SETTINGS,
+        languages: ["es-ES", "de-DE"],
+        voiceLanguage: "de-DE",
+      },
+    } as any);
+    mockedListVoices.mockResolvedValue([
+      {
+        id: "Telnyx.Ultra.38aabb6a-f52b-4fb0-a3d1-988518f4dc06",
+        language: "de",
+        gender: "Female",
+      },
+    ]);
+    mockedCreateAssistant.mockResolvedValue({
+      id: "assistant_1",
+      name: "alhabla-biz1-agent1",
+      instructions: "i",
+    });
+
+    const result = await createTelnyxAssistantForAgent({
+      agentId: "agent1",
+      businessId: "biz1",
+    });
+
+    expect(result.eligible).toBe(true);
+    const payload = mockedCreateAssistant.mock.calls[0][0];
+    expect(payload.greeting).toBe(
+      "Hallo, vielen Dank für Ihren Anruf bei Peluquería Ejemplo. Wie kann ich Ihnen helfen?"
+    );
+    expect(payload.voiceSettings).toMatchObject({
+      voice: "Telnyx.Ultra.38aabb6a-f52b-4fb0-a3d1-988518f4dc06",
+      expressive_mode: true,
+    });
+    expect(payload.voiceSettings).not.toHaveProperty("language");
+    expect(payload.transcription).toMatchObject({
+      model: "deepgram/flux",
+      language: "multi",
+    });
   });
 
   it("no lanza si Telnyx falla al crear — devuelve el motivo en vez de propagar el error", async () => {

@@ -7,7 +7,10 @@
  * borra todo al terminar, también la app TeXML que Telnyx crea por
  * assistant y no borra con él. El caso «de catalán a español» manda el
  * payload completo de español sobre un assistant de catalán, como al
- * cambiar de idioma principal, y compara con un assistant nuevo.
+ * cambiar de idioma principal, y compara con un assistant nuevo. Los casos
+ * con `espera` comprueban además, antes de crear nada, que el resolver
+ * elige la voz, el idioma de Soniox y la transcripción acordados (saludo
+ * en castellano con catalán activo, saludo en alemán, una voz elegida).
  *
  * Uso (con TELNYX_API_KEY en el entorno):
  *   npx tsx scripts/verificarIdiomas.ts
@@ -24,10 +27,20 @@ interface Caso {
   nombre: string;
   languages: CodigoDeIdioma[];
   voiceLanguage: CodigoDeIdioma;
+  /** La voz que eligió el dueño (AgentSettings.voz). */
+  voz?: string;
   /** Voz candidata del laboratorio en lugar de la del catálogo. */
   vozCandidata?: { id: string; ajustes?: Record<string, unknown> };
   /** Tras crearlo, pasarlo a estos idiomas con el payload completo. */
   cambiarA?: { languages: CodigoDeIdioma[]; voiceLanguage: CodigoDeIdioma };
+  /** Lo que tiene que salir del resolver (decisiones del 2026-10-05). */
+  espera?: {
+    voz: string;
+    /** `voice_settings.language` (solo las de Soniox lo llevan). */
+    idiomaDeLaVoz?: string;
+    transcripcion: string;
+    saludo: string;
+  };
 }
 
 const CASOS: Caso[] = [
@@ -70,6 +83,42 @@ const CASOS: Caso[] = [
     languages: ["es-ES"],
     voiceLanguage: "es-ES",
     cambiarA: { languages: ["es-ES", "ca-ES"], voiceLanguage: "ca-ES" },
+  },
+  // Idiomas y voces del 2026-10-05: saludo y familia de voces por separado.
+  {
+    nombre: "Saludo en castellano con catalán activo",
+    languages: ["es-ES", "ca-ES"],
+    voiceLanguage: "es-ES",
+    espera: {
+      voz: "Soniox.tts-rt-v2.Marta",
+      idiomaDeLaVoz: "ca",
+      transcripcion: "soniox/stt-rt-v5",
+      saludo:
+        "Hola, gracias por llamar a Verificación de idiomas. ¿En qué te puedo ayudar?",
+    },
+  },
+  {
+    nombre: "Saludo en alemán",
+    languages: ["es-ES", "de-DE"],
+    voiceLanguage: "de-DE",
+    espera: {
+      voz: "Telnyx.Ultra.38aabb6a-f52b-4fb0-a3d1-988518f4dc06", // Alina
+      transcripcion: "deepgram/flux",
+      saludo:
+        "Hallo, vielen Dank für Ihren Anruf bei Verificación de idiomas. Wie kann ich Ihnen helfen?",
+    },
+  },
+  {
+    nombre: "Español con una voz que no es la de por defecto (Lara)",
+    languages: ["es-ES"],
+    voiceLanguage: "es-ES",
+    voz: "Telnyx.Ultra.85b356c1-c638-404d-b986-f54a53d957d6",
+    espera: {
+      voz: "Telnyx.Ultra.85b356c1-c638-404d-b986-f54a53d957d6",
+      transcripcion: "deepgram/flux",
+      saludo:
+        "Hola, gracias por llamar a Verificación de idiomas. ¿En qué te puedo ayudar?",
+    },
   },
 ];
 
@@ -144,6 +193,31 @@ async function verificar(caso: Caso, marca: string): Promise<string[]> {
       ...payload.voiceSettings!,
       ...caso.vozCandidata.ajustes,
     };
+  }
+  if (caso.espera) {
+    const obtenido = {
+      voz,
+      idiomaDeLaVoz: payload.voiceSettings?.language,
+      transcripcion: payload.transcription?.model,
+      saludo: payload.greeting,
+    };
+    for (const [campo, esperado] of Object.entries(caso.espera)) {
+      const valor = obtenido[campo as keyof typeof obtenido];
+      if (valor !== esperado) {
+        problemas.push(
+          `el resolver da ${campo}=${JSON.stringify(valor)} (se esperaba ${JSON.stringify(esperado)})`
+        );
+      }
+    }
+    if (
+      caso.espera.idiomaDeLaVoz === undefined &&
+      obtenido.idiomaDeLaVoz !== undefined
+    ) {
+      problemas.push(
+        `voice_settings.language=${JSON.stringify(obtenido.idiomaDeLaVoz)} en una voz Ultra`
+      );
+    }
+    if (problemas.length > 0) return problemas;
   }
 
   let id: string | null = null;

@@ -332,10 +332,11 @@ export async function getRetellEditableDraft(
 
 /**
  * Cadenas fijas ya validadas contra la API de Retell. Cartesia ofrece la
- * voz española principal para es/en/fr y, si un idioma activo la exige
- * (`retell.vozMultilingue` en lib/idiomas/catalogo.ts; hoy el catalán), se
- * cambia a ElevenLabs porque Retell rechaza ca-ES con Cartesia. MiniMax
- * queda como último proveedor distinto y compatible con los cuatro idiomas.
+ * voz española principal para es/en/fr y se cambia a ElevenLabs
+ * (usaVozMultilingueEnRetell en lib/idiomas/resolver.ts) si saluda en otro
+ * idioma que el español, si hay una lengua cooficial activa o si un idioma
+ * activo la exige (`retell.vozMultilingue`; hoy el catalán, porque Retell
+ * rechaza ca-ES con Cartesia). MiniMax queda como último proveedor distinto.
  */
 const RETELL_VOICE_PROFILES: Record<
   AgentSettings["voiceGender"],
@@ -374,14 +375,16 @@ const RETELL_VOICE_PROFILES: Record<
   },
 };
 
-// No usa AgentSettings.voiceLanguage a propósito (2026-09-14): las voces
-// Cartesia de arriba ya son multilingües (es/en/fr con una sola voice_id,
-// ver comentario de RETELL_VOICE_PROFILES) y Retell es solo el fallback de
-// Telnyx — el catálogo de voces Ultra por idioma vive en
-// telnyxEligibility.ts, que sí es la ruta principal.
+// Retell es solo el fallback de Telnyx: no usa la voz elegida
+// (AgentSettings.voz), solo su género. Con un saludo en otro idioma
+// (inglés, alemán…) o una lengua cooficial activa (también con saludo en
+// castellano) va la cadena multilingüe de ElevenLabs
+// (usaVozMultilingueEnRetell), con los ajustes tal como los atiende Retell
+// (sin euskera).
 export function resolveRetellVoiceProfile(settings: unknown): RetellVoiceProfile {
   const parsed = parseAgentSettings(settings);
-  return usaVozMultilingueEnRetell(parsed.languages)
+  const ajustes = ajustesParaRetell(parsed);
+  return usaVozMultilingueEnRetell(ajustes.languages, ajustes.voiceLanguage)
     ? RETELL_VOICE_PROFILES[parsed.voiceGender].multilingue
     : RETELL_VOICE_PROFILES[parsed.voiceGender].default;
 }

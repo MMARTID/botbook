@@ -379,9 +379,11 @@ describe("buildTelnyxAssistantPayload", () => {
   });
 
   describe("con catalán, euskera o gallego (Soniox)", () => {
+    // Desde el 2026-10-05 solo cabe una cooficial: el euskera de antes se
+    // cambia por el inglés para seguir probando varias pistas.
     const sonioxInput = {
       ...baseInput,
-      idiomas: idiomas(["es-ES", "ca-ES", "eu-ES"], "ca-ES"),
+      idiomas: idiomas(["es-ES", "en-GB", "ca-ES"], "ca-ES"),
       voice: "Soniox.tts-rt-v2.Marta",
     };
 
@@ -395,7 +397,7 @@ describe("buildTelnyxAssistantPayload", () => {
         model: "soniox/stt-rt-v5",
         language: "auto",
         settings: {
-          language_hints: ["es", "ca", "eu"],
+          language_hints: ["es", "en", "ca"],
           context: "corte,Laura",
           enable_endpoint_detection: true,
           max_endpoint_delay_ms: 500,
@@ -430,6 +432,23 @@ describe("buildTelnyxAssistantPayload", () => {
         voice: "Soniox.tts-rt-v2.Marta",
         language: "eu",
         expressive_mode: false,
+      });
+    });
+
+    it("con saludo en castellano y catalán activo, la voz de Soniox arranca en catalán (no en el idioma del saludo)", () => {
+      const payload = buildTelnyxAssistantPayload({
+        ...sonioxInput,
+        idiomas: idiomas(["es-ES", "ca-ES"], "es-ES"),
+      });
+
+      expect(payload.voiceSettings).toMatchObject({
+        voice: "Soniox.tts-rt-v2.Marta",
+        language: "ca",
+        expressive_mode: false,
+      });
+      expect(payload.transcription).toMatchObject({
+        model: "soniox/stt-rt-v5",
+        settings: { language_hints: ["es", "ca"] },
       });
     });
 
