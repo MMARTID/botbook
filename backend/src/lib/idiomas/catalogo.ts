@@ -12,8 +12,9 @@
  * Datos de partida (AGENTS.md § «Idiomas de atención y voz en Telnyx»):
  * ninguna voz Ultra ni deepgram/flux cubre catalán, euskera ni gallego;
  * Soniox sí (63 idiomas por voz). Con llamadas reales (2026-10-03), la voz
- * apenas cambia la espera: Soniox y MiniMax contestan igual en catalán; lo
- * que la alarga es la transcripción sin flux.
+ * apenas cambia la espera; lo que la alarga es la transcripción sin flux.
+ * Solo la síntesis de la Ultra va incluida en el precio del assistant: las
+ * demás se cobran por carácter (facturación del 2026-10-03).
  */
 
 /**
@@ -54,10 +55,6 @@ export type IdiomaDeRetell =
   | "it-IT"
   | "pt-PT"
   | "nl-NL";
-
-/** Los valores de `language_boost` de MiniMax que usa el catálogo (el SDK
- * de Telnyx tipa la lista completa: «Catalan» está). */
-export type RefuerzoDeMiniMax = "Catalan";
 
 /** Proveedores de las voces del catálogo, como los nombra Telnyx al
  * listarlas (`listVoices`). */
@@ -100,9 +97,6 @@ export interface IdiomaDelCatalogo {
    * que hable todos sus idiomas. Sin voces, el idioma solo puede acompañar
    * a un principal cuya voz lo hable. */
   voces: readonly VozDelCatalogo[] | null;
-  /** `language_boost` de las voces de MiniMax para que hablen este idioma
-   * (sin él, leen el catalán como castellano). */
-  refuerzoDeMiniMax?: RefuerzoDeMiniMax;
   /** Frase extra del prompt mientras el idioma está activo. */
   notaParaElPrompt?: string;
 }
@@ -157,23 +151,6 @@ const SERGIO: VozDelCatalogo = {
   habla: "todos",
 };
 
-/** Voces nativas de Azure y de MiniMax para un idioma regional: hablan
- * ese idioma y el castellano (escuchadas en los dos el 2026-10-03), no el
- * resto. */
-const regional = (
-  proveedor: "azure" | "minimax",
-  id: string,
-  nombre: string,
-  genero: GeneroDeVoz,
-  idioma: CodigoDeIdioma
-): VozDelCatalogo => ({
-  id,
-  proveedor,
-  nombre,
-  genero,
-  habla: [idioma, "es-ES"],
-});
-
 export const IDIOMAS: Record<CodigoDeIdioma, IdiomaDelCatalogo> = {
   "es-ES": {
     iso: "es",
@@ -219,58 +196,11 @@ export const IDIOMAS: Record<CodigoDeIdioma, IdiomaDelCatalogo> = {
     saludo: "Hola, gràcies per trucar a {negocio}. En què et puc ajudar?",
     transcripcion: { flux: null, soniox: "ca" },
     retell: { locale: "ca-ES", vozMultilingue: true },
-    // Todas aprobadas de oído el 2026-10-03. Con llamadas reales, MiniMax y
-    // Soniox contestan igual de rápido; Soniox va primero porque habla
-    // también los idiomas extranjeros. Las de MiniMax se llaman en su
-    // catálogo por cómo suenan («Serene Woman»): aquí, con nombre propio.
-    voces: [
-      MARTA,
-      SERGIO,
-      regional(
-        "azure",
-        "Azure.ca-ES-JoanaNeural",
-        "Joana",
-        "femenina",
-        "ca-ES"
-      ),
-      regional("azure", "Azure.ca-ES-AlbaNeural", "Alba", "femenina", "ca-ES"),
-      regional(
-        "azure",
-        "Azure.ca-ES-EnricNeural",
-        "Enric",
-        "masculina",
-        "ca-ES"
-      ),
-      regional(
-        "minimax",
-        "Minimax.speech-2.8-turbo.Spanish_SereneWoman",
-        "Serena",
-        "femenina",
-        "ca-ES"
-      ),
-      regional(
-        "minimax",
-        "Minimax.speech-2.8-turbo.Spanish_Kind-heartedGirl",
-        "Clara",
-        "femenina",
-        "ca-ES"
-      ),
-      regional(
-        "minimax",
-        "Minimax.speech-2.8-turbo.Spanish_ThoughtfulMan",
-        "Tomàs",
-        "masculina",
-        "ca-ES"
-      ),
-      regional(
-        "minimax",
-        "Minimax.speech-2.8-turbo.Spanish_RationalMan",
-        "Ramon",
-        "masculina",
-        "ca-ES"
-      ),
-    ],
-    refuerzoDeMiniMax: "Catalan",
+    // Las nativas de Azure y las de MiniMax se ofrecieron del 03 al 05-10 y
+    // se retiraron por decisión del usuario: se cobran aparte por carácter
+    // (hasta +0,014 $/min) y no mejoraban la espera. Ningún negocio llegó a
+    // elegirlas (inventario de producción del 2026-10-05).
+    voces: [MARTA, SERGIO],
     // Valenciano y balear son el mismo idioma (un solo modelo «ca»); el
     // cliente debe sentir que se le atiende en su variedad.
     notaParaElPrompt:
@@ -284,24 +214,7 @@ export const IDIOMAS: Record<CodigoDeIdioma, IdiomaDelCatalogo> = {
     saludo: "Kaixo, {negocio}. Zertan lagun zaitzaket?",
     transcripcion: { flux: null, soniox: "eu" },
     retell: { locale: null, vozMultilingue: false },
-    voces: [
-      MARTA,
-      SERGIO,
-      regional(
-        "azure",
-        "Azure.eu-ES-AinhoaNeural",
-        "Ainhoa",
-        "femenina",
-        "eu-ES"
-      ),
-      regional(
-        "azure",
-        "Azure.eu-ES-AnderNeural",
-        "Ander",
-        "masculina",
-        "eu-ES"
-      ),
-    ],
+    voces: [MARTA, SERGIO],
   },
   "gl-ES": {
     iso: "gl",
@@ -312,18 +225,7 @@ export const IDIOMAS: Record<CodigoDeIdioma, IdiomaDelCatalogo> = {
     // Retell admite gl-ES; su voz Cartesia está sin verificar en gallego
     // (verificarIdiomas.ts, PR de medición).
     retell: { locale: "gl-ES", vozMultilingue: false },
-    voces: [
-      MARTA,
-      SERGIO,
-      regional(
-        "azure",
-        "Azure.gl-ES-SabelaNeural",
-        "Sabela",
-        "femenina",
-        "gl-ES"
-      ),
-      regional("azure", "Azure.gl-ES-RoiNeural", "Roi", "masculina", "gl-ES"),
-    ],
+    voces: [MARTA, SERGIO],
   },
   "de-DE": {
     iso: "de",

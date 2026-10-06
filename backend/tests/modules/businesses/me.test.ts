@@ -588,12 +588,12 @@ describe("idiomas de la recepcionista en el panel", () => {
         languages: ["es-ES", "gl-ES"],
         voiceLanguage: "gl-ES",
         voiceGender: "femenina",
-        voz: "Azure.gl-ES-RoiNeural",
+        voz: "Soniox.tts-rt-v2.Sergio",
       },
     });
 
     expect(response.json()).toMatchObject({
-      voz: "Azure.gl-ES-RoiNeural",
+      voz: "Soniox.tts-rt-v2.Sergio",
       voiceGender: "masculina",
     });
   });

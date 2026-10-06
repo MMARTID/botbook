@@ -189,11 +189,20 @@ describe("ComportamientoMovil — la voz", () => {
     });
   });
 
-  it("con el inglés activo, las voces de catalán que no lo hablan salen desactivadas y lo dicen", async () => {
+  it("con el inglés activo, una voz que solo habla catalán y castellano sale desactivada y lo dice", async () => {
+    // Como será la Ultra en catalán: la voz de Blanca, solo para catalán y
+    // castellano (el diccionario estropearía el inglés).
+    const conUltraEnCatalan = structuredClone(CATALOGO_DE_IDIOMAS);
+    conUltraEnCatalan.principales[1].voces.push({
+      ...conUltraEnCatalan.principales[0].voces[0],
+      habla: ["ca-ES", "es-ES"],
+      muestra: "/voces/ca/blanca.mp3",
+    });
+    vi.mocked(getCatalogoDeIdiomas).mockResolvedValue(conUltraEnCatalan);
     renderizar({ languages: ["es-ES", "ca-ES", "en-GB"], voiceLanguage: "ca-ES" });
 
-    await waitFor(() => expect(voz("Joana")).toBeDisabled());
-    expect(voz("Joana")).toHaveTextContent("Femenina · no habla inglés");
+    await waitFor(() => expect(voz("Blanca")).toBeDisabled());
+    expect(voz("Blanca")).toHaveTextContent("Femenina · no habla inglés");
     expect(voz("Marta")).toBeEnabled();
     expect(voz("Marta")).toHaveTextContent("Femenina · habla todos los idiomas");
   });

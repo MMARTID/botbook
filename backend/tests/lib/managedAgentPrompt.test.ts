@@ -243,25 +243,18 @@ describe("AgentSettings — la voz elegida", () => {
     const guardado = AgentSettingsSchema.parse({
       ...CATALAN,
       voiceGender: "femenina",
-      voz: "Azure.ca-ES-EnricNeural",
+      voz: "Soniox.tts-rt-v2.Sergio",
     });
 
-    expect(guardado.voz).toBe("Azure.ca-ES-EnricNeural");
+    expect(guardado.voz).toBe("Soniox.tts-rt-v2.Sergio");
     expect(guardado.voiceGender).toBe("masculina");
   });
 
-  it("se olvida si no atiende: de otro idioma o sin hablar uno activo", () => {
+  it("se olvida si no atiende: de otro idioma principal", () => {
     expect(
       AgentSettingsSchema.parse({
         ...DEFAULT_AGENT_SETTINGS,
-        voz: "Azure.ca-ES-JoanaNeural",
-      })
-    ).not.toHaveProperty("voz");
-    expect(
-      AgentSettingsSchema.parse({
-        ...CATALAN,
-        languages: ["es-ES", "ca-ES", "en-GB"],
-        voz: "Azure.ca-ES-JoanaNeural",
+        voz: "Soniox.tts-rt-v2.Sergio",
       })
     ).not.toHaveProperty("voz");
   });
@@ -283,10 +276,11 @@ describe("AgentSettings — la voz elegida", () => {
       voiceGender: "masculina",
     });
 
+    // También las de Azure y MiniMax, retiradas del catálogo el 2026-10-05.
     const conDesconocida = parseAgentSettings({
       ...CATALAN,
       tone: "direct",
-      voz: "Telnyx.Ultra.inventada",
+      voz: "Azure.ca-ES-JoanaNeural",
     });
     expect(conDesconocida).not.toHaveProperty("voz");
     expect(conDesconocida).toMatchObject({

@@ -2,11 +2,9 @@ import {
   IDIOMAS,
   componerSaludo,
   hablaIdioma,
-  vocesQueHablan,
   type CodigoDeIdioma,
   type GeneroDeVoz,
   type IdiomaDeRetell,
-  type RefuerzoDeMiniMax,
   type VozDelCatalogo,
 } from "./catalogo.js";
 import {
@@ -45,8 +43,6 @@ export interface PerfilDeIdiomas {
   alternativas: VozDelCatalogo[];
   /** ISO del principal: `voice_settings.language` de una voz de Soniox. */
   isoDelPrincipal: string;
-  /** `voice_settings.language_boost` de una voz de MiniMax. */
-  refuerzoDeMiniMax: RefuerzoDeMiniMax | null;
   transcripcion: TranscripcionResuelta;
   instruccionDelPrompt: string;
   cambios: CambioDeIdiomas[];
@@ -101,13 +97,15 @@ function construirInstruccionDelPrompt(
 }
 
 /**
- * La voz que atiende: la elegida si es del principal y habla todos los
- * idiomas activos; si no, la primera de su género (o del pedido) que los
- * hable. Sustituir una elegida que no los habla se anota para avisar al
- * dueño; una de otro idioma (cambió de principal) se ignora sin más.
+ * La voz que atiende, entre `voces` (las del idioma principal): la elegida
+ * si está entre ellas y habla todos los idiomas activos; si no, la primera
+ * de su género (o del pedido) que los hable. Sustituir una elegida que no
+ * los habla se anota para avisar al dueño; una de otro idioma (cambió de
+ * principal) se ignora sin más. Pura y con la lista como parámetro para
+ * poder probarla con voces que el catálogo aún no tiene.
  */
-function elegirVoz(
-  principal: CodigoDeIdioma,
+export function elegirVoz(
+  voces: readonly VozDelCatalogo[],
   idiomas: readonly CodigoDeIdioma[],
   genero: GeneroDeVoz,
   elegida: string | undefined
@@ -117,10 +115,10 @@ function elegirVoz(
   cambio: CambioDeIdiomas | null;
 } {
   // normalizarIdiomas garantiza que alguna voz del principal los habla.
-  const candidatas = vocesQueHablan(principal, idiomas);
-  const delPrincipal = IDIOMAS[principal].voces!.find(
-    (voz) => voz.id === elegida
+  const candidatas = voces.filter((voz) =>
+    idiomas.every((idioma) => hablaIdioma(voz, idioma))
   );
+  const delPrincipal = voces.find((voz) => voz.id === elegida);
   const valida = delPrincipal && candidatas.includes(delPrincipal);
   const generoBuscado = delPrincipal?.genero ?? genero;
   const voz = valida
@@ -149,7 +147,7 @@ function elegirVoz(
 export function resolverIdiomas(ajustes: AjustesDeIdioma): PerfilDeIdiomas {
   const { languages, voiceLanguage, cambios } = normalizarIdiomas(ajustes);
   const { voz, alternativas, cambio } = elegirVoz(
-    voiceLanguage,
+    IDIOMAS[voiceLanguage].voces!,
     languages,
     ajustes.voiceGender,
     ajustes.voz
@@ -161,7 +159,6 @@ export function resolverIdiomas(ajustes: AjustesDeIdioma): PerfilDeIdiomas {
     voz,
     alternativas,
     isoDelPrincipal: IDIOMAS[voiceLanguage].iso,
-    refuerzoDeMiniMax: IDIOMAS[voiceLanguage].refuerzoDeMiniMax ?? null,
     transcripcion: resolverTranscripcion(languages),
     instruccionDelPrompt: construirInstruccionDelPrompt(
       languages,

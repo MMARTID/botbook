@@ -220,38 +220,31 @@ describe("resolveTelnyxEligibility", () => {
   });
 
   describe("con una voz elegida por el dueño", () => {
-    const SERENA = "Minimax.speech-2.8-turbo.Spanish_SereneWoman";
-    const catalanConSerena = {
+    const catalanConSergio = {
       ...DEFAULT_AGENT_SETTINGS,
       languages: ["es-ES" as const, "ca-ES" as const],
       voiceLanguage: "ca-ES" as const,
-      voz: SERENA,
+      voz: "Soniox.tts-rt-v2.Sergio",
     };
 
-    it("atiende ella si sigue en la cuenta", async () => {
-      mockedListVoices.mockImplementation(async (proveedor) =>
-        proveedor === "minimax"
-          ? [{ id: SERENA, language: "es-ES", gender: "female" }]
-          : []
-      );
+    it("atiende ella si sigue en la cuenta, aunque el género guardado sea otro", async () => {
+      mockedListVoices.mockResolvedValue(SONIOX_VOICES);
 
-      const result = await resolveTelnyxEligibility(catalanConSerena);
+      const result = await resolveTelnyxEligibility(catalanConSergio);
 
-      expect(result.voiceId).toBe(SERENA);
-      expect(mockedListVoices).toHaveBeenCalledWith("minimax");
+      expect(result.voiceId).toBe("Soniox.tts-rt-v2.Sergio");
     });
 
-    it("si ya no está, prueba las demás de su género del catálogo antes que la red de seguridad", async () => {
-      mockedListVoices.mockImplementation(async (proveedor) =>
-        proveedor === "soniox" ? SONIOX_VOICES : []
-      );
+    it("si ya no está, la red de seguridad busca otra de su proveedor y género, con una sola consulta", async () => {
+      mockedListVoices.mockResolvedValue([
+        { id: "Soniox.tts-rt-v2.Marta", language: "en", gender: "female" },
+        { id: "Soniox.tts-rt-v2.Daniel", language: "en", gender: "male" },
+      ]);
 
-      const result = await resolveTelnyxEligibility(catalanConSerena);
+      const result = await resolveTelnyxEligibility(catalanConSergio);
 
-      expect(result.voiceId).toBe("Soniox.tts-rt-v2.Marta");
-      // MiniMax (Serena) y Soniox (Marta, la siguiente): una consulta por
-      // proveedor, no una por voz, y sin llegar a Azure.
-      expect(mockedListVoices).toHaveBeenCalledTimes(2);
+      expect(result.voiceId).toBe("Soniox.tts-rt-v2.Daniel");
+      expect(mockedListVoices).toHaveBeenCalledTimes(1);
     });
   });
 

@@ -15,6 +15,7 @@ import {
   type GeneroDeVoz,
   type VozDelCatalogo,
 } from "./catalogo.js";
+import type { CambioDeIdiomas } from "./ajustes.js";
 import { resolverIdiomas, type AjustesDeIdioma } from "./resolver.js";
 
 export interface IdiomaDelPanel {
@@ -131,6 +132,24 @@ export interface VistaPreviaDeIdiomas {
 const enMinusculas = (codigo: CodigoDeIdioma) =>
   IDIOMAS[codigo].etiqueta.toLowerCase();
 
+/** Lo que el dueño debe saber de una corrección de su selección, o null si
+ * no hace falta decirle nada. */
+export function avisoDeCambio(
+  cambio: CambioDeIdiomas,
+  obligatorio: CodigoDeIdioma
+): string | null {
+  switch (cambio.tipo) {
+    case "principal":
+      return cambio.a === obligatorio
+        ? null
+        : `Con el ${enMinusculas(cambio.a)} activo, el ${enMinusculas(cambio.a)} pasa a ser el idioma principal: la voz que habla español no lo pronuncia.`;
+    case "quitado":
+      return `Se quita el ${enMinusculas(cambio.idioma)}: la voz de tu idioma principal todavía no lo habla.`;
+    case "voz":
+      return `${cambio.de.nombre} no habla ${enMinusculas(cambio.noHabla)}: atenderá ${cambio.a.nombre}.`;
+  }
+}
+
 export function vistaPreviaDeIdiomas(
   ajustes: AjustesDeIdioma,
   negocio: string,
@@ -141,21 +160,8 @@ export function vistaPreviaDeIdiomas(
   const avisos: string[] = [];
 
   for (const cambio of perfil.cambios) {
-    if (cambio.tipo === "principal" && cambio.a !== oferta.obligatorio) {
-      avisos.push(
-        `Con el ${enMinusculas(cambio.a)} activo, el ${enMinusculas(cambio.a)} pasa a ser el idioma principal: la voz que habla español no lo pronuncia.`
-      );
-    }
-    if (cambio.tipo === "quitado") {
-      avisos.push(
-        `Se quita el ${enMinusculas(cambio.idioma)}: la voz de tu idioma principal todavía no lo habla.`
-      );
-    }
-    if (cambio.tipo === "voz") {
-      avisos.push(
-        `${cambio.de.nombre} no habla ${enMinusculas(cambio.noHabla)}: atenderá ${cambio.a.nombre}.`
-      );
-    }
+    const aviso = avisoDeCambio(cambio, oferta.obligatorio);
+    if (aviso) avisos.push(aviso);
   }
   // Medido con llamadas reales el 2026-10-03: sin flux, el fin de turno lo
   // marca Soniox y cada respuesta llega entre medio segundo y un segundo
