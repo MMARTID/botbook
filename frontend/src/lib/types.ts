@@ -47,13 +47,15 @@ export type AgentSettings = {
   responseStyle: "concise" | "balanced";
   escalation: "take_message" | "request_callback";
   voiceGender: "femenina" | "masculina";
-  /** Idiomas de atención activos (códigos del catálogo del backend). */
+  /** Los idiomas que habla (códigos del catálogo del backend). No se
+   * eligen: los da el principal (PrincipalDelCatalogo.idiomas). */
   languages: AgentLanguage[];
-  /** Idioma principal: el del saludo y el que decide la voz. Uno de los
-   * activos. */
+  /** El idioma principal: en él saluda y de él salen la voz y los idiomas
+   * que habla (la clave se llama así por compatibilidad). */
   voiceLanguage: VoiceLanguage;
-  /** La voz elegida entre las de su idioma principal (id del catálogo del
-   * backend). Sin valor, atiende la primera de su género. */
+  /** La voz elegida entre las de su principal (id del catálogo del
+   * backend; ver VistaPreviaDeIdiomas.voces). Sin valor, o si deja de
+   * poder atender, atiende la de por defecto de su género. */
   voz?: string;
   /** «Cuándo pasarme llamadas» (fase 4 del plan de telefonía). Sin valor,
    * el backend aplica el de por defecto (ver lib/pasar-llamadas.ts). */
@@ -67,48 +69,80 @@ export type ModoDePasarLlamadas = "nunca" | "si_lo_pide" | "siempre";
  * los recibe de GET /business/me/idiomas en vez de repetirlos aquí. */
 export type AgentLanguage = string;
 
-/** Idioma principal (antes «idioma de la voz»): el del saludo y el que
- * decide qué voces se pueden elegir (Ultra en español; Soniox, Azure o
- * MiniMax en catalán, euskera y gallego). */
+/** El idioma principal: el español, una lengua cooficial o un idioma
+ * extranjero (ver CatalogoDeIdiomas). */
 export type VoiceLanguage = AgentLanguage;
 
-/** Una voz que se puede elegir con un idioma principal. */
+/** De qué voces se elige: «ultra», las nativas del principal (español → las
+ * de España, inglés → las británicas…); «soniox», las de un principal
+ * cooficial (Marta y Sergio). */
+export type FamiliaDeVoces = "ultra" | "soniox";
+
+/** Una voz que se puede elegir. */
 export type VozDelPanel = {
   id: string;
   nombre: string;
   genero: AgentSettings["voiceGender"];
-  /** Los idiomas que habla («todos» si los habla todos). */
-  habla: "todos" | AgentLanguage[];
-  /** Las Ultra: las más expresivas y las que antes contestan. */
-  expresiva: boolean;
+  /** Cómo suena, en español («Cálida y acogedora»). */
+  descripcion: string;
+  /** De atención al cliente: se enseña sin desplegar «Ver todas las
+   * voces». */
+  recomendada: boolean;
+  /** La que atiende si el dueño no elige (una por género). */
+  porDefecto: boolean;
   /** Ruta de su muestra en la app (public/voces). */
   muestra: string;
+};
+
+/** Un idioma principal que se puede elegir, con lo que va con él. `idiomas`,
+ * `entradilla` y `requiere` son opcionales: Vercel publica la app antes de
+ * que Cloud Run sirva el backend que los manda. */
+export type PrincipalDelCatalogo = {
+  codigo: AgentLanguage;
+  etiqueta: string;
+  /** Cómo lo agrupa el panel: el obligatorio y las cooficiales a la vista;
+   * los extranjeros bajo «Otro idioma». */
+  tipo: "obligatorio" | "cooficial" | "extranjero";
+  /** Los que habla con este principal, en el orden del catálogo: lo que se
+   * guarda en `languages` al elegirlo. */
+  idiomas?: AgentLanguage[];
+  /** «Habla en 7 idiomas: español, inglés, … Saluda en español y sigue en
+   * el idioma de quien llama.» */
+  entradilla?: string;
+  /** Si elegirlo exige una función del plan (catalán, euskera y gallego,
+   * en Pro y Scale): la clave de `planFeatures` y el texto del candado. */
+  requiere?: { funcion: PlanFeatureKey; texto: string } | null;
+  /** De qué familia son sus `voces`. */
+  familia: FamiliaDeVoces;
+  /** Las voces que atienden con este principal. Por género, mujeres
+   * primero: la de por defecto, luego las recomendadas y luego el resto. */
+  voces: VozDelPanel[];
 };
 
 /** GET /business/me/idiomas: lo que se ofrece en el panel. */
 export type CatalogoDeIdiomas = {
   obligatorio: { codigo: AgentLanguage; etiqueta: string };
-  principales: Array<{
-    codigo: AgentLanguage;
-    etiqueta: string;
-    /** Otros idiomas que alguna de sus voces habla. */
-    secundariosCompatibles: AgentLanguage[];
-    /** Las voces que se pueden elegir, la de por defecto de cada género
-     * primero. */
-    voces: VozDelPanel[];
-  }>;
-  secundarios: Array<{ codigo: AgentLanguage; etiqueta: string }>;
+  principales: PrincipalDelCatalogo[];
   /** Etiquetas de todos los idiomas, también los que ya no se ofrecen. */
   etiquetas: Record<AgentLanguage, string>;
 };
 
 /** POST /business/me/idiomas/previsualizar: qué hará la recepcionista. */
 export type VistaPreviaDeIdiomas = {
+  /** Los que habla con el principal, tal como se guardarán. */
   languages: AgentLanguage[];
+  /** El idioma principal. */
   voiceLanguage: VoiceLanguage;
   /** La voz que atenderá y su género. */
   voz: string;
   voiceGender: AgentSettings["voiceGender"];
+  /** De qué familia son `voces`: «soniox» con un principal cooficial. */
+  familia: FamiliaDeVoces;
+  /** Las voces que se pueden elegir con este principal (entre ellas,
+   * `voz`). */
+  voces: VozDelPanel[];
+  /** «Habla en 7 idiomas: … Saluda en español y sigue en el idioma de
+   * quien llama.» */
   entradilla: string;
   saludo: string;
   avisos: string[];
@@ -363,6 +397,10 @@ export type CallAnalytics = {
 export type PlanFeatureKey =
   | "recordatorios_cita"
   | "resumen_semanal"
+  /** Catalán, euskera o gallego como idioma principal (Pro y Scale). */
+  | "lenguas_locales"
+  /** La de antes de «lenguas_locales»: el backend la manda también durante
+   * el despliegue del 2026-10-05 (y el anterior, en su lugar). */
   | "voz_idioma"
   | "analitica_avanzada"
   | "multi_sede";

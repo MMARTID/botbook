@@ -16,7 +16,11 @@ import {
 export type PlanFeature =
   | "recordatorios_cita"
   | "resumen_semanal"
-  | "voz_idioma"
+  // Catalán, euskera o gallego como idioma principal (desde el 2026-10-05;
+  // ver funcionQueExige en lib/idiomas/ajustes.ts). Sustituye a
+  // «voz_idioma»: elegir la voz y un principal con voces Ultra es de todos
+  // los planes.
+  | "lenguas_locales"
   | "analitica_avanzada"
   | "multi_sede";
 
@@ -29,7 +33,7 @@ export type PlanLimitsAndFeatures = {
 const PRO_FEATURES: readonly PlanFeature[] = [
   "recordatorios_cita",
   "resumen_semanal",
-  "voz_idioma",
+  "lenguas_locales",
 ];
 
 const SCALE_FEATURES: readonly PlanFeature[] = [
@@ -77,6 +81,38 @@ export function getPlanLimits(planId: PlanId): PlanLimitsAndFeatures {
 
 export function planAllows(planId: PlanId, feature: PlanFeature): boolean {
   return PLAN_FEATURES[planId].features.includes(feature);
+}
+
+/** Cómo llama la web a cada plan (`name` en web/src/lib/plans.ts). */
+const NOMBRES_DE_PLAN: Record<PlanId, string> = {
+  inicio: "Inicio",
+  pro: "Pro",
+  scale: "Scale",
+};
+
+/** «Pro y Scale»: los planes que incluyen `feature`, para los candados del
+ * panel y los 403 de las rutas. */
+export function planesQueIncluyen(feature: PlanFeature): string {
+  const nombres = PLAN_IDS.filter((planId) => planAllows(planId, feature)).map(
+    (planId) => NOMBRES_DE_PLAN[planId]
+  );
+  return nombres.length < 2
+    ? nombres.join("")
+    : `${nombres.slice(0, -1).join(", ")} y ${nombres[nombres.length - 1]}`;
+}
+
+/**
+ * Las features del plan tal como las lee la app (`planFeatures` de
+ * GET /billing/summary). Mientras dura el despliegue del 2026-10-05 lleva
+ * también «voz_idioma» donde hay «lenguas_locales»: el panel anterior
+ * desbloqueaba con ella la voz y los idiomas, y Vercel y Cloud Run no
+ * publican a la vez. QUITAR en la PR siguiente, cuando ninguna app la pida.
+ */
+export function featuresParaLaApp(planId: PlanId): string[] {
+  const features: string[] = [...PLAN_FEATURES[planId].features];
+  return features.includes("lenguas_locales")
+    ? [...features, "voz_idioma"]
+    : features;
 }
 
 /** El plan inmediatamente superior, o null si ya es el más alto. */

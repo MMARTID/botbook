@@ -18,7 +18,10 @@ import {
   resolveRetellVoiceProfile,
 } from "../../lib/agentBootstrap.js";
 import { parseAgentSettings } from "../../lib/managedAgentPrompt.js";
-import { usaVozMultilingueEnRetell } from "../../lib/idiomas/resolver.js";
+import {
+  ajustesParaRetell,
+  usaVozMultilingueEnRetell,
+} from "../../lib/idiomas/resolver.js";
 import { retellAdapter } from "../../adapters/retell/RetellAdapter.js";
 import { getPublicWebhookBaseUrl } from "../../lib/serverUrl.js";
 
@@ -172,13 +175,19 @@ export async function agentsRoutes(fastify: FastifyInstance) {
         const orchestrator = business?.orchestrator || "retell";
         // En Retell la voz y los idiomas se gestionan desde Ajustes del
         // negocio. Así un PATCH individual no puede volver a poner una voz
-        // Cartesia incompatible con un idioma que la exige (el catálogo de
+        // Cartesia donde hace falta la multilingüe: principal en otro idioma,
+        // lengua cooficial o un idioma que la exige (el catálogo de
         // lib/idiomas lo marca con `retell.vozMultilingue`; hoy, el catalán).
-        const retellVoiceProfile = resolveRetellVoiceProfile(
-          parseAgentSettings(business?.agentSettings)
+        const agentSettings = parseAgentSettings(business?.agentSettings);
+        const retellVoiceProfile = resolveRetellVoiceProfile(agentSettings);
+        const ajustesDeRetell = ajustesParaRetell(agentSettings);
+        // Los que atiende Retell (el principal y el español), no los siete u
+        // ocho que habla en Telnyx.
+        const agentLanguages = ajustesDeRetell.languages;
+        const necesitaVozMultilingue = usaVozMultilingueEnRetell(
+          ajustesDeRetell.languages,
+          ajustesDeRetell.voiceLanguage
         );
-        const agentLanguages = parseAgentSettings(business?.agentSettings).languages;
-        const necesitaVozMultilingue = usaVozMultilingueEnRetell(agentLanguages);
 
         const agentWithConfig = agent as typeof agent & {
           voiceId?: string | null;
@@ -307,10 +316,11 @@ export async function agentsRoutes(fastify: FastifyInstance) {
                   llmId: retellDraft.llmId,
                   webhookUrl,
                   postCallAnalysisData,
-                  // Un idioma que exige la voz multilingüe (hoy el catalán)
-                  // no deja que una edición individual vuelva a enviar
-                  // Cartesia, que Retell rechaza para ca-ES. Sin él se
-                  // respeta la voz manual y se conservan sus fallbacks.
+                  // Con la voz multilingüe (principal en otro idioma o
+                  // lengua cooficial; Retell rechaza ca-ES con Cartesia),
+                  // una edición individual no vuelve a enviar Cartesia. Sin
+                  // ella se respeta la voz manual y se conservan sus
+                  // fallbacks.
                   voiceId: necesitaVozMultilingue ? retellVoiceProfile.voiceId : voiceId,
                   ...(necesitaVozMultilingue
                     ? {

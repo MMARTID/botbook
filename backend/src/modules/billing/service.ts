@@ -22,7 +22,11 @@ import {
   subscriptionCancellationInstructionsEmail,
 } from "../../lib/emailTemplates.js";
 import { acquireLock, releaseLock } from "../../lib/bookingLock.js";
-import { getPlanLimits, resolvePlanId } from "../../lib/planFeatures.js";
+import {
+  featuresParaLaApp,
+  getPlanLimits,
+  resolvePlanId,
+} from "../../lib/planFeatures.js";
 import { appUrl } from "../../lib/urls.js";
 
 const CHECKOUT_TRIAL_DAYS = 7;
@@ -159,7 +163,7 @@ export async function getBillingSummary(businessId: string) {
     effectivePlanId,
     maxProfessionals: planLimits.maxProfessionals,
     activeProfessionals,
-    planFeatures: planLimits.features,
+    planFeatures: featuresParaLaApp(effectivePlanId),
   };
 }
 

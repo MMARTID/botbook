@@ -6,6 +6,7 @@ import {
 } from "./transferenciaAlDueno.js";
 import {
   GENEROS_DE_VOZ,
+  idiomasQueHabla,
   type CodigoDeIdioma,
   type GeneroDeVoz,
 } from "./idiomas/catalogo.js";
@@ -16,7 +17,7 @@ import {
   idiomasConocidos,
   normalizarIdiomas,
 } from "./idiomas/ajustes.js";
-import { resolverIdiomas } from "./idiomas/resolver.js";
+import { instruccionesDeIdioma, resolverIdiomas } from "./idiomas/resolver.js";
 
 /** Los campos de AgentSettings por separado: parseAgentSettings los lee
  * uno a uno para que un valor inválido no se lleve por delante el resto. */
@@ -30,14 +31,17 @@ const CAMPOS_DE_AJUSTES = {
   // (sin este campo) sigan validando y no caigan al fallback completo de
   // DEFAULT_AGENT_SETTINGS, que resetearía también tono/objetivo/etc.
   voiceGender: z.enum(GENEROS_DE_VOZ).default("femenina"),
-  // Idiomas de atención (catálogo en lib/idiomas/catalogo.ts). Los negocios
-  // anteriores a esta mejora no tienen languages: español, como siempre.
+  // Los idiomas que habla (catálogo en lib/idiomas/catalogo.ts). Desde el
+  // 2026-10-05 no se eligen: se guardan los que van con el principal
+  // (normalizarIdiomas), para que todo lo que lee `languages` siga igual.
+  // Los negocios anteriores a los idiomas no los tienen: los del español.
   languages: EsquemaDeIdiomas.default(["es-ES"]),
-  // Idioma principal: el del saludo y el que decide la voz (Ultra para
-  // español, Soniox para catalán, euskera y gallego). El campo conserva su
-  // nombre histórico (antes «idioma de la voz») para no migrar el JSON.
+  // El idioma principal: en él saluda y de él salen la voz y los idiomas
+  // que habla (decisión del usuario del 2026-10-05; ver idiomasQueHabla y
+  // familiaDeVoces en lib/idiomas/catalogo.ts). El campo conserva su nombre
+  // histórico (antes «idioma de la voz») para no migrar el JSON.
   voiceLanguage: EsquemaDeIdiomaPrincipal.default("es-ES"),
-  // La voz que eligió el dueño entre las de su idioma principal (desde el
+  // La voz que eligió el dueño entre las de su principal (desde el
   // 2026-10-03). Sin valor, la primera de su género: así un negocio que no
   // elige sigue con la de siempre y recibe las mejoras del catálogo.
   voz: EsquemaDeVoz.optional(),
@@ -53,27 +57,17 @@ const CAMPOS_DE_AJUSTES = {
 
 export const AgentSettingsSchema = z
   .object(CAMPOS_DE_AJUSTES)
-  .superRefine((settings, ctx) => {
-    if (!settings.languages.includes(settings.voiceLanguage)) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message:
-          "El idioma de la voz debe estar entre los idiomas de atención activados.",
-        path: ["voiceLanguage"],
-      });
-    }
-  })
-  // Corrige (no rechaza) lo que la voz no puede atender, p. ej. catalán
-  // activo con español principal: ver normalizarIdiomas.
+  // El principal manda y `languages` sale de él (normalizarIdiomas): un
+  // principal que no está en los `languages` recibidos no se rechaza.
   .transform((settings) => {
     const { languages, voiceLanguage } = normalizarIdiomas(settings);
     return conVozValida({ ...settings, languages, voiceLanguage });
   });
 
 /**
- * La voz elegida se guarda solo si atiende de verdad: de su idioma
- * principal y hablando todos sus idiomas (si no, la vista previa ya avisó
- * de cuál atenderá y se olvida la elección). El género, el de la voz.
+ * La voz elegida se guarda solo si atiende de verdad: de las de su
+ * principal y hablando todos sus idiomas (si no, la vista previa ya enseñó
+ * cuál atenderá y se olvida la elección). El género, el de la voz.
  */
 function conVozValida<
   T extends {
@@ -102,7 +96,7 @@ export const DEFAULT_AGENT_SETTINGS: AgentSettings = {
   responseStyle: "concise",
   escalation: "take_message",
   voiceGender: "femenina",
-  languages: ["es-ES"],
+  languages: idiomasQueHabla("es-ES"),
   voiceLanguage: "es-ES",
 };
 
@@ -145,11 +139,14 @@ const NICHE_INSTRUCTIONS: Record<BusinessType, string> = {
 };
 
 /**
- * AgentSettings guardados → válidos. Si todo valida, tal cual (normalizado).
- * Si no, campo a campo: cada campo inválido toma su valor por defecto y los
- * idiomas se quedan con los códigos conocidos. Antes un solo valor inválido
- * (p. ej. un idioma retirado) devolvía DEFAULT_AGENT_SETTINGS entero y
- * borraba también tono, objetivo y el resto.
+ * AgentSettings guardados → válidos. Si todo valida, tal cual (normalizado:
+ * los idiomas, los de su principal). Si no, campo a campo: cada campo
+ * inválido toma su valor por defecto y de los idiomas guardados se miran
+ * los códigos conocidos (una cooficial entre ellos pasa a ser el
+ * principal). Antes un solo valor inválido (p. ej. un idioma retirado)
+ * devolvía DEFAULT_AGENT_SETTINGS entero y borraba también tono, objetivo y
+ * el resto. Un plan que ya no incluye el principal guardado no lo cambia:
+ * el plan se mira al escribir.
  */
 export function parseAgentSettings(value: unknown): AgentSettings {
   const completo = AgentSettingsSchema.safeParse(value);
@@ -296,8 +293,18 @@ export function buildManagedAgentPrompt(input: {
    * bloque «## Pasar la llamada» según el modo; sin ella (o sin pasar
    * nada, como en Retell, que no tiene la tool) no se menciona. */
   transferenciaAlDueno?: TransferenciaAlDueno | null;
+  /** Los idiomas que atiende si no son todos los de su principal: los de
+   * Retell, el respaldo (ajustesParaRetell en lib/idiomas/resolver.ts). Sin
+   * ellos, los que habla con su principal. */
+  idiomas?: readonly CodigoDeIdioma[];
 }) {
   const settings = parseAgentSettings(input.settings);
+  // parseAgentSettings ya deja en `languages` los que habla con su
+  // principal (normalizarIdiomas).
+  const idioma = instruccionesDeIdioma(
+    input.idiomas ?? settings.languages,
+    settings.voiceLanguage
+  );
   const ocultarNumero = input.ocultarNumeroDelNegocio === true;
   const responseInstruction = settings.responseStyle === "concise"
     ? "Responde en una o dos frases."
@@ -308,7 +315,7 @@ export function buildManagedAgentPrompt(input: {
   return [
     "## Rol",
     "Eres la recepcionista virtual de {{nombre_negocio}}.",
-    resolverIdiomas(settings).instruccionDelPrompt,
+    idioma.instruccion,
     TONE_INSTRUCTIONS[settings.tone],
     GOAL_INSTRUCTIONS[settings.primaryGoal],
     responseInstruction,
@@ -410,5 +417,9 @@ export function buildManagedAgentPrompt(input: {
     `Momento actual en la zona del negocio:\n{{current_time_${resolveManagedPromptTimezone(
       input.timezone
     )}}}`,
+    // Al final a propósito: con la regla solo en «## Rol», la recepcionista
+    // volvía al castellano con clientes que hablaban inglés (tanda «A2
+    // inglés» del laboratorio, 2026-10-05). Ver instruccionesDeIdioma.
+    idioma.recordatorio,
   ].filter(Boolean).join("\n\n");
 }

@@ -57,7 +57,13 @@ const negocio = {
   businessDetails: "",
   calendarProvider: "google",
   activeCalendar: { provider: "google", connected: false, calendarId: null, accountEmail: null, disconnectedAt: null, lastError: null },
-  agentSettings: { tone: "professional", primaryGoal: "customer_service", languages: ["es-ES", "en-GB"] },
+  // Como los devuelve GET /business/me: los idiomas que habla con su
+  // principal.
+  agentSettings: {
+    tone: "professional",
+    primaryGoal: "customer_service",
+    languages: ["es-ES", "en-GB", "fr-FR", "de-DE", "it-IT", "pt-PT", "nl-NL"],
+  },
   schedule: {
     version: 1,
     week: {
@@ -90,7 +96,45 @@ describe("AgenteMovil", () => {
     expect(screen.getByRole("link", { name: /Horario del negocio\s*L–M 9:00–14:00/ })).toHaveAttribute("href", "/agente/horario");
     expect(await screen.findByText("Sin servicios configurados")).toBeInTheDocument();
     expect(screen.getByText("Sin conectar")).toBeInTheDocument();
-    expect(screen.getByText("Español, Inglés · Profesional · Atender consultas")).toBeInTheDocument();
+    // Desde el 2026-10-05: el principal, cuántos idiomas habla y la voz.
+    expect(await screen.findByText("Español · habla 7 idiomas · Blanca")).toBeInTheDocument();
+  });
+
+  it("el resumen de cómo atiende dice el principal, cuántos idiomas habla y la voz que atiende", async () => {
+    const enCatalan = {
+      ...negocio,
+      agentSettings: {
+        ...negocio.agentSettings,
+        languages: ["es-ES", "en-GB", "fr-FR", "ca-ES", "de-DE", "it-IT", "pt-PT", "nl-NL"],
+        voiceLanguage: "ca-ES",
+        voiceGender: "masculina",
+      },
+    } as Business;
+    conCliente(<AgenteMovil business={enCatalan} />);
+
+    expect(await screen.findByText("Catalán · habla 8 idiomas · Sergio")).toBeInTheDocument();
+  });
+
+  it("con una voz elegida, el resumen la nombra", async () => {
+    const conLara = {
+      ...negocio,
+      agentSettings: { ...negocio.agentSettings, voz: "Telnyx.Ultra.85b356c1-c638-404d-b986-f54a53d957d6" },
+    } as Business;
+    conCliente(<AgenteMovil business={conLara} />);
+
+    expect(await screen.findByText("Español · habla 7 idiomas · Lara")).toBeInTheDocument();
+  });
+
+  // Unos `languages` de cuando se elegían (p. ej. de una respuesta que no
+  // los normalizaba) no cuentan: cuántos habla lo dice el catálogo.
+  it("cuenta los idiomas con el catálogo, no con unos languages guardados de antes", async () => {
+    const deAntes = {
+      ...negocio,
+      agentSettings: { ...negocio.agentSettings, languages: ["es-ES"] },
+    } as Business;
+    conCliente(<AgenteMovil business={deAntes} />);
+
+    expect(await screen.findByText("Español · habla 7 idiomas · Blanca")).toBeInTheDocument();
   });
 
   it("los enlaces de siempre (?section=) abren la pantalla del ajuste", async () => {

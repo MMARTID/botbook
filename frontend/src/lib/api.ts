@@ -223,13 +223,17 @@ export async function resolverCitaPendiente(id: string) {
   return data;
 }
 
-/** Idiomas que ofrece el panel (catálogo del backend). */
+/** Idiomas que ofrece el panel (catálogo del backend): qué principales se
+ * pueden elegir, cuántos idiomas habla con cada uno y sus voces. */
 export async function getCatalogoDeIdiomas() {
   const { data } = await api.get<CatalogoDeIdiomas>("/business/me/idiomas");
   return data;
 }
 
-/** Qué hará la recepcionista con una selección de idiomas, sin guardarla. */
+/** Qué hará la recepcionista con un principal y una voz, sin guardarlos:
+ * los idiomas que habla, la voz que atiende, las que se pueden elegir y los
+ * avisos para el dueño. Manda `voiceLanguage`; `languages` va por el
+ * backend anterior, que lo exige. */
 export async function previsualizarIdiomas(
   ajustes: Pick<
     AgentSettings,

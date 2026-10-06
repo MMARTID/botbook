@@ -1,12 +1,25 @@
 /**
- * Inventario de idiomas de los negocios, solo lectura. Dice cuántos negocios
- * hay por idioma principal e idiomas activos, y cuáles cambiarían al leer
- * sus ajustes con las reglas del catálogo (lib/idiomas): un cooficial activo
- * con español principal pasa a ser el principal (otra voz y otro saludo), un
- * idioma que la voz del principal no habla se quita, o la voz que eligió el
- * dueño deja de estar en el catálogo y atiende la de su género. Sirve para
- * avisar a esos dueños antes de desplegar y para saber cuántos assistants de
- * Telnyx se resincronizarán.
+ * Inventario de idiomas de los negocios, solo lectura. Desde el 2026-10-05
+ * el dueño solo elige el idioma principal y la voz: la recepcionista habla
+ * los siete de ULTRA_HABLA y, con un principal cooficial, también él
+ * (idiomasQueHabla en lib/idiomas/catalogo.ts). El inventario dice:
+ *
+ * - cuántos negocios hay por principal, idiomas que habla y voz;
+ * - a cuáles les cambia el principal o la voz al leer sus ajustes con las
+ *   reglas del catálogo (a esos dueños hay que avisarles antes de
+ *   desplegar): una cooficial guardada en `languages` con otro principal
+ *   pasa a ser el principal, o la voz que eligió el dueño deja de atender y
+ *   atiende la de su género;
+ * - cuántos guardan otros idiomas de los que habla con su principal (casi
+ *   todos: es el cambio deliberado del 2026-10-05) y cuántos assistants de
+ *   Telnyx se resincronizarán por eso;
+ * - y los que están en Inicio con catalán, euskera o gallego de principal,
+ *   que lo conservan (el plan se mira al escribir).
+ *
+ * La migración 20261005150000_saludo_en_la_cooficial guarda la cooficial
+ * como principal donde las reglas anteriores ya saludaban en ella: antes de
+ * desplegar, los de «cambia el principal» son los que corrige; después, no
+ * debería quedar ninguno.
  *
  * Uso (con la DATABASE_URL del entorno que toque):
  *   npx tsx scripts/inventarioDeIdiomas.ts
@@ -14,6 +27,8 @@
 import { prisma } from "../src/lib/prisma.js";
 import { parseAgentSettings } from "../src/lib/managedAgentPrompt.js";
 import { resolverIdiomas } from "../src/lib/idiomas/resolver.js";
+import { funcionQueExige } from "../src/lib/idiomas/ajustes.js";
+import { planAllows, resolvePlanId } from "../src/lib/planFeatures.js";
 
 function clave(valor: unknown): string {
   return JSON.stringify(valor ?? null);
@@ -26,6 +41,8 @@ async function main() {
       name: true,
       orchestrator: true,
       agentSettings: true,
+      plan: true,
+      stripePriceId: true,
       agents: {
         where: { deletedAt: null },
         select: { id: true, telnyxAssistantId: true },
@@ -35,14 +52,20 @@ async function main() {
   });
 
   const porConfiguracion = new Map<string, number>();
-  const cambian: string[] = [];
+  const cambianPrincipalOVoz: string[] = [];
+  const conLenguaLocalSinElPlan: string[] = [];
+  let cambianIdiomas = 0;
+  let assistantsQueSeResincronizan = 0;
 
   for (const negocio of negocios) {
     const bruto = (negocio.agentSettings ?? {}) as Record<string, unknown>;
     const ajustes = parseAgentSettings(negocio.agentSettings);
     const perfil = resolverIdiomas(ajustes);
     const elegida = typeof bruto.voz === "string" ? bruto.voz : null;
-    const configuracion = `principal ${perfil.principal} · activos ${perfil.idiomas.join("+")} · voz ${perfil.voz.proveedor} ${perfil.voz.nombre}${elegida ? " (elegida)" : ""} · ${perfil.transcripcion.motor} · ${negocio.orchestrator}`;
+    const assistants = negocio.agents.filter(
+      (agente) => agente.telnyxAssistantId
+    ).length;
+    const configuracion = `principal ${perfil.principal} · habla ${perfil.idiomas.length} idiomas · voz ${perfil.voz.proveedor} ${perfil.voz.nombre}${elegida ? " (elegida)" : ""} · ${perfil.transcripcion.motor} · ${negocio.orchestrator}`;
     porConfiguracion.set(
       configuracion,
       (porConfiguracion.get(configuracion) ?? 0) + 1
@@ -51,16 +74,20 @@ async function main() {
     const guardadoPrincipal = bruto.voiceLanguage ?? "es-ES";
     const guardadosIdiomas = bruto.languages ?? ["es-ES"];
     const pierdeLaVoz = elegida !== null && ajustes.voz !== elegida;
-    if (
-      clave(guardadoPrincipal) !== clave(perfil.principal) ||
-      clave(guardadosIdiomas) !== clave(perfil.idiomas) ||
-      pierdeLaVoz
-    ) {
-      const assistants = negocio.agents.filter(
-        (agente) => agente.telnyxAssistantId
-      ).length;
-      cambian.push(
-        `- ${negocio.id} «${negocio.name}» (${negocio.orchestrator}, ${assistants} assistant(s) Telnyx): guardado ${clave(guardadosIdiomas)} / ${clave(guardadoPrincipal)} → ${clave(perfil.idiomas)} / ${perfil.principal}${pierdeLaVoz ? ` · la voz elegida ${elegida} se olvida, atiende ${perfil.voz.nombre}` : ""}`
+    if (clave(guardadoPrincipal) !== clave(perfil.principal) || pierdeLaVoz) {
+      cambianPrincipalOVoz.push(
+        `- ${negocio.id} «${negocio.name}» (${negocio.orchestrator}, ${assistants} assistant(s) Telnyx): guardado ${clave(guardadosIdiomas)} / ${clave(guardadoPrincipal)} → principal ${perfil.principal}${pierdeLaVoz ? ` · la voz elegida ${elegida} se olvida, atiende ${perfil.voz.nombre}` : ""}`
+      );
+    }
+    if (clave(guardadosIdiomas) !== clave(perfil.idiomas)) {
+      cambianIdiomas++;
+      assistantsQueSeResincronizan += assistants;
+    }
+    const funcion = funcionQueExige(perfil.principal);
+    const planId = resolvePlanId(negocio);
+    if (funcion && !planAllows(planId, funcion)) {
+      conLenguaLocalSinElPlan.push(
+        `- ${negocio.id} «${negocio.name}» (${planId}): principal ${perfil.principal}`
       );
     }
   }
@@ -73,9 +100,16 @@ async function main() {
     console.log(`  ${String(total).padStart(4)}  ${configuracion}`);
   }
   console.log(
-    `\nCambiarían al aplicar las reglas del catálogo: ${cambian.length}`
+    `\nCambia el principal o la voz al aplicar las reglas del catálogo (avisar al dueño): ${cambianPrincipalOVoz.length}`
   );
-  for (const linea of cambian) console.log(linea);
+  for (const linea of cambianPrincipalOVoz) console.log(linea);
+  console.log(
+    `\nGuardan otros idiomas que los que habla con su principal: ${cambianIdiomas} negocio(s), ${assistantsQueSeResincronizan} assistant(s) de Telnyx que se resincronizarán`
+  );
+  console.log(
+    `\nCon catalán, euskera o gallego de principal en un plan que no lo incluye (lo conservan): ${conLenguaLocalSinElPlan.length}`
+  );
+  for (const linea of conLenguaLocalSinElPlan) console.log(linea);
 }
 
 main()

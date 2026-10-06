@@ -908,6 +908,43 @@ describe("TelnyxAiAdapter", () => {
       expect(result[0].id).toBe("Soniox.tts-rt-v2.Marta");
       expect(mockListVoices).toHaveBeenCalledWith({ provider: "soniox" });
     });
+
+    it("devuelve label, accent y deprecated, que el SDK no declara", async () => {
+      mockListVoices.mockResolvedValue({
+        voices: [
+          {
+            id: "Telnyx.Ultra.gabriel",
+            name: "Gabriel - Serious Old Man",
+            label: "Serious, elderly Spanish man for slow and insightful stories",
+            accent: "Castilian",
+            language: "es-ES",
+            gender: "Male",
+            provider: "telnyx",
+            model_id: "Ultra",
+            deprecated: true,
+          },
+          {
+            id: "Telnyx.Ultra.blanca",
+            name: "Blanca - Graceful Host",
+            label: "Warm, welcoming Spanish female.",
+            accent: "Castilian",
+            language: "es-ES",
+            gender: "Female",
+            provider: "telnyx",
+          },
+        ],
+      });
+
+      const [gabriel, blanca] = await adapter.listVoices();
+
+      expect(gabriel).toMatchObject({
+        label: "Serious, elderly Spanish man for slow and insightful stories",
+        accent: "Castilian",
+        deprecated: true,
+      });
+      expect(blanca.label).toBe("Warm, welcoming Spanish female.");
+      expect(blanca.deprecated).toBeUndefined();
+    });
   });
 
   describe("createAssistantTest", () => {

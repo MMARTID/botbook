@@ -206,14 +206,21 @@ describe("createTelnyxAssistantForAgent", () => {
       greeting:
         "Hola, gràcies per trucar a Peluquería Ejemplo. En què et puc ajudar?",
       voiceSettings: { voice: "Soniox.tts-rt-v2.Marta", language: "ca" },
+      // Desde el 2026-10-05 con catalán habla ocho idiomas; Soniox lleva
+      // las pistas del catalán y del español (con las ocho iba peor).
       transcription: {
         model: "soniox/stt-rt-v5",
-        settings: { language_hints: ["es", "ca"] },
+        settings: {
+          language_hints: ["es", "ca"],
+        },
       },
     });
   });
 
-  it("con catalán activo y español guardado como principal, el principal pasa a catalán", async () => {
+  // Ajustes guardados con reglas anteriores (catalán en `languages` y
+  // saludo en español): la cooficial guardada pasa a ser el principal, así
+  // que saluda en catalán, como hacía en producción.
+  it("con ajustes anteriores de catalán activo y saludo en español, saluda en catalán con Marta y Soniox", async () => {
     mockedBusinessFindUnique.mockResolvedValue({
       ...BASE_BUSINESS,
       agentSettings: {
@@ -244,6 +251,49 @@ describe("createTelnyxAssistantForAgent", () => {
       language: "ca",
     });
     expect(payload.transcription?.model).toBe("soniox/stt-rt-v5");
+  });
+
+  it("con saludo en alemán crea el assistant con la voz alemana de la cuenta, flux y saludo en alemán", async () => {
+    mockedBusinessFindUnique.mockResolvedValue({
+      ...BASE_BUSINESS,
+      agentSettings: {
+        ...DEFAULT_AGENT_SETTINGS,
+        languages: ["es-ES", "de-DE"],
+        voiceLanguage: "de-DE",
+      },
+    } as any);
+    mockedListVoices.mockResolvedValue([
+      {
+        id: "Telnyx.Ultra.38aabb6a-f52b-4fb0-a3d1-988518f4dc06",
+        language: "de",
+        gender: "Female",
+      },
+    ]);
+    mockedCreateAssistant.mockResolvedValue({
+      id: "assistant_1",
+      name: "alhabla-biz1-agent1",
+      instructions: "i",
+    });
+
+    const result = await createTelnyxAssistantForAgent({
+      agentId: "agent1",
+      businessId: "biz1",
+    });
+
+    expect(result.eligible).toBe(true);
+    const payload = mockedCreateAssistant.mock.calls[0][0];
+    expect(payload.greeting).toBe(
+      "Hallo, vielen Dank für Ihren Anruf bei Peluquería Ejemplo. Wie kann ich Ihnen helfen?"
+    );
+    expect(payload.voiceSettings).toMatchObject({
+      voice: "Telnyx.Ultra.38aabb6a-f52b-4fb0-a3d1-988518f4dc06",
+      expressive_mode: true,
+    });
+    expect(payload.voiceSettings).not.toHaveProperty("language");
+    expect(payload.transcription).toMatchObject({
+      model: "deepgram/flux",
+      language: "multi",
+    });
   });
 
   it("no lanza si Telnyx falla al crear — devuelve el motivo en vez de propagar el error", async () => {

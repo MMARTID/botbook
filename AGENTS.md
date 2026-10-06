@@ -2407,75 +2407,164 @@ property of the Retell **Agent** object, not the LLM — unrelated to `updateLlm
 
 #### Idiomas de atención y voz en Telnyx (desde 2026-10-02)
 
+**Desde el 05-10 el dueño solo elige el idioma principal y la voz** (decisión del usuario: «nos
+hemos complicado»). El principal manda: en él saluda, de él sale la voz y con él habla los siete
+idiomas de las voces Ultra (`ULTRA_HABLA`: español, inglés, francés, alemán, italiano, portugués y
+neerlandés) y, si es catalán, euskera o gallego, también esa lengua (ocho). No hay casillas de
+idiomas: `languages` se guarda derivado del principal para que todo lo que lo lee siga igual. El
+panel dice «Habla en 7 idiomas: … Saluda en español y sigue en el idioma de quien llama.»
+
 **Una sola fuente: `backend/src/lib/idiomas/`** (módulo puro, sin E/S). Ningún otro módulo guarda
 listas de idiomas ni decide por su cuenta:
 
 - `catalogo.ts`:
   - **Por cada idioma (BCP-47):** ISO, nombre en el prompt, etiqueta del panel, saludo con
     `{negocio}`, pistas de transcripción (`flux` o `null`, `soniox`), locale de Retell (o `null`) y
-    si exige su voz multilingüe, una nota opcional para el prompt (p. ej. valenciano y balear) y
-    sus **voces a elegir** (o `null` si solo puede acompañar a otro principal).
-  - **Cada voz:** id de Telnyx, proveedor (`telnyx` = Ultra, `soniox`, `azure`, `minimax`), nombre,
-    género y qué idiomas habla (`habla`, «todos» en Soniox). La primera de cada género es la de
-    por defecto.
-  - **`MERCADOS`:** qué se ofrece. Mercado `ES`: obligatorio `es-ES`; principales `es-ES`, `ca-ES`,
-    `eu-ES` y `gl-ES`; secundarios `en-GB`, `fr-FR`, `de-DE`, `it-IT`, `pt-PT` y `nl-NL` (los
-    cuatro últimos desde el 03-10, tras escuchar cómo los pronuncia la voz Ultra).
+    si exige su voz multilingüe, si es **lengua cooficial** (`cooficial`: catalán, euskera,
+    gallego), una nota opcional para el prompt (p. ej. valenciano y balear) y sus **voces**.
+  - **Cada voz:** id de Telnyx, proveedor (`telnyx` = Ultra o `soniox`; Azure y MiniMax se
+    retiraron el 05-10), nombre visible (único en su idioma), género, `descripcion` en español
+    (2–5 palabras), `recomendada` (de atención al cliente) y qué idiomas habla (`habla`: toda Ultra
+    habla `ULTRA_HABLA` = es, en, fr, de, it, pt, nl; Soniox, «todos»). Por género, la primera es
+    la de por defecto; luego las recomendadas y luego el resto. `descripcion` y `recomendada` no
+    entran en el payload.
+  - **Voces Ultra:** las de español, inglés, francés, alemán, italiano, portugués y neerlandés salen
+    de `vocesUltra.ts`, **generado** por `scripts/generarVocesUltra.ts` (no se edita a mano) con la
+    API de Telnyx (`listVoices`, ids `Telnyx.Ultra.*`, sin deprecadas, de mujer o de hombre, con el
+    locale de `LOCALE_EN_TELNYX` y, en español, acento `Castilian`) y la curación a mano de
+    `curacionDeVoces.ts` (descripción, recomendada, nombre visible si hace falta, voces por defecto
+    y exclusiones con su motivo: duplicados y voces de efecto o de personaje). Inventario del 05-10:
+    español 29 (18 mujeres y 11 hombres, Blanca y Marcos por defecto), inglés 40 (Lucy/George),
+    francés 33 (Léa/Laurent), alemán 33 (Alina/Lukas), italiano 13 (Sofia/Marco), portugués 7
+    (Beatriz/Paulo) y neerlandés 11 (Anneliese/Stijn). Las cooficiales tienen Marta y Sergio de
+    Soniox.
+  - **`idiomasQueHabla(principal)`:** los siete de `ULTRA_HABLA` y, si el principal es una
+    cooficial, también ella, en orden canónico. Es lo que se guarda en `languages`.
+  - **`familiaDeVoces(principal)`:** con un principal cooficial, sus voces (Soniox); si no, sus
+    Ultra nativas.
+  - **`MERCADOS`:** qué se ofrece. Mercado `ES`: obligatorio `es-ES`; de principal
+    (`principales`) `es-ES`, `ca-ES`, `eu-ES`, `gl-ES`, `en-GB`, `fr-FR`, `de-DE`, `it-IT`, `pt-PT`
+    y `nl-NL`. Ya no hay `secundarios` ni `otrosIdiomasConSaludo`.
 - `ajustes.ts`:
-  - los esquemas de `languages`/`voiceLanguage`/`voz` (el JSON guardado no cambia de forma);
-  - `normalizarIdiomas`, que corrige en vez de rechazar: alguna voz del principal debe hablar
-    todos los activos. Si no, pasa a principal el primero con una voz que los hable todos
-    (catalán, euskera y gallego solo se atienden como principal). Con el catálogo actual siempre
-    la hay (un test recorre todas las combinaciones).
+  - los esquemas de `languages`/`voiceLanguage`/`voz` (el JSON guardado no cambia de forma:
+    `voiceLanguage` es el **idioma principal**, con su nombre de siempre);
+  - `normalizarIdiomas`, que corrige en vez de rechazar: **el principal manda** (si no tiene voces,
+    español) y `languages` sale de él. Los `languages` recibidos solo cuentan para leer ajustes
+    anteriores: con una cooficial entre ellos y un principal que no lo es (un JSON guardado del
+    11-09 al 02-10 podía quedar así; la migración de abajo lo arregla en la base de datos), la
+    cooficial pasa a ser el principal (la primera en orden canónico), cambio `principal`. Un
+    principal que no está en los `languages` recibidos ya no se rechaza;
+  - `funcionQueExige(principal)`: `lenguas_locales` para catalán, euskera y gallego (Pro y Scale),
+    `null` para los demás. La mira `PATCH /business/me` y la enseña el panel.
 - `resolver.ts`:
-  - **`resolverIdiomas(ajustes)` → `PerfilDeIdiomas`:** idiomas normalizados, principal, la voz
-    que atiende y sus alternativas, ISO del principal, transcripción e instrucción del prompt,
-    más los cambios hechos. La elección de voz es `elegirVoz(voces, …)`, pura y con la lista como
-    parámetro (se prueba con voces que el catálogo aún no tiene).
-  - **La voz:** la elegida (`AgentSettings.voz`) si es del principal y habla todos sus idiomas;
-    si no, la primera de su género que los hable (y se avisa en el panel). Las alternativas, las
-    demás del mismo género: la reserva si la voz ya no está en la cuenta.
-  - **Transcripción:** flux (pista o `multi`) si flux entiende todos los activos; si no,
-    `soniox/stt-rt-v5` con pistas.
-  - **Para Retell:** `ajustesParaRetell` quita los idiomas sin locale y, si el principal es uno de
-    ellos (euskera), saluda en español; también `idiomaDeRetell` y `usaVozMultilingueEnRetell`.
-    Retell no usa la voz elegida, solo su género.
-- `panel.ts`: el catálogo del panel (con las voces de cada principal y la ruta de su muestra) y la
-  vista previa (voz que atenderá, saludo real y avisos).
+  - **`resolverIdiomas(ajustes)` → `PerfilDeIdiomas`:** los idiomas que habla, `principal`,
+    `cooficial` (el principal si lo es), `familia` (`ultra`/`soniox`), la voz que atiende, las
+    `voces` que se pueden elegir, las `alternativas`, `isoDeLaVoz`, transcripción e instrucción del
+    prompt, más los cambios hechos. La elección de voz es `elegirVoz(voces, …)`, pura y con la
+    lista como parámetro (se prueba con voces que el catálogo aún no tiene).
+  - **La voz:** la elegida (`AgentSettings.voz`) si es de las del principal; si no, la primera de
+    su género (o de `voiceGender`). Una de otra familia (cambió el principal) se ignora sin aviso:
+    el panel ya enseña las que atienden. Las alternativas, las demás de la familia y del mismo
+    género: la reserva si la voz ya no está en la cuenta.
+  - **`isoDeLaVoz`:** el `voice_settings.language` de una voz de Soniox, el ISO del principal
+    cooficial.
+  - **Transcripción:** con un principal Ultra, flux en `multi` (los siete); con uno cooficial,
+    `soniox/stt-rt-v5` con dos pistas, la suya y la del español (no las de los ocho que habla).
+    **Medido el 05-10 en el laboratorio** (de 3 a 5 llamadas por tanda: muestras pequeñas):
+    `multi` no empeora el español frente a `es` (p50 983 frente a 1193 ms y error de palabra del
+    1,7 % frente al 6,2 %, dentro del ruido; según Telnyx, +87 ms de mediana en la transcripción)
+    y transcribe bien el inglés (3,4 %). Las ocho pistas de Soniox, en cambio, salieron peor que
+    dos con clientes en catalán: la misma espera (p50 1725 frente a 1779 ms) y el doble de error
+    de palabra (9,5 % frente a 4,7 %), con palabras arrastradas a otros idiomas («metxes» →
+    «metges», «tints» → «teen»); una llamada se rompió con cuatro turnos de «no oferim serveis
+    mèdics». **Sin medir:** que con dos pistas Soniox entienda el inglés u otros idiomas.
+  - **Instrucción del prompt** (`instruccionesDeIdioma`): «Empieza siempre con el saludo en
+    {principal}. Tras la primera intervención de quien llama, responde y continúa exclusivamente en
+    el idioma que use si es uno de estos: {los siete u ocho, en orden canónico}…», con «Las frases
+    que estas instrucciones ponen entre comillas para decírselas a quien llama están en castellano:
+    dilas traducidas al idioma de la conversación.» y la nota valenciana y balear del catalán; y un
+    bloque «## Idioma» que cierra
+    el prompt y lo recuerda (también en el resumen de la reserva, la pregunta del WhatsApp y la
+    despedida). Ese refuerzo viene de la tanda «A2 inglés» del 05-10: con la regla sola, contestó
+    en castellano a clientes que hablaban inglés en 5 de 19 respuestas, sobre todo en las frases
+    que el prompt da literales en castellano. **Sin medir de nuevo con él.**
+  - **Para Retell, el respaldo:** `ajustesParaRetell` deja el principal y el español, no los siete
+    u ocho de Telnyx (sin los que Retell no tiene: con euskera de principal, solo español). Es lo
+    que ya recibía antes del 05-10 y está validado contra su API: con principal español, el
+    escalar `es-ES` (su ruta monolingüe, la más precisa) y la voz Cartesia; con uno extranjero o
+    cooficial, los dos y la cadena ElevenLabs. Su prompt lista esos mismos idiomas
+    (`buildManagedAgentPrompt({ idiomas })`). Además `idiomaDeRetell` y
+    `usaVozMultilingueEnRetell(idiomas, principal)`, que pide la cadena ElevenLabs si el principal
+    no es el español, si habla una cooficial o si algún idioma la exige (catalán). Retell no usa
+    la voz elegida, solo su género.
+- `panel.ts`: el catálogo del panel (cada principal con su `tipo` —obligatorio, cooficial o
+  extranjero—, los `idiomas` que habla con él, la `entradilla` «Habla en N idiomas: …», lo que
+  `requiere` del plan —`{ funcion: "lenguas_locales", texto: "Disponible en Pro y Scale" }` o
+  `null`—, su `familia` y sus voces con `descripcion`, `recomendada`, `porDefecto` y la ruta de su
+  muestra) y la vista previa (los idiomas que habla, la voz que atenderá, las `voces` elegibles,
+  la entradilla, el saludo real y avisos en español llano: la espera más larga con una cooficial,
+  1,4–2 s frente a ~0,9 s; Marta o Sergio; el saludo extranjero a los clientes de aquí; y, con un
+  principal de voces Ultra, que no entiende el catalán, el euskera ni el gallego, porque flux no
+  los transcribe —47 % de error de palabra con un cliente en catalán en la tanda «B piloto» del
+  05-10— y la voz no cambia a mitad de llamada: un assistant tiene una sola). Las
+  muestras van en `frontend/public/voces/<iso>/<slug>.mp3`: el uuid para las Ultra y el nombre en
+  minúsculas para las de Soniox (`/voces/ca/marta.mp3`), con el ISO del principal de su lista.
+  **Transitorio:** `GET /business/me/idiomas` sirve `catalogoConCamposDelPanelAnterior`, que añade
+  `habla`/`expresiva` a cada voz y `secundariosCompatibles` (lo que habla salvo el obligatorio y
+  el principal) a cada principal, y `GET /billing/summary` manda también `voz_idioma` donde hay
+  `lenguas_locales` (`featuresParaLaApp`): Vercel publica la app antes de que Cloud Run sirva el
+  backend, y una pestaña con la app anterior lanzaba al pintar sin ellos o bloqueaba a Pro. Se
+  quitan en la PR siguiente (el fixture del frontend no los lleva). En sentido contrario, la app
+  tolera un catálogo sin `idiomas`/`entradilla`/`requiere` (guarda el obligatorio y el principal, y
+  enseña la entradilla de la vista previa) y un plan con `voz_idioma` en vez de `lenguas_locales`.
 
 Lo consumen `telnyxEligibility.ts` (la voz y sus alternativas contra la cuenta, una consulta por
-proveedor, con reserva Ultra o Soniox del mismo género), `telnyxAssistantPayload.ts` (recibe el
+proveedor, con reserva Ultra o Soniox del mismo género; la reserva Ultra solo da otra
+`Telnyx.Ultra.*` —nunca una KokoroTTS u otro modelo monolingüe, que la API también lista en
+es-ES sin acento—, compara con `LOCALE_EN_TELNYX`, porque la API lista las nativas de alemán,
+italiano y neerlandés sin región, descarta en español las de otro acento que «Castilian», las
+deprecadas y las de `EXCLUSIONES_DE_VOCES`; sin ninguna, el negocio no es elegible), `telnyxAssistantPayload.ts` (recibe el
 perfil), `telnyxAgentSync.ts`, `managedAgentPrompt.ts` (instrucción del prompt y
 `parseAgentSettings`), `agentBootstrap.ts`, `modules/agents/routes.ts` (Retell) y
-`modules/businesses/routes.ts` (`GET /business/me/idiomas`, `POST …/previsualizar` y la puerta de
-plan `voz_idioma`, que cubre también la voz). `parseAgentSettings` lee campo a campo: un valor
-inválido no tira el resto de ajustes al `DEFAULT_AGENT_SETTINGS`; una voz que no atiende se olvida
-al guardar.
+`modules/businesses/routes.ts` (`GET /business/me/idiomas`, `POST …/previsualizar` —basta con
+`voiceLanguage`; `languages` es opcional— y la puerta de plan: pasar a un principal que exige
+`lenguas_locales` sin tenerla es un 403 `PLAN_LIMIT_LENGUAS_LOCALES`; quien ya lo tiene lo conserva
+al bajar de plan, porque solo se mira al cambiarlo). `parseAgentSettings` lee campo a campo: un
+valor inválido no tira el resto de ajustes al `DEFAULT_AGENT_SETTINGS`; una voz que no atiende se
+olvida al guardar.
 
-**Reglas (decisiones del usuario del 02 y 03-10):**
+**Reglas (decisiones del usuario del 02, 03 y 05-10):**
 
-- **Principal español:** voces Ultra con `expressive_mode` y `deepgram/flux`, con sus ajustes de
-  turno. De momento Blanca y Marcos; el usuario elegirá más de oído. Inglés y francés como
-  principal se conservan como legado (voz Ultra de su idioma, saludo en su idioma), pero no se
-  ofrecen.
-- **Principal catalán, euskera o gallego:**
-  - Voces: Marta y Sergio de Soniox (hablan todos los idiomas, con `voice_settings.language` =
-    ISO del principal).
+- **El saludo es siempre en el idioma principal** (`voiceLanguage`): nada de saludo por el
+  prefijo del número que llama ni por llamada. Después sigue en el idioma de quien llama, si es
+  uno de los que habla.
+- **Planes:** Inicio, principal español o uno de los seis extranjeros, con sus voces Ultra; Pro y
+  Scale, además catalán, euskera y gallego (`lenguas_locales`). En Inicio el panel enseña esas tres
+  con candado y enlace a facturación, salvo la que el negocio ya tenga.
+- **Principal Ultra** (español o extranjero): sus Ultra nativas, con `expressive_mode`, y
+  `deepgram/flux` en `multi` con sus ajustes de turno. En español se pueden escoger las 29 de
+  España (no las latinoamericanas ni las «es» sin acento); por defecto, Blanca y Marcos. Con un
+  principal extranjero, el panel avisa de que también saluda en ese idioma a los clientes de aquí.
+- **Principal catalán, euskera o gallego:** todo el negocio va con Soniox:
+  - Voces: Marta y Sergio de Soniox (hablan todos los idiomas), con `voice_settings.language` =
+    ISO del principal. Las respuestas en castellano con `language: "ca"` funcionaron en las 37
+    llamadas reales del 03-10.
   - Del 03 al 05-10 se ofrecieron también las nativas de Azure y cuatro de MiniMax (catalán con
     `language_boost: "Catalan"`). Se retiraron por decisión del usuario: se cobran aparte por
     carácter (ver «Coste por voz») y no mejoraban la espera. El inventario de producción del
     05-10 confirmó que ningún negocio las había elegido; sus muestras de `frontend/public/voces`
-    se borran en una PR posterior, cuando el backend ya desplegado deje de ofrecerlas.
-  - En estudio: la voz Ultra hablando catalán con un diccionario de pronunciación de Telnyx
-    (plan del 05-10).
-  - Transcripción con Soniox: `language_hints`, `context`, endpoint a 500 ms (el mínimo),
-    `wait_seconds: 0.1` y 0.5 s sin puntuación (medido, ver abajo).
-  - Saludo en su idioma; con catalán, el prompt pide adaptarse al valenciano y al balear.
-- **El dueño elige la voz escuchándola** en «Cómo atiende» (planes Pro y Scale). Las muestras
-  están en `frontend/public/voces/<iso>/<voz>.mp3` y las genera `scripts/muestrasDeVoces.ts`.
-- **Los cooficiales solo como principal.** Se descartó «entiende pero contesta en español», que
-  pasaba todas las llamadas al turno de Soniox. Se investiga el traspaso a mitad de llamada
-  (`handoff` con `voice_mode: "distinct"`) para negocios con español principal.
+    (y `blanca.mp3`/`marcos.mp3`, ahora por uuid) se borran en una PR posterior, cuando el backend
+    ya desplegado deje de pedirlas.
+  - Transcripción con Soniox: `language_hints` (la del principal y la del español), `context`,
+    endpoint a 500 ms (el mínimo), `wait_seconds: 0.1` y 0.5 s sin puntuación (medido, ver
+    abajo). Contesta entre 1,4 y 2 s en vez de ~0,9 s, también a quien habla castellano, y el
+    panel lo avisa.
+  - Con catalán, el prompt pide adaptarse al valenciano y al balear.
+  - **En estudio (no depende de esta PR):** cambiar de voz a mitad de llamada (español → catalán
+    con Marta) con `conversation_flow`, para que un principal español atienda también catalán.
+- **El dueño elige la voz escuchándola** en «Cómo atiende» (todos los planes): las recomendadas a
+  la vista y el resto del género al desplegar. Las muestras las genera
+  `scripts/muestrasDeVoces.ts`.
 
 **Datos medidos con llamadas reales (03-10, negocio de pruebas de dev, p50 de los turnos sin
 herramienta):**
@@ -2509,22 +2598,45 @@ herramienta):**
   Soniox a flux: esperas de Soniox en un negocio en español) e `interrupt_prediction_threshold`
   (de flux a Soniox). Los borra `TelnyxAiAdapter.updateAssistant`, sin tocar el payload ni su
   hash; `verificarIdiomas.ts` lo comprueba en los dos sentidos.
-- **Hash:** el orden canónico de los seis primeros códigos y sus textos no se tocan. Las
-  instantáneas de `payloadsDeAsistentes.snapshot.test.ts`, con el hash de solo español, lo vigilan.
-- **Retell no tiene euskera.** Su cadena ElevenLabs solo se usa con catalán; el gallego con
-  Cartesia está sin verificar.
+- **Hash:** el orden canónico de los seis primeros códigos y sus textos no se tocan, y Blanca y
+  Marcos son las primeras de su género en `vocesUltra.ts` (el generador falla si la de por defecto
+  no lo es). Las instantáneas de `payloadsDeAsistentes.snapshot.test.ts`, con el hash del
+  principal español, lo vigilan; elegir la voz de por defecto produce el mismo payload que no elegir.
+- **La API de voces** lista las nativas de alemán, italiano y neerlandés sin región («de», «it»,
+  «nl»), solo envía `deprecated` cuando vale `true` y el SDK 7.24 no tipa `label`, `accent` ni
+  `deprecated` (`TelnyxAiAdapter.listVoices` los devuelve con un cast documentado).
+- **Retell no tiene euskera.** Su cadena ElevenLabs se usa con un principal extranjero o
+  cooficial (también el gallego, antes con Cartesia sin verificar). Recibe solo el principal y el
+  español (`ajustesParaRetell`), no los siete u ocho de Telnyx: mandarle los siete locales con la
+  voz Cartesia no se ha probado, y si rechazara el `updateAgent`, `syncAgentToRetell` lanzaría y
+  `PATCH /business/me`, que sincroniza Retell antes que Telnyx, devolvería 500 con la base de
+  datos ya guardada.
+- **Hash del 05-10:** la simplificación cambia el payload de todos los negocios (transcripción
+  `multi` con principal Ultra, la lista del prompt y el refuerzo de la regla de idioma): al
+  desplegar se resincronizan todos los assistants. Es deliberado; la instantánea se revisó caso a
+  caso.
 
 **Herramientas (scripts del backend, con `TELNYX_API_KEY` del entorno):**
 
 - `laboratorioDeVoces.ts`: muestras y tiempos de síntesis de las voces candidatas, con una página
   de escucha a ciegas. Medido el 03-10 (mediana de 5): Ultra ~80 ms, MiniMax ~195 ms, Soniox
   320–420 ms y Azure 290–560 ms de síntesis; en llamadas reales esa diferencia no se nota.
-- `muestrasDeVoces.ts`: las muestras del panel, una por voz y principal (solo las que faltan, o
-  todas con `--todas`).
+- `generarVocesUltra.ts`: escribe `src/lib/idiomas/vocesUltra.ts` con la API y la curación
+  (`--estricto` falla con una voz nueva sin curar; `--comprobar` no escribe y falla si no está al
+  día). Tras regenerarlo: `muestrasDeVoces.ts` y `generarFixtureDeIdiomas.ts`.
+- `muestrasDeVoces.ts`: las muestras del panel, una por voz y por idioma de su lista, con una frase
+  de recepción en cada uno de los diez (solo las que faltan, o todas con `--todas`).
+- `generarFixtureDeIdiomas.ts`: el fixture del frontend (`frontend/tests/fixtures/
+  catalogo-de-idiomas.ts`) con lo que devuelve `GET /business/me/idiomas`; sin red,
+  `--comprobar` falla si no está al día.
 - `verificarIdiomas.ts`: por cada nivel del catálogo y cada voz candidata crea un assistant
-  temporal con el builder real, comprueba lo que Telnyx guardó y los cambios de voz e idioma
-  (de catalán a español y al revés, con el payload completo), y lo borra todo. Desde el 05-10
-  tiene 7 casos: el de MiniMax se queda para vigilar que el adaptador borre su `language_boost`.
+  temporal con el builder real, comprueba lo que Telnyx guardó (voz, modelo, idioma de la
+  transcripción y pistas de Soniox) y los cambios de voz e idioma (de catalán a español y al
+  revés, con el payload completo), y lo borra todo. Tiene 8 casos: el de MiniMax se queda para
+  vigilar que el adaptador borre su `language_boost`, y desde el 05-10 principal español (habla
+  siete: Blanca, flux en `multi`), principal catalán (habla ocho: Marta, `language: "ca"`, Soniox
+  con las pistas del catalán y el español), principal alemán (Alina, flux en `multi`) y español con una voz que no es
+  la de por defecto, que comprueban antes lo que da el resolver.
 - `medirLatenciaDeTurnos.ts`: espera entre el cliente y la recepcionista (p50/p95 y solapes) a
   partir de las grabaciones de doble canal de un negocio (`lib/latenciaDeTurnos.ts`, puro). La
   voz es lo que pasa de -38 dB con alguna parte por encima de -30 dB: el fondo de oficina suelta
@@ -2541,12 +2653,30 @@ herramienta):**
   a mano) y `verificarIdiomas.ts`.
 
 **Añadir un idioma:** su código al final de `CODIGOS_DE_IDIOMA`, su entrada en `IDIOMAS` y
-ofrecerlo en un mercado. Los tests de `tests/lib/idiomas/catalogo.test.ts` exigen que esté
-completo y que, de cada género, alguna voz de cada principal hable todo lo ofrecido.
-**Añadir una voz:** su entrada en las `voces` del idioma, su muestra con `muestrasDeVoces.ts` (un
-test de `panel.test.ts` falla si falta) y `verificarIdiomas.ts` si es de un proveedor nuevo.
-`scripts/inventarioDeIdiomas.ts` (solo lectura) dice qué negocios cambiarían con unas reglas
-nuevas.
+ofrecerlo en un mercado; si tiene Ultra nativas, también en `IDIOMAS_CON_VOCES_ULTRA`,
+`LOCALE_EN_TELNYX`, `VOCES_POR_DEFECTO` y la curación (y en `ULTRA_HABLA` si las Ultra lo hablan:
+entonces lo hablan todos los negocios). Los tests de `tests/lib/idiomas/catalogo.test.ts` exigen
+que esté completo y que, con cada principal, la familia que atiende tenga de cada género una voz
+y todas hablen todos sus idiomas.
+**Añadir una voz Ultra:** su curación en `curacionDeVoces.ts`, `generarVocesUltra.ts --estricto`,
+su muestra con `muestrasDeVoces.ts` (un test de `panel.test.ts` falla si falta) y
+`generarFixtureDeIdiomas.ts`; `verificarIdiomas.ts` si es de un proveedor nuevo.
+`scripts/inventarioDeIdiomas.ts` (solo lectura) dice a qué negocios les cambia el principal o la
+voz con las reglas del catálogo (hay que avisarles), cuántos guardan otros idiomas que los de su
+principal (y cuántos assistants se resincronizarán) y cuáles tienen una lengua local de principal
+en un plan que no la incluye (la conservan).
+
+**Migración `20261005150000_saludo_en_la_cooficial` (solo datos):** con las reglas anteriores al
+05-10, una cooficial activa era siempre el saludo y la corrección se hacía al leer, sin reescribir
+el JSON; un negocio guardado con una cooficial y `voiceLanguage: "es-ES"` (o sin él) saludaba en
+la cooficial y con la regla nueva habría pasado a saludar en castellano sin elegirlo. La migración
+les guarda la primera cooficial activa (orden canónico) como saludo antes de que llegue el código
+nuevo: comparando la regla de 223d2c0 con la nueva en las 22.534 combinaciones de `languages` ×
+`voiceLanguage` (y sin él) × género, tras migrar no cambia ningún saludo, voz ni
+`voice_settings.language`; solo cambian, por decisión, los JSON con dos o más cooficiales (se
+queda una) y los que saludan en alemán, italiano, portugués o neerlandés, que antes no se podían
+guardar. Lo prueba `tests/integration/idiomas/saludoEnLaCooficial.test.ts`. Con la simplificación
+del mismo día la lectura hace lo mismo (`normalizarIdiomas`) por si queda alguno.
 
 ### Agent Defaults (`backend/src/lib/agentBootstrap.ts`)
 

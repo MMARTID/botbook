@@ -21,7 +21,6 @@ exports[`payloads de asistentes (instantáneas) > assistant de la recepcionista 
       "enable_endpoint_detection": true,
       "language_hints": [
         "es",
-        "en",
         "ca",
       ],
       "max_endpoint_delay_ms": 500,
@@ -36,6 +35,39 @@ exports[`payloads de asistentes (instantáneas) > assistant de la recepcionista 
     "expressive_mode": false,
     "language": "ca",
     "voice": "Soniox.tts-rt-v2.Marta",
+  },
+}
+`;
+
+exports[`payloads de asistentes (instantáneas) > assistant de la recepcionista con español con una voz elegida que no es la de por defecto (Lara) 1`] = `
+{
+  "greeting": "Hola, gracias por llamar a Perruqueria Anna. ¿En qué te puedo ayudar?",
+  "interruptionSettings": {
+    "interrupt_prediction_threshold": 0.4,
+    "start_speaking_plan": {
+      "wait_seconds": 0.1,
+    },
+  },
+  "transcription": {
+    "language": "multi",
+    "model": "deepgram/flux",
+    "settings": {
+      "eager_eot_threshold": 0.4,
+      "eot_threshold": 0.8,
+      "eot_timeout_ms": 5000,
+      "keyterm": "Tall,Laura",
+      "numerals": true,
+      "smart_format": true,
+    },
+  },
+  "voiceSettings": {
+    "background_audio": {
+      "type": "predefined_media",
+      "value": "office",
+      "volume": 0.2,
+    },
+    "expressive_mode": true,
+    "voice": "Telnyx.Ultra.85b356c1-c638-404d-b986-f54a53d957d6",
   },
 }
 `;
@@ -100,7 +132,6 @@ exports[`payloads de asistentes (instantáneas) > assistant de la recepcionista 
       "enable_endpoint_detection": true,
       "language_hints": [
         "es",
-        "fr",
         "gl",
       ],
       "max_endpoint_delay_ms": 500,
@@ -115,6 +146,39 @@ exports[`payloads de asistentes (instantáneas) > assistant de la recepcionista 
     "expressive_mode": false,
     "language": "gl",
     "voice": "Soniox.tts-rt-v2.Marta",
+  },
+}
+`;
+
+exports[`payloads de asistentes (instantáneas) > assistant de la recepcionista con saludo en alemán (su Ultra nativa y flux) 1`] = `
+{
+  "greeting": "Hallo, vielen Dank für Ihren Anruf bei Perruqueria Anna. Wie kann ich Ihnen helfen?",
+  "interruptionSettings": {
+    "interrupt_prediction_threshold": 0.4,
+    "start_speaking_plan": {
+      "wait_seconds": 0.1,
+    },
+  },
+  "transcription": {
+    "language": "multi",
+    "model": "deepgram/flux",
+    "settings": {
+      "eager_eot_threshold": 0.4,
+      "eot_threshold": 0.8,
+      "eot_timeout_ms": 5000,
+      "keyterm": "Tall,Laura",
+      "numerals": true,
+      "smart_format": true,
+    },
+  },
+  "voiceSettings": {
+    "background_audio": {
+      "type": "predefined_media",
+      "value": "office",
+      "volume": 0.2,
+    },
+    "expressive_mode": true,
+    "voice": "Telnyx.Ultra.38aabb6a-f52b-4fb0-a3d1-988518f4dc06",
   },
 }
 `;
@@ -483,7 +547,7 @@ exports[`payloads de asistentes (instantáneas) > assistant de la recepcionista,
     },
   ],
   "transcription": {
-    "language": "es",
+    "language": "multi",
     "model": "deepgram/flux",
     "settings": {
       "eager_eot_threshold": 0.4,
@@ -881,7 +945,7 @@ Si te escriben en catalán, gallego, euskera o inglés, responde en ese idioma; 
 exports[`payloads de asistentes (instantáneas) > el JSON enviado es idéntico byte a byte (hash) 1`] = `
 {
   "gestor": "d42493dfb458dbe1ef8fa7fab6dbf284ec727a79d37293a97bff584963af6abf",
-  "recepcionista": "a934f9aca0e4f64f5ccc97d7c3735607abd195a99fa531bb748d70522bbb12d1",
+  "recepcionista": "10e734b7e0179d2a861fccc190d49ae5ab699084342057a064efa98853322229",
 }
 `;
 
