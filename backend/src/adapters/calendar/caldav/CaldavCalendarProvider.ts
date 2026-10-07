@@ -28,6 +28,8 @@ import type {
   EventoCreado,
   EventoProximo,
   NuevoEventoDeCalendario,
+  ResultadoDeBorrado,
+  VentanaDelEvento,
 } from "../CalendarProvider.js";
 import { CalendarBusinessError } from "../errors.js";
 import { asegurarDestinoPublico } from "../../../lib/destinoPublico.js";
@@ -38,6 +40,8 @@ import {
   intervalosOcupadosDesdeIcs,
   nombreDeFichero,
   uidDeEvento,
+  uidDesdeNombreDeFichero,
+  uidsDesdeIcs,
 } from "./ics.js";
 
 type Fetch = typeof fetch;
@@ -105,6 +109,32 @@ export function fetchSoloPublico(base: Fetch): Fetch {
 
 /** Ventana por defecto de "próximos eventos" para el panel. */
 const DIAS_DE_PROXIMOS_EVENTOS = 30;
+
+/** Margen a cada lado de la hora de la cita al buscar su evento por UID. */
+const MARGEN_DE_BUSQUEDA_MS = 24 * 60 * 60 * 1000;
+
+/** Ruta decodificada de una URL: dos direcciones son la misma aunque una
+ * escape `@` como `%40` y la otra no. */
+function rutaDecodificada(url: string): string {
+  const ruta = new URL(url).pathname;
+  try {
+    return decodeURIComponent(ruta);
+  } catch {
+    return ruta;
+  }
+}
+
+function mismaDireccion(a: string, b: string): boolean {
+  try {
+    const urlA = new URL(a);
+    const urlB = new URL(b);
+    return (
+      urlA.origin === urlB.origin && rutaDecodificada(a) === rutaDecodificada(b)
+    );
+  } catch {
+    return a === b;
+  }
+}
 
 export class CaldavCalendarProvider implements CalendarProvider<"caldav"> {
   readonly id = "caldav" as const;
@@ -221,7 +251,13 @@ export class CaldavCalendarProvider implements CalendarProvider<"caldav"> {
         fetchOptions: this.peticion(conexion).fetchOptions,
         fetch: this.fetch,
       });
-      if (respuesta.ok || respuesta.status === 412) {
+      if (respuesta.ok) {
+        return {
+          id: this.direccionDelEventoCreado(conexion, href, respuesta),
+          htmlLink: null,
+        };
+      }
+      if (respuesta.status === 412) {
         return { id: href, htmlLink: null };
       }
       throw new ErrorHttpCaldav(respuesta.status, href);
@@ -230,27 +266,96 @@ export class CaldavCalendarProvider implements CalendarProvider<"caldav"> {
     }
   }
 
+  /** Dirección en la que quedó el evento. El servidor puede guardar el
+   * objeto con otro nombre y decirlo en `Location`: si se guardara el href
+   * pedido, el borrado de mañana iría a una dirección vacía (404) y el
+   * evento seguiría vivo. Se guarda la ruta de `Location` con el origen del
+   * calendario, para que availability.ts siga casando `objeto.url` (que
+   * tsdav resuelve contra el calendario) con `externalEventId`. */
+  private direccionDelEventoCreado(
+    conexion: ConexionActiva<"caldav">,
+    href: string,
+    respuesta: Response
+  ): string {
+    const location = respuesta.headers.get("location");
+    if (!location) return href;
+    let rutaReal: string;
+    try {
+      rutaReal = new URL(location, href).pathname;
+    } catch {
+      return href;
+    }
+    const real = new URL(rutaReal, conexion.calendarId).toString();
+    if (rutaDecodificada(real) === rutaDecodificada(href)) return href;
+    console.warn(
+      `[Calendar] CalDAV guardó el evento en otra dirección: ${href} → ${real}`
+    );
+    return real;
+  }
+
+  /** DELETE al href guardado. Si el servidor dice que ahí no hay nada
+   * (404/410) y se conoce la hora de la cita, busca el evento por su UID en
+   * el calendario: un servidor que guardó el objeto con otro nombre (sin
+   * decirlo en `Location`) respondería 404 aquí con el evento vivo en otra
+   * dirección, y el dueño seguiría recibiendo sus avisos. Solo se busca por
+   * UID cuando el href es de un evento nuestro (`alhabla-<digest>.ics`):
+   * nunca se borra un evento ajeno. */
   async borrarEvento(
     conexion: ConexionActiva<"caldav">,
-    eventId: string
-  ): Promise<void> {
+    eventId: string,
+    ventana?: VentanaDelEvento
+  ): Promise<ResultadoDeBorrado> {
     try {
-      const respuesta = await deleteCalendarObject({
-        calendarObject: { url: eventId, etag: "" },
-        ...this.peticion(conexion),
+      const estado = await this.borrarDireccion(conexion, eventId);
+      if (estado === null) return { resultado: "borrado" };
+
+      const uid = uidDesdeNombreDeFichero(eventId);
+      if (!ventana || !uid) return { resultado: "no_estaba", estado };
+
+      const objetos = await this.objetosEnVentana(conexion, {
+        timeMin: new Date(ventana.inicio.getTime() - MARGEN_DE_BUSQUEDA_MS),
+        timeMax: new Date(ventana.fin.getTime() + MARGEN_DE_BUSQUEDA_MS),
       });
-      // Ya borrado (o nunca existió) = objetivo cumplido.
-      if (
-        respuesta.ok ||
-        respuesta.status === 404 ||
-        respuesta.status === 410
-      ) {
-        return;
+      const candidatos = new Set<string>();
+      for (const objeto of objetos) {
+        if (mismaDireccion(objeto.url, eventId)) continue;
+        // Solo un objeto que sea exactamente nuestro evento. Si además
+        // llevara VEVENT de otro UID (RFC 4791 lo prohíbe, pero no todo
+        // servidor lo cumple), borrarlo se llevaría eventos ajenos.
+        const uids = uidsDesdeIcs(objeto.data);
+        if (uids.length === 1 && uids[0] === uid) {
+          candidatos.add(objeto.url);
+        }
       }
-      throw new ErrorHttpCaldav(respuesta.status, eventId);
+      let eventIdReal: string | undefined;
+      for (const url of candidatos) {
+        if ((await this.borrarDireccion(conexion, url)) === null) {
+          eventIdReal ??= url;
+        }
+      }
+      return eventIdReal
+        ? { resultado: "borrado", eventIdReal }
+        : { resultado: "no_estaba", estado };
     } catch (error) {
       throw this.mapearError("borrar", error);
     }
+  }
+
+  /** DELETE sin If-Match. null = borrado; 404/410 = ahí no había nada
+   * (se devuelve el estado). Cualquier otro estado lanza ErrorHttpCaldav. */
+  private async borrarDireccion(
+    conexion: ConexionActiva<"caldav">,
+    url: string
+  ): Promise<number | null> {
+    const respuesta = await deleteCalendarObject({
+      calendarObject: { url, etag: "" },
+      ...this.peticion(conexion),
+    });
+    if (respuesta.ok) return null;
+    if (respuesta.status === 404 || respuesta.status === 410) {
+      return respuesta.status;
+    }
+    throw new ErrorHttpCaldav(respuesta.status, url);
   }
 
   private async objetosEnVentana(

@@ -74,8 +74,12 @@ const EVENTO: NuevoEventoDeCalendario = {
   idempotencyDigest: "abc123",
 };
 
-function respuesta(status: number) {
-  return { ok: status >= 200 && status < 300, status } as Response;
+function respuesta(status: number, cabeceras: Record<string, string> = {}) {
+  return {
+    ok: status >= 200 && status < 300,
+    status,
+    headers: new Headers(cabeceras),
+  } as Response;
 }
 
 describe("fetchVigilado", () => {
@@ -318,6 +322,51 @@ describe("CaldavCalendarProvider", () => {
       expect(args.iCalString).toContain("DTSTART:20260921T100000Z");
     });
 
+    it("si el servidor lo guardó en otra dirección (Location), guarda esa ruta con el origen del calendario y avisa", async () => {
+      const avisos = vi
+        .spyOn(console, "warn")
+        .mockImplementation(() => undefined);
+      mockedCreateObject.mockResolvedValue(
+        respuesta(201, {
+          location:
+            "https://p02-caldav.icloud.com/123/calendars/abc/0F3C9A2E-OTRO.ics",
+        })
+      );
+
+      const creado = await adaptador.crearEvento(CONEXION, EVENTO);
+
+      // Mismo origen que el calendario (p01): availability.ts casa
+      // objeto.url con externalEventId.
+      expect(creado).toEqual({
+        id: `${CALENDARIO}0F3C9A2E-OTRO.ics`,
+        htmlLink: null,
+      });
+      expect(avisos).toHaveBeenCalledWith(
+        `[Calendar] CalDAV guardó el evento en otra dirección: ${CALENDARIO}alhabla-abc123.ics → ${CALENDARIO}0F3C9A2E-OTRO.ics`
+      );
+
+      // Location relativa y 204: igual.
+      mockedCreateObject.mockResolvedValue(
+        respuesta(204, { location: "/123/calendars/abc/relativo.ics" })
+      );
+      await expect(adaptador.crearEvento(CONEXION, EVENTO)).resolves.toEqual({
+        id: `${CALENDARIO}relativo.ics`,
+        htmlLink: null,
+      });
+
+      // Location con la misma ruta: el href de siempre, sin aviso.
+      avisos.mockClear();
+      mockedCreateObject.mockResolvedValue(
+        respuesta(201, { location: `${CALENDARIO}alhabla-abc123.ics` })
+      );
+      await expect(adaptador.crearEvento(CONEXION, EVENTO)).resolves.toEqual({
+        id: `${CALENDARIO}alhabla-abc123.ics`,
+        htmlLink: null,
+      });
+      expect(avisos).not.toHaveBeenCalled();
+      avisos.mockRestore();
+    });
+
     it("412 (ya existía por un reintento) cuenta como creado con el mismo href", async () => {
       mockedCreateObject.mockResolvedValue(respuesta(412));
       await expect(adaptador.crearEvento(CONEXION, EVENTO)).resolves.toEqual({
@@ -349,25 +398,159 @@ describe("CaldavCalendarProvider", () => {
   });
 
   describe("borrarEvento", () => {
-    it("borra por href sin If-Match; 404 y 410 cuentan como borrado", async () => {
+    const HREF = `${CALENDARIO}alhabla-abc123.ics`;
+    const VENTANA = {
+      inicio: new Date("2026-10-07T08:45:00Z"),
+      fin: new Date("2026-10-07T10:25:00Z"),
+    };
+    const icsCon = (uid: string) =>
+      `BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:${uid}\r\nDTSTART:20261007T084500Z\r\nDTEND:20261007T102500Z\r\nEND:VEVENT\r\nEND:VCALENDAR`;
+
+    it("204 → borrado, por href y sin If-Match; no busca nada", async () => {
       mockedDeleteObject.mockResolvedValue(respuesta(204));
       await expect(
-        adaptador.borrarEvento(CONEXION, `${CALENDARIO}a.ics`)
-      ).resolves.toBeUndefined();
+        adaptador.borrarEvento(CONEXION, HREF, VENTANA)
+      ).resolves.toEqual({ resultado: "borrado" });
       const args = mockedDeleteObject.mock.calls[0][0] as any;
-      expect(args.calendarObject).toEqual({
-        url: `${CALENDARIO}a.ics`,
-        etag: "",
-      });
+      expect(args.calendarObject).toEqual({ url: HREF, etag: "" });
+      expect(mockedFetchObjects).not.toHaveBeenCalled();
+    });
 
+    it("404 con el evento en otra dirección (mismo UID, dentro de la ventana) → lo borra ahí y devuelve eventIdReal", async () => {
+      const real = `${CALENDARIO}0F3C9A2E-OTRO.ics`;
+      mockedDeleteObject
+        .mockResolvedValueOnce(respuesta(404))
+        .mockResolvedValueOnce(respuesta(204));
+      mockedFetchObjects.mockResolvedValue([
+        { url: real, etag: "1", data: icsCon("alhabla-abc123@alhabla.ai") },
+        // Otro evento del dueño en la misma franja: ni se toca.
+        { url: `${CALENDARIO}del-dueno.ics`, etag: "2", data: icsCon("ajeno") },
+      ] as any);
+
+      await expect(
+        adaptador.borrarEvento(CONEXION, HREF, VENTANA)
+      ).resolves.toEqual({ resultado: "borrado", eventIdReal: real });
+
+      // La ventana se amplía un día por cada lado.
+      const consulta = mockedFetchObjects.mock.calls[0][0] as any;
+      expect(consulta.calendar).toEqual({ url: CALENDARIO });
+      expect(consulta.timeRange).toEqual({
+        start: "2026-10-06T08:45:00.000Z",
+        end: "2026-10-08T10:25:00.000Z",
+      });
+      expect(mockedDeleteObject).toHaveBeenCalledTimes(2);
+      expect(
+        (mockedDeleteObject.mock.calls[1][0] as any).calendarObject
+      ).toEqual({ url: real, etag: "" });
+    });
+
+    it("un objeto ilegible en la ventana (dos VCALENDAR seguidos) se salta y no impide borrar el evento renombrado", async () => {
+      const real = `${CALENDARIO}0F3C9A2E-OTRO.ics`;
+      mockedDeleteObject
+        .mockResolvedValueOnce(respuesta(404))
+        .mockResolvedValueOnce(respuesta(204));
+      mockedFetchObjects.mockResolvedValue([
+        {
+          url: `${CALENDARIO}raro.ics`,
+          etag: "1",
+          data: `${icsCon("alhabla-abc123@alhabla.ai")}\r\n${icsCon("ajeno")}`,
+        },
+        { url: real, etag: "2", data: icsCon("alhabla-abc123@alhabla.ai") },
+      ] as any);
+
+      await expect(
+        adaptador.borrarEvento(CONEXION, HREF, VENTANA)
+      ).resolves.toEqual({ resultado: "borrado", eventIdReal: real });
+      // El objeto raro no se borra: llevaría consigo el evento ajeno.
+      expect(mockedDeleteObject).toHaveBeenCalledTimes(2);
+      expect(
+        (mockedDeleteObject.mock.calls[1][0] as any).calendarObject
+      ).toEqual({ url: real, etag: "" });
+    });
+
+    it("un objeto con nuestro UID y otro VEVENT ajeno dentro no se borra", async () => {
+      mockedDeleteObject.mockResolvedValue(respuesta(404));
+      const dosEventos =
+        "BEGIN:VCALENDAR\r\n" +
+        "BEGIN:VEVENT\r\nUID:alhabla-abc123@alhabla.ai\r\nDTSTART:20261007T084500Z\r\nDTEND:20261007T102500Z\r\nEND:VEVENT\r\n" +
+        "BEGIN:VEVENT\r\nUID:ajeno\r\nDTSTART:20261007T090000Z\r\nDTEND:20261007T100000Z\r\nEND:VEVENT\r\n" +
+        "END:VCALENDAR";
+      mockedFetchObjects.mockResolvedValue([
+        { url: `${CALENDARIO}mezclado.ics`, etag: "1", data: dosEventos },
+      ] as any);
+
+      await expect(
+        adaptador.borrarEvento(CONEXION, HREF, VENTANA)
+      ).resolves.toEqual({ resultado: "no_estaba", estado: 404 });
+      expect(mockedDeleteObject).toHaveBeenCalledTimes(1);
+    });
+
+    it("404 sin encontrarlo (o solo en la dirección pedida) → no_estaba con el estado", async () => {
+      mockedDeleteObject.mockResolvedValue(respuesta(404));
+      mockedFetchObjects.mockResolvedValue([
+        { url: HREF, etag: "1", data: icsCon("alhabla-abc123@alhabla.ai") },
+        { url: `${CALENDARIO}otro.ics`, etag: "2", data: icsCon("ajeno") },
+      ] as any);
+
+      await expect(
+        adaptador.borrarEvento(CONEXION, HREF, VENTANA)
+      ).resolves.toEqual({ resultado: "no_estaba", estado: 404 });
+      expect(mockedFetchObjects).toHaveBeenCalledTimes(1);
+      expect(mockedDeleteObject).toHaveBeenCalledTimes(1);
+    });
+
+    it("410 → no_estaba", async () => {
+      mockedDeleteObject.mockResolvedValue(respuesta(410));
+      mockedFetchObjects.mockResolvedValue([]);
+      await expect(
+        adaptador.borrarEvento(CONEXION, HREF, VENTANA)
+      ).resolves.toEqual({ resultado: "no_estaba", estado: 410 });
+    });
+
+    it("href que no es de un evento de Alhabla → no busca por UID (nunca borra un evento ajeno)", async () => {
       mockedDeleteObject.mockResolvedValue(respuesta(404));
       await expect(
-        adaptador.borrarEvento(CONEXION, "u")
-      ).resolves.toBeUndefined();
-      mockedDeleteObject.mockResolvedValue(respuesta(410));
+        adaptador.borrarEvento(CONEXION, `${CALENDARIO}del-dueno.ics`, VENTANA)
+      ).resolves.toEqual({ resultado: "no_estaba", estado: 404 });
       await expect(
-        adaptador.borrarEvento(CONEXION, "u")
-      ).resolves.toBeUndefined();
+        adaptador.borrarEvento(CONEXION, "u", VENTANA)
+      ).resolves.toEqual({ resultado: "no_estaba", estado: 404 });
+      expect(mockedFetchObjects).not.toHaveBeenCalled();
+    });
+
+    it("sin ventana → no busca", async () => {
+      mockedDeleteObject.mockResolvedValue(respuesta(404));
+      await expect(adaptador.borrarEvento(CONEXION, HREF)).resolves.toEqual({
+        resultado: "no_estaba",
+        estado: 404,
+      });
+      expect(mockedFetchObjects).not.toHaveBeenCalled();
+    });
+
+    it("un fallo de la búsqueda o del segundo DELETE se mapea como el resto", async () => {
+      mockedDeleteObject.mockResolvedValue(respuesta(404));
+      mockedFetchObjects.mockRejectedValue(new ErrorHttpCaldav(401, "u"));
+      await expect(
+        adaptador.borrarEvento(CONEXION, HREF, VENTANA)
+      ).rejects.toMatchObject({ code: "CALDAV_CALENDAR_RECONNECT_REQUIRED" });
+
+      const errorSpy = vi
+        .spyOn(console, "error")
+        .mockImplementation(() => undefined);
+      mockedFetchObjects.mockResolvedValue([
+        {
+          url: `${CALENDARIO}0F3C9A2E-OTRO.ics`,
+          etag: "1",
+          data: icsCon("alhabla-abc123@alhabla.ai"),
+        },
+      ] as any);
+      mockedDeleteObject
+        .mockResolvedValueOnce(respuesta(404))
+        .mockResolvedValueOnce(respuesta(409));
+      await expect(
+        adaptador.borrarEvento(CONEXION, HREF, VENTANA)
+      ).rejects.toMatchObject({ code: "CANCEL_APPOINTMENT_FAILED" });
+      errorSpy.mockRestore();
     });
 
     it("403 → RECONNECT; 409 → CANCEL_APPOINTMENT_FAILED", async () => {

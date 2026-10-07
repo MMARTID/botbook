@@ -2197,8 +2197,11 @@ backend/src/lib/voiceConfigCache.ts        # claveDeCacheDeVoz / invalidarCacheD
 - **Interfaz** (`CalendarProvider<P>`): `listarCalendarios(cuenta)`, `listarProximosEventos(conexion, max)`,
   `listarOcupacion(conexion, ventana)` (devuelve intervalos ya filtrados con la regla del proveedor; puede lanzar
   cualquier cosa, el servicio degrada a `{ intervals: [], calendarAvailabilityKnown: false }`), `crearEvento(conexion,
-  evento)` (idempotente por `idempotencyDigest`, devuelve `{ id, htmlLink }`) y `borrarEvento(conexion, eventId)`
-  (ya borrado = éxito). Los adaptadores reciben `ConexionActiva` (credenciales + `calendarId` garantizados) y un
+  evento)` (idempotente por `idempotencyDigest`, devuelve `{ id, htmlLink }`) y `borrarEvento(conexion, eventId,
+  ventana?)`, que devuelve un `ResultadoDeBorrado`: `borrado` (con `eventIdReal` si estaba en otra dirección) o
+  `no_estaba` con el estado (404/410). Todo llamador de `calendarService.cancelAppointment` pasa la hora del evento
+  (`ventanaDeLaCita`) y registra el resultado con `registrarBorradoDeEvento` (`modules/calendar/borradoDeEvento.ts`):
+  un `no_estaba` sale como warn, porque puede ser un evento vivo en otra dirección. Los adaptadores reciben `ConexionActiva` (credenciales + `calendarId` garantizados) y un
   callback opcional `alRotarCredenciales` (Outlook rota el refresh token en cada refresh; el adaptador no persiste nada).
 - **`conexion.ts`**: `resolverConexionDeCalendario(business, { provider?, calendarId? })` (lee la fila del proveedor
   activo de `business.calendarConnections`, valida `credentials` con Zod — una fila corrupta cuenta como "sin
@@ -2235,7 +2238,10 @@ backend/src/lib/voiceConfigCache.ts        # claveDeCacheDeVoz / invalidarCacheD
     Sin esto tsdav devuelve **lista vacía ante un 401** y una consulta de ocupación con contraseña revocada diría
     "agenda libre" (dobles reservas). 404 y 412 pasan porque borrar y crear los interpretan.
   - Crear = `PUT` con `If-None-Match: *` y UID `alhabla-<digest>@alhabla.ai`; **412 = ya existía por un reintento**
-    → mismo href, sin duplicar. Borrar: 404/410 = éxito. Sin `ATTENDEE` a propósito (iCloud mandaría
+    → mismo href, sin duplicar; si el `PUT` responde con `Location` en otra ruta, se guarda esa ruta (con el origen
+    del calendario) y se avisa. Borrar: 404/410 en el href guardado → si hay ventana y el href es nuestro
+    (`alhabla-<digest>.ics`), busca el UID en la hora de la cita ±1 día y borra el objeto donde esté (`eventIdReal`);
+    si no, `no_estaba`. Nunca se busca ni se borra por UID un evento ajeno. Sin `ATTENDEE` a propósito (iCloud mandaría
     invitaciones desde la cuenta del negocio). Fechas en UTC; dos VALARM como los recordatorios de Google.
   - Ocupación: `calendar-query` con `time-range` y `expand` (si el servidor no expande, `ics.ts` expande la RRULE);
     **misma regla que Google** (cancelado no cuenta; día completo cuenta aunque sea `TRANSPARENT`; con hora y

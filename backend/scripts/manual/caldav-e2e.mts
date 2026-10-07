@@ -109,15 +109,21 @@ console.log(
   (await adaptador.listarProximosEventos(conexion, 5)).length,
   "eventos"
 );
+const ventanaDelEvento = { inicio: evento.startTime, fin: evento.endTime };
 console.log("6) borrarEvento");
-await adaptador.borrarEvento(conexion, creado.id!);
+console.log(
+  "   ",
+  await adaptador.borrarEvento(conexion, creado.id!, ventanaDelEvento)
+);
 console.log(
   "   ocupación tras borrar:",
   (await adaptador.listarOcupacion(conexion, ventana)).length
 );
-console.log("7) borrar de nuevo (404 → éxito):");
-await adaptador.borrarEvento(conexion, creado.id!);
-console.log("   ok");
+console.log("7) borrar de nuevo (404 → no_estaba, tras buscarlo por UID):");
+console.log(
+  "   ",
+  await adaptador.borrarEvento(conexion, creado.id!, ventanaDelEvento)
+);
 console.log("8) contraseña incorrecta →");
 try {
   await adaptador.listarCalendarios({

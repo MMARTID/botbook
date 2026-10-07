@@ -24,6 +24,10 @@ import {
 import { timezoneOffsetMinutes } from "../../lib/voiceDateTime.js";
 import { calendarService } from "../calendar/service.js";
 import {
+  registrarBorradoDeEvento,
+  ventanaDeLaCita,
+} from "../calendar/borradoDeEvento.js";
+import {
   SELECT_CONEXION_DE_CALENDARIO,
   conexionOperativa,
   marcarCalendarioDesconectado,
@@ -741,9 +745,18 @@ const anadirCita: AccionDelGestor<AnadirCita> = {
         );
         if (eventoCreado) {
           try {
-            await calendarService.cancelAppointment({
+            const borrado = await calendarService.cancelAppointment({
               conexion,
               eventId: eventoCreado,
+              ventana: ventanaDeLaCita(start, prep.duracion),
+            });
+            registrarBorradoDeEvento({
+              prefijo: "[Gestor]",
+              etiqueta,
+              businessId: business.id,
+              proveedor: conexion.provider,
+              eventId: eventoCreado,
+              resultado: borrado,
             });
           } catch (errorAlBorrar) {
             console.error(
@@ -964,9 +977,11 @@ export async function moverReserva(input: {
     detalle = ""
   ): FalloAlMover => ({ ok: false, motivo, detalle });
 
-  const cita = await citaDelNegocio(input.businessId, input.citaId);
-  if (!cita) return fallo("no_existe");
-  if (cita.isCancelled) return fallo("cancelada");
+  // Primera lectura, sin candado: solo para no cerrar la agenda por una cita
+  // que no existe o ya está cancelada.
+  const previa = await citaDelNegocio(input.businessId, input.citaId);
+  if (!previa) return fallo("no_existe");
+  if (previa.isCancelled) return fallo("cancelada");
   const negocio = await negocioParaReservar(input.businessId);
   if (!negocio.ok) return fallo("negocio", negocio.motivo);
   const { business, conexion } = negocio;
@@ -977,12 +992,21 @@ export async function moverReserva(input: {
     profesional = r.profesional;
   }
   if (start.getTime() < Date.now()) return fallo("pasada");
-  const descripcionAntes = await describirCita(cita, input.timezone);
 
   const lockToken = await acquireBookingLock(business.id);
   if (!lockToken) return fallo("agenda_ocupada");
   let eventoNuevo: string | undefined;
   try {
+    // La cita se vuelve a leer con la agenda ya cerrada y TODO lo que sigue
+    // (hueco, evento nuevo, evento viejo, descripción) sale de esta lectura.
+    // Con la de antes del candado, dos movimientos seguidos leían el mismo
+    // evento viejo: el segundo lo volvía a borrar y el evento que había
+    // creado el primero se quedaba huérfano en el calendario del dueño.
+    const cita = await citaDelNegocio(input.businessId, input.citaId);
+    if (!cita) return fallo("no_existe");
+    if (cita.isCancelled) return fallo("cancelada");
+    const descripcionAntes = await describirCita(cita, input.timezone);
+
     const hueco = await comprobarHueco({
       business,
       conexion,
@@ -1061,9 +1085,19 @@ export async function moverReserva(input: {
     if (!movida || movida.count === 0) {
       if (eventoNuevo) {
         try {
-          await calendarService.cancelAppointment({
+          const borrado = await calendarService.cancelAppointment({
             conexion,
             eventId: eventoNuevo,
+            ventana: ventanaDeLaCita(start, cita.durationMinutes),
+          });
+          registrarBorradoDeEvento({
+            prefijo: prefijoDeLog,
+            etiqueta,
+            businessId: business.id,
+            bookingId: cita.id,
+            proveedor: conexion.provider,
+            eventId: eventoNuevo,
+            resultado: borrado,
           });
         } catch (errorAlBorrar) {
           console.error(
@@ -1074,17 +1108,34 @@ export async function moverReserva(input: {
       return fallo(movida ? "cancelada_entre_medias" : "error_interno");
     }
 
-    // Evento viejo: best-effort contra el calendario con el que se creó.
-    if (cita.externalEventId && cita.externalCalendarProvider) {
+    // Evento viejo: best-effort contra el calendario con el que se creó, en
+    // la hora que tenía la cita ANTES de moverla. Nunca el que se acaba de
+    // guardar como puntero (un reintento con la misma clave lo devolvería).
+    if (
+      cita.externalEventId &&
+      cita.externalCalendarProvider &&
+      cita.externalEventId !== eventoNuevo
+    ) {
+      const proveedorViejo = normalizarProveedorDeCalendario(
+        cita.externalCalendarProvider
+      );
       try {
-        await calendarService.cancelAppointment({
+        const borrado = await calendarService.cancelAppointment({
           conexion: resolverConexionDeCalendario(business, {
-            provider: normalizarProveedorDeCalendario(
-              cita.externalCalendarProvider
-            ),
+            provider: proveedorViejo,
             calendarId: cita.externalCalendarId,
           }),
           eventId: cita.externalEventId,
+          ventana: ventanaDeLaCita(cita.programedAt, cita.durationMinutes),
+        });
+        registrarBorradoDeEvento({
+          prefijo: prefijoDeLog,
+          etiqueta,
+          businessId: business.id,
+          bookingId: cita.id,
+          proveedor: proveedorViejo,
+          eventId: cita.externalEventId,
+          resultado: borrado,
         });
       } catch (error) {
         console.error(

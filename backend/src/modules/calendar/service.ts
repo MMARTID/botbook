@@ -37,6 +37,8 @@ import {
   type EventoCreado,
   type EventoProximo,
   type CalendarCredentials,
+  type ResultadoDeBorrado,
+  type VentanaDelEvento,
 } from "../../adapters/calendar/CalendarProvider.js";
 import {
   buildEventContent,
@@ -891,17 +893,23 @@ export class CalendarService {
     });
   }
 
-  /** Cancela el evento externo de una cita ya reservada (voz: ver
-   * executeCancelAppointment en voiceTools/service.ts). Un evento ya
-   * borrado se trata como éxito idempotente — puede haberlo borrado ya un
-   * reintento anterior o el propio propietario a mano. */
+  /** Borra el evento externo de una cita (cancelada, movida o que no se
+   * pudo guardar). Devuelve lo que pasó en el calendario: «no_estaba» no es
+   * un fallo (puede haberlo borrado el dueño a mano o un reintento), pero el
+   * llamador lo registra con registrarBorradoDeEvento (./borradoDeEvento.ts)
+   * porque también puede ser un evento vivo en otra dirección. `ventana` es
+   * la hora del evento: CalDAV la usa para buscarlo por UID. */
   async cancelAppointment(
-    input: EntradaConConexion & { eventId: string }
-  ): Promise<void> {
+    input: EntradaConConexion & {
+      eventId: string;
+      ventana?: VentanaDelEvento;
+    }
+  ): Promise<ResultadoDeBorrado> {
     const activa = exigirConexionActiva(input.conexion, "cancelar");
-    await obtenerProveedorDeCalendario(activa.provider).borrarEvento(
+    return obtenerProveedorDeCalendario(activa.provider).borrarEvento(
       activa,
-      input.eventId
+      input.eventId,
+      input.ventana
     );
   }
 }

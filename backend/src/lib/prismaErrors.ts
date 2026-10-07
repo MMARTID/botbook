@@ -9,3 +9,15 @@ export function isUniqueConstraintError(error: unknown): boolean {
     (error as { code?: unknown }).code === "P2002"
   );
 }
+
+/** P2025: un `update`/`delete` de un solo registro no encontró ninguna fila
+ * que cumpla el `where` (no existe o no cumple un filtro extra, como
+ * `isCancelled: false`). */
+export function isRecordNotFoundError(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    (error as { code?: unknown }).code === "P2025"
+  );
+}

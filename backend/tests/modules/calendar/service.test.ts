@@ -1418,7 +1418,7 @@ describe("CalendarService.cancelAppointment", () => {
         conexion: conexionGoogle(),
         eventId: "evt_1",
       })
-    ).resolves.toBeUndefined();
+    ).resolves.toEqual({ resultado: "borrado" });
 
     expect(deleteMock).toHaveBeenCalledWith(
       { calendarId: "cal_google", eventId: "evt_1" },
@@ -1427,7 +1427,7 @@ describe("CalendarService.cancelAppointment", () => {
   });
 
   it.each([404, 410])(
-    "Google: un evento ya borrado (%i) cuenta como éxito idempotente",
+    "Google: un evento que ya no está (%i) no es un fallo: devuelve no_estaba con el estado",
     async (code) => {
       mockedGoogleCalendar.mockReturnValue({
         events: {
@@ -1443,8 +1443,13 @@ describe("CalendarService.cancelAppointment", () => {
         calendarService.cancelAppointment({
           conexion: conexionGoogle(),
           eventId: "evt_1",
+          // La ventana no cambia nada en Google.
+          ventana: {
+            inicio: new Date("2026-10-07T08:45:00Z"),
+            fin: new Date("2026-10-07T10:25:00Z"),
+          },
         })
-      ).resolves.toBeUndefined();
+      ).resolves.toEqual({ resultado: "no_estaba", estado: code });
     }
   );
 
@@ -1518,17 +1523,13 @@ describe("CalendarService.cancelAppointment", () => {
     expect(mockedGoogleCalendar).not.toHaveBeenCalled();
   });
 
-  it("Outlook: borra el evento con el access token renovado y trata el 404 como éxito", async () => {
+  it("Outlook: borra el evento con el access token renovado y devuelve borrado", async () => {
     const { refreshMicrosoftAccessToken, deleteMicrosoftCalendarEvent } =
       await import("../../../src/lib/microsoftGraph.js");
     vi.mocked(refreshMicrosoftAccessToken).mockResolvedValue({
       access_token: "access_123",
     } as any);
-    vi.mocked(deleteMicrosoftCalendarEvent).mockRejectedValue(
-      Object.assign(new Error("Microsoft Graph request failed: 404"), {
-        status: 404,
-      })
-    );
+    vi.mocked(deleteMicrosoftCalendarEvent).mockResolvedValue(undefined);
 
     await expect(
       calendarService.cancelAppointment({
@@ -1539,7 +1540,7 @@ describe("CalendarService.cancelAppointment", () => {
         }),
         eventId: "evt_1",
       })
-    ).resolves.toBeUndefined();
+    ).resolves.toEqual({ resultado: "borrado" });
 
     expect(deleteMicrosoftCalendarEvent).toHaveBeenCalledWith(
       "access_123",
@@ -1547,6 +1548,33 @@ describe("CalendarService.cancelAppointment", () => {
       "evt_1"
     );
   });
+
+  it.each([404, 410])(
+    "Outlook: un evento que ya no está (%i) no es un fallo: devuelve no_estaba con el estado",
+    async (status) => {
+      const { refreshMicrosoftAccessToken, deleteMicrosoftCalendarEvent } =
+        await import("../../../src/lib/microsoftGraph.js");
+      vi.mocked(refreshMicrosoftAccessToken).mockResolvedValue({
+        access_token: "access_123",
+      } as any);
+      vi.mocked(deleteMicrosoftCalendarEvent).mockRejectedValue(
+        Object.assign(new Error(`Microsoft Graph request failed: ${status}`), {
+          status,
+        })
+      );
+
+      await expect(
+        calendarService.cancelAppointment({
+          conexion: conexionDePrueba({
+            calendarProvider: "outlook",
+            outlookRefreshToken: "refresh_token_123",
+            outlookCalendarId: "cal_outlook",
+          }),
+          eventId: "evt_1",
+        })
+      ).resolves.toEqual({ resultado: "no_estaba", estado: status });
+    }
+  );
 
   it("Outlook: lanza OUTLOOK_CALENDAR_RECONNECT_REQUIRED si el refresh devuelve invalid_grant", async () => {
     const { refreshMicrosoftAccessToken, deleteMicrosoftCalendarEvent } =
