@@ -2479,16 +2479,26 @@ listas de idiomas ni decide por su cuenta:
     de palabra (9,5 % frente a 4,7 %), con palabras arrastradas a otros idiomas («metxes» →
     «metges», «tints» → «teen»); una llamada se rompió con cuatro turnos de «no oferim serveis
     mèdics». **Sin medir:** que con dos pistas Soniox entienda el inglés u otros idiomas.
-  - **Instrucción del prompt** (`instruccionesDeIdioma`): «Empieza siempre con el saludo en
-    {principal}. Tras la primera intervención de quien llama, responde y continúa exclusivamente en
-    el idioma que use si es uno de estos: {los siete u ocho, en orden canónico}…», con «Las frases
+  - **Instrucción del prompt** (`instruccionesDeIdioma`): «En las llamadas, el saludo en
+    {principal} ya lo dice el sistema al descolgar y es el primer mensaje de la conversación: no lo
+    repitas. Desde tu primera respuesta, contesta y continúa exclusivamente en el idioma en que te
+    habla quien llama si es uno de estos: {los siete u ocho, en orden canónico}…», con «Las frases
     que estas instrucciones ponen entre comillas para decírselas a quien llama están en castellano:
     dilas traducidas al idioma de la conversación.» y la nota valenciana y balear del catalán; y un
-    bloque «## Idioma» que cierra
-    el prompt y lo recuerda (también en el resumen de la reserva, la pregunta del WhatsApp y la
-    despedida). Ese refuerzo viene de la tanda «A2 inglés» del 05-10: con la regla sola, contestó
-    en castellano a clientes que hablaban inglés en 5 de 19 respuestas, sobre todo en las frases
-    que el prompt da literales en castellano. **Sin medir de nuevo con él.**
+    bloque «## Idioma» que cierra el prompt y lo recuerda (también la primera respuesta, lo que
+    diga después de una herramienta, el resumen de la reserva, la pregunta del WhatsApp y la
+    despedida).
+    - El refuerzo final viene de la tanda «A2 inglés» del 05-10: con la regla sola, contestó en
+      castellano a clientes que hablaban inglés en 5 de 19 respuestas, sobre todo en las frases
+      que el prompt da literales en castellano.
+    - Lo del saludo y la primera respuesta es del 07-10. Antes decía «Empieza siempre con el
+      saludo en…», y en llamadas reales la primera respuesta fallaba más que el resto: 2 de 14
+      en castellano a un cliente que hablaba inglés, frente a 3 de 68 en los turnos siguientes.
+      El modelo empezaba repitiendo el saludo que Telnyx ya ha dicho y seguía en su idioma, o
+      contestaba en castellano tras `get_catalog` (su respuesta viene en castellano). Con la
+      instrucción nueva, 13 de 13 primeras respuestas en el idioma del cliente y ningún saludo
+      repetido: inglés, francés, alemán, italiano, portugués, castellano y catalán, con principal
+      español y catalán.
   - **Para Retell, el respaldo:** `ajustesParaRetell` deja el principal y el español, no los siete
     u ocho de Telnyx (sin los que Retell no tiene: con euskera de principal, solo español). Es lo
     que ya recibía antes del 05-10 y está validado contra su API: con principal español, el
