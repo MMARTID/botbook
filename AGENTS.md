@@ -709,12 +709,28 @@ el `fetch` equivalente. **Nunca desde un route handler**: todo pasa por
   a la tool, nunca durante la conversación). Se propaga a los assistants por el reconciliador
   (el deploy lo fuerza al tocar esos ficheros).
 - `modules/whatsapp/recados.ts` › `procesarInformeFinal` (case `informar_al_negocio` de
-  `executeVoiceTool`, siempre 200): reclamo atómico del PRIMER informe en `Call.postCallReport`
-  (`updateMany` con `postCallReport: { equals: DbNull }` — Telnyx lo manda dos veces); si el
-  segundo trae recado y el primero no, se añade y se avisa; **doble escritura** con los
-  insights: `outcome/escalationReason/toolFailureDetected/requestedService` solo si están a
-  null, y `warn` «discrepancia insights/informe» cuando difieren (esa es la medida para retirar
-  los insights); recado ⇒ `Lead` tipo `message` (`isLead: true`, data `clientName/clientPhone
+  `executeVoiceTool`, siempre 200): reclamo atómico del primer informe en `Call.postCallReport`
+  (`updateMany` con `postCallReport: { equals: DbNull }`). **Desde el 2026-10-07 cada informe
+  siguiente lo completa** (`combinarInformes`):
+  - Hay varios por llamada: los dos de la post-conversación, que Telnyx manda casi a la vez, y
+    los de mitad de llamada. La recepcionista llama a la tool durante la conversación pese al
+    prompt, sobre todo al dejar un recado: en dev, en 65 de 80 llamadas el cliente siguió
+    hablando después del primero. Antes ganaba el primero y el de la post-conversación se
+    perdía.
+  - El más reciente manda en resultado, motivo de escalada y servicio. El fallo de tool que
+    avisó cualquiera se queda y las dudas se suman (hasta 5).
+  - El recado es el primero que llegó. Lo que le faltaba (nombre, teléfono, si quiere que le
+    llamen) lo rellena uno posterior, también en el `Lead`. Pasa cuando el recado sale antes de
+    confirmar el teléfono.
+  - La escritura va condicionada a `postCallReportAt`, con 3 intentos, así que dos
+    simultáneos combinan sobre el otro y el recado crea un solo lead y un solo aviso.
+  - El prompt no se cambió a «solo después de colgar»: en el chat de WhatsApp (mismo
+    assistant, nunca se cuelga) los recados llegan justo porque la tool se llama durante la
+    conversación.
+
+  **Doble escritura** con los insights: `outcome/escalationReason/toolFailureDetected/requestedService`
+  solo si están a null o tienen lo que puso un informe anterior, y `warn` «discrepancia
+  insights/informe» cuando difieren (esa es la medida para retirar los insights); recado ⇒ `Lead` tipo `message` (`isLead: true`, data `clientName/clientPhone
   (E.164 o null)/motivo/quiereQueLeLlamen/callControlId`) ⇒ aviso #2 `avisarRecado`
   (botones «Atendido» · «Recuérdamelo mañana»; plantilla `recado_negocio` con
   `negocio_nombre/cliente_nombre/cliente_telefono/motivo`; respaldo `messageLeadEmail` al
