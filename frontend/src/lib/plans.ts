@@ -28,7 +28,8 @@ export const plans: readonly Plan[] = [
     summary: "3 profesionales · reservas en tu calendario · 150 minutos incluidos",
     features: [
       "Atención telefónica 24/7",
-      "Habla en 7 idiomas, con voces naturales a elegir: español, inglés, francés, alemán, italiano, portugués y neerlandés",
+      "Habla en 7 idiomas, con voces naturales: español, inglés, francés, alemán, italiano, portugués y neerlandés",
+      "También puede atender en catalán, euskera o gallego",
       "Reservas directas en tu calendario de Google, Outlook o iCloud",
       "Hasta 3 profesionales en tu agenda",
       "Confirmación de cita por WhatsApp al cliente",
@@ -50,7 +51,7 @@ export const plans: readonly Plan[] = [
       "Hasta 10 profesionales en tu agenda",
       "Recordatorios de cita por WhatsApp que reducen las ausencias",
       "Resumen semanal de llamadas y reservas en tu email",
-      "Atiende también en catalán, euskera o gallego",
+      "Elige entre todas las voces de tu recepcionista",
       "500 minutos de llamadas incluidos",
     ],
     featured: true,
