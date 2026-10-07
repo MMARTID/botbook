@@ -709,12 +709,28 @@ el `fetch` equivalente. **Nunca desde un route handler**: todo pasa por
   a la tool, nunca durante la conversación). Se propaga a los assistants por el reconciliador
   (el deploy lo fuerza al tocar esos ficheros).
 - `modules/whatsapp/recados.ts` › `procesarInformeFinal` (case `informar_al_negocio` de
-  `executeVoiceTool`, siempre 200): reclamo atómico del PRIMER informe en `Call.postCallReport`
-  (`updateMany` con `postCallReport: { equals: DbNull }` — Telnyx lo manda dos veces); si el
-  segundo trae recado y el primero no, se añade y se avisa; **doble escritura** con los
-  insights: `outcome/escalationReason/toolFailureDetected/requestedService` solo si están a
-  null, y `warn` «discrepancia insights/informe» cuando difieren (esa es la medida para retirar
-  los insights); recado ⇒ `Lead` tipo `message` (`isLead: true`, data `clientName/clientPhone
+  `executeVoiceTool`, siempre 200): reclamo atómico del primer informe en `Call.postCallReport`
+  (`updateMany` con `postCallReport: { equals: DbNull }`). **Desde el 2026-10-07 cada informe
+  siguiente lo completa** (`combinarInformes`):
+  - Hay varios por llamada: los dos de la post-conversación, que Telnyx manda casi a la vez, y
+    los de mitad de llamada. La recepcionista llama a la tool durante la conversación pese al
+    prompt, sobre todo al dejar un recado: en dev, en 65 de 80 llamadas el cliente siguió
+    hablando después del primero. Antes ganaba el primero y el de la post-conversación se
+    perdía.
+  - El más reciente manda en resultado, motivo de escalada y servicio. El fallo de tool que
+    avisó cualquiera se queda y las dudas se suman (hasta 5).
+  - El recado es el primero que llegó. Lo que le faltaba (nombre, teléfono, si quiere que le
+    llamen) lo rellena uno posterior, también en el `Lead`. Pasa cuando el recado sale antes de
+    confirmar el teléfono.
+  - La escritura va condicionada a `postCallReportAt`, con 3 intentos, así que dos
+    simultáneos combinan sobre el otro y el recado crea un solo lead y un solo aviso.
+  - El prompt no se cambió a «solo después de colgar»: en el chat de WhatsApp (mismo
+    assistant, nunca se cuelga) los recados llegan justo porque la tool se llama durante la
+    conversación.
+
+  **Doble escritura** con los insights: `outcome/escalationReason/toolFailureDetected/requestedService`
+  solo si están a null o tienen lo que puso un informe anterior, y `warn` «discrepancia
+  insights/informe» cuando difieren (esa es la medida para retirar los insights); recado ⇒ `Lead` tipo `message` (`isLead: true`, data `clientName/clientPhone
   (E.164 o null)/motivo/quiereQueLeLlamen/callControlId`) ⇒ aviso #2 `avisarRecado`
   (botones «Atendido» · «Recuérdamelo mañana»; plantilla `recado_negocio` con
   `negocio_nombre/cliente_nombre/cliente_telefono/motivo`; respaldo `messageLeadEmail` al
@@ -2197,8 +2213,11 @@ backend/src/lib/voiceConfigCache.ts        # claveDeCacheDeVoz / invalidarCacheD
 - **Interfaz** (`CalendarProvider<P>`): `listarCalendarios(cuenta)`, `listarProximosEventos(conexion, max)`,
   `listarOcupacion(conexion, ventana)` (devuelve intervalos ya filtrados con la regla del proveedor; puede lanzar
   cualquier cosa, el servicio degrada a `{ intervals: [], calendarAvailabilityKnown: false }`), `crearEvento(conexion,
-  evento)` (idempotente por `idempotencyDigest`, devuelve `{ id, htmlLink }`) y `borrarEvento(conexion, eventId)`
-  (ya borrado = éxito). Los adaptadores reciben `ConexionActiva` (credenciales + `calendarId` garantizados) y un
+  evento)` (idempotente por `idempotencyDigest`, devuelve `{ id, htmlLink }`) y `borrarEvento(conexion, eventId,
+  ventana?)`, que devuelve un `ResultadoDeBorrado`: `borrado` (con `eventIdReal` si estaba en otra dirección) o
+  `no_estaba` con el estado (404/410). Todo llamador de `calendarService.cancelAppointment` pasa la hora del evento
+  (`ventanaDeLaCita`) y registra el resultado con `registrarBorradoDeEvento` (`modules/calendar/borradoDeEvento.ts`):
+  un `no_estaba` sale como warn, porque puede ser un evento vivo en otra dirección. Los adaptadores reciben `ConexionActiva` (credenciales + `calendarId` garantizados) y un
   callback opcional `alRotarCredenciales` (Outlook rota el refresh token en cada refresh; el adaptador no persiste nada).
 - **`conexion.ts`**: `resolverConexionDeCalendario(business, { provider?, calendarId? })` (lee la fila del proveedor
   activo de `business.calendarConnections`, valida `credentials` con Zod — una fila corrupta cuenta como "sin
@@ -2235,7 +2254,10 @@ backend/src/lib/voiceConfigCache.ts        # claveDeCacheDeVoz / invalidarCacheD
     Sin esto tsdav devuelve **lista vacía ante un 401** y una consulta de ocupación con contraseña revocada diría
     "agenda libre" (dobles reservas). 404 y 412 pasan porque borrar y crear los interpretan.
   - Crear = `PUT` con `If-None-Match: *` y UID `alhabla-<digest>@alhabla.ai`; **412 = ya existía por un reintento**
-    → mismo href, sin duplicar. Borrar: 404/410 = éxito. Sin `ATTENDEE` a propósito (iCloud mandaría
+    → mismo href, sin duplicar; si el `PUT` responde con `Location` en otra ruta, se guarda esa ruta (con el origen
+    del calendario) y se avisa. Borrar: 404/410 en el href guardado → si hay ventana y el href es nuestro
+    (`alhabla-<digest>.ics`), busca el UID en la hora de la cita ±1 día y borra el objeto donde esté (`eventIdReal`);
+    si no, `no_estaba`. Nunca se busca ni se borra por UID un evento ajeno. Sin `ATTENDEE` a propósito (iCloud mandaría
     invitaciones desde la cuenta del negocio). Fechas en UTC; dos VALARM como los recordatorios de Google.
   - Ocupación: `calendar-query` con `time-range` y `expand` (si el servidor no expande, `ics.ts` expande la RRULE);
     **misma regla que Google** (cancelado no cuenta; día completo cuenta aunque sea `TRANSPARENT`; con hora y

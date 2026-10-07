@@ -179,7 +179,7 @@ describe("lado cliente por WhatsApp (integración)", () => {
       intervals: [],
       calendarAvailabilityKnown: true,
     });
-    mockedCancelEvent.mockResolvedValue(undefined);
+    mockedCancelEvent.mockResolvedValue({ resultado: "borrado" });
   });
 
   it("(1) reserva por voz con consentimiento ⇒ fila SentMessage booking-<id>-confirmacion-<epoch> con callbackData cliente:confirmacion:<id>, templateName escrito y Booking.clientNotifiedAt", async () => {

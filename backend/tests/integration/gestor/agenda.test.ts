@@ -118,7 +118,7 @@ describe("acciones de agenda del Gestor (integración)", () => {
       calendarAvailabilityKnown: true,
     });
     mockedBook.mockResolvedValue({ id: "evt_1" } as never);
-    mockedCancelEvent.mockResolvedValue(undefined);
+    mockedCancelEvent.mockResolvedValue({ resultado: "borrado" });
   });
 
   it("añadir_cita: Call sintética whatsapp:gestor:<accionId>, Booking createdVia owner_chat con evento, pregunta de confirmación; un segundo toque no repite", async () => {

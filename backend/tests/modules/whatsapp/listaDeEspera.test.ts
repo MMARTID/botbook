@@ -223,6 +223,7 @@ beforeEach(() => {
   mockedUnlock.mockResolvedValue(undefined);
   mockedCallFindUnique.mockResolvedValue(null);
   mockedBook.mockResolvedValue({ id: "evt_1" } as never);
+  mockedCancelEvent.mockResolvedValue({ resultado: "borrado" });
   mockedAvisarNueva.mockResolvedValue({ via: "interactivo" });
   mockedProgramar.mockResolvedValue({ confirmacion: "programada" });
 });
@@ -874,7 +875,16 @@ describe("reservarDesdeListaDeEspera", () => {
       estado: "error",
     });
     expect(mockedCancelEvent).toHaveBeenCalledWith(
-      expect.objectContaining({ eventId: "evt_1" })
+      expect.objectContaining({
+        eventId: "evt_1",
+        ventana: {
+          inicio: HORA,
+          fin: new Date(HORA.getTime() + 30 * 60_000),
+        },
+      })
+    );
+    expect(console.log).toHaveBeenCalledWith(
+      expect.stringContaining("borrado el evento evt_1 del negocio biz_1")
     );
     expect(mockedAvisarNueva).not.toHaveBeenCalled();
     expect(mockedUnlock).toHaveBeenCalled();

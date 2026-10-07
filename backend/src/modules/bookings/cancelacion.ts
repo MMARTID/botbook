@@ -1,6 +1,12 @@
+import type { Prisma } from "@prisma/client";
 import { prisma } from "../../lib/prisma.js";
 import { errorMessage } from "../../lib/logUtils.js";
+import { isRecordNotFoundError } from "../../lib/prismaErrors.js";
 import { calendarService } from "../calendar/service.js";
+import {
+  registrarBorradoDeEvento,
+  ventanaDeLaCita,
+} from "../calendar/borradoDeEvento.js";
 import {
   resolverConexionDeCalendario,
   SELECT_CONEXION_DE_CALENDARIO,
@@ -12,11 +18,25 @@ import {
 } from "../whatsapp/avisosNegocio.js";
 import { avisarAQuienEsperaba } from "../whatsapp/listaDeEspera.js";
 
+/** Lo que necesitan los pasos posteriores a cancelar (evento externo, #4 y
+ * lista de espera). */
+const SELECT_CITA_CANCELADA = {
+  id: true,
+  programedAt: true,
+  durationMinutes: true,
+  clientName: true,
+  serviceIds: true,
+  externalEventId: true,
+  externalCalendarProvider: true,
+  externalCalendarId: true,
+} as const satisfies Prisma.BookingSelect;
+
 /**
  * Cancelación de una reserva por el cliente, por voz (`cancel_appointment`)
  * o por el botón «Cancelar» del recordatorio (PR 4). Idempotente por
- * `updateMany` condicional: la segunda llamada devuelve `ya_cancelada` sin
- * borrar el evento, sin avisar al dueño (#4) y sin tocar la lista de espera.
+ * `update` condicional (`isCancelled: false` en el where): la segunda llamada
+ * devuelve `ya_cancelada` sin borrar el evento, sin avisar al dueño (#4) y
+ * sin tocar la lista de espera.
  * Los pasos posteriores a la cancelación en BD (evento externo, #4, lista de
  * espera) son best-effort: cada uno con su catch y su log, ninguno lanza.
  * Nuestra BD es la fuente de verdad, como en la cancelación por voz.
@@ -38,33 +58,48 @@ export async function cancelarReserva(input: {
   etiqueta: string;
   inboundMessageId?: string;
 }): Promise<{ resultado: "cancelada" | "ya_cancelada" | "no_encontrada" }> {
-  const booking = await prisma.booking.findFirst({
+  const existe = await prisma.booking.findFirst({
     where: { id: input.bookingId, call: { businessId: input.businessId } },
-    select: {
-      id: true,
-      programedAt: true,
-      durationMinutes: true,
-      clientName: true,
-      serviceIds: true,
-      externalEventId: true,
-      externalCalendarProvider: true,
-      externalCalendarId: true,
-    },
+    select: { id: true },
   });
-  if (!booking) {
+  if (!existe) {
     return { resultado: "no_encontrada" };
   }
 
-  const cancelada = await prisma.booking.updateMany({
-    where: { id: booking.id, isCancelled: false },
-    data: {
-      isCancelled: true,
-      cancelledAt: new Date(),
-      cancelledBy: input.cancelledBy,
-    },
-  });
-  if (cancelada.count === 0) {
-    return { resultado: "ya_cancelada" };
+  // Cancelar y leer en la MISMA sentencia (UPDATE … WHERE isCancelled = false
+  // RETURNING): el evento que hay que borrar y la hora son los del momento
+  // exacto de cancelar.
+  // - Leídos antes, un moverReserva que entrara entre la lectura y la
+  //   cancelación dejaría la cita cancelada apuntando al evento nuevo y aquí
+  //   se borraría el viejo: el nuevo seguiría avisando al dueño de una cita
+  //   cancelada. Quien mueve el puntero solo lo hace si la cita sigue viva
+  //   (filtra por isCancelled: false), así que tras esta sentencia nadie
+  //   puede moverlo.
+  // - Leídos después, en otra consulta, una reactivación (book_appointment
+  //   que cambia de hora en la misma conversación, el reintento de una
+  //   reserva fallida…) que entrara entre medias dejaría leer el evento NUEVO
+  //   de una cita que vuelve a estar activa: se borraría, y el #4 y la lista
+  //   de espera saldrían con la hora nueva.
+  let booking: Prisma.BookingGetPayload<{
+    select: typeof SELECT_CITA_CANCELADA;
+  }>;
+  try {
+    booking = await prisma.booking.update({
+      where: { id: existe.id, isCancelled: false },
+      data: {
+        isCancelled: true,
+        cancelledAt: new Date(),
+        cancelledBy: input.cancelledBy,
+      },
+      select: SELECT_CITA_CANCELADA,
+    });
+  } catch (error) {
+    // P2025: ya estaba cancelada (o se borró entre medias), así que esta
+    // llamada no hace nada más: ni evento, ni #4, ni lista de espera.
+    if (isRecordNotFoundError(error)) {
+      return { resultado: "ya_cancelada" };
+    }
+    throw error;
   }
   console.log(
     `[Booking] ${input.etiqueta} canceló la cita ${booking.id} del negocio ${input.businessId} (${input.cancelledBy})`
@@ -93,12 +128,22 @@ export async function cancelarReserva(input: {
       booking.externalCalendarProvider
     );
     try {
-      await calendarService.cancelAppointment({
+      const borrado = await calendarService.cancelAppointment({
         conexion: resolverConexionDeCalendario(
           business as Parameters<typeof resolverConexionDeCalendario>[0],
           { provider: proveedor, calendarId: booking.externalCalendarId }
         ),
         eventId: booking.externalEventId,
+        ventana: ventanaDeLaCita(booking.programedAt, booking.durationMinutes),
+      });
+      registrarBorradoDeEvento({
+        prefijo: "[Booking]",
+        etiqueta: input.etiqueta,
+        businessId: input.businessId,
+        bookingId: booking.id,
+        proveedor,
+        eventId: booking.externalEventId,
+        resultado: borrado,
       });
     } catch (error) {
       console.error(

@@ -8,6 +8,7 @@ import type {
   EventoCreado,
   EventoProximo,
   NuevoEventoDeCalendario,
+  ResultadoDeBorrado,
 } from "../CalendarProvider.js";
 import { CalendarBusinessError } from "../errors.js";
 import { CALENDAR_REQUEST_TIMEOUT_MS } from "../eventoDeCalendario.js";
@@ -402,12 +403,14 @@ export class GoogleCalendarProvider implements CalendarProvider<"google"> {
     }
   }
 
-  /** Un evento ya borrado (404/410) se trata como éxito idempotente — puede
-   * haberlo borrado ya un reintento anterior o el propietario a mano. */
+  /** Un evento que ya no está (404/410) no es un fallo — puede haberlo
+   * borrado ya un reintento anterior o el propietario a mano —, pero se
+   * devuelve como «no_estaba» para que el llamador lo registre. La ventana
+   * no se usa: en Google el id del evento no cambia. */
   async borrarEvento(
     conexion: ConexionActiva<"google">,
     eventId: string
-  ): Promise<void> {
+  ): Promise<ResultadoDeBorrado> {
     const calendar = clienteDeCalendario(conexion);
 
     try {
@@ -415,9 +418,12 @@ export class GoogleCalendarProvider implements CalendarProvider<"google"> {
         { calendarId: conexion.calendarId, eventId },
         { timeout: CALENDAR_REQUEST_TIMEOUT_MS }
       );
+      return { resultado: "borrado" };
     } catch (err) {
       const status = (err as { code?: number })?.code;
-      if (status === 404 || status === 410) return;
+      if (status === 404 || status === 410) {
+        return { resultado: "no_estaba", estado: status };
+      }
       throw mapearError("borrar", err);
     }
   }

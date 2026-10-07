@@ -3,6 +3,10 @@ import { prisma } from "../../../src/lib/prisma.js";
 import { DEFAULT_BUSINESS_SCHEDULE } from "../../../src/lib/businessSchedule.js";
 import { checkAvailability } from "../../../src/lib/availability.js";
 import { calendarService } from "../../../src/modules/calendar/service.js";
+import {
+  acquireBookingLock,
+  releaseBookingLock,
+} from "../../../src/lib/bookingLock.js";
 import { cancelarReserva } from "../../../src/modules/bookings/cancelacion.js";
 import { guardarHorarioDelNegocio } from "../../../src/modules/businesses/horario.js";
 import {
@@ -234,6 +238,7 @@ beforeEach(() => {
   mockedBookingCount.mockResolvedValue(0);
   mockedCallFindUnique.mockResolvedValue(null);
   vi.mocked(prisma.professionalAbsence.findFirst).mockResolvedValue(null);
+  mockedCancelEvent.mockResolvedValue({ resultado: "borrado" });
   disponible();
 });
 
@@ -468,7 +473,13 @@ describe("añadir_cita", () => {
     expect(r.mensaje).toContain("No he podido apuntar la cita");
     expect(r.mensaje).not.toContain("bd caída");
     expect(mockedCancelEvent).toHaveBeenCalledWith(
-      expect.objectContaining({ eventId: "evt_nuevo" })
+      expect.objectContaining({
+        eventId: "evt_nuevo",
+        ventana: {
+          inicio: new Date(HORA_UTC),
+          fin: new Date(new Date(HORA_UTC).getTime() + 30 * 60_000),
+        },
+      })
     );
   });
 
@@ -550,8 +561,18 @@ describe("mover_cita", () => {
         confirmedByClientAt: null,
       },
     });
+    // El evento viejo se busca en la hora ANTERIOR de la cita.
     expect(mockedCancelEvent).toHaveBeenCalledWith(
-      expect.objectContaining({ eventId: "evt_viejo" })
+      expect.objectContaining({
+        eventId: "evt_viejo",
+        ventana: {
+          inicio: CITA.programedAt,
+          fin: new Date(CITA.programedAt.getTime() + 30 * 60_000),
+        },
+      })
+    );
+    expect(console.log).toHaveBeenCalledWith(
+      "[Gestor] mover_cita acc_1: borrado el evento evt_viejo de la cita b_1 del negocio biz_1 (google)"
     );
     expect(mockedProgramarMensajes).toHaveBeenCalledWith(
       expect.objectContaining({ bookingId: "b_1", confirmacion: false })
@@ -576,8 +597,75 @@ describe("mover_cita", () => {
     });
     expect(mockedCancelEvent).toHaveBeenCalledTimes(1);
     expect(mockedCancelEvent).toHaveBeenCalledWith(
-      expect.objectContaining({ eventId: "evt_nuevo" })
+      expect.objectContaining({
+        eventId: "evt_nuevo",
+        ventana: {
+          inicio: new Date(HORA_UTC),
+          fin: new Date(new Date(HORA_UTC).getTime() + 30 * 60_000),
+        },
+      })
     );
+  });
+
+  it("relee la cita dentro del candado: si otro movimiento cambió el puntero, borra el evento que hay ahora y no el leído antes", async () => {
+    // Antes del candado la cita apunta a evt_viejo; mientras se esperaba el
+    // candado, otro movimiento la llevó a las 12:00 con evt_primer_movimiento.
+    const MOVIDA = new Date("2026-11-12T11:00:00.000Z");
+    mockedBookingFindFirst
+      .mockResolvedValueOnce(CITA as never)
+      .mockResolvedValueOnce({
+        ...CITA,
+        programedAt: MOVIDA,
+        externalEventId: "evt_primer_movimiento",
+      } as never);
+    mockedBook.mockResolvedValue({ id: "evt_nuevo" } as never);
+    mockedBookingUpdateMany.mockResolvedValue({ count: 1 });
+    mockedProgramarMensajes.mockResolvedValue({ confirmacion: "programada" });
+
+    const r = await ejecutar("mover_cita", {
+      cita: "b_1",
+      fechaHora: HORA_LOCAL,
+    });
+
+    expect(r.ok).toBe(true);
+    // La relectura va después de cerrar la agenda.
+    expect(mockedBookingFindFirst.mock.invocationCallOrder[1]).toBeGreaterThan(
+      vi.mocked(acquireBookingLock).mock.invocationCallOrder[0]
+    );
+    // El hueco se comprueba excluyendo el evento que hay AHORA.
+    expect(mockedCheckAvailability).toHaveBeenCalledWith(
+      expect.objectContaining({
+        excluir: { bookingId: "b_1", externalEventId: "evt_primer_movimiento" },
+      })
+    );
+    expect(mockedCancelEvent).toHaveBeenCalledTimes(1);
+    expect(mockedCancelEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventId: "evt_primer_movimiento",
+        ventana: {
+          inicio: MOVIDA,
+          fin: new Date(MOVIDA.getTime() + 30 * 60_000),
+        },
+      })
+    );
+    // Y lo que se describe al dueño es la hora de ahora (las 12:00).
+    expect(r.mensaje).toContain("del jueves 12 de noviembre a las 12:00");
+  });
+
+  it("si la cita se canceló mientras esperaba el candado, no crea evento y suelta la agenda", async () => {
+    mockedBookingFindFirst
+      .mockResolvedValueOnce(CITA as never)
+      .mockResolvedValueOnce({ ...CITA, isCancelled: true } as never);
+
+    const r = await ejecutar("mover_cita", {
+      cita: "b_1",
+      fechaHora: HORA_LOCAL,
+    });
+
+    expect(r).toEqual({ ok: false, mensaje: "Esa cita está cancelada." });
+    expect(mockedBook).not.toHaveBeenCalled();
+    expect(mockedCancelEvent).not.toHaveBeenCalled();
+    expect(releaseBookingLock).toHaveBeenCalledWith("biz_1", "token");
   });
 });
 

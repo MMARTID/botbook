@@ -5,6 +5,8 @@ import {
   intervalosOcupadosDesdeIcs,
   nombreDeFichero,
   uidDeEvento,
+  uidDesdeNombreDeFichero,
+  uidsDesdeIcs,
 } from "../../../../src/adapters/calendar/caldav/ics.js";
 import type { NuevoEventoDeCalendario } from "../../../../src/adapters/calendar/CalendarProvider.js";
 
@@ -52,6 +54,82 @@ describe("uidDeEvento / nombreDeFichero", () => {
   it("sin digest el UID es aleatorio (dos llamadas no coinciden)", () => {
     expect(uidDeEvento(null)).not.toBe(uidDeEvento(null));
     expect(uidDeEvento(null)).toMatch(/^alhabla-[0-9a-f-]{36}@alhabla\.ai$/);
+  });
+});
+
+describe("uidDesdeNombreDeFichero", () => {
+  const DIGEST =
+    "74ad48456ba8a0e0ba5786d18a9e50ffe2b6dbe8e7a9b50dca1d27e54543576b";
+
+  it("es la inversa de nombreDeFichero, con URL absoluta, ruta o nombre suelto", () => {
+    const uid = uidDeEvento(DIGEST);
+    const fichero = nombreDeFichero(uid);
+    expect(uidDesdeNombreDeFichero(fichero)).toBe(uid);
+    expect(
+      uidDesdeNombreDeFichero(
+        `https://caldav.icloud.com/171/calendars/092B/${fichero}`
+      )
+    ).toBe(`alhabla-${DIGEST}@alhabla.ai`);
+    expect(uidDesdeNombreDeFichero(`/171/calendars/092B/${fichero}`)).toBe(uid);
+    // También con el UUID aleatorio de un evento sin clave de idempotencia.
+    const aleatorio = uidDeEvento(null);
+    expect(uidDesdeNombreDeFichero(nombreDeFichero(aleatorio))).toBe(aleatorio);
+  });
+
+  it("null si el nombre no es de un evento de Alhabla (nunca se busca un evento ajeno)", () => {
+    for (const href of [
+      "https://caldav.icloud.com/171/calendars/092B/0F3C9A2E-1B.ics",
+      "https://caldav.icloud.com/171/calendars/092B/alhabla-.ics",
+      "https://caldav.icloud.com/171/calendars/092B/alhabla-abc.txt",
+      "https://caldav.icloud.com/171/calendars/092B/alhabla-xyz.ics",
+      "https://caldav.icloud.com/171/calendars/092B/",
+      "u",
+      "",
+    ]) {
+      expect(uidDesdeNombreDeFichero(href)).toBeNull();
+    }
+  });
+});
+
+describe("uidsDesdeIcs", () => {
+  it("devuelve los UID de los VEVENT sin repetir (maestro y excepción comparten UID)", () => {
+    const serie = [
+      "BEGIN:VCALENDAR",
+      "VERSION:2.0",
+      "BEGIN:VEVENT",
+      "UID:alhabla-abc@alhabla.ai",
+      "DTSTART:20260922T090000Z",
+      "RRULE:FREQ=DAILY;COUNT=3",
+      "END:VEVENT",
+      "BEGIN:VEVENT",
+      "UID:alhabla-abc@alhabla.ai",
+      "RECURRENCE-ID:20260923T090000Z",
+      "DTSTART:20260923T100000Z",
+      "END:VEVENT",
+      "END:VCALENDAR",
+    ].join("\r\n");
+    expect(uidsDesdeIcs(serie)).toEqual(["alhabla-abc@alhabla.ai"]);
+    expect(
+      uidsDesdeIcs(construirIcs(EVENTO, "alhabla-abc123@alhabla.ai"))
+    ).toEqual(["alhabla-abc123@alhabla.ai"]);
+  });
+
+  it("un ICS sin UID o que no parsea no tiene UIDs", () => {
+    expect(uidsDesdeIcs(ics("DTSTART:20260922T090000Z"))).toEqual([]);
+    expect(uidsDesdeIcs("esto no es iCalendar")).toEqual([]);
+  });
+
+  it("varios VCALENDAR seguidos en un mismo objeto: no lanza y no devuelve UIDs (borrarlo por uno borraría los otros)", () => {
+    const nuestro = ics(
+      "UID:alhabla-abc@alhabla.ai\r\nDTSTART:20261009T080000Z\r\nDTEND:20261009T094000Z"
+    );
+    const ajeno = ics(
+      "UID:cumple-de-la-abuela@icloud.com\r\nDTSTART:20261009T090000Z\r\nDTEND:20261009T100000Z"
+    );
+    // Antes lanzaba «Cannot read properties of undefined (reading
+    // 'length')» al recorrer los VEVENT, fuera del try del parseo.
+    expect(uidsDesdeIcs(`${nuestro}\r\n${ajeno}`)).toEqual([]);
+    expect(uidsDesdeIcs(`${nuestro}\r\n${nuestro}\r\n${ajeno}`)).toEqual([]);
   });
 });
 

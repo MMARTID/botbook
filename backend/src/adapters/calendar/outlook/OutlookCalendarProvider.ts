@@ -15,6 +15,7 @@ import type {
   EventoCreado,
   EventoProximo,
   NuevoEventoDeCalendario,
+  ResultadoDeBorrado,
 } from "../CalendarProvider.js";
 import { CalendarBusinessError } from "../errors.js";
 
@@ -244,12 +245,13 @@ export class OutlookCalendarProvider implements CalendarProvider<"outlook"> {
     }
   }
 
-  /** Un evento ya borrado (404) se trata como éxito idempotente. Sin 410 ni
-   * clasificación de transitorios: como hasta ahora. */
+  /** Un evento que ya no está (404/410) no es un fallo, pero se devuelve
+   * como «no_estaba» para que el llamador lo registre. Sin clasificación de
+   * transitorios: como hasta ahora. La ventana no se usa. */
   async borrarEvento(
     conexion: ConexionActiva<"outlook">,
     eventId: string
-  ): Promise<void> {
+  ): Promise<ResultadoDeBorrado> {
     try {
       const { access_token } = await refrescarToken(conexion);
       await deleteMicrosoftCalendarEvent(
@@ -257,8 +259,12 @@ export class OutlookCalendarProvider implements CalendarProvider<"outlook"> {
         conexion.calendarId,
         eventId
       );
+      return { resultado: "borrado" };
     } catch (err) {
-      if ((err as { status?: number })?.status === 404) return;
+      const status = (err as { status?: number })?.status;
+      if (status === 404 || status === 410) {
+        return { resultado: "no_estaba", estado: status };
+      }
       if (isMicrosoftInvalidGrantError(err)) {
         throw new CalendarBusinessError(
           "OUTLOOK_CALENDAR_RECONNECT_REQUIRED",
