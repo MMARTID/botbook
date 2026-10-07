@@ -225,6 +225,10 @@ function buildRestrictionsFragment(input: {
   return parts.length > 0 ? parts.join(" ") : null;
 }
 
+/** Cabecera del bloque que obliga a consultar get_catalog antes de
+ * confirmar un servicio, un profesional o el horario. */
+export const TITULO_DEL_BLOQUE_DEL_CATALOGO = "## Lo que ofrece el negocio";
+
 /** Cabecera del bloque de transferencia; sirve para saber si un prompt
  * editado a mano ya lo lleva (lib/telnyxAgentSync.ts). */
 export const TITULO_DEL_BLOQUE_DE_TRANSFERENCIA = "## Pasar la llamada";
@@ -321,9 +325,25 @@ export function buildManagedAgentPrompt(input: {
     responseInstruction,
     "## Conversación",
     "Reconoce brevemente lo que dice la persona y haz una sola pregunta útil por turno. Evita listas, jerga, repetir datos y frases largas. Di fechas, horas y duraciones como se hablan por teléfono.",
-    "No enumeres opciones sin necesidad. Si preguntan por servicios, profesionales u horario, consulta get_catalog una vez y responde solo a lo relevante.",
+    "No enumeres opciones sin necesidad: responde solo a lo que te preguntan.",
     "La transcripción puede fallar: si una frase te llega confusa, cortada o sin sentido, pide con naturalidad que la repita. No trates una palabra dudosa como un dato real de la reserva (nombre, servicio, profesional u hora) ni la busques en el catálogo.",
     "Lo que escribas se lee en voz alta tal cual: no uses etiquetas, emojis, símbolos ni formato.",
+    // Llamadas de prueba del 2026-10-05 y medición del 07-10 (chat de
+    // assistants de Telnyx, mismo modelo y tools): ante «do you do
+    // highlights?» en el primer turno contestaba «yes, we do» sin
+    // get_catalog (el negocio no tenía ningún servicio), o decía «lo
+    // compruebo» y no llamaba a la tool. Con la regla de antes («si
+    // preguntan por servicios… consulta get_catalog una vez», tras «no
+    // enumeres opciones») consultaba 17 de 18 preguntas abiertas o de
+    // horario, pero solo 27 de 72 de sí o no, 3 de 23 con el catalán de
+    // principal. Con este bloque, todas las primeras respuestas medidas
+    // (288 por chat, con y sin servicios, y 13 llamadas reales). Cuesta una
+    // ida y vuelta del LLM en esa primera respuesta: ~0,8 → ~2 s de mediana
+    // con flux y ~3,4 s con Soniox. «Sin volver a llamarla» porque con la
+    // primera redacción la repetía en cada pregunta (hasta 3 por llamada).
+    TITULO_DEL_BLOQUE_DEL_CATALOGO,
+    "Qué servicios hace este negocio, quién trabaja en él y cuándo abre solo lo sabes por get_catalog, no por lo que suele hacer un negocio como este. La primera vez que pregunten por eso, también si es de sí o no («¿hacéis mechas?», «do you do beard trims?») y en el idioma que sea, llama a get_catalog en ese mismo turno antes de contestar. Su respuesta trae todo lo que ofrece el negocio: para las preguntas siguientes contesta con ella, sin volver a llamarla en la misma conversación (salvo que una herramienta te diga que un ID no existe).",
+    "No digas «sí», «no» ni «ahora lo miro» antes de tener su respuesta: si tienes que consultarlo, llama a la herramienta en ese turno sin anunciarlo. Si lo que pide encaja con un servicio del catálogo aunque lo llame de otra forma o en otro idioma (highlights, metxes y mechas son lo mismo), es ese servicio: contéstale con naturalidad en el idioma de la conversación, sin hablar del catálogo ni de listas. Si no encaja con ninguno, no lo confirmes: dile que ese servicio no lo tenéis y ofrécele que el negocio se lo confirme.",
     "## Límites",
     nicheInstruction || null,
     ESCALATION_INSTRUCTIONS[settings.escalation],
