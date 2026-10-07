@@ -64,6 +64,7 @@ function vistaPrevia(
     voiceGender: voz?.genero ?? seleccion.voiceGender,
     familia: principal?.familia ?? "ultra",
     voces,
+    requiereParaElegirVoz: principal?.requiereParaElegirVoz ?? null,
     entradilla: conTextos ? (principal?.entradilla ?? "") : "",
     saludo: conTextos ? `Saludo en ${seleccion.voiceLanguage}` : "",
     avisos,
@@ -83,6 +84,20 @@ function renderizar(agentSettings: Partial<AgentSettings> = {}) {
   );
 }
 
+/** El catálogo del backend del 05-10: catalán, euskera y gallego, con
+ * candado de «lenguas_locales», y sin `requiereParaElegirVoz`. Lo ve la app
+ * mientras Cloud Run aún no sirve el backend nuevo, o desde la caché. */
+function catalogoDelBackendAnterior() {
+  const anterior = structuredClone(CATALOGO_DE_IDIOMAS);
+  for (const opcion of anterior.principales) {
+    delete opcion.requiereParaElegirVoz;
+    if (opcion.tipo === "cooficial") {
+      opcion.requiere = { funcion: "lenguas_locales", texto: "Disponible en Pro y Scale" };
+    }
+  }
+  return anterior;
+}
+
 const IDIOMAS_CON_CATALAN = principalDelCatalogo("ca-ES").idiomas!;
 const HABLA_SIETE =
   "Habla en 7 idiomas: español, inglés, francés, alemán, italiano, portugués y neerlandés. Saluda en español y sigue en el idioma de quien llama.";
@@ -97,13 +112,15 @@ const voces = () => screen.getByRole("radiogroup", { name: "¿Con qué voz atien
 const voz = (nombre: string) => within(voces()).getByRole("radio", { name: new RegExp(`^${nombre}`) });
 const genero = (nombre: "Mujer" | "Hombre") =>
   within(screen.getByRole("radiogroup", { name: "Voz de mujer o de hombre" })).getByRole("radio", { name: nombre });
+const candadoDeVoces = () => screen.getByRole("link", { name: /^Elegir entre las \d+ voces/ });
+const AVISO_PIERDE_LARA = "Tu plan ya no incluye elegir la voz: si guardas este cambio, no podrás volver a Lara sin cambiar de plan.";
 
 // Desde el 2026-10-05 el dueño solo elige el idioma principal y la voz: los
 // idiomas que habla los da el principal, sin casillas.
 describe("ComportamientoMovil — idioma y voz", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(getBillingSummary).mockResolvedValue({ planFeatures: ["lenguas_locales"] } as never);
+    vi.mocked(getBillingSummary).mockResolvedValue({ planFeatures: ["elegir_voz"] } as never);
     vi.mocked(getCatalogoDeIdiomas).mockResolvedValue(CATALOGO_DE_IDIOMAS);
     // La vista previa la calcula el backend; aquí basta con lo que pinta.
     vi.mocked(previsualizarIdiomas).mockImplementation(async (seleccion) => vistaPrevia(seleccion));
@@ -184,41 +201,72 @@ describe("ComportamientoMovil — idioma y voz", () => {
     expect(otroIdioma()).toHaveAttribute("aria-expanded", "true");
   });
 
-  it("en Inicio, catalán, euskera y gallego se ven con candado y enlace a facturación; el resto se elige, también la voz", async () => {
+  // Decisión del usuario del 2026-10-07: en Cataluña atender en catalán es
+  // obligatorio; el principal es libre en todos los planes.
+  it("en Inicio, catalán, euskera y gallego se eligen como los demás, sin candado", async () => {
     const user = userEvent.setup();
     vi.mocked(getBillingSummary).mockResolvedValue({ planFeatures: [] } as never);
     renderizar();
 
-    await waitFor(() => expect(conCandado("Catalán")).toHaveAttribute("href", "/ajustes/facturacion"));
-    for (const nombre of ["Catalán", "Euskera", "Gallego"]) {
-      expect(conCandado(nombre)).toHaveTextContent("Disponible en Pro y Scale");
-      expect(within(principales()).queryByRole("radio", { name: new RegExp(`^${nombre}`) })).toBeNull();
-    }
-    expect(within(principales()).getAllByRole("radio").map((opcion) => opcion.textContent)).toEqual(["Español"]);
+    await waitFor(() => expect(within(principales()).getAllByRole("radio")).toHaveLength(4));
+    expect(within(principales()).getAllByRole("radio").map((opcion) => opcion.textContent)).toEqual([
+      "Español",
+      "Catalán",
+      "Euskera",
+      "Gallego",
+    ]);
+    expect(screen.queryByRole("link", { name: /^(Catalán|Euskera|Gallego)/ })).toBeNull();
+
+    await user.click(principal("Catalán"));
+    expect(principal("Catalán")).toHaveAttribute("aria-checked", "true");
+    await waitFor(() => expect(voz("Marta")).toHaveAttribute("aria-checked", "true"));
 
     await user.click(otroIdioma());
     expect(within(screen.getByRole("radiogroup", { name: "Otro idioma" })).getAllByRole("radio")).toHaveLength(6);
-    await user.click(extranjero("Alemán"));
-    await waitFor(() => expect(voz("Alina")).toHaveAttribute("aria-checked", "true"));
-    expect(screen.queryByText(/disponible en los planes/)).toBeNull();
+    expect(screen.queryByText(/Disponible en/)).toBeNull();
   });
 
-  it("en Inicio, un negocio que ya atiende en gallego lo conserva elegido y ve con candado las otras", async () => {
+  // Vercel publica la app antes de que Cloud Run sirva el backend nuevo: en
+  // ese rato el backend aún pone candado a las lenguas locales y lo valida.
+  it("con el catálogo del backend anterior, en Inicio catalán, euskera y gallego salen con candado salvo el que ya tiene", async () => {
+    vi.mocked(getCatalogoDeIdiomas).mockResolvedValue(catalogoDelBackendAnterior());
     vi.mocked(getBillingSummary).mockResolvedValue({ planFeatures: [] } as never);
     renderizar({ languages: principalDelCatalogo("gl-ES").idiomas, voiceLanguage: "gl-ES" });
 
     await waitFor(() => expect(principal("Gallego")).toHaveAttribute("aria-checked", "true"));
-    expect(conCandado("Catalán")).toBeInTheDocument();
+    expect(conCandado("Catalán")).toHaveAttribute("href", "/ajustes/facturacion");
+    expect(conCandado("Catalán")).toHaveTextContent("Disponible en Pro y Scale");
     expect(conCandado("Euskera")).toBeInTheDocument();
     await waitFor(() => expect(voz("Marta")).toHaveAttribute("aria-checked", "true"));
   });
 
-  it("con la clave de antes (voz_idioma) del backend anterior, las lenguas locales no se bloquean", async () => {
-    vi.mocked(getBillingSummary).mockResolvedValue({ planFeatures: ["voz_idioma"] } as never);
+  // Y al revés: el catálogo anterior en caché (se pide una vez por sesión)
+  // con el plan del backend nuevo, que manda «lenguas_locales» a todos.
+  it("con el catálogo anterior en caché y «lenguas_locales» en el plan, las lenguas locales no se bloquean", async () => {
+    vi.mocked(getCatalogoDeIdiomas).mockResolvedValue(catalogoDelBackendAnterior());
+    vi.mocked(getBillingSummary).mockResolvedValue({ planFeatures: ["lenguas_locales"] } as never);
     renderizar();
 
     await waitFor(() => expect(principal("Catalán")).toBeInTheDocument());
     expect(screen.queryByRole("link", { name: /^Catalán/ })).toBeNull();
+    // Lo que exige la voz lo trae la vista previa, que sí es del backend
+    // nuevo: en Inicio, el candado.
+    expect(await screen.findByRole("link", { name: /^Elegir entre las 29 voces/ })).toBeInTheDocument();
+  });
+
+  // Revisión del 2026-10-07: el plan en caché del backend anterior (Pro:
+  // «voz_idioma», sin «elegir_voz») con la vista previa del nuevo, que pide
+  // «elegir_voz»: un Pro no debe ver candado en las voces.
+  it("con el plan del backend anterior en caché («voz_idioma», Pro), elegir entre todas las voces no lleva candado", async () => {
+    vi.mocked(getBillingSummary).mockResolvedValue({
+      planFeatures: ["recordatorios_cita", "resumen_semanal", "lenguas_locales", "voz_idioma"],
+    } as never);
+    renderizar({ voz: idDe("es-ES", "Lara") });
+
+    await waitFor(() => expect(voz("Lara")).toHaveAttribute("aria-checked", "true"));
+    expect(await screen.findByRole("button", { name: /^Ver todas las voces/ })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /^Elegir entre/ })).toBeNull();
+    expect(screen.queryByText(/Tu plan ya no incluye/)).toBeNull();
   });
 
   it("saludar en otro idioma: se elige bajo «Otro idioma» y atiende una voz de ese idioma", async () => {
@@ -257,25 +305,27 @@ describe("ComportamientoMovil — idioma y voz", () => {
   // «No se pudo guardar» sin motivo.
   it("si el backend rechaza el guardado, enseña su motivo", async () => {
     const user = userEvent.setup();
-    const motivo = "Atender en catalán, euskera o gallego está disponible en los planes Pro y Scale.";
+    const motivo =
+      "Elegir entre todas las voces está disponible en los planes Pro y Scale. En tu plan eliges voz de mujer o de hombre y atiende la de por defecto.";
     vi.mocked(getBillingSummary).mockRejectedValue(new Error("Sin conexión"));
     vi.mocked(updateMyBusiness).mockRejectedValue({
       isAxiosError: true,
-      response: { status: 403, data: { error: motivo, code: "PLAN_LIMIT_LENGUAS_LOCALES" } },
+      response: { status: 403, data: { error: motivo, code: "PLAN_LIMIT_ELEGIR_VOZ" } },
     });
     renderizar();
 
     // Sin el plan cargado no hay candados: lo valida el backend.
-    await user.click(await waitFor(() => principal("Catalán")));
+    await user.click(await waitFor(() => voz("Lara")));
     await user.click(screen.getByRole("button", { name: /Guardar/ }));
 
     expect(await screen.findByText(motivo)).toBeInTheDocument();
     expect(screen.queryByText("No se pudo guardar el comportamiento del agente.")).toBeNull();
   });
 
-  it("en Inicio, cambiar la lengua local que conserva avisa de que no podrá volver a ella sin cambiar de plan", async () => {
+  it("con el catálogo del backend anterior, en Inicio cambiar la lengua local que conserva avisa de que no podrá volver a ella", async () => {
     const user = userEvent.setup();
     const aviso = "Tu plan ya no incluye el gallego: si guardas este cambio, no podrás volver a elegirlo sin cambiar de plan.";
+    vi.mocked(getCatalogoDeIdiomas).mockResolvedValue(catalogoDelBackendAnterior());
     vi.mocked(getBillingSummary).mockResolvedValue({ planFeatures: [] } as never);
     renderizar({ languages: principalDelCatalogo("gl-ES").idiomas, voiceLanguage: "gl-ES" });
 
@@ -287,8 +337,9 @@ describe("ComportamientoMovil — idioma y voz", () => {
     expect(screen.queryByText(aviso)).toBeNull();
   });
 
-  it("en Pro, cambiar de lengua local no lleva ese aviso", async () => {
+  it("cambiar de lengua local ya no avisa del plan, tampoco en Inicio", async () => {
     const user = userEvent.setup();
+    vi.mocked(getBillingSummary).mockResolvedValue({ planFeatures: [] } as never);
     renderizar({ languages: principalDelCatalogo("gl-ES").idiomas, voiceLanguage: "gl-ES" });
 
     await user.click(await waitFor(() => principal("Español")));
@@ -302,15 +353,15 @@ describe("ComportamientoMovil — idioma y voz", () => {
     const confirmar = vi.spyOn(window, "confirm").mockReturnValue(false);
     renderizar();
 
-    await waitFor(() => expect(conCandado("Catalán")).toBeInTheDocument());
+    await waitFor(() => expect(candadoDeVoces()).toBeInTheDocument());
     await user.click(within(screen.getByRole("radiogroup", { name: "Tono de voz" })).getByRole("radio", { name: /^Ágil/ }));
     // fireEvent devuelve false si el clic se canceló (no navega).
-    expect(fireEvent.click(conCandado("Catalán"))).toBe(false);
+    expect(fireEvent.click(candadoDeVoces())).toBe(false);
     expect(confirmar).toHaveBeenCalledWith(CONFIRMACION_IR_A_LOS_PLANES);
     expect(screen.getByRole("button", { name: /Guardar/ })).toBeInTheDocument();
 
     confirmar.mockReturnValue(true);
-    expect(fireEvent.click(conCandado("Catalán"))).toBe(true);
+    expect(fireEvent.click(candadoDeVoces())).toBe(true);
     confirmar.mockRestore();
   });
 
@@ -319,10 +370,10 @@ describe("ComportamientoMovil — idioma y voz", () => {
     const confirmar = vi.spyOn(window, "confirm");
     renderizar();
 
-    await waitFor(() => expect(conCandado("Catalán")).toBeInTheDocument());
+    await waitFor(() => expect(candadoDeVoces()).toBeInTheDocument());
     // Sin router de Next en el test, el clic no navega pero tampoco se cancela.
-    conCandado("Catalán").addEventListener("click", (evento) => evento.preventDefault(), { once: true });
-    fireEvent.click(conCandado("Catalán"));
+    candadoDeVoces().addEventListener("click", (evento) => evento.preventDefault(), { once: true });
+    fireEvent.click(candadoDeVoces());
     expect(confirmar).not.toHaveBeenCalled();
     confirmar.mockRestore();
   });
@@ -434,7 +485,7 @@ describe("ComportamientoMovil — idioma y voz", () => {
 describe("ComportamientoMovil — la voz", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(getBillingSummary).mockResolvedValue({ planFeatures: ["lenguas_locales"] } as never);
+    vi.mocked(getBillingSummary).mockResolvedValue({ planFeatures: ["elegir_voz"] } as never);
     vi.mocked(getCatalogoDeIdiomas).mockResolvedValue(CATALOGO_DE_IDIOMAS);
     vi.mocked(previsualizarIdiomas).mockImplementation(async (seleccion) => vistaPrevia(seleccion, false));
   });
@@ -613,6 +664,111 @@ describe("ComportamientoMovil — la voz", () => {
     await user.click(genero("Mujer"));
 
     expect(within(voces()).getAllByRole("radio")).toHaveLength(18);
+  });
+
+  // Decisión del usuario del 2026-10-07: Pro se diferencia por la voz.
+  it("en Inicio, Mujer u Hombre y la voz por defecto de cada uno, con su muestra; el resto, con candado a los planes", async () => {
+    const user = userEvent.setup();
+    vi.mocked(getBillingSummary).mockResolvedValue({ planFeatures: [] } as never);
+    renderizar();
+
+    await waitFor(() => expect(candadoDeVoces()).toBeInTheDocument());
+    expect(candadoDeVoces()).toHaveAttribute("href", "/ajustes/facturacion");
+    expect(candadoDeVoces()).toHaveTextContent("Elegir entre las 29 voces: planes Pro y Scale");
+    expect(screen.queryByRole("button", { name: /Ver todas las voces/ })).toBeNull();
+    expect(within(voces()).getAllByRole("radio").map((opcion) => opcion.textContent)).toEqual([
+      "BlancaPor defectoCálida y acogedora",
+    ]);
+    expect(voz("Blanca")).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByRole("button", { name: "Escuchar a Blanca" })).toBeInTheDocument();
+
+    await user.click(genero("Hombre"));
+    expect(within(voces()).getAllByRole("radio")).toHaveLength(1);
+    expect(voz("Marcos")).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByRole("button", { name: "Escuchar a Marcos" })).toBeInTheDocument();
+    expect(candadoDeVoces()).toBeInTheDocument();
+  });
+
+  it("en Inicio, el candado dice cuántas voces tiene cada idioma, y con Marta y Sergio no hay candado", async () => {
+    const user = userEvent.setup();
+    vi.mocked(getBillingSummary).mockResolvedValue({ planFeatures: [] } as never);
+    renderizar({ voiceLanguage: "en-GB" });
+
+    await waitFor(() => expect(voz("Lucy")).toHaveAttribute("aria-checked", "true"));
+    expect(candadoDeVoces()).toHaveTextContent("Elegir entre las 40 voces: planes Pro y Scale");
+
+    await user.click(principal("Catalán"));
+    await waitFor(() => expect(within(voces()).getAllByRole("radio")).toHaveLength(2));
+    expect(voz("Marta")).toHaveAttribute("aria-checked", "true");
+    expect(screen.queryByRole("link", { name: /^Elegir entre/ })).toBeNull();
+  });
+
+  it("en Inicio, la voz que ya tenía elegida se conserva a la vista; cambiarla avisa de que no podrá volver a ella", async () => {
+    const user = userEvent.setup();
+    vi.mocked(getBillingSummary).mockResolvedValue({ planFeatures: [] } as never);
+    renderizar({ voz: idDe("es-ES", "Lara") });
+
+    await waitFor(() => expect(voz("Lara")).toHaveAttribute("aria-checked", "true"));
+    expect(within(voces()).getAllByRole("radio").map((opcion) => opcion.textContent)).toEqual([
+      "BlancaPor defectoCálida y acogedora",
+      expect.stringMatching(/^Lara/),
+    ]);
+    expect(screen.queryByText(AVISO_PIERDE_LARA)).toBeNull();
+
+    await user.click(voz("Blanca"));
+    expect(await screen.findByText(AVISO_PIERDE_LARA)).toBeInTheDocument();
+    // Lara sigue a la vista para volver a ella.
+    await user.click(voz("Lara"));
+    expect(screen.queryByText(AVISO_PIERDE_LARA)).toBeNull();
+
+    await user.click(genero("Hombre"));
+    expect(await screen.findByText(AVISO_PIERDE_LARA)).toBeInTheDocument();
+    await user.click(genero("Mujer"));
+    await waitFor(() => expect(voz("Lara")).toHaveAttribute("aria-checked", "true"));
+    expect(screen.queryByText(AVISO_PIERDE_LARA)).toBeNull();
+    expect(screen.queryByRole("button", { name: /Guardar/ })).toBeNull();
+  });
+
+  // Revisión del 2026-10-07: tras guardar Marcos, volver a Mujer recuperaba
+  // a Lara (la recordada), que ya no se puede elegir: salía marcada, sin
+  // aviso, y el backend respondía 403 al guardar.
+  it("en Inicio, tras guardar otra voz, volver al género de la conservada atiende la de por defecto", async () => {
+    const user = userEvent.setup();
+    vi.mocked(getBillingSummary).mockResolvedValue({ planFeatures: [] } as never);
+    vi.mocked(updateMyBusiness).mockResolvedValue({ id: "biz_1" } as never);
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const arbol = (agentSettings: Partial<AgentSettings>) => (
+      <QueryClientProvider client={queryClient}>
+        <ComportamientoMovil business={{ id: "biz_1", agentSettings: { ...DEFAULT_AGENT_SETTINGS, ...agentSettings } } as Business} />
+      </QueryClientProvider>
+    );
+    const { rerender } = render(arbol({ voz: idDe("es-ES", "Lara") }));
+
+    await waitFor(() => expect(voz("Lara")).toHaveAttribute("aria-checked", "true"));
+    await user.click(genero("Hombre"));
+    expect(await screen.findByText(AVISO_PIERDE_LARA)).toBeInTheDocument();
+    // Guardado: el negocio vuelve con Marcos (sin voz elegida).
+    rerender(arbol({ voiceGender: "masculina" }));
+    await waitFor(() => expect(screen.queryByRole("button", { name: /Guardar/ })).toBeNull());
+    await user.click(genero("Mujer"));
+
+    await waitFor(() => expect(voz("Blanca")).toHaveAttribute("aria-checked", "true"));
+    expect(within(voces()).getAllByRole("radio").map((opcion) => opcion.textContent)).toEqual([
+      "BlancaPor defectoCálida y acogedora",
+    ]);
+    await user.click(screen.getByRole("button", { name: /Guardar/ }));
+    expect(vi.mocked(updateMyBusiness).mock.calls[0][0].agentSettings).toMatchObject({ voiceGender: "femenina" });
+    expect(vi.mocked(updateMyBusiness).mock.calls[0][0].agentSettings?.voz).not.toBe(idDe("es-ES", "Lara"));
+  });
+
+  it("en Pro, cambiar la voz elegida no avisa de nada del plan ni lleva candado", async () => {
+    const user = userEvent.setup();
+    renderizar({ voz: idDe("es-ES", "Lara") });
+
+    await user.click(await waitFor(() => voz("Blanca")));
+    expect(voz("Blanca")).toHaveAttribute("aria-checked", "true");
+    expect(screen.queryByText(/Tu plan ya no incluye/)).toBeNull();
+    expect(screen.queryByRole("link", { name: /^Elegir entre/ })).toBeNull();
   });
 
   it("la muestra se para cuando su voz deja de verse", async () => {

@@ -2453,9 +2453,7 @@ listas de idiomas ni decide por su cuenta:
     anteriores: con una cooficial entre ellos y un principal que no lo es (un JSON guardado del
     11-09 al 02-10 podía quedar así; la migración de abajo lo arregla en la base de datos), la
     cooficial pasa a ser el principal (la primera en orden canónico), cambio `principal`. Un
-    principal que no está en los `languages` recibidos ya no se rechaza;
-  - `funcionQueExige(principal)`: `lenguas_locales` para catalán, euskera y gallego (Pro y Scale),
-    `null` para los demás. La mira `PATCH /business/me` y la enseña el panel.
+    principal que no está en los `languages` recibidos ya no se rechaza.
 - `resolver.ts`:
   - **`resolverIdiomas(ajustes)` → `PerfilDeIdiomas`:** los idiomas que habla, `principal`,
     `cooficial` (el principal si lo es), `familia` (`ultra`/`soniox`), la voz que atiende, las
@@ -2468,6 +2466,10 @@ listas de idiomas ni decide por su cuenta:
     género: la reserva si la voz ya no está en la cuenta.
   - **`isoDeLaVoz`:** el `voice_settings.language` de una voz de Soniox, el ISO del principal
     cooficial.
+  - **`funcionQueExige(ajustes)`** (desde el 07-10): `elegir_voz` si la voz que atiende no es la
+    de por defecto de su género (la que atendería sin elegir ninguna), `null` si no. El principal,
+    sea el que sea, no exige nada. Con Marta y Sergio nunca: cada una es la de por defecto de su
+    género. La mira `PATCH /business/me`.
   - **Transcripción:** con un principal Ultra, flux en `multi` (los siete); con uno cooficial,
     `soniox/stt-rt-v5` con dos pistas, la suya y la del español (no las de los ocho que habla).
     **Medido el 05-10 en el laboratorio** (de 3 a 5 llamadas por tanda: muestras pequeñas):
@@ -2499,24 +2501,32 @@ listas de idiomas ni decide por su cuenta:
     la voz elegida, solo su género.
 - `panel.ts`: el catálogo del panel (cada principal con su `tipo` —obligatorio, cooficial o
   extranjero—, los `idiomas` que habla con él, la `entradilla` «Habla en N idiomas: …», lo que
-  `requiere` del plan —`{ funcion: "lenguas_locales", texto: "Disponible en Pro y Scale" }` o
-  `null`—, su `familia` y sus voces con `descripcion`, `recomendada`, `porDefecto` y la ruta de su
-  muestra) y la vista previa (los idiomas que habla, la voz que atenderá, las `voces` elegibles,
-  la entradilla, el saludo real y avisos en español llano: la espera más larga con una cooficial,
-  1,4–2 s frente a ~0,9 s; Marta o Sergio; el saludo extranjero a los clientes de aquí; y, con un
-  principal de voces Ultra, que no entiende el catalán, el euskera ni el gallego, porque flux no
-  los transcribe —47 % de error de palabra con un cliente en catalán en la tanda «B piloto» del
-  05-10— y la voz no cambia a mitad de llamada: un assistant tiene una sola). Las
+  `requiere` del plan para elegirlo —desde el 07-10, `null` en todos—, su `familia`, sus voces con
+  `descripcion`, `recomendada`, `porDefecto` y la ruta de su muestra, y
+  `requiereParaElegirVoz`: `{ funcion: "elegir_voz", texto: "Elegir entre las 29 voces: planes Pro
+  y Scale" }` con el número de voces del principal, o `null` si no hay más que elegir que mujer u
+  hombre —Marta y Sergio—) y la vista previa (los idiomas que habla, la voz que atenderá, las
+  `voces` elegibles con su `requiereParaElegirVoz`, la entradilla, el saludo real y avisos en
+  español llano: la espera más larga con una cooficial, 1,4–2 s frente a ~0,9 s; Marta o Sergio;
+  el saludo extranjero a los clientes de aquí; y, con un principal de voces Ultra, que no entiende
+  el catalán, el euskera ni el gallego —«elígela como idioma principal», sin plan desde el
+  07-10—, porque flux no los transcribe —47 % de error de palabra con un cliente en catalán en la
+  tanda «B piloto» del 05-10— y la voz no cambia a mitad de llamada: un assistant tiene una
+  sola). Las
   muestras van en `frontend/public/voces/<iso>/<slug>.mp3`: el uuid para las Ultra y el nombre en
   minúsculas para las de Soniox (`/voces/ca/marta.mp3`), con el ISO del principal de su lista.
   **Transitorio:** `GET /business/me/idiomas` sirve `catalogoConCamposDelPanelAnterior`, que añade
   `habla`/`expresiva` a cada voz y `secundariosCompatibles` (lo que habla salvo el obligatorio y
-  el principal) a cada principal, y `GET /billing/summary` manda también `voz_idioma` donde hay
-  `lenguas_locales` (`featuresParaLaApp`): Vercel publica la app antes de que Cloud Run sirva el
-  backend, y una pestaña con la app anterior lanzaba al pintar sin ellos o bloqueaba a Pro. Se
-  quitan en la PR siguiente (el fixture del frontend no los lleva). En sentido contrario, la app
-  tolera un catálogo sin `idiomas`/`entradilla`/`requiere` (guarda el obligatorio y el principal, y
-  enseña la entradilla de la vista previa) y un plan con `voz_idioma` en vez de `lenguas_locales`.
+  el principal) a cada principal, y `GET /billing/summary` manda también (`featuresParaLaApp`)
+  `lenguas_locales` a todos los planes —la app del 05-10 desbloquea con ella las cooficiales si su
+  catálogo en caché aún les pone ese `requiere`— y `voz_idioma` donde hay `elegir_voz` —la app
+  anterior al 05-10 desbloqueaba con ella la voz—: Vercel publica la app antes de que Cloud Run
+  sirva el backend, y una pestaña con la app anterior lanzaba al pintar sin ellos o bloqueaba lo
+  que ya se puede elegir. Se quitan en la PR siguiente (el fixture del frontend no los lleva). En
+  sentido contrario, la app tolera un catálogo sin `idiomas`/`entradilla`/`requiere`/
+  `requiereParaElegirVoz` (guarda el obligatorio y el principal, enseña la entradilla de la vista
+  previa y no bloquea la voz, que ese backend tampoco mira) y uno con `requiere` de
+  `lenguas_locales` en las cooficiales (el del 05-10: candado y aviso al dejar la que conserva).
 
 Lo consumen `telnyxEligibility.ts` (la voz y sus alternativas contra la cuenta, una consulta por
 proveedor, con reserva Ultra o Soniox del mismo género; la reserva Ultra solo da otra
@@ -2527,9 +2537,10 @@ deprecadas y las de `EXCLUSIONES_DE_VOCES`; sin ninguna, el negocio no es elegib
 perfil), `telnyxAgentSync.ts`, `managedAgentPrompt.ts` (instrucción del prompt y
 `parseAgentSettings`), `agentBootstrap.ts`, `modules/agents/routes.ts` (Retell) y
 `modules/businesses/routes.ts` (`GET /business/me/idiomas`, `POST …/previsualizar` —basta con
-`voiceLanguage`; `languages` es opcional— y la puerta de plan: pasar a un principal que exige
-`lenguas_locales` sin tenerla es un 403 `PLAN_LIMIT_LENGUAS_LOCALES`; quien ya lo tiene lo conserva
-al bajar de plan, porque solo se mira al cambiarlo). `parseAgentSettings` lee campo a campo: un
+`voiceLanguage`; `languages` es opcional— y la puerta de plan: guardar una voz que exige
+`elegir_voz` sin tenerla es un 403 `PLAN_LIMIT_ELEGIR_VOZ` con el motivo en español; solo se mira
+si cambia la voz que atiende, así que quien la eligió en Pro la conserva al bajar a Inicio y sigue
+guardando el resto). `parseAgentSettings` lee campo a campo: un
 valor inválido no tira el resto de ajustes al `DEFAULT_AGENT_SETTINGS`; una voz que no atiende se
 olvida al guardar.
 
@@ -2538,9 +2549,18 @@ olvida al guardar.
 - **El saludo es siempre en el idioma principal** (`voiceLanguage`): nada de saludo por el
   prefijo del número que llama ni por llamada. Después sigue en el idioma de quien llama, si es
   uno de los que habla.
-- **Planes:** Inicio, principal español o uno de los seis extranjeros, con sus voces Ultra; Pro y
-  Scale, además catalán, euskera y gallego (`lenguas_locales`). En Inicio el panel enseña esas tres
-  con candado y enlace a facturación, salvo la que el negocio ya tenga.
+- **Planes (decisión del usuario del 07-10):** el idioma principal, cualquiera de los diez, en
+  todos los planes, también Inicio: en Cataluña atender en catalán es obligatorio (Codi de consum,
+  art. 128-1), y el 17-09 el usuario ya revirtió una regla de «catalán solo Pro/Scale» (PR #70).
+  **Pro y Scale se diferencian por la voz** (`elegir_voz`): eligen entre todas (las 29 de España,
+  las nativas de cada idioma, Marta o Sergio). En Inicio se elige el principal y mujer u hombre, y
+  atiende la voz por defecto de ese género (Blanca/Marcos en español, Lucy/George en inglés,
+  Marta/Sergio con una cooficial…); el panel enseña solo esa con su muestra y, en vez de «Ver
+  todas las voces», el enlace con candado «Elegir entre las N voces: planes Pro y Scale» a
+  facturación (con la misma confirmación de cambios sin guardar). Una voz elegida en Pro se
+  conserva al bajar a Inicio, a la vista; si se cambia, el panel avisa de que no se podrá volver
+  a ella sin cambiar de plan. Del 05 al 07-10, catalán, euskera y gallego fueron de Pro y Scale
+  (`lenguas_locales`) y la voz, de todos.
 - **Principal Ultra** (español o extranjero): sus Ultra nativas, con `expressive_mode`, y
   `deepgram/flux` en `multi` con sus ajustes de turno. En español se pueden escoger las 29 de
   España (no las latinoamericanas ni las «es» sin acento); por defecto, Blanca y Marcos. Con un
@@ -2562,9 +2582,9 @@ olvida al guardar.
   - Con catalán, el prompt pide adaptarse al valenciano y al balear.
   - **En estudio (no depende de esta PR):** cambiar de voz a mitad de llamada (español → catalán
     con Marta) con `conversation_flow`, para que un principal español atienda también catalán.
-- **El dueño elige la voz escuchándola** en «Cómo atiende» (todos los planes): las recomendadas a
-  la vista y el resto del género al desplegar. Las muestras las genera
-  `scripts/muestrasDeVoces.ts`.
+- **El dueño elige la voz escuchándola** en «Cómo atiende»: en Pro y Scale, las recomendadas a
+  la vista y el resto del género al desplegar; en Inicio, la de por defecto de cada género. Las
+  muestras las genera `scripts/muestrasDeVoces.ts`.
 
 **Datos medidos con llamadas reales (03-10, negocio de pruebas de dev, p50 de los turnos sin
 herramienta):**

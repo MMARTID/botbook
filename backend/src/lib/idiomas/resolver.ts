@@ -17,6 +17,7 @@ import {
   ordenarIdiomas,
   type CambioDeIdiomas,
 } from "./ajustes.js";
+import type { PlanFeature } from "../planFeatures.js";
 
 /** Lo que importa de AgentSettings para el idioma. */
 export interface AjustesDeIdioma {
@@ -215,6 +216,32 @@ export function resolverIdiomas(ajustes: AjustesDeIdioma): PerfilDeIdiomas {
     recordatorioDelPrompt: instrucciones.recordatorio,
     cambios: cambio ? [...cambios, cambio] : cambios,
   };
+}
+
+/**
+ * La función del plan que exigen estos ajustes, o null si valen en
+ * cualquier plan (decisión del usuario del 2026-10-07): que atienda una voz
+ * que no es la de por defecto de su género (la que atendería sin elegir
+ * ninguna) exige «elegir_voz», de Pro y Scale. El idioma principal, el que
+ * sea, catalán, euskera y gallego incluidos, y mujer u hombre, en todos.
+ * Con Marta y Sergio (un principal cooficial) no hay nada más que elegir:
+ * cada una es la de por defecto de su género.
+ *
+ * Se mira al escribir (PATCH /business/me) y solo si cambia la voz que
+ * atiende: un negocio que eligió voz en Pro y baja a Inicio la conserva (no
+ * se le cambia nada al leer).
+ */
+export function funcionQueExige(
+  ajustes: AjustesDeIdioma
+): Extract<PlanFeature, "elegir_voz"> | null {
+  const perfil = resolverIdiomas(ajustes);
+  const { voz: porDefecto } = elegirVoz(
+    familiaDeVoces(perfil.principal).voces,
+    perfil.idiomas,
+    perfil.genero,
+    undefined
+  );
+  return perfil.voz.id === porDefecto.id ? null : "elegir_voz";
 }
 
 export function saludoDelNegocio(

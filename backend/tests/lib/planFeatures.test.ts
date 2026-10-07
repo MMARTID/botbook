@@ -63,25 +63,29 @@ describe("límites y features por plan", () => {
     expect(planAllows("scale", "analitica_avanzada")).toBe(true);
   });
 
-  // Decisión del usuario del 2026-10-05: la voz y los idiomas de las voces
-  // Ultra, en todos los planes; catalán, euskera y gallego, en Pro y Scale.
-  it("las lenguas locales son de Pro y Scale, y el candado lo dice así", () => {
-    expect(planAllows("inicio", "lenguas_locales")).toBe(false);
-    expect(planAllows("pro", "lenguas_locales")).toBe(true);
-    expect(planAllows("scale", "lenguas_locales")).toBe(true);
-    expect(planesQueIncluyen("lenguas_locales")).toBe("Pro y Scale");
+  // Decisión del usuario del 2026-10-07: el idioma principal (también
+  // catalán, euskera y gallego) y mujer u hombre, en todos los planes;
+  // elegir entre todas las voces, en Pro y Scale.
+  it("elegir la voz es de Pro y Scale, y el candado lo dice así", () => {
+    expect(planAllows("inicio", "elegir_voz")).toBe(false);
+    expect(planAllows("pro", "elegir_voz")).toBe(true);
+    expect(planAllows("scale", "elegir_voz")).toBe(true);
+    expect(planesQueIncluyen("elegir_voz")).toBe("Pro y Scale");
     expect(planesQueIncluyen("analitica_avanzada")).toBe("Scale");
   });
 
-  it("la app recibe también «voz_idioma» donde hay lenguas locales, para el panel anterior", () => {
-    expect(featuresParaLaApp("inicio")).toEqual([]);
+  it("la app recibe también las claves de las apps anteriores: «lenguas_locales» en todos los planes y «voz_idioma» donde se elige la voz", () => {
+    expect(featuresParaLaApp("inicio")).toEqual(["lenguas_locales"]);
     expect(featuresParaLaApp("pro")).toEqual([
       "recordatorios_cita",
       "resumen_semanal",
+      "elegir_voz",
       "lenguas_locales",
       "voz_idioma",
     ]);
-    expect(featuresParaLaApp("scale")).toContain("voz_idioma");
+    expect(featuresParaLaApp("scale")).toEqual(
+      expect.arrayContaining(["elegir_voz", "lenguas_locales", "voz_idioma"])
+    );
   });
 
   it("nextPlanId sube de escalón y devuelve null en el más alto", () => {

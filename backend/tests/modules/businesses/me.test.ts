@@ -231,14 +231,41 @@ describe("PATCH /business/me (móvil del dueño para WhatsApp)", () => {
     expect(mockedCambiarMovil).toHaveBeenCalledWith("biz_1", null);
   });
 
-  // Desde el 2026-10-05 la voz y un principal con voces Ultra son de todos
-  // los planes; catalán, euskera y gallego (lenguas locales), de Pro y Scale.
-  it("en Inicio se puede elegir la voz y un principal con voces Ultra", async () => {
+  // Desde el 2026-10-07 (decisión del usuario) el idioma principal,
+  // catalán, euskera y gallego incluidos, y mujer u hombre son de todos los
+  // planes; elegir una voz que no es la de por defecto de su género, de Pro
+  // y Scale. El negocio por defecto de estos tests no tiene plan: Inicio.
+  const LARA = "Telnyx.Ultra.85b356c1-c638-404d-b986-f54a53d957d6";
+  const CELIA = "Telnyx.Ultra.ad38904c-0ce9-42b1-9159-5ad5352ef089";
+  const ALINA = "Telnyx.Ultra.38aabb6a-f52b-4fb0-a3d1-988518f4dc06";
+  const MOTIVO_ELEGIR_VOZ =
+    "Elegir entre todas las voces está disponible en los planes Pro y Scale. En tu plan eliges voz de mujer o de hombre y atiende la de por defecto.";
+
+  it("en Inicio se puede elegir cualquier idioma principal, también catalán, euskera o gallego", async () => {
+    for (const principal of ["ca-ES", "eu-ES", "gl-ES", "de-DE"] as const) {
+      mockedBusinessUpdate.mockClear();
+      const response = await patch({
+        agentSettings: { ...DEFAULT_AGENT_SETTINGS, voiceLanguage: principal },
+      });
+
+      expect(response.statusCode, principal).toBe(200);
+      const updateData = mockedBusinessUpdate.mock.calls[0][0].data as Record<
+        string,
+        unknown
+      >;
+      expect(updateData.agentSettings, principal).toMatchObject({
+        voiceLanguage: principal,
+        languages: idiomasQueHabla(principal),
+      });
+    }
+  });
+
+  it("en Inicio se elige mujer u hombre y su voz por defecto, también si la manda", async () => {
     const response = await patch({
       agentSettings: {
         ...DEFAULT_AGENT_SETTINGS,
         voiceLanguage: "de-DE",
-        voz: "Telnyx.Ultra.38aabb6a-f52b-4fb0-a3d1-988518f4dc06",
+        voz: ALINA,
       },
     });
 
@@ -249,37 +276,40 @@ describe("PATCH /business/me (móvil del dueño para WhatsApp)", () => {
     >;
     expect(updateData.agentSettings).toMatchObject({
       voiceLanguage: "de-DE",
-      languages: idiomasQueHabla("de-DE"),
-      voz: "Telnyx.Ultra.38aabb6a-f52b-4fb0-a3d1-988518f4dc06",
+      voz: ALINA,
     });
+
+    const hombre = await patch({
+      agentSettings: { ...DEFAULT_AGENT_SETTINGS, voiceGender: "masculina" },
+    });
+    expect(hombre.statusCode).toBe(200);
   });
 
-  it("en Inicio, pasar a catalán, euskera o gallego de principal es un 403 de lenguas locales", async () => {
-    for (const principal of ["ca-ES", "eu-ES", "gl-ES"] as const) {
-      mockedBusinessFindUnique.mockResolvedValueOnce({
-        agentSettings: DEFAULT_AGENT_SETTINGS,
-        plan: null,
-        stripePriceId: null,
-      } as never);
+  it("en Inicio, elegir otra voz que la de por defecto es un 403 claro y no guarda nada", async () => {
+    mockedBusinessFindUnique.mockResolvedValueOnce({
+      agentSettings: DEFAULT_AGENT_SETTINGS,
+      plan: null,
+      stripePriceId: null,
+    } as never);
 
-      const response = await patch({
-        agentSettings: { ...DEFAULT_AGENT_SETTINGS, voiceLanguage: principal },
-      });
+    const response = await patch({
+      agentSettings: { ...DEFAULT_AGENT_SETTINGS, voz: LARA },
+    });
 
-      expect(response.statusCode, principal).toBe(403);
-      expect(response.json()).toMatchObject({
-        code: "PLAN_LIMIT_LENGUAS_LOCALES",
-        planId: "inicio",
-        error:
-          "Atender en catalán, euskera o gallego está disponible en los planes Pro y Scale.",
-      });
-    }
+    expect(response.statusCode).toBe(403);
+    expect(response.json()).toEqual({
+      code: "PLAN_LIMIT_ELEGIR_VOZ",
+      planId: "inicio",
+      limit: null,
+      error: MOTIVO_ELEGIR_VOZ,
+    });
     expect(mockedBusinessUpdate).not.toHaveBeenCalled();
+    expect(mockedAgentUpdate).not.toHaveBeenCalled();
   });
 
-  it("en Pro se puede pasar a catalán de principal", async () => {
+  it("en Pro se puede elegir cualquier voz", async () => {
     mockedBusinessFindUnique.mockResolvedValue({
-      name: "Perruqueria Test",
+      name: "Peluquería Test",
       businessDetails: null,
       agentSettings: DEFAULT_AGENT_SETTINGS,
       timezone: "Europe/Madrid",
@@ -288,7 +318,32 @@ describe("PATCH /business/me (móvil del dueño para WhatsApp)", () => {
     } as any);
 
     const response = await patch({
-      agentSettings: { ...DEFAULT_AGENT_SETTINGS, voiceLanguage: "ca-ES" },
+      agentSettings: { ...DEFAULT_AGENT_SETTINGS, voz: LARA },
+    });
+
+    expect(response.statusCode).toBe(200);
+    const updateData = mockedBusinessUpdate.mock.calls[0][0].data as Record<
+      string,
+      unknown
+    >;
+    expect(updateData.agentSettings).toMatchObject({ voz: LARA });
+  });
+
+  // El plan se mira al escribir y solo si cambia la voz: quien la eligió en
+  // Pro y baja a Inicio la conserva y puede seguir guardando el resto.
+  it("en Inicio, un negocio que ya tenía una voz elegida la conserva y sigue guardando el resto", async () => {
+    const conLara = { ...DEFAULT_AGENT_SETTINGS, voz: LARA };
+    mockedBusinessFindUnique.mockResolvedValue({
+      name: "Peluquería Test",
+      businessDetails: null,
+      agentSettings: conLara,
+      timezone: "Europe/Madrid",
+      plan: null,
+      stripePriceId: null,
+    } as any);
+
+    const response = await patch({
+      agentSettings: { ...conLara, tone: "direct" },
     });
 
     expect(response.statusCode).toBe(200);
@@ -297,14 +352,34 @@ describe("PATCH /business/me (móvil del dueño para WhatsApp)", () => {
       unknown
     >;
     expect(updateData.agentSettings).toMatchObject({
-      voiceLanguage: "ca-ES",
-      languages: idiomasQueHabla("ca-ES"),
+      tone: "direct",
+      voz: LARA,
     });
   });
 
-  // El plan se mira al escribir: quien ya atiende en catalán y baja a
-  // Inicio lo conserva y puede seguir guardando el resto.
-  it("en Inicio, un negocio que ya atiende en catalán sigue guardando sin cambiarlo", async () => {
+  it("en Inicio, quien conserva una voz elegida no puede cambiarla por otra que no sea la de por defecto", async () => {
+    mockedBusinessFindUnique.mockResolvedValue({
+      name: "Peluquería Test",
+      businessDetails: null,
+      agentSettings: { ...DEFAULT_AGENT_SETTINGS, voz: LARA },
+      timezone: "Europe/Madrid",
+      plan: "basic",
+      stripePriceId: null,
+    } as any);
+
+    const otra = await patch({
+      agentSettings: { ...DEFAULT_AGENT_SETTINGS, voz: CELIA },
+    });
+    expect(otra.statusCode).toBe(403);
+    expect(otra.json().code).toBe("PLAN_LIMIT_ELEGIR_VOZ");
+    expect(mockedBusinessUpdate).not.toHaveBeenCalled();
+
+    // Volver a la de por defecto sí, aunque luego no pueda volver a Lara.
+    const porDefecto = await patch({ agentSettings: DEFAULT_AGENT_SETTINGS });
+    expect(porDefecto.statusCode).toBe(200);
+  });
+
+  it("en Inicio, un negocio que ya atiende en catalán sigue guardando y elige entre Marta y Sergio", async () => {
     const enCatalan = { ...DEFAULT_AGENT_SETTINGS, voiceLanguage: "ca-ES" };
     mockedBusinessFindUnique.mockResolvedValue({
       name: "Perruqueria Test",

@@ -88,15 +88,20 @@ export type VozDelPanel = {
   /** De atención al cliente: se enseña sin desplegar «Ver todas las
    * voces». */
   recomendada: boolean;
-  /** La que atiende si el dueño no elige (una por género). */
+  /** La que atiende si el dueño no elige (una por género). Sin
+   * «elegir_voz» (Inicio), la única de su género que se puede elegir. */
   porDefecto: boolean;
   /** Ruta de su muestra en la app (public/voces). */
   muestra: string;
 };
 
+/** Lo que exige una opción del plan: la clave de `planFeatures` y el texto
+ * de su enlace con candado a los planes. */
+export type RequisitoDelPlan = { funcion: PlanFeatureKey; texto: string };
+
 /** Un idioma principal que se puede elegir, con lo que va con él. `idiomas`,
- * `entradilla` y `requiere` son opcionales: Vercel publica la app antes de
- * que Cloud Run sirva el backend que los manda. */
+ * `entradilla`, `requiere` y `requiereParaElegirVoz` son opcionales: Vercel
+ * publica la app antes de que Cloud Run sirva el backend que los manda. */
 export type PrincipalDelCatalogo = {
   codigo: AgentLanguage;
   etiqueta: string;
@@ -109,14 +114,20 @@ export type PrincipalDelCatalogo = {
   /** «Habla en 7 idiomas: español, inglés, … Saluda en español y sigue en
    * el idioma de quien llama.» */
   entradilla?: string;
-  /** Si elegirlo exige una función del plan (catalán, euskera y gallego,
-   * en Pro y Scale): la clave de `planFeatures` y el texto del candado. */
-  requiere?: { funcion: PlanFeatureKey; texto: string } | null;
+  /** Si elegirlo exige una función del plan: se ve con candado. Desde el
+   * 2026-10-07 ninguno (null); el backend anterior lo pone en catalán,
+   * euskera y gallego («lenguas_locales»). */
+  requiere?: RequisitoDelPlan | null;
   /** De qué familia son sus `voces`. */
   familia: FamiliaDeVoces;
   /** Las voces que atienden con este principal. Por género, mujeres
    * primero: la de por defecto, luego las recomendadas y luego el resto. */
   voces: VozDelPanel[];
+  /** Si elegir una voz que no es la de por defecto de su género exige una
+   * función del plan («elegir_voz», Pro y Scale), con el texto del enlace
+   * («Elegir entre las 29 voces: planes Pro y Scale»). null si no hay más
+   * que elegir que mujer u hombre (Marta y Sergio). */
+  requiereParaElegirVoz?: RequisitoDelPlan | null;
 };
 
 /** GET /business/me/idiomas: lo que se ofrece en el panel. */
@@ -141,6 +152,8 @@ export type VistaPreviaDeIdiomas = {
   /** Las voces que se pueden elegir con este principal (entre ellas,
    * `voz`). */
   voces: VozDelPanel[];
+  /** Como PrincipalDelCatalogo.requiereParaElegirVoz, para `voces`. */
+  requiereParaElegirVoz?: RequisitoDelPlan | null;
   /** «Habla en 7 idiomas: … Saluda en español y sigue en el idioma de
    * quien llama.» */
   entradilla: string;
@@ -397,10 +410,15 @@ export type CallAnalytics = {
 export type PlanFeatureKey =
   | "recordatorios_cita"
   | "resumen_semanal"
-  /** Catalán, euskera o gallego como idioma principal (Pro y Scale). */
+  /** Elegir entre todas las voces del idioma principal (Pro y Scale, desde
+   * el 2026-10-07). Sin ella, mujer u hombre y su voz por defecto. */
+  | "elegir_voz"
+  /** Del 05 al 07-10, catalán, euskera o gallego de principal (Pro y
+   * Scale). Ahora son de todos: el backend la manda a todos los planes
+   * durante el despliegue, y el anterior la pide en `requiere`. */
   | "lenguas_locales"
-  /** La de antes de «lenguas_locales»: el backend la manda también durante
-   * el despliegue del 2026-10-05 (y el anterior, en su lugar). */
+  /** La de antes del 05-10 (voz e idiomas): el backend la manda también
+   * durante el despliegue donde hay «elegir_voz». */
   | "voz_idioma"
   | "analitica_avanzada"
   | "multi_sede";
