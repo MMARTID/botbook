@@ -216,12 +216,36 @@ describe("elegirVoz, con voces que el catálogo aún no tiene", () => {
 describe("resolverIdiomas — prompt y saludo", () => {
   it("con principal español, saluda en español y sigue en cualquiera de los siete", () => {
     expect(resolver(["es-ES"]).instruccionDelPrompt).toBe(
-      "Empieza siempre con el saludo en español de España. Tras la primera intervención de quien llama, responde y continúa exclusivamente en el idioma que use si es uno de estos: español de España, inglés, francés, alemán, italiano, portugués, neerlandés. Si cambia entre esos idiomas, acompaña el cambio sin pedirle que elija uno. Las frases que estas instrucciones ponen entre comillas para decírselas a quien llama están en castellano: dilas traducidas al idioma de la conversación. No menciones que eres una IA salvo que te lo pregunten."
+      "En las llamadas, el saludo en español de España ya lo dice el sistema al descolgar y es el primer mensaje de la conversación: no lo repitas. Desde tu primera respuesta, contesta y continúa exclusivamente en el idioma en que te habla quien llama si es uno de estos: español de España, inglés, francés, alemán, italiano, portugués, neerlandés. Si cambia entre esos idiomas, acompaña el cambio sin pedirle que elija uno. Las frases que estas instrucciones ponen entre comillas para decírselas a quien llama están en castellano: dilas traducidas al idioma de la conversación. No menciones que eres una IA salvo que te lo pregunten."
     );
     expect(resolver(["es-ES"]).recordatorioDelPrompt).toBe(
-      "## Idioma\nContesta cada turno en el idioma en que te habla quien llama si es uno de estos: español de España, inglés, francés, alemán, italiano, portugués, neerlandés; también el resumen de la reserva, la pregunta del WhatsApp y la despedida. No cambies de idioma por tu cuenta mientras siga hablando en el suyo."
+      "## Idioma\nContesta cada turno en el idioma en que te habla quien llama si es uno de estos: español de España, inglés, francés, alemán, italiano, portugués, neerlandés; también tu primera respuesta, lo que digas después de usar una herramienta (aunque te conteste en castellano), el resumen de la reserva, la pregunta del WhatsApp y la despedida. No cambies de idioma por tu cuenta mientras siga hablando en el suyo."
     );
   });
+
+  // Llamadas reales del 05 y el 07-10: con «Empieza siempre con el saludo
+  // en…» la primera respuesta repetía el saludo (que Telnyx ya ha dicho al
+  // descolgar) y seguía en el principal aunque le hablasen en inglés; otra
+  // salió en castellano justo después de get_catalog.
+  it.each(["es-ES", "ca-ES", "en-GB"] as const)(
+    "con principal %s no manda empezar por el saludo y pide el idioma de quien llama desde la primera respuesta y tras una herramienta",
+    (principal) => {
+      const { instruccion, recordatorio } = instruccionesDeIdioma(
+        idiomasQueHabla(principal),
+        principal
+      );
+
+      expect(instruccion).not.toMatch(/Empieza/);
+      expect(instruccion).toContain(
+        "ya lo dice el sistema al descolgar y es el primer mensaje de la conversación: no lo repitas"
+      );
+      expect(instruccion).toContain("Desde tu primera respuesta");
+      expect(recordatorio).toContain("también tu primera respuesta");
+      expect(recordatorio).toContain(
+        "lo que digas después de usar una herramienta (aunque te conteste en castellano)"
+      );
+    }
+  );
 
   it("con un solo idioma (lo que recibe Retell con principal español), «Habla siempre en…» y sin recordatorio", () => {
     expect(instruccionesDeIdioma(["es-ES"], "es-ES")).toEqual({
@@ -428,7 +452,7 @@ describe("resolverIdiomas — la voz elegida entre las de la familia", () => {
 describe("resolverIdiomas — el prompt con un principal cooficial", () => {
   it("saluda en catalán, lista los ocho y lleva la nota valenciana y balear", () => {
     expect(resolver([], "ca-ES").instruccionDelPrompt).toBe(
-      "Empieza siempre con el saludo en catalán. Tras la primera intervención de quien llama, responde y continúa exclusivamente en el idioma que use si es uno de estos: español de España, inglés, francés, catalán, alemán, italiano, portugués, neerlandés. Si cambia entre esos idiomas, acompaña el cambio sin pedirle que elija uno. Las frases que estas instrucciones ponen entre comillas para decírselas a quien llama están en castellano: dilas traducidas al idioma de la conversación. Si quien llama usa formas valencianas o baleares del catalán, adáptate a ellas. No menciones que eres una IA salvo que te lo pregunten."
+      "En las llamadas, el saludo en catalán ya lo dice el sistema al descolgar y es el primer mensaje de la conversación: no lo repitas. Desde tu primera respuesta, contesta y continúa exclusivamente en el idioma en que te habla quien llama si es uno de estos: español de España, inglés, francés, catalán, alemán, italiano, portugués, neerlandés. Si cambia entre esos idiomas, acompaña el cambio sin pedirle que elija uno. Las frases que estas instrucciones ponen entre comillas para decírselas a quien llama están en castellano: dilas traducidas al idioma de la conversación. Si quien llama usa formas valencianas o baleares del catalán, adáptate a ellas. No menciones que eres una IA salvo que te lo pregunten."
     );
   });
 });

@@ -534,7 +534,7 @@ describe("buildManagedAgentPrompt — idiomas", () => {
     });
 
     expect(prompt).toContain(
-      "Empieza siempre con el saludo en español de España. Tras la primera intervención de quien llama, responde y continúa exclusivamente en el idioma que use si es uno de estos: español de España, inglés, francés, alemán, italiano, portugués, neerlandés. Si cambia entre esos idiomas, acompaña el cambio sin pedirle que elija uno. Las frases que estas instrucciones ponen entre comillas para decírselas a quien llama están en castellano: dilas traducidas al idioma de la conversación. No menciones que eres una IA salvo que te lo pregunten."
+      "En las llamadas, el saludo en español de España ya lo dice el sistema al descolgar y es el primer mensaje de la conversación: no lo repitas. Desde tu primera respuesta, contesta y continúa exclusivamente en el idioma en que te habla quien llama si es uno de estos: español de España, inglés, francés, alemán, italiano, portugués, neerlandés. Si cambia entre esos idiomas, acompaña el cambio sin pedirle que elija uno. Las frases que estas instrucciones ponen entre comillas para decírselas a quien llama están en castellano: dilas traducidas al idioma de la conversación. No menciones que eres una IA salvo que te lo pregunten."
     );
     expect(prompt).not.toContain("Habla siempre en español de España");
   });
@@ -549,7 +549,7 @@ describe("buildManagedAgentPrompt — idiomas", () => {
     });
 
     expect(prompt.endsWith(
-      "## Idioma\nContesta cada turno en el idioma en que te habla quien llama si es uno de estos: español de España, inglés, francés, alemán, italiano, portugués, neerlandés; también el resumen de la reserva, la pregunta del WhatsApp y la despedida. No cambies de idioma por tu cuenta mientras siga hablando en el suyo."
+      "## Idioma\nContesta cada turno en el idioma en que te habla quien llama si es uno de estos: español de España, inglés, francés, alemán, italiano, portugués, neerlandés; también tu primera respuesta, lo que digas después de usar una herramienta (aunque te conteste en castellano), el resumen de la reserva, la pregunta del WhatsApp y la despedida. No cambies de idioma por tu cuenta mientras siga hablando en el suyo."
     )).toBe(true);
   });
 
@@ -564,7 +564,7 @@ describe("buildManagedAgentPrompt — idiomas", () => {
       "Habla siempre en español de España; no menciones que eres una IA salvo que te lo pregunten."
     );
     expect(prompt).not.toContain("## Idioma");
-    expect(prompt).not.toContain("Empieza siempre con el saludo");
+    expect(prompt).not.toContain("ya lo dice el sistema al descolgar");
   });
 
   it("con los idiomas de Retell de un principal catalán (catalán y español) los lista a los dos", () => {
@@ -575,10 +575,10 @@ describe("buildManagedAgentPrompt — idiomas", () => {
     });
 
     expect(prompt).toContain(
-      "Empieza siempre con el saludo en catalán. Tras la primera intervención de quien llama, responde y continúa exclusivamente en el idioma que use si es uno de estos: español de España, catalán."
+      "En las llamadas, el saludo en catalán ya lo dice el sistema al descolgar y es el primer mensaje de la conversación: no lo repitas. Desde tu primera respuesta, contesta y continúa exclusivamente en el idioma en que te habla quien llama si es uno de estos: español de España, catalán."
     );
     expect(prompt).toContain(
-      "si es uno de estos: español de España, catalán; también el resumen"
+      "si es uno de estos: español de España, catalán; también tu primera respuesta"
     );
   });
 
@@ -606,7 +606,7 @@ describe("buildManagedAgentPrompt — idiomas", () => {
       },
     });
 
-    expect(prompt).toContain("Empieza siempre con el saludo en inglés.");
+    expect(prompt).toContain("el saludo en inglés ya lo dice el sistema al descolgar");
     expect(prompt).toContain("si es uno de estos: español de España, inglés, francés, alemán, italiano, portugués, neerlandés.");
   });
 
@@ -620,7 +620,7 @@ describe("buildManagedAgentPrompt — idiomas", () => {
       },
     });
 
-    expect(prompt).toContain("Empieza siempre con el saludo en gallego.");
+    expect(prompt).toContain("el saludo en gallego ya lo dice el sistema al descolgar");
     expect(prompt).toContain(
       "si es uno de estos: español de España, inglés, francés, gallego, alemán, italiano, portugués, neerlandés."
     );
@@ -637,7 +637,7 @@ describe("buildManagedAgentPrompt — idiomas", () => {
     });
 
     expect(prompt).toContain(
-      "Empieza siempre con el saludo en catalán. Tras la primera intervención de quien llama, responde y continúa exclusivamente en el idioma que use si es uno de estos: español de España, inglés, francés, catalán, alemán, italiano, portugués, neerlandés."
+      "En las llamadas, el saludo en catalán ya lo dice el sistema al descolgar y es el primer mensaje de la conversación: no lo repitas. Desde tu primera respuesta, contesta y continúa exclusivamente en el idioma en que te habla quien llama si es uno de estos: español de España, inglés, francés, catalán, alemán, italiano, portugués, neerlandés."
     );
     expect(prompt).toContain(
       "Si quien llama usa formas valencianas o baleares del catalán, adáptate a ellas."
@@ -654,7 +654,7 @@ describe("buildManagedAgentPrompt — idiomas", () => {
       },
     });
 
-    expect(prompt).toContain("Empieza siempre con el saludo en alemán.");
+    expect(prompt).toContain("el saludo en alemán ya lo dice el sistema al descolgar");
     expect(prompt).toContain("si es uno de estos: español de España, inglés, francés, alemán, italiano, portugués, neerlandés.");
   });
 });
