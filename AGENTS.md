@@ -3122,8 +3122,12 @@ fusionar o descartar una rama, quita su fila de esta tabla.
     beforehand rather than derived afterwards as "the second newest": if the deploy fails without
     creating a revision, the second newest is two deploys old and rolling back to it would undo
     more than the bad deploy.
-  - **Propagating agent behaviour.** If the push touches `lib/managedAgentPrompt.ts` or
-    `lib/telnyxAssistantPayload.ts`, the job forces the `telnyx-reconciler` Cloud Scheduler job
+  - **Propagating agent behaviour.** If the push touches anything that feeds the assistants'
+    payload — `lib/managedAgentPrompt.ts`, `lib/telnyxAssistantPayload.ts`, `lib/telnyxAgentSync.ts`,
+    `lib/telnyxEligibility.ts`, `lib/transferenciaAlDueno.ts`, `lib/idiomas/*.ts` or the Gestor's
+    `lib/gestorPayload.ts`/`lib/gestorSync.ts` (`lib/idiomas/` and the rest were added on
+    2026-10-07, after a change only in `idiomas/resolver.ts`, PR #262, came out as "nada que
+    propagar") — the job forces the `telnyx-reconciler` Cloud Scheduler job
     instead of waiting for its daily 04:00 pass, and prints a warning that the **Retell fallback
     is still manual** (`scripts/syncManagedAgentPrompts.ts`). It never fails the deploy: if the
     trigger is refused (the CI service account needs `roles/cloudscheduler.jobRunner`), the
