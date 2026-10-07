@@ -4,6 +4,7 @@ import { enqueueEmailJob } from "../../../src/lib/cloudTasks.js";
 import { avisarRecado } from "../../../src/modules/whatsapp/avisosNegocio.js";
 import {
   InformeFinalSchema,
+  combinarInformes,
   normalizarDudas,
   normalizarTelefonoDeRecado,
   procesarInformeFinal,
@@ -12,7 +13,7 @@ import {
 vi.mock("../../../src/lib/prisma.js", () => ({
   prisma: {
     call: { updateMany: vi.fn(), findUnique: vi.fn(), update: vi.fn() },
-    lead: { create: vi.fn() },
+    lead: { create: vi.fn(), findFirst: vi.fn(), update: vi.fn() },
     user: { findFirst: vi.fn() },
   },
 }));
@@ -27,6 +28,8 @@ const mockedUpdateMany = vi.mocked(prisma.call.updateMany);
 const mockedCallFindUnique = vi.mocked(prisma.call.findUnique);
 const mockedCallUpdate = vi.mocked(prisma.call.update);
 const mockedLeadCreate = vi.mocked(prisma.lead.create);
+const mockedLeadFindFirst = vi.mocked(prisma.lead.findFirst);
+const mockedLeadUpdate = vi.mocked(prisma.lead.update);
 const mockedUserFindFirst = vi.mocked(prisma.user.findFirst);
 const mockedAvisar = vi.mocked(avisarRecado);
 const mockedEmail = vi.mocked(enqueueEmailJob);
@@ -53,6 +56,8 @@ beforeEach(() => {
   mockedCallFindUnique.mockResolvedValue(CALL_SIN_INSIGHTS as never);
   mockedCallUpdate.mockResolvedValue({} as never);
   mockedLeadCreate.mockResolvedValue({ id: "lead_1" } as never);
+  mockedLeadFindFirst.mockResolvedValue(null);
+  mockedLeadUpdate.mockResolvedValue({} as never);
   mockedAvisar.mockResolvedValue({ via: "interactivo" });
   mockedUserFindFirst.mockResolvedValue({
     email: "dueno@example.com",
@@ -106,6 +111,52 @@ describe("normalización", () => {
     ]);
     expect(normalizarDudas(["a", "b", "c", "d", "e", "f"])).toHaveLength(5);
     expect(normalizarDudas(["x".repeat(300)])[0]).toHaveLength(200);
+  });
+});
+
+describe("combinarInformes", () => {
+  const VACIO = {
+    resultado: null,
+    motivo_escalada: null,
+    fallo_de_tool: null,
+    servicio_pedido: null,
+    recado: null,
+    dudas_sin_respuesta: [],
+  };
+
+  it("el posterior manda en lo que trae y no borra lo que no trae", () => {
+    expect(
+      combinarInformes(
+        { ...VACIO, resultado: "RESOLVED", servicio_pedido: "Corte" },
+        { ...VACIO, resultado: "LEAD_CAPTURED" }
+      )
+    ).toEqual({ ...VACIO, resultado: "LEAD_CAPTURED", servicio_pedido: "Corte" });
+  });
+
+  it("un fallo de tool que avisó cualquiera de los dos se queda", () => {
+    expect(
+      combinarInformes(
+        { ...VACIO, fallo_de_tool: true },
+        { ...VACIO, fallo_de_tool: false }
+      ).fallo_de_tool
+    ).toBe(true);
+    expect(
+      combinarInformes(
+        { ...VACIO, fallo_de_tool: false },
+        { ...VACIO, fallo_de_tool: true }
+      ).fallo_de_tool
+    ).toBe(true);
+  });
+
+  it("el recado es el primero y las dudas se suman sin repetir, hasta 5", () => {
+    const primero = { nombre: "Ana", telefono: null, motivo: "a", quiere_que_le_llamen: true };
+    const segundo = { nombre: "Ana", telefono: null, motivo: "b", quiere_que_le_llamen: true };
+    const combinado = combinarInformes(
+      { ...VACIO, recado: primero, dudas_sin_respuesta: ["¿1?", "¿2?", "¿3?"] },
+      { ...VACIO, recado: segundo, dudas_sin_respuesta: ["¿3?", "¿4?", "¿5?", "¿6?"] }
+    );
+    expect(combinado.recado).toEqual(primero);
+    expect(combinado.dudas_sin_respuesta).toEqual(["¿1?", "¿2?", "¿3?", "¿4?", "¿5?"]);
   });
 });
 
@@ -216,13 +267,32 @@ describe("procesarInformeFinal", () => {
     expect(mockedLeadCreate).not.toHaveBeenCalled();
   });
 
-  it("el segundo informe (Telnyx lo manda dos veces) se ignora salvo que traiga un recado nuevo", async () => {
-    mockedUpdateMany.mockResolvedValue({ count: 0 });
-    mockedCallFindUnique.mockResolvedValue({
-      id: "call_row",
+  // Llamada que ya tiene informe: el reclamo del primero no escribe nada y
+  // se combina con el guardado (escritura condicionada a su postCallReportAt).
+  const GUARDADO_A = new Date("2026-10-07T10:00:00Z");
+  const llamadaConInforme = (
+    postCallReport: Record<string, unknown>,
+    camposDeLaLlamada: Partial<typeof CALL_SIN_INSIGHTS> = {}
+  ) =>
+    ({
+      ...CALL_SIN_INSIGHTS,
       businessId: "biz_1",
-      postCallReport: { resultado: "RESOLVED", recado: null },
-    } as never);
+      postCallReport,
+      postCallReportAt: GUARDADO_A,
+      ...camposDeLaLlamada,
+    }) as never;
+  const yaHabiaInforme = () => {
+    mockedUpdateMany.mockReset();
+    mockedUpdateMany
+      .mockResolvedValueOnce({ count: 0 }) // el reclamo del primero
+      .mockResolvedValue({ count: 1 }); // la combinación
+  };
+
+  it("un informe que no añade nada a lo guardado se ignora", async () => {
+    yaHabiaInforme();
+    mockedCallFindUnique.mockResolvedValue(
+      llamadaConInforme({ resultado: "RESOLVED", recado: null })
+    );
 
     expect(
       await procesarInformeFinal({
@@ -231,7 +301,17 @@ describe("procesarInformeFinal", () => {
         params: { resultado: "RESOLVED" },
       })
     ).toEqual({ outcome: "duplicado", leadId: null });
+    // Solo el reclamo: no hay combinación que escribir.
+    expect(mockedUpdateMany).toHaveBeenCalledTimes(1);
+    expect(mockedCallUpdate).not.toHaveBeenCalled();
     expect(mockedLeadCreate).not.toHaveBeenCalled();
+  });
+
+  it("el primer recado que llega en un informe posterior se añade y avisa una sola vez", async () => {
+    yaHabiaInforme();
+    mockedCallFindUnique.mockResolvedValue(
+      llamadaConInforme({ resultado: "RESOLVED", recado: null })
+    );
 
     expect(
       await procesarInformeFinal({
@@ -240,31 +320,234 @@ describe("procesarInformeFinal", () => {
         params: INFORME,
       })
     ).toEqual({ outcome: "duplicado-con-recado", leadId: "lead_1" });
-    expect(mockedCallUpdate).toHaveBeenCalledWith({
-      where: { id: "call_row" },
+    expect(mockedUpdateMany).toHaveBeenLastCalledWith({
+      where: { id: "call_row", postCallReportAt: GUARDADO_A },
       data: {
         postCallReport: expect.objectContaining({
-          resultado: "RESOLVED",
+          resultado: "LEAD_CAPTURED",
           recado: expect.objectContaining({ nombre: "María" }),
         }),
+        postCallReportAt: expect.any(Date),
       },
     });
     expect(mockedAvisar).toHaveBeenCalledTimes(1);
 
-    // Con el recado ya guardado, un tercero con recado no añade nada.
-    mockedCallFindUnique.mockResolvedValue({
-      id: "call_row",
-      businessId: "biz_1",
-      postCallReport: { resultado: "RESOLVED", recado: { motivo: "x" } },
-    } as never);
+    // Con el recado ya guardado, otro informe con recado no vuelve a avisar.
+    yaHabiaInforme();
+    mockedCallFindUnique.mockResolvedValue(
+      llamadaConInforme({
+        resultado: "LEAD_CAPTURED",
+        recado: { motivo: "Que la llamen" },
+      })
+    );
     expect(
       await procesarInformeFinal({
         business: NEGOCIO,
         callControlId: "v3:abc",
-        params: INFORME,
+        params: { ...INFORME, servicio_pedido: "Mechas" },
       })
-    ).toEqual({ outcome: "duplicado", leadId: null });
+    ).toEqual({ outcome: "actualizado", leadId: null });
+    expect(mockedUpdateMany).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          postCallReport: expect.objectContaining({
+            // El primero manda; lo que le faltaba, del posterior.
+            recado: {
+              nombre: "María",
+              telefono: "+34612345678",
+              motivo: "Que la llamen",
+              quiere_que_le_llamen: true,
+            },
+            servicio_pedido: "Mechas",
+          }),
+        }),
+      })
+    );
     expect(mockedAvisar).toHaveBeenCalledTimes(1);
+  });
+
+  // Caso real (dev, 03-10 a 07-10): la recepcionista llama a la tool a mitad
+  // de llamada, cuando el cliente aún va a preguntar más, y el informe de la
+  // post-conversación (el que ha oído la llamada entera) se perdía.
+  it("el informe de la post-conversación completa al de mitad de llamada y corrige lo que este puso en la llamada", async () => {
+    yaHabiaInforme();
+    mockedCallFindUnique.mockResolvedValue(
+      llamadaConInforme(
+        {
+          resultado: "RESOLVED",
+          motivo_escalada: "NO_APLICA",
+          fallo_de_tool: false,
+          servicio_pedido: null,
+          recado: null,
+          dudas_sin_respuesta: ["¿Hacéis mechas?"],
+        },
+        // Lo que escribió el informe de mitad de llamada.
+        { outcome: "RESOLVED", escalationReason: "NO_APLICA", toolFailureDetected: false }
+      )
+    );
+
+    expect(
+      await procesarInformeFinal({
+        business: NEGOCIO,
+        callControlId: "v3:abc",
+        params: {
+          resultado: "ESCALATED",
+          motivo_escalada: "CONSULTA_COMPLEJA",
+          fallo_de_tool: false,
+          servicio_pedido: "Queratina",
+          dudas_sin_respuesta: ["¿Hacéis mechas?", "¿Hacéis queratina?"],
+        },
+      })
+    ).toEqual({ outcome: "actualizado", leadId: null });
+    expect(mockedUpdateMany).toHaveBeenLastCalledWith({
+      where: { id: "call_row", postCallReportAt: GUARDADO_A },
+      data: {
+        postCallReport: {
+          resultado: "ESCALATED",
+          motivo_escalada: "CONSULTA_COMPLEJA",
+          fallo_de_tool: false,
+          servicio_pedido: "Queratina",
+          recado: null,
+          dudas_sin_respuesta: ["¿Hacéis mechas?", "¿Hacéis queratina?"],
+        },
+        postCallReportAt: expect.any(Date),
+      },
+    });
+    expect(mockedCallUpdate).toHaveBeenCalledWith({
+      where: { id: "call_row" },
+      data: {
+        outcome: "ESCALATED",
+        escalationReason: "CONSULTA_COMPLEJA",
+        requestedService: "Queratina",
+      },
+    });
+  });
+
+  // Llamadas de prueba del 07-10: el recado salía en cuanto había nombre y
+  // motivo; el teléfono confirmado llegaba en el informe siguiente y se perdía.
+  it("un informe posterior rellena el teléfono que le faltaba al recado y lo pasa al lead, sin volver a avisar", async () => {
+    yaHabiaInforme();
+    mockedCallFindUnique.mockResolvedValue(
+      llamadaConInforme({
+        resultado: "LEAD_CAPTURED",
+        recado: {
+          nombre: "Lucía Martín",
+          telefono: null,
+          motivo: "Que la llamen por la queratina",
+          quiere_que_le_llamen: true,
+        },
+      })
+    );
+    mockedLeadFindFirst.mockResolvedValue({
+      id: "lead_1",
+      data: { clientName: "Lucía Martín", clientPhone: null, callControlId: "v3:abc" },
+    } as never);
+
+    expect(
+      await procesarInformeFinal({
+        business: NEGOCIO,
+        callControlId: "v3:abc",
+        params: {
+          resultado: "LEAD_CAPTURED",
+          recado: {
+            nombre: "Lucía",
+            telefono: "655 210 984",
+            motivo: "Otra redacción del motivo",
+          },
+        },
+      })
+    ).toEqual({ outcome: "actualizado", leadId: null });
+    expect(mockedUpdateMany).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          postCallReport: expect.objectContaining({
+            recado: {
+              nombre: "Lucía Martín",
+              telefono: "+34655210984",
+              motivo: "Que la llamen por la queratina",
+              quiere_que_le_llamen: true,
+            },
+          }),
+        }),
+      })
+    );
+    expect(mockedLeadUpdate).toHaveBeenCalledWith({
+      where: { id: "lead_1" },
+      data: {
+        data: {
+          clientName: "Lucía Martín",
+          clientPhone: "+34655210984",
+          quiereQueLeLlamen: true,
+          callControlId: "v3:abc",
+        },
+      },
+    });
+    expect(mockedLeadCreate).not.toHaveBeenCalled();
+    expect(mockedAvisar).not.toHaveBeenCalled();
+  });
+
+  it("un informe posterior no corrige lo que escribieron los insights", async () => {
+    yaHabiaInforme();
+    mockedCallFindUnique.mockResolvedValue(
+      llamadaConInforme(
+        { resultado: "RESOLVED", recado: null },
+        // FRUSTRATED no lo puso el informe anterior: viene de los insights.
+        { outcome: "FRUSTRATED" }
+      )
+    );
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+
+    await procesarInformeFinal({
+      business: NEGOCIO,
+      callControlId: "v3:abc",
+      params: { resultado: "ESCALATED" },
+    });
+
+    expect(mockedCallUpdate).not.toHaveBeenCalled();
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining("outcome insights=FRUSTRATED informe=ESCALATED")
+    );
+  });
+
+  it("si otro informe escribe entre medias, vuelve a leer y combina sobre el suyo", async () => {
+    mockedUpdateMany.mockReset();
+    mockedUpdateMany
+      .mockResolvedValueOnce({ count: 0 }) // reclamo
+      .mockResolvedValueOnce({ count: 0 }) // otro informe se adelantó
+      .mockResolvedValue({ count: 1 });
+    const GUARDADO_B = new Date("2026-10-07T10:00:01Z");
+    mockedCallFindUnique
+      .mockResolvedValueOnce(
+        llamadaConInforme({ resultado: "RESOLVED", recado: null })
+      )
+      .mockResolvedValueOnce({
+        ...(llamadaConInforme({
+          resultado: "LEAD_CAPTURED",
+          recado: { motivo: "Que la llamen" },
+          dudas_sin_respuesta: ["¿A?"],
+        }) as object),
+        postCallReportAt: GUARDADO_B,
+      } as never);
+
+    expect(
+      await procesarInformeFinal({
+        business: NEGOCIO,
+        callControlId: "v3:abc",
+        params: { ...INFORME, dudas_sin_respuesta: ["¿B?"] },
+      })
+    ).toEqual({ outcome: "actualizado", leadId: null });
+    // El recado ya lo había traído el otro: ningún lead más.
+    expect(mockedLeadCreate).not.toHaveBeenCalled();
+    expect(mockedUpdateMany).toHaveBeenLastCalledWith({
+      where: { id: "call_row", postCallReportAt: GUARDADO_B },
+      data: {
+        postCallReport: expect.objectContaining({
+          recado: expect.objectContaining({ motivo: "Que la llamen" }),
+          dudas_sin_respuesta: ["¿A?", "¿B?"],
+        }),
+        postCallReportAt: expect.any(Date),
+      },
+    });
   });
 
   it("guarda las dudas sin respuesta del informe junto al resto", async () => {
@@ -288,56 +571,6 @@ describe("procesarInformeFinal", () => {
       })
     );
     expect(mockedLeadCreate).not.toHaveBeenCalled();
-  });
-
-  it("un segundo informe añade las dudas si el primero no traía ninguna, sin recado ni aviso", async () => {
-    mockedUpdateMany.mockResolvedValue({ count: 0 });
-    mockedCallFindUnique.mockResolvedValue({
-      id: "call_row",
-      businessId: "biz_1",
-      postCallReport: {
-        resultado: "RESOLVED",
-        recado: null,
-        dudas_sin_respuesta: [],
-      },
-    } as never);
-
-    expect(
-      await procesarInformeFinal({
-        business: NEGOCIO,
-        callControlId: "v3:abc",
-        params: {
-          resultado: "RESOLVED",
-          dudas_sin_respuesta: ["¿Aceptáis Bizum?"],
-        },
-      })
-    ).toEqual({ outcome: "duplicado", leadId: null });
-    expect(mockedCallUpdate).toHaveBeenCalledWith({
-      where: { id: "call_row" },
-      data: {
-        postCallReport: {
-          resultado: "RESOLVED",
-          recado: null,
-          dudas_sin_respuesta: ["¿Aceptáis Bizum?"],
-        },
-      },
-    });
-    expect(mockedLeadCreate).not.toHaveBeenCalled();
-    expect(mockedAvisar).not.toHaveBeenCalled();
-
-    // Si el primero ya traía dudas, las del segundo no se mezclan.
-    mockedCallUpdate.mockClear();
-    mockedCallFindUnique.mockResolvedValue({
-      id: "call_row",
-      businessId: "biz_1",
-      postCallReport: { resultado: "RESOLVED", dudas_sin_respuesta: ["¿A?"] },
-    } as never);
-    await procesarInformeFinal({
-      business: NEGOCIO,
-      callControlId: "v3:abc",
-      params: { resultado: "RESOLVED", dudas_sin_respuesta: ["¿B?"] },
-    });
-    expect(mockedCallUpdate).not.toHaveBeenCalled();
   });
 
   it("un informe de una llamada de otro negocio no toca nada", async () => {

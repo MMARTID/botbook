@@ -419,7 +419,7 @@ export class CalendarService {
       {
         name: "get_catalog",
         description:
-          "Obtiene los servicios activos con sus IDs y duraciones, los profesionales y el horario del negocio. Úsala cuando el cliente pregunte por ellos o antes de comprobar/reservar si necesitas un ID o duración.",
+          "Única fuente de lo que ofrece el negocio: los servicios activos con sus IDs y duraciones, los profesionales y el horario. Llámala antes de confirmar o negar un servicio, un profesional o el horario, también ante una pregunta de sí o no, y antes de comprobar o reservar si necesitas un ID o una duración.",
         url: `${toolBaseUrl}/get_catalog`,
         method: "POST",
         args_at_root: false,
