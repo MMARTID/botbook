@@ -16,6 +16,10 @@ import {
 } from "../../lib/availability.js";
 import { calendarService } from "../calendar/service.js";
 import {
+  registrarBorradoDeEvento,
+  ventanaDeLaCita,
+} from "../calendar/borradoDeEvento.js";
+import {
   conexionConfirmada,
   conexionOperativa,
   marcarCalendarioDesconectado,
@@ -1610,9 +1614,12 @@ async function executeBookAppointment(
       // legítimo del cliente (nueva reserva sobre la misma llamada), no
       // como un reintento.
       let reservaPrevia: {
+        id: string;
         externalEventId: string | null;
         externalCalendarProvider: string | null;
         externalCalendarId: string | null;
+        programedAt: Date;
+        durationMinutes: number;
         isCancelled: boolean;
         cancelledAt: Date | null;
       } | null = null;
@@ -1766,9 +1773,21 @@ async function executeBookAppointment(
             const eventoHuerfano = (result as { id?: string })?.id;
             if (eventoHuerfano) {
               try {
-                await calendarService.cancelAppointment({
+                const borrado = await calendarService.cancelAppointment({
                   conexion,
                   eventId: eventoHuerfano,
+                  ventana: ventanaDeLaCita(
+                    new Date(startDateTime),
+                    effectiveDuration
+                  ),
+                });
+                registrarBorradoDeEvento({
+                  prefijo: "[VoiceTools]",
+                  etiqueta: callLabel,
+                  businessId: business.id,
+                  proveedor: conexion.provider,
+                  eventId: eventoHuerfano,
+                  resultado: borrado,
                 });
               } catch (errorAlBorrar) {
                 console.error(
@@ -1794,17 +1813,32 @@ async function executeBookAppointment(
           !reservaPrevia.isCancelled &&
           reservaPrevia.externalEventId !== eventoNuevoId
         ) {
+          const proveedorPrevio = normalizarProveedorDeCalendario(
+            reservaPrevia.externalCalendarProvider
+          );
           try {
             // `|| undefined`: sin calendario guardado en la reserva previa
-            // se cae a la columna del negocio, como siempre.
-            await calendarService.cancelAppointment({
+            // se cae a la columna del negocio, como siempre. La ventana es
+            // la hora PREVIA: ahí está el evento que se borra.
+            const borrado = await calendarService.cancelAppointment({
               conexion: resolverConexionDeCalendario(business, {
-                provider: normalizarProveedorDeCalendario(
-                  reservaPrevia.externalCalendarProvider
-                ),
+                provider: proveedorPrevio,
                 calendarId: reservaPrevia.externalCalendarId || undefined,
               }),
               eventId: reservaPrevia.externalEventId,
+              ventana: ventanaDeLaCita(
+                reservaPrevia.programedAt,
+                reservaPrevia.durationMinutes
+              ),
+            });
+            registrarBorradoDeEvento({
+              prefijo: "[VoiceTools]",
+              etiqueta: callLabel,
+              businessId: business.id,
+              bookingId: reservaPrevia.id,
+              proveedor: proveedorPrevio,
+              eventId: reservaPrevia.externalEventId,
+              resultado: borrado,
             });
           } catch (error) {
             // No se le cuenta al cliente: su cita nueva está confirmada. Se
