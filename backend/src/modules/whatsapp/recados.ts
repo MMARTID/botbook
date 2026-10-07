@@ -14,17 +14,23 @@ import * as mensajes from "./mensajes.js";
  * `informar_al_negocio` que la recepcionista llama en la post-conversación
  * de Telnyx. Hace tres cosas, en este orden:
  *
- * 1. Guarda el PRIMER informe en `Call.postCallReport` (reclamo atómico por
- *    `call_control_id`: Telnyx lo manda dos veces, a veces con contenido
- *    distinto — fase 0.5). Si el segundo trae recado (o dudas sin respuesta)
- *    y el primero no, se añade; nada más se sobrescribe.
+ * 1. Guarda el primer informe en `Call.postCallReport` (reclamo atómico por
+ *    `call_control_id`) y cada informe siguiente lo completa
+ *    (combinarInformes): el más reciente manda en resultado, motivo y
+ *    servicio, las dudas se suman y el recado es el primero que llegó. Hay
+ *    varios por llamada: Telnyx manda dos en la post-conversación (a veces
+ *    con contenido distinto, fase 0.5) y la recepcionista llama a la tool a
+ *    mitad de llamada pese al prompt (65 de 80 llamadas de prueba en dev, del
+ *    03 al 07-10, sobre todo al dejar un recado). Antes ganaba el primero y
+ *    el de la post-conversación, el que ha oído la llamada entera, se perdía.
  * 2. Doble escritura con los insights: rellena `Call.outcome`,
- *    `escalationReason`, `toolFailureDetected` y `requestedService` SOLO si
- *    siguen a null (los insights nativos mandan mientras convivan) y deja en
- *    el log cualquier discrepancia, que es lo que hay que medir antes de
- *    retirar los insights.
+ *    `escalationReason`, `toolFailureDetected` y `requestedService` solo si
+ *    siguen a null o tienen lo que puso un informe anterior (los insights
+ *    nativos mandan mientras convivan) y deja en el log cualquier
+ *    discrepancia, que es lo que hay que medir antes de retirar los insights.
  * 3. Un recado se convierte en un `Lead` tipo `message` y en el aviso #2 al
- *    dueño (WhatsApp con botones; email si no es posible).
+ *    dueño (WhatsApp con botones; email si no es posible), una sola vez por
+ *    llamada.
  *
  * La tool responde siempre 200 con `{ success: true }`: un fallo aquí no
  * puede hacer que el assistant reintente y duplique nada.
@@ -153,8 +159,10 @@ interface NegocioDelInforme {
 }
 
 export interface ResultadoInforme {
-  /** Qué pasó con el informe: guardado, ya había uno (con o sin recado nuevo). */
-  outcome: "guardado" | "duplicado" | "duplicado-con-recado";
+  /** Qué pasó con el informe: el primero (guardado), uno que completa al
+   * anterior (actualizado, o duplicado-con-recado si trae el primer recado)
+   * o uno que no añade nada (duplicado). */
+  outcome: "guardado" | "actualizado" | "duplicado" | "duplicado-con-recado";
   leadId: string | null;
 }
 
@@ -225,57 +233,14 @@ async function procesarInformeFinalOLanzar(
   });
 
   if (reclamado.count === 0) {
-    const existente = await prisma.call.findUnique({
-      where: { callId: callControlId },
-      select: { id: true, businessId: true, postCallReport: true },
-    });
-    if (!existente || existente.businessId !== business.id) {
-      console.warn(
-        `[WhatsApp] ${etiqueta}: la llamada no es de este negocio; se ignora`
-      );
-      return { outcome: "duplicado", leadId: null };
-    }
-    const previo = existente.postCallReport as {
-      recado?: unknown;
-      dudas_sin_respuesta?: unknown;
-    } | null;
-    const recadoNuevo = recado && !(previo && previo.recado) ? recado : null;
-    // Las dudas, igual que el recado: solo si el primero no traía ninguna.
-    const dudasNuevas =
-      informeJson.dudas_sin_respuesta.length > 0 &&
-      normalizarDudas(previo?.dudas_sin_respuesta).length === 0;
-    if (!recadoNuevo && !dudasNuevas) {
-      console.log(
-        `[WhatsApp] ${etiqueta}: segundo informe sin novedades, se ignora`
-      );
-      return { outcome: "duplicado", leadId: null };
-    }
-    // Segundo informe con recado o dudas que el primero no traía: se añaden.
-    await prisma.call.update({
-      where: { id: existente.id },
-      data: {
-        postCallReport: {
-          ...(previo ?? {}),
-          ...(recadoNuevo ? { recado: informeJson.recado } : {}),
-          ...(dudasNuevas
-            ? { dudas_sin_respuesta: informeJson.dudas_sin_respuesta }
-            : {}),
-        } as Prisma.InputJsonObject,
-      },
-    });
-    if (!recadoNuevo) {
-      console.log(
-        `[WhatsApp] ${etiqueta}: el segundo informe añade dudas sin respuesta`
-      );
-      return { outcome: "duplicado", leadId: null };
-    }
-    const leadId = await crearLeadYAvisar({
+    return completarInforme({
       business,
-      callRowId: existente.id,
       callControlId,
-      recado: recadoNuevo,
+      informe,
+      informeJson,
+      recado,
+      etiqueta,
     });
-    return { outcome: "duplicado-con-recado", leadId };
   }
 
   const call = await prisma.call.findUnique({
@@ -310,6 +275,177 @@ async function procesarInformeFinalOLanzar(
   return { outcome: "guardado", leadId };
 }
 
+/** Lo que guarda `Call.postCallReport` (la forma de `informeJson`). */
+type InformeGuardado = {
+  resultado: InformeFinal["resultado"] | null;
+  motivo_escalada: InformeFinal["motivo_escalada"] | null;
+  fallo_de_tool: boolean | null;
+  servicio_pedido: string | null;
+  recado: {
+    nombre: string | null;
+    telefono: string | null;
+    motivo: string;
+    quiere_que_le_llamen: boolean;
+  } | null;
+  dudas_sin_respuesta: string[];
+};
+
+/** Lee un `postCallReport` guardado; lo que no tenga forma conocida, vacío. */
+function leerInformeGuardado(valor: unknown): InformeGuardado {
+  const bruto =
+    valor && typeof valor === "object" ? (valor as Record<string, unknown>) : {};
+  const parsed = InformeFinalSchema.safeParse({
+    resultado: bruto.resultado ?? null,
+    motivo_escalada: bruto.motivo_escalada ?? null,
+    fallo_de_tool: bruto.fallo_de_tool ?? null,
+    servicio_pedido: bruto.servicio_pedido ?? null,
+    dudas_sin_respuesta: bruto.dudas_sin_respuesta ?? null,
+  });
+  const recado = bruto.recado as InformeGuardado["recado"] | undefined;
+  return {
+    resultado: parsed.success ? (parsed.data.resultado ?? null) : null,
+    motivo_escalada: parsed.success
+      ? (parsed.data.motivo_escalada ?? null)
+      : null,
+    fallo_de_tool: parsed.success ? (parsed.data.fallo_de_tool ?? null) : null,
+    servicio_pedido: parsed.success
+      ? limpiarTexto(parsed.data.servicio_pedido, 200)
+      : null,
+    recado: recado && typeof recado === "object" && recado.motivo ? recado : null,
+    dudas_sin_respuesta: normalizarDudas(bruto.dudas_sin_respuesta),
+  };
+}
+
+/**
+ * Un informe posterior completa al anterior: ha oído más llamada. Manda en
+ * resultado, motivo de escalada y servicio (si los trae); un fallo de tool
+ * que avisó cualquiera de los dos se queda; las dudas se suman (hasta 5) y
+ * el recado es el primero que llegó, porque con él ya se creó el lead y se
+ * avisó al dueño, con lo que le faltaba relleno por el posterior. En las
+ * llamadas de prueba del 07-10 la recepcionista mandaba el recado en cuanto
+ * tenía nombre y motivo y, tras confirmar el teléfono, otro informe con él:
+ * el teléfono se perdía.
+ */
+export function combinarInformes(
+  previo: InformeGuardado,
+  nuevo: InformeGuardado
+): InformeGuardado {
+  return {
+    resultado: nuevo.resultado ?? previo.resultado,
+    motivo_escalada: nuevo.motivo_escalada ?? previo.motivo_escalada,
+    fallo_de_tool:
+      previo.fallo_de_tool === true || nuevo.fallo_de_tool === true
+        ? true
+        : (nuevo.fallo_de_tool ?? previo.fallo_de_tool),
+    servicio_pedido: nuevo.servicio_pedido ?? previo.servicio_pedido,
+    recado:
+      previo.recado && nuevo.recado
+        ? {
+            nombre: previo.recado.nombre ?? nuevo.recado.nombre,
+            telefono: previo.recado.telefono ?? nuevo.recado.telefono,
+            motivo: previo.recado.motivo,
+            quiere_que_le_llamen:
+              previo.recado.quiere_que_le_llamen ||
+              nuevo.recado.quiere_que_le_llamen,
+          }
+        : (previo.recado ?? nuevo.recado),
+    dudas_sin_respuesta: normalizarDudas([
+      ...previo.dudas_sin_respuesta,
+      ...nuevo.dudas_sin_respuesta,
+    ]),
+  };
+}
+
+const INTENTOS_DE_COMBINAR = 3;
+
+/**
+ * Informe de una llamada que ya tenía uno: lo combina con el guardado. La
+ * escritura solo vale si nadie escribió entre medias (misma
+ * `postCallReportAt`): los dos de la post-conversación llegan casi a la
+ * vez, y así cada uno combina sobre el otro y el recado crea un solo lead.
+ */
+async function completarInforme(input: {
+  business: NegocioDelInforme;
+  callControlId: string;
+  informe: InformeFinal;
+  informeJson: InformeGuardado;
+  recado: RecadoNormalizado | null;
+  etiqueta: string;
+}): Promise<ResultadoInforme> {
+  const { business, callControlId, etiqueta } = input;
+  for (let intento = 1; intento <= INTENTOS_DE_COMBINAR; intento++) {
+    const existente = await prisma.call.findUnique({
+      where: { callId: callControlId },
+      select: {
+        id: true,
+        businessId: true,
+        postCallReport: true,
+        postCallReportAt: true,
+        outcome: true,
+        escalationReason: true,
+        toolFailureDetected: true,
+        requestedService: true,
+      },
+    });
+    if (!existente || existente.businessId !== business.id) {
+      console.warn(
+        `[WhatsApp] ${etiqueta}: la llamada no es de este negocio; se ignora`
+      );
+      return { outcome: "duplicado", leadId: null };
+    }
+    const previo = leerInformeGuardado(existente.postCallReport);
+    const combinado = combinarInformes(previo, input.informeJson);
+    if (JSON.stringify(combinado) === JSON.stringify(previo)) {
+      console.log(`[WhatsApp] ${etiqueta}: informe sin novedades, se ignora`);
+      return { outcome: "duplicado", leadId: null };
+    }
+    const escrito = await prisma.call.updateMany({
+      where: { id: existente.id, postCallReportAt: existente.postCallReportAt },
+      data: {
+        postCallReport: combinado as Prisma.InputJsonObject,
+        postCallReportAt: new Date(),
+      },
+    });
+    if (escrito.count === 0) continue;
+
+    await dobleEscritura(existente, input.informe, etiqueta, previo);
+    if (
+      previo.recado &&
+      combinado.recado &&
+      JSON.stringify(combinado.recado) !== JSON.stringify(previo.recado)
+    ) {
+      await completarLeadDelRecado({
+        callRowId: existente.id,
+        recado: combinado.recado,
+        etiqueta,
+      });
+    }
+    const recadoNuevo = previo.recado ? null : input.recado;
+    if (!recadoNuevo) {
+      console.log(
+        `[WhatsApp] ${etiqueta}: completa el informe anterior (resultado ${combinado.resultado ?? "—"}, ${combinado.dudas_sin_respuesta.length} dudas)`
+      );
+      return { outcome: "actualizado", leadId: null };
+    }
+    const leadId = await crearLeadYAvisar({
+      business,
+      callRowId: existente.id,
+      callControlId,
+      recado: recadoNuevo,
+    });
+    return { outcome: "duplicado-con-recado", leadId };
+  }
+  console.error(
+    `[WhatsApp] ${etiqueta}: no se pudo combinar con el informe anterior tras ${INTENTOS_DE_COMBINAR} intentos (otros informes escribiendo a la vez); se pierde este`
+  );
+  return { outcome: "duplicado", leadId: null };
+}
+
+/**
+ * `previo`: el informe que había antes de este. Lo que puso él en la
+ * llamada lo puede corregir este (ha oído más); lo que no coincide con él lo
+ * escribieron los insights y no se toca.
+ */
 async function dobleEscritura(
   call: {
     id: string;
@@ -319,36 +455,48 @@ async function dobleEscritura(
     requestedService: string | null;
   },
   informe: InformeFinal,
-  etiqueta: string
+  etiqueta: string,
+  previo?: InformeGuardado
 ): Promise<void> {
   const data: Prisma.CallUpdateInput = {};
   const discrepancias: string[] = [];
+  // ¿Lo puede escribir este informe? Si está vacío o lo puso el anterior.
+  const libre = <T>(actual: T | null, delInformeAnterior: T | null | undefined) =>
+    actual === null || (previo !== undefined && actual === delInformeAnterior);
 
   if (informe.resultado) {
-    if (call.outcome === null) data.outcome = informe.resultado;
-    else if (call.outcome !== informe.resultado)
+    if (libre(call.outcome, previo?.resultado)) {
+      if (call.outcome !== informe.resultado) data.outcome = informe.resultado;
+    } else if (call.outcome !== informe.resultado)
       discrepancias.push(
         `outcome insights=${call.outcome} informe=${informe.resultado}`
       );
   }
   if (informe.motivo_escalada) {
-    if (call.escalationReason === null)
-      data.escalationReason = informe.motivo_escalada;
-    else if (call.escalationReason !== informe.motivo_escalada)
+    if (libre(call.escalationReason, previo?.motivo_escalada)) {
+      if (call.escalationReason !== informe.motivo_escalada)
+        data.escalationReason = informe.motivo_escalada;
+    } else if (call.escalationReason !== informe.motivo_escalada)
       discrepancias.push(
         `escalationReason insights=${call.escalationReason} informe=${informe.motivo_escalada}`
       );
   }
   if (typeof informe.fallo_de_tool === "boolean") {
-    if (call.toolFailureDetected === null)
-      data.toolFailureDetected = informe.fallo_de_tool;
-    else if (call.toolFailureDetected !== informe.fallo_de_tool)
+    // Un fallo que avisó un informe anterior no lo borra uno posterior.
+    const fallo = informe.fallo_de_tool || previo?.fallo_de_tool === true;
+    if (libre(call.toolFailureDetected, previo?.fallo_de_tool)) {
+      if (call.toolFailureDetected !== fallo) data.toolFailureDetected = fallo;
+    } else if (call.toolFailureDetected !== fallo)
       discrepancias.push(
-        `toolFailureDetected insights=${call.toolFailureDetected} informe=${informe.fallo_de_tool}`
+        `toolFailureDetected insights=${call.toolFailureDetected} informe=${fallo}`
       );
   }
   const servicio = limpiarTexto(informe.servicio_pedido, 200);
-  if (servicio && call.requestedService === null)
+  if (
+    servicio &&
+    libre(call.requestedService, previo?.servicio_pedido) &&
+    call.requestedService !== servicio
+  )
     data.requestedService = servicio;
 
   if (discrepancias.length > 0) {
@@ -363,6 +511,49 @@ async function dobleEscritura(
   } catch (error) {
     console.error(
       `[WhatsApp] ${etiqueta}: no se pudo aplicar la doble escritura: ${errorMessage(error)}`
+    );
+  }
+}
+
+/**
+ * El recado ganó datos en un informe posterior (el teléfono confirmado, el
+ * nombre): se pasan al lead que se creó con el primero, para que el panel y
+ * el Gestor los tengan. El aviso al dueño ya salió y no se repite.
+ * Best-effort: si falla, el informe ya está guardado y el log lo dice.
+ */
+async function completarLeadDelRecado(input: {
+  callRowId: string;
+  recado: NonNullable<InformeGuardado["recado"]>;
+  etiqueta: string;
+}): Promise<void> {
+  try {
+    const lead = await prisma.lead.findFirst({
+      where: { callId: input.callRowId, type: "message" },
+      select: { id: true, data: true },
+      orderBy: { createdAt: "asc" },
+    });
+    if (!lead) return;
+    const previo =
+      lead.data && typeof lead.data === "object"
+        ? (lead.data as Record<string, unknown>)
+        : {};
+    await prisma.lead.update({
+      where: { id: lead.id },
+      data: {
+        data: {
+          ...previo,
+          clientName: input.recado.nombre,
+          clientPhone: input.recado.telefono,
+          quiereQueLeLlamen: input.recado.quiere_que_le_llamen,
+        } as Prisma.InputJsonObject,
+      },
+    });
+    console.log(
+      `[WhatsApp] ${input.etiqueta}: el recado gana datos de un informe posterior (lead ${lead.id})`
+    );
+  } catch (error) {
+    console.error(
+      `[WhatsApp] ${input.etiqueta}: no se pudo completar el lead del recado (llamada ${input.callRowId}): ${errorMessage(error)}`
     );
   }
 }
