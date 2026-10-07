@@ -72,6 +72,40 @@ describe("informe final de la llamada (integración)", () => {
     expect(await prisma.lead.count({ where: { callId: llamada.id } })).toBe(1);
   });
 
+  it("el recado que se mandó antes de confirmar el teléfono lo recibe del informe siguiente, también en el lead", async () => {
+    const negocio = await createTestBusiness();
+    const llamada = await createTestCall(negocio.id);
+    const business = {
+      id: negocio.id,
+      name: negocio.name,
+      timezone: negocio.timezone,
+    };
+    const motivo = "Quiere que la llamen por la queratina";
+    await procesarInformeFinal({
+      business,
+      callControlId: llamada.callId,
+      params: { resultado: "LEAD_CAPTURED", recado: { nombre: "Lucía Martín", motivo } },
+    });
+    await procesarInformeFinal({
+      business,
+      callControlId: llamada.callId,
+      params: {
+        resultado: "LEAD_CAPTURED",
+        recado: { nombre: "Lucía Martín", telefono: "655210984", motivo, quiere_que_le_llamen: true },
+      },
+    });
+
+    const guardada = await prisma.call.findUniqueOrThrow({ where: { id: llamada.id } });
+    expect((guardada.postCallReport as { recado: unknown }).recado).toMatchObject({
+      telefono: "+34655210984",
+      quiere_que_le_llamen: true,
+    });
+    const leads = await prisma.lead.findMany({ where: { callId: llamada.id } });
+    expect(leads).toHaveLength(1);
+    expect(leads[0].data).toMatchObject({ clientPhone: "+34655210984", quiereQueLeLlamen: true });
+    expect(mockedAvisar).toHaveBeenCalledTimes(1);
+  });
+
   it("los dos informes de la post-conversación a la vez: se combinan los dos y el recado avisa una vez", async () => {
     const negocio = await createTestBusiness();
     const llamada = await createTestCall(negocio.id);

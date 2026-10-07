@@ -321,7 +321,10 @@ function leerInformeGuardado(valor: unknown): InformeGuardado {
  * resultado, motivo de escalada y servicio (si los trae); un fallo de tool
  * que avisó cualquiera de los dos se queda; las dudas se suman (hasta 5) y
  * el recado es el primero que llegó, porque con él ya se creó el lead y se
- * avisó al dueño.
+ * avisó al dueño, con lo que le faltaba relleno por el posterior. En las
+ * llamadas de prueba del 07-10 la recepcionista mandaba el recado en cuanto
+ * tenía nombre y motivo y, tras confirmar el teléfono, otro informe con él:
+ * el teléfono se perdía.
  */
 export function combinarInformes(
   previo: InformeGuardado,
@@ -335,7 +338,17 @@ export function combinarInformes(
         ? true
         : (nuevo.fallo_de_tool ?? previo.fallo_de_tool),
     servicio_pedido: nuevo.servicio_pedido ?? previo.servicio_pedido,
-    recado: previo.recado ?? nuevo.recado,
+    recado:
+      previo.recado && nuevo.recado
+        ? {
+            nombre: previo.recado.nombre ?? nuevo.recado.nombre,
+            telefono: previo.recado.telefono ?? nuevo.recado.telefono,
+            motivo: previo.recado.motivo,
+            quiere_que_le_llamen:
+              previo.recado.quiere_que_le_llamen ||
+              nuevo.recado.quiere_que_le_llamen,
+          }
+        : (previo.recado ?? nuevo.recado),
     dudas_sin_respuesta: normalizarDudas([
       ...previo.dudas_sin_respuesta,
       ...nuevo.dudas_sin_respuesta,
@@ -396,6 +409,17 @@ async function completarInforme(input: {
     if (escrito.count === 0) continue;
 
     await dobleEscritura(existente, input.informe, etiqueta, previo);
+    if (
+      previo.recado &&
+      combinado.recado &&
+      JSON.stringify(combinado.recado) !== JSON.stringify(previo.recado)
+    ) {
+      await completarLeadDelRecado({
+        callRowId: existente.id,
+        recado: combinado.recado,
+        etiqueta,
+      });
+    }
     const recadoNuevo = previo.recado ? null : input.recado;
     if (!recadoNuevo) {
       console.log(
@@ -487,6 +511,49 @@ async function dobleEscritura(
   } catch (error) {
     console.error(
       `[WhatsApp] ${etiqueta}: no se pudo aplicar la doble escritura: ${errorMessage(error)}`
+    );
+  }
+}
+
+/**
+ * El recado ganó datos en un informe posterior (el teléfono confirmado, el
+ * nombre): se pasan al lead que se creó con el primero, para que el panel y
+ * el Gestor los tengan. El aviso al dueño ya salió y no se repite.
+ * Best-effort: si falla, el informe ya está guardado y el log lo dice.
+ */
+async function completarLeadDelRecado(input: {
+  callRowId: string;
+  recado: NonNullable<InformeGuardado["recado"]>;
+  etiqueta: string;
+}): Promise<void> {
+  try {
+    const lead = await prisma.lead.findFirst({
+      where: { callId: input.callRowId, type: "message" },
+      select: { id: true, data: true },
+      orderBy: { createdAt: "asc" },
+    });
+    if (!lead) return;
+    const previo =
+      lead.data && typeof lead.data === "object"
+        ? (lead.data as Record<string, unknown>)
+        : {};
+    await prisma.lead.update({
+      where: { id: lead.id },
+      data: {
+        data: {
+          ...previo,
+          clientName: input.recado.nombre,
+          clientPhone: input.recado.telefono,
+          quiereQueLeLlamen: input.recado.quiere_que_le_llamen,
+        } as Prisma.InputJsonObject,
+      },
+    });
+    console.log(
+      `[WhatsApp] ${input.etiqueta}: el recado gana datos de un informe posterior (lead ${lead.id})`
+    );
+  } catch (error) {
+    console.error(
+      `[WhatsApp] ${input.etiqueta}: no se pudo completar el lead del recado (llamada ${input.callRowId}): ${errorMessage(error)}`
     );
   }
 }

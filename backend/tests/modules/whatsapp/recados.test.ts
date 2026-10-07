@@ -13,7 +13,7 @@ import {
 vi.mock("../../../src/lib/prisma.js", () => ({
   prisma: {
     call: { updateMany: vi.fn(), findUnique: vi.fn(), update: vi.fn() },
-    lead: { create: vi.fn() },
+    lead: { create: vi.fn(), findFirst: vi.fn(), update: vi.fn() },
     user: { findFirst: vi.fn() },
   },
 }));
@@ -28,6 +28,8 @@ const mockedUpdateMany = vi.mocked(prisma.call.updateMany);
 const mockedCallFindUnique = vi.mocked(prisma.call.findUnique);
 const mockedCallUpdate = vi.mocked(prisma.call.update);
 const mockedLeadCreate = vi.mocked(prisma.lead.create);
+const mockedLeadFindFirst = vi.mocked(prisma.lead.findFirst);
+const mockedLeadUpdate = vi.mocked(prisma.lead.update);
 const mockedUserFindFirst = vi.mocked(prisma.user.findFirst);
 const mockedAvisar = vi.mocked(avisarRecado);
 const mockedEmail = vi.mocked(enqueueEmailJob);
@@ -54,6 +56,8 @@ beforeEach(() => {
   mockedCallFindUnique.mockResolvedValue(CALL_SIN_INSIGHTS as never);
   mockedCallUpdate.mockResolvedValue({} as never);
   mockedLeadCreate.mockResolvedValue({ id: "lead_1" } as never);
+  mockedLeadFindFirst.mockResolvedValue(null);
+  mockedLeadUpdate.mockResolvedValue({} as never);
   mockedAvisar.mockResolvedValue({ via: "interactivo" });
   mockedUserFindFirst.mockResolvedValue({
     email: "dueno@example.com",
@@ -151,7 +155,7 @@ describe("combinarInformes", () => {
       { ...VACIO, recado: primero, dudas_sin_respuesta: ["¿1?", "¿2?", "¿3?"] },
       { ...VACIO, recado: segundo, dudas_sin_respuesta: ["¿3?", "¿4?", "¿5?", "¿6?"] }
     );
-    expect(combinado.recado).toBe(primero);
+    expect(combinado.recado).toEqual(primero);
     expect(combinado.dudas_sin_respuesta).toEqual(["¿1?", "¿2?", "¿3?", "¿4?", "¿5?"]);
   });
 });
@@ -347,7 +351,13 @@ describe("procesarInformeFinal", () => {
       expect.objectContaining({
         data: expect.objectContaining({
           postCallReport: expect.objectContaining({
-            recado: { motivo: "Que la llamen" },
+            // El primero manda; lo que le faltaba, del posterior.
+            recado: {
+              nombre: "María",
+              telefono: "+34612345678",
+              motivo: "Que la llamen",
+              quiere_que_le_llamen: true,
+            },
             servicio_pedido: "Mechas",
           }),
         }),
@@ -413,6 +423,69 @@ describe("procesarInformeFinal", () => {
     });
   });
 
+  // Llamadas de prueba del 07-10: el recado salía en cuanto había nombre y
+  // motivo; el teléfono confirmado llegaba en el informe siguiente y se perdía.
+  it("un informe posterior rellena el teléfono que le faltaba al recado y lo pasa al lead, sin volver a avisar", async () => {
+    yaHabiaInforme();
+    mockedCallFindUnique.mockResolvedValue(
+      llamadaConInforme({
+        resultado: "LEAD_CAPTURED",
+        recado: {
+          nombre: "Lucía Martín",
+          telefono: null,
+          motivo: "Que la llamen por la queratina",
+          quiere_que_le_llamen: true,
+        },
+      })
+    );
+    mockedLeadFindFirst.mockResolvedValue({
+      id: "lead_1",
+      data: { clientName: "Lucía Martín", clientPhone: null, callControlId: "v3:abc" },
+    } as never);
+
+    expect(
+      await procesarInformeFinal({
+        business: NEGOCIO,
+        callControlId: "v3:abc",
+        params: {
+          resultado: "LEAD_CAPTURED",
+          recado: {
+            nombre: "Lucía",
+            telefono: "655 210 984",
+            motivo: "Otra redacción del motivo",
+          },
+        },
+      })
+    ).toEqual({ outcome: "actualizado", leadId: null });
+    expect(mockedUpdateMany).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          postCallReport: expect.objectContaining({
+            recado: {
+              nombre: "Lucía Martín",
+              telefono: "+34655210984",
+              motivo: "Que la llamen por la queratina",
+              quiere_que_le_llamen: true,
+            },
+          }),
+        }),
+      })
+    );
+    expect(mockedLeadUpdate).toHaveBeenCalledWith({
+      where: { id: "lead_1" },
+      data: {
+        data: {
+          clientName: "Lucía Martín",
+          clientPhone: "+34655210984",
+          quiereQueLeLlamen: true,
+          callControlId: "v3:abc",
+        },
+      },
+    });
+    expect(mockedLeadCreate).not.toHaveBeenCalled();
+    expect(mockedAvisar).not.toHaveBeenCalled();
+  });
+
   it("un informe posterior no corrige lo que escribieron los insights", async () => {
     yaHabiaInforme();
     mockedCallFindUnique.mockResolvedValue(
@@ -469,7 +542,7 @@ describe("procesarInformeFinal", () => {
       where: { id: "call_row", postCallReportAt: GUARDADO_B },
       data: {
         postCallReport: expect.objectContaining({
-          recado: { motivo: "Que la llamen" },
+          recado: expect.objectContaining({ motivo: "Que la llamen" }),
           dudas_sin_respuesta: ["¿A?", "¿B?"],
         }),
         postCallReportAt: expect.any(Date),
