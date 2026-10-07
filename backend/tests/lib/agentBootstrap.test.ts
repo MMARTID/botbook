@@ -573,7 +573,7 @@ describe("syncAgentToRetell — voiceGender", () => {
     expect(guardado).toContain("## Idioma");
     const sinIdioma = (prompt: string) =>
       prompt
-        .replace(/^(Empieza siempre|Habla siempre).*$/m, "<idioma>")
+        .replace(/^(En las llamadas, el saludo|Habla siempre).*$/m, "<idioma>")
         .replace(/\n\n## Idioma\n[^\n]*$/, "");
     expect(
       sinIdioma(guardado.replace(/## Pasar la llamada[\s\S]*?\n(?=## )/, ""))

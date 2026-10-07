@@ -114,7 +114,16 @@ function resolverTranscripcion(
  * 2026-10-05 (tanda «A2 inglés» del laboratorio): con la regla sola, la
  * recepcionista contestó en castellano a clientes que hablaban inglés en 5
  * de 19 respuestas, sobre todo en las frases que el prompt le da literales
- * en castellano (la pregunta del WhatsApp). Sin medir de nuevo con él.
+ * en castellano (la pregunta del WhatsApp).
+ *
+ * El saludo «ya dicho» viene de las llamadas reales con varios idiomas del
+ * 05 y el 07-10: la PRIMERA respuesta fallaba más que el resto (2 de 14 en
+ * castellano a un cliente que hablaba inglés, frente a 3 de 68). Con «Empieza
+ * siempre con el saludo en…» el modelo empezaba esa respuesta repitiendo el
+ * saludo, que Telnyx ya ha dicho al descolgar, y seguía en su idioma
+ * («Hola, gracias por llamar a… Sí, hacemos mechas» a «Do you do
+ * highlights?»). La otra la dio justo después de get_catalog, cuya
+ * respuesta viene en castellano: de ahí la mención de las herramientas.
  */
 export function instruccionesDeIdioma(
   idiomas: readonly CodigoDeIdioma[],
@@ -135,8 +144,8 @@ export function instruccionesDeIdioma(
     .map((nota) => ` ${nota}`)
     .join("");
   return {
-    instruccion: `Empieza siempre con el saludo en ${IDIOMAS[principal].nombreEnPrompt}. Tras la primera intervención de quien llama, responde y continúa exclusivamente en el idioma que use si es uno de estos: ${lista}. Si cambia entre esos idiomas, acompaña el cambio sin pedirle que elija uno. Las frases que estas instrucciones ponen entre comillas para decírselas a quien llama están en castellano: dilas traducidas al idioma de la conversación.${notas} No menciones que eres una IA salvo que te lo pregunten.`,
-    recordatorio: `## Idioma\nContesta cada turno en el idioma en que te habla quien llama si es uno de estos: ${lista}; también el resumen de la reserva, la pregunta del WhatsApp y la despedida. No cambies de idioma por tu cuenta mientras siga hablando en el suyo.`,
+    instruccion: `En las llamadas, el saludo en ${IDIOMAS[principal].nombreEnPrompt} ya lo dice el sistema al descolgar y es el primer mensaje de la conversación: no lo repitas. Desde tu primera respuesta, contesta y continúa exclusivamente en el idioma en que te habla quien llama si es uno de estos: ${lista}. Si cambia entre esos idiomas, acompaña el cambio sin pedirle que elija uno. Las frases que estas instrucciones ponen entre comillas para decírselas a quien llama están en castellano: dilas traducidas al idioma de la conversación.${notas} No menciones que eres una IA salvo que te lo pregunten.`,
+    recordatorio: `## Idioma\nContesta cada turno en el idioma en que te habla quien llama si es uno de estos: ${lista}; también tu primera respuesta, lo que digas después de usar una herramienta (aunque te conteste en castellano), el resumen de la reserva, la pregunta del WhatsApp y la despedida. No cambies de idioma por tu cuenta mientras siga hablando en el suyo.`,
   };
 }
 
