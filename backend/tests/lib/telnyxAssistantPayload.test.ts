@@ -545,6 +545,22 @@ describe("buildTelnyxAssistantPayload", () => {
   });
 });
 
+describe("buildTelnyxVoiceTools — get_catalog", () => {
+  // Misma regla que el bloque «## Lo que ofrece el negocio» del prompt: la
+  // descripción de la tool también la lee el modelo al decidir si la llama.
+  it("se presenta como la única fuente de lo que ofrece el negocio, también para preguntas de sí o no", () => {
+    const tool = buildTelnyxVoiceTools("https://api.alhabla.ai").find(
+      (t) => t.name === "get_catalog"
+    );
+    expect(tool!.description).toMatch(
+      /^Única fuente de lo que ofrece el negocio/
+    );
+    expect(tool!.description).toContain(
+      "antes de confirmar o negar un servicio, un profesional o el horario, también ante una pregunta de sí o no"
+    );
+  });
+});
+
 describe("buildTelnyxVoiceTools — notify_when_available (PR 4)", () => {
   it("notify_when_available admite clientName opcional sin hacerlo obligatorio", () => {
     const tool = buildTelnyxVoiceTools("https://api.alhabla.ai").find(
