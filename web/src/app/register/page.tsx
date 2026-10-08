@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Check } from "lucide-react";
 import Link from "next/link";
 import { registerAccount } from "@/lib/api";
@@ -13,6 +13,9 @@ import { ParticleMouseLayer } from "@/components/particle-mouse-layer";
 import { normalizeBusinessType } from "@/lib/business-type";
 import { buildAppEntryUrl, describeRegisterError } from "@/lib/register";
 
+const TERMINOS_PENDIENTES =
+  "Debes aceptar los Términos y Condiciones y la Política de privacidad.";
+
 export default function RegisterPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -22,6 +25,14 @@ export default function RegisterPage() {
   const [loading, setLoading] = useState(false);
   const [niche, setNiche] = useState<string | null>(null);
   const [plan, setPlan] = useState<string | null>(null);
+  const casillaTerminos = useRef<HTMLInputElement>(null);
+
+  // El aviso queda debajo del formulario, fuera de la vista al pulsar
+  // Facebook: llevar el foco a la casilla lo trae a pantalla con ella.
+  const avisarDesdeFacebook = (mensaje: string) => {
+    setError(mensaje);
+    if (mensaje === TERMINOS_PENDIENTES) casillaTerminos.current?.focus();
+  };
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -37,7 +48,7 @@ export default function RegisterPage() {
       return;
     }
     if (!acceptedTerms) {
-      setError("Debes aceptar los Términos y Condiciones y la Política de privacidad.");
+      setError(TERMINOS_PENDIENTES);
       return;
     }
 
@@ -81,7 +92,15 @@ export default function RegisterPage() {
         <div className="mt-8">
           <div className="space-y-3">
             <GoogleAuthButton onError={setError} disabled={!acceptedTerms} acceptedTerms={acceptedTerms} intent="register" />
-            <FacebookAuthButton onError={setError} disabled={!acceptedTerms} acceptedTerms={acceptedTerms} intent="register" />
+            {/* Sin bloqueo: se puede pulsar siempre, pero sin la casilla de
+                Términos marcada avisa aquí en vez de ir a Facebook (el
+                backend rechazaría el alta con terms_required). */}
+            <FacebookAuthButton
+              onError={avisarDesdeFacebook}
+              acceptedTerms={acceptedTerms}
+              intent="register"
+              avisoAntesDeEmpezar={acceptedTerms ? undefined : TERMINOS_PENDIENTES}
+            />
           </div>
           <div className="my-6 flex items-center gap-4" aria-hidden="true">
             <div className="h-px flex-1 bg-[#e5e5e5]" />
@@ -157,6 +176,7 @@ export default function RegisterPage() {
             </fieldset>
             <label className="flex min-h-11 items-start gap-3 py-1.5 text-sm text-[#27272a]">
               <input
+                ref={casillaTerminos}
                 type="checkbox"
                 required
                 className="mt-0.5 h-4 w-4 shrink-0 rounded border-[#d4d4d8] text-[#8b5cf6] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#8b5cf6]/30"
