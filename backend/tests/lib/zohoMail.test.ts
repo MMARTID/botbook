@@ -111,6 +111,27 @@ describe("sendZohoMail", () => {
     expect(secondSendAuth).toBe("Zoho-oauthtoken access_token_2");
   });
 
+  // La regresión: un 401 del envío dejaba el token malo en caché hasta una
+  // hora y fallaban todos los correos de la instancia.
+  it("tras un 401 del envío olvida el token y el siguiente pide otro", async () => {
+    const fetchMock = mockFetchSequence([
+      { ok: true, json: { access_token: "token_revocado", expires_in: 3600 } },
+      { ok: false, status: 401, text: "INVALID_OAUTHTOKEN" },
+      { ok: true, json: { access_token: "token_nuevo", expires_in: 3600 } },
+      { ok: true, json: {} },
+    ]);
+    const sendZohoMail = await loadSendZohoMail();
+    const correo = { fromAddress: "support@alhabla.ai", toAddress: "a@b.com", subject: "s", html: "h" };
+
+    await expect(sendZohoMail(correo)).rejects.toThrow("(401)");
+    await sendZohoMail(correo);
+
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+    expect(fetchMock.mock.calls[3][1].headers.Authorization).toBe(
+      "Zoho-oauthtoken token_nuevo"
+    );
+  });
+
   it("lanza si Zoho no devuelve access_token al refrescar", async () => {
     mockFetchSequence([{ ok: false, status: 401, json: { error: "invalid_client" } }]);
     const sendZohoMail = await loadSendZohoMail();

@@ -141,6 +141,17 @@ jobs:
             --region="${{ env.GCP_REGION }}" \
             --project="${{ env.GCP_PROJECT_ID }}" \
             --quiet
+          # `gcloud run deploy` solo mueve el tráfico que sigue a LATEST. Tras
+          # un rollback (más abajo, `--to-revisions=X=100`) el servicio queda
+          # fijado a esa revisión: el deploy siguiente creaba la revisión nueva
+          # sin tráfico, /health respondía la antigua y el workflow salía en
+          # verde. Con esto el tráfico vuelve siempre a la última; si ya la
+          # seguía, no cambia nada.
+          gcloud run services update-traffic alhabla-api \
+            --to-latest \
+            --region="${{ env.GCP_REGION }}" \
+            --project="${{ env.GCP_PROJECT_ID }}" \
+            --quiet
 
       - name: Verificar /health tras el deploy
         id: health

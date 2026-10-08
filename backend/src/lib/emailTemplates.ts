@@ -1,3 +1,19 @@
+/**
+ * Escapa texto para meterlo en el HTML del correo. Casi todo lo que se
+ * interpola lo escribe alguien de fuera: el motivo de un recado lo dicta el
+ * cliente que llama, el nombre del negocio lo escribe su dueño. Sin escapar,
+ * un «<a href=...>» dictado por teléfono llegaba como enlace al buzón del
+ * dueño.
+ */
+export function escaparHtml(texto: string | number | null | undefined): string {
+  return String(texto ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 function emailShell(bodyHtml: string): string {
   return `<!DOCTYPE html>
 <html lang="es">
@@ -32,7 +48,7 @@ function emailShell(bodyHtml: string): string {
 }
 
 function ctaButton(url: string, label: string): string {
-  return `<a href="${url}" style="display:inline-block;margin-top:20px;padding:12px 24px;background-color:#0a0a0a;color:#ffffff;text-decoration:none;border-radius:999px;font-weight:600;font-size:14px;">${label}</a>`;
+  return `<a href="${escaparHtml(url)}" style="display:inline-block;margin-top:20px;padding:12px 24px;background-color:#0a0a0a;color:#ffffff;text-decoration:none;border-radius:999px;font-weight:600;font-size:14px;">${escaparHtml(label)}</a>`;
 }
 
 export function paymentApprovedEmail(input: { businessName: string; planName: string }): {
@@ -44,8 +60,8 @@ export function paymentApprovedEmail(input: { businessName: string; planName: st
     <p style="font-size:18px;font-weight:600;margin:0 0 16px 0;">¡Ya está todo listo!</p>
     <p style="margin:0 0 16px 0;">Hola,</p>
     <p style="margin:0 0 16px 0;">
-      Tu suscripción al plan <strong>${input.planName}</strong> se ha activado correctamente.
-      Tu recepcionista de voz con IA ya puede empezar a atender llamadas de <strong>${input.businessName}</strong>.
+      Tu suscripción al plan <strong>${escaparHtml(input.planName)}</strong> se ha activado correctamente.
+      Tu recepcionista de voz con IA ya puede empezar a atender llamadas de <strong>${escaparHtml(input.businessName)}</strong>.
     </p>
     <p style="margin:0;">Un saludo,<br/>El equipo de Alhabla</p>
   `);
@@ -65,7 +81,7 @@ export function paymentFailedEmail(input: {
     <p style="font-size:18px;font-weight:600;margin:0 0 16px 0;color:#c53030;">No hemos podido cobrar tu suscripción</p>
     <p style="margin:0 0 16px 0;">Hola,</p>
     <p style="margin:0 0 16px 0;">
-      El último intento de cobro de la suscripción de <strong>${input.businessName}</strong> no se ha
+      El último intento de cobro de la suscripción de <strong>${escaparHtml(input.businessName)}</strong> no se ha
       completado. Si no se regulariza antes del <strong>${new Intl.DateTimeFormat("es-ES", { dateStyle: "long" }).format(input.suspensionAt)}</strong>,
       suspenderemos las llamadas que llegan a tu número de Alhabla.
     </p>
@@ -89,7 +105,7 @@ export function subscriptionCancellationInstructionsEmail(input: {
     <p style="font-size:18px;font-weight:600;margin:0 0 16px 0;">Tu baja está programada</p>
     <p style="margin:0 0 16px 0;">Hola,</p>
     <p style="margin:0 0 16px 0;">
-      Tu suscripción de <strong>${input.businessName}</strong> finalizará el <strong>${endDate}</strong>.
+      Tu suscripción de <strong>${escaparHtml(input.businessName)}</strong> finalizará el <strong>${endDate}</strong>.
     </p>
     <p style="margin:0 0 16px 0;">
       Antes de esa fecha, desactiva el desvío de llamadas de tu línea habitual hacia el número de Alhabla.
@@ -140,7 +156,7 @@ export function accountDeletedEmail(input: { businessName: string }): {
   const subject = `Cuenta eliminada — ${input.businessName}`;
   const html = emailShell(`
     <p style="font-size:18px;font-weight:600;margin:0 0 16px 0;">Tu cuenta se ha eliminado</p>
-    <p style="margin:0 0 16px 0;">Hemos eliminado la cuenta de <strong>${input.businessName}</strong> y cancelado su servicio.</p>
+    <p style="margin:0 0 16px 0;">Hemos eliminado la cuenta de <strong>${escaparHtml(input.businessName)}</strong> y cancelado su servicio.</p>
     <p style="margin:0 0 16px 0;"><strong>Importante:</strong> comprueba que el desvío de llamadas de tu línea habitual ya está desactivado.</p>
     <p style="margin:0;">Si necesitas ayuda, responde a este correo.<br/>El equipo de Alhabla</p>
   `);
@@ -151,7 +167,7 @@ export function usageWarningEmail(input: { businessName: string; planName: strin
   const subject = `Te acercas a los minutos incluidos — ${input.businessName}`;
   const html = emailShell(`
     <p style="font-size:18px;font-weight:600;margin:0 0 16px 0;">Estás cerca del límite de tu plan</p>
-    <p style="margin:0 0 16px 0;">Has consumido <strong>${input.consumedMinutes} de ${input.includedMinutes} minutos</strong> incluidos en tu plan ${input.planName}.</p>
+    <p style="margin:0 0 16px 0;">Has consumido <strong>${input.consumedMinutes} de ${input.includedMinutes} minutos</strong> incluidos en tu plan ${escaparHtml(input.planName)}.</p>
     <p style="margin:0 0 16px 0;">A partir de ${input.includedMinutes} minutos, el consumo adicional se facturará a <strong>${(input.extraMinuteCents / 100).toFixed(2).replace(".", ",")} €/min</strong> hasta el ${new Intl.DateTimeFormat("es-ES", { dateStyle: "long" }).format(input.periodEndsAt)}.</p>
     <p style="margin:0;">Puedes consultar el consumo en Ajustes → Facturación.</p>
   `);
@@ -167,12 +183,12 @@ export function pendingBookingAlertEmail(input: {
 }): { subject: string; html: string } {
   const subject = `Una cita no ha llegado a tu calendario — ${input.businessName}`;
   const contacto = input.clientPhone
-    ? `<strong>${input.clientName}</strong> (${input.clientPhone})`
-    : `<strong>${input.clientName}</strong>`;
+    ? `<strong>${escaparHtml(input.clientName)}</strong> (${escaparHtml(input.clientPhone)})`
+    : `<strong>${escaparHtml(input.clientName)}</strong>`;
   const html = emailShell(`
     <p style="font-size:18px;font-weight:600;margin:0 0 16px 0;">Hay una cita pendiente de confirmar a mano</p>
     <p style="margin:0 0 16px 0;">Tu recepcionista ha atendido la llamada y ha tomado los datos, pero no ha podido dejar la cita en tu calendario.</p>
-    <p style="margin:0 0 16px 0;">${contacto} pidió cita para el <strong>${input.formattedDateTime}</strong>.</p>
+    <p style="margin:0 0 16px 0;">${contacto} pidió cita para el <strong>${escaparHtml(input.formattedDateTime)}</strong>.</p>
     <p style="margin:0;">Llámale para confirmarla, o revisa la conexión de tu calendario en el panel.</p>
     ${ctaButton(input.panelUrl, "Ver las citas pendientes")}
   `);
@@ -188,13 +204,13 @@ export function messageLeadEmail(input: {
   quiereQueLeLlamen: boolean;
   panelUrl: string;
 }): { subject: string; html: string } {
-  const quien = input.clientName ? `<strong>${input.clientName}</strong>` : "Un cliente";
-  const telefono = input.clientPhone ? ` (${input.clientPhone})` : "";
+  const quien = input.clientName ? `<strong>${escaparHtml(input.clientName)}</strong>` : "Un cliente";
+  const telefono = input.clientPhone ? ` (${escaparHtml(input.clientPhone)})` : "";
   const subject = `Tienes un recado — ${input.businessName}`;
   const html = emailShell(`
     <p style="font-size:18px;font-weight:600;margin:0 0 16px 0;">Tienes un recado</p>
-    <p style="margin:0 0 16px 0;">${quien}${telefono} ha llamado a ${input.businessName} y tu recepcionista ha tomado nota:</p>
-    <p style="margin:0 0 16px 0;padding:12px 16px;background:#f4f4f5;border-radius:12px;">${input.motivo}</p>
+    <p style="margin:0 0 16px 0;">${quien}${telefono} ha llamado a ${escaparHtml(input.businessName)} y tu recepcionista ha tomado nota:</p>
+    <p style="margin:0 0 16px 0;padding:12px 16px;background:#f4f4f5;border-radius:12px;">${escaparHtml(input.motivo)}</p>
     <p style="margin:0;">${input.quiereQueLeLlamen ? "Pide que le llames." : "No ha pedido que le llames; queda a tu criterio."}</p>
     ${ctaButton(input.panelUrl, "Ver las llamadas")}
   `);
@@ -210,8 +226,8 @@ export function operationalAlertEmail(input: {
   const subject = `Necesita tu atención — ${input.businessName}`;
   const primera = input.texto.charAt(0).toUpperCase() + input.texto.slice(1);
   const html = emailShell(`
-    <p style="font-size:18px;font-weight:600;margin:0 0 16px 0;">Hay algo que revisar en ${input.businessName}</p>
-    <p style="margin:0;">${primera}</p>
+    <p style="font-size:18px;font-weight:600;margin:0 0 16px 0;">Hay algo que revisar en ${escaparHtml(input.businessName)}</p>
+    <p style="margin:0;">${escaparHtml(primera)}</p>
     ${ctaButton(input.panelUrl, "Ir a Ajustes")}
   `);
   return { subject, html };
@@ -230,8 +246,8 @@ export function forwardingCheckedEmail(input: {
   const subject = `Tu desvío está comprobado — ${input.businessName}`;
   const primera = input.texto.charAt(0).toUpperCase() + input.texto.slice(1);
   const html = emailShell(`
-    <p style="font-size:18px;font-weight:600;margin:0 0 16px 0;">Todo listo en ${input.businessName}</p>
-    <p style="margin:0;">${primera}</p>
+    <p style="font-size:18px;font-weight:600;margin:0 0 16px 0;">Todo listo en ${escaparHtml(input.businessName)}</p>
+    <p style="margin:0;">${escaparHtml(primera)}</p>
     ${ctaButton(input.panelUrl, "Ver Ajustes › Teléfono")}
   `);
   return { subject, html };
@@ -265,7 +281,7 @@ export function weeklySummaryEmail(input: {
     </tr>`;
 
   const html = emailShell(`
-    <p style="font-size:18px;font-weight:600;margin:0 0 16px 0;">Así ha ido la semana en ${input.businessName}</p>
+    <p style="font-size:18px;font-weight:600;margin:0 0 16px 0;">Así ha ido la semana en ${escaparHtml(input.businessName)}</p>
     <p style="margin:0 0 16px 0;">Resumen del ${range} de tu recepcionista de voz:</p>
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 8px 0;">
       ${statRow("Llamadas atendidas", String(input.callCount))}

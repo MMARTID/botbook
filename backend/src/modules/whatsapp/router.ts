@@ -1744,7 +1744,7 @@ async function elegirNegocioDelCliente(
     await responder(
       { ...message, businessId: negocio.id },
       "negocio-elegido",
-      mensajes.negocioElegido({ negocio: negocio.name }),
+      mensajes.negocioElegido({ negocio: nombreParaCliente(negocio) }),
       { businessId: negocio.id }
     )
   );
@@ -1758,8 +1758,14 @@ async function preguntarDeQueNegocio(
   message: InboundMessage,
   candidatos: Array<{ id: string; name: string }>
 ): Promise<ResultadoEnrutado> {
-  const nombres = candidatos.map((c) => c.name);
-  if (candidatos.length > 3) {
+  // Nombres que ve un cliente: pasan por nombreParaCliente, que descarta el
+  // «Negocio de <email del dueño>» que pone el registro por defecto. El
+  // título de un botón admite como mucho 20 caracteres (Meta rechaza el envío
+  // entero si uno se pasa), y dos títulos iguales no sirven para elegir: en
+  // ese caso se pide que escriba el nombre, como cuando hay más de tres.
+  const nombres = candidatos.map((c) => nombreParaCliente(c));
+  const titulos = nombres.map((n) => normalizarTitulo(n).slice(0, 20).trim());
+  if (candidatos.length > 3 || new Set(titulos).size < titulos.length) {
     return resultado(
       "texto:negocio-ambiguo-sin-botones",
       await responder(message, "negocio-ambiguo", mensajes.demasiadosNegocios(), {
@@ -1774,9 +1780,9 @@ async function preguntarDeQueNegocio(
       "negocio-ambiguo",
       mensajes.deQueNegocioHablas({ negocios: nombres }),
       {
-        botones: candidatos.map((c) => ({
+        botones: candidatos.map((c, i) => ({
           id: `${PREFIJO_BOTON_NEGOCIO}${c.id}`,
-          title: normalizarTitulo(c.name),
+          title: titulos[i]!,
         })),
       }
     )

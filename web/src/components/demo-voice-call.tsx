@@ -132,6 +132,11 @@ export function DemoVoiceCall({ open, onClose, onActiveChange, niche }: DemoVoic
 
   const clientRef = useRef<TelnyxRTC | null>(null);
   const callRef = useRef<Call | null>(null);
+  // Cada arranque de la demo tiene su número; cerrar lo invalida. startDemo
+  // espera al micrófono, al backend, al SDK y al socket: sin esto, cerrar el
+  // modal en «Conectando…» no paraba nada y la llamada se abría después,
+  // oculta y con el micrófono abierto.
+  const intentoRef = useRef(0);
   const stopSpeakingMeterRef = useRef<(() => void) | null>(null);
   const intervalRef = useRef<number | null>(null);
   const closeTimeoutRef = useRef<number | null>(null);
@@ -257,6 +262,8 @@ export function DemoVoiceCall({ open, onClose, onActiveChange, niche }: DemoVoic
     }
     stopSpeakingMeterRef.current?.();
     stopSpeakingMeterRef.current = null;
+    intentoRef.current += 1;
+    void callRef.current?.hangup();
     callRef.current = null;
     // Cerrar el socket de Telnyx al salir: sin esto el cliente sigue vivo
     // (y reconectando) aunque el visitante haya cerrado el modal.
@@ -364,6 +371,8 @@ export function DemoVoiceCall({ open, onClose, onActiveChange, niche }: DemoVoic
   };
 
   const startDemo = async (placeId?: string) => {
+    const intento = ++intentoRef.current;
+    const cancelado = () => intentoRef.current !== intento;
     try {
       setErrorMessage(null);
       setTranscript([]);
@@ -371,6 +380,7 @@ export function DemoVoiceCall({ open, onClose, onActiveChange, niche }: DemoVoic
       // llegamos a molestar ni a Telnyx ni al assistant de la demo.
       setState("requesting-permission");
       await requestMicrophone();
+      if (cancelado()) return;
       setState("connecting");
 
       let demo: { assistantId: string; niche: string; maxDurationSeconds: number };
@@ -380,6 +390,7 @@ export function DemoVoiceCall({ open, onClose, onActiveChange, niche }: DemoVoic
         if (axios.isAxiosError(error) && error.response?.status === 503) throw new Error(DEMO_NOT_CONFIGURED);
         throw error;
       }
+      if (cancelado()) return;
       if (!demo?.assistantId) throw new Error(DEMO_NOT_CONFIGURED);
       setDemoNiche(demo.niche);
       setMaxDurationSeconds(demo.maxDurationSeconds || DEMO_MAX_DURATION_SECONDS);
@@ -387,6 +398,7 @@ export function DemoVoiceCall({ open, onClose, onActiveChange, niche }: DemoVoic
       // El SDK de Telnyx solo existe en el navegador y pesa lo suyo: se carga
       // cuando alguien empieza la demo, no en el bundle de la landing.
       const { TelnyxRTC: ClienteTelnyx } = await import("@telnyx/webrtc");
+      if (cancelado()) return;
       const client = new ClienteTelnyx({
         // Llamada web sin autenticar contra el assistant de la cuenta de demo
         // (`supports_unauthenticated_web_calls`): no hay credencial SIP ni
@@ -396,11 +408,18 @@ export function DemoVoiceCall({ open, onClose, onActiveChange, niche }: DemoVoic
       clientRef.current = client;
       bindClientEvents(client);
       client.on("telnyx.ready", () => {
+        // Cerrado mientras conectaba: no se abre la llamada.
+        if (cancelado()) {
+          void client.disconnect();
+          return;
+        }
         // Con anonymous_login el destino es el assistant, así que el número va vacío.
         callRef.current = client.newCall({ destinationNumber: "", remoteElement: REMOTE_AUDIO_ID });
       });
       await client.connect();
+      if (cancelado()) void client.disconnect();
     } catch (error) {
+      if (cancelado()) return;
       setErrorMessage(describeDemoError(error));
       setState("error");
     }

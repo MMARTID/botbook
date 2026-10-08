@@ -47,6 +47,9 @@ const TONO_DE_RESULTADO: Record<"success" | "warning" | "neutral", Tono> = {
 export function invalidarLlamadas(queryClient: ReturnType<typeof useQueryClient>) {
   return Promise.all([
     queryClient.invalidateQueries({ queryKey: ["llamadas"] }),
+    // La tabla de escritorio tiene su propia clave: sin esta línea, marcar
+    // un recado como devuelto no cambiaba la fila ni el contador.
+    queryClient.invalidateQueries({ queryKey: ["llamadas-escritorio"] }),
     queryClient.invalidateQueries({ queryKey: ["llamadas-conteos"] }),
     queryClient.invalidateQueries({ queryKey: ["recent-calls"] }),
     queryClient.invalidateQueries({ queryKey: ["calls"] }),
