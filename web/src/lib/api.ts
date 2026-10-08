@@ -31,6 +31,11 @@ export async function getGoogleAuthUrl(
   intent: "login" | "register" = "login"
 ) {
   const { data } = await api.get<{ url: string }>("/auth/google", {
+    // La respuesta fija la cookie anti-CSRF del `state` que el callback
+    // comprueba. La API vive en otro origen (api.alhabla.ai), y sin
+    // credenciales el navegador descarta el Set-Cookie de una respuesta CORS:
+    // el callback acababa siempre en invalid_state.
+    withCredentials: true,
     params: {
       intent,
       ...(acceptedTerms ? { acceptedTerms: "true" } : {}),
@@ -44,6 +49,11 @@ export async function getFacebookAuthUrl(
   intent: "login" | "register" = "login"
 ) {
   const { data } = await api.get<{ url: string }>("/auth/facebook", {
+    // La respuesta fija la cookie anti-CSRF del `state` que el callback
+    // comprueba. La API vive en otro origen (api.alhabla.ai), y sin
+    // credenciales el navegador descarta el Set-Cookie de una respuesta CORS:
+    // el callback acababa siempre en invalid_state.
+    withCredentials: true,
     params: {
       intent,
       ...(acceptedTerms ? { acceptedTerms: "true" } : {}),

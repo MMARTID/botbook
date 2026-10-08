@@ -9,6 +9,7 @@ import {
 } from "../../../src/modules/whatsapp/altaDueno.js";
 import { syncAgentNameWithBusinessType } from "../../../src/lib/agentBootstrap.js";
 import { syncAgentToTelnyx } from "../../../src/lib/telnyxAgentSync.js";
+import { syncAgentToRetell } from "../../../src/lib/agentBootstrap.js";
 import { DEFAULT_AGENT_SETTINGS } from "../../../src/lib/managedAgentPrompt.js";
 import { idiomasQueHabla } from "../../../src/lib/idiomas/catalogo.js";
 
@@ -470,6 +471,30 @@ describe("PATCH /business/me (móvil del dueño para WhatsApp)", () => {
     expect(malo.statusCode).toBe(400);
     const maloBool = await patch({ hideOwnerNumberFromClients: "sí" } as never);
     expect(maloBool.statusCode).toBe(400);
+  });
+
+  // La regresión: el PATCH sobrescribía la columna systemPrompt de TODOS los
+  // agentes, también la de uno editado a mano, y esa edición se perdía.
+  it("no pisa el prompt de un agente editado a mano", async () => {
+    mockedAgentFindMany.mockResolvedValue([
+      { id: "agent_gestionado", promptManuallyEdited: false },
+      { id: "agent_a_mano", promptManuallyEdited: true },
+    ] as any);
+
+    const response = await patch({ hideOwnerNumberFromClients: true } as never);
+
+    expect(response.statusCode).toBe(200);
+    const actualizados = mockedAgentUpdate.mock.calls.map((c) => c[0].where.id);
+    expect(actualizados).toEqual(["agent_gestionado"]);
+  });
+
+  it("un fallo de Retell (respaldo) no impide sincronizar Telnyx ni guardar", async () => {
+    vi.mocked(syncAgentToRetell).mockRejectedValueOnce(new Error("Retell 502"));
+
+    const response = await patch({ hideOwnerNumberFromClients: true } as never);
+
+    expect(response.statusCode).toBe(200);
+    expect(mockedSyncTelnyx).toHaveBeenCalledWith("biz_1");
   });
 
   it("quitar hideOwnerNumberFromClients devuelve el prompt sin la sección de privacidad", async () => {

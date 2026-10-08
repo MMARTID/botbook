@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 import {
   getBillingSummary,
   createCheckoutSession,
+  SuscripcionVivaError,
   estadoDelCupoDeFundador,
   reconcileCheckoutSession,
   handleStripeEvent,
@@ -130,6 +131,11 @@ describe("handleStripeEvent", () => {
     mockedTransaction.mockImplementation(async (callback: any) => callback(prisma));
     mockedBusinessUpdateMany.mockResolvedValue({ count: 1 } as any);
     mockedProvisionPhoneNumber.mockResolvedValue({ success: true, status: "active" });
+    // invoice.payment_failed mira el estado vivo de la factura antes de abrir
+    // el plazo de suspensión.
+    mockedGetStripeClient.mockReturnValue({
+      invoices: { retrieve: vi.fn().mockResolvedValue({ status: "open" }) },
+    } as any);
     process.env.STRIPE_PRICE_INICIO = priceId;
     process.env.STRIPE_PRICE_PRO = "price_test_pro";
     process.env.STRIPE_PRICE_EXTRA_INICIO = "price_test_extra_inicio";
@@ -299,10 +305,64 @@ describe("handleStripeEvent", () => {
 
     expect(mockedBusinessUpdateMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { id: businessId, paymentFailureInvoiceId: "inv_test_1" },
+        // Una factura de ciclo (no de suscripción nueva) solo reactiva si es
+        // exactamente la que abrió el plazo.
+        where: { id: businessId, OR: [{ paymentFailureInvoiceId: "inv_test_1" }] },
         data: expect.objectContaining({ callsSuspendedAt: null }),
       })
     );
+  });
+
+  // La regresión: el negocio suspendido que se volvía a suscribir pagaba la
+  // suscripción nueva y seguía con las llamadas cortadas para siempre.
+  it("el primer pago de una suscripción nueva levanta la suspensión del impago anterior", async () => {
+    const event = buildStripeEvent("invoice.paid", {
+      id: "inv_nueva",
+      customer: customerId,
+      billing_reason: "subscription_create",
+    });
+    mockedBusinessFindFirst.mockResolvedValue(buildBusiness() as any);
+
+    await handleStripeEvent(event);
+
+    expect(mockedBusinessUpdateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          id: businessId,
+          OR: [
+            { paymentFailureInvoiceId: "inv_nueva" },
+            {
+              paymentFailureInvoiceId: { not: null },
+              paymentFailureNotifiedAt: { lt: new Date(event.created * 1000) },
+            },
+          ],
+        },
+        data: expect.objectContaining({
+          callsSuspendedAt: null,
+          paymentFailureSuspensionAt: null,
+        }),
+      })
+    );
+  });
+
+  it("un payment_failed que llega después del pago de la misma factura no abre plazo", async () => {
+    mockedGetStripeClient.mockReturnValue({
+      invoices: { retrieve: vi.fn().mockResolvedValue({ status: "paid" }) },
+    } as any);
+    const event = buildStripeEvent("invoice.payment_failed", {
+      id: "inv_ya_pagada",
+      customer: customerId,
+    });
+    mockedBusinessFindFirst.mockResolvedValue(buildBusiness() as any);
+
+    await handleStripeEvent(event);
+
+    expect(mockedBusinessUpdateMany).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ paymentFailureInvoiceId: "inv_ya_pagada" }),
+      })
+    );
+    expect(mockedEnqueueEmailJob).not.toHaveBeenCalled();
   });
 
   it("sincroniza suscripción en customer.subscription.updated", async () => {
@@ -508,6 +568,18 @@ describe("createCheckoutSession", () => {
     await expect(
       createCheckoutSession({ businessId, userId: "user_123", planId: "inicio" })
     ).rejects.toThrow("already has an active subscription");
+  });
+
+  it("no abre otro checkout si la suscripción sigue viva pero en mora", async () => {
+    for (const subscriptionStatus of ["PAST_DUE", "UNPAID", "PAUSED", "INCOMPLETE"]) {
+      mockedBusinessFindUnique.mockResolvedValue(
+        buildBusiness({ subscriptionStatus }) as any
+      );
+
+      await expect(
+        createCheckoutSession({ businessId, userId: "user_123", planId: "inicio" })
+      ).rejects.toBeInstanceOf(SuscripcionVivaError);
+    }
   });
 
   it("falla de forma segura cuando otra petición ya prepara el Checkout", async () => {

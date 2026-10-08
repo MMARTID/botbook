@@ -22,7 +22,10 @@ describe("getGoogleAuthUrl", () => {
     const url = await getGoogleAuthUrl();
 
     expect(url).toBe("https://accounts.google.com/oauth");
-    expect(getSpy).toHaveBeenCalledWith("/auth/google", { params: { intent: "login" } });
+    expect(getSpy).toHaveBeenCalledWith("/auth/google", {
+      withCredentials: true,
+      params: { intent: "login" },
+    });
   });
 
   it("manda acceptedTerms=true cuando se aceptaron los términos", async () => {
@@ -30,7 +33,10 @@ describe("getGoogleAuthUrl", () => {
 
     await getGoogleAuthUrl(true, "register");
 
+    // Con credenciales: la respuesta fija la cookie anti-CSRF del `state`, y
+    // sin ellas el navegador la descarta (la API está en otro origen).
     expect(getSpy).toHaveBeenCalledWith("/auth/google", {
+      withCredentials: true,
       params: { intent: "register", acceptedTerms: "true" },
     });
   });
@@ -40,7 +46,10 @@ describe("getGoogleAuthUrl", () => {
 
     await getGoogleAuthUrl(false);
 
-    expect(getSpy).toHaveBeenCalledWith("/auth/google", { params: { intent: "login" } });
+    expect(getSpy).toHaveBeenCalledWith("/auth/google", {
+      withCredentials: true,
+      params: { intent: "login" },
+    });
   });
 
   it("manda intent=register explícito", async () => {
@@ -48,7 +57,10 @@ describe("getGoogleAuthUrl", () => {
 
     await getGoogleAuthUrl(undefined, "register");
 
-    expect(getSpy).toHaveBeenCalledWith("/auth/google", { params: { intent: "register" } });
+    expect(getSpy).toHaveBeenCalledWith("/auth/google", {
+      withCredentials: true,
+      params: { intent: "register" },
+    });
   });
 });
 

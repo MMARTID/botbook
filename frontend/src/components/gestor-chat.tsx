@@ -280,8 +280,13 @@ export function GestorChat({
       // vistas al volver a pedirlo.
       void queryClient.invalidateQueries({ queryKey: ["my-business"] });
       void queryClient.invalidateQueries({ queryKey: ["booking-settings"] });
-      void queryClient.invalidateQueries({ queryKey: ["agenda"] });
+      // Las cuatro vistas de la agenda tienen clave propia: ["agenda"] no
+      // coincidía con ninguna y la cita que acababa de apuntar el gestor no
+      // aparecía hasta recargar.
       void queryClient.invalidateQueries({ queryKey: ["agenda-panel"] });
+      void queryClient.invalidateQueries({ queryKey: ["agenda-escritorio"] });
+      void queryClient.invalidateQueries({ queryKey: ["agenda-semana"] });
+      void queryClient.invalidateQueries({ queryKey: ["agenda-inicio"] });
       void queryClient.invalidateQueries({ queryKey: ["gestor-cambios"] });
     },
     onError: (error) => {

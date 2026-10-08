@@ -57,6 +57,7 @@ import {
 import { avisarAQuienEsperaba } from "./listaDeEspera.js";
 import { nombreParaCliente, telefonoDeContacto } from "./mensajesCliente.js";
 import * as mensajes from "./mensajes.js";
+import { TIPOS_DE_LEAD_DE_RECADO } from "./recados.js";
 
 /**
  * Enrutador de mensajes entrantes (PLAN-CANAL-DUENO.md § 6), fase 1:
@@ -1258,8 +1259,16 @@ async function botonDeRecado(
   base: string
 ): Promise<ResultadoEnrutado> {
   const leadId = aviso.recursoId.replace(/:r\d+$/, "");
+  // El aviso original es `<leadId>`; el recordatorio n-ésimo, `<leadId>:r<n>`.
+  // El siguiente recordatorio es el n+1: sin propagarlo, cada «mañana» volvía
+  // a reclamar `:r1`, ya enviado, y el dueño no recibía nada.
+  const recordatorioActual = Number(aviso.recursoId.match(/:r(\d+)$/)?.[1] ?? 0);
   const lead = await prisma.lead.findFirst({
-    where: { id: leadId, type: "message", call: { businessId: business.id } },
+    where: {
+      id: leadId,
+      type: { in: TIPOS_DE_LEAD_DE_RECADO },
+      call: { businessId: business.id },
+    },
     select: { id: true, resolvedAt: true },
   });
   if (!lead) {
@@ -1298,7 +1307,10 @@ async function botonDeRecado(
     data: { snoozedUntil: cuando },
   });
   try {
-    await enqueueRecordarRecadoJob({ leadId: lead.id }, cuando);
+    await enqueueRecordarRecadoJob(
+      { leadId: lead.id, intento: recordatorioActual + 1 },
+      cuando
+    );
   } catch (error) {
     console.error(
       `[WhatsApp] No se pudo programar el recordatorio del recado ${lead.id} (negocio ${business.id}) para ${cuando.toISOString()}: ${errorMessage(error)}`
@@ -1732,7 +1744,7 @@ async function elegirNegocioDelCliente(
     await responder(
       { ...message, businessId: negocio.id },
       "negocio-elegido",
-      mensajes.negocioElegido({ negocio: negocio.name }),
+      mensajes.negocioElegido({ negocio: nombreParaCliente(negocio) }),
       { businessId: negocio.id }
     )
   );
@@ -1746,8 +1758,14 @@ async function preguntarDeQueNegocio(
   message: InboundMessage,
   candidatos: Array<{ id: string; name: string }>
 ): Promise<ResultadoEnrutado> {
-  const nombres = candidatos.map((c) => c.name);
-  if (candidatos.length > 3) {
+  // Nombres que ve un cliente: pasan por nombreParaCliente, que descarta el
+  // «Negocio de <email del dueño>» que pone el registro por defecto. El
+  // título de un botón admite como mucho 20 caracteres (Meta rechaza el envío
+  // entero si uno se pasa), y dos títulos iguales no sirven para elegir: en
+  // ese caso se pide que escriba el nombre, como cuando hay más de tres.
+  const nombres = candidatos.map((c) => nombreParaCliente(c));
+  const titulos = nombres.map((n) => normalizarTitulo(n).slice(0, 20).trim());
+  if (candidatos.length > 3 || new Set(titulos).size < titulos.length) {
     return resultado(
       "texto:negocio-ambiguo-sin-botones",
       await responder(message, "negocio-ambiguo", mensajes.demasiadosNegocios(), {
@@ -1762,9 +1780,9 @@ async function preguntarDeQueNegocio(
       "negocio-ambiguo",
       mensajes.deQueNegocioHablas({ negocios: nombres }),
       {
-        botones: candidatos.map((c) => ({
+        botones: candidatos.map((c, i) => ({
           id: `${PREFIJO_BOTON_NEGOCIO}${c.id}`,
-          title: normalizarTitulo(c.name),
+          title: titulos[i]!,
         })),
       }
     )

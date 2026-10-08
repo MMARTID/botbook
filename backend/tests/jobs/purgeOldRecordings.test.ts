@@ -61,4 +61,55 @@ describe("purgeOldRecordingsJob", () => {
 
     expect(result).toEqual({ purged: 1, failed: 1 });
   });
+
+  // La regresión: con R2 caído, el mismo lote de 100 volvía a salir en cada
+  // vuelta y el job no terminaba nunca.
+  it("termina aunque falle un lote entero (R2 caído)", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const lote = Array.from({ length: 100 }, (_, i) => ({
+      id: `rec_${i}`,
+      callId: `call_${i}`,
+      storageKey: `recordings/biz/call_${i}.mp3`,
+    }));
+    mockedFindMany.mockResolvedValue(lote as any);
+    mockedDelete.mockRejectedValue(new Error("R2 no responde"));
+
+    const result = await purgeOldRecordingsJob();
+
+    expect(result).toEqual({ purged: 0, failed: 100 });
+    expect(mockedFindMany).toHaveBeenCalledTimes(1);
+  });
+
+  it("deja fuera de los lotes siguientes las grabaciones que fallaron", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const lote = Array.from({ length: 100 }, (_, i) => ({
+      id: `rec_${i}`,
+      callId: `call_${i}`,
+      storageKey: `recordings/biz/call_${i}.mp3`,
+    }));
+    mockedFindMany.mockResolvedValueOnce(lote as any).mockResolvedValueOnce([]);
+    mockedDelete.mockRejectedValueOnce(new Error("objeto bloqueado"));
+
+    await purgeOldRecordingsJob();
+
+    expect(mockedFindMany.mock.calls[1][0]).toMatchObject({
+      where: { id: { notIn: ["rec_0"] } },
+    });
+  });
+
+  it("no arranca con un plazo de retención que borraría todo", async () => {
+    const anterior = process.env.RECORDING_RETENTION_DAYS;
+    try {
+      for (const valor of ["0", "-5", "treinta"]) {
+        process.env.RECORDING_RETENTION_DAYS = valor;
+        await expect(purgeOldRecordingsJob()).rejects.toThrow(
+          /RECORDING_RETENTION_DAYS/
+        );
+      }
+      expect(mockedDelete).not.toHaveBeenCalled();
+    } finally {
+      if (anterior === undefined) delete process.env.RECORDING_RETENTION_DAYS;
+      else process.env.RECORDING_RETENTION_DAYS = anterior;
+    }
+  });
 });

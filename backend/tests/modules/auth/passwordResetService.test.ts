@@ -37,6 +37,7 @@ const user = {
   id: "user_123",
   email: "cliente@example.com",
   businessId: "business_123",
+  tokenVersion: 2,
 };
 
 describe("passwordResetService", () => {
@@ -47,7 +48,7 @@ describe("passwordResetService", () => {
     redisMock.set.mockResolvedValue("OK");
     redisMock.getdel.mockResolvedValue(null);
     mockedUserFindUnique.mockResolvedValue(user as any);
-    mockedUserUpdate.mockResolvedValue({} as any);
+    mockedUserUpdate.mockResolvedValue({ tokenVersion: 3 } as any);
     mockedEnqueueEmailJob.mockResolvedValue(undefined);
     mockedBcryptHash.mockResolvedValue("hash_nuevo" as any);
     process.env.FRONTEND_URL = "https://app.alhabla.ai/";
@@ -59,13 +60,14 @@ describe("passwordResetService", () => {
 
       expect(mockedUserFindUnique).toHaveBeenCalledWith({
         where: { email: "cliente@example.com" },
-        select: { id: true, email: true },
+        select: { id: true, email: true, tokenVersion: true },
       });
 
       expect(redisMock.set).toHaveBeenCalledTimes(1);
       const [key, value, mode, ttl] = redisMock.set.mock.calls[0];
       expect(key).toMatch(/^auth:password-reset:[a-f0-9]{64}$/);
-      expect(value).toBe("user_123");
+      // Atado a la versión de la contraseña: cambiarla invalida el enlace.
+      expect(value).toBe("user_123:2");
       expect(mode).toBe("EX");
       expect(ttl).toBe(PASSWORD_RESET_TTL_SECONDS);
 
@@ -126,7 +128,10 @@ describe("passwordResetService", () => {
           subject: "Tu contraseña de Alhabla ha cambiado",
         })
       );
-      expect(result).toEqual(user);
+      // Sale con la versión nueva para emitir el token de la sesión. El
+      // enlace de este caso es del formato antiguo, sin versión: sigue
+      // valiendo hasta que caduque.
+      expect(result).toEqual({ ...user, tokenVersion: 3 });
     });
 
     it("rechaza un token caducado o ya usado con un 400 y sin tocar la contraseña", async () => {
@@ -141,6 +146,25 @@ describe("passwordResetService", () => {
       await expect(attempt).rejects.toMatchObject({ statusCode: 400 });
       expect(mockedUserUpdate).not.toHaveBeenCalled();
       expect(mockedEnqueueEmailJob).not.toHaveBeenCalled();
+    });
+
+    it("rechaza un enlace emitido antes de cambiar la contraseña", async () => {
+      // El enlace se pidió con la versión 1; después se cambió la contraseña.
+      redisMock.getdel.mockResolvedValue("user_123:1");
+
+      await expect(
+        resetPasswordWithToken({ token: "token_viejo", newPassword: "NuevaClave123" })
+      ).rejects.toMatchObject({ statusCode: 400 });
+      expect(mockedUserUpdate).not.toHaveBeenCalled();
+    });
+
+    it("acepta un enlace de la versión actual", async () => {
+      redisMock.getdel.mockResolvedValue("user_123:2");
+      mockedUserUpdate.mockResolvedValue({ tokenVersion: 3 } as any);
+
+      await expect(
+        resetPasswordWithToken({ token: "token_bueno", newPassword: "NuevaClave123" })
+      ).resolves.toMatchObject({ id: "user_123", tokenVersion: 3 });
     });
 
     it("rechaza el token si la cuenta ya no existe", async () => {
@@ -165,7 +189,7 @@ describe("passwordResetService", () => {
           token: "token_de_prueba_suficientemente_largo",
           newPassword: "NuevaClave123",
         })
-      ).resolves.toEqual(user);
+      ).resolves.toEqual({ ...user, tokenVersion: 3 });
       expect(mockedUserUpdate).toHaveBeenCalledTimes(1);
     });
   });

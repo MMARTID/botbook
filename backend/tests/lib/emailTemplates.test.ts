@@ -1,6 +1,8 @@
 import { describe, it, expect } from "vitest";
 import {
   accountDeletedEmail,
+  escaparHtml,
+  messageLeadEmail,
   forwardingCheckedEmail,
   paymentApprovedEmail,
   paymentFailedEmail,
@@ -131,3 +133,28 @@ describe("forwardingCheckedEmail", () => {
     expect(html).toContain("<!DOCTYPE html>");
   });
 });
+// La regresión: el motivo de un recado lo dicta el cliente por teléfono y
+// llegaba sin escapar al HTML del correo del dueño.
+describe("escapado del texto de terceros", () => {
+  it("el recado no puede meter HTML en el correo", () => {
+    const { html } = messageLeadEmail({
+      businessName: "Peluquería <b>Ana</b>",
+      clientName: '<img src=x onerror="alert(1)">',
+      clientPhone: "+34600000000",
+      motivo: '<a href="https://malo.example">Pulsa aquí</a>',
+      quiereQueLeLlamen: true,
+      panelUrl: "https://app.alhabla.ai/llamadas",
+    });
+
+    expect(html).not.toContain("<a href=\"https://malo.example\"");
+    expect(html).not.toContain("<img");
+    expect(html).toContain("&lt;a href=&quot;https://malo.example&quot;&gt;");
+    expect(html).toContain("Peluquería &lt;b&gt;Ana&lt;/b&gt;");
+  });
+
+  it("escaparHtml cubre los cinco caracteres con significado", () => {
+    expect(escaparHtml(`<>&"'`)).toBe("&lt;&gt;&amp;&quot;&#39;");
+    expect(escaparHtml(null)).toBe("");
+  });
+});
+

@@ -77,7 +77,8 @@ describe("accountService", () => {
   });
 
   it("comprueba la contraseña actual, guarda un hash fuerte y envía confirmación", async () => {
-    await changeAccountPassword({
+    mockedUserUpdate.mockResolvedValue({ tokenVersion: 2 } as any);
+    const resultado = await changeAccountPassword({
       userId: "user_123",
       businessId: "business_123",
       currentPassword: "Anterior123",
@@ -90,7 +91,10 @@ describe("accountService", () => {
       where: { id: "user_123" },
       // `tokenVersion` sube con la contraseña: cierra las sesiones abiertas.
       data: { password: "hash_nuevo", tokenVersion: { increment: 1 } },
+      select: { tokenVersion: true },
     });
+    // La versión nueva vuelve para que la ruta emita el token de la sesión.
+    expect(resultado).toEqual({ passwordConfigured: true, tokenVersion: 2 });
     expect(mockedEnqueueEmailJob).toHaveBeenCalledWith(
       expect.objectContaining({
         fromAlias: "support",

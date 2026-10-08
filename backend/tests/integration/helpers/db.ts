@@ -1,5 +1,6 @@
 import { prisma } from "../../../src/lib/prisma.js";
 import { getRedis } from "../../../src/lib/redis.js";
+import { comprobarEntornoDeTest } from "./entornoDeTest.js";
 
 /**
  * Limpia todas las tablas que tocan los tests de integración, en orden
@@ -8,7 +9,13 @@ import { getRedis } from "../../../src/lib/redis.js";
  * del orden ni se contaminen entre sí.
  */
 export async function resetDb(): Promise<void> {
+  // Segunda barrera, por si alguien llama a resetDb sin pasar por setup.ts.
+  comprobarEntornoDeTest();
   await prisma.$transaction([
+    // Sin FK obligatoria con Call (onDelete: SetNull): borrar llamadas no lo
+    // limpia, y un evento ya procesado en un test se daría por duplicado en
+    // el siguiente.
+    prisma.voiceWebhookEvent.deleteMany(),
     prisma.whatsappOptOut.deleteMany(),
     prisma.inboundMessage.deleteMany(),
     prisma.sentMessage.deleteMany(),

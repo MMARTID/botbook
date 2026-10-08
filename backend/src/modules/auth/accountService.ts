@@ -88,15 +88,21 @@ export async function changeAccountPassword(input: {
   const password = await bcrypt.hash(input.newPassword, 12);
   // Cambiar la contraseña cierra las demás sesiones: `tokenVersion` sube y
   // los JWT emitidos antes dejan de valer (ver plugins/auth.ts).
-  await prisma.user.update({
+  const actualizado = await prisma.user.update({
     where: { id: user.id },
     data: { password, tokenVersion: { increment: 1 } },
+    select: { tokenVersion: true },
   });
 
   const email = passwordChangedEmail();
   await enqueueAccountEmail({ toAddress: user.email, ...email });
 
-  return { passwordConfigured: true as const };
+  // La versión nueva vuelve a la ruta para que emita un token que la lleve:
+  // sin él, quien cambia la contraseña se quedaba también fuera.
+  return {
+    passwordConfigured: true as const,
+    tokenVersion: actualizado.tokenVersion,
+  };
 }
 
 function getHttpStatus(error: unknown): number | undefined {

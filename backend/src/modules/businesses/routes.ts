@@ -1,4 +1,4 @@
-import { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
+import { FastifyInstance, FastifyRequest } from "fastify";
 import { z } from "zod";
 import { prisma } from "../../lib/prisma.js";
 import { invalidarCacheDeVoz } from "../../lib/voiceConfigCache.js";
@@ -640,13 +640,18 @@ export async function businessesRoutes(fastify: FastifyInstance) {
           });
           updateData.systemPrompt = agentPrompt;
 
+          // Un agente con el prompt editado a mano (PATCH /agents/:id) lo
+          // conserva: los sincronizadores ya lo respetan, pero aquí se
+          // sobrescribía la columna y la edición se perdía para siempre.
           await Promise.all(
-            agents.map((agent) =>
-              prisma.agent.update({
-                where: { id: agent.id },
-                data: { systemPrompt: agentPrompt },
-              })
-            )
+            agents
+              .filter((agent) => !agent.promptManuallyEdited)
+              .map((agent) =>
+                prisma.agent.update({
+                  where: { id: agent.id },
+                  data: { systemPrompt: agentPrompt },
+                })
+              )
           );
         }
 
@@ -677,18 +682,9 @@ export async function businessesRoutes(fastify: FastifyInstance) {
           );
         }
 
-        // Empuja el prompt gestionado + post_call_analysis_data a Retell.
-        // Sin esto, editar tono/objetivo/horario/nicho en el dashboard solo
-        // actualizaba la BD sin afectar a la llamada real.
-        if (shouldResyncPrompt) {
-          await syncAgentToRetell(request.user!.businessId);
-          await syncAgentToTelnyx(request.user!.businessId);
-        }
-
-        if (data.schedule !== undefined) {
-          await calendarService.syncCalendarToolsToAgents(request.user!.businessId);
-        }
-
+        // La caché de voz se invalida en cuanto la BD tiene los datos nuevos,
+        // antes de hablar con los proveedores: si una sincronización falla,
+        // la recepcionista no se queda una hora con la configuración vieja.
         if (
           data.googleCalendarId !== undefined ||
           data.outlookCalendarId !== undefined ||
@@ -711,6 +707,29 @@ export async function businessesRoutes(fastify: FastifyInstance) {
         ) {
           await invalidarCacheDeVoz(request.user!.businessId);
         }
+
+        // Empuja el prompt gestionado a los proveedores. Sin esto, editar
+        // tono/objetivo/horario/nicho en el dashboard solo actualizaba la BD
+        // sin afectar a la llamada real. Telnyx primero: es el que atiende
+        // todas las llamadas. Antes iba después de Retell y un fallo del
+        // respaldo dejaba al primario sin actualizar y al dueño con un 500
+        // sobre datos ya guardados.
+        if (shouldResyncPrompt) {
+          await syncAgentToTelnyx(request.user!.businessId);
+          try {
+            await syncAgentToRetell(request.user!.businessId);
+          } catch (error) {
+            request.log.error(
+              { err: error, businessId: request.user!.businessId },
+              "[Business] No se pudo sincronizar el agente de respaldo en Retell"
+            );
+          }
+        }
+
+        if (data.schedule !== undefined) {
+          await calendarService.syncCalendarToolsToAgents(request.user!.businessId);
+        }
+
 
         // Se relee al final para que la respuesta refleje también los
         // calendarios cambiados por actualizarCalendarioDeConexion.

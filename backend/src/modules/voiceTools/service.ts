@@ -71,6 +71,9 @@ import {
 import { buildCalendarIdempotencyKey } from "../../lib/calendarIdempotency.js";
 import { appUrl } from "../../lib/urls.js";
 
+/** Lo que cada tool devuelve al orquestador: `result` va tal cual al LLM. */
+type ResultadoDeTool = { success: boolean; result?: Record<string, unknown> };
+
 export type VoiceToolName =
   | "get_catalog"
   | "check_availability"
@@ -383,7 +386,7 @@ async function executeCheckAvailability(
   params: Record<string, unknown>,
   callLabel: string,
   callId?: string
-): Promise<{ success: boolean; result?: any }> {
+): Promise<ResultadoDeTool> {
   try {
     // Normaliza la hora ANTES de tocar horario/calendario — ver
     // voiceDateTime.ts: una hora hablada marcada como UTC por el LLM
@@ -666,7 +669,7 @@ function describirAusencia(startsAt: Date, endsAt: Date, timezone: string): stri
 async function executeGetCatalog(
   business: BusinessVoiceConfig,
   callLabel: string
-): Promise<{ success: boolean; result?: any }> {
+): Promise<ResultadoDeTool> {
   try {
     const ahora = new Date();
     const [services, professionals, ausencias] = await Promise.all([
@@ -1198,7 +1201,7 @@ async function executeBookAppointment(
   params: Record<string, unknown>,
   callLabel: string,
   callId?: string
-): Promise<{ success: boolean; result?: any }> {
+): Promise<ResultadoDeTool> {
   const rawParams = params as {
     clientName?: string;
     startDateTime?: string;
@@ -1507,6 +1510,34 @@ async function executeBookAppointment(
     }
 
     try {
+      // La reserva que esta llamada ya tenga se lee ANTES de comprobar
+      // disponibilidad y se excluye de la ocupación: si no, su propia fila
+      // ocupaba el hueco y el reintento del tool call (o un cambio de hora
+      // que se solapa con la anterior) recibía «esa hora ya no está libre»
+      // con capacidad 1, aunque la cita existía en BD y en el calendario.
+      const reservaPrevia = call
+        ? await prisma.booking.findUnique({
+            where: { callId: call.id },
+            select: {
+              id: true,
+              externalEventId: true,
+              externalCalendarProvider: true,
+              externalCalendarId: true,
+              programedAt: true,
+              durationMinutes: true,
+              isCancelled: true,
+              cancelledAt: true,
+            },
+          })
+        : null;
+      const reservaQueSeSustituye =
+        reservaPrevia && !reservaPrevia.isCancelled
+          ? {
+              bookingId: reservaPrevia.id,
+              externalEventId: reservaPrevia.externalEventId,
+            }
+          : null;
+
       // Comprueba disponibilidad SIEMPRE, se haya indicado profesional o no —
       // antes esto se saltaba por completo cuando professionalId venía
       // verificado, así que se podía confirmar una reserva para un profesional
@@ -1532,6 +1563,7 @@ async function executeBookAppointment(
         calendarOrigin: origenDeCalendario(
           resolverConexionDeCalendario(business)
         ),
+        excluir: reservaQueSeSustituye,
       });
 
       if (!availability.available) {
@@ -1613,31 +1645,8 @@ async function executeBookAppointment(
       // fecha/duración distinta sigue tratándose como un cambio de opinión
       // legítimo del cliente (nueva reserva sobre la misma llamada), no
       // como un reintento.
-      let reservaPrevia: {
-        id: string;
-        externalEventId: string | null;
-        externalCalendarProvider: string | null;
-        externalCalendarId: string | null;
-        programedAt: Date;
-        durationMinutes: number;
-        isCancelled: boolean;
-        cancelledAt: Date | null;
-      } | null = null;
       if (call) {
-        const existingBooking = await prisma.booking.findUnique({
-          where: { callId: call.id },
-          select: {
-            id: true,
-            externalEventId: true,
-            externalCalendarProvider: true,
-            externalCalendarId: true,
-            programedAt: true,
-            durationMinutes: true,
-            isCancelled: true,
-            cancelledAt: true,
-          },
-        });
-        reservaPrevia = existingBooking;
+        const existingBooking = reservaPrevia;
         // Una reserva cancelada en esta misma llamada NO es un reintento: su
         // evento ya se borró al cancelar, así que hay que crear uno nuevo y
         // reactivar la fila (el `update` del upsert de abajo).
@@ -2067,7 +2076,7 @@ async function executeFindMyAppointment(
   business: BusinessVoiceConfig,
   callLabel: string,
   callId?: string
-): Promise<{ success: boolean; result?: any }> {
+): Promise<ResultadoDeTool> {
   const call = await resolveCallForBusiness(callId, business.id, callLabel);
   const callerNumber = call?.fromNumber;
 
@@ -2164,7 +2173,7 @@ async function executeNotifyWhenAvailable(
   params: Record<string, unknown>,
   callLabel: string,
   callId?: string
-): Promise<{ success: boolean; result?: any }> {
+): Promise<ResultadoDeTool> {
   const startDateTime =
     typeof params?.startDateTime === "string"
       ? normalizeVoiceToolDateTime(params.startDateTime, business.timezone || "Europe/Madrid")
@@ -2261,7 +2270,7 @@ async function executeCancelAppointment(
   params: Record<string, unknown>,
   callLabel: string,
   callId?: string
-): Promise<{ success: boolean; result?: any }> {
+): Promise<ResultadoDeTool> {
   const bookingId =
     typeof params.bookingId === "string" ? params.bookingId : undefined;
 
@@ -2341,7 +2350,7 @@ async function executeCancelAppointment(
  */
 export async function executeVoiceTool(
   input: ExecuteVoiceToolInput
-): Promise<{ success: boolean; result?: any }> {
+): Promise<ResultadoDeTool> {
   const { businessId, toolName, params, callLabel = "llamada", callId } = input;
 
   const business = await getVoiceConfig(businessId);

@@ -122,6 +122,13 @@ export async function sendZohoMail(input: {
   });
 
   if (!response.ok) {
+    // Un 401/403 casi siempre es el token cacheado (revocado o caducado antes
+    // de tiempo). Se olvida para que el reintento pida uno nuevo; si no, la
+    // instancia seguía mandando el token malo hasta una hora y fallaban todos
+    // los correos, también el de restablecer la contraseña.
+    if (response.status === 401 || response.status === 403) {
+      cachedAccessToken = undefined;
+    }
     const body = await response.text();
     const mensaje = `Zoho Mail send failed (${response.status}): ${body}`;
     // Una dirección mal escrita o un mensaje rechazado no mejora por

@@ -47,6 +47,15 @@ import * as mensajes from "./mensajes.js";
 
 export const TURNOS_POR_CLIENTE_Y_DIA = 20;
 export const ROTACION_CONVERSACION_MS = 30 * DIA_MS;
+/**
+ * Una conversación cuya Call ya tiene una cita activa reservada hace más de
+ * esto se cierra al siguiente mensaje. Booking es 1:1 con Call, y el chat
+ * reutiliza la misma Call hasta 30 días: una segunda cita días después
+ * sobrescribía la primera (el upsert de book_appointment la trata como un
+ * cambio de opinión). Dentro de este margen sigue siendo la misma gestión,
+ * así que «mejor a las cinco» justo después de reservar sigue cambiándola.
+ */
+export const SESION_TRAS_RESERVAR_MS = 2 * 60 * 60 * 1000;
 export const TIMEOUT_TURNO_MS = 30_000;
 const LOCK_TTL_MS = 60_000;
 const LOCK_ESPERA_MS = 25_000;
@@ -184,8 +193,19 @@ export async function conversacionVigente(input: {
         },
         select: { conversationId: true, callId: true, startedAt: true },
       });
+  const reservaCerrada = guardada
+    ? await prisma.booking.findFirst({
+        where: {
+          call: { callId: guardada.callId },
+          isCancelled: false,
+          createdAt: { lt: new Date(Date.now() - SESION_TRAS_RESERVAR_MS) },
+        },
+        select: { id: true },
+      })
+    : null;
   if (
     guardada &&
+    !reservaCerrada &&
     guardada.startedAt.getTime() > Date.now() - ROTACION_CONVERSACION_MS
   ) {
     return {

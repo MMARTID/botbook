@@ -47,6 +47,13 @@ export default function CheckoutPage({ searchParams }: { searchParams: { plan?: 
           window.location.replace(`/login?next=${encodeURIComponent(`/checkout?plan=${planId}`)}`);
           return;
         }
+        // 409: el negocio ya tiene una suscripción viva (activa o con un pago
+        // pendiente). Otro checkout crearía una segunda que se cobraría
+        // aparte; lo que toca es gestionarla en Facturación.
+        if (status === 409) {
+          window.location.replace("/ajustes/facturacion");
+          return;
+        }
         setSessionError(true);
       });
 

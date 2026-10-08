@@ -630,3 +630,11 @@ async function emailDeRecado(input: {
     `recado-${input.leadId}`
   );
 }
+
+/**
+ * Tipos de lead que el dueño atiende con los botones de un recado
+ * («Atendido» · «Recuérdamelo mañana»). El rechazo de un cambio de cita
+ * («No me va bien») se avisa con los mismos botones: si el router y el job
+ * solo aceptaban `message`, esos botones no hacían nada.
+ */
+export const TIPOS_DE_LEAD_DE_RECADO = ["message", "client_change_rejected"];

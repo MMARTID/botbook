@@ -32,7 +32,7 @@ interface FirmaDeTool {
   description: string;
   headers: Array<{ name: string; value: string }>;
   required: string[];
-  properties: string[];
+  properties: Array<{ nombre: string; description: string; enum: unknown[] | null }>;
   timeoutMs: number;
 }
 
@@ -62,9 +62,24 @@ function firmaDeTools(tools: unknown[] | undefined): FirmaDeTool[] {
           .map((h) => ({ name: h.name ?? "", value: h.value ?? "" }))
           .sort((a, b) => a.name.localeCompare(b.name)),
         required: [...(t.webhook.body_parameters?.required ?? [])].sort(),
-        properties: Object.keys(
-          t.webhook.body_parameters?.properties ?? {}
-        ).sort(),
+        // La descripción y el enum de cada parámetro también cuentan: ahí
+        // viajan las acciones que el Gestor puede proponer
+        // (ACCIONES_PROPONIBLES). Comparando solo las claves, añadir una
+        // acción nunca llegaba a Telnyx.
+        properties: Object.entries(t.webhook.body_parameters?.properties ?? {})
+          .map(([nombre, valor]) => {
+            const propiedad = (valor ?? {}) as {
+              description?: unknown;
+              enum?: unknown;
+            };
+            return {
+              nombre,
+              description:
+                typeof propiedad.description === "string" ? propiedad.description : "",
+              enum: Array.isArray(propiedad.enum) ? propiedad.enum : null,
+            };
+          })
+          .sort((a, b) => a.nombre.localeCompare(b.nombre)),
         timeoutMs: t.timeout_ms ?? TIMEOUT_DE_TOOL_POR_DEFECTO_MS,
       };
     })

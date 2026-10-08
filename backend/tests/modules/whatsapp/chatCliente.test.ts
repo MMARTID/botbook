@@ -24,6 +24,7 @@ vi.mock("../../../src/lib/prisma.js", () => {
   return {
     prisma: {
       business: { findUnique: vi.fn() },
+      booking: { findFirst: vi.fn() },
       clientConversation: {
         findUnique: vi.fn(),
         update: vi.fn(),
@@ -215,6 +216,36 @@ describe("conversacionVigente", () => {
           conversationId: "conv_nueva",
           callId: creada!.callId,
           turns: 0,
+        }),
+      })
+    );
+  });
+
+  // La regresión: Booking es 1:1 con Call y el chat reutilizaba la misma Call
+  // 30 días. Una segunda cita una semana después sobrescribía la primera.
+  it("abre una conversación nueva si en la actual ya se reservó hace horas", async () => {
+    mockedConvFindUnique.mockResolvedValueOnce({
+      conversationId: "conv_1",
+      callId: "whatsapp:chat:conv_1",
+      startedAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
+    } as never);
+    vi.mocked(prisma.booking.findFirst).mockResolvedValueOnce({
+      id: "booking_anterior",
+    } as never);
+
+    const creada = await conversacionVigente({
+      business: NEGOCIO,
+      agentId: "agent_1",
+      clientPhone: MOVIL,
+    });
+
+    expect(creada?.nueva).toBe(true);
+    expect(mockedCrear).toHaveBeenCalledTimes(1);
+    expect(prisma.booking.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          call: { callId: "whatsapp:chat:conv_1" },
+          isCancelled: false,
         }),
       })
     );

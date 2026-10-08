@@ -39,13 +39,56 @@ function esIpv4Privada(ip: string): boolean {
   return false;
 }
 
+/**
+ * Los ocho grupos de 16 bits de una IPv6 (acepta `::` y un IPv4 final en
+ * notación con puntos). null si no se puede leer.
+ */
+function gruposIpv6(ip: string): number[] | null {
+  let texto = ip;
+  const ipv4Final = texto.match(/(\d+\.\d+\.\d+\.\d+)$/);
+  if (ipv4Final) {
+    const partes = ipv4Final[1]!.split(".").map(Number);
+    if (partes.some((n) => !Number.isInteger(n) || n < 0 || n > 255)) return null;
+    const alto = ((partes[0]! << 8) | partes[1]!).toString(16);
+    const bajo = ((partes[2]! << 8) | partes[3]!).toString(16);
+    texto = texto.slice(0, -ipv4Final[1]!.length) + `${alto}:${bajo}`;
+  }
+  const mitades = texto.split("::");
+  if (mitades.length > 2) return null;
+  const leer = (parte: string) =>
+    parte === "" ? [] : parte.split(":").map((g) => parseInt(g, 16));
+  const izquierda = leer(mitades[0]!);
+  const derecha = mitades.length === 2 ? leer(mitades[1]!) : [];
+  const relleno = 8 - izquierda.length - derecha.length;
+  if (mitades.length === 1 ? izquierda.length !== 8 : relleno < 0) return null;
+  const grupos = [...izquierda, ...Array(relleno).fill(0), ...derecha];
+  return grupos.every((g) => Number.isInteger(g) && g >= 0 && g <= 0xffff)
+    ? grupos
+    : null;
+}
+
+function ipv4DeGrupos(alto: number, bajo: number): string {
+  return [alto >> 8, alto & 0xff, bajo >> 8, bajo & 0xff].join(".");
+}
+
 function esIpv6Privada(ip: string): boolean {
   const normalizada = ip.toLowerCase().split("%")[0]!; // fuera el scope id
-  if (normalizada === "::" || normalizada === "::1") return true;
-  // IPv4 embebida (::ffff:10.0.0.1): manda el criterio de IPv4.
-  const embebida = normalizada.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/);
-  if (embebida) return esIpv4Privada(embebida[1]!);
-  const primerGrupo = parseInt(normalizada.split(":")[0] || "0", 16);
+  const g = gruposIpv6(normalizada);
+  if (!g) return true; // Lo que no sabemos leer, no se visita.
+  const ceros = (desde: number, hasta: number) =>
+    g.slice(desde, hasta).every((x) => x === 0);
+  if (ceros(0, 8)) return true; // ::
+  if (ceros(0, 7) && g[7] === 1) return true; // ::1
+  // IPv4 embebida: manda el criterio de IPv4. `new URL()` escribe la mapeada
+  // en hexadecimal ([::ffff:a00:1] para 10.0.0.1), así que no basta con
+  // buscar la forma con puntos.
+  if (ceros(0, 5) && g[5] === 0xffff) return esIpv4Privada(ipv4DeGrupos(g[6]!, g[7]!)); // ::ffff:0:0/96
+  if (ceros(0, 6)) return esIpv4Privada(ipv4DeGrupos(g[6]!, g[7]!)); // ::a.b.c.d (compatible)
+  if (g[0] === 0x64 && g[1] === 0xff9b && ceros(2, 6)) {
+    return esIpv4Privada(ipv4DeGrupos(g[6]!, g[7]!)); // 64:ff9b::/96 (NAT64)
+  }
+  if (g[0] === 0x64 && g[1] === 0xff9b && g[2] === 1) return true; // 64:ff9b:1::/48, NAT64 local
+  const primerGrupo = g[0]!;
   if ((primerGrupo & 0xfe00) === 0xfc00) return true; // fc00::/7, únicas locales
   if ((primerGrupo & 0xffc0) === 0xfe80) return true; // fe80::/10, link-local
   if ((primerGrupo & 0xff00) === 0xff00) return true; // ff00::/8, multicast

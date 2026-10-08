@@ -68,6 +68,55 @@ describe("authPlugin", () => {
     expect(response.statusCode).toBe(401);
   });
 
+  it("acepta el token nuevo de un cambio de contraseña aunque la versión esté en caché", async () => {
+    // Primera petición: la caché guarda la versión 0.
+    mockedJwtVerify.mockReturnValue({
+      id: "user_123",
+      businessId: "business_123",
+      tv: 0,
+    } as any);
+    mockedUserFindUnique.mockResolvedValue({ tokenVersion: 0 } as never);
+    await fastify.inject({
+      method: "GET",
+      url: "/protected",
+      headers: { authorization: "Bearer token_viejo" },
+    });
+
+    // El cambio de contraseña (aquí o en otra instancia) sube a 1 y emite un
+    // token con tv 1. La caché aún dice 0: hay que releer, no rechazar.
+    mockedJwtVerify.mockReturnValue({
+      id: "user_123",
+      businessId: "business_123",
+      tv: 1,
+    } as any);
+    mockedUserFindUnique.mockResolvedValue({ tokenVersion: 1 } as never);
+    const response = await fastify.inject({
+      method: "GET",
+      url: "/protected",
+      headers: { authorization: "Bearer token_nuevo" },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(mockedUserFindUnique).toHaveBeenCalledTimes(2);
+  });
+
+  it("rechaza un token con una versión que la base de datos no tiene", async () => {
+    mockedJwtVerify.mockReturnValue({
+      id: "user_123",
+      businessId: "business_123",
+      tv: 5,
+    } as any);
+    mockedUserFindUnique.mockResolvedValue({ tokenVersion: 1 } as never);
+
+    const response = await fastify.inject({
+      method: "GET",
+      url: "/protected",
+      headers: { authorization: "Bearer token_raro" },
+    });
+
+    expect(response.statusCode).toBe(401);
+  });
+
   it("acepta un token antiguo sin versión mientras nadie cambie la contraseña", async () => {
     mockedJwtVerify.mockReturnValue({
       id: "user_123",

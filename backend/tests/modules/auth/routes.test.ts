@@ -368,7 +368,11 @@ describe("authRoutes", () => {
     });
 
     it("cambia una contraseña que cumple los requisitos", async () => {
-      mockedChangeAccountPassword.mockResolvedValue({ passwordConfigured: true });
+      mockedChangeAccountPassword.mockResolvedValue({
+        passwordConfigured: true,
+        tokenVersion: 3,
+      });
+      mockedJwtSign.mockReturnValue("token_nuevo" as never);
 
       const response = await fastify.inject({
         method: "POST",
@@ -383,6 +387,17 @@ describe("authRoutes", () => {
         currentPassword: "anterior123",
         newPassword: "NuevaClave123",
       });
+      // El cambio cierra todas las sesiones: la de quien lo hace sigue con un
+      // token nuevo que lleva la versión actual.
+      expect(response.json()).toEqual({
+        passwordConfigured: true,
+        token: "token_nuevo",
+      });
+      expect(mockedJwtSign).toHaveBeenCalledWith(
+        { id: "user_123", businessId: "business_123", tv: 3 },
+        expect.any(String),
+        { expiresIn: "7d" }
+      );
     });
 
     it("rechaza una contraseña nueva débil", async () => {

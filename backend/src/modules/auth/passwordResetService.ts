@@ -42,15 +42,18 @@ export async function requestPasswordReset(email: string) {
   const normalizedEmail = email.trim().toLowerCase();
   const user = await prisma.user.findUnique({
     where: { email: normalizedEmail },
-    select: { id: true, email: true },
+    select: { id: true, email: true, tokenVersion: true },
   });
 
   if (!user) return;
 
   const token = randomBytes(32).toString("base64url");
+  // El enlace va atado a la versión de la contraseña de ahora: si después se
+  // cambia (desde Ajustes o con otro enlace), todos los enlaces anteriores
+  // dejan de valer aunque no hayan caducado. Antes seguían vivos una hora.
   await getRedis().set(
     `${RESET_KEY_PREFIX}${hashToken(token)}`,
-    user.id,
+    `${user.id}:${user.tokenVersion}`,
     "EX",
     PASSWORD_RESET_TTL_SECONDS
   );
@@ -80,9 +83,12 @@ export async function resetPasswordWithToken(input: {
   token: string;
   newPassword: string;
 }) {
-  const userId = await getRedis().getdel(
+  const guardado = await getRedis().getdel(
     `${RESET_KEY_PREFIX}${hashToken(input.token)}`
   );
+  // `<userId>:<tokenVersion>`. Los enlaces emitidos antes de este formato
+  // llevan solo el id; caducan solos en menos de una hora.
+  const [userId, versionDelEnlace] = (guardado ?? "").split(":");
 
   if (!userId) {
     throw new AccountActionError(
@@ -96,7 +102,11 @@ export async function resetPasswordWithToken(input: {
     select: { id: true, email: true, businessId: true, tokenVersion: true },
   });
 
-  if (!user) {
+  if (
+    !user ||
+    (versionDelEnlace !== undefined &&
+      Number(versionDelEnlace) !== user.tokenVersion)
+  ) {
     throw new AccountActionError(
       "El enlace no es válido o ha caducado. Pide uno nuevo.",
       400

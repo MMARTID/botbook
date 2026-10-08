@@ -5,9 +5,10 @@ export interface RetellInboundBusiness {
 }
 
 /**
- * Retell rechaza el webhook entrante que responde sin override_agent_id. Por
- * eso devolver null es la forma explícita y verificable de suspender una
- * llamada, tanto por impago vencido como cuando no existe agente operativo.
+ * Devuelve el agente con el que atender o null si la llamada no se debe
+ * atender (impago vencido o sin agente operativo). Con null, el webhook
+ * responde `call_inbound.reject: true`: sin ese campo Retell atendería con
+ * el agente vinculado al número.
  */
 export function selectRetellInboundAgent(
   business: RetellInboundBusiness,

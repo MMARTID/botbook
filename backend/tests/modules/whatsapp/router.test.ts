@@ -1848,7 +1848,13 @@ describe("botones del aviso de recado (#2)", () => {
     ).toEqual({ handler: "aviso:recado:atendido" });
     expect(mockedLeadFindFirst).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { id: "lead_9", type: "message", call: { businessId: "biz_1" } },
+        // También el rechazo de un cambio de cita («No me va bien»), que se
+        // avisa con los mismos botones.
+        where: {
+          id: "lead_9",
+          type: { in: ["message", "client_change_rejected"] },
+          call: { businessId: "biz_1" },
+        },
       })
     );
     expect(mockedLeadUpdate).toHaveBeenCalledWith({
@@ -1878,8 +1884,30 @@ describe("botones del aviso de recado (#2)", () => {
         hour12: false,
       }).format(cuando)
     ).toBe("09:00");
-    expect(mockedEnqueueRecado).toHaveBeenCalledWith({ leadId: "lead_9" }, cuando);
+    expect(mockedEnqueueRecado).toHaveBeenCalledWith(
+      { leadId: "lead_9", intento: 1 },
+      cuando
+    );
     expect(enviado()?.body).toBe(mensajes.recadoPospuesto());
+  });
+
+  // La regresión: «mañana» sobre un recordatorio volvía a encolar el intento
+  // 1, cuya clave ya estaba enviada, y el dueño no recibía nada.
+  it("«Recuérdamelo mañana» sobre el primer recordatorio programa el segundo", async () => {
+    mockedSentFindUnique.mockResolvedValue({
+      ...AVISO_RECADO,
+      callbackData: "aviso:recado:lead_9:r1",
+    } as never);
+
+    expect(
+      await enrutarEntrante(
+        boton("aviso:recado:lead_9:r1:manana", "Recuérdamelo mañana")
+      )
+    ).toEqual({ handler: "aviso:recado:manana" });
+    expect(mockedEnqueueRecado).toHaveBeenCalledWith(
+      { leadId: "lead_9", intento: 2 },
+      expect.any(Date)
+    );
   });
 
   it("un recado ya atendido o ajeno no se toca", async () => {

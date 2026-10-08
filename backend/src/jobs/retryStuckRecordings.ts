@@ -1,6 +1,7 @@
 import { prisma } from "../lib/prisma.js";
 import { enqueueRecordingJob } from "../lib/cloudTasks.js";
 import { errorMessage } from "../lib/logUtils.js";
+import { diasDeRetencionDeAudio } from "./purgeOldRecordings.js";
 
 // Margen antes de considerar una grabación "atascada": el procesamiento
 // normal (Cloud Tasks -> processRecordingJob -> copia a R2) tarda segundos,
@@ -10,7 +11,6 @@ const STUCK_RECORDING_THRESHOLD_MINUTES = 15;
 const MAX_RECORDINGS_PER_RUN = 50;
 // El mismo plazo que purgeOldRecordings: es lo que pedimos conservar a Retell
 // y Telnyx, así que más allá no hay nada que descargar.
-const RETENTION_DAYS = Number(process.env.RECORDING_RETENTION_DAYS || 30);
 
 /**
  * Reintenta encolar el copiado a R2 de grabaciones que se quedaron sin
@@ -33,7 +33,8 @@ export async function retryStuckRecordingsJob(): Promise<void> {
   // Lo que supera la retención del proveedor ya no está ni en Telnyx ni en
   // Retell: reencolarlo solo produce 403 cada 15 minutos hasta el fin de los
   // tiempos. Se marca como irrecuperable con motivo y sale del barrido.
-  const limiteRetencion = new Date(Date.now() - RETENTION_DAYS * 24 * 60 * 60 * 1000);
+  const retencion = diasDeRetencionDeAudio();
+  const limiteRetencion = new Date(Date.now() - retencion * 24 * 60 * 60 * 1000);
   const caducadas = await prisma.recording.updateMany({
     where: {
       storageKey: null,
@@ -43,7 +44,7 @@ export async function retryStuckRecordingsJob(): Promise<void> {
     },
     data: {
       processingFailedAt: new Date(),
-      processingError: `Sin copiar a R2 pasados ${RETENTION_DAYS} días: el proveedor ya no conserva el audio`,
+      processingError: `Sin copiar a R2 pasados ${retencion} días: el proveedor ya no conserva el audio`,
     },
   });
   if (caducadas.count > 0) {

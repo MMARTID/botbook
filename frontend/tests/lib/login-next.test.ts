@@ -15,4 +15,17 @@ describe("destinoTrasLogin", () => {
     expect(destinoTrasLogin("?next=%2F%2Fmalo.com%2Fx")).toBe("/");
     expect(destinoTrasLogin("?next=javascript%3Aalert(1)")).toBe("/");
   });
+
+  it("no se deja engañar por la barra invertida ni por tabuladores", () => {
+    // El navegador lee `/\malo.com` y `/<tab>/malo.com` como `//malo.com`.
+    expect(destinoTrasLogin("?next=%2F%5Cmalo.com")).toBe("/");
+    expect(destinoTrasLogin("?next=%2F%09%2Fmalo.com")).toBe("/");
+    expect(destinoTrasLogin("?next=%2F%0A%2Fmalo.com")).toBe("/");
+  });
+
+  it("conserva la ruta, la query y el ancla de un destino interno", () => {
+    expect(destinoTrasLogin("?next=%2Fagenda%3Fdia%3D2026-10-08%23hoy")).toBe(
+      "/agenda?dia=2026-10-08#hoy"
+    );
+  });
 });
