@@ -15,7 +15,17 @@ steps:
       - "europe-west1-docker.pkg.dev/project-84381467-a606-4b71-a6e/alhabla/backend:${_TAG}"
       - "."
 
-  # 2. Aplica las migraciones de Prisma pendientes contra Cloud SQL antes de
+  # 2. Dependencias para las migraciones, en un paso SIN secretos. `npm ci`
+  #    ejecuta los scripts de instalación de cientos de paquetes de terceros:
+  #    si este paso tuviera DATABASE_URL en el entorno, cualquiera de ellos
+  #    podría leer la cadena de conexión de producción. node_modules queda en
+  #    /workspace y lo usa el paso siguiente.
+  - name: "node:22-alpine"
+    id: dependencias-de-migraciones
+    entrypoint: "npm"
+    args: ["ci"]
+
+  # 3. Aplica las migraciones de Prisma pendientes contra Cloud SQL antes de
   #    desplegar la imagen nueva — evita que el código nuevo corra contra un
   #    esquema desactualizado (ver memoria del proyecto, 2026-09-03: columnas
   #    de la migración add_niche_prompt_personalization nunca se aplicaron en
@@ -23,7 +33,10 @@ steps:
   #    P2022 hasta que se corrió `prisma migrate deploy` a mano).
   #    `prisma migrate deploy` usa un lock de Postgres — seguro aunque este
   #    paso se ejecute más de una vez o en paralelo con otro build.
-  - name: "node:20-alpine"
+  #    El binario de cloud-sql-proxy se comprueba contra su SHA-256 antes de
+  #    ejecutarlo (verificado el 2026-10-08 contra el MD5 que publica el
+  #    bucket de Google). Al subir de versión, actualiza URL y hash a la vez.
+  - name: "node:22-alpine"
     entrypoint: "sh"
     args:
       - "-c"
@@ -32,6 +45,7 @@ steps:
         apk add --no-cache curl
         curl -sSL -o /usr/local/bin/cloud-sql-proxy \
           https://storage.googleapis.com/cloud-sql-connectors/cloud-sql-proxy/v2.25.4/cloud-sql-proxy.linux.amd64
+        echo "b780c0d2c445ffd5d2fdba0925f2722c19fcd0d2c27c538e85713732698561f2  /usr/local/bin/cloud-sql-proxy" | sha256sum -c -
         chmod +x /usr/local/bin/cloud-sql-proxy
         mkdir -p /cloudsql
         /usr/local/bin/cloud-sql-proxy --unix-socket=/cloudsql \
@@ -41,7 +55,7 @@ steps:
           [ -S "$$SOCKET" ] && break
           sleep 1
         done
-        npm ci
+        [ -S "$$SOCKET" ]
         npx prisma migrate deploy
     secretEnv: ["DATABASE_URL"]
 

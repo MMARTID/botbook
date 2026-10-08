@@ -1,6 +1,9 @@
 {
   "name": "alhabla-backend",
   "version": "1.0.0",
+  "engines": {
+    "node": "22.x"
+  },
   "description": "Multi-tenant AI agency backend for voice agents using Retell.ai",
   "main": "dist/server.js",
   "type": "module",

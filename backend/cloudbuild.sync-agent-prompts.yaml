@@ -2,7 +2,14 @@
 # Usa el mismo Cloud SQL Auth Proxy que las migraciones de producción y lee los
 # secretos dentro de Cloud Build: ningún secreto se descarga al equipo local.
 steps:
-  - name: "node:20-alpine"
+  # Dependencias en un paso SIN secretos: los scripts de instalación de los
+  # paquetes de terceros no deben ver DATABASE_URL ni RETELL_API_KEY.
+  - name: "node:22-alpine"
+    dir: "backend"
+    entrypoint: "npm"
+    args: ["ci"]
+
+  - name: "node:22-alpine"
     dir: "backend"
     # El job vive fuera de Cloud Run y no hereda sus variables. Esta URL
     # pública es necesaria para que syncCalendarToolsToAgents pueda registrar
@@ -17,6 +24,8 @@ steps:
         apk add --no-cache curl
         curl -sSL -o /usr/local/bin/cloud-sql-proxy \
           https://storage.googleapis.com/cloud-sql-connectors/cloud-sql-proxy/v2.25.4/cloud-sql-proxy.linux.amd64
+        # Mismo binario y mismo hash que backend/cloudbuild.yaml.
+        echo "b780c0d2c445ffd5d2fdba0925f2722c19fcd0d2c27c538e85713732698561f2  /usr/local/bin/cloud-sql-proxy" | sha256sum -c -
         chmod +x /usr/local/bin/cloud-sql-proxy
         mkdir -p /cloudsql
         /usr/local/bin/cloud-sql-proxy --unix-socket=/cloudsql \
@@ -27,7 +36,6 @@ steps:
           sleep 1
         done
         [ -S "$$SOCKET" ]
-        npm ci
         if [ "${_INCLUDE_MANUAL}" = "true" ]; then
           npx tsx scripts/syncManagedAgentPrompts.ts --include-manual
         else
