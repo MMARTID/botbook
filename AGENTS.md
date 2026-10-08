@@ -924,7 +924,8 @@ el `fetch` equivalente. **Nunca desde un route handler**: todo pasa por
 - `modules/whatsapp/chatCliente.ts` › `conversarConRecepcionista({ message, businessId, texto,
   etiqueta? })`: nunca lanza; devuelve `{ atendido: false, motivo }` (`apagado`,
   `apagado_negocio` = `Business.clientChatEnabled` false, `negocio_inactivo` = inactivo o
-  suscripción en `ESTADOS_DE_SUSCRIPCION_BLOQUEADOS`, `sin_recepcionista` = sin
+  servicio suspendido por pago (`servicioSuspendidoPorPago`: suscripción cancelada o impagada, o
+  plazo de gracia de un impago vencido; `PAST_DUE` dentro de los siete días de gracia no bloquea), `sin_recepcionista` = sin
   `Agent.telnyxAssistantId`, `sin_texto`) y el enrutador responde lo de siempre, o
   `{ atendido: true, resultado }` con handler `chat:cliente` (`:limite` 21.º turno del día por
   cliente y negocio en Redis, `whatsapp:chat:cliente:<biz>:<from>:<yyyy-mm-dd>` en la zona del

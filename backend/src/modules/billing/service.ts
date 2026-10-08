@@ -29,6 +29,7 @@ import {
   resolvePlanId,
 } from "../../lib/planFeatures.js";
 import { appUrl } from "../../lib/urls.js";
+import { invalidarCacheDeVoz } from "../../lib/voiceConfigCache.js";
 
 const CHECKOUT_TRIAL_DAYS = 7;
 /**
@@ -879,6 +880,10 @@ export async function handleStripeEvent(event: Stripe.Event) {
     // transacción: el lock de la base solo reclama el evento y no queda
     // abierto mientras esperamos una red externa.
     const businessId = await processStripeEvent(event);
+    // La recepcionista lee el estado de la suscripción y del impago de una
+    // caché de hasta una hora: sin esto, un pago o un impago tardaba en
+    // notarse en las reservas por voz.
+    if (businessId) await invalidarCacheDeVoz(businessId);
     await prisma.stripeWebhookEvent.update({
       where: { id: event.id },
       data: {

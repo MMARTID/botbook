@@ -4,7 +4,7 @@ import { prisma } from "../../lib/prisma.js";
 import { getRedis } from "../../lib/redis.js";
 import { errorMessage } from "../../lib/logUtils.js";
 import { acquireLock, releaseLock } from "../../lib/bookingLock.js";
-import { ESTADOS_DE_SUSCRIPCION_BLOQUEADOS } from "../../lib/planFeatures.js";
+import { servicioSuspendidoPorPago } from "../../lib/planFeatures.js";
 import { telnyxAiAdapter } from "../../adapters/telnyx/TelnyxAiAdapter.js";
 import { nombreParaCliente, telefonoDeContacto } from "./mensajesCliente.js";
 import {
@@ -89,6 +89,8 @@ interface NegocioDelChat {
   active: boolean;
   clientChatEnabled: boolean;
   subscriptionStatus: string | null;
+  callsSuspendedAt: Date | null;
+  paymentFailureSuspensionAt: Date | null;
   agents: Array<{ id: string; telnyxAssistantId: string | null }>;
 }
 
@@ -102,6 +104,8 @@ const SELECT_NEGOCIO_DEL_CHAT = {
   active: true,
   clientChatEnabled: true,
   subscriptionStatus: true,
+  callsSuspendedAt: true,
+  paymentFailureSuspensionAt: true,
   agents: {
     where: { active: true, deletedAt: null, telnyxAssistantId: { not: null } },
     orderBy: { createdAt: "asc" as const },
@@ -330,12 +334,9 @@ export async function conversarConRecepcionista(input: {
   if (!business || !business.active) {
     return { atendido: false, motivo: "negocio_inactivo" };
   }
-  if (
-    business.subscriptionStatus &&
-    ESTADOS_DE_SUSCRIPCION_BLOQUEADOS.has(business.subscriptionStatus)
-  ) {
+  if (servicioSuspendidoPorPago(business)) {
     console.warn(
-      `[WhatsApp] Chat cliente ${business.id}/${from}: el negocio no puede atender (suscripción ${business.subscriptionStatus})`
+      `[WhatsApp] Chat cliente ${business.id}/${from}: el negocio no puede atender (suscripción ${business.subscriptionStatus} o servicio suspendido por impago)`
     );
     return { atendido: false, motivo: "negocio_inactivo" };
   }

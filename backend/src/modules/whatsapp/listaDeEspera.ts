@@ -32,7 +32,7 @@ import {
   releaseBookingLock,
 } from "../../lib/bookingLock.js";
 import { buildCalendarIdempotencyKey } from "../../lib/calendarIdempotency.js";
-import { ESTADOS_DE_SUSCRIPCION_BLOQUEADOS } from "../../lib/planFeatures.js";
+import { servicioSuspendidoPorPago } from "../../lib/planFeatures.js";
 import { refrescarPlantilla, resolverPlantilla } from "./service.js";
 import { estaDadoDeBaja } from "./bajas.js";
 import { avisarNuevaReserva } from "./avisosNegocio.js";
@@ -73,6 +73,8 @@ export const SELECT_NEGOCIO_LISTA_ESPERA = {
   telnyxPhoneNumber: true,
   phone: true,
   subscriptionStatus: true,
+  callsSuspendedAt: true,
+  paymentFailureSuspensionAt: true,
   active: true,
   ...SELECT_CONEXION_DE_CALENDARIO,
 } as const satisfies Prisma.BusinessSelect;
@@ -629,10 +631,7 @@ export async function reservarDesdeListaDeEspera(input: {
   if (!business || !business.active) {
     return { estado: "error" };
   }
-  if (
-    business.subscriptionStatus &&
-    ESTADOS_DE_SUSCRIPCION_BLOQUEADOS.has(business.subscriptionStatus)
-  ) {
+  if (servicioSuspendidoPorPago(business)) {
     console.warn(
       `[WhatsApp] ${etiqueta}: el negocio ${businessId} no puede reservar (suscripción ${business.subscriptionStatus})`
     );

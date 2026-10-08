@@ -8,7 +8,13 @@ vi.mock("../../src/lib/prisma.js", () => ({
   prisma: {
     business: { findUnique: vi.fn() },
     call: { aggregate: vi.fn() },
-    billingUsagePeriod: { upsert: vi.fn(), findUniqueOrThrow: vi.fn(), updateMany: vi.fn(), update: vi.fn() },
+    billingUsagePeriod: {
+      upsert: vi.fn(),
+      findUniqueOrThrow: vi.fn(),
+      findFirst: vi.fn(),
+      updateMany: vi.fn(),
+      update: vi.fn(),
+    },
     billingUsageReport: { findFirst: vi.fn(), create: vi.fn(), update: vi.fn() },
     $transaction: vi.fn(),
   },
@@ -24,6 +30,7 @@ const mockedFindBusiness = vi.mocked(prisma.business.findUnique);
 const mockedAggregate = vi.mocked(prisma.call.aggregate);
 const mockedUpsertPeriod = vi.mocked(prisma.billingUsagePeriod.upsert);
 const mockedFindPeriod = vi.mocked(prisma.billingUsagePeriod.findUniqueOrThrow);
+const mockedFindPreviousPeriod = vi.mocked(prisma.billingUsagePeriod.findFirst);
 const mockedFindReport = vi.mocked(prisma.billingUsageReport.findFirst);
 const mockedCreateReport = vi.mocked(prisma.billingUsageReport.create);
 const mockedTransaction = vi.mocked(prisma.$transaction);
@@ -54,6 +61,8 @@ describe("processUsageReportJob", () => {
     mockedFindPeriod.mockResolvedValueOnce({ reportedMinutes: 0 } as any)
       .mockResolvedValueOnce({ reportedMinutes: 3 } as any);
     mockedFindReport.mockResolvedValue(null);
+    // Sin periodo anterior que reconciliar, salvo en los tests que lo piden.
+    mockedFindPreviousPeriod.mockResolvedValue(null);
     mockedCreateReport.mockResolvedValue({ id: "report_123", minutes: 3, identifier: "alhabla-minutes-period_123-3" } as any);
     mockedTransaction.mockResolvedValue([] as any);
   });
@@ -126,5 +135,62 @@ describe("processUsageReportJob", () => {
 
     expect(mockedAggregate).not.toHaveBeenCalled();
     expect(mockedGetStripeClient).not.toHaveBeenCalled();
+  });
+
+  // La regresión: una llamada que empieza en un periodo y termina en el
+  // siguiente se cuenta en el anterior, pero el job ya miraba el nuevo y sus
+  // minutos no se informaban nunca.
+  it("informa los minutos del periodo anterior que quedaron sin informar, fechados en ese periodo", async () => {
+    const createMeterEvent = vi.fn().mockResolvedValue({});
+    mockedGetStripeClient.mockReturnValue({ billing: { meterEvents: { create: createMeterEvent } } } as any);
+    const finAnterior = new Date(Date.now() - 10 * 60 * 1000);
+    mockedFindBusiness.mockResolvedValue({
+      stripeCustomerId: "cus_123",
+      stripePriceId: "price_inicio",
+      subscriptionCurrentPeriodStart: finAnterior,
+      subscriptionCurrentPeriodEnd: new Date(finAnterior.getTime() + 30 * 24 * 60 * 60 * 1000),
+      usageBillingStartsAt: null,
+      name: "Peluquería Test",
+      users: [],
+    } as any);
+    mockedFindPreviousPeriod.mockResolvedValue({
+      id: "period_anterior",
+      periodStart: new Date(finAnterior.getTime() - 30 * 24 * 60 * 60 * 1000),
+      periodEnd: finAnterior,
+    } as any);
+    // Periodo anterior: 125 s → 3 min, ya informados 1. Periodo actual: nada.
+    mockedAggregate
+      .mockResolvedValueOnce({ _sum: { durationSecs: 0 } } as any)
+      .mockResolvedValueOnce({ _sum: { durationSecs: 125 } } as any);
+    mockedFindPeriod.mockReset();
+    mockedFindPeriod
+      .mockResolvedValueOnce({ reportedMinutes: 1 } as any)
+      .mockResolvedValueOnce({ reportedMinutes: 3 } as any)
+      .mockResolvedValue({ reportedMinutes: 0 } as any);
+    mockedCreateReport.mockResolvedValueOnce({
+      id: "report_anterior",
+      minutes: 2,
+      identifier: "alhabla-minutes-period_anterior-3",
+    } as any);
+
+    await processUsageReportJob({ businessId: "business_123" });
+
+    expect(mockedAggregate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          startedAt: { gte: expect.any(Date), lt: finAnterior },
+        }),
+      })
+    );
+    expect(createMeterEvent).toHaveBeenCalledTimes(1);
+    expect(createMeterEvent).toHaveBeenCalledWith(
+      {
+        event_name: "alhabla_call_minutes",
+        identifier: "alhabla-minutes-period_anterior-3",
+        payload: { stripe_customer_id: "cus_123", value: "2" },
+        timestamp: Math.floor(finAnterior.getTime() / 1000) - 1,
+      },
+      { idempotencyKey: "alhabla-minutes-period_anterior-3" }
+    );
   });
 });
