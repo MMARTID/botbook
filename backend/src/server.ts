@@ -1,4 +1,5 @@
 import Fastify, { FastifyInstance } from "fastify";
+import { ZodError } from "zod";
 import cors from "@fastify/cors";
 import rateLimit from "@fastify/rate-limit";
 import authPlugin from "./plugins/auth.js";
@@ -28,6 +29,7 @@ import { webhooksRetellRoutes } from "./modules/webhooksRetell/routes.js";
 import { retellAdapter } from "./adapters/retell/RetellAdapter.js";
 import { comprobarClaveDeCifrado } from "./lib/cifradoDeCredenciales.js";
 import { origenesPermitidos } from "./lib/urls.js";
+import { confianzaEnProxies } from "./lib/proxyDeConfianza.js";
 
 const PORT = parseInt(process.env.PORT || "3000", 10);
 const HOST = process.env.HOST || "0.0.0.0";
@@ -50,19 +52,21 @@ try {
   process.exit(1);
 }
 
+// La instancia en marcha, para cerrarla bien al recibir SIGTERM.
+let servidor: FastifyInstance | undefined;
+
 async function start() {
   const fastify: FastifyInstance = Fastify({
     logger: {
       level: process.env.LOG_LEVEL || "debug",
     },
     // En Cloud Run cada petición llega a través del proxy de Google, así que
-    // el socket siempre trae la IP del GFE: sin esto, `request.ip` es la misma
-    // para todos los clientes y el rate limit de /auth/login se convierte en
-    // un cubo compartido (ni frena una fuerza bruta ni distingue a quien la
-    // sufre). La IP real viaja en X-Forwarded-For, que Cloud Run reescribe
-    // añadiendo la del cliente al final, por lo que confiar en el proxy aquí
-    // es seguro: nadie puede falsificar su posición en la cadena.
-    trustProxy: true,
+    // el socket siempre trae la IP del GFE: sin confiar en el proxy,
+    // `request.ip` es la misma para todos y el rate limit de /auth/login es un
+    // cubo compartido. Pero solo se confía en los saltos que de verdad hay
+    // (lib/proxyDeConfianza.ts): con `true` la IP salía de la parte de
+    // X-Forwarded-For que escribe el propio cliente.
+    trustProxy: confianzaEnProxies(),
   });
 
   // Node por defecto cierra los sockets keep-alive tras solo 5s de
@@ -110,6 +114,9 @@ async function start() {
       credentials: true,
       methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
       allowedHeaders: ["Content-Type", "Authorization", "Origin", "Accept"],
+      // La app vive en otro origen: sin esto el navegador oculta el nombre
+      // del CSV de llamadas y el aviso de filas que se quedaron fuera.
+      exposedHeaders: ["Content-Disposition", "X-Filas-Omitidas"],
     });
     await fastify.register(rateLimit, {
       max: 100,
@@ -137,6 +144,12 @@ async function start() {
     });
     // Global error handler: normalize response shape and log with Pino
     fastify.setErrorHandler((error: unknown, request, reply) => {
+      // Convención del proyecto: un body o params que no pasa el esquema es
+      // un 400 con `error.errors`, también cuando el parse no está dentro de
+      // un try/catch propio de la ruta (antes salía como 500 genérico).
+      if (error instanceof ZodError) {
+        return reply.status(400).send({ error: error.errors });
+      }
       const errorObject =
         error instanceof Error
           ? error
@@ -184,7 +197,13 @@ async function start() {
       const checks = await Promise.allSettled(checkPromises);
 
       const [postgres, redis, retell] = checks;
-      const healthy = checks.every((check) => check.status === "fulfilled");
+      // Solo Postgres y Redis deciden el código: son lo que la revisión
+      // necesita para servir. Retell es el orquestador de respaldo; si cae
+      // durante un deploy, el 503 hacía que el workflow revirtiera una
+      // revisión sana (con las migraciones ya aplicadas). Sigue saliendo en
+      // el JSON como información.
+      const healthy =
+        postgres.status === "fulfilled" && redis.status === "fulfilled";
       const statusCode = healthy ? 200 : 503;
 
       const dependencies: Record<string, string> = {
@@ -253,6 +272,7 @@ async function start() {
 
     // Start server
     await fastify.listen({ port: PORT, host: HOST });
+    servidor = fastify;
     console.log(
       `[Server] Server running at http://${HOST}:${PORT}`
     );
@@ -262,18 +282,38 @@ async function start() {
   }
 }
 
-// Graceful shutdown
-process.on("SIGINT", async () => {
-  console.log("[Server] SIGINT received, shutting down gracefully...");
+// Apagado ordenado. Cloud Run manda SIGTERM y da 10 s antes de matar el
+// contenedor: primero se deja de aceptar peticiones y se espera a las que
+// están en vuelo (una tool de voz a mitad de reserva), y solo después se
+// cierran Redis y Prisma. Antes se desconectaba Prisma con consultas abiertas
+// y las peticiones en curso fallaban. Si algo se cuelga, se sale igual a los
+// 8 s para no llegar al SIGKILL.
+let apagando = false;
+async function apagar(senal: string) {
+  if (apagando) return;
+  apagando = true;
+  console.log(`[Server] ${senal} recibido, cerrando de forma ordenada...`);
+  const limite = setTimeout(() => {
+    console.error("[Server] El cierre ordenado tardó demasiado; se fuerza la salida");
+    process.exit(1);
+  }, 8_000);
+  limite.unref();
+  try {
+    await servidor?.close();
+  } catch (error) {
+    console.error("[Server] Error al cerrar Fastify:", error);
+  }
+  try {
+    await getRedis().quit();
+  } catch {
+    // Redis no llegó a inicializarse o ya estaba cerrado.
+  }
   await prisma.$disconnect();
   process.exit(0);
-});
+}
 
-process.on("SIGTERM", async () => {
-  console.log("[Server] SIGTERM received, shutting down gracefully...");
-  await prisma.$disconnect();
-  process.exit(0);
-});
+process.on("SIGINT", () => void apagar("SIGINT"));
+process.on("SIGTERM", () => void apagar("SIGTERM"));
 
 // Start the server
 start().catch((error) => {

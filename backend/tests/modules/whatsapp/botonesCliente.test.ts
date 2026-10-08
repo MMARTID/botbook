@@ -935,11 +935,15 @@ describe("Vale / No me va bien (fase 2)", () => {
         callId: "call_row_1",
         type: "client_change_rejected",
         isLead: false,
-        data: {
+        // Nombre y motivo van en el lead: el recordatorio de «Recuérdamelo
+        // mañana» rehace el aviso con ellos.
+        data: expect.objectContaining({
           bookingId: "booking_1",
           clientPhone: MOVIL,
           inboundMessageId: mensaje.id,
-        },
+          motivo: expect.stringContaining("no le va bien"),
+          quiereQueLeLlamen: true,
+        }),
       },
       select: { id: true },
     });

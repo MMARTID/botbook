@@ -1507,6 +1507,34 @@ async function executeBookAppointment(
     }
 
     try {
+      // La reserva que esta llamada ya tenga se lee ANTES de comprobar
+      // disponibilidad y se excluye de la ocupación: si no, su propia fila
+      // ocupaba el hueco y el reintento del tool call (o un cambio de hora
+      // que se solapa con la anterior) recibía «esa hora ya no está libre»
+      // con capacidad 1, aunque la cita existía en BD y en el calendario.
+      const reservaPrevia = call
+        ? await prisma.booking.findUnique({
+            where: { callId: call.id },
+            select: {
+              id: true,
+              externalEventId: true,
+              externalCalendarProvider: true,
+              externalCalendarId: true,
+              programedAt: true,
+              durationMinutes: true,
+              isCancelled: true,
+              cancelledAt: true,
+            },
+          })
+        : null;
+      const reservaQueSeSustituye =
+        reservaPrevia && !reservaPrevia.isCancelled
+          ? {
+              bookingId: reservaPrevia.id,
+              externalEventId: reservaPrevia.externalEventId,
+            }
+          : null;
+
       // Comprueba disponibilidad SIEMPRE, se haya indicado profesional o no —
       // antes esto se saltaba por completo cuando professionalId venía
       // verificado, así que se podía confirmar una reserva para un profesional
@@ -1532,6 +1560,7 @@ async function executeBookAppointment(
         calendarOrigin: origenDeCalendario(
           resolverConexionDeCalendario(business)
         ),
+        excluir: reservaQueSeSustituye,
       });
 
       if (!availability.available) {
@@ -1613,31 +1642,8 @@ async function executeBookAppointment(
       // fecha/duración distinta sigue tratándose como un cambio de opinión
       // legítimo del cliente (nueva reserva sobre la misma llamada), no
       // como un reintento.
-      let reservaPrevia: {
-        id: string;
-        externalEventId: string | null;
-        externalCalendarProvider: string | null;
-        externalCalendarId: string | null;
-        programedAt: Date;
-        durationMinutes: number;
-        isCancelled: boolean;
-        cancelledAt: Date | null;
-      } | null = null;
       if (call) {
-        const existingBooking = await prisma.booking.findUnique({
-          where: { callId: call.id },
-          select: {
-            id: true,
-            externalEventId: true,
-            externalCalendarProvider: true,
-            externalCalendarId: true,
-            programedAt: true,
-            durationMinutes: true,
-            isCancelled: true,
-            cancelledAt: true,
-          },
-        });
-        reservaPrevia = existingBooking;
+        const existingBooking = reservaPrevia;
         // Una reserva cancelada en esta misma llamada NO es un reintento: su
         // evento ya se borró al cancelar, así que hay que crear uno nuevo y
         // reactivar la fila (el `update` del upsert de abajo).

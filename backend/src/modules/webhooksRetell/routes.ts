@@ -131,10 +131,16 @@ export async function webhooksRetellRoutes(fastify: FastifyInstance) {
 
       const retellAgentId = selectRetellInboundAgent(business);
       if (!retellAgentId) {
-        // Retell rechaza una llamada si su webhook entrante devuelve 2xx
-        // sin override_agent_id. Es intencionado: evita atender llamadas
-        // tras el séptimo día de impago o si no queda agente operativo.
-        return reply.status(200).send({ call_inbound: {} });
+        // Para rechazar hay que decirlo con `reject: true`: un 2xx sin
+        // override_agent_id NO rechaza, Retell atiende con el agente que el
+        // número tiene vinculado (lo importamos con él). Así se cumple la
+        // suspensión tras el séptimo día de impago y no se atiende sin agente
+        // operativo, igual que el camino de Telnyx cuelga.
+        fastify.log.warn(
+          { businessId: business.id, toNumber },
+          "[Retell Inbound] Llamada rechazada: negocio suspendido o sin agente operativo"
+        );
+        return reply.status(200).send({ call_inbound: { reject: true } });
       }
 
       const dynamicVariables = await buildInboundCallDynamicVariables(business.id);

@@ -2,6 +2,7 @@ import { prisma } from "../lib/prisma.js";
 import { errorMessage } from "../lib/logUtils.js";
 import type { RecordarRecadoJob } from "../lib/jobTypes.js";
 import { avisarRecado } from "../modules/whatsapp/avisosNegocio.js";
+import { TIPOS_DE_LEAD_DE_RECADO } from "../modules/whatsapp/recados.js";
 
 /** Como mucho tres recordatorios por recado: después queda solo en el panel. */
 const MAX_RECORDATORIOS = 3;
@@ -26,7 +27,7 @@ export async function processRecordarRecadoJob(
       call: { select: { business: { select: { id: true, name: true } } } },
     },
   });
-  if (!lead || lead.type !== "message") {
+  if (!lead || !TIPOS_DE_LEAD_DE_RECADO.includes(lead.type)) {
     console.log(
       `[Job] Recordatorio del recado ${data.leadId}: no existe; se ignora`
     );

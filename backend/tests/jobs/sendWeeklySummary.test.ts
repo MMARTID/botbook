@@ -118,6 +118,24 @@ describe("sendWeeklySummaryJob", () => {
     expect(mockedEnqueueEmail).not.toHaveBeenCalled();
   });
 
+  // La regresión: la semana quedaba marcada aunque el correo no llegara a
+  // encolarse, y ninguna ejecución posterior lo volvía a intentar.
+  it("si no se puede encolar el correo, la semana no queda marcada", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    mockedFindMany.mockResolvedValue([buildBusiness()] as any);
+    mockedEnqueueEmail.mockRejectedValueOnce(new Error("Cloud Tasks caído"));
+
+    const result = await sendWeeklySummaryJob();
+
+    expect(result).toEqual({ sent: 0, skipped: 1 });
+    const marca = mockedBusinessUpdateMany.mock.calls[0][0].data
+      .weeklySummarySentAt as Date;
+    expect(mockedBusinessUpdateMany).toHaveBeenLastCalledWith({
+      where: { id: "biz_1", weeklySummarySentAt: marca },
+      data: { weeklySummarySentAt: null },
+    });
+  });
+
   it("encola el correo con un identificador estable por negocio y semana", async () => {
     mockedFindMany.mockResolvedValue([buildBusiness()] as any);
 

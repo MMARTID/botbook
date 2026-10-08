@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto";
 import type Stripe from "stripe";
 import { prisma } from "../../lib/prisma.js";
+import type { SubscriptionStatus } from "@prisma/client";
 import {
   alertarPagoFallido,
   alertarPruebaTermina,
@@ -259,6 +260,23 @@ async function founderSlotsAvailable(): Promise<boolean> {
   return (await estadoDelCupoDeFundador()).disponible;
 }
 
+/** Estados en los que ya no queda ninguna suscripción viva en Stripe. */
+const ESTADOS_QUE_PERMITEN_CHECKOUT = new Set<SubscriptionStatus>([
+  "CANCELED",
+  "INCOMPLETE_EXPIRED",
+]);
+
+/** El negocio aún tiene una suscripción viva: no se abre otro checkout. */
+export class SuscripcionVivaError extends Error {
+  constructor(readonly estado: SubscriptionStatus) {
+    super(
+      estado === "ACTIVE" || estado === "TRIALING"
+        ? "This business already has an active subscription"
+        : `This business already has a subscription in state ${estado}`
+    );
+  }
+}
+
 export async function createCheckoutSession(input: {
   businessId: string;
   userId: string;
@@ -281,11 +299,14 @@ export async function createCheckoutSession(input: {
     where: { id: input.businessId },
     select: { subscriptionStatus: true },
   });
-  if (
-    existingBusiness?.subscriptionStatus === "ACTIVE" ||
-    existingBusiness?.subscriptionStatus === "TRIALING"
-  ) {
-    throw new Error("This business already has an active subscription");
+  // Solo se abre un checkout cuando no queda ninguna suscripción viva. Con
+  // PAST_DUE, UNPAID, PAUSED o INCOMPLETE la suscripción sigue existiendo en
+  // Stripe sobre el mismo cliente: un checkout nuevo creaba otra, y al
+  // arreglar la tarjeta se cobraban las dos. Lo que toca entonces es
+  // regularizar el pago en el portal de facturación.
+  const estado = existingBusiness?.subscriptionStatus ?? null;
+  if (estado !== null && !ESTADOS_QUE_PERMITEN_CHECKOUT.has(estado)) {
+    throw new SuscripcionVivaError(estado);
   }
 
   const stripe = getStripeClient();
@@ -672,11 +693,28 @@ async function processStripeEvent(event: Stripe.Event) {
       const businessId = await resolveBusinessId({
         customerId: stripeId((event.data.object as Stripe.Invoice).customer),
       });
-      // Solo el pago de la factura que abrió el plazo puede reactivar las
-      // llamadas. Un invoice.paid anterior no debe borrar un impago reciente.
+      // Reactivan las llamadas el pago de la factura que abrió el plazo, o
+      // el primer pago de una suscripción NUEVA contratada después del impago
+      // (la antigua se canceló y su factura ya no se cobrará nunca; antes el
+      // negocio pagaba la nueva y seguía con las llamadas cortadas). Un
+      // invoice.paid anterior al impago no debe borrarlo.
       if (businessId) {
+        const pagadaEn = new Date(event.created * 1000);
         await prisma.business.updateMany({
-          where: { id: businessId, paymentFailureInvoiceId: invoice.id },
+          where: {
+            id: businessId,
+            OR: [
+              { paymentFailureInvoiceId: invoice.id },
+              ...(invoice.billing_reason === "subscription_create"
+                ? [
+                    {
+                      paymentFailureInvoiceId: { not: null },
+                      paymentFailureNotifiedAt: { lt: pagadaEn },
+                    },
+                  ]
+                : []),
+            ],
+          },
           data: {
             paymentFailureInvoiceId: null,
             paymentFailureNotifiedAt: null,
@@ -694,6 +732,14 @@ async function processStripeEvent(event: Stripe.Event) {
       });
 
       if (businessId) {
+        // Cada reintento de cobro genera su propio invoice.payment_failed y
+        // Stripe no garantiza el orden: uno que llega después del
+        // invoice.paid de la misma factura abría un plazo que nada cerraría
+        // ya. Se mira el estado vivo de la factura antes de abrirlo.
+        const vivo = await getStripeClient().invoices.retrieve(invoice.id);
+        if (vivo.status === "paid" || vivo.status === "void") {
+          return businessId;
+        }
         const suspensionAt = new Date(
           Date.now() + PAYMENT_FAILURE_SUSPENSION_DAYS * 24 * 60 * 60 * 1000
         );

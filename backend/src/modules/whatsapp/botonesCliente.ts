@@ -528,14 +528,21 @@ async function botonDeReserva(
         select: { id: true },
       });
       if (!existente) {
+        const motivo = `La nueva hora de su cita (${cita}) no le va bien; quiere buscar otra.`;
         const lead = await prisma.lead.create({
           data: {
             callId: booking.callId,
             type: "client_change_rejected",
             isLead: false,
+            // Nombre y motivo también aquí: el recordatorio de «Recuérdamelo
+            // mañana» (jobs/recordarRecado.ts) rehace el aviso a partir de
+            // estos datos.
             data: {
               bookingId: booking.id,
               clientPhone: from,
+              clientName: booking.clientName,
+              motivo,
+              quiereQueLeLlamen: true,
               inboundMessageId: message.id,
             },
           },
@@ -554,7 +561,7 @@ async function botonDeReserva(
             leadId: lead.id,
             clientName: booking.clientName,
             clientPhone: from,
-            motivo: `La nueva hora de su cita (${cita}) no le va bien; quiere buscar otra.`,
+            motivo,
             quiereQueLeLlamen: true,
           });
         } catch (error) {

@@ -53,7 +53,9 @@ export function SeccionSeguridad() {
         ...(passwordConfigured ? { currentPassword } : {}),
         newPassword,
       }),
-    onSuccess: (result) => {
+    onSuccess: ({ token, ...result }) => {
+      // El cambio cierra todas las sesiones; esta sigue con el token nuevo.
+      window.localStorage.setItem("alhabla_token", token);
       queryClient.setQueryData(
         ["account-overview"],
         (current: AccountOverview | undefined) =>

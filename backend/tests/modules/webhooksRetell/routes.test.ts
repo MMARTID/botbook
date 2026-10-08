@@ -178,6 +178,53 @@ describe("webhooks de Retell: la firma se comprueba en todas las rutas", () => {
     expect(mockedHandleCallEnded).not.toHaveBeenCalled();
   });
 
+  // La regresión: un 200 sin override_agent_id no rechaza en Retell, atiende
+  // con el agente vinculado al número. La suspensión por impago no se cumplía.
+  it("rechaza con reject: true la llamada de un negocio suspendido", async () => {
+    mockedFindBusiness.mockResolvedValue({
+      id: "negocio_1",
+      callsSuspendedAt: new Date("2026-10-01T00:00:00Z"),
+      paymentFailureSuspensionAt: null,
+      agents: [{ retellAgentId: "agent_1" }],
+    } as never);
+
+    const res = await app.inject({
+      method: "POST",
+      url: "/webhooks/retell/inbound",
+      headers: {
+        "content-type": "application/json",
+        "x-retell-signature": await firmar(CUERPO_ENTRANTE),
+      },
+      payload: CUERPO_ENTRANTE,
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({ call_inbound: { reject: true } });
+  });
+
+  it("atiende con el agente del negocio cuando está al día", async () => {
+    mockedFindBusiness.mockResolvedValue({
+      id: "negocio_1",
+      callsSuspendedAt: null,
+      paymentFailureSuspensionAt: null,
+      agents: [{ retellAgentId: "agent_1" }],
+    } as never);
+
+    const res = await app.inject({
+      method: "POST",
+      url: "/webhooks/retell/inbound",
+      headers: {
+        "content-type": "application/json",
+        "x-retell-signature": await firmar(CUERPO_ENTRANTE),
+      },
+      payload: CUERPO_ENTRANTE,
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json().call_inbound.override_agent_id).toBe("agent_1");
+    expect(res.json().call_inbound.reject).toBeUndefined();
+  });
+
   it("el hook no se escapa a rutas de fuera del plugin", async () => {
     const res = await app.inject({ method: "POST", url: "/fuera-del-plugin" });
     expect(res.statusCode).toBe(200);

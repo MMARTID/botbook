@@ -927,12 +927,22 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
     async (request, reply) => {
       try {
         const payload = ChangePasswordSchema.parse(request.body);
-        const result = await changeAccountPassword({
+        const { tokenVersion } = await changeAccountPassword({
           userId: request.user!.id,
           businessId: request.user!.businessId,
           ...payload,
         });
-        return reply.send(result);
+        // El cambio sube `tokenVersion` y cierra todas las sesiones, también
+        // la de quien lo hace: se devuelve un token nuevo con la versión
+        // actual para que la app lo sustituya y siga dentro.
+        return reply.send({
+          passwordConfigured: true,
+          token: createToken({
+            id: request.user!.id,
+            businessId: request.user!.businessId,
+            tokenVersion,
+          }),
+        });
       } catch (error) {
         const response = sendAccountActionError(reply, error);
         if (response) return response;

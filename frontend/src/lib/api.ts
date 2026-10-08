@@ -53,6 +53,31 @@ export const api = axios.create({
   baseURL: configuredBaseUrl ?? "/api/backend",
 });
 
+/**
+ * Un 401 en una petición autenticada significa que el token ya no vale
+ * (caducó a los 7 días o se cambió la contraseña en otro dispositivo). Sin
+ * esto el panel se quedaba en «No se pudo cargar» y «Reintentar» volvía a
+ * mandar el mismo token muerto. Las rutas de /auth/ quedan fuera: ahí un 401
+ * es una respuesta del formulario («contraseña incorrecta», pase caducado).
+ */
+api.interceptors.response.use(undefined, (error: unknown) => {
+  if (
+    typeof window !== "undefined" &&
+    axios.isAxiosError(error) &&
+    error.response?.status === 401 &&
+    error.config?.headers?.Authorization &&
+    !(error.config.url ?? "").startsWith("/auth/") &&
+    window.location.pathname !== "/login"
+  ) {
+    window.localStorage.removeItem("alhabla_token");
+    window.localStorage.removeItem("token");
+    window.localStorage.removeItem("jwt");
+    const destino = window.location.pathname + window.location.search;
+    window.location.replace(`/login?next=${encodeURIComponent(destino)}`);
+  }
+  return Promise.reject(error);
+});
+
 api.interceptors.request.use((config) => {
   if (typeof window === "undefined") {
     return config;
@@ -80,6 +105,11 @@ export async function getGoogleAuthUrl(
   intent: "login" | "register" = "login"
 ) {
   const { data } = await api.get<{ url: string }>("/auth/google", {
+    // La respuesta fija la cookie anti-CSRF del `state` que el callback
+    // comprueba. La API vive en otro origen (api.alhabla.ai), y sin
+    // credenciales el navegador descarta el Set-Cookie de una respuesta CORS:
+    // el callback acababa siempre en invalid_state.
+    withCredentials: true,
     params: {
       intent,
       ...(acceptedTerms ? { acceptedTerms: "true" } : {}),
@@ -124,6 +154,11 @@ export async function getFacebookAuthUrl(
   intent: "login" | "register" = "login"
 ) {
   const { data } = await api.get<{ url: string }>("/auth/facebook", {
+    // La respuesta fija la cookie anti-CSRF del `state` que el callback
+    // comprueba. La API vive en otro origen (api.alhabla.ai), y sin
+    // credenciales el navegador descarta el Set-Cookie de una respuesta CORS:
+    // el callback acababa siempre en invalid_state.
+    withCredentials: true,
     params: {
       intent,
       ...(acceptedTerms ? { acceptedTerms: "true" } : {}),
@@ -461,7 +496,9 @@ export async function changeAccountPassword(payload: {
   currentPassword?: string;
   newPassword: string;
 }) {
-  const { data } = await api.post<{ passwordConfigured: true }>(
+  // `token` es la sesión nueva: el cambio invalida todos los tokens
+  // anteriores, también el de esta pestaña.
+  const { data } = await api.post<{ passwordConfigured: true; token: string }>(
     "/auth/change-password",
     payload,
   );

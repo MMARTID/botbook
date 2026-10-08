@@ -119,3 +119,34 @@ async function reclamarFilaFallida(
     return false;
   }
 }
+
+/**
+ * Marca como fallido un envío que el proveedor no llegó a aceptar, para que
+ * el reintento de Cloud Tasks pueda volver a reclamarlo (con
+ * `reintentarFallidos`). Sin esto la fila quedaba reclamada y el reintento se
+ * descartaba como «ya enviado»: un 5xx o un token caducado de Zoho perdía el
+ * correo en silencio. Nunca lanza: el error que importa es el del envío.
+ */
+export async function marcarEnvioFallido(
+  channel: "email" | "sms" | "whatsapp",
+  idempotencyKey: string | undefined,
+  error: unknown
+): Promise<void> {
+  if (!idempotencyKey) return;
+  try {
+    await prisma.sentMessage.updateMany({
+      where: { channel, idempotencyKey, providerMessageId: null },
+      data: {
+        deliveryStatus: "failed",
+        errorCode: "SEND_ERROR",
+        errorDetail: error instanceof Error ? error.message : String(error),
+        failedAt: new Date(),
+      },
+    });
+  } catch (marcaError) {
+    console.error(
+      `[Job] No se pudo marcar como fallido el ${channel} ${idempotencyKey}:`,
+      marcaError instanceof Error ? marcaError.message : String(marcaError)
+    );
+  }
+}

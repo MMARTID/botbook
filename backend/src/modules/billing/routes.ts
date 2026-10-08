@@ -9,6 +9,7 @@ import {
   getBillingSummary,
   handleStripeEvent,
   reconcileCheckoutSession,
+  SuscripcionVivaError,
 } from "./service.js";
 
 const strictRateLimit = {
@@ -66,6 +67,16 @@ export const billingRoutes: FastifyPluginAsync = async (fastify) => {
       } catch (error) {
         if (error instanceof z.ZodError) {
           return reply.status(400).send({ error: error.flatten() });
+        }
+        if (error instanceof SuscripcionVivaError) {
+          return reply.status(409).send({
+            error:
+              error.estado === "ACTIVE" || error.estado === "TRIALING"
+                ? "Ya tienes una suscripción activa."
+                : "Tienes un pago pendiente. Regulariza la suscripción desde Facturación antes de contratar otra.",
+            code: "SUSCRIPCION_VIVA",
+            estado: error.estado,
+          });
         }
         fastify.log.error({ err: error }, "Unable to create Stripe Checkout Session");
         return reply.status(503).send({ error: "Billing checkout is unavailable" });

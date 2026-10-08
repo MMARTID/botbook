@@ -244,6 +244,7 @@ async function enviarResumenDeNegocio(
 
     // Reclamar la semana ANTES de encolar: si dos ejecuciones coinciden, solo
     // una actualiza la fila y solo una manda el correo.
+    const marca = new Date();
     const { count } = await prisma.business.updateMany({
       where: {
         id: business.id,
@@ -252,7 +253,7 @@ async function enviarResumenDeNegocio(
           { weeklySummarySentAt: { lt: weekStart } },
         ],
       },
-      data: { weeklySummarySentAt: new Date() },
+      data: { weeklySummarySentAt: marca },
     });
     if (count === 0) {
       return false;
@@ -270,18 +271,37 @@ async function enviarResumenDeNegocio(
       panelUrl: `${frontendUrl}/`,
     });
 
-    await enqueueEmailJob(
-      {
-        fromAlias: "support",
-        toAddress: email,
-        subject,
-        html,
-      },
-      // Identificador estable: si Cloud Tasks recibe dos veces la misma tarea
-      // (o el job se reintenta antes de que la marca se haya guardado), la
-      // segunda se descarta por id repetido.
-      `weekly-summary-${business.id}-${weekStart.toISOString().slice(0, 10)}`
-    );
+    try {
+      await enqueueEmailJob(
+        {
+          fromAlias: "support",
+          toAddress: email,
+          subject,
+          html,
+        },
+        // Identificador estable: si Cloud Tasks recibe dos veces la misma
+        // tarea (o el job se reintenta antes de que la marca se haya
+        // guardado), la segunda se descarta por id repetido.
+        `weekly-summary-${business.id}-${weekStart.toISOString().slice(0, 10)}`
+      );
+    } catch (error) {
+      // Sin correo encolado, la semana no puede quedar marcada como enviada:
+      // si no, ninguna ejecución posterior lo volvería a intentar y el
+      // negocio se quedaba sin resumen. Solo se retira la marca que puso
+      // esta ejecución.
+      await prisma.business
+        .updateMany({
+          where: { id: business.id, weeklySummarySentAt: marca },
+          data: { weeklySummarySentAt: null },
+        })
+        .catch((revertError: unknown) => {
+          console.error(
+            `[Job] No se pudo retirar la marca del resumen semanal de ${business.id}:`,
+            revertError instanceof Error ? revertError.message : String(revertError)
+          );
+        });
+      throw error;
+    }
     return true;
   } catch (error) {
     // Un negocio con datos rotos no debe tumbar el resumen del resto.

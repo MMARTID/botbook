@@ -1574,6 +1574,13 @@ describe("executeVoiceTool book_appointment — confirmación al cliente por Wha
     expect(result.result.success).toBe(true);
     expect(mockedBookAppointment).not.toHaveBeenCalled();
     expect(mockedBookingUpsert).not.toHaveBeenCalled();
+    // La propia reserva no cuenta como ocupación: con capacidad 1 el
+    // reintento recibía «esa hora ya no está libre» y nunca llegaba aquí.
+    expect(mockedCheckAvailability).toHaveBeenCalledWith(
+      expect.objectContaining({
+        excluir: { bookingId: "booking_1", externalEventId: "evt_1" },
+      })
+    );
   });
 
   it("cambiar de hora en la misma llamada borra el evento de la reserva previa buscándolo en su hora PREVIA y registra lo que pasó", async () => {

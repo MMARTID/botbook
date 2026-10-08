@@ -25,9 +25,14 @@ declare module "fastify" {
 const CACHE_MS = 30_000;
 const cache = new Map<string, { version: number | null; expira: number }>();
 
-async function versionDelUsuario(userId: string): Promise<number | null> {
+async function versionDelUsuario(
+  userId: string,
+  { sinCache = false }: { sinCache?: boolean } = {}
+): Promise<number | null> {
   const enCache = cache.get(userId);
-  if (enCache && enCache.expira > Date.now()) return enCache.version;
+  if (!sinCache && enCache && enCache.expira > Date.now()) {
+    return enCache.version;
+  }
 
   const user = await prisma.user.findUnique({
     where: { id: userId },
@@ -88,6 +93,25 @@ const authPlugin: FastifyPluginAsync = async (fastify) => {
       }
       // `tv` ausente = token emitido antes de que existiera la versión. Vale
       // mientras la contraseña no se haya cambiado desde entonces (version 0).
+      // La versión solo sube. Un token con una versión MAYOR que la cacheada
+      // lo acaba de emitir un cambio de contraseña (en esta instancia o en
+      // otra): la caché está vieja, no el token. Sin releer, la sesión nueva
+      // que devuelve el cambio de contraseña se rechazaba durante 30 s.
+      if ((decoded.tv ?? 0) > version) {
+        try {
+          version = await versionDelUsuario(decoded.id, { sinCache: true });
+        } catch (error) {
+          request.log.error({ err: error }, "[Auth] No se pudo comprobar la versión del token");
+          return reply
+            .status(401)
+            .send({ error: "Tu sesión ha caducado. Vuelve a iniciar sesión." });
+        }
+        if (version === null) {
+          return reply
+            .status(401)
+            .send({ error: "Tu sesión ha caducado. Vuelve a iniciar sesión." });
+        }
+      }
       if ((decoded.tv ?? 0) !== version) {
         return reply
           .status(401)
