@@ -13,6 +13,7 @@ import type {
   FamiliaDeVoces,
   PlanFeatureKey,
   PrincipalDelCatalogo,
+  RequisitoDelPlan,
   VozDelPanel,
 } from "@/lib/types";
 import { AvisoFlotante, useAviso } from "@/components/aviso-flotante";
@@ -100,17 +101,39 @@ function Opcion({
 export const CONFIRMACION_IR_A_LOS_PLANES =
   "Tienes cambios sin guardar en «Cómo atiende». Si vas ahora a los planes, se pierden. ¿Ir a los planes?";
 
-/** Un idioma principal que el plan no incluye: con su candado y el enlace
- * para ampliar el plan, a la vista en vez de oculto. Es un enlace, no una
- * opción que se pueda marcar. Sale de la pantalla: con cambios sin guardar,
- * pregunta antes (la barra de guardar no protege de la navegación). */
-function OpcionBloqueada({ titulo, texto, hayCambios }: { titulo: string; texto: string; hayCambios: boolean }) {
+/** Enlace a los planes desde lo que el plan no incluye. Sale de la
+ * pantalla: con cambios sin guardar, pregunta antes (la barra de guardar no
+ * protege de la navegación). */
+function EnlaceALosPlanes({
+  hayCambios,
+  className,
+  children,
+}: {
+  hayCambios: boolean;
+  className: string;
+  children: React.ReactNode;
+}) {
   return (
     <Link
       href="/ajustes/facturacion"
       onClick={(evento) => {
         if (hayCambios && !window.confirm(CONFIRMACION_IR_A_LOS_PLANES)) evento.preventDefault();
       }}
+      className={className}
+    >
+      {children}
+    </Link>
+  );
+}
+
+/** Un idioma principal que el plan no incluye: con su candado y el enlace
+ * para ampliar el plan, a la vista en vez de oculto. Es un enlace, no una
+ * opción que se pueda marcar. Desde el 2026-10-07 ninguno lo exige; sale
+ * con el catálogo del backend anterior (catalán, euskera y gallego). */
+function OpcionBloqueada({ titulo, texto, hayCambios }: { titulo: string; texto: string; hayCambios: boolean }) {
+  return (
+    <EnlaceALosPlanes
+      hayCambios={hayCambios}
       className="flex min-h-[60px] w-full items-center gap-3 rounded-2xl border border-linea bg-superficie px-3.5 py-2.5 text-left transition-colors duration-200 hover:bg-relleno focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-morado"
     >
       <span className="min-w-0 flex-1">
@@ -120,7 +143,7 @@ function OpcionBloqueada({ titulo, texto, hayCambios }: { titulo: string; texto:
       <span aria-hidden="true" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-lavado text-morado">
         <Lock className="h-4 w-4" />
       </span>
-    </Link>
+    </EnlaceALosPlanes>
   );
 }
 
@@ -226,12 +249,21 @@ const GENEROS: ReadonlyArray<[AgentSettings["voiceGender"], string]> = [
  * ese género y el resto tras «Ver todas las voces». Las de Soniox (con
  * catalán, euskera o gallego de principal): Marta y Sergio, las dos, sin
  * «Por defecto» (sin selector de género, las dos lo serían).
+ *
+ * Con `bloqueo` (un plan sin «elegir_voz», desde el 2026-10-07): Mujer u
+ * Hombre y la de por defecto de ese género, con su muestra, y en vez de
+ * «Ver todas las voces» el enlace con candado a los planes. La guardada y
+ * la que atiende siguen a la vista aunque no sean la de por defecto: quien
+ * eligió voz en Pro y bajó de plan la conserva y puede volver a ella.
  */
 function SelectorDeVoz({
   voces,
   familia,
   vozQueAtiende,
+  conservada,
   genero,
+  bloqueo,
+  hayCambios,
   sonando,
   onEscuchar,
   onParar,
@@ -241,7 +273,14 @@ function SelectorDeVoz({
   voces: VozDelPanel[];
   familia: FamiliaDeVoces;
   vozQueAtiende: string | undefined;
+  /** La voz guardada: con candado, se puede volver a ella. */
+  conservada: string | undefined;
   genero: AgentSettings["voiceGender"];
+  /** Lo que exige elegir otra que la de por defecto si el plan no lo
+   * incluye; null si se elige entre todas. */
+  bloqueo: RequisitoDelPlan | null;
+  /** Si hay algo sin guardar en la pantalla (lo pregunta el candado). */
+  hayCambios: boolean;
   sonando: string | null;
   onEscuchar: (voz: VozDelPanel) => void;
   /** Corta la muestra que suena. */
@@ -252,10 +291,16 @@ function SelectorDeVoz({
   const [todas, setTodas] = useState(false);
   const porGenero = familia === "ultra";
   const delGenero = porGenero ? voces.filter((voz) => voz.genero === genero) : voces;
+  // Las que el plan deja elegir: todas o, con candado, la de por defecto
+  // (y la guardada y la que atiende, si las conserva).
+  const elegibles = bloqueo
+    ? delGenero.filter((voz) => voz.porDefecto || voz.id === vozQueAtiende || voz.id === conservada)
+    : delGenero;
   // Plegadas, las recomendadas y la que atiende (aunque no lo sea), para
   // que la elegida siempre esté a la vista.
-  const aLaVista = porGenero && !todas ? delGenero.filter((voz) => voz.recomendada || voz.id === vozQueAtiende) : delGenero;
-  const hayMas = porGenero && (todas || aLaVista.length < delGenero.length);
+  const aLaVista =
+    porGenero && !bloqueo && !todas ? elegibles.filter((voz) => voz.recomendada || voz.id === vozQueAtiende) : elegibles;
+  const hayMas = porGenero && !bloqueo && (todas || aLaVista.length < delGenero.length);
   // El otro género vuelve a enseñar solo sus recomendadas; el mismo no
   // cambia nada.
   const cambiarGenero = (valor: AgentSettings["voiceGender"]) => {
@@ -327,6 +372,15 @@ function SelectorDeVoz({
           />
         </button>
       ) : null}
+      {bloqueo ? (
+        <EnlaceALosPlanes
+          hayCambios={hayCambios}
+          className="mt-2 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-[10px] border border-linea bg-superficie px-4 text-sm font-semibold text-morado-tinta underline-offset-[3px] transition-colors duration-200 hover:bg-relleno hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-morado sm:w-auto"
+        >
+          <Lock className="h-4 w-4 shrink-0 text-morado" aria-hidden="true" />
+          {bloqueo.texto}
+        </EnlaceALosPlanes>
+      ) : null}
     </>
   );
 }
@@ -337,8 +391,11 @@ function SelectorDeVoz({
  * Desde el 2026-10-05 el dueño solo elige el idioma principal (español o una
  * lengua cooficial a la vista; los extranjeros bajo «Otro idioma») y la voz,
  * escuchándolas antes; el panel dice cuántos idiomas habla con ese principal.
- * Catalán, euskera y gallego exigen un plan que los incluya: se ven con su
- * candado, salvo el que el negocio ya tiene, que conserva.
+ * Desde el 2026-10-07 el principal es libre en todos los planes, y elegir
+ * entre todas las voces exige «elegir_voz» (Pro y Scale): sin ella, Mujer u
+ * Hombre y la voz por defecto de cada uno, con el enlace con candado a los
+ * planes; la voz que el negocio ya tiene la conserva. Lo que exige cada cosa
+ * lo dice el backend (`requiere`, `requiereParaElegirVoz`).
  */
 function IdiomaYVoz({
   ajustes,
@@ -348,8 +405,8 @@ function IdiomaYVoz({
   planFeatures,
 }: {
   ajustes: AgentSettings;
-  /** Lo guardado: el principal que ya tiene no se bloquea aunque el plan ya
-   * no lo incluya (el backend solo mira el plan al cambiarlo). */
+  /** Lo guardado: el principal y la voz que ya tiene no se bloquean aunque
+   * el plan ya no los incluya (el backend solo mira el plan al cambiarlos). */
   guardado: AgentSettings;
   /** Si hay algo sin guardar en la pantalla (no solo el idioma y la voz). */
   hayCambios: boolean;
@@ -397,12 +454,17 @@ function IdiomaYVoz({
       : [...datos.principales, { codigo: principal, etiqueta: etiqueta(principal), tipo: "extranjero", familia: "ultra", voces: [] }]
     : [];
   const ofrecido = principales.find((opcion) => opcion.codigo === principal);
-  // «voz_idioma» es la clave de antes: la manda el backend anterior a las
-  // lenguas locales (Pro y Scale, igual que ellas).
+  // «voz_idioma» la mandan solo a Pro y Scale el backend del 05-10 y el de
+  // antes (y el nuevo, durante el despliegue): con el plan en caché de un
+  // backend anterior y la vista previa del nuevo, que pide «elegir_voz», un
+  // Pro no debe ver candado. QUITAR con las otras claves transitorias
+  // (featuresParaLaApp en backend/src/lib/planFeatures.ts).
   const incluye = (funcion: PlanFeatureKey) =>
     planFeatures === undefined ||
     planFeatures.includes(funcion) ||
-    (funcion === "lenguas_locales" && planFeatures.includes("voz_idioma"));
+    (funcion === "elegir_voz" && planFeatures.includes("voz_idioma"));
+  // Hoy ningún principal lo exige; el backend anterior, catalán, euskera y
+  // gallego («lenguas_locales»).
   const bloqueada = (opcion: PrincipalDelCatalogo) =>
     Boolean(opcion.requiere && !incluye(opcion.requiere.funcion) && opcion.codigo !== guardado.voiceLanguage);
   const aLaVista = principales.filter((opcion) => opcion.tipo !== "extranjero");
@@ -420,6 +482,10 @@ function IdiomaYVoz({
     vistaAlDia?.voz ??
     voces.find((voz) => voz.porDefecto && voz.genero === ajustes.voiceGender)?.id;
   const genero = voces.find((voz) => voz.id === vozQueAtiende)?.genero ?? ajustes.voiceGender;
+  // Elegir otra que la de por defecto, si el plan no lo incluye. Sin el
+  // campo (backend anterior), nada se bloquea: ese backend tampoco lo mira.
+  const requisitoDeVoz = vistaAlDia?.requiereParaElegirVoz ?? ofrecido?.requiereParaElegirVoz ?? null;
+  const bloqueoDeVoz = requisitoDeVoz && !incluye(requisitoDeVoz.funcion) ? requisitoDeVoz : null;
 
   const lista = (codigos: AgentLanguage[]) => {
     const nombres = codigos.map((codigo, indice) => (indice === 0 ? etiqueta(codigo) : etiqueta(codigo).toLowerCase()));
@@ -446,10 +512,17 @@ function IdiomaYVoz({
   };
   const elegirGenero = (valor: AgentSettings["voiceGender"]) => {
     if (valor === genero) return;
-    // La que se eligió de ese género, si está entre las de ahora; si no,
-    // la de por defecto.
+    // La que se eligió de ese género, si está entre las de ahora y el plan
+    // deja elegirla; si no, la de por defecto. Con candado, solo la de por
+    // defecto o la guardada: la recordada puede ser una que se conservaba y
+    // ya se cambió al guardar (el backend la rechazaría).
     const recordada = vozPorGenero.current[valor];
-    const vuelve = voces.find((candidata) => candidata.id === recordada && candidata.genero === valor)?.id;
+    const vuelve = voces.find(
+      (candidata) =>
+        candidata.id === recordada &&
+        candidata.genero === valor &&
+        (!bloqueoDeVoz || candidata.porDefecto || candidata.id === guardado.voz)
+    )?.id;
     setAjustes({ ...ajustes, voiceGender: valor, voz: vuelve });
   };
 
@@ -468,9 +541,23 @@ function IdiomaYVoz({
     principal !== guardado.voiceLanguage &&
     planFeatures !== undefined &&
     Boolean(guardadoDelCatalogo?.requiere && !incluye(guardadoDelCatalogo.requiere.funcion));
+  // Lo mismo con una voz elegida que el plan ya no deja elegir (bajó de
+  // plan): se conserva, pero si atiende otra no se puede volver a ella.
+  const vozGuardada = guardadoDelCatalogo?.voces.find((voz) => voz.id === guardado.voz);
+  const requisitoDeLaGuardada = guardadoDelCatalogo?.requiereParaElegirVoz;
+  const pierdeLaVoz =
+    vozGuardada !== undefined &&
+    !vozGuardada.porDefecto &&
+    vozQueAtiende !== undefined &&
+    vozQueAtiende !== vozGuardada.id &&
+    planFeatures !== undefined &&
+    Boolean(requisitoDeLaGuardada && !incluye(requisitoDeLaGuardada.funcion));
   const avisos = [
     ...(pierdeElGuardado
       ? [`Tu plan ya no incluye el ${etiqueta(guardado.voiceLanguage).toLowerCase()}: si guardas este cambio, no podrás volver a elegirlo sin cambiar de plan.`]
+      : []),
+    ...(pierdeLaVoz && vozGuardada
+      ? [`Tu plan ya no incluye elegir la voz: si guardas este cambio, no podrás volver a ${vozGuardada.nombre} sin cambiar de plan.`]
       : []),
     ...(vistaDelPrincipal?.avisos ?? []),
   ];
@@ -576,7 +663,10 @@ function IdiomaYVoz({
           voces={voces}
           familia={familia}
           vozQueAtiende={vozQueAtiende}
+          conservada={guardado.voz}
           genero={genero}
+          bloqueo={bloqueoDeVoz}
+          hayCambios={hayCambios}
           sonando={sonando}
           onEscuchar={alternar}
           onParar={parar}
@@ -609,8 +699,8 @@ function IdiomaYVoz({
 
 /**
  * Cómo atiende: cada opción es una fila que se elige con un toque y lleva
- * su explicación. Los idiomas principales que el plan no incluye se ven con
- * su candado (lo valida también el backend).
+ * su explicación. Lo que el plan no incluye (elegir entre todas las voces,
+ * en Inicio) se ve con su candado (lo valida también el backend).
  */
 export function ComportamientoMovil({ business }: { business: Business }) {
   const queryClient = useQueryClient();
@@ -630,8 +720,8 @@ export function ComportamientoMovil({ business }: { business: Business }) {
       queryClient.setQueryData(["my-business"], negocio);
       avisar("Comportamiento del agente actualizado.");
     },
-    // El motivo del backend si lo da para el dueño (p. ej. el 403 de las
-    // lenguas locales si el plan no las incluye y el candado no salió).
+    // El motivo del backend si lo da para el dueño (p. ej. el 403 de elegir
+    // la voz si el plan no lo incluye y el candado no salió).
     onError: (error) => avisar(describeApiError(error, "No se pudo guardar el comportamiento del agente."), "error"),
   });
   const hayCambios = JSON.stringify(ajustes) !== firmaGuardada;

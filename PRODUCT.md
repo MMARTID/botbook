@@ -66,11 +66,12 @@ Lo que un producto vecino no podría copiar honestamente:
   panel. El Gestor propone la acción y solo la ejecuta tras un «Confirmar» explícito — nunca de
   forma autónoma. (Reabrir un día ya cerrado todavía exige el panel web, no WhatsApp.)
 - **Voz diseñada para no sonar a robot, no solo "voz de IA".** El dueño elige la voz
-  escuchándola: en español, entre las 29 voces Ultra de Telnyx con acento de España, cada una con
-  una descripción de cómo suena y las de atención al cliente a la vista; si su idioma principal es
-  inglés, francés, alemán, italiano, portugués o neerlandés, entre las Ultra nativas de ese
-  idioma; y con catalán, euskera o gallego de principal, entre Marta y Sergio de Soniox, las voces
-  que hablan esas lenguas. Matiz emocional automático (`expressive_mode`, solo en Ultra) y un fondo sutil de
+  escuchándola. En Pro y Scale, entre todas: en español, las 29 voces Ultra de Telnyx con acento
+  de España, cada una con una descripción de cómo suena y las de atención al cliente a la vista;
+  si su idioma principal es inglés, francés, alemán, italiano, portugués o neerlandés, entre las
+  Ultra nativas de ese idioma; y con catalán, euskera o gallego de principal, entre Marta y Sergio
+  de Soniox, las voces que hablan esas lenguas. En Inicio elige mujer u hombre y atiende la voz
+  por defecto de ese género (Blanca o Marcos en español), que también se escucha antes. Matiz emocional automático (`expressive_mode`, solo en Ultra) y un fondo sutil de
   oficina para que la llamada no suene artificialmente silenciosa. La detección de turno de
   palabra corre en Deepgram Flux (Soniox con catalán, euskera o gallego, ajustado con llamadas
   reales), pensado para interrumpir y ser interrumpido de forma natural en vez de esperar un
@@ -112,9 +113,12 @@ Lo que un producto vecino no podría copiar honestamente:
   panel lo dice: «Habla en 7 idiomas: … Saluda en español y sigue en el idioma de quien llama.»
   Con una lengua cooficial de principal atienden Marta o Sergio y contesta entre 1,4 y 2 segundos
   en vez de ~0,9 (medido con llamadas reales, también con clientes que hablan castellano), y el
-  panel lo avisa. La voz se elige escuchando una muestra de cada una, en todos los planes. Catalán,
-  euskera y gallego de principal son de Pro y Scale: en Inicio se ven con candado y la API rechaza
-  el cambio con 403; un negocio que ya los tenía los conserva si baja de plan.
+  panel lo avisa. El idioma principal, catalán, euskera y gallego incluidos, se elige en todos los
+  planes (desde el 07-10-2026: en Cataluña atender en catalán es obligatorio). La voz se elige
+  escuchando una muestra de cada una: en Pro y Scale, entre todas las del principal; en Inicio,
+  mujer u hombre con la voz por defecto de cada uno, y el resto se ve como «Elegir entre las N
+  voces: planes Pro y Scale» con candado y enlace a facturación. La API rechaza otra voz en Inicio
+  con 403; un negocio que ya la tenía elegida la conserva si baja de plan.
 - Número de España (Telnyx) aprovisionado automáticamente tras el checkout.
 - Registro de llamadas con transcripción, grabación y clasificación de resultado.
 - Horario de negocio, catálogo de servicios, profesionales y capacidad de reserva.

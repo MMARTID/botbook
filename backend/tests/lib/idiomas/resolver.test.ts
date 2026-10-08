@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   ajustesParaRetell,
   elegirVoz,
+  funcionQueExige,
   idiomaDeRetell,
   instruccionesDeIdioma,
   resolverIdiomas,
@@ -446,6 +447,62 @@ describe("resolverIdiomas — la voz elegida entre las de la familia", () => {
     expect(elegir(["es-ES"], "es-ES", "Soniox.tts-rt-v2.Marta").voz.id).toBe(
       BLANCA
     );
+  });
+});
+
+// Decisión del usuario del 2026-10-07: el principal y mujer u hombre, en
+// todos los planes; otra voz que la de por defecto de su género, en Pro y
+// Scale.
+describe("funcionQueExige", () => {
+  const ajustes = (
+    voiceLanguage: CodigoDeIdioma,
+    voz?: string,
+    voiceGender: GeneroDeVoz = "femenina"
+  ) => ({ voiceLanguage, voiceGender, voz });
+
+  it("cualquier principal con la voz de por defecto de su género no exige plan, también catalán, euskera y gallego", () => {
+    for (const principal of [
+      "es-ES",
+      "ca-ES",
+      "eu-ES",
+      "gl-ES",
+      "de-DE",
+    ] as const) {
+      for (const genero of GENEROS_DE_VOZ) {
+        expect(
+          funcionQueExige(ajustes(principal, undefined, genero)),
+          `${principal} ${genero}`
+        ).toBeNull();
+      }
+    }
+  });
+
+  it("elegir a Blanca, a Marcos, a Lukas o a Sergio, las de por defecto, tampoco", () => {
+    expect(funcionQueExige(ajustes("es-ES", BLANCA))).toBeNull();
+    expect(funcionQueExige(ajustes("es-ES", MARCOS, "masculina"))).toBeNull();
+    // El género que vale es el de la voz, no el guardado.
+    expect(funcionQueExige(ajustes("es-ES", MARCOS, "femenina"))).toBeNull();
+    expect(funcionQueExige(ajustes("de-DE", LUKAS))).toBeNull();
+    expect(
+      funcionQueExige(ajustes("ca-ES", "Soniox.tts-rt-v2.Sergio"))
+    ).toBeNull();
+  });
+
+  it("otra voz que la de por defecto de su género exige «elegir_voz»", () => {
+    expect(funcionQueExige(ajustes("es-ES", LARA))).toBe("elegir_voz");
+    expect(
+      funcionQueExige(
+        ajustes("es-ES", "Telnyx.Ultra.ca526927-b7c8-4a64-95d7-235d30b7771f") // Álvaro
+      )
+    ).toBe("elegir_voz");
+  });
+
+  it("una elegida que no atiende (de otra familia o fuera del catálogo) no exige nada: atiende la de por defecto", () => {
+    expect(funcionQueExige(ajustes("de-DE", LARA))).toBeNull();
+    expect(funcionQueExige(ajustes("ca-ES", LARA))).toBeNull();
+    expect(
+      funcionQueExige(ajustes("es-ES", "Telnyx.Ultra.no-existe"))
+    ).toBeNull();
   });
 });
 

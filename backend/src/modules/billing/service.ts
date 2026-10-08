@@ -367,6 +367,18 @@ export async function createCheckoutSession(input: {
     line_items: [{ price: priceId, quantity: 1 }, { price: usagePriceId }],
     payment_method_collection: "always",
     allow_promotion_codes: true,
+    // IVA (desde el 2026-10-08): el aviso legal dice que los precios lo
+    // incluyen, pero hasta ahora las facturas no lo desglosaban. Stripe Tax
+    // lo calcula con el registro de España dado de alta en la cuenta (sin
+    // registro saldría a 0) y, como los precios no fijan tax_behavior, con
+    // el de los ajustes de impuestos: «inferred_by_currency», que en euros
+    // es IVA incluido (79 € = 65,29 € + 13,71 € de IVA). La suscripción que
+    // crea el checkout lo hereda, así que las renovaciones y los minutos
+    // extra también lo llevan. customer_update.address «auto» es requisito
+    // de automatic_tax con un cliente ya creado. Con un NIF-IVA de otro país
+    // de la UE (tax_id_collection) Stripe aplica la inversión del sujeto
+    // pasivo.
+    automatic_tax: { enabled: true },
     tax_id_collection: { enabled: true },
     customer_update: { address: "auto", name: "auto" },
     return_url: `${frontendUrl}/checkout/resultado?session_id={CHECKOUT_SESSION_ID}`,

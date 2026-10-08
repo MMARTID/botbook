@@ -4,8 +4,10 @@
  * con una selección (vistaPreviaDeIdiomas), con textos en español listos
  * para mostrar a un dueño que no tiene por qué saber de voces ni de
  * transcripción. Desde el 2026-10-05 el dueño solo elige el idioma
- * principal y la voz, y el panel dice cuántos idiomas habla. Puro: el
- * nombre del negocio llega como parámetro.
+ * principal y la voz, y el panel dice cuántos idiomas habla; desde el
+ * 2026-10-07 el principal es libre en todos los planes y elegir entre todas
+ * las voces es de Pro y Scale (requiereParaElegirVoz). Puro: el nombre del
+ * negocio llega como parámetro.
  */
 import {
   IDIOMAS,
@@ -21,7 +23,7 @@ import {
   type GeneroDeVoz,
   type VozDelCatalogo,
 } from "./catalogo.js";
-import { funcionQueExige, type CambioDeIdiomas } from "./ajustes.js";
+import type { CambioDeIdiomas } from "./ajustes.js";
 import { resolverIdiomas, type AjustesDeIdioma } from "./resolver.js";
 import { planesQueIncluyen, type PlanFeature } from "../planFeatures.js";
 
@@ -39,10 +41,19 @@ export interface VozDelPanel {
   /** De atención al cliente: se enseña sin desplegar «Ver todas las
    * voces». */
   recomendada: boolean;
-  /** La que atiende si el dueño no elige: la primera de su género. */
+  /** La que atiende si el dueño no elige: la primera de su género. Sin
+   * «elegir_voz» (Inicio), la única de su género que se puede elegir. */
   porDefecto: boolean;
   /** Ruta de su muestra en la app (rutaDeMuestra). */
   muestra: string;
+}
+
+/** Lo que exige una opción del plan: la clave que el panel busca en
+ * `planFeatures` (GET /billing/summary) y el texto de su enlace con
+ * candado a los planes. */
+export interface RequisitoDelPlan {
+  funcion: PlanFeature;
+  texto: string;
 }
 
 /** Cómo agrupa el panel los idiomas principales: el obligatorio y las
@@ -57,16 +68,21 @@ export interface PrincipalDelPanel extends IdiomaDelPanel {
   /** «Habla en 7 idiomas: español, inglés, … Saluda en español y sigue en
    * el idioma de quien llama.» */
   entradilla: string;
-  /** Si elegirlo exige una función del plan: la clave que el panel busca
-   * en `planFeatures` (GET /billing/summary) y el texto del candado
-   * («Disponible en Pro y Scale»). null si vale cualquier plan. */
-  requiere: { funcion: PlanFeature; texto: string } | null;
+  /** Si elegirlo exige una función del plan (el panel lo enseña con
+   * candado). Desde el 2026-10-07 ninguno: catalán, euskera y gallego son
+   * de todos los planes, y es null en todos. */
+  requiere: RequisitoDelPlan | null;
   /** De qué familia son sus `voces`: «ultra» (las nativas de este idioma)
    * o «soniox» (las de esta cooficial). */
   familia: FamiliaDeVoces;
   /** Las voces que atienden con este principal. Por género, la de por
    * defecto primero, luego las recomendadas y luego el resto. */
   voces: VozDelPanel[];
+  /** Si elegir una de `voces` que no es la de por defecto de su género
+   * exige una función del plan: «elegir_voz» y «Elegir entre las 29 voces:
+   * planes Pro y Scale» (requisitoParaElegirVoz). null si no hay más que
+   * elegir que mujer u hombre (Marta y Sergio). */
+  requiereParaElegirVoz: RequisitoDelPlan | null;
 }
 
 export interface CatalogoDelPanel {
@@ -157,13 +173,22 @@ export function entradillaDeIdiomas(
   return `Habla en ${lista.length} idiomas: ${enumerar(lista, "y")}. Saluda en ${enMinusculas(principal)} y sigue en el idioma de quien llama.`;
 }
 
-function requisitoDelPlan(
-  principal: CodigoDeIdioma
-): PrincipalDelPanel["requiere"] {
-  const funcion = funcionQueExige(principal);
-  return funcion
-    ? { funcion, texto: `Disponible en ${planesQueIncluyen(funcion)}` }
-    : null;
+/**
+ * Lo que exige elegir entre `voces` una que no es la de por defecto de su
+ * género (funcionQueExige en resolver.ts, decisión del usuario del
+ * 2026-10-07): sin «elegir_voz», el dueño elige mujer u hombre y atiende la
+ * de por defecto. null si todas lo son (Marta y Sergio, una por género): no
+ * hay nada más que elegir.
+ */
+export function requisitoParaElegirVoz(
+  voces: readonly VozDelPanel[]
+): RequisitoDelPlan | null {
+  if (voces.every((voz) => voz.porDefecto)) return null;
+  const funcion: PlanFeature = "elegir_voz";
+  return {
+    funcion,
+    texto: `Elegir entre las ${voces.length} voces: planes ${planesQueIncluyen(funcion)}`,
+  };
 }
 
 export function catalogoParaElPanel(
@@ -172,20 +197,24 @@ export function catalogoParaElPanel(
   const oferta = MERCADOS[mercado];
   return {
     obligatorio: enPanel(oferta.obligatorio),
-    principales: oferta.principales.map((codigo) => ({
-      ...enPanel(codigo),
-      tipo:
-        codigo === oferta.obligatorio
-          ? "obligatorio"
-          : esCooficial(codigo)
-            ? "cooficial"
-            : "extranjero",
-      idiomas: idiomasQueHabla(codigo),
-      entradilla: entradillaDeIdiomas(codigo),
-      requiere: requisitoDelPlan(codigo),
-      familia: familiaDeVoces(codigo).familia,
-      voces: vocesEnPanel(codigo, IDIOMAS[codigo].voces ?? []),
-    })),
+    principales: oferta.principales.map((codigo) => {
+      const voces = vocesEnPanel(codigo, IDIOMAS[codigo].voces ?? []);
+      return {
+        ...enPanel(codigo),
+        tipo:
+          codigo === oferta.obligatorio
+            ? "obligatorio"
+            : esCooficial(codigo)
+              ? "cooficial"
+              : "extranjero",
+        idiomas: idiomasQueHabla(codigo),
+        entradilla: entradillaDeIdiomas(codigo),
+        requiere: null,
+        familia: familiaDeVoces(codigo).familia,
+        voces,
+        requiereParaElegirVoz: requisitoParaElegirVoz(voces),
+      };
+    }),
     etiquetas: Object.fromEntries(
       Object.entries(IDIOMAS).map(([codigo, idioma]) => [
         codigo,
@@ -267,6 +296,9 @@ export interface VistaPreviaDeIdiomas {
   /** Las voces que se pueden elegir con este principal (entre ellas está
    * `voz`), con su muestra. */
   voces: VozDelPanel[];
+  /** Lo que exige elegir entre `voces` una que no es la de por defecto de
+   * su género (requisitoParaElegirVoz). */
+  requiereParaElegirVoz: RequisitoDelPlan | null;
   /** «Habla en 7 idiomas: … Saluda en español y sigue en el idioma de
    * quien llama.» (entradillaDeIdiomas). */
   entradilla: string;
@@ -335,14 +367,11 @@ export function vistaPreviaDeIdiomas(
   // conversation_flow que salta a Marta al oír catalán.
   const cooficiales = oferta.principales.filter(esCooficial);
   if (!perfil.cooficial && cooficiales.length > 0) {
-    const funcion = funcionQueExige(cooficiales[0]);
     avisos.push(
       `No entiende ${enumerar(
         cooficiales.map((cooficial) => `el ${enMinusculas(cooficial)}`),
         "ni"
-      )}: para atender en una de esas lenguas, elígela como idioma principal${
-        funcion ? ` (planes ${planesQueIncluyen(funcion)})` : ""
-      }.`
+      )}: para atender en una de esas lenguas, elígela como idioma principal.`
     );
   }
   if (
@@ -355,13 +384,15 @@ export function vistaPreviaDeIdiomas(
     );
   }
 
+  const voces = vocesEnPanel(perfil.principal, perfil.voces);
   return {
     languages: perfil.idiomas,
     voiceLanguage: perfil.principal,
     voz: perfil.voz.id,
     voiceGender: perfil.genero,
     familia: perfil.familia,
-    voces: vocesEnPanel(perfil.principal, perfil.voces),
+    voces,
+    requiereParaElegirVoz: requisitoParaElegirVoz(voces),
     entradilla: entradillaDeIdiomas(perfil.principal, perfil.idiomas),
     saludo: componerSaludo(perfil.principal, negocio),
     avisos,

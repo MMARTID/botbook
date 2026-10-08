@@ -1,5 +1,4 @@
 import { z } from "zod";
-import type { PlanFeature } from "../planFeatures.js";
 import {
   CODIGOS_DE_IDIOMA,
   MERCADOS,
@@ -61,20 +60,6 @@ export const EsquemaDeIdiomaPrincipal = z
 export const EsquemaDeVoz = z.string().refine(esVozDelCatalogo, {
   message: "Esa voz no está en el catálogo.",
 });
-
-/**
- * La función del plan que hace falta para elegir `principal`, o null si
- * vale cualquier plan (decisión del usuario del 2026-10-05): catalán,
- * euskera y gallego, las «lenguas locales», en Pro y Scale; los idiomas de
- * las voces Ultra, en todos. Se mira al escribir (PATCH /business/me) y la
- * enseña el panel; un negocio que ya atiende en una cooficial la conserva
- * aunque baje de plan (no se le cambia nada al leer).
- */
-export function funcionQueExige(
-  principal: CodigoDeIdioma
-): Extract<PlanFeature, "lenguas_locales"> | null {
-  return esCooficial(principal) ? "lenguas_locales" : null;
-}
 
 export type CambioDeIdiomas =
   /** Saludará en `a` en vez de en `de`. */

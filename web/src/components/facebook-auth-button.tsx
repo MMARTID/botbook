@@ -10,6 +10,9 @@ type FacebookAuthButtonProps = {
   disabled?: boolean;
   acceptedTerms?: boolean;
   intent?: "login" | "register";
+  // Si llega, el botón sigue activo pero al pulsarlo muestra este aviso en
+  // vez de ir a Facebook (p. ej. falta aceptar los Términos en el registro).
+  avisoAntesDeEmpezar?: string;
 };
 
 function FacebookIcon() {
@@ -29,9 +32,14 @@ export function FacebookAuthButton({
   disabled,
   acceptedTerms,
   intent = "login",
+  avisoAntesDeEmpezar,
 }: FacebookAuthButtonProps) {
   const [loading, setLoading] = useState(false);
   const startFacebookAuth = async () => {
+    if (avisoAntesDeEmpezar) {
+      onError(avisoAntesDeEmpezar);
+      return;
+    }
     setLoading(true);
     onError("");
 

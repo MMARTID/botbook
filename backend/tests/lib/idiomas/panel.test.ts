@@ -6,8 +6,10 @@ import {
   catalogoConCamposDelPanelAnterior,
   catalogoParaElPanel,
   entradillaDeIdiomas,
+  requisitoParaElegirVoz,
   rutaDeMuestra,
   vistaPreviaDeIdiomas,
+  type VozDelPanel,
 } from "../../../src/lib/idiomas/panel.js";
 import {
   idiomasQueHabla,
@@ -23,9 +25,14 @@ const AVISO_ESPERA_CATALAN =
 const AVISO_VOCES_CATALAN =
   "Atiende con Marta o Sergio, las voces que hablan catalán.";
 // Con un principal de voces Ultra (revisión del 2026-10-05: flux no
-// entiende las cooficiales y la voz no cambia a mitad de llamada).
+// entiende las cooficiales y la voz no cambia a mitad de llamada). Sin
+// plan: desde el 2026-10-07 se eligen de principal en todos.
 const AVISO_SIN_COOFICIALES =
-  "No entiende el catalán, el euskera ni el gallego: para atender en una de esas lenguas, elígela como idioma principal (planes Pro y Scale).";
+  "No entiende el catalán, el euskera ni el gallego: para atender en una de esas lenguas, elígela como idioma principal.";
+const ELEGIR_ENTRE_29 = {
+  funcion: "elegir_voz",
+  texto: "Elegir entre las 29 voces: planes Pro y Scale",
+};
 const EXTRANJEROS = ["en-GB", "fr-FR", "de-DE", "it-IT", "pt-PT", "nl-NL"];
 const HABLA_EN_ESPANOL =
   "Habla en 7 idiomas: español, inglés, francés, alemán, italiano, portugués y neerlandés. Saluda en español y sigue en el idioma de quien llama.";
@@ -82,12 +89,33 @@ describe("catalogoParaElPanel", () => {
     );
   });
 
-  it("catalán, euskera y gallego exigen las lenguas locales (Pro y Scale); los demás, ningún plan", () => {
+  // Decisión del usuario del 2026-10-07: en Cataluña atender en catalán es
+  // obligatorio (Codi de consum, art. 128-1).
+  it("ningún principal exige plan: catalán, euskera y gallego, en todos", () => {
     for (const principal of catalogoParaElPanel().principales) {
-      expect(principal.requiere, principal.codigo).toEqual(
-        principal.tipo === "cooficial"
-          ? { funcion: "lenguas_locales", texto: "Disponible en Pro y Scale" }
-          : null
+      expect(principal.requiere, principal.codigo).toBeNull();
+    }
+  });
+
+  it("elegir entre las voces Ultra de un principal es de Pro y Scale, con cuántas son; con Marta y Sergio no hay nada más que elegir", () => {
+    const de = (codigo: string) =>
+      catalogoParaElPanel().principales.find(
+        (principal) => principal.codigo === codigo
+      )!;
+
+    expect(de("es-ES").requiereParaElegirVoz).toEqual(ELEGIR_ENTRE_29);
+    expect(de("en-GB").requiereParaElegirVoz).toEqual({
+      funcion: "elegir_voz",
+      texto: "Elegir entre las 40 voces: planes Pro y Scale",
+    });
+    for (const principal of catalogoParaElPanel().principales) {
+      expect(principal.requiereParaElegirVoz, principal.codigo).toEqual(
+        principal.familia === "soniox"
+          ? null
+          : {
+              funcion: "elegir_voz",
+              texto: `Elegir entre las ${principal.voces.length} voces: planes Pro y Scale`,
+            }
       );
     }
   });
@@ -212,6 +240,7 @@ describe("vistaPreviaDeIdiomas", () => {
       voiceGender: "femenina",
       familia: "ultra",
       voces: expect.any(Array),
+      requiereParaElegirVoz: ELEGIR_ENTRE_29,
       entradilla: HABLA_EN_ESPANOL,
       saludo:
         "Hola, gracias por llamar a Peluquería Ana. ¿En qué te puedo ayudar?",
@@ -262,6 +291,7 @@ describe("vistaPreviaDeIdiomas", () => {
     });
     expect(vista.voces.map((voz) => voz.nombre)).toEqual(["Marta", "Sergio"]);
     expect(vista.voces[0].muestra).toBe("/voces/ca/marta.mp3");
+    expect(vista.requiereParaElegirVoz).toBeNull();
     expect(vista.avisos).toEqual([AVISO_ESPERA_CATALAN, AVISO_VOCES_CATALAN]);
   });
 
@@ -377,6 +407,32 @@ describe("vistaPreviaDeIdiomas — principal, cooficial y voces (2026-10-05)", (
       nombre: "Lara",
       porDefecto: false,
       recomendada: true,
+    });
+  });
+});
+
+describe("requisitoParaElegirVoz", () => {
+  const voz = (nombre: string, porDefecto: boolean): VozDelPanel => ({
+    id: `Telnyx.Ultra.${nombre}`,
+    nombre,
+    genero: "femenina",
+    descripcion: "De prueba",
+    recomendada: false,
+    porDefecto,
+    muestra: `/voces/es/${nombre}.mp3`,
+  });
+
+  it("sin voces que no sean la de por defecto de su género, nada que pedir", () => {
+    expect(requisitoParaElegirVoz([voz("Una", true)])).toBeNull();
+    expect(requisitoParaElegirVoz([])).toBeNull();
+  });
+
+  it("con alguna más, «elegir_voz» y el texto del candado con cuántas son", () => {
+    expect(
+      requisitoParaElegirVoz([voz("Una", true), voz("Otra", false)])
+    ).toEqual({
+      funcion: "elegir_voz",
+      texto: "Elegir entre las 2 voces: planes Pro y Scale",
     });
   });
 });

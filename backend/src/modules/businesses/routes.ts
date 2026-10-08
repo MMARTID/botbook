@@ -18,13 +18,16 @@ import {
 } from "../../lib/idiomas/catalogo.js";
 import {
   IDIOMA_OBLIGATORIO,
-  funcionQueExige,
   idiomasConocidos,
 } from "../../lib/idiomas/ajustes.js";
 import {
   catalogoConCamposDelPanelAnterior,
   vistaPreviaDeIdiomas,
 } from "../../lib/idiomas/panel.js";
+import {
+  funcionQueExige,
+  resolverIdiomas,
+} from "../../lib/idiomas/resolver.js";
 import {
   planAllows,
   planesQueIncluyen,
@@ -483,15 +486,14 @@ export async function businessesRoutes(fastify: FastifyInstance) {
           });
         }
 
-        // Catalán, euskera o gallego como idioma principal son de Pro y
-        // Scale (funcionQueExige, decisión del usuario del 2026-10-05); la
-        // voz y un principal con voces Ultra, de todos los planes. Solo
-        // bloquea si el principal CAMBIA a uno que el plan no incluye: un
-        // negocio que ya atiende en catalán y baja a Inicio lo conserva y
-        // puede seguir editando el resto.
+        // Elegir una voz que no es la de por defecto de su género es de Pro
+        // y Scale (funcionQueExige, decisión del usuario del 2026-10-07); el
+        // idioma principal, también catalán, euskera y gallego, y mujer u
+        // hombre, de todos los planes. Solo bloquea si la voz que atiende
+        // CAMBIA a una que el plan no incluye: un negocio que eligió voz en
+        // Pro y baja a Inicio la conserva y puede seguir editando el resto.
         if (data.agentSettings !== undefined) {
-          const principal = data.agentSettings.voiceLanguage;
-          const funcion = funcionQueExige(principal);
+          const funcion = funcionQueExige(data.agentSettings);
           if (funcion) {
             const current = await prisma.business.findUnique({
               where: { id: request.user!.businessId },
@@ -499,14 +501,16 @@ export async function businessesRoutes(fastify: FastifyInstance) {
             });
             if (current) {
               const planId = resolvePlanId(current);
-              const guardado = parseAgentSettings(current.agentSettings);
+              const vozGuardada = resolverIdiomas(
+                parseAgentSettings(current.agentSettings)
+              ).voz.id;
               if (
                 !planAllows(planId, funcion) &&
-                guardado.voiceLanguage !== principal
+                resolverIdiomas(data.agentSettings).voz.id !== vozGuardada
               ) {
                 return reply.status(403).send({
-                  error: `Atender en catalán, euskera o gallego está disponible en los planes ${planesQueIncluyen(funcion)}.`,
-                  code: "PLAN_LIMIT_LENGUAS_LOCALES",
+                  error: `Elegir entre todas las voces está disponible en los planes ${planesQueIncluyen(funcion)}. En tu plan eliges voz de mujer o de hombre y atiende la de por defecto.`,
+                  code: "PLAN_LIMIT_ELEGIR_VOZ",
                   planId,
                   limit: null,
                 });
