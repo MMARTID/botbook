@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, use } from "react";
 import { useRouter } from "next/navigation";
 import { esAjusteDelAgente, type AjusteDelAgente } from "@/lib/agent-configuration";
 import type { Business } from "@/lib/types";
@@ -30,7 +30,8 @@ const PANTALLAS: Record<AjusteDelAgente, (props: { business: Business }) => Reac
  * Un ajuste del agente en su propia pantalla (app móvil). En escritorio no
  * hay pantallas sueltas: se vuelve a `/agente` con ese ajuste abierto.
  */
-export default function AjusteDelAgentePage({ params }: { params: { ajuste: string } }) {
+export default function AjusteDelAgentePage(props: { params: Promise<{ ajuste: string }> }) {
+  const params = use(props.params);
   const router = useRouter();
   const esMovil = useEsMovil();
   const { business, hasToken, isLoadingBusiness, isError } = useBusiness();

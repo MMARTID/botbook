@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { CityNicheLanding } from "@/components/city-niche-landing";
 import { CITY_SLUGS, getCityNicheMetadata, getCityNicheStructuredData, type CitySlug } from "@/lib/city-landings";
 
-type Props = { params: { ciudad: string } };
+type Props = { params: Promise<{ ciudad: string }> };
 
 export function generateStaticParams() {
   return CITY_SLUGS.map((ciudad) => ({ ciudad }));
@@ -12,13 +12,15 @@ function parseCiudad(ciudad: string): CitySlug | null {
   return (CITY_SLUGS as string[]).includes(ciudad) ? (ciudad as CitySlug) : null;
 }
 
-export function generateMetadata({ params }: Props) {
+export async function generateMetadata(props: Props) {
+  const params = await props.params;
   const ciudad = parseCiudad(params.ciudad);
   if (!ciudad) return {};
   return getCityNicheMetadata("peluqueria", ciudad);
 }
 
-export default function PeluqueriaCiudadPage({ params }: Props) {
+export default async function PeluqueriaCiudadPage(props: Props) {
+  const params = await props.params;
   const ciudad = parseCiudad(params.ciudad);
   if (!ciudad) notFound();
 

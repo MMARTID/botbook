@@ -38,8 +38,8 @@ también por WhatsApp con el dueño y con sus clientes.
 | Capa | Tecnología |
 |------|------------|
 | Backend | Node.js 22, TypeScript 5.9, Fastify 5 |
-| App (`frontend/`, app.alhabla.ai) | Next.js 14, React 18, Tailwind CSS, TanStack Query |
-| Web pública (`web/`, alhabla.ai) | Next.js 14, React 18, Tailwind CSS, blog en MDX |
+| App (`frontend/`, app.alhabla.ai) | Next.js 16, React 19, Tailwind CSS, TanStack Query |
+| Web pública (`web/`, alhabla.ai) | Next.js 16, React 19, Tailwind CSS, blog en MDX |
 | Base de datos | PostgreSQL 15 + Prisma |
 | Caché | Redis 7 |
 | Colas | Cloud Tasks / Cloud Scheduler (jobs HTTP internos, sin BullMQ) |

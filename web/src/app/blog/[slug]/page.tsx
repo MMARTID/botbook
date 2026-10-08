@@ -19,14 +19,15 @@ import { AUTOR_POR_DEFECTO } from "@/lib/blog";
 import { nicheLandings } from "@/lib/niche-landings";
 import { absoluteUrl, buildBreadcrumbStructuredData, ogImages, organizationId, siteName, websiteId } from "@/lib/seo";
 
-type Props = { params: { slug: string } };
+type Props = { params: Promise<{ slug: string }> };
 
 export async function generateStaticParams() {
   // Los borradores solo tienen página en previsualización y desarrollo.
   return listarArticulos({ incluirBorradores: true }).map((a) => ({ slug: a.slug }));
 }
 
-export async function generateMetadata({ params }: Props): Promise<Metadata> {
+export async function generateMetadata(props: Props): Promise<Metadata> {
+  const params = await props.params;
   const articulo = leerArticulo(params.slug);
   if (!articulo) return {};
   const sector = esSector(articulo.sector) ? articulo.sector : null;
@@ -56,7 +57,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   };
 }
 
-export default async function ArticuloPage({ params }: Props) {
+export default async function ArticuloPage(props: Props) {
+  const params = await props.params;
   const articulo = leerArticulo(params.slug);
   if (!articulo) notFound();
   const sector = esSector(articulo.sector) ? articulo.sector : null;

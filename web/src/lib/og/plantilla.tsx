@@ -57,8 +57,12 @@ function conAlfa(hex: string, alfa: number) {
   return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${alfa})`;
 }
 
+/** Los ficheros que lee (fuentes, isotipo, fotos) los declara
+ * `outputFileTracingIncludes` en next.config.mjs. Sin el comentario, Turbopack
+ * no sabe acotar esta ruta dinámica y metería el proyecto entero en cada
+ * función de imagen. */
 function ruta(...partes: string[]) {
-  return path.join(process.cwd(), ...partes);
+  return path.join(/*turbopackIgnore: true*/ process.cwd(), ...partes);
 }
 
 async function fuentes() {

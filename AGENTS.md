@@ -12,7 +12,7 @@ The codebase is fully in Spanish — UI copy, comments, variable names, and busi
 |-------|------------|
 | **Backend runtime** | Node.js 22 (`.nvmrc`), TypeScript 5.9, ESM (`"type": "module"`) |
 | **HTTP framework** | Fastify 5 |
-| **Frontend** | Two Next.js 14 (App Router) projects, React 18, Tailwind CSS v3: `frontend/` (the app, `app.alhabla.ai`, :3001) and `web/` (public site + MDX blog, `alhabla.ai`, :3002) |
+| **Frontend** | Two Next.js 16 (App Router, Turbopack) projects, React 19, Tailwind CSS v3: `frontend/` (the app, `app.alhabla.ai`, :3001) and `web/` (public site + MDX blog, `alhabla.ai`, :3002) |
 | **Database** | PostgreSQL 15 + Prisma ORM |
 | **Cache** | Redis 7 |
 | **Background jobs** | Cloud Tasks / Cloud Scheduler (HTTP callbacks to `alhabla-api`, no BullMQ) |
@@ -43,12 +43,12 @@ The codebase is fully in Spanish — UI copy, comments, variable names, and busi
 │   ├── scripts/             # One-off/manual scripts (Telnyx assistants, prompts, demo, simulations)
 │   ├── tests/                # Vitest test suite
 │   └── Dockerfile            # Multi-stage build
-├── frontend/               # Next.js 14 application
+├── frontend/               # Next.js 16 application
 │   ├── src/app/            # App Router pages
 │   ├── src/components/     # React components
 │   ├── src/lib/            # API client, types, helpers, SEO, ROI
 │   └── src/hooks/          # Custom React hooks
-├── web/                    # Next.js 14 public site (alhabla.ai): landing, niches, plans, legal, register, blog
+├── web/                    # Next.js 16 public site (alhabla.ai): landing, niches, plans, legal, register, blog
 │   └── content/blog/       # MDX articles
 ├── docs/                   # Niche research and closed plans (docs/historico/)
 └── docker-compose.yml      # Postgres + Redis + backend + cloudflared (dev profile)
@@ -116,7 +116,7 @@ each file.
 
 ### Framework & Routing
 
-- **Next.js 14** with App Router (`frontend/src/app/`, `web/src/app/`).
+- **Next.js 16** with App Router (`frontend/src/app/`, `web/src/app/`). `params`, `searchParams` and `cookies()` are Promises (await them in server components, `use()` in client pages); lint runs with the ESLint CLI (`eslint.config.mjs`), not `next lint`.
 - App on port 3001, public site on port 3002 (dev and `next start`).
 - **Proxy (both projects, dev only):** `/api/backend/:path*` → `http://localhost:3000/:path*` (`frontend/next.config.mjs`, `web/next.config.mjs`). Never rely on it in code — see `DemoVoiceCall` below.
 - **Redirects (app):** marketing paths (`/landing`, niche pages, `/planes`, `/blog`, `/legal/*`, `/register`) go 301 to the public site; `/register/business/*` → `/bienvenida/*`; `/gestor` → `/asistente`. The public site in turn 301s every app route to `app.alhabla.ai`.

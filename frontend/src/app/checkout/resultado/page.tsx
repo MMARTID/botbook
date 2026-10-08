@@ -1,16 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useState, use } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { CheckCircle2, CircleAlert, Clock3, RefreshCw } from "lucide-react";
 import { getBillingSummary, reconcileCheckoutSession } from "@/lib/api";
 
-export default function CheckoutResultPage({
-  searchParams,
-}: {
-  searchParams: { session_id?: string };
+export default function CheckoutResultPage(props: {
+  searchParams: Promise<{ session_id?: string }>;
 }) {
+  const searchParams = use(props.searchParams);
   const sessionId = searchParams.session_id ?? null;
   const [hasPlaceSchedule, setHasPlaceSchedule] = useState(false);
   // Si la confirmación tarda demasiado, la copia pasa a un segundo nivel con

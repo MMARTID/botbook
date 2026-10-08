@@ -17,9 +17,11 @@ export function generateStaticParams() {
 export default async function OpenGraphImage({
   params,
 }: {
-  params: { slug: string };
+  // Desde Next 15, una promesa.
+  params: Promise<{ slug: string }>;
 }) {
-  const articulo: ArticuloMeta | null = leerArticulo(params.slug);
+  const { slug } = await params;
+  const articulo: ArticuloMeta | null = leerArticulo(slug);
   const sector =
     articulo?.sector && articulo.sector in nicheLandings
       ? (articulo.sector as NicheSlug)
