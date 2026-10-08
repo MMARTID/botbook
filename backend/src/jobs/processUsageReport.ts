@@ -75,49 +75,131 @@ export async function processUsageReportJob(input: { businessId: string }): Prom
         });
       }
     }
-    // Puede quedar un informe pendiente si Stripe aceptó el evento pero el
-    // proceso cayó antes de confirmar Postgres. Se reintenta primero con el
-    // mismo identifier (Stripe lo deduplica) y, después, se informa cualquier
-    // minuto que haya terminado mientras tanto.
-    while (true) {
-      const latestPeriod = await prisma.billingUsagePeriod.findUniqueOrThrow({
-        where: { id: period.id },
-        select: { reportedMinutes: true },
-      });
-      const pending = await prisma.billingUsageReport.findFirst({
-        where: { periodId: period.id, reportedAt: null },
-        orderBy: { createdAt: "asc" },
-      });
-      const report = pending ?? (consumedMinutes > latestPeriod.reportedMinutes
-        ? await prisma.billingUsageReport.create({
-            data: {
-              periodId: period.id,
-              minutes: consumedMinutes - latestPeriod.reportedMinutes,
-              identifier: `alhabla-minutes-${period.id}-${consumedMinutes}`,
-            },
-          })
-        : null);
-      if (!report) return;
+    // Las llamadas que empiezan en un periodo y terminan en el siguiente se
+    // cuentan en el periodo en que empezaron, pero este job ya mira el nuevo
+    // cuando llega su call_ended: sus minutos no se informaban nunca. Se
+    // reconcilia el periodo anterior antes del actual.
+    await reconciliarPeriodoAnterior({
+      businessId: input.businessId,
+      stripeCustomerId: business.stripeCustomerId,
+      inicioDelActual: business.subscriptionCurrentPeriodStart,
+      usageBillingStartsAt: business.usageBillingStartsAt,
+    });
 
-      try {
-        await getStripeClient().billing.meterEvents.create(
-          {
-            event_name: "alhabla_call_minutes",
-            identifier: report.identifier,
-            payload: { stripe_customer_id: business.stripeCustomerId, value: String(report.minutes) },
-          },
-          { idempotencyKey: report.identifier }
-        );
-        await prisma.$transaction([
-          prisma.billingUsageReport.update({ where: { id: report.id }, data: { reportedAt: new Date(), lastError: null } }),
-          prisma.billingUsagePeriod.update({ where: { id: period.id }, data: { reportedMinutes: { increment: report.minutes } } }),
-        ]);
-      } catch (error) {
-        await prisma.billingUsageReport.update({ where: { id: report.id }, data: { lastError: error instanceof Error ? error.message : String(error) } });
-        throw error;
-      }
-    }
+    await informarConsumo({
+      periodId: period.id,
+      consumedMinutes,
+      stripeCustomerId: business.stripeCustomerId,
+    });
   } finally {
     await releaseLock(lockKey, lockToken);
+  }
+}
+
+const DIA_MS = 24 * 60 * 60 * 1000;
+/** Stripe acepta eventos de medidor con fecha de hasta 35 días atrás. */
+const VENTANA_DE_RECONCILIACION_MS = 30 * DIA_MS;
+
+/**
+ * Informa a Stripe los minutos del periodo anterior que no llegaron a
+ * informarse: los de llamadas que lo cruzan o que terminaron justo después
+ * del cambio. Van fechados en el último segundo de ese periodo. Stripe deja
+ * la factura del periodo que acaba en borrador alrededor de una hora y los
+ * incluye en ella; una llamada que cruza el cambio termina minutos después.
+ * Si llegaran con la factura ya cerrada, Stripe no los cobraría en el
+ * periodo nuevo, donde además consumirían minutos incluidos de otro mes.
+ */
+async function reconciliarPeriodoAnterior(input: {
+  businessId: string;
+  stripeCustomerId: string;
+  inicioDelActual: Date;
+  usageBillingStartsAt: Date | null;
+}): Promise<void> {
+  const anterior = await prisma.billingUsagePeriod.findFirst({
+    where: {
+      businessId: input.businessId,
+      periodEnd: {
+        lte: input.inicioDelActual,
+        gt: new Date(Date.now() - VENTANA_DE_RECONCILIACION_MS),
+      },
+    },
+    orderBy: { periodStart: "desc" },
+    select: { id: true, periodStart: true, periodEnd: true },
+  });
+  if (!anterior) return;
+  if (input.usageBillingStartsAt && anterior.periodStart < input.usageBillingStartsAt) return;
+
+  // `lt` y no `lte`: una llamada que empieza justo en el cambio es del
+  // periodo nuevo, que la cuenta con `gte`.
+  const aggregate = await prisma.call.aggregate({
+    where: {
+      businessId: input.businessId,
+      status: { not: "IN_PROGRESS" },
+      startedAt: { gte: anterior.periodStart, lt: anterior.periodEnd },
+    },
+    _sum: { durationSecs: true },
+  });
+  await informarConsumo({
+    periodId: anterior.id,
+    consumedMinutes: Math.ceil((aggregate._sum.durationSecs ?? 0) / 60),
+    stripeCustomerId: input.stripeCustomerId,
+    fecha: new Date(anterior.periodEnd.getTime() - 1000),
+  });
+}
+
+/**
+ * Informa a Stripe la diferencia entre lo consumido y lo ya informado en un
+ * periodo. Sin `fecha`, Stripe usa la de ahora (periodo en curso).
+ */
+async function informarConsumo(input: {
+  periodId: string;
+  consumedMinutes: number;
+  stripeCustomerId: string;
+  fecha?: Date;
+}): Promise<void> {
+  const { periodId, consumedMinutes } = input;
+  const timestamp = input.fecha ? Math.floor(input.fecha.getTime() / 1000) : undefined;
+  // Puede quedar un informe pendiente si Stripe aceptó el evento pero el
+  // proceso cayó antes de confirmar Postgres. Se reintenta primero con el
+  // mismo identifier (Stripe lo deduplica) y, después, se informa cualquier
+  // minuto que haya terminado mientras tanto.
+  while (true) {
+    const latestPeriod = await prisma.billingUsagePeriod.findUniqueOrThrow({
+      where: { id: periodId },
+      select: { reportedMinutes: true },
+    });
+    const pending = await prisma.billingUsageReport.findFirst({
+      where: { periodId, reportedAt: null },
+      orderBy: { createdAt: "asc" },
+    });
+    const report = pending ?? (consumedMinutes > latestPeriod.reportedMinutes
+      ? await prisma.billingUsageReport.create({
+          data: {
+            periodId,
+            minutes: consumedMinutes - latestPeriod.reportedMinutes,
+            identifier: `alhabla-minutes-${periodId}-${consumedMinutes}`,
+          },
+        })
+      : null);
+    if (!report) return;
+
+    try {
+      await getStripeClient().billing.meterEvents.create(
+        {
+          event_name: "alhabla_call_minutes",
+          identifier: report.identifier,
+          payload: { stripe_customer_id: input.stripeCustomerId, value: String(report.minutes) },
+          ...(timestamp !== undefined ? { timestamp } : {}),
+        },
+        { idempotencyKey: report.identifier }
+      );
+      await prisma.$transaction([
+        prisma.billingUsageReport.update({ where: { id: report.id }, data: { reportedAt: new Date(), lastError: null } }),
+        prisma.billingUsagePeriod.update({ where: { id: periodId }, data: { reportedMinutes: { increment: report.minutes } } }),
+      ]);
+    } catch (error) {
+      await prisma.billingUsageReport.update({ where: { id: report.id }, data: { lastError: error instanceof Error ? error.message : String(error) } });
+      throw error;
+    }
   }
 }

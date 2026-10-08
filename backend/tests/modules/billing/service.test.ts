@@ -39,6 +39,9 @@ vi.mock("../../../src/lib/prisma.js", () => ({
   },
 }));
 
+vi.mock("../../../src/lib/voiceConfigCache.js", () => ({
+  invalidarCacheDeVoz: vi.fn(),
+}));
 vi.mock("../../../src/lib/stripe.js", () => ({
   getStripeClient: vi.fn(),
   getStripeWebhookSecret: vi.fn(),

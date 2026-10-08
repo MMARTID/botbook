@@ -3,7 +3,7 @@ import type { Prisma } from "@prisma/client";
 import { prisma } from "../../lib/prisma.js";
 import { errorMessage } from "../../lib/logUtils.js";
 import { isValidE164Phone } from "../../lib/phone.js";
-import { ESTADOS_DE_SUSCRIPCION_BLOQUEADOS } from "../../lib/planFeatures.js";
+import { servicioSuspendidoPorPago } from "../../lib/planFeatures.js";
 import {
   acquireBookingLock,
   releaseBookingLock,
@@ -349,6 +349,8 @@ const SELECT_NEGOCIO_AGENDA = {
   minAdvanceBookingMinutes: true,
   maxAppointmentDurationMinutes: true,
   subscriptionStatus: true,
+  callsSuspendedAt: true,
+  paymentFailureSuspensionAt: true,
   active: true,
   ...SELECT_CONEXION_DE_CALENDARIO,
 } as const satisfies Prisma.BusinessSelect;
@@ -370,10 +372,7 @@ async function negocioParaReservar(
   if (!business || !business.active) {
     return { ok: false, motivo: "El negocio no está activo." };
   }
-  if (
-    business.subscriptionStatus &&
-    ESTADOS_DE_SUSCRIPCION_BLOQUEADOS.has(business.subscriptionStatus)
-  ) {
+  if (servicioSuspendidoPorPago(business)) {
     return {
       ok: false,
       motivo:

@@ -421,6 +421,10 @@ describe("conversarConGestor", () => {
     redis.get.mockImplementation(async (clave: string) =>
       clave === claveDePropuesta("biz_1") ? "acc_7" : null
     );
+    // Lo que el backend comprobó que se va a hacer (registrarPropuesta).
+    vi.mocked(prisma.ownerPendingAction.findUnique).mockResolvedValueOnce({
+      resumen: "Dar por resuelta la cita pendiente de Elena del lunes 14 de septiembre a las 17:00.",
+    } as never);
     mockedChat.mockResolvedValueOnce(
       "Si confirmas, doy por resuelta la cita pendiente de Elena."
     );
@@ -444,7 +448,11 @@ describe("conversarConGestor", () => {
       expect.objectContaining({
         audience: "owner",
         to: MOVIL,
-        body: "Si confirmas, doy por resuelta la cita pendiente de Elena.",
+        // El texto del Gestor y, debajo, la confirmación del backend: el
+        // botón ejecuta lo que dice esta segunda parte.
+        body:
+          "Si confirmas, doy por resuelta la cita pendiente de Elena.\n\n" +
+          "Si confirmas: Dar por resuelta la cita pendiente de Elena del lunes 14 de septiembre a las 17:00.",
         buttons: botonesDeAccion("acc_7"),
       })
     );

@@ -158,15 +158,54 @@ export class PlanLimitError extends Error {
 }
 
 /**
- * Estados de SubscriptionStatus (schema.prisma) que significan «el negocio
- * no está pagando ahora mismo». No incluye TRIALING/ACTIVE (pagando de
- * facto) ni INCOMPLETE/PAUSED (transitorios/ambiguos) para no bloquear de
- * más; null (cuentas de prueba/demo sin Stripe) se trata como permitido.
- * Lo consultan la reserva por voz y la reserva desde la lista de espera.
+ * Estados de SubscriptionStatus (schema.prisma) en los que la suscripción ya
+ * no se va a cobrar. No incluye TRIALING/ACTIVE (pagando de facto) ni
+ * INCOMPLETE/PAUSED (transitorios/ambiguos) para no bloquear de más; null
+ * (cuentas de prueba/demo sin Stripe) se trata como permitido.
+ *
+ * PAST_DUE tampoco está: es el primer cobro fallido, y el negocio tiene siete
+ * días de gracia para regularizarlo (el correo de impago lo promete). Antes
+ * bloqueaba las reservas desde el primer minuto mientras la recepcionista
+ * seguía atendiendo. Lo que corta el servicio al acabar la gracia es
+ * `paymentFailureSuspensionAt` (ver servicioSuspendidoPorPago).
  */
 export const ESTADOS_DE_SUSCRIPCION_BLOQUEADOS: ReadonlySet<string> = new Set([
   "CANCELED",
   "UNPAID",
-  "PAST_DUE",
   "INCOMPLETE_EXPIRED",
 ]);
+
+/** Lo que hace falta del negocio para saber si el impago ya corta el servicio. */
+export interface EstadoDePagoDelNegocio {
+  subscriptionStatus: string | null;
+  // Pueden llegar como texto desde la caché de voz (JSON) o faltar en
+  // entradas cacheadas antes de que existieran aquí.
+  callsSuspendedAt?: Date | string | null;
+  paymentFailureSuspensionAt?: Date | string | null;
+}
+
+/**
+ * ¿El estado del pago impide reservar y usar el Gestor? Sí si la suscripción
+ * está en un estado sin cobro posible, o si el plazo de gracia de un impago ya
+ * venció (el mismo criterio con el que se dejan de atender las llamadas, ver
+ * phone/telnyxInbound.ts). Durante los siete días de gracia, no.
+ */
+export function servicioSuspendidoPorPago(
+  negocio: EstadoDePagoDelNegocio,
+  ahora: Date = new Date()
+): boolean {
+  if (
+    negocio.subscriptionStatus &&
+    ESTADOS_DE_SUSCRIPCION_BLOQUEADOS.has(negocio.subscriptionStatus)
+  ) {
+    return true;
+  }
+  if (negocio.callsSuspendedAt) return true;
+  if (
+    negocio.paymentFailureSuspensionAt &&
+    new Date(negocio.paymentFailureSuspensionAt).getTime() <= ahora.getTime()
+  ) {
+    return true;
+  }
+  return false;
+}

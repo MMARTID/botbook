@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { prisma } from "../../lib/prisma.js";
 import { errorMessage } from "../../lib/logUtils.js";
-import { ESTADOS_DE_SUSCRIPCION_BLOQUEADOS } from "../../lib/planFeatures.js";
+import { servicioSuspendidoPorPago } from "../../lib/planFeatures.js";
 import { telnyxAiAdapter } from "../../adapters/telnyx/TelnyxAiAdapter.js";
 import {
   TEXTO_DE_SEGUIMIENTO,
@@ -74,6 +74,8 @@ const SELECT_NEGOCIO = {
   ownerConversationId: true,
   ownerConversationCreatedAt: true,
   subscriptionStatus: true,
+  callsSuspendedAt: true,
+  paymentFailureSuspensionAt: true,
 } as const;
 
 function disponible(): boolean {
@@ -302,8 +304,7 @@ export async function preguntarAlGestor(input: {
   if (
     !business ||
     !business.active ||
-    (business.subscriptionStatus &&
-      ESTADOS_DE_SUSCRIPCION_BLOQUEADOS.has(business.subscriptionStatus))
+    servicioSuspendidoPorPago(business)
   ) {
     return {
       ok: false,

@@ -60,7 +60,7 @@ import { cancelarReserva } from "../bookings/cancelacion.js";
 import { isValidE164Phone } from "../../lib/phone.js";
 import { procesarInformeFinal } from "../whatsapp/recados.js";
 import {
-  ESTADOS_DE_SUSCRIPCION_BLOQUEADOS,
+  servicioSuspendidoPorPago,
   planAllows,
   resolvePlanId,
 } from "../../lib/planFeatures.js";
@@ -233,6 +233,10 @@ type BusinessVoiceConfig = FilaDeConexionDeCalendario & {
   // reserva ante un estado explícito de "no está pagando" (ver
   // executeBookAppointment) — hallazgo #9 de la auditoría.
   subscriptionStatus: string | null;
+  // Plazo de gracia de un impago: hasta que vence se puede reservar. Pueden
+  // faltar en entradas de caché anteriores a estas columnas.
+  callsSuspendedAt?: Date | string | null;
+  paymentFailureSuspensionAt?: Date | string | null;
 };
 
 async function loadBusinessConfig(
@@ -253,6 +257,8 @@ async function loadBusinessConfig(
       telnyxPhoneNumber: true,
       hideOwnerNumberFromClients: true,
       subscriptionStatus: true,
+      callsSuspendedAt: true,
+      paymentFailureSuspensionAt: true,
     },
   });
 }
@@ -1302,12 +1308,9 @@ async function executeBookAppointment(
   // reservar (hallazgo #9 de la auditoría). null (cuentas de prueba/demo
   // sin Stripe) se trata como permitido a propósito — solo se bloquea ante
   // un estado explícito de "no está pagando".
-  if (
-    business.subscriptionStatus &&
-    ESTADOS_DE_SUSCRIPCION_BLOQUEADOS.has(business.subscriptionStatus)
-  ) {
+  if (servicioSuspendidoPorPago(business)) {
     console.warn(
-      `[VoiceTools] ${callLabel} no puede reservar: suscripción en estado ${business.subscriptionStatus}`
+      `[VoiceTools] ${callLabel} no puede reservar: suscripción en estado ${business.subscriptionStatus} o servicio suspendido por impago`
     );
     return {
       success: true,

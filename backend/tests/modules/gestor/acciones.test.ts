@@ -5,6 +5,7 @@ import {
   accionConocida,
   decidirPropuesta,
   registrarPropuesta,
+  textoDeConfirmacion,
 } from "../../../src/modules/gestor/acciones.js";
 
 vi.mock("../../../src/lib/bookingLock.js", () => ({
@@ -172,6 +173,11 @@ describe("registrarPropuesta", () => {
     };
     expect(data.tipo).toBe("resolver_pendiente");
     expect(data.parametros).toEqual({ pendienteId: "lead_1" });
+    // Lo que confirma el dueño lo escribe el backend a partir de lo que
+    // comprobó, no el LLM.
+    expect((data as unknown as { resumen: string }).resumen).toBe(
+      "Dar por resuelta la cita pendiente de Elena del lunes 14 de septiembre a las 17:00 (Corte)."
+    );
     expect(data.conversationId).toBe("conv_1");
     expect(data.inboundMessageId).toBe("in_1");
     expect(data.expiresAt.getTime() - antes).toBeGreaterThanOrEqual(
@@ -374,3 +380,21 @@ describe("decidirPropuesta", () => {
     });
   });
 });
+
+describe("textoDeConfirmacion", () => {
+  it("añade el verbo a las descripciones que no lo llevan", () => {
+    expect(textoDeConfirmacion("crear_servicios", "el servicio Corte (30 min)")).toBe(
+      "Dar de alta el servicio Corte (30 min)."
+    );
+    expect(textoDeConfirmacion("fijar_horario", "el horario: lunes de 9:00 a 14:00")).toBe(
+      "Cambiar el horario: lunes de 9:00 a 14:00."
+    );
+  });
+
+  it("respeta las que ya empiezan por un verbo", () => {
+    expect(textoDeConfirmacion("cancelar_cita", "cancelar la cita de Ana del martes")).toBe(
+      "Cancelar la cita de Ana del martes."
+    );
+  });
+});
+

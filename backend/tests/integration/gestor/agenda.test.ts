@@ -381,7 +381,9 @@ describe("el Gestor desde el panel (integración)", () => {
       ok: true,
       respuesta: "Si confirmas, marco a Laura como ausente.",
       propuesta: {
-        resumen: "Marco a Laura como ausente.",
+        // Lo que el dueño confirma lo redacta el backend con los datos
+        // verificados, no el resumen que escribió el LLM.
+        resumen: expect.stringMatching(/^Marcar a Laura como ausente el /),
         botones: { confirmar: "Confirmar", cancelar: "Cancelar" },
       },
     });

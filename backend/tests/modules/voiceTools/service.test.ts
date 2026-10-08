@@ -1680,7 +1680,7 @@ describe("executeVoiceTool book_appointment — estado de la suscripción (halla
     mockedEnqueueSmsJob.mockResolvedValue(undefined);
   });
 
-  it.each(["CANCELED", "UNPAID", "PAST_DUE", "INCOMPLETE_EXPIRED"])(
+  it.each(["CANCELED", "UNPAID", "INCOMPLETE_EXPIRED"])(
     "rechaza la reserva si la suscripción está en %s",
     async (subscriptionStatus) => {
       mockedBusinessFindUnique.mockResolvedValue(
@@ -1694,6 +1694,39 @@ describe("executeVoiceTool book_appointment — estado de la suscripción (halla
       expect(mockedBookAppointment).not.toHaveBeenCalled();
     }
   );
+
+  // La regresión: PAST_DUE (primer cobro fallido) bloqueaba todas las
+  // reservas aunque el negocio tiene siete días de gracia y la recepcionista
+  // sigue atendiendo. Bloquea cuando la gracia vence.
+  it("permite reservar con PAST_DUE durante los días de gracia", async () => {
+    mockedBusinessFindUnique.mockResolvedValue(
+      buildBusiness({
+        subscriptionStatus: "PAST_DUE",
+        paymentFailureSuspensionAt: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000),
+        callsSuspendedAt: null,
+      }) as any
+    );
+
+    const result = await executeVoiceTool(buildBookAppointmentInput());
+
+    expect(result.result.success).toBe(true);
+    expect(mockedBookAppointment).toHaveBeenCalled();
+  });
+
+  it("rechaza la reserva cuando la gracia del impago ya venció", async () => {
+    mockedBusinessFindUnique.mockResolvedValue(
+      buildBusiness({
+        subscriptionStatus: "PAST_DUE",
+        paymentFailureSuspensionAt: new Date(Date.now() - 60 * 1000),
+        callsSuspendedAt: null,
+      }) as any
+    );
+
+    const result = await executeVoiceTool(buildBookAppointmentInput());
+
+    expect(result.result.code).toBe("SUBSCRIPTION_INACTIVE");
+    expect(mockedBookAppointment).not.toHaveBeenCalled();
+  });
 
   it.each(["ACTIVE", "TRIALING", null])(
     "permite la reserva si la suscripción está en %s",

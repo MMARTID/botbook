@@ -193,6 +193,33 @@ export type ResultadoDePropuesta =
  * la propuesta con 24 h de vida. Devuelve el motivo si no se puede proponer;
  * nunca lanza.
  */
+/**
+ * Verbo que les falta a las descripciones de algunas acciones para leerse
+ * solas («el servicio Corte (30 min)» → «Dar de alta el servicio Corte…»).
+ * Las demás ya empiezan por uno («mover…», «cancelar…», «apuntar a…»).
+ */
+const VERBO_DE_CONFIRMACION: Readonly<Record<string, string>> = {
+  resolver_pendiente: "dar por resuelta",
+  crear_servicios: "dar de alta",
+  editar_servicio: "cambiar",
+  fijar_especialidad: "fijar la especialidad de",
+  fijar_horario: "cambiar",
+};
+
+/**
+ * Lo que el dueño confirma con el botón. Sale de la descripción que calcula
+ * el backend al comprobar la propuesta, la misma que describe lo que va a
+ * ejecutarse, y no del `resumen` que escribe el LLM. El LLM lee datos que
+ * escriben los clientes (nombres, motivos de recados), así que su resumen
+ * podía decir una cosa mientras el botón ejecutaba otra.
+ */
+export function textoDeConfirmacion(tipo: string, descripcion: string): string {
+  const verbo = VERBO_DE_CONFIRMACION[tipo];
+  const frase = (verbo ? `${verbo} ${descripcion}` : descripcion).trim();
+  const conMayuscula = frase.charAt(0).toUpperCase() + frase.slice(1);
+  return /[.!?]$/.test(conMayuscula) ? conMayuscula : `${conMayuscula}.`;
+}
+
 export async function registrarPropuesta(input: {
   businessId: string;
   timezone: string;
@@ -258,7 +285,9 @@ export async function registrarPropuesta(input: {
         tipo,
         parametros: (comprobacion.parametros ??
           parsed.data) as Prisma.InputJsonValue,
-        resumen,
+        // Se guarda la confirmación del backend; el resumen del LLM solo se
+        // exige para que proponga con una intención clara.
+        resumen: textoDeConfirmacion(tipo, comprobacion.descripcion),
         expiresAt,
       },
       select: { id: true },

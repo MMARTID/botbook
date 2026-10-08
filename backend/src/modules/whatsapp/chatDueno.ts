@@ -3,7 +3,7 @@ import { prisma } from "../../lib/prisma.js";
 import { getRedis } from "../../lib/redis.js";
 import { errorMessage } from "../../lib/logUtils.js";
 import { acquireLock, releaseLock } from "../../lib/bookingLock.js";
-import { ESTADOS_DE_SUSCRIPCION_BLOQUEADOS } from "../../lib/planFeatures.js";
+import { servicioSuspendidoPorPago } from "../../lib/planFeatures.js";
 import { telnyxAiAdapter } from "../../adapters/telnyx/TelnyxAiAdapter.js";
 import { BusinessScheduleSchema } from "../../lib/businessSchedule.js";
 import {
@@ -88,6 +88,8 @@ const SELECT_NEGOCIO_DEL_CHAT_DUENO = {
   ownerConversationId: true,
   ownerConversationCreatedAt: true,
   subscriptionStatus: true,
+  callsSuspendedAt: true,
+  paymentFailureSuspensionAt: true,
 } as const;
 
 type NegocioDelChatDueno = {
@@ -469,10 +471,7 @@ export async function conversarConGestor(input: {
   if (!business || !business.active) {
     return { atendido: false, motivo: "negocio_inactivo" };
   }
-  if (
-    business.subscriptionStatus &&
-    ESTADOS_DE_SUSCRIPCION_BLOQUEADOS.has(business.subscriptionStatus)
-  ) {
+  if (servicioSuspendidoPorPago(business)) {
     console.warn(
       `[WhatsApp] Chat dueño ${business.id}/${from}: el negocio no puede chatear (suscripción ${business.subscriptionStatus})`
     );
@@ -544,19 +543,32 @@ export async function conversarConGestor(input: {
     // El turno de seguimiento no tenía nada que añadir.
     return { atendido: true, resultado: { handler: `${base}:nada` } };
   }
-  if (accionId && textoRespuesta.length > MAX_CUERPO_INTERACTIVO) {
+  // Junto a los botones va siempre lo que el backend comprobó que se va a
+  // hacer, no solo el texto del Gestor: el LLM lee datos que escriben los
+  // clientes y su texto podía no coincidir con lo que ejecuta el botón.
+  const confirmacion = accionId
+    ? (
+        await prisma.ownerPendingAction.findUnique({
+          where: { id: accionId },
+          select: { resumen: true },
+        })
+      )?.resumen ?? null
+    : null;
+  const cuerpoConConfirmacion = confirmacion
+    ? `${textoRespuesta}\n\nSi confirmas: ${confirmacion}`
+    : textoRespuesta;
+  if (accionId && cuerpoConConfirmacion.length > MAX_CUERPO_INTERACTIVO) {
     // Meta limita el cuerpo de un interactivo a 1024 caracteres: una lista
     // larga de servicios no cabe con los botones. Va el texto entero y,
-    // aparte, los botones con el resumen de la propuesta.
-    const propuesta = await prisma.ownerPendingAction.findUnique({
-      where: { id: accionId },
-      select: { resumen: true },
-    });
+    // aparte, los botones con la confirmación de la propuesta.
     await responder(message, "chat-dueno", textoRespuesta, opciones);
+    const pregunta = `¿Confirmas? ${confirmacion ?? ""}`.trim();
     const conBotones = await responder(
       message,
       "chat-dueno-botones",
-      `¿Confirmas? ${propuesta?.resumen ?? ""}`.trim(),
+      pregunta.length > MAX_CUERPO_INTERACTIVO
+        ? `${pregunta.slice(0, MAX_CUERPO_INTERACTIVO - 1).trimEnd()}…`
+        : pregunta,
       { ...opciones, botones: botonesDeAccion(accionId) }
     );
     return {
@@ -567,7 +579,7 @@ export async function conversarConGestor(input: {
   const enviada = await responder(
     message,
     base === "chat:dueno" ? "chat-dueno" : "chat-dueno-seguimiento",
-    textoRespuesta,
+    cuerpoConConfirmacion,
     {
       ...opciones,
       botones: accionId ? botonesDeAccion(accionId) : undefined,
