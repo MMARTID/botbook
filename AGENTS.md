@@ -2162,10 +2162,17 @@ Lo que el plan dejó fuera del código (rescatado al archivarlo en `docs/histori
 
 - Uses **Stripe Checkout Sessions** (embedded UI mode) for subscription sign-ups.
 - Plans are defined in `backend/src/modules/billing/catalog.ts`:
-  - `inicio` — 100 min included, 0.45€/min extra.
-  - `pro` — 400 min included, 0.40€/min extra (featured).
-  - `scale` — 1000 min included, 0.35€/min extra.
+  - `inicio` — 150 min included, 0.45€/min extra.
+  - `pro` — 500 min included, 0.40€/min extra (featured).
+  - `scale` — 1100 min included, 0.35€/min extra.
 - Each plan maps to a `STRIPE_PRICE_*` environment variable.
+- **IVA (desde el 2026-10-08):** el checkout lleva `automatic_tax: { enabled: true }`; Stripe Tax lo
+  calcula con el registro de España de la cuenta (`taxreg_1UOEtxCpwKBbcYrvvbWyqW34` en live; también hay
+  uno en el sandbox). Los precios no fijan `tax_behavior` y los ajustes de impuestos lo infieren por moneda:
+  en euros es **IVA incluido**, como dice el aviso legal (79 € = 65,29 € + 13,71 € de IVA), así que el
+  total no cambia. La suscripción lo hereda (renovaciones y minutos extra) y con un NIF-IVA de otro país
+  de la UE se aplica la inversión del sujeto pasivo. Coste: 0,5 % por cobro con IVA (Stripe Tax Basic).
+  Las suscripciones anteriores siguen sin IVA hasta activarles `automatic_tax` a mano.
 - New subscriptions get a 7-day trial (`CHECKOUT_TRIAL_DAYS = 7`).
 - `createCheckoutSession` rejects if the business already has an active subscription or trial.
 - Stripe webhooks are processed in `billing/service.ts` (`handleStripeEvent`). Events are deduplicated via `StripeWebhookEvent` table.
