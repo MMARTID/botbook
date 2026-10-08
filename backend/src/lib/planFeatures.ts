@@ -16,11 +16,13 @@ import {
 export type PlanFeature =
   | "recordatorios_cita"
   | "resumen_semanal"
-  // Catalán, euskera o gallego como idioma principal (desde el 2026-10-05;
-  // ver funcionQueExige en lib/idiomas/ajustes.ts). Sustituye a
-  // «voz_idioma»: elegir la voz y un principal con voces Ultra es de todos
-  // los planes.
-  | "lenguas_locales"
+  // Elegir entre todas las voces del idioma principal (desde el 2026-10-07;
+  // ver funcionQueExige en lib/idiomas/resolver.ts). Sin ella, el dueño
+  // elige mujer u hombre y atiende la voz por defecto de ese género. El
+  // idioma principal es libre en todos los planes, catalán, euskera y
+  // gallego incluidos: sustituye a «lenguas_locales» (del 05 al 07-10) y a
+  // «voz_idioma» (antes del 05-10).
+  | "elegir_voz"
   | "analitica_avanzada"
   | "multi_sede";
 
@@ -33,7 +35,7 @@ export type PlanLimitsAndFeatures = {
 const PRO_FEATURES: readonly PlanFeature[] = [
   "recordatorios_cita",
   "resumen_semanal",
-  "lenguas_locales",
+  "elegir_voz",
 ];
 
 const SCALE_FEATURES: readonly PlanFeature[] = [
@@ -103,16 +105,25 @@ export function planesQueIncluyen(feature: PlanFeature): string {
 
 /**
  * Las features del plan tal como las lee la app (`planFeatures` de
- * GET /billing/summary). Mientras dura el despliegue del 2026-10-05 lleva
- * también «voz_idioma» donde hay «lenguas_locales»: el panel anterior
- * desbloqueaba con ella la voz y los idiomas, y Vercel y Cloud Run no
- * publican a la vez. QUITAR en la PR siguiente, cuando ninguna app la pida.
+ * GET /billing/summary). Mientras dura el despliegue del 2026-10-07 lleva
+ * también las claves que leen las apps anteriores, porque Vercel y Cloud
+ * Run no publican a la vez y una pestaña abierta no recarga:
+ *
+ * - «lenguas_locales», en todos los planes: la app del 05-10 desbloquea con
+ *   ella catalán, euskera y gallego si su catálogo en caché (se pide una vez
+ *   por sesión) aún les pone ese `requiere`. Ya son de todos los planes.
+ * - «voz_idioma» donde hay «elegir_voz»: la app anterior al 05-10
+ *   desbloqueaba con ella la voz y los idiomas.
+ *
+ * QUITAR las dos en la PR siguiente, cuando ninguna app las pida.
  */
 export function featuresParaLaApp(planId: PlanId): string[] {
   const features: string[] = [...PLAN_FEATURES[planId].features];
-  return features.includes("lenguas_locales")
-    ? [...features, "voz_idioma"]
-    : features;
+  return [
+    ...features,
+    "lenguas_locales",
+    ...(features.includes("elegir_voz") ? ["voz_idioma"] : []),
+  ];
 }
 
 /** El plan inmediatamente superior, o null si ya es el más alto. */

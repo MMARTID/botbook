@@ -291,6 +291,10 @@ export const CATALOGO_DE_IDIOMAS: CatalogoDeIdiomas = {
           muestra: "/voces/es/21c2f7ab-dacb-4847-a593-3cd20668c4b3.mp3",
         },
       ],
+      requiereParaElegirVoz: {
+        funcion: "elegir_voz",
+        texto: "Elegir entre las 29 voces: planes Pro y Scale",
+      },
     },
     {
       codigo: "ca-ES",
@@ -307,10 +311,7 @@ export const CATALOGO_DE_IDIOMAS: CatalogoDeIdiomas = {
         "nl-NL",
       ],
       entradilla: "Habla en 8 idiomas: catalán, español, inglés, francés, alemán, italiano, portugués y neerlandés. Saluda en catalán y sigue en el idioma de quien llama.",
-      requiere: {
-        funcion: "lenguas_locales",
-        texto: "Disponible en Pro y Scale",
-      },
+      requiere: null,
       familia: "soniox",
       voces: [
         {
@@ -332,6 +333,7 @@ export const CATALOGO_DE_IDIOMAS: CatalogoDeIdiomas = {
           muestra: "/voces/ca/sergio.mp3",
         },
       ],
+      requiereParaElegirVoz: null,
     },
     {
       codigo: "eu-ES",
@@ -348,10 +350,7 @@ export const CATALOGO_DE_IDIOMAS: CatalogoDeIdiomas = {
         "nl-NL",
       ],
       entradilla: "Habla en 8 idiomas: euskera, español, inglés, francés, alemán, italiano, portugués y neerlandés. Saluda en euskera y sigue en el idioma de quien llama.",
-      requiere: {
-        funcion: "lenguas_locales",
-        texto: "Disponible en Pro y Scale",
-      },
+      requiere: null,
       familia: "soniox",
       voces: [
         {
@@ -373,6 +372,7 @@ export const CATALOGO_DE_IDIOMAS: CatalogoDeIdiomas = {
           muestra: "/voces/eu/sergio.mp3",
         },
       ],
+      requiereParaElegirVoz: null,
     },
     {
       codigo: "gl-ES",
@@ -389,10 +389,7 @@ export const CATALOGO_DE_IDIOMAS: CatalogoDeIdiomas = {
         "nl-NL",
       ],
       entradilla: "Habla en 8 idiomas: gallego, español, inglés, francés, alemán, italiano, portugués y neerlandés. Saluda en gallego y sigue en el idioma de quien llama.",
-      requiere: {
-        funcion: "lenguas_locales",
-        texto: "Disponible en Pro y Scale",
-      },
+      requiere: null,
       familia: "soniox",
       voces: [
         {
@@ -414,6 +411,7 @@ export const CATALOGO_DE_IDIOMAS: CatalogoDeIdiomas = {
           muestra: "/voces/gl/sergio.mp3",
         },
       ],
+      requiereParaElegirVoz: null,
     },
     {
       codigo: "en-GB",
@@ -793,6 +791,10 @@ export const CATALOGO_DE_IDIOMAS: CatalogoDeIdiomas = {
           muestra: "/voces/en/3d5ce2fb-e56c-42f0-9ed9-4662484063b4.mp3",
         },
       ],
+      requiereParaElegirVoz: {
+        funcion: "elegir_voz",
+        texto: "Elegir entre las 40 voces: planes Pro y Scale",
+      },
     },
     {
       codigo: "fr-FR",
@@ -1109,6 +1111,10 @@ export const CATALOGO_DE_IDIOMAS: CatalogoDeIdiomas = {
           muestra: "/voces/fr/fbc431c6-7d79-4ef5-b1bb-aab9f579c690.mp3",
         },
       ],
+      requiereParaElegirVoz: {
+        funcion: "elegir_voz",
+        texto: "Elegir entre las 33 voces: planes Pro y Scale",
+      },
     },
     {
       codigo: "de-DE",
@@ -1425,6 +1431,10 @@ export const CATALOGO_DE_IDIOMAS: CatalogoDeIdiomas = {
           muestra: "/voces/de/b7187e84-fe22-4344-ba4a-bc013fcb533e.mp3",
         },
       ],
+      requiereParaElegirVoz: {
+        funcion: "elegir_voz",
+        texto: "Elegir entre las 33 voces: planes Pro y Scale",
+      },
     },
     {
       codigo: "it-IT",
@@ -1561,6 +1571,10 @@ export const CATALOGO_DE_IDIOMAS: CatalogoDeIdiomas = {
           muestra: "/voces/it/408daed0-c597-4c27-aae8-fa0497d644bf.mp3",
         },
       ],
+      requiereParaElegirVoz: {
+        funcion: "elegir_voz",
+        texto: "Elegir entre las 13 voces: planes Pro y Scale",
+      },
     },
     {
       codigo: "pt-PT",
@@ -1643,6 +1657,10 @@ export const CATALOGO_DE_IDIOMAS: CatalogoDeIdiomas = {
           muestra: "/voces/pt/6a360542-a117-4ed5-9e09-e8bf9b05eabb.mp3",
         },
       ],
+      requiereParaElegirVoz: {
+        funcion: "elegir_voz",
+        texto: "Elegir entre las 7 voces: planes Pro y Scale",
+      },
     },
     {
       codigo: "nl-NL",
@@ -1761,6 +1779,10 @@ export const CATALOGO_DE_IDIOMAS: CatalogoDeIdiomas = {
           muestra: "/voces/nl/af482421-80f4-4379-b00c-a118def29cde.mp3",
         },
       ],
+      requiereParaElegirVoz: {
+        funcion: "elegir_voz",
+        texto: "Elegir entre las 11 voces: planes Pro y Scale",
+      },
     },
   ],
   etiquetas: {

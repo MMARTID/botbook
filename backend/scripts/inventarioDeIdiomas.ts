@@ -13,8 +13,10 @@
  * - cuántos guardan otros idiomas de los que habla con su principal (casi
  *   todos: es el cambio deliberado del 2026-10-05) y cuántos assistants de
  *   Telnyx se resincronizarán por eso;
- * - y los que están en Inicio con catalán, euskera o gallego de principal,
- *   que lo conservan (el plan se mira al escribir).
+ * - y los que están en un plan sin «elegir_voz» (Inicio) con una voz que
+ *   no es la de por defecto de su género, que la conservan (el plan se mira
+ *   al escribir; desde el 2026-10-07 el principal, catalán, euskera y
+ *   gallego incluidos, es libre en todos los planes).
  *
  * La migración 20261005150000_saludo_en_la_cooficial guarda la cooficial
  * como principal donde las reglas anteriores ya saludaban en ella: antes de
@@ -26,8 +28,10 @@
  */
 import { prisma } from "../src/lib/prisma.js";
 import { parseAgentSettings } from "../src/lib/managedAgentPrompt.js";
-import { resolverIdiomas } from "../src/lib/idiomas/resolver.js";
-import { funcionQueExige } from "../src/lib/idiomas/ajustes.js";
+import {
+  funcionQueExige,
+  resolverIdiomas,
+} from "../src/lib/idiomas/resolver.js";
 import { planAllows, resolvePlanId } from "../src/lib/planFeatures.js";
 
 function clave(valor: unknown): string {
@@ -53,7 +57,7 @@ async function main() {
 
   const porConfiguracion = new Map<string, number>();
   const cambianPrincipalOVoz: string[] = [];
-  const conLenguaLocalSinElPlan: string[] = [];
+  const conVozElegidaSinElPlan: string[] = [];
   let cambianIdiomas = 0;
   let assistantsQueSeResincronizan = 0;
 
@@ -83,11 +87,11 @@ async function main() {
       cambianIdiomas++;
       assistantsQueSeResincronizan += assistants;
     }
-    const funcion = funcionQueExige(perfil.principal);
+    const funcion = funcionQueExige(ajustes);
     const planId = resolvePlanId(negocio);
     if (funcion && !planAllows(planId, funcion)) {
-      conLenguaLocalSinElPlan.push(
-        `- ${negocio.id} «${negocio.name}» (${planId}): principal ${perfil.principal}`
+      conVozElegidaSinElPlan.push(
+        `- ${negocio.id} «${negocio.name}» (${planId}): principal ${perfil.principal} · voz ${perfil.voz.nombre}`
       );
     }
   }
@@ -107,9 +111,9 @@ async function main() {
     `\nGuardan otros idiomas que los que habla con su principal: ${cambianIdiomas} negocio(s), ${assistantsQueSeResincronizan} assistant(s) de Telnyx que se resincronizarán`
   );
   console.log(
-    `\nCon catalán, euskera o gallego de principal en un plan que no lo incluye (lo conservan): ${conLenguaLocalSinElPlan.length}`
+    `\nCon una voz elegida que no es la de por defecto en un plan que no incluye elegirla (la conservan): ${conVozElegidaSinElPlan.length}`
   );
-  for (const linea of conLenguaLocalSinElPlan) console.log(linea);
+  for (const linea of conVozElegidaSinElPlan) console.log(linea);
 }
 
 main()
