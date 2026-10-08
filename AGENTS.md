@@ -10,7 +10,7 @@ The codebase is fully in Spanish — UI copy, comments, variable names, and busi
 
 | Layer | Technology |
 |-------|------------|
-| **Backend runtime** | Node.js 20, TypeScript 5.9, ESM (`"type": "module"`) |
+| **Backend runtime** | Node.js 22 (`.nvmrc`), TypeScript 5.9, ESM (`"type": "module"`) |
 | **HTTP framework** | Fastify 5 |
 | **Frontend** | Two Next.js 14 (App Router) projects, React 18, Tailwind CSS v3: `frontend/` (the app, `app.alhabla.ai`, :3001) and `web/` (public site + MDX blog, `alhabla.ai`, :3002) |
 | **Database** | PostgreSQL 15 + Prisma ORM |

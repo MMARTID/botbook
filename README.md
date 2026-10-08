@@ -37,7 +37,7 @@ también por WhatsApp con el dueño y con sus clientes.
 
 | Capa | Tecnología |
 |------|------------|
-| Backend | Node.js 20, TypeScript 5.9, Fastify 5 |
+| Backend | Node.js 22, TypeScript 5.9, Fastify 5 |
 | App (`frontend/`, app.alhabla.ai) | Next.js 14, React 18, Tailwind CSS, TanStack Query |
 | Web pública (`web/`, alhabla.ai) | Next.js 14, React 18, Tailwind CSS, blog en MDX |
 | Base de datos | PostgreSQL 15 + Prisma |
@@ -52,7 +52,7 @@ también por WhatsApp con el dueño y con sus clientes.
 
 ## Requisitos
 
-- Node.js 20+
+- Node.js 22 (la versión está en `.nvmrc`)
 - Docker y Docker Compose
 - Cuentas y claves de API: Telnyx (voz, telefonía y WhatsApp), Retell, Google Cloud
   (Calendar + Places + Login), Microsoft Azure (Outlook), Stripe, Cloudflare R2, Zoho Mail

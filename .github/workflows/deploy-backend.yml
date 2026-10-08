@@ -50,7 +50,9 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          # La versión de Node vive en .nvmrc, la misma que la imagen de
+          # producción (backend/Dockerfile) y que `engines` en cada package.json.
+          node-version-file: .nvmrc
           cache: npm
           cache-dependency-path: backend/package-lock.json
 
