@@ -77,13 +77,13 @@ export default function RegisterPage() {
   };
 
   return (
-    <div className="relative isolate flex min-h-screen items-center justify-center px-4 py-12 sm:px-6 lg:px-8">
+    <div className="tema-sistema relative isolate flex min-h-screen items-center justify-center px-4 py-12 sm:px-6 lg:px-8">
       <ParticleField />
       <ParticleMouseLayer />
       <div className="panel w-full max-w-lg p-8">
         <div className="space-y-4 text-center">
           <BrandMark className="mx-auto h-14 w-14" />
-          <h2 className="text-3xl font-black tracking-tight text-[#0a0a0a]">Crear cuenta</h2>
+          <h2 className="text-3xl font-black tracking-tight text-tinta">Crear cuenta</h2>
           <p className="mx-auto max-w-md text-sm leading-6 text-muted">
             Regístrate para configurar tu asistente y comenzar a mejorar la experiencia de tus clientes.
           </p>
@@ -103,16 +103,16 @@ export default function RegisterPage() {
             />
           </div>
           <div className="my-6 flex items-center gap-4" aria-hidden="true">
-            <div className="h-px flex-1 bg-[#e5e5e5]" />
-            <span className="text-xs font-medium uppercase tracking-[0.12em] text-[#71717a]">o con email</span>
-            <div className="h-px flex-1 bg-[#e5e5e5]" />
+            <div className="h-px flex-1 bg-linea" />
+            <span className="text-xs font-medium uppercase tracking-[0.12em] text-apagado-2">o con email</span>
+            <div className="h-px flex-1 bg-linea" />
           </div>
         </div>
 
         <form className="space-y-6" onSubmit={handleSubmit}>
           <div className="space-y-4">
             <div>
-              <label htmlFor="register-email" className="text-sm font-medium text-[#27272a]">Email</label>
+              <label htmlFor="register-email" className="text-sm font-medium text-tinta-2">Email</label>
               <input
                 id="register-email"
                 name="email"
@@ -126,7 +126,7 @@ export default function RegisterPage() {
               />
             </div>
             <div>
-              <label htmlFor="register-password" className="text-sm font-medium text-[#27272a]">Contraseña</label>
+              <label htmlFor="register-password" className="text-sm font-medium text-tinta-2">Contraseña</label>
               <input
                 id="register-password"
                 name="password"
@@ -148,7 +148,7 @@ export default function RegisterPage() {
               </p>
             </div>
             <fieldset>
-              <legend className="text-sm font-medium text-[#27272a]">¿Tus clientes son de la Unión Europea?</legend>
+              <legend className="text-sm font-medium text-tinta-2">¿Tus clientes son de la Unión Europea?</legend>
               <div className="mt-2 grid grid-cols-2 gap-3">
                 {([
                   { label: "Sí", value: true },
@@ -163,7 +163,7 @@ export default function RegisterPage() {
                       checked={isEuropeanUnion === option.value}
                       onChange={() => setIsEuropeanUnion(option.value)}
                     />
-                    <span className="flex h-11 items-center justify-center gap-2 rounded-full border border-[#e5e5e5] bg-white text-sm font-semibold text-[#27272a] transition peer-checked:border-[#8b5cf6] peer-checked:bg-[#f3eeff] peer-checked:text-[#6d28d9] peer-focus-visible:ring-4 peer-focus-visible:ring-[#8b5cf6]/30 peer-focus-visible:ring-offset-2 group-hover:border-[#8b5cf6]">
+                    <span className="flex h-11 items-center justify-center gap-2 rounded-full border border-linea bg-superficie text-sm font-semibold text-tinta-2 transition peer-checked:border-morado peer-checked:bg-lavado peer-checked:text-morado-tinta peer-focus-visible:ring-4 peer-focus-visible:ring-morado/30 peer-focus-visible:ring-offset-2 group-hover:border-morado">
                       {isEuropeanUnion === option.value ? <Check className="h-4 w-4" aria-hidden="true" /> : null}
                       {option.label}
                     </span>
@@ -174,22 +174,22 @@ export default function RegisterPage() {
                 Lo usamos para preparar tu asistente conforme a la RGPD desde el primer día.
               </p>
             </fieldset>
-            <label className="flex min-h-11 items-start gap-3 py-1.5 text-sm text-[#27272a]">
+            <label className="flex min-h-11 items-start gap-3 py-1.5 text-sm text-tinta-2">
               <input
                 ref={casillaTerminos}
                 type="checkbox"
                 required
-                className="mt-0.5 h-4 w-4 shrink-0 rounded border-[#d4d4d8] text-[#8b5cf6] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#8b5cf6]/30"
+                className="mt-0.5 h-4 w-4 shrink-0 rounded border-linea-fuerte text-morado focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-morado/30"
                 checked={acceptedTerms}
                 onChange={(e) => setAcceptedTerms(e.target.checked)}
               />
               <span>
                 He leído y acepto los{" "}
-                <Link href="/legal/aviso-legal" target="_blank" className="rounded font-semibold text-[#7c3aed] underline underline-offset-2 transition hover:text-[#6d28d9] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] focus-visible:ring-offset-2">
+                <Link href="/legal/aviso-legal" target="_blank" className="rounded font-semibold text-morado-tinta underline underline-offset-2 transition hover:text-morado-tinta focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-morado focus-visible:ring-offset-2">
                   Términos y Condiciones
                 </Link>{" "}
                 y la{" "}
-                <Link href="/legal/privacidad" target="_blank" className="rounded font-semibold text-[#7c3aed] underline underline-offset-2 transition hover:text-[#6d28d9] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] focus-visible:ring-offset-2">
+                <Link href="/legal/privacidad" target="_blank" className="rounded font-semibold text-morado-tinta underline underline-offset-2 transition hover:text-morado-tinta focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-morado focus-visible:ring-offset-2">
                   Política de privacidad
                 </Link>
                 .
@@ -199,7 +199,7 @@ export default function RegisterPage() {
 
           {/* Alto reservado: sin esto, un error real (email ya registrado)
               desplaza el botón justo cuando el usuario reintenta. */}
-          <p className="min-h-5 text-sm text-[#c53030]" role="alert">{error}</p>
+          <p className="min-h-5 text-sm text-error" role="alert">{error}</p>
 
           <button type="submit" disabled={loading || !acceptedTerms} className="btn-primary w-full justify-center">
             {loading ? "Creando cuenta..." : "Registrarse"}
@@ -207,7 +207,7 @@ export default function RegisterPage() {
 
           <div className="text-center text-sm text-muted">
             ¿Ya tienes cuenta?{" "}
-            <a href={appUrl("/login")} className="rounded font-semibold text-[#7c3aed] transition hover:text-[#6d28d9] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6] focus-visible:ring-offset-2">
+            <a href={appUrl("/login")} className="rounded font-semibold text-morado-tinta transition hover:text-morado-tinta focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-morado focus-visible:ring-offset-2">
               Inicia sesión
             </a>
           </div>
