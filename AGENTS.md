@@ -709,12 +709,28 @@ el `fetch` equivalente. **Nunca desde un route handler**: todo pasa por
   a la tool, nunca durante la conversación). Se propaga a los assistants por el reconciliador
   (el deploy lo fuerza al tocar esos ficheros).
 - `modules/whatsapp/recados.ts` › `procesarInformeFinal` (case `informar_al_negocio` de
-  `executeVoiceTool`, siempre 200): reclamo atómico del PRIMER informe en `Call.postCallReport`
-  (`updateMany` con `postCallReport: { equals: DbNull }` — Telnyx lo manda dos veces); si el
-  segundo trae recado y el primero no, se añade y se avisa; **doble escritura** con los
-  insights: `outcome/escalationReason/toolFailureDetected/requestedService` solo si están a
-  null, y `warn` «discrepancia insights/informe» cuando difieren (esa es la medida para retirar
-  los insights); recado ⇒ `Lead` tipo `message` (`isLead: true`, data `clientName/clientPhone
+  `executeVoiceTool`, siempre 200): reclamo atómico del primer informe en `Call.postCallReport`
+  (`updateMany` con `postCallReport: { equals: DbNull }`). **Desde el 2026-10-07 cada informe
+  siguiente lo completa** (`combinarInformes`):
+  - Hay varios por llamada: los dos de la post-conversación, que Telnyx manda casi a la vez, y
+    los de mitad de llamada. La recepcionista llama a la tool durante la conversación pese al
+    prompt, sobre todo al dejar un recado: en dev, en 65 de 80 llamadas el cliente siguió
+    hablando después del primero. Antes ganaba el primero y el de la post-conversación se
+    perdía.
+  - El más reciente manda en resultado, motivo de escalada y servicio. El fallo de tool que
+    avisó cualquiera se queda y las dudas se suman (hasta 5).
+  - El recado es el primero que llegó. Lo que le faltaba (nombre, teléfono, si quiere que le
+    llamen) lo rellena uno posterior, también en el `Lead`. Pasa cuando el recado sale antes de
+    confirmar el teléfono.
+  - La escritura va condicionada a `postCallReportAt`, con 3 intentos, así que dos
+    simultáneos combinan sobre el otro y el recado crea un solo lead y un solo aviso.
+  - El prompt no se cambió a «solo después de colgar»: en el chat de WhatsApp (mismo
+    assistant, nunca se cuelga) los recados llegan justo porque la tool se llama durante la
+    conversación.
+
+  **Doble escritura** con los insights: `outcome/escalationReason/toolFailureDetected/requestedService`
+  solo si están a null o tienen lo que puso un informe anterior, y `warn` «discrepancia
+  insights/informe» cuando difieren (esa es la medida para retirar los insights); recado ⇒ `Lead` tipo `message` (`isLead: true`, data `clientName/clientPhone
   (E.164 o null)/motivo/quiereQueLeLlamen/callControlId`) ⇒ aviso #2 `avisarRecado`
   (botones «Atendido» · «Recuérdamelo mañana»; plantilla `recado_negocio` con
   `negocio_nombre/cliente_nombre/cliente_telefono/motivo`; respaldo `messageLeadEmail` al
@@ -2146,10 +2162,17 @@ Lo que el plan dejó fuera del código (rescatado al archivarlo en `docs/histori
 
 - Uses **Stripe Checkout Sessions** (embedded UI mode) for subscription sign-ups.
 - Plans are defined in `backend/src/modules/billing/catalog.ts`:
-  - `inicio` — 100 min included, 0.45€/min extra.
-  - `pro` — 400 min included, 0.40€/min extra (featured).
-  - `scale` — 1000 min included, 0.35€/min extra.
+  - `inicio` — 150 min included, 0.45€/min extra.
+  - `pro` — 500 min included, 0.40€/min extra (featured).
+  - `scale` — 1100 min included, 0.35€/min extra.
 - Each plan maps to a `STRIPE_PRICE_*` environment variable.
+- **IVA (desde el 2026-10-08):** el checkout lleva `automatic_tax: { enabled: true }`; Stripe Tax lo
+  calcula con el registro de España de la cuenta (`taxreg_1UOEtxCpwKBbcYrvvbWyqW34` en live; también hay
+  uno en el sandbox). Los precios no fijan `tax_behavior` y los ajustes de impuestos lo infieren por moneda:
+  en euros es **IVA incluido**, como dice el aviso legal (79 € = 65,29 € + 13,71 € de IVA), así que el
+  total no cambia. La suscripción lo hereda (renovaciones y minutos extra) y con un NIF-IVA de otro país
+  de la UE se aplica la inversión del sujeto pasivo. Coste: 0,5 % por cobro con IVA (Stripe Tax Basic).
+  Las suscripciones anteriores siguen sin IVA hasta activarles `automatic_tax` a mano.
 - New subscriptions get a 7-day trial (`CHECKOUT_TRIAL_DAYS = 7`).
 - `createCheckoutSession` rejects if the business already has an active subscription or trial.
 - Stripe webhooks are processed in `billing/service.ts` (`handleStripeEvent`). Events are deduplicated via `StripeWebhookEvent` table.
@@ -2197,8 +2220,11 @@ backend/src/lib/voiceConfigCache.ts        # claveDeCacheDeVoz / invalidarCacheD
 - **Interfaz** (`CalendarProvider<P>`): `listarCalendarios(cuenta)`, `listarProximosEventos(conexion, max)`,
   `listarOcupacion(conexion, ventana)` (devuelve intervalos ya filtrados con la regla del proveedor; puede lanzar
   cualquier cosa, el servicio degrada a `{ intervals: [], calendarAvailabilityKnown: false }`), `crearEvento(conexion,
-  evento)` (idempotente por `idempotencyDigest`, devuelve `{ id, htmlLink }`) y `borrarEvento(conexion, eventId)`
-  (ya borrado = éxito). Los adaptadores reciben `ConexionActiva` (credenciales + `calendarId` garantizados) y un
+  evento)` (idempotente por `idempotencyDigest`, devuelve `{ id, htmlLink }`) y `borrarEvento(conexion, eventId,
+  ventana?)`, que devuelve un `ResultadoDeBorrado`: `borrado` (con `eventIdReal` si estaba en otra dirección) o
+  `no_estaba` con el estado (404/410). Todo llamador de `calendarService.cancelAppointment` pasa la hora del evento
+  (`ventanaDeLaCita`) y registra el resultado con `registrarBorradoDeEvento` (`modules/calendar/borradoDeEvento.ts`):
+  un `no_estaba` sale como warn, porque puede ser un evento vivo en otra dirección. Los adaptadores reciben `ConexionActiva` (credenciales + `calendarId` garantizados) y un
   callback opcional `alRotarCredenciales` (Outlook rota el refresh token en cada refresh; el adaptador no persiste nada).
 - **`conexion.ts`**: `resolverConexionDeCalendario(business, { provider?, calendarId? })` (lee la fila del proveedor
   activo de `business.calendarConnections`, valida `credentials` con Zod — una fila corrupta cuenta como "sin
@@ -2235,7 +2261,10 @@ backend/src/lib/voiceConfigCache.ts        # claveDeCacheDeVoz / invalidarCacheD
     Sin esto tsdav devuelve **lista vacía ante un 401** y una consulta de ocupación con contraseña revocada diría
     "agenda libre" (dobles reservas). 404 y 412 pasan porque borrar y crear los interpretan.
   - Crear = `PUT` con `If-None-Match: *` y UID `alhabla-<digest>@alhabla.ai`; **412 = ya existía por un reintento**
-    → mismo href, sin duplicar. Borrar: 404/410 = éxito. Sin `ATTENDEE` a propósito (iCloud mandaría
+    → mismo href, sin duplicar; si el `PUT` responde con `Location` en otra ruta, se guarda esa ruta (con el origen
+    del calendario) y se avisa. Borrar: 404/410 en el href guardado → si hay ventana y el href es nuestro
+    (`alhabla-<digest>.ics`), busca el UID en la hora de la cita ±1 día y borra el objeto donde esté (`eventIdReal`);
+    si no, `no_estaba`. Nunca se busca ni se borra por UID un evento ajeno. Sin `ATTENDEE` a propósito (iCloud mandaría
     invitaciones desde la cuenta del negocio). Fechas en UTC; dos VALARM como los recordatorios de Google.
   - Ocupación: `calendar-query` con `time-range` y `expand` (si el servidor no expande, `ics.ts` expande la RRULE);
     **misma regla que Google** (cancelado no cuenta; día completo cuenta aunque sea `TRANSPARENT`; con hora y
@@ -2370,6 +2399,7 @@ The prompt includes:
 - Business identity and verified info block (`INFORMACION_VERIFICADA_DEL_NEGOCIO`, free text from `Business.businessDetails`)
 - Booking restrictions, in Spanish, only if set (`minAdvanceBookingMinutes`/`maxAppointmentDurationMinutes` — see Business Type / Booking & Availability)
 - Instructions to NEVER invent data: `get_catalog` for services, professionals and hours; `check_availability` for a concrete slot (it validates opening hours, booking restrictions, capacity and the calendar, and returns the `availabilityToken`); `book_appointment` only after explicit confirmation and with that token (a required parameter). The legacy `check_business_hours` tool no longer exists (removed 2026-09-29)
+- **Bloque «## Lo que ofrece el negocio»** (`TITULO_DEL_BLOQUE_DEL_CATALOGO`, desde el 2026-10-07): lo que hace el negocio solo se sabe por `get_catalog`, también ante preguntas de sí o no («¿hacéis mechas?», «do you do beard trims?») y en cualquier idioma. La tool se llama en ese mismo turno, antes de decir «sí», «no» o «lo miro», y una sola vez por conversación. Un servicio pedido con otro nombre o en otro idioma es el del catálogo, y uno que no está no se confirma. La descripción de la tool dice lo mismo (`buildTelnyxVoiceTools` y `buildRetellCalendarTools`). Viene de las llamadas de prueba del 05-10: con la regla anterior, metida en «## Conversación» detrás de «no enumeres opciones», la recepcionista contestaba «yes, we do highlights» en un negocio sin servicios. Por chat consultaban 27 de 72 preguntas de sí o no; con el bloque, todas las medidas (288 por chat y 13 llamadas reales). Cuesta una vuelta más del LLM en esa primera respuesta: ~2 s de mediana con flux y ~3,4 s con Soniox, frente a ~0,8 s sin consultar.
 - Three **Retell dynamic variable placeholders** — `{{servicios_disponibles}}`, `{{empleados}}`, `{{horario_semanal}}` — literal `{{...}}` text, not baked-in data. See "Retell Dynamic Variables" below for how they get filled in per call.
 
 Since 2026-09-04 the prompt text itself no longer contains the business's services, professionals or schedule — only the static per-axis instructions above. That data used to be interpolated directly into the string and re-sent to Retell (`updateLlm`) on every services/professionals/schedule edit; it's now delivered fresh on every call via the inbound-call webhook instead (see below), so the synced prompt template stays constant-size regardless of how large a business's catalog grows.
@@ -2480,16 +2510,26 @@ listas de idiomas ni decide por su cuenta:
     de palabra (9,5 % frente a 4,7 %), con palabras arrastradas a otros idiomas («metxes» →
     «metges», «tints» → «teen»); una llamada se rompió con cuatro turnos de «no oferim serveis
     mèdics». **Sin medir:** que con dos pistas Soniox entienda el inglés u otros idiomas.
-  - **Instrucción del prompt** (`instruccionesDeIdioma`): «Empieza siempre con el saludo en
-    {principal}. Tras la primera intervención de quien llama, responde y continúa exclusivamente en
-    el idioma que use si es uno de estos: {los siete u ocho, en orden canónico}…», con «Las frases
+  - **Instrucción del prompt** (`instruccionesDeIdioma`): «En las llamadas, el saludo en
+    {principal} ya lo dice el sistema al descolgar y es el primer mensaje de la conversación: no lo
+    repitas. Desde tu primera respuesta, contesta y continúa exclusivamente en el idioma en que te
+    habla quien llama si es uno de estos: {los siete u ocho, en orden canónico}…», con «Las frases
     que estas instrucciones ponen entre comillas para decírselas a quien llama están en castellano:
     dilas traducidas al idioma de la conversación.» y la nota valenciana y balear del catalán; y un
-    bloque «## Idioma» que cierra
-    el prompt y lo recuerda (también en el resumen de la reserva, la pregunta del WhatsApp y la
-    despedida). Ese refuerzo viene de la tanda «A2 inglés» del 05-10: con la regla sola, contestó
-    en castellano a clientes que hablaban inglés en 5 de 19 respuestas, sobre todo en las frases
-    que el prompt da literales en castellano. **Sin medir de nuevo con él.**
+    bloque «## Idioma» que cierra el prompt y lo recuerda (también la primera respuesta, lo que
+    diga después de una herramienta, el resumen de la reserva, la pregunta del WhatsApp y la
+    despedida).
+    - El refuerzo final viene de la tanda «A2 inglés» del 05-10: con la regla sola, contestó en
+      castellano a clientes que hablaban inglés en 5 de 19 respuestas, sobre todo en las frases
+      que el prompt da literales en castellano.
+    - Lo del saludo y la primera respuesta es del 07-10. Antes decía «Empieza siempre con el
+      saludo en…», y en llamadas reales la primera respuesta fallaba más que el resto: 2 de 14
+      en castellano a un cliente que hablaba inglés, frente a 3 de 68 en los turnos siguientes.
+      El modelo empezaba repitiendo el saludo que Telnyx ya ha dicho y seguía en su idioma, o
+      contestaba en castellano tras `get_catalog` (su respuesta viene en castellano). Con la
+      instrucción nueva, 13 de 13 primeras respuestas en el idioma del cliente y ningún saludo
+      repetido: inglés, francés, alemán, italiano, portugués, castellano y catalán, con principal
+      español y catalán.
   - **Para Retell, el respaldo:** `ajustesParaRetell` deja el principal y el español, no los siete
     u ocho de Telnyx (sin los que Retell no tiene: con euskera de principal, solo español). Es lo
     que ya recibía antes del 05-10 y está validado contra su API: con principal español, el
@@ -3109,8 +3149,12 @@ fusionar o descartar una rama, quita su fila de esta tabla.
     beforehand rather than derived afterwards as "the second newest": if the deploy fails without
     creating a revision, the second newest is two deploys old and rolling back to it would undo
     more than the bad deploy.
-  - **Propagating agent behaviour.** If the push touches `lib/managedAgentPrompt.ts` or
-    `lib/telnyxAssistantPayload.ts`, the job forces the `telnyx-reconciler` Cloud Scheduler job
+  - **Propagating agent behaviour.** If the push touches anything that feeds the assistants'
+    payload — `lib/managedAgentPrompt.ts`, `lib/telnyxAssistantPayload.ts`, `lib/telnyxAgentSync.ts`,
+    `lib/telnyxEligibility.ts`, `lib/transferenciaAlDueno.ts`, `lib/idiomas/*.ts` or the Gestor's
+    `lib/gestorPayload.ts`/`lib/gestorSync.ts` (`lib/idiomas/` and the rest were added on
+    2026-10-07, after a change only in `idiomas/resolver.ts`, PR #262, came out as "nada que
+    propagar") — the job forces the `telnyx-reconciler` Cloud Scheduler job
     instead of waiting for its daily 04:00 pass, and prints a warning that the **Retell fallback
     is still manual** (`scripts/syncManagedAgentPrompts.ts`). It never fails the deploy: if the
     trigger is refused (the CI service account needs `roles/cloudscheduler.jobRunner`), the

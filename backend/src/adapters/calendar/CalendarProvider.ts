@@ -172,6 +172,26 @@ export type NuevoEventoDeCalendario = {
 
 export type EventoCreado = { id: string | null; htmlLink: string | null };
 
+/** Qué pasó al borrar un evento externo. Ningún llamador lo da por bueno sin
+ * mirarlo: «no_estaba» puede ser que el dueño lo borrara a mano… o que el
+ * evento siga vivo en otra dirección y el dueño reciba sus avisos. */
+export type ResultadoDeBorrado =
+  | {
+      resultado: "borrado";
+      /** Solo cuando se borró en una dirección distinta de la pedida (CalDAV:
+       * el servidor guardó el objeto con otro nombre). */
+      eventIdReal?: string;
+    }
+  | {
+      resultado: "no_estaba";
+      /** Estado HTTP con el que respondió el proveedor (404, 410). */
+      estado: number;
+    };
+
+/** Hora del evento que se quiere borrar. CalDAV la usa para buscarlo por UID
+ * si no está en su dirección; Google y Outlook la ignoran. */
+export type VentanaDelEvento = { inicio: Date; fin: Date };
+
 export interface CalendarProvider<
   P extends CalendarProviderId = CalendarProviderId,
 > {
@@ -199,6 +219,14 @@ export interface CalendarProvider<
     conexion: ConexionActiva<P>,
     evento: NuevoEventoDeCalendario
   ): Promise<EventoCreado>;
-  /** Evento ya borrado = éxito. Lanza CalendarBusinessError. */
-  borrarEvento(conexion: ConexionActiva<P>, eventId: string): Promise<void>;
+  /** Devuelve qué pasó: «borrado» (con `eventIdReal` si estaba en otra
+   * dirección) o «no_estaba» con el estado del proveedor (404/410), que el
+   * llamador debe registrar: un evento que no estaba donde decíamos puede
+   * seguir vivo en otra parte. Con `ventana`, el adaptador puede buscarlo
+   * antes de rendirse (CalDAV). Lanza CalendarBusinessError. */
+  borrarEvento(
+    conexion: ConexionActiva<P>,
+    eventId: string,
+    ventana?: VentanaDelEvento
+  ): Promise<ResultadoDeBorrado>;
 }

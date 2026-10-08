@@ -21,6 +21,58 @@ export function nombreDeFichero(uid: string): string {
   return `${uid.replace(/@alhabla\.ai$/, "")}.ics`;
 }
 
+/** Nombre de fichero de un evento nuestro: `alhabla-` y el digest (sha256
+ * hex) o, sin clave de idempotencia, un UUID aleatorio. */
+const PATRON_DE_FICHERO_PROPIO = /^(alhabla-[0-9a-f]+(?:-[0-9a-f]+)*)\.ics$/i;
+
+/** Inversa de `nombreDeFichero`: el UID que corresponde al href (URL absoluta
+ * o ruta) de un evento creado por Alhabla. null si el último segmento no
+ * sigue el patrón `alhabla-<digest>.ics`: entonces el evento no es nuestro
+ * (o no sabemos de quién es) y nadie debe buscarlo ni borrarlo por UID. */
+export function uidDesdeNombreDeFichero(href: string): string | null {
+  let ruta = href;
+  try {
+    ruta = new URL(href).pathname;
+  } catch {
+    // Ya era una ruta o un nombre suelto.
+  }
+  const segmento = ruta.split("/").pop() ?? "";
+  let fichero = segmento;
+  try {
+    fichero = decodeURIComponent(segmento);
+  } catch {
+    // Escape inválido: se compara tal cual (y no casará con el patrón).
+  }
+  const casa = PATRON_DE_FICHERO_PROPIO.exec(fichero);
+  return casa ? `${casa[1]}@alhabla.ai` : null;
+}
+
+/** UIDs (sin repetir) de los VEVENT de un objeto .ics. Nunca lanza: un ICS
+ * que no se puede leer no tiene UIDs, y quien busca un evento por UID
+ * simplemente no lo encuentra (un objeto raro en la ventana no puede abortar
+ * el borrado de los demás). Eso incluye un objeto con varios VCALENDAR
+ * seguidos (RFC 4791 exige uno por recurso): `ICAL.parse` los devuelve como
+ * lista de componentes, el constructor no se queja y el fallo saltaría al
+ * recorrerlos. Tampoco se leen por separado: borrar ese objeto por uno de
+ * sus UID borraría también lo que haya en los otros. */
+export function uidsDesdeIcs(data: string): string[] {
+  try {
+    const jcal: unknown = ICAL.parse(data);
+    // Un solo componente es `["vcalendar", [propiedades], [subcomponentes]]`;
+    // varios llegan como lista de esos.
+    if (!Array.isArray(jcal) || jcal[0] !== "vcalendar") return [];
+    const vcalendar = new ICAL.Component(jcal);
+    const uids = new Set<string>();
+    for (const vevent of vcalendar.getAllSubcomponents("vevent")) {
+      const uid = vevent.getFirstPropertyValue("uid");
+      if (typeof uid === "string" && uid.trim()) uids.add(uid.trim());
+    }
+    return [...uids];
+  } catch {
+    return [];
+  }
+}
+
 /** VCALENDAR con un VEVENT: fechas en UTC (`Z`), alarmas de aviso al dueño
  * y contenido ya calculado por el servicio. No añade ATTENDEE a propósito:
  * en iCloud dispararía invitaciones por correo desde la cuenta del negocio. */

@@ -196,7 +196,13 @@ jobs:
             CAMBIOS=$(git diff --name-only "$ANTES" "${{ github.sha }}")
           fi
 
-          if ! echo "$CAMBIOS" | grep -qE '^backend/src/lib/(managedAgentPrompt|telnyxAssistantPayload|gestorPayload|gestorSync)\.ts$'; then
+          # Todo lo que entra en el payload: el prompt también lo escriben
+          # lib/idiomas/ (la instrucción de idioma, la voz y la
+          # transcripción), la transferencia y el sync. El 07-10 un cambio
+          # solo en idiomas/resolver.ts (PR #262) salió como «nada que
+          # propagar». Si sobra, no pasa nada: el reconciliador no toca los
+          # assistants cuyo hash no cambia.
+          if ! echo "$CAMBIOS" | grep -qE '^backend/src/lib/((managedAgentPrompt|telnyxAssistantPayload|telnyxAgentSync|telnyxEligibility|transferenciaAlDueno|gestorPayload|gestorSync)\.ts|idiomas/.+\.ts)$'; then
             echo "El deploy no toca el prompt ni el payload de los assistants (recepcionista o Gestor): nada que propagar."
             exit 0
           fi

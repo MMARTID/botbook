@@ -556,6 +556,43 @@ describe("createCheckoutSession", () => {
     );
   });
 
+  // Los precios incluyen el IVA (aviso legal) y Stripe Tax lo desglosa en
+  // las facturas; automatic_tax exige customer_update.address con un
+  // cliente ya creado.
+  it("activa el IVA automático de Stripe Tax en el checkout", async () => {
+    mockedBusinessFindUnique.mockResolvedValue(
+      buildBusiness({ subscriptionStatus: null, stripeCustomerId: null }) as any
+    );
+    const sessionsCreate = vi.fn().mockResolvedValue({
+      id: "cs_test_1",
+      client_secret: "secret_123",
+    });
+    mockedGetStripeClient.mockReturnValue({
+      customers: { create: vi.fn().mockResolvedValue({ id: customerId }) },
+      checkout: {
+        sessions: {
+          create: sessionsCreate,
+          list: vi.fn().mockResolvedValue({ data: [] }),
+          expire: vi.fn(),
+        },
+      },
+    } as any);
+
+    await createCheckoutSession({
+      businessId,
+      userId: "user_123",
+      planId: "inicio",
+    });
+
+    expect(sessionsCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        automatic_tax: { enabled: true },
+        tax_id_collection: { enabled: true },
+        customer_update: expect.objectContaining({ address: "auto" }),
+      })
+    );
+  });
+
   it("reutiliza una sesión de checkout ya abierta en vez de crear otra (hallazgo #10 de la auditoría)", async () => {
     mockedBusinessFindUnique.mockResolvedValue(
       buildBusiness({ subscriptionStatus: null, stripeCustomerId: customerId }) as any

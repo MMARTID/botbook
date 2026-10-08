@@ -5,6 +5,10 @@ import { errorMessage } from "../../lib/logUtils.js";
 import { enqueueWhatsappJob } from "../../lib/cloudTasks.js";
 import { calendarService } from "../calendar/service.js";
 import {
+  registrarBorradoDeEvento,
+  ventanaDeLaCita,
+} from "../calendar/borradoDeEvento.js";
+import {
   conexionOperativa,
   marcarCalendarioDesconectado,
   origenDeCalendario,
@@ -861,9 +865,18 @@ export async function reservarDesdeListaDeEspera(input: {
       }
       if (eventoCreado) {
         try {
-          await calendarService.cancelAppointment({
+          const borrado = await calendarService.cancelAppointment({
             conexion,
             eventId: eventoCreado,
+            ventana: ventanaDeLaCita(startDate, data.durationMinutes),
+          });
+          registrarBorradoDeEvento({
+            prefijo: "[WhatsApp]",
+            etiqueta,
+            businessId,
+            proveedor: conexion.provider,
+            eventId: eventoCreado,
+            resultado: borrado,
           });
         } catch (errorAlBorrar) {
           console.error(

@@ -228,7 +228,7 @@ exports[`payloads de asistentes (instantáneas) > assistant de la recepcionista,
           "required": undefined,
           "type": "object",
         },
-        "description": "Obtiene los servicios activos con sus IDs y duraciones, los profesionales y el horario del negocio. Úsala cuando el cliente pregunte por ellos o antes de comprobar/reservar si necesitas un ID o duración.",
+        "description": "Única fuente de lo que ofrece el negocio: los servicios activos con sus IDs y duraciones, los profesionales y el horario. Llámala antes de confirmar o negar un servicio, un profesional o el horario, también ante una pregunta de sí o no, y antes de comprobar o reservar si necesitas un ID o una duración.",
         "headers": [
           {
             "name": "X-Alhabla-Call-Control-Id",
@@ -945,14 +945,14 @@ Si te escriben en catalán, gallego, euskera o inglés, responde en ese idioma; 
 exports[`payloads de asistentes (instantáneas) > el JSON enviado es idéntico byte a byte (hash) 1`] = `
 {
   "gestor": "d42493dfb458dbe1ef8fa7fab6dbf284ec727a79d37293a97bff584963af6abf",
-  "recepcionista": "10e734b7e0179d2a861fccc190d49ae5ab699084342057a064efa98853322229",
+  "recepcionista": "4ab27f4a816e24c1341c0598bec971badac1254402a358aa6a92f4d3ef0d73ec",
 }
 `;
 
 exports[`payloads de asistentes (instantáneas) > tools de voz de la recepcionista 1`] = `
 [
   {
-    "description": "Obtiene los servicios activos con sus IDs y duraciones, los profesionales y el horario del negocio. Úsala cuando el cliente pregunte por ellos o antes de comprobar/reservar si necesitas un ID o duración.",
+    "description": "Única fuente de lo que ofrece el negocio: los servicios activos con sus IDs y duraciones, los profesionales y el horario. Llámala antes de confirmar o negar un servicio, un profesional o el horario, también ante una pregunta de sí o no, y antes de comprobar o reservar si necesitas un ID o una duración.",
     "headers": [
       {
         "name": "X-Alhabla-Call-Control-Id",

@@ -4,6 +4,7 @@ import {
   buildManagedAgentPrompt,
   parseAgentSettings,
   DEFAULT_AGENT_SETTINGS,
+  TITULO_DEL_BLOQUE_DEL_CATALOGO,
 } from "../../src/lib/managedAgentPrompt.js";
 import { idiomasQueHabla } from "../../src/lib/idiomas/catalogo.js";
 
@@ -113,11 +114,117 @@ describe("buildManagedAgentPrompt", () => {
       settings: DEFAULT_AGENT_SETTINGS,
     });
 
-    expect(prompt).toContain("consulta get_catalog una vez");
+    expect(prompt).toContain("sin volver a llamarla en la misma conversación");
     expect(prompt).toContain("No repitas check_availability");
     expect(prompt).toContain("suggestedNextSlot");
     expect(prompt).toContain("availabilityToken");
   });
+});
+
+// Llamadas de prueba del 2026-10-05: ante «do you do highlights?» la
+// recepcionista contestaba «yes, we do» sin consultar get_catalog en un
+// negocio sin ningún servicio, o decía «lo compruebo» y no llamaba a la
+// tool. La regla de antes iba pegada a «no enumeres opciones» y solo hablaba
+// de preguntas por servicios (27 de 72 preguntas de sí o no consultaban);
+// con el bloque propio consultaron todas las primeras respuestas medidas
+// (288 por chat y 13 llamadas reales). Ver el comentario del bloque.
+describe("buildManagedAgentPrompt — lo que ofrece el negocio", () => {
+  const bloqueDelCatalogo = (prompt: string) => {
+    const inicio = prompt.indexOf(TITULO_DEL_BLOQUE_DEL_CATALOGO);
+    return prompt.slice(inicio, prompt.indexOf("\n\n## ", inicio + 1));
+  };
+
+  it("obliga a consultar get_catalog antes de contestar también a una pregunta de sí o no", () => {
+    const bloque = bloqueDelCatalogo(
+      buildManagedAgentPrompt({
+        businessName: "Peluquería Ejemplo",
+        businessType: "peluqueria",
+        settings: DEFAULT_AGENT_SETTINGS,
+      })
+    );
+
+    expect(bloque).toContain("solo lo sabes por get_catalog");
+    expect(bloque).toContain("no por lo que suele hacer un negocio como este");
+    expect(bloque).toContain("también si es de sí o no");
+    expect(bloque).toContain("«do you do beard trims?»");
+    expect(bloque).toContain("en el idioma que sea");
+    expect(bloque).toContain(
+      "llama a get_catalog en ese mismo turno antes de contestar"
+    );
+  });
+
+  it("no deja decir «sí» ni «lo compruebo» sin haber llamado a la herramienta", () => {
+    const bloque = bloqueDelCatalogo(
+      buildManagedAgentPrompt({
+        businessName: "Peluquería Ejemplo",
+        settings: DEFAULT_AGENT_SETTINGS,
+      })
+    );
+
+    expect(bloque).toContain(
+      "No digas «sí», «no» ni «ahora lo miro» antes de tener su respuesta"
+    );
+    expect(bloque).toContain(
+      "llama a la herramienta en ese turno sin anunciarlo"
+    );
+  });
+
+  it("acepta otro nombre u otro idioma para el mismo servicio y no confirma uno que no está", () => {
+    const bloque = bloqueDelCatalogo(
+      buildManagedAgentPrompt({
+        businessName: "Peluquería Ejemplo",
+        settings: DEFAULT_AGENT_SETTINGS,
+      })
+    );
+
+    expect(bloque).toContain("aunque lo llame de otra forma o en otro idioma");
+    expect(bloque).toContain("sin hablar del catálogo ni de listas");
+    expect(bloque).toContain("Si no encaja con ninguno, no lo confirmes");
+  });
+
+  it("la regla ya no va pegada a «no enumeres opciones»", () => {
+    const prompt = buildManagedAgentPrompt({
+      businessName: "Peluquería Ejemplo",
+      settings: DEFAULT_AGENT_SETTINGS,
+    });
+
+    expect(prompt).not.toContain("consulta get_catalog una vez");
+    expect(prompt).toContain(
+      "No enumeres opciones sin necesidad: responde solo a lo que te preguntan."
+    );
+  });
+
+  // Pasó con el principal español y con el catalán, con clientes en
+  // inglés: la regla tiene que estar en todos los perfiles de idioma (y en
+  // el de Retell, que solo habla español) y antes de «## Límites».
+  it.each([
+    {
+      caso: "solo español (Retell)",
+      voiceLanguage: "es-ES",
+      idiomas: ["es-ES"] as const,
+    },
+    { caso: "principal español", voiceLanguage: "es-ES", idiomas: undefined },
+    { caso: "principal catalán", voiceLanguage: "ca-ES", idiomas: undefined },
+    { caso: "principal inglés", voiceLanguage: "en-GB", idiomas: undefined },
+  ])(
+    "va en el prompt con $caso, antes de los límites",
+    ({ voiceLanguage, idiomas }) => {
+      const prompt = buildManagedAgentPrompt({
+        businessName: "Peluquería Ejemplo",
+        settings: {
+          ...DEFAULT_AGENT_SETTINGS,
+          voiceLanguage,
+          languages: idiomasQueHabla(voiceLanguage as "es-ES"),
+        },
+        ...(idiomas ? { idiomas } : {}),
+      });
+
+      const titulo = prompt.indexOf(TITULO_DEL_BLOQUE_DEL_CATALOGO);
+      expect(titulo).toBeGreaterThan(prompt.indexOf("## Conversación"));
+      expect(titulo).toBeLessThan(prompt.indexOf("## Límites"));
+      expect(bloqueDelCatalogo(prompt)).toContain("también si es de sí o no");
+    }
+  );
 });
 
 describe("parseAgentSettings — voiceGender", () => {
@@ -427,7 +534,7 @@ describe("buildManagedAgentPrompt — idiomas", () => {
     });
 
     expect(prompt).toContain(
-      "Empieza siempre con el saludo en español de España. Tras la primera intervención de quien llama, responde y continúa exclusivamente en el idioma que use si es uno de estos: español de España, inglés, francés, alemán, italiano, portugués, neerlandés. Si cambia entre esos idiomas, acompaña el cambio sin pedirle que elija uno. Las frases que estas instrucciones ponen entre comillas para decírselas a quien llama están en castellano: dilas traducidas al idioma de la conversación. No menciones que eres una IA salvo que te lo pregunten."
+      "En las llamadas, el saludo en español de España ya lo dice el sistema al descolgar y es el primer mensaje de la conversación: no lo repitas. Desde tu primera respuesta, contesta y continúa exclusivamente en el idioma en que te habla quien llama si es uno de estos: español de España, inglés, francés, alemán, italiano, portugués, neerlandés. Si cambia entre esos idiomas, acompaña el cambio sin pedirle que elija uno. Las frases que estas instrucciones ponen entre comillas para decírselas a quien llama están en castellano: dilas traducidas al idioma de la conversación. No menciones que eres una IA salvo que te lo pregunten."
     );
     expect(prompt).not.toContain("Habla siempre en español de España");
   });
@@ -442,7 +549,7 @@ describe("buildManagedAgentPrompt — idiomas", () => {
     });
 
     expect(prompt.endsWith(
-      "## Idioma\nContesta cada turno en el idioma en que te habla quien llama si es uno de estos: español de España, inglés, francés, alemán, italiano, portugués, neerlandés; también el resumen de la reserva, la pregunta del WhatsApp y la despedida. No cambies de idioma por tu cuenta mientras siga hablando en el suyo."
+      "## Idioma\nContesta cada turno en el idioma en que te habla quien llama si es uno de estos: español de España, inglés, francés, alemán, italiano, portugués, neerlandés; también tu primera respuesta, lo que digas después de usar una herramienta (aunque te conteste en castellano), el resumen de la reserva, la pregunta del WhatsApp y la despedida. No cambies de idioma por tu cuenta mientras siga hablando en el suyo."
     )).toBe(true);
   });
 
@@ -457,7 +564,7 @@ describe("buildManagedAgentPrompt — idiomas", () => {
       "Habla siempre en español de España; no menciones que eres una IA salvo que te lo pregunten."
     );
     expect(prompt).not.toContain("## Idioma");
-    expect(prompt).not.toContain("Empieza siempre con el saludo");
+    expect(prompt).not.toContain("ya lo dice el sistema al descolgar");
   });
 
   it("con los idiomas de Retell de un principal catalán (catalán y español) los lista a los dos", () => {
@@ -468,10 +575,10 @@ describe("buildManagedAgentPrompt — idiomas", () => {
     });
 
     expect(prompt).toContain(
-      "Empieza siempre con el saludo en catalán. Tras la primera intervención de quien llama, responde y continúa exclusivamente en el idioma que use si es uno de estos: español de España, catalán."
+      "En las llamadas, el saludo en catalán ya lo dice el sistema al descolgar y es el primer mensaje de la conversación: no lo repitas. Desde tu primera respuesta, contesta y continúa exclusivamente en el idioma en que te habla quien llama si es uno de estos: español de España, catalán."
     );
     expect(prompt).toContain(
-      "si es uno de estos: español de España, catalán; también el resumen"
+      "si es uno de estos: español de España, catalán; también tu primera respuesta"
     );
   });
 
@@ -499,7 +606,7 @@ describe("buildManagedAgentPrompt — idiomas", () => {
       },
     });
 
-    expect(prompt).toContain("Empieza siempre con el saludo en inglés.");
+    expect(prompt).toContain("el saludo en inglés ya lo dice el sistema al descolgar");
     expect(prompt).toContain("si es uno de estos: español de España, inglés, francés, alemán, italiano, portugués, neerlandés.");
   });
 
@@ -513,7 +620,7 @@ describe("buildManagedAgentPrompt — idiomas", () => {
       },
     });
 
-    expect(prompt).toContain("Empieza siempre con el saludo en gallego.");
+    expect(prompt).toContain("el saludo en gallego ya lo dice el sistema al descolgar");
     expect(prompt).toContain(
       "si es uno de estos: español de España, inglés, francés, gallego, alemán, italiano, portugués, neerlandés."
     );
@@ -530,7 +637,7 @@ describe("buildManagedAgentPrompt — idiomas", () => {
     });
 
     expect(prompt).toContain(
-      "Empieza siempre con el saludo en catalán. Tras la primera intervención de quien llama, responde y continúa exclusivamente en el idioma que use si es uno de estos: español de España, inglés, francés, catalán, alemán, italiano, portugués, neerlandés."
+      "En las llamadas, el saludo en catalán ya lo dice el sistema al descolgar y es el primer mensaje de la conversación: no lo repitas. Desde tu primera respuesta, contesta y continúa exclusivamente en el idioma en que te habla quien llama si es uno de estos: español de España, inglés, francés, catalán, alemán, italiano, portugués, neerlandés."
     );
     expect(prompt).toContain(
       "Si quien llama usa formas valencianas o baleares del catalán, adáptate a ellas."
@@ -547,7 +654,7 @@ describe("buildManagedAgentPrompt — idiomas", () => {
       },
     });
 
-    expect(prompt).toContain("Empieza siempre con el saludo en alemán.");
+    expect(prompt).toContain("el saludo en alemán ya lo dice el sistema al descolgar");
     expect(prompt).toContain("si es uno de estos: español de España, inglés, francés, alemán, italiano, portugués, neerlandés.");
   });
 });

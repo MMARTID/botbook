@@ -1575,6 +1575,76 @@ describe("executeVoiceTool book_appointment — confirmación al cliente por Wha
     expect(mockedBookAppointment).not.toHaveBeenCalled();
     expect(mockedBookingUpsert).not.toHaveBeenCalled();
   });
+
+  it("cambiar de hora en la misma llamada borra el evento de la reserva previa buscándolo en su hora PREVIA y registra lo que pasó", async () => {
+    const horaPrevia = new Date(Date.now() + 24 * 60 * 60_000);
+    mockedBookingFindUnique.mockResolvedValue({
+      id: "booking_1",
+      externalEventId: "evt_1",
+      externalCalendarProvider: "google",
+      externalCalendarId: "primary",
+      programedAt: horaPrevia,
+      durationMinutes: 45,
+      isCancelled: false,
+      cancelledAt: null,
+    } as any);
+    mockedBookAppointment.mockResolvedValue({
+      id: "evt_2",
+      htmlLink: null,
+    } as any);
+    mockedCancelAppointment.mockResolvedValue({
+      resultado: "no_estaba",
+      estado: 410,
+    });
+    const avisos = vi
+      .spyOn(console, "warn")
+      .mockImplementation(() => undefined);
+
+    const result = await reservar();
+
+    expect(result.result.success).toBe(true);
+    expect(mockedCancelAppointment).toHaveBeenCalledTimes(1);
+    expect(mockedCancelAppointment).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventId: "evt_1",
+        ventana: {
+          inicio: horaPrevia,
+          fin: new Date(horaPrevia.getTime() + 45 * 60_000),
+        },
+      })
+    );
+    expect(avisos).toHaveBeenCalledWith(
+      expect.stringContaining(
+        "el calendario respondió 410 al borrar el evento evt_1 de la cita booking_1 del negocio business_123 (google)"
+      )
+    );
+    avisos.mockRestore();
+  });
+
+  it("si la reserva no se puede guardar, deshace el evento recién creado buscándolo en la hora nueva", async () => {
+    mockedBookAppointment.mockResolvedValue({
+      id: "evt_2",
+      htmlLink: null,
+    } as any);
+    mockedBookingUpsert.mockRejectedValueOnce(new Error("BD caída"));
+    mockedCancelAppointment.mockResolvedValue({ resultado: "borrado" });
+    const errores = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => undefined);
+
+    await reservar();
+
+    const inicio = new Date(
+      normalizeVoiceToolDateTime(farFutureStart, "Europe/Madrid")
+    );
+    expect(mockedCancelAppointment).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventId: "evt_2",
+        ventana: { inicio, fin: new Date(inicio.getTime() + 30 * 60_000) },
+      })
+    );
+    errores.mockRestore();
+  });
 });
 
 describe("executeVoiceTool book_appointment — estado de la suscripción (hallazgo #9 de la auditoría)", () => {
@@ -1739,7 +1809,7 @@ describe("executeVoiceTool cancel_appointment", () => {
       businessId: "business_123",
     } as any);
     mockedBookingUpdate.mockResolvedValue({} as any);
-    mockedCancelAppointment.mockResolvedValue(undefined as any);
+    mockedCancelAppointment.mockResolvedValue({ resultado: "borrado" });
     mockedCancelarReserva.mockResolvedValue({ resultado: "cancelada" });
   });
 
