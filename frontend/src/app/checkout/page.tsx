@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, use } from "react";
 import { EmbeddedCheckout, EmbeddedCheckoutProvider } from "@stripe/react-stripe-js";
 import { loadStripe } from "@stripe/stripe-js";
 import { AlertTriangle, ArrowLeft, LoaderCircle, ShieldCheck } from "lucide-react";
@@ -13,7 +13,8 @@ const stripePromise = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
   : null;
 const VALID_PLANS: PlanId[] = ["inicio", "pro", "scale"];
 
-export default function CheckoutPage({ searchParams }: { searchParams: { plan?: string } }) {
+export default function CheckoutPage(props: { searchParams: Promise<{ plan?: string }> }) {
+  const searchParams = use(props.searchParams);
   const planId = VALID_PLANS.includes(searchParams.plan as PlanId)
     ? (searchParams.plan as PlanId)
     : null;

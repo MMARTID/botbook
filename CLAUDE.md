@@ -6,7 +6,7 @@ Los agentes de voz atienden llamadas, consultan horario y disponibilidad, y rese
 en el calendario de Google, Outlook o Apple/iCloud del negocio. Desde septiembre de 2026 hablan
 también por WhatsApp con el dueño (avisos y el Gestor) y con sus clientes.
 
-Backend Fastify 5 + Prisma/PostgreSQL + Redis. Dos webs Next.js 14 App Router con Tailwind 3
+Backend Fastify 5 + Prisma/PostgreSQL + Redis. Dos webs Next.js 16 App Router (React 19) con Tailwind 3
 (desde el 2026-09-21, `docs/historico/PLAN-APP-DOMINIO.md`): **la app** en `frontend/` (puerto 3001,
 `app.alhabla.ai`, TanStack Query, sesión JWT en `localStorage`) y **la web pública** en `web/`
 (puerto 3002, `alhabla.ai`: landing, sectores, planes, legal, registro de cuenta y blog en MDX,

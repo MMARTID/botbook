@@ -17,8 +17,10 @@ import { CountUp } from "@/components/count-up";
  * puede llegar después de montar.
  *
  * framer-motion lee la preferencia una vez, con
- * `matchMedia("(prefers-reduced-motion)")`, y la sigue con `addListener`: la
- * consulta falsa de aquí deja cambiarla entre el «servidor» y el cliente.
+ * `matchMedia("(prefers-reduced-motion)")`, y la sigue con un oyente de
+ * cambios: `addListener` hasta la v10 y `addEventListener("change")` desde la
+ * v11. La consulta falsa de aquí admite las dos y deja cambiarla entre el
+ * «servidor» y el cliente.
  */
 
 const oyentes = new Set<() => void>();
@@ -28,8 +30,12 @@ const consultaMovimiento = {
   onchange: null,
   addListener: (f: () => void) => oyentes.add(f),
   removeListener: (f: () => void) => oyentes.delete(f),
-  addEventListener: () => {},
-  removeEventListener: () => {},
+  addEventListener: (tipo: string, f: () => void) => {
+    if (tipo === "change") oyentes.add(f);
+  },
+  removeEventListener: (tipo: string, f: () => void) => {
+    if (tipo === "change") oyentes.delete(f);
+  },
   dispatchEvent: () => false,
 };
 

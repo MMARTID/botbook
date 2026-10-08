@@ -13,11 +13,21 @@ vi.mock("@/lib/api", () => ({
 const mockedGetBillingSummary = vi.mocked(getBillingSummary);
 const mockedReconcileCheckoutSession = vi.mocked(reconcileCheckoutSession);
 
+/** Desde Next 15 `searchParams` es una promesa y la página la lee con
+ * `use()`. Next la entrega ya resuelta; marcarla como cumplida hace que
+ * `use()` devuelva el valor sin suspender, igual que en la app. */
+function resuelta<T>(valor: T): Promise<T> {
+  return Object.assign(Promise.resolve(valor), {
+    status: "fulfilled" as const,
+    value: valor,
+  });
+}
+
 function renderPage(sessionId?: string) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={queryClient}>
-      <CheckoutResultPage searchParams={{ session_id: sessionId }} />
+      <CheckoutResultPage searchParams={resuelta({ session_id: sessionId })} />
     </QueryClientProvider>
   );
 }

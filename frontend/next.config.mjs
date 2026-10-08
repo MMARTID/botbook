@@ -2,6 +2,12 @@
 const webUrl = (process.env.NEXT_PUBLIC_WEB_URL ?? "http://localhost:3002").replace(/\/$/, "");
 
 const nextConfig = {
+  // La raíz del repo tiene su propio package-lock.json (Playwright) y, desde
+  // Next 15, eso hace que Next tome el repo entero como raíz del proyecto.
+  // Esta app es su propio proyecto de Vercel con root `frontend`: la raíz
+  // es esta carpeta, para Turbopack y para el trazado de ficheros.
+  turbopack: { root: import.meta.dirname },
+  outputFileTracingRoot: import.meta.dirname,
   async rewrites() {
     return [
       {

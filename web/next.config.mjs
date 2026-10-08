@@ -34,11 +34,17 @@ const APP_PATHS = [
 const OG_ASSETS = ["./src/lib/og/*.woff", "./public/brand/alhabla-isotipo.png", "./public/heroes/*.jpg"];
 
 const nextConfig = {
-  experimental: {
-    outputFileTracingIncludes: {
-      "/opengraph-image": OG_ASSETS,
-      "/**/opengraph-image": OG_ASSETS,
-    },
+  // La raíz del repo tiene su propio package-lock.json (Playwright) y, desde
+  // Next 15, eso hace que Next tome el repo entero como raíz del proyecto.
+  // La web es su propio proyecto de Vercel con root `web`: la raíz es esta
+  // carpeta, para Turbopack y para el trazado de ficheros (las rutas de
+  // OG_ASSETS son relativas a ella).
+  turbopack: { root: import.meta.dirname },
+  outputFileTracingRoot: import.meta.dirname,
+  // Fuera de `experimental` desde Next 15.
+  outputFileTracingIncludes: {
+    "/opengraph-image": OG_ASSETS,
+    "/**/opengraph-image": OG_ASSETS,
   },
   images: {
     // Fotos de banco con licencia libre usadas en el cuerpo de los artículos

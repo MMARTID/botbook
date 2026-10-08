@@ -20,6 +20,7 @@ import type {
   OnboardingState,
   PhoneNumberInfo,
 } from "@/lib/types";
+import type { JSX } from "react";
 
 const navegacion = { pathname: "/ajustes", replace: vi.fn() };
 vi.mock("next/navigation", () => ({

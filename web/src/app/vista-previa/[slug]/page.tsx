@@ -11,7 +11,7 @@ import { SiteHeader } from "@/components/site-header";
 import { esRamaDePrevisualizacion, fechaLarga, leerArticuloDePrevisualizacion } from "@/lib/blog";
 import { nicheLandings } from "@/lib/niche-landings";
 
-type Props = { params: { slug: string }; searchParams: { branch?: string } };
+type Props = { params: Promise<{ slug: string }>; searchParams: Promise<{ branch?: string }> };
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -22,9 +22,11 @@ export const metadata: Metadata = {
 };
 
 /** Muestra la rama del editor con su sesión de GitHub; no publica borradores. */
-export default async function VistaPreviaArticulo({ params, searchParams }: Props) {
+export default async function VistaPreviaArticulo(props: Props) {
+  const searchParams = await props.searchParams;
+  const params = await props.params;
   const rama = searchParams.branch;
-  const tokenDeGitHub = cookies().get("keystatic-gh-access-token")?.value;
+  const tokenDeGitHub = (await cookies()).get("keystatic-gh-access-token")?.value;
   if (!rama || !esRamaDePrevisualizacion(rama) || !tokenDeGitHub) notFound();
 
   const articulo = await leerArticuloDePrevisualizacion(params.slug, rama, tokenDeGitHub);
