@@ -72,6 +72,33 @@ describe("gestorAlDia", () => {
     expect(gestorAlDia(menos, LOCAL)).toBe(false);
   });
 
+  // La regresión: solo se comparaban las CLAVES de los parámetros, y las
+  // acciones que el Gestor puede proponer viajan en su descripción. Añadir
+  // una acción nunca llegaba a Telnyx.
+  it("detecta un cambio en la descripción de un parámetro de una tool", () => {
+    const remoto = remotoIgual();
+    const conParametros = remoto.tools.find(
+      (t) =>
+        Object.keys(
+          ((t.webhook.body_parameters as { properties?: object } | undefined)
+            ?.properties ?? {}) as object
+        ).length > 0
+    )!;
+    const cuerpo = conParametros.webhook.body_parameters as {
+      properties: Record<string, { description?: string }>;
+    };
+    const [clave] = Object.keys(cuerpo.properties);
+    conParametros.webhook.body_parameters = {
+      ...cuerpo,
+      properties: {
+        ...cuerpo.properties,
+        [clave!]: { ...cuerpo.properties[clave!], description: "descripción antigua" },
+      },
+    };
+
+    expect(gestorAlDia(remoto, LOCAL)).toBe(false);
+  });
+
   it("detecta el timeout sin aplicar: 20 s dentro de webhook y el de Telnyx en la tool", () => {
     // Así quedaba el Gestor antes de llevar el timeout al nivel de la tool.
     const antiguo = remotoIgual();

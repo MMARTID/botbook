@@ -1,4 +1,4 @@
-import { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
+import { FastifyInstance, FastifyRequest } from "fastify";
 import type { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "../../lib/prisma.js";
@@ -201,9 +201,10 @@ export async function recordingsRoutes(fastify: FastifyInstance) {
         if (error instanceof z.ZodError) {
           return reply.status(400).send({ error: error.errors });
         }
+        request.log.error({ err: error }, "[Recordings] No se pudo actualizar la grabación");
         return reply
           .status(500)
-          .send({ error: "Failed to update recording" });
+          .send({ error: "No se pudo actualizar la grabación" });
       }
     }
   );
@@ -236,9 +237,10 @@ export async function recordingsRoutes(fastify: FastifyInstance) {
 
         return reply.status(204).send();
       } catch (error) {
+        request.log.error({ err: error }, "[Recordings] No se pudo retirar la grabación");
         return reply
           .status(500)
-          .send({ error: "Failed to delete recording" });
+          .send({ error: "No se pudo retirar la grabación" });
       }
     }
   );

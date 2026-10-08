@@ -71,6 +71,9 @@ import {
 import { buildCalendarIdempotencyKey } from "../../lib/calendarIdempotency.js";
 import { appUrl } from "../../lib/urls.js";
 
+/** Lo que cada tool devuelve al orquestador: `result` va tal cual al LLM. */
+type ResultadoDeTool = { success: boolean; result?: Record<string, unknown> };
+
 export type VoiceToolName =
   | "get_catalog"
   | "check_availability"
@@ -383,7 +386,7 @@ async function executeCheckAvailability(
   params: Record<string, unknown>,
   callLabel: string,
   callId?: string
-): Promise<{ success: boolean; result?: any }> {
+): Promise<ResultadoDeTool> {
   try {
     // Normaliza la hora ANTES de tocar horario/calendario — ver
     // voiceDateTime.ts: una hora hablada marcada como UTC por el LLM
@@ -666,7 +669,7 @@ function describirAusencia(startsAt: Date, endsAt: Date, timezone: string): stri
 async function executeGetCatalog(
   business: BusinessVoiceConfig,
   callLabel: string
-): Promise<{ success: boolean; result?: any }> {
+): Promise<ResultadoDeTool> {
   try {
     const ahora = new Date();
     const [services, professionals, ausencias] = await Promise.all([
@@ -1198,7 +1201,7 @@ async function executeBookAppointment(
   params: Record<string, unknown>,
   callLabel: string,
   callId?: string
-): Promise<{ success: boolean; result?: any }> {
+): Promise<ResultadoDeTool> {
   const rawParams = params as {
     clientName?: string;
     startDateTime?: string;
@@ -2073,7 +2076,7 @@ async function executeFindMyAppointment(
   business: BusinessVoiceConfig,
   callLabel: string,
   callId?: string
-): Promise<{ success: boolean; result?: any }> {
+): Promise<ResultadoDeTool> {
   const call = await resolveCallForBusiness(callId, business.id, callLabel);
   const callerNumber = call?.fromNumber;
 
@@ -2170,7 +2173,7 @@ async function executeNotifyWhenAvailable(
   params: Record<string, unknown>,
   callLabel: string,
   callId?: string
-): Promise<{ success: boolean; result?: any }> {
+): Promise<ResultadoDeTool> {
   const startDateTime =
     typeof params?.startDateTime === "string"
       ? normalizeVoiceToolDateTime(params.startDateTime, business.timezone || "Europe/Madrid")
@@ -2267,7 +2270,7 @@ async function executeCancelAppointment(
   params: Record<string, unknown>,
   callLabel: string,
   callId?: string
-): Promise<{ success: boolean; result?: any }> {
+): Promise<ResultadoDeTool> {
   const bookingId =
     typeof params.bookingId === "string" ? params.bookingId : undefined;
 
@@ -2347,7 +2350,7 @@ async function executeCancelAppointment(
  */
 export async function executeVoiceTool(
   input: ExecuteVoiceToolInput
-): Promise<{ success: boolean; result?: any }> {
+): Promise<ResultadoDeTool> {
   const { businessId, toolName, params, callLabel = "llamada", callId } = input;
 
   const business = await getVoiceConfig(businessId);

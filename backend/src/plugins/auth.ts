@@ -11,6 +11,10 @@ declare module "fastify" {
     };
   }
   interface FastifyInstance {
+    // `any` a propósito: se usa como hook en rutas con genéricos propios
+    // (Body, Querystring…), y un tipo FastifyRequest concreto rompe la
+    // inferencia de esas rutas.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     authenticate: any;
   }
 }
