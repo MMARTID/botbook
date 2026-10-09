@@ -856,6 +856,216 @@ describe("executeVoiceTool check_availability — restricciones de reserva del n
   });
 });
 
+describe("executeVoiceTool book_appointment — reservar el hueco alternativo de check_availability", () => {
+  // Llamada de producción del 2026-10-09 (conversación Telnyx d49f3400): el
+  // miércoles a las 18:30 estaba cerrado, check_availability propuso el
+  // jueves a las 09:00 y el cliente aceptó, pero book_appointment leyó el
+  // «…T07:00:00.000Z» del draft como hora de pared (las 07:00) y respondió
+  // OUTSIDE_BUSINESS_HOURS. Aquí van el horario y checkBusinessHours reales,
+  // y la alternativa con el formato que devuelve de verdad
+  // findNextAvailableSlot (toISOString), no con offset local.
+  const AHORA = new Date("2026-10-09T18:03:00Z");
+  const JUEVES_09_00_MADRID = "2026-10-15T07:00:00.000Z";
+  const laborable = { enabled: true, intervals: [{ start: "09:00", end: "18:00" }] };
+  const horarioInfinity = {
+    version: 1,
+    week: {
+      monday: { enabled: false, intervals: [] },
+      tuesday: laborable,
+      wednesday: laborable,
+      thursday: laborable,
+      friday: laborable,
+      saturday: { enabled: true, intervals: [{ start: "09:00", end: "14:00" }] },
+      sunday: { enabled: false, intervals: [] },
+    },
+    exceptions: [],
+  };
+  const redisStore = new Map<string, string>();
+  const redisMock = {
+    get: vi.fn(async (key: string) => redisStore.get(key) ?? null),
+    set: vi.fn(async (key: string, value: string) => {
+      redisStore.set(key, value);
+      return "OK";
+    }),
+    del: vi.fn(),
+    eval: vi.fn().mockResolvedValue(1),
+  };
+  const fabricaOriginal = vi.mocked(getRedis).getMockImplementation();
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(AHORA);
+    redisStore.clear();
+    vi.mocked(getRedis).mockImplementation(() => redisMock as any);
+    const real = await vi.importActual<
+      typeof import("../../../src/lib/businessSchedule.js")
+    >("../../../src/lib/businessSchedule.js");
+    mockedCheckBusinessHours.mockImplementation(real.checkBusinessHours);
+    mockedBusinessFindUnique.mockResolvedValue(
+      buildBusiness({ schedule: horarioInfinity }) as any
+    );
+    mockedGetBusyIntervals.mockResolvedValue({
+      intervals: [],
+      calendarAvailabilityKnown: true,
+    } as any);
+    mockedServiceFindMany.mockResolvedValue([] as any);
+    mockedCallFindUnique.mockResolvedValue({
+      id: "call_row_1",
+      fromNumber: "+34600999888",
+      businessId: "business_123",
+      startedAt: AHORA,
+    } as any);
+    mockedBookingFindUnique.mockResolvedValue(null);
+    mockedBookAppointment.mockResolvedValue({
+      htmlLink: "https://calendar.google.com/event/1",
+    } as any);
+    mockedEnqueueSmsJob.mockResolvedValue(undefined);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    mockedCheckBusinessHours.mockReset();
+    // vi.clearAllMocks no vacía la cola de mockResolvedValueOnce: si un test
+    // falla antes de consumirla, la respuesta sobrante contamina al siguiente.
+    mockedCheckAvailability.mockReset();
+    if (fabricaOriginal)
+      vi.mocked(getRedis).mockImplementation(fabricaOriginal);
+  });
+
+  it("reserva a la hora que se propuso al cliente, no dos horas antes", async () => {
+    mockedCheckAvailability
+      .mockResolvedValueOnce({
+        available: false,
+        code: "OUTSIDE_BUSINESS_HOURS",
+        message: "La cita queda fuera del horario configurado del negocio.",
+        suggestedNextSlot: {
+          startDateTime: JUEVES_09_00_MADRID,
+          availableProfessionals: [{ id: "professional_123", name: "Marta" }],
+        },
+      } as any)
+      .mockResolvedValueOnce({
+        available: true,
+        message: "Hay disponibilidad.",
+        capacityUsed: 0,
+        capacityTotal: 1,
+        availableProfessionals: [{ id: "professional_123", name: "Marta" }],
+      } as any);
+
+    const comprobacion = await executeVoiceTool({
+      businessId: "business_123",
+      toolName: "check_availability",
+      callId: "call_123",
+      params: { startDateTime: "2026-10-14T18:30:00+02:00", durationMinutes: 30 },
+    });
+    const token = comprobacion.result.suggestedNextSlot.availabilityToken;
+    expect(token).toEqual(expect.any(String));
+    // El LLM la ve en hora local, como el prompt le pide escribirlas.
+    expect(comprobacion.result.suggestedNextSlot.startDateTime).toBe(
+      "2026-10-15T09:00:00+02:00"
+    );
+
+    const reserva = await executeVoiceTool({
+      businessId: "business_123",
+      toolName: "book_appointment",
+      callId: "call_123",
+      params: { availabilityToken: token, clientName: "Daniel", smsConsent: true },
+    });
+
+    expect(reserva.result).toMatchObject({ success: true });
+    expect(reserva.result.code).toBeUndefined();
+    expect(mockedBookAppointment).toHaveBeenCalledTimes(1);
+    const enviado = mockedBookAppointment.mock.calls[0][0] as { startDateTime: string };
+    expect(new Date(enviado.startDateTime).toISOString()).toBe(JUEVES_09_00_MADRID);
+    expect(mockedBookingUpsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        create: expect.objectContaining({
+          programedAt: new Date(JUEVES_09_00_MADRID),
+        }),
+      })
+    );
+  });
+
+  it("si el token caduca y el LLM copia la hora de la alternativa, reserva igualmente a esa hora", async () => {
+    mockedCheckAvailability
+      .mockResolvedValueOnce({
+        available: false,
+        code: "OUTSIDE_BUSINESS_HOURS",
+        message: "La cita queda fuera del horario configurado del negocio.",
+        suggestedNextSlot: {
+          startDateTime: JUEVES_09_00_MADRID,
+          availableProfessionals: [{ id: "professional_123", name: "Marta" }],
+        },
+      } as any)
+      .mockResolvedValue({
+        available: true,
+        message: "Hay disponibilidad.",
+        capacityUsed: 0,
+        capacityTotal: 1,
+        availableProfessionals: [{ id: "professional_123", name: "Marta" }],
+      } as any);
+
+    const comprobacion = await executeVoiceTool({
+      businessId: "business_123",
+      toolName: "check_availability",
+      callId: "call_123",
+      params: { startDateTime: "2026-10-14T18:30:00+02:00", durationMinutes: 30 },
+    });
+    const { availabilityToken, startDateTime } =
+      comprobacion.result.suggestedNextSlot;
+
+    // El cliente tarda más de 5 minutos en decidirse: el token caduca.
+    redisStore.clear();
+    const conToken = await executeVoiceTool({
+      businessId: "business_123",
+      toolName: "book_appointment",
+      callId: "call_123",
+      params: { availabilityToken, clientName: "Daniel" },
+    });
+    expect(conToken.result.code).toBe("AVAILABILITY_TOKEN_EXPIRED");
+
+    // El LLM reintenta sin token copiando la hora que vio en la alternativa.
+    const reserva = await executeVoiceTool({
+      businessId: "business_123",
+      toolName: "book_appointment",
+      callId: "call_123",
+      params: { clientName: "Daniel", startDateTime, durationMinutes: 30 },
+    });
+
+    expect(reserva.result).toMatchObject({ success: true });
+    const enviado = mockedBookAppointment.mock.calls[0][0] as { startDateTime: string };
+    expect(new Date(enviado.startDateTime).toISOString()).toBe(JUEVES_09_00_MADRID);
+  });
+
+  it("sigue corrigiendo la hora del LLM marcada como UTC cuando no hay token", async () => {
+    // La red de seguridad de voiceDateTime.ts (llamada del 2026-09-14) sigue
+    // valiendo para la ruta sin token: «el jueves a las nueve» escrito con
+    // +00:00 es la hora de pared, no un instante UTC.
+    mockedCheckAvailability.mockResolvedValue({
+      available: true,
+      message: "Hay disponibilidad.",
+      capacityUsed: 0,
+      capacityTotal: 1,
+      availableProfessionals: [{ id: "professional_123", name: "Marta" }],
+    } as any);
+
+    const reserva = await executeVoiceTool({
+      businessId: "business_123",
+      toolName: "book_appointment",
+      callId: "call_123",
+      params: {
+        clientName: "Daniel",
+        startDateTime: "2026-10-15T09:00:00+00:00",
+        durationMinutes: 30,
+      },
+    });
+
+    expect(reserva.result).toMatchObject({ success: true });
+    const enviado = mockedBookAppointment.mock.calls[0][0] as { startDateTime: string };
+    expect(new Date(enviado.startDateTime).toISOString()).toBe(JUEVES_09_00_MADRID);
+  });
+});
+
 describe("executeVoiceTool book_appointment — varios servicios en la misma cita", () => {
   beforeEach(() => {
     vi.clearAllMocks();
