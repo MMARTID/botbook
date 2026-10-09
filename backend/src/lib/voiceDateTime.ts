@@ -96,6 +96,41 @@ export function inicioDelDiaEnZona(timeZone: string, ahora = new Date()): Date {
 }
 
 /**
+ * Un instante calculado por el servidor (p. ej. «2026-10-15T07:00:00.000Z»)
+ * escrito como hora local del negocio con su offset de esa fecha
+ * («2026-10-15T09:00:00+02:00»). Es el formato en que el LLM debe ver toda
+ * hora que pueda volver a mandar a una tool: si copia un valor con `Z`,
+ * normalizeVoiceToolDateTime lo toma por hora de pared mal marcada y lo
+ * desplaza (llamada de producción del 2026-10-09). Con el offset local, la
+ * normalización lo deja intacto. Una entrada que no es una fecha válida se
+ * devuelve tal cual.
+ */
+export function instanteEnHoraLocal(instante: string, timeZone: string): string {
+  const date = new Date(instante);
+  if (Number.isNaN(date.getTime())) return instante;
+  try {
+    const parts = Object.fromEntries(
+      new Intl.DateTimeFormat("en-CA", {
+        timeZone,
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+        hourCycle: "h23",
+      })
+        .formatToParts(date)
+        .map((part) => [part.type, part.value])
+    );
+    const offset = formatOffset(timezoneOffsetMinutes(date, timeZone));
+    return `${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}:${parts.second}${offset}`;
+  } catch {
+    return instante;
+  }
+}
+
+/**
  * Devuelve el `startDateTime` con la hora de pared reinterpretada en la zona
  * del negocio cuando llega sin offset o con offset cero sospechoso (ver
  * cabecera del módulo). Cualquier entrada que no encaje en el patrón ISO

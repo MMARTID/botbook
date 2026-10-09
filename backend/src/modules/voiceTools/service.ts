@@ -38,7 +38,10 @@ import {
   esCalendarBusinessError,
   proveedorDesdeErrorDeReconexion,
 } from "../../adapters/calendar/errors.js";
-import { normalizeVoiceToolDateTime } from "../../lib/voiceDateTime.js";
+import {
+  instanteEnHoraLocal,
+  normalizeVoiceToolDateTime,
+} from "../../lib/voiceDateTime.js";
 import { errorMessage } from "../../lib/logUtils.js";
 import { pendingBookingAlertEmail } from "../../lib/emailTemplates.js";
 import {
@@ -591,7 +594,20 @@ async function executeCheckAvailability(
       };
     }
 
-    const alternativa = availability.suggestedNextSlot;
+    // findNextAvailableSlot da la alternativa en UTC (toISOString). El LLM
+    // la ve, y si el token caduca o reserva sin él, la copia tal cual: con
+    // `Z`, normalizeVoiceToolDateTime la tomaría por hora de pared y la
+    // desplazaría. Se le da (y se guarda en el draft) en hora local con su
+    // offset, como el prompt le pide que escriba las horas.
+    const alternativa = availability.suggestedNextSlot
+      ? {
+          ...availability.suggestedNextSlot,
+          startDateTime: instanteEnHoraLocal(
+            availability.suggestedNextSlot.startDateTime,
+            business.timezone || "Europe/Madrid"
+          ),
+        }
+      : null;
     if (alternativa) {
       // La alternativa puede caer hasta tres días después de la hora pedida
       // (findNextAvailableSlot): pedida a 119 días, la sugerencia pasaba del
@@ -1264,15 +1280,19 @@ async function executeBookAppointment(
     };
   }
 
-  // El draft ya se guardó normalizado en check_availability; la ruta sin
-  // token (rawParams) necesita la misma corrección de zona horaria — la
-  // normalización es idempotente, así que aplicarla al valor resuelto cubre
-  // ambos caminos (ver voiceDateTime.ts).
-  const rawStartDateTime = draft?.startDateTime ?? rawParams.startDateTime;
+  // Solo la hora que escribe el LLM (ruta sin token) necesita la corrección
+  // de zona horaria. La del draft la fijó el servidor y es un instante exacto:
+  // el hueco alternativo de check_availability se guarda con toISOString()
+  // («…T07:00:00.000Z» = 09:00 en Madrid), y normalizarlo lo leía como hora
+  // de pared y lo movía a las 07:00. Llamada de producción del 2026-10-09
+  // (conversación Telnyx d49f3400): el cliente aceptó el jueves a las 09:00
+  // y book_appointment lo rechazó con OUTSIDE_BUSINESS_HOURS; dentro del
+  // horario, la cita se habría guardado dos horas antes sin avisar.
   const startDateTime =
-    typeof rawStartDateTime === "string"
-      ? normalizeVoiceToolDateTime(rawStartDateTime, business.timezone || "Europe/Madrid")
-      : rawStartDateTime;
+    draft?.startDateTime ??
+    (typeof rawParams.startDateTime === "string"
+      ? normalizeVoiceToolDateTime(rawParams.startDateTime, business.timezone || "Europe/Madrid")
+      : rawParams.startDateTime);
   const durationMinutes = draft?.durationMinutes ?? rawParams.durationMinutes;
   // Un profesional preasignado por el draft es una preferencia, no una
   // condición: se usa para la reserva si sigue libre, pero no se le pasa a
