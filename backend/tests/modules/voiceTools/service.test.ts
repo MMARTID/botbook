@@ -21,6 +21,7 @@ import { programarMensajesAlCliente } from "../../../src/modules/whatsapp/mensaj
 import { cancelarReserva } from "../../../src/modules/bookings/cancelacion.js";
 import { buildCalendarIdempotencyKey } from "../../../src/lib/calendarIdempotency.js";
 import { normalizeVoiceToolDateTime } from "../../../src/lib/voiceDateTime.js";
+import { guardarIntentoDeReservaFallido } from "../../../src/lib/intentoDeReserva.js";
 
 vi.mock("../../../src/lib/prisma.js", () => ({
   prisma: {
@@ -71,6 +72,10 @@ vi.mock("../../../src/modules/calendar/service.js", () => ({
     getBusyIntervals: vi.fn(),
     cancelAppointment: vi.fn(),
   },
+}));
+
+vi.mock("../../../src/lib/intentoDeReserva.js", () => ({
+  guardarIntentoDeReservaFallido: vi.fn(),
 }));
 
 vi.mock("../../../src/lib/cloudTasks.js", () => ({
@@ -139,6 +144,7 @@ const mockedEnqueueWhatsappJob = vi.mocked(enqueueWhatsappJob);
 const mockedLeadCreate = vi.mocked(prisma.lead.create);
 const mockedProgramarMensajes = vi.mocked(programarMensajesAlCliente);
 const mockedCancelarReserva = vi.mocked(cancelarReserva);
+const mockedGuardarIntento = vi.mocked(guardarIntentoDeReservaFallido);
 
 /** Los tests de SMS asumen que WhatsApp NO está configurado — sin esto,
  * dependerían de si el `.env` real de quien ejecuta los tests tiene
@@ -1741,6 +1747,112 @@ describe("executeVoiceTool book_appointment — estado de la suscripción (halla
       expect(mockedBookAppointment).toHaveBeenCalled();
     }
   );
+});
+
+describe("executeVoiceTool book_appointment — apunta el intento fallido para el informe", () => {
+  // Si la recepcionista escala por fallo técnico sin recado, el informe
+  // final crea uno con esto (revisarEscaladaSinRecado en recados.ts).
+  const fabricaOriginal = vi.mocked(getRedis).getMockImplementation();
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockedBusinessFindUnique.mockResolvedValue(buildBusiness() as any);
+    mockedCheckBusinessHours.mockReturnValue({
+      success: true,
+      isOpen: false,
+      code: "OUTSIDE_BUSINESS_HOURS",
+      message: "La cita queda fuera del horario configurado del negocio.",
+    } as any);
+    mockedProfessionalFindFirst.mockResolvedValue({ id: "professional_123" } as any);
+    mockedServiceFindMany.mockResolvedValue([]);
+  });
+
+  afterEach(() => {
+    if (fabricaOriginal) vi.mocked(getRedis).mockImplementation(fabricaOriginal);
+  });
+
+  it("guarda el nombre, la hora normalizada y el código cuando la reserva falla", async () => {
+    const result = await executeVoiceTool(
+      buildBookAppointmentInput({ callId: "v3:abc" })
+    );
+
+    expect(result.result.success).toBe(false);
+    expect(mockedGuardarIntento).toHaveBeenCalledWith("v3:abc", {
+      clientName: "María",
+      startDateTime: "2026-08-25T17:00:00+02:00",
+      code: "OUTSIDE_BUSINESS_HOURS",
+    });
+  });
+
+  it("con token, apunta la hora del draft: el instante que se ofreció al cliente", async () => {
+    const draft = {
+      businessId: "business_123",
+      callId: "v3:abc",
+      startDateTime: "2026-10-15T07:00:00.000Z",
+      durationMinutes: 30,
+      serviceIds: [],
+      professionalId: "professional_123",
+      professionalRequested: false,
+    };
+    vi.mocked(getRedis).mockImplementation(
+      () =>
+        ({
+          get: vi.fn(async (key: string) =>
+            key.startsWith("availability_draft:") ? JSON.stringify(draft) : null
+          ),
+          set: vi.fn().mockResolvedValue("OK"),
+          del: vi.fn(),
+          eval: vi.fn().mockResolvedValue(1),
+        }) as any
+    );
+
+    await executeVoiceTool({
+      businessId: "business_123",
+      toolName: "book_appointment",
+      callId: "v3:abc",
+      params: { availabilityToken: "token_1", clientName: "Daniel" },
+    });
+
+    expect(mockedGuardarIntento).toHaveBeenCalledWith("v3:abc", {
+      clientName: "Daniel",
+      startDateTime: "2026-10-15T07:00:00.000Z",
+      code: "OUTSIDE_BUSINESS_HOURS",
+    });
+  });
+
+  it("no apunta nada si la reserva sale bien o no hay callId", async () => {
+    mockedCheckBusinessHours.mockReturnValue({ success: true, isOpen: true } as any);
+    mockedCheckAvailability.mockResolvedValue({
+      available: true,
+      message: "",
+      capacityUsed: 0,
+      capacityTotal: 1,
+      availableProfessionals: [{ id: "professional_123", name: "Ana" }],
+    } as any);
+    mockedBookingFindUnique.mockResolvedValue(null);
+    mockedGetBusyIntervals.mockResolvedValue({
+      intervals: [],
+      calendarAvailabilityKnown: true,
+    } as any);
+    mockedBookAppointment.mockResolvedValue({ htmlLink: null } as any);
+    mockedEnqueueSmsJob.mockResolvedValue(undefined);
+
+    const reservada = await executeVoiceTool(
+      buildBookAppointmentInput({ callId: "v3:abc" })
+    );
+    expect(reservada.result.success).toBe(true);
+
+    mockedCheckBusinessHours.mockReturnValue({
+      success: true,
+      isOpen: false,
+      code: "OUTSIDE_BUSINESS_HOURS",
+      message: "",
+    } as any);
+    const sinCallId = await executeVoiceTool(buildBookAppointmentInput());
+    expect(sinCallId.result.success).toBe(false);
+
+    expect(mockedGuardarIntento).not.toHaveBeenCalled();
+  });
 });
 
 describe("executeVoiceTool find_my_appointment", () => {

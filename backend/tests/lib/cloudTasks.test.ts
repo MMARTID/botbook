@@ -28,6 +28,13 @@ vi.mock("../../src/jobs/retryFailedBooking.js", () => ({
 vi.mock("../../src/jobs/sendEmail.js", () => ({ processSendEmailJob: mockProcessSendEmailJob }));
 vi.mock("../../src/jobs/sendSms.js", () => ({ processSendSmsJob: mockProcessSendSmsJob }));
 
+const { mockProcessRevisarEscaladaJob } = vi.hoisted(() => ({
+  mockProcessRevisarEscaladaJob: vi.fn().mockResolvedValue(undefined),
+}));
+vi.mock("../../src/jobs/revisarEscalada.js", () => ({
+  processRevisarEscaladaJob: mockProcessRevisarEscaladaJob,
+}));
+
 const ORIGINAL_ENV = { ...process.env };
 
 const recordingPayload = { callId: "call_1", externalUrl: "https://vapi.example/rec.mp3", businessId: "biz_1" };
@@ -241,5 +248,77 @@ describe("cloudTasks", () => {
       await expect(enqueueRecordingJob(recordingPayload)).rejects.toThrow("GCP_PROJECT_ID is not configured");
       expect(mockCreateTask).not.toHaveBeenCalled();
     });
+  });
+});
+
+describe("enqueueRevisarEscaladaJob", () => {
+  const scheduleTime = new Date("2026-10-09T18:06:52.000Z");
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.resetModules();
+    process.env = { ...ORIGINAL_ENV };
+  });
+
+  describe("en producción", () => {
+    beforeEach(() => {
+      process.env.NODE_ENV = "production";
+      process.env.GCP_PROJECT_ID = "project_test";
+      process.env.GCP_REGION = "europe-west1";
+      process.env.INTERNAL_JOBS_BASE_URL = "https://api.alhabla.ai";
+      process.env.CLOUD_TASKS_INVOKER_SERVICE_ACCOUNT = "invoker@test.iam.gserviceaccount.com";
+    });
+
+    it("programa la tarea en la cola send-whatsapp, una por llamada y revisión", async () => {
+      const { enqueueRevisarEscaladaJob } = await import("../../src/lib/cloudTasks.js");
+
+      await enqueueRevisarEscaladaJob({ callId: "call_row" }, scheduleTime);
+
+      const { task } = mockCreateTask.mock.calls[0][0];
+      expect(task.name).toBe(
+        "projects/project_test/locations/europe-west1/queues/send-whatsapp/tasks/escalada-call_row-1"
+      );
+      expect(task.httpRequest.url).toBe("https://api.alhabla.ai/internal/jobs/revisar-escalada");
+      expect(task.scheduleTime).toEqual({ seconds: scheduleTime.getTime() / 1000 });
+      expect(JSON.parse(Buffer.from(task.httpRequest.body, "base64").toString())).toEqual({
+        callId: "call_row",
+        intento: 1,
+      });
+      expect(mockProcessRevisarEscaladaJob).not.toHaveBeenCalled();
+    });
+
+    it("ignora la tarea repetida (los dos informes de la llamada piden la misma) y propaga otros errores", async () => {
+      const { enqueueRevisarEscaladaJob } = await import("../../src/lib/cloudTasks.js");
+      mockCreateTask.mockRejectedValueOnce(Object.assign(new Error("ALREADY_EXISTS"), { code: 6 }));
+
+      await expect(
+        enqueueRevisarEscaladaJob({ callId: "call_row", intento: 1 }, scheduleTime)
+      ).resolves.toBeUndefined();
+
+      mockCreateTask.mockRejectedValueOnce(Object.assign(new Error("UNAVAILABLE"), { code: 14 }));
+      await expect(
+        enqueueRevisarEscaladaJob({ callId: "call_row", intento: 2 }, scheduleTime)
+      ).rejects.toThrow("UNAVAILABLE");
+    });
+  });
+
+  it("fuera de producción la ejecuta en este proceso tras la misma espera", async () => {
+    process.env.NODE_ENV = "test";
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(new Date("2026-10-09T18:04:52.000Z"));
+      const { enqueueRevisarEscaladaJob } = await import("../../src/lib/cloudTasks.js");
+
+      await enqueueRevisarEscaladaJob({ callId: "call_row" }, scheduleTime);
+      await vi.advanceTimersByTimeAsync(119_000);
+      expect(mockProcessRevisarEscaladaJob).not.toHaveBeenCalled();
+
+      await vi.advanceTimersByTimeAsync(1_000);
+      await vi.dynamicImportSettled();
+      expect(mockProcessRevisarEscaladaJob).toHaveBeenCalledWith({ callId: "call_row", intento: 1 });
+      expect(mockCreateTask).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

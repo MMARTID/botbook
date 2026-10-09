@@ -3,7 +3,11 @@ import { Prisma } from "@prisma/client";
 import type { CallEscalationReason, CallOutcome } from "@prisma/client";
 import { prisma } from "../../lib/prisma.js";
 import { errorMessage } from "../../lib/logUtils.js";
-import { enqueueEmailJob } from "../../lib/cloudTasks.js";
+import {
+  enqueueEmailJob,
+  enqueueRevisarEscaladaJob,
+} from "../../lib/cloudTasks.js";
+import { leerIntentoDeReservaFallido } from "../../lib/intentoDeReserva.js";
 import { messageLeadEmail } from "../../lib/emailTemplates.js";
 import { isValidE164Phone } from "../../lib/phone.js";
 import { avisarRecado } from "./avisosNegocio.js";
@@ -31,6 +35,11 @@ import * as mensajes from "./mensajes.js";
  * 3. Un recado se convierte en un `Lead` tipo `message` y en el aviso #2 al
  *    dueño (WhatsApp con botones; email si no es posible), una sola vez por
  *    llamada.
+ * 4. Una escalada por fallo técnico sin recado programa una revisión
+ *    diferida (revisarEscaladaSinRecado): la recepcionista le dice al
+ *    cliente que el negocio se pondrá en contacto, pero el recado solo se
+ *    pide cuando el cliente lo deja explícitamente, así que el dueño no se
+ *    enteraba (llamada de prueba del 2026-10-09, conversación d49f3400).
  *
  * La tool responde siempre 200 con `{ success: true }`: un fallo aquí no
  * puede hacer que el assistant reintente y duplique nada.
@@ -269,6 +278,9 @@ async function procesarInformeFinalOLanzar(
         recado,
       })
     : null;
+  if (informe.motivo_escalada === "FALLO_TECNICO" && !recado) {
+    await programarRevisionDeEscalada(call.id, etiqueta);
+  }
   console.log(
     `[WhatsApp] ${etiqueta}: guardado (resultado ${informe.resultado ?? "—"}${recado ? ", con recado" : ""})`
   );
@@ -419,6 +431,9 @@ async function completarInforme(input: {
         recado: combinado.recado,
         etiqueta,
       });
+    }
+    if (combinado.motivo_escalada === "FALLO_TECNICO" && !combinado.recado) {
+      await programarRevisionDeEscalada(existente.id, etiqueta);
     }
     const recadoNuevo = previo.recado ? null : input.recado;
     if (!recadoNuevo) {
@@ -601,6 +616,177 @@ async function crearLeadYAvisar(input: {
     email: () => emailDeRecado({ business, leadId, recado }),
   });
   return leadId;
+}
+
+/** Espera antes de revisar una escalada: el informe de la post-conversación
+ * llega segundos después de colgar, y es el que dice cómo acabó. */
+export const ESPERA_REVISION_ESCALADA_MS = 2 * 60_000;
+/** Revisiones como mucho mientras la llamada siga en curso (~16 min; la
+ * recepcionista cuelga a los 10). Después se revisa igualmente. */
+export const MAX_REVISIONES_ESCALADA = 8;
+
+async function programarRevisionDeEscalada(
+  callRowId: string,
+  etiqueta: string,
+  intento = 1
+): Promise<void> {
+  try {
+    await enqueueRevisarEscaladaJob(
+      { callId: callRowId, intento },
+      new Date(Date.now() + ESPERA_REVISION_ESCALADA_MS)
+    );
+  } catch (error) {
+    console.error(
+      `[WhatsApp] ${etiqueta}: escalada por fallo técnico sin recado y NO se pudo programar su revisión (llamada ${callRowId}, revisión ${intento}): el dueño no recibirá aviso. ${errorMessage(error)}`
+    );
+  }
+}
+
+/** «el jueves 15 de octubre a las 09:00» en la zona del negocio. */
+function describirCita(instante: string, timeZone: string): string | null {
+  const fecha = new Date(instante);
+  if (Number.isNaN(fecha.getTime())) return null;
+  try {
+    const dia = new Intl.DateTimeFormat("es-ES", {
+      timeZone,
+      weekday: "long",
+      day: "numeric",
+      month: "long",
+    }).format(fecha);
+    const hora = new Intl.DateTimeFormat("es-ES", {
+      timeZone,
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    }).format(fecha);
+    return `el ${dia.replace(",", "")} a las ${hora}`;
+  } catch {
+    return null;
+  }
+}
+
+/** Motivo del recado que se crea por una escalada técnica sin recado. */
+export function motivoDeEscaladaTecnica(input: {
+  servicio: string | null;
+  cita: string | null;
+}): string {
+  const que = input.servicio ? `reservar ${input.servicio}` : "reservar una cita";
+  return input.cita
+    ? `Quería ${que} ${input.cita} y la reserva no se pudo completar por un fallo técnico. La recepcionista escaló la llamada al negocio: hay que llamarle para cerrarla.`
+    : `La recepcionista no pudo completar su gestión${input.servicio ? ` (${input.servicio})` : ""} por un fallo técnico y escaló la llamada al negocio: hay que llamarle.`;
+}
+
+/**
+ * Revisión diferida de una escalada por fallo técnico. Con la llamada ya
+ * terminada, si el informe final sigue siendo FALLO_TECNICO, no trae recado
+ * y la llamada no acabó con cita, crea el recado que la recepcionista no
+ * dejó (nombre y hora del último book_appointment fallido, teléfono de la
+ * llamada) y avisa al dueño. El recado se guarda primero en el informe, con
+ * la misma marca de tiempo que leyó (como completarInforme): una revisión
+ * repetida (Cloud Tasks entrega al menos una vez) lo encuentra y no avisa
+ * dos veces. Lanza si falla antes de avisar, para que Cloud Tasks la
+ * reintente: repetirla es seguro por lo mismo.
+ */
+export async function revisarEscaladaSinRecado(
+  callRowId: string,
+  intento = 1
+): Promise<void> {
+  const etiqueta = `revisión de la escalada de la llamada ${callRowId}`;
+  try {
+    const call = await prisma.call.findUnique({
+      where: { id: callRowId },
+      select: {
+        id: true,
+        callId: true,
+        status: true,
+        fromNumber: true,
+        postCallReport: true,
+        postCallReportAt: true,
+        business: { select: { id: true, name: true, timezone: true } },
+      },
+    });
+    if (!call) {
+      console.warn(`[WhatsApp] ${etiqueta}: la llamada no existe; se ignora`);
+      return;
+    }
+    const enCurso = call.status === "INITIATED" || call.status === "IN_PROGRESS";
+    if (enCurso && intento < MAX_REVISIONES_ESCALADA) {
+      await programarRevisionDeEscalada(call.id, etiqueta, intento + 1);
+      return;
+    }
+    const informe = leerInformeGuardado(call.postCallReport);
+    if (informe.motivo_escalada !== "FALLO_TECNICO" || informe.recado) {
+      console.log(
+        `[WhatsApp] ${etiqueta}: nada que hacer (motivo ${informe.motivo_escalada ?? "—"}${informe.recado ? ", ya con recado" : ""})`
+      );
+      return;
+    }
+    const [cita, recadoPrevio] = await Promise.all([
+      prisma.booking.findFirst({
+        where: { callId: call.id, isCancelled: false },
+        select: { id: true },
+      }),
+      prisma.lead.findFirst({
+        where: { callId: call.id, type: "message" },
+        select: { id: true },
+      }),
+    ]);
+    if (cita || recadoPrevio) {
+      console.log(
+        `[WhatsApp] ${etiqueta}: la llamada acabó con ${cita ? "cita" : "recado"}; no hace falta avisar`
+      );
+      return;
+    }
+
+    const timezone = call.business.timezone || "Europe/Madrid";
+    const fallido = await leerIntentoDeReservaFallido(call.callId);
+    const recado: RecadoNormalizado = {
+      nombre: limpiarTexto(fallido?.clientName, 80),
+      telefono: normalizarTelefonoDeRecado(call.fromNumber),
+      motivo: motivoDeEscaladaTecnica({
+        servicio: informe.servicio_pedido,
+        cita: fallido?.startDateTime
+          ? describirCita(fallido.startDateTime, timezone)
+          : null,
+      }),
+      quiereQueLeLlamen: true,
+    };
+    const escrito = await prisma.call.updateMany({
+      where: { id: call.id, postCallReportAt: call.postCallReportAt },
+      data: {
+        postCallReport: {
+          ...informe,
+          recado: {
+            nombre: recado.nombre,
+            telefono: recado.telefono,
+            motivo: recado.motivo,
+            quiere_que_le_llamen: true,
+          },
+        } as Prisma.InputJsonObject,
+        postCallReportAt: new Date(),
+      },
+    });
+    if (escrito.count === 0) {
+      // Otro informe (o esta misma revisión, repetida) escribió entre medias:
+      // se vuelve a revisar con lo que haya ahora.
+      await programarRevisionDeEscalada(call.id, etiqueta, intento + 1);
+      return;
+    }
+    console.warn(
+      `[WhatsApp] ${etiqueta} (negocio ${call.business.id}): escaló por fallo técnico sin recado; se crea uno para el dueño (intento de reserva ${fallido ? `con code ${fallido.code ?? "—"}` : "no registrado"}, teléfono ${recado.telefono ? "sí" : "no"})`
+    );
+    await crearLeadYAvisar({
+      business: { id: call.business.id, name: call.business.name, timezone },
+      callRowId: call.id,
+      callControlId: call.callId,
+      recado,
+    });
+  } catch (error) {
+    console.error(
+      `[WhatsApp] ${etiqueta}: falló (se reintentará); el dueño aún no tiene aviso de esta escalada. ${errorMessage(error)}`
+    );
+    throw error;
+  }
 }
 
 /** Respaldo por email del aviso #2 (§ 12): al correo del negocio. */
