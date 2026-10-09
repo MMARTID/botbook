@@ -742,6 +742,18 @@ el `fetch` equivalente. **Nunca desde un route handler**: todo pasa por
   avisar si sigue sin atender (recurso `<leadId>:r<n>`). Migración
   `20260920070000_whatsapp_recado` (aditiva): `Call.postCallReport/postCallReportAt`,
   `Lead.snoozedUntil`.
+- **Escalada por fallo técnico sin recado** (2026-10-09): la tool solo pide `recado` si el
+  cliente deja uno, pero tras un `book_appointment` fallido la recepcionista dice «el negocio te
+  contactará» y escala con `FALLO_TECNICO`: el dueño no se enteraba. Cada `book_appointment`
+  fallido guarda su intento (`lib/intentoDeReserva.ts`, Redis `intento_reserva_fallido:<call_control_id>`,
+  2 h: nombre, instante del draft o la hora normalizada, code). Un informe (o informe combinado)
+  `FALLO_TECNICO` sin recado programa el job `revisar-escalada` (`jobs/revisarEscalada.ts`, ruta
+  `/internal/jobs/revisar-escalada`, cola `send-whatsapp`, taskId `escalada-<Call.id>-<n>`, a
+  2 min: el informe puede llegar a mitad de llamada). La revisión se reprograma mientras la
+  llamada siga en curso (hasta 8) y, si al final sigue `FALLO_TECNICO` sin recado, sin cita
+  activa y sin `Lead` `message`, guarda el recado en `postCallReport` (con la `postCallReportAt`
+  leída: idempotente) y crea el lead + aviso #2 con el teléfono de la llamada. En dev corre en
+  el proceso tras la misma espera.
 
 **Código (fase 1, PR 4 — lado cliente, 2026-09-20).**
 - `modules/whatsapp/mensajesCliente.ts`: todo lo que sale al CLIENTE por plantilla. Parámetros

@@ -73,6 +73,7 @@ import {
 } from "../../lib/bookingLock.js";
 import { buildCalendarIdempotencyKey } from "../../lib/calendarIdempotency.js";
 import { appUrl } from "../../lib/urls.js";
+import { guardarIntentoDeReservaFallido } from "../../lib/intentoDeReserva.js";
 
 /** Lo que cada tool devuelve al orquestador: `result` va tal cual al LLM. */
 type ResultadoDeTool = { success: boolean; result?: Record<string, unknown> };
@@ -2371,6 +2372,35 @@ async function executeCancelAppointment(
  * Ejecuta una tool de voz de forma neutral al orquestador.
  * Recibe el businessId ya resuelto y los parámetros de la tool.
  */
+/**
+ * Deja apuntado qué intentó reservar el cliente cuando book_appointment
+ * falla: si la recepcionista acaba escalando por fallo técnico sin recado,
+ * el informe final lo convierte en uno para el dueño (recados.ts). La hora
+ * sale del draft si se reservaba con token (los drafts no se borran al
+ * usarse) y si no, de la que escribió el LLM, normalizada.
+ */
+async function registrarIntentoFallido(
+  business: BusinessVoiceConfig,
+  params: Record<string, unknown>,
+  callId: string,
+  code: string | null
+): Promise<void> {
+  const draft =
+    typeof params.availabilityToken === "string"
+      ? await readAvailabilityDraft(params.availabilityToken, business.id, callId)
+      : null;
+  const startDateTime =
+    draft?.startDateTime ??
+    (typeof params.startDateTime === "string"
+      ? normalizeVoiceToolDateTime(params.startDateTime, business.timezone || "Europe/Madrid")
+      : null);
+  await guardarIntentoDeReservaFallido(callId, {
+    clientName: typeof params.clientName === "string" ? params.clientName : null,
+    startDateTime,
+    code,
+  });
+}
+
 export async function executeVoiceTool(
   input: ExecuteVoiceToolInput
 ): Promise<ResultadoDeTool> {
@@ -2395,8 +2425,14 @@ export async function executeVoiceTool(
       return executeGetCatalog(business, callLabel);
     case "check_availability":
       return executeCheckAvailability(business, params, callLabel, callId);
-    case "book_appointment":
-      return executeBookAppointment(business, params, callLabel, callId);
+    case "book_appointment": {
+      const reserva = await executeBookAppointment(business, params, callLabel, callId);
+      if (callId && reserva.result?.success === false) {
+        const code = reserva.result.code;
+        await registrarIntentoFallido(business, params, callId, typeof code === "string" ? code : null);
+      }
+      return reserva;
+    }
     case "find_my_appointment":
       return executeFindMyAppointment(business, callLabel, callId);
     case "cancel_appointment":

@@ -1,5 +1,5 @@
 import { CloudTasksClient } from "@google-cloud/tasks";
-import { ProcessRecordingJob, RecordarRecadoJob, ReportUsageJob, RetryFailedBookingJob, SendEmailJob, SendSmsJob, SendWhatsappJob } from "./jobTypes.js";
+import { ProcessRecordingJob, RecordarRecadoJob, ReportUsageJob, RetryFailedBookingJob, RevisarEscaladaJob, SendEmailJob, SendSmsJob, SendWhatsappJob } from "./jobTypes.js";
 import { processRecordingJob } from "../jobs/processRecording.js";
 import { processRetryFailedBookingJob } from "../jobs/retryFailedBooking.js";
 import { processSendEmailJob } from "../jobs/sendEmail.js";
@@ -199,6 +199,53 @@ export async function enqueueRecordarRecadoJob(
     taskId: `recado-${payload.leadId}-${dia}-${payload.intento ?? 1}`,
     scheduleTime,
   });
+}
+
+/**
+ * Revisión diferida de una escalada por fallo técnico sin recado. Va por la
+ * cola `send-whatsapp`, como el recordatorio de recados (no hace falta una
+ * cola nueva en GCP), con una tarea por llamada y revisión: los informes de
+ * mitad de llamada y de la post-conversación piden la misma y Cloud Tasks
+ * descarta la repetida (ALREADY_EXISTS).
+ */
+export async function enqueueRevisarEscaladaJob(
+  payload: RevisarEscaladaJob,
+  scheduleTime: Date
+): Promise<void> {
+  const intento = payload.intento ?? 1;
+  if (!IS_PRODUCTION) {
+    // Sin Cloud Tasks en dev se ejecuta en este proceso tras la misma
+    // espera. Import dinámico: el job importa recados.ts, que importa este
+    // módulo.
+    console.log(
+      `[Job] Revisión de la escalada de la llamada ${payload.callId} programada para ${scheduleTime.toISOString()} (en este proceso, no hay Cloud Tasks en dev)`
+    );
+    setTimeout(() => {
+      void import("../jobs/revisarEscalada.js")
+        .then(({ processRevisarEscaladaJob }) =>
+          processRevisarEscaladaJob({ ...payload, intento })
+        )
+        .catch((error) =>
+          console.error(
+            `[Job] Falló la revisión de la escalada de la llamada ${payload.callId}:`,
+            error
+          )
+        );
+    }, Math.max(0, scheduleTime.getTime() - Date.now())).unref();
+    return;
+  }
+  try {
+    await enqueueCloudTask({
+      queue: "send-whatsapp",
+      path: "/internal/jobs/revisar-escalada",
+      payload: { ...payload, intento },
+      taskId: `escalada-${payload.callId}-${intento}`,
+      scheduleTime,
+    });
+  } catch (error) {
+    if ((error as { code?: unknown })?.code === 6) return;
+    throw error;
+  }
 }
 
 export async function enqueueWhatsappJob(

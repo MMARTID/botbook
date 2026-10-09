@@ -52,6 +52,16 @@ export interface RecordarRecadoJob {
   intento?: number;
 }
 
+/** Revisión diferida de una escalada por fallo técnico sin recado (ver
+ * revisarEscaladaSinRecado en modules/whatsapp/recados.ts). */
+export interface RevisarEscaladaJob {
+  /** Call.id (la fila), no el call_control_id: va en el nombre de la tarea. */
+  callId: string;
+  /** Número de revisión (1 = la primera); se reprograma mientras la llamada
+   * siga en curso. */
+  intento?: number;
+}
+
 export interface SendWhatsappJobLegado {
   toNumber: string;
   templateName: string;
