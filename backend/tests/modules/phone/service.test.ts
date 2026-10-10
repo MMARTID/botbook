@@ -7,6 +7,7 @@ import { prisma } from "../../../src/lib/prisma.js";
 import { telnyxAdapter } from "../../../src/adapters/telnyx/TelnyxAdapter.js";
 import { retellAdapter } from "../../../src/adapters/retell/RetellAdapter.js";
 import { syncAgentToTelnyx } from "../../../src/lib/telnyxAgentSync.js";
+import { invalidarCacheDeVoz } from "../../../src/lib/voiceConfigCache.js";
 
 vi.mock("../../../src/lib/prisma.js", () => ({
   prisma: {
@@ -55,6 +56,12 @@ vi.mock("../../../src/lib/telnyxAgentSync.js", () => ({
 }));
 vi.mock("../../../src/lib/redis.js", () => ({
   getRedis: () => mockRedisClient,
+}));
+// La invalidación de la caché de voz se comprueba por su función, no por la
+// clave de Redis: así el contrato sigue valiendo cuando esa caché cambie de
+// almacén (plan de corte de Redis, fase 0).
+vi.mock("../../../src/lib/voiceConfigCache.js", () => ({
+  invalidarCacheDeVoz: vi.fn().mockResolvedValue(undefined),
 }));
 
 const mockedBusinessFindUnique = vi.mocked(prisma.business.findUnique);
@@ -163,6 +170,83 @@ describe("provisionPhoneNumber", () => {
         data: expect.objectContaining({ phoneNumberStatus: "active" }),
       })
     );
+  });
+
+  // telnyxPhoneNumber forma parte de la configuración de voz cacheada (es el
+  // remitente del aviso de reserva): sin invalidarla, una llamada dentro de
+  // la hora siguiente seguiría viendo el negocio sin número.
+  it("invalida la caché de voz del negocio después de guardar el número comprado", async () => {
+    mockedBusinessFindUnique.mockResolvedValue({
+      id: businessId,
+      name: "Peluquería Test",
+      phoneNumberStatus: "pending",
+      telnyxPhoneNumber: null,
+      telnyxNumberOrderId: null,
+      orchestrator: "retell",
+      agents: [{ id: agentId, retellAgentId, active: true }],
+    } as any);
+    mockedSearchAvailableNumbers.mockResolvedValue([
+      { phoneNumber: "+34886020712", region: "PONTEVEDRA" },
+    ]);
+    mockedPurchaseNumber.mockResolvedValue({
+      orderId: "order_123",
+      status: "success",
+      phoneNumber: "+34886020712",
+      phoneNumberId: "pn_123",
+    });
+    mockedImportPhoneNumber.mockResolvedValue({
+      phone_number_id: "phone_123",
+      phone_number: "+34886020712",
+    } as any);
+
+    const result = await provisionPhoneNumber(businessId);
+
+    expect(result.success).toBe(true);
+    expect(invalidarCacheDeVoz).toHaveBeenCalledWith(businessId, "[Phone]");
+    // Después de escribir el número en la BD: invalidar antes no serviría,
+    // la siguiente lectura volvería a cachear el negocio sin número.
+    const escrituraDelNumero = mockedBusinessUpdate.mock.calls.findIndex(
+      ([argumentos]) =>
+        (argumentos as any).data?.telnyxPhoneNumber === "+34886020712"
+    );
+    expect(escrituraDelNumero).toBeGreaterThanOrEqual(0);
+    expect(
+      vi.mocked(invalidarCacheDeVoz).mock.invocationCallOrder[0]
+    ).toBeGreaterThan(
+      mockedBusinessUpdate.mock.invocationCallOrder[escrituraDelNumero]
+    );
+  });
+
+  it("también invalida la caché de voz si el pedido sigue en revisión pero ya trae número", async () => {
+    vi.useFakeTimers();
+    mockedBusinessFindUnique.mockResolvedValue({
+      id: businessId,
+      name: "Peluquería Test",
+      phoneNumberStatus: "pending",
+      telnyxPhoneNumber: null,
+      orchestrator: "retell",
+      agents: [],
+    } as any);
+    mockedSearchAvailableNumbers.mockResolvedValue([
+      { phoneNumber: "+34886020712" },
+    ]);
+    mockedPurchaseNumber.mockResolvedValue({
+      orderId: "order_123",
+      status: "pending",
+      phoneNumber: "+34886020712",
+    });
+    mockedGetNumberOrder.mockResolvedValue({
+      orderId: "order_123",
+      status: "pending",
+      phoneNumber: "+34886020712",
+    });
+
+    const resultPromise = provisionPhoneNumber(businessId);
+    await vi.runAllTimersAsync();
+    const result = await resultPromise;
+
+    expect(result.status).toBe("pending");
+    expect(invalidarCacheDeVoz).toHaveBeenCalledWith(businessId, "[Phone]");
   });
 
   it("issue #17: persiste el id REAL del número (getNumberByPhoneNumber), no el phoneNumberId del pedido, cuando ambos difieren", async () => {

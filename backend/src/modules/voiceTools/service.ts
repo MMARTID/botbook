@@ -3,7 +3,10 @@ import { randomUUID } from "node:crypto";
 import { getRedis } from "../../lib/redis.js";
 import { nombreParaElCliente } from "../../lib/nombreProfesional.js";
 import { enlazarReservaModificada } from "../bookings/reservaModificada.js";
-import { claveDeCacheDeVoz } from "../../lib/voiceConfigCache.js";
+import {
+  claveDeCacheDeVoz,
+  invalidarCacheDeVoz,
+} from "../../lib/voiceConfigCache.js";
 import {
   checkBusinessHours,
   checkBookingRestrictions,
@@ -291,20 +294,14 @@ async function getCachedVoiceConfig(
     if (cachedConfigStr) {
       const parsed = JSON.parse(cachedConfigStr) as BusinessVoiceConfig;
       // Token presente y flag === true: una entrada cacheada con el
-      // calendario roto se descarta para releer de BD.
+      // calendario roto se descarta para releer de BD. Best-effort: como
+      // todo borrado de voice_config, pasa por invalidarCacheDeVoz, que
+      // nunca lanza.
       if (conexionConfirmada(resolverConexionDeCalendario(parsed))) {
         return parsed;
       }
 
-      try {
-        await redis.del(redisKey);
-      } catch (deleteErr) {
-        console.warn(
-          `[VoiceTools] No se pudo limpiar la caché de calendario: ${errorMessage(
-            deleteErr
-          )}`
-        );
-      }
+      await invalidarCacheDeVoz(businessId, "[VoiceTools]");
     }
   } catch (err) {
     console.error(

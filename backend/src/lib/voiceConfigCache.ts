@@ -14,13 +14,26 @@ export function claveDeCacheDeVoz(businessId: string): string {
  * muestre la nueva conexión (hallazgo #8 de la auditoría). Se llama tras
  * cualquier escritura que toque calendarProvider/refreshToken/calendarId o
  * cualquier otro campo cacheado de un negocio. Best-effort: un fallo de
- * Redis nunca tumba la operación que la invocó. */
-export async function invalidarCacheDeVoz(businessId: string): Promise<void> {
+ * Redis nunca tumba la operación que la invocó.
+ *
+ * Es el único sitio que BORRA la clave (también lo usan bookings, phone y
+ * getCachedVoiceConfig de voiceTools al descartar una entrada rota). La
+ * lectura y la escritura siguen en voiceTools/service.ts
+ * (getCachedVoiceConfig/setCachedVoiceConfig); cuando se retire Redis, la
+ * caché desaparece entera y la voz leerá siempre de la BD.
+ *
+ * `prefijoDeLog` es el módulo que firma el log si el borrado falla: phone,
+ * bookings y voiceTools pasan el suyo para que su fallo se siga buscando
+ * por el prefijo de siempre. */
+export async function invalidarCacheDeVoz(
+  businessId: string,
+  prefijoDeLog = "[Calendar]"
+): Promise<void> {
   try {
     await getRedis().del(claveDeCacheDeVoz(businessId));
   } catch (err) {
     console.error(
-      `[Calendar] No se pudo invalidar la caché de configuración de voz para ${businessId}:`,
+      `${prefijoDeLog} No se pudo invalidar la caché de configuración de voz para ${businessId}:`,
       err
     );
   }

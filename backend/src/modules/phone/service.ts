@@ -2,7 +2,7 @@ import { prisma } from "../../lib/prisma.js";
 import { telnyxAdapter } from "../../adapters/telnyx/TelnyxAdapter.js";
 import { retellAdapter } from "../../adapters/retell/RetellAdapter.js";
 import { getPublicWebhookBaseUrl } from "../../lib/serverUrl.js";
-import { getRedis } from "../../lib/redis.js";
+import { invalidarCacheDeVoz } from "../../lib/voiceConfigCache.js";
 import { acquireLock, releaseLock } from "../../lib/bookingLock.js";
 import { alertarNumeroNoActivo } from "../whatsapp/alertas.js";
 import { syncAgentToTelnyx } from "../../lib/telnyxAgentSync.js";
@@ -306,14 +306,7 @@ export async function provisionPhoneNumber(businessId: string): Promise<{
       // (revisión regulatoria en curso, no ausencia de número) — misma
       // invalidación que en la rama "success" de abajo, por la misma razón.
       if (order.phoneNumber) {
-        try {
-          await getRedis().del(`voice_config:${businessId}`);
-        } catch (err) {
-          console.error(
-            `[Phone] No se pudo invalidar la caché de configuración de voz para ${businessId}:`,
-            err
-          );
-        }
+        await invalidarCacheDeVoz(businessId, "[Phone]");
       }
 
       return {
@@ -369,15 +362,8 @@ export async function provisionPhoneNumber(businessId: string): Promise<{
     // negocio que ya hubiera hecho alguna llamada de voz antes de comprar su
     // número se quedaría con ese campo en null cacheado hasta que expire (1h),
     // y el SMS simplemente no se enviaría en ese tiempo aunque la BD ya esté
-    // actualizada.
-    try {
-      await getRedis().del(`voice_config:${businessId}`);
-    } catch (err) {
-      console.error(
-        `[Phone] No se pudo invalidar la caché de configuración de voz para ${businessId}:`,
-        err
-      );
-    }
+    // actualizada. Best-effort: invalidarCacheDeVoz nunca lanza.
+    await invalidarCacheDeVoz(businessId, "[Phone]");
 
     // La transferencia al dueño (fase 4, lib/transferenciaAlDueno.ts) sale
     // DESDE el número de Alhabla: hasta ahora mismo no existía, así que el

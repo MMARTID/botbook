@@ -1097,6 +1097,162 @@ describe("CalendarService OAuth state (hijack protection)", () => {
       expect.objectContaining({ where: { id: "business_A" } })
     );
   });
+
+  // Contrato del state de Microsoft (plan de corte de Redis, §6.1). El state
+  // se lee de la URL de autorización que se construye con él, no de la
+  // clave del almacén: así el test sigue valiendo cuando cambie de almacén.
+  describe("Microsoft", () => {
+    async function stateDeMicrosoftPara(businessId: string): Promise<string> {
+      const { getMicrosoftAuthUrl } =
+        await import("../../../src/lib/microsoftGraph.js");
+      vi.mocked(getMicrosoftAuthUrl).mockImplementation(
+        (state: string) =>
+          `https://login.microsoftonline.com/mock?state=${state}`
+      );
+      const url = await calendarService.getMicrosoftAuthUrl(businessId);
+      return new URL(url).searchParams.get("state")!;
+    }
+
+    beforeEach(async () => {
+      const {
+        exchangeMicrosoftCode,
+        getMicrosoftProfile,
+        listMicrosoftCalendars,
+      } = await import("../../../src/lib/microsoftGraph.js");
+      vi.mocked(exchangeMicrosoftCode).mockResolvedValue({
+        access_token: "ms-access",
+        refresh_token: "ms-refresh",
+      } as any);
+      vi.mocked(getMicrosoftProfile).mockResolvedValue({
+        mail: "pelu@outlook.es",
+      } as any);
+      vi.mocked(listMicrosoftCalendars).mockResolvedValue([
+        { id: "cal_1", name: "Calendario", isDefaultCalendar: true },
+      ] as any);
+      mockedBusinessUpdate.mockResolvedValue({ id: "business_outlook" } as any);
+    });
+
+    it("el state no lleva el businessId en claro, resuelve al negocio que lo pidió y solo sirve una vez", async () => {
+      const state = await stateDeMicrosoftPara("business_outlook");
+
+      expect(state).toBeTruthy();
+      expect(state).not.toContain("business_outlook");
+
+      const resultado = await calendarService.handleMicrosoftCallback(
+        "ms-code",
+        state
+      );
+
+      expect(resultado.email).toBe("pelu@outlook.es");
+      expect(mockedBusinessUpdate).toHaveBeenCalledTimes(1);
+      expect(mockedBusinessUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: "business_outlook" },
+          data: expect.objectContaining({ calendarProvider: "outlook" }),
+        })
+      );
+
+      // Uso único: el mismo state ya no conecta nada.
+      mockedBusinessUpdate.mockClear();
+      await expect(
+        calendarService.handleMicrosoftCallback("ms-code", state)
+      ).rejects.toThrow("Microsoft");
+      expect(mockedBusinessUpdate).not.toHaveBeenCalled();
+    });
+
+    it("con dos negocios a medias, cada state conecta solo el calendario de su negocio", async () => {
+      const stateDeA = await stateDeMicrosoftPara("business_A");
+      const stateDeB = await stateDeMicrosoftPara("business_B");
+      expect(stateDeA).not.toBe(stateDeB);
+
+      await calendarService.handleMicrosoftCallback("codigo-de-b", stateDeB);
+      await calendarService.handleMicrosoftCallback("codigo-de-a", stateDeA);
+
+      expect(
+        mockedBusinessUpdate.mock.calls.map(([args]) => args.where)
+      ).toEqual([{ id: "business_B" }, { id: "business_A" }]);
+    });
+
+    it("rechaza un state inventado y uno emitido para Google, sin pedir tokens a Microsoft", async () => {
+      const { exchangeMicrosoftCode } =
+        await import("../../../src/lib/microsoftGraph.js");
+      await expect(
+        calendarService.handleMicrosoftCallback("ms-code", "state-inventado")
+      ).rejects.toThrow("Microsoft");
+
+      // Un state de Google para el mismo negocio no sirve en el callback de
+      // Microsoft: el vínculo es por proveedor. Se lee de lo que se le pasa
+      // a Google para construir su URL.
+      const generateAuthUrl = vi
+        .fn()
+        .mockReturnValue("https://accounts.google.com/o/oauth2/mock");
+      vi.mocked(google.auth.OAuth2).mockImplementationOnce(function () {
+        return { setCredentials: vi.fn(), generateAuthUrl, getToken: vi.fn() };
+      } as any);
+      await calendarService.getAuthUrl("business_outlook");
+      const stateDeGoogle = generateAuthUrl.mock.calls[0][0].state as string;
+      expect(stateDeGoogle).toBeTruthy();
+      await expect(
+        calendarService.handleMicrosoftCallback("ms-code", stateDeGoogle)
+      ).rejects.toThrow("Microsoft");
+
+      expect(exchangeMicrosoftCode).not.toHaveBeenCalled();
+      expect(mockedBusinessUpdate).not.toHaveBeenCalled();
+    });
+
+    it("el state sigue valiendo a los 9:59 y caduca a los 10:01 (vive minutos, no milisegundos)", async () => {
+      // Almacén que caduca con el reloj, como Redis (EX en segundos, PX en
+      // milisegundos): el Map del beforeEach no mira la caducidad. Cuando el
+      // state cambie de almacén, este se sustituye por el helper en memoria
+      // del nuevo, que también caduca con Date.now(); las aserciones no
+      // cambian.
+      const almacen = new Map<string, { valor: string; caducaEn: number }>();
+      mockedGetRedis.mockReturnValue({
+        set: vi.fn(
+          async (clave: string, valor: string, modo?: string, ttl?: number) => {
+            const vidaMs =
+              modo === "EX"
+                ? ttl! * 1000
+                : modo === "PX"
+                  ? ttl!
+                  : Number.POSITIVE_INFINITY;
+            almacen.set(clave, { valor, caducaEn: Date.now() + vidaMs });
+            return "OK";
+          }
+        ),
+        getdel: vi.fn(async (clave: string) => {
+          const entrada = almacen.get(clave);
+          almacen.delete(clave);
+          if (!entrada || entrada.caducaEn <= Date.now()) return null;
+          return entrada.valor;
+        }),
+        del: vi.fn().mockResolvedValue(1),
+      } as never);
+
+      vi.useFakeTimers({ toFake: ["Date"] });
+      try {
+        const inicio = new Date("2026-10-10T10:00:00Z").getTime();
+        vi.setSystemTime(inicio);
+        const stateATiempo = await stateDeMicrosoftPara("business_outlook");
+        const stateTarde = await stateDeMicrosoftPara("business_outlook");
+
+        vi.setSystemTime(inicio + 9 * 60_000 + 59_000);
+        await expect(
+          calendarService.handleMicrosoftCallback("ms-code", stateATiempo)
+        ).resolves.toMatchObject({ email: "pelu@outlook.es" });
+        expect(mockedBusinessUpdate).toHaveBeenCalledTimes(1);
+
+        vi.setSystemTime(inicio + 10 * 60_000 + 1_000);
+        mockedBusinessUpdate.mockClear();
+        await expect(
+          calendarService.handleMicrosoftCallback("ms-code", stateTarde)
+        ).rejects.toThrow("Microsoft");
+        expect(mockedBusinessUpdate).not.toHaveBeenCalled();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+  });
 });
 
 describe("CalendarService.connectMicrosoftCalendar", () => {

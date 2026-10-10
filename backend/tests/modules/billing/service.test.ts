@@ -595,6 +595,67 @@ describe("createCheckoutSession", () => {
     expect(mockedBusinessFindUnique).not.toHaveBeenCalled();
   });
 
+  // Contrato del cerrojo (plan de corte de Redis, §6.1): un checkout a la
+  // vez por negocio, con su caducidad y su espera, y siempre se suelta.
+  it("prepara el Checkout bajo el cerrojo billing_checkout:<negocio> (120 s, espera 5 s) y lo suelta al acabar", async () => {
+    mockedBusinessFindUnique.mockResolvedValue(
+      buildBusiness({ subscriptionStatus: null }) as any
+    );
+    mockedGetStripeClient.mockReturnValue({
+      customers: { create: vi.fn() },
+      checkout: {
+        sessions: {
+          create: vi.fn().mockResolvedValue({
+            id: "cs_test_1",
+            client_secret: "secret_123",
+          }),
+          list: vi.fn().mockResolvedValue({ data: [] }),
+          expire: vi.fn(),
+        },
+      },
+    } as any);
+
+    const result = await createCheckoutSession({
+      businessId,
+      userId: "user_123",
+      planId: "inicio",
+    });
+
+    expect(result.clientSecret).toBe("secret_123");
+    expect(mockedAcquireLock).toHaveBeenCalledWith(
+      `billing_checkout:${businessId}`,
+      120_000,
+      5_000
+    );
+    expect(mockedReleaseLock).toHaveBeenCalledWith(
+      `billing_checkout:${businessId}`,
+      "checkout-lock"
+    );
+    // El cerrojo se toma antes de leer el negocio.
+    expect(mockedAcquireLock.mock.invocationCallOrder[0]).toBeLessThan(
+      mockedBusinessFindUnique.mock.invocationCallOrder[0]
+    );
+  });
+
+  it("suelta el cerrojo del Checkout aunque la preparación falle", async () => {
+    mockedBusinessFindUnique.mockResolvedValue(
+      buildBusiness({ subscriptionStatus: "ACTIVE" }) as any
+    );
+
+    await expect(
+      createCheckoutSession({
+        businessId,
+        userId: "user_123",
+        planId: "inicio",
+      })
+    ).rejects.toBeInstanceOf(SuscripcionVivaError);
+
+    expect(mockedReleaseLock).toHaveBeenCalledWith(
+      `billing_checkout:${businessId}`,
+      "checkout-lock"
+    );
+  });
+
   it("crea sesión de checkout con cliente y trial", async () => {
     mockedBusinessFindUnique.mockResolvedValue(
       buildBusiness({ subscriptionStatus: null, stripeCustomerId: null }) as any
