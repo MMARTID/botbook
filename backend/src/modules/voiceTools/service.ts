@@ -12,6 +12,7 @@ import {
 import {
   checkAvailability,
   computeAvailabilityLookaheadMs,
+  inicioDeBusquedaHaciaAtras,
   type ExternalBusyInterval,
 } from "../../lib/availability.js";
 import { calendarService } from "../calendar/service.js";
@@ -367,7 +368,10 @@ async function getVoiceConfig(
 async function fetchExternalBusyIntervals(
   business: BusinessVoiceConfig,
   startDateTime: string,
-  durationMinutes: number
+  durationMinutes: number,
+  /** Desde cuándo leer, si la búsqueda mira también hacia atrás (ver
+   * inicioDeBusquedaHaciaAtras). Por defecto, desde la hora pedida. */
+  desde?: Date
 ): Promise<{
   intervals: ExternalBusyInterval[];
   calendarAvailabilityKnown: boolean;
@@ -378,7 +382,7 @@ async function fetchExternalBusyIntervals(
   }
   const result = await calendarService.getBusyIntervals({
     conexion: resolverConexionDeCalendario(business),
-    timeMin: start,
+    timeMin: desde && desde.getTime() < start.getTime() ? desde : start,
     timeMax: new Date(
       start.getTime() + computeAvailabilityLookaheadMs(durationMinutes)
     ),
@@ -500,10 +504,18 @@ async function executeCheckAvailability(
       }
     }
 
+    // Si la hora pedida no cabe, la alternativa es la más cercana, antes o
+    // después (decisión de producto del 2026-10-10), sin bajar de la
+    // antelación mínima. El calendario se lee desde ese mismo inicio: una
+    // cita local sin su evento en lo leído se tomaría por cancelada.
+    const noAntesDe = new Date(
+      Date.now() + (business.minAdvanceBookingMinutes ?? 0) * 60_000
+    );
     const externalBusy = await fetchExternalBusyIntervals(
       business,
       startDateTime,
-      durationMinutes
+      durationMinutes,
+      inicioDeBusquedaHaciaAtras(new Date(startDateTime), noAntesDe)
     );
     const availability = await checkAvailability({
       businessId: business.id,
@@ -519,6 +531,7 @@ async function executeCheckAvailability(
       calendarOrigin: origenDeCalendario(
         resolverConexionDeCalendario(business)
       ),
+      buscarTambienAntes: { noAntesDe },
     });
 
     // Lo que se le devuelve al LLM no lleva los campos internos del ranking

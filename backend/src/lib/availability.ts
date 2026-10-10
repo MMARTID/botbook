@@ -261,10 +261,30 @@ export function computeAvailabilityLookaheadMs(durationMinutes: number): number 
   );
 }
 
-/** Busca el siguiente hueco libre a partir de `startDateTime`, en pasos de
- * 15 minutos, dentro del mismo horario comercial del día — nunca salta a
- * otro día. Reutiliza `bookings`, ya cargado por el caller para una ventana
- * que cubre toda la búsqueda, así que no hace ninguna consulta adicional. */
+/**
+ * Primer instante que mira la búsqueda hacia atrás de un hueco alternativo
+ * (`buscarTambienAntes`): como mucho los mismos 3 días que hacia delante, y
+ * nunca antes de `noAntesDe` (ahora + la antelación mínima del negocio).
+ * Exportada para que quien lea el calendario externo por su cuenta
+ * (fetchExternalBusyIntervals en voiceTools/service.ts) cubra el mismo tramo.
+ */
+export function inicioDeBusquedaHaciaAtras(start: Date, noAntesDe: Date): Date {
+  const tope =
+    start.getTime() -
+    NEXT_SLOT_SEARCH_MAX_ATTEMPTS * NEXT_SLOT_SEARCH_INCREMENT_MINUTES * 60_000;
+  return new Date(Math.min(start.getTime(), Math.max(tope, noAntesDe.getTime())));
+}
+
+/** Busca el hueco libre más cercano a `startDateTime`, en pasos de 15
+ * minutos: hacia delante hasta 3 días (puede caer otro día, ver
+ * NEXT_SLOT_SEARCH_MAX_ATTEMPTS) y, con `noAntesDe`, también hacia atrás
+ * hasta ese instante. Gana el más cercano a la hora pedida; si empatan, el
+ * de después. Llamada de prueba del 2026-10-10 (conversación Telnyx
+ * f08c40b0): maquillaje de novia de 100 min pedido el sábado a las 13:00
+ * con cierre a las 14:00, y la recepcionista ofreció el martes a las 9:00
+ * porque solo se miraba hacia delante, cuando a las 12:15 del mismo sábado
+ * cabía. Reutiliza `bookings`, ya cargado por el caller para una ventana que
+ * cubre toda la búsqueda, así que no hace ninguna consulta adicional. */
 function findNextAvailableSlot(input: {
   schedule: unknown;
   timezone: string;
@@ -282,6 +302,8 @@ function findNextAvailableSlot(input: {
     ausencia?: boolean;
   }>;
   cargaPorDia: Map<string, Map<string, number>>;
+  /** Si se indica, busca también hacia atrás sin pasar de este instante. */
+  noAntesDe?: Date;
 }): SuggestedSlot | null {
   const {
     schedule,
@@ -292,6 +314,7 @@ function findNextAvailableSlot(input: {
     rankedProfessionals,
     bookings,
     cargaPorDia,
+    noAntesDe,
   } = input;
 
   if (rankedProfessionals.length === 0) {
@@ -312,11 +335,9 @@ function findNextAvailableSlot(input: {
     };
   });
 
-  for (let attempt = 1; attempt <= NEXT_SLOT_SEARCH_MAX_ATTEMPTS; attempt++) {
-    const candidateStart = new Date(
-      originalStart.getTime() +
-        attempt * NEXT_SLOT_SEARCH_INCREMENT_MINUTES * 60_000
-    );
+  // null: no vale; "sin_horario": el horario está mal configurado y ninguna
+  // otra hora dará otro resultado.
+  const evaluar = (candidateStart: Date): SuggestedSlot | null | "sin_horario" => {
     const candidateISO = candidateStart.toISOString();
 
     const hoursCheck = checkBusinessHours(
@@ -329,7 +350,7 @@ function findNextAvailableSlot(input: {
       // Horario mal configurado, no un simple "cerrado a esta hora" — no
       // hay ninguna hora en la que probar de nuevo vaya a dar otro
       // resultado, así que no tiene sentido seguir intentando.
-      break;
+      return "sin_horario";
     }
     if (!hoursCheck.isOpen) {
       // Cerrado en ESTE candidato concreto no significa que el día haya
@@ -339,7 +360,7 @@ function findNextAvailableSlot(input: {
       // (incorrectamente) que ya no quedaba nada libre en lo que restaba del
       // día — hallazgo #18 de la auditoría. Seguir probando cada 15 min
       // hasta agotar la ventana de búsqueda es más caro pero correcto.
-      continue;
+      return null;
     }
 
     const candidateEnd = new Date(
@@ -356,7 +377,7 @@ function findNextAvailableSlot(input: {
       maxConcurrentBookings(candidateStart, candidateEnd, overlapping) >=
       bookingCapacity
     ) {
-      continue;
+      return null;
     }
 
     const busyProfessionalIds = new Set(
@@ -373,12 +394,36 @@ function findNextAvailableSlot(input: {
       cargaPorDia
     ).map(sinNivel);
 
-    if (availableProfessionals.length > 0) {
-      return { startDateTime: candidateISO, availableProfessionals };
+    return availableProfessionals.length > 0
+      ? { startDateTime: candidateISO, availableProfessionals }
+      : null;
+  };
+
+  const paso = NEXT_SLOT_SEARCH_INCREMENT_MINUTES * 60_000;
+  let despues: SuggestedSlot | null = null;
+  let pasosDespues = NEXT_SLOT_SEARCH_MAX_ATTEMPTS + 1;
+  for (let attempt = 1; attempt <= NEXT_SLOT_SEARCH_MAX_ATTEMPTS; attempt++) {
+    const resultado = evaluar(new Date(originalStart.getTime() + attempt * paso));
+    if (resultado === "sin_horario") return null;
+    if (resultado) {
+      despues = resultado;
+      pasosDespues = attempt;
+      break;
     }
   }
 
-  return null;
+  if (noAntesDe) {
+    // Solo gana si está estrictamente más cerca: en un empate, el de después.
+    for (let attempt = 1; attempt < pasosDespues; attempt++) {
+      const candidateStart = new Date(originalStart.getTime() - attempt * paso);
+      if (candidateStart.getTime() < noAntesDe.getTime()) break;
+      const resultado = evaluar(candidateStart);
+      if (resultado === "sin_horario") return null;
+      if (resultado) return resultado;
+    }
+  }
+
+  return despues;
 }
 
 export async function checkAvailability(input: {
@@ -418,6 +463,12 @@ export async function checkAvailability(input: {
    * hora nueva puede solaparse con la vieja (misma tarde, media hora más
    * tarde) y sin esto se bloquearía a sí misma. */
   excluir?: { bookingId: string; externalEventId?: string | null } | null;
+  /** El hueco alternativo es el más cercano a la hora pedida, antes o
+   * después, en vez de solo el siguiente (lo pide la recepcionista de voz;
+   * el Gestor y la lista de espera siguen queriendo «el siguiente»).
+   * `noAntesDe`: ahora + la antelación mínima del negocio. Quien pase
+   * externalBusyIntervals debe leerlos desde inicioDeBusquedaHaciaAtras. */
+  buscarTambienAntes?: { noAntesDe: Date } | null;
 }): Promise<AvailabilityResult> {
   const {
     businessId,
@@ -432,6 +483,7 @@ export async function checkAvailability(input: {
     calendarAvailabilityKnown = false,
     calendarOrigin,
     excluir,
+    buscarTambienAntes,
   } = input;
 
   // 1. Horario comercial. Un horario mal configurado no se arregla probando
@@ -521,6 +573,11 @@ export async function checkAvailability(input: {
   const nextSlotSearchWindowEnd = new Date(
     start.getTime() + computeAvailabilityLookaheadMs(durationMinutes)
   );
+  // Con buscarTambienAntes, la ventana empieza antes de la hora pedida: las
+  // citas y ausencias de ese tramo también ocupan los candidatos anteriores.
+  const inicioDeBusqueda = buscarTambienAntes
+    ? inicioDeBusquedaHaciaAtras(start, buscarTambienAntes.noAntesDe)
+    : start;
 
   // Las canceladas se traen aparte, solo para saber qué eventos del
   // calendario externo son restos nuestros: si el borrado del evento falló al
@@ -533,7 +590,7 @@ export async function checkAvailability(input: {
       isCancelled: true,
       externalEventId: { not: null },
       programedAt: {
-        gte: new Date(start.getTime() - OVERLAP_LOOKBACK_MS),
+        gte: new Date(inicioDeBusqueda.getTime() - OVERLAP_LOOKBACK_MS),
         lt: nextSlotSearchWindowEnd,
       },
     },
@@ -551,7 +608,7 @@ export async function checkAvailability(input: {
         // tool call de voz (el cliente está al teléfono esperando). Una cita
         // que empezó hace más de un día no puede solaparse con nada de esta
         // ventana, y ningún servicio de un salón dura tanto.
-        gte: new Date(start.getTime() - OVERLAP_LOOKBACK_MS),
+        gte: new Date(inicioDeBusqueda.getTime() - OVERLAP_LOOKBACK_MS),
         lt: nextSlotSearchWindowEnd,
       },
     },
@@ -649,7 +706,7 @@ export async function checkAvailability(input: {
     where: {
       businessId,
       startsAt: { lt: nextSlotSearchWindowEnd },
-      endsAt: { gt: start },
+      endsAt: { gt: inicioDeBusqueda },
     },
     select: { professionalId: true, startsAt: true, endsAt: true },
   });
@@ -689,6 +746,7 @@ export async function checkAvailability(input: {
       rankedProfessionals: candidatos,
       bookings: overlappingBookings,
       cargaPorDia,
+      noAntesDe: buscarTambienAntes?.noAntesDe,
     });
 
   // 4. Profesionales ocupados en el slot
