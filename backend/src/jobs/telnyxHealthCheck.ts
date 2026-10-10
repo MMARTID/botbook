@@ -23,6 +23,8 @@ function phoneProvisionLockKey(businessId: string): string {
 const LOCK_TTL_MS = 60_000;
 const LOCK_ACQUIRE_BUDGET_MS = 5_000;
 
+let avisoSinComponentesDado = false;
+
 function isVoiceFailoverEnabled(): boolean {
   // Kill switch global (plan §7) — por defecto apagado: sin esto, un
   // despliegue que se olvide de fijarlo no debe poder mover tráfico real
@@ -32,10 +34,9 @@ function isVoiceFailoverEnabled(): boolean {
 
 /**
  * `telnyx-health-check` — invocado cada 2 minutos por Cloud Scheduler vía
- * POST /internal/jobs/telnyx-health-check (plan §7). Hoy es inerte para
- * cualquier negocio real: solo actúa sobre negocios con
- * `orchestrator="telnyx"`, y ninguno lo tiene todavía (eso es la Fase 5,
- * deliberadamente no ejecutada).
+ * POST /internal/jobs/telnyx-health-check (plan §7). Actúa sobre los
+ * negocios con `orchestrator="telnyx"` (todos desde el cutover), pero hasta
+ * que TELNYX_STATUS_COMPONENT_IDS esté configurado no evalúa nada.
  */
 export async function telnyxHealthCheckJob(): Promise<void> {
   if (!isVoiceFailoverEnabled()) {
@@ -58,9 +59,14 @@ export async function telnyxHealthCheckJob(): Promise<void> {
   }
 
   if (status.unconfigured) {
-    console.warn(
-      "[TelnyxHealth] TELNYX_STATUS_COMPONENT_IDS no está configurado — el failover automático permanece inactivo."
-    );
+    // Una vez por instancia, no cada 2 minutos: repetido, era el grueso de
+    // los logs del servicio (unas 750 líneas en dos días) y tapaba el resto.
+    if (!avisoSinComponentesDado) {
+      avisoSinComponentesDado = true;
+      console.warn(
+        "[TelnyxHealth] TELNYX_STATUS_COMPONENT_IDS no está configurado — el failover automático permanece inactivo."
+      );
+    }
     return;
   }
 

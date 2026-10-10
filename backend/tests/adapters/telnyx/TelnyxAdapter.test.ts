@@ -7,6 +7,7 @@ const mockNumberOrdersRetrieve = vi.fn();
 const mockPhoneNumbersDelete = vi.fn();
 const mockPhoneNumbersRetrieve = vi.fn();
 const mockPhoneNumbersList = vi.fn();
+const mockBalanceRetrieve = vi.fn();
 
 const mockTelnyxClient = {
   availablePhoneNumbers: { list: mockAvailablePhoneNumbersList },
@@ -19,6 +20,7 @@ const mockTelnyxClient = {
     retrieve: mockPhoneNumbersRetrieve,
     list: mockPhoneNumbersList,
   },
+  balance: { retrieve: mockBalanceRetrieve },
 };
 
 vi.mock("../../../src/lib/telnyx.js", () => ({
@@ -31,6 +33,17 @@ describe("TelnyxAdapter", () => {
   beforeEach(() => {
     adapter = new TelnyxAdapter();
     vi.clearAllMocks();
+  });
+
+  describe("checkHealth", () => {
+    it("consulta el saldo con un plazo corto y propaga el fallo", async () => {
+      mockBalanceRetrieve.mockResolvedValueOnce({ data: { balance: "10.00" } });
+      await expect(adapter.checkHealth()).resolves.toBeUndefined();
+      expect(mockBalanceRetrieve).toHaveBeenCalledWith({ timeout: 3_000 });
+
+      mockBalanceRetrieve.mockRejectedValueOnce(new Error("401 Unauthorized"));
+      await expect(adapter.checkHealth()).rejects.toThrow("401");
+    });
   });
 
   describe("searchAvailableNumbers", () => {

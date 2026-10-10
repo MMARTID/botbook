@@ -27,6 +27,8 @@ import { demoRoutes } from "./modules/demo/routes.js";
 import { webhooksTelnyxRoutes } from "./modules/webhooksTelnyx/routes.js";
 import { webhooksRetellRoutes } from "./modules/webhooksRetell/routes.js";
 import { retellAdapter } from "./adapters/retell/RetellAdapter.js";
+import { telnyxAdapter } from "./adapters/telnyx/TelnyxAdapter.js";
+import { comprobarSalud } from "./lib/salud.js";
 import { comprobarClaveDeCifrado } from "./lib/cifradoDeCredenciales.js";
 import { origenesPermitidos } from "./lib/urls.js";
 import { confianzaEnProxies } from "./lib/proxyDeConfianza.js";
@@ -185,35 +187,23 @@ async function start() {
 
     // Health check endpoint with dependency probes
     fastify.get("/health", async (_request, reply) => {
-      const checkPromises: Promise<string>[] = [
-        prisma.$queryRaw`SELECT 1`.then(() => "ok"),
-        getRedis().ping().then(() => "ok"),
-      ];
-
-      if (process.env.RETELL_API_KEY) {
-        checkPromises.push(retellAdapter.checkHealth().then(() => "ok"));
+      // Telnyx (orquestador principal) y Retell (respaldo) solo informan:
+      // ver comprobarSalud.
+      const informativas: Record<string, () => Promise<unknown>> = {};
+      if (process.env.TELNYX_API_KEY) {
+        informativas.telnyx = () => telnyxAdapter.checkHealth();
       }
-
-      const checks = await Promise.allSettled(checkPromises);
-
-      const [postgres, redis, retell] = checks;
-      // Solo Postgres y Redis deciden el código: son lo que la revisión
-      // necesita para servir. Retell es el orquestador de respaldo; si cae
-      // durante un deploy, el 503 hacía que el workflow revirtiera una
-      // revisión sana (con las migraciones ya aplicadas). Sigue saliendo en
-      // el JSON como información.
-      const healthy =
-        postgres.status === "fulfilled" && redis.status === "fulfilled";
+      if (process.env.RETELL_API_KEY) {
+        informativas.retell = () => retellAdapter.checkHealth();
+      }
+      const { healthy, dependencies } = await comprobarSalud({
+        criticas: {
+          postgres: () => prisma.$queryRaw`SELECT 1`,
+          redis: () => getRedis().ping(),
+        },
+        informativas,
+      });
       const statusCode = healthy ? 200 : 503;
-
-      const dependencies: Record<string, string> = {
-        postgres: postgres.status === "fulfilled" ? "ok" : "unhealthy",
-        redis: redis.status === "fulfilled" ? "ok" : "unhealthy",
-      };
-
-      if (process.env.RETELL_API_KEY) {
-        dependencies.retell = retell.status === "fulfilled" ? "ok" : "unhealthy";
-      }
 
       reply.status(statusCode).send({
         status: healthy ? "ok" : "degraded",

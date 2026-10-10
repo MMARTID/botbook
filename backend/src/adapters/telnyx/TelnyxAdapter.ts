@@ -20,6 +20,15 @@ export interface NumberOrderResult {
 
 export class TelnyxAdapter {
   /**
+   * Comprobación ligera para /health: consultar el saldo basta para saber
+   * que la API responde y que la clave vale. Plazo corto: /health no puede
+   * quedarse esperando a Telnyx.
+   */
+  async checkHealth(): Promise<void> {
+    await getTelnyxClient().balance.retrieve({ timeout: 3_000 });
+  }
+
+  /**
    * Busca números de tipo local. Telnyx no expone requisitos regulatorios por
    * número en la búsqueda (a diferencia de Twilio) — los requisitos se
    * resuelven aparte, con un Requirement Group aplicado en el pedido.
