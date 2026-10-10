@@ -1231,9 +1231,99 @@ describe("executeVoiceTool book_appointment — varios servicios en la misma cit
     );
   });
 
-  it("avisa al propietario por SMS al negocio.phone usando su número Telnyx como remitente", async () => {
-    const result = await executeVoiceTool(
+});
+
+/** Sender ID alfanumérico + su Messaging Profile: la única vía de SMS en
+ * España. Devuelve una función que deja las variables como estaban. */
+function conSenderId() {
+  const antes = {
+    sender: process.env.TELNYX_SMS_SENDER_ID,
+    perfil: process.env.TELNYX_MESSAGING_PROFILE_ID,
+  };
+  process.env.TELNYX_SMS_SENDER_ID = "ALHABLA";
+  process.env.TELNYX_MESSAGING_PROFILE_ID = "perfil_sms";
+  return () => {
+    for (const [clave, valor] of [
+      ["TELNYX_SMS_SENDER_ID", antes.sender],
+      ["TELNYX_MESSAGING_PROFILE_ID", antes.perfil],
+    ] as const) {
+      if (valor === undefined) delete process.env[clave];
+      else process.env[clave] = valor;
+    }
+  };
+}
+
+function sinSenderId() {
+  const restaurar = conSenderId();
+  delete process.env.TELNYX_SMS_SENDER_ID;
+  delete process.env.TELNYX_MESSAGING_PROFILE_ID;
+  return restaurar;
+}
+
+// Fallo real de producción (INFINITY, 09 y 10-10-2026): con «Alhabla como
+// número principal» `phone` ES el número de Alhabla y el aviso por SMS al
+// dueño salía del número de Alhabla hacia sí mismo → 40305 y cuatro
+// reintentos de Cloud Tasks tras cada reserva. Ahora el SMS es solo el
+// respaldo del aviso por WhatsApp y va al móvil del dueño.
+describe("executeVoiceTool book_appointment — aviso al dueño: respaldo por SMS si el WhatsApp no sale", () => {
+  const mockedAvisarNuevaReserva = vi.mocked(avisarNuevaReserva);
+  let restaurarEnv: () => void;
+  let consoleError: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    restaurarEnv = conSenderId();
+    consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+    mockedBusinessFindUnique.mockResolvedValue(
+      buildBusiness({ ownerWhatsappNumber: "+34612345678" }) as any
+    );
+    mockedCheckBusinessHours.mockReturnValue({
+      success: true,
+      isOpen: true,
+    } as any);
+    mockedBookAppointment.mockResolvedValue({
+      htmlLink: "https://calendar.google.com/event/1",
+    } as any);
+    mockedGetBusyIntervals.mockResolvedValue({
+      intervals: [],
+      calendarAvailabilityKnown: true,
+    } as any);
+    mockedProfessionalFindFirst.mockResolvedValue({
+      id: "professional_123",
+    } as any);
+    mockedProfessionalFindMany.mockResolvedValue([]);
+    mockedServiceFindMany.mockResolvedValue([]);
+    mockedCheckAvailability.mockResolvedValue({
+      available: true,
+      message: "",
+      capacityUsed: 0,
+      capacityTotal: 1,
+      availableProfessionals: [{ id: "professional_123", name: "Ana" }],
+    } as any);
+    mockedCallFindUnique.mockResolvedValue({
+      id: "call_row_1",
+      fromNumber: "+34600999888",
+      businessId: "business_123",
+    } as any);
+    mockedBookingFindUnique.mockResolvedValue(null);
+    mockedBookingUpsert.mockResolvedValue({ id: "booking_1" } as any);
+    mockedEnqueueSmsJob.mockResolvedValue(undefined);
+    mockedAvisarNuevaReserva.mockResolvedValue({
+      via: "ninguna",
+      motivo: "el móvil del dueño no está activo",
+    });
+  });
+
+  afterEach(() => {
+    restaurarEnv();
+    consoleError.mockRestore();
+    mockedAvisarNuevaReserva.mockResolvedValue({ via: "interactivo" });
+  });
+
+  const reservar = () =>
+    executeVoiceTool(
       buildBookAppointmentInput({
+        callId: "call_vapi_1",
         params: {
           clientName: "María",
           startDateTime: "2026-08-25T17:00:00+02:00",
@@ -1243,43 +1333,130 @@ describe("executeVoiceTool book_appointment — varios servicios en la misma cit
       })
     );
 
-    expect(result.result.success).toBe(true);
-    expect(mockedEnqueueSmsJob).toHaveBeenCalledWith(
-      expect.objectContaining({
-        fromNumber: "+34911222333",
-        toNumber: "+34600111222",
-        text: expect.stringContaining("María"),
-      })
-    );
-  });
+  const smsAlDueno = () =>
+    mockedEnqueueSmsJob.mock.calls
+      .map((call) => call[0])
+      .filter((job) => job.proposito === "aviso_dueno");
 
-  it("no intenta enviar SMS si el negocio todavía no tiene número Telnyx propio", async () => {
-    mockedBusinessFindUnique.mockResolvedValue(
-      buildBusiness({ telnyxPhoneNumber: null }) as any
-    );
+  it("si el aviso por WhatsApp sale, no manda ningún SMS al dueño", async () => {
+    mockedAvisarNuevaReserva.mockResolvedValue({ via: "interactivo" });
 
-    const result = await executeVoiceTool(buildBookAppointmentInput());
+    const result = await reservar();
 
     expect(result.result.success).toBe(true);
+    expect(mockedAvisarNuevaReserva).toHaveBeenCalledTimes(1);
     expect(mockedEnqueueSmsJob).not.toHaveBeenCalled();
   });
 
-  it("no rompe la reserva si falla el envío del SMS de aviso", async () => {
-    mockedEnqueueSmsJob.mockRejectedValueOnce(new Error("Telnyx no responde"));
-
-    const result = await executeVoiceTool(buildBookAppointmentInput());
+  it("si el WhatsApp no sale, manda el SMS al móvil del dueño con el Sender ID, nunca a la línea de clientes", async () => {
+    const result = await reservar();
 
     expect(result.result.success).toBe(true);
+    expect(mockedEnqueueSmsJob).toHaveBeenCalledTimes(1);
+    expect(mockedEnqueueSmsJob).toHaveBeenCalledWith(
+      {
+        fromNumber: "ALHABLA",
+        messagingProfileId: "perfil_sms",
+        toNumber: "+34612345678",
+        text: expect.stringContaining("María"),
+        businessId: "business_123",
+        proposito: "aviso_dueno",
+      },
+      { taskId: "aviso-sms-booking_1" }
+    );
+    expect(mockedEnqueueSmsJob).not.toHaveBeenCalledWith(
+      expect.objectContaining({ toNumber: "+34600111222" }),
+      expect.anything()
+    );
+  });
+
+  it("con «Alhabla como número principal» (phone = número de Alhabla) y sin móvil del dueño no se manda un SMS a sí mismo, y queda log", async () => {
+    mockedBusinessFindUnique.mockResolvedValue(
+      buildBusiness({
+        phone: "+34911222333",
+        telnyxPhoneNumber: "+34911222333",
+        customerLineType: "alhabla",
+        ownerWhatsappNumber: null,
+      }) as any
+    );
+
+    const result = await reservar();
+
+    expect(result.result.success).toBe(true);
+    expect(mockedEnqueueSmsJob).not.toHaveBeenCalled();
+    expect(consoleError).toHaveBeenCalledWith(
+      expect.stringMatching(
+        /negocio business_123 no sale por WhatsApp \(el móvil del dueño no está activo\) ni por SMS \(proveedor telnyx\): el negocio no tiene móvil del dueño válido/
+      )
+    );
+  });
+
+  it("no manda el SMS si el móvil del dueño es el propio número de Alhabla", async () => {
+    mockedBusinessFindUnique.mockResolvedValue(
+      buildBusiness({ ownerWhatsappNumber: "+34911222333" }) as any
+    );
+
+    await reservar();
+
+    expect(mockedEnqueueSmsJob).not.toHaveBeenCalled();
+    expect(consoleError).toHaveBeenCalledWith(
+      expect.stringContaining("el móvil del dueño es el propio número de Alhabla")
+    );
+  });
+
+  it("sin Sender ID no manda nada (los números españoles no envían SMS) y deja un log con negocio, proveedor y motivo", async () => {
+    restaurarEnv();
+    restaurarEnv = sinSenderId();
+
+    const result = await reservar();
+
+    expect(result.result.success).toBe(true);
+    expect(mockedEnqueueSmsJob).not.toHaveBeenCalled();
+    expect(consoleError).toHaveBeenCalledWith(
+      expect.stringMatching(
+        /negocio business_123 no sale por WhatsApp .* ni por SMS \(proveedor telnyx\): sin Sender ID alfanumérico/
+      )
+    );
+  });
+
+  it("no suple con SMS un aviso que no salió a propósito (desactivado por el dueño, ya enviado)", async () => {
+    mockedAvisarNuevaReserva.mockResolvedValue({
+      via: "ninguna",
+      motivo: "aviso por reserva desactivado",
+      deliberado: true,
+    });
+
+    await reservar();
+
+    expect(smsAlDueno()).toEqual([]);
+  });
+
+  it("no rompe la reserva si falla el encolado del SMS de respaldo, y lo registra", async () => {
+    mockedEnqueueSmsJob.mockRejectedValueOnce(new Error("Cloud Tasks no responde"));
+
+    const result = await reservar();
+
+    expect(result.result.success).toBe(true);
+    expect(consoleError).toHaveBeenCalledWith(
+      expect.stringContaining("no se pudo encolar: Cloud Tasks no responde")
+    );
   });
 });
 
 describe("executeVoiceTool book_appointment — consentimiento SMS al cliente", () => {
   const farFutureStart = new Date(Date.now() + 48 * 60 * 60_000).toISOString();
   const nearFutureStart = new Date(Date.now() + 60 * 60_000).toISOString();
+  let restaurarEnv: () => void;
+
+  afterEach(() => {
+    restaurarEnv();
+  });
 
   beforeEach(() => {
     vi.clearAllMocks();
     clearWhatsappEnv();
+    // El SMS solo sale con el Sender ID alfanumérico (ver resolverRemitenteSms).
+    restaurarEnv = conSenderId();
     mockedBusinessFindUnique.mockResolvedValue(buildBusiness() as any);
     mockedCheckBusinessHours.mockReturnValue({
       success: true,
@@ -1337,11 +1514,14 @@ describe("executeVoiceTool book_appointment — consentimiento SMS al cliente", 
       })
     );
     expect(mockedEnqueueSmsJob).toHaveBeenCalledWith(
-      expect.objectContaining({
-        fromNumber: "+34911222333",
+      {
+        fromNumber: "ALHABLA",
+        messagingProfileId: "perfil_sms",
         toNumber: "+34600999888",
         text: expect.stringContaining("confirmada"),
-      }),
+        businessId: "business_123",
+        proposito: "confirmacion_cliente",
+      },
       { taskId: "confirm-sms-booking_1" }
     );
   });
@@ -1409,8 +1589,50 @@ describe("executeVoiceTool book_appointment — consentimiento SMS al cliente", 
     }
   });
 
-  it("usa TELNYX_SMS_SENDER_ID como remitente cuando está configurado, en vez del número del negocio", async () => {
-    process.env.TELNYX_SMS_SENDER_ID = "ALHABLA";
+  // Los números geográficos españoles nunca han podido enviar SMS (40305):
+  // antes, sin Sender ID, el SMS salía del número de Alhabla y fallaba
+  // siempre, con cuatro reintentos de Cloud Tasks.
+  it("sin TELNYX_SMS_SENDER_ID no encola el SMS al cliente desde el número de Alhabla y lo registra", async () => {
+    restaurarEnv();
+    restaurarEnv = sinSenderId();
+    const consoleError = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => {});
+    try {
+      const result = await executeVoiceTool(
+        buildBookAppointmentInput({
+          callId: "call_vapi_1",
+          params: {
+            clientName: "María",
+            startDateTime: farFutureStart,
+            durationMinutes: 30,
+            professionalId: "professional_123",
+            smsConsent: true,
+          },
+        })
+      );
+
+      expect(result.result.success).toBe(true);
+      expect(mockedEnqueueSmsJob).not.toHaveBeenCalled();
+      expect(consoleError).toHaveBeenCalledWith(
+        expect.stringMatching(
+          /no envía la confirmación al cliente del negocio business_123 por SMS \(proveedor telnyx\): sin Sender ID/
+        )
+      );
+    } finally {
+      consoleError.mockRestore();
+    }
+  });
+
+  it("no manda la confirmación por SMS si el cliente llama desde el propio número de Alhabla", async () => {
+    mockedCallFindUnique.mockResolvedValue({
+      id: "call_row_1",
+      fromNumber: "+34911222333",
+      businessId: "business_123",
+    } as any);
+    const consoleError = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => {});
     try {
       await executeVoiceTool(
         buildBookAppointmentInput({
@@ -1425,23 +1647,32 @@ describe("executeVoiceTool book_appointment — consentimiento SMS al cliente", 
         })
       );
 
-      expect(mockedEnqueueSmsJob).toHaveBeenCalledWith(
-        expect.objectContaining({
-          fromNumber: "ALHABLA",
-          toNumber: "+34600999888",
-        }),
-        expect.anything()
-      );
-      // El aviso al propietario también debe usar el Sender ID, no el número.
-      expect(mockedEnqueueSmsJob).toHaveBeenCalledWith(
-        expect.objectContaining({
-          fromNumber: "ALHABLA",
-          toNumber: "+34600111222",
-        })
-      );
+      expect(mockedEnqueueSmsJob).not.toHaveBeenCalled();
     } finally {
-      delete process.env.TELNYX_SMS_SENDER_ID;
+      consoleError.mockRestore();
     }
+  });
+
+  it("sin número de Alhabla no manda el SMS al cliente (no tendría a qué número llamar)", async () => {
+    mockedBusinessFindUnique.mockResolvedValue(
+      buildBusiness({ telnyxPhoneNumber: null }) as any
+    );
+
+    const result = await executeVoiceTool(
+      buildBookAppointmentInput({
+        callId: "call_vapi_1",
+        params: {
+          clientName: "María",
+          startDateTime: farFutureStart,
+          durationMinutes: 30,
+          professionalId: "professional_123",
+          smsConsent: true,
+        },
+      })
+    );
+
+    expect(result.result.success).toBe(true);
+    expect(mockedEnqueueSmsJob).not.toHaveBeenCalled();
   });
 
   it("no encola ningún SMS al cliente si no dio consentimiento", async () => {
@@ -1464,11 +1695,8 @@ describe("executeVoiceTool book_appointment — consentimiento SMS al cliente", 
         create: expect.objectContaining({ smsConsent: false }),
       })
     );
-    // El único SMS que se encola es el aviso al propietario (a business.phone).
-    expect(mockedEnqueueSmsJob).toHaveBeenCalledTimes(1);
-    expect(mockedEnqueueSmsJob).toHaveBeenCalledWith(
-      expect.objectContaining({ toNumber: "+34600111222" })
-    );
+    // Ni al cliente ni al dueño (su aviso salió por WhatsApp).
+    expect(mockedEnqueueSmsJob).not.toHaveBeenCalled();
   });
 
   it("programa un recordatorio SMS cuando la cita queda más lejos que el margen mínimo", async () => {
@@ -1488,6 +1716,7 @@ describe("executeVoiceTool book_appointment — consentimiento SMS al cliente", 
     expect(mockedEnqueueSmsJob).toHaveBeenCalledWith(
       expect.objectContaining({
         text: expect.stringContaining("Recordatorio"),
+        proposito: "recordatorio_cliente",
       }),
       expect.objectContaining({
         taskId: "reminder-sms-booking_1",
@@ -1514,8 +1743,8 @@ describe("executeVoiceTool book_appointment — consentimiento SMS al cliente", 
       })
     );
 
-    // Confirmación inmediata + aviso al propietario sí; recordatorio no.
-    expect(mockedEnqueueSmsJob).toHaveBeenCalledTimes(2);
+    // Confirmación inmediata sí; recordatorio no.
+    expect(mockedEnqueueSmsJob).toHaveBeenCalledTimes(1);
     expect(mockedEnqueueSmsJob).not.toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({ taskId: "reminder-sms-booking_1" })
@@ -1536,8 +1765,8 @@ describe("executeVoiceTool book_appointment — consentimiento SMS al cliente", 
       })
     );
 
-    // Solo la confirmación inmediata al cliente + el aviso al propietario.
-    expect(mockedEnqueueSmsJob).toHaveBeenCalledTimes(2);
+    // Solo la confirmación inmediata al cliente.
+    expect(mockedEnqueueSmsJob).toHaveBeenCalledTimes(1);
     expect(mockedEnqueueSmsJob).not.toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({ taskId: "reminder-sms-booking_1" })
@@ -1631,11 +1860,9 @@ describe("executeVoiceTool book_appointment — confirmación al cliente por Wha
       bookingId: "booking_1",
       etiqueta: expect.any(String),
     });
-    // Ningún SMS al cliente: el único SMS es el aviso al propietario.
-    expect(mockedEnqueueSmsJob).toHaveBeenCalledTimes(1);
-    expect(mockedEnqueueSmsJob).toHaveBeenCalledWith(
-      expect.objectContaining({ toNumber: "+34600111222" })
-    );
+    // Ningún SMS: ni al cliente (WhatsApp) ni al dueño (su aviso salió por
+    // WhatsApp).
+    expect(mockedEnqueueSmsJob).not.toHaveBeenCalled();
   });
 
   it("desde el chat de WhatsApp (Call whatsapp:chat:<id>) la reserva se anota createdVia client_chat", async () => {
@@ -1685,8 +1912,10 @@ describe("executeVoiceTool book_appointment — confirmación al cliente por Wha
 
   it("sin WhatsApp configurado cae a SMS para el cliente y devuelve mensajeCliente ninguno", async () => {
     clearWhatsappEnv();
+    const restaurarEnv = conSenderId();
 
     const result = await reservar();
+    restaurarEnv();
 
     expect(result.result.mensajeCliente).toBe("ninguno");
     expect(mockedProgramarMensajes).not.toHaveBeenCalled();

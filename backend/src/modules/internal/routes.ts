@@ -20,7 +20,10 @@ import { processUsageReportJob } from "../../jobs/processUsageReport.js";
 import { attachUsagePricesJob } from "../../jobs/attachUsagePrices.js";
 import { retryUsageReportsJob } from "../../jobs/retryUsageReports.js";
 import { sendWeeklySummaryJob } from "../../jobs/sendWeeklySummary.js";
-import { E164_PHONE_REGEX } from "../../lib/phone.js";
+import {
+  E164_PHONE_REGEX,
+  SENDER_ID_ALFANUMERICO_REGEX,
+} from "../../lib/phone.js";
 
 const ProcessRecordingSchema = z.object({
   callId: z.string(),
@@ -64,9 +67,23 @@ const SendSmsSchema = z.object({
   // endpoint es el punto real de envío a Telnyx, así que es donde más
   // importa no dejar pasar un número mal formateado, no solo en el punto de
   // entrada donde el negocio edita su teléfono.
-  fromNumber: z.string().regex(E164_PHONE_REGEX),
+  // El remitente es el Alphanumeric Sender ID («ALHABLA»), la única vía de
+  // SMS en España; un E.164 sigue valiendo para las tareas antiguas en cola.
+  // Antes solo se aceptaba E.164 y `messagingProfileId` (obligatorio con un
+  // Sender ID) se descartaba: el Sender ID habría muerto aquí con un 400.
+  fromNumber: z
+    .string()
+    .refine(
+      (from) =>
+        E164_PHONE_REGEX.test(from) || SENDER_ID_ALFANUMERICO_REGEX.test(from)
+    ),
   toNumber: z.string().regex(E164_PHONE_REGEX),
   text: z.string(),
+  messagingProfileId: z.string().optional(),
+  businessId: z.string().optional(),
+  proposito: z
+    .enum(["aviso_dueno", "confirmacion_cliente", "recordatorio_cliente"])
+    .optional(),
   idempotencyKey,
 });
 

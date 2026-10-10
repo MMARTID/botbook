@@ -54,6 +54,7 @@ import { whatsappAdapter } from "../../adapters/whatsapp/WhatsAppAdapter.js";
 import {
   avisarCitaPendiente,
   avisarNuevaReserva,
+  type ResultadoAviso,
 } from "../whatsapp/avisosNegocio.js";
 import {
   programarMensajesAlCliente,
@@ -1049,32 +1050,26 @@ async function enqueueRetryFailedBooking(leadId: string): Promise<void> {
 }
 
 /**
- * Remitente a usar en el campo `from` del envío de SMS. Con
- * TELNYX_SMS_SENDER_ID configurado (el Alphanumeric Sender ID de Telnyx,
- * ej. "ALHABLA", pendiente de aprobación — issue #21) se envía directamente
- * con ese texto: la documentación oficial de Telnyx confirma que un Sender
- * ID alfanumérico va en `from` en vez de un número, y se resuelve por su
- * propio Messaging Profile — no depende de que business.telnyxPhoneNumber
- * esté dado de alta para mensajería (el bloqueo 40323/40305 que hoy nos
- * impide enviar). Sin la variable, se sigue usando el número Telnyx del
- * negocio como hasta ahora (mismo bloqueo, sin cambios).
+ * Remitente del SMS: el Alphanumeric Sender ID (`TELNYX_SMS_SENDER_ID`, ej.
+ * "ALHABLA") con el Messaging Profile que la API de Telnyx exige para él
+ * ("Required if sending via number pool or with an alphanumeric sender ID").
+ * Es la única vía de SMS en España: los números geográficos de Telnyx nunca
+ * han podido enviar (40323/40305, AGENTS.md § send-sms), así que sin Sender
+ * ID devuelve null y no se envía nada. Antes caía al número Telnyx del
+ * negocio y cada SMS acababa en 40305 y cuatro reintentos de Cloud Tasks.
  */
-function resolveSmsFromAddress(business: Pick<BusinessVoiceConfig, "telnyxPhoneNumber">): string | null {
-  return process.env.TELNYX_SMS_SENDER_ID || business.telnyxPhoneNumber;
+function resolverRemitenteSms(): {
+  fromNumber: string;
+  messagingProfileId: string;
+} | null {
+  const senderId = process.env.TELNYX_SMS_SENDER_ID?.trim();
+  const messagingProfileId = process.env.TELNYX_MESSAGING_PROFILE_ID?.trim();
+  if (!senderId || !messagingProfileId) return null;
+  return { fromNumber: senderId, messagingProfileId };
 }
 
-/**
- * `messaging_profile_id` es opcional al enviar desde un número normal, pero
- * la propia API de Telnyx lo exige al enviar con un Alphanumeric Sender ID
- * ("Required if sending via number pool or with an alphanumeric sender ID"),
- * así que solo se resuelve cuando ese es el remitente activo — un long-code
- * normal sigue sin necesitarlo.
- */
-function resolveSmsMessagingProfileId(): string | undefined {
-  return process.env.TELNYX_SMS_SENDER_ID
-    ? process.env.TELNYX_MESSAGING_PROFILE_ID
-    : undefined;
-}
+const SIN_REMITENTE_SMS =
+  "sin Sender ID alfanumérico (TELNYX_SMS_SENDER_ID y TELNYX_MESSAGING_PROFILE_ID) y los números españoles no envían SMS";
 
 /**
  * Confirmación y recordatorio al cliente por SMS: solo cuando WhatsApp no
@@ -1104,14 +1099,31 @@ async function enviarMensajesAlClientePorSms(
     timezone: business.timezone || "Europe/Madrid",
     serviceNames: input.serviceNames,
   };
+  const remitente = resolverRemitenteSms();
+  if (!remitente) {
+    console.error(
+      `[VoiceTools] ${input.callLabel} no envía la confirmación al cliente del negocio ${business.id} por SMS (proveedor telnyx): ${SIN_REMITENTE_SMS}`
+    );
+    return;
+  }
+  if (input.toNumber === business.telnyxPhoneNumber) {
+    console.error(
+      `[VoiceTools] ${input.callLabel} no envía la confirmación al cliente del negocio ${business.id} por SMS (proveedor telnyx): el destino es el propio número de Alhabla`
+    );
+    return;
+  }
   const base = {
-    fromNumber: resolveSmsFromAddress(business)!,
+    ...remitente,
     toNumber: input.toNumber,
-    messagingProfileId: resolveSmsMessagingProfileId(),
+    businessId: business.id,
   };
   try {
     await enqueueSmsJob(
-      { ...base, text: buildClientConfirmationSmsText(smsInput) },
+      {
+        ...base,
+        text: buildClientConfirmationSmsText(smsInput),
+        proposito: "confirmacion_cliente",
+      },
       input.bookingId ? { taskId: `confirm-sms-${input.bookingId}` } : undefined
     );
   } catch (smsError) {
@@ -1134,7 +1146,11 @@ async function enviarMensajesAlClientePorSms(
   if (input.bookingId && reminderAllowed && reminderAt.getTime() > Date.now()) {
     try {
       await enqueueSmsJob(
-        { ...base, text: buildClientReminderSmsText(smsInput) },
+        {
+          ...base,
+          text: buildClientReminderSmsText(smsInput),
+          proposito: "recordatorio_cliente",
+        },
         { taskId: `reminder-sms-${input.bookingId}`, scheduleTime: reminderAt }
       );
     } catch (smsError) {
@@ -1142,6 +1158,72 @@ async function enviarMensajesAlClientePorSms(
         `[VoiceTools] ${input.callLabel} no pudo encolar el recordatorio al cliente: ${errorMessage(smsError)}`
       );
     }
+  }
+}
+
+/**
+ * Respaldo por SMS del aviso de nueva reserva, cuando el WhatsApp no salió.
+ * Va al móvil del dueño (`ownerWhatsappNumber`), nunca a la línea de
+ * clientes (`phone`): con «Alhabla como número principal» esa línea ES el
+ * número de Alhabla y el SMS se enviaba a sí mismo (40305 en producción,
+ * 09 y 10-10-2026); con un fijo, a un teléfono que no recibe SMS. El móvil
+ * se lee de la BD, no de la caché de voice_config. Nunca lanza; cada salto
+ * deja un log con negocio, proveedor y motivo.
+ */
+async function avisarNuevaReservaPorSms(
+  business: BusinessVoiceConfig,
+  input: {
+    callLabel: string;
+    bookingId: string | undefined;
+    motivoWhatsapp: string;
+    text: string;
+  }
+): Promise<void> {
+  const etiqueta = `[VoiceTools] ${input.callLabel} aviso de nueva reserva del negocio ${business.id}`;
+  const noSale = (motivo: string) =>
+    console.error(
+      `${etiqueta} no sale por WhatsApp (${input.motivoWhatsapp}) ni por SMS (proveedor telnyx): ${motivo}`
+    );
+
+  const remitente = resolverRemitenteSms();
+  if (!remitente) {
+    noSale(SIN_REMITENTE_SMS);
+    return;
+  }
+
+  let destino: string | null;
+  try {
+    const dueno = await prisma.business.findUnique({
+      where: { id: business.id },
+      select: { ownerWhatsappNumber: true },
+    });
+    destino = dueno?.ownerWhatsappNumber ?? null;
+  } catch (error) {
+    noSale(`no se pudo leer el móvil del dueño: ${errorMessage(error)}`);
+    return;
+  }
+  if (!destino || !isValidE164Phone(destino)) {
+    noSale("el negocio no tiene móvil del dueño válido");
+    return;
+  }
+  if (destino === business.telnyxPhoneNumber) {
+    noSale("el móvil del dueño es el propio número de Alhabla");
+    return;
+  }
+
+  try {
+    await enqueueSmsJob(
+      {
+        ...remitente,
+        toNumber: destino,
+        text: input.text,
+        businessId: business.id,
+        proposito: "aviso_dueno",
+      },
+      input.bookingId ? { taskId: `aviso-sms-${input.bookingId}` } : undefined
+    );
+  } catch (error) {
+    noSale(`no se pudo encolar: ${errorMessage(error)}`);
   }
 }
 
@@ -1900,53 +1982,38 @@ async function executeBookAppointment(
 
         // Aviso #1 al dueño por WhatsApp (PLAN-CANAL-DUENO.md § 4). Nunca
         // lanza y es idempotente por reserva; se espera por la misma razón
-        // que el SMS de abajo (Cloud Run congela el proceso al responder).
-        if (reservaGuardadaId) {
-          await avisarNuevaReserva({
-            businessId: business.id,
-            businessName: business.name,
-            timezone: business.timezone || "Europe/Madrid",
-            bookingId: reservaGuardadaId,
-            clientName,
-            startDateTime: new Date(startDateTime),
-            serviceNames: verifiedServiceNames,
-            professionalName: nombreParaElCliente(resolvedProfessionalName),
-          });
-        }
+        // que el SMS de respaldo (Cloud Run congela el proceso al responder).
+        const avisoWhatsapp: ResultadoAviso = reservaGuardadaId
+          ? await avisarNuevaReserva({
+              businessId: business.id,
+              businessName: business.name,
+              timezone: business.timezone || "Europe/Madrid",
+              bookingId: reservaGuardadaId,
+              clientName,
+              startDateTime: new Date(startDateTime),
+              serviceNames: verifiedServiceNames,
+              professionalName: nombreParaElCliente(resolvedProfessionalName),
+            })
+          : { via: "ninguna", motivo: "la reserva no quedó guardada" };
 
-        // Aviso al propietario por SMS (Telnyx), no por email: nunca puede
-        // hacer fallar la reserva en sí (try/catch propio). Dos guardas antes
-        // de intentarlo: (1) el negocio necesita su propio número Telnyx: sin
-        // él no hay remitente; (2) business.phone válido en formato E.164 —
-        // nace como placeholder ("TEMP-...", ver auth/routes.ts) hasta que el
-        // negocio lo edita explícitamente vía PATCH /business/me, así que sin
-        // esta comprobación cualquier negocio que aún no lo haya hecho
-        // encolaría un SMS destinado a fallar en cada reserva.
-        // Sí se espera (await): en producción enqueueSmsJob solo crea una
-        // tarea de Cloud Tasks (una llamada rápida, no el envío del SMS en
-        // sí) — no esperarla es peligroso en Cloud Run, que solo garantiza
-        // CPU mientras dura la petición y puede congelar el proceso justo
-        // después de responder al tool call, dejando esa tarea sin crear
-        // silenciosamente.
-        if (business.telnyxPhoneNumber && isValidE164Phone(business.phone)) {
-          try {
-            await enqueueSmsJob({
-              fromNumber: resolveSmsFromAddress(business)!,
-              toNumber: business.phone,
-              text: buildBookingSmsText({
-                clientName,
-                startDateTime,
-                timezone: business.timezone || "Europe/Madrid",
-                serviceNames: verifiedServiceNames,
-                professionalName: nombreParaElCliente(resolvedProfessionalName),
-              }),
-              messagingProfileId: resolveSmsMessagingProfileId(),
-            });
-          } catch (smsError) {
-            console.error(
-              `[VoiceTools] ${callLabel} no pudo encolar el SMS de aviso: ${errorMessage(smsError)}`
-            );
-          }
+        // Respaldo por SMS solo si el WhatsApp no salió (decisión de
+        // producto del 10-10-2026). Se espera (await): en producción
+        // enqueueSmsJob solo crea una tarea de Cloud Tasks, pero Cloud Run
+        // solo garantiza CPU mientras dura la petición y puede congelar el
+        // proceso justo después de responder al tool call.
+        if (avisoWhatsapp.via === "ninguna" && !avisoWhatsapp.deliberado) {
+          await avisarNuevaReservaPorSms(business, {
+            callLabel,
+            bookingId: reservaGuardadaId ?? undefined,
+            motivoWhatsapp: avisoWhatsapp.motivo ?? "sin motivo",
+            text: buildBookingSmsText({
+              clientName,
+              startDateTime,
+              timezone: business.timezone || "Europe/Madrid",
+              serviceNames: verifiedServiceNames,
+              professionalName: nombreParaElCliente(resolvedProfessionalName),
+            }),
+          });
         }
 
         // Confirmación (y recordatorio) al cliente. Por WhatsApp cuando está

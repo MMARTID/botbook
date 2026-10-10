@@ -162,7 +162,7 @@ type SdkTemplateComponent = NonNullable<
  *
  * Los números de Alhabla son españoles y Telnyx no permite asignarles un
  * perfil de mensajería (error 40323, mismo bloqueo que documenta
- * `resolveSmsMessagingProfileId` en voiceTools/service.ts) — por eso
+ * `resolverRemitenteSms` en voiceTools/service.ts) — por eso
  * `messaging_profile_id` va explícito en cada envío en vez de dejar que
  * Telnyx lo resuelva a partir del `from`.
  *

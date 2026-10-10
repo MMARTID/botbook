@@ -81,6 +81,7 @@ describe("avisos al negocio (integración)", () => {
     expect(await avisarNuevaReserva(reserva)).toEqual({
       via: "ninguna",
       motivo: "ya enviado",
+      deliberado: true,
     });
     expect(mockedBotones).toHaveBeenCalledTimes(1);
 

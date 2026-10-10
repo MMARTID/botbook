@@ -9,6 +9,10 @@ export function isValidE164Phone(phone: string): boolean {
   return E164_PHONE_REGEX.test(phone);
 }
 
+/** Alphanumeric Sender ID de SMS («ALHABLA»): hasta 11 letras, cifras o
+ * espacios y al menos una letra (si fueran solo cifras sería un número). */
+export const SENDER_ID_ALFANUMERICO_REGEX = /^(?=.*[A-Za-z])[A-Za-z0-9 ]{1,11}$/;
+
 /**
  * Número legible para un texto al cliente: un +34 de nueve dígitos sale en
  * grupos de tres («+34 930 454 394»); cualquier otro se devuelve tal cual.

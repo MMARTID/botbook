@@ -26,16 +26,26 @@ export interface SendEmailJob {
   idempotencyKey?: string;
 }
 
+/** Para qué es el SMS: solo para los logs del job y del endpoint interno. */
+export type PropositoSms =
+  | "aviso_dueno"
+  | "confirmacion_cliente"
+  | "recordatorio_cliente";
+
 export interface SendSmsJob {
-  /** Número Telnyx del negocio (el que ya usa para recibir llamadas del
-   * agente) — se reutiliza también como remitente del SMS, salvo que se use
-   * el Alphanumeric Sender ID (ver `resolveSmsFromAddress`). */
+  /** Remitente: el Alphanumeric Sender ID (`TELNYX_SMS_SENDER_ID`, ver
+   * `resolverRemitenteSms`). Los números geográficos españoles no pueden
+   * enviar SMS (AGENTS.md § send-sms); tareas antiguas aún en cola pueden
+   * traer el número Telnyx del negocio. */
   fromNumber: string;
   toNumber: string;
   text: string;
   /** Obligatorio en la API de Telnyx cuando `fromNumber` es un Alphanumeric
-   * Sender ID en vez de un número — ver `resolveSmsMessagingProfileId`. */
+   * Sender ID en vez de un número — ver `resolverRemitenteSms`. */
   messagingProfileId?: string;
+  /** Negocio y propósito, para que un SMS descartado diga de quién era. */
+  businessId?: string;
+  proposito?: PropositoSms;
   /** Ver SendEmailJob.idempotencyKey. */
   idempotencyKey?: string;
 }
