@@ -7,7 +7,7 @@ import {
   resolvePlanId,
 } from "../../lib/planFeatures.js";
 import { prisma } from "../../lib/prisma.js";
-import { getRedis } from "../../lib/redis.js";
+import { invalidarCacheDeVoz } from "../../lib/voiceConfigCache.js";
 import type { ProfessionalServiceLevel } from "@prisma/client";
 import {
   ProfessionalSchema,
@@ -159,17 +159,10 @@ async function ensureServicesBelongToBusiness(
   }
 }
 
+/** Best-effort y nunca lanza: delega en invalidarCacheDeVoz, la única
+ * función que borra la caché de voz de un negocio. */
 export async function invalidateBusinessAgentConfigCache(businessId: string) {
-  const redis = getRedis();
-
-  try {
-    await redis.del(`voice_config:${businessId}`);
-  } catch (error) {
-    console.error(
-      `[Booking settings] No se pudo invalidar la caché para ${businessId}:`,
-      error
-    );
-  }
+  await invalidarCacheDeVoz(businessId, "[Booking settings]");
 }
 
 /**

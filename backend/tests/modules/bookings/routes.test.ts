@@ -4,6 +4,7 @@ import { bookingSettingsRoutes } from "../../../src/modules/bookings/routes.js";
 import { prisma } from "../../../src/lib/prisma.js";
 import { getRedis } from "../../../src/lib/redis.js";
 import { syncAgentToRetell } from "../../../src/lib/agentBootstrap.js";
+import { invalidarCacheDeVoz } from "../../../src/lib/voiceConfigCache.js";
 
 const {
   mockTransactionProfessionalServiceDeleteMany,
@@ -84,6 +85,13 @@ vi.mock("../../../src/lib/redis.js", () => ({
   getRedis: () => mockRedis,
 }));
 
+// La invalidación de la caché de voz se comprueba por su función, no por la
+// clave de Redis: así el test sigue valiendo cuando esa caché cambie de
+// almacén (plan de corte de Redis, fase 0).
+vi.mock("../../../src/lib/voiceConfigCache.js", () => ({
+  invalidarCacheDeVoz: vi.fn().mockResolvedValue(undefined),
+}));
+
 const mockedBusinessUpdate = vi.mocked(prisma.business.update);
 const mockedGetBookingSettingsBusinessFindUnique = vi.mocked(prisma.business.findUnique);
 const mockedServiceFindFirst = vi.mocked(prisma.service.findFirst);
@@ -117,7 +125,10 @@ describe("PATCH /bookings/ (capacidad) — invalidación de caché (hallazgo #16
     });
 
     expect(response.statusCode).toBe(200);
-    expect(mockRedis.del).toHaveBeenCalledWith("voice_config:biz_1");
+    expect(invalidarCacheDeVoz).toHaveBeenCalledWith(
+      "biz_1",
+      "[Booking settings]"
+    );
   });
 
   it("recupera un servicio solo dentro del negocio autenticado", async () => {

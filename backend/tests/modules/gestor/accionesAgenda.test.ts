@@ -16,6 +16,7 @@ import {
 import { ACCIONES_DEL_GESTOR } from "../../../src/modules/gestor/acciones.js";
 import {
   instanteLocal,
+  moverReserva,
   restarTramo,
 } from "../../../src/modules/gestor/accionesAgenda.js";
 
@@ -483,6 +484,30 @@ describe("añadir_cita", () => {
     );
   });
 
+  // Contrato del cerrojo (plan de corte de Redis, §6.1): si otra reserva
+  // tiene la agenda, el dueño lo oye en sus palabras y no se crea nada.
+  it("con la agenda ocupada por otra reserva lo dice y no crea evento ni reserva", async () => {
+    const tx = transaccionReal();
+    vi.mocked(acquireBookingLock).mockResolvedValueOnce(null);
+
+    const r = await ejecutar("añadir_cita", {
+      cliente: "Pepe",
+      fechaHora: HORA_LOCAL,
+      servicios: ["svc_corte"],
+    });
+
+    expect(r).toEqual({
+      ok: false,
+      mensaje:
+        "La agenda está ocupada ahora mismo con otra reserva. Espera un momento y vuelve a pedírmelo.",
+    });
+    expect(acquireBookingLock).toHaveBeenCalledWith("biz_1");
+    expect(mockedBook).not.toHaveBeenCalled();
+    expect(mockedTransaction).not.toHaveBeenCalled();
+    expect(tx.booking.upsert).not.toHaveBeenCalled();
+    expect(releaseBookingLock).not.toHaveBeenCalled();
+  });
+
   it("un segundo intento sobre la misma acción con reserva viva no duplica", async () => {
     mockedCallFindUnique.mockResolvedValueOnce({
       booking: { id: "b_nueva", isCancelled: false },
@@ -650,6 +675,48 @@ describe("mover_cita", () => {
     );
     // Y lo que se describe al dueño es la hora de ahora (las 12:00).
     expect(r.mensaje).toContain("del jueves 12 de noviembre a las 12:00");
+  });
+
+  // Contrato del cerrojo (plan de corte de Redis, §6.1). moverReserva es lo
+  // que comparten el Gestor y el panel (POST /business/me/bookings/:id/mover).
+  it("moverReserva con la agenda ocupada devuelve agenda_ocupada sin tocar calendario ni cita", async () => {
+    vi.mocked(acquireBookingLock).mockResolvedValueOnce(null);
+
+    const r = await moverReserva({
+      businessId: "biz_1",
+      timezone: "Europe/Madrid",
+      citaId: "b_1",
+      start: new Date(HORA_UTC),
+      profesional: null,
+      etiqueta: "panel b_1",
+      prefijoDeLog: "[Panel]",
+      idempotencia: { callId: "panel:b_1", distintivo: "d_1" },
+    });
+
+    expect(r).toEqual({ ok: false, motivo: "agenda_ocupada", detalle: "" });
+    expect(acquireBookingLock).toHaveBeenCalledWith("biz_1");
+    expect(mockedCheckAvailability).not.toHaveBeenCalled();
+    expect(mockedBook).not.toHaveBeenCalled();
+    expect(mockedCancelEvent).not.toHaveBeenCalled();
+    expect(mockedBookingUpdateMany).not.toHaveBeenCalled();
+    expect(releaseBookingLock).not.toHaveBeenCalled();
+  });
+
+  it("mover_cita con la agenda ocupada se lo dice al dueño en sus palabras", async () => {
+    vi.mocked(acquireBookingLock).mockResolvedValueOnce(null);
+
+    const r = await ejecutar("mover_cita", {
+      cita: "b_1",
+      fechaHora: HORA_LOCAL,
+    });
+
+    expect(r).toEqual({
+      ok: false,
+      mensaje:
+        "La agenda está ocupada ahora mismo con otra reserva. Espera un momento y vuelve a pedírmelo.",
+    });
+    expect(mockedBook).not.toHaveBeenCalled();
+    expect(mockedBookingUpdateMany).not.toHaveBeenCalled();
   });
 
   it("si la cita se canceló mientras esperaba el candado, no crea evento y suelta la agenda", async () => {

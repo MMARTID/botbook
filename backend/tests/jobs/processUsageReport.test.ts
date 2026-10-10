@@ -87,6 +87,32 @@ describe("processUsageReportJob", () => {
     expect(mockedReleaseLock).toHaveBeenCalledWith("billing_usage:business_123", "lock-token");
   });
 
+  // Contrato del cerrojo (plan de corte de Redis, §6.1): otra ejecución del
+  // mismo negocio ya está informando; esta no puede duplicar el consumo.
+  it("sin el cerrojo de facturación no crea informe ni llama a Stripe", async () => {
+    mockedAcquireLock.mockResolvedValue(null);
+    const createMeterEvent = vi.fn();
+    mockedGetStripeClient.mockReturnValue({
+      billing: { meterEvents: { create: createMeterEvent } },
+    } as any);
+
+    await expect(
+      processUsageReportJob({ businessId: "business_123" })
+    ).resolves.toBeUndefined();
+
+    expect(mockedAcquireLock).toHaveBeenCalledWith(
+      "billing_usage:business_123",
+      90_000,
+      0
+    );
+    expect(mockedFindBusiness).not.toHaveBeenCalled();
+    expect(mockedUpsertPeriod).not.toHaveBeenCalled();
+    expect(mockedCreateReport).not.toHaveBeenCalled();
+    expect(mockedGetStripeClient).not.toHaveBeenCalled();
+    expect(createMeterEvent).not.toHaveBeenCalled();
+    expect(mockedReleaseLock).not.toHaveBeenCalled();
+  });
+
   it("al 80 % de los minutos avisa por email y por WhatsApp (alerta #5) una sola vez", async () => {
     const { enqueueEmailJob } = await import("../../src/lib/cloudTasks.js");
     const { alertarMinutos } = await import("../../src/modules/whatsapp/alertas.js");

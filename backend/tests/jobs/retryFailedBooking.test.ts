@@ -416,6 +416,32 @@ describe("processRetryFailedBookingJob", () => {
     );
   });
 
+  // Contrato del cerrojo (plan de corte de Redis, §6.1): sin la agenda del
+  // negocio el job falla para que Cloud Tasks lo reintente, sin haber
+  // tocado el calendario ni la reserva.
+  it("sin el cerrojo de reserva lanza y no toca el calendario, la reserva ni el lead", async () => {
+    mockedLeadFindUnique.mockResolvedValue(buildLead() as any);
+    mockedCallFindUnique.mockResolvedValue({ businessId: "biz_1" } as any);
+    mockedBusinessFindUnique.mockResolvedValue(buildBusiness() as any);
+    mockedAcquireBookingLock.mockResolvedValue(null);
+
+    await expect(processRetryFailedBookingJob({ leadId })).rejects.toThrow(
+      "No se pudo adquirir el lock de reserva de biz_1"
+    );
+
+    expect(mockedAcquireBookingLock).toHaveBeenCalledWith("biz_1");
+    expect(mockedGetBusyIntervals).not.toHaveBeenCalled();
+    expect(mockedCheckAvailability).not.toHaveBeenCalled();
+    expect(mockedBookAppointment).not.toHaveBeenCalled();
+    expect(mockedTransaction).not.toHaveBeenCalled();
+    expect(mockUpsert).not.toHaveBeenCalled();
+    expect(mockedLeadUpdate).not.toHaveBeenCalled();
+    expect(mockedReleaseBookingLock).not.toHaveBeenCalled();
+    // Lanzar es lo que hace que Cloud Tasks lo reintente: no se reprograma
+    // a mano encima.
+    expect(mockedEnqueueRetryBookingJob).not.toHaveBeenCalled();
+  });
+
   it("comprueba si ya existe una reserva DESPUÉS de adquirir el lock, no antes (regresión post-auditoría)", async () => {
     mockedLeadFindUnique.mockResolvedValue(buildLead() as any);
     mockedCallFindUnique.mockResolvedValue({ businessId: "biz_1" } as any);

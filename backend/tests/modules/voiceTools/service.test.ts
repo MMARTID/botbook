@@ -10,9 +10,14 @@ import {
 import { checkAvailability } from "../../../src/lib/availability.js";
 import { calendarService } from "../../../src/modules/calendar/service.js";
 import {
+  enqueueRetryBookingJob,
   enqueueSmsJob,
   enqueueWhatsappJob,
 } from "../../../src/lib/cloudTasks.js";
+import {
+  acquireBookingLock,
+  releaseBookingLock,
+} from "../../../src/lib/bookingLock.js";
 import {
   avisarCitaPendiente,
   avisarNuevaReserva,
@@ -43,14 +48,24 @@ vi.mock("../../../src/lib/prisma.js", () => ({
 vi.mock("../../../src/lib/redis.js", () => ({
   getRedis: vi.fn(() => ({
     get: vi.fn().mockResolvedValue(null),
-    // "OK" simula que el SET NX del lock de reserva (acquireBookingLock) lo
-    // consigue siempre a la primera — el propio lock de concurrencia se
-    // prueba aparte en tests/lib/bookingLock.test.ts; aquí solo interesa que
-    // no bloquee ni retrase estos tests (cada intento fallido espera 300ms).
+    // El cerrojo de reserva ya no pasa por aquí: va por el mock de
+    // lib/bookingLock.js de abajo. Este "OK" es para el resto de escrituras
+    // del módulo: el SET NX de pending_booking_alert (que así sale a la
+    // primera), el draft del token de disponibilidad y la caché de voz.
     set: vi.fn().mockResolvedValue("OK"),
     del: vi.fn(),
     eval: vi.fn().mockResolvedValue(1),
   })),
+}));
+
+// El cerrojo de reserva se mockea por su interfaz (token o null), no por el
+// SET NX de Redis: así estos tests siguen valiendo cuando el cerrojo cambie
+// de almacén (plan de corte de Redis). Por defecto se consigue siempre; los
+// tests de «agenda ocupada» lo ponen a null. El resto del módulo es el real.
+vi.mock("../../../src/lib/bookingLock.js", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../../../src/lib/bookingLock.js")>()),
+  acquireBookingLock: vi.fn(async () => "token"),
+  releaseBookingLock: vi.fn(async () => undefined),
 }));
 
 vi.mock("../../../src/lib/businessSchedule.js", () => ({
@@ -483,6 +498,130 @@ describe("executeVoiceTool book_appointment — vinculación a la llamada correc
     expect(mockedBookAppointment).toHaveBeenCalledWith(
       expect.objectContaining({ clientPhone: "+34611222333" })
     );
+  });
+});
+
+// Contrato del cerrojo de reserva (plan de corte de Redis, §6.1): si otra
+// reserva del mismo negocio tiene la agenda, no se reserva a ciegas; se
+// guarda la cita pendiente, se encola el reintento y se le dice al cliente.
+describe("executeVoiceTool book_appointment — agenda ocupada por otra reserva", () => {
+  const mockedAcquireBookingLock = vi.mocked(acquireBookingLock);
+  const mockedReleaseBookingLock = vi.mocked(releaseBookingLock);
+  const mockedEnqueueRetryBookingJob = vi.mocked(enqueueRetryBookingJob);
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockedBusinessFindUnique.mockResolvedValue(buildBusiness() as any);
+    mockedCheckBusinessHours.mockReturnValue({
+      success: true,
+      isOpen: true,
+    } as any);
+    mockedBookAppointment.mockResolvedValue({
+      htmlLink: "https://calendar.google.com/event/1",
+    } as any);
+    mockedGetBusyIntervals.mockResolvedValue({
+      intervals: [],
+      calendarAvailabilityKnown: true,
+    } as any);
+    mockedProfessionalFindFirst.mockResolvedValue({
+      id: "professional_123",
+      name: "Ana",
+    } as any);
+    mockedProfessionalFindMany.mockResolvedValue([]);
+    mockedServiceFindMany.mockResolvedValue([]);
+    mockedCheckAvailability.mockResolvedValue({
+      available: true,
+      message: "",
+      capacityUsed: 0,
+      capacityTotal: 1,
+      availableProfessionals: [{ id: "professional_123", name: "Ana" }],
+    } as any);
+    mockedBookingFindUnique.mockResolvedValue(null);
+    mockedEnqueueSmsJob.mockResolvedValue(undefined);
+    mockedCallFindUnique.mockResolvedValue({
+      id: "call_row_1",
+      fromNumber: "+34600999888",
+      businessId: "business_123",
+    } as any);
+    mockedLeadCreate.mockResolvedValue({ id: "lead_1" } as any);
+  });
+
+  it("sin el cerrojo guarda la cita pendiente con BOOKING_LOCK_TIMEOUT, encola el reintento y avisa al cliente", async () => {
+    mockedAcquireBookingLock.mockResolvedValueOnce(null);
+
+    const result = await executeVoiceTool(
+      buildBookAppointmentInput({ callId: "call_vapi_1" })
+    );
+
+    expect(mockedAcquireBookingLock).toHaveBeenCalledWith("business_123");
+    expect(result.success).toBe(true);
+    expect(result.result).toEqual({
+      success: false,
+      code: "BOOKING_LOCK_TIMEOUT",
+      message:
+        "Hay otra reserva de este negocio en curso justo ahora. He tomado nota de tus datos y te confirmaremos en breve.",
+    });
+    // Los datos del cliente no se pierden: lead pendiente ligado a la llamada.
+    expect(mockedLeadCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          callId: "call_row_1",
+          type: "pending_booking",
+          data: expect.objectContaining({
+            clientName: "María",
+            startDateTime: "2026-08-25T17:00:00+02:00",
+            durationMinutes: 60,
+            professionalId: "professional_123",
+            failureCode: "BOOKING_LOCK_TIMEOUT",
+          }),
+        }),
+      })
+    );
+    // El reintento en segundo plano, con el id del lead.
+    expect(mockedEnqueueRetryBookingJob).toHaveBeenCalledWith(
+      { leadId: "lead_1" },
+      "retry-failed-booking-lead_1"
+    );
+    // El dueño se entera (aviso #3).
+    expect(avisarCitaPendiente).toHaveBeenCalledWith(
+      expect.objectContaining({
+        businessId: "business_123",
+        leadId: "lead_1",
+        failureCode: "BOOKING_LOCK_TIMEOUT",
+      })
+    );
+  });
+
+  it("sin el cerrojo no mira la disponibilidad, no toca el calendario ni guarda la reserva", async () => {
+    mockedAcquireBookingLock.mockResolvedValueOnce(null);
+
+    await executeVoiceTool(
+      buildBookAppointmentInput({ callId: "call_vapi_1" })
+    );
+
+    expect(mockedCheckAvailability).not.toHaveBeenCalled();
+    expect(mockedGetBusyIntervals).not.toHaveBeenCalled();
+    expect(mockedBookAppointment).not.toHaveBeenCalled();
+    expect(mockedBookingUpsert).not.toHaveBeenCalled();
+    expect(avisarNuevaReserva).not.toHaveBeenCalled();
+    // No hay cerrojo propio que soltar.
+    expect(mockedReleaseBookingLock).not.toHaveBeenCalled();
+  });
+
+  it("con el cerrojo reserva y lo suelta con su propio token", async () => {
+    mockedAcquireBookingLock.mockResolvedValueOnce("token-propio");
+
+    const result = await executeVoiceTool(
+      buildBookAppointmentInput({ callId: "call_vapi_1" })
+    );
+
+    expect(result.result.success).toBe(true);
+    expect(mockedBookAppointment).toHaveBeenCalledTimes(1);
+    expect(mockedReleaseBookingLock).toHaveBeenCalledWith(
+      "business_123",
+      "token-propio"
+    );
+    expect(mockedLeadCreate).not.toHaveBeenCalled();
   });
 });
 
@@ -3111,5 +3250,89 @@ describe("executeVoiceTool informar_al_negocio (post-conversación)", () => {
     expect(result.success).toBe(true);
     expect(procesarInformeFinal).not.toHaveBeenCalled();
     errorSpy.mockRestore();
+  });
+});
+
+// El borrado de una entrada rota de voice_config (calendario sin confirmar)
+// pasa por invalidarCacheDeVoz: se mira con lib/voiceConfigCache.js real
+// sobre el Redis mockeado, para probar la clave exacta que se borra.
+describe("executeVoiceTool — entrada de la caché de voz con el calendario sin confirmar", () => {
+  const redisMock = {
+    get: vi.fn(),
+    set: vi.fn().mockResolvedValue("OK"),
+    del: vi.fn(),
+    eval: vi.fn().mockResolvedValue(1),
+  };
+  const fabricaOriginal = vi.mocked(getRedis).getMockImplementation();
+  // Lo que había en la caché: el negocio sin ninguna conexión de calendario
+  // confirmada (como tras un fallo de OAuth a medias).
+  const entradaRota = JSON.stringify(
+    buildBusiness({ calendarConnections: [] })
+  );
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    redisMock.get.mockResolvedValue(entradaRota);
+    redisMock.del.mockResolvedValue(1);
+    vi.mocked(getRedis).mockImplementation(() => redisMock as never);
+    mockedBusinessFindUnique.mockResolvedValue(buildBusiness() as never);
+    mockedServiceFindMany.mockResolvedValue([] as never);
+    mockedProfessionalFindMany.mockResolvedValue([] as never);
+  });
+
+  afterEach(() => {
+    if (fabricaOriginal)
+      vi.mocked(getRedis).mockImplementation(fabricaOriginal);
+  });
+
+  it("se borra voice_config:<negocio> y la configuración se relee de la BD", async () => {
+    const result = await executeVoiceTool({
+      businessId: "business_123",
+      toolName: "get_catalog",
+      params: {},
+    });
+
+    expect(result.success).toBe(true);
+    expect(redisMock.get).toHaveBeenCalledWith("voice_config:business_123");
+    expect(redisMock.del).toHaveBeenCalledTimes(1);
+    expect(redisMock.del).toHaveBeenCalledWith("voice_config:business_123");
+    expect(mockedBusinessFindUnique).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: "business_123" } })
+    );
+    // Se borra antes de releer, y lo releído (con el calendario bueno) es lo
+    // que se vuelve a cachear.
+    expect(redisMock.del.mock.invocationCallOrder[0]).toBeLessThan(
+      mockedBusinessFindUnique.mock.invocationCallOrder[0]
+    );
+    const [clave, valor] = redisMock.set.mock.calls[0];
+    expect(clave).toBe("voice_config:business_123");
+    expect(JSON.parse(valor as string).calendarConnections).toHaveLength(1);
+  });
+
+  it("si el borrado falla no lanza, relee de la BD y lo registra con el negocio", async () => {
+    const fallo = new Error("Redis caído");
+    redisMock.del.mockRejectedValue(fallo);
+    const errorSpy = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => undefined);
+
+    try {
+      const result = await executeVoiceTool({
+        businessId: "business_123",
+        toolName: "get_catalog",
+        params: {},
+      });
+
+      expect(result.success).toBe(true);
+      expect(mockedBusinessFindUnique).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: "business_123" } })
+      );
+      expect(errorSpy).toHaveBeenCalledWith(
+        "[VoiceTools] No se pudo invalidar la caché de configuración de voz para business_123:",
+        fallo
+      );
+    } finally {
+      errorSpy.mockRestore();
+    }
   });
 });
