@@ -85,6 +85,33 @@ describe("telnyxHealthCheckJob", () => {
     expect(mockedBusinessFindMany).not.toHaveBeenCalled();
   });
 
+  it("avisa de que falta TELNYX_STATUS_COMPONENT_IDS una sola vez por instancia, no cada 2 minutos", async () => {
+    // Módulo fresco: el aviso se recuerda en una variable del módulo.
+    vi.resetModules();
+    const { telnyxHealthCheckJob: jobFresco } = await import(
+      "../../src/jobs/telnyxHealthCheck.js"
+    );
+    const { checkTelnyxAiInfraStatus: statusFresco } = await import(
+      "../../src/lib/telnyxStatusPage.js"
+    );
+    vi.mocked(statusFresco).mockResolvedValue({
+      healthy: false,
+      unconfigured: true,
+      components: [],
+    });
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+
+    await jobFresco();
+    await jobFresco();
+    await jobFresco();
+
+    const avisos = warn.mock.calls.filter(([m]) =>
+      String(m).includes("TELNYX_STATUS_COMPONENT_IDS")
+    );
+    expect(avisos).toHaveLength(1);
+    warn.mockRestore();
+  });
+
   it("no lanza y no evalúa nada si falla la consulta del status page", async () => {
     mockedCheckStatus.mockRejectedValue(new Error("network down"));
 
