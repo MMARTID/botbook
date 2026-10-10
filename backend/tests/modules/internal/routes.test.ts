@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import Fastify from "fastify";
 import { internalJobsRoutes } from "../../../src/modules/internal/routes.js";
+import { PermanentJobError } from "../../../src/lib/jobErrors.js";
 import { processRecordingJob } from "../../../src/jobs/processRecording.js";
 import { processRetryFailedBookingJob } from "../../../src/jobs/retryFailedBooking.js";
 import { processSendEmailJob } from "../../../src/jobs/sendEmail.js";
@@ -330,6 +331,63 @@ describe("internalJobsRoutes", () => {
 
       expect(response.statusCode).toBe(500);
       expect(response.json()).toEqual({ error: "Job processing failed" });
+    });
+
+    // 40305 en producción (INFINITY, 09 y 10-10-2026): un rechazo definitivo
+    // de Telnyx devolvía 500 y Cloud Tasks lo repetía cuatro veces.
+    it("responde 200 con skipped si el job falla de forma definitiva (no reintenta)", async () => {
+      mockedProcessSendSmsJob.mockRejectedValue(
+        new PermanentJobError("Telnyx rechazó el SMS (400 40305)", "telnyx_40305")
+      );
+
+      const response = await fastify.inject({
+        method: "POST",
+        url: "/jobs/send-sms",
+        payload: validPayload,
+      });
+
+      expect(response.statusCode).toBe(200);
+      expect(response.json()).toEqual({
+        received: true,
+        skipped: "telnyx_40305",
+      });
+    });
+
+    // Antes el esquema exigía E.164 en `fromNumber` y descartaba
+    // `messagingProfileId`: el día del Sender ID todos los SMS habrían
+    // muerto aquí con un 400.
+    it("acepta el Sender ID alfanumérico y conserva messagingProfileId, negocio y propósito", async () => {
+      mockedProcessSendSmsJob.mockResolvedValue(undefined);
+      const payload = {
+        fromNumber: "ALHABLA",
+        toNumber: "+34612345678",
+        text: "Nueva reserva",
+        messagingProfileId: "perfil_sms",
+        businessId: "business_123",
+        proposito: "aviso_dueno",
+        idempotencyKey: "aviso-sms-booking_1",
+      };
+
+      const response = await fastify.inject({
+        method: "POST",
+        url: "/jobs/send-sms",
+        payload,
+      });
+
+      expect(response.statusCode).toBe(200);
+      expect(mockedProcessSendSmsJob).toHaveBeenCalledWith(payload);
+    });
+
+    it("devuelve 400 si el remitente no es ni E.164 ni un Sender ID válido", async () => {
+      for (const fromNumber of ["123456", "ALHABLA-DEMASIADO-LARGO", "AL@HABLA"]) {
+        const response = await fastify.inject({
+          method: "POST",
+          url: "/jobs/send-sms",
+          payload: { ...validPayload, fromNumber },
+        });
+        expect(response.statusCode).toBe(400);
+      }
+      expect(mockedProcessSendSmsJob).not.toHaveBeenCalled();
     });
   });
 

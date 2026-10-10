@@ -288,6 +288,7 @@ describe("enviarAvisoAlNegocio (vía avisarNuevaReserva)", () => {
     expect(await avisarNuevaReserva(RESERVA)).toEqual({
       via: "ninguna",
       motivo: "aviso por reserva desactivado",
+      deliberado: true,
     });
     expect(mockedReclamar).not.toHaveBeenCalled();
   });
@@ -298,6 +299,7 @@ describe("enviarAvisoAlNegocio (vía avisarNuevaReserva)", () => {
     expect(await avisarNuevaReserva(RESERVA)).toEqual({
       via: "ninguna",
       motivo: "ya enviado",
+      deliberado: true,
     });
     expect(mockedBotones).not.toHaveBeenCalled();
   });

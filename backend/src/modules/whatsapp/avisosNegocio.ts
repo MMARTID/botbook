@@ -53,6 +53,9 @@ export interface ResultadoAviso {
   via: ViaAviso;
   /** Por qué no salió por WhatsApp (log y `Lead.notifiedVia`). */
   motivo?: string;
+  /** No salió a propósito (aviso desactivado por el dueño, ya enviado,
+   * negocio inactivo): ningún otro canal debe suplirlo. */
+  deliberado?: boolean;
 }
 
 interface AvisoAlNegocio {
@@ -198,14 +201,22 @@ export async function enviarAvisoAlNegocio(
     return respaldoPorEmail(aviso, "sin acceso a la base de datos");
   }
   if (!business || !business.active) {
-    return { via: "ninguna", motivo: "negocio inexistente o inactivo" };
+    return {
+      via: "ninguna",
+      motivo: "negocio inexistente o inactivo",
+      deliberado: true,
+    };
   }
 
   if (
     aviso.tipo === "nueva_reserva" &&
     preferenciasDeAvisos(business.notificationPrefs).avisoPorReserva === false
   ) {
-    return { via: "ninguna", motivo: "aviso por reserva desactivado" };
+    return {
+      via: "ninguna",
+      motivo: "aviso por reserva desactivado",
+      deliberado: true,
+    };
   }
 
   const numero = business.ownerWhatsappNumber;
@@ -236,7 +247,7 @@ export async function enviarAvisoAlNegocio(
     kind: "interactive",
   });
   if (!reclamado) {
-    return { via: "ninguna", motivo: "ya enviado" };
+    return { via: "ninguna", motivo: "ya enviado", deliberado: true };
   }
 
   const ventana = await ventanaAbierta("owner", numero);
