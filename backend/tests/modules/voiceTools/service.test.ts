@@ -59,11 +59,15 @@ vi.mock("../../../src/lib/businessSchedule.js", () => ({
   formatScheduleForPrompt: vi.fn(() => "Lunes a viernes, de 09:00 a 18:00."),
 }));
 
-vi.mock("../../../src/lib/availability.js", () => ({
+vi.mock("../../../src/lib/availability.js", async (importActual) => ({
   checkAvailability: vi.fn(),
   computeAvailabilityLookaheadMs: vi.fn(
     (durationMinutes: number) => 4 * 60 * 60_000 + durationMinutes * 60_000
   ),
+  // Pura: la real, para que los tests vean desde cuándo se lee el calendario.
+  inicioDeBusquedaHaciaAtras: (
+    await importActual<typeof import("../../../src/lib/availability.js")>()
+  ).inicioDeBusquedaHaciaAtras,
 }));
 
 vi.mock("../../../src/modules/calendar/service.js", () => ({
@@ -812,6 +816,23 @@ describe("executeVoiceTool check_availability — restricciones de reserva del n
     expect(result.result.availabilityToken).toEqual(expect.any(String));
     expect(mockedCheckAvailability).toHaveBeenCalledTimes(1);
     expect(draftsGuardados()).toHaveLength(1);
+  });
+
+  it("pide el hueco más cercano, antes o después, sin bajar de la antelación mínima, y lee el calendario desde ahí", async () => {
+    // Decisión de producto del 2026-10-10 (conversación Telnyx f08c40b0). La
+    // antelación mínima del negocio es de 2 h y ahora son las 16:00 en
+    // Madrid: nada antes de las 18:00 de hoy.
+    await comprobar({ startDateTime: "2026-08-27T17:00:00+02:00" });
+
+    const noAntesDe = new Date(AHORA.getTime() + 120 * 60_000);
+    expect(mockedCheckAvailability).toHaveBeenCalledWith(
+      expect.objectContaining({ buscarTambienAntes: { noAntesDe } })
+    );
+    // Tres días antes de la hora pedida caería en el pasado: el calendario se
+    // lee desde noAntesDe, el mismo inicio que usa la búsqueda.
+    expect(mockedGetBusyIntervals).toHaveBeenCalledWith(
+      expect.objectContaining({ timeMin: noAntesDe })
+    );
   });
 
   it("no ofrece una alternativa que cae fuera del horizonte de 120 días", async () => {

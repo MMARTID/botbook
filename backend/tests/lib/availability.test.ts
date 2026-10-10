@@ -986,3 +986,122 @@ describe("checkAvailability — niveles por servicio", () => {
     });
   });
 });
+
+describe("checkAvailability — hueco más cercano, antes o después (buscarTambienAntes)", () => {
+  // Llamada de prueba del 2026-10-10 (conversación Telnyx f08c40b0): maquillaje
+  // de novia de 100 min pedido el sábado 10-10 a las 13:00, con cierre a las
+  // 14:00. Solo se buscaba hacia delante y se ofreció el martes a las 9:00,
+  // cuando a las 12:15 de ese mismo sábado cabía.
+  const laborable = { enabled: true, intervals: [{ start: "09:00", end: "18:00" }] };
+  const horarioInfinity = {
+    version: 1,
+    week: {
+      monday: { enabled: false, intervals: [] },
+      tuesday: laborable,
+      wednesday: laborable,
+      thursday: laborable,
+      friday: laborable,
+      saturday: { enabled: true, intervals: [{ start: "09:00", end: "14:00" }] },
+      sunday: { enabled: false, intervals: [] },
+    },
+    exceptions: [],
+  };
+  const SABADO_13 = "2026-10-10T13:00:00+02:00";
+  const temprano = { noAntesDe: new Date("2026-10-10T08:00:00+02:00") };
+
+  function comprobar(extra: Record<string, unknown> = {}) {
+    return checkAvailability({
+      businessId,
+      schedule: horarioInfinity,
+      timezone: europeMadrid,
+      bookingCapacity: 1,
+      startDateTime: SABADO_13,
+      durationMinutes: 100,
+      serviceIds: ["service_target"],
+      ...extra,
+    });
+  }
+
+  function sugerencia(result: Awaited<ReturnType<typeof checkAvailability>>) {
+    return result.available ? undefined : result.suggestedNextSlot?.startDateTime;
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(prisma.professionalAbsence.findMany).mockResolvedValue([]);
+    givenProfessionals([{ id: "prof_1", name: "Ana", serviceIds: [] }]);
+    givenBookings([]);
+  });
+
+  it("ofrece las 12:15 del mismo sábado, la más cercana, en vez del martes", async () => {
+    const result = await comprobar({ buscarTambienAntes: temprano });
+
+    expect(result).toMatchObject({ available: false, code: "OUTSIDE_BUSINESS_HOURS" });
+    expect(sugerencia(result)).toBe(new Date("2026-10-10T12:15:00+02:00").toISOString());
+  });
+
+  it("sin la opción sigue ofreciendo la siguiente, como el Gestor y la lista de espera", async () => {
+    const result = await comprobar();
+
+    expect(sugerencia(result)).toBe(new Date("2026-10-13T09:00:00+02:00").toISOString());
+  });
+
+  it("hacia atrás también respeta las citas: con Ana ocupada de 12:00 a 13:00, las 10:15", async () => {
+    givenBookings([
+      { programedAt: new Date("2026-10-10T12:00:00+02:00"), professionalId: "prof_1", durationMinutes: 60 },
+    ]);
+
+    const result = await comprobar({ buscarTambienAntes: temprano });
+
+    expect(sugerencia(result)).toBe(new Date("2026-10-10T10:15:00+02:00").toISOString());
+  });
+
+  it("no ofrece nada antes de noAntesDe (antelación mínima): pasa a la siguiente", async () => {
+    const result = await comprobar({
+      buscarTambienAntes: { noAntesDe: new Date("2026-10-10T12:30:00+02:00") },
+    });
+
+    expect(sugerencia(result)).toBe(new Date("2026-10-13T09:00:00+02:00").toISOString());
+  });
+
+  it("en un empate a la misma distancia gana la de después", async () => {
+    // Miércoles 10:00 ocupado de 10:00 a 10:30: las 9:30 y las 10:30 quedan a
+    // media hora de la pedida.
+    givenBookings([
+      { programedAt: new Date("2026-10-14T10:00:00+02:00"), professionalId: "prof_1", durationMinutes: 30 },
+    ]);
+
+    const result = await comprobar({
+      startDateTime: "2026-10-14T10:00:00+02:00",
+      durationMinutes: 30,
+      buscarTambienAntes: { noAntesDe: new Date("2026-10-14T08:00:00+02:00") },
+    });
+
+    expect(result).toMatchObject({ available: false, code: "CAPACITY_REACHED" });
+    expect(sugerencia(result)).toBe(new Date("2026-10-14T10:30:00+02:00").toISOString());
+  });
+
+  it("carga las citas y ausencias del tramo anterior que va a mirar", async () => {
+    await comprobar({ buscarTambienAntes: temprano });
+
+    // Desde noAntesDe (dentro de los 3 días de tope) menos el margen de 24 h
+    // para citas que empezaron antes y siguen ocupando.
+    expect(mockedBookingFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          isCancelled: false,
+          programedAt: expect.objectContaining({
+            gte: new Date("2026-10-09T08:00:00+02:00"),
+          }),
+        }),
+      })
+    );
+    expect(prisma.professionalAbsence.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          endsAt: { gt: new Date("2026-10-10T08:00:00+02:00") },
+        }),
+      })
+    );
+  });
+});
